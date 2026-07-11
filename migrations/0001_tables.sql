@@ -1,5 +1,3 @@
-PRAGMA foreign_keys = ON;
-
 CREATE TABLE notebooks (
   id TEXT PRIMARY KEY,
   parent_id TEXT,
@@ -187,55 +185,3 @@ CREATE TABLE audit_events (
 
 CREATE INDEX idx_audit_events_entity
   ON audit_events(entity_type, entity_id, created_at DESC);
-
-INSERT INTO notebooks (id, parent_id, name, slug, icon, color, sort_order)
-VALUES
-  ('nb_inbox', NULL, '绛夊緟鍒嗙被', 'inbox', 'notebook', '#0f766e', 10),
-  ('nb_projects', NULL, '宸ヤ綔椤圭洰', 'work-projects', 'notebook', '#2563eb', 20),
-  ('nb_learning', NULL, '瀛︿範璧勬枡', 'learning-resources', 'notebook', '#7c3aed', 30),
-  ('nb_creative', NULL, '鐏垫劅鍒涗綔', 'creative-ideas', 'notebook', '#db2777', 40),
-  ('nb_personal', NULL, '鐢熸椿涓汉', 'personal-life', 'notebook', '#ea580c', 50);
-
-INSERT INTO memos (
-  id,
-  notebook_id,
-  title,
-  excerpt,
-  tags_json,
-  created_by,
-  updated_by
-)
-VALUES (
-  'memo_welcome',
-  'nb_inbox',
-  '娆㈣繋鏉ュ埌 EdgeEver',
-  '杩欐槸绗竴鏉?EdgeEver 绗旇锛屼笁鏍忋€佽竟缂樸€丄gent-ready銆?,
-  '["edgeever","welcome"]',
-  'system',
-  'system'
-);
-
-INSERT INTO memo_contents (
-  memo_id,
-  content_json,
-  content_markdown,
-  content_text,
-  content_hash,
-  revision
-)
-VALUES (
-  'memo_welcome',
-  '{"type":"doc","content":[{"type":"heading","attrs":{"level":2},"content":[{"type":"text","text":"娆㈣繋鏉ュ埌 EdgeEver"}]},{"type":"paragraph","content":[{"type":"text","text":"杩欐槸绗竴鏉?EdgeEver 绗旇锛屼笁鏍忋€佽竟缂樸€丄gent-ready銆?}]},{"type":"paragraph","content":[{"type":"text","text":"鎺ヤ笅鏉ュ彲浠ュ垱寤虹瑪璁版湰銆佸啓绗旇銆佹悳绱㈠唴瀹癸紝骞舵妸澶氭潯绗旇鍚堝苟鎴愪竴鏉℃柊鐨勯暱鏈熺瑪璁般€?}]}]}',
-  '## 娆㈣繋鏉ュ埌 EdgeEver\n\n杩欐槸绗竴鏉?EdgeEver 绗旇锛屼笁鏍忋€佽竟缂樸€丄gent-ready銆俓n\n鎺ヤ笅鏉ュ彲浠ュ垱寤虹瑪璁版湰銆佸啓绗旇銆佹悳绱㈠唴瀹癸紝骞舵妸澶氭潯绗旇鍚堝苟鎴愪竴鏉℃柊鐨勯暱鏈熺瑪璁般€?,
-  '娆㈣繋鏉ュ埌 EdgeEver 杩欐槸绗竴鏉?EdgeEver 绗旇锛屼笁鏍忋€佽竟缂樸€丄gent-ready銆?鎺ヤ笅鏉ュ彲浠ュ垱寤虹瑪璁版湰銆佸啓绗旇銆佹悳绱㈠唴瀹癸紝骞舵妸澶氭潯绗旇鍚堝苟鎴愪竴鏉℃柊鐨勯暱鏈熺瑪璁般€?,
-  'seed',
-  0
-);
-
-INSERT INTO memos_fts (memo_id, title, content_text, tags)
-VALUES (
-  'memo_welcome',
-  '娆㈣繋鏉ュ埌 EdgeEver',
-  '娆㈣繋鏉ュ埌 EdgeEver 杩欐槸绗竴鏉?EdgeEver 绗旇锛屼笁鏍忋€佽竟缂樸€丄gent-ready銆?鎺ヤ笅鏉ュ彲浠ュ垱寤虹瑪璁版湰銆佸啓绗旇銆佹悳绱㈠唴瀹癸紝骞舵妸澶氭潯绗旇鍚堝苟鎴愪竴鏉℃柊鐨勯暱鏈熺瑪璁般€?,
-  'edgeever welcome'
-);

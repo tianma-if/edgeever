@@ -1,0 +1,63 @@
+name: Sync Upstream
+
+on:
+  schedule:
+    # 每天 UTC 00:00 (北京时间 08:00) 自动执行
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    name: Sync from tianma-if/edgeever
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+
+      - name: Add upstream remote
+        run: |
+          git remote add upstream https://github.com/tianma-if/edgeever.git
+          git fetch upstream main
+
+      - name: Check for upstream changes
+        id: check
+        run: |
+          BEHIND=$(git rev-list HEAD..upstream/main --count)
+          echo "behind=$BEHIND" >> $GITHUB_OUTPUT
+          echo "upstream HEAD is $BEHIND commit(s) ahead of fork"
+
+      - name: Merge upstream changes
+        if: steps.check.outputs.behind != '0'
+        run: |
+          git merge upstream/main --no-edit
+          git push origin main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create PR if merge conflict
+        if: failure() && steps.check.outputs.behind != '0'
+        run: |
+          UPSTREAM_SHA=$(git rev-parse upstream/main)
+          git checkout -b sync/upstream-$(date +%Y%m%d)
+          git merge upstream/main --no-edit || true
+          git push origin sync/upstream-$(date +%Y%m%d) --force
+          gh pr create \
+            --title "Sync: merge upstream changes $(date +%Y-%m-%d)" \
+            --body "Auto-sync from [tianma-if/edgeever](https://github.com/tianma-if/edgeever/commit/$UPSTREAM_SHA). Manual merge required due to conflicts." \
+            --base main \
+            --head sync/upstream-$(date +%Y%m%d)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
