@@ -7,8 +7,10 @@ import { EvernoteImportGuideCard } from "./settings/EvernoteImportGuideCard";
 import { McpConfigCard } from "./settings/McpConfigCard";
 import { PreferenceCard } from "./settings/PreferenceCard";
 import { PwaInstallCard } from "./settings/PwaInstallCard";
+import { PasswordCard } from "./settings/PasswordCard";
 import { SessionCard } from "./settings/SessionCard";
 import { SystemInfoCard } from "./settings/SystemInfoCard";
+import { ThemeToggle } from "./ThemeToggle";
 
 interface SettingsPaneProps {
   onClose: () => void;
@@ -54,9 +56,9 @@ export const SettingsPane = ({
               <User className="h-4 w-4 text-emerald-700" />
               {t("settings.title")}
             </h1>
-            <p className="mt-0.5 truncate text-xs font-medium text-slate-400">{t("settings.subtitle")}</p>
           </div>
         </div>
+        <ThemeToggle className="inline-flex" showLabel />
       </header>
 
       <div className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-4 py-4 lg:px-6 lg:py-6">
@@ -67,6 +69,7 @@ export const SettingsPane = ({
             shortcutSettings={shortcutSettings}
             onShortcutSettingsChange={onShortcutSettingsChange}
           />
+          <PasswordCard authRequired={authRequired} />
           <PwaInstallCard />
           <AdvancedPlayCard />
           <EvernoteImportGuideCard onShowGuide={onShowGuide} />

@@ -78,6 +78,7 @@ export const siteCopy = {
           points: [
             "在应用内生成 MCP Token，就能把 EdgeEver 接入 Codex、Claude Code、Antigravity 等工具。",
             "适合做灵感归纳、自动打标签、知识图谱整理和跨笔记检索。",
+            "还可以联动 Notion Database、飞书多维表格等工具，把日常笔记中的零散信息沉淀为结构化数据。",
             "API 与 Agent 能力围绕你的私有实例工作，不依赖封闭笔记平台。",
           ],
         },
@@ -189,6 +190,7 @@ export const siteCopy = {
           points: [
             "Generate an MCP token in the app to connect EdgeEver with Codex, Claude Code, Antigravity, and similar tools.",
             "Useful for idea summaries, automatic tagging, knowledge graph cleanup, and cross-note retrieval.",
+            "It can also connect to tools such as Notion databases and Feishu Bitable, turning scattered information from everyday notes into structured data.",
             "Agent workflows operate on your private instance instead of a closed notes platform.",
           ],
         },

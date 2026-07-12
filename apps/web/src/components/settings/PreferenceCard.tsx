@@ -13,6 +13,7 @@ import {
   type AppLocalePreference,
 } from "@/i18n";
 import { ShortcutSettingsItem } from "./ShortcutSettingsItem";
+import { useTheme, type ThemePreference } from "../ThemeProvider";
 
 interface PreferenceCardProps {
   imageCompressionEnabled: boolean;
@@ -28,6 +29,7 @@ export const PreferenceCard = ({
   onShortcutSettingsChange,
 }: PreferenceCardProps) => {
   const { t } = useTranslation();
+  const { preference: themePreference, setPreference: setThemePreference } = useTheme();
   const [activeLocalePreference, setActiveLocalePreference] = useState<AppLocalePreference>(() => getAppLocalePreference());
 
   const handleLocalePreferenceChange = (preference: AppLocalePreference) => {
@@ -82,10 +84,34 @@ export const PreferenceCard = ({
             />
           </div>
         </div>
-        <ShortcutSettingsItem
-          shortcutSettings={shortcutSettings}
-          onShortcutSettingsChange={onShortcutSettingsChange}
-        />
+
+        <div className="hidden min-h-14 flex-col items-start gap-3 rounded-lg border border-slate-100 bg-slate-50/70 px-4 py-3 lg:flex lg:flex-row lg:items-center lg:justify-between lg:gap-4">
+          <div className="min-w-0">
+            <div className="text-sm font-semibold text-slate-900">{t("settings.themeTitle")}</div>
+            <div className="mt-0.5 text-xs leading-4 text-slate-500">{t("settings.themeDescription")}</div>
+          </div>
+          <div className="w-full shrink-0 sm:w-44">
+            <Select
+              value={themePreference}
+              onValueChange={(preference) => setThemePreference(preference as ThemePreference)}
+            >
+              <SelectTrigger aria-label={t("settings.themeTitle")} className="h-9 bg-white">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="system">{t("settings.themeSystem")}</SelectItem>
+                <SelectItem value="light">{t("settings.themeLight")}</SelectItem>
+                <SelectItem value="dark">{t("settings.themeDark")}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <div className="hidden lg:block">
+          <ShortcutSettingsItem
+            shortcutSettings={shortcutSettings}
+            onShortcutSettingsChange={onShortcutSettingsChange}
+          />
+        </div>
       </CardContent>
     </Card>
   );

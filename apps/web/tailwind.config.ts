@@ -2,8 +2,10 @@ import type { Config } from "tailwindcss";
 import tailwindAnimate from "tailwindcss-animate";
 
 const brandGreen = (shade: number) => `rgb(var(--brand-green-${shade}-rgb) / <alpha-value>)`;
+const slate = (shade: number) => `rgb(var(--slate-${shade}-rgb) / <alpha-value>)`;
 
 export default {
+  darkMode: "class",
   content: {
     relative: true,
     files: ["./index.html", "./src/**/*.{ts,tsx}"],
@@ -30,6 +32,19 @@ export default {
         sm: "calc(var(--radius) - 4px)",
       },
       colors: {
+        slate: {
+          50: slate(50),
+          100: slate(100),
+          200: slate(200),
+          300: slate(300),
+          400: slate(400),
+          500: slate(500),
+          600: slate(600),
+          700: slate(700),
+          800: slate(800),
+          900: slate(900),
+          950: "#020617",
+        },
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",

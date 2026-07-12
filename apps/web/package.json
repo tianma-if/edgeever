@@ -2,5 +2,9 @@
   "name": "@edgeever/web",
   "version": "0.1.3",
   "private": true,
-  "type": "module"
+  "type": "module",
+  "dependencies": {
+    "@tiptap/extension-code-block-lowlight": "3.27.1",
+    "lowlight": "^3.3.0"
+  }
 }

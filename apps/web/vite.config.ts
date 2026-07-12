@@ -47,8 +47,8 @@ export default defineConfig({
         start_url: "/",
         scope: "/",
         display: "standalone",
-        background_color: "#f8fafc",
-        theme_color: "#f8fafc",
+        background_color: "#0f172a",
+        theme_color: "#0f172a",
         lang: "zh-CN",
         categories: ["productivity", "utilities"],
         icons: [

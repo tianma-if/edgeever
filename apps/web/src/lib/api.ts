@@ -107,6 +107,12 @@ export const api = {
       body: JSON.stringify(payload),
     }),
 
+  changePassword: (payload: { currentPassword: string; newPassword: string; confirmPassword: string }) =>
+    request<{ ok: true }>("/api/v1/auth/change-password", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
   logout: () =>
     request<{ ok: true }>("/api/v1/auth/logout", {
       method: "POST",
