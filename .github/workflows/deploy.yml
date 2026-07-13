@@ -19,8 +19,46 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy:
-    name: Deploy Cloudflare Workers
+  # Fork deployment: uses bare (non-prefixed) env vars, suitable for personal forks.
+  deploy-fork:
+    name: Deploy Fork (Cloudflare Workers)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      EDGE_EVER_WORKER_NAME: ${{ secrets.EDGE_EVER_WORKER_NAME }}
+      EDGE_EVER_D1_DATABASE_NAME: ${{ secrets.EDGE_EVER_D1_DATABASE_NAME }}
+      EDGE_EVER_D1_DATABASE_ID: ${{ secrets.EDGE_EVER_D1_DATABASE_ID }}
+      EDGE_EVER_R2_BUCKET_NAME: ${{ secrets.EDGE_EVER_R2_BUCKET_NAME }}
+      EDGE_EVER_R2_PREVIEW_BUCKET_NAME: ${{ secrets.EDGE_EVER_R2_PREVIEW_BUCKET_NAME }}
+      EDGE_EVER_AUTH_USERNAME: ${{ secrets.EDGE_EVER_AUTH_USERNAME }}
+      EDGE_EVER_AUTH_PASSWORD_HASH: ${{ secrets.EDGE_EVER_AUTH_PASSWORD_HASH }}
+      EDGE_EVER_SESSION_TTL_DAYS: ${{ secrets.EDGE_EVER_SESSION_TTL_DAYS }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build web app
+        run: bun run build
+
+      - name: Deploy fork instance
+        run: bun run deploy:worker
+
+      - name: Sync auth secret
+        run: |
+          printf '%s' "$EDGE_EVER_AUTH_PASSWORD_HASH" \
+            | bun scripts/run-wrangler.mjs secret put EDGE_EVER_AUTH_PASSWORD_HASH
+
+  # Upstream multi-instance deployment (tianma + demo).
+  deploy-upstream:
+    name: Deploy Upstream Instances
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -43,6 +81,8 @@ jobs:
       EDGE_EVER_DEMO_AUTH_USERNAME: ${{ secrets.EDGE_EVER_DEMO_AUTH_USERNAME }}
       EDGE_EVER_DEMO_AUTH_PASSWORD_HASH: ${{ secrets.EDGE_EVER_DEMO_AUTH_PASSWORD_HASH }}
       EDGE_EVER_DEMO_SESSION_TTL_DAYS: ${{ secrets.EDGE_EVER_DEMO_SESSION_TTL_DAYS }}
+    # Only run if upstream-specific secrets are configured.
+    if: ${{ secrets.EDGE_EVER_TIANMA_D1_DATABASE_ID != '' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
