@@ -367,24 +367,24 @@ export const MemoCard = ({
           onKeyDown={handleKeyDown}
           title={t("memoCard.interactionHint")}
         >
-          <div className={cn("mb-2 flex min-w-0 items-center gap-1.5 text-base font-semibold leading-6 text-slate-900 lg:text-base", listDensity === "compact" && "mb-1")}>
+          <div className={cn("mb-2 flex min-w-0 items-center gap-1.5 text-base font-semibold leading-6 text-slate-950 lg:text-base", listDensity === "compact" && "mb-1")}>
             {memo.isPinned && <Star className="h-4 w-4 shrink-0 fill-current text-slate-500" />}
             <span className="min-w-0 truncate">{memoTitle}</span>
           </div>
           <div
             className={cn(
-              "line-clamp-2 min-h-10 text-sm leading-5 text-slate-800",
+              "line-clamp-2 min-h-10 text-sm leading-5 text-slate-950",
               listDensity === "compact" && "line-clamp-1 min-h-0 text-[13px]"
             )}
           >
             {memoExcerpt}
           </div>
           <div className={cn("mt-5 flex flex-wrap items-center gap-2", listDensity === "compact" && "mt-2")}>
-            <time className="text-xs font-medium text-slate-400 lg:text-sm lg:font-normal lg:text-slate-500">
+            <time className="text-xs font-medium text-slate-800 lg:text-sm lg:font-normal lg:text-slate-800">
               {formatMemoPreviewDate(memo.updatedAt, i18n.resolvedLanguage ?? i18n.language, t("memoCard.yesterday"))}
             </time>
             {memo.tags.slice(0, 3).map((tag) => (
-              <span key={tag} className="rounded-sm bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-600">
+              <span key={tag} className="rounded-sm bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-900">
                 #{tag}
               </span>
             ))}

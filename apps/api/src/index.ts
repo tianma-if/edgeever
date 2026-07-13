@@ -5,6 +5,7 @@ import {
   docToText,
   emptyDoc,
   ApiTokenCreateSchema,
+  ChangePasswordSchema,
   DeleteMemosSchema,
   LoginSchema,
   markdownToDoc,
@@ -443,6 +444,45 @@ app.post("/api/v1/auth/login", zValidator("json", LoginSchema), async (c) => {
       displayName: user.display_name,
     },
   });
+});
+
+app.post("/api/v1/auth/change-password", zValidator("json", ChangePasswordSchema), async (c) => {
+  const auth = await authenticateSession(c, true);
+
+  if (!auth || auth.kind !== "user" || !auth.actorId || !auth.sessionId) {
+    return unauthorized(c, "An interactive user session is required.");
+  }
+
+  const input = c.req.valid("json");
+  const user = await c.env.DB.prepare(
+    `SELECT id, username, password_hash, display_name, is_disabled
+     FROM users
+     WHERE id = ? AND is_disabled = 0`
+  )
+    .bind(auth.actorId)
+    .first<UserRow>();
+
+  if (!user || !(await verifyPassword(input.currentPassword, user.password_hash))) {
+    return apiError(c, "invalid_current_password", "Current password is incorrect.", 400);
+  }
+
+  const now = isoNow();
+  const passwordHash = await hashPassword(input.newPassword);
+
+  await c.env.DB.batch([
+    c.env.DB.prepare(`UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?`).bind(
+      passwordHash,
+      now,
+      user.id
+    ),
+    c.env.DB.prepare(
+      `UPDATE sessions SET revoked_at = ?
+       WHERE user_id = ? AND id != ? AND revoked_at IS NULL`
+    ).bind(now, user.id, auth.sessionId),
+    auditStatement(c.env.DB, "user", user.id, "auth.password_change", "user", user.id, {}),
+  ]);
+
+  return c.json({ ok: true });
 });
 
 app.post("/api/v1/auth/logout", async (c) => {

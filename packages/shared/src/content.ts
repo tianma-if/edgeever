@@ -22,53 +22,85 @@ export const emptyDoc = (): TiptapDoc => ({
 });
 
 export const markdownToDoc = (markdown: string): TiptapDoc => {
-  const blocks = markdown
-    .replace(/\r\n/g, "\n")
-    .split(/\n{2,}/)
-    .map((block) => block.trim())
-    .filter(Boolean);
+  const lines = markdown.replace(/\r\n/g, "\n").split("\n");
+  const content: TiptapNode[] = [];
 
-  if (blocks.length === 0) {
+  for (let index = 0; index < lines.length; ) {
+    if (!lines[index].trim()) {
+      index += 1;
+      continue;
+    }
+
+    const fence = /^```([^\s`]*)\s*$/.exec(lines[index].trim());
+
+    if (fence) {
+      const codeLines: string[] = [];
+      index += 1;
+
+      while (index < lines.length && lines[index].trim() !== "```") {
+        codeLines.push(lines[index]);
+        index += 1;
+      }
+
+      if (index < lines.length) {
+        index += 1;
+      }
+
+      content.push({
+        type: "codeBlock",
+        attrs: { language: fence[1] || "plaintext" },
+        content: [{ type: "text", text: codeLines.join("\n") }],
+      });
+      continue;
+    }
+
+    const blockLines: string[] = [];
+    while (index < lines.length && lines[index].trim()) {
+      blockLines.push(lines[index]);
+      index += 1;
+    }
+
+    const block = blockLines.join("\n").trim();
+    const heading = /^(#{1,3})\s+(.+)$/.exec(block);
+    const image = /^!\[([^\]]*)\]\((\S+?)(?:\s+"([^"]+)")?\)$/.exec(block);
+
+    if (heading) {
+      content.push({
+        type: "heading",
+        attrs: { level: heading[1].length },
+        content: [{ type: "text", text: heading[2] }],
+      });
+      continue;
+    }
+
+    if (image) {
+      content.push({
+        type: "image",
+        attrs: {
+          src: image[2],
+          alt: image[1] || null,
+          title: image[3] || null,
+        },
+      });
+      continue;
+    }
+
+    if (/^-{3,}$/.test(block)) {
+      content.push({ type: "horizontalRule" });
+      continue;
+    }
+
+    content.push({
+      type: "paragraph",
+      content: [{ type: "text", text: block }],
+    });
+  }
+
+  if (content.length === 0) {
     return emptyDoc();
   }
 
-  return {
-    type: "doc",
-    content: blocks.map((block) => {
-      const heading = /^(#{1,3})\s+(.+)$/.exec(block);
-      const image = /^!\[([^\]]*)\]\((\S+?)(?:\s+"([^"]+)")?\)$/.exec(block);
-
-      if (heading) {
-        return {
-          type: "heading",
-          attrs: { level: heading[1].length },
-          content: [{ type: "text", text: heading[2] }],
-        };
-      }
-
-      if (image) {
-        return {
-          type: "image",
-          attrs: {
-            src: image[2],
-            alt: image[1] || null,
-            title: image[3] || null,
-          },
-        };
-      }
-
-      if (/^-{3,}$/.test(block)) {
-        return {
-          type: "horizontalRule",
-        };
-      }
-
-      return {
-        type: "paragraph",
-        content: [{ type: "text", text: block }],
-      };
-    }),
-  };
+  return { type: "doc", content };
 };
 
 export const docToText = (doc: unknown): string => {
@@ -178,10 +210,39 @@ const blockToMarkdown = (node: unknown): string => {
   }
 
   if (current.type === "codeBlock") {
-    return `\`\`\`\n${docToText({ content: current.content })}\n\`\`\``;
+    const language = getStringAttr(current.attrs, "language");
+    const languageSuffix = language && language !== "plaintext" ? language : "";
+    const code = contentToPlainText(current.content);
+    return `\`\`\`${languageSuffix}\n${code}\n\`\`\``;
   }
 
   return inlineToMarkdown(current.content);
+};
+
+const contentToPlainText = (content: unknown): string => {
+  if (!Array.isArray(content)) {
+    return "";
+  }
+
+  return content
+    .map((node) => {
+      if (!node || typeof node !== "object") {
+        return "";
+      }
+
+      const current = node as { type?: unknown; text?: unknown; content?: unknown };
+
+      if (typeof current.text === "string") {
+        return current.text;
+      }
+
+      if (current.type === "hardBreak") {
+        return "\n";
+      }
+
+      return contentToPlainText(current.content);
+    })
+    .join("");
 };
 
 const inlineToMarkdown = (content: unknown): string => {

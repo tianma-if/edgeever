@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { ChevronDown, Copy, KeyRound, Plus, ShieldCheck, Trash2 } from "lucide-react";
@@ -23,6 +23,15 @@ import {
 interface CreatedTokenNoticeProps {
   token: string;
 }
+
+const getNextTokenName = (tokens: ApiToken[]) => {
+  const highestNumber = tokens.reduce((highest, token) => {
+    const match = token.name.match(/^MCP Token (\d+)$/i);
+    return match ? Math.max(highest, Number(match[1])) : highest;
+  }, 0);
+
+  return `MCP Token ${highestNumber + 1}`;
+};
 
 const CreatedTokenNotice = ({ token }: CreatedTokenNoticeProps) => {
   const { t } = useTranslation();
@@ -322,7 +331,9 @@ const TokenList = ({ tokens, isLoading, isDeleting, onDelete }: TokenListProps) 
 export const McpConfigCard = () => {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const [name, setName] = useState("MCP Agent");
+  const [name, setName] = useState("MCP Token 1");
+  const [isNameCustomized, setIsNameCustomized] = useState(false);
+  const nameInitialized = useRef(false);
   const [selectedScopes, setSelectedScopes] = useState<Set<string>>(() => new Set(ALL_TOKEN_SCOPES));
   const [scopeDefaultsSynced, setScopeDefaultsSynced] = useState(false);
   const [createdToken, setCreatedToken] = useState<{ token: string; apiToken: ApiToken } | null>(null);
@@ -345,11 +356,19 @@ export const McpConfigCard = () => {
     setScopeDefaultsSynced(true);
   }, [scopeDefaultsSynced, tokensQuery.data?.availableScopes]);
 
+  useEffect(() => {
+    if (!nameInitialized.current && !isNameCustomized && tokensQuery.data?.apiTokens) {
+      setName(getNextTokenName(tokensQuery.data.apiTokens));
+      nameInitialized.current = true;
+    }
+  }, [isNameCustomized, tokensQuery.data?.apiTokens]);
+
   const createMutation = useMutation({
     mutationFn: api.createApiToken,
     onSuccess: async (data) => {
       setCreatedToken(data);
-      setName("");
+      setName(getNextTokenName([...tokens, data.apiToken]));
+      setIsNameCustomized(true);
       setSelectedScopes(new Set(availableScopes));
       await queryClient.invalidateQueries({ queryKey: ["api-tokens"] });
     },
@@ -400,7 +419,10 @@ export const McpConfigCard = () => {
               <Input
                 className="h-9 min-w-0 flex-1 text-xs focus-visible:ring-4 focus-visible:ring-emerald-500/10"
                 value={name}
-                onChange={(event) => setName(event.target.value)}
+                onChange={(event) => {
+                  setName(event.target.value);
+                  setIsNameCustomized(true);
+                }}
                 placeholder={t("mcp.namePlaceholder")}
               />
               <Button

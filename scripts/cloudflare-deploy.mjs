@@ -46,6 +46,9 @@ const parseEnv = (content) => {
     ) {
       value = value.slice(1, -1);
     }
+    // Bun expands $ references while auto-loading .env files. Values written
+    // by this script escape literal dollars as \$ so they survive that load.
+    value = value.replace(/\\\$/g, "$");
     values.set(key, value);
   }
 
@@ -88,10 +91,12 @@ const targetKey = (name, values) => scopedKey(name, values) || `EDGE_EVER_${name
 
 const upsertEnv = (key, value) => {
   const content = existsSync(envPath) ? readFileSync(envPath, "utf8") : "";
+  // Keep literal dollars from being expanded by Bun when it auto-loads the file.
+  const fileValue = value.replace(/\$/g, "\\$");
   const pattern = new RegExp(`^${key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}=.*$`, "m");
   const next = pattern.test(content)
-    ? content.replace(pattern, `${key}=${value}`)
-    : `${content.trimEnd()}\n${key}=${value}\n`;
+    ? content.replace(pattern, () => `${key}=${fileValue}`)
+    : `${content.trimEnd()}\n${key}=${fileValue}\n`;
 
   writeFileSync(envPath, next.startsWith("\n") ? next.slice(1) : next);
   process.env[key] = value;

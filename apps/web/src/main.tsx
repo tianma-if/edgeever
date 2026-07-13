@@ -6,6 +6,7 @@ import { registerSW } from "virtual:pwa-register";
 import { App } from "./app/App";
 import "./i18n";
 import { emitPwaUpdateNotice, markPwaUpdateReloadPending } from "./lib/pwa-update-notice";
+import { initializeTheme, ThemeProvider } from "./components/ThemeProvider";
 import "./styles/globals.css";
 
 const PWA_UPDATE_CHECK_INTERVAL_MS = 10 * 60 * 1_000;
@@ -58,12 +59,16 @@ if (!root) {
   throw new Error("Root element not found");
 }
 
+initializeTheme();
+
 createRoot(root).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
+      <ThemeProvider>
+        <BrowserRouter>
+          <App />
+        </BrowserRouter>
+      </ThemeProvider>
     </QueryClientProvider>
   </React.StrictMode>
 );

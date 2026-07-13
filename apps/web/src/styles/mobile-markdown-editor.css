@@ -256,6 +256,64 @@ input {
   padding: 8px 0 max(10px, env(safe-area-inset-bottom));
 }
 
+:root.dark {
+  color-scheme: dark;
+}
+
+:root.dark body,
+:root.dark .mobile-editor-shell {
+  background: #0f172a;
+  color: #f8fafc;
+}
+
+:root.dark .mobile-editor-header,
+:root.dark .mobile-editor-title,
+:root.dark .mobile-editor-tags,
+:root.dark .mobile-editor-notebook-sheet {
+  background: #1e293b;
+  color: #f8fafc;
+}
+
+:root.dark .mobile-editor-header,
+:root.dark .mobile-editor-tool-row {
+  border-color: #334155;
+}
+
+:root.dark .mobile-editor-back,
+:root.dark .mobile-editor-tool-button {
+  color: #cbd5e1;
+}
+
+:root.dark .mobile-editor-status {
+  background: #334155;
+  color: #cbd5e1;
+}
+
+:root.dark .mobile-editor-status.active,
+:root.dark .mobile-editor-tool-button:active,
+:root.dark .mobile-editor-tool-button[aria-pressed="true"] {
+  background: #14532d;
+  border-color: #166534;
+  color: #86efac;
+}
+
+:root.dark .mobile-editor-status.error,
+:root.dark .mobile-editor-error {
+  background: #4c0519;
+  border-color: #881337;
+  color: #fda4af;
+}
+
+:root.dark .mobile-editor-notebook-button,
+:root.dark .mobile-editor-tags::placeholder,
+:root.dark .mobile-editor-title::placeholder {
+  color: #94a3b8;
+}
+
+:root.dark .mobile-editor-sheet-backdrop {
+  background: rgb(2 6 23 / 0.62);
+}
+
 .mobile-editor-notebook-sheet-handle {
   width: 38px;
   height: 4px;
