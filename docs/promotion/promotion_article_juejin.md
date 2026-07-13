@@ -90,9 +90,10 @@ EdgeEver 的部署简单到了极致，甚至你都不需要打开终端。
 将下面这段话，复制给你的 AI 助手（如 Claude Code, Cursor, Antigravity 等）：
 
 ```text
-请先 Fork EdgeEver 仓库：https://github.com/tianma-if/edgeever
-
-Fork 完成后，请使用 Fork 后的仓库把 EdgeEver 安装部署到 Cloudflare 上，并为 Fork 仓库配置自动同步上游，以便后续获取最新产品特性。
+请按以下流程操作：
+1. Fork EdgeEver 上游仓库：https://github.com/tianma-if/edgeever
+2. 使用 Fork 后的仓库，将 EdgeEver 安装并部署到 Cloudflare。
+3. 为 Fork 仓库配置从上游仓库同步更新的机制，使其能够定期或按需获取上游仓库的最新代码与产品特性。
 ```
 
 AI 助手将自动帮你在 Cloudflare 上建好 D1、R2，配置好 Worker 路由并一键发布上线。

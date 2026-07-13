@@ -30,9 +30,10 @@ Copy this prompt into your AI coding assistant, such as Claude Code, Codex, Anti
 **Recommendation:** Before deployment, configure GitHub and Cloudflare MCP servers, plugins, or other supported integrations for your AI Agent. This allows it to fork the repository, create the required Cloudflare resources, and deploy the application.
 
 ```text
-Please fork the EdgeEver repository first: https://github.com/tianma-if/edgeever
-
-After the fork is ready, use the forked repository to install and deploy EdgeEver to Cloudflare, and configure automatic upstream sync for the fork so future product updates can be pulled in.
+Please follow these steps:
+1. Fork the EdgeEver upstream repository: https://github.com/tianma-if/edgeever
+2. Use the forked repository to install and deploy EdgeEver to Cloudflare.
+3. Configure a mechanism for the fork to sync updates from the upstream repository, so it can receive the latest product features periodically or on demand.
 ```
 
 Agents should follow [AI Agent Cloudflare Deployment](docs/agent-deploy-cloudflare.md).
