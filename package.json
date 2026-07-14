@@ -16,6 +16,8 @@
     "dev:mobile": "bun --cwd apps/mobile expo start",
     "dev:site": "bun --cwd apps/site dev",
     "build": "bun run build:web",
+    "build:extension": "vite build --config apps/extension/vite.config.ts",
+    "dev:extension": "vite --config apps/extension/vite.config.ts",
     "build:web": "vite build --config apps/web/vite.config.ts",
     "build:site": "bun --cwd apps/site build",
     "preview:web": "vite preview --config apps/web/vite.config.ts --host 127.0.0.1 --port 4173",

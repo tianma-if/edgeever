@@ -76,6 +76,7 @@ export const zhCN = {
       notebooks: "正在加载笔记本",
       settings: "正在加载个人中心",
       assets: "正在加载资源库",
+      tags: "正在加载标签",
       migration: "正在加载迁移指引",
       editor: "正在加载编辑器",
     },

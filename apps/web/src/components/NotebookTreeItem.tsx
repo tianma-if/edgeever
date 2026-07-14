@@ -236,7 +236,14 @@ export const NotebookTreeItem = ({
               }}
             >
               <NotebookIcon className={cn("h-4 w-4 shrink-0 transition-colors duration-200", selected || hasSelectedDescendant ? "text-slate-700" : "text-slate-500")} />
-              <span className="truncate">{node.name}</span>
+              <span
+                className={cn(
+                  "truncate font-medium transition-colors duration-200",
+                  selected ? "text-slate-950" : hasSelectedDescendant ? "text-slate-900" : "text-slate-800 group-hover:text-slate-950"
+                )}
+              >
+                {node.name}
+              </span>
             </button>
             <button
               className={cn(

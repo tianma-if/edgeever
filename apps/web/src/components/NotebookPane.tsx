@@ -72,7 +72,32 @@ const SidebarNavButton = ({
   </button>
 );
 
-const SidebarTrashNavButton = ({
+const SidebarShortcutButton = ({
+  active = false,
+  icon,
+  label,
+  onClick,
+}: {
+  active?: boolean;
+  icon: ReactNode;
+  label: string;
+  onClick: () => void;
+}) => (
+  <button
+    className={cn(
+      "flex h-10 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-md px-1.5 text-xs font-medium transition-colors duration-200",
+      active ? "bg-slate-100 text-slate-900" : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
+    )}
+    type="button"
+    aria-current={active ? "page" : undefined}
+    onClick={onClick}
+  >
+    <span className="flex h-4 w-4 shrink-0 items-center justify-center">{icon}</span>
+    <span className="min-w-0 truncate">{label}</span>
+  </button>
+);
+
+const SidebarTrashShortcut = ({
   active = false,
   onOpenTrash,
   onEmptyTrash,
@@ -84,37 +109,26 @@ const SidebarTrashNavButton = ({
   const { t } = useTranslation();
 
   return (
-    <div className="group relative">
-      <button
-        className={cn(
-          "flex h-9 w-full items-center gap-3 rounded-md px-3 pr-16 text-left text-sm font-medium leading-none transition-all duration-200",
-          active ? "bg-slate-100 text-slate-950" : "text-slate-700 hover:bg-slate-50 hover:text-slate-950"
-        )}
-        type="button"
-        aria-current={active ? "page" : undefined}
-        onClick={onOpenTrash}
-      >
-        <span className="flex h-4 w-4 shrink-0 items-center justify-center">
-          <Trash2 className="h-4 w-4" />
-        </span>
-        <span className="min-w-0 flex-1 truncate">{t("notebookPane.trash")}</span>
-      </button>
-      <button
-        className="pointer-events-none absolute right-1.5 top-1/2 flex h-7 -translate-y-1/2 items-center gap-1 rounded-md px-2 text-xs font-medium text-rose-700 opacity-0 transition-all duration-200 hover:bg-rose-50 focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/70 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100"
-        type="button"
-        title={t("notebookPane.emptyTrash")}
-        aria-label={t("notebookPane.emptyTrash")}
-        onClick={onEmptyTrash}
-      >
-        <Trash2 className="h-3.5 w-3.5" />
-        {t("notebookPane.empty")}
-      </button>
+    <div className="group relative min-w-0">
+      <SidebarShortcutButton active={active} icon={<Trash2 className="h-4 w-4" />} label={t("notebookPane.trash")} onClick={onOpenTrash} />
+      {!active && (
+        <div className="pointer-events-none absolute right-0 top-full z-20 w-max pt-1 opacity-0 transition-opacity duration-150 group-hover:pointer-events-auto group-hover:opacity-100">
+          <button
+            className="relative flex h-8 items-center gap-1.5 rounded-md border border-rose-200 bg-white px-2 text-xs font-medium text-rose-700 shadow-lg shadow-slate-900/10 transition-colors before:absolute before:-top-1 before:right-16 before:h-2 before:w-2 before:rotate-45 before:border-l before:border-t before:border-rose-200 before:bg-white hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/70"
+            type="button"
+            onClick={onEmptyTrash}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            {t("notebookPane.emptyTrash")}
+          </button>
+        </div>
+      )}
     </div>
   );
 };
 
 const SidebarSectionLabel = ({ icon, label }: { icon: ReactNode; label: string }) => (
-  <div className="flex h-9 items-center gap-3 px-3 text-sm font-medium leading-none text-slate-600">
+  <div className="flex h-9 items-center gap-3 px-3 text-xs font-medium leading-none tracking-wide text-slate-500">
     <span className="flex h-4 w-4 shrink-0 items-center justify-center">{icon}</span>
     <span className="min-w-0 flex-1 truncate">{label}</span>
   </div>
@@ -344,21 +358,26 @@ export const NotebookPane = ({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <header className="flex h-[calc(4rem+env(safe-area-inset-top))] shrink-0 items-end justify-between border-b border-slate-200 px-4 pb-3 pt-[env(safe-area-inset-top)] lg:h-16 lg:items-center lg:pb-0 lg:pt-0">
+      <header className="flex h-[calc(4rem+env(safe-area-inset-top))] shrink-0 items-end justify-between border-b border-slate-200 px-4 pb-3 pt-[env(safe-area-inset-top)] lg:hidden">
         <div>
-          <div className="text-base font-semibold tracking-normal lg:hidden">{t("notebookPane.notebooks")}</div>
-          <div className="hidden text-base font-semibold tracking-normal lg:block">EdgeEver</div>
+          <div className="text-base font-semibold tracking-normal">{t("notebookPane.notebooks")}</div>
           <div className="text-xs text-slate-500">{user?.username ?? t("notebookPane.workspaceFallback")}</div>
         </div>
         <div className="flex items-center gap-1">
-          <Button className="lg:hidden" size="icon" variant="ghost" title={t("notebookPane.backToList")} aria-label={t("notebookPane.backToList")} onClick={onBackToList}>
+          <Button size="icon" variant="ghost" title={t("notebookPane.backToList")} aria-label={t("notebookPane.backToList")} onClick={onBackToList}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <Button className="lg:hidden" size="icon" variant="ghost" title={t("notebookPane.newNotebook")} aria-label={t("notebookPane.newNotebook")} onClick={() => onCreateNotebook(null)}>
+          <Button size="icon" variant="ghost" title={t("notebookPane.newNotebook")} aria-label={t("notebookPane.newNotebook")} onClick={() => onCreateNotebook(null)}>
             <Plus className="h-4 w-4" />
           </Button>
         </div>
       </header>
+
+      <nav className="grid shrink-0 grid-cols-3 gap-1 border-b border-slate-100 px-3 py-2" aria-label={t("notebookPane.secondaryEntries")}>
+        <SidebarShortcutButton icon={<Tags className="h-4 w-4" />} label={t("mobileSheets.tags")} onClick={onOpenTags} />
+        <SidebarShortcutButton icon={<Archive className="h-4 w-4" />} label={t("mobileSheets.assets")} onClick={onOpenAssets} />
+        <SidebarTrashShortcut active={view === "trash"} onOpenTrash={onOpenTrash} onEmptyTrash={onEmptyTrash} />
+      </nav>
 
       <div
         ref={notebookScrollRef}
@@ -458,11 +477,6 @@ export const NotebookPane = ({
           </div>
         )}
 
-        <nav className="space-y-1 border-t border-slate-100 pt-3" aria-label={t("notebookPane.secondaryEntries")}>
-          <SidebarNavButton icon={<Tags className="h-4 w-4" />} label={t("mobileSheets.tags")} onClick={onOpenTags} />
-          <SidebarNavButton icon={<Archive className="h-4 w-4" />} label={t("mobileSheets.assets")} onClick={onOpenAssets} />
-          <SidebarTrashNavButton active={view === "trash"} onOpenTrash={onOpenTrash} onEmptyTrash={onEmptyTrash} />
-        </nav>
       </div>
 
       <footer className="border-t border-slate-200 bg-white/80 px-3 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-sm">

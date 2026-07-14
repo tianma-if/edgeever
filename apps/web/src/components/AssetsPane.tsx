@@ -34,6 +34,7 @@ import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import { formatDateTime } from "@/lib/utils";
 import { compressImageForUpload } from "@/lib/image-compression";
+import { WORKSPACE_PAGE_TITLE_CLASSNAME } from "@/lib/workspace-ui";
 import type { MemoDetail } from "@edgeever/shared";
 
 export const formatBytes = (bytes: number) => {
@@ -273,7 +274,7 @@ export const AssetsPane = ({ onClose, activeMemo }: AssetsPaneProps) => {
             <ChevronLeft className="h-5 w-5 text-slate-500" />
           </Button>
           <div className="min-w-0">
-            <h1 className="flex items-center gap-2 text-base font-bold text-slate-900 leading-tight">
+            <h1 className={`flex items-center gap-2 ${WORKSPACE_PAGE_TITLE_CLASSNAME}`}>
               <Archive className="h-4.5 w-4.5 text-emerald-700" />
               {t("assets.title")}
             </h1>

@@ -1,0 +1,14 @@
+{
+  "name": "@edgeever/extension",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build --config vite.config.ts",
+    "dev": "vite --config vite.config.ts"
+  },
+  "dependencies": {
+    "@mozilla/readability": "^0.6.0",
+    "turndown": "^7.2.4"
+  }
+}

@@ -76,6 +76,7 @@ export const enUS = {
       notebooks: "Loading notebooks",
       settings: "Loading profile",
       assets: "Loading resources",
+      tags: "Loading tags",
       migration: "Loading migration guide",
       editor: "Loading editor",
     },

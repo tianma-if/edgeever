@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>EdgeEver Web Clipper 设置</title>
+  </head>
+  <body>
+    <main class="options-shell">
+      <h1>EdgeEver Web Clipper</h1>
+      <p class="hint">配置你自己的 EdgeEver 实例。插件不会把网页内容发送到第三方服务器。</p>
+      <form id="settings-form">
+        <label>
+          EdgeEver 实例地址
+          <input id="instance-url" type="url" placeholder="https://notes.example.com" required />
+        </label>
+        <label>
+          API Token
+          <input id="token" type="password" placeholder="从 EdgeEver 设置中创建" required />
+        </label>
+        <label>
+          默认笔记本
+          <select id="notebook-id">
+            <option value="">连接后自动使用第一个笔记本</option>
+          </select>
+        </label>
+        <div class="actions">
+          <button id="test" type="button" class="secondary">测试连接</button>
+          <button id="save" type="submit">保存设置</button>
+        </div>
+        <p id="status" class="status" role="status"></p>
+      </form>
+    </main>
+    <script type="module" src="/src/options.ts"></script>
+  </body>
+</html>

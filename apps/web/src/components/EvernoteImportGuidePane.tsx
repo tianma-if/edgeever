@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { ChevronLeft, HelpCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
+import { WORKSPACE_PAGE_TITLE_CLASSNAME } from "@/lib/workspace-ui";
 import { marked } from "marked";
 import migrationGuideMarkdown from "../../../../docs/evernote-migration-guide.md?raw";
 import migrationGuideEnglishMarkdown from "../../../../docs/evernote-migration-guide.en-US.md?raw";
@@ -26,7 +27,7 @@ export const EvernoteImportGuidePane = ({ onClose }: { onClose: () => void }) =>
             <ChevronLeft className="h-5 w-5 text-slate-500" />
           </Button>
           <div className="min-w-0">
-            <h1 className="flex items-center gap-2 text-base font-bold leading-tight text-slate-900">
+            <h1 className={`flex items-center gap-2 ${WORKSPACE_PAGE_TITLE_CLASSNAME}`}>
               <HelpCircle className="h-4 w-4 text-emerald-700" />
               {t("evernoteGuide.title")}
             </h1>

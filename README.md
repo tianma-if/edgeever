@@ -62,12 +62,27 @@ The automated helper commands are recommended. If you create the Cloudflare reso
 - Batch note moving, notebook drag sorting, and hierarchy editing.
 - Offline drafts and local sync queue for existing notes.
 - Single-user login with PBKDF2-SHA256 password hashing.
+- Chrome/Edge web clipper MVP (pending store publication): extract the current article or selected content and save it to a self-hosted EdgeEver instance.
 
 ## PWA Installation
 
 EdgeEver can be installed as a PWA on desktop or mobile home screens. On desktop, open the site in Chrome or Edge and use the install icon in the address bar. On Android, open it in Chrome, use the three-dot menu, and choose **Add to Home screen** or **Install**. Avoid installing from embedded browsers such as WeChat.
 
 > Common pitfall: When installing the PWA on mobile, Chrome or Edge is recommended. Other mobile browsers may encounter compatibility issues or unexpected errors during installation.
+
+## Chrome/Edge Web Clipper
+
+The repository includes a Manifest V3 extension in `apps/extension` for Chrome and Microsoft Edge. It lets users configure their own EdgeEver instance and API Token, then save the selected content or the current article as a searchable memo.
+
+The current MVP extracts article content in the browser with Mozilla Readability and converts it to Markdown with Turndown. It does not yet preserve a complete single-file HTML archive or upload page resources to R2.
+
+Build the extension from the repository root:
+
+```sh
+bun run build:extension
+```
+
+Then load `apps/extension/dist` as an unpacked extension from `chrome://extensions` or `edge://extensions` with developer mode enabled. The API Token should have `read:notebooks` and `write:memos` scopes.
 
 ## Native Clients
 
@@ -81,6 +96,7 @@ The goal is to let users connect these clients to their own self-hosted EdgeEver
 - Official site: Astro static site in `apps/site`, deployable to Cloudflare Pages.
 - Frontend: Vite, React, React Router, TanStack Query, Tailwind CSS, shadcn/ui, and Radix UI.
 - Editor: TipTap / ProseMirror with Markdown support; PWA uses vite-plugin-pwa, Workbox, and Dexie.
+- Web clipper: Manifest V3, Mozilla Readability, and Turndown for Chrome and Microsoft Edge.
 - Backend: Cloudflare Workers, Hono, Zod, D1, and R2, with REST API, OpenAPI, and Remote MCP.
 
 ## Quick Start
@@ -114,6 +130,7 @@ bun run build
 
 ```text
 apps/web          Vite + React frontend, PWA, offline drafts, and sync queue
+apps/extension    Chrome/Edge Manifest V3 web clipper
 apps/api          Cloudflare Worker + Hono API, OpenAPI, MCP endpoint
 apps/mobile       Expo + React Native mobile app
 apps/site         Astro official website, deployable independently
@@ -168,3 +185,7 @@ If you want to migrate notes from other platforms to EdgeEver, please refer to t
 ## Community and Feedback
 
 - Bugs, feature requests, and deployment issues: [GitHub Issues](https://github.com/tianma-if/edgeever/issues)
+
+## Disclaimer
+
+EdgeEver is an independent open-source note-taking application developed and maintained by individuals and the community. It is not affiliated with, authorized, sponsored, or endorsed by Evernote Corporation or its affiliates.

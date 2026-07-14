@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "EdgeEver Web Clipper",
+  "version": "0.1.0",
+  "description": "Save the current webpage or selected content to your self-hosted EdgeEver instance.",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "optional_host_permissions": ["https://*/*", "http://localhost/*", "http://127.0.0.1/*"],
+  "action": {
+    "default_title": "Save to EdgeEver",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "assets/background.js",
+    "type": "module"
+  },
+  "options_page": "options.html"
+}
