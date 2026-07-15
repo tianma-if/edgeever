@@ -2374,7 +2374,7 @@ export const WorkspaceApp = ({
       <div className="min-w-0 flex-1">
         <main
           className={cn(
-            "grid h-[100dvh] min-h-0 grid-cols-[minmax(0,1fr)]",
+            "relative grid h-[100dvh] min-h-0 grid-cols-[minmax(0,1fr)]",
             rightView === "editor"
               ? sidebarCollapsed
                 ? "lg:grid-cols-[0px_var(--memo-list-width)_minmax(0,1fr)]"
@@ -2387,24 +2387,11 @@ export const WorkspaceApp = ({
         >
           <aside
             className={cn(
-              "relative min-h-0 border-r border-slate-200 bg-white/75 backdrop-blur-lg transition-all duration-200 lg:block",
+              "min-h-0 border-r border-slate-200 bg-white/75 backdrop-blur-lg transition-all duration-200 lg:block",
               visibleActivePane === "notebooks" ? "block" : "hidden",
               sidebarCollapsed && "lg:w-0 lg:overflow-hidden lg:border-r-0"
             )}
           >
-            <button
-              className={cn(
-                "absolute right-[-12px] top-4 z-30 hidden h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition-all hover:bg-slate-100 hover:text-slate-700 lg:flex",
-                sidebarCollapsed && "right-[-12px]"
-              )}
-              type="button"
-              title={sidebarCollapsed ? t("notebookPane.expand") || "展开侧栏" : t("notebookPane.collapse") || "折叠侧栏"}
-              aria-label={sidebarCollapsed ? t("notebookPane.expand") || "展开侧栏" : t("notebookPane.collapse") || "折叠侧栏"}
-              onClick={() => setSidebarCollapsed((prev) => !prev)}
-            >
-              <PanelLeftClose className={cn("h-3.5 w-3.5", sidebarCollapsed && "hidden")} />
-              <PanelLeftOpen className={cn("h-3.5 w-3.5", !sidebarCollapsed && "hidden")} />
-            </button>
             {(isDesktop || visibleActivePane === "notebooks") && (
               <Suspense fallback={<PaneLoadingFallback label={t("workspace.loading.notebooks")} />}>
                 <NotebookPane
@@ -2454,6 +2441,20 @@ export const WorkspaceApp = ({
               </Suspense>
             )}
           </aside>
+
+          <button
+            className={cn(
+              "absolute left-[258px] top-4 z-30 hidden h-6 w-6 -translate-x-1/2 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition-all hover:bg-slate-100 hover:text-slate-700 lg:flex",
+              sidebarCollapsed && "left-[4px]"
+            )}
+            type="button"
+            title={sidebarCollapsed ? "展开侧栏" : "折叠侧栏"}
+            aria-label={sidebarCollapsed ? "展开侧栏" : "折叠侧栏"}
+            onClick={() => setSidebarCollapsed((prev) => !prev)}
+          >
+            <PanelLeftClose className={cn("h-3.5 w-3.5", sidebarCollapsed && "hidden")} />
+            <PanelLeftOpen className={cn("h-3.5 w-3.5", !sidebarCollapsed && "hidden")} />
+          </button>
 
           <section
             className={cn(
