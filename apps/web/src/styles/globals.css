@@ -326,7 +326,45 @@ textarea {
 
 .ProseMirror .edgeever-code-block,
 .ProseMirror .edgeever-mermaid-code-block {
+  position: relative;
   margin: 0 0 1rem;
+}
+
+.ProseMirror .edgeever-code-block .edgeever-code-copy-button,
+.ProseMirror .edgeever-mermaid-code-block .edgeever-code-copy-button {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  border: 1px solid #d9eadf;
+  border-radius: 6px;
+  background: #f7fbf8;
+  padding: 3px 8px;
+  color: #475569;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.7em;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms ease;
+  pointer-events: none;
+}
+
+.ProseMirror .edgeever-code-block:hover .edgeever-code-copy-button,
+.ProseMirror .edgeever-mermaid-code-block:hover .edgeever-code-copy-button {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.ProseMirror .edgeever-code-block .edgeever-code-copy-button:hover,
+.ProseMirror .edgeever-mermaid-code-block .edgeever-code-copy-button:hover {
+  background: #eef4f0;
+  color: #1e293b;
 }
 
 .ProseMirror .edgeever-code-source {
@@ -932,6 +970,19 @@ textarea {
   border-color: #166534;
   background: #13261a;
   color: #cbd5e1;
+}
+
+:root.dark .ProseMirror .edgeever-code-block .edgeever-code-copy-button,
+:root.dark .ProseMirror .edgeever-mermaid-code-block .edgeever-code-copy-button {
+  border-color: #166534;
+  background: #13261a;
+  color: #a7f3d0;
+}
+
+:root.dark .ProseMirror .edgeever-code-block .edgeever-code-copy-button:hover,
+:root.dark .ProseMirror .edgeever-mermaid-code-block .edgeever-code-copy-button:hover {
+  background: #1a3a24;
+  color: #ecfdf5;
 }
 
 :root.dark .ProseMirror .edgeever-mermaid-preview {

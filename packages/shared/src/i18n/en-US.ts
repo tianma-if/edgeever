@@ -12,6 +12,7 @@ export const enUS = {
     untitledMemo: "Untitled note",
     processing: "Processing",
     saving: "Saving",
+    copy: "Copy",
     copied: "Copied",
     githubRepository: "GitHub repository",
   },

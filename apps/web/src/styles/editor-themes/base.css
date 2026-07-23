@@ -53,9 +53,21 @@
 .edgeever-editor[data-editor-theme]:not([data-editor-theme="default"]) .ProseMirror code,
 .edgeever-editor[data-editor-theme]:not([data-editor-theme="default"]) .ProseMirror pre,
 .edgeever-editor[data-editor-theme]:not([data-editor-theme="default"]) .ProseMirror .edgeever-code-source {
-
   border-color: var(--editor-theme-border);
   background: var(--editor-theme-soft);
+  color: var(--editor-theme-text);
+}
+
+.edgeever-editor[data-editor-theme]:not([data-editor-theme="default"]) .ProseMirror .edgeever-code-block .edgeever-code-copy-button,
+.edgeever-editor[data-editor-theme]:not([data-editor-theme="default"]) .ProseMirror .edgeever-mermaid-code-block .edgeever-code-copy-button {
+  border-color: var(--editor-theme-border);
+  background: var(--editor-theme-soft);
+  color: var(--editor-theme-muted);
+}
+
+.edgeever-editor[data-editor-theme]:not([data-editor-theme="default"]) .ProseMirror .edgeever-code-block .edgeever-code-copy-button:hover,
+.edgeever-editor[data-editor-theme]:not([data-editor-theme="default"]) .ProseMirror .edgeever-mermaid-code-block .edgeever-code-copy-button:hover {
+  background: color-mix(in srgb, var(--editor-theme-soft) 80%, var(--editor-theme-accent));
   color: var(--editor-theme-text);
 }
 

@@ -12,6 +12,7 @@ export const zhCN = {
     untitledMemo: "无标题笔记",
     processing: "处理中",
     saving: "保存中",
+    copy: "复制",
     copied: "已复制",
     githubRepository: "GitHub 仓库",
   },

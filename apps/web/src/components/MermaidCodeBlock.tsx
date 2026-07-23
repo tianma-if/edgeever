@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { NodeViewContent, NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "./ThemeProvider";
@@ -36,6 +36,30 @@ export const MermaidCodeBlock = ({ editor, node }: NodeViewProps) => {
   const [svg, setSvg] = useState("");
   const [sourceVisible, setSourceVisible] = useState(false);
   const [renderState, setRenderState] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback(async () => {
+    const text = node.textContent;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = text;
+        textarea.setAttribute("readonly", "");
+        textarea.style.position = "fixed";
+        textarea.style.left = "-9999px";
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+      }
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1600);
+    } catch {
+      // Clipboard API may be unavailable.
+    }
+  }, [node]);
 
   useEffect(() => {
     if (!isMermaid || !source) {
@@ -124,6 +148,19 @@ export const MermaidCodeBlock = ({ editor, node }: NodeViewProps) => {
         : "edgeever-code-block"}
       data-language={language}
     >
+      <button
+        type="button"
+        className="edgeever-code-copy-button"
+        contentEditable={false}
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          void handleCopy();
+        }}
+        aria-label={copied ? t("common.copied") : t("common.copy")}
+      >
+        {copied ? t("common.copied") : t("common.copy")}
+      </button>
       {isMermaid && (
         <div
           className="edgeever-mermaid-preview"
