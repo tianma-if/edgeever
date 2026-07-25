@@ -19,6 +19,8 @@ describe("mobile editor contract", () => {
       "mermaid",
       "bold",
       "bulletList",
+      "increaseListIndent",
+      "decreaseListIndent",
       "blockquote",
       "horizontalRule",
       "insertTable",
@@ -44,6 +46,8 @@ describe("mobile editor contract", () => {
     expect(getMobileEditorTableMenuCopy("zh-CN")).toEqual({ title: "表格操作", close: "关闭" });
     expect(getMobileEditorTableMenuCopy("en-US")).toEqual({ title: "Table actions", close: "Close" });
     expect(getMobileEditorToolbarActionLabel("bulletList", "en-US")).toBe("Bullet list");
+    expect(getMobileEditorToolbarActionLabel("increaseListIndent", "zh-CN")).toBe("增加列表层级（Tab）");
+    expect(getMobileEditorToolbarActionLabel("decreaseListIndent", "en-US")).toBe("Decrease list level (Shift + Tab)");
     expect(getMobileEditorToolbarActionLabel("mermaid", "zh-CN")).toBe("插入 Mermaid 图表");
     expect(getMobileEditorToolbarActionLabel("insertTable", "zh-CN")).toBe("插入表格");
     expect(getMobileEditorImageScaleLabel("zh-CN")).toBe("图片显示尺寸");

@@ -1,22 +1,60 @@
-import { useMemo } from "react";
-import { LayoutList, File as FileIcon } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Check, File as FileIcon, LayoutList, Pencil, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { getMemoTemplates, type MemoTemplate } from "@/lib/app-helpers";
+import type { MemoTemplate as SavedMemoTemplate } from "@edgeever/shared";
 
 export const TemplatesDialog = ({
   canCreateMemo,
   isCreating,
   onClose,
   onCreateMemo,
+  savedTemplates,
+  onUseSavedTemplate,
+  onDeleteSavedTemplate,
+  onUpdateSavedTemplate,
 }: {
   canCreateMemo: boolean;
   isCreating: boolean;
   onClose: () => void;
   onCreateMemo: (template: MemoTemplate) => void;
+  savedTemplates: SavedMemoTemplate[];
+  onUseSavedTemplate: (template: SavedMemoTemplate) => void;
+  onDeleteSavedTemplate: (template: SavedMemoTemplate) => void;
+  onUpdateSavedTemplate: (templateId: string, payload: { name: string; description: string | null; title: string | null; contentMarkdown: string; tags: string[] }) => Promise<void>;
 }) => {
   const { t } = useTranslation();
   const memoTemplates = useMemo(() => getMemoTemplates(t), [t]);
+  const [editingTemplate, setEditingTemplate] = useState<SavedMemoTemplate | null>(null);
+  const [draft, setDraft] = useState({ name: "", description: "", title: "", contentMarkdown: "", tags: "" });
+
+  const startEditing = (template: SavedMemoTemplate) => {
+    setEditingTemplate(template);
+    setDraft({
+      name: template.name,
+      description: template.description ?? "",
+      title: template.title ?? "",
+      contentMarkdown: template.contentMarkdown,
+      tags: template.tags.join(", "),
+    });
+  };
+
+  const cancelEditing = () => setEditingTemplate(null);
+
+  const saveEditing = async () => {
+    if (!editingTemplate || !draft.name.trim()) return;
+    await onUpdateSavedTemplate(editingTemplate.id, {
+      name: draft.name.trim(),
+      description: draft.description.trim() || null,
+      title: draft.title.trim() || null,
+      contentMarkdown: draft.contentMarkdown,
+      tags: draft.tags.split(",").map((tag) => tag.trim()).filter(Boolean),
+    });
+    setEditingTemplate(null);
+  };
 
   return (
     <Dialog open={true} onOpenChange={(open) => { if (!open && !isCreating) onClose(); }}>
@@ -34,25 +72,97 @@ export const TemplatesDialog = ({
         </DialogHeader>
 
         <div className="max-h-[60vh] overflow-y-auto p-5">
+          {savedTemplates.length > 0 && (
+            <section className="mb-6">
+              <h3 className="mb-2 text-xs font-bold text-slate-900">{t("templates.myTemplates")}</h3>
+              {editingTemplate && (
+                <div className="mb-4 space-y-3 rounded-xl border border-emerald-200/80 bg-white p-4 shadow-xs">
+                  <h4 className="text-xs font-semibold text-slate-800">{t("templates.editTemplateTitle")}</h4>
+                  <div className="grid gap-2.5 sm:grid-cols-2">
+                    <Input value={draft.name} onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} placeholder={t("templates.namePlaceholder")} />
+                    <Input value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} placeholder={t("templates.noteTitlePlaceholder")} />
+                    <Input value={draft.description} onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))} placeholder={t("templates.descriptionPlaceholder")} />
+                    <Input value={draft.tags} onChange={(event) => setDraft((current) => ({ ...current, tags: event.target.value }))} placeholder={t("templates.tagsPlaceholder")} />
+                  </div>
+                  <textarea
+                    className="min-h-36 w-full resize-y rounded-lg border border-slate-200 bg-white p-3 font-mono text-xs text-slate-900 outline-none focus-visible:border-emerald-500 focus-visible:ring-2 focus-visible:ring-emerald-500/20"
+                    value={draft.contentMarkdown}
+                    onChange={(event) => setDraft((current) => ({ ...current, contentMarkdown: event.target.value }))}
+                    placeholder={t("templates.contentPlaceholder")}
+                  />
+                  <div className="flex justify-end gap-2">
+                    <Button type="button" size="sm" variant="ghost" onClick={cancelEditing}><X className="mr-1 h-4 w-4" />{t("common.cancel")}</Button>
+                    <Button type="button" size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => void saveEditing()} disabled={!draft.name.trim()}><Check className="mr-1 h-4 w-4" />{t("common.save")}</Button>
+                  </div>
+                </div>
+              )}
+              <div className="grid gap-3 sm:grid-cols-2">
+                {savedTemplates.map((template) => (
+                  <div key={template.id} className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs hover:border-emerald-200 transition">
+                    <button
+                      className="block w-full text-left disabled:opacity-50"
+                      type="button"
+                      disabled={!canCreateMemo || isCreating}
+                      onClick={() => onUseSavedTemplate(template)}
+                    >
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="text-sm font-bold text-slate-900 truncate">{template.name}</span>
+                        <span className="shrink-0 rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">
+                          {t("templates.badgeCustom")}
+                        </span>
+                      </div>
+                      <span className="mt-1 block line-clamp-2 text-xs leading-relaxed text-slate-500">{template.description || template.title || t("templates.savedDescription")}</span>
+                    </button>
+                    <div className="mt-2.5 flex items-center justify-between border-t border-slate-100 pt-2 text-xs">
+                      <div className="flex gap-2">
+                        <button className="inline-flex items-center gap-1 text-slate-500 hover:text-slate-800 transition" type="button" disabled={isCreating} onClick={() => startEditing(template)}>
+                          <Pencil className="h-3 w-3" />{t("templates.edit")}
+                        </button>
+                        <button className="text-rose-600 hover:text-rose-700 transition" type="button" disabled={isCreating} onClick={() => onDeleteSavedTemplate(template)}>
+                          {t("templates.delete")}
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 transition"
+                        disabled={!canCreateMemo || isCreating}
+                        onClick={() => onUseSavedTemplate(template)}
+                      >
+                        {t("templates.useThisTemplate")}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+          <h3 className="mb-2 text-xs font-bold text-slate-900">{t("templates.builtIn")}</h3>
           <div className="grid gap-3 sm:grid-cols-2">
             {memoTemplates.map((template) => (
               <button
                 key={template.id}
-                className="group flex min-h-28 flex-col rounded-md border border-slate-200 bg-white p-3 text-left transition hover:border-slate-300 hover:bg-slate-50 disabled:opacity-50"
+                className="group flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-3.5 text-left transition hover:border-emerald-300 hover:shadow-xs disabled:opacity-50"
                 type="button"
                 disabled={!canCreateMemo || isCreating}
                 onClick={() => onCreateMemo(template)}
               >
-                <span className="flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 bg-white text-emerald-700 transition group-hover:border-slate-300">
-                  <FileIcon className="h-4 w-4" />
-                </span>
-                <span className="mt-3 text-sm font-semibold text-slate-950">{template.title}</span>
-                <span className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">{template.description}</span>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 font-medium">
+                      <FileIcon className="h-4 w-4" />
+                    </span>
+                    <span className="text-sm font-bold text-slate-900">{template.title}</span>
+                  </div>
+                  <span className="mt-2 line-clamp-2 text-xs leading-relaxed text-slate-500">{template.description}</span>
+                </div>
+                <div className="mt-3 flex items-center justify-end text-xs font-semibold text-emerald-700 group-hover:text-emerald-800">
+                  {t("templates.useThisTemplate")}
+                </div>
               </button>
             ))}
           </div>
           {!canCreateMemo && (
-            <div className="mt-4 rounded-md border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs font-medium text-amber-900">
               {t("templates.unavailable")}
             </div>
           )}

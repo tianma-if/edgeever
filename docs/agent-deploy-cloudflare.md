@@ -1,37 +1,41 @@
-# AI Agent Cloudflare Deployment
+# AI Agent Cloudflare Deployment Guide
 
-Use this contract when deploying EdgeEver from a GitHub repository to Cloudflare.
+This document defines the standard operating specifications and conventions for AI Agents (and automated deployment scripts) deploying EdgeEver on Cloudflare.
 
-## Constraints
+> 💡 **Core Principle**: Pure Serverless architecture running entirely within Cloudflare free limits—no VPS or server purchasing, no Docker or SSL certificate configuration required.
 
-- Use local deployment only for the first installation or emergency recovery. Routine updates must use Cloudflare Workers Builds.
-- Keep account IDs, resource names, API tokens, domains, and passwords in the git-ignored `.env.local`; never hard-code or commit them.
-- Use the repository deployment scripts. Do not add a separate GitHub Actions deployment for the Worker.
+---
 
-## First Installation
+## Standard Automated Deployment Steps
 
-Run in order:
+1. **Fork Repository**
+   - Fork `tianma-if/edgeever` to the target GitHub account.
 
-```sh
-bun run deploy:setup
-bun run deploy:doctor
-bun run deploy:manual
-```
+2. **Enable Workflow**
+   - In the **Actions** tab of the Forked repository, enable the **Update deployed EdgeEver** automatic update workflow.
 
-If the user supplied a custom initial password, replace the first command with:
+3. **Cloudflare Project Import**
+   - Log into the Cloudflare **Workers & Pages** console and import the Fork repository.
+   - Configure the project to use the repository root, the production `main` branch, and read the root `wrangler.toml`.
 
-```sh
-EDGE_EVER_PASSWORD='<first-login-password>' bun run deploy:setup
-```
+4. **Resource Bindings & Secrets**
+   - **D1 Database Binding**: Binding name `DB`, associated with database `edgeever`.
+   - **R2 Bucket Binding**: Binding name `RESOURCES`, associated with a globally unique R2 Bucket.
+   - **Worker Secret**: Add secret `EDGE_EVER_AUTH_PASSWORD` for initial admin password.
 
-Do not deploy until `deploy:doctor` passes. `deploy:manual` uses the same build, migration, Worker deployment, and verification core as Cloudflare one-click deployment and Workers Builds. After deployment, verify that `/api/health` returns `200` with `"ok": true`, then verify `/api/openapi.json` and login. A `database_not_ready` or `auth_not_configured` response means deployment is incomplete and must not be handed off as successful. The default initial login is `admin` / `admin123`.
+5. **Configure Workers Builds Commands**
+   - In the Cloudflare project build settings, set the standard commands:
 
-## Automatic Updates
+     ```text
+     Build command: bun install --frozen-lockfile && EDGE_EVER_DEPLOYMENT_TRIGGER=main_push EDGE_EVER_DEPLOYMENT_METHOD=cloudflare_workers_builds bun run build:cloudflare
+     Deploy command: bun run deploy:cloudflare-builds
+     ```
 
-After the first deployment, run:
+6. **Start Initial Build & Verify Service**
+   - Trigger the initial build. Once deployed, run the following automated verifications:
+     - Check `https://<your-worker-domain>/api/health` returns HTTP `200` with JSON `{"ok": true}`.
+     - Check `https://<your-worker-domain>/api/openapi.json` loads the OpenAPI schema properly.
+     - Verify login API using the configured `EDGE_EVER_AUTH_PASSWORD`.
 
-```sh
-bun run deploy:builds:setup
-```
-
-Follow [Cloudflare Workers Builds](cloudflare-workers-builds.md) only when the command requests authorization or an API token. Deployment is complete when the verification build succeeds and future pushes to `main` automatically deploy the instance. Confirm that the repository's **Update deployed EdgeEver** workflow is available and enabled; GitHub disables scheduled workflows by default on public forks. Its default `stable` channel checks formal upstream Releases daily.
+7. **Verify Upstream Update Channel**
+   - Manually trigger **Update deployed EdgeEver** once in the Fork's **Actions** tab to confirm upstream synchronization and automated builds work properly.

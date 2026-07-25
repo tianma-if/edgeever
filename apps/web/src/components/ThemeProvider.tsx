@@ -30,8 +30,29 @@ export const EDITOR_THEME_NAMES = [
   "moyu-ticket",
   "olive-journal",
   "mint-breeze",
+  "custom",
 ] as const;
 export type EditorThemeName = (typeof EDITOR_THEME_NAMES)[number];
+
+export interface CustomEditorTheme {
+  name: string;
+  background: string;
+  text: string;
+  heading: string;
+  accent: string;
+  soft: string;
+  border: string;
+}
+
+export const DEFAULT_CUSTOM_EDITOR_THEME: CustomEditorTheme = {
+  name: "My custom theme",
+  background: "#fffdf7",
+  text: "#292524",
+  heading: "#1c1917",
+  accent: "#0f766e",
+  soft: "#f0fdfa",
+  border: "#99f6e4",
+};
 
 interface ThemeContextValue {
   preference: ThemePreference;
@@ -41,6 +62,8 @@ interface ThemeContextValue {
   setMermaidTheme: (theme: MermaidThemeName) => void;
   editorTheme: EditorThemeName;
   setEditorTheme: (theme: EditorThemeName) => void;
+  customEditorTheme: CustomEditorTheme;
+  setCustomEditorTheme: (theme: CustomEditorTheme) => void;
 }
 
 interface ThemeProviderProps {
@@ -50,6 +73,7 @@ interface ThemeProviderProps {
 const THEME_STORAGE_KEY = "edgeever.theme";
 const MERMAID_THEME_STORAGE_KEY = "edgeever.mermaid-theme";
 const EDITOR_THEME_STORAGE_KEY = "edgeever.editor-theme";
+const CUSTOM_EDITOR_THEME_STORAGE_KEY = "edgeever.custom-editor-theme";
 const LIGHT_THEME_COLOR = "#f8fafc";
 const DARK_THEME_COLOR = "#0f172a";
 const ThemeContext = createContext<ThemeContextValue | null>(null);
@@ -82,6 +106,22 @@ export const getStoredEditorTheme = (): EditorThemeName => {
   return EDITOR_THEME_NAMES.includes(stored as EditorThemeName) ? stored as EditorThemeName : "default";
 };
 
+const isHexColor = (value: unknown): value is string => typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value);
+
+export const getStoredCustomEditorTheme = (): CustomEditorTheme => {
+  if (typeof window === "undefined") return DEFAULT_CUSTOM_EDITOR_THEME;
+
+  try {
+    const stored = JSON.parse(window.localStorage.getItem(CUSTOM_EDITOR_THEME_STORAGE_KEY) || "null") as Partial<CustomEditorTheme> | null;
+    if (!stored || typeof stored.name !== "string") return DEFAULT_CUSTOM_EDITOR_THEME;
+    const colors = [stored.background, stored.text, stored.heading, stored.accent, stored.soft, stored.border];
+    if (!colors.every(isHexColor)) return DEFAULT_CUSTOM_EDITOR_THEME;
+    return { ...DEFAULT_CUSTOM_EDITOR_THEME, ...stored } as CustomEditorTheme;
+  } catch {
+    return DEFAULT_CUSTOM_EDITOR_THEME;
+  }
+};
+
 const applyThemeToDocument = (preference: ThemePreference) => {
   const resolvedTheme = resolveTheme(preference);
   const root = document.documentElement;
@@ -102,6 +142,7 @@ export const ThemeProvider = ({ children }: ThemeProviderProps) => {
   const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(() => resolveTheme(preference));
   const [mermaidTheme, setMermaidThemeState] = useState<MermaidThemeName>(getStoredMermaidTheme);
   const [editorTheme, setEditorThemeState] = useState<EditorThemeName>(getStoredEditorTheme);
+  const [customEditorTheme, setCustomEditorThemeState] = useState<CustomEditorTheme>(getStoredCustomEditorTheme);
 
   useEffect(() => {
     setResolvedTheme(applyThemeToDocument(preference));
@@ -132,8 +173,13 @@ export const ThemeProvider = ({ children }: ThemeProviderProps) => {
         setEditorThemeState(nextTheme);
         window.localStorage.setItem(EDITOR_THEME_STORAGE_KEY, nextTheme);
       },
+      customEditorTheme,
+      setCustomEditorTheme: (nextTheme: CustomEditorTheme) => {
+        setCustomEditorThemeState(nextTheme);
+        window.localStorage.setItem(CUSTOM_EDITOR_THEME_STORAGE_KEY, JSON.stringify(nextTheme));
+      },
     }),
-    [editorTheme, mermaidTheme, preference, resolvedTheme]
+    [customEditorTheme, editorTheme, mermaidTheme, preference, resolvedTheme]
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

@@ -14,6 +14,9 @@ import {
   JsonBackupResourceMetadataSchema,
   MemoCreateSchema,
   MemoUpdateSchema,
+  TemplateCreateSchema,
+  TemplateUpdateSchema,
+  TemplateUseSchema,
   MergeMemosSchema,
   MoveMemosSchema,
   normalizeTags,
@@ -31,6 +34,8 @@ import {
   type MemoRevision,
   type MemoSummary,
   type MemoUpdateInput,
+  type MemoTemplate,
+  type TemplateUpdateInput,
   type JsonBackupMemo,
   type JsonBackupNotebook,
   type JsonBackupResource,
@@ -164,6 +169,18 @@ type MemoDetailRow = MemoSummaryRow & {
   merge_source_count: number;
   merged_into_memo_id: string | null;
   content_hash: string;
+};
+
+type MemoTemplateRow = {
+  id: string;
+  name: string;
+  description: string | null;
+  title: string | null;
+  content_json: string;
+  content_markdown: string;
+  tags_json: string;
+  created_at: string;
+  updated_at: string;
 };
 
 type MemoRevisionRow = {
@@ -1156,6 +1173,125 @@ app.delete("/api/v1/tags/:tag", async (c) => {
   const updated = await updateTagAcrossMemos(c.env.DB, getWorkspaceId(c), tag, null, actor, actorLabel);
 
   return c.json({ ok: true, updated });
+});
+
+app.get("/api/v1/templates", async (c) => {
+  const rows = await c.env.DB.prepare(
+    `SELECT id, name, description, title, content_json, content_markdown, tags_json, created_at, updated_at
+     FROM memo_templates
+     WHERE workspace_id = ?
+     ORDER BY updated_at DESC, name ASC`
+  ).bind(getWorkspaceId(c)).all<MemoTemplateRow>();
+
+  return c.json({ templates: rows.results.map(mapMemoTemplate) });
+});
+
+app.post("/api/v1/templates", zValidator("json", TemplateCreateSchema), async (c) => {
+  const input = c.req.valid("json");
+  const workspaceId = getWorkspaceId(c);
+  const memo = input.memoId ? await getMemoDetail(c.env.DB, workspaceId, input.memoId) : null;
+  if (input.memoId && !memo) {
+    return notFound(c, "Memo not found");
+  }
+
+  const id = createId("template");
+  const now = new Date().toISOString();
+  const title = memo?.title ?? (input.title?.trim() || null);
+  const contentMarkdown = memo?.contentMarkdown ?? input.contentMarkdown ?? "";
+  const tags = memo?.tags ?? input.tags ?? [];
+  const contentJson = memo?.contentJson ?? markdownToDoc(contentMarkdown);
+  await c.env.DB.prepare(
+    `INSERT INTO memo_templates (
+       id, workspace_id, name, description, title, content_json, content_markdown, tags_json, created_at, updated_at
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).bind(
+    id,
+    workspaceId,
+    input.name.trim(),
+    input.description?.trim() || null,
+    title,
+    JSON.stringify(contentJson),
+    contentMarkdown,
+    JSON.stringify(tags),
+    now,
+    now,
+  ).run();
+
+  const template = await getMemoTemplate(c.env.DB, workspaceId, id);
+  const actor = getAuditActor(c);
+  await audit(c.env.DB, actor.actorType, actor.actorId, "template.create", "template", id, { memoId: input.memoId ?? null });
+  return c.json({ template }, 201);
+});
+
+app.patch("/api/v1/templates/:id", zValidator("json", TemplateUpdateSchema), async (c) => {
+  const id = c.req.param("id");
+  const input = c.req.valid("json");
+  const workspaceId = getWorkspaceId(c);
+  const current = await getMemoTemplateRow(c.env.DB, workspaceId, id);
+  if (!current) {
+    return notFound(c, "Template not found");
+  }
+
+  const contentMarkdown = input.contentMarkdown ?? current.content_markdown;
+  const contentJson = input.contentMarkdown !== undefined
+    ? markdownToDoc(contentMarkdown)
+    : JSON.parse(current.content_json);
+  const tags = input.tags ?? parseJsonArray(current.tags_json);
+  const now = new Date().toISOString();
+  await c.env.DB.prepare(
+    `UPDATE memo_templates
+     SET name = ?, description = ?, title = ?, content_json = ?, content_markdown = ?, tags_json = ?, updated_at = ?
+     WHERE id = ? AND workspace_id = ?`
+  ).bind(
+    input.name ?? current.name,
+    input.description !== undefined ? input.description?.trim() || null : current.description,
+    input.title !== undefined ? input.title?.trim() || null : current.title,
+    JSON.stringify(contentJson),
+    contentMarkdown,
+    JSON.stringify(tags),
+    now,
+    id,
+    workspaceId,
+  ).run();
+
+  const template = await getMemoTemplate(c.env.DB, workspaceId, id);
+  const actor = getAuditActor(c);
+  await audit(c.env.DB, actor.actorType, actor.actorId, "template.update", "template", id, {});
+  return c.json({ template });
+});
+
+app.post("/api/v1/templates/:id/use", zValidator("json", TemplateUseSchema), async (c) => {
+  const id = c.req.param("id");
+  const input = c.req.valid("json");
+  const workspaceId = getWorkspaceId(c);
+  const template = await getMemoTemplate(c.env.DB, workspaceId, id);
+  if (!template) {
+    return notFound(c, "Template not found");
+  }
+
+  const memo = await createMemoRecord(c.env.DB, workspaceId, {
+    notebookId: input.notebookId,
+    title: template.title ?? undefined,
+    contentMarkdown: template.contentMarkdown,
+    tags: template.tags,
+  }, getAuditActor(c), getActorLabel(c));
+  const actor = getAuditActor(c);
+  await audit(c.env.DB, actor.actorType, actor.actorId, "template.use", "template", id, { memoId: memo.id });
+  return c.json({ memo });
+});
+
+app.delete("/api/v1/templates/:id", async (c) => {
+  const id = c.req.param("id");
+  const workspaceId = getWorkspaceId(c);
+  const current = await getMemoTemplateRow(c.env.DB, workspaceId, id);
+  if (!current) {
+    return notFound(c, "Template not found");
+  }
+
+  await c.env.DB.prepare(`DELETE FROM memo_templates WHERE id = ? AND workspace_id = ?`).bind(id, workspaceId).run();
+  const actor = getAuditActor(c);
+  await audit(c.env.DB, actor.actorType, actor.actorId, "template.delete", "template", id, {});
+  return c.json({ ok: true });
 });
 
 app.get("/api/v1/memos", async (c) => {
@@ -3716,7 +3852,10 @@ const ensureUserWorkspace = async (db: D1Database, userId: string, username: str
   const existing = await db.prepare(
     `SELECT workspace_id, role FROM workspace_members WHERE user_id = ? LIMIT 1`
   ).bind(userId).first<{ workspace_id: string; role: "owner" | "member" }>();
-  if (existing) return { workspaceId: existing.workspace_id, role: existing.role };
+  if (existing) {
+    await ensureWorkspaceTemplateSeed(db, existing.workspace_id);
+    return { workspaceId: existing.workspace_id, role: existing.role };
+  }
 
   const defaultOwner = await db.prepare(
     `SELECT user_id FROM workspace_members WHERE workspace_id = ? LIMIT 1`
@@ -3728,7 +3867,10 @@ const ensureUserWorkspace = async (db: D1Database, userId: string, username: str
     const claimed = await db.prepare(
       `SELECT workspace_id, role FROM workspace_members WHERE user_id = ? LIMIT 1`
     ).bind(userId).first<{ workspace_id: string; role: "owner" | "member" }>();
-    if (claimed) return { workspaceId: claimed.workspace_id, role: claimed.role };
+    if (claimed) {
+      await ensureWorkspaceTemplateSeed(db, claimed.workspace_id);
+      return { workspaceId: claimed.workspace_id, role: claimed.role };
+    }
   }
 
   const workspaceId = createId("ws");
@@ -3744,6 +3886,7 @@ const ensureUserWorkspace = async (db: D1Database, userId: string, username: str
        VALUES (?, ?, NULL, ?, ?, 'notebook', ?, ?, ?, ?)`
     ).bind(notebook.id, workspaceId, notebook.name, notebook.slug, notebook.color, notebook.sortOrder, now, now)),
   ]);
+  await ensureWorkspaceTemplateSeed(db, workspaceId);
   return { workspaceId, role: "member" as const };
 };
 
@@ -3754,6 +3897,30 @@ const createDefaultNotebookRows = (workspaceId: string, _now: string) => [
   { id: `${workspaceId}_creative`, name: "灵感创作", slug: "creative-ideas", color: "#db2777", sortOrder: 40 },
   { id: `${workspaceId}_personal`, name: "生活个人", slug: "personal-life", color: "#ea580c", sortOrder: 50 },
 ];
+
+const ensureWorkspaceTemplateSeed = async (db: D1Database, workspaceId: string) => {
+  const now = isoNow();
+  const templateId = `${workspaceId}_template_project_weekly`;
+  const contentMarkdown = "## 本周进展\n\n- \n\n## 关键成果\n\n- \n\n## 风险与阻塞\n\n- \n\n## 下周计划\n\n- [ ] \n\n## 需要协助\n\n- ";
+  const contentJson = markdownToDoc(contentMarkdown);
+
+  await db.prepare(
+    `INSERT OR IGNORE INTO memo_templates (
+       id, workspace_id, name, description, title, content_json, content_markdown, tags_json, created_at, updated_at
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).bind(
+    templateId,
+    workspaceId,
+    "项目周报模板",
+    "每周同步项目进展、风险与下一步计划",
+    "项目周报｜第 {{周次}} 周",
+    JSON.stringify(contentJson),
+    contentMarkdown,
+    JSON.stringify(["项目管理", "周报"]),
+    now,
+    now,
+  ).run();
+};
 
 const createSession = async (c: AppContext, user: UserRow, requestedDeviceId?: string) => {
   const token = randomToken(SESSION_TOKEN_BYTES);
@@ -4138,6 +4305,18 @@ const mapMemoDetail = (row: MemoDetailRow): MemoDetail => ({
   sourceMemoIds: parseJsonArray(row.source_memo_ids),
   mergeSourceCount: row.merge_source_count,
   mergedIntoMemoId: row.merged_into_memo_id,
+});
+
+const mapMemoTemplate = (row: MemoTemplateRow): MemoTemplate => ({
+  id: row.id,
+  name: row.name,
+  description: row.description,
+  title: row.title,
+  contentJson: parseDoc(row.content_json),
+  contentMarkdown: row.content_markdown,
+  tags: parseJsonArray(row.tags_json),
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
 });
 
 const mapMemoRevision = (row: MemoRevisionRow): MemoRevision => ({
@@ -5015,6 +5194,18 @@ const getMemoDetailRow = async (
 const getMemoDetail = async (db: D1Database, workspaceId: string, id: string, includeDeleted = false): Promise<MemoDetail | null> => {
   const row = await getMemoDetailRow(db, workspaceId, id, includeDeleted);
   return row ? mapMemoDetail(row) : null;
+};
+
+const getMemoTemplateRow = async (db: D1Database, workspaceId: string, id: string): Promise<MemoTemplateRow | null> =>
+  db.prepare(
+    `SELECT id, name, description, title, content_json, content_markdown, tags_json, created_at, updated_at
+     FROM memo_templates
+     WHERE id = ? AND workspace_id = ?`
+  ).bind(id, workspaceId).first<MemoTemplateRow>();
+
+const getMemoTemplate = async (db: D1Database, workspaceId: string, id: string): Promise<MemoTemplate | null> => {
+  const row = await getMemoTemplateRow(db, workspaceId, id);
+  return row ? mapMemoTemplate(row) : null;
 };
 
 const deleteMemosRecord = async (

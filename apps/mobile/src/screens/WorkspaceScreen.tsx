@@ -579,7 +579,11 @@ export const WorkspaceScreen = () => {
   const defaultMemoNotebookId = notebooks.find(
     (notebook) => notebook.id === "nb_inbox" || notebook.slug === "inbox" || notebook.name === "等待分类"
   )?.id ?? "";
-  const canCreateMemo = memoView !== "trash" && Boolean(defaultMemoNotebookId);
+  const createMemoNotebookId =
+    activeNotebookId !== ALL_NOTES_ID && notebooks.some((notebook) => notebook.id === activeNotebookId)
+      ? activeNotebookId
+      : defaultMemoNotebookId;
+  const canCreateMemo = memoView !== "trash" && Boolean(createMemoNotebookId);
   const openCreateMemo = () => {
     beginEditorStartup();
     setCreateOpen(true);
@@ -1166,7 +1170,7 @@ export const WorkspaceScreen = () => {
       <CreateMemoModal
         baseUrl={session?.baseUrl ?? ""}
         dataScope={dataScope}
-        defaultNotebookId={defaultMemoNotebookId}
+        defaultNotebookId={createMemoNotebookId}
         imageCompressionEnabled={imageCompressionEnabled}
         notebooks={notebooks}
         onCreated={() => {

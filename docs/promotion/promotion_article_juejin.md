@@ -87,20 +87,23 @@ EdgeEver 的部署简单到了极致，甚至你都不需要打开终端。
 
 ### 方式 A：AI Agent 一句话部署（推荐）
 
-将下面这段话，复制给你的 AI 助手（如 Claude Code, Cursor, Antigravity 等）：
+将下面这段提示词复制给已配置 GitHub、Cloudflare MCP、插件或其他可用集成的 AI Agent：
 
 ```text
-请按以下流程操作：
-1. Fork EdgeEver 上游仓库：https://github.com/tianma-if/edgeever
-2. 使用 Fork 后的仓库，将 EdgeEver 安装并部署到 Cloudflare。
-3. 为 Fork 仓库配置从上游仓库同步更新的机制，使其能够定期或按需获取上游仓库的最新代码与产品特性。
+请在线完成 EdgeEver 部署：
+1. Fork https://github.com/tianma-if/edgeever。
+2. 将这个 Fork 导入 Cloudflare Workers & Pages。
+3. 严格按照 docs/agent-deploy-cloudflare.zh-CN.md 配置 D1、R2、EDGE_EVER_AUTH_PASSWORD Worker Secret 和 Workers Builds。
+4. 启动首次构建，验证健康检查和登录，然后手动运行一次 Update deployed EdgeEver。
 ```
 
-AI 助手将自动帮你在 Cloudflare 上建好 D1、R2，配置好 Worker 路由并一键发布上线。
+### 方式 B：Fork 后在线部署
 
-### 方式 B：手动部署（10 秒搞定）
+先 Fork EdgeEver 上游仓库，然后在 Cloudflare Workers & Pages 中导入自己的 Fork，在线配置 D1、R2、Worker Secret 和构建命令。部署完成后，启用仓库中的上游更新工作流，后续版本会自动同步、验证并部署。
 
-如果你喜欢自己动手，只需在本地拉下代码，运行几条简单的辅助命令：
+在 GitHub Fork EdgeEver 后，参考[在线部署文档](../deploy-cloudflare-button.zh-CN.md)完成配置。
+
+高级恢复时才需要手动运行部署命令：
 
 ```sh
 # 1. 复制环境变量

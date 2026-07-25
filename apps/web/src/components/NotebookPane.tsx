@@ -5,6 +5,7 @@ import {
   ChevronLeft,
   Plus,
   LayoutList,
+  LayoutTemplate,
   BookPlus,
   ArrowDownWideNarrow,
   Notebook as NotebookIcon,
@@ -23,6 +24,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -78,25 +80,39 @@ const SidebarShortcutButton = ({
   icon,
   label,
   onClick,
+  showTooltip = true,
 }: {
   active?: boolean;
   icon: ReactNode;
   label: string;
   onClick: () => void;
-}) => (
-  <button
-    className={cn(
-      "flex h-10 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-md px-1.5 text-xs font-medium transition-colors duration-200",
-      active ? "bg-slate-100 text-slate-900" : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
-    )}
-    type="button"
-    aria-current={active ? "page" : undefined}
-    onClick={onClick}
-  >
-    <span className="flex h-4 w-4 shrink-0 items-center justify-center">{icon}</span>
-    <span className="min-w-0 truncate">{label}</span>
-  </button>
-);
+  showTooltip?: boolean;
+}) => {
+  const button = (
+    <button
+      className={cn(
+        "flex h-9 min-w-0 w-full items-center justify-center rounded-md px-0 text-xs font-medium transition-colors duration-200",
+        active ? "bg-slate-100 text-slate-900" : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
+      )}
+      type="button"
+      aria-current={active ? "page" : undefined}
+      aria-label={label}
+      onClick={onClick}
+    >
+      <span className="flex h-4 w-4 shrink-0 items-center justify-center">{icon}</span>
+      <span className="sr-only">{label}</span>
+    </button>
+  );
+
+  return showTooltip ? (
+    <Tooltip>
+      <TooltipTrigger asChild>{button}</TooltipTrigger>
+      <TooltipContent side="bottom">{label}</TooltipContent>
+    </Tooltip>
+  ) : (
+    button
+  );
+};
 
 const SidebarTrashShortcut = ({
   active = false,
@@ -111,7 +127,7 @@ const SidebarTrashShortcut = ({
 
   return (
     <div className="group relative min-w-0">
-      <SidebarShortcutButton active={active} icon={<Trash2 className="h-4 w-4" />} label={t("notebookPane.trash")} onClick={onOpenTrash} />
+      <SidebarShortcutButton active={active} icon={<Trash2 className="h-4 w-4" />} label={t("notebookPane.trash")} onClick={onOpenTrash} showTooltip={false} />
       {!active && (
         <div className="pointer-events-none absolute right-0 top-full z-20 w-max pt-1 opacity-0 transition-opacity duration-150 group-hover:pointer-events-auto group-hover:opacity-100">
           <button
@@ -222,6 +238,7 @@ export const NotebookPane = ({
   onBackToList,
   onOpenTags,
   onOpenAssets,
+  onOpenTemplates,
   onOpenTrash,
   onEmptyTrash,
   onOpenSettings,
@@ -253,6 +270,7 @@ export const NotebookPane = ({
   onBackToList: () => void;
   onOpenTags: () => void;
   onOpenAssets: () => void;
+  onOpenTemplates: () => void;
   onOpenTrash: () => void;
   onEmptyTrash: () => void;
   onOpenSettings: () => void;
@@ -273,6 +291,8 @@ export const NotebookPane = ({
   isResettingDemo?: boolean;
 }) => {
   const { t } = useTranslation();
+  // Temporarily keep template actions out of the primary workspace navigation.
+  const showTemplateEntry = true;
   const { isInstallable, install } = usePwaInstall();
   const notebookScrollRef = useRef<HTMLDivElement | null>(null);
   const notebookDragScrollFrameRef = useRef<number | null>(null);
@@ -380,11 +400,14 @@ export const NotebookPane = ({
         </div>
       </header>
 
-      <nav className="grid shrink-0 grid-cols-3 gap-1 border-b border-slate-100 px-3 py-2" aria-label={t("notebookPane.secondaryEntries")}>
-        <SidebarShortcutButton icon={<Tags className="h-4 w-4" />} label={t("mobileSheets.tags")} onClick={onOpenTags} />
-        <SidebarShortcutButton icon={<Archive className="h-4 w-4" />} label={t("mobileSheets.assets")} onClick={onOpenAssets} />
-        <SidebarTrashShortcut active={view === "trash"} onOpenTrash={onOpenTrash} onEmptyTrash={onEmptyTrash} />
-      </nav>
+      <TooltipProvider delayDuration={0} skipDelayDuration={0}>
+        <nav className="grid shrink-0 grid-cols-4 gap-0.5 border-b border-slate-100 px-2 py-1.5" aria-label={t("notebookPane.secondaryEntries")}>
+          <SidebarShortcutButton icon={<Tags className="h-4 w-4" />} label={t("mobileSheets.tags")} onClick={onOpenTags} />
+          <SidebarShortcutButton icon={<Archive className="h-4 w-4" />} label={t("mobileSheets.assets")} onClick={onOpenAssets} />
+          {showTemplateEntry && <SidebarShortcutButton icon={<LayoutTemplate className="h-4 w-4" />} label={t("nav.templates")} onClick={onOpenTemplates} />}
+          <SidebarTrashShortcut active={view === "trash"} onOpenTrash={onOpenTrash} onEmptyTrash={onEmptyTrash} />
+        </nav>
+      </TooltipProvider>
 
       <div
         ref={notebookScrollRef}
@@ -412,6 +435,18 @@ export const NotebookPane = ({
             <span className="min-w-0 truncate text-sm font-semibold text-slate-950">{t("notebookPane.newMemo")}</span>
           </button>
         </div>
+        {showTemplateEntry && (
+          <button
+            className="mb-3 hidden h-8 w-full items-center justify-start gap-2 rounded-md px-3 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-800 disabled:cursor-not-allowed disabled:opacity-50 lg:flex"
+            type="button"
+            title={t("templates.useTemplate")}
+            onClick={onOpenTemplates}
+            disabled={isCreatingMemo}
+          >
+            <LayoutTemplate className="h-4 w-4" />
+            {t("templates.useTemplate")}
+          </button>
+        )}
 
         <nav className="mb-3 space-y-1" aria-label={t("notebookPane.entries")}>
           <SidebarNavButton

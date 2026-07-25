@@ -1,33 +1,95 @@
-# 使用 Cloudflare 一键部署 EdgeEver
+# EdgeEver 手动在线部署指南
 
-**Deploy to Cloudflare** 按钮是推荐的首次安装方式。它会在你的 GitHub 账号中创建仓库，为 EdgeEver 产品创建 Worker、D1 数据库和 R2 存储桶，执行数据库 migration，并将仓库连接到 Cloudflare Workers Builds。它不会部署 `apps/site` 中的官方产品官网；该官网是只属于上游仓库的独立 Cloudflare Pages 项目。
+本文档为在线部署 EdgeEver 的详细图文操作指南。整个部署流程在浏览器中即可完成，**不需要本地安装任何代码或配置本地环境**。
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/tianma-if/edgeever)
+> 💡 **零成本自托管**：部署完全使用 Cloudflare 免费配额，**无需购买 VPS / 云服务器，也不需要折腾域名证书或 Docker**。
 
-## 首次安装
+---
 
-1. 登录 Cloudflare 和 GitHub，然后打开上方按钮。
-2. 按提示授权 **Cloudflare Workers & Pages** GitHub App。
-3. 选择目标仓库名、Worker 名称、D1 数据库名称和 R2 bucket 名称。
-4. 为 `EDGE_EVER_AUTH_PASSWORD` 设置仅供当前实例使用的强密码。该字段是 Worker Secret，不得提交到 Git。
-5. 保存并部署。Cloudflare 会执行仓库统一的部署流水线：构建、远程 D1 migration、Worker 发布和部署验证。
-6. 打开生成的 `*.workers.dev` 地址，确认 `/api/health` 返回 `200` 和 `"ok": true`，然后使用用户名 `admin` 和刚设置的密码登录。
+## 前置准备
 
-EdgeEver 采用安全关闭策略。D1 migration 或鉴权 Secret 缺失时，实例会返回 `database_not_ready` 或 `auth_not_configured`，不会暴露免登录工作区。
+- **GitHub 账户**（用于 Fork 仓库及配置自动更新）
+- **Cloudflare 账户**（用于托管 Worker 逻辑、SQLite 数据库及文件存储）
 
-## 自动更新
+---
 
-生成的仓库会连接 Workers Builds，因此任何推送到 `main` 的提交都会自动构建、迁移、验证并发布。仓库还包含 **Update deployed EdgeEver** 工作流，每天检查一次上游更新。
+## 首次部署图文指南
 
-默认 `stable` 通道跟随最新的正式 GitHub Release。发布更新前，工作流会在本地合并并验证依赖安装、本地 D1 migration、自动化测试、类型检查和生产 Web 构建。合并冲突或验证失败时不会修改线上 `main`，并会尝试创建 Issue 提供恢复提示。
+### 步骤 1：Fork 仓库并开启 Actions
 
-如果希望跟随上游最新 `main`，请创建名为 `EDGE_EVER_UPDATE_CHANNEL`、值为 `edge` 的 GitHub Repository Variable。也可以手动运行该工作流，并为本次运行选择任一通道。
+1. 访问 EdgeEver 官方仓库：`https://github.com/tianma-if/edgeever`。
+2. 点击右上角 **Fork** 按钮，将仓库 Fork 到您的个人 GitHub 账户下。
+3. 进入您 Fork 后的仓库，切换到 **Actions** 标签页，点击 **"I understand my workflows, go ahead and enable them"** 启用自动化工作流。
 
-GitHub 的定时任务可能延迟，也可能因公共仓库长期无活动而被停用。如果每日更新停止，请打开仓库的 **Actions** 页面，启用 **Update deployed EdgeEver** 并手动运行一次。遇到更新冲突时不要 force push，应解决冲突或恢复为未定制的部署仓库。
+---
 
-## 其他部署入口
+### 步骤 2：在 Cloudflare 创建存储与数据库资源
 
-- 需要由 Agent 使用自定义配置执行同一套确定性 CLI 部署时，使用 [AI Agent Cloudflare Deployment](agent-deploy-cloudflare.md)。
-- 高级配置、故障排查或紧急恢复时，使用 [Cloudflare 手动部署指南](manual-deploy.zh-CN.md)。
+登录 [Cloudflare Dashboard](https://dash.cloudflare.com/) 控制台：
 
-三个入口共用产品 Worker 的构建、migration、发布和验证命令，不需要部署官方产品官网。首次安装完成后，它们都会汇合到 Workers Builds 和同一套自动更新工作流。
+1. **创建 D1 数据库**：
+   - 导航至 **Workers & Pages** -> **D1**，点击 **Create database**。
+   - 数据库名称填入：`edgeever`，点击 **Create**。
+2. **创建 R2 存储桶**（用于存储笔记附件与图片）：
+   - 导航至 **Workers & Pages** -> **R2**，点击 **Create bucket**。
+   - 填入自定义存储桶名称（全局唯一，如 `my-edgeever-resources`），点击 **Create bucket**。
+
+---
+
+### 步骤 3：导入项目并配置资源绑定 (Bindings & Secrets)
+
+1. 在 Cloudflare 控制台中，进入 **Workers & Pages** -> **Overview**，点击 **Create application** -> **Pages** / **Workers** (选择导入 Git 仓库)。
+2. 选择 **Connect to Git**，授权并选中您刚才 Fork 的 `edgeever` 仓库。
+3. 在项目设置中：
+   - **Production branch**：选择 `main`
+   - **Root directory**：保持留空或默认 `/`
+4. **配置环境变量与资源绑定**（在 **Settings** -> **Variables and Bindings**）：
+
+| 类型 (Type) | 名称 (Binding / Variable Name) | 值 / 绑定的资源 (Value / Resource) | 说明 |
+| :--- | :--- | :--- | :--- |
+| **D1 Database Binding** | `DB` | 选择 `edgeever` 数据库 | 存放笔记与结构化数据 |
+| **R2 Bucket Binding** | `RESOURCES` | 选择您创建的 R2 Bucket | 存放图片与图片附件 |
+| **Environment Variable (Secret)** | `EDGE_EVER_AUTH_PASSWORD` | 设置您的管理员登录密码 | 初始登录凭据 |
+
+---
+
+### 步骤 4：设置构建命令并启动构建
+
+在 Cloudflare 项目的 **Build settings**（构建设置）中配置：
+
+```text
+Build command:  bun install --frozen-lockfile && EDGE_EVER_DEPLOYMENT_TRIGGER=main_push EDGE_EVER_DEPLOYMENT_METHOD=cloudflare_workers_builds bun run build:cloudflare
+Deploy command: bun run deploy:cloudflare-builds
+```
+
+点击 **Save and Deploy** 启动首次构建部署。
+
+---
+
+### 步骤 5：验证部署与登录
+
+1. 构建完成后，Cloudflare 会为您生成一个二级域名（如 `https://edgeever.your-subdomain.workers.dev`）。
+2. 在浏览器打开该域名下的健康检查接口：`https://你的域名/api/health`，确认返回 `200` 及 JSON：
+   ```json
+   { "ok": true }
+   ```
+3. 打开主站首页，输入您配置的密码（`EDGE_EVER_AUTH_PASSWORD`）测试登录并开始使用。
+4. 返回 Fork 的 GitHub 仓库 **Actions** 页面，手动触发运行一次 **Update deployed EdgeEver** 工作流，确保未来可自动跟进上游更新。
+
+---
+
+## 高级配置：更新通道设置
+
+部署默认自动跟随官方正式 Releases（稳定版）。若希望跟进最前沿的 `main` 分支（Edge 预览版），可前往 Cloudflare 的 **Settings** -> **Variables and Bindings** 添加如下环境变量：
+
+```text
+EDGE_EVER_UPDATE_CHANNEL=edge
+```
+
+---
+
+## 常见问题与排错
+
+- **首次构建失败**：请检查 Cloudflare 控制台中 Worker 的 **Deployments** 构建日志，确认 D1 (`DB`) 和 R2 (`RESOURCES`) Binding 名称大小写是否正确。
+- **无法同步上游更新**：打开您 Fork 仓库的 **Actions** 标签页，确认 **Update deployed EdgeEver** 工作流是否处于已启用状态，并尝试手动点击 **Run workflow**。
+- **需要重置或手动恢复部署**：请参阅 [手动部署指南](manual-deploy.zh-CN.md)。

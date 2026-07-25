@@ -2,7 +2,7 @@
 
 [简体中文](evernote-migration-guide.md) | [English](evernote-migration-guide.en-US.md)
 
-我们强烈推荐使用 AI 编程助手（如 Antigravity、Claude Code、Cursor 等）自动执行迁移。该方案已完成内存流式优化与空文本预处理，能安全应对数 GB 级别超大笔记库，完整保留创建/修改时间与嵌套笔记本目录层级。
+我们强烈推荐使用 AI 编程助手（如 Codex、Antigravity、Claude Code、Cursor、OpenClaw、Hermes Agent 等）自动执行迁移。该方案已完成内存流式优化与空文本预处理，能安全应对数 GB 级别超大笔记库，完整保留创建/修改时间与嵌套笔记本目录层级。
 
 ---
 
@@ -10,10 +10,10 @@
 
 1. 点击网页端左下角的 **设置（Settings）** 图标。
 2. 在 **API & MCP 授权** 卡片生成 Token 后，点击 **复制完整 MCP 配置** 按钮。
-3. 把复制的 JSON 配置直接粘贴发送给你的 AI 编程助手（如 Antigravity, Claude Code, Cursor 等），让它帮你自动在当前的 AI 客户端中安装配置好该 MCP 服务：
+3. 把复制的 JSON 配置直接粘贴发送给你的 AI 编程助手（如 Codex, Antigravity, Claude Code, Cursor, OpenClaw, Hermes Agent 等），让它帮你自动在当前的 AI 客户端中安装配置好该 MCP 服务：
 
 ```sh
-你是 AI 编程助手。这是我的 EdgeEver MCP 服务配置 JSON。请帮我把这个 MCP 服务直接配置到我当前使用的 AI 编辑器/客户端（如 Claude Code, Cursor, Cline 等）的 MCP 服务器配置文件中：
+你是 AI 编程助手。这是我的 EdgeEver MCP 服务配置 JSON。请帮我把这个 MCP 服务直接配置到我当前使用的 AI 编辑器/客户端（如 Codex, Claude Code, Cursor, Cline 等）的 MCP 服务器配置文件中：
 
 <在此处粘贴刚才复制 of JSON 配置内容>
 ```

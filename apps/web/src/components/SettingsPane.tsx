@@ -38,7 +38,6 @@ interface SettingsPaneProps {
   authRequired: boolean;
   demoMode: boolean;
   isOwner: boolean;
-  onShowGuide?: () => void;
 }
 
 // Slate and brand color variables already switch values with the root theme.
@@ -72,7 +71,6 @@ export const SettingsPane = ({
   authRequired,
   demoMode,
   isOwner,
-  onShowGuide,
 }: SettingsPaneProps) => {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<TabKey>("general");
@@ -187,7 +185,7 @@ export const SettingsPane = ({
         return (
           <SettingsGroup>
             <DataExportCard />
-            <EvernoteImportGuideCard onShowGuide={onShowGuide} />
+            <EvernoteImportGuideCard />
           </SettingsGroup>
         );
       case "ai":

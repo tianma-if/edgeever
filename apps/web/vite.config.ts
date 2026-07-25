@@ -39,7 +39,14 @@ const readLatestReleaseCommitTimestamp = () => {
     const releaseTag = execSync('git describe --tags --abbrev=0 --match "v[0-9]*.[0-9]*.[0-9]*" HEAD', { encoding: "utf8" }).trim();
     return execSync(`git log -1 --format=%cI ${releaseTag}`, { encoding: "utf8" }).trim();
   } catch {
-    return "";
+    // Workers Builds may check out the source without fetching tags. The
+    // package version is updated in the release-preparation commit, so its
+    // timestamp is the best local fallback for self-hosted builds.
+    try {
+      return execSync("git log -1 --format=%cI -- package.json", { encoding: "utf8" }).trim();
+    } catch {
+      return "";
+    }
   }
 };
 

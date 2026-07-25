@@ -47,7 +47,7 @@ Release 以上一个实际发布的正式 Release 为基线，审计完整提交
 5. 从即将发布的提交执行验证。至少完成相关类型检查、测试和 Web 构建；移动端变更必须执行 `bun run build:android:apk:local`，不得用工作区其他未提交改动构建 APK。
 6. 验证 APK 的 `versionName`、`versionCode`、包名、生产签名、目标 ABI、SHA-256 和文件大小。将产物重命名为 `edgeever-android-vX.Y.Z-arm64-v8a.apk`，并确保只上传该版本产物。
 7. 创建标签并推送标签，标签必须指向已验证的 `main` 提交；随后创建非 Draft、非 Prerelease 的 GitHub Release，上传 APK，并在发布后确认 Release、标签、附件状态和下载链接均可用。
-8. Release 正文使用英文，必须包含用户可感知的变化、关联 Issue 和实际验证结果；发布完成后将已完成的 Issue 回链到 Release 并关闭。
+8. Release 正文使用英文，必须包含用户可感知的变化、关联 Issue 和实际验证结果；发布完成后将已完成的 Issue 回链到 Release 并关闭。正文必须通过 `--notes-file` 或包含真实换行的字符串提交，禁止把字面量 `\n` 写入 GitHub Release。
 
 推荐的移动端发布验证命令：
 
