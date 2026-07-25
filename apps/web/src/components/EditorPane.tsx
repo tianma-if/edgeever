@@ -513,6 +513,7 @@ type EditorPaneProps = {
   searchFocusToken: number;
   replaceFocusToken: number;
   selectionActionBar?: ReactNode;
+  demoMode?: boolean;
 };
 
 type RichEditorPaneProps = EditorPaneProps & {
@@ -1135,6 +1136,7 @@ const RichEditorPane = ({
   replaceFocusToken,
   selectionActionBar,
   onRequestMobileNativeEdit,
+  demoMode = false,
 }: RichEditorPaneProps) => {
   const { t } = useTranslation();
   const { customEditorTheme, editorTheme } = useTheme();
@@ -2559,6 +2561,12 @@ const RichEditorPane = ({
           </div>
 
           <div className="flex shrink-0 items-center gap-1">
+            {demoMode && (
+              <span className="hidden items-center gap-1 px-1.5 text-xs text-slate-400 select-none md:inline-flex">
+                <Info className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                <span>{t("demo.privacyNotice")}</span>
+              </span>
+            )}
             <span
               className="hidden whitespace-nowrap px-1.5 text-xs tabular-nums text-slate-400 sm:inline-flex"
               title={t("editor.characterCount", { count: characterCount })}
@@ -2968,8 +2976,22 @@ const RichEditorPane = ({
           useMobilePlainTextEditor ? "overflow-visible" : "overflow-y-auto"
         )}
       >
-        <div className="flex min-h-full items-start w-full gap-8 px-6 py-6 sm:px-10">
-          <div className="min-w-0 flex-1 max-w-[var(--editor-content-max-width,880px)]">
+        <div
+          className={cn(
+            "flex min-h-full items-start gap-8 px-6 py-6 sm:px-10 transition-all duration-200",
+            desktopFocusMode
+              ? "mx-auto w-full max-w-[1400px] justify-center"
+              : "w-full justify-start"
+          )}
+        >
+          <div
+            className={cn(
+              "min-w-0 flex-1 transition-[max-width] duration-200",
+              desktopFocusMode
+                ? "max-w-[960px]"
+                : "max-w-[var(--editor-content-max-width,880px)]"
+            )}
+          >
             {useMobilePlainTextEditor ? (
               <>
                 <textarea

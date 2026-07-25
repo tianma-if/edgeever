@@ -52,11 +52,13 @@ const NOTEBOOK_DRAG_SCROLL_MAX_STEP_PX = 18;
 
 const SidebarNavButton = ({
   active = false,
+  tone = "default",
   icon,
   label,
   onClick,
 }: {
   active?: boolean;
+  tone?: "default" | "warning";
   icon: ReactNode;
   label: string;
   onClick: () => void;
@@ -64,7 +66,11 @@ const SidebarNavButton = ({
   <button
     className={cn(
       "flex h-9 w-full items-center gap-3 rounded-md px-3 text-left text-sm font-medium leading-none transition-all duration-200",
-      active ? "bg-slate-100 text-slate-950" : "text-slate-700 hover:bg-slate-50 hover:text-slate-950"
+      tone === "warning"
+        ? "text-amber-700 hover:bg-amber-50/70 hover:text-amber-800"
+        : active
+          ? "bg-slate-100 text-slate-950"
+          : "text-slate-700 hover:bg-slate-50 hover:text-slate-950"
     )}
     type="button"
     aria-current={active ? "page" : undefined}
@@ -457,7 +463,8 @@ export const NotebookPane = ({
           />
           {demoMode && onResetDemo && (
             <SidebarNavButton
-              icon={<RotateCcw className={cn("h-4 w-4 text-slate-500", isResettingDemo && "animate-spin text-emerald-600")} />}
+              tone="warning"
+              icon={<RotateCcw className={cn("h-4 w-4 text-amber-600", isResettingDemo && "animate-spin")} />}
               label={isResettingDemo ? t("demo.resetting") : t("demo.resetButton")}
               onClick={onResetDemo}
             />

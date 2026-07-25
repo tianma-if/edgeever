@@ -176,7 +176,7 @@ textarea {
 
 .ProseMirror {
   width: 100%;
-  max-width: var(--editor-content-max-width, 880px);
+  max-width: 100%;
   margin: 0;
   color: #000;
   font-size: var(--editor-body-font-size);
