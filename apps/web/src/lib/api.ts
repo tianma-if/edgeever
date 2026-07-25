@@ -8,6 +8,7 @@ import type {
   JsonBackupNotebook,
   JsonBackupRevision,
   MemoDetail,
+  MemoTemplate,
   MemoEditSession,
   MemoRevision,
   MemoSummary,
@@ -76,6 +77,10 @@ const getOrCreateWebDeviceId = () => {
 
 type MemoResponse = {
   memo: MemoDetail;
+};
+
+type TemplateResponse = {
+  template: MemoTemplate;
 };
 
 type NotebookResponse = {
@@ -281,6 +286,29 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
+
+  listTemplates: () => request<{ templates: MemoTemplate[] }>("/api/v1/templates"),
+
+  createTemplate: (payload: { name: string; description?: string | null; memoId?: string; title?: string | null; contentMarkdown?: string; tags?: string[] }) =>
+    request<TemplateResponse>("/api/v1/templates", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  updateTemplate: (templateId: string, payload: { name?: string; description?: string | null; title?: string | null; contentMarkdown?: string; tags?: string[] }) =>
+    request<TemplateResponse>(`/api/v1/templates/${templateId}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+
+  useTemplate: (templateId: string, notebookId: string) =>
+    request<MemoResponse>(`/api/v1/templates/${templateId}/use`, {
+      method: "POST",
+      body: JSON.stringify({ notebookId }),
+    }),
+
+  deleteTemplate: (templateId: string) =>
+    request<{ ok: true }>(`/api/v1/templates/${templateId}`, { method: "DELETE" }),
 
   moveMemos: (payload: { memoIds: string[]; notebookId: string }) =>
     request<{ ok: true; moved: number }>("/api/v1/memos/batch/move", {

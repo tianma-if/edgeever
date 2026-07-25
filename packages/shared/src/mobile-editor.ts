@@ -7,6 +7,8 @@ export type MobileEditorToolbarActionId =
   | "mermaid"
   | "bold"
   | "bulletList"
+  | "increaseListIndent"
+  | "decreaseListIndent"
   | "blockquote"
   | "horizontalRule"
   | MobileEditorTableActionId;
@@ -34,6 +36,8 @@ export const MOBILE_EDITOR_TOOLBAR_ACTIONS = [
   { id: "mermaid", activeFlag: MOBILE_EDITOR_ACTIVE_FLAGS.mermaid, requiresTable: false },
   { id: "bold", activeFlag: MOBILE_EDITOR_ACTIVE_FLAGS.bold, requiresTable: false },
   { id: "bulletList", activeFlag: MOBILE_EDITOR_ACTIVE_FLAGS.bulletList, requiresTable: false },
+  { id: "increaseListIndent", activeFlag: 0, requiresTable: false },
+  { id: "decreaseListIndent", activeFlag: 0, requiresTable: false },
   { id: "blockquote", activeFlag: MOBILE_EDITOR_ACTIVE_FLAGS.blockquote, requiresTable: false },
   { id: "horizontalRule", activeFlag: 0, requiresTable: false },
   { id: "insertTable", activeFlag: 0, requiresTable: false },
@@ -66,6 +70,8 @@ const MOBILE_EDITOR_COPY = {
       mermaid: "插入 Mermaid 图表",
       bold: "加粗",
       bulletList: "无序列表",
+      increaseListIndent: "增加列表层级（Tab）",
+      decreaseListIndent: "减少列表层级（Shift + Tab）",
       blockquote: "引用",
       horizontalRule: "分割线",
       insertTable: "插入表格",
@@ -96,6 +102,8 @@ const MOBILE_EDITOR_COPY = {
       mermaid: "Insert Mermaid diagram",
       bold: "Bold",
       bulletList: "Bullet list",
+      increaseListIndent: "Increase list level (Tab)",
+      decreaseListIndent: "Decrease list level (Shift + Tab)",
       blockquote: "Quote",
       horizontalRule: "Horizontal rule",
       insertTable: "Insert table",

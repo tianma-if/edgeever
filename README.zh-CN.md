@@ -2,26 +2,27 @@
 
 简体中文 | [English](README.md)
 
-> **EdgeEver：无需服务器、0 费用、开源且原生支持 AI Agent 的自托管『印象笔记』替代品。**
+> **EdgeEver：无需服务器、0 费用、开源且原生支持 AI 的自托管「印象笔记」替代方案。**
 
-EdgeEver 是一个开源、自托管、Cloudflare-native 的现代笔记工作区。它保留经典印象笔记的三栏体验，同时提供清晰的数据模型、REST API、OpenAPI schema 和 MCP endpoint，原生支持 AI Agent 接入。
+EdgeEver 是一款现代化的开源笔记工作区。它为你找回经典印象笔记的三栏高效体验，同时具备完全开放的数据架构与原生 AI Agent 联动能力，让个人知识沉淀更轻量、更自由。
+
 > 💡 **终身免服务器，100% 免费**
-> EdgeEver 采用纯 Serverless（无服务器）架构。自部署时**你不需要购买任何云服务器**，也**不需要折腾复杂的 Docker 或 SSL 证书**。直接运行在 Cloudflare 的免费额度内，个人日常使用 **完全免费，0 费用，0 运维**。
+> EdgeEver 采用纯 Serverless（无服务器）架构。自部署时**无需购买云服务器**，也**无需配置复杂的 Docker 或 SSL 证书**。免费运行于 Cloudflare 配额之内，个人日常使用 **100% 免费，零费用、零运维**。
 
 > ⭐ 如果 EdgeEver 对你有帮助，欢迎点个 Star。你的支持会帮助更多人发现这个项目。
 
 ## 为什么做 EdgeEver
 
-很多长期使用**印象笔记**的用户，核心需求只是一个**可靠、开放、响应足够快**的个人知识库。然而，当下的主流方案都各有痛点：
+很多长期使用**印象笔记**的用户，核心需求只是一个**可靠、开放、响应迅速**的个人知识库。然而，当下的主流方案都各有痛点：
 
-* **印象笔记**：功能日益臃肿，商业化广告和附加功能不断增加，性能与内存占用差强人意；且数据封闭，很难直接导出，国内版更不支持 MCP 联动；国际版虽支持 MCP，但入门套餐每月需 15 美元且有严格的额度限制。
-* **Obsidian**：虽然足够开放，但对于“随时随地随手记”的轻量场景来说太重了；且官方同步收费（每月 5 美元），第三方同步方案门槛和折腾成本较高。
-* **Memos 等轻量笔记**：虽然足够开放好用，但其流式布局与经典印象笔记式的“三栏工作流”有着天然的交互差异。
+* **印象笔记**：功能日益臃肿，商业广告与繁杂附加功能充斥，性能与内存占用居高不下；且数据相对封闭难以导出，免费版限制重重，支持 AI/MCP 的套餐订阅成本高昂。
+* **Obsidian**：功能强大且高度开放，但对于“随时随地随手记”的轻量场景来说偏重；官方同步费用昂贵，第三方同步配置繁琐。
+* **Memos 等轻量笔记**：虽然简单好用，但流式卡片布局与习惯了经典“三栏工作流”的用户有着天然的交互习惯差异。
 
-**EdgeEver 旨在填补这个空白**：它保留了用户最熟悉的经典三栏笔记体验，同时提供完全开放的数据模型、REST API、MCP 原生支持以及零成本自托管部署。
+**EdgeEver 恰好填补了这一空白**：在保留你最熟悉的经典三栏布局与流畅排版的同时，赋予数据完全的自由度，原生支持接入 AI Agent，且部署维护零门槛、零费用。
 
-> 💡 **我目前研究的最佳实践是：**
-> 用 **EdgeEver** 随手快速记录灵感与备忘，作为灵感的“原料库”；当需要进行结构化整理时，再通过 **MCP** 联动 AI，将内容自动同步并整合到 **Obsidian**、**Notion Database** 或**飞书多维表格**中。
+> 💡 **最佳实践推荐：**
+> 用 **EdgeEver** 随时捕捉灵感与备忘，作为知识的“原料库”；当需要结构化整理或创作发布时，既能通过 **MCP** 唤醒 AI 助手智能归纳并同步至 **Obsidian**、**Notion** 或**飞书多维表格**，也能一键将文章精美排版并复制到**微信公众号**直接发布。
 
 ## 在线演示
 
@@ -31,63 +32,55 @@ EdgeEver 是一个开源、自托管、Cloudflare-native 的现代笔记工作�
 
 ## 功能
 
-- 零服务器，零运维，终身完全免费：基于 Cloudflare 无服务器架构与免费级配额，短笔记可达 15 万条，200KB 图片约可存放 5 万张，彻底免去云服务器租用和维护成本，并带来全球秒开的极速响应。
-- 数据完全开放：笔记内容存放在基于标准 SQLite 的 Cloudflare D1 中，可通过 REST API、MCP 和 CLI 按需读取与管理，不用担心被单一笔记产品绑定。
-- EdgeEver ZIP 导入与导出：同一份档案既包含便于直接阅读和迁移的 Markdown、Front Matter、嵌套笔记本结构与相对路径附件，也包含用于 EdgeEver 实例间完整恢复的版本化结构数据和历史版本。
-- AI Agent 友好：原生支持 MCP，可让 Codex、Claude Code、Antigravity 等工具读取、整理和维护笔记，并可借助 MCP 与 Notion Database、飞书多维表格进行联动。
-- 多端无缝同步且不限设备数：基于自建的 API 个人独享数据，摆脱商业笔记平台对登录设备数量的强制限制（如免费版只允许登录 2 台设备等），支持 PC、平板与手机无缝多端同步。
-- 三栏布局：笔记本树、笔记列表、主编辑区；桌面端支持专注模式，可让当前笔记铺满工作区。
-- 无限级嵌套笔记本。
-- 支持富文本编辑。
-- 桌面端支持 Markdown 源码与富文本视图切换。
-- Web 与原生 App 均支持渲染标准 Mermaid 围栏代码块，并在富文本与 Markdown 视图之间保留可编辑源码。
-- 支持查看笔记历史版本，便于回溯内容变化。
-- 笔记图片上传前支持 Web 端本地压缩，常见截图和大尺寸照片通常可减少约 50%-90% 体积，减少资源占用且不消耗 Cloudflare Images 额度。
-- 多选合并笔记。
-- 多选移动笔记，笔记本支持拖拽排序和调整层级。
-- 已有笔记支持离线编辑草稿和本地同步队列。
-- 支持单实例多账号，每个账号拥有隔离的个人笔记空间；管理员可创建、停用和重置成员账号，密码使用 PBKDF2-SHA256 hash。
-- Chrome/Edge 网页裁剪插件已正式上架 [Chrome Web Store](https://chromewebstore.google.com/detail/edgeever-web-clipper/gjadpfmanienmlofajibkfkkpfdkclgo)。
-- 支持安装为 PWA 应用，PC 和移动端均可流畅访问；原生移动端 App（iOS / Android）已开发完成并已提交上架审核，安卓用户可直接在 Release 页面下载 APK 抢先体验。
+- **零服务器、零运维、真正免费**：基于 Cloudflare Serverless 架构，彻底告别服务器租用与运维烦恼。免费配额可轻松容纳 15 万条笔记与 5 万张图片，全球节点带来秒开体验。
+- **数据开放，不设围墙**：基于标准 SQLite 存储，提供 REST API、MCP 与 CLI 接口。数据随时可读可导，不再担心被任何特定平台绑定。
+- **无损 ZIP 打包与无缝迁移**：一键打包导出包含 Markdown、Front Matter、嵌套目录及附件的完整档案，同时保留历史版本与结构化数据，方便在不同实例间完整还原。
+- **原生 AI Agent 智脑联动**：内置 MCP（Model Context Protocol）协议，支持 Claude Code、Codex、Antigravity 等 AI 助手直接读取与整理笔记，也可与 Notion Database、飞书多维表格轻松打通。
+- **多端无缝同步，无设备限制**：自托管数据无商业限制，摆脱免费账号仅限 2 台设备的束缚，在 PC、平板与手机上随心同步。
+- **经典三栏布局与专注模式**：笔记本树、笔记列表与编辑区一目了然；桌面端一键开启专注模式，让思绪尽情铺满屏幕。
+- **无限层级笔记本**：轻松构建清晰的多级目录结构。
+- **微信公众号一键排版与复制**：专为中文创作者设计，支持将笔记一键转换为带行内样式的公众号美化格式，直接复制粘贴至微信公众号后台，告别复杂的第三方排版工具。
+- **优雅的双视图编辑**：桌面端支持在富文本与 Markdown 源码视图之间自由切换。
+- **Mermaid 架构图与流程图渲染**：原生支持 Mermaid 代码块渲染，视图切换时完整保留可编辑源码，让绘制逻辑图表更直观。
+- **笔记历史版本回溯**：自动记录修改历史，随时查阅与还原过往版本。
+- **智能前端图片压缩**：图片上传前在浏览器端静默完成压缩，常见截图与大图精简 50%-90% 体积，加载更迅速、存储更省心。
+- **通用文件附件支持**：支持轻松上传并插入 PDF、Office 文档、压缩包及音视频等各种附件。
+- **高效多选与批量操作**：支持笔记批量合并、批量移动，以及笔记本拖拽排序与层级调整。
+- **离线草稿与同步队列**：网络不稳定时自动保存离线草稿，恢复连线后自动入队同步。
+- **多账号与个人空间隔离**：单实例支持创建多个独立账号，用户数据相互隔离，配备直观的管理员账号管理与安全加密机制。
+- **全平台多端覆盖**：已上架 Chrome/Edge 网页裁剪插件；支持安装为 PWA 应用；原生移动端 App（iOS/Android）即将上线，Android APK 可在 Release 页面即刻下载体验。
 
 ## 部署
 
-以下三种方案任选其一即可完成部署。
+EdgeEver 采用纯 Serverless 架构，完全运行在 Cloudflare 免费配额内，**无需购买服务器/VPS，也无需配置 Docker 或 SSL 证书**。
 
-### 方案 A：Cloudflare 一键部署（推荐）
+您可以选择以下两种方式之一在线部署：
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/tianma-if/edgeever)
+### 方案一：AI Agent 一键部署（推荐）
 
-一键部署会创建专属 GitHub 仓库和所需 Cloudflare 资源，并在仓库每日同步上游版本后自动触发重新部署；配置与排错见[使用 Cloudflare 一键部署 EdgeEver](docs/deploy-cloudflare-button.zh-CN.md)。
-
-### 方案 B：通过 AI Agent 一句话部署
- 
-> 💡 **提示：** AI Agent 部署的底层逻辑与标准的手动部署完全一致。AI 助手只是代为在终端执行标准的、确定性的配置与部署命令（如 `wrangler` 和 `bun` 脚本），并非使用非确定性的黑盒部署方式。
-
-将下方提示词复制给你的 AI 助手（Claude Code、Codex、OpenClaw、Antigravity、Cursor 等）。该入口与一键部署和手动部署共用同一套部署内核。
-
-**建议：** 开始部署前，请先为 AI Agent 配置 GitHub 和 Cloudflare 的 MCP、插件或其他可用集成。
+将下方提示词直接复制发送给已配置 GitHub、Cloudflare MCP/插件或其他可用集成的 AI Agent（如 Codex, Claude, Cursor, Antigravity, OpenClaw, Hermes Agent 等）：
 
 ```text
-请按以下流程操作：
-1. 基于 https://github.com/tianma-if/edgeever 创建 GitHub 仓库并克隆到本地。
-2. 严格按照 docs/agent-deploy-cloudflare.md 创建 Cloudflare 资源并运行 `bun run deploy:manual`。
-3. 运行 `bun run deploy:builds:setup`，通过 Cloudflare Workers Builds 将已部署的 Worker 连接到仓库的 `main` 分支；如需 token，使用 User API Token，不要使用 Account API Token。
-4. 验证首次自动构建和每日上游更新工作流。
+请在线完成 EdgeEver 部署：
+1. Fork https://github.com/tianma-if/edgeever。
+2. 将这个 Fork 导入 Cloudflare Workers & Pages。
+3. 配置 D1、R2、`EDGE_EVER_AUTH_PASSWORD` Worker Secret 和生产环境 `main` 构建。
+4. 启动首次构建，验证 `/api/health`、`/api/openapi.json` 和登录。
+5. 启用并手动运行一次 `Update deployed EdgeEver`。
 ```
 
-Agent 应优先按 [AI Agent Cloudflare Deployment](docs/agent-deploy-cloudflare.md) 执行。首次部署后，请参阅 [Cloudflare Workers Builds 自动部署](docs/cloudflare-workers-builds.zh-CN.md)。所有安装入口共用同一套构建、migration、发布和验证流水线。
+> 详细约定与要求请查看：[AI Agent 在线部署约定](docs/agent-deploy-cloudflare.zh-CN.md)。
 
-> 常见踩坑：Cloudflare 的 R2、D1 和 Worker 即使使用免费额度，在开通或使用过程中也可能要求绑定一张 Visa 卡。国内用户可以考虑办理招商银行多币种卡，拿到 Visa 卡后绑定到 Cloudflare 账号即可。
+### 方案二：手动在线部署
 
-### 方案 C：手动部署
+仅需在网页端完成 4 步极简配置：
 
-关于高级首次安装、Cloudflare 资源配置、故障排查与紧急修复，请参考 [Cloudflare 手动部署指南](docs/manual-deploy.zh-CN.md)。首次部署后，请配置 Cloudflare Workers Builds；之后仓库更新会自动部署。
+1. **Fork 仓库**：在 GitHub 点击右上角 **Fork**，将项目 Fork 到您的个人账户下。
+2. **导入 Cloudflare**：登录 Cloudflare 控制台，进入 **Workers & Pages**，选择导入该 Fork 仓库。
+3. **绑定资源与密码**：绑定 D1 数据库（`DB`）、R2 存储桶（`RESOURCES`），并添加 Worker Secret `EDGE_EVER_AUTH_PASSWORD` 作为登录密码。
+4. **启动构建与验证**：使用默认构建配置启动首次构建，部署完成后访问 `/api/health` 确认返回 `200` 即可开始使用。
 
-推荐优先使用自动化辅助命令。手动配置模板使用 `admin` / `admin123` 作为初始登录账号密码，之后可在个人设置中修改密码。如果选择完全手动创建 Cloudflare 资源，必须先在 `.env.local` 中完成 D1 ID、R2 bucket 和 400 天会话期限等配置，再执行 `bun run deploy:manual`。
-
-生产部署采用安全关闭策略：D1 未迁移或登录 Secret 缺失时，实例会显示可诊断的配置错误并拒绝访问，不会自动退化成免登录模式。请勿直接向 D1 写入明文密码；故障恢复命令见手动部署指南。
-
+> 📖 包含具体参数与构建命令的详细步骤，请查看 [在线部署完整文档](docs/deploy-cloudflare-button.zh-CN.md)。
 
 ## 多账号登录
 
@@ -235,7 +228,7 @@ Cloudflare Worker 侧执行图片处理会消耗计算/图片处理额度，因�
 
 ## Docker 部署规划
 
-> 🐳 面向 VPS、NAS 和家庭服务器的 Docker 私有化部署已纳入规划，待核心功能稳定后提供；当前版本尚不支持。
+> 🐳 面向 VPS、NAS 和家庭服务器的 Docker 私有化部署已纳入规划，但当前还不是正式支持的发行方式。现在已经提供用于适配器开发的实验性 Bun 运行入口，支持 SQLite + 本地文件或 S3 兼容存储；PostgreSQL 目前仍只预留契约。详见[自托管与 Docker 架构预留](docs/self-hosting-architecture.zh-CN.md)。
 
 ## 致谢
 

@@ -39,6 +39,18 @@ export type MemoDetail = MemoSummary & {
   mergedIntoMemoId: string | null;
 };
 
+export type MemoTemplate = {
+  id: string;
+  name: string;
+  description: string | null;
+  title: string | null;
+  contentJson: TiptapDoc;
+  contentMarkdown: string;
+  tags: string[];
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type MemoEditSession = {
   id: string;
   memoId: string;

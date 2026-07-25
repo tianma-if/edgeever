@@ -2,7 +2,7 @@
 
 [简体中文](evernote-migration-guide.md) | [English](evernote-migration-guide.en-US.md)
 
-We strongly recommend using an AI coding assistant, such as Antigravity, Claude Code, or Cursor, to run the migration automatically. The current migration flow is optimized for streaming large archives and preprocessing empty text, and can handle multi-GB note libraries while preserving created/updated timestamps and nested notebook hierarchy.
+We strongly recommend using an AI coding assistant, such as Codex, Antigravity, Claude Code, Cursor, OpenClaw, or Hermes Agent, to run the migration automatically. The current migration flow is optimized for streaming large archives and preprocessing empty text, and can handle multi-GB note libraries while preserving created/updated timestamps and nested notebook hierarchy.
 
 ---
 
@@ -13,7 +13,7 @@ We strongly recommend using an AI coding assistant, such as Antigravity, Claude 
 3. Paste the copied JSON into your AI coding assistant and ask it to install the MCP service in your current AI client:
 
 ```sh
-You are an AI coding assistant. This is my EdgeEver MCP service configuration JSON. Please configure this MCP service directly in the MCP server configuration file for my current AI editor/client, such as Claude Code, Cursor, or Cline:
+You are an AI coding assistant. This is my EdgeEver MCP service configuration JSON. Please configure this MCP service directly in the MCP server configuration file for my current AI editor/client, such as Codex, Claude Code, Cursor, or Cline:
 
 <paste the copied JSON configuration here>
 ```

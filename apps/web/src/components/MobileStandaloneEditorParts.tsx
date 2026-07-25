@@ -1,4 +1,4 @@
-import { Bold, Check, ChevronDown, ImagePlus, List, Minus, Quote, Table2, Workflow } from "lucide-react";
+import { Bold, Check, ChevronDown, ImagePlus, List, ListIndentDecrease, ListIndentIncrease, Minus, Quote, Table2, Workflow } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   MOBILE_EDITOR_TOOLBAR_ACTIONS,
@@ -59,6 +59,8 @@ export const MobileEditorToolbar = ({
   disabled,
   boldActive,
   bulletListActive,
+  increaseListIndentAvailable,
+  decreaseListIndentAvailable,
   blockquoteActive,
   mermaidActive,
   tableActive,
@@ -68,6 +70,8 @@ export const MobileEditorToolbar = ({
   onInsertMermaid,
   onToggleBold,
   onToggleBulletList,
+  onIncreaseListIndent,
+  onDecreaseListIndent,
   onToggleBlockquote,
   onSetHorizontalRule,
   onTableAction,
@@ -75,6 +79,8 @@ export const MobileEditorToolbar = ({
   disabled: boolean;
   boldActive: boolean;
   bulletListActive: boolean;
+  increaseListIndentAvailable: boolean;
+  decreaseListIndentAvailable: boolean;
   blockquoteActive: boolean;
   mermaidActive: boolean;
   tableActive: boolean;
@@ -84,6 +90,8 @@ export const MobileEditorToolbar = ({
   onInsertMermaid: () => void;
   onToggleBold: () => void;
   onToggleBulletList: () => void;
+  onIncreaseListIndent: () => void;
+  onDecreaseListIndent: () => void;
   onToggleBlockquote: () => void;
   onSetHorizontalRule: () => void;
   onTableAction: (action: MobileEditorTableActionId) => void;
@@ -95,6 +103,8 @@ export const MobileEditorToolbar = ({
     mermaid: <Workflow aria-hidden="true" size={18} strokeWidth={2} />,
     bold: <Bold aria-hidden="true" size={17} strokeWidth={2.4} />,
     bulletList: <List aria-hidden="true" size={18} strokeWidth={2.2} />,
+    increaseListIndent: <ListIndentIncrease aria-hidden="true" size={18} strokeWidth={2.1} />,
+    decreaseListIndent: <ListIndentDecrease aria-hidden="true" size={18} strokeWidth={2.1} />,
     blockquote: <Quote aria-hidden="true" size={17} strokeWidth={2.2} />,
     horizontalRule: <Minus aria-hidden="true" size={18} strokeWidth={2.4} />,
     insertTable: <Table2 aria-hidden="true" size={18} strokeWidth={2} />,
@@ -110,6 +120,8 @@ export const MobileEditorToolbar = ({
     mermaid: onInsertMermaid,
     bold: onToggleBold,
     bulletList: onToggleBulletList,
+    increaseListIndent: onIncreaseListIndent,
+    decreaseListIndent: onDecreaseListIndent,
     blockquote: onToggleBlockquote,
     horizontalRule: onSetHorizontalRule,
     insertTable: () => onTableAction("insertTable"),
@@ -149,7 +161,10 @@ export const MobileEditorToolbar = ({
                 aria-label={label}
                 title={label}
                 aria-pressed={activeStates[id]}
-                disabled={disabled || (id === "insertTable" && tableActive)}
+                disabled={disabled
+                  || (id === "insertTable" && tableActive)
+                  || (id === "increaseListIndent" && !increaseListIndentAvailable)
+                  || (id === "decreaseListIndent" && !decreaseListIndentAvailable)}
                 onPointerDown={(event) => event.preventDefault()}
                 onClick={handlers[id]}
               >

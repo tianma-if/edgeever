@@ -519,6 +519,8 @@ function LocalTiptapEditorImpl(props: LocalTiptapEditorProps) {
     mermaid: <DiagramIcon />,
     bold: <BoldIcon />,
     bulletList: <ListIcon />,
+    increaseListIndent: <ListIndentIncreaseIcon />,
+    decreaseListIndent: <ListIndentDecreaseIcon />,
     blockquote: <QuoteIcon />,
     horizontalRule: <MinusIcon />,
     insertTable: <TableGridIcon />,
@@ -547,6 +549,8 @@ function LocalTiptapEditorImpl(props: LocalTiptapEditorProps) {
     },
     bold: () => editor?.chain().focus().toggleBold().run(),
     bulletList: () => editor?.chain().focus().toggleBulletList().run(),
+    increaseListIndent: () => editor?.chain().focus().sinkListItem("listItem").run(),
+    decreaseListIndent: () => editor?.chain().focus().liftListItem("listItem").run(),
     blockquote: () => editor?.chain().focus().toggleBlockquote().run(),
     horizontalRule: () => editor?.chain().focus().setHorizontalRule().run(),
     insertTable: () => runTableAction("insertTable"),
@@ -569,7 +573,11 @@ function LocalTiptapEditorImpl(props: LocalTiptapEditorProps) {
             <ToolbarButton
               key={action.id}
               active={action.activeFlag > 0 && Boolean(toolbarState & action.activeFlag)}
-              disabled={action.id === "insertTable" && Boolean(toolbarState & MOBILE_EDITOR_ACTIVE_FLAGS.table)}
+              disabled={(action.id === "insertTable" && Boolean(toolbarState & MOBILE_EDITOR_ACTIVE_FLAGS.table))
+                || (action.id === "increaseListIndent"
+                  && !Boolean(editor?.can().chain().focus().sinkListItem("listItem").run()))
+                || (action.id === "decreaseListIndent"
+                  && !Boolean(editor?.can().chain().focus().liftListItem("listItem").run()))}
               icon={toolbarIcons[action.id]}
               label={getMobileEditorToolbarActionLabel(action.id, props.locale)}
               onRun={toolbarHandlers[action.id]}
@@ -715,6 +723,20 @@ const DiagramIcon = () => (
 const ListIcon = () => (
   <EditorIcon size={18} strokeWidth={2.2}>
     <path d="M3 5h.01M3 12h.01M3 19h.01M8 5h13M8 12h13M8 19h13" />
+  </EditorIcon>
+);
+
+const ListIndentIncreaseIcon = () => (
+  <EditorIcon size={18} strokeWidth={2.1}>
+    <path d="M4 5h16M4 12h10M4 19h16" />
+    <path d="m14 9 3 3-3 3" />
+  </EditorIcon>
+);
+
+const ListIndentDecreaseIcon = () => (
+  <EditorIcon size={18} strokeWidth={2.1}>
+    <path d="M4 5h16M10 12h10M4 19h16" />
+    <path d="m10 9-3 3 3 3" />
   </EditorIcon>
 );
 

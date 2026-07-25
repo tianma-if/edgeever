@@ -40,6 +40,17 @@ jobs:
           ref: main
           fetch-depth: 0
 
+      - name: Require a GitHub Fork
+        shell: bash
+        run: |
+          set -euo pipefail
+          is_fork="$(gh api "repos/${GITHUB_REPOSITORY}" --jq '.fork')"
+          if [ "${is_fork}" != "true" ]; then
+            echo "This deployment repository must be a GitHub Fork of ${UPSTREAM_REPOSITORY}." >&2
+            echo "Create the repository with the EdgeEver Fork flow before enabling upstream updates." >&2
+            exit 1
+          fi
+
       - name: Resolve upstream version
         id: upstream
         shell: bash
@@ -64,14 +75,31 @@ jobs:
           target_commit="$(git rev-parse "${target_ref}^{commit}")"
           if git merge-base --is-ancestor "${target_commit}" HEAD; then
             update_required=false
+            bootstrap_required=false
           else
             update_required=true
+            bootstrap_required=false
+
+            # Cloudflare Deploy buttons create a fresh repository with a
+            # synthetic `source repo import` commit instead of preserving the
+            # upstream Git history. The first update must connect that import
+            # history to upstream before normal merges can work. Only do this
+            # automatically when the downstream repository contains no changes
+            # beyond the updater workflow itself; otherwise fail closed and ask
+            # the owner to resolve the customized repository manually.
+            root_commit="$(git rev-list --max-parents=0 HEAD)"
+            root_subject="$(git show -s --format=%s "${root_commit}")"
+            non_workflow_changes="$(git diff --name-only "${root_commit}" HEAD -- ':!.github/workflows/sync-edgeever-upstream.yml')"
+            if [ "${root_subject}" = "source repo import" ] && [ -z "${non_workflow_changes}" ]; then
+              bootstrap_required=true
+            fi
           fi
 
           {
             echo "target_ref=${target_ref}"
             echo "target_commit=${target_commit}"
             echo "update_required=${update_required}"
+            echo "bootstrap_required=${bootstrap_required}"
           } >> "${GITHUB_OUTPUT}"
 
       - name: Merge upstream update
@@ -79,10 +107,16 @@ jobs:
         env:
           TARGET_COMMIT: ${{ steps.upstream.outputs.target_commit }}
           TARGET_REF: ${{ steps.upstream.outputs.target_ref }}
+          BOOTSTRAP_REQUIRED: ${{ steps.upstream.outputs.bootstrap_required }}
         run: |
           git config user.name "edgeever-updater[bot]"
           git config user.email "edgeever-updater[bot]@users.noreply.github.com"
-          git merge --no-edit -m "chore: update EdgeEver from ${TARGET_REF}" "${TARGET_COMMIT}"
+          if [ "${BOOTSTRAP_REQUIRED}" = "true" ]; then
+            git merge --allow-unrelated-histories --no-edit -X theirs \
+              -m "chore: initialize EdgeEver history from ${TARGET_REF}" "${TARGET_COMMIT}"
+          else
+            git merge --no-edit -m "chore: update EdgeEver from ${TARGET_REF}" "${TARGET_COMMIT}"
+          fi
 
       - name: Set up Bun
         if: steps.upstream.outputs.update_required == 'true'

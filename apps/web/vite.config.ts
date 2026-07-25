@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath, URL } from "node:url";
 import { defineConfig } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
-import { resolveAppVersion, resolveReleaseTimestamp } from "./build-metadata";
+import { resolveAppVersion, resolveDeploymentMethod, resolveDeploymentTrigger, resolveReleaseTimestamp } from "./build-metadata";
 
 const readPackageVersion = () => {
   try {
@@ -34,6 +34,22 @@ const readGitDescription = () => {
   }
 };
 
+const readLatestReleaseCommitTimestamp = () => {
+  try {
+    const releaseTag = execSync('git describe --tags --abbrev=0 --match "v[0-9]*.[0-9]*.[0-9]*" HEAD', { encoding: "utf8" }).trim();
+    return execSync(`git log -1 --format=%cI ${releaseTag}`, { encoding: "utf8" }).trim();
+  } catch {
+    // Workers Builds may check out the source without fetching tags. The
+    // package version is updated in the release-preparation commit, so its
+    // timestamp is the best local fallback for self-hosted builds.
+    try {
+      return execSync("git log -1 --format=%cI -- package.json", { encoding: "utf8" }).trim();
+    } catch {
+      return "";
+    }
+  }
+};
+
 const buildId = process.env.WORKERS_CI_COMMIT_SHA?.slice(0, 12)
   ?? process.env.CF_PAGES_COMMIT_SHA?.slice(0, 12)
   ?? process.env.GITHUB_SHA?.slice(0, 12)
@@ -41,7 +57,19 @@ const buildId = process.env.WORKERS_CI_COMMIT_SHA?.slice(0, 12)
   ?? "local";
 const gitDescription = readGitDescription();
 const appVersion = resolveAppVersion(readPackageVersion(), gitDescription);
-const releaseTimestamp = resolveReleaseTimestamp(process.env.EDGE_EVER_RELEASED_AT);
+const releaseTimestamp = resolveReleaseTimestamp(process.env.EDGE_EVER_RELEASED_AT) || readLatestReleaseCommitTimestamp();
+const deploymentTrigger = resolveDeploymentTrigger(
+  process.env.EDGE_EVER_DEPLOYMENT_TRIGGER
+    ?? (process.env.WORKERS_CI_COMMIT_SHA ? "main_push" : undefined)
+);
+const deploymentMethod = resolveDeploymentMethod(
+  process.env.EDGE_EVER_DEPLOYMENT_METHOD
+    ?? (process.env.WORKERS_CI_COMMIT_SHA
+      ? "cloudflare_workers_builds"
+      : process.env.GITHUB_ACTIONS
+        ? "github_actions"
+        : undefined)
+);
 
 export default defineConfig({
   root: "apps/web",
@@ -50,6 +78,8 @@ export default defineConfig({
     __EDGEEVER_BUILD_ID__: JSON.stringify(buildId),
     __EDGEEVER_BUILD_LABEL__: JSON.stringify(buildId === "local" ? "local" : buildId.slice(0, 7)),
     __EDGEEVER_RELEASED_AT__: JSON.stringify(releaseTimestamp),
+    __EDGEEVER_DEPLOYMENT_TRIGGER__: JSON.stringify(deploymentTrigger),
+    __EDGEEVER_DEPLOYMENT_METHOD__: JSON.stringify(deploymentMethod),
   },
   plugins: [
     react(),

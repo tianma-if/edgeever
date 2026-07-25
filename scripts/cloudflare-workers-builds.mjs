@@ -133,7 +133,7 @@ const triggerPayload = (workerTag, repoConnectionUuid, buildTokenUuid) => ({
   repo_connection_uuid: repoConnectionUuid,
   build_token_uuid: buildTokenUuid,
   trigger_name: "Deploy EdgeEver production",
-  build_command: "bun install --frozen-lockfile && bun run build:cloudflare",
+  build_command: "bun install --frozen-lockfile && EDGE_EVER_DEPLOYMENT_TRIGGER=main_push EDGE_EVER_DEPLOYMENT_METHOD=cloudflare_workers_builds bun run build:cloudflare",
   deploy_command: "bun run deploy:cloudflare-builds",
   root_directory: "/",
   branch_includes: ["main"],

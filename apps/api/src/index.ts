@@ -14,6 +14,9 @@ import {
   JsonBackupResourceMetadataSchema,
   MemoCreateSchema,
   MemoUpdateSchema,
+  TemplateCreateSchema,
+  TemplateUpdateSchema,
+  TemplateUseSchema,
   MergeMemosSchema,
   MoveMemosSchema,
   normalizeTags,
@@ -31,6 +34,8 @@ import {
   type MemoRevision,
   type MemoSummary,
   type MemoUpdateInput,
+  type MemoTemplate,
+  type TemplateUpdateInput,
   type JsonBackupMemo,
   type JsonBackupNotebook,
   type JsonBackupResource,
@@ -74,11 +79,27 @@ import {
   DEMO_ATTACHMENT_MARKDOWN_ZH,
   DEMO_ATTACHMENT_RESOURCES,
 } from "./demo-attachments";
+import { createCloudflareStorageAdapter } from "./cloudflare-storage-adapter";
+import type {
+  BlobStoreAdapter,
+  CloudflareStorageBindings,
+  DatabaseAdapter,
+  PreparedStatementAdapter,
+  StorageAdapter,
+} from "./storage-contract";
 
-type Bindings = {
-  DB: D1Database;
-  RESOURCES: R2Bucket;
+// Compatibility aliases keep the existing SQL-heavy implementation small
+// while routing its dependency through the platform-neutral contract above.
+// New code should use DatabaseAdapter/BlobStoreAdapter directly.
+type D1Database = DatabaseAdapter;
+type D1PreparedStatement = PreparedStatementAdapter;
+type R2Bucket = BlobStoreAdapter;
+
+type Bindings = CloudflareStorageBindings & {
+  /** The only persistence dependency exposed to application code. */
+  storage: StorageAdapter;
   EDGE_EVER_AUTH_USERNAME?: string;
+  EDGE_EVER_RUNTIME?: string;
   EDGE_EVER_AUTH_PASSWORD?: string;
   EDGE_EVER_AUTH_PASSWORD_HASH?: string;
   EDGE_EVER_SESSION_TTL_DAYS?: string;
@@ -87,6 +108,8 @@ type Bindings = {
   EDGE_EVER_LOCAL_DEMO_SEED?: string;
   EDGE_EVER_ALLOW_UNAUTHENTICATED?: string;
 };
+
+type WorkerBindings = Omit<Bindings, "storage">;
 
 type AuthContext = {
   kind: "user" | "agent";
@@ -164,6 +187,18 @@ type MemoDetailRow = MemoSummaryRow & {
   merge_source_count: number;
   merged_into_memo_id: string | null;
   content_hash: string;
+};
+
+type MemoTemplateRow = {
+  id: string;
+  name: string;
+  description: string | null;
+  title: string | null;
+  content_json: string;
+  content_markdown: string;
+  tags_json: string;
+  created_at: string;
+  updated_at: string;
 };
 
 type MemoRevisionRow = {
@@ -297,11 +332,11 @@ const DEMO_SEED_MEMOS_ZH = [
   {
     id: "memo_demo_overview",
     notebookId: "nb_demo_features",
-    title: "🌟 EdgeEver 核心特性全景指南",
+    title: "🌟 欢迎使用 EdgeEver",
     tags: ["overview", "features", "demo"],
     isPinned: true,
     markdown:
-      "## 🌟 EdgeEver 核心特性全景指南\n\n> **EdgeEver** 是一款基于 Cloudflare 的开源 Serverless 个人知识库。保留经典的**印象笔记三栏布局**与优雅体验，同时提供 **100% 免费**、数据完全掌控、可视化双向编辑与 AI Agent (MCP) 原生集成。\n\n---\n\n### 🚀 1. 核心优势对比 (可视化表格编辑)\n\n*提示：在线模式下点击下方表格单元格即可直接修改文字；在编辑器模式下右键可快捷添加或删除行列。*\n\n| 核心维度 | 印象笔记 (Evernote) | Obsidian | EdgeEver |\n| --- | --- | --- | --- |\n| **托管成本** | 商业订阅 ($15+/月) | 官方同步 ($5/月) | **100% 免费 (Cloudflare 免费额度)** |\n| **部署方式** | 封闭中心化云端 | 本地文件 + 插件配置 | **Serverless 自建 (零维护)** |\n| **交互体验** | 经典三栏 (广告较多) | 双栏/多面板 (移动端较重) | **经典三栏 + 原生 App / PWA** |\n| **数据与 API** | 封闭，导出一键设限 | 本地 Markdown | **标准 D1 SQLite / REST API / MCP** |\n| **AI Agent 支持** | 限制/仅特定版本 | 需配置第三方插件 | **原生支持 MCP 端点与 OpenAPI** |\n\n---\n\n### 🎨 2. 双向双视图与富文本排版 (Rich-Text & Dual View)\n\nEdgeEver 支持在**所见即所得富文本**与 **Markdown 源码**之间无缝切换（点击右上角 `</>` 按钮）。\n\n- [x] 经典三栏笔记本与树状无限层级\n- [x] 多端无缝同步（Web PWA / iOS & Android 原生 App）\n- [x] 图片上传前本地自动压缩 (体积节省 50% ~ 90%)\n- [x] 碎片笔记多选合并 (Shift / Cmd 组合键操作)\n\n> 💡 **小贴士**：所有富文本样式在切换至 Markdown 源码时均能保持完美兼容，不会丢失任何格式元数据。\n\n---\n\n### 💻 3. 代码高亮与快捷复制 (Syntax Highlighting)\n\n支持 Python、TypeScript、Rust、SQL 等数十种编程语言高亮，并在右上角提供一键复制功能：\n\n```python\nimport requests\n\n# 使用 REST API 获取 EdgeEver 笔记本列表\ndef fetch_edgeever_notebooks(instance_url: str, token: str):\n    headers = {\"Authorization\": f\"Bearer {token}\"}\n    response = requests.get(f\"{instance_url}/api/v1/notebooks\", headers=headers)\n    \n    if response.status_code == 200:\n        data = response.json()\n        print(f\"成功加载 {len(data['data'])} 个笔记本！\")\n        return data[\"data\"]\n    return []\n```\n\n---\n\n### 📊 4. Mermaid 图表即时渲染 (Interactive Diagrams)\n\n在代码块中使用 `mermaid` 标记，即可在富文本与预览界面中即时渲染多种常见的交互式图表：\n\n#### 1️⃣ 架构流程图 (Flowchart)\n```mermaid\nflowchart TD\n    subgraph Client[\"📱 客户端生态\"]\n        A[\"Web / PWA 浏览器\"]\n        B[\"iOS / Android 原生 App\"]\n    end\n\n    subgraph Backend[\"⚡ Cloudflare 后端服务\"]\n        C[\"Cloudflare Workers API\"]\n        D[(\"D1 SQLite 数据库\")]\n        E[(\"R2 资源存储\")]\n    end\n\n    A & B --> C\n    C <--> D & E\n```\n\n#### 2️⃣ 交互时序图 (Sequence Diagram)\n```mermaid\nsequenceDiagram\n    autonumber\n    actor User as 用户\n    participant App as 客户端 App\n    participant Worker as Cloudflare Worker API\n    participant D1 as D1 数据库\n\n    User->>App: 编辑并保存笔记\n    App->>Worker: POST /api/v1/memos (提交更改)\n    Worker->>D1: 写入笔记 & 更新修订版本\n    D1-->>Worker: 返回成功 (revision + 1)\n    Worker-->>App: 200 OK (同步最新游标)\n    App-->>User: 界面显示「已保存」\n```\n\n#### 3️⃣ 状态转换图 (State Diagram)\n```mermaid\nstateDiagram-v2\n    [*] --> 草稿箱: 新建笔记\n    草稿箱 --> 已发布: 保存并归档\n    已发布 --> 置顶笔记: 快捷置顶\n    置顶笔记 --> 已发布: 取消置顶\n    已发布 --> 回收站: 移入回收站\n    回收站 --> 已发布: 恢复笔记\n    回收站 --> [*]: 彻底删除\n```\n\n---\n\n### 🖼️ 5. 多媒体与图片集成 (Rich Media Integration)\n\n支持拖拽或粘贴插入图片与文件附件。本地浏览器会在上传前自动进行高保真 WebP 压缩：\n\n![EdgeEver 编辑器与系统架构](/api/v1/resources/res_demo_cat_image/blob)\n\n---\n\n### 🤖 6. 面向 AI Agent 的原生生态 (Agent-Ready)\n\nEdgeEver 为 AI 时代而设计，原生提供 MCP 端点：\n\n1. **REST API**：提供完整标准的 `/api/openapi.json` 定义。\n2. **MCP 端点**：部署在 `/mcp`，AI Agent（如 Antigravity, Claude Code, Cursor）可以直接连接并读写您的笔记库。\n3. **数据自动化**：实现自动归档、Markdown 导入导出、飞书多维表格 / Notion 数据库同步。\n\n---\n\n> 🎯 **快速体验建议**：\n> - 试试在左侧列表中按住 `Cmd` / `Ctrl` 选中多篇笔记，点击底栏「合并」；\n> - 试试切换右上角 Markdown 源码模式，感受纯净的写作体验！",
+      "## 🌟 欢迎使用 EdgeEver\n\n> **EdgeEver** 是一款基于 Cloudflare 的开源 Serverless 个人知识库。保留经典的**印象笔记三栏布局**与优雅体验，同时提供 **100% 免费**、数据完全掌控、可视化双向编辑与 AI Agent (MCP) 原生集成。\n\n---\n\n### 🚀 1. 核心优势对比 (可视化表格编辑)\n\n*提示：在线模式下点击下方表格单元格即可直接修改文字；在编辑器模式下右键可快捷添加或删除行列。*\n\n| 核心维度 | 印象笔记 (Evernote) | Obsidian | EdgeEver |\n| --- | --- | --- | --- |\n| **托管成本** | 商业订阅 ($15+/月) | 官方同步 ($5/月) | **100% 免费 (Cloudflare 免费额度)** |\n| **部署方式** | 封闭中心化云端 | 本地文件 + 插件配置 | **Serverless 自建 (零维护)** |\n| **交互体验** | 经典三栏 (广告较多) | 双栏/多面板 (移动端较重) | **经典三栏 + 原生 App / PWA** |\n| **数据与 API** | 封闭，导出一键设限 | 本地 Markdown | **标准 D1 SQLite / REST API / MCP** |\n| **AI Agent 支持** | 限制/仅特定版本 | 需配置第三方插件 | **原生支持 MCP 端点与 OpenAPI** |\n\n---\n\n### 📢 2. 微信公众号与跨平台一键排版复制 (WeChat / Substack / 博客)\n\nEdgeEver 专为自媒体与内容创作者设计，支持将当前笔记一键转换为精美排版并复制：\n\n- [x] 公众号与周刊：一键复制并无缝粘贴至微信公众号、Substack、竹白 Newsletter 后台\n- [x] 博客与平台：完美兼容 WordPress、Medium、Ghost 及各大富文本编辑器\n- [x] 零格式损失：自动内联精致 CSS 样式，代码高亮、表格与图片完美内嵌\n\n> 💡 **创作者体验提示**：尝试点击右上角操作栏的公众号复制按钮，直接粘贴到微信公众号、Substack 或 WordPress 后台，即可体验优雅的排版渲染！\n\n---\n\n### 🎨 3. 双视图编辑与可配置主题 (Dual View & Themes)\n\nEdgeEver 支持在**所见即所得富文本**与 **Markdown 源码**之间无缝切换（点击右上角 `</>` 按钮）。\n\n1. **经典三栏笔记本与树状无限层级**：结构清晰，轻松管理大量笔记。\n2. **预设 8 款经典编辑器主题**：摸鱼绿、红白色系、石墨极简风、留白禅意风、摸鱼票据风、橄榄手记、薄荷青等排版风格（可在 **个人中心 / 设置** 中自由切换）。\n3. **多端无缝同步与 WebP 压缩**：Web PWA / iOS & Android 原生 App，图片上传前本地自动压缩 (节省 50% ~ 90%)。\n\n> 💡 **小贴士**：所有富文本样式与主题块在切换至 Markdown 源码时均能保持完美兼容，不会丢失任何格式元数据。\n\n---\n\n### 4. 过去一周的交互优化 (v0.2.9 ~ v1.5.16)\n\n根据 07月18日 ~ 07月24日的代码 Commit 与正式 Release 日志，过去一周实际上线的核心交互优化包括：\n\n- [x] 原生移动端与离线同步：重构 Android 原生客户端，引入 SQLite 本地镜像、增量同步与离线编辑队列；首次同步可边加载边浏览，并补充自动聚焦、上传占位、应用内更新和平滑页面切换\n- [x] 写作、表格与搜索效率：新增桌面专注模式、实时字数统计和可视化表格增删编辑；优化移动端宽表格；支持选中文本快捷查找/替换、匹配高亮与自动滚动定位\n- [x] Mermaid、代码与附件体验：Web、PWA 与原生 App 支持 Mermaid 编辑和渲染，并提供多款图表主题；恢复多语言代码高亮和一键复制；新增文档、音视频、压缩包等通用附件卡片\n- [x] 主题与跨平台排版复制：支持 8 款正文编辑器主题；微信公众号复制可内联受保护图片、转换不兼容格式、保留 Mermaid 尺寸，并提供明确的加载与结果反馈\n- [x] 账户、版本与 Demo 操作：个人中心可查看并强制退出其他登录设备；系统信息可提示新版本并展示发布信息；Demo 数据支持一键恢复且保留当前登录状态\n\n---\n\n### 🎯 5. 沉浸式专注模式与快捷体验 (Focus Mode & Shortcuts)\n\n为提供极致写作体验，EdgeEver 引入了多项高效写作辅助工具：\n\n1. **Zen 专注写作模式**：快捷键 `Cmd/Ctrl + Shift + F` 或点击顶部图标，隐藏侧边栏与干扰元素，专注内容创作。\n2. **快捷选词搜索与替换**：选中文本后使用快捷键即可发起全局搜索或编辑器内快速替换。\n3. **实时高亮定位**：搜索词在编辑器与笔记列表中高亮定位，方便快速查阅。\n\n---\n\n### 💻 6. 代码高亮与快捷复制 (Syntax Highlighting)\n\n支持 Python、TypeScript、Rust、SQL 等数十种编程语言高亮，并在右上角提供一键复制功能：\n\n```python\nimport requests\n\n# 使用 REST API 获取 EdgeEver 笔记本列表\ndef fetch_edgeever_notebooks(instance_url: str, token: str):\n    headers = {\"Authorization\": f\"Bearer {token}\"}\n    response = requests.get(f\"{instance_url}/api/v1/notebooks\", headers=headers)\n    \n    if response.status_code == 200:\n        data = response.json()\n        print(f\"成功加载 {len(data['data'])} 个笔记本！\")\n        return data[\"data\"]\n    return []\n```\n\n---\n\n### 📊 7. Mermaid 交互式图表与精致主题 (Diagram Themes)\n\n在代码块中使用 `mermaid` 标记，即可在富文本与预览界面中即时渲染多种常见的交互式图表，并支持多款**精致图表主题**选择与复制尺寸保真：\n\n#### 1️⃣ 架构流程图 (Flowchart)\n```mermaid\nflowchart TD\n    subgraph Client[\"📱 客户端生态\"]\n        A[\"Web / PWA 浏览器\"]\n        B[\"iOS / Android 原生 App\"]\n    end\n\n    subgraph Backend[\"⚡ Cloudflare 后端服务\"]\n        C[\"Cloudflare Workers API\"]\n        D[(\"D1 SQLite 数据库\")]\n        E[(\"R2 资源存储\")]\n    end\n\n    A & B --> C\n    C <--> D & E\n```\n\n#### 2️⃣ 交互时序图 (Sequence Diagram)\n```mermaid\nsequenceDiagram\n    autonumber\n    actor User as 用户\n    participant App as 客户端 App\n    participant Worker as Cloudflare Worker API\n    participant D1 as D1 数据库\n\n    User->>App: 编辑并保存笔记\n    App->>Worker: POST /api/v1/memos (提交更改)\n    Worker->>D1: 写入笔记 & 更新修订版本\n    D1-->>Worker: 返回成功 (revision + 1)\n    Worker-->>App: 200 OK (同步最新游标)\n    App-->>User: 界面显示「已保存」\n```\n\n#### 3️⃣ 状态转换图 (State Diagram)\n```mermaid\nstateDiagram-v2\n    [*] --> 草稿箱: 新建笔记\n    草稿箱 --> 已发布: 保存并归档\n    已发布 --> 置顶笔记: 快捷置顶\n    置顶笔记 --> 已发布: 取消置顶\n    已发布 --> 回收站: 移入回收站\n    回收站 --> 已发布: 恢复笔记\n    回收站 --> [*]: 彻底删除\n```\n\n---\n\n### 🖼️ 8. 多媒体与图片集成 (Rich Media Integration)\n\n支持拖拽或粘贴插入图片与文件附件。本地浏览器会在上传前自动进行高保真 WebP 压缩：\n\n![EdgeEver 编辑器与系统架构](/api/v1/resources/res_demo_cat_image/blob)\n\n---\n\n### 🤖 9. 面向 AI Agent 的原生生态 (Agent-Ready)\n\nEdgeEver 为 AI 时代而设计，原生提供 MCP 端点：\n\n1. **REST API**：提供完整标准的 `/api/openapi.json` 定义。\n2. **MCP 端点**：部署在 `/mcp`，AI Agent（如 Antigravity, Claude Code, Cursor）可以直接连接并读写您的笔记库。\n3. **数据自动化**：实现自动归档、Markdown 导入导出、飞书多维表格 / Notion 数据库同步。\n\n---\n\n> 🎯 **快速体验建议**：\n> - 试试在顶部点击「复制到微信公众号」，体验优雅的内容排版导出；\n> - 试试在 **个人中心 / 设置** 中切换「编辑器主题」，挑选喜欢的写作配色风格；\n> - 试试按下 `Cmd/Ctrl + Shift + F` 进入专注模式，感受沉浸式写作；\n> - 试试在左侧列表中按住 `Cmd` / `Ctrl` 选中多篇笔记，点击底栏「合并」；\n> - 试试点击侧边栏或设置中的「恢复 Demo 数据」，随时重置演示状态！"
   },
 ];
 const DEMO_SEED_REVISIONS = [
@@ -309,24 +344,24 @@ const DEMO_SEED_REVISIONS = [
     id: "rev_demo_revision_1",
     memoId: "memo_demo_overview",
     revision: 1,
-    title: "🌟 EdgeEver 核心特性全景指南",
+    title: "🌟 欢迎使用 EdgeEver",
     markdown:
-      "## 🌟 EdgeEver 核心特性草稿\n\n- 印象笔记经典三栏与自建 Serverless\n- 可视化表格与 Markdown 源码双向切换",
+      "## 🌟 欢迎使用 EdgeEver（草稿）\n\n- 印象笔记经典三栏与自建 Serverless\n- 可视化表格与 Markdown 源码双向切换",
   },
   {
     id: "rev_demo_revision_1_en",
     memoId: "memo_demo_overview_en",
     revision: 1,
-    title: "🌟 EdgeEver Core Features Overview",
+    title: "🌟 Welcome to EdgeEver",
     markdown:
-      "## 🌟 EdgeEver Core Features Draft\n\n- Classic Evernote 3-pane layout & Serverless self-hosted\n- Visual table editing & Markdown source toggle",
+      "## 🌟 Welcome to EdgeEver (Draft)\n\n- Classic Evernote 3-pane layout & Serverless self-hosted\n- Visual table editing & Markdown source toggle",
   },
 ];
 const DEMO_MEMO_ENGLISH = {
   memo_demo_overview: {
-    title: "🌟 EdgeEver Core Features Overview",
+    title: "🌟 Welcome to EdgeEver",
     markdown:
-      "## 🌟 EdgeEver Core Features Overview\n\n> **EdgeEver** is an open-source, serverless personal knowledge base built on Cloudflare. It retains the classic **Evernote-style three-pane layout**, while offering **100% free hosting**, full data ownership, visual editing, and native AI Agent (MCP) integration.\n\n---\n\n### 🚀 1. Feature Comparison (Visual Table Editing)\n\n*Tip: Click any cell in the table below to edit directly; right-click in editor mode to insert/delete rows or columns.*\n\n| Metric | Evernote | Obsidian | EdgeEver |\n| --- | --- | --- | --- |\n| **Hosting Cost** | Commercial ($15+/mo) | Sync Plan ($5/mo) | **100% Free (Cloudflare Free Tier)** |\n| **Deployment** | Closed Cloud | Local Files + Plugins | **Serverless Self-Hosted (0 Maintenance)** |\n| **User Experience**| Classic 3-Pane (Heavy Ads) | Multi-Pane (Heavy Mobile) | **Classic 3-Pane + Native Apps & PWA** |\n| **Data & API** | Proprietary & Locked | Local Markdown | **Standard D1 SQLite / REST API / MCP** |\n| **AI Integration** | Limited / Paid | Requires 3rd Party Plugins| **Native MCP Endpoint & OpenAPI** |\n\n---\n\n### 🎨 2. Dual-View & Rich Formatting\n\nSeamlessly toggle between **WYSIWYG Rich Text** and **Markdown Source** via the `</>` toggle in the top right.\n\n- [x] Classic three-pane layout with infinite notebook hierarchy\n- [x] Seamless multi-device sync (Web PWA / iOS & Android Native Apps)\n- [x] Automatic client-side image compression (saves 50% ~ 90% bandwidth)\n- [x] Multi-note batch merging (Shift / Cmd click)\n\n> 💡 **Tip**: All rich text formatting remains 100% compatible when toggling to Markdown mode.\n\n---\n\n### 💻 3. Syntax Highlighting\n\nSupports dozens of programming languages (Python, TypeScript, Rust, SQL, etc.) with one-click code copying:\n\n```python\nimport requests\n\n# Fetch EdgeEver notebooks via REST API\ndef fetch_edgeever_notebooks(instance_url: str, token: str):\n    headers = {\"Authorization\": f\"Bearer {token}\"}\n    response = requests.get(f\"{instance_url}/api/v1/notebooks\", headers=headers)\n    \n    if response.status_code == 200:\n        data = response.json()\n        print(f\"Successfully fetched {len(data['data'])} notebooks!\")\n        return data[\"data\"]\n    return []\n```\n\n---\n\n### 📊 4. Interactive Mermaid Diagrams\n\nUse standard `mermaid` fenced code blocks to render multiple popular diagram types in real time:\n\n#### 1️⃣ System Flowchart\n```mermaid\nflowchart TD\n    subgraph Client[\"📱 Clients Ecosystem\"]\n        A[\"Web / PWA\"]\n        B[\"iOS / Android Apps\"]\n    end\n\n    subgraph Backend[\"⚡ Cloudflare Backend Services\"]\n        C[\"Cloudflare Workers API\"]\n        D[(\"D1 SQLite DB\")]\n        E[(\"R2 Object Storage\")]\n    end\n\n    A & B --> C\n    C <--> D & E\n```\n\n#### 2️⃣ Interactive Sequence Diagram\n```mermaid\nsequenceDiagram\n    autonumber\n    actor User as User\n    participant App as EdgeEver Client\n    participant Worker as Cloudflare Worker API\n    participant D1 as D1 Database\n\n    User->>App: Edit and save note\n    App->>Worker: POST /api/v1/memos (Save changes)\n    Worker->>D1: Write note content & update revision\n    D1-->>Worker: Return success (revision + 1)\n    Worker-->>App: 200 OK (Latest sync cursor)\n    App-->>User: Status updated to \"Saved\"\n```\n\n#### 3️⃣ State Transition Diagram\n```mermaid\nstateDiagram-v2\n    [*] --> Drafts: Create new note\n    Drafts --> Published: Save & Archive\n    Published --> Pinned: Pin to top\n    Pinned --> Published: Unpin note\n    Published --> Trash: Move to trash\n    Trash --> Published: Restore note\n    Trash --> [*]: Delete permanently\n```\n\n---\n\n### 🖼️ 5. Rich Media & Image Attachments\n\nDrag-and-drop or paste images into your notes. Images are compressed locally before being saved to R2 storage:\n\n![EdgeEver Architecture & Editor](/api/v1/resources/res_demo_cat_image/blob)\n\n---\n\n### 🤖 6. Native AI Agent Ecosystem\n\nDesigned natively for the AI era:\n\n1. **REST API**: Provides standard OpenAPI definitions at `/api/openapi.json`.\n2. **MCP Endpoint**: Accessible at `/mcp`, allowing AI Agents to read/write notes directly.\n3. **Automated Workflows**: Auto-tagging, export/import, sync with Notion or Feishu.\n\n---\n\n> 🎯 **Quick Try**:\n> - Multi-select notes in the left list using `Cmd` / `Ctrl` and click \"Merge\" at the bottom.\n> - Toggle the Markdown view icon in the top right to experience pure code editing!",
+      "## 🌟 Welcome to EdgeEver\n\n> **EdgeEver** is an open-source, serverless personal knowledge base built on Cloudflare. It retains the classic **Evernote-style three-pane layout**, while offering **100% free hosting**, full data ownership, visual editing, and native AI Agent (MCP) integration.\n\n---\n\n### 🚀 1. Feature Comparison (Visual Table Editing)\n\n*Tip: Click any cell in the table below to edit directly; right-click in editor mode to insert/delete rows or columns.*\n\n| Metric | Evernote | Obsidian | EdgeEver |\n| --- | --- | --- | --- |\n| **Hosting Cost** | Commercial ($15+/mo) | Sync Plan ($5/mo) | **100% Free (Cloudflare Free Tier)** |\n| **Deployment** | Closed Cloud | Local Files + Plugins | **Serverless Self-Hosted (0 Maintenance)** |\n| **User Experience**| Classic 3-Pane (Heavy Ads) | Multi-Pane (Heavy Mobile) | **Classic 3-Pane + Native Apps & PWA** |\n| **Data & API** | Proprietary & Locked | Local Markdown | **Standard D1 SQLite / REST API / MCP** |\n| **AI Integration** | Limited / Paid | Requires 3rd Party Plugins| **Native MCP Endpoint & OpenAPI** |\n\n---\n\n### 📢 2. One-Click Cross-Platform Rich-Text Export (WeChat / Substack / Medium / WordPress)\n\nDesigned for content creators and writers, EdgeEver supports exporting notes to **elegantly formatted rich-text in one click**:\n\n- [x] Official Accounts & Newsletters: One-click copy & paste directly into WeChat, Substack, and Mailchimp\n- [x] Blogs & Platforms: Full compatibility with WordPress, Medium, Ghost, and major rich-text editors\n- [x] Zero Formatting Loss: Inlines CSS styling with code highlighting, tables, and images embedded seamlessly\n\n> 💡 **Creator Tip**: Click the copy button in the top action bar and paste directly into WeChat, Substack, or WordPress editor to see elegant formatting!\n\n---\n\n### 🎨 3. Dual-View & Configurable Themes\n\nSeamlessly toggle between **WYSIWYG Rich Text** and **Markdown Source** via the `</>` toggle in the top right.\n\n1. **Classic 3-Pane Notebook & Infinite Hierarchy**: Organized layout for managing notes.\n2. **8 Preset Editor Themes**: Moyu Green, Red & White, Graphite Minimal, Zen Whitespace, Moyu Ticket, Olive Journal, Mint Breeze, etc. (switchable in **User Settings / Profile**).\n3. **Multi-device Sync & WebP Compression**: Web PWA / iOS & Android Native Apps, saves 50% ~ 90% bandwidth.\n\n> 💡 **Tip**: All rich text formatting and themed blocks remain 100% compatible when toggling to Markdown mode.\n\n---\n\n### 4. Past Week UX Improvements (v0.2.9 ~ v1.5.16)\n\nBased on the actual commits and formal releases from July 18 to July 24, the key interaction improvements shipped over the past week include:\n\n- [x] Native Mobile & Offline Sync: Rebuilt the native Android client with a local SQLite mirror, incremental sync, and an offline edit queue; initial sync now reveals notes progressively, with editor autofocus, upload placeholders, in-app updates, and smoother navigation\n- [x] Writing, Tables & Search: Added desktop Focus Mode, live character counts, and visual table editing; improved wide tables on mobile; added selected-text find/replace shortcuts, match highlighting, and automatic scrolling\n- [x] Mermaid, Code & Attachments: Added Mermaid editing and rendering across Web, PWA, and native apps with selectable themes; restored multilingual syntax highlighting and one-click code copying; added attachment cards for documents, media, archives, and other files\n- [x] Themes & Cross-Platform Publishing: Added 8 editor themes; WeChat copy now embeds protected images, converts unsupported formats, preserves Mermaid dimensions, and reports clear loading and result states\n- [x] Accounts, Releases & Demo Controls: Personal Center now lists active devices and can revoke other sessions; System Info reports releases and available updates; one-tap Demo reset preserves the current login session\n\n---\n\n### 🎯 5. Immersive Focus Mode & Efficiency Shortcuts\n\nTo provide the ultimate writing experience, EdgeEver includes powerful productivity tools:\n\n1. **Zen Focus Mode**: Press `Cmd/Ctrl + Shift + F` or click the focus icon to hide sidebars and eliminate distractions.\n2. **Quick Text Search & Replace**: Highlight text and launch instant global search or in-editor replacement.\n3. **Real-time Search Highlighting**: Locate search terms with clear highlights across the editor and note lists.\n\n---\n\n### 💻 6. Syntax Highlighting & Quick Copy\n\nSupports dozens of programming languages (Python, TypeScript, Rust, SQL, etc.) with one-click code copying:\n\n```python\nimport requests\n\n# Fetch EdgeEver notebooks via REST API\ndef fetch_edgeever_notebooks(instance_url: str, token: str):\n    headers = {\"Authorization\": f\"Bearer {token}\"}\n    response = requests.get(f\"{instance_url}/api/v1/notebooks\", headers=headers)\n    \n    if response.status_code == 200:\n        data = response.json()\n        print(f\"Successfully fetched {len(data['data'])} notebooks!\")\n        return data[\"data\"]\n    return []\n```\n\n---\n\n### 📊 7. Interactive Mermaid Diagrams & Themes\n\nUse standard `mermaid` fenced code blocks to render multiple popular diagram types in real time, with support for **selectable diagram themes** and dimension-preserved copying:\n\n#### 1️⃣ System Flowchart\n```mermaid\nflowchart TD\n    subgraph Client[\"📱 Clients Ecosystem\"]\n        A[\"Web / PWA\"]\n        B[\"iOS / Android Apps\"]\n    end\n\n    subgraph Backend[\"⚡ Cloudflare Backend Services\"]\n        C[\"Cloudflare Workers API\"]\n        D[(\"D1 SQLite DB\")]\n        E[(\"R2 Object Storage\")]\n    end\n\n    A & B --> C\n    C <--> D & E\n```\n\n#### 2️⃣ Interactive Sequence Diagram\n```mermaid\nsequenceDiagram\n    autonumber\n    actor User as User\n    participant App as EdgeEver Client\n    participant Worker as Cloudflare Worker API\n    participant D1 as D1 Database\n\n    User->>App: Edit and save note\n    App->>Worker: POST /api/v1/memos (Save changes)\n    Worker->>D1: Write note content & update revision\n    D1-->>Worker: Return success (revision + 1)\n    Worker-->>App: 200 OK (Latest sync cursor)\n    App-->>User: Status updated to \"Saved\"\n```\n\n#### 3️⃣ State Transition Diagram\n```mermaid\nstateDiagram-v2\n    [*] --> Drafts: Create new note\n    Drafts --> Published: Save & Archive\n    Published --> Pinned: Pin to top\n    Pinned --> Published: Unpin note\n    Published --> Trash: Move to trash\n    Trash --> Published: Restore note\n    Trash --> [*]: Delete permanently\n```\n\n---\n\n### 🖼️ 8. Rich Media & Image Attachments\n\nDrag-and-drop or paste images into your notes. Images are compressed locally before being saved to R2 storage:\n\n![EdgeEver Architecture & Editor](/api/v1/resources/res_demo_cat_image/blob)\n\n---\n\n### 🤖 9. Native AI Agent Ecosystem (Agent-Ready)\n\nDesigned natively for the AI era:\n\n1. **REST API**: Provides standard OpenAPI definitions at `/api/openapi.json`.\n2. **MCP Endpoint**: Accessible at `/mcp`, allowing AI Agents to read/write notes directly.\n3. **Automated Workflows**: Auto-tagging, export/import, sync with Notion or Feishu.\n\n---\n\n> 🎯 **Quick Try**:\n> - Click \"Copy for WeChat / Publishing\" in the top toolbar to experience seamless content export;\n> - Switch **Editor Themes** in **User Settings / Profile** to customize your writing style;\n> - Press `Cmd/Ctrl + Shift + F` to toggle Focus Mode for distraction-free writing;\n> - Multi-select notes in the left list using `Cmd` / `Ctrl` and click \"Merge\" at the bottom;\n> - Click \"Reset Demo Data\" in the sidebar or settings to reset the demo state at any time!"
   },
 } as const;
 const DEMO_SEED_MEMOS_EN = DEMO_SEED_MEMOS_ZH.map((memo) => {
@@ -418,7 +453,7 @@ app.get("/api/health", async (c) => {
   return c.json({
     ok: true,
     name: "edgeever",
-    runtime: "cloudflare-workers",
+    runtime: c.env.EDGE_EVER_RUNTIME ?? "cloudflare-workers",
     authMode,
   });
 });
@@ -472,7 +507,7 @@ app.get("/api/v1/auth/sessions", async (c) => {
   }
 
   const now = isoNow();
-  const rows = await c.env.DB.prepare(
+  const rows = await c.env.storage.db.prepare(
     `SELECT id, device_id, user_agent, expires_at, created_at, last_seen_at
      FROM sessions
      WHERE user_id = ?
@@ -497,13 +532,13 @@ app.delete("/api/v1/auth/sessions", async (c) => {
   }
 
   const now = isoNow();
-  await c.env.DB.batch([
-    c.env.DB.prepare(
+  await c.env.storage.db.batch([
+    c.env.storage.db.prepare(
       `UPDATE sessions
        SET revoked_at = ?
        WHERE user_id = ? AND id != ? AND revoked_at IS NULL AND expires_at > ?`
     ).bind(now, auth.actorId, auth.sessionId, now),
-    auditStatement(c.env.DB, "user", auth.actorId, "auth.sessions_revoke_others", "session", auth.sessionId, {}),
+    auditStatement(c.env.storage.db, "user", auth.actorId, "auth.sessions_revoke_others", "session", auth.sessionId, {}),
   ]);
 
   return c.json({ ok: true });
@@ -522,7 +557,7 @@ app.delete("/api/v1/auth/sessions/:sessionId", async (c) => {
   }
 
   const now = isoNow();
-  const session = await c.env.DB.prepare(
+  const session = await c.env.storage.db.prepare(
     `SELECT id, device_id FROM sessions
      WHERE id = ? AND user_id = ? AND revoked_at IS NULL AND expires_at > ?`
   )
@@ -533,7 +568,7 @@ app.delete("/api/v1/auth/sessions/:sessionId", async (c) => {
     return notFound(c, "Login session not found.");
   }
 
-  const currentSession = await c.env.DB.prepare(`SELECT device_id FROM sessions WHERE id = ? AND user_id = ?`)
+  const currentSession = await c.env.storage.db.prepare(`SELECT device_id FROM sessions WHERE id = ? AND user_id = ?`)
     .bind(auth.sessionId, auth.actorId)
     .first<{ device_id: string | null }>();
 
@@ -541,14 +576,14 @@ app.delete("/api/v1/auth/sessions/:sessionId", async (c) => {
     return apiError(c, "current_session_cannot_be_revoked", "The current device cannot be revoked here.", 400);
   }
 
-  await c.env.DB.batch([
+  await c.env.storage.db.batch([
     session.device_id
-      ? c.env.DB.prepare(
+      ? c.env.storage.db.prepare(
           `UPDATE sessions SET revoked_at = ?
            WHERE user_id = ? AND device_id = ? AND revoked_at IS NULL`
         ).bind(now, auth.actorId, session.device_id)
-      : c.env.DB.prepare(`UPDATE sessions SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL`).bind(now, session.id),
-    auditStatement(c.env.DB, "user", auth.actorId, "auth.session_revoke", "session", session.id, {}),
+      : c.env.storage.db.prepare(`UPDATE sessions SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL`).bind(now, session.id),
+    auditStatement(c.env.storage.db, "user", auth.actorId, "auth.session_revoke", "session", session.id, {}),
   ]);
 
   return c.json({ ok: true });
@@ -567,17 +602,17 @@ app.post("/api/v1/auth/login", zValidator("json", LoginSchema), async (c) => {
     return unauthorized(c, "Username or password is incorrect.");
   }
 
-  const workspace = await ensureUserWorkspace(c.env.DB, user.id, user.username);
+  const workspace = await ensureUserWorkspace(c.env.storage.db, user.id, user.username);
   const session = await createSession(c, user, input.deviceId);
   setSessionCookie(c, session.token, session.maxAge);
 
-  await c.env.DB.batch([
-    c.env.DB.prepare(`UPDATE users SET last_login_at = ?, updated_at = ? WHERE id = ?`).bind(
+  await c.env.storage.db.batch([
+    c.env.storage.db.prepare(`UPDATE users SET last_login_at = ?, updated_at = ? WHERE id = ?`).bind(
       isoNow(),
       isoNow(),
       user.id
     ),
-    auditStatement(c.env.DB, "user", user.id, "auth.login", "session", session.id, {
+    auditStatement(c.env.storage.db, "user", user.id, "auth.login", "session", session.id, {
       username: user.username,
     }),
   ]);
@@ -608,7 +643,7 @@ app.post("/api/v1/auth/change-password", zValidator("json", ChangePasswordSchema
   }
 
   const input = c.req.valid("json");
-  const user = await c.env.DB.prepare(
+  const user = await c.env.storage.db.prepare(
     `SELECT id, username, password_hash, display_name, is_disabled
      FROM users
      WHERE id = ? AND is_disabled = 0`
@@ -623,17 +658,17 @@ app.post("/api/v1/auth/change-password", zValidator("json", ChangePasswordSchema
   const now = isoNow();
   const passwordHash = await hashPassword(input.newPassword);
 
-  await c.env.DB.batch([
-    c.env.DB.prepare(`UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?`).bind(
+  await c.env.storage.db.batch([
+    c.env.storage.db.prepare(`UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?`).bind(
       passwordHash,
       now,
       user.id
     ),
-    c.env.DB.prepare(
+    c.env.storage.db.prepare(
       `UPDATE sessions SET revoked_at = ?
        WHERE user_id = ? AND id != ? AND revoked_at IS NULL`
     ).bind(now, user.id, auth.sessionId),
-    auditStatement(c.env.DB, "user", user.id, "auth.password_change", "user", user.id, {}),
+    auditStatement(c.env.storage.db, "user", user.id, "auth.password_change", "user", user.id, {}),
   ]);
 
   return c.json({ ok: true });
@@ -646,7 +681,7 @@ app.get("/api/v1/users", async (c) => {
   const denied = requireOwner(c);
   if (denied) return denied;
 
-  const rows = await c.env.DB.prepare(
+  const rows = await c.env.storage.db.prepare(
     `SELECT u.id, u.username, u.password_hash, u.display_name, u.is_disabled,
             u.last_login_at, u.created_at, wm.role
      FROM users u
@@ -665,7 +700,7 @@ app.post("/api/v1/users", zValidator("json", UserCreateSchema), async (c) => {
   if (denied) return denied;
 
   const input = c.req.valid("json");
-  const existing = await c.env.DB.prepare(`SELECT id FROM users WHERE username = ?`).bind(input.username).first();
+  const existing = await c.env.storage.db.prepare(`SELECT id FROM users WHERE username = ?`).bind(input.username).first();
   if (existing) return conflict(c, "username_exists", "Username already exists.");
 
   const userId = createId("usr");
@@ -674,23 +709,23 @@ app.post("/api/v1/users", zValidator("json", UserCreateSchema), async (c) => {
   const passwordHash = await hashPassword(input.password);
   const notebooks = createDefaultNotebookRows(workspaceId, now);
   const statements = [
-    c.env.DB.prepare(
+    c.env.storage.db.prepare(
       `INSERT INTO users (id, username, password_hash, display_name, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?)`
     ).bind(userId, input.username, passwordHash, input.displayName ?? input.username, now, now),
-    c.env.DB.prepare(`INSERT INTO workspaces (id, name, is_personal, created_at, updated_at) VALUES (?, ?, 1, ?, ?)`)
+    c.env.storage.db.prepare(`INSERT INTO workspaces (id, name, is_personal, created_at, updated_at) VALUES (?, ?, 1, ?, ?)`)
       .bind(workspaceId, `${input.displayName ?? input.username}'s workspace`, now, now),
-    c.env.DB.prepare(`INSERT INTO workspace_members (workspace_id, user_id, role, created_at) VALUES (?, ?, 'member', ?)`)
+    c.env.storage.db.prepare(`INSERT INTO workspace_members (workspace_id, user_id, role, created_at) VALUES (?, ?, 'member', ?)`)
       .bind(workspaceId, userId, now),
-    ...notebooks.map((notebook) => c.env.DB.prepare(
+    ...notebooks.map((notebook) => c.env.storage.db.prepare(
       `INSERT INTO notebooks (id, workspace_id, parent_id, name, slug, icon, color, sort_order, created_at, updated_at)
        VALUES (?, ?, NULL, ?, ?, 'notebook', ?, ?, ?, ?)`
     ).bind(notebook.id, workspaceId, notebook.name, notebook.slug, notebook.color, notebook.sortOrder, now, now)),
-    auditStatement(c.env.DB, "user", c.get("auth").actorId, "user.create", "user", userId, { username: input.username }),
+    auditStatement(c.env.storage.db, "user", c.get("auth").actorId, "user.create", "user", userId, { username: input.username }),
   ];
-  await c.env.DB.batch(statements);
+  await c.env.storage.db.batch(statements);
 
-  const user = await getInstanceUser(c.env.DB, userId);
+  const user = await getInstanceUser(c.env.storage.db, userId);
   return c.json({ user: user ? mapInstanceUser(user) : null }, 201);
 });
 
@@ -703,7 +738,7 @@ app.patch("/api/v1/users/:id", zValidator("json", UserUpdateSchema), async (c) =
 
   const userId = c.req.param("id");
   const input = c.req.valid("json");
-  const current = await getInstanceUser(c.env.DB, userId);
+  const current = await getInstanceUser(c.env.storage.db, userId);
   if (!current) return notFound(c, "User not found");
   if (
     isProtectedDemoAccount(c.env.EDGE_EVER_DEMO_MODE, c.env.EDGE_EVER_AUTH_USERNAME, current.username)
@@ -733,18 +768,18 @@ app.patch("/api/v1/users/:id", zValidator("json", UserUpdateSchema), async (c) =
   binds.push(isoNow(), userId);
 
   const statements = [
-    c.env.DB.prepare(`UPDATE users SET ${updates.join(", ")} WHERE id = ?`).bind(...binds),
-    auditStatement(c.env.DB, "user", c.get("auth").actorId, "user.update", "user", userId, {
+    c.env.storage.db.prepare(`UPDATE users SET ${updates.join(", ")} WHERE id = ?`).bind(...binds),
+    auditStatement(c.env.storage.db, "user", c.get("auth").actorId, "user.update", "user", userId, {
       passwordReset: input.password !== undefined,
       isDisabled: input.isDisabled,
     }),
   ];
   if (input.password !== undefined || input.isDisabled === true) {
-    statements.push(c.env.DB.prepare(`UPDATE sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL`).bind(isoNow(), userId));
+    statements.push(c.env.storage.db.prepare(`UPDATE sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL`).bind(isoNow(), userId));
   }
-  await c.env.DB.batch(statements);
+  await c.env.storage.db.batch(statements);
 
-  const user = await getInstanceUser(c.env.DB, userId);
+  const user = await getInstanceUser(c.env.storage.db, userId);
   return c.json({ user: user ? mapInstanceUser(user) : null });
 });
 
@@ -752,7 +787,7 @@ app.post("/api/v1/auth/logout", async (c) => {
   const token = getCookie(c, SESSION_COOKIE) ?? getBearerToken(c);
 
   if (token) {
-    await revokeSession(c.env.DB, token);
+    await revokeSession(c.env.storage.db, token);
   }
 
   deleteCookie(c, SESSION_COOKIE, { path: "/" });
@@ -803,7 +838,7 @@ app.get("/api/v1/api-tokens", async (c) => {
     return userOnly;
   }
 
-  const rows = await c.env.DB.prepare(
+  const rows = await c.env.storage.db.prepare(
     `SELECT id, name, token_value, scopes_json, last_used_at, expires_at, is_revoked, created_at, workspace_id
      FROM api_tokens
      WHERE workspace_id = ?
@@ -836,19 +871,19 @@ app.post("/api/v1/api-tokens", zValidator("json", ApiTokenCreateSchema), async (
   const now = isoNow();
   const actor = getAuditActor(c);
 
-  await c.env.DB.batch([
-    c.env.DB.prepare(
+  await c.env.storage.db.batch([
+    c.env.storage.db.prepare(
       `INSERT INTO api_tokens (id, workspace_id, name, token_hash, token_value, scopes_json, expires_at, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(id, getWorkspaceId(c), input.name, await sha256(token), token, JSON.stringify(scopes), input.expiresAt ?? null, now),
-    auditStatement(c.env.DB, actor.actorType, actor.actorId, "api_token.create", "api_token", id, {
+    auditStatement(c.env.storage.db, actor.actorType, actor.actorId, "api_token.create", "api_token", id, {
       name: input.name,
       scopes,
       expiresAt: input.expiresAt ?? null,
     }),
   ]);
 
-  const row = await getApiTokenRow(c.env.DB, id, getWorkspaceId(c));
+  const row = await getApiTokenRow(c.env.storage.db, id, getWorkspaceId(c));
 
   if (!row) {
     return notFound(c, "API token not found");
@@ -867,9 +902,9 @@ app.delete("/api/v1/api-tokens/:id", async (c) => {
   const id = c.req.param("id");
   const actor = getAuditActor(c);
 
-  await c.env.DB.batch([
-    c.env.DB.prepare(`DELETE FROM api_tokens WHERE id = ? AND workspace_id = ?`).bind(id, getWorkspaceId(c)),
-    auditStatement(c.env.DB, actor.actorType, actor.actorId, "api_token.delete", "api_token", id, {}),
+  await c.env.storage.db.batch([
+    c.env.storage.db.prepare(`DELETE FROM api_tokens WHERE id = ? AND workspace_id = ?`).bind(id, getWorkspaceId(c)),
+    auditStatement(c.env.storage.db, actor.actorType, actor.actorId, "api_token.delete", "api_token", id, {}),
   ]);
 
   return c.json({ ok: true });
@@ -886,7 +921,7 @@ app.get("/api/v1/notebooks", async (c) => {
     await ensureDemoSeed(c.env);
   }
 
-  const rows = await c.env.DB.prepare(
+  const rows = await c.env.storage.db.prepare(
     notebookSelectSql(
       `WHERE n.workspace_id = ? AND n.is_deleted = 0
        GROUP BY n.id, n.parent_id, n.name, n.slug, n.icon, n.color, n.sort_order, n.created_at, n.updated_at
@@ -908,7 +943,7 @@ app.get("/api/v1/sync/bootstrap", async (c) => {
   const limit = clampNumber(Number(c.req.query("limit") ?? 100), 1, 200);
   const afterId = c.req.query("afterId")?.trim() ?? "";
   const [notebookRows, memoRows, totalRow, cursorRow] = await Promise.all([
-    c.env.DB.prepare(
+    c.env.storage.db.prepare(
       `SELECT n.id, n.parent_id, n.name, n.slug, n.icon, n.color, n.sort_order,
               n.created_at, n.updated_at, COUNT(m.id) AS memo_count, MAX(m.updated_at) AS last_memo_updated_at
        FROM notebooks n
@@ -917,7 +952,7 @@ app.get("/api/v1/sync/bootstrap", async (c) => {
        GROUP BY n.id, n.parent_id, n.name, n.slug, n.icon, n.color, n.sort_order, n.created_at, n.updated_at
        ORDER BY n.sort_order ASC, n.name ASC`
     ).bind(workspaceId).all<NotebookRow>(),
-    c.env.DB.prepare(
+    c.env.storage.db.prepare(
       `SELECT m.id, m.notebook_id, m.title, m.excerpt, m.tags_json, m.is_pinned,
               m.is_archived, m.is_deleted, m.created_at, m.updated_at, m.deleted_at, mc.revision,
               mc.content_json, mc.content_markdown, mc.content_text, mc.content_hash,
@@ -928,8 +963,8 @@ app.get("/api/v1/sync/bootstrap", async (c) => {
        ORDER BY m.id ASC
        LIMIT ?`
     ).bind(workspaceId, afterId, limit + 1).all<MemoDetailRow>(),
-    c.env.DB.prepare(`SELECT COUNT(*) AS count FROM memos WHERE workspace_id = ?`).bind(workspaceId).first<{ count: number }>(),
-    c.env.DB.prepare(
+    c.env.storage.db.prepare(`SELECT COUNT(*) AS count FROM memos WHERE workspace_id = ?`).bind(workspaceId).first<{ count: number }>(),
+    c.env.storage.db.prepare(
       `SELECT w.created_at AS sync_identity, COALESCE(MAX(c.id), 0) AS cursor
        FROM workspaces w
        LEFT JOIN mobile_sync_changes c ON c.workspace_id = w.id
@@ -962,14 +997,14 @@ app.get("/api/v1/sync/changes", async (c) => {
   const cursor = clampNumber(Number(c.req.query("cursor") ?? 0), 0, Number.MAX_SAFE_INTEGER);
   const limit = clampNumber(Number(c.req.query("limit") ?? 100), 1, 200);
   const [rows, cursorRow] = await Promise.all([
-    c.env.DB.prepare(
+    c.env.storage.db.prepare(
       `SELECT id, entity_type, entity_id, operation
        FROM mobile_sync_changes
        WHERE workspace_id = ? AND id > ?
        ORDER BY id ASC
        LIMIT ?`
     ).bind(workspaceId, cursor, limit + 1).all<MobileSyncChangeRow>(),
-    c.env.DB.prepare(
+    c.env.storage.db.prepare(
       `SELECT w.created_at AS sync_identity, COALESCE(MAX(c.id), 0) AS cursor
        FROM workspaces w
        LEFT JOIN mobile_sync_changes c ON c.workspace_id = w.id
@@ -984,7 +1019,7 @@ app.get("/api/v1/sync/changes", async (c) => {
   const notebookPlaceholders = notebookIds.map(() => "?").join(", ");
   const [memoRows, notebookRows] = await Promise.all([
     memoIds.length > 0
-      ? c.env.DB.prepare(
+      ? c.env.storage.db.prepare(
           `SELECT m.id, m.notebook_id, m.title, m.excerpt, m.tags_json, m.is_pinned,
                   m.is_archived, m.is_deleted, m.created_at, m.updated_at, m.deleted_at, mc.revision,
                   mc.content_json, mc.content_markdown, mc.content_text, mc.content_hash,
@@ -995,7 +1030,7 @@ app.get("/api/v1/sync/changes", async (c) => {
         ).bind(workspaceId, ...memoIds).all<MemoDetailRow>()
       : Promise.resolve({ results: [] as MemoDetailRow[] }),
     notebookIds.length > 0
-      ? c.env.DB.prepare(
+      ? c.env.storage.db.prepare(
           `SELECT n.id, n.parent_id, n.name, n.slug, n.icon, n.color, n.sort_order,
                   n.created_at, n.updated_at, COUNT(m.id) AS memo_count, MAX(m.updated_at) AS last_memo_updated_at
            FROM notebooks n
@@ -1037,7 +1072,7 @@ app.post("/api/v1/notebooks", zValidator("json", NotebookCreateSchema), async (c
   const actor = getAuditActor(c);
 
   try {
-    const notebook = await createNotebookRecord(c.env.DB, getWorkspaceId(c), input, actor);
+    const notebook = await createNotebookRecord(c.env.storage.db, getWorkspaceId(c), input, actor);
     return c.json({ notebook }, 201);
   } catch (error) {
     if (error instanceof AppError) {
@@ -1060,7 +1095,7 @@ app.patch("/api/v1/notebooks/:id", zValidator("json", NotebookUpdateSchema), asy
   const actor = getAuditActor(c);
 
   try {
-    const notebook = await updateNotebookRecord(c.env.DB, getWorkspaceId(c), id, input, actor);
+    const notebook = await updateNotebookRecord(c.env.storage.db, getWorkspaceId(c), id, input, actor);
     return c.json({ notebook });
   } catch (error) {
     if (error instanceof AppError) {
@@ -1082,7 +1117,7 @@ app.delete("/api/v1/notebooks/:id", async (c) => {
   const actor = getAuditActor(c);
   const now = isoNow();
   const workspaceId = getWorkspaceId(c);
-  const current = await getNotebook(c.env.DB, workspaceId, id);
+  const current = await getNotebook(c.env.storage.db, workspaceId, id);
 
   if (!current) {
     return notFound(c, "Notebook not found");
@@ -1093,10 +1128,10 @@ app.delete("/api/v1/notebooks/:id", async (c) => {
   }
 
   const [childCount, memoCount] = await Promise.all([
-    c.env.DB.prepare(`SELECT COUNT(*) AS count FROM notebooks WHERE workspace_id = ? AND parent_id = ? AND is_deleted = 0`)
+    c.env.storage.db.prepare(`SELECT COUNT(*) AS count FROM notebooks WHERE workspace_id = ? AND parent_id = ? AND is_deleted = 0`)
       .bind(workspaceId, id)
       .first<{ count: number }>(),
-    c.env.DB.prepare(`SELECT COUNT(*) AS count FROM memos WHERE workspace_id = ? AND notebook_id = ? AND is_deleted = 0`)
+    c.env.storage.db.prepare(`SELECT COUNT(*) AS count FROM memos WHERE workspace_id = ? AND notebook_id = ? AND is_deleted = 0`)
       .bind(workspaceId, id)
       .first<{ count: number }>(),
   ]);
@@ -1105,7 +1140,7 @@ app.delete("/api/v1/notebooks/:id", async (c) => {
     return conflict(c, "notebook_not_empty", "Move or delete child notebooks and memos before deleting this notebook.");
   }
 
-  await c.env.DB.prepare(
+  await c.env.storage.db.prepare(
     `UPDATE notebooks
      SET is_deleted = 1, deleted_at = ?, updated_at = ?
      WHERE id = ? AND workspace_id = ? AND slug <> 'inbox'`
@@ -1113,7 +1148,7 @@ app.delete("/api/v1/notebooks/:id", async (c) => {
     .bind(now, now, id, workspaceId)
     .run();
 
-  await audit(c.env.DB, actor.actorType, actor.actorId, "notebook.delete", "notebook", id, {});
+  await audit(c.env.storage.db, actor.actorType, actor.actorId, "notebook.delete", "notebook", id, {});
   return c.json({ ok: true });
 });
 
@@ -1124,7 +1159,7 @@ app.get("/api/v1/tags", async (c) => {
     return denied;
   }
 
-  return c.json({ tags: await listTagSummaries(c.env.DB, getWorkspaceId(c)) });
+  return c.json({ tags: await listTagSummaries(c.env.storage.db, getWorkspaceId(c)) });
 });
 
 app.patch("/api/v1/tags/:tag", zValidator("json", TagRenameSchema), async (c) => {
@@ -1138,7 +1173,7 @@ app.patch("/api/v1/tags/:tag", zValidator("json", TagRenameSchema), async (c) =>
   const input = c.req.valid("json");
   const actor = getAuditActor(c);
   const actorLabel = getActorLabel(c);
-  const updated = await updateTagAcrossMemos(c.env.DB, getWorkspaceId(c), oldTag, input.name, actor, actorLabel);
+  const updated = await updateTagAcrossMemos(c.env.storage.db, getWorkspaceId(c), oldTag, input.name, actor, actorLabel);
 
   return c.json({ ok: true, updated });
 });
@@ -1153,9 +1188,128 @@ app.delete("/api/v1/tags/:tag", async (c) => {
   const tag = decodeTagParam(c.req.param("tag"));
   const actor = getAuditActor(c);
   const actorLabel = getActorLabel(c);
-  const updated = await updateTagAcrossMemos(c.env.DB, getWorkspaceId(c), tag, null, actor, actorLabel);
+  const updated = await updateTagAcrossMemos(c.env.storage.db, getWorkspaceId(c), tag, null, actor, actorLabel);
 
   return c.json({ ok: true, updated });
+});
+
+app.get("/api/v1/templates", async (c) => {
+  const rows = await c.env.storage.db.prepare(
+    `SELECT id, name, description, title, content_json, content_markdown, tags_json, created_at, updated_at
+     FROM memo_templates
+     WHERE workspace_id = ?
+     ORDER BY updated_at DESC, name ASC`
+  ).bind(getWorkspaceId(c)).all<MemoTemplateRow>();
+
+  return c.json({ templates: rows.results.map(mapMemoTemplate) });
+});
+
+app.post("/api/v1/templates", zValidator("json", TemplateCreateSchema), async (c) => {
+  const input = c.req.valid("json");
+  const workspaceId = getWorkspaceId(c);
+  const memo = input.memoId ? await getMemoDetail(c.env.storage.db, workspaceId, input.memoId) : null;
+  if (input.memoId && !memo) {
+    return notFound(c, "Memo not found");
+  }
+
+  const id = createId("template");
+  const now = new Date().toISOString();
+  const title = memo?.title ?? (input.title?.trim() || null);
+  const contentMarkdown = memo?.contentMarkdown ?? input.contentMarkdown ?? "";
+  const tags = memo?.tags ?? input.tags ?? [];
+  const contentJson = memo?.contentJson ?? markdownToDoc(contentMarkdown);
+  await c.env.storage.db.prepare(
+    `INSERT INTO memo_templates (
+       id, workspace_id, name, description, title, content_json, content_markdown, tags_json, created_at, updated_at
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).bind(
+    id,
+    workspaceId,
+    input.name.trim(),
+    input.description?.trim() || null,
+    title,
+    JSON.stringify(contentJson),
+    contentMarkdown,
+    JSON.stringify(tags),
+    now,
+    now,
+  ).run();
+
+  const template = await getMemoTemplate(c.env.storage.db, workspaceId, id);
+  const actor = getAuditActor(c);
+  await audit(c.env.storage.db, actor.actorType, actor.actorId, "template.create", "template", id, { memoId: input.memoId ?? null });
+  return c.json({ template }, 201);
+});
+
+app.patch("/api/v1/templates/:id", zValidator("json", TemplateUpdateSchema), async (c) => {
+  const id = c.req.param("id");
+  const input = c.req.valid("json");
+  const workspaceId = getWorkspaceId(c);
+  const current = await getMemoTemplateRow(c.env.storage.db, workspaceId, id);
+  if (!current) {
+    return notFound(c, "Template not found");
+  }
+
+  const contentMarkdown = input.contentMarkdown ?? current.content_markdown;
+  const contentJson = input.contentMarkdown !== undefined
+    ? markdownToDoc(contentMarkdown)
+    : JSON.parse(current.content_json);
+  const tags = input.tags ?? parseJsonArray(current.tags_json);
+  const now = new Date().toISOString();
+  await c.env.storage.db.prepare(
+    `UPDATE memo_templates
+     SET name = ?, description = ?, title = ?, content_json = ?, content_markdown = ?, tags_json = ?, updated_at = ?
+     WHERE id = ? AND workspace_id = ?`
+  ).bind(
+    input.name ?? current.name,
+    input.description !== undefined ? input.description?.trim() || null : current.description,
+    input.title !== undefined ? input.title?.trim() || null : current.title,
+    JSON.stringify(contentJson),
+    contentMarkdown,
+    JSON.stringify(tags),
+    now,
+    id,
+    workspaceId,
+  ).run();
+
+  const template = await getMemoTemplate(c.env.storage.db, workspaceId, id);
+  const actor = getAuditActor(c);
+  await audit(c.env.storage.db, actor.actorType, actor.actorId, "template.update", "template", id, {});
+  return c.json({ template });
+});
+
+app.post("/api/v1/templates/:id/use", zValidator("json", TemplateUseSchema), async (c) => {
+  const id = c.req.param("id");
+  const input = c.req.valid("json");
+  const workspaceId = getWorkspaceId(c);
+  const template = await getMemoTemplate(c.env.storage.db, workspaceId, id);
+  if (!template) {
+    return notFound(c, "Template not found");
+  }
+
+  const memo = await createMemoRecord(c.env.storage.db, workspaceId, {
+    notebookId: input.notebookId,
+    title: template.title ?? undefined,
+    contentMarkdown: template.contentMarkdown,
+    tags: template.tags,
+  }, getAuditActor(c), getActorLabel(c));
+  const actor = getAuditActor(c);
+  await audit(c.env.storage.db, actor.actorType, actor.actorId, "template.use", "template", id, { memoId: memo.id });
+  return c.json({ memo });
+});
+
+app.delete("/api/v1/templates/:id", async (c) => {
+  const id = c.req.param("id");
+  const workspaceId = getWorkspaceId(c);
+  const current = await getMemoTemplateRow(c.env.storage.db, workspaceId, id);
+  if (!current) {
+    return notFound(c, "Template not found");
+  }
+
+  await c.env.storage.db.prepare(`DELETE FROM memo_templates WHERE id = ? AND workspace_id = ?`).bind(id, workspaceId).run();
+  const actor = getAuditActor(c);
+  await audit(c.env.storage.db, actor.actorType, actor.actorId, "template.delete", "template", id, {});
+  return c.json({ ok: true });
 });
 
 app.get("/api/v1/memos", async (c) => {
@@ -1258,7 +1412,7 @@ app.get("/api/v1/memos", async (c) => {
     if (ftsQuery) {
       const searchPrefix = [ftsQuery, likeQuery, likeQuery, likeQuery];
       const [rows, totalRow] = await Promise.all([
-        c.env.DB.prepare(
+        c.env.storage.db.prepare(
           `WITH raw_matches(memo_id, rank) AS (
              SELECT memo_id, bm25(memos_fts)
              FROM memos_fts
@@ -1290,7 +1444,7 @@ app.get("/api/v1/memos", async (c) => {
         )
           .bind(...searchPrefix, ...cursorBinds, pageLimit)
           .all<MemoSummaryRow>(),
-        c.env.DB.prepare(
+        c.env.storage.db.prepare(
           `WITH raw_matches(memo_id) AS (
              SELECT memo_id
              FROM memos_fts
@@ -1330,7 +1484,7 @@ app.get("/api/v1/memos", async (c) => {
     const searchCursorConditions = [...cursorConditions, "(m.title LIKE ? ESCAPE '\\' OR mc.content_text LIKE ? ESCAPE '\\' OR m.tags_json LIKE ? ESCAPE '\\')"];
     const searchCursorBinds = [...cursorBinds, likeQuery, likeQuery, likeQuery];
     const [rows, totalRow] = await Promise.all([
-      c.env.DB.prepare(
+      c.env.storage.db.prepare(
         `SELECT m.id, m.notebook_id, m.title, m.excerpt, m.tags_json, m.is_pinned,
                 m.is_archived, m.is_deleted, m.created_at, m.updated_at, m.deleted_at, mc.revision,
                 mc.content_text
@@ -1342,7 +1496,7 @@ app.get("/api/v1/memos", async (c) => {
       )
         .bind(...searchCursorBinds, pageLimit)
         .all<MemoSummaryRow>(),
-      c.env.DB.prepare(
+      c.env.storage.db.prepare(
         `SELECT COUNT(*) AS count
          FROM memos m
          INNER JOIN memo_contents mc ON mc.memo_id = m.id
@@ -1359,7 +1513,7 @@ app.get("/api/v1/memos", async (c) => {
   }
 
   const [rows, totalRow] = await Promise.all([
-    c.env.DB.prepare(
+    c.env.storage.db.prepare(
       `SELECT m.id, m.notebook_id, m.title, m.excerpt, m.tags_json, m.is_pinned,
               m.is_archived, m.is_deleted, m.created_at, m.updated_at, m.deleted_at, mc.revision,
               mc.content_text
@@ -1371,7 +1525,7 @@ app.get("/api/v1/memos", async (c) => {
     )
       .bind(...cursorBinds, pageLimit)
       .all<MemoSummaryRow>(),
-    c.env.DB.prepare(
+    c.env.storage.db.prepare(
       `SELECT COUNT(*) AS count
        FROM memos m
        WHERE ${baseConditions.join(" AND ")}`
@@ -1408,27 +1562,27 @@ app.post("/api/v1/memos", zValidator("json", MemoCreateSchema), async (c) => {
   const createdAt = input.createdAt ?? now;
   const updatedAt = input.updatedAt ?? now;
 
-  await c.env.DB.batch([
-    c.env.DB.prepare(
+  await c.env.storage.db.batch([
+    c.env.storage.db.prepare(
       `INSERT INTO memos (
         id, workspace_id, notebook_id, title, excerpt, tags_json, created_by, updated_by, created_at, updated_at
       ) SELECT ?, ?, id, ?, ?, ?, ?, ?, ?, ? FROM notebooks WHERE id = ? AND workspace_id = ? AND is_deleted = 0`
     ).bind(id, getWorkspaceId(c), title, excerpt, JSON.stringify(tags), actorLabel, actorLabel, createdAt, updatedAt, input.notebookId, getWorkspaceId(c)),
-    c.env.DB.prepare(
+    c.env.storage.db.prepare(
       `INSERT INTO memo_contents (
         memo_id, content_json, content_markdown, content_text, content_hash, revision, created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, 0, ?, ?)`
     ).bind(id, JSON.stringify(contentJson), contentMarkdown, contentText, contentHash, createdAt, updatedAt),
-    c.env.DB.prepare(
+    c.env.storage.db.prepare(
       `INSERT INTO memos_fts (memo_id, title, content_text, tags)
        VALUES (?, ?, ?, ?)`
     ).bind(id, title, contentText, tags.join(" ")),
-    auditStatement(c.env.DB, actor.actorType, actor.actorId, "memo.create", "memo", id, {
+    auditStatement(c.env.storage.db, actor.actorType, actor.actorId, "memo.create", "memo", id, {
       notebookId: input.notebookId,
     }),
   ]);
 
-  return c.json({ memo: await getMemoDetail(c.env.DB, getWorkspaceId(c), id) }, 201);
+  return c.json({ memo: await getMemoDetail(c.env.storage.db, getWorkspaceId(c), id) }, 201);
 });
 
 app.post("/api/v1/memos/batch/move", zValidator("json", MoveMemosSchema), async (c) => {
@@ -1439,7 +1593,7 @@ app.post("/api/v1/memos/batch/move", zValidator("json", MoveMemosSchema), async 
   }
 
   const input = c.req.valid("json");
-  const target = await getNotebook(c.env.DB, getWorkspaceId(c), input.notebookId);
+  const target = await getNotebook(c.env.storage.db, getWorkspaceId(c), input.notebookId);
 
   if (!target) {
     return notFound(c, "Target notebook not found");
@@ -1449,7 +1603,7 @@ app.post("/api/v1/memos/batch/move", zValidator("json", MoveMemosSchema), async 
   const actorLabel = getActorLabel(c);
 
   try {
-    const moved = await moveMemosToNotebook(c.env.DB, getWorkspaceId(c), input.memoIds, input.notebookId, actor, actorLabel);
+    const moved = await moveMemosToNotebook(c.env.storage.db, getWorkspaceId(c), input.memoIds, input.notebookId, actor, actorLabel);
 
     return c.json({ ok: true, moved });
   } catch (error) {
@@ -1472,7 +1626,7 @@ app.post("/api/v1/memos/batch/delete", zValidator("json", DeleteMemosSchema), as
   const actor = getAuditActor(c);
 
   try {
-    const deleted = await deleteMemosRecord(c.env.DB, c.env.RESOURCES, getWorkspaceId(c), input.memoIds, Boolean(input.permanent), actor);
+    const deleted = await deleteMemosRecord(c.env.storage.db, c.env.storage.resources, getWorkspaceId(c), input.memoIds, Boolean(input.permanent), actor);
     return c.json({ ok: true, deleted });
   } catch (error) {
     if (error instanceof AppError) {
@@ -1491,7 +1645,7 @@ app.delete("/api/v1/memos/trash/empty", async (c) => {
   }
 
   const actor = getAuditActor(c);
-  const deleted = await emptyTrashMemosRecord(c.env.DB, c.env.RESOURCES, getWorkspaceId(c), actor);
+  const deleted = await emptyTrashMemosRecord(c.env.storage.db, c.env.storage.resources, getWorkspaceId(c), actor);
 
   return c.json({ ok: true, deleted });
 });
@@ -1504,7 +1658,7 @@ app.get("/api/v1/memos/:id", async (c) => {
   }
 
   const includeDeleted = c.req.query("includeDeleted") === "1";
-  const memo = await getMemoDetail(c.env.DB, getWorkspaceId(c), c.req.param("id"), includeDeleted);
+  const memo = await getMemoDetail(c.env.storage.db, getWorkspaceId(c), c.req.param("id"), includeDeleted);
 
   if (!memo) {
     return notFound(c, "Memo not found");
@@ -1521,7 +1675,7 @@ app.post("/api/v1/memos/:id/edit-sessions", async (c) => {
   }
 
   const memoId = c.req.param("id");
-  const current = await getMemoDetailRow(c.env.DB, getWorkspaceId(c), memoId);
+  const current = await getMemoDetailRow(c.env.storage.db, getWorkspaceId(c), memoId);
 
   if (!current) {
     return notFound(c, "Memo not found");
@@ -1537,9 +1691,9 @@ app.post("/api/v1/memos/:id/edit-sessions", async (c) => {
     expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60_000).toISOString(),
   };
 
-  await c.env.DB.batch([
-    c.env.DB.prepare(`DELETE FROM memo_edit_sessions WHERE expires_at <= ?`).bind(now),
-    c.env.DB.prepare(
+  await c.env.storage.db.batch([
+    c.env.storage.db.prepare(`DELETE FROM memo_edit_sessions WHERE expires_at <= ?`).bind(now),
+    c.env.storage.db.prepare(
       `INSERT INTO memo_edit_sessions (
          id, memo_id, actor_type, actor_id, base_revision, base_content_hash,
          expires_at, created_at, updated_at
@@ -1568,14 +1722,14 @@ app.get("/api/v1/memos/:id/revisions", async (c) => {
   }
 
   const memoId = c.req.param("id");
-  const memo = await getMemoDetail(c.env.DB, getWorkspaceId(c), memoId);
+  const memo = await getMemoDetail(c.env.storage.db, getWorkspaceId(c), memoId);
 
   if (!memo) {
     return notFound(c, "Memo not found");
   }
 
   const limit = clampNumber(Number(c.req.query("limit") ?? 50), 1, 100);
-  const rows = await c.env.DB.prepare(
+  const rows = await c.env.storage.db.prepare(
     `SELECT id, memo_id, revision, title, tags_json, content_json, content_markdown,
             content_text, content_hash, created_by, created_at
      FROM memo_revisions
@@ -1600,13 +1754,13 @@ app.post("/api/v1/memos/:id/revisions/:revisionId/restore", async (c) => {
   const revisionId = c.req.param("revisionId");
   const actor = getAuditActor(c);
   const actorLabel = getActorLabel(c);
-  const current = await getMemoDetailRow(c.env.DB, getWorkspaceId(c), memoId);
+  const current = await getMemoDetailRow(c.env.storage.db, getWorkspaceId(c), memoId);
 
   if (!current) {
     return notFound(c, "Memo not found");
   }
 
-  const revision = await getMemoRevisionRow(c.env.DB, getWorkspaceId(c), memoId, revisionId);
+  const revision = await getMemoRevisionRow(c.env.storage.db, getWorkspaceId(c), memoId, revisionId);
 
   if (!revision) {
     return notFound(c, "Memo revision not found");
@@ -1622,32 +1776,32 @@ app.post("/api/v1/memos/:id/revisions/:revisionId/restore", async (c) => {
   const nextRevision = current.revision + 1;
   const now = isoNow();
 
-  await c.env.DB.batch([
-    createMemoRevisionStatement(c.env.DB, current, actorLabel, now),
-    c.env.DB.prepare(
+  await c.env.storage.db.batch([
+    createMemoRevisionStatement(c.env.storage.db, current, actorLabel, now),
+    c.env.storage.db.prepare(
       `UPDATE memos
        SET title = ?, excerpt = ?, tags_json = ?, updated_by = ?, updated_at = ?
        WHERE id = ? AND is_deleted = 0`
     ).bind(title, excerpt, JSON.stringify(tags), actorLabel, now, memoId),
-    c.env.DB.prepare(
+    c.env.storage.db.prepare(
       `UPDATE memo_contents
        SET content_json = ?, content_markdown = ?, content_text = ?, content_hash = ?,
            revision = ?, updated_at = ?
        WHERE memo_id = ?`
     ).bind(JSON.stringify(contentJson), contentMarkdown, contentText, contentHash, nextRevision, now, memoId),
-    c.env.DB.prepare(`DELETE FROM memos_fts WHERE memo_id = ?`).bind(memoId),
-    c.env.DB.prepare(
+    c.env.storage.db.prepare(`DELETE FROM memos_fts WHERE memo_id = ?`).bind(memoId),
+    c.env.storage.db.prepare(
       `INSERT INTO memos_fts (memo_id, title, content_text, tags)
        VALUES (?, ?, ?, ?)`
     ).bind(memoId, title, contentText, tags.join(" ")),
-    auditStatement(c.env.DB, actor.actorType, actor.actorId, "memo.revision_restore", "memo", memoId, {
+    auditStatement(c.env.storage.db, actor.actorType, actor.actorId, "memo.revision_restore", "memo", memoId, {
       revisionId,
       restoredRevision: revision.revision,
       revision: nextRevision,
     }),
   ]);
 
-  return c.json({ memo: await getMemoDetail(c.env.DB, getWorkspaceId(c), memoId) });
+  return c.json({ memo: await getMemoDetail(c.env.storage.db, getWorkspaceId(c), memoId) });
 });
 
 app.get("/api/v1/exports/markdown", async (c) => {
@@ -1660,7 +1814,7 @@ app.get("/api/v1/exports/markdown", async (c) => {
   const limit = clampNumber(Number(c.req.query("limit") ?? 50), 1, 100);
   const offset = clampNumber(Number(c.req.query("offset") ?? 0), 0, 1_000_000);
   const [memoRows, totalRow] = await Promise.all([
-    c.env.DB.prepare(
+    c.env.storage.db.prepare(
       `SELECT m.id, m.notebook_id, m.title, m.excerpt, m.tags_json, m.is_pinned,
               m.is_archived, m.is_deleted, m.created_at, m.updated_at, m.deleted_at, mc.revision,
               mc.content_json, mc.content_markdown, mc.content_text, mc.content_hash,
@@ -1673,7 +1827,7 @@ app.get("/api/v1/exports/markdown", async (c) => {
     )
       .bind(getWorkspaceId(c), limit, offset)
       .all<MemoDetailRow>(),
-    c.env.DB.prepare(`SELECT COUNT(*) AS count FROM memos WHERE workspace_id = ? AND is_deleted = 0`).bind(getWorkspaceId(c)).first<{ count: number }>(),
+    c.env.storage.db.prepare(`SELECT COUNT(*) AS count FROM memos WHERE workspace_id = ? AND is_deleted = 0`).bind(getWorkspaceId(c)).first<{ count: number }>(),
   ]);
 
   const memoIds = memoRows.results.map((row) => row.id);
@@ -1681,7 +1835,7 @@ app.get("/api/v1/exports/markdown", async (c) => {
 
   if (memoIds.length > 0) {
     const placeholders = memoIds.map(() => "?").join(", ");
-    const resourceRows = await c.env.DB.prepare(
+    const resourceRows = await c.env.storage.db.prepare(
       `SELECT r.id, r.memo_id, r.original_memo_id, r.bucket_name, r.object_key, r.kind, r.mime_type,
               r.filename, r.byte_size, r.sha256, r.width, r.height, r.created_at, r.updated_at
        FROM resources
@@ -1714,7 +1868,7 @@ app.get("/api/v1/backups/json", async (c) => {
   const limit = clampNumber(Number(c.req.query("limit") ?? 25), 1, 50);
   const offset = clampNumber(Number(c.req.query("offset") ?? 0), 0, 1_000_000);
   const [memoRows, totalRow] = await Promise.all([
-    c.env.DB.prepare(
+    c.env.storage.db.prepare(
       `SELECT m.id, m.notebook_id, m.title, m.excerpt, m.tags_json, m.is_pinned,
               m.is_archived, m.is_deleted, m.created_at, m.updated_at, m.deleted_at, mc.revision,
               mc.content_json, mc.content_markdown, mc.content_text, mc.content_hash,
@@ -1727,7 +1881,7 @@ app.get("/api/v1/backups/json", async (c) => {
     )
       .bind(getWorkspaceId(c), limit, offset)
       .all<MemoDetailRow>(),
-    c.env.DB.prepare(`SELECT COUNT(*) AS count FROM memos WHERE workspace_id = ? AND is_deleted = 0`).bind(getWorkspaceId(c)).first<{ count: number }>(),
+    c.env.storage.db.prepare(`SELECT COUNT(*) AS count FROM memos WHERE workspace_id = ? AND is_deleted = 0`).bind(getWorkspaceId(c)).first<{ count: number }>(),
   ]);
   const memoIds = memoRows.results.map((row) => row.id);
   let resources: Resource[] = [];
@@ -1736,7 +1890,7 @@ app.get("/api/v1/backups/json", async (c) => {
   if (memoIds.length > 0) {
     const placeholders = memoIds.map(() => "?").join(", ");
     const [resourceRows, revisionRows] = await Promise.all([
-      c.env.DB.prepare(
+      c.env.storage.db.prepare(
         `SELECT id, memo_id, original_memo_id, bucket_name, object_key, kind, mime_type,
                 filename, byte_size, sha256, width, height, created_at, updated_at
          FROM resources
@@ -1745,7 +1899,7 @@ app.get("/api/v1/backups/json", async (c) => {
       )
         .bind(...memoIds)
         .all<ResourceRow>(),
-      c.env.DB.prepare(
+      c.env.storage.db.prepare(
         `SELECT id, memo_id, revision, title, tags_json, content_json, content_markdown,
                 content_text, content_hash, created_by, created_at
          FROM memo_revisions
@@ -1777,7 +1931,7 @@ app.post("/api/v1/restores/json/notebooks", zValidator("json", RestoreJsonNotebo
     return userOnly;
   }
 
-  await restoreJsonNotebooks(c.env.DB, getWorkspaceId(c), c.req.valid("json").notebooks as JsonBackupNotebook[]);
+  await restoreJsonNotebooks(c.env.storage.db, getWorkspaceId(c), c.req.valid("json").notebooks as JsonBackupNotebook[]);
   return c.json({ ok: true });
 });
 
@@ -1787,7 +1941,7 @@ app.post("/api/v1/restores/json/memos", zValidator("json", RestoreJsonMemosSchem
     return userOnly;
   }
 
-  await restoreJsonMemos(c.env.DB, getWorkspaceId(c), c.req.valid("json").memos as JsonBackupMemo[]);
+  await restoreJsonMemos(c.env.storage.db, getWorkspaceId(c), c.req.valid("json").memos as JsonBackupMemo[]);
   return c.json({ ok: true });
 });
 
@@ -1817,7 +1971,7 @@ app.put("/api/v1/restores/json/resources/:id", async (c) => {
   }
 
   const metadata = parsed.data as JsonBackupResource;
-  const memo = await getMemoDetail(c.env.DB, getWorkspaceId(c), metadata.memoId);
+  const memo = await getMemoDetail(c.env.storage.db, getWorkspaceId(c), metadata.memoId);
   if (!memo) {
     return notFound(c, "Restore target memo not found.");
   }
@@ -1830,28 +1984,28 @@ app.put("/api/v1/restores/json/resources/:id", async (c) => {
   const filename = normalizeFilename(metadata.filename || file.name) || `${metadata.kind}-${metadata.id}`;
   const objectKey = `workspaces/${getWorkspaceId(c)}/restores/${metadata.memoId}/${metadata.id}/${Date.now()}-${filename}`;
   const bytes = new Uint8Array(await file.arrayBuffer());
-  const foreignResource = await c.env.DB.prepare(
+  const foreignResource = await c.env.storage.db.prepare(
     `SELECT r.id FROM resources r INNER JOIN memos m ON m.id = r.memo_id
      WHERE r.id = ? AND m.workspace_id <> ? LIMIT 1`
   ).bind(metadata.id, getWorkspaceId(c)).first<{ id: string }>();
   if (foreignResource) {
     return conflict(c, "cross_workspace_id_conflict", "Backup resource ID is already used by another user.");
   }
-  const previous = await c.env.DB.prepare(
+  const previous = await c.env.storage.db.prepare(
     `SELECT r.object_key FROM resources r INNER JOIN memos m ON m.id = r.memo_id WHERE r.id = ? AND m.workspace_id = ?`
   ).bind(metadata.id, getWorkspaceId(c)).first<{ object_key: string }>();
   const originalMemo = metadata.originalMemoId
-    ? await c.env.DB.prepare(`SELECT id FROM memos WHERE id = ? AND workspace_id = ?`).bind(metadata.originalMemoId, getWorkspaceId(c)).first<{ id: string }>()
+    ? await c.env.storage.db.prepare(`SELECT id FROM memos WHERE id = ? AND workspace_id = ?`).bind(metadata.originalMemoId, getWorkspaceId(c)).first<{ id: string }>()
     : null;
 
-  await c.env.RESOURCES.put(objectKey, bytes, {
+  await c.env.storage.resources.put(objectKey, bytes, {
     httpMetadata: { contentType: metadata.mimeType ?? file.type ?? "application/octet-stream" },
     customMetadata: { memoId: metadata.memoId, resourceId: metadata.id, restored: "true" },
   });
 
   try {
     const now = isoNow();
-    await c.env.DB.prepare(
+    await c.env.storage.db.prepare(
       `INSERT INTO resources (
         id, memo_id, original_memo_id, bucket_name, object_key, kind, mime_type, filename,
         byte_size, sha256, width, height, metadata_json, is_deleted, created_at, updated_at, deleted_at
@@ -1890,12 +2044,12 @@ app.put("/api/v1/restores/json/resources/:id", async (c) => {
       now
     ).run();
   } catch (error) {
-    await c.env.RESOURCES.delete(objectKey);
+    await c.env.storage.resources.delete(objectKey);
     throw error;
   }
 
   if (previous?.object_key && previous.object_key !== objectKey) {
-    await c.env.RESOURCES.delete(previous.object_key);
+    await c.env.storage.resources.delete(previous.object_key);
   }
 
   return c.json({ ok: true });
@@ -1910,7 +2064,7 @@ app.get("/api/v1/resources", async (c) => {
 
   const limit = clampNumber(Number(c.req.query("limit") ?? 500), 1, 500);
   const [rows, stats] = await Promise.all([
-    c.env.DB.prepare(
+    c.env.storage.db.prepare(
       `SELECT r.id, r.memo_id, r.original_memo_id, r.bucket_name, r.object_key, r.kind,
               r.mime_type, r.filename, r.byte_size, r.sha256, r.width, r.height,
               r.created_at, r.updated_at, m.title AS memo_title, m.excerpt AS memo_excerpt,
@@ -1923,7 +2077,7 @@ app.get("/api/v1/resources", async (c) => {
     )
       .bind(getWorkspaceId(c), limit)
       .all<ResourceListRow>(),
-    c.env.DB.prepare(
+    c.env.storage.db.prepare(
       `SELECT COUNT(*) AS total_count,
               COALESCE(SUM(byte_size), 0) AS total_bytes,
               COALESCE(SUM(CASE WHEN kind = 'image' THEN 1 ELSE 0 END), 0) AS image_count,
@@ -1948,7 +2102,7 @@ app.post("/api/v1/memos/:id/resources", async (c) => {
   }
 
   const memoId = c.req.param("id");
-  const memo = await getMemoDetail(c.env.DB, getWorkspaceId(c), memoId);
+  const memo = await getMemoDetail(c.env.storage.db, getWorkspaceId(c), memoId);
 
   if (!memo) {
     return notFound(c, "Memo not found");
@@ -2020,7 +2174,7 @@ const createImageResource = async (
   const filename = normalizeFilename(processed.filename) || `${resourceId}${inferImageExtension(processed.filename, processed.mimeType)}`;
   const checksum = await sha256Bytes(processed.bytes);
 
-  await c.env.RESOURCES.put(objectKey, processed.bytes, {
+  await c.env.storage.resources.put(objectKey, processed.bytes, {
     httpMetadata: {
       contentType: processed.mimeType,
       cacheControl: "private, max-age=3600",
@@ -2033,8 +2187,8 @@ const createImageResource = async (
   });
 
   try {
-    await c.env.DB.batch([
-      c.env.DB.prepare(
+    await c.env.storage.db.batch([
+      c.env.storage.db.prepare(
         `INSERT INTO resources (
           id, memo_id, bucket_name, object_key, kind, mime_type, filename,
           byte_size, sha256, width, height, metadata_json, created_at, updated_at
@@ -2054,7 +2208,7 @@ const createImageResource = async (
         now,
         now
       ),
-      auditStatement(c.env.DB, input.actor.actorType, input.actor.actorId, "resource.create", "resource", resourceId, {
+      auditStatement(c.env.storage.db, input.actor.actorType, input.actor.actorId, "resource.create", "resource", resourceId, {
         memoId: input.memoId,
         mimeType: processed.mimeType,
         byteSize: processed.bytes.byteLength,
@@ -2062,11 +2216,11 @@ const createImageResource = async (
       }),
     ]);
   } catch (error) {
-    await c.env.RESOURCES.delete(objectKey);
+    await c.env.storage.resources.delete(objectKey);
     throw error;
   }
 
-  const resource = await getResourceRow(c.env.DB, getWorkspaceId(c), resourceId);
+  const resource = await getResourceRow(c.env.storage.db, getWorkspaceId(c), resourceId);
 
   if (!resource) {
     throw new AppError("not_found", "Resource not found", 404);
@@ -2094,7 +2248,7 @@ const createAttachmentResource = async (
   const bucketName = c.env.EDGE_EVER_R2_BUCKET_NAME?.trim() || DEFAULT_R2_BUCKET_NAME;
   const checksum = await sha256Bytes(input.bytes);
 
-  await c.env.RESOURCES.put(objectKey, input.bytes, {
+  await c.env.storage.resources.put(objectKey, input.bytes, {
     httpMetadata: {
       contentType: input.mimeType,
       cacheControl: "private, max-age=3600",
@@ -2107,8 +2261,8 @@ const createAttachmentResource = async (
   });
 
   try {
-    await c.env.DB.batch([
-      c.env.DB.prepare(
+    await c.env.storage.db.batch([
+      c.env.storage.db.prepare(
         `INSERT INTO resources (
           id, memo_id, bucket_name, object_key, kind, mime_type, filename,
           byte_size, sha256, width, height, metadata_json, created_at, updated_at
@@ -2126,18 +2280,18 @@ const createAttachmentResource = async (
         now,
         now
       ),
-      auditStatement(c.env.DB, input.actor.actorType, input.actor.actorId, "resource.create", "resource", resourceId, {
+      auditStatement(c.env.storage.db, input.actor.actorType, input.actor.actorId, "resource.create", "resource", resourceId, {
         memoId: input.memoId,
         mimeType: input.mimeType,
         byteSize: input.bytes.byteLength,
       }),
     ]);
   } catch (error) {
-    await c.env.RESOURCES.delete(objectKey);
+    await c.env.storage.resources.delete(objectKey);
     throw error;
   }
 
-  const resource = await getResourceRow(c.env.DB, getWorkspaceId(c), resourceId);
+  const resource = await getResourceRow(c.env.storage.db, getWorkspaceId(c), resourceId);
 
   if (!resource) {
     throw new AppError("not_found", "Resource not found", 404);
@@ -2200,13 +2354,13 @@ app.get("/api/v1/resources/:id/blob", async (c) => {
     return denied;
   }
 
-  const resource = await getResourceRow(c.env.DB, getWorkspaceId(c), c.req.param("id"));
+  const resource = await getResourceRow(c.env.storage.db, getWorkspaceId(c), c.req.param("id"));
 
   if (!resource) {
     return notFound(c, "Resource not found");
   }
 
-  const object = await c.env.RESOURCES.get(resource.object_key);
+  const object = await c.env.storage.resources.get(resource.object_key);
 
   if (!object) {
     return notFound(c, "Resource object not found");
@@ -2272,7 +2426,7 @@ const updateMemoFromInput = async (c: AppContext, id: string, input: MemoUpdateI
   const actor = getAuditActor(c);
   const actorLabel = getActorLabel(c);
   const workspaceId = getWorkspaceId(c);
-  const current = await getMemoDetailRow(c.env.DB, workspaceId, id);
+  const current = await getMemoDetailRow(c.env.storage.db, workspaceId, id);
 
   if (!current) {
     return notFound(c, "Memo not found");
@@ -2312,7 +2466,7 @@ const updateMemoFromInput = async (c: AppContext, id: string, input: MemoUpdateI
       );
     }
 
-    editSession = await c.env.DB.prepare(
+    editSession = await c.env.storage.db.prepare(
       `SELECT id, memo_id, actor_type, actor_id, base_revision, base_content_hash, expires_at
        FROM memo_edit_sessions
        WHERE id = ? AND memo_id = ? AND actor_type = ? AND actor_id IS ? AND expires_at > ?`
@@ -2359,19 +2513,19 @@ const updateMemoFromInput = async (c: AppContext, id: string, input: MemoUpdateI
 
   if (!hasContentUpdate) {
     if (input.isPinned === undefined || isPinned === Boolean(current.is_pinned)) {
-      return c.json({ memo: await getMemoDetail(c.env.DB, workspaceId, id) });
+      return c.json({ memo: await getMemoDetail(c.env.storage.db, workspaceId, id) });
     }
 
-    await c.env.DB.batch([
-      c.env.DB.prepare(
+    await c.env.storage.db.batch([
+      c.env.storage.db.prepare(
         `UPDATE memos
          SET is_pinned = ?, updated_by = ?, updated_at = ?, created_at = COALESCE(?, created_at)
          WHERE id = ? AND is_deleted = 0`
       ).bind(isPinned ? 1 : 0, actorLabel, updatedAt, input.createdAt ?? null, id),
-      auditStatement(c.env.DB, actor.actorType, actor.actorId, isPinned ? "memo.pin" : "memo.unpin", "memo", id, {}),
+      auditStatement(c.env.storage.db, actor.actorType, actor.actorId, isPinned ? "memo.pin" : "memo.unpin", "memo", id, {}),
     ]);
 
-    return c.json({ memo: await getMemoDetail(c.env.DB, workspaceId, id) });
+    return c.json({ memo: await getMemoDetail(c.env.storage.db, workspaceId, id) });
   }
 
   const currentContentJson = JSON.parse(current.content_json) as TiptapDoc;
@@ -2404,19 +2558,19 @@ const updateMemoFromInput = async (c: AppContext, id: string, input: MemoUpdateI
   const notebookId = input.notebookId ?? current.notebook_id;
   const nextRevision = current.revision + 1;
   const contentHash = await sha256(contentMarkdown + JSON.stringify(contentJson));
-  const revisionStatements = (await shouldSnapshotMemoRevision(c.env.DB, current, title, JSON.stringify(tags), contentHash, updatedAt))
-    ? [createMemoRevisionStatement(c.env.DB, current, actorLabel, updatedAt)]
+  const revisionStatements = (await shouldSnapshotMemoRevision(c.env.storage.db, current, title, JSON.stringify(tags), contentHash, updatedAt))
+    ? [createMemoRevisionStatement(c.env.storage.db, current, actorLabel, updatedAt)]
     : [];
   const editSessionStatements = editSession
     ? [
-        c.env.DB.prepare(
+        c.env.storage.db.prepare(
           `UPDATE memo_edit_sessions
            SET base_revision = ?, base_content_hash = ?, updated_at = ?
            WHERE id = ? AND memo_id = ? AND base_revision = ? AND base_content_hash = ?`
         ).bind(nextRevision, contentHash, updatedAt, editSession.id, id, current.revision, current.content_hash),
       ]
     : [
-        c.env.DB.prepare(
+        c.env.storage.db.prepare(
           `UPDATE memo_edit_sessions
            SET base_revision = ?, base_content_hash = ?, updated_at = ?
            WHERE memo_id = ? AND actor_type = ? AND actor_id IS ?
@@ -2434,32 +2588,32 @@ const updateMemoFromInput = async (c: AppContext, id: string, input: MemoUpdateI
         ),
       ];
 
-  await c.env.DB.batch([
+  await c.env.storage.db.batch([
     ...revisionStatements,
-    c.env.DB.prepare(
+    c.env.storage.db.prepare(
       `UPDATE memos
        SET notebook_id = ?, title = ?, excerpt = ?, tags_json = ?, is_pinned = ?, updated_by = ?, updated_at = ?, created_at = COALESCE(?, created_at)
        WHERE id = ? AND workspace_id = ? AND is_deleted = 0
          AND EXISTS (SELECT 1 FROM notebooks n WHERE n.id = ? AND n.workspace_id = ? AND n.is_deleted = 0)`
     ).bind(notebookId, title, excerpt, JSON.stringify(tags), isPinned ? 1 : 0, actorLabel, updatedAt, input.createdAt ?? null, id, workspaceId, notebookId, workspaceId),
-    c.env.DB.prepare(
+    c.env.storage.db.prepare(
       `UPDATE memo_contents
        SET content_json = ?, content_markdown = ?, content_text = ?, content_hash = ?,
            revision = ?, updated_at = ?, created_at = COALESCE(?, created_at)
        WHERE memo_id = ?`
     ).bind(JSON.stringify(contentJson), contentMarkdown, contentText, contentHash, nextRevision, updatedAt, input.createdAt ?? null, id),
-    c.env.DB.prepare(`DELETE FROM memos_fts WHERE memo_id = ?`).bind(id),
-    c.env.DB.prepare(
+    c.env.storage.db.prepare(`DELETE FROM memos_fts WHERE memo_id = ?`).bind(id),
+    c.env.storage.db.prepare(
       `INSERT INTO memos_fts (memo_id, title, content_text, tags)
        VALUES (?, ?, ?, ?)`
     ).bind(id, title, contentText, tags.join(" ")),
     ...editSessionStatements,
-    auditStatement(c.env.DB, actor.actorType, actor.actorId, "memo.update", "memo", id, {
+    auditStatement(c.env.storage.db, actor.actorType, actor.actorId, "memo.update", "memo", id, {
       revision: nextRevision,
     }),
   ]);
 
-  return c.json({ memo: await getMemoDetail(c.env.DB, workspaceId, id) });
+  return c.json({ memo: await getMemoDetail(c.env.storage.db, workspaceId, id) });
 };
 
 app.delete("/api/v1/memos/:id", async (c) => {
@@ -2476,43 +2630,43 @@ app.delete("/api/v1/memos/:id", async (c) => {
   const workspaceId = getWorkspaceId(c);
 
   if (permanent) {
-    const current = await getMemoDetailRow(c.env.DB, workspaceId, id, true);
+    const current = await getMemoDetailRow(c.env.storage.db, workspaceId, id, true);
 
     if (!current || current.is_deleted === 0) {
       return notFound(c, "Memo not found in trash");
     }
 
-    const resources = await getResourceRowsForMemo(c.env.DB, workspaceId, id);
+    const resources = await getResourceRowsForMemo(c.env.storage.db, workspaceId, id);
 
     if (resources.length > 0) {
-      await c.env.RESOURCES.delete(resources.map((resource) => resource.object_key));
+      await c.env.storage.resources.delete(resources.map((resource) => resource.object_key));
     }
 
-    await c.env.DB.batch([
-      c.env.DB.prepare(`DELETE FROM memos_fts WHERE memo_id = ?`).bind(id),
-      c.env.DB.prepare(`DELETE FROM resources WHERE memo_id = ?`).bind(id),
-      c.env.DB.prepare(`DELETE FROM memo_revisions WHERE memo_id = ?`).bind(id),
-      c.env.DB.prepare(`DELETE FROM memo_contents WHERE memo_id = ?`).bind(id),
-      c.env.DB.prepare(`DELETE FROM memos WHERE id = ? AND workspace_id = ? AND is_deleted = 1`).bind(id, workspaceId),
-      auditStatement(c.env.DB, actor.actorType, actor.actorId, "memo.delete_permanent", "memo", id, {}),
+    await c.env.storage.db.batch([
+      c.env.storage.db.prepare(`DELETE FROM memos_fts WHERE memo_id = ?`).bind(id),
+      c.env.storage.db.prepare(`DELETE FROM resources WHERE memo_id = ?`).bind(id),
+      c.env.storage.db.prepare(`DELETE FROM memo_revisions WHERE memo_id = ?`).bind(id),
+      c.env.storage.db.prepare(`DELETE FROM memo_contents WHERE memo_id = ?`).bind(id),
+      c.env.storage.db.prepare(`DELETE FROM memos WHERE id = ? AND workspace_id = ? AND is_deleted = 1`).bind(id, workspaceId),
+      auditStatement(c.env.storage.db, actor.actorType, actor.actorId, "memo.delete_permanent", "memo", id, {}),
     ]);
 
     return c.json({ ok: true });
   }
 
-  await c.env.DB.batch([
-    c.env.DB.prepare(
+  await c.env.storage.db.batch([
+    c.env.storage.db.prepare(
       `UPDATE memos
        SET is_deleted = 1, deleted_at = ?, updated_at = ?
        WHERE id = ? AND workspace_id = ? AND is_deleted = 0`
     ).bind(now, now, id, workspaceId),
-    c.env.DB.prepare(
+    c.env.storage.db.prepare(
       `UPDATE resources
        SET is_deleted = 1, deleted_at = ?, updated_at = ?
        WHERE memo_id = ? AND is_deleted = 0`
     ).bind(now, now, id),
-    c.env.DB.prepare(`DELETE FROM memos_fts WHERE memo_id = ?`).bind(id),
-    auditStatement(c.env.DB, actor.actorType, actor.actorId, "memo.delete", "memo", id, {}),
+    c.env.storage.db.prepare(`DELETE FROM memos_fts WHERE memo_id = ?`).bind(id),
+    auditStatement(c.env.storage.db, actor.actorType, actor.actorId, "memo.delete", "memo", id, {}),
   ]);
 
   return c.json({ ok: true });
@@ -2528,7 +2682,7 @@ app.post("/api/v1/memos/:id/restore", async (c) => {
   const id = c.req.param("id");
   const actor = getAuditActor(c);
   const workspaceId = getWorkspaceId(c);
-  const current = await getMemoDetailRow(c.env.DB, workspaceId, id, true);
+  const current = await getMemoDetailRow(c.env.storage.db, workspaceId, id, true);
 
   if (!current || current.is_deleted === 0) {
     return notFound(c, "Memo not found in trash");
@@ -2536,37 +2690,37 @@ app.post("/api/v1/memos/:id/restore", async (c) => {
 
   const tags = parseJsonArray(current.tags_json);
   const now = isoNow();
-  const originalNotebook = await getNotebook(c.env.DB, workspaceId, current.notebook_id);
-  const inbox = await c.env.DB.prepare(`SELECT id FROM notebooks WHERE workspace_id = ? AND slug = 'inbox' AND is_deleted = 0 LIMIT 1`).bind(workspaceId).first<{ id: string }>();
+  const originalNotebook = await getNotebook(c.env.storage.db, workspaceId, current.notebook_id);
+  const inbox = await c.env.storage.db.prepare(`SELECT id FROM notebooks WHERE workspace_id = ? AND slug = 'inbox' AND is_deleted = 0 LIMIT 1`).bind(workspaceId).first<{ id: string }>();
   const restoreNotebookId = originalNotebook ? current.notebook_id : inbox?.id;
 
   if (!restoreNotebookId) {
     return conflict(c, "restore_notebook_missing", "Original notebook was deleted and the default inbox is unavailable.");
   }
 
-  await c.env.DB.batch([
-    c.env.DB.prepare(
+  await c.env.storage.db.batch([
+    c.env.storage.db.prepare(
       `UPDATE memos
        SET notebook_id = ?, is_deleted = 0, deleted_at = NULL, updated_at = ?
        WHERE id = ? AND workspace_id = ? AND is_deleted = 1`
     ).bind(restoreNotebookId, now, id, workspaceId),
-    c.env.DB.prepare(
+    c.env.storage.db.prepare(
       `UPDATE resources
        SET is_deleted = 0, deleted_at = NULL, updated_at = ?
        WHERE memo_id = ? AND is_deleted = 1`
     ).bind(now, id),
-    c.env.DB.prepare(`DELETE FROM memos_fts WHERE memo_id = ?`).bind(id),
-    c.env.DB.prepare(
+    c.env.storage.db.prepare(`DELETE FROM memos_fts WHERE memo_id = ?`).bind(id),
+    c.env.storage.db.prepare(
       `INSERT INTO memos_fts (memo_id, title, content_text, tags)
        VALUES (?, ?, ?, ?)`
     ).bind(id, current.title, current.content_text, tags.join(" ")),
-    auditStatement(c.env.DB, actor.actorType, actor.actorId, "memo.restore", "memo", id, {
+    auditStatement(c.env.storage.db, actor.actorType, actor.actorId, "memo.restore", "memo", id, {
       fromNotebookId: current.notebook_id,
       toNotebookId: restoreNotebookId,
     }),
   ]);
 
-  return c.json({ memo: await getMemoDetail(c.env.DB, workspaceId, id) });
+  return c.json({ memo: await getMemoDetail(c.env.storage.db, workspaceId, id) });
 });
 
 app.post("/api/v1/memos/merge", zValidator("json", MergeMemosSchema), async (c) => {
@@ -2581,7 +2735,7 @@ app.post("/api/v1/memos/merge", zValidator("json", MergeMemosSchema), async (c) 
   const actorLabel = getActorLabel(c);
 
   try {
-    const memo = await mergeMemosRecord(c.env.DB, getWorkspaceId(c), input, actor, actorLabel);
+    const memo = await mergeMemosRecord(c.env.storage.db, getWorkspaceId(c), input, actor, actorLabel);
     return c.json({ memo }, 201);
   } catch (error) {
     if (error instanceof AppError) {
@@ -2637,19 +2791,29 @@ app.post("/mcp", async (c) => {
 });
 
 const worker = {
-  async fetch(request: Request, env: Bindings, ctx: ExecutionContext) {
-    if (isLocalDemoSeedEnabled(env)) {
-      await ensureLocalDemoSeed(env);
+  async fetch(request: Request, env: WorkerBindings, ctx: ExecutionContext) {
+    const runtimeEnv = {
+      ...env,
+      storage: createCloudflareStorageAdapter(env),
+    } as Bindings;
+
+    if (isLocalDemoSeedEnabled(runtimeEnv)) {
+      await ensureLocalDemoSeed(runtimeEnv);
     }
 
-    return app.fetch(request, env, ctx);
+    return app.fetch(request, runtimeEnv, ctx);
   },
-  async scheduled(controller: ScheduledController, env: Bindings, ctx: ExecutionContext) {
-    if (!isDemoMode(env)) {
+  async scheduled(controller: ScheduledController, env: WorkerBindings, ctx: ExecutionContext) {
+    const runtimeEnv = {
+      ...env,
+      storage: createCloudflareStorageAdapter(env),
+    } as Bindings;
+
+    if (!isDemoMode(runtimeEnv)) {
       return;
     }
 
-    ctx.waitUntil(resetDemoData(env, controller.scheduledTime, { resetCredentials: true }));
+    ctx.waitUntil(resetDemoData(runtimeEnv, controller.scheduledTime, { resetCredentials: true }));
   },
 };
 
@@ -3176,7 +3340,7 @@ const callMcpTool = async (
     case "search_memos": {
       assertScope(auth, "read:memos");
       return {
-        memos: await searchMemoSummaries(c.env.DB, {
+        memos: await searchMemoSummaries(c.env.storage.db, {
           workspaceId: auth.workspaceId,
           query: getOptionalString(args.query),
           notebookId: getOptionalString(args.notebookId),
@@ -3193,7 +3357,7 @@ const callMcpTool = async (
     }
     case "list_memos": {
       assertScope(auth, "read:memos");
-      return await listMemosForMcp(c.env.DB, {
+      return await listMemosForMcp(c.env.storage.db, {
         workspaceId: auth.workspaceId,
         notebookId: getOptionalString(args.notebookId),
         limit: clampNumber(Number(args.limit ?? 50), 1, 100),
@@ -3205,7 +3369,7 @@ const callMcpTool = async (
     case "get_memo": {
       assertScope(auth, "read:memos");
       const memoId = getRequiredString(args.memoId, "memoId");
-      const memo = await getMemoDetail(c.env.DB, auth.workspaceId, memoId, args.includeDeleted === true);
+      const memo = await getMemoDetail(c.env.storage.db, auth.workspaceId, memoId, args.includeDeleted === true);
 
       if (!memo) {
         throw new Error("Memo not found");
@@ -3218,7 +3382,7 @@ const callMcpTool = async (
       const notebookId = getRequiredString(args.notebookId, "notebookId");
       const actor = getAuditActor(c);
       const actorLabel = getActorLabel(c);
-      const memo = await createMemoRecord(c.env.DB, auth.workspaceId, {
+      const memo = await createMemoRecord(c.env.storage.db, auth.workspaceId, {
         notebookId,
         title: getOptionalString(args.title) ?? undefined,
         contentMarkdown: getOptionalString(args.contentMarkdown) ?? "",
@@ -3235,7 +3399,7 @@ const callMcpTool = async (
       const actor = getAuditActor(c);
       const actorLabel = getActorLabel(c);
       const result = await updateMemoRecord(
-        c.env.DB,
+        c.env.storage.db,
         auth.workspaceId,
         memoId,
         {
@@ -3266,10 +3430,10 @@ const callMcpTool = async (
       const memoIds = getRequiredStringArray(args.memoIds, "memoIds");
 
       if (args.dryRun === true) {
-        return { dryRun: true, memos: await getMemosForBulkAction(c.env.DB, auth.workspaceId, memoIds, 0) };
+        return { dryRun: true, memos: await getMemosForBulkAction(c.env.storage.db, auth.workspaceId, memoIds, 0) };
       }
 
-      const deleted = await deleteMemosRecord(c.env.DB, c.env.RESOURCES, auth.workspaceId, memoIds, false, getAuditActor(c));
+      const deleted = await deleteMemosRecord(c.env.storage.db, c.env.storage.resources, auth.workspaceId, memoIds, false, getAuditActor(c));
       return { ok: true, deleted };
     }
     case "restore_memos": {
@@ -3277,16 +3441,16 @@ const callMcpTool = async (
       const memoIds = getRequiredStringArray(args.memoIds, "memoIds");
 
       if (args.dryRun === true) {
-        return { dryRun: true, memos: await getMemosForBulkAction(c.env.DB, auth.workspaceId, memoIds, 1) };
+        return { dryRun: true, memos: await getMemosForBulkAction(c.env.storage.db, auth.workspaceId, memoIds, 1) };
       }
 
-      const restored = await restoreMemosRecord(c.env.DB, auth.workspaceId, memoIds, getAuditActor(c));
+      const restored = await restoreMemosRecord(c.env.storage.db, auth.workspaceId, memoIds, getAuditActor(c));
       return { ok: true, restored };
     }
     case "upload_memo_image": {
       assertScope(auth, "write:resources");
       const memoId = getRequiredString(args.memoId, "memoId");
-      const memo = await getMemoDetail(c.env.DB, auth.workspaceId, memoId);
+      const memo = await getMemoDetail(c.env.storage.db, auth.workspaceId, memoId);
 
       if (!memo) {
         throw new AppError("not_found", "Memo not found", 404);
@@ -3314,25 +3478,25 @@ const callMcpTool = async (
       assertScope(auth, "write:memos");
       const notebookId = getRequiredString(args.notebookId, "notebookId");
       const memoIds = getRequiredStringArray(args.memoIds, "memoIds");
-      const target = await getNotebook(c.env.DB, auth.workspaceId, notebookId);
+      const target = await getNotebook(c.env.storage.db, auth.workspaceId, notebookId);
 
       if (!target) {
         throw new AppError("not_found", "Target notebook not found", 404);
       }
 
       if (args.dryRun === true) {
-        return { dryRun: true, targetNotebook: target, memos: await getMemosForBulkAction(c.env.DB, auth.workspaceId, memoIds, 0) };
+        return { dryRun: true, targetNotebook: target, memos: await getMemosForBulkAction(c.env.storage.db, auth.workspaceId, memoIds, 0) };
       }
 
       const actor = getAuditActor(c);
       const actorLabel = getActorLabel(c);
-      const moved = await moveMemosToNotebook(c.env.DB, auth.workspaceId, memoIds, notebookId, actor, actorLabel);
+      const moved = await moveMemosToNotebook(c.env.storage.db, auth.workspaceId, memoIds, notebookId, actor, actorLabel);
 
       return { ok: true, moved };
     }
     case "add_tags_to_memos": {
       assertScope(auth, "write:tags");
-      return await updateTagsForMemos(c.env.DB, {
+      return await updateTagsForMemos(c.env.storage.db, {
         workspaceId: auth.workspaceId,
         memoIds: getRequiredStringArray(args.memoIds, "memoIds"),
         tags: getRequiredStringArray(args.tags, "tags"),
@@ -3344,7 +3508,7 @@ const callMcpTool = async (
     }
     case "remove_tags_from_memos": {
       assertScope(auth, "write:tags");
-      return await updateTagsForMemos(c.env.DB, {
+      return await updateTagsForMemos(c.env.storage.db, {
         workspaceId: auth.workspaceId,
         memoIds: getRequiredStringArray(args.memoIds, "memoIds"),
         tags: getRequiredStringArray(args.tags, "tags"),
@@ -3360,10 +3524,10 @@ const callMcpTool = async (
       const to = getRequiredString(args.to, "to");
 
       if (args.dryRun === true) {
-        return await previewTagRename(c.env.DB, auth.workspaceId, from, to);
+        return await previewTagRename(c.env.storage.db, auth.workspaceId, from, to);
       }
 
-      const updated = await updateTagAcrossMemos(c.env.DB, auth.workspaceId, from, to, getAuditActor(c), getActorLabel(c));
+      const updated = await updateTagAcrossMemos(c.env.storage.db, auth.workspaceId, from, to, getAuditActor(c), getActorLabel(c));
       return { ok: true, updated };
     }
     case "delete_tag": {
@@ -3371,10 +3535,10 @@ const callMcpTool = async (
       const tag = getRequiredString(args.tag, "tag");
 
       if (args.dryRun === true) {
-        return await previewTagRename(c.env.DB, auth.workspaceId, tag, null);
+        return await previewTagRename(c.env.storage.db, auth.workspaceId, tag, null);
       }
 
-      const updated = await updateTagAcrossMemos(c.env.DB, auth.workspaceId, tag, null, getAuditActor(c), getActorLabel(c));
+      const updated = await updateTagAcrossMemos(c.env.storage.db, auth.workspaceId, tag, null, getAuditActor(c), getActorLabel(c));
       return { ok: true, updated };
     }
     case "merge_memos": {
@@ -3382,7 +3546,7 @@ const callMcpTool = async (
       const actor = getAuditActor(c);
       const actorLabel = getActorLabel(c);
       const memo = await mergeMemosRecord(
-        c.env.DB,
+        c.env.storage.db,
         auth.workspaceId,
         {
           memoIds: getRequiredStringArray(args.memoIds, "memoIds"),
@@ -3398,7 +3562,7 @@ const callMcpTool = async (
     case "upload_memo_attachment": {
       assertScope(auth, "write:resources");
       const memoId = getRequiredString(args.memoId, "memoId");
-      const memo = await getMemoDetail(c.env.DB, auth.workspaceId, memoId);
+      const memo = await getMemoDetail(c.env.storage.db, auth.workspaceId, memoId);
 
       if (!memo) {
         throw new AppError("not_found", "Memo not found", 404);
@@ -3423,23 +3587,23 @@ const callMcpTool = async (
     case "list_memo_resources": {
       assertScope(auth, "read:resources");
       const memoId = getRequiredString(args.memoId, "memoId");
-      const memo = await getMemoDetail(c.env.DB, auth.workspaceId, memoId, true);
+      const memo = await getMemoDetail(c.env.storage.db, auth.workspaceId, memoId, true);
 
       if (!memo) {
         throw new AppError("not_found", "Memo not found", 404);
       }
 
-      return { resources: await listResourcesForMemo(c.env.DB, auth.workspaceId, memoId) };
+      return { resources: await listResourcesForMemo(c.env.storage.db, auth.workspaceId, memoId) };
     }
     case "list_resources": {
       assertScope(auth, "read:resources");
-      return await listResourcesForMcp(c.env.DB, auth.workspaceId, clampNumber(Number(args.limit ?? 100), 1, 500));
+      return await listResourcesForMcp(c.env.storage.db, auth.workspaceId, clampNumber(Number(args.limit ?? 100), 1, 500));
     }
     case "list_memo_revisions": {
       assertScope(auth, "read:memos");
       return {
         revisions: await listMemoRevisions(
-          c.env.DB,
+          c.env.storage.db,
           auth.workspaceId,
           getRequiredString(args.memoId, "memoId"),
           clampNumber(Number(args.limit ?? 50), 1, 100)
@@ -3450,7 +3614,7 @@ const callMcpTool = async (
       assertScope(auth, "write:memos");
       const memoId = getRequiredString(args.memoId, "memoId");
       const revisionId = getRequiredString(args.revisionId, "revisionId");
-      const revision = await getMemoRevisionRow(c.env.DB, auth.workspaceId, memoId, revisionId);
+      const revision = await getMemoRevisionRow(c.env.storage.db, auth.workspaceId, memoId, revisionId);
 
       if (!revision) {
         throw new AppError("not_found", "Memo revision not found", 404);
@@ -3460,13 +3624,13 @@ const callMcpTool = async (
         return { dryRun: true, revision: mapMemoRevision(revision) };
       }
 
-      return { memo: await restoreMemoRevisionRecord(c.env.DB, auth.workspaceId, memoId, revisionId, getAuditActor(c), getActorLabel(c)) };
+      return { memo: await restoreMemoRevisionRecord(c.env.storage.db, auth.workspaceId, memoId, revisionId, getAuditActor(c), getActorLabel(c)) };
     }
     case "move_notebook": {
       assertScope(auth, "write:notebooks");
       const actor = getAuditActor(c);
       const notebook = await updateNotebookRecord(
-        c.env.DB,
+        c.env.storage.db,
         auth.workspaceId,
         getRequiredString(args.notebookId, "notebookId"),
         {
@@ -3488,7 +3652,7 @@ const callMcpTool = async (
       }
 
       const notebook = await createNotebookRecord(
-        c.env.DB,
+        c.env.storage.db,
         auth.workspaceId,
         {
           name,
@@ -3502,15 +3666,15 @@ const callMcpTool = async (
     }
     case "list_notebooks": {
       assertScope(auth, "read:notebooks");
-      return { notebooks: await listNotebooks(c.env.DB, auth.workspaceId) };
+      return { notebooks: await listNotebooks(c.env.storage.db, auth.workspaceId) };
     }
     case "list_tags": {
       assertScope(auth, "read:tags");
-      return { tags: await listTagSummaries(c.env.DB, auth.workspaceId) };
+      return { tags: await listTagSummaries(c.env.storage.db, auth.workspaceId) };
     }
     case "get_workspace_stats": {
       assertScope(auth, "read:memos");
-      return await getWorkspaceStats(c.env.DB, auth.workspaceId);
+      return await getWorkspaceStats(c.env.storage.db, auth.workspaceId);
     }
     default:
       throw new Error(`Unknown tool: ${name}`);
@@ -3593,7 +3757,7 @@ const escapeMarkdownImageAlt = (value: string) => value.replace(/[\\[\]]/g, "\\$
 const escapeMarkdownLinkLabel = (value: string) => value.replace(/[\\[\]]/g, "\\$&");
 
 const getInstanceAuthMode = async (env: Bindings): Promise<InstanceAuthMode> => {
-  if (!env.DB || typeof env.DB.prepare !== "function") {
+  if (!env.storage.db || typeof env.storage.db.prepare !== "function") {
     throw new AppError(
       "database_not_ready",
       "Database is not ready. Bind the D1 database as DB and apply the remote migrations.",
@@ -3603,7 +3767,7 @@ const getInstanceAuthMode = async (env: Bindings): Promise<InstanceAuthMode> => 
 
   let user: { id: string } | null;
   try {
-    user = await env.DB.prepare(`SELECT id FROM users WHERE is_disabled = 0 LIMIT 1`).first<{ id: string }>();
+    user = await env.storage.db.prepare(`SELECT id FROM users WHERE is_disabled = 0 LIMIT 1`).first<{ id: string }>();
   } catch (error) {
     if (isDatabaseNotReadyError(error)) {
       throw new AppError(
@@ -3627,7 +3791,7 @@ const getInstanceAuthMode = async (env: Bindings): Promise<InstanceAuthMode> => 
 
 const verifyLogin = async (env: Bindings, username: string, password: string): Promise<UserRow | null> => {
   const normalizedUsername = username.trim();
-  const existingUser = await getUserByUsername(env.DB, normalizedUsername);
+  const existingUser = await getUserByUsername(env.storage.db, normalizedUsername);
 
   if (existingUser) {
     if (await verifyPassword(password, existingUser.password_hash)) {
@@ -3673,17 +3837,17 @@ const verifyLogin = async (env: Bindings, username: string, password: string): P
   const userId = createId("usr");
   const passwordHash = await hashPassword(password);
 
-  await env.DB.prepare(
+  await env.storage.db.prepare(
     `INSERT OR IGNORE INTO users (id, username, password_hash, display_name, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?)`
   )
     .bind(userId, normalizedUsername, passwordHash, normalizedUsername, now, now)
     .run();
 
-  return getUserByUsername(env.DB, normalizedUsername);
+  return getUserByUsername(env.storage.db, normalizedUsername);
 };
 
-const getUserByUsername = async (db: D1Database, username: string) =>
+const getUserByUsername = async (db: DatabaseAdapter, username: string) =>
   db
     .prepare(
       `SELECT id, username, password_hash, display_name, is_disabled
@@ -3716,7 +3880,10 @@ const ensureUserWorkspace = async (db: D1Database, userId: string, username: str
   const existing = await db.prepare(
     `SELECT workspace_id, role FROM workspace_members WHERE user_id = ? LIMIT 1`
   ).bind(userId).first<{ workspace_id: string; role: "owner" | "member" }>();
-  if (existing) return { workspaceId: existing.workspace_id, role: existing.role };
+  if (existing) {
+    await ensureWorkspaceTemplateSeed(db, existing.workspace_id);
+    return { workspaceId: existing.workspace_id, role: existing.role };
+  }
 
   const defaultOwner = await db.prepare(
     `SELECT user_id FROM workspace_members WHERE workspace_id = ? LIMIT 1`
@@ -3728,7 +3895,10 @@ const ensureUserWorkspace = async (db: D1Database, userId: string, username: str
     const claimed = await db.prepare(
       `SELECT workspace_id, role FROM workspace_members WHERE user_id = ? LIMIT 1`
     ).bind(userId).first<{ workspace_id: string; role: "owner" | "member" }>();
-    if (claimed) return { workspaceId: claimed.workspace_id, role: claimed.role };
+    if (claimed) {
+      await ensureWorkspaceTemplateSeed(db, claimed.workspace_id);
+      return { workspaceId: claimed.workspace_id, role: claimed.role };
+    }
   }
 
   const workspaceId = createId("ws");
@@ -3744,6 +3914,7 @@ const ensureUserWorkspace = async (db: D1Database, userId: string, username: str
        VALUES (?, ?, NULL, ?, ?, 'notebook', ?, ?, ?, ?)`
     ).bind(notebook.id, workspaceId, notebook.name, notebook.slug, notebook.color, notebook.sortOrder, now, now)),
   ]);
+  await ensureWorkspaceTemplateSeed(db, workspaceId);
   return { workspaceId, role: "member" as const };
 };
 
@@ -3754,6 +3925,30 @@ const createDefaultNotebookRows = (workspaceId: string, _now: string) => [
   { id: `${workspaceId}_creative`, name: "灵感创作", slug: "creative-ideas", color: "#db2777", sortOrder: 40 },
   { id: `${workspaceId}_personal`, name: "生活个人", slug: "personal-life", color: "#ea580c", sortOrder: 50 },
 ];
+
+const ensureWorkspaceTemplateSeed = async (db: D1Database, workspaceId: string) => {
+  const now = isoNow();
+  const templateId = `${workspaceId}_template_project_weekly`;
+  const contentMarkdown = "## 本周进展\n\n- \n\n## 关键成果\n\n- \n\n## 风险与阻塞\n\n- \n\n## 下周计划\n\n- [ ] \n\n## 需要协助\n\n- ";
+  const contentJson = markdownToDoc(contentMarkdown);
+
+  await db.prepare(
+    `INSERT OR IGNORE INTO memo_templates (
+       id, workspace_id, name, description, title, content_json, content_markdown, tags_json, created_at, updated_at
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).bind(
+    templateId,
+    workspaceId,
+    "项目周报模板",
+    "每周同步项目进展、风险与下一步计划",
+    "项目周报｜第 {{周次}} 周",
+    JSON.stringify(contentJson),
+    contentMarkdown,
+    JSON.stringify(["项目管理", "周报"]),
+    now,
+    now,
+  ).run();
+};
 
 const createSession = async (c: AppContext, user: UserRow, requestedDeviceId?: string) => {
   const token = randomToken(SESSION_TOKEN_BYTES);
@@ -3766,12 +3961,12 @@ const createSession = async (c: AppContext, user: UserRow, requestedDeviceId?: s
   const ip = c.req.header("CF-Connecting-IP");
   const ipHash = ip ? await sha256(ip) : null;
 
-  await c.env.DB.batch([
-    c.env.DB.prepare(
+  await c.env.storage.db.batch([
+    c.env.storage.db.prepare(
       `UPDATE sessions SET revoked_at = ?
        WHERE user_id = ? AND device_id = ? AND revoked_at IS NULL`
     ).bind(now, user.id, deviceId),
-    c.env.DB.prepare(
+    c.env.storage.db.prepare(
       `INSERT INTO sessions (
         id, user_id, token_hash, device_id, user_agent, ip_hash, expires_at, created_at, last_seen_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
@@ -3821,7 +4016,7 @@ const authenticateBearerToken = async (c: AppContext, touch: boolean): Promise<A
     return sessionAuth;
   }
 
-  const row = await c.env.DB.prepare(
+  const row = await c.env.storage.db.prepare(
     `SELECT id, name, token_value, scopes_json, last_used_at, expires_at, is_revoked, created_at, workspace_id
      FROM api_tokens
      WHERE token_hash = ?
@@ -3836,7 +4031,7 @@ const authenticateBearerToken = async (c: AppContext, touch: boolean): Promise<A
   }
 
   if (touch) {
-    await c.env.DB.prepare(`UPDATE api_tokens SET last_used_at = ? WHERE id = ?`).bind(isoNow(), row.id).run();
+    await c.env.storage.db.prepare(`UPDATE api_tokens SET last_used_at = ? WHERE id = ?`).bind(isoNow(), row.id).run();
   }
 
   return {
@@ -3853,7 +4048,7 @@ const authenticateBearerToken = async (c: AppContext, touch: boolean): Promise<A
 };
 
 const authenticateSessionToken = async (c: AppContext, token: string, touch: boolean): Promise<AuthContext | null> => {
-  const row = await c.env.DB.prepare(
+  const row = await c.env.storage.db.prepare(
     `SELECT s.id, s.user_id, u.username, u.display_name, s.expires_at
      FROM sessions s
      INNER JOIN users u ON u.id = s.user_id
@@ -3870,10 +4065,10 @@ const authenticateSessionToken = async (c: AppContext, token: string, touch: boo
   }
 
   if (touch) {
-    await c.env.DB.prepare(`UPDATE sessions SET last_seen_at = ? WHERE id = ?`).bind(isoNow(), row.id).run();
+    await c.env.storage.db.prepare(`UPDATE sessions SET last_seen_at = ? WHERE id = ?`).bind(isoNow(), row.id).run();
   }
 
-  const workspace = await ensureUserWorkspace(c.env.DB, row.user_id, row.username);
+  const workspace = await ensureUserWorkspace(c.env.storage.db, row.user_id, row.username);
 
   return {
     kind: "user",
@@ -4138,6 +4333,18 @@ const mapMemoDetail = (row: MemoDetailRow): MemoDetail => ({
   sourceMemoIds: parseJsonArray(row.source_memo_ids),
   mergeSourceCount: row.merge_source_count,
   mergedIntoMemoId: row.merged_into_memo_id,
+});
+
+const mapMemoTemplate = (row: MemoTemplateRow): MemoTemplate => ({
+  id: row.id,
+  name: row.name,
+  description: row.description,
+  title: row.title,
+  contentJson: parseDoc(row.content_json),
+  contentMarkdown: row.content_markdown,
+  tags: parseJsonArray(row.tags_json),
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
 });
 
 const mapMemoRevision = (row: MemoRevisionRow): MemoRevision => ({
@@ -5017,6 +5224,18 @@ const getMemoDetail = async (db: D1Database, workspaceId: string, id: string, in
   return row ? mapMemoDetail(row) : null;
 };
 
+const getMemoTemplateRow = async (db: D1Database, workspaceId: string, id: string): Promise<MemoTemplateRow | null> =>
+  db.prepare(
+    `SELECT id, name, description, title, content_json, content_markdown, tags_json, created_at, updated_at
+     FROM memo_templates
+     WHERE id = ? AND workspace_id = ?`
+  ).bind(id, workspaceId).first<MemoTemplateRow>();
+
+const getMemoTemplate = async (db: D1Database, workspaceId: string, id: string): Promise<MemoTemplate | null> => {
+  const row = await getMemoTemplateRow(db, workspaceId, id);
+  return row ? mapMemoTemplate(row) : null;
+};
+
 const deleteMemosRecord = async (
   db: D1Database,
   resourcesBucket: R2Bucket,
@@ -5275,17 +5494,17 @@ let localDemoSeedPromise: Promise<void> | null = null;
 const ensureLocalDemoSeed = (env: Bindings) => {
   localDemoSeedPromise ??= (async () => {
     const memoPlaceholders = DEMO_SEED_MEMO_IDS.map(() => "?").join(", ");
-    await env.DB.batch([
-      env.DB.prepare(`DELETE FROM mobile_sync_changes`),
-      env.DB.prepare(`DELETE FROM memos_fts`),
-      env.DB.prepare(`DELETE FROM resources`),
-      env.DB.prepare(`DELETE FROM memo_revisions`),
-      env.DB.prepare(`DELETE FROM memo_contents WHERE memo_id NOT IN (${memoPlaceholders})`).bind(...DEMO_SEED_MEMO_IDS),
-      env.DB.prepare(`DELETE FROM memos WHERE id NOT IN (${memoPlaceholders})`).bind(...DEMO_SEED_MEMO_IDS),
+    await env.storage.db.batch([
+      env.storage.db.prepare(`DELETE FROM mobile_sync_changes`),
+      env.storage.db.prepare(`DELETE FROM memos_fts`),
+      env.storage.db.prepare(`DELETE FROM resources`),
+      env.storage.db.prepare(`DELETE FROM memo_revisions`),
+      env.storage.db.prepare(`DELETE FROM memo_contents WHERE memo_id NOT IN (${memoPlaceholders})`).bind(...DEMO_SEED_MEMO_IDS),
+      env.storage.db.prepare(`DELETE FROM memos WHERE id NOT IN (${memoPlaceholders})`).bind(...DEMO_SEED_MEMO_IDS),
     ]);
 
     await ensureDemoSeed(env, { overwriteExisting: true, refreshResources: true });
-    await audit(env.DB, "system", null, "demo.local_seed", "demo", "edgeever-local", {
+    await audit(env.storage.db, "system", null, "demo.local_seed", "demo", "edgeever-local", {
       seedMemoCount: DEMO_SEED_MEMOS.length,
       mode: "sync-seed",
     });
@@ -5301,7 +5520,7 @@ const ensureDemoSeed = async (
   env: Bindings,
   options: { overwriteExisting?: boolean; refreshResources?: boolean } = {},
 ) => {
-  const db = env.DB;
+  const db = env.storage.db;
   const now = isoNow();
   const statements: D1PreparedStatement[] = [];
   const bucketName = env.EDGE_EVER_R2_BUCKET_NAME?.trim() || DEFAULT_R2_BUCKET_NAME;
@@ -5364,7 +5583,8 @@ const ensureDemoSeed = async (
   }
 
   for (const memo of DEMO_SEED_MEMOS) {
-    if (!shouldUpsertDemoSeedRecord(existingMemoIds, memo.id, overwriteExisting)) {
+    const isOverviewSeedMemo = memo.id === "memo_demo_overview" || memo.id === "memo_demo_overview_en";
+    if (!overwriteExisting && !isOverviewSeedMemo && existingMemoIds.has(memo.id)) {
       continue;
     }
 
@@ -5501,7 +5721,7 @@ const ensureDemoSeed = async (
     const objectKey = `demo/${resource.memoId}/${resource.id}.${extension}`;
 
     if (options.refreshResources || !existingResourceIds.has(resource.id)) {
-      await env.RESOURCES.put(objectKey, bytes, {
+      await env.storage.resources.put(objectKey, bytes, {
         httpMetadata: {
           contentType: resource.mimeType,
           cacheControl: "private, max-age=3600",
@@ -5567,7 +5787,7 @@ const resetDemoData = async (
   scheduledTime: number,
   options: { resetCredentials?: boolean } = {}
 ) => {
-  const db = env.DB;
+  const db = env.storage.db;
   const now = isoNow();
   const demoUsername = env.EDGE_EVER_AUTH_USERNAME?.trim() || "admin";
   const demoPasswordHash = await resolveDemoPasswordHash(
@@ -5579,7 +5799,7 @@ const resetDemoData = async (
   const objectKeys = resourceRows.results.map((resource) => resource.object_key);
 
   for (let index = 0; index < objectKeys.length; index += 1000) {
-    await env.RESOURCES.delete(objectKeys.slice(index, index + 1000));
+    await env.storage.resources.delete(objectKeys.slice(index, index + 1000));
   }
 
   const resetStatements: D1PreparedStatement[] = [

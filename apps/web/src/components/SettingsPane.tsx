@@ -23,7 +23,6 @@ import { McpConfigCard } from "./settings/McpConfigCard";
 import { PreferenceCard } from "./settings/PreferenceCard";
 import { PasswordCard } from "./settings/PasswordCard";
 import { SessionCard } from "./settings/SessionCard";
-import { SystemInfoCard } from "./settings/SystemInfoCard";
 import { UserManagementCard } from "./settings/UserManagementCard";
 import { ThemeToggle } from "./ThemeToggle";
 
@@ -38,7 +37,6 @@ interface SettingsPaneProps {
   authRequired: boolean;
   demoMode: boolean;
   isOwner: boolean;
-  onShowGuide?: () => void;
 }
 
 // Slate and brand color variables already switch values with the root theme.
@@ -72,7 +70,6 @@ export const SettingsPane = ({
   authRequired,
   demoMode,
   isOwner,
-  onShowGuide,
 }: SettingsPaneProps) => {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<TabKey>("general");
@@ -173,7 +170,6 @@ export const SettingsPane = ({
               shortcutSettings={shortcutSettings}
               onShortcutSettingsChange={onShortcutSettingsChange}
             />
-            <SystemInfoCard />
             <FeedbackLink className="hidden lg:flex" />
           </SettingsGroup>
         );
@@ -187,7 +183,7 @@ export const SettingsPane = ({
         return (
           <SettingsGroup>
             <DataExportCard />
-            <EvernoteImportGuideCard onShowGuide={onShowGuide} />
+            <EvernoteImportGuideCard />
           </SettingsGroup>
         );
       case "ai":

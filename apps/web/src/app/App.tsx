@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Navigate, Route, Routes, useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import { PwaUpdateNotice } from "@/components/PwaUpdateNotice";
+import { ReleaseUpdateNotice } from "@/components/ReleaseUpdateNotice";
 import { PwaInstallProvider } from "@/components/PwaInstallContext";
 import { PwaIosPrompt } from "@/components/PwaIosPrompt";
 import { api, ApiRequestError } from "@/lib/api";
@@ -124,13 +125,16 @@ const AuthenticatedWorkspace = () => {
 
   return (
     <Suspense fallback={<AuthLoadingScreen />}>
-      <WorkspaceApp
-        authRequired={session.authRequired}
-        demoMode={session.demoMode}
-        isLoggingOut={logoutMutation.isPending}
-        user={session.user}
-        onLogout={() => logoutMutation.mutate()}
-      />
+      <>
+        <WorkspaceApp
+          authRequired={session.authRequired}
+          demoMode={session.demoMode}
+          isLoggingOut={logoutMutation.isPending}
+          user={session.user}
+          onLogout={() => logoutMutation.mutate()}
+        />
+        <ReleaseUpdateNotice />
+      </>
     </Suspense>
   );
 };
@@ -141,6 +145,7 @@ export const App = () => (
       <Route path={EVERNOTE_MIGRATION_PATH} element={<EvernoteMigrationRoute />} />
       <Route path="/" element={<AuthenticatedWorkspace />} />
       <Route path="/settings" element={<AuthenticatedWorkspace />} />
+      <Route path="/templates" element={<AuthenticatedWorkspace />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
     <PwaUpdateNotice />

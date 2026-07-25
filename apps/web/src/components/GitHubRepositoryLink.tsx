@@ -1,5 +1,6 @@
 import { type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 const GITHUB_REPOSITORY_URL = "https://github.com/tianma-if/edgeever";
@@ -18,27 +19,25 @@ export const GitHubRepositoryLink = ({
   children,
   className,
   iconClassName,
-  title,
 }: {
   children?: ReactNode;
   className?: string;
   iconClassName?: string;
-  title?: string;
 }) => {
   const { t } = useTranslation();
-  const resolvedTitle = title ?? t("common.githubRepository");
+  const resolvedTitle = t("common.githubRepository");
 
   return (
-    <a
-      className={cn("inline-flex items-center gap-2", className)}
-      href={GITHUB_REPOSITORY_URL}
-      target="_blank"
-      rel="noopener noreferrer"
-      title={resolvedTitle}
-      aria-label={children ? undefined : resolvedTitle}
-    >
-      <GitHubMark className={cn("h-4 w-4 shrink-0", iconClassName)} />
-      {children}
-    </a>
+    <TooltipProvider delayDuration={0} skipDelayDuration={0}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <a className={cn("inline-flex items-center gap-2", className)} href={GITHUB_REPOSITORY_URL} target="_blank" rel="noopener noreferrer" title="" aria-label={children ? undefined : resolvedTitle}>
+            <GitHubMark className={cn("h-4 w-4 shrink-0", iconClassName)} />
+            {children}
+          </a>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">{resolvedTitle}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 };

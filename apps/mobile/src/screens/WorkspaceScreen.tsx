@@ -77,7 +77,7 @@ import {
   type ViewStyle,
 } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
+import Animated, { FadeInDown, FadeOutUp, LinearTransition, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Alert, Pressable, Text, TextInput } from "../components/LocalizedText";
 import Markdown, { type ASTNode, type RenderRules } from "react-native-markdown-display";
@@ -579,7 +579,11 @@ export const WorkspaceScreen = () => {
   const defaultMemoNotebookId = notebooks.find(
     (notebook) => notebook.id === "nb_inbox" || notebook.slug === "inbox" || notebook.name === "等待分类"
   )?.id ?? "";
-  const canCreateMemo = memoView !== "trash" && Boolean(defaultMemoNotebookId);
+  const createMemoNotebookId =
+    activeNotebookId !== ALL_NOTES_ID && notebooks.some((notebook) => notebook.id === activeNotebookId)
+      ? activeNotebookId
+      : defaultMemoNotebookId;
+  const canCreateMemo = memoView !== "trash" && Boolean(createMemoNotebookId);
   const openCreateMemo = () => {
     beginEditorStartup();
     setCreateOpen(true);
@@ -1115,7 +1119,7 @@ export const WorkspaceScreen = () => {
         />
       ) : null}
 
-      {selectedMemoId ? <MemoDetailModal
+      <MemoDetailModal
         isDeleting={deleteMemoMutation.isPending}
         isLoading={memoDetailQuery.isLoading}
         isRestoring={restoreMemoMutation.isPending}
@@ -1127,8 +1131,8 @@ export const WorkspaceScreen = () => {
         onRichEdit={(memo) => void openRichEditor(memo)}
         onOpenRevisions={setRevisionMemo}
         onRestore={(memo) => restoreMemoMutation.mutate(memo)}
-        visible
-      /> : null}
+        visible={Boolean(selectedMemoId)}
+      />
 
       {editorRuntimeWarm ? (
         <EditorRuntimePrewarm
@@ -1163,10 +1167,10 @@ export const WorkspaceScreen = () => {
         }}
       /> : null}
 
-      {createOpen ? <CreateMemoModal
+      <CreateMemoModal
         baseUrl={session?.baseUrl ?? ""}
         dataScope={dataScope}
-        defaultNotebookId={defaultMemoNotebookId}
+        defaultNotebookId={createMemoNotebookId}
         imageCompressionEnabled={imageCompressionEnabled}
         notebooks={notebooks}
         onCreated={() => {
@@ -1177,8 +1181,8 @@ export const WorkspaceScreen = () => {
         }}
         onQueued={runAutomaticSync}
         syncQueueScope={syncQueueScope}
-        visible
-      /> : null}
+        visible={createOpen}
+      />
 
       {selectionMoveOpen ? <MoveSelectionModal
         bottomOffset={58 + safeAreaInsets.bottom}
@@ -2383,7 +2387,7 @@ const CreateMemoModal = ({
   ) : null, [baseUrl, draftLoaded, loadEditorResource, resolvedLocale, resolvedTheme]);
 
   return (
-    <Modal animationType="none" onRequestClose={() => void requestClose()} presentationStyle="fullScreen" visible={visible}>
+    <Modal animationType="slide" onRequestClose={() => void requestClose()} presentationStyle="fullScreen" visible={visible}>
       <SafeAreaView style={styles.createMemoSafeArea}>
         <View style={styles.createMemoHeader}>
           <Pressable accessibilityLabel="返回" accessibilityRole="button" disabled={createMutation.isPending || imageOperation !== "idle"} onPress={() => void requestClose()} style={styles.createMemoBackButton}>
@@ -5299,9 +5303,23 @@ const MemoCard = memo(function MemoCard({
 }) {
   const localePreference = useMobileLocalePreference();
   const memoTitle = memo.title?.trim() || DEFAULT_MEMO_TITLE;
+  const pressScale = useSharedValue(1);
+  const pressAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: pressScale.value }],
+  }));
 
   return (
-    <View style={[styles.memoCard, listDensity === "compact" && styles.memoCardCompact, selected && styles.memoCardSelected]}>
+    <Animated.View
+      entering={FadeInDown.duration(260).springify().damping(18)}
+      exiting={FadeOutUp.duration(220)}
+      layout={LinearTransition.duration(220)}
+      style={[
+        styles.memoCard,
+        listDensity === "compact" && styles.memoCardCompact,
+        selected && styles.memoCardSelected,
+        pressAnimatedStyle,
+      ]}
+    >
       {selectionMode ? (
         <Pressable
           accessibilityLabel={`${selected ? "取消选择" : "选择"} ${memoTitle}`}
@@ -5321,6 +5339,12 @@ const MemoCard = memo(function MemoCard({
         delayLongPress={520}
         onLongPress={onLongPress}
         onPress={onPress}
+        onPressIn={() => {
+          pressScale.value = withTiming(0.985, { duration: 100 });
+        }}
+        onPressOut={() => {
+          pressScale.value = withTiming(1, { duration: 160 });
+        }}
         style={[styles.memoCardContent, listDensity === "compact" && styles.memoCardContentCompact, selectionMode && styles.memoCardContentWithSelection]}
       >
         <View style={styles.memoCardTop}>
@@ -5345,7 +5369,7 @@ const MemoCard = memo(function MemoCard({
           ))}
         </View>
       </Pressable>
-    </View>
+    </Animated.View>
   );
 }, (previous, next) =>
   previous.memo === next.memo &&

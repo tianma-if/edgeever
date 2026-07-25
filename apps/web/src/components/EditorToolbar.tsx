@@ -10,6 +10,8 @@ import {
   Code2,
   List,
   ListOrdered,
+  ListIndentDecrease,
+  ListIndentIncrease,
   Quote,
   SquareCode,
   Workflow,
@@ -217,7 +219,7 @@ export const EditorToolbar = ({
   };
 
   return (
-    <TooltipProvider delayDuration={250} skipDelayDuration={100}>
+    <TooltipProvider delayDuration={0} skipDelayDuration={0}>
       <div className="relative border-t border-slate-200 bg-white">
         <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-4 bg-gradient-to-r from-white to-transparent sm:hidden" />
         <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-4 bg-gradient-to-l from-white to-transparent sm:hidden" />
@@ -346,6 +348,20 @@ export const EditorToolbar = ({
             onClick={() => run((current) => current.chain().focus().toggleOrderedList().run())}
           >
             <ListOrdered className="h-4 w-4" />
+          </EditorToolbarButton>
+          <EditorToolbarButton
+            title={t("editorToolbar.increaseListIndent")}
+            disabled={!canRun((current) => current.can().chain().focus().sinkListItem("listItem").run())}
+            onClick={() => run((current) => current.chain().focus().sinkListItem("listItem").run())}
+          >
+            <ListIndentIncrease className="h-4 w-4" />
+          </EditorToolbarButton>
+          <EditorToolbarButton
+            title={t("editorToolbar.decreaseListIndent")}
+            disabled={!canRun((current) => current.can().chain().focus().liftListItem("listItem").run())}
+            onClick={() => run((current) => current.chain().focus().liftListItem("listItem").run())}
+          >
+            <ListIndentDecrease className="h-4 w-4" />
           </EditorToolbarButton>
           <EditorToolbarButton
             title={t("editorToolbar.quote")}

@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, useCallback, useMemo, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { useRef, useState, useEffect, useCallback, useMemo, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { useQueryClient, useMutation } from "@tanstack/react-query";
 import { NodeViewWrapper, ReactNodeViewRenderer, useEditor, EditorContent, type Editor, type NodeViewProps } from "@tiptap/react";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
@@ -30,6 +30,7 @@ import {
   Check,
   CircleAlert,
   LoaderCircle,
+  Info,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { GitHubRepositoryLink } from "@/components/GitHubRepositoryLink";
@@ -91,12 +92,24 @@ import {
 } from "@/lib/app-helpers";
 import { copyEditorToWeChat, copyMarkdownToWeChat } from "@/lib/wechat-copy";
 import { ThemeBlock } from "./ThemeBlock";
+import { SystemInfoDialog } from "./SystemInfoDialog";
+import { fetchLatestRelease, isVersionOutdated } from "@/lib/version-check";
+import { RELEASE_STATUS_EVENT } from "@/lib/release-notice";
 
 const SUPPORTED_PASTE_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp", "image/avif"]);
 const MOBILE_EDITOR_QUERY = "(max-width: 639px)";
 const EDITOR_AUTO_SAVE_DELAY_MS = 1200;
 const MOBILE_DRAFT_PERSIST_DELAY_MS = 800;
 const NOTE_SEARCH_HIGHLIGHT_PLUGIN_KEY = new PluginKey("edgeever-note-search-highlight");
+
+const IconTooltip = ({ label, children }: { label: string; children: ReactNode }) => (
+  <TooltipProvider delayDuration={0} skipDelayDuration={0}>
+    <Tooltip>
+      <TooltipTrigger asChild>{children}</TooltipTrigger>
+      <TooltipContent side="bottom">{label}</TooltipContent>
+    </Tooltip>
+  </TooltipProvider>
+);
 
 type NoteSearchMatch = {
   from: number;
@@ -495,6 +508,7 @@ type EditorPaneProps = {
   onPermanentDeleted: (memoId: string) => Promise<void>;
   onRestored: (memoId: string) => Promise<void>;
   onMobileDefaultEditConsumed: () => void;
+  onSaveAsTemplate: (memo: MemoDetail, name: string) => Promise<void>;
   searchFocusToken: number;
   replaceFocusToken: number;
   selectionActionBar?: ReactNode;
@@ -1115,13 +1129,14 @@ const RichEditorPane = ({
   onPermanentDeleted,
   onRestored,
   onMobileDefaultEditConsumed,
+  onSaveAsTemplate,
   searchFocusToken,
   replaceFocusToken,
   selectionActionBar,
   onRequestMobileNativeEdit,
 }: RichEditorPaneProps) => {
   const { t } = useTranslation();
-  const { editorTheme } = useTheme();
+  const { customEditorTheme, editorTheme } = useTheme();
   const queryClient = useQueryClient();
   const isSelectionMode = Boolean(selectionActionBar);
   const [title, setTitle] = useState("");
@@ -1133,6 +1148,8 @@ const RichEditorPane = ({
   const [editorContentVersion, setEditorContentVersion] = useState(0);
   const [imageUploadState, setImageUploadState] = useState<"idle" | "compressing" | "uploading" | "error">("idle");
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [systemInfoOpen, setSystemInfoOpen] = useState(false);
+  const [updateAvailable, setUpdateAvailable] = useState(false);
   const [mobileNotebookSheetOpen, setMobileNotebookSheetOpen] = useState(false);
   const [notebookUpdatePending, setNotebookUpdatePending] = useState(false);
   const [noteSearchOpen, setNoteSearchOpen] = useState(false);
@@ -1156,6 +1173,19 @@ const RichEditorPane = ({
   const readOnly = isTrashView || Boolean(memo?.isDeleted);
   const mobileDefaultEditRequested = Boolean(memo?.id && memo.id === mobileDefaultEditMemoId && !readOnly);
   const mobileEditingActive = isMobileEditing || mobileDefaultEditRequested;
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetchLatestRelease(controller.signal)
+      .then((release) => setUpdateAvailable(isVersionOutdated(__EDGEEVER_APP_VERSION__, release.tagName)))
+      .catch(() => undefined);
+    const handleReleaseStatus = () => setUpdateAvailable(true);
+    window.addEventListener(RELEASE_STATUS_EVENT, handleReleaseStatus);
+    return () => {
+      controller.abort();
+      window.removeEventListener(RELEASE_STATUS_EVENT, handleReleaseStatus);
+    };
+  }, []);
   const effectiveReadOnly = readOnly || (isMobileViewport && !mobileEditingActive);
   const useMobilePlainTextEditor = isMobileViewport && mobileEditingActive && !readOnly;
   const useMarkdownSourceEditor = !useMobilePlainTextEditor && isMarkdownMode;
@@ -1843,7 +1873,12 @@ const RichEditorPane = ({
       setMobilePlainTextElementValue(mobileTextAreaRef.current, nextMarkdown);
 
       if (isEditorReady(currentEditor)) {
-        currentEditor.commands.setContent(nextContent);
+        try {
+          currentEditor.commands.setContent(nextContent);
+        } catch (err) {
+          console.error("Failed to set TipTap contentJson, falling back to markdownToDoc:", err);
+          currentEditor.commands.setContent(markdownToDoc(nextMarkdown));
+        }
       }
 
       hydratedMemoIdRef.current = memo.id;
@@ -2033,7 +2068,12 @@ const RichEditorPane = ({
 
       if (useMobilePlainTextEditor && isEditorReady(editorRef.current)) {
         hydratingRef.current = true;
-        editorRef.current.commands.setContent(savedMemo.contentJson);
+        try {
+          editorRef.current.commands.setContent(savedMemo.contentJson);
+        } catch (err) {
+          console.error("Failed to update mobile editor contentJson, falling back to markdownToDoc:", err);
+          editorRef.current.commands.setContent(markdownToDoc(savedMemo.contentMarkdown ?? ""));
+        }
         window.setTimeout(() => {
           hydratingRef.current = false;
         }, 0);
@@ -2478,7 +2518,7 @@ const RichEditorPane = ({
               </button>
             </div>
             <div className="hidden items-center gap-1 lg:flex">
-              <TooltipProvider delayDuration={350} skipDelayDuration={100}>
+              <TooltipProvider delayDuration={0} skipDelayDuration={0}>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
@@ -2496,12 +2536,16 @@ const RichEditorPane = ({
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
-              <Button size="icon" variant="ghost" title={t("editor.previousMemo")} aria-label={t("editor.previousMemo")} onClick={onOpenPreviousMemo} disabled={!hasPreviousMemo}>
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Button size="icon" variant="ghost" title={t("editor.nextMemo")} aria-label={t("editor.nextMemo")} onClick={onOpenNextMemo} disabled={!hasNextMemo}>
-                <ChevronRight className="h-4 w-4" />
-              </Button>
+              <IconTooltip label={t("editor.previousMemo")}>
+                <Button size="icon" variant="ghost" aria-label={t("editor.previousMemo")} onClick={onOpenPreviousMemo} disabled={!hasPreviousMemo}>
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+              </IconTooltip>
+              <IconTooltip label={t("editor.nextMemo")}>
+                <Button size="icon" variant="ghost" aria-label={t("editor.nextMemo")} onClick={onOpenNextMemo} disabled={!hasNextMemo}>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </IconTooltip>
             </div>
             <span className="hidden truncate text-xs text-slate-400 sm:inline">
               {t("editor.updatedAt", { time: updatedLabel })}
@@ -2585,10 +2629,12 @@ const RichEditorPane = ({
                 <Type className="h-4 w-4" />
               </Button>
             )}
-            <Button className="hidden h-8 w-8 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-slate-300 sm:inline-flex" size="icon" variant="ghost" title={t("editor.searchCurrentMemo")} aria-label={t("editor.searchCurrentMemo")} onClick={() => openNoteSearch()}>
-              <Search className="h-5 w-5" strokeWidth={2.25} />
-            </Button>
-            <TooltipProvider delayDuration={250} skipDelayDuration={100}>
+            <IconTooltip label={t("editor.searchCurrentMemo")}>
+              <Button className="hidden h-8 w-8 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-slate-300 sm:inline-flex" size="icon" variant="ghost" aria-label={t("editor.searchCurrentMemo")} onClick={() => openNoteSearch()}>
+                <Search className="h-5 w-5" strokeWidth={2.25} />
+              </Button>
+            </IconTooltip>
+            <TooltipProvider delayDuration={0} skipDelayDuration={0}>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -2620,23 +2666,32 @@ const RichEditorPane = ({
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
-            <Button className="hidden h-8 w-8 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-slate-300 sm:inline-flex" size="icon" variant="ghost" title={t("editor.versionHistory")} aria-label={t("editor.versionHistory")} onClick={() => setHistoryOpen(true)}>
-              <History className="h-5 w-5" strokeWidth={2.25} />
-            </Button>
+            <IconTooltip label={t("editor.versionHistory")}>
+              <Button className="hidden h-8 w-8 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-slate-300 sm:inline-flex" size="icon" variant="ghost" aria-label={t("editor.versionHistory")} onClick={() => setHistoryOpen(true)}>
+                <History className="h-5 w-5" strokeWidth={2.25} />
+              </Button>
+            </IconTooltip>
             <GitHubRepositoryLink className="hidden h-8 w-8 justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/70 lg:inline-flex" iconClassName="h-5 w-5" />
+            <IconTooltip label={t("systemInfo.title")}>
+              <Button className="relative hidden h-8 w-8 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-emerald-500/70 sm:inline-flex" size="icon" variant="ghost" aria-label={t("systemInfo.title")} onClick={() => setSystemInfoOpen(true)}>
+                <Info className="h-5 w-5" strokeWidth={2.25} />
+                {updateAvailable ? <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-emerald-500 ring-2 ring-white" /> : null}
+              </Button>
+            </IconTooltip>
             <ThemeToggle />
             {!readOnly && (
-              <Button
-                className="hidden sm:inline-flex"
-                size="icon"
-                variant="solid"
-                title={t("editor.save")}
-                aria-label={t("editor.save")}
-                onClick={() => saveMutation.mutate()}
-                disabled={!editor || saveMutation.isPending || !hasUnsavedChanges}
-              >
-                <Save className="h-4 w-4" />
-              </Button>
+              <IconTooltip label={t("editor.save")}>
+                <Button
+                  className="hidden sm:inline-flex"
+                  size="icon"
+                  variant="solid"
+                  aria-label={t("editor.save")}
+                  onClick={() => saveMutation.mutate()}
+                  disabled={!editor || saveMutation.isPending || !hasUnsavedChanges}
+                >
+                  <Save className="h-4 w-4" />
+                </Button>
+              </IconTooltip>
             )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -2694,6 +2749,30 @@ const RichEditorPane = ({
                   </>
                 ) : (
                   <>
+                    <DropdownMenuItem
+                      className="flex h-9 w-full items-center gap-2 px-3 text-left text-sm text-slate-700 hover:bg-slate-50 cursor-pointer outline-none"
+                      onClick={() => {
+                        const name = window.prompt(t("templates.templateNamePrompt"), memo.title || "");
+                        if (name?.trim()) {
+                          const currentMarkdown = useMobilePlainTextEditor
+                            ? getMobilePlainTextValue()
+                            : isEditorReady(editor)
+                              ? docToMarkdown(editor.getJSON() as TiptapDoc)
+                              : memo.contentMarkdown;
+                          const currentTemplateMemo: MemoDetail = {
+                            ...memo,
+                            title,
+                            tags: parseTagsText(tagsText),
+                            contentJson: markdownToDoc(currentMarkdown),
+                            contentMarkdown: currentMarkdown,
+                          };
+                          void onSaveAsTemplate(currentTemplateMemo, name.trim());
+                        }
+                      }}
+                    >
+                      <Pencil className="h-4 w-4 text-slate-500" />
+                      {t("templates.saveAsTemplate")}
+                    </DropdownMenuItem>
                     <DropdownMenuSeparator className="my-1 h-px bg-slate-100" />
                     <DropdownMenuItem
                       className="flex h-9 w-full items-center gap-2 px-3 text-left text-sm text-rose-700 hover:bg-rose-50 cursor-pointer outline-none"
@@ -2870,6 +2949,14 @@ const RichEditorPane = ({
       <div
         ref={editorScrollContainerRef}
         data-editor-theme={editorTheme}
+        style={editorTheme === "custom" ? {
+          "--editor-theme-bg": customEditorTheme.background,
+          "--editor-theme-text": customEditorTheme.text,
+          "--editor-theme-heading": customEditorTheme.heading,
+          "--editor-theme-accent": customEditorTheme.accent,
+          "--editor-theme-soft": customEditorTheme.soft,
+          "--editor-theme-border": customEditorTheme.border,
+        } as CSSProperties : undefined}
         className={cn(
           "edgeever-editor relative min-h-0 flex-1 bg-white",
           useMobilePlainTextEditor ? "overflow-visible" : "overflow-y-auto"
@@ -3036,6 +3123,8 @@ const RichEditorPane = ({
           }}
         />
       )}
+
+      <SystemInfoDialog open={systemInfoOpen} onOpenChange={setSystemInfoOpen} />
 
       {mobileNotebookSheetOpen && (
         <MobileNotebookSelectSheet

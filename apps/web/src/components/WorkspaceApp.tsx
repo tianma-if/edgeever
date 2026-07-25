@@ -13,7 +13,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { useInfiniteQuery, useQuery, useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
-import { Home, Search, UserRound, Plus, ChevronDown, ChevronRight, RefreshCw, X } from "lucide-react";
+import { Home, Search, UserRound, Plus, LayoutTemplate, ChevronDown, ChevronRight, RefreshCw, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router";
 import { Button } from "@/components/ui/button";
@@ -37,7 +37,7 @@ import {
   type MobileEditorReturnPreview,
 } from "@/lib/mobile-editor";
 import { cn } from "@/lib/utils";
-import { createExcerpt, docToText, getNotebookDescendantIds, type Notebook, type AuthUser, type MemoSummary, type MemoDetail } from "@edgeever/shared";
+import { createExcerpt, docToText, getNotebookDescendantIds, type Notebook, type AuthUser, type MemoSummary, type MemoDetail, type MemoTemplate as SavedMemoTemplate } from "@edgeever/shared";
 import { toggleMobileMemoSelection } from "@edgeever/shared/mobile-ui";
 import type {
   Pane,
@@ -115,9 +115,10 @@ const EvernoteImportGuidePane = lazy(() =>
   import("./EvernoteImportGuidePane").then((module) => ({ default: module.EvernoteImportGuidePane }))
 );
 const TagsPane = lazy(() => import("./TagsPane").then((module) => ({ default: module.TagsPane })));
-const TemplatesDialog = lazy(() => import("./dialogs/TemplatesDialog").then((module) => ({ default: module.TemplatesDialog })));
+const TemplatesPane = lazy(() => import("./TemplatesPane").then((module) => ({ default: module.TemplatesPane })));
 
 const SETTINGS_PATH = "/settings";
+const TEMPLATES_PATH = "/templates";
 const TRASH_VIEW_SEARCH = "?view=trash";
 const getMobileEditorReturnMemoId = (search: string) => new URLSearchParams(search).get(MOBILE_EDITOR_RETURN_PARAM);
 const emptySyncQueueSummary = (): SyncQueueSummary => ({
@@ -322,6 +323,7 @@ const MobileBottomNav = ({
   isCreating,
   onCreateMemo,
   onHome,
+  onOpenTemplates,
   onOpenSettings,
 }: {
   activeItem: MobileBottomNavItem;
@@ -329,9 +331,12 @@ const MobileBottomNav = ({
   isCreating: boolean;
   onCreateMemo: () => void;
   onHome: () => void;
+  onOpenTemplates: () => void;
   onOpenSettings: () => void;
 }) => {
   const { t } = useTranslation();
+  // Temporarily hide template navigation while the feature is being finalized.
+  const showTemplateEntry = true;
   const createMemoLabel = !canCreateMemo ? t("nav.createDisabled") : isCreating ? t("nav.creating") : t("nav.createMemo");
 
   return (
@@ -339,8 +344,9 @@ const MobileBottomNav = ({
       className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-5 pb-[max(0.125rem,env(safe-area-inset-bottom))] pt-0 shadow-[0_-10px_30px_rgba(15,23,42,0.08)] backdrop-blur lg:hidden"
       aria-label={t("nav.mobileMain")}
     >
-      <div className="relative grid h-mobile-bottom-nav grid-cols-3 items-center">
+      <div className="relative grid h-mobile-bottom-nav grid-cols-4 items-center">
         <MobileBottomNavButton active={activeItem === "home"} icon={<Home className="h-5 w-5" />} label={t("nav.home")} onClick={onHome} />
+        {showTemplateEntry ? <MobileBottomNavButton active={activeItem === "templates"} icon={<LayoutTemplate className="h-5 w-5" />} label={t("nav.templates")} onClick={onOpenTemplates} /> : <div aria-hidden="true" />}
         <div aria-hidden="true" />
         <MobileBottomNavButton active={activeItem === "settings"} icon={<UserRound className="h-5 w-5" />} label={t("nav.mine")} onClick={onOpenSettings} />
         <button
@@ -645,9 +651,10 @@ export const WorkspaceApp = ({
   const location = useLocation();
   const navigate = useNavigate();
   const isInitialSettingsRoute = location.pathname === SETTINGS_PATH;
+  const isInitialTemplatesRoute = location.pathname === TEMPLATES_PATH;
   const isInitialMobileEditorReturn = Boolean(getMobileEditorReturnMemoId(location.search));
   const isTrashRoute = location.pathname === "/" && location.search === TRASH_VIEW_SEARCH;
-  const [activePane, setActivePane] = useState<Pane>(() => (isInitialSettingsRoute && !isInitialMobileEditorReturn ? "editor" : "memos"));
+  const [activePane, setActivePane] = useState<Pane>(() => ((isInitialSettingsRoute || isInitialTemplatesRoute) && !isInitialMobileEditorReturn ? "editor" : "memos"));
   const [memoView, setMemoView] = useState<MemoView>(() => (isTrashRoute ? "trash" : "notebook"));
   const [selectedNotebookId, setSelectedNotebookId] = useState<string | null>(null);
   const autoSelectedDemoNotebookRef = useRef(false);
@@ -691,13 +698,13 @@ export const WorkspaceApp = ({
   const [imageCompressionEnabled, setImageCompressionEnabled] = useState(readImageCompressionPreference);
   const [desktopFocusMode, setDesktopFocusMode] = useState(readDesktopFocusModePreference);
   const [shortcutSettings, setShortcutSettings] = useState<ShortcutSettings>(readShortcutSettingsPreference);
-  const [rightView, setRightView] = useState<"editor" | "settings" | "assets" | "tags" | "evernote-migration">(() =>
-    isInitialSettingsRoute ? "settings" : "editor"
+  const [rightView, setRightView] = useState<"editor" | "settings" | "assets" | "tags" | "templates" | "evernote-migration">(() =>
+    isInitialSettingsRoute ? "settings" : isInitialTemplatesRoute ? "templates" : "editor"
   );
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [mobileNotebookPickerOpen, setMobileNotebookPickerOpen] = useState(false);
   const [mobileBottomNavActive, setMobileBottomNavActive] = useState<MobileBottomNavItem>(() =>
-    isInitialSettingsRoute && !isInitialMobileEditorReturn ? "settings" : "home"
+    isInitialSettingsRoute && !isInitialMobileEditorReturn ? "settings" : isInitialTemplatesRoute ? "templates" : "home"
   );
   const [mobileSearchFocusToken, setMobileSearchFocusToken] = useState(0);
   const [noteSearchFocusToken, setNoteSearchFocusToken] = useState(0);
@@ -742,6 +749,12 @@ export const WorkspaceApp = ({
   const navigateWorkspaceSettings = () => {
     if (location.pathname !== SETTINGS_PATH) {
       navigate(SETTINGS_PATH);
+    }
+  };
+
+  const navigateWorkspaceTemplates = () => {
+    if (location.pathname !== TEMPLATES_PATH) {
+      navigate(TEMPLATES_PATH);
     }
   };
 
@@ -816,6 +829,13 @@ export const WorkspaceApp = ({
     queryFn: () => api.listNotebooks(),
   });
 
+  const templatesQuery = useQuery({
+    queryKey: ["templates"],
+    queryFn: () => api.listTemplates(),
+  });
+
+  const savedTemplates = templatesQuery.data?.templates ?? [];
+
   const notebooks = notebooksQuery.data?.notebooks ?? [];
   useEffect(() => {
     const english = i18n.resolvedLanguage === "en-US";
@@ -837,7 +857,10 @@ export const WorkspaceApp = ({
     notebooks.find(
       (notebook) => notebook.id === "nb_inbox" || notebook.slug === "inbox" || notebook.name === "等待分类"
     )?.id ?? null;
-  const canCreateMemo = Boolean(defaultMemoNotebookId && memoView !== "trash");
+  const createMemoNotebookId =
+    (selectedNotebookId && notebooks.some((notebook) => notebook.id === selectedNotebookId) ? selectedNotebookId : null) ??
+    defaultMemoNotebookId;
+  const canCreateMemo = Boolean(createMemoNotebookId && memoView !== "trash");
   const memoSelectionModeActive = memoSelectionMode || selectedMemoIds.size > 0;
   const mobileSearchActive = mobileBottomNavActive === "search";
   const workspaceBackTargetActive = Boolean(
@@ -1006,6 +1029,14 @@ export const WorkspaceApp = ({
       skipNextHomeRouteSyncRef.current = false;
       setRightView("settings");
       setMobileBottomNavActive("settings");
+      setActivePane("editor");
+      return;
+    }
+
+    if (location.pathname === TEMPLATES_PATH) {
+      skipNextHomeRouteSyncRef.current = false;
+      setRightView("templates");
+      setMobileBottomNavActive("templates");
       setActivePane("editor");
       return;
     }
@@ -1343,6 +1374,63 @@ export const WorkspaceApp = ({
     },
   });
 
+  const saveTemplateMutation = useMutation({
+    mutationFn: (input: { name: string; memoId: string }) => api.createTemplate(input),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["templates"] });
+      setAppNoticeDialog({ title: t("templates.templateSaved"), description: t("templates.templateSaved") });
+    },
+  });
+
+  const createTemplateMutation = useMutation({
+    mutationFn: (input: { name: string; description: string | null; title: string | null; contentMarkdown: string; tags: string[] }) =>
+      api.createTemplate(input),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["templates"] });
+      setAppNoticeDialog({ title: t("templates.templateCreated"), description: t("templates.templateCreated") });
+    },
+  });
+
+  const useTemplateMutation = useMutation({
+    mutationFn: (input: { templateId: string; notebookId: string }) => api.useTemplate(input.templateId, input.notebookId),
+    onSuccess: (data) => {
+      const targetNotebookId = data.memo.notebookId;
+      setTemplatesOpen(false);
+      setMemoView("notebook");
+      setSearch("");
+      setSelectedNotebookId(targetNotebookId);
+      cacheMemoDetail(queryClient, data.memo, "notebook");
+      updateMemoSummaryInLists(queryClient, memoToSummary(data.memo));
+      void Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["memos"] }),
+        queryClient.invalidateQueries({ queryKey: ["notebooks"] }),
+      ]);
+      navigateWorkspaceHome();
+      setRightView("editor");
+      setCreatedMemoEditId(data.memo.id);
+      setSelectedMemoId(data.memo.id);
+      setActivePane("editor");
+      if (!isDesktopViewport()) openStandaloneMobileEditor(data.memo.id);
+    },
+  });
+
+  const deleteTemplateMutation = useMutation({
+    mutationFn: (templateId: string) => api.deleteTemplate(templateId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["templates"] });
+    },
+  });
+
+  const updateTemplateMutation = useMutation({
+    mutationFn: (input: {
+      templateId: string;
+      payload: { name: string; description: string | null; title: string | null; contentMarkdown: string; tags: string[] };
+    }) => api.updateTemplate(input.templateId, input.payload),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["templates"] });
+    },
+  });
+
   const mergeMutation = useMutation({
     mutationFn: api.mergeMemos,
     onSuccess: async (data) => {
@@ -1658,18 +1746,29 @@ export const WorkspaceApp = ({
   };
 
   const handleCreateMemo = (template?: MemoTemplate) => {
-    if (!defaultMemoNotebookId || memoView === "trash") {
+    const targetNotebookId = createMemoNotebookId;
+
+    if (!targetNotebookId || memoView === "trash") {
       return;
     }
 
     setTemplatesOpen(false);
     setMobileBottomNavActive("home");
     createMemoMutation.mutate({
-      notebookId: defaultMemoNotebookId,
+      notebookId: targetNotebookId,
       title: template?.title ?? "",
       contentMarkdown: template?.contentMarkdown ?? "",
       tags: template?.tags ?? [],
     });
+  };
+
+  const handleSaveAsTemplate = async (memo: MemoDetail, name: string) => {
+    await saveTemplateMutation.mutateAsync({ name, memoId: memo.id });
+  };
+
+  const handleUseSavedTemplate = (template: SavedMemoTemplate) => {
+    if (!createMemoNotebookId || memoView === "trash") return;
+    useTemplateMutation.mutate({ templateId: template.id, notebookId: createMemoNotebookId });
   };
 
   const handleMobileDefaultEditConsumed = useCallback(() => {
@@ -1928,6 +2027,7 @@ export const WorkspaceApp = ({
     navigateWorkspaceHome();
     setMemoView("notebook");
     setSelectedNotebookId(null);
+    setRightView("editor");
     setMobileBottomNavActive("home");
     clearMemoSelection();
     clearPendingCreatedMemo();
@@ -1987,9 +2087,12 @@ export const WorkspaceApp = ({
 
   const handleOpenTemplates = () => {
     clearHiddenMobileSearch();
+    navigateWorkspaceTemplates();
+    setRightView("templates");
     setMobileBottomNavActive("templates");
-    setTemplatesOpen(true);
+    setActivePane("editor");
   };
+
 
   const handleOpenSettings = () => {
     clearHiddenMobileSearch();
@@ -2007,6 +2110,8 @@ export const WorkspaceApp = ({
 
   const handleCloseTemplates = () => {
     setTemplatesOpen(false);
+    navigateWorkspaceHome();
+    setRightView("editor");
     setMobileBottomNavActive("home");
   };
 
@@ -2351,6 +2456,8 @@ export const WorkspaceApp = ({
         ? t("workspace.loading.assets")
         : rightView === "tags"
           ? t("workspace.loading.tags")
+        : rightView === "templates"
+          ? t("templates.title")
         : rightView === "evernote-migration"
           ? t("workspace.loading.migration")
           : t("workspace.loading.editor");
@@ -2438,6 +2545,7 @@ export const WorkspaceApp = ({
                   onSyncQueuedChanges={() => void runQueuedSync()}
                   onOpenAssets={handleOpenAssets}
                   onOpenTags={handleOpenTags}
+                  onOpenTemplates={handleOpenTemplates}
                   onOpenSettings={handleOpenSettings}
                   onOpenTrash={() => {
                     navigateWorkspaceTrash();
@@ -2596,12 +2704,27 @@ export const WorkspaceApp = ({
                     authRequired={authRequired}
                     demoMode={demoMode}
                     isOwner={authRequired && user?.role === "owner"}
-                    onShowGuide={() => setRightView("evernote-migration")}
                   />
                 ) : rightView === "assets" ? (
                   <AssetsPane onClose={handleCloseAssets} activeMemo={selectedMemo} />
                 ) : rightView === "tags" ? (
                   <TagsPane onClose={handleCloseAssets} />
+                ) : rightView === "templates" ? (
+                  <TemplatesPane
+                    canCreateMemo={canCreateMemo}
+                    isCreating={createMemoMutation.isPending || createTemplateMutation.isPending}
+                    onClose={handleCloseTemplates}
+                    onCreateMemo={handleCreateMemo}
+                    onCreateSavedTemplate={async (payload) => {
+                      await createTemplateMutation.mutateAsync(payload);
+                    }}
+                    savedTemplates={savedTemplates}
+                    onUseSavedTemplate={handleUseSavedTemplate}
+                    onDeleteSavedTemplate={(template) => deleteTemplateMutation.mutate(template.id)}
+                    onUpdateSavedTemplate={async (templateId, payload) => {
+                      await updateTemplateMutation.mutateAsync({ templateId, payload });
+                    }}
+                  />
                 ) : rightView === "evernote-migration" ? (
                   <EvernoteImportGuidePane onClose={() => setRightView("settings")} />
                 ) : (
@@ -2674,6 +2797,7 @@ export const WorkspaceApp = ({
                       await restoreMemoMutation.mutateAsync(memoId);
                     }}
                     onMobileDefaultEditConsumed={handleMobileDefaultEditConsumed}
+                    onSaveAsTemplate={handleSaveAsTemplate}
                   />
                 )}
               </Suspense>
@@ -2682,16 +2806,6 @@ export const WorkspaceApp = ({
         </main>
       </div>
 
-      {templatesOpen && (
-        <Suspense fallback={null}>
-          <TemplatesDialog
-            canCreateMemo={canCreateMemo}
-            isCreating={createMemoMutation.isPending}
-            onClose={handleCloseTemplates}
-            onCreateMemo={handleCreateMemo}
-          />
-        </Suspense>
-      )}
       {memoDeleteConfirmation && (
         <MemoDeleteConfirmDialog
           confirmation={memoDeleteConfirmation}
@@ -2767,6 +2881,7 @@ export const WorkspaceApp = ({
           isCreating={createMemoMutation.isPending}
           onCreateMemo={handleCreateMemo}
           onHome={handleMobileHome}
+          onOpenTemplates={handleOpenTemplates}
           onOpenSettings={handleOpenSettings}
         />
       )}

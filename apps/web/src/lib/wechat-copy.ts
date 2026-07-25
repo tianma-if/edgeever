@@ -104,7 +104,7 @@ const canvasToPng = (canvas: HTMLCanvasElement) => new Promise<Blob>((resolve, r
   }, "image/png");
 });
 
-const rasterizeImageElement = async (image: HTMLImageElement) => {
+const rasterizeImageElement = async (image: HTMLImageElement, scale = 1) => {
   if (!image.complete || image.naturalWidth === 0) {
     await image.decode();
   }
@@ -113,13 +113,13 @@ const rasterizeImageElement = async (image: HTMLImageElement) => {
   }
 
   const canvas = document.createElement("canvas");
-  canvas.width = image.naturalWidth;
-  canvas.height = image.naturalHeight;
+  canvas.width = Math.ceil(image.naturalWidth * scale);
+  canvas.height = Math.ceil(image.naturalHeight * scale);
   const context = canvas.getContext("2d");
   if (!context) {
     throw new Error("Could not create image canvas");
   }
-  context.drawImage(image, 0, 0);
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
   return canvasToPng(canvas);
 };
 
@@ -158,6 +158,79 @@ const convertImageToPng = async (blob: Blob) => {
   }
 
   return rasterizeBlob(blob);
+};
+
+const getSvgSize = (svg: string) => {
+  const parsed = new DOMParser().parseFromString(svg, "image/svg+xml");
+  const root = parsed.documentElement;
+  const viewBox = root.getAttribute("viewBox")?.trim().split(/[\s,]+/).map(Number);
+  const width = Number.parseFloat(root.getAttribute("width") || "");
+  const height = Number.parseFloat(root.getAttribute("height") || "");
+  const viewBoxWidth = viewBox && viewBox.length === 4 ? viewBox[2] : Number.NaN;
+  const viewBoxHeight = viewBox && viewBox.length === 4 ? viewBox[3] : Number.NaN;
+  return {
+    width: Number.isFinite(viewBoxWidth) ? viewBoxWidth : Number.isFinite(width) ? width : 800,
+    height: Number.isFinite(viewBoxHeight) ? viewBoxHeight : Number.isFinite(height) ? height : 600,
+  };
+};
+
+const svgToPng = async (svg: string) => {
+  const size = getSvgSize(svg);
+  const objectUrl = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
+  try {
+    const image = new Image();
+    image.src = objectUrl;
+    await image.decode();
+    return {
+      blob: await rasterizeImageElement(image, 2),
+      ...size,
+    };
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+};
+
+const renderMermaidSvg = async (source: string) => {
+  const { renderMermaidSVG, THEMES } = await import("beautiful-mermaid");
+  return renderMermaidSVG(source, {
+    ...THEMES["zinc-light"],
+    transparent: true,
+    font: "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+    padding: 24,
+  });
+};
+
+const embedMermaidForWeChat = async (root: HTMLElement, editor?: Editor) => {
+  const codeBlocks = Array.from(root.querySelectorAll<HTMLElement>("pre > code.language-mermaid"));
+  if (codeBlocks.length === 0) {
+    return;
+  }
+
+  const renderedBlocks = editor
+    ? Array.from(editor.view.dom.querySelectorAll<HTMLElement>(".edgeever-mermaid-code-block"))
+    : [];
+  await Promise.all(codeBlocks.map(async (codeBlock, index) => {
+    const source = codeBlock.textContent?.trim();
+    const pre = codeBlock.closest("pre");
+    if (!source || !pre) {
+      return;
+    }
+
+    try {
+      const renderedSvg = renderedBlocks[index]?.querySelector("svg")?.outerHTML;
+      const svg = renderedSvg || await renderMermaidSvg(source);
+      const image = document.createElement("img");
+      const { blob, width, height } = await svgToPng(svg);
+      image.src = await blobToDataUrl(blob);
+      image.width = Math.round(width);
+      image.height = Math.round(height);
+      image.alt = "Mermaid diagram";
+      image.style.cssText = "display: block; width: auto; max-width: 100%; height: auto; max-height: 30rem; object-fit: contain; margin: 1em auto;";
+      pre.replaceWith(image);
+    } catch {
+      // Preserve the Mermaid source as a readable fallback when rendering fails.
+    }
+  }));
 };
 
 const isSameOrigin = (source: string) => {
@@ -205,6 +278,7 @@ export const buildWeChatClipboardHtml = async (editor: Editor) => {
   container.innerHTML = editor.getHTML();
   const editorTheme = editor.view.dom.closest<HTMLElement>("[data-editor-theme]")?.dataset.editorTheme;
   applyInlineStyles(container, editorTheme);
+  await embedMermaidForWeChat(container, editor);
   const originalImages = Array.from(editor.view.dom.querySelectorAll<HTMLImageElement>("img"));
   await embedImagesForWeChat(container, originalImages);
   return container.outerHTML;
@@ -242,6 +316,7 @@ export const copyMarkdownToWeChat = async (markdown: string) => {
   const container = document.createElement("div");
   container.innerHTML = marked.parse(markdown, { async: false, gfm: true, breaks: false });
   applyInlineStyles(container);
+  await embedMermaidForWeChat(container);
   await embedImagesForWeChat(container);
   await copyHtmlToClipboard(container.outerHTML, container.textContent ?? "");
 };
