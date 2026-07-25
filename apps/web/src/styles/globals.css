@@ -42,6 +42,8 @@
     --editor-body-font-size: 0.9375rem;
     --editor-body-line-height: 1.6;
     --editor-paragraph-spacing: 0.45rem;
+    --editor-outline-width: 300px;
+    --editor-content-max-width: 880px;
 
     --card: 0 0% 100%;
     --card-foreground: 224 71% 4%;
@@ -174,14 +176,14 @@ textarea {
 
 .ProseMirror {
   width: 100%;
-  max-width: 1080px;
-  margin: 0 auto;
+  max-width: var(--editor-content-max-width, 880px);
+  margin: 0;
   color: #000;
   font-size: var(--editor-body-font-size);
   line-height: var(--editor-body-line-height);
   min-height: 100%;
   outline: none;
-  padding: 24px 28px 56px;
+  padding: 8px 12px 56px;
 }
 
 .ProseMirror .edgeever-search-match {

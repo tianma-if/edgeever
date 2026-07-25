@@ -218,7 +218,9 @@ If you want to migrate notes from other platforms to EdgeEver, please refer to t
 
 ## Acknowledgements
 
-- The visual design of the editor themes is inspired by [gzh-design-skill](https://github.com/isjiamu/gzh-design-skill), whose themes were originally created by Jiamu (甲木) × Moyu Xiaoli (摸鱼小李). Thanks for their open-source work.
+- The visual design of the editor themes is inspired by [gzh-design-skill](https://github.com/isjiamu/gzh-design-skill).
+- The "Minimal Emerald" theme typography layout is inspired by [obsidian-minimal](https://github.com/kepano/obsidian-minimal).
+- The "Outline Emerald" theme typography layout is inspired by [Outline](https://github.com/outline/outline).
 
 ## Disclaimer
 

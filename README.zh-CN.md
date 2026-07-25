@@ -232,7 +232,9 @@ Cloudflare Worker 侧执行图片处理会消耗计算/图片处理额度，因�
 
 ## 致谢
 
-- 编辑器主题的视觉设计参考自 [gzh-design-skill](https://github.com/isjiamu/gzh-design-skill)，相关主题由甲木 × 摸鱼小李原创。感谢作者的开源工作。
+- 编辑器主题的视觉设计参考自 [gzh-design-skill](https://github.com/isjiamu/gzh-design-skill)。
+- “minimal品牌绿”主题排版架构借鉴于 [obsidian-minimal](https://github.com/kepano/obsidian-minimal)。
+- “Outline 品牌绿”主题排版架构借鉴于 [Outline](https://github.com/outline/outline)。
 
 ## 免责声明
 

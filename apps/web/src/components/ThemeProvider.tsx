@@ -23,13 +23,8 @@ export type MermaidThemeName = (typeof MERMAID_THEME_NAMES)[number];
 
 export const EDITOR_THEME_NAMES = [
   "default",
-  "moyu-green",
-  "red-white",
-  "graphite-minimal",
-  "zen-whitespace",
-  "moyu-ticket",
-  "olive-journal",
-  "mint-breeze",
+  "minimal-emerald",
+  "outline-emerald",
   "custom",
 ] as const;
 export type EditorThemeName = (typeof EDITOR_THEME_NAMES)[number];
@@ -102,8 +97,7 @@ export const getStoredMermaidTheme = (): MermaidThemeName => {
 export const getStoredEditorTheme = (): EditorThemeName => {
   if (typeof window === "undefined") return "default";
   const stored = window.localStorage.getItem(EDITOR_THEME_STORAGE_KEY);
-  if (stored === "mdnice-nenqing") return "mint-breeze";
-  return EDITOR_THEME_NAMES.includes(stored as EditorThemeName) ? stored as EditorThemeName : "default";
+  return EDITOR_THEME_NAMES.includes(stored as EditorThemeName) ? (stored as EditorThemeName) : "default";
 };
 
 const isHexColor = (value: unknown): value is string => typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value);

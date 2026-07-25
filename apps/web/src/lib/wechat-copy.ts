@@ -62,7 +62,7 @@ const applyInlineStyles = (root: HTMLElement, editorTheme?: string) => {
   root.querySelectorAll<HTMLElement>("[data-edgeever-theme-block]").forEach((block) => {
     const kind = block.getAttribute("data-theme-block-kind") || "intro";
     const themeStyles = THEME_BLOCK_STYLES[kind] || THEME_BLOCK_STYLES.intro;
-    const accent = editorTheme === "red-white" ? "#dc2626" : editorTheme === "olive-journal" ? "#ed7b2f" : editorTheme === "graphite-minimal" ? "#52525b" : editorTheme === "mint-breeze" ? "#00a86b" : "#059669";
+    const accent = "#059669";
     block.style.cssText = `${themeStyles.block} border-left-color: ${accent}; ${block.style.cssText}`;
 
     const label = document.createElement("p");

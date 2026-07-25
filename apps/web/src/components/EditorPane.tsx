@@ -59,6 +59,7 @@ import {
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { EditorToolbar } from "./EditorToolbar";
+import { EditorOutline } from "./EditorOutline";
 import { WeChatIcon } from "./WeChatIcon";
 import { ThemeToggle } from "./ThemeToggle";
 import { useTheme } from "./ThemeProvider";
@@ -1169,6 +1170,11 @@ const RichEditorPane = ({
   const [mobileImeDebugActiveElement, setMobileImeDebugActiveElement] = useState(getActiveElementLabel);
   const [mobileImeDebugEvents, setMobileImeDebugEvents] = useState<MobileImeDebugEntry[]>([]);
   const [wechatCopyState, setWechatCopyState] = useState<"idle" | "copying" | "copied" | "error">("idle");
+  const [editorScrollContainer, setEditorScrollContainer] = useState<HTMLDivElement | null>(null);
+  const setEditorScrollContainerRef = useCallback((element: HTMLDivElement | null) => {
+    editorScrollContainerRef.current = element;
+    setEditorScrollContainer(element);
+  }, []);
   const notebookOptions = useMemo(() => getNotebookMoveOptions(notebooks), [notebooks]);
   const readOnly = isTrashView || Boolean(memo?.isDeleted);
   const mobileDefaultEditRequested = Boolean(memo?.id && memo.id === mobileDefaultEditMemoId && !readOnly);
@@ -2947,7 +2953,7 @@ const RichEditorPane = ({
       </header>
 
       <div
-        ref={editorScrollContainerRef}
+        ref={setEditorScrollContainerRef}
         data-editor-theme={editorTheme}
         style={editorTheme === "custom" ? {
           "--editor-theme-bg": customEditorTheme.background,
@@ -2962,56 +2968,63 @@ const RichEditorPane = ({
           useMobilePlainTextEditor ? "overflow-visible" : "overflow-y-auto"
         )}
       >
-        {useMobilePlainTextEditor ? (
-          <>
-            <textarea
-              ref={(element) => {
-                mobileTextAreaRef.current = element;
-              }}
-              defaultValue={mobilePlainText}
-              autoCapitalize="sentences"
-              autoComplete="on"
-              autoCorrect="on"
-              enterKeyHint="enter"
-              inputMode="text"
-              name="memo-body"
-              spellCheck
-              data-edgeever-mobile-editor="plain-textarea"
-              aria-label={t("editor.noteBodyAria")}
-              className="block min-h-[60dvh] w-full resize-none border border-slate-200 bg-white px-4 py-3 pr-32 text-base leading-7 text-slate-950 outline-none placeholder:text-slate-400 sm:px-7"
-              placeholder={t("editor.placeholder")}
-              style={{ WebkitUserSelect: "text", userSelect: "text", caretColor: "auto" }}
-            />
-            <div className="absolute right-3 top-3 flex gap-2">
-              <button
-                className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm font-semibold text-emerald-800 shadow-sm"
-                type="button"
-                onClick={() => void handleMobileClipboardInput()}
-              >
-                  {t("editor.paste")}
-              </button>
-              <button
-                className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 shadow-sm"
-                type="button"
-                onClick={handleMobilePromptInput}
-              >
-                  {t("editor.typeInput")}
-              </button>
-            </div>
-          </>
-        ) : useMarkdownSourceEditor ? (
-          <textarea
-            value={markdownSource}
-            onChange={(event) => handleMarkdownSourceChange(event.target.value)}
-            readOnly={effectiveReadOnly}
-            spellCheck={false}
-            aria-label={t("editor.markdownSourceAria")}
-            className="block min-h-[300px] h-full w-full resize-none border-0 bg-slate-950 px-4 py-3 font-mono text-sm leading-6 text-slate-100 outline-none placeholder:text-slate-500 sm:px-7"
-            placeholder={`# ${t("editor.placeholder")}`}
-          />
-        ) : (
-          <EditorContent editor={editor} />
-        )}
+        <div className="flex min-h-full items-start w-full gap-8 px-6 py-6 sm:px-10">
+          <div className="min-w-0 flex-1 max-w-[var(--editor-content-max-width,880px)]">
+            {useMobilePlainTextEditor ? (
+              <>
+                <textarea
+                  ref={(element) => {
+                    mobileTextAreaRef.current = element;
+                  }}
+                  defaultValue={mobilePlainText}
+                  autoCapitalize="sentences"
+                  autoComplete="on"
+                  autoCorrect="on"
+                  enterKeyHint="enter"
+                  inputMode="text"
+                  name="memo-body"
+                  spellCheck
+                  data-edgeever-mobile-editor="plain-textarea"
+                  aria-label={t("editor.noteBodyAria")}
+                  className="block min-h-[60dvh] w-full resize-none border border-slate-200 bg-white px-4 py-3 pr-32 text-base leading-7 text-slate-950 outline-none placeholder:text-slate-400 sm:px-7"
+                  placeholder={t("editor.placeholder")}
+                  style={{ WebkitUserSelect: "text", userSelect: "text", caretColor: "auto" }}
+                />
+                <div className="absolute right-3 top-3 flex gap-2">
+                  <button
+                    className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm font-semibold text-emerald-800 shadow-sm"
+                    type="button"
+                    onClick={() => void handleMobileClipboardInput()}
+                  >
+                      {t("editor.paste")}
+                  </button>
+                  <button
+                    className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 shadow-sm"
+                    type="button"
+                    onClick={handleMobilePromptInput}
+                  >
+                      {t("editor.typeInput")}
+                  </button>
+                </div>
+              </>
+            ) : useMarkdownSourceEditor ? (
+              <textarea
+                value={markdownSource}
+                onChange={(event) => handleMarkdownSourceChange(event.target.value)}
+                readOnly={effectiveReadOnly}
+                spellCheck={false}
+                aria-label={t("editor.markdownSourceAria")}
+                className="block min-h-[300px] h-full w-full resize-none border-0 bg-slate-950 px-4 py-3 font-mono text-sm leading-6 text-slate-100 outline-none placeholder:text-slate-500 sm:px-7"
+                placeholder={`# ${t("editor.placeholder")}`}
+              />
+            ) : (
+              <EditorContent editor={editor} />
+            )}
+          </div>
+          {!isMobileViewport && !useMobilePlainTextEditor && !useMarkdownSourceEditor && (
+            <EditorOutline editor={editor} scrollContainer={editorScrollContainer} />
+          )}
+        </div>
       </div>
 
       {false && useMobilePlainTextEditor && (

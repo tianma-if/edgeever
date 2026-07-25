@@ -152,13 +152,8 @@ export const zhCN = {
     editorThemeDescription: "选择正文编辑区的排版风格，偏好会保存在当前浏览器中。",
     editorThemes: {
       default: "系统默认",
-      "moyu-green": "摸鱼绿",
-      "red-white": "红白色系",
-      "graphite-minimal": "石墨极简风",
-      "zen-whitespace": "留白禅意风",
-      "moyu-ticket": "摸鱼票据风",
-      "olive-journal": "橄榄手记",
-      "mint-breeze": "薄荷青",
+      "minimal-emerald": "minimal品牌绿",
+      "outline-emerald": "Outline 品牌绿",
       custom: "自定义",
     },
     customEditorTheme: {
@@ -573,6 +568,7 @@ export const zhCN = {
     copyingToWeChat: "正在准备公众号内容",
     copiedToWeChat: "已复制",
     copyToWeChatFailed: "复制失败",
+    outline: "文档大纲",
   },
   editorToolbar: {
     toolbar: "编辑器工具栏",
