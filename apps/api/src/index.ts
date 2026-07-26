@@ -8,6 +8,7 @@ import {
   ChangePasswordSchema,
   DeleteMemosSchema,
   LoginSchema,
+  LoginDeviceSessionUpdateSchema,
   markdownToDoc,
   isSuspiciousMemoOverwrite,
   isMemoEditBindingValid,
@@ -74,6 +75,13 @@ import {
   type LoginDeviceSessionRow,
 } from "./auth-session-devices";
 import {
+  checkLoginRateLimit,
+  clearLoginAttempts,
+  recordLoginFailure,
+  resolveLoginRateLimitConfig,
+  type LoginAttemptKey,
+} from "./auth-login-limiter";
+import {
   decodeDemoAttachment,
   DEMO_ATTACHMENT_MARKDOWN_EN,
   DEMO_ATTACHMENT_MARKDOWN_ZH,
@@ -103,6 +111,11 @@ type Bindings = CloudflareStorageBindings & {
   EDGE_EVER_AUTH_PASSWORD?: string;
   EDGE_EVER_AUTH_PASSWORD_HASH?: string;
   EDGE_EVER_SESSION_TTL_DAYS?: string;
+  EDGE_EVER_AUTH_LOGIN_WINDOW_SECONDS?: string;
+  EDGE_EVER_AUTH_LOGIN_USERNAME_MAX_ATTEMPTS?: string;
+  EDGE_EVER_AUTH_LOGIN_USERNAME_COOLDOWN_SECONDS?: string;
+  EDGE_EVER_AUTH_LOGIN_IP_MAX_ATTEMPTS?: string;
+  EDGE_EVER_AUTH_LOGIN_IP_COOLDOWN_SECONDS?: string;
   EDGE_EVER_R2_BUCKET_NAME?: string;
   EDGE_EVER_DEMO_MODE?: string;
   EDGE_EVER_LOCAL_DEMO_SEED?: string;
@@ -508,7 +521,7 @@ app.get("/api/v1/auth/sessions", async (c) => {
 
   const now = isoNow();
   const rows = await c.env.storage.db.prepare(
-    `SELECT id, device_id, user_agent, expires_at, created_at, last_seen_at
+    `SELECT id, device_id, user_agent, device_label, ip_address, ip_country, ip_region, expires_at, created_at, last_seen_at
      FROM sessions
      WHERE user_id = ?
        AND revoked_at IS NULL
@@ -522,6 +535,40 @@ app.get("/api/v1/auth/sessions", async (c) => {
   return c.json({
     sessions: groupLoginDeviceSessions(rows.results, auth.sessionId).slice(0, 50),
   });
+});
+
+app.patch("/api/v1/auth/sessions/:sessionId", zValidator("json", LoginDeviceSessionUpdateSchema), async (c) => {
+  const auth = await authenticateRequest(c, true);
+
+  if (!auth || auth.kind !== "user" || !auth.actorId || !auth.sessionId) {
+    return unauthorized(c, "An interactive user session is required.");
+  }
+
+  const sessionId = c.req.param("sessionId");
+  const input = c.req.valid("json");
+  const now = isoNow();
+  const session = await c.env.storage.db.prepare(
+    `SELECT id, device_id FROM sessions
+     WHERE id = ? AND user_id = ? AND revoked_at IS NULL AND expires_at > ?`
+  ).bind(sessionId, auth.actorId, now).first<{ id: string; device_id: string | null }>();
+
+  if (!session) return notFound(c, "Login session not found.");
+
+  const statement = session.device_id
+    ? c.env.storage.db.prepare(
+        `UPDATE sessions SET device_label = ?
+         WHERE user_id = ? AND device_id = ? AND revoked_at IS NULL`
+      ).bind(input.label || null, auth.actorId, session.device_id)
+    : c.env.storage.db.prepare(`UPDATE sessions SET device_label = ? WHERE id = ?`).bind(input.label || null, session.id);
+
+  await c.env.storage.db.batch([
+    statement,
+    auditStatement(c.env.storage.db, "user", auth.actorId, "auth.session_label_update", "session", session.id, {
+      label: input.label || null,
+    }),
+  ]);
+
+  return c.json({ ok: true });
 });
 
 app.delete("/api/v1/auth/sessions", async (c) => {
@@ -596,11 +643,40 @@ app.post("/api/v1/auth/login", zValidator("json", LoginSchema), async (c) => {
   }
 
   const input = c.req.valid("json");
+  const loginAttemptKeys = await getLoginAttemptKeys(c, input.username);
+  const loginRateLimitConfig = resolveLoginRateLimitConfig(c.env);
+  const currentRateLimit = await checkLoginRateLimit(c.env.storage.db, loginAttemptKeys, loginRateLimitConfig);
+
+  if (currentRateLimit.retryAfterSeconds > 0) {
+    return tooManyLoginAttempts(c, currentRateLimit.retryAfterSeconds);
+  }
+
   const user = await verifyLogin(c.env, input.username, input.password);
 
   if (!user) {
+    const updatedRateLimit = await recordLoginFailure(
+      c.env.storage.db,
+      loginAttemptKeys,
+      loginRateLimitConfig,
+    );
+
+    if (updatedRateLimit.retryAfterSeconds > 0) {
+      await audit(
+        c.env.storage.db,
+        "system",
+        null,
+        "auth.login_rate_limited",
+        "auth",
+        loginAttemptKeys[0]?.key ?? "unknown",
+        { retryAfterSeconds: updatedRateLimit.retryAfterSeconds },
+      );
+      return tooManyLoginAttempts(c, updatedRateLimit.retryAfterSeconds);
+    }
+
     return unauthorized(c, "Username or password is incorrect.");
   }
+
+  await clearLoginAttempts(c.env.storage.db, loginAttemptKeys);
 
   const workspace = await ensureUserWorkspace(c.env.storage.db, user.id, user.username);
   const session = await createSession(c, user, input.deviceId);
@@ -3789,6 +3865,33 @@ const getInstanceAuthMode = async (env: Bindings): Promise<InstanceAuthMode> => 
   });
 };
 
+const getLoginAttemptKeys = async (c: AppContext, username: string): Promise<LoginAttemptKey[]> => {
+  const keys: LoginAttemptKey[] = [{ scope: "username", key: await sha256(username.trim()) }];
+  const clientIp = getClientIp(c);
+
+  if (clientIp) {
+    keys.push({ scope: "ip", key: await sha256(clientIp) });
+  }
+
+  return keys;
+};
+
+const getClientIp = (c: Context) => {
+  const cloudflareIp = c.req.header("CF-Connecting-IP")?.trim();
+  if (cloudflareIp) return cloudflareIp;
+
+  const realIp = c.req.header("X-Real-IP")?.trim();
+  if (realIp) return realIp;
+
+  const forwardedIp = c.req.header("X-Forwarded-For")?.split(",", 1)[0]?.trim();
+  return forwardedIp || null;
+};
+
+const tooManyLoginAttempts = (c: Context, retryAfterSeconds: number) => {
+  c.header("Retry-After", String(retryAfterSeconds));
+  return apiError(c, "login_rate_limited", "Too many login attempts. Try again later.", 429);
+};
+
 const verifyLogin = async (env: Bindings, username: string, password: string): Promise<UserRow | null> => {
   const normalizedUsername = username.trim();
   const existingUser = await getUserByUsername(env.storage.db, normalizedUsername);
@@ -3960,6 +4063,9 @@ const createSession = async (c: AppContext, user: UserRow, requestedDeviceId?: s
   const deviceId = resolveSessionDeviceId(requestedDeviceId, userAgent, id);
   const ip = c.req.header("CF-Connecting-IP");
   const ipHash = ip ? await sha256(ip) : null;
+  const cf = c.req.raw.cf as { country?: string; region?: string } | undefined;
+  const ipCountry = c.req.header("CF-IPCountry") ?? cf?.country ?? null;
+  const ipRegion = cf?.region ?? null;
 
   await c.env.storage.db.batch([
     c.env.storage.db.prepare(
@@ -3968,9 +4074,9 @@ const createSession = async (c: AppContext, user: UserRow, requestedDeviceId?: s
     ).bind(now, user.id, deviceId),
     c.env.storage.db.prepare(
       `INSERT INTO sessions (
-        id, user_id, token_hash, device_id, user_agent, ip_hash, expires_at, created_at, last_seen_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).bind(id, user.id, await sha256(token), deviceId, userAgent, ipHash, expiresAt, now, now),
+        id, user_id, token_hash, device_id, user_agent, ip_hash, device_label, ip_address, ip_country, ip_region, expires_at, created_at, last_seen_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(id, user.id, await sha256(token), deviceId, userAgent, ipHash, null, ip ?? null, ipCountry, ipRegion, expiresAt, now, now),
   ]);
 
   return { id, token, maxAge };

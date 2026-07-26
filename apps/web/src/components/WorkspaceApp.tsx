@@ -13,7 +13,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { useInfiniteQuery, useQuery, useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
-import { Home, Search, UserRound, Plus, LayoutTemplate, ChevronDown, ChevronRight, RefreshCw, X } from "lucide-react";
+import { Home, Search, UserRound, Plus, ChevronDown, ChevronRight, RefreshCw, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router";
 import { Button } from "@/components/ui/button";
@@ -59,7 +59,9 @@ import {
   MAX_MEMO_LIST_WIDTH_PX,
   DEFAULT_MEMO_LIST_WIDTH_PX,
   isTextEntryTarget,
+  readAutoSaveIntervalPreference,
   readImageCompressionPreference,
+  writeAutoSaveIntervalPreference,
   writeImageCompressionPreference,
   readDesktopFocusModePreference,
   writeDesktopFocusModePreference,
@@ -323,7 +325,6 @@ const MobileBottomNav = ({
   isCreating,
   onCreateMemo,
   onHome,
-  onOpenTemplates,
   onOpenSettings,
 }: {
   activeItem: MobileBottomNavItem;
@@ -331,12 +332,9 @@ const MobileBottomNav = ({
   isCreating: boolean;
   onCreateMemo: () => void;
   onHome: () => void;
-  onOpenTemplates: () => void;
   onOpenSettings: () => void;
 }) => {
   const { t } = useTranslation();
-  // Temporarily hide template navigation while the feature is being finalized.
-  const showTemplateEntry = true;
   const createMemoLabel = !canCreateMemo ? t("nav.createDisabled") : isCreating ? t("nav.creating") : t("nav.createMemo");
 
   return (
@@ -344,9 +342,8 @@ const MobileBottomNav = ({
       className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-5 pb-[max(0.125rem,env(safe-area-inset-bottom))] pt-0 shadow-[0_-10px_30px_rgba(15,23,42,0.08)] backdrop-blur lg:hidden"
       aria-label={t("nav.mobileMain")}
     >
-      <div className="relative grid h-mobile-bottom-nav grid-cols-4 items-center">
+      <div className="relative grid h-mobile-bottom-nav grid-cols-3 items-center">
         <MobileBottomNavButton active={activeItem === "home"} icon={<Home className="h-5 w-5" />} label={t("nav.home")} onClick={onHome} />
-        {showTemplateEntry ? <MobileBottomNavButton active={activeItem === "templates"} icon={<LayoutTemplate className="h-5 w-5" />} label={t("nav.templates")} onClick={onOpenTemplates} /> : <div aria-hidden="true" />}
         <div aria-hidden="true" />
         <MobileBottomNavButton active={activeItem === "settings"} icon={<UserRound className="h-5 w-5" />} label={t("nav.mine")} onClick={onOpenSettings} />
         <button
@@ -696,6 +693,7 @@ export const WorkspaceApp = ({
   });
   const [multiSelectKeyDown, setMultiSelectKeyDown] = useState(false);
   const [imageCompressionEnabled, setImageCompressionEnabled] = useState(readImageCompressionPreference);
+  const [autoSaveIntervalMs, setAutoSaveIntervalMs] = useState(readAutoSaveIntervalPreference);
   const [desktopFocusMode, setDesktopFocusMode] = useState(readDesktopFocusModePreference);
   const [shortcutSettings, setShortcutSettings] = useState<ShortcutSettings>(readShortcutSettingsPreference);
   const [rightView, setRightView] = useState<"editor" | "settings" | "assets" | "tags" | "templates" | "evernote-migration">(() =>
@@ -1017,6 +1015,12 @@ export const WorkspaceApp = ({
   }, [imageCompressionEnabled]);
 
   useEffect(() => {
+    writeAutoSaveIntervalPreference(
+      autoSaveIntervalMs === null ? "1m" : autoSaveIntervalMs === 300_000 ? "5m" : autoSaveIntervalMs === 900_000 ? "15m" : autoSaveIntervalMs === 1_800_000 ? "30m" : autoSaveIntervalMs === 3_600_000 ? "1h" : autoSaveIntervalMs === 7_200_000 ? "2h" : "1m"
+    );
+  }, [autoSaveIntervalMs]);
+
+  useEffect(() => {
     writeShortcutSettingsPreference(shortcutSettings);
   }, [shortcutSettings]);
 
@@ -1296,6 +1300,13 @@ export const WorkspaceApp = ({
   useEffect(() => {
     const selectedMemoInList = selectedMemoId ? memos.some((memo) => memo.id === selectedMemoId) : false;
 
+    if (createdMemoEditId && selectedMemoId === createdMemoEditId) {
+      // Keep the create request alive until the editor consumes it. The new
+      // memo can appear in the list before its detail query has mounted the
+      // editor, and clearing it here would lose the autofocus request.
+      return;
+    }
+
     if (memos.length === 0) {
       setSelectedMemoId(null);
       return;
@@ -1304,7 +1315,7 @@ export const WorkspaceApp = ({
     if (!selectedMemoId || !selectedMemoInList) {
       setSelectedMemoId(memos[0].id);
     }
-  }, [memos, selectedMemoId]);
+  }, [createdMemoEditId, memos, selectedMemoId]);
 
   const memoQuery = useQuery({
     queryKey: selectedMemoId ? memoDetailQueryKey(selectedMemoId, memoView) : ["memo", selectedMemoId, memoView],
@@ -1353,6 +1364,11 @@ export const WorkspaceApp = ({
 
       setMemoView("notebook");
       setSearch("");
+      // A newly created memo is not pinned or otherwise guaranteed to match
+      // the active list filter. Leave filtered views so the selected memo
+      // remains visible instead of the list effect falling back to its first
+      // item (for example, the currently pinned memo).
+      setMemoFilterMode("all");
       if (targetNotebookId !== selectedNotebookId) {
         setSelectedNotebookId(targetNotebookId);
       }
@@ -2492,12 +2508,12 @@ export const WorkspaceApp = ({
       <div className="min-w-0 flex-1">
         <main
           className={cn(
-            "grid h-[100dvh] min-h-0 grid-cols-[minmax(0,1fr)]",
+            "edgeever-workspace-grid grid h-[100dvh] min-h-0 grid-cols-[minmax(0,1fr)]",
             desktopFocusModeActive
-              ? "lg:grid-cols-[minmax(0,1fr)]"
+              ? "edgeever-workspace-grid--focus"
               : rightView === "editor"
-                ? "lg:grid-cols-[260px_var(--memo-list-width)_minmax(0,1fr)]"
-                : "lg:grid-cols-[260px_1fr]"
+                ? "edgeever-workspace-grid--editor"
+                : "edgeever-workspace-grid--single-right"
           )}
           style={{ "--memo-list-width": `${memoListWidth}px` } as CSSProperties}
         >
@@ -2695,8 +2711,11 @@ export const WorkspaceApp = ({
                 {rightView === "settings" ? (
                   <SettingsPane
                     onClose={handleCloseSettings}
+                    onOpenTemplates={handleOpenTemplates}
                     imageCompressionEnabled={imageCompressionEnabled}
                     onImageCompressionChange={setImageCompressionEnabled}
+                    autoSaveIntervalMs={autoSaveIntervalMs}
+                    onAutoSaveIntervalChange={setAutoSaveIntervalMs}
                     shortcutSettings={shortcutSettings}
                     onShortcutSettingsChange={setShortcutSettings}
                     onLogout={onLogout}
@@ -2704,6 +2723,7 @@ export const WorkspaceApp = ({
                     authRequired={authRequired}
                     demoMode={demoMode}
                     isOwner={authRequired && user?.role === "owner"}
+                    user={user}
                   />
                 ) : rightView === "assets" ? (
                   <AssetsPane onClose={handleCloseAssets} activeMemo={selectedMemo} />
@@ -2730,7 +2750,6 @@ export const WorkspaceApp = ({
                 ) : (
                   <EditorPane
                     memo={selectedMemo}
-                    demoMode={demoMode}
                     desktopFocusMode={desktopFocusModeActive}
                     onToggleDesktopFocusMode={toggleDesktopFocusMode}
                     mobileDefaultEditMemoId={createdMemoEditId}
@@ -2741,6 +2760,7 @@ export const WorkspaceApp = ({
                     searchFocusToken={noteSearchFocusToken}
                     replaceFocusToken={noteReplaceFocusToken}
                     imageCompressionEnabled={imageCompressionEnabled}
+                    autoSaveIntervalMs={autoSaveIntervalMs}
                     selectionActionBar={memoSelectionActionBar}
                     hasNextMemo={Boolean(nextMemoId)}
                     hasPreviousMemo={Boolean(previousMemoId)}
@@ -2882,7 +2902,6 @@ export const WorkspaceApp = ({
           isCreating={createMemoMutation.isPending}
           onCreateMemo={handleCreateMemo}
           onHome={handleMobileHome}
-          onOpenTemplates={handleOpenTemplates}
           onOpenSettings={handleOpenSettings}
         />
       )}

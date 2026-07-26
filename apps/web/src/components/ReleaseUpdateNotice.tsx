@@ -4,6 +4,8 @@ import { useTranslation } from "react-i18next";
 import { fetchLatestRelease, isVersionOutdated, type LatestRelease } from "@/lib/version-check";
 import { dismissRelease, getDismissedRelease } from "@/lib/release-notice";
 
+const AUTO_DISMISS_MS = 3_000;
+
 export const ReleaseUpdateNotice = () => {
   const { t } = useTranslation();
   const [release, setRelease] = useState<LatestRelease | null>(null);
@@ -18,6 +20,13 @@ export const ReleaseUpdateNotice = () => {
       .catch(() => undefined);
     return () => controller.abort();
   }, []);
+
+  useEffect(() => {
+    if (!release) return;
+
+    const timer = window.setTimeout(() => setDismissed(true), AUTO_DISMISS_MS);
+    return () => window.clearTimeout(timer);
+  }, [release?.tagName]);
 
   if (!release || dismissed || getDismissedRelease() === release.tagName) return null;
 

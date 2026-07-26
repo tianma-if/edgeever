@@ -49,7 +49,10 @@
 | :--- | :--- | :--- | :--- |
 | **D1 Database Binding** | `DB` | 选择 `edgeever` 数据库 | 存放笔记与结构化数据 |
 | **R2 Bucket Binding** | `RESOURCES` | 选择您创建的 R2 Bucket | 存放图片与图片附件 |
+| **Environment Variable** | `EDGE_EVER_AUTH_USERNAME` | `admin`（可改为自定义用户名） | 管理员登录用户名 |
 | **Environment Variable (Secret)** | `EDGE_EVER_AUTH_PASSWORD` | 设置您的管理员登录密码 | 初始登录凭据 |
+
+> `EDGE_EVER_AUTH_USERNAME` 默认预填为 `admin`。普通用户可以直接使用这个值；如果希望使用其他管理员用户名，可在这里修改。请记住部署时填写的用户名，登录时需要同时输入用户名和密码。
 
 ---
 
@@ -73,7 +76,7 @@ Deploy command: bun run deploy:cloudflare-builds
    ```json
    { "ok": true }
    ```
-3. 打开主站首页，输入您配置的密码（`EDGE_EVER_AUTH_PASSWORD`）测试登录并开始使用。
+3. 打开主站首页，输入您配置的管理员用户名（默认是 `admin`）和密码（`EDGE_EVER_AUTH_PASSWORD`）测试登录并开始使用。
 4. 返回 Fork 的 GitHub 仓库 **Actions** 页面，手动触发运行一次 **Update deployed EdgeEver** 工作流，确保未来可自动跟进上游更新。
 
 ---

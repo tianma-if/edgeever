@@ -4,6 +4,10 @@ export type LoginDeviceSessionRow = {
   id: string;
   device_id: string | null;
   user_agent: string | null;
+  device_label: string | null;
+  ip_address: string | null;
+  ip_country: string | null;
+  ip_region: string | null;
   expires_at: string;
   created_at: string;
   last_seen_at: string | null;
@@ -42,6 +46,10 @@ export const groupLoginDeviceSessions = (
   return [...grouped.values()].map(({ representative, createdAt, lastSeenAt }) => ({
     id: representative.id,
     userAgent: representative.user_agent,
+    label: representative.device_label,
+    ipAddress: representative.ip_address,
+    ipCountry: representative.ip_country,
+    ipRegion: representative.ip_region,
     isCurrent: representative.id === currentSessionId,
     createdAt,
     lastSeenAt,

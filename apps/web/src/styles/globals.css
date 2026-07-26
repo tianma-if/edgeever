@@ -159,6 +159,27 @@ body {
   overscroll-behavior-y: auto;
 }
 
+/* Keep the three-pane desktop workspace usable on compact laptop screens.
+ * The notebook and memo columns may shrink, while the editor always keeps
+ * the remaining width instead of being clipped by fixed tracks.
+ */
+.edgeever-workspace-grid--focus {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 1024px) {
+  .edgeever-workspace-grid--editor {
+    grid-template-columns:
+      clamp(180px, 17vw, 260px)
+      clamp(240px, 23vw, var(--memo-list-width))
+      minmax(0, 1fr);
+  }
+
+  .edgeever-workspace-grid--single-right {
+    grid-template-columns: clamp(180px, 17vw, 260px) minmax(0, 1fr);
+  }
+}
+
 :root.dark body {
   background: #0f172a;
   color: #f8fafc;

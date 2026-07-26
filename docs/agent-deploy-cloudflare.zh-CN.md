@@ -21,6 +21,7 @@
 4. **绑定资源与凭据 (Bindings & Secrets)**
    - **D1 数据库绑定**：Binding 名称填 `DB`，关联数据库名称为 `edgeever`。
    - **R2 存储桶绑定**：Binding 名称填 `RESOURCES`，关联全局唯一的 R2 Bucket。
+   - **管理员用户名**：配置 `EDGE_EVER_AUTH_USERNAME`，默认值为 `admin`；如需自定义，可替换为其他用户名。
    - **Worker Secret**：添加密钥 `EDGE_EVER_AUTH_PASSWORD`，值为初始管理员登录密码。
 
 5. **配置 Workers Builds 命令**
@@ -35,7 +36,7 @@
    - 触发启动首次构建，待构建部署完成后，进行如下自动化验证：
      - 检查 `https://<你的 Worker 域名>/api/health` 返回 `200` 状态码且 JSON 内容为 `{"ok": true}`。
      - 检查 `https://<你的 Worker 域名>/api/openapi.json` 能够正常加载 OpenAPI 规范。
-     - 使用之前配置的 `EDGE_EVER_AUTH_PASSWORD` 验证登录 API 是否可用。
+     - 使用之前配置的 `EDGE_EVER_AUTH_USERNAME`（默认 `admin`）和 `EDGE_EVER_AUTH_PASSWORD` 验证登录 API 是否可用。
 
 7. **验证上游更新通道**
    - 在 Fork 的 **Actions** 中手动运行一次 **Update deployed EdgeEver**，确认上游同步与构建更新流程畅通。

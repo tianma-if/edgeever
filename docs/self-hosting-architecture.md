@@ -60,6 +60,9 @@ ambiguous.
 - Support `EDGE_EVER_AUTH_USERNAME`, `EDGE_EVER_AUTH_PASSWORD`, and session
   settings without Cloudflare-specific naming assumptions in the container
   entrypoint.
+- Keep login brute-force protection in the application layer with SQLite/D1-
+  compatible storage; Cloudflare Rate Limiting and WAF may be optional
+  deployment-level enhancements, but must not be required.
 - Expose a health check that distinguishes process availability from database
   readiness and attachment-store readiness.
 

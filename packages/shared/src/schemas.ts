@@ -80,6 +80,10 @@ export const LoginSchema = z.object({
   deviceId: z.string().trim().min(16).max(160).optional(),
 });
 
+export const LoginDeviceSessionUpdateSchema = z.object({
+  label: z.string().trim().max(80).nullable(),
+});
+
 export const ChangePasswordSchema = z
   .object({
     currentPassword: z.string().min(1).max(512),
@@ -125,6 +129,7 @@ export type MoveMemosInput = z.infer<typeof MoveMemosSchema>;
 export type DeleteMemosInput = z.infer<typeof DeleteMemosSchema>;
 export type MergeMemosInput = z.infer<typeof MergeMemosSchema>;
 export type LoginInput = z.infer<typeof LoginSchema>;
+export type LoginDeviceSessionUpdateInput = z.infer<typeof LoginDeviceSessionUpdateSchema>;
 export type ChangePasswordInput = z.infer<typeof ChangePasswordSchema>;
 export type UserCreateInput = z.infer<typeof UserCreateSchema>;
 export type UserUpdateInput = z.infer<typeof UserUpdateSchema>;

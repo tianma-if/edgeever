@@ -67,6 +67,39 @@
   animation: border-beam calc(var(--duration)*1s) infinite linear;
 }
 
+@utility animate-rise {
+  animation: landing-rise 0.6s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+
+@utility animate-pop {
+  animation: landing-pop 0.5s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+
+@keyframes landing-rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes landing-pop {
+  0% {
+    transform: scale(0.7) rotate(-3deg);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.06) rotate(1deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(-1deg);
+  }
+}
+
 @keyframes float {
   0% { transform: translateY(0px); }
   50% { transform: translateY(-10px); }

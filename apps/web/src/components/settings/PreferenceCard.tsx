@@ -1,7 +1,7 @@
-import { ChartNoAxesCombined, Image, Languages, Palette } from "lucide-react";
+import { ChartNoAxesCombined, Image, Languages, Palette, RefreshCw } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { ShortcutSettings } from "@/lib/app-helpers";
+import { writeAutoSaveIntervalPreference, type AutoSaveIntervalPreference, type ShortcutSettings } from "@/lib/app-helpers";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -20,6 +20,8 @@ import { EDITOR_THEME_NAMES, MERMAID_THEME_NAMES, useTheme } from "../ThemeProvi
 interface PreferenceCardProps {
   imageCompressionEnabled: boolean;
   onImageCompressionChange: (enabled: boolean) => void;
+  autoSaveIntervalMs: number | null;
+  onAutoSaveIntervalChange: (intervalMs: number | null) => void;
   shortcutSettings: ShortcutSettings;
   onShortcutSettingsChange: (settings: ShortcutSettings) => void;
 }
@@ -27,6 +29,8 @@ interface PreferenceCardProps {
 export const PreferenceCard = ({
   imageCompressionEnabled,
   onImageCompressionChange,
+  autoSaveIntervalMs,
+  onAutoSaveIntervalChange,
   shortcutSettings,
   onShortcutSettingsChange,
 }: PreferenceCardProps) => {
@@ -39,6 +43,9 @@ export const PreferenceCard = ({
     setActiveLocalePreference(preference);
     void changeAppLocalePreference(preference);
   };
+
+  const autoSaveIntervalPreference: AutoSaveIntervalPreference =
+    autoSaveIntervalMs === 300_000 ? "5m" : autoSaveIntervalMs === 900_000 ? "15m" : autoSaveIntervalMs === 1_800_000 ? "30m" : autoSaveIntervalMs === 3_600_000 ? "1h" : autoSaveIntervalMs === 7_200_000 ? "2h" : "1m";
 
   return (
     <Card className="w-full min-w-0 overflow-hidden shadow-none">
@@ -72,6 +79,40 @@ export const PreferenceCard = ({
                     {localeLabels[locale]}
                   </SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="flex min-h-16 flex-col items-start gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+          <div className="flex min-w-0 items-start gap-3">
+            <RefreshCw className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" />
+            <div className="min-w-0">
+              <div className="text-sm font-semibold text-slate-900">{t("settings.autoSaveIntervalTitle")}</div>
+              <div className="mt-0.5 text-xs leading-4 text-slate-500">{t("settings.autoSaveIntervalDescription")}</div>
+            </div>
+          </div>
+          <div className="w-full shrink-0 sm:w-44">
+            <Select
+              value={autoSaveIntervalPreference}
+              onValueChange={(value) => {
+                const preference = value as AutoSaveIntervalPreference;
+                writeAutoSaveIntervalPreference(preference);
+                onAutoSaveIntervalChange(
+                  preference === "5m" ? 300_000 : preference === "15m" ? 900_000 : preference === "30m" ? 1_800_000 : preference === "1h" ? 3_600_000 : preference === "2h" ? 7_200_000 : 60_000
+                );
+              }}
+            >
+              <SelectTrigger aria-label={t("settings.autoSaveIntervalTitle")} className="h-9 bg-white">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1m">{t("settings.autoSaveIntervals.1m")}</SelectItem>
+                <SelectItem value="5m">{t("settings.autoSaveIntervals.5m")}</SelectItem>
+                <SelectItem value="15m">{t("settings.autoSaveIntervals.15m")}</SelectItem>
+                <SelectItem value="30m">{t("settings.autoSaveIntervals.30m")}</SelectItem>
+                <SelectItem value="1h">{t("settings.autoSaveIntervals.1h")}</SelectItem>
+                <SelectItem value="2h">{t("settings.autoSaveIntervals.2h")}</SelectItem>
               </SelectContent>
             </Select>
           </div>

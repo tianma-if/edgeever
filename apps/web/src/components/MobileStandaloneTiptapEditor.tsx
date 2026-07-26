@@ -14,7 +14,7 @@ import {
   MobileEditorNotebookSheet,
   MobileEditorToolbar,
 } from "@/components/MobileStandaloneEditorParts";
-import { getEditableMemoTitle, getNotebookMoveOptions } from "@/lib/app-helpers";
+import { getEditableMemoTitle, getNotebookMoveOptions, readAutoSaveIntervalPreference } from "@/lib/app-helpers";
 import { defaultLocale, normalizeLocale } from "@/i18n/locales";
 import { compressImageForUpload } from "@/lib/image-compression";
 import { localDb, type LocalDraft } from "@/lib/local-db";
@@ -24,7 +24,6 @@ import {
   writeMobileEditorReturnPreview,
 } from "@/lib/mobile-editor";
 import {
-  MOBILE_EDITOR_AUTO_SAVE_DELAY_MS,
   MOBILE_EDITOR_INITIAL_FOCUS_DELAY_MS,
   MOBILE_EDITOR_LEAVE_SAVE_TIMEOUT_MS,
   getMobileEditorDraftKey,
@@ -201,10 +200,13 @@ export const MobileStandaloneTiptapEditor = ({
       if (saveTimerRef.current !== null) {
         window.clearTimeout(saveTimerRef.current);
       }
-      saveTimerRef.current = window.setTimeout(() => {
-        saveTimerRef.current = null;
-        void saveNowRef.current();
-      }, MOBILE_EDITOR_AUTO_SAVE_DELAY_MS);
+      const autoSaveIntervalMs = readAutoSaveIntervalPreference();
+      if (autoSaveIntervalMs !== null) {
+        saveTimerRef.current = window.setTimeout(() => {
+          saveTimerRef.current = null;
+          void saveNowRef.current();
+        }, autoSaveIntervalMs);
+      }
     },
   });
 
@@ -450,10 +452,13 @@ export const MobileStandaloneTiptapEditor = ({
     if (saveTimerRef.current !== null) {
       window.clearTimeout(saveTimerRef.current);
     }
-    saveTimerRef.current = window.setTimeout(() => {
-      saveTimerRef.current = null;
-      void saveNow();
-    }, MOBILE_EDITOR_AUTO_SAVE_DELAY_MS);
+    const autoSaveIntervalMs = readAutoSaveIntervalPreference();
+    if (autoSaveIntervalMs !== null) {
+      saveTimerRef.current = window.setTimeout(() => {
+        saveTimerRef.current = null;
+        void saveNow();
+      }, autoSaveIntervalMs);
+    }
   }, [persistLocalDraft, saveNow, setSaveStateStable]);
 
   const persistReturnPreview = useCallback(() => {

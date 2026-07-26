@@ -49,8 +49,7 @@ const menuitems = [
   <header class="flex flex-col lg:flex-row justify-between items-center my-5">
     <Astronav>
       <div class="flex w-full lg:w-auto items-center justify-between">
-        <a href={getLocalizedPath(locale, "/")} class="flex items-center gap-2 text-lg" aria-label={copy.homeAria}
-          >
+        <a href={getLocalizedPath(locale, "/")} class="flex items-center gap-2 text-lg" aria-label={copy.homeAria}>
           <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--edgeever-brand-logo-bg)]">
             <svg class="h-6 w-6" viewBox="0 0 64 64" role="img" aria-hidden="true">
               <rect x="14" y="10" width="36" height="44" rx="8" fill="var(--edgeever-brand-logo-mark)" />
@@ -59,15 +58,16 @@ const menuitems = [
             </svg>
           </span>
           <span>
-            <span class="font-bold text-slate-800">Edge</span><span class="text-slate-500">Ever</span>
+            <span class="font-bold text-slate-800 tracking-tight">Edge</span><span class="text-slate-500">Ever</span>
           </span>
         </a>
         <div class="block lg:hidden">
           <MenuIcon class="w-4 h-4 text-gray-800" />
         </div>
       </div>
+
       <MenuItems class="hidden w-full lg:w-auto mt-2 lg:flex lg:mt-0">
-        <ul class="flex flex-col lg:flex-row lg:gap-3">
+        <ul class="flex flex-col lg:flex-row lg:gap-1">
           {
             menuitems.map((item, index) => (
               <>
@@ -83,13 +83,8 @@ const menuitems = [
                   <li>
                     <a
                       href={item.path}
-                      class="flex lg:px-3 py-2 items-center text-gray-600 hover:text-gray-900">
-                      <span> {item.title}</span>
-                      {item.badge && (
-                        <span class="ml-1 px-2 py-0.5 text-[10px] animate-pulse font-semibold uppercase text-white bg-indigo-600 rounded-full">
-                          New
-                        </span>
-                      )}
+                      class="flex lg:px-3 py-2 items-center text-[13px] font-semibold text-slate-600 hover:text-emerald-700 transition-colors">
+                      <span>{item.title}</span>
                     </a>
                   </li>
                 )}
@@ -102,15 +97,17 @@ const menuitems = [
             href="https://github.com/tianma-if/edgeever"
             target="_blank"
             rel="noopener"
-            class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-gray-600 transition hover:border-slate-300 hover:text-gray-900"
+            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-full"
             aria-label="GitHub"
           >
-            <Icon class="h-5 w-5" name="bx:bxl-github" />
+            <Icon class="h-4 w-4 text-slate-800" name="bx:bxl-github" />
+            <span>{copy.openSource}</span>
           </a>
           <LanguageSwitcher pathname={Astro.url.pathname} compact />
         </div>
       </MenuItems>
     </Astronav>
+
     <div>
       <div class="hidden lg:flex items-center gap-4">
         <LanguageSwitcher pathname={Astro.url.pathname} />
@@ -118,10 +115,11 @@ const menuitems = [
           href="https://github.com/tianma-if/edgeever"
           target="_blank"
           rel="noopener"
-          class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-gray-600 transition hover:border-slate-300 hover:text-gray-900"
+          class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-full transition-all duration-200 shadow-2xs"
           aria-label="GitHub"
         >
-          <Icon class="h-5 w-5" name="bx:bxl-github" />
+          <Icon class="h-4 w-4 text-slate-800" name="bx:bxl-github" />
+          <span>{copy.openSource}</span>
         </a>
       </div>
     </div>

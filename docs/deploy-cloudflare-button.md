@@ -49,7 +49,10 @@ Log into your [Cloudflare Dashboard](https://dash.cloudflare.com/):
 | :--- | :--- | :--- | :--- |
 | **D1 Database Binding** | `DB` | Select `edgeever` database | Stores notes & structured data |
 | **R2 Bucket Binding** | `RESOURCES` | Select your created R2 bucket | Stores images & file attachments |
+| **Environment Variable** | `EDGE_EVER_AUTH_USERNAME` | `admin` (customizable) | Admin login username |
 | **Environment Variable (Secret)** | `EDGE_EVER_AUTH_PASSWORD` | Set your admin password | Initial login credential |
+
+> `EDGE_EVER_AUTH_USERNAME` is prefilled with `admin`. Most users can keep this value. Advanced users can replace it with a custom administrator username; the configured username is required at login.
 
 ---
 
@@ -73,7 +76,7 @@ Click **Save and Deploy** to trigger the initial build.
    ```json
    { "ok": true }
    ```
-3. Open the homepage, log in with your configured `EDGE_EVER_AUTH_PASSWORD`, and start using EdgeEver!
+3. Open the homepage, log in with your configured administrator username (default: `admin`) and `EDGE_EVER_AUTH_PASSWORD`, and start using EdgeEver!
 4. Go back to your Fork's **Actions** tab on GitHub and manually trigger **Update deployed EdgeEver** once to ensure upstream updates will sync properly in the future.
 
 ---

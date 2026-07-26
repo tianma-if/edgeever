@@ -67,6 +67,7 @@ import { RevisionHistoryDialog } from "./dialogs/RevisionHistoryDialog";
 import { api } from "@/lib/api";
 import { consumeStandaloneMobileEditorReturn, openStandaloneMobileEditor } from "@/lib/mobile-editor";
 import { cn, formatDateTime, parseTagsText } from "@/lib/utils";
+import { EDITOR_CONTENT_MAX_WIDTH, EDITOR_CONTENT_MAX_WIDTH_COLLAPSED } from "@/lib/workspace-ui";
 import {
   countMemoCharacters,
   docToMarkdown,
@@ -99,7 +100,6 @@ import { RELEASE_STATUS_EVENT } from "@/lib/release-notice";
 
 const SUPPORTED_PASTE_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp", "image/avif"]);
 const MOBILE_EDITOR_QUERY = "(max-width: 639px)";
-const EDITOR_AUTO_SAVE_DELAY_MS = 1200;
 const MOBILE_DRAFT_PERSIST_DELAY_MS = 800;
 const NOTE_SEARCH_HIGHLIGHT_PLUGIN_KEY = new PluginKey("edgeever-note-search-highlight");
 
@@ -499,6 +499,7 @@ type EditorPaneProps = {
   isLoading: boolean;
   contentSearchQuery?: string;
   imageCompressionEnabled: boolean;
+  autoSaveIntervalMs: number | null;
   hasNextMemo: boolean;
   hasPreviousMemo: boolean;
   onBackToList: () => void;
@@ -513,7 +514,6 @@ type EditorPaneProps = {
   searchFocusToken: number;
   replaceFocusToken: number;
   selectionActionBar?: ReactNode;
-  demoMode?: boolean;
 };
 
 type RichEditorPaneProps = EditorPaneProps & {
@@ -524,6 +524,7 @@ const MobileNativeEditorPane = ({
   memo,
   notebooks,
   isTrashView,
+  autoSaveIntervalMs,
   onBackToList,
   onSaved,
   onMobileDefaultEditConsumed,
@@ -709,14 +710,17 @@ const MobileNativeEditorPane = ({
 
     if (saveTimerRef.current !== null) {
       window.clearTimeout(saveTimerRef.current);
-    }
-    saveTimerRef.current = window.setTimeout(() => {
       saveTimerRef.current = null;
-      if (hasUnsavedChangesRef.current) {
-        void saveCurrent();
-      }
-    }, EDITOR_AUTO_SAVE_DELAY_MS);
-  }, [persistDraft, saveCurrent]);
+    }
+    if (autoSaveIntervalMs !== null) {
+      saveTimerRef.current = window.setTimeout(() => {
+        saveTimerRef.current = null;
+        if (hasUnsavedChangesRef.current) {
+          void saveCurrent();
+        }
+      }, autoSaveIntervalMs);
+    }
+  }, [autoSaveIntervalMs, persistDraft, saveCurrent]);
 
   useEffect(() => {
     document.documentElement.classList.add("edgeever-mobile-native-editing");
@@ -1098,7 +1102,10 @@ export const EditorPane = (props: EditorPaneProps) => {
   return (
     <RichEditorPane
       {...props}
-      mobileDefaultEditMemoId={null}
+      // On desktop this is also the create-note autofocus request. On mobile
+      // the native editor branch above consumes it before RichEditorPane is
+      // rendered.
+      mobileDefaultEditMemoId={props.mobileDefaultEditMemoId}
       onRequestMobileNativeEdit={() => {
         if (props.memo?.id && !readOnly) {
           setMobileNativeEditMemoId(props.memo.id);
@@ -1121,6 +1128,7 @@ const RichEditorPane = ({
   isLoading,
   contentSearchQuery = "",
   imageCompressionEnabled,
+  autoSaveIntervalMs,
   hasNextMemo,
   hasPreviousMemo,
   onBackToList,
@@ -1136,7 +1144,6 @@ const RichEditorPane = ({
   replaceFocusToken,
   selectionActionBar,
   onRequestMobileNativeEdit,
-  demoMode = false,
 }: RichEditorPaneProps) => {
   const { t } = useTranslation();
   const { customEditorTheme, editorTheme } = useTheme();
@@ -1169,6 +1176,7 @@ const RichEditorPane = ({
   const [isMarkdownMode, setIsMarkdownMode] = useState(false);
   const [mobileToolbarOpen, setMobileToolbarOpen] = useState(false);
   const [mobileImeDebugOpen, setMobileImeDebugOpen] = useState(false);
+  const [editorOutlineCollapsed, setEditorOutlineCollapsed] = useState(false);
   const [mobileImeDebugActiveElement, setMobileImeDebugActiveElement] = useState(getActiveElementLabel);
   const [mobileImeDebugEvents, setMobileImeDebugEvents] = useState<MobileImeDebugEntry[]>([]);
   const [wechatCopyState, setWechatCopyState] = useState<"idle" | "copying" | "copied" | "error">("idle");
@@ -1258,12 +1266,18 @@ const RichEditorPane = ({
           }
 
           const currentEditor = editorRef.current;
-          if (!isMobileViewport && isEditorReady(currentEditor)) {
-            currentEditor.commands.focus("end");
-            return;
+          if (!isMobileViewport) {
+            if (isEditorReady(currentEditor) && hydratedMemoIdRef.current === memo.id) {
+              currentEditor.commands.focus("end");
+              onMobileDefaultEditConsumed();
+              return;
+            }
           }
 
-          if (attempt < 10) {
+          // The editor is mounted before its memo hydration/edit session
+          // finishes. Keep retrying across that async boundary so a newly
+          // created note reliably receives the caret on desktop as well.
+          if (attempt < 120) {
             focusWhenReady(attempt + 1);
             return;
           }
@@ -2173,21 +2187,23 @@ const RichEditorPane = ({
     if (mobileSaveTimerRef.current !== null) {
       window.clearTimeout(mobileSaveTimerRef.current);
     }
-    mobileSaveTimerRef.current = window.setTimeout(() => {
-      mobileSaveTimerRef.current = null;
-      if (
-        !memoRef.current ||
-        memoRef.current.isDeleted ||
-        !hasUnsavedChangesRef.current ||
-        saveMutation.isPending ||
-        saveState === "conflict"
-      ) {
-        return;
-      }
+    if (autoSaveIntervalMs !== null) {
+      mobileSaveTimerRef.current = window.setTimeout(() => {
+        mobileSaveTimerRef.current = null;
+        if (
+          !memoRef.current ||
+          memoRef.current.isDeleted ||
+          !hasUnsavedChangesRef.current ||
+          saveMutation.isPending ||
+          saveState === "conflict"
+        ) {
+          return;
+        }
 
-      saveMutation.mutate();
-    }, EDITOR_AUTO_SAVE_DELAY_MS);
-  }, [getMobilePlainTextValue, persistCurrentDraft, saveMutation, saveState, tagsText, title]);
+        saveMutation.mutate();
+      }, autoSaveIntervalMs);
+    }
+  }, [autoSaveIntervalMs, getMobilePlainTextValue, persistCurrentDraft, saveMutation, saveState, tagsText, title]);
 
   useEffect(() => {
     markMobilePlainTextDirtyRef.current = markMobilePlainTextDirty;
@@ -2254,12 +2270,16 @@ const RichEditorPane = ({
       return;
     }
 
+    if (autoSaveIntervalMs === null) {
+      return;
+    }
+
     const timer = window.setTimeout(() => {
       saveMutation.mutate();
-    }, EDITOR_AUTO_SAVE_DELAY_MS);
+    }, autoSaveIntervalMs);
 
     return () => window.clearTimeout(timer);
-  }, [dirtyVersion, editor, hasUnsavedChanges, memo, saveMutation, saveState, useMobilePlainTextEditor]);
+  }, [autoSaveIntervalMs, dirtyVersion, editor, hasUnsavedChanges, memo, saveMutation, saveState, useMobilePlainTextEditor]);
 
   if (isSelectionMode) {
     return (
@@ -2561,12 +2581,6 @@ const RichEditorPane = ({
           </div>
 
           <div className="flex shrink-0 items-center gap-1">
-            {demoMode && (
-              <span className="hidden items-center gap-1 px-1.5 text-xs text-slate-400 select-none md:inline-flex">
-                <Info className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                <span>{t("demo.privacyNotice")}</span>
-              </span>
-            )}
             <span
               className="hidden whitespace-nowrap px-1.5 text-xs tabular-nums text-slate-400 sm:inline-flex"
               title={t("editor.characterCount", { count: characterCount })}
@@ -2653,7 +2667,7 @@ const RichEditorPane = ({
                 <TooltipTrigger asChild>
                   <Button
                     className={cn(
-                      "hidden h-8 w-8 text-slate-500 transition-all hover:bg-slate-100 hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-slate-300 sm:inline-flex",
+                      "hidden h-8 w-8 text-slate-500 transition-all hover:bg-slate-100 hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-slate-300 min-[1600px]:inline-flex",
                       wechatCopyState === "copying" && "bg-slate-100 text-slate-700",
                       wechatCopyState === "copied" && "bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-100",
                       wechatCopyState === "error" && "bg-rose-100 text-rose-700 ring-1 ring-rose-200 hover:bg-rose-100"
@@ -2681,13 +2695,13 @@ const RichEditorPane = ({
               </Tooltip>
             </TooltipProvider>
             <IconTooltip label={t("editor.versionHistory")}>
-              <Button className="hidden h-8 w-8 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-slate-300 sm:inline-flex" size="icon" variant="ghost" aria-label={t("editor.versionHistory")} onClick={() => setHistoryOpen(true)}>
+              <Button className="hidden h-8 w-8 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-slate-300 min-[1600px]:inline-flex" size="icon" variant="ghost" aria-label={t("editor.versionHistory")} onClick={() => setHistoryOpen(true)}>
                 <History className="h-5 w-5" strokeWidth={2.25} />
               </Button>
             </IconTooltip>
-            <GitHubRepositoryLink className="hidden h-8 w-8 justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/70 lg:inline-flex" iconClassName="h-5 w-5" />
+            <GitHubRepositoryLink className="hidden h-8 w-8 justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/70 min-[1600px]:inline-flex" iconClassName="h-5 w-5" />
             <IconTooltip label={t("systemInfo.title")}>
-              <Button className="relative hidden h-8 w-8 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-emerald-500/70 sm:inline-flex" size="icon" variant="ghost" aria-label={t("systemInfo.title")} onClick={() => setSystemInfoOpen(true)}>
+              <Button className="relative hidden h-8 w-8 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-emerald-500/70 min-[1600px]:inline-flex" size="icon" variant="ghost" aria-label={t("systemInfo.title")} onClick={() => setSystemInfoOpen(true)}>
                 <Info className="h-5 w-5" strokeWidth={2.25} />
                 {updateAvailable ? <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-emerald-500 ring-2 ring-white" /> : null}
               </Button>
@@ -2989,8 +3003,11 @@ const RichEditorPane = ({
               "min-w-0 flex-1 transition-[max-width] duration-200",
               desktopFocusMode
                 ? "max-w-[960px]"
-                : "max-w-[var(--editor-content-max-width,880px)]"
+                : "max-w-none"
             )}
+            style={!desktopFocusMode ? {
+              maxWidth: editorOutlineCollapsed ? EDITOR_CONTENT_MAX_WIDTH_COLLAPSED : EDITOR_CONTENT_MAX_WIDTH,
+            } : undefined}
           >
             {useMobilePlainTextEditor ? (
               <>
@@ -3044,7 +3061,12 @@ const RichEditorPane = ({
             )}
           </div>
           {!isMobileViewport && !useMobilePlainTextEditor && !useMarkdownSourceEditor && (
-            <EditorOutline editor={editor} scrollContainer={editorScrollContainer} />
+            <EditorOutline
+              editor={editor}
+              scrollContainer={editorScrollContainer}
+              collapsed={editorOutlineCollapsed}
+              onCollapsedChange={setEditorOutlineCollapsed}
+            />
           )}
         </div>
       </div>

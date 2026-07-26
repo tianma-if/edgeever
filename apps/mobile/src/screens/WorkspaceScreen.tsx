@@ -125,7 +125,7 @@ import EditorRuntimePrewarm from "../components/EditorRuntimePrewarm";
 import { showEdgeEverKeyboard } from "../../modules/edgeever-keyboard";
 import LocalTiptapEditor, { type LocalTiptapEditorRef } from "../components/LocalTiptapEditor";
 import { resolveMobileThemeStyles, useMobileTheme, type MobileResolvedTheme } from "../lib/mobile-theme";
-import { MobileUpdateCard } from "../components/MobileUpdateCard";
+import { useMobileUpdate } from "../lib/mobile-update";
 import { MobileMermaidDiagram, MobileMermaidProvider } from "../components/MobileMermaid";
 import { getMobileMarkdownFenceLanguage, trimMobileMarkdownFenceContent } from "../lib/mobile-mermaid";
 
@@ -1913,7 +1913,6 @@ const SettingsView = ({
                 </View>
               </View>
             </View>
-            <MobileUpdateCard />
             <SystemInfoCard embedded />
           </SettingsGroup>
         </View>
@@ -1936,6 +1935,18 @@ const SettingsView = ({
     }
     return (
       <View style={styles.settingsDetailList}>
+        <View style={styles.accountSummaryCard}>
+          <View style={styles.accountSummaryIcon}>
+            <UserRound color="#047857" size={19} />
+          </View>
+      <View style={styles.accountSummaryContent}>
+            <Text style={styles.accountSummaryTitle}>{translate("当前账户")}</Text>
+            <Text style={styles.accountSummaryName}>{currentUser?.displayName || currentUser?.username || "—"}</Text>
+        <Text style={styles.accountSummaryHelp}>
+              @{currentUser?.username ?? "—"} · {currentUser?.role === "owner" ? translate("实例管理员") : translate("成员")}
+            </Text>
+          </View>
+        </View>
         <View style={styles.settingsGroup}>
           <AccountSecurityPanel active currentUser={currentUser} section="password" />
         </View>
@@ -3086,6 +3097,7 @@ const AdvancedPlayCard = ({ embedded = false }: { embedded?: boolean }) => {
 const SystemInfoCard = ({ embedded = false }: { embedded?: boolean }) => {
   const [copied, setCopied] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const { checkForUpdate, hasUpdate, status } = useMobileUpdate();
   const localePreference = useMobileLocalePreference();
   const copy = getMobileSystemInfoText(localePreference);
   const infoItems = getMobileSystemInfoItems(localePreference);
@@ -3103,6 +3115,7 @@ const SystemInfoCard = ({ embedded = false }: { embedded?: boolean }) => {
           <View style={styles.settingsGroupHeader}>
             <Info color="#047857" size={16} />
             <Text style={styles.settingsGroupTitle}>{copy.title}</Text>
+            {hasUpdate ? <View accessibilityLabel="有新版本" style={styles.updateDot} /> : null}
           </View>
           <Text style={styles.settingsLinkDescription}>{copy.description}</Text>
         </View>
@@ -3112,6 +3125,13 @@ const SystemInfoCard = ({ embedded = false }: { embedded?: boolean }) => {
         <View style={styles.settingsAccordionContent}>
           <ActionButton label={copied ? "已复制" : "复制信息"} onPress={copySystemInfo}>
             {copied ? <ShieldCheck color="#047857" size={16} /> : <Copy color="#0f172a" size={16} />}
+          </ActionButton>
+          <ActionButton
+            disabled={status === "checking"}
+            label={status === "checking" ? "正在检查…" : hasUpdate ? "发现新版本" : "检查更新"}
+            onPress={() => void checkForUpdate()}
+          >
+            {status === "checking" ? <ActivityIndicator color="#047857" size="small" /> : <RefreshCw color="#047857" size={16} />}
           </ActionButton>
           <View style={styles.systemInfoRows}>
             {Array.from({ length: Math.ceil(infoItems.length / 3) }, (_, rowIndex) => {
@@ -6162,6 +6182,15 @@ const baseWorkspaceStyles = StyleSheet.create({
     gap: 8,
     justifyContent: "flex-start",
   },
+  updateDot: {
+    backgroundColor: "#10b981",
+    borderColor: "#ffffff",
+    borderRadius: 5,
+    borderWidth: 1,
+    height: 9,
+    marginLeft: 1,
+    width: 9,
+  },
   settingsTitle: {
     color: "#0f172a",
     fontSize: 16,
@@ -6224,6 +6253,45 @@ const baseWorkspaceStyles = StyleSheet.create({
   },
   settingsDetailList: {
     gap: 16,
+  },
+  accountSummaryCard: {
+    alignItems: "center",
+    backgroundColor: "#ffffff",
+    borderColor: "#e2e8f0",
+    borderRadius: 12,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 12,
+    padding: 16,
+  },
+    accountSummaryIcon: {
+      alignItems: "center",
+      backgroundColor: "#ecfdf5",
+    borderRadius: 999,
+    height: 40,
+      justifyContent: "center",
+      width: 40,
+    },
+    accountSummaryContent: {
+      flex: 1,
+      minWidth: 0,
+    },
+    accountSummaryHelp: {
+      color: "#64748b",
+      fontSize: 12,
+      lineHeight: 18,
+      marginTop: 3,
+    },
+    accountSummaryTitle: {
+    color: "#64748b",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  accountSummaryName: {
+    color: "#0f172a",
+    fontSize: 15,
+    fontWeight: "800",
+    marginTop: 2,
   },
   settingsGroup: {
     backgroundColor: "#ffffff",

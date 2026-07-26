@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Editor } from "@tiptap/react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, ListTree } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { EDITOR_OUTLINE_WIDTH } from "@/lib/workspace-ui";
@@ -14,6 +14,8 @@ type OutlineItem = {
 type EditorOutlineProps = {
   editor: Editor | null;
   scrollContainer: HTMLDivElement | null;
+  collapsed: boolean;
+  onCollapsedChange: (collapsed: boolean) => void;
 };
 
 const stripLeadingEmoji = (str: string): string => {
@@ -42,10 +44,9 @@ const getOutlineItems = (editor: Editor): OutlineItem[] => {
   return items;
 };
 
-export const EditorOutline = ({ editor, scrollContainer }: EditorOutlineProps) => {
+export const EditorOutline = ({ editor, scrollContainer, collapsed, onCollapsedChange }: EditorOutlineProps) => {
   const { t } = useTranslation();
   const [items, setItems] = useState<OutlineItem[]>([]);
-  const [collapsed, setCollapsed] = useState(false);
   const [activePos, setActivePos] = useState<number | null>(null);
 
   const refresh = useCallback(() => {
@@ -158,25 +159,35 @@ export const EditorOutline = ({ editor, scrollContainer }: EditorOutlineProps) =
 
   return (
     <aside
-      className="sticky top-6 h-fit max-h-[calc(100vh-8rem)] shrink-0 select-none overflow-y-auto py-2"
-      style={{ width: EDITOR_OUTLINE_WIDTH }}
+      className={cn(
+        "select-none overflow-x-hidden",
+        collapsed
+          ? "absolute right-2 top-6 z-10 h-8 w-8 overflow-hidden"
+          : "sticky top-6 h-fit max-h-[calc(100vh-8rem)] shrink-0 overflow-y-auto py-2"
+      )}
+      style={!collapsed ? { width: EDITOR_OUTLINE_WIDTH } : undefined}
       aria-label={t("editor.outline")}
     >
-      <div className="mb-3 flex items-center justify-between">
+      <div className={cn("flex", collapsed ? "justify-center" : "mb-3 justify-between")}>
         <button
           type="button"
-          className="group flex items-center gap-1.5 text-left text-[11px] font-bold uppercase tracking-wider text-slate-400 transition-colors hover:text-slate-600"
-          onClick={() => setCollapsed((value) => !value)}
+          className={cn(
+            "group flex items-center text-left text-[11px] font-bold uppercase tracking-wider text-slate-400 transition-colors hover:text-slate-600",
+            collapsed ? "h-7 w-7 justify-center rounded-md hover:bg-slate-100" : "gap-1.5"
+          )}
+          onClick={() => onCollapsedChange(!collapsed)}
           aria-expanded={!collapsed}
+          aria-label={t(collapsed ? "editor.showOutline" : "editor.hideOutline")}
+          title={t(collapsed ? "editor.showOutline" : "editor.hideOutline")}
         >
-          <span>{t("editor.outline")}</span>
-          <ChevronDown
-            className={cn(
-              "h-3 w-3 text-slate-400 transition-transform duration-200 group-hover:text-slate-600",
-              collapsed && "-rotate-90"
-            )}
-            aria-hidden="true"
-          />
+          {collapsed ? (
+            <ListTree className="h-4 w-4 text-slate-400 group-hover:text-slate-600" aria-hidden="true" />
+          ) : (
+            <>
+              <span>{t("editor.outline")}</span>
+              <ChevronDown className="h-3 w-3 text-slate-400 transition-transform duration-200 group-hover:text-slate-600" aria-hidden="true" />
+            </>
+          )}
         </button>
       </div>
 

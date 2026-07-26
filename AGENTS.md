@@ -26,10 +26,7 @@ Related Issue: #<issue-number>
 
 - List completed tests, type checks, and build results in English.
 
-<details>
-<summary><b>🇨🇳 点击展开中文说明 / Chinese Changelog</b></summary>
-
-<br/>
+## 🇨🇳 中文说明 / Chinese Changelog
 
 ## 主要更新
 
@@ -41,7 +38,6 @@ Related Issue: #<issue-number>
 
 - 列出实际完成的测试、类型检查和构建结果。
 
-</details>
 ```
 
 ## 环境、部署与组件约束

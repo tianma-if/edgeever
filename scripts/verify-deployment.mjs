@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 export const REQUIRED_TABLES = [
   "users",
   "sessions",
+  "auth_login_attempts",
   "workspaces",
   "workspace_members",
   "notebooks",

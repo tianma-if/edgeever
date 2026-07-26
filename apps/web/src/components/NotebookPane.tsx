@@ -20,6 +20,7 @@ import {
   CheckCircle2,
   CircleUserRound,
   Download,
+  ExternalLink,
   RotateCcw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -550,6 +551,21 @@ export const NotebookPane = ({
               </span>
               <span className="min-w-0 flex-1 truncate">{t("pwa.sidebarInstall") || "安装桌面客户端"}</span>
             </button>
+          )}
+          {demoMode && (
+            <a
+              href="https://chromewebstore.google.com/detail/edgeever-web-clipper/gjadpfmanienmlofajibkfkkpfdkclgo"
+              target="_blank"
+              rel="noreferrer"
+              className="flex h-8 w-full items-center gap-3 rounded-md px-3 text-left text-sm font-medium leading-none text-slate-500 transition-colors duration-200 hover:bg-slate-50 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70"
+              title={t("pwa.sidebarClipperTitle") || "安装 EdgeEver 浏览器剪藏插件"}
+              aria-label={t("pwa.sidebarClipperTitle") || "安装 EdgeEver 浏览器剪藏插件"}
+            >
+              <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+                <ExternalLink className="h-3.5 w-3.5 text-slate-400" />
+              </span>
+              <span className="min-w-0 flex-1 truncate">{t("pwa.sidebarClipper") || "安装浏览器剪藏插件"}</span>
+            </a>
           )}
           <button
             onClick={onOpenSettings}

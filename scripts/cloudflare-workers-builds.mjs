@@ -114,7 +114,7 @@ const buildVariables = () => {
   for (const name of runtimeNames) {
     const scoped = instanceKey ? `EDGE_EVER_${instanceKey}_${name}` : "";
     const key = scoped && merged.get(scoped)?.trim() ? scoped : `EDGE_EVER_${name}`;
-    const current = merged.get(key)?.trim();
+    const current = merged.get(key)?.trim() || (name === "AUTH_USERNAME" ? "admin" : "");
     if (current) entries.push([key, current]);
   }
 
