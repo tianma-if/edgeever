@@ -214,11 +214,13 @@ If you want to migrate notes from other platforms to EdgeEver, please refer to t
 
 ## Docker Deployment Roadmap
 
-> 🐳 Docker-based self-hosting for VPS, NAS, and home servers is on the roadmap and will follow once the core features are stable. It is not yet available in current releases.
+> 🐳 Docker-based self-hosting for VPS, NAS, and home servers is planned but is not yet a supported release. An experimental Bun runtime is already available for adapter development, with SQLite + local files or S3-compatible storage; PostgreSQL remains reserved at the contract level. See [Self-hosting and Docker architecture](docs/self-hosting-architecture.md).
 
 ## Acknowledgements
 
-- The visual design of the editor themes is inspired by [gzh-design-skill](https://github.com/isjiamu/gzh-design-skill), whose themes were originally created by Jiamu (甲木) × Moyu Xiaoli (摸鱼小李). Thanks for their open-source work.
+- The visual design of the editor themes is inspired by [gzh-design-skill](https://github.com/isjiamu/gzh-design-skill).
+- The "Minimal Emerald" theme typography layout is inspired by [obsidian-minimal](https://github.com/kepano/obsidian-minimal).
+- The "Outline Emerald" theme typography layout is inspired by [Outline](https://github.com/outline/outline).
 
 ## Disclaimer
 

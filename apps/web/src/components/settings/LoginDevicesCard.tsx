@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Laptop, MonitorSmartphone, Smartphone, Tablet } from "lucide-react";
+import { Check, Laptop, MonitorSmartphone, Pencil, Smartphone, Tablet, X } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
 import { LoginSessionRevokeDialog, type LoginSessionRevokeTarget } from "./LoginSessionRevokeDialog";
 
@@ -69,6 +70,8 @@ export const LoginDevicesCard = ({ authRequired }: LoginDevicesCardProps) => {
   const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
   const [revokeTarget, setRevokeTarget] = useState<LoginSessionRevokeTarget | null>(null);
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [labelDraft, setLabelDraft] = useState("");
   const locale = i18n.resolvedLanguage ?? i18n.language;
   const sessionsQuery = useQuery({
     queryKey: ["auth", "sessions"],
@@ -82,6 +85,14 @@ export const LoginDevicesCard = ({ authRequired }: LoginDevicesCardProps) => {
         : api.revokeLoginDeviceSession(target.sessionId),
     onSuccess: async () => {
       setRevokeTarget(null);
+      await queryClient.invalidateQueries({ queryKey: ["auth", "sessions"] });
+    },
+  });
+  const labelMutation = useMutation({
+    mutationFn: ({ sessionId, label }: { sessionId: string; label: string | null }) =>
+      api.updateLoginDeviceSession(sessionId, { label }),
+    onSuccess: async () => {
+      setEditingSessionId(null);
       await queryClient.invalidateQueries({ queryKey: ["auth", "sessions"] });
     },
   });
@@ -117,6 +128,8 @@ export const LoginDevicesCard = ({ authRequired }: LoginDevicesCardProps) => {
                 const { deviceKind, os, browser } = describeUserAgent(session.userAgent);
                 const DeviceIcon = getDeviceIcon(deviceKind);
                 const details = [os, browser || t("loginDevices.unknownBrowser")].filter(Boolean).join(" · ");
+                const location = [session.ipAddress, session.ipCountry, session.ipRegion].filter(Boolean).join(" · ");
+                const isEditing = editingSessionId === session.id;
 
                 return (
                   <li key={session.id} className="flex gap-3 py-3 first:pt-0 last:pb-0">
@@ -125,7 +138,22 @@ export const LoginDevicesCard = ({ authRequired }: LoginDevicesCardProps) => {
                     </span>
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-sm font-semibold text-slate-800">{t(`loginDevices.${deviceKind}`)}</p>
+                        {isEditing ? (
+                          <Input
+                            autoFocus
+                            maxLength={80}
+                            className="h-8 w-48"
+                            value={labelDraft}
+                            placeholder={t("loginDevices.labelPlaceholder")}
+                            onChange={(event) => setLabelDraft(event.target.value)}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") labelMutation.mutate({ sessionId: session.id, label: labelDraft.trim() || null });
+                              if (event.key === "Escape") setEditingSessionId(null);
+                            }}
+                          />
+                        ) : (
+                          <p className="text-sm font-semibold text-slate-800">{session.label || t(`loginDevices.${deviceKind}`)}</p>
+                        )}
                         {session.isCurrent ? (
                           <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
                             {t("loginDevices.current")}
@@ -133,12 +161,35 @@ export const LoginDevicesCard = ({ authRequired }: LoginDevicesCardProps) => {
                         ) : null}
                       </div>
                       <p className="mt-0.5 truncate text-xs text-slate-500" title={session.userAgent ?? undefined}>{details}</p>
+                      {location ? <p className="mt-0.5 truncate text-xs text-slate-500">{t("loginDevices.location", { location })}</p> : null}
                       <p className="mt-1 text-xs text-slate-500">
                         {t("loginDevices.lastSeen", { time: formatSessionTime(session.lastSeenAt, locale) })}
                         <span aria-hidden="true"> · </span>
                         {t("loginDevices.signedIn", { time: formatSessionTime(session.createdAt, locale) })}
                       </p>
                     </div>
+                    <div className="flex shrink-0 items-start gap-1">
+                      {isEditing ? (
+                        <>
+                          <Button
+                            size="icon"
+                            variant="outline"
+                            aria-label={t("loginDevices.saveLabel")}
+                            disabled={labelMutation.isPending}
+                            onClick={() => labelMutation.mutate({ sessionId: session.id, label: labelDraft.trim() || null })}
+                          ><Check className="h-4 w-4" /></Button>
+                          <Button size="icon" variant="ghost" aria-label={t("loginDevices.cancelLabel")} onClick={() => setEditingSessionId(null)}>
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </>
+                      ) : (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          aria-label={t("loginDevices.editLabel")}
+                          onClick={() => { setEditingSessionId(session.id); setLabelDraft(session.label ?? ""); }}
+                        ><Pencil className="h-4 w-4" /></Button>
+                      )}
                     {!session.isCurrent ? (
                       <Button
                         size="sm"
@@ -149,6 +200,7 @@ export const LoginDevicesCard = ({ authRequired }: LoginDevicesCardProps) => {
                         {t("loginDevices.revokeDevice")}
                       </Button>
                     ) : null}
+                    </div>
                   </li>
                 );
               })}

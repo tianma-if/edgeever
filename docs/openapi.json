@@ -129,6 +129,37 @@
             "$ref": "#/components/responses/Error"
           }
         }
+      },
+      "patch": {
+        "summary": "Update a login device label",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": { "label": { "type": ["string", "null"], "maxLength": 80 } },
+                "required": ["label"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Device label updated",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Ok" } } }
+          },
+          "401": { "$ref": "#/components/responses/Error" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
       }
     },
     "/api/v1/auth/sessions/{sessionId}": {
@@ -1396,12 +1427,16 @@
         "properties": {
           "id": { "type": "string" },
           "userAgent": { "type": ["string", "null"] },
+          "label": { "type": ["string", "null"] },
+          "ipAddress": { "type": ["string", "null"] },
+          "ipCountry": { "type": ["string", "null"] },
+          "ipRegion": { "type": ["string", "null"] },
           "isCurrent": { "type": "boolean" },
           "createdAt": { "type": "string", "format": "date-time" },
           "lastSeenAt": { "type": "string", "format": "date-time" },
           "expiresAt": { "type": "string", "format": "date-time" }
         },
-        "required": ["id", "userAgent", "isCurrent", "createdAt", "lastSeenAt", "expiresAt"]
+        "required": ["id", "userAgent", "label", "ipAddress", "ipCountry", "ipRegion", "isCurrent", "createdAt", "lastSeenAt", "expiresAt"]
       },
       "AuthUser": {
         "type": "object",

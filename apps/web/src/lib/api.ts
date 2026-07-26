@@ -154,6 +154,12 @@ export const api = {
   revokeLoginDeviceSession: (sessionId: string) =>
     request<{ ok: true }>(`/api/v1/auth/sessions/${sessionId}`, { method: "DELETE" }),
 
+  updateLoginDeviceSession: (sessionId: string, payload: { label: string | null }) =>
+    request<{ ok: true }>(`/api/v1/auth/sessions/${sessionId}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+
   revokeOtherLoginDeviceSessions: () =>
     request<{ ok: true }>("/api/v1/auth/sessions", { method: "DELETE" }),
 

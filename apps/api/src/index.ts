@@ -8,6 +8,7 @@ import {
   ChangePasswordSchema,
   DeleteMemosSchema,
   LoginSchema,
+  LoginDeviceSessionUpdateSchema,
   markdownToDoc,
   isSuspiciousMemoOverwrite,
   isMemoEditBindingValid,
@@ -79,11 +80,27 @@ import {
   DEMO_ATTACHMENT_MARKDOWN_ZH,
   DEMO_ATTACHMENT_RESOURCES,
 } from "./demo-attachments";
+import { createCloudflareStorageAdapter } from "./cloudflare-storage-adapter";
+import type {
+  BlobStoreAdapter,
+  CloudflareStorageBindings,
+  DatabaseAdapter,
+  PreparedStatementAdapter,
+  StorageAdapter,
+} from "./storage-contract";
 
-type Bindings = {
-  DB: D1Database;
-  RESOURCES: R2Bucket;
+// Compatibility aliases keep the existing SQL-heavy implementation small
+// while routing its dependency through the platform-neutral contract above.
+// New code should use DatabaseAdapter/BlobStoreAdapter directly.
+type D1Database = DatabaseAdapter;
+type D1PreparedStatement = PreparedStatementAdapter;
+type R2Bucket = BlobStoreAdapter;
+
+type Bindings = CloudflareStorageBindings & {
+  /** The only persistence dependency exposed to application code. */
+  storage: StorageAdapter;
   EDGE_EVER_AUTH_USERNAME?: string;
+  EDGE_EVER_RUNTIME?: string;
   EDGE_EVER_AUTH_PASSWORD?: string;
   EDGE_EVER_AUTH_PASSWORD_HASH?: string;
   EDGE_EVER_SESSION_TTL_DAYS?: string;
@@ -92,6 +109,8 @@ type Bindings = {
   EDGE_EVER_LOCAL_DEMO_SEED?: string;
   EDGE_EVER_ALLOW_UNAUTHENTICATED?: string;
 };
+
+type WorkerBindings = Omit<Bindings, "storage">;
 
 type AuthContext = {
   kind: "user" | "agent";
@@ -435,7 +454,7 @@ app.get("/api/health", async (c) => {
   return c.json({
     ok: true,
     name: "edgeever",
-    runtime: "cloudflare-workers",
+    runtime: c.env.EDGE_EVER_RUNTIME ?? "cloudflare-workers",
     authMode,
   });
 });
@@ -489,8 +508,8 @@ app.get("/api/v1/auth/sessions", async (c) => {
   }
 
   const now = isoNow();
-  const rows = await c.env.DB.prepare(
-    `SELECT id, device_id, user_agent, expires_at, created_at, last_seen_at
+  const rows = await c.env.storage.db.prepare(
+    `SELECT id, device_id, user_agent, device_label, ip_address, ip_country, ip_region, expires_at, created_at, last_seen_at
      FROM sessions
      WHERE user_id = ?
        AND revoked_at IS NULL
@@ -506,6 +525,40 @@ app.get("/api/v1/auth/sessions", async (c) => {
   });
 });
 
+app.patch("/api/v1/auth/sessions/:sessionId", zValidator("json", LoginDeviceSessionUpdateSchema), async (c) => {
+  const auth = await authenticateRequest(c, true);
+
+  if (!auth || auth.kind !== "user" || !auth.actorId || !auth.sessionId) {
+    return unauthorized(c, "An interactive user session is required.");
+  }
+
+  const sessionId = c.req.param("sessionId");
+  const input = c.req.valid("json");
+  const now = isoNow();
+  const session = await c.env.storage.db.prepare(
+    `SELECT id, device_id FROM sessions
+     WHERE id = ? AND user_id = ? AND revoked_at IS NULL AND expires_at > ?`
+  ).bind(sessionId, auth.actorId, now).first<{ id: string; device_id: string | null }>();
+
+  if (!session) return notFound(c, "Login session not found.");
+
+  const statement = session.device_id
+    ? c.env.storage.db.prepare(
+        `UPDATE sessions SET device_label = ?
+         WHERE user_id = ? AND device_id = ? AND revoked_at IS NULL`
+      ).bind(input.label || null, auth.actorId, session.device_id)
+    : c.env.storage.db.prepare(`UPDATE sessions SET device_label = ? WHERE id = ?`).bind(input.label || null, session.id);
+
+  await c.env.storage.db.batch([
+    statement,
+    auditStatement(c.env.storage.db, "user", auth.actorId, "auth.session_label_update", "session", session.id, {
+      label: input.label || null,
+    }),
+  ]);
+
+  return c.json({ ok: true });
+});
+
 app.delete("/api/v1/auth/sessions", async (c) => {
   const auth = await authenticateRequest(c, true);
 
@@ -514,13 +567,13 @@ app.delete("/api/v1/auth/sessions", async (c) => {
   }
 
   const now = isoNow();
-  await c.env.DB.batch([
-    c.env.DB.prepare(
+  await c.env.storage.db.batch([
+    c.env.storage.db.prepare(
       `UPDATE sessions
        SET revoked_at = ?
        WHERE user_id = ? AND id != ? AND revoked_at IS NULL AND expires_at > ?`
     ).bind(now, auth.actorId, auth.sessionId, now),
-    auditStatement(c.env.DB, "user", auth.actorId, "auth.sessions_revoke_others", "session", auth.sessionId, {}),
+    auditStatement(c.env.storage.db, "user", auth.actorId, "auth.sessions_revoke_others", "session", auth.sessionId, {}),
   ]);
 
   return c.json({ ok: true });
@@ -539,7 +592,7 @@ app.delete("/api/v1/auth/sessions/:sessionId", async (c) => {
   }
 
   const now = isoNow();
-  const session = await c.env.DB.prepare(
+  const session = await c.env.storage.db.prepare(
     `SELECT id, device_id FROM sessions
      WHERE id = ? AND user_id = ? AND revoked_at IS NULL AND expires_at > ?`
   )
@@ -550,7 +603,7 @@ app.delete("/api/v1/auth/sessions/:sessionId", async (c) => {
     return notFound(c, "Login session not found.");
   }
 
-  const currentSession = await c.env.DB.prepare(`SELECT device_id FROM sessions WHERE id = ? AND user_id = ?`)
+  const currentSession = await c.env.storage.db.prepare(`SELECT device_id FROM sessions WHERE id = ? AND user_id = ?`)
     .bind(auth.sessionId, auth.actorId)
     .first<{ device_id: string | null }>();
 
@@ -558,14 +611,14 @@ app.delete("/api/v1/auth/sessions/:sessionId", async (c) => {
     return apiError(c, "current_session_cannot_be_revoked", "The current device cannot be revoked here.", 400);
   }
 
-  await c.env.DB.batch([
+  await c.env.storage.db.batch([
     session.device_id
-      ? c.env.DB.prepare(
+      ? c.env.storage.db.prepare(
           `UPDATE sessions SET revoked_at = ?
            WHERE user_id = ? AND device_id = ? AND revoked_at IS NULL`
         ).bind(now, auth.actorId, session.device_id)
-      : c.env.DB.prepare(`UPDATE sessions SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL`).bind(now, session.id),
-    auditStatement(c.env.DB, "user", auth.actorId, "auth.session_revoke", "session", session.id, {}),
+      : c.env.storage.db.prepare(`UPDATE sessions SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL`).bind(now, session.id),
+    auditStatement(c.env.storage.db, "user", auth.actorId, "auth.session_revoke", "session", session.id, {}),
   ]);
 
   return c.json({ ok: true });
@@ -584,17 +637,17 @@ app.post("/api/v1/auth/login", zValidator("json", LoginSchema), async (c) => {
     return unauthorized(c, "Username or password is incorrect.");
   }
 
-  const workspace = await ensureUserWorkspace(c.env.DB, user.id, user.username);
+  const workspace = await ensureUserWorkspace(c.env.storage.db, user.id, user.username);
   const session = await createSession(c, user, input.deviceId);
   setSessionCookie(c, session.token, session.maxAge);
 
-  await c.env.DB.batch([
-    c.env.DB.prepare(`UPDATE users SET last_login_at = ?, updated_at = ? WHERE id = ?`).bind(
+  await c.env.storage.db.batch([
+    c.env.storage.db.prepare(`UPDATE users SET last_login_at = ?, updated_at = ? WHERE id = ?`).bind(
       isoNow(),
       isoNow(),
       user.id
     ),
-    auditStatement(c.env.DB, "user", user.id, "auth.login", "session", session.id, {
+    auditStatement(c.env.storage.db, "user", user.id, "auth.login", "session", session.id, {
       username: user.username,
     }),
   ]);
@@ -625,7 +678,7 @@ app.post("/api/v1/auth/change-password", zValidator("json", ChangePasswordSchema
   }
 
   const input = c.req.valid("json");
-  const user = await c.env.DB.prepare(
+  const user = await c.env.storage.db.prepare(
     `SELECT id, username, password_hash, display_name, is_disabled
      FROM users
      WHERE id = ? AND is_disabled = 0`
@@ -640,17 +693,17 @@ app.post("/api/v1/auth/change-password", zValidator("json", ChangePasswordSchema
   const now = isoNow();
   const passwordHash = await hashPassword(input.newPassword);
 
-  await c.env.DB.batch([
-    c.env.DB.prepare(`UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?`).bind(
+  await c.env.storage.db.batch([
+    c.env.storage.db.prepare(`UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?`).bind(
       passwordHash,
       now,
       user.id
     ),
-    c.env.DB.prepare(
+    c.env.storage.db.prepare(
       `UPDATE sessions SET revoked_at = ?
        WHERE user_id = ? AND id != ? AND revoked_at IS NULL`
     ).bind(now, user.id, auth.sessionId),
-    auditStatement(c.env.DB, "user", user.id, "auth.password_change", "user", user.id, {}),
+    auditStatement(c.env.storage.db, "user", user.id, "auth.password_change", "user", user.id, {}),
   ]);
 
   return c.json({ ok: true });
@@ -663,7 +716,7 @@ app.get("/api/v1/users", async (c) => {
   const denied = requireOwner(c);
   if (denied) return denied;
 
-  const rows = await c.env.DB.prepare(
+  const rows = await c.env.storage.db.prepare(
     `SELECT u.id, u.username, u.password_hash, u.display_name, u.is_disabled,
             u.last_login_at, u.created_at, wm.role
      FROM users u
@@ -682,7 +735,7 @@ app.post("/api/v1/users", zValidator("json", UserCreateSchema), async (c) => {
   if (denied) return denied;
 
   const input = c.req.valid("json");
-  const existing = await c.env.DB.prepare(`SELECT id FROM users WHERE username = ?`).bind(input.username).first();
+  const existing = await c.env.storage.db.prepare(`SELECT id FROM users WHERE username = ?`).bind(input.username).first();
   if (existing) return conflict(c, "username_exists", "Username already exists.");
 
   const userId = createId("usr");
@@ -691,23 +744,23 @@ app.post("/api/v1/users", zValidator("json", UserCreateSchema), async (c) => {
   const passwordHash = await hashPassword(input.password);
   const notebooks = createDefaultNotebookRows(workspaceId, now);
   const statements = [
-    c.env.DB.prepare(
+    c.env.storage.db.prepare(
       `INSERT INTO users (id, username, password_hash, display_name, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?)`
     ).bind(userId, input.username, passwordHash, input.displayName ?? input.username, now, now),
-    c.env.DB.prepare(`INSERT INTO workspaces (id, name, is_personal, created_at, updated_at) VALUES (?, ?, 1, ?, ?)`)
+    c.env.storage.db.prepare(`INSERT INTO workspaces (id, name, is_personal, created_at, updated_at) VALUES (?, ?, 1, ?, ?)`)
       .bind(workspaceId, `${input.displayName ?? input.username}'s workspace`, now, now),
-    c.env.DB.prepare(`INSERT INTO workspace_members (workspace_id, user_id, role, created_at) VALUES (?, ?, 'member', ?)`)
+    c.env.storage.db.prepare(`INSERT INTO workspace_members (workspace_id, user_id, role, created_at) VALUES (?, ?, 'member', ?)`)
       .bind(workspaceId, userId, now),
-    ...notebooks.map((notebook) => c.env.DB.prepare(
+    ...notebooks.map((notebook) => c.env.storage.db.prepare(
       `INSERT INTO notebooks (id, workspace_id, parent_id, name, slug, icon, color, sort_order, created_at, updated_at)
        VALUES (?, ?, NULL, ?, ?, 'notebook', ?, ?, ?, ?)`
     ).bind(notebook.id, workspaceId, notebook.name, notebook.slug, notebook.color, notebook.sortOrder, now, now)),
-    auditStatement(c.env.DB, "user", c.get("auth").actorId, "user.create", "user", userId, { username: input.username }),
+    auditStatement(c.env.storage.db, "user", c.get("auth").actorId, "user.create", "user", userId, { username: input.username }),
   ];
-  await c.env.DB.batch(statements);
+  await c.env.storage.db.batch(statements);
 
-  const user = await getInstanceUser(c.env.DB, userId);
+  const user = await getInstanceUser(c.env.storage.db, userId);
   return c.json({ user: user ? mapInstanceUser(user) : null }, 201);
 });
 
@@ -720,7 +773,7 @@ app.patch("/api/v1/users/:id", zValidator("json", UserUpdateSchema), async (c) =
 
   const userId = c.req.param("id");
   const input = c.req.valid("json");
-  const current = await getInstanceUser(c.env.DB, userId);
+  const current = await getInstanceUser(c.env.storage.db, userId);
   if (!current) return notFound(c, "User not found");
   if (
     isProtectedDemoAccount(c.env.EDGE_EVER_DEMO_MODE, c.env.EDGE_EVER_AUTH_USERNAME, current.username)
@@ -750,18 +803,18 @@ app.patch("/api/v1/users/:id", zValidator("json", UserUpdateSchema), async (c) =
   binds.push(isoNow(), userId);
 
   const statements = [
-    c.env.DB.prepare(`UPDATE users SET ${updates.join(", ")} WHERE id = ?`).bind(...binds),
-    auditStatement(c.env.DB, "user", c.get("auth").actorId, "user.update", "user", userId, {
+    c.env.storage.db.prepare(`UPDATE users SET ${updates.join(", ")} WHERE id = ?`).bind(...binds),
+    auditStatement(c.env.storage.db, "user", c.get("auth").actorId, "user.update", "user", userId, {
       passwordReset: input.password !== undefined,
       isDisabled: input.isDisabled,
     }),
   ];
   if (input.password !== undefined || input.isDisabled === true) {
-    statements.push(c.env.DB.prepare(`UPDATE sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL`).bind(isoNow(), userId));
+    statements.push(c.env.storage.db.prepare(`UPDATE sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL`).bind(isoNow(), userId));
   }
-  await c.env.DB.batch(statements);
+  await c.env.storage.db.batch(statements);
 
-  const user = await getInstanceUser(c.env.DB, userId);
+  const user = await getInstanceUser(c.env.storage.db, userId);
   return c.json({ user: user ? mapInstanceUser(user) : null });
 });
 
@@ -769,7 +822,7 @@ app.post("/api/v1/auth/logout", async (c) => {
   const token = getCookie(c, SESSION_COOKIE) ?? getBearerToken(c);
 
   if (token) {
-    await revokeSession(c.env.DB, token);
+    await revokeSession(c.env.storage.db, token);
   }
 
   deleteCookie(c, SESSION_COOKIE, { path: "/" });
@@ -820,7 +873,7 @@ app.get("/api/v1/api-tokens", async (c) => {
     return userOnly;
   }
 
-  const rows = await c.env.DB.prepare(
+  const rows = await c.env.storage.db.prepare(
     `SELECT id, name, token_value, scopes_json, last_used_at, expires_at, is_revoked, created_at, workspace_id
      FROM api_tokens
      WHERE workspace_id = ?
@@ -853,19 +906,19 @@ app.post("/api/v1/api-tokens", zValidator("json", ApiTokenCreateSchema), async (
   const now = isoNow();
   const actor = getAuditActor(c);
 
-  await c.env.DB.batch([
-    c.env.DB.prepare(
+  await c.env.storage.db.batch([
+    c.env.storage.db.prepare(
       `INSERT INTO api_tokens (id, workspace_id, name, token_hash, token_value, scopes_json, expires_at, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(id, getWorkspaceId(c), input.name, await sha256(token), token, JSON.stringify(scopes), input.expiresAt ?? null, now),
-    auditStatement(c.env.DB, actor.actorType, actor.actorId, "api_token.create", "api_token", id, {
+    auditStatement(c.env.storage.db, actor.actorType, actor.actorId, "api_token.create", "api_token", id, {
       name: input.name,
       scopes,
       expiresAt: input.expiresAt ?? null,
     }),
   ]);
 
-  const row = await getApiTokenRow(c.env.DB, id, getWorkspaceId(c));
+  const row = await getApiTokenRow(c.env.storage.db, id, getWorkspaceId(c));
 
   if (!row) {
     return notFound(c, "API token not found");
@@ -884,9 +937,9 @@ app.delete("/api/v1/api-tokens/:id", async (c) => {
   const id = c.req.param("id");
   const actor = getAuditActor(c);
 
-  await c.env.DB.batch([
-    c.env.DB.prepare(`DELETE FROM api_tokens WHERE id = ? AND workspace_id = ?`).bind(id, getWorkspaceId(c)),
-    auditStatement(c.env.DB, actor.actorType, actor.actorId, "api_token.delete", "api_token", id, {}),
+  await c.env.storage.db.batch([
+    c.env.storage.db.prepare(`DELETE FROM api_tokens WHERE id = ? AND workspace_id = ?`).bind(id, getWorkspaceId(c)),
+    auditStatement(c.env.storage.db, actor.actorType, actor.actorId, "api_token.delete", "api_token", id, {}),
   ]);
 
   return c.json({ ok: true });
@@ -903,7 +956,7 @@ app.get("/api/v1/notebooks", async (c) => {
     await ensureDemoSeed(c.env);
   }
 
-  const rows = await c.env.DB.prepare(
+  const rows = await c.env.storage.db.prepare(
     notebookSelectSql(
       `WHERE n.workspace_id = ? AND n.is_deleted = 0
        GROUP BY n.id, n.parent_id, n.name, n.slug, n.icon, n.color, n.sort_order, n.created_at, n.updated_at
@@ -925,7 +978,7 @@ app.get("/api/v1/sync/bootstrap", async (c) => {
   const limit = clampNumber(Number(c.req.query("limit") ?? 100), 1, 200);
   const afterId = c.req.query("afterId")?.trim() ?? "";
   const [notebookRows, memoRows, totalRow, cursorRow] = await Promise.all([
-    c.env.DB.prepare(
+    c.env.storage.db.prepare(
       `SELECT n.id, n.parent_id, n.name, n.slug, n.icon, n.color, n.sort_order,
               n.created_at, n.updated_at, COUNT(m.id) AS memo_count, MAX(m.updated_at) AS last_memo_updated_at
        FROM notebooks n
@@ -934,7 +987,7 @@ app.get("/api/v1/sync/bootstrap", async (c) => {
        GROUP BY n.id, n.parent_id, n.name, n.slug, n.icon, n.color, n.sort_order, n.created_at, n.updated_at
        ORDER BY n.sort_order ASC, n.name ASC`
     ).bind(workspaceId).all<NotebookRow>(),
-    c.env.DB.prepare(
+    c.env.storage.db.prepare(
       `SELECT m.id, m.notebook_id, m.title, m.excerpt, m.tags_json, m.is_pinned,
               m.is_archived, m.is_deleted, m.created_at, m.updated_at, m.deleted_at, mc.revision,
               mc.content_json, mc.content_markdown, mc.content_text, mc.content_hash,
@@ -945,8 +998,8 @@ app.get("/api/v1/sync/bootstrap", async (c) => {
        ORDER BY m.id ASC
        LIMIT ?`
     ).bind(workspaceId, afterId, limit + 1).all<MemoDetailRow>(),
-    c.env.DB.prepare(`SELECT COUNT(*) AS count FROM memos WHERE workspace_id = ?`).bind(workspaceId).first<{ count: number }>(),
-    c.env.DB.prepare(
+    c.env.storage.db.prepare(`SELECT COUNT(*) AS count FROM memos WHERE workspace_id = ?`).bind(workspaceId).first<{ count: number }>(),
+    c.env.storage.db.prepare(
       `SELECT w.created_at AS sync_identity, COALESCE(MAX(c.id), 0) AS cursor
        FROM workspaces w
        LEFT JOIN mobile_sync_changes c ON c.workspace_id = w.id
@@ -979,14 +1032,14 @@ app.get("/api/v1/sync/changes", async (c) => {
   const cursor = clampNumber(Number(c.req.query("cursor") ?? 0), 0, Number.MAX_SAFE_INTEGER);
   const limit = clampNumber(Number(c.req.query("limit") ?? 100), 1, 200);
   const [rows, cursorRow] = await Promise.all([
-    c.env.DB.prepare(
+    c.env.storage.db.prepare(
       `SELECT id, entity_type, entity_id, operation
        FROM mobile_sync_changes
        WHERE workspace_id = ? AND id > ?
        ORDER BY id ASC
        LIMIT ?`
     ).bind(workspaceId, cursor, limit + 1).all<MobileSyncChangeRow>(),
-    c.env.DB.prepare(
+    c.env.storage.db.prepare(
       `SELECT w.created_at AS sync_identity, COALESCE(MAX(c.id), 0) AS cursor
        FROM workspaces w
        LEFT JOIN mobile_sync_changes c ON c.workspace_id = w.id
@@ -1001,7 +1054,7 @@ app.get("/api/v1/sync/changes", async (c) => {
   const notebookPlaceholders = notebookIds.map(() => "?").join(", ");
   const [memoRows, notebookRows] = await Promise.all([
     memoIds.length > 0
-      ? c.env.DB.prepare(
+      ? c.env.storage.db.prepare(
           `SELECT m.id, m.notebook_id, m.title, m.excerpt, m.tags_json, m.is_pinned,
                   m.is_archived, m.is_deleted, m.created_at, m.updated_at, m.deleted_at, mc.revision,
                   mc.content_json, mc.content_markdown, mc.content_text, mc.content_hash,
@@ -1012,7 +1065,7 @@ app.get("/api/v1/sync/changes", async (c) => {
         ).bind(workspaceId, ...memoIds).all<MemoDetailRow>()
       : Promise.resolve({ results: [] as MemoDetailRow[] }),
     notebookIds.length > 0
-      ? c.env.DB.prepare(
+      ? c.env.storage.db.prepare(
           `SELECT n.id, n.parent_id, n.name, n.slug, n.icon, n.color, n.sort_order,
                   n.created_at, n.updated_at, COUNT(m.id) AS memo_count, MAX(m.updated_at) AS last_memo_updated_at
            FROM notebooks n
@@ -1054,7 +1107,7 @@ app.post("/api/v1/notebooks", zValidator("json", NotebookCreateSchema), async (c
   const actor = getAuditActor(c);
 
   try {
-    const notebook = await createNotebookRecord(c.env.DB, getWorkspaceId(c), input, actor);
+    const notebook = await createNotebookRecord(c.env.storage.db, getWorkspaceId(c), input, actor);
     return c.json({ notebook }, 201);
   } catch (error) {
     if (error instanceof AppError) {
@@ -1077,7 +1130,7 @@ app.patch("/api/v1/notebooks/:id", zValidator("json", NotebookUpdateSchema), asy
   const actor = getAuditActor(c);
 
   try {
-    const notebook = await updateNotebookRecord(c.env.DB, getWorkspaceId(c), id, input, actor);
+    const notebook = await updateNotebookRecord(c.env.storage.db, getWorkspaceId(c), id, input, actor);
     return c.json({ notebook });
   } catch (error) {
     if (error instanceof AppError) {
@@ -1099,7 +1152,7 @@ app.delete("/api/v1/notebooks/:id", async (c) => {
   const actor = getAuditActor(c);
   const now = isoNow();
   const workspaceId = getWorkspaceId(c);
-  const current = await getNotebook(c.env.DB, workspaceId, id);
+  const current = await getNotebook(c.env.storage.db, workspaceId, id);
 
   if (!current) {
     return notFound(c, "Notebook not found");
@@ -1110,10 +1163,10 @@ app.delete("/api/v1/notebooks/:id", async (c) => {
   }
 
   const [childCount, memoCount] = await Promise.all([
-    c.env.DB.prepare(`SELECT COUNT(*) AS count FROM notebooks WHERE workspace_id = ? AND parent_id = ? AND is_deleted = 0`)
+    c.env.storage.db.prepare(`SELECT COUNT(*) AS count FROM notebooks WHERE workspace_id = ? AND parent_id = ? AND is_deleted = 0`)
       .bind(workspaceId, id)
       .first<{ count: number }>(),
-    c.env.DB.prepare(`SELECT COUNT(*) AS count FROM memos WHERE workspace_id = ? AND notebook_id = ? AND is_deleted = 0`)
+    c.env.storage.db.prepare(`SELECT COUNT(*) AS count FROM memos WHERE workspace_id = ? AND notebook_id = ? AND is_deleted = 0`)
       .bind(workspaceId, id)
       .first<{ count: number }>(),
   ]);
@@ -1122,7 +1175,7 @@ app.delete("/api/v1/notebooks/:id", async (c) => {
     return conflict(c, "notebook_not_empty", "Move or delete child notebooks and memos before deleting this notebook.");
   }
 
-  await c.env.DB.prepare(
+  await c.env.storage.db.prepare(
     `UPDATE notebooks
      SET is_deleted = 1, deleted_at = ?, updated_at = ?
      WHERE id = ? AND workspace_id = ? AND slug <> 'inbox'`
@@ -1130,7 +1183,7 @@ app.delete("/api/v1/notebooks/:id", async (c) => {
     .bind(now, now, id, workspaceId)
     .run();
 
-  await audit(c.env.DB, actor.actorType, actor.actorId, "notebook.delete", "notebook", id, {});
+  await audit(c.env.storage.db, actor.actorType, actor.actorId, "notebook.delete", "notebook", id, {});
   return c.json({ ok: true });
 });
 
@@ -1141,7 +1194,7 @@ app.get("/api/v1/tags", async (c) => {
     return denied;
   }
 
-  return c.json({ tags: await listTagSummaries(c.env.DB, getWorkspaceId(c)) });
+  return c.json({ tags: await listTagSummaries(c.env.storage.db, getWorkspaceId(c)) });
 });
 
 app.patch("/api/v1/tags/:tag", zValidator("json", TagRenameSchema), async (c) => {
@@ -1155,7 +1208,7 @@ app.patch("/api/v1/tags/:tag", zValidator("json", TagRenameSchema), async (c) =>
   const input = c.req.valid("json");
   const actor = getAuditActor(c);
   const actorLabel = getActorLabel(c);
-  const updated = await updateTagAcrossMemos(c.env.DB, getWorkspaceId(c), oldTag, input.name, actor, actorLabel);
+  const updated = await updateTagAcrossMemos(c.env.storage.db, getWorkspaceId(c), oldTag, input.name, actor, actorLabel);
 
   return c.json({ ok: true, updated });
 });
@@ -1170,13 +1223,13 @@ app.delete("/api/v1/tags/:tag", async (c) => {
   const tag = decodeTagParam(c.req.param("tag"));
   const actor = getAuditActor(c);
   const actorLabel = getActorLabel(c);
-  const updated = await updateTagAcrossMemos(c.env.DB, getWorkspaceId(c), tag, null, actor, actorLabel);
+  const updated = await updateTagAcrossMemos(c.env.storage.db, getWorkspaceId(c), tag, null, actor, actorLabel);
 
   return c.json({ ok: true, updated });
 });
 
 app.get("/api/v1/templates", async (c) => {
-  const rows = await c.env.DB.prepare(
+  const rows = await c.env.storage.db.prepare(
     `SELECT id, name, description, title, content_json, content_markdown, tags_json, created_at, updated_at
      FROM memo_templates
      WHERE workspace_id = ?
@@ -1189,7 +1242,7 @@ app.get("/api/v1/templates", async (c) => {
 app.post("/api/v1/templates", zValidator("json", TemplateCreateSchema), async (c) => {
   const input = c.req.valid("json");
   const workspaceId = getWorkspaceId(c);
-  const memo = input.memoId ? await getMemoDetail(c.env.DB, workspaceId, input.memoId) : null;
+  const memo = input.memoId ? await getMemoDetail(c.env.storage.db, workspaceId, input.memoId) : null;
   if (input.memoId && !memo) {
     return notFound(c, "Memo not found");
   }
@@ -1200,7 +1253,7 @@ app.post("/api/v1/templates", zValidator("json", TemplateCreateSchema), async (c
   const contentMarkdown = memo?.contentMarkdown ?? input.contentMarkdown ?? "";
   const tags = memo?.tags ?? input.tags ?? [];
   const contentJson = memo?.contentJson ?? markdownToDoc(contentMarkdown);
-  await c.env.DB.prepare(
+  await c.env.storage.db.prepare(
     `INSERT INTO memo_templates (
        id, workspace_id, name, description, title, content_json, content_markdown, tags_json, created_at, updated_at
      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
@@ -1217,9 +1270,9 @@ app.post("/api/v1/templates", zValidator("json", TemplateCreateSchema), async (c
     now,
   ).run();
 
-  const template = await getMemoTemplate(c.env.DB, workspaceId, id);
+  const template = await getMemoTemplate(c.env.storage.db, workspaceId, id);
   const actor = getAuditActor(c);
-  await audit(c.env.DB, actor.actorType, actor.actorId, "template.create", "template", id, { memoId: input.memoId ?? null });
+  await audit(c.env.storage.db, actor.actorType, actor.actorId, "template.create", "template", id, { memoId: input.memoId ?? null });
   return c.json({ template }, 201);
 });
 
@@ -1227,7 +1280,7 @@ app.patch("/api/v1/templates/:id", zValidator("json", TemplateUpdateSchema), asy
   const id = c.req.param("id");
   const input = c.req.valid("json");
   const workspaceId = getWorkspaceId(c);
-  const current = await getMemoTemplateRow(c.env.DB, workspaceId, id);
+  const current = await getMemoTemplateRow(c.env.storage.db, workspaceId, id);
   if (!current) {
     return notFound(c, "Template not found");
   }
@@ -1238,7 +1291,7 @@ app.patch("/api/v1/templates/:id", zValidator("json", TemplateUpdateSchema), asy
     : JSON.parse(current.content_json);
   const tags = input.tags ?? parseJsonArray(current.tags_json);
   const now = new Date().toISOString();
-  await c.env.DB.prepare(
+  await c.env.storage.db.prepare(
     `UPDATE memo_templates
      SET name = ?, description = ?, title = ?, content_json = ?, content_markdown = ?, tags_json = ?, updated_at = ?
      WHERE id = ? AND workspace_id = ?`
@@ -1254,9 +1307,9 @@ app.patch("/api/v1/templates/:id", zValidator("json", TemplateUpdateSchema), asy
     workspaceId,
   ).run();
 
-  const template = await getMemoTemplate(c.env.DB, workspaceId, id);
+  const template = await getMemoTemplate(c.env.storage.db, workspaceId, id);
   const actor = getAuditActor(c);
-  await audit(c.env.DB, actor.actorType, actor.actorId, "template.update", "template", id, {});
+  await audit(c.env.storage.db, actor.actorType, actor.actorId, "template.update", "template", id, {});
   return c.json({ template });
 });
 
@@ -1264,33 +1317,33 @@ app.post("/api/v1/templates/:id/use", zValidator("json", TemplateUseSchema), asy
   const id = c.req.param("id");
   const input = c.req.valid("json");
   const workspaceId = getWorkspaceId(c);
-  const template = await getMemoTemplate(c.env.DB, workspaceId, id);
+  const template = await getMemoTemplate(c.env.storage.db, workspaceId, id);
   if (!template) {
     return notFound(c, "Template not found");
   }
 
-  const memo = await createMemoRecord(c.env.DB, workspaceId, {
+  const memo = await createMemoRecord(c.env.storage.db, workspaceId, {
     notebookId: input.notebookId,
     title: template.title ?? undefined,
     contentMarkdown: template.contentMarkdown,
     tags: template.tags,
   }, getAuditActor(c), getActorLabel(c));
   const actor = getAuditActor(c);
-  await audit(c.env.DB, actor.actorType, actor.actorId, "template.use", "template", id, { memoId: memo.id });
+  await audit(c.env.storage.db, actor.actorType, actor.actorId, "template.use", "template", id, { memoId: memo.id });
   return c.json({ memo });
 });
 
 app.delete("/api/v1/templates/:id", async (c) => {
   const id = c.req.param("id");
   const workspaceId = getWorkspaceId(c);
-  const current = await getMemoTemplateRow(c.env.DB, workspaceId, id);
+  const current = await getMemoTemplateRow(c.env.storage.db, workspaceId, id);
   if (!current) {
     return notFound(c, "Template not found");
   }
 
-  await c.env.DB.prepare(`DELETE FROM memo_templates WHERE id = ? AND workspace_id = ?`).bind(id, workspaceId).run();
+  await c.env.storage.db.prepare(`DELETE FROM memo_templates WHERE id = ? AND workspace_id = ?`).bind(id, workspaceId).run();
   const actor = getAuditActor(c);
-  await audit(c.env.DB, actor.actorType, actor.actorId, "template.delete", "template", id, {});
+  await audit(c.env.storage.db, actor.actorType, actor.actorId, "template.delete", "template", id, {});
   return c.json({ ok: true });
 });
 
@@ -1394,7 +1447,7 @@ app.get("/api/v1/memos", async (c) => {
     if (ftsQuery) {
       const searchPrefix = [ftsQuery, likeQuery, likeQuery, likeQuery];
       const [rows, totalRow] = await Promise.all([
-        c.env.DB.prepare(
+        c.env.storage.db.prepare(
           `WITH raw_matches(memo_id, rank) AS (
              SELECT memo_id, bm25(memos_fts)
              FROM memos_fts
@@ -1426,7 +1479,7 @@ app.get("/api/v1/memos", async (c) => {
         )
           .bind(...searchPrefix, ...cursorBinds, pageLimit)
           .all<MemoSummaryRow>(),
-        c.env.DB.prepare(
+        c.env.storage.db.prepare(
           `WITH raw_matches(memo_id) AS (
              SELECT memo_id
              FROM memos_fts
@@ -1466,7 +1519,7 @@ app.get("/api/v1/memos", async (c) => {
     const searchCursorConditions = [...cursorConditions, "(m.title LIKE ? ESCAPE '\\' OR mc.content_text LIKE ? ESCAPE '\\' OR m.tags_json LIKE ? ESCAPE '\\')"];
     const searchCursorBinds = [...cursorBinds, likeQuery, likeQuery, likeQuery];
     const [rows, totalRow] = await Promise.all([
-      c.env.DB.prepare(
+      c.env.storage.db.prepare(
         `SELECT m.id, m.notebook_id, m.title, m.excerpt, m.tags_json, m.is_pinned,
                 m.is_archived, m.is_deleted, m.created_at, m.updated_at, m.deleted_at, mc.revision,
                 mc.content_text
@@ -1478,7 +1531,7 @@ app.get("/api/v1/memos", async (c) => {
       )
         .bind(...searchCursorBinds, pageLimit)
         .all<MemoSummaryRow>(),
-      c.env.DB.prepare(
+      c.env.storage.db.prepare(
         `SELECT COUNT(*) AS count
          FROM memos m
          INNER JOIN memo_contents mc ON mc.memo_id = m.id
@@ -1495,7 +1548,7 @@ app.get("/api/v1/memos", async (c) => {
   }
 
   const [rows, totalRow] = await Promise.all([
-    c.env.DB.prepare(
+    c.env.storage.db.prepare(
       `SELECT m.id, m.notebook_id, m.title, m.excerpt, m.tags_json, m.is_pinned,
               m.is_archived, m.is_deleted, m.created_at, m.updated_at, m.deleted_at, mc.revision,
               mc.content_text
@@ -1507,7 +1560,7 @@ app.get("/api/v1/memos", async (c) => {
     )
       .bind(...cursorBinds, pageLimit)
       .all<MemoSummaryRow>(),
-    c.env.DB.prepare(
+    c.env.storage.db.prepare(
       `SELECT COUNT(*) AS count
        FROM memos m
        WHERE ${baseConditions.join(" AND ")}`
@@ -1544,27 +1597,27 @@ app.post("/api/v1/memos", zValidator("json", MemoCreateSchema), async (c) => {
   const createdAt = input.createdAt ?? now;
   const updatedAt = input.updatedAt ?? now;
 
-  await c.env.DB.batch([
-    c.env.DB.prepare(
+  await c.env.storage.db.batch([
+    c.env.storage.db.prepare(
       `INSERT INTO memos (
         id, workspace_id, notebook_id, title, excerpt, tags_json, created_by, updated_by, created_at, updated_at
       ) SELECT ?, ?, id, ?, ?, ?, ?, ?, ?, ? FROM notebooks WHERE id = ? AND workspace_id = ? AND is_deleted = 0`
     ).bind(id, getWorkspaceId(c), title, excerpt, JSON.stringify(tags), actorLabel, actorLabel, createdAt, updatedAt, input.notebookId, getWorkspaceId(c)),
-    c.env.DB.prepare(
+    c.env.storage.db.prepare(
       `INSERT INTO memo_contents (
         memo_id, content_json, content_markdown, content_text, content_hash, revision, created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, 0, ?, ?)`
     ).bind(id, JSON.stringify(contentJson), contentMarkdown, contentText, contentHash, createdAt, updatedAt),
-    c.env.DB.prepare(
+    c.env.storage.db.prepare(
       `INSERT INTO memos_fts (memo_id, title, content_text, tags)
        VALUES (?, ?, ?, ?)`
     ).bind(id, title, contentText, tags.join(" ")),
-    auditStatement(c.env.DB, actor.actorType, actor.actorId, "memo.create", "memo", id, {
+    auditStatement(c.env.storage.db, actor.actorType, actor.actorId, "memo.create", "memo", id, {
       notebookId: input.notebookId,
     }),
   ]);
 
-  return c.json({ memo: await getMemoDetail(c.env.DB, getWorkspaceId(c), id) }, 201);
+  return c.json({ memo: await getMemoDetail(c.env.storage.db, getWorkspaceId(c), id) }, 201);
 });
 
 app.post("/api/v1/memos/batch/move", zValidator("json", MoveMemosSchema), async (c) => {
@@ -1575,7 +1628,7 @@ app.post("/api/v1/memos/batch/move", zValidator("json", MoveMemosSchema), async 
   }
 
   const input = c.req.valid("json");
-  const target = await getNotebook(c.env.DB, getWorkspaceId(c), input.notebookId);
+  const target = await getNotebook(c.env.storage.db, getWorkspaceId(c), input.notebookId);
 
   if (!target) {
     return notFound(c, "Target notebook not found");
@@ -1585,7 +1638,7 @@ app.post("/api/v1/memos/batch/move", zValidator("json", MoveMemosSchema), async 
   const actorLabel = getActorLabel(c);
 
   try {
-    const moved = await moveMemosToNotebook(c.env.DB, getWorkspaceId(c), input.memoIds, input.notebookId, actor, actorLabel);
+    const moved = await moveMemosToNotebook(c.env.storage.db, getWorkspaceId(c), input.memoIds, input.notebookId, actor, actorLabel);
 
     return c.json({ ok: true, moved });
   } catch (error) {
@@ -1608,7 +1661,7 @@ app.post("/api/v1/memos/batch/delete", zValidator("json", DeleteMemosSchema), as
   const actor = getAuditActor(c);
 
   try {
-    const deleted = await deleteMemosRecord(c.env.DB, c.env.RESOURCES, getWorkspaceId(c), input.memoIds, Boolean(input.permanent), actor);
+    const deleted = await deleteMemosRecord(c.env.storage.db, c.env.storage.resources, getWorkspaceId(c), input.memoIds, Boolean(input.permanent), actor);
     return c.json({ ok: true, deleted });
   } catch (error) {
     if (error instanceof AppError) {
@@ -1627,7 +1680,7 @@ app.delete("/api/v1/memos/trash/empty", async (c) => {
   }
 
   const actor = getAuditActor(c);
-  const deleted = await emptyTrashMemosRecord(c.env.DB, c.env.RESOURCES, getWorkspaceId(c), actor);
+  const deleted = await emptyTrashMemosRecord(c.env.storage.db, c.env.storage.resources, getWorkspaceId(c), actor);
 
   return c.json({ ok: true, deleted });
 });
@@ -1640,7 +1693,7 @@ app.get("/api/v1/memos/:id", async (c) => {
   }
 
   const includeDeleted = c.req.query("includeDeleted") === "1";
-  const memo = await getMemoDetail(c.env.DB, getWorkspaceId(c), c.req.param("id"), includeDeleted);
+  const memo = await getMemoDetail(c.env.storage.db, getWorkspaceId(c), c.req.param("id"), includeDeleted);
 
   if (!memo) {
     return notFound(c, "Memo not found");
@@ -1657,7 +1710,7 @@ app.post("/api/v1/memos/:id/edit-sessions", async (c) => {
   }
 
   const memoId = c.req.param("id");
-  const current = await getMemoDetailRow(c.env.DB, getWorkspaceId(c), memoId);
+  const current = await getMemoDetailRow(c.env.storage.db, getWorkspaceId(c), memoId);
 
   if (!current) {
     return notFound(c, "Memo not found");
@@ -1673,9 +1726,9 @@ app.post("/api/v1/memos/:id/edit-sessions", async (c) => {
     expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60_000).toISOString(),
   };
 
-  await c.env.DB.batch([
-    c.env.DB.prepare(`DELETE FROM memo_edit_sessions WHERE expires_at <= ?`).bind(now),
-    c.env.DB.prepare(
+  await c.env.storage.db.batch([
+    c.env.storage.db.prepare(`DELETE FROM memo_edit_sessions WHERE expires_at <= ?`).bind(now),
+    c.env.storage.db.prepare(
       `INSERT INTO memo_edit_sessions (
          id, memo_id, actor_type, actor_id, base_revision, base_content_hash,
          expires_at, created_at, updated_at
@@ -1704,14 +1757,14 @@ app.get("/api/v1/memos/:id/revisions", async (c) => {
   }
 
   const memoId = c.req.param("id");
-  const memo = await getMemoDetail(c.env.DB, getWorkspaceId(c), memoId);
+  const memo = await getMemoDetail(c.env.storage.db, getWorkspaceId(c), memoId);
 
   if (!memo) {
     return notFound(c, "Memo not found");
   }
 
   const limit = clampNumber(Number(c.req.query("limit") ?? 50), 1, 100);
-  const rows = await c.env.DB.prepare(
+  const rows = await c.env.storage.db.prepare(
     `SELECT id, memo_id, revision, title, tags_json, content_json, content_markdown,
             content_text, content_hash, created_by, created_at
      FROM memo_revisions
@@ -1736,13 +1789,13 @@ app.post("/api/v1/memos/:id/revisions/:revisionId/restore", async (c) => {
   const revisionId = c.req.param("revisionId");
   const actor = getAuditActor(c);
   const actorLabel = getActorLabel(c);
-  const current = await getMemoDetailRow(c.env.DB, getWorkspaceId(c), memoId);
+  const current = await getMemoDetailRow(c.env.storage.db, getWorkspaceId(c), memoId);
 
   if (!current) {
     return notFound(c, "Memo not found");
   }
 
-  const revision = await getMemoRevisionRow(c.env.DB, getWorkspaceId(c), memoId, revisionId);
+  const revision = await getMemoRevisionRow(c.env.storage.db, getWorkspaceId(c), memoId, revisionId);
 
   if (!revision) {
     return notFound(c, "Memo revision not found");
@@ -1758,32 +1811,32 @@ app.post("/api/v1/memos/:id/revisions/:revisionId/restore", async (c) => {
   const nextRevision = current.revision + 1;
   const now = isoNow();
 
-  await c.env.DB.batch([
-    createMemoRevisionStatement(c.env.DB, current, actorLabel, now),
-    c.env.DB.prepare(
+  await c.env.storage.db.batch([
+    createMemoRevisionStatement(c.env.storage.db, current, actorLabel, now),
+    c.env.storage.db.prepare(
       `UPDATE memos
        SET title = ?, excerpt = ?, tags_json = ?, updated_by = ?, updated_at = ?
        WHERE id = ? AND is_deleted = 0`
     ).bind(title, excerpt, JSON.stringify(tags), actorLabel, now, memoId),
-    c.env.DB.prepare(
+    c.env.storage.db.prepare(
       `UPDATE memo_contents
        SET content_json = ?, content_markdown = ?, content_text = ?, content_hash = ?,
            revision = ?, updated_at = ?
        WHERE memo_id = ?`
     ).bind(JSON.stringify(contentJson), contentMarkdown, contentText, contentHash, nextRevision, now, memoId),
-    c.env.DB.prepare(`DELETE FROM memos_fts WHERE memo_id = ?`).bind(memoId),
-    c.env.DB.prepare(
+    c.env.storage.db.prepare(`DELETE FROM memos_fts WHERE memo_id = ?`).bind(memoId),
+    c.env.storage.db.prepare(
       `INSERT INTO memos_fts (memo_id, title, content_text, tags)
        VALUES (?, ?, ?, ?)`
     ).bind(memoId, title, contentText, tags.join(" ")),
-    auditStatement(c.env.DB, actor.actorType, actor.actorId, "memo.revision_restore", "memo", memoId, {
+    auditStatement(c.env.storage.db, actor.actorType, actor.actorId, "memo.revision_restore", "memo", memoId, {
       revisionId,
       restoredRevision: revision.revision,
       revision: nextRevision,
     }),
   ]);
 
-  return c.json({ memo: await getMemoDetail(c.env.DB, getWorkspaceId(c), memoId) });
+  return c.json({ memo: await getMemoDetail(c.env.storage.db, getWorkspaceId(c), memoId) });
 });
 
 app.get("/api/v1/exports/markdown", async (c) => {
@@ -1796,7 +1849,7 @@ app.get("/api/v1/exports/markdown", async (c) => {
   const limit = clampNumber(Number(c.req.query("limit") ?? 50), 1, 100);
   const offset = clampNumber(Number(c.req.query("offset") ?? 0), 0, 1_000_000);
   const [memoRows, totalRow] = await Promise.all([
-    c.env.DB.prepare(
+    c.env.storage.db.prepare(
       `SELECT m.id, m.notebook_id, m.title, m.excerpt, m.tags_json, m.is_pinned,
               m.is_archived, m.is_deleted, m.created_at, m.updated_at, m.deleted_at, mc.revision,
               mc.content_json, mc.content_markdown, mc.content_text, mc.content_hash,
@@ -1809,7 +1862,7 @@ app.get("/api/v1/exports/markdown", async (c) => {
     )
       .bind(getWorkspaceId(c), limit, offset)
       .all<MemoDetailRow>(),
-    c.env.DB.prepare(`SELECT COUNT(*) AS count FROM memos WHERE workspace_id = ? AND is_deleted = 0`).bind(getWorkspaceId(c)).first<{ count: number }>(),
+    c.env.storage.db.prepare(`SELECT COUNT(*) AS count FROM memos WHERE workspace_id = ? AND is_deleted = 0`).bind(getWorkspaceId(c)).first<{ count: number }>(),
   ]);
 
   const memoIds = memoRows.results.map((row) => row.id);
@@ -1817,7 +1870,7 @@ app.get("/api/v1/exports/markdown", async (c) => {
 
   if (memoIds.length > 0) {
     const placeholders = memoIds.map(() => "?").join(", ");
-    const resourceRows = await c.env.DB.prepare(
+    const resourceRows = await c.env.storage.db.prepare(
       `SELECT r.id, r.memo_id, r.original_memo_id, r.bucket_name, r.object_key, r.kind, r.mime_type,
               r.filename, r.byte_size, r.sha256, r.width, r.height, r.created_at, r.updated_at
        FROM resources
@@ -1850,7 +1903,7 @@ app.get("/api/v1/backups/json", async (c) => {
   const limit = clampNumber(Number(c.req.query("limit") ?? 25), 1, 50);
   const offset = clampNumber(Number(c.req.query("offset") ?? 0), 0, 1_000_000);
   const [memoRows, totalRow] = await Promise.all([
-    c.env.DB.prepare(
+    c.env.storage.db.prepare(
       `SELECT m.id, m.notebook_id, m.title, m.excerpt, m.tags_json, m.is_pinned,
               m.is_archived, m.is_deleted, m.created_at, m.updated_at, m.deleted_at, mc.revision,
               mc.content_json, mc.content_markdown, mc.content_text, mc.content_hash,
@@ -1863,7 +1916,7 @@ app.get("/api/v1/backups/json", async (c) => {
     )
       .bind(getWorkspaceId(c), limit, offset)
       .all<MemoDetailRow>(),
-    c.env.DB.prepare(`SELECT COUNT(*) AS count FROM memos WHERE workspace_id = ? AND is_deleted = 0`).bind(getWorkspaceId(c)).first<{ count: number }>(),
+    c.env.storage.db.prepare(`SELECT COUNT(*) AS count FROM memos WHERE workspace_id = ? AND is_deleted = 0`).bind(getWorkspaceId(c)).first<{ count: number }>(),
   ]);
   const memoIds = memoRows.results.map((row) => row.id);
   let resources: Resource[] = [];
@@ -1872,7 +1925,7 @@ app.get("/api/v1/backups/json", async (c) => {
   if (memoIds.length > 0) {
     const placeholders = memoIds.map(() => "?").join(", ");
     const [resourceRows, revisionRows] = await Promise.all([
-      c.env.DB.prepare(
+      c.env.storage.db.prepare(
         `SELECT id, memo_id, original_memo_id, bucket_name, object_key, kind, mime_type,
                 filename, byte_size, sha256, width, height, created_at, updated_at
          FROM resources
@@ -1881,7 +1934,7 @@ app.get("/api/v1/backups/json", async (c) => {
       )
         .bind(...memoIds)
         .all<ResourceRow>(),
-      c.env.DB.prepare(
+      c.env.storage.db.prepare(
         `SELECT id, memo_id, revision, title, tags_json, content_json, content_markdown,
                 content_text, content_hash, created_by, created_at
          FROM memo_revisions
@@ -1913,7 +1966,7 @@ app.post("/api/v1/restores/json/notebooks", zValidator("json", RestoreJsonNotebo
     return userOnly;
   }
 
-  await restoreJsonNotebooks(c.env.DB, getWorkspaceId(c), c.req.valid("json").notebooks as JsonBackupNotebook[]);
+  await restoreJsonNotebooks(c.env.storage.db, getWorkspaceId(c), c.req.valid("json").notebooks as JsonBackupNotebook[]);
   return c.json({ ok: true });
 });
 
@@ -1923,7 +1976,7 @@ app.post("/api/v1/restores/json/memos", zValidator("json", RestoreJsonMemosSchem
     return userOnly;
   }
 
-  await restoreJsonMemos(c.env.DB, getWorkspaceId(c), c.req.valid("json").memos as JsonBackupMemo[]);
+  await restoreJsonMemos(c.env.storage.db, getWorkspaceId(c), c.req.valid("json").memos as JsonBackupMemo[]);
   return c.json({ ok: true });
 });
 
@@ -1953,7 +2006,7 @@ app.put("/api/v1/restores/json/resources/:id", async (c) => {
   }
 
   const metadata = parsed.data as JsonBackupResource;
-  const memo = await getMemoDetail(c.env.DB, getWorkspaceId(c), metadata.memoId);
+  const memo = await getMemoDetail(c.env.storage.db, getWorkspaceId(c), metadata.memoId);
   if (!memo) {
     return notFound(c, "Restore target memo not found.");
   }
@@ -1966,28 +2019,28 @@ app.put("/api/v1/restores/json/resources/:id", async (c) => {
   const filename = normalizeFilename(metadata.filename || file.name) || `${metadata.kind}-${metadata.id}`;
   const objectKey = `workspaces/${getWorkspaceId(c)}/restores/${metadata.memoId}/${metadata.id}/${Date.now()}-${filename}`;
   const bytes = new Uint8Array(await file.arrayBuffer());
-  const foreignResource = await c.env.DB.prepare(
+  const foreignResource = await c.env.storage.db.prepare(
     `SELECT r.id FROM resources r INNER JOIN memos m ON m.id = r.memo_id
      WHERE r.id = ? AND m.workspace_id <> ? LIMIT 1`
   ).bind(metadata.id, getWorkspaceId(c)).first<{ id: string }>();
   if (foreignResource) {
     return conflict(c, "cross_workspace_id_conflict", "Backup resource ID is already used by another user.");
   }
-  const previous = await c.env.DB.prepare(
+  const previous = await c.env.storage.db.prepare(
     `SELECT r.object_key FROM resources r INNER JOIN memos m ON m.id = r.memo_id WHERE r.id = ? AND m.workspace_id = ?`
   ).bind(metadata.id, getWorkspaceId(c)).first<{ object_key: string }>();
   const originalMemo = metadata.originalMemoId
-    ? await c.env.DB.prepare(`SELECT id FROM memos WHERE id = ? AND workspace_id = ?`).bind(metadata.originalMemoId, getWorkspaceId(c)).first<{ id: string }>()
+    ? await c.env.storage.db.prepare(`SELECT id FROM memos WHERE id = ? AND workspace_id = ?`).bind(metadata.originalMemoId, getWorkspaceId(c)).first<{ id: string }>()
     : null;
 
-  await c.env.RESOURCES.put(objectKey, bytes, {
+  await c.env.storage.resources.put(objectKey, bytes, {
     httpMetadata: { contentType: metadata.mimeType ?? file.type ?? "application/octet-stream" },
     customMetadata: { memoId: metadata.memoId, resourceId: metadata.id, restored: "true" },
   });
 
   try {
     const now = isoNow();
-    await c.env.DB.prepare(
+    await c.env.storage.db.prepare(
       `INSERT INTO resources (
         id, memo_id, original_memo_id, bucket_name, object_key, kind, mime_type, filename,
         byte_size, sha256, width, height, metadata_json, is_deleted, created_at, updated_at, deleted_at
@@ -2026,12 +2079,12 @@ app.put("/api/v1/restores/json/resources/:id", async (c) => {
       now
     ).run();
   } catch (error) {
-    await c.env.RESOURCES.delete(objectKey);
+    await c.env.storage.resources.delete(objectKey);
     throw error;
   }
 
   if (previous?.object_key && previous.object_key !== objectKey) {
-    await c.env.RESOURCES.delete(previous.object_key);
+    await c.env.storage.resources.delete(previous.object_key);
   }
 
   return c.json({ ok: true });
@@ -2046,7 +2099,7 @@ app.get("/api/v1/resources", async (c) => {
 
   const limit = clampNumber(Number(c.req.query("limit") ?? 500), 1, 500);
   const [rows, stats] = await Promise.all([
-    c.env.DB.prepare(
+    c.env.storage.db.prepare(
       `SELECT r.id, r.memo_id, r.original_memo_id, r.bucket_name, r.object_key, r.kind,
               r.mime_type, r.filename, r.byte_size, r.sha256, r.width, r.height,
               r.created_at, r.updated_at, m.title AS memo_title, m.excerpt AS memo_excerpt,
@@ -2059,7 +2112,7 @@ app.get("/api/v1/resources", async (c) => {
     )
       .bind(getWorkspaceId(c), limit)
       .all<ResourceListRow>(),
-    c.env.DB.prepare(
+    c.env.storage.db.prepare(
       `SELECT COUNT(*) AS total_count,
               COALESCE(SUM(byte_size), 0) AS total_bytes,
               COALESCE(SUM(CASE WHEN kind = 'image' THEN 1 ELSE 0 END), 0) AS image_count,
@@ -2084,7 +2137,7 @@ app.post("/api/v1/memos/:id/resources", async (c) => {
   }
 
   const memoId = c.req.param("id");
-  const memo = await getMemoDetail(c.env.DB, getWorkspaceId(c), memoId);
+  const memo = await getMemoDetail(c.env.storage.db, getWorkspaceId(c), memoId);
 
   if (!memo) {
     return notFound(c, "Memo not found");
@@ -2156,7 +2209,7 @@ const createImageResource = async (
   const filename = normalizeFilename(processed.filename) || `${resourceId}${inferImageExtension(processed.filename, processed.mimeType)}`;
   const checksum = await sha256Bytes(processed.bytes);
 
-  await c.env.RESOURCES.put(objectKey, processed.bytes, {
+  await c.env.storage.resources.put(objectKey, processed.bytes, {
     httpMetadata: {
       contentType: processed.mimeType,
       cacheControl: "private, max-age=3600",
@@ -2169,8 +2222,8 @@ const createImageResource = async (
   });
 
   try {
-    await c.env.DB.batch([
-      c.env.DB.prepare(
+    await c.env.storage.db.batch([
+      c.env.storage.db.prepare(
         `INSERT INTO resources (
           id, memo_id, bucket_name, object_key, kind, mime_type, filename,
           byte_size, sha256, width, height, metadata_json, created_at, updated_at
@@ -2190,7 +2243,7 @@ const createImageResource = async (
         now,
         now
       ),
-      auditStatement(c.env.DB, input.actor.actorType, input.actor.actorId, "resource.create", "resource", resourceId, {
+      auditStatement(c.env.storage.db, input.actor.actorType, input.actor.actorId, "resource.create", "resource", resourceId, {
         memoId: input.memoId,
         mimeType: processed.mimeType,
         byteSize: processed.bytes.byteLength,
@@ -2198,11 +2251,11 @@ const createImageResource = async (
       }),
     ]);
   } catch (error) {
-    await c.env.RESOURCES.delete(objectKey);
+    await c.env.storage.resources.delete(objectKey);
     throw error;
   }
 
-  const resource = await getResourceRow(c.env.DB, getWorkspaceId(c), resourceId);
+  const resource = await getResourceRow(c.env.storage.db, getWorkspaceId(c), resourceId);
 
   if (!resource) {
     throw new AppError("not_found", "Resource not found", 404);
@@ -2230,7 +2283,7 @@ const createAttachmentResource = async (
   const bucketName = c.env.EDGE_EVER_R2_BUCKET_NAME?.trim() || DEFAULT_R2_BUCKET_NAME;
   const checksum = await sha256Bytes(input.bytes);
 
-  await c.env.RESOURCES.put(objectKey, input.bytes, {
+  await c.env.storage.resources.put(objectKey, input.bytes, {
     httpMetadata: {
       contentType: input.mimeType,
       cacheControl: "private, max-age=3600",
@@ -2243,8 +2296,8 @@ const createAttachmentResource = async (
   });
 
   try {
-    await c.env.DB.batch([
-      c.env.DB.prepare(
+    await c.env.storage.db.batch([
+      c.env.storage.db.prepare(
         `INSERT INTO resources (
           id, memo_id, bucket_name, object_key, kind, mime_type, filename,
           byte_size, sha256, width, height, metadata_json, created_at, updated_at
@@ -2262,18 +2315,18 @@ const createAttachmentResource = async (
         now,
         now
       ),
-      auditStatement(c.env.DB, input.actor.actorType, input.actor.actorId, "resource.create", "resource", resourceId, {
+      auditStatement(c.env.storage.db, input.actor.actorType, input.actor.actorId, "resource.create", "resource", resourceId, {
         memoId: input.memoId,
         mimeType: input.mimeType,
         byteSize: input.bytes.byteLength,
       }),
     ]);
   } catch (error) {
-    await c.env.RESOURCES.delete(objectKey);
+    await c.env.storage.resources.delete(objectKey);
     throw error;
   }
 
-  const resource = await getResourceRow(c.env.DB, getWorkspaceId(c), resourceId);
+  const resource = await getResourceRow(c.env.storage.db, getWorkspaceId(c), resourceId);
 
   if (!resource) {
     throw new AppError("not_found", "Resource not found", 404);
@@ -2336,13 +2389,13 @@ app.get("/api/v1/resources/:id/blob", async (c) => {
     return denied;
   }
 
-  const resource = await getResourceRow(c.env.DB, getWorkspaceId(c), c.req.param("id"));
+  const resource = await getResourceRow(c.env.storage.db, getWorkspaceId(c), c.req.param("id"));
 
   if (!resource) {
     return notFound(c, "Resource not found");
   }
 
-  const object = await c.env.RESOURCES.get(resource.object_key);
+  const object = await c.env.storage.resources.get(resource.object_key);
 
   if (!object) {
     return notFound(c, "Resource object not found");
@@ -2408,7 +2461,7 @@ const updateMemoFromInput = async (c: AppContext, id: string, input: MemoUpdateI
   const actor = getAuditActor(c);
   const actorLabel = getActorLabel(c);
   const workspaceId = getWorkspaceId(c);
-  const current = await getMemoDetailRow(c.env.DB, workspaceId, id);
+  const current = await getMemoDetailRow(c.env.storage.db, workspaceId, id);
 
   if (!current) {
     return notFound(c, "Memo not found");
@@ -2448,7 +2501,7 @@ const updateMemoFromInput = async (c: AppContext, id: string, input: MemoUpdateI
       );
     }
 
-    editSession = await c.env.DB.prepare(
+    editSession = await c.env.storage.db.prepare(
       `SELECT id, memo_id, actor_type, actor_id, base_revision, base_content_hash, expires_at
        FROM memo_edit_sessions
        WHERE id = ? AND memo_id = ? AND actor_type = ? AND actor_id IS ? AND expires_at > ?`
@@ -2495,19 +2548,19 @@ const updateMemoFromInput = async (c: AppContext, id: string, input: MemoUpdateI
 
   if (!hasContentUpdate) {
     if (input.isPinned === undefined || isPinned === Boolean(current.is_pinned)) {
-      return c.json({ memo: await getMemoDetail(c.env.DB, workspaceId, id) });
+      return c.json({ memo: await getMemoDetail(c.env.storage.db, workspaceId, id) });
     }
 
-    await c.env.DB.batch([
-      c.env.DB.prepare(
+    await c.env.storage.db.batch([
+      c.env.storage.db.prepare(
         `UPDATE memos
          SET is_pinned = ?, updated_by = ?, updated_at = ?, created_at = COALESCE(?, created_at)
          WHERE id = ? AND is_deleted = 0`
       ).bind(isPinned ? 1 : 0, actorLabel, updatedAt, input.createdAt ?? null, id),
-      auditStatement(c.env.DB, actor.actorType, actor.actorId, isPinned ? "memo.pin" : "memo.unpin", "memo", id, {}),
+      auditStatement(c.env.storage.db, actor.actorType, actor.actorId, isPinned ? "memo.pin" : "memo.unpin", "memo", id, {}),
     ]);
 
-    return c.json({ memo: await getMemoDetail(c.env.DB, workspaceId, id) });
+    return c.json({ memo: await getMemoDetail(c.env.storage.db, workspaceId, id) });
   }
 
   const currentContentJson = JSON.parse(current.content_json) as TiptapDoc;
@@ -2540,19 +2593,19 @@ const updateMemoFromInput = async (c: AppContext, id: string, input: MemoUpdateI
   const notebookId = input.notebookId ?? current.notebook_id;
   const nextRevision = current.revision + 1;
   const contentHash = await sha256(contentMarkdown + JSON.stringify(contentJson));
-  const revisionStatements = (await shouldSnapshotMemoRevision(c.env.DB, current, title, JSON.stringify(tags), contentHash, updatedAt))
-    ? [createMemoRevisionStatement(c.env.DB, current, actorLabel, updatedAt)]
+  const revisionStatements = (await shouldSnapshotMemoRevision(c.env.storage.db, current, title, JSON.stringify(tags), contentHash, updatedAt))
+    ? [createMemoRevisionStatement(c.env.storage.db, current, actorLabel, updatedAt)]
     : [];
   const editSessionStatements = editSession
     ? [
-        c.env.DB.prepare(
+        c.env.storage.db.prepare(
           `UPDATE memo_edit_sessions
            SET base_revision = ?, base_content_hash = ?, updated_at = ?
            WHERE id = ? AND memo_id = ? AND base_revision = ? AND base_content_hash = ?`
         ).bind(nextRevision, contentHash, updatedAt, editSession.id, id, current.revision, current.content_hash),
       ]
     : [
-        c.env.DB.prepare(
+        c.env.storage.db.prepare(
           `UPDATE memo_edit_sessions
            SET base_revision = ?, base_content_hash = ?, updated_at = ?
            WHERE memo_id = ? AND actor_type = ? AND actor_id IS ?
@@ -2570,32 +2623,32 @@ const updateMemoFromInput = async (c: AppContext, id: string, input: MemoUpdateI
         ),
       ];
 
-  await c.env.DB.batch([
+  await c.env.storage.db.batch([
     ...revisionStatements,
-    c.env.DB.prepare(
+    c.env.storage.db.prepare(
       `UPDATE memos
        SET notebook_id = ?, title = ?, excerpt = ?, tags_json = ?, is_pinned = ?, updated_by = ?, updated_at = ?, created_at = COALESCE(?, created_at)
        WHERE id = ? AND workspace_id = ? AND is_deleted = 0
          AND EXISTS (SELECT 1 FROM notebooks n WHERE n.id = ? AND n.workspace_id = ? AND n.is_deleted = 0)`
     ).bind(notebookId, title, excerpt, JSON.stringify(tags), isPinned ? 1 : 0, actorLabel, updatedAt, input.createdAt ?? null, id, workspaceId, notebookId, workspaceId),
-    c.env.DB.prepare(
+    c.env.storage.db.prepare(
       `UPDATE memo_contents
        SET content_json = ?, content_markdown = ?, content_text = ?, content_hash = ?,
            revision = ?, updated_at = ?, created_at = COALESCE(?, created_at)
        WHERE memo_id = ?`
     ).bind(JSON.stringify(contentJson), contentMarkdown, contentText, contentHash, nextRevision, updatedAt, input.createdAt ?? null, id),
-    c.env.DB.prepare(`DELETE FROM memos_fts WHERE memo_id = ?`).bind(id),
-    c.env.DB.prepare(
+    c.env.storage.db.prepare(`DELETE FROM memos_fts WHERE memo_id = ?`).bind(id),
+    c.env.storage.db.prepare(
       `INSERT INTO memos_fts (memo_id, title, content_text, tags)
        VALUES (?, ?, ?, ?)`
     ).bind(id, title, contentText, tags.join(" ")),
     ...editSessionStatements,
-    auditStatement(c.env.DB, actor.actorType, actor.actorId, "memo.update", "memo", id, {
+    auditStatement(c.env.storage.db, actor.actorType, actor.actorId, "memo.update", "memo", id, {
       revision: nextRevision,
     }),
   ]);
 
-  return c.json({ memo: await getMemoDetail(c.env.DB, workspaceId, id) });
+  return c.json({ memo: await getMemoDetail(c.env.storage.db, workspaceId, id) });
 };
 
 app.delete("/api/v1/memos/:id", async (c) => {
@@ -2612,43 +2665,43 @@ app.delete("/api/v1/memos/:id", async (c) => {
   const workspaceId = getWorkspaceId(c);
 
   if (permanent) {
-    const current = await getMemoDetailRow(c.env.DB, workspaceId, id, true);
+    const current = await getMemoDetailRow(c.env.storage.db, workspaceId, id, true);
 
     if (!current || current.is_deleted === 0) {
       return notFound(c, "Memo not found in trash");
     }
 
-    const resources = await getResourceRowsForMemo(c.env.DB, workspaceId, id);
+    const resources = await getResourceRowsForMemo(c.env.storage.db, workspaceId, id);
 
     if (resources.length > 0) {
-      await c.env.RESOURCES.delete(resources.map((resource) => resource.object_key));
+      await c.env.storage.resources.delete(resources.map((resource) => resource.object_key));
     }
 
-    await c.env.DB.batch([
-      c.env.DB.prepare(`DELETE FROM memos_fts WHERE memo_id = ?`).bind(id),
-      c.env.DB.prepare(`DELETE FROM resources WHERE memo_id = ?`).bind(id),
-      c.env.DB.prepare(`DELETE FROM memo_revisions WHERE memo_id = ?`).bind(id),
-      c.env.DB.prepare(`DELETE FROM memo_contents WHERE memo_id = ?`).bind(id),
-      c.env.DB.prepare(`DELETE FROM memos WHERE id = ? AND workspace_id = ? AND is_deleted = 1`).bind(id, workspaceId),
-      auditStatement(c.env.DB, actor.actorType, actor.actorId, "memo.delete_permanent", "memo", id, {}),
+    await c.env.storage.db.batch([
+      c.env.storage.db.prepare(`DELETE FROM memos_fts WHERE memo_id = ?`).bind(id),
+      c.env.storage.db.prepare(`DELETE FROM resources WHERE memo_id = ?`).bind(id),
+      c.env.storage.db.prepare(`DELETE FROM memo_revisions WHERE memo_id = ?`).bind(id),
+      c.env.storage.db.prepare(`DELETE FROM memo_contents WHERE memo_id = ?`).bind(id),
+      c.env.storage.db.prepare(`DELETE FROM memos WHERE id = ? AND workspace_id = ? AND is_deleted = 1`).bind(id, workspaceId),
+      auditStatement(c.env.storage.db, actor.actorType, actor.actorId, "memo.delete_permanent", "memo", id, {}),
     ]);
 
     return c.json({ ok: true });
   }
 
-  await c.env.DB.batch([
-    c.env.DB.prepare(
+  await c.env.storage.db.batch([
+    c.env.storage.db.prepare(
       `UPDATE memos
        SET is_deleted = 1, deleted_at = ?, updated_at = ?
        WHERE id = ? AND workspace_id = ? AND is_deleted = 0`
     ).bind(now, now, id, workspaceId),
-    c.env.DB.prepare(
+    c.env.storage.db.prepare(
       `UPDATE resources
        SET is_deleted = 1, deleted_at = ?, updated_at = ?
        WHERE memo_id = ? AND is_deleted = 0`
     ).bind(now, now, id),
-    c.env.DB.prepare(`DELETE FROM memos_fts WHERE memo_id = ?`).bind(id),
-    auditStatement(c.env.DB, actor.actorType, actor.actorId, "memo.delete", "memo", id, {}),
+    c.env.storage.db.prepare(`DELETE FROM memos_fts WHERE memo_id = ?`).bind(id),
+    auditStatement(c.env.storage.db, actor.actorType, actor.actorId, "memo.delete", "memo", id, {}),
   ]);
 
   return c.json({ ok: true });
@@ -2664,7 +2717,7 @@ app.post("/api/v1/memos/:id/restore", async (c) => {
   const id = c.req.param("id");
   const actor = getAuditActor(c);
   const workspaceId = getWorkspaceId(c);
-  const current = await getMemoDetailRow(c.env.DB, workspaceId, id, true);
+  const current = await getMemoDetailRow(c.env.storage.db, workspaceId, id, true);
 
   if (!current || current.is_deleted === 0) {
     return notFound(c, "Memo not found in trash");
@@ -2672,37 +2725,37 @@ app.post("/api/v1/memos/:id/restore", async (c) => {
 
   const tags = parseJsonArray(current.tags_json);
   const now = isoNow();
-  const originalNotebook = await getNotebook(c.env.DB, workspaceId, current.notebook_id);
-  const inbox = await c.env.DB.prepare(`SELECT id FROM notebooks WHERE workspace_id = ? AND slug = 'inbox' AND is_deleted = 0 LIMIT 1`).bind(workspaceId).first<{ id: string }>();
+  const originalNotebook = await getNotebook(c.env.storage.db, workspaceId, current.notebook_id);
+  const inbox = await c.env.storage.db.prepare(`SELECT id FROM notebooks WHERE workspace_id = ? AND slug = 'inbox' AND is_deleted = 0 LIMIT 1`).bind(workspaceId).first<{ id: string }>();
   const restoreNotebookId = originalNotebook ? current.notebook_id : inbox?.id;
 
   if (!restoreNotebookId) {
     return conflict(c, "restore_notebook_missing", "Original notebook was deleted and the default inbox is unavailable.");
   }
 
-  await c.env.DB.batch([
-    c.env.DB.prepare(
+  await c.env.storage.db.batch([
+    c.env.storage.db.prepare(
       `UPDATE memos
        SET notebook_id = ?, is_deleted = 0, deleted_at = NULL, updated_at = ?
        WHERE id = ? AND workspace_id = ? AND is_deleted = 1`
     ).bind(restoreNotebookId, now, id, workspaceId),
-    c.env.DB.prepare(
+    c.env.storage.db.prepare(
       `UPDATE resources
        SET is_deleted = 0, deleted_at = NULL, updated_at = ?
        WHERE memo_id = ? AND is_deleted = 1`
     ).bind(now, id),
-    c.env.DB.prepare(`DELETE FROM memos_fts WHERE memo_id = ?`).bind(id),
-    c.env.DB.prepare(
+    c.env.storage.db.prepare(`DELETE FROM memos_fts WHERE memo_id = ?`).bind(id),
+    c.env.storage.db.prepare(
       `INSERT INTO memos_fts (memo_id, title, content_text, tags)
        VALUES (?, ?, ?, ?)`
     ).bind(id, current.title, current.content_text, tags.join(" ")),
-    auditStatement(c.env.DB, actor.actorType, actor.actorId, "memo.restore", "memo", id, {
+    auditStatement(c.env.storage.db, actor.actorType, actor.actorId, "memo.restore", "memo", id, {
       fromNotebookId: current.notebook_id,
       toNotebookId: restoreNotebookId,
     }),
   ]);
 
-  return c.json({ memo: await getMemoDetail(c.env.DB, workspaceId, id) });
+  return c.json({ memo: await getMemoDetail(c.env.storage.db, workspaceId, id) });
 });
 
 app.post("/api/v1/memos/merge", zValidator("json", MergeMemosSchema), async (c) => {
@@ -2717,7 +2770,7 @@ app.post("/api/v1/memos/merge", zValidator("json", MergeMemosSchema), async (c) 
   const actorLabel = getActorLabel(c);
 
   try {
-    const memo = await mergeMemosRecord(c.env.DB, getWorkspaceId(c), input, actor, actorLabel);
+    const memo = await mergeMemosRecord(c.env.storage.db, getWorkspaceId(c), input, actor, actorLabel);
     return c.json({ memo }, 201);
   } catch (error) {
     if (error instanceof AppError) {
@@ -2773,19 +2826,29 @@ app.post("/mcp", async (c) => {
 });
 
 const worker = {
-  async fetch(request: Request, env: Bindings, ctx: ExecutionContext) {
-    if (isLocalDemoSeedEnabled(env)) {
-      await ensureLocalDemoSeed(env);
+  async fetch(request: Request, env: WorkerBindings, ctx: ExecutionContext) {
+    const runtimeEnv = {
+      ...env,
+      storage: createCloudflareStorageAdapter(env),
+    } as Bindings;
+
+    if (isLocalDemoSeedEnabled(runtimeEnv)) {
+      await ensureLocalDemoSeed(runtimeEnv);
     }
 
-    return app.fetch(request, env, ctx);
+    return app.fetch(request, runtimeEnv, ctx);
   },
-  async scheduled(controller: ScheduledController, env: Bindings, ctx: ExecutionContext) {
-    if (!isDemoMode(env)) {
+  async scheduled(controller: ScheduledController, env: WorkerBindings, ctx: ExecutionContext) {
+    const runtimeEnv = {
+      ...env,
+      storage: createCloudflareStorageAdapter(env),
+    } as Bindings;
+
+    if (!isDemoMode(runtimeEnv)) {
       return;
     }
 
-    ctx.waitUntil(resetDemoData(env, controller.scheduledTime, { resetCredentials: true }));
+    ctx.waitUntil(resetDemoData(runtimeEnv, controller.scheduledTime, { resetCredentials: true }));
   },
 };
 
@@ -3312,7 +3375,7 @@ const callMcpTool = async (
     case "search_memos": {
       assertScope(auth, "read:memos");
       return {
-        memos: await searchMemoSummaries(c.env.DB, {
+        memos: await searchMemoSummaries(c.env.storage.db, {
           workspaceId: auth.workspaceId,
           query: getOptionalString(args.query),
           notebookId: getOptionalString(args.notebookId),
@@ -3329,7 +3392,7 @@ const callMcpTool = async (
     }
     case "list_memos": {
       assertScope(auth, "read:memos");
-      return await listMemosForMcp(c.env.DB, {
+      return await listMemosForMcp(c.env.storage.db, {
         workspaceId: auth.workspaceId,
         notebookId: getOptionalString(args.notebookId),
         limit: clampNumber(Number(args.limit ?? 50), 1, 100),
@@ -3341,7 +3404,7 @@ const callMcpTool = async (
     case "get_memo": {
       assertScope(auth, "read:memos");
       const memoId = getRequiredString(args.memoId, "memoId");
-      const memo = await getMemoDetail(c.env.DB, auth.workspaceId, memoId, args.includeDeleted === true);
+      const memo = await getMemoDetail(c.env.storage.db, auth.workspaceId, memoId, args.includeDeleted === true);
 
       if (!memo) {
         throw new Error("Memo not found");
@@ -3354,7 +3417,7 @@ const callMcpTool = async (
       const notebookId = getRequiredString(args.notebookId, "notebookId");
       const actor = getAuditActor(c);
       const actorLabel = getActorLabel(c);
-      const memo = await createMemoRecord(c.env.DB, auth.workspaceId, {
+      const memo = await createMemoRecord(c.env.storage.db, auth.workspaceId, {
         notebookId,
         title: getOptionalString(args.title) ?? undefined,
         contentMarkdown: getOptionalString(args.contentMarkdown) ?? "",
@@ -3371,7 +3434,7 @@ const callMcpTool = async (
       const actor = getAuditActor(c);
       const actorLabel = getActorLabel(c);
       const result = await updateMemoRecord(
-        c.env.DB,
+        c.env.storage.db,
         auth.workspaceId,
         memoId,
         {
@@ -3402,10 +3465,10 @@ const callMcpTool = async (
       const memoIds = getRequiredStringArray(args.memoIds, "memoIds");
 
       if (args.dryRun === true) {
-        return { dryRun: true, memos: await getMemosForBulkAction(c.env.DB, auth.workspaceId, memoIds, 0) };
+        return { dryRun: true, memos: await getMemosForBulkAction(c.env.storage.db, auth.workspaceId, memoIds, 0) };
       }
 
-      const deleted = await deleteMemosRecord(c.env.DB, c.env.RESOURCES, auth.workspaceId, memoIds, false, getAuditActor(c));
+      const deleted = await deleteMemosRecord(c.env.storage.db, c.env.storage.resources, auth.workspaceId, memoIds, false, getAuditActor(c));
       return { ok: true, deleted };
     }
     case "restore_memos": {
@@ -3413,16 +3476,16 @@ const callMcpTool = async (
       const memoIds = getRequiredStringArray(args.memoIds, "memoIds");
 
       if (args.dryRun === true) {
-        return { dryRun: true, memos: await getMemosForBulkAction(c.env.DB, auth.workspaceId, memoIds, 1) };
+        return { dryRun: true, memos: await getMemosForBulkAction(c.env.storage.db, auth.workspaceId, memoIds, 1) };
       }
 
-      const restored = await restoreMemosRecord(c.env.DB, auth.workspaceId, memoIds, getAuditActor(c));
+      const restored = await restoreMemosRecord(c.env.storage.db, auth.workspaceId, memoIds, getAuditActor(c));
       return { ok: true, restored };
     }
     case "upload_memo_image": {
       assertScope(auth, "write:resources");
       const memoId = getRequiredString(args.memoId, "memoId");
-      const memo = await getMemoDetail(c.env.DB, auth.workspaceId, memoId);
+      const memo = await getMemoDetail(c.env.storage.db, auth.workspaceId, memoId);
 
       if (!memo) {
         throw new AppError("not_found", "Memo not found", 404);
@@ -3450,25 +3513,25 @@ const callMcpTool = async (
       assertScope(auth, "write:memos");
       const notebookId = getRequiredString(args.notebookId, "notebookId");
       const memoIds = getRequiredStringArray(args.memoIds, "memoIds");
-      const target = await getNotebook(c.env.DB, auth.workspaceId, notebookId);
+      const target = await getNotebook(c.env.storage.db, auth.workspaceId, notebookId);
 
       if (!target) {
         throw new AppError("not_found", "Target notebook not found", 404);
       }
 
       if (args.dryRun === true) {
-        return { dryRun: true, targetNotebook: target, memos: await getMemosForBulkAction(c.env.DB, auth.workspaceId, memoIds, 0) };
+        return { dryRun: true, targetNotebook: target, memos: await getMemosForBulkAction(c.env.storage.db, auth.workspaceId, memoIds, 0) };
       }
 
       const actor = getAuditActor(c);
       const actorLabel = getActorLabel(c);
-      const moved = await moveMemosToNotebook(c.env.DB, auth.workspaceId, memoIds, notebookId, actor, actorLabel);
+      const moved = await moveMemosToNotebook(c.env.storage.db, auth.workspaceId, memoIds, notebookId, actor, actorLabel);
 
       return { ok: true, moved };
     }
     case "add_tags_to_memos": {
       assertScope(auth, "write:tags");
-      return await updateTagsForMemos(c.env.DB, {
+      return await updateTagsForMemos(c.env.storage.db, {
         workspaceId: auth.workspaceId,
         memoIds: getRequiredStringArray(args.memoIds, "memoIds"),
         tags: getRequiredStringArray(args.tags, "tags"),
@@ -3480,7 +3543,7 @@ const callMcpTool = async (
     }
     case "remove_tags_from_memos": {
       assertScope(auth, "write:tags");
-      return await updateTagsForMemos(c.env.DB, {
+      return await updateTagsForMemos(c.env.storage.db, {
         workspaceId: auth.workspaceId,
         memoIds: getRequiredStringArray(args.memoIds, "memoIds"),
         tags: getRequiredStringArray(args.tags, "tags"),
@@ -3496,10 +3559,10 @@ const callMcpTool = async (
       const to = getRequiredString(args.to, "to");
 
       if (args.dryRun === true) {
-        return await previewTagRename(c.env.DB, auth.workspaceId, from, to);
+        return await previewTagRename(c.env.storage.db, auth.workspaceId, from, to);
       }
 
-      const updated = await updateTagAcrossMemos(c.env.DB, auth.workspaceId, from, to, getAuditActor(c), getActorLabel(c));
+      const updated = await updateTagAcrossMemos(c.env.storage.db, auth.workspaceId, from, to, getAuditActor(c), getActorLabel(c));
       return { ok: true, updated };
     }
     case "delete_tag": {
@@ -3507,10 +3570,10 @@ const callMcpTool = async (
       const tag = getRequiredString(args.tag, "tag");
 
       if (args.dryRun === true) {
-        return await previewTagRename(c.env.DB, auth.workspaceId, tag, null);
+        return await previewTagRename(c.env.storage.db, auth.workspaceId, tag, null);
       }
 
-      const updated = await updateTagAcrossMemos(c.env.DB, auth.workspaceId, tag, null, getAuditActor(c), getActorLabel(c));
+      const updated = await updateTagAcrossMemos(c.env.storage.db, auth.workspaceId, tag, null, getAuditActor(c), getActorLabel(c));
       return { ok: true, updated };
     }
     case "merge_memos": {
@@ -3518,7 +3581,7 @@ const callMcpTool = async (
       const actor = getAuditActor(c);
       const actorLabel = getActorLabel(c);
       const memo = await mergeMemosRecord(
-        c.env.DB,
+        c.env.storage.db,
         auth.workspaceId,
         {
           memoIds: getRequiredStringArray(args.memoIds, "memoIds"),
@@ -3534,7 +3597,7 @@ const callMcpTool = async (
     case "upload_memo_attachment": {
       assertScope(auth, "write:resources");
       const memoId = getRequiredString(args.memoId, "memoId");
-      const memo = await getMemoDetail(c.env.DB, auth.workspaceId, memoId);
+      const memo = await getMemoDetail(c.env.storage.db, auth.workspaceId, memoId);
 
       if (!memo) {
         throw new AppError("not_found", "Memo not found", 404);
@@ -3559,23 +3622,23 @@ const callMcpTool = async (
     case "list_memo_resources": {
       assertScope(auth, "read:resources");
       const memoId = getRequiredString(args.memoId, "memoId");
-      const memo = await getMemoDetail(c.env.DB, auth.workspaceId, memoId, true);
+      const memo = await getMemoDetail(c.env.storage.db, auth.workspaceId, memoId, true);
 
       if (!memo) {
         throw new AppError("not_found", "Memo not found", 404);
       }
 
-      return { resources: await listResourcesForMemo(c.env.DB, auth.workspaceId, memoId) };
+      return { resources: await listResourcesForMemo(c.env.storage.db, auth.workspaceId, memoId) };
     }
     case "list_resources": {
       assertScope(auth, "read:resources");
-      return await listResourcesForMcp(c.env.DB, auth.workspaceId, clampNumber(Number(args.limit ?? 100), 1, 500));
+      return await listResourcesForMcp(c.env.storage.db, auth.workspaceId, clampNumber(Number(args.limit ?? 100), 1, 500));
     }
     case "list_memo_revisions": {
       assertScope(auth, "read:memos");
       return {
         revisions: await listMemoRevisions(
-          c.env.DB,
+          c.env.storage.db,
           auth.workspaceId,
           getRequiredString(args.memoId, "memoId"),
           clampNumber(Number(args.limit ?? 50), 1, 100)
@@ -3586,7 +3649,7 @@ const callMcpTool = async (
       assertScope(auth, "write:memos");
       const memoId = getRequiredString(args.memoId, "memoId");
       const revisionId = getRequiredString(args.revisionId, "revisionId");
-      const revision = await getMemoRevisionRow(c.env.DB, auth.workspaceId, memoId, revisionId);
+      const revision = await getMemoRevisionRow(c.env.storage.db, auth.workspaceId, memoId, revisionId);
 
       if (!revision) {
         throw new AppError("not_found", "Memo revision not found", 404);
@@ -3596,13 +3659,13 @@ const callMcpTool = async (
         return { dryRun: true, revision: mapMemoRevision(revision) };
       }
 
-      return { memo: await restoreMemoRevisionRecord(c.env.DB, auth.workspaceId, memoId, revisionId, getAuditActor(c), getActorLabel(c)) };
+      return { memo: await restoreMemoRevisionRecord(c.env.storage.db, auth.workspaceId, memoId, revisionId, getAuditActor(c), getActorLabel(c)) };
     }
     case "move_notebook": {
       assertScope(auth, "write:notebooks");
       const actor = getAuditActor(c);
       const notebook = await updateNotebookRecord(
-        c.env.DB,
+        c.env.storage.db,
         auth.workspaceId,
         getRequiredString(args.notebookId, "notebookId"),
         {
@@ -3624,7 +3687,7 @@ const callMcpTool = async (
       }
 
       const notebook = await createNotebookRecord(
-        c.env.DB,
+        c.env.storage.db,
         auth.workspaceId,
         {
           name,
@@ -3638,15 +3701,15 @@ const callMcpTool = async (
     }
     case "list_notebooks": {
       assertScope(auth, "read:notebooks");
-      return { notebooks: await listNotebooks(c.env.DB, auth.workspaceId) };
+      return { notebooks: await listNotebooks(c.env.storage.db, auth.workspaceId) };
     }
     case "list_tags": {
       assertScope(auth, "read:tags");
-      return { tags: await listTagSummaries(c.env.DB, auth.workspaceId) };
+      return { tags: await listTagSummaries(c.env.storage.db, auth.workspaceId) };
     }
     case "get_workspace_stats": {
       assertScope(auth, "read:memos");
-      return await getWorkspaceStats(c.env.DB, auth.workspaceId);
+      return await getWorkspaceStats(c.env.storage.db, auth.workspaceId);
     }
     default:
       throw new Error(`Unknown tool: ${name}`);
@@ -3729,7 +3792,7 @@ const escapeMarkdownImageAlt = (value: string) => value.replace(/[\\[\]]/g, "\\$
 const escapeMarkdownLinkLabel = (value: string) => value.replace(/[\\[\]]/g, "\\$&");
 
 const getInstanceAuthMode = async (env: Bindings): Promise<InstanceAuthMode> => {
-  if (!env.DB || typeof env.DB.prepare !== "function") {
+  if (!env.storage.db || typeof env.storage.db.prepare !== "function") {
     throw new AppError(
       "database_not_ready",
       "Database is not ready. Bind the D1 database as DB and apply the remote migrations.",
@@ -3739,7 +3802,7 @@ const getInstanceAuthMode = async (env: Bindings): Promise<InstanceAuthMode> => 
 
   let user: { id: string } | null;
   try {
-    user = await env.DB.prepare(`SELECT id FROM users WHERE is_disabled = 0 LIMIT 1`).first<{ id: string }>();
+    user = await env.storage.db.prepare(`SELECT id FROM users WHERE is_disabled = 0 LIMIT 1`).first<{ id: string }>();
   } catch (error) {
     if (isDatabaseNotReadyError(error)) {
       throw new AppError(
@@ -3763,7 +3826,7 @@ const getInstanceAuthMode = async (env: Bindings): Promise<InstanceAuthMode> => 
 
 const verifyLogin = async (env: Bindings, username: string, password: string): Promise<UserRow | null> => {
   const normalizedUsername = username.trim();
-  const existingUser = await getUserByUsername(env.DB, normalizedUsername);
+  const existingUser = await getUserByUsername(env.storage.db, normalizedUsername);
 
   if (existingUser) {
     if (await verifyPassword(password, existingUser.password_hash)) {
@@ -3809,17 +3872,17 @@ const verifyLogin = async (env: Bindings, username: string, password: string): P
   const userId = createId("usr");
   const passwordHash = await hashPassword(password);
 
-  await env.DB.prepare(
+  await env.storage.db.prepare(
     `INSERT OR IGNORE INTO users (id, username, password_hash, display_name, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?)`
   )
     .bind(userId, normalizedUsername, passwordHash, normalizedUsername, now, now)
     .run();
 
-  return getUserByUsername(env.DB, normalizedUsername);
+  return getUserByUsername(env.storage.db, normalizedUsername);
 };
 
-const getUserByUsername = async (db: D1Database, username: string) =>
+const getUserByUsername = async (db: DatabaseAdapter, username: string) =>
   db
     .prepare(
       `SELECT id, username, password_hash, display_name, is_disabled
@@ -3932,17 +3995,20 @@ const createSession = async (c: AppContext, user: UserRow, requestedDeviceId?: s
   const deviceId = resolveSessionDeviceId(requestedDeviceId, userAgent, id);
   const ip = c.req.header("CF-Connecting-IP");
   const ipHash = ip ? await sha256(ip) : null;
+  const cf = c.req.raw.cf as { country?: string; region?: string } | undefined;
+  const ipCountry = c.req.header("CF-IPCountry") ?? cf?.country ?? null;
+  const ipRegion = cf?.region ?? null;
 
-  await c.env.DB.batch([
-    c.env.DB.prepare(
+  await c.env.storage.db.batch([
+    c.env.storage.db.prepare(
       `UPDATE sessions SET revoked_at = ?
        WHERE user_id = ? AND device_id = ? AND revoked_at IS NULL`
     ).bind(now, user.id, deviceId),
-    c.env.DB.prepare(
+    c.env.storage.db.prepare(
       `INSERT INTO sessions (
-        id, user_id, token_hash, device_id, user_agent, ip_hash, expires_at, created_at, last_seen_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).bind(id, user.id, await sha256(token), deviceId, userAgent, ipHash, expiresAt, now, now),
+        id, user_id, token_hash, device_id, user_agent, ip_hash, device_label, ip_address, ip_country, ip_region, expires_at, created_at, last_seen_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(id, user.id, await sha256(token), deviceId, userAgent, ipHash, null, ip ?? null, ipCountry, ipRegion, expiresAt, now, now),
   ]);
 
   return { id, token, maxAge };
@@ -3988,7 +4054,7 @@ const authenticateBearerToken = async (c: AppContext, touch: boolean): Promise<A
     return sessionAuth;
   }
 
-  const row = await c.env.DB.prepare(
+  const row = await c.env.storage.db.prepare(
     `SELECT id, name, token_value, scopes_json, last_used_at, expires_at, is_revoked, created_at, workspace_id
      FROM api_tokens
      WHERE token_hash = ?
@@ -4003,7 +4069,7 @@ const authenticateBearerToken = async (c: AppContext, touch: boolean): Promise<A
   }
 
   if (touch) {
-    await c.env.DB.prepare(`UPDATE api_tokens SET last_used_at = ? WHERE id = ?`).bind(isoNow(), row.id).run();
+    await c.env.storage.db.prepare(`UPDATE api_tokens SET last_used_at = ? WHERE id = ?`).bind(isoNow(), row.id).run();
   }
 
   return {
@@ -4020,7 +4086,7 @@ const authenticateBearerToken = async (c: AppContext, touch: boolean): Promise<A
 };
 
 const authenticateSessionToken = async (c: AppContext, token: string, touch: boolean): Promise<AuthContext | null> => {
-  const row = await c.env.DB.prepare(
+  const row = await c.env.storage.db.prepare(
     `SELECT s.id, s.user_id, u.username, u.display_name, s.expires_at
      FROM sessions s
      INNER JOIN users u ON u.id = s.user_id
@@ -4037,10 +4103,10 @@ const authenticateSessionToken = async (c: AppContext, token: string, touch: boo
   }
 
   if (touch) {
-    await c.env.DB.prepare(`UPDATE sessions SET last_seen_at = ? WHERE id = ?`).bind(isoNow(), row.id).run();
+    await c.env.storage.db.prepare(`UPDATE sessions SET last_seen_at = ? WHERE id = ?`).bind(isoNow(), row.id).run();
   }
 
-  const workspace = await ensureUserWorkspace(c.env.DB, row.user_id, row.username);
+  const workspace = await ensureUserWorkspace(c.env.storage.db, row.user_id, row.username);
 
   return {
     kind: "user",
@@ -5466,17 +5532,17 @@ let localDemoSeedPromise: Promise<void> | null = null;
 const ensureLocalDemoSeed = (env: Bindings) => {
   localDemoSeedPromise ??= (async () => {
     const memoPlaceholders = DEMO_SEED_MEMO_IDS.map(() => "?").join(", ");
-    await env.DB.batch([
-      env.DB.prepare(`DELETE FROM mobile_sync_changes`),
-      env.DB.prepare(`DELETE FROM memos_fts`),
-      env.DB.prepare(`DELETE FROM resources`),
-      env.DB.prepare(`DELETE FROM memo_revisions`),
-      env.DB.prepare(`DELETE FROM memo_contents WHERE memo_id NOT IN (${memoPlaceholders})`).bind(...DEMO_SEED_MEMO_IDS),
-      env.DB.prepare(`DELETE FROM memos WHERE id NOT IN (${memoPlaceholders})`).bind(...DEMO_SEED_MEMO_IDS),
+    await env.storage.db.batch([
+      env.storage.db.prepare(`DELETE FROM mobile_sync_changes`),
+      env.storage.db.prepare(`DELETE FROM memos_fts`),
+      env.storage.db.prepare(`DELETE FROM resources`),
+      env.storage.db.prepare(`DELETE FROM memo_revisions`),
+      env.storage.db.prepare(`DELETE FROM memo_contents WHERE memo_id NOT IN (${memoPlaceholders})`).bind(...DEMO_SEED_MEMO_IDS),
+      env.storage.db.prepare(`DELETE FROM memos WHERE id NOT IN (${memoPlaceholders})`).bind(...DEMO_SEED_MEMO_IDS),
     ]);
 
     await ensureDemoSeed(env, { overwriteExisting: true, refreshResources: true });
-    await audit(env.DB, "system", null, "demo.local_seed", "demo", "edgeever-local", {
+    await audit(env.storage.db, "system", null, "demo.local_seed", "demo", "edgeever-local", {
       seedMemoCount: DEMO_SEED_MEMOS.length,
       mode: "sync-seed",
     });
@@ -5492,7 +5558,7 @@ const ensureDemoSeed = async (
   env: Bindings,
   options: { overwriteExisting?: boolean; refreshResources?: boolean } = {},
 ) => {
-  const db = env.DB;
+  const db = env.storage.db;
   const now = isoNow();
   const statements: D1PreparedStatement[] = [];
   const bucketName = env.EDGE_EVER_R2_BUCKET_NAME?.trim() || DEFAULT_R2_BUCKET_NAME;
@@ -5693,7 +5759,7 @@ const ensureDemoSeed = async (
     const objectKey = `demo/${resource.memoId}/${resource.id}.${extension}`;
 
     if (options.refreshResources || !existingResourceIds.has(resource.id)) {
-      await env.RESOURCES.put(objectKey, bytes, {
+      await env.storage.resources.put(objectKey, bytes, {
         httpMetadata: {
           contentType: resource.mimeType,
           cacheControl: "private, max-age=3600",
@@ -5759,7 +5825,7 @@ const resetDemoData = async (
   scheduledTime: number,
   options: { resetCredentials?: boolean } = {}
 ) => {
-  const db = env.DB;
+  const db = env.storage.db;
   const now = isoNow();
   const demoUsername = env.EDGE_EVER_AUTH_USERNAME?.trim() || "admin";
   const demoPasswordHash = await resolveDemoPasswordHash(
@@ -5771,7 +5837,7 @@ const resetDemoData = async (
   const objectKeys = resourceRows.results.map((resource) => resource.object_key);
 
   for (let index = 0; index < objectKeys.length; index += 1000) {
-    await env.RESOURCES.delete(objectKeys.slice(index, index + 1000));
+    await env.storage.resources.delete(objectKeys.slice(index, index + 1000));
   }
 
   const resetStatements: D1PreparedStatement[] = [

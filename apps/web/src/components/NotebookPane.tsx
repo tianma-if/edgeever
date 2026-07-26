@@ -20,6 +20,7 @@ import {
   CheckCircle2,
   CircleUserRound,
   Download,
+  ExternalLink,
   RotateCcw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -52,11 +53,13 @@ const NOTEBOOK_DRAG_SCROLL_MAX_STEP_PX = 18;
 
 const SidebarNavButton = ({
   active = false,
+  tone = "default",
   icon,
   label,
   onClick,
 }: {
   active?: boolean;
+  tone?: "default" | "warning";
   icon: ReactNode;
   label: string;
   onClick: () => void;
@@ -64,7 +67,11 @@ const SidebarNavButton = ({
   <button
     className={cn(
       "flex h-9 w-full items-center gap-3 rounded-md px-3 text-left text-sm font-medium leading-none transition-all duration-200",
-      active ? "bg-slate-100 text-slate-950" : "text-slate-700 hover:bg-slate-50 hover:text-slate-950"
+      tone === "warning"
+        ? "text-amber-700 hover:bg-amber-50/70 hover:text-amber-800"
+        : active
+          ? "bg-slate-100 text-slate-950"
+          : "text-slate-700 hover:bg-slate-50 hover:text-slate-950"
     )}
     type="button"
     aria-current={active ? "page" : undefined}
@@ -457,7 +464,8 @@ export const NotebookPane = ({
           />
           {demoMode && onResetDemo && (
             <SidebarNavButton
-              icon={<RotateCcw className={cn("h-4 w-4 text-slate-500", isResettingDemo && "animate-spin text-emerald-600")} />}
+              tone="warning"
+              icon={<RotateCcw className={cn("h-4 w-4 text-amber-600", isResettingDemo && "animate-spin")} />}
               label={isResettingDemo ? t("demo.resetting") : t("demo.resetButton")}
               onClick={onResetDemo}
             />
@@ -543,6 +551,21 @@ export const NotebookPane = ({
               </span>
               <span className="min-w-0 flex-1 truncate">{t("pwa.sidebarInstall") || "安装桌面客户端"}</span>
             </button>
+          )}
+          {demoMode && (
+            <a
+              href="https://chromewebstore.google.com/detail/edgeever-web-clipper/gjadpfmanienmlofajibkfkkpfdkclgo"
+              target="_blank"
+              rel="noreferrer"
+              className="flex h-8 w-full items-center gap-3 rounded-md px-3 text-left text-sm font-medium leading-none text-slate-500 transition-colors duration-200 hover:bg-slate-50 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70"
+              title={t("pwa.sidebarClipperTitle") || "安装 EdgeEver 浏览器剪藏插件"}
+              aria-label={t("pwa.sidebarClipperTitle") || "安装 EdgeEver 浏览器剪藏插件"}
+            >
+              <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+                <ExternalLink className="h-3.5 w-3.5 text-slate-400" />
+              </span>
+              <span className="min-w-0 flex-1 truncate">{t("pwa.sidebarClipper") || "安装浏览器剪藏插件"}</span>
+            </a>
           )}
           <button
             onClick={onOpenSettings}

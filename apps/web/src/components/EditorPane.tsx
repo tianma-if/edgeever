@@ -30,6 +30,7 @@ import {
   Check,
   CircleAlert,
   LoaderCircle,
+  Info,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { GitHubRepositoryLink } from "@/components/GitHubRepositoryLink";
@@ -58,6 +59,7 @@ import {
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { EditorToolbar } from "./EditorToolbar";
+import { EditorOutline } from "./EditorOutline";
 import { WeChatIcon } from "./WeChatIcon";
 import { ThemeToggle } from "./ThemeToggle";
 import { useTheme } from "./ThemeProvider";
@@ -91,12 +93,24 @@ import {
 } from "@/lib/app-helpers";
 import { copyEditorToWeChat, copyMarkdownToWeChat } from "@/lib/wechat-copy";
 import { ThemeBlock } from "./ThemeBlock";
+import { SystemInfoDialog } from "./SystemInfoDialog";
+import { fetchLatestRelease, isVersionOutdated } from "@/lib/version-check";
+import { RELEASE_STATUS_EVENT } from "@/lib/release-notice";
 
 const SUPPORTED_PASTE_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp", "image/avif"]);
 const MOBILE_EDITOR_QUERY = "(max-width: 639px)";
 const EDITOR_AUTO_SAVE_DELAY_MS = 1200;
 const MOBILE_DRAFT_PERSIST_DELAY_MS = 800;
 const NOTE_SEARCH_HIGHLIGHT_PLUGIN_KEY = new PluginKey("edgeever-note-search-highlight");
+
+const IconTooltip = ({ label, children }: { label: string; children: ReactNode }) => (
+  <TooltipProvider delayDuration={0} skipDelayDuration={0}>
+    <Tooltip>
+      <TooltipTrigger asChild>{children}</TooltipTrigger>
+      <TooltipContent side="bottom">{label}</TooltipContent>
+    </Tooltip>
+  </TooltipProvider>
+);
 
 type NoteSearchMatch = {
   from: number;
@@ -1135,6 +1149,8 @@ const RichEditorPane = ({
   const [editorContentVersion, setEditorContentVersion] = useState(0);
   const [imageUploadState, setImageUploadState] = useState<"idle" | "compressing" | "uploading" | "error">("idle");
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [systemInfoOpen, setSystemInfoOpen] = useState(false);
+  const [updateAvailable, setUpdateAvailable] = useState(false);
   const [mobileNotebookSheetOpen, setMobileNotebookSheetOpen] = useState(false);
   const [notebookUpdatePending, setNotebookUpdatePending] = useState(false);
   const [noteSearchOpen, setNoteSearchOpen] = useState(false);
@@ -1154,10 +1170,28 @@ const RichEditorPane = ({
   const [mobileImeDebugActiveElement, setMobileImeDebugActiveElement] = useState(getActiveElementLabel);
   const [mobileImeDebugEvents, setMobileImeDebugEvents] = useState<MobileImeDebugEntry[]>([]);
   const [wechatCopyState, setWechatCopyState] = useState<"idle" | "copying" | "copied" | "error">("idle");
+  const [editorScrollContainer, setEditorScrollContainer] = useState<HTMLDivElement | null>(null);
+  const setEditorScrollContainerRef = useCallback((element: HTMLDivElement | null) => {
+    editorScrollContainerRef.current = element;
+    setEditorScrollContainer(element);
+  }, []);
   const notebookOptions = useMemo(() => getNotebookMoveOptions(notebooks), [notebooks]);
   const readOnly = isTrashView || Boolean(memo?.isDeleted);
   const mobileDefaultEditRequested = Boolean(memo?.id && memo.id === mobileDefaultEditMemoId && !readOnly);
   const mobileEditingActive = isMobileEditing || mobileDefaultEditRequested;
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetchLatestRelease(controller.signal)
+      .then((release) => setUpdateAvailable(isVersionOutdated(__EDGEEVER_APP_VERSION__, release.tagName)))
+      .catch(() => undefined);
+    const handleReleaseStatus = () => setUpdateAvailable(true);
+    window.addEventListener(RELEASE_STATUS_EVENT, handleReleaseStatus);
+    return () => {
+      controller.abort();
+      window.removeEventListener(RELEASE_STATUS_EVENT, handleReleaseStatus);
+    };
+  }, []);
   const effectiveReadOnly = readOnly || (isMobileViewport && !mobileEditingActive);
   const useMobilePlainTextEditor = isMobileViewport && mobileEditingActive && !readOnly;
   const useMarkdownSourceEditor = !useMobilePlainTextEditor && isMarkdownMode;
@@ -2508,12 +2542,16 @@ const RichEditorPane = ({
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
-              <Button size="icon" variant="ghost" title={t("editor.previousMemo")} aria-label={t("editor.previousMemo")} onClick={onOpenPreviousMemo} disabled={!hasPreviousMemo}>
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Button size="icon" variant="ghost" title={t("editor.nextMemo")} aria-label={t("editor.nextMemo")} onClick={onOpenNextMemo} disabled={!hasNextMemo}>
-                <ChevronRight className="h-4 w-4" />
-              </Button>
+              <IconTooltip label={t("editor.previousMemo")}>
+                <Button size="icon" variant="ghost" aria-label={t("editor.previousMemo")} onClick={onOpenPreviousMemo} disabled={!hasPreviousMemo}>
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+              </IconTooltip>
+              <IconTooltip label={t("editor.nextMemo")}>
+                <Button size="icon" variant="ghost" aria-label={t("editor.nextMemo")} onClick={onOpenNextMemo} disabled={!hasNextMemo}>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </IconTooltip>
             </div>
             <span className="hidden truncate text-xs text-slate-400 sm:inline">
               {t("editor.updatedAt", { time: updatedLabel })}
@@ -2597,9 +2635,11 @@ const RichEditorPane = ({
                 <Type className="h-4 w-4" />
               </Button>
             )}
-            <Button className="hidden h-8 w-8 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-slate-300 sm:inline-flex" size="icon" variant="ghost" title={t("editor.searchCurrentMemo")} aria-label={t("editor.searchCurrentMemo")} onClick={() => openNoteSearch()}>
-              <Search className="h-5 w-5" strokeWidth={2.25} />
-            </Button>
+            <IconTooltip label={t("editor.searchCurrentMemo")}>
+              <Button className="hidden h-8 w-8 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-slate-300 sm:inline-flex" size="icon" variant="ghost" aria-label={t("editor.searchCurrentMemo")} onClick={() => openNoteSearch()}>
+                <Search className="h-5 w-5" strokeWidth={2.25} />
+              </Button>
+            </IconTooltip>
             <TooltipProvider delayDuration={0} skipDelayDuration={0}>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -2632,23 +2672,32 @@ const RichEditorPane = ({
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
-            <Button className="hidden h-8 w-8 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-slate-300 sm:inline-flex" size="icon" variant="ghost" title={t("editor.versionHistory")} aria-label={t("editor.versionHistory")} onClick={() => setHistoryOpen(true)}>
-              <History className="h-5 w-5" strokeWidth={2.25} />
-            </Button>
+            <IconTooltip label={t("editor.versionHistory")}>
+              <Button className="hidden h-8 w-8 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-slate-300 sm:inline-flex" size="icon" variant="ghost" aria-label={t("editor.versionHistory")} onClick={() => setHistoryOpen(true)}>
+                <History className="h-5 w-5" strokeWidth={2.25} />
+              </Button>
+            </IconTooltip>
             <GitHubRepositoryLink className="hidden h-8 w-8 justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/70 lg:inline-flex" iconClassName="h-5 w-5" />
+            <IconTooltip label={t("systemInfo.title")}>
+              <Button className="relative hidden h-8 w-8 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-emerald-500/70 sm:inline-flex" size="icon" variant="ghost" aria-label={t("systemInfo.title")} onClick={() => setSystemInfoOpen(true)}>
+                <Info className="h-5 w-5" strokeWidth={2.25} />
+                {updateAvailable ? <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-emerald-500 ring-2 ring-white" /> : null}
+              </Button>
+            </IconTooltip>
             <ThemeToggle />
             {!readOnly && (
-              <Button
-                className="hidden sm:inline-flex"
-                size="icon"
-                variant="solid"
-                title={t("editor.save")}
-                aria-label={t("editor.save")}
-                onClick={() => saveMutation.mutate()}
-                disabled={!editor || saveMutation.isPending || !hasUnsavedChanges}
-              >
-                <Save className="h-4 w-4" />
-              </Button>
+              <IconTooltip label={t("editor.save")}>
+                <Button
+                  className="hidden sm:inline-flex"
+                  size="icon"
+                  variant="solid"
+                  aria-label={t("editor.save")}
+                  onClick={() => saveMutation.mutate()}
+                  disabled={!editor || saveMutation.isPending || !hasUnsavedChanges}
+                >
+                  <Save className="h-4 w-4" />
+                </Button>
+              </IconTooltip>
             )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -2904,7 +2953,7 @@ const RichEditorPane = ({
       </header>
 
       <div
-        ref={editorScrollContainerRef}
+        ref={setEditorScrollContainerRef}
         data-editor-theme={editorTheme}
         style={editorTheme === "custom" ? {
           "--editor-theme-bg": customEditorTheme.background,
@@ -2919,56 +2968,77 @@ const RichEditorPane = ({
           useMobilePlainTextEditor ? "overflow-visible" : "overflow-y-auto"
         )}
       >
-        {useMobilePlainTextEditor ? (
-          <>
-            <textarea
-              ref={(element) => {
-                mobileTextAreaRef.current = element;
-              }}
-              defaultValue={mobilePlainText}
-              autoCapitalize="sentences"
-              autoComplete="on"
-              autoCorrect="on"
-              enterKeyHint="enter"
-              inputMode="text"
-              name="memo-body"
-              spellCheck
-              data-edgeever-mobile-editor="plain-textarea"
-              aria-label={t("editor.noteBodyAria")}
-              className="block min-h-[60dvh] w-full resize-none border border-slate-200 bg-white px-4 py-3 pr-32 text-base leading-7 text-slate-950 outline-none placeholder:text-slate-400 sm:px-7"
-              placeholder={t("editor.placeholder")}
-              style={{ WebkitUserSelect: "text", userSelect: "text", caretColor: "auto" }}
-            />
-            <div className="absolute right-3 top-3 flex gap-2">
-              <button
-                className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm font-semibold text-emerald-800 shadow-sm"
-                type="button"
-                onClick={() => void handleMobileClipboardInput()}
-              >
-                  {t("editor.paste")}
-              </button>
-              <button
-                className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 shadow-sm"
-                type="button"
-                onClick={handleMobilePromptInput}
-              >
-                  {t("editor.typeInput")}
-              </button>
-            </div>
-          </>
-        ) : useMarkdownSourceEditor ? (
-          <textarea
-            value={markdownSource}
-            onChange={(event) => handleMarkdownSourceChange(event.target.value)}
-            readOnly={effectiveReadOnly}
-            spellCheck={false}
-            aria-label={t("editor.markdownSourceAria")}
-            className="block min-h-[300px] h-full w-full resize-none border-0 bg-slate-950 px-4 py-3 font-mono text-sm leading-6 text-slate-100 outline-none placeholder:text-slate-500 sm:px-7"
-            placeholder={`# ${t("editor.placeholder")}`}
-          />
-        ) : (
-          <EditorContent editor={editor} />
-        )}
+        <div
+          className={cn(
+            "flex min-h-full items-start gap-8 px-6 py-6 sm:px-10 transition-all duration-200",
+            desktopFocusMode
+              ? "mx-auto w-full max-w-[1400px] justify-center"
+              : "w-full justify-start"
+          )}
+        >
+          <div
+            className={cn(
+              "min-w-0 flex-1 transition-[max-width] duration-200",
+              desktopFocusMode
+                ? "max-w-[960px]"
+                : "max-w-[var(--editor-content-max-width,880px)]"
+            )}
+          >
+            {useMobilePlainTextEditor ? (
+              <>
+                <textarea
+                  ref={(element) => {
+                    mobileTextAreaRef.current = element;
+                  }}
+                  defaultValue={mobilePlainText}
+                  autoCapitalize="sentences"
+                  autoComplete="on"
+                  autoCorrect="on"
+                  enterKeyHint="enter"
+                  inputMode="text"
+                  name="memo-body"
+                  spellCheck
+                  data-edgeever-mobile-editor="plain-textarea"
+                  aria-label={t("editor.noteBodyAria")}
+                  className="block min-h-[60dvh] w-full resize-none border border-slate-200 bg-white px-4 py-3 pr-32 text-base leading-7 text-slate-950 outline-none placeholder:text-slate-400 sm:px-7"
+                  placeholder={t("editor.placeholder")}
+                  style={{ WebkitUserSelect: "text", userSelect: "text", caretColor: "auto" }}
+                />
+                <div className="absolute right-3 top-3 flex gap-2">
+                  <button
+                    className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm font-semibold text-emerald-800 shadow-sm"
+                    type="button"
+                    onClick={() => void handleMobileClipboardInput()}
+                  >
+                      {t("editor.paste")}
+                  </button>
+                  <button
+                    className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 shadow-sm"
+                    type="button"
+                    onClick={handleMobilePromptInput}
+                  >
+                      {t("editor.typeInput")}
+                  </button>
+                </div>
+              </>
+            ) : useMarkdownSourceEditor ? (
+              <textarea
+                value={markdownSource}
+                onChange={(event) => handleMarkdownSourceChange(event.target.value)}
+                readOnly={effectiveReadOnly}
+                spellCheck={false}
+                aria-label={t("editor.markdownSourceAria")}
+                className="block min-h-[300px] h-full w-full resize-none border-0 bg-slate-950 px-4 py-3 font-mono text-sm leading-6 text-slate-100 outline-none placeholder:text-slate-500 sm:px-7"
+                placeholder={`# ${t("editor.placeholder")}`}
+              />
+            ) : (
+              <EditorContent editor={editor} />
+            )}
+          </div>
+          {!isMobileViewport && !useMobilePlainTextEditor && !useMarkdownSourceEditor && (
+            <EditorOutline editor={editor} scrollContainer={editorScrollContainer} />
+          )}
+        </div>
       </div>
 
       {false && useMobilePlainTextEditor && (
@@ -3080,6 +3150,8 @@ const RichEditorPane = ({
           }}
         />
       )}
+
+      <SystemInfoDialog open={systemInfoOpen} onOpenChange={setSystemInfoOpen} />
 
       {mobileNotebookSheetOpen && (
         <MobileNotebookSelectSheet

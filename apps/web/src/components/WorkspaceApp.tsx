@@ -13,7 +13,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { useInfiniteQuery, useQuery, useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
-import { Home, Search, UserRound, Plus, LayoutTemplate, ChevronDown, ChevronRight, RefreshCw, X } from "lucide-react";
+import { Home, Search, UserRound, Plus, ChevronDown, ChevronRight, RefreshCw, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router";
 import { Button } from "@/components/ui/button";
@@ -323,7 +323,6 @@ const MobileBottomNav = ({
   isCreating,
   onCreateMemo,
   onHome,
-  onOpenTemplates,
   onOpenSettings,
 }: {
   activeItem: MobileBottomNavItem;
@@ -331,12 +330,9 @@ const MobileBottomNav = ({
   isCreating: boolean;
   onCreateMemo: () => void;
   onHome: () => void;
-  onOpenTemplates: () => void;
   onOpenSettings: () => void;
 }) => {
   const { t } = useTranslation();
-  // Temporarily hide template navigation while the feature is being finalized.
-  const showTemplateEntry = true;
   const createMemoLabel = !canCreateMemo ? t("nav.createDisabled") : isCreating ? t("nav.creating") : t("nav.createMemo");
 
   return (
@@ -344,9 +340,8 @@ const MobileBottomNav = ({
       className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-5 pb-[max(0.125rem,env(safe-area-inset-bottom))] pt-0 shadow-[0_-10px_30px_rgba(15,23,42,0.08)] backdrop-blur lg:hidden"
       aria-label={t("nav.mobileMain")}
     >
-      <div className="relative grid h-mobile-bottom-nav grid-cols-4 items-center">
+      <div className="relative grid h-mobile-bottom-nav grid-cols-3 items-center">
         <MobileBottomNavButton active={activeItem === "home"} icon={<Home className="h-5 w-5" />} label={t("nav.home")} onClick={onHome} />
-        {showTemplateEntry ? <MobileBottomNavButton active={activeItem === "templates"} icon={<LayoutTemplate className="h-5 w-5" />} label={t("nav.templates")} onClick={onOpenTemplates} /> : <div aria-hidden="true" />}
         <div aria-hidden="true" />
         <MobileBottomNavButton active={activeItem === "settings"} icon={<UserRound className="h-5 w-5" />} label={t("nav.mine")} onClick={onOpenSettings} />
         <button
@@ -1296,6 +1291,13 @@ export const WorkspaceApp = ({
   useEffect(() => {
     const selectedMemoInList = selectedMemoId ? memos.some((memo) => memo.id === selectedMemoId) : false;
 
+    if (createdMemoEditId && selectedMemoId === createdMemoEditId) {
+      if (selectedMemoInList) {
+        setCreatedMemoEditId(null);
+      }
+      return;
+    }
+
     if (memos.length === 0) {
       setSelectedMemoId(null);
       return;
@@ -1304,7 +1306,7 @@ export const WorkspaceApp = ({
     if (!selectedMemoId || !selectedMemoInList) {
       setSelectedMemoId(memos[0].id);
     }
-  }, [memos, selectedMemoId]);
+  }, [createdMemoEditId, memos, selectedMemoId]);
 
   const memoQuery = useQuery({
     queryKey: selectedMemoId ? memoDetailQueryKey(selectedMemoId, memoView) : ["memo", selectedMemoId, memoView],
@@ -1353,6 +1355,11 @@ export const WorkspaceApp = ({
 
       setMemoView("notebook");
       setSearch("");
+      // A newly created memo is not pinned or otherwise guaranteed to match
+      // the active list filter. Leave filtered views so the selected memo
+      // remains visible instead of the list effect falling back to its first
+      // item (for example, the currently pinned memo).
+      setMemoFilterMode("all");
       if (targetNotebookId !== selectedNotebookId) {
         setSelectedNotebookId(targetNotebookId);
       }
@@ -2027,6 +2034,7 @@ export const WorkspaceApp = ({
     navigateWorkspaceHome();
     setMemoView("notebook");
     setSelectedNotebookId(null);
+    setRightView("editor");
     setMobileBottomNavActive("home");
     clearMemoSelection();
     clearPendingCreatedMemo();
@@ -2694,6 +2702,7 @@ export const WorkspaceApp = ({
                 {rightView === "settings" ? (
                   <SettingsPane
                     onClose={handleCloseSettings}
+                    onOpenTemplates={handleOpenTemplates}
                     imageCompressionEnabled={imageCompressionEnabled}
                     onImageCompressionChange={setImageCompressionEnabled}
                     shortcutSettings={shortcutSettings}
@@ -2880,7 +2889,6 @@ export const WorkspaceApp = ({
           isCreating={createMemoMutation.isPending}
           onCreateMemo={handleCreateMemo}
           onHome={handleMobileHome}
-          onOpenTemplates={handleOpenTemplates}
           onOpenSettings={handleOpenSettings}
         />
       )}

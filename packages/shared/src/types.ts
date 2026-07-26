@@ -149,6 +149,10 @@ export type AuthSession = {
 export type LoginDeviceSession = {
   id: string;
   userAgent: string | null;
+  label: string | null;
+  ipAddress: string | null;
+  ipCountry: string | null;
+  ipRegion: string | null;
   isCurrent: boolean;
   createdAt: string;
   lastSeenAt: string;

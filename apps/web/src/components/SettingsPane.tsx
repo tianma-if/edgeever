@@ -2,6 +2,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Database,
+  LayoutTemplate,
   Shield,
   SlidersHorizontal,
   Sparkles,
@@ -23,12 +24,12 @@ import { McpConfigCard } from "./settings/McpConfigCard";
 import { PreferenceCard } from "./settings/PreferenceCard";
 import { PasswordCard } from "./settings/PasswordCard";
 import { SessionCard } from "./settings/SessionCard";
-import { SystemInfoCard } from "./settings/SystemInfoCard";
 import { UserManagementCard } from "./settings/UserManagementCard";
 import { ThemeToggle } from "./ThemeToggle";
 
 interface SettingsPaneProps {
   onClose: () => void;
+  onOpenTemplates: () => void;
   imageCompressionEnabled: boolean;
   onImageCompressionChange: (enabled: boolean) => void;
   shortcutSettings: ShortcutSettings;
@@ -62,6 +63,7 @@ interface TabItem {
 
 export const SettingsPane = ({
   onClose,
+  onOpenTemplates,
   imageCompressionEnabled,
   onImageCompressionChange,
   shortcutSettings,
@@ -171,7 +173,6 @@ export const SettingsPane = ({
               shortcutSettings={shortcutSettings}
               onShortcutSettingsChange={onShortcutSettingsChange}
             />
-            <SystemInfoCard />
             <FeedbackLink className="hidden lg:flex" />
           </SettingsGroup>
         );
@@ -272,6 +273,21 @@ export const SettingsPane = ({
           {activeMobileTab === null ? (
             /* 分类主菜单 */
             <div className="grid gap-2">
+              <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                <button
+                  type="button"
+                  onClick={onOpenTemplates}
+                  className="flex w-full items-center justify-between gap-4 p-4 text-left transition-colors hover:bg-slate-50/50"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50/80">
+                      <LayoutTemplate className="h-4 w-4 text-emerald-600" />
+                    </div>
+                    <span className="text-sm font-semibold text-slate-800">{t("nav.templates")}</span>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-slate-400" />
+                </button>
+              </div>
               <div className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white">
                 {tabItems.map((item) => {
                   const Icon = item.icon;

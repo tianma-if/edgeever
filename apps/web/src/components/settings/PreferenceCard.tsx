@@ -57,7 +57,7 @@ export const PreferenceCard = ({
               <div className="mt-0.5 text-xs leading-4 text-slate-500">{t("settings.languageDescription")}</div>
             </div>
           </div>
-          <div className="w-full shrink-0 sm:w-56">
+          <div className="w-full shrink-0 sm:w-80">
             <Select
               value={activeLocalePreference}
               onValueChange={(preference) => handleLocalePreferenceChange(preference as AppLocalePreference)}
@@ -85,7 +85,7 @@ export const PreferenceCard = ({
               <div className="mt-0.5 text-xs leading-4 text-slate-500">{t("settings.editorThemeDescription")}</div>
             </div>
           </div>
-          <div className="flex w-full shrink-0 flex-col gap-2 sm:w-56 sm:flex-row">
+          <div className="flex w-full shrink-0 flex-col gap-2 sm:w-80 sm:flex-row">
             <Select value={editorTheme} onValueChange={(value) => setEditorTheme(value as typeof editorTheme)}>
               <SelectTrigger aria-label={t("settings.editorThemeTitle")} className="h-9 w-full min-w-0 flex-1 bg-white">
                 <SelectValue />
@@ -112,7 +112,7 @@ export const PreferenceCard = ({
               <div className="mt-0.5 text-xs leading-4 text-slate-500">{t("settings.mermaidThemeDescription")}</div>
             </div>
           </div>
-          <div className="w-full shrink-0 sm:w-56">
+          <div className="w-full shrink-0 sm:w-80">
             <Select value={mermaidTheme} onValueChange={(value) => setMermaidTheme(value as typeof mermaidTheme)}>
               <SelectTrigger aria-label={t("settings.mermaidThemeTitle")} className="h-9 bg-white">
                 <SelectValue />

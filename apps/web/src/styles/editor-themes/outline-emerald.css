@@ -1,0 +1,136 @@
+/* outline-emerald editor theme (Outline typography & dark code block + EdgeEver brand green accent) */
+
+.edgeever-editor[data-editor-theme="outline-emerald"]:not([data-editor-theme="default"]) {
+  --editor-theme-bg: #ffffff;
+  --editor-theme-text: #111729;
+  --editor-theme-muted: #4e5873;
+  --editor-theme-heading: #0f172a;
+  --editor-theme-accent: #059669;
+  --editor-theme-soft: #f8fafc;
+  --editor-theme-border: #e2e8f0;
+  --editor-theme-font: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", sans-serif;
+  --editor-theme-radius: 8px;
+}
+
+.edgeever-editor[data-editor-theme="outline-emerald"]:not([data-editor-theme="default"]) .ProseMirror {
+  font-size: 1rem;
+  line-height: 1.7;
+  letter-spacing: -0.005em;
+}
+
+.edgeever-editor[data-editor-theme="outline-emerald"]:not([data-editor-theme="default"]) .ProseMirror p {
+  margin: 0;
+  padding: 0.45rem 0;
+  line-height: 1.7;
+  color: var(--editor-theme-text);
+}
+
+.edgeever-editor[data-editor-theme="outline-emerald"]:not([data-editor-theme="default"]) .ProseMirror h1,
+.edgeever-editor[data-editor-theme="outline-emerald"]:not([data-editor-theme="default"]) .ProseMirror h2,
+.edgeever-editor[data-editor-theme="outline-emerald"]:not([data-editor-theme="default"]) .ProseMirror h3,
+.edgeever-editor[data-editor-theme="outline-emerald"]:not([data-editor-theme="default"]) .ProseMirror h4 {
+  color: var(--editor-theme-heading);
+  font-family: var(--editor-theme-font);
+  font-weight: 600;
+  margin: 1.6rem 0 0.65rem;
+  line-height: 1.3;
+}
+
+.edgeever-editor[data-editor-theme="outline-emerald"]:not([data-editor-theme="default"]) .ProseMirror h1 {
+  font-size: 1.8rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.edgeever-editor[data-editor-theme="outline-emerald"]:not([data-editor-theme="default"]) .ProseMirror h2 {
+  font-size: 1.4rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  border-left: 0;
+  border-bottom: 0;
+  padding-left: 0;
+}
+
+.edgeever-editor[data-editor-theme="outline-emerald"]:not([data-editor-theme="default"]) .ProseMirror h3 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  border: 0;
+  padding-left: 0;
+}
+
+.edgeever-editor[data-editor-theme="outline-emerald"]:not([data-editor-theme="default"]) .ProseMirror strong {
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.edgeever-editor[data-editor-theme="outline-emerald"]:not([data-editor-theme="default"]) .ProseMirror a {
+  color: var(--editor-theme-accent);
+  text-decoration: underline;
+  text-decoration-color: rgba(5, 150, 105, 0.4);
+  text-underline-offset: 2px;
+}
+
+.edgeever-editor[data-editor-theme="outline-emerald"]:not([data-editor-theme="default"]) .ProseMirror blockquote {
+  margin: 1rem 0;
+  border-left: 3px solid #cbd5e1;
+  border-radius: 0;
+  background: var(--editor-theme-soft);
+  color: #475569;
+  padding: 0.6rem 1rem;
+}
+
+.edgeever-editor[data-editor-theme="outline-emerald"]:not([data-editor-theme="default"]) .ProseMirror ul,
+.edgeever-editor[data-editor-theme="outline-emerald"]:not([data-editor-theme="default"]) .ProseMirror ol {
+  margin: 0.5rem 0;
+  padding-left: 1.4rem;
+}
+
+.edgeever-editor[data-editor-theme="outline-emerald"]:not([data-editor-theme="default"]) .ProseMirror li {
+  margin: 0.2rem 0;
+  line-height: 1.65;
+}
+
+.edgeever-editor[data-editor-theme="outline-emerald"]:not([data-editor-theme="default"]) .ProseMirror li::marker {
+  color: var(--editor-theme-accent);
+  font-weight: 600;
+}
+
+.edgeever-editor[data-editor-theme="outline-emerald"]:not([data-editor-theme="default"]) .ProseMirror code {
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  background: #f1f5f9;
+  color: #0f172a;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.875rem;
+  padding: 0.15rem 0.35rem;
+}
+
+.edgeever-editor[data-editor-theme="outline-emerald"]:not([data-editor-theme="default"]) .ProseMirror pre {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #0f172a;
+  color: #f8fafc;
+  padding: 0.85rem 1.1rem;
+}
+
+.edgeever-editor[data-editor-theme="outline-emerald"]:not([data-editor-theme="default"]) .ProseMirror hr {
+  height: 1px;
+  border: 0;
+  background: #e2e8f0;
+  margin: 1.75rem 0;
+}
+
+.edgeever-editor[data-editor-theme="outline-emerald"]:not([data-editor-theme="default"]) .ProseMirror th {
+  background: #f8fafc;
+  color: var(--editor-theme-heading);
+  font-weight: 600;
+}
+
+.edgeever-editor[data-editor-theme="outline-emerald"]:not([data-editor-theme="default"]) .ProseMirror .edgeever-theme-block {
+  --theme-block-bg: #f8fafc;
+  --theme-block-border: #e2e8f0;
+  border-radius: 8px;
+}

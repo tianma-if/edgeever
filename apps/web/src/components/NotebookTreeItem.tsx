@@ -198,7 +198,9 @@ export const NotebookTreeItem = ({
               data-notebook-tree-button
               className="flex min-w-0 flex-1 items-center gap-2 text-left"
               type="button"
-              aria-label={selected ? t("notebookTree.current", { name: node.name }) : t("notebookTree.switchTo", { name: node.name })}
+              aria-label={selected
+                ? t("notebookTree.currentWithCount", { name: node.name, count: node.memoCount })
+                : t("notebookTree.switchToWithCount", { name: node.name, count: node.memoCount })}
               aria-current={selected ? "page" : undefined}
               aria-expanded={hasChildren ? open : undefined}
               onClick={() => onSelect(node.id)}
@@ -243,6 +245,15 @@ export const NotebookTreeItem = ({
                 )}
               >
                 {node.name}
+              </span>
+              <span
+                className={cn(
+                  "shrink-0 tabular-nums text-xs font-normal transition-colors duration-200",
+                  "text-slate-400 group-hover:text-slate-500"
+                )}
+                aria-hidden="true"
+              >
+                {node.memoCount}
               </span>
             </button>
             <button
