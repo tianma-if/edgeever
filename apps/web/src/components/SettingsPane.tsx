@@ -26,8 +26,10 @@ import { PreferenceCard } from "./settings/PreferenceCard";
 import { PasswordCard } from "./settings/PasswordCard";
 import { SessionCard } from "./settings/SessionCard";
 import { UserManagementCard } from "./settings/UserManagementCard";
+import { WebDavBackupCard } from "./settings/WebDavBackupCard";
 import { ThemeToggle } from "./ThemeToggle";
 import type { AuthUser } from "@edgeever/shared";
+import { isNativeDesktopRuntime } from "@/lib/runtime";
 
 interface SettingsPaneProps {
   onClose: () => void;
@@ -96,6 +98,24 @@ export const SettingsPane = ({
       hoverColorClass: "hover:bg-emerald-50/40",
       iconColorClass: "text-emerald-600",
     },
+    {
+      key: "ai",
+      label: t("settings.tabs.ai"),
+      icon: Sparkles,
+      colorClass: "text-emerald-700",
+      bgColorClass: "bg-emerald-50/80",
+      hoverColorClass: "hover:bg-emerald-50/40",
+      iconColorClass: "text-emerald-600",
+    },
+    {
+      key: "data",
+      label: t("settings.tabs.data"),
+      icon: Database,
+      colorClass: "text-emerald-700",
+      bgColorClass: "bg-emerald-50/80",
+      hoverColorClass: "hover:bg-emerald-50/40",
+      iconColorClass: "text-emerald-600",
+    },
     ...(isOwner
       ? [
           {
@@ -109,24 +129,6 @@ export const SettingsPane = ({
           },
         ]
       : []),
-    {
-      key: "data",
-      label: t("settings.tabs.data"),
-      icon: Database,
-      colorClass: "text-emerald-700",
-      bgColorClass: "bg-emerald-50/80",
-      hoverColorClass: "hover:bg-emerald-50/40",
-      iconColorClass: "text-emerald-600",
-    },
-    {
-      key: "ai",
-      label: t("settings.tabs.ai"),
-      icon: Sparkles,
-      colorClass: "text-emerald-700",
-      bgColorClass: "bg-emerald-50/80",
-      hoverColorClass: "hover:bg-emerald-50/40",
-      iconColorClass: "text-emerald-600",
-    },
     {
       key: "account",
       label: t("settings.tabs.account"),
@@ -196,6 +198,7 @@ export const SettingsPane = ({
         return (
           <SettingsGroup>
             <DataExportCard />
+            {isNativeDesktopRuntime() ? <WebDavBackupCard /> : null}
             <EvernoteImportGuideCard />
           </SettingsGroup>
         );

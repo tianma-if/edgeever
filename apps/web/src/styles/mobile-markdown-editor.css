@@ -237,14 +237,6 @@ input {
   color: #334155;
 }
 
-.mobile-editor-table-menu-trigger {
-  gap: 6px;
-  width: auto;
-  padding-inline: 10px;
-  font-size: 13px;
-  font-weight: 700;
-}
-
 .mobile-editor-sheet-backdrop {
   position: fixed;
   inset: 0;
@@ -254,8 +246,7 @@ input {
   background: rgb(15 23 42 / 0.22);
 }
 
-.mobile-editor-notebook-sheet,
-.mobile-editor-table-sheet {
+.mobile-editor-notebook-sheet {
   width: 100%;
   max-height: 68dvh;
   overflow: hidden;
@@ -278,8 +269,7 @@ input {
 :root.dark .mobile-editor-header,
 :root.dark .mobile-editor-title,
 :root.dark .mobile-editor-tags,
-:root.dark .mobile-editor-notebook-sheet,
-:root.dark .mobile-editor-table-sheet {
+:root.dark .mobile-editor-notebook-sheet {
   background: #1e293b;
   color: #f8fafc;
 }
@@ -390,48 +380,6 @@ input {
 .mobile-editor-notebook-option[aria-current="page"] {
   background: #ecfdf5;
   color: #047857;
-}
-
-.mobile-editor-table-action-list {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  padding: 12px;
-}
-
-.mobile-editor-table-action-list button {
-  min-height: 48px;
-  border: 0;
-  border-radius: 10px;
-  background: #f8fafc;
-  color: #334155;
-  font-size: 15px;
-  font-weight: 650;
-}
-
-.mobile-editor-table-action-list button:active {
-  background: #ecfdf5;
-  color: #047857;
-}
-
-.mobile-editor-table-action-list button:disabled {
-  color: #94a3b8;
-  opacity: 0.55;
-}
-
-.mobile-editor-table-action-list button.is-destructive {
-  background: #fff1f2;
-  color: #be123c;
-}
-
-:root.dark .mobile-editor-table-action-list button {
-  background: #334155;
-  color: #e2e8f0;
-}
-
-:root.dark .mobile-editor-table-action-list button.is-destructive {
-  background: #4c0519;
-  color: #fda4af;
 }
 
 .mobile-editor-notebook-option:active {

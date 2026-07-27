@@ -1,15 +1,12 @@
-import { Bold, Check, ChevronDown, ImagePlus, List, ListIndentDecrease, ListIndentIncrease, Minus, Quote, Table2, Workflow } from "lucide-react";
+import { Bold, Check, ChevronDown, ImagePlus, List, ListIndentDecrease, ListIndentIncrease, Minus, Quote } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   MOBILE_EDITOR_TOOLBAR_ACTIONS,
-  getMobileEditorTableMenuCopy,
   getMobileEditorToolbarActionLabel,
-  isMobileEditorActionDisabledInTableHeader,
   type MobileEditorLocale,
-  type MobileEditorTableActionId,
   type MobileEditorToolbarActionId,
 } from "@edgeever/shared/mobile-editor";
-import { useEffect, useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import type { NotebookMoveOption } from "@/lib/app-helpers";
 import type { MobileEditorSaveState } from "@/lib/mobile-editor-standalone";
 
@@ -62,19 +59,14 @@ export const MobileEditorToolbar = ({
   increaseListIndentAvailable,
   decreaseListIndentAvailable,
   blockquoteActive,
-  mermaidActive,
-  tableActive,
-  tableHeaderActive,
   locale,
   onPickImage,
-  onInsertMermaid,
   onToggleBold,
   onToggleBulletList,
   onIncreaseListIndent,
   onDecreaseListIndent,
   onToggleBlockquote,
   onSetHorizontalRule,
-  onTableAction,
 }: {
   disabled: boolean;
   boldActive: boolean;
@@ -82,149 +74,63 @@ export const MobileEditorToolbar = ({
   increaseListIndentAvailable: boolean;
   decreaseListIndentAvailable: boolean;
   blockquoteActive: boolean;
-  mermaidActive: boolean;
-  tableActive: boolean;
-  tableHeaderActive: boolean;
   locale: MobileEditorLocale;
   onPickImage: () => void;
-  onInsertMermaid: () => void;
   onToggleBold: () => void;
   onToggleBulletList: () => void;
   onIncreaseListIndent: () => void;
   onDecreaseListIndent: () => void;
   onToggleBlockquote: () => void;
   onSetHorizontalRule: () => void;
-  onTableAction: (action: MobileEditorTableActionId) => void;
 }) => {
-  const [tableMenuOpen, setTableMenuOpen] = useState(false);
-  const tableMenuCopy = getMobileEditorTableMenuCopy(locale);
   const icons: Record<MobileEditorToolbarActionId, ReactNode> = {
     image: <ImagePlus aria-hidden="true" size={18} strokeWidth={2} />,
-    mermaid: <Workflow aria-hidden="true" size={18} strokeWidth={2} />,
     bold: <Bold aria-hidden="true" size={17} strokeWidth={2.4} />,
     bulletList: <List aria-hidden="true" size={18} strokeWidth={2.2} />,
     increaseListIndent: <ListIndentIncrease aria-hidden="true" size={18} strokeWidth={2.1} />,
     decreaseListIndent: <ListIndentDecrease aria-hidden="true" size={18} strokeWidth={2.1} />,
     blockquote: <Quote aria-hidden="true" size={17} strokeWidth={2.2} />,
     horizontalRule: <Minus aria-hidden="true" size={18} strokeWidth={2.4} />,
-    insertTable: <Table2 aria-hidden="true" size={18} strokeWidth={2} />,
-    addTableRow: null,
-    deleteTableRow: null,
-    addTableColumn: null,
-    deleteTableColumn: null,
-    toggleTableHeader: null,
-    deleteTable: null,
   };
   const handlers: Record<MobileEditorToolbarActionId, () => void> = {
     image: onPickImage,
-    mermaid: onInsertMermaid,
     bold: onToggleBold,
     bulletList: onToggleBulletList,
     increaseListIndent: onIncreaseListIndent,
     decreaseListIndent: onDecreaseListIndent,
     blockquote: onToggleBlockquote,
     horizontalRule: onSetHorizontalRule,
-    insertTable: () => onTableAction("insertTable"),
-    addTableRow: () => onTableAction("addTableRow"),
-    deleteTableRow: () => onTableAction("deleteTableRow"),
-    addTableColumn: () => onTableAction("addTableColumn"),
-    deleteTableColumn: () => onTableAction("deleteTableColumn"),
-    toggleTableHeader: () => onTableAction("toggleTableHeader"),
-    deleteTable: () => onTableAction("deleteTable"),
   };
   const activeStates: Partial<Record<MobileEditorToolbarActionId, boolean>> = {
     bold: boldActive,
     bulletList: bulletListActive,
     blockquote: blockquoteActive,
-    mermaid: mermaidActive,
   };
 
-  useEffect(() => {
-    if (!tableActive) {
-      setTableMenuOpen(false);
-    }
-  }, [tableActive]);
-
   return (
-    <>
-      <div className="mobile-editor-tool-row">
-        {MOBILE_EDITOR_TOOLBAR_ACTIONS
-          .filter(({ id, requiresTable }) => !requiresTable && (!tableActive || id !== "insertTable"))
-          .map(({ id }) => {
-            const label = getMobileEditorToolbarActionLabel(id, locale);
+    <div className="mobile-editor-tool-row">
+      {MOBILE_EDITOR_TOOLBAR_ACTIONS.map(({ id }) => {
+        const label = getMobileEditorToolbarActionLabel(id, locale);
 
-            return (
-              <button
-                key={id}
-                className="mobile-editor-tool-button"
-                type="button"
-                aria-label={label}
-                title={label}
-                aria-pressed={activeStates[id]}
-                disabled={disabled
-                  || (id === "insertTable" && tableActive)
-                  || (id === "increaseListIndent" && !increaseListIndentAvailable)
-                  || (id === "decreaseListIndent" && !decreaseListIndentAvailable)}
-                onPointerDown={(event) => event.preventDefault()}
-                onClick={handlers[id]}
-              >
-                {icons[id]}
-              </button>
-            );
-          })}
-        {tableActive && (
+        return (
           <button
-            className="mobile-editor-tool-button mobile-editor-table-menu-trigger"
+            key={id}
+            className="mobile-editor-tool-button"
             type="button"
-            aria-label={tableMenuCopy.title}
-            title={tableMenuCopy.title}
-            disabled={disabled}
+            aria-label={label}
+            title={label}
+            aria-pressed={activeStates[id]}
+            disabled={disabled
+              || (id === "increaseListIndent" && !increaseListIndentAvailable)
+              || (id === "decreaseListIndent" && !decreaseListIndentAvailable)}
             onPointerDown={(event) => event.preventDefault()}
-            onClick={() => setTableMenuOpen(true)}
+            onClick={handlers[id]}
           >
-            <Table2 aria-hidden="true" size={18} strokeWidth={2} />
-            <span>{tableMenuCopy.title}</span>
+            {icons[id]}
           </button>
-        )}
-      </div>
-      {tableActive && tableMenuOpen && (
-        <div className="mobile-editor-sheet-backdrop" role="presentation" onClick={() => setTableMenuOpen(false)}>
-          <section
-            className="mobile-editor-table-sheet"
-            role="dialog"
-            aria-modal="true"
-            aria-label={tableMenuCopy.title}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="mobile-editor-notebook-sheet-handle" aria-hidden="true" />
-            <div className="mobile-editor-notebook-sheet-header">
-              <h2>{tableMenuCopy.title}</h2>
-              <button type="button" onClick={() => setTableMenuOpen(false)}>{tableMenuCopy.close}</button>
-            </div>
-            <div className="mobile-editor-table-action-list">
-              {MOBILE_EDITOR_TOOLBAR_ACTIONS.filter(({ requiresTable }) => requiresTable).map(({ id }) => {
-                const label = getMobileEditorToolbarActionLabel(id, locale);
-                return (
-                  <button
-                    key={id}
-                    className={id === "deleteTable" ? "is-destructive" : undefined}
-                    type="button"
-                    disabled={disabled || (isMobileEditorActionDisabledInTableHeader(id) && tableHeaderActive)}
-                    onPointerDown={(event) => event.preventDefault()}
-                    onClick={() => {
-                      setTableMenuOpen(false);
-                      handlers[id]();
-                    }}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-        </div>
-      )}
-    </>
+        );
+      })}
+    </div>
   );
 };
 

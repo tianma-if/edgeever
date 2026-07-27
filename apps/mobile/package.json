@@ -15,7 +15,6 @@
     "@edgeever/client": "workspace:*",
     "@edgeever/shared": "workspace:*",
     "@expo/vector-icons": "^15.1.1",
-    "@gorhom/bottom-sheet": "latest",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@tanstack/query-async-storage-persister": "^5.101.2",
     "@tanstack/react-query": "latest",
@@ -57,7 +56,6 @@
     "@types/react": "latest",
     "@types/semver": "^7.7.1",
     "babel-preset-expo": "latest",
-    "gluestack-ui": "latest",
     "typescript": "6.0.3"
   }
 }

@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect, useCallback, useMemo, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
-import { useQueryClient, useMutation } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { NodeViewWrapper, ReactNodeViewRenderer, useEditor, EditorContent, type Editor, type NodeViewProps } from "@tiptap/react";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
@@ -31,6 +31,9 @@ import {
   CircleAlert,
   LoaderCircle,
   Info,
+  FileDown,
+  Printer,
+  Link2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { GitHubRepositoryLink } from "@/components/GitHubRepositoryLink";
@@ -75,8 +78,11 @@ import {
   resolveMemoContentDoc,
   type Notebook,
   type MemoDetail,
+  type MemoSummary,
   type MemoEditSession,
   type TiptapDoc,
+  createMemoLinkHref,
+  parseMemoLinkHref,
 } from "@edgeever/shared";
 import {
   DEFAULT_IMAGE_WIDTH_PERCENT,
@@ -97,6 +103,8 @@ import { ThemeBlock } from "./ThemeBlock";
 import { SystemInfoDialog } from "./SystemInfoDialog";
 import { fetchLatestRelease, isVersionOutdated } from "@/lib/version-check";
 import { RELEASE_STATUS_EVENT } from "@/lib/release-notice";
+import { downloadMarkdownFile } from "@/lib/note-markdown-export";
+import { openNotePrintPreview, serializeNoteDocumentForPrint } from "@/lib/note-print";
 
 const SUPPORTED_PASTE_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp", "image/avif"]);
 const MOBILE_EDITOR_QUERY = "(max-width: 639px)";
@@ -514,6 +522,7 @@ type EditorPaneProps = {
   searchFocusToken: number;
   replaceFocusToken: number;
   selectionActionBar?: ReactNode;
+  onOpenMemo?: (memoId: string) => void;
 };
 
 type RichEditorPaneProps = EditorPaneProps & {
@@ -1143,9 +1152,10 @@ const RichEditorPane = ({
   searchFocusToken,
   replaceFocusToken,
   selectionActionBar,
+  onOpenMemo,
   onRequestMobileNativeEdit,
 }: RichEditorPaneProps) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { customEditorTheme, editorTheme } = useTheme();
   const queryClient = useQueryClient();
   const isSelectionMode = Boolean(selectionActionBar);
@@ -1167,6 +1177,8 @@ const RichEditorPane = ({
   const [noteSearchReplaceOpen, setNoteSearchReplaceOpen] = useState(false);
   const [noteSearchReplacement, setNoteSearchReplacement] = useState("");
   const [noteSearchIndex, setNoteSearchIndex] = useState(0);
+  const [noteLinkPickerOpen, setNoteLinkPickerOpen] = useState(false);
+  const [noteLinkQuery, setNoteLinkQuery] = useState("");
   const [isMobileViewport, setIsMobileViewport] = useState(() =>
     typeof window === "undefined" ? false : window.matchMedia(MOBILE_EDITOR_QUERY).matches
   );
@@ -1180,6 +1192,11 @@ const RichEditorPane = ({
   const [mobileImeDebugActiveElement, setMobileImeDebugActiveElement] = useState(getActiveElementLabel);
   const [mobileImeDebugEvents, setMobileImeDebugEvents] = useState<MobileImeDebugEntry[]>([]);
   const [wechatCopyState, setWechatCopyState] = useState<"idle" | "copying" | "copied" | "error">("idle");
+  const noteLinkResultsQuery = useQuery({
+    queryKey: ["memo-link-search", noteLinkQuery],
+    queryFn: () => api.listMemos({ q: noteLinkQuery, limit: 20 }),
+    enabled: noteLinkPickerOpen,
+  });
   const [editorScrollContainer, setEditorScrollContainer] = useState<HTMLDivElement | null>(null);
   const setEditorScrollContainerRef = useCallback((element: HTMLDivElement | null) => {
     editorScrollContainerRef.current = element;
@@ -1416,6 +1433,17 @@ const RichEditorPane = ({
         });
         return true;
       },
+      handleClick: (_view, _pos, event) => {
+        const target = event.target instanceof HTMLElement ? event.target.closest("a[href^='#memo=']") : null;
+        const memoId = parseMemoLinkHref(target?.getAttribute("href"));
+        if (!memoId || !onOpenMemo) {
+          return false;
+        }
+
+        event.preventDefault();
+        onOpenMemo(memoId);
+        return true;
+      },
       handlePaste: (_view, event) => {
         const files = getResourceFilesFromDataTransfer(event.clipboardData);
 
@@ -1440,6 +1468,26 @@ const RichEditorPane = ({
       },
     },
   });
+
+  const insertMemoLink = useCallback((target: MemoSummary) => {
+    if (!isEditorReady(editor) || effectiveReadOnly || target.id === memo?.id) {
+      return;
+    }
+
+    const { from, to } = editor.state.selection;
+    const selectedText = editor.state.doc.textBetween(from, to, " ").trim();
+    editor
+      .chain()
+      .focus()
+      .insertContent({
+        type: "text",
+        text: selectedText || target.title || t("common.untitledMemo"),
+        marks: [{ type: "link", attrs: { href: createMemoLinkHref(target.id), class: "edgeever-note-link" } }],
+      })
+      .run();
+    setNoteLinkPickerOpen(false);
+    setNoteLinkQuery("");
+  }, [editor, effectiveReadOnly, memo?.id, t]);
 
   useEffect(() => {
     imageCompressionEnabledRef.current = imageCompressionEnabled;
@@ -2004,6 +2052,78 @@ const RichEditorPane = ({
     }
   }, [editor, markdownSource, useMarkdownSourceEditor]);
 
+  const handleExportPdf = useCallback(() => {
+    if (!isEditorReady(editor) || !memo) {
+      return;
+    }
+
+    const currentDocument = useMobilePlainTextEditor
+      ? markdownToDoc(getMobilePlainTextValue())
+      : useMarkdownSourceEditor
+        ? markdownToDoc(markdownSource)
+        : editor.getJSON() as TiptapDoc;
+    const html = serializeNoteDocumentForPrint(editor, currentDocument);
+    const opened = openNotePrintPreview({
+      title: title.trim() || t("common.untitledMemo"),
+      notebook: notebookOptions.find((notebook) => notebook.id === memo.notebookId)?.name ?? "",
+      tags: parseTagsText(tagsText),
+      updatedAt: formatDateTime(memo.updatedAt),
+      html,
+      language: i18n.resolvedLanguage ?? i18n.language,
+      labels: {
+        close: t("editor.pdfExport.close"),
+        error: t("editor.pdfExport.error"),
+        hint: t("editor.pdfExport.hint"),
+        preparing: t("editor.pdfExport.preparing"),
+        print: t("editor.pdfExport.print"),
+        ready: t("editor.pdfExport.ready"),
+      },
+    });
+
+    if (!opened) {
+      window.alert(t("editor.pdfExport.popupBlocked"));
+    }
+  }, [
+    editor,
+    getMobilePlainTextValue,
+    i18n.language,
+    i18n.resolvedLanguage,
+    markdownSource,
+    memo,
+    notebookOptions,
+    t,
+    tagsText,
+    title,
+    useMarkdownSourceEditor,
+    useMobilePlainTextEditor,
+  ]);
+
+  const handleExportMarkdown = useCallback(() => {
+    if (!isEditorReady(editor) || !memo) {
+      return;
+    }
+
+    const markdown = useMobilePlainTextEditor
+      ? getMobilePlainTextValue()
+      : useMarkdownSourceEditor
+        ? markdownSource
+        : docToMarkdown(editor.getJSON() as TiptapDoc);
+    downloadMarkdownFile(
+      markdown,
+      title,
+      t("common.untitledMemo")
+    );
+  }, [
+    editor,
+    getMobilePlainTextValue,
+    markdownSource,
+    memo,
+    t,
+    title,
+    useMarkdownSourceEditor,
+    useMobilePlainTextEditor,
+  ]);
+
   useEffect(() => {
     if (!useMobilePlainTextEditor) {
       return;
@@ -2509,6 +2629,53 @@ const RichEditorPane = ({
   return (
     <div className="relative flex h-full min-w-0 flex-col bg-white">
       {selectionActionBar}
+      {noteLinkPickerOpen && (
+        <div className="absolute left-3 right-3 top-14 z-30 h-[min(22rem,calc(100%-4rem))] max-w-xl rounded-lg border border-slate-200 bg-white shadow-xl sm:left-5 sm:right-auto sm:w-[28rem]" role="dialog" aria-label={t("noteLinkPicker.title")}>
+          <Command shouldFilter={false}>
+            <div className="flex items-center justify-between border-b border-slate-100 pr-2">
+              <CommandInput
+                autoFocus
+                value={noteLinkQuery}
+                placeholder={t("noteLinkPicker.searchPlaceholder")}
+                onValueChange={setNoteLinkQuery}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") {
+                    setNoteLinkPickerOpen(false);
+                  }
+                }}
+              />
+              <button
+                type="button"
+                className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                aria-label={t("noteLinkPicker.close")}
+                onClick={() => setNoteLinkPickerOpen(false)}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <CommandList>
+              {noteLinkResultsQuery.isLoading ? (
+                <div className="p-6 text-center text-sm text-slate-500">{t("noteLinkPicker.loading")}</div>
+              ) : (
+                <>
+                  <CommandEmpty>{t("noteLinkPicker.empty")}</CommandEmpty>
+                  <CommandGroup>
+                    {(noteLinkResultsQuery.data?.memos ?? [])
+                      .filter((candidate) => candidate.id !== memo?.id && !candidate.isDeleted)
+                      .map((candidate) => (
+                        <CommandItem key={candidate.id} value={candidate.id} onSelect={() => insertMemoLink(candidate)}>
+                          <Link2 className="h-4 w-4 shrink-0 text-emerald-600" />
+                          <span className="min-w-0 flex-1 truncate">{candidate.title || t("common.untitledMemo")}</span>
+                          <span className="max-w-40 truncate text-xs text-slate-400">{candidate.excerpt}</span>
+                        </CommandItem>
+                      ))}
+                  </CommandGroup>
+                </>
+              )}
+            </CommandList>
+          </Command>
+        </div>
+      )}
       <header className="shrink-0 border-b border-slate-200 bg-white">
         <div className="flex min-h-12 items-center justify-between gap-2 border-b border-slate-100 px-3 py-2 sm:px-5">
           <div className="flex min-w-0 items-center gap-2 text-sm">
@@ -2757,6 +2924,20 @@ const RichEditorPane = ({
                   <History className="h-4 w-4 text-slate-500" />
                   {t("editor.versionHistory")}
                 </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="flex h-9 w-full items-center gap-2 px-3 text-left text-sm text-slate-700 hover:bg-slate-50 cursor-pointer outline-none"
+                  onClick={handleExportMarkdown}
+                >
+                  <FileDown className="h-4 w-4 text-slate-500" />
+                  {t("editor.exportMarkdown")}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="flex h-9 w-full items-center gap-2 px-3 text-left text-sm text-slate-700 hover:bg-slate-50 cursor-pointer outline-none"
+                  onClick={handleExportPdf}
+                >
+                  <Printer className="h-4 w-4 text-slate-500" />
+                  {t("editor.exportPdf")}
+                </DropdownMenuItem>
                 {readOnly ? (
                   <>
                     <DropdownMenuItem
@@ -2970,6 +3151,7 @@ const RichEditorPane = ({
             markdownMode={useMarkdownSourceEditor}
             onMarkdownModeChange={handleMarkdownModeChange}
             onPickAttachment={() => fileInputRef.current?.click()}
+            onPickNoteLink={() => setNoteLinkPickerOpen(true)}
           />
         )}
       </header>

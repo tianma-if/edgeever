@@ -1,52 +1,78 @@
 ---
+import { getSiteLocale } from "@/i18n";
 import { Icon } from "astro-icon/components";
+
+const locale = getSiteLocale(Astro.url.pathname);
+const isEnglish = locale === "en-US";
 ---
 
 <aside
-  class="not-prose relative left-1/2 my-12 w-[min(92vw,960px)] -translate-x-1/2 overflow-hidden rounded-2xl border border-brand-border/60 bg-gradient-to-br from-brand-soft/80 via-white to-brand-soft/30 p-6 shadow-xs transition hover-lift sm:p-8"
-  aria-labelledby="community-tutorial-title"
+  class="not-prose relative left-1/2 my-12 w-[min(92vw,960px)] -translate-x-1/2 overflow-hidden rounded-2xl border border-emerald-200/80 bg-gradient-to-br from-emerald-50/60 via-white to-slate-50 p-5 sm:p-7 shadow-2xs transition hover-lift"
+  aria-labelledby="community-thanks-title"
 >
   <!-- Decorative soft glow background -->
-  <div class="absolute -right-16 -top-16 -z-10 h-32 w-32 rounded-full bg-brand-muted/20 blur-2xl"></div>
+  <div class="absolute -right-16 -top-16 -z-10 h-36 w-36 rounded-full bg-emerald-400/10 blur-2xl"></div>
 
-  <div class="flex flex-col justify-between min-w-0">
-    <div>
+  <div class="flex flex-col gap-3.5 min-w-0">
+    <!-- Header Badge -->
+    <div class="flex items-center justify-between gap-2">
       <div class="flex items-center gap-2">
-        <span class="inline-flex items-center gap-1 rounded-full bg-brand-soft px-2.5 py-0.5 text-xs font-semibold text-brand-text border border-brand-border/30 shadow-xs">
-          <Icon class="h-3.5 w-3.5" name="bx:bx-award" />
-          社区推荐教程
+        <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-100/90 px-3 py-1 text-xs font-bold text-emerald-800 border border-emerald-200/70 shadow-2xs">
+          <Icon class="h-3.5 w-3.5 text-emerald-600" name="bx:bx-heart" />
+          {isEnglish ? "Special Thanks & Tutorial" : "特别致谢 & 社区教程"}
         </span>
       </div>
-      
-      <a
-        id="community-tutorial-title"
-        class="group mt-3 inline-flex items-start gap-1.5 text-lg font-bold leading-snug text-slate-900 transition hover:text-brand-text"
-        href="https://www.dujin.org/23773.html"
-        target="_blank"
-        rel="noopener noreferrer"
-      >
-        <span class="underline decoration-slate-200 decoration-2 underline-offset-4 transition group-hover:decoration-brand-border">
-          一分钟部署零成本、开源且原生支持 AI Agent 的个人笔记 EdgeEver
-        </span>
-        <Icon class="mt-1 h-4 w-4 shrink-0 text-slate-400 transition group-hover:text-brand-text group-hover:translate-x-0.5 group-hover:-translate-y-0.5" name="bx:bx-link-external" />
-      </a>
-      
-      <p class="mt-3 text-xs leading-relaxed text-slate-500">
-        由独立博主「缙哥哥」精心撰写的第三方中文图文教程（内容由其独立维护）。在此特别感谢他在项目早期提供了许多宝贵建议与测试环境支持！
-      </p>
     </div>
-    
-    <div class="mt-4 pt-4 border-t border-slate-100/60 flex items-center justify-end">
+
+    <!-- Main Acknowledgments & Thanks text -->
+    <div class="text-xs sm:text-sm leading-relaxed text-slate-700 font-sans">
+      {isEnglish ? (
+        <p>
+          Special thanks to independent blogger{" "}
+          <a href="https://www.dujin.org/" target="_blank" rel="noopener noreferrer" class="font-bold text-slate-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/70 px-2 py-0.5 rounded text-xs transition-colors inline-flex items-center gap-1">
+            <span>Dujin (缙哥哥)</span>
+            <Icon class="h-3 w-3 text-emerald-600" name="bx:bx-link-external" />
+          </a>{" "}
+          for providing valuable feedback, constructive suggestions, and sharing a detailed tutorial during EdgeEver's growth!
+        </p>
+      ) : (
+        <p>
+          特别致谢独立博主{" "}
+          <a href="https://www.dujin.org/" target="_blank" rel="noopener noreferrer" class="font-bold text-slate-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/70 px-2 py-0.5 rounded text-xs transition-colors inline-flex items-center gap-1">
+            <span>缙哥哥</span>
+            <Icon class="h-3 w-3 text-emerald-600" name="bx:bx-link-external" />
+          </a>{" "}
+          在项目成长过程中，提出了许多宝贵的改进意见并进行了无私的教程分享。
+        </p>
+      )}
+    </div>
+
+    <!-- Featured Tutorial Card Link -->
+    <div class="mt-1 rounded-xl border border-slate-200/80 bg-white p-3.5 sm:p-4 shadow-2xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 group hover:border-emerald-300 transition-colors">
+      <div class="min-w-0">
+        <div class="text-[10.5px] font-bold text-slate-400 font-mono mb-0.5">
+          {isEnglish ? "RECOMMENDED TUTORIAL" : "推荐阅读教程"}
+        </div>
+        <a
+          id="community-thanks-title"
+          class="text-xs sm:text-sm font-bold text-slate-900 group-hover:text-emerald-700 transition-colors line-clamp-2"
+          href="https://www.dujin.org/23773.html"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          一分钟部署零成本、开源且原生支持 AI Agent 的个人笔记 EdgeEver
+        </a>
+      </div>
+
       <a
         href="https://www.dujin.org/23773.html"
         target="_blank"
         rel="noopener noreferrer"
-        class="inline-flex items-center gap-1 text-xs font-semibold text-brand transition hover:text-brand-hover hover:underline"
+        class="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-full shadow-xs active:scale-95 transition-all shrink-0 w-full sm:w-auto justify-center"
       >
-        阅读教程 <Icon class="h-4 w-4" name="bx:bx-right-arrow-alt" />
+        <span>{isEnglish ? "Read Tutorial" : "阅读教程"}</span>
+        <Icon class="h-3.5 w-3.5" name="bx:bx-right-arrow-alt" />
       </a>
     </div>
   </div>
 </aside>
-
-

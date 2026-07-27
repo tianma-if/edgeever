@@ -7,7 +7,11 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { normalizeD1MigrationSql, runWranglerSync } from "./wrangler-runner.mjs";
+import {
+  findD1DatabaseIdByName,
+  normalizeD1MigrationSql,
+  runWranglerSync,
+} from "./wrangler-runner.mjs";
 
 const PLACEHOLDER_D1_ID = "00000000-0000-0000-0000-000000000000";
 const UUID_PATTERN =
@@ -177,6 +181,36 @@ if (d1DatabaseId) {
 }
 
 config = replaceTomlValue(config, "database_name", envValue("D1_DATABASE_NAME"));
+
+if (isRemoteCommand && config.includes(`database_id = "${PLACEHOLDER_D1_ID}"`)) {
+  const databaseName = config.match(/^database_name\s*=\s*"([^"]+)"/m)?.[1];
+  if (databaseName) {
+    console.log(`[info] resolving Cloudflare D1 database id for ${databaseName}`);
+    const listResult = runWranglerSync(
+      ["--config", baseConfigPath, "d1", "list", "--json"],
+      {
+        cwd: resolve("."),
+        encoding: "utf8",
+        env: process.env,
+      },
+    );
+
+    if (listResult.status === 0) {
+      try {
+        const discoveredId = findD1DatabaseIdByName(listResult.stdout, databaseName);
+        if (discoveredId && UUID_PATTERN.test(discoveredId)) {
+          config = replaceTomlValue(config, "database_id", discoveredId);
+          console.log(`[ok] resolved D1 database ${databaseName}`);
+        }
+      } catch (error) {
+        console.error(error instanceof Error ? error.message : String(error));
+      }
+    } else if (listResult.stderr) {
+      console.error(listResult.stderr.trim());
+    }
+  }
+}
+
 config = replaceTomlValue(config, "bucket_name", envValue("R2_BUCKET_NAME"));
 config = replaceTomlValue(
   config,
@@ -254,9 +288,11 @@ if (isRemoteDevCommand && !instance) {
 }
 
 if (isRemoteCommand && config.includes(`database_id = "${PLACEHOLDER_D1_ID}"`)) {
+  const databaseName = config.match(/^database_name\s*=\s*"([^"]+)"/m)?.[1] ?? "edgeever";
   console.error(
     [
-      "Missing Cloudflare D1 database id.",
+      `Could not resolve Cloudflare D1 database "${databaseName}".`,
+      "Create it with that exact name and ensure the Workers Builds API token has D1 read/edit permission.",
       instanceKey
         ? `Set EDGE_EVER_${instanceKey}_D1_DATABASE_ID or EDGE_EVER_D1_DATABASE_ID,`
         : "Set EDGE_EVER_D1_DATABASE_ID,",

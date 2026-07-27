@@ -17,6 +17,30 @@ const toMarkdown = (page: CapturedPage) => {
   return `# ${page.title.replace(/\n/g, " ")}\n\n${t("sourceLabel")}: [${page.url}](${page.url})\n\n${t("capturedAtLabel")}: ${capturedAt}\n\n---\n\n${page.markdown}`;
 };
 
+const compactError = (error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.replace(/\s+/g, " ").trim().slice(0, 180);
+};
+
+const describeCaptureError = (error: unknown) => {
+  const message = compactError(error);
+  if (message === t("captureTimeout")) {
+    return message;
+  }
+  if (/cannot access (contents|a page)|extensions gallery|chrome:\/\/|edge:\/\/|about:\/\//i.test(message)) {
+    return t("pageAccessDenied");
+  }
+  return t("captureScriptFailed", message || t("captureUnknownError"));
+};
+
+const describeSaveError = (error: unknown) => {
+  const message = compactError(error);
+  if (/failed to fetch|networkerror|load failed|network request/i.test(message)) {
+    return t("instanceNetworkFailed");
+  }
+  return t("saveFailedWithReason", message || t("saveFailed"));
+};
+
 const createMemo = async (settings: ExtensionSettings, page: CapturedPage) => {
   const notebooks = await listNotebooks(settings);
   const notebookId = settings.notebookId || notebooks.notebooks[0]?.id;
@@ -83,13 +107,19 @@ chrome.runtime.onMessage.addListener((message: { type?: string; page?: CapturedP
           }).catch((error: unknown) => {
             clearTimeout(timeout);
             pendingCapture = null;
-            reject(error);
+            reject(new Error(describeCaptureError(error)));
           });
         });
         await createMemo(settings, page);
         sendResponse({ ok: true });
       } catch (error) {
-        sendResponse({ ok: false, message: error instanceof Error ? error.message : t("saveFailed") });
+        const message = error instanceof Error ? error.message : "";
+        sendResponse({
+          ok: false,
+          message: message === t("captureTimeout") || message.startsWith(t("captureScriptFailed", ""))
+            ? describeCaptureError(error)
+            : describeSaveError(error),
+        });
       }
     })();
     return true;

@@ -1,6 +1,6 @@
 {
   "name": "edgeever",
-  "version": "1.6.19",
+  "version": "1.6.25",
   "private": true,
   "type": "module",
   "workspaces": [
@@ -112,6 +112,7 @@
     "tailwindcss-animate": "^1.0.7",
     "turndown": "^7.2.4",
     "vaul": "^1.1.2",
+    "webdav": "^5.10.0",
     "workbox-window": "^7.4.1",
     "yet-another-react-lightbox": "^3.32.0",
     "zod": "latest"

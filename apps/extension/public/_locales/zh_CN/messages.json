@@ -106,7 +106,32 @@
     "message": "找不到当前页面。"
   },
   "captureTimeout": {
-    "message": "网页内容提取超时，请重试。"
+    "message": "网页内容提取在 15 秒内未完成，页面可能过大或仍在加载。请刷新页面后重试。"
+  },
+  "pageAccessDenied": {
+    "message": "插件无法读取此页面。请确认当前不是浏览器内置页、扩展商店页或受限页面。"
+  },
+  "captureScriptFailed": {
+    "message": "网页提取脚本执行失败：$DETAIL$",
+    "placeholders": {
+      "detail": {
+        "content": "$1"
+      }
+    }
+  },
+  "captureUnknownError": {
+    "message": "未返回具体错误"
+  },
+  "instanceNetworkFailed": {
+    "message": "无法连接 EdgeEver 实例。请检查实例地址、网络连接和跨域设置。"
+  },
+  "saveFailedWithReason": {
+    "message": "保存到 EdgeEver 失败：$DETAIL$",
+    "placeholders": {
+      "detail": {
+        "content": "$1"
+      }
+    }
   },
   "emptyPageContent": {
     "message": "（网页没有可提取的正文内容）"

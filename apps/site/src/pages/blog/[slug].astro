@@ -1,7 +1,6 @@
 ---
 import { getCollection, render } from "astro:content";
 import AgentInstallTabs from "@/components/agent-install-tabs.astro";
-import CommunityTutorial from "@/components/community-tutorial.astro";
 import BlogLayout from "@/layouts/BlogLayout.astro";
 
 export async function getStaticPaths() {
@@ -19,5 +18,4 @@ const { Content } = await render(entry);
 <BlogLayout frontmatter={entry.data}>
   {entry.slug === "ai-agent-deploy-cloudflare" && <AgentInstallTabs />}
   <Content />
-  {entry.slug === "ai-agent-deploy-cloudflare" && <CommunityTutorial />}
 </BlogLayout>

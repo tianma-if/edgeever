@@ -44,6 +44,12 @@ const getOutlineItems = (editor: Editor): OutlineItem[] => {
   return items;
 };
 
+const sameOutlineItems = (left: OutlineItem[], right: OutlineItem[]) =>
+  left.length === right.length && left.every((item, index) => {
+    const other = right[index];
+    return other?.level === item.level && other.pos === item.pos && other.text === item.text;
+  });
+
 export const EditorOutline = ({ editor, scrollContainer, collapsed, onCollapsedChange }: EditorOutlineProps) => {
   const { t } = useTranslation();
   const [items, setItems] = useState<OutlineItem[]>([]);
@@ -55,7 +61,8 @@ export const EditorOutline = ({ editor, scrollContainer, collapsed, onCollapsedC
       return;
     }
 
-    setItems(getOutlineItems(editor));
+    const nextItems = getOutlineItems(editor);
+    setItems((currentItems) => (sameOutlineItems(currentItems, nextItems) ? currentItems : nextItems));
   }, [editor]);
 
   const updateActiveItem = useCallback(() => {
@@ -69,7 +76,8 @@ export const EditorOutline = ({ editor, scrollContainer, collapsed, onCollapsedC
       item.pos <= selectionPos ? item : current
     ), null);
 
-    setActivePos(activeItem?.pos ?? items[0]?.pos ?? null);
+    const nextActivePos = activeItem?.pos ?? items[0]?.pos ?? null;
+    setActivePos((currentActivePos) => (currentActivePos === nextActivePos ? currentActivePos : nextActivePos));
   }, [editor, items]);
 
   useEffect(() => {
@@ -107,7 +115,8 @@ export const EditorOutline = ({ editor, scrollContainer, collapsed, onCollapsedC
       }
 
       if (activeItem) {
-        setActivePos(activeItem.pos);
+        const nextActivePos = activeItem.pos;
+        setActivePos((currentActivePos) => (currentActivePos === nextActivePos ? currentActivePos : nextActivePos));
       }
     };
 

@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light" />
+    <title>EdgeEver</title>
+  </head>
+  <body>
+    <header id="print-toolbar" class="print-toolbar">
+      <div>
+        <strong id="print-status">EdgeEver</strong>
+        <span id="print-hint"></span>
+      </div>
+      <div class="print-toolbar__actions">
+        <button id="print-close" type="button"></button>
+        <button id="print-action" type="button" disabled></button>
+      </div>
+    </header>
+    <main id="print-preview" aria-live="polite"></main>
+    <script type="module" src="/src/note-print.ts"></script>
+  </body>
+</html>

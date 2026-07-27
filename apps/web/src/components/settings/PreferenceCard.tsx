@@ -86,40 +86,6 @@ export const PreferenceCard = ({
 
         <div className="flex min-h-16 flex-col items-start gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
           <div className="flex min-w-0 items-start gap-3">
-            <RefreshCw className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" />
-            <div className="min-w-0">
-              <div className="text-sm font-semibold text-slate-900">{t("settings.autoSaveIntervalTitle")}</div>
-              <div className="mt-0.5 text-xs leading-4 text-slate-500">{t("settings.autoSaveIntervalDescription")}</div>
-            </div>
-          </div>
-          <div className="w-full shrink-0 sm:w-44">
-            <Select
-              value={autoSaveIntervalPreference}
-              onValueChange={(value) => {
-                const preference = value as AutoSaveIntervalPreference;
-                writeAutoSaveIntervalPreference(preference);
-                onAutoSaveIntervalChange(
-                  preference === "5m" ? 300_000 : preference === "15m" ? 900_000 : preference === "30m" ? 1_800_000 : preference === "1h" ? 3_600_000 : preference === "2h" ? 7_200_000 : 60_000
-                );
-              }}
-            >
-              <SelectTrigger aria-label={t("settings.autoSaveIntervalTitle")} className="h-9 bg-white">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="1m">{t("settings.autoSaveIntervals.1m")}</SelectItem>
-                <SelectItem value="5m">{t("settings.autoSaveIntervals.5m")}</SelectItem>
-                <SelectItem value="15m">{t("settings.autoSaveIntervals.15m")}</SelectItem>
-                <SelectItem value="30m">{t("settings.autoSaveIntervals.30m")}</SelectItem>
-                <SelectItem value="1h">{t("settings.autoSaveIntervals.1h")}</SelectItem>
-                <SelectItem value="2h">{t("settings.autoSaveIntervals.2h")}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        <div className="flex min-h-16 flex-col items-start gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-          <div className="flex min-w-0 items-start gap-3">
             <Palette className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" />
             <div className="min-w-0">
               <div className="text-sm font-semibold text-slate-900">{t("settings.editorThemeTitle")}</div>
@@ -164,6 +130,40 @@ export const PreferenceCard = ({
                     {t(`settings.mermaidThemes.${theme}`)}
                   </SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="flex min-h-16 flex-col items-start gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+          <div className="flex min-w-0 items-start gap-3">
+            <RefreshCw className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" />
+            <div className="min-w-0">
+              <div className="text-sm font-semibold text-slate-900">{t("settings.autoSaveIntervalTitle")}</div>
+              <div className="mt-0.5 text-xs leading-4 text-slate-500">{t("settings.autoSaveIntervalDescription")}</div>
+            </div>
+          </div>
+          <div className="w-full shrink-0 sm:w-44">
+            <Select
+              value={autoSaveIntervalPreference}
+              onValueChange={(value) => {
+                const preference = value as AutoSaveIntervalPreference;
+                writeAutoSaveIntervalPreference(preference);
+                onAutoSaveIntervalChange(
+                  preference === "5m" ? 300_000 : preference === "15m" ? 900_000 : preference === "30m" ? 1_800_000 : preference === "1h" ? 3_600_000 : preference === "2h" ? 7_200_000 : 60_000
+                );
+              }}
+            >
+              <SelectTrigger aria-label={t("settings.autoSaveIntervalTitle")} className="h-9 bg-white">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1m">{t("settings.autoSaveIntervals.1m")}</SelectItem>
+                <SelectItem value="5m">{t("settings.autoSaveIntervals.5m")}</SelectItem>
+                <SelectItem value="15m">{t("settings.autoSaveIntervals.15m")}</SelectItem>
+                <SelectItem value="30m">{t("settings.autoSaveIntervals.30m")}</SelectItem>
+                <SelectItem value="1h">{t("settings.autoSaveIntervals.1h")}</SelectItem>
+                <SelectItem value="2h">{t("settings.autoSaveIntervals.2h")}</SelectItem>
               </SelectContent>
             </Select>
           </div>

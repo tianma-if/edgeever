@@ -3,6 +3,7 @@ export * from "./backup";
 export * from "./github-feedback";
 export * from "./image-display";
 export * from "./memo-safety";
+export * from "./note-links";
 export * from "./notebooks";
 export * from "./revision-diff";
 export * from "./schemas";

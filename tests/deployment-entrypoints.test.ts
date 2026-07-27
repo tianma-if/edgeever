@@ -30,6 +30,17 @@ describe("Cloudflare deployment entrypoints", () => {
     expect(packageJson.cloudflare.bindings.EDGE_EVER_AUTH_PASSWORD.description).toBeTruthy();
   });
 
+  test("online deployment resolves the D1 id without editing the repository config", () => {
+    const runner = readRepositoryFile("scripts/run-wrangler.mjs");
+    const englishAgentDoc = readRepositoryFile("docs/agent-deploy-cloudflare.md");
+    const chineseAgentDoc = readRepositoryFile("docs/agent-deploy-cloudflare.zh-CN.md");
+
+    expect(runner).toContain('"d1", "list", "--json"');
+    expect(runner).toContain("findD1DatabaseIdByName");
+    expect(englishAgentDoc).toContain("automatically resolves the D1 UUID");
+    expect(chineseAgentDoc).toContain("自动查询 D1 UUID");
+  });
+
   test("deployed repositories receive guarded daily upstream updates", () => {
     const workflow = readRepositoryFile(".github/workflows/sync-edgeever-upstream.yml");
 

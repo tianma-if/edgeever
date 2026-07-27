@@ -251,6 +251,59 @@ textarea {
   margin: 0 0 var(--editor-paragraph-spacing);
 }
 
+.ProseMirror a.edgeever-note-link,
+.ProseMirror a[href^="#memo="] {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  max-width: min(100%, 32rem);
+  padding: 0.03rem 0.32rem 0.05rem;
+  border: 1px solid rgb(110 231 183 / 0.9);
+  border-radius: 0.35rem;
+  background: linear-gradient(135deg, rgb(236 253 245), rgb(209 250 229));
+  color: rgb(4 120 87);
+  font-size: 0.9em;
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-color: rgb(52 211 153 / 0.7);
+  text-underline-offset: 2px;
+  vertical-align: baseline;
+  cursor: pointer;
+  transition: border-color 150ms ease, background-color 150ms ease, box-shadow 150ms ease, color 150ms ease;
+}
+
+.ProseMirror a.edgeever-note-link::before,
+.ProseMirror a[href^="#memo="]::before {
+  content: "↗";
+  flex: 0 0 auto;
+  font-size: 0.85em;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.ProseMirror a.edgeever-note-link:hover,
+.ProseMirror a[href^="#memo="]:hover {
+  color: rgb(6 95 70);
+  border-color: rgb(16 185 129);
+  background: rgb(167 243 208);
+  text-decoration-color: rgb(4 120 87);
+  box-shadow: 0 2px 8px rgb(16 185 129 / 0.2);
+}
+
+:root.dark .ProseMirror a.edgeever-note-link,
+:root.dark .ProseMirror a[href^="#memo="] {
+  border-color: rgb(52 211 153 / 0.7);
+  background: linear-gradient(135deg, rgb(6 78 59), rgb(6 95 70));
+  color: rgb(110 231 183);
+}
+
+:root.dark .ProseMirror a.edgeever-note-link:hover,
+:root.dark .ProseMirror a[href^="#memo="]:hover {
+  border-color: rgb(110 231 183);
+  background: rgb(6 95 70);
+  color: rgb(167 243 208);
+}
+
 .ProseMirror a.edgeever-attachment-link,
 .ProseMirror a[href*="/api/v1/resources/"] {
   display: inline-flex;
