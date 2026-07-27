@@ -18,7 +18,7 @@ const WorkspaceApp = lazy(() => import("@/components/WorkspaceApp").then((module
 
 const AuthLoadingScreen = () => (
   <div className="flex h-[100dvh] items-center justify-center bg-slate-50 text-sm font-medium text-slate-600">
-    EdgeEver
+    Noto
   </div>
 );
 
