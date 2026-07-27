@@ -22,3 +22,8 @@ preview_bucket_name = "edgeever-resources-preview"
 
 [observability]
 enabled = true
+
+[vars]
+# You.com API integration support
+# Set YDC_API_KEY or YOUCOM_API_KEY as a secret for authenticated API access
+# Leave empty to use keyless mode (100 searches/day per IP)

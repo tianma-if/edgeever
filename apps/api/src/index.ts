@@ -120,6 +120,8 @@ type Bindings = CloudflareStorageBindings & {
   EDGE_EVER_DEMO_MODE?: string;
   EDGE_EVER_LOCAL_DEMO_SEED?: string;
   EDGE_EVER_ALLOW_UNAUTHENTICATED?: string;
+  YDC_API_KEY?: string;
+  YOUCOM_API_KEY?: string;
 };
 
 type WorkerBindings = Omit<Bindings, "storage">;
@@ -3404,6 +3406,34 @@ const MCP_TOOLS = [
       properties: {},
     },
   },
+  {
+    name: "youcom_search",
+    description: "Search the web using You.com Search API. Provides real-time web search results with titles, URLs, and snippets.",
+    inputSchema: {
+      type: "object",
+      required: ["query"],
+      additionalProperties: false,
+      properties: {
+        query: { type: "string", description: "Search query" },
+        count: { type: "integer", minimum: 1, maximum: 20, default: 10, description: "Number of results to return" },
+        safesearch: { type: "string", enum: ["strict", "moderate", "off"], default: "moderate", description: "Safe search level" },
+        country: { type: "string", description: "Country code for localized results (e.g., 'US', 'GB')" },
+      },
+    },
+  },
+  {
+    name: "youcom_research",
+    description: "Perform deep research using You.com Research API. Returns synthesized reports with citations from multiple sources.",
+    inputSchema: {
+      type: "object",
+      required: ["query"],
+      additionalProperties: false,
+      properties: {
+        query: { type: "string", description: "Research query or topic" },
+        count: { type: "integer", minimum: 1, maximum: 10, default: 5, description: "Number of sources to research" },
+      },
+    },
+  },
 ];
 
 const callMcpTool = async (
@@ -3752,6 +3782,20 @@ const callMcpTool = async (
       assertScope(auth, "read:memos");
       return await getWorkspaceStats(c.env.storage.db, auth.workspaceId);
     }
+    case "youcom_search": {
+      const query = getRequiredString(args.query, "query");
+      const count = clampNumber(Number(args.count ?? 10), 1, 20);
+      const safesearch = typeof args.safesearch === "string" ? args.safesearch : "moderate";
+      const country = getOptionalString(args.country);
+      
+      return await performYouComSearch(c.env, query, count, safesearch, country);
+    }
+    case "youcom_research": {
+      const query = getRequiredString(args.query, "query");
+      const count = clampNumber(Number(args.count ?? 5), 1, 10);
+      
+      return await performYouComResearch(c.env, query, count);
+    }
     default:
       throw new Error(`Unknown tool: ${name}`);
   }
@@ -3829,8 +3873,130 @@ const decodeBase64Data = async (value: string) => {
   }
 };
 
-const escapeMarkdownImageAlt = (value: string) => value.replace(/[\\[\]]/g, "\\$&");
-const escapeMarkdownLinkLabel = (value: string) => value.replace(/[\\[\]]/g, "\\$&");
+const escapeMarkdownImageAlt = (value: string) => value.replace(/[\\\\[\\]]/g, "\\\\$&");
+const escapeMarkdownLinkLabel = (value: string) => value.replace(/[\\\\[\\]]/g, "\\\\$&");
+
+// You.com Search API integration
+const performYouComSearch = async (
+  env: Bindings, 
+  query: string, 
+  count: number, 
+  safesearch: string, 
+  country: string | null
+) => {
+  const apiKey = env.YDC_API_KEY || env.YOUCOM_API_KEY || null;
+  const baseUrl = "https://api.you.com/v1/agents/search";
+  
+  const params = new URLSearchParams({
+    query,
+    count: count.toString(),
+    safesearch,
+  });
+  
+  if (country) {
+    params.append("country", country);
+  }
+  
+  const headers: Record<string, string> = {
+    "User-Agent": "youdotcom-integration/tianma-if-edgeever",
+    "Accept": "application/json",
+  };
+  
+  if (apiKey) {
+    headers["Authorization"] = `Bearer ${apiKey}`;
+  }
+  
+  try {
+    const response = await fetch(`${baseUrl}?${params.toString()}`, {
+      headers,
+      method: "GET",
+    });
+    
+    if (!response.ok) {
+      if (response.status === 401) {
+        throw new AppError("auth_failed", "You.com API authentication failed. Check YDC_API_KEY environment variable.", 401);
+      } else if (response.status === 429) {
+        throw new AppError("rate_limited", "You.com API rate limit exceeded. Consider upgrading your plan or trying again later.", 429);
+      } else {
+        throw new AppError("api_error", `You.com API error: ${response.status} ${response.statusText}`, response.status);
+      }
+    }
+    
+    const data = await response.json();
+    
+    return {
+      source: "you.com",
+      query,
+      results: data.results || data.web || [],
+      timestamp: new Date().toISOString(),
+      ...(apiKey ? {} : { note: "Using keyless You.com API (100 searches/day limit). Set YDC_API_KEY for higher quotas." })
+    };
+  } catch (error) {
+    if (error instanceof AppError) {
+      throw error;
+    }
+    throw new AppError("network_error", `Failed to search with You.com API: ${(error as Error).message}`, 500);
+  }
+};
+
+const performYouComResearch = async (
+  env: Bindings,
+  query: string,
+  count: number
+) => {
+  const apiKey = env.YDC_API_KEY || env.YOUCOM_API_KEY || null;
+  const baseUrl = "https://api.you.com/v1/agents/research";
+  
+  const payload = {
+    query,
+    count,
+  };
+  
+  const headers: Record<string, string> = {
+    "User-Agent": "youdotcom-integration/tianma-if-edgeever",
+    "Accept": "application/json",
+    "Content-Type": "application/json",
+  };
+  
+  if (apiKey) {
+    headers["Authorization"] = `Bearer ${apiKey}`;
+  }
+  
+  try {
+    const response = await fetch(baseUrl, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload),
+    });
+    
+    if (!response.ok) {
+      if (response.status === 401) {
+        throw new AppError("auth_failed", "You.com API authentication failed. Research API requires YDC_API_KEY.", 401);
+      } else if (response.status === 429) {
+        throw new AppError("rate_limited", "You.com API rate limit exceeded. Consider upgrading your plan or trying again later.", 429);
+      } else {
+        throw new AppError("api_error", `You.com Research API error: ${response.status} ${response.statusText}`, response.status);
+      }
+    }
+    
+    const data = await response.json();
+    
+    return {
+      source: "you.com",
+      type: "research",
+      query,
+      report: data.report || data.answer || "",
+      sources: data.sources || [],
+      citations: data.citations || [],
+      timestamp: new Date().toISOString(),
+    };
+  } catch (error) {
+    if (error instanceof AppError) {
+      throw error;
+    }
+    throw new AppError("network_error", `Failed to research with You.com API: ${(error as Error).message}`, 500);
+  }
+};
 
 const getInstanceAuthMode = async (env: Bindings): Promise<InstanceAuthMode> => {
   if (!env.storage.db || typeof env.storage.db.prepare !== "function") {
