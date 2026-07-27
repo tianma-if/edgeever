@@ -29,7 +29,7 @@ Log into your [Cloudflare Dashboard](https://dash.cloudflare.com/):
 
 1. **Create a D1 Database**:
    - Navigate to **Workers & Pages** -> **D1**, then click **Create database**.
-   - Database name: `edgeever`, then click **Create**.
+   - Database name: exactly `edgeever`, then click **Create**.
 2. **Create an R2 Bucket** (for note attachments & images):
    - Navigate to **Workers & Pages** -> **R2**, then click **Create bucket**.
    - Enter a globally unique bucket name (e.g., `my-edgeever-resources`), then click **Create bucket**.
@@ -49,7 +49,10 @@ Log into your [Cloudflare Dashboard](https://dash.cloudflare.com/):
 | :--- | :--- | :--- | :--- |
 | **D1 Database Binding** | `DB` | Select `edgeever` database | Stores notes & structured data |
 | **R2 Bucket Binding** | `RESOURCES` | Select your created R2 bucket | Stores images & file attachments |
+| **Environment Variable** | `EDGE_EVER_AUTH_USERNAME` | `admin` (customizable) | Admin login username |
 | **Environment Variable (Secret)** | `EDGE_EVER_AUTH_PASSWORD` | Set your admin password | Initial login credential |
+
+> `EDGE_EVER_AUTH_USERNAME` is prefilled with `admin`. Most users can keep this value. Advanced users can replace it with a custom administrator username; the configured username is required at login.
 
 ---
 
@@ -64,6 +67,8 @@ Deploy command: bun run deploy:cloudflare-builds
 
 Click **Save and Deploy** to trigger the initial build.
 
+The deploy command automatically looks up the D1 UUID by the `edgeever` database name. Do not edit `wrangler.toml` or manually copy the D1 ID. The Workers Builds API token must have D1 read/edit permission.
+
 ---
 
 ### Step 5: Verify Deployment & Login
@@ -73,7 +78,7 @@ Click **Save and Deploy** to trigger the initial build.
    ```json
    { "ok": true }
    ```
-3. Open the homepage, log in with your configured `EDGE_EVER_AUTH_PASSWORD`, and start using EdgeEver!
+3. Open the homepage, log in with your configured administrator username (default: `admin`) and `EDGE_EVER_AUTH_PASSWORD`, and start using EdgeEver!
 4. Go back to your Fork's **Actions** tab on GitHub and manually trigger **Update deployed EdgeEver** once to ensure upstream updates will sync properly in the future.
 
 ---
@@ -90,6 +95,6 @@ EDGE_EVER_UPDATE_CHANNEL=edge
 
 ## Troubleshooting
 
-- **Initial build failed**: Check the Worker **Deployments** log in Cloudflare to verify that D1 (`DB`) and R2 (`RESOURCES`) binding names match the exact case required.
+- **Initial build failed**: Check the Worker **Deployments** log. Verify that the D1 binding is `DB`, its database is named exactly `edgeever`, the R2 binding is `RESOURCES`, and the Workers Builds API token has D1 read/edit permission. For an intentionally different D1 database, add the build variable `EDGE_EVER_D1_DATABASE_ID` with its UUID.
 - **Updates not syncing**: Navigate to your Fork's **Actions** tab, verify **Update deployed EdgeEver** is enabled, and try clicking **Run workflow** manually.
 - **Reset or Manual Recovery**: See the [Cloudflare Manual Deployment Guide](manual-deploy.md).

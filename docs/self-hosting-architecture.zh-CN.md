@@ -49,6 +49,8 @@ EdgeEver 容器
 - 将 `/data` 作为唯一必需的应用持久化路径，方便 NAS 用户备份一个卷。
 - 容器入口需要支持 `EDGE_EVER_AUTH_USERNAME`、`EDGE_EVER_AUTH_PASSWORD` 和
   会话配置，同时不能把 Cloudflare 专有配置当作前置条件。
+- 登录暴力破解防护必须使用应用层的 SQLite/D1 兼容存储实现；Cloudflare
+  Rate Limiting 和 WAF 只能作为部署层的可选增强，不能作为运行前提。
 - 健康检查应区分进程可用、数据库就绪和附件存储就绪。
 
 本文档用于预留架构边界，不是 Docker 部署指南。在自托管适配器以及备份、

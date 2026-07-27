@@ -67,6 +67,39 @@
   animation: border-beam calc(var(--duration)*1s) infinite linear;
 }
 
+@utility animate-rise {
+  animation: landing-rise 0.6s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+
+@utility animate-pop {
+  animation: landing-pop 0.5s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+
+@keyframes landing-rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes landing-pop {
+  0% {
+    transform: scale(0.7) rotate(-3deg);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.06) rotate(1deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(-1deg);
+  }
+}
+
 @keyframes float {
   0% { transform: translateY(0px); }
   50% { transform: translateY(-10px); }
@@ -106,14 +139,6 @@
   to { transform: translateY(calc(-100% - var(--gap))); }
 }
 
-/*
-  The default border color has changed to `currentColor` in Tailwind CSS v4,
-  so we've added these compatibility styles to make sure everything still
-  looks the same as it did with Tailwind CSS v3.
-
-  If we ever want to remove these styles, we need to add an explicit border
-  color utility to any element that depends on these defaults.
-*/
 @layer base {
   *,
   ::after,
@@ -125,9 +150,14 @@
   
   html {
     scroll-behavior: smooth;
+    overflow-x: hidden;
+    width: 100%;
+    max-width: 100vw;
   }
 
   body {
     overflow-x: hidden;
+    width: 100%;
+    max-width: 100vw;
   }
 }

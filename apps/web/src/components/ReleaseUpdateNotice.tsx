@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { fetchLatestRelease, isVersionOutdated, type LatestRelease } from "@/lib/version-check";
 import { dismissRelease, getDismissedRelease } from "@/lib/release-notice";
 
-const AUTO_DISMISS_MS = 7_000;
+const AUTO_DISMISS_MS = 3_000;
 
 export const ReleaseUpdateNotice = () => {
   const { t } = useTranslation();

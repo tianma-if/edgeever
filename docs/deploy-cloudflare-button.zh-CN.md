@@ -29,7 +29,7 @@
 
 1. **创建 D1 数据库**：
    - 导航至 **Workers & Pages** -> **D1**，点击 **Create database**。
-   - 数据库名称填入：`edgeever`，点击 **Create**。
+   - 数据库名称严格填入：`edgeever`，点击 **Create**。
 2. **创建 R2 存储桶**（用于存储笔记附件与图片）：
    - 导航至 **Workers & Pages** -> **R2**，点击 **Create bucket**。
    - 填入自定义存储桶名称（全局唯一，如 `my-edgeever-resources`），点击 **Create bucket**。
@@ -49,7 +49,10 @@
 | :--- | :--- | :--- | :--- |
 | **D1 Database Binding** | `DB` | 选择 `edgeever` 数据库 | 存放笔记与结构化数据 |
 | **R2 Bucket Binding** | `RESOURCES` | 选择您创建的 R2 Bucket | 存放图片与图片附件 |
+| **Environment Variable** | `EDGE_EVER_AUTH_USERNAME` | `admin`（可改为自定义用户名） | 管理员登录用户名 |
 | **Environment Variable (Secret)** | `EDGE_EVER_AUTH_PASSWORD` | 设置您的管理员登录密码 | 初始登录凭据 |
+
+> `EDGE_EVER_AUTH_USERNAME` 默认预填为 `admin`。普通用户可以直接使用这个值；如果希望使用其他管理员用户名，可在这里修改。请记住部署时填写的用户名，登录时需要同时输入用户名和密码。
 
 ---
 
@@ -64,6 +67,8 @@ Deploy command: bun run deploy:cloudflare-builds
 
 点击 **Save and Deploy** 启动首次构建部署。
 
+部署命令会根据 `edgeever` 数据库名称自动查询 D1 UUID。无需修改 `wrangler.toml`，也无需手工复制 D1 ID。Workers Builds API Token 必须具有 D1 读取和编辑权限。
+
 ---
 
 ### 步骤 5：验证部署与登录
@@ -73,7 +78,7 @@ Deploy command: bun run deploy:cloudflare-builds
    ```json
    { "ok": true }
    ```
-3. 打开主站首页，输入您配置的密码（`EDGE_EVER_AUTH_PASSWORD`）测试登录并开始使用。
+3. 打开主站首页，输入您配置的管理员用户名（默认是 `admin`）和密码（`EDGE_EVER_AUTH_PASSWORD`）测试登录并开始使用。
 4. 返回 Fork 的 GitHub 仓库 **Actions** 页面，手动触发运行一次 **Update deployed EdgeEver** 工作流，确保未来可自动跟进上游更新。
 
 ---
@@ -90,6 +95,6 @@ EDGE_EVER_UPDATE_CHANNEL=edge
 
 ## 常见问题与排错
 
-- **首次构建失败**：请检查 Cloudflare 控制台中 Worker 的 **Deployments** 构建日志，确认 D1 (`DB`) 和 R2 (`RESOURCES`) Binding 名称大小写是否正确。
+- **首次构建失败**：请检查 Cloudflare 控制台中 Worker 的 **Deployments** 构建日志，确认 D1 Binding 为 `DB`、数据库名称严格为 `edgeever`、R2 Binding 为 `RESOURCES`，并确认 Workers Builds API Token 具有 D1 读取和编辑权限。如有意使用其他 D1 数据库，请添加构建变量 `EDGE_EVER_D1_DATABASE_ID` 并填入其 UUID。
 - **无法同步上游更新**：打开您 Fork 仓库的 **Actions** 标签页，确认 **Update deployed EdgeEver** 工作流是否处于已启用状态，并尝试手动点击 **Run workflow**。
 - **需要重置或手动恢复部署**：请参阅 [手动部署指南](manual-deploy.zh-CN.md)。

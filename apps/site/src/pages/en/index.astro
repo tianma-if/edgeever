@@ -4,6 +4,7 @@ import Features from "@/components/features.astro";
 import Guides from "@/components/guides.astro";
 import Hero from "@/components/hero.astro";
 import Logos from "@/components/logos.astro";
+import MarqueeShowcase from "@/components/marquee-showcase.astro";
 import Layout from "@/layouts/Layout.astro";
 
 const siteUrl = new URL(Astro.url.pathname, Astro.site).toString();
@@ -35,6 +36,7 @@ const homeJsonLd = [
 <Layout title="" jsonLd={homeJsonLd}>
   <Container>
     <Hero />
+    <MarqueeShowcase />
     <Features />
     <Guides />
     <Logos />

@@ -75,6 +75,13 @@ import {
   type LoginDeviceSessionRow,
 } from "./auth-session-devices";
 import {
+  checkLoginRateLimit,
+  clearLoginAttempts,
+  recordLoginFailure,
+  resolveLoginRateLimitConfig,
+  type LoginAttemptKey,
+} from "./auth-login-limiter";
+import {
   decodeDemoAttachment,
   DEMO_ATTACHMENT_MARKDOWN_EN,
   DEMO_ATTACHMENT_MARKDOWN_ZH,
@@ -104,6 +111,11 @@ type Bindings = CloudflareStorageBindings & {
   EDGE_EVER_AUTH_PASSWORD?: string;
   EDGE_EVER_AUTH_PASSWORD_HASH?: string;
   EDGE_EVER_SESSION_TTL_DAYS?: string;
+  EDGE_EVER_AUTH_LOGIN_WINDOW_SECONDS?: string;
+  EDGE_EVER_AUTH_LOGIN_USERNAME_MAX_ATTEMPTS?: string;
+  EDGE_EVER_AUTH_LOGIN_USERNAME_COOLDOWN_SECONDS?: string;
+  EDGE_EVER_AUTH_LOGIN_IP_MAX_ATTEMPTS?: string;
+  EDGE_EVER_AUTH_LOGIN_IP_COOLDOWN_SECONDS?: string;
   EDGE_EVER_R2_BUCKET_NAME?: string;
   EDGE_EVER_DEMO_MODE?: string;
   EDGE_EVER_LOCAL_DEMO_SEED?: string;
@@ -631,11 +643,40 @@ app.post("/api/v1/auth/login", zValidator("json", LoginSchema), async (c) => {
   }
 
   const input = c.req.valid("json");
+  const loginAttemptKeys = await getLoginAttemptKeys(c, input.username);
+  const loginRateLimitConfig = resolveLoginRateLimitConfig(c.env);
+  const currentRateLimit = await checkLoginRateLimit(c.env.storage.db, loginAttemptKeys, loginRateLimitConfig);
+
+  if (currentRateLimit.retryAfterSeconds > 0) {
+    return tooManyLoginAttempts(c, currentRateLimit.retryAfterSeconds);
+  }
+
   const user = await verifyLogin(c.env, input.username, input.password);
 
   if (!user) {
+    const updatedRateLimit = await recordLoginFailure(
+      c.env.storage.db,
+      loginAttemptKeys,
+      loginRateLimitConfig,
+    );
+
+    if (updatedRateLimit.retryAfterSeconds > 0) {
+      await audit(
+        c.env.storage.db,
+        "system",
+        null,
+        "auth.login_rate_limited",
+        "auth",
+        loginAttemptKeys[0]?.key ?? "unknown",
+        { retryAfterSeconds: updatedRateLimit.retryAfterSeconds },
+      );
+      return tooManyLoginAttempts(c, updatedRateLimit.retryAfterSeconds);
+    }
+
     return unauthorized(c, "Username or password is incorrect.");
   }
+
+  await clearLoginAttempts(c.env.storage.db, loginAttemptKeys);
 
   const workspace = await ensureUserWorkspace(c.env.storage.db, user.id, user.username);
   const session = await createSession(c, user, input.deviceId);
@@ -3822,6 +3863,33 @@ const getInstanceAuthMode = async (env: Bindings): Promise<InstanceAuthMode> => 
     ),
     hasEnabledUser: Boolean(user),
   });
+};
+
+const getLoginAttemptKeys = async (c: AppContext, username: string): Promise<LoginAttemptKey[]> => {
+  const keys: LoginAttemptKey[] = [{ scope: "username", key: await sha256(username.trim()) }];
+  const clientIp = getClientIp(c);
+
+  if (clientIp) {
+    keys.push({ scope: "ip", key: await sha256(clientIp) });
+  }
+
+  return keys;
+};
+
+const getClientIp = (c: Context) => {
+  const cloudflareIp = c.req.header("CF-Connecting-IP")?.trim();
+  if (cloudflareIp) return cloudflareIp;
+
+  const realIp = c.req.header("X-Real-IP")?.trim();
+  if (realIp) return realIp;
+
+  const forwardedIp = c.req.header("X-Forwarded-For")?.split(",", 1)[0]?.trim();
+  return forwardedIp || null;
+};
+
+const tooManyLoginAttempts = (c: Context, retryAfterSeconds: number) => {
+  c.header("Retry-After", String(retryAfterSeconds));
+  return apiError(c, "login_rate_limited", "Too many login attempts. Try again later.", 429);
 };
 
 const verifyLogin = async (env: Bindings, username: string, password: string): Promise<UserRow | null> => {

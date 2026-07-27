@@ -139,18 +139,18 @@ export const DataExportCard = () => {
   return (
     <>
       <Card className="w-full min-w-0 overflow-hidden shadow-none">
-        <CardHeader className="p-4 pb-3">
-          <CardTitle className="flex items-center gap-2 text-sm">
-            <DatabaseBackup className="h-4 w-4 text-emerald-700" />
-            {t("dataExport.title")}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-3 p-4 pt-0">
-          <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
-            <div className="min-w-0">
-              <CardDescription className="text-xs leading-5">{t("dataExport.description")}</CardDescription>
+        <CardHeader className="p-4 sm:p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0 space-y-1">
+              <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+                <DatabaseBackup className="h-4 w-4 text-emerald-700 shrink-0" />
+                {t("dataExport.title")}
+              </CardTitle>
+              <CardDescription className="text-xs leading-relaxed text-slate-500">
+                {t("dataExport.description")}
+              </CardDescription>
             </div>
-            <div className="flex flex-col gap-2 sm:flex-row">
+            <div className="flex shrink-0 flex-wrap items-center gap-2">
               <Button size="sm" variant="outline" type="button" disabled={busy} onClick={() => fileInputRef.current?.click()}>
                 <Upload className="h-4 w-4" />
                 {t("dataExport.importButton")}
@@ -162,19 +162,22 @@ export const DataExportCard = () => {
               <input ref={fileInputRef} className="hidden" type="file" accept=".zip,application/zip" onChange={(event) => void handleImportFile(event.target.files?.[0])} />
             </div>
           </div>
-
-          {busy ? (
-            <div className="grid gap-1.5" aria-live="polite">
-              <div className="flex items-center justify-between text-xs text-slate-500">
-                <span>{operation === "import" ? t("dataExport.importing") : t("dataExport.working")}</span>
-                <span>{t("dataExport.progress", { completed: progress.completed, total: progress.total })}</span>
+        </CardHeader>
+        {(busy || state === "complete" || state === "error") && (
+          <CardContent className="grid gap-3 p-4 pt-0 sm:px-5">
+            {busy ? (
+              <div className="grid gap-1.5" aria-live="polite">
+                <div className="flex items-center justify-between text-xs text-slate-500">
+                  <span>{operation === "import" ? t("dataExport.importing") : t("dataExport.working")}</span>
+                  <span>{t("dataExport.progress", { completed: progress.completed, total: progress.total })}</span>
+                </div>
+                <Progress progress={progress} />
               </div>
-              <Progress progress={progress} />
-            </div>
-          ) : null}
-          {state === "complete" ? <p className="flex items-center gap-1.5 text-xs text-emerald-700"><CheckCircle2 className="h-3.5 w-3.5" />{operation === "import" ? t("dataExport.importComplete") : t("dataExport.complete")}</p> : null}
-          {state === "error" ? <p className="flex items-center gap-1.5 text-xs text-red-600" role="alert"><AlertCircle className="h-3.5 w-3.5 shrink-0" />{errorMessage}</p> : null}
-        </CardContent>
+            ) : null}
+            {state === "complete" ? <p className="flex items-center gap-1.5 text-xs text-emerald-700"><CheckCircle2 className="h-3.5 w-3.5" />{operation === "import" ? t("dataExport.importComplete") : t("dataExport.complete")}</p> : null}
+            {state === "error" ? <p className="flex items-center gap-1.5 text-xs text-red-600" role="alert"><AlertCircle className="h-3.5 w-3.5 shrink-0" />{errorMessage}</p> : null}
+          </CardContent>
+        )}
       </Card>
 
       <Dialog open={Boolean(pendingImport)} onOpenChange={(open) => { if (!open) setPendingImport(null); }}>

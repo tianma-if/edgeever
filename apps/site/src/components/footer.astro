@@ -5,26 +5,29 @@ const locale = getSiteLocale(Astro.url.pathname);
 const copy = siteCopy[locale].nav;
 ---
 
-<footer class="my-20">
-  <p class="text-center text-sm text-slate-500">
-    Copyright © {new Date().getFullYear()} EdgeEver. All rights reserved.
-    | 
-    <a href={getLocalizedPath(locale, "/contact")} class="hover:underline">
-      {copy.contact}
-    </a>
-    |
-    <a href={getLocalizedPath(locale, "/privacy")} class="hover:underline">
-      {copy.privacy}
-    </a>
-  </p>
-  <p class="text-center text-xs text-slate-500 mt-1">
-    Open source on <a
-      href="https://github.com/tianma-if/edgeever"
-      target="_blank"
-      rel="noopener"
-      class="hover:underline"
-    >
-      GitHub
-    </a>
-  </p>
+<footer class="my-12 sm:my-16 border-t border-slate-200/60 pt-8 pb-12 px-4">
+  <div class="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left text-xs sm:text-sm text-slate-500">
+    <p class="leading-relaxed">
+      Copyright © {new Date().getFullYear()} EdgeEver. All rights reserved.
+    </p>
+
+    <div class="flex flex-wrap items-center justify-center gap-3">
+      <a href={getLocalizedPath(locale, "/contact")} class="hover:text-emerald-700 transition-colors">
+        {copy.contact}
+      </a>
+      <span class="text-slate-300">•</span>
+      <a href={getLocalizedPath(locale, "/privacy")} class="hover:text-emerald-700 transition-colors">
+        {copy.privacy}
+      </a>
+      <span class="text-slate-300">•</span>
+      <a
+        href="https://github.com/tianma-if/edgeever"
+        target="_blank"
+        rel="noopener"
+        class="hover:text-emerald-700 transition-colors font-medium"
+      >
+        GitHub
+      </a>
+    </div>
+  </div>
 </footer>

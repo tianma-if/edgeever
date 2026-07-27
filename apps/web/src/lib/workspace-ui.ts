@@ -7,3 +7,4 @@ export const WORKSPACE_PAGE_TITLE_CLASSNAME = "text-sm font-semibold leading-5 t
  */
 export const EDITOR_OUTLINE_WIDTH = "300px";
 export const EDITOR_CONTENT_MAX_WIDTH = "880px";
+export const EDITOR_CONTENT_MAX_WIDTH_COLLAPSED = "1200px";

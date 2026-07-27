@@ -16,6 +16,7 @@ import type { ShortcutSettings } from "@/lib/app-helpers";
 import { WORKSPACE_PAGE_TITLE_CLASSNAME } from "@/lib/workspace-ui";
 import { cn } from "@/lib/utils";
 import { AdvancedPlayCard } from "./settings/AdvancedPlayCard";
+import { AccountInfoCard } from "./settings/AccountInfoCard";
 import { DataExportCard } from "./settings/DataExportCard";
 import { LoginDevicesCard } from "./settings/LoginDevicesCard";
 import { EvernoteImportGuideCard } from "./settings/EvernoteImportGuideCard";
@@ -25,13 +26,18 @@ import { PreferenceCard } from "./settings/PreferenceCard";
 import { PasswordCard } from "./settings/PasswordCard";
 import { SessionCard } from "./settings/SessionCard";
 import { UserManagementCard } from "./settings/UserManagementCard";
+import { WebDavBackupCard } from "./settings/WebDavBackupCard";
 import { ThemeToggle } from "./ThemeToggle";
+import type { AuthUser } from "@edgeever/shared";
+import { isNativeDesktopRuntime } from "@/lib/runtime";
 
 interface SettingsPaneProps {
   onClose: () => void;
   onOpenTemplates: () => void;
   imageCompressionEnabled: boolean;
   onImageCompressionChange: (enabled: boolean) => void;
+  autoSaveIntervalMs: number | null;
+  onAutoSaveIntervalChange: (intervalMs: number | null) => void;
   shortcutSettings: ShortcutSettings;
   onShortcutSettingsChange: (settings: ShortcutSettings) => void;
   onLogout: () => void;
@@ -39,6 +45,7 @@ interface SettingsPaneProps {
   authRequired: boolean;
   demoMode: boolean;
   isOwner: boolean;
+  user: AuthUser | null;
 }
 
 // Slate and brand color variables already switch values with the root theme.
@@ -66,6 +73,8 @@ export const SettingsPane = ({
   onOpenTemplates,
   imageCompressionEnabled,
   onImageCompressionChange,
+  autoSaveIntervalMs,
+  onAutoSaveIntervalChange,
   shortcutSettings,
   onShortcutSettingsChange,
   onLogout,
@@ -73,6 +82,7 @@ export const SettingsPane = ({
   authRequired,
   demoMode,
   isOwner,
+  user,
 }: SettingsPaneProps) => {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<TabKey>("general");
@@ -83,6 +93,24 @@ export const SettingsPane = ({
       key: "general",
       label: t("settings.tabs.general"),
       icon: SlidersHorizontal,
+      colorClass: "text-emerald-700",
+      bgColorClass: "bg-emerald-50/80",
+      hoverColorClass: "hover:bg-emerald-50/40",
+      iconColorClass: "text-emerald-600",
+    },
+    {
+      key: "ai",
+      label: t("settings.tabs.ai"),
+      icon: Sparkles,
+      colorClass: "text-emerald-700",
+      bgColorClass: "bg-emerald-50/80",
+      hoverColorClass: "hover:bg-emerald-50/40",
+      iconColorClass: "text-emerald-600",
+    },
+    {
+      key: "data",
+      label: t("settings.tabs.data"),
+      icon: Database,
       colorClass: "text-emerald-700",
       bgColorClass: "bg-emerald-50/80",
       hoverColorClass: "hover:bg-emerald-50/40",
@@ -101,24 +129,6 @@ export const SettingsPane = ({
           },
         ]
       : []),
-    {
-      key: "data",
-      label: t("settings.tabs.data"),
-      icon: Database,
-      colorClass: "text-emerald-700",
-      bgColorClass: "bg-emerald-50/80",
-      hoverColorClass: "hover:bg-emerald-50/40",
-      iconColorClass: "text-emerald-600",
-    },
-    {
-      key: "ai",
-      label: t("settings.tabs.ai"),
-      icon: Sparkles,
-      colorClass: "text-emerald-700",
-      bgColorClass: "bg-emerald-50/80",
-      hoverColorClass: "hover:bg-emerald-50/40",
-      iconColorClass: "text-emerald-600",
-    },
     {
       key: "account",
       label: t("settings.tabs.account"),
@@ -170,6 +180,8 @@ export const SettingsPane = ({
             <PreferenceCard
               imageCompressionEnabled={imageCompressionEnabled}
               onImageCompressionChange={onImageCompressionChange}
+              autoSaveIntervalMs={autoSaveIntervalMs}
+              onAutoSaveIntervalChange={onAutoSaveIntervalChange}
               shortcutSettings={shortcutSettings}
               onShortcutSettingsChange={onShortcutSettingsChange}
             />
@@ -186,6 +198,7 @@ export const SettingsPane = ({
         return (
           <SettingsGroup>
             <DataExportCard />
+            {isNativeDesktopRuntime() ? <WebDavBackupCard /> : null}
             <EvernoteImportGuideCard />
           </SettingsGroup>
         );
@@ -199,6 +212,7 @@ export const SettingsPane = ({
       case "account":
         return (
           <SettingsGroup>
+            <AccountInfoCard user={user} />
             <PasswordCard authRequired={authRequired} demoMode={demoMode} />
             {demoMode ? null : <LoginDevicesCard authRequired={authRequired} />}
             <SessionCard authRequired={authRequired} isLoggingOut={isLoggingOut} onLogout={onLogout} />

@@ -1,3 +1,5 @@
+import { isSupportedPasswordHash } from "./auth-bootstrap";
+
 type PasswordHasher = (password: string) => Promise<string>;
 
 export const isDemoModeEnabled = (value: string | undefined) => value?.trim().toLowerCase() === "true";
@@ -22,7 +24,7 @@ export const resolveDemoPasswordHash = async (
   hashPassword: PasswordHasher,
 ) => {
   const passwordHash = configuredPasswordHash?.trim();
-  if (passwordHash) {
+  if (passwordHash && isSupportedPasswordHash(passwordHash)) {
     return passwordHash;
   }
 

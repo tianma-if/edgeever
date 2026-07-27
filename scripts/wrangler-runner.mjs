@@ -25,6 +25,27 @@ export const buildWranglerEnvironment = (args, env = process.env) => ({
 
 export const normalizeD1MigrationSql = (sql) => sql.replace(/\r\n?/g, "\n");
 
+export const findD1DatabaseIdByName = (json, databaseName) => {
+  let databases;
+  try {
+    databases = JSON.parse(json);
+  } catch {
+    throw new Error("Wrangler returned invalid JSON while listing D1 databases.");
+  }
+
+  if (!Array.isArray(databases)) {
+    throw new Error("Wrangler returned an unexpected response while listing D1 databases.");
+  }
+
+  const matches = databases.filter((database) => database?.name === databaseName);
+  if (matches.length !== 1) {
+    return undefined;
+  }
+
+  const databaseId = matches[0]?.uuid;
+  return typeof databaseId === "string" ? databaseId : undefined;
+};
+
 export const buildWranglerSpawnOptions = (args, options = {}) => {
   if (!isD1MigrationApplyCommand(args) || options.input !== undefined) {
     return options;

@@ -6,7 +6,7 @@ import Image from "@tiptap/extension-image";
 import Placeholder from "@tiptap/extension-placeholder";
 import { TableKit } from "@tiptap/extension-table";
 import { createExcerpt, docToMarkdown, docToText, emptyDoc, type MemoDetail, type MemoEditSession, type Notebook, type TiptapDoc } from "@edgeever/shared";
-import { getMobileEditorInputAttributes, getMobileEditorPlaceholder, type MobileEditorTableActionId } from "@edgeever/shared/mobile-editor";
+import { getMobileEditorInputAttributes, getMobileEditorPlaceholder } from "@edgeever/shared/mobile-editor";
 import {
   MobileEditorFallback,
   MobileEditorHeader,
@@ -14,7 +14,7 @@ import {
   MobileEditorNotebookSheet,
   MobileEditorToolbar,
 } from "@/components/MobileStandaloneEditorParts";
-import { getEditableMemoTitle, getNotebookMoveOptions } from "@/lib/app-helpers";
+import { getEditableMemoTitle, getNotebookMoveOptions, readAutoSaveIntervalPreference } from "@/lib/app-helpers";
 import { defaultLocale, normalizeLocale } from "@/i18n/locales";
 import { compressImageForUpload } from "@/lib/image-compression";
 import { localDb, type LocalDraft } from "@/lib/local-db";
@@ -24,7 +24,6 @@ import {
   writeMobileEditorReturnPreview,
 } from "@/lib/mobile-editor";
 import {
-  MOBILE_EDITOR_AUTO_SAVE_DELAY_MS,
   MOBILE_EDITOR_INITIAL_FOCUS_DELAY_MS,
   MOBILE_EDITOR_LEAVE_SAVE_TIMEOUT_MS,
   getMobileEditorDraftKey,
@@ -201,10 +200,13 @@ export const MobileStandaloneTiptapEditor = ({
       if (saveTimerRef.current !== null) {
         window.clearTimeout(saveTimerRef.current);
       }
-      saveTimerRef.current = window.setTimeout(() => {
-        saveTimerRef.current = null;
-        void saveNowRef.current();
-      }, MOBILE_EDITOR_AUTO_SAVE_DELAY_MS);
+      const autoSaveIntervalMs = readAutoSaveIntervalPreference();
+      if (autoSaveIntervalMs !== null) {
+        saveTimerRef.current = window.setTimeout(() => {
+          saveTimerRef.current = null;
+          void saveNowRef.current();
+        }, autoSaveIntervalMs);
+      }
     },
   });
 
@@ -450,10 +452,13 @@ export const MobileStandaloneTiptapEditor = ({
     if (saveTimerRef.current !== null) {
       window.clearTimeout(saveTimerRef.current);
     }
-    saveTimerRef.current = window.setTimeout(() => {
-      saveTimerRef.current = null;
-      void saveNow();
-    }, MOBILE_EDITOR_AUTO_SAVE_DELAY_MS);
+    const autoSaveIntervalMs = readAutoSaveIntervalPreference();
+    if (autoSaveIntervalMs !== null) {
+      saveTimerRef.current = window.setTimeout(() => {
+        saveTimerRef.current = null;
+        void saveNow();
+      }, autoSaveIntervalMs);
+    }
   }, [persistLocalDraft, saveNow, setSaveStateStable]);
 
   const persistReturnPreview = useCallback(() => {
@@ -839,9 +844,6 @@ export const MobileStandaloneTiptapEditor = ({
     notebookOptions.find((notebook) => notebook.id === memo?.notebookId)?.name ?? t("editor.notebookFallback");
 
   const fallbackMarkdown = memo ? docToMarkdown(contentJsonRef.current) : "";
-  const tableActive = Boolean(editor?.isActive("table"));
-  const tableHeaderActive = Boolean(editor?.isActive("tableHeader"));
-
   const runEditorCommand = (command: () => boolean) => {
     if (editorActionDisabled || !editor) {
       return;
@@ -849,32 +851,6 @@ export const MobileStandaloneTiptapEditor = ({
 
     command();
     editor.commands.focus();
-  };
-
-  const runTableAction = (action: MobileEditorTableActionId) => {
-    runEditorCommand(() => {
-      const chain = editor?.chain().focus();
-      if (!chain) {
-        return false;
-      }
-
-      switch (action) {
-        case "insertTable":
-          return chain.insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
-        case "addTableRow":
-          return chain.addRowAfter().run();
-        case "deleteTableRow":
-          return editor?.isActive("tableHeader") ? false : chain.deleteRow().run();
-        case "addTableColumn":
-          return chain.addColumnAfter().run();
-        case "deleteTableColumn":
-          return chain.deleteColumn().run();
-        case "toggleTableHeader":
-          return chain.toggleHeaderRow().run();
-        case "deleteTable":
-          return chain.deleteTable().run();
-      }
-    });
   };
 
   return (
@@ -916,31 +892,14 @@ export const MobileStandaloneTiptapEditor = ({
           increaseListIndentAvailable={Boolean(editor?.can().chain().focus().sinkListItem("listItem").run())}
           decreaseListIndentAvailable={Boolean(editor?.can().chain().focus().liftListItem("listItem").run())}
           blockquoteActive={Boolean(editor?.isActive("blockquote"))}
-          mermaidActive={Boolean(editor?.isActive("codeBlock", { language: "mermaid" }))}
-          tableActive={tableActive}
-          tableHeaderActive={tableHeaderActive}
           locale={locale}
           onPickImage={() => imageInputRef.current?.click()}
-          onInsertMermaid={() => runEditorCommand(() => {
-            if (!editor) {
-              return false;
-            }
-            if (editor.isActive("codeBlock")) {
-              return editor.chain().focus().updateAttributes("codeBlock", { language: "mermaid" }).run();
-            }
-            return editor.chain().focus().insertContent({
-              type: "codeBlock",
-              attrs: { language: "mermaid" },
-              content: [{ type: "text", text: "flowchart LR\n  A[Start] --> B[End]" }],
-            }).run();
-          })}
           onToggleBold={() => runEditorCommand(() => editor?.chain().focus().toggleBold().run() ?? false)}
           onToggleBulletList={() => runEditorCommand(() => editor?.chain().focus().toggleBulletList().run() ?? false)}
           onIncreaseListIndent={() => runEditorCommand(() => editor?.chain().focus().sinkListItem("listItem").run() ?? false)}
           onDecreaseListIndent={() => runEditorCommand(() => editor?.chain().focus().liftListItem("listItem").run() ?? false)}
           onToggleBlockquote={() => runEditorCommand(() => editor?.chain().focus().toggleBlockquote().run() ?? false)}
           onSetHorizontalRule={() => runEditorCommand(() => editor?.chain().focus().setHorizontalRule().run() ?? false)}
-          onTableAction={runTableAction}
         />
         <input
           ref={imageInputRef}

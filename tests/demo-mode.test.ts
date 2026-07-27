@@ -14,9 +14,16 @@ describe("demo mode policy", () => {
     expect(isDemoModeEnabled(undefined)).toBe(false);
   });
 
-  test("keeps the configured legacy hash authoritative", async () => {
+  test("keeps a valid configured hash authoritative", async () => {
     const hashPassword = async () => "generated-hash";
-    expect(await resolveDemoPasswordHash("plaintext", " legacy-hash ", hashPassword)).toBe("legacy-hash");
+    const configuredHash = "pbkdf2-sha256$100000$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+    expect(await resolveDemoPasswordHash("plaintext", ` ${configuredHash} `, hashPassword)).toBe(configuredHash);
+  });
+
+  test("repairs an invalid configured hash from the plaintext fallback", async () => {
+    const hashPassword = async (password: string) => `hashed:${password}`;
+    expect(await resolveDemoPasswordHash("plaintext", "legacy-hash", hashPassword)).toBe("hashed:plaintext");
+    expect(await resolveDemoPasswordHash(undefined, "legacy-hash", hashPassword)).toBeNull();
   });
 
   test("protects only the configured account while demo mode is enabled", () => {

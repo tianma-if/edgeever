@@ -1,0 +1,247 @@
+@page {
+  size: A4;
+  margin: 18mm 17mm 20mm;
+
+  @top-center {
+    content: string(edgeever-note-title);
+    color: #64748b;
+    font-family: "Noto Sans SC Variable", sans-serif;
+    font-size: 8.5pt;
+  }
+
+  @bottom-center {
+    content: counter(page) " / " counter(pages);
+    color: #64748b;
+    font-family: "Noto Sans SC Variable", sans-serif;
+    font-size: 8.5pt;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.edgeever-print-document {
+  color: #172033;
+  font-family: "Noto Sans SC Variable", sans-serif;
+  font-size: 10.5pt;
+  line-height: 1.72;
+  overflow-wrap: anywhere;
+}
+
+.edgeever-print-title {
+  string-set: edgeever-note-title content(text);
+  margin: 0 0 4mm;
+  color: #0f172a;
+  font-size: 24pt;
+  font-weight: 760;
+  line-height: 1.18;
+}
+
+.edgeever-print-meta {
+  margin: 0 0 9mm;
+  border-bottom: 0.3mm solid #dbe4ea;
+  padding-bottom: 4mm;
+  color: #64748b;
+  font-size: 8.5pt;
+}
+
+.edgeever-print-content > :first-child {
+  margin-top: 0;
+}
+
+.edgeever-print-content h1,
+.edgeever-print-content h2,
+.edgeever-print-content h3 {
+  break-after: avoid-page;
+  color: #0f172a;
+  line-height: 1.25;
+}
+
+.edgeever-print-content h1 {
+  margin: 8mm 0 3.5mm;
+  font-size: 19pt;
+}
+
+.edgeever-print-content h2 {
+  margin: 7mm 0 3mm;
+  font-size: 15pt;
+}
+
+.edgeever-print-content h3 {
+  margin: 6mm 0 2.5mm;
+  font-size: 12.5pt;
+}
+
+.edgeever-print-content p {
+  margin: 0 0 3.5mm;
+  orphans: 3;
+  widows: 3;
+}
+
+.edgeever-print-content ul,
+.edgeever-print-content ol {
+  margin: 0 0 4mm;
+  padding-left: 6mm;
+}
+
+.edgeever-print-content li {
+  margin: 1mm 0;
+}
+
+.edgeever-print-content blockquote {
+  break-inside: avoid-page;
+  margin: 4mm 0;
+  border-left: 1mm solid #10b981;
+  background: #f0fdf4;
+  padding: 3mm 4mm;
+  color: #334155;
+}
+
+.edgeever-print-content hr {
+  margin: 7mm 0;
+  border: 0;
+  border-top: 0.3mm solid #cbd5e1;
+}
+
+.edgeever-print-content a {
+  color: #047857;
+  text-decoration: underline;
+}
+
+.edgeever-print-content code {
+  border-radius: 1mm;
+  background: #f1f5f9;
+  padding: 0.2mm 0.8mm;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.9em;
+}
+
+.edgeever-print-content pre,
+.edgeever-print-content .edgeever-code-source {
+  break-inside: avoid-page;
+  max-width: 100%;
+  margin: 4mm 0;
+  border: 0.3mm solid #dbe4ea;
+  border-radius: 2mm;
+  background: #f8fafc;
+  padding: 3.5mm 4mm;
+  color: #1e293b;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 8.5pt;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.edgeever-print-content pre code {
+  background: transparent;
+  padding: 0;
+}
+
+.edgeever-print-content img,
+.edgeever-print-mermaid svg {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: 220mm;
+  object-fit: contain;
+}
+
+.edgeever-print-content figure,
+.edgeever-print-mermaid {
+  break-inside: avoid-page;
+  max-width: 100%;
+  margin: 5mm auto;
+}
+
+.edgeever-print-mermaid svg {
+  margin: 0 auto;
+}
+
+.edgeever-print-content table {
+  width: 100%;
+  margin: 5mm 0;
+  border-collapse: collapse;
+  font-size: 8.5pt;
+  line-height: 1.45;
+}
+
+.edgeever-print-content thead {
+  display: table-header-group;
+}
+
+.edgeever-print-content tr {
+  break-inside: avoid-page;
+}
+
+.edgeever-print-content th,
+.edgeever-print-content td {
+  border: 0.3mm solid #cbd5e1;
+  padding: 2mm 2.5mm;
+  text-align: left;
+  vertical-align: top;
+}
+
+.edgeever-print-content th {
+  background: #f1f5f9;
+  font-weight: 700;
+}
+
+.edgeever-print-content [data-edgeever-theme-block] {
+  break-inside: avoid-page;
+  margin: 5mm 0;
+  border: 0.3mm solid #a7f3d0;
+  border-left: 1mm solid #059669;
+  border-radius: 2mm;
+  background: #f0fdf4;
+  padding: 3.5mm 4mm;
+}
+
+.edgeever-print-content [data-theme-block-kind="chapter"] {
+  border-width: 1mm 0 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.edgeever-print-content .tableWrapper {
+  max-width: 100%;
+  overflow: visible;
+}
+
+.edgeever-print-content .edgeever-image-controls,
+.edgeever-print-content .edgeever-code-copy-button,
+.edgeever-print-content .edgeever-theme-block__toolbar,
+.edgeever-print-content .edgeever-mermaid-source {
+  display: none !important;
+}
+
+.hljs-comment,
+.hljs-quote {
+  color: #64748b;
+}
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal {
+  color: #7c3aed;
+}
+
+.hljs-string,
+.hljs-title,
+.hljs-section {
+  color: #047857;
+}
+
+.hljs-number,
+.hljs-symbol,
+.hljs-bullet {
+  color: #b45309;
+}
+
+.hljs-built_in,
+.hljs-type,
+.hljs-attribute {
+  color: #0369a1;
+}

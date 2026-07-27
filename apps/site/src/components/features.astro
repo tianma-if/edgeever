@@ -3,1118 +3,217 @@ import { Icon } from "astro-icon/components";
 import { getSiteLocale, siteCopy } from "@/i18n";
 
 const locale = getSiteLocale(Astro.url.pathname);
-const featureCopy = siteCopy[locale].features;
-const featureArt = [
-  {
-    icon: "bx:bx-cloud",
-    accent: "storage",
-  },
-  {
-    icon: "bx:bxs-bot",
-    accent: "agent",
-  },
-  {
-    icon: "bx:bx-layout",
-    accent: "workspace",
-  },
-  {
-    icon: "bx:bx-transfer",
-    accent: "open",
-  },
-  {
-    icon: "bx:bx-shield-quarter",
-    accent: "secure",
-  },
-  {
-    icon: "bx:bx-group",
-    accent: "accounts",
-  },
-];
-
-const features = featureCopy.items.map((item, index) => ({ ...item, ...featureArt[index] }));
+const bento = siteCopy[locale].bento;
 ---
 
-<section class="mt-8 md:mt-12 relative overflow-hidden" aria-labelledby="features">
-  <div class="absolute top-32 -left-24 w-72 h-72 bg-brand-border/10 rounded-full blur-3xl -z-10"></div>
-  <div class="absolute bottom-24 -right-24 w-72 h-72 bg-slate-200/30 rounded-full blur-3xl -z-10"></div>
+<section class="mt-12 md:mt-24 relative overflow-hidden" aria-labelledby="bento-features">
+  <!-- Subtle Glow background -->
+  <div class="absolute top-1/3 left-1/2 -translate-x-1/2 w-[700px] h-[400px] bg-emerald-500/5 rounded-full blur-3xl -z-10 pointer-events-none"></div>
 
-  <div class="max-w-3xl mb-14 text-center mx-auto">
-    <h2 class="text-4xl lg:text-5xl font-bold text-slate-900" id="features">
-      {featureCopy.heading}
+  <!-- Header -->
+  <div class="max-w-3xl mb-8 md:mb-16 text-center mx-auto px-4">
+    <span class="inline-block px-3.5 py-1 text-xs font-bold tracking-widest text-emerald-600 bg-emerald-50 rounded-full border border-emerald-200/60 uppercase">
+      {bento.eyebrow}
+    </span>
+    <h2 class="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-extrabold text-slate-900 tracking-tight mt-3" id="bento-features">
+      {bento.heading}
     </h2>
+    <p class="text-slate-600 mt-3 sm:mt-4 text-xs sm:text-sm md:text-base leading-relaxed max-w-2xl mx-auto">
+      {bento.subheading}
+    </p>
   </div>
 
-  <div class="space-y-6">
-    {
-      features.map((feature) => (
-        <article class="group relative overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-brand-border hover:shadow-[0_22px_55px_-35px_rgb(var(--edgeever-brand-rgb)/0.55)]">
-          <div class="grid h-[800px] grid-cols-1 sm:h-[760px] md:h-[700px] lg:h-[460px] lg:grid-cols-[minmax(0,1.02fr)_minmax(360px,0.98fr)]">
-            <div class="flex h-full flex-col justify-center p-7 sm:p-9 lg:p-10">
-              <div class="mb-7 flex items-center gap-4">
-                <div class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-brand-border/40 bg-brand-soft text-brand-text shadow-sm">
-                  <Icon name={feature.icon} class="h-7 w-7" />
-                </div>
-              </div>
+  <!-- Bento Grid Container -->
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 max-w-6xl mx-auto px-4">
+    
+    <!-- CARD 1: Classic Three-Pane Layout (Large Span 2 Cols on LG) -->
+    <div class="group relative overflow-hidden rounded-2xl sm:rounded-3xl border border-slate-200/90 bg-white p-5 sm:p-6 md:p-8 shadow-sm transition-all duration-300 hover:shadow-xl hover:border-emerald-500/40 lg:col-span-2 flex flex-col justify-between">
+      <div class="mb-4 sm:mb-6 z-10">
+        <div class="flex flex-wrap items-center gap-2 mb-2.5">
+          <span class="px-2.5 py-0.5 text-[10px] sm:text-[11px] font-bold text-emerald-700 bg-emerald-100/70 rounded-md">
+            {bento.card1.badge}
+          </span>
+          <span class="text-slate-400 text-[11px] sm:text-xs font-mono">{bento.card1.subBadge}</span>
+        </div>
+        <h3 class="text-lg sm:text-xl md:text-2xl font-bold text-slate-900 tracking-tight">
+          {bento.card1.title}
+        </h3>
+        <p class="text-slate-600 text-xs sm:text-sm mt-2 leading-relaxed max-w-xl">
+          {bento.card1.desc}
+        </p>
+      </div>
 
-              <h3 class="text-2xl font-bold leading-tight text-slate-900 sm:text-3xl">
-                {feature.title}
-              </h3>
-              <p class="mt-4 max-w-2xl text-base leading-8 text-slate-600">
-                {feature.summary}
-              </p>
-
-              <ul class="mt-7 grid gap-3">
-                {feature.points.map((point) => (
-                  <li class="flex gap-3 text-sm leading-6 text-slate-600 sm:text-base">
-                    <span class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-muted text-brand-text">
-                      <Icon name="bx:bx-check" class="h-3.5 w-3.5" />
-                    </span>
-                    <span>{point}</span>
-                  </li>
-                ))}
-              </ul>
+      <!-- Micro UI Mockup: Three-Pane Preview (Responsive Layout for Mobile) -->
+      <div class="relative w-full rounded-xl border border-slate-200/80 bg-slate-50/80 p-2 sm:p-2.5 shadow-inner mt-2 sm:mt-4 overflow-hidden group-hover:border-emerald-300 transition-colors">
+        <div class="grid grid-cols-12 gap-1.5 sm:gap-2 h-44 md:h-52 text-[10px] sm:text-[11px] font-sans">
+          <!-- Left Notebook Tree (Hidden on extra small mobile screens < 400px to maintain clean readability) -->
+          <div class="hidden sm:flex col-span-3 bg-white rounded-lg border border-slate-200/60 p-2 sm:p-2.5 flex-col gap-1.5 shadow-2xs overflow-hidden">
+            <div class="flex items-center gap-1.5 text-slate-400 font-bold text-[9px] sm:text-[10px] uppercase mb-0.5">
+              <Icon name="bx:bx-folder" class="w-3.5 h-3.5 text-emerald-600" />
+              <span class="truncate">{bento.card1.treeTitle}</span>
             </div>
+            <div class="bg-emerald-50 text-emerald-800 font-semibold px-2 py-1 rounded text-[10px] sm:text-[10.5px] truncate flex items-center gap-1">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span> {bento.card1.folder1}
+            </div>
+            <div class="text-slate-600 px-2 py-1 rounded hover:bg-slate-100 truncate">{bento.card1.folder2}</div>
+            <div class="text-slate-600 px-2 py-1 rounded hover:bg-slate-100 truncate">{bento.card1.folder3}</div>
+          </div>
 
-            <div class="relative min-h-[220px] overflow-hidden border-t border-slate-100 bg-slate-50/70 md:min-h-full lg:border-l lg:border-t-0">
-              <div class={`feature-art feature-art-${feature.accent}`} aria-hidden="true">
-                {feature.accent === "storage" && (
-                  <div class="storage-scene">
-                    <div class="storage-cloud">
-                      <Icon name="bx:bx-cloud" class="h-14 w-14" />
-                    </div>
-                    <div class="storage-meter">
-                      <span>Cloudflare</span>
-                      <strong>15w+</strong>
-                      <i></i>
-                    </div>
-                    <div class="storage-stack storage-stack-d1">
-                      <span>D1</span>
-                      <b></b>
-                      <b></b>
-                      <b></b>
-                    </div>
-                    <div class="storage-stack storage-stack-r2">
-                      <span>R2</span>
-                      <b></b>
-                      <b></b>
-                      <b></b>
-                    </div>
-                    <div class="storage-gallery">
-                      <i></i>
-                      <i></i>
-                      <i></i>
-                      <i></i>
-                    </div>
-                  </div>
-                )}
-
-                {feature.accent === "agent" && (
-                  <div class="agent-scene">
-                    <div class="agent-orbit"></div>
-                    <div class="agent-center">
-                      <Icon name="bx:bxs-bot" class="h-12 w-12" />
-                    </div>
-                    <div class="agent-node agent-node-mcp">
-                      <Icon name="bx:bx-plug" class="h-6 w-6" />
-                      <span>MCP</span>
-                    </div>
-                    <div class="agent-node agent-node-api">
-                      <Icon name="bx:bx-code-alt" class="h-6 w-6" />
-                      <span>API</span>
-                    </div>
-                    <div class="agent-node agent-node-doc">
-                      <Icon name="bx:bx-file" class="h-6 w-6" />
-                      <span>OpenAPI</span>
-                    </div>
-                    <div class="agent-node agent-node-note">
-                      <Icon name="bx:bx-note" class="h-6 w-6" />
-                      <span>Notes</span>
-                    </div>
-                  </div>
-                )}
-
-                {feature.accent === "workspace" && (
-                  <div class="workspace-scene">
-                    <div class="workspace-window">
-                      <div class="workspace-topbar">
-                        <span></span>
-                        <span></span>
-                        <span></span>
-                      </div>
-                      <div class="workspace-body">
-                        <div class="workspace-pane workspace-tree">
-                          <b></b>
-                          <i></i>
-                          <i></i>
-                          <i></i>
-                          <i></i>
-                        </div>
-                        <div class="workspace-pane workspace-list">
-                          <b></b>
-                          <strong></strong>
-                          <strong></strong>
-                          <strong></strong>
-                        </div>
-                        <div class="workspace-pane workspace-editor">
-                          <b></b>
-                          <i></i>
-                          <i></i>
-                          <em></em>
-                          <i></i>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {feature.accent === "open" && (
-                  <div class="open-scene">
-                    <div class="open-doc open-markdown">
-                      <span>Markdown</span>
-                      <b># Note</b>
-                      <i></i>
-                      <i></i>
-                      <i></i>
-                    </div>
-                    <div class="open-doc open-json">
-                      <span>JSON</span>
-                      <b>{"{ }"}</b>
-                      <i></i>
-                      <i></i>
-                    </div>
-                    <div class="open-export">
-                      <Icon name="bx:bx-export" class="h-8 w-8" />
-                    </div>
-                    <div class="open-chips">
-                      <em>API</em>
-                      <em>MCP</em>
-                      <em>CLI</em>
-                    </div>
-                    <div class="open-zip">
-                      <Icon name="bx:bx-archive" class="h-5 w-5" />
-                      <span>EdgeEver ZIP</span>
-                    </div>
-                  </div>
-                )}
-
-                {feature.accent === "secure" && (
-                  <div class="secure-scene">
-                    <div class="secure-link secure-link-desktop"></div>
-                    <div class="secure-link secure-link-phone"></div>
-                    <div class="secure-desktop">
-                      <div class="secure-topbar">
-                        <b></b>
-                        <b></b>
-                        <b></b>
-                      </div>
-                      <i></i>
-                      <i></i>
-                      <i></i>
-                    </div>
-                    <div class="secure-phone">
-                      <span></span>
-                      <i></i>
-                      <i></i>
-                    </div>
-                    <div class="secure-sync">
-                      <Icon name="bx:bx-sync" class="h-10 w-10" />
-                      <span>Sync</span>
-                    </div>
-                    <div class="secure-queue">
-                      <Icon name="bx:bx-wifi-off" class="h-5 w-5" />
-                      <span>Offline queue</span>
-                    </div>
-                    <div class="secure-status">
-                      <Icon name="bx:bx-check" class="h-4 w-4" />
-                      <span>Auto saved</span>
-                    </div>
-                  </div>
-                )}
-
-                {feature.accent === "accounts" && (
-                  <div class="accounts-scene">
-                    <div class="accounts-instance">
-                      <Icon name="bx:bx-cloud" class="h-8 w-8" />
-                      <span>One instance</span>
-                    </div>
-                    <div class="accounts-link accounts-link-owner"></div>
-                    <div class="accounts-link accounts-link-left"></div>
-                    <div class="accounts-link accounts-link-right"></div>
-                    <div class="account-card account-owner">
-                      <span class="account-avatar"><Icon name="bx:bx-crown" class="h-5 w-5" /></span>
-                      <strong>Owner</strong>
-                      <small>Private workspace</small>
-                    </div>
-                    <div class="account-card account-member-left">
-                      <span class="account-avatar"><Icon name="bx:bx-user" class="h-5 w-5" /></span>
-                      <strong>Member</strong>
-                      <small>Private workspace</small>
-                    </div>
-                    <div class="account-card account-member-right">
-                      <span class="account-avatar"><Icon name="bx:bx-user" class="h-5 w-5" /></span>
-                      <strong>Member</strong>
-                      <small>Private workspace</small>
-                    </div>
-                    <div class="accounts-token">
-                      <Icon name="bx:bx-key" class="h-5 w-5" />
-                      <span>Isolated MCP tokens</span>
-                    </div>
-                  </div>
-                )}
-              </div>
+          <!-- Middle Note List -->
+          <div class="col-span-5 sm:col-span-4 bg-white rounded-lg border border-slate-200/60 p-2 flex flex-col gap-1.5 shadow-2xs overflow-hidden">
+            <div class="text-slate-400 font-bold text-[9px] sm:text-[10px] uppercase px-1 mb-0.5">{bento.card1.listTitle}</div>
+            <div class="border-l-2 border-emerald-500 bg-slate-50 p-1.5 sm:p-2 rounded-r flex flex-col gap-0.5">
+              <div class="font-bold text-slate-800 text-[10px] sm:text-[11px] truncate">{bento.card1.note1Title}</div>
+              <div class="text-[9px] sm:text-[9.5px] text-slate-500 line-clamp-1">{bento.card1.note1Sub}</div>
+            </div>
+            <div class="p-1.5 sm:p-2 rounded hover:bg-slate-50 flex flex-col gap-0.5 opacity-80">
+              <div class="font-medium text-slate-700 text-[10px] sm:text-[10.5px] truncate">{bento.card1.note2Title}</div>
+              <div class="text-[9px] sm:text-[9.5px] text-slate-400 line-clamp-1">{bento.card1.note2Sub}</div>
             </div>
           </div>
-        </article>
-      ))
-    }
+
+          <!-- Right TipTap Editor Preview -->
+          <div class="col-span-7 sm:col-span-5 bg-white rounded-lg border border-slate-200/60 p-2 sm:p-3 flex flex-col gap-1.5 sm:gap-2 shadow-2xs overflow-hidden">
+            <div class="text-slate-900 font-bold text-[11px] sm:text-xs border-b border-slate-100 pb-1 flex items-center justify-between">
+              <span class="truncate">{bento.card1.editorTitle}</span>
+              <span class="text-[8.5px] sm:text-[9px] bg-emerald-100 text-emerald-800 px-1 py-0.5 rounded font-mono shrink-0">TipTap</span>
+            </div>
+            <p class="text-[9.5px] sm:text-[10px] text-slate-600 leading-relaxed line-clamp-3 sm:line-clamp-none">
+              {bento.card1.editorBody}
+            </p>
+            <div class="flex items-center gap-1 text-[8.5px] sm:text-[9px] text-slate-400 mt-auto font-mono">
+              <Icon name="bx:bx-check-shield" class="w-3 h-3 text-emerald-500 shrink-0" />
+              <span class="truncate">{bento.card1.editorSaveTag}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CARD 2: AI Agent & MCP Synergy (Col Span 1 on LG) -->
+    <div class="group relative overflow-hidden rounded-2xl sm:rounded-3xl border border-slate-200/90 bg-white p-5 sm:p-6 md:p-8 shadow-sm transition-all duration-300 hover:shadow-xl hover:border-emerald-500/40 flex flex-col justify-between">
+      <div class="z-10">
+        <div class="flex items-center gap-2 mb-2.5">
+          <span class="px-2.5 py-0.5 text-[10px] sm:text-[11px] font-bold text-emerald-700 bg-emerald-100/70 rounded-md">
+            {bento.card2.badge}
+          </span>
+          <span class="text-slate-400 text-[11px] sm:text-xs font-mono">Remote MCP</span>
+        </div>
+        <h3 class="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">
+          {bento.card2.title}
+        </h3>
+        <p class="text-slate-600 text-xs sm:text-sm mt-2 leading-relaxed">
+          {bento.card2.desc}
+        </p>
+      </div>
+
+      <!-- Micro UI Mockup: AI Prompt Bubble -->
+      <div class="relative w-full rounded-xl border border-slate-200/80 bg-slate-900 p-3 sm:p-3.5 text-white font-mono text-[10px] sm:text-[11px] mt-4 sm:mt-6 flex flex-col gap-2 shadow-md">
+        <div class="flex items-center justify-between text-[9.5px] sm:text-[10px] text-slate-400 border-b border-slate-800 pb-1.5">
+          <span class="flex items-center gap-1.5 text-emerald-400 font-semibold truncate">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0"></span> {bento.card2.mockupStatus}
+          </span>
+          <span class="shrink-0 text-[9px] sm:text-[10px]">Antigravity / Codex</span>
+        </div>
+        <div class="bg-slate-800/80 p-2 rounded text-slate-300 text-[10px] sm:text-[10.5px] truncate">
+          <span class="text-emerald-400 font-bold">&gt;</span> {bento.card2.mockupCmd}
+        </div>
+        <div class="bg-emerald-950/60 border border-emerald-800/50 p-2 rounded text-emerald-300 text-[9.5px] sm:text-[10px] leading-relaxed">
+          {bento.card2.mockupResult}
+        </div>
+      </div>
+    </div>
+
+    <!-- CARD 3: Serverless Zero Cost (Col Span 1 on LG) -->
+    <div class="group relative overflow-hidden rounded-2xl sm:rounded-3xl border border-slate-200/90 bg-white p-5 sm:p-6 md:p-8 shadow-sm transition-all duration-300 hover:shadow-xl hover:border-emerald-500/40 flex flex-col justify-between">
+      <div class="z-10">
+        <div class="flex items-center gap-2 mb-2.5">
+          <span class="px-2.5 py-0.5 text-[10px] sm:text-[11px] font-bold text-emerald-700 bg-emerald-100/70 rounded-md">
+            {bento.card3.badge}
+          </span>
+          <span class="text-slate-400 text-[11px] sm:text-xs font-mono">Cloudflare Native</span>
+        </div>
+        <h3 class="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">
+          {bento.card3.title}
+        </h3>
+        <p class="text-slate-600 text-xs sm:text-sm mt-2 leading-relaxed">
+          {bento.card3.desc}
+        </p>
+      </div>
+
+      <!-- Micro UI Mockup: 0 Cost Metrics Badge -->
+      <div class="relative w-full rounded-xl border border-emerald-100 bg-emerald-50/60 p-3.5 sm:p-4 mt-4 sm:mt-6 flex items-center justify-between">
+        <div>
+          <div class="text-xl sm:text-2xl md:text-3xl font-extrabold text-emerald-800">{bento.card3.price} <span class="text-xs font-medium text-emerald-600">{bento.card3.unit}</span></div>
+          <div class="text-[10.5px] sm:text-[11px] font-medium text-emerald-700 mt-0.5">{bento.card3.sub}</div>
+        </div>
+        <div class="text-right">
+          <div class="text-base sm:text-lg font-bold text-slate-800">{bento.card3.metric}</div>
+          <div class="text-[9.5px] sm:text-[10px] text-slate-500">{bento.card3.metricSub}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CARD 4: Rich Text Copy for Creators (Col Span 1 on LG) -->
+    <div class="group relative overflow-hidden rounded-2xl sm:rounded-3xl border border-slate-200/90 bg-white p-5 sm:p-6 md:p-8 shadow-sm transition-all duration-300 hover:shadow-xl hover:border-emerald-500/40 flex flex-col justify-between">
+      <div class="z-10">
+        <div class="flex items-center gap-2 mb-2.5">
+          <span class="px-2.5 py-0.5 text-[10px] sm:text-[11px] font-bold text-emerald-700 bg-emerald-100/70 rounded-md">
+            {bento.card4.badge}
+          </span>
+          <span class="text-slate-400 text-[11px] sm:text-xs font-mono truncate">Substack / 微信</span>
+        </div>
+        <h3 class="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">
+          {bento.card4.title}
+        </h3>
+        <p class="text-slate-600 text-xs sm:text-sm mt-2 leading-relaxed">
+          {bento.card4.desc}
+        </p>
+      </div>
+
+      <!-- Micro UI Mockup: Markdown to Inline CSS Rich Copy -->
+      <div class="relative w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 sm:p-3 mt-4 sm:mt-6 flex flex-col gap-2">
+        <div class="flex items-center justify-between text-[9.5px] sm:text-[10px] text-slate-500 font-mono border-b border-slate-200 pb-1">
+          <span class="truncate">{bento.card4.srcTag}</span>
+          <span class="text-emerald-600 font-bold flex items-center gap-1 shrink-0">
+            <Icon name="bx:bx-copy" class="w-3 h-3" /> {bento.card4.actionBtn}
+          </span>
+        </div>
+        <div class="bg-white p-2 sm:p-2.5 rounded border border-slate-200 text-[10.5px] sm:text-[11px] text-slate-800 leading-snug">
+          <span class="font-bold text-emerald-800 truncate block">{bento.card4.previewTitle}</span>
+          <p class="text-slate-600 text-[9.5px] sm:text-[10px] mt-1">{bento.card4.previewBody}</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- CARD 5: Open Data & ZIP Backup (Col Span 1 on LG) -->
+    <div class="group relative overflow-hidden rounded-2xl sm:rounded-3xl border border-slate-200/90 bg-white p-5 sm:p-6 md:p-8 shadow-sm transition-all duration-300 hover:shadow-xl hover:border-emerald-500/40 flex flex-col justify-between">
+      <div class="z-10">
+        <div class="flex items-center gap-2 mb-2.5">
+          <span class="px-2.5 py-0.5 text-[10px] sm:text-[11px] font-bold text-emerald-700 bg-emerald-100/70 rounded-md">
+            {bento.card5.badge}
+          </span>
+          <span class="text-slate-400 text-[11px] sm:text-xs font-mono">SQLite + ZIP</span>
+        </div>
+        <h3 class="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">
+          {bento.card5.title}
+        </h3>
+        <p class="text-slate-600 text-xs sm:text-sm mt-2 leading-relaxed">
+          {bento.card5.desc}
+        </p>
+      </div>
+
+      <!-- Micro UI Mockup: Lossless ZIP Archive -->
+      <div class="relative w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 sm:p-3 mt-4 sm:mt-6 flex items-center gap-2.5 sm:gap-3">
+        <div class="h-9 w-9 sm:h-10 sm:w-10 shrink-0 grid place-items-center rounded-lg bg-emerald-600 text-white shadow-sm">
+          <Icon name="bx:bx-archive-in" class="w-4 h-4 sm:w-5 sm:h-5" />
+        </div>
+        <div class="overflow-hidden text-[10.5px] sm:text-[11px]">
+          <div class="font-bold text-slate-800 truncate">{bento.card5.archiveTitle}</div>
+          <div class="text-[9.5px] sm:text-[10px] text-slate-500 truncate">{bento.card5.archiveSub}</div>
+        </div>
+      </div>
+    </div>
+
   </div>
 </section>
-
-<style>
-  .feature-art {
-    position: absolute;
-    inset: 0;
-    display: grid;
-    place-items: center;
-    padding: 28px;
-    isolation: isolate;
-  }
-
-  .feature-art::before {
-    content: "";
-    position: absolute;
-    inset: 10%;
-    border-radius: 999px;
-    background:
-      radial-gradient(circle at 35% 30%, rgb(var(--edgeever-brand-rgb) / 0.18), transparent 34%),
-      radial-gradient(circle at 75% 72%, rgb(15 23 42 / 0.08), transparent 36%);
-    filter: blur(18px);
-  }
-
-  .feature-art > * {
-    position: relative;
-    z-index: 1;
-  }
-
-  .storage-scene,
-  .agent-scene,
-  .workspace-scene,
-  .open-scene,
-  .secure-scene,
-  .accounts-scene {
-    width: min(88%, 460px);
-    aspect-ratio: 1.28;
-  }
-
-  .storage-cloud,
-  .storage-meter,
-  .storage-stack,
-  .storage-gallery,
-  .agent-center,
-  .agent-node,
-  .workspace-window,
-  .open-doc,
-  .open-export,
-  .open-chips,
-  .open-zip,
-  .secure-desktop,
-  .secure-phone,
-  .secure-sync,
-  .secure-queue,
-  .secure-status {
-    position: absolute;
-    border: 1px solid rgb(203 213 225 / 0.72);
-    background: rgb(255 255 255 / 0.86);
-    box-shadow: 0 18px 60px -42px rgb(15 23 42 / 0.8);
-    backdrop-filter: blur(12px);
-  }
-
-  .storage-scene {
-    transform: rotate(-2deg);
-    transition: transform 300ms ease;
-  }
-
-  .group:hover .storage-scene,
-  .group:hover .agent-scene,
-  .group:hover .workspace-window,
-  .group:hover .open-scene,
-  .group:hover .secure-scene {
-    transform: translateY(-4px);
-  }
-
-  .storage-cloud {
-    top: 10%;
-    left: 50%;
-    display: grid;
-    width: 122px;
-    height: 122px;
-    place-items: center;
-    translate: -50% 0;
-    border-radius: 36px;
-    color: var(--edgeever-brand-text);
-    background:
-      radial-gradient(circle at 30% 25%, rgb(var(--edgeever-brand-rgb) / 0.18), transparent 44%),
-      rgb(255 255 255 / 0.9);
-  }
-
-  .storage-meter {
-    top: 6%;
-    right: 2%;
-    display: grid;
-    gap: 5px;
-    width: 136px;
-    padding: 16px;
-    border-radius: 22px;
-  }
-
-  .storage-meter span,
-  .storage-stack span,
-  .open-doc span,
-  .secure-queue span {
-    font-size: 12px;
-    font-weight: 700;
-    color: var(--edgeever-brand-text);
-  }
-
-  .storage-meter strong {
-    font-size: 28px;
-    line-height: 1;
-    color: #0f172a;
-  }
-
-  .storage-meter i {
-    display: block;
-    height: 8px;
-    border-radius: 999px;
-    background: linear-gradient(90deg, var(--edgeever-brand), rgb(203 213 225 / 0.7));
-  }
-
-  .storage-stack {
-    bottom: 7%;
-    display: grid;
-    gap: 7px;
-    width: 142px;
-    padding: 16px;
-    border-radius: 24px;
-  }
-
-  .storage-stack-d1 {
-    left: 4%;
-  }
-
-  .storage-stack-r2 {
-    right: 4%;
-  }
-
-  .storage-stack b {
-    display: block;
-    height: 12px;
-    border-radius: 999px;
-    background: rgb(148 163 184 / 0.42);
-  }
-
-  .storage-stack b:nth-of-type(2) {
-    width: 76%;
-    background: rgb(var(--edgeever-brand-rgb) / 0.32);
-  }
-
-  .storage-gallery {
-    left: 50%;
-    bottom: 20%;
-    display: grid;
-    grid-template-columns: repeat(2, 54px);
-    gap: 10px;
-    padding: 12px;
-    translate: -50% 0;
-    border-radius: 24px;
-    background: rgb(248 250 252 / 0.76);
-  }
-
-  .storage-gallery i {
-    display: block;
-    width: 54px;
-    height: 42px;
-    border-radius: 14px;
-    background:
-      linear-gradient(135deg, rgb(var(--edgeever-brand-rgb) / 0.24), transparent),
-      rgb(226 232 240 / 0.72);
-  }
-
-  .agent-scene {
-    transition: transform 300ms ease;
-  }
-
-  .agent-orbit {
-    position: absolute;
-    inset: 12%;
-    border: 1px dashed rgb(var(--edgeever-brand-rgb) / 0.38);
-    border-radius: 999px;
-  }
-
-  .agent-orbit::before,
-  .agent-orbit::after {
-    content: "";
-    position: absolute;
-    background: rgb(var(--edgeever-brand-rgb) / 0.35);
-  }
-
-  .agent-orbit::before {
-    top: 50%;
-    left: -4%;
-    width: 108%;
-    height: 1px;
-  }
-
-  .agent-orbit::after {
-    top: -4%;
-    left: 50%;
-    width: 1px;
-    height: 108%;
-  }
-
-  .agent-center {
-    top: 50%;
-    left: 50%;
-    display: grid;
-    width: 118px;
-    height: 118px;
-    place-items: center;
-    translate: -50% -50%;
-    border-radius: 999px;
-    color: var(--edgeever-brand-text);
-  }
-
-  .agent-node {
-    display: grid;
-    gap: 6px;
-    width: 112px;
-    height: 86px;
-    place-items: center;
-    border-radius: 24px;
-    color: var(--edgeever-brand-text);
-    font-size: 12px;
-    font-weight: 800;
-  }
-
-  .agent-node-mcp {
-    top: 2%;
-    left: 8%;
-  }
-
-  .agent-node-api {
-    top: 8%;
-    right: 4%;
-  }
-
-  .agent-node-doc {
-    bottom: 7%;
-    left: 6%;
-  }
-
-  .agent-node-note {
-    right: 8%;
-    bottom: 2%;
-  }
-
-  .workspace-scene {
-    width: min(90%, 500px);
-  }
-
-  .workspace-window {
-    inset: 5% 0 7%;
-    overflow: hidden;
-    border-radius: 24px;
-    transition: transform 300ms ease;
-  }
-
-  .workspace-topbar {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-    height: 44px;
-    padding: 0 18px;
-    border-bottom: 1px solid rgb(226 232 240 / 0.84);
-  }
-
-  .workspace-topbar span,
-  .secure-topbar b {
-    width: 9px;
-    height: 9px;
-    border-radius: 999px;
-    background: #cbd5e1;
-  }
-
-  .workspace-body {
-    display: grid;
-    grid-template-columns: 28% 32% 1fr;
-    height: calc(100% - 44px);
-  }
-
-  .workspace-pane {
-    display: grid;
-    align-content: start;
-    gap: 12px;
-    padding: 20px 16px;
-  }
-
-  .workspace-tree,
-  .workspace-list {
-    border-right: 1px solid rgb(226 232 240 / 0.78);
-    background: rgb(248 250 252 / 0.72);
-  }
-
-  .workspace-pane b,
-  .workspace-pane i,
-  .workspace-pane strong,
-  .workspace-pane em,
-  .secure-desktop i,
-  .secure-phone i,
-  .open-doc i {
-    display: block;
-    border-radius: 999px;
-  }
-
-  .workspace-pane b {
-    width: 70%;
-    height: 15px;
-    background: rgb(15 23 42 / 0.66);
-  }
-
-  .workspace-pane i,
-  .open-doc i,
-  .secure-desktop i,
-  .secure-phone i {
-    height: 11px;
-    background: rgb(148 163 184 / 0.42);
-  }
-
-  .workspace-tree i:nth-child(3),
-  .workspace-list strong:nth-child(3),
-  .workspace-editor i:nth-child(3) {
-    background: rgb(var(--edgeever-brand-rgb) / 0.32);
-  }
-
-  .workspace-list strong {
-    height: 54px;
-    border-radius: 16px;
-    background: rgb(226 232 240 / 0.58);
-  }
-
-  .workspace-editor em {
-    height: 88px;
-    border-radius: 18px;
-    background:
-      linear-gradient(135deg, rgb(var(--edgeever-brand-rgb) / 0.22), transparent),
-      rgb(241 245 249 / 0.92);
-  }
-
-  .open-scene {
-    transform: rotate(1deg);
-    transition: transform 300ms ease;
-  }
-
-  .open-doc {
-    display: grid;
-    gap: 12px;
-    padding: 20px;
-    border-radius: 24px;
-  }
-
-  .open-markdown {
-    top: 4%;
-    left: 2%;
-    width: 210px;
-    height: 245px;
-    rotate: -5deg;
-  }
-
-  .open-json {
-    right: 4%;
-    bottom: 5%;
-    width: 188px;
-    height: 210px;
-    rotate: 5deg;
-  }
-
-  .open-doc b {
-    font-size: 26px;
-    line-height: 1;
-    color: #0f172a;
-  }
-
-  .open-doc i:nth-of-type(2) {
-    width: 72%;
-    background: rgb(var(--edgeever-brand-rgb) / 0.34);
-  }
-
-  .open-export {
-    top: 50%;
-    left: 50%;
-    display: grid;
-    width: 86px;
-    height: 86px;
-    place-items: center;
-    translate: -50% -50%;
-    border-radius: 999px;
-    color: var(--edgeever-brand-text);
-  }
-
-  .open-export::before,
-  .open-export::after {
-    content: "";
-    position: absolute;
-    top: 50%;
-    width: 112px;
-    height: 2px;
-    background: linear-gradient(90deg, transparent, rgb(var(--edgeever-brand-rgb) / 0.36), transparent);
-  }
-
-  .open-export::before {
-    right: 78px;
-  }
-
-  .open-export::after {
-    left: 78px;
-  }
-
-  .open-chips {
-    left: 50%;
-    bottom: 0;
-    display: flex;
-    gap: 8px;
-    padding: 10px;
-    translate: -50% 0;
-    border-radius: 999px;
-  }
-
-  .open-chips em {
-    padding: 7px 12px;
-    border-radius: 999px;
-    background: rgb(var(--edgeever-brand-rgb) / 0.1);
-    color: var(--edgeever-brand-text);
-    font-size: 12px;
-    font-style: normal;
-    font-weight: 800;
-  }
-
-  .open-zip {
-    top: 1%;
-    right: 3%;
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    padding: 10px 14px;
-    border-radius: 999px;
-    color: var(--edgeever-brand-text);
-  }
-
-  .open-zip span {
-    font-size: 12px;
-    font-weight: 800;
-  }
-
-  .secure-scene {
-    transition: transform 300ms ease;
-  }
-
-  .secure-link {
-    position: absolute;
-    z-index: 0;
-    height: 2px;
-    border-radius: 999px;
-    background: repeating-linear-gradient(
-      90deg,
-      rgb(var(--edgeever-brand-rgb) / 0.42) 0 10px,
-      transparent 10px 18px
-    );
-  }
-
-  .secure-link-desktop {
-    top: 47%;
-    left: 28%;
-    width: 160px;
-    rotate: 8deg;
-  }
-
-  .secure-link-phone {
-    top: 55%;
-    right: 18%;
-    width: 130px;
-    rotate: -18deg;
-  }
-
-  .secure-desktop {
-    top: 10%;
-    left: 6%;
-    width: 310px;
-    height: 210px;
-    overflow: hidden;
-    border-radius: 24px;
-  }
-
-  .secure-topbar {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-    height: 42px;
-    padding: 0 16px;
-    border-bottom: 1px solid rgb(226 232 240 / 0.84);
-  }
-
-  .secure-desktop i {
-    margin: 20px 24px 0;
-    height: 13px;
-  }
-
-  .secure-desktop i:nth-of-type(1) {
-    width: 72%;
-    background: rgb(15 23 42 / 0.64);
-  }
-
-  .secure-desktop i:nth-of-type(2) {
-    width: 54%;
-    background: rgb(var(--edgeever-brand-rgb) / 0.32);
-  }
-
-  .secure-desktop i:nth-of-type(3) {
-    width: 82%;
-  }
-
-  .secure-phone {
-    right: 5%;
-    bottom: 8%;
-    display: grid;
-    align-content: start;
-    gap: 14px;
-    width: 122px;
-    height: 220px;
-    padding: 22px 16px;
-    border-radius: 30px;
-  }
-
-  .secure-phone span {
-    display: block;
-    width: 34px;
-    height: 5px;
-    margin-inline: auto;
-    border-radius: 999px;
-    background: rgb(148 163 184 / 0.5);
-  }
-
-  .secure-phone i:nth-of-type(1) {
-    margin-top: 20px;
-    height: 58px;
-    border-radius: 18px;
-    background: rgb(var(--edgeever-brand-rgb) / 0.2);
-  }
-
-  .secure-phone i:nth-of-type(2) {
-    height: 11px;
-  }
-
-  .secure-sync {
-    top: 46%;
-    left: 50%;
-    display: grid;
-    width: 112px;
-    height: 112px;
-    gap: 4px;
-    align-content: center;
-    justify-items: center;
-    place-items: center;
-    translate: -50% -50%;
-    border-radius: 999px;
-    color: var(--edgeever-brand-text);
-    background:
-      radial-gradient(circle at 50% 30%, rgb(var(--edgeever-brand-rgb) / 0.18), transparent 44%),
-      rgb(255 255 255 / 0.92);
-  }
-
-  .secure-sync span {
-    font-size: 12px;
-    font-weight: 800;
-    color: var(--edgeever-brand-text);
-  }
-
-  .secure-queue {
-    left: 4%;
-    bottom: 4%;
-    display: flex;
-    gap: 8px;
-    align-items: center;
-    padding: 13px 16px;
-    border-radius: 999px;
-    color: var(--edgeever-brand-text);
-  }
-
-  .secure-status {
-    right: 2%;
-    top: 10%;
-    display: flex;
-    gap: 8px;
-    align-items: center;
-    padding: 12px 15px;
-    border-radius: 999px;
-    color: var(--edgeever-brand-text);
-  }
-
-  .secure-status span {
-    font-size: 12px;
-    font-weight: 800;
-  }
-
-  .accounts-scene {
-    transition: transform 300ms ease;
-  }
-
-  .group:hover .accounts-scene {
-    transform: translateY(-4px);
-  }
-
-  .accounts-instance,
-  .account-card,
-  .accounts-token {
-    position: absolute;
-    border: 1px solid rgb(203 213 225 / 0.72);
-    background: rgb(255 255 255 / 0.9);
-    box-shadow: 0 18px 60px -42px rgb(15 23 42 / 0.8);
-    backdrop-filter: blur(12px);
-  }
-
-  .accounts-instance {
-    top: 5%;
-    left: 50%;
-    z-index: 2;
-    display: flex;
-    width: 176px;
-    height: 76px;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    translate: -50% 0;
-    border-radius: 24px;
-    color: var(--edgeever-brand-text);
-  }
-
-  .accounts-instance span,
-  .accounts-token span {
-    font-size: 12px;
-    font-weight: 800;
-  }
-
-  .accounts-link {
-    position: absolute;
-    top: 27%;
-    z-index: 0;
-    width: 2px;
-    height: 92px;
-    transform-origin: top;
-    background: repeating-linear-gradient(
-      180deg,
-      rgb(var(--edgeever-brand-rgb) / 0.42) 0 9px,
-      transparent 9px 16px
-    );
-  }
-
-  .accounts-link-owner {
-    left: 50%;
-  }
-
-  .accounts-link-left {
-    left: 50%;
-    rotate: 48deg;
-  }
-
-  .accounts-link-right {
-    left: 50%;
-    rotate: -48deg;
-  }
-
-  .account-card {
-    bottom: 15%;
-    z-index: 1;
-    display: grid;
-    width: 132px;
-    min-height: 132px;
-    place-items: center;
-    align-content: center;
-    gap: 7px;
-    padding: 14px;
-    border-radius: 24px;
-    text-align: center;
-  }
-
-  .account-owner {
-    left: 50%;
-    translate: -50% 0;
-  }
-
-  .account-member-left {
-    left: 0;
-  }
-
-  .account-member-right {
-    right: 0;
-  }
-
-  .account-avatar {
-    display: grid;
-    width: 44px;
-    height: 44px;
-    place-items: center;
-    border-radius: 16px;
-    background: rgb(var(--edgeever-brand-rgb) / 0.12);
-    color: var(--edgeever-brand-text);
-  }
-
-  .account-card strong {
-    font-size: 13px;
-    color: #0f172a;
-  }
-
-  .account-card small {
-    font-size: 10px;
-    color: #64748b;
-  }
-
-  .accounts-token {
-    right: 4%;
-    bottom: 0;
-    z-index: 3;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 11px 14px;
-    border-radius: 999px;
-    color: var(--edgeever-brand-text);
-  }
-
-  @media (max-width: 767px) {
-    .feature-art {
-      padding: 22px;
-    }
-
-    .storage-scene,
-    .agent-scene,
-    .workspace-scene,
-    .open-scene,
-    .secure-scene,
-    .accounts-scene {
-      width: min(94%, 360px);
-    }
-
-    .storage-meter {
-      width: 120px;
-    }
-
-    .storage-stack {
-      width: 122px;
-    }
-
-    .storage-gallery {
-      grid-template-columns: repeat(2, 42px);
-    }
-
-    .storage-gallery i {
-      width: 42px;
-      height: 34px;
-    }
-
-    .agent-node {
-      width: 92px;
-      height: 76px;
-    }
-
-    .workspace-window {
-      inset: 8% 0;
-    }
-
-    .workspace-body {
-      grid-template-columns: 29% 34% 1fr;
-    }
-
-    .workspace-pane {
-      padding: 16px 10px;
-    }
-
-    .open-markdown {
-      width: 170px;
-      height: 220px;
-    }
-
-    .open-json {
-      width: 154px;
-      height: 184px;
-    }
-
-    .open-export {
-      width: 72px;
-      height: 72px;
-    }
-
-    .open-chips {
-      gap: 6px;
-    }
-
-    .open-chips em {
-      padding: 6px 9px;
-    }
-
-    .open-zip {
-      padding: 8px 11px;
-    }
-
-    .secure-desktop {
-      width: 230px;
-      height: 180px;
-    }
-
-    .secure-phone {
-      width: 98px;
-      height: 190px;
-    }
-
-    .secure-sync {
-      width: 88px;
-      height: 88px;
-    }
-
-    .secure-link-desktop {
-      left: 25%;
-      width: 120px;
-    }
-
-    .secure-link-phone {
-      right: 16%;
-      width: 104px;
-    }
-
-    .secure-status {
-      right: 0;
-      top: 6%;
-    }
-
-    .account-card {
-      width: 108px;
-      min-height: 118px;
-      padding: 10px;
-    }
-
-    .accounts-instance {
-      width: 156px;
-    }
-
-    .accounts-link-left {
-      rotate: 43deg;
-    }
-
-    .accounts-link-right {
-      rotate: -43deg;
-    }
-
-    .accounts-token {
-      right: 0;
-      padding: 9px 11px;
-    }
-  }
-</style>

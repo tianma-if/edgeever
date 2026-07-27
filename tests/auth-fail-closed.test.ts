@@ -95,6 +95,12 @@ describe("production authentication guard", () => {
             }
             return { id: "usr_owner" };
           },
+          async all() {
+            return { results: [] };
+          },
+          async run() {
+            return { success: true };
+          },
         };
       },
     } as unknown as D1Database;

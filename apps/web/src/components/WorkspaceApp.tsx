@@ -59,7 +59,9 @@ import {
   MAX_MEMO_LIST_WIDTH_PX,
   DEFAULT_MEMO_LIST_WIDTH_PX,
   isTextEntryTarget,
+  readAutoSaveIntervalPreference,
   readImageCompressionPreference,
+  writeAutoSaveIntervalPreference,
   writeImageCompressionPreference,
   readDesktopFocusModePreference,
   writeDesktopFocusModePreference,
@@ -691,6 +693,7 @@ export const WorkspaceApp = ({
   });
   const [multiSelectKeyDown, setMultiSelectKeyDown] = useState(false);
   const [imageCompressionEnabled, setImageCompressionEnabled] = useState(readImageCompressionPreference);
+  const [autoSaveIntervalMs, setAutoSaveIntervalMs] = useState(readAutoSaveIntervalPreference);
   const [desktopFocusMode, setDesktopFocusMode] = useState(readDesktopFocusModePreference);
   const [shortcutSettings, setShortcutSettings] = useState<ShortcutSettings>(readShortcutSettingsPreference);
   const [rightView, setRightView] = useState<"editor" | "settings" | "assets" | "tags" | "templates" | "evernote-migration">(() =>
@@ -1012,6 +1015,12 @@ export const WorkspaceApp = ({
   }, [imageCompressionEnabled]);
 
   useEffect(() => {
+    writeAutoSaveIntervalPreference(
+      autoSaveIntervalMs === null ? "1m" : autoSaveIntervalMs === 300_000 ? "5m" : autoSaveIntervalMs === 900_000 ? "15m" : autoSaveIntervalMs === 1_800_000 ? "30m" : autoSaveIntervalMs === 3_600_000 ? "1h" : autoSaveIntervalMs === 7_200_000 ? "2h" : "1m"
+    );
+  }, [autoSaveIntervalMs]);
+
+  useEffect(() => {
     writeShortcutSettingsPreference(shortcutSettings);
   }, [shortcutSettings]);
 
@@ -1292,9 +1301,9 @@ export const WorkspaceApp = ({
     const selectedMemoInList = selectedMemoId ? memos.some((memo) => memo.id === selectedMemoId) : false;
 
     if (createdMemoEditId && selectedMemoId === createdMemoEditId) {
-      if (selectedMemoInList) {
-        setCreatedMemoEditId(null);
-      }
+      // Keep the create request alive until the editor consumes it. The new
+      // memo can appear in the list before its detail query has mounted the
+      // editor, and clearing it here would lose the autofocus request.
       return;
     }
 
@@ -1613,10 +1622,8 @@ export const WorkspaceApp = ({
   const emptyTrashMutation = useMutation({
     mutationFn: api.emptyTrash,
     onMutate: async (): Promise<EmptyTrashOptimisticContext> => {
-      setEmptyTrashConfirmationOpen(false);
-      clearMemoSelection();
-      setSelectedMemoId(null);
-      setActivePane("memos");
+      const previousActivePane = activePane;
+      const previousSelectedMemoId = selectedMemoId;
 
       await Promise.all([
         queryClient.cancelQueries({ queryKey: ["memos"] }),
@@ -1627,14 +1634,16 @@ export const WorkspaceApp = ({
       const previousMemoLists = queryClient.getQueriesData<MemoListQueryData>({ queryKey: ["memos"] });
       const previousMemoDetails = queryClient.getQueriesData<{ memo: MemoDetail }>({ queryKey: ["memo"] });
 
+      // Keep the optimistic update limited to list data. Removing the active
+      // memo detail query here can make the editor render with a missing memo
+      // during the same React update and blank the whole workspace.
       clearTrashMemoLists(queryClient);
-      for (const [queryKey] of previousMemoDetails) {
-        if (queryKey[2] === "trash") {
-          queryClient.removeQueries({ queryKey });
-        }
-      }
+      setEmptyTrashConfirmationOpen(false);
+      clearMemoSelection();
+      setSelectedMemoId(null);
+      setActivePane("memos");
 
-      return { previousMemoLists, previousMemoDetails, previousActivePane: activePane, previousSelectedMemoId: selectedMemoId };
+      return { previousMemoLists, previousMemoDetails, previousActivePane, previousSelectedMemoId };
     },
     onError: (_error, _variables, context) => {
       context?.previousMemoLists.forEach(([queryKey, data]) => {
@@ -1650,13 +1659,11 @@ export const WorkspaceApp = ({
         description: t("workspaceDialogs.emptyTrashFailedDescription"),
       });
     },
-    onSettled: (_data, error) => {
-      const refetchType = error ? "active" : "inactive";
-
+    onSettled: () => {
       void Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["memos"], refetchType }),
-        queryClient.invalidateQueries({ queryKey: ["memo"], refetchType }),
-        queryClient.invalidateQueries({ queryKey: ["resources"], refetchType }),
+        queryClient.invalidateQueries({ queryKey: ["memos"], refetchType: "active" }),
+        queryClient.invalidateQueries({ queryKey: ["memo"], refetchType: "active" }),
+        queryClient.invalidateQueries({ queryKey: ["resources"], refetchType: "active" }),
       ]);
     },
   });
@@ -2499,12 +2506,12 @@ export const WorkspaceApp = ({
       <div className="min-w-0 flex-1">
         <main
           className={cn(
-            "grid h-[100dvh] min-h-0 grid-cols-[minmax(0,1fr)]",
+            "edgeever-workspace-grid grid h-[100dvh] min-h-0 grid-cols-[minmax(0,1fr)]",
             desktopFocusModeActive
-              ? "lg:grid-cols-[minmax(0,1fr)]"
+              ? "edgeever-workspace-grid--focus"
               : rightView === "editor"
-                ? "lg:grid-cols-[260px_var(--memo-list-width)_minmax(0,1fr)]"
-                : "lg:grid-cols-[260px_1fr]"
+                ? "edgeever-workspace-grid--editor"
+                : "edgeever-workspace-grid--single-right"
           )}
           style={{ "--memo-list-width": `${memoListWidth}px` } as CSSProperties}
         >
@@ -2705,6 +2712,8 @@ export const WorkspaceApp = ({
                     onOpenTemplates={handleOpenTemplates}
                     imageCompressionEnabled={imageCompressionEnabled}
                     onImageCompressionChange={setImageCompressionEnabled}
+                    autoSaveIntervalMs={autoSaveIntervalMs}
+                    onAutoSaveIntervalChange={setAutoSaveIntervalMs}
                     shortcutSettings={shortcutSettings}
                     onShortcutSettingsChange={setShortcutSettings}
                     onLogout={onLogout}
@@ -2712,6 +2721,7 @@ export const WorkspaceApp = ({
                     authRequired={authRequired}
                     demoMode={demoMode}
                     isOwner={authRequired && user?.role === "owner"}
+                    user={user}
                   />
                 ) : rightView === "assets" ? (
                   <AssetsPane onClose={handleCloseAssets} activeMemo={selectedMemo} />
@@ -2748,6 +2758,7 @@ export const WorkspaceApp = ({
                     searchFocusToken={noteSearchFocusToken}
                     replaceFocusToken={noteReplaceFocusToken}
                     imageCompressionEnabled={imageCompressionEnabled}
+                    autoSaveIntervalMs={autoSaveIntervalMs}
                     selectionActionBar={memoSelectionActionBar}
                     hasNextMemo={Boolean(nextMemoId)}
                     hasPreviousMemo={Boolean(previousMemoId)}

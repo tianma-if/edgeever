@@ -8,82 +8,217 @@ import { getLocalizedPath, getSiteLocale, siteCopy } from "@/i18n";
 
 const locale = getSiteLocale(Astro.url.pathname);
 const copy = siteCopy[locale].hero;
+
+const agentPromptText = copy.agentPromptText;
 ---
 
-<main class="relative grid gap-8 lg:grid-cols-[minmax(0,0.95fr)_minmax(420px,1.05fr)] place-items-center pt-8 pb-8 md:pt-10 md:pb-8 overflow-hidden">
-  <!-- Animated Background Orbs -->
-  <div class="absolute top-0 left-1/4 w-96 h-96 bg-brand/10 rounded-full blur-3xl animate-slow-spin mix-blend-multiply pointer-events-none"></div>
-  <div class="absolute bottom-0 right-1/4 w-80 h-80 bg-brand-border/20 rounded-full blur-3xl animate-float mix-blend-multiply pointer-events-none"></div>
+<main class="relative grid gap-8 lg:gap-10 lg:grid-cols-2 place-items-center pt-4 pb-10 md:pt-10 md:pb-16 overflow-hidden max-w-full">
+  <!-- Background Glow Orbs & Meteors Container (strictly overflow-hidden) -->
+  <div class="absolute inset-0 overflow-hidden pointer-events-none z-0">
+    <div class="absolute top-0 left-1/4 w-[280px] sm:w-[450px] h-[280px] sm:h-[450px] bg-brand/10 rounded-full blur-3xl animate-slow-spin"></div>
+    <div class="absolute bottom-0 right-1/4 w-[240px] sm:w-[380px] h-[240px] sm:h-[380px] bg-emerald-400/10 rounded-full blur-3xl animate-float"></div>
+    <Meteors number={16} client:load />
+  </div>
 
-  <!-- Magic UI Meteors -->
-  <Meteors number={20} client:load />
-
-  <div class="md:order-1 relative z-10 w-full">
+  <div class="relative z-20 w-full max-w-full flex flex-col items-start min-w-0">
     {copy.badgeText && (
       <a
         href={`${getLocalizedPath(locale, "/")}blog?tag=migration`}
-        class="inline-flex items-center gap-2 px-3.5 py-1 mb-6 text-xs text-brand bg-brand/5 border border-brand-border/30 hover:border-brand/40 hover:bg-brand/10 rounded-full backdrop-blur-sm select-none hover:-translate-y-0.5 transition-all duration-300 group/badge cursor-pointer"
+        class="animate-rise flex items-center gap-2 max-w-full min-w-0 px-3 py-1.5 mb-5 md:mb-6 text-xs text-brand bg-brand/5 border border-brand-border/30 hover:border-brand/40 hover:bg-brand/10 rounded-full backdrop-blur-sm select-none hover:-translate-y-0.5 transition-all duration-300 group/badge cursor-pointer"
+        style="animation-delay: 0ms;"
       >
-        <span class="relative flex h-2 w-2">
+        <span class="relative flex h-2 w-2 shrink-0">
           <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand opacity-75"></span>
           <span class="relative inline-flex rounded-full h-2 w-2 bg-brand"></span>
         </span>
-        <span class="text-slate-600 font-medium group-hover/badge:text-brand transition-colors">{copy.badgeText}</span>
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3 h-3 text-slate-400 group-hover/badge:text-brand transition-all duration-300 transform group-hover/badge:translate-x-0.5">
+        <span class="text-slate-600 font-medium group-hover/badge:text-brand transition-colors text-[11px] sm:text-xs truncate min-w-0 flex-1">{copy.badgeText}</span>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3 h-3 text-slate-400 group-hover/badge:text-brand transition-all duration-300 transform group-hover/badge:translate-x-0.5 shrink-0">
           <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
         </svg>
       </a>
     )}
-    <h1 class="text-4xl md:text-5xl xl:text-6xl font-bold text-slate-900 leading-tight">
+
+    <h1 class="animate-rise text-3xl sm:text-4xl md:text-5xl xl:text-6xl font-extrabold text-slate-900 leading-[1.18] tracking-tight max-w-full" style="animation-delay: 80ms;">
       <span class="text-gradient">EdgeEver</span>
-      <span class="hero-slogan block mt-4 max-w-xl text-xl md:text-2xl font-medium leading-relaxed text-slate-700">{copy.slogan}</span>
+      <div class="mt-2.5 sm:mt-3 flex flex-wrap items-center gap-2 max-w-full">
+        <span class="inline-block px-2.5 py-1 bg-emerald-600 text-white rounded-lg text-base sm:text-lg md:text-xl font-bold -rotate-1 shadow-md animate-pop">
+          {copy.popHighlight}
+        </span>
+      </div>
+      <span class="hero-slogan block mt-3 sm:mt-4 max-w-xl text-base sm:text-lg md:text-xl font-normal leading-relaxed text-slate-600">{copy.slogan}</span>
     </h1>
 
-    <div class="mt-8 flex flex-col sm:flex-row gap-4">
+    <!-- Primary Action Buttons -->
+    <div class="animate-rise mt-6 sm:mt-8 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto max-w-full z-20" style="animation-delay: 160ms;">
       <Link
         href="https://demo.edgeever.org"
         target="_blank"
-        class="group flex gap-2 items-center justify-center text-white bg-brand border-transparent shadow-[0_12px_30px_-18px_rgb(var(--edgeever-brand-rgb)/0.8)] hover:bg-brand-hover hover:shadow-brand/40 transition-all duration-300 hover:-translate-y-1 rounded-xl"
+        class="group flex gap-2 items-center justify-center px-6 py-3 text-white bg-brand border-transparent shadow-[0_12px_30px_-14px_rgb(var(--edgeever-brand-rgb)/0.8)] hover:bg-brand-hover hover:shadow-brand/40 transition-all duration-300 hover:-translate-y-0.5 rounded-full font-semibold text-sm w-full sm:w-auto text-center"
         rel="noopener">
-        <Icon class="w-5 h-5" name="bx:bx-show" />
-        {copy.demo}
+        <Icon class="w-4 h-4" name="bx:bx-show" />
+        <span>{copy.demo}</span>
       </Link>
       <Link
         size="lg"
         style="outline"
         rel="noopener"
         href="https://github.com/tianma-if/edgeever"
-        class="flex gap-2 items-center justify-center hover:bg-slate-50 transition-colors rounded-xl"
+        class="flex gap-2 items-center justify-center px-6 py-3 border border-slate-200 hover:border-slate-400 bg-white/80 backdrop-blur-sm text-slate-800 transition-all rounded-full font-semibold text-sm hover:-translate-y-0.5 w-full sm:w-auto text-center"
         target="_blank">
-        <Icon class="text-slate-700 w-5 h-5" name="bx:bxl-github" />
-        GitHub
+        <Icon class="text-slate-800 w-4 h-4" name="bx:bxl-github" />
+        <span>GitHub Star</span>
       </Link>
       <a
         rel="noopener"
         href={getLocalizedPath(locale, "/blog/ai-agent-deploy-cloudflare")}
-        class="flex gap-2 items-center justify-center px-6 py-3 bg-white/50 backdrop-blur-sm border border-slate-200 hover:border-slate-300 rounded-xl text-slate-600 hover:text-brand-text transition-all text-sm font-medium hover:-translate-y-0.5"
+        class="flex gap-2 items-center justify-center px-5 py-3 bg-brand/5 border border-brand/20 hover:border-brand/40 text-brand-text hover:bg-brand/10 transition-all rounded-full font-semibold text-sm hover:-translate-y-0.5 w-full sm:w-auto text-center"
         >
-        <Icon class="w-5 h-5" name="simple-icons:cloudflare" />
-        {copy.agentInstall}
+        <Icon class="w-4 h-4" name="simple-icons:cloudflare" />
+        <span>{copy.agentInstall}</span>
       </a>
+    </div>
+
+    <!-- Agent Terminal Prompt Pill (Pireel style) -->
+    <div class="animate-rise mt-6 w-full max-w-full sm:max-w-lg z-30 relative" style="animation-delay: 240ms;">
+      <!-- Hidden Textarea for clean text copying -->
+      <textarea id="agent-prompt-textarea" class="sr-only" aria-hidden="true" readonly>{agentPromptText}</textarea>
+
+      <div class="flex flex-col gap-1.5 w-full max-w-full">
+        <button
+          type="button"
+          id="copy-agent-prompt"
+          title="点击复制 AI 部署 Prompt 指令"
+          class="group relative flex items-center justify-between gap-2 w-full max-w-full rounded-2xl sm:rounded-full border border-slate-200/90 bg-white/90 backdrop-blur hover:border-emerald-500/60 p-2 sm:p-1.5 sm:pl-4 transition-all hover:shadow-md cursor-pointer text-left select-none z-30 min-w-0"
+        >
+          <div class="flex items-center gap-2 overflow-hidden pointer-events-none min-w-0 flex-1">
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-emerald-600 shrink-0"><path d="M12 19h8"></path><path d="m4 17 6-6-6-6"></path></svg>
+            <span class="font-mono text-[10.5px] sm:text-xs text-slate-700 font-medium truncate min-w-0 flex-1">
+              {copy.terminalCmd}
+            </span>
+          </div>
+          <span class="copy-icon-box grid h-7 w-7 shrink-0 place-items-center rounded-full bg-slate-100 text-slate-500 group-hover:bg-emerald-50 group-hover:text-emerald-700 transition-colors pointer-events-none">
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg>
+          </span>
+          <span id="prompt-tooltip" class="absolute -top-10 right-2 sm:right-4 hidden rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white shadow-lg transition-opacity pointer-events-none z-50 flex items-center gap-1.5">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            <span>{copy.copySuccess}</span>
+          </span>
+        </button>
+        <span class="text-[10.5px] sm:text-[11.5px] text-slate-600 pl-2 sm:pl-4 font-medium select-none truncate max-w-full">{copy.terminalSub}</span>
+      </div>
     </div>
   </div>
 
-  <div class="py-3 md:order-2 hidden md:flex relative w-full max-w-lg justify-center z-10">
-    <div class="relative w-full glow-card rounded-2xl p-2.5 animate-float" style="animation-delay: 1s;">
-      <div class="absolute -inset-0.5 bg-gradient-to-tr from-brand-border/30 to-brand/10 rounded-2xl blur opacity-50"></div>
-      <Picture
-        src={heroProductImage}
-        alt={copy.imageAlt}
-        widths={[480, 720, 960, 1200]}
-        sizes="(max-width: 1024px) 100vw, 640px"
-        loading="eager"
-        format="avif"
-        class="relative rounded-xl border border-white/40 shadow-2xl z-10"
-      />
+  <!-- macOS Browser Window Mockup (Pireel style) -->
+  <div class="animate-rise w-full max-w-full relative z-10 flex justify-center lg:justify-end mt-4 lg:mt-0" style="animation-delay: 320ms;">
+    <div class="relative w-full max-w-full sm:max-w-xl animate-float pointer-events-none select-none">
+      <!-- Glow Underlay -->
+      <div class="absolute -inset-1 bg-gradient-to-r from-emerald-500/20 via-brand/10 to-teal-500/20 rounded-2xl blur-xl opacity-70"></div>
+      
+      <!-- macOS Window Container -->
+      <div class="relative rounded-2xl border border-slate-200/80 bg-white shadow-xl sm:shadow-2xl overflow-hidden max-w-full">
+        <!-- macOS Top Header Bar -->
+        <div class="flex items-center justify-between border-b border-slate-100 bg-slate-50/90 px-3.5 py-2 backdrop-blur-sm">
+          <div class="flex items-center gap-1.5">
+            <span class="h-2.5 w-2.5 sm:h-3 sm:w-3 rounded-full bg-[#ff5f57] inline-block"></span>
+            <span class="h-2.5 w-2.5 sm:h-3 sm:w-3 rounded-full bg-[#febc2e] inline-block"></span>
+            <span class="h-2.5 w-2.5 sm:h-3 sm:w-3 rounded-full bg-[#28c840] inline-block"></span>
+          </div>
+          <div class="flex items-center gap-1 rounded-full bg-slate-200/60 px-2.5 py-0.5 text-center font-mono text-[10px] sm:text-[11px] text-slate-500 font-medium">
+            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-slate-400 mr-1"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+            demo.edgeever.org
+          </div>
+          <div class="w-8 sm:w-10"></div>
+        </div>
+
+        <!-- Product Image Preview -->
+        <div class="relative bg-slate-900/5 overflow-hidden">
+          <Picture
+            src={heroProductImage}
+            alt={copy.imageAlt}
+            widths={[480, 720, 960, 1200]}
+            sizes="(max-width: 1024px) 100vw, 640px"
+            loading="eager"
+            format="avif"
+            class="w-full object-cover rounded-b-xl pointer-events-none select-none"
+          />
+        </div>
+      </div>
     </div>
   </div>
 </main>
+
+<script is:inline>
+  (function () {
+    function fallbackCopyText(text) {
+      var textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.style.position = "fixed";
+      textarea.style.left = "-9999px";
+      textarea.style.top = "-9999px";
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      var successful = false;
+      try {
+        successful = document.execCommand("copy");
+      } catch (err) {
+        console.error("execCommand copy error:", err);
+      }
+      document.body.removeChild(textarea);
+      return successful;
+    }
+
+    document.addEventListener("click", function (e) {
+      var btn = e.target && e.target.closest ? e.target.closest("#copy-agent-prompt") : null;
+      if (!btn) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      var textarea = document.getElementById("agent-prompt-textarea");
+      var textToCopy = textarea ? textarea.value : "";
+      if (!textToCopy) return;
+
+      var tooltip = document.getElementById("prompt-tooltip");
+      var iconContainer = btn.querySelector(".copy-icon-box");
+
+      function showSuccess() {
+        btn.classList.add("border-emerald-500", "bg-emerald-50");
+        if (tooltip) {
+          tooltip.classList.remove("hidden");
+        }
+        if (iconContainer) {
+          iconContainer.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-emerald-600"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+        }
+        setTimeout(function () {
+          btn.classList.remove("border-emerald-500", "bg-emerald-50");
+          if (tooltip) {
+            tooltip.classList.add("hidden");
+          }
+          if (iconContainer) {
+            iconContainer.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg>';
+          }
+        }, 2500);
+      }
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(textToCopy).then(function () {
+          showSuccess();
+        }).catch(function (err) {
+          console.warn("navigator.clipboard failed, fallback to execCommand", err);
+          if (fallbackCopyText(textToCopy)) {
+            showSuccess();
+          }
+        });
+      } else {
+        if (fallbackCopyText(textToCopy)) {
+          showSuccess();
+        }
+      }
+    });
+  })();
+</script>
 
 <style>
   .hero-slogan {

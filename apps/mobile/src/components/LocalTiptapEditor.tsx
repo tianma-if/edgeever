@@ -23,15 +23,12 @@ import {
   getMobileEditorImageScaleLabel,
   getMobileEditorImageWidthPresetLabel,
   getMobileEditorPlaceholder,
-  getMobileEditorTableMenuCopy,
   getMobileEditorToolbarActionLabel,
   getMobileEditorToolbarLabel,
-  isMobileEditorActionDisabledInTableHeader,
-  type MobileEditorTableActionId,
   type MobileEditorToolbarActionId,
 } from "@edgeever/shared/mobile-editor";
 import { useDOMImperativeHandle, type DOMImperativeFactory, type DOMProps } from "expo/dom";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type Ref } from "react";
+import { useCallback, useEffect, useMemo, useRef, type ReactNode, type Ref } from "react";
 import {
   createMobileImageUploadPlaceholderSource,
   isMobileImageUploadPlaceholderSource,
@@ -232,7 +229,6 @@ const inlineMermaidSvgStyles = (svg: string) => {
 };
 
 function LocalTiptapEditorImpl(props: LocalTiptapEditorProps) {
-  const [tableMenuOpen, setTableMenuOpen] = useState(false);
   const startedAtRef = useRef(performance.now());
   const changeTimerRef = useRef<number | null>(null);
   const imageUploadInFlightRef = useRef(false);
@@ -449,19 +445,9 @@ function LocalTiptapEditorImpl(props: LocalTiptapEditorProps) {
     editor,
     selector: ({ editor: activeEditor }) =>
       (activeEditor?.isActive("bold") ? MOBILE_EDITOR_ACTIVE_FLAGS.bold : 0) |
-      (activeEditor?.isActive("codeBlock", { language: "mermaid" }) ? MOBILE_EDITOR_ACTIVE_FLAGS.mermaid : 0) |
       (activeEditor?.isActive("bulletList") ? MOBILE_EDITOR_ACTIVE_FLAGS.bulletList : 0) |
-      (activeEditor?.isActive("blockquote") ? MOBILE_EDITOR_ACTIVE_FLAGS.blockquote : 0) |
-      (activeEditor?.isActive("table") ? MOBILE_EDITOR_ACTIVE_FLAGS.table : 0) |
-      (activeEditor?.isActive("tableHeader") ? MOBILE_EDITOR_ACTIVE_FLAGS.tableHeader : 0),
+      (activeEditor?.isActive("blockquote") ? MOBILE_EDITOR_ACTIVE_FLAGS.blockquote : 0),
   });
-  const tableMenuCopy = getMobileEditorTableMenuCopy(props.locale);
-
-  useEffect(() => {
-    if (!(toolbarState & MOBILE_EDITOR_ACTIVE_FLAGS.table)) {
-      setTableMenuOpen(false);
-    }
-  }, [toolbarState]);
 
   const insertImage = async () => {
     if (!editor || imageUploadInFlightRef.current) {
@@ -482,99 +468,34 @@ function LocalTiptapEditorImpl(props: LocalTiptapEditorProps) {
     }
   };
 
-  const runTableAction = (action: MobileEditorTableActionId) => {
-    const chain = editor?.chain().focus();
-    if (!chain) {
-      return;
-    }
-
-    switch (action) {
-      case "insertTable":
-        chain.insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
-        return;
-      case "addTableRow":
-        chain.addRowAfter().run();
-        return;
-      case "deleteTableRow":
-        if (!editor?.isActive("tableHeader")) {
-          chain.deleteRow().run();
-        }
-        return;
-      case "addTableColumn":
-        chain.addColumnAfter().run();
-        return;
-      case "deleteTableColumn":
-        chain.deleteColumn().run();
-        return;
-      case "toggleTableHeader":
-        chain.toggleHeaderRow().run();
-        return;
-      case "deleteTable":
-        chain.deleteTable().run();
-    }
-  };
-
   const toolbarIcons: Record<MobileEditorToolbarActionId, ReactNode> = {
     image: <ImagePlusIcon />,
-    mermaid: <DiagramIcon />,
     bold: <BoldIcon />,
     bulletList: <ListIcon />,
     increaseListIndent: <ListIndentIncreaseIcon />,
     decreaseListIndent: <ListIndentDecreaseIcon />,
     blockquote: <QuoteIcon />,
     horizontalRule: <MinusIcon />,
-    insertTable: <TableGridIcon />,
-    addTableRow: null,
-    deleteTableRow: null,
-    addTableColumn: null,
-    deleteTableColumn: null,
-    toggleTableHeader: null,
-    deleteTable: null,
   };
   const toolbarHandlers: Record<MobileEditorToolbarActionId, () => void> = {
     image: () => void insertImage(),
-    mermaid: () => {
-      if (!editor) {
-        return;
-      }
-      if (editor.isActive("codeBlock")) {
-        editor.chain().focus().updateAttributes("codeBlock", { language: "mermaid" }).run();
-        return;
-      }
-      editor.chain().focus().insertContent({
-        type: "codeBlock",
-        attrs: { language: "mermaid" },
-        content: [{ type: "text", text: "flowchart LR\n  A[Start] --> B[End]" }],
-      }).run();
-    },
     bold: () => editor?.chain().focus().toggleBold().run(),
     bulletList: () => editor?.chain().focus().toggleBulletList().run(),
     increaseListIndent: () => editor?.chain().focus().sinkListItem("listItem").run(),
     decreaseListIndent: () => editor?.chain().focus().liftListItem("listItem").run(),
     blockquote: () => editor?.chain().focus().toggleBlockquote().run(),
     horizontalRule: () => editor?.chain().focus().setHorizontalRule().run(),
-    insertTable: () => runTableAction("insertTable"),
-    addTableRow: () => runTableAction("addTableRow"),
-    deleteTableRow: () => runTableAction("deleteTableRow"),
-    addTableColumn: () => runTableAction("addTableColumn"),
-    deleteTableColumn: () => runTableAction("deleteTableColumn"),
-    toggleTableHeader: () => runTableAction("toggleTableHeader"),
-    deleteTable: () => runTableAction("deleteTable"),
   };
 
   return (
     <div className="edgeever-editor-shell">
       <style>{getEditorStyles(props.theme)}</style>
       <div aria-label={getMobileEditorToolbarLabel(props.locale)} className="edgeever-editor-toolbar" role="toolbar">
-        {MOBILE_EDITOR_TOOLBAR_ACTIONS
-          .filter((action) => !action.requiresTable
-            && (!(toolbarState & MOBILE_EDITOR_ACTIVE_FLAGS.table) || action.id !== "insertTable"))
-          .map((action) => (
+        {MOBILE_EDITOR_TOOLBAR_ACTIONS.map((action) => (
             <ToolbarButton
               key={action.id}
               active={action.activeFlag > 0 && Boolean(toolbarState & action.activeFlag)}
-              disabled={(action.id === "insertTable" && Boolean(toolbarState & MOBILE_EDITOR_ACTIVE_FLAGS.table))
-                || (action.id === "increaseListIndent"
+              disabled={(action.id === "increaseListIndent"
                   && !Boolean(editor?.can().chain().focus().sinkListItem("listItem").run()))
                 || (action.id === "decreaseListIndent"
                   && !Boolean(editor?.can().chain().focus().liftListItem("listItem").run()))}
@@ -583,54 +504,7 @@ function LocalTiptapEditorImpl(props: LocalTiptapEditorProps) {
               onRun={toolbarHandlers[action.id]}
             />
           ))}
-        {Boolean(toolbarState & MOBILE_EDITOR_ACTIVE_FLAGS.table) && (
-          <button
-            aria-label={tableMenuCopy.title}
-            className="edgeever-table-menu-trigger"
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={() => setTableMenuOpen(true)}
-            type="button"
-          >
-            <TableGridIcon />
-            <span>{tableMenuCopy.title}</span>
-          </button>
-        )}
       </div>
-      {Boolean(toolbarState & MOBILE_EDITOR_ACTIVE_FLAGS.table) && tableMenuOpen && (
-        <div className="edgeever-table-menu-backdrop" role="presentation" onMouseDown={() => setTableMenuOpen(false)}>
-          <section
-            aria-label={tableMenuCopy.title}
-            aria-modal="true"
-            className="edgeever-table-menu-sheet"
-            role="dialog"
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <div className="edgeever-table-menu-handle" aria-hidden="true" />
-            <div className="edgeever-table-menu-header">
-              <strong>{tableMenuCopy.title}</strong>
-              <button type="button" onClick={() => setTableMenuOpen(false)}>{tableMenuCopy.close}</button>
-            </div>
-            <div className="edgeever-table-menu-actions">
-              {MOBILE_EDITOR_TOOLBAR_ACTIONS.filter((action) => action.requiresTable).map((action) => (
-                <button
-                  key={action.id}
-                  className={action.id === "deleteTable" ? "is-destructive" : undefined}
-                  disabled={isMobileEditorActionDisabledInTableHeader(action.id)
-                    && Boolean(toolbarState & MOBILE_EDITOR_ACTIVE_FLAGS.tableHeader)}
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => {
-                    setTableMenuOpen(false);
-                    toolbarHandlers[action.id]();
-                  }}
-                  type="button"
-                >
-                  {getMobileEditorToolbarActionLabel(action.id, props.locale)}
-                </button>
-              ))}
-            </div>
-          </section>
-        </div>
-      )}
       <EditorContent editor={editor} />
     </div>
   );
@@ -711,15 +585,6 @@ const BoldIcon = () => (
   </EditorIcon>
 );
 
-const DiagramIcon = () => (
-  <EditorIcon size={18} strokeWidth={2}>
-    <rect height="5" rx="1" width="7" x="2" y="3" />
-    <rect height="5" rx="1" width="7" x="15" y="16" />
-    <path d="M9 5.5h3a3 3 0 0 1 3 3v5a3 3 0 0 0 3 3" />
-    <path d="m15 13 3 3-3 3" />
-  </EditorIcon>
-);
-
 const ListIcon = () => (
   <EditorIcon size={18} strokeWidth={2.2}>
     <path d="M3 5h.01M3 12h.01M3 19h.01M8 5h13M8 12h13M8 19h13" />
@@ -750,13 +615,6 @@ const QuoteIcon = () => (
 const MinusIcon = () => (
   <EditorIcon size={18} strokeWidth={2.4}>
     <path d="M5 12h14" />
-  </EditorIcon>
-);
-
-const TableGridIcon = () => (
-  <EditorIcon size={18} strokeWidth={2}>
-    <rect height="16" rx="1" width="18" x="3" y="4" />
-    <path d="M3 10h18M9 4v16M15 4v16" />
   </EditorIcon>
 );
 
@@ -1394,18 +1252,6 @@ const getEditorStyles = (theme: "light" | "dark") => `
   .edgeever-editor-toolbar button { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; width: 36px; min-height: 32px; padding: 0; border: 1px solid transparent; border-radius: 999px; background: transparent; color: ${theme === "dark" ? "#cbd5e1" : "#64748b"}; }
   .edgeever-editor-toolbar button:active, .edgeever-editor-toolbar button.is-active { border-color: ${theme === "dark" ? "#166534" : "#bbf7d0"}; background: ${theme === "dark" ? "#14532d" : "#ecfdf5"}; color: ${theme === "dark" ? "#86efac" : "#047857"}; }
   .edgeever-editor-toolbar button:disabled { opacity: 0.38; }
-  .edgeever-editor-toolbar .edgeever-table-menu-trigger { gap: 6px; width: auto; padding-inline: 10px; font-size: 13px; font-weight: 700; }
-  .edgeever-table-menu-backdrop { position: fixed; inset: 0; z-index: 50; display: flex; align-items: flex-end; background: ${theme === "dark" ? "rgba(2, 6, 23, 0.62)" : "rgba(15, 23, 42, 0.22)"}; }
-  .edgeever-table-menu-sheet { width: 100%; border-radius: 18px 18px 0 0; padding: 8px 0 max(10px, env(safe-area-inset-bottom)); background: ${theme === "dark" ? "#1e293b" : "#fff"}; box-shadow: 0 -18px 45px rgba(15, 23, 42, 0.16); }
-  .edgeever-table-menu-handle { width: 38px; height: 4px; margin: 2px auto 8px; border-radius: 999px; background: #cbd5e1; }
-  .edgeever-table-menu-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid ${theme === "dark" ? "#334155" : "#f1f5f9"}; padding: 0 16px 10px; }
-  .edgeever-table-menu-header strong { color: ${theme === "dark" ? "#f8fafc" : "#0f172a"}; font-size: 16px; }
-  .edgeever-table-menu-header button { min-height: 32px; border: 0; border-radius: 999px; padding: 6px 10px; background: ${theme === "dark" ? "#334155" : "#f8fafc"}; color: ${theme === "dark" ? "#cbd5e1" : "#64748b"}; font: inherit; font-size: 14px; font-weight: 650; }
-  .edgeever-table-menu-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 12px; }
-  .edgeever-table-menu-actions button { min-height: 48px; border: 0; border-radius: 10px; padding: 8px; background: ${theme === "dark" ? "#334155" : "#f8fafc"}; color: ${theme === "dark" ? "#e2e8f0" : "#334155"}; font: inherit; font-size: 15px; font-weight: 650; }
-  .edgeever-table-menu-actions button:active { background: ${theme === "dark" ? "#14532d" : "#ecfdf5"}; color: ${theme === "dark" ? "#86efac" : "#047857"}; }
-  .edgeever-table-menu-actions button:disabled { color: #94a3b8; opacity: 0.55; }
-  .edgeever-table-menu-actions button.is-destructive { background: ${theme === "dark" ? "#4c0519" : "#fff1f2"}; color: ${theme === "dark" ? "#fda4af" : "#be123c"}; }
   .tiptap { min-height: 100%; outline: none; }
   .edgeever-editor-shell > div:last-child { min-height: 0; flex: 1; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
   .edgeever-editor-content { min-height: 100%; padding: 18px 12px 32px; font-size: 17px; line-height: 1.7; word-break: break-word; caret-color: #0f766e; }
