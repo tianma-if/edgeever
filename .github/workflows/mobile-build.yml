@@ -33,7 +33,7 @@ jobs:
       JAVA_HOME: /opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
         with:
           clean: true
 
@@ -84,7 +84,7 @@ jobs:
 
       - name: Upload APK
         if: github.event_name == 'push'
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
           name: edgeever-android-test-release-apk
           path: apps/mobile/android/app/build/outputs/apk/release/*.apk
@@ -93,7 +93,7 @@ jobs:
 
       - name: Upload release AAB
         if: github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
           name: edgeever-android-release-aab
           path: apps/mobile/android/app/build/outputs/bundle/release/*.aab
@@ -102,7 +102,7 @@ jobs:
 
       - name: Upload R8 deobfuscation mapping
         if: github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
           name: edgeever-android-release-mapping
           path: apps/mobile/android/app/build/outputs/mapping/release/mapping.txt
