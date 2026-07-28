@@ -1,0 +1,57 @@
+appId: org.edgeever.desktop
+productName: EdgeEver
+executableName: EdgeEver
+publish:
+  provider: github
+  owner: tianma-if
+  repo: edgeever
+  releaseType: release
+protocols:
+  - name: EdgeEver Deep Link
+    schemes:
+      - edgeever
+fileAssociations:
+  - ext:
+      - md
+      - markdown
+    name: Markdown document
+    description: Open a Markdown document in EdgeEver
+    role: Editor
+asar: true
+icon: ../web/public/pwa-512x512.png
+directories:
+  output: ../../release/desktop
+files:
+  - src/**
+  - package.json
+extraResources:
+  - from: ../web/dist
+    to: web
+    filter:
+      - "**/*"
+  - from: ../../migrations
+    to: migrations
+    filter:
+      - "**/*.sql"
+  - from: ../../crates/desktop-sidecar/target/release
+    to: sidecar
+    filter:
+      - edgeever-sidecar
+      - edgeever-sidecar.exe
+mac:
+  category: public.app-category.productivity
+  target:
+    - target: dmg
+      arch:
+        - arm64
+  artifactName: EdgeEver-${version}-mac-${arch}.${ext}
+win:
+  target:
+    - nsis
+  artifactName: EdgeEver-${version}-windows-${arch}.${ext}
+linux:
+  category: Utility
+  syncDesktopName: true
+  target:
+    - AppImage
+  artifactName: EdgeEver-${version}-linux-${arch}.${ext}

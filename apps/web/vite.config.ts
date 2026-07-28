@@ -118,9 +118,40 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg,webp,woff2}"],
+        globIgnores: [
+          "**/vendor-beautiful-mermaid-*.js",
+          "**/vendor-mermaid-*.js",
+          "**/mermaid.core-*.js",
+          "**/*Diagram-*.js",
+        ],
         navigateFallback: "/index.html",
         navigateFallbackDenylist: [/^\/api\//, /^\/mcp\//, /^\/mobile-edit\.html$/, /^\/note-print\.html/, /^\/tiptap-ime-test\.html$/],
         runtimeCaching: [
+          {
+            urlPattern: ({ url }) => /^\/api\/v1\/resources\/[^/]+\/blob$/.test(url.pathname),
+            handler: "CacheFirst",
+            options: {
+              cacheName: "edgeever-resource-blobs",
+              cacheableResponse: {
+                statuses: [0, 200],
+              },
+              expiration: {
+                maxEntries: 500,
+                maxAgeSeconds: 60 * 60 * 24 * 90,
+              },
+            },
+          },
+          {
+            urlPattern: ({ url }) => /\/assets\/(?:vendor-(?:beautiful-mermaid|mermaid)|mermaid\.core|.*Diagram-)/.test(url.pathname),
+            handler: "CacheFirst",
+            options: {
+              cacheName: "edgeever-optional-diagrams",
+              expiration: {
+                maxEntries: 120,
+                maxAgeSeconds: 60 * 60 * 24 * 30,
+              },
+            },
+          },
           {
             urlPattern: ({ url }) => url.pathname.startsWith("/api/") || url.pathname.startsWith("/mcp/"),
             handler: "NetworkOnly",
@@ -149,6 +180,11 @@ export default defineConfig({
   build: {
     outDir: "dist",
     emptyOutDir: true,
+    modulePreload: {
+      resolveDependencies: (_filename, dependencies) => dependencies.filter((dependency) =>
+        !/(?:vendor-code-highlight|vendor-(?:mermaid|D3|tiptap|prosemirror|floating)|ui-primitives)/.test(dependency),
+      ),
+    },
     rolldownOptions: {
       input: {
         app: fileURLToPath(new URL("./index.html", import.meta.url)),
@@ -159,6 +195,11 @@ export default defineConfig({
       output: {
         codeSplitting: {
           groups: [
+            {
+              name: "vendor-code-highlight",
+              test: /node_modules[\\/](?:lowlight|highlight\.js|@tiptap[\\/]extension-code-block-lowlight)[\\/]/,
+              priority: 50,
+            },
             {
               name: "vendor-react",
               test: /node_modules[\\/](react|react-dom|scheduler|react-router)[\\/]/,

@@ -4,19 +4,19 @@ import { ChevronLeft, Pencil, Tags, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { api } from "@/lib/api";
 import { cn, formatDateTime } from "@/lib/utils";
 import { WORKSPACE_PAGE_TITLE_CLASSNAME } from "@/lib/workspace-ui";
 import type { TagSummary } from "@edgeever/shared";
 import { AppConfirmDialog } from "./dialogs/ConfirmDialogs";
+import type { EdgeEverRepository } from "@/lib/repository";
 
-export const TagsPane = ({ onClose }: { onClose: () => void }) => {
+export const TagsPane = ({ onClose, repository }: { onClose: () => void; repository: EdgeEverRepository }) => {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [editingTagName, setEditingTagName] = useState<string | null>(null);
   const [editingTagValue, setEditingTagValue] = useState("");
   const [tagDeleteConfirmation, setTagDeleteConfirmation] = useState<TagSummary | null>(null);
-  const tagsQuery = useQuery({ queryKey: ["tags"], queryFn: () => api.listTags() });
+  const tagsQuery = useQuery({ queryKey: ["tags"], queryFn: () => repository.listTags() });
   const tags = tagsQuery.data?.tags ?? [];
   const invalidateTagData = async () => {
     await Promise.all([
@@ -26,14 +26,14 @@ export const TagsPane = ({ onClose }: { onClose: () => void }) => {
     ]);
   };
   const renameMutation = useMutation({
-    mutationFn: ({ tag, name }: { tag: string; name: string }) => api.renameTag(tag, name),
+    mutationFn: ({ tag, name }: { tag: string; name: string }) => repository.renameTag(tag, name),
     onSuccess: async () => {
       setEditingTagName(null);
       setEditingTagValue("");
       await invalidateTagData();
     },
   });
-  const deleteMutation = useMutation({ mutationFn: api.deleteTag, onSuccess: invalidateTagData });
+  const deleteMutation = useMutation({ mutationFn: repository.deleteTag, onSuccess: invalidateTagData });
   const cancelRename = () => {
     setEditingTagName(null);
     setEditingTagValue("");

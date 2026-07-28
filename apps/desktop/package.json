@@ -1,0 +1,22 @@
+{
+  "name": "@edgeever/desktop",
+  "version": "1.6.25",
+  "desktopName": "EdgeEver",
+  "private": true,
+  "description": "Native EdgeEver desktop client",
+  "author": "EdgeEver contributors",
+  "type": "module",
+  "main": "src/main/index.mjs",
+  "scripts": {
+    "dev": "electron .",
+    "start": "electron .",
+    "dist": "electron-builder --config electron-builder.yml"
+  },
+  "devDependencies": {
+    "electron": "^38.0.0",
+    "electron-builder": "^26.0.12"
+  },
+  "dependencies": {
+    "electron-updater": "^6.6.2"
+  }
+}

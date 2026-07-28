@@ -7,8 +7,8 @@ const isEnglish = locale === "en-US";
 const copy = isEnglish
   ? {
       chooseOne: "Choose either option to complete deployment.",
-      oneClick: "Option B: Manual online deployment",
-      agent: "Option A: AI Agent deployment",
+      oneClick: "Option B: Manual online",
+      agent: "Option A: AI Agent",
       recommended: "Recommended",
       oneClickIntro:
         "Complete setup in 4 simple web steps: Fork EdgeEver, import it into Cloudflare Workers & Pages, configure required resources & secret, then run and verify the first build. See the online deployment guide for details.",
@@ -16,15 +16,11 @@ const copy = isEnglish
       oneClickGuide: "Open the online deployment guide",
       oneClickGuideHref:
         "https://github.com/tianma-if/edgeever/blob/main/docs/deploy-cloudflare-button.md",
-      agentIntro:
-        "Copy the prompt below to an AI Agent configured with GitHub and Cloudflare MCP servers, plugins, or other integrations (such as Codex, Claude, Cursor, Antigravity, OpenClaw, Hermes Agent, etc.):",
-      promptLabel: "Prompt",
+      promptLabel: "PROMPT",
       copyPrompt: "Copy prompt",
       copying: "Copying...",
       copied: "Copied",
       copyFailed: "Copy failed",
-      billingNotice:
-        "Heads up: Cloudflare R2, D1, and Workers may ask you to add a Visa card even when you use the free quotas.",
       promptText:
         "Deploy EdgeEver online:\n1. Fork https://github.com/tianma-if/edgeever.\n2. Import the Fork into Cloudflare Workers & Pages.\n3. Configure D1 DB, R2 RESOURCES, the EDGE_EVER_AUTH_PASSWORD Worker Secret, and Workers Builds using docs/agent-deploy-cloudflare.md.\n4. Start the first build, verify the health endpoint and login, then run Update deployed EdgeEver once.",
     }
@@ -38,46 +34,63 @@ const copy = isEnglish
       oneClickGuide: "查看在线部署文档",
       oneClickGuideHref:
         "https://github.com/tianma-if/edgeever/blob/main/docs/deploy-cloudflare-button.zh-CN.md",
-      agentIntro: "将下方提示词直接复制发送给已配置 GitHub、Cloudflare MCP/插件或其他可用集成的 AI Agent（如 Codex, Claude, Cursor, Antigravity, OpenClaw, Hermes Agent 等）：",
-      promptLabel: "提示词",
+      promptLabel: "PROMPT",
       copyPrompt: "复制提示词",
       copying: "复制中...",
       copied: "已复制",
       copyFailed: "复制失败",
-      billingNotice:
-        "提示：Cloudflare 的 R2、D1 和 Worker 即使使用免费额度，开通或使用时也可能要求绑定 Visa 卡。国内用户可考虑使用招商银行多币种卡绑定。",
       promptText:
         "请在线完成 EdgeEver 部署：\n1. Fork https://github.com/tianma-if/edgeever。\n2. 将这个 Fork 导入 Cloudflare Workers & Pages。\n3. 按照 docs/agent-deploy-cloudflare.zh-CN.md 配置 D1 DB、R2 RESOURCES、EDGE_EVER_AUTH_PASSWORD Worker Secret 和 Workers Builds。\n4. 启动首次构建，验证健康检查和登录，然后手动运行一次 Update deployed EdgeEver。",
     };
 ---
 
 <section class="not-prose relative left-1/2 my-10 w-[min(92vw,960px)] -translate-x-1/2" data-agent-install-tabs>
-  <p class="mb-6 text-center text-lg font-semibold text-slate-700">{copy.chooseOne}</p>
+  <p class="mb-5 text-center text-base sm:text-lg font-bold text-slate-800">{copy.chooseOne}</p>
 
-  <div class="mx-auto grid max-w-4xl grid-cols-1 border-b border-slate-200 text-sm font-semibold sm:grid-cols-2 sm:text-base">
+  <!-- Segmented Control Tab Header (Radix / Shadcn Segmented Control Pill Style) -->
+  <div class="mx-auto max-w-lg p-1 rounded-2xl bg-slate-200/80 border border-slate-300/60 grid grid-cols-2 gap-1 text-xs sm:text-sm font-semibold select-none shadow-2xs">
     <button
-      class="agent-install-tab active relative px-3 py-4 text-brand transition hover:text-brand-text"
+      class="agent-install-tab active flex items-center justify-center gap-1.5 px-2 sm:px-3 py-2 sm:py-2.5 rounded-xl transition-all cursor-pointer bg-white text-slate-950 font-bold shadow-xs"
       type="button"
       data-tab-target="agent"
       aria-selected="true">
-      <span>{copy.agent}</span>
-      <span class="ml-1 rounded-full bg-brand/10 px-2 py-0.5 text-xs text-brand">{copy.recommended}</span>
+      <span class="truncate">{copy.agent}</span>
+      <span class="shrink-0 rounded-md bg-emerald-100 text-emerald-800 px-1.5 py-0.5 text-[10px] sm:text-xs font-bold">{copy.recommended}</span>
     </button>
     <button
-      class="agent-install-tab relative px-3 py-4 text-slate-500 transition hover:text-brand-text"
+      class="agent-install-tab flex items-center justify-center gap-1.5 px-2 sm:px-3 py-2 sm:py-2.5 rounded-xl transition-all cursor-pointer text-slate-500 hover:text-slate-900"
       type="button"
       data-tab-target="one-click"
       aria-selected="false">
-      {copy.oneClick}
+      <span class="truncate">{copy.oneClick}</span>
     </button>
   </div>
 
-  <div class="mt-8 overflow-hidden rounded-[28px] bg-slate-100 px-6 py-8 sm:px-10 md:px-14">
+  <div class="mt-6 overflow-hidden rounded-[28px] bg-slate-100/90 px-4 py-6 sm:px-10 md:px-14 sm:py-8 border border-slate-200/60 shadow-xs">
     <div class="agent-install-panel hidden" data-tab-panel="one-click">
-      <p class="mx-auto max-w-3xl text-center text-lg leading-9 text-slate-600">{copy.oneClickIntro}</p>
+      <div class="mx-auto max-w-3xl text-center text-xs sm:text-sm md:text-base leading-loose text-slate-600 font-sans">
+        {isEnglish ? (
+          <p class="leading-relaxed">
+            Complete setup in 4 simple web steps: Fork{" "}
+            <span class="inline-flex items-center font-bold text-slate-800 bg-white border border-slate-200/90 px-2 py-0.5 rounded-md text-xs shadow-2xs">EdgeEver</span>
+            , import it into{" "}
+            <span class="inline-flex items-center font-bold text-slate-800 bg-white border border-slate-200/90 px-2 py-0.5 rounded-md text-xs shadow-2xs">Cloudflare Workers & Pages</span>
+            , configure required resources & secret, then run and verify the first build.
+          </p>
+        ) : (
+          <p class="leading-loose">
+            仅需在网页端完成 4 步极简配置：Fork{" "}
+            <span class="inline-flex items-center font-bold text-slate-800 bg-white border border-slate-200/90 px-2 py-0.5 rounded-md text-xs shadow-2xs mx-0.5">EdgeEver</span>
+            、导入{" "}
+            <span class="inline-flex items-center font-bold text-slate-800 bg-white border border-slate-200/90 px-2 py-0.5 rounded-md text-xs shadow-2xs mx-0.5">Cloudflare Workers & Pages</span>
+            、配置所需资源与密码、启动并验证首次构建。详细操作请查看在线部署文档。
+          </p>
+        )}
+      </div>
+
       <div class="mt-8 flex justify-center">
         <a
-          class="inline-flex items-center gap-2 rounded-full bg-brand px-8 py-3 text-base font-semibold text-white shadow-[0_14px_30px_-18px_rgb(var(--edgeever-brand-rgb)/0.85)] transition hover:-translate-y-0.5 hover:bg-brand-hover"
+          class="inline-flex items-center gap-2 rounded-full bg-brand px-8 py-3 text-xs sm:text-base font-semibold text-white shadow-[0_14px_30px_-18px_rgb(var(--edgeever-brand-rgb)/0.85)] transition hover:-translate-y-0.5 hover:bg-brand-hover active:scale-95"
           href={copy.oneClickGuideHref}
           target="_blank"
           rel="noopener">
@@ -88,32 +101,102 @@ const copy = isEnglish
     </div>
 
     <div class="agent-install-panel" data-tab-panel="agent">
-      <p class="mx-auto mb-8 max-w-3xl text-center text-lg leading-9 text-slate-600">
-        {copy.agentIntro}
-      </p>
-
-      <div class="mx-auto max-w-3xl rounded-2xl bg-white p-6 shadow-sm">
-        <p class="text-sm font-medium text-slate-400">{copy.promptLabel}</p>
-        <pre class="mt-4 whitespace-pre-wrap break-words font-mono text-base leading-8 text-slate-900">{copy.promptText}</pre>
+      <!-- Top Intro Text (Upper Red Box Optimized Typography) -->
+      <div class="mx-auto mb-6 max-w-3xl text-center sm:text-left text-xs sm:text-sm md:text-base leading-relaxed text-slate-600 font-sans">
+        {isEnglish ? (
+          <p class="text-center leading-relaxed">
+            Copy the prompt below directly to an AI Agent configured with{" "}
+            <span class="inline-flex items-center font-bold text-slate-800 bg-white border border-slate-200/90 px-2 py-0.5 rounded-md text-xs shadow-2xs">GitHub</span>
+            {" "}and{" "}
+            <span class="inline-flex items-center font-bold text-slate-800 bg-white border border-slate-200/90 px-2 py-0.5 rounded-md text-xs shadow-2xs">Cloudflare MCP</span>
+            {" "}or other available integrations (such as <span class="font-medium text-slate-800">Codex, Claude, Cursor, Antigravity, OpenClaw, Hermes Agent</span>, etc.):
+          </p>
+        ) : (
+          <p class="text-center leading-loose">
+            将下方提示词直接复制发送给已配置{" "}
+            <span class="inline-flex items-center font-bold text-slate-800 bg-white border border-slate-200/90 px-2 py-0.5 rounded-md text-xs shadow-2xs mx-0.5">GitHub</span>
+            、
+            <span class="inline-flex items-center font-bold text-slate-800 bg-white border border-slate-200/90 px-2 py-0.5 rounded-md text-xs shadow-2xs mx-0.5">Cloudflare MCP / 插件</span>
+            或其他可用集成的 AI Agent（如 <span class="font-medium text-slate-800">Codex, Claude, Cursor, Antigravity, OpenClaw, Hermes Agent</span> 等）：
+          </p>
+        )}
       </div>
 
-      <div class="mt-8 flex justify-center">
-        <button
-          class="agent-install-copy inline-flex items-center gap-2 rounded-full bg-brand px-8 py-3 text-base font-semibold text-white shadow-[0_14px_30px_-18px_rgb(var(--edgeever-brand-rgb)/0.85)] transition hover:-translate-y-0.5 hover:bg-brand-hover"
-          type="button"
-          data-copy-text={copy.promptText}
-          data-copy-default={copy.copyPrompt}
-          data-copy-copying={copy.copying}
-          data-copy-copied={copy.copied}
-          data-copy-failed={copy.copyFailed}>
-          <Icon class="h-5 w-5" name="bx:bx-copy" />
-          <span data-copy-label>{copy.copyPrompt}</span>
-        </button>
+      <!-- Pireel-style Premium Terminal Prompt Window -->
+      <div class="mx-auto max-w-3xl rounded-2xl border border-slate-800 bg-slate-950 shadow-2xl overflow-hidden font-mono text-xs sm:text-sm">
+        <!-- Top Window Bar (Explicit rounded-t-2xl to prevent WebKit backdrop-blur overflow) -->
+        <div class="flex items-center justify-between border-b border-slate-800/80 bg-slate-900/90 rounded-t-2xl px-3.5 sm:px-4 py-2.5 backdrop-blur-sm select-none">
+          <div class="flex items-center gap-2">
+            <div class="flex items-center gap-1.5 mr-1.5">
+              <span class="h-2.5 w-2.5 rounded-full bg-[#ff5f57] inline-block opacity-80"></span>
+              <span class="h-2.5 w-2.5 rounded-full bg-[#febc2e] inline-block opacity-80"></span>
+              <span class="h-2.5 w-2.5 rounded-full bg-[#28c840] inline-block opacity-80"></span>
+            </div>
+            <span class="flex items-center gap-1.5 text-xs font-bold font-mono text-emerald-400">
+              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19h8"></path><path d="m4 17 6-6-6-6"></path></svg>
+              {copy.promptLabel}
+            </span>
+          </div>
+
+          <button
+            type="button"
+            class="agent-install-copy group inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-800 hover:bg-emerald-950/90 border border-slate-700/80 hover:border-emerald-500/50 text-slate-300 hover:text-emerald-300 text-xs font-mono transition-all cursor-pointer select-none"
+            data-copy-text={copy.promptText}
+            data-copy-default={copy.copyPrompt}
+            data-copy-copying={copy.copying}
+            data-copy-copied={copy.copied}
+            data-copy-failed={copy.copyFailed}>
+            <Icon class="h-3.5 w-3.5 text-slate-400 group-hover:text-emerald-400 transition-colors" name="bx:bx-copy" />
+            <span data-copy-label>{copy.copyPrompt}</span>
+          </button>
+        </div>
+
+        <!-- Prompt Content Body with Pireel Code Typography & Highlighting -->
+        <div class="p-4 sm:p-6 text-slate-200 leading-relaxed font-mono space-y-3 bg-slate-950/95 rounded-b-2xl select-text">
+          <p class="text-slate-400 font-semibold text-xs sm:text-sm">
+            {isEnglish ? "Please complete EdgeEver deployment online:" : "请在线完成 EdgeEver 部署："}
+          </p>
+          <ol class="space-y-2.5 pl-0.5">
+            <li class="flex items-start gap-2">
+              <span class="text-emerald-400 font-bold shrink-0 font-mono">1.</span>
+              <span class="break-all">Fork <a href="https://github.com/tianma-if/edgeever" target="_blank" rel="noopener" class="text-emerald-300 underline underline-offset-4 decoration-emerald-500/40 hover:text-emerald-200">https://github.com/tianma-if/edgeever</a></span>
+            </li>
+            <li class="flex items-start gap-2">
+              <span class="text-emerald-400 font-bold shrink-0 font-mono">2.</span>
+              <span>{isEnglish ? "Import the Fork into" : "将这个 Fork 导入"} <code class="text-teal-300 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800 font-mono">Cloudflare Workers & Pages</code></span>
+            </li>
+            <li class="flex items-start gap-2">
+              <span class="text-emerald-400 font-bold shrink-0 font-mono">3.</span>
+              <span class="break-words">{isEnglish ? "Configure following" : "按照"} <code class="text-amber-300/90 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800 font-mono">{isEnglish ? "docs/agent-deploy-cloudflare.md" : "docs/agent-deploy-cloudflare.zh-CN.md"}</code> {isEnglish ? "for" : "配置"} <code class="text-cyan-300 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800 font-mono">D1 DB</code>, <code class="text-cyan-300 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800 font-mono">R2 RESOURCES</code>, <code class="text-cyan-300 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800 font-mono">EDGE_EVER_AUTH_PASSWORD</code> {isEnglish ? "Worker Secret, and" : "Worker Secret 和"} <code class="text-teal-300 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800 font-mono">Workers Builds</code></span>
+            </li>
+            <li class="flex items-start gap-2">
+              <span class="text-emerald-400 font-bold shrink-0 font-mono">4.</span>
+              <span>{isEnglish ? "Start first build, verify health check & login, then manually run" : "启动首次构建，验证健康检查和登录，然后手动运行一次"} <code class="text-emerald-300 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800 font-mono">Update deployed EdgeEver</code></span>
+            </li>
+          </ol>
+        </div>
       </div>
 
-      <div class="mx-auto mt-5 flex max-w-3xl gap-2 rounded-xl border border-amber-200/80 bg-amber-50/70 px-3 py-2 text-xs leading-5 text-amber-900">
-        <Icon class="mt-0.5 h-4 w-4 shrink-0 text-amber-600" name="bx:bx-credit-card" />
-        <p>{copy.billingNotice}</p>
+      <!-- Bottom Visa Billing Notice Card (Soft Muted Amber Warning) -->
+      <div class="mx-auto mt-5 flex max-w-3xl items-start gap-2.5 rounded-xl border border-amber-200/50 bg-amber-50/50 p-3 sm:p-3.5 text-xs leading-relaxed text-amber-900/80 font-sans">
+        <Icon class="mt-0.5 h-4 w-4 shrink-0 text-amber-600/70" name="bx:bx-credit-card" />
+        {isEnglish ? (
+          <p>
+            <span class="font-semibold text-amber-950">Heads up:</span> Cloudflare{" "}
+            <code class="font-mono text-[11px] font-semibold text-amber-950 bg-amber-100/60 px-1 py-0.5 rounded">R2</code>,{" "}
+            <code class="font-mono text-[11px] font-semibold text-amber-950 bg-amber-100/60 px-1 py-0.5 rounded">D1</code>, and{" "}
+            <code class="font-mono text-[11px] font-semibold text-amber-950 bg-amber-100/60 px-1 py-0.5 rounded">Worker</code>{" "}
+            may ask you to add a <span class="font-semibold text-amber-950">Visa card</span> even when using free quotas.
+          </p>
+        ) : (
+          <p>
+            <span class="font-semibold text-amber-950">提示：</span>Cloudflare 的{" "}
+            <code class="font-mono text-[11px] font-semibold text-amber-950 bg-amber-100/60 px-1 py-0.5 rounded">R2</code>、
+            <code class="font-mono text-[11px] font-semibold text-amber-950 bg-amber-100/60 px-1 py-0.5 rounded">D1</code> 和{" "}
+            <code class="font-mono text-[11px] font-semibold text-amber-950 bg-amber-100/60 px-1 py-0.5 rounded">Worker</code>{" "}
+            即使使用免费额度，开通或使用时也可能要求绑定 <span class="font-semibold text-amber-950">Visa 卡</span>。国内用户可考虑使用招商银行多币种卡绑定。
+          </p>
+        )}
       </div>
     </div>
 
@@ -161,8 +244,13 @@ const copy = isEnglish
             const isActive = item === tab;
             item.setAttribute("aria-selected", String(isActive));
             item.classList.toggle("active", isActive);
-            item.classList.toggle("text-brand", isActive);
-            item.classList.toggle("text-slate-500", !isActive);
+            if (isActive) {
+              item.classList.add("bg-white", "text-slate-950", "font-bold", "shadow-xs");
+              item.classList.remove("text-slate-500");
+            } else {
+              item.classList.remove("bg-white", "text-slate-950", "font-bold", "shadow-xs");
+              item.classList.add("text-slate-500");
+            }
           });
 
           panels.forEach((panel) => {
@@ -171,7 +259,7 @@ const copy = isEnglish
         });
       });
 
-      root.querySelectorAll("[data-copy-text]").forEach((button) => {
+      root.querySelectorAll(".agent-install-copy").forEach((button) => {
         button.addEventListener("click", async () => {
           const text = button.getAttribute("data-copy-text") || "";
           const label = button.querySelector("[data-copy-label]");
@@ -203,16 +291,3 @@ const copy = isEnglish
     initAgentInstallTabs();
   }
 </script>
-
-<style>
-  .agent-install-tab.active::after {
-    position: absolute;
-    right: 0;
-    bottom: -1px;
-    left: 0;
-    height: 3px;
-    border-radius: 999px;
-    background: var(--color-brand);
-    content: "";
-  }
-</style>

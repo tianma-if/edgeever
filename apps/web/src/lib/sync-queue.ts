@@ -1,7 +1,17 @@
-import type { MemoDetail, TiptapDoc } from "@edgeever/shared";
+import type { MemoDetail, MemoTemplate, Notebook, Resource, TiptapDoc } from "@edgeever/shared";
 import { liveQuery } from "dexie";
 import { ApiRequestError, api } from "@/lib/api";
-import { localDb, type MemoUpdateSyncPayload, type SyncQueueItem } from "@/lib/local-db";
+import {
+  localDb,
+  type MemoCreateSyncPayload,
+  type MemoDeleteSyncPayload,
+  type MemoRestoreSyncPayload,
+  type LocalActionKind,
+  type LocalActionPayload,
+  type MemoUpdateSyncPayload,
+  type SyncQueueItem,
+} from "@/lib/local-db";
+import { getCachedLocalResourceBytes, removeCachedLocalResourceBytes } from "@/lib/local-resource-cache";
 
 export type SyncQueueSummary = {
   total: number;
@@ -17,6 +27,7 @@ export type SyncRunResult = {
   failed: number;
   conflicted: number;
 };
+export type SyncQueueResult = MemoDetail | Notebook | MemoTemplate | Resource | null;
 
 export const emptySyncQueueSummary = (): SyncQueueSummary => ({
   total: 0,
@@ -27,8 +38,32 @@ export const emptySyncQueueSummary = (): SyncQueueSummary => ({
 });
 
 export const getMemoUpdateQueueId = (memoId: string) => `memo.update:${memoId}`;
+export const getMemoCreateQueueId = (temporaryId: string) => `memo.create:${temporaryId}`;
+export const getMemoDeleteQueueId = (memoId: string) => `memo.delete:${memoId}`;
+export const getMemoRestoreQueueId = (memoId: string) => `memo.restore:${memoId}`;
 
-export const queueMemoUpdate = async (payload: MemoUpdateSyncPayload) => {
+export const getLocalActionQueueId = (scope: string, kind: LocalActionKind, entityId: string) => `action:${scope}:${kind}:${entityId}`;
+
+export const queueLocalAction = async (scope: string, kind: LocalActionKind, entityId: string, payload: LocalActionPayload, memoId = entityId) => {
+  const id = getLocalActionQueueId(scope, kind, entityId);
+  const now = new Date().toISOString();
+  await localDb.syncQueue.put({
+    id,
+    kind,
+    scope,
+    memoId,
+    status: "pending",
+    payload,
+    attemptCount: 0,
+    lastError: null,
+    nextAttemptAt: null,
+    claimId: null,
+    createdAt: now,
+    updatedAt: now,
+  });
+};
+
+export const queueMemoUpdate = async (payload: MemoUpdateSyncPayload, scope?: string) => {
   const id = getMemoUpdateQueueId(payload.memoId);
   const now = new Date().toISOString();
   await localDb.transaction("rw", localDb.syncQueue, async () => {
@@ -37,6 +72,7 @@ export const queueMemoUpdate = async (payload: MemoUpdateSyncPayload) => {
     await localDb.syncQueue.put({
       id,
       kind: "memo.update",
+      scope: scope ?? existing?.scope,
       memoId: payload.memoId,
       status: "pending",
       payload,
@@ -50,6 +86,89 @@ export const queueMemoUpdate = async (payload: MemoUpdateSyncPayload) => {
   });
 };
 
+export const queueMemoCreate = async (scope: string, payload: MemoCreateSyncPayload) => {
+  const id = getMemoCreateQueueId(payload.temporaryId);
+  const now = new Date().toISOString();
+  await localDb.syncQueue.put({
+    id,
+    kind: "memo.create",
+    scope,
+    memoId: payload.temporaryId,
+    status: "pending",
+    payload,
+    attemptCount: 0,
+    lastError: null,
+    nextAttemptAt: null,
+    claimId: null,
+    createdAt: now,
+    updatedAt: now,
+  });
+};
+
+export const queueMemoDelete = async (scope: string, payload: MemoDeleteSyncPayload) => {
+  const id = getMemoDeleteQueueId(payload.memoId);
+  const now = new Date().toISOString();
+  await localDb.syncQueue.put({
+    id,
+    kind: "memo.delete",
+    scope,
+    memoId: payload.memoId,
+    status: "pending",
+    payload,
+    attemptCount: 0,
+    lastError: null,
+    nextAttemptAt: null,
+    claimId: null,
+    createdAt: now,
+    updatedAt: now,
+  });
+};
+
+export const queueMemoRestore = async (scope: string, payload: MemoRestoreSyncPayload) => {
+  const id = getMemoRestoreQueueId(payload.memoId);
+  const now = new Date().toISOString();
+  await localDb.syncQueue.put({
+    id,
+    kind: "memo.restore",
+    scope,
+    memoId: payload.memoId,
+    status: "pending",
+    payload,
+    attemptCount: 0,
+    lastError: null,
+    nextAttemptAt: null,
+    claimId: null,
+    createdAt: now,
+    updatedAt: now,
+  });
+};
+
+const remapQueuedMemoId = async (scope: string, temporaryId: string, remoteId: string) => {
+  const items = (await localDb.syncQueue.toArray()).filter(
+    (item) => item.scope === scope && item.memoId === temporaryId && item.kind !== "memo.create"
+  );
+  await localDb.transaction("rw", localDb.syncQueue, async () => {
+    for (const item of items) {
+      const payload = { ...item.payload } as Record<string, unknown>;
+      if ("memoId" in payload) payload.memoId = remoteId;
+      const nextId = item.kind === "memo.update"
+        ? getMemoUpdateQueueId(remoteId)
+        : item.kind === "memo.delete"
+          ? getMemoDeleteQueueId(remoteId)
+          : item.kind === "memo.restore"
+            ? getMemoRestoreQueueId(remoteId)
+            : item.id;
+      if (nextId !== item.id) await localDb.syncQueue.delete(item.id);
+      await localDb.syncQueue.put({
+        ...item,
+        id: nextId,
+        memoId: remoteId,
+        payload: payload as SyncQueueItem["payload"],
+      });
+    }
+  });
+};
+
 export const observeSyncQueue = (onChange: (summary: SyncQueueSummary) => void) => {
   const subscription = liveQuery(async () => summarizeSyncQueue(await localDb.syncQueue.toArray())).subscribe({
     next: onChange,
@@ -59,21 +178,57 @@ export const observeSyncQueue = (onChange: (summary: SyncQueueSummary) => void) 
   return () => subscription.unsubscribe();
 };
 
+export const discardWebConflicts = async (scope: string) => {
+  const conflicts: SyncQueueItem[] = [];
+  for (const item of await localDb.syncQueue.where("status").equals("conflict").toArray()) {
+    if (item.scope === scope) {
+      conflicts.push(item);
+      continue;
+    }
+    if (!item.scope && item.kind === "memo.update" && await localDb.memos.get([scope, item.memoId])) {
+      conflicts.push(item);
+    }
+  }
+  let discarded = 0;
+  const { putLocalMemo } = await import("@/lib/local-mirror");
+  for (const item of conflicts) {
+    try {
+      if (item.kind === "memo.update") {
+        const remote = await api.getMemo(item.memoId, { includeDeleted: true });
+        await putLocalMemo(scope, remote.memo);
+        await localDb.drafts.delete(item.memoId);
+      }
+      await localDb.syncQueue.delete(item.id);
+      discarded += 1;
+    } catch {
+      // Keep the conflict durable when the authoritative remote snapshot is
+      // unavailable; the user can retry after the connection recovers.
+    }
+  }
+  return discarded;
+};
+
 export const isMemoUpdateAlreadyApplied = (memo: MemoDetail, item: SyncQueueItem) => {
-  if (memo.id !== item.memoId || memo.title !== item.payload.title) {
+  if (item.kind !== "memo.update") {
+    return false;
+  }
+  const payload = item.payload as MemoUpdateSyncPayload;
+  if (memo.id !== item.memoId || memo.title !== payload.title) {
     return false;
   }
 
   const remoteTags = [...memo.tags].sort((left, right) => left.localeCompare(right));
-  const queuedTags = [...item.payload.tags].sort((left, right) => left.localeCompare(right));
+  const queuedTags = [...payload.tags].sort((left, right) => left.localeCompare(right));
   return JSON.stringify(remoteTags) === JSON.stringify(queuedTags) &&
-    JSON.stringify(memo.contentJson) === JSON.stringify(item.payload.contentJson);
+    JSON.stringify(memo.contentJson) === JSON.stringify(payload.contentJson);
 };
 
 let activeSyncPromise: Promise<SyncRunResult> | null = null;
 
 export const syncQueuedChanges = (options: {
-  onSynced?: (memo: MemoDetail) => void | Promise<void>;
+  scope?: string;
+  onSynced?: (memo: MemoDetail, item: SyncQueueItem) => void | Promise<void>;
+  onActionSynced?: (result: SyncQueueResult, item: SyncQueueItem) => void | Promise<void>;
 } = {}): Promise<SyncRunResult> => {
   if (activeSyncPromise) {
     return activeSyncPromise;
@@ -87,7 +242,9 @@ export const syncQueuedChanges = (options: {
 };
 
 const runQueuedChanges = async (options: {
-  onSynced?: (memo: MemoDetail) => void | Promise<void>;
+  scope?: string;
+  onSynced?: (memo: MemoDetail, item: SyncQueueItem) => void | Promise<void>;
+  onActionSynced?: (result: SyncQueueResult, item: SyncQueueItem) => void | Promise<void>;
 }): Promise<SyncRunResult> => {
   const result: SyncRunResult = {
     attempted: 0,
@@ -101,9 +258,27 @@ const runQueuedChanges = async (options: {
   }
 
   const now = new Date();
-  const items = (await localDb.syncQueue.where("status").anyOf("pending", "error").toArray())
+  const candidates = (await localDb.syncQueue.where("status").anyOf("pending", "error").toArray())
     .filter((item) => !item.nextAttemptAt || new Date(item.nextAttemptAt) <= now)
     .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+  const items: SyncQueueItem[] = [];
+  for (const candidate of candidates) {
+    if (!options.scope || candidate.scope === options.scope) {
+      items.push(candidate);
+      continue;
+    }
+    if (candidate.scope || candidate.kind !== "memo.update") {
+      continue;
+    }
+    // Older releases did not persist a scope for editor retry items. Adopt one
+    // only when the current account already owns the memo in its local mirror;
+    // otherwise leave the item untouched instead of risking cross-account sync.
+    const localMemo = await localDb.memos.get([options.scope, candidate.memoId]);
+    if (!localMemo) continue;
+    const scopedCandidate = { ...candidate, scope: options.scope };
+    await localDb.syncQueue.update(candidate.id, { scope: options.scope, updatedAt: new Date().toISOString() });
+    items.push(scopedCandidate);
+  }
 
   for (const candidate of items) {
     const item = await claimQueueItem(candidate.id);
@@ -115,10 +290,18 @@ const runQueuedChanges = async (options: {
 
     try {
       const memo = await syncQueueItem(item);
+      if (item.kind === "memo.create" && memo && item.scope) {
+        await remapQueuedMemoId(item.scope, item.memoId, memo.id);
+      }
       const removed = await removeClaimedQueueItem(item);
       if (removed) {
         await localDb.drafts.delete(item.memoId);
-        await options.onSynced?.(memo);
+        if (memo && (item.kind === "memo.create" || item.kind === "memo.update" || item.kind === "memo.restore" || item.kind === "memo.delete")) {
+          await options.onSynced?.(memo as MemoDetail, item);
+        }
+        if (item.kind !== "memo.create" && item.kind !== "memo.update" && item.kind !== "memo.restore" && item.kind !== "memo.delete") {
+          await options.onActionSynced?.(memo, item);
+        }
         result.synced += 1;
       }
     } catch (error) {
@@ -199,27 +382,213 @@ export const shouldQueueMemoSaveError = (error: unknown) => {
   return error instanceof TypeError;
 };
 
-const syncQueueItem = async (item: SyncQueueItem): Promise<MemoDetail> => {
+const rewriteResourceValue = (value: unknown, placeholder: string, url: string): unknown => {
+  if (typeof value === "string") return value.split(placeholder).join(url);
+  if (Array.isArray(value)) return value.map((item) => rewriteResourceValue(item, placeholder, url));
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, rewriteResourceValue(child, placeholder, url)]));
+  }
+  return value;
+};
+
+const syncLocalResource = async (item: SyncQueueItem) => {
+  const payload = item.payload as LocalActionPayload;
+  const memoId = String(payload.memoId ?? item.memoId);
+  const placeholder = String(payload.url ?? "");
+  const blob = placeholder ? await getCachedLocalResourceBytes(placeholder) : null;
+  if (!blob) throw new Error("Offline resource bytes are unavailable");
+
+  const file = new File([blob], String(payload.filename ?? "attachment"), { type: String(payload.mimeType ?? blob.type ?? "application/octet-stream") });
+  const result = await api.uploadMemoResource(memoId, file);
+  const remoteUrl = result.resource.url;
+  const { getLocalMemo, putLocalMemo, replaceLocalResource } = await import("@/lib/local-mirror");
+  const localResource = String(payload.resourceId ?? "");
+
+  const localMemo = await getLocalMemo(item.scope ?? "", memoId);
+  if (localMemo) {
+    const contentJson = rewriteResourceValue(localMemo.contentJson, placeholder, remoteUrl);
+    const contentMarkdown = rewriteResourceValue(localMemo.contentMarkdown, placeholder, remoteUrl);
+    if (JSON.stringify(contentJson) !== JSON.stringify(localMemo.contentJson) || contentMarkdown !== localMemo.contentMarkdown) {
+      await putLocalMemo(item.scope ?? "", {
+        ...localMemo,
+        contentJson: contentJson as MemoDetail["contentJson"],
+        contentMarkdown: typeof contentMarkdown === "string" ? contentMarkdown : localMemo.contentMarkdown,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+  }
+
+  const queuedItems = (await localDb.syncQueue.toArray()).filter((candidate) => candidate.scope === item.scope);
+  for (const queued of queuedItems) {
+    const payloadValue = rewriteResourceValue(queued.payload, placeholder, remoteUrl);
+    if (JSON.stringify(payloadValue) !== JSON.stringify(queued.payload)) {
+      await localDb.syncQueue.update(queued.id, { payload: payloadValue as SyncQueueItem["payload"], updatedAt: new Date().toISOString() });
+    }
+  }
+
+  const remote = await api.getMemo(memoId, { includeDeleted: true });
+  const contentJson = rewriteResourceValue(remote.memo.contentJson, placeholder, remoteUrl) as MemoDetail["contentJson"];
+  const contentMarkdown = rewriteResourceValue(remote.memo.contentMarkdown, placeholder, remoteUrl);
+  if (JSON.stringify(contentJson) !== JSON.stringify(remote.memo.contentJson) || contentMarkdown !== remote.memo.contentMarkdown) {
+    const session = (await api.createMemoEditSession(memoId)).editSession;
+    const patched = await api.updateMemo(memoId, {
+      expectedRevision: session.baseRevision,
+      expectedContentHash: session.baseContentHash,
+      editSessionId: session.id,
+      title: remote.memo.title ?? "",
+      contentJson,
+      contentMarkdown: typeof contentMarkdown === "string" ? contentMarkdown : undefined,
+      tags: remote.memo.tags,
+    });
+    await putLocalMemo(item.scope ?? "", patched.memo);
+  }
+  await replaceLocalResource(item.scope ?? "", localResource, {
+    ...result.resource,
+    memoTitle: null,
+    memoExcerpt: null,
+    memoDeleted: false,
+  });
+  await removeCachedLocalResourceBytes(placeholder);
+  return result.resource;
+};
+
+const syncQueueItem = async (item: SyncQueueItem): Promise<SyncQueueResult> => {
+  if (item.kind === "memo.create") {
+    const payload = item.payload as MemoCreateSyncPayload;
+    const data = await api.createMemo({
+      notebookId: payload.notebookId,
+      title: payload.title,
+      contentMarkdown: payload.contentMarkdown,
+      tags: payload.tags,
+      createdAt: payload.createdAt,
+      updatedAt: payload.updatedAt,
+    });
+    return data.memo;
+  }
+
+  if (item.kind === "memo.delete") {
+    const payload = item.payload as MemoDeleteSyncPayload;
+    await api.deleteMemo(payload.memoId, { permanent: payload.permanent });
+    return null;
+  }
+
+  if (item.kind === "memo.restore") {
+    const payload = item.payload as MemoRestoreSyncPayload;
+    const data = await api.restoreMemo(payload.memoId);
+    return data.memo;
+  }
+
+  if (item.kind === "tag.rename") {
+    const payload = item.payload as LocalActionPayload;
+    await api.renameTag(String(payload.tag ?? item.memoId), String(payload.name ?? ""));
+    return null;
+  }
+  if (item.kind === "tag.delete") {
+    const payload = item.payload as LocalActionPayload;
+    await api.deleteTag(String(payload.tag ?? item.memoId));
+    return null;
+  }
+  if (item.kind === "memo.moveBatch") {
+    const payload = item.payload as LocalActionPayload;
+    await api.moveMemos({ memoIds: Array.isArray(payload.memoIds) ? payload.memoIds.filter((value): value is string => typeof value === "string") : [], notebookId: String(payload.notebookId ?? "") });
+    return null;
+  }
+  if (item.kind === "memo.deleteBatch") {
+    const payload = item.payload as LocalActionPayload;
+    await api.deleteMemos({ memoIds: Array.isArray(payload.memoIds) ? payload.memoIds.filter((value): value is string => typeof value === "string") : [], permanent: Boolean(payload.permanent) });
+    return null;
+  }
+  if (item.kind === "memo.emptyTrash") {
+    await api.emptyTrash();
+    return null;
+  }
+  if (item.kind === "memo.pinBatch") {
+    const payload = item.payload as LocalActionPayload;
+    const memoIds = Array.isArray(payload.memoIds) ? payload.memoIds.filter((value): value is string => typeof value === "string") : [];
+    await Promise.all(memoIds.map((memoId) => api.updateMemo(memoId, { isPinned: Boolean(payload.isPinned) })));
+    return null;
+  }
+  if (item.kind === "memo.merge") {
+    const payload = item.payload as LocalActionPayload;
+    const result = await api.mergeMemos({
+      memoIds: Array.isArray(payload.memoIds) ? payload.memoIds.filter((value): value is string => typeof value === "string") : [],
+      notebookId: typeof payload.notebookId === "string" ? payload.notebookId : undefined,
+      title: typeof payload.title === "string" ? payload.title : undefined,
+    });
+    return result.memo;
+  }
+  if (item.kind === "notebook.update") {
+    const payload = item.payload as LocalActionPayload;
+    const result = await api.updateNotebook(String(payload.notebookId ?? item.memoId), {
+      name: typeof payload.name === "string" ? payload.name : undefined,
+      parentId: Object.prototype.hasOwnProperty.call(payload, "parentId") ? (typeof payload.parentId === "string" ? payload.parentId : null) : undefined,
+      sortOrder: typeof payload.sortOrder === "number" ? payload.sortOrder : undefined,
+    });
+    return result.notebook;
+  }
+  if (item.kind === "notebook.create") {
+    const payload = item.payload as LocalActionPayload;
+    const result = await api.createNotebook({ name: String(payload.name ?? ""), parentId: typeof payload.parentId === "string" ? payload.parentId : null });
+    return result.notebook;
+  }
+  if (item.kind === "notebook.delete") {
+    const payload = item.payload as LocalActionPayload;
+    await api.deleteNotebook(String(payload.notebookId ?? item.memoId));
+    return null;
+  }
+  if (item.kind === "template.create") {
+    const payload = item.payload as LocalActionPayload;
+    const result = await api.createTemplate({
+      name: String(payload.name ?? ""),
+      description: typeof payload.description === "string" ? payload.description : null,
+      title: typeof payload.title === "string" ? payload.title : null,
+      contentMarkdown: typeof payload.contentMarkdown === "string" ? payload.contentMarkdown : "",
+      tags: Array.isArray(payload.tags) ? payload.tags.filter((value): value is string => typeof value === "string") : [],
+    });
+    return result.template;
+  }
+  if (item.kind === "template.update") {
+    const payload = item.payload as LocalActionPayload;
+    const result = await api.updateTemplate(String(payload.templateId ?? item.memoId), {
+      name: typeof payload.name === "string" ? payload.name : undefined,
+      description: typeof payload.description === "string" ? payload.description : null,
+      title: typeof payload.title === "string" ? payload.title : null,
+      contentMarkdown: typeof payload.contentMarkdown === "string" ? payload.contentMarkdown : undefined,
+      tags: Array.isArray(payload.tags) ? payload.tags.filter((value): value is string => typeof value === "string") : [],
+    });
+    return result.template;
+  }
+  if (item.kind === "template.delete") {
+    const payload = item.payload as LocalActionPayload;
+    await api.deleteTemplate(String(payload.templateId ?? item.memoId));
+    return null;
+  }
+
+  if (item.kind === "resource.create") {
+    return syncLocalResource(item);
+  }
+
   if (item.kind !== "memo.update") {
     throw new Error(`Unsupported sync item kind: ${item.kind}`);
   }
 
+  const payload = item.payload as MemoUpdateSyncPayload;
   const { editSession } = await api.createMemoEditSession(item.memoId);
   if (
-    editSession.baseRevision !== item.payload.expectedRevision ||
-    editSession.baseContentHash !== item.payload.expectedContentHash
+    editSession.baseRevision !== payload.expectedRevision ||
+    editSession.baseContentHash !== payload.expectedContentHash
   ) {
     throw new ApiRequestError("Note changed before the offline draft could sync.", 409, "revision_conflict");
   }
 
   const data = await api.updateMemo(item.memoId, {
-    expectedRevision: item.payload.expectedRevision,
-    expectedContentHash: item.payload.expectedContentHash,
+    expectedRevision: payload.expectedRevision,
+    expectedContentHash: payload.expectedContentHash,
     editSessionId: editSession.id,
-    title: item.payload.title,
-    contentJson: item.payload.contentJson as TiptapDoc,
-    contentMarkdown: item.payload.contentMarkdown,
-    tags: item.payload.tags,
+    title: payload.title,
+    contentJson: payload.contentJson as TiptapDoc,
+    contentMarkdown: payload.contentMarkdown,
+    tags: payload.tags,
   });
 
   return data.memo;

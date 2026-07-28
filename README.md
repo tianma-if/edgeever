@@ -48,7 +48,7 @@ The public demo resets every Monday at 1:00 AM (China Standard Time) and restore
 - **Batch Operations & Flexible Sorting**: Easily merge or relocate multiple notes, with drag-and-drop notebook reordering.
 - **Offline Drafts & Queueing**: Draft and edit uninterrupted while offline; changes automatically sync once reconnected.
 - **Multi-Tenant Account Isolation**: Host multiple user accounts on a single instance with strictly partitioned spaces and clean admin account management.
-- **Everywhere You Need It**: Chrome/Edge Web Clipper published on Chrome Web Store; installable as a PWA; native mobile apps (iOS/Android) arriving soon with Android APK downloadable on GitHub Releases; native desktop app development is planned with Electron and a Rust sidecar.
+- **Everywhere You Need It**: Chrome/Edge Web Clipper published on Chrome Web Store; installable as a PWA; native Android app available on [Google Play](https://play.google.com/store/apps/details?id=org.edgeever.mobile), with APKs also downloadable from GitHub Releases; iOS app currently under App Store review; native desktop builds use Electron and a Rust sidecar.
 
 ## Deployment
 
@@ -103,9 +103,9 @@ The Chrome/Edge web clipper is officially published. You can install it directly
 
 ## Native Clients
 
-The initial app version is complete and currently under store review.
+The Android app is now available on [Google Play](https://play.google.com/store/apps/details?id=org.edgeever.mobile), with signed APKs also available from [GitHub Releases](https://github.com/tianma-if/edgeever/releases). The iOS app has been submitted and is currently under App Store review.
 
-The native desktop app is planned to be built with Electron and a Rust sidecar.
+The native desktop app is built with Electron and a Rust sidecar. Development and unsigned installer instructions are available in [`apps/desktop/README.md`](apps/desktop/README.md); signed release artifacts are produced by the desktop CI workflow.
 
 ## Tech Stack
 

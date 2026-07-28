@@ -106,7 +106,32 @@
     "message": "Could not find the current page."
   },
   "captureTimeout": {
-    "message": "Page extraction timed out. Please try again."
+    "message": "Page extraction did not finish within 15 seconds. The page may be large or still loading; refresh it and try again."
+  },
+  "pageAccessDenied": {
+    "message": "The extension cannot read this page. Browser internal pages, extension stores, and restricted pages cannot be captured."
+  },
+  "captureScriptFailed": {
+    "message": "The page extraction script failed: $DETAIL$",
+    "placeholders": {
+      "detail": {
+        "content": "$1"
+      }
+    }
+  },
+  "captureUnknownError": {
+    "message": "No further details were provided"
+  },
+  "instanceNetworkFailed": {
+    "message": "Could not connect to the EdgeEver instance. Check the instance URL, network connection, and CORS settings."
+  },
+  "saveFailedWithReason": {
+    "message": "Could not save to EdgeEver: $DETAIL$",
+    "placeholders": {
+      "detail": {
+        "content": "$1"
+      }
+    }
   },
   "emptyPageContent": {
     "message": "(No readable content was found on this page)"

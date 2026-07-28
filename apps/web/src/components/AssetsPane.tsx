@@ -31,11 +31,12 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { api } from "@/lib/api";
 import { formatDateTime } from "@/lib/utils";
 import { compressImageForUpload } from "@/lib/image-compression";
+import { stageDesktopResource } from "@/lib/desktop-resources";
 import { WORKSPACE_PAGE_TITLE_CLASSNAME } from "@/lib/workspace-ui";
 import type { MemoDetail } from "@edgeever/shared";
+import type { EdgeEverRepository } from "@/lib/repository";
 
 export const formatBytes = (bytes: number) => {
   if (!Number.isFinite(bytes) || bytes <= 0) {
@@ -116,9 +117,10 @@ const getFileIcon = (mimeType: string | null, filename: string | null) => {
 interface AssetsPaneProps {
   onClose: () => void;
   activeMemo?: MemoDetail | null;
+  repository: EdgeEverRepository;
 }
 
-export const AssetsPane = ({ onClose, activeMemo }: AssetsPaneProps) => {
+export const AssetsPane = ({ onClose, activeMemo, repository }: AssetsPaneProps) => {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -136,7 +138,7 @@ export const AssetsPane = ({ onClose, activeMemo }: AssetsPaneProps) => {
   // Query resources
   const resourcesQuery = useQuery({
     queryKey: ["resources"],
-    queryFn: () => api.listResources(),
+    queryFn: () => repository.listResources(),
   });
 
   const resources = resourcesQuery.data?.resources ?? [];
@@ -174,7 +176,17 @@ export const AssetsPane = ({ onClose, activeMemo }: AssetsPaneProps) => {
           setUploadState("uploading");
           setUploadProgress(t("assets.uploadingFile", { filename: uploadFile.name }));
 
-          await api.uploadMemoResource(targetMemoId, uploadFile);
+          if (typeof navigator !== "undefined" && !navigator.onLine) {
+            await repository.uploadMemoResource(targetMemoId, uploadFile);
+            continue;
+          }
+
+          try {
+            await repository.uploadMemoResource(targetMemoId, uploadFile);
+          } catch (error) {
+            const staged = await stageDesktopResource(targetMemoId, uploadFile);
+            if (!staged) throw error;
+          }
         }
 
         void queryClient.invalidateQueries({ queryKey: ["resources"] });
@@ -185,7 +197,7 @@ export const AssetsPane = ({ onClose, activeMemo }: AssetsPaneProps) => {
         setTimeout(() => setUploadState("idle"), 3000);
       }
     },
-    [activeMemo, queryClient, t]
+    [activeMemo, queryClient, repository, t]
   );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({

@@ -439,7 +439,7 @@ const app = new Hono<{ Bindings: Bindings; Variables: { auth: AuthContext } }>()
 app.use(
   "/api/*",
   cors({
-    origin: ["http://127.0.0.1:5173", "http://localhost:5173"],
+    origin: ["http://127.0.0.1:5173", "http://localhost:5173", "null"],
     allowHeaders: ["Content-Type", "Authorization"],
     allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     credentials: true,
@@ -449,7 +449,7 @@ app.use(
 app.use(
   "/mcp",
   cors({
-    origin: ["http://127.0.0.1:5173", "http://localhost:5173"],
+    origin: ["http://127.0.0.1:5173", "http://localhost:5173", "null"],
     allowHeaders: ["Content-Type", "Authorization"],
     allowMethods: ["GET", "POST", "OPTIONS"],
     credentials: true,
@@ -1226,6 +1226,30 @@ app.delete("/api/v1/notebooks/:id", async (c) => {
 
   await audit(c.env.storage.db, actor.actorType, actor.actorId, "notebook.delete", "notebook", id, {});
   return c.json({ ok: true });
+});
+
+app.post("/api/v1/notebooks/:id/restore", async (c) => {
+  const denied = requireScopes(c, "write:notebooks");
+  if (denied) return denied;
+
+  const id = c.req.param("id");
+  const workspaceId = getWorkspaceId(c);
+  const actor = getAuditActor(c);
+  const current = await c.env.storage.db.prepare(
+    `SELECT id FROM notebooks WHERE id = ? AND workspace_id = ? AND is_deleted = 1`
+  ).bind(id, workspaceId).first<{ id: string }>();
+  if (!current) return notFound(c, "Deleted notebook not found");
+
+  const now = isoNow();
+  await c.env.storage.db.batch([
+    c.env.storage.db.prepare(
+      `UPDATE notebooks SET is_deleted = 0, deleted_at = NULL, updated_at = ? WHERE id = ? AND workspace_id = ?`
+    ).bind(now, id, workspaceId),
+    auditStatement(c.env.storage.db, actor.actorType, actor.actorId, "notebook.restore", "notebook", id, {}),
+  ]);
+  const notebook = await getNotebook(c.env.storage.db, workspaceId, id);
+  if (!notebook) return notFound(c, "Notebook not found after restore");
+  return c.json({ notebook });
 });
 
 app.get("/api/v1/tags", async (c) => {

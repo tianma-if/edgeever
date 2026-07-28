@@ -4,11 +4,11 @@ import { Clock3, History, RotateCcw, UserRound } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { api } from "@/lib/api";
 import { cn, formatDateTime } from "@/lib/utils";
 import { getMemoTitle } from "@/lib/app-helpers";
 import { AppConfirmDialog } from "./ConfirmDialogs";
 import { buildRevisionDiffRows, type MemoDetail } from "@edgeever/shared";
+import type { EdgeEverRepository } from "@/lib/repository";
 
 const formatRevisionActor = (actor: string) => {
   if (actor.startsWith("user:")) {
@@ -24,11 +24,13 @@ const formatRevisionActor = (actor: string) => {
 
 export const RevisionHistoryDialog = ({
   memo,
+  repository,
   currentMarkdown,
   onClose,
   onRestored,
 }: {
   memo: MemoDetail;
+  repository: EdgeEverRepository;
   currentMarkdown: string;
   onClose: () => void;
   onRestored: (memo: MemoDetail) => Promise<void>;
@@ -39,7 +41,7 @@ export const RevisionHistoryDialog = ({
 
   const revisionsQuery = useQuery({
     queryKey: ["memo-revisions", memo.id],
-    queryFn: () => api.listMemoRevisions(memo.id),
+    queryFn: () => repository.listMemoRevisions(memo.id),
   });
 
   const revisions = revisionsQuery.data?.revisions ?? [];
@@ -65,7 +67,7 @@ export const RevisionHistoryDialog = ({
   }, [diffRows]);
 
   const restoreMutation = useMutation({
-    mutationFn: (revisionId: string) => api.restoreMemoRevision(memo.id, revisionId),
+    mutationFn: (revisionId: string) => repository.restoreMemoRevision(memo.id, revisionId),
     onSuccess: async (data) => {
       setRestoreRevisionConfirmationId(null);
       await onRestored(data.memo);

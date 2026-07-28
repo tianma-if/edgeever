@@ -33,7 +33,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { NotebookTreeItem } from "./NotebookTreeItem";
-import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import type { Notebook, AuthUser } from "@edgeever/shared";
 import type { NotebookNode, NotebookDropPosition, NotebookSortMode } from "@/lib/app-helpers";
@@ -47,6 +46,7 @@ import {
   writeNotebookSortPreference,
 } from "@/lib/app-helpers";
 import { usePwaInstall } from "./PwaInstallContext";
+import type { EdgeEverRepository } from "@/lib/repository";
 
 const NOTEBOOK_DRAG_SCROLL_EDGE_PX = 56;
 const NOTEBOOK_DRAG_SCROLL_MAX_STEP_PX = 18;
@@ -187,11 +187,13 @@ const SyncStatusBar = ({
   isOnline,
   isSyncing,
   onSyncNow,
+  onDiscardConflicts,
 }: {
   summary: SyncQueueSummary;
   isOnline: boolean;
   isSyncing: boolean;
   onSyncNow: () => void;
+  onDiscardConflicts: () => void;
 }) => {
   const { t } = useTranslation();
   const hasQueuedWork = summary.total > 0;
@@ -216,6 +218,16 @@ const SyncStatusBar = ({
         <CheckCircle2 className="h-4 w-4 shrink-0" />
       )}
       <span className="min-w-0 flex-1 truncate text-xs font-medium">{label}</span>
+      {summary.conflict > 0 && (
+        <button
+          className="shrink-0 rounded-md px-2 py-1 text-[11px] font-semibold text-amber-800 transition-colors hover:bg-white/70 disabled:opacity-50"
+          type="button"
+          disabled={!isOnline || isSyncing}
+          onClick={onDiscardConflicts}
+        >
+          {t("notebookPane.sync.discardConflicts")}
+        </button>
+      )}
       {hasQueuedWork && (
         <button
           className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md hover:bg-white/70 disabled:opacity-50 transition-colors"
@@ -233,6 +245,7 @@ const SyncStatusBar = ({
 };
 
 export const NotebookPane = ({
+  repository,
   user,
   view,
   selectedNotebookId,
@@ -256,6 +269,7 @@ export const NotebookPane = ({
   isOnline,
   isSyncingQueuedChanges,
   onSyncQueuedChanges,
+  onDiscardConflicts,
   imageCompressionEnabled,
   onImageCompressionChange,
   authRequired,
@@ -265,6 +279,7 @@ export const NotebookPane = ({
   onResetDemo,
   isResettingDemo = false,
 }: {
+  repository: EdgeEverRepository;
   user: AuthUser | null;
   view: string;
   selectedNotebookId: string | null;
@@ -288,6 +303,7 @@ export const NotebookPane = ({
   isOnline: boolean;
   isSyncingQueuedChanges: boolean;
   onSyncQueuedChanges: () => void;
+  onDiscardConflicts: () => void;
   imageCompressionEnabled: boolean;
   onImageCompressionChange: (enabled: boolean) => void;
   authRequired: boolean;
@@ -363,7 +379,7 @@ export const NotebookPane = ({
 
   const notebooksQuery = useQuery({
     queryKey: ["notebooks"],
-    queryFn: () => api.listNotebooks(),
+    queryFn: () => repository.listNotebooks(),
   });
 
   const notebooks = notebooksQuery.data?.notebooks ?? [];
@@ -415,6 +431,18 @@ export const NotebookPane = ({
           <SidebarTrashShortcut active={view === "trash"} onOpenTrash={onOpenTrash} onEmptyTrash={onEmptyTrash} />
         </nav>
       </TooltipProvider>
+
+      {window.edgeeverDesktop?.isAvailable && (
+        <div className="px-3 pt-2">
+          <SyncStatusBar
+            summary={syncSummary}
+            isOnline={isOnline}
+            isSyncing={isSyncingQueuedChanges}
+            onSyncNow={onSyncQueuedChanges}
+            onDiscardConflicts={onDiscardConflicts}
+          />
+        </div>
+      )}
 
       <div
         ref={notebookScrollRef}

@@ -18,7 +18,7 @@ Select the matching language in the Chrome Web Store developer dashboard and ent
 
 ## Upload files
 
-- Package: `store-assets/edgeever-web-clipper-v0.1.1.zip`
+- Package: `store-assets/edgeever-web-clipper-v0.1.2.zip`
 - Store icon: `public/icons/icon-128.png`
 - Screenshot: `store-assets/screenshot-options-1280x800.jpg`
 - Small promo tile: `store-assets/promo-small-440x280.jpg`

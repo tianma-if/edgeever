@@ -18,6 +18,8 @@ import type {
   ResourceStorageSummary,
   TagSummary,
   TiptapDoc,
+  SyncBootstrapResponse,
+  SyncChangesResponse,
 } from "@edgeever/shared";
 import type { MemoFilterMode, MemoSortMode } from "./app-helpers";
 
@@ -44,6 +46,8 @@ type ListTagsResponse = {
   tags: TagSummary[];
 };
 
+export type { SyncBootstrapResponse, SyncChangesResponse };
+
 type ListApiTokensResponse = {
   apiTokens: ApiToken[];
   availableScopes: string[];
@@ -54,6 +58,68 @@ type UserResponse = { user: InstanceUser };
 type ListLoginDeviceSessionsResponse = { sessions: LoginDeviceSession[] };
 
 const WEB_DEVICE_ID_STORAGE_KEY = "edgeever.web.device-id";
+export const DESKTOP_API_BASE_URL_STORAGE_KEY = "edgeever.desktop.api-base-url";
+const DESKTOP_SESSION_STORAGE_KEY = "edgeever.desktop.session";
+
+export const getCachedDesktopSession = (): AuthSession | null => {
+  if (typeof window === "undefined" || !window.edgeeverDesktop?.isAvailable) return null;
+  try {
+    const value = window.localStorage.getItem(DESKTOP_SESSION_STORAGE_KEY);
+    if (!value) return null;
+    const parsed = JSON.parse(value) as AuthSession;
+    return parsed && typeof parsed === "object" && "authenticated" in parsed ? parsed : null;
+  } catch {
+    return null;
+  }
+};
+
+export const cacheDesktopSession = (session: AuthSession) => {
+  if (typeof window === "undefined" || !window.edgeeverDesktop?.isAvailable) return;
+  try {
+    window.localStorage.setItem(DESKTOP_SESSION_STORAGE_KEY, JSON.stringify(session));
+  } catch {
+    // A session cache is an offline convenience and must never block login.
+  }
+};
+
+export const clearCachedDesktopSession = () => {
+  if (typeof window === "undefined" || !window.edgeeverDesktop?.isAvailable) return;
+  try {
+    window.localStorage.removeItem(DESKTOP_SESSION_STORAGE_KEY);
+  } catch {
+    // Ignore restricted storage contexts.
+  }
+};
+
+export const getConfiguredDesktopApiBaseUrl = () => {
+  if (typeof window === "undefined") return "";
+  const bridgeUrl = (window.edgeeverDesktop?.apiBaseUrl ?? "").trim();
+  if (bridgeUrl) return bridgeUrl.replace(/\/$/, "");
+
+  try {
+    return (window.localStorage.getItem(DESKTOP_API_BASE_URL_STORAGE_KEY) ?? "").trim().replace(/\/$/, "");
+  } catch {
+    return "";
+  }
+};
+
+export const isDesktopInstanceConfigurationRequired = () =>
+  typeof window !== "undefined" &&
+  Boolean(window.edgeeverDesktop?.isAvailable) &&
+  window.location.protocol === "file:" &&
+  !getConfiguredDesktopApiBaseUrl();
+
+export const saveDesktopApiBaseUrl = (value: string) => {
+  const normalized = value.trim().replace(/\/$/, "");
+  const parsed = new URL(normalized);
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error("Desktop instance URL must use http or https");
+  }
+
+  window.localStorage.setItem(DESKTOP_API_BASE_URL_STORAGE_KEY, normalized);
+  void window.edgeeverDesktop?.setApiBaseUrl(normalized);
+  return normalized;
+};
 
 const createWebDeviceId = () => {
   const uuid = globalThis.crypto?.randomUUID?.();
@@ -121,7 +187,8 @@ const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
     headers.set("Content-Type", "application/json");
   }
 
-  const response = await fetch(path, {
+  const baseUrl = getConfiguredDesktopApiBaseUrl();
+  const response = await fetch(`${baseUrl}${path}`, {
     credentials: "include",
     ...init,
     headers,
@@ -197,6 +264,20 @@ export const api = {
 
   listNotebooks: () => request<ListNotebooksResponse>("/api/v1/notebooks"),
 
+  syncBootstrap: (params?: { afterId?: string | null; limit?: number }) => {
+    const search = new URLSearchParams();
+    if (params?.afterId) search.set("afterId", params.afterId);
+    if (params?.limit) search.set("limit", String(params.limit));
+    const suffix = search.toString() ? `?${search.toString()}` : "";
+    return request<SyncBootstrapResponse>(`/api/v1/sync/bootstrap${suffix}`);
+  },
+
+  syncChanges: (params: { cursor: number; limit?: number }) => {
+    const search = new URLSearchParams({ cursor: String(params.cursor) });
+    if (params.limit) search.set("limit", String(params.limit));
+    return request<SyncChangesResponse>(`/api/v1/sync/changes?${search.toString()}`);
+  },
+
   createNotebook: (payload: { name: string; parentId?: string | null }) =>
     request<NotebookResponse>("/api/v1/notebooks", {
       method: "POST",
@@ -212,6 +293,11 @@ export const api = {
   deleteNotebook: (notebookId: string) =>
     request<{ ok: true }>(`/api/v1/notebooks/${notebookId}`, {
       method: "DELETE",
+    }),
+
+  restoreNotebook: (notebookId: string) =>
+    request<NotebookResponse>(`/api/v1/notebooks/${notebookId}/restore`, {
+      method: "POST",
     }),
 
   listTags: () => request<ListTagsResponse>("/api/v1/tags"),
@@ -390,7 +476,8 @@ export const api = {
   },
 
   getResourceBlob: async (resourceUrl: string) => {
-    const response = await fetch(resourceUrl, { credentials: "include" });
+    const baseUrl = getConfiguredDesktopApiBaseUrl();
+    const response = await fetch(resourceUrl.startsWith("/") ? `${baseUrl}${resourceUrl}` : resourceUrl, { credentials: "include" });
 
     if (!response.ok) {
       if (response.status === 401) {

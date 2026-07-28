@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect, useCallback, useMemo, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
-import { useQueryClient, useMutation } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { NodeViewWrapper, ReactNodeViewRenderer, useEditor, EditorContent, type Editor, type NodeViewProps } from "@tiptap/react";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
@@ -33,6 +33,7 @@ import {
   Info,
   FileDown,
   Printer,
+  Link2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { GitHubRepositoryLink } from "@/components/GitHubRepositoryLink";
@@ -67,6 +68,7 @@ import { ThemeToggle } from "./ThemeToggle";
 import { useTheme } from "./ThemeProvider";
 import { RevisionHistoryDialog } from "./dialogs/RevisionHistoryDialog";
 import { api } from "@/lib/api";
+import { isDesktopResourceRuntime, stageDesktopResource, toDesktopResourceUrl } from "@/lib/desktop-resources";
 import { consumeStandaloneMobileEditorReturn, openStandaloneMobileEditor } from "@/lib/mobile-editor";
 import { cn, formatDateTime, parseTagsText } from "@/lib/utils";
 import { EDITOR_CONTENT_MAX_WIDTH, EDITOR_CONTENT_MAX_WIDTH_COLLAPSED } from "@/lib/workspace-ui";
@@ -77,8 +79,11 @@ import {
   resolveMemoContentDoc,
   type Notebook,
   type MemoDetail,
+  type MemoSummary,
   type MemoEditSession,
   type TiptapDoc,
+  createMemoLinkHref,
+  parseMemoLinkHref,
 } from "@edgeever/shared";
 import {
   DEFAULT_IMAGE_WIDTH_PERCENT,
@@ -90,6 +95,8 @@ import { codeBlockLowlight, EdgeEverCodeBlock } from "@/lib/code-block";
 import { compressImageForUpload } from "@/lib/image-compression";
 import { localDb, type MemoUpdateSyncPayload } from "@/lib/local-db";
 import { getMemoUpdateQueueId, isMemoUpdateAlreadyApplied, queueMemoUpdate, shouldQueueMemoSaveError } from "@/lib/sync-queue";
+import { isLocalMemoId } from "@/lib/local-mirror";
+import type { EdgeEverRepository } from "@/lib/repository";
 import {
   getEditableMemoTitle,
   getNotebookMoveOptions,
@@ -106,6 +113,19 @@ const SUPPORTED_PASTE_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/g
 const MOBILE_EDITOR_QUERY = "(max-width: 639px)";
 const MOBILE_DRAFT_PERSIST_DELAY_MS = 800;
 const NOTE_SEARCH_HIGHLIGHT_PLUGIN_KEY = new PluginKey("edgeever-note-search-highlight");
+
+const createLocalEditSession = (memo: MemoDetail): MemoEditSession => ({
+  id: `local-edit:${memo.id}`,
+  memoId: memo.id,
+  baseRevision: memo.revision,
+  baseContentHash: memo.contentHash,
+  expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+});
+
+const requiresLocalEditSession = (memo: MemoDetail) =>
+  isDesktopResourceRuntime() ||
+  isLocalMemoId(memo.id) ||
+  (typeof navigator !== "undefined" && !navigator.onLine);
 
 const IconTooltip = ({ label, children }: { label: string; children: ReactNode }) => (
   <TooltipProvider delayDuration={0} skipDelayDuration={0}>
@@ -493,6 +513,7 @@ const MobileNotebookSelectSheet = ({
 
 type EditorPaneProps = {
   memo: MemoDetail | null;
+  repository: EdgeEverRepository;
   desktopFocusMode: boolean;
   onToggleDesktopFocusMode: () => void;
   mobileDefaultEditMemoId: string | null;
@@ -518,6 +539,7 @@ type EditorPaneProps = {
   searchFocusToken: number;
   replaceFocusToken: number;
   selectionActionBar?: ReactNode;
+  onOpenMemo?: (memoId: string) => void;
 };
 
 type RichEditorPaneProps = EditorPaneProps & {
@@ -526,6 +548,7 @@ type RichEditorPaneProps = EditorPaneProps & {
 
 const MobileNativeEditorPane = ({
   memo,
+  repository,
   notebooks,
   isTrashView,
   autoSaveIntervalMs,
@@ -631,28 +654,16 @@ const MobileNativeEditorPane = ({
     };
 
     try {
-      const data = await api.updateMemo(currentMemo.id, {
-        expectedRevision: payload.expectedRevision,
-        expectedContentHash: payload.expectedContentHash,
-        editSessionId: payload.editSessionId,
-        title: payload.title,
-        contentJson: payload.contentJson,
-        tags: payload.tags,
-      });
+      const { memo: localMemo } = await repository.updateMemo(currentMemo, payload);
 
-      memoRef.current = data.memo;
-      editSessionRef.current = {
-        ...editSession,
-        baseRevision: data.memo.revision,
-        baseContentHash: data.memo.contentHash,
-      };
-      await onSaved(data.memo);
+      memoRef.current = localMemo;
+      await onSaved(localMemo);
 
       if (currentSnapshot() === snapshot) {
         hasUnsavedChangesRef.current = false;
         setHasUnsavedChanges(false);
-        await localDb.drafts.delete(data.memo.id);
-        setSaveState("saved");
+        await localDb.drafts.delete(localMemo.id);
+        setSaveState("queued");
         window.setTimeout(() => setSaveState("idle"), 1200);
       } else {
         persistDraft();
@@ -690,7 +701,7 @@ const MobileNativeEditorPane = ({
     } finally {
       savingRef.current = false;
     }
-  }, [clearTimers, currentSnapshot, getBodyValue, getTagsValue, getTitleValue, onSaved, persistDraft]);
+  }, [clearTimers, currentSnapshot, getBodyValue, getTagsValue, getTitleValue, onSaved, persistDraft, repository]);
 
   const markDirty = useCallback(() => {
     const currentMemo = memoRef.current;
@@ -769,7 +780,7 @@ const MobileNativeEditorPane = ({
         : await Promise.all([
             localDb.drafts.get(memo.id),
             localDb.syncQueue.get(getMemoUpdateQueueId(memo.id)),
-            api.createMemoEditSession(memo.id),
+            requiresLocalEditSession(memo) ? Promise.resolve(null) : api.createMemoEditSession(memo.id),
           ]);
 
       if (cancelled) {
@@ -793,7 +804,7 @@ const MobileNativeEditorPane = ({
       const nextContent = useDraft && draft
         ? draft.contentJson
         : resolveMemoContentDoc(memo.contentJson, memo.contentMarkdown);
-      editSessionRef.current = editSessionResponse?.editSession ?? null;
+      editSessionRef.current = editSessionResponse?.editSession ?? (requiresLocalEditSession(memo) ? createLocalEditSession(memo) : null);
 
       hydratingRef.current = true;
       editingMemoIdRef.current = memo.id;
@@ -1122,6 +1133,7 @@ export const EditorPane = (props: EditorPaneProps) => {
 
 const RichEditorPane = ({
   memo,
+  repository,
   desktopFocusMode,
   onToggleDesktopFocusMode,
   mobileDefaultEditMemoId,
@@ -1147,6 +1159,7 @@ const RichEditorPane = ({
   searchFocusToken,
   replaceFocusToken,
   selectionActionBar,
+  onOpenMemo,
   onRequestMobileNativeEdit,
 }: RichEditorPaneProps) => {
   const { t, i18n } = useTranslation();
@@ -1171,6 +1184,8 @@ const RichEditorPane = ({
   const [noteSearchReplaceOpen, setNoteSearchReplaceOpen] = useState(false);
   const [noteSearchReplacement, setNoteSearchReplacement] = useState("");
   const [noteSearchIndex, setNoteSearchIndex] = useState(0);
+  const [noteLinkPickerOpen, setNoteLinkPickerOpen] = useState(false);
+  const [noteLinkQuery, setNoteLinkQuery] = useState("");
   const [isMobileViewport, setIsMobileViewport] = useState(() =>
     typeof window === "undefined" ? false : window.matchMedia(MOBILE_EDITOR_QUERY).matches
   );
@@ -1184,6 +1199,11 @@ const RichEditorPane = ({
   const [mobileImeDebugActiveElement, setMobileImeDebugActiveElement] = useState(getActiveElementLabel);
   const [mobileImeDebugEvents, setMobileImeDebugEvents] = useState<MobileImeDebugEntry[]>([]);
   const [wechatCopyState, setWechatCopyState] = useState<"idle" | "copying" | "copied" | "error">("idle");
+  const noteLinkResultsQuery = useQuery({
+    queryKey: ["memo-link-search", noteLinkQuery],
+    queryFn: () => repository.listMemos({ q: noteLinkQuery, limit: 20 }),
+    enabled: noteLinkPickerOpen,
+  });
   const [editorScrollContainer, setEditorScrollContainer] = useState<HTMLDivElement | null>(null);
   const setEditorScrollContainerRef = useCallback((element: HTMLDivElement | null) => {
     editorScrollContainerRef.current = element;
@@ -1318,7 +1338,20 @@ const RichEditorPane = ({
           const uploadFile = shouldCompress ? (await compressImageForUpload(file)).file : file;
 
           setImageUploadState("uploading");
-          const { resource } = await api.uploadMemoResource(targetMemoId, uploadFile);
+          let resource: { kind: "image" | "attachment"; filename: string | null; url: string };
+          try {
+            const uploadedResource = (await repository.uploadMemoResource(targetMemoId, uploadFile)).resource;
+            resource = { ...uploadedResource, url: toDesktopResourceUrl(uploadedResource.url) };
+          } catch (error) {
+            if (!isDesktopResourceRuntime()) throw error;
+            const staged = await stageDesktopResource(targetMemoId, uploadFile);
+            if (!staged) throw error;
+            resource = {
+              kind: isImage ? "image" : "attachment",
+              filename: uploadFile.name,
+              url: `edgeever-staged://${staged.id}`,
+            };
+          }
           void queryClient.invalidateQueries({ queryKey: ["resources"] });
 
           const activeEditor = editorRef.current;
@@ -1363,7 +1396,7 @@ const RichEditorPane = ({
         window.setTimeout(() => setImageUploadState("idle"), 2200);
       }
     })();
-  }, [queryClient, t]);
+  }, [queryClient, repository, t]);
 
   const editor = useEditor({
     extensions: [
@@ -1420,6 +1453,17 @@ const RichEditorPane = ({
         });
         return true;
       },
+      handleClick: (_view, _pos, event) => {
+        const target = event.target instanceof HTMLElement ? event.target.closest("a[href^='#memo=']") : null;
+        const memoId = parseMemoLinkHref(target?.getAttribute("href"));
+        if (!memoId || !onOpenMemo) {
+          return false;
+        }
+
+        event.preventDefault();
+        onOpenMemo(memoId);
+        return true;
+      },
       handlePaste: (_view, event) => {
         const files = getResourceFilesFromDataTransfer(event.clipboardData);
 
@@ -1444,6 +1488,26 @@ const RichEditorPane = ({
       },
     },
   });
+
+  const insertMemoLink = useCallback((target: MemoSummary) => {
+    if (!isEditorReady(editor) || effectiveReadOnly || target.id === memo?.id) {
+      return;
+    }
+
+    const { from, to } = editor.state.selection;
+    const selectedText = editor.state.doc.textBetween(from, to, " ").trim();
+    editor
+      .chain()
+      .focus()
+      .insertContent({
+        type: "text",
+        text: selectedText || target.title || t("common.untitledMemo"),
+        marks: [{ type: "link", attrs: { href: createMemoLinkHref(target.id), class: "edgeever-note-link" } }],
+      })
+      .run();
+    setNoteLinkPickerOpen(false);
+    setNoteLinkQuery("");
+  }, [editor, effectiveReadOnly, memo?.id, t]);
 
   useEffect(() => {
     imageCompressionEnabledRef.current = imageCompressionEnabled;
@@ -1860,7 +1924,7 @@ const RichEditorPane = ({
         : await Promise.all([
             localDb.drafts.get(memo.id),
             localDb.syncQueue.get(getMemoUpdateQueueId(memo.id)),
-            api.createMemoEditSession(memo.id),
+            requiresLocalEditSession(memo) ? Promise.resolve(null) : api.createMemoEditSession(memo.id),
           ]);
 
       if (cancelled) {
@@ -1908,7 +1972,7 @@ const RichEditorPane = ({
       }
 
       hydratedMemoIdRef.current = memo.id;
-      editSessionRef.current = editSessionResponse?.editSession ?? null;
+      editSessionRef.current = editSessionResponse?.editSession ?? (requiresLocalEditSession(memo) ? createLocalEditSession(memo) : null);
 
       window.setTimeout(() => {
         hydratingRef.current = false;
@@ -2134,26 +2198,11 @@ const RichEditorPane = ({
         contentMarkdown: useMarkdownSourceEditor ? markdownSource : undefined,
         tags: parseTagsText(tagsText),
       };
-      let data;
-
-      try {
-        data = await api.updateMemo(currentMemo.id, {
-          expectedRevision: payload.expectedRevision,
-          expectedContentHash: payload.expectedContentHash,
-          editSessionId: payload.editSessionId,
-          title: payload.title,
-          contentJson: payload.contentJson,
-          contentMarkdown: payload.contentMarkdown,
-          tags: payload.tags,
-        });
-      } catch (error) {
-        throw new MemoSaveRequestError(error, payload, tagsText);
-      }
-
-      return { memo: data.memo, snapshot };
+      const { memo: localMemo } = await repository.updateMemo(currentMemo, payload);
+      return { memo: localMemo, snapshot, queued: true };
     },
     onMutate: () => setSaveState("saving"),
-    onSuccess: async ({ memo: savedMemo, snapshot }) => {
+    onSuccess: async ({ memo: savedMemo, snapshot, queued }) => {
       memoRef.current = savedMemo;
       const currentEditSession = editSessionRef.current;
       if (currentEditSession) {
@@ -2184,7 +2233,7 @@ const RichEditorPane = ({
         hasUnsavedChangesRef.current = false;
         setHasUnsavedChanges(false);
         await localDb.drafts.delete(savedMemo.id);
-        setSaveState("saved");
+        setSaveState(queued ? "queued" : "saved");
         window.setTimeout(() => setSaveState("idle"), 1400);
         return;
       }
@@ -2585,6 +2634,53 @@ const RichEditorPane = ({
   return (
     <div className="relative flex h-full min-w-0 flex-col bg-white">
       {selectionActionBar}
+      {noteLinkPickerOpen && (
+        <div className="absolute left-3 right-3 top-14 z-30 h-[min(22rem,calc(100%-4rem))] max-w-xl rounded-lg border border-slate-200 bg-white shadow-xl sm:left-5 sm:right-auto sm:w-[28rem]" role="dialog" aria-label={t("noteLinkPicker.title")}>
+          <Command shouldFilter={false}>
+            <div className="flex items-center justify-between border-b border-slate-100 pr-2">
+              <CommandInput
+                autoFocus
+                value={noteLinkQuery}
+                placeholder={t("noteLinkPicker.searchPlaceholder")}
+                onValueChange={setNoteLinkQuery}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") {
+                    setNoteLinkPickerOpen(false);
+                  }
+                }}
+              />
+              <button
+                type="button"
+                className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                aria-label={t("noteLinkPicker.close")}
+                onClick={() => setNoteLinkPickerOpen(false)}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <CommandList>
+              {noteLinkResultsQuery.isLoading ? (
+                <div className="p-6 text-center text-sm text-slate-500">{t("noteLinkPicker.loading")}</div>
+              ) : (
+                <>
+                  <CommandEmpty>{t("noteLinkPicker.empty")}</CommandEmpty>
+                  <CommandGroup>
+                    {(noteLinkResultsQuery.data?.memos ?? [])
+                      .filter((candidate) => candidate.id !== memo?.id && !candidate.isDeleted)
+                      .map((candidate) => (
+                        <CommandItem key={candidate.id} value={candidate.id} onSelect={() => insertMemoLink(candidate)}>
+                          <Link2 className="h-4 w-4 shrink-0 text-emerald-600" />
+                          <span className="min-w-0 flex-1 truncate">{candidate.title || t("common.untitledMemo")}</span>
+                          <span className="max-w-40 truncate text-xs text-slate-400">{candidate.excerpt}</span>
+                        </CommandItem>
+                      ))}
+                  </CommandGroup>
+                </>
+              )}
+            </CommandList>
+          </Command>
+        </div>
+      )}
       <header className="shrink-0 border-b border-slate-200 bg-white">
         <div className="flex min-h-12 items-center justify-between gap-2 border-b border-slate-100 px-3 py-2 sm:px-5">
           <div className="flex min-w-0 items-center gap-2 text-sm">
@@ -3060,6 +3156,7 @@ const RichEditorPane = ({
             markdownMode={useMarkdownSourceEditor}
             onMarkdownModeChange={handleMarkdownModeChange}
             onPickAttachment={() => fileInputRef.current?.click()}
+            onPickNoteLink={() => setNoteLinkPickerOpen(true)}
           />
         )}
       </header>
@@ -3260,6 +3357,7 @@ const RichEditorPane = ({
                 : memo.contentMarkdown
           }
           memo={memo}
+          repository={repository}
           onClose={() => setHistoryOpen(false)}
           onRestored={async (restoredMemo) => {
             await localDb.drafts.delete(restoredMemo.id);
