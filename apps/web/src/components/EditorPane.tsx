@@ -107,7 +107,7 @@ import { downloadMarkdownFile } from "@/lib/note-markdown-export";
 import { openNotePrintPreview, serializeNoteDocumentForPrint } from "@/lib/note-print";
 
 const SUPPORTED_PASTE_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp", "image/avif"]);
-const MOBILE_EDITOR_QUERY = "(max-width: 639px)";
+const MOBILE_EDITOR_QUERY = "(max-width: 0px)";
 const MOBILE_DRAFT_PERSIST_DELAY_MS = 800;
 const NOTE_SEARCH_HIGHLIGHT_PLUGIN_KEY = new PluginKey("edgeever-note-search-highlight");
 
