@@ -25,6 +25,14 @@ if (wranglerArgs.length === 0) {
 
 const requestedInstance = process.env.EDGE_EVER_INSTANCE;
 
+// Levelled wrapper diagnostics. Every level goes to stderr because stdout is
+// reserved for Wrangler's own output: callers such as
+// scripts/verify-deployment.mjs parse that stdout as the --json payload, and a
+// progress line there makes JSON.parse fail on "[info]"/"[ok]".
+const notice = (level, message) => {
+  process.stderr.write(`[${level}] ${message}\n`);
+};
+
 const loadLocalEnv = () => {
   const envPath = resolve(".env.local");
   if (!existsSync(envPath)) {
@@ -120,7 +128,7 @@ if (migrationCommand) {
     );
   }
   changed = true;
-  console.log(`[ok] local D1 migrations: ${migrationFiles.length} files`);
+  notice("ok", `local D1 migrations: ${migrationFiles.length} files`);
 }
 
 const replaceTomlValue = (source, key, value) => {
@@ -185,7 +193,7 @@ config = replaceTomlValue(config, "database_name", envValue("D1_DATABASE_NAME"))
 if (isRemoteCommand && config.includes(`database_id = "${PLACEHOLDER_D1_ID}"`)) {
   const databaseName = config.match(/^database_name\s*=\s*"([^"]+)"/m)?.[1];
   if (databaseName) {
-    console.log(`[info] resolving Cloudflare D1 database id for ${databaseName}`);
+    notice("info", `resolving Cloudflare D1 database id for ${databaseName}`);
     const listResult = runWranglerSync(
       ["--config", baseConfigPath, "d1", "list", "--json"],
       {
@@ -200,7 +208,7 @@ if (isRemoteCommand && config.includes(`database_id = "${PLACEHOLDER_D1_ID}"`)) 
         const discoveredId = findD1DatabaseIdByName(listResult.stdout, databaseName);
         if (discoveredId && UUID_PATTERN.test(discoveredId)) {
           config = replaceTomlValue(config, "database_id", discoveredId);
-          console.log(`[ok] resolved D1 database ${databaseName}`);
+          notice("ok", `resolved D1 database ${databaseName}`);
         }
       } catch (error) {
         console.error(error instanceof Error ? error.message : String(error));
@@ -336,7 +344,7 @@ if (isDeployCommand && Object.keys(authSecrets).length === 0 && !useExistingAuth
 }
 
 if (isDeployCommand && Object.keys(authSecrets).length === 0 && useExistingAuthSecret) {
-  console.log("[info] using the authentication Secret provisioned by Cloudflare");
+  notice("info", "using the authentication Secret provisioned by Cloudflare");
 }
 
 if (isLocalDevCommand && !hasEnvFileArg) {

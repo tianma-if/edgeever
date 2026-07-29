@@ -29,6 +29,12 @@ describe("deployment verification", () => {
     expect(parseD1Rows("")).toEqual([]);
   });
 
+  test("reports unexpected Wrangler output as a parse failure", () => {
+    expect(() => parseJsonOutput("Authentication error [code: 10000]", "Worker Secrets")).toThrow(
+      "Wrangler returned invalid JSON while checking Worker Secrets",
+    );
+  });
+
   test("parses current and wrapped Wrangler secret output", () => {
     expect(parseSecretNames(JSON.stringify([{ name: "EDGE_EVER_AUTH_PASSWORD" }]))).toContain(
       "EDGE_EVER_AUTH_PASSWORD",
