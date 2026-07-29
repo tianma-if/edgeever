@@ -3,7 +3,7 @@ import { RotateCcw } from "lucide-react";
 import Lightbox, { type ZoomRef } from "yet-another-react-lightbox";
 import Zoom from "yet-another-react-lightbox/plugins/zoom";
 import "yet-another-react-lightbox/styles.css";
-import { getMermaidSvgPresentation } from "@/lib/mermaid-svg";
+import { getMermaidSvgPresentation, normalizeMermaidSvgForViewer } from "@/lib/mermaid-svg";
 
 interface MermaidViewerProps {
   closeLabel: string;
@@ -32,6 +32,7 @@ export const MermaidViewer = ({
   const [objectUrl, setObjectUrl] = useState("");
   const [zoom, setZoom] = useState(1);
   const presentation = useMemo(() => getMermaidSvgPresentation(svg), [svg]);
+  const viewerSvg = useMemo(() => normalizeMermaidSvgForViewer(svg, presentation), [presentation, svg]);
   const backgroundColor = presentation.backgroundColor ?? (fallbackTheme === "dark" ? "#0f172a" : "#ffffff");
 
   useEffect(() => {
@@ -40,10 +41,10 @@ export const MermaidViewer = ({
       return;
     }
 
-    const nextUrl = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml;charset=utf-8" }));
+    const nextUrl = URL.createObjectURL(new Blob([viewerSvg], { type: "image/svg+xml;charset=utf-8" }));
     setObjectUrl(nextUrl);
     return () => URL.revokeObjectURL(nextUrl);
-  }, [open, svg]);
+  }, [open, svg, viewerSvg]);
 
   useEffect(() => {
     if (!open) setZoom(1);

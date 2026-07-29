@@ -1206,6 +1206,14 @@ textarea {
   user-select: none;
 }
 
+.edgeever-mermaid-viewer .yarl__slide_wrapper_interactive {
+  cursor: grab;
+}
+
+.edgeever-mermaid-viewer .yarl__slide_wrapper_interactive:active {
+  cursor: grabbing;
+}
+
 @media (pointer: coarse) {
   .ProseMirror .edgeever-mermaid-tool-button {
     width: 2.75rem;

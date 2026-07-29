@@ -81,3 +81,19 @@ export const getMermaidSvgPresentation = (svg: string): MermaidSvgPresentation =
 
   return readPresentationFromMarkup(svg);
 };
+
+export const normalizeMermaidSvgForViewer = (
+  svg: string,
+  presentation = getMermaidSvgPresentation(svg)
+) => {
+  if (typeof DOMParser === "undefined" || typeof XMLSerializer === "undefined") return svg;
+
+  const document = new DOMParser().parseFromString(svg, "image/svg+xml");
+  const root = document.documentElement;
+  if (root.tagName.toLowerCase() !== "svg" || document.querySelector("parsererror")) return svg;
+
+  // Mermaid emits width="100%", which gives Blob-backed images incorrect intrinsic dimensions.
+  root.setAttribute("width", String(presentation.width));
+  root.setAttribute("height", String(presentation.height));
+  return new XMLSerializer().serializeToString(document);
+};

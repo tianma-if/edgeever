@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { getMermaidSvgPresentation } from "./mermaid-svg";
+import { getMermaidSvgPresentation, normalizeMermaidSvgForViewer } from "./mermaid-svg";
 
 describe("Mermaid SVG presentation", () => {
   test("uses the viewBox as the authoritative diagram dimensions", () => {
@@ -29,5 +29,45 @@ describe("Mermaid SVG presentation", () => {
       backgroundColor: null,
       foregroundColor: "rgb(15, 23, 42)",
     });
+  });
+
+  test("gives percentage-sized SVGs explicit intrinsic viewer dimensions", () => {
+    const originalDOMParser = globalThis.DOMParser;
+    const originalXMLSerializer = globalThis.XMLSerializer;
+    const root = {
+      attributes: new Map([
+        ["width", "100%"],
+        ["height", null],
+        ["viewBox", "0 0 1609.306640625 3598"],
+        ["style", null],
+      ]),
+      tagName: "svg",
+      getAttribute(name) {
+        return this.attributes.get(name) ?? null;
+      },
+      setAttribute(name, value) {
+        this.attributes.set(name, value);
+      },
+    };
+
+    globalThis.DOMParser = class {
+      parseFromString() {
+        return { documentElement: root, querySelector: () => null };
+      }
+    };
+    globalThis.XMLSerializer = class {
+      serializeToString() {
+        return `width=${root.attributes.get("width")};height=${root.attributes.get("height")}`;
+      }
+    };
+
+    try {
+      expect(normalizeMermaidSvgForViewer(
+        '<svg width="100%" viewBox="0 0 1609.306640625 3598"></svg>'
+      )).toBe("width=1609.306640625;height=3598");
+    } finally {
+      globalThis.DOMParser = originalDOMParser;
+      globalThis.XMLSerializer = originalXMLSerializer;
+    }
   });
 });
