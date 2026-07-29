@@ -455,34 +455,91 @@ input {
 }
 
 .edgeever-mobile-tiptap-content .edgeever-mermaid-code-block {
+  position: relative;
   margin: 18px 0;
   overflow: visible;
   background: transparent;
 }
 
+.edgeever-mobile-tiptap-content .edgeever-mermaid-toolbar {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 2;
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  border: 1px solid #d9e2dc;
+  border-radius: 7px;
+  background: rgb(255 255 255 / 0.94);
+  box-shadow: 0 1px 3px rgb(15 23 42 / 0.08);
+  backdrop-filter: blur(6px);
+}
+
+.edgeever-mobile-tiptap-content .edgeever-mermaid-tool-button {
+  display: inline-flex;
+  width: 2.75rem;
+  height: 2.75rem;
+  flex: 0 0 2.75rem;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #475569;
+}
+
+.edgeever-mobile-tiptap-content .edgeever-mermaid-tool-button svg {
+  width: 1.125rem;
+  height: 1.125rem;
+  stroke-width: 2;
+}
+
+.edgeever-mobile-tiptap-content .edgeever-mermaid-tool-button:active,
+.edgeever-mobile-tiptap-content .edgeever-mermaid-tool-button:focus-visible,
+.edgeever-mobile-tiptap-content .edgeever-mermaid-tool-button[aria-pressed="true"] {
+  background: #eaf5ee;
+  color: #0f766e;
+  outline: none;
+}
+
+.edgeever-mobile-tiptap-content .edgeever-mermaid-tool-button[data-state="copied"] {
+  color: #15803d;
+}
+
+.edgeever-mobile-tiptap-content .edgeever-mermaid-tool-button[data-state="error"] {
+  color: #be123c;
+}
+
 .edgeever-mobile-tiptap-content .edgeever-mermaid-preview {
   display: flex;
+  max-height: min(70vh, 36rem);
   min-height: 6rem;
   align-items: center;
   justify-content: center;
-  overflow-x: auto;
-  padding: 1rem 0.25rem;
-  background: transparent;
-  cursor: pointer;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 4rem 0.75rem 0.75rem;
+  border: 1px solid #d9e2dc;
+  border-radius: 8px;
+  background: #fbfdfb;
+  scrollbar-color: rgb(100 116 139 / 0.35) transparent;
 }
 
 .edgeever-mobile-tiptap-content .edgeever-mermaid-svg {
   display: flex;
   width: 100%;
+  min-width: 0;
+  align-self: flex-start;
   justify-content: center;
 }
 
 .edgeever-mobile-tiptap-content .edgeever-mermaid-svg svg {
   display: block;
-  width: auto;
+  width: 100%;
   max-width: 100%;
   height: auto;
-  max-height: 440px;
+  max-height: none;
 }
 
 .edgeever-mobile-tiptap-content .edgeever-mermaid-source {

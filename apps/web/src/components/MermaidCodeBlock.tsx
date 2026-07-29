@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { NodeViewContent, NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
 import { useTranslation } from "react-i18next";
-import { useTheme } from "./ThemeProvider";
+import { Check, CircleAlert, Code2, Copy, Maximize2, Workflow } from "lucide-react";
+import { MERMAID_THEME_PALETTES, useTheme } from "./ThemeProvider";
+import { MermaidViewer } from "./MermaidViewer";
 import { copyTextToClipboard } from "@/lib/clipboard";
 
 type MermaidModule = typeof import("mermaid")["default"];
@@ -30,12 +32,13 @@ const loadBeautifulMermaid = () => {
 
 export const MermaidCodeBlock = ({ editor, node }: NodeViewProps) => {
   const { t } = useTranslation();
-  const { mermaidTheme } = useTheme();
+  const { mermaidRenderer, mermaidTheme, resolvedTheme, setMermaidRenderer } = useTheme();
   const language = typeof node.attrs.language === "string" ? node.attrs.language.toLowerCase() : "plaintext";
   const source = node.textContent.trim();
   const isMermaid = language === "mermaid";
   const [svg, setSvg] = useState("");
   const [sourceVisible, setSourceVisible] = useState(false);
+  const [viewerOpen, setViewerOpen] = useState(false);
   const [renderState, setRenderState] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
 
@@ -61,23 +64,15 @@ export const MermaidCodeBlock = ({ editor, node }: NodeViewProps) => {
     const timer = window.setTimeout(() => {
       setRenderState("loading");
 
-      void loadBeautifulMermaid()
-        .then(({ renderMermaidSVG, THEMES }) => {
-          try {
-            return renderMermaidSVG(source, {
-              ...THEMES[mermaidTheme],
-              transparent: true,
-              font: "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
-              padding: 24,
-            });
-          } catch {
-            return null;
-          }
-        })
-        .then((beautifulSvg) => {
-          if (beautifulSvg) return beautifulSvg;
-          return loadMermaid().then(async (mermaid) => {
-            const palette = (await loadBeautifulMermaid()).THEMES[mermaidTheme];
+      const renderPromise = mermaidRenderer === "beautiful"
+        ? loadBeautifulMermaid().then(({ renderMermaidSVG, THEMES }) => renderMermaidSVG(source, {
+            ...THEMES[mermaidTheme],
+            transparent: true,
+            font: "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+            padding: 24,
+          }))
+        : loadMermaid().then(async (mermaid) => {
+            const palette = MERMAID_THEME_PALETTES[mermaidTheme];
             mermaid.initialize({
               startOnLoad: false,
               securityLevel: "strict",
@@ -101,15 +96,14 @@ export const MermaidCodeBlock = ({ editor, node }: NodeViewProps) => {
               },
             });
             const valid = await mermaid.parse(source, { suppressErrors: true });
-            if (!valid) {
-              throw new Error("Invalid Mermaid diagram");
-            }
+            if (!valid) throw new Error("Invalid Mermaid diagram");
 
             mermaidRenderSequence += 1;
-            const { svg: fallbackSvg } = await mermaid.render(`edgeever-mermaid-${mermaidRenderSequence}`, source);
-            return fallbackSvg;
+            const { svg: renderedSvg } = await mermaid.render(`edgeever-mermaid-${mermaidRenderSequence}`, source);
+            return renderedSvg;
           });
-        })
+
+      void renderPromise
         .then((nextSvg) => {
           if (!cancelled) {
             setSvg(nextSvg);
@@ -128,7 +122,7 @@ export const MermaidCodeBlock = ({ editor, node }: NodeViewProps) => {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [isMermaid, mermaidTheme, source]);
+  }, [isMermaid, mermaidRenderer, mermaidTheme, source]);
 
   return (
     <NodeViewWrapper
@@ -137,41 +131,106 @@ export const MermaidCodeBlock = ({ editor, node }: NodeViewProps) => {
         : "edgeever-code-block"}
       data-language={language}
     >
-      <button
-        type="button"
-        className="edgeever-code-copy-button"
-        contentEditable={false}
-        aria-label={t(copyState === "copied" ? "editorToolbar.codeCopied" : copyState === "error" ? "editorToolbar.codeCopyFailed" : "editorToolbar.copyCode")}
-        title={t(copyState === "copied" ? "editorToolbar.codeCopied" : copyState === "error" ? "editorToolbar.codeCopyFailed" : "editorToolbar.copyCode")}
-        onClick={(event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          void handleCopy();
-        }}
-        onMouseDown={(event) => event.preventDefault()}
-      >
-        {copyState === "copied"
-          ? t("editorToolbar.codeCopied")
-          : copyState === "error"
-            ? t("editorToolbar.codeCopyFailed")
-            : t("editorToolbar.copyCode")}
-      </button>
+      {isMermaid ? (
+        <div className="edgeever-mermaid-toolbar" contentEditable={false}>
+          <button
+            type="button"
+            className="edgeever-mermaid-tool-button"
+            aria-label={t(mermaidRenderer === "mermaid"
+              ? "editorToolbar.mermaidUseOrthogonalLayout"
+              : "editorToolbar.mermaidUseStandardLayout")}
+            title={t(mermaidRenderer === "mermaid"
+              ? "editorToolbar.mermaidUseOrthogonalLayout"
+              : "editorToolbar.mermaidUseStandardLayout")}
+            aria-pressed={mermaidRenderer === "beautiful"}
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              setMermaidRenderer(mermaidRenderer === "mermaid" ? "beautiful" : "mermaid");
+            }}
+            onMouseDown={(event) => event.preventDefault()}
+          >
+            <Workflow aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className="edgeever-mermaid-tool-button"
+            data-state={copyState}
+            aria-label={t(copyState === "copied" ? "editorToolbar.codeCopied" : copyState === "error" ? "editorToolbar.codeCopyFailed" : "editorToolbar.copyCode")}
+            title={t(copyState === "copied" ? "editorToolbar.codeCopied" : copyState === "error" ? "editorToolbar.codeCopyFailed" : "editorToolbar.copyCode")}
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              void handleCopy();
+            }}
+            onMouseDown={(event) => event.preventDefault()}
+          >
+            {copyState === "copied"
+              ? <Check aria-hidden="true" />
+              : copyState === "error"
+                ? <CircleAlert aria-hidden="true" />
+                : <Copy aria-hidden="true" />}
+          </button>
+          {editor.isEditable && (
+            <button
+              type="button"
+              className="edgeever-mermaid-tool-button"
+              aria-label={t(sourceVisible ? "editorToolbar.mermaidHideSource" : "editorToolbar.mermaidShowSource")}
+              title={t(sourceVisible ? "editorToolbar.mermaidHideSource" : "editorToolbar.mermaidShowSource")}
+              aria-pressed={sourceVisible}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                setSourceVisible((visible) => !visible);
+              }}
+              onMouseDown={(event) => event.preventDefault()}
+            >
+              <Code2 aria-hidden="true" />
+            </button>
+          )}
+          {svg && (
+            <button
+              type="button"
+              className="edgeever-mermaid-tool-button"
+              aria-label={t("editorToolbar.mermaidOpenViewer")}
+              title={t("editorToolbar.mermaidOpenViewer")}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                setViewerOpen(true);
+              }}
+              onMouseDown={(event) => event.preventDefault()}
+            >
+              <Maximize2 aria-hidden="true" />
+            </button>
+          )}
+        </div>
+      ) : (
+        <button
+          type="button"
+          className="edgeever-code-copy-button"
+          contentEditable={false}
+          aria-label={t(copyState === "copied" ? "editorToolbar.codeCopied" : copyState === "error" ? "editorToolbar.codeCopyFailed" : "editorToolbar.copyCode")}
+          title={t(copyState === "copied" ? "editorToolbar.codeCopied" : copyState === "error" ? "editorToolbar.codeCopyFailed" : "editorToolbar.copyCode")}
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            void handleCopy();
+          }}
+          onMouseDown={(event) => event.preventDefault()}
+        >
+          {copyState === "copied"
+            ? t("editorToolbar.codeCopied")
+            : copyState === "error"
+              ? t("editorToolbar.codeCopyFailed")
+              : t("editorToolbar.copyCode")}
+        </button>
+      )}
       {isMermaid && (
         <div
           className="edgeever-mermaid-preview"
           contentEditable={false}
-          onClick={() => editor.isEditable && setSourceVisible((visible) => !visible)}
-          onKeyDown={(event) => {
-            if (editor.isEditable && (event.key === "Enter" || event.key === " ")) {
-              event.preventDefault();
-              setSourceVisible((visible) => !visible);
-            }
-          }}
-          aria-label={editor.isEditable
-            ? `${t("editorToolbar.mermaidPreview")} · ${t("editorToolbar.mermaidSource")}`
-            : undefined}
-          role={editor.isEditable ? "button" : undefined}
-          tabIndex={editor.isEditable ? 0 : undefined}
+          aria-label={t("editorToolbar.mermaidPreview")}
         >
           {!source && <p className="edgeever-mermaid-message">{t("editorToolbar.mermaidEmpty")}</p>}
           {source && renderState === "loading" && !svg && (
@@ -199,6 +258,19 @@ export const MermaidCodeBlock = ({ editor, node }: NodeViewProps) => {
         aria-multiline="true"
         aria-readonly={!editor.isEditable}
       />
+      {isMermaid && svg && (
+        <MermaidViewer
+          closeLabel={t("editorToolbar.mermaidCloseViewer")}
+          fallbackTheme={resolvedTheme}
+          open={viewerOpen}
+          resetZoomLabel={t("editorToolbar.mermaidResetZoom")}
+          svg={svg}
+          viewerLabel={t("editorToolbar.mermaidViewer")}
+          zoomInLabel={t("editorToolbar.mermaidZoomIn")}
+          zoomOutLabel={t("editorToolbar.mermaidZoomOut")}
+          onClose={() => setViewerOpen(false)}
+        />
+      )}
     </NodeViewWrapper>
   );
 };

@@ -1,0 +1,116 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import { RotateCcw } from "lucide-react";
+import Lightbox, { type ZoomRef } from "yet-another-react-lightbox";
+import Zoom from "yet-another-react-lightbox/plugins/zoom";
+import "yet-another-react-lightbox/styles.css";
+import { getMermaidSvgPresentation } from "@/lib/mermaid-svg";
+
+interface MermaidViewerProps {
+  closeLabel: string;
+  fallbackTheme: "light" | "dark";
+  open: boolean;
+  resetZoomLabel: string;
+  svg: string;
+  viewerLabel: string;
+  zoomInLabel: string;
+  zoomOutLabel: string;
+  onClose: () => void;
+}
+
+export const MermaidViewer = ({
+  closeLabel,
+  fallbackTheme,
+  open,
+  resetZoomLabel,
+  svg,
+  viewerLabel,
+  zoomInLabel,
+  zoomOutLabel,
+  onClose,
+}: MermaidViewerProps) => {
+  const zoomRef = useRef<ZoomRef | null>(null);
+  const [objectUrl, setObjectUrl] = useState("");
+  const [zoom, setZoom] = useState(1);
+  const presentation = useMemo(() => getMermaidSvgPresentation(svg), [svg]);
+  const backgroundColor = presentation.backgroundColor ?? (fallbackTheme === "dark" ? "#0f172a" : "#ffffff");
+
+  useEffect(() => {
+    if (!open || !svg) {
+      setObjectUrl("");
+      return;
+    }
+
+    const nextUrl = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml;charset=utf-8" }));
+    setObjectUrl(nextUrl);
+    return () => URL.revokeObjectURL(nextUrl);
+  }, [open, svg]);
+
+  useEffect(() => {
+    if (!open) setZoom(1);
+  }, [open]);
+
+  if (!open || !objectUrl) return null;
+
+  const resetButton = (
+    <button
+      key="reset-mermaid-zoom"
+      type="button"
+      className="edgeever-mermaid-viewer-reset"
+      disabled={zoom <= 1}
+      aria-label={resetZoomLabel}
+      title={resetZoomLabel}
+      onClick={() => zoomRef.current?.changeZoom(1)}
+    >
+      <RotateCcw aria-hidden="true" />
+    </button>
+  );
+
+  return (
+    <Lightbox
+      className="edgeever-mermaid-viewer"
+      open
+      close={onClose}
+      index={0}
+      slides={[{
+        src: objectUrl,
+        alt: viewerLabel,
+        width: presentation.width,
+        height: presentation.height,
+        imageFit: "contain",
+      }]}
+      plugins={[Zoom]}
+      labels={{
+        Close: closeLabel,
+        "Photo gallery": viewerLabel,
+        "Zoom in": zoomInLabel,
+        "Zoom out": zoomOutLabel,
+      }}
+      toolbar={{ buttons: ["zoom", resetButton, "close"] }}
+      carousel={{ finite: true, padding: 24, imageFit: "contain" }}
+      controller={{
+        closeOnBackdropClick: true,
+        closeOnPullDown: false,
+        closeOnPullUp: false,
+        disableSwipeNavigation: true,
+      }}
+      zoom={{
+        ref: zoomRef,
+        maxZoomPixelRatio: 6,
+        zoomInMultiplier: 1.5,
+        keyboardMoveDistance: 80,
+        pinchZoomV4: true,
+        scrollToZoom: true,
+      }}
+      animation={{ fade: 160, zoom: 180 }}
+      on={{ zoom: ({ zoom: nextZoom }) => setZoom(nextZoom) }}
+      render={{
+        buttonPrev: () => null,
+        buttonNext: () => null,
+      }}
+      styles={{
+        root: { "--yarl__color_backdrop": backgroundColor },
+        container: { backgroundColor },
+      }}
+    />
+  );
+};
