@@ -82,6 +82,11 @@ export const getMermaidSvgPresentation = (svg: string): MermaidSvgPresentation =
   return readPresentationFromMarkup(svg);
 };
 
+export const resolveMermaidViewerBackground = (
+  svgBackgroundColor: string | null,
+  paletteBackgroundColor: string
+) => svgBackgroundColor ?? paletteBackgroundColor;
+
 export const normalizeMermaidSvgForViewer = (
   svg: string,
   presentation = getMermaidSvgPresentation(svg)

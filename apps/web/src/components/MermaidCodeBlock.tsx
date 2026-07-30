@@ -33,7 +33,7 @@ const loadBeautifulMermaid = () => {
 
 export const MermaidCodeBlock = ({ editor, node }: NodeViewProps) => {
   const { t } = useTranslation();
-  const { mermaidRenderer, mermaidTheme, resolvedTheme, setMermaidRenderer } = useTheme();
+  const { mermaidRenderer, mermaidTheme, setMermaidRenderer } = useTheme();
   const language = typeof node.attrs.language === "string" ? node.attrs.language.toLowerCase() : "plaintext";
   const source = node.textContent.trim();
   const isMermaid = language === "mermaid";
@@ -267,7 +267,7 @@ export const MermaidCodeBlock = ({ editor, node }: NodeViewProps) => {
       {isMermaid && svg && (
         <MermaidViewer
           closeLabel={t("editorToolbar.mermaidCloseViewer")}
-          fallbackTheme={resolvedTheme}
+          fallbackBackgroundColor={MERMAID_THEME_PALETTES[mermaidTheme].bg}
           open={viewerOpen}
           resetZoomLabel={t("editorToolbar.mermaidResetZoom")}
           svg={svg}

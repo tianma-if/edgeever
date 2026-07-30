@@ -3,11 +3,15 @@ import { RotateCcw } from "lucide-react";
 import Lightbox, { type ZoomRef } from "yet-another-react-lightbox";
 import Zoom from "yet-another-react-lightbox/plugins/zoom";
 import "yet-another-react-lightbox/styles.css";
-import { getMermaidSvgPresentation, normalizeMermaidSvgForViewer } from "@/lib/mermaid-svg";
+import {
+  getMermaidSvgPresentation,
+  normalizeMermaidSvgForViewer,
+  resolveMermaidViewerBackground,
+} from "@/lib/mermaid-svg";
 
 interface MermaidViewerProps {
   closeLabel: string;
-  fallbackTheme: "light" | "dark";
+  fallbackBackgroundColor: string;
   open: boolean;
   resetZoomLabel: string;
   svg: string;
@@ -19,7 +23,7 @@ interface MermaidViewerProps {
 
 export const MermaidViewer = ({
   closeLabel,
-  fallbackTheme,
+  fallbackBackgroundColor,
   open,
   resetZoomLabel,
   svg,
@@ -33,7 +37,10 @@ export const MermaidViewer = ({
   const [zoom, setZoom] = useState(1);
   const presentation = useMemo(() => getMermaidSvgPresentation(svg), [svg]);
   const viewerSvg = useMemo(() => normalizeMermaidSvgForViewer(svg, presentation), [presentation, svg]);
-  const backgroundColor = presentation.backgroundColor ?? (fallbackTheme === "dark" ? "#0f172a" : "#ffffff");
+  const backgroundColor = resolveMermaidViewerBackground(
+    presentation.backgroundColor,
+    fallbackBackgroundColor
+  );
 
   useEffect(() => {
     if (!open || !svg) {
