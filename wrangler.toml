@@ -1,4 +1,4 @@
-name = "edgeever"
+name = "edgeever-proxy-temp"
 main = "apps/api/src/index.ts"
 compatibility_date = "2026-06-26"
 workers_dev = true
