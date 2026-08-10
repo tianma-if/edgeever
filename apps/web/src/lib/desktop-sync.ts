@@ -1,4 +1,13 @@
-import type { DesktopOutboxItem, DesktopRpcParams, DesktopRpcResponses, SyncBootstrapResponse, SyncChangesResponse, TiptapDoc } from "@edgeever/shared";
+import {
+  getMemoSyncBaseConflictDetails,
+  isMemoSyncBaseCurrent,
+  type DesktopOutboxItem,
+  type DesktopRpcParams,
+  type DesktopRpcResponses,
+  type SyncBootstrapResponse,
+  type SyncChangesResponse,
+  type TiptapDoc,
+} from "@edgeever/shared";
 import { api, ApiRequestError } from "@/lib/api";
 import { isDesktopResourceRuntime } from "@/lib/desktop-resources";
 
@@ -155,6 +164,24 @@ const applyRemoteNotebook = async (notebook: DesktopRpcResponses["notebook.list"
   });
 };
 
+export const resolveDesktopMemoSyncBase = (
+  current: { revision: number; contentHash: string },
+  expected: { expectedRevision: number; expectedContentHash: string },
+) => {
+  // Older desktop clients advanced the cached cloud revision for every local
+  // autosave. A base ahead of the actual server is therefore a local counter,
+  // not evidence of a concurrent remote edit. Rebase that impossible state so
+  // existing drafts recover automatically. Bases behind the server remain
+  // conflicts and keep the normal adopt-cloud/copy-draft protection.
+  if (expected.expectedRevision > current.revision) {
+    return {
+      expectedRevision: current.revision,
+      expectedContentHash: current.contentHash,
+    };
+  }
+  return expected;
+};
+
 const acknowledge = async (
   item: DesktopOutboxItem,
   remoteMemo?: DesktopRpcResponses["memo.get"]["memo"],
@@ -187,18 +214,23 @@ const syncOutboxItem = async (item: DesktopOutboxItem, stagedRewrites: StagedRes
     const memoId = String(payload.memoId ?? item.entityId);
     const editSessionResponse = await api.createMemoEditSession(memoId);
     const editSession = editSessionResponse.editSession;
-    if (editSession.baseRevision !== Number(payload.expectedRevision) || editSession.baseContentHash !== String(payload.expectedContentHash ?? "")) {
-      throw new ApiRequestError("Note changed before the offline draft could sync.", 409, "revision_conflict", {
-        expectedRevision: Number(payload.expectedRevision),
-        currentRevision: editSession.baseRevision,
-        expectedContentHash: String(payload.expectedContentHash ?? ""),
-        currentContentHash: editSession.baseContentHash,
-        source: "offline_sync",
-      });
-    }
-    const data = await api.updateMemo(memoId, {
+    const queuedBase = {
       expectedRevision: Number(payload.expectedRevision),
       expectedContentHash: String(payload.expectedContentHash ?? ""),
+    };
+    const currentBase = { revision: editSession.baseRevision, contentHash: editSession.baseContentHash };
+    const expectedBase = resolveDesktopMemoSyncBase(currentBase, queuedBase);
+    if (!isMemoSyncBaseCurrent(currentBase, expectedBase)) {
+      throw new ApiRequestError(
+        "Note changed before the offline draft could sync.",
+        409,
+        "revision_conflict",
+        getMemoSyncBaseConflictDetails(currentBase, expectedBase),
+      );
+    }
+    const data = await api.updateMemo(memoId, {
+      expectedRevision: expectedBase.expectedRevision,
+      expectedContentHash: expectedBase.expectedContentHash,
       editSessionId: editSession.id,
       title: String(payload.title ?? ""),
       contentJson: payload.contentJson as TiptapDoc,
@@ -341,12 +373,16 @@ const syncOutbox = async (stagedRewrites: StagedResourceRewrite[], onlyKinds?: S
   let conflicted = 0;
   const response = await request("sync.outbox.list", { limit: 100 });
   const memoIdMappings = new Map<string, string>();
+  const syncedMemos = new Map<string, DesktopRpcResponses["memo.get"]["memo"]>();
   for (const item of response.items) {
     if (onlyKinds && !onlyKinds.has(item.kind)) continue;
     try {
       const result = await syncOutboxItem(item, stagedRewrites);
       if (item.kind === "memo.create" && result && typeof result === "object" && "id" in result && typeof result.id === "string") {
         memoIdMappings.set(item.entityId, result.id);
+      }
+      if (result && typeof result === "object" && "id" in result && typeof result.id === "string" && "contentJson" in result) {
+        syncedMemos.set(result.id, result as DesktopRpcResponses["memo.get"]["memo"]);
       }
       synced += 1;
     } catch (error) {
@@ -357,7 +393,7 @@ const syncOutbox = async (stagedRewrites: StagedResourceRewrite[], onlyKinds?: S
       else failed += 1;
     }
   }
-  return { attempted: onlyKinds ? synced + failed + conflicted : response.items.length, synced, failed, conflicted, memoIdMappings };
+  return { attempted: onlyKinds ? synced + failed + conflicted : response.items.length, synced, failed, conflicted, memoIdMappings, syncedMemos };
 };
 
 const applyBootstrap = async (page: SyncBootstrapResponse) => {
@@ -424,6 +460,7 @@ export type DesktopSyncResult = {
   failed: number;
   conflicted: number;
   memoIdMappings: Map<string, string>;
+  syncedMemos: Map<string, DesktopRpcResponses["memo.get"]["memo"]>;
 };
 
 export const mergeMemoIdMappings = (
@@ -434,22 +471,30 @@ export const mergeMemoIdMappings = (
   return target;
 };
 
+export const mergeSyncedMemos = <T>(target: Map<string, T>, source: ReadonlyMap<string, T>) => {
+  for (const [memoId, memo] of source) target.set(memoId, memo);
+  return target;
+};
+
 let activeSync: Promise<DesktopSyncResult> | null = null;
 
 export const syncDesktopData = () => {
   if (activeSync) return activeSync;
   activeSync = (async () => {
     const memoIdMappings = new Map<string, string>();
+    const syncedMemos = new Map<string, DesktopRpcResponses["memo.get"]["memo"]>();
     if (typeof navigator !== "undefined" && !navigator.onLine) {
-      return { attempted: 0, synced: 0, failed: 0, conflicted: 0, memoIdMappings };
+      return { attempted: 0, synced: 0, failed: 0, conflicted: 0, memoIdMappings, syncedMemos };
     }
     try {
       const creates = await syncOutbox([], new Set(["memo.create"]));
       mergeMemoIdMappings(memoIdMappings, creates.memoIdMappings);
+      mergeSyncedMemos(syncedMemos, creates.syncedMemos);
       await remapStagedResourceMemoIds(creates.memoIdMappings);
       const stagedResources = await syncStagedResources(creates.memoIdMappings);
       const outbox = await syncOutbox(stagedResources.rewrites);
       mergeMemoIdMappings(memoIdMappings, outbox.memoIdMappings);
+      mergeSyncedMemos(syncedMemos, outbox.syncedMemos);
       if (stagedResources.failed === 0 && outbox.failed === 0 && outbox.conflicted === 0 && creates.conflicted === 0) {
         await removeSyncedStagedResources(stagedResources.stagedIds);
       }
@@ -463,6 +508,7 @@ export const syncDesktopData = () => {
         failed: creates.failed + outbox.failed + stagedResources.failed,
         conflicted: creates.conflicted + outbox.conflicted,
         memoIdMappings,
+        syncedMemos,
       };
     } catch (error) {
       lastSyncFailed = true;
@@ -470,7 +516,7 @@ export const syncDesktopData = () => {
       // A create may already have been acknowledged before a later upload or
       // pull failed. Preserve its id mapping so the UI cannot keep editing an
       // obsolete temporary id merely because the overall sync was partial.
-      return { attempted: 0, synced: 0, failed: 1, conflicted: 0, memoIdMappings };
+      return { attempted: 0, synced: 0, failed: 1, conflicted: 0, memoIdMappings, syncedMemos };
     }
   })().finally(() => { activeSync = null; });
   return activeSync;

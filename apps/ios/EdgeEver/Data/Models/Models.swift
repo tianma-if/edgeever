@@ -125,6 +125,35 @@ struct MemoEditSession: Codable, Equatable, Sendable {
     var expiresAt: String
 }
 
+// MARK: - AI note processing
+
+enum AiAction: String, Codable, CaseIterable, Sendable, Identifiable {
+    case summarize
+    case extractKeyPoints = "extract-key-points"
+    case extractTodos = "extract-todos"
+    case rewriteProofread = "rewrite-proofread"
+    case translate
+
+    var id: String { rawValue }
+}
+
+struct AiGenerateInput: Encodable, Sendable {
+    var action: AiAction
+    var title: String
+    var contentMarkdown: String
+    var targetLanguage: String?
+}
+
+struct AiStreamEvent: Decodable, Sendable {
+    var type: String
+    var text: String?
+    var code: String?
+    var message: String?
+    var finishReason: String?
+    var inputTokens: Int?
+    var outputTokens: Int?
+}
+
 struct Resource: Codable, Equatable, Sendable, Identifiable {
     var id: String
     var memoId: String

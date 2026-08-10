@@ -1,0 +1,64 @@
+import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+
+const readSource = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
+
+const androidAssistantSource = readSource("../apps/mobile/src/components/MobileAiAssistantModal.tsx");
+const androidDetailSource = readSource("../apps/mobile/src/screens/WorkspaceMemoDetail.tsx");
+const androidWorkspaceSource = readSource("../apps/mobile/src/screens/WorkspaceScreen.tsx");
+const androidSessionSource = readSource("../apps/mobile/src/lib/session.tsx");
+const iosAssistantSource = readSource("../apps/ios/EdgeEver/Features/Workspace/AiAssistantSheet.swift");
+const iosDetailSource = readSource("../apps/ios/EdgeEver/Features/Workspace/MemoDetailView.swift");
+const iosApiSource = readSource("../apps/ios/EdgeEver/Data/Network/APIClient.swift");
+
+describe("native mobile AI note assistant", () => {
+  test("exposes all five first-version actions on Android and iOS", () => {
+    for (const action of [
+      "summarize",
+      "extract-key-points",
+      "extract-todos",
+      "rewrite-proofread",
+      "translate",
+    ]) {
+      expect(androidAssistantSource).toContain(`"${action}"`);
+    }
+
+    for (const action of [
+      "case summarize",
+      'case extractKeyPoints = "extract-key-points"',
+      'case extractTodos = "extract-todos"',
+      'case rewriteProofread = "rewrite-proofread"',
+      "case translate",
+    ]) {
+      expect(readSource("../apps/ios/EdgeEver/Data/Models/Models.swift")).toContain(action);
+    }
+  });
+
+  test("streams AI output from the shared workspace configuration on both clients", () => {
+    expect(androidAssistantSource).toContain("client.streamAiGeneration(");
+    expect(androidSessionSource).toContain("fetch: expoFetch as typeof fetch");
+    expect(iosAssistantSource).toContain("client.streamAiGeneration(input)");
+    expect(iosApiSource).toContain('makeURL(path: "/api/v1/ai/generate")');
+    expect(iosApiSource).toContain("for try await line in bytes.lines");
+  });
+
+  test("keeps AI output as a draft until append or replace is confirmed", () => {
+    expect(androidAssistantSource).toContain('apply("append")');
+    expect(androidAssistantSource).toContain('apply("replace")');
+    expect(androidWorkspaceSource).toContain("localUpdateMemoMutation.mutateAsync");
+    expect(androidWorkspaceSource).toContain("contentJson: markdownToDoc(contentMarkdown)");
+
+    expect(iosAssistantSource).toContain("apply(.append)");
+    expect(iosAssistantSource).toContain("apply(.replace)");
+    expect(iosDetailSource).toContain("createMemoEditSession(memoId: sourceMemo.id)");
+    expect(iosDetailSource).toContain("expectedRevision: sourceMemo.revision");
+    expect(iosDetailSource).toContain("expectedContentHash: sourceMemo.contentHash");
+  });
+
+  test("keeps the assistant reachable from each native note action menu", () => {
+    expect(androidDetailSource).toContain('label="AI 笔记助手"');
+    expect(androidDetailSource).toContain("<MobileAiAssistantModal");
+    expect(iosDetailSource).toContain('env.preferences.t("AI 笔记助手", en: "AI note assistant")');
+    expect(iosDetailSource).toContain("AiAssistantSheet(memo: memo)");
+  });
+});

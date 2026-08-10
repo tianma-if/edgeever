@@ -1,4 +1,5 @@
 import "./styles.css";
+import "katex/dist/katex.min.css";
 import { Editor, mergeAttributes, Node } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import Image from "@tiptap/extension-image";
@@ -8,6 +9,7 @@ import { TableKit } from "@tiptap/extension-table";
 import { Markdown } from "@tiptap/markdown";
 import { NodeSelection } from "@tiptap/pm/state";
 import mermaid from "mermaid";
+import { createEdgeEverMathematics } from "./mathematics";
 
 /** Keep in sync with packages/shared MergeDivider (iOS bundle cannot import monorepo shared). */
 const MERGE_DIVIDER_MARKDOWN_MARKER = "<!-- edgeever:merge-divider -->";
@@ -62,6 +64,8 @@ type BridgeMessage =
   | { type: "loadResource"; requestId: string; source: string }
   | { type: "resourcePress"; targetJson: string }
   | { type: "imagePreview"; source: string; alt: string }
+  | { type: "pickImage" }
+  | { type: "searchResult"; count: number; index: number }
   | { type: "activeFlags"; flags: number }
   | { type: "log"; message: string }
   | { type: "error"; message: string };
@@ -121,6 +125,8 @@ type ConfigureOptions = {
 
 const startedAt = performance.now();
 let mode: "viewer" | "editor" = "viewer";
+let locale = "zh-CN";
+let currentPlaceholder = "开始输入…";
 let suppressChange = false;
 const resourceResolvers = new Map<string, (dataUrl: string | null) => void>();
 let resourceSeq = 0;
@@ -603,6 +609,7 @@ function buildExtensions(placeholder: string) {
       codeBlock: false,
     }),
     MergeDivider,
+    ...createEdgeEverMathematics(),
     CodeBlock.configure({
       languageClassPrefix: "language-",
     }),
@@ -628,9 +635,11 @@ const editor = new Editor({
   editable: false,
   content: { type: "doc", content: [{ type: "paragraph" }] },
   onUpdate: ({ editor: ed }) => {
+    refreshToolbarState();
     if (suppressChange || mode !== "editor") return;
     emitChange(ed);
   },
+  onSelectionUpdate: () => refreshToolbarState(),
   editorProps: {
     attributes: {
       class: "edgeever-prose",
@@ -768,19 +777,74 @@ function handleResourcePointer(event: Event, kind: "click" | "contextmenu"): boo
   editorEl.addEventListener("touchcancel", clear, { passive: true });
 })();
 
+const LITERAL_DOLLAR_PLACEHOLDER = "\uE000edgeever-dollar\uE001";
+
+const protectLiteralDollarPairs = (value: unknown): unknown => {
+  if (!value || typeof value !== "object") return value;
+  const node = value as { type?: unknown; text?: unknown; content?: unknown };
+  if (node.type === "text" && typeof node.text === "string") {
+    const dollarCount = Array.from(node.text).filter((character) => character === "$").length;
+    return dollarCount >= 2
+      ? { ...node, text: node.text.replaceAll("$", LITERAL_DOLLAR_PLACEHOLDER) }
+      : value;
+  }
+  return Array.isArray(node.content)
+    ? { ...node, content: node.content.map(protectLiteralDollarPairs) }
+    : value;
+};
+
+const serializeEditorMarkdown = (ed: Editor) => {
+  const manager = (ed.storage as { markdown?: { manager?: { serialize?: (doc: unknown) => string } } })
+    .markdown?.manager;
+  if (manager?.serialize) {
+    return manager.serialize(protectLiteralDollarPairs(ed.getJSON())).replaceAll(LITERAL_DOLLAR_PLACEHOLDER, "\\$");
+  }
+  return typeof ed.getMarkdown === "function"
+    ? ed.getMarkdown()
+    : ed.getText({ blockSeparator: "\n\n" });
+};
+
 function emitChange(ed: Editor) {
   try {
     const contentJson = JSON.stringify(ed.getJSON());
-    // @tiptap/markdown storage
-    const storage = ed.storage as { markdown?: { getMarkdown?: () => string } };
-    const contentMarkdown =
-      storage.markdown?.getMarkdown?.() ??
-      // fallback: plain text
-      ed.getText({ blockSeparator: "\n\n" });
+    const contentMarkdown = serializeEditorMarkdown(ed);
     post({ type: "change", contentMarkdown, contentJson });
   } catch (error) {
     post({ type: "error", message: error instanceof Error ? error.message : String(error) });
   }
+}
+
+type EditorSearchMatch = { from: number; to: number };
+
+function getEditorSearchMatches(ed: Editor, query: string): EditorSearchMatch[] {
+  const needle = query.trim().toLocaleLowerCase();
+  if (needle.length === 0) return [];
+
+  const characters: Array<{ char: string; pos: number }> = [];
+  let previousTextEnd: number | null = null;
+  ed.state.doc.descendants((node, pos) => {
+    if (!node.isText || !node.text) return;
+    if (previousTextEnd !== null && pos > previousTextEnd) {
+      characters.push({ char: "\u0000", pos: -1 });
+    }
+    for (let index = 0; index < node.text.length; index += 1) {
+      characters.push({ char: node.text[index] ?? "", pos: pos + index });
+    }
+    previousTextEnd = pos + node.text.length;
+  });
+
+  const haystack = characters.map((item) => item.char).join("").toLocaleLowerCase();
+  const matches: EditorSearchMatch[] = [];
+  let index = haystack.indexOf(needle);
+  while (index !== -1) {
+    const start = characters[index];
+    const end = characters[index + needle.length - 1];
+    if (start && end && start.pos >= 0 && end.pos >= 0) {
+      matches.push({ from: start.pos, to: end.pos + 1 });
+    }
+    index = haystack.indexOf(needle, index + needle.length);
+  }
+  return matches;
 }
 
 function setToolbarVisible(visible: boolean) {
@@ -788,11 +852,26 @@ function setToolbarVisible(visible: boolean) {
   toolbarEl.innerHTML = "";
   if (!visible) return;
   const actions: Array<{ id: string; label: string; run: () => void }> = [
+    {
+      id: "image",
+      label: "▧+",
+      run: () => post({ type: "pickImage" }),
+    },
     { id: "bold", label: "B", run: () => editor.chain().focus().toggleBold().run() },
     {
       id: "bullet",
       label: "•",
       run: () => editor.chain().focus().toggleBulletList().run(),
+    },
+    {
+      id: "indent",
+      label: "⇥",
+      run: () => editor.chain().focus().sinkListItem("listItem").run(),
+    },
+    {
+      id: "outdent",
+      label: "⇤",
+      run: () => editor.chain().focus().liftListItem("listItem").run(),
     },
     {
       id: "quote",
@@ -804,31 +883,47 @@ function setToolbarVisible(visible: boolean) {
       label: "—",
       run: () => editor.chain().focus().setHorizontalRule().run(),
     },
-    {
-      id: "h2",
-      label: "H2",
-      run: () => editor.chain().focus().toggleHeading({ level: 2 }).run(),
-    },
-    {
-      id: "code",
-      label: "</>",
-      run: () => editor.chain().focus().toggleCodeBlock().run(),
-    },
   ];
   for (const action of actions) {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.textContent = action.label;
     btn.dataset.action = action.id;
+    const labels: Record<string, [string, string]> = {
+      image: ["插入图片", "Insert image"],
+      bold: ["粗体", "Bold"],
+      bullet: ["项目符号列表", "Bullet list"],
+      indent: ["增加列表缩进", "Increase list indent"],
+      outdent: ["减少列表缩进", "Decrease list indent"],
+      quote: ["引用", "Block quote"],
+      hr: ["分隔线", "Horizontal rule"],
+    };
+    btn.setAttribute("aria-label", labels[action.id]?.[locale === "en-US" ? 1 : 0] ?? action.id);
     btn.addEventListener("click", () => {
       action.run();
-      emitChange(editor);
+      if (action.id !== "image") emitChange(editor);
+      refreshToolbarState();
     });
     toolbarEl.appendChild(btn);
   }
+  refreshToolbarState();
+}
+
+function refreshToolbarState() {
+  const active: Record<string, boolean> = {
+    bold: editor.isActive("bold"),
+    bullet: editor.isActive("bulletList"),
+    quote: editor.isActive("blockquote"),
+  };
+  toolbarEl.querySelectorAll<HTMLButtonElement>("button[data-action]").forEach((button) => {
+    button.classList.toggle("is-active", active[button.dataset.action ?? ""] ?? false);
+  });
 }
 
 async function afterContentSet(theme: "light" | "dark" = "light") {
+  editorEl.querySelectorAll<HTMLElement>("[data-placeholder]").forEach((element) => {
+    element.dataset.placeholder = currentPlaceholder;
+  });
   await hydrateProtectedImages(editorEl);
   if (mode === "viewer") {
     await renderMermaidBlocks(editorEl, theme);
@@ -848,6 +943,7 @@ export type EdgeEverEditorAPI = {
   beginImageUpload: (uploadId: string, previewDataUrl: string) => void;
   completeImageUpload: (uploadId: string, imageUrl: string, alt: string) => void;
   cancelImageUpload: (uploadId: string) => void;
+  search: (query: string, requestedIndex: number) => void;
 };
 
 const api: EdgeEverEditorAPI = {
@@ -855,14 +951,17 @@ const api: EdgeEverEditorAPI = {
     const nextMode = opts.mode === "editor" ? "editor" : "viewer";
     const modeChanged = nextMode !== mode;
     mode = nextMode;
+    locale = opts.locale === "en-US" ? "en-US" : "zh-CN";
     editor.setEditable(mode === "editor");
     setToolbarVisible(mode === "editor");
     document.documentElement.dataset.theme = opts.theme || "light";
     document.body.classList.toggle("viewer-mode", mode === "viewer");
     document.body.classList.toggle("editor-mode", mode === "editor");
     if (opts.placeholder) {
-      // placeholder is extension config; update via meta class
-      editorEl.setAttribute("data-placeholder", opts.placeholder);
+      currentPlaceholder = opts.placeholder;
+      editorEl.querySelectorAll<HTMLElement>("[data-placeholder]").forEach((element) => {
+        element.dataset.placeholder = currentPlaceholder;
+      });
     }
     // Match Evernote-style edit entry: focus the surface when entering editor mode.
     // Combined with setContent's default end selection, caret lands at document end.
@@ -875,6 +974,7 @@ const api: EdgeEverEditorAPI = {
         }
       });
     }
+    void afterContentSet(opts.theme || "light");
   },
 
   setMarkdown(md) {
@@ -926,8 +1026,7 @@ const api: EdgeEverEditorAPI = {
   },
 
   getMarkdown() {
-    const storage = editor.storage as { markdown?: { getMarkdown?: () => string } };
-    return storage.markdown?.getMarkdown?.() ?? editor.getText({ blockSeparator: "\n\n" });
+    return serializeEditorMarkdown(editor);
   },
 
   getDocument() {
@@ -1003,6 +1102,25 @@ const api: EdgeEverEditorAPI = {
     const img = editorEl.querySelector(`img[data-upload-id="${uploadId}"]`);
     img?.remove();
     emitChange(editor);
+  },
+
+  search(query, requestedIndex) {
+    const matches = getEditorSearchMatches(editor, query);
+    const index = matches.length > 0
+      ? Math.min(Math.max(Number.isFinite(requestedIndex) ? requestedIndex : 0, 0), matches.length - 1)
+      : 0;
+    const match = matches[index];
+    if (match) {
+      editor.commands.setTextSelection({ from: match.from, to: match.to });
+      try {
+        const dom = editor.view.domAtPos(match.from).node;
+        const element = dom instanceof Element ? dom : dom.parentElement;
+        element?.scrollIntoView({ block: "center", behavior: "smooth" });
+      } catch {
+        /* ignore */
+      }
+    }
+    post({ type: "searchResult", count: matches.length, index });
   },
 };
 

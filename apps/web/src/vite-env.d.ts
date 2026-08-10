@@ -14,6 +14,7 @@ interface EdgeEverDesktopBridge {
   setApiBaseUrl(value: string): Promise<string>;
   getSessionToken(): string;
   copyText(value: string): Promise<boolean>;
+  copyHtml(html: string, plainText: string): Promise<boolean>;
   setSessionToken(value: string): Promise<{ stored: boolean }>;
   clearSessionToken(): Promise<{ stored: false }>;
   sidecarStatus(): Promise<{ available: boolean; path: string; scope: string }>;

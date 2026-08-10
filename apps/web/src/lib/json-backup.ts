@@ -367,6 +367,16 @@ export const restoreEdgeEverZip = async (
   }
 };
 
+export const restoreEdgeEverZipAndRefresh = async (
+  backup: ParsedEdgeEverZip,
+  target: JsonRestoreTarget,
+  refreshWorkspace: () => Promise<void>,
+  onProgress?: (progress: EdgeEverZipProgress) => void
+) => {
+  await restoreEdgeEverZip(backup, target, onProgress);
+  await refreshWorkspace();
+};
+
 export const downloadEdgeEverZip = (blob: Blob) => {
   const date = new Date().toISOString().slice(0, 10);
   const url = URL.createObjectURL(blob);

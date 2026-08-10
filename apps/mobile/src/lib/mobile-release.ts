@@ -3,23 +3,16 @@ import { clean, gt, valid } from "semver";
 const LATEST_RELEASE_API_URL = "https://api.github.com/repos/tianma-if/edgeever/releases/latest";
 
 export const GITHUB_LATEST_RELEASE_URL = "https://github.com/tianma-if/edgeever/releases/latest";
-export const GOOGLE_PLAY_URL = "https://play.google.com/store/apps/details?id=org.edgeever.mobile";
 
 export type MobileInstallUpdateSource = {
-  id: "play" | "github";
+  id: "github";
   labelEn: string;
   labelZh: string;
   url: string;
 };
 
-/** Android installable builds ship via Play and GitHub; both are offered when opening an update. */
+/** GitHub Releases is the canonical source for the latest Android installable build. */
 export const ANDROID_INSTALL_UPDATE_SOURCES: readonly MobileInstallUpdateSource[] = [
-  {
-    id: "play",
-    labelEn: "Google Play",
-    labelZh: "Google Play",
-    url: GOOGLE_PLAY_URL,
-  },
   {
     id: "github",
     labelEn: "GitHub Releases",
@@ -29,7 +22,6 @@ export const ANDROID_INSTALL_UPDATE_SOURCES: readonly MobileInstallUpdateSource[
 ];
 
 export const getDefaultMobileInstallUpdateUrl = (platform: "android" | "ios" | "web" | "windows" | "macos") => {
-  if (platform === "android") return GOOGLE_PLAY_URL;
   return GITHUB_LATEST_RELEASE_URL;
 };
 

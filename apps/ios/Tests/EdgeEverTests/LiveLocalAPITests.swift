@@ -34,8 +34,14 @@ final class LiveLocalAPITests: XCTestCase {
     private func requireLocalServer() async throws {
         var request = URLRequest(url: baseURL.appending(path: "/api/health"))
         request.timeoutInterval = 3
-        let (_, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+        do {
+            let (_, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+                throw XCTSkip("Local EdgeEver not running at \(baseURL)")
+            }
+        } catch is XCTSkip {
+            throw XCTSkip("Local EdgeEver not running at \(baseURL)")
+        } catch {
             throw XCTSkip("Local EdgeEver not running at \(baseURL)")
         }
     }

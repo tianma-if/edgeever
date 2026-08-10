@@ -1017,7 +1017,11 @@ fn update_memo(database: &Connection, params: &Value) -> Result<Value, String> {
     if changed == 0 {
         return Err(format!("Memo not found or deleted: {memo_id}"));
     }
-    tx.execute("UPDATE memo_contents SET content_json = ?2, content_markdown = ?3, content_text = ?4, content_hash = ?5, revision = revision + 1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE memo_id = ?1", rusqlite::params![memo_id, content_json_text, markdown, text, hash]).map_err(|e| e.to_string())?;
+    // `revision` is the last acknowledged cloud revision, not a counter for
+    // local autosaves. Advancing it here makes several saves on one device
+    // look newer than the cloud and produces a false revision conflict once
+    // the coalesced outbox item is synced.
+    tx.execute("UPDATE memo_contents SET content_json = ?2, content_markdown = ?3, content_text = ?4, content_hash = ?5, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE memo_id = ?1", rusqlite::params![memo_id, content_json_text, markdown, text, hash]).map_err(|e| e.to_string())?;
     tx.commit().map_err(|e| e.to_string())?;
     enqueue_change(
         database,

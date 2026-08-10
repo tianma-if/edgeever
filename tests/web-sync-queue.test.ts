@@ -134,9 +134,11 @@ describe("web sync queue concurrency", () => {
     const result = await runningSync;
 
     const queued = await localDb.syncQueue.get(getMemoUpdateQueueId("memo_sync_test"));
-    expect(result).toEqual({ attempted: 1, synced: 0, failed: 0, conflicted: 0 });
+    expect(result).toEqual({ attempted: 1, synced: 1, failed: 0, conflicted: 0 });
     expect(queued?.status).toBe("pending");
     expect(queued?.payload.title).toBe("newer text");
+    expect(queued?.payload.expectedRevision).toBe(1);
+    expect(queued?.payload.expectedContentHash).toBe("hash-1");
   });
 
   test("keeps a genuine server revision mismatch as a conflict", async () => {

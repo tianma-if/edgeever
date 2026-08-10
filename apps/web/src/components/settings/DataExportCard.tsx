@@ -1,5 +1,4 @@
 import { useRef, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, CheckCircle2, DatabaseBackup, Download, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
@@ -18,10 +17,14 @@ import {
   downloadEdgeEverZip,
   EdgeEverZipImportError,
   parseEdgeEverZip,
-  restoreEdgeEverZip,
+  restoreEdgeEverZipAndRefresh,
   type EdgeEverZipProgress,
   type ParsedEdgeEverZip,
 } from "@/lib/json-backup";
+
+type DataExportCardProps = {
+  refreshWorkspaceAfterImport: () => Promise<void>;
+};
 
 type OperationState = "idle" | "working" | "complete" | "error";
 type OperationKind = "export" | "import";
@@ -35,9 +38,8 @@ const Progress = ({ progress }: { progress: EdgeEverZipProgress }) => {
   );
 };
 
-export const DataExportCard = () => {
+export const DataExportCard = ({ refreshWorkspaceAfterImport }: DataExportCardProps) => {
   const { t } = useTranslation();
-  const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [state, setState] = useState<OperationState>("idle");
   const [operation, setOperation] = useState<OperationKind>("export");
@@ -118,16 +120,16 @@ export const DataExportCard = () => {
     setProgress({ completed: 0, total: 0 });
     setErrorMessage(null);
     try {
-      await restoreEdgeEverZip(
+      await restoreEdgeEverZipAndRefresh(
         archive,
         {
           restoreNotebooks: api.restoreJsonNotebooks,
           restoreMemos: api.restoreJsonMemos,
           restoreResource: api.restoreJsonResource,
         },
+        refreshWorkspaceAfterImport,
         setProgress
       );
-      await queryClient.invalidateQueries();
       setState("complete");
     } catch (error) {
       console.error("Failed to import EdgeEver ZIP", error);

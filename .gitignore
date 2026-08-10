@@ -13,6 +13,9 @@ apps/extension/dist-firefox/
 apps/extension/web-ext-artifacts/
 release/desktop/
 coverage/
+playwright-report/
+test-results/
+blob-report/
 
 # Rust sidecar build artifacts.
 target/
@@ -37,3 +40,8 @@ credentials.json
 
 # Local App Review crash dumps / image self-test screenshots.
 .tmp-app-review-crashes/
+
+# Local brand concept and research drafts.
+/assets/brand/edgeever-concept-13.png
+/docs/notion-ai-feature-landscape.en-US.md
+/docs/notion-ai-feature-landscape.zh-CN.md

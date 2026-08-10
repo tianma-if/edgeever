@@ -30,7 +30,7 @@ struct LoginView: View {
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(AppTheme.slate)
                     .frame(width: 42, height: 42)
-                    .background(Color.white)
+                    .background(AppTheme.card)
                     .clipShape(Circle())
                     .overlay(Circle().stroke(AppTheme.border, lineWidth: 1))
             }
@@ -114,7 +114,7 @@ struct LoginView: View {
                         .frame(maxWidth: .infinity)
                         .frame(height: 48)
                         .foregroundStyle(.white)
-                        .background(canSubmit ? AppTheme.title : Color(hex: 0xCBD5E1))
+                        .background(canSubmit ? AppTheme.title : AppTheme.disabledFill)
                         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                     }
                     .buttonStyle(CreateButtonPressStyle())
@@ -165,7 +165,7 @@ struct LoginView: View {
             .foregroundStyle(AppTheme.title)
             .padding(.horizontal, 14)
             .frame(height: 48)
-            .background(Color.white)
+            .background(AppTheme.card)
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)

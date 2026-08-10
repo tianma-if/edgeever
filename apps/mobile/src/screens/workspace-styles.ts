@@ -2120,7 +2120,7 @@ const baseWorkspaceStyles = StyleSheet.create({
     borderWidth: 4,
     height: MOBILE_UI_METRICS.floatingCreateButtonSize,
     justifyContent: "center",
-    marginTop: -16,
+    marginTop: -MOBILE_UI_METRICS.floatingCreateButtonLift,
     shadowColor: "#10b981",
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.28,

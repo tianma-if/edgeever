@@ -18,6 +18,7 @@ struct WorkspaceView: View {
     @State private var showTemplatePicker = false
     @State private var createLongPressConsumed = false
     @State private var showMoveSheet = false
+    @State private var showSelectionMore = false
     @State private var conflictItem: OutboxItem?
     @State private var createTapCount = 0
     @State private var syncPulse = 0
@@ -25,6 +26,9 @@ struct WorkspaceView: View {
     @State private var editingMemo: EditingMemoRoute?
     /// Create finished id, applied as list bounce after cover dismiss + reload.
     @State private var pendingCreateBounceId: String?
+    @State private var incomingClipURL: URL?
+    @State private var isImportingShare = false
+    @State private var shareImportAlert: ShareImportAlert?
 
     /// Android SafeAreaView edges=[top,left,right] — bottom chrome owns home indicator.
     private var showsBottomChrome: Bool {
@@ -150,6 +154,11 @@ struct WorkspaceView: View {
                     }
                 }
             }
+            .sheet(isPresented: $showSelectionMore) {
+                SelectionMoreSheet(store: store)
+                    .presentationDetents([.height(290), .medium])
+                    .presentationDragIndicator(.hidden)
+            }
             .sheet(item: $conflictItem) { item in
                 ConflictResolutionView(item: item) {
                     conflictItem = nil
@@ -187,6 +196,49 @@ struct WorkspaceView: View {
                 store.reload(env: env)
                 detectConflicts()
             }
+            .overlay {
+                if isImportingShare {
+                    ZStack {
+                        Color.black.opacity(0.34).ignoresSafeArea()
+                        VStack(spacing: 12) {
+                            ProgressView()
+                                .controlSize(.large)
+                                .tint(AppTheme.accent)
+                            Text(env.preferences.t("正在剪藏文章", en: "Clipping article"))
+                                .font(.system(size: 17, weight: .bold))
+                                .foregroundStyle(AppTheme.title)
+                            Text(env.preferences.t("正在提取标题、正文和图片链接…", en: "Extracting the title, body, and image links…"))
+                                .font(.system(size: 13))
+                                .foregroundStyle(AppTheme.secondary)
+                                .multilineTextAlignment(.center)
+                        }
+                        .padding(24)
+                        .background(AppTheme.card)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+                        if let incomingClipURL {
+                            WebClipCaptureView(
+                                url: incomingClipURL,
+                                onCaptured: { page in finishRenderedClip(page, sourceURL: incomingClipURL) },
+                                onFailed: { message in failRenderedClip(message, sourceURL: incomingClipURL) }
+                            )
+                            .frame(width: 1, height: 1)
+                            .opacity(0.01)
+                            .allowsHitTesting(false)
+                        }
+                    }
+                    .accessibilityIdentifier("shareImportOverlay")
+                }
+            }
+            .alert(item: $shareImportAlert) { alert in
+                Alert(
+                    title: Text(alert.title),
+                    message: Text(alert.message),
+                    dismissButton: .default(Text(env.preferences.t("好的", en: "OK"))) {
+                        if let draft = alert.draft { finishClip(draft) }
+                    }
+                )
+            }
         }
         .preferredColorScheme(env.preferences.colorScheme)
     }
@@ -222,7 +274,7 @@ struct WorkspaceView: View {
                     store.showNotebookPicker = true
                 } label: {
                     HStack(spacing: 4) {
-                        Text(store.titleLabel)
+                        Text(store.activeNotebook?.name ?? env.preferences.t("全部笔记", en: "All notes"))
                             .font(AppTheme.notebookTitleFont)
                             .foregroundStyle(AppTheme.title)
                             .lineLimit(1)
@@ -380,7 +432,7 @@ struct WorkspaceView: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
         .frame(minHeight: 32)
-        .background(searchActive ? AppTheme.searchActiveFill : Color.white)
+        .background(searchActive ? AppTheme.searchActiveFill : AppTheme.card)
         .overlay(
             RoundedRectangle(cornerRadius: 6)
                 .stroke(searchActive ? AppTheme.accentBorder : AppTheme.border, lineWidth: 1)
@@ -420,7 +472,7 @@ struct WorkspaceView: View {
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(active ? .white : AppTheme.slate)
                 .frame(width: MobileUIMetrics.compactControlHeight, height: MobileUIMetrics.compactControlHeight)
-                .background(active ? AppTheme.filterActive : Color.white)
+                .background(active ? AppTheme.filterActive : AppTheme.card)
                 .clipShape(Circle())
                 .overlay(Circle().stroke(active ? AppTheme.filterActive : AppTheme.border, lineWidth: 1))
                 .accessibilityLabel(label)
@@ -472,9 +524,9 @@ struct WorkspaceView: View {
                 } label: {
                     Image(systemName: "plus")
                         .font(.system(size: 22, weight: .semibold))
-                        .foregroundStyle(canCreate ? .white : Color(hex: 0xE2E8F0))
+                        .foregroundStyle(canCreate ? .white : AppTheme.disabledText)
                         .frame(width: createSize, height: createSize)
-                        .background(canCreate ? AppTheme.accentBright : Color(hex: 0xCBD5E1))
+                        .background(canCreate ? AppTheme.accentAction : AppTheme.disabledFill)
                         .clipShape(Circle())
                         .overlay(Circle().stroke(Color.white, lineWidth: 3))
                         .shadow(
@@ -514,11 +566,11 @@ struct WorkspaceView: View {
             .frame(maxWidth: .infinity)
 
             // Home indicator — same white surface, continuous with the 52pt band.
-            Color.white
+            AppTheme.card
                 .frame(height: bottomInset)
                 .frame(maxWidth: .infinity)
         }
-        .background(Color.white)
+        .background(AppTheme.card)
         .accessibilityIdentifier("bottomNav")
     }
 
@@ -546,7 +598,7 @@ struct WorkspaceView: View {
     private var selectionBar: some View {
         let bottomInset = MobileUIMetrics.bottomSafeInset
         return VStack(spacing: 0) {
-            HStack(spacing: 24) {
+            HStack(spacing: 0) {
                 Button {
                     showMoveSheet = true
                 } label: {
@@ -555,6 +607,8 @@ struct WorkspaceView: View {
                         Text(env.preferences.t("移动", en: "Move")).font(.caption2.weight(.bold))
                     }
                 }
+                .frame(maxWidth: .infinity)
+                .disabled(store.selectedMemoIds.isEmpty)
                 Button(role: .destructive) {
                     Task { await store.softDeleteSelection(env: env) }
                 } label: {
@@ -563,21 +617,28 @@ struct WorkspaceView: View {
                         Text(env.preferences.t("删除", en: "Delete")).font(.caption2.weight(.bold))
                     }
                 }
-                Spacer()
-                Text(env.preferences.t("已选 \(store.selectedMemoIds.count)", en: "\(store.selectedMemoIds.count) selected"))
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(AppTheme.secondary)
+                .frame(maxWidth: .infinity)
+                .disabled(store.selectedMemoIds.isEmpty)
+                Button {
+                    showSelectionMore = true
+                } label: {
+                    VStack(spacing: 4) {
+                        Image(systemName: "ellipsis")
+                        Text(env.preferences.t("更多", en: "More")).font(.caption2.weight(.bold))
+                    }
+                }
+                .frame(maxWidth: .infinity)
             }
-            .padding(.horizontal, 32)
+            .padding(.horizontal, 20)
             .padding(.top, 4)
             .frame(height: MobileUIMetrics.bottomNavigationHeight, alignment: .top)
             .frame(maxWidth: .infinity)
 
-            Color.white
+            AppTheme.card
                 .frame(height: bottomInset)
                 .frame(maxWidth: .infinity)
         }
-        .background(Color.white)
+        .background(AppTheme.card)
         .overlay(alignment: .top) {
             Rectangle().fill(AppTheme.border).frame(height: 1)
         }
@@ -600,7 +661,7 @@ struct WorkspaceView: View {
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
-                .background(Color.white)
+                .background(AppTheme.card)
                 .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
@@ -621,26 +682,57 @@ struct WorkspaceView: View {
 
     private func consumeShare() {
         let payloads = env.shareHandoff.consumePending()
-        guard let first = payloads.first, let scope = env.session.dataScope else { return }
-        var bodyParts: [String] = []
-        if let title = first.title, !title.isEmpty { bodyParts.append(title) }
-        if let url = first.url, !url.isEmpty { bodyParts.append(url) }
-        if let text = first.text, !text.isEmpty { bodyParts.append(text) }
-        let body = bodyParts.joined(separator: "\n\n")
-        try? env.drafts.write(
-            scope: scope,
-            draft: MemoDraft(
-                draftKey: DraftRepository.newKey,
-                title: first.title ?? "",
-                contentMarkdown: body,
-                contentJson: nil,
-                notebookId: store.selectedNotebookId ?? store.notebooks.first?.id ?? "",
-                tagsText: "",
-                expectedRevision: nil,
-                updatedAt: EdgeEverDate.nowString()
+        guard !payloads.isEmpty else { return }
+        guard let sourceURL = WebClipper.sharedWebURL(from: payloads) else {
+            shareImportAlert = ShareImportAlert(
+                title: env.preferences.t("无法剪藏", en: "Unable to clip"),
+                message: env.preferences.t("分享内容里没有可识别的网页链接。", en: "The shared content does not contain a recognizable web link.")
             )
-        )
-        openCreateNote()
+            return
+        }
+        guard !store.notebooks.isEmpty else {
+            shareImportAlert = ShareImportAlert(
+                title: env.preferences.t("无法保存剪藏", en: "Unable to save clip"),
+                message: env.preferences.t("请先在 EdgeEver 中创建一个笔记本。", en: "Create a notebook in EdgeEver first.")
+            )
+            return
+        }
+
+        isImportingShare = true
+        if WebClipper.isWeChatArticle(sourceURL) {
+            incomingClipURL = sourceURL
+        } else {
+            Task {
+                let draft = await WebClipper.build(sourceURL)
+                finishClip(draft)
+            }
+        }
+    }
+
+    private func finishRenderedClip(_ page: RenderedWebPage, sourceURL: URL) {
+        finishClip(WebClipper.buildRendered(sourceURL, page: page))
+    }
+
+    private func failRenderedClip(_ message: String, sourceURL: URL) {
+        incomingClipURL = nil
+        Task {
+            let draft = await WebClipper.build(sourceURL)
+            isImportingShare = false
+            shareImportAlert = ShareImportAlert(
+                title: env.preferences.t("正文剪藏失败", en: "Article extraction failed"),
+                message: message + env.preferences.t(
+                    " 已保留文章链接，你可以稍后重新分享重试。",
+                    en: " The article link was preserved; you can share it again later to retry."
+                ),
+                draft: draft
+            )
+        }
+    }
+
+    private func finishClip(_ draft: WebClipDraft) {
+        incomingClipURL = nil
+        isImportingShare = false
+        openCreateNote(seed: draft.createSeed)
     }
 
     private func detectConflicts() {
@@ -650,7 +742,113 @@ struct WorkspaceView: View {
     }
 }
 
+private struct ShareImportAlert: Identifiable {
+    let id = UUID()
+    let title: String
+    let message: String
+    var draft: WebClipDraft? = nil
+}
+
 // NotebookPickerSheet / ListActionsSheet live in their own files for Android parity.
+
+struct SelectionMoreSheet: View {
+    @Environment(AppEnvironment.self) private var env
+    @Environment(\.dismiss) private var dismiss
+    @Bindable var store: WorkspaceStore
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Capsule()
+                .fill(AppTheme.sheetHandle)
+                .frame(width: 42, height: 4)
+                .padding(.top, 10)
+                .padding(.bottom, 12)
+
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(env.preferences.t("批量操作", en: "Batch actions"))
+                        .font(.system(size: 16, weight: .heavy))
+                        .foregroundStyle(AppTheme.title)
+                    Text(store.selectedMemoIds.isEmpty
+                        ? env.preferences.t("选择笔记", en: "Select notes")
+                        : env.preferences.t("已选择 \(store.selectedMemoIds.count) 条", en: "\(store.selectedMemoIds.count) selected"))
+                        .font(.system(size: 12))
+                        .foregroundStyle(AppTheme.secondary)
+                }
+                Spacer()
+                Button { dismiss() } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(AppTheme.title)
+                        .frame(width: 34, height: 34)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(env.preferences.t("关闭", en: "Close"))
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 8)
+
+            selectionAction(
+                icon: "checkmark.square",
+                label: store.allVisibleMemosSelected
+                    ? env.preferences.t("全不选当前列表", en: "Deselect current list")
+                    : env.preferences.t("全选当前列表", en: "Select current list"),
+                disabled: store.memos.isEmpty
+            ) {
+                store.toggleVisibleSelection()
+                dismiss()
+            }
+
+            selectionAction(
+                icon: "sparkles",
+                label: store.nextSelectionPinValue
+                    ? env.preferences.t("置顶", en: "Pin")
+                    : env.preferences.t("取消置顶", en: "Unpin"),
+                disabled: store.selectedMemoIds.isEmpty
+            ) {
+                let target = store.nextSelectionPinValue
+                dismiss()
+                Task { await store.pinSelection(env: env, isPinned: target) }
+            }
+
+            selectionAction(
+                icon: "xmark",
+                label: env.preferences.t("取消选择", en: "Clear selection"),
+                disabled: false
+            ) {
+                store.clearSelection()
+                dismiss()
+            }
+
+            Spacer(minLength: 0)
+        }
+        .background(AppTheme.card)
+    }
+
+    private func selectionAction(
+        icon: String,
+        label: String,
+        disabled: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: icon)
+                    .font(.system(size: 17, weight: .semibold))
+                    .frame(width: 24)
+                Text(label)
+                    .font(.system(size: 15, weight: .semibold))
+                Spacer()
+            }
+            .foregroundStyle(disabled ? AppTheme.muted : AppTheme.title)
+            .padding(.horizontal, 18)
+            .frame(minHeight: 48)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(disabled)
+    }
+}
 
 struct MoveNotebookSheet: View {
     @Environment(AppEnvironment.self) private var env
@@ -662,7 +860,7 @@ struct MoveNotebookSheet: View {
     var body: some View {
         VStack(spacing: 0) {
             Capsule()
-                .fill(Color(hex: 0xCBD5E1))
+                .fill(AppTheme.sheetHandle)
                 .frame(width: 42, height: 4)
                 .padding(.top, 10)
                 .padding(.bottom, 8)
@@ -713,7 +911,7 @@ struct MoveNotebookSheet: View {
                 }
             }
         }
-        .background(Color.white)
+        .background(AppTheme.card)
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.hidden)
     }

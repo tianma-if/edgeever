@@ -1,6 +1,7 @@
 export const MOBILE_UI_METRICS = {
   bottomNavigationHeight: 52,
   compactControlHeight: 36,
+  floatingCreateButtonLift: 16,
   floatingCreateButtonSize: 52,
   floatingSheetCornerRadius: 10,
   minimumTouchTarget: 44,

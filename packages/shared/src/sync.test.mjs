@@ -2,9 +2,11 @@ import { describe, expect, test } from "bun:test";
 import {
   createEmptySyncQueueSummary,
   createEmptySyncRunResult,
+  getMemoSyncBaseConflictDetails,
   getNextSyncQueueRetryDelay,
   getSyncRetryAt,
   getSyncRetryDelayMs,
+  isMemoSyncBaseCurrent,
   summarizeSyncQueue,
 } from "./sync.ts";
 
@@ -64,5 +66,20 @@ describe("shared sync queue contract", () => {
     expect(getNextSyncQueueRetryDelay(items, now)).toBe(250);
     expect(getNextSyncQueueRetryDelay(items.slice(1), now)).toBe(5_000);
     expect(getNextSyncQueueRetryDelay(items.slice(2), now)).toBeNull();
+  });
+
+  test("shares edit-session base validation and conflict details", () => {
+    const current = { revision: 4, contentHash: "remote-hash" };
+    const expected = { expectedRevision: 4, expectedContentHash: "remote-hash" };
+
+    expect(isMemoSyncBaseCurrent(current, expected)).toBe(true);
+    expect(isMemoSyncBaseCurrent({ ...current, revision: 5 }, expected)).toBe(false);
+    expect(getMemoSyncBaseConflictDetails({ ...current, revision: 5 }, expected)).toEqual({
+      expectedRevision: 4,
+      currentRevision: 5,
+      expectedContentHash: "remote-hash",
+      currentContentHash: "remote-hash",
+      source: "offline_sync",
+    });
   });
 });

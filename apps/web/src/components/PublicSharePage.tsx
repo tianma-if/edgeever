@@ -1,3 +1,4 @@
+import "katex/dist/katex.min.css";
 import { Node, mergeAttributes } from "@tiptap/core";
 import Image from "@tiptap/extension-image";
 import { TableKit } from "@tiptap/extension-table";
@@ -12,6 +13,7 @@ import { api } from "@/lib/api";
 import { EdgeEverCodeBlock, codeBlockLowlight } from "@/lib/code-block";
 import {
   parseImageWidth,
+  createEdgeEverMathematics,
   getImageReferrerPolicy,
   MergeDivider,
   resolveMemoContentDoc,
@@ -79,6 +81,7 @@ const SharedDocument = ({ share, token }: { share: PublicMemoShare; token: strin
       StarterKit.configure({ codeBlock: false, link: { openOnClick: true } }),
       EdgeEverCodeBlock.configure({ lowlight: codeBlockLowlight, defaultLanguage: "plaintext" }),
       MergeDivider,
+      ...createEdgeEverMathematics(),
       SharedThemeBlock,
       SharedImage.configure({ allowBase64: false, inline: false }),
       TableKit.configure({ table: { renderWrapper: true } }),

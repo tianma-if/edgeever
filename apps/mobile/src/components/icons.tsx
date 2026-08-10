@@ -1,9 +1,15 @@
 import Feather from "@expo/vector-icons/Feather";
 import type { ComponentProps } from "react";
+import { ActivityIndicator as NativeActivityIndicator, type ActivityIndicatorProps } from "react-native";
 import { resolveMobileThemeColor, useMobileTheme } from "../lib/mobile-theme";
 
 type FeatherName = ComponentProps<typeof Feather>["name"];
 type IconProps = Omit<ComponentProps<typeof Feather>, "name">;
+
+export const ActivityIndicator = ({ color, ...props }: ActivityIndicatorProps) => {
+  const { resolvedTheme } = useMobileTheme();
+  return <NativeActivityIndicator {...props} color={resolveMobileThemeColor(color as string | undefined, resolvedTheme)} />;
+};
 
 const createIcon = (name: FeatherName) => {
   const Icon = ({ color, ...props }: IconProps) => {
@@ -66,6 +72,7 @@ export const Share2 = createIcon("share-2");
 export const ShieldCheck = createIcon("shield");
 export const SlidersHorizontal = createIcon("sliders");
 export const Sparkles = createIcon("star");
+export const Square = createIcon("square");
 export const Sun = createIcon("sun");
 export const Tag = createIcon("tag");
 export const Trash2 = createIcon("trash-2");

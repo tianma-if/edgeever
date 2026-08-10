@@ -1,6 +1,13 @@
 import { describe, expect, test } from "bun:test";
 
-const { isStagedResourceReferenced, mergeMemoIdMappings, orderBootstrapNotebooks, rewriteStagedResource } = await import("./desktop-sync.ts");
+const {
+  isStagedResourceReferenced,
+  mergeMemoIdMappings,
+  mergeSyncedMemos,
+  orderBootstrapNotebooks,
+  resolveDesktopMemoSyncBase,
+  rewriteStagedResource,
+} = await import("./desktop-sync.ts");
 
 describe("desktop staged resource sync", () => {
   test("rewrites placeholders in memo JSON and markdown", () => {
@@ -39,6 +46,17 @@ describe("desktop staged resource sync", () => {
 
     expect(retained.get("memo_local_1")).toBe("memo_remote_1");
   });
+
+  test("keeps the latest acknowledged memo base across sync phases", () => {
+    const created = { id: "memo_remote_1", revision: 0 };
+    const updated = { id: "memo_remote_1", revision: 1 };
+    const retained = mergeSyncedMemos(
+      new Map([[created.id, created]]),
+      new Map([[updated.id, updated]]),
+    );
+
+    expect(retained.get("memo_remote_1")).toEqual(updated);
+  });
 });
 
 describe("desktop bootstrap sync", () => {
@@ -52,5 +70,21 @@ describe("desktop bootstrap sync", () => {
       "child",
       "grandchild",
     ]);
+  });
+});
+
+describe("desktop memo sync base", () => {
+  test("repairs a legacy local autosave revision that is ahead of the cloud", () => {
+    expect(resolveDesktopMemoSyncBase(
+      { revision: 3, contentHash: "cloud-3" },
+      { expectedRevision: 9, expectedContentHash: "local-autosave-9" },
+    )).toEqual({ expectedRevision: 3, expectedContentHash: "cloud-3" });
+  });
+
+  test("keeps a genuinely stale base so the server update remains protected", () => {
+    expect(resolveDesktopMemoSyncBase(
+      { revision: 9, contentHash: "cloud-9" },
+      { expectedRevision: 3, expectedContentHash: "cloud-3" },
+    )).toEqual({ expectedRevision: 3, expectedContentHash: "cloud-3" });
   });
 });

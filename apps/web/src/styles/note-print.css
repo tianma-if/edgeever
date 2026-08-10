@@ -21,6 +21,13 @@
   box-sizing: border-box;
 }
 
+.edgeever-print-content .tiptap-mathematics-render[data-type="block-math"] {
+  max-width: 100%;
+  margin: 5mm 0;
+  overflow: hidden;
+  text-align: center;
+}
+
 .edgeever-print-document {
   color: #172033;
   font-family: "Noto Sans SC Variable", sans-serif;

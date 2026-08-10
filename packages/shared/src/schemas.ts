@@ -153,6 +153,54 @@ export const ObjectStorageConnectionTestSchema = z.object({
   objectPrefix: z.string().trim().max(500).default(""),
 });
 
+export const AiProviderSchema = z.enum(["openai-compatible", "anthropic", "google"]);
+
+const AiBaseUrlSchema = z.string().trim().url().max(500).superRefine((value, context) => {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return;
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    context.addIssue({ code: "custom", message: "AI Base URL must use HTTP or HTTPS." });
+  }
+  if (url.username || url.password) {
+    context.addIssue({ code: "custom", message: "AI Base URL must not contain credentials." });
+  }
+});
+
+export const AiModelSettingsUpdateSchema = z.object({
+  provider: AiProviderSchema,
+  displayName: z.string().trim().min(1).max(80),
+  baseUrl: AiBaseUrlSchema,
+  apiKey: z.string().min(1).max(4096).optional(),
+  modelId: z.string().trim().min(1).max(200),
+  isEnabled: z.boolean().default(true),
+});
+
+export const AiConnectionTestSchema = AiModelSettingsUpdateSchema.omit({ isEnabled: true });
+
+export const AiGenerateSchema = z.object({
+  action: z.enum([
+    "summarize",
+    "extract-key-points",
+    "extract-todos",
+    "rewrite-proofread",
+    "translate",
+  ]),
+  title: z.string().trim().max(160).default(""),
+  contentMarkdown: z.string().max(300_000),
+  targetLanguage: z.string().trim().min(1).max(80).optional(),
+}).superRefine((input, context) => {
+  if (input.action === "translate" && !input.targetLanguage) {
+    context.addIssue({ code: "custom", path: ["targetLanguage"], message: "A target language is required for translation." });
+  }
+  if (!input.title && !input.contentMarkdown.trim()) {
+    context.addIssue({ code: "custom", path: ["contentMarkdown"], message: "Note content is required." });
+  }
+});
+
 export type NotebookCreateInput = z.infer<typeof NotebookCreateSchema>;
 export type NotebookUpdateInput = z.infer<typeof NotebookUpdateSchema>;
 export type MemoCreateInput = z.infer<typeof MemoCreateSchema>;
@@ -172,3 +220,6 @@ export type TagRenameInput = z.infer<typeof TagRenameSchema>;
 export type ResourceUpdateInput = z.infer<typeof ResourceUpdateSchema>;
 export type ObjectStorageSettingsUpdateInput = z.infer<typeof ObjectStorageSettingsUpdateSchema>;
 export type ObjectStorageConnectionTestInput = z.infer<typeof ObjectStorageConnectionTestSchema>;
+export type AiModelSettingsUpdateInput = z.infer<typeof AiModelSettingsUpdateSchema>;
+export type AiConnectionTestInput = z.infer<typeof AiConnectionTestSchema>;
+export type AiGenerateInput = z.infer<typeof AiGenerateSchema>;

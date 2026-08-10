@@ -53,10 +53,12 @@ ambiguous.
 - Keep `/api/*`, `/mcp`, `/api/openapi.json`, and `/api/health` unchanged.
 - Keep the current migration files append-only; do not fork the schema for
   Docker.
-- Keep root secrets such as `EDGE_EVER_STORAGE_ENCRYPTION_KEY` in environment
-  variables or Docker secrets, never in the image or database. Credentials
-  entered through the instance settings may be stored only as AES-GCM
-  ciphertext protected by that deployment-level key.
+- Keep root secrets in environment variables or Docker secrets, never in the
+  image or database. Object-storage secrets use `EDGE_EVER_STORAGE_ENCRYPTION_KEY`.
+  Personal AI model API keys automatically use an AI-specific key derived from
+  the existing instance authentication secret; an optional
+  `EDGE_EVER_CREDENTIALS_ENCRYPTION_KEY` can override it for advanced key rotation.
+  Stored credentials must remain AES-GCM ciphertext.
 - Make `/data` the only required persistent application path so NAS users can
   back up one volume.
 - Support `EDGE_EVER_AUTH_USERNAME`, `EDGE_EVER_AUTH_PASSWORD`, and session
@@ -81,6 +83,8 @@ EDGE_EVER_AUTH_PASSWORD='<strong-password>' bun run start:self-hosted
 
 Set `EDGE_EVER_DATA_DIR` to the directory that should be persisted by Docker
 or a NAS volume. This runtime is not yet a supported release artifact.
+Long-running streaming responses use a 120-second idle timeout by default. Set
+`EDGE_EVER_IDLE_TIMEOUT_SECONDS` to a value from 10 to 255 to override it.
 
 The same runtime can use an S3-compatible object store:
 

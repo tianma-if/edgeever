@@ -10,6 +10,16 @@ export type LocalDraft = {
   updatedAt: string;
 };
 
+const localDraftTimestamp = (draft: LocalDraft | null | undefined) => {
+  const timestamp = draft ? Date.parse(draft.updatedAt) : Number.NaN;
+  return Number.isFinite(timestamp) ? timestamp : 0;
+};
+
+export const selectNewestLocalDraft = (
+  first: LocalDraft | null | undefined,
+  second: LocalDraft | null | undefined,
+) => localDraftTimestamp(second) > localDraftTimestamp(first) ? second ?? null : first ?? second ?? null;
+
 export type MemoUpdateSyncPayload = {
   memoId: string;
   expectedRevision: number;

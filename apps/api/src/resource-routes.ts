@@ -1,0 +1,233 @@
+import { ResourceUpdateSchema, type MemoDetail, type Resource } from "@edgeever/shared";
+import { zValidator } from "@hono/zod-validator";
+import type { Hono } from "hono";
+import { auditStatement } from "./audit";
+import type { AppContext, AppEnv, AuditActor } from "./api-context";
+import { AppError } from "./app-error";
+import { isoNow } from "./entity-utils";
+import { apiError, badRequest, notFound } from "./http-errors";
+import { resolveObjectStorage } from "./object-storage";
+import {
+  SUPPORTED_IMAGE_MIME_TYPES,
+  contentDispositionAttachment,
+  contentDispositionInline,
+  mapResource,
+  mapResourceListItem,
+  mapResourceStorageSummary,
+  normalizeFilename,
+  type ResourceListRow,
+  type ResourceRow,
+  type ResourceStatsRow,
+} from "./resource-service";
+import { getAuditActor, getWorkspaceId, requireScopes } from "./request-auth";
+import type { DatabaseAdapter } from "./storage-contract";
+
+type ResourceRouteDependencies = {
+  clampNumber: (value: number, min: number, max: number) => number;
+  createAttachmentResource: (context: AppContext, input: {
+    memoId: string;
+    filename: string;
+    mimeType: string;
+    bytes: Uint8Array;
+    actor: AuditActor;
+  }) => Promise<Resource>;
+  createImageResource: (context: AppContext, input: {
+    memoId: string;
+    filename: string;
+    mimeType: string;
+    bytes: Uint8Array;
+    actor: AuditActor;
+    source: "upload" | "mcp";
+  }) => Promise<Resource>;
+  getMemoDetail: (
+    database: DatabaseAdapter,
+    workspaceId: string,
+    memoId: string,
+  ) => Promise<MemoDetail | null>;
+  getResourceRow: (
+    database: DatabaseAdapter,
+    workspaceId: string,
+    resourceId: string,
+  ) => Promise<ResourceRow | null>;
+};
+
+export const registerResourceRoutes = (
+  app: Hono<AppEnv>,
+  dependencies: ResourceRouteDependencies,
+) => {
+  app.get("/api/v1/resources", async (context) => {
+    const denied = requireScopes(context, "read:resources");
+    if (denied) return denied;
+
+    const limit = dependencies.clampNumber(Number(context.req.query("limit") ?? 500), 1, 500);
+    const workspaceId = getWorkspaceId(context);
+    const [rows, stats] = await Promise.all([
+      context.env.storage.db.prepare(
+        `SELECT r.id, r.memo_id, r.original_memo_id, r.bucket_name, r.object_key, r.storage_config_id, r.kind,
+                r.mime_type, r.filename, r.byte_size, r.sha256, r.width, r.height,
+                r.created_at, r.updated_at, m.title AS memo_title, m.excerpt AS memo_excerpt,
+                m.is_deleted AS memo_is_deleted
+         FROM resources r
+         INNER JOIN memos m ON m.id = r.memo_id
+         WHERE m.workspace_id = ? AND r.is_deleted = 0
+         ORDER BY r.created_at DESC
+         LIMIT ?`,
+      ).bind(workspaceId, limit).all<ResourceListRow>(),
+      context.env.storage.db.prepare(
+        `SELECT COUNT(*) AS total_count,
+                COALESCE(SUM(byte_size), 0) AS total_bytes,
+                COALESCE(SUM(CASE WHEN kind = 'image' THEN 1 ELSE 0 END), 0) AS image_count,
+                COALESCE(SUM(CASE WHEN kind = 'attachment' THEN 1 ELSE 0 END), 0) AS attachment_count
+         FROM resources r
+         INNER JOIN memos m ON m.id = r.memo_id
+         WHERE m.workspace_id = ? AND r.is_deleted = 0`,
+      ).bind(workspaceId).first<ResourceStatsRow>(),
+    ]);
+
+    return context.json({
+      resources: rows.results.map(mapResourceListItem),
+      summary: mapResourceStorageSummary(stats),
+    });
+  });
+
+  app.post("/api/v1/memos/:id/resources", async (context) => {
+    const denied = requireScopes(context, "write:resources");
+    if (denied) return denied;
+
+    const memoId = context.req.param("id");
+    const memo = await dependencies.getMemoDetail(
+      context.env.storage.db,
+      getWorkspaceId(context),
+      memoId,
+    );
+    if (!memo) return notFound(context, "Memo not found");
+
+    const form = await context.req.raw.formData();
+    const file = form.get("file");
+    if (!(file instanceof File)) {
+      return badRequest(context, "Expected multipart form field named file.");
+    }
+
+    const input = {
+      memoId,
+      filename: file.name,
+      mimeType: file.type || "application/octet-stream",
+      bytes: new Uint8Array(await file.arrayBuffer()),
+      actor: getAuditActor(context),
+    };
+    let resource: Resource;
+    try {
+      resource = SUPPORTED_IMAGE_MIME_TYPES.has(input.mimeType)
+        ? await dependencies.createImageResource(context, { ...input, source: "upload" })
+        : await dependencies.createAttachmentResource(context, input);
+    } catch (error) {
+      if (error instanceof AppError) {
+        return apiError(context, error.code, error.message, error.status);
+      }
+      throw error;
+    }
+
+    return context.json({ resource }, 201);
+  });
+
+  app.get("/api/v1/resources/:id/blob", async (context) => {
+    const denied = requireScopes(context, "read:resources");
+    if (denied) return denied;
+
+    const resource = await dependencies.getResourceRow(
+      context.env.storage.db,
+      getWorkspaceId(context),
+      context.req.param("id"),
+    );
+    if (!resource) return notFound(context, "Resource not found");
+
+    const source = await resolveObjectStorage(context.env, resource.storage_config_id);
+    const object = await source.store.get(resource.object_key);
+    if (!object) return notFound(context, "Resource object not found");
+
+    const headers = new Headers();
+    object.writeHttpMetadata(headers);
+    headers.set("Content-Type", resource.mime_type ?? headers.get("Content-Type") ?? "application/octet-stream");
+    headers.set("Cache-Control", headers.get("Cache-Control") ?? "private, max-age=3600");
+    headers.set("Content-Length", String(object.size));
+    headers.set(
+      "Content-Disposition",
+      resource.kind === "image"
+        ? contentDispositionInline(resource.filename)
+        : contentDispositionAttachment(resource.filename),
+    );
+    headers.set("X-Content-Type-Options", "nosniff");
+    return new Response(object.body, { headers });
+  });
+
+  app.patch(
+    "/api/v1/resources/:id",
+    zValidator("json", ResourceUpdateSchema),
+    async (context) => {
+      const denied = requireScopes(context, "write:resources");
+      if (denied) return denied;
+
+      const resourceId = context.req.param("id");
+      const workspaceId = getWorkspaceId(context);
+      const resource = await dependencies.getResourceRow(
+        context.env.storage.db,
+        workspaceId,
+        resourceId,
+      );
+      if (!resource) return notFound(context, "Resource not found");
+
+      const filename = normalizeFilename(context.req.valid("json").filename);
+      if (!filename) return badRequest(context, "Resource filename is required.");
+
+      const now = isoNow();
+      const actor = getAuditActor(context);
+      await context.env.storage.db.batch([
+        context.env.storage.db.prepare(
+          `UPDATE resources SET filename = ?, updated_at = ? WHERE id = ?`,
+        ).bind(filename, now, resourceId),
+        auditStatement(context.env.storage.db, actor.actorType, actor.actorId, "resource.rename", "resource", resourceId, {
+          memoId: resource.memo_id,
+          previousFilename: resource.filename,
+          filename,
+        }),
+      ]);
+
+      const updated = await dependencies.getResourceRow(
+        context.env.storage.db,
+        workspaceId,
+        resourceId,
+      );
+      if (!updated) return notFound(context, "Resource not found");
+      return context.json({ resource: mapResource(updated) });
+    },
+  );
+
+  app.delete("/api/v1/resources/:id", async (context) => {
+    const denied = requireScopes(context, "write:resources");
+    if (denied) return denied;
+
+    const resourceId = context.req.param("id");
+    const resource = await dependencies.getResourceRow(
+      context.env.storage.db,
+      getWorkspaceId(context),
+      resourceId,
+    );
+    if (!resource) return notFound(context, "Resource not found");
+
+    const now = isoNow();
+    const actor = getAuditActor(context);
+    await context.env.storage.db.batch([
+      context.env.storage.db.prepare(
+        `UPDATE resources SET is_deleted = 1, deleted_at = ?, updated_at = ? WHERE id = ?`,
+      ).bind(now, now, resourceId),
+      auditStatement(context.env.storage.db, actor.actorType, actor.actorId, "resource.delete", "resource", resourceId, {
+        memoId: resource.memo_id,
+        filename: resource.filename,
+        byteSize: resource.byte_size,
+      }),
+    ]);
+    const source = await resolveObjectStorage(context.env, resource.storage_config_id);
+    await source.store.delete(resource.object_key);
+    return context.json({ ok: true });
+  });
+};

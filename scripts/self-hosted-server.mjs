@@ -12,6 +12,10 @@ const databaseFile = resolve(process.env.EDGE_EVER_SQLITE_FILE ?? join(dataDirec
 const resourcesDirectory = resolve(process.env.EDGE_EVER_RESOURCES_DIR ?? join(dataDirectory, "resources"));
 const webDirectory = resolve(process.env.EDGE_EVER_WEB_DIR ?? join(projectRoot, "apps/web/dist"));
 const port = Number(process.env.PORT ?? process.env.EDGE_EVER_PORT ?? 8787);
+const configuredIdleTimeout = Number(process.env.EDGE_EVER_IDLE_TIMEOUT_SECONDS ?? 120);
+const idleTimeout = Number.isFinite(configuredIdleTimeout)
+  ? Math.min(255, Math.max(10, configuredIdleTimeout))
+  : 120;
 
 await mkdir(dataDirectory, { recursive: true });
 await mkdir(resourcesDirectory, { recursive: true });
@@ -77,6 +81,7 @@ const env = {
   EDGE_EVER_AUTH_LOGIN_IP_MAX_ATTEMPTS: process.env.EDGE_EVER_AUTH_LOGIN_IP_MAX_ATTEMPTS,
   EDGE_EVER_AUTH_LOGIN_IP_COOLDOWN_SECONDS: process.env.EDGE_EVER_AUTH_LOGIN_IP_COOLDOWN_SECONDS,
   EDGE_EVER_STORAGE_ENCRYPTION_KEY: process.env.EDGE_EVER_STORAGE_ENCRYPTION_KEY,
+  EDGE_EVER_CREDENTIALS_ENCRYPTION_KEY: process.env.EDGE_EVER_CREDENTIALS_ENCRYPTION_KEY,
   EDGE_EVER_DEMO_MODE: process.env.EDGE_EVER_DEMO_MODE,
   EDGE_EVER_ALLOW_UNAUTHENTICATED: process.env.EDGE_EVER_ALLOW_UNAUTHENTICATED,
 };
@@ -122,6 +127,9 @@ const serveStatic = async (request) => {
 
 const server = Bun.serve({
   port,
+  // Model providers may take longer than Bun's 10-second default to emit the
+  // first streaming token. Keep the connection alive within Bun's supported range.
+  idleTimeout,
   async fetch(request) {
     const pathname = new URL(request.url).pathname;
     if (pathname.startsWith("/api/") || pathname === "/mcp" || pathname.startsWith("/mcp/")) {
@@ -134,3 +142,4 @@ const server = Bun.serve({
 console.log(`[self-hosted] listening on ${server.url}`);
 console.log(`[self-hosted] data directory: ${dataDirectory}`);
 console.log(`[self-hosted] storage backend: ${storageBackend}`);
+console.log(`[self-hosted] idle timeout: ${idleTimeout}s`);

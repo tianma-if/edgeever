@@ -1,3 +1,4 @@
+import "katex/dist/katex.min.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { EditorContent, useEditor } from "@tiptap/react";
@@ -6,7 +7,7 @@ import Image from "@tiptap/extension-image";
 import { mergeAttributes } from "@tiptap/core";
 import Placeholder from "@tiptap/extension-placeholder";
 import { TableKit } from "@tiptap/extension-table";
-import { createExcerpt, docToMarkdown, docToText, emptyDoc, getImageReferrerPolicy, MergeDivider, type MemoDetail, type MemoEditSession, type Notebook, type TiptapDoc } from "@edgeever/shared";
+import { createEdgeEverMathematics, createExcerpt, docToMarkdown, docToText, emptyDoc, getImageReferrerPolicy, MergeDivider, type MemoDetail, type MemoEditSession, type Notebook, type TiptapDoc } from "@edgeever/shared";
 import { getMobileEditorInputAttributes, getMobileEditorPlaceholder } from "@edgeever/shared/mobile-editor";
 import {
   MobileEditorFallback,
@@ -188,6 +189,7 @@ export const MobileStandaloneTiptapEditor = ({
       StarterKit.configure({ codeBlock: false }),
       EdgeEverCodeBlock.configure({ lowlight: codeBlockLowlight, defaultLanguage: "plaintext" }),
       MergeDivider,
+      ...createEdgeEverMathematics(),
       ThemeBlock,
       ProtectedExternalImage.configure({
         allowBase64: false,

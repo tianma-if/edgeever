@@ -1,4 +1,4 @@
-import type { MemoSummary, Notebook } from "@edgeever/shared";
+import { DEFAULT_MEMO_TITLE, type MemoSummary, type Notebook } from "@edgeever/shared";
 import type { MobileLocalePreference } from "../lib/preferences";
 
 export type NotebookOption = {
@@ -147,7 +147,7 @@ export const formatMemoPreviewDate = (value: string, localePreference: MobileLoc
 export const sortMemoSummaries = (memos: MemoSummary[], sortMode: unknown) =>
   [...memos].sort((left, right) => {
     if (sortMode === "title-asc") {
-      return (left.title || "无标题笔记").localeCompare(right.title || "无标题笔记");
+      return (left.title || DEFAULT_MEMO_TITLE).localeCompare(right.title || DEFAULT_MEMO_TITLE);
     }
     if (sortMode === "created-desc") {
       return right.createdAt.localeCompare(left.createdAt);

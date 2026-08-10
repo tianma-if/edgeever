@@ -1,7 +1,6 @@
-import { useState, useCallback, useMemo, useRef } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { useDropzone } from "react-dropzone";
 import Lightbox from "yet-another-react-lightbox";
 import Zoom from "yet-another-react-lightbox/plugins/zoom";
 import Thumbnails from "yet-another-react-lightbox/plugins/thumbnails";
@@ -19,7 +18,6 @@ import {
   Search,
   Grid,
   List,
-  UploadCloud,
   FileText,
   FileSpreadsheet,
   FileArchive,
@@ -27,15 +25,11 @@ import {
   Video,
   X,
   Loader2,
-  FileUp,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { formatDateTime } from "@/lib/utils";
-import { compressImageForUpload } from "@/lib/image-compression";
-import { stageDesktopResource } from "@/lib/desktop-resources";
 import { WORKSPACE_PAGE_TITLE_CLASSNAME } from "@/lib/workspace-ui";
-import type { MemoDetail } from "@edgeever/shared";
 import type { EdgeEverRepository } from "@/lib/repository";
 
 export const formatBytes = (bytes: number) => {
@@ -116,14 +110,11 @@ const getFileIcon = (mimeType: string | null, filename: string | null) => {
 
 interface AssetsPaneProps {
   onClose: () => void;
-  activeMemo?: MemoDetail | null;
   repository: EdgeEverRepository;
 }
 
-export const AssetsPane = ({ onClose, activeMemo, repository }: AssetsPaneProps) => {
+export const AssetsPane = ({ onClose, repository }: AssetsPaneProps) => {
   const { t } = useTranslation();
-  const queryClient = useQueryClient();
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // States
   const [searchQuery, setSearchQuery] = useState("");
@@ -132,8 +123,6 @@ export const AssetsPane = ({ onClose, activeMemo, repository }: AssetsPaneProps)
     return (localStorage.getItem("assets_layout_mode") as "grid" | "list") || "grid";
   });
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
-  const [uploadState, setUploadState] = useState<"idle" | "compressing" | "uploading" | "error" | "success">("idle");
-  const [uploadProgress, setUploadProgress] = useState("");
 
   // Query resources
   const resourcesQuery = useQuery({
@@ -148,63 +137,6 @@ export const AssetsPane = ({ onClose, activeMemo, repository }: AssetsPaneProps)
     imageCount: 0,
     attachmentCount: 0,
   };
-
-  // Drag and Drop Upload Handler
-  const handleUploadFiles = useCallback(
-    async (files: File[]) => {
-      if (!activeMemo || activeMemo.isDeleted || files.length === 0) return;
-
-      const targetMemoId = activeMemo.id;
-      setUploadState("uploading");
-
-      try {
-        let count = 0;
-        for (const file of files) {
-          count++;
-          setUploadProgress(t("assets.uploadNth", { current: count, total: files.length }));
-
-          const isImage = file.type.startsWith("image/");
-          // Compress images if enabled
-          const shouldCompress = isImage;
-          if (shouldCompress) {
-            setUploadState("compressing");
-            setUploadProgress(t("assets.compressingFile", { filename: file.name }));
-          }
-
-          const uploadFile = shouldCompress ? (await compressImageForUpload(file)).file : file;
-
-          setUploadState("uploading");
-          setUploadProgress(t("assets.uploadingFile", { filename: uploadFile.name }));
-
-          if (typeof navigator !== "undefined" && !navigator.onLine) {
-            await repository.uploadMemoResource(targetMemoId, uploadFile);
-            continue;
-          }
-
-          try {
-            await repository.uploadMemoResource(targetMemoId, uploadFile);
-          } catch (error) {
-            const staged = await stageDesktopResource(targetMemoId, uploadFile);
-            if (!staged) throw error;
-          }
-        }
-
-        void queryClient.invalidateQueries({ queryKey: ["resources"] });
-        setUploadState("success");
-        setTimeout(() => setUploadState("idle"), 2000);
-      } catch (err) {
-        setUploadState("error");
-        setTimeout(() => setUploadState("idle"), 3000);
-      }
-    },
-    [activeMemo, queryClient, repository, t]
-  );
-
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop: handleUploadFiles,
-    disabled: !activeMemo || activeMemo.isDeleted,
-    noClick: true,
-  });
 
   // Filter Logic
   const filteredResources = useMemo(() => {
@@ -248,29 +180,11 @@ export const AssetsPane = ({ onClose, activeMemo, repository }: AssetsPaneProps)
     }
   };
 
-  const handleManualUploadClick = () => {
-    if (fileInputRef.current) {
-      fileInputRef.current.click();
-    }
-  };
-
-  const handleManualFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      handleUploadFiles(Array.from(e.target.files));
-    }
-  };
-
-  const activeMemoTitle = activeMemo?.title || activeMemo?.excerpt || t("assets.unnamedMemo");
-  const activeMemoShortTitle = activeMemo?.title || activeMemo?.excerpt || t("assets.unnamedShort");
   const getResourceMemoSource = (resource: { memoDeleted: boolean; memoTitle: string | null; memoExcerpt: string | null; memoId: string }) =>
     resource.memoDeleted ? t("assets.deletedMemo") : resource.memoTitle || resource.memoExcerpt || resource.memoId;
 
   return (
-    <div
-      {...getRootProps()}
-      className="relative flex h-full min-h-0 flex-col bg-white select-none outline-none"
-    >
-      <input {...getInputProps()} />
+    <div className="relative flex h-full min-h-0 flex-col bg-white select-none outline-none">
 
       {/* Header */}
       <header className="flex h-[calc(4rem+env(safe-area-inset-top))] shrink-0 items-end justify-between border-b border-slate-200 px-6 pb-3 pt-[env(safe-area-inset-top)] lg:h-16 lg:items-center lg:pb-0 lg:pt-0">
@@ -368,45 +282,6 @@ export const AssetsPane = ({ onClose, activeMemo, repository }: AssetsPaneProps)
           </div>
         </div>
       </div>
-
-      {/* Target Upload Memo Info Banner */}
-      {activeMemo ? (
-        <div className="flex items-center justify-between border-b border-emerald-100 bg-emerald-50/30 px-6 py-2 shrink-0">
-          <p className="truncate text-[11px] font-medium text-emerald-800">
-            {t("assets.activeMemo", { title: activeMemoTitle })}
-          </p>
-          <div className="flex items-center gap-2">
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleManualFileChange}
-              multiple
-              className="hidden"
-            />
-            <button
-              onClick={handleManualUploadClick}
-              disabled={uploadState !== "idle"}
-              className="inline-flex items-center gap-1 rounded bg-emerald-600 px-2 py-1 text-[10px] font-semibold text-white transition-colors hover:bg-emerald-700 active:bg-emerald-800 disabled:bg-emerald-450"
-            >
-              {uploadState === "idle" ? (
-                <>
-                  <FileUp className="h-3 w-3" />
-                  {t("assets.uploadAttachment")}
-                </>
-              ) : (
-                <>
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                  {t("assets.processing")}
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className="border-b border-amber-100 bg-amber-50/30 px-6 py-2 text-[11px] font-medium text-amber-800 shrink-0">
-          {t("assets.noActiveMemoHint")}
-        </div>
-      )}
 
       {/* Main Content Area */}
       <div className="flex-1 overflow-y-auto bg-slate-50/30 p-6">
@@ -558,50 +433,6 @@ export const AssetsPane = ({ onClose, activeMemo, repository }: AssetsPaneProps)
           )}
         </div>
       </div>
-
-      {/* Drag Active Overlay */}
-      {isDragActive && activeMemo && (
-        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-emerald-900/80 backdrop-blur-sm p-6 text-center text-white transition-all duration-200">
-          <div className="rounded-2xl border-2 border-dashed border-emerald-200 bg-emerald-950/40 p-12 flex flex-col items-center max-w-md shadow-2xl">
-            <UploadCloud className="h-16 w-16 text-emerald-300 animate-bounce mb-4" />
-            <h3 className="text-lg font-bold">{t("assets.dropTitle")}</h3>
-            <p className="mt-2 text-sm text-emerald-200 leading-relaxed">
-              {t("assets.dropDescription")}
-              <span className="block mt-1 font-bold text-white">{activeMemoShortTitle}</span>
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Uploading Status Overlay (Non-intrusive bottom loader) */}
-      {uploadState !== "idle" && (
-        <div className="absolute bottom-4 left-1/2 z-50 -translate-x-1/2 flex items-center gap-3 rounded-xl border border-slate-200 bg-white/95 px-5 py-3.5 shadow-xl backdrop-blur-sm">
-          {uploadState === "compressing" && (
-            <>
-              <Loader2 className="h-4.5 w-4.5 animate-spin text-emerald-650" />
-              <span className="text-xs font-semibold text-slate-700">{uploadProgress}</span>
-            </>
-          )}
-          {uploadState === "uploading" && (
-            <>
-              <Loader2 className="h-4.5 w-4.5 animate-spin text-emerald-650" />
-              <span className="text-xs font-semibold text-slate-700">{uploadProgress}</span>
-            </>
-          )}
-          {uploadState === "success" && (
-            <>
-              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-50 text-emerald-650 text-xs font-bold font-mono">✓</span>
-              <span className="text-xs font-semibold text-emerald-700">{t("assets.uploadSuccess")}</span>
-            </>
-          )}
-          {uploadState === "error" && (
-            <>
-              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-rose-50 text-rose-600 text-xs font-bold font-mono">✕</span>
-              <span className="text-xs font-semibold text-rose-700">{t("assets.uploadError")}</span>
-            </>
-          )}
-        </div>
-      )}
 
       {/* Lightbox Viewer */}
       {lightboxIndex !== null && (

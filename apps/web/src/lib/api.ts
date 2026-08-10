@@ -18,6 +18,10 @@ import type {
   ResourceListItem,
   ResourceStorageSummary,
   ObjectStorageSettings,
+  AiModelSettings,
+  AiProvider,
+  AiAction,
+  AiStreamEvent,
   PublicMemoShare,
   TagSummary,
   TiptapDoc,
@@ -62,6 +66,19 @@ type ListLoginDeviceSessionsResponse = { sessions: LoginDeviceSession[] };
 type ObjectStorageSettingsResponse = {
   settings: ObjectStorageSettings;
   externalSettings?: ObjectStorageSettings | null;
+};
+type AiSettingsResponse = {
+  settings: AiModelSettings | null;
+  encryptionConfigured: boolean;
+};
+
+export type AiSettingsPayload = {
+  provider: AiProvider;
+  displayName: string;
+  baseUrl: string;
+  apiKey?: string;
+  modelId: string;
+  isEnabled: boolean;
 };
 
 const WEB_DEVICE_ID_STORAGE_KEY = "edgeever.web.device-id";
@@ -428,6 +445,60 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
+
+  getAiSettings: () => request<AiSettingsResponse>("/api/v1/ai/settings"),
+
+  testAiConnection: (payload: Omit<AiSettingsPayload, "isEnabled">) =>
+    request<{ ok: true; response: string }>("/api/v1/ai/settings/test", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  updateAiSettings: (payload: AiSettingsPayload) =>
+    request<AiSettingsResponse>("/api/v1/ai/settings", {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
+
+  streamAiGeneration: async (
+    payload: { action: AiAction; title: string; contentMarkdown: string; targetLanguage?: string },
+    options: { signal?: AbortSignal; onEvent: (event: AiStreamEvent) => void },
+  ) => {
+    const headers = new Headers({ "Content-Type": "application/json" });
+    const sessionToken = typeof window !== "undefined" && window.edgeeverDesktop?.isAvailable
+      ? getDesktopSessionToken()
+      : undefined;
+    if (sessionToken) headers.set("Authorization", `Bearer ${sessionToken}`);
+    const response = await fetch(`${getConfiguredDesktopApiBaseUrl()}/api/v1/ai/generate`, {
+      method: "POST",
+      credentials: "include",
+      headers,
+      body: JSON.stringify(payload),
+      signal: options.signal,
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => null) as { error?: { code?: string; message?: string } } | null;
+      throw new ApiRequestError(body?.error?.message || response.statusText, response.status, body?.error?.code);
+    }
+    if (!response.body) throw new ApiRequestError("Streaming response is unavailable", 502, "ai_stream_unavailable");
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      buffer += decoder.decode(value, { stream: !done });
+      const frames = buffer.split("\n\n");
+      buffer = frames.pop() ?? "";
+      for (const frame of frames) {
+        const data = frame.split("\n").find((line) => line.startsWith("data: "))?.slice(6);
+        if (data) options.onEvent(JSON.parse(data) as AiStreamEvent);
+      }
+      if (done) break;
+    }
+    const trailingData = buffer.split("\n").find((line) => line.startsWith("data: "))?.slice(6);
+    if (trailingData) options.onEvent(JSON.parse(trailingData) as AiStreamEvent);
+  },
 
   updateNotebook: (notebookId: string, payload: { name?: string; parentId?: string | null; sortOrder?: number }) =>
     request<NotebookResponse>(`/api/v1/notebooks/${notebookId}`, {

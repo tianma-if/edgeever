@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { ActivityIndicator, Alert, Modal, StyleSheet, View } from "react-native";
-import { Download, FileText, MoreHorizontal, Pencil, Share2, Trash2, X } from "./icons";
+import { Alert, Modal, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Download, FileText, MoreHorizontal, Pencil, Share2, Trash2, X } from "./icons";
 import { Pressable, Text, TextInput } from "./LocalizedText";
 import {
   MobileResourceCancelledError,

@@ -1,18 +1,19 @@
 import SwiftUI
 import Pow
+import UIKit
 
 /// Android WorkspaceMemoDetail shell parity (detailHeader*, detailMeta*, detailEditFab).
 struct MemoDetailView: View {
     @Environment(AppEnvironment.self) private var env
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
     let memoId: String
     /// Present editor from the parent `WorkspaceView` (more reliable than cover on a pushed page).
     var onEdit: (String) -> Void = { _ in }
 
     @State private var memo: MemoDetail?
     @State private var showRevisions = false
-    @State private var showShareAlert = false
-    @State private var shareURL: String?
+    @State private var memoSharePayload: MemoSharePayload?
     @State private var error: String?
     @State private var conflictItem: OutboxItem?
     @State private var outboxStatus: OutboxStatus?
@@ -20,8 +21,12 @@ struct MemoDetailView: View {
     @State private var pinPulse = false
     @State private var searchOpen = false
     @State private var searchQuery = ""
+    @State private var searchMatchCount = 0
+    @State private var searchMatchIndex = 0
     @State private var showDeleteConfirm = false
     @State private var showMoreMenu = false
+    @State private var showNoteIdCopied = false
+    @State private var showAiAssistant = false
     @State private var resourceTarget: ResourceTarget?
     @State private var imagePreview: (source: String, alt: String)?
     /// TipTap EditorBundle is ~4MB; keep native text visible until first setContent finishes.
@@ -49,7 +54,7 @@ struct MemoDetailView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .background(Color.white)
+        .background(AppTheme.card)
         // UIKit FAB in overlay — SwiftUI Button over WKWebView often receives zero taps.
         .overlay(alignment: .bottomTrailing) {
             if let memo, !memo.isDeleted {
@@ -63,7 +68,7 @@ struct MemoDetailView: View {
                 .padding(.bottom, 12)
             }
         }
-        .background(Color.white.ignoresSafeArea())
+        .background(AppTheme.card.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
         .accessibilityIdentifier(DetailMemoChrome.root)
         .sheet(isPresented: $showRevisions) {
@@ -94,6 +99,19 @@ struct MemoDetailView: View {
             .presentationDetents([.height(360), .medium])
             .presentationDragIndicator(.hidden)
         }
+        .sheet(item: $memoSharePayload) { payload in
+            ActivityShareView(items: [payload.message, payload.url]) { _, _, error in
+                if let error { self.error = error.localizedDescription }
+                memoSharePayload = nil
+            }
+        }
+        .sheet(isPresented: $showAiAssistant) {
+            if let memo {
+                AiAssistantSheet(memo: memo) { draft, mode in
+                    try await applyAiDraft(draft, mode: mode, to: memo)
+                }
+            }
+        }
         .fullScreenCover(isPresented: Binding(
             get: { imagePreview != nil },
             set: { if !$0 { imagePreview = nil } }
@@ -123,6 +141,11 @@ struct MemoDetailView: View {
         ) {
             if let memo {
                 Button(env.preferences.t("编辑", en: "Edit")) { onEdit(memo.id) }
+                if !memo.isDeleted && !isTemporaryMemoId(memo.id) {
+                    Button(env.preferences.t("AI 笔记助手", en: "AI note assistant")) {
+                        showAiAssistant = true
+                    }
+                }
                 Button(
                     memo.isPinned
                         ? env.preferences.t("取消置顶", en: "Unpin")
@@ -136,6 +159,15 @@ struct MemoDetailView: View {
                 Button(env.preferences.t("分享链接", en: "Share link")) {
                     Task { await shareMemo(memo) }
                 }
+                Button(
+                    isTemporaryMemoId(memo.id)
+                        ? env.preferences.t("同步后可复制笔记 ID", en: "Copy note ID after sync")
+                        : env.preferences.t("复制笔记 ID", en: "Copy note ID")
+                ) {
+                    UIPasteboard.general.string = memo.id
+                    showNoteIdCopied = true
+                }
+                .disabled(isTemporaryMemoId(memo.id))
                 Button(env.preferences.t("修订历史", en: "Revisions")) { showRevisions = true }
                 Button(env.preferences.t("删除", en: "Delete"), role: .destructive) {
                     showDeleteConfirm = true
@@ -150,15 +182,13 @@ struct MemoDetailView: View {
         } message: {
             Text(env.preferences.t("笔记将移入回收站。", en: "The note will move to trash."))
         }
-        .alert(env.preferences.t("分享链接", en: "Share link"), isPresented: $showShareAlert) {
-            Button(env.preferences.t("复制", en: "Copy")) {
-                if let shareURL {
-                    UIPasteboard.general.string = shareURL
-                }
-            }
-            Button(env.preferences.t("关闭", en: "Close"), role: .cancel) {}
+        .alert(
+            env.preferences.t("笔记 ID 已复制", en: "Note ID copied"),
+            isPresented: $showNoteIdCopied
+        ) {
+            Button(env.preferences.t("好", en: "OK"), role: .cancel) {}
         } message: {
-            Text(shareURL ?? "")
+            Text(memo?.id ?? memoId)
         }
         // Local SQLite mirror is sync and cheap — load before the first blank ProgressView frame.
         .onAppear {
@@ -180,6 +210,9 @@ struct MemoDetailView: View {
         }
         .onChange(of: memoId) { _, _ in
             bodyReady = false
+            searchQuery = ""
+            searchMatchCount = 0
+            searchMatchIndex = 0
             load()
             refreshSyncStatus()
         }
@@ -244,7 +277,13 @@ struct MemoDetailView: View {
                         label: env.preferences.t("搜索当前笔记", en: "Search in note"),
                         id: DetailMemoChrome.search
                     ) {
-                        withAnimation(Motion.chip) { searchOpen.toggle() }
+                        withAnimation(Motion.chip) {
+                            if searchOpen {
+                                closeSearch()
+                            } else {
+                                searchOpen = true
+                            }
+                        }
                     }
                     headerIconButton(
                         systemImage: "ellipsis",
@@ -259,7 +298,7 @@ struct MemoDetailView: View {
         }
         .padding(.horizontal, 12)
         .frame(minHeight: 48)
-        .background(Color.white)
+        .background(AppTheme.card)
         .overlay(alignment: .bottom) {
             Rectangle().fill(AppTheme.cardBorder).frame(height: 1)
         }
@@ -293,13 +332,13 @@ struct MemoDetailView: View {
                 en: "This note changed on another device or while offline. Copy the local draft, then adopt the cloud version to continue."
             ))
             .font(.system(size: 12))
-            .foregroundStyle(Color(hex: 0x9F1239))
+            .foregroundStyle(AppTheme.dangerStrong)
             .fixedSize(horizontal: false, vertical: true)
 
             if let lastOutboxError, !lastOutboxError.isEmpty {
                 Text(lastOutboxError)
                     .font(.system(size: 12))
-                    .foregroundStyle(Color(hex: 0x9F1239))
+                    .foregroundStyle(AppTheme.dangerStrong)
             }
 
             HStack(spacing: 8) {
@@ -316,7 +355,7 @@ struct MemoDetailView: View {
                         .foregroundStyle(.white)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 8)
-                        .background(Color(hex: 0xBE123C))
+                        .background(AppTheme.dangerAction)
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
                 .buttonStyle(.plain)
@@ -326,13 +365,13 @@ struct MemoDetailView: View {
                 } label: {
                     Text(env.preferences.t("复制本地草稿", en: "Copy local draft"))
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(Color(hex: 0x9F1239))
+                        .foregroundStyle(AppTheme.dangerStrong)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 8)
-                        .background(Color.white)
+                        .background(AppTheme.card)
                         .overlay(
                             RoundedRectangle(cornerRadius: 8)
-                                .stroke(Color(hex: 0xFECDD3), lineWidth: 1)
+                                .stroke(AppTheme.dangerBorder, lineWidth: 1)
                         )
                 }
                 .buttonStyle(.plain)
@@ -341,9 +380,9 @@ struct MemoDetailView: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(hex: 0xFFF1F2))
+        .background(AppTheme.dangerSurface)
         .overlay(alignment: .bottom) {
-            Rectangle().fill(Color(hex: 0xFECDD3)).frame(height: 0.5)
+            Rectangle().fill(AppTheme.dangerBorder).frame(height: 0.5)
         }
     }
 
@@ -357,7 +396,7 @@ struct MemoDetailView: View {
                         : env.preferences.t("本地改动待上传。下拉刷新或点此可立即同步。", en: "Local changes pending upload. Pull to refresh or tap to sync now."))
             )
             .font(.system(size: 12))
-            .foregroundStyle(isError ? Color(hex: 0x991B1B) : Color(hex: 0x1E3A8A))
+            .foregroundStyle(isError ? AppTheme.dangerStrong : AppTheme.infoText)
             .fixedSize(horizontal: false, vertical: true)
 
             HStack(spacing: 8) {
@@ -375,7 +414,7 @@ struct MemoDetailView: View {
                         .foregroundStyle(.white)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 8)
-                        .background(isError ? Color(hex: 0xB91C1C) : Color(hex: 0x1D4ED8))
+                        .background(isError ? AppTheme.dangerAction : AppTheme.infoAction)
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
                 .buttonStyle(.plain)
@@ -386,13 +425,13 @@ struct MemoDetailView: View {
                     } label: {
                         Text(env.preferences.t("复制本地草稿", en: "Copy local draft"))
                             .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(Color(hex: 0x991B1B))
+                            .foregroundStyle(AppTheme.dangerStrong)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 8)
-                            .background(Color.white)
+                            .background(AppTheme.card)
                             .overlay(
                                 RoundedRectangle(cornerRadius: 8)
-                                    .stroke(Color(hex: 0xFECACA), lineWidth: 1)
+                                    .stroke(AppTheme.dangerBorder, lineWidth: 1)
                             )
                     }
                     .buttonStyle(.plain)
@@ -402,10 +441,10 @@ struct MemoDetailView: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(isError ? Color(hex: 0xFEF2F2) : Color(hex: 0xEFF6FF))
+        .background(isError ? AppTheme.dangerSurface : AppTheme.infoSurface)
         .overlay(alignment: .bottom) {
             Rectangle()
-                .fill(isError ? Color(hex: 0xFECACA) : Color(hex: 0xBFDBFE))
+                .fill(isError ? AppTheme.dangerBorder : AppTheme.infoText.opacity(0.55))
                 .frame(height: 0.5)
         }
     }
@@ -421,7 +460,7 @@ struct MemoDetailView: View {
                             .font(.system(size: 16))
                             .foregroundStyle(AppTheme.secondary)
                     }
-                    Text(memo.displayTitle)
+                    Text(localizedTitle(for: memo))
                         .font(.system(size: 24, weight: .bold))
                         .foregroundStyle(AppTheme.title)
                         .lineLimit(4)
@@ -477,9 +516,40 @@ struct MemoDetailView: View {
                         )
                         .font(.system(size: 14))
                         .textFieldStyle(.plain)
+                        .onChange(of: searchQuery) { _, query in
+                            searchMatchIndex = 0
+                            SharedTipTapRuntime.viewer.search(query, index: 0)
+                        }
+                        Text(searchMatchCount == 0 ? "0/0" : "\(searchMatchIndex + 1)/\(searchMatchCount)")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(AppTheme.secondary)
+                            .monospacedDigit()
                         Button {
-                            searchOpen = false
-                            searchQuery = ""
+                            guard searchMatchCount > 0 else { return }
+                            let next = (searchMatchIndex - 1 + searchMatchCount) % searchMatchCount
+                            SharedTipTapRuntime.viewer.search(searchQuery, index: next)
+                        } label: {
+                            Image(systemName: "chevron.up")
+                                .font(.system(size: 12, weight: .bold))
+                                .frame(width: 28, height: 28)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(searchMatchCount == 0)
+                        .accessibilityLabel(env.preferences.t("上一个匹配项", en: "Previous match"))
+                        Button {
+                            guard searchMatchCount > 0 else { return }
+                            let next = (searchMatchIndex + 1) % searchMatchCount
+                            SharedTipTapRuntime.viewer.search(searchQuery, index: next)
+                        } label: {
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 12, weight: .bold))
+                                .frame(width: 28, height: 28)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(searchMatchCount == 0)
+                        .accessibilityLabel(env.preferences.t("下一个匹配项", en: "Next match"))
+                        Button {
+                            closeSearch()
                         } label: {
                             Image(systemName: "xmark")
                                 .font(.system(size: 12, weight: .bold))
@@ -516,12 +586,20 @@ struct MemoDetailView: View {
                     markdown: memo.contentMarkdown,
                     baseURL: env.session.session.flatMap { URL(string: $0.baseUrl) },
                     token: env.session.session?.token,
+                    locale: env.preferences.isEnglish ? "en-US" : "zh-CN",
+                    theme: colorScheme == .dark ? "dark" : "light",
+                    placeholder: env.preferences.t("开始输入…", en: "Start writing…"),
                     onChange: nil,
                     onResourcePress: { target in
                         resourceTarget = target
                     },
                     onImagePreview: { source, alt in
                         imagePreview = (source, alt)
+                    },
+                    onPickImage: nil,
+                    onSearchResult: { count, index in
+                        searchMatchCount = count
+                        searchMatchIndex = index
                     },
                     onBodyReady: {
                         bodyReady = true
@@ -532,7 +610,7 @@ struct MemoDetailView: View {
                     ProgressView()
                         .tint(AppTheme.title)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(Color.white.opacity(0.92))
+                        .background(AppTheme.card.opacity(0.92))
                         .allowsHitTesting(false)
                 }
             }
@@ -620,8 +698,25 @@ struct MemoDetailView: View {
 
     private func copyLocalDraft() async {
         guard let memo else { return }
-        let text = [memo.displayTitle, memo.contentMarkdown].filter { !$0.isEmpty }.joined(separator: "\n\n")
+        let text = [localizedTitle(for: memo), memo.contentMarkdown].filter { !$0.isEmpty }.joined(separator: "\n\n")
         UIPasteboard.general.string = text
+    }
+
+    private func isTemporaryMemoId(_ id: String) -> Bool {
+        id.hasPrefix("local:") || id.hasPrefix("local_")
+    }
+
+    private func closeSearch() {
+        searchOpen = false
+        searchQuery = ""
+        searchMatchCount = 0
+        searchMatchIndex = 0
+        SharedTipTapRuntime.viewer.search("", index: 0)
+    }
+
+    private func localizedTitle(for memo: MemoDetail) -> String {
+        let title = memo.title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return title.isEmpty ? env.preferences.t("无标题笔记", en: "Untitled note") : title
     }
 
     private func togglePin(_ memo: MemoDetail) async {
@@ -645,12 +740,67 @@ struct MemoDetailView: View {
         }
     }
 
+    private func applyAiDraft(
+        _ draft: String,
+        mode: AiDraftApplyMode,
+        to sourceMemo: MemoDetail
+    ) async throws {
+        guard let scope = env.session.dataScope else {
+            throw APIError(
+                status: -1,
+                code: "session_unavailable",
+                message: env.preferences.t("登录状态已失效，请重新登录。", en: "Your session has expired. Sign in again.")
+            )
+        }
+        let normalizedDraft = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedDraft.isEmpty else { return }
+        let currentContent = sourceMemo.contentMarkdown.trimmingCharacters(in: .whitespacesAndNewlines)
+        let contentMarkdown = mode == .append && !currentContent.isEmpty
+            ? "\(currentContent)\n\n\(normalizedDraft)"
+            : normalizedDraft
+
+        let editSession = try await env.session.client.createMemoEditSession(memoId: sourceMemo.id)
+        guard
+            editSession.baseRevision == sourceMemo.revision,
+            editSession.baseContentHash == sourceMemo.contentHash
+        else {
+            throw APIError(
+                status: 409,
+                code: "revision_conflict",
+                message: env.preferences.t(
+                    "笔记已在其他设备更新，请刷新后重新生成。",
+                    en: "This note changed on another device. Refresh it and generate again."
+                )
+            )
+        }
+
+        let updated = try await env.session.client.updateMemo(
+            id: sourceMemo.id,
+            expectedRevision: sourceMemo.revision,
+            expectedContentHash: sourceMemo.contentHash,
+            editSessionId: editSession.id,
+            notebookId: nil,
+            title: nil,
+            isPinned: nil,
+            contentMarkdown: contentMarkdown,
+            contentJson: nil,
+            tags: nil
+        )
+        try env.mirror.upsertMemo(scope: scope, memo: updated)
+        memo = updated
+        refreshSyncStatus()
+    }
+
     private func shareMemo(_ memo: MemoDetail) async {
         do {
             let share = try await env.session.client.createMemoShare(memoId: memo.id)
             let base = env.session.session?.baseUrl.trimmingCharacters(in: CharacterSet(charactersIn: "/")) ?? ""
-            shareURL = "\(base)/share/\(share.token)"
-            showShareAlert = true
+            guard let url = URL(string: "\(base)/share/\(share.token)") else { return }
+            let title = memo.title?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let displayTitle = title?.isEmpty == false
+                ? title!
+                : env.preferences.t("无标题笔记", en: "Untitled note")
+            memoSharePayload = MemoSharePayload(message: "\(displayTitle)\n\(url.absoluteString)", url: url)
         } catch {
             self.error = error.localizedDescription
         }
@@ -673,6 +823,12 @@ struct MemoDetailView: View {
     }
 }
 
+private struct MemoSharePayload: Identifiable {
+    let id = UUID()
+    let message: String
+    let url: URL
+}
+
 // MARK: - String helper
 
 private extension String {
@@ -685,334 +841,3 @@ private extension String {
 // MARK: - Version history (Android RevisionHistoryModal parity)
 
 /// Android `RevisionHistoryModal`: header + selected summary/restore + timeline pills + markdown preview.
-struct RevisionsView: View {
-    @Environment(AppEnvironment.self) private var env
-    let memoId: String
-    var memoTitle: String?
-    var isDeleted: Bool = false
-    var onRestored: () -> Void
-
-    @State private var revisions: [MemoRevision] = []
-    @State private var selectedId: String?
-    @State private var error: String?
-    @State private var restoreError: String?
-    @State private var isLoading = true
-    @State private var isRestoring = false
-    @State private var confirmRestore: MemoRevision?
-
-    private var selected: MemoRevision? {
-        if let selectedId, let match = revisions.first(where: { $0.id == selectedId }) {
-            return match
-        }
-        return revisions.first
-    }
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    summaryRow
-                    timelineSection
-                    previewSection
-                    if let restoreError {
-                        Text(restoreError)
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(AppTheme.danger)
-                    }
-                }
-                .padding(16)
-                .padding(.bottom, 24)
-            }
-            .background(AppTheme.background)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .principal) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "clock.arrow.circlepath")
-                            .font(.system(size: 17, weight: .semibold))
-                            .foregroundStyle(AppTheme.accent)
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(env.preferences.t("版本历史", en: "Version history"))
-                                .font(.system(size: 16, weight: .heavy))
-                                .foregroundStyle(AppTheme.title)
-                            Text(displayTitle)
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundStyle(AppTheme.secondary)
-                                .lineLimit(1)
-                        }
-                    }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        onRestored()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundStyle(AppTheme.title)
-                            .frame(width: 32, height: 32)
-                            .background(AppTheme.searchFill)
-                            .clipShape(Circle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(env.preferences.t("关闭", en: "Close"))
-                }
-            }
-            .task { await load() }
-            .refreshable { await load() }
-            .confirmationDialog(
-                env.preferences.t("恢复到这个历史版本", en: "Restore this version"),
-                isPresented: Binding(
-                    get: { confirmRestore != nil },
-                    set: { if !$0 { confirmRestore = nil } }
-                ),
-                titleVisibility: .visible
-            ) {
-                Button(env.preferences.t("恢复", en: "Restore")) {
-                    if let rev = confirmRestore {
-                        Task { await restore(rev) }
-                    }
-                }
-                Button(env.preferences.t("取消", en: "Cancel"), role: .cancel) {
-                    confirmRestore = nil
-                }
-            } message: {
-                Text(
-                    env.preferences.t(
-                        "当前内容会被这个历史版本替换，恢复后仍会产生新的历史记录。",
-                        en: "Current content will be replaced. Restoring creates a new history entry."
-                    )
-                )
-            }
-        }
-    }
-
-    // MARK: Summary + restore (Android revisionSummaryRow)
-
-    private var summaryRow: some View {
-        HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(
-                    selected.map {
-                        env.preferences.t("版本 \($0.revision)", en: "Version \($0.revision)")
-                    } ?? env.preferences.t("未选择历史版本", en: "No version selected")
-                )
-                .font(.system(size: 15, weight: .bold))
-                .foregroundStyle(AppTheme.title)
-                Text(
-                    env.preferences.t(
-                        "选择历史记录后可预览并恢复。",
-                        en: "Select a revision to preview and restore."
-                    )
-                )
-                .font(.system(size: 13))
-                .foregroundStyle(AppTheme.secondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            if let selected {
-                Button {
-                    confirmRestore = selected
-                } label: {
-                    HStack(spacing: 6) {
-                        if isRestoring {
-                            ProgressView()
-                                .controlSize(.small)
-                        } else {
-                            Image(systemName: "arrow.counterclockwise")
-                                .font(.system(size: 14, weight: .semibold))
-                        }
-                        Text(
-                            isRestoring
-                                ? env.preferences.t("恢复中", en: "Restoring")
-                                : env.preferences.t("恢复该版本", en: "Restore")
-                        )
-                        .font(.system(size: 13, weight: .bold))
-                    }
-                    .foregroundStyle(canRestore ? AppTheme.title : AppTheme.muted)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
-                    .background(Color.white)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .stroke(AppTheme.border, lineWidth: 1)
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                }
-                .buttonStyle(.plain)
-                .disabled(!canRestore)
-            }
-        }
-        .padding(14)
-        .background(Color.white)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(AppTheme.border, lineWidth: 1)
-        )
-    }
-
-    private var canRestore: Bool {
-        !isRestoring && !isDeleted && selected != nil
-    }
-
-    // MARK: Timeline pills
-
-    private var timelineSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(env.preferences.t("历史记录", en: "History"))
-                .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(AppTheme.meta)
-
-            if isLoading {
-                timelineState {
-                    ProgressView()
-                    Text(env.preferences.t("加载中", en: "Loading"))
-                        .font(.system(size: 13))
-                        .foregroundStyle(AppTheme.secondary)
-                }
-            } else if let error {
-                timelineState {
-                    Text(env.preferences.t("加载失败", en: "Failed to load"))
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(AppTheme.danger)
-                    Text(error)
-                        .font(.system(size: 12))
-                        .foregroundStyle(AppTheme.secondary)
-                        .multilineTextAlignment(.center)
-                    Button(env.preferences.t("重试", en: "Retry")) {
-                        Task { await load() }
-                    }
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(AppTheme.title)
-                }
-            } else if revisions.isEmpty {
-                timelineState {
-                    Text(env.preferences.t("暂无历史版本", en: "No revisions yet"))
-                        .font(.system(size: 13))
-                        .foregroundStyle(AppTheme.secondary)
-                }
-            } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(revisions) { rev in
-                            revisionPill(rev)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private func revisionPill(_ rev: MemoRevision) -> some View {
-        let active = selected?.id == rev.id
-        return Button {
-            selectedId = rev.id
-            restoreError = nil
-        } label: {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(env.preferences.t("版本 \(rev.revision)", en: "Version \(rev.revision)"))
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(active ? .white : AppTheme.title)
-                Text("\(MemoPreviewDate.format(rev.createdAt, locale: env.preferences.resolvedLocale, isEnglish: env.preferences.isEnglish)) · \(Self.formatActor(rev.createdBy))")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(active ? Color.white.opacity(0.9) : AppTheme.secondary)
-                    .lineLimit(1)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(active ? AppTheme.filterActive : Color.white)
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(active ? AppTheme.filterActive : AppTheme.border, lineWidth: 1)
-            )
-        }
-        .buttonStyle(.plain)
-    }
-
-    private func timelineState<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
-        VStack(spacing: 10) {
-            content()
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 28)
-        .padding(.horizontal, 12)
-        .background(Color.white)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(AppTheme.border, lineWidth: 1)
-        )
-    }
-
-    // MARK: Preview
-
-    @ViewBuilder
-    private var previewSection: some View {
-        if let selected {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(env.preferences.t("预览", en: "Preview"))
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(AppTheme.meta)
-                Text(selected.contentMarkdown.isEmpty ? env.preferences.t("空笔记", en: "Empty note") : selected.contentMarkdown)
-                    .font(.system(size: 14))
-                    .foregroundStyle(AppTheme.body)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .textSelection(.enabled)
-                    .padding(14)
-                    .background(Color.white)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(AppTheme.border, lineWidth: 1)
-                    )
-            }
-        }
-    }
-
-    private var displayTitle: String {
-        let t = memoTitle?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return t.isEmpty ? env.preferences.t("无标题笔记", en: "Untitled note") : t
-    }
-
-    /// Android `formatRevisionActor`.
-    static func formatActor(_ actor: String) -> String {
-        if actor.hasPrefix("user:") { return "user" }
-        if actor.hasPrefix("agent:") { return "agent" }
-        return actor.isEmpty ? "system" : actor
-    }
-
-    private func load() async {
-        isLoading = true
-        error = nil
-        defer { isLoading = false }
-        do {
-            let list = try await env.session.client.listMemoRevisions(memoId: memoId)
-            revisions = list
-            if selectedId == nil || !list.contains(where: { $0.id == selectedId }) {
-                selectedId = list.first?.id
-            }
-        } catch {
-            self.error = error.localizedDescription
-            revisions = []
-        }
-    }
-
-    private func restore(_ rev: MemoRevision) async {
-        guard let scope = env.session.dataScope else { return }
-        isRestoring = true
-        restoreError = nil
-        defer {
-            isRestoring = false
-            confirmRestore = nil
-        }
-        do {
-            let memo = try await env.session.client.restoreMemoRevision(memoId: memoId, revisionId: rev.id)
-            try env.mirror.upsertMemo(scope: scope, memo: memo)
-            await env.runSyncCycle()
-            onRestored()
-        } catch {
-            restoreError = error.localizedDescription
-        }
-    }
-}

@@ -132,8 +132,8 @@ export const MobileUpdateProvider = ({ children }: { children: ReactNode }) => {
         Alert.alert(
           english ? "Update available" : "发现新版本",
           english
-            ? "Get the latest version from Google Play or GitHub Releases."
-            : "可从 Google Play 或 GitHub Releases 获取最新版本。",
+            ? "Get the latest version from GitHub Releases."
+            : "可从 GitHub Releases 获取最新版本。",
           [
             ...ANDROID_INSTALL_UPDATE_SOURCES.map((source) => ({
               text: english ? source.labelEn : source.labelZh,

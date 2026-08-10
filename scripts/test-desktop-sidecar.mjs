@@ -107,6 +107,7 @@ await request("memo.update", updatePayload("latest autosave"));
 const coalescedUpdates = (await request("sync.outbox.list", { limit: 200 })).items.filter((item) => item.kind === "memo.update" && item.entityId === coalesced.memo.id);
 assert.equal(coalescedUpdates.length, 1, "offline autosaves should coalesce into one sidecar outbox item");
 assert.equal(coalescedUpdates[0].payload.contentMarkdown, "latest autosave");
+assert.equal((await request("memo.get", { memoId: coalesced.memo.id })).memo.revision, 0, "local autosaves must not advance the acknowledged cloud revision");
 
 const batchNotebook = (await request("notebook.create", { name: "Batch destination" })).notebook;
 const batchFirst = (await request("memo.create", { notebookId: inbox.id, title: "Batch one", contentMarkdown: "batch one", tags: ["batch-tag"] })).memo;

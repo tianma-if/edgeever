@@ -54,6 +54,18 @@ enum TipTapContentSource: Sendable {
     }
 
     static func markdownIsStructurallyRicher(_ markdown: String, thanJSON json: String) -> Bool {
+        let markdownHasMath = markdown.range(
+            of: #"(?s)(?<!\\)\$\$.*?(?<!\\)\$\$|(?<!\\)\$(?!\$|\d)[^\n$]+?(?<!\\)\$"#,
+            options: .regularExpression
+        ) != nil
+        let jsonHasMath = json.contains(#""type":"inlineMath""#)
+            || json.contains(#""type": "inlineMath""#)
+            || json.contains(#""type":"blockMath""#)
+            || json.contains(#""type": "blockMath""#)
+        if markdownHasMath && !jsonHasMath {
+            return true
+        }
+
         let md = structureScore(markdown: markdown)
         let js = structureScore(json: json)
         return md >= 2 && md > js
@@ -68,6 +80,7 @@ enum TipTapContentSource: Sendable {
         if markdown.range(of: #"(?m)^>\s+\S"#, options: .regularExpression) != nil { score += 1 }
         if markdown.contains("**") || markdown.contains("__") { score += 1 }
         if markdown.contains("![") { score += 1 }
+        if markdown.contains("$$") { score += 3 }
         return score
     }
 
@@ -81,6 +94,7 @@ enum TipTapContentSource: Sendable {
         if json.contains("\"blockquote\"") { score += 1 }
         if json.contains("\"bold\"") || json.contains("\"italic\"") { score += 1 }
         if json.contains("\"type\":\"image\"") || json.contains("\"type\": \"image\"") { score += 1 }
+        if json.contains("\"inlineMath\"") || json.contains("\"blockMath\"") { score += 3 }
         return score
     }
 }

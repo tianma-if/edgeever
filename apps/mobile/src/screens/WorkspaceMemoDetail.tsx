@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { resolveMemoContentDoc, type MemoDetail, type TiptapDoc } from "@edgeever/shared";
-import { ActivityIndicator, Image as RNImage, Platform, StyleSheet, View, type ImageStyle, type StyleProp } from "react-native";
+import { DEFAULT_MEMO_TITLE, resolveMemoContentDoc, type MemoDetail, type TiptapDoc } from "@edgeever/shared";
+import * as Clipboard from "expo-clipboard";
+import { Image as RNImage, Platform, StyleSheet, View, type ImageStyle, type StyleProp } from "react-native";
 import { Modal } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { SvgXml } from "react-native-svg";
-import { ChevronDown, ChevronLeft, ChevronRight, History, MoreHorizontal, Pencil, RotateCcw, Search, Share2, Tag, Trash2, X } from "../components/icons";
+import { ActivityIndicator, ChevronDown, ChevronLeft, ChevronRight, Copy, History, MoreHorizontal, Pencil, RotateCcw, Search, Share2, Sparkles, Tag, Trash2, X } from "../components/icons";
 import { Alert, Pressable, Text, TextInput } from "../components/LocalizedText";
 import LocalTiptapEditor, { type LocalTiptapEditorRef } from "../components/LocalTiptapEditor";
+import { MobileAiAssistantModal } from "../components/MobileAiAssistantModal";
 import { MobileResourceActions } from "../components/MobileResourceActions";
 import { SAFE_DOM_WEBVIEW_PROPS } from "../lib/mobile-dom";
 import { safeDomCall } from "../lib/safe-dom-call";
@@ -31,7 +33,6 @@ import type { MobileSyncQueueItem } from "../lib/sync-queue";
 import { styles } from "./workspace-styles";
 
 const ANDROID_SYSTEM_NAVIGATION_FALLBACK = 48;
-const DEFAULT_MEMO_TITLE = "无标题笔记";
 const RESOURCE_DATA_URL_CACHE_LIMIT = 32;
 
 type SessionLike = { baseUrl: string; token: string } | null;
@@ -300,6 +301,7 @@ export const MemoDetailModal = ({
   memo,
   notebookName,
   onAdoptCloudVersion,
+  onApplyAiDraft,
   onClose,
   onCopyLocalDraft,
   onDelete,
@@ -323,6 +325,7 @@ export const MemoDetailModal = ({
   memo: MemoDetail | null;
   notebookName: string;
   onAdoptCloudVersion: (memo: MemoDetail) => void;
+  onApplyAiDraft: (memo: MemoDetail, draft: string, mode: "append" | "replace") => Promise<void>;
   onClose: () => void;
   onCopyLocalDraft: (memo: MemoDetail) => void;
   onDelete: (memo: MemoDetail) => void;
@@ -343,6 +346,7 @@ export const MemoDetailModal = ({
   const { resolvedLocale } = useMobileLocale();
   const safeAreaInsets = useSafeAreaInsets();
   const [actionsOpen, setActionsOpen] = useState(false);
+  const [aiAssistantOpen, setAiAssistantOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchMatchCount, setSearchMatchCount] = useState(0);
@@ -492,6 +496,23 @@ export const MemoDetailModal = ({
     action();
   };
 
+  const canCopyMemoId = Boolean(memo && !memo.id.startsWith("local:") && !memo.id.startsWith("local_"));
+  const copyMemoId = async () => {
+    if (!memo || !canCopyMemoId) return;
+    try {
+      await Clipboard.setStringAsync(memo.id);
+      Alert.alert(
+        resolvedLocale === "en-US" ? "Note ID copied" : "笔记 ID 已复制",
+        memo.id
+      );
+    } catch {
+      Alert.alert(
+        resolvedLocale === "en-US" ? "Could not copy note ID" : "复制笔记 ID 失败",
+        resolvedLocale === "en-US" ? "Please try again." : "请稍后重试。"
+      );
+    }
+  };
+
   return (
     <Modal animationType="slide" onRequestClose={onClose} presentationStyle="fullScreen" visible={visible}>
       <SafeAreaView style={styles.modalSafeArea}>
@@ -556,7 +577,7 @@ export const MemoDetailModal = ({
                 <Search color="#475569" size={20} />
               </Pressable>
             ) : null}
-            {memo?.isDeleted ? (
+            {memo ? (
               <Pressable accessibilityLabel="笔记操作" accessibilityRole="button" onPress={() => setActionsOpen(true)} style={styles.detailHeaderIconButton}>
                 <MoreHorizontal color="#475569" size={21} />
               </Pressable>
@@ -753,22 +774,47 @@ export const MemoDetailModal = ({
             <Pencil color="#ffffff" size={20} />
           </Pressable>
         ) : null}
-        {memo?.isDeleted ? (
+        {memo ? (
           <Modal animationType="fade" onRequestClose={() => setActionsOpen(false)} transparent visible={actionsOpen}>
             <Pressable onPress={() => setActionsOpen(false)} style={styles.actionSheetBackdrop}>
               <Pressable style={styles.actionSheet}>
                 <View style={styles.actionSheetHandle} />
                 <Text style={styles.actionSheetTitle}>笔记操作</Text>
-                <DetailActionSheetItem icon={<Search color="#0f172a" size={18} />} label="搜索当前笔记" onPress={() => closeActionsAndRun(() => {
-                  setSearchOpen(true);
-                })} />
-                <DetailActionSheetItem icon={<History color="#0f172a" size={18} />} label="版本历史" onPress={() => closeActionsAndRun(() => onOpenRevisions(memo))} />
-                <DetailActionSheetItem disabled={isRestoring} icon={<RotateCcw color="#0f172a" size={18} />} label={isRestoring ? "恢复中" : "恢复笔记"} onPress={() => closeActionsAndRun(() => onRestore(memo))} />
-                <View style={styles.listActionDivider} />
-                <DetailActionSheetItem danger disabled={isDeleting} icon={<Trash2 color="#b91c1c" size={18} />} label={isDeleting ? "删除中" : "彻底删除"} onPress={() => closeActionsAndRun(() => onDelete(memo))} />
+                {!memo.isDeleted ? (
+                  <DetailActionSheetItem
+                    icon={<Sparkles color="#16A06E" size={18} />}
+                    label="AI 笔记助手"
+                    onPress={() => closeActionsAndRun(() => setAiAssistantOpen(true))}
+                  />
+                ) : null}
+                <DetailActionSheetItem
+                  disabled={!canCopyMemoId}
+                  icon={<Copy color="#0f172a" size={18} />}
+                  label={canCopyMemoId ? "复制笔记 ID" : "同步后可复制笔记 ID"}
+                  onPress={() => closeActionsAndRun(() => void copyMemoId())}
+                />
+                {memo.isDeleted ? (
+                  <>
+                    <DetailActionSheetItem icon={<Search color="#0f172a" size={18} />} label="搜索当前笔记" onPress={() => closeActionsAndRun(() => {
+                      setSearchOpen(true);
+                    })} />
+                    <DetailActionSheetItem icon={<History color="#0f172a" size={18} />} label="版本历史" onPress={() => closeActionsAndRun(() => onOpenRevisions(memo))} />
+                    <DetailActionSheetItem disabled={isRestoring} icon={<RotateCcw color="#0f172a" size={18} />} label={isRestoring ? "恢复中" : "恢复笔记"} onPress={() => closeActionsAndRun(() => onRestore(memo))} />
+                    <View style={styles.listActionDivider} />
+                    <DetailActionSheetItem danger disabled={isDeleting} icon={<Trash2 color="#b91c1c" size={18} />} label={isDeleting ? "删除中" : "彻底删除"} onPress={() => closeActionsAndRun(() => onDelete(memo))} />
+                  </>
+                ) : null}
               </Pressable>
             </Pressable>
           </Modal>
+        ) : null}
+        {memo && !memo.isDeleted ? (
+          <MobileAiAssistantModal
+            memo={memo}
+            onApply={(draft, mode) => onApplyAiDraft(memo, draft, mode)}
+            onClose={() => setAiAssistantOpen(false)}
+            visible={aiAssistantOpen}
+          />
         ) : null}
         <Modal animationType="fade" onRequestClose={() => setImagePreview(null)} transparent visible={Boolean(imagePreview)}>
           <View style={resourceImageStyles.previewBackdrop}>

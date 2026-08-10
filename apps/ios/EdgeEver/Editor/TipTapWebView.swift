@@ -15,9 +15,14 @@ struct TipTapWebView: UIViewRepresentable {
     let markdown: String
     let baseURL: URL?
     let token: String?
+    let locale: String
+    let theme: String
+    let placeholder: String
     let onChange: ((String, String) -> Void)?
     var onResourcePress: ((ResourceTarget) -> Void)? = nil
     var onImagePreview: ((_ source: String, _ alt: String) -> Void)? = nil
+    var onPickImage: (() -> Void)? = nil
+    var onSearchResult: ((_ count: Int, _ index: Int) -> Void)? = nil
     var onBodyReady: (() -> Void)? = nil
 
     func makeCoordinator() -> Coordinator {
@@ -26,7 +31,7 @@ struct TipTapWebView: UIViewRepresentable {
 
     func makeUIView(context: Context) -> TipTapHostView {
         let host = TipTapHostView()
-        host.backgroundColor = .white
+        host.backgroundColor = .clear
         host.clipsToBounds = true
         return host
     }
@@ -42,9 +47,14 @@ struct TipTapWebView: UIViewRepresentable {
                 markdown: markdown,
                 baseURL: baseURL,
                 token: token,
+                locale: locale,
+                theme: theme,
+                placeholder: placeholder,
                 onChange: onChange,
                 onResourcePress: onResourcePress,
                 onImagePreview: onImagePreview,
+                onPickImage: onPickImage,
+                onSearchResult: onSearchResult,
                 onBodyReady: onBodyReady
             )
         )

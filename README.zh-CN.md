@@ -36,6 +36,7 @@ EdgeEver 是一款现代化的开源笔记工作区。它为你找回经典印�
 - **数据开放，不设围墙**：基于标准 SQLite 存储，提供 REST API、MCP 与 CLI 接口。数据随时可读可导，不再担心被任何特定平台绑定。
 - **无损 ZIP 打包与无缝迁移**：一键打包导出包含 Markdown、Front Matter、嵌套目录及附件的完整档案，同时保留历史版本与结构化数据，方便在不同实例间完整还原。
 - **原生 AI Agent 智脑联动**：内置 MCP（Model Context Protocol）协议，支持 Claude Code、Codex、Antigravity 等 AI 助手直接读取与整理笔记，也可与 Notion Database、飞书多维表格轻松打通。
+- **接入自己的 AI 模型**：使用自己的 Base URL 和 API Key 连接 OpenAI 兼容、Anthropic 或 Gemini 云端服务，对当前笔记进行总结、提炼要点、提取待办、改写与校对或翻译，结果确认后再应用。
 - **多端无缝同步，无设备限制**：自托管数据无商业限制，摆脱免费账号仅限 2 台设备的束缚，在 PC、平板与手机上随心同步。
 - **经典三栏布局与专注模式**：笔记本树、笔记列表与编辑区一目了然；桌面端一键开启专注模式，让思绪尽情铺满屏幕。
 - **无限层级笔记本**：轻松构建清晰的多级目录结构。
@@ -142,35 +143,9 @@ macOS App 可从 [GitHub Releases](https://github.com/tianma-if/edgeever/release
 
 ## 快速开始
 
-安装依赖：
-
 ```sh
 bun install
-```
-
-应用本地 D1 迁移：
-
-```sh
-bun run db:migrate:local
-```
-
-启动默认开发环境。它会先应用本地迁移，并在首次启动时使用仓库内固定的 Demo 种子初始化本地 D1/R2；后续重启会保留本地修改，且不会连接任何远程实例。
-
-```sh
 bun run dev
-```
-
-如需明确连接已配置的远程实例，必须显式指定实例名：
-
-```sh
-EDGE_EVER_INSTANCE=<实例名> bun run dev:remote
-```
-
-常用检查：
-
-```sh
-bun run typecheck
-bun run build
 ```
 
 ## 目录结构
@@ -223,6 +198,13 @@ https://你的域名/api/openapi.json
 > 放飞你的思路，这种情况下是有很多灵活玩法：
 比如让AI Agent归纳你随机记录的灵感创意、针对你的笔记做精准的人物画像、构建自己的知识图谱、自动为笔记打标签）
 借助 MCP，EdgeEver 还可以与 Notion Database、飞书多维表格等工具联动，把日常笔记中零散的灵感、信息和素材沉淀到结构化数据库中，方便后续整理、检索与管理。
+
+## 接入自己的 AI 模型
+
+进入**个人中心 → AI 集成**，可以使用自己的 Base URL、API Key 和模型 ID 连接 OpenAI 兼容协议、Anthropic Messages 或 Google Gemini 云端服务。第一版 AI 功能聚焦笔记内容处理：总结、提炼要点、提取待办、改写与校对以及翻译。模型结果会先作为流式草稿展示，确认后才能复制、追加或替换正文。
+
+AI 请求统一由 EdgeEver 服务端发出，不会由浏览器或原生客户端直接携带模型密钥。模型凭据按个人工作区隔离并加密保存；标准部署会自动从已有的实例认证 Secret 派生 AI 专用加密密钥，不需要增加任何部署变量。Cloudflare Worker 与未来的 Docker/Bun 运行时共用同一套 AI 业务代码。
+
 ## 图片压缩规则
 
 图片压缩仅在 Web 端上传前执行，由设置页的“压缩笔记内图片”开关控制。启用后，浏览器会把 PNG、JPEG、WebP、AVIF 尝试压缩为 WebP，并将最长边限制在 `2560px` 以内；如果压缩结果不比原图小，则保留原图。
@@ -233,7 +215,7 @@ Cloudflare Worker 侧执行图片处理会消耗计算/图片处理额度，因�
 
 实例 Owner 可以进入**设置 → 高级设置 → OSS 对象存储**，让后续上传的图片和附件写入兼容 S3 API 的阿里云 OSS、腾讯云 COS、AWS S3、MinIO 或 R2。已有资源继续保留在原存储中，因此切换默认存储不会迁移历史附件，也不会让历史附件失效。
 
-在 Cloudflare 部署中保存第三方凭据前，需要先配置一个至少 32 个字符的随机 `EDGE_EVER_STORAGE_ENCRYPTION_KEY` Worker Secret。EdgeEver 会用这个实例级密钥加密保存在 D1 中的访问密钥。请保持该密钥稳定并妥善备份；读取外部存储中的资源时仍需要它。
+在 Cloudflare 部署中保存第三方对象存储凭据前，需要先配置一个至少 32 个字符的随机 `EDGE_EVER_STORAGE_ENCRYPTION_KEY` Worker Secret。EdgeEver 会用这个实例级密钥加密保存在 D1 中的对象存储 Secret。请保持该密钥稳定并妥善备份；更换密钥会导致之前保存的对象存储凭据无法继续使用。
 
 ## 导入与迁移 (Migration)
 

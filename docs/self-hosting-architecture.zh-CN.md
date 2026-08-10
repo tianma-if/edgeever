@@ -45,7 +45,7 @@ EdgeEver 容器
 
 - 保持 `/api/*`、`/mcp`、`/api/openapi.json` 和 `/api/health` 不变。
 - 继续追加 `migrations/*.sql`，禁止为 Docker 分叉数据库结构。
-- `EDGE_EVER_STORAGE_ENCRYPTION_KEY` 等根密钥必须通过环境变量或 Docker secrets 注入，不能写入镜像或数据库；从实例设置录入的凭据只能以该部署级密钥保护的 AES-GCM 密文形式保存。
+- 根密钥必须通过环境变量或 Docker secrets 注入，不能写入镜像或数据库。对象存储 Secret 使用 `EDGE_EVER_STORAGE_ENCRYPTION_KEY`；个人 AI 模型 API Key 默认从已有实例认证 Secret 派生 AI 专用密钥，高级密钥轮换场景可选用 `EDGE_EVER_CREDENTIALS_ENCRYPTION_KEY` 覆盖。所有凭据在数据库中只能保存为 AES-GCM 密文。
 - 将 `/data` 作为唯一必需的应用持久化路径，方便 NAS 用户备份一个卷。
 - 容器入口需要支持 `EDGE_EVER_AUTH_USERNAME`、`EDGE_EVER_AUTH_PASSWORD` 和
   会话配置，同时不能把 Cloudflare 专有配置当作前置条件。
@@ -65,6 +65,8 @@ EDGE_EVER_AUTH_PASSWORD='<强密码>' bun run start:self-hosted
 
 可通过 `EDGE_EVER_DATA_DIR` 指定需要由 Docker 或 NAS 卷持久化的目录。该入口
 目前仍不是正式支持的发行物。
+长时间流式响应默认使用 120 秒空闲超时。可将
+`EDGE_EVER_IDLE_TIMEOUT_SECONDS` 设置为 10 到 255 之间的值进行覆盖。
 
 同一个入口也可以使用 S3 兼容对象存储：
 

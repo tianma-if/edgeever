@@ -141,6 +141,47 @@ describe("Mermaid Markdown conversion", () => {
   });
 });
 
+describe("LaTeX Markdown conversion", () => {
+  const markdown = "Euler: $e^{i\\pi}+1=0$.\n\n$$\n\\frac{a}{b}\n$$";
+
+  test("round-trips inline and block formula nodes", () => {
+    const doc = markdownToDoc(markdown);
+
+    expect(doc.content[0]?.content?.[1]).toMatchObject({
+      type: "inlineMath",
+      attrs: { latex: "e^{i\\pi}+1=0" },
+    });
+    expect(doc.content[1]).toMatchObject({
+      type: "blockMath",
+      attrs: { latex: "\\frac{a}{b}" },
+    });
+    expect(docToMarkdown(doc)).toBe(markdown);
+    expect(docToText(doc)).toContain("e^{i\\pi}+1=0");
+    expect(docToText(doc)).toContain("\\frac{a}{b}");
+  });
+
+  test("keeps currency and escaped dollar pairs as literal text", () => {
+    const doc = markdownToDoc("Price: $100$; literal: \\$x$.");
+    const serialized = docToMarkdown(doc);
+
+    expect(doc.content[0]?.content?.some((node) => node.type === "inlineMath")).toBe(false);
+    expect(serialized).toBe("Price: \\$100\\$; literal: \\$x\\$.");
+    expect(markdownToDoc(serialized)).toEqual(doc);
+  });
+
+  test("recovers formula nodes omitted by an older JSON schema", () => {
+    const legacyDoc = markdownToDoc("Euler: $e^{i\\pi}+1=0$.");
+    legacyDoc.content[0] = {
+      type: "paragraph",
+      content: [{ type: "text", text: "Euler: $e^{i\\pi}+1=0$." }],
+    };
+
+    const resolved = resolveMemoContentDoc(legacyDoc, markdown);
+    expect(resolved.content[0]?.content?.[1]?.type).toBe("inlineMath");
+    expect(resolved.content[1]?.type).toBe("blockMath");
+  });
+});
+
 describe("Theme block compatibility", () => {
   test("keeps themed blocks in the richer JSON document when Markdown is also present", () => {
     const doc = {

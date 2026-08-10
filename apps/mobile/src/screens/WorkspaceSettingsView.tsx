@@ -2,8 +2,8 @@ import { useEffect, useRef, useState, type ComponentRef, type ReactNode } from "
 import * as Clipboard from "expo-clipboard";
 import Constants from "expo-constants";
 import { buildGitHubFeedbackUrl, type AuthUser } from "@edgeever/shared";
-import { ActivityIndicator, BackHandler, Linking, Modal, Platform, ScrollView, Switch, View } from "react-native";
-import { Check, ChevronDown, ChevronLeft, ChevronRight, Copy, ExternalLink, Image as ImageIcon, Info, LogOut, MessageSquare, Moon, RefreshCw, ShieldCheck, SlidersHorizontal, Sun, UserRound } from "../components/icons";
+import { BackHandler, Linking, Modal, Platform, ScrollView, Switch, View } from "react-native";
+import { ActivityIndicator, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, ExternalLink, Image as ImageIcon, Info, LogOut, MessageSquare, Moon, RefreshCw, ShieldCheck, SlidersHorizontal, Sun, UserRound } from "../components/icons";
 import { Pressable, Text } from "../components/LocalizedText";
 import { useMobileLocale } from "../lib/mobile-locale";
 import { useMobileTheme } from "../lib/mobile-theme";

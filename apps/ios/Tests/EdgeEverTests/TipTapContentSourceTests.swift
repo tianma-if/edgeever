@@ -109,6 +109,14 @@ final class TipTapContentSourceTests: XCTestCase {
         XCTAssertTrue(d.useJSON, "simple image+text notes should keep JSON for order fidelity")
     }
 
+    func testEditorAndViewerRecoverMathMissingFromLegacyJSON() {
+        let markdown = "Euler: $e^{i\\pi}+1=0$."
+        let flatJSON = #"{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Euler: $e^{i\\pi}+1=0$."}]}]}"#
+
+        XCTAssertFalse(TipTapContentSource.resolve(mode: .editor, documentJSON: flatJSON, markdown: markdown).useJSON)
+        XCTAssertFalse(TipTapContentSource.resolve(mode: .viewer, documentJSON: flatJSON, markdown: markdown).useJSON)
+    }
+
     /// Live WKWebView: packaged TipTap must turn Markdown into real DOM structure.
     @MainActor
     func testPackagedEditorSetMarkdownRendersHeadingsListsAndBold() async throws {
@@ -169,6 +177,12 @@ final class TipTapContentSourceTests: XCTestCase {
         ```js
         console.log(1)
         ```
+
+        Euler: $e^{i\\pi}+1=0$.
+
+        $$
+        \\frac{a}{b}
+        $$
         """
         let b64 = Data(sample.utf8).base64EncodedString()
         _ = try await eval(webView, """
@@ -189,6 +203,7 @@ final class TipTapContentSourceTests: XCTestCase {
         let strong = try await evalInt(webView, "document.querySelectorAll('strong,b').length")
         let li = try await evalInt(webView, "document.querySelectorAll('li').length")
         let pre = try await evalInt(webView, "document.querySelectorAll('pre').length")
+        let math = try await evalInt(webView, "document.querySelectorAll('.tiptap-mathematics-render .katex').length")
         let rawLeak = try await evalBool(
             webView,
             "document.body.innerText.indexOf('## 标题渲染') >= 0 && document.querySelectorAll('h1,h2,h3').length === 0"
@@ -198,6 +213,7 @@ final class TipTapContentSourceTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(strong, 1, "bold markdown must render as strong/b")
         XCTAssertGreaterThanOrEqual(li, 2, "list items must render")
         XCTAssertGreaterThanOrEqual(pre, 1, "fenced code must render as pre")
+        XCTAssertEqual(math, 2, "inline and block LaTeX must render through KaTeX")
         XCTAssertFalse(rawLeak, "must not show raw '## heading' as plain text without heading nodes")
 
         // Contrast: flattened JSON path must NOT be what viewer policy selects.

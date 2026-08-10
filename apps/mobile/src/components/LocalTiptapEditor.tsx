@@ -1,6 +1,7 @@
 'use dom';
 
 import "mermaid/dist/mermaid.min.js";
+import "katex/dist/katex.min.css";
 import { renderMermaidSVG, THEMES } from "beautiful-mermaid";
 import Image from "@tiptap/extension-image";
 import CodeBlock from "@tiptap/extension-code-block";
@@ -9,7 +10,7 @@ import { TableKit } from "@tiptap/extension-table";
 import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import * as Clipboard from "expo-clipboard";
-import { MEMO_CONTENT_STYLE, MergeDivider, getImageReferrerPolicy, getResourceIdFromUrl, type TiptapDoc } from "@edgeever/shared";
+import { createEdgeEverMathematics, MEMO_CONTENT_STYLE, MergeDivider, getImageReferrerPolicy, getResourceIdFromUrl, type TiptapDoc } from "@edgeever/shared";
 import {
   DEFAULT_IMAGE_WIDTH_PERCENT,
   IMAGE_WIDTH_PRESETS,
@@ -404,6 +405,7 @@ function LocalTiptapEditorImpl(props: LocalTiptapEditorProps) {
     extensions: [
       StarterKit.configure({ codeBlock: false, link: { openOnClick: false } }),
       MergeDivider,
+      ...createEdgeEverMathematics(),
       mermaidCodeBlockExtension,
       protectedImageExtension,
       TableKit.configure({
@@ -466,8 +468,8 @@ function LocalTiptapEditorImpl(props: LocalTiptapEditorProps) {
     try {
       const parsed = JSON.parse(contentJsonSerialized) as EditorDoc;
       const next = resolveImageSources(parsed, props.baseUrl);
-      // Do not focus here: draft restore / template inject must not steal the native
-      // title TextInput IME. Callers that need caret at end use focusEnd().
+      // Do not focus while replacing content. Callers decide when the editor should
+      // take focus and place the caret via focusEnd().
       editor.commands.setContent(next, { emitUpdate: !isViewer });
     } catch {
       // Ignore malformed payloads from the native bridge.
@@ -1792,6 +1794,8 @@ const getEditorStyles = (theme: "light" | "dark", options?: { viewer?: boolean }
   .edgeever-editor-content pre { max-width: 100%; overflow-x: auto; border-radius: 10px; padding: 14px 90px 14px 14px; background: #0f172a; color: #e2e8f0; font-size: 0.9rem; }
   .edgeever-editor-content code { border-radius: 4px; padding: 2px 4px; background: ${theme === "dark" ? "#1e293b" : "#f1f5f9"}; font-size: 0.9em; }
   .edgeever-editor-content pre code { padding: 0; background: transparent; font-size: inherit; }
+  .edgeever-editor-content .tiptap-mathematics-render[data-type="block-math"] { max-width: 100%; margin: 16px 0; overflow-x: auto; overflow-y: hidden; padding: 4px 0; text-align: center; -webkit-overflow-scrolling: touch; }
+  .edgeever-editor-content .inline-math-error, .edgeever-editor-content .block-math-error { color: ${theme === "dark" ? "#fda4af" : "#be123c"}; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
   /* External hyperlinks (match Web default ProseMirror). Attachment chips override below. */
   .edgeever-editor-content a {
     color: ${theme === "dark" ? "#86efac" : "#00751f"};
@@ -1950,4 +1954,3 @@ const getEditorStyles = (theme: "light" | "dark", options?: { viewer?: boolean }
   .edgeever-editor-content hr { margin: 24px 0; border: 0; border-top: 1px solid #cbd5e1; }
 `;
 };
-

@@ -66,7 +66,7 @@ To configure an S3-compatible object store from **Settings → Advanced**, add a
 bunx wrangler secret put EDGE_EVER_STORAGE_ENCRYPTION_KEY
 ```
 
-Use a random value of at least 32 characters and keep a secure backup. EdgeEver encrypts the external Secret Access Key before storing it in D1. Losing or changing this encryption key makes previously saved external credentials unusable. After adding the secret, redeploy or restart the Worker, then use **Test connection** before saving the OSS configuration.
+Use a random value of at least 32 characters and keep a secure backup. EdgeEver encrypts the external Secret Access Key before storing it in D1. Losing or changing this encryption key makes previously saved external credentials unusable. After adding the secret, redeploy or restart the Worker, then use **Test connection** before saving the OSS configuration. Personal AI model credentials use the existing instance authentication secret automatically and do not require this variable.
 
 ## Recovery
 

@@ -68,6 +68,33 @@ export type RetryableSyncQueueItem = SyncQueueStatusItem & {
   nextAttemptAt: string | null;
 };
 
+export type MemoSyncBase = {
+  revision: number;
+  contentHash: string;
+};
+
+export type MemoSyncExpectedBase = {
+  expectedRevision: number;
+  expectedContentHash: string;
+};
+
+export const isMemoSyncBaseCurrent = (
+  current: MemoSyncBase,
+  expected: MemoSyncExpectedBase,
+) => current.revision === expected.expectedRevision
+  && current.contentHash === expected.expectedContentHash;
+
+export const getMemoSyncBaseConflictDetails = (
+  current: MemoSyncBase,
+  expected: MemoSyncExpectedBase,
+) => ({
+  expectedRevision: expected.expectedRevision,
+  currentRevision: current.revision,
+  expectedContentHash: expected.expectedContentHash,
+  currentContentHash: current.contentHash,
+  source: "offline_sync" as const,
+});
+
 export const createEmptySyncQueueSummary = (): SyncQueueSummary => ({
   total: 0,
   pending: 0,

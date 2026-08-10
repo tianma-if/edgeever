@@ -13,6 +13,27 @@
   --placeholder: #94a3b8;
 }
 
+.tiptap-mathematics-render[data-type="block-math"] {
+  max-width: 100%;
+  margin: 1rem 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.25rem 0;
+  text-align: center;
+  -webkit-overflow-scrolling: touch;
+}
+
+.inline-math-error,
+.block-math-error {
+  color: #be123c;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+html[data-theme="dark"] .inline-math-error,
+html[data-theme="dark"] .block-math-error {
+  color: #fda4af;
+}
+
 html[data-theme="dark"] {
   --text: #f8fafc;
   --muted: #cbd5e1;

@@ -65,6 +65,7 @@ export type EditorThemeName = string;
 export interface ThemeColors {
   background: string;
   text: string;
+  muted: string;
   heading: string;
   accent: string;
   soft: string;
@@ -82,6 +83,7 @@ export interface CustomEditorTheme {
 export const DEFAULT_CUSTOM_LIGHT_COLORS: ThemeColors = {
   background: "#fffdf7",
   text: "#292524",
+  muted: "#57534e",
   heading: "#1c1917",
   accent: "#0f766e",
   soft: "#f0fdfa",
@@ -91,8 +93,9 @@ export const DEFAULT_CUSTOM_LIGHT_COLORS: ThemeColors = {
 export const DEFAULT_CUSTOM_DARK_COLORS: ThemeColors = {
   background: "#1c1917",
   text: "#fafaf9",
+  muted: "#d6d3d1",
   heading: "#fafaf9",
-  accent: "#0d9488",
+  accent: "#2dd4bf",
   soft: "#292524",
   border: "#44403c",
 };
@@ -173,6 +176,22 @@ export const getStoredEditorTheme = (): string => {
 
 const isHexColor = (value: unknown): value is string => typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value);
 
+const normalizeThemeColors = (value: Partial<ThemeColors> | undefined, fallback: ThemeColors): ThemeColors => ({
+  background: isHexColor(value?.background) ? value.background : fallback.background,
+  text: isHexColor(value?.text) ? value.text : fallback.text,
+  muted: isHexColor(value?.muted) ? value.muted : fallback.muted,
+  heading: isHexColor(value?.heading) ? value.heading : fallback.heading,
+  accent: isHexColor(value?.accent) ? value.accent : fallback.accent,
+  soft: isHexColor(value?.soft) ? value.soft : fallback.soft,
+  border: isHexColor(value?.border) ? value.border : fallback.border,
+});
+
+const normalizeCustomEditorTheme = (theme: CustomEditorTheme): CustomEditorTheme => ({
+  ...theme,
+  light: normalizeThemeColors(theme.light, DEFAULT_CUSTOM_LIGHT_COLORS),
+  dark: normalizeThemeColors(theme.dark, DEFAULT_CUSTOM_DARK_COLORS),
+});
+
 export const getStoredCustomEditorThemes = (): CustomEditorTheme[] => {
   if (typeof window === "undefined") return [DEFAULT_CUSTOM_EDITOR_THEME];
 
@@ -181,7 +200,7 @@ export const getStoredCustomEditorThemes = (): CustomEditorTheme[] => {
     if (storedThemesStr) {
       const parsed = JSON.parse(storedThemesStr) as CustomEditorTheme[];
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
+        return parsed.map(normalizeCustomEditorTheme);
       }
     }
   } catch {
@@ -200,6 +219,7 @@ export const getStoredCustomEditorThemes = (): CustomEditorTheme[] => {
           light: {
             background: oldTheme.background || DEFAULT_CUSTOM_LIGHT_COLORS.background,
             text: oldTheme.text || DEFAULT_CUSTOM_LIGHT_COLORS.text,
+            muted: oldTheme.muted || DEFAULT_CUSTOM_LIGHT_COLORS.muted,
             heading: oldTheme.heading || DEFAULT_CUSTOM_LIGHT_COLORS.heading,
             accent: oldTheme.accent || DEFAULT_CUSTOM_LIGHT_COLORS.accent,
             soft: oldTheme.soft || DEFAULT_CUSTOM_LIGHT_COLORS.soft,

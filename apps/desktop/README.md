@@ -36,6 +36,15 @@ This writes `apps/desktop/assets/icon.icns` (full ICNS) and `icon.png` (1024
 master). Packaging validation rejects incomplete ICNS types. Runtime also calls
 `app.dock.setIcon` as a Launch Services / Dock cache fallback.
 
+Preview the committed icon at its real Dock size without starting EdgeEver:
+
+```sh
+bun run preview:desktop:icon
+```
+
+The temporary preview stays in the Dock until you quit it from the icon's
+context menu.
+
 Build an unsigned installer for the current platform with:
 
 ```sh

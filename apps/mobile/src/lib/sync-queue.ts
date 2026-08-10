@@ -6,6 +6,7 @@ import {
   formatLocalDraftClipboardText,
   getNextSyncQueueRetryDelay,
   getSyncRetryAt,
+  isMemoSyncBaseCurrent,
   summarizeSyncQueue,
   type MemoDetail,
   type SyncQueueSummary,
@@ -396,10 +397,10 @@ const syncMobileQueueItem = async (client: ReturnType<typeof createEdgeEverClien
 
   const { editSession } = await client.createMemoEditSession(item.memoId);
 
-  if (
-    editSession.baseRevision !== item.payload.expectedRevision ||
-    editSession.baseContentHash !== item.payload.expectedContentHash
-  ) {
+  if (!isMemoSyncBaseCurrent(
+    { revision: editSession.baseRevision, contentHash: editSession.baseContentHash },
+    item.payload,
+  )) {
     throw new ApiRequestError("Note changed before the offline draft could sync.", 409, "revision_conflict");
   }
 
@@ -560,5 +561,4 @@ const isMobileSyncQueueItem = (value: unknown): value is MobileSyncQueueItem => 
   const item = value as Partial<MobileSyncQueueItem>;
   return (item.kind === "memo.update" || item.kind === "memo.create") && typeof item.id === "string" && typeof item.memoId === "string" && Boolean(item.payload);
 };
-
 

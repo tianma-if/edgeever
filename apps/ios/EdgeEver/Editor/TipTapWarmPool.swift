@@ -9,9 +9,14 @@ struct TipTapSession {
     var markdown: String
     var baseURL: URL?
     var token: String?
+    var locale: String
+    var theme: String
+    var placeholder: String
     var onChange: ((String, String) -> Void)?
     var onResourcePress: ((ResourceTarget) -> Void)?
     var onImagePreview: ((_ source: String, _ alt: String) -> Void)?
+    var onPickImage: (() -> Void)?
+    var onSearchResult: ((_ count: Int, _ index: Int) -> Void)?
     var onBodyReady: (() -> Void)?
 }
 
@@ -38,7 +43,7 @@ final class SharedTipTapRuntime: NSObject, WKScriptMessageHandler, WKNavigationD
     private var ready = false
     private var lastPushedJSON: String?
     private var lastEditorEmittedFingerprint: String?
-    private var lastAppliedMode: String?
+    private var lastAppliedConfiguration: String?
     private var hydrateGeneration: UInt64 = 0
     private var bodyReadyGeneration: UInt64 = 0
     private var contentGeneration: UInt64 = 0
@@ -62,7 +67,8 @@ final class SharedTipTapRuntime: NSObject, WKScriptMessageHandler, WKNavigationD
         config.setURLSchemeHandler(handler, forURLScheme: EdgeEverResourceSchemeHandler.scheme)
         let wv = WKWebView(frame: .zero, configuration: config)
         wv.isOpaque = false
-        wv.backgroundColor = .white
+        wv.backgroundColor = .clear
+        wv.scrollView.backgroundColor = .clear
         wv.scrollView.clipsToBounds = true
         wv.scrollView.contentInsetAdjustmentBehavior = .never
         wv.scrollView.delaysContentTouches = false
@@ -132,6 +138,8 @@ final class SharedTipTapRuntime: NSObject, WKScriptMessageHandler, WKNavigationD
             s.onChange = nil
             s.onResourcePress = nil
             s.onImagePreview = nil
+            s.onPickImage = nil
+            s.onSearchResult = nil
             s.onBodyReady = nil
             session = s
         }
@@ -173,6 +181,28 @@ final class SharedTipTapRuntime: NSObject, WKScriptMessageHandler, WKNavigationD
     func focusEnd() {
         guard session?.mode == .editor else { return }
         focusEnd(attempt: 0)
+    }
+
+    /// Select a match inside the current viewer/editor and return the total + active index.
+    func search(_ query: String, index: Int) {
+        guard ready else {
+            session?.onSearchResult?(0, 0)
+            return
+        }
+        let queryB64 = Data(query.utf8).base64EncodedString()
+        let js = """
+        (function(){
+          try {
+            if (!window.EdgeEverEditor || !window.EdgeEverEditor.search) return false;
+            var bin = atob('\(queryB64)');
+            var bytes = new Uint8Array(bin.length);
+            for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+            window.EdgeEverEditor.search(new TextDecoder('utf-8').decode(bytes), \(max(0, index)));
+            return true;
+          } catch (e) { return false; }
+        })();
+        """
+        webView.evaluateJavaScript(js, completionHandler: nil)
     }
 
     private func focusEnd(attempt: Int) {
@@ -365,7 +395,7 @@ final class SharedTipTapRuntime: NSObject, WKScriptMessageHandler, WKNavigationD
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         ready = true
-        lastAppliedMode = nil
+        lastAppliedConfiguration = nil
         applyMode()
         pushContentIfNeeded(force: true)
     }
@@ -375,12 +405,24 @@ final class SharedTipTapRuntime: NSObject, WKScriptMessageHandler, WKNavigationD
     private func applyMode() {
         guard ready, let session else { return }
         let mode = session.mode.rawValue
-        if lastAppliedMode == mode { return }
-        lastAppliedMode = mode
+        let locale = session.locale == "en-US" ? "en-US" : "zh-CN"
+        let theme = session.theme == "dark" ? "dark" : "light"
+        let configuration = "\(mode)|\(locale)|\(theme)|\(session.placeholder)"
+        if lastAppliedConfiguration == configuration { return }
+        lastAppliedConfiguration = configuration
+        let options: [String: String] = [
+            "mode": mode,
+            "locale": locale,
+            "theme": theme,
+            "placeholder": session.placeholder,
+        ]
+        guard let data = try? JSONSerialization.data(withJSONObject: options),
+              let json = String(data: data, encoding: .utf8)
+        else { return }
         let js = """
         (function(){
           if (!window.EdgeEverEditor) return;
-          window.EdgeEverEditor.configure({ mode: '\(mode)', locale: 'zh-CN', theme: 'light' });
+          window.EdgeEverEditor.configure(\(json));
         })();
         """
         webView.evaluateJavaScript(js, completionHandler: nil)
@@ -412,9 +454,7 @@ final class SharedTipTapRuntime: NSObject, WKScriptMessageHandler, WKNavigationD
 
         let shouldFocusAfterPush = session.mode == .editor && focusedGeneration != gen
 
-        if lastAppliedMode != session.mode.rawValue {
-            applyMode()
-        }
+        applyMode()
 
         let fn = useJSON ? "setDocumentFromJSON" : "setMarkdown"
         let payload = decision.payload
@@ -531,7 +571,7 @@ final class SharedTipTapRuntime: NSObject, WKScriptMessageHandler, WKNavigationD
         switch type {
         case "ready":
             ready = true
-            lastAppliedMode = nil
+            lastAppliedConfiguration = nil
             pushContentIfNeeded(force: true)
         case "change":
             // Host dismantled (create/edit dismissed) — drop late events so they cannot
@@ -563,6 +603,14 @@ final class SharedTipTapRuntime: NSObject, WKScriptMessageHandler, WKNavigationD
             guard !source.isEmpty else { break }
             let cb = session?.onImagePreview
             DispatchQueue.main.async { cb?(source, alt) }
+        case "pickImage":
+            let cb = session?.onPickImage
+            DispatchQueue.main.async { cb?() }
+        case "searchResult":
+            let count = (body["count"] as? NSNumber)?.intValue ?? 0
+            let index = (body["index"] as? NSNumber)?.intValue ?? 0
+            let cb = session?.onSearchResult
+            DispatchQueue.main.async { cb?(count, index) }
         default:
             break
         }

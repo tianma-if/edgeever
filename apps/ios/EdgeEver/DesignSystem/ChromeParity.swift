@@ -142,21 +142,21 @@ enum DetailSyncStatus: Equatable, Sendable {
 
     var background: Color {
         switch self {
-        case .synced: return Color(hex: 0xF1F5F9)
-        case .pending: return Color(hex: 0xEFF6FF)
-        case .syncing: return Color(hex: 0xF1F5F9)
-        case .conflict: return Color(hex: 0xFFF7ED)
-        case .error: return Color(hex: 0xFEF2F2)
+        case .synced: return AppTheme.searchFill
+        case .pending: return AppTheme.infoSurface
+        case .syncing: return AppTheme.searchFill
+        case .conflict: return AppTheme.warningSurface
+        case .error: return AppTheme.dangerSurface
         }
     }
 
     var foreground: Color {
         switch self {
-        case .synced: return Color(hex: 0x64748B)
-        case .pending: return Color(hex: 0x1D4ED8)
-        case .syncing: return Color(hex: 0x64748B)
-        case .conflict: return Color(hex: 0xC2410C)
-        case .error: return Color(hex: 0xB91C1C)
+        case .synced: return AppTheme.secondary
+        case .pending: return AppTheme.infoText
+        case .syncing: return AppTheme.secondary
+        case .conflict: return AppTheme.warningText
+        case .error: return AppTheme.danger
         }
     }
 }

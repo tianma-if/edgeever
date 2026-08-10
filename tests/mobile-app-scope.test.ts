@@ -71,12 +71,12 @@ describe("mobile app scope", () => {
     expect(memoDetailSource).not.toContain("react-native-markdown-display");
   });
 
-  test("keeps memo list free of Reanimated layout transitions that crash Fabric text layout", () => {
-    expect(notesViewSource).not.toContain("FadeInDown");
-    expect(notesViewSource).not.toContain("FadeOutUp");
-    expect(notesViewSource).not.toContain("LinearTransition");
-    expect(notesViewSource).not.toContain("entering=");
-    expect(notesViewSource).not.toContain("layout={LinearTransition");
+  test("keeps Android memo list motion and spring feedback", () => {
+    expect(notesViewSource).toContain("FadeInDown.duration(260).springify().damping(18)");
+    expect(notesViewSource).toContain("FadeOutUp.duration(220)");
+    expect(notesViewSource).toContain("LinearTransition.duration(220)");
+    expect(notesViewSource).toContain("pressScale.value = withTiming(0.985");
+    expect(notesViewSource).toContain("pressScale.value = withTiming(1");
   });
 
   test("hardens DOM/WebView hosts against media capture probes during App Review", () => {
@@ -88,6 +88,22 @@ describe("mobile app scope", () => {
 
   test("reads the latest create and upload state from the hardware-back handler", () => {
     expect(workspaceSource).toContain("createPendingRef.current || imageOperationRef.current");
+  });
+
+  test("focuses the note body instead of the title when creating a note", () => {
+    const createMemoSource = workspaceSource.slice(
+      workspaceSource.indexOf("const CreateMemoModal ="),
+      workspaceSource.indexOf("const RichEditorModal =")
+    );
+    const titleInput = createMemoSource.match(
+      /<TextInput\s+autoCorrect\s+accessibilityLabel="笔记标题"[\s\S]*?\/>/
+    )?.[0];
+
+    expect(createMemoSource).toMatch(/<LocalTiptapEditor\s+autoFocus\s/);
+    expect(createMemoSource).toContain("scheduleBodyKeyboard(60)");
+    expect(titleInput).toBeDefined();
+    expect(titleInput).not.toContain("autoFocus");
+    expect(createMemoSource).not.toContain("scheduleTitleFocus");
   });
 
   test("declares iOS privacy strings and full-screen phone-on-iPad presentation", () => {

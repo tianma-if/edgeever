@@ -21,6 +21,7 @@ import { userDataDirectoryFromArguments } from "./user-data-directory.mjs";
 import { isAllowedPrintPreviewUrl } from "./window-open-policy.mjs";
 import { showWindow } from "./window-visibility.mjs";
 import { trayIconPath } from "./tray-icon.mjs";
+import { writeRichClipboard } from "./clipboard-write.mjs";
 import electronUpdater from "electron-updater";
 
 const { autoUpdater } = electronUpdater;
@@ -680,6 +681,7 @@ app.whenReady().then(async () => {
     clipboard.writeText(value);
     return clipboard.readText() === value;
   });
+  ipcMain.handle("desktop:copy-html", (_event, input) => writeRichClipboard(clipboard, input));
   ipcMain.handle("desktop:set-session-token", async (_event, value) => {
     await saveDesktopSessionToken(value);
     return { stored: Boolean(desktopSessionToken) };

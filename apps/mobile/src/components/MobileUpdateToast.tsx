@@ -11,6 +11,7 @@ import {
 } from "../lib/preferences";
 import { resolveMobileThemeStyles, useMobileTheme } from "../lib/mobile-theme";
 import { useMobileUpdate } from "../lib/mobile-update";
+import { getMobileUpdateToastBottomOffset } from "../lib/mobile-update-toast-layout";
 
 const AUTO_DISMISS_MS = 3_000;
 const FADE_MS = 180;
@@ -113,7 +114,7 @@ export const MobileUpdateToast = () => {
       style={[
         styles.anchor,
         {
-          bottom: Math.max(insets.bottom, 12) + 12,
+          bottom: getMobileUpdateToastBottomOffset(insets.bottom),
           opacity,
         },
       ]}

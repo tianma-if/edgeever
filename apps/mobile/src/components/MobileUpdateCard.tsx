@@ -1,7 +1,7 @@
 import Constants from "expo-constants";
 import * as Updates from "expo-updates";
-import { ActivityIndicator, StyleSheet, View } from "react-native";
-import { RefreshCw } from "./icons";
+import { StyleSheet, View } from "react-native";
+import { ActivityIndicator, RefreshCw } from "./icons";
 import { Pressable, Text } from "./LocalizedText";
 import { useMobileLocale } from "../lib/mobile-locale";
 import { useMobileUpdate } from "../lib/mobile-update";

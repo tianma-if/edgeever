@@ -7,6 +7,7 @@ import {
   type NotePrintPayload,
 } from "@/lib/note-print";
 import { getMessageTargetOrigin } from "@/lib/app-page-path";
+import katexStyles from "katex/dist/katex.min.css?inline";
 import printStyles from "@/styles/note-print.css?inline";
 import "@fontsource-variable/noto-sans-sc/wght.css";
 import "@/styles/note-print-screen.css";
@@ -128,7 +129,7 @@ const renderPreview = async (payload: NotePrintPayload) => {
   const previewer = new Previewer();
   await previewer.preview(
     source,
-    [{ [window.location.href]: printStyles }],
+    [{ [window.location.href]: `${katexStyles}\n${printStyles}` }],
     preview
   );
   await document.fonts.ready;

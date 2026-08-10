@@ -49,13 +49,7 @@ const menuitems = [
     <div class="flex items-center justify-between">
       <!-- Logo Left -->
       <a href={getLocalizedPath(locale, "/")} class="flex items-center gap-2 text-lg select-none" aria-label={copy.homeAria}>
-        <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--edgeever-brand-logo-bg)] shadow-xs">
-          <svg class="h-6 w-6" viewBox="0 0 64 64" role="img" aria-hidden="true">
-            <rect x="14" y="10" width="36" height="44" rx="8" fill="var(--edgeever-brand-logo-mark)" />
-            <path d="M24 23h18v5H30v5h11v5H30v6h13v5H24V23Z" fill="var(--edgeever-brand-surface)" />
-            <path d="M19 16h26" stroke="var(--edgeever-brand-logo-accent)" stroke-width="3" stroke-linecap="round" />
-          </svg>
-        </span>
+        <img src="/favicon.svg" alt="" class="h-8 w-8 shrink-0" aria-hidden="true" />
         <span>
           <span class="font-bold text-slate-800 tracking-tight text-base md:text-lg">Edge</span><span class="text-slate-500 text-base md:text-lg">Ever</span>
         </span>

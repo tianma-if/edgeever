@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import type { createEdgeEverClient } from "@edgeever/client";
 import { useMemo } from "react";
-import { ActivityIndicator, Modal, Pressable, ScrollView, View } from "react-native";
-import { FileText, LayoutTemplate, X } from "./icons";
+import { Modal, Pressable, ScrollView, View } from "react-native";
+import { ActivityIndicator, FileText, LayoutTemplate, X } from "./icons";
 import { Text } from "./LocalizedText";
 import {
   getMobileBuiltInTemplates,
@@ -259,4 +259,3 @@ const TemplateRow = ({
     </Pressable>
   );
 };
-

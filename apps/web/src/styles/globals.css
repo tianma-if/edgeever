@@ -5,6 +5,30 @@
 @tailwind components;
 @tailwind utilities;
 
+.ProseMirror .tiptap-mathematics-render[data-type="block-math"] {
+  max-width: 100%;
+  margin: 1rem 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.25rem 0;
+  text-align: center;
+}
+
+.ProseMirror .tiptap-mathematics-render--editable {
+  cursor: text;
+}
+
+.ProseMirror .inline-math-error,
+.ProseMirror .block-math-error {
+  color: #be123c;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+:root.dark .ProseMirror .inline-math-error,
+:root.dark .ProseMirror .block-math-error {
+  color: #fda4af;
+}
+
 @layer base {
   :root {
     --background: 80 11% 96%;
@@ -244,7 +268,17 @@ textarea {
 }
 
 :root.dark .edgeever-public-share .ProseMirror {
-  color: #0f172a;
+  color: #f8fafc;
+}
+
+:root.dark .edgeever-public-share .ProseMirror [data-edgeever-theme-block] {
+  border-color: #334155;
+  background: #1e293b;
+}
+
+:root.dark .edgeever-public-share .ProseMirror [data-theme-block-kind="chapter"] {
+  border-left-color: var(--brand-green);
+  background: var(--brand-green-soft);
 }
 
 @media (min-width: 640px) {
@@ -1072,15 +1106,15 @@ textarea {
 }
 
 :root.dark [class~="bg-slate-50"],
-:root.dark [class*="bg-slate-50/"] { background-color: rgb(var(--slate-50-rgb)) !important; }
+:root.dark [class*="bg-slate-50/"] { background-color: rgb(var(--slate-50-rgb) / var(--dark-utility-alpha, 1)) !important; }
 :root.dark [class~="bg-slate-100"],
-:root.dark [class*="bg-slate-100/"] { background-color: rgb(var(--slate-100-rgb)) !important; }
+:root.dark [class*="bg-slate-100/"] { background-color: rgb(var(--slate-100-rgb) / var(--dark-utility-alpha, 1)) !important; }
 :root.dark [class~="bg-slate-200"],
-:root.dark [class*="bg-slate-200/"] { background-color: rgb(var(--slate-200-rgb)) !important; }
+:root.dark [class*="bg-slate-200/"] { background-color: rgb(var(--slate-200-rgb) / var(--dark-utility-alpha, 1)) !important; }
 :root.dark [class~="bg-slate-300"],
-:root.dark [class*="bg-slate-300/"] { background-color: rgb(var(--slate-300-rgb)) !important; }
+:root.dark [class*="bg-slate-300/"] { background-color: rgb(var(--slate-300-rgb) / var(--dark-utility-alpha, 1)) !important; }
 :root.dark [class~="bg-slate-400"],
-:root.dark [class*="bg-slate-400/"] { background-color: rgb(var(--slate-400-rgb)) !important; }
+:root.dark [class*="bg-slate-400/"] { background-color: rgb(var(--slate-400-rgb) / var(--dark-utility-alpha, 1)) !important; }
 :root.dark [class~="bg-slate-500"],
 :root.dark [class*="bg-slate-500/"] { background-color: rgb(var(--slate-500-rgb)) !important; }
 :root.dark [class~="bg-slate-600"],
@@ -1092,25 +1126,28 @@ textarea {
 :root.dark [class~="bg-slate-900"],
 :root.dark [class*="bg-slate-900/"] { background-color: rgb(var(--slate-900-rgb)) !important; }
 
-:root.dark [class~="text-slate-50"] { color: rgb(var(--slate-50-rgb)) !important; }
-:root.dark [class~="text-slate-100"] { color: rgb(var(--slate-100-rgb)) !important; }
-:root.dark [class~="text-slate-200"] { color: rgb(var(--slate-200-rgb)) !important; }
-:root.dark [class~="text-slate-300"] { color: rgb(var(--slate-300-rgb)) !important; }
-:root.dark [class~="text-slate-400"] { color: rgb(var(--slate-400-rgb)) !important; }
-:root.dark [class~="text-slate-500"] { color: rgb(var(--slate-500-rgb)) !important; }
-:root.dark [class~="text-slate-600"] { color: rgb(var(--slate-600-rgb)) !important; }
-:root.dark [class~="text-slate-700"] { color: rgb(var(--slate-700-rgb)) !important; }
-:root.dark [class~="text-slate-800"] { color: rgb(var(--slate-800-rgb)) !important; }
-:root.dark [class~="text-slate-900"] { color: rgb(var(--slate-900-rgb)) !important; }
+:root.dark [class~="text-slate-50"] { color: #f8fafc !important; }
+:root.dark [class~="text-slate-100"] { color: #f1f5f9 !important; }
+:root.dark [class~="text-slate-200"] { color: #e2e8f0 !important; }
+:root.dark [class~="text-slate-300"] { color: #cbd5e1 !important; }
+:root.dark [class~="text-slate-350"] { color: #aebdce !important; }
+:root.dark [class~="text-slate-400"],
+:root.dark [class*="text-slate-400/"] { color: rgb(148 163 184 / var(--dark-utility-alpha, 1)) !important; }
+:root.dark [class~="text-slate-500"] { color: #cbd5e1 !important; }
+:root.dark [class~="text-slate-600"],
+:root.dark [class~="text-slate-650"] { color: #e2e8f0 !important; }
+:root.dark [class~="text-slate-700"] { color: #e2e8f0 !important; }
+:root.dark [class~="text-slate-800"] { color: #f1f5f9 !important; }
+:root.dark [class~="text-slate-900"] { color: #f8fafc !important; }
 
 :root.dark [class~="border-slate-50"],
 :root.dark [class*="border-slate-50/"] { border-color: rgb(var(--slate-50-rgb)) !important; }
 :root.dark [class~="border-slate-100"],
-:root.dark [class*="border-slate-100/"] { border-color: rgb(var(--slate-100-rgb)) !important; }
+:root.dark [class*="border-slate-100/"] { border-color: rgb(var(--slate-100-rgb) / var(--dark-utility-alpha, 1)) !important; }
 :root.dark [class~="border-slate-200"],
-:root.dark [class*="border-slate-200/"] { border-color: rgb(var(--slate-200-rgb)) !important; }
+:root.dark [class*="border-slate-200/"] { border-color: rgb(var(--slate-200-rgb) / var(--dark-utility-alpha, 1)) !important; }
 :root.dark [class~="border-slate-300"],
-:root.dark [class*="border-slate-300/"] { border-color: rgb(var(--slate-300-rgb)) !important; }
+:root.dark [class*="border-slate-300/"] { border-color: rgb(var(--slate-300-rgb) / var(--dark-utility-alpha, 1)) !important; }
 :root.dark [class~="border-slate-400"],
 :root.dark [class*="border-slate-400/"] { border-color: rgb(var(--slate-400-rgb)) !important; }
 
@@ -1119,6 +1156,94 @@ textarea {
 
 :root.dark [class*="hover:text-slate-900"]:hover,
 :root.dark [class*="focus:text-slate-900"]:focus { color: rgb(var(--slate-900-rgb)) !important; }
+
+/* Preserve slash opacity while remapping legacy light palette utilities. */
+:root.dark [class*="/20"] { --dark-utility-alpha: 0.2; }
+:root.dark [class*="/25"] { --dark-utility-alpha: 0.25; }
+:root.dark [class*="/30"] { --dark-utility-alpha: 0.3; }
+:root.dark [class*="/35"] { --dark-utility-alpha: 0.35; }
+:root.dark [class*="/40"] { --dark-utility-alpha: 0.4; }
+:root.dark [class*="/45"] { --dark-utility-alpha: 0.45; }
+:root.dark [class*="/50"] { --dark-utility-alpha: 0.5; }
+:root.dark [class*="/60"] { --dark-utility-alpha: 0.6; }
+:root.dark [class*="/70"] { --dark-utility-alpha: 0.7; }
+:root.dark [class*="/80"] { --dark-utility-alpha: 0.8; }
+:root.dark [class*="/85"] { --dark-utility-alpha: 0.85; }
+:root.dark [class*="/90"] { --dark-utility-alpha: 0.9; }
+:root.dark [class*="/95"] { --dark-utility-alpha: 0.95; }
+:root.dark [class~="bg-slate-50/20"] { --dark-utility-alpha: 0.2; }
+:root.dark [class~="bg-slate-50/30"] { --dark-utility-alpha: 0.3; }
+:root.dark [class~="bg-slate-50/50"],
+:root.dark [class~="bg-slate-100/50"],
+:root.dark [class~="bg-slate-200/50"],
+:root.dark [class~="border-slate-200/50"] { --dark-utility-alpha: 0.5; }
+:root.dark [class~="bg-slate-50/60"],
+:root.dark [class~="border-slate-200/60"] { --dark-utility-alpha: 0.6; }
+:root.dark [class~="bg-slate-100/70"],
+:root.dark [class~="bg-slate-300/70"],
+:root.dark [class~="border-slate-300/70"] { --dark-utility-alpha: 0.7; }
+:root.dark [class~="bg-slate-50/80"],
+:root.dark [class~="bg-slate-200/80"],
+:root.dark [class~="bg-slate-400/80"],
+:root.dark [class~="border-slate-100/80"],
+:root.dark [class~="border-slate-200/80"] { --dark-utility-alpha: 0.8; }
+:root.dark [class~="bg-slate-50/90"],
+:root.dark [class~="text-slate-400/90"] { --dark-utility-alpha: 0.9; }
+
+:root.dark [class~="divide-slate-100"] > :not([hidden]) ~ :not([hidden]) {
+  border-color: rgb(var(--slate-100-rgb)) !important;
+}
+:root.dark [class~="divide-slate-100/50"] > :not([hidden]) ~ :not([hidden]) {
+  border-color: rgb(var(--slate-100-rgb) / 0.5) !important;
+}
+:root.dark [class~="divide-slate-200"] > :not([hidden]) ~ :not([hidden]) {
+  border-color: rgb(var(--slate-200-rgb)) !important;
+}
+:root.dark [class~="divide-slate-200/80"] > :not([hidden]) ~ :not([hidden]) {
+  border-color: rgb(var(--slate-200-rgb) / 0.8) !important;
+}
+
+/* Semantic status colors need their own dark palette; numeric inversion is not meaningful for them. */
+:root.dark [class~="text-emerald-500"],
+:root.dark [class~="text-emerald-600"],
+:root.dark [class~="text-emerald-650"],
+:root.dark [class~="text-emerald-700"] { color: #6ee7b7 !important; }
+:root.dark [class~="text-emerald-800"],
+:root.dark [class~="text-emerald-900"],
+:root.dark [class~="text-emerald-950"] { color: #a7f3d0 !important; }
+:root.dark [class~="bg-emerald-50"],
+:root.dark [class*="bg-emerald-50/"] { background-color: rgb(6 78 59 / var(--dark-utility-alpha, 1)) !important; }
+:root.dark [class~="bg-emerald-100"],
+:root.dark [class*="bg-emerald-100/"] { background-color: rgb(6 95 70 / var(--dark-utility-alpha, 1)) !important; }
+:root.dark [class~="border-emerald-100"],
+:root.dark [class~="border-emerald-200"],
+:root.dark [class*="border-emerald-200/"] { border-color: #047857 !important; }
+
+:root.dark [class~="text-amber-600"],
+:root.dark [class~="text-amber-700"],
+:root.dark [class~="text-amber-800"],
+:root.dark [class~="text-amber-900"],
+:root.dark [class~="text-amber-950"] { color: #fde68a !important; }
+:root.dark [class~="bg-amber-50"],
+:root.dark [class*="bg-amber-50/"] { background-color: rgb(69 26 3 / var(--dark-utility-alpha, 1)) !important; }
+:root.dark [class~="border-amber-100"],
+:root.dark [class~="border-amber-200"],
+:root.dark [class*="border-amber-200/"] { border-color: #92400e !important; }
+
+:root.dark [class~="text-rose-500"],
+:root.dark [class~="text-rose-600"],
+:root.dark [class~="text-rose-700"],
+:root.dark [class~="text-rose-800"],
+:root.dark [class~="text-rose-950"] { color: #fda4af !important; }
+:root.dark [class~="bg-rose-50"],
+:root.dark [class*="bg-rose-50/"] { background-color: rgb(76 5 25 / var(--dark-utility-alpha, 1)) !important; }
+:root.dark [class~="border-rose-100"],
+:root.dark [class~="border-rose-200"] { border-color: #9f1239 !important; }
+:root.dark [class~="text-blue-600"] { color: #93c5fd !important; }
+
+:root.dark * {
+  --tw-ring-offset-color: #0f172a;
+}
 
 :root.dark [class~="bg-amber-50/60"] {
   background-color: rgb(69 26 3 / 72%) !important;

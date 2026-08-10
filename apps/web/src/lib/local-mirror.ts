@@ -1,9 +1,10 @@
 import { createExcerpt, docToMarkdown, docToText, markdownToDoc, mergeMemoDocs, resolveMemoContentDoc, resolveMergedMemoTitle, type MemoDetail, type MemoRevision, type MemoSummary, type MemoTemplate, type Notebook, type ResourceListItem, type TagSummary, type TiptapDoc } from "@edgeever/shared";
 import type { MemoFilterMode, MemoSortMode } from "@/lib/app-helpers";
 import { api, type SyncChangesResponse } from "@/lib/api";
-import { localDb, type LocalMemo, type LocalNotebook, type LocalResource, type LocalRevision } from "@/lib/local-db";
+import { localDb, selectNewestLocalDraft, type LocalDraft, type LocalMemo, type LocalNotebook, type LocalResource, type LocalRevision } from "@/lib/local-db";
 import { cacheLocalResourceBytes, localResourceUrl, removeCachedLocalResourceBytes } from "@/lib/local-resource-cache";
 import { isBrowserOffline } from "@/lib/network-status";
+import { parseTagsText } from "@/lib/utils";
 
 export type LocalMemoListParams = {
   notebookId?: string | null;
@@ -284,16 +285,75 @@ export const createLocalMemo = async (
   return memo;
 };
 
+const draftTimestamp = (draft: LocalDraft | null | undefined) => {
+  const timestamp = draft ? Date.parse(draft.updatedAt) : Number.NaN;
+  return Number.isFinite(timestamp) ? timestamp : 0;
+};
+
+export const remapLocalDraftMemoId = async (temporaryId: string, remoteId: string) => {
+  if (temporaryId === remoteId) return;
+  await localDb.transaction("rw", localDb.drafts, async () => {
+    const temporaryDraft = await localDb.drafts.get(temporaryId);
+    if (!temporaryDraft) return;
+    const remoteDraft = await localDb.drafts.get(remoteId);
+    const newestDraft = selectNewestLocalDraft(temporaryDraft, remoteDraft);
+    if (newestDraft) {
+      await localDb.drafts.put({ ...newestDraft, memoId: remoteId });
+    }
+    await localDb.drafts.delete(temporaryId);
+  });
+};
+
 export const replaceLocalMemoId = async (scope: string, temporaryId: string, memo: MemoDetail) => {
-  await localDb.transaction("rw", [localDb.memos, localDb.idMappings], async () => {
-    await localDb.memos.put({ ...memo, scope });
+  return localDb.transaction("rw", [localDb.memos, localDb.idMappings, localDb.drafts], async () => {
+    const [temporaryMemo, temporaryDraft, remoteDraft] = await Promise.all([
+      localDb.memos.get([scope, temporaryId]),
+      localDb.drafts.get(temporaryId),
+      localDb.drafts.get(memo.id),
+    ]);
+    const draft = selectNewestLocalDraft(temporaryDraft, remoteDraft);
+    const localIsNewer = Boolean(temporaryMemo && Date.parse(temporaryMemo.updatedAt) > Date.parse(memo.updatedAt));
+    const draftIsNewer = Boolean(draft && draftTimestamp(draft) >= Date.parse(memo.updatedAt));
+    const contentSource = draftIsNewer && draft
+      ? {
+          title: draft.title.trim() || null,
+          tags: parseTagsText(draft.tagsText),
+          contentJson: draft.contentJson,
+          contentMarkdown: docToMarkdown(draft.contentJson),
+          contentText: docToText(draft.contentJson),
+          updatedAt: draft.updatedAt,
+        }
+      : localIsNewer && temporaryMemo
+        ? {
+            title: temporaryMemo.title,
+            tags: temporaryMemo.tags,
+            contentJson: temporaryMemo.contentJson,
+            contentMarkdown: temporaryMemo.contentMarkdown,
+            contentText: temporaryMemo.contentText,
+            updatedAt: temporaryMemo.updatedAt,
+          }
+        : null;
+    const remappedMemo: MemoDetail = contentSource
+      ? {
+          ...memo,
+          ...contentSource,
+          excerpt: createExcerpt(contentSource.contentText),
+        }
+      : memo;
+
+    await localDb.memos.put({ ...remappedMemo, scope });
     await localDb.memos.delete([scope, temporaryId]);
+    if (draft) {
+      await localDb.drafts.put({ ...draft, memoId: memo.id });
+    }
+    await localDb.drafts.delete(temporaryId);
     await localDb.idMappings.put({
       scope,
       temporaryId,
       remoteId: memo.id,
       createdAt: new Date().toISOString(),
     });
+    return remappedMemo;
   });
 };
 

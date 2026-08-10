@@ -130,11 +130,37 @@ final class ChromeParityTests: XCTestCase {
         // Edit is requested via callback; presentation is owned by WorkspaceView (reliable).
         XCTAssertTrue(src.contains("onEdit"), "detail requests edit via onEdit callback")
         XCTAssertTrue(src.contains("EditFabButton"), "UIKit FAB so WebView cannot steal taps")
+        XCTAssertTrue(src.contains("onSearchResult"), "in-note search must receive match count/index")
+        XCTAssertTrue(src.contains("SharedTipTapRuntime.viewer.search"), "search controls must drive TipTap selection")
+        XCTAssertTrue(src.contains("ActivityShareView"), "public links must open the iOS system share sheet")
         XCTAssertTrue(src.contains(".overlay(alignment: .bottomTrailing)"), "FAB overlay above WebView")
         // UIKit FAB file wires green + a11y id
         let fabSrc = try readShippedSource("DesignSystem/EditFabButton.swift")
         XCTAssertTrue(fabSrc.contains("0x10") || fabSrc.contains("B9") || fabSrc.contains("10B981") || fabSrc.contains("0x10 / 255"), fabSrc)
         XCTAssertTrue(fabSrc.contains("DetailMemoChrome.editFab") || fabSrc.contains("detailEditFab"), "FAB a11y id")
+    }
+
+    func testWorkspaceIncludesAndroidBatchAndWebClipActions() throws {
+        let view = try readShippedSource("Features/Workspace/WorkspaceView.swift")
+        let store = try readShippedSource("Features/Workspace/WorkspaceStore.swift")
+        XCTAssertTrue(view.contains("SelectionMoreSheet"))
+        XCTAssertTrue(view.contains("全选当前列表"))
+        XCTAssertTrue(view.contains("WebClipCaptureView"))
+        XCTAssertTrue(view.contains("WebClipper.build"))
+        XCTAssertTrue(store.contains("toggleVisibleSelection"))
+        XCTAssertTrue(store.contains("pinSelection"))
+    }
+
+    func testEditorBundleBridgeMatchesAndroidToolbarAndTheme() throws {
+        let source = try readIOSFile("EditorSource/src/main.ts")
+        let runtime = try readShippedSource("Editor/TipTapWarmPool.swift")
+        XCTAssertTrue(source.contains("sinkListItem"))
+        XCTAssertTrue(source.contains("liftListItem"))
+        XCTAssertTrue(source.contains(#"type: "pickImage""#))
+        XCTAssertTrue(source.contains(#"type: "searchResult""#))
+        XCTAssertTrue(runtime.contains("session.theme"))
+        XCTAssertTrue(runtime.contains("session.locale"))
+        XCTAssertFalse(runtime.contains("locale: 'zh-CN', theme: 'light'"))
     }
 
     func testWorkspacePresentsEditFromRootCover() throws {
@@ -210,5 +236,11 @@ final class ChromeParityTests: XCTestCase {
         let iosRoot = testsDir.deletingLastPathComponent().deletingLastPathComponent()
         let url = iosRoot.appendingPathComponent("EdgeEver").appendingPathComponent(relativeUnderEdgeEver)
         return try String(contentsOf: url, encoding: .utf8)
+    }
+
+    private func readIOSFile(_ relativeUnderIOS: String) throws -> String {
+        let testsDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        let iosRoot = testsDir.deletingLastPathComponent().deletingLastPathComponent()
+        return try String(contentsOf: iosRoot.appendingPathComponent(relativeUnderIOS), encoding: .utf8)
     }
 }

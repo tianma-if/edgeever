@@ -1,6 +1,6 @@
 {
   "name": "edgeever",
-  "version": "1.13.0",
+  "version": "1.15.1",
   "private": true,
   "type": "module",
   "workspaces": [
@@ -19,8 +19,10 @@
     "dev:web": "vite --config apps/web/vite.config.ts --host 127.0.0.1 --port 5173",
     "dev:desktop": "concurrently -k -n web,desktop -c magenta,cyan \"bun run dev:web\" \"bun run --cwd apps/desktop dev\"",
     "dev:mobile": "bun --cwd apps/mobile expo start",
+    "prepare:brand:icons": "bun scripts/trace-brand-icon.mjs && bun scripts/prepare-brand-icons.mjs",
     "prepare:mobile:icons": "bun scripts/prepare-mobile-icons.mjs",
     "prepare:desktop:icons": "bun scripts/prepare-desktop-icons.mjs",
+    "preview:desktop:icon": "bun scripts/preview-macos-dock-icon.mjs",
     "build:android:fast": "bash scripts/build-android-local.sh fast",
     "build:android:fast:local": "bun --env-file=${EDGE_EVER_ANDROID_ENV_FILE:-$HOME/.config/edgeever/android/signing.env} run build:android:fast",
     "build:android:apk": "bash scripts/build-android-local.sh apk",
@@ -34,17 +36,19 @@
     "lint:extension:firefox": "bun run --cwd apps/extension lint:firefox",
     "package:extension:firefox": "bun run --cwd apps/extension package:firefox",
     "test:extension": "bun run --cwd apps/extension test",
+    "test:e2e": "playwright test",
+    "test:e2e:install": "playwright install chromium",
     "dev:extension": "vite --config apps/extension/vite.config.ts",
     "build:web": "vite build --config apps/web/vite.config.ts",
     "build:desktop:sidecar": "cargo build --manifest-path crates/desktop-sidecar/Cargo.toml --release",
     "build:desktop": "EDGE_EVER_DESKTOP_BUILD=1 bun run prepare:desktop:icons && bun run build:web && bun run build:desktop:sidecar && bun run --cwd apps/desktop dist",
     "benchmark:desktop:sidecar": "bun scripts/benchmark-desktop-sidecar.mjs",
     "verify:web-performance": "bun scripts/verify-web-performance.mjs",
-    "test:release-planning": "bun test scripts/plan-native-release.test.mjs scripts/check-native-release-assets.test.mjs scripts/create-mac-update-metadata.test.mjs scripts/release.test.mjs scripts/validate-store-delivery.test.mjs scripts/store-delivery.test.mjs scripts/verify-android-apk-signature.test.mjs scripts/desktop-icns.test.mjs apps/web/src/lib/version-check.test.mjs apps/mobile/src/lib/mobile-release.test.ts",
+    "test:release-planning": "bun test scripts/plan-native-release.test.mjs scripts/check-native-release-assets.test.mjs scripts/create-mac-update-metadata.test.mjs scripts/release.test.mjs scripts/validate-store-delivery.test.mjs scripts/store-delivery.test.mjs scripts/verify-android-apk-signature.test.mjs scripts/desktop-icns.test.mjs scripts/preview-macos-dock-icon.test.mjs apps/web/src/lib/version-check.test.mjs apps/mobile/src/lib/mobile-release.test.ts",
     "release": "bun scripts/release.mjs",
     "publish:stores": "bun scripts/store-delivery.mjs",
     "test:desktop:sidecar": "bun scripts/test-desktop-sidecar.mjs",
-    "test:desktop": "bun test apps/desktop/src/main/account-scope.test.mjs apps/desktop/src/main/diagnostic-log.test.mjs apps/desktop/src/main/file-association.test.mjs apps/desktop/src/main/file-permissions.test.mjs apps/desktop/src/main/installation-location.test.mjs apps/desktop/src/main/resource-request.test.mjs apps/desktop/src/main/resource-url.test.mjs apps/desktop/src/main/staged-resource.test.mjs apps/desktop/src/main/tray-icon.test.mjs apps/desktop/src/main/user-data-directory.test.mjs apps/desktop/src/main/window-open-policy.test.mjs apps/desktop/src/main/window-visibility.test.mjs apps/web/src/lib/api.test.mjs apps/web/src/lib/app-page-path.test.mjs apps/web/src/lib/clipboard.test.mjs apps/web/src/lib/desktop-repository.test.mjs apps/web/src/lib/desktop-resources.test.mjs apps/web/src/lib/desktop-sync.test.mjs apps/web/src/lib/local-mirror.test.mjs apps/web/src/lib/repository.test.mjs apps/web/src/lib/runtime.test.mjs apps/web/src/lib/sync-queue.test.mjs && bun run test:desktop:sidecar",
+    "test:desktop": "bun test apps/desktop/src/main/account-scope.test.mjs apps/desktop/src/main/clipboard-write.test.mjs apps/desktop/src/main/diagnostic-log.test.mjs apps/desktop/src/main/file-association.test.mjs apps/desktop/src/main/file-permissions.test.mjs apps/desktop/src/main/installation-location.test.mjs apps/desktop/src/main/resource-request.test.mjs apps/desktop/src/main/resource-url.test.mjs apps/desktop/src/main/staged-resource.test.mjs apps/desktop/src/main/tray-icon.test.mjs apps/desktop/src/main/user-data-directory.test.mjs apps/desktop/src/main/window-open-policy.test.mjs apps/desktop/src/main/window-visibility.test.mjs apps/web/src/lib/api.test.mjs apps/web/src/lib/app-page-path.test.mjs apps/web/src/lib/clipboard.test.mjs apps/web/src/lib/desktop-repository.test.mjs apps/web/src/lib/desktop-resources.test.mjs apps/web/src/lib/desktop-sync.test.mjs apps/web/src/lib/local-mirror.test.mjs apps/web/src/lib/repository.test.mjs apps/web/src/lib/runtime.test.mjs apps/web/src/lib/sync-queue.test.mjs && bun run test:desktop:sidecar",
     "verify:desktop-package": "bun scripts/verify-desktop-package.mjs",
     "build:cloudflare": "bun run typecheck && bun run build",
     "build:site": "bun --cwd apps/site build",
@@ -90,10 +94,16 @@
       },
       "EDGE_EVER_STORAGE_ENCRYPTION_KEY": {
         "description": "可选。启用高级设置中的第三方 OSS 时必填，用于加密保存在 D1 中的对象存储访问密钥。"
+      },
+      "EDGE_EVER_CREDENTIALS_ENCRYPTION_KEY": {
+        "description": "可选的高级配置。覆盖从实例认证 Secret 自动派生的 AI 凭据加密密钥，用于独立密钥轮换。"
       }
     }
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.36",
+    "@ai-sdk/google": "^4.0.39",
+    "@ai-sdk/openai-compatible": "^3.0.27",
     "@aws-sdk/client-s3": "^3.1095.0",
     "@edgeever/shared": "workspace:*",
     "@hono/zod-validator": "latest",
@@ -114,6 +124,7 @@
     "@tiptap/extension-table": "3.27.1",
     "@tiptap/react": "latest",
     "@tiptap/starter-kit": "latest",
+    "ai": "^7.0.58",
     "aws4fetch": "^1.0.20",
     "class-variance-authority": "latest",
     "clsx": "latest",
@@ -123,6 +134,7 @@
     "fflate": "^0.8.3",
     "hono": "latest",
     "i18next": "^26.3.4",
+    "katex": "0.16.22",
     "lucide-react": "latest",
     "marked": "^18.0.5",
     "react": "latest",
@@ -143,6 +155,7 @@
   "devDependencies": {
     "@cloudflare/workers-types": "latest",
     "@electron/asar": "3.4.1",
+    "@playwright/test": "^1.62.1",
     "@types/marked": "^6.0.0",
     "@types/node": "latest",
     "@types/react": "latest",

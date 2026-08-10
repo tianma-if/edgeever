@@ -185,6 +185,64 @@ actor APIClient {
         return response.editSession
     }
 
+    // MARK: - AI note processing
+
+    func streamAiGeneration(_ input: AiGenerateInput) -> AsyncThrowingStream<AiStreamEvent, Error> {
+        var request = URLRequest(url: makeURL(path: "/api/v1/ai/generate"))
+        request.httpMethod = "POST"
+        request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let token {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        let encodedBody: Data
+        do {
+            encodedBody = try EdgeEverJSON.encoder.encode(input)
+        } catch {
+            return AsyncThrowingStream { continuation in continuation.finish(throwing: error) }
+        }
+        request.httpBody = encodedBody
+        let streamRequest = request
+        let session = self.session
+        let unauthorized = onUnauthorized
+
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    let (bytes, response) = try await session.bytes(for: streamRequest)
+                    guard let http = response as? HTTPURLResponse else {
+                        throw APIError(status: -1, code: nil, message: "Invalid response")
+                    }
+                    if http.statusCode == 401 {
+                        unauthorized?()
+                    }
+                    guard (200 ..< 300).contains(http.statusCode) else {
+                        var data = Data()
+                        for try await byte in bytes { data.append(byte) }
+                        let message = Self.parseErrorMessage(data: data)
+                            ?? HTTPURLResponse.localizedString(forStatusCode: http.statusCode)
+                        throw APIError(
+                            status: http.statusCode,
+                            code: Self.parseErrorCode(data: data),
+                            message: message
+                        )
+                    }
+                    for try await line in bytes.lines {
+                        try Task.checkCancellation()
+                        guard line.hasPrefix("data: ") else { continue }
+                        let payload = String(line.dropFirst(6))
+                        guard let data = payload.data(using: .utf8) else { continue }
+                        continuation.yield(try EdgeEverJSON.decoder.decode(AiStreamEvent.self, from: data))
+                    }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
     // MARK: - Templates
 
     func listTemplates() async throws -> [MemoTemplate] {

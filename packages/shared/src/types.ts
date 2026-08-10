@@ -116,6 +116,31 @@ export type ObjectStorageSettings = {
   encryptionConfigured: boolean;
 };
 
+export type AiProvider = "openai-compatible" | "anthropic" | "google";
+
+export type AiModelSettings = {
+  provider: AiProvider;
+  displayName: string;
+  baseUrl: string;
+  modelId: string;
+  isEnabled: boolean;
+  hasApiKey: boolean;
+  encryptionConfigured: boolean;
+};
+
+export type AiAction =
+  | "summarize"
+  | "extract-key-points"
+  | "extract-todos"
+  | "rewrite-proofread"
+  | "translate";
+
+export type AiStreamEvent =
+  | { type: "start" }
+  | { type: "text-delta"; text: string }
+  | { type: "finish"; finishReason?: string; inputTokens?: number; outputTokens?: number }
+  | { type: "error"; code: string; message: string };
+
 export type ApiToken = {
   id: string;
   name: string;

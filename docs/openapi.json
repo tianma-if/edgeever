@@ -67,6 +67,89 @@
         }
       }
     },
+    "/api/v1/ai/settings": {
+      "get": {
+        "summary": "Read the current workspace AI model settings",
+        "responses": {
+          "200": {
+            "description": "AI model settings with the API key omitted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "settings": { "anyOf": [{ "$ref": "#/components/schemas/AiModelSettings" }, { "type": "null" }] },
+                    "encryptionConfigured": { "type": "boolean" }
+                  },
+                  "required": ["settings", "encryptionConfigured"]
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Error" },
+          "403": { "$ref": "#/components/responses/Error" }
+        }
+      },
+      "put": {
+        "summary": "Save the current workspace AI model settings",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AiModelSettingsInput" } } }
+        },
+        "responses": {
+          "200": { "description": "AI model settings saved" },
+          "400": { "$ref": "#/components/responses/Error" },
+          "401": { "$ref": "#/components/responses/Error" },
+          "403": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/v1/ai/settings/test": {
+      "post": {
+        "summary": "Test an AI model endpoint without exposing its credential",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AiModelSettingsInput" } } }
+        },
+        "responses": {
+          "200": { "description": "The model endpoint responded successfully" },
+          "400": { "$ref": "#/components/responses/Error" },
+          "401": { "$ref": "#/components/responses/Error" },
+          "403": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/v1/ai/generate": {
+      "post": {
+        "summary": "Stream a note AI action using the current workspace model",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "action": { "type": "string", "enum": ["summarize", "extract-key-points", "extract-todos", "rewrite-proofread", "translate"] },
+                  "title": { "type": "string", "maxLength": 160 },
+                  "contentMarkdown": { "type": "string", "maxLength": 300000 },
+                  "targetLanguage": { "type": "string", "maxLength": 80, "description": "Required when action is translate" }
+                },
+                "required": ["action", "title", "contentMarkdown"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Server-sent events containing start, text-delta, finish, or error events",
+            "content": { "text/event-stream": { "schema": { "type": "string" } } }
+          },
+          "401": { "$ref": "#/components/responses/Error" },
+          "403": { "$ref": "#/components/responses/Error" },
+          "409": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
     "/api/v1/auth/session": {
       "get": {
         "summary": "Read interactive session",
@@ -1736,6 +1819,31 @@
             { "type": "object", "properties": { "provider": { "const": "s3" }, "displayName": { "type": "string", "minLength": 1, "maxLength": 80 } }, "required": ["provider", "displayName"] }
           ] }
         ]
+      },
+      "AiModelSettings": {
+        "type": "object",
+        "properties": {
+          "provider": { "type": "string", "enum": ["openai-compatible", "anthropic", "google"] },
+          "displayName": { "type": "string" },
+          "baseUrl": { "type": "string", "format": "uri" },
+          "modelId": { "type": "string" },
+          "isEnabled": { "type": "boolean" },
+          "hasApiKey": { "type": "boolean" },
+          "encryptionConfigured": { "type": "boolean" }
+        },
+        "required": ["provider", "displayName", "baseUrl", "modelId", "isEnabled", "hasApiKey", "encryptionConfigured"]
+      },
+      "AiModelSettingsInput": {
+        "type": "object",
+        "properties": {
+          "provider": { "type": "string", "enum": ["openai-compatible", "anthropic", "google"] },
+          "displayName": { "type": "string", "minLength": 1, "maxLength": 80 },
+          "baseUrl": { "type": "string", "format": "uri", "maxLength": 500 },
+          "apiKey": { "type": "string", "minLength": 1, "maxLength": 4096 },
+          "modelId": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "isEnabled": { "type": "boolean", "default": true }
+        },
+        "required": ["provider", "displayName", "baseUrl", "modelId"]
       },
       "LoginInput": {
         "type": "object",

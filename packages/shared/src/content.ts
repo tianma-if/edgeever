@@ -3,6 +3,17 @@ import { TableKit } from "@tiptap/extension-table";
 import { Markdown, MarkdownManager } from "@tiptap/markdown";
 import StarterKit from "@tiptap/starter-kit";
 import { MergeDivider, MERGE_DIVIDER_NODE_TYPE } from "./merge-divider";
+import {
+  BLOCK_MATH_NODE_TYPE,
+  createEdgeEverMathematics,
+  INLINE_MATH_NODE_TYPE,
+} from "./mathematics";
+
+export {
+  BLOCK_MATH_NODE_TYPE,
+  createEdgeEverMathematics,
+  INLINE_MATH_NODE_TYPE,
+} from "./mathematics";
 
 export {
   MergeDivider,
@@ -63,6 +74,7 @@ const markdownManager = new MarkdownManager({
     TableKit,
     Image,
     MergeDivider,
+    ...createEdgeEverMathematics(),
     Markdown.configure({
       markedOptions: { gfm: true },
     }),
@@ -102,7 +114,9 @@ export const resolveMemoContentDoc = (
     !contentMarkdown?.trim() ||
     docContainsNodeType(currentDoc, "table") ||
     docContainsNodeType(currentDoc, "edgeeverThemeBlock") ||
-    docContainsNodeType(currentDoc, MERGE_DIVIDER_NODE_TYPE)
+    docContainsNodeType(currentDoc, MERGE_DIVIDER_NODE_TYPE) ||
+    docContainsNodeType(currentDoc, BLOCK_MATH_NODE_TYPE) ||
+    docContainsNodeType(currentDoc, INLINE_MATH_NODE_TYPE)
   ) {
     return currentDoc;
   }
@@ -114,6 +128,8 @@ export const resolveMemoContentDoc = (
   // JSON document. Also recover merge dividers when only Markdown still has them.
   return docContainsNodeType(markdownDoc, "table")
     || docContainsNodeType(markdownDoc, MERGE_DIVIDER_NODE_TYPE)
+    || docContainsNodeType(markdownDoc, BLOCK_MATH_NODE_TYPE)
+    || docContainsNodeType(markdownDoc, INLINE_MATH_NODE_TYPE)
     || !docToText(currentDoc)
     ? markdownDoc
     : currentDoc;
@@ -181,6 +197,13 @@ export const docToText = (doc: unknown): string => {
 
       if (label) {
         pieces.push(label);
+      }
+    }
+
+    if (current.type === BLOCK_MATH_NODE_TYPE || current.type === INLINE_MATH_NODE_TYPE) {
+      const latex = getStringAttr(current.attrs, "latex");
+      if (latex) {
+        pieces.push(latex);
       }
     }
 
@@ -254,7 +277,31 @@ export const docToMarkdown = (doc: unknown): string => {
     return "";
   }
 
-  return markdownManager.serialize(stripEditorOnlyNodes(doc) as Parameters<typeof markdownManager.serialize>[0]);
+  const serializableDoc = protectLiteralDollarPairs(stripEditorOnlyNodes(doc));
+  return markdownManager
+    .serialize(serializableDoc as Parameters<typeof markdownManager.serialize>[0])
+    .replaceAll(LITERAL_DOLLAR_PLACEHOLDER, "\\$");
+};
+
+const LITERAL_DOLLAR_PLACEHOLDER = "\uE000edgeever-dollar\uE001";
+
+/** Preserve dollar pairs that are text rather than inline-math nodes. */
+const protectLiteralDollarPairs = (value: unknown): unknown => {
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+
+  const node = value as { type?: unknown; text?: unknown; content?: unknown };
+  if (node.type === "text" && typeof node.text === "string") {
+    const dollarCount = Array.from(node.text).filter((character) => character === "$").length;
+    return dollarCount >= 2
+      ? { ...node, text: node.text.replaceAll("$", LITERAL_DOLLAR_PLACEHOLDER) }
+      : value;
+  }
+
+  return Array.isArray(node.content)
+    ? { ...node, content: node.content.map(protectLiteralDollarPairs) }
+    : value;
 };
 
 /**

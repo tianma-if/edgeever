@@ -12,7 +12,7 @@ struct CreateChoiceSheet: View {
     var body: some View {
         VStack(spacing: 0) {
             Capsule()
-                .fill(Color(hex: 0xCBD5E1))
+                .fill(AppTheme.sheetHandle)
                 .frame(width: 42, height: 4)
                 .padding(.top, 10)
                 .padding(.bottom, 8)
@@ -70,7 +70,7 @@ struct CreateChoiceSheet: View {
             .padding(.vertical, 8)
             .padding(.bottom, 12)
         }
-        .background(Color.white)
+        .background(AppTheme.card)
         .presentationDetents([.height(280)])
         .presentationDragIndicator(.hidden)
         .accessibilityIdentifier("createChoiceSheet")
@@ -129,7 +129,7 @@ struct TemplatePickerSheet: View {
     var body: some View {
         VStack(spacing: 0) {
             Capsule()
-                .fill(Color(hex: 0xCBD5E1))
+                .fill(AppTheme.sheetHandle)
                 .frame(width: 42, height: 4)
                 .padding(.top, 10)
                 .padding(.bottom, 8)
@@ -206,7 +206,7 @@ struct TemplatePickerSheet: View {
                 .padding(.bottom, 20)
             }
         }
-        .background(Color.white)
+        .background(AppTheme.card)
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.hidden)
         .accessibilityIdentifier("templatePickerSheet")
@@ -302,7 +302,7 @@ struct TemplatePickerSheet: View {
             .padding(.vertical, 2)
             .background(isCustom ? AppTheme.accentSoft : AppTheme.searchFill)
             .overlay(
-                Capsule().stroke(isCustom ? Color(hex: 0xA7F3D0) : AppTheme.border, lineWidth: 1)
+                Capsule().stroke(isCustom ? AppTheme.accentBorder : AppTheme.border, lineWidth: 1)
             )
             .clipShape(Capsule())
     }

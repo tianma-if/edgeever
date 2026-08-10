@@ -5,6 +5,7 @@ import {
   createEdgeEverZip,
   parseEdgeEverZip,
   restoreEdgeEverZip,
+  restoreEdgeEverZipAndRefresh,
 } from "../apps/web/src/lib/json-backup";
 
 const notebook = (id: string, name: string, parentId: string | null = null): Notebook => ({
@@ -172,5 +173,46 @@ describe("EdgeEver ZIP", () => {
     });
 
     expect(calls).toEqual(["notebooks", "memos", "resource:3"]);
+  });
+
+  test("refreshes the workspace after all imported data is restored", async () => {
+    const calls: string[] = [];
+    const backup = {
+      manifest: {
+        format: "edgeever-zip" as const,
+        formatVersion: 1 as const,
+        schemaVersion: 1,
+        edgeeverVersion: "1.13.3",
+        buildId: "test-build",
+        exportedAt: "2026-08-09T00:00:00.000Z",
+        includesTrash: false as const,
+        counts: { notebooks: 1, memos: 1, revisions: 0, resources: 0 },
+      },
+      notebooks: [{
+        id: "nb_child",
+        parentId: null,
+        name: "Child",
+        slug: null,
+        icon: null,
+        color: null,
+        sortOrder: 0,
+        createdAt: memo.createdAt,
+        updatedAt: memo.updatedAt,
+      }] satisfies JsonBackupNotebook[],
+      memos: [{ memo, revisions: [], resources: [] }] satisfies JsonBackupMemo[],
+      files: {},
+    };
+
+    await restoreEdgeEverZipAndRefresh(
+      backup,
+      {
+        restoreNotebooks: async () => { calls.push("notebooks"); },
+        restoreMemos: async () => { calls.push("memos"); },
+        restoreResource: async () => { calls.push("resource"); },
+      },
+      async () => { calls.push("refresh"); },
+    );
+
+    expect(calls).toEqual(["notebooks", "memos", "refresh"]);
   });
 });

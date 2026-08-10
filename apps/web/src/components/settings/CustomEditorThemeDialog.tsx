@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { sanitizeAndScopeCss } from "@/lib/css-sandbox";
+import { contrastRatio } from "@/lib/color-contrast";
 import {
   DEFAULT_CUSTOM_LIGHT_COLORS,
   DEFAULT_CUSTOM_DARK_COLORS,
@@ -31,11 +32,18 @@ interface CustomEditorThemeDialogProps {
 const COLOR_FIELDS = [
   ["background", "settings.customEditorTheme.background"],
   ["text", "settings.customEditorTheme.text"],
+  ["muted", "settings.customEditorTheme.muted"],
   ["heading", "settings.customEditorTheme.heading"],
   ["accent", "settings.customEditorTheme.accent"],
   ["soft", "settings.customEditorTheme.soft"],
   ["border", "settings.customEditorTheme.border"],
 ] as const;
+
+const hasAccessibleContrast = (colors: ThemeColors) =>
+  contrastRatio(colors.text, colors.background) >= 4.5 &&
+  contrastRatio(colors.muted, colors.soft) >= 4.5 &&
+  contrastRatio(colors.heading, colors.background) >= 4.5 &&
+  contrastRatio(colors.accent, colors.background) >= 3;
 
 export const CustomEditorThemeDialog = ({
   open,
@@ -77,7 +85,9 @@ export const CustomEditorThemeDialog = ({
   const valid =
     draft.name.trim().length > 0 &&
     validColors(draft.light) &&
-    validColors(draft.dark);
+    validColors(draft.dark) &&
+    hasAccessibleContrast(draft.light) &&
+    hasAccessibleContrast(draft.dark);
 
   const handleReset = () => {
     setDraft((current) => ({
@@ -158,6 +168,11 @@ export const CustomEditorThemeDialog = ({
               </div>
             ))}
           </div>
+          {!valid && validColors(draft.light) && validColors(draft.dark) ? (
+            <p className="rounded-md bg-amber-50 px-2.5 py-2 text-[11px] leading-4 text-amber-800">
+              {t("settings.customEditorTheme.contrastWarning")}
+            </p>
+          ) : null}
 
           {/* Custom CSS Textarea */}
           <label className="grid gap-1 text-xs font-semibold text-slate-700">
@@ -192,6 +207,9 @@ export const CustomEditorThemeDialog = ({
                 {t("settings.customEditorTheme.previewTitle")}
               </div>
               <p className="mb-0.5">{t("settings.customEditorTheme.previewBody")}</p>
+              <p className="mb-0.5" style={{ color: activeColors.muted }}>
+                {t("settings.customEditorTheme.previewMuted")}
+              </p>
               <strong style={{ color: activeColors.accent }}>
                 {t("settings.customEditorTheme.previewAccent")}
               </strong>
