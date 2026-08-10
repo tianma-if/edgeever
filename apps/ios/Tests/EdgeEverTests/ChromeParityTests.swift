@@ -1,3 +1,4 @@
+import AVFoundation
 import XCTest
 @testable import EdgeEver
 
@@ -226,6 +227,53 @@ final class ChromeParityTests: XCTestCase {
         XCTAssertEqual(CreateMemoChrome.editorFrame, "createMemoEditorFrame")
         XCTAssertEqual(DetailMemoChrome.editFab, "detailEditFab")
         XCTAssertEqual(DetailMemoChrome.syncStatus, "detailSyncStatus")
+    }
+
+    // MARK: - Image source parity
+
+    func testCameraAccessDecisionCoversEveryPermissionState() {
+        XCTAssertEqual(
+            CameraCaptureAccess.nextStep(isCameraAvailable: false, authorizationStatus: .authorized),
+            .unavailable
+        )
+        XCTAssertEqual(
+            CameraCaptureAccess.nextStep(isCameraAvailable: true, authorizationStatus: .authorized),
+            .openCamera
+        )
+        XCTAssertEqual(
+            CameraCaptureAccess.nextStep(isCameraAvailable: true, authorizationStatus: .notDetermined),
+            .requestPermission
+        )
+        XCTAssertEqual(
+            CameraCaptureAccess.nextStep(isCameraAvailable: true, authorizationStatus: .denied),
+            .showSettings
+        )
+        XCTAssertEqual(
+            CameraCaptureAccess.nextStep(isCameraAvailable: true, authorizationStatus: .restricted),
+            .showSettings
+        )
+    }
+
+    func testCameraFilenameIsStableAndUploadFriendly() {
+        let date = Date(timeIntervalSince1970: 0)
+        XCTAssertEqual(ImagePickerData.cameraFilename(at: date), "photo-19700101T000000Z.jpg")
+    }
+
+    func testCameraCoordinatorSettlesOnlyOnce() {
+        var callbackCount = 0
+        let coordinator = SystemCameraPicker.Coordinator { _ in callbackCount += 1 }
+        coordinator.finish(.cancelled)
+        coordinator.finish(.failed("late callback"))
+        XCTAssertEqual(callbackCount, 1)
+    }
+
+    func testMemoEditorOffersCameraAndLibrarySources() throws {
+        let source = try readShippedSource("Features/Workspace/MemoEditView.swift")
+        XCTAssertTrue(source.contains("showImageSourcePicker = true"))
+        XCTAssertTrue(source.contains("SystemCameraPicker"))
+        XCTAssertTrue(source.contains("SystemImagePicker"))
+        XCTAssertTrue(source.contains("从相册选择"))
+        XCTAssertTrue(source.contains("拍照"))
     }
 
     // MARK: - Helpers

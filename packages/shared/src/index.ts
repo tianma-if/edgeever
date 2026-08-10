@@ -1,4 +1,6 @@
 export * from "./content";
+export * from "./ai-assistant";
+export * from "./ai-selection";
 export * from "./backup";
 export * from "./github-feedback";
 export * from "./image-display";

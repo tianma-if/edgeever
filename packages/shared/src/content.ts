@@ -1,4 +1,5 @@
 import Image from "@tiptap/extension-image";
+import { TaskItem, TaskList } from "@tiptap/extension-list";
 import { TableKit } from "@tiptap/extension-table";
 import { Markdown, MarkdownManager } from "@tiptap/markdown";
 import StarterKit from "@tiptap/starter-kit";
@@ -71,6 +72,8 @@ export const emptyDoc = (): TiptapDoc => ({
 const markdownManager = new MarkdownManager({
   extensions: [
     StarterKit,
+    TaskList,
+    TaskItem.configure({ nested: true }),
     TableKit,
     Image,
     MergeDivider,
@@ -113,6 +116,7 @@ export const resolveMemoContentDoc = (
   if (
     !contentMarkdown?.trim() ||
     docContainsNodeType(currentDoc, "table") ||
+    docContainsNodeType(currentDoc, "taskList") ||
     docContainsNodeType(currentDoc, "edgeeverThemeBlock") ||
     docContainsNodeType(currentDoc, MERGE_DIVIDER_NODE_TYPE) ||
     docContainsNodeType(currentDoc, BLOCK_MATH_NODE_TYPE) ||
@@ -125,8 +129,10 @@ export const resolveMemoContentDoc = (
   // Some older saves left an empty JSON document behind while retaining the
   // real body in Markdown. Treat that as a compatibility case too; otherwise
   // the editor can show the Markdown body while list excerpts see an empty
-  // JSON document. Also recover merge dividers when only Markdown still has them.
+  // JSON document. Also recover task lists and merge dividers when only Markdown
+  // still retains their semantics.
   return docContainsNodeType(markdownDoc, "table")
+    || docContainsNodeType(markdownDoc, "taskList")
     || docContainsNodeType(markdownDoc, MERGE_DIVIDER_NODE_TYPE)
     || docContainsNodeType(markdownDoc, BLOCK_MATH_NODE_TYPE)
     || docContainsNodeType(markdownDoc, INLINE_MATH_NODE_TYPE)

@@ -69,50 +69,122 @@
     },
     "/api/v1/ai/settings": {
       "get": {
-        "summary": "Read the current workspace AI model settings",
+        "summary": "List AI providers, their models, and the workspace default model",
         "responses": {
           "200": {
-            "description": "AI model settings with the API key omitted",
+            "description": "AI settings with all API keys omitted",
             "content": {
               "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "settings": { "anyOf": [{ "$ref": "#/components/schemas/AiModelSettings" }, { "type": "null" }] },
-                    "encryptionConfigured": { "type": "boolean" }
-                  },
-                  "required": ["settings", "encryptionConfigured"]
-                }
+                "schema": { "$ref": "#/components/schemas/AiSettings" }
               }
             }
           },
           "401": { "$ref": "#/components/responses/Error" },
           "403": { "$ref": "#/components/responses/Error" }
         }
-      },
-      "put": {
-        "summary": "Save the current workspace AI model settings",
+      }
+    },
+    "/api/v1/ai/providers": {
+      "post": {
+        "summary": "Add an AI provider service",
         "requestBody": {
           "required": true,
-          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AiModelSettingsInput" } } }
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AiProviderCreateInput" } } }
         },
         "responses": {
-          "200": { "description": "AI model settings saved" },
+          "201": { "description": "Provider created" },
           "400": { "$ref": "#/components/responses/Error" },
           "401": { "$ref": "#/components/responses/Error" },
           "403": { "$ref": "#/components/responses/Error" }
         }
       }
     },
-    "/api/v1/ai/settings/test": {
+    "/api/v1/ai/providers/{providerConfigId}": {
+      "parameters": [{ "name": "providerConfigId", "in": "path", "required": true, "schema": { "type": "string" } }],
+      "put": {
+        "summary": "Update or enable/disable an AI provider service",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AiProviderUpdateInput" } } } },
+        "responses": {
+          "200": { "description": "Provider updated" },
+          "400": { "$ref": "#/components/responses/Error" },
+          "401": { "$ref": "#/components/responses/Error" },
+          "403": { "$ref": "#/components/responses/Error" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      },
+      "delete": {
+        "summary": "Delete an AI provider and all of its models",
+        "responses": {
+          "200": { "description": "Provider deleted" },
+          "401": { "$ref": "#/components/responses/Error" },
+          "403": { "$ref": "#/components/responses/Error" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/v1/ai/providers/{providerConfigId}/test": {
       "post": {
-        "summary": "Test an AI model endpoint without exposing its credential",
+        "summary": "Test a saved AI provider with a model ID",
+        "parameters": [{ "name": "providerConfigId", "in": "path", "required": true, "schema": { "type": "string" } }],
         "requestBody": {
           "required": true,
-          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AiModelSettingsInput" } } }
+          "content": { "application/json": { "schema": { "type": "object", "properties": { "modelId": { "type": "string", "minLength": 1, "maxLength": 200 } }, "required": ["modelId"] } } }
         },
         "responses": {
           "200": { "description": "The model endpoint responded successfully" },
+          "400": { "$ref": "#/components/responses/Error" },
+          "401": { "$ref": "#/components/responses/Error" },
+          "403": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/v1/ai/providers/{providerConfigId}/discover-models": {
+      "post": {
+        "summary": "Discover models exposed by a saved provider service",
+        "parameters": [{ "name": "providerConfigId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "Discovered models" },
+          "400": { "$ref": "#/components/responses/Error" },
+          "401": { "$ref": "#/components/responses/Error" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/v1/ai/providers/{providerConfigId}/models": {
+      "post": {
+        "summary": "Add a model to an AI provider service",
+        "parameters": [{ "name": "providerConfigId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AiModelCreateInput" } } } },
+        "responses": {
+          "201": { "description": "Model added" },
+          "400": { "$ref": "#/components/responses/Error" },
+          "401": { "$ref": "#/components/responses/Error" },
+          "403": { "$ref": "#/components/responses/Error" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/v1/ai/providers/{providerConfigId}/models/{modelConfigId}": {
+      "delete": {
+        "summary": "Remove a model from an AI provider service",
+        "parameters": [
+          { "name": "providerConfigId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "modelConfigId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Model removed" },
+          "401": { "$ref": "#/components/responses/Error" },
+          "403": { "$ref": "#/components/responses/Error" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/v1/ai/default-model": {
+      "put": {
+        "summary": "Choose or clear the workspace default AI model",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "properties": { "modelConfigId": { "type": ["string", "null"] } }, "required": ["modelConfigId"] } } } },
+        "responses": {
+          "200": { "description": "Default model updated" },
           "400": { "$ref": "#/components/responses/Error" },
           "401": { "$ref": "#/components/responses/Error" },
           "403": { "$ref": "#/components/responses/Error" }
@@ -1820,30 +1892,69 @@
           ] }
         ]
       },
-      "AiModelSettings": {
+      "AiModel": {
         "type": "object",
         "properties": {
+          "id": { "type": "string" },
+          "providerConfigId": { "type": "string" },
+          "modelId": { "type": "string" },
+          "displayName": { "type": "string" }
+        },
+        "required": ["id", "providerConfigId", "modelId", "displayName"]
+      },
+      "AiProvider": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
           "provider": { "type": "string", "enum": ["openai-compatible", "anthropic", "google"] },
           "displayName": { "type": "string" },
           "baseUrl": { "type": "string", "format": "uri" },
-          "modelId": { "type": "string" },
           "isEnabled": { "type": "boolean" },
           "hasApiKey": { "type": "boolean" },
-          "encryptionConfigured": { "type": "boolean" }
+          "models": { "type": "array", "items": { "$ref": "#/components/schemas/AiModel" } }
         },
-        "required": ["provider", "displayName", "baseUrl", "modelId", "isEnabled", "hasApiKey", "encryptionConfigured"]
+        "required": ["id", "provider", "displayName", "baseUrl", "isEnabled", "hasApiKey", "models"]
       },
-      "AiModelSettingsInput": {
+      "AiSettings": {
+        "type": "object",
+        "properties": {
+          "providers": { "type": "array", "items": { "$ref": "#/components/schemas/AiProvider" } },
+          "defaultModelId": { "type": ["string", "null"] },
+          "encryptionConfigured": { "type": "boolean" },
+          "readOnly": { "type": "boolean" }
+        },
+        "required": ["providers", "defaultModelId", "encryptionConfigured", "readOnly"]
+      },
+      "AiProviderCreateInput": {
         "type": "object",
         "properties": {
           "provider": { "type": "string", "enum": ["openai-compatible", "anthropic", "google"] },
           "displayName": { "type": "string", "minLength": 1, "maxLength": 80 },
           "baseUrl": { "type": "string", "format": "uri", "maxLength": 500 },
           "apiKey": { "type": "string", "minLength": 1, "maxLength": 4096 },
-          "modelId": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "isEnabled": { "type": "boolean", "default": true },
+          "initialModelId": { "type": "string", "minLength": 1, "maxLength": 200 }
+        },
+        "required": ["provider", "displayName", "baseUrl", "apiKey"]
+      },
+      "AiProviderUpdateInput": {
+        "type": "object",
+        "properties": {
+          "provider": { "type": "string", "enum": ["openai-compatible", "anthropic", "google"] },
+          "displayName": { "type": "string", "minLength": 1, "maxLength": 80 },
+          "baseUrl": { "type": "string", "format": "uri", "maxLength": 500 },
+          "apiKey": { "type": "string", "minLength": 1, "maxLength": 4096 },
           "isEnabled": { "type": "boolean", "default": true }
         },
-        "required": ["provider", "displayName", "baseUrl", "modelId"]
+        "required": ["provider", "displayName", "baseUrl"]
+      },
+      "AiModelCreateInput": {
+        "type": "object",
+        "properties": {
+          "modelId": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "displayName": { "type": "string", "minLength": 1, "maxLength": 200 }
+        },
+        "required": ["modelId"]
       },
       "LoginInput": {
         "type": "object",

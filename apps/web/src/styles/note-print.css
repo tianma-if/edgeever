@@ -96,6 +96,46 @@
   margin: 1mm 0;
 }
 
+.edgeever-print-content ul[data-type="taskList"] {
+  padding-left: 0;
+  list-style: none;
+}
+
+.edgeever-print-content li[data-type="taskItem"] {
+  display: flex;
+  align-items: flex-start;
+  gap: 2mm;
+  break-inside: avoid-page;
+}
+
+.edgeever-print-content li[data-type="taskItem"] > label {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  margin-top: 0.8mm;
+}
+
+.edgeever-print-content li[data-type="taskItem"] > label input {
+  width: 4mm;
+  height: 4mm;
+  margin: 0;
+  accent-color: #16a06e;
+}
+
+.edgeever-print-content li[data-type="taskItem"] > div {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.edgeever-print-content li[data-type="taskItem"] > div > p {
+  margin-bottom: 0;
+}
+
+.edgeever-print-content ul[data-type="taskList"] ul[data-type="taskList"] {
+  margin: 1mm 0 0;
+  padding-left: 6mm;
+}
+
 .edgeever-print-content blockquote {
   break-inside: avoid-page;
   margin: 4mm 0;

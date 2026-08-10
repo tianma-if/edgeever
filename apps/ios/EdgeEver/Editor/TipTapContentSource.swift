@@ -66,6 +66,16 @@ enum TipTapContentSource: Sendable {
             return true
         }
 
+        let markdownHasTaskList = markdown.range(
+            of: #"(?m)^\s*[-*+]\s+\[[ xX]\]\s*"#,
+            options: .regularExpression
+        ) != nil
+        let jsonHasTaskList = json.contains(#""type":"taskList""#)
+            || json.contains(#""type": "taskList""#)
+        if markdownHasTaskList && !jsonHasTaskList {
+            return true
+        }
+
         let md = structureScore(markdown: markdown)
         let js = structureScore(json: json)
         return md >= 2 && md > js
@@ -90,7 +100,7 @@ enum TipTapContentSource: Sendable {
         if json.contains("\"heading\"") { score += 3 }
         if json.contains("\"table\"") || json.contains("\"tableRow\"") { score += 2 }
         if json.contains("\"codeBlock\"") { score += 3 }
-        if json.contains("\"bulletList\"") || json.contains("\"orderedList\"") { score += 2 }
+        if json.contains("\"bulletList\"") || json.contains("\"orderedList\"") || json.contains("\"taskList\"") { score += 2 }
         if json.contains("\"blockquote\"") { score += 1 }
         if json.contains("\"bold\"") || json.contains("\"italic\"") { score += 1 }
         if json.contains("\"type\":\"image\"") || json.contains("\"type\": \"image\"") { score += 1 }

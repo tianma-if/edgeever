@@ -154,9 +154,17 @@ interface ScopePickerProps {
   availableScopes: string[];
   selectedScopes: Set<string>;
   onToggleScope: (scope: string) => void;
+  onSelectAll: () => void;
+  onClearAll: () => void;
 }
 
-const ScopePicker = ({ availableScopes, selectedScopes, onToggleScope }: ScopePickerProps) => {
+const ScopePicker = ({
+  availableScopes,
+  selectedScopes,
+  onToggleScope,
+  onSelectAll,
+  onClearAll,
+}: ScopePickerProps) => {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
 
@@ -178,34 +186,58 @@ const ScopePicker = ({ availableScopes, selectedScopes, onToggleScope }: ScopePi
           />
         </button>
       </CollapsibleTrigger>
-      <CollapsibleContent className="grid gap-1 border-t border-slate-100 py-2 sm:grid-cols-2">
-        {availableScopes.map((scope) => {
-          const checked = selectedScopes.has(scope);
-          const checkboxId = `token-scope-${scope.replace(/[^a-z0-9]+/gi, "-")}`;
-
-          return (
-            <label
-              key={scope}
-              htmlFor={checkboxId}
-              className={cn(
-                "flex min-h-10 cursor-pointer items-center gap-3 rounded-md px-3 py-2 transition-colors",
-                checked
-                  ? "bg-emerald-50/70 text-emerald-800"
-                  : "text-slate-600 hover:bg-slate-50"
-              )}
+      <CollapsibleContent className="space-y-2 border-t border-slate-100 py-2">
+        <div className="flex items-center justify-between px-1">
+          <span className="text-[11px] text-slate-400">
+            {t("mcp.selectedScopes", { selected: selectedScopes.size, total: availableScopes.length })}
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="text-[11px] font-medium text-emerald-600 hover:text-emerald-700 hover:underline"
+              onClick={onSelectAll}
             >
-              <Checkbox
-                id={checkboxId}
-                checked={checked}
-                onCheckedChange={() => onToggleScope(scope)}
-                className="border-emerald-300"
-              />
-              <span className="min-w-0 truncate text-xs font-semibold" title={scope}>
-                {getTokenScopeLabel(scope, t)}
-              </span>
-            </label>
-          );
-        })}
+              {t("mcp.selectAllScopes")}
+            </button>
+            <span className="text-slate-300">|</span>
+            <button
+              type="button"
+              className="text-[11px] font-medium text-slate-500 hover:text-slate-700 hover:underline"
+              onClick={onClearAll}
+            >
+              {t("mcp.clearScopes")}
+            </button>
+          </div>
+        </div>
+        <div className="grid gap-1 sm:grid-cols-2">
+          {availableScopes.map((scope) => {
+            const checked = selectedScopes.has(scope);
+            const checkboxId = `token-scope-${scope.replace(/[^a-z0-9]+/gi, "-")}`;
+
+            return (
+              <label
+                key={scope}
+                htmlFor={checkboxId}
+                className={cn(
+                  "flex min-h-10 cursor-pointer items-center gap-3 rounded-md px-3 py-2 transition-colors",
+                  checked
+                    ? "bg-emerald-50/70 text-emerald-800"
+                    : "text-slate-600 hover:bg-slate-50"
+                )}
+              >
+                <Checkbox
+                  id={checkboxId}
+                  checked={checked}
+                  onCheckedChange={() => onToggleScope(scope)}
+                  className="border-emerald-300"
+                />
+                <span className="min-w-0 truncate text-xs font-semibold" title={scope}>
+                  {getTokenScopeLabel(scope, t)}
+                </span>
+              </label>
+            );
+          })}
+        </div>
       </CollapsibleContent>
     </Collapsible>
   );
@@ -435,6 +467,8 @@ export const McpConfigCard = () => {
               availableScopes={availableScopes}
               selectedScopes={selectedScopes}
               onToggleScope={toggleScope}
+              onSelectAll={() => setSelectedScopes(new Set(availableScopes))}
+              onClearAll={() => setSelectedScopes(new Set())}
             />
           </form>
 

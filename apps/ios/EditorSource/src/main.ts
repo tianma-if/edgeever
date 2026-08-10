@@ -3,6 +3,7 @@ import "katex/dist/katex.min.css";
 import { Editor, mergeAttributes, Node } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import Image from "@tiptap/extension-image";
+import { TaskItem, TaskList } from "@tiptap/extension-list";
 import Placeholder from "@tiptap/extension-placeholder";
 import CodeBlock from "@tiptap/extension-code-block";
 import { TableKit } from "@tiptap/extension-table";
@@ -608,6 +609,8 @@ function buildExtensions(placeholder: string) {
     StarterKit.configure({
       codeBlock: false,
     }),
+    TaskList,
+    TaskItem.configure({ nested: true }),
     MergeDivider,
     ...createEdgeEverMathematics(),
     CodeBlock.configure({
@@ -804,6 +807,20 @@ const serializeEditorMarkdown = (ed: Editor) => {
     : ed.getText({ blockSeparator: "\n\n" });
 };
 
+let pendingAiSelection: { from: number; to: number; documentFingerprint: string } | null = null;
+
+const serializeSelectionMarkdown = (ed: Editor, from: number, to: number) => {
+  const manager = (ed.storage as { markdown?: { manager?: { serialize?: (doc: unknown) => string } } })
+    .markdown?.manager;
+  const content = ed.state.doc.slice(from, to).content.toJSON();
+  if (manager?.serialize) {
+    return manager
+      .serialize(protectLiteralDollarPairs({ type: "doc", content }))
+      .replaceAll(LITERAL_DOLLAR_PLACEHOLDER, "\\$");
+  }
+  return ed.state.doc.textBetween(from, to, "\n\n");
+};
+
 function emitChange(ed: Editor) {
   try {
     const contentJson = JSON.stringify(ed.getJSON());
@@ -847,6 +864,8 @@ function getEditorSearchMatches(ed: Editor, query: string): EditorSearchMatch[] 
   return matches;
 }
 
+const activeListItemType = () => editor.isActive("taskItem") ? "taskItem" : "listItem";
+
 function setToolbarVisible(visible: boolean) {
   toolbarEl.classList.toggle("editor-mode", visible);
   toolbarEl.innerHTML = "";
@@ -864,14 +883,19 @@ function setToolbarVisible(visible: boolean) {
       run: () => editor.chain().focus().toggleBulletList().run(),
     },
     {
+      id: "task",
+      label: "☑",
+      run: () => editor.chain().focus().toggleTaskList().run(),
+    },
+    {
       id: "indent",
       label: "⇥",
-      run: () => editor.chain().focus().sinkListItem("listItem").run(),
+      run: () => editor.chain().focus().sinkListItem(activeListItemType()).run(),
     },
     {
       id: "outdent",
       label: "⇤",
-      run: () => editor.chain().focus().liftListItem("listItem").run(),
+      run: () => editor.chain().focus().liftListItem(activeListItemType()).run(),
     },
     {
       id: "quote",
@@ -893,6 +917,7 @@ function setToolbarVisible(visible: boolean) {
       image: ["插入图片", "Insert image"],
       bold: ["粗体", "Bold"],
       bullet: ["项目符号列表", "Bullet list"],
+      task: ["任务清单", "Task list"],
       indent: ["增加列表缩进", "Increase list indent"],
       outdent: ["减少列表缩进", "Decrease list indent"],
       quote: ["引用", "Block quote"],
@@ -913,6 +938,7 @@ function refreshToolbarState() {
   const active: Record<string, boolean> = {
     bold: editor.isActive("bold"),
     bullet: editor.isActive("bulletList"),
+    task: editor.isActive("taskList"),
     quote: editor.isActive("blockquote"),
   };
   toolbarEl.querySelectorAll<HTMLButtonElement>("button[data-action]").forEach((button) => {
@@ -937,6 +963,9 @@ export type EdgeEverEditorAPI = {
   resolveResource: (requestId: string, dataUrl: string | null) => void;
   getMarkdown: () => string;
   getDocument: () => string;
+  captureSelection: () => string | null;
+  applySelectionDraft: (markdown: string, mode: "append" | "replace") => boolean;
+  undo: () => boolean;
   focusEnd: () => void;
   flush: () => void;
   exec: (actionId: string) => void;
@@ -1033,6 +1062,53 @@ const api: EdgeEverEditorAPI = {
     return JSON.stringify(editor.getJSON());
   },
 
+  captureSelection() {
+    const { from, to, empty } = editor.state.selection;
+    if (empty || from >= to) {
+      pendingAiSelection = null;
+      return null;
+    }
+    pendingAiSelection = { from, to, documentFingerprint: JSON.stringify(editor.getJSON()) };
+    return JSON.stringify({
+      from,
+      to,
+      markdown: serializeSelectionMarkdown(editor, from, to),
+      text: editor.state.doc.textBetween(from, to, "\n\n"),
+    });
+  },
+
+  applySelectionDraft(markdown, applyMode) {
+    const range = pendingAiSelection;
+    if (!range || !markdown.trim()) return false;
+    if (JSON.stringify(editor.getJSON()) !== range.documentFingerprint) {
+      pendingAiSelection = null;
+      return false;
+    }
+    const docSize = editor.state.doc.content.size;
+    const from = Math.min(Math.max(range.from, 0), docSize);
+    const to = Math.min(Math.max(range.to, from), docSize);
+    try {
+      const manager = (editor.storage as { markdown?: { manager?: { parse?: (value: string) => { content?: unknown[] } } } })
+        .markdown?.manager;
+      const parsed = manager?.parse?.(markdown);
+      const content = parsed?.content ?? markdown;
+      const insertRange = applyMode === "append" ? { from: to, to } : { from, to };
+      editor.chain().focus().insertContentAt(insertRange, content as never).run();
+      pendingAiSelection = null;
+      emitChange(editor);
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
+  undo() {
+    if (!editor.can().undo()) return false;
+    const changed = editor.commands.undo();
+    if (changed) emitChange(editor);
+    return changed;
+  },
+
   focusEnd() {
     try {
       editor.commands.focus("end");
@@ -1059,6 +1135,7 @@ const api: EdgeEverEditorAPI = {
     const map: Record<string, () => void> = {
       bold: () => editor.chain().focus().toggleBold().run(),
       bulletList: () => editor.chain().focus().toggleBulletList().run(),
+      taskList: () => editor.chain().focus().toggleTaskList().run(),
       blockquote: () => editor.chain().focus().toggleBlockquote().run(),
       horizontalRule: () => editor.chain().focus().setHorizontalRule().run(),
       heading2: () => editor.chain().focus().toggleHeading({ level: 2 }).run(),

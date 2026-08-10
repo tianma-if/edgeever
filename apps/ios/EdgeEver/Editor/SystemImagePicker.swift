@@ -1,3 +1,4 @@
+import AVFoundation
 import PhotosUI
 import SwiftUI
 import UIKit
@@ -9,6 +10,32 @@ enum ImagePickerResult {
     case cancelled
     case failed(String)
     case picked(Data, filename: String)
+}
+
+enum CameraCaptureNextStep: Equatable {
+    case openCamera
+    case requestPermission
+    case showSettings
+    case unavailable
+}
+
+enum CameraCaptureAccess {
+    static func nextStep(
+        isCameraAvailable: Bool,
+        authorizationStatus: AVAuthorizationStatus
+    ) -> CameraCaptureNextStep {
+        guard isCameraAvailable else { return .unavailable }
+        switch authorizationStatus {
+        case .authorized:
+            return .openCamera
+        case .notDetermined:
+            return .requestPermission
+        case .denied, .restricted:
+            return .showSettings
+        @unknown default:
+            return .showSettings
+        }
+    }
 }
 
 /// UIKit PHPicker wrapper — loads UIImage/data via NSItemProvider (not Transferable).
@@ -120,7 +147,82 @@ struct SystemImagePicker: UIViewControllerRepresentable {
     }
 }
 
+// MARK: - System camera
+
+/// UIKit camera wrapper. Camera capture is intentionally separate from PHPicker:
+/// PHPicker only reads the photo library and cannot launch the camera directly.
+struct SystemCameraPicker: UIViewControllerRepresentable {
+    var onFinish: (ImagePickerResult) -> Void
+
+    static var isAvailable: Bool {
+        UIImagePickerController.isSourceTypeAvailable(.camera)
+    }
+
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.delegate = context.coordinator
+        picker.allowsEditing = false
+        guard Self.isAvailable else {
+            DispatchQueue.main.async {
+                context.coordinator.finish(.failed("此设备没有可用相机。"))
+            }
+            return picker
+        }
+        picker.sourceType = .camera
+        picker.mediaTypes = [UTType.image.identifier]
+        picker.cameraCaptureMode = .photo
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onFinish: onFinish)
+    }
+
+    final class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+        let onFinish: (ImagePickerResult) -> Void
+        private var settled = false
+
+        init(onFinish: @escaping (ImagePickerResult) -> Void) {
+            self.onFinish = onFinish
+        }
+
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            finish(.cancelled)
+        }
+
+        func imagePickerController(
+            _ picker: UIImagePickerController,
+            didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]
+        ) {
+            guard let image = info[.originalImage] as? UIImage,
+                  let data = image.jpegData(compressionQuality: 0.92),
+                  !data.isEmpty
+            else {
+                finish(.failed("无法读取拍摄的照片，请重试。"))
+                return
+            }
+            finish(.picked(data, filename: ImagePickerData.cameraFilename()))
+        }
+
+        func finish(_ result: ImagePickerResult) {
+            guard !settled else { return }
+            settled = true
+            onFinish(result)
+        }
+    }
+}
+
 enum ImagePickerData {
+    static func cameraFilename(at date: Date = Date()) -> String {
+        let timestamp = ISO8601DateFormatter()
+            .string(from: date)
+            .replacingOccurrences(of: "-", with: "")
+            .replacingOccurrences(of: ":", with: "")
+        return "photo-\(timestamp).jpg"
+    }
+
     /// HEIC / unknown → JPEG so upload mime is valid and ImageCompressor can decode.
     static func normalize(_ data: Data) -> Data {
         if data.starts(with: [0xFF, 0xD8, 0xFF]) { return data } // JPEG

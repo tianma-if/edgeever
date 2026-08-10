@@ -20,6 +20,15 @@ struct TipTapSession {
     var onBodyReady: (() -> Void)?
 }
 
+struct AiEditorSelection: Decodable, Sendable, Identifiable {
+    var from: Int
+    var to: Int
+    var markdown: String
+    var text: String
+
+    var id: String { "\(from):\(to)" }
+}
+
 /// One long-lived TipTap WKWebView per mode (viewer / editor).
 /// Note switches re-parent the same web view and only call setContent — no 4MB bundle reload.
 @MainActor
@@ -203,6 +212,57 @@ final class SharedTipTapRuntime: NSObject, WKScriptMessageHandler, WKNavigationD
         })();
         """
         webView.evaluateJavaScript(js, completionHandler: nil)
+    }
+
+    /// Capture the current non-empty editor selection and keep its range in the JS runtime.
+    func captureAiSelection() async -> AiEditorSelection? {
+        guard ready, session?.mode == .editor else { return nil }
+        let raw: Any? = await withCheckedContinuation { continuation in
+            webView.evaluateJavaScript(
+                "window.EdgeEverEditor && window.EdgeEverEditor.captureSelection ? window.EdgeEverEditor.captureSelection() : null"
+            ) { value, _ in
+                continuation.resume(returning: value)
+            }
+        }
+        guard let json = raw as? String,
+              let data = json.data(using: .utf8)
+        else { return nil }
+        return try? JSONDecoder().decode(AiEditorSelection.self, from: data)
+    }
+
+    /// Insert after or replace the range captured by `captureAiSelection()`.
+    func applyAiSelectionDraft(_ markdown: String, append: Bool) async -> Bool {
+        guard ready, session?.mode == .editor, !markdown.isEmpty else { return false }
+        let markdownB64 = Data(markdown.utf8).base64EncodedString()
+        let modeValue = append ? "append" : "replace"
+        let js = """
+        (function(){
+          try {
+            if (!window.EdgeEverEditor || !window.EdgeEverEditor.applySelectionDraft) return false;
+            var bin = atob('\(markdownB64)');
+            var bytes = new Uint8Array(bin.length);
+            for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+            var markdown = new TextDecoder('utf-8').decode(bytes);
+            return window.EdgeEverEditor.applySelectionDraft(markdown, '\(modeValue)') === true;
+          } catch (e) { return false; }
+        })();
+        """
+        return await withCheckedContinuation { continuation in
+            webView.evaluateJavaScript(js) { value, _ in
+                continuation.resume(returning: (value as? Bool) ?? false)
+            }
+        }
+    }
+
+    func undoAiSelectionDraft() async -> Bool {
+        guard ready, session?.mode == .editor else { return false }
+        return await withCheckedContinuation { continuation in
+            webView.evaluateJavaScript(
+                "window.EdgeEverEditor && window.EdgeEverEditor.undo ? window.EdgeEverEditor.undo() : false"
+            ) { value, _ in
+                continuation.resume(returning: (value as? Bool) ?? false)
+            }
+        }
     }
 
     private func focusEnd(attempt: Int) {

@@ -534,10 +534,52 @@ const createWindow = async () => {
     }
   });
 
-  if (app.isPackaged && !process.env.EDGE_EVER_DESKTOP_WEB_URL) {
-    await mainWindow.loadFile(join(process.resourcesPath, "web/index.html"));
-  } else {
-    await mainWindow.loadURL(webUrl);
+  // Install startup diagnostics before navigation. A renderer exception can
+  // happen while loadFile/loadURL is still resolving, so listeners registered
+  // afterwards miss the only useful evidence and leave users with a blank
+  // window and an empty diagnostic log.
+  mainWindow.webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+    void writeDiagnostic("renderer.load-failed", {
+      errorCode,
+      errorDescription,
+      validatedURL,
+      isMainFrame,
+    });
+  });
+  mainWindow.webContents.on("preload-error", (_event, preloadPath, error) => {
+    void writeDiagnostic("renderer.preload-error", {
+      preloadPath,
+      message: String(error?.message || error).slice(0, 2000),
+    });
+  });
+  mainWindow.webContents.on("console-message", (details) => {
+    if (details.level !== "error") return;
+    void writeDiagnostic("renderer.console-error", {
+      message: String(details.message || "").slice(0, 2000),
+      lineNumber: details.lineNumber,
+      sourceId: String(details.sourceId || "").slice(0, 1000),
+    });
+  });
+  mainWindow.webContents.on("did-finish-load", () => {
+    void writeDiagnostic("renderer.loaded", { url: mainWindow?.webContents.getURL() || "" });
+  });
+  mainWindow.webContents.on("render-process-gone", (_event, details) => {
+    void writeDiagnostic("renderer.gone", details);
+  });
+  mainWindow.webContents.on("unresponsive", () => { void writeDiagnostic("renderer.unresponsive"); });
+  mainWindow.webContents.on("responsive", () => { void writeDiagnostic("renderer.responsive"); });
+
+  try {
+    if (app.isPackaged && !process.env.EDGE_EVER_DESKTOP_WEB_URL) {
+      await mainWindow.loadFile(join(process.resourcesPath, "web/index.html"));
+    } else {
+      await mainWindow.loadURL(webUrl);
+    }
+  } catch (error) {
+    void writeDiagnostic("renderer.navigation-rejected", {
+      message: String(error?.message || error).slice(0, 2000),
+    });
+    throw error;
   }
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith("edgeever-resource://") || url.startsWith("edgeever-staged://")) return { action: "allow" };
@@ -556,11 +598,6 @@ const createWindow = async () => {
     if (url.startsWith("https://") || url.startsWith("http://")) void shell.openExternal(url);
     return { action: "deny" };
   });
-  mainWindow.webContents.on("render-process-gone", (_event, details) => {
-    void writeDiagnostic("renderer.gone", details);
-  });
-  mainWindow.webContents.on("unresponsive", () => { void writeDiagnostic("renderer.unresponsive"); });
-  mainWindow.webContents.on("responsive", () => { void writeDiagnostic("renderer.responsive"); });
   mainWindow.webContents.on("will-navigate", (event, url) => {
     if (url.startsWith(webUrl) || url.startsWith("edgeever-resource://") || url.startsWith("edgeever-staged://")) return;
     event.preventDefault();

@@ -2,8 +2,10 @@ import { useRef, useState, useEffect, useCallback, useMemo, type CSSProperties, 
 import { createPortal } from "react-dom";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useEditor, EditorContent, type Editor } from "@tiptap/react";
+import { BubbleMenu } from "@tiptap/react/menus";
 import type { Mark } from "@tiptap/pm/model";
 import StarterKit from "@tiptap/starter-kit";
+import { TaskItem, TaskList } from "@tiptap/extension-list";
 import Placeholder from "@tiptap/extension-placeholder";
 import { TableKit } from "@tiptap/extension-table";
 import { useTranslation } from "react-i18next";
@@ -200,6 +202,13 @@ type NoteLinkHintPosition = {
   left: number;
   top: number;
   placement: "above" | "below" | "inside-bottom-right";
+};
+
+type AiSelectionContext = {
+  kind: "rich" | "markdown" | "plain";
+  from: number;
+  to: number;
+  contentMarkdown: string;
 };
 
 const getAttachmentLinkFromEventTarget = (target: EventTarget | null) =>
@@ -678,6 +687,7 @@ const RichEditorPane = ({
   const [historyOpen, setHistoryOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [aiAssistantOpen, setAiAssistantOpen] = useState(false);
+  const [aiSelection, setAiSelection] = useState<AiSelectionContext | null>(null);
   const [systemInfoOpen, setSystemInfoOpen] = useState(false);
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [mobileNotebookSheetOpen, setMobileNotebookSheetOpen] = useState(false);
@@ -1029,6 +1039,8 @@ const RichEditorPane = ({
         codeBlock: false,
         link: { openOnClick: false },
       }),
+      TaskList,
+      TaskItem.configure({ nested: true }),
       EdgeEverCodeBlock.configure({ lowlight: codeBlockLowlight, defaultLanguage: "plaintext" }),
       MergeDivider,
       ...createEdgeEverMathematics(),
@@ -1796,7 +1808,74 @@ const RichEditorPane = ({
       : memoRef.current?.contentMarkdown ?? "";
   }, [editor, getMobilePlainTextValue, markdownSource, useMarkdownSourceEditor, useMobilePlainTextEditor]);
 
+  const openAiAssistant = useCallback(() => {
+    let selection: AiSelectionContext | null = null;
+
+    if (useMobilePlainTextEditor) {
+      const source = getMobilePlainTextValue();
+      const plainTextElement = mobileTextAreaRef.current;
+      const from = plainTextElement instanceof HTMLTextAreaElement ? plainTextElement.selectionStart : 0;
+      const to = plainTextElement instanceof HTMLTextAreaElement ? plainTextElement.selectionEnd : from;
+      const contentMarkdown = source.slice(from, to).trim();
+      if (to > from && contentMarkdown) selection = { kind: "plain", from, to, contentMarkdown };
+    } else if (useMarkdownSourceEditor) {
+      const from = markdownTextAreaRef.current?.selectionStart ?? 0;
+      const to = markdownTextAreaRef.current?.selectionEnd ?? from;
+      const contentMarkdown = markdownSource.slice(from, to).trim();
+      if (to > from && contentMarkdown) selection = { kind: "markdown", from, to, contentMarkdown };
+    } else if (isEditorReady(editor)) {
+      const { from, to, empty } = editor.state.selection;
+      if (!empty) {
+        const selectedContent = editor.state.selection.content().content.toJSON() as TiptapDoc["content"];
+        const contentMarkdown = (
+          docToMarkdown({ type: "doc", content: selectedContent }) ||
+          editor.state.doc.textBetween(from, to, "\n")
+        ).trim();
+        if (contentMarkdown) selection = { kind: "rich", from, to, contentMarkdown };
+      }
+    }
+
+    setAiSelection(selection);
+    setAiAssistantOpen(true);
+  }, [editor, getMobilePlainTextValue, markdownSource, useMarkdownSourceEditor, useMobilePlainTextEditor]);
+
+  const handleAiAssistantOpenChange = useCallback((nextOpen: boolean) => {
+    setAiAssistantOpen(nextOpen);
+    if (!nextOpen) setAiSelection(null);
+  }, []);
+
   const applyAiDraft = useCallback((draft: string, mode: "append" | "replace") => {
+    if (mode === "replace" && aiSelection) {
+      if (aiSelection.kind === "plain") {
+        const source = getMobilePlainTextValue();
+        const { next, caret } = insertMarkdownSnippet(source, draft, aiSelection.from, aiSelection.to);
+        setMobilePlainText(next);
+        setMobilePlainTextElementValue(mobileTextAreaRef.current, next);
+        persistCurrentDraft(title, tagsText, next);
+        window.requestAnimationFrame(() => {
+          const plainTextElement = mobileTextAreaRef.current;
+          plainTextElement?.focus();
+          if (plainTextElement instanceof HTMLTextAreaElement) plainTextElement.setSelectionRange(caret, caret);
+        });
+      } else if (aiSelection.kind === "markdown") {
+        const { next, caret } = insertMarkdownSnippet(markdownSource, draft, aiSelection.from, aiSelection.to);
+        setMarkdownSource(next);
+        window.requestAnimationFrame(() => {
+          markdownTextAreaRef.current?.focus();
+          markdownTextAreaRef.current?.setSelectionRange(caret, caret);
+        });
+      } else if (isEditorReady(editor)) {
+        const maxPos = editor.state.doc.content.size;
+        const from = Math.max(1, Math.min(aiSelection.from, maxPos));
+        const to = Math.max(from, Math.min(aiSelection.to, maxPos));
+        editor.chain().focus().insertContentAt({ from, to }, markdownToDoc(draft).content).run();
+      }
+      markDirty();
+      setAiSelection(null);
+      setAiAssistantOpen(false);
+      return;
+    }
+
     const current = getCurrentMarkdownForAi();
     const next = mode === "append" && current.trim()
       ? `${current.replace(/\s+$/, "")}\n\n${draft}`
@@ -1811,8 +1890,9 @@ const RichEditorPane = ({
       editor.commands.setContent(markdownToDoc(next));
     }
     markDirty();
+    setAiSelection(null);
     setAiAssistantOpen(false);
-  }, [editor, getCurrentMarkdownForAi, markDirty, persistCurrentDraft, tagsText, title, useMarkdownSourceEditor, useMobilePlainTextEditor]);
+  }, [aiSelection, editor, getCurrentMarkdownForAi, getMobilePlainTextValue, markDirty, markdownSource, persistCurrentDraft, tagsText, title, useMarkdownSourceEditor, useMobilePlainTextEditor]);
 
   const getCurrentContentJson = useCallback((): TiptapDoc | null => {
     if (useMobilePlainTextEditor) {
@@ -3421,7 +3501,7 @@ const RichEditorPane = ({
             </IconTooltip>
             {!readOnly && (
               <IconTooltip label={t("aiAssistant.open")}>
-                <Button className="hidden h-8 w-8 text-emerald-600 transition-colors hover:bg-emerald-50 hover:text-emerald-800 focus-visible:ring-2 focus-visible:ring-emerald-300 sm:inline-flex" size="icon" variant="ghost" aria-label={t("aiAssistant.open")} onClick={() => setAiAssistantOpen(true)}>
+                <Button className="hidden h-8 w-8 text-emerald-600 transition-colors hover:bg-emerald-50 hover:text-emerald-800 focus-visible:ring-2 focus-visible:ring-emerald-300 sm:inline-flex" size="icon" variant="ghost" aria-label={t("aiAssistant.open")} onClick={openAiAssistant}>
                   <Sparkles className="h-5 w-5" strokeWidth={2.25} />
                 </Button>
               </IconTooltip>
@@ -3501,7 +3581,7 @@ const RichEditorPane = ({
                 {!readOnly && (
                   <DropdownMenuItem
                     className="flex h-9 w-full items-center gap-2 px-3 text-left text-sm text-emerald-700 hover:bg-emerald-50 cursor-pointer outline-none"
-                    onClick={() => setAiAssistantOpen(true)}
+                    onClick={openAiAssistant}
                   >
                     <Sparkles className="h-4 w-4 text-emerald-600" />
                     {t("aiAssistant.title")}
@@ -3955,6 +4035,25 @@ const RichEditorPane = ({
                 onFocusCapture={handleEditorFocusCapture}
                 onBlurCapture={handleEditorBlurCapture}
               >
+                <BubbleMenu
+                  editor={editor}
+                  shouldShow={({ editor: activeEditor }) =>
+                    activeEditor.isEditable && !activeEditor.state.selection.empty && !aiAssistantOpen
+                  }
+                  options={{ placement: "top" }}
+                >
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="solid"
+                    className="shadow-lg"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={openAiAssistant}
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                    {t("aiAssistant.openForSelection")}
+                  </Button>
+                </BubbleMenu>
                 <EditorContent editor={editor} />
               </div>
             )}
@@ -4208,7 +4307,8 @@ const RichEditorPane = ({
         open={aiAssistantOpen}
         title={title}
         contentMarkdown={getCurrentMarkdownForAi()}
-        onOpenChange={setAiAssistantOpen}
+        selectionMarkdown={aiSelection?.contentMarkdown}
+        onOpenChange={handleAiAssistantOpenChange}
         onApply={applyAiDraft}
       />
 

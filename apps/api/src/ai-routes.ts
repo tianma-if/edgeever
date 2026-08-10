@@ -1,7 +1,10 @@
 import {
-  AiConnectionTestSchema,
+  AiDefaultModelUpdateSchema,
   AiGenerateSchema,
-  AiModelSettingsUpdateSchema,
+  AiModelConfigCreateSchema,
+  AiProviderConfigCreateSchema,
+  AiProviderConfigUpdateSchema,
+  AiProviderConnectionTestSchema,
 } from "@edgeever/shared";
 import { zValidator } from "@hono/zod-validator";
 import type { Hono } from "hono";
@@ -9,31 +12,25 @@ import type { AppContext, AppEnv, Bindings } from "./api-context";
 import { AppError } from "./app-error";
 import { auditStatement } from "./audit";
 import {
-  getAiModelConfig,
   decryptAiCredential,
-  loadActiveAiModel,
-  mapAiModelSettings,
+  discoverAiModels,
+  getAiModelConfig,
+  getAiProviderConfig,
+  getAiSettings,
+  getDefaultAiModelId,
+  loadDefaultAiModel,
   normalizeAiBaseUrl,
   resolvePrimaryAiCredentialEncryptionKey,
   streamAiGeneration,
   testAiModel,
 } from "./ai-service";
-import { isoNow } from "./entity-utils";
-import { apiError, forbidden } from "./http-errors";
+import { createId, isoNow } from "./entity-utils";
+import { apiError, forbidden, notFound } from "./http-errors";
 import { getWorkspaceId, requireUser } from "./request-auth";
 import { encryptSecret } from "./secret-encryption";
 
 type AiRouteDependencies = {
   isDemoMode: (environment: Bindings) => boolean;
-};
-
-const getSubmittedApiKey = async (context: AppContext, submittedApiKey: string | undefined) => {
-  if (submittedApiKey) return submittedApiKey;
-  const row = await getAiModelConfig(context.env.storage.db, getWorkspaceId(context));
-  if (!row?.api_key_encrypted) {
-    throw new AppError("ai_api_key_required", "API Key is required.", 400);
-  }
-  return decryptAiCredential(row.api_key_encrypted, context.env);
 };
 
 const providerErrorMessage = (error: unknown) => {
@@ -42,101 +39,396 @@ const providerErrorMessage = (error: unknown) => {
   return error.message.replace(/Bearer\s+\S+/gi, "Bearer [redacted]").slice(0, 1000);
 };
 
+const encryptionConfigured = (context: AppContext) =>
+  Boolean(resolvePrimaryAiCredentialEncryptionKey(context.env));
+
+const readSettings = (context: AppContext, dependencies: AiRouteDependencies) => getAiSettings(
+  context.env.storage.db,
+  getWorkspaceId(context),
+  encryptionConfigured(context),
+  dependencies.isDemoMode(context.env),
+);
+
+const denyMutation = (context: AppContext, dependencies: AiRouteDependencies) => {
+  const denied = requireUser(context);
+  if (denied) return denied;
+  if (dependencies.isDemoMode(context.env)) {
+    return forbidden(context, "AI settings cannot be changed in demo mode.");
+  }
+  return null;
+};
+
+const requireEncryptionKey = (context: AppContext) => {
+  const key = resolvePrimaryAiCredentialEncryptionKey(context.env);
+  if (!key) {
+    throw new AppError(
+      "ai_encryption_key_missing",
+      "AI credential encryption requires instance authentication or an optional EDGE_EVER_CREDENTIALS_ENCRYPTION_KEY.",
+      400,
+    );
+  }
+  return key;
+};
+
+const getSavedProviderApiKey = async (context: AppContext, providerConfigId: string) => {
+  const row = await getAiProviderConfig(
+    context.env.storage.db,
+    getWorkspaceId(context),
+    providerConfigId,
+  );
+  if (!row) throw new AppError("ai_provider_not_found", "AI provider not found.", 404);
+  return {
+    row,
+    apiKey: await decryptAiCredential(row.api_key_encrypted, context.env),
+  };
+};
+
+const withAiError = (context: AppContext, error: unknown, fallbackCode: string) => {
+  if (error instanceof AppError) {
+    return apiError(context, error.code, error.message, error.status);
+  }
+  return apiError(context, fallbackCode, providerErrorMessage(error), 400);
+};
+
 export const registerAiRoutes = (app: Hono<AppEnv>, dependencies: AiRouteDependencies) => {
   app.get("/api/v1/ai/settings", async (context) => {
     const denied = requireUser(context);
     if (denied) return denied;
-    const row = await getAiModelConfig(context.env.storage.db, getWorkspaceId(context));
-    return context.json({
-      settings: row
-        ? mapAiModelSettings(row, Boolean(resolvePrimaryAiCredentialEncryptionKey(context.env)))
-        : null,
-      encryptionConfigured: Boolean(resolvePrimaryAiCredentialEncryptionKey(context.env)),
-    });
+    return context.json(await readSettings(context, dependencies));
   });
 
   app.post(
-    "/api/v1/ai/settings/test",
-    zValidator("json", AiConnectionTestSchema),
+    "/api/v1/ai/providers",
+    zValidator("json", AiProviderConfigCreateSchema),
     async (context) => {
-      const denied = requireUser(context);
+      const denied = denyMutation(context, dependencies);
       if (denied) return denied;
-      const input = context.req.valid("json");
       try {
-        const result = await testAiModel({
-          provider: input.provider,
-          baseUrl: input.baseUrl,
-          apiKey: await getSubmittedApiKey(context, input.apiKey),
-          modelId: input.modelId,
-        });
-        return context.json({ ok: true, response: result.text.trim() });
+        const input = context.req.valid("json");
+        const workspaceId = getWorkspaceId(context);
+        const providerConfigId = createId("aip");
+        const modelConfigId = input.initialModelId ? createId("aim") : null;
+        const now = isoNow();
+        const statements = [
+          context.env.storage.db.prepare(
+            `INSERT INTO ai_provider_configs (
+               id, workspace_id, provider, display_name, base_url, api_key_encrypted,
+               is_enabled, created_at, updated_at
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          ).bind(
+            providerConfigId,
+            workspaceId,
+            input.provider,
+            input.displayName,
+            normalizeAiBaseUrl(input.baseUrl),
+            await encryptSecret(input.apiKey, requireEncryptionKey(context)),
+            input.isEnabled ? 1 : 0,
+            now,
+            now,
+          ),
+        ];
+        if (modelConfigId && input.initialModelId) {
+          statements.push(context.env.storage.db.prepare(
+            `INSERT INTO ai_models (
+               id, provider_config_id, model_id, display_name, created_at, updated_at
+             ) VALUES (?, ?, ?, ?, ?, ?)`,
+          ).bind(
+            modelConfigId,
+            providerConfigId,
+            input.initialModelId,
+            input.initialModelId,
+            now,
+            now,
+          ));
+          if (input.isEnabled && !(await getDefaultAiModelId(context.env.storage.db, workspaceId))) {
+            statements.push(context.env.storage.db.prepare(
+              `INSERT INTO ai_workspace_settings (
+                 workspace_id, default_model_id, created_at, updated_at
+               ) VALUES (?, ?, ?, ?)
+               ON CONFLICT(workspace_id) DO UPDATE SET
+                 default_model_id = excluded.default_model_id,
+                 updated_at = excluded.updated_at`,
+            ).bind(workspaceId, modelConfigId, now, now));
+          }
+        }
+        statements.push(auditStatement(
+          context.env.storage.db,
+          "user",
+          context.get("auth").actorId,
+          "workspace.ai_provider.create",
+          "ai_provider_config",
+          providerConfigId,
+          { provider: input.provider, initialModelId: input.initialModelId ?? null },
+        ));
+        await context.env.storage.db.batch(statements);
+        return context.json(await readSettings(context, dependencies), 201);
       } catch (error) {
-        return apiError(context, "ai_connection_failed", providerErrorMessage(error), 400);
+        return withAiError(context, error, "ai_provider_create_failed");
       }
     },
   );
 
   app.put(
-    "/api/v1/ai/settings",
-    zValidator("json", AiModelSettingsUpdateSchema),
+    "/api/v1/ai/providers/:providerConfigId",
+    zValidator("json", AiProviderConfigUpdateSchema),
+    async (context) => {
+      const denied = denyMutation(context, dependencies);
+      if (denied) return denied;
+      try {
+        const input = context.req.valid("json");
+        const providerConfigId = context.req.param("providerConfigId");
+        const workspaceId = getWorkspaceId(context);
+        const existing = await getAiProviderConfig(
+          context.env.storage.db,
+          workspaceId,
+          providerConfigId,
+        );
+        if (!existing) return notFound(context, "AI provider not found.");
+        const now = isoNow();
+        const apiKeyEncrypted = input.apiKey
+          ? await encryptSecret(input.apiKey, requireEncryptionKey(context))
+          : existing.api_key_encrypted;
+        await context.env.storage.db.batch([
+          context.env.storage.db.prepare(
+            `UPDATE ai_provider_configs SET
+               provider = ?, display_name = ?, base_url = ?, api_key_encrypted = ?,
+               is_enabled = ?, updated_at = ?
+             WHERE id = ? AND workspace_id = ?`,
+          ).bind(
+            input.provider,
+            input.displayName,
+            normalizeAiBaseUrl(input.baseUrl),
+            apiKeyEncrypted,
+            input.isEnabled ? 1 : 0,
+            now,
+            providerConfigId,
+            workspaceId,
+          ),
+          auditStatement(
+            context.env.storage.db,
+            "user",
+            context.get("auth").actorId,
+            "workspace.ai_provider.update",
+            "ai_provider_config",
+            providerConfigId,
+            { provider: input.provider, isEnabled: input.isEnabled },
+          ),
+        ]);
+        return context.json(await readSettings(context, dependencies));
+      } catch (error) {
+        return withAiError(context, error, "ai_provider_update_failed");
+      }
+    },
+  );
+
+  app.delete("/api/v1/ai/providers/:providerConfigId", async (context) => {
+    const denied = denyMutation(context, dependencies);
+    if (denied) return denied;
+    const providerConfigId = context.req.param("providerConfigId");
+    const workspaceId = getWorkspaceId(context);
+    const existing = await getAiProviderConfig(
+      context.env.storage.db,
+      workspaceId,
+      providerConfigId,
+    );
+    if (!existing) return notFound(context, "AI provider not found.");
+    await context.env.storage.db.batch([
+      context.env.storage.db.prepare(
+        `DELETE FROM ai_provider_configs WHERE id = ? AND workspace_id = ?`,
+      ).bind(providerConfigId, workspaceId),
+      auditStatement(
+        context.env.storage.db,
+        "user",
+        context.get("auth").actorId,
+        "workspace.ai_provider.delete",
+        "ai_provider_config",
+        providerConfigId,
+        { provider: existing.provider },
+      ),
+    ]);
+    return context.json(await readSettings(context, dependencies));
+  });
+
+  app.post(
+    "/api/v1/ai/providers/:providerConfigId/test",
+    zValidator("json", AiProviderConnectionTestSchema),
     async (context) => {
       const denied = requireUser(context);
       if (denied) return denied;
-      if (dependencies.isDemoMode(context.env)) {
-        return forbidden(context, "AI settings cannot be changed in demo mode.");
-      }
-      const encryptionKey = resolvePrimaryAiCredentialEncryptionKey(context.env);
-      if (!encryptionKey) {
-        return apiError(
+      try {
+        const input = context.req.valid("json");
+        const { row, apiKey } = await getSavedProviderApiKey(
           context,
-          "ai_encryption_key_missing",
-          "AI credential encryption requires instance authentication or an optional EDGE_EVER_CREDENTIALS_ENCRYPTION_KEY.",
-          400,
+          context.req.param("providerConfigId"),
         );
+        const result = await testAiModel({
+          provider: row.provider,
+          baseUrl: row.base_url,
+          apiKey,
+          modelId: input.modelId,
+        });
+        return context.json({ ok: true, response: result.text.trim() });
+      } catch (error) {
+        return withAiError(context, error, "ai_connection_failed");
       }
-      const input = context.req.valid("json");
-      const apiKey = await getSubmittedApiKey(context, input.apiKey);
+    },
+  );
+
+  app.post("/api/v1/ai/providers/:providerConfigId/discover-models", async (context) => {
+    const denied = requireUser(context);
+    if (denied) return denied;
+    try {
+      const { row, apiKey } = await getSavedProviderApiKey(
+        context,
+        context.req.param("providerConfigId"),
+      );
+      return context.json({
+        models: await discoverAiModels({
+          provider: row.provider,
+          baseUrl: row.base_url,
+          apiKey,
+        }),
+      });
+    } catch (error) {
+      return withAiError(context, error, "ai_model_discovery_failed");
+    }
+  });
+
+  app.post(
+    "/api/v1/ai/providers/:providerConfigId/models",
+    zValidator("json", AiModelConfigCreateSchema),
+    async (context) => {
+      const denied = denyMutation(context, dependencies);
+      if (denied) return denied;
+      const providerConfigId = context.req.param("providerConfigId");
       const workspaceId = getWorkspaceId(context);
+      const provider = await getAiProviderConfig(
+        context.env.storage.db,
+        workspaceId,
+        providerConfigId,
+      );
+      if (!provider) return notFound(context, "AI provider not found.");
+      const input = context.req.valid("json");
+      const modelConfigId = createId("aim");
       const now = isoNow();
-      const configId = `ai_${workspaceId}`;
-      await context.env.storage.db.batch([
+      const statements = [
         context.env.storage.db.prepare(
-          `INSERT INTO ai_model_configs (
-             id, workspace_id, provider, display_name, base_url, api_key_encrypted,
-             model_id, is_enabled, created_at, updated_at
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-           ON CONFLICT(workspace_id) DO UPDATE SET
-             provider = excluded.provider, display_name = excluded.display_name,
-             base_url = excluded.base_url, api_key_encrypted = excluded.api_key_encrypted,
-             model_id = excluded.model_id, is_enabled = excluded.is_enabled,
-             updated_at = excluded.updated_at`,
+          `INSERT INTO ai_models (
+             id, provider_config_id, model_id, display_name, created_at, updated_at
+           ) VALUES (?, ?, ?, ?, ?, ?)`,
         ).bind(
-          configId,
-          workspaceId,
-          input.provider,
-          input.displayName,
-          normalizeAiBaseUrl(input.baseUrl),
-          await encryptSecret(apiKey, encryptionKey),
+          modelConfigId,
+          providerConfigId,
           input.modelId,
-          input.isEnabled ? 1 : 0,
+          input.displayName ?? input.modelId,
           now,
           now,
         ),
+      ];
+      if (provider.is_enabled && !(await getDefaultAiModelId(context.env.storage.db, workspaceId))) {
+        statements.push(context.env.storage.db.prepare(
+          `INSERT INTO ai_workspace_settings (
+             workspace_id, default_model_id, created_at, updated_at
+           ) VALUES (?, ?, ?, ?)
+           ON CONFLICT(workspace_id) DO UPDATE SET
+             default_model_id = excluded.default_model_id,
+             updated_at = excluded.updated_at`,
+        ).bind(workspaceId, modelConfigId, now, now));
+      }
+      statements.push(auditStatement(
+        context.env.storage.db,
+        "user",
+        context.get("auth").actorId,
+        "workspace.ai_model.create",
+        "ai_model",
+        modelConfigId,
+        { providerConfigId, modelId: input.modelId },
+      ));
+      try {
+        await context.env.storage.db.batch(statements);
+        return context.json(await readSettings(context, dependencies), 201);
+      } catch (error) {
+        return withAiError(context, error, "ai_model_create_failed");
+      }
+    },
+  );
+
+  app.delete(
+    "/api/v1/ai/providers/:providerConfigId/models/:modelConfigId",
+    async (context) => {
+      const denied = denyMutation(context, dependencies);
+      if (denied) return denied;
+      const workspaceId = getWorkspaceId(context);
+      const providerConfigId = context.req.param("providerConfigId");
+      const modelConfigId = context.req.param("modelConfigId");
+      const model = await getAiModelConfig(context.env.storage.db, workspaceId, modelConfigId);
+      if (!model || model.provider_config_id !== providerConfigId) {
+        return notFound(context, "AI model not found.");
+      }
+      await context.env.storage.db.batch([
+        context.env.storage.db.prepare(
+          `DELETE FROM ai_models WHERE id = ? AND provider_config_id = ?`,
+        ).bind(modelConfigId, providerConfigId),
         auditStatement(
           context.env.storage.db,
           "user",
           context.get("auth").actorId,
-          "workspace.ai_model.update",
-          "ai_model_config",
-          configId,
-          { provider: input.provider, modelId: input.modelId, isEnabled: input.isEnabled },
+          "workspace.ai_model.delete",
+          "ai_model",
+          modelConfigId,
+          { providerConfigId, modelId: model.model_id },
         ),
       ]);
-      const row = await getAiModelConfig(context.env.storage.db, workspaceId);
-      return context.json({
-        settings: row ? mapAiModelSettings(row, true) : null,
-        encryptionConfigured: true,
-      });
+      return context.json(await readSettings(context, dependencies));
+    },
+  );
+
+  app.put(
+    "/api/v1/ai/default-model",
+    zValidator("json", AiDefaultModelUpdateSchema),
+    async (context) => {
+      const denied = denyMutation(context, dependencies);
+      if (denied) return denied;
+      const input = context.req.valid("json");
+      const workspaceId = getWorkspaceId(context);
+      if (input.modelConfigId) {
+        const model = await context.env.storage.db.prepare(
+          `SELECT models.id
+           FROM ai_models AS models
+           JOIN ai_provider_configs AS providers ON providers.id = models.provider_config_id
+           WHERE models.id = ? AND providers.workspace_id = ? AND providers.is_enabled = 1
+           LIMIT 1`,
+        ).bind(input.modelConfigId, workspaceId).first<{ id: string }>();
+        if (!model) {
+          return apiError(
+            context,
+            "ai_default_model_unavailable",
+            "The selected AI model belongs to a disabled or unavailable provider.",
+            400,
+          );
+        }
+      }
+      const now = isoNow();
+      await context.env.storage.db.batch([
+        context.env.storage.db.prepare(
+          `INSERT INTO ai_workspace_settings (
+             workspace_id, default_model_id, created_at, updated_at
+           ) VALUES (?, ?, ?, ?)
+           ON CONFLICT(workspace_id) DO UPDATE SET
+             default_model_id = excluded.default_model_id,
+             updated_at = excluded.updated_at`,
+        ).bind(workspaceId, input.modelConfigId, now, now),
+        auditStatement(
+          context.env.storage.db,
+          "user",
+          context.get("auth").actorId,
+          "workspace.ai_default_model.update",
+          "workspace",
+          workspaceId,
+          { modelConfigId: input.modelConfigId },
+        ),
+      ]);
+      return context.json(await readSettings(context, dependencies));
     },
   );
 
@@ -148,7 +440,7 @@ export const registerAiRoutes = (app: Hono<AppEnv>, dependencies: AiRouteDepende
       if (denied) return denied;
       try {
         const input = context.req.valid("json");
-        const model = await loadActiveAiModel(
+        const model = await loadDefaultAiModel(
           context.env.storage.db,
           getWorkspaceId(context),
           context.env,
@@ -185,8 +477,7 @@ export const registerAiRoutes = (app: Hono<AppEnv>, dependencies: AiRouteDepende
           },
         });
       } catch (error) {
-        if (error instanceof AppError) return apiError(context, error.code, error.message, error.status);
-        return apiError(context, "ai_generation_failed", providerErrorMessage(error), 400);
+        return withAiError(context, error, "ai_generation_failed");
       }
     },
   );

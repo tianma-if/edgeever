@@ -6,6 +6,7 @@ import {
   buildReleaseTitle,
   nextVersion,
   parseReleaseArgs,
+  resolveReleaseVersion,
   reusedAssetMatches,
   selectPublishedDmg,
 } from "./release.mjs";
@@ -58,6 +59,65 @@ describe("release automation", () => {
     expect(nextVersion("1.6.50", "major")).toBe("2.0.0");
     expect(() => nextVersion("1.6", "patch")).toThrow("stable X.Y.Z");
     expect(() => nextVersion("1.6.50", "automatic")).toThrow("patch, minor, or major");
+  });
+
+  test("resumes a Draft only when it matches the requested version and HEAD", () => {
+    const draftCandidate = {
+      tagName: "v1.17.1",
+      isDraft: true,
+      isPrerelease: false,
+      targetCommitish: "current-head",
+    };
+    expect(resolveReleaseVersion({
+      previousVersion: "1.17.0",
+      packageVersion: "1.17.1",
+      bump: "patch",
+      headSha: "current-head",
+      draftCandidate,
+    })).toMatchObject({
+      releaseVersion: "1.17.1",
+      releaseBaseTag: "v1.17.0",
+      resumedDraft: draftCandidate,
+      withdrawnDraft: null,
+    });
+  });
+
+  test("reserves a withdrawn Draft version and keeps the published audit baseline", () => {
+    const draftCandidate = {
+      tagName: "v1.17.1",
+      isDraft: true,
+      isPrerelease: false,
+      targetCommitish: "withdrawn-release",
+    };
+    expect(resolveReleaseVersion({
+      previousVersion: "1.17.0",
+      packageVersion: "1.17.1",
+      bump: "patch",
+      headSha: "current-head",
+      draftCandidate,
+      draftTargetIsAncestor: true,
+    })).toMatchObject({
+      releaseVersion: "1.17.2",
+      releaseBaseTag: "v1.17.0",
+      resumedDraft: null,
+      withdrawnDraft: draftCandidate,
+    });
+  });
+
+  test("rejects a Draft from unrelated history", () => {
+    expect(() => resolveReleaseVersion({
+      previousVersion: "1.17.0",
+      packageVersion: "1.17.1",
+      bump: "patch",
+      headSha: "current-head",
+      draftCandidate: {
+        tagName: "v1.17.1",
+        isDraft: true,
+        isPrerelease: false,
+        targetCommitish: "unrelated-head",
+      },
+      draftTargetIsAncestor: false,
+    })).toThrow("current HEAD or its history");
   });
 
   test("uses the stable tag as the GitHub Release title", () => {

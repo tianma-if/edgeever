@@ -8,6 +8,7 @@ describe("mobile locale translation", () => {
 
   test("translates mobile-only static copy", () => {
     expect(translateMobileText("正在同步笔记", "en-US")).toBe("Syncing your notes");
+    expect(translateMobileText("从相册选择", "en-US")).toBe("Choose from library");
   });
 
   test("interpolates mobile-only template copy", () => {

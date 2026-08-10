@@ -6,6 +6,7 @@ export type MobileEditorToolbarActionId =
   | "image"
   | "bold"
   | "bulletList"
+  | "taskList"
   | "increaseListIndent"
   | "decreaseListIndent"
   | "blockquote"
@@ -13,6 +14,7 @@ export type MobileEditorToolbarActionId =
 
 export const MOBILE_EDITOR_ACTIVE_FLAGS = {
   bold: 1,
+  taskList: 2,
   bulletList: 8,
   blockquote: 16,
 } as const;
@@ -21,6 +23,7 @@ export const MOBILE_EDITOR_TOOLBAR_ACTIONS = [
   { id: "image", activeFlag: 0 },
   { id: "bold", activeFlag: MOBILE_EDITOR_ACTIVE_FLAGS.bold },
   { id: "bulletList", activeFlag: MOBILE_EDITOR_ACTIVE_FLAGS.bulletList },
+  { id: "taskList", activeFlag: MOBILE_EDITOR_ACTIVE_FLAGS.taskList },
   { id: "increaseListIndent", activeFlag: 0 },
   { id: "decreaseListIndent", activeFlag: 0 },
   { id: "blockquote", activeFlag: MOBILE_EDITOR_ACTIVE_FLAGS.blockquote },
@@ -38,6 +41,7 @@ const MOBILE_EDITOR_COPY = {
       image: "上传图片",
       bold: "加粗",
       bulletList: "无序列表",
+      taskList: "任务清单",
       increaseListIndent: "增加列表层级（Tab）",
       decreaseListIndent: "减少列表层级（Shift + Tab）",
       blockquote: "引用",
@@ -58,6 +62,7 @@ const MOBILE_EDITOR_COPY = {
       image: "Upload image",
       bold: "Bold",
       bulletList: "Bullet list",
+      taskList: "Task list",
       increaseListIndent: "Increase list level (Tab)",
       decreaseListIndent: "Decrease list level (Shift + Tab)",
       blockquote: "Quote",

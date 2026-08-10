@@ -117,6 +117,24 @@ final class TipTapContentSourceTests: XCTestCase {
         XCTAssertFalse(TipTapContentSource.resolve(mode: .viewer, documentJSON: flatJSON, markdown: markdown).useJSON)
     }
 
+    func testEditorRecoversTaskListMissingFromLegacyJSON() {
+        let markdown = "- [ ] Pending\n- [x] Complete\n"
+        let legacyJSON = #"{"type":"doc","content":[{"type":"bulletList","content":[{"type":"listItem","content":[{"type":"paragraph","content":[{"type":"text","text":"Pending"}]}]}]}]}"#
+
+        let decision = TipTapContentSource.resolve(mode: .editor, documentJSON: legacyJSON, markdown: markdown)
+        XCTAssertFalse(decision.useJSON)
+        XCTAssertEqual(decision.payload, markdown)
+    }
+
+    func testNativeMarkdownFallbackPreservesTaskState() {
+        let json = #"{"type":"doc","content":[{"type":"taskList","content":[{"type":"taskItem","attrs":{"checked":false},"content":[{"type":"paragraph","content":[{"type":"text","text":"Pending"}]}]},{"type":"taskItem","attrs":{"checked":true},"content":[{"type":"paragraph","content":[{"type":"text","text":"Complete"}]}]}]}]}"#
+
+        XCTAssertEqual(
+            EditorContentCodec.markdownFromTipTapJSON(json),
+            "- [ ] Pending\n\n- [x] Complete\n"
+        )
+    }
+
     /// Live WKWebView: packaged TipTap must turn Markdown into real DOM structure.
     @MainActor
     func testPackagedEditorSetMarkdownRendersHeadingsListsAndBold() async throws {

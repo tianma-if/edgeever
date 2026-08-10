@@ -2,12 +2,14 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve, sep } from "node:path";
 import {
+  buildLocalDevEnvironmentFile,
   buildWranglerInvocation,
   buildWranglerEnvironment,
   buildWranglerSpawnOptions,
   findD1DatabaseIdByName,
   isD1MigrationApplyCommand,
   normalizeD1MigrationSql,
+  LOCAL_DEV_CREDENTIALS_ENCRYPTION_KEY,
   resolveWranglerCliPath,
   resolveWranglerRuntimeExecutable,
   runWranglerSync,
@@ -56,6 +58,17 @@ describe("cross-platform Wrangler runner", () => {
     expect(normalizeD1MigrationSql("CREATE TABLE demo (id TEXT);\r\n\r\nSELECT 1;\r")).toBe(
       "CREATE TABLE demo (id TEXT);\n\nSELECT 1;\n",
     );
+  });
+
+  test("gives local development an isolated credential encryption key", () => {
+    const envFile = buildLocalDevEnvironmentFile();
+
+    expect(LOCAL_DEV_CREDENTIALS_ENCRYPTION_KEY.length).toBeGreaterThanOrEqual(32);
+    expect(envFile).toContain(
+      `EDGE_EVER_CREDENTIALS_ENCRYPTION_KEY=${LOCAL_DEV_CREDENTIALS_ENCRYPTION_KEY}`,
+    );
+    expect(envFile).not.toContain("EDGE_EVER_AUTH_PASSWORD=");
+    expect(envFile).not.toContain("EDGE_EVER_AUTH_PASSWORD_HASH=");
   });
 
   test("resolves an exact D1 database name from Wrangler JSON", () => {

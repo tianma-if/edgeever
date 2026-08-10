@@ -242,6 +242,66 @@ export const nextVersion = (version, bump) => {
   return `${major}.${minor}.${patch + 1}`;
 };
 
+export const resolveReleaseVersion = ({
+  previousVersion,
+  packageVersion,
+  bump,
+  headSha,
+  draftCandidate = null,
+  draftTargetIsAncestor = false,
+}) => {
+  const expectedNextVersion = nextVersion(previousVersion, bump);
+  if (packageVersion === previousVersion) {
+    return {
+      releaseVersion: expectedNextVersion,
+      releaseBaseTag: `v${previousVersion}`,
+      resumedDraft: null,
+      withdrawnDraft: null,
+    };
+  }
+
+  if (
+    !draftCandidate ||
+    draftCandidate.tagName !== `v${packageVersion}` ||
+    !draftCandidate.isDraft ||
+    draftCandidate.isPrerelease
+  ) {
+    throw new Error(
+      `package.json version ${packageVersion} must match ${previousVersion}, or a compatible stable Draft.`,
+    );
+  }
+
+  if (draftCandidate.targetCommitish === headSha) {
+    if (packageVersion !== expectedNextVersion) {
+      throw new Error(
+        `${draftCandidate.tagName} cannot resume because --bump ${bump} expects v${expectedNextVersion}.`,
+      );
+    }
+    return {
+      releaseVersion: packageVersion,
+      releaseBaseTag: `v${previousVersion}`,
+      resumedDraft: draftCandidate,
+      withdrawnDraft: null,
+    };
+  }
+
+  if (!draftTargetIsAncestor) {
+    throw new Error(
+      `${draftCandidate.tagName} is not compatible with the current HEAD or its history.`,
+    );
+  }
+
+  return {
+    releaseVersion: nextVersion(packageVersion, bump),
+    // A withdrawn release does not become the audit baseline. Keep the latest
+    // published release as the source for commit coverage, changed-file plans,
+    // and reusable native assets so the replacement release stays cumulative.
+    releaseBaseTag: `v${previousVersion}`,
+    resumedDraft: null,
+    withdrawnDraft: draftCandidate,
+  };
+};
+
 export const buildReleaseTitle = (tag) => {
   if (!/^v\d+\.\d+\.\d+$/.test(tag)) {
     throw new Error(`Expected a stable vX.Y.Z tag, received: ${tag}`);
@@ -754,11 +814,11 @@ const releaseMain = async (options) => {
 
   const rootPackage = readJson("package.json");
   const previousVersion = previousTag.replace(/^v/, "");
-  const expectedNextVersion = nextVersion(previousVersion, options.bump);
   const headShaBeforeRelease = run("git", ["rev-parse", "HEAD"], { capture: true });
-  let resumedDraft = null;
-  if (rootPackage.version === expectedNextVersion) {
-    const draftCandidate = ghJson([
+  let draftCandidate = null;
+  let draftTargetIsAncestor = false;
+  if (rootPackage.version !== previousVersion) {
+    draftCandidate = ghJson([
       "release",
       "view",
       `v${rootPackage.version}`,
@@ -767,28 +827,38 @@ const releaseMain = async (options) => {
       "--json",
       "tagName,isDraft,isPrerelease,targetCommitish,body,assets,url",
     ]);
-    if (
-      !draftCandidate.isDraft ||
-      draftCandidate.isPrerelease ||
-      draftCandidate.targetCommitish !== headShaBeforeRelease
-    ) {
-      throw new Error(
-        `${draftCandidate.tagName} exists but is not a compatible Draft for the current HEAD.`,
-      );
+    if (draftCandidate.targetCommitish !== headShaBeforeRelease) {
+      draftTargetIsAncestor = run(
+        "git",
+        ["merge-base", "--is-ancestor", draftCandidate.targetCommitish, headShaBeforeRelease],
+        { allowFailure: true },
+      ).status === 0;
     }
-    resumedDraft = draftCandidate;
-  } else if (rootPackage.version !== previousVersion) {
-    throw new Error(
-      `package.json version ${rootPackage.version} must match ${previousVersion}, or ${expectedNextVersion} with a resumable Draft.`,
+  }
+  const {
+    releaseVersion,
+    releaseBaseTag,
+    resumedDraft,
+    withdrawnDraft,
+  } = resolveReleaseVersion({
+    previousVersion,
+    packageVersion: rootPackage.version,
+    bump: options.bump,
+    headSha: headShaBeforeRelease,
+    draftCandidate,
+    draftTargetIsAncestor,
+  });
+  const tag = `v${releaseVersion}`;
+  if (withdrawnDraft) {
+    console.log(
+      `[release] ${withdrawnDraft.tagName} is a withdrawn Draft; reserving that version and continuing with ${tag}.`,
     );
   }
-  const releaseVersion = resumedDraft ? rootPackage.version : expectedNextVersion;
-  const tag = `v${releaseVersion}`;
-  const changedFiles = changedFilesBetween(previousTag, headShaBeforeRelease);
+  const changedFiles = changedFilesBetween(releaseBaseTag, headShaBeforeRelease);
   if (changedFiles.length === 0) {
-    throw new Error(`There are no committed changes after ${previousTag}.`);
+    throw new Error(`There are no committed changes after ${releaseBaseTag}.`);
   }
-  const releaseCommits = releaseCommitsBetween(previousTag, headShaBeforeRelease);
+  const releaseCommits = releaseCommitsBetween(releaseBaseTag, headShaBeforeRelease);
   const commitCoverageAudit = auditReleaseCommitCoverage({
     commits: releaseCommits,
     changeCommits: options.changeCommits,
@@ -798,7 +868,7 @@ const releaseMain = async (options) => {
   const desktopPlan = planNativeRelease("desktop", changedFiles);
   const mobilePlan = planNativeRelease("mobile", changedFiles);
 
-  console.log(`[release] ${previousTag} -> ${tag}`);
+  console.log(`[release] ${releaseBaseTag} -> ${tag}`);
   console.log(`[release] desktop: ${desktopPlan.rebuild ? "rebuild" : "reuse"}`);
   console.log(`[release] Android: ${mobilePlan.rebuild ? "rebuild" : "reuse"}`);
 

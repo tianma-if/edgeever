@@ -25,6 +25,15 @@ export const buildWranglerEnvironment = (args, env = process.env) => ({
 
 export const normalizeD1MigrationSql = (sql) => sql.replace(/\r\n?/g, "\n");
 
+export const LOCAL_DEV_CREDENTIALS_ENCRYPTION_KEY =
+  "edgeever-local-development-credentials-key-v1";
+
+export const buildLocalDevEnvironmentFile = () => [
+  "# Local-only values. Remote instance secrets are intentionally excluded.",
+  `EDGE_EVER_CREDENTIALS_ENCRYPTION_KEY=${LOCAL_DEV_CREDENTIALS_ENCRYPTION_KEY}`,
+  "",
+].join("\n");
+
 export const findD1DatabaseIdByName = (json, databaseName) => {
   let databases;
   try {

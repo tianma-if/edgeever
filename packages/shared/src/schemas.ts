@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { AI_ACTIONS, AI_TARGET_LANGUAGES, AI_TONES } from "./ai-assistant";
 
 export const NotebookCreateSchema = z.object({
   name: z.string().trim().min(1).max(80),
@@ -170,31 +171,51 @@ const AiBaseUrlSchema = z.string().trim().url().max(500).superRefine((value, con
   }
 });
 
-export const AiModelSettingsUpdateSchema = z.object({
+const AiProviderConfigFieldsSchema = z.object({
   provider: AiProviderSchema,
   displayName: z.string().trim().min(1).max(80),
   baseUrl: AiBaseUrlSchema,
-  apiKey: z.string().min(1).max(4096).optional(),
-  modelId: z.string().trim().min(1).max(200),
   isEnabled: z.boolean().default(true),
 });
 
-export const AiConnectionTestSchema = AiModelSettingsUpdateSchema.omit({ isEnabled: true });
+export const AiProviderConfigCreateSchema = AiProviderConfigFieldsSchema.extend({
+  apiKey: z.string().min(1).max(4096),
+  initialModelId: z.string().trim().min(1).max(200).optional(),
+});
+
+export const AiProviderConfigUpdateSchema = AiProviderConfigFieldsSchema.extend({
+  apiKey: z.string().min(1).max(4096).optional(),
+});
+
+export const AiProviderConnectionTestSchema = z.object({
+  modelId: z.string().trim().min(1).max(200),
+});
+
+export const AiModelConfigCreateSchema = z.object({
+  modelId: z.string().trim().min(1).max(200),
+  displayName: z.string().trim().min(1).max(200).optional(),
+});
+
+export const AiDefaultModelUpdateSchema = z.object({
+  modelConfigId: z.string().trim().min(1).nullable(),
+});
 
 export const AiGenerateSchema = z.object({
-  action: z.enum([
-    "summarize",
-    "extract-key-points",
-    "extract-todos",
-    "rewrite-proofread",
-    "translate",
-  ]),
+  action: z.enum(AI_ACTIONS),
   title: z.string().trim().max(160).default(""),
   contentMarkdown: z.string().max(300_000),
-  targetLanguage: z.string().trim().min(1).max(80).optional(),
+  targetLanguage: z.enum(AI_TARGET_LANGUAGES).optional(),
+  tone: z.enum(AI_TONES).optional(),
+  instruction: z.string().trim().min(1).max(2_000).optional(),
 }).superRefine((input, context) => {
   if (input.action === "translate" && !input.targetLanguage) {
     context.addIssue({ code: "custom", path: ["targetLanguage"], message: "A target language is required for translation." });
+  }
+  if (input.action === "change-tone" && !input.tone) {
+    context.addIssue({ code: "custom", path: ["tone"], message: "A tone is required when changing tone." });
+  }
+  if (input.action === "custom" && !input.instruction) {
+    context.addIssue({ code: "custom", path: ["instruction"], message: "An instruction is required for a custom action." });
   }
   if (!input.title && !input.contentMarkdown.trim()) {
     context.addIssue({ code: "custom", path: ["contentMarkdown"], message: "Note content is required." });
@@ -220,6 +241,9 @@ export type TagRenameInput = z.infer<typeof TagRenameSchema>;
 export type ResourceUpdateInput = z.infer<typeof ResourceUpdateSchema>;
 export type ObjectStorageSettingsUpdateInput = z.infer<typeof ObjectStorageSettingsUpdateSchema>;
 export type ObjectStorageConnectionTestInput = z.infer<typeof ObjectStorageConnectionTestSchema>;
-export type AiModelSettingsUpdateInput = z.infer<typeof AiModelSettingsUpdateSchema>;
-export type AiConnectionTestInput = z.infer<typeof AiConnectionTestSchema>;
+export type AiProviderConfigCreateInput = z.infer<typeof AiProviderConfigCreateSchema>;
+export type AiProviderConfigUpdateInput = z.infer<typeof AiProviderConfigUpdateSchema>;
+export type AiProviderConnectionTestInput = z.infer<typeof AiProviderConnectionTestSchema>;
+export type AiModelConfigCreateInput = z.infer<typeof AiModelConfigCreateSchema>;
+export type AiDefaultModelUpdateInput = z.infer<typeof AiDefaultModelUpdateSchema>;
 export type AiGenerateInput = z.infer<typeof AiGenerateSchema>;

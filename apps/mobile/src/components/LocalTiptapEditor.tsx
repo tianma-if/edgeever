@@ -6,11 +6,32 @@ import { renderMermaidSVG, THEMES } from "beautiful-mermaid";
 import Image from "@tiptap/extension-image";
 import CodeBlock from "@tiptap/extension-code-block";
 import Placeholder from "@tiptap/extension-placeholder";
+import { TaskItem, TaskList } from "@tiptap/extension-list";
 import { TableKit } from "@tiptap/extension-table";
 import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import * as Clipboard from "expo-clipboard";
-import { createEdgeEverMathematics, MEMO_CONTENT_STYLE, MergeDivider, getImageReferrerPolicy, getResourceIdFromUrl, type TiptapDoc } from "@edgeever/shared";
+import {
+  AI_SELECTED_TEXT_ACTIONS,
+  AI_TARGET_LANGUAGES,
+  AI_TONES,
+  canReplaceAiSource,
+  createEdgeEverMathematics,
+  docToMarkdown,
+  getDefaultAiTargetLanguage,
+  getAiDocumentFingerprint,
+  isAiSelectionSnapshotCurrent,
+  markdownToDoc,
+  MEMO_CONTENT_STYLE,
+  MergeDivider,
+  getImageReferrerPolicy,
+  getResourceIdFromUrl,
+  type AiAction,
+  type AiStreamEvent,
+  type AiTargetLanguage,
+  type AiTone,
+  type TiptapDoc,
+} from "@edgeever/shared";
 import {
   DEFAULT_IMAGE_WIDTH_PERCENT,
   IMAGE_WIDTH_PRESETS,
@@ -29,7 +50,7 @@ import {
   type MobileEditorToolbarActionId,
 } from "@edgeever/shared/mobile-editor";
 import { useDOMImperativeHandle, type DOMImperativeFactory, type DOMProps } from "expo/dom";
-import { useCallback, useEffect, useMemo, useRef, type ReactNode, type Ref } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type Ref, type SetStateAction } from "react";
 import {
   createMobileImageUploadPlaceholderSource,
   isMobileImageUploadPlaceholderSource,
@@ -54,6 +75,7 @@ export interface LocalTiptapEditorRef extends DOMImperativeFactory {
   focusEnd: () => void;
   replaceAll: (query: DOMValue, replacement: DOMValue) => void;
   search: (query: DOMValue, index: DOMValue) => void;
+  pushAiStreamEvent: (payloadJson: DOMValue) => void;
 }
 
 type LocalTiptapEditorSharedProps = {
@@ -75,6 +97,8 @@ type LocalTiptapEditorModeProps = LocalTiptapEditorSharedProps & {
   autoFocus?: boolean;
   onChange: (content: EditorDoc) => Promise<void>;
   onPickImage: () => Promise<void>;
+  onAiRequest?: (requestJson: string) => Promise<void>;
+  onAiCancel?: (requestId: string) => Promise<void>;
   onReady: (startupMs: number) => Promise<void>;
 };
 
@@ -101,6 +125,32 @@ type MermaidRendererProps = {
 const CHANGE_IDLE_MS = 500;
 const TRANSIENT_IMAGE_UPLOAD_META = "edgeeverImageUploadPlaceholder";
 const ignoreSearchResult = async () => undefined;
+const ignoreAiRequest = async () => undefined;
+
+type MobileAiSelection = {
+  from: number;
+  to: number;
+  markdown: string;
+  documentFingerprint: string;
+};
+
+type MobileAiPanelState = {
+  selection: MobileAiSelection;
+  action: AiAction;
+  targetLanguage: AiTargetLanguage;
+  tone: AiTone;
+  customInstruction: string;
+  refineInstruction: string;
+  output: string;
+  error: string | null;
+  generating: boolean;
+  requestId: string | null;
+};
+
+type MobileAiBridgePayload = {
+  requestId: string;
+  event: AiStreamEvent;
+};
 
 type EditorResourceTarget = {
   filename: string;
@@ -369,14 +419,23 @@ function LocalTiptapEditorImpl(props: LocalTiptapEditorProps) {
   const onResourcePressRef = useRef(props.onResourcePress);
   const onImagePreviewRef = useRef(props.mode === "viewer" ? props.onImagePreview : undefined);
   const onPickImageRef = useRef(props.mode === "viewer" ? undefined : props.onPickImage);
+  const onAiRequestRef = useRef(props.mode === "viewer" ? undefined : props.onAiRequest);
+  const onAiCancelRef = useRef(props.mode === "viewer" ? undefined : props.onAiCancel);
   const onReadyRef = useRef(props.onReady ?? (async () => undefined));
   const onSearchResultRef = useRef(props.onSearchResult ?? ignoreSearchResult);
+  const [aiPanel, setAiPanel] = useState<MobileAiPanelState | null>(null);
+  const [aiSelectionHint, setAiSelectionHint] = useState(false);
+  const aiSelectionHintTimerRef = useRef<number | null>(null);
+  const [aiUndoFingerprint, setAiUndoFingerprint] = useState<string | null>(null);
+  const aiUndoTimerRef = useRef<number | null>(null);
 
   onChangeRef.current = props.mode === "viewer" ? undefined : props.onChange;
   onLoadResourceRef.current = props.onLoadResource;
   onResourcePressRef.current = props.onResourcePress;
   onImagePreviewRef.current = props.mode === "viewer" ? props.onImagePreview : undefined;
   onPickImageRef.current = props.mode === "viewer" ? undefined : props.onPickImage;
+  onAiRequestRef.current = props.mode === "viewer" ? undefined : props.onAiRequest;
+  onAiCancelRef.current = props.mode === "viewer" ? undefined : props.onAiCancel;
   onReadyRef.current = props.onReady ?? (async () => undefined);
   onSearchResultRef.current = props.onSearchResult ?? ignoreSearchResult;
   const protectedImageExtension = useMemo(
@@ -404,6 +463,8 @@ function LocalTiptapEditorImpl(props: LocalTiptapEditorProps) {
     autofocus: autoFocus ? "end" : false,
     extensions: [
       StarterKit.configure({ codeBlock: false, link: { openOnClick: false } }),
+      TaskList,
+      TaskItem.configure({ nested: true }),
       MergeDivider,
       ...createEdgeEverMathematics(),
       mermaidCodeBlockExtension,
@@ -619,6 +680,146 @@ function LocalTiptapEditorImpl(props: LocalTiptapEditorProps) {
     editor.view.dispatch(editor.state.tr.delete(from, to));
   }, [editor]);
 
+  const openAiForSelection = useCallback(() => {
+    if (isViewer || !editor || editor.isDestroyed || !onAiRequestRef.current) return;
+    const { from, to, empty } = editor.state.selection;
+    if (empty || from >= to) return;
+    const selectionDoc = getPersistableEditorDoc({
+      type: "doc",
+      content: editor.state.doc.slice(from, to).content.toJSON(),
+    } as EditorDoc, props.baseUrl);
+    const markdown = docToMarkdown(selectionDoc).trim();
+    if (!markdown) return;
+    setAiPanel({
+      selection: {
+        from,
+        to,
+        markdown,
+        documentFingerprint: getAiDocumentFingerprint(getPersistableEditorDoc(editor.getJSON() as EditorDoc, props.baseUrl)),
+      },
+      action: "improve-writing",
+      targetLanguage: getDefaultAiTargetLanguage(props.locale),
+      tone: "professional",
+      customInstruction: "",
+      refineInstruction: "",
+      output: "",
+      error: null,
+      generating: false,
+      requestId: null,
+    });
+    editor.commands.blur();
+  }, [editor, isViewer, props.baseUrl, props.locale]);
+
+  const closeAiPanel = useCallback(() => {
+    if (!aiPanel || !editor) return;
+    if (aiPanel.requestId) void (onAiCancelRef.current ?? ignoreAiRequest)(aiPanel.requestId);
+    const { from, to } = aiPanel.selection;
+    setAiPanel(null);
+    window.requestAnimationFrame(() => {
+      if (editor.isDestroyed) return;
+      editor.chain().focus().setTextSelection({ from, to }).run();
+    });
+  }, [aiPanel, editor]);
+
+  const runAiSelectionRequest = useCallback((refinement?: string) => {
+    if (!aiPanel || !onAiRequestRef.current) return;
+    const instruction = refinement?.trim();
+    const requestId = globalThis.crypto?.randomUUID?.() ?? `ai-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const source = instruction ? aiPanel.output : aiPanel.selection.markdown;
+    const action = instruction ? "custom" : aiPanel.action;
+    setAiPanel((current) => current ? {
+      ...current,
+      output: "",
+      error: null,
+      generating: true,
+      requestId,
+      refineInstruction: instruction ? "" : current.refineInstruction,
+    } : current);
+    void onAiRequestRef.current(JSON.stringify({
+      requestId,
+      action,
+      contentMarkdown: source,
+      ...(action === "translate" ? { targetLanguage: aiPanel.targetLanguage } : {}),
+      ...(action === "change-tone" ? { tone: aiPanel.tone } : {}),
+      ...(action === "custom" ? { instruction: instruction ?? aiPanel.customInstruction.trim() } : {}),
+    })).catch((requestError) => {
+      setAiPanel((current) => current?.requestId === requestId ? {
+        ...current,
+        generating: false,
+        requestId: null,
+        error: requestError instanceof Error ? requestError.message : (props.locale === "en-US" ? "AI generation failed." : "AI 生成失败。"),
+      } : current);
+    });
+  }, [aiPanel, props.locale]);
+
+  const pushAiStreamEvent = useCallback((payloadJsonValue: DOMValue) => {
+    if (typeof payloadJsonValue !== "string") return;
+    try {
+      const payload = JSON.parse(payloadJsonValue) as MobileAiBridgePayload;
+      if (!payload.requestId || !payload.event) return;
+      setAiPanel((current) => {
+        if (!current || current.requestId !== payload.requestId) return current;
+        if (payload.event.type === "text-delta") {
+          return { ...current, output: current.output + payload.event.text };
+        }
+        if (payload.event.type === "error") {
+          return { ...current, generating: false, requestId: null, error: payload.event.message };
+        }
+        if (payload.event.type === "finish") {
+          return { ...current, generating: false, requestId: null };
+        }
+        return current;
+      });
+    } catch {
+      // Ignore malformed native bridge payloads.
+    }
+  }, []);
+
+  const stopAiSelectionRequest = useCallback(() => {
+    if (!aiPanel?.requestId) return;
+    void (onAiCancelRef.current ?? ignoreAiRequest)(aiPanel.requestId);
+    setAiPanel((current) => current ? { ...current, generating: false, requestId: null } : current);
+  }, [aiPanel?.requestId]);
+
+  const applyAiSelectionDraft = useCallback((mode: "append" | "replace") => {
+    if (!aiPanel?.output || !editor || editor.isDestroyed) return;
+    const currentDocument = getPersistableEditorDoc(editor.getJSON() as EditorDoc, props.baseUrl);
+    if (!isAiSelectionSnapshotCurrent(aiPanel.selection, currentDocument, editor.state.doc.content.size)) {
+      setAiPanel((current) => current ? {
+        ...current,
+        error: props.locale === "en-US"
+          ? "The selection expired because the note changed. Select the text again."
+          : "笔记内容已变化，选区已失效，请重新选择文本。",
+      } : current);
+      return;
+    }
+    if (mode === "replace" && !canReplaceAiSource(aiPanel.action)) return;
+    const parsed = resolveImageSources(markdownToDoc(aiPanel.output), props.baseUrl);
+    const content = parsed.content ?? [];
+    const range = mode === "append"
+      ? { from: aiPanel.selection.to, to: aiPanel.selection.to }
+      : { from: aiPanel.selection.from, to: aiPanel.selection.to };
+    editor.chain().focus().insertContentAt(range, content).run();
+    setAiUndoFingerprint(getAiDocumentFingerprint(getPersistableEditorDoc(editor.getJSON() as EditorDoc, props.baseUrl)));
+    if (aiUndoTimerRef.current !== null) window.clearTimeout(aiUndoTimerRef.current);
+    aiUndoTimerRef.current = window.setTimeout(() => {
+      aiUndoTimerRef.current = null;
+      setAiUndoFingerprint(null);
+    }, 6500);
+    setAiPanel(null);
+  }, [aiPanel, editor, props.baseUrl, props.locale]);
+
+  const undoAiSelectionDraft = useCallback(() => {
+    if (!aiUndoFingerprint || !editor || editor.isDestroyed) return;
+    const currentFingerprint = getAiDocumentFingerprint(getPersistableEditorDoc(editor.getJSON() as EditorDoc, props.baseUrl));
+    if (currentFingerprint === aiUndoFingerprint) editor.chain().focus().undo().run();
+    setAiUndoFingerprint(null);
+    if (aiUndoTimerRef.current !== null) {
+      window.clearTimeout(aiUndoTimerRef.current);
+      aiUndoTimerRef.current = null;
+    }
+  }, [aiUndoFingerprint, editor, props.baseUrl]);
+
   useDOMImperativeHandle(
     props.ref,
     () => ({
@@ -635,8 +836,9 @@ function LocalTiptapEditorImpl(props: LocalTiptapEditorProps) {
       renameResource,
       replaceAll,
       search,
+      pushAiStreamEvent,
     }),
-    [appendAttachment, beginImageUpload, cancelImageUpload, completeImageUpload, editor, flush, isViewer, removeResource, renameResource, replaceAll, search, setContent]
+    [appendAttachment, beginImageUpload, cancelImageUpload, completeImageUpload, editor, flush, isViewer, pushAiStreamEvent, removeResource, renameResource, replaceAll, search, setContent]
   );
 
   useEffect(() => {
@@ -682,6 +884,12 @@ function LocalTiptapEditorImpl(props: LocalTiptapEditorProps) {
       if (changeTimerRef.current !== null) {
         window.clearTimeout(changeTimerRef.current);
       }
+      if (aiSelectionHintTimerRef.current !== null) {
+        window.clearTimeout(aiSelectionHintTimerRef.current);
+      }
+      if (aiUndoTimerRef.current !== null) {
+        window.clearTimeout(aiUndoTimerRef.current);
+      }
     };
   }, [autoFocus, editor, flush, isViewer]);
 
@@ -703,8 +911,26 @@ function LocalTiptapEditorImpl(props: LocalTiptapEditorProps) {
     selector: ({ editor: activeEditor }) =>
       (activeEditor?.isActive("bold") ? MOBILE_EDITOR_ACTIVE_FLAGS.bold : 0) |
       (activeEditor?.isActive("bulletList") ? MOBILE_EDITOR_ACTIVE_FLAGS.bulletList : 0) |
+      (activeEditor?.isActive("taskList") ? MOBILE_EDITOR_ACTIVE_FLAGS.taskList : 0) |
       (activeEditor?.isActive("blockquote") ? MOBILE_EDITOR_ACTIVE_FLAGS.blockquote : 0),
   });
+  const hasAiSelection = useEditorState({
+    editor,
+    selector: ({ editor: activeEditor }) => Boolean(activeEditor && !activeEditor.state.selection.empty),
+  });
+
+  const requestOpenAiForSelection = () => {
+    if (hasAiSelection) {
+      openAiForSelection();
+      return;
+    }
+    setAiSelectionHint(true);
+    if (aiSelectionHintTimerRef.current !== null) window.clearTimeout(aiSelectionHintTimerRef.current);
+    aiSelectionHintTimerRef.current = window.setTimeout(() => {
+      aiSelectionHintTimerRef.current = null;
+      setAiSelectionHint(false);
+    }, 2200);
+  };
 
   const insertImage = async () => {
     if (isViewer || !editor || imageUploadInFlightRef.current || !onPickImageRef.current) {
@@ -729,17 +955,20 @@ function LocalTiptapEditorImpl(props: LocalTiptapEditorProps) {
     image: <ImagePlusIcon />,
     bold: <BoldIcon />,
     bulletList: <ListIcon />,
+    taskList: <ListTodoIcon />,
     increaseListIndent: <ListIndentIncreaseIcon />,
     decreaseListIndent: <ListIndentDecreaseIcon />,
     blockquote: <QuoteIcon />,
     horizontalRule: <MinusIcon />,
   };
+  const activeListItemType = editor?.isActive("taskItem") ? "taskItem" : "listItem";
   const toolbarHandlers: Record<MobileEditorToolbarActionId, () => void> = {
     image: () => void insertImage(),
     bold: () => editor?.chain().focus().toggleBold().run(),
     bulletList: () => editor?.chain().focus().toggleBulletList().run(),
-    increaseListIndent: () => editor?.chain().focus().sinkListItem("listItem").run(),
-    decreaseListIndent: () => editor?.chain().focus().liftListItem("listItem").run(),
+    taskList: () => editor?.chain().focus().toggleTaskList().run(),
+    increaseListIndent: () => editor?.chain().focus().sinkListItem(activeListItemType).run(),
+    decreaseListIndent: () => editor?.chain().focus().liftListItem(activeListItemType).run(),
     blockquote: () => editor?.chain().focus().toggleBlockquote().run(),
     horizontalRule: () => editor?.chain().focus().setHorizontalRule().run(),
   };
@@ -754,17 +983,54 @@ function LocalTiptapEditorImpl(props: LocalTiptapEditorProps) {
                 key={action.id}
                 active={action.activeFlag > 0 && Boolean(toolbarState & action.activeFlag)}
                 disabled={(action.id === "increaseListIndent"
-                    && !Boolean(editor?.can().chain().focus().sinkListItem("listItem").run()))
+                    && !Boolean(editor?.can().chain().focus().sinkListItem(activeListItemType).run()))
                   || (action.id === "decreaseListIndent"
-                    && !Boolean(editor?.can().chain().focus().liftListItem("listItem").run()))}
+                    && !Boolean(editor?.can().chain().focus().liftListItem(activeListItemType).run()))}
                 icon={toolbarIcons[action.id]}
                 label={getMobileEditorToolbarActionLabel(action.id, props.locale)}
                 onRun={toolbarHandlers[action.id]}
               />
             ))}
+          {onAiRequestRef.current ? (
+            <button
+              aria-label={props.locale === "en-US" ? "Use AI on selected text" : "用 AI 处理选中内容"}
+              className="edgeever-ai-toolbar-button"
+              onClick={requestOpenAiForSelection}
+              onMouseDown={(event) => event.preventDefault()}
+              type="button"
+            >
+              <SparklesIcon />
+              <span>AI</span>
+            </button>
+          ) : null}
         </div>
       ) : null}
-      <EditorContent editor={editor} />
+      <EditorContent className="edgeever-editor-scroll" editor={editor} />
+      {aiSelectionHint ? (
+        <div aria-live="polite" className="edgeever-ai-selection-hint" role="status">
+          {props.locale === "en-US" ? "Select text in the note first." : "请先在正文中选择一段文字。"}
+        </div>
+      ) : null}
+      {aiUndoFingerprint && !aiPanel ? (
+        <div aria-live="polite" className="edgeever-ai-undo" role="status">
+          <span>{props.locale === "en-US" ? "AI updated the selection." : "AI 已更新选中内容。"}</span>
+          <button onClick={undoAiSelectionDraft} onMouseDown={(event) => event.preventDefault()} type="button">
+            {props.locale === "en-US" ? "Undo" : "撤销"}
+          </button>
+        </div>
+      ) : null}
+      {aiPanel ? (
+        <MobileSelectionAiPanel
+          locale={props.locale}
+          onApply={applyAiSelectionDraft}
+          onChange={setAiPanel}
+          onClose={closeAiPanel}
+          onGenerate={() => runAiSelectionRequest()}
+          onRefine={(instruction) => runAiSelectionRequest(instruction)}
+          onStop={stopAiSelectionRequest}
+          panel={aiPanel}
+        />
+      ) : null}
     </div>
   );
 }
@@ -782,6 +1048,163 @@ const ToolbarButton = ({ active = false, disabled = false, icon, label, onRun }:
     {icon}
   </button>
 );
+
+const MobileSelectionAiPanel = ({
+  locale,
+  onApply,
+  onChange,
+  onClose,
+  onGenerate,
+  onRefine,
+  onStop,
+  panel,
+}: {
+  locale: "zh-CN" | "en-US";
+  onApply: (mode: "append" | "replace") => void;
+  onChange: Dispatch<SetStateAction<MobileAiPanelState | null>>;
+  onClose: () => void;
+  onGenerate: () => void;
+  onRefine: (instruction: string) => void;
+  onStop: () => void;
+  panel: MobileAiPanelState;
+}) => {
+  const english = locale === "en-US";
+  const actionLabels: Record<AiAction, string> = {
+    summarize: english ? "Summarize" : "总结",
+    "extract-key-points": english ? "Key points" : "提炼要点",
+    "extract-todos": english ? "Extract tasks" : "提取待办",
+    "rewrite-proofread": english ? "Rewrite & proofread" : "改写与校对",
+    translate: english ? "Translate" : "翻译",
+    "improve-writing": english ? "Improve writing" : "改进写作",
+    "fix-spelling-grammar": english ? "Fix spelling & grammar" : "修正拼写与语法",
+    "make-shorter": english ? "Make shorter" : "缩短内容",
+    "make-longer": english ? "Make longer" : "扩写内容",
+    "simplify-language": english ? "Simplify language" : "简化表达",
+    "change-tone": english ? "Change tone" : "调整语气",
+    "continue-writing": english ? "Continue writing" : "继续写作",
+    custom: english ? "Custom instruction" : "自定义要求",
+  };
+  const languageLabels: Record<AiTargetLanguage, string> = {
+    en: english ? "English" : "英语",
+    "zh-CN": english ? "Simplified Chinese" : "简体中文",
+    "zh-TW": english ? "Traditional Chinese" : "繁体中文",
+    ja: english ? "Japanese" : "日语",
+    ko: english ? "Korean" : "韩语",
+    es: english ? "Spanish" : "西班牙语",
+    fr: english ? "French" : "法语",
+    de: english ? "German" : "德语",
+    pt: english ? "Portuguese" : "葡萄牙语",
+  };
+  const toneLabels: Record<AiTone, string> = {
+    professional: english ? "Professional" : "专业",
+    friendly: english ? "Friendly" : "友好",
+    casual: english ? "Casual" : "轻松",
+    direct: english ? "Direct" : "直接",
+  };
+  const update = (next: Partial<MobileAiPanelState>) => onChange((current) => current ? { ...current, ...next } : current);
+  const generateDisabled = panel.generating || (panel.action === "custom" && !panel.customInstruction.trim());
+  const replaceDisabled = panel.generating || !panel.output || !canReplaceAiSource(panel.action);
+
+  return (
+    <section aria-label={english ? "AI selection assistant" : "AI 选区助手"} aria-modal="true" className="edgeever-ai-panel" role="dialog">
+      <header className="edgeever-ai-panel-header">
+        <div>
+          <strong>{english ? "AI selection assistant" : "AI 选区助手"}</strong>
+          <small>{english ? "Only the selected text will be processed." : "只处理当前选中的正文。"}</small>
+        </div>
+        <button aria-label={english ? "Close" : "关闭"} onClick={onClose} type="button">×</button>
+      </header>
+      <div className="edgeever-ai-panel-body">
+        <label>
+          <span>{english ? "AI action" : "AI 操作"}</span>
+          <select
+            disabled={panel.generating}
+            onChange={(event) => update({ action: event.target.value as AiAction, output: "", error: null })}
+            value={panel.action}
+          >
+            {AI_SELECTED_TEXT_ACTIONS.map((action) => <option key={action} value={action}>{actionLabels[action]}</option>)}
+          </select>
+        </label>
+        {panel.action === "translate" ? (
+          <label>
+            <span>{english ? "Target language" : "目标语言"}</span>
+            <select disabled={panel.generating} onChange={(event) => update({ targetLanguage: event.target.value as AiTargetLanguage, output: "", error: null })} value={panel.targetLanguage}>
+              {AI_TARGET_LANGUAGES.map((language) => <option key={language} value={language}>{languageLabels[language]}</option>)}
+            </select>
+          </label>
+        ) : null}
+        {panel.action === "change-tone" ? (
+          <label>
+            <span>{english ? "Tone" : "语气"}</span>
+            <select disabled={panel.generating} onChange={(event) => update({ tone: event.target.value as AiTone, output: "", error: null })} value={panel.tone}>
+              {AI_TONES.map((tone) => <option key={tone} value={tone}>{toneLabels[tone]}</option>)}
+            </select>
+          </label>
+        ) : null}
+        {panel.action === "custom" ? (
+          <label>
+            <span>{english ? "Tell AI what to do" : "告诉 AI 你想怎么处理"}</span>
+            <textarea
+              disabled={panel.generating}
+              maxLength={2000}
+              onChange={(event) => update({ customInstruction: event.target.value })}
+              placeholder={english ? "For example: Rewrite this as a concise email." : "例如：改写成一封简洁的邮件。"}
+              rows={3}
+              value={panel.customInstruction}
+            />
+          </label>
+        ) : null}
+        <div className="edgeever-ai-result-heading">
+          <span>{english ? "AI draft" : "AI 草稿"}</span>
+          {panel.generating ? <small>{english ? "Generating…" : "生成中…"}</small> : null}
+        </div>
+        <div aria-live="polite" className="edgeever-ai-result">
+          {panel.output || <span>{english ? "The generated draft will appear here." : "生成的草稿会显示在这里。"}</span>}
+        </div>
+        {panel.output && !panel.generating ? (
+          <label>
+            <span>{english ? "Refine result" : "继续调整"}</span>
+            <div className="edgeever-ai-refine-row">
+              <input
+                maxLength={2000}
+                onChange={(event) => update({ refineInstruction: event.target.value })}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.nativeEvent.isComposing && panel.refineInstruction.trim()) {
+                    event.preventDefault();
+                    onRefine(panel.refineInstruction);
+                  }
+                }}
+                placeholder={english ? "Make it more concise" : "例如：再简洁一点"}
+                value={panel.refineInstruction}
+              />
+              <button disabled={!panel.refineInstruction.trim()} onClick={() => onRefine(panel.refineInstruction)} type="button">
+                {english ? "Refine" : "调整"}
+              </button>
+            </div>
+          </label>
+        ) : null}
+        {panel.error ? <p className="edgeever-ai-error" role="alert">{panel.error}</p> : null}
+      </div>
+      <footer className="edgeever-ai-panel-footer">
+        <div>
+          <button disabled={!panel.output || panel.generating} onClick={() => onApply("append")} type="button">
+            {english ? "Insert after" : "插入到选区后"}
+          </button>
+          <button disabled={replaceDisabled} onClick={() => onApply("replace")} type="button">
+            {english ? "Replace selection" : "替换选中内容"}
+          </button>
+        </div>
+        {panel.generating ? (
+          <button className="is-primary" onClick={onStop} type="button">{english ? "Stop" : "停止"}</button>
+        ) : (
+          <button className="is-primary" disabled={generateDisabled} onClick={onGenerate} type="button">
+            {panel.output ? (english ? "Regenerate" : "重新生成") : (english ? "Generate" : "生成")}
+          </button>
+        )}
+      </footer>
+    </section>
+  );
+};
 
 type EditorSearchMatch = { from: number; to: number };
 
@@ -850,6 +1273,15 @@ const ListIcon = () => (
   </EditorIcon>
 );
 
+const ListTodoIcon = () => (
+  <EditorIcon size={18} strokeWidth={2.1}>
+    <rect height="6" rx="1" width="6" x="3" y="3" />
+    <path d="m4.5 6 1 1 2-2M13 6h8" />
+    <rect height="6" rx="1" width="6" x="3" y="15" />
+    <path d="M13 18h8" />
+  </EditorIcon>
+);
+
 const ListIndentIncreaseIcon = () => (
   <EditorIcon size={18} strokeWidth={2.1}>
     <path d="M4 5h16M4 12h10M4 19h16" />
@@ -874,6 +1306,14 @@ const QuoteIcon = () => (
 const MinusIcon = () => (
   <EditorIcon size={18} strokeWidth={2.4}>
     <path d="M5 12h14" />
+  </EditorIcon>
+);
+
+const SparklesIcon = () => (
+  <EditorIcon size={16} strokeWidth={2.1}>
+    <path d="m12 3-1.9 4.1L6 9l4.1 1.9L12 15l1.9-4.1L18 9l-4.1-1.9Z" />
+    <path d="m5 16-.8 1.8L2.5 19l1.7.8L5 21.5l.8-1.7 1.7-.8-1.7-.8Z" />
+    <path d="m19 15-.7 1.4L17 17l1.3.6.7 1.4.7-1.4L21 17l-1.3-.6Z" />
   </EditorIcon>
 );
 
@@ -1730,6 +2170,7 @@ const getEditorStyles = (theme: "light" | "dark", options?: { viewer?: boolean }
   html { font-size: var(--editor-body-font-size); }
   body { overflow: hidden; color: ${theme === "dark" ? "#f8fafc" : "#0f172a"}; font-size: 1rem; }
   .edgeever-editor-shell {
+    position: relative;
     display: flex;
     width: 100%;
     max-width: 100%;
@@ -1746,8 +2187,9 @@ const getEditorStyles = (theme: "light" | "dark", options?: { viewer?: boolean }
   .edgeever-editor-toolbar button { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; width: 36px; min-height: 32px; padding: 0; border: 1px solid transparent; border-radius: 999px; background: transparent; color: ${theme === "dark" ? "#cbd5e1" : "#64748b"}; }
   .edgeever-editor-toolbar button:active, .edgeever-editor-toolbar button.is-active { border-color: ${theme === "dark" ? "#166534" : "#bbf7d0"}; background: ${theme === "dark" ? "#14532d" : "#ecfdf5"}; color: ${theme === "dark" ? "#86efac" : "#047857"}; }
   .edgeever-editor-toolbar button:disabled { opacity: 0.38; }
+  .edgeever-editor-toolbar .edgeever-ai-toolbar-button { width: auto; gap: 4px; padding: 0 10px; border-color: ${theme === "dark" ? "#166534" : "#bbf7d0"}; background: ${theme === "dark" ? "#052e24" : "#ecfdf5"}; color: ${theme === "dark" ? "#6ee7b7" : "#047857"}; font-weight: 750; }
   .tiptap { min-height: 100%; max-width: 100%; min-width: 0; outline: none; }
-  .edgeever-editor-shell > div:last-child {
+  .edgeever-editor-scroll {
     min-height: 0;
     min-width: 0;
     flex: 1;
@@ -1758,6 +2200,35 @@ const getEditorStyles = (theme: "light" | "dark", options?: { viewer?: boolean }
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
   }
+  .edgeever-ai-selection-hint { position: absolute; z-index: 15; top: 64px; left: 50%; max-width: calc(100% - 32px); transform: translateX(-50%); padding: 9px 13px; border-radius: 999px; background: ${theme === "dark" ? "#1e293b" : "#0f172a"}; color: #fff; font-size: 13px; font-weight: 650; box-shadow: 0 8px 24px rgb(15 23 42 / 24%); }
+  .edgeever-ai-undo { position: absolute; z-index: 15; top: 64px; right: 14px; left: 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 10px 9px 13px; border-radius: 10px; background: ${theme === "dark" ? "#1e293b" : "#0f172a"}; color: #fff; font-size: 13px; font-weight: 650; box-shadow: 0 8px 24px rgb(15 23 42 / 24%); }
+  .edgeever-ai-undo button { min-height: 32px; padding: 0 11px; border: 1px solid rgb(255 255 255 / 28%); border-radius: 8px; background: transparent; color: #6ee7b7; font: inherit; font-weight: 750; }
+  .edgeever-ai-panel { position: absolute; z-index: 20; inset: 0; display: flex; min-width: 0; flex-direction: column; background: ${theme === "dark" ? "#0f172a" : "#f8fafc"}; color: ${theme === "dark" ? "#f8fafc" : "#0f172a"}; }
+  .edgeever-ai-panel button, .edgeever-ai-panel input, .edgeever-ai-panel select, .edgeever-ai-panel textarea { font: inherit; }
+  .edgeever-ai-panel-header { display: flex; flex: 0 0 auto; align-items: center; justify-content: space-between; gap: 12px; min-height: 58px; padding: 10px 14px; border-bottom: 1px solid ${theme === "dark" ? "#334155" : "#e2e8f0"}; background: ${theme === "dark" ? "#111c18" : "#fff"}; }
+  .edgeever-ai-panel-header div { display: grid; min-width: 0; gap: 2px; }
+  .edgeever-ai-panel-header strong { font-size: 16px; }
+  .edgeever-ai-panel-header small { color: ${theme === "dark" ? "#94a3b8" : "#64748b"}; font-size: 12px; }
+  .edgeever-ai-panel-header > button { width: 36px; height: 36px; border: 0; border-radius: 999px; background: transparent; color: ${theme === "dark" ? "#cbd5e1" : "#475569"}; font-size: 25px; }
+  .edgeever-ai-panel-body { display: grid; min-height: 0; flex: 1 1 auto; align-content: start; gap: 14px; overflow-y: auto; padding: 14px; }
+  .edgeever-ai-panel label { display: grid; gap: 6px; color: ${theme === "dark" ? "#e2e8f0" : "#334155"}; font-size: 13px; font-weight: 700; }
+  .edgeever-ai-panel select, .edgeever-ai-panel input, .edgeever-ai-panel textarea { width: 100%; border: 1px solid ${theme === "dark" ? "#475569" : "#cbd5e1"}; border-radius: 9px; outline: none; background: ${theme === "dark" ? "#111c18" : "#fff"}; color: ${theme === "dark" ? "#f8fafc" : "#0f172a"}; font-size: 15px; font-weight: 500; }
+  .edgeever-ai-panel select, .edgeever-ai-panel input { min-height: 44px; padding: 0 11px; }
+  .edgeever-ai-panel textarea { min-height: 78px; resize: vertical; padding: 10px 11px; }
+  .edgeever-ai-panel select:focus, .edgeever-ai-panel input:focus, .edgeever-ai-panel textarea:focus { border-color: #16a06e; box-shadow: 0 0 0 2px rgb(22 160 110 / 14%); }
+  .edgeever-ai-result-heading { display: flex; align-items: center; justify-content: space-between; color: ${theme === "dark" ? "#e2e8f0" : "#334155"}; font-size: 13px; font-weight: 750; }
+  .edgeever-ai-result-heading small { color: #16a06e; }
+  .edgeever-ai-result { min-height: 170px; padding: 12px; border: 1px solid ${theme === "dark" ? "#334155" : "#dbe4df"}; border-radius: 10px; background: ${theme === "dark" ? "#17251f" : "#fff"}; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 15px; line-height: 1.55; }
+  .edgeever-ai-result > span { color: ${theme === "dark" ? "#94a3b8" : "#64748b"}; }
+  .edgeever-ai-refine-row { display: flex; gap: 8px; }
+  .edgeever-ai-refine-row input { min-width: 0; flex: 1; }
+  .edgeever-ai-refine-row button, .edgeever-ai-panel-footer button { min-height: 40px; padding: 0 12px; border: 1px solid ${theme === "dark" ? "#475569" : "#cbd5e1"}; border-radius: 9px; background: ${theme === "dark" ? "#111c18" : "#fff"}; color: ${theme === "dark" ? "#f8fafc" : "#0f172a"}; font-weight: 700; }
+  .edgeever-ai-panel button:disabled { opacity: 0.42; }
+  .edgeever-ai-error { margin: 0; color: ${theme === "dark" ? "#fda4af" : "#be123c"}; font-size: 13px; line-height: 1.45; }
+  .edgeever-ai-panel-footer { display: grid; flex: 0 0 auto; gap: 9px; padding: 10px 12px max(10px, env(safe-area-inset-bottom)); border-top: 1px solid ${theme === "dark" ? "#334155" : "#e2e8f0"}; background: ${theme === "dark" ? "#111c18" : "#fff"}; }
+  .edgeever-ai-panel-footer > div { display: flex; gap: 8px; }
+  .edgeever-ai-panel-footer > div button { min-width: 0; flex: 1; }
+  .edgeever-ai-panel-footer .is-primary { border-color: #16a06e; background: #16a06e; color: #fff; }
   .edgeever-editor-content {
     min-height: 100%;
     max-width: 100%;
@@ -1790,6 +2261,13 @@ const getEditorStyles = (theme: "light" | "dark", options?: { viewer?: boolean }
   .edgeever-editor-content h1 { margin: 0.7em 0 0.4em; font-size: 1.6rem; }
   .edgeever-editor-content h2 { margin: 0.85em 0 0.35em; font-size: 1.35rem; }
   .edgeever-editor-content h3 { margin: 0.75em 0 0.3em; font-size: 1.15rem; }
+  .edgeever-editor-content ul[data-type="taskList"] { margin: 0 0 var(--editor-paragraph-spacing); padding-left: 0; list-style: none; }
+  .edgeever-editor-content ul[data-type="taskList"] li[data-type="taskItem"] { display: flex; align-items: flex-start; gap: 9px; margin: 4px 0; }
+  .edgeever-editor-content ul[data-type="taskList"] li[data-type="taskItem"] > label { display: inline-flex; flex: 0 0 auto; align-items: center; margin-top: 3px; user-select: none; }
+  .edgeever-editor-content ul[data-type="taskList"] li[data-type="taskItem"] > label input { width: 18px; height: 18px; margin: 0; accent-color: #16a06e; }
+  .edgeever-editor-content ul[data-type="taskList"] li[data-type="taskItem"] > div { min-width: 0; flex: 1 1 auto; }
+  .edgeever-editor-content ul[data-type="taskList"] li[data-type="taskItem"] > div > p { margin-bottom: 0; }
+  .edgeever-editor-content ul[data-type="taskList"] ul[data-type="taskList"] { margin: 4px 0 0; padding-left: 24px; }
   .edgeever-editor-content blockquote { margin-left: 0; max-width: 100%; padding-left: 14px; border-left: 3px solid #5eead4; color: ${theme === "dark" ? "#cbd5e1" : "#475569"}; }
   .edgeever-editor-content pre { max-width: 100%; overflow-x: auto; border-radius: 10px; padding: 14px 90px 14px 14px; background: #0f172a; color: #e2e8f0; font-size: 0.9rem; }
   .edgeever-editor-content code { border-radius: 4px; padding: 2px 4px; background: ${theme === "dark" ? "#1e293b" : "#f1f5f9"}; font-size: 0.9em; }

@@ -9,6 +9,7 @@ import {
   Strikethrough,
   Code2,
   List,
+  ListTodo,
   ListOrdered,
   Quote,
   SquareCode,
@@ -353,6 +354,14 @@ export const EditorToolbar = ({
             onClick={() => run((current) => current.chain().focus().toggleBulletList().run())}
           >
             <List className="h-4 w-4" />
+          </EditorToolbarButton>
+          <EditorToolbarButton
+            title={`${t("editorToolbar.taskList")} · ${t("editorToolbar.listIndentHint")}`}
+            active={isActive("taskList")}
+            disabled={!canRun((current) => current.can().chain().focus().toggleTaskList().run())}
+            onClick={() => run((current) => current.chain().focus().toggleTaskList().run())}
+          >
+            <ListTodo className="h-4 w-4" />
           </EditorToolbarButton>
           <EditorToolbarButton
             title={`${t("editorToolbar.orderedList")} · ${t("editorToolbar.listIndentHint")}`}

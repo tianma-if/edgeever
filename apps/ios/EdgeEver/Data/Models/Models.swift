@@ -133,6 +133,14 @@ enum AiAction: String, Codable, CaseIterable, Sendable, Identifiable {
     case extractTodos = "extract-todos"
     case rewriteProofread = "rewrite-proofread"
     case translate
+    case improveWriting = "improve-writing"
+    case fixSpellingGrammar = "fix-spelling-grammar"
+    case makeShorter = "make-shorter"
+    case makeLonger = "make-longer"
+    case simplifyLanguage = "simplify-language"
+    case changeTone = "change-tone"
+    case continueWriting = "continue-writing"
+    case custom
 
     var id: String { rawValue }
 }
@@ -142,6 +150,8 @@ struct AiGenerateInput: Encodable, Sendable {
     var title: String
     var contentMarkdown: String
     var targetLanguage: String?
+    var tone: String? = nil
+    var instruction: String? = nil
 }
 
 struct AiStreamEvent: Decodable, Sendable {

@@ -8,6 +8,7 @@ import {
 } from "node:fs";
 import { dirname, resolve } from "node:path";
 import {
+  buildLocalDevEnvironmentFile,
   findD1DatabaseIdByName,
   normalizeD1MigrationSql,
   runWranglerSync,
@@ -342,7 +343,7 @@ if (isDeployCommand && Object.keys(authSecrets).length === 0 && useExistingAuthS
 }
 
 if (isLocalDevCommand && !hasEnvFileArg) {
-  writeFileSync(generatedLocalDevEnvPath, "# Intentionally empty: local development must not inherit remote instance secrets.\n");
+  writeFileSync(generatedLocalDevEnvPath, buildLocalDevEnvironmentFile());
   finalWranglerArgs.push("--env-file", generatedLocalDevEnvPath);
 }
 

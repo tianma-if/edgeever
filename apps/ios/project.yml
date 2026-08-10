@@ -93,7 +93,7 @@ targets:
           NSAllowsArbitraryLoads: true
           NSAllowsArbitraryLoadsInWebContent: true
         NSPhotoLibraryUsageDescription: EdgeEver needs photo library access to insert images into notes.
-        NSCameraUsageDescription: EdgeEver only uses the camera if content inside a note explicitly requests it.
+        NSCameraUsageDescription: EdgeEver needs camera access to take photos and insert them into notes.
         NSMicrophoneUsageDescription: EdgeEver only uses the microphone if content inside a note explicitly requests it.
     entitlements:
       path: EdgeEver/Resources/EdgeEver.entitlements

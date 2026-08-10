@@ -127,6 +127,51 @@ describe("Nested list Markdown conversion", () => {
   });
 });
 
+describe("Markdown task list conversion", () => {
+  const markdown = [
+    "- [ ] Pending task",
+    "- [x] Completed task",
+    "  - [ ] Nested task",
+  ].join("\n");
+
+  test("preserves checked state and nesting through a Markdown round trip", () => {
+    const doc = markdownToDoc(markdown);
+    const taskList = doc.content[0];
+
+    expect(taskList?.type).toBe("taskList");
+    expect(taskList?.content?.[0]).toMatchObject({
+      type: "taskItem",
+      attrs: { checked: false },
+    });
+    expect(taskList?.content?.[1]).toMatchObject({
+      type: "taskItem",
+      attrs: { checked: true },
+    });
+    expect(taskList?.content?.[1]?.content?.[1]?.type).toBe("taskList");
+    expect(docToMarkdown(doc)).toBe(markdown);
+  });
+
+  test("recovers task semantics retained only in the Markdown compatibility copy", () => {
+    const legacyDoc = {
+      type: "doc",
+      content: [{
+        type: "bulletList",
+        content: [{
+          type: "listItem",
+          content: [{ type: "paragraph", content: [{ type: "text", text: "Pending task" }] }],
+        }],
+      }],
+    };
+
+    const resolved = resolveMemoContentDoc(legacyDoc, "- [ ] Pending task");
+    expect(resolved.content[0]?.type).toBe("taskList");
+    expect(resolved.content[0]?.content?.[0]).toMatchObject({
+      type: "taskItem",
+      attrs: { checked: false },
+    });
+  });
+});
+
 describe("Mermaid Markdown conversion", () => {
   const markdown = "```mermaid\nflowchart LR\n  A --> B\n```";
 

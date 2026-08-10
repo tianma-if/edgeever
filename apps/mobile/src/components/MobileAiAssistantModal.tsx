@@ -1,22 +1,31 @@
 import { useEffect, useRef, useState } from "react";
 import { ApiRequestError } from "@edgeever/client";
-import type { AiAction, MemoDetail } from "@edgeever/shared";
+import {
+  AI_TARGET_LANGUAGES,
+  AI_TONES,
+  AI_WHOLE_NOTE_ACTIONS,
+  getDefaultAiTargetLanguage,
+  type AiAction,
+  type AiTargetLanguage,
+  type AiTone,
+  type MemoDetail,
+} from "@edgeever/shared";
 import * as Clipboard from "expo-clipboard";
-import { Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { Modal, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Copy, Sparkles, Square, X } from "./icons";
-import { Alert, Text } from "./LocalizedText";
+import { Check, ChevronDown, Copy, RefreshCw, Sparkles, Square, X } from "./icons";
+import { Alert, Pressable, Text, TextInput } from "./LocalizedText";
 import { useMobileLocale } from "../lib/mobile-locale";
 import { useMobileTheme } from "../lib/mobile-theme";
 import { useSession } from "../lib/session";
 
-const actions: AiAction[] = [
-  "summarize",
-  "extract-key-points",
-  "extract-todos",
-  "rewrite-proofread",
-  "translate",
-];
+type AssistantAction = AiAction;
+type Tone = AiTone;
+type TargetLanguage = AiTargetLanguage;
+
+const actions = AI_WHOLE_NOTE_ACTIONS;
+const tones = AI_TONES;
+const targetLanguages = AI_TARGET_LANGUAGES;
 
 export const MobileAiAssistantModal = ({
   memo,
@@ -33,30 +42,94 @@ export const MobileAiAssistantModal = ({
   const { resolvedLocale } = useMobileLocale();
   const { resolvedTheme } = useMobileTheme();
   const dark = resolvedTheme === "dark";
-  const [action, setAction] = useState<AiAction>("summarize");
-  const [targetLanguage, setTargetLanguage] = useState("");
+  const tr = (zh: string, en: string) => resolvedLocale === "en-US" ? en : zh;
+  const [action, setAction] = useState<AssistantAction>("summarize");
+  const [targetLanguage, setTargetLanguage] = useState<TargetLanguage>(() => getDefaultAiTargetLanguage(resolvedLocale));
+  const [tone, setTone] = useState<Tone>("professional");
+  const [customInstruction, setCustomInstruction] = useState("");
+  const [refineInstruction, setRefineInstruction] = useState("");
   const [output, setOutput] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
   const [applying, setApplying] = useState(false);
+  const [picker, setPicker] = useState<"action" | "language" | "tone" | null>(null);
   const controllerRef = useRef<AbortController | null>(null);
-  const tr = (zh: string, en: string) => resolvedLocale === "en-US" ? en : zh;
 
-  useEffect(() => () => controllerRef.current?.abort(), []);
-  useEffect(() => {
-    if (!visible) controllerRef.current?.abort();
-  }, [visible]);
-
-  const labels: Record<AiAction, string> = {
+  const labels: Record<AssistantAction, string> = {
     summarize: tr("总结", "Summarize"),
     "extract-key-points": tr("提炼要点", "Key points"),
     "extract-todos": tr("提取待办", "Extract tasks"),
     "rewrite-proofread": tr("改写与校对", "Rewrite & proofread"),
+    "improve-writing": tr("改进写作", "Improve writing"),
+    "fix-spelling-grammar": tr("修正拼写与语法", "Fix spelling & grammar"),
+    "make-shorter": tr("缩短内容", "Make shorter"),
+    "make-longer": tr("扩写内容", "Make longer"),
+    "simplify-language": tr("简化表达", "Simplify language"),
+    "change-tone": tr("调整语气", "Change tone"),
     translate: tr("翻译", "Translate"),
+    "continue-writing": tr("继续写作", "Continue writing"),
+    custom: tr("自定义要求", "Custom instruction"),
   };
 
-  const generate = async () => {
-    if (!client || (action === "translate" && !targetLanguage.trim())) return;
+  const languageLabels: Record<TargetLanguage, string> = {
+    en: tr("英语", "English"),
+    "zh-CN": tr("简体中文", "Simplified Chinese"),
+    "zh-TW": tr("繁体中文", "Traditional Chinese"),
+    ja: tr("日语", "Japanese"),
+    ko: tr("韩语", "Korean"),
+    es: tr("西班牙语", "Spanish"),
+    fr: tr("法语", "French"),
+    de: tr("德语", "German"),
+    pt: tr("葡萄牙语", "Portuguese"),
+  };
+
+  const toneLabels: Record<Tone, string> = {
+    professional: tr("专业", "Professional"),
+    friendly: tr("友好", "Friendly"),
+    casual: tr("轻松", "Casual"),
+    direct: tr("直接", "Direct"),
+  };
+
+  useEffect(() => () => controllerRef.current?.abort(), []);
+  useEffect(() => {
+    if (visible) {
+      controllerRef.current?.abort();
+      setAction("summarize");
+      setTargetLanguage(getDefaultAiTargetLanguage(resolvedLocale));
+      setTone("professional");
+      setCustomInstruction("");
+      setRefineInstruction("");
+      setOutput("");
+      setError(null);
+      setGenerating(false);
+      setApplying(false);
+      setPicker(null);
+    } else {
+      controllerRef.current?.abort();
+      setPicker(null);
+    }
+  }, [memo.id, resolvedLocale, visible]);
+  useEffect(() => {
+    setTargetLanguage(getDefaultAiTargetLanguage(resolvedLocale));
+  }, [resolvedLocale]);
+
+  const buildRequest = (source: string, refinement?: string) => {
+    const base = {
+      title: memo.title?.trim() ?? "",
+      contentMarkdown: source,
+    };
+    if (refinement?.trim()) return { ...base, action: "custom" as const, instruction: refinement.trim() };
+    return {
+      ...base,
+      action,
+      ...(action === "translate" ? { targetLanguage } : {}),
+      ...(action === "change-tone" ? { tone } : {}),
+      ...(action === "custom" ? { instruction: customInstruction.trim() } : {}),
+    };
+  };
+
+  const generate = async (source = memo.contentMarkdown, refinement?: string) => {
+    if (!client || (action === "custom" && !customInstruction.trim() && !refinement?.trim())) return;
     controllerRef.current?.abort();
     const controller = new AbortController();
     controllerRef.current = controller;
@@ -64,21 +137,13 @@ export const MobileAiAssistantModal = ({
     setError(null);
     setGenerating(true);
     try {
-      await client.streamAiGeneration(
-        {
-          action,
-          title: memo.title?.trim() ?? "",
-          contentMarkdown: memo.contentMarkdown,
-          ...(action === "translate" ? { targetLanguage: targetLanguage.trim() } : {}),
+      await client.streamAiGeneration(buildRequest(source, refinement), {
+        signal: controller.signal,
+        onEvent: (event) => {
+          if (event.type === "text-delta") setOutput((current) => current + event.text);
+          if (event.type === "error") setError(event.message);
         },
-        {
-          signal: controller.signal,
-          onEvent: (event) => {
-            if (event.type === "text-delta") setOutput((current) => current + event.text);
-            if (event.type === "error") setError(event.message);
-          },
-        }
-      );
+      });
     } catch (caught) {
       if (controller.signal.aborted) return;
       setError(
@@ -92,6 +157,14 @@ export const MobileAiAssistantModal = ({
         setGenerating(false);
       }
     }
+  };
+
+  const refine = () => {
+    const instruction = refineInstruction.trim();
+    if (!output || !instruction) return;
+    const currentOutput = output;
+    setRefineInstruction("");
+    void generate(currentOutput, instruction);
   };
 
   const apply = async (mode: "append" | "replace") => {
@@ -114,6 +187,37 @@ export const MobileAiAssistantModal = ({
   const border = dark ? "#33453d" : "#dbe4df";
   const foreground = dark ? "#e2e8f0" : "#0f172a";
   const muted = dark ? "#94a3b8" : "#64748b";
+  const actionDisabled = applying || (action === "custom" && !customInstruction.trim());
+
+  const selectField = (label: string, value: string, onPress: () => void) => (
+    <View style={styles.field}>
+      <Text style={[styles.fieldLabel, { color: foreground }]}>{label}</Text>
+      <Pressable accessibilityRole="button" onPress={onPress} style={[styles.select, { borderColor: border, backgroundColor: surface }]}>
+        <Text style={[styles.selectText, { color: foreground }]}>{value}</Text>
+        <ChevronDown color={muted} size={18} />
+      </Pressable>
+    </View>
+  );
+
+  const pickerOptions = picker === "action"
+    ? actions.map((value) => ({ value, label: labels[value], active: action === value }))
+    : picker === "language"
+      ? targetLanguages.map((value) => ({ value, label: languageLabels[value], active: targetLanguage === value }))
+      : tones.map((value) => ({ value, label: toneLabels[value], active: tone === value }));
+
+  const choosePickerOption = (value: string) => {
+    if (picker === "action") {
+      controllerRef.current?.abort();
+      setAction(value as AssistantAction);
+      setOutput("");
+      setError(null);
+    } else if (picker === "language") {
+      setTargetLanguage(value as TargetLanguage);
+    } else if (picker === "tone") {
+      setTone(value as Tone);
+    }
+    setPicker(null);
+  };
 
   return (
     <Modal animationType="slide" onRequestClose={onClose} presentationStyle="pageSheet" visible={visible}>
@@ -129,32 +233,22 @@ export const MobileAiAssistantModal = ({
         </View>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <Text style={[styles.description, { color: muted }]}>
-            {tr("AI 输出会先作为草稿展示，确认后才会修改笔记。", "AI output remains a draft until you choose to apply it.")}
+            {tr("选择 AI 要做的事。输出只会作为草稿，确认后才会修改笔记。", "Choose what AI should do. Output remains a draft until you apply it.")}
           </Text>
-          <View style={styles.actions}>
-            {actions.map((item) => (
-              <Pressable
-                key={item}
-                onPress={() => setAction(item)}
-                style={[
-                  styles.actionChip,
-                  { borderColor: action === item ? "#16A06E" : border, backgroundColor: action === item ? (dark ? "#073f2f" : "#e8f7f0") : surface },
-                ]}
-              >
-                <Text style={[styles.actionText, { color: action === item ? (dark ? "#5ee2ad" : "#087a51") : foreground }]}>{labels[item]}</Text>
-              </Pressable>
-            ))}
-          </View>
-          {action === "translate" ? (
+          {selectField(tr("AI 操作", "AI action"), labels[action], () => setPicker("action"))}
+          {action === "translate" ? selectField(tr("目标语言", "Target language"), languageLabels[targetLanguage], () => setPicker("language")) : null}
+          {action === "change-tone" ? selectField(tr("语气", "Tone"), toneLabels[tone], () => setPicker("tone")) : null}
+          {action === "custom" ? (
             <View style={styles.field}>
-              <Text style={[styles.fieldLabel, { color: foreground }]}>{tr("目标语言", "Target language")}</Text>
+              <Text style={[styles.fieldLabel, { color: foreground }]}>{tr("告诉 AI 你想怎么处理", "Tell AI what to do")}</Text>
               <TextInput
-                maxLength={80}
-                onChangeText={setTargetLanguage}
-                placeholder={tr("例如：英语、日语", "For example: English, Japanese")}
+                maxLength={2000}
+                multiline
+                onChangeText={setCustomInstruction}
+                placeholder={tr("例如：改成适合周报的结构，保留所有数据", "For example: Restructure this for a weekly report and keep all data")}
                 placeholderTextColor={muted}
-                style={[styles.input, { borderColor: border, color: foreground, backgroundColor: surface }]}
-                value={targetLanguage}
+                style={[styles.instructionInput, { borderColor: border, color: foreground, backgroundColor: surface }]}
+                value={customInstruction}
               />
             </View>
           ) : null}
@@ -167,6 +261,26 @@ export const MobileAiAssistantModal = ({
               {output || tr("生成的草稿会显示在这里。", "The generated draft will appear here.")}
             </Text>
           </View>
+          {output && !generating ? (
+            <View style={styles.field}>
+              <Text style={[styles.fieldLabel, { color: foreground }]}>{tr("继续调整", "Refine result")}</Text>
+              <View style={styles.refineRow}>
+                <TextInput
+                  maxLength={2000}
+                  onChangeText={setRefineInstruction}
+                  onSubmitEditing={refine}
+                  placeholder={tr("例如：再简洁一点", "For example: Make it more concise")}
+                  placeholderTextColor={muted}
+                  returnKeyType="send"
+                  style={[styles.refineInput, { borderColor: border, color: foreground, backgroundColor: surface }]}
+                  value={refineInstruction}
+                />
+                <Pressable disabled={!refineInstruction.trim()} onPress={refine} style={[styles.refineButton, !refineInstruction.trim() && styles.disabled]}>
+                  <Text style={styles.refineButtonText}>{tr("调整", "Refine")}</Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : null}
           {error ? <Text style={styles.error}>{error}</Text> : null}
         </ScrollView>
         <View style={[styles.footer, { borderTopColor: border, backgroundColor: surface }]}>
@@ -188,11 +302,29 @@ export const MobileAiAssistantModal = ({
               <Text style={styles.primaryText}>{tr("停止", "Stop")}</Text>
             </Pressable>
           ) : (
-            <Pressable disabled={applying || (action === "translate" && !targetLanguage.trim())} onPress={() => void generate()} style={[styles.primaryButton, (applying || (action === "translate" && !targetLanguage.trim())) && styles.disabled]}>
-              <Text style={styles.primaryText}>{tr("生成", "Generate")}</Text>
+            <Pressable disabled={actionDisabled} onPress={() => void generate()} style={[styles.primaryButton, actionDisabled && styles.disabled]}>
+              {output ? <RefreshCw color="#ffffff" size={16} /> : null}
+              <Text style={styles.primaryText}>{output ? tr("重新生成", "Regenerate") : tr("生成", "Generate")}</Text>
             </Pressable>
           )}
         </View>
+        <Modal animationType="fade" onRequestClose={() => setPicker(null)} transparent visible={picker !== null}>
+          <Pressable onPress={() => setPicker(null)} style={styles.pickerBackdrop}>
+            <View style={[styles.pickerSheet, { backgroundColor: surface }]}>
+              <Text style={[styles.pickerTitle, { color: foreground }]}>
+                {picker === "action" ? tr("选择 AI 操作", "Choose AI action") : picker === "language" ? tr("选择目标语言", "Choose target language") : tr("选择语气", "Choose tone")}
+              </Text>
+              <ScrollView style={styles.pickerScroll}>
+                {pickerOptions.map((option) => (
+                  <Pressable key={option.value} onPress={() => choosePickerOption(option.value)} style={[styles.pickerOption, { borderBottomColor: border }]}>
+                    <Text style={[styles.pickerOptionText, { color: option.active ? "#16A06E" : foreground }]}>{option.label}</Text>
+                    {option.active ? <Check color="#16A06E" size={18} /> : null}
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </View>
+          </Pressable>
+        </Modal>
       </SafeAreaView>
     </Modal>
   );
@@ -206,16 +338,19 @@ const styles = StyleSheet.create({
   iconButton: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   content: { padding: 16, gap: 16 },
   description: { fontSize: 13, lineHeight: 19 },
-  actions: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  actionChip: { minHeight: 38, paddingHorizontal: 12, borderRadius: 9, borderWidth: 1, alignItems: "center", justifyContent: "center" },
-  actionText: { fontSize: 13, fontWeight: "600" },
   field: { gap: 7 },
   fieldLabel: { fontSize: 13, fontWeight: "700" },
-  input: { height: 44, borderWidth: 1, borderRadius: 9, paddingHorizontal: 12, fontSize: 15 },
+  select: { minHeight: 46, paddingHorizontal: 12, borderWidth: 1, borderRadius: 9, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  selectText: { fontSize: 15, fontWeight: "600" },
+  instructionInput: { minHeight: 88, borderWidth: 1, borderRadius: 9, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, textAlignVertical: "top" },
   resultHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   streaming: { color: "#087a51", fontSize: 12, fontWeight: "600" },
   result: { minHeight: 220, borderWidth: 1, borderRadius: 10, padding: 14 },
   resultText: { fontSize: 15, lineHeight: 23 },
+  refineRow: { flexDirection: "row", gap: 8, alignItems: "center" },
+  refineInput: { flex: 1, height: 44, borderWidth: 1, borderRadius: 9, paddingHorizontal: 12, fontSize: 14 },
+  refineButton: { height: 44, paddingHorizontal: 14, borderRadius: 9, backgroundColor: "#16A06E", alignItems: "center", justifyContent: "center" },
+  refineButtonText: { color: "#ffffff", fontSize: 14, fontWeight: "700" },
   error: { color: "#be123c", fontSize: 13, lineHeight: 19 },
   footer: { padding: 12, gap: 10, borderTopWidth: StyleSheet.hairlineWidth },
   footerRow: { flexDirection: "row", gap: 8 },
@@ -224,4 +359,10 @@ const styles = StyleSheet.create({
   primaryButton: { height: 44, borderRadius: 9, backgroundColor: "#16A06E", flexDirection: "row", gap: 7, alignItems: "center", justifyContent: "center" },
   primaryText: { color: "#ffffff", fontSize: 15, fontWeight: "700" },
   disabled: { opacity: 0.45 },
+  pickerBackdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(15,23,42,0.38)" },
+  pickerSheet: { maxHeight: "72%", borderTopLeftRadius: 18, borderTopRightRadius: 18, paddingHorizontal: 16, paddingTop: 18, paddingBottom: 24 },
+  pickerTitle: { fontSize: 17, fontWeight: "700", paddingBottom: 12 },
+  pickerScroll: { flexGrow: 0 },
+  pickerOption: { minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderBottomWidth: StyleSheet.hairlineWidth },
+  pickerOptionText: { fontSize: 15, fontWeight: "600" },
 });

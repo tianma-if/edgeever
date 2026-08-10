@@ -472,6 +472,47 @@ textarea {
   margin: 0.25rem 0;
 }
 
+.ProseMirror ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0;
+}
+
+.ProseMirror ul[data-type="taskList"] li[data-type="taskItem"] {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+}
+
+.ProseMirror ul[data-type="taskList"] li[data-type="taskItem"] > label {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  margin-top: 0.2rem;
+  user-select: none;
+}
+
+.ProseMirror ul[data-type="taskList"] li[data-type="taskItem"] > label input {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  accent-color: var(--brand-green);
+  cursor: pointer;
+}
+
+.ProseMirror ul[data-type="taskList"] li[data-type="taskItem"] > div {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.ProseMirror ul[data-type="taskList"] li[data-type="taskItem"] > div > p {
+  margin-bottom: 0;
+}
+
+.ProseMirror ul[data-type="taskList"] ul[data-type="taskList"] {
+  margin: 0.25rem 0 0;
+  padding-left: 1.5rem;
+}
+
 .ProseMirror blockquote {
   margin: 0 0 1rem;
   border-left: 3px solid var(--brand-green);

@@ -22,7 +22,10 @@ import type {
   TagSummary,
   TiptapDoc,
   AiAction,
-  AiModelSettings,
+  AiTargetLanguage,
+  AiTone,
+  AiSettings,
+  AiDiscoveredModel,
   AiProvider,
   AiStreamEvent,
 } from "@edgeever/shared";
@@ -116,17 +119,20 @@ export type JsonBackupPage = MarkdownExportPage & {
   revisions: JsonBackupRevision[];
 };
 
-export type AiSettingsResponse = {
-  settings: AiModelSettings | null;
-  encryptionConfigured: boolean;
+export type AiProviderCreatePayload = {
+  provider: AiProvider;
+  displayName: string;
+  baseUrl: string;
+  apiKey: string;
+  isEnabled: boolean;
+  initialModelId?: string;
 };
 
-export type AiSettingsPayload = {
+export type AiProviderUpdatePayload = {
   provider: AiProvider;
   displayName: string;
   baseUrl: string;
   apiKey?: string;
-  modelId: string;
   isEnabled: boolean;
 };
 
@@ -234,22 +240,63 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
         body: JSON.stringify(payload),
       }),
 
-    getAiSettings: () => request<AiSettingsResponse>("/api/v1/ai/settings"),
+    getAiSettings: () => request<AiSettings>("/api/v1/ai/settings"),
 
-    testAiConnection: (payload: Omit<AiSettingsPayload, "isEnabled">) =>
-      request<{ ok: true; response: string }>("/api/v1/ai/settings/test", {
+    createAiProvider: (payload: AiProviderCreatePayload) =>
+      request<AiSettings>("/api/v1/ai/providers", {
         method: "POST",
         body: JSON.stringify(payload),
       }),
 
-    updateAiSettings: (payload: AiSettingsPayload) =>
-      request<AiSettingsResponse>("/api/v1/ai/settings", {
+    updateAiProvider: (providerConfigId: string, payload: AiProviderUpdatePayload) =>
+      request<AiSettings>(`/api/v1/ai/providers/${encodeURIComponent(providerConfigId)}`, {
         method: "PUT",
         body: JSON.stringify(payload),
       }),
 
+    deleteAiProvider: (providerConfigId: string) =>
+      request<AiSettings>(`/api/v1/ai/providers/${encodeURIComponent(providerConfigId)}`, {
+        method: "DELETE",
+      }),
+
+    testAiProvider: (providerConfigId: string, payload: { modelId: string }) =>
+      request<{ ok: true; response: string }>(`/api/v1/ai/providers/${encodeURIComponent(providerConfigId)}/test`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+
+    discoverAiProviderModels: (providerConfigId: string) =>
+      request<{ models: AiDiscoveredModel[] }>(`/api/v1/ai/providers/${encodeURIComponent(providerConfigId)}/discover-models`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      }),
+
+    addAiModel: (providerConfigId: string, payload: { modelId: string; displayName?: string }) =>
+      request<AiSettings>(`/api/v1/ai/providers/${encodeURIComponent(providerConfigId)}/models`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+
+    deleteAiModel: (providerConfigId: string, modelConfigId: string) =>
+      request<AiSettings>(`/api/v1/ai/providers/${encodeURIComponent(providerConfigId)}/models/${encodeURIComponent(modelConfigId)}`, {
+        method: "DELETE",
+      }),
+
+    updateDefaultAiModel: (modelConfigId: string | null) =>
+      request<AiSettings>("/api/v1/ai/default-model", {
+        method: "PUT",
+        body: JSON.stringify({ modelConfigId }),
+      }),
+
     streamAiGeneration: async (
-      payload: { action: AiAction; title: string; contentMarkdown: string; targetLanguage?: string },
+      payload: {
+        action: AiAction;
+        title: string;
+        contentMarkdown: string;
+        targetLanguage?: AiTargetLanguage;
+        tone?: AiTone;
+        instruction?: string;
+      },
       streamOptions: { signal?: AbortSignal; onEvent: (event: AiStreamEvent) => void },
     ) => {
       const headers = new Headers({ "Content-Type": "application/json" });

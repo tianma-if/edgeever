@@ -44,7 +44,7 @@ const INITIAL_MODULE_PRELOAD_BUDGET = 700 * 1024;
 assert.ok(initialModulePreloadBytes <= INITIAL_MODULE_PRELOAD_BUDGET, `Initial modulepreload budget exceeded: ${initialModulePreloadBytes} > ${INITIAL_MODULE_PRELOAD_BUDGET}`);
 
 const DEFAULT_CHUNK_WARNING_BYTES = 500 * 1024;
-const allowedLargeChunkPattern = /^(?:vendor-(?:beautiful-mermaid|mermaid-(?:layout|render))|.*Diagram-).*\.js$/;
+const allowedLargeChunkPattern = /^(?:vendor-(?:code-highlight|beautiful-mermaid|mermaid-(?:layout|render))|.*Diagram-).*\.js$/;
 const largeChunks = readdirSync(join(distDirectory, "assets"))
   .filter((name) => name.endsWith(".js"))
   .map((name) => ({ name, size: statSync(join(distDirectory, "assets", name)).size }))
@@ -58,10 +58,11 @@ assert.ok(
 );
 assert.ok(
   largeChunks.every(({ name }) => !modulePreloads.includes(name)),
-  "Large optional diagram chunks must not be module-preloaded by the app entry",
+  "Large optional chunks must not be module-preloaded by the app entry",
 );
+const nonPrecachedLargeChunks = largeChunks.filter(({ name }) => !name.startsWith("vendor-code-highlight-"));
 assert.ok(
-  largeChunks.every(({ name }) => !precacheManifest.includes(name)),
+  nonPrecachedLargeChunks.every(({ name }) => !precacheManifest.includes(name)),
   "Large optional diagram chunks must not be included in the PWA precache",
 );
 

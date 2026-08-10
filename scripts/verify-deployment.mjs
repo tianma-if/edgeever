@@ -12,6 +12,9 @@ export const REQUIRED_TABLES = [
   "memo_shares",
   "memo_import_sources",
   "mobile_sync_changes",
+  "ai_provider_configs",
+  "ai_models",
+  "ai_workspace_settings",
 ];
 
 export const buildSchemaVerificationSql = () =>

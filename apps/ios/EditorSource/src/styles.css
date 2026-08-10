@@ -177,6 +177,48 @@ html[data-theme="dark"] body {
   pointer-events: none;
 }
 
+.ProseMirror ul[data-type="taskList"] {
+  margin: 0 0 1rem;
+  padding-left: 0;
+  list-style: none;
+}
+
+.ProseMirror ul[data-type="taskList"] li[data-type="taskItem"] {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin: 4px 0;
+}
+
+.ProseMirror ul[data-type="taskList"] li[data-type="taskItem"] > label {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  margin-top: 3px;
+  user-select: none;
+}
+
+.ProseMirror ul[data-type="taskList"] li[data-type="taskItem"] > label input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: #16a06e;
+}
+
+.ProseMirror ul[data-type="taskList"] li[data-type="taskItem"] > div {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.ProseMirror ul[data-type="taskList"] li[data-type="taskItem"] > div > p {
+  margin-bottom: 0;
+}
+
+.ProseMirror ul[data-type="taskList"] ul[data-type="taskList"] {
+  margin: 4px 0 0;
+  padding-left: 24px;
+}
+
 .edgeever-prose img,
 .ProseMirror img {
   max-width: 100%;

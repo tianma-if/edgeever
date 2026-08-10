@@ -1,4 +1,12 @@
+import AVFoundation
 import SwiftUI
+
+private enum ImagePickerRoute: String, Identifiable {
+    case camera
+    case library
+
+    var id: String { rawValue }
+}
 
 enum MemoEditMode: Equatable {
     /// `seed` pre-fills title/body/tags (template / clip-style create). When nil, restores local new-note draft.
@@ -26,12 +34,19 @@ struct MemoEditView: View {
     /// with empty defaults from overwriting a non-empty note via autosave / flush.
     /// Snapshot of body when edit opened (or last intentional load). Used to reject empty clobbers.
     @State private var showNotebookPicker = false
-    @State private var showImagePicker = false
+    @State private var showImageSourcePicker = false
+    @State private var imagePickerRoute: ImagePickerRoute?
+    @State private var showCameraAccessAlert = false
+    @State private var cameraAccessCanOpenSettings = false
+    @State private var cameraAccessMessage = ""
     @State private var showUploadError = false
     @State private var showTemplatePicker = false
     @State private var showApplyTemplateConfirm = false
     @State private var pendingTemplateSeed: CreateMemoSeed?
     @State private var resourceTarget: ResourceTarget?
+    @State private var aiSelection: AiEditorSelection?
+    @State private var showEmptyAiSelectionAlert = false
+    @State private var aiUndoToken: UUID?
 
     private var title: String { get { viewModel.title } nonmutating set { viewModel.title = newValue } }
     private var tagsText: String { get { viewModel.tagsText } nonmutating set { viewModel.tagsText = newValue } }
@@ -79,6 +94,40 @@ struct MemoEditView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 .accessibilityIdentifier("createMemoUploadOverlay")
             }
+
+            if aiUndoToken != nil {
+                VStack {
+                    Spacer()
+                    HStack(spacing: 12) {
+                        Text(env.preferences.t("AI 已更新选中内容。", en: "AI updated the selection."))
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(.white)
+                        Spacer(minLength: 0)
+                        Button(env.preferences.t("撤销", en: "Undo")) {
+                            Task {
+                                guard await SharedTipTapRuntime.editor.undoAiSelectionDraft() else {
+                                    aiUndoToken = nil
+                                    return
+                                }
+                                await pullEditorSnapshotIfPossible()
+                                markDirtyAndScheduleSave()
+                                aiUndoToken = nil
+                            }
+                        }
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(Color(red: 0.43, green: 0.91, blue: 0.72))
+                    }
+                    .padding(.horizontal, 14)
+                    .frame(minHeight: 48)
+                    .background(Color(red: 0.06, green: 0.09, blue: 0.16))
+                    .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+                    .shadow(color: .black.opacity(0.22), radius: 14, y: 6)
+                    .padding(.horizontal, 14)
+                    .padding(.bottom, 12)
+                }
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .allowsHitTesting(true)
+            }
         }
         .background(AppTheme.card.ignoresSafeArea())
         .accessibilityIdentifier(CreateMemoChrome.root)
@@ -97,6 +146,42 @@ struct MemoEditView: View {
             TemplatePickerSheet { seed in
                 requestApplyTemplate(seed)
             }
+        }
+        .sheet(item: $aiSelection) { selection in
+            AiAssistantSheet(
+                title: title,
+                selectedMarkdown: selection.markdown.isEmpty ? selection.text : selection.markdown
+            ) { draft, mode in
+                let applied = await SharedTipTapRuntime.editor.applyAiSelectionDraft(
+                    draft,
+                    append: mode == .append
+                )
+                guard applied else {
+                    throw NSError(
+                        domain: "EdgeEverAiSelection",
+                        code: 1,
+                        userInfo: [NSLocalizedDescriptionKey: env.preferences.t(
+                            "选区已失效，请重新选择文本后再试。",
+                            en: "The selection expired. Select the text again and retry."
+                        )]
+                    )
+                }
+                await pullEditorSnapshotIfPossible()
+                markDirtyAndScheduleSave()
+                presentAiUndo()
+            }
+            .presentationDetents([.large])
+        }
+        .alert(
+            env.preferences.t("请先选择正文", en: "Select text first"),
+            isPresented: $showEmptyAiSelectionAlert
+        ) {
+            Button(env.preferences.t("好的", en: "OK"), role: .cancel) {}
+        } message: {
+            Text(env.preferences.t(
+                "在正文中选中一段文字，然后再点 AI。",
+                en: "Select some text in the note body, then tap AI again."
+            ))
         }
         .alert(
             env.preferences.t("应用模板？", en: "Apply template?"),
@@ -128,22 +213,47 @@ struct MemoEditView: View {
             .presentationDetents([.height(360), .medium])
             .presentationDragIndicator(.hidden)
         }
+        .confirmationDialog(
+            env.preferences.t("添加图片", en: "Add image"),
+            isPresented: $showImageSourcePicker,
+            titleVisibility: .visible
+        ) {
+            Button(env.preferences.t("拍照", en: "Take photo")) {
+                scheduleCameraCapture()
+            }
+            Button(env.preferences.t("从相册选择", en: "Choose from library")) {
+                scheduleImagePicker(.library)
+            }
+            Button(env.preferences.t("取消", en: "Cancel"), role: .cancel) {}
+        } message: {
+            Text(env.preferences.t("直接拍照或选择已有照片", en: "Take a new photo or choose an existing one"))
+        }
         // fullScreenCover avoids nested-sheet bugs when MemoEditView itself is already a fullScreenCover.
         // PHPicker + NSItemProvider (not SwiftUI PhotosPicker/Transferable) is the reliable path.
-        .fullScreenCover(isPresented: $showImagePicker) {
-            SystemImagePicker { result in
-                showImagePicker = false
-                switch result {
-                case .cancelled:
-                    break
-                case .failed(let message):
-                    error = message
-                    showUploadError = true
-                case .picked(let data, let filename):
-                    Task { await insertImageData(data, filename: filename) }
+        .fullScreenCover(item: $imagePickerRoute) { route in
+            Group {
+                switch route {
+                case .camera:
+                    SystemCameraPicker(onFinish: handleImagePickerResult)
+                case .library:
+                    SystemImagePicker(onFinish: handleImagePickerResult)
                 }
             }
             .ignoresSafeArea()
+        }
+        .alert(
+            env.preferences.t("无法使用相机", en: "Unable to use camera"),
+            isPresented: $showCameraAccessAlert
+        ) {
+            Button(env.preferences.t("取消", en: "Cancel"), role: .cancel) {}
+            if cameraAccessCanOpenSettings {
+                Button(env.preferences.t("前往设置", en: "Open settings")) {
+                    guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+                    UIApplication.shared.open(url)
+                }
+            }
+        } message: {
+            Text(cameraAccessMessage)
         }
         .alert(
             env.preferences.t("图片上传失败", en: "Image upload failed"),
@@ -226,6 +336,26 @@ struct MemoEditView: View {
                     .accessibilityLabel(env.preferences.t("模板", en: "Template"))
                     .accessibilityIdentifier(CreateMemoChrome.template)
                 }
+
+                Button {
+                    Task {
+                        if let selection = await SharedTipTapRuntime.editor.captureAiSelection() {
+                            aiSelection = selection
+                        } else {
+                            showEmptyAiSelectionAlert = true
+                        }
+                    }
+                } label: {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(editorReady && !busyChrome ? AppTheme.accentStrong : AppTheme.muted)
+                        .frame(width: 36, height: 36)
+                        .background(AppTheme.accentSoft)
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .disabled(!editorReady || busyChrome)
+                .accessibilityLabel(env.preferences.t("用 AI 处理选中内容", en: "Use AI on selection"))
 
                 Button {
                     Task { await handleDone() }
@@ -362,7 +492,7 @@ struct MemoEditView: View {
                                 for: nil
                             )
                             error = nil
-                            showImagePicker = true
+                            showImageSourcePicker = true
                         },
                         onSearchResult: nil,
                         onBodyReady: {
@@ -408,6 +538,82 @@ struct MemoEditView: View {
         .padding(.horizontal, 12)
         .padding(.bottom, 8)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    // MARK: - Image source
+
+    private func scheduleImagePicker(_ route: ImagePickerRoute) {
+        Task { @MainActor in
+            // Let the confirmation dialog finish dismissing before presenting UIKit.
+            try? await Task.sleep(nanoseconds: 150_000_000)
+            guard !Task.isCancelled else { return }
+            imagePickerRoute = route
+        }
+    }
+
+    private func scheduleCameraCapture() {
+        Task { @MainActor in
+            // Permission prompts and full-screen covers must not race the source dialog dismissal.
+            try? await Task.sleep(nanoseconds: 150_000_000)
+            guard !Task.isCancelled else { return }
+            beginCameraCapture()
+        }
+    }
+
+    @MainActor
+    private func beginCameraCapture() {
+        let status = AVCaptureDevice.authorizationStatus(for: .video)
+        switch CameraCaptureAccess.nextStep(
+            isCameraAvailable: SystemCameraPicker.isAvailable,
+            authorizationStatus: status
+        ) {
+        case .openCamera:
+            imagePickerRoute = .camera
+        case .requestPermission:
+            Task {
+                let granted = await AVCaptureDevice.requestAccess(for: .video)
+                await MainActor.run {
+                    if granted {
+                        imagePickerRoute = .camera
+                    } else {
+                        showCameraSettingsAlert()
+                    }
+                }
+            }
+        case .showSettings:
+            showCameraSettingsAlert()
+        case .unavailable:
+            cameraAccessCanOpenSettings = false
+            cameraAccessMessage = env.preferences.t(
+                "此设备没有可用相机。",
+                en: "This device does not have an available camera."
+            )
+            showCameraAccessAlert = true
+        }
+    }
+
+    @MainActor
+    private func showCameraSettingsAlert() {
+        cameraAccessCanOpenSettings = true
+        cameraAccessMessage = env.preferences.t(
+            "请前往系统设置，允许 EdgeEver 使用相机后再试。",
+            en: "Open system settings and allow EdgeEver to use the camera, then try again."
+        )
+        showCameraAccessAlert = true
+    }
+
+    @MainActor
+    private func handleImagePickerResult(_ result: ImagePickerResult) {
+        imagePickerRoute = nil
+        switch result {
+        case .cancelled:
+            break
+        case .failed(let message):
+            error = message
+            showUploadError = true
+        case .picked(let data, let filename):
+            Task { await insertImageData(data, filename: filename) }
+        }
     }
 
     // MARK: - Derived state
@@ -541,6 +747,16 @@ struct MemoEditView: View {
     private func pullEditorSnapshotIfPossible() async {
         guard let snap = await SharedTipTapRuntime.editor.snapshotContent() else { return }
         viewModel.applyEditorPayload(markdown: snap.markdown, json: snap.json)
+    }
+
+    private func presentAiUndo() {
+        let token = UUID()
+        aiUndoToken = token
+        Task {
+            try? await Task.sleep(nanoseconds: 6_500_000_000)
+            guard !Task.isCancelled, aiUndoToken == token else { return }
+            aiUndoToken = nil
+        }
     }
 
     private func loadInitial() async {

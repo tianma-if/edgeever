@@ -25,6 +25,7 @@ export const AlertTriangle = createIcon("alert-triangle");
 export const ArrowUpCircle = createIcon("arrow-up-circle");
 export const BookOpen = createIcon("book-open");
 export const Bold = createIcon("bold");
+export const Camera = createIcon("camera");
 export const Check = createIcon("check");
 export const CheckSquare = createIcon("check-square");
 export const ChevronDown = createIcon("chevron-down");

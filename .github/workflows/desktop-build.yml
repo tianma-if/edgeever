@@ -261,6 +261,9 @@ jobs:
       - name: Run desktop regression tests
         run: bun run test:desktop
 
+      - name: Verify packaged renderer startup
+        run: bun run verify:desktop-renderer
+
       - name: Build Rust sidecar
         run: |
           cargo fmt --manifest-path crates/desktop-sidecar/Cargo.toml -- --check

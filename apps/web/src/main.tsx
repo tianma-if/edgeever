@@ -96,7 +96,11 @@ const mountApp = () => {
 
   initializeTheme();
 
-  createRoot(root).render(
+  createRoot(root, {
+    onUncaughtError(error, errorInfo) {
+      console.error("Uncaught React error", error, errorInfo.componentStack);
+    },
+  }).render(
     <React.StrictMode>
       <QueryClientProvider client={queryClient}>
         <ThemeProvider>
