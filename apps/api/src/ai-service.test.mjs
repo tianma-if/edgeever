@@ -14,7 +14,7 @@ import {
   decryptAiCredential,
   resolveAiCredentialEncryptionKeys,
   resolveCredentialEncryptionKey,
-  streamAiGeneration,
+  runAiGeneration,
 } from "./ai-service.ts";
 import { encryptSecret } from "./secret-encryption.ts";
 
@@ -74,7 +74,7 @@ describe("AI model service", () => {
 
   test("streams plain text without forcing tool choice for thinking-model compatibility", async () => {
     let request;
-    const result = streamAiGeneration({
+    const outcome = await runAiGeneration({
       model: new MockLanguageModelV4({
         doStream: async (options) => {
           request = options;
@@ -109,22 +109,15 @@ describe("AI model service", () => {
         },
       }),
       action: "improve-writing",
-      title: "富文本测试",
       contentMarkdown: "*在线模式下*",
       resultBoundary,
+      streaming: true,
     });
 
-    let submittedContent = "";
-    for await (const part of result.stream) {
-      if (part.type === "text-delta") submittedContent += part.text;
-    }
-
-    expect(normalizeAiGenerationText(submittedContent, resultBoundary)).toBe("*在线模式下*");
-    expect(JSON.stringify(request.prompt)).not.toContain("富文本测试");
-    expect(JSON.stringify(request.prompt)).not.toContain("Note title:");
+    expect(normalizeAiGenerationText(outcome.text, resultBoundary)).toBe("*在线模式下*");
     expect(request.tools).toBeUndefined();
     expect(request.toolChoice).not.toMatchObject({ type: "tool" });
-    expect(await result.finishReason).toBe("stop");
+    expect(outcome.finishReason).toBe("stop");
   });
 
   test("omits tools and tool_choice from the OpenAI-compatible request body", async () => {
@@ -145,25 +138,18 @@ describe("AI model service", () => {
         });
       },
     })("deepseek-v4-flash");
-    const result = streamAiGeneration({
+    const outcome = await runAiGeneration({
       model,
       action: "summarize",
-      title: "测试",
       contentMarkdown: "正文",
       resultBoundary,
+      streaming: true,
     });
 
-    let output = "";
-    for await (const part of result.stream) {
-      if (part.type === "text-delta") output += part.text;
-    }
-
-    expect(normalizeAiGenerationText(output, resultBoundary)).toBe("兼容结果");
+    expect(normalizeAiGenerationText(outcome.text, resultBoundary)).toBe("兼容结果");
     expect(requests).toHaveLength(1);
     expect(requests[0].tools).toBeUndefined();
     expect(requests[0].tool_choice).toBeUndefined();
-    expect(JSON.stringify(requests[0].messages)).not.toContain("Note title:");
-    expect(JSON.stringify(requests[0].messages)).not.toContain("测试");
     expect(JSON.stringify(requests[0].messages)).toContain(resultBoundary.start);
     expect(JSON.stringify(requests[0].messages)).toContain(resultBoundary.end);
   });

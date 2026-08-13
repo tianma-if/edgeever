@@ -15,6 +15,7 @@ import { AppError } from "./app-error";
 import { auditStatement } from "./audit";
 import { getAiPromptTemplate, resolveWorkspaceActionInstruction } from "./ai-prompt-service";
 import {
+  buildAiGenerationFrames,
   createAiGenerationResultBoundary,
   decryptAiCredential,
   discoverAiModels,
@@ -22,11 +23,11 @@ import {
   getAiProviderConfig,
   getAiSettings,
   getDefaultAiModelId,
+  isAiStreamingEnabled,
   loadDefaultAiModel,
-  normalizeAiGenerationText,
   normalizeAiBaseUrl,
   resolvePrimaryAiCredentialEncryptionKey,
-  streamAiGeneration,
+  runAiGeneration,
   testAiModel,
 } from "./ai-service";
 import { createId, isoNow } from "./entity-utils";
@@ -491,37 +492,31 @@ export const registerAiRoutes = (app: Hono<AppEnv>, dependencies: AiRouteDepende
           context.env,
         );
         const resultBoundary = createAiGenerationResultBoundary();
-        const result = streamAiGeneration({
-          ...input,
-          action,
-          instruction: resolvedInstruction,
-          targetLanguage: needsTargetLanguage ? input.targetLanguage : undefined,
-          tone: needsTone ? input.tone : undefined,
-          model,
-          resultBoundary,
-          abortSignal: context.req.raw.signal,
-        });
         const encoder = new TextEncoder();
         const stream = new ReadableStream<Uint8Array>({
           async start(controller) {
             const send = (event: unknown) => controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+            // Flush the first byte before awaiting the model so the connection
+            // is established well inside Cloudflare's time-to-first-byte limit.
             send({ type: "start" });
             try {
-              let generatedContent = "";
-              for await (const part of result.stream) {
-                if (part.type === "error") throw part.error;
-                if (part.type === "text-delta") generatedContent += part.text;
-              }
-              const contentMarkdown = normalizeAiGenerationText(generatedContent, resultBoundary);
-              if (!contentMarkdown) throw new Error("The AI did not return a note result.");
-              send({ type: "text-delta", text: contentMarkdown });
-              const [usage, finishReason] = await Promise.all([result.usage, result.finishReason]);
-              send({
-                type: "finish",
-                finishReason,
-                inputTokens: usage.inputTokens,
-                outputTokens: usage.outputTokens,
+              const outcome = await runAiGeneration({
+                model,
+                action,
+                contentMarkdown: input.contentMarkdown,
+                targetLanguage: needsTargetLanguage ? input.targetLanguage : undefined,
+                tone: needsTone ? input.tone : undefined,
+                instruction: resolvedInstruction,
+                resultBoundary,
+                abortSignal: AbortSignal.any([
+                  context.req.raw.signal,
+                  AbortSignal.timeout(90_000),
+                ]),
+                streaming: isAiStreamingEnabled(context.env.EDGE_EVER_AI_STREAMING),
               });
+              for (const frame of buildAiGenerationFrames(outcome, resultBoundary)) {
+                send(frame);
+              }
             } catch (error) {
               send({ type: "error", code: "ai_generation_failed", message: providerErrorMessage(error) });
             } finally {

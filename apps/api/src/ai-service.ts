@@ -8,6 +8,7 @@ import type {
   AiProvider,
   AiProviderConfig,
   AiSettings,
+  AiStreamEvent,
   AiTargetLanguage,
   AiTone,
 } from "@edgeever/shared";
@@ -439,29 +440,6 @@ export const buildAiGenerationPrompt = (input: {
   `Note content:\n${input.contentMarkdown}`,
 ].filter(Boolean).join("\n\n");
 
-export const streamAiGeneration = (input: {
-  model: ReturnType<typeof createAiModel>;
-  action: AiAction;
-  title: string;
-  contentMarkdown: string;
-  targetLanguage?: AiTargetLanguage;
-  tone?: AiTone;
-  instruction?: string;
-  resultBoundary: AiGenerationResultBoundary;
-  abortSignal?: AbortSignal;
-}) => streamText({
-  model: input.model,
-  system: resolveAiGenerationSystemInstruction(input),
-  prompt: buildAiGenerationPrompt({
-    contentMarkdown: input.contentMarkdown,
-    targetLanguage: input.targetLanguage,
-    tone: input.tone,
-    instruction: input.instruction,
-  }),
-  maxOutputTokens: 4096,
-  abortSignal: input.abortSignal,
-});
-
 export type AiGenerationOutcome = {
   text: string;
   finishReason?: string;
@@ -527,4 +505,25 @@ export const runAiGeneration = async (
     inputTokens: usage.inputTokens,
     outputTokens: usage.outputTokens,
   };
+};
+
+/**
+ * The frames after `start`. Shared by both branches so the response body cannot
+ * differ between them.
+ */
+export const buildAiGenerationFrames = (
+  outcome: AiGenerationOutcome,
+  resultBoundary: AiGenerationResultBoundary,
+): AiStreamEvent[] => {
+  const contentMarkdown = normalizeAiGenerationText(outcome.text, resultBoundary);
+  if (!contentMarkdown) throw new Error("The AI did not return a note result.");
+  return [
+    { type: "text-delta", text: contentMarkdown },
+    {
+      type: "finish",
+      finishReason: outcome.finishReason,
+      inputTokens: outcome.inputTokens,
+      outputTokens: outcome.outputTokens,
+    },
+  ];
 };

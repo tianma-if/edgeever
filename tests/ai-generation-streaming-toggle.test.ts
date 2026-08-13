@@ -1,7 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import type { LanguageModel } from "ai";
 import { MockLanguageModelV4, simulateReadableStream } from "ai/test";
+import type { AiStreamEvent } from "@edgeever/shared";
 import {
+  buildAiGenerationFrames,
   isAiStreamingEnabled,
   runAiGeneration,
 } from "../apps/api/src/ai-service";
@@ -98,5 +100,47 @@ describe("runAiGeneration", () => {
       .rejects.toThrow("provider exploded");
     expect(runAiGeneration(generationInput(failingStreamModel(), true)))
       .rejects.toThrow("provider exploded");
+  });
+});
+
+describe("buildAiGenerationFrames", () => {
+  test("strips the result boundary and maps usage onto the finish frame", () => {
+    expect(buildAiGenerationFrames(
+      { text: GENERATED_TEXT, finishReason: "stop", inputTokens: 11, outputTokens: 22 },
+      RESULT_BOUNDARY,
+    )).toEqual([
+      { type: "text-delta", text: "Summary line." },
+      { type: "finish", finishReason: "stop", inputTokens: 11, outputTokens: 22 },
+    ]);
+  });
+
+  test("rejects an empty result", () => {
+    expect(() => buildAiGenerationFrames(
+      { text: `${RESULT_BOUNDARY.start}\n\n${RESULT_BOUNDARY.end}` },
+      RESULT_BOUNDARY,
+    )).toThrow("The AI did not return a note result.");
+  });
+
+  test("both branches encode an identical SSE body", async () => {
+    const encodeBody = (frames: AiStreamEvent[]) =>
+      [{ type: "start" }, ...frames]
+        .map((event) => `data: ${JSON.stringify(event)}\n\n`)
+        .join("");
+
+    const nonStreamingBody = encodeBody(buildAiGenerationFrames(
+      await runAiGeneration(generationInput(generateModel(), false)),
+      RESULT_BOUNDARY,
+    ));
+    const streamingBody = encodeBody(buildAiGenerationFrames(
+      await runAiGeneration(generationInput(streamModel(), true)),
+      RESULT_BOUNDARY,
+    ));
+
+    expect(nonStreamingBody).toBe(streamingBody);
+    expect(nonStreamingBody).toBe(
+      `data: {"type":"start"}\n\n`
+      + `data: {"type":"text-delta","text":"Summary line."}\n\n`
+      + `data: {"type":"finish","finishReason":"stop","inputTokens":11,"outputTokens":22}\n\n`,
+    );
   });
 });
