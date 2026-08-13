@@ -13,6 +13,7 @@ import type {
 } from "@edgeever/shared";
 import { getDefaultAiPromptSeed } from "@edgeever/shared";
 import { generateText, streamText } from "ai";
+import type { LanguageModel } from "ai";
 import { AppError } from "./app-error";
 import { decryptSecret } from "./secret-encryption";
 import type { DatabaseAdapter } from "./storage-contract";
@@ -460,3 +461,70 @@ export const streamAiGeneration = (input: {
   maxOutputTokens: 4096,
   abortSignal: input.abortSignal,
 });
+
+export type AiGenerationOutcome = {
+  text: string;
+  finishReason?: string;
+  inputTokens?: number;
+  outputTokens?: number;
+};
+
+export type AiGenerationInput = {
+  model: LanguageModel;
+  action: AiAction;
+  contentMarkdown: string;
+  targetLanguage?: AiTargetLanguage;
+  tone?: AiTone;
+  instruction?: string;
+  resultBoundary: AiGenerationResultBoundary;
+  abortSignal?: AbortSignal;
+};
+
+/** Shared so the streaming and non-streaming branches cannot drift apart. */
+const buildAiGenerationRequest = (input: AiGenerationInput) => ({
+  model: input.model,
+  system: resolveAiGenerationSystemInstruction(input),
+  prompt: buildAiGenerationPrompt({
+    contentMarkdown: input.contentMarkdown,
+    targetLanguage: input.targetLanguage,
+    tone: input.tone,
+    instruction: input.instruction,
+  }),
+  maxOutputTokens: 4096,
+  abortSignal: input.abortSignal,
+});
+
+/**
+ * The result boundary can only be extracted from the complete response, so the
+ * streaming branch buffers every delta anyway. It exists purely as a rollback
+ * lever; both branches return an identical outcome.
+ */
+export const runAiGeneration = async (
+  input: AiGenerationInput & { streaming: boolean },
+): Promise<AiGenerationOutcome> => {
+  const request = buildAiGenerationRequest(input);
+
+  if (!input.streaming) {
+    const result = await generateText(request);
+    return {
+      text: result.text,
+      finishReason: result.finishReason,
+      inputTokens: result.usage.inputTokens,
+      outputTokens: result.usage.outputTokens,
+    };
+  }
+
+  const result = streamText(request);
+  let text = "";
+  for await (const part of result.stream) {
+    if (part.type === "error") throw part.error;
+    if (part.type === "text-delta") text += part.text;
+  }
+  const [usage, finishReason] = await Promise.all([result.usage, result.finishReason]);
+  return {
+    text,
+    finishReason,
+    inputTokens: usage.inputTokens,
+    outputTokens: usage.outputTokens,
+  };
+};
