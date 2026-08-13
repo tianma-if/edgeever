@@ -54,6 +54,14 @@ const selectProviderSql = `SELECT id, workspace_id, provider, display_name, base
 const selectModelSql = `SELECT id, provider_config_id, model_id, display_name,
   created_at, updated_at FROM ai_models`;
 
+/**
+ * Streaming is opt-in. The default non-streaming path avoids the per-chunk
+ * parsing cost that pushes Cloudflare Workers past their CPU limit, and the
+ * two paths emit an identical response body.
+ */
+export const isAiStreamingEnabled = (value: string | undefined) =>
+  value?.trim().toLowerCase() === "true";
+
 export const resolveCredentialEncryptionKey = (value: string | undefined) => {
   const key = value?.trim();
   return key || undefined;
