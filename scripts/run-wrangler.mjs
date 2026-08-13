@@ -240,6 +240,7 @@ const runtimeVars = {
   EDGE_EVER_R2_BUCKET_NAME: envValue("R2_BUCKET_NAME"),
   EDGE_EVER_DEMO_MODE: envValue("DEMO_MODE"),
   EDGE_EVER_LOCAL_DEMO_SEED: envValue("LOCAL_DEMO_SEED"),
+  EDGE_EVER_AI_STREAMING: envValue("AI_STREAMING"),
   // Auth-free access is a local-development capability. Remote deployments
   // fail closed when credentials and users are both missing.
   EDGE_EVER_ALLOW_UNAUTHENTICATED: isLocalCommand ? "true" : undefined,
@@ -265,6 +266,11 @@ if (demoMode && !["true", "false"].includes(demoMode)) {
 const localDemoSeed = envValue("LOCAL_DEMO_SEED")?.toLowerCase();
 if (localDemoSeed && !["true", "false"].includes(localDemoSeed)) {
   throw new Error("EDGE_EVER_LOCAL_DEMO_SEED must be true or false.");
+}
+
+const aiStreaming = envValue("AI_STREAMING")?.toLowerCase();
+if (aiStreaming && !["true", "false"].includes(aiStreaming)) {
+  throw new Error("EDGE_EVER_AI_STREAMING must be true or false.");
 }
 
 if (demoMode === "true") {

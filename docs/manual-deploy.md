@@ -49,6 +49,9 @@ EDGE_EVER_AUTH_LOGIN_USERNAME_MAX_ATTEMPTS=5
 EDGE_EVER_AUTH_LOGIN_USERNAME_COOLDOWN_SECONDS=900
 EDGE_EVER_AUTH_LOGIN_IP_MAX_ATTEMPTS=30
 EDGE_EVER_AUTH_LOGIN_IP_COOLDOWN_SECONDS=300
+# Optional. true makes the AI generate endpoint consume the model's streaming
+# response; the default non-streaming call uses far less Worker CPU time.
+EDGE_EVER_AI_STREAMING=false
 ```
 
 Then run:
