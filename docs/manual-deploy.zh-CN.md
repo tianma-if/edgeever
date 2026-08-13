@@ -51,6 +51,9 @@ EDGE_EVER_AUTH_LOGIN_IP_MAX_ATTEMPTS=30
 EDGE_EVER_AUTH_LOGIN_IP_COOLDOWN_SECONDS=300
 # 可选。设为 true 时 AI 生成接口改为消费模型的流式响应；默认的非流式调用占用的 Worker CPU 时间显著更少。
 EDGE_EVER_AI_STREAMING=false
+# 可选。AI 生成接口等待模型响应的服务端超时上限（秒），默认 90。该限制是为了适应 Cloudflare
+# 流式响应约 100 秒的静默窗口限制；自托管部署可以调大该值，或设为 0 以禁用该上限。
+EDGE_EVER_AI_GENERATION_TIMEOUT_SECONDS=90
 ```
 
 然后运行：

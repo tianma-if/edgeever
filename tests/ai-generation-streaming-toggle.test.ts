@@ -3,8 +3,10 @@ import type { LanguageModel } from "ai";
 import { MockLanguageModelV4, simulateReadableStream } from "ai/test";
 import type { AiStreamEvent } from "@edgeever/shared";
 import {
+  AI_GENERATION_TIMEOUT_DEFAULT_SECONDS,
   buildAiGenerationFrames,
   isAiStreamingEnabled,
+  resolveAiGenerationTimeoutMs,
   runAiGeneration,
 } from "../apps/api/src/ai-service";
 
@@ -16,6 +18,34 @@ describe("AI streaming toggle", () => {
     expect(isAiStreamingEnabled("1")).toBe(false);
     expect(isAiStreamingEnabled("")).toBe(false);
     expect(isAiStreamingEnabled(undefined)).toBe(false);
+  });
+});
+
+describe("resolveAiGenerationTimeoutMs", () => {
+  const defaultMs = AI_GENERATION_TIMEOUT_DEFAULT_SECONDS * 1_000;
+
+  test("defaults to 90s when unset", () => {
+    expect(resolveAiGenerationTimeoutMs(undefined)).toBe(defaultMs);
+    expect(resolveAiGenerationTimeoutMs("")).toBe(defaultMs);
+  });
+
+  test("allows 0 to disable the server-side cap", () => {
+    expect(resolveAiGenerationTimeoutMs("0")).toBe(0);
+  });
+
+  test("converts a valid seconds value to milliseconds", () => {
+    expect(resolveAiGenerationTimeoutMs("600")).toBe(600_000);
+  });
+
+  test("tolerates surrounding whitespace", () => {
+    expect(resolveAiGenerationTimeoutMs("  600  ")).toBe(600_000);
+    expect(resolveAiGenerationTimeoutMs("   ")).toBe(defaultMs);
+  });
+
+  test("falls back to the default for invalid input", () => {
+    expect(resolveAiGenerationTimeoutMs("abc")).toBe(defaultMs);
+    expect(resolveAiGenerationTimeoutMs("-5")).toBe(defaultMs);
+    expect(resolveAiGenerationTimeoutMs("1.5")).toBe(defaultMs);
   });
 });
 
@@ -96,9 +126,9 @@ describe("runAiGeneration", () => {
   });
 
   test("propagates provider failures from both branches", async () => {
-    expect(runAiGeneration(generationInput(failingGenerateModel(), false)))
+    await expect(runAiGeneration(generationInput(failingGenerateModel(), false)))
       .rejects.toThrow("provider exploded");
-    expect(runAiGeneration(generationInput(failingStreamModel(), true)))
+    await expect(runAiGeneration(generationInput(failingStreamModel(), true)))
       .rejects.toThrow("provider exploded");
   });
 });

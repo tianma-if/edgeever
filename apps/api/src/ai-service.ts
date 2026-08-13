@@ -58,11 +58,30 @@ const selectModelSql = `SELECT id, provider_config_id, model_id, display_name,
 
 /**
  * Streaming is opt-in. The default non-streaming path avoids the per-chunk
- * parsing cost that pushes Cloudflare Workers past their CPU limit, and the
- * two paths emit an identical response body.
+ * parsing cost that pushes Cloudflare Workers past their CPU limit. Both
+ * branches emit an identical `text-delta` frame; the `finish` frame's usage
+ * and finish reason may be more complete on the non-streaming path (some
+ * providers omit usage or a specific finish reason from the streaming tail).
  */
 export const isAiStreamingEnabled = (value: string | undefined) =>
   value?.trim().toLowerCase() === "true";
+
+export const AI_GENERATION_TIMEOUT_DEFAULT_SECONDS = 90;
+
+/**
+ * Cloudflare drops a streaming response that stays silent for roughly 100s, so
+ * Workers need a server-side cap below that. Self-hosted runtimes have no such
+ * limit and can raise it, or set 0 to rely on client disconnect alone.
+ */
+export const resolveAiGenerationTimeoutMs = (value: string | undefined) => {
+  const trimmed = value?.trim();
+  if (!trimmed) return AI_GENERATION_TIMEOUT_DEFAULT_SECONDS * 1_000;
+  const seconds = Number(trimmed);
+  if (!Number.isInteger(seconds) || seconds < 0) {
+    return AI_GENERATION_TIMEOUT_DEFAULT_SECONDS * 1_000;
+  }
+  return seconds * 1_000;
+};
 
 export const resolveCredentialEncryptionKey = (value: string | undefined) => {
   const key = value?.trim();
@@ -475,7 +494,9 @@ const buildAiGenerationRequest = (input: AiGenerationInput) => ({
 /**
  * The result boundary can only be extracted from the complete response, so the
  * streaming branch buffers every delta anyway. It exists purely as a rollback
- * lever; both branches return an identical outcome.
+ * lever; both branches return the same text, but usage and finish reason may
+ * be more complete on the non-streaming path when a provider omits them from
+ * the streaming tail.
  */
 export const runAiGeneration = async (
   input: AiGenerationInput & { streaming: boolean },

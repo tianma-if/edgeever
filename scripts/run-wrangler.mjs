@@ -241,6 +241,7 @@ const runtimeVars = {
   EDGE_EVER_DEMO_MODE: envValue("DEMO_MODE"),
   EDGE_EVER_LOCAL_DEMO_SEED: envValue("LOCAL_DEMO_SEED"),
   EDGE_EVER_AI_STREAMING: envValue("AI_STREAMING"),
+  EDGE_EVER_AI_GENERATION_TIMEOUT_SECONDS: envValue("AI_GENERATION_TIMEOUT_SECONDS"),
   // Auth-free access is a local-development capability. Remote deployments
   // fail closed when credentials and users are both missing.
   EDGE_EVER_ALLOW_UNAUTHENTICATED: isLocalCommand ? "true" : undefined,
@@ -271,6 +272,16 @@ if (localDemoSeed && !["true", "false"].includes(localDemoSeed)) {
 const aiStreaming = envValue("AI_STREAMING")?.toLowerCase();
 if (aiStreaming && !["true", "false"].includes(aiStreaming)) {
   throw new Error("EDGE_EVER_AI_STREAMING must be true or false.");
+}
+
+const aiGenerationTimeoutSeconds = envValue("AI_GENERATION_TIMEOUT_SECONDS");
+if (aiGenerationTimeoutSeconds !== undefined) {
+  const parsed = Number(aiGenerationTimeoutSeconds);
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    throw new Error(
+      "EDGE_EVER_AI_GENERATION_TIMEOUT_SECONDS must be a non-negative integer number of seconds.",
+    );
+  }
 }
 
 if (demoMode === "true") {

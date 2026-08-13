@@ -21,6 +21,7 @@ export type Bindings = CloudflareStorageBindings & {
   EDGE_EVER_LOCAL_DEMO_SEED?: string;
   EDGE_EVER_ALLOW_UNAUTHENTICATED?: string;
   EDGE_EVER_AI_STREAMING?: string;
+  EDGE_EVER_AI_GENERATION_TIMEOUT_SECONDS?: string;
 };
 
 export type WorkerBindings = Omit<Bindings, "storage">;

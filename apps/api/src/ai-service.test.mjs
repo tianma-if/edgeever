@@ -72,10 +72,16 @@ describe("AI model service", () => {
     ].join("\n\n"));
   });
 
-  test("streams plain text without forcing tool choice for thinking-model compatibility", async () => {
+  const thinkingModelFullText =
+    `我已经为你改好了。\n${resultBoundary.start}\n*在线模式下*\n${resultBoundary.end}\n希望这能帮到你。`;
+
+  test.each([
+    ["streaming (rollback lever)", true],
+    ["non-streaming (default shipping path)", false],
+  ])("forces no tool choice for thinking-model compatibility: %s", async (_label, streaming) => {
     let request;
-    const outcome = await runAiGeneration({
-      model: new MockLanguageModelV4({
+    const model = new MockLanguageModelV4(streaming
+      ? {
         doStream: async (options) => {
           request = options;
           return {
@@ -107,11 +113,28 @@ describe("AI model service", () => {
             }),
           };
         },
-      }),
+      }
+      : {
+        doGenerate: async (options) => {
+          request = options;
+          return {
+            content: [{ type: "text", text: thinkingModelFullText }],
+            finishReason: { unified: "stop", raw: "stop" },
+            usage: {
+              inputTokens: { total: 12, noCache: 12, cacheRead: undefined, cacheWrite: undefined },
+              outputTokens: { total: 8, text: 8, reasoning: undefined },
+            },
+            warnings: [],
+          };
+        },
+      });
+
+    const outcome = await runAiGeneration({
+      model,
       action: "improve-writing",
       contentMarkdown: "*在线模式下*",
       resultBoundary,
-      streaming: true,
+      streaming,
     });
 
     expect(normalizeAiGenerationText(outcome.text, resultBoundary)).toBe("*在线模式下*");

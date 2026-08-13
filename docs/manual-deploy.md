@@ -52,6 +52,11 @@ EDGE_EVER_AUTH_LOGIN_IP_COOLDOWN_SECONDS=300
 # Optional. true makes the AI generate endpoint consume the model's streaming
 # response; the default non-streaming call uses far less Worker CPU time.
 EDGE_EVER_AI_STREAMING=false
+# Optional. Server-side cap in seconds on how long the AI generate endpoint
+# waits for the model, default 90. This exists for Cloudflare's ~100s silent-
+# window limit on streaming responses; self-hosted deployments can raise it
+# or set it to 0 to disable the cap.
+EDGE_EVER_AI_GENERATION_TIMEOUT_SECONDS=90
 ```
 
 Then run:

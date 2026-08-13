@@ -26,6 +26,7 @@ import {
   isAiStreamingEnabled,
   loadDefaultAiModel,
   normalizeAiBaseUrl,
+  resolveAiGenerationTimeoutMs,
   resolvePrimaryAiCredentialEncryptionKey,
   runAiGeneration,
   testAiModel,
@@ -500,6 +501,12 @@ export const registerAiRoutes = (app: Hono<AppEnv>, dependencies: AiRouteDepende
             // is established well inside Cloudflare's time-to-first-byte limit.
             send({ type: "start" });
             try {
+              const timeoutMs = resolveAiGenerationTimeoutMs(
+                context.env.EDGE_EVER_AI_GENERATION_TIMEOUT_SECONDS,
+              );
+              const abortSignal = timeoutMs > 0
+                ? AbortSignal.any([context.req.raw.signal, AbortSignal.timeout(timeoutMs)])
+                : context.req.raw.signal;
               const outcome = await runAiGeneration({
                 model,
                 action,
@@ -508,10 +515,7 @@ export const registerAiRoutes = (app: Hono<AppEnv>, dependencies: AiRouteDepende
                 tone: needsTone ? input.tone : undefined,
                 instruction: resolvedInstruction,
                 resultBoundary,
-                abortSignal: AbortSignal.any([
-                  context.req.raw.signal,
-                  AbortSignal.timeout(90_000),
-                ]),
+                abortSignal,
                 streaming: isAiStreamingEnabled(context.env.EDGE_EVER_AI_STREAMING),
               });
               for (const frame of buildAiGenerationFrames(outcome, resultBoundary)) {
