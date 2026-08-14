@@ -34,6 +34,7 @@ import { UserManagementCard } from "./settings/UserManagementCard";
 import { ObjectStorageCard } from "./settings/ObjectStorageCard";
 import { AiModelCard } from "./settings/AiModelCard";
 import { AiPromptsCard } from "./settings/AiPromptsCard";
+import { AiGenerationPreferenceCard } from "./settings/AiGenerationPreferenceCard";
 import { ThemeToggle } from "./ThemeToggle";
 import type { AuthUser } from "@edgeever/shared";
 import { contentEnterMotion } from "@/lib/motion";
@@ -142,17 +143,15 @@ export const SettingsPane = ({
           },
         ]
       : []),
-    ...(isOwner || canClearLocalData
-      ? [{
-          key: "advanced" as const,
-          label: t("settings.tabs.advanced"),
-          icon: Wrench,
-          colorClass: "text-emerald-700",
-          bgColorClass: "bg-emerald-50/80",
-          hoverColorClass: "hover:bg-emerald-50/40",
-          iconColorClass: "text-emerald-600",
-        }]
-      : []),
+    {
+      key: "advanced",
+      label: t("settings.tabs.advanced"),
+      icon: Wrench,
+      colorClass: "text-emerald-700",
+      bgColorClass: "bg-emerald-50/80",
+      hoverColorClass: "hover:bg-emerald-50/40",
+      iconColorClass: "text-emerald-600",
+    },
     {
       key: "account",
       label: t("settings.tabs.account"),
@@ -235,12 +234,13 @@ export const SettingsPane = ({
           </SettingsGroup>
         );
       case "advanced":
-        return isOwner || canClearLocalData ? (
+        return (
           <SettingsGroup>
+            <AiGenerationPreferenceCard />
             {isOwner ? <ObjectStorageCard demoMode={demoMode} /> : null}
-            <DesktopLocalDataCard />
+            {canClearLocalData ? <DesktopLocalDataCard /> : null}
           </SettingsGroup>
-        ) : null;
+        );
       case "account":
         return (
           <SettingsGroup>

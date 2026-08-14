@@ -391,4 +391,23 @@ describe("desktop instance setup", () => {
       });
     }
   });
+
+  test("sends the disabled-by-default AI streaming preference and honors opt-in", async () => {
+    const requestBodies = [];
+    globalThis.fetch = async (_url, init) => {
+      requestBodies.push(JSON.parse(String(init?.body)));
+      return new Response('data: {"type":"finish"}\n\n', {
+        headers: { "Content-Type": "text/event-stream" },
+      });
+    };
+    const payload = { action: "summarize", title: "Note", contentMarkdown: "Body" };
+
+    storage.delete("edgeever.aiStreamingEnabled");
+    await api.streamAiGeneration(payload, { onEvent: () => {} });
+    storage.set("edgeever.aiStreamingEnabled", "true");
+    await api.streamAiGeneration(payload, { onEvent: () => {} });
+    await api.streamAiGeneration({ ...payload, stream: false }, { onEvent: () => {} });
+
+    expect(requestBodies.map((body) => body.stream)).toEqual([false, true, false]);
+  });
 });

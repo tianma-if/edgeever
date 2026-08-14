@@ -9,9 +9,12 @@ import {
 import { dirname, resolve } from "node:path";
 import {
   buildLocalDevEnvironmentFile,
+  DEPLOYMENT_TARGETS_PATH,
   findD1DatabaseIdByName,
   normalizeD1MigrationSql,
+  parseWranglerDeploymentUrls,
   runWranglerSync,
+  shouldCaptureDeploymentTargets,
 } from "./wrangler-runner.mjs";
 import { writeWranglerNotice } from "./wrangler-output.mjs";
 
@@ -324,6 +327,8 @@ if (changed) {
 }
 
 const isDeployCommand = wranglerArgs.includes("deploy");
+const captureDeploymentTargets = isDeployCommand && shouldCaptureDeploymentTargets();
+const deploymentTargetsPath = resolve(DEPLOYMENT_TARGETS_PATH);
 const hasSecretsFileArg = wranglerArgs.some((arg) => arg === "--secrets-file" || arg.startsWith("--secrets-file="));
 const hasEnvFileArg = wranglerArgs.some((arg) => arg === "--env-file" || arg.startsWith("--env-file="));
 const authPassword = envValue("AUTH_PASSWORD");
@@ -356,11 +361,25 @@ if (isDeployCommand && Object.keys(authSecrets).length > 0 && !hasSecretsFileArg
   finalWranglerArgs.push("--secrets-file", generatedSecretsPath);
 }
 
+if (captureDeploymentTargets) {
+  rmSync(deploymentTargetsPath, { force: true });
+}
+
 const result = runWranglerSync(["--config", configPath, ...finalWranglerArgs], {
   cwd: resolve("."),
+  encoding: captureDeploymentTargets ? "utf8" : undefined,
   env: process.env,
-  stdio: "inherit",
+  stdio: captureDeploymentTargets ? undefined : "inherit",
 });
+
+if (captureDeploymentTargets) {
+  if (result.stdout) process.stdout.write(result.stdout);
+  if (result.stderr) process.stderr.write(result.stderr);
+  if (result.status === 0) {
+    const urls = parseWranglerDeploymentUrls(`${result.stdout ?? ""}\n${result.stderr ?? ""}`);
+    writeFileSync(deploymentTargetsPath, `${JSON.stringify({ urls }, null, 2)}\n`);
+  }
+}
 
 if (result.status === 0 && isDeployCommand) {
   for (const [secretName, secretValue] of Object.entries(authSecrets)) {
@@ -386,4 +405,5 @@ if (result.error) {
   process.exit(1);
 }
 
-process.exit(result.status ?? 1);
+// Let piped stdout/stderr flush before the process exits in CI.
+process.exitCode = result.status ?? 1;

@@ -50,6 +50,17 @@ describe("production authentication guard", () => {
     });
   });
 
+  test("does not misreport transient D1 failures as unapplied migrations", async () => {
+    const response = await fetchApi("/api/health", {
+      DB: createDatabase({ error: new Error("D1_ERROR: Network connection lost.") }),
+    });
+
+    expect(response.status).toBe(500);
+    expect((await response.json()) as { error: { code: string } }).toMatchObject({
+      error: { code: "internal_error" },
+    });
+  });
+
   test("keeps passwordless access behind the explicit local-only flag", async () => {
     const response = await fetchApi("/api/v1/auth/session", {
       DB: createDatabase(),

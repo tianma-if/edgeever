@@ -22,6 +22,7 @@ on:
       - "scripts/verify-android-apk-signature.mjs"
 
 permissions:
+  actions: read
   contents: write
 
 concurrency:
@@ -266,3 +267,39 @@ jobs:
       - name: Remove temporary upload keystore
         if: always()
         run: rm -f "$RUNNER_TEMP/edgeever-upload.p12"
+
+  native-build-timings:
+    needs: android
+    if: >-
+      ${{
+        always() &&
+        github.repository == 'tianma-if/edgeever' &&
+        needs.android.result != 'skipped'
+      }}
+    name: Report Android build timings
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout timing reporter
+        uses: actions/checkout@v5
+
+      - name: Collect native build timings
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api \
+            "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/jobs?filter=latest&per_page=100" \
+            > "$RUNNER_TEMP/actions-jobs.json"
+          node scripts/report-native-build-timings.mjs \
+            --input "$RUNNER_TEMP/actions-jobs.json" \
+            --platform android \
+            --json "$RUNNER_TEMP/native-build-timings.json" \
+            --markdown "$RUNNER_TEMP/native-build-timings.md"
+          cat "$RUNNER_TEMP/native-build-timings.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload machine-readable timing report
+        uses: actions/upload-artifact@v7
+        with:
+          name: edgeever-android-build-timings-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/native-build-timings.json
+          if-no-files-found: error
+          retention-days: 90

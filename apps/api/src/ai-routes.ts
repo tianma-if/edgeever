@@ -16,12 +16,14 @@ import { auditStatement } from "./audit";
 import { getAiPromptTemplate, resolveWorkspaceActionInstruction } from "./ai-prompt-service";
 import {
   createAiGenerationResultBoundary,
+  createAiGenerationStreamNormalizer,
   decryptAiCredential,
   discoverAiModels,
   getAiModelConfig,
   getAiProviderConfig,
   getAiSettings,
   getDefaultAiModelId,
+  generateAiGeneration,
   loadDefaultAiModel,
   normalizeAiGenerationText,
   normalizeAiBaseUrl,
@@ -491,7 +493,7 @@ export const registerAiRoutes = (app: Hono<AppEnv>, dependencies: AiRouteDepende
           context.env,
         );
         const resultBoundary = createAiGenerationResultBoundary();
-        const result = streamAiGeneration({
+        const generationInput = {
           ...input,
           action,
           instruction: resolvedInstruction,
@@ -500,27 +502,50 @@ export const registerAiRoutes = (app: Hono<AppEnv>, dependencies: AiRouteDepende
           model,
           resultBoundary,
           abortSignal: context.req.raw.signal,
-        });
+        };
         const encoder = new TextEncoder();
         const stream = new ReadableStream<Uint8Array>({
           async start(controller) {
             const send = (event: unknown) => controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
             send({ type: "start" });
             try {
-              let generatedContent = "";
-              for await (const part of result.stream) {
-                if (part.type === "error") throw part.error;
-                if (part.type === "text-delta") generatedContent += part.text;
+              if (input.stream) {
+                const result = streamAiGeneration(generationInput);
+                const normalizer = createAiGenerationStreamNormalizer(resultBoundary);
+                let hasContent = false;
+                for await (const part of result.stream) {
+                  if (part.type === "error") throw part.error;
+                  if (part.type !== "text-delta") continue;
+                  const text = normalizer.push(part.text);
+                  if (!text) continue;
+                  hasContent ||= Boolean(text.trim());
+                  send({ type: "text-delta", text });
+                }
+                const trailingText = normalizer.finish();
+                if (trailingText) {
+                  hasContent ||= Boolean(trailingText.trim());
+                  send({ type: "text-delta", text: trailingText });
+                }
+                if (!hasContent) throw new Error("The AI did not return a note result.");
+                const [usage, finishReason] = await Promise.all([result.usage, result.finishReason]);
+                send({
+                  type: "finish",
+                  finishReason,
+                  inputTokens: usage.inputTokens,
+                  outputTokens: usage.outputTokens,
+                });
+                return;
               }
-              const contentMarkdown = normalizeAiGenerationText(generatedContent, resultBoundary);
+
+              const result = await generateAiGeneration(generationInput);
+              const contentMarkdown = normalizeAiGenerationText(result.text, resultBoundary);
               if (!contentMarkdown) throw new Error("The AI did not return a note result.");
               send({ type: "text-delta", text: contentMarkdown });
-              const [usage, finishReason] = await Promise.all([result.usage, result.finishReason]);
               send({
                 type: "finish",
-                finishReason,
-                inputTokens: usage.inputTokens,
-                outputTokens: usage.outputTokens,
+                finishReason: result.finishReason,
+                inputTokens: result.usage.inputTokens,
+                outputTokens: result.usage.outputTokens,
               });
             } catch (error) {
               send({ type: "error", code: "ai_generation_failed", message: providerErrorMessage(error) });

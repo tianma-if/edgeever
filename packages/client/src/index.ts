@@ -332,6 +332,7 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
         locale?: string;
         title: string;
         contentMarkdown: string;
+        stream?: boolean;
         targetLanguage?: AiTargetLanguage;
         tone?: AiTone;
         instruction?: string;

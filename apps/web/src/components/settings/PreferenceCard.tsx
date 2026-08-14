@@ -23,7 +23,8 @@ import { ShortcutSettingsItem } from "./ShortcutSettingsItem";
 import { CustomEditorThemeDialog } from "./CustomEditorThemeDialog";
 import {
   MERMAID_THEME_NAMES,
-  useTheme,
+  useEditorTheme,
+  useMermaidTheme,
   DEFAULT_CUSTOM_LIGHT_COLORS,
   DEFAULT_CUSTOM_DARK_COLORS,
   type CustomEditorTheme,
@@ -49,12 +50,11 @@ export const PreferenceCard = ({
   const { t } = useTranslation();
   const {
     editorTheme,
-    mermaidTheme,
     customEditorThemes,
     setCustomEditorThemes,
     setEditorTheme,
-    setMermaidTheme,
-  } = useTheme();
+  } = useEditorTheme();
+  const { mermaidTheme, setMermaidTheme } = useMermaidTheme();
   const [customThemeDialogOpen, setCustomThemeDialogOpen] = useState(false);
   const [editingTheme, setEditingTheme] = useState<CustomEditorTheme | null>(null);
   const [activeLocalePreference, setActiveLocalePreference] = useState<AppLocalePreference>(() => getAppLocalePreference());

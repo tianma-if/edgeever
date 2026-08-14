@@ -117,6 +117,12 @@ describe("AI route contracts", () => {
     }
   });
 
+  test("defaults AI generation to non-streaming and accepts an explicit opt-in", () => {
+    const input = { action: "summarize", title: "Note", contentMarkdown: "Body" };
+    expect(AiGenerateSchema.parse(input).stream).toBe(false);
+    expect(AiGenerateSchema.parse({ ...input, stream: true }).stream).toBe(true);
+  });
+
   test("defers prompt-specific action and parameter validation to the saved prompt", () => {
     expect(AiGenerateSchema.safeParse({
       action: "custom",

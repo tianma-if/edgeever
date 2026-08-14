@@ -344,6 +344,13 @@ export default defineConfig({
               priority: 18,
             },
             {
+              name: "vendor-radix-slot",
+              test: /node_modules[\\/]@radix-ui[\\/](?:react-slot|react-compose-refs)[\\/]/,
+              priority: 17,
+              // Button needs Slot in the app shell. Keep this tiny primitive
+              // separate from overlays that are loaded with lazy screens.
+            },
+            {
               name: "vendor-radix",
               test: /node_modules[\\/](@radix-ui|cmdk|vaul)[\\/]/,
               priority: 15,
@@ -375,6 +382,16 @@ export default defineConfig({
               test: /[\\/](?:beautiful-mermaid|elkjs|entities)(?:@|[\\/])/,
               priority: 13,
               maxSize: TARGET_VENDOR_CHUNK_BYTES,
+            },
+            {
+              name: "ui-button",
+              test: /src[\\/]components[\\/]ui[\\/]button\.tsx$/,
+              priority: 12,
+            },
+            {
+              name: "ui-button-tooltip",
+              test: /src[\\/]components[\\/]ui[\\/]button-tooltip\.tsx$/,
+              priority: 12,
             },
             {
               name: "ui-primitives",

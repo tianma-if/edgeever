@@ -2,6 +2,7 @@ import { strict as assert } from "node:assert";
 import { globSync, readFileSync } from "node:fs";
 import { Database } from "bun:sqlite";
 import worker from "../apps/api/src/index.ts";
+import { createMcpHttpHeaders } from "./mcp-http-headers.mjs";
 
 class SqliteD1PreparedStatement {
   constructor(db, sql, bindings = []) {
@@ -132,6 +133,24 @@ const fetchMcp = (payload, options = {}) =>
   );
 
 const rpc = (id, method, params) => ({ jsonrpc: "2.0", id, method, ...(params ? { params } : {}) });
+const modernRpc = (id, method, params = {}) => ({
+  jsonrpc: "2.0",
+  id,
+  method,
+  params: {
+    ...params,
+    _meta: {
+      "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+      "io.modelcontextprotocol/clientInfo": { name: "edgeever-integration-test", version: "1.0.0" },
+      "io.modelcontextprotocol/clientCapabilities": {},
+    },
+  },
+});
+const fetchModernMcp = (payload, options = {}) =>
+  fetchMcp(payload, {
+    ...options,
+    headers: { ...createMcpHttpHeaders(payload), ...(options.headers ?? {}) },
+  });
 const callTool = async (id, name, args = {}) => {
   const response = await fetchMcp(rpc(id, "tools/call", { name, arguments: args }));
   assert.equal(response.status, 200);
@@ -156,6 +175,26 @@ let body = await response.json();
 assert.equal(body.result.protocolVersion, "2025-11-25");
 assert.equal(body.result.serverInfo.name, "edgeever");
 assert.notEqual(body.result.serverInfo.version, "0.1.0");
+
+response = await fetchModernMcp(modernRpc(201, "server/discover"));
+assert.equal(response.status, 200);
+body = await response.json();
+assert.equal(body.result.resultType, "complete");
+assert.deepEqual(body.result.supportedVersions, ["2026-07-28"]);
+assert.equal(body.result.capabilities.tools.listChanged, false);
+assert.equal(body.result.cacheScope, "public");
+assert.equal(body.result._meta["io.modelcontextprotocol/serverInfo"].name, "edgeever");
+assert.equal(body.result.serverInfo, undefined);
+
+response = await fetchModernMcp(modernRpc(202, "tools/call", {
+  name: "get_current_user",
+  arguments: {},
+}));
+assert.equal(response.status, 200);
+body = await response.json();
+assert.equal(body.result.resultType, "complete");
+assert.equal(body.result.structuredContent.user.username, "zack42");
+assert.equal(body.result._meta["io.modelcontextprotocol/serverInfo"].name, "edgeever");
 
 response = await fetchMcp(rpc(3, "tools/list"));
 body = await response.json();
@@ -286,4 +325,4 @@ assert.equal(response.status, 202);
 response = await fetchMcp(null, { method: "GET" });
 assert.equal(response.status, 405);
 
-console.log("MCP protocol, identity, notebook lookup and rename, and idempotent import regression passed");
+console.log("MCP 2026/2025 protocol, identity, notebook lookup and rename, and idempotent import regression passed");

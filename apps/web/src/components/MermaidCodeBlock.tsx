@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { NodeViewContent, NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
 import { useTranslation } from "react-i18next";
 import { Check, CircleAlert, Code2, Copy, Maximize2, Workflow } from "lucide-react";
-import { MERMAID_THEME_PALETTES, useTheme } from "./ThemeProvider";
+import { MERMAID_THEME_PALETTES, useMermaidTheme } from "./ThemeProvider";
 import { MermaidViewer } from "./MermaidViewer";
 import { copyTextToClipboard } from "@/lib/clipboard";
 import { renderMermaidWithFallback } from "@/lib/mermaid-renderer";
@@ -34,7 +34,7 @@ const loadBeautifulMermaid = () => {
 
 export const MermaidCodeBlock = ({ editor, node }: NodeViewProps) => {
   const { t } = useTranslation();
-  const { mermaidRenderer, mermaidTheme, setMermaidRenderer } = useTheme();
+  const { mermaidRenderer, mermaidTheme, setMermaidRenderer } = useMermaidTheme();
   const language = typeof node.attrs.language === "string" ? node.attrs.language.toLowerCase() : "plaintext";
   const source = node.textContent.trim();
   const isMermaid = language === "mermaid";

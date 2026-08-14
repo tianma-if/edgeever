@@ -391,6 +391,85 @@ export const normalizeAiGenerationText = (
   return fencedMarkdown ? fencedMarkdown[1].trim() : result;
 };
 
+/** Incrementally remove the result boundary while preserving a safe full-response fallback. */
+export const createAiGenerationStreamNormalizer = (resultBoundary: AiGenerationResultBoundary) => {
+  let pending = "";
+  let boundaryStarted = false;
+  let boundaryFinished = false;
+  let openingLineRemoved = false;
+  let wrapperResolved = false;
+  let fencedMarkdown = false;
+
+  const removeOpeningLine = () => {
+    if (openingLineRemoved) return true;
+    const openingLine = /^[ \t]*(?:\r\n|\r|\n)/.exec(pending);
+    if (openingLine) {
+      pending = pending.slice(openingLine[0].length);
+      openingLineRemoved = true;
+      return true;
+    }
+    if (/^[ \t]*\r?$/.test(pending)) return false;
+    openingLineRemoved = true;
+    return true;
+  };
+
+  const resolveMarkdownWrapper = (finishing = false) => {
+    if (wrapperResolved) return true;
+    const wrapper = /^```(?:markdown|md)[ \t]*(?:\r\n|\r|\n)/i.exec(pending);
+    if (wrapper) {
+      pending = pending.slice(wrapper[0].length);
+      fencedMarkdown = true;
+      wrapperResolved = true;
+      return true;
+    }
+    if (!finishing && !/(?:\r\n|\r|\n)/.test(pending)) return false;
+    wrapperResolved = true;
+    return true;
+  };
+
+  const stripClosingWrapper = (value: string) => fencedMarkdown
+    ? value.replace(/(?:\r\n|\r|\n)```[ \t]*(?:\r\n|\r|\n)?$/, "")
+    : value;
+
+  return {
+    push(value: string) {
+      if (boundaryFinished || !value) return "";
+      pending += value;
+
+      if (!boundaryStarted) {
+        const startIndex = pending.indexOf(resultBoundary.start);
+        if (startIndex < 0) return "";
+        pending = pending.slice(startIndex + resultBoundary.start.length);
+        boundaryStarted = true;
+      }
+
+      if (!removeOpeningLine()) return "";
+      if (!resolveMarkdownWrapper()) return "";
+      const endIndex = pending.indexOf(resultBoundary.end);
+      if (endIndex >= 0) {
+        const output = stripClosingWrapper(pending.slice(0, endIndex))
+          .replace(/[ \t]*(?:\r\n|\r|\n)?$/, "");
+        pending = "";
+        boundaryFinished = true;
+        return output;
+      }
+
+      const retainedLength = resultBoundary.end.length;
+      if (pending.length <= retainedLength) return "";
+      const output = pending.slice(0, -retainedLength);
+      pending = pending.slice(-retainedLength);
+      return output;
+    },
+    finish() {
+      if (boundaryFinished) return "";
+      if (!boundaryStarted) return normalizeAiGenerationText(pending, resultBoundary);
+      removeOpeningLine();
+      resolveMarkdownWrapper(true);
+      return stripClosingWrapper(pending.replaceAll(resultBoundary.end, "")).trimEnd();
+    },
+  };
+};
+
 export const resolveAiGenerationSystemInstruction = (input: {
   action: AiAction;
   tone?: AiTone;
@@ -430,7 +509,7 @@ export const buildAiGenerationPrompt = (input: {
   `Note content:\n${input.contentMarkdown}`,
 ].filter(Boolean).join("\n\n");
 
-export const streamAiGeneration = (input: {
+type AiGenerationRequest = {
   model: ReturnType<typeof createAiModel>;
   action: AiAction;
   title: string;
@@ -440,7 +519,9 @@ export const streamAiGeneration = (input: {
   instruction?: string;
   resultBoundary: AiGenerationResultBoundary;
   abortSignal?: AbortSignal;
-}) => streamText({
+};
+
+const buildAiGenerationRequest = (input: AiGenerationRequest) => ({
   model: input.model,
   system: resolveAiGenerationSystemInstruction(input),
   prompt: buildAiGenerationPrompt({
@@ -452,3 +533,7 @@ export const streamAiGeneration = (input: {
   maxOutputTokens: 4096,
   abortSignal: input.abortSignal,
 });
+
+export const generateAiGeneration = (input: AiGenerationRequest) => generateText(buildAiGenerationRequest(input));
+
+export const streamAiGeneration = (input: AiGenerationRequest) => streamText(buildAiGenerationRequest(input));

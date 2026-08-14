@@ -1,8 +1,8 @@
 name: Update deployed EdgeEver
 
 # Keeps a deployment Fork aligned with upstream EdgeEver.
-# Deployment Forks are read-only mirrors by default: when content differs,
-# main resets to the selected Release (or edge main) and triggers Cloudflare.
+# Deployment Forks mirror product code by default while preserving a small
+# updater layer so GITHUB_TOKEN never needs permission to rewrite Actions.
 # The rare customized Fork must explicitly opt in to merge preservation.
 
 on:
@@ -95,8 +95,13 @@ jobs:
             head_version="unknown"
           fi
 
-          # Updater-only differences do not trigger a product update.
-          content_diff="$(git diff --name-only "${target_commit}" HEAD -- ':!.github/workflows/sync-edgeever-upstream.yml' ':!scripts/upstream-sync-plan.mjs' || true)"
+          # GitHub blocks GITHUB_TOKEN pushes that add, modify, or remove Actions
+          # workflows. Deployment forks therefore compare and update only the
+          # managed product tree; the small downstream updater layer stays local.
+          content_diff="$(git diff --name-only "${target_commit}" HEAD -- . \
+            ':(exclude).github/workflows/**' \
+            ':(exclude)scripts/prepare-upstream-sync.mjs' \
+            ':(exclude)scripts/upstream-sync-plan.mjs' || true)"
           content_matches_target=false
           if [ -z "${content_diff}" ]; then
             content_matches_target=true
@@ -120,6 +125,13 @@ jobs:
             target_is_ancestor_of_head=true
           fi
 
+          planner_path="${RUNNER_TEMP}/upstream-sync-plan.mjs"
+          if git cat-file -e "${target_commit}:scripts/upstream-sync-plan.mjs" 2>/dev/null; then
+            git show "${target_commit}:scripts/upstream-sync-plan.mjs" > "${planner_path}"
+          else
+            cp scripts/upstream-sync-plan.mjs "${planner_path}"
+          fi
+
           IFS=$'\t' read -r update_required align_mode reason republish_only < <(
             EDGE_SYNC_CONTENT_MATCHES_TARGET="${content_matches_target}" \
             EDGE_SYNC_FORCE_REDEPLOY="${FORCE_REDEPLOY}" \
@@ -127,8 +139,13 @@ jobs:
             EDGE_SYNC_HEAD_IS_ANCESTOR_OF_TARGET="${head_is_ancestor_of_target}" \
             EDGE_SYNC_PRESERVE_FORK_CHANGES="${PRESERVE_FORK_CHANGES}" \
             EDGE_SYNC_TARGET_IS_ANCESTOR_OF_HEAD="${target_is_ancestor_of_head}" \
-              node scripts/upstream-sync-plan.mjs
+              node "${planner_path}"
           )
+          # Releases created before the snapshot updater called this mode reset.
+          # Normalize that legacy plan without executing a history rewrite.
+          if [ "${align_mode}" = "reset" ]; then
+            align_mode=snapshot
+          fi
 
           {
             echo "target_ref=${target_ref}"
@@ -161,13 +178,13 @@ jobs:
                 echo "**Application content already matches upstream target** (history tip may differ). No git update is needed for deployment."
                 ;;
               behind_target)
-                echo "**Fork is behind upstream.** Aligning with a hard reset to the target commit (deploy-mirror path)."
+                echo "**Fork is behind upstream.** Applying the target product snapshot while preserving downstream workflows."
                 ;;
               deploy_mirror_reset)
-                echo "**Deployment mirror differs from upstream.** Resetting onto the selected target; no Fork code is preserved in the default mode."
+                echo "**Deployment mirror differs from upstream.** Replacing managed product files with the selected target while preserving downstream workflows."
                 ;;
               deploy_mirror_ahead)
-                echo "**Deploy-only fork is ahead of the selected upstream target.** Resetting onto that target."
+                echo "**Deploy-only fork is ahead of the selected upstream target.** Applying that target's product snapshot while preserving downstream workflows."
                 ;;
               customized_contains_target)
                 echo "**Opt-in customized fork already contains the upstream target.** Preserving its application changes without another merge."
@@ -184,7 +201,7 @@ jobs:
               echo "\`force_redeploy\` is set: will push an empty commit so Cloudflare Workers Builds runs again."
             fi
             echo ""
-            echo "Prefer this workflow over GitHub **Sync fork**. The default mirror mode intentionally owns \`main\` and resets it to the selected upstream target."
+            echo "Prefer this workflow over GitHub **Sync fork**. Mirror mode owns the managed product tree while preserving the Fork's local updater layer and \`.github/workflows/**\`."
           } >> "${GITHUB_STEP_SUMMARY}"
 
           echo "channel=${UPDATE_CHANNEL} target=${target_ref}@${target_commit:0:12} (v${target_version}) head=${head_commit:0:12} (v${head_version}) reason=${reason} align=${align_mode} update=${update_required} republish=${republish_only}"
@@ -201,26 +218,18 @@ jobs:
           git config user.name "edgeever-updater[bot]"
           git config user.email "edgeever-updater[bot]@users.noreply.github.com"
 
-          case "${ALIGN_MODE}" in
-            reset)
-              git reset --hard "${TARGET_COMMIT}"
-              git clean -fd
-              echo "Reset main onto ${TARGET_REF} (${TARGET_COMMIT:0:12}) because ${REASON}."
-              ;;
-            merge)
-              if ! git merge --no-edit -m "chore: update EdgeEver from ${TARGET_REF}" "${TARGET_COMMIT}"; then
-                git merge --abort || true
-                echo "Merge from ${TARGET_REF} conflicted with local application changes." >&2
-                echo "Resolve the customized fork manually, or remove EDGE_EVER_PRESERVE_FORK_CHANGES to return to mirror mode." >&2
-                exit 1
-              fi
-              echo "Merged ${TARGET_REF} (${TARGET_COMMIT:0:12}) because ${REASON}."
-              ;;
-            *)
-              echo "Unsupported align mode: ${ALIGN_MODE}" >&2
-              exit 1
-              ;;
-          esac
+          helper_path="${RUNNER_TEMP}/prepare-upstream-sync.mjs"
+          if git cat-file -e "${TARGET_COMMIT}:scripts/prepare-upstream-sync.mjs" 2>/dev/null; then
+            git show "${TARGET_COMMIT}:scripts/prepare-upstream-sync.mjs" > "${helper_path}"
+          else
+            cp scripts/prepare-upstream-sync.mjs "${helper_path}"
+          fi
+
+          EDGE_SYNC_ALIGN_MODE="${ALIGN_MODE}" \
+          EDGE_SYNC_BASE_COMMIT="HEAD" \
+          EDGE_SYNC_TARGET_COMMIT="${TARGET_COMMIT}" \
+            node "${helper_path}" prepare
+          echo "Prepared ${ALIGN_MODE} update from ${TARGET_REF} (${TARGET_COMMIT:0:12}) because ${REASON}."
 
       - name: Set up Bun
         if: steps.upstream.outputs.align_mode == 'merge'
@@ -243,6 +252,7 @@ jobs:
         if: steps.upstream.outputs.update_required == 'true' || steps.upstream.outputs.republish_only == 'true'
         env:
           TARGET_REF: ${{ steps.upstream.outputs.target_ref }}
+          TARGET_COMMIT: ${{ steps.upstream.outputs.target_commit }}
           UPDATE_REQUIRED: ${{ steps.upstream.outputs.update_required }}
           REPUBLISH_ONLY: ${{ steps.upstream.outputs.republish_only }}
           ALIGN_MODE: ${{ steps.upstream.outputs.align_mode }}
@@ -260,22 +270,30 @@ jobs:
             exit 0
           fi
 
-          if [ "${ALIGN_MODE}" = "reset" ]; then
-            if [ "${REASON}" = "behind_target" ]; then
-              git push origin HEAD:main
-              echo "mode=fast_forward" >> "${GITHUB_OUTPUT}"
-              echo "Published fast-forward main for ${TARGET_REF}."
-            else
-              # Diverged mirrors require a guarded history rewrite.
-              git push --force-with-lease origin HEAD:main
-              echo "mode=force_with_lease" >> "${GITHUB_OUTPUT}"
-              echo "Published reset main for ${TARGET_REF}."
-            fi
-          else
-            git push origin HEAD:main
-            echo "mode=push" >> "${GITHUB_OUTPUT}"
-            echo "Published merge for ${TARGET_REF}."
+          git commit \
+            -m "chore: update EdgeEver from ${TARGET_REF}" \
+            -m "EdgeEver-Upstream-Commit: ${TARGET_COMMIT}"
+
+          if ! git diff --quiet HEAD^ HEAD -- \
+            .github/workflows \
+            scripts/prepare-upstream-sync.mjs \
+            scripts/upstream-sync-plan.mjs; then
+            echo "Refusing to publish an update that changes the downstream updater layer." >&2
+            exit 1
           fi
+
+          if [ "${ALIGN_MODE}" = "snapshot" ] && \
+             ! git diff --quiet "${TARGET_COMMIT}" HEAD -- . \
+               ':(exclude).github/workflows/**' \
+               ':(exclude)scripts/prepare-upstream-sync.mjs' \
+               ':(exclude)scripts/upstream-sync-plan.mjs'; then
+            echo "Prepared product tree does not match ${TARGET_REF}." >&2
+            exit 1
+          fi
+
+          git push origin HEAD:main
+          echo "mode=${ALIGN_MODE}_commit" >> "${GITHUB_OUTPUT}"
+          echo "Published ${ALIGN_MODE} update for ${TARGET_REF} without changing downstream workflows."
 
       - name: Trigger Cloudflare Deploy Hook
         if: steps.publish.outcome == 'success'

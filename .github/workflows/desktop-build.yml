@@ -11,6 +11,7 @@ on:
     types: [published]
 
 permissions:
+  actions: read
   contents: write
 
 jobs:
@@ -154,8 +155,10 @@ jobs:
         include:
           - arch: arm64
             runner: macos-15
+            shared_validation: true
           - arch: x64
             runner: macos-15-intel
+            shared_validation: false
 
     steps:
       - name: Check out source
@@ -169,7 +172,11 @@ jobs:
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Cache Bun dependencies
+      # Restoring this large cache is consistently slower than a cold install on
+      # the Intel runner. The arm64 job owns the shared validation and keeps the
+      # cache because its restore path is substantially faster.
+      - name: Cache Bun dependencies for shared validation
+        if: matrix.shared_validation
         uses: actions/cache@v5
         with:
           path: ~/.bun/install/cache
@@ -248,28 +255,36 @@ jobs:
         run: bun run build:web
 
       - name: Verify Web precache budget
+        if: matrix.shared_validation
         run: bun run verify:web-performance
 
       - name: Run project type checks
+        if: matrix.shared_validation
         run: |
           bun run typecheck
           bun run typecheck:mobile
 
       - name: Build debug sidecar for integration tests
+        if: matrix.shared_validation
         run: cargo build --manifest-path crates/desktop-sidecar/Cargo.toml
 
       - name: Run desktop regression tests
+        if: matrix.shared_validation
         run: bun run test:desktop
 
       - name: Verify packaged renderer startup
+        if: matrix.shared_validation
         run: bun run verify:desktop-renderer
 
-      - name: Build Rust sidecar
+      - name: Validate Rust sidecar
+        if: matrix.shared_validation
         run: |
           cargo fmt --manifest-path crates/desktop-sidecar/Cargo.toml -- --check
           cargo clippy --manifest-path crates/desktop-sidecar/Cargo.toml --all-targets -- -D warnings
           cargo test --manifest-path crates/desktop-sidecar/Cargo.toml
-          cargo build --manifest-path crates/desktop-sidecar/Cargo.toml --release
+
+      - name: Build architecture-specific Rust sidecar
+        run: cargo build --manifest-path crates/desktop-sidecar/Cargo.toml --release
 
       - name: Prepare Apple notarization API key
         env:
@@ -311,6 +326,42 @@ jobs:
             release/desktop/EdgeEver-*-mac-${{ matrix.arch }}.zip.blockmap
           if-no-files-found: error
           retention-days: 14
+
+  native-build-timings:
+    needs: desktop
+    if: >-
+      ${{
+        always() &&
+        github.repository == 'tianma-if/edgeever' &&
+        needs.desktop.result != 'skipped'
+      }}
+    name: Report macOS build timings
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out timing reporter
+        uses: actions/checkout@v5
+
+      - name: Collect native build timings
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api \
+            "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/jobs?filter=latest&per_page=100" \
+            > "$RUNNER_TEMP/actions-jobs.json"
+          node scripts/report-native-build-timings.mjs \
+            --input "$RUNNER_TEMP/actions-jobs.json" \
+            --platform desktop \
+            --json "$RUNNER_TEMP/native-build-timings.json" \
+            --markdown "$RUNNER_TEMP/native-build-timings.md"
+          cat "$RUNNER_TEMP/native-build-timings.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload machine-readable timing report
+        uses: actions/upload-artifact@v6
+        with:
+          name: edgeever-desktop-build-timings-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/native-build-timings.json
+          if-no-files-found: error
+          retention-days: 90
 
   desktop-assets:
     needs: [release-plan, desktop]

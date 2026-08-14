@@ -6,6 +6,7 @@ import {
   aiActionInstructions,
   buildAiGenerationPrompt,
   createAiGenerationResultBoundary,
+  createAiGenerationStreamNormalizer,
   discoverAiModels,
   mapAiProviderConfig,
   normalizeAiGenerationText,
@@ -125,6 +126,39 @@ describe("AI model service", () => {
     expect(request.tools).toBeUndefined();
     expect(request.toolChoice).not.toMatchObject({ type: "tool" });
     expect(await result.finishReason).toBe("stop");
+  });
+
+  test("normalizes bounded output incrementally across split markers", () => {
+    const normalizer = createAiGenerationStreamNormalizer(resultBoundary);
+    const chunks = [
+      "Preamble that must not be shown.\n<edgeever-result-",
+      "test123>\n# Result\n\nFirst ",
+      "part.\n</edgeever-result-",
+      "test123>\nPostscript that must not be shown.",
+    ];
+    const emitted = chunks.map((chunk) => normalizer.push(chunk)).filter(Boolean);
+    const trailing = normalizer.finish();
+
+    expect(emitted.join("") + trailing).toBe("# Result\n\nFirst part.");
+    expect(emitted.length).toBeGreaterThan(1);
+  });
+
+  test("falls back to the normalized full response when a model omits result markers", () => {
+    const normalizer = createAiGenerationStreamNormalizer(resultBoundary);
+    expect(normalizer.push("```markdown\n# Result")).toBe("");
+    expect(normalizer.push("\n```")).toBe("");
+    expect(normalizer.finish()).toBe("# Result");
+  });
+
+  test("removes a whole-response Markdown fence while streaming bounded output", () => {
+    const normalizer = createAiGenerationStreamNormalizer(resultBoundary);
+    const chunks = [
+      `${resultBoundary.start}\n\`\`\`mark`,
+      "down\n# Result\n\nBody",
+      `\n\`\`\`\n${resultBoundary.end}`,
+    ];
+    const output = chunks.map((chunk) => normalizer.push(chunk)).join("") + normalizer.finish();
+    expect(output).toBe("# Result\n\nBody");
   });
 
   test("omits tools and tool_choice from the OpenAI-compatible request body", async () => {

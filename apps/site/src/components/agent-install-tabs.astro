@@ -14,7 +14,7 @@ const copy = isEnglish
       agent: "Option A: Deploy with an AI Agent",
       recommended: "Recommended",
       agentIntro:
-        "Copy this prompt into an AI Agent configured with GitHub and Cloudflare MCP servers, plugins, or other integrations (such as Codex, Claude, Cursor, Antigravity, OpenClaw, Hermes Agent, etc.):",
+        "Copy the prompt below directly into an AI Agent (such as Codex, Claude, Cursor, workbuddy, Antigravity, OpenClaw, Hermes Agent, etc.). During execution, if access to GitHub or Cloudflare is required, review the requested permissions and follow the prompts to authorize access.",
       agentGuide: "Detailed requirements: AI Agent Cloudflare Deployment",
       agentGuideHref:
         "https://github.com/tianma-if/edgeever/blob/main/docs/agent-deploy-cloudflare.md",
@@ -38,7 +38,7 @@ const copy = isEnglish
       agent: "方案一：AI Agent 一键部署",
       recommended: "推荐",
       agentIntro:
-        "将下方提示词直接复制发送给已配置 GitHub、Cloudflare MCP/插件或其他可用集成的 AI Agent（如 Codex, Claude, Cursor, Antigravity, OpenClaw, Hermes Agent 等）：",
+        "将下方提示词直接复制发送给 AI Agent（如 Codex、Claude、Cursor、workbuddy、Antigravity、OpenClaw、Hermes Agent 等）。执行过程中，如需访问 GitHub 或 Cloudflare，请确认权限范围并按提示完成授权。",
       agentGuide: "详细约定与要求：AI Agent 在线部署约定",
       agentGuideHref:
         "https://github.com/tianma-if/edgeever/blob/main/docs/agent-deploy-cloudflare.zh-CN.md",
@@ -156,16 +156,16 @@ const copy = isEnglish
         </a>
       </p>
 
-      <!-- Bottom Visa Billing Notice Card (Soft Muted Amber Warning) -->
+      <!-- Bottom R2 Billing Notice Card (Soft Muted Amber Warning) -->
       <div class="mx-auto mt-5 flex max-w-3xl items-start gap-2.5 rounded-xl border border-amber-200/50 bg-amber-50/50 p-3 sm:p-3.5 text-xs leading-relaxed text-amber-900/80 font-sans">
         <Icon class="mt-0.5 h-4 w-4 shrink-0 text-amber-600/70" name="bx:bx-credit-card" />
         {isEnglish ? (
           <p>
-            <span class="font-semibold text-amber-950">Note:</span> Although Cloudflare R2 offers a generous free tier that note-taking workloads are unlikely to ever exceed, it requires binding a payment method (such as a dual-currency credit card) to activate. Based on personal experience, for users in mainland China, VISA cards from China Merchants Bank (CMB) or Shanghai Pudong Development Bank (SPDB) are typically the fastest to get verified (and most of these cards have no annual fees or easily waivable ones, so there are no extra holding costs).
+            <span class="font-semibold text-amber-950">Note:</span> Although Cloudflare R2 offers a generous <a class="underline underline-offset-2 hover:text-amber-950" href="https://developers.cloudflare.com/r2/pricing/#free-tier" target="_blank" rel="noopener">free storage allowance</a> that note-taking workloads are unlikely to ever exceed, you must first activate an R2 subscription and add a payment method. Cloudflare <a class="underline underline-offset-2 hover:text-amber-950" href="https://developers.cloudflare.com/billing/get-started/update-billing-info/#supported-payment-methods" target="_blank" rel="noopener">officially supports</a> UnionPay, Visa, Mastercard, and other cards, as well as PayPal, Apple Pay, Google Pay, and other payment methods.
           </p>
         ) : (
           <p>
-            <span class="font-semibold text-amber-950">提示：</span>Cloudflare R2 存储虽然提供了足够慷慨、在笔记场景中几乎永远不会超量的免费额度，但开通时仍需绑定支付方式（双币信用卡）。根据个人经验，在国内 VISA 信用卡中，招商和浦发的验证与开通最快捷，且这类卡片大多免年费（或极易通过刷卡免年费），无需担心持有成本。
+            <span class="font-semibold text-amber-950">提示：</span>虽然 Cloudflare R2 存储提供了足够慷慨、在笔记场景中几乎永远不会超量的<a class="underline underline-offset-2 hover:text-amber-950" href="https://developers.cloudflare.com/r2/pricing/#free-tier" target="_blank" rel="noopener">免费存储额度</a>，但需先开通 R2 subscription 并绑定付款方式。Cloudflare <a class="underline underline-offset-2 hover:text-amber-950" href="https://developers.cloudflare.com/billing/get-started/update-billing-info/#supported-payment-methods" target="_blank" rel="noopener">官方支持</a> 银联（UnionPay）、Visa、Mastercard 等银行卡，以及 PayPal、Apple Pay、Google Pay 等付款方式。
           </p>
         )}
       </div>

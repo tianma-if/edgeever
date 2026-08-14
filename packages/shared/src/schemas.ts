@@ -215,6 +215,7 @@ export const AiGenerateSchema = z.object({
   locale: z.string().trim().min(2).max(35).optional(),
   title: z.string().trim().max(160).default(""),
   contentMarkdown: z.string().max(300_000),
+  stream: z.boolean().default(false),
   targetLanguage: z.enum(AI_TARGET_LANGUAGES).optional(),
   tone: z.enum(AI_TONES).optional(),
   instruction: z.string().trim().min(1).max(2_000).optional(),

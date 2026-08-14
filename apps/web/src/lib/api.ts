@@ -37,6 +37,7 @@ import type {
 } from "@edgeever/shared";
 import { resolveInstanceUrlInput } from "@edgeever/shared";
 import type { MemoFilterMode, MemoSortMode } from "./app-helpers";
+import { readAiStreamingPreference } from "./ai-generation-preference";
 
 type ListNotebooksResponse = {
   notebooks: Notebook[];
@@ -631,6 +632,7 @@ export const api = {
       locale?: string;
       title: string;
       contentMarkdown: string;
+      stream?: boolean;
       targetLanguage?: AiTargetLanguage;
       tone?: AiTone;
       instruction?: string;
@@ -646,7 +648,10 @@ export const api = {
       method: "POST",
       credentials: "include",
       headers,
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        ...payload,
+        stream: payload.stream ?? readAiStreamingPreference(),
+      }),
       signal: options.signal,
     });
     if (!response.ok) {

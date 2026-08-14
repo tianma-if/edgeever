@@ -193,7 +193,7 @@
     },
     "/api/v1/ai/generate": {
       "post": {
-        "summary": "Stream a note AI action using the current workspace model",
+        "summary": "Run a note AI action using the current workspace model",
         "requestBody": {
           "required": true,
           "content": {
@@ -206,6 +206,7 @@
                   "locale": { "type": "string", "maxLength": 35 },
                   "title": { "type": "string", "maxLength": 160 },
                   "contentMarkdown": { "type": "string", "maxLength": 300000 },
+                  "stream": { "type": "boolean", "default": false, "description": "Stream normalized text deltas when enabled; disabled by default for lower Worker CPU usage" },
                   "targetLanguage": { "type": "string", "enum": ["en", "zh-CN", "zh-TW", "ja", "ko", "es", "fr", "de", "pt"], "description": "Required when the action or selected prompt requests a target language" },
                   "tone": { "type": "string", "enum": ["professional", "friendly", "casual", "direct"] },
                   "instruction": { "type": "string", "minLength": 1, "maxLength": 2000, "description": "Freeform instruction; ignored when promptId is supplied" }

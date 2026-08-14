@@ -39,7 +39,7 @@ EdgeEver 是一款现代化的开源笔记工作区。它为你找回经典印�
 - **数据开放，不设围墙**：基于标准 SQLite 存储，提供 REST API、MCP 与 CLI 接口。数据随时可读可导，不再担心被任何特定平台绑定。
 - **无损 ZIP 打包与无缝迁移**：一键打包导出包含 Markdown、Front Matter、嵌套目录及附件的完整档案，同时保留历史版本与结构化数据，方便在不同实例间完整还原。
 - **原生 AI Agent 智脑联动**：内置 MCP（Model Context Protocol）协议，支持 Claude Code、Codex、Antigravity 等 AI 助手直接读取与整理笔记，也可与 Notion Database、飞书多维表格轻松打通。
-- **接入自己的 AI 模型**：可添加多个 OpenAI 兼容、Anthropic 或 Gemini 服务（包括 OpenRouter 等聚合平台），每个 Base URL 下可配置多个模型，并选择笔记 AI 默认使用的模型。
+- **接入自己的 AI 模型**：支持添加多个 OpenAI、Anthropic、Gemini 兼容服务与第三方中转平台，在编辑器中随时对全文或选区进行智能总结、要点提炼、语法校对、翻译与续写润色。
 - **多端无缝同步，无设备限制**：自托管数据无商业限制，摆脱免费账号仅限 2 台设备的束缚，在 PC、平板与手机上随心同步。
 - **经典三栏布局与专注模式**：笔记本树、笔记列表与编辑区一目了然；桌面端一键开启专注模式，让思绪尽情铺满屏幕。
 - **无限层级笔记本**：轻松构建清晰的多级目录结构。
@@ -65,7 +65,7 @@ EdgeEver 采用纯 Serverless 架构，完全运行在 Cloudflare 免费配额�
 
 ### 方案一：AI Agent 一键部署（推荐）
 
-将下方提示词直接复制发送给已配置 GitHub、Cloudflare MCP/插件或其他可用集成的 AI Agent（如 Codex, Claude, Cursor, Antigravity, OpenClaw, Hermes Agent 等）：
+将下方提示词直接复制发送给 AI Agent（如 Codex、Claude、Cursor、workbuddy、Antigravity、OpenClaw、Hermes Agent 等）。执行过程中，如需访问 GitHub 或 Cloudflare，请确认权限范围并按提示完成授权。
 
 ```text
 请在线完成 EdgeEver 部署：
@@ -94,7 +94,7 @@ EdgeEver 采用纯 Serverless 架构，完全运行在 Cloudflare 免费配额�
 
 ---
 
-> 💡 **部署提示（Cloudflare R2 绑定）**：虽然 Cloudflare R2 存储提供了足够慷慨、在笔记场景中几乎永远不会超量的免费额度，但开通时仍需绑定支付方式（双币信用卡）。根据个人经验，在国内 VISA 信用卡中，招商和浦发的验证与开通最快捷，且这类卡片大多免年费（或极易通过刷卡免年费），无需担心持有成本。
+> 💡 **部署提示（Cloudflare R2 付款方式）**：虽然 Cloudflare R2 存储提供了足够慷慨、在笔记场景中几乎永远不会超量的[免费存储额度](https://developers.cloudflare.com/r2/pricing/#free-tier)，但需先开通 R2 subscription 并绑定付款方式。Cloudflare [官方支持](https://developers.cloudflare.com/billing/get-started/update-billing-info/#supported-payment-methods) 银联（UnionPay）、Visa、Mastercard 等银行卡，以及 PayPal、Apple Pay、Google Pay 等付款方式。
 
 ## 多账号登录
 
@@ -201,13 +201,15 @@ https://你的域名/api/openapi.json
 
 先在 EdgeEver 左下角 **个人中心** 的 **MCP 设置** 中创建 API Token，再将 Token 或完整 MCP 配置发送给 AI Agent。连接后，Agent 即可在你的授权范围内安全地读取、整理和导入笔记；重复执行同一导入任务也不会创建重复笔记。
 
+Remote MCP 端点支持无状态的 `2026-07-28` 协议，同时继续兼容现有客户端使用的 2025 握手式协议版本。
+
 > 放飞你的思路，这种情况下是有很多灵活玩法：
 比如让AI Agent归纳你随机记录的灵感创意、针对你的笔记做精准的人物画像、构建自己的知识图谱、自动为笔记打标签）
 借助 MCP，EdgeEver 还可以与 Notion Database、飞书多维表格等工具联动，把日常笔记中零散的灵感、信息和素材沉淀到结构化数据库中，方便后续整理、检索与管理。
 
 ## 接入自己的 AI 模型
 
-进入**个人中心 → AI 集成**，可以使用自己的 Base URL 和 API Key 添加一个或多个 OpenAI 兼容协议、Anthropic Messages 或 Google Gemini 云端服务。每个服务都能配置多个模型：既可以从服务的模型列表接口自动发现，也可以手动输入模型 ID。这也适用于 OpenRouter 等聚合平台——同一个 Base URL 可以同时提供多个厂商的模型。服务级开关会让该服务下的全部模型暂时不可用，工作区默认模型则决定笔记 AI 实际使用哪个模型。
+进入**个人中心 → AI 集成**，可以使用自己的 Base URL 和 API Key 添加一个或多个 OpenAI 兼容协议、Anthropic Messages 或 Google Gemini 云端服务，也支持第三方中转站。每个服务都能配置多个模型：既可以从服务的模型列表接口自动发现，也可以手动输入模型 ID。服务级开关会让该服务下的全部模型暂时不可用，工作区默认模型则决定笔记 AI 实际使用哪个模型。
 
 当前 Web、Android 与 iOS 的 AI 功能支持总结、提炼要点、提取待办、改写校对、翻译、缩短、扩写、简化、改变语气、继续写作与自定义指令。三个平台的编辑器都可以直接处理选中内容，并只替换对应选区。模型结果会先作为可审查的流式草稿展示，用户可以重试、继续提出调整要求、追加内容，或明确接受后替换原文。翻译使用带默认值的语言下拉框：中文界面默认译为英语，英文界面默认译为简体中文。
 

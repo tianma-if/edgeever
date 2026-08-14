@@ -29,16 +29,16 @@ export function decideUpstreamSync({
 
   if (!preserveForkChanges) {
     if (headIsAncestorOfTarget) {
-      return update("reset", "behind_target");
+      return update("snapshot", "behind_target");
     }
     if (targetIsAncestorOfHead) {
-      return update("reset", "deploy_mirror_ahead");
+      return update("snapshot", "deploy_mirror_ahead");
     }
-    return update("reset", "deploy_mirror_reset");
+    return update("snapshot", "deploy_mirror_reset");
   }
 
   if (headIsAncestorOfTarget) {
-    return update("reset", "behind_target");
+    return update("snapshot", "behind_target");
   }
   if (targetIsAncestorOfHead) {
     return noUpdate("customized_contains_target", forceRedeploy);

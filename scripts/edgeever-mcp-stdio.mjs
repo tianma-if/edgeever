@@ -3,6 +3,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { homedir } from "node:os";
+import { createMcpHttpHeaders } from "./mcp-http-headers.mjs";
 
 const CONFIG_PATH = process.env.EDGEEVER_CONFIG || join(homedir(), ".edgeever", "config.json");
 const DEFAULT_URL = "http://127.0.0.1:8787";
@@ -108,13 +109,15 @@ async function forwardToEdgeEver(request) {
     negotiatedProtocolVersion = request?.params?.protocolVersion || "2025-11-25";
   }
 
+  const requestHeaders = createMcpHttpHeaders(request, negotiatedProtocolVersion);
+
   const response = await fetch(`${client.baseUrl}/mcp`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${client.token}`,
       Accept: "application/json, text/event-stream",
       "Content-Type": "application/json",
-      ...(negotiatedProtocolVersion ? { "MCP-Protocol-Version": negotiatedProtocolVersion } : {}),
+      ...requestHeaders,
     },
     body: JSON.stringify(request),
   });

@@ -24,6 +24,7 @@ target/
 .wrangler/
 .wrangler.generated-migrations/
 .wrangler.generated*.toml
+.wrangler.deployment-targets.json
 .dev.vars
 wrangler.local.toml
 
