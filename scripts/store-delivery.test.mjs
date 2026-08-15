@@ -41,4 +41,16 @@ describe("store delivery command", () => {
     expect(workflow.match(/eas-version: 21\.4\.0/g)).toHaveLength(2);
     expect(workflow.match(/packager: npm/g)).toHaveLength(2);
   });
+
+  test("replaces the GitHub APK with the Play-signed universal APK", () => {
+    const workflow = readFileSync(
+      new URL("../.github/workflows/store-delivery.yml", import.meta.url),
+      "utf8",
+    );
+
+    expect(workflow).toContain("GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64");
+    expect(workflow).toContain("ANDROID_PLAY_APP_SIGNER_SHA256");
+    expect(workflow).toContain("scripts/download-play-universal-apk.mjs");
+    expect(workflow).toContain('gh release upload "$RELEASE_TAG" "$apk_path"');
+  });
 });

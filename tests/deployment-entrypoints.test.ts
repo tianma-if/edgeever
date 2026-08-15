@@ -99,6 +99,13 @@ describe("Cloudflare deployment entrypoints", () => {
     expect(scripts["deploy:cloudflare-builds"]).toBe(
       "EDGE_EVER_USE_EXISTING_AUTH_SECRET=true bun run deploy:ci",
     );
+    expect(scripts["build:cloudflare"]).toContain("bun run build:worker");
+
+    const wranglerConfig = readRepositoryFile("wrangler.toml");
+    expect(wranglerConfig).toContain('main = ".wrangler/edgeever-worker/index.js"');
+    expect(wranglerConfig).toContain("no_bundle = true");
+    expect(wranglerConfig).toContain("find_additional_modules = true");
+    expect(wranglerConfig).toContain('globs = ["modules/*.js"]');
   });
 
   test("online deployment declares the required authentication Secret", () => {
@@ -697,6 +704,14 @@ describe("Cloudflare deployment entrypoints", () => {
     expect(siteDeploymentComponent).toContain('deploymentPrompts["zh-CN"]');
     expect(siteDeploymentComponent).toContain('manualDeploymentCopy["en-US"]');
     expect(siteDeploymentComponent).toContain('manualDeploymentCopy["zh-CN"]');
+    expect(siteDeploymentComponent).toContain("UnionPay");
+    expect(siteDeploymentComponent).toContain("银联（UnionPay）");
+    expect(siteDeploymentComponent).toContain("free storage allowance");
+    expect(siteDeploymentComponent).toContain("免费存储额度");
+    expect(siteDeploymentComponent).not.toContain("dual-currency credit card");
+    expect(siteDeploymentComponent).not.toContain("双币信用卡");
+    expect(siteDeploymentComponent).not.toContain("China Merchants Bank");
+    expect(siteDeploymentComponent).not.toContain("招商和浦发");
 
     for (const [locale, readme, heading, separator] of [
       ["en-US", englishReadme, "### Option B: Manual Online Deployment", ": "],

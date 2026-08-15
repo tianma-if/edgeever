@@ -16,7 +16,6 @@ import {
   AI_TARGET_LANGUAGES,
   AI_TONES,
   canReplaceAiSource,
-  createEdgeEverMathematics,
   docToMarkdown,
   getDefaultAiTargetLanguage,
   getAiDocumentFingerprint,
@@ -35,6 +34,7 @@ import {
   type AiTone,
   type TiptapDoc,
 } from "@edgeever/shared";
+import { createEdgeEverMathematics } from "@edgeever/shared/mathematics";
 import {
   DEFAULT_IMAGE_WIDTH_PERCENT,
   IMAGE_WIDTH_PRESETS,

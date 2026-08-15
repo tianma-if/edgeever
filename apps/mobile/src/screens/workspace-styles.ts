@@ -1240,6 +1240,17 @@ const baseWorkspaceStyles = StyleSheet.create({
     minWidth: 0,
     padding: 0,
   },
+  createMemoTagsButton: {
+    alignItems: "center",
+    flex: 1,
+    flexDirection: "row",
+    gap: 6,
+    minHeight: 36,
+    minWidth: 0,
+  },
+  createMemoTagsPlaceholder: {
+    color: "#94a3b8",
+  },
   createMemoToolButton: {
     alignItems: "center",
     borderColor: "transparent",
@@ -1550,6 +1561,53 @@ const baseWorkspaceStyles = StyleSheet.create({
   },
   notebookPickerRowActive: {
     backgroundColor: "#f1f5f9",
+  },
+  tagPickerSelectedList: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 10,
+  },
+  tagPickerChip: {
+    alignItems: "center",
+    backgroundColor: "#ecfdf5",
+    borderRadius: 999,
+    flexDirection: "row",
+    gap: 4,
+    minHeight: 32,
+    paddingHorizontal: 11,
+  },
+  tagPickerChipText: {
+    color: "#047857",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  tagPickerCreateText: {
+    color: "#047857",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  tagPickerLoading: {
+    paddingVertical: 28,
+  },
+  tagPickerCheckbox: {
+    alignItems: "center",
+    borderColor: "#cbd5e1",
+    borderRadius: 5,
+    borderWidth: 1,
+    height: 22,
+    justifyContent: "center",
+    width: 22,
+  },
+  tagPickerCheckboxSelected: {
+    backgroundColor: "#16a06e",
+    borderColor: "#16a06e",
+  },
+  tagPickerRowText: {
+    color: "#0f172a",
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "700",
   },
   actionSheetHandle: {
     alignSelf: "center",

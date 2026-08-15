@@ -1,9 +1,9 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient, type InfiniteData, type QueryKey, type UseMutationResult } from "@tanstack/react-query";
 import * as Clipboard from "expo-clipboard";
 import Constants from "expo-constants";
 import { File as ExpoFile } from "expo-file-system";
-import type { MemoFilterMode, MemoSortMode } from "@edgeever/client";
+import type { ListMemosResponse, MemoFilterMode, MemoSortMode } from "@edgeever/client";
 import {
   ActivityIndicator,
   BookOpen,
@@ -99,11 +99,13 @@ import {
   type MobileSyncQueueItem,
 } from "../lib/sync-queue";
 import { deleteMobileMemos } from "../lib/mobile-memo-delete";
+import { removeMobileMemosFromListCache } from "../lib/mobile-memo-list-cache";
 import {
   createMobileDataScope,
   getLocalMemo,
   listLocalMemos,
   listLocalNotebooks,
+  listLocalTags,
   resolveLocalMemo,
   syncMobileLocalMirror,
   upsertLocalMemo,
@@ -221,6 +223,7 @@ type RichEditingSession = {
   memo: MemoDetail;
 };
 type MobileMemoUpdateMutation = UseMutationResult<MemoDetail, Error, { memo: MemoDetail; payload: MobileMemoUpdatePayload }>;
+type MobileMemoListCacheSnapshot = Array<[QueryKey, InfiniteData<ListMemosResponse> | undefined]>;
 
 export const WorkspaceScreen = ({
   incomingShareError = null,
@@ -863,6 +866,30 @@ export const WorkspaceScreen = ({
     void writeMobileImageCompressionEnabled(enabled);
   };
 
+  const optimisticallyRemoveMemoIds = async (memoIds: string[]): Promise<MobileMemoListCacheSnapshot> => {
+    const queryKeys: QueryKey[] = [
+      ["mobile", "memos"],
+      ["mobile", "search"],
+    ];
+    await Promise.all(queryKeys.map((queryKey) => queryClient.cancelQueries({ queryKey })));
+    const snapshot = queryKeys.flatMap((queryKey) =>
+      queryClient.getQueriesData<InfiniteData<ListMemosResponse>>({ queryKey })
+    );
+    const memoIdSet = new Set(memoIds);
+    for (const queryKey of queryKeys) {
+      queryClient.setQueriesData<InfiniteData<ListMemosResponse>>({ queryKey }, (current) =>
+        removeMobileMemosFromListCache(current, memoIdSet)
+      );
+    }
+    return snapshot;
+  };
+
+  const restoreMemoListCache = (snapshot: MobileMemoListCacheSnapshot | undefined) => {
+    for (const [queryKey, data] of snapshot ?? []) {
+      queryClient.setQueryData(queryKey, data);
+    }
+  };
+
   const invalidateWorkspace = async () => {
     if (client) {
       await syncMobileLocalMirror(client, dataScope);
@@ -996,6 +1023,12 @@ export const WorkspaceScreen = ({
   };
 
   const deleteMemoMutation = useMutation({
+    onMutate: async ({ memo }) => {
+      const cacheSnapshot = await optimisticallyRemoveMemoIds([memo.id]);
+      const reopenMemoId = selectedMemoId === memo.id ? memo.id : null;
+      setSelectedMemoId(null);
+      return { cacheSnapshot, reopenMemoId };
+    },
     mutationFn: async ({ memo, permanent }: { memo: MemoDetail; permanent: boolean }) => {
       await deleteMobileMemos({
         client,
@@ -1012,7 +1045,11 @@ export const WorkspaceScreen = ({
       setRichEditingSession(null);
       setSelectedMemoId(null);
     },
-    onError: (error) => {
+    onError: (error, _variables, context) => {
+      restoreMemoListCache(context?.cacheSnapshot);
+      if (context?.reopenMemoId) {
+        setSelectedMemoId(context.reopenMemoId);
+      }
       Alert.alert("删除失败", error instanceof Error ? error.message : "请检查网络后重试");
     },
   });
@@ -1082,6 +1119,13 @@ export const WorkspaceScreen = ({
   });
 
   const deleteMemosMutation = useMutation({
+    onMutate: async ({ memoIds }) => {
+      const cacheSnapshot = await optimisticallyRemoveMemoIds(memoIds);
+      const previousSelectionMode = selectionMode;
+      const previousSelectedMemoIds = new Set(selectedMemoIds);
+      clearSelection();
+      return { cacheSnapshot, previousSelectionMode, previousSelectedMemoIds };
+    },
     mutationFn: async ({ memoIds, permanent }: { memoIds: string[]; permanent: boolean }) => {
       const result = await deleteMobileMemos({
         client,
@@ -1097,7 +1141,10 @@ export const WorkspaceScreen = ({
       await invalidateWorkspace();
       clearSelection();
     },
-    onError: (error) => {
+    onError: (error, _variables, context) => {
+      restoreMemoListCache(context?.cacheSnapshot);
+      setSelectionMode(context?.previousSelectionMode ?? false);
+      setSelectedMemoIds(context?.previousSelectedMemoIds ?? new Set());
       Alert.alert("删除失败", error instanceof Error ? error.message : "请检查网络后重试");
     },
   });
@@ -1742,6 +1789,130 @@ const NotebookPickerModal = ({
   );
 };
 
+const TagPickerModal = ({
+  dataScope,
+  onChange,
+  onClose,
+  selectedTags,
+  visible,
+}: {
+  dataScope: string;
+  onChange: (tags: string[]) => void;
+  onClose: () => void;
+  selectedTags: string[];
+  visible: boolean;
+}) => {
+  const { translate } = useMobileLocale();
+  const safeAreaInsets = useSafeAreaInsets();
+  const [searchText, setSearchText] = useState("");
+  const tagsQuery = useQuery({
+    queryKey: ["mobile-tags", dataScope],
+    queryFn: () => listLocalTags(dataScope),
+    enabled: visible && Boolean(dataScope),
+  });
+  const normalizedSearch = searchText.trim().replace(/^#/, "");
+  const tags = tagsQuery.data?.tags ?? [];
+  const visibleTags = tags.filter((tag) => tag.name.toLocaleLowerCase().includes(normalizedSearch.toLocaleLowerCase()));
+  const exactMatch = tags.some((tag) => tag.name.toLocaleLowerCase() === normalizedSearch.toLocaleLowerCase());
+
+  useEffect(() => {
+    if (visible) {
+      setSearchText("");
+    }
+  }, [visible]);
+
+  const commit = (nextTags: string[]) => onChange(Array.from(new Set(nextTags)).slice(0, 24));
+  const toggleTag = (name: string) => commit(
+    selectedTags.includes(name) ? selectedTags.filter((tag) => tag !== name) : [...selectedTags, name]
+  );
+  const createTag = () => {
+    const additions = parseTags(normalizedSearch);
+    if (additions.length === 0) return;
+    commit([...selectedTags, ...additions]);
+    setSearchText("");
+  };
+
+  return (
+    <Modal animationType="fade" onRequestClose={onClose} transparent visible={visible}>
+      <Pressable onPress={onClose} style={styles.actionSheetBackdrop}>
+        <Pressable style={[styles.actionSheet, styles.notebookPickerSheet, { paddingBottom: Math.max(8, safeAreaInsets.bottom) }]}>
+          <View style={styles.actionSheetHandle} />
+          <View style={styles.notebookPickerHeader}>
+            <View style={styles.notebookPickerHeaderText}>
+              <Text style={styles.actionSheetTitle}>{translate("选择标签")}</Text>
+              <Text style={styles.panelLabel}>{translate("点选已有标签，或输入名称创建新标签")}</Text>
+            </View>
+            <Pressable accessibilityLabel="关闭" accessibilityRole="button" onPress={onClose} style={styles.notebookPickerCloseButton}>
+              <X color="#0f172a" size={20} />
+            </Pressable>
+          </View>
+
+          <ScrollView contentContainerStyle={styles.notebookPickerContent} keyboardShouldPersistTaps="handled" style={styles.notebookPickerScroll}>
+            {selectedTags.length > 0 ? (
+              <View accessibilityLabel="已选标签" style={styles.tagPickerSelectedList}>
+                {selectedTags.map((tag) => (
+                  <Pressable key={tag} accessibilityLabel={`移除标签 ${tag}`} accessibilityRole="button" onPress={() => toggleTag(tag)} style={styles.tagPickerChip}>
+                    <Text style={styles.tagPickerChipText}>#{tag}</Text>
+                    <X color="#047857" size={14} />
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
+
+            <View style={styles.notebookPickerSearchBox}>
+              <Search color="#64748b" size={18} />
+              <TextInput
+                accessibilityLabel="搜索或输入新标签"
+                autoCapitalize="none"
+                autoCorrect={false}
+                onChangeText={setSearchText}
+                onSubmitEditing={createTag}
+                placeholder="搜索或输入新标签"
+                placeholderTextColor="#94a3b8"
+                returnKeyType="done"
+                style={styles.notebookPickerSearchInput}
+                value={searchText}
+              />
+              {normalizedSearch && !exactMatch && selectedTags.length < 24 ? (
+                <Pressable accessibilityLabel={`新建标签 ${normalizedSearch}`} accessibilityRole="button" onPress={createTag}>
+                  <Text style={styles.tagPickerCreateText}>{translate("新建")}</Text>
+                </Pressable>
+              ) : null}
+            </View>
+
+            {tagsQuery.isLoading ? (
+              <ActivityIndicator color="#16a06e" style={styles.tagPickerLoading} />
+            ) : visibleTags.length === 0 ? (
+              <View style={styles.emptyInlinePanel}>
+                <Tag color="#94a3b8" size={28} />
+                <Text style={styles.mutedText}>{translate("没有匹配的现有标签，可直接新建")}</Text>
+              </View>
+            ) : visibleTags.map((tag) => {
+              const selected = selectedTags.includes(tag.name);
+              return (
+                <Pressable
+                  key={tag.name}
+                  accessibilityLabel={`标签 ${tag.name}`}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  onPress={() => toggleTag(tag.name)}
+                  style={[styles.notebookPickerRow, selected && styles.notebookPickerRowActive]}
+                >
+                  <View style={[styles.tagPickerCheckbox, selected && styles.tagPickerCheckboxSelected]}>
+                    {selected ? <Check color="#ffffff" size={14} /> : null}
+                  </View>
+                  <Text numberOfLines={1} style={styles.tagPickerRowText}>#{tag.name}</Text>
+                  <Text style={styles.panelLabel}>{translate(`${tag.memoCount} 条笔记`)}</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+};
+
 const CreateMemoModal = ({
   baseUrl,
   client: clientProp,
@@ -1796,6 +1967,7 @@ const CreateMemoModal = ({
   const [tagsText, setTagsText] = useState("");
   const [contentMarkdown, setContentMarkdown] = useState("");
   const [notebookPickerOpen, setNotebookPickerOpen] = useState(false);
+  const [tagPickerOpen, setTagPickerOpen] = useState(false);
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [draftLoaded, setDraftLoaded] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -2329,18 +2501,13 @@ const CreateMemoModal = ({
             <Text numberOfLines={1} style={styles.createMemoNotebookText}>{selectedNotebookName}</Text>
             <ChevronDown color="#64748b" size={14} />
           </Pressable>
-          <TextInput
-            accessibilityLabel="笔记标签"
-            autoCorrect
-            onChangeText={(value) => {
-              setTagsText(value);
-              markDirty();
-            }}
-            placeholder="添加标签，用逗号分隔"
-            placeholderTextColor="#94a3b8"
-            style={styles.createMemoTagsInput}
-            value={tagsText}
-          />
+          <Pressable accessibilityLabel="选择笔记标签" accessibilityRole="button" onPress={() => setTagPickerOpen(true)} style={styles.createMemoTagsButton}>
+            <Tag color="#64748b" size={15} />
+            <Text numberOfLines={1} style={[styles.createMemoTagsInput, !tagsText && styles.createMemoTagsPlaceholder]}>
+              {tagsText || "添加标签"}
+            </Text>
+            <ChevronDown color="#94a3b8" size={14} />
+          </Pressable>
         </View>
 
         <View style={styles.createMemoEditorFrame}>
@@ -2361,6 +2528,16 @@ const CreateMemoModal = ({
           markDirty();
         }}
         visible={notebookPickerOpen}
+      />
+      <TagPickerModal
+        dataScope={dataScope}
+        onChange={(nextTags) => {
+          setTagsText(nextTags.join(", "));
+          markDirty();
+        }}
+        onClose={() => setTagPickerOpen(false)}
+        selectedTags={parseTags(tagsText)}
+        visible={tagPickerOpen}
       />
       <MobileResourceActions
         canMutate={Boolean(materializedMemoRef.current)}
@@ -2586,6 +2763,7 @@ const RichEditorModal = ({
   const [tagsText, setTagsText] = useState(restoredDraft?.tagsText ?? memo?.tags.join(", ") ?? "");
   const [notebookId, setNotebookId] = useState(restoredDraft?.notebookId ?? memo?.notebookId ?? "");
   const [notebookPickerOpen, setNotebookPickerOpen] = useState(false);
+  const [tagPickerOpen, setTagPickerOpen] = useState(false);
   const [draftRestored, setDraftRestored] = useState(Boolean(restoredDraft));
   const [ready, setReady] = useState(false);
   const [dirty, setDirty] = useState(Boolean(restoredDraft));
@@ -2896,18 +3074,13 @@ const RichEditorModal = ({
                 <Text numberOfLines={1} style={styles.createMemoNotebookText}>{notebookLabel}</Text>
                 <ChevronDown color="#64748b" size={14} />
               </Pressable>
-              <TextInput
-                autoCorrect
-                onChangeText={(value) => {
-                  setTagsText(value);
-                  dirtyRef.current = true;
-                  setDirty(true);
-                }}
-                placeholder="添加标签，用逗号分隔"
-                placeholderTextColor="#94a3b8"
-                style={[styles.createMemoTagsInput, styles.richStandaloneTagsInput]}
-                value={tagsText}
-              />
+              <Pressable accessibilityLabel="选择笔记标签" accessibilityRole="button" onPress={() => setTagPickerOpen(true)} style={[styles.createMemoTagsButton, styles.richStandaloneTagsInput]}>
+                <Tag color="#64748b" size={15} />
+                <Text numberOfLines={1} style={[styles.createMemoTagsInput, !tagsText && styles.createMemoTagsPlaceholder]}>
+                  {tagsText || "添加标签"}
+                </Text>
+                <ChevronDown color="#94a3b8" size={14} />
+              </Pressable>
             </View>
             {draftRestored ? <Text style={styles.richEditorDraftNotice}>已恢复上次未完成的本地草稿</Text> : null}
             <View style={styles.richEditorFrame}>
@@ -2932,6 +3105,17 @@ const RichEditorModal = ({
             setDirty(true);
           }}
           visible={notebookPickerOpen}
+        />
+        <TagPickerModal
+          dataScope={createMobileDataScope(session?.baseUrl ?? baseUrl, session?.user?.id)}
+          onChange={(nextTags) => {
+            setTagsText(nextTags.join(", "));
+            dirtyRef.current = true;
+            setDirty(true);
+          }}
+          onClose={() => setTagPickerOpen(false)}
+          selectedTags={parseTags(tagsText)}
+          visible={tagPickerOpen}
         />
         <MobileResourceActions
           canMutate={Boolean(memo && !memo.id.startsWith("local:"))}

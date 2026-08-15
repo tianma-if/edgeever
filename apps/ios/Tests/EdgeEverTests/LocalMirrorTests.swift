@@ -41,6 +41,9 @@ final class LocalMirrorTests: XCTestCase {
         let listed = try mirror.listMemos(scope: scope, params: .init(q: "world"))
         XCTAssertEqual(listed.totalCount, 1)
         XCTAssertEqual(listed.memos.first?.title, "Hello")
+
+        let tags = try mirror.listTags(scope: scope)
+        XCTAssertEqual(tags, [TagSummary(name: "a", memoCount: 1, updatedAt: now)])
     }
 
     func testOutboxCreateAbsorbsUpdate() throws {

@@ -74,11 +74,14 @@ export const registerSyncRoutes = (
         `SELECT COUNT(*) AS count FROM memos WHERE workspace_id = ?`,
       ).bind(workspaceId).first<{ count: number }>(),
       context.env.storage.db.prepare(
-        `SELECT w.created_at AS sync_identity, COALESCE(MAX(c.id), 0) AS cursor
+        `SELECT w.created_at AS sync_identity,
+                COALESCE((
+                  SELECT MAX(c.id)
+                  FROM mobile_sync_changes c
+                  WHERE c.workspace_id = w.id
+                ), 0) AS cursor
          FROM workspaces w
-         LEFT JOIN mobile_sync_changes c ON c.workspace_id = w.id
-         WHERE w.id = ?
-         GROUP BY w.created_at`,
+         WHERE w.id = ?`,
       ).bind(workspaceId).first<{ cursor: number; sync_identity: string }>(),
     ]);
     const page = memoRows.results.slice(0, limit);
@@ -112,18 +115,26 @@ export const registerSyncRoutes = (
          LIMIT ?`,
       ).bind(workspaceId, cursor, limit + 1).all<MobileSyncChangeRow>(),
       context.env.storage.db.prepare(
-        `SELECT w.created_at AS sync_identity, COALESCE(MAX(c.id), 0) AS cursor
+        `SELECT w.created_at AS sync_identity,
+                COALESCE((
+                  SELECT MAX(c.id)
+                  FROM mobile_sync_changes c
+                  WHERE c.workspace_id = w.id
+                ), 0) AS cursor
          FROM workspaces w
-         LEFT JOIN mobile_sync_changes c ON c.workspace_id = w.id
-         WHERE w.id = ?
-         GROUP BY w.created_at`,
+         WHERE w.id = ?`,
       ).bind(workspaceId).first<{ cursor: number; sync_identity: string }>(),
     ]);
     const page = rows.results.slice(0, limit);
-    const memoIds = Array.from(new Set(page
+    const latestPageChanges = new Map<string, MobileSyncChangeRow>();
+    for (const change of page) {
+      latestPageChanges.set(`${change.entity_type}:${change.entity_id}`, change);
+    }
+    const compactedPage = Array.from(latestPageChanges.values()).sort((left, right) => left.id - right.id);
+    const memoIds = Array.from(new Set(compactedPage
       .filter((change) => change.entity_type === "memo" && change.operation === "upsert")
       .map((change) => change.entity_id)));
-    const notebookIds = Array.from(new Set(page
+    const notebookIds = Array.from(new Set(compactedPage
       .filter((change) => change.entity_type === "notebook" && change.operation === "upsert")
       .map((change) => change.entity_id)));
     const memoPlaceholders = memoIds.map(() => "?").join(", ");
@@ -153,7 +164,7 @@ export const registerSyncRoutes = (
     ]);
     const memosById = new Map(memoRows.results.map((row) => [row.id, dependencies.mapMemoDetail(row)]));
     const notebooksById = new Map(notebookRows.results.map((row) => [row.id, mapNotebook(row)]));
-    const changes = page.map((change) => {
+    const changes = compactedPage.map((change) => {
       if (change.entity_type === "memo") {
         const memo = change.operation === "upsert" ? memosById.get(change.entity_id) ?? null : null;
         return {

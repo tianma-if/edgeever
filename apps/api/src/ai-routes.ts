@@ -510,7 +510,7 @@ export const registerAiRoutes = (app: Hono<AppEnv>, dependencies: AiRouteDepende
             send({ type: "start" });
             try {
               if (input.stream) {
-                const result = streamAiGeneration(generationInput);
+                const result = await streamAiGeneration(generationInput);
                 const normalizer = createAiGenerationStreamNormalizer(resultBoundary);
                 let hasContent = false;
                 for await (const part of result.stream) {
