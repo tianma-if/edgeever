@@ -9,6 +9,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import * as m from "motion/react-m";
 import {
@@ -41,8 +42,10 @@ import {
   TagX,
   Link2,
   FileDown,
+  FileCode2,
   Printer,
   Pencil,
+  Copy,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -55,6 +58,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { MemoCard } from "./MemoCard";
+import { ClipboardCopyNotice } from "./ClipboardCopyNotice";
 import { cn } from "@/lib/utils";
 import { WORKSPACE_PAGE_TITLE_CLASSNAME } from "@/lib/workspace-ui";
 import type { Notebook, MemoSummary } from "@edgeever/shared";
@@ -70,6 +74,7 @@ import type {
 import { contentEnterMotion, paneEnterMotion } from "@/lib/motion";
 import type { SyncQueueSummary } from "@/lib/sync-queue";
 import { isLocalMemoId } from "@/lib/local-mirror";
+import { copyTextToClipboard } from "@/lib/clipboard";
 import {
   getMemoFilterOptions,
   getMemoSortOptions,
@@ -137,9 +142,13 @@ export const MemoSelectionActionBar = ({
   onMoveTargetChange: (notebookId: string) => void;
 }) => {
   const { t } = useTranslation();
+  const selectedMoveNotebookName = moveNotebookOptions.find((item) => item.id === moveTargetNotebookId)?.name;
 
   return (
-    <div className="hidden h-full min-h-0 flex-1 items-center justify-start bg-white px-16 py-10 lg:flex lg:pl-44 xl:px-24 xl:pl-44">
+    <div
+      className="hidden h-full min-h-0 flex-1 items-start justify-start bg-white px-6 py-6 lg:flex lg:px-8 lg:py-8 xl:px-10"
+      data-memo-selection-action-bar
+    >
       <m.div className="w-72 overflow-hidden rounded-md border border-slate-200 bg-white py-1 shadow-lg" {...paneEnterMotion}>
         <div className="flex h-9 items-center gap-2 px-3 text-xs font-semibold text-slate-400">
           <CheckSquare className="h-4 w-4" />
@@ -150,7 +159,7 @@ export const MemoSelectionActionBar = ({
             <div className="flex items-center gap-2">
               <Select value={moveTargetNotebookId} disabled={isMoving} onValueChange={onMoveTargetChange}>
                 <SelectTrigger className="h-8 min-w-0 flex-1 text-xs text-slate-700 border-slate-200">
-                  <SelectValue placeholder={t("memoList.chooseNotebook")} />
+                  <SelectValue placeholder={t("memoList.chooseNotebook")}>{selectedMoveNotebookName}</SelectValue>
                 </SelectTrigger>
                 <SelectContent className="max-h-60 bg-white border border-slate-200 rounded-md py-1 shadow-md">
                   {moveNotebookOptions.map((item) => (
@@ -464,6 +473,7 @@ export const MemoListPane = ({
   const [listDensity, setListDensity] = useState<MemoListDensity>(() => readMemoListDensityPreference());
   const [lastSelectedMemoId, setLastSelectedMemoId] = useState<string | null>(null);
   const [moveTargetNotebookId, setMoveTargetNotebookId] = useState("");
+  const [memoIdCopyNotice, setMemoIdCopyNotice] = useState<{ status: "copied" | "error"; id: string } | null>(null);
 
   const filterOptions = useMemo(() => getMemoFilterOptions(t), [t]);
   const memoSortOptions = useMemo(() => getMemoSortOptions(t), [t]);
@@ -541,6 +551,15 @@ export const MemoListPane = ({
     const printWindow = action === "export-pdf" ? window.open("about:blank", "_blank") : undefined;
     setMemoContextMenu(null);
     onRequestDocumentAction(memo.id, action, printWindow);
+  };
+
+  const handleCopyContextMemoId = async () => {
+    const memo = memoContextMenu?.memo;
+    if (!memo || isLocalMemoId(memo.id)) return;
+    setMemoContextMenu(null);
+    const copied = await copyTextToClipboard(memo.id);
+    setMemoIdCopyNotice({ status: copied ? "copied" : "error", id: memo.id });
+    window.setTimeout(() => setMemoIdCopyNotice(null), copied ? 2200 : 3000);
   };
 
   useEffect(() => {
@@ -759,7 +778,7 @@ export const MemoListPane = ({
     // Keep enough room for the full action list. Radix can still adjust the
     // final position, but this prevents the initial placement from starting
     // below the viewport on short or zoomed desktop viewports.
-    const menuHeight = view === "trash" ? 180 : 320;
+    const menuHeight = view === "trash" ? 216 : 356;
     const x = Math.min(clientX, Math.max(12, window.innerWidth - menuWidth - 12));
     const y = Math.min(clientY, Math.max(12, window.innerHeight - menuHeight - 12));
 
@@ -1143,7 +1162,7 @@ export const MemoListPane = ({
             </DropdownMenu>
 
             <ToggleGroup
-              className="h-8 shrink-0 overflow-hidden rounded-md border border-slate-200 bg-white"
+              className="h-8 shrink-0 overflow-hidden rounded-md border border-border bg-card"
               type="single"
               value={listDensity}
               onValueChange={(value) => {
@@ -1162,7 +1181,7 @@ export const MemoListPane = ({
                 <LayoutList className="h-4 w-4" />
               </ToggleGroupItem>
               <ToggleGroupItem
-                className="rounded-none border-0 border-l border-slate-200"
+                className="rounded-none border-0 border-l border-border"
                 size="icon"
                 title={t("memoList.compactList")}
                 value="compact"
@@ -1413,8 +1432,9 @@ export const MemoListPane = ({
         )}
       </div>
 
-      {/* Controlled Right Click context menu for single note on Desktop using absolute placement */}
-      {memoContextMenu && (
+      {/* Keep the virtual trigger in the document viewport so fixed coordinates
+          are not offset by the memo pane's backdrop-filter containing block. */}
+      {memoContextMenu && typeof document !== "undefined" ? createPortal(
         <div style={{ position: "fixed", left: memoContextMenu.x, top: memoContextMenu.y, zIndex: 100 }}>
           <DropdownMenu open={true} onOpenChange={(open) => { if (!open) setMemoContextMenu(null); }}>
             <DropdownMenuTrigger asChild>
@@ -1423,6 +1443,7 @@ export const MemoListPane = ({
             <DropdownMenuContent
               align="start"
               className="max-h-[calc(100dvh-1.5rem)] w-56 max-w-[calc(100vw-1.5rem)] overflow-y-auto bg-white border border-slate-200 rounded-md py-1 shadow-md"
+              data-memo-actions-menu
             >
               <DropdownMenuItem
                 className="flex h-9 w-full items-center gap-2 px-3 text-left text-sm text-slate-700 hover:bg-slate-50 cursor-pointer outline-none"
@@ -1460,6 +1481,14 @@ export const MemoListPane = ({
                   {memoContextMenu.memo.isPinned ? t("memoList.unpin") : t("memoList.pinMemo")}
                 </DropdownMenuItem>
               )}
+              <DropdownMenuItem
+                className="flex h-9 w-full items-center gap-2 px-3 text-left text-sm text-slate-700 hover:bg-slate-50 cursor-pointer outline-none"
+                disabled={isLocalMemoId(memoContextMenu.memo.id)}
+                onClick={() => void handleCopyContextMemoId()}
+              >
+                <Copy className="h-4 w-4 text-slate-500" />
+                {t(isLocalMemoId(memoContextMenu.memo.id) ? "editor.copyNoteIdAfterSync" : "editor.copyNoteId")}
+              </DropdownMenuItem>
               <DropdownMenuSeparator className="my-1 h-px bg-slate-100" />
               {view === "trash" ? (
                 <>
@@ -1540,6 +1569,13 @@ export const MemoListPane = ({
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     className="flex h-9 w-full items-center gap-2 px-3 text-left text-sm text-slate-700 hover:bg-slate-50 cursor-pointer outline-none"
+                    onClick={() => requestContextDocumentAction("export-html")}
+                  >
+                    <FileCode2 className="h-4 w-4 text-slate-500" />
+                    {t("editor.exportHtml")}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="flex h-9 w-full items-center gap-2 px-3 text-left text-sm text-slate-700 hover:bg-slate-50 cursor-pointer outline-none"
                     onClick={() => requestContextDocumentAction("export-pdf")}
                   >
                     <Printer className="h-4 w-4 text-slate-500" />
@@ -1568,7 +1604,14 @@ export const MemoListPane = ({
               )}
             </DropdownMenuContent>
           </DropdownMenu>
-        </div>
+        </div>,
+        document.body
+      ) : null}
+
+      {memoIdCopyNotice && (
+        <ClipboardCopyNotice status={memoIdCopyNotice.status}>
+          {t(memoIdCopyNotice.status === "copied" ? "editor.noteIdCopied" : "editor.noteIdCopyFailed", { id: memoIdCopyNotice.id })}
+        </ClipboardCopyNotice>
       )}
 
       {selectionMode && (

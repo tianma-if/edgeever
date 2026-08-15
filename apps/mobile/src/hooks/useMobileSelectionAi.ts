@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef, type RefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, type RefObject } from "react";
 import { ApiRequestError } from "@edgeever/client";
+import { useQuery } from "@tanstack/react-query";
 import type { LocalTiptapEditorRef } from "../components/LocalTiptapEditor";
 import { buildMobileAiStreamBridgePayload, parseMobileSelectionAiRequest } from "../lib/mobile-ai-selection";
 import { safeDomCall } from "../lib/safe-dom-call";
@@ -19,6 +20,16 @@ export const useMobileSelectionAi = ({
   titleRef: RefObject<string>;
 }) => {
   const activeRequestRef = useRef<{ requestId: string; controller: AbortController } | null>(null);
+  const promptsQuery = useQuery({
+    queryKey: ["ai-prompts", resolvedLocale],
+    queryFn: async () => (await client!.listAiPrompts(resolvedLocale)).prompts,
+    enabled: Boolean(client),
+    retry: false,
+  });
+  const aiPromptsJson = useMemo(
+    () => JSON.stringify(promptsQuery.data ?? []),
+    [promptsQuery.data],
+  );
 
   useEffect(() => () => {
     activeRequestRef.current?.controller.abort();
@@ -36,6 +47,8 @@ export const useMobileSelectionAi = ({
 
     void client.streamAiGeneration({
       action: request.action,
+      promptId: request.promptId,
+      locale: request.locale ?? resolvedLocale,
       title: titleRef.current.trim(),
       contentMarkdown: request.contentMarkdown,
       targetLanguage: request.targetLanguage,
@@ -75,5 +88,5 @@ export const useMobileSelectionAi = ({
     activeRequestRef.current = null;
   }, []);
 
-  return { cancelSelectionAi, requestSelectionAi };
+  return { aiPromptsJson, cancelSelectionAi, requestSelectionAi };
 };

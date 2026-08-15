@@ -22,6 +22,7 @@ import { isAllowedPrintPreviewUrl } from "./window-open-policy.mjs";
 import { showWindow } from "./window-visibility.mjs";
 import { trayIconPath } from "./tray-icon.mjs";
 import { writeRichClipboard } from "./clipboard-write.mjs";
+import { scheduleMacLocalDataReset } from "./local-data-reset.mjs";
 import electronUpdater from "electron-updater";
 
 const { autoUpdater } = electronUpdater;
@@ -79,6 +80,7 @@ let shutdownCleanupStarted = false;
 let sidecarRestartTimer = null;
 let sidecarRestartAttempts = 0;
 let sidecarRestartInFlight = false;
+let localDataResetScheduled = false;
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 const windowStatePath = () => join(app.getPath("userData"), "window-state.json");
 const instanceUrlPath = () => join(app.getPath("userData"), "instance-url");
@@ -679,6 +681,9 @@ app.whenReady().then(async () => {
   await startSidecar();
   createTray();
 
+  ipcMain.on("desktop:local-data-reset-available-sync", (event) => {
+    event.returnValue = process.platform === "darwin" && app.isPackaged && !requestedUserDataDirectory;
+  });
   ipcMain.handle("desktop:sidecar-request", async (_event, method, params) => {
     if (!sidecar) throw new Error("EdgeEver sidecar is unavailable");
     const result = await sidecar.request(method, params);
@@ -726,6 +731,43 @@ app.whenReady().then(async () => {
   ipcMain.handle("desktop:clear-session-token", async () => {
     await saveDesktopSessionToken("");
     return { stored: false };
+  });
+  ipcMain.handle("desktop:clear-local-data", async (event) => {
+    if (event.sender !== mainWindow?.webContents) throw new Error("Local data reset must come from the main window");
+    if (process.platform !== "darwin" || !app.isPackaged) throw new Error("Local data reset is only available in the packaged macOS app");
+    if (requestedUserDataDirectory) throw new Error("Local data reset is unavailable with a custom user-data directory");
+    if (localDataResetScheduled) return { scheduled: true };
+
+    localDataResetScheduled = true;
+    isQuitting = true;
+    shutdownCleanupStarted = true;
+    if (sidecarRestartTimer) {
+      clearTimeout(sidecarRestartTimer);
+      sidecarRestartTimer = null;
+    }
+    tray?.destroy();
+
+    try {
+      await stopSidecar();
+      await Promise.allSettled([
+        session.defaultSession.clearStorageData(),
+        session.defaultSession.clearCache(),
+      ]);
+      scheduleMacLocalDataReset({
+        appDataDirectory: app.getPath("appData"),
+        executablePath: process.execPath,
+        parentPid: process.pid,
+        userDataDirectory: app.getPath("userData"),
+      });
+    } catch (error) {
+      localDataResetScheduled = false;
+      isQuitting = false;
+      shutdownCleanupStarted = false;
+      throw error;
+    }
+
+    setTimeout(() => app.exit(0), 50).unref();
+    return { scheduled: true };
   });
   ipcMain.handle("desktop:set-api-base-url", async (_event, value) => {
     const normalized = typeof value === "string" ? value.trim().replace(/\/$/, "") : "";

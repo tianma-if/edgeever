@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   EDGE_EVER_ANDROID_SIGNER_SHA256,
+  parseAllowedAndroidSignerDigests,
   verifyAndroidSignerOutput,
 } from "./verify-android-apk-signature.mjs";
 
@@ -52,6 +53,22 @@ describe("Android APK signer verification", () => {
         `Signer #1 certificate SHA-256 digest: ${"0".repeat(64)}`,
       ),
     ).toThrow("Android signer mismatch");
+  });
+
+  test("accepts an explicitly configured Play app signer", () => {
+    const playSigner = "a".repeat(64);
+    expect(
+      verifyAndroidSignerOutput(
+        `Signer #1 certificate SHA-256 digest: ${playSigner}`,
+        parseAllowedAndroidSignerDigests(`${EDGE_EVER_ANDROID_SIGNER_SHA256},${playSigner}`),
+      ),
+    ).toBe(playSigner);
+  });
+
+  test("rejects malformed configured signer fingerprints", () => {
+    expect(() => parseAllowedAndroidSignerDigests("not-a-fingerprint")).toThrow(
+      "SHA-256 fingerprint",
+    );
   });
 
   test("rejects missing or multiple signers", () => {

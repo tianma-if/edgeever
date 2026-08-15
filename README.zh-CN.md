@@ -1,5 +1,8 @@
 # EdgeEver
 
+[![GitHub Stars](https://img.shields.io/github/stars/tianma-if/edgeever?style=social)](https://github.com/tianma-if/edgeever/stargazers)
+[![GitHub Forks](https://img.shields.io/github/forks/tianma-if/edgeever?style=social)](https://github.com/tianma-if/edgeever/network/members)
+
 简体中文 | [English](README.md)
 
 > **EdgeEver：无需服务器、0 费用、开源且原生支持 AI 的自托管「印象笔记」替代方案。**
@@ -36,13 +39,13 @@ EdgeEver 是一款现代化的开源笔记工作区。它为你找回经典印�
 - **数据开放，不设围墙**：基于标准 SQLite 存储，提供 REST API、MCP 与 CLI 接口。数据随时可读可导，不再担心被任何特定平台绑定。
 - **无损 ZIP 打包与无缝迁移**：一键打包导出包含 Markdown、Front Matter、嵌套目录及附件的完整档案，同时保留历史版本与结构化数据，方便在不同实例间完整还原。
 - **原生 AI Agent 智脑联动**：内置 MCP（Model Context Protocol）协议，支持 Claude Code、Codex、Antigravity 等 AI 助手直接读取与整理笔记，也可与 Notion Database、飞书多维表格轻松打通。
-- **接入自己的 AI 模型**：可添加多个 OpenAI 兼容、Anthropic 或 Gemini 服务（包括 OpenRouter 等聚合平台），每个 Base URL 下可配置多个模型，并选择笔记 AI 默认使用的模型。
+- **接入自己的 AI 模型**：支持添加多个 OpenAI、Anthropic、Gemini 兼容服务与第三方中转平台，在编辑器中随时对全文或选区进行智能总结、要点提炼、语法校对、翻译与续写润色。
 - **多端无缝同步，无设备限制**：自托管数据无商业限制，摆脱免费账号仅限 2 台设备的束缚，在 PC、平板与手机上随心同步。
 - **经典三栏布局与专注模式**：笔记本树、笔记列表与编辑区一目了然；桌面端一键开启专注模式，让思绪尽情铺满屏幕。
 - **无限层级笔记本**：轻松构建清晰的多级目录结构。
 - **微信公众号一键排版与复制**：专为中文创作者设计，支持将笔记一键转换为带行内样式的公众号美化格式，直接复制粘贴至微信公众号后台，告别复杂的第三方排版工具。
 - **优雅的双视图编辑**：桌面端支持在富文本与 Markdown 源码视图之间自由切换。
-- **单篇笔记便捷导出**：可将当前笔记直接导出为 Markdown 或 PDF，方便独立保存、分享与发布。
+- **单篇笔记便捷导出**：可将当前笔记直接导出为 Markdown、HTML 或 PDF，方便独立保存、分享与发布。
 - **Mermaid 架构图与流程图渲染**：原生支持 Mermaid 代码块渲染，视图切换时完整保留可编辑源码，让绘制逻辑图表更直观。
 - **笔记历史版本回溯**：自动记录修改历史，随时查阅与还原过往版本。
 - **公开笔记分享**：支持公开分享笔记，并可随时取消分享。
@@ -62,33 +65,36 @@ EdgeEver 采用纯 Serverless 架构，完全运行在 Cloudflare 免费配额�
 
 ### 方案一：AI Agent 一键部署（推荐）
 
-将下方提示词直接复制发送给已配置 GitHub、Cloudflare MCP/插件或其他可用集成的 AI Agent（如 Codex, Claude, Cursor, Antigravity, OpenClaw, Hermes Agent 等）：
+将下方提示词直接复制发送给 AI Agent（如 Codex、Claude、Cursor、workbuddy、Antigravity、OpenClaw、Hermes Agent 等）。执行过程中，如需访问 GitHub 或 Cloudflare，请确认权限范围并按提示完成授权。
 
 ```text
 请在线完成 EdgeEver 部署：
 1. Fork https://github.com/tianma-if/edgeever。
 2. 将这个 Fork 导入 Cloudflare Workers & Pages。
-3. 配置 D1、R2、`EDGE_EVER_AUTH_USERNAME`（预填为 `admin`，可自定义）、`EDGE_EVER_AUTH_PASSWORD` Worker Secret 和生产环境 `main` 构建。
+3. 配置 D1、R2、`EDGE_EVER_AUTH_USERNAME`（预填为 `admin`，可自定义）、
+   `EDGE_EVER_AUTH_PASSWORD` Worker Secret 和生产环境 `main` 构建。
 4. 启动首次构建，验证 `/api/health`、`/api/openapi.json` 和登录。
-5. 启用并手动运行一次 `Update deployed EdgeEver`。
+5. 启用并手动运行一次名为 `Update deployed EdgeEver` 的 GitHub Actions 工作流，
+   以便后续自动同步更新，持续获得 EdgeEver 最新的产品特性和问题修复。
 ```
 
 > 详细约定与要求请查看：[AI Agent 在线部署约定](docs/agent-deploy-cloudflare.zh-CN.md)。
 
 ### 方案二：手动在线部署
 
-仅需在网页端完成 4 步极简配置：
+仅需在网页端完成 5 步极简配置：
 
 1. **Fork 仓库**：在 GitHub 点击右上角 **Fork**，将项目 Fork 到您的个人账户下。
-2. **导入 Cloudflare**：登录 Cloudflare 控制台，进入 **Workers & Pages**，选择导入该 Fork 仓库。
-3. **绑定资源与登录凭据**：绑定 D1 数据库（`DB`）、R2 存储桶（`RESOURCES`），设置 `EDGE_EVER_AUTH_USERNAME`（默认为 `admin`，可自定义），并添加 Worker Secret `EDGE_EVER_AUTH_PASSWORD` 作为管理员登录密码。
-4. **启动构建与验证**：使用默认构建配置启动首次构建，部署完成后访问 `/api/health` 确认返回 `200` 即可开始使用。
+2. **启用 Actions**：进入 Fork 的 **Actions** 标签页，点击 **I understand my workflows, go ahead and enable them**，确保名为 **Update deployed EdgeEver** 的 GitHub Actions 工作流能够自动运行，从而持续获得 **EdgeEver** 最新的产品特性和问题修复。
+3. **导入 Cloudflare**：登录 Cloudflare 控制台，进入 **Workers & Pages**，选择导入该 Fork 仓库。
+4. **绑定资源与登录凭据**：绑定 D1 数据库（`DB`）、R2 存储桶（`RESOURCES`），设置 `EDGE_EVER_AUTH_USERNAME`（默认为 `admin`，可自定义），并添加 Worker Secret `EDGE_EVER_AUTH_PASSWORD` 作为管理员登录密码。
+5. **启动构建与验证**：使用默认构建配置启动首次构建，部署完成后访问 `/api/health` 确认返回 `200` 即可开始使用。
 
 > 📖 包含具体参数与构建命令的详细步骤，请查看 [在线部署完整文档](docs/deploy-cloudflare-button.zh-CN.md)。
 
 ---
 
-> 💡 **部署提示（Cloudflare R2 绑定）**：虽然 Cloudflare R2 存储提供了足够慷慨、在笔记场景中几乎永远不会超量的免费额度，但开通时仍需绑定支付方式（双币信用卡）。根据个人经验，在国内 VISA 信用卡中，招商和浦发的验证与开通最快捷，且这类卡片大多免年费（或极易通过刷卡免年费），无需担心持有成本。
+> 💡 **部署提示（Cloudflare R2 付款方式）**：虽然 Cloudflare R2 存储提供了足够慷慨、在笔记场景中几乎永远不会超量的[免费存储额度](https://developers.cloudflare.com/r2/pricing/#free-tier)，但需先开通 R2 subscription 并绑定付款方式。Cloudflare [官方支持](https://developers.cloudflare.com/billing/get-started/update-billing-info/#supported-payment-methods) 银联（UnionPay）、Visa、Mastercard 等银行卡，以及 PayPal、Apple Pay、Google Pay 等付款方式。
 
 ## 多账号登录
 
@@ -121,7 +127,7 @@ macOS App 可从 [GitHub Releases](https://github.com/tianma-if/edgeever/release
 
 ### 微信交流群
 
-欢迎加入 EdgeEver AI 交流群，讨论 EdgeEver 使用、AI 工具、智能体、工作流和其他 AI 话题。
+欢迎加入 EdgeEver AI 交流群，这里聚集了大量 Vibe Coding 与 AI 玩家。一起交流 EdgeEver 体验、AI Agent 实战落地、高性价比/免费 AI 资源及自动化工作流。
 
 > 群二维码 7 天内有效。如果二维码过期，请添加微信 `m1245207870`，并备注“EdgeEver 进群”。
 
@@ -195,15 +201,17 @@ https://你的域名/api/openapi.json
 
 先在 EdgeEver 左下角 **个人中心** 的 **MCP 设置** 中创建 API Token，再将 Token 或完整 MCP 配置发送给 AI Agent。连接后，Agent 即可在你的授权范围内安全地读取、整理和导入笔记；重复执行同一导入任务也不会创建重复笔记。
 
+Remote MCP 端点支持无状态的 `2026-07-28` 协议，同时继续兼容现有客户端使用的 2025 握手式协议版本。
+
 > 放飞你的思路，这种情况下是有很多灵活玩法：
 比如让AI Agent归纳你随机记录的灵感创意、针对你的笔记做精准的人物画像、构建自己的知识图谱、自动为笔记打标签）
 借助 MCP，EdgeEver 还可以与 Notion Database、飞书多维表格等工具联动，把日常笔记中零散的灵感、信息和素材沉淀到结构化数据库中，方便后续整理、检索与管理。
 
 ## 接入自己的 AI 模型
 
-进入**个人中心 → AI 集成**，可以使用自己的 Base URL 和 API Key 添加一个或多个 OpenAI 兼容协议、Anthropic Messages 或 Google Gemini 云端服务。每个服务都能配置多个模型：既可以从服务的模型列表接口自动发现，也可以手动输入模型 ID。这也适用于 OpenRouter 等聚合平台——同一个 Base URL 可以同时提供多个厂商的模型。服务级开关会让该服务下的全部模型暂时不可用，工作区默认模型则决定笔记 AI 实际使用哪个模型。
+进入**个人中心 → AI 集成**，可以使用自己的 Base URL 和 API Key 添加一个或多个 OpenAI 兼容协议、Anthropic Messages 或 Google Gemini 云端服务，也支持第三方中转站。每个服务都能配置多个模型：既可以从服务的模型列表接口自动发现，也可以手动输入模型 ID。服务级开关会让该服务下的全部模型暂时不可用，工作区默认模型则决定笔记 AI 实际使用哪个模型。
 
-当前 Web、Android 与 iOS 的 AI 功能支持总结、提炼要点、提取待办、改写校对、翻译、缩短、扩写、简化、改变语气、继续写作与自定义指令。三个平台的编辑器都可以直接处理选中内容，并只替换对应选区。模型结果会先作为可审查的流式草稿展示，用户可以重试、继续提出调整要求、追加内容，或明确接受后替换原文。翻译使用带默认值的语言下拉框：中文界面默认译为英语，英文界面默认译为简体中文。
+当前 Web、Android 与 iOS 内置 6 个常用指令：总结、翻译、润色、精炼表达、转为小红书风格与转为推特风格；更细分的场景可自行添加指令。三个平台的编辑器都可以直接处理选中内容，并只替换对应选区。模型结果会先作为可审查的流式草稿展示，用户可以重试、继续提出调整要求、追加内容，或明确接受后替换原文。翻译使用带默认值的语言下拉框：中文界面默认译为英语，英文界面默认译为简体中文。
 
 AI 请求统一由 EdgeEver 服务端发出，不会由浏览器或原生客户端直接携带模型密钥。模型凭据按个人工作区隔离并加密保存；标准部署会自动从已有的实例认证 Secret 派生 AI 专用加密密钥，不需要增加任何部署变量。Cloudflare Worker 与未来的 Docker/Bun 运行时共用同一套 AI 业务代码。
 

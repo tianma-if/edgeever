@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 const readSource = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 
 const androidAssistantSource = readSource("../apps/mobile/src/components/MobileAiAssistantModal.tsx");
+const androidEditorSource = readSource("../apps/mobile/src/components/LocalTiptapEditor.tsx");
 const androidDetailSource = readSource("../apps/mobile/src/screens/WorkspaceMemoDetail.tsx");
 const androidWorkspaceSource = readSource("../apps/mobile/src/screens/WorkspaceScreen.tsx");
 const androidSessionSource = readSource("../apps/mobile/src/lib/session.tsx");
@@ -35,9 +36,15 @@ describe("native mobile AI note assistant", () => {
   });
 
   test("streams AI output from the shared workspace configuration on both clients", () => {
+    expect(androidAssistantSource).toContain("client!.listAiPrompts(resolvedLocale)");
     expect(androidAssistantSource).toContain("client.streamAiGeneration(");
+    expect(androidAssistantSource).toContain("promptId: selectedPrompt.id");
+    expect(androidWorkspaceSource).toContain("aiPromptsJson={aiPromptsJson}");
+    expect(androidEditorSource).toContain("...(promptId ? { promptId } : {})");
     expect(androidSessionSource).toContain("fetch: expoFetch as typeof fetch");
+    expect(iosAssistantSource).toContain("env.session.client.listAiPrompts(locale: locale)");
     expect(iosAssistantSource).toContain("client.streamAiGeneration(input)");
+    expect(iosAssistantSource).toContain("promptId: selectedPrompt?.id");
     expect(iosApiSource).toContain('makeURL(path: "/api/v1/ai/generate")');
     expect(iosApiSource).toContain("for try await line in bytes.lines");
   });

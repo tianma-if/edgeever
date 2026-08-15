@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { buildNotebookTree } from "./utils.ts";
+import { buildNotebookTree, parseTagsText } from "./utils.ts";
 
 const notebook = (id, parentId, memoCount, lastMemoUpdatedAt = null) => ({
   id,
@@ -52,5 +52,16 @@ describe("buildNotebookTree", () => {
 
     expect(root.memoCount).toBe(1);
     expect(root).not.toHaveProperty("children");
+  });
+});
+
+describe("tag text parsing", () => {
+  test("supports multi-word tags and normalizes separators", () => {
+    expect(parseTagsText(" #product design, work，ideas\nwork ")).toEqual([
+      "product design",
+      "work",
+      "ideas",
+      "work",
+    ]);
   });
 });

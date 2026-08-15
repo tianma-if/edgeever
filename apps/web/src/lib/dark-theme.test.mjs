@@ -20,4 +20,14 @@ describe("dark theme contracts", () => {
     expect(css).toContain('[class~="divide-slate-100"]');
     expect(css).toContain('[class~="text-emerald-700"]');
   });
+
+  test("appearance changes stay out of the editor React render path", () => {
+    const editorPane = readFileSync(new URL("../components/EditorPane.tsx", import.meta.url), "utf8");
+    const editorThemeCss = readFileSync(new URL("../styles/editor-themes/base.css", import.meta.url), "utf8");
+
+    expect(editorPane).toContain("useEditorTheme()");
+    expect(editorPane).not.toContain("resolvedTheme");
+    expect(editorThemeCss).toContain(':root.dark .edgeever-editor[data-editor-theme="custom"]:not([data-editor-theme="default"])');
+    expect(editorThemeCss).toContain("--editor-theme-dark-bg");
+  });
 });

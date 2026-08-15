@@ -19,6 +19,7 @@ concurrency:
 
 jobs:
   build-and-test:
+    if: github.repository == 'tianma-if/edgeever'
     name: Xcode build + unit tests
     runs-on: macos-15
     timeout-minutes: 45

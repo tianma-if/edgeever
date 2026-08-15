@@ -252,11 +252,18 @@ button:disabled {
   color: #047857;
 }
 
-.privacy-link {
+.about-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
   margin: 20px 0 0;
   font-size: 12px;
 }
 
-.privacy-link a {
+.about-links a {
   color: #0f766e;
+}
+
+.about-links span {
+  color: #94a3b8;
 }

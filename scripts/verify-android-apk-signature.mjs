@@ -9,7 +9,21 @@ export const EDGE_EVER_ANDROID_SIGNER_SHA256 =
 const normalizeFingerprint = (value) =>
   value.toLowerCase().replace(/[^0-9a-f]/g, "");
 
-export const verifyAndroidSignerOutput = (output) => {
+export const parseAllowedAndroidSignerDigests = (value = "") => {
+  const configured = value.split(",").map(normalizeFingerprint).filter(Boolean);
+  const digests = configured.length > 0
+    ? configured
+    : [EDGE_EVER_ANDROID_SIGNER_SHA256];
+  if (digests.some((digest) => digest.length !== 64)) {
+    throw new Error("Every allowed Android signer must be a SHA-256 fingerprint.");
+  }
+  return [...new Set(digests)];
+};
+
+export const verifyAndroidSignerOutput = (
+  output,
+  allowedSignerDigests = parseAllowedAndroidSignerDigests(),
+) => {
   const digestMatches = [
     ...output.matchAll(
       /^(?:Signer #\d+|V\d+(?:\.\d+)? Signer:) certificate SHA-256 digest:\s*(.+)$/gim,
@@ -32,9 +46,9 @@ export const verifyAndroidSignerOutput = (output) => {
     );
   }
 
-  if (uniqueSignerDigests[0] !== EDGE_EVER_ANDROID_SIGNER_SHA256) {
+  if (!allowedSignerDigests.includes(uniqueSignerDigests[0])) {
     throw new Error(
-      `Android signer mismatch: expected ${EDGE_EVER_ANDROID_SIGNER_SHA256}, received ${uniqueSignerDigests[0]}.`,
+      `Android signer mismatch: expected one of ${allowedSignerDigests.join(", ")}, received ${uniqueSignerDigests[0]}.`,
     );
   }
 
@@ -93,7 +107,10 @@ const run = () => {
 
   let signerSha256;
   try {
-    signerSha256 = verifyAndroidSignerOutput(output);
+    signerSha256 = verifyAndroidSignerOutput(
+      output,
+      parseAllowedAndroidSignerDigests(process.env.EDGE_EVER_ANDROID_ALLOWED_SIGNER_SHA256),
+    );
   } catch (error) {
     process.stderr.write(output);
     throw error;

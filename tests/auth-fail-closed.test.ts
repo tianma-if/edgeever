@@ -42,11 +42,23 @@ describe("production authentication guard", () => {
   test("reports unapplied D1 migrations as database_not_ready", async () => {
     const response = await fetchApi("/api/health", {
       DB: createDatabase({ error: new Error("D1_ERROR: no such table: users") }),
+      EDGE_EVER_AUTH_PASSWORD: "configured-secret",
     });
 
     expect(response.status).toBe(503);
     expect((await response.json()) as { error: { code: string } }).toMatchObject({
       error: { code: "database_not_ready" },
+    });
+  });
+
+  test("does not misreport transient D1 failures as unapplied migrations", async () => {
+    const response = await fetchApi("/api/health", {
+      DB: createDatabase({ error: new Error("D1_ERROR: Network connection lost.") }),
+    });
+
+    expect(response.status).toBe(500);
+    expect((await response.json()) as { error: { code: string } }).toMatchObject({
+      error: { code: "internal_error" },
     });
   });
 

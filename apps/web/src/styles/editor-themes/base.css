@@ -15,6 +15,26 @@
   --editor-theme-table-hover: color-mix(in srgb, var(--editor-theme-soft) 78%, var(--editor-theme-bg));
   background: var(--editor-theme-bg);
 }
+
+.edgeever-editor[data-editor-theme="custom"]:not([data-editor-theme="default"]) {
+  --editor-theme-bg: var(--editor-theme-light-bg);
+  --editor-theme-text: var(--editor-theme-light-text);
+  --editor-theme-muted: var(--editor-theme-light-muted);
+  --editor-theme-heading: var(--editor-theme-light-heading);
+  --editor-theme-accent: var(--editor-theme-light-accent);
+  --editor-theme-soft: var(--editor-theme-light-soft);
+  --editor-theme-border: var(--editor-theme-light-border);
+}
+
+:root.dark .edgeever-editor[data-editor-theme="custom"]:not([data-editor-theme="default"]) {
+  --editor-theme-bg: var(--editor-theme-dark-bg);
+  --editor-theme-text: var(--editor-theme-dark-text);
+  --editor-theme-muted: var(--editor-theme-dark-muted);
+  --editor-theme-heading: var(--editor-theme-dark-heading);
+  --editor-theme-accent: var(--editor-theme-dark-accent);
+  --editor-theme-soft: var(--editor-theme-dark-soft);
+  --editor-theme-border: var(--editor-theme-dark-border);
+}
 .edgeever-editor[data-editor-theme]:not([data-editor-theme="default"]) .ProseMirror {
 
   background: var(--editor-theme-bg);

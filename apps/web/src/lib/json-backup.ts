@@ -2,9 +2,11 @@ import {
   EDGEEVER_ZIP_FORMAT,
   EDGEEVER_ZIP_FORMAT_VERSION,
   JsonBackupManifestSchema,
+  JsonBackupAiPromptSchema,
   JsonBackupMemoSchema,
   JsonBackupNotebookSchema,
   type JsonBackupManifest,
+  type JsonBackupAiPrompt,
   type JsonBackupMemo,
   type JsonBackupNotebook,
   type JsonBackupResource,
@@ -61,18 +63,21 @@ type JsonBackupSource = {
   listNotebooks: () => Promise<{ notebooks: Notebook[] }>;
   getPage: (offset: number, limit: number) => Promise<JsonBackupPage>;
   getResourceBlob: (resourceUrl: string) => Promise<Blob>;
+  listPrompts: () => Promise<{ prompts: JsonBackupAiPrompt[] }>;
 };
 
 type JsonRestoreTarget = {
   restoreNotebooks: (notebooks: JsonBackupNotebook[]) => Promise<unknown>;
   restoreMemos: (memos: JsonBackupMemo[]) => Promise<unknown>;
   restoreResource: (resourceId: string, metadata: JsonBackupResource, file: Blob) => Promise<unknown>;
+  restorePrompts: (prompts: JsonBackupAiPrompt[]) => Promise<unknown>;
 };
 
 export type ParsedEdgeEverZip = {
   manifest: JsonBackupManifest;
   notebooks: JsonBackupNotebook[];
   memos: JsonBackupMemo[];
+  prompts: JsonBackupAiPrompt[];
   files: Record<string, Uint8Array>;
 };
 
@@ -103,7 +108,10 @@ export const createEdgeEverZip = async (
   version: { edgeeverVersion: string; buildId: string },
   onProgress?: (progress: EdgeEverZipProgress) => void
 ) => {
-  const { notebooks } = await source.listNotebooks();
+  const [{ notebooks }, { prompts }] = await Promise.all([
+    source.listNotebooks(),
+    source.listPrompts(),
+  ]);
   const notebookPaths = buildNotebookExportPaths(notebooks);
   const memoNamesByNotebook = new Map<string, Set<string>>();
   const chunks: ArrayBuffer[] = [];
@@ -124,6 +132,7 @@ export const createEdgeEverZip = async (
       try {
         const backupNotebooks = notebooks.map(toBackupNotebook);
         addJsonFile(zip, "notebooks.json", backupNotebooks);
+        addJsonFile(zip, "prompts.json", prompts);
         let offset = 0;
         let completed = 0;
         let total = 0;
@@ -221,6 +230,7 @@ export const createEdgeEverZip = async (
             memos: total,
             revisions: revisionCount,
             resources: resourceCount,
+            prompts: prompts.length,
           },
         };
         addJsonFile(zip, "manifest.json", manifest);
@@ -278,7 +288,7 @@ export const parseEdgeEverZip = async (blob: Blob): Promise<ParsedEdgeEverZip> =
   if (manifestRecord.format !== EDGEEVER_ZIP_FORMAT) {
     throw new EdgeEverZipImportError("unsupportedFormat");
   }
-  if (manifestRecord.formatVersion !== EDGEEVER_ZIP_FORMAT_VERSION) {
+  if (manifestRecord.formatVersion !== 1 && manifestRecord.formatVersion !== EDGEEVER_ZIP_FORMAT_VERSION) {
     throw new EdgeEverZipImportError("unsupportedVersion");
   }
   const manifestResult = JsonBackupManifestSchema.safeParse(manifestValue);
@@ -295,6 +305,14 @@ export const parseEdgeEverZip = async (blob: Blob): Promise<ParsedEdgeEverZip> =
     throw new EdgeEverZipImportError("invalidData", notebooksResult.error);
   }
   const notebooks = sortNotebooksForRestore(notebooksResult.data);
+  const promptsValue = manifest.formatVersion >= 2
+    ? parseJsonFile(files, "prompts.json")
+    : [];
+  const promptsResult = JsonBackupAiPromptSchema.array().safeParse(promptsValue);
+  if (!promptsResult.success) {
+    throw new EdgeEverZipImportError("invalidData", promptsResult.error);
+  }
+  const prompts = promptsResult.data as JsonBackupAiPrompt[];
   const memoPaths = Object.keys(files).filter((path) => /^memos\/[^/]+\.json$/.test(path)).sort();
   const memos: JsonBackupMemo[] = [];
   for (const path of memoPaths) {
@@ -310,6 +328,7 @@ export const parseEdgeEverZip = async (blob: Blob): Promise<ParsedEdgeEverZip> =
     manifest.counts.notebooks !== notebooks.length
     || manifest.counts.memos !== memos.length
     || manifest.counts.memos !== markdownCount
+    || (manifest.counts.prompts ?? 0) !== prompts.length
   ) {
     throw new EdgeEverZipImportError("incompleteData");
   }
@@ -326,7 +345,7 @@ export const parseEdgeEverZip = async (blob: Blob): Promise<ParsedEdgeEverZip> =
     throw new EdgeEverZipImportError("incompleteResources");
   }
 
-  return { manifest, notebooks, memos, files };
+  return { manifest, notebooks, memos, prompts, files };
 };
 
 export const restoreEdgeEverZip = async (
@@ -334,9 +353,19 @@ export const restoreEdgeEverZip = async (
   target: JsonRestoreTarget,
   onProgress?: (progress: EdgeEverZipProgress) => void
 ) => {
-  const total = backup.notebooks.length + backup.memos.length + backup.manifest.counts.resources;
+  const total = backup.notebooks.length
+    + backup.memos.length
+    + backup.prompts.length
+    + backup.manifest.counts.resources;
   let completed = 0;
   onProgress?.({ completed, total });
+
+  for (let index = 0; index < backup.prompts.length; index += 100) {
+    const batch = backup.prompts.slice(index, index + 100);
+    await target.restorePrompts(batch);
+    completed += batch.length;
+    onProgress?.({ completed, total });
+  }
 
   for (let index = 0; index < backup.notebooks.length; index += 100) {
     const batch = backup.notebooks.slice(index, index + 100);

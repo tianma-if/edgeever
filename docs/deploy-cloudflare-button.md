@@ -54,6 +54,8 @@ Log into your [Cloudflare Dashboard](https://dash.cloudflare.com/):
 
 > `EDGE_EVER_AUTH_USERNAME` is prefilled with `admin`. Most users can keep this value. Advanced users can replace it with a custom administrator username; the configured username is required at login.
 
+> `EDGE_EVER_AUTH_PASSWORD` is a Worker runtime Secret, not a Workers Builds variable. The standard deploy command reuses and verifies this Secret; do not duplicate the password in build variables.
+
 ---
 
 ### Step 4: Set Build Commands & Start Build
@@ -68,6 +70,8 @@ Deploy command: bun run deploy:cloudflare-builds
 Click **Save and Deploy** to trigger the initial build.
 
 The deploy command automatically looks up the D1 UUID by the `edgeever` database name. Do not edit `wrangler.toml` or manually copy the D1 ID. The Workers Builds API token must have D1 read/edit permission.
+
+After publishing, the CI deployment records the actual public target reported by Wrangler and requests its `/api/health` endpoint. The build fails if the live Worker is missing its `DB` binding, uses an unprepared D1 database, or does not return a healthy response.
 
 ---
 
@@ -103,5 +107,6 @@ You can also pick `stable` / `edge` when manually running the workflow.
   2. Run it once with **Run workflow**. Open the job **Summary**: it states the upstream target version and whether the fork was updated, already aligned, or failed.
   3. A green run with *Already on upstream target* means Git already matches that channel — not a broken skip. If the live site is still old, check Cloudflare **Deployments** commit SHA, or re-run with **force_redeploy**.
   4. Prefer this workflow over GitHub **Sync fork** for day-to-day upgrades.
+  5. If an old updater fails with `without workflows permission`, use **Sync fork** once as the repository owner, then re-run **Update deployed EdgeEver**. The current updater preserves `.github/workflows/**`, so later product updates do not hit this permission boundary.
 - **Push succeeded but site unchanged**: Confirm Workers Builds ran for the new `main` SHA. Optionally add repository secret `EDGE_EVER_CLOUDFLARE_DEPLOY_HOOK_URL` so the workflow can call a Deploy Hook after publish.
 - **Reset or Manual Recovery**: See the [Cloudflare Manual Deployment Guide](manual-deploy.md).

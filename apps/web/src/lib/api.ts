@@ -6,6 +6,7 @@ import type {
   CreatedApiToken,
   JsonBackupMemo,
   JsonBackupNotebook,
+  JsonBackupAiPrompt,
   JsonBackupRevision,
   MemoDetail,
   MemoTemplate,
@@ -21,7 +22,12 @@ import type {
   AiSettings,
   AiDiscoveredModel,
   AiProvider,
+  AiPromptTemplate,
+  AiPromptTemplateCreateInput,
+  AiPromptTemplateUpdateInput,
   AiAction,
+  AiTargetLanguage,
+  AiTone,
   AiStreamEvent,
   PublicMemoShare,
   TagSummary,
@@ -29,7 +35,9 @@ import type {
   SyncBootstrapResponse,
   SyncChangesResponse,
 } from "@edgeever/shared";
+import { resolveInstanceUrlInput } from "@edgeever/shared";
 import type { MemoFilterMode, MemoSortMode } from "./app-helpers";
+import { readAiStreamingPreference } from "./ai-generation-preference";
 
 type ListNotebooksResponse = {
   notebooks: Notebook[];
@@ -186,7 +194,7 @@ export class DesktopInstanceUrlError extends Error {
 }
 
 export const saveDesktopApiBaseUrl = async (value: string) => {
-  const normalized = value.trim().replace(/\/$/, "");
+  const normalized = resolveInstanceUrlInput(value).replace(/\/$/, "");
   let parsed: URL;
   try {
     parsed = new URL(normalized);
@@ -258,20 +266,96 @@ export class ApiRequestError extends Error {
   status: number;
   code?: string;
   details?: unknown;
+  responseDiagnostics?: ApiResponseDiagnostics;
 
-  constructor(message: string, status: number, code?: string, details?: unknown) {
+  constructor(
+    message: string,
+    status: number,
+    code?: string,
+    details?: unknown,
+    responseDiagnostics?: ApiResponseDiagnostics,
+  ) {
     super(message);
     this.name = "ApiRequestError";
     this.status = status;
     this.code = code;
     this.details = details;
+    this.responseDiagnostics = responseDiagnostics;
   }
 }
 
+export type ApiResponseDiagnostics = {
+  cloudflareMitigated: boolean;
+  isEdgeEverApiError: boolean;
+  rayId?: string;
+};
+
 let desktopSessionRejected = false;
+let unauthorizedConfirmPromise: Promise<boolean> | null = null;
 
 const isDesktopAuthenticationRequest = (path: string) =>
   path === "/api/v1/auth/login" || path === "/api/v1/auth/session";
+
+/**
+ * Confirm the browser is actually logged out before forcing the login screen.
+ * A single flaky 401 (or a mid-session local-dev auth mode flip) should not
+ * wipe the whole workspace if the session cookie is still valid.
+ */
+const confirmSessionLost = async (): Promise<boolean> => {
+  if (typeof window === "undefined") return true;
+  if (unauthorizedConfirmPromise) return unauthorizedConfirmPromise;
+
+  unauthorizedConfirmPromise = (async () => {
+    try {
+      const headers = new Headers();
+      const isDesktop = Boolean(window.edgeeverDesktop?.isAvailable);
+      const sessionToken = isDesktop ? getDesktopSessionToken() : undefined;
+      if (sessionToken) headers.set("Authorization", `Bearer ${sessionToken}`);
+      const baseUrl = getConfiguredDesktopApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/v1/auth/session`, {
+        credentials: "include",
+        headers,
+      });
+      if (!response.ok) return true;
+      const session = await response.json().catch(() => null) as AuthSession | null;
+      return !session?.authenticated;
+    } catch {
+      return true;
+    } finally {
+      // Allow a later 401 to re-check after this round finishes.
+      queueMicrotask(() => {
+        unauthorizedConfirmPromise = null;
+      });
+    }
+  })();
+
+  return unauthorizedConfirmPromise;
+};
+
+const notifyUnauthorized = async (isDesktop: boolean, rejectedDesktopSessionToken?: string) => {
+  if (isDesktop && desktopSessionRejected) return;
+
+  // A desktop API request authenticates with one explicit bearer token. A 401
+  // therefore rejects that exact credential and does not need a second
+  // /auth/session request. Compare against the current token first so a late
+  // response from an older request cannot clear a freshly logged-in session.
+  if (isDesktop && rejectedDesktopSessionToken) {
+    if (getDesktopSessionToken() !== rejectedDesktopSessionToken) return;
+    clearCachedDesktopSession();
+    desktopSessionRejected = true;
+    window.dispatchEvent(new CustomEvent("edgeever:unauthorized"));
+    return;
+  }
+
+  const sessionLost = await confirmSessionLost();
+  if (!sessionLost) return;
+
+  if (isDesktop) {
+    clearCachedDesktopSession();
+    desktopSessionRejected = true;
+  }
+  window.dispatchEvent(new CustomEvent("edgeever:unauthorized"));
+};
 
 const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
   const headers = new Headers(init?.headers);
@@ -299,27 +383,32 @@ const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
 
   if (!response.ok) {
     const body = await response.json().catch(() => null);
+    const rayId = response.headers.get("cf-ray")?.trim();
     const error = body && typeof body === "object" && "error" in body
       ? (body as { error?: { code?: string; message?: string; details?: unknown } }).error
       : undefined;
+    const isEdgeEverApiError = Boolean(error && typeof error === "object");
     const message =
       body && typeof body === "object" && "error" in body
         ? error?.message
         : response.statusText;
+    const responseDiagnostics: ApiResponseDiagnostics = {
+      cloudflareMitigated: response.headers.get("cf-mitigated") === "challenge",
+      isEdgeEverApiError,
+      ...(rayId ? { rayId } : {}),
+    };
 
-    if (response.status === 401) {
-      if (isDesktop) {
-        clearCachedDesktopSession();
-        if (!desktopSessionRejected) {
-          desktopSessionRejected = true;
-          window.dispatchEvent(new CustomEvent("edgeever:unauthorized"));
-        }
-      } else {
-        window.dispatchEvent(new CustomEvent("edgeever:unauthorized"));
-      }
+    if (response.status === 401 && path !== "/api/v1/auth/login") {
+      void notifyUnauthorized(isDesktop, sessionToken);
     }
 
-    throw new ApiRequestError(message || "Request failed", response.status, error?.code, error?.details);
+    throw new ApiRequestError(
+      message || "Request failed",
+      response.status,
+      error?.code,
+      error?.details,
+      responseDiagnostics,
+    );
   }
 
   const body = await response.json() as T;
@@ -469,7 +558,12 @@ export const api = {
       method: "DELETE",
     }),
 
-  testAiProvider: (providerConfigId: string, payload: { modelId: string }) =>
+  testAiProvider: (providerConfigId: string, payload: {
+    modelId: string;
+    provider?: AiProvider;
+    baseUrl?: string;
+    apiKey?: string;
+  }) =>
     request<{ ok: true; response: string }>(`/api/v1/ai/providers/${encodeURIComponent(providerConfigId)}/test`, {
       method: "POST",
       body: JSON.stringify(payload),
@@ -498,8 +592,51 @@ export const api = {
       body: JSON.stringify({ modelConfigId }),
     }),
 
+  listAiPrompts: (locale?: string) => {
+    const search = locale ? `?locale=${encodeURIComponent(locale)}` : "";
+    return request<{ prompts: AiPromptTemplate[] }>(`/api/v1/ai/prompts${search}`);
+  },
+
+  createAiPrompt: (payload: AiPromptTemplateCreateInput) =>
+    request<{ prompt: AiPromptTemplate }>("/api/v1/ai/prompts", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  updateAiPrompt: (
+    promptId: string,
+    payload: AiPromptTemplateUpdateInput,
+  ) =>
+    request<{ prompt: AiPromptTemplate }>(`/api/v1/ai/prompts/${encodeURIComponent(promptId)}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+
+  deleteAiPrompt: (promptId: string) =>
+    request<{ ok: true }>(`/api/v1/ai/prompts/${encodeURIComponent(promptId)}`, {
+      method: "DELETE",
+    }),
+
+  restoreDefaultAiPrompts: (locale?: string) => {
+    const search = locale ? `?locale=${encodeURIComponent(locale)}` : "";
+    return request<{ prompts: AiPromptTemplate[]; restoredCount: number }>(`/api/v1/ai/prompts/restore-defaults${search}`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+  },
+
   streamAiGeneration: async (
-    payload: { action: AiAction; title: string; contentMarkdown: string; targetLanguage?: string; instruction?: string },
+    payload: {
+      action: AiAction;
+      promptId?: string;
+      locale?: string;
+      title: string;
+      contentMarkdown: string;
+      stream?: boolean;
+      targetLanguage?: AiTargetLanguage;
+      tone?: AiTone;
+      instruction?: string;
+    },
     options: { signal?: AbortSignal; onEvent: (event: AiStreamEvent) => void },
   ) => {
     const headers = new Headers({ "Content-Type": "application/json" });
@@ -511,7 +648,10 @@ export const api = {
       method: "POST",
       credentials: "include",
       headers,
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        ...payload,
+        stream: payload.stream ?? readAiStreamingPreference(),
+      }),
       signal: options.signal,
     });
     if (!response.ok) {
@@ -742,6 +882,12 @@ export const api = {
       body: JSON.stringify({ memos }),
     }),
 
+  restoreJsonAiPrompts: (prompts: JsonBackupAiPrompt[]) =>
+    request<{ ok: true }>("/api/v1/restores/json/ai-prompts", {
+      method: "POST",
+      body: JSON.stringify({ prompts }),
+    }),
+
   restoreJsonResource: (resourceId: string, metadata: JsonBackupMemo["resources"][number], file: Blob) => {
     const form = new FormData();
     form.append("metadata", JSON.stringify(metadata));
@@ -758,7 +904,7 @@ export const api = {
 
     if (!response.ok) {
       if (response.status === 401) {
-        window.dispatchEvent(new CustomEvent("edgeever:unauthorized"));
+        void notifyUnauthorized(Boolean(window.edgeeverDesktop?.isAvailable));
       }
 
       throw new ApiRequestError(response.statusText || "Resource download failed", response.status);

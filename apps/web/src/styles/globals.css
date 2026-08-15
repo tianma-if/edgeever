@@ -5,6 +5,63 @@
 @tailwind components;
 @tailwind utilities;
 
+@keyframes edgeever-token-created {
+  0% {
+    opacity: 0;
+    transform: translateY(-0.625rem);
+    background-color: rgb(209 250 229 / 90%);
+    box-shadow: inset 0 0 0 1px rgb(52 211 153 / 55%);
+  }
+  24% {
+    opacity: 1;
+    transform: translateY(0);
+    background-color: rgb(209 250 229 / 75%);
+    box-shadow: inset 0 0 0 1px rgb(52 211 153 / 45%);
+  }
+  68% {
+    background-color: rgb(236 253 245 / 72%);
+    box-shadow: inset 0 0 0 1px rgb(110 231 183 / 30%);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+    background-color: transparent;
+    box-shadow: inset 0 0 0 1px transparent;
+  }
+}
+
+.edgeever-token-created {
+  animation: edgeever-token-created 2.2s ease-out;
+}
+
+html[data-edgeever-environment="local"] body::after,
+html[data-edgeever-environment="demo"] body::after {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  z-index: 2147483647;
+  border-radius: 9999px;
+  padding: 4px 9px;
+  font: 600 10px/1.2 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  letter-spacing: 0.08em;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgb(15 23 42 / 10%);
+}
+
+html[data-edgeever-environment="local"] body::after {
+  content: "LOCAL DEV";
+  border: 1px solid rgb(16 185 129 / 45%);
+  background: rgb(236 253 245 / 94%);
+  color: rgb(4 120 87);
+}
+
+html[data-edgeever-environment="demo"] body::after {
+  content: "LOCAL DEMO";
+  border: 1px solid rgb(245 158 11 / 50%);
+  background: rgb(255 251 235 / 96%);
+  color: rgb(180 83 9);
+}
+
 .ProseMirror .tiptap-mathematics-render[data-type="block-math"] {
   max-width: 100%;
   margin: 1rem 0;
@@ -477,13 +534,14 @@ textarea {
   padding-left: 0;
 }
 
-.ProseMirror ul[data-type="taskList"] li[data-type="taskItem"] {
+/* TipTap's task-item NodeView exposes data-checked, but not data-type, in the live editor DOM. */
+.ProseMirror ul[data-type="taskList"] li[data-checked] {
   display: flex;
   align-items: flex-start;
   gap: 0.55rem;
 }
 
-.ProseMirror ul[data-type="taskList"] li[data-type="taskItem"] > label {
+.ProseMirror ul[data-type="taskList"] li[data-checked] > label {
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
@@ -491,7 +549,7 @@ textarea {
   user-select: none;
 }
 
-.ProseMirror ul[data-type="taskList"] li[data-type="taskItem"] > label input {
+.ProseMirror ul[data-type="taskList"] li[data-checked] > label input {
   width: 1rem;
   height: 1rem;
   margin: 0;
@@ -499,12 +557,12 @@ textarea {
   cursor: pointer;
 }
 
-.ProseMirror ul[data-type="taskList"] li[data-type="taskItem"] > div {
+.ProseMirror ul[data-type="taskList"] li[data-checked] > div {
   min-width: 0;
   flex: 1 1 auto;
 }
 
-.ProseMirror ul[data-type="taskList"] li[data-type="taskItem"] > div > p {
+.ProseMirror ul[data-type="taskList"] li[data-checked] > div > p {
   margin-bottom: 0;
 }
 

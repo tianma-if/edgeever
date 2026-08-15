@@ -28,6 +28,7 @@ const RELEASE_WORKFLOWS = {
 };
 
 export const RELEASE_VALIDATIONS = [
+  { label: "Project regression tests", args: ["run", "test"] },
   { label: "Web typecheck", args: ["run", "typecheck"] },
   { label: "Mobile typecheck", args: ["run", "typecheck:mobile"] },
   { label: "Web build", args: ["run", "build:web"] },
@@ -40,6 +41,7 @@ export const RELEASE_VALIDATIONS = [
       "scripts/release.test.mjs",
       "scripts/validate-store-delivery.test.mjs",
       "scripts/store-delivery.test.mjs",
+      "scripts/download-play-universal-apk.test.mjs",
       "scripts/desktop-icns.test.mjs",
       "apps/web/src/lib/version-check.test.mjs",
       "apps/mobile/src/lib/mobile-release.test.ts",

@@ -57,6 +57,8 @@ struct AiAssistantSheet: View {
     }
 
     @State private var action: AiAction = .summarize
+    @State private var prompts: [AiPromptTemplate] = []
+    @State private var selectedPromptID: String?
     @State private var targetLanguage: AssistantTargetLanguage = .english
     @State private var tone: AssistantTone = .professional
     @State private var customInstruction = ""
@@ -82,15 +84,15 @@ struct AiAssistantSheet: View {
 
                     actionPicker
 
-                    if action == .translate {
+                    if needsTargetLanguage {
                         languagePicker
                     }
 
-                    if action == .changeTone {
+                    if needsTone {
                         tonePicker
                     }
 
-                    if action == .custom {
+                    if selectedPrompt == nil, action == .custom {
                         VStack(alignment: .leading, spacing: 7) {
                             Text(env.preferences.t("告诉 AI 你想怎么处理", en: "Tell AI what to do"))
                                 .font(.system(size: 13, weight: .bold))
@@ -201,21 +203,49 @@ struct AiAssistantSheet: View {
             didSetLanguageDefault = true
         }
         .onDisappear { streamTask?.cancel() }
+        .task { await loadPrompts() }
     }
 
     private var actionPicker: some View {
-        pickerField(env.preferences.t("AI 操作", en: "AI action"), selection: actionTitle(action)) {
-            ForEach(availableActions) { item in
+        pickerField(
+            env.preferences.t("处理方式", en: "Action"),
+            selection: selectedPrompt?.name ?? actionTitle(action)
+        ) {
+            if prompts.isEmpty {
+                ForEach(availableActions) { item in
+                    Button {
+                        selectAction(item)
+                    } label: {
+                        if selectedPromptID == nil, action == item {
+                            Label(actionTitle(item), systemImage: "checkmark")
+                        } else {
+                            Text(actionTitle(item))
+                        }
+                    }
+                }
+            } else {
+                ForEach(prompts) { prompt in
+                    Button {
+                        streamTask?.cancel()
+                        selectedPromptID = prompt.id
+                        action = prompt.action
+                        output = ""
+                        error = nil
+                    } label: {
+                        if selectedPromptID == prompt.id {
+                            Label(prompt.name, systemImage: "checkmark")
+                        } else {
+                            Text(prompt.name)
+                        }
+                    }
+                }
                 Button {
-                    streamTask?.cancel()
-                    action = item
-                    output = ""
-                    error = nil
+                    selectAction(.custom)
                 } label: {
-                    if action == item {
-                        Label(actionTitle(item), systemImage: "checkmark")
+                    if selectedPromptID == nil, action == .custom {
+                        Label(actionTitle(.custom), systemImage: "checkmark")
                     } else {
-                        Text(actionTitle(item))
+                        Text(actionTitle(.custom))
                     }
                 }
             }
@@ -295,22 +325,25 @@ struct AiAssistantSheet: View {
                 secondaryButton(env.preferences.t("复制", en: "Copy"), systemImage: "doc.on.doc") {
                     UIPasteboard.general.string = output
                 }
-                secondaryButton(
-                    isSelection
-                        ? env.preferences.t("插入到选区后", en: "Insert after")
-                        : env.preferences.t("追加", en: "Append"),
-                    systemImage: "text.append"
-                ) {
-                    apply(.append)
+                if canAppendSource {
+                    secondaryButton(
+                        isSelection
+                            ? env.preferences.t("插入到选区后", en: "Insert after")
+                            : env.preferences.t("追加", en: "Append"),
+                        systemImage: "text.append"
+                    ) {
+                        apply(.append)
+                    }
                 }
-                secondaryButton(
-                    isSelection
-                        ? env.preferences.t("替换选中内容", en: "Replace selection")
-                        : env.preferences.t("替换", en: "Replace"),
-                    systemImage: "arrow.triangle.2.circlepath",
-                    disabled: !canReplaceSource
-                ) {
-                    apply(.replace)
+                if canReplaceSource {
+                    secondaryButton(
+                        isSelection
+                            ? env.preferences.t("替换选中内容", en: "Replace selection")
+                            : env.preferences.t("替换", en: "Replace"),
+                        systemImage: "arrow.triangle.2.circlepath"
+                    ) {
+                        apply(.replace)
+                    }
                 }
             }
             if isGenerating {
@@ -338,7 +371,7 @@ struct AiAssistantSheet: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(AppTheme.accent)
-                .disabled(isApplying || (action == .custom && customInstruction.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
+                .disabled(isApplying || (selectedPrompt == nil && action == .custom && customInstruction.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
             }
         }
         .padding(.horizontal, 12)
@@ -371,14 +404,14 @@ struct AiAssistantSheet: View {
         case .summarize: env.preferences.t("总结", en: "Summarize")
         case .extractKeyPoints: env.preferences.t("提炼要点", en: "Key points")
         case .extractTodos: env.preferences.t("提取待办", en: "Extract tasks")
-        case .rewriteProofread: env.preferences.t("改写与校对", en: "Rewrite & proofread")
-        case .makeShorter: env.preferences.t("缩短内容", en: "Make shorter")
+        case .rewriteProofread: env.preferences.t("转为小红书风格", en: "Convert to Xiaohongshu style")
+        case .makeShorter: env.preferences.t("精炼表达", en: "Make concise")
         case .makeLonger: env.preferences.t("扩写内容", en: "Make longer")
-        case .simplifyLanguage: env.preferences.t("简化表达", en: "Simplify language")
+        case .simplifyLanguage: env.preferences.t("转为推特风格", en: "Convert to X (Twitter) style")
         case .changeTone: env.preferences.t("调整语气", en: "Change tone")
         case .translate: env.preferences.t("翻译", en: "Translate")
         case .continueWriting: env.preferences.t("继续写作", en: "Continue writing")
-        case .custom: env.preferences.t("自定义要求", en: "Custom instruction")
+        case .custom: env.preferences.t("自定义指令", en: "Custom prompt")
         }
     }
 
@@ -408,47 +441,61 @@ struct AiAssistantSheet: View {
     private var availableActions: [AiAction] {
         if isSelection {
             return [
-                .improveWriting,
-                .fixSpellingGrammar,
-                .makeShorter,
-                .makeLonger,
-                .simplifyLanguage,
-                .changeTone,
-                .translate,
                 .summarize,
-                .extractKeyPoints,
-                .extractTodos,
+                .translate,
+                .improveWriting,
+                .makeShorter,
+                .rewriteProofread,
+                .simplifyLanguage,
                 .custom,
             ]
         }
         return [
             .summarize,
-            .extractKeyPoints,
-            .extractTodos,
-            .rewriteProofread,
-            .makeShorter,
-            .makeLonger,
-            .simplifyLanguage,
-            .changeTone,
             .translate,
-            .continueWriting,
+            .improveWriting,
+            .makeShorter,
+            .rewriteProofread,
+            .simplifyLanguage,
             .custom,
         ]
     }
 
     private var canReplaceSource: Bool {
+        if let selectedPrompt {
+            return selectedPrompt.resultMode == .replace || selectedPrompt.resultMode == .both
+        }
         switch action {
         case .summarize, .extractKeyPoints, .extractTodos, .continueWriting:
-            false
+            return false
         default:
-            true
+            return true
         }
+    }
+
+    private var canAppendSource: Bool {
+        guard let selectedPrompt else { return true }
+        return selectedPrompt.resultMode == .append || selectedPrompt.resultMode == .both
+    }
+
+    private var selectedPrompt: AiPromptTemplate? {
+        guard let selectedPromptID else { return nil }
+        return prompts.first { $0.id == selectedPromptID }
+    }
+
+    private var needsTargetLanguage: Bool {
+        selectedPrompt?.parameterKind == .targetLanguage || (selectedPrompt == nil && action == .translate)
+    }
+
+    private var needsTone: Bool {
+        selectedPrompt?.parameterKind == .tone || (selectedPrompt == nil && action == .changeTone)
     }
 
     private func request(for source: String, refinement: String? = nil) -> AiGenerateInput {
         if let refinement, !refinement.isEmpty {
             return AiGenerateInput(
                 action: .custom,
+                locale: env.preferences.isEnglish ? "en-US" : "zh-CN",
                 title: title,
                 contentMarkdown: source,
                 targetLanguage: nil,
@@ -457,15 +504,41 @@ struct AiAssistantSheet: View {
         }
 
         return AiGenerateInput(
-            action: action,
+            action: selectedPrompt?.action ?? action,
+            promptId: selectedPrompt?.id,
+            locale: env.preferences.isEnglish ? "en-US" : "zh-CN",
             title: title,
             contentMarkdown: source,
-            targetLanguage: action == .translate ? targetLanguage.rawValue : nil,
-            tone: action == .changeTone ? tone.rawValue : nil,
-            instruction: action == .custom
+            targetLanguage: needsTargetLanguage ? targetLanguage.rawValue : nil,
+            tone: needsTone ? tone.rawValue : nil,
+            instruction: selectedPrompt == nil && action == .custom
                 ? customInstruction.trimmingCharacters(in: .whitespacesAndNewlines)
                 : nil
         )
+    }
+
+    private func selectAction(_ nextAction: AiAction) {
+        streamTask?.cancel()
+        selectedPromptID = nil
+        action = nextAction
+        output = ""
+        error = nil
+    }
+
+    @MainActor
+    private func loadPrompts() async {
+        do {
+            let locale = env.preferences.isEnglish ? "en-US" : "zh-CN"
+            let loaded = try await env.session.client.listAiPrompts(locale: locale)
+            prompts = loaded
+            let preferredAction: AiAction = isSelection ? .improveWriting : .summarize
+            if let preferred = loaded.first(where: { $0.seedKey == preferredAction.rawValue }) ?? loaded.first {
+                selectedPromptID = preferred.id
+                action = preferred.action
+            }
+        } catch {
+            // Keep the built-in action list as an offline/older-server fallback.
+        }
     }
 
     private func generate(source: String? = nil, refinement: String? = nil) {

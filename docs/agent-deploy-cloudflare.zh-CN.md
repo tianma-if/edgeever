@@ -13,6 +13,9 @@
 
 2. **启用工作流**
    - 在 Fork 仓库的 **Actions** 标签页中，启用 **Update deployed EdgeEver** 自动更新工作流（公共 Fork 上定时任务默认关闭，必须手动启用）。
+   - 普通 Fork 默认作为部署镜像，无需配置任何更新变量：工作流会把所选上游 Release 的产品代码快照应用到 `main`，再触发 Cloudflare。
+   - 更新器会把 Fork 自己的完整 `.github/workflows/**` 目录及两个更新辅助脚本作为稳定的本地引导层保留。官方打包、签名、测试与 Release 工作流继续通过 `tianma-if/edgeever` 仓库门禁限制执行，也不会被下游产品更新改写。
+   - 只有明确维护了应用代码修改的 Fork，才应创建 Actions 仓库变量 `EDGE_EVER_PRESERVE_FORK_CHANGES=true`。启用后改为 merge，并由仓库所有者处理未来冲突；普通部署无需设置。
 
 3. **Cloudflare 项目导入**
    - 登录 Cloudflare **Workers & Pages** 控制台，导入该 Fork 仓库。
@@ -23,6 +26,7 @@
    - **R2 存储桶绑定**：Binding 名称填 `RESOURCES`，关联全局唯一的 R2 Bucket。
    - **管理员用户名**：配置 `EDGE_EVER_AUTH_USERNAME`，默认值为 `admin`；如需自定义，可替换为其他用户名。
    - **Worker Secret**：添加密钥 `EDGE_EVER_AUTH_PASSWORD`，值为初始管理员登录密码。
+   - 该密码只配置为 Worker 运行时 Secret，不要复制到 Workers Builds 构建变量；标准部署入口会复用并验证已存在的 Secret。
 
 5. **配置 Workers Builds 命令**
    - 在 Cloudflare 项目的构建设置中，填入以下标准命令：
@@ -43,6 +47,6 @@
 
 7. **验证上游更新通道**
    - 在 Fork 的 **Actions** 中手动运行一次 **Update deployed EdgeEver**。
-   - 打开 Job **Summary**，确认已显示上游目标（stable Release 或 edge `main`），以及「已发布更新」或明确的「已对齐」结果。
+   - 打开 Job **Summary**，确认 Fork mode 为 `mirror`，并显示上游目标（stable Release 或 edge `main`），以及「已发布更新」或明确的「已对齐」结果。
    - 若发生了 push，确认 Cloudflare **Deployments** 构建的是对应的 `main` commit。
-   - 日常升级不要依赖 GitHub **Sync fork**，请以本工作流作为部署镜像同步路径。
+   - 普通部署 Fork 不应修改部署文件，日常升级也不要依赖 GitHub **Sync fork**；本工作流就是唯一需要的同步路径。只有旧 Fork 必须取得新版更新工作流本身时，才使用一次 **Sync fork**，之后继续使用 **Update deployed EdgeEver**。

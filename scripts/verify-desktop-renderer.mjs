@@ -55,7 +55,7 @@ try {
   });
   await verifyEntry({
     filePath: componentTestPath,
-    readySelector: "[data-desktop-renderer-test-ready]",
+    readySelector: '[data-desktop-renderer-test-ready] [data-bubble-menu-regression-ready="true"]',
     label: "Desktop renderer component test",
   });
 

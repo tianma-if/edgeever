@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
 export type ThemePreference = "system" | "light" | "dark";
 export type ResolvedTheme = "light" | "dark";
@@ -108,14 +108,20 @@ export const DEFAULT_CUSTOM_EDITOR_THEME: CustomEditorTheme = {
   customCss: "",
 };
 
-interface ThemeContextValue {
+interface AppearanceThemeContextValue {
   preference: ThemePreference;
   resolvedTheme: ResolvedTheme;
   setPreference: (preference: ThemePreference) => void;
+}
+
+interface MermaidThemeContextValue {
   mermaidTheme: MermaidThemeName;
   setMermaidTheme: (theme: MermaidThemeName) => void;
   mermaidRenderer: MermaidRenderer;
   setMermaidRenderer: (renderer: MermaidRenderer) => void;
+}
+
+interface EditorThemeContextValue {
   editorTheme: EditorThemeName;
   setEditorTheme: (theme: EditorThemeName) => void;
   customEditorThemes: CustomEditorTheme[];
@@ -136,7 +142,9 @@ const CUSTOM_EDITOR_THEME_STORAGE_KEY = "edgeever.custom-editor-theme";
 const CUSTOM_EDITOR_THEMES_STORAGE_KEY = "edgeever.custom-editor-themes";
 const LIGHT_THEME_COLOR = "#f8fafc";
 const DARK_THEME_COLOR = "#0f172a";
-const ThemeContext = createContext<ThemeContextValue | null>(null);
+const AppearanceThemeContext = createContext<AppearanceThemeContextValue | null>(null);
+const MermaidThemeContext = createContext<MermaidThemeContextValue | null>(null);
+const EditorThemeContext = createContext<EditorThemeContextValue | null>(null);
 
 const getSystemTheme = () =>
   typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
@@ -264,9 +272,6 @@ export const ThemeProvider = ({ children }: ThemeProviderProps) => {
   const [customEditorThemes, setCustomEditorThemesState] = useState<CustomEditorTheme[]>(getStoredCustomEditorThemes);
 
   useEffect(() => {
-    setResolvedTheme(applyThemeToDocument(preference));
-    window.localStorage.setItem(THEME_STORAGE_KEY, preference);
-
     if (preference !== "system") {
       return undefined;
     }
@@ -283,62 +288,118 @@ export const ThemeProvider = ({ children }: ThemeProviderProps) => {
     return customEditorThemes[0] || DEFAULT_CUSTOM_EDITOR_THEME;
   }, [customEditorThemes, editorTheme]);
 
-  const setCustomEditorTheme = (updatedTheme: CustomEditorTheme) => {
-    const nextThemes = customEditorThemes.map((t) =>
-      t.id === updatedTheme.id ? updatedTheme : t
-    );
-    if (!customEditorThemes.some((t) => t.id === updatedTheme.id)) {
-      if (customEditorThemes.length > 0) {
-        nextThemes[0] = { ...customEditorThemes[0], ...updatedTheme };
-      } else {
-        nextThemes.push(updatedTheme);
+  const setPreference = useCallback((nextPreference: ThemePreference) => {
+    // Apply the class before scheduling React work so a theme toggle can paint
+    // without waiting for the workspace and editor tree to render.
+    setResolvedTheme(applyThemeToDocument(nextPreference));
+    setPreferenceState(nextPreference);
+    window.localStorage.setItem(THEME_STORAGE_KEY, nextPreference);
+  }, []);
+
+  const setCustomEditorTheme = useCallback((updatedTheme: CustomEditorTheme) => {
+    setCustomEditorThemesState((currentThemes) => {
+      const nextThemes = currentThemes.map((theme) =>
+        theme.id === updatedTheme.id ? updatedTheme : theme
+      );
+      if (!currentThemes.some((theme) => theme.id === updatedTheme.id)) {
+        if (currentThemes.length > 0) {
+          nextThemes[0] = { ...currentThemes[0], ...updatedTheme };
+        } else {
+          nextThemes.push(updatedTheme);
+        }
       }
-    }
+      window.localStorage.setItem(CUSTOM_EDITOR_THEMES_STORAGE_KEY, JSON.stringify(nextThemes));
+      return nextThemes;
+    });
+  }, []);
+
+  const setCustomEditorThemes = useCallback((nextThemes: CustomEditorTheme[]) => {
     setCustomEditorThemesState(nextThemes);
     window.localStorage.setItem(CUSTOM_EDITOR_THEMES_STORAGE_KEY, JSON.stringify(nextThemes));
-  };
+  }, []);
 
-  const setCustomEditorThemes = (nextThemes: CustomEditorTheme[]) => {
-    setCustomEditorThemesState(nextThemes);
-    window.localStorage.setItem(CUSTOM_EDITOR_THEMES_STORAGE_KEY, JSON.stringify(nextThemes));
-  };
+  const setMermaidTheme = useCallback((nextTheme: MermaidThemeName) => {
+    setMermaidThemeState(nextTheme);
+    window.localStorage.setItem(MERMAID_THEME_STORAGE_KEY, nextTheme);
+  }, []);
 
-  const value = useMemo(
+  const setMermaidRenderer = useCallback((nextRenderer: MermaidRenderer) => {
+    setMermaidRendererState(nextRenderer);
+    window.localStorage.setItem(MERMAID_RENDERER_STORAGE_KEY, nextRenderer);
+  }, []);
+
+  const setEditorTheme = useCallback((nextTheme: string) => {
+    setEditorThemeState(nextTheme);
+    window.localStorage.setItem(EDITOR_THEME_STORAGE_KEY, nextTheme);
+  }, []);
+
+  const appearanceValue = useMemo(
     () => ({
       preference,
       resolvedTheme,
-      setPreference: (nextPreference: ThemePreference) => setPreferenceState(nextPreference),
+      setPreference,
+    }),
+    [preference, resolvedTheme, setPreference]
+  );
+
+  const mermaidValue = useMemo(
+    () => ({
       mermaidTheme,
-      setMermaidTheme: (nextTheme: MermaidThemeName) => {
-        setMermaidThemeState(nextTheme);
-        window.localStorage.setItem(MERMAID_THEME_STORAGE_KEY, nextTheme);
-      },
+      setMermaidTheme,
       mermaidRenderer,
-      setMermaidRenderer: (nextRenderer: MermaidRenderer) => {
-        setMermaidRendererState(nextRenderer);
-        window.localStorage.setItem(MERMAID_RENDERER_STORAGE_KEY, nextRenderer);
-      },
+      setMermaidRenderer,
+    }),
+    [mermaidRenderer, mermaidTheme, setMermaidRenderer, setMermaidTheme]
+  );
+
+  const editorValue = useMemo(
+    () => ({
       editorTheme,
-      setEditorTheme: (nextTheme: string) => {
-        setEditorThemeState(nextTheme);
-        window.localStorage.setItem(EDITOR_THEME_STORAGE_KEY, nextTheme);
-      },
+      setEditorTheme,
       customEditorThemes,
       setCustomEditorThemes,
       customEditorTheme,
       setCustomEditorTheme,
     }),
-    [customEditorThemes, customEditorTheme, editorTheme, mermaidRenderer, mermaidTheme, preference, resolvedTheme]
+    [customEditorThemes, customEditorTheme, editorTheme, setCustomEditorTheme, setCustomEditorThemes, setEditorTheme]
   );
 
-  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
+  return (
+    <AppearanceThemeContext.Provider value={appearanceValue}>
+      <MermaidThemeContext.Provider value={mermaidValue}>
+        <EditorThemeContext.Provider value={editorValue}>
+          {children}
+        </EditorThemeContext.Provider>
+      </MermaidThemeContext.Provider>
+    </AppearanceThemeContext.Provider>
+  );
 };
 
-export const useTheme = () => {
-  const context = useContext(ThemeContext);
+export const useAppearanceTheme = () => {
+  const context = useContext(AppearanceThemeContext);
 
   if (!context) {
-    throw new Error("useTheme must be used within ThemeProvider");
+    throw new Error("useAppearanceTheme must be used within ThemeProvider");
+  }
+
+  return context;
+};
+
+export const useMermaidTheme = () => {
+  const context = useContext(MermaidThemeContext);
+
+  if (!context) {
+    throw new Error("useMermaidTheme must be used within ThemeProvider");
+  }
+
+  return context;
+};
+
+export const useEditorTheme = () => {
+  const context = useContext(EditorThemeContext);
+
+  if (!context) {
+    throw new Error("useEditorTheme must be used within ThemeProvider");
   }
 
   return context;

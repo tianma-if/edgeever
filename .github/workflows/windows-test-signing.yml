@@ -1,0 +1,130 @@
+name: Windows test signing
+
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  test-signing:
+    if: github.repository == 'tianma-if/edgeever'
+    name: Build and test-sign Windows x64 installer
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          for ($attempt = 1; $attempt -le 3; $attempt++) {
+            bun install --frozen-lockfile
+            $installExitCode = $LASTEXITCODE
+            if ($installExitCode -eq 0) {
+              exit 0
+            }
+            if ($attempt -eq 3) {
+              exit $installExitCode
+            }
+            Write-Warning "Dependency installation failed on attempt $attempt; retrying."
+            Start-Sleep -Seconds (15 * $attempt)
+          }
+
+      - name: Run project type checks
+        run: |
+          bun run typecheck
+          bun run typecheck:mobile
+
+      - name: Build Web renderer
+        env:
+          EDGE_EVER_DESKTOP_BUILD: "1"
+        run: bun run build:web
+
+      - name: Build Rust sidecar
+        run: cargo build --manifest-path crates/desktop-sidecar/Cargo.toml --release
+
+      - name: Package unsigned Windows installer
+        run: bun scripts/run-desktop-builder.mjs --publish never
+
+      - name: Verify unsigned Windows installer
+        id: installer
+        shell: pwsh
+        run: |
+          $version = (Get-Content apps/desktop/package.json | ConvertFrom-Json).version
+          $installer = "release/desktop/EdgeEver-$version-windows-x64.exe"
+          if (-not (Test-Path -LiteralPath $installer)) {
+            throw "Expected Windows installer was not created: $installer"
+          }
+
+          $signature = Get-AuthenticodeSignature -LiteralPath $installer
+          if ($signature.Status -ne "NotSigned") {
+            throw "Installer must be unsigned before SignPath submission; status: $($signature.Status)"
+          }
+
+          "path=$installer" >> $env:GITHUB_OUTPUT
+
+      - name: Upload unsigned installer for SignPath
+        id: upload-unsigned-installer
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          path: ${{ steps.installer.outputs.path }}
+          archive: false
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Submit SignPath test-signing request
+        id: signpath
+        uses: SignPath/github-action-submit-signing-request@b9d91eadd323de506c0c81cf0c7fe7438f3360fd # v2
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: 15b94faa-3e4c-4b80-b999-61abdcb3703c
+          project-slug: edgeever
+          signing-policy-slug: test-signing
+          artifact-configuration-slug: initial
+          github-artifact-id: ${{ steps.upload-unsigned-installer.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 900
+          output-artifact-directory: ${{ runner.temp }}\edgeever-signpath-signed
+          skip-decompress: true
+
+      - name: Verify SignPath test signature
+        id: signed-installer
+        shell: pwsh
+        run: |
+          $signedInstallers = @(
+            Get-ChildItem -LiteralPath "${{ runner.temp }}\edgeever-signpath-signed" -Filter *.exe -File -Recurse
+          )
+          if ($signedInstallers.Count -ne 1) {
+            throw "Expected exactly one signed installer, found $($signedInstallers.Count)"
+          }
+
+          $signedInstaller = $signedInstallers[0]
+          $signature = Get-AuthenticodeSignature -LiteralPath $signedInstaller.FullName
+          if ($null -eq $signature.SignerCertificate -or $signature.Status -eq "NotSigned") {
+            throw "SignPath did not return an Authenticode-signed installer"
+          }
+
+          "Signed installer: $($signedInstaller.Name)" >> $env:GITHUB_STEP_SUMMARY
+          "Signature status: $($signature.Status)" >> $env:GITHUB_STEP_SUMMARY
+          "Signer: $($signature.SignerCertificate.Subject)" >> $env:GITHUB_STEP_SUMMARY
+          "SignPath request: ${{ steps.signpath.outputs.signing-request-web-url }}" >> $env:GITHUB_STEP_SUMMARY
+          "path=$($signedInstaller.FullName)" >> $env:GITHUB_OUTPUT
+
+      - name: Upload test-signed installer
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: edgeever-windows-x64-test-signed
+          path: ${{ steps.signed-installer.outputs.path }}
+          if-no-files-found: error
+          retention-days: 7

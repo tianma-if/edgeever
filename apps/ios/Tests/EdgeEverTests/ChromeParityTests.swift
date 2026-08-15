@@ -119,6 +119,23 @@ final class ChromeParityTests: XCTestCase {
         XCTAssertFalse(src.contains("ToolbarItem(placement: .cancellationAction)"), "system Close toolbar not Android create chrome")
     }
 
+    func testRegularCreateNeverRestoresOrPersistsPreviousCreateContent() throws {
+        let src = try readShippedSource("Features/Workspace/MemoEditView.swift")
+
+        XCTAssertFalse(
+            src.contains("env.drafts.read(scope: scope, key: DraftRepository.newKey)"),
+            "regular create must not restore the previous new-note draft"
+        )
+        XCTAssertFalse(
+            src.contains("makeDraft(key: DraftRepository.newKey"),
+            "regular create must not persist content for a later create session"
+        )
+        XCTAssertTrue(
+            src.contains("env.drafts.clear(scope: scope, key: DraftRepository.newKey)"),
+            "regular create must remove legacy new-note drafts"
+        )
+    }
+
     func testMemoDetailViewUsesDetailChromeAndEditFab() throws {
         let src = try readShippedSource("Features/Workspace/MemoDetailView.swift")
         XCTAssertTrue(src.contains("DetailMemoChrome.header") || src.contains("detailHeader"), src)

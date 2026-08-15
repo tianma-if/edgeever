@@ -8,16 +8,27 @@ export type EditorLinkClick = {
 
 /**
  * Desktop preference:
- * - `click` (default): plain primary click opens navigable links while editing
- * - `modifier`: require Ctrl/⌘ + click to open (plain click places caret)
+ * - `modifier` (default): require Ctrl/⌘ + click to open (plain click places caret)
+ * - `click`: plain primary click opens navigable links while editing
  *
  * Mobile always opens on primary click regardless of this preference.
  */
 export type EditorLinkOpenMode = "click" | "modifier";
 
+export const DEFAULT_EDITOR_LINK_OPEN_MODE: EditorLinkOpenMode = "modifier";
+
+export const shouldShowEditorLinkOpenHint = (
+  editable: boolean,
+  isMobileViewport: boolean,
+  mode: EditorLinkOpenMode
+): boolean => editable && !isMobileViewport && mode === "modifier";
+
 export const EDITOR_LINK_OPEN_MODE_STORAGE_KEY = "edgeever.editor.linkOpenMode";
 
 export const EDITOR_LINK_OPEN_MODE_CHANGED_EVENT = "edgeever:editor-link-open-mode-changed";
+
+export const resolveStoredEditorLinkOpenMode = (stored: string | null): EditorLinkOpenMode =>
+  stored === "click" || stored === "modifier" ? stored : DEFAULT_EDITOR_LINK_OPEN_MODE;
 
 const readLocalStorageItem = (key: string): string | null => {
   if (typeof window === "undefined") return null;
@@ -30,7 +41,7 @@ const readLocalStorageItem = (key: string): string | null => {
 
 export const getStoredEditorLinkOpenMode = (): EditorLinkOpenMode => {
   const stored = readLocalStorageItem(EDITOR_LINK_OPEN_MODE_STORAGE_KEY);
-  return stored === "modifier" ? "modifier" : "click";
+  return resolveStoredEditorLinkOpenMode(stored);
 };
 
 export const writeEditorLinkOpenMode = (mode: EditorLinkOpenMode) => {

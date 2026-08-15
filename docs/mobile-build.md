@@ -58,8 +58,9 @@ SHA-256 to
 `22bf52a9501c89020f5acc966960152c826bfa64f31e578e858d088f8cd75d87`.
 Any other signer fails the build. Verify the application version and APK
 SHA-256 as well. Additional ABIs should only be published for an explicit
-compatibility need; the Play AAB continues to include all supported
-architectures. A release whose audited change range affects mobile runtime
+compatibility need. The Play AAB is also intentionally limited to
+`arm64-v8a`, so its Play-signed universal APK remains a single-ABI download.
+A release whose audited change range affects mobile runtime
 code, shared code used by mobile, mobile dependencies, native configuration,
 APK build tooling, or signer verification must rebuild the APK from that
 release commit.
@@ -73,6 +74,15 @@ formal Release. The self-hosted Android runner is scheduled only when the
 audited range includes mobile runtime code, shared mobile packages,
 dependencies, native configuration, Android build tooling, or signer
 verification.
+
+This locally signed APK prepares the Draft without requiring a Google Play
+submission. After the matching AAB is delivered, the store-delivery workflow
+downloads Google Play's signed universal APK and replaces the GitHub Release
+asset under the established filename. Because the uploaded AAB contains only
+`arm64-v8a`, the Play-generated APK also remains arm64-only. Publishing the
+Play-signed APK lets Play and GitHub installations update each other without
+uninstalling the app. The workflow pins and verifies the Play app-signing
+certificate before replacing the asset.
 
 ### Recommended local Play build
 
@@ -100,11 +110,13 @@ apps/mobile/android/app/build/outputs/bundle/release/app-release.aab
 apps/mobile/android/app/build/outputs/mapping/release/mapping.txt
 ```
 
-The command builds all Play-supported Android architectures by default,
-verifies the AAB signature, and requires a non-empty R8 mapping file. Keep an
-encrypted backup of `signing.env` and the upload keystore outside the
-repository. Do not replace or regenerate the upload key for an existing Play
-app unless the key reset has been completed in Play Console.
+The command builds `arm64-v8a` by default, verifies the AAB signature, and
+requires a non-empty R8 mapping file. This keeps the Play-generated universal
+APK suitable for the arm64 GitHub Release asset instead of bundling unused
+32-bit ARM and x86 native libraries. Keep an encrypted backup of `signing.env`
+and the upload keystore outside the repository. Do not replace or regenerate
+the upload key for an existing Play app unless the key reset has been completed
+in Play Console.
 
 Set `EDGE_EVER_ANDROID_ENV_FILE` to use a different secure environment file.
 
@@ -114,7 +126,8 @@ The GitHub Release workflow never builds or uploads a Play bundle. After a
 formal Release that contains mobile changes is published, use the separate
 store-delivery workflow. It builds a signed AAB from the immutable Release tag,
 preserves the AAB and R8 mapping as Actions artifacts, and uploads the bundle
-through EAS Submit. See [Mobile Store Delivery](store-delivery.md).
+through EAS Submit. It then replaces the GitHub APK with the Play-signed
+universal APK. See [Mobile Store Delivery](store-delivery.md).
 
 The upload keystore is only used to prove ownership when uploading bundles;
 Google Play App Signing manages the app signing key delivered to users. Keep an

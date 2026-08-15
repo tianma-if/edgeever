@@ -413,6 +413,7 @@ export const MemoCard = ({
               title={t("memoCard.moreActions")}
               aria-label={t("memoCard.moreActions")}
               aria-haspopup="menu"
+              data-memo-actions-trigger
               onClick={(event) => {
                 event.stopPropagation();
                 onOpenKeyboardContextMenu(event.currentTarget);

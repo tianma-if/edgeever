@@ -28,7 +28,7 @@ export const AdvancedPlayCard = () => {
   return (
     <Collapsible open={expanded} onOpenChange={setExpanded} asChild>
       <Card className="w-full min-w-0 overflow-hidden shadow-none">
-        <CardHeader className="p-4">
+        <CardHeader className="p-4 sm:p-5">
           <CollapsibleTrigger asChild>
             <button className="flex w-full min-w-0 items-start justify-between gap-3 text-left" type="button">
               <span className="min-w-0">
@@ -36,7 +36,7 @@ export const AdvancedPlayCard = () => {
                   <Sparkles className="h-4 w-4 text-emerald-700" />
                   {t("advancedPlay.title")}
                 </CardTitle>
-                <CardDescription className="mt-1 text-xs leading-4">{t("advancedPlay.description")}</CardDescription>
+                <CardDescription className="mt-1 text-xs text-slate-500">{t("advancedPlay.description")}</CardDescription>
               </span>
               <ChevronDown
                 className={cn(
@@ -48,19 +48,19 @@ export const AdvancedPlayCard = () => {
           </CollapsibleTrigger>
         </CardHeader>
         <CollapsibleContent asChild>
-          <CardContent className="grid gap-3 p-4 pt-0">
+          <CardContent className="grid gap-3 p-4 pt-0 sm:px-5 sm:pb-5">
             {ADVANCED_PROMPT_KEYS.map((key) => {
               const title = t(`advancedPlay.prompts.${key}.title`);
               const prompt = t(`advancedPlay.prompts.${key}.prompt`);
 
               return (
-                <div key={key} className="rounded-lg border border-slate-200 bg-white p-3">
+                <div key={key} className="rounded-lg border border-slate-200 bg-white p-3.5">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="text-sm font-bold text-slate-900">{title}</div>
+                    <div className="text-sm font-semibold text-slate-900">{title}</div>
                     <Button
                       size="sm"
                       variant="outline"
-                      className="h-8 w-full justify-center bg-white px-3 text-xs sm:w-auto"
+                      className="h-8 w-full gap-1.5 justify-center bg-white px-2.5 text-xs sm:w-auto"
                       type="button"
                       onClick={() => void handleCopyPrompt(title, prompt)}
                     >

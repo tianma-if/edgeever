@@ -359,6 +359,19 @@ const MCP_TOOL_DEFINITIONS = [
     },
   },
   {
+    name: "rename_notebook",
+    description: "Rename an active notebook in the authenticated user's workspace.",
+    inputSchema: {
+      type: "object",
+      required: ["notebookId", "name"],
+      additionalProperties: false,
+      properties: {
+        notebookId: { type: "string", description: "The exact EdgeEver notebook ID." },
+        name: { type: "string", minLength: 1, maxLength: 80 },
+      },
+    },
+  },
+  {
     name: "get_notebook",
     description: "Get one active notebook by ID from the authenticated user's workspace.",
     inputSchema: {
@@ -456,6 +469,7 @@ const NON_DESTRUCTIVE_MCP_TOOLS = new Set([
   "upload_memo_attachment",
   "move_notebook",
   "create_notebook",
+  "rename_notebook",
 ]);
 const IDEMPOTENT_MCP_TOOLS = new Set([
   "restore_memos",
@@ -464,6 +478,7 @@ const IDEMPOTENT_MCP_TOOLS = new Set([
   "remove_tags_from_memos",
   "import_memos",
   "move_notebook",
+  "rename_notebook",
 ]);
 
 export const MCP_TOOLS = MCP_TOOL_DEFINITIONS.map((tool) => {

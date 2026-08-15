@@ -1,3 +1,5 @@
+import { deploymentPrompts } from "./deployment-prompts";
+
 export type SiteLocale = "zh-CN" | "en-US";
 
 export const defaultSiteLocale: SiteLocale = "zh-CN";
@@ -65,11 +67,7 @@ export const siteCopy = {
       terminalCmd: "帮我在 Cloudflare 部署 EdgeEver：Fork https://github.com/tianma-if/edgeever 并绑定 D1/R2",
       terminalSub: "Agent 原生 · 复制 Prompt 粘贴给 Cursor / Claude Code / Antigravity 即可自动部署",
       copySuccess: "部署 Prompt 已复制！粘贴给 AI 助手即可部署",
-      agentPromptText: `帮我在 Cloudflare 部署 EdgeEver：
-1. Fork https://github.com/tianma-if/edgeever
-2. 导入 Cloudflare Workers & Pages
-3. 绑定 D1 (DB)、R2 (RESOURCES) 并配置 EDGE_EVER_AUTH_PASSWORD 密钥
-4. 启动首次构建并验证 /api/health`,
+      agentPromptText: deploymentPrompts["zh-CN"],
     },
     bento: {
       eyebrow: "WHY EDGEEVER",
@@ -318,11 +316,7 @@ export const siteCopy = {
       terminalCmd: "Deploy EdgeEver on Cloudflare: Fork https://github.com/tianma-if/edgeever & bind D1/R2",
       terminalSub: "Agent Native · Copy prompt to Cursor / Claude Code / Antigravity to deploy automatically",
       copySuccess: "Deployment Prompt copied! Paste into AI Assistant",
-      agentPromptText: `Deploy EdgeEver on Cloudflare:
-1. Fork https://github.com/tianma-if/edgeever
-2. Import into Cloudflare Workers & Pages
-3. Bind D1 (DB), R2 (RESOURCES) and set EDGE_EVER_AUTH_PASSWORD secret
-4. Start first build and verify /api/health`,
+      agentPromptText: deploymentPrompts["en-US"],
     },
     bento: {
       eyebrow: "WHY EDGEEVER",

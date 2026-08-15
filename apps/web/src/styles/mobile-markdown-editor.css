@@ -466,6 +466,47 @@ html.dark .edgeever-mobile-tiptap-content a:hover {
   list-style-type: decimal;
 }
 
+.edgeever-mobile-tiptap-content ul[data-type="taskList"] {
+  padding-left: 0;
+  list-style: none;
+}
+
+.edgeever-mobile-tiptap-content ul[data-type="taskList"] li[data-checked] {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin: 4px 0;
+}
+
+.edgeever-mobile-tiptap-content ul[data-type="taskList"] li[data-checked] > label {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  margin-top: 3px;
+  user-select: none;
+}
+
+.edgeever-mobile-tiptap-content ul[data-type="taskList"] li[data-checked] > label input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: #16a06e;
+}
+
+.edgeever-mobile-tiptap-content ul[data-type="taskList"] li[data-checked] > div {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.edgeever-mobile-tiptap-content ul[data-type="taskList"] li[data-checked] > div > p {
+  margin-bottom: 0;
+}
+
+.edgeever-mobile-tiptap-content ul[data-type="taskList"] ul[data-type="taskList"] {
+  margin: 4px 0 0;
+  padding-left: 24px;
+}
+
 .edgeever-mobile-tiptap-content blockquote {
   border-left: 3px solid #cbd5e1;
   color: #475569;

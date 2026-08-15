@@ -32,13 +32,17 @@ GitHub Release 与移动端商店交付是两个独立操作：
 - `ANDROID_KEYSTORE_PASSWORD`
 - `ANDROID_KEY_ALIAS`
 - `ANDROID_KEY_PASSWORD`
+- `ANDROID_PLAY_APP_SIGNER_SHA256`
+- `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64`
 - `APP_STORE_CONNECT_API_KEY_ID`
 - `APP_STORE_CONNECT_API_ISSUER_ID`
 - `APP_STORE_CONNECT_API_KEY_P8_BASE64`
 
-将 Google Play 服务账号密钥上传到 Android 应用的 EAS Submit Credentials。
-在 EAS 中配置 iOS 分发凭据和 App Store Connect API Key。凭据和私钥禁止提交
-到仓库。
+将 Google Play 服务账号密钥上传到 Android 应用的 EAS Submit Credentials，
+同时将同一份服务账号 JSON 以 base64 保存到上述仓库 Secret，并把 Play Console
+中的**应用签名证书**（不是上传证书）SHA-256 指纹保存为
+`ANDROID_PLAY_APP_SIGNER_SHA256`。在 EAS 中配置 iOS 分发凭据和 App Store
+Connect API Key。凭据和私钥禁止提交到仓库。
 
 创建以下 GitHub Environments：
 
@@ -73,8 +77,16 @@ bun run publish:stores -- \
 
 ### Google Play
 
-自托管发布 Runner 会从指定 tag 构建签名 AAB，验证签名和 R8 Mapping，将两者
-保留为 GitHub Actions Artifacts，然后通过 EAS Submit 上传 AAB。
+自托管发布 Runner 会从指定 tag 构建仅含 `arm64-v8a` 的签名 AAB，验证签名和
+R8 Mapping，将两者保留为 GitHub Actions Artifacts，然后通过 EAS Submit 上传
+AAB。
+
+Google Play 处理完 AAB 后，工作流会下载由 Play 应用签名密钥签名的通用 APK，
+核对固定的应用签名证书，并替换 GitHub Release 中的 Android 资产。这样从 Play
+和 GitHub 安装的版本可以互相覆盖升级。上传的 AAB 会明确限制为
+`arm64-v8a`，因此 Play 生成的通用 APK 不会再打包无用的 32 位 ARM 或 x86
+原生库。该 Release 必须关闭 Automatic Protection；当 Play 返回带安装来源限制
+的产物时，下载器会直接失败，防止此类 APK 再次发布到 GitHub 供侧载。
 
 Internal、Alpha、Beta 和 Production 配置都会在所选轨道创建 Completed
 Release。默认命令直接使用 Production；只有明确要求测试交付时才使用

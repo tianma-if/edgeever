@@ -5,20 +5,27 @@ import {
   AiProviderConfigCreateSchema,
   AiProviderConfigUpdateSchema,
   AiProviderConnectionTestSchema,
+  promptNeedsTargetLanguage,
+  promptNeedsTone,
 } from "@edgeever/shared";
 import { zValidator } from "@hono/zod-validator";
 import type { Hono } from "hono";
 import type { AppContext, AppEnv, Bindings } from "./api-context";
 import { AppError } from "./app-error";
 import { auditStatement } from "./audit";
+import { getAiPromptTemplate, resolveWorkspaceActionInstruction } from "./ai-prompt-service";
 import {
+  createAiGenerationResultBoundary,
+  createAiGenerationStreamNormalizer,
   decryptAiCredential,
   discoverAiModels,
   getAiModelConfig,
   getAiProviderConfig,
   getAiSettings,
   getDefaultAiModelId,
+  generateAiGeneration,
   loadDefaultAiModel,
+  normalizeAiGenerationText,
   normalizeAiBaseUrl,
   resolvePrimaryAiCredentialEncryptionKey,
   streamAiGeneration,
@@ -31,6 +38,7 @@ import { encryptSecret } from "./secret-encryption";
 
 type AiRouteDependencies = {
   isDemoMode: (environment: Bindings) => boolean;
+  testConnection?: (config: Parameters<typeof testAiModel>[0]) => Promise<{ text: string }>;
 };
 
 const providerErrorMessage = (error: unknown) => {
@@ -257,13 +265,16 @@ export const registerAiRoutes = (app: Hono<AppEnv>, dependencies: AiRouteDepende
       if (denied) return denied;
       try {
         const input = context.req.valid("json");
-        const { row, apiKey } = await getSavedProviderApiKey(
-          context,
+        const row = await getAiProviderConfig(
+          context.env.storage.db,
+          getWorkspaceId(context),
           context.req.param("providerConfigId"),
         );
-        const result = await testAiModel({
-          provider: row.provider,
-          baseUrl: row.base_url,
+        if (!row) throw new AppError("ai_provider_not_found", "AI provider not found.", 404);
+        const apiKey = input.apiKey ?? await decryptAiCredential(row.api_key_encrypted, context.env);
+        const result = await (dependencies.testConnection ?? testAiModel)({
+          provider: input.provider ?? row.provider,
+          baseUrl: input.baseUrl ? normalizeAiBaseUrl(input.baseUrl) : row.base_url,
           apiKey,
           modelId: input.modelId,
         });
@@ -440,27 +451,101 @@ export const registerAiRoutes = (app: Hono<AppEnv>, dependencies: AiRouteDepende
       if (denied) return denied;
       try {
         const input = context.req.valid("json");
+        const workspaceId = getWorkspaceId(context);
+        const selectedPrompt = input.promptId
+          ? await getAiPromptTemplate(
+            context.env.storage.db,
+            workspaceId,
+            input.promptId,
+            input.locale,
+          )
+          : null;
+        if (input.promptId && !selectedPrompt) {
+          throw new AppError("ai_prompt_not_found", "The selected prompt no longer exists.", 404);
+        }
+
+        const action = selectedPrompt?.action ?? input.action;
+        const needsTargetLanguage = selectedPrompt
+          ? promptNeedsTargetLanguage(selectedPrompt.parameterKind)
+          : action === "translate";
+        const needsTone = selectedPrompt
+          ? promptNeedsTone(selectedPrompt.parameterKind)
+          : action === "change-tone";
+        if (needsTargetLanguage && !input.targetLanguage) {
+          throw new AppError("ai_target_language_required", "Choose a target language for this prompt.", 400);
+        }
+        if (needsTone && !input.tone) {
+          throw new AppError("ai_tone_required", "Choose a tone for this prompt.", 400);
+        }
+
+        const resolvedInstruction = selectedPrompt?.instruction
+          || input.instruction?.trim()
+          || await resolveWorkspaceActionInstruction(
+            context.env.storage.db,
+            workspaceId,
+            action,
+            input.locale,
+          )
+          || undefined;
         const model = await loadDefaultAiModel(
           context.env.storage.db,
-          getWorkspaceId(context),
+          workspaceId,
           context.env,
         );
-        const result = streamAiGeneration({ ...input, model, abortSignal: context.req.raw.signal });
+        const resultBoundary = createAiGenerationResultBoundary();
+        const generationInput = {
+          ...input,
+          action,
+          instruction: resolvedInstruction,
+          targetLanguage: needsTargetLanguage ? input.targetLanguage : undefined,
+          tone: needsTone ? input.tone : undefined,
+          model,
+          resultBoundary,
+          abortSignal: context.req.raw.signal,
+        };
         const encoder = new TextEncoder();
         const stream = new ReadableStream<Uint8Array>({
           async start(controller) {
             const send = (event: unknown) => controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
             send({ type: "start" });
             try {
-              for await (const text of result.textStream) {
-                send({ type: "text-delta", text });
+              if (input.stream) {
+                const result = await streamAiGeneration(generationInput);
+                const normalizer = createAiGenerationStreamNormalizer(resultBoundary);
+                let hasContent = false;
+                for await (const part of result.stream) {
+                  if (part.type === "error") throw part.error;
+                  if (part.type !== "text-delta") continue;
+                  const text = normalizer.push(part.text);
+                  if (!text) continue;
+                  hasContent ||= Boolean(text.trim());
+                  send({ type: "text-delta", text });
+                }
+                const trailingText = normalizer.finish();
+                if (trailingText) {
+                  hasContent ||= Boolean(trailingText.trim());
+                  send({ type: "text-delta", text: trailingText });
+                }
+                if (!hasContent) throw new Error("The AI did not return a note result.");
+                const [usage, finishReason] = await Promise.all([result.usage, result.finishReason]);
+                send({
+                  type: "finish",
+                  finishReason,
+                  inputTokens: usage.inputTokens,
+                  outputTokens: usage.outputTokens,
+                });
+                return;
               }
-              const [usage, finishReason] = await Promise.all([result.usage, result.finishReason]);
+
+              const result = await generateAiGeneration(generationInput);
+              const contentMarkdown = normalizeAiGenerationText(result.text, resultBoundary);
+              if (!contentMarkdown) throw new Error("The AI did not return a note result.");
+              send({ type: "text-delta", text: contentMarkdown });
               send({
                 type: "finish",
-                finishReason,
-                inputTokens: usage.inputTokens,
-                outputTokens: usage.outputTokens,
+                finishReason: result.finishReason,
+                inputTokens: result.usage.inputTokens,
+                outputTokens: result.usage.outputTokens,
               });
             } catch (error) {
               send({ type: "error", code: "ai_generation_failed", message: providerErrorMessage(error) });

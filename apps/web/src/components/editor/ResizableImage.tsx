@@ -11,6 +11,7 @@ import {
   parseImageWidth,
 } from "@edgeever/shared/image-display";
 import { getAttachmentResourceId } from "@/lib/attachment-links";
+import { createMarkdownImagePasteRule } from "@/lib/markdown-image-paste";
 import { cn } from "@/lib/utils";
 
 export type ImageMenuRequestDetail = {
@@ -151,6 +152,9 @@ const ResizableImageNodeView = ({
 };
 
 export const ResizableImage = Image.extend({
+  addPasteRules() {
+    return [createMarkdownImagePasteRule(this.type)];
+  },
   addAttributes() {
     return {
       ...this.parent?.(),

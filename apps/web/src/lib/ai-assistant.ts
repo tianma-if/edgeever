@@ -3,10 +3,19 @@ import {
   AI_TARGET_LANGUAGES,
   AI_TONES,
   AI_WHOLE_NOTE_ACTIONS,
+  actionNeedsTargetLanguage,
+  actionNeedsTone,
   canReplaceAiSource,
   getDefaultAiAction,
   getDefaultAiTargetLanguage,
+  parseDefaultAiPromptKey,
+  promptAllowsAppend,
+  promptAllowsReplace,
+  promptNeedsTargetLanguage,
+  promptNeedsTone,
   type AiAction,
+  type AiPromptParameterKind,
+  type AiPromptResultMode,
   type AiTargetLanguage,
   type AiTone,
 } from "@edgeever/shared";
@@ -21,12 +30,25 @@ export type AiAssistantAction = AiAction;
 export const selectedTextAiActions = AI_SELECTED_TEXT_ACTIONS;
 export const wholeNoteAiActions = AI_WHOLE_NOTE_ACTIONS;
 export const getDefaultTargetLanguage = getDefaultAiTargetLanguage;
-export { canReplaceAiSource, getDefaultAiAction };
+export {
+  actionNeedsTargetLanguage,
+  actionNeedsTone,
+  canReplaceAiSource,
+  getDefaultAiAction,
+  parseDefaultAiPromptKey,
+  promptAllowsAppend,
+  promptAllowsReplace,
+  promptNeedsTargetLanguage,
+  promptNeedsTone,
+};
 
 export const buildAiAssistantRequest = ({
   action,
   contentMarkdown,
   customInstruction,
+  locale,
+  parameterKind,
+  promptId,
   targetLanguage,
   title,
   tone,
@@ -34,6 +56,9 @@ export const buildAiAssistantRequest = ({
   action: AiAssistantAction;
   contentMarkdown: string;
   customInstruction: string;
+  locale?: string;
+  parameterKind?: AiPromptParameterKind;
+  promptId?: string | null;
   targetLanguage: TargetLanguage;
   title: string;
   tone: AiTone;
@@ -41,14 +66,28 @@ export const buildAiAssistantRequest = ({
   action: AiAction;
   title: string;
   contentMarkdown: string;
+  promptId?: string;
+  locale?: string;
   targetLanguage?: AiTargetLanguage;
   tone?: AiTone;
   instruction?: string;
-} => ({
-  action,
-  title,
-  contentMarkdown,
-  ...(action === "translate" ? { targetLanguage } : {}),
-  ...(action === "change-tone" ? { tone } : {}),
-  ...(action === "custom" ? { instruction: customInstruction.trim() } : {}),
-});
+} => {
+  const instruction = customInstruction.trim();
+  const needsTargetLanguage = parameterKind
+    ? promptNeedsTargetLanguage(parameterKind)
+    : actionNeedsTargetLanguage(action);
+  const needsTone = parameterKind ? promptNeedsTone(parameterKind) : actionNeedsTone(action);
+  return {
+    action,
+    ...(promptId ? { promptId } : {}),
+    ...(locale ? { locale } : {}),
+    title,
+    contentMarkdown,
+    // Saved prompts are resolved by id on the server; only freeform actions send client text.
+    ...(!promptId && instruction ? { instruction } : {}),
+    ...(needsTargetLanguage ? { targetLanguage } : {}),
+    ...(needsTone ? { tone } : {}),
+  };
+};
+
+export type { AiPromptParameterKind, AiPromptResultMode };

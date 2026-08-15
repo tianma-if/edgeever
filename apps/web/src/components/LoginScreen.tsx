@@ -1,12 +1,13 @@
 import { useState, type FormEvent } from "react";
 import { LockKeyhole } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { resolveInstanceUrlInput } from "@edgeever/shared";
 import { Button } from "@/components/ui/button";
 import { GitHubRepositoryLink } from "@/components/GitHubRepositoryLink";
 import { Input } from "@/components/ui/input";
 
 interface LoginScreenProps {
-  error: { message: string; diagnosticCode: string } | null;
+  error: { message: string; diagnosticCode: string; rayId?: string } | null;
   instanceUrl?: string;
   isSubmitting: boolean;
   onSubmit: (payload: { instanceUrl?: string; username: string; password: string }) => void;
@@ -38,7 +39,7 @@ export const LoginScreen = ({ error, instanceUrl: initialInstanceUrl, isSubmitti
     }
 
     onSubmit({
-      ...(initialInstanceUrl !== undefined ? { instanceUrl: instanceUrl.trim() } : {}),
+      ...(initialInstanceUrl !== undefined ? { instanceUrl: resolveInstanceUrlInput(instanceUrl) } : {}),
       username: username.trim(),
       password,
     });
@@ -71,6 +72,11 @@ export const LoginScreen = ({ error, instanceUrl: initialInstanceUrl, isSubmitti
               <p className="mt-1 font-mono text-[11px] text-rose-500">
                 {t("login.diagnosticCode", { code: error.diagnosticCode })}
               </p>
+              {error.rayId ? (
+                <p className="mt-0.5 break-all font-mono text-[11px] text-rose-500">
+                  {t("login.cloudflareRayId", { id: error.rayId })}
+                </p>
+              ) : null}
             </div>
           ) : null}
 
@@ -80,7 +86,7 @@ export const LoginScreen = ({ error, instanceUrl: initialInstanceUrl, isSubmitti
               <Input
                 autoComplete="url"
                 className="h-11 rounded-lg bg-slate-50/50 px-3.5 focus-visible:bg-white focus-visible:ring-4 focus-visible:ring-emerald-500/10"
-                placeholder="https://notes.example.com"
+                placeholder={t("login.instanceUrlPlaceholder")}
                 required
                 type="url"
                 value={instanceUrl}

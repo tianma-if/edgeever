@@ -7,6 +7,7 @@ import type {
   CreatedApiToken,
   JsonBackupMemo,
   JsonBackupNotebook,
+  JsonBackupAiPrompt,
   JsonBackupRevision,
   MemoDetail,
   MemoEditSession,
@@ -27,6 +28,9 @@ import type {
   AiSettings,
   AiDiscoveredModel,
   AiProvider,
+  AiPromptTemplate,
+  AiPromptTemplateCreateInput,
+  AiPromptTemplateUpdateInput,
   AiStreamEvent,
 } from "@edgeever/shared";
 
@@ -288,11 +292,47 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
         body: JSON.stringify({ modelConfigId }),
       }),
 
+    listAiPrompts: (locale?: string) => {
+      const search = locale ? `?locale=${encodeURIComponent(locale)}` : "";
+      return request<{ prompts: AiPromptTemplate[] }>(`/api/v1/ai/prompts${search}`);
+    },
+
+    createAiPrompt: (payload: AiPromptTemplateCreateInput) =>
+      request<{ prompt: AiPromptTemplate }>("/api/v1/ai/prompts", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+
+    updateAiPrompt: (
+      promptId: string,
+      payload: AiPromptTemplateUpdateInput,
+    ) =>
+      request<{ prompt: AiPromptTemplate }>(`/api/v1/ai/prompts/${encodeURIComponent(promptId)}`, {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      }),
+
+    deleteAiPrompt: (promptId: string) =>
+      request<{ ok: true }>(`/api/v1/ai/prompts/${encodeURIComponent(promptId)}`, {
+        method: "DELETE",
+      }),
+
+    restoreDefaultAiPrompts: (locale?: string) => {
+      const search = locale ? `?locale=${encodeURIComponent(locale)}` : "";
+      return request<{ prompts: AiPromptTemplate[]; restoredCount: number }>(`/api/v1/ai/prompts/restore-defaults${search}`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+    },
+
     streamAiGeneration: async (
       payload: {
         action: AiAction;
+        promptId?: string;
+        locale?: string;
         title: string;
         contentMarkdown: string;
+        stream?: boolean;
         targetLanguage?: AiTargetLanguage;
         tone?: AiTone;
         instruction?: string;
@@ -559,6 +599,12 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
       request<{ ok: true }>("/api/v1/restores/json/memos", {
         method: "POST",
         body: JSON.stringify({ memos }),
+      }),
+
+    restoreJsonAiPrompts: (prompts: JsonBackupAiPrompt[]) =>
+      request<{ ok: true }>("/api/v1/restores/json/ai-prompts", {
+        method: "POST",
+        body: JSON.stringify({ prompts }),
       }),
 
     restoreJsonResource: (resourceId: string, metadata: JsonBackupMemo["resources"][number], file: Blob) => {

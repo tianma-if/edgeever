@@ -67,6 +67,22 @@ describe("editor draft source resolution", () => {
     expect(state.hasUnsavedChanges).toBe(true);
   });
 
+  test("discards a newer draft that is identical to the saved memo", () => {
+    const state = resolveEditorDraftState({
+      memo,
+      draft: {
+        memoId: memo.id,
+        title: memo.title,
+        tagsText: "remote",
+        contentJson: memo.contentJson,
+        updatedAt: "2026-01-04T00:00:00.000Z",
+      },
+    });
+
+    expect(state.source).toBe("memo");
+    expect(state.hasUnsavedChanges).toBe(false);
+  });
+
   test("ignores an older draft when no update is queued", () => {
     const state = resolveEditorDraftState({
       memo,

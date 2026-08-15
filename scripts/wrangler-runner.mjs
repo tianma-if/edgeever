@@ -25,6 +25,44 @@ export const buildWranglerEnvironment = (args, env = process.env) => ({
 
 export const normalizeD1MigrationSql = (sql) => sql.replace(/\r\n?/g, "\n");
 
+export const DEPLOYMENT_TARGETS_PATH = ".wrangler.deployment-targets.json";
+
+const stripAnsi = (value) => value.replace(/\u001B\[[0-?]*[ -/]*[@-~]/g, "");
+
+const normalizeDeploymentUrl = (value) => {
+  if (/^[a-z][a-z0-9+.-]*:/i.test(value) && !/^https?:\/\//i.test(value)) return undefined;
+  const withProtocol = /^https?:\/\//i.test(value) ? value : `https://${value}`;
+  try {
+    const url = new URL(withProtocol);
+    if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) return undefined;
+    return url.origin;
+  } catch {
+    return undefined;
+  }
+};
+
+export const parseWranglerDeploymentUrls = (output) => {
+  const lines = stripAnsi(output).split(/\r?\n/);
+  const triggerIndex = lines.findIndex((line) => /^Deployed .+ triggers\b/.test(line.trim()));
+  if (triggerIndex === -1) return [];
+
+  const urls = [];
+  for (const line of lines.slice(triggerIndex + 1)) {
+    const target = line.trim();
+    if (!target) continue;
+    if (/^Current Version ID:/i.test(target) || /^No targets deployed for\b/i.test(target)) break;
+
+    const directUrl = /^(https?:\/\/[^\s]+)(?:\s|$)/i.exec(target)?.[1];
+    const customDomain = /^([^\s/]+)\s+\(custom domain\b/i.exec(target)?.[1];
+    const normalized = normalizeDeploymentUrl(directUrl ?? customDomain ?? "");
+    if (normalized && !urls.includes(normalized)) urls.push(normalized);
+  }
+  return urls;
+};
+
+export const shouldCaptureDeploymentTargets = (env = process.env) =>
+  env.WORKERS_CI === "1" || env.CI?.trim().toLowerCase() === "true";
+
 export const LOCAL_DEV_CREDENTIALS_ENCRYPTION_KEY =
   "edgeever-local-development-credentials-key-v1";
 

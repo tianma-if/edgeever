@@ -6,15 +6,14 @@ import StarterKit from "@tiptap/starter-kit";
 import { MergeDivider, MERGE_DIVIDER_NODE_TYPE } from "./merge-divider";
 import {
   BLOCK_MATH_NODE_TYPE,
-  createEdgeEverMathematics,
+  createEdgeEverMarkdownMathematics,
   INLINE_MATH_NODE_TYPE,
-} from "./mathematics";
+} from "./mathematics-markdown";
 
 export {
   BLOCK_MATH_NODE_TYPE,
-  createEdgeEverMathematics,
   INLINE_MATH_NODE_TYPE,
-} from "./mathematics";
+} from "./mathematics-markdown";
 
 export {
   MergeDivider,
@@ -77,7 +76,7 @@ const markdownManager = new MarkdownManager({
     TableKit,
     Image,
     MergeDivider,
-    ...createEdgeEverMathematics(),
+    ...createEdgeEverMarkdownMathematics(),
     Markdown.configure({
       markedOptions: { gfm: true },
     }),

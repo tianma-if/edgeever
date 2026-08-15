@@ -1,5 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { shouldOpenEditorLink } from "./editor-link-click.ts";
+import {
+  resolveStoredEditorLinkOpenMode,
+  shouldOpenEditorLink,
+  shouldShowEditorLinkOpenHint,
+} from "./editor-link-click.ts";
 
 const primaryClick = {
   button: 0,
@@ -8,7 +12,24 @@ const primaryClick = {
 };
 
 describe("editor link click policy", () => {
-  test("opens on plain primary click while editing by default", () => {
+  test("requires the modifier by default when no preference is stored", () => {
+    expect(resolveStoredEditorLinkOpenMode(null)).toBe("modifier");
+    expect(resolveStoredEditorLinkOpenMode("unsupported")).toBe("modifier");
+  });
+
+  test("preserves an explicitly stored link opening mode", () => {
+    expect(resolveStoredEditorLinkOpenMode("click")).toBe("click");
+    expect(resolveStoredEditorLinkOpenMode("modifier")).toBe("modifier");
+  });
+
+  test("shows a hover hint only when desktop editing requires a modifier", () => {
+    expect(shouldShowEditorLinkOpenHint(true, false, "click")).toBe(false);
+    expect(shouldShowEditorLinkOpenHint(true, false, "modifier")).toBe(true);
+    expect(shouldShowEditorLinkOpenHint(true, true, "modifier")).toBe(false);
+    expect(shouldShowEditorLinkOpenHint(false, false, "modifier")).toBe(false);
+  });
+
+  test("opens on plain primary click when the modifier is not required", () => {
     expect(shouldOpenEditorLink(primaryClick, true)).toBe(true);
     expect(shouldOpenEditorLink(primaryClick, true, { requireModifier: false })).toBe(true);
   });

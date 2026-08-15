@@ -59,7 +59,12 @@ type AuthRouteDependencies = {
   authenticateRequest: (context: AppContext, touch: boolean) => Promise<AuthContext | null>;
   authenticateSession: (context: AppContext, touch: boolean) => Promise<AuthContext | null>;
   createSession: (context: AppContext, user: UserRow, requestedDeviceId?: string) => Promise<LoginSession>;
-  ensureUserWorkspace: (database: DatabaseAdapter, userId: string, username: string) => Promise<UserWorkspace>;
+  ensureUserWorkspace: (
+    database: DatabaseAdapter,
+    userId: string,
+    username: string,
+    locale?: string | null,
+  ) => Promise<UserWorkspace>;
   getBearerToken: (context: AppContext) => string | null;
   getInstanceAuthMode: (environment: Bindings) => Promise<InstanceAuthMode>;
   getLoginAttemptKeys: (context: AppContext, username: string) => Promise<LoginAttemptKey[]>;
@@ -273,6 +278,7 @@ export const registerAuthRoutes = (
       context.env.storage.db,
       user.id,
       user.username,
+      context.req.header("accept-language"),
     );
     const session = await dependencies.createSession(context, user, input.deviceId);
     dependencies.setSessionCookie(context, session.token, session.maxAge);

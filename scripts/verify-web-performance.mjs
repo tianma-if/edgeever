@@ -37,6 +37,8 @@ assert.ok(precacheBytes <= PRECACHE_BUDGET, `PWA precache budget exceeded: ${pre
 const modulePreloads = indexHtml.match(/<link rel="modulepreload"[^>]+>/g)?.join("\n") ?? "";
 const initialOptionalPattern = /vendor-code-highlight|vendor-D3|beautiful-mermaid|vendor-(?:mermaid|tiptap|prosemirror|floating)|ui-primitives|mermaid\.core|[^"']*Diagram-/;
 assert.doesNotMatch(modulePreloads, initialOptionalPattern, "Optional editor and diagram chunks must remain out of the initial HTML modulepreload list");
+assert.doesNotMatch(modulePreloads, /ui-button-tooltip/, "Button tooltips must load only when a titled button is rendered");
+assert.doesNotMatch(modulePreloads, /vendor-radix(?!-slot)/, "Radix overlays must remain out of the initial HTML modulepreload list");
 const initialModulePreloadBytes = [...indexHtml.matchAll(/<link rel="modulepreload"[^>]+href="([^"]+)"[^>]*>/g)]
   .map((match) => statSync(join(distDirectory, match[1].replace(/^\//, ""))).size)
   .reduce((total, size) => total + size, 0);

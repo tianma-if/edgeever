@@ -16,7 +16,19 @@ const WorkspaceScreen = lazy(() =>
 export default function IndexScreen() {
   const { isLoading, session } = useSession();
   const isRestoringCache = useIsRestoring();
-  const { clearSharedPayloads, sharedPayloads } = useIncomingShare();
+  const {
+    clearSharedPayloads,
+    error: incomingShareError,
+    isResolving: isResolvingIncomingShare,
+    resolvedSharedPayloads,
+    sharedPayloads,
+  } = useIncomingShare();
+  const incomingSharePayloads = resolvedSharedPayloads.length > 0
+    ? resolvedSharedPayloads
+    : sharedPayloads;
+  const isWaitingForBinaryShareResolution = !incomingShareError
+    && resolvedSharedPayloads.length === 0
+    && sharedPayloads.some((payload) => payload.shareType !== "text" && payload.shareType !== "url");
 
   useEffect(() => {
     if (!isLoading && !isRestoringCache) {
@@ -32,7 +44,9 @@ export default function IndexScreen() {
   return session ? (
     <Suspense fallback={<StartupPlaceholder showBrand />}>
       <WorkspaceScreen
-        incomingSharePayloads={sharedPayloads}
+        incomingShareError={incomingShareError}
+        incomingShareIsResolving={isResolvingIncomingShare || isWaitingForBinaryShareResolution}
+        incomingSharePayloads={incomingSharePayloads}
         onIncomingShareHandled={clearSharedPayloads}
       />
     </Suspense>

@@ -10,6 +10,7 @@ import type {
   SyncQueueItem,
 } from "@/lib/local-db";
 import { getEditableMemoTitle } from "@/lib/app-helpers";
+import { parseTagsText } from "@/lib/utils";
 
 export type EditorDraftSource = "draft" | "queue" | "memo";
 
@@ -29,6 +30,16 @@ type ResolveEditorDraftStateInput = {
   queuedUpdate?: SyncQueueItem | null;
 };
 
+const stringArraysEqual = (first: string[], second: string[]) =>
+  first.length === second.length && first.every((value, index) => value === second[index]);
+
+export const isLocalDraftEquivalentToMemo = (memo: MemoDetail, draft: LocalDraft) => {
+  const memoContent = resolveMemoContentDoc(memo.contentJson, memo.contentMarkdown);
+  return draft.title === getEditableMemoTitle(memo.title) &&
+    stringArraysEqual(parseTagsText(draft.tagsText), memo.tags) &&
+    docToMarkdown(draft.contentJson) === docToMarkdown(memoContent);
+};
+
 /**
  * Chooses the local editor source without touching React, IndexedDB, or the
  * network. Already-applied queue entries must be removed before calling it.
@@ -40,7 +51,8 @@ export const resolveEditorDraftState = ({
 }: ResolveEditorDraftStateInput): EditorDraftState => {
   const draftUpdatedAt = draft ? Date.parse(draft.updatedAt) : 0;
   const remoteUpdatedAt = Date.parse(memo.updatedAt);
-  const useDraft = Boolean(draft && (queuedUpdate || draftUpdatedAt >= remoteUpdatedAt));
+  const draftHasLocalChanges = Boolean(draft && !isLocalDraftEquivalentToMemo(memo, draft));
+  const useDraft = Boolean(draft && draftHasLocalChanges && (queuedUpdate || draftUpdatedAt >= remoteUpdatedAt));
   const queuedPayload = queuedUpdate?.kind === "memo.update"
     ? queuedUpdate.payload as MemoUpdateSyncPayload
     : null;

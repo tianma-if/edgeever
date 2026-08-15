@@ -9,9 +9,12 @@ import {
 import { dirname, resolve } from "node:path";
 import {
   buildLocalDevEnvironmentFile,
+  DEPLOYMENT_TARGETS_PATH,
   findD1DatabaseIdByName,
   normalizeD1MigrationSql,
+  parseWranglerDeploymentUrls,
   runWranglerSync,
+  shouldCaptureDeploymentTargets,
 } from "./wrangler-runner.mjs";
 import { writeWranglerNotice } from "./wrangler-output.mjs";
 
@@ -151,6 +154,10 @@ const isRemoteCommand =
   wranglerArgs.includes("deploy") || wranglerArgs.includes("--remote");
 const isRemoteDevCommand = wranglerArgs.includes("dev") && wranglerArgs.includes("--remote");
 const isLocalDevCommand = wranglerArgs.includes("dev") && wranglerArgs.includes("--local");
+// Any --local command rewrites .wrangler.generated.toml. Keep local-only vars
+// (especially auth-free access) so `d1 migrations apply --local` cannot strip
+// them and leave a later wrangler reload requiring login mid-session.
+const isLocalCommand = wranglerArgs.includes("--local");
 
 const workerName = envValue("WORKER_NAME");
 if (workerName) {
@@ -235,7 +242,7 @@ const runtimeVars = {
   EDGE_EVER_LOCAL_DEMO_SEED: envValue("LOCAL_DEMO_SEED"),
   // Auth-free access is a local-development capability. Remote deployments
   // fail closed when credentials and users are both missing.
-  EDGE_EVER_ALLOW_UNAUTHENTICATED: isLocalDevCommand ? "true" : undefined,
+  EDGE_EVER_ALLOW_UNAUTHENTICATED: isLocalCommand ? "true" : undefined,
 };
 const runtimeVarLines = Object.entries(runtimeVars)
   .filter(([, value]) => Boolean(value))
@@ -320,6 +327,8 @@ if (changed) {
 }
 
 const isDeployCommand = wranglerArgs.includes("deploy");
+const captureDeploymentTargets = isDeployCommand && shouldCaptureDeploymentTargets();
+const deploymentTargetsPath = resolve(DEPLOYMENT_TARGETS_PATH);
 const hasSecretsFileArg = wranglerArgs.some((arg) => arg === "--secrets-file" || arg.startsWith("--secrets-file="));
 const hasEnvFileArg = wranglerArgs.some((arg) => arg === "--env-file" || arg.startsWith("--env-file="));
 const authPassword = envValue("AUTH_PASSWORD");
@@ -352,11 +361,25 @@ if (isDeployCommand && Object.keys(authSecrets).length > 0 && !hasSecretsFileArg
   finalWranglerArgs.push("--secrets-file", generatedSecretsPath);
 }
 
+if (captureDeploymentTargets) {
+  rmSync(deploymentTargetsPath, { force: true });
+}
+
 const result = runWranglerSync(["--config", configPath, ...finalWranglerArgs], {
   cwd: resolve("."),
+  encoding: captureDeploymentTargets ? "utf8" : undefined,
   env: process.env,
-  stdio: "inherit",
+  stdio: captureDeploymentTargets ? undefined : "inherit",
 });
+
+if (captureDeploymentTargets) {
+  if (result.stdout) process.stdout.write(result.stdout);
+  if (result.stderr) process.stderr.write(result.stderr);
+  if (result.status === 0) {
+    const urls = parseWranglerDeploymentUrls(`${result.stdout ?? ""}\n${result.stderr ?? ""}`);
+    writeFileSync(deploymentTargetsPath, `${JSON.stringify({ urls }, null, 2)}\n`);
+  }
+}
 
 if (result.status === 0 && isDeployCommand) {
   for (const [secretName, secretValue] of Object.entries(authSecrets)) {
@@ -382,4 +405,5 @@ if (result.error) {
   process.exit(1);
 }
 
-process.exit(result.status ?? 1);
+// Let piped stdout/stderr flush before the process exits in CI.
+process.exitCode = result.status ?? 1;

@@ -4,6 +4,7 @@ import { MOBILE_EDITOR_RETURN_PARAM } from "@/lib/mobile-editor";
 
 export const WORKSPACE_SETTINGS_PATH = "/settings";
 export const WORKSPACE_TEMPLATES_PATH = "/templates";
+export const WORKSPACE_AI_PROMPTS_PATH = "/ai-prompts";
 export const WORKSPACE_TRASH_SEARCH = "?view=trash";
 
 export type WorkspaceRouteState = {
@@ -11,6 +12,7 @@ export type WorkspaceRouteState = {
   search: string;
   isSettings: boolean;
   isTemplates: boolean;
+  isAiPrompts: boolean;
   isTrash: boolean;
   mobileEditorReturnMemoId: string | null;
 };
@@ -20,6 +22,7 @@ export const resolveWorkspaceRoute = (pathname: string, search: string): Workspa
   search,
   isSettings: pathname === WORKSPACE_SETTINGS_PATH,
   isTemplates: pathname === WORKSPACE_TEMPLATES_PATH,
+  isAiPrompts: pathname === WORKSPACE_AI_PROMPTS_PATH,
   isTrash: pathname === "/" && search === WORKSPACE_TRASH_SEARCH,
   mobileEditorReturnMemoId: new URLSearchParams(search).get(MOBILE_EDITOR_RETURN_PARAM),
 });
@@ -48,11 +51,16 @@ export const useWorkspaceRoute = () => {
     if (!route.isTemplates) navigate(WORKSPACE_TEMPLATES_PATH);
   }, [navigate, route.isTemplates]);
 
+  const navigateAiPrompts = useCallback(() => {
+    if (!route.isAiPrompts) navigate(WORKSPACE_AI_PROMPTS_PATH);
+  }, [navigate, route.isAiPrompts]);
+
   return {
     route,
     navigateHome,
     navigateSettings,
     navigateTemplates,
+    navigateAiPrompts,
     navigateTrash,
   };
 };

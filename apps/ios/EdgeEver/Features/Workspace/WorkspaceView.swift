@@ -14,6 +14,7 @@ struct WorkspaceView: View {
     @State private var showSettings = false
     @State private var showNewNote = false
     @State private var createSeed: CreateMemoSeed?
+    @State private var createSharedImages: [ShareHandoffStore.SharedImage] = []
     @State private var showCreateChoice = false
     @State private var showTemplatePicker = false
     @State private var createLongPressConsumed = false
@@ -93,6 +94,7 @@ struct WorkspaceView: View {
                         notebookId: store.selectedNotebookId ?? store.notebooks.first?.id ?? "",
                         seed: createSeed
                     ),
+                    initialSharedImages: createSharedImages,
                     onCreateFinished: { memoId in
                         // Prime list + bounce **before** dismiss so settle runs under/with the cover,
                         // not half a second after the list is already static.
@@ -103,6 +105,7 @@ struct WorkspaceView: View {
                 )
                 .onDisappear {
                     createSeed = nil
+                    createSharedImages = []
                     // Safety refresh if create finished without callback (e.g. swipe-dismiss empty).
                     store.reload(env: env)
                 }
@@ -669,9 +672,13 @@ struct WorkspaceView: View {
         .animation(Motion.search, value: env.bootstrapProgress != nil)
     }
 
-    private func openCreateNote(seed: CreateMemoSeed? = nil) {
+    private func openCreateNote(
+        seed: CreateMemoSeed? = nil,
+        sharedImages: [ShareHandoffStore.SharedImage] = []
+    ) {
         guard !store.notebooks.isEmpty else { return }
         createSeed = seed
+        createSharedImages = sharedImages
         showNewNote = true
     }
 
@@ -683,6 +690,28 @@ struct WorkspaceView: View {
     private func consumeShare() {
         let payloads = env.shareHandoff.consumePending()
         guard !payloads.isEmpty else { return }
+        let sharedImages = env.shareHandoff.sharedImages(from: payloads)
+        if !sharedImages.isEmpty {
+            guard !store.notebooks.isEmpty else {
+                sharedImages.forEach(env.shareHandoff.removeImage)
+                shareImportAlert = ShareImportAlert(
+                    title: env.preferences.t("无法保存图片", en: "Unable to save images"),
+                    message: env.preferences.t("请先在 EdgeEver 中创建一个笔记本。", en: "Create a notebook in EdgeEver first.")
+                )
+                return
+            }
+            openCreateNote(
+                seed: CreateMemoSeed(
+                    title: sharedImages.count == 1
+                        ? env.preferences.t("分享的图片", en: "Shared image")
+                        : env.preferences.t("分享的图片（\(sharedImages.count) 张）", en: "Shared images (\(sharedImages.count))"),
+                    contentMarkdown: "",
+                    tagsText: ""
+                ),
+                sharedImages: sharedImages
+            )
+            return
+        }
         guard let sourceURL = WebClipper.sharedWebURL(from: payloads) else {
             shareImportAlert = ShareImportAlert(
                 title: env.preferences.t("无法剪藏", en: "Unable to clip"),

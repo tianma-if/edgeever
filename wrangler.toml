@@ -1,7 +1,19 @@
 name = "edgeever"
-main = "apps/api/src/index.ts"
+main = ".wrangler/edgeever-worker/index.js"
 compatibility_date = "2026-06-26"
 workers_dev = true
+no_bundle = true
+find_additional_modules = true
+base_dir = ".wrangler/edgeever-worker"
+
+[[rules]]
+type = "ESModule"
+globs = ["modules/*.js"]
+fallthrough = true
+
+[build]
+command = "bun scripts/build-cloudflare-worker.mjs"
+watch_dir = ["apps/api/src", "packages/shared/src"]
 
 [assets]
 directory = "apps/web/dist"

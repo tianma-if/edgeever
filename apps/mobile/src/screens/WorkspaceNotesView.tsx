@@ -1,4 +1,4 @@
-import { memo, type ReactNode } from "react";
+import { memo, useRef, type ReactNode } from "react";
 import type { MemoFilterMode } from "@edgeever/client";
 import { DEFAULT_MEMO_TITLE, type MemoSummary, type Notebook } from "@edgeever/shared";
 import { MOBILE_UI_METRICS, toggleMobileMemoFilterMode } from "@edgeever/shared/mobile-ui";
@@ -419,6 +419,7 @@ const MemoCard = memo(function MemoCard({
 }) {
   const localePreference = useMobileLocale().preference;
   const memoTitle = memo.title?.trim() || DEFAULT_MEMO_TITLE;
+  const handledLongPressRef = useRef(false);
   const pressScale = useSharedValue(1);
   const pressAnimatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: pressScale.value }],
@@ -453,8 +454,17 @@ const MemoCard = memo(function MemoCard({
         accessibilityLabel={memoTitle}
         accessibilityRole="button"
         delayLongPress={520}
-        onLongPress={onLongPress}
-        onPress={onPress}
+        onLongPress={() => {
+          handledLongPressRef.current = true;
+          onLongPress?.();
+        }}
+        onPress={() => {
+          if (handledLongPressRef.current) {
+            handledLongPressRef.current = false;
+            return;
+          }
+          onPress();
+        }}
         onPressIn={() => {
           pressScale.value = withTiming(0.985, { duration: 100 });
         }}

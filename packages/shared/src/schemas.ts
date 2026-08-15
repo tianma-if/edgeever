@@ -1,5 +1,11 @@
 import { z } from "zod";
-import { AI_ACTIONS, AI_TARGET_LANGUAGES, AI_TONES } from "./ai-assistant";
+import {
+  AI_ACTIONS,
+  AI_PROMPT_PARAMETER_KINDS,
+  AI_PROMPT_RESULT_MODES,
+  AI_TARGET_LANGUAGES,
+  AI_TONES,
+} from "./ai-assistant";
 
 export const NotebookCreateSchema = z.object({
   name: z.string().trim().min(1).max(80),
@@ -189,6 +195,9 @@ export const AiProviderConfigUpdateSchema = AiProviderConfigFieldsSchema.extend(
 
 export const AiProviderConnectionTestSchema = z.object({
   modelId: z.string().trim().min(1).max(200),
+  provider: AiProviderSchema.optional(),
+  baseUrl: AiBaseUrlSchema.optional(),
+  apiKey: z.string().min(1).max(4096).optional(),
 });
 
 export const AiModelConfigCreateSchema = z.object({
@@ -202,24 +211,45 @@ export const AiDefaultModelUpdateSchema = z.object({
 
 export const AiGenerateSchema = z.object({
   action: z.enum(AI_ACTIONS),
+  promptId: z.string().trim().min(1).max(200).optional(),
+  locale: z.string().trim().min(2).max(35).optional(),
   title: z.string().trim().max(160).default(""),
   contentMarkdown: z.string().max(300_000),
+  stream: z.boolean().default(false),
   targetLanguage: z.enum(AI_TARGET_LANGUAGES).optional(),
   tone: z.enum(AI_TONES).optional(),
   instruction: z.string().trim().min(1).max(2_000).optional(),
 }).superRefine((input, context) => {
-  if (input.action === "translate" && !input.targetLanguage) {
+  if (!input.promptId && input.action === "translate" && !input.targetLanguage) {
     context.addIssue({ code: "custom", path: ["targetLanguage"], message: "A target language is required for translation." });
   }
-  if (input.action === "change-tone" && !input.tone) {
+  if (!input.promptId && input.action === "change-tone" && !input.tone) {
     context.addIssue({ code: "custom", path: ["tone"], message: "A tone is required when changing tone." });
   }
-  if (input.action === "custom" && !input.instruction) {
+  if (!input.promptId && input.action === "custom" && !input.instruction) {
     context.addIssue({ code: "custom", path: ["instruction"], message: "An instruction is required for a custom action." });
   }
   if (!input.title && !input.contentMarkdown.trim()) {
     context.addIssue({ code: "custom", path: ["contentMarkdown"], message: "Note content is required." });
   }
+});
+
+export const AiPromptTemplateCreateSchema = z.object({
+  name: z.string().trim().min(1).max(80),
+  description: z.string().trim().max(200).optional(),
+  instruction: z.string().trim().min(1).max(2_000),
+  parameterKind: z.enum(AI_PROMPT_PARAMETER_KINDS).default("none"),
+  resultMode: z.enum(AI_PROMPT_RESULT_MODES).default("both"),
+});
+
+export const AiPromptTemplateUpdateSchema = z.object({
+  name: z.string().trim().min(1).max(80).optional(),
+  description: z.string().trim().max(200).nullable().optional(),
+  instruction: z.string().trim().min(1).max(2_000).optional(),
+  parameterKind: z.enum(AI_PROMPT_PARAMETER_KINDS).optional(),
+  resultMode: z.enum(AI_PROMPT_RESULT_MODES).optional(),
+}).refine((input) => Object.values(input).some((value) => value !== undefined), {
+  message: "At least one field is required.",
 });
 
 export type NotebookCreateInput = z.infer<typeof NotebookCreateSchema>;
@@ -247,3 +277,5 @@ export type AiProviderConnectionTestInput = z.infer<typeof AiProviderConnectionT
 export type AiModelConfigCreateInput = z.infer<typeof AiModelConfigCreateSchema>;
 export type AiDefaultModelUpdateInput = z.infer<typeof AiDefaultModelUpdateSchema>;
 export type AiGenerateInput = z.infer<typeof AiGenerateSchema>;
+export type AiPromptTemplateCreateInput = z.input<typeof AiPromptTemplateCreateSchema>;
+export type AiPromptTemplateUpdateInput = z.infer<typeof AiPromptTemplateUpdateSchema>;

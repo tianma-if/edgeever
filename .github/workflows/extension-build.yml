@@ -22,6 +22,7 @@ permissions:
 
 jobs:
   build:
+    if: github.repository == 'tianma-if/edgeever'
     name: Build Chromium and Firefox
     runs-on: ubuntu-latest
     timeout-minutes: 10

@@ -147,11 +147,42 @@ enum AiAction: String, Codable, CaseIterable, Sendable, Identifiable {
 
 struct AiGenerateInput: Encodable, Sendable {
     var action: AiAction
+    var promptId: String? = nil
+    var locale: String? = nil
     var title: String
     var contentMarkdown: String
     var targetLanguage: String?
     var tone: String? = nil
     var instruction: String? = nil
+}
+
+enum AiPromptParameterKind: String, Codable, Sendable {
+    case none
+    case targetLanguage = "target-language"
+    case tone
+}
+
+enum AiPromptResultMode: String, Codable, Sendable {
+    case append
+    case replace
+    case both
+}
+
+struct AiPromptTemplate: Codable, Equatable, Sendable, Identifiable {
+    var id: String
+    var origin: String
+    var seedKey: String?
+    var action: AiAction
+    var parameterKind: AiPromptParameterKind
+    var resultMode: AiPromptResultMode
+    var nameCustomized: Bool
+    var descriptionCustomized: Bool
+    var instructionCustomized: Bool
+    var name: String
+    var description: String?
+    var instruction: String
+    var createdAt: String
+    var updatedAt: String
 }
 
 struct AiStreamEvent: Decodable, Sendable {
@@ -297,6 +328,10 @@ struct ApiTokensResponse: Codable, Sendable {
 
 struct TagsResponse: Codable, Sendable {
     var tags: [TagSummary]
+}
+
+struct AiPromptsResponse: Codable, Sendable {
+    var prompts: [AiPromptTemplate]
 }
 
 // MARK: - Outbox / drafts domain

@@ -101,33 +101,33 @@
   list-style: none;
 }
 
-.edgeever-print-content li[data-type="taskItem"] {
+.edgeever-print-content ul[data-type="taskList"] li[data-checked] {
   display: flex;
   align-items: flex-start;
   gap: 2mm;
   break-inside: avoid-page;
 }
 
-.edgeever-print-content li[data-type="taskItem"] > label {
+.edgeever-print-content ul[data-type="taskList"] li[data-checked] > label {
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
   margin-top: 0.8mm;
 }
 
-.edgeever-print-content li[data-type="taskItem"] > label input {
+.edgeever-print-content ul[data-type="taskList"] li[data-checked] > label input {
   width: 4mm;
   height: 4mm;
   margin: 0;
   accent-color: #16a06e;
 }
 
-.edgeever-print-content li[data-type="taskItem"] > div {
+.edgeever-print-content ul[data-type="taskList"] li[data-checked] > div {
   min-width: 0;
   flex: 1 1 auto;
 }
 
-.edgeever-print-content li[data-type="taskItem"] > div > p {
+.edgeever-print-content ul[data-type="taskList"] li[data-checked] > div > p {
   margin-bottom: 0;
 }
 

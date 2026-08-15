@@ -1,5 +1,8 @@
 # EdgeEver
 
+[![GitHub Stars](https://img.shields.io/github/stars/tianma-if/edgeever?style=social)](https://github.com/tianma-if/edgeever/stargazers)
+[![GitHub Forks](https://img.shields.io/github/forks/tianma-if/edgeever?style=social)](https://github.com/tianma-if/edgeever/network/members)
+
 [简体中文](README.zh-CN.md) | English
 
 > **EdgeEver: A serverless, 100% free, open-source, and AI-native self-hosted Evernote alternative.**
@@ -36,13 +39,13 @@ The public demo resets every day at 3:00 AM (China Standard Time) and restores s
 - **Open Data, No Vendor Lock-in**: Built on standard SQLite with complete REST API, MCP, and CLI access. Your knowledge is stored transparently and accessible anytime without being locked to a single app.
 - **Lossless ZIP Backup & Portability**: Export your complete library as a clean archive containing Markdown, Front Matter, nested folders, relative attachment links, and version histories for instant restoration anywhere.
 - **Native AI Agent Synergy**: Deep integration with Model Context Protocol (MCP) allows AI tools like Claude Code, Codex, and Antigravity to read, organize, and summarize your notes, or sync seamlessly with Notion and Feishu Bitable.
-- **Bring Your Own AI Models**: Add multiple OpenAI-compatible, Anthropic, or Gemini services with your own Base URLs and API keys—including aggregators such as OpenRouter—then attach multiple models to each service and choose the default model for note AI.
+- **Bring Your Own AI Models**: Connect OpenAI, Anthropic, or Gemini-compatible services and third-party API relays to empower your editor with smart note summarization, key point extraction, proofreading, translation, and text continuation on full notes or selected text.
 - **Unlimited Multi-Device Sync**: No commercial device caps or paywalls. Enjoy seamless synchronization across PC, tablet, and mobile via web, PWA, or browser.
 - **Classic Three-Pane Layout & Focus Mode**: Clean navigation featuring notebook trees, note lists, and an expansive editor, with a desktop focus mode to eliminate distractions.
 - **Unlimited Nested Notebooks**: Organize your knowledge with arbitrary folder depth.
 - **One-Click Rich Copy for Newsletters & Blogs**: Designed for creators to convert notes into beautifully formatted rich text with inline CSS, ready to paste directly into Substack, Medium, WordPress, or newsletter editors without extra tools.
 - **Seamless Dual-View Editor**: Switch effortlessly between intuitive rich text editing and Markdown source code on desktop.
-- **Convenient Single-Note Export**: Export the current note directly as Markdown or PDF for standalone storage, sharing, or publishing.
+- **Convenient Single-Note Export**: Export the current note directly as Markdown, HTML, or PDF for standalone storage, sharing, or publishing.
 - **Native Mermaid Diagram Rendering**: Render clear flowcharts, sequence diagrams, and mind maps directly in notes, preserving clean, editable source code across Markdown and rich text views.
 - **Revision History**: Inspect and restore previous iterations of your notes with built-in version tracking.
 - **Public Note Sharing**: Share a note publicly and stop sharing it at any time.
@@ -62,33 +65,36 @@ You can deploy online using either of the following two options:
 
 ### Option A: Deploy with an AI Agent (Recommended)
 
-Copy this prompt into an AI Agent configured with GitHub and Cloudflare MCP servers, plugins, or other integrations (such as Codex, Claude, Cursor, Antigravity, OpenClaw, Hermes Agent, etc.):
+Copy the prompt below directly into an AI Agent (such as Codex, Claude, Cursor, workbuddy, Antigravity, OpenClaw, Hermes Agent, etc.). During execution, if access to GitHub or Cloudflare is required, review the requested permissions and follow the prompts to authorize access.
 
 ```text
 Deploy EdgeEver online:
 1. Fork https://github.com/tianma-if/edgeever.
 2. Import the Fork into Cloudflare Workers & Pages.
-3. Configure D1, R2, `EDGE_EVER_AUTH_USERNAME` (prefilled as `admin`, customizable), the `EDGE_EVER_AUTH_PASSWORD` Worker Secret, and the production `main` build.
+3. Configure D1, R2, `EDGE_EVER_AUTH_USERNAME` (prefilled as `admin`, customizable),
+   the `EDGE_EVER_AUTH_PASSWORD` Worker Secret, and the production `main` build.
 4. Start the first build and verify `/api/health`, `/api/openapi.json`, and login.
-5. Enable and run `Update deployed EdgeEver` once.
+5. Enable and manually run the GitHub Actions workflow named `Update deployed EdgeEver`
+   once so the Fork can automatically receive the latest EdgeEver features and fixes.
 ```
 
 > Detailed requirements: [AI Agent Cloudflare Deployment](docs/agent-deploy-cloudflare.md).
 
 ### Option B: Manual Online Deployment
 
-Complete setup in 4 simple web steps:
+Complete setup in 5 simple web steps:
 
 1. **Fork the Repository**: Click **Fork** at the top right of GitHub to fork EdgeEver into your personal account.
-2. **Import into Cloudflare**: Log into the Cloudflare Dashboard, navigate to **Workers & Pages**, and choose to import your Fork repository.
-3. **Bind Resources & Credentials**: Bind the D1 database (`DB`), R2 bucket (`RESOURCES`), set `EDGE_EVER_AUTH_USERNAME` (default `admin`, customizable), and set the Worker Secret `EDGE_EVER_AUTH_PASSWORD` as your admin password.
-4. **Build & Verify**: Start the first build with default settings. Once complete, visit `/api/health` to verify a `200` response before logging in.
+2. **Enable Actions**: Open the Fork's **Actions** tab and click **I understand my workflows, go ahead and enable them** so the GitHub Actions workflow named **Update deployed EdgeEver** can run automatically, keeping you up to date with the latest **EdgeEver** features and fixes.
+3. **Import into Cloudflare**: Log into the Cloudflare Dashboard, navigate to **Workers & Pages**, and choose to import your Fork repository.
+4. **Bind Resources & Credentials**: Bind the D1 database (`DB`), R2 bucket (`RESOURCES`), set `EDGE_EVER_AUTH_USERNAME` (default `admin`, customizable), and set the Worker Secret `EDGE_EVER_AUTH_PASSWORD` as your admin password.
+5. **Build & Verify**: Start the first build with default settings. Once complete, visit `/api/health` to verify a `200` response before logging in.
 
 > 📖 For full step-by-step instructions and configuration details, see the [Online Deployment Guide](docs/deploy-cloudflare-button.md).
 
 ---
 
-> 💡 **Deployment Tip (Cloudflare R2 Billing)**: Although Cloudflare R2 offers a generous free tier that note-taking workloads are unlikely to ever exceed, it requires binding a payment method (such as a dual-currency credit card) to activate. Based on personal experience, for users in mainland China, VISA cards from China Merchants Bank (CMB) or Shanghai Pudong Development Bank (SPDB) are typically the fastest to get verified (and most of these cards have no annual fees or easily waivable ones, so there are no extra holding costs).
+> 💡 **Deployment Tip (Cloudflare R2 Billing)**: Although Cloudflare R2 offers a generous [free storage allowance](https://developers.cloudflare.com/r2/pricing/#free-tier) that note-taking workloads are unlikely to ever exceed, you must first activate an R2 subscription and add a payment method. Cloudflare [officially supports](https://developers.cloudflare.com/billing/get-started/update-billing-info/#supported-payment-methods) UnionPay, Visa, Mastercard, and other cards, as well as PayPal, Apple Pay, Google Pay, and other payment methods.
 
 ## Multi-Account Login
 
@@ -118,6 +124,16 @@ On platforms without a native client, EdgeEver can be installed as a PWA using C
 ## Community and Feedback
 
 - Bugs, feature requests, and deployment issues: [GitHub Issues](https://github.com/tianma-if/edgeever/issues)
+
+### WeChat Community Group
+
+Welcome to the EdgeEver AI community group, home to many Vibe Coding builders and AI enthusiasts. Join us to discuss the EdgeEver experience, real-world AI Agent applications, cost-effective or free AI resources, and automation workflows.
+
+> The group QR code is valid for 7 days. If it has expired, add WeChat `m1245207870` and include “EdgeEver group” in your request.
+
+<p align="center">
+  <img src="assets/wechat-group-qr.jpg" alt="EdgeEver AI community group QR code" width="260" />
+</p>
 
 ## Tech Stack
 
@@ -185,13 +201,15 @@ Repository file: [docs/openapi.json](docs/openapi.json).
 
 Create an API token in **Profile** -> **MCP settings**, then give the token or full MCP configuration to your AI Agent. Once connected, the Agent can securely read, organize, and import notes within your account permissions. Repeating the same import will not create duplicate notes.
 
+The Remote MCP endpoint supports the stateless `2026-07-28` protocol while retaining the handshake-based 2025 revisions for existing clients.
+
 With MCP, EdgeEver can also connect to tools such as Notion databases and Feishu Bitable, turning scattered ideas, information, and materials from everyday notes into structured data that is easier to organize, search, and manage.
 
 ## Bring Your Own AI Models
 
-Open **Profile → AI Integrations** to add one or more OpenAI-compatible, Anthropic Messages, or Google Gemini services with your own Base URLs and API keys. Each service can contain multiple models: discover them from the provider's model-list endpoint or enter a model ID manually. This supports aggregators such as OpenRouter, where one Base URL exposes models from several vendors. A service-level switch temporarily makes all of its models unavailable, while the workspace default selects the model used for note AI.
+Open **Profile → AI Integrations** to add one or more OpenAI-compatible, Anthropic Messages, or Google Gemini services with your own Base URLs and API keys. Third-party API relays are also supported. Each service can contain multiple models: discover them from the provider's model-list endpoint or enter a model ID manually. A service-level switch temporarily makes all of its models unavailable, while the workspace default selects the model used for note AI.
 
-Note AI supports summarizing, extracting key points and tasks, rewriting, proofreading, translating, shortening, expanding, simplifying, changing tone, continuing a note, and custom instructions across Web, Android, and iOS. Editors on all three platforms can also run AI directly on selected text and replace only that selection. Results stream into a reviewable draft that you can retry, refine with a follow-up instruction, append, or explicitly accept as a replacement. Translation uses a language picker whose default follows the interface language: Chinese defaults to English, while English defaults to Simplified Chinese.
+Note AI includes six focused built-in prompts across Web, Android, and iOS: summarize, translate, polish, make concise, convert to Xiaohongshu style, and convert to X (Twitter) style. You can add custom prompts for more specialized workflows. Editors on all three platforms can also run AI directly on selected text and replace only that selection. Results stream into a reviewable draft that you can retry, refine with a follow-up instruction, append, or explicitly accept as a replacement. Translation uses a language picker whose default follows the interface language: Chinese defaults to English, while English defaults to Simplified Chinese.
 
 AI requests are sent by the EdgeEver server rather than directly by the browser or native client. Model credentials are isolated by personal workspace and encrypted before being stored. Standard deployments automatically derive an AI-specific encryption key from the existing instance authentication secret, so no additional deployment variable is required. The same AI business code runs in Cloudflare Workers and the planned Docker/Bun runtime.
 

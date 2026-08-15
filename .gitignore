@@ -4,6 +4,7 @@
 !.env.example
 !.env.local.example
 !.env.android.local.example
+!.env.local-dev.example
 
 node_modules/
 .idea/
@@ -23,6 +24,7 @@ target/
 .wrangler/
 .wrangler.generated-migrations/
 .wrangler.generated*.toml
+.wrangler.deployment-targets.json
 .dev.vars
 wrangler.local.toml
 

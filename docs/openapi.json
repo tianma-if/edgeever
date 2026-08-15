@@ -193,7 +193,7 @@
     },
     "/api/v1/ai/generate": {
       "post": {
-        "summary": "Stream a note AI action using the current workspace model",
+        "summary": "Run a note AI action using the current workspace model",
         "requestBody": {
           "required": true,
           "content": {
@@ -201,10 +201,15 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "action": { "type": "string", "enum": ["summarize", "extract-key-points", "extract-todos", "rewrite-proofread", "translate"] },
+                  "action": { "type": "string", "enum": ["summarize", "extract-key-points", "extract-todos", "rewrite-proofread", "translate", "improve-writing", "fix-spelling-grammar", "make-shorter", "make-longer", "simplify-language", "change-tone", "continue-writing", "custom"] },
+                  "promptId": { "type": "string", "minLength": 1, "maxLength": 200, "description": "Saved prompt to resolve inside the authenticated workspace" },
+                  "locale": { "type": "string", "maxLength": 35 },
                   "title": { "type": "string", "maxLength": 160 },
                   "contentMarkdown": { "type": "string", "maxLength": 300000 },
-                  "targetLanguage": { "type": "string", "maxLength": 80, "description": "Required when action is translate" }
+                  "stream": { "type": "boolean", "default": false, "description": "Stream normalized text deltas when enabled; disabled by default for lower Worker CPU usage" },
+                  "targetLanguage": { "type": "string", "enum": ["en", "zh-CN", "zh-TW", "ja", "ko", "es", "fr", "de", "pt"], "description": "Required when the action or selected prompt requests a target language" },
+                  "tone": { "type": "string", "enum": ["professional", "friendly", "casual", "direct"] },
+                  "instruction": { "type": "string", "minLength": 1, "maxLength": 2000, "description": "Freeform instruction; ignored when promptId is supplied" }
                 },
                 "required": ["action", "title", "contentMarkdown"]
               }
@@ -216,9 +221,83 @@
             "description": "Server-sent events containing start, text-delta, finish, or error events",
             "content": { "text/event-stream": { "schema": { "type": "string" } } }
           },
+          "400": { "$ref": "#/components/responses/Error" },
           "401": { "$ref": "#/components/responses/Error" },
           "403": { "$ref": "#/components/responses/Error" },
-          "409": { "$ref": "#/components/responses/Error" }
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/v1/ai/prompts": {
+      "get": {
+        "summary": "List the current workspace prompt library",
+        "parameters": [{ "name": "locale", "in": "query", "schema": { "type": "string" } }],
+        "responses": {
+          "200": {
+            "description": "Localized prompt templates",
+            "content": { "application/json": { "schema": { "type": "object", "properties": { "prompts": { "type": "array", "items": { "$ref": "#/components/schemas/AiPromptTemplate" } } }, "required": ["prompts"] } } }
+          },
+          "401": { "$ref": "#/components/responses/Error" },
+          "403": { "$ref": "#/components/responses/Error" }
+        }
+      },
+      "post": {
+        "summary": "Create a reusable prompt",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AiPromptCreateInput" } } } },
+        "responses": {
+          "201": { "description": "Prompt created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AiPromptResponse" } } } },
+          "400": { "$ref": "#/components/responses/Error" },
+          "401": { "$ref": "#/components/responses/Error" },
+          "403": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/v1/ai/prompts/{promptId}": {
+      "parameters": [{ "name": "promptId", "in": "path", "required": true, "schema": { "type": "string" } }],
+      "patch": {
+        "summary": "Update prompt text or execution behavior",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AiPromptUpdateInput" } } } },
+        "responses": {
+          "200": { "description": "Prompt updated", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AiPromptResponse" } } } },
+          "400": { "$ref": "#/components/responses/Error" },
+          "401": { "$ref": "#/components/responses/Error" },
+          "403": { "$ref": "#/components/responses/Error" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      },
+      "delete": {
+        "summary": "Delete a prompt",
+        "responses": {
+          "200": { "$ref": "#/components/responses/Ok" },
+          "401": { "$ref": "#/components/responses/Error" },
+          "403": { "$ref": "#/components/responses/Error" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/v1/ai/prompts/restore-defaults": {
+      "post": {
+        "summary": "Restore missing factory prompts without overwriting edits",
+        "parameters": [{ "name": "locale", "in": "query", "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "Updated prompt list and restored count" },
+          "401": { "$ref": "#/components/responses/Error" },
+          "403": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/v1/restores/json/ai-prompts": {
+      "post": {
+        "summary": "Restore prompt templates from an EdgeEver ZIP backup",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "type": "object", "properties": { "prompts": { "type": "array", "maxItems": 100, "items": { "$ref": "#/components/schemas/AiPromptTemplate" } } }, "required": ["prompts"] } } }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/Ok" },
+          "400": { "$ref": "#/components/responses/Error" },
+          "401": { "$ref": "#/components/responses/Error" },
+          "403": { "$ref": "#/components/responses/Error" }
         }
       }
     },
@@ -1955,6 +2034,53 @@
           "displayName": { "type": "string", "minLength": 1, "maxLength": 200 }
         },
         "required": ["modelId"]
+      },
+      "AiPromptTemplate": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "origin": { "type": "string", "enum": ["default", "custom"] },
+          "seedKey": { "type": ["string", "null"] },
+          "action": { "type": "string", "enum": ["summarize", "extract-key-points", "extract-todos", "rewrite-proofread", "translate", "improve-writing", "fix-spelling-grammar", "make-shorter", "make-longer", "simplify-language", "change-tone", "continue-writing", "custom"] },
+          "parameterKind": { "type": "string", "enum": ["none", "target-language", "tone"] },
+          "resultMode": { "type": "string", "enum": ["append", "replace", "both"] },
+          "nameCustomized": { "type": "boolean" },
+          "descriptionCustomized": { "type": "boolean" },
+          "instructionCustomized": { "type": "boolean" },
+          "name": { "type": "string", "minLength": 1, "maxLength": 80 },
+          "description": { "type": ["string", "null"], "maxLength": 200 },
+          "instruction": { "type": "string", "minLength": 1, "maxLength": 2000 },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        },
+        "required": ["id", "origin", "seedKey", "action", "parameterKind", "resultMode", "nameCustomized", "descriptionCustomized", "instructionCustomized", "name", "description", "instruction", "createdAt", "updatedAt"]
+      },
+      "AiPromptCreateInput": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 80 },
+          "description": { "type": "string", "maxLength": 200 },
+          "instruction": { "type": "string", "minLength": 1, "maxLength": 2000 },
+          "parameterKind": { "type": "string", "enum": ["none", "target-language", "tone"], "default": "none" },
+          "resultMode": { "type": "string", "enum": ["append", "replace", "both"], "default": "both" }
+        },
+        "required": ["name", "instruction"]
+      },
+      "AiPromptUpdateInput": {
+        "type": "object",
+        "minProperties": 1,
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 80 },
+          "description": { "type": ["string", "null"], "maxLength": 200 },
+          "instruction": { "type": "string", "minLength": 1, "maxLength": 2000 },
+          "parameterKind": { "type": "string", "enum": ["none", "target-language", "tone"] },
+          "resultMode": { "type": "string", "enum": ["append", "replace", "both"] }
+        }
+      },
+      "AiPromptResponse": {
+        "type": "object",
+        "properties": { "prompt": { "$ref": "#/components/schemas/AiPromptTemplate" } },
+        "required": ["prompt"]
       },
       "LoginInput": {
         "type": "object",

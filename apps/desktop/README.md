@@ -87,6 +87,13 @@ backup creates an additional protective backup first, restores the SQLite
 database in place, restores the staged offline attachment directory when the
 snapshot contains one, applies any newer migrations, and reloads the workspace.
 
+Packaged macOS builds also expose **Settings → Advanced → Clear local data**.
+After an explicit destructive confirmation, EdgeEver stops the local sidecar,
+removes every account's local SQLite data, unsynced queue, offline attachments,
+caches, backups, settings, and sign-in state, then relaunches into first-run
+setup. Server data and files exported outside the app data directory are never
+removed by this action.
+
 Local SQLite data, backups, staged attachments, and resource cache are scoped
 by the configured instance and authenticated user. Existing pre-scope data is
 migrated to the first authenticated account that opens the upgraded desktop

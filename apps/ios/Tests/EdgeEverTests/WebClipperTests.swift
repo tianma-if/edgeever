@@ -2,6 +2,44 @@ import XCTest
 @testable import EdgeEver
 
 final class WebClipperTests: XCTestCase {
+    @MainActor
+    func testSharedImagesResolveOnlyFilesInsideHandoffDirectory() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("edgeever-share-test-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let imageURL = directory.appendingPathComponent("stored-image.jpg")
+        try Data([0xFF, 0xD8, 0xFF]).write(to: imageURL)
+
+        let payloads = [
+            ShareHandoffStore.SharePayload(
+                text: nil,
+                url: nil,
+                title: nil,
+                imageFilename: "stored-image.jpg",
+                imageMimeType: "image/jpeg",
+                imageOriginalName: "知乎图片.jpg"
+            ),
+            ShareHandoffStore.SharePayload(
+                text: nil,
+                url: nil,
+                title: nil,
+                imageFilename: "..",
+                imageMimeType: "image/jpeg",
+                imageOriginalName: "unsafe.jpg"
+            ),
+        ]
+
+        XCTAssertEqual(
+            ShareHandoffStore.sharedImages(from: payloads, directory: directory),
+            [ShareHandoffStore.SharedImage(
+                fileURL: imageURL,
+                filename: "知乎图片.jpg",
+                mimeType: "image/jpeg"
+            )]
+        )
+    }
+
     func testSharedWebURLFindsURLInsideText() {
         let payloads = [ShareHandoffStore.SharePayload(
             text: "Read this https://example.com/articles/one?from=share today",

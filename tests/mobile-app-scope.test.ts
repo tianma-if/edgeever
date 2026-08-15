@@ -9,6 +9,10 @@ const memoDetailSource = readFileSync(
   new URL("../apps/mobile/src/screens/WorkspaceMemoDetail.tsx", import.meta.url),
   "utf8"
 );
+const localTiptapEditorSource = readFileSync(
+  new URL("../apps/mobile/src/components/LocalTiptapEditor.tsx", import.meta.url),
+  "utf8"
+);
 const notesViewSource = readFileSync(
   new URL("../apps/mobile/src/screens/WorkspaceNotesView.tsx", import.meta.url),
   "utf8"
@@ -69,6 +73,22 @@ describe("mobile app scope", () => {
     expect(memoDetailSource).toContain('mode="viewer"');
     expect(memoDetailSource).toContain("LocalTiptapEditor");
     expect(memoDetailSource).not.toContain("react-native-markdown-display");
+  });
+
+  test("carries workspace search into note detail and scrolls active matches", () => {
+    expect(workspaceSource).toContain('initialSearchQuery={selectedMemoId ? searchText.trim() : ""}');
+    expect(memoDetailSource).toContain("metadataSearchMatchCount + bodySearchMatchCount");
+    expect(memoDetailSource).toContain("const retryTimers = [120, 360]");
+    expect(localTiptapEditorSource).toContain("createMobileNoteSearchHighlightPlugin");
+    expect(localTiptapEditorSource).toContain("scrollEditorPositionIntoView(editor, match.from");
+  });
+
+  test("keeps the Android editor caret visible while the keyboard viewport changes", () => {
+    expect(workspaceSource).toContain("KeyboardAvoidingView");
+    expect(workspaceSource).toContain('enabled={Platform.OS === "android"}');
+    expect(localTiptapEditorSource).toContain('visualViewport?.addEventListener("resize", ensureSelectionVisible)');
+    expect(localTiptapEditorSource).toContain("--edgeever-keyboard-inset");
+    expect(localTiptapEditorSource).toContain("scrollEditorPositionIntoView(editor, editor.state.selection.head)");
   });
 
   test("keeps Android memo list motion and spring feedback", () => {

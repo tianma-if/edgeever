@@ -32,5 +32,16 @@ describe("MCP tool catalog", () => {
       destructiveHint: false,
       idempotentHint: true,
     });
+    expect(byName.get("rename_notebook")?.annotations).toMatchObject({
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+    });
+    expect(byName.get("rename_notebook")?.inputSchema).toMatchObject({
+      required: ["notebookId", "name"],
+      properties: {
+        name: { type: "string", minLength: 1, maxLength: 80 },
+      },
+    });
   });
 });

@@ -8,7 +8,8 @@ import { TaskItem, TaskList } from "@tiptap/extension-list";
 import { mergeAttributes } from "@tiptap/core";
 import Placeholder from "@tiptap/extension-placeholder";
 import { TableKit } from "@tiptap/extension-table";
-import { createEdgeEverMathematics, createExcerpt, docToMarkdown, docToText, emptyDoc, getImageReferrerPolicy, MergeDivider, type MemoDetail, type MemoEditSession, type Notebook, type TiptapDoc } from "@edgeever/shared";
+import { createExcerpt, docToMarkdown, docToText, emptyDoc, getImageReferrerPolicy, MergeDivider, type MemoDetail, type MemoEditSession, type Notebook, type TagSummary, type TiptapDoc } from "@edgeever/shared";
+import { createEdgeEverMathematics } from "@edgeever/shared/mathematics";
 import { getMobileEditorInputAttributes, getMobileEditorPlaceholder } from "@edgeever/shared/mobile-editor";
 import {
   MobileEditorFallback,
@@ -42,9 +43,15 @@ import {
 } from "@/lib/mobile-editor-standalone";
 import { getMemoUpdateQueueId, isMemoUpdateAlreadyApplied, queueMemoUpdate, shouldQueueMemoSaveError } from "@/lib/sync-queue";
 import { EdgeEverCodeBlock, codeBlockLowlight } from "@/lib/code-block";
+import { createMarkdownImagePasteRule } from "@/lib/markdown-image-paste";
 import { ThemeBlock } from "./ThemeBlock";
+import { EditorTagPicker } from "./EditorTagPicker";
+import { listLocalTags } from "@/lib/local-mirror";
 
 const ProtectedExternalImage = Image.extend({
+  addPasteRules() {
+    return [createMarkdownImagePasteRule(this.type)];
+  },
   renderHTML({ HTMLAttributes }) {
     const referrerPolicy = getImageReferrerPolicy(HTMLAttributes.src);
     return [
@@ -539,6 +546,14 @@ export const MobileStandaloneTiptapEditor = ({
     scheduleMetadataSave();
   };
 
+  const loadTags = useCallback(async () => {
+    if (memoId) {
+      const localMemo = await localDb.memos.filter((candidate) => candidate.id === memoId).first();
+      if (localMemo) return listLocalTags(localMemo.scope);
+    }
+    return requestMobileEditorJson<{ tags: TagSummary[] }>("/api/v1/tags");
+  }, [memoId]);
+
   const handleNotebookChange = async (nextNotebookId: string) => {
     const currentMemo = memoRef.current;
     if (!currentMemo || !nextNotebookId || nextNotebookId === currentMemo.notebookId || notebookUpdatePending) {
@@ -914,14 +929,11 @@ export const MobileStandaloneTiptapEditor = ({
             disabled={!memo || notebookUpdatePending || saveState === "loading" || notebookOptions.length === 0}
             onOpen={() => setNotebookSheetOpen(true)}
           />
-          <input
-            className="mobile-editor-tags"
+          <EditorTagPicker
+            disabled={!memo || saveState === "loading"}
+            loadTags={loadTags}
             value={tagsText}
-            autoComplete="on"
-            autoCorrect="on"
-            inputMode="text"
-            placeholder={t("editor.tagPlaceholder")}
-            onChange={(event) => handleTagsChange(event.target.value)}
+            onChange={handleTagsChange}
           />
         </div>
 

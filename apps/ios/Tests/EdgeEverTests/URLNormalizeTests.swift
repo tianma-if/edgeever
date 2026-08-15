@@ -15,4 +15,19 @@ final class URLNormalizeTests: XCTestCase {
     func testRejectsEmpty() {
         XCTAssertThrowsError(try EdgeEverURLNormalizer.normalizeInstanceURL("  "))
     }
+
+    func testMapsBareDemoAliasToPublicInstance() throws {
+        XCTAssertEqual(
+            try EdgeEverURLNormalizer.normalizeInstanceURL("demo").absoluteString,
+            EdgeEverPublicDemo.instanceURLString
+        )
+        XCTAssertEqual(
+            try EdgeEverURLNormalizer.normalizeInstanceURL("https://demo").absoluteString,
+            EdgeEverPublicDemo.instanceURLString
+        )
+        XCTAssertEqual(
+            try EdgeEverURLNormalizer.normalizeInstanceURL("DEMO/").absoluteString,
+            EdgeEverPublicDemo.instanceURLString
+        )
+    }
 }

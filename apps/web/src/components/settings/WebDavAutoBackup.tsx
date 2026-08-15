@@ -32,7 +32,7 @@ export const WebDavAutoBackup = () => {
       saveWebDavBackupSchedule({ ...schedule, lastAttemptAt: attemptAt });
       try {
         const archive = await createEdgeEverZip(
-          { listNotebooks: api.listNotebooks, getPage: api.getJsonBackupPage, getResourceBlob: api.getResourceBlob },
+          { listNotebooks: api.listNotebooks, listPrompts: api.listAiPrompts, getPage: api.getJsonBackupPage, getResourceBlob: api.getResourceBlob },
           { edgeeverVersion: __EDGEEVER_APP_VERSION__, buildId: __EDGEEVER_BUILD_ID__ }
         );
         await uploadWebDavBackup(config, password, archive);

@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 import { AdvancedPlayCard } from "./settings/AdvancedPlayCard";
 import { AccountInfoCard } from "./settings/AccountInfoCard";
 import { DataExportCard } from "./settings/DataExportCard";
+import { DesktopLocalDataCard } from "./settings/DesktopLocalDataCard";
 import { LoginDevicesCard } from "./settings/LoginDevicesCard";
 import { EvernoteImportGuideCard } from "./settings/EvernoteImportGuideCard";
 import { FeedbackLink } from "./settings/FeedbackLink";
@@ -32,6 +33,8 @@ import { SessionCard } from "./settings/SessionCard";
 import { UserManagementCard } from "./settings/UserManagementCard";
 import { ObjectStorageCard } from "./settings/ObjectStorageCard";
 import { AiModelCard } from "./settings/AiModelCard";
+import { AiPromptsCard } from "./settings/AiPromptsCard";
+import { AiGenerationPreferenceCard } from "./settings/AiGenerationPreferenceCard";
 import { ThemeToggle } from "./ThemeToggle";
 import type { AuthUser } from "@edgeever/shared";
 import { contentEnterMotion } from "@/lib/motion";
@@ -39,6 +42,7 @@ import { contentEnterMotion } from "@/lib/motion";
 interface SettingsPaneProps {
   onClose: () => void;
   onOpenTemplates: () => void;
+  onOpenAiPrompts: () => void;
   imageCompressionEnabled: boolean;
   onImageCompressionChange: (enabled: boolean) => void;
   syncIntervalMs: number | null;
@@ -77,6 +81,7 @@ interface TabItem {
 export const SettingsPane = ({
   onClose,
   onOpenTemplates,
+  onOpenAiPrompts,
   imageCompressionEnabled,
   onImageCompressionChange,
   syncIntervalMs,
@@ -95,6 +100,7 @@ export const SettingsPane = ({
   const [activeTab, setActiveTab] = useState<TabKey>("general");
   const [activeMobileTab, setActiveMobileTab] = useState<TabKey | null>(null);
   const [systemInfoOpen, setSystemInfoOpen] = useState(false);
+  const canClearLocalData = Boolean(window.edgeeverDesktop?.canClearLocalData);
 
   const tabItems: TabItem[] = [
     {
@@ -135,17 +141,17 @@ export const SettingsPane = ({
             hoverColorClass: "hover:bg-emerald-50/40",
             iconColorClass: "text-emerald-600",
           },
-          {
-            key: "advanced" as const,
-            label: t("settings.tabs.advanced"),
-            icon: Wrench,
-            colorClass: "text-emerald-700",
-            bgColorClass: "bg-emerald-50/80",
-            hoverColorClass: "hover:bg-emerald-50/40",
-            iconColorClass: "text-emerald-600",
-          },
         ]
       : []),
+    {
+      key: "advanced",
+      label: t("settings.tabs.advanced"),
+      icon: Wrench,
+      colorClass: "text-emerald-700",
+      bgColorClass: "bg-emerald-50/80",
+      hoverColorClass: "hover:bg-emerald-50/40",
+      iconColorClass: "text-emerald-600",
+    },
     {
       key: "account",
       label: t("settings.tabs.account"),
@@ -222,16 +228,19 @@ export const SettingsPane = ({
         return (
           <SettingsGroup>
             <AiModelCard />
+            <AiPromptsCard onOpenLibrary={onOpenAiPrompts} />
             <McpConfigCard />
             <AdvancedPlayCard />
           </SettingsGroup>
         );
       case "advanced":
-        return isOwner ? (
+        return (
           <SettingsGroup>
-            <ObjectStorageCard demoMode={demoMode} />
+            <AiGenerationPreferenceCard />
+            {isOwner ? <ObjectStorageCard demoMode={demoMode} /> : null}
+            {canClearLocalData ? <DesktopLocalDataCard /> : null}
           </SettingsGroup>
-        ) : null;
+        );
       case "account":
         return (
           <SettingsGroup>
@@ -321,6 +330,19 @@ export const SettingsPane = ({
                       <LayoutTemplate className="h-4 w-4 text-emerald-600" />
                     </div>
                     <span className="text-sm font-semibold text-slate-800">{t("nav.templates")}</span>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-slate-400" />
+                </button>
+                <button
+                  type="button"
+                  onClick={onOpenAiPrompts}
+                  className="flex w-full items-center justify-between gap-4 border-t border-slate-100 p-4 text-left transition-colors hover:bg-slate-50/50"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50/80">
+                      <Sparkles className="h-4 w-4 text-emerald-600" />
+                    </div>
+                    <span className="text-sm font-semibold text-slate-800">{t("nav.prompts")}</span>
                   </div>
                   <ChevronRight className="h-4 w-4 text-slate-400" />
                 </button>

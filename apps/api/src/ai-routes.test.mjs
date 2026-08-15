@@ -83,13 +83,13 @@ const createDatabaseEnvironment = () => {
   };
 };
 
-const createApp = ({ currentAuth = auth, demoMode = false } = {}) => {
+const createApp = ({ currentAuth = auth, demoMode = false, testConnection } = {}) => {
   const app = new Hono();
   app.use("/api/v1/*", async (context, next) => {
     context.set("auth", currentAuth);
     await next();
   });
-  registerAiRoutes(app, { isDemoMode: () => demoMode });
+  registerAiRoutes(app, { isDemoMode: () => demoMode, testConnection });
   return app;
 };
 
@@ -115,6 +115,27 @@ describe("AI route contracts", () => {
       });
       expect(parsed.success, action).toBe(true);
     }
+  });
+
+  test("defaults AI generation to non-streaming and accepts an explicit opt-in", () => {
+    const input = { action: "summarize", title: "Note", contentMarkdown: "Body" };
+    expect(AiGenerateSchema.parse(input).stream).toBe(false);
+    expect(AiGenerateSchema.parse({ ...input, stream: true }).stream).toBe(true);
+  });
+
+  test("defers prompt-specific action and parameter validation to the saved prompt", () => {
+    expect(AiGenerateSchema.safeParse({
+      action: "custom",
+      promptId: "aiprompt_saved",
+      title: "Note",
+      contentMarkdown: "Body",
+    }).success).toBe(true);
+    expect(AiGenerateSchema.safeParse({
+      action: "translate",
+      promptId: "aiprompt_server_resolves_behavior",
+      title: "Note",
+      contentMarkdown: "Body",
+    }).success).toBe(true);
   });
 
   test("does not allow API tokens to manage personal AI credentials", async () => {
@@ -179,6 +200,54 @@ describe("AI route contracts", () => {
       environment,
     );
     expect(response.status).toBe(400);
+  });
+
+  test("resolves saved prompt behavior inside the authenticated workspace", async () => {
+    const app = createApp();
+    const { sqlite, environment: databaseEnvironment } = createDatabaseEnvironment();
+    const now = "2026-08-12T01:00:00.000Z";
+    sqlite.query(
+      `INSERT INTO ai_prompt_templates (
+         id, workspace_id, seed_key, action, parameter_kind, result_mode,
+         name, description, instruction,
+         name_customized, description_customized, instruction_customized,
+         created_at, updated_at
+       ) VALUES (?, ?, NULL, 'custom', 'tone', 'replace', ?, NULL, ?, 1, 1, 1, ?, ?)`,
+    ).run("aiprompt_tone", auth.workspaceId, "Tone prompt", "Use the requested tone.", now, now);
+
+    const missingParameter = await app.request(
+      "/api/v1/ai/generate",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          action: "summarize",
+          promptId: "aiprompt_tone",
+          title: "Note",
+          contentMarkdown: "Body",
+        }),
+      },
+      databaseEnvironment,
+    );
+    expect(missingParameter.status).toBe(400);
+    expect(await missingParameter.json()).toMatchObject({ error: { code: "ai_tone_required" } });
+
+    const missingPrompt = await app.request(
+      "/api/v1/ai/generate",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          action: "custom",
+          promptId: "aiprompt_other_workspace",
+          title: "Note",
+          contentMarkdown: "Body",
+        }),
+      },
+      databaseEnvironment,
+    );
+    expect(missingPrompt.status).toBe(404);
+    expect(await missingPrompt.json()).toMatchObject({ error: { code: "ai_prompt_not_found" } });
   });
 
   test("bounds custom editing instructions", async () => {
@@ -264,6 +333,59 @@ describe("AI route contracts", () => {
     );
     expect(disableResponse.status).toBe(200);
     expect((await disableResponse.json()).providers[0].isEnabled).toBe(false);
+
+    sqlite.close();
+  });
+
+  test("tests unsaved connection fields without changing the saved provider", async () => {
+    const testedConnections = [];
+    const app = createApp({
+      testConnection: async (config) => {
+        testedConnections.push(config);
+        return { text: "OK" };
+      },
+    });
+    const { sqlite, environment: databaseEnvironment } = createDatabaseEnvironment();
+    const createResponse = await app.request(
+      "/api/v1/ai/providers",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(validSettings),
+      },
+      databaseEnvironment,
+    );
+    const created = await createResponse.json();
+    const provider = created.providers[0];
+
+    const testResponse = await app.request(
+      `/api/v1/ai/providers/${provider.id}/test`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          modelId: "draft-model",
+          provider: "google",
+          baseUrl: "https://draft.example.com/v1/",
+          apiKey: "draft-key",
+        }),
+      },
+      databaseEnvironment,
+    );
+
+    expect(testResponse.status).toBe(200);
+    expect(await testResponse.json()).toEqual({ ok: true, response: "OK" });
+    expect(testedConnections).toEqual([{
+      modelId: "draft-model",
+      provider: "google",
+      baseUrl: "https://draft.example.com/v1",
+      apiKey: "draft-key",
+    }]);
+    expect((await app.request("/api/v1/ai/settings", {}, databaseEnvironment).then((response) => response.json())).providers[0])
+      .toMatchObject({
+        provider: validSettings.provider,
+        baseUrl: validSettings.baseUrl,
+      });
 
     sqlite.close();
   });

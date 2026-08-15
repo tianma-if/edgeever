@@ -15,7 +15,7 @@ import {
   getCachedDesktopSession,
   saveDesktopApiBaseUrl,
 } from "@/lib/api";
-import { classifyLoginError, type LoginProblem } from "@/lib/login-error";
+import { classifyLoginError, getLoginProblemMessageKey } from "@/lib/login-error";
 import { EVERNOTE_MIGRATION_PATH } from "@/lib/routes";
 import { isBrowserOffline } from "@/lib/network-status";
 import type { AuthSession } from "@edgeever/shared";
@@ -160,38 +160,12 @@ const AuthenticatedWorkspace = () => {
     : sessionQuery.error
       ? classifyLoginError(sessionQuery.error, "session")
       : null;
-  const problemMessage = (value: LoginProblem) => {
-    switch (value.kind) {
-      case "invalidInstanceUrl":
-        return t("login.desktopInstanceUrlInvalid");
-      case "instanceUnreachable":
-        return t("login.instanceUnreachable");
-      case "instanceApiNotFound":
-        return t("login.instanceApiNotFound");
-      case "invalidCredentials":
-        return t("login.invalidCredentials");
-      case "sessionExpired":
-        return t("login.sessionExpired");
-      case "loginRateLimited":
-        return t("login.loginRateLimited");
-      case "authNotConfigured":
-        return t("login.authNotConfigured");
-      case "databaseNotReady":
-        return t("login.databaseNotReady");
-      case "passwordHashInvalid":
-        return t("login.passwordHashInvalid");
-      case "instanceServerError":
-        return t("login.instanceServerError", { status: value.status });
-      case "requestRejected":
-        return t("login.requestRejected", { status: value.status });
-      case "invalidResponse":
-        return t("login.invalidInstanceResponse");
-      case "unexpected":
-        return t("login.unexpectedError");
-    }
-  };
   const loginError = problem
-    ? { message: problemMessage(problem), diagnosticCode: problem.diagnosticCode }
+    ? {
+        message: t(getLoginProblemMessageKey(problem), "status" in problem ? { status: problem.status } : undefined),
+        diagnosticCode: problem.diagnosticCode,
+        rayId: problem.rayId,
+      }
     : null;
 
   if (desktopBridge?.isAvailable && !desktopScopeReady) {
@@ -254,6 +228,7 @@ export const App = () => {
         <Route path="/" element={<AuthenticatedWorkspace />} />
         <Route path="/settings" element={<AuthenticatedWorkspace />} />
         <Route path="/templates" element={<AuthenticatedWorkspace />} />
+        <Route path="/ai-prompts" element={<AuthenticatedWorkspace />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <PwaUpdateNotice />

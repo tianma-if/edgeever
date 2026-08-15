@@ -18,6 +18,8 @@
 
 `deploy:setup` 会创建或复用 D1、R2，并将配置写入被 Git 忽略的 `.env.local`。不设置 `EDGE_EVER_PASSWORD` 时，默认登录为 `admin` / `admin123`。
 
+使用本地 CLI 部署时，可在 `.env.local` 中设置 `EDGE_EVER_DEPLOYMENT_URL=https://<你的 Worker 域名>`，让部署验证同时请求线上的 `/api/health`；CI 部署会自动从 Wrangler 输出中识别公网地址。未显式配置地址时，本地验证仍会检查远端 D1 schema 和 Worker Secret，并明确提示已跳过线上健康检查。
+
 部署完成后，确认：
 
 - `/api/health` 返回 `200` 和 `"ok": true`

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { JsonBackupMemo, JsonBackupNotebook, MemoDetail, Notebook, Resource } from "@edgeever/shared";
+import type { AiPromptTemplate, JsonBackupMemo, JsonBackupNotebook, MemoDetail, Notebook, Resource } from "@edgeever/shared";
 import { strFromU8, strToU8, zipSync } from "fflate";
 import {
   createEdgeEverZip,
@@ -60,6 +60,23 @@ const resource: Resource = {
   url: "/api/v1/resources/res_backup/blob",
 };
 
+const prompt: AiPromptTemplate = {
+  id: "aiprompt_backup",
+  origin: "custom",
+  seedKey: null,
+  action: "custom",
+  parameterKind: "tone",
+  resultMode: "replace",
+  nameCustomized: true,
+  descriptionCustomized: true,
+  instructionCustomized: true,
+  name: "Polish",
+  description: "Polish selected text",
+  instruction: "Polish this text.",
+  createdAt: memo.createdAt,
+  updatedAt: memo.updatedAt,
+};
+
 describe("EdgeEver ZIP", () => {
   test("reports actionable archive validation errors", async () => {
     await expect(parseEdgeEverZip(new Blob(["not a zip"]))).rejects.toEqual(
@@ -93,6 +110,7 @@ describe("EdgeEver ZIP", () => {
     const blob = await createEdgeEverZip(
       {
         listNotebooks: async () => ({ notebooks: [notebook("nb_child", "Child", "nb_root"), notebook("nb_root", "Root")] }),
+        listPrompts: async () => ({ prompts: [prompt] }),
         getPage: async () => ({
           memos: [memo],
           resources: [resource],
@@ -119,8 +137,9 @@ describe("EdgeEver ZIP", () => {
     const backup = await parseEdgeEverZip(blob);
 
     expect(backup.manifest.format).toBe("edgeever-zip");
-    expect(backup.manifest.formatVersion).toBe(1);
-    expect(backup.manifest.counts).toEqual({ notebooks: 2, memos: 1, revisions: 1, resources: 1 });
+    expect(backup.manifest.formatVersion).toBe(2);
+    expect(backup.manifest.counts).toEqual({ notebooks: 2, memos: 1, revisions: 1, resources: 1, prompts: 1 });
+    expect(backup.prompts).toEqual([prompt]);
     expect(backup.notebooks.map((item) => item.id)).toEqual(["nb_root", "nb_child"]);
     expect(backup.memos[0].memo.contentMarkdown).toBe(memo.contentMarkdown);
     expect(Array.from(backup.files[backup.memos[0].resources[0].archivePath])).toEqual([1, 2, 3]);
@@ -128,6 +147,26 @@ describe("EdgeEver ZIP", () => {
     expect(markdown).toContain("edgeever_id: \"memo_backup\"");
     expect(markdown).toContain("![asset](Backup%20note.assets/asset.png)");
     expect(backup.memos[0].resources[0].archivePath).toBe("notes/Root/Child/Backup note.assets/asset.png");
+  });
+
+  test("keeps version 1 archives importable without prompt data", async () => {
+    const legacyManifest = {
+      format: "edgeever-zip",
+      formatVersion: 1,
+      schemaVersion: 1,
+      edgeeverVersion: "1.13.3",
+      buildId: "legacy-build",
+      exportedAt: "2026-08-09T00:00:00.000Z",
+      includesTrash: false,
+      counts: { notebooks: 0, memos: 0, revisions: 0, resources: 0 },
+    };
+    const backup = await parseEdgeEverZip(new Blob([zipSync({
+      "manifest.json": strToU8(JSON.stringify(legacyManifest)),
+      "notebooks.json": strToU8("[]"),
+    })]));
+
+    expect(backup.manifest.formatVersion).toBe(1);
+    expect(backup.prompts).toEqual([]);
   });
 
   test("restores notebooks before memos and binary resources", async () => {
@@ -141,13 +180,13 @@ describe("EdgeEver ZIP", () => {
     const backup = {
       manifest: {
         format: "edgeever-zip" as const,
-        formatVersion: 1 as const,
+        formatVersion: 2 as const,
         schemaVersion: 1,
         edgeeverVersion: "0.1.13",
         buildId: "test-build",
         exportedAt: "2026-07-14T00:00:00.000Z",
         includesTrash: false as const,
-        counts: { notebooks: 1, memos: 1, revisions: 0, resources: 1 },
+        counts: { notebooks: 1, memos: 1, revisions: 0, resources: 1, prompts: 1 },
       },
       notebooks: [{
         id: "nb_child",
@@ -161,18 +200,20 @@ describe("EdgeEver ZIP", () => {
         updatedAt: memo.updatedAt,
       }] satisfies JsonBackupNotebook[],
       memos: [backupMemo],
+      prompts: [prompt],
       files: { "resources/res_backup/asset.png": new Uint8Array([1, 2, 3]) },
     };
 
     await restoreEdgeEverZip(backup, {
       restoreNotebooks: async () => { calls.push("notebooks"); },
       restoreMemos: async () => { calls.push("memos"); },
+      restorePrompts: async () => { calls.push("prompts"); },
       restoreResource: async (_id, _metadata, file) => {
         calls.push(`resource:${file.size}`);
       },
     });
 
-    expect(calls).toEqual(["notebooks", "memos", "resource:3"]);
+    expect(calls).toEqual(["prompts", "notebooks", "memos", "resource:3"]);
   });
 
   test("refreshes the workspace after all imported data is restored", async () => {
@@ -200,6 +241,7 @@ describe("EdgeEver ZIP", () => {
         updatedAt: memo.updatedAt,
       }] satisfies JsonBackupNotebook[],
       memos: [{ memo, revisions: [], resources: [] }] satisfies JsonBackupMemo[],
+      prompts: [],
       files: {},
     };
 
@@ -208,6 +250,7 @@ describe("EdgeEver ZIP", () => {
       {
         restoreNotebooks: async () => { calls.push("notebooks"); },
         restoreMemos: async () => { calls.push("memos"); },
+        restorePrompts: async () => { calls.push("prompts"); },
         restoreResource: async () => { calls.push("resource"); },
       },
       async () => { calls.push("refresh"); },

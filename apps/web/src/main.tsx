@@ -12,6 +12,12 @@ import "./styles/globals.css";
 const PWA_UPDATE_CHECK_INTERVAL_MS = 10 * 60 * 1_000;
 const DEVELOPMENT_PWA_RELOAD_KEY = "edgeever.dev-pwa-reset";
 
+if (import.meta.env.DEV && __EDGEEVER_DEVELOPMENT_PROFILE__) {
+  document.documentElement.dataset.edgeeverEnvironment = __EDGEEVER_DEVELOPMENT_PROFILE__;
+  const environmentLabel = __EDGEEVER_DEVELOPMENT_PROFILE__ === "demo" ? "LOCAL DEMO" : "LOCAL";
+  document.title = `[${environmentLabel}] ${document.title}`;
+}
+
 const clearDevelopmentPwaState = async () => {
   if (!("serviceWorker" in navigator)) {
     return false;

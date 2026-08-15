@@ -2,6 +2,7 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("edgeeverDesktop", Object.freeze({
   isAvailable: true,
+  canClearLocalData: ipcRenderer.sendSync("desktop:local-data-reset-available-sync"),
   sidecarStatus: () => ipcRenderer.invoke("desktop:sidecar-status"),
   setAccountScope: (accountId) => ipcRenderer.invoke("desktop:set-account-scope", accountId),
   apiBaseUrl: ipcRenderer.sendSync("desktop:api-base-url-sync"),
@@ -11,6 +12,7 @@ contextBridge.exposeInMainWorld("edgeeverDesktop", Object.freeze({
   copyHtml: (html, plainText) => ipcRenderer.invoke("desktop:copy-html", { html, plainText }),
   setSessionToken: (value) => ipcRenderer.invoke("desktop:set-session-token", value),
   clearSessionToken: () => ipcRenderer.invoke("desktop:clear-session-token"),
+  clearLocalData: () => ipcRenderer.invoke("desktop:clear-local-data"),
   updateStatus: () => ipcRenderer.invoke("desktop:update-status"),
   downloadUpdate: () => ipcRenderer.invoke("desktop:download-update"),
   installUpdate: () => ipcRenderer.invoke("desktop:install-update"),

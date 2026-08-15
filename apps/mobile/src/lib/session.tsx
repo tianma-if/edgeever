@@ -1,5 +1,5 @@
 import { createEdgeEverClient } from "@edgeever/client";
-import type { AuthUser } from "@edgeever/shared";
+import { resolveInstanceUrlInput, type AuthUser } from "@edgeever/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import { fetch as expoFetch } from "expo/fetch";
 import * as SecureStore from "expo-secure-store";
@@ -79,7 +79,7 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
   }, [queryClient, session]);
 
   const signIn = useCallback(async (input: { baseUrl: string; username: string; password: string }) => {
-    const baseUrl = normalizeInstanceUrl(input.baseUrl);
+    const baseUrl = normalizeInstanceUrl(resolveInstanceUrlInput(input.baseUrl));
     const deviceId = await getOrCreateDeviceId();
     const loginClient = createEdgeEverClient({ baseUrl });
     const authSession = await loginClient.login({

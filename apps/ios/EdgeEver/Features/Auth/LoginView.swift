@@ -34,6 +34,7 @@ struct LoginView: View {
                     .clipShape(Circle())
                     .overlay(Circle().stroke(AppTheme.border, lineWidth: 1))
             }
+            .accessibilityLabel(env.preferences.t("GitHub 仓库", en: "GitHub repository"))
             .padding(.trailing, 18)
             .padding(.top, 18)
             .zIndex(2)
@@ -65,7 +66,7 @@ struct LoginView: View {
 
                     field(
                         env.preferences.t("实例地址", en: "Instance URL"),
-                        placeholder: "https://notes.example.com",
+                        placeholder: EdgeEverPublicDemo.instanceURLString,
                         text: $baseUrl,
                         keyboard: .URL,
                         secure: false
