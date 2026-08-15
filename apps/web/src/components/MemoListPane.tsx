@@ -1161,7 +1161,7 @@ export const MemoListPane = ({
             </DropdownMenu>
 
             <ToggleGroup
-              className="h-8 shrink-0 overflow-hidden rounded-md border border-slate-200 bg-white"
+              className="h-8 shrink-0 overflow-hidden rounded-md border border-border bg-card"
               type="single"
               value={listDensity}
               onValueChange={(value) => {
@@ -1180,7 +1180,7 @@ export const MemoListPane = ({
                 <LayoutList className="h-4 w-4" />
               </ToggleGroupItem>
               <ToggleGroupItem
-                className="rounded-none border-0 border-l border-slate-200"
+                className="rounded-none border-0 border-l border-border"
                 size="icon"
                 title={t("memoList.compactList")}
                 value="compact"

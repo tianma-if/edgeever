@@ -115,7 +115,6 @@ import { registerApiTokenRoutes, type ApiTokenRow } from "./api-token-routes";
 import { registerObjectStorageRoutes } from "./object-storage-routes";
 import { registerAiRoutes } from "./ai-routes";
 import { registerAiPromptRoutes } from "./ai-prompt-routes";
-import { ensureWorkspaceAiPromptSeed } from "./ai-prompt-seed";
 import { registerResourceRoutes } from "./resource-routes";
 import { registerSyncRoutes } from "./sync-routes";
 import { registerMemoRoutes } from "./memo-routes";
@@ -138,6 +137,10 @@ import {
   deleteStoredObjects,
   resolveObjectStorage,
 } from "./object-storage";
+import {
+  DEFAULT_WORKSPACE_ID,
+  ensureUserWorkspace,
+} from "./workspace-provisioning";
 import {
   MAX_ATTACHMENT_UPLOAD_BYTES,
   MAX_IMAGE_UPLOAD_BYTES,
@@ -200,6 +203,9 @@ type SessionRow = {
   username: string;
   display_name: string | null;
   expires_at: string;
+  last_seen_at: string | null;
+  workspace_id: string | null;
+  role: "owner" | "member" | null;
 };
 
 type WorkspaceIdentityRow = {
@@ -219,9 +225,9 @@ type MemoImportSourceRow = {
 };
 
 const SESSION_COOKIE = "edgeever_session";
-const DEFAULT_WORKSPACE_ID = "ws_default";
 const DEFAULT_SESSION_TTL_DAYS = 400;
 const MAX_SESSION_TTL_DAYS = 400;
+const SESSION_LAST_SEEN_UPDATE_INTERVAL_MS = 5 * 60 * 1000;
 const DEFAULT_R2_BUCKET_NAME = "edgeever-resources";
 const REVISION_SNAPSHOT_INTERVAL_MS = 5 * 60 * 1000;
 const app = new Hono<AppEnv>();
@@ -247,7 +253,7 @@ app.use(
 );
 
 app.get("/api/health", async (c) => {
-  const authMode = await getInstanceAuthMode(c.env);
+  const authMode = await getInstanceAuthMode(c.env, true);
 
   if (authMode === "unconfigured") {
     return authNotConfigured(c);
@@ -282,7 +288,6 @@ registerAuthRoutes(app, {
 });
 registerUserRoutes(app, {
   authenticateRequest: (...args) => authenticateRequest(...args),
-  createDefaultNotebookRows: (...args) => createDefaultNotebookRows(...args),
   getInstanceUser: (...args) => getInstanceUser(...args),
 });
 
@@ -1030,13 +1035,27 @@ const callMcpTool = async (
   }
 };
 
-const getInstanceAuthMode = async (env: Bindings): Promise<InstanceAuthMode> => {
+const getInstanceAuthMode = async (
+  env: Bindings,
+  verifyDatabase = false,
+): Promise<InstanceAuthMode> => {
   if (!env.storage.db || typeof env.storage.db.prepare !== "function") {
     throw new AppError(
       "database_not_ready",
       "Database is not ready. Bind the D1 database as DB and apply the remote migrations.",
       503,
     );
+  }
+
+  const allowUnauthenticated = isUnauthenticatedAccessEnabled(env.EDGE_EVER_ALLOW_UNAUTHENTICATED);
+  const bootstrapCredentialConfigured = hasBootstrapCredential(
+    env.EDGE_EVER_AUTH_PASSWORD,
+    env.EDGE_EVER_AUTH_PASSWORD_HASH,
+  );
+
+  if (!verifyDatabase) {
+    if (allowUnauthenticated) return "disabled";
+    if (bootstrapCredentialConfigured) return "required";
   }
 
   let user: { id: string } | null;
@@ -1054,11 +1073,8 @@ const getInstanceAuthMode = async (env: Bindings): Promise<InstanceAuthMode> => 
   }
 
   return resolveInstanceAuthMode({
-    allowUnauthenticated: isUnauthenticatedAccessEnabled(env.EDGE_EVER_ALLOW_UNAUTHENTICATED),
-    hasBootstrapCredential: hasBootstrapCredential(
-      env.EDGE_EVER_AUTH_PASSWORD,
-      env.EDGE_EVER_AUTH_PASSWORD_HASH,
-    ),
+    allowUnauthenticated,
+    hasBootstrapCredential: bootstrapCredentialConfigured,
     hasEnabledUser: Boolean(user),
   });
 };
@@ -1167,85 +1183,6 @@ const getInstanceUser = (db: D1Database, userId: string) =>
      WHERE u.id = ?`
   ).bind(userId).first<InstanceUserRow>();
 
-const ensureUserWorkspace = async (db: D1Database, userId: string, username: string) => {
-  const existing = await db.prepare(
-    `SELECT workspace_id, role FROM workspace_members WHERE user_id = ? LIMIT 1`
-  ).bind(userId).first<{ workspace_id: string; role: "owner" | "member" }>();
-  if (existing) {
-    await ensureWorkspaceTemplateSeed(db, existing.workspace_id);
-    await ensureWorkspaceAiPromptSeed(db, existing.workspace_id);
-    return { workspaceId: existing.workspace_id, role: existing.role };
-  }
-
-  const defaultOwner = await db.prepare(
-    `SELECT user_id FROM workspace_members WHERE workspace_id = ? LIMIT 1`
-  ).bind(DEFAULT_WORKSPACE_ID).first<{ user_id: string }>();
-  if (!defaultOwner) {
-    await db.prepare(
-      `INSERT OR IGNORE INTO workspace_members (workspace_id, user_id, role) VALUES (?, ?, 'owner')`
-    ).bind(DEFAULT_WORKSPACE_ID, userId).run();
-    const claimed = await db.prepare(
-      `SELECT workspace_id, role FROM workspace_members WHERE user_id = ? LIMIT 1`
-    ).bind(userId).first<{ workspace_id: string; role: "owner" | "member" }>();
-    if (claimed) {
-      await ensureWorkspaceTemplateSeed(db, claimed.workspace_id);
-      await ensureWorkspaceAiPromptSeed(db, claimed.workspace_id);
-      return { workspaceId: claimed.workspace_id, role: claimed.role };
-    }
-  }
-
-  const workspaceId = createId("ws");
-  const now = isoNow();
-  const notebooks = createDefaultNotebookRows(workspaceId, now);
-  await db.batch([
-    db.prepare(`INSERT INTO workspaces (id, name, is_personal, created_at, updated_at) VALUES (?, ?, 1, ?, ?)`)
-      .bind(workspaceId, `${username}'s workspace`, now, now),
-    db.prepare(`INSERT INTO workspace_members (workspace_id, user_id, role, created_at) VALUES (?, ?, 'member', ?)`)
-      .bind(workspaceId, userId, now),
-    ...notebooks.map((notebook) => db.prepare(
-      `INSERT INTO notebooks (id, workspace_id, parent_id, name, slug, icon, color, sort_order, created_at, updated_at)
-       VALUES (?, ?, NULL, ?, ?, 'notebook', ?, ?, ?, ?)`
-    ).bind(notebook.id, workspaceId, notebook.name, notebook.slug, notebook.color, notebook.sortOrder, now, now)),
-  ]);
-  await ensureWorkspaceTemplateSeed(db, workspaceId);
-  await ensureWorkspaceAiPromptSeed(db, workspaceId);
-  return { workspaceId, role: "member" as const };
-};
-
-const createDefaultNotebookRows = (workspaceId: string, _now: string) => [
-  { id: `${workspaceId}_inbox`, name: "等待分类", slug: "inbox", color: "#0f766e", sortOrder: 10 },
-  { id: `${workspaceId}_projects`, name: "工作项目", slug: "work-projects", color: "#2563eb", sortOrder: 20 },
-  { id: `${workspaceId}_learning`, name: "学习资料", slug: "learning-resources", color: "#7c3aed", sortOrder: 30 },
-  { id: `${workspaceId}_creative`, name: "灵感创作", slug: "creative-ideas", color: "#db2777", sortOrder: 40 },
-  { id: `${workspaceId}_personal`, name: "生活个人", slug: "personal-life", color: "#ea580c", sortOrder: 50 },
-];
-
-const ensureWorkspaceTemplateSeed = async (db: D1Database, workspaceId: string) => {
-  const now = isoNow();
-  const templateId = `${workspaceId}_template_project_weekly`;
-  const contentMarkdown = "## 本周进展\n\n- \n\n## 关键成果\n\n- \n\n## 风险与阻塞\n\n- \n\n## 下周计划\n\n- [ ] \n\n## 需要协助\n\n- ";
-  const contentJson = markdownToDoc(contentMarkdown);
-
-  await db.prepare(
-    `INSERT OR IGNORE INTO memo_templates (
-       id, workspace_id, name, description, title, content_json, content_markdown, tags_json, created_at, updated_at
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).bind(
-    templateId,
-    workspaceId,
-    "项目周报模板",
-    "每周同步项目进展、风险与下一步计划",
-    "项目周报｜第 {{周次}} 周",
-    JSON.stringify(contentJson),
-    contentMarkdown,
-    JSON.stringify(["项目管理", "周报"]),
-    now,
-    now,
-  ).run();
-};
-
-
-
 const createSession = async (c: AppContext, user: UserRow, requestedDeviceId?: string) => {
   const token = randomToken(SESSION_TOKEN_BYTES);
   const id = createId("sess");
@@ -1347,27 +1284,36 @@ const authenticateBearerToken = async (c: AppContext, touch: boolean): Promise<A
 };
 
 const authenticateSessionToken = async (c: AppContext, token: string, touch: boolean): Promise<AuthContext | null> => {
+  const now = isoNow();
   const row = await c.env.storage.db.prepare(
-    `SELECT s.id, s.user_id, u.username, u.display_name, s.expires_at
+    `SELECT s.id, s.user_id, u.username, u.display_name, s.expires_at, s.last_seen_at,
+            wm.workspace_id, wm.role
      FROM sessions s
      INNER JOIN users u ON u.id = s.user_id
+     LEFT JOIN workspace_members wm ON wm.user_id = s.user_id
      WHERE s.token_hash = ?
        AND s.revoked_at IS NULL
        AND s.expires_at > ?
        AND u.is_disabled = 0`
   )
-    .bind(await sha256(token), isoNow())
+    .bind(await sha256(token), now)
     .first<SessionRow>();
 
   if (!row) {
     return null;
   }
 
-  if (touch) {
-    await c.env.storage.db.prepare(`UPDATE sessions SET last_seen_at = ? WHERE id = ?`).bind(isoNow(), row.id).run();
+  const lastSeenAt = row.last_seen_at ? Date.parse(row.last_seen_at) : Number.NaN;
+  if (
+    touch
+    && (!Number.isFinite(lastSeenAt) || lastSeenAt <= Date.now() - SESSION_LAST_SEEN_UPDATE_INTERVAL_MS)
+  ) {
+    await c.env.storage.db.prepare(`UPDATE sessions SET last_seen_at = ? WHERE id = ?`).bind(now, row.id).run();
   }
 
-  const workspace = await ensureUserWorkspace(c.env.storage.db, row.user_id, row.username);
+  const workspace = row.workspace_id && row.role
+    ? { workspaceId: row.workspace_id, role: row.role }
+    : await ensureUserWorkspace(c.env.storage.db, row.user_id, row.username);
 
   return {
     kind: "user",

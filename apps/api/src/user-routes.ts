@@ -9,6 +9,10 @@ import { createId, isoNow } from "./entity-utils";
 import { badRequest, conflict, forbidden, notFound, unauthorized } from "./http-errors";
 import { requireOwner } from "./request-auth";
 import type { DatabaseAdapter } from "./storage-contract";
+import {
+  createDefaultNotebookRows,
+  createWorkspaceDefaultSeedStatements,
+} from "./workspace-provisioning";
 
 export type InstanceUserRow = {
   id: string;
@@ -21,17 +25,8 @@ export type InstanceUserRow = {
   role: "owner" | "member";
 };
 
-type DefaultNotebookRow = {
-  id: string;
-  name: string;
-  slug: string;
-  color: string;
-  sortOrder: number;
-};
-
 type UserRouteDependencies = {
   authenticateRequest: (context: AppContext, touch: boolean) => Promise<AuthContext | null>;
-  createDefaultNotebookRows: (workspaceId: string, now: string) => DefaultNotebookRow[];
   getInstanceUser: (database: DatabaseAdapter, userId: string) => Promise<InstanceUserRow | null>;
 };
 
@@ -88,7 +83,7 @@ export const registerUserRoutes = (
     const workspaceId = createId("ws");
     const now = isoNow();
     const passwordHash = await hashPassword(input.password);
-    const notebooks = dependencies.createDefaultNotebookRows(workspaceId, now);
+    const notebooks = createDefaultNotebookRows(workspaceId);
     const statements = [
       context.env.storage.db.prepare(
         `INSERT INTO users (id, username, password_hash, display_name, created_at, updated_at)
@@ -104,6 +99,7 @@ export const registerUserRoutes = (
         `INSERT INTO notebooks (id, workspace_id, parent_id, name, slug, icon, color, sort_order, created_at, updated_at)
          VALUES (?, ?, NULL, ?, ?, 'notebook', ?, ?, ?, ?)`,
       ).bind(notebook.id, workspaceId, notebook.name, notebook.slug, notebook.color, notebook.sortOrder, now, now)),
+      ...createWorkspaceDefaultSeedStatements(context.env.storage.db, workspaceId, now),
       auditStatement(context.env.storage.db, "user", context.get("auth").actorId, "user.create", "user", userId, {
         username: input.username,
       }),

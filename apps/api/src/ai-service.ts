@@ -1,6 +1,3 @@
-import { createAnthropic } from "@ai-sdk/anthropic";
-import { createGoogle } from "@ai-sdk/google";
-import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import type {
   AiAction,
   AiDiscoveredModel,
@@ -12,7 +9,6 @@ import type {
   AiTone,
 } from "@edgeever/shared";
 import { getDefaultAiPromptSeed } from "@edgeever/shared";
-import { generateText, streamText } from "ai";
 import { AppError } from "./app-error";
 import { decryptSecret } from "./secret-encryption";
 import type { DatabaseAdapter } from "./storage-contract";
@@ -183,26 +179,19 @@ export const getAiSettings = async (
 
 export const normalizeAiBaseUrl = (value: string) => value.trim().replace(/\/+$/, "");
 
-export const createAiModel = (config: {
+const loadAiRuntime = () => import("./ai-runtime");
+
+export const createAiModel = async (config: {
   provider: AiProvider;
   baseUrl: string;
   apiKey: string;
   modelId: string;
 }) => {
-  const baseURL = normalizeAiBaseUrl(config.baseUrl);
-  switch (config.provider) {
-    case "anthropic":
-      return createAnthropic({ baseURL, apiKey: config.apiKey })(config.modelId);
-    case "google":
-      return createGoogle({ baseURL, apiKey: config.apiKey })(config.modelId);
-    default:
-      return createOpenAICompatible({
-        name: "edgeever-openai-compatible",
-        baseURL,
-        apiKey: config.apiKey,
-        includeUsage: true,
-      })(config.modelId);
-  }
+  const runtime = await loadAiRuntime();
+  return runtime.createAiModel({
+    ...config,
+    baseUrl: normalizeAiBaseUrl(config.baseUrl),
+  });
 };
 
 export const loadDefaultAiModel = async (
@@ -319,13 +308,19 @@ export const testAiModel = async (config: {
   baseUrl: string;
   apiKey: string;
   modelId: string;
-}) => generateText({
-  model: createAiModel(config),
-  system: "You are responding to an API connectivity check. Follow the user instruction exactly.",
-  prompt: "Reply with only: OK",
-  maxOutputTokens: 16,
-  abortSignal: AbortSignal.timeout(20_000),
-});
+}) => {
+  const runtime = await loadAiRuntime();
+  return runtime.generateAiText({
+    model: runtime.createAiModel({
+      ...config,
+      baseUrl: normalizeAiBaseUrl(config.baseUrl),
+    }),
+    system: "You are responding to an API connectivity check. Follow the user instruction exactly.",
+    prompt: "Reply with only: OK",
+    maxOutputTokens: 16,
+    abortSignal: AbortSignal.timeout(20_000),
+  });
+};
 
 /**
  * Fallback instructions from the shared seed catalog (same text shown in the prompt library).
@@ -510,7 +505,7 @@ export const buildAiGenerationPrompt = (input: {
 ].filter(Boolean).join("\n\n");
 
 type AiGenerationRequest = {
-  model: ReturnType<typeof createAiModel>;
+  model: Awaited<ReturnType<typeof createAiModel>>;
   action: AiAction;
   title: string;
   contentMarkdown: string;
@@ -534,6 +529,12 @@ const buildAiGenerationRequest = (input: AiGenerationRequest) => ({
   abortSignal: input.abortSignal,
 });
 
-export const generateAiGeneration = (input: AiGenerationRequest) => generateText(buildAiGenerationRequest(input));
+export const generateAiGeneration = async (input: AiGenerationRequest) => {
+  const runtime = await loadAiRuntime();
+  return runtime.generateAiText(buildAiGenerationRequest(input));
+};
 
-export const streamAiGeneration = (input: AiGenerationRequest) => streamText(buildAiGenerationRequest(input));
+export const streamAiGeneration = async (input: AiGenerationRequest) => {
+  const runtime = await loadAiRuntime();
+  return runtime.streamAiText(buildAiGenerationRequest(input));
+};

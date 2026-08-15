@@ -75,7 +75,7 @@ describe("AI model service", () => {
 
   test("streams plain text without forcing tool choice for thinking-model compatibility", async () => {
     let request;
-    const result = streamAiGeneration({
+    const result = await streamAiGeneration({
       model: new MockLanguageModelV4({
         doStream: async (options) => {
           request = options;
@@ -179,7 +179,7 @@ describe("AI model service", () => {
         });
       },
     })("deepseek-v4-flash");
-    const result = streamAiGeneration({
+    const result = await streamAiGeneration({
       model,
       action: "summarize",
       title: "测试",

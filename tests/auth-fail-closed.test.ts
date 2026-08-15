@@ -42,6 +42,7 @@ describe("production authentication guard", () => {
   test("reports unapplied D1 migrations as database_not_ready", async () => {
     const response = await fetchApi("/api/health", {
       DB: createDatabase({ error: new Error("D1_ERROR: no such table: users") }),
+      EDGE_EVER_AUTH_PASSWORD: "configured-secret",
     });
 
     expect(response.status).toBe(503);

@@ -35,6 +35,7 @@ struct MemoEditView: View {
     /// with empty defaults from overwriting a non-empty note via autosave / flush.
     /// Snapshot of body when edit opened (or last intentional load). Used to reject empty clobbers.
     @State private var showNotebookPicker = false
+    @State private var showTagPicker = false
     @State private var showImageSourcePicker = false
     @State private var imagePickerRoute: ImagePickerRoute?
     @State private var showCameraAccessAlert = false
@@ -141,6 +142,13 @@ struct MemoEditView: View {
                 notebookId = id
                 markDirtyAndScheduleSave()
                 showNotebookPicker = false
+            }
+            .presentationDetents([.medium, .large])
+        }
+        .sheet(isPresented: $showTagPicker) {
+            MemoTagPickerSheet(selectedTags: viewModel.tags) { tags in
+                tagsText = tags.joined(separator: ", ")
+                markDirtyAndScheduleSave()
             }
             .presentationDetents([.medium, .large])
         }
@@ -438,18 +446,25 @@ struct MemoEditView: View {
                 .accessibilityLabel(env.preferences.t("所在笔记本", en: "Notebook"))
                 .accessibilityIdentifier(CreateMemoChrome.notebook)
 
-                TextField(
-                    env.preferences.t("添加标签，用逗号分隔", en: "Add tags, comma separated"),
-                    text: Binding(
-                        get: { viewModel.tagsText },
-                        set: { viewModel.tagsText = $0 }
-                    )
-                )
-                .font(.system(size: 15))
-                .foregroundStyle(AppTheme.secondary)
-                .textFieldStyle(.plain)
-                .frame(minHeight: 36)
-                .onChange(of: tagsText) { _, _ in markDirtyAndScheduleSave() }
+                Button {
+                    showTagPicker = true
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "tag")
+                            .font(.system(size: 13, weight: .semibold))
+                        Text(viewModel.tags.isEmpty
+                             ? env.preferences.t("添加标签", en: "Add tags")
+                             : viewModel.tags.map { "#\($0)" }.joined(separator: ", "))
+                            .lineLimit(1)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 11, weight: .semibold))
+                    }
+                    .font(.system(size: 15))
+                    .foregroundStyle(viewModel.tags.isEmpty ? AppTheme.muted : AppTheme.secondary)
+                    .frame(minHeight: 36)
+                }
+                .buttonStyle(.plain)
                 .accessibilityLabel(env.preferences.t("笔记标签", en: "Tags"))
                 .accessibilityIdentifier(CreateMemoChrome.tags)
 
@@ -1189,6 +1204,155 @@ struct MemoEditView: View {
         let base = (preferredName as NSString).deletingPathExtension
         let name = base.isEmpty ? "image.\(ext)" : "\(base).\(ext)"
         return (normalized, resolvedMime, name)
+    }
+}
+
+private struct MemoTagPickerSheet: View {
+    @Environment(AppEnvironment.self) private var env
+    @Environment(\.dismiss) private var dismiss
+    @State private var selection: [String]
+    @State private var query = ""
+    @State private var availableTags: [TagSummary] = []
+    @State private var error: String?
+    let onChange: ([String]) -> Void
+
+    init(selectedTags: [String], onChange: @escaping ([String]) -> Void) {
+        _selection = State(initialValue: selectedTags)
+        self.onChange = onChange
+    }
+
+    private var normalizedQuery: String {
+        query.trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "^#", with: "", options: .regularExpression)
+    }
+
+    private var visibleTags: [TagSummary] {
+        guard !normalizedQuery.isEmpty else { return availableTags }
+        return availableTags.filter { $0.name.localizedCaseInsensitiveContains(normalizedQuery) }
+    }
+
+    private var hasExactMatch: Bool {
+        availableTags.contains { $0.name.caseInsensitiveCompare(normalizedQuery) == .orderedSame }
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 12) {
+                if !selection.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(selection, id: \.self) { tag in
+                                Button {
+                                    toggle(tag)
+                                } label: {
+                                    HStack(spacing: 4) {
+                                        Text("#\(tag)")
+                                        Image(systemName: "xmark")
+                                    }
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundStyle(AppTheme.accent)
+                                    .padding(.horizontal, 11)
+                                    .frame(minHeight: 32)
+                                    .background(AppTheme.accentSoft)
+                                    .clipShape(Capsule())
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel(env.preferences.t("移除标签 \(tag)", en: "Remove tag \(tag)"))
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                    }
+                }
+
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass").foregroundStyle(AppTheme.muted)
+                    TextField(env.preferences.t("搜索或输入新标签", en: "Search or enter a new tag"), text: $query)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .onSubmit(createTag)
+                    if !normalizedQuery.isEmpty && !hasExactMatch && selection.count < 24 {
+                        Button(env.preferences.t("新建", en: "Create"), action: createTag)
+                            .font(.system(size: 13, weight: .bold))
+                    }
+                }
+                .padding(.horizontal, 12)
+                .frame(minHeight: 42)
+                .background(AppTheme.card)
+                .clipShape(RoundedRectangle(cornerRadius: 9))
+                .overlay(RoundedRectangle(cornerRadius: 9).stroke(AppTheme.border, lineWidth: 1))
+                .padding(.horizontal, 16)
+
+                if let error {
+                    Text(error).font(.system(size: 13)).foregroundStyle(AppTheme.danger)
+                }
+
+                List(visibleTags, id: \.name) { tag in
+                    Button {
+                        toggle(tag.name)
+                    } label: {
+                        HStack {
+                            Image(systemName: selection.contains(tag.name) ? "checkmark.square.fill" : "square")
+                                .foregroundStyle(selection.contains(tag.name) ? AppTheme.accent : AppTheme.muted)
+                            Text("#\(tag.name)").foregroundStyle(AppTheme.title)
+                            Spacer()
+                            Text(env.preferences.t("\(tag.memoCount) 条笔记", en: "\(tag.memoCount) notes"))
+                                .font(.system(size: 12))
+                                .foregroundStyle(AppTheme.muted)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+                .listStyle(.plain)
+                .overlay {
+                    if visibleTags.isEmpty {
+                        ContentUnavailableView(
+                            env.preferences.t("暂无匹配标签", en: "No matching tags"),
+                            systemImage: "tag",
+                            description: Text(env.preferences.t("可以输入名称创建新标签。", en: "Enter a name to create a new tag."))
+                        )
+                    }
+                }
+            }
+            .padding(.top, 12)
+            .navigationTitle(env.preferences.t("选择标签", en: "Choose tags"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(env.preferences.t("完成", en: "Done")) { dismiss() }
+                }
+            }
+            .task { loadTags() }
+        }
+    }
+
+    private func loadTags() {
+        guard let scope = env.session.dataScope else { return }
+        do {
+            availableTags = try env.mirror.listTags(scope: scope)
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    private func toggle(_ tag: String) {
+        if let index = selection.firstIndex(of: tag) {
+            selection.remove(at: index)
+        } else if selection.count < 24 {
+            selection.append(tag)
+        }
+        onChange(selection)
+    }
+
+    private func createTag() {
+        let additions = normalizedQuery
+            .split(whereSeparator: { $0 == "," || $0 == "，" || $0.isNewline })
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        for tag in additions where selection.count < 24 && !selection.contains(tag) {
+            selection.append(tag)
+        }
+        query = ""
+        onChange(selection)
     }
 }
 

@@ -14,13 +14,13 @@ import { api } from "@/lib/api";
 import { EdgeEverCodeBlock, codeBlockLowlight } from "@/lib/code-block";
 import {
   parseImageWidth,
-  createEdgeEverMathematics,
   getImageReferrerPolicy,
   MergeDivider,
   resolveMemoContentDoc,
   rewriteMemoResourcesForShare,
   type PublicMemoShare,
 } from "@edgeever/shared";
+import { createEdgeEverMathematics } from "@edgeever/shared/mathematics";
 
 const SharedImage = Image.extend({
   addAttributes() {

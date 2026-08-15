@@ -65,7 +65,7 @@ You can deploy online using either of the following two options:
 
 ### Option A: Deploy with an AI Agent (Recommended)
 
-Copy this prompt into an AI Agent configured with GitHub and Cloudflare MCP servers, plugins, or other integrations (such as Codex, Claude, Cursor, Antigravity, OpenClaw, Hermes Agent, etc.):
+Copy the prompt below directly into an AI Agent (such as Codex, Claude, Cursor, workbuddy, Antigravity, OpenClaw, Hermes Agent, etc.). During execution, if access to GitHub or Cloudflare is required, review the requested permissions and follow the prompts to authorize access.
 
 ```text
 Deploy EdgeEver online:
@@ -94,7 +94,7 @@ Complete setup in 5 simple web steps:
 
 ---
 
-> 💡 **Deployment Tip (Cloudflare R2 Billing)**: Although Cloudflare R2 offers a generous free tier that note-taking workloads are unlikely to ever exceed, it requires binding a payment method (such as a dual-currency credit card) to activate. Based on personal experience, for users in mainland China, VISA cards from China Merchants Bank (CMB) or Shanghai Pudong Development Bank (SPDB) are typically the fastest to get verified (and most of these cards have no annual fees or easily waivable ones, so there are no extra holding costs).
+> 💡 **Deployment Tip (Cloudflare R2 Billing)**: Although Cloudflare R2 offers a generous [free storage allowance](https://developers.cloudflare.com/r2/pricing/#free-tier) that note-taking workloads are unlikely to ever exceed, you must first activate an R2 subscription and add a payment method. Cloudflare [officially supports](https://developers.cloudflare.com/billing/get-started/update-billing-info/#supported-payment-methods) UnionPay, Visa, Mastercard, and other cards, as well as PayPal, Apple Pay, Google Pay, and other payment methods.
 
 ## Multi-Account Login
 

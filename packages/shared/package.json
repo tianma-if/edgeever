@@ -5,8 +5,10 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./ai-prompt-seeds": "./src/ai-prompt-seeds.ts",
     "./image-display": "./src/image-display.ts",
     "./i18n": "./src/i18n/index.ts",
+    "./mathematics": "./src/mathematics.ts",
     "./mobile-editor": "./src/mobile-editor.ts",
     "./mobile-ui": "./src/mobile-ui.ts"
   },
