@@ -106,6 +106,44 @@ const hasActiveLocalMemoUpdate = async (memoId: string) => {
   return isActiveLocalMemoUpdateStatus(item?.status);
 };
 
+const reconcileLocalTemplates = async (
+  scope: string,
+  remoteTemplates: MemoTemplate[],
+): Promise<MemoTemplate[]> => {
+  const [local, queuedItems] = await Promise.all([
+    listLocalTemplates(scope),
+    localDb.syncQueue.filter((item) => item.scope === scope && item.kind.startsWith("template.")).toArray(),
+  ]);
+  const localById = new Map(local.templates.map((template) => [template.id, template]));
+  const pendingUpsertIds = new Set(
+    queuedItems
+      .filter((item) => item.kind === "template.create" || item.kind === "template.update")
+      .map((item) => item.memoId),
+  );
+  const pendingDeleteIds = new Set(
+    queuedItems.filter((item) => item.kind === "template.delete").map((item) => item.memoId),
+  );
+  const reconciled = new Map<string, MemoTemplate>();
+
+  for (const remote of remoteTemplates) {
+    if (pendingDeleteIds.has(remote.id)) continue;
+    reconciled.set(remote.id, pendingUpsertIds.has(remote.id) ? localById.get(remote.id) ?? remote : remote);
+  }
+  for (const templateId of pendingUpsertIds) {
+    const localTemplate = localById.get(templateId);
+    if (localTemplate) reconciled.set(templateId, localTemplate);
+  }
+
+  const templates = [...reconciled.values()].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+  await localDb.transaction("rw", localDb.templates, async () => {
+    await localDb.templates.where("scope").equals(scope).delete();
+    if (templates.length > 0) {
+      await localDb.templates.bulkPut(templates.map((template) => ({ ...template, scope })));
+    }
+  });
+  return templates;
+};
+
 /**
  * Persist and surface a remote detail only when it is strictly fresher than the
  * local mirror (and no memo.update is still waiting to push). Returns whether
@@ -187,13 +225,13 @@ export const createWebRepository = (scope: string): EdgeEverRepository => {
 
   async listTemplates() {
     const local = await listLocalTemplates(scope);
-    if (local.templates.length > 0 || isOffline()) {
-      if (!isOffline()) void api.listTemplates().then((remote) => Promise.all(remote.templates.map((template) => putLocalTemplate(scope, template)))).catch(() => {});
+    if (isOffline()) return local;
+    try {
+      const remote = await api.listTemplates();
+      return { templates: await reconcileLocalTemplates(scope, remote.templates) };
+    } catch {
       return local;
     }
-    const remote = await api.listTemplates();
-    await Promise.all(remote.templates.map((template) => putLocalTemplate(scope, template)));
-    return remote;
   },
   createTemplate: async (input) => {
     const template = await createLocalTemplate(scope, input);

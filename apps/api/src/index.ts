@@ -11,6 +11,10 @@ import {
   isSuspiciousMemoOverwrite,
   isMemoEditBindingValid,
   normalizeTags,
+  AiPromptTemplateCreateSchema,
+  AiPromptTemplateUpdateSchema,
+  TemplateCreateSchema,
+  TemplateUpdateSchema,
   type MemoDetail,
   type MemoEditSession,
   type MemoRevision,
@@ -109,12 +113,18 @@ import {
   type TokenScope,
 } from "./request-auth";
 import { registerTagRoutes } from "./tag-routes";
-import { registerTemplateRoutes } from "./template-routes";
+import { getMemoTemplate, listMemoTemplates, registerTemplateRoutes } from "./template-routes";
 import { registerAuthRoutes, type UserRow } from "./auth-routes";
 import { registerApiTokenRoutes, type ApiTokenRow } from "./api-token-routes";
 import { registerObjectStorageRoutes } from "./object-storage-routes";
 import { registerAiRoutes } from "./ai-routes";
 import { registerAiPromptRoutes } from "./ai-prompt-routes";
+import {
+  getAiPromptTemplateRow,
+  listAiPromptTemplates,
+  mapAiPromptTemplateRow,
+} from "./ai-prompt-service";
+import { restoreMissingDefaultAiPrompts } from "./ai-prompt-seed";
 import { registerResourceRoutes } from "./resource-routes";
 import { registerSyncRoutes } from "./sync-routes";
 import { registerMemoRoutes } from "./memo-routes";
@@ -625,7 +635,28 @@ app.onError((error, c) => {
 
 export default worker;
 
-const callMcpTool = async (
+type McpInputSchema<T> = {
+  safeParse: (input: unknown) =>
+    | { success: true; data: T }
+    | { success: false; error: { issues: Array<{ path: PropertyKey[]; message: string }> } };
+};
+
+const parseMcpInput = <T>(schema: McpInputSchema<T>, input: unknown): T => {
+  const result = schema.safeParse(input);
+  if (result.success) return result.data;
+  const message = result.error.issues
+    .map((issue) => `${issue.path.join(".") || "arguments"}: ${issue.message}`)
+    .join("; ");
+  throw new AppError("invalid_params", message, 400);
+};
+
+const assertMcpMutationAllowed = (environment: Bindings) => {
+  if (isDemoMode(environment)) {
+    throw new AppError("forbidden", "Templates and AI instructions cannot be changed in demo mode.", 403);
+  }
+};
+
+export const callMcpTool = async (
   c: AppContext,
   auth: AuthContext,
   name: string,
@@ -1030,6 +1061,240 @@ const callMcpTool = async (
       assertScope(auth, "read:memos");
       return await getWorkspaceStats(c.env.storage.db, auth.workspaceId);
     }
+    case "list_note_templates": {
+      assertScope(auth, "read:memos");
+      return { templates: await listMemoTemplates(c.env.storage.db, auth.workspaceId) };
+    }
+    case "get_note_template": {
+      assertScope(auth, "read:memos");
+      const template = await getMemoTemplate(
+        c.env.storage.db,
+        auth.workspaceId,
+        getRequiredString(args.templateId, "templateId"),
+      );
+      if (!template) throw new AppError("not_found", "Template not found", 404);
+      return { template };
+    }
+    case "create_note_template": {
+      assertScope(auth, "write:memos");
+      assertMcpMutationAllowed(c.env);
+      const input = parseMcpInput(TemplateCreateSchema, args);
+      const memo = input.memoId
+        ? await getMemoDetail(c.env.storage.db, auth.workspaceId, input.memoId)
+        : null;
+      if (input.memoId && !memo) throw new AppError("not_found", "Memo not found", 404);
+
+      const id = createId("template");
+      const now = isoNow();
+      const title = memo?.title ?? (input.title?.trim() || null);
+      const contentMarkdown = memo?.contentMarkdown ?? input.contentMarkdown ?? "";
+      const tags = memo?.tags ?? input.tags ?? [];
+      const contentJson = memo?.contentJson ?? markdownToDoc(contentMarkdown);
+      await c.env.storage.db.prepare(
+        `INSERT INTO memo_templates (
+           id, workspace_id, name, description, title, content_json, content_markdown, tags_json, created_at, updated_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        id,
+        auth.workspaceId,
+        input.name.trim(),
+        input.description?.trim() || null,
+        title,
+        JSON.stringify(contentJson),
+        contentMarkdown,
+        JSON.stringify(tags),
+        now,
+        now,
+      ).run();
+      const actor = getAuditActor(c);
+      await audit(c.env.storage.db, actor.actorType, actor.actorId, "template.create", "template", id, {
+        memoId: input.memoId ?? null,
+      });
+      return { template: await getMemoTemplate(c.env.storage.db, auth.workspaceId, id) };
+    }
+    case "update_note_template": {
+      assertScope(auth, "write:memos");
+      assertMcpMutationAllowed(c.env);
+      const templateId = getRequiredString(args.templateId, "templateId");
+      const input = parseMcpInput(TemplateUpdateSchema, args);
+      if (Object.keys(input).length === 0) {
+        throw new AppError("invalid_params", "At least one template field is required.", 400);
+      }
+      const current = await getMemoTemplate(c.env.storage.db, auth.workspaceId, templateId);
+      if (!current) throw new AppError("not_found", "Template not found", 404);
+
+      const contentMarkdown = input.contentMarkdown ?? current.contentMarkdown;
+      const contentJson = input.contentMarkdown !== undefined
+        ? markdownToDoc(contentMarkdown)
+        : current.contentJson;
+      const now = isoNow();
+      await c.env.storage.db.prepare(
+        `UPDATE memo_templates
+         SET name = ?, description = ?, title = ?, content_json = ?, content_markdown = ?, tags_json = ?, updated_at = ?
+         WHERE id = ? AND workspace_id = ?`,
+      ).bind(
+        input.name ?? current.name,
+        input.description !== undefined ? input.description?.trim() || null : current.description,
+        input.title !== undefined ? input.title?.trim() || null : current.title,
+        JSON.stringify(contentJson),
+        contentMarkdown,
+        JSON.stringify(input.tags ?? current.tags),
+        now,
+        templateId,
+        auth.workspaceId,
+      ).run();
+      const actor = getAuditActor(c);
+      await audit(c.env.storage.db, actor.actorType, actor.actorId, "template.update", "template", templateId, {});
+      return { template: await getMemoTemplate(c.env.storage.db, auth.workspaceId, templateId) };
+    }
+    case "delete_note_template": {
+      assertScope(auth, "write:memos");
+      assertMcpMutationAllowed(c.env);
+      const templateId = getRequiredString(args.templateId, "templateId");
+      const current = await getMemoTemplate(c.env.storage.db, auth.workspaceId, templateId);
+      if (!current) throw new AppError("not_found", "Template not found", 404);
+      await c.env.storage.db.prepare(
+        `DELETE FROM memo_templates WHERE id = ? AND workspace_id = ?`,
+      ).bind(templateId, auth.workspaceId).run();
+      const actor = getAuditActor(c);
+      await audit(c.env.storage.db, actor.actorType, actor.actorId, "template.delete", "template", templateId, {});
+      return { ok: true };
+    }
+    case "use_note_template": {
+      assertScope(auth, "write:memos");
+      assertMcpMutationAllowed(c.env);
+      const templateId = getRequiredString(args.templateId, "templateId");
+      const template = await getMemoTemplate(c.env.storage.db, auth.workspaceId, templateId);
+      if (!template) throw new AppError("not_found", "Template not found", 404);
+      const memo = await createMemoRecord(c.env.storage.db, auth.workspaceId, {
+        notebookId: getRequiredString(args.notebookId, "notebookId"),
+        title: template.title ?? undefined,
+        contentMarkdown: template.contentMarkdown,
+        tags: template.tags,
+      }, getAuditActor(c), getActorLabel(c));
+      const actor = getAuditActor(c);
+      await audit(c.env.storage.db, actor.actorType, actor.actorId, "template.use", "template", templateId, { memoId: memo.id });
+      return { memo };
+    }
+    case "list_ai_instructions": {
+      assertScope(auth, "read:memos");
+      return {
+        instructions: await listAiPromptTemplates(
+          c.env.storage.db,
+          auth.workspaceId,
+          getOptionalString(args.locale),
+        ),
+      };
+    }
+    case "get_ai_instruction": {
+      assertScope(auth, "read:memos");
+      const row = await getAiPromptTemplateRow(
+        c.env.storage.db,
+        auth.workspaceId,
+        getRequiredString(args.instructionId, "instructionId"),
+      );
+      if (!row) throw new AppError("not_found", "AI instruction not found", 404);
+      return { instruction: mapAiPromptTemplateRow(row, getOptionalString(args.locale)) };
+    }
+    case "create_ai_instruction": {
+      assertScope(auth, "write:memos");
+      assertMcpMutationAllowed(c.env);
+      const input = parseMcpInput(AiPromptTemplateCreateSchema, args);
+      const id = createId("aiprompt");
+      const now = isoNow();
+      const actor = getAuditActor(c);
+      await c.env.storage.db.batch([
+        c.env.storage.db.prepare(
+          `INSERT INTO ai_prompt_templates (
+             id, workspace_id, seed_key, action, parameter_kind, result_mode,
+             name, description, instruction,
+             name_customized, description_customized, instruction_customized,
+             created_at, updated_at
+           ) VALUES (?, ?, NULL, 'custom', ?, ?, ?, ?, ?, 1, 1, 1, ?, ?)`,
+        ).bind(
+          id,
+          auth.workspaceId,
+          input.parameterKind,
+          input.resultMode,
+          input.name.trim(),
+          input.description?.trim() || null,
+          input.instruction.trim(),
+          now,
+          now,
+        ),
+        auditStatement(c.env.storage.db, actor.actorType, actor.actorId, "ai_prompt.create", "ai_prompt", id, {}),
+      ]);
+      const row = await getAiPromptTemplateRow(c.env.storage.db, auth.workspaceId, id);
+      return { instruction: mapAiPromptTemplateRow(row!, getOptionalString(args.locale)) };
+    }
+    case "update_ai_instruction": {
+      assertScope(auth, "write:memos");
+      assertMcpMutationAllowed(c.env);
+      const instructionId = getRequiredString(args.instructionId, "instructionId");
+      const input = parseMcpInput(AiPromptTemplateUpdateSchema, args);
+      const current = await getAiPromptTemplateRow(c.env.storage.db, auth.workspaceId, instructionId);
+      if (!current) throw new AppError("not_found", "AI instruction not found", 404);
+
+      const now = isoNow();
+      const actor = getAuditActor(c);
+      await c.env.storage.db.batch([
+        c.env.storage.db.prepare(
+          `UPDATE ai_prompt_templates
+           SET name = ?, description = ?, instruction = ?,
+               parameter_kind = ?, result_mode = ?,
+               name_customized = ?, description_customized = ?, instruction_customized = ?,
+               updated_at = ?
+           WHERE id = ? AND workspace_id = ?`,
+        ).bind(
+          input.name?.trim() ?? current.name,
+          input.description !== undefined ? input.description?.trim() || null : current.description,
+          input.instruction?.trim() ?? current.instruction,
+          input.parameterKind ?? current.parameter_kind,
+          input.resultMode ?? current.result_mode,
+          input.name !== undefined ? 1 : current.name_customized,
+          input.description !== undefined ? 1 : current.description_customized,
+          input.instruction !== undefined ? 1 : current.instruction_customized,
+          now,
+          instructionId,
+          auth.workspaceId,
+        ),
+        auditStatement(c.env.storage.db, actor.actorType, actor.actorId, "ai_prompt.update", "ai_prompt", instructionId, {}),
+      ]);
+      const row = await getAiPromptTemplateRow(c.env.storage.db, auth.workspaceId, instructionId);
+      return { instruction: mapAiPromptTemplateRow(row!, getOptionalString(args.locale)) };
+    }
+    case "delete_ai_instruction": {
+      assertScope(auth, "write:memos");
+      assertMcpMutationAllowed(c.env);
+      const instructionId = getRequiredString(args.instructionId, "instructionId");
+      const current = await getAiPromptTemplateRow(c.env.storage.db, auth.workspaceId, instructionId);
+      if (!current) throw new AppError("not_found", "AI instruction not found", 404);
+      const actor = getAuditActor(c);
+      await c.env.storage.db.batch([
+        c.env.storage.db.prepare(
+          `DELETE FROM ai_prompt_templates WHERE id = ? AND workspace_id = ?`,
+        ).bind(instructionId, auth.workspaceId),
+        auditStatement(c.env.storage.db, actor.actorType, actor.actorId, "ai_prompt.delete", "ai_prompt", instructionId, {}),
+      ]);
+      return { ok: true };
+    }
+    case "restore_default_ai_instructions": {
+      assertScope(auth, "write:memos");
+      assertMcpMutationAllowed(c.env);
+      const result = await restoreMissingDefaultAiPrompts(c.env.storage.db, auth.workspaceId);
+      if (result.restoredCount > 0) {
+        const actor = getAuditActor(c);
+        await audit(c.env.storage.db, actor.actorType, actor.actorId, "ai_prompt.restore_defaults", "workspace", auth.workspaceId, result);
+      }
+      return {
+        ...result,
+        instructions: await listAiPromptTemplates(
+          c.env.storage.db,
+          auth.workspaceId,
+          getOptionalString(args.locale),
+        ),
+      };
+    }
     default:
       throw new Error(`Unknown tool: ${name}`);
   }
@@ -1313,7 +1578,7 @@ const authenticateSessionToken = async (c: AppContext, token: string, touch: boo
 
   const workspace = row.workspace_id && row.role
     ? { workspaceId: row.workspace_id, role: row.role }
-    : await ensureUserWorkspace(c.env.storage.db, row.user_id, row.username);
+    : await ensureUserWorkspace(c.env.storage.db, row.user_id, row.username, c.req.header("accept-language"));
 
   return {
     kind: "user",

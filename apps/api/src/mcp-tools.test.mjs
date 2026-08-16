@@ -43,5 +43,18 @@ describe("MCP tool catalog", () => {
         name: { type: "string", minLength: 1, maxLength: 80 },
       },
     });
+    expect(byName.get("list_note_templates")?.annotations).toMatchObject({
+      readOnlyHint: true,
+      destructiveHint: false,
+    });
+    expect(byName.get("delete_note_template")?.annotations).toMatchObject({
+      readOnlyHint: false,
+      destructiveHint: true,
+    });
+    expect(byName.get("restore_default_ai_instructions")?.annotations).toMatchObject({
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+    });
   });
 });

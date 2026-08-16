@@ -118,6 +118,52 @@ const createApp = ({ currentAuth = auth, demoMode = false } = {}) => {
 };
 
 describe("AI prompt template routes", () => {
+  test("keeps the starter catalog focused on six common workflows", () => {
+    expect(DEFAULT_AI_PROMPT_SEEDS.map((prompt) => [prompt.key, prompt.name])).toEqual([
+      ["summarize", "总结"],
+      ["translate", "翻译"],
+      ["improve-writing", "润色"],
+      ["make-shorter", "精炼表达"],
+      ["rewrite-proofread", "转为小红书风格"],
+      ["simplify-language", "转为推特风格"],
+    ]);
+  });
+
+  test("retires legacy system prompts even when their old copy was edited", () => {
+    const sqlite = new Database(":memory:");
+    const migrations = globSync("migrations/*.sql").sort();
+    for (const migration of migrations.filter((path) => path < "migrations/0027")) {
+      sqlite.exec(readFileSync(migration, "utf8"));
+    }
+    sqlite.query("INSERT INTO workspaces (id, name, is_personal) VALUES (?, ?, 1)")
+      .run("ws_migration", "Migration workspace");
+    for (const migration of migrations.filter(
+      (path) => path >= "migrations/0027" && path < "migrations/0032",
+    )) {
+      sqlite.exec(readFileSync(migration, "utf8"));
+    }
+
+    sqlite.query(
+      `UPDATE ai_prompt_templates
+       SET instruction = ?, instruction_customized = 1
+       WHERE workspace_id = ? AND seed_key = ?`,
+    ).run("Keep my specialized proofreading prompt.", "ws_migration", "rewrite-proofread");
+
+    sqlite.exec(readFileSync("migrations/0032_limit_default_ai_prompts.sql", "utf8"));
+
+    const rows = sqlite.query(
+      `SELECT seed_key, action, name, instruction
+       FROM ai_prompt_templates
+       WHERE workspace_id = ?
+       ORDER BY name`,
+    ).all("ws_migration");
+    expect(rows).toHaveLength(6);
+    expect(rows.filter((row) => row.seed_key !== null).map((row) => row.seed_key).sort()).toEqual(
+      DEFAULT_AI_PROMPT_SEEDS.map((prompt) => prompt.key).sort(),
+    );
+    expect(rows.find((row) => row.instruction === "Keep my specialized proofreading prompt.")).toBeUndefined();
+  });
+
   test("validates create and update payloads", () => {
     expect(AiPromptTemplateCreateSchema.safeParse({
       name: "Weekly digest",
@@ -291,8 +337,8 @@ describe("AI prompt template routes", () => {
       environment,
     );
 
-    const todosId = defaultAiPromptId(workspaceId, "extract-todos");
-    await app.request(`/api/v1/ai/prompts/${todosId}`, { method: "DELETE" }, environment);
+    const conciseId = defaultAiPromptId(workspaceId, "make-shorter");
+    await app.request(`/api/v1/ai/prompts/${conciseId}`, { method: "DELETE" }, environment);
 
     const second = await app.request(
       "/api/v1/ai/prompts/restore-defaults",

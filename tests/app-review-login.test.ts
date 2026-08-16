@@ -22,15 +22,15 @@ describe("App Review login", () => {
     }
   });
 
-  test("wires login screens to the public demo instance", () => {
+  test("uses the public demo instance as the login placeholder", () => {
     expect(read("packages/shared/src/public-demo.ts")).toContain('export const PUBLIC_DEMO_INSTANCE_URL = "https://demo.edgeever.org"');
     expect(read("apps/ios/EdgeEver/Supporting/URL+Normalize.swift")).toContain('static let instanceURLString = "https://demo.edgeever.org"');
     expect(read("apps/ios/EdgeEver/Features/Auth/LoginView.swift")).toContain("EdgeEverPublicDemo.instanceURLString");
-    expect(read("apps/ios/EdgeEver/Features/Auth/LoginView.swift")).toContain("Use public demo instance");
     expect(read("apps/mobile/src/screens/LoginScreen.tsx")).toContain("PUBLIC_DEMO_INSTANCE_URL");
-    expect(read("apps/mobile/src/screens/LoginScreen.tsx")).toContain("填入公开演示实例");
-    expect(read("apps/web/src/components/LoginScreen.tsx")).toContain("PUBLIC_DEMO_INSTANCE_URL");
-    expect(read("apps/web/src/components/LoginScreen.tsx")).toContain("login.usePublicDemo");
+    expect(read("apps/mobile/src/screens/LoginScreen.tsx")).toContain("placeholder={PUBLIC_DEMO_INSTANCE_URL}");
+    expect(read("packages/shared/src/i18n/en-US.ts")).toContain('instanceUrlPlaceholder: "https://demo.edgeever.org"');
+    expect(read("packages/shared/src/i18n/zh-CN.ts")).toContain('instanceUrlPlaceholder: "https://demo.edgeever.org"');
+    expect(read("apps/web/src/components/LoginScreen.tsx")).toContain('placeholder={t("login.instanceUrlPlaceholder")}');
   });
 
   test("puts the public demo URL and credentials in App Review notes", () => {

@@ -63,7 +63,9 @@ const openSettingsAiTab = async (page: Page) => {
   await page.getByRole("button", { name: "个人中心", exact: true }).click();
   await expect(page.getByRole("heading", { name: "我的", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "AI集成", exact: true }).click();
-  await expect(page.getByText("自定义提示词", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "AI 指令", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "打开指令库", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "指令库", exact: true })).toBeVisible();
 };
 
 const openMemoAssistant = async (page: Page, memoId: string, notebookName: string) => {
@@ -125,15 +127,15 @@ test.describe("AI custom prompts", () => {
   };
 
   test("creates prompts in settings and lists them in the assistant action menu", async ({ page, request }) => {
-    const promptName = `e2e-设置提示词-${Date.now()}`;
+    const promptName = `e2e-设置指令-${Date.now()}`;
     const instruction = "把笔记提炼成三条要点，使用 Markdown 列表。";
 
     await openSettingsAiTab(page);
-    await page.getByRole("button", { name: "新建提示词", exact: true }).click();
-    const editor = page.getByRole("dialog").filter({ hasText: "新建提示词" });
+    await page.getByRole("button", { name: "新建指令", exact: true }).click();
+    const editor = page.locator("form").filter({ has: page.getByRole("heading", { name: "新建指令", exact: true }) });
     await expect(editor).toBeVisible();
     await editor.getByPlaceholder("例如：周报提炼 / 会议待办").fill(promptName);
-    await editor.getByPlaceholder("简要说明何时使用这条提示词").fill("e2e settings create");
+    await editor.getByPlaceholder("简要说明何时使用这条指令").fill("e2e settings create");
     await editor.locator("textarea").fill(instruction);
     await editor.getByRole("button", { name: "创建", exact: true }).click();
     await expect(editor).toBeHidden();
@@ -148,11 +150,11 @@ test.describe("AI custom prompts", () => {
     const memo = await createMemo(page, `e2e-ai-prompt-list-${Date.now()}`, "本周完成功能开发，下周准备发布。");
     const dialog = await openMemoAssistant(page, memo.id, notebookName);
     await selectAction(dialog, promptName);
-    await expect(dialog.locator("textarea")).toHaveValue(instruction);
+    await expect(dialog.getByRole("combobox", { name: "处理方式" })).toHaveText(promptName);
   });
 
-  test("saves a freeform custom instruction as a reusable prompt", async ({ page, request }) => {
-    const promptName = `e2e-保存提示词-${Date.now()}`;
+  test("saves a freeform custom prompt as a reusable prompt", async ({ page, request }) => {
+    const promptName = `e2e-保存指令-${Date.now()}`;
     const instruction = "改写成简洁友好的周报摘要，保留所有日期与负责人。";
     const memo = await createMemo(page, `e2e-ai-prompt-save-${Date.now()}`, "3 月 1 日：张三完成接口联调。");
     await mockAiGeneration(page, "- 3 月 1 日：接口联调完成（张三）");
@@ -160,14 +162,14 @@ test.describe("AI custom prompts", () => {
     const dialog = await openMemoAssistant(page, memo.id, notebookName);
     await selectAction(dialog, "自定义指令");
     await dialog.locator("textarea").fill(instruction);
-    await dialog.getByRole("button", { name: "保存为提示词", exact: true }).click();
+    await dialog.getByRole("button", { name: "保存为指令", exact: true }).click();
 
-    const saveDialog = page.getByRole("dialog", { name: "保存为提示词" });
+    const saveDialog = page.getByRole("dialog", { name: "保存为指令" });
     await expect(saveDialog).toBeVisible();
     await saveDialog.getByPlaceholder("例如：周报提炼").fill(promptName);
     await saveDialog.getByRole("button", { name: "创建", exact: true }).click();
     await expect(saveDialog).toBeHidden();
-    await expect(dialog.getByText("提示词已保存。", { exact: true })).toBeVisible();
+    await expect(dialog.getByRole("combobox", { name: "处理方式" })).toHaveText(promptName);
 
     await login(request);
     const prompts = await listPrompts(request);
@@ -184,7 +186,7 @@ test.describe("AI custom prompts", () => {
 
   test("updates and deletes a custom prompt from settings", async ({ page, request }) => {
     await login(request);
-    const originalName = `e2e-更新提示词-${Date.now()}`;
+    const originalName = `e2e-更新指令-${Date.now()}`;
     const updatedName = `${originalName}-已改`;
     const created = await createPrompt(request, {
       name: originalName,
@@ -194,11 +196,11 @@ test.describe("AI custom prompts", () => {
     createdPromptIds.push(created.id);
 
     await openSettingsAiTab(page);
-    const row = page.locator("div").filter({ hasText: originalName }).filter({ has: page.getByRole("button", { name: "编辑提示词" }) }).first();
+    const row = page.getByRole("article").filter({ has: page.getByRole("heading", { name: originalName, exact: true }) });
     await expect(row.getByText(originalName, { exact: true })).toBeVisible();
-    await row.getByRole("button", { name: "编辑提示词", exact: true }).click();
+    await row.getByRole("button", { name: "编辑指令", exact: true }).click();
 
-    const editor = page.getByRole("dialog").filter({ hasText: "编辑提示词" });
+    const editor = page.locator("form").filter({ has: page.getByRole("heading", { name: "编辑指令", exact: true }) });
     await expect(editor).toBeVisible();
     await editor.getByPlaceholder("例如：周报提炼 / 会议待办").fill(updatedName);
     await editor.locator("textarea").fill("更新后的指令：提取风险与应对。");
@@ -206,10 +208,10 @@ test.describe("AI custom prompts", () => {
     await expect(editor).toBeHidden();
     await expect(page.getByText(updatedName, { exact: true })).toBeVisible();
 
-    const updatedRow = page.locator("div").filter({ hasText: updatedName }).filter({ has: page.getByRole("button", { name: "删除" }) }).first();
+    const updatedRow = page.getByRole("article").filter({ has: page.getByRole("heading", { name: updatedName, exact: true }) });
     await updatedRow.getByRole("button", { name: "删除", exact: true }).click();
     const deleteConfirm = page.getByRole("dialog").filter({ hasText: updatedName });
-    await expect(deleteConfirm.getByText(/确定删除提示词/)).toBeVisible();
+    await expect(deleteConfirm.getByText(/确定删除指令/)).toBeVisible();
     await deleteConfirm.getByRole("button", { name: "删除", exact: true }).click();
     await expect(page.getByText(updatedName, { exact: true })).toHaveCount(0);
 
@@ -221,7 +223,7 @@ test.describe("AI custom prompts", () => {
 
   test("uses a saved prompt from the assistant dropdown for generation", async ({ page, request }) => {
     await login(request);
-    const promptName = `e2e-选用提示词-${Date.now()}`;
+    const promptName = `e2e-选用指令-${Date.now()}`;
     const created = await createPrompt(request, {
       name: promptName,
       instruction: "只输出三条关键结论。",
@@ -233,7 +235,7 @@ test.describe("AI custom prompts", () => {
 
     const dialog = await openMemoAssistant(page, memo.id, notebookName);
     await selectAction(dialog, promptName);
-    await expect(dialog.locator("textarea")).toHaveValue("只输出三条关键结论。");
+    await expect(dialog.getByRole("combobox", { name: "处理方式" })).toHaveText(promptName);
     await dialog.getByRole("button", { name: "生成", exact: true }).click();
     await expect(dialog.getByText("进展顺利")).toBeVisible();
     await expect(dialog.getByText("风险可控")).toBeVisible();

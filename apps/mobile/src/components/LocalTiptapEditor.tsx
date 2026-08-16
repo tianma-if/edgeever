@@ -15,6 +15,7 @@ import {
   AI_SELECTED_TEXT_ACTIONS,
   AI_TARGET_LANGUAGES,
   AI_TONES,
+  AI_WHOLE_NOTE_ACTIONS,
   canReplaceAiSource,
   docToMarkdown,
   getDefaultAiTargetLanguage,
@@ -537,7 +538,7 @@ function LocalTiptapEditorImpl(props: LocalTiptapEditorProps) {
             output: "",
             error: props.locale === "en-US"
               ? "The selected prompt no longer exists. Choose another prompt."
-              : "所选提示词已不存在，请重新选择。",
+              : "所选指令已不存在，请重新选择。",
           };
         }
         return {
@@ -1319,16 +1320,16 @@ const MobileSelectionAiPanel = ({
     summarize: english ? "Summarize" : "总结",
     "extract-key-points": english ? "Key points" : "提炼要点",
     "extract-todos": english ? "Extract tasks" : "提取待办",
-    "rewrite-proofread": english ? "Rewrite & proofread" : "改写与校对",
+    "rewrite-proofread": english ? "Convert to Xiaohongshu style" : "转为小红书风格",
     translate: english ? "Translate" : "翻译",
     "improve-writing": english ? "Improve writing" : "改进写作",
     "fix-spelling-grammar": english ? "Fix spelling & grammar" : "修正拼写与语法",
-    "make-shorter": english ? "Make shorter" : "缩短内容",
+    "make-shorter": english ? "Make concise" : "精炼表达",
     "make-longer": english ? "Make longer" : "扩写内容",
-    "simplify-language": english ? "Simplify language" : "简化表达",
+    "simplify-language": english ? "Convert to X (Twitter) style" : "转为推特风格",
     "change-tone": english ? "Change tone" : "调整语气",
     "continue-writing": english ? "Continue writing" : "继续写作",
-    custom: english ? "Custom instruction" : "自定义要求",
+    custom: english ? "Custom prompt" : "自定义指令",
   };
   const languageLabels: Record<AiTargetLanguage, string> = {
     en: english ? "English" : "英语",
@@ -1401,7 +1402,7 @@ const MobileSelectionAiPanel = ({
       </header>
       <div className="edgeever-ai-panel-body">
         <label>
-          <span>{english ? "AI action" : "AI 操作"}</span>
+          <span>{english ? "Action" : "处理方式"}</span>
           <select
             disabled={panel.generating}
             onChange={(event) => selectPromptOrAction(event.target.value)}
@@ -1412,7 +1413,8 @@ const MobileSelectionAiPanel = ({
                   {prompts.map((prompt) => <option key={prompt.id} value={`${AI_PROMPT_OPTION_PREFIX}${prompt.id}`}>{prompt.name}</option>)}
                   <option value="custom">{actionLabels.custom}</option>
                 </>
-              : AI_SELECTED_TEXT_ACTIONS.map((action) => <option key={action} value={action}>{actionLabels[action]}</option>)}
+              : (panel.selection.wholeNote ? AI_WHOLE_NOTE_ACTIONS : AI_SELECTED_TEXT_ACTIONS)
+                .map((action) => <option key={action} value={action}>{actionLabels[action]}</option>)}
           </select>
         </label>
         {panel.parameterKind === "target-language" ? (

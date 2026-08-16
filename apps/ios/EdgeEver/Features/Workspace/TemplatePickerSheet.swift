@@ -111,20 +111,16 @@ struct CreateChoiceSheet: View {
     }
 }
 
-/// Android `MobileTemplatePickerModal` — saved + built-in templates.
+/// Android `MobileTemplatePickerModal` — persisted, editable templates.
 struct TemplatePickerSheet: View {
     @Environment(AppEnvironment.self) private var env
     @Environment(\.dismiss) private var dismiss
 
     var onSelect: (CreateMemoSeed) -> Void
 
-    @State private var saved: [SelectableMemoTemplate] = []
-    @State private var isLoadingSaved = false
-    @State private var savedLoadFailed = false
-
-    private var builtIn: [SelectableMemoTemplate] {
-        BuiltInMemoTemplates.all(isEnglish: env.preferences.isEnglish)
-    }
+    @State private var templates: [SelectableMemoTemplate] = []
+    @State private var isLoading = false
+    @State private var loadFailed = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -140,8 +136,8 @@ struct TemplatePickerSheet: View {
                         .font(.system(size: 15, weight: .heavy))
                         .foregroundStyle(AppTheme.title)
                     Text(env.preferences.t(
-                        "选择预设结构快速开始，也可使用网页端保存的自定义模板。",
-                        en: "Start from a preset structure, or use custom templates saved on the web."
+                        "选择一个模板快速开始。所有模板都可以在网页端修改或删除。",
+                        en: "Choose a template to get started. Every template can be edited or deleted on the web."
                     ))
                     .font(.system(size: 12))
                     .foregroundStyle(AppTheme.secondary)
@@ -167,9 +163,9 @@ struct TemplatePickerSheet: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    sectionTitle(env.preferences.t("我的自定义模板", en: "My custom templates"))
+                    sectionTitle(env.preferences.t("模板", en: "Templates"))
 
-                    if isLoadingSaved {
+                    if isLoading {
                         HStack(spacing: 8) {
                             ProgressView().controlSize(.small)
                             Text(env.preferences.t("正在加载模板", en: "Loading templates"))
@@ -178,26 +174,19 @@ struct TemplatePickerSheet: View {
                         }
                         .padding(.horizontal, 8)
                         .padding(.vertical, 10)
-                    } else if savedLoadFailed {
+                    } else if loadFailed {
                         hint(env.preferences.t(
-                            "自定义模板暂时无法加载，仍可使用下方内置模板。",
-                            en: "Custom templates could not load. Built-in templates are still available."
+                            "模板暂时无法加载，请稍后重试。",
+                            en: "Templates could not load. Please try again later."
                         ))
-                    } else if saved.isEmpty {
+                    } else if templates.isEmpty {
                         hint(env.preferences.t(
-                            "暂无自定义模板。可在网页端将常用笔记另存为模板。",
-                            en: "No custom templates yet. Save notes as templates on the web."
+                            "暂无模板。可在网页端新建模板，或将常用笔记另存为模板。",
+                            en: "No templates yet. Create one or save a note as a template on the web."
                         ))
                     }
 
-                    ForEach(saved) { template in
-                        templateRow(template)
-                    }
-
-                    divider
-
-                    sectionTitle(env.preferences.t("内置推荐模板", en: "Recommended templates"))
-                    ForEach(builtIn) { template in
+                    ForEach(templates) { template in
                         templateRow(template)
                     }
                 }
@@ -210,19 +199,19 @@ struct TemplatePickerSheet: View {
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.hidden)
         .accessibilityIdentifier("templatePickerSheet")
-        .task { await loadSaved() }
+        .task { await loadTemplates() }
     }
 
-    private func loadSaved() async {
-        isLoadingSaved = true
-        savedLoadFailed = false
-        defer { isLoadingSaved = false }
+    private func loadTemplates() async {
+        isLoading = true
+        loadFailed = false
+        defer { isLoading = false }
         do {
             let list = try await env.session.client.listTemplates()
-            saved = list.map(BuiltInMemoTemplates.fromSaved)
+            templates = list.map(SelectableMemoTemplate.init)
         } catch {
-            savedLoadFailed = true
-            saved = []
+            loadFailed = true
+            templates = []
         }
     }
 
@@ -241,13 +230,6 @@ struct TemplatePickerSheet: View {
             .foregroundStyle(AppTheme.secondary)
             .fixedSize(horizontal: false, vertical: true)
             .padding(.horizontal, 8)
-            .padding(.vertical, 8)
-    }
-
-    private var divider: some View {
-        Rectangle()
-            .fill(AppTheme.searchFill)
-            .frame(height: 1)
             .padding(.vertical, 8)
     }
 
@@ -272,7 +254,6 @@ struct TemplatePickerSheet: View {
                             .foregroundStyle(AppTheme.title)
                             .lineLimit(1)
                         Spacer(minLength: 0)
-                        badge(for: template.source)
                     }
                     if !template.description.isEmpty {
                         Text(template.description)
@@ -291,19 +272,4 @@ struct TemplatePickerSheet: View {
         .accessibilityIdentifier("templateRow-\(template.id)")
     }
 
-    private func badge(for source: MemoTemplateSource) -> some View {
-        let isCustom = source == .saved
-        return Text(isCustom
-            ? env.preferences.t("自定义", en: "Custom")
-            : env.preferences.t("内置", en: "Built-in"))
-            .font(.system(size: 10, weight: .bold))
-            .foregroundStyle(isCustom ? AppTheme.accentStrong : AppTheme.secondary)
-            .padding(.horizontal, 7)
-            .padding(.vertical, 2)
-            .background(isCustom ? AppTheme.accentSoft : AppTheme.searchFill)
-            .overlay(
-                Capsule().stroke(isCustom ? AppTheme.accentBorder : AppTheme.border, lineWidth: 1)
-            )
-            .clipShape(Capsule())
-    }
 }

@@ -2,6 +2,11 @@ import {
   DEFAULT_AI_PROMPT_SEEDS,
   defaultAiPromptId,
 } from "@edgeever/shared/ai-prompt-seeds";
+import {
+  DEFAULT_MEMO_TEMPLATE_SEEDS,
+  defaultMemoTemplateId,
+  localizeMemoTemplateSeed,
+} from "@edgeever/shared/memo-template-seeds";
 import { createId, isoNow } from "./entity-utils";
 import type {
   DatabaseAdapter,
@@ -31,55 +36,36 @@ export const createDefaultNotebookRows = (workspaceId: string): DefaultNotebookR
   { id: `${workspaceId}_personal`, name: "生活个人", slug: "personal-life", color: "#ea580c", sortOrder: 50 },
 ];
 
-const PROJECT_WEEKLY_TEMPLATE_MARKDOWN = "## 本周进展\n\n- \n\n## 关键成果\n\n- \n\n## 风险与阻塞\n\n- \n\n## 下周计划\n\n- [ ] \n\n## 需要协助\n\n- ";
-
-// This is the build-time result of parsing PROJECT_WEEKLY_TEMPLATE_MARKDOWN.
-// Keeping it static avoids loading and executing the TipTap Markdown parser
-// merely to provision a workspace.
-const PROJECT_WEEKLY_TEMPLATE_CONTENT_JSON = JSON.stringify({
-  type: "doc",
-  content: [
-    { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "本周进展" }] },
-    { type: "paragraph", content: [{ type: "text", text: "- " }] },
-    { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "关键成果" }] },
-    { type: "paragraph", content: [{ type: "text", text: "- " }] },
-    { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "风险与阻塞" }] },
-    { type: "paragraph", content: [{ type: "text", text: "- " }] },
-    { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "下周计划" }] },
-    {
-      type: "taskList",
-      content: [{
-        type: "taskItem",
-        attrs: { checked: false },
-        content: [{ type: "paragraph", content: [] }],
-      }],
-    },
-    { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "需要协助" }] },
-    { type: "paragraph", content: [{ type: "text", text: "- " }] },
-  ],
-});
+// Template use and editing derive the TipTap document from content_markdown.
+// Keeping this initial value static avoids loading the Markdown parser merely
+// to provision a workspace.
+const EMPTY_TEMPLATE_CONTENT_JSON = JSON.stringify({ type: "doc", content: [] });
 
 export const createWorkspaceDefaultSeedStatements = (
   db: DatabaseAdapter,
   workspaceId: string,
   now = isoNow(),
+  locale?: string | null,
 ): PreparedStatementAdapter[] => [
-  db.prepare(
-    `INSERT OR IGNORE INTO memo_templates (
-       id, workspace_id, name, description, title, content_json, content_markdown, tags_json, created_at, updated_at
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  ).bind(
-    `${workspaceId}_template_project_weekly`,
-    workspaceId,
-    "项目周报模板",
-    "每周同步项目进展、风险与下一步计划",
-    "项目周报｜第 {{周次}} 周",
-    PROJECT_WEEKLY_TEMPLATE_CONTENT_JSON,
-    PROJECT_WEEKLY_TEMPLATE_MARKDOWN,
-    JSON.stringify(["项目管理", "周报"]),
-    now,
-    now,
-  ),
+  ...DEFAULT_MEMO_TEMPLATE_SEEDS.map((seed) => {
+    const localized = localizeMemoTemplateSeed(seed, locale);
+    return db.prepare(
+      `INSERT OR IGNORE INTO memo_templates (
+         id, workspace_id, name, description, title, content_json, content_markdown, tags_json, created_at, updated_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(
+      defaultMemoTemplateId(workspaceId, seed.key),
+      workspaceId,
+      localized.title,
+      localized.description,
+      localized.title,
+      EMPTY_TEMPLATE_CONTENT_JSON,
+      localized.contentMarkdown,
+      JSON.stringify(["template", seed.tag]),
+      now,
+      now,
+    );
+  }),
   ...DEFAULT_AI_PROMPT_SEEDS.map((seed) => db.prepare(
     `INSERT OR IGNORE INTO ai_prompt_templates (
        id, workspace_id, seed_key, action, parameter_kind, result_mode,
@@ -106,6 +92,7 @@ export const ensureUserWorkspace = async (
   db: DatabaseAdapter,
   userId: string,
   username: string,
+  locale?: string | null,
 ): Promise<UserWorkspace> => {
   const existing = await db.prepare(
     `SELECT workspace_id, role FROM workspace_members WHERE user_id = ? LIMIT 1`,
@@ -125,7 +112,7 @@ export const ensureUserWorkspace = async (
       `SELECT workspace_id, role FROM workspace_members WHERE user_id = ? LIMIT 1`,
     ).bind(userId).first<{ workspace_id: string; role: "owner" | "member" }>();
     if (claimed) {
-      await db.batch(createWorkspaceDefaultSeedStatements(db, claimed.workspace_id));
+      await db.batch(createWorkspaceDefaultSeedStatements(db, claimed.workspace_id, isoNow(), locale));
       return { workspaceId: claimed.workspace_id, role: claimed.role };
     }
   }
@@ -153,7 +140,7 @@ export const ensureUserWorkspace = async (
       now,
       now,
     )),
-    ...createWorkspaceDefaultSeedStatements(db, workspaceId, now),
+    ...createWorkspaceDefaultSeedStatements(db, workspaceId, now, locale),
   ]);
   return { workspaceId, role: "member" };
 };

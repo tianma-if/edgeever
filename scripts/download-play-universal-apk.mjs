@@ -13,6 +13,26 @@ const DEFAULT_POLL_INTERVAL_MS = 10_000;
 const DEFAULT_DOWNLOAD_TIMEOUT_MS = 10 * 60_000;
 const LOOKUP_TIMEOUT_MS = 30_000;
 
+export const summarizePlayGeneratedApks = (response, expectedSignerSha256) => {
+  const expectedSigner = normalizePlayCertificateHash(expectedSignerSha256);
+  if (!expectedSigner) {
+    throw new Error("ANDROID_PLAY_APP_SIGNER_SHA256 must be a SHA-256 certificate fingerprint.");
+  }
+  const candidate = (response?.generatedApks ?? []).find((entry) =>
+    normalizePlayCertificateHash(entry.certificateSha256Hash) === expectedSigner
+  );
+  if (!candidate) {
+    throw new Error(`Google Play returned no generated APKs for signer ${expectedSigner}.`);
+  }
+  return {
+    protectedSplitCount: candidate.generatedSplitApks?.length ?? 0,
+    protectedStandaloneVariants: (candidate.generatedStandaloneApks ?? []).map(({ variantId }) => variantId),
+    protectedUniversal: Boolean(candidate.generatedUniversalApk?.downloadId),
+    unprotectedSplitCount: candidate.unprotectedGeneratedSplitApks?.length ?? 0,
+    unprotectedStandaloneVariants: (candidate.unprotectedGeneratedStandaloneApks ?? []).map(({ variantId }) => variantId),
+  };
+};
+
 export const normalizePlayCertificateHash = (value) => {
   const compact = String(value ?? "").trim();
   const hex = compact.toLowerCase().replace(/[^0-9a-f]/g, "");
@@ -39,8 +59,17 @@ export const selectPlayUniversalApk = (response, expectedSignerSha256) => {
   if (candidates.length !== 1) {
     throw new Error(`Expected one Play universal APK for signer ${expectedSigner}, found ${candidates.length}.`);
   }
+  const selected = candidates[0];
+  if (
+    Object.hasOwn(selected, "unprotectedGeneratedSplitApks") ||
+    Object.hasOwn(selected, "unprotectedGeneratedStandaloneApks")
+  ) {
+    throw new Error(
+      "Google Play Automatic Protection is enabled for this release; refusing to distribute its installer-locked universal APK.",
+    );
+  }
   return {
-    downloadId: candidates[0].generatedUniversalApk.downloadId,
+    downloadId: selected.generatedUniversalApk.downloadId,
     signerSha256: expectedSigner,
   };
 };
@@ -76,6 +105,31 @@ const requestHeaders = async () => {
   });
   const client = await auth.getClient();
   return client.getRequestHeaders();
+};
+
+const fetchGeneratedApks = async ({ headers, packageName, versionCode }) => {
+  const url = `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${encodeURIComponent(packageName)}/generatedApks/${versionCode}`;
+  const response = await fetch(url, {
+    headers,
+    signal: AbortSignal.timeout(LOOKUP_TIMEOUT_MS),
+  });
+  if (!response.ok) {
+    throw new Error(`Google Play generated APK lookup failed with HTTP ${response.status}: ${await response.text()}`);
+  }
+  return response.json();
+};
+
+export const inspectPlayGeneratedApks = async ({
+  expectedSignerSha256,
+  packageName = DEFAULT_PACKAGE_NAME,
+  versionCode,
+}) => {
+  if (!Number.isSafeInteger(versionCode) || versionCode <= 0) {
+    throw new Error("versionCode must be a positive integer.");
+  }
+  const headers = await requestHeaders();
+  const response = await fetchGeneratedApks({ headers, packageName, versionCode });
+  return summarizePlayGeneratedApks(response, expectedSignerSha256);
 };
 
 const wait = (milliseconds) => new Promise((resolveWait) => setTimeout(resolveWait, milliseconds));
@@ -145,6 +199,14 @@ export const downloadPlayUniversalApk = async ({
 const run = async () => {
   const [versionCodeValue, outputPath] = process.argv.slice(2);
   const versionCode = Number(versionCodeValue);
+  if (outputPath === "--inspect") {
+    const summary = await inspectPlayGeneratedApks({
+      expectedSignerSha256: process.env.ANDROID_PLAY_APP_SIGNER_SHA256,
+      versionCode,
+    });
+    console.log(JSON.stringify(summary));
+    return;
+  }
   if (!versionCodeValue || !outputPath) {
     throw new Error("Usage: node scripts/download-play-universal-apk.mjs <version-code> <output-apk>");
   }

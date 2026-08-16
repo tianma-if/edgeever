@@ -6,12 +6,20 @@ import {
   buildReleaseTitle,
   nextVersion,
   parseReleaseArgs,
+  RELEASE_VALIDATIONS,
   resolveReleaseVersion,
   reusedAssetMatches,
   selectPublishedDmg,
 } from "./release.mjs";
 
 describe("release automation", () => {
+  test("runs the complete project regression suite before release", () => {
+    expect(RELEASE_VALIDATIONS).toContainEqual({
+      label: "Project regression tests",
+      args: ["run", "test"],
+    });
+  });
+
   test("parses paired bilingual changes and labels", () => {
     expect(
       parseReleaseArgs([

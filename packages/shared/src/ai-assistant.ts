@@ -29,30 +29,22 @@ export const AI_PROMPT_RESULT_MODES = ["append", "replace", "both"] as const;
 export type AiPromptResultMode = (typeof AI_PROMPT_RESULT_MODES)[number];
 
 export const AI_SELECTED_TEXT_ACTIONS: readonly AiAction[] = [
-  "improve-writing",
-  "fix-spelling-grammar",
-  "make-shorter",
-  "make-longer",
-  "simplify-language",
-  "change-tone",
-  "translate",
   "summarize",
-  "extract-key-points",
-  "extract-todos",
+  "translate",
+  "improve-writing",
+  "make-shorter",
+  "rewrite-proofread",
+  "simplify-language",
   "custom",
 ];
 
 export const AI_WHOLE_NOTE_ACTIONS: readonly AiAction[] = [
   "summarize",
-  "extract-key-points",
-  "extract-todos",
-  "rewrite-proofread",
   "translate",
-  "continue-writing",
+  "improve-writing",
   "make-shorter",
-  "make-longer",
+  "rewrite-proofread",
   "simplify-language",
-  "change-tone",
   "custom",
 ];
 

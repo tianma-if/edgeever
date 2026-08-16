@@ -78,16 +78,16 @@ export const MobileAiAssistantModal = ({
     summarize: tr("总结", "Summarize"),
     "extract-key-points": tr("提炼要点", "Key points"),
     "extract-todos": tr("提取待办", "Extract tasks"),
-    "rewrite-proofread": tr("改写与校对", "Rewrite & proofread"),
+    "rewrite-proofread": tr("转为小红书风格", "Convert to Xiaohongshu style"),
     "improve-writing": tr("改进写作", "Improve writing"),
     "fix-spelling-grammar": tr("修正拼写与语法", "Fix spelling & grammar"),
-    "make-shorter": tr("缩短内容", "Make shorter"),
+    "make-shorter": tr("精炼表达", "Make concise"),
     "make-longer": tr("扩写内容", "Make longer"),
-    "simplify-language": tr("简化表达", "Simplify language"),
+    "simplify-language": tr("转为推特风格", "Convert to X (Twitter) style"),
     "change-tone": tr("调整语气", "Change tone"),
     translate: tr("翻译", "Translate"),
     "continue-writing": tr("继续写作", "Continue writing"),
-    custom: tr("自定义要求", "Custom instruction"),
+    custom: tr("自定义指令", "Custom prompt"),
   };
 
   const languageLabels: Record<TargetLanguage, string> = {
@@ -276,7 +276,7 @@ export const MobileAiAssistantModal = ({
           <Text style={[styles.description, { color: muted }]}>
             {tr("选择 AI 要做的事。输出只会作为草稿，确认后才会修改笔记。", "Choose what AI should do. Output remains a draft until you apply it.")}
           </Text>
-          {selectField(tr("AI 操作", "AI action"), selectedPrompt?.name ?? labels[action], () => setPicker("action"))}
+          {selectField(tr("处理方式", "Action"), selectedPrompt?.name ?? labels[action], () => setPicker("action"))}
           {promptNeedsTargetLanguage(parameterKind) ? selectField(tr("目标语言", "Target language"), languageLabels[targetLanguage], () => setPicker("language")) : null}
           {promptNeedsTone(parameterKind) ? selectField(tr("语气", "Tone"), toneLabels[tone], () => setPicker("tone")) : null}
           {!selectedPrompt && action === "custom" ? (
@@ -357,7 +357,7 @@ export const MobileAiAssistantModal = ({
           <Pressable onPress={() => setPicker(null)} style={styles.pickerBackdrop}>
             <View style={[styles.pickerSheet, { backgroundColor: surface }]}>
               <Text style={[styles.pickerTitle, { color: foreground }]}>
-                {picker === "action" ? tr("选择 AI 操作", "Choose AI action") : picker === "language" ? tr("选择目标语言", "Choose target language") : tr("选择语气", "Choose tone")}
+                {picker === "action" ? tr("选择处理方式", "Choose an action") : picker === "language" ? tr("选择目标语言", "Choose target language") : tr("选择语气", "Choose tone")}
               </Text>
               <ScrollView style={styles.pickerScroll}>
                 {pickerOptions.map((option) => (

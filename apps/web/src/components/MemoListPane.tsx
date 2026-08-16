@@ -58,6 +58,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { MemoCard } from "./MemoCard";
+import { ClipboardCopyNotice } from "./ClipboardCopyNotice";
 import { cn } from "@/lib/utils";
 import { WORKSPACE_PAGE_TITLE_CLASSNAME } from "@/lib/workspace-ui";
 import type { Notebook, MemoSummary } from "@edgeever/shared";
@@ -1608,15 +1609,9 @@ export const MemoListPane = ({
       ) : null}
 
       {memoIdCopyNotice && (
-        <div
-          className={cn(
-            "fixed bottom-5 left-1/2 z-[120] max-w-[calc(100vw-2rem)] -translate-x-1/2 truncate rounded-md px-3 py-2 text-sm font-medium text-white shadow-lg",
-            memoIdCopyNotice.status === "copied" ? "bg-emerald-700" : "bg-rose-600",
-          )}
-          role={memoIdCopyNotice.status === "copied" ? "status" : "alert"}
-        >
+        <ClipboardCopyNotice status={memoIdCopyNotice.status}>
           {t(memoIdCopyNotice.status === "copied" ? "editor.noteIdCopied" : "editor.noteIdCopyFailed", { id: memoIdCopyNotice.id })}
-        </div>
+        </ClipboardCopyNotice>
       )}
 
       {selectionMode && (

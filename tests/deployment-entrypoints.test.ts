@@ -320,7 +320,7 @@ describe("Cloudflare deployment entrypoints", () => {
     expect(workflow).toContain("bun run db:migrate:local");
     expect(bunConfig).toContain('pathIgnorePatterns = ["tests/e2e/**"]');
     expect(scripts.test).toBe("bun test --path-ignore-patterns='tests/e2e/**'");
-    expect(workflow).toContain(scripts.test);
+    expect(workflow).toContain("bun run test");
     expect(workflow.match(/if: steps\.upstream\.outputs\.align_mode == 'merge'/g)).toHaveLength(2);
     expect(workflow).toContain("git push origin HEAD:main");
     expect(workflow).not.toContain("git push --force-with-lease origin HEAD:main");

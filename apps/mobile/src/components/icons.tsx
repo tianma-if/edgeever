@@ -41,6 +41,7 @@ export const FileSpreadsheet = createIcon("grid");
 export const FileText = createIcon("file-text");
 export const Folder = createIcon("folder");
 export const Grid = createIcon("grid");
+export const GitHub = createIcon("github");
 export const HardDrive = createIcon("hard-drive");
 export const Heading2 = createIcon("type");
 export const History = createIcon("clock");

@@ -208,7 +208,7 @@ struct AiAssistantSheet: View {
 
     private var actionPicker: some View {
         pickerField(
-            env.preferences.t("AI 操作", en: "AI action"),
+            env.preferences.t("处理方式", en: "Action"),
             selection: selectedPrompt?.name ?? actionTitle(action)
         ) {
             if prompts.isEmpty {
@@ -404,14 +404,14 @@ struct AiAssistantSheet: View {
         case .summarize: env.preferences.t("总结", en: "Summarize")
         case .extractKeyPoints: env.preferences.t("提炼要点", en: "Key points")
         case .extractTodos: env.preferences.t("提取待办", en: "Extract tasks")
-        case .rewriteProofread: env.preferences.t("改写与校对", en: "Rewrite & proofread")
-        case .makeShorter: env.preferences.t("缩短内容", en: "Make shorter")
+        case .rewriteProofread: env.preferences.t("转为小红书风格", en: "Convert to Xiaohongshu style")
+        case .makeShorter: env.preferences.t("精炼表达", en: "Make concise")
         case .makeLonger: env.preferences.t("扩写内容", en: "Make longer")
-        case .simplifyLanguage: env.preferences.t("简化表达", en: "Simplify language")
+        case .simplifyLanguage: env.preferences.t("转为推特风格", en: "Convert to X (Twitter) style")
         case .changeTone: env.preferences.t("调整语气", en: "Change tone")
         case .translate: env.preferences.t("翻译", en: "Translate")
         case .continueWriting: env.preferences.t("继续写作", en: "Continue writing")
-        case .custom: env.preferences.t("自定义要求", en: "Custom instruction")
+        case .custom: env.preferences.t("自定义指令", en: "Custom prompt")
         }
     }
 
@@ -441,30 +441,22 @@ struct AiAssistantSheet: View {
     private var availableActions: [AiAction] {
         if isSelection {
             return [
-                .improveWriting,
-                .fixSpellingGrammar,
-                .makeShorter,
-                .makeLonger,
-                .simplifyLanguage,
-                .changeTone,
-                .translate,
                 .summarize,
-                .extractKeyPoints,
-                .extractTodos,
+                .translate,
+                .improveWriting,
+                .makeShorter,
+                .rewriteProofread,
+                .simplifyLanguage,
                 .custom,
             ]
         }
         return [
             .summarize,
-            .extractKeyPoints,
-            .extractTodos,
-            .rewriteProofread,
-            .makeShorter,
-            .makeLonger,
-            .simplifyLanguage,
-            .changeTone,
             .translate,
-            .continueWriting,
+            .improveWriting,
+            .makeShorter,
+            .rewriteProofread,
+            .simplifyLanguage,
             .custom,
         ]
     }

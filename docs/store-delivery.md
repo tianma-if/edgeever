@@ -82,16 +82,19 @@ Use `--dry-run` to print the GitHub workflow dispatch without starting it.
 
 ### Google Play
 
-The self-hosted release runner builds a signed AAB from the selected tag,
-verifies its signature and R8 mapping, preserves both as GitHub Actions
-artifacts, and uploads the AAB through EAS Submit.
+The self-hosted release runner builds an `arm64-v8a` signed AAB from the
+selected tag, verifies its signature and R8 mapping, preserves both as GitHub
+Actions artifacts, and uploads the AAB through EAS Submit.
 
 After Google Play finishes processing the bundle, the workflow downloads the
 Play-signed universal APK, verifies the pinned app-signing certificate, and
 replaces the GitHub Release Android asset. This makes installations from
-Google Play and GitHub mutually updateable. The established `arm64-v8a` asset
-name is retained for release compatibility; the Play-generated universal APK
-supports arm64 and can include additional ABIs.
+Google Play and GitHub mutually updateable. The uploaded AAB is intentionally
+limited to `arm64-v8a`, so the Play-generated universal APK does not bundle
+unused 32-bit ARM or x86 native libraries. Automatic Protection must be
+disabled for the release. The downloader fails closed when Play reports
+installer-locked artifacts, preventing a protected APK from being published
+for GitHub sideloading.
 
 Internal, Alpha, Beta, and Production profiles use a completed release on the
 selected track. The default command targets Production; use

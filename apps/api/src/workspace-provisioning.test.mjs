@@ -40,7 +40,7 @@ describe("workspace provisioning", () => {
     expect(calls[0].sql).toContain("FROM workspace_members WHERE user_id");
   });
 
-  test("builds static template and AI prompt statements for new workspaces", () => {
+  test("builds editable localized template and AI prompt statements for new workspaces", () => {
     const calls = [];
     const db = {
       prepare: (sql) => statement(sql, calls),
@@ -50,11 +50,14 @@ describe("workspace provisioning", () => {
       db,
       "ws_new",
       "2026-08-14T00:00:00.000Z",
+      "en-US",
     );
 
-    expect(statements.length).toBeGreaterThan(1);
+    expect(statements.length).toBeGreaterThan(6);
     expect(calls[0].sql).toContain("INSERT OR IGNORE INTO memo_templates");
-    expect(calls[0].values).toContain("ws_new_template_project_weekly");
+    expect(calls[0].values).toContain("ws_new_template_quick-note");
+    expect(calls[0].values).toContain("Quick Spark");
+    expect(calls.filter((call) => call.sql.includes("INSERT OR IGNORE INTO memo_templates"))).toHaveLength(5);
     expect(calls.some((call) => call.sql.includes("INSERT OR IGNORE INTO ai_prompt_templates"))).toBe(true);
   });
 });

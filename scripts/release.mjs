@@ -28,6 +28,7 @@ const RELEASE_WORKFLOWS = {
 };
 
 export const RELEASE_VALIDATIONS = [
+  { label: "Project regression tests", args: ["run", "test"] },
   { label: "Web typecheck", args: ["run", "typecheck"] },
   { label: "Mobile typecheck", args: ["run", "typecheck:mobile"] },
   { label: "Web build", args: ["run", "build:web"] },

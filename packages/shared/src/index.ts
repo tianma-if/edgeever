@@ -11,6 +11,7 @@ export * from "./markdown-image";
 export * from "./memo-safety";
 export * from "./memo-conflict";
 export * from "./memo-content-style";
+export * from "./memo-template-seeds";
 export * from "./note-links";
 export * from "./notebooks";
 export * from "./revision-diff";

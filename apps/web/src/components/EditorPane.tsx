@@ -42,6 +42,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { GitHubRepositoryLink } from "@/components/GitHubRepositoryLink";
+import { ClipboardCopyNotice } from "@/components/ClipboardCopyNotice";
 import { Input } from "@/components/ui/input";
 import {
   Command,
@@ -4273,15 +4274,9 @@ const RichEditorPane = ({
       )}
 
       {memoIdCopyNotice && (
-        <div
-          className={cn(
-            "fixed bottom-5 left-1/2 z-[120] max-w-[calc(100vw-2rem)] -translate-x-1/2 truncate rounded-md px-3 py-2 text-sm font-medium text-white shadow-lg",
-            memoIdCopyNotice.status === "copied" ? "bg-emerald-700" : "bg-rose-600",
-          )}
-          role={memoIdCopyNotice.status === "copied" ? "status" : "alert"}
-        >
+        <ClipboardCopyNotice status={memoIdCopyNotice.status}>
           {t(memoIdCopyNotice.status === "copied" ? "editor.noteIdCopied" : "editor.noteIdCopyFailed", { id: memoIdCopyNotice.id })}
-        </div>
+        </ClipboardCopyNotice>
       )}
 
       {false && useMobilePlainTextEditor && (

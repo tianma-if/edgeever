@@ -99,7 +99,12 @@ export const registerUserRoutes = (
         `INSERT INTO notebooks (id, workspace_id, parent_id, name, slug, icon, color, sort_order, created_at, updated_at)
          VALUES (?, ?, NULL, ?, ?, 'notebook', ?, ?, ?, ?)`,
       ).bind(notebook.id, workspaceId, notebook.name, notebook.slug, notebook.color, notebook.sortOrder, now, now)),
-      ...createWorkspaceDefaultSeedStatements(context.env.storage.db, workspaceId, now),
+      ...createWorkspaceDefaultSeedStatements(
+        context.env.storage.db,
+        workspaceId,
+        now,
+        context.req.header("accept-language"),
+      ),
       auditStatement(context.env.storage.db, "user", context.get("auth").actorId, "user.create", "user", userId, {
         username: input.username,
       }),
