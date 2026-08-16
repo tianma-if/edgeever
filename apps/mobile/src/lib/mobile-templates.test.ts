@@ -1,29 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import {
   createMemoSeedHasContent,
-  getMobileBuiltInTemplates,
   mobileTemplateToCreateSeed,
   toMobileSelectableTemplate,
 } from "./mobile-templates";
 
 describe("mobile-templates", () => {
-  test("returns built-in templates for both locales", () => {
-    const zh = getMobileBuiltInTemplates("zh-CN");
-    const en = getMobileBuiltInTemplates("en-US");
-    expect(zh.length).toBe(6);
-    expect(en.length).toBe(6);
-    expect(zh[0]?.title).toBe("灵感速记");
-    expect(en[0]?.title).toBe("Quick Spark");
-    expect(zh[1]?.contentMarkdown).toContain("会议纪要");
-    expect(en[1]?.contentMarkdown).toContain("Meeting Minutes");
-  });
-
-  test("maps built-in and saved templates to selectable rows", () => {
-    const builtIn = getMobileBuiltInTemplates("zh-CN")[0]!;
-    const selectableBuiltIn = toMobileSelectableTemplate(builtIn, "builtin");
-    expect(selectableBuiltIn.source).toBe("builtin");
-    expect(selectableBuiltIn.name).toBe(builtIn.title);
-
+  test("maps a persisted template to a selectable row", () => {
     const selectableSaved = toMobileSelectableTemplate(
       {
         id: "tpl_1",
@@ -36,9 +19,7 @@ describe("mobile-templates", () => {
         createdAt: "2026-01-01T00:00:00.000Z",
         updatedAt: "2026-01-01T00:00:00.000Z",
       },
-      "saved"
     );
-    expect(selectableSaved.source).toBe("saved");
     expect(selectableSaved.title).toBe("【周报】");
     expect(mobileTemplateToCreateSeed(selectableSaved)).toEqual({
       title: "【周报】",

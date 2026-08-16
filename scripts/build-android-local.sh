@@ -82,7 +82,7 @@ COMMON_ARGS=(
 : "${ANDROID_KEY_ALIAS:?请设置 ANDROID_KEY_ALIAS}"
 : "${ANDROID_KEY_PASSWORD:?请设置 ANDROID_KEY_PASSWORD}"
 
-PLAY_ARCHS="${EDGE_EVER_ANDROID_ARCHS:-armeabi-v7a,arm64-v8a,x86,x86_64}"
+PLAY_ARCHS="${EDGE_EVER_ANDROID_PLAY_ARCHS:-arm64-v8a}"
 APK_ARCHS="${EDGE_EVER_ANDROID_APK_ARCHS:-arm64-v8a}"
 KEYSTORE_FILE="$(cd "$(dirname "$ANDROID_KEYSTORE_FILE")" && pwd)/$(basename "$ANDROID_KEYSTORE_FILE")"
 APK_PATH="$ANDROID_DIR/app/build/outputs/apk/release/app-release.apk"
@@ -143,7 +143,14 @@ run_timed "Gradle 生产 AAB 构建" ./gradlew bundleRelease \
   -Pandroid.injected.signing.key.password="$ANDROID_KEY_PASSWORD" \
   -Pandroid.injected.signing.store.type=PKCS12
 
-run_timed "校验 AAB 签名" jarsigner -verify app/build/outputs/bundle/release/app-release.aab
+AAB_PATH="app/build/outputs/bundle/release/app-release.aab"
+ACTUAL_PLAY_ARCHS="$(unzip -Z1 "$AAB_PATH" | sed -n 's#^base/lib/\([^/]*\)/.*#\1#p' | sort -u | paste -sd, -)"
+if [[ "$ACTUAL_PLAY_ARCHS" != "$PLAY_ARCHS" ]]; then
+  echo "AAB 架构不符合预期：期望 ${PLAY_ARCHS}，实际 ${ACTUAL_PLAY_ARCHS:-无原生库}。" >&2
+  exit 1
+fi
+
+run_timed "校验 AAB 签名" jarsigner -verify "$AAB_PATH"
 test -s app/build/outputs/mapping/release/mapping.txt
-echo "完成: $ANDROID_DIR/app/build/outputs/bundle/release/app-release.aab"
+echo "完成: $ANDROID_DIR/$AAB_PATH"
 echo "反混淆文件: $ANDROID_DIR/app/build/outputs/mapping/release/mapping.txt"

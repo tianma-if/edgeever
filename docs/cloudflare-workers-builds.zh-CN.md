@@ -18,7 +18,9 @@
 - **Update deployed EdgeEver** 把部署用 Fork 当作上游的 **部署镜像** 来维护：
   - 默认 `stable` 通道跟随最新正式 Release tag。
   - 设置 GitHub Repository Variable `EDGE_EVER_UPDATE_CHANNEL=edge` 后跟随上游 `main`。
-  - 只读 Fork（未改应用代码）会用一个新的线性提交应用目标版本的产品代码快照；有本地业务改动的 Fork 合并产品代码，冲突则失败并保持线上不变。
+  - 只读 Fork（未改应用代码）会用一个新的线性提交应用目标版本的产品代码快照，不安装依赖，也不执行项目测试套件。
+  - 只有显式设置 `EDGE_EVER_PRESERVE_FORK_CHANGES=true` 的 Fork 才会合并产品代码。定制合并会在 push 前执行本地 migration、完整非 E2E 测试、类型检查和生产构建；任一步失败都会保持 `main` 与线上版本不变。
+  - 正式 Release 会在准备 Draft 资产前，由官方 Ubuntu Job 执行同一套完整非 E2E 测试，确保 stable 通道的上游基线本身为绿色；定制 Fork 若失败，应代表合并集成问题，而不是 Release 自带的测试已经失败。
   - 下游完整的 `.github/workflows/**` 目录和两个更新辅助脚本会作为稳定的本地引导层原样保留。官方打包、签名、测试与 Release 工作流不参与产品代码自动更新，因此 `GITHUB_TOKEN` 无需取得改写 Actions 工作流的权限。
   - 每次运行都会写 Job **Summary**：通道、目标版本、判定原因、是否 push。若 Summary 写明 *Already on upstream target* / 已对齐，绿色成功表示「已是目标版本」，不是静默故障。
   - 请优先用本工作流，而不是 GitHub **Sync fork**。Sync fork 跟的是上游 `main` 历史，可能让下一次 stable 运行合理变为 no-op。

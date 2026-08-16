@@ -1,16 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import type { createEdgeEverClient } from "@edgeever/client";
-import { useMemo } from "react";
 import { Modal, Pressable, ScrollView, View } from "react-native";
 import { ActivityIndicator, FileText, LayoutTemplate, X } from "./icons";
 import { Text } from "./LocalizedText";
 import {
-  getMobileBuiltInTemplates,
   mobileTemplateToCreateSeed,
   toMobileSelectableTemplate,
   type MobileCreateMemoSeed,
   type MobileSelectableTemplate,
-  type MobileSupportedLocale,
 } from "../lib/mobile-templates";
 import { useMobileLocale } from "../lib/mobile-locale";
 import { styles } from "../screens/workspace-styles";
@@ -38,11 +35,7 @@ export const MobileTemplatePickerModal = ({
   presentation?: "modal" | "overlay";
   visible: boolean;
 }) => {
-  const { resolvedLocale, translate } = useMobileLocale();
-  const builtInTemplates = useMemo(
-    () => getMobileBuiltInTemplates(resolvedLocale as MobileSupportedLocale).map((template) => toMobileSelectableTemplate(template, "builtin")),
-    [resolvedLocale]
-  );
+  const { translate } = useMobileLocale();
 
   const savedTemplatesQuery = useQuery({
     queryKey: ["mobile", "templates"],
@@ -55,7 +48,7 @@ export const MobileTemplatePickerModal = ({
         throw new Error("Client is missing listTemplates; reload the app to pick up the latest bundle.");
       }
       const response = await client.listTemplates();
-      return response.templates.map((template) => toMobileSelectableTemplate(template, "saved"));
+      return response.templates.map(toMobileSelectableTemplate);
     },
     staleTime: 15_000,
     retry: 1,
@@ -93,7 +86,7 @@ export const MobileTemplatePickerModal = ({
           <View style={styles.listActionSheetHeaderText}>
             <Text numberOfLines={1} style={styles.actionSheetTitle}>{translate("从模板新建")}</Text>
             <Text numberOfLines={2} style={styles.actionSheetSubtitle}>
-              {translate("选择预设结构快速开始，也可使用网页端保存的自定义模板。")}
+              {translate("选择一个模板快速开始。所有模板都可以在网页端修改或删除。")}
             </Text>
           </View>
           <Pressable accessibilityLabel={translate("关闭")} accessibilityRole="button" onPress={onClose} style={styles.sheetCloseButton}>
@@ -102,7 +95,7 @@ export const MobileTemplatePickerModal = ({
         </View>
 
         <ScrollView contentContainerStyle={styles.listActionSheetContent} style={styles.listActionSheetScroll} keyboardShouldPersistTaps="handled">
-          <Text style={styles.actionSheetSectionTitle}>{translate("我的自定义模板")}</Text>
+          <Text style={styles.actionSheetSectionTitle}>{translate("模板")}</Text>
           {isLoadingSaved ? (
             <View style={styles.templatePickerLoading}>
               <ActivityIndicator color="#0f172a" size="small" />
@@ -112,7 +105,7 @@ export const MobileTemplatePickerModal = ({
           {!isLoadingSaved && savedTemplatesQuery.isError ? (
             <View style={styles.templatePickerErrorBlock}>
               <Text style={styles.templatePickerHint}>
-                {translate("自定义模板暂时无法加载，仍可使用下方内置模板。")}
+                {translate("模板暂时无法加载，请稍后重试。")}
               </Text>
               {savedLoadErrorMessage ? (
                 <Text style={styles.templatePickerErrorDetail} numberOfLines={3}>
@@ -130,17 +123,11 @@ export const MobileTemplatePickerModal = ({
           ) : null}
           {!isLoadingSaved && !savedTemplatesQuery.isError && savedTemplates.length === 0 ? (
             <Text style={styles.templatePickerHint}>
-              {translate("暂无自定义模板。可在网页端将常用笔记另存为模板。")}
+              {translate("暂无模板。可在网页端新建模板，或将常用笔记另存为模板。")}
             </Text>
           ) : null}
           {savedTemplates.map((template) => (
-            <TemplateRow key={`saved-${template.id}`} onPress={() => handleSelect(template)} template={template} />
-          ))}
-
-          <View style={styles.listActionDivider} />
-          <Text style={styles.actionSheetSectionTitle}>{translate("内置推荐模板")}</Text>
-          {builtInTemplates.map((template) => (
-            <TemplateRow key={`builtin-${template.id}`} onPress={() => handleSelect(template)} template={template} />
+            <TemplateRow key={template.id} onPress={() => handleSelect(template)} template={template} />
           ))}
         </ScrollView>
       </Pressable>
@@ -237,7 +224,6 @@ const TemplateRow = ({
   onPress: () => void;
   template: MobileSelectableTemplate;
 }) => {
-  const { translate } = useMobileLocale();
   return (
     <Pressable accessibilityRole="button" onPress={onPress} style={styles.templateRow}>
       <View style={styles.templateRowIcon}>
@@ -246,11 +232,6 @@ const TemplateRow = ({
       <View style={styles.templateRowText}>
         <View style={styles.templateRowTitleRow}>
           <Text numberOfLines={1} style={styles.templateRowTitle}>{template.name}</Text>
-          <View style={[styles.templateBadge, template.source === "saved" ? styles.templateBadgeCustom : styles.templateBadgeBuiltIn]}>
-            <Text style={[styles.templateBadgeText, template.source === "saved" ? styles.templateBadgeTextCustom : styles.templateBadgeTextBuiltIn]}>
-              {template.source === "saved" ? translate("自定义") : translate("内置")}
-            </Text>
-          </View>
         </View>
         {template.description ? (
           <Text numberOfLines={2} style={styles.templateRowDescription}>{template.description}</Text>

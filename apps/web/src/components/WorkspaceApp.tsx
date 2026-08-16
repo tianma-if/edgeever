@@ -50,7 +50,6 @@ import type {
   NotebookNode,
   NotebookDropPosition,
   NotebookMoveOption,
-  MemoTemplate,
   MemoFilterMode,
   MemoSortMode,
   MemoDocumentAction,
@@ -1846,7 +1845,7 @@ export const WorkspaceApp = ({
     setNotebookDeleteConfirmation(notebook);
   };
 
-  const handleCreateMemo = (template?: MemoTemplate) => {
+  const handleCreateMemo = () => {
     const targetNotebookId = createMemoNotebookId;
 
     if (!targetNotebookId || memoView === "trash") {
@@ -1858,9 +1857,9 @@ export const WorkspaceApp = ({
     creatingMemoSelectionRef.current = true;
     createMemoMutation.mutate({
       notebookId: targetNotebookId,
-      title: template?.title ?? "",
-      contentMarkdown: template?.contentMarkdown ?? "",
-      tags: template?.tags ?? [],
+      title: "",
+      contentMarkdown: "",
+      tags: [],
     });
   };
 
@@ -2898,7 +2897,6 @@ export const WorkspaceApp = ({
                     canCreateMemo={canCreateMemo}
                     isCreating={createMemoMutation.isPending || createTemplateMutation.isPending}
                     onClose={handleCloseTemplates}
-                    onCreateMemo={handleCreateMemo}
                     onCreateSavedTemplate={async (payload) => {
                       await createTemplateMutation.mutateAsync(payload);
                     }}

@@ -31,7 +31,13 @@ export const GitHubRepositoryLink = ({
     <TooltipProvider delayDuration={0} skipDelayDuration={0}>
       <Tooltip>
         <TooltipTrigger asChild>
-          <a className={cn("inline-flex items-center gap-2", className)} href={GITHUB_REPOSITORY_URL} target="_blank" rel="noopener noreferrer" title="" aria-label={children ? undefined : resolvedTitle}>
+          <a
+            aria-label={children ? undefined : resolvedTitle}
+            className={cn("inline-flex items-center gap-2", className)}
+            href={GITHUB_REPOSITORY_URL}
+            rel="noopener noreferrer"
+            target="_blank"
+          >
             <GitHubMark className={cn("h-4 w-4 shrink-0", iconClassName)} />
             {children}
           </a>

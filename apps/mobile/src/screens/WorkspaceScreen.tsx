@@ -72,7 +72,7 @@ import { SvgXml } from "react-native-svg";
 import { ApiRequestError } from "@edgeever/client";
 import { buildGitHubFeedbackUrl, createExcerpt, DEFAULT_MEMO_TITLE, docToMarkdown, docToText, getNotebookDescendantIds, markdownToDoc, resolveMemoContentDoc, type AuthUser, type MemoDetail, type MemoRevision, type MemoSummary, type Notebook, type TiptapDoc } from "@edgeever/shared";
 import { MOBILE_UI_METRICS, getMobileCenteredScrollOffset, getMobileNotebookSearchVisibleIds, toggleMobileMemoFilterMode, toggleMobileMemoSelection } from "@edgeever/shared/mobile-ui";
-import { clearMobileMemoDraft, clearMobileNewMemoDraft, readMobileMemoDraft, readMobileNewMemoDraft, writeMobileMemoDraft, writeMobileNewMemoDraft, type MobileMemoDraft } from "../lib/mobile-drafts";
+import { clearMobileMemoDraft, clearMobileNewMemoDraft, readMobileMemoDraft, writeMobileMemoDraft, type MobileMemoDraft } from "../lib/mobile-drafts";
 import {
   readMobileImageCompressionEnabled,
   readMobileMemoListDensity,
@@ -2065,29 +2065,9 @@ const CreateMemoModal = ({
     setNotebookId(fallbackNotebookId);
     setDirty(false);
 
-    void readMobileNewMemoDraft(dataScope).then((draft) => {
-      if (!active) {
-        return;
-      }
-      // Don't clobber if the user already started typing.
-      if (!draft || userEditedSinceOpenRef.current) {
-        setDraftLoaded(true);
-        return;
-      }
-      const restoredNotebookId = notebooksRef.current.some((notebook) => notebook.id === draft.notebookId)
-        ? draft.notebookId
-        : fallbackNotebookId;
-      const markdown = draft.contentMarkdown ?? "";
-      const doc = markdownToDoc(markdown);
-      contentMarkdownRef.current = markdown;
-      contentJsonRef.current = doc;
-      setTitle(draft.title ?? "");
-      setTagsText(draft.tagsText ?? "");
-      setContentMarkdown(markdown);
-      setNotebookId(restoredNotebookId);
-      setDirty(false);
-      setDraftLoaded(true);
-    }).catch(() => {
+    // A regular create session must always start blank. Remove any legacy
+    // auto-saved create draft instead of restoring content from the last one.
+    void clearMobileNewMemoDraft(dataScope).catch(() => undefined).finally(() => {
       if (active) {
         setDraftLoaded(true);
       }
@@ -2120,14 +2100,8 @@ const CreateMemoModal = ({
         tagsText: currentTagsText,
         updatedAt,
       })
-      : writeMobileNewMemoDraft(dataScope, {
-        title: currentTitle,
-        contentMarkdown: currentContentMarkdown,
-        notebookId: currentNotebookId,
-        tagsText: currentTagsText,
-        updatedAt,
-      }));
-  }, [dataScope, draftWriteBarrier]);
+      : Promise.resolve());
+  }, [draftWriteBarrier]);
 
   const applyTemplateSeed = useCallback((seed: MobileCreateMemoSeed) => {
     const markdown = seed.contentMarkdown;

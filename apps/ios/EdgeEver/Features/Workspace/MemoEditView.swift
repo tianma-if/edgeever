@@ -9,7 +9,8 @@ private enum ImagePickerRoute: String, Identifiable {
 }
 
 enum MemoEditMode: Equatable {
-    /// `seed` pre-fills title/body/tags (template / clip-style create). When nil, restores local new-note draft.
+    /// `seed` pre-fills title/body/tags for an explicit template, clip, or share flow.
+    /// A regular create always starts blank.
     case create(notebookId: String, seed: CreateMemoSeed? = nil)
     case edit(memoId: String)
 }
@@ -781,19 +782,23 @@ struct MemoEditView: View {
         guard let scope = env.session.dataScope else { return }
         switch mode {
         case .create(let nb, let seed):
+            // A regular create must never inherit state from the previous create
+            // session. Clear both in-memory fields and any legacy persisted draft.
+            title = ""
+            tagsText = ""
+            contentMarkdown = ""
+            contentJSON = MemoEditViewModel.emptyDocJSON
             notebookId = nb
+            memoId = nil
+            expectedRevision = nil
+            expectedContentHash = nil
+            try? env.drafts.clear(scope: scope, key: DraftRepository.newKey)
             if let seed {
-                // Template / explicit seed wins over local new-note draft (Android initialDraft).
+                // Only explicit template / clip / share input may prefill a create.
                 title = seed.title
                 tagsText = seed.tagsText
                 contentMarkdown = seed.contentMarkdown
                 contentJSON = MemoEditViewModel.emptyDocJSON
-            } else if let draft = try? env.drafts.read(scope: scope, key: DraftRepository.newKey) {
-                title = draft.title
-                tagsText = draft.tagsText
-                contentMarkdown = draft.contentMarkdown
-                contentJSON = draft.contentJson ?? contentJSON
-                if !draft.notebookId.isEmpty { notebookId = draft.notebookId }
             }
             baselineMarkdown = contentMarkdown
         case .edit(let id):
@@ -893,29 +898,14 @@ struct MemoEditView: View {
         }
         let now = EdgeEverDate.nowString()
 
-        // Create mode before materialize: draft only.
-        // Create mode after materialize (image upload) OR edit: mirror + outbox update.
+        // A non-materialized create remains in memory until Done/Back commits it.
+        // Persisting it under the shared `new` key would leak this content into a
+        // later create session.
         if isCreate, !hasMaterializedServerMemo {
-            try? env.drafts.write(
-                scope: scope,
-                draft: viewModel.makeDraft(key: DraftRepository.newKey, expectedRevision: nil, updatedAt: now)
-            )
-            NSLog(
-                "MemoEditView persist draft-only mdLen=%d hasImg=%d",
-                contentMarkdown.count,
-                contentMarkdown.contains("/api/v1/resources/") ? 1 : 0
-            )
             return
         }
 
         guard let memoId, !memoId.hasPrefix("local:") else {
-            // Offline local: create still in flight — keep draft.
-            if isCreate {
-                try? env.drafts.write(
-                    scope: scope,
-                    draft: viewModel.makeDraft(key: DraftRepository.newKey, expectedRevision: nil, updatedAt: now)
-                )
-            }
             return
         }
 
@@ -955,14 +945,16 @@ struct MemoEditView: View {
         )
         expectedRevision = rev
         expectedContentHash = hash
-        try? env.drafts.write(
-            scope: scope,
-            draft: viewModel.makeDraft(
-                key: isCreate ? DraftRepository.newKey : DraftRepository.memoKey(memo.id),
-                expectedRevision: rev,
-                updatedAt: now
+        if !isCreate {
+            try? env.drafts.write(
+                scope: scope,
+                draft: viewModel.makeDraft(
+                    key: DraftRepository.memoKey(memo.id),
+                    expectedRevision: rev,
+                    updatedAt: now
+                )
             )
-        )
+        }
         NSLog(
             "MemoEditView persist update memo=%@ baseRev=%d mdLen=%d hasImg=%d jsonHasImg=%d",
             memo.id,

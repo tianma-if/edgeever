@@ -142,7 +142,7 @@ final class SharedTipTapRuntime: NSObject, WKScriptMessageHandler, WKNavigationD
             needsForcePushOnBind = true
         }
         // Drop action callbacks for the dismantled SwiftUI host so late JS `change`
-        // events cannot rewrite the next create draft with this session's body.
+        // events cannot rewrite a later editor session with this session's body.
         if var s = session {
             s.onChange = nil
             s.onResourcePress = nil
@@ -635,7 +635,7 @@ final class SharedTipTapRuntime: NSObject, WKScriptMessageHandler, WKNavigationD
             pushContentIfNeeded(force: true)
         case "change":
             // Host dismantled (create/edit dismissed) — drop late events so they cannot
-            // resurrect the previous body into a new-note draft via onChange autosave.
+            // resurrect the previous body in a later editor session.
             guard let session, session.onChange != nil else { return }
             let md = body["contentMarkdown"] as? String ?? ""
             let json = body["contentJson"] as? String ?? session.documentJSON

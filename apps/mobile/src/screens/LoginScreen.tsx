@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { PUBLIC_DEMO_INSTANCE_URL } from "@edgeever/shared";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ActivityIndicator, ExternalLink, LockKeyhole } from "../components/icons";
+import { ActivityIndicator, GitHub, LockKeyhole } from "../components/icons";
 import { Pressable, Text, TextInput } from "../components/LocalizedText";
 import { resolveMobileThemeStyles, useMobileTheme, type MobileResolvedTheme } from "../lib/mobile-theme";
 import { useSession } from "../lib/session";
@@ -48,7 +48,7 @@ export const LoginScreen = () => {
   return (
     <SafeAreaView style={styles.safeArea}>
       <Pressable accessibilityLabel="GitHub 仓库" accessibilityRole="link" onPress={() => Linking.openURL(GITHUB_REPOSITORY_URL)} style={styles.githubButton}>
-        <ExternalLink color="#475569" size={20} />
+        <GitHub color="#475569" size={20} />
       </Pressable>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.keyboard}>
         <ScrollView
@@ -78,14 +78,6 @@ export const LoginScreen = () => {
                 style={styles.input}
                 value={baseUrl}
               />
-              <Text style={styles.hint}>请填写完整 HTTPS 地址，不要只输入 demo。</Text>
-              <Pressable
-                accessibilityLabel="填入公开演示实例"
-                accessibilityRole="button"
-                onPress={() => setBaseUrl(PUBLIC_DEMO_INSTANCE_URL)}
-              >
-                <Text style={styles.demoLink}>填入公开演示实例</Text>
-              </Pressable>
             </View>
 
             <View style={styles.field}>
@@ -216,16 +208,6 @@ const baseLoginStyles = StyleSheet.create({
     fontSize: 16,
     minHeight: 48,
     paddingHorizontal: 14,
-  },
-  hint: {
-    color: "#64748b",
-    fontSize: 12,
-    lineHeight: 16,
-  },
-  demoLink: {
-    color: "#059669",
-    fontSize: 13,
-    fontWeight: "700",
   },
   error: {
     color: "#dc2626",

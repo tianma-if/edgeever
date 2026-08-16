@@ -1002,30 +1002,6 @@ const baseWorkspaceStyles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 17,
   },
-  templateBadge: {
-    borderRadius: 999,
-    borderWidth: 1,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-  },
-  templateBadgeBuiltIn: {
-    backgroundColor: "#f8fafc",
-    borderColor: "#e2e8f0",
-  },
-  templateBadgeCustom: {
-    backgroundColor: "#ecfdf5",
-    borderColor: "#a7f3d0",
-  },
-  templateBadgeText: {
-    fontSize: 10,
-    fontWeight: "700",
-  },
-  templateBadgeTextBuiltIn: {
-    color: "#64748b",
-  },
-  templateBadgeTextCustom: {
-    color: "#047857",
-  },
   templateChoiceRow: {
     alignItems: "center",
     borderRadius: 12,

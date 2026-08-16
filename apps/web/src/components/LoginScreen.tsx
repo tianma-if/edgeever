@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { LockKeyhole } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { PUBLIC_DEMO_INSTANCE_URL, resolveInstanceUrlInput } from "@edgeever/shared";
+import { resolveInstanceUrlInput } from "@edgeever/shared";
 import { Button } from "@/components/ui/button";
 import { GitHubRepositoryLink } from "@/components/GitHubRepositoryLink";
 import { Input } from "@/components/ui/input";
@@ -92,14 +92,6 @@ export const LoginScreen = ({ error, instanceUrl: initialInstanceUrl, isSubmitti
                 value={instanceUrl}
                 onChange={(event) => setInstanceUrl(event.target.value)}
               />
-              <p className="mt-2 text-xs font-medium text-slate-500">{t("login.instanceUrlHint")}</p>
-              <button
-                className="mt-1.5 text-sm font-semibold text-emerald-700 transition hover:text-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/70"
-                type="button"
-                onClick={() => setInstanceUrl(PUBLIC_DEMO_INSTANCE_URL)}
-              >
-                {t("login.usePublicDemo")}
-              </button>
             </label>
           ) : null}
 

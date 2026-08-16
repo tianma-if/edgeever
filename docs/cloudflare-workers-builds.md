@@ -18,7 +18,9 @@ Configure `EDGE_EVER_AUTH_PASSWORD` under the Worker's **Settings -> Variables a
 - **Update deployed EdgeEver** keeps a deployment Fork as an upstream **deploy mirror**:
   - Default channel `stable` tracks the latest formal Release tag.
   - Set the GitHub Repository Variable `EDGE_EVER_UPDATE_CHANNEL=edge` to follow upstream `main`.
-  - Read-only forks (no app code changes) apply the target's product snapshot in a new linear commit; customized forks merge product changes and fail closed on conflicts.
+  - Read-only forks (no app code changes) apply the target's product snapshot in a new linear commit without installing dependencies or running the project test suite.
+  - Only forks that explicitly set `EDGE_EVER_PRESERVE_FORK_CHANGES=true` merge product changes. A customized merge runs local migrations, the complete non-E2E test suite, type checks, and the production build before pushing; any failure leaves `main` and production unchanged.
+  - Formal Releases run the same complete non-E2E suite on an official Ubuntu job before Draft assets are prepared. This keeps the stable channel's upstream baseline green, so customized-fork failures indicate an integration problem rather than a test already broken by the Release itself.
   - The complete downstream `.github/workflows/**` directory and two updater helper scripts form a stable local bootstrap layer. Official packaging, signing, testing, and Release workflows are not part of automatic product updates, so `GITHUB_TOKEN` never needs permission to rewrite Actions workflows.
   - Every run writes a job **Summary** with channel, target version, decision reason, and whether a push happened. A green run that says *Already on upstream target* is success, not a silent failure.
   - Prefer this workflow over GitHub **Sync fork**. Sync fork follows upstream `main` history and can make the next stable run a deliberate no-op.

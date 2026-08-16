@@ -442,6 +442,183 @@ const MCP_TOOL_DEFINITIONS = [
       properties: {},
     },
   },
+  {
+    name: "list_note_templates",
+    description: "List reusable note templates in the authenticated user's workspace, including their Markdown content and tags.",
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      properties: {},
+    },
+  },
+  {
+    name: "get_note_template",
+    description: "Get one reusable note template by its exact EdgeEver template ID.",
+    inputSchema: {
+      type: "object",
+      required: ["templateId"],
+      additionalProperties: false,
+      properties: {
+        templateId: { type: "string", minLength: 1 },
+      },
+    },
+  },
+  {
+    name: "create_note_template",
+    description: "Create a reusable note template from supplied Markdown or an existing memo in the authenticated user's workspace.",
+    inputSchema: {
+      type: "object",
+      required: ["name"],
+      additionalProperties: false,
+      anyOf: [{ required: ["memoId"] }, { required: ["contentMarkdown"] }],
+      properties: {
+        name: { type: "string", minLength: 1, maxLength: 160 },
+        description: { type: "string", maxLength: 500 },
+        memoId: { type: "string", minLength: 1, description: "Existing memo to copy into the template." },
+        title: { type: ["string", "null"], maxLength: 160 },
+        contentMarkdown: { type: "string" },
+        tags: { type: "array", items: { type: "string" } },
+      },
+    },
+  },
+  {
+    name: "update_note_template",
+    description: "Update the name, description, title, Markdown content, or tags of a reusable note template.",
+    inputSchema: {
+      type: "object",
+      required: ["templateId"],
+      additionalProperties: false,
+      anyOf: [
+        { required: ["name"] },
+        { required: ["description"] },
+        { required: ["title"] },
+        { required: ["contentMarkdown"] },
+        { required: ["tags"] },
+      ],
+      properties: {
+        templateId: { type: "string", minLength: 1 },
+        name: { type: "string", minLength: 1, maxLength: 160 },
+        description: { type: ["string", "null"], maxLength: 500 },
+        title: { type: ["string", "null"], maxLength: 160 },
+        contentMarkdown: { type: "string" },
+        tags: { type: "array", items: { type: "string" } },
+      },
+    },
+  },
+  {
+    name: "delete_note_template",
+    description: "Permanently delete a reusable note template from the authenticated user's workspace.",
+    inputSchema: {
+      type: "object",
+      required: ["templateId"],
+      additionalProperties: false,
+      properties: {
+        templateId: { type: "string", minLength: 1 },
+      },
+    },
+  },
+  {
+    name: "use_note_template",
+    description: "Create a new memo from a reusable note template in the selected notebook.",
+    inputSchema: {
+      type: "object",
+      required: ["templateId", "notebookId"],
+      additionalProperties: false,
+      properties: {
+        templateId: { type: "string", minLength: 1 },
+        notebookId: { type: "string", minLength: 1 },
+      },
+    },
+  },
+  {
+    name: "list_ai_instructions",
+    description: "List reusable AI instructions in the authenticated user's workspace, including built-in and custom entries.",
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        locale: { type: "string", description: "Optional locale such as en-US or zh-CN for unmodified built-in instructions." },
+      },
+    },
+  },
+  {
+    name: "get_ai_instruction",
+    description: "Get one reusable AI instruction by its exact EdgeEver instruction ID.",
+    inputSchema: {
+      type: "object",
+      required: ["instructionId"],
+      additionalProperties: false,
+      properties: {
+        instructionId: { type: "string", minLength: 1 },
+        locale: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "create_ai_instruction",
+    description: "Create a custom reusable AI instruction in the authenticated user's workspace.",
+    inputSchema: {
+      type: "object",
+      required: ["name", "instruction"],
+      additionalProperties: false,
+      properties: {
+        name: { type: "string", minLength: 1, maxLength: 80 },
+        description: { type: "string", maxLength: 200 },
+        instruction: { type: "string", minLength: 1, maxLength: 2000 },
+        parameterKind: { type: "string", enum: ["none", "target-language", "tone"], default: "none" },
+        resultMode: { type: "string", enum: ["append", "replace", "both"], default: "both" },
+        locale: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "update_ai_instruction",
+    description: "Update the text or execution behavior of a built-in or custom reusable AI instruction.",
+    inputSchema: {
+      type: "object",
+      required: ["instructionId"],
+      additionalProperties: false,
+      anyOf: [
+        { required: ["name"] },
+        { required: ["description"] },
+        { required: ["instruction"] },
+        { required: ["parameterKind"] },
+        { required: ["resultMode"] },
+      ],
+      properties: {
+        instructionId: { type: "string", minLength: 1 },
+        name: { type: "string", minLength: 1, maxLength: 80 },
+        description: { type: ["string", "null"], maxLength: 200 },
+        instruction: { type: "string", minLength: 1, maxLength: 2000 },
+        parameterKind: { type: "string", enum: ["none", "target-language", "tone"] },
+        resultMode: { type: "string", enum: ["append", "replace", "both"] },
+        locale: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "delete_ai_instruction",
+    description: "Delete a reusable AI instruction. Deleted built-in instructions can be restored later.",
+    inputSchema: {
+      type: "object",
+      required: ["instructionId"],
+      additionalProperties: false,
+      properties: {
+        instructionId: { type: "string", minLength: 1 },
+      },
+    },
+  },
+  {
+    name: "restore_default_ai_instructions",
+    description: "Restore missing built-in AI instructions without overwriting edited instructions or custom entries.",
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        locale: { type: "string" },
+      },
+    },
+  },
 ];
 
 const READ_ONLY_MCP_TOOLS = new Set([
@@ -458,6 +635,10 @@ const READ_ONLY_MCP_TOOLS = new Set([
   "list_notebooks",
   "list_tags",
   "get_workspace_stats",
+  "list_note_templates",
+  "get_note_template",
+  "list_ai_instructions",
+  "get_ai_instruction",
 ]);
 const NON_DESTRUCTIVE_MCP_TOOLS = new Set([
   "create_memo",
@@ -470,6 +651,12 @@ const NON_DESTRUCTIVE_MCP_TOOLS = new Set([
   "move_notebook",
   "create_notebook",
   "rename_notebook",
+  "create_note_template",
+  "update_note_template",
+  "use_note_template",
+  "create_ai_instruction",
+  "update_ai_instruction",
+  "restore_default_ai_instructions",
 ]);
 const IDEMPOTENT_MCP_TOOLS = new Set([
   "restore_memos",
@@ -479,6 +666,9 @@ const IDEMPOTENT_MCP_TOOLS = new Set([
   "import_memos",
   "move_notebook",
   "rename_notebook",
+  "update_note_template",
+  "update_ai_instruction",
+  "restore_default_ai_instructions",
 ]);
 
 export const MCP_TOOLS = MCP_TOOL_DEFINITIONS.map((tool) => {

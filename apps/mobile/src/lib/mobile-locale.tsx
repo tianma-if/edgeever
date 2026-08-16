@@ -141,19 +141,16 @@ const mobileOnlyTranslations = new Map<string, string>([
   ["筛选：{{filter}} · {{count}} 条", "Filter: {{filter}} · {{count}} notes"],
   ["已加载 {{loaded}} / {{total}} 条笔记", "Loaded {{loaded}} of {{total}} notes"],
   ["从模板新建", "New from template"],
-  ["选择预设结构快速开始，也可使用网页端保存的自定义模板。", "Start from a preset structure, or use custom templates saved on the web."],
-  ["我的自定义模板", "My custom templates"],
-  ["内置推荐模板", "Recommended templates"],
+  ["模板", "Templates"],
+  ["选择一个模板快速开始。所有模板都可以在网页端修改或删除。", "Choose a template to get started. Every template can be edited or deleted on the web."],
+  ["模板暂时无法加载，请稍后重试。", "Templates could not load. Please try again later."],
+  ["暂无模板。可在网页端新建模板，或将常用笔记另存为模板。", "No templates yet. Create one or save a note as a template on the web."],
   ["正在加载模板", "Loading templates"],
-  ["自定义模板暂时无法加载，仍可使用下方内置模板。", "Custom templates could not load. Built-in templates are still available."],
-  ["暂无自定义模板。可在网页端将常用笔记另存为模板。", "No custom templates yet. Save notes as templates on the web."],
   ["新建笔记", "New note"],
   ["选择创建方式", "Choose how to create"],
   ["空白笔记", "Blank note"],
   ["从空白页开始记录", "Start with an empty page"],
   ["使用会议纪要、周报等预设结构", "Use meeting notes, weekly reviews, and more"],
-  ["自定义", "Custom"],
-  ["内置", "Built-in"],
   ["模板", "Template"],
   ["应用模板？", "Apply template?"],
   ["当前内容将被模板内容替换。", "The current content will be replaced by the template."],
@@ -176,6 +173,19 @@ const flattenStrings = (value: unknown, prefix = "", output = new Map<string, st
 };
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const createTranslationPair = (source: string, target: string): TranslationPair => {
+  const placeholders: string[] = [];
+  const patternSource = escapeRegExp(source).replace(/\\\{\\\{(\w+)\\\}\\\}/g, (_match, placeholder: string) => {
+    placeholders.push(placeholder);
+    return "(.+?)";
+  });
+  return {
+    source,
+    target,
+    pattern: placeholders.length > 0 ? new RegExp(`^${patternSource}$`) : undefined,
+    placeholders,
+  };
+};
 const zhStrings = flattenStrings(zhCN);
 const enStrings = flattenStrings(enUS);
 const translationPairs: TranslationPair[] = Array.from(zhStrings.entries())
@@ -184,26 +194,16 @@ const translationPairs: TranslationPair[] = Array.from(zhStrings.entries())
     if (!target || source === target) {
       return [];
     }
-    const placeholders: string[] = [];
-    const patternSource = escapeRegExp(source).replace(/\\\{\\\{(\w+)\\\}\\\}/g, (_match, placeholder: string) => {
-      placeholders.push(placeholder);
-      return "(.+?)";
-    });
-    return [{ source, target, pattern: placeholders.length > 0 ? new RegExp(`^${patternSource}$`) : undefined, placeholders }];
-  })
-  .sort((left, right) => right.source.length - left.source.length);
+    return [createTranslationPair(source, target)];
+  });
 const exactTranslations = new Map(translationPairs.filter((pair) => !pair.pattern).map((pair) => [pair.source, pair.target]));
-const templateTranslations = translationPairs.filter((pair) => pair.pattern);
 const mobileTemplateTranslations: TranslationPair[] = Array.from(mobileOnlyTranslations.entries())
   .filter(([source]) => source.includes("{{"))
-  .map(([source, target]) => {
-    const placeholders: string[] = [];
-    const patternSource = escapeRegExp(source).replace(/\\\{\\\{(\w+)\\\}\\\}/g, (_match, placeholder: string) => {
-      placeholders.push(placeholder);
-      return "(.+?)";
-    });
-    return { source, target, pattern: new RegExp(`^${patternSource}$`), placeholders };
-  });
+  .map(([source, target]) => createTranslationPair(source, target));
+const templateTranslations = [
+  ...mobileTemplateTranslations,
+  ...translationPairs.filter((pair) => pair.pattern),
+].sort((left, right) => right.source.length - left.source.length);
 
 const resolveSystemLocale = (): SupportedMobileLocale =>
   (Intl.DateTimeFormat().resolvedOptions().locale || "zh-CN").toLowerCase().startsWith("en") ? "en-US" : "zh-CN";
@@ -216,7 +216,7 @@ export const translateMobileText = (value: string, locale: SupportedMobileLocale
   if (exact) {
     return exact;
   }
-  for (const pair of [...mobileTemplateTranslations, ...templateTranslations]) {
+  for (const pair of templateTranslations) {
     const match = pair.pattern?.exec(value);
     if (!match) {
       continue;

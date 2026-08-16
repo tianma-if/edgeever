@@ -12,6 +12,15 @@ function step(name) {
 }
 
 describe("desktop release workflow", () => {
+  test("gates Draft release assets on the full project suite in Ubuntu", () => {
+    expect(mobileWorkflow).toContain("github.repository == 'tianma-if/edgeever'");
+    expect(mobileWorkflow).toContain("name: Plan Android release asset\n    runs-on: ubuntu-latest");
+    const regressionTests = mobileWorkflow.indexOf("      - name: Run full project regression tests\n        run: bun run test");
+    const releasePlan = mobileWorkflow.indexOf("      - name: Compare with previous formal release");
+    expect(regressionTests).toBeGreaterThanOrEqual(0);
+    expect(regressionTests).toBeLessThan(releasePlan);
+  });
+
   test("assigns shared validation only to the arm64 matrix job", () => {
     expect(workflow).toContain([
       "          - arch: arm64",
