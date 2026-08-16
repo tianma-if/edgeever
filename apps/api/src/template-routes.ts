@@ -86,7 +86,7 @@ const getMemoTemplateRow = async (
      WHERE id = ? AND workspace_id = ?`
   ).bind(id, workspaceId).first<MemoTemplateRow>();
 
-const getMemoTemplate = async (
+export const getMemoTemplate = async (
   db: DatabaseAdapter,
   workspaceId: string,
   id: string
@@ -95,20 +95,26 @@ const getMemoTemplate = async (
   return row ? mapMemoTemplateRow(row) : null;
 };
 
+export const listMemoTemplates = async (
+  db: DatabaseAdapter,
+  workspaceId: string,
+): Promise<MemoTemplate[]> => {
+  const rows = await db.prepare(
+    `SELECT id, name, description, title, content_json, content_markdown, tags_json, created_at, updated_at
+     FROM memo_templates
+     WHERE workspace_id = ?
+     ORDER BY updated_at DESC, name ASC`,
+  ).bind(workspaceId).all<MemoTemplateRow>();
+  return rows.results.map(mapMemoTemplateRow);
+};
+
 export const registerTemplateRoutes = (
   app: Hono<AppEnv>,
   dependencies: TemplateRouteDependencies
 ) => {
   const { createMemoRecord, getMemoDetail } = dependencies;
   app.get("/api/v1/templates", async (c) => {
-    const rows = await c.env.storage.db.prepare(
-      `SELECT id, name, description, title, content_json, content_markdown, tags_json, created_at, updated_at
-       FROM memo_templates
-       WHERE workspace_id = ?
-       ORDER BY updated_at DESC, name ASC`
-    ).bind(getWorkspaceId(c)).all<MemoTemplateRow>();
-
-    return c.json({ templates: rows.results.map(mapMemoTemplateRow) });
+    return c.json({ templates: await listMemoTemplates(c.env.storage.db, getWorkspaceId(c)) });
   });
 
   app.post("/api/v1/templates", zValidator("json", TemplateCreateSchema), async (c) => {

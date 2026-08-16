@@ -199,7 +199,7 @@ Repository file: [docs/openapi.json](docs/openapi.json).
 
 ## MCP
 
-Create an API token in **Profile** -> **MCP settings**, then give the token or full MCP configuration to your AI Agent. Once connected, the Agent can securely read, organize, and import notes within your account permissions. Repeating the same import will not create duplicate notes.
+Create an API token in **Profile** -> **MCP settings**, then give the token or full MCP configuration to your AI Agent. Once connected, the Agent can securely read, organize, and import notes within your account permissions. MCP also exposes full management of reusable note templates and AI instructions: agents can list, inspect, create, update, and delete both, create a note from a template, and restore missing built-in AI instructions. Template and instruction reads use the `read:memos` scope, while changes use `write:memos`. Repeating the same memo import will not create duplicate notes.
 
 The Remote MCP endpoint supports the stateless `2026-07-28` protocol while retaining the handshake-based 2025 revisions for existing clients.
 
