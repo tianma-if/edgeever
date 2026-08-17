@@ -10,6 +10,7 @@ export type LocalMemoListParams = {
   notebookId?: string | null;
   notebookIds?: string[];
   q?: string;
+  tag?: string;
   trash?: boolean;
   sort?: MemoSortMode;
   filter?: MemoFilterMode;
@@ -203,10 +204,12 @@ export const listLocalMemos = async (scope: string, params: LocalMemoListParams)
   let memos = await localDb.memos.where("scope").equals(scope).toArray();
   const notebookIds = params.notebookIds ?? (params.notebookId ? [params.notebookId] : null);
   const q = params.q?.trim().toLocaleLowerCase();
+  const tag = params.tag?.trim().toLocaleLowerCase();
 
   memos = memos.filter((memo) => {
     if (memo.isDeleted !== Boolean(params.trash)) return false;
     if (notebookIds?.length && !notebookIds.includes(memo.notebookId)) return false;
+    if (tag && !memo.tags.some((memoTag) => memoTag.toLocaleLowerCase() === tag)) return false;
     if (params.filter === "tagged" && memo.tags.length === 0) return false;
     if (params.filter === "untagged" && memo.tags.length > 0) return false;
     if (params.filter === "pinned" && !memo.isPinned) return false;

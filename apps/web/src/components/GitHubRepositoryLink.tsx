@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 
 const GITHUB_REPOSITORY_URL = "https://github.com/tianma-if/edgeever";
 
-const GitHubMark = ({ className }: { className?: string }) => (
+export const GitHubMark = ({ className }: { className?: string }) => (
   <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
     <path
       fillRule="evenodd"

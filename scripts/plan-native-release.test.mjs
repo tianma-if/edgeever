@@ -30,6 +30,30 @@ describe("native release planning", () => {
     });
   });
 
+  test("keeps an expo-sharing dependency patch scoped to Android", () => {
+    const changedFiles = [
+      "package.json",
+      "bun.lock",
+      "apps/mobile/app.json",
+      "patches/expo-sharing@57.0.8.patch",
+      "scripts/plan-native-release.mjs",
+      "scripts/plan-native-release.test.mjs",
+    ];
+
+    expect(planNativeRelease("mobile", changedFiles)).toEqual({
+      rebuild: true,
+      relevantChanges: [
+        "bun.lock",
+        "apps/mobile/app.json",
+        "patches/expo-sharing@57.0.8.patch",
+      ],
+    });
+    expect(planNativeRelease("desktop", changedFiles)).toEqual({
+      rebuild: false,
+      relevantChanges: [],
+    });
+  });
+
   test("rebuilds desktop for its embedded Web renderer and shared runtime", () => {
     const changedFiles = [
       "apps/web/src/app/App.tsx",

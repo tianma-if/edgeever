@@ -29,6 +29,7 @@ const memoMatchesFilter = (memo: MemoSummary, filterMode: unknown) => {
 const memoMatchesStaticListConstraints = (memo: MemoSummary, queryKey: readonly unknown[]) => {
   const [, view, notebookId, , filterMode] = queryKey;
   const notebookIds = Array.isArray(queryKey[6]) ? queryKey[6] : [];
+  const tag = typeof queryKey[7] === "string" ? queryKey[7].trim().toLocaleLowerCase() : "";
   const memoView = view === "trash" ? "trash" : "notebook";
 
   if ((memoView === "trash") !== memo.isDeleted) {
@@ -41,6 +42,10 @@ const memoMatchesStaticListConstraints = (memo: MemoSummary, queryKey: readonly 
     notebookId &&
     !(notebookIds.length > 0 ? notebookIds.includes(memo.notebookId) : memo.notebookId === notebookId)
   ) {
+    return false;
+  }
+
+  if (tag && !memo.tags.some((memoTag) => memoTag.toLocaleLowerCase() === tag)) {
     return false;
   }
 

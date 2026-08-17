@@ -195,6 +195,14 @@ actor APIClient {
         return response.prompts
     }
 
+    func suggestAiTags(_ input: AiTagSuggestionsInput) async throws -> AiTagSuggestionsResponse {
+        try await request(
+            path: "/api/v1/ai/tag-suggestions",
+            method: "POST",
+            body: input
+        )
+    }
+
     func streamAiGeneration(_ input: AiGenerateInput) -> AsyncThrowingStream<AiStreamEvent, Error> {
         var request = URLRequest(url: makeURL(path: "/api/v1/ai/generate"))
         request.httpMethod = "POST"

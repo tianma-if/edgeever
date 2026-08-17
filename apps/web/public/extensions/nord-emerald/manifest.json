@@ -1,0 +1,38 @@
+{
+  "type": "theme",
+  "id": "org.edgeever.themes.nord-emerald",
+  "name": "Nord Emerald",
+  "version": "1.0.0",
+  "themeApiVersion": "1",
+  "description": "A calm Nord-inspired EdgeEver theme using the public theme token API.",
+  "author": "EdgeEver",
+  "modes": ["light", "dark"],
+  "light": {
+    "color.background": "#eceff4",
+    "color.surface": "#ffffff",
+    "color.surfaceMuted": "#e5e9f0",
+    "color.text": "#2e3440",
+    "color.textMuted": "#5e6a7d",
+    "color.border": "#d8dee9",
+    "color.accent": "#168f6a",
+    "color.accentForeground": "#ffffff",
+    "font.body": "Inter, ui-sans-serif, system-ui, sans-serif",
+    "font.mono": "ui-monospace, SFMono-Regular, Menlo, monospace",
+    "radius.medium": "0.625rem",
+    "editor.contentWidth": "840px"
+  },
+  "dark": {
+    "color.background": "#242933",
+    "color.surface": "#2e3440",
+    "color.surfaceMuted": "#3b4252",
+    "color.text": "#eceff4",
+    "color.textMuted": "#b7c0d0",
+    "color.border": "#4c566a",
+    "color.accent": "#5ec49a",
+    "color.accentForeground": "#17211c",
+    "font.body": "Inter, ui-sans-serif, system-ui, sans-serif",
+    "font.mono": "ui-monospace, SFMono-Regular, Menlo, monospace",
+    "radius.medium": "0.625rem",
+    "editor.contentWidth": "840px"
+  }
+}

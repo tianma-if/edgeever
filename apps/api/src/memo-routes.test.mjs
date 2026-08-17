@@ -59,7 +59,7 @@ describe("memo route contracts", () => {
       },
     });
     const response = await createApp(dependencies).request(
-      "/api/v1/memos?notebookId=nb_1&includeDescendants=1&q=hello&trash=1&sort=title-asc&filter=pinned&limit=25&cursor=opaque",
+      "/api/v1/memos?notebookId=nb_1&includeDescendants=1&q=hello&tag=Demo&trash=1&sort=title-asc&filter=pinned&limit=25&cursor=opaque",
       {},
       environment,
     );
@@ -70,6 +70,7 @@ describe("memo route contracts", () => {
       notebookId: "nb_1",
       includeNotebookDescendants: true,
       query: "hello",
+      tag: "Demo",
       includeTrash: true,
       sort: "title-asc",
       filter: "pinned",

@@ -26,5 +26,8 @@ describe("platform release version checks", () => {
   test("compares semantic release components and ignores build metadata", () => {
     expect(isVersionOutdated("1.6.49+12", "1.6.50")).toBe(true);
     expect(isVersionOutdated("1.6.50+3", "1.6.50")).toBe(false);
+    expect(isVersionOutdated("1.6.50-beta.2", "1.6.50-beta.10")).toBe(true);
+    expect(isVersionOutdated("1.6.50-beta.10", "1.6.50")).toBe(true);
+    expect(isVersionOutdated("1.6.50", "1.6.50-beta.10")).toBe(false);
   });
 });

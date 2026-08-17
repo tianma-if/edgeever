@@ -156,6 +156,24 @@ struct AiGenerateInput: Encodable, Sendable {
     var instruction: String? = nil
 }
 
+struct AiTagSuggestionsInput: Encodable, Sendable {
+    var title: String
+    var contentMarkdown: String
+    var currentTags: [String]
+    var locale: String
+}
+
+struct AiTagSuggestion: Codable, Equatable, Sendable, Identifiable {
+    var name: String
+    var existing: Bool
+
+    var id: String { name }
+}
+
+struct AiTagSuggestionsResponse: Codable, Equatable, Sendable {
+    var suggestions: [AiTagSuggestion]
+}
+
 enum AiPromptParameterKind: String, Codable, Sendable {
     case none
     case targetLanguage = "target-language"

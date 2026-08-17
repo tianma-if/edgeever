@@ -11,6 +11,19 @@ export const planNativeRelease = (platform, changedFiles) => {
     (file) => !file.endsWith(".md"),
   );
 
+  const mobileOnlyDependencyPatches = runtimeChangedFiles.filter((file) =>
+    file.startsWith("patches/expo-sharing@")
+  );
+  const lockfileIsMobileOnly =
+    mobileOnlyDependencyPatches.length > 0 &&
+    runtimeChangedFiles.every((file) =>
+      file === "package.json" ||
+      file === "bun.lock" ||
+      file.startsWith("apps/mobile/") ||
+      file.startsWith("patches/expo-sharing@") ||
+      file.startsWith("scripts/plan-native-release")
+    );
+
   const relevantPrefixes =
     platform === "mobile"
       ? ["apps/mobile/", "packages/client/", "packages/shared/"]
@@ -31,6 +44,7 @@ export const planNativeRelease = (platform, changedFiles) => {
           "scripts/build-android-local.sh",
           "scripts/download-play-universal-apk.mjs",
           "scripts/verify-android-apk-signature.mjs",
+          ...mobileOnlyDependencyPatches,
         ])
       : new Set([
           ".github/workflows/desktop-build.yml",
@@ -46,6 +60,8 @@ export const planNativeRelease = (platform, changedFiles) => {
     (file) =>
       relevantPrefixes.some((prefix) => file.startsWith(prefix)) ||
       relevantFiles.has(file),
+  ).filter((file) =>
+    !(platform === "desktop" && file === "bun.lock" && lockfileIsMobileOnly),
   );
 
   return {

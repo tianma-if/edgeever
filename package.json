@@ -1,6 +1,6 @@
 {
   "name": "edgeever",
-  "version": "1.27.0",
+  "version": "1.29.0",
   "private": true,
   "type": "module",
   "workspaces": [
@@ -116,6 +116,7 @@
     "@ai-sdk/google": "^4.0.39",
     "@ai-sdk/openai-compatible": "^3.0.27",
     "@aws-sdk/client-s3": "^3.1095.0",
+    "@edgeever/plugin-api": "workspace:*",
     "@edgeever/shared": "workspace:*",
     "@hono/zod-validator": "latest",
     "@radix-ui/react-checkbox": "^1.3.11",
@@ -187,6 +188,7 @@
     "wrangler": "^4.112.0"
   },
   "patchedDependencies": {
+    "expo-sharing@57.0.8": "patches/expo-sharing@57.0.8.patch",
     "mermaid@11.16.0": "patches/mermaid@11.16.0.patch"
   }
 }

@@ -52,6 +52,62 @@ describe("EdgeEver client HTTP contract", () => {
     expect(headers.has("Content-Type")).toBe(false);
   });
 
+  test("sends unsaved note content to the AI tag suggestion endpoint", async () => {
+    let call;
+    const client = createEdgeEverClient({
+      fetch: async (input, init) => {
+        call = { input: String(input), init };
+        return jsonResponse({ suggestions: [{ name: "existing", existing: true }] });
+      },
+    });
+
+    const result = await client.suggestAiTags({
+      title: "Draft title",
+      contentMarkdown: "Draft body",
+      currentTags: ["current"],
+      locale: "en-US",
+    });
+
+    expect(call.input).toBe("/api/v1/ai/tag-suggestions");
+    expect(call.init.method).toBe("POST");
+    expect(JSON.parse(call.init.body)).toEqual({
+      title: "Draft title",
+      contentMarkdown: "Draft body",
+      currentTags: ["current"],
+      locale: "en-US",
+    });
+    expect(result.suggestions).toEqual([{ name: "existing", existing: true }]);
+  });
+
+  test("sends an exact tag constraint when listing memos", async () => {
+    let requestUrl;
+    const client = createEdgeEverClient({
+      fetch: async (input) => {
+        requestUrl = String(input);
+        return jsonResponse({ memos: [], totalCount: 0, nextCursor: null });
+      },
+    });
+
+    await client.listMemos({ tag: "产品 和 交互" });
+
+    expect(requestUrl).toBe("/api/v1/memos?tag=%E4%BA%A7%E5%93%81+%E5%92%8C+%E4%BA%A4%E4%BA%92");
+  });
+
+  test("updates the workspace AI tag suggestion prompt", async () => {
+    let call;
+    const client = createEdgeEverClient({
+      fetch: async (input, init) => {
+        call = { input: String(input), init };
+        return jsonResponse({ tagSuggestionPrompt: "Custom", tagSuggestionPromptCustomized: true });
+      },
+    });
+
+    await client.updateAiTagSuggestionPrompt({ prompt: "Custom" }, "zh-CN");
+    expect(call.input).toBe("/api/v1/ai/tag-suggestion-prompt?locale=zh-CN");
+    expect(call.init.method).toBe("PUT");
+    expect(JSON.parse(call.init.body)).toEqual({ prompt: "Custom" });
+  });
+
   test("preserves API error codes and invokes unauthorized handling", async () => {
     let unauthorized = 0;
     const client = createEdgeEverClient({

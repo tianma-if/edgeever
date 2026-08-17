@@ -2,7 +2,13 @@ import { describe, expect, test } from "bun:test";
 import { globSync, readFileSync } from "node:fs";
 import { Database } from "bun:sqlite";
 import { Hono } from "hono";
-import { AI_ACTIONS, AiGenerateSchema } from "@edgeever/shared";
+import {
+  AI_ACTIONS,
+  AiGenerateSchema,
+  AiTagSuggestionsRequestSchema,
+  DEFAULT_AI_TAG_SUGGESTION_PROMPT,
+  DEFAULT_AI_TAG_SUGGESTION_PROMPT_ZH_CN,
+} from "@edgeever/shared";
 import { registerAiRoutes } from "./ai-routes.ts";
 
 const auth = {
@@ -83,13 +89,13 @@ const createDatabaseEnvironment = () => {
   };
 };
 
-const createApp = ({ currentAuth = auth, demoMode = false, testConnection } = {}) => {
+const createApp = ({ currentAuth = auth, demoMode = false, suggestTags, testConnection } = {}) => {
   const app = new Hono();
   app.use("/api/v1/*", async (context, next) => {
     context.set("auth", currentAuth);
     await next();
   });
-  registerAiRoutes(app, { isDemoMode: () => demoMode, testConnection });
+  registerAiRoutes(app, { isDemoMode: () => demoMode, suggestTags, testConnection });
   return app;
 };
 
@@ -121,6 +127,117 @@ describe("AI route contracts", () => {
     const input = { action: "summarize", title: "Note", contentMarkdown: "Body" };
     expect(AiGenerateSchema.parse(input).stream).toBe(false);
     expect(AiGenerateSchema.parse({ ...input, stream: true }).stream).toBe(true);
+  });
+
+  test("validates AI tag suggestion inputs without requiring saved note content", () => {
+    expect(AiTagSuggestionsRequestSchema.safeParse({
+      title: "Unsaved title",
+      contentMarkdown: "",
+      currentTags: ["draft"],
+      locale: "en-US",
+    }).success).toBe(true);
+    expect(AiTagSuggestionsRequestSchema.safeParse({
+      title: "",
+      contentMarkdown: "   ",
+    }).success).toBe(false);
+  });
+
+  test("stores and restores the workspace AI tag suggestion prompt", async () => {
+    const { sqlite, environment: databaseEnvironment } = createDatabaseEnvironment();
+    const app = createApp();
+
+    const initial = await app.request("/api/v1/ai/settings", {}, databaseEnvironment);
+    expect(await initial.json()).toMatchObject({
+      tagSuggestionPrompt: DEFAULT_AI_TAG_SUGGESTION_PROMPT,
+      tagSuggestionPromptCustomized: false,
+    });
+
+    const initialChinese = await app.request("/api/v1/ai/settings?locale=zh-CN", {}, databaseEnvironment);
+    expect(await initialChinese.json()).toMatchObject({
+      tagSuggestionPrompt: DEFAULT_AI_TAG_SUGGESTION_PROMPT_ZH_CN,
+      tagSuggestionPromptCustomized: false,
+    });
+
+    const customized = await app.request(
+      "/api/v1/ai/tag-suggestion-prompt",
+      {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ prompt: "只推荐人物、作品类型和创作手法。" }),
+      },
+      databaseEnvironment,
+    );
+    expect(customized.status).toBe(200);
+    expect(await customized.json()).toMatchObject({
+      tagSuggestionPrompt: "只推荐人物、作品类型和创作手法。",
+      tagSuggestionPromptCustomized: true,
+    });
+
+    const customizedEnglish = await app.request("/api/v1/ai/settings?locale=en-US", {}, databaseEnvironment);
+    expect(await customizedEnglish.json()).toMatchObject({
+      tagSuggestionPrompt: "只推荐人物、作品类型和创作手法。",
+      tagSuggestionPromptCustomized: true,
+    });
+
+    const restored = await app.request(
+      "/api/v1/ai/tag-suggestion-prompt?locale=zh-CN",
+      {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ prompt: null }),
+      },
+      databaseEnvironment,
+    );
+    expect(await restored.json()).toMatchObject({
+      tagSuggestionPrompt: DEFAULT_AI_TAG_SUGGESTION_PROMPT_ZH_CN,
+      tagSuggestionPromptCustomized: false,
+    });
+    sqlite.close();
+  });
+
+  test("returns normalized AI tag suggestions and reuses canonical workspace tags", async () => {
+    const { sqlite, environment: databaseEnvironment } = createDatabaseEnvironment();
+    sqlite.query("INSERT INTO notebooks (id, workspace_id, name) VALUES (?, ?, ?)")
+      .run("nb_member", "ws_member", "Inbox");
+    sqlite.query("INSERT INTO memos (id, workspace_id, notebook_id, title, tags_json) VALUES (?, ?, ?, ?, ?)")
+      .run("memo_member", "ws_member", "nb_member", "React note", JSON.stringify(["React", "Current"]));
+    sqlite.query("INSERT INTO memo_contents (memo_id, content_json, content_markdown, content_text, content_hash) VALUES (?, ?, ?, ?, ?)")
+      .run("memo_member", JSON.stringify({ type: "doc", content: [] }), "Body", "Body", "hash");
+    let receivedInput = null;
+    const app = createApp({
+      suggestTags: async (input) => {
+        receivedInput = input;
+        return ["react", "#new-topic", "new-topic", "Current"];
+      },
+    });
+    const response = await app.request(
+      "/api/v1/ai/tag-suggestions",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          title: "Unsaved title",
+          contentMarkdown: "Unsaved body",
+          currentTags: ["Current"],
+          locale: "en-US",
+        }),
+      },
+      databaseEnvironment,
+    );
+
+    expect(response.status).toBe(200);
+    expect(receivedInput).toMatchObject({
+      title: "Unsaved title",
+      currentTags: ["Current"],
+      existingTags: ["Current", "React"],
+    });
+    expect(await response.json()).toEqual({
+      suggestions: [
+        { name: "React", existing: true },
+        { name: "new-topic", existing: false },
+      ],
+    });
+    sqlite.close();
   });
 
   test("defers prompt-specific action and parameter validation to the saved prompt", () => {

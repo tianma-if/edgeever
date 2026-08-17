@@ -29,7 +29,11 @@ import { cn } from "@/lib/utils";
 export const AiModelCard = () => {
   const { i18n, t } = useTranslation();
   const queryClient = useQueryClient();
-  const settingsQuery = useQuery({ queryKey: ["ai-settings"], queryFn: api.getAiSettings });
+  const locale = i18n.resolvedLanguage ?? i18n.language;
+  const settingsQuery = useQuery({
+    queryKey: ["ai-settings", locale],
+    queryFn: () => api.getAiSettings(locale),
+  });
   const [expanded, setExpanded] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [provider, setProvider] = useState<AiProvider>("openai-compatible");
@@ -81,7 +85,6 @@ export const AiModelCard = () => {
 
   const settings = settingsQuery.data;
   const readOnly = settings?.readOnly ?? true;
-  const locale = i18n.resolvedLanguage ?? i18n.language;
   const getDefaultProviderName = (index: number) => t("aiModel.defaultProviderName", {
     ordinal: formatProviderOrdinal(index + 1, locale),
   });

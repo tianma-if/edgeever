@@ -251,6 +251,72 @@ body {
   overscroll-behavior-y: auto;
 }
 
+/* Installed theme packages only target this documented token layer. Keeping
+ * the selectors here lets themes survive component refactors without gaining
+ * arbitrary DOM or JavaScript access. */
+html[data-edgeever-extension-theme] {
+  --radius: var(--edgeever-theme-radius, 0.5rem);
+  font-family: var(--edgeever-theme-font-body, inherit);
+  font-size: var(--edgeever-theme-font-size, 100%);
+}
+
+html[data-edgeever-extension-theme] body {
+  background: var(--edgeever-theme-background, #f8fafc);
+  color: var(--edgeever-theme-text, #0f172a);
+  line-height: var(--edgeever-theme-line-height, normal);
+}
+
+html[data-edgeever-extension-theme] .bg-white,
+html[data-edgeever-extension-theme] .bg-slate-50,
+html[data-edgeever-extension-theme] .bg-slate-50\/50 {
+  background-color: var(--edgeever-theme-surface, #fff);
+}
+
+html[data-edgeever-extension-theme] .bg-slate-100,
+html[data-edgeever-extension-theme] .bg-slate-100\/80,
+html[data-edgeever-extension-theme] .bg-slate-200\/50 {
+  background-color: var(--edgeever-theme-surface-muted, #f1f5f9);
+}
+
+html[data-edgeever-extension-theme] .text-slate-700,
+html[data-edgeever-extension-theme] .text-slate-800,
+html[data-edgeever-extension-theme] .text-slate-900,
+html[data-edgeever-extension-theme] .text-slate-950 {
+  color: var(--edgeever-theme-text, #0f172a);
+}
+
+html[data-edgeever-extension-theme] .text-slate-400,
+html[data-edgeever-extension-theme] .text-slate-500,
+html[data-edgeever-extension-theme] .text-slate-600 {
+  color: var(--edgeever-theme-text-muted, #64748b);
+}
+
+html[data-edgeever-extension-theme] .border-slate-100,
+html[data-edgeever-extension-theme] .border-slate-200,
+html[data-edgeever-extension-theme] .border-slate-300,
+html[data-edgeever-extension-theme] .divide-slate-100 > :not([hidden]) ~ :not([hidden]),
+html[data-edgeever-extension-theme] .divide-slate-200 > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--edgeever-theme-border, #e2e8f0);
+}
+
+html[data-edgeever-extension-theme] .bg-emerald-600,
+html[data-edgeever-extension-theme] .bg-emerald-700 {
+  background-color: var(--edgeever-theme-accent, #16a06e);
+  color: var(--edgeever-theme-accent-foreground, #fff);
+}
+
+html[data-edgeever-extension-theme] .text-emerald-600,
+html[data-edgeever-extension-theme] .text-emerald-700,
+html[data-edgeever-extension-theme] .text-emerald-800 {
+  color: var(--edgeever-theme-accent, #16a06e);
+}
+
+html[data-edgeever-extension-theme] code,
+html[data-edgeever-extension-theme] pre,
+html[data-edgeever-extension-theme] kbd {
+  font-family: var(--edgeever-theme-font-mono, ui-monospace, monospace);
+}
+
 ::view-transition-old(root),
 ::view-transition-new(root) {
   animation-duration: 180ms;

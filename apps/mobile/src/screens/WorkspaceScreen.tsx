@@ -1790,21 +1790,32 @@ const NotebookPickerModal = ({
 };
 
 const TagPickerModal = ({
+  client,
+  contentMarkdown,
   dataScope,
   onChange,
   onClose,
   selectedTags,
+  title,
   visible,
 }: {
+  client: ReturnType<typeof useSession>["client"];
+  contentMarkdown: string;
   dataScope: string;
   onChange: (tags: string[]) => void;
   onClose: () => void;
   selectedTags: string[];
+  title: string;
   visible: boolean;
 }) => {
-  const { translate } = useMobileLocale();
+  const { resolvedLocale, translate } = useMobileLocale();
   const safeAreaInsets = useSafeAreaInsets();
   const [searchText, setSearchText] = useState("");
+  const [aiSuggestions, setAiSuggestions] = useState<Awaited<ReturnType<NonNullable<typeof client>["suggestAiTags"]>>["suggestions"] | null>(null);
+  const [selectedAiSuggestions, setSelectedAiSuggestions] = useState<string[]>([]);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const aiControllerRef = useRef<AbortController | null>(null);
   const tagsQuery = useQuery({
     queryKey: ["mobile-tags", dataScope],
     queryFn: () => listLocalTags(dataScope),
@@ -1818,8 +1829,17 @@ const TagPickerModal = ({
   useEffect(() => {
     if (visible) {
       setSearchText("");
+      setAiSuggestions(null);
+      setSelectedAiSuggestions([]);
+      setAiError(null);
+      return;
     }
+    aiControllerRef.current?.abort();
+    aiControllerRef.current = null;
+    setAiLoading(false);
   }, [visible]);
+
+  useEffect(() => () => aiControllerRef.current?.abort(), []);
 
   const commit = (nextTags: string[]) => onChange(Array.from(new Set(nextTags)).slice(0, 24));
   const toggleTag = (name: string) => commit(
@@ -1830,6 +1850,53 @@ const TagPickerModal = ({
     if (additions.length === 0) return;
     commit([...selectedTags, ...additions]);
     setSearchText("");
+  };
+  const selectedTagKeys = new Set(selectedTags.map((tag) => tag.toLocaleLowerCase()));
+  const requestAiSuggestions = async () => {
+    if (!client || (!title.trim() && !contentMarkdown.trim())) return;
+    aiControllerRef.current?.abort();
+    const controller = new AbortController();
+    aiControllerRef.current = controller;
+    setAiLoading(true);
+    setAiError(null);
+    try {
+      const result = await client.suggestAiTags({
+        title,
+        contentMarkdown,
+        currentTags: selectedTags,
+        locale: resolvedLocale,
+      }, controller.signal);
+      setAiSuggestions(result.suggestions);
+      setSelectedAiSuggestions(
+        result.suggestions
+          .filter((suggestion) => !selectedTagKeys.has(suggestion.name.toLocaleLowerCase()))
+          .slice(0, Math.max(0, 24 - selectedTags.length))
+          .map((suggestion) => suggestion.name)
+      );
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      setAiSuggestions(null);
+      setSelectedAiSuggestions([]);
+      setAiError(
+        error instanceof ApiRequestError && error.code === "ai_not_configured"
+          ? translate("请先在“AI 集成”中配置默认模型。")
+          : error instanceof Error
+            ? error.message
+            : translate("AI 标签建议生成失败。")
+      );
+    } finally {
+      if (aiControllerRef.current === controller) {
+        aiControllerRef.current = null;
+        setAiLoading(false);
+      }
+    }
+  };
+  const toggleAiSuggestion = (name: string) => setSelectedAiSuggestions((current) =>
+    current.includes(name) ? current.filter((tag) => tag !== name) : [...current, name]
+  );
+  const applyAiSuggestions = () => {
+    commit([...selectedTags, ...selectedAiSuggestions]);
+    setSelectedAiSuggestions([]);
   };
 
   return (
@@ -1877,6 +1944,67 @@ const TagPickerModal = ({
                 <Pressable accessibilityLabel={`新建标签 ${normalizedSearch}`} accessibilityRole="button" onPress={createTag}>
                   <Text style={styles.tagPickerCreateText}>{translate("新建")}</Text>
                 </Pressable>
+              ) : null}
+            </View>
+
+            <View accessibilityLabel={translate("AI 推荐标签")} style={styles.tagPickerAiCard}>
+              <View style={styles.tagPickerAiHeader}>
+                <View style={styles.tagPickerAiHeaderText}>
+                  <View style={styles.tagPickerAiTitleRow}>
+                    <Sparkles color="#047857" size={17} />
+                    <Text style={styles.tagPickerAiTitle}>{translate("AI 推荐标签")}</Text>
+                  </View>
+                  <Text style={styles.tagPickerAiDescription}>{translate("确认后再添加到当前笔记；合适时会优先复用已有标签。")}</Text>
+                </View>
+                <Pressable
+                  accessibilityLabel={translate(aiSuggestions ? "重新生成" : "生成建议")}
+                  accessibilityRole="button"
+                  disabled={aiLoading || !client || (!title.trim() && !contentMarkdown.trim())}
+                  onPress={() => void requestAiSuggestions()}
+                  style={[styles.tagPickerAiGenerateButton, (aiLoading || !client || (!title.trim() && !contentMarkdown.trim())) && styles.buttonDisabled]}
+                >
+                  {aiLoading ? <ActivityIndicator color="#ffffff" size="small" /> : <Sparkles color="#ffffff" size={15} />}
+                  <Text style={styles.tagPickerAiGenerateText}>{translate(aiSuggestions ? "重新生成" : "生成建议")}</Text>
+                </Pressable>
+              </View>
+
+              {aiError ? <Text style={styles.tagPickerAiError}>{aiError}</Text> : null}
+              {aiSuggestions ? (
+                aiSuggestions.length > 0 ? (
+                  <>
+                    <View style={styles.tagPickerAiSuggestions}>
+                      {aiSuggestions.map((suggestion) => {
+                        const alreadySelected = selectedTagKeys.has(suggestion.name.toLocaleLowerCase());
+                        const chosen = alreadySelected || selectedAiSuggestions.includes(suggestion.name);
+                        return (
+                          <Pressable
+                            key={suggestion.name}
+                            accessibilityLabel={`#${suggestion.name}`}
+                            accessibilityRole="button"
+                            accessibilityState={{ disabled: alreadySelected, selected: chosen }}
+                            disabled={alreadySelected}
+                            onPress={() => toggleAiSuggestion(suggestion.name)}
+                            style={[styles.tagPickerAiSuggestion, chosen && styles.tagPickerAiSuggestionSelected, alreadySelected && styles.tagPickerAiSuggestionAdded]}
+                          >
+                            {chosen ? <Check color={alreadySelected ? "#047857" : "#ffffff"} size={13} /> : null}
+                            <Text style={[styles.tagPickerAiSuggestionText, chosen && styles.tagPickerAiSuggestionTextSelected, alreadySelected && styles.tagPickerAiSuggestionTextAdded]}>
+                              #{suggestion.name} · {translate(alreadySelected ? "已添加" : suggestion.existing ? "已有" : "新建")}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                    <Pressable
+                      accessibilityLabel={translate(`添加选中标签（${selectedAiSuggestions.length}）`)}
+                      accessibilityRole="button"
+                      disabled={selectedAiSuggestions.length === 0}
+                      onPress={applyAiSuggestions}
+                      style={[styles.tagPickerAiApplyButton, selectedAiSuggestions.length === 0 && styles.buttonDisabled]}
+                    >
+                      <Text style={styles.tagPickerAiApplyText}>{translate(`添加选中标签（${selectedAiSuggestions.length}）`)}</Text>
+                    </Pressable>
+                  </>
+                ) : <Text style={styles.tagPickerAiDescription}>{translate("没有找到适合这篇笔记的标签。")}</Text>
               ) : null}
             </View>
 
@@ -2504,6 +2632,8 @@ const CreateMemoModal = ({
         visible={notebookPickerOpen}
       />
       <TagPickerModal
+        client={client}
+        contentMarkdown={contentMarkdown}
         dataScope={dataScope}
         onChange={(nextTags) => {
           setTagsText(nextTags.join(", "));
@@ -2511,6 +2641,7 @@ const CreateMemoModal = ({
         }}
         onClose={() => setTagPickerOpen(false)}
         selectedTags={parseTags(tagsText)}
+        title={title}
         visible={tagPickerOpen}
       />
       <MobileResourceActions
@@ -3081,6 +3212,8 @@ const RichEditorModal = ({
           visible={notebookPickerOpen}
         />
         <TagPickerModal
+          client={client}
+          contentMarkdown={contentMarkdownRef.current}
           dataScope={createMobileDataScope(session?.baseUrl ?? baseUrl, session?.user?.id)}
           onChange={(nextTags) => {
             setTagsText(nextTags.join(", "));
@@ -3089,6 +3222,7 @@ const RichEditorModal = ({
           }}
           onClose={() => setTagPickerOpen(false)}
           selectedTags={parseTags(tagsText)}
+          title={title}
           visible={tagPickerOpen}
         />
         <MobileResourceActions

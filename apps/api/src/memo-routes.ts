@@ -126,6 +126,7 @@ export const registerMemoRoutes = (
       notebookId: context.req.query("notebookId"),
       includeNotebookDescendants: context.req.query("includeDescendants") === "1",
       query: context.req.query("q"),
+      tag: context.req.query("tag"),
       includeTrash: context.req.query("trash") === "1",
       sort: context.req.query("sort"),
       filter: context.req.query("filter"),

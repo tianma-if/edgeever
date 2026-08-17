@@ -35,9 +35,12 @@ import { ObjectStorageCard } from "./settings/ObjectStorageCard";
 import { AiModelCard } from "./settings/AiModelCard";
 import { AiPromptsCard } from "./settings/AiPromptsCard";
 import { AiGenerationPreferenceCard } from "./settings/AiGenerationPreferenceCard";
+import { AiTagSuggestionPromptCard } from "./settings/AiTagSuggestionPromptCard";
 import { ThemeToggle } from "./ThemeToggle";
 import type { AuthUser } from "@edgeever/shared";
 import { contentEnterMotion } from "@/lib/motion";
+import type { EdgeEverPluginHost } from "@/lib/plugins/plugin-host";
+import { PluginToolbarMenu } from "./plugins/PluginToolbarMenu";
 
 interface SettingsPaneProps {
   onClose: () => void;
@@ -56,6 +59,8 @@ interface SettingsPaneProps {
   isOwner: boolean;
   user: AuthUser | null;
   refreshWorkspaceAfterImport: () => Promise<void>;
+  pluginHost: EdgeEverPluginHost;
+  onOpenPluginMarketplace: () => void;
 }
 
 // Slate and brand color variables already switch values with the root theme.
@@ -95,6 +100,8 @@ export const SettingsPane = ({
   isOwner,
   user,
   refreshWorkspaceAfterImport,
+  pluginHost,
+  onOpenPluginMarketplace,
 }: SettingsPaneProps) => {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<TabKey>("general");
@@ -237,6 +244,7 @@ export const SettingsPane = ({
         return (
           <SettingsGroup>
             <AiGenerationPreferenceCard />
+            <AiTagSuggestionPromptCard />
             {isOwner ? <ObjectStorageCard demoMode={demoMode} /> : null}
             {canClearLocalData ? <DesktopLocalDataCard /> : null}
           </SettingsGroup>
@@ -276,7 +284,13 @@ export const SettingsPane = ({
             </h1>
           </div>
         </div>
-        <ThemeToggle className="inline-flex" showLabel />
+        <div className="flex items-center gap-1">
+          <PluginToolbarMenu
+            host={pluginHost}
+            onManage={onOpenPluginMarketplace}
+          />
+          <ThemeToggle className="inline-flex" showLabel />
+        </div>
       </header>
 
       <div className="flex flex-1 min-h-0 min-w-0 bg-slate-50/50">

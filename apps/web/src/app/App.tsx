@@ -227,6 +227,8 @@ export const App = () => {
         <Route path={EVERNOTE_MIGRATION_PATH} element={<EvernoteMigrationRoute />} />
         <Route path="/" element={<AuthenticatedWorkspace />} />
         <Route path="/settings" element={<AuthenticatedWorkspace />} />
+        <Route path="/plugins" element={<AuthenticatedWorkspace />} />
+        <Route path="/plugins/:pluginId" element={<AuthenticatedWorkspace />} />
         <Route path="/templates" element={<AuthenticatedWorkspace />} />
         <Route path="/ai-prompts" element={<AuthenticatedWorkspace />} />
         <Route path="*" element={<Navigate to="/" replace />} />

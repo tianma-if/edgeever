@@ -60,7 +60,11 @@ import {
   isMobileImageUploadPlaceholderSource,
   stripMobileImageUploadPlaceholders,
 } from "../lib/mobile-image-upload-placeholder";
-import { getMobileAiSourceRange } from "../lib/mobile-ai-selection";
+import {
+  getMobileAiSourceRange,
+  resolveMobileAiSelectionTriggerPosition,
+  type MobileAiSelectionTriggerPosition,
+} from "../lib/mobile-ai-selection";
 import {
   MOBILE_NOTE_SEARCH_HIGHLIGHT_PLUGIN_KEY,
   createMobileNoteSearchHighlightPlugin,
@@ -172,6 +176,14 @@ type MobileAiPanelState = {
 type MobileAiBridgePayload = {
   requestId: string;
   event: AiStreamEvent;
+};
+
+type MobileAiPickerKind = "action" | "language" | "tone";
+
+type MobileAiPickerOption = {
+  active: boolean;
+  label: string;
+  value: string;
 };
 
 type EditorResourceTarget = {
@@ -518,6 +530,7 @@ function LocalTiptapEditorImpl(props: LocalTiptapEditorProps) {
   const onSearchResultRef = useRef(props.onSearchResult ?? ignoreSearchResult);
   const searchStateRef = useRef({ activeIndex: -1, query: "" });
   const [aiPanel, setAiPanel] = useState<MobileAiPanelState | null>(null);
+  const [aiSelectionTrigger, setAiSelectionTrigger] = useState<MobileAiSelectionTriggerPosition | null>(null);
   const [aiSelectionHint, setAiSelectionHint] = useState(false);
   const aiSelectionHintTimerRef = useRef<number | null>(null);
   const [aiUndoFingerprint, setAiUndoFingerprint] = useState<string | null>(null);
@@ -1102,9 +1115,52 @@ function LocalTiptapEditorImpl(props: LocalTiptapEditorProps) {
     }
 
     let scrollFrame = 0;
+    let triggerFrame = 0;
     let settledScrollTimer: number | null = null;
+    const scrollContainer = getEditorScrollContainer(editor);
+    const updateAiSelectionTrigger = () => {
+      if (!onAiRequestRef.current || editor.isDestroyed) {
+        setAiSelectionTrigger(null);
+        return;
+      }
+      const { empty, from, to } = editor.state.selection;
+      if (empty || from >= to || !editor.state.doc.textBetween(from, to, " ").trim()) {
+        setAiSelectionTrigger(null);
+        return;
+      }
+      const shell = editor.view.dom.closest<HTMLElement>(".edgeever-editor-shell");
+      if (!shell || !scrollContainer) {
+        setAiSelectionTrigger(null);
+        return;
+      }
+      try {
+        const shellRect = shell.getBoundingClientRect();
+        const containerRect = scrollContainer.getBoundingClientRect();
+        const viewport = window.visualViewport;
+        const next = resolveMobileAiSelectionTriggerPosition({
+          selectionStart: editor.view.coordsAtPos(from),
+          selectionEnd: editor.view.coordsAtPos(to),
+          shell: shellRect,
+          visibleBounds: {
+            top: Math.max(containerRect.top, viewport?.offsetTop ?? containerRect.top),
+            bottom: Math.min(
+              containerRect.bottom,
+              viewport ? viewport.offsetTop + viewport.height : containerRect.bottom,
+            ),
+          },
+        });
+        setAiSelectionTrigger((current) => current?.left === next.left && current.top === next.top ? current : next);
+      } catch {
+        setAiSelectionTrigger(null);
+      }
+    };
+    const scheduleAiSelectionTriggerUpdate = () => {
+      window.cancelAnimationFrame(triggerFrame);
+      triggerFrame = window.requestAnimationFrame(updateAiSelectionTrigger);
+    };
     const ensureSelectionVisible = () => {
       updateEditorKeyboardInset(editor);
+      scheduleAiSelectionTriggerUpdate();
       window.cancelAnimationFrame(scrollFrame);
       scrollFrame = window.requestAnimationFrame(() => {
         if (!editor.isDestroyed && editor.isFocused) {
@@ -1126,6 +1182,7 @@ function LocalTiptapEditorImpl(props: LocalTiptapEditorProps) {
     };
 
     const handleSelectionUpdate = () => {
+      scheduleAiSelectionTriggerUpdate();
       if (editor.isFocused) {
         ensureSelectionVisible();
       }
@@ -1134,18 +1191,22 @@ function LocalTiptapEditorImpl(props: LocalTiptapEditorProps) {
     window.addEventListener("resize", ensureSelectionVisible);
     visualViewport?.addEventListener("resize", ensureSelectionVisible);
     visualViewport?.addEventListener("scroll", ensureSelectionVisible);
+    scrollContainer?.addEventListener("scroll", scheduleAiSelectionTriggerUpdate, { passive: true });
     editor.on("focus", ensureSelectionVisible);
     editor.on("selectionUpdate", handleSelectionUpdate);
     updateEditorKeyboardInset(editor);
+    scheduleAiSelectionTriggerUpdate();
 
     return () => {
       window.cancelAnimationFrame(scrollFrame);
+      window.cancelAnimationFrame(triggerFrame);
       if (settledScrollTimer !== null) {
         window.clearTimeout(settledScrollTimer);
       }
       window.removeEventListener("resize", ensureSelectionVisible);
       visualViewport?.removeEventListener("resize", ensureSelectionVisible);
       visualViewport?.removeEventListener("scroll", ensureSelectionVisible);
+      scrollContainer?.removeEventListener("scroll", scheduleAiSelectionTriggerUpdate);
       editor.off("focus", ensureSelectionVisible);
       editor.off("selectionUpdate", handleSelectionUpdate);
     };
@@ -1250,6 +1311,20 @@ function LocalTiptapEditorImpl(props: LocalTiptapEditorProps) {
         </div>
       ) : null}
       <EditorContent className="edgeever-editor-scroll" editor={editor} />
+      {aiSelectionTrigger && !aiPanel ? (
+        <button
+          aria-label={props.locale === "en-US" ? "Use AI on selected text" : "用 AI 处理选中内容"}
+          className="edgeever-ai-selection-trigger"
+          onClick={requestOpenAiForSelection}
+          onMouseDown={(event) => event.preventDefault()}
+          onPointerDown={(event) => event.preventDefault()}
+          style={{ left: aiSelectionTrigger.left, top: aiSelectionTrigger.top }}
+          type="button"
+        >
+          <SparklesIcon />
+          <span>AI</span>
+        </button>
+      ) : null}
       {aiSelectionHint ? (
         <div aria-live="polite" className="edgeever-ai-selection-hint" role="status">
           {props.locale === "en-US" ? "Add some note content first." : "请先输入正文内容。"}
@@ -1316,6 +1391,7 @@ const MobileSelectionAiPanel = ({
   prompts: AiPromptTemplate[];
 }) => {
   const english = locale === "en-US";
+  const [picker, setPicker] = useState<MobileAiPickerKind | null>(null);
   const actionLabels: Record<AiAction, string> = {
     summarize: english ? "Summarize" : "总结",
     "extract-key-points": english ? "Key points" : "提炼要点",
@@ -1352,7 +1428,7 @@ const MobileSelectionAiPanel = ({
   const generateDisabled = panel.generating || (!panel.promptId && panel.action === "custom" && !panel.customInstruction.trim());
   const appendDisabled = panel.generating || !panel.output || panel.resultMode === "replace";
   const replaceDisabled = panel.generating || !panel.output || panel.resultMode === "append";
-  const selectedValue = panel.promptId ? `${AI_PROMPT_OPTION_PREFIX}${panel.promptId}` : panel.action;
+  const selectedPrompt = panel.promptId ? prompts.find((prompt) => prompt.id === panel.promptId) ?? null : null;
 
   const selectPromptOrAction = (value: string) => {
     if (value.startsWith(AI_PROMPT_OPTION_PREFIX)) {
@@ -1380,6 +1456,57 @@ const MobileSelectionAiPanel = ({
     });
   };
 
+  const pickerOptions: MobileAiPickerOption[] = picker === "action"
+    ? (prompts.length > 0
+      ? [
+          ...prompts.map((prompt) => ({
+            active: panel.promptId === prompt.id,
+            label: prompt.name,
+            value: `${AI_PROMPT_OPTION_PREFIX}${prompt.id}`,
+          })),
+          { active: !panel.promptId && panel.action === "custom", label: actionLabels.custom, value: "custom" },
+        ]
+      : (panel.selection.wholeNote ? AI_WHOLE_NOTE_ACTIONS : AI_SELECTED_TEXT_ACTIONS).map((action) => ({
+          active: !panel.promptId && panel.action === action,
+          label: actionLabels[action],
+          value: action,
+        })))
+    : picker === "language"
+      ? AI_TARGET_LANGUAGES.map((language) => ({
+          active: panel.targetLanguage === language,
+          label: languageLabels[language],
+          value: language,
+        }))
+      : picker === "tone"
+        ? AI_TONES.map((tone) => ({
+            active: panel.tone === tone,
+            label: toneLabels[tone],
+            value: tone,
+          }))
+        : [];
+
+  const pickerTitle = picker === "action"
+    ? (english ? "Choose an action" : "选择处理方式")
+    : picker === "language"
+      ? (english ? "Choose target language" : "选择目标语言")
+      : (english ? "Choose tone" : "选择语气");
+
+  const choosePickerOption = (value: string) => {
+    if (picker === "action") selectPromptOrAction(value);
+    if (picker === "language") update({ targetLanguage: value as AiTargetLanguage, output: "", error: null });
+    if (picker === "tone") update({ tone: value as AiTone, output: "", error: null });
+    setPicker(null);
+  };
+
+  useEffect(() => {
+    if (!picker) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setPicker(null);
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [picker]);
+
   return (
     <section
       aria-label={panel.selection.wholeNote
@@ -1401,37 +1528,30 @@ const MobileSelectionAiPanel = ({
         <button aria-label={english ? "Close" : "关闭"} onClick={onClose} type="button">×</button>
       </header>
       <div className="edgeever-ai-panel-body">
-        <label>
-          <span>{english ? "Action" : "处理方式"}</span>
-          <select
-            disabled={panel.generating}
-            onChange={(event) => selectPromptOrAction(event.target.value)}
-            value={selectedValue}
-          >
-            {prompts.length > 0
-              ? <>
-                  {prompts.map((prompt) => <option key={prompt.id} value={`${AI_PROMPT_OPTION_PREFIX}${prompt.id}`}>{prompt.name}</option>)}
-                  <option value="custom">{actionLabels.custom}</option>
-                </>
-              : (panel.selection.wholeNote ? AI_WHOLE_NOTE_ACTIONS : AI_SELECTED_TEXT_ACTIONS)
-                .map((action) => <option key={action} value={action}>{actionLabels[action]}</option>)}
-          </select>
-        </label>
+        <MobileAiPickerField
+          disabled={panel.generating}
+          expanded={picker === "action"}
+          label={english ? "Action" : "处理方式"}
+          onOpen={() => setPicker("action")}
+          value={selectedPrompt?.name ?? actionLabels[panel.action]}
+        />
         {panel.parameterKind === "target-language" ? (
-          <label>
-            <span>{english ? "Target language" : "目标语言"}</span>
-            <select disabled={panel.generating} onChange={(event) => update({ targetLanguage: event.target.value as AiTargetLanguage, output: "", error: null })} value={panel.targetLanguage}>
-              {AI_TARGET_LANGUAGES.map((language) => <option key={language} value={language}>{languageLabels[language]}</option>)}
-            </select>
-          </label>
+          <MobileAiPickerField
+            disabled={panel.generating}
+            expanded={picker === "language"}
+            label={english ? "Target language" : "目标语言"}
+            onOpen={() => setPicker("language")}
+            value={languageLabels[panel.targetLanguage]}
+          />
         ) : null}
         {panel.parameterKind === "tone" ? (
-          <label>
-            <span>{english ? "Tone" : "语气"}</span>
-            <select disabled={panel.generating} onChange={(event) => update({ tone: event.target.value as AiTone, output: "", error: null })} value={panel.tone}>
-              {AI_TONES.map((tone) => <option key={tone} value={tone}>{toneLabels[tone]}</option>)}
-            </select>
-          </label>
+          <MobileAiPickerField
+            disabled={panel.generating}
+            expanded={picker === "tone"}
+            label={english ? "Tone" : "语气"}
+            onOpen={() => setPicker("tone")}
+            value={toneLabels[panel.tone]}
+          />
         ) : null}
         {!panel.promptId && panel.action === "custom" ? (
           <label>
@@ -1494,9 +1614,71 @@ const MobileSelectionAiPanel = ({
           </button>
         )}
       </footer>
+      {picker ? (
+        <div className="edgeever-ai-picker-backdrop" onClick={() => setPicker(null)} role="presentation">
+          <section
+            aria-label={pickerTitle}
+            aria-modal="true"
+            className="edgeever-ai-picker-sheet"
+            onClick={(event) => event.stopPropagation()}
+            role="dialog"
+          >
+            <div aria-hidden="true" className="edgeever-ai-picker-handle" />
+            <header className="edgeever-ai-picker-header">
+              <strong>{pickerTitle}</strong>
+              <button aria-label={english ? "Close" : "关闭"} onClick={() => setPicker(null)} type="button">×</button>
+            </header>
+            <div aria-label={pickerTitle} className="edgeever-ai-picker-options" role="radiogroup">
+              {pickerOptions.map((option) => (
+                <button
+                  aria-checked={option.active}
+                  autoFocus={option.active}
+                  className={option.active ? "is-selected" : undefined}
+                  key={option.value}
+                  onClick={() => choosePickerOption(option.value)}
+                  role="radio"
+                  type="button"
+                >
+                  <span>{option.label}</span>
+                  <span aria-hidden="true" className="edgeever-ai-picker-check">✓</span>
+                </button>
+              ))}
+            </div>
+          </section>
+        </div>
+      ) : null}
     </section>
   );
 };
+
+const MobileAiPickerField = ({
+  disabled,
+  expanded,
+  label,
+  onOpen,
+  value,
+}: {
+  disabled: boolean;
+  expanded: boolean;
+  label: string;
+  onOpen: () => void;
+  value: string;
+}) => (
+  <div className="edgeever-ai-picker-field">
+    <span>{label}</span>
+    <button
+      aria-expanded={expanded}
+      aria-haspopup="dialog"
+      className="edgeever-ai-picker-trigger"
+      disabled={disabled}
+      onClick={onOpen}
+      type="button"
+    >
+      <span>{value}</span>
+      <span aria-hidden="true" className="edgeever-ai-picker-chevron" />
+    </button>
+  </div>
+);
 
 const EditorIcon = ({ children, size, strokeWidth }: { children: ReactNode; size: number; strokeWidth: number }) => (
   <svg aria-hidden="true" fill="none" height={size} stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth={strokeWidth} viewBox="0 0 24 24" width={size}>
@@ -2443,6 +2625,11 @@ const getEditorStyles = (theme: "light" | "dark", options?: { viewer?: boolean }
   .edgeever-editor-toolbar button:active, .edgeever-editor-toolbar button.is-active { border-color: ${theme === "dark" ? "#166534" : "#bbf7d0"}; background: ${theme === "dark" ? "#14532d" : "#ecfdf5"}; color: ${theme === "dark" ? "#86efac" : "#047857"}; }
   .edgeever-editor-toolbar button:disabled { opacity: 0.38; }
   .edgeever-editor-toolbar .edgeever-ai-toolbar-button { width: auto; gap: 4px; padding: 0 10px; border-color: ${theme === "dark" ? "#166534" : "#bbf7d0"}; background: ${theme === "dark" ? "#052e24" : "#ecfdf5"}; color: ${theme === "dark" ? "#6ee7b7" : "#047857"}; font-weight: 750; }
+  .edgeever-ai-selection-trigger { position: absolute; z-index: 18; display: inline-flex; min-width: 74px; min-height: 38px; align-items: center; justify-content: center; gap: 6px; padding: 0 13px; border: 1px solid ${theme === "dark" ? "#166534" : "#a7f3d0"}; border-radius: 999px; background: ${theme === "dark" ? "#052e24" : "#fff"}; color: ${theme === "dark" ? "#6ee7b7" : "#047857"}; box-shadow: 0 8px 24px rgb(2 44 34 / 20%); font-size: 14px; font-weight: 800; touch-action: manipulation; animation: edgeever-ai-selection-trigger-in 130ms ease-out; }
+  .edgeever-ai-selection-trigger:active { border-color: #16a06e; background: ${theme === "dark" ? "#0b3b2d" : "#ecfdf5"}; transform: scale(.97); }
+  .edgeever-ai-selection-trigger svg { width: 16px; height: 16px; }
+  @keyframes edgeever-ai-selection-trigger-in { from { opacity: 0; transform: translateY(4px) scale(.96); } to { opacity: 1; transform: translateY(0) scale(1); } }
+  @media (prefers-reduced-motion: reduce) { .edgeever-ai-selection-trigger { animation: none; } }
   .tiptap { min-height: 100%; max-width: 100%; min-width: 0; outline: none; }
   .edgeever-editor-scroll {
     --edgeever-keyboard-inset: 0px;
@@ -2460,18 +2647,38 @@ const getEditorStyles = (theme: "light" | "dark", options?: { viewer?: boolean }
   .edgeever-ai-undo { position: absolute; z-index: 15; top: 64px; right: 14px; left: 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 10px 9px 13px; border-radius: 10px; background: ${theme === "dark" ? "#1e293b" : "#0f172a"}; color: #fff; font-size: 13px; font-weight: 650; box-shadow: 0 8px 24px rgb(15 23 42 / 24%); }
   .edgeever-ai-undo button { min-height: 32px; padding: 0 11px; border: 1px solid rgb(255 255 255 / 28%); border-radius: 8px; background: transparent; color: #6ee7b7; font: inherit; font-weight: 750; }
   .edgeever-ai-panel { position: absolute; z-index: 20; inset: 0; display: flex; min-width: 0; flex-direction: column; background: ${theme === "dark" ? "#0f172a" : "#f8fafc"}; color: ${theme === "dark" ? "#f8fafc" : "#0f172a"}; }
-  .edgeever-ai-panel button, .edgeever-ai-panel input, .edgeever-ai-panel select, .edgeever-ai-panel textarea { font: inherit; }
+  .edgeever-ai-panel button, .edgeever-ai-panel input, .edgeever-ai-panel textarea { font: inherit; }
   .edgeever-ai-panel-header { display: flex; flex: 0 0 auto; align-items: center; justify-content: space-between; gap: 12px; min-height: 58px; padding: 10px 14px; border-bottom: 1px solid ${theme === "dark" ? "#334155" : "#e2e8f0"}; background: ${theme === "dark" ? "#111c18" : "#fff"}; }
   .edgeever-ai-panel-header div { display: grid; min-width: 0; gap: 2px; }
   .edgeever-ai-panel-header strong { font-size: 16px; }
   .edgeever-ai-panel-header small { color: ${theme === "dark" ? "#94a3b8" : "#64748b"}; font-size: 12px; }
   .edgeever-ai-panel-header > button { width: 36px; height: 36px; border: 0; border-radius: 999px; background: transparent; color: ${theme === "dark" ? "#cbd5e1" : "#475569"}; font-size: 25px; }
   .edgeever-ai-panel-body { display: grid; min-height: 0; flex: 1 1 auto; align-content: start; gap: 14px; overflow-y: auto; padding: 14px; }
-  .edgeever-ai-panel label { display: grid; gap: 6px; color: ${theme === "dark" ? "#e2e8f0" : "#334155"}; font-size: 13px; font-weight: 700; }
-  .edgeever-ai-panel select, .edgeever-ai-panel input, .edgeever-ai-panel textarea { width: 100%; border: 1px solid ${theme === "dark" ? "#475569" : "#cbd5e1"}; border-radius: 9px; outline: none; background: ${theme === "dark" ? "#111c18" : "#fff"}; color: ${theme === "dark" ? "#f8fafc" : "#0f172a"}; font-size: 15px; font-weight: 500; }
-  .edgeever-ai-panel select, .edgeever-ai-panel input { min-height: 44px; padding: 0 11px; }
+  .edgeever-ai-panel label, .edgeever-ai-picker-field { display: grid; gap: 6px; color: ${theme === "dark" ? "#e2e8f0" : "#334155"}; font-size: 13px; font-weight: 700; }
+  .edgeever-ai-panel input, .edgeever-ai-panel textarea { width: 100%; border: 1px solid ${theme === "dark" ? "#475569" : "#cbd5e1"}; border-radius: 9px; outline: none; background: ${theme === "dark" ? "#111c18" : "#fff"}; color: ${theme === "dark" ? "#f8fafc" : "#0f172a"}; font-size: 15px; font-weight: 500; }
+  .edgeever-ai-panel input { min-height: 44px; padding: 0 11px; }
   .edgeever-ai-panel textarea { min-height: 78px; resize: vertical; padding: 10px 11px; }
-  .edgeever-ai-panel select:focus, .edgeever-ai-panel input:focus, .edgeever-ai-panel textarea:focus { border-color: #16a06e; box-shadow: 0 0 0 2px rgb(22 160 110 / 14%); }
+  .edgeever-ai-panel input:focus, .edgeever-ai-panel textarea:focus { border-color: #16a06e; box-shadow: 0 0 0 2px rgb(22 160 110 / 14%); }
+  .edgeever-ai-picker-trigger { display: flex; width: 100%; min-height: 46px; align-items: center; justify-content: space-between; gap: 12px; padding: 0 13px; border: 1px solid ${theme === "dark" ? "#475569" : "#cbd5e1"}; border-radius: 10px; outline: none; background: ${theme === "dark" ? "#111c18" : "#fff"}; color: ${theme === "dark" ? "#f8fafc" : "#0f172a"}; text-align: left; font-size: 15px; font-weight: 550; }
+  .edgeever-ai-picker-trigger:focus-visible, .edgeever-ai-picker-trigger[aria-expanded="true"] { border-color: #16a06e; box-shadow: 0 0 0 2px rgb(22 160 110 / 14%); }
+  .edgeever-ai-picker-trigger > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .edgeever-ai-picker-chevron { flex: 0 0 auto; width: 9px; height: 9px; margin: -4px 2px 0 0; border-right: 2px solid ${theme === "dark" ? "#94a3b8" : "#64748b"}; border-bottom: 2px solid ${theme === "dark" ? "#94a3b8" : "#64748b"}; transform: rotate(45deg); }
+  .edgeever-ai-picker-backdrop { position: absolute; z-index: 40; inset: 0; display: flex; align-items: flex-end; background: rgb(2 6 23 / 48%); animation: edgeever-ai-picker-fade 150ms ease-out; }
+  .edgeever-ai-picker-sheet { display: flex; width: 100%; max-height: min(74%, 560px); min-height: 0; flex-direction: column; padding: 8px 12px max(12px, env(safe-area-inset-bottom)); border: 1px solid ${theme === "dark" ? "#33453d" : "#dbe4df"}; border-bottom: 0; border-radius: 22px 22px 0 0; background: ${theme === "dark" ? "#111c18" : "#fff"}; color: ${theme === "dark" ? "#f8fafc" : "#0f172a"}; box-shadow: 0 -18px 48px rgb(2 6 23 / 24%); animation: edgeever-ai-picker-rise 180ms cubic-bezier(.2,.8,.2,1); }
+  .edgeever-ai-picker-handle { width: 38px; height: 4px; margin: 0 auto 5px; border-radius: 999px; background: ${theme === "dark" ? "#475569" : "#cbd5e1"}; }
+  .edgeever-ai-picker-header { display: flex; flex: 0 0 auto; min-height: 48px; align-items: center; justify-content: space-between; gap: 12px; padding: 0 4px 4px 8px; }
+  .edgeever-ai-picker-header strong { font-size: 17px; font-weight: 780; }
+  .edgeever-ai-picker-header button { width: 36px; height: 36px; padding: 0; border: 0; border-radius: 999px; background: ${theme === "dark" ? "#17251f" : "#f1f5f9"}; color: ${theme === "dark" ? "#cbd5e1" : "#475569"}; font-size: 24px; line-height: 1; }
+  .edgeever-ai-picker-options { min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+  .edgeever-ai-picker-options > button { display: flex; width: 100%; min-height: 50px; align-items: center; justify-content: space-between; gap: 14px; padding: 8px 12px; border: 0; border-bottom: 1px solid ${theme === "dark" ? "#26382f" : "#edf2ef"}; border-radius: 9px; outline: none; background: transparent; color: ${theme === "dark" ? "#e2e8f0" : "#0f172a"}; text-align: left; font-size: 15px; font-weight: 550; }
+  .edgeever-ai-picker-options > button:last-child { border-bottom-color: transparent; }
+  .edgeever-ai-picker-options > button.is-selected { background: ${theme === "dark" ? "#0b3328" : "#ecfdf5"}; color: ${theme === "dark" ? "#6ee7b7" : "#047857"}; font-weight: 720; }
+  .edgeever-ai-picker-options > button:focus-visible { box-shadow: inset 0 0 0 2px #16a06e; }
+  .edgeever-ai-picker-check { display: grid; width: 20px; height: 20px; flex: 0 0 auto; place-items: center; border-radius: 999px; background: #16a06e; color: #fff; font-size: 13px; font-weight: 850; opacity: 0; }
+  .edgeever-ai-picker-options > button.is-selected .edgeever-ai-picker-check { opacity: 1; }
+  @keyframes edgeever-ai-picker-fade { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes edgeever-ai-picker-rise { from { transform: translateY(20px); opacity: .7; } to { transform: translateY(0); opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .edgeever-ai-picker-backdrop, .edgeever-ai-picker-sheet { animation: none; } }
   .edgeever-ai-result-heading { display: flex; align-items: center; justify-content: space-between; color: ${theme === "dark" ? "#e2e8f0" : "#334155"}; font-size: 13px; font-weight: 750; }
   .edgeever-ai-result-heading small { color: #16a06e; }
   .edgeever-ai-result { min-height: 170px; max-height: min(42vh, 360px); overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; padding: 12px; border: 1px solid ${theme === "dark" ? "#334155" : "#dbe4df"}; border-radius: 10px; background: ${theme === "dark" ? "#17251f" : "#fff"}; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 15px; line-height: 1.55; }

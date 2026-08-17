@@ -83,6 +83,22 @@ describe("memo list service", () => {
     }
   });
 
+  test("filters by one exact tag in page and count queries", async () => {
+    const database = createDatabase();
+    await listMemos(database, {
+      workspaceId: "ws_1",
+      tag: "Demo",
+    });
+
+    expect(database.calls).toHaveLength(2);
+    for (const call of database.calls) {
+      expect(call.sql).toContain("json_each(m.tags_json)");
+      expect(call.sql).toContain("LOWER(CAST(memo_tag.value AS TEXT)) = LOWER(?)");
+      expect(call.parameters).toContain("Demo");
+      expect(call.sql).not.toContain("m.tags_json LIKE");
+    }
+  });
+
   test("combines FTS and escaped LIKE search for normal text", async () => {
     const database = createDatabase();
     await listMemos(database, {

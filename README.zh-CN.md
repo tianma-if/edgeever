@@ -197,6 +197,10 @@ https://你的域名/api/openapi.json
 
 仓库内文件：[docs/openapi.json](docs/openapi.json)。
 
+## 插件开发预览
+
+独立的插件市场页面支持从已验证索引、公开 GitHub 仓库或 Manifest 地址安装受信任的客户端插件和无代码主题包。插件可以查询与修改笔记、操作编辑器选区、注册命令和自定义面板、使用加密 Secret Storage，并向声明过的域名发起网络请求。桌面端右上角提供统一插件入口和最近使用记录；Cron 与后台任务暂不纳入。详见[插件开发文档](docs/plugin-development.zh-CN.md)。
+
 ## MCP
 
 先在 EdgeEver 左下角 **个人中心** 的 **MCP 设置** 中创建 API Token，再将 Token 或完整 MCP 配置发送给 AI Agent。连接后，Agent 即可在你的授权范围内安全地读取、整理和导入笔记。MCP 也开放了完整的笔记模板与 AI 指令管理能力：Agent 可以列出、查看、新建、更新和删除模板与指令，也可以使用模板创建笔记、恢复缺失的内置指令。读取模板和指令需要 `read:memos` 权限，变更需要 `write:memos` 权限；重复执行同一笔记导入任务不会创建重复笔记。

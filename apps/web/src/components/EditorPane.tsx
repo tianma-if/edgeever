@@ -177,6 +177,8 @@ import {
 } from "./editor/note-search";
 import { useEditorSaveStatus } from "./editor/useEditorSaveStatus";
 import { resolveEditorDraftState } from "./editor/editor-draft-state";
+import type { EdgeEverPluginHost, PluginEditorAdapter } from "@/lib/plugins/plugin-host";
+import { PluginToolbarMenu } from "@/components/plugins/PluginToolbarMenu";
 import {
   useEditorResourceActions,
   type AttachmentMenuTarget,
@@ -208,6 +210,16 @@ const IconTooltip = ({ label, children }: { label: string; children: ReactNode }
       <TooltipContent side="bottom">{label}</TooltipContent>
     </Tooltip>
   </TooltipProvider>
+);
+
+const EmptyEditorHeader = ({ pluginHost, onOpenPluginManager }: {
+  pluginHost: EdgeEverPluginHost;
+  onOpenPluginManager: () => void;
+}) => (
+  <header className="hidden h-12 shrink-0 items-center justify-end gap-1 border-b border-slate-100 px-5 lg:flex">
+    <PluginToolbarMenu host={pluginHost} onManage={onOpenPluginManager} />
+    <ThemeToggle />
+  </header>
 );
 
 type NoteLinkHintPosition = {
@@ -615,6 +627,8 @@ type EditorPaneProps = {
   selectionActionBar?: ReactNode;
   onOpenMemo?: (memoId: string) => void;
   onOpenAiPrompts?: () => void;
+  pluginHost: EdgeEverPluginHost;
+  onOpenPluginManager: () => void;
 };
 
 type RichEditorPaneProps = EditorPaneProps & {
@@ -679,6 +693,8 @@ const RichEditorPane = ({
   selectionActionBar,
   onOpenMemo,
   onOpenAiPrompts,
+  pluginHost,
+  onOpenPluginManager,
   onRequestMobileNativeEdit,
 }: RichEditorPaneProps) => {
   const { t, i18n } = useTranslation();
@@ -2675,6 +2691,39 @@ const RichEditorPane = ({
       setSaveState("error");
     },
   });
+
+  const pluginEditorMemoId = memo?.id ?? null;
+  useEffect(() => {
+    if (!editor || !pluginEditorMemoId || effectiveReadOnly || hydratedEditorMemoId !== pluginEditorMemoId) {
+      return;
+    }
+
+    const adapter: PluginEditorAdapter = {
+      getSelection: () => {
+        const { selection, doc } = editor.state;
+        const context = getRichTextAiSelectionContext(doc, selection);
+        return {
+          noteId: pluginEditorMemoId,
+          from: selection.from,
+          to: selection.to,
+          empty: selection.empty,
+          text: doc.textBetween(selection.from, selection.to, "\n"),
+          contentMarkdown: context?.contentMarkdown ?? "",
+        };
+      },
+      replaceSelection: (contentMarkdown) => {
+        const { selection, doc } = editor.state;
+        const context = getRichTextAiSelectionContext(doc, selection);
+        const content = getRichTextAiSelectionReplacement(contentMarkdown, context?.isInline ?? true);
+        editor.chain().focus().insertContentAt({ from: selection.from, to: selection.to }, content).run();
+      },
+      insertAtCursor: (contentMarkdown) => {
+        const content = getRichTextAiSelectionReplacement(contentMarkdown, true);
+        editor.chain().focus().insertContent(content).run();
+      },
+    };
+    return pluginHost.setEditorAdapter(adapter);
+  }, [editor, effectiveReadOnly, hydratedEditorMemoId, pluginEditorMemoId, pluginHost]);
   // useMutation returns a new result object on every render. Depending on the
   // whole object makes autosave timers restart during unrelated renders and
   // can starve a recovered draft indefinitely. These members are stable (or
@@ -3097,6 +3146,7 @@ const RichEditorPane = ({
   if (isLoading && !memo) {
     return (
       <div className="flex h-full min-w-0 flex-col bg-white">
+        <EmptyEditorHeader pluginHost={pluginHost} onOpenPluginManager={onOpenPluginManager} />
         {selectionActionBar}
         <div className="flex min-h-0 flex-1 items-center justify-center text-sm text-slate-500">{t("editor.loading")}</div>
       </div>
@@ -3106,6 +3156,7 @@ const RichEditorPane = ({
   if (!memo) {
     return (
       <div className="flex h-full min-w-0 flex-col bg-white">
+        <EmptyEditorHeader pluginHost={pluginHost} onOpenPluginManager={onOpenPluginManager} />
         {selectionActionBar}
         <div className="flex min-h-0 flex-1 items-center justify-center px-8 text-center">
           <div>
@@ -3160,6 +3211,7 @@ const RichEditorPane = ({
 
   const updatedLabel = formatDateTime(memo.updatedAt);
   const currentNotebookLabel = notebookOptions.find((notebook) => notebook.id === memo.notebookId)?.name ?? t("editor.notebookFallback");
+  const currentMarkdownForAi = getCurrentMarkdownForAi();
 
   const mobileDoneDisabled =
     saveMutation.isPending ||
@@ -3637,6 +3689,7 @@ const RichEditorPane = ({
                 {updateAvailable ? <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-emerald-500 ring-2 ring-white" /> : null}
               </Button>
             </IconTooltip>
+            <PluginToolbarMenu host={pluginHost} onManage={onOpenPluginManager} />
             <ThemeToggle />
             {!readOnly && (
               <IconTooltip label={t("editor.save")}>
@@ -3824,8 +3877,10 @@ const RichEditorPane = ({
               </Select>
             </div>
             <EditorTagPicker
+              contentMarkdown={currentMarkdownForAi}
               disabled={effectiveReadOnly}
               loadTags={() => repository.listTags()}
+              title={title}
               value={tagsText}
               onChange={(nextTagsText) => {
                 setTagsText(nextTagsText);
@@ -4394,7 +4449,7 @@ const RichEditorPane = ({
       <AiAssistantDialog
         open={aiAssistantOpen}
         title={title}
-        contentMarkdown={getCurrentMarkdownForAi()}
+        contentMarkdown={currentMarkdownForAi}
         selectionMarkdown={aiSelection?.contentMarkdown}
         onOpenChange={handleAiAssistantOpenChange}
         onApply={applyAiDraft}

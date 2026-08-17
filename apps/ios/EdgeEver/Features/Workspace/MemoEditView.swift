@@ -147,7 +147,11 @@ struct MemoEditView: View {
             .presentationDetents([.medium, .large])
         }
         .sheet(isPresented: $showTagPicker) {
-            MemoTagPickerSheet(selectedTags: viewModel.tags) { tags in
+            MemoTagPickerSheet(
+                selectedTags: viewModel.tags,
+                title: title,
+                contentMarkdown: contentMarkdown
+            ) { tags in
                 tagsText = tags.joined(separator: ", ")
                 markDirtyAndScheduleSave()
             }
@@ -448,7 +452,10 @@ struct MemoEditView: View {
                 .accessibilityIdentifier(CreateMemoChrome.notebook)
 
                 Button {
-                    showTagPicker = true
+                    Task {
+                        await pullEditorSnapshotIfPossible()
+                        showTagPicker = true
+                    }
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "tag")
@@ -1206,10 +1213,24 @@ private struct MemoTagPickerSheet: View {
     @State private var query = ""
     @State private var availableTags: [TagSummary] = []
     @State private var error: String?
+    @State private var aiSuggestions: [AiTagSuggestion]?
+    @State private var selectedAiSuggestions = Set<String>()
+    @State private var aiError: String?
+    @State private var isSuggesting = false
+    @State private var suggestionTask: Task<Void, Never>?
+    let title: String
+    let contentMarkdown: String
     let onChange: ([String]) -> Void
 
-    init(selectedTags: [String], onChange: @escaping ([String]) -> Void) {
+    init(
+        selectedTags: [String],
+        title: String,
+        contentMarkdown: String,
+        onChange: @escaping ([String]) -> Void
+    ) {
         _selection = State(initialValue: selectedTags)
+        self.title = title
+        self.contentMarkdown = contentMarkdown
         self.onChange = onChange
     }
 
@@ -1274,6 +1295,8 @@ private struct MemoTagPickerSheet: View {
                 .overlay(RoundedRectangle(cornerRadius: 9).stroke(AppTheme.border, lineWidth: 1))
                 .padding(.horizontal, 16)
 
+                aiSuggestionCard
+
                 if let error {
                     Text(error).font(.system(size: 13)).foregroundStyle(AppTheme.danger)
                 }
@@ -1309,12 +1332,114 @@ private struct MemoTagPickerSheet: View {
             .navigationTitle(env.preferences.t("选择标签", en: "Choose tags"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
+                ToolbarItem(placement: .topBarTrailing) {
                     Button(env.preferences.t("完成", en: "Done")) { dismiss() }
                 }
             }
             .task { loadTags() }
+            .onDisappear {
+                suggestionTask?.cancel()
+                suggestionTask = nil
+            }
         }
+    }
+
+    private var aiSuggestionCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 10) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Label(env.preferences.t("AI 推荐标签", en: "AI tag suggestions"), systemImage: "sparkles")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(AppTheme.accentText)
+                    Text(env.preferences.t(
+                        "确认后再添加到当前笔记；合适时会优先复用已有标签。",
+                        en: "Review suggestions before adding them. Existing tags are preferred when they fit."
+                    ))
+                    .font(.system(size: 12))
+                    .foregroundStyle(AppTheme.accentStrong)
+                }
+                Spacer(minLength: 4)
+                Button {
+                    requestAiSuggestions()
+                } label: {
+                    HStack(spacing: 5) {
+                        if isSuggesting {
+                            ProgressView().tint(.white).controlSize(.small)
+                        } else {
+                            Image(systemName: "sparkles")
+                        }
+                        Text(env.preferences.t(
+                            aiSuggestions == nil ? "生成建议" : "重新生成",
+                            en: aiSuggestions == nil ? "Suggest" : "Suggest again"
+                        ))
+                    }
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 10)
+                    .frame(minHeight: 34)
+                    .background(AppTheme.accentAction)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+                .buttonStyle(.plain)
+                .disabled(isSuggesting || (title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    && contentMarkdown.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
+                .opacity(isSuggesting ? 0.6 : 1)
+            }
+
+            if let aiError {
+                Text(aiError).font(.system(size: 12, weight: .semibold)).foregroundStyle(AppTheme.danger)
+            }
+
+            if let aiSuggestions {
+                if aiSuggestions.isEmpty {
+                    Text(env.preferences.t("没有找到适合这篇笔记的标签。", en: "No useful tags were found for this note."))
+                        .font(.system(size: 12))
+                        .foregroundStyle(AppTheme.accentStrong)
+                } else {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 7) {
+                            ForEach(aiSuggestions) { suggestion in
+                                let alreadySelected = containsTag(suggestion.name, in: selection)
+                                let chosen = alreadySelected || selectedAiSuggestions.contains(suggestion.name)
+                                Button {
+                                    toggleAiSuggestion(suggestion.name)
+                                } label: {
+                                    HStack(spacing: 4) {
+                                        if chosen { Image(systemName: "checkmark") }
+                                        Text("#\(suggestion.name) · \(suggestionLabel(suggestion, alreadySelected: alreadySelected))")
+                                    }
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(alreadySelected ? AppTheme.accentStrong : chosen ? Color.white : AppTheme.accentText)
+                                    .padding(.horizontal, 10)
+                                    .frame(minHeight: 30)
+                                    .background(alreadySelected ? AppTheme.accentSoft : chosen ? AppTheme.accentAction : AppTheme.card)
+                                    .clipShape(Capsule())
+                                    .overlay(Capsule().stroke(AppTheme.accentBorder, lineWidth: 1))
+                                }
+                                .buttonStyle(.plain)
+                                .disabled(alreadySelected)
+                            }
+                        }
+                    }
+
+                    Button(env.preferences.t(
+                        "添加选中标签（\(selectedAiSuggestions.count)）",
+                        en: "Add selected (\(selectedAiSuggestions.count))"
+                    )) {
+                        applyAiSuggestions()
+                    }
+                    .font(.system(size: 12, weight: .bold))
+                    .buttonStyle(.borderedProminent)
+                    .tint(AppTheme.title)
+                    .disabled(selectedAiSuggestions.isEmpty)
+                }
+            }
+        }
+        .padding(12)
+        .background(AppTheme.accentSoft)
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: 10).stroke(AppTheme.accentBorder, lineWidth: 1))
+        .padding(.horizontal, 16)
     }
 
     private func loadTags() {
@@ -1345,6 +1470,77 @@ private struct MemoTagPickerSheet: View {
         }
         query = ""
         onChange(selection)
+    }
+
+    private func requestAiSuggestions() {
+        suggestionTask?.cancel()
+        isSuggesting = true
+        aiError = nil
+        let input = AiTagSuggestionsInput(
+            title: title,
+            contentMarkdown: contentMarkdown,
+            currentTags: selection,
+            locale: env.preferences.isEnglish ? "en-US" : "zh-CN"
+        )
+        suggestionTask = Task { @MainActor in
+            do {
+                let response = try await env.session.client.suggestAiTags(input)
+                try Task.checkCancellation()
+                aiSuggestions = response.suggestions
+                let availableSlots = max(0, 24 - selection.count)
+                selectedAiSuggestions = Set(
+                    response.suggestions
+                        .filter { !containsTag($0.name, in: selection) }
+                        .prefix(availableSlots)
+                        .map(\.name)
+                )
+            } catch is CancellationError {
+                return
+            } catch let apiError as APIError where apiError.code == "ai_not_configured" {
+                aiSuggestions = nil
+                selectedAiSuggestions = []
+                aiError = env.preferences.t(
+                    "请先在“AI 集成”中配置默认模型。",
+                    en: "Configure a model in AI Integrations first."
+                )
+            } catch {
+                aiSuggestions = nil
+                selectedAiSuggestions = []
+                aiError = error.localizedDescription
+            }
+            isSuggesting = false
+            suggestionTask = nil
+        }
+    }
+
+    private func toggleAiSuggestion(_ name: String) {
+        if selectedAiSuggestions.contains(name) {
+            selectedAiSuggestions.remove(name)
+        } else if selection.count + selectedAiSuggestions.count < 24 {
+            selectedAiSuggestions.insert(name)
+        }
+    }
+
+    private func applyAiSuggestions() {
+        for suggestion in aiSuggestions ?? []
+            where selectedAiSuggestions.contains(suggestion.name)
+                && selection.count < 24
+                && !containsTag(suggestion.name, in: selection) {
+            selection.append(suggestion.name)
+        }
+        selectedAiSuggestions = []
+        onChange(selection)
+    }
+
+    private func containsTag(_ name: String, in tags: [String]) -> Bool {
+        tags.contains { $0.caseInsensitiveCompare(name) == .orderedSame }
+    }
+
+    private func suggestionLabel(_ suggestion: AiTagSuggestion, alreadySelected: Bool) -> String {
+        if alreadySelected { return env.preferences.t("已添加", en: "Added") }
+        return suggestion.existing
+            ? env.preferences.t("已有", en: "Existing")
+            : env.preferences.t("新建", en: "New")
     }
 }
 

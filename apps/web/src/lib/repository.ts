@@ -388,6 +388,7 @@ export const createWebRepository = (scope: string): EdgeEverRepository => {
       notebookId: params.notebookId,
       includeDescendants: Boolean(params.notebookIds?.length),
       q: params.q,
+      tag: params.tag,
       trash: params.trash,
       filter: params.filter,
       sort: params.sort,

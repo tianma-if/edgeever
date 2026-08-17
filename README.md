@@ -197,6 +197,10 @@ https://your-domain/api/openapi.json
 
 Repository file: [docs/openapi.json](docs/openapi.json).
 
+## Plugin Development Preview
+
+The standalone Plugin Marketplace supports trusted client plugins and code-free theme packages installed from its verified index, a public GitHub repository, or a manifest URL. Plugins can query and update notes, work with editor selections, register commands and custom panels, use encrypted secret storage, and make allowlisted network requests. A unified top-right desktop entry includes recently used actions. Cron and background jobs are intentionally deferred. See [Plugin Development](docs/plugin-development.md).
+
 ## MCP
 
 Create an API token in **Profile** -> **MCP settings**, then give the token or full MCP configuration to your AI Agent. Once connected, the Agent can securely read, organize, and import notes within your account permissions. MCP also exposes full management of reusable note templates and AI instructions: agents can list, inspect, create, update, and delete both, create a note from a template, and restore missing built-in AI instructions. Template and instruction reads use the `read:memos` scope, while changes use `write:memos`. Repeating the same memo import will not create duplicate notes.

@@ -27,8 +27,11 @@ export const findDesktopReleaseVersion = (assetNames: string[]) => {
 };
 
 const parseVersion = (value: string) => {
-  const match = value.match(/v?(\d+)\.(\d+)\.(\d+)/i);
-  return match ? match.slice(1).map(Number) : null;
+  const match = value.match(/^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/i);
+  return match ? {
+    core: match.slice(1, 4).map(Number),
+    prerelease: match[4]?.split(".") ?? null,
+  } : null;
 };
 
 export const isVersionOutdated = (currentVersion: string, latestVersion: string) => {
@@ -37,9 +40,24 @@ export const isVersionOutdated = (currentVersion: string, latestVersion: string)
   if (!current || !latest) return false;
 
   for (let index = 0; index < 3; index += 1) {
-    if (current[index] !== latest[index]) return current[index] < latest[index];
+    if (current.core[index] !== latest.core[index]) return current.core[index] < latest.core[index];
   }
-
+  if (!current.prerelease) return false;
+  if (!latest.prerelease) return true;
+  const length = Math.max(current.prerelease.length, latest.prerelease.length);
+  for (let index = 0; index < length; index += 1) {
+    const currentPart = current.prerelease[index];
+    const latestPart = latest.prerelease[index];
+    if (currentPart === undefined) return true;
+    if (latestPart === undefined) return false;
+    if (currentPart === latestPart) continue;
+    const currentNumber = /^\d+$/.test(currentPart) ? Number(currentPart) : null;
+    const latestNumber = /^\d+$/.test(latestPart) ? Number(latestPart) : null;
+    if (currentNumber !== null && latestNumber !== null) return currentNumber < latestNumber;
+    if (currentNumber !== null) return true;
+    if (latestNumber !== null) return false;
+    return currentPart.localeCompare(latestPart) < 0;
+  }
   return false;
 };
 

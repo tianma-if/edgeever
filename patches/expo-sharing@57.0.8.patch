@@ -1,0 +1,42 @@
+diff --git a/android/src/main/java/expo/modules/sharing/dataParsers/SimpleShareIntentDataParser.kt b/android/src/main/java/expo/modules/sharing/dataParsers/SimpleShareIntentDataParser.kt
+index 8dd50e8f..396ebf35 100644
+--- a/android/src/main/java/expo/modules/sharing/dataParsers/SimpleShareIntentDataParser.kt
++++ b/android/src/main/java/expo/modules/sharing/dataParsers/SimpleShareIntentDataParser.kt
+@@ -20 +20,4 @@ internal class SimpleShareIntentDataParser {
+-      return if (type == "text/plain") {
++      val uri = intent.getParcelableExtraCompat<Uri>(Intent.EXTRA_STREAM)
++      return if (uri != null) {
++        listOf(createUriPayload(context, uri, type))
++      } else if (type == "text/plain") {
+@@ -31,4 +34 @@ internal class SimpleShareIntentDataParser {
+-      } else {
+-        val uri = intent.getParcelableExtraCompat<Uri>(Intent.EXTRA_STREAM)
+-        listOfNotNull(uri?.let { createUriPayload(context, it, type) })
+-      }
++      } else emptyList()
+@@ -43 +43,3 @@ internal class SimpleShareIntentDataParser {
+-      val specificType = context.contentResolver.getType(uri) ?: defaultType
++      val specificType = context.contentResolver.getType(uri)
++        ?: defaultType.takeUnless { it == "text/plain" }
++        ?: "image/*"
+diff --git a/android/src/main/java/expo/modules/sharing/dataParsers/ResolvingShareIntentDataParser.kt b/android/src/main/java/expo/modules/sharing/dataParsers/ResolvingShareIntentDataParser.kt
+index 5f4d9423..8555d93a 100644
+--- a/android/src/main/java/expo/modules/sharing/dataParsers/ResolvingShareIntentDataParser.kt
++++ b/android/src/main/java/expo/modules/sharing/dataParsers/ResolvingShareIntentDataParser.kt
+@@ -28 +28,4 @@ class ResolvingShareIntentDataParser {
+-      return if (type == "text/plain") {
++      val uri = intent.getParcelableExtraCompat<Uri>(Intent.EXTRA_STREAM)
++      return if (uri != null) {
++        listOf(resolveUri(context, uri, type))
++      } else if (type == "text/plain") {
+@@ -30,4 +33 @@ class ResolvingShareIntentDataParser {
+-      } else {
+-        val uri = intent.getParcelableExtraCompat<Uri>(Intent.EXTRA_STREAM)
+-        listOfNotNull(uri?.let { resolveUri(context, it, type) })
+-      }
++      } else emptyList()
+@@ -61 +61,3 @@ class ResolvingShareIntentDataParser {
+-      val specificMimeType = contentResolver.getType(uri) ?: mimeType
++      val specificMimeType = contentResolver.getType(uri)
++        ?: mimeType.takeUnless { it == "text/plain" }
++        ?: "image/*"

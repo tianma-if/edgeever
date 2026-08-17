@@ -126,6 +126,7 @@ import {
 } from "./ai-prompt-service";
 import { restoreMissingDefaultAiPrompts } from "./ai-prompt-seed";
 import { registerResourceRoutes } from "./resource-routes";
+import { registerPluginDistributionRoutes } from "./plugin-distribution-routes";
 import { registerSyncRoutes } from "./sync-routes";
 import { registerMemoRoutes } from "./memo-routes";
 import { registerBackupRoutes } from "./backup-routes";
@@ -360,6 +361,7 @@ registerSyncRoutes(app, {
   mapMemoDetail: (...args) => mapMemoDetail(...args),
 });
 registerTagRoutes(app);
+registerPluginDistributionRoutes(app);
 registerMemoShareRoutes(app);
 registerTemplateRoutes(app, {
   createMemoRecord: (...args) => createMemoRecord(...args),

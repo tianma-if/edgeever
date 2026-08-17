@@ -331,6 +331,7 @@ const CheckCircleCheck = ({ className }: { className?: string }) => (
 export const MemoListPane = ({
   notebooks,
   notebook,
+  selectedTag,
   memos,
   totalMemoCount,
   hasMoreMemos,
@@ -375,6 +376,7 @@ export const MemoListPane = ({
   onOpenAssets,
   onOpenTrash,
   onBackFromTrash,
+  onClearTag,
   onOpenSettings,
   onSyncMemos,
   onCreateMemo,
@@ -404,6 +406,7 @@ export const MemoListPane = ({
   multiSelectKeyDown: boolean;
   notebooks: Notebook[];
   notebook: Notebook | null;
+  selectedTag: string | null;
   memos: MemoSummary[];
   totalMemoCount: number;
   hasMoreMemos: boolean;
@@ -448,6 +451,7 @@ export const MemoListPane = ({
   onOpenAssets: () => void;
   onOpenTrash: () => void;
   onBackFromTrash: () => void;
+  onClearTag: () => void;
   onOpenSettings: () => void;
   onSyncMemos: () => void;
   onCreateMemo: () => void;
@@ -496,8 +500,8 @@ export const MemoListPane = ({
   const canToggleVisibleMemoSelection = visibleMemoIds.length > 0;
   const visibleSelectionToggleLabel = allVisibleMemosSelected ? t("memoList.selectedListNone") : t("memoList.selectedListAll");
 
-  const listTitle = view === "trash" ? t("memoList.trash") : notebook?.name ?? t("memoList.allMemos");
-  const listContextLabel = view === "trash" ? t("memoList.deletedMemos") : notebook ? t("memoList.currentNotebook") : t("memoList.allNotebooks");
+  const listTitle = view === "trash" ? t("memoList.trash") : selectedTag ? `#${selectedTag}` : notebook?.name ?? t("memoList.allMemos");
+  const listContextLabel = view === "trash" ? t("memoList.deletedMemos") : selectedTag ? t("memoList.tagFilter") : notebook ? t("memoList.currentNotebook") : t("memoList.allNotebooks");
   const visibleCount = `${memos.length}${memos.length !== totalMemoCount ? ` / ${totalMemoCount}` : ""}`;
   const listCountLabel = view === "trash"
     ? t("memoList.deletedCount", { count: visibleCount })
@@ -533,7 +537,7 @@ export const MemoListPane = ({
   const moveTargetTitle =
     view === "trash" ? t("workspace.selection.trashCannotMove") : notebooks.length === 0 ? t("workspace.selection.noMovableNotebook") : isMoving ? t("workspace.selection.moving") : t("memoList.moveToNotebook");
   const searchActive = Boolean(search.trim());
-  const hasListConstraint = searchActive || filterMode !== "all";
+  const hasListConstraint = searchActive || filterMode !== "all" || Boolean(selectedTag);
   const activeFilterLabel = filterOptions.find((option) => option.value === filterMode)?.label ?? t("options.memoFilter.all");
   const activeSortLabel = memoSortOptions.find((option) => option.value === sortMode)?.label ?? t("options.memoSort.updatedDesc");
   const syncMemosTitle = !canSyncMemos
@@ -852,6 +856,7 @@ export const MemoListPane = ({
     onClearSelection();
     onFilterModeChange("all");
     onSearch("");
+    if (selectedTag) onClearTag();
     focusSearchInput();
   };
 
@@ -1031,13 +1036,13 @@ export const MemoListPane = ({
         {!mobileSearchActive && (
           <div className="mb-3 flex items-center justify-between gap-3 lg:hidden">
             <div className="flex min-w-0 items-center gap-2">
-              {view === "trash" && (
+              {(view === "trash" || selectedTag) && (
                 <button
                   className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
                   type="button"
                   title={t("notebookPane.backToList")}
                   aria-label={t("notebookPane.backToList")}
-                  onClick={onBackFromTrash}
+                  onClick={view === "trash" ? onBackFromTrash : onClearTag}
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </button>
@@ -1073,14 +1078,14 @@ export const MemoListPane = ({
         )}
 
         <div className="mb-3 hidden min-w-0 lg:flex items-start gap-1">
-          {view === "trash" && (
+          {(view === "trash" || selectedTag) && (
             <Button
               className="-ml-2 mt-0.5 shrink-0"
               size="icon"
               variant="ghost"
               title={t("notebookPane.backToList")}
               aria-label={t("notebookPane.backToList")}
-              onClick={onBackFromTrash}
+              onClick={view === "trash" ? onBackFromTrash : onClearTag}
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
@@ -1344,7 +1349,7 @@ export const MemoListPane = ({
               {searchActive
                 ? t("memoList.searchResults", { count: totalMemoCount })
                 : t("memoList.constrainedCount", {
-                    label: t("memoList.filterConstraint", { label: activeFilterLabel }),
+                    label: selectedTag ? `#${selectedTag}` : t("memoList.filterConstraint", { label: activeFilterLabel }),
                     count: totalMemoCount,
                   })}
             </span>

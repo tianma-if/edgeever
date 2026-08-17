@@ -10,6 +10,7 @@ const androidWorkspaceSource = readSource("../apps/mobile/src/screens/WorkspaceS
 const androidSessionSource = readSource("../apps/mobile/src/lib/session.tsx");
 const iosAssistantSource = readSource("../apps/ios/EdgeEver/Features/Workspace/AiAssistantSheet.swift");
 const iosDetailSource = readSource("../apps/ios/EdgeEver/Features/Workspace/MemoDetailView.swift");
+const iosEditorSource = readSource("../apps/ios/EdgeEver/Features/Workspace/MemoEditView.swift");
 const iosApiSource = readSource("../apps/ios/EdgeEver/Data/Network/APIClient.swift");
 
 describe("native mobile AI note assistant", () => {
@@ -67,5 +68,18 @@ describe("native mobile AI note assistant", () => {
     expect(androidDetailSource).toContain("<MobileAiAssistantModal");
     expect(iosDetailSource).toContain('env.preferences.t("AI 笔记助手", en: "AI note assistant")');
     expect(iosDetailSource).toContain("AiAssistantSheet(memo: memo)");
+  });
+
+  test("suggests tags from native drafts and waits for confirmation before adding them", () => {
+    expect(androidWorkspaceSource).toContain("client.suggestAiTags({");
+    expect(androidWorkspaceSource).toContain("contentMarkdown,");
+    expect(androidWorkspaceSource).toContain("currentTags: selectedTags");
+    expect(androidWorkspaceSource).toContain("commit([...selectedTags, ...selectedAiSuggestions])");
+
+    expect(iosApiSource).toContain('path: "/api/v1/ai/tag-suggestions"');
+    expect(iosEditorSource).toContain("env.session.client.suggestAiTags(input)");
+    expect(iosEditorSource).toContain("contentMarkdown: contentMarkdown");
+    expect(iosEditorSource).toContain("currentTags: selection");
+    expect(iosEditorSource).toContain("selection.append(suggestion.name)");
   });
 });

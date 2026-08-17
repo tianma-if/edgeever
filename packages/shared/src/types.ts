@@ -139,6 +139,8 @@ export type AiProviderConfig = {
 export type AiSettings = {
   providers: AiProviderConfig[];
   defaultModelId: string | null;
+  tagSuggestionPrompt: string;
+  tagSuggestionPromptCustomized: boolean;
   encryptionConfigured: boolean;
   readOnly: boolean;
 };
@@ -170,6 +172,15 @@ export type AiStreamEvent =
   | { type: "text-delta"; text: string }
   | { type: "finish"; finishReason?: string; inputTokens?: number; outputTokens?: number }
   | { type: "error"; code: string; message: string };
+
+export type AiTagSuggestion = {
+  name: string;
+  existing: boolean;
+};
+
+export type AiTagSuggestionsResponse = {
+  suggestions: AiTagSuggestion[];
+};
 
 export type ApiToken = {
   id: string;

@@ -6,8 +6,9 @@ describe("AI provider migration", () => {
   test("preserves the legacy provider as one service with one default model", () => {
     const db = new Database(":memory:");
     const migrations = globSync("migrations/*.sql").sort();
+    const providerMigrationIndex = migrations.findIndex((path) => path.endsWith("0025_ai_providers_and_models.sql"));
 
-    for (const migration of migrations.filter((path) => !path.endsWith("0025_ai_providers_and_models.sql"))) {
+    for (const migration of migrations.slice(0, providerMigrationIndex)) {
       db.exec(readFileSync(migration, "utf8"));
     }
     db.query(
@@ -26,7 +27,9 @@ describe("AI provider migration", () => {
       1,
     );
 
-    db.exec(readFileSync("migrations/0025_ai_providers_and_models.sql", "utf8"));
+    for (const migration of migrations.slice(providerMigrationIndex)) {
+      db.exec(readFileSync(migration, "utf8"));
+    }
 
     expect(db.query(
       `SELECT id, display_name, is_enabled FROM ai_provider_configs WHERE workspace_id = ?`,

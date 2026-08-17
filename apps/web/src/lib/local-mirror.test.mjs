@@ -94,6 +94,18 @@ describe("local mirror", () => {
     expect(result.memos[0]?.excerpt).toContain("Hello local first");
   });
 
+  test("filters local memos by an exact tag across notebooks", async () => {
+    const scope = createLocalDataScope("https://demo.edgeever.org", "user-1");
+    const expected = await createLocalMemo(scope, { notebookId: "nb-a", tags: ["Demo"] });
+    await createLocalMemo(scope, { notebookId: "nb-b", tags: ["demo-extra"] });
+    await createLocalMemo(scope, { notebookId: "nb-b", title: "Demo without tag" });
+
+    const result = await listLocalMemos(scope, { tag: "demo" });
+
+    expect(result.totalCount).toBe(1);
+    expect(result.memos.map((memo) => memo.id)).toEqual([expected.id]);
+  });
+
   test("updates local content and preserves the memo identity", async () => {
     const scope = createLocalDataScope("https://demo.edgeever.org", "user-1");
     const memo = await createLocalMemo(scope, { notebookId: "nb-inbox" });

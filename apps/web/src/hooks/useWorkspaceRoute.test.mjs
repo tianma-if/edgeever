@@ -6,11 +6,14 @@ describe("workspace route resolution", () => {
     expect(resolveWorkspaceRoute("/", "")).toMatchObject({
       isTrash: false,
       isSettings: false,
+      isPlugins: false,
       isTemplates: false,
       isAiPrompts: false,
     });
     expect(resolveWorkspaceRoute("/", "?view=trash").isTrash).toBe(true);
     expect(resolveWorkspaceRoute("/settings", "").isSettings).toBe(true);
+    expect(resolveWorkspaceRoute("/plugins", "").isPlugins).toBe(true);
+    expect(resolveWorkspaceRoute("/plugins/org.edgeever.example", "").isPlugins).toBe(true);
     expect(resolveWorkspaceRoute("/templates", "").isTemplates).toBe(true);
     expect(resolveWorkspaceRoute("/ai-prompts", "").isAiPrompts).toBe(true);
   });
