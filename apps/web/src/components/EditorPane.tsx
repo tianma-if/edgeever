@@ -38,6 +38,7 @@ import {
   FileCode2,
   Printer,
   Link2,
+  Share2,
   Copy,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -84,6 +85,10 @@ import {
   type SlashCommandActions,
   type SlashCommandLabels,
 } from "./editor/SlashCommandMenu";
+import {
+  createNoteLinkSuggestionExtension,
+  type NoteLinkSuggestionLabels,
+} from "./editor/NoteLinkSuggestion";
 import { WeChatIcon } from "./WeChatIcon";
 import { ThemeToggle } from "./ThemeToggle";
 import { useEditorTheme } from "./ThemeProvider";
@@ -91,6 +96,7 @@ import { sanitizeAndScopeCss } from "@/lib/css-sandbox";
 import { RevisionHistoryDialog } from "./dialogs/RevisionHistoryDialog";
 import { ExternalLinkDialog } from "./dialogs/ExternalLinkDialog";
 import { memoShareQueryKey, ShareMemoDialog } from "./dialogs/ShareMemoDialog";
+import { ShareNoteImageDialog, type ShareNoteImageSource } from "./dialogs/ShareNoteImageDialog";
 import { AiAssistantDialog, type AiAssistantAnchor } from "./dialogs/AiAssistantDialog";
 import { api } from "@/lib/api";
 import { isDesktopResourceRuntime, stageDesktopResource, toDesktopResourceUrl } from "@/lib/desktop-resources";
@@ -144,6 +150,7 @@ import { downloadMarkdownFile } from "@/lib/note-markdown-export";
 import { NOTE_HTML_FULL_STYLES } from "@/lib/note-html-export-assets";
 import { downloadNoteHtmlFile, getHtmlImageEmbedNoticeKind } from "@/lib/note-html-export";
 import { openNotePrintPreview, serializeNoteDocumentForPrint } from "@/lib/note-print";
+import type { NoteImageFormat } from "@/lib/note-image-export";
 import { getAiSlashCommandStart, saveAndSyncEditor, shouldOpenAiFromSpace } from "@/lib/editor-shortcuts";
 import {
   AI_SPACE_SHORTCUT_CHANGED_EVENT,
@@ -155,6 +162,7 @@ import {
   getStoredEditorLinkOpenMode,
   resolveEditorLinkRequireModifier,
   shouldOpenEditorLink,
+  shouldOpenInternalNoteLink,
   shouldShowEditorLinkOpenHint,
   type EditorLinkOpenMode,
 } from "@/lib/editor-link-click";
@@ -759,6 +767,8 @@ const RichEditorPane = ({
   const [imagePreview, setImagePreview] = useState<ImagePreviewRequestDetail | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [imageShareOpen, setImageShareOpen] = useState(false);
+  const [imageShareSource, setImageShareSource] = useState<ShareNoteImageSource | null>(null);
   const [aiAssistantOpen, setAiAssistantOpen] = useState(false);
   const [aiAssistantAnchor, setAiAssistantAnchor] = useState<AiAssistantAnchor>({ left: 24, placement: "below", top: 96 });
   const aiBubbleMenu = useAiBubbleMenu(aiAssistantOpen);
@@ -909,6 +919,9 @@ const RichEditorPane = ({
       "code-block": "",
       divider: "",
       table: "",
+      "current-date": "",
+      "current-time": "",
+      "current-date-time": "",
       attachment: "",
       "note-link": "",
       "external-link": "",
@@ -936,6 +949,9 @@ const RichEditorPane = ({
       "code-block": t("editorToolbar.codeBlock"),
       divider: t("editorToolbar.horizontalRule"),
       table: t("editorToolbar.table"),
+      "current-date": t("slashMenu.items.currentDate"),
+      "current-time": t("slashMenu.items.currentTime"),
+      "current-date-time": t("slashMenu.items.currentDateTime"),
       attachment: t("editorToolbar.attachment"),
       "note-link": t("editorToolbar.noteLink"),
       "external-link": t("editorToolbar.externalLink"),
@@ -955,6 +971,29 @@ const RichEditorPane = ({
     slashCommandExtensionRef.current = createSlashCommandExtension({
       actions: slashCommandActionsRef.current,
       getLabels: () => slashCommandLabelsRef.current,
+    });
+  }
+  const noteLinkSuggestionLabelsRef = useRef<NoteLinkSuggestionLabels>({
+    menu: "",
+    empty: "",
+    close: "",
+    untitled: "",
+  });
+  noteLinkSuggestionLabelsRef.current = {
+    menu: t("noteLinkPicker.title"),
+    empty: t("noteLinkPicker.empty"),
+    close: t("noteLinkPicker.close"),
+    untitled: t("common.untitledMemo"),
+  };
+  const noteLinkSuggestionExtensionRef = useRef<ReturnType<typeof createNoteLinkSuggestionExtension> | null>(null);
+  if (!noteLinkSuggestionExtensionRef.current) {
+    noteLinkSuggestionExtensionRef.current = createNoteLinkSuggestionExtension({
+      getCurrentMemoId: () => memoRef.current?.id ?? null,
+      getLabels: () => noteLinkSuggestionLabelsRef.current,
+      searchMemos: async (query) => {
+        const result = await repository.listMemos({ q: query, limit: 20 });
+        return result.memos;
+      },
     });
   }
   const hydratingRef = useRef(false);
@@ -1210,6 +1249,7 @@ const RichEditorPane = ({
           : t("editor.placeholderCommands"),
       }),
       slashCommandExtensionRef.current,
+      noteLinkSuggestionExtensionRef.current,
     ],
     content: memo
       ? resolveMemoContentDoc(memo.contentJson, memo.contentMarkdown)
@@ -1611,11 +1651,16 @@ const RichEditorPane = ({
   }, [cancelResourceMenuHide, isMobileViewport, showResourceMenu]);
 
   const showEditorLinkOpenHint = useCallback((target: EventTarget | null) => {
+    const link = getEditorNavigableLinkFromEventTarget(target);
+    if (parseMemoLinkHref(link?.getAttribute("href"))) {
+      setNoteLinkHintPosition(null);
+      return;
+    }
+
     if (!shouldShowEditorLinkOpenHint(Boolean(editor?.isEditable), isMobileViewport, editorLinkOpenMode)) {
       return;
     }
 
-    const link = getEditorNavigableLinkFromEventTarget(target);
     if (link) {
       setNoteLinkHintPosition(getNoteLinkHintPosition(link));
     } else {
@@ -1651,10 +1696,20 @@ const RichEditorPane = ({
   }, [scheduleResourceMenuHide]);
 
   const handleEditorClickCapture = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
+    const noteLink = getNoteLinkFromEventTarget(event.target);
+    const memoId = parseMemoLinkHref(noteLink?.getAttribute("href"));
+    if (shouldOpenInternalNoteLink(event, memoId)) {
+      event.preventDefault();
+      event.stopPropagation();
+      setNoteLinkHintPosition(null);
+      onOpenMemo?.(memoId as string);
+      return;
+    }
+
     if (event.button === 0 && !event.ctrlKey && !event.metaKey) {
       showEditorLinkOpenHint(event.target);
     }
-  }, [showEditorLinkOpenHint]);
+  }, [onOpenMemo, showEditorLinkOpenHint]);
 
   const handleEditorFocusCapture = useCallback((event: ReactFocusEvent<HTMLDivElement>) => {
     if (showAttachmentMenu(event.target)) return;
@@ -2809,6 +2864,47 @@ const RichEditorPane = ({
     useMobilePlainTextEditor,
   ]);
 
+  const buildImageExportOptions = useCallback((format: NoteImageFormat) => {
+    if (!isEditorReady(editor) || !memo) return;
+    const currentDocument = useMobilePlainTextEditor
+      ? markdownToDoc(getMobilePlainTextValue())
+      : useMarkdownSourceEditor
+        ? markdownToDoc(markdownSource)
+        : editor.getJSON() as TiptapDoc;
+    return {
+      bodyHtml: serializeNoteDocumentForPrint(editor, currentDocument),
+      title: title.trim() || t("common.untitledMemo"),
+      notebook: notebookOptions.find((notebook) => notebook.id === memo.notebookId)?.name ?? "",
+      tags: parseTagsText(tagsText),
+      updatedAt: formatDateTime(memo.updatedAt),
+      language: i18n.resolvedLanguage ?? i18n.language,
+      fallbackTitle: t("common.untitledMemo"),
+      format,
+      styles: NOTE_HTML_FULL_STYLES,
+    };
+  }, [
+    editor,
+    getMobilePlainTextValue,
+    i18n.language,
+    i18n.resolvedLanguage,
+    markdownSource,
+    memo,
+    notebookOptions,
+    t,
+    tagsText,
+    title,
+    useMarkdownSourceEditor,
+    useMobilePlainTextEditor,
+  ]);
+
+  const handleOpenImageShare = useCallback(() => {
+    const options = buildImageExportOptions("png");
+    if (!options) return;
+    const { format: _format, ...source } = options;
+    setImageShareSource(source);
+    setImageShareOpen(true);
+  }, [buildImageExportOptions]);
+
   const handleSaveAsTemplate = useCallback(() => {
     if (!memo) {
       return;
@@ -2859,6 +2955,9 @@ const RichEditorPane = ({
       case "export-pdf":
         handleExportPdf(documentActionRequest.printWindow);
         break;
+      case "share-image":
+        handleOpenImageShare();
+        break;
       case "save-as-template":
         handleSaveAsTemplate();
         break;
@@ -2869,6 +2968,7 @@ const RichEditorPane = ({
     handleExportHtml,
     handleExportMarkdown,
     handleExportPdf,
+    handleOpenImageShare,
     handleSaveAsTemplate,
     hydratedEditorMemoId,
     memo,
@@ -4178,6 +4278,13 @@ const RichEditorPane = ({
                   <Printer className="h-4 w-4 text-slate-500" />
                   {t("editor.exportPdf")}
                 </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="flex h-9 w-full items-center gap-2 px-3 text-left text-sm text-slate-700 hover:bg-slate-50 cursor-pointer outline-none"
+                  onClick={handleOpenImageShare}
+                >
+                  <Share2 className="h-4 w-4 text-slate-500" />
+                  {t("editor.imageShare.action")}
+                </DropdownMenuItem>
                 {readOnly ? (
                   <>
                     <DropdownMenuItem
@@ -4876,6 +4983,14 @@ const RichEditorPane = ({
       />
 
       <ShareMemoDialog memoId={memo.id} open={shareOpen} onOpenChange={setShareOpen} />
+
+      {imageShareSource && (
+        <ShareNoteImageDialog
+          open={imageShareOpen}
+          source={imageShareSource}
+          onOpenChange={setImageShareOpen}
+        />
+      )}
 
       {mobileNotebookSheetOpen && (
         <MobileNotebookSelectSheet

@@ -7,6 +7,9 @@ import {
   BetweenHorizontalStart,
   Bot,
   Braces,
+  CalendarClock,
+  CalendarDays,
+  Clock3,
   FileUp,
   Heading1,
   Heading2,
@@ -41,6 +44,9 @@ export type SlashCommandId =
   | "code-block"
   | "divider"
   | "table"
+  | "current-date"
+  | "current-time"
+  | "current-date-time"
   | "attachment"
   | "note-link"
   | "external-link";
@@ -74,12 +80,26 @@ export type SlashCommandItem = {
 
 const slashCommandPluginKey = new PluginKey("edgeever-slash-command");
 
+const padDatePart = (value: number) => String(value).padStart(2, "0");
+
+export const formatCurrentDate = (date: Date) =>
+  `${date.getFullYear()}-${padDatePart(date.getMonth() + 1)}-${padDatePart(date.getDate())}`;
+
+export const formatCurrentTime = (date: Date) =>
+  `${padDatePart(date.getHours())}:${padDatePart(date.getMinutes())}`;
+
+export const formatCurrentDateTime = (date: Date) =>
+  `${formatCurrentDate(date)} ${formatCurrentTime(date)}`;
+
 export const createSlashCommandItems = (labels: SlashCommandLabels): SlashCommandItem[] => [
   { id: "ai", group: "suggested", icon: Bot, label: labels.items.ai, shortcut: "/ai", keywords: ["ai", "assistant", "人工智能", "智能", "写作"] },
   { id: "paragraph", group: "basic", icon: Pilcrow, label: labels.items.paragraph, keywords: ["text", "paragraph", "正文", "文本"] },
   { id: "heading-1", group: "basic", icon: Heading1, label: labels.items["heading-1"], shortcut: "#", keywords: ["h1", "heading", "标题"] },
   { id: "heading-2", group: "basic", icon: Heading2, label: labels.items["heading-2"], shortcut: "##", keywords: ["h2", "heading", "标题"] },
   { id: "heading-3", group: "basic", icon: Heading3, label: labels.items["heading-3"], shortcut: "###", keywords: ["h3", "heading", "标题"] },
+  { id: "current-date", group: "basic", icon: CalendarDays, label: labels.items["current-date"], shortcut: "/date", keywords: ["date", "today", "日期", "今天"] },
+  { id: "current-time", group: "basic", icon: Clock3, label: labels.items["current-time"], shortcut: "/time", keywords: ["time", "now", "时间", "现在"] },
+  { id: "current-date-time", group: "basic", icon: CalendarClock, label: labels.items["current-date-time"], shortcut: "/datetime", keywords: ["datetime", "timestamp", "日期时间", "时间戳"] },
   { id: "bullet-list", group: "basic", icon: List, label: labels.items["bullet-list"], shortcut: "-", keywords: ["bullet", "list", "无序", "列表"] },
   { id: "ordered-list", group: "basic", icon: ListOrdered, label: labels.items["ordered-list"], shortcut: "1.", keywords: ["ordered", "numbered", "list", "有序", "编号"] },
   { id: "task-list", group: "basic", icon: ListTodo, label: labels.items["task-list"], shortcut: "[ ]", keywords: ["task", "todo", "check", "任务", "待办"] },
@@ -210,6 +230,9 @@ const runSlashCommand = ({
     case "code-block": chain.setCodeBlock().run(); break;
     case "divider": chain.setHorizontalRule().run(); break;
     case "table": chain.insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(); break;
+    case "current-date": chain.insertContent(formatCurrentDate(new Date())).run(); break;
+    case "current-time": chain.insertContent(formatCurrentTime(new Date())).run(); break;
+    case "current-date-time": chain.insertContent(formatCurrentDateTime(new Date())).run(); break;
     case "attachment":
       chain.run();
       window.requestAnimationFrame(actions.openAttachmentPicker);

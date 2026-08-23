@@ -144,6 +144,7 @@
         "expo-sqlite": "~57.0.1",
         "expo-status-bar": "latest",
         "expo-updates": "~57.0.8",
+        "html-to-image": "^1.11.13",
         "katex": "0.16.22",
         "mermaid": "^11.16.0",
         "react": "19.2.3",
@@ -205,6 +206,7 @@
         "@tiptap/pm": "3.27.1",
         "beautiful-mermaid": "^1.1.3",
         "highlight.js": "^11.11.1",
+        "html-to-image": "^1.11.13",
         "lowlight": "^3.3.0",
         "mermaid": "^11.16.0",
         "motion": "^12.43.0",
@@ -2420,6 +2422,8 @@
     "html-escaper": ["html-escaper@3.0.3", "", {}, "sha512-RuMffC89BOWQoY0WKGpIhn5gX3iI54O6nRA0yC124NYVtzjmFWBIiFd8M0x+ZdX0P9R4lADg1mgP8C7PxGOWuQ=="],
 
     "html-parse-stringify": ["html-parse-stringify@3.0.1", "", { "dependencies": { "void-elements": "3.1.0" } }, "sha512-KknJ50kTInJ7qIScF3jeaFRpMpE8/lfiTdzf/twXyPBLAGrLRTmkz3AdTnKeh40X8k9L2fdYwEp/42WGXIRGcg=="],
+
+    "html-to-image": ["html-to-image@1.11.13", "", {}, "sha512-cuOPoI7WApyhBElTTb9oqsawRvZ0rHhaHwghRLlTuffoD1B2aDemlCruLeZrUIIdvG7gs9xeELEPm6PhuASqrg=="],
 
     "html-void-elements": ["html-void-elements@3.0.0", "", {}, "sha512-bEqo66MRXsUGxWHV5IP0PUiAWwoEjba4VCzg0LjFJBpchPaTfyfCKTG6bc5F8ucKec3q5y6qOdGyYTSBEvhCrg=="],
 

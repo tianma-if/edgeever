@@ -21,4 +21,5 @@ export * from "./schemas";
 export * from "./sharing";
 export * from "./sync";
 export * from "./desktop-rpc";
+export * from "./note-image-card";
 export * from "./types";

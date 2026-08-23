@@ -2922,7 +2922,7 @@ const moveMemosRecord = async (
   return moveMemosToNotebook(db, workspaceId, memoIds, notebookId, actor, actorLabel);
 };
 
-const mergeMemosRecord = async (
+export const mergeMemosRecord = async (
   db: D1Database,
   workspaceId: string,
   input: { memoIds: string[]; notebookId?: string; title?: string },
@@ -2944,12 +2944,39 @@ const mergeMemosRecord = async (
               m.source_memo_ids, m.merge_source_count, m.merged_into_memo_id
        FROM memos m
        INNER JOIN memo_contents c ON c.memo_id = m.id
-       WHERE m.workspace_id = ? AND m.is_deleted = 0 AND m.id IN (${placeholders})`
+       WHERE m.workspace_id = ? AND m.id IN (${placeholders})`
     )
     .bind(workspaceId, ...uniqueMemoIds)
     .all<MemoDetailRow>();
 
   if (rows.results.length !== uniqueMemoIds.length) {
+    throw new AppError("missing_memos", "One or more memos cannot be merged.", 400);
+  }
+
+  const activeRows = rows.results.filter((row) => !row.is_deleted);
+  if (activeRows.length !== uniqueMemoIds.length) {
+    // A desktop outbox retry can arrive after the first merge committed but
+    // before the client acknowledged its local placeholder. When every source
+    // now points at the same live merge result, return that result instead of
+    // treating the retry as a new merge. This makes the operation recoverable
+    // after a lost response without ever creating a second server-side memo.
+    const mergedTargetIds = new Set(
+      rows.results
+        .filter((row) => row.is_deleted && row.merged_into_memo_id)
+        .map((row) => row.merged_into_memo_id as string),
+    );
+    if (activeRows.length === 0 && mergedTargetIds.size === 1) {
+      const [mergedTargetId] = mergedTargetIds;
+      const completedMerge = await getMemoDetail(db, workspaceId, mergedTargetId);
+      const completedSourceIds = new Set(completedMerge?.sourceMemoIds ?? []);
+      if (
+        completedMerge
+        && completedMerge.sourceMemoIds.length === uniqueMemoIds.length
+        && uniqueMemoIds.every((memoId) => completedSourceIds.has(memoId))
+      ) {
+        return completedMerge;
+      }
+    }
     throw new AppError("missing_memos", "One or more memos cannot be merged.", 400);
   }
 

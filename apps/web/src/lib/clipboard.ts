@@ -66,3 +66,48 @@ export const copyHtmlToClipboard = async (html: string, plainText: string) => {
   container.remove();
   if (!copied) throw new Error("Clipboard copy was not available");
 };
+
+export const copyImageBlobToClipboard = async (blob: Blob): Promise<boolean> => {
+  if (typeof window === "undefined" || !navigator.clipboard?.write || typeof ClipboardItem === "undefined") {
+    return false;
+  }
+  try {
+    const type = blob.type === "image/jpeg" ? "image/jpeg" : "image/png";
+    await navigator.clipboard.write([
+      new ClipboardItem({
+        [type]: blob,
+      }),
+    ]);
+    return true;
+  } catch (error) {
+    // If writing jpeg directly fails in some browsers (e.g. Safari only supports image/png),
+    // try converting blob to png via an image/canvas in memory
+    try {
+      const img = document.createElement("img");
+      const url = URL.createObjectURL(blob);
+      img.src = url;
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error("Image load failed for clipboard conversion"));
+      });
+      const canvas = document.createElement("canvas");
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      const ctx = canvas.getContext("2d");
+      ctx?.drawImage(img, 0, 0);
+      URL.revokeObjectURL(url);
+      const pngBlob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
+      if (!pngBlob) return false;
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          "image/png": pngBlob,
+        }),
+      ]);
+      return true;
+    } catch {
+      console.warn("Failed to write image blob to clipboard:", error);
+      return false;
+    }
+  }
+};
+

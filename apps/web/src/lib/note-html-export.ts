@@ -82,6 +82,29 @@ export const escapeHtml = (value: string) =>
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 
+export const buildNoteHtmlContentMarkup = ({
+  title,
+  notebook = "",
+  tags = [],
+  updatedAt = "",
+  bodyHtml,
+}: Pick<BuildStandaloneHtmlDocumentOptions, "title" | "notebook" | "tags" | "updatedAt" | "bodyHtml">) => {
+  const metadataParts = [notebook, updatedAt, ...tags.map((tag) => `#${tag}`)].filter(Boolean);
+  const metaHtml = metadataParts.length > 0
+    ? `<div class="edgeever-html-meta">${escapeHtml(metadataParts.join(" · "))}</div>`
+    : "";
+
+  return `<div class="edgeever-html-shell">
+<article class="edgeever-html-document">
+<h1 class="edgeever-html-title">${escapeHtml(title)}</h1>
+${metaHtml}
+<div class="edgeever-html-content">
+${bodyHtml}
+</div>
+</article>
+</div>`;
+};
+
 export const buildStandaloneHtmlDocument = ({
   title,
   notebook = "",
@@ -91,10 +114,7 @@ export const buildStandaloneHtmlDocument = ({
   bodyHtml,
   styles = "",
 }: BuildStandaloneHtmlDocumentOptions) => {
-  const metadataParts = [notebook, updatedAt, ...tags.map((tag) => `#${tag}`)].filter(Boolean);
-  const metaHtml = metadataParts.length > 0
-    ? `<div class="edgeever-html-meta">${escapeHtml(metadataParts.join(" · "))}</div>`
-    : "";
+  const contentMarkup = buildNoteHtmlContentMarkup({ title, notebook, tags, updatedAt, bodyHtml });
 
   return `<!DOCTYPE html>
 <html lang="${escapeHtml(language)}">
@@ -108,15 +128,7 @@ ${styles}
 </style>
 </head>
 <body>
-<div class="edgeever-html-shell">
-<article class="edgeever-html-document">
-<h1 class="edgeever-html-title">${escapeHtml(title)}</h1>
-${metaHtml}
-<div class="edgeever-html-content">
-${bodyHtml}
-</div>
-</article>
-</div>
+${contentMarkup}
 </body>
 </html>
 `;

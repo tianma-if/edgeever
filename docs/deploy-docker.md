@@ -69,13 +69,16 @@ switch to Tencent Cloud TCR:
 
 ```sh
 export EDGE_EVER_IMAGE=ccr.ccs.tencentyun.com/edgeever/edgeever
-export EDGE_EVER_VERSION=v1.33.0
+export EDGE_EVER_VERSION=vX.Y.Z
 docker compose pull
 docker compose up -d
 ```
 
 The public TCR image requires no `docker login` and supports `linux/amd64` and
-`linux/arm64`. Pin `EDGE_EVER_VERSION` to a release tag in production.
+`linux/arm64`. Formal releases publish the same version tags and `latest`
+multi-platform image to GHCR and TCR; the release audit rejects missing, stale,
+or mismatched mirror content. Pin `EDGE_EVER_VERSION` to a release tag in
+production.
 
 Compose creates one named volume. Everything that must survive a container
 replacement is under `/data`:

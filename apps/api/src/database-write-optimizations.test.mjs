@@ -5,6 +5,7 @@ import {
   acquireMaintenanceLease,
   createMemoEditSession,
   fetchEdgeEverApp,
+  mergeMemosRecord,
   updateMemoRecord,
 } from "./index.ts";
 
@@ -83,6 +84,31 @@ const getSeedMemo = (sqlite) => sqlite.query(
 ).get();
 
 describe("database write optimizations", () => {
+  test("returns the completed merge when the same source set is retried", async () => {
+    const { database, sqlite } = createDatabase();
+    const first = getSeedMemo(sqlite);
+    const secondId = "memo_merge_retry_source";
+    sqlite.query(
+      `INSERT INTO memos (id, workspace_id, notebook_id, title, excerpt, tags_json, created_by, updated_by)
+       VALUES (?, ?, ?, 'Retry source', 'retry body', '[]', 'user', 'user')`,
+    ).run(secondId, first.workspace_id, first.notebook_id);
+    sqlite.query(
+      `INSERT INTO memo_contents (memo_id, content_json, content_markdown, content_text, content_hash)
+       VALUES (?, '{"type":"doc","content":[]}', 'retry body', 'retry body', 'retry-hash')`,
+    ).run(secondId);
+
+    const input = { memoIds: [first.id, secondId], title: "Idempotent merge" };
+    const actor = { actorType: "user", actorId: "user_owner" };
+    const completed = await mergeMemosRecord(database, first.workspace_id, input, actor, "owner");
+    const retried = await mergeMemosRecord(database, first.workspace_id, input, actor, "owner");
+
+    expect(retried.id).toBe(completed.id);
+    expect(retried.sourceMemoIds).toEqual(input.memoIds);
+    expect(sqlite.query("SELECT COUNT(*) AS count FROM memos WHERE is_deleted = 0 AND title = 'Idempotent merge'").get().count).toBe(1);
+    expect(sqlite.query("SELECT COUNT(*) AS count FROM audit_events WHERE action = 'memo.merge' AND entity_id = ?").get(completed.id).count).toBe(1);
+    sqlite.close();
+  });
+
   test("reuses a matching live edit session without another insert", async () => {
     const { database, sqlite } = createDatabase();
     const memo = getSeedMemo(sqlite);

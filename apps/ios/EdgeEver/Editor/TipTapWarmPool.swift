@@ -17,6 +17,7 @@ struct TipTapSession {
     var onImagePreview: ((_ source: String, _ alt: String) -> Void)?
     var onPickImage: (() -> Void)?
     var onSearchResult: ((_ count: Int, _ index: Int) -> Void)?
+    var onImageExportEvent: (([String: Any]) -> Void)?
     var onBodyReady: (() -> Void)?
 }
 
@@ -412,6 +413,29 @@ final class SharedTipTapRuntime: NSObject, WKScriptMessageHandler, WKNavigationD
         return (md, json)
     }
 
+    func exportNoteImage(request: [String: Any]) {
+        guard ready,
+              JSONSerialization.isValidJSONObject(request),
+              let data = try? JSONSerialization.data(withJSONObject: request),
+              let json = String(data: data, encoding: .utf8)
+        else { return }
+        let requestId = request["requestId"] as? String ?? ""
+        let requestIdLiteral = String(data: (try? JSONSerialization.data(withJSONObject: requestId, options: .fragmentsAllowed)) ?? Data("\"\"".utf8), encoding: .utf8) ?? "\"\""
+        let js = """
+        (function(){
+          try {
+            if (!window.EdgeEverEditor || !window.EdgeEverEditor.exportImage) return false;
+            window.EdgeEverEditor.exportImage(\(json));
+            return true;
+          } catch (e) {
+            try { window.webkit.messageHandlers.edgeever.postMessage({type:'imageExportError', requestId:\(requestIdLiteral), message:String(e)}); } catch (_) {}
+            return false;
+          }
+        })();
+        """
+        webView.evaluateJavaScript(js, completionHandler: nil)
+    }
+
     private func scheduleFocusEnd(for generation: UInt64) {
         guard focusedGeneration != generation else { return }
         focusedGeneration = generation
@@ -671,6 +695,9 @@ final class SharedTipTapRuntime: NSObject, WKScriptMessageHandler, WKNavigationD
             let index = (body["index"] as? NSNumber)?.intValue ?? 0
             let cb = session?.onSearchResult
             DispatchQueue.main.async { cb?(count, index) }
+        case "imageExportChunk", "imageExportComplete", "imageExportError":
+            let cb = session?.onImageExportEvent
+            DispatchQueue.main.async { cb?(body) }
         default:
             break
         }

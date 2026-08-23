@@ -558,18 +558,40 @@ const parseRunId = (output) => {
   return match ? Number(match[1]) : null;
 };
 
-const waitForRun = async ({ repository, runId, label }) => {
+export const waitForRun = async ({
+  repository,
+  runId,
+  label,
+  viewRun = () => ghJson([
+    "run",
+    "view",
+    String(runId),
+    "--repo",
+    repository,
+    "--json",
+    "status,conclusion,url,headSha",
+  ]),
+  waitForNextPoll = () => wait(POLL_INTERVAL_MS),
+  maxConsecutiveFailures = 5,
+}) => {
   let lastStatus = "";
+  let consecutiveFailures = 0;
   while (true) {
-    const runView = ghJson([
-      "run",
-      "view",
-      String(runId),
-      "--repo",
-      repository,
-      "--json",
-      "status,conclusion,url,headSha",
-    ]);
+    let runView;
+    try {
+      runView = viewRun();
+      consecutiveFailures = 0;
+    } catch (error) {
+      consecutiveFailures += 1;
+      if (consecutiveFailures >= maxConsecutiveFailures) {
+        throw error;
+      }
+      console.warn(
+        `[release] ${label}: GitHub status check failed; retrying (${consecutiveFailures}/${maxConsecutiveFailures - 1})`,
+      );
+      await waitForNextPoll();
+      continue;
+    }
     const statusLabel = `${runView.status}${runView.conclusion ? `/${runView.conclusion}` : ""}`;
     if (statusLabel !== lastStatus) {
       console.log(`[release] ${label}: ${statusLabel} (${runView.url})`);
@@ -581,7 +603,7 @@ const waitForRun = async ({ repository, runId, label }) => {
       }
       return runView;
     }
-    await wait(POLL_INTERVAL_MS);
+    await waitForNextPoll();
   }
 };
 

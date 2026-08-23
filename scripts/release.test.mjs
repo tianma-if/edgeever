@@ -12,6 +12,7 @@ import {
   resolveReleaseVersion,
   reusedAssetMatches,
   selectPublishedDmg,
+  waitForRun,
 } from "./release.mjs";
 
 describe("release automation", () => {
@@ -24,6 +25,28 @@ describe("release automation", () => {
       label: "Project regression tests",
       args: ["run", "test"],
     });
+  });
+
+  test("retries transient GitHub status failures while waiting for a workflow", async () => {
+    let attempts = 0;
+    let polls = 0;
+    const result = await waitForRun({
+      repository: "tianma-if/edgeever",
+      runId: 123,
+      label: "Draft assets",
+      viewRun: () => {
+        attempts += 1;
+        if (attempts < 3) throw new Error("transient EOF");
+        return { status: "completed", conclusion: "success", url: "https://example.test/run" };
+      },
+      waitForNextPoll: async () => {
+        polls += 1;
+      },
+    });
+
+    expect(result.conclusion).toBe("success");
+    expect(attempts).toBe(3);
+    expect(polls).toBe(2);
   });
 
   test("parses paired bilingual changes and labels", () => {

@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   resolveStoredEditorLinkOpenMode,
   shouldOpenEditorLink,
+  shouldOpenInternalNoteLink,
   shouldShowEditorLinkOpenHint,
 } from "./editor-link-click.ts";
 
@@ -48,6 +49,14 @@ describe("editor link click policy", () => {
 
   test("opens a link normally in a read-only document even with requireModifier", () => {
     expect(shouldOpenEditorLink(primaryClick, false, { requireModifier: true })).toBe(true);
+  });
+
+  test("opens an internal note reference on a primary click with or without modifiers", () => {
+    expect(shouldOpenInternalNoteLink(primaryClick, "memo-1")).toBe(true);
+    expect(shouldOpenInternalNoteLink({ ...primaryClick, metaKey: true }, "memo-1")).toBe(true);
+    expect(shouldOpenInternalNoteLink({ ...primaryClick, ctrlKey: true }, "memo-1")).toBe(true);
+    expect(shouldOpenInternalNoteLink({ ...primaryClick, button: 1 }, "memo-1")).toBe(false);
+    expect(shouldOpenInternalNoteLink(primaryClick, null)).toBe(false);
   });
 
   test("does not handle non-primary buttons", () => {

@@ -45,10 +45,18 @@ bun run release -- \
 - 桌面端和 Android 更新检查使用对应 Release 资产中记录的版本，而不是整体
   GitHub Tag，避免仅涉及 Web 或 API 的 Release 触发无效原生更新。
 - 脚本负责创建跟踪 Issue 和 Draft Release、验证或复用原生资产、准备多架构
-  Docker 镜像、正式发布、关闭 Issue，并安装与当前 Mac 架构匹配的 DMG。
+  Docker 镜像并同时写入 GHCR 与腾讯云 TCR 公共镜像、正式发布、关闭 Issue，
+  并安装与当前 Mac 架构匹配的 DMG。
   输出 Actions 链接后，Demo 部署会独立继续执行。
 - 此命令不执行移动端商店交付，详见
   [移动端商店交付](store-delivery.zh-CN.md)。
+
+## 镜像仓库凭据
+
+官方仓库必须配置 `TENCENT_TCR_USERNAME` 和 `TENCENT_TCR_PASSWORD` 两个
+Actions Secret。对于 TCR 个人版，用户名是腾讯云账号 ID，密码是在 TCR 控制台
+初始化的固定登录密码。Draft 准备阶段会向 GHCR 与 TCR 写入相同标签；正式发布
+前会以匿名方式检查两个仓库。
 
 ## 失败与续跑
 

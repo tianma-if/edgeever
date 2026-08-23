@@ -11,6 +11,20 @@ import { Markdown } from "@tiptap/markdown";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { NodeSelection } from "@tiptap/pm/state";
 import mermaid from "mermaid";
+import { toCanvas } from "html-to-image";
+import {
+  type NoteImageTheme,
+  type NoteImageFontStyle,
+  type NoteImageFontSize,
+  type NoteImageCardWidth,
+  NOTE_IMAGE_CARD_WIDTH_PIXELS,
+  NOTE_IMAGE_BACKGROUND_COLORS,
+  NOTE_IMAGE_THEMES,
+  resolveTheme,
+  buildImageExportBasename,
+  buildNoteImageCardMarkup,
+  generateCardCss,
+} from "@edgeever/shared/note-image-card";
 import { createEdgeEverMathematics } from "./mathematics";
 
 /** Keep in sync with packages/shared MergeDivider (iOS bundle cannot import monorepo shared). */
@@ -68,6 +82,18 @@ type BridgeMessage =
   | { type: "imagePreview"; source: string; alt: string }
   | { type: "pickImage" }
   | { type: "searchResult"; count: number; index: number }
+  | { type: "imageExportChunk"; requestId: string; chunk: string }
+  | {
+      type: "imageExportComplete";
+      requestId: string;
+      filename: string;
+      mimeType: string;
+      width: number;
+      height: number;
+      totalImages: number;
+      failedImages: number;
+    }
+  | { type: "imageExportError"; requestId: string; message: string }
   | { type: "activeFlags"; flags: number }
   | { type: "log"; message: string }
   | { type: "error"; message: string };
@@ -126,6 +152,29 @@ type ConfigureOptions = {
 };
 
 const startedAt = performance.now();
+const IMAGE_EXPORT_WIDTH = 768;
+const IMAGE_EXPORT_PIXEL_RATIO = 1.5;
+const IMAGE_EXPORT_CHUNK_SIZE = 256 * 1024;
+
+type ImageExportRequest = {
+  requestId: string;
+  format: "jpeg" | "png";
+  title: string;
+  fallbackTitle: string;
+  notebook?: string;
+  tags?: string[];
+  updatedAt?: string;
+  background?: "mint" | "slate" | "warm" | NoteImageTheme;
+  theme?: NoteImageTheme;
+  fontStyle?: NoteImageFontStyle;
+  fontSize?: NoteImageFontSize;
+  cardWidth?: NoteImageCardWidth;
+  showTitle?: boolean;
+  showNotebook?: boolean;
+  showTags?: boolean;
+  showUpdatedAt?: boolean;
+  branding?: boolean;
+};
 let mode: "viewer" | "editor" = "viewer";
 let locale = "zh-CN";
 let currentPlaceholder = "开始输入…";
@@ -140,6 +189,22 @@ function post(msg: BridgeMessage) {
   } catch {
     // native host unavailable (browser preview)
   }
+}
+
+function sanitizeImageExportBasename(title: string, fallback: string) {
+  return title.replace(/[\u0000-\u001f<>:"/\\|?*]/g, "-").replace(/\s+/g, " ").replace(/[. ]+$/g, "").trim().slice(0, 100) || fallback;
+}
+
+async function blobToBytes(blob: Blob) {
+  return new Uint8Array(await blob.arrayBuffer());
+}
+
+function bytesToBase64(bytes: Uint8Array) {
+  let binary = "";
+  for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+  }
+  return btoa(binary);
 }
 
 function isProtectedResource(src: string): boolean {
@@ -1052,6 +1117,109 @@ async function afterContentSet(theme: "light" | "dark" = "light") {
   }
 }
 
+async function exportNoteImage(request: ImageExportRequest) {
+  if (!request.requestId || (request.format !== "png" && request.format !== "jpeg")) return;
+  const resolvedTheme = resolveTheme(request.background, request.theme);
+  const fontStyle = request.fontStyle ?? "serif";
+  const fontSize = request.fontSize ?? "lg";
+  const cardWidth = request.cardWidth ?? "standard";
+  const targetWidth = NOTE_IMAGE_CARD_WIDTH_PIXELS[cardWidth] || 680;
+  const themeCfg = NOTE_IMAGE_THEMES[resolvedTheme] || NOTE_IMAGE_THEMES.slate;
+
+  const editorClone = editor.view.dom.cloneNode(true) as HTMLElement;
+  editorClone.removeAttribute("contenteditable");
+  editorClone.querySelectorAll("button, [contenteditable='true']").forEach((element) => {
+    element.removeAttribute("contenteditable");
+    if (element instanceof HTMLButtonElement) element.remove();
+  });
+
+  const bodyHtml = editorClone.innerHTML;
+
+  const host = document.createElement("div");
+  host.style.cssText = `position:fixed;left:-100000px;top:0;width:${targetWidth}px;pointer-events:none;`;
+  const style = document.createElement("style");
+  style.textContent = generateCardCss({ theme: resolvedTheme, fontStyle, fontSize, cardWidth });
+
+  const cardMarkup = buildNoteImageCardMarkup({
+    title: request.title || request.fallbackTitle,
+    notebook: request.notebook,
+    tags: request.tags,
+    updatedAt: request.updatedAt,
+    bodyHtml,
+    theme: resolvedTheme,
+    fontStyle,
+    showTitle: request.showTitle ?? true,
+    showNotebook: request.showNotebook ?? false,
+    showTags: request.showTags ?? false,
+    showUpdatedAt: request.showUpdatedAt ?? true,
+    showBranding: request.branding ?? true,
+  });
+
+  host.appendChild(style);
+  host.insertAdjacentHTML("beforeend", cardMarkup);
+  const documentRoot = host.lastElementChild as HTMLElement;
+  documentRoot.style.width = `${targetWidth}px`;
+  documentRoot.style.maxWidth = "none";
+  documentRoot.style.margin = "0";
+
+  document.body.appendChild(host);
+
+  try {
+    await document.fonts?.ready;
+    await Promise.all(Array.from(documentRoot.querySelectorAll("img")).map(async (image) => {
+      if (image.complete) return;
+      try { await image.decode(); } catch { /* Export the readable remainder. */ }
+    }));
+    const exportedImages = Array.from(
+      documentRoot.querySelectorAll<HTMLImageElement>(".edgeever-card-body img"),
+    );
+    const failedImages = exportedImages.filter((image) => !image.complete || image.naturalWidth === 0).length;
+    const totalHeight = Math.max(1, Math.ceil(documentRoot.getBoundingClientRect().height));
+    const backgroundColor = NOTE_IMAGE_BACKGROUND_COLORS[resolvedTheme] || themeCfg.canvasBg;
+
+    const canvas = await toCanvas(documentRoot, {
+      backgroundColor,
+      cacheBust: false,
+      height: totalHeight,
+      pixelRatio: 2,
+      skipFonts: true,
+      width: targetWidth,
+    });
+    const blob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        (result) => result ? resolve(result) : reject(new Error("Image renderer returned an empty file")),
+        request.format === "jpeg" ? "image/jpeg" : "image/png",
+        request.format === "jpeg" ? 0.92 : 1,
+      );
+    });
+
+    const extension = request.format === "jpeg" ? "jpg" : "png";
+    const basename = buildImageExportBasename(request.title, request.fallbackTitle);
+    const bytes = await blobToBytes(blob);
+    const filename = `${basename}.${extension}`;
+    const mimeType = request.format === "jpeg" ? "image/jpeg" : "image/png";
+    const base64 = bytesToBase64(bytes);
+    for (let offset = 0; offset < base64.length; offset += IMAGE_EXPORT_CHUNK_SIZE) {
+      post({ type: "imageExportChunk", requestId: request.requestId, chunk: base64.slice(offset, offset + IMAGE_EXPORT_CHUNK_SIZE) });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+    post({
+      type: "imageExportComplete",
+      requestId: request.requestId,
+      filename,
+      mimeType,
+      width: canvas.width,
+      height: canvas.height,
+      totalImages: exportedImages.length,
+      failedImages,
+    });
+  } catch (error) {
+    post({ type: "imageExportError", requestId: request.requestId, message: error instanceof Error ? error.message : "Image export failed" });
+  } finally {
+    host.remove();
+  }
+}
+
 export type EdgeEverEditorAPI = {
   configure: (opts: ConfigureOptions) => void;
   setMarkdown: (md: string) => void;
@@ -1069,9 +1237,13 @@ export type EdgeEverEditorAPI = {
   completeImageUpload: (uploadId: string, imageUrl: string, alt: string) => void;
   cancelImageUpload: (uploadId: string) => void;
   search: (query: string, requestedIndex: number) => void;
+  exportImage: (request: ImageExportRequest) => void;
 };
 
 const api: EdgeEverEditorAPI = {
+  exportImage(request) {
+    void exportNoteImage(request);
+  },
   configure(opts) {
     const nextMode = opts.mode === "editor" ? "editor" : "viewer";
     const modeChanged = nextMode !== mode;

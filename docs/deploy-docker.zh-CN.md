@@ -58,13 +58,15 @@ docker compose ps
 
 ```sh
 export EDGE_EVER_IMAGE=ccr.ccs.tencentyun.com/edgeever/edgeever
-export EDGE_EVER_VERSION=v1.33.0
+export EDGE_EVER_VERSION=vX.Y.Z
 docker compose pull
 docker compose up -d
 ```
 
 腾讯云公共镜像无需执行 `docker login`，支持 `linux/amd64` 与 `linux/arm64`。
-生产环境应通过 `EDGE_EVER_VERSION` 固定正式版本标签。
+正式发布会向 GHCR 和 TCR 同时写入相同的版本标签与 `latest` 多平台镜像；发布
+审计会拒绝缺失、滞后或内容不一致的镜像。生产环境应通过
+`EDGE_EVER_VERSION` 固定正式版本标签。
 
 Compose 会创建一个命名卷。所有需要在容器替换后保留的数据都位于 `/data`：
 

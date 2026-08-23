@@ -1287,9 +1287,35 @@ fn sync_outbox_ack(database: &Connection, params: &Value) -> Result<Value, Strin
                 )
                 .map_err(|e| e.to_string())?;
             if remote_exists {
-                database
-                    .execute("DELETE FROM memos WHERE id = ?1", [&entity_id])
+                // `acknowledge` caches the remote memo before acknowledging the
+                // outbox item, so the remote id normally already exists here.
+                // A merged local memo can still own resources moved from its
+                // sources. Deleting it directly is rejected by the resources
+                // foreign key and leaves both the local placeholder and remote
+                // memo visible forever. Repoint every surviving relationship
+                // before removing the placeholder, and keep the reconciliation
+                // atomic so a crash cannot strand a partially remapped merge.
+                let tx = database
+                    .unchecked_transaction()
                     .map_err(|e| e.to_string())?;
+                tx.execute(
+                    "UPDATE resources SET memo_id = ?1 WHERE memo_id = ?2",
+                    rusqlite::params![remote_id, entity_id],
+                )
+                .map_err(|e| e.to_string())?;
+                tx.execute(
+                    "UPDATE resources SET original_memo_id = ?1 WHERE original_memo_id = ?2",
+                    rusqlite::params![remote_id, entity_id],
+                )
+                .map_err(|e| e.to_string())?;
+                tx.execute(
+                    "UPDATE memos SET merged_into_memo_id = ?1 WHERE merged_into_memo_id = ?2",
+                    rusqlite::params![remote_id, entity_id],
+                )
+                .map_err(|e| e.to_string())?;
+                tx.execute("DELETE FROM memos WHERE id = ?1", [&entity_id])
+                    .map_err(|e| e.to_string())?;
+                tx.commit().map_err(|e| e.to_string())?;
             } else {
                 database
                     .execute(

@@ -36,6 +36,20 @@ final class EditorBundleTests: XCTestCase {
         )
     }
 
+    func testPackagedEditorExposesChunkedImageExportBridge() throws {
+        let url = try XCTUnwrap(TipTapWebView.Coordinator.packagedEditorHTMLURL())
+        let html = try String(contentsOf: url, encoding: .utf8)
+        XCTAssertTrue(html.contains("exportImage"), "TipTap bridge must expose note image export")
+        XCTAssertTrue(
+            html.contains("imageExportComplete") && html.contains("imageExportChunk"),
+            "large image exports must cross the native bridge in bounded chunks"
+        )
+        XCTAssertTrue(
+            html.contains("failedImages") && html.contains("totalImages"),
+            "image export completion must report note-image failures for preview feedback"
+        )
+    }
+
     /// Caret must not be forced to document end on every content set / keystroke path.
     func testNativeBridgeDoesNotForceCaretToEndOnPush() throws {
         // Tests/EdgeEverTests/ThisFile.swift → apps/ios/
