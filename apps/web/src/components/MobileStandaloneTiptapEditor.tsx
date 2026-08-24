@@ -42,7 +42,6 @@ import {
   type MobileEditorSaveState,
 } from "@/lib/mobile-editor-standalone";
 import { getMemoUpdateQueueId, isMemoUpdateAlreadyApplied, queueMemoUpdate, shouldQueueMemoSaveError } from "@/lib/sync-queue";
-import { EdgeEverCodeBlock, codeBlockLowlight } from "@/lib/code-block";
 import { createMarkdownImagePasteRule } from "@/lib/markdown-image-paste";
 import { ThemeBlock } from "./ThemeBlock";
 import { EditorTagPicker } from "./EditorTagPicker";
@@ -194,10 +193,9 @@ export const MobileStandaloneTiptapEditor = ({
 
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({ codeBlock: false }),
+      StarterKit,
       TaskList,
       TaskItem.configure({ nested: true }),
-      EdgeEverCodeBlock.configure({ lowlight: codeBlockLowlight, defaultLanguage: "plaintext" }),
       MergeDivider,
       ...createEdgeEverMathematics(),
       ThemeBlock,

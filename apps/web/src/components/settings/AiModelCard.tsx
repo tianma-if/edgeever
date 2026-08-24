@@ -23,7 +23,12 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { api } from "@/lib/api";
+import {
+  readAiStreamingPreference,
+  writeAiStreamingPreference,
+} from "@/lib/ai-generation-preference";
 import { cn } from "@/lib/utils";
 
 export const AiModelCard = () => {
@@ -41,6 +46,7 @@ export const AiModelCard = () => {
   const [baseUrl, setBaseUrl] = useState(providerDefaults["openai-compatible"].baseUrl);
   const [apiKey, setApiKey] = useState("");
   const [initialModelId, setInitialModelId] = useState(providerDefaults["openai-compatible"].modelId);
+  const [streamingEnabled, setStreamingEnabled] = useState(readAiStreamingPreference);
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["ai-settings"] });
   const resetAddForm = (nextDisplayName = "") => {
@@ -107,8 +113,8 @@ export const AiModelCard = () => {
           <CollapsibleTrigger asChild>
             <button className="flex w-full min-w-0 items-start justify-between gap-3 text-left" type="button">
               <span className="min-w-0">
-                <CardTitle className="flex items-center gap-2 text-sm">
-                  <Sparkles className="h-4 w-4 text-emerald-700" />
+                <CardTitle className="flex items-center gap-2 text-base font-semibold">
+                  <Sparkles className="h-4.5 w-4.5 text-emerald-700" />
                   {t("aiModel.title")}
                 </CardTitle>
                 <CardDescription className="mt-1 text-xs text-slate-500">{t("aiModel.description")}</CardDescription>
@@ -129,26 +135,51 @@ export const AiModelCard = () => {
                   </p>
                 ) : null}
 
-                <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-200/70 bg-slate-50/50 px-3.5 py-2">
-                  <span className="text-xs font-medium text-slate-700">{t("aiModel.defaultModel")}</span>
-                  <div className="w-56 max-w-[60%] shrink-0 sm:w-72">
-                    <Select
-                      value={settings?.defaultModelId ?? "none"}
-                      onValueChange={(value) => defaultMutation.mutate(value === "none" ? null : value)}
-                      disabled={readOnly || defaultMutation.isPending}
-                    >
-                      <SelectTrigger className="h-8 bg-white text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">{t("aiModel.noDefaultModel")}</SelectItem>
-                        {allModels.map((model) => (
-                          <SelectItem key={model.id} value={model.id} disabled={!model.providerEnabled}>
-                            {model.displayName} · {model.providerName}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                <section className="grid gap-2">
+                  <span className="text-sm font-semibold text-slate-600">
+                    {t("aiModel.defaultSettingsTitle")}
+                  </span>
+                  <div className="overflow-hidden rounded-lg border border-slate-200/70 bg-slate-50/50 divide-y divide-slate-200/70">
+                    <div className="flex items-center justify-between gap-3 px-3.5 py-2.5">
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold text-slate-800">{t("aiModel.defaultModel")}</div>
+                        <div className="mt-0.5 text-xs leading-5 text-slate-500">{t("aiModel.defaultModelHint")}</div>
+                      </div>
+                      <div className="w-56 max-w-[60%] shrink-0 sm:w-72">
+                        <Select
+                          value={settings?.defaultModelId ?? "none"}
+                          onValueChange={(value) => defaultMutation.mutate(value === "none" ? null : value)}
+                          disabled={readOnly || defaultMutation.isPending}
+                        >
+                          <SelectTrigger className="h-8 bg-white text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">{t("aiModel.noDefaultModel")}</SelectItem>
+                            {allModels.map((model) => (
+                              <SelectItem key={model.id} value={model.id} disabled={!model.providerEnabled}>
+                                {model.displayName} · {model.providerName}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between gap-3 px-3.5 py-2.5">
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold text-slate-800">{t("settings.aiStreamingTitle")}</div>
+                        <div className="mt-0.5 text-xs leading-5 text-slate-500">{t("settings.aiStreamingDescription")}</div>
+                      </div>
+                      <Switch
+                        className="shrink-0"
+                        checked={streamingEnabled}
+                        onCheckedChange={(enabled) => {
+                          writeAiStreamingPreference(enabled);
+                          setStreamingEnabled(enabled);
+                        }}
+                        aria-label={t("settings.aiStreamingAria")}
+                      />
+                    </div>
                   </div>
-                </div>
+                </section>
                 {!defaultModelAvailable ? (
                   <p className="flex items-center gap-1.5 text-xs text-amber-700">
                     <TriangleAlert className="h-3.5 w-3.5 shrink-0" />
@@ -159,7 +190,7 @@ export const AiModelCard = () => {
                 <section className="grid gap-3">
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      <span className="text-sm font-semibold text-slate-600">
                         {t("aiModel.servicesTitle")}
                       </span>
                       <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">

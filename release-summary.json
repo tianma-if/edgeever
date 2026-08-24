@@ -1,19 +1,19 @@
 {
-  "version": "1.38.0",
+  "version": "1.39.0",
   "changes": {
     "en-US": [
-      "Create polished shareable note images on Web, Android, and iOS with PNG/JPEG export, eight poster themes, typography controls, and brand styling.",
-      "Link notes quickly with @ suggestions and open referenced notes directly from the editor.",
-      "Insert the current date or time through new editor slash commands.",
-      "Preserve edits more reliably when reconciling synchronized memo placeholders.",
-      "Make official Docker releases consistently available from both GHCR and Tencent TCR for smoother self-hosted deployments."
+      "Switch quickly between recent memos from the workspace and explore refreshed demo notes.",
+      "Use Reading Protection mode and its keyboard shortcut to reduce accidental edits while reviewing notes.",
+      "Enjoy a calmer, more compact workspace with improved Classic and Mermaid rendering.",
+      "Navigate long documents with a refined outline and edit more comfortably on mobile with the new Marxico theme.",
+      "Configure AI models and generation preferences through a clearer, simplified settings layout."
     ],
     "zh-CN": [
-      "在 Web、Android 和 iOS 上生成精美的笔记分享图片，支持 PNG/JPEG 导出、8 款海报主题、排版调节与品牌样式。",
-      "通过 @ 建议快速链接笔记，并可直接从编辑器打开引用的笔记。",
-      "通过新增的编辑器斜杠命令插入当前日期或时间。",
-      "在协调同步笔记占位记录时更可靠地保留编辑内容。",
-      "让官方 Docker Release 稳定发布到 GHCR 与腾讯云 TCR，改善自托管部署体验。"
+      "可在工作区快速切换最近备忘录，并浏览焕新的演示笔记。",
+      "新增阅读保护模式及键盘快捷键，查看笔记时可减少误编辑。",
+      "工作区视觉层级更平静紧凑，并改进经典主题与 Mermaid 图表显示。",
+      "文档大纲导航更顺畅，移动端编辑体验同步优化，并新增 Marxico 主题。",
+      "AI 模型与生成偏好设置布局更清晰简洁。"
     ]
   }
 }

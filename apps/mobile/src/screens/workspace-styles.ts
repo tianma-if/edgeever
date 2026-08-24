@@ -1310,6 +1310,12 @@ const baseWorkspaceStyles = StyleSheet.create({
     top: 0,
     zIndex: 2,
   },
+  richEditorLoadingTitle: {
+    color: "#0f172a",
+    fontSize: 15,
+    fontWeight: "800",
+    textAlign: "center",
+  },
   richEditorWebView: {
     backgroundColor: "#ffffff",
     flex: 1,

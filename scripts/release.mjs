@@ -12,7 +12,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, join, resolve, sep } from "node:path";
+import { join, resolve, sep } from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import { nativeReleaseAssetsReady } from "./check-native-release-assets.mjs";
 import { planNativeRelease } from "./plan-native-release.mjs";
@@ -74,7 +74,7 @@ Options:
   --change-locale <tag:text> Optional localized bullet; repeat once per change and locale
   --change-commit <sha,...>  Commits covered by the corresponding bilingual bullet
   --ignore-commit <sha:why>  Explicitly exclude a non-user-facing commit; may be repeated
-  --skip-install             Do not install the final DMG after publication
+  --install-desktop          Install and launch the final DMG after publication
   --dry-run                  Print the plan and generated notes without mutations
   --help                     Show this help
 `;
@@ -90,7 +90,7 @@ export const parseReleaseArgs = (argv) => {
     localizedChanges: [],
     changeCommits: [],
     ignoredCommits: [],
-    skipInstall: false,
+    installDesktop: false,
     dryRun: false,
     help: false,
   };
@@ -109,8 +109,8 @@ export const parseReleaseArgs = (argv) => {
 
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
-    if (argument === "--skip-install") {
-      options.skipInstall = true;
+    if (argument === "--install-desktop") {
+      options.installDesktop = true;
       continue;
     }
     if (argument === "--dry-run") {
@@ -757,7 +757,7 @@ const sha256File = (path) => new Promise((resolveHash, rejectHash) => {
 
 export const installPublishedDmg = async ({ repository, tag, assets }) => {
   if (process.platform !== "darwin") {
-    throw new Error("Final DMG installation requires macOS; use --skip-install elsewhere.");
+    throw new Error("Final DMG installation requires macOS.");
   }
   const { asset: dmg, version: nativeVersion } = selectPublishedDmg(assets);
 
@@ -1172,7 +1172,7 @@ const releaseMain = async (options) => {
   ]);
   console.log(`[release] ${tag} is complete; Demo deployment is not blocking completion`);
 
-  if (!options.skipInstall) {
+  if (options.installDesktop) {
     await installReleaseDmg({
       repository: options.repository,
       tag,

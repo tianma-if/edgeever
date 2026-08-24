@@ -89,6 +89,9 @@ describe("Docker release contract", () => {
     expect(workflow).toContain('docker buildx imagetools create \\');
     expect(workflow).toContain('--tag "${TCR_IMAGE_NAME}:${image_tag}"');
     expect(workflow).toContain('"${GHCR_IMAGE_NAME}:${image_tag}"');
+    expect(workflow).toContain("for attempt in 1 2 3; do");
+    expect(workflow).toContain('Failed to mirror ${image_tag} after ${attempt} attempts');
+    expect(workflow).toContain('sleep "$((attempt * 15))"');
     expect(workflow).not.toContain('echo "${TCR_IMAGE_NAME}:${RELEASE_TAG}"');
     expect(workflow).toContain('docker logout ccr.ccs.tencentyun.com');
     expect(workflow).toContain('test "${ghcr_digest}" = "${tcr_digest}"');

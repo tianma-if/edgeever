@@ -32,7 +32,7 @@ import {
 import { ShortcutSettingsItem } from "./ShortcutSettingsItem";
 import { CustomEditorThemeDialog } from "./CustomEditorThemeDialog";
 import {
-  MERMAID_THEME_NAMES,
+  MERMAID_THEME_PREFERENCES,
   useEditorTheme,
   useMermaidTheme,
   DEFAULT_CUSTOM_LIGHT_COLORS,
@@ -68,7 +68,7 @@ export const PreferenceCard = ({
     setCustomEditorThemes,
     setEditorTheme,
   } = useEditorTheme();
-  const { mermaidTheme, setMermaidTheme } = useMermaidTheme();
+  const { mermaidThemePreference, setMermaidTheme } = useMermaidTheme();
   const [customThemeDialogOpen, setCustomThemeDialogOpen] = useState(false);
   const [editingTheme, setEditingTheme] = useState<CustomEditorTheme | null>(null);
   const [activeLocalePreference, setActiveLocalePreference] = useState<AppLocalePreference>(() => getAppLocalePreference());
@@ -140,7 +140,7 @@ export const PreferenceCard = ({
   }, []);
 
   const activeCustom = customEditorThemes.find((t) => t.id === editorTheme);
-  const isPreset = editorTheme === "default" || editorTheme === "minimal-emerald" || editorTheme === "outline-emerald" || editorTheme === "wechat-green" || editorTheme === "modern-mint";
+  const isPreset = editorTheme === "default" || editorTheme === "minimal-emerald" || editorTheme === "outline-emerald" || editorTheme === "wechat-green" || editorTheme === "modern-mint" || editorTheme === "marxico";
 
   const handleEditClick = () => {
     if (activeCustom) {
@@ -281,6 +281,7 @@ export const PreferenceCard = ({
                 <SelectItem value="outline-emerald">{t("settings.editorThemes.outline-emerald")}</SelectItem>
                 <SelectItem value="wechat-green">{t("settings.editorThemes.wechat-green")}</SelectItem>
                 <SelectItem value="modern-mint">{t("settings.editorThemes.modern-mint")}</SelectItem>
+                <SelectItem value="marxico">{t("settings.editorThemes.marxico")}</SelectItem>
                 {!isMobile && (
                   <>
                     {customEditorThemes.length > 0 && <div className="my-1 border-t border-slate-100" />}
@@ -314,12 +315,12 @@ export const PreferenceCard = ({
             </div>
           </div>
           <div className="w-full shrink-0 sm:w-80">
-            <Select value={mermaidTheme} onValueChange={(value) => setMermaidTheme(value as typeof mermaidTheme)}>
+            <Select value={mermaidThemePreference} onValueChange={(value) => setMermaidTheme(value as typeof mermaidThemePreference)}>
               <SelectTrigger aria-label={t("settings.mermaidThemeTitle")} className="h-9 bg-white">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {MERMAID_THEME_NAMES.map((theme) => (
+                {MERMAID_THEME_PREFERENCES.map((theme) => (
                   <SelectItem key={theme} value={theme}>
                     {t(`settings.mermaidThemes.${theme}`)}
                   </SelectItem>

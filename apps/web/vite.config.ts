@@ -303,13 +303,15 @@ export default defineConfig({
           groups: [
             {
               name: "vendor-code-highlight",
-              test: /node_modules[\\/](?:lowlight|highlight\.js|@tiptap[\\/]extension-code-block-lowlight)[\\/]/,
+              test: /node_modules[\\/](?:lowlight|highlight\.js)[\\/]/,
               priority: 50,
               // lowlight registers highlight.js languages through a cyclic
               // module graph. Splitting this group by size can evaluate a
               // language before its constructor is initialized in packaged
-              // file:// desktop builds, leaving the entire window blank.
-              // Keep the graph atomic and load it lazily instead.
+              // file:// desktop builds, leaving the entire window blank. Keep
+              // that graph atomic, but leave TipTap's lightweight adapter in
+              // the regular extension group so plain mobile code blocks do not
+              // inherit the highlighter as a startup dependency.
             },
             {
               name: "vendor-react",

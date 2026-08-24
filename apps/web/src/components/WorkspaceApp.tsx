@@ -25,6 +25,7 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { MemoListPane, MemoSelectionActionBar } from "./MemoListPane";
+import { QuickMemoSwitcher } from "./QuickMemoSwitcher";
 import { AppConfirmDialog, MemoDeleteConfirmDialog, NotebookNameDialog } from "./dialogs/ConfirmDialogs";
 import { api } from "@/lib/api";
 import {
@@ -704,6 +705,7 @@ export const WorkspaceApp = ({
   const autoSelectedDemoNotebookRef = useRef(false);
   const [createdMemoEditId, setCreatedMemoEditId] = useState<string | null>(null);
   const pendingCreatedMemoIdRef = useRef<string | null>(null);
+  const pendingQuickSwitcherMemoIdRef = useRef<string | null>(null);
   const creatingMemoSelectionRef = useRef(false);
   const memoDocumentActionIdRef = useRef(0);
   const [memoDocumentActionRequest, setMemoDocumentActionRequest] = useState<MemoDocumentActionRequest | null>(null);
@@ -795,11 +797,15 @@ export const WorkspaceApp = ({
         : "home"
   );
   const [mobileSearchFocusToken, setMobileSearchFocusToken] = useState(0);
+  const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false);
+  const [quickSwitcherQuery, setQuickSwitcherQuery] = useState("");
   const [noteSearchFocusToken, setNoteSearchFocusToken] = useState(0);
   const [noteReplaceFocusToken, setNoteReplaceFocusToken] = useState(0);
   const [noteAiAssistantOpenToken, setNoteAiAssistantOpenToken] = useState(0);
   const [noteSaveAndSyncToken, setNoteSaveAndSyncToken] = useState(0);
+  const [noteReadingProtectionToggleToken, setNoteReadingProtectionToggleToken] = useState(0);
   const [noteEditorModeToggleToken, setNoteEditorModeToggleToken] = useState(0);
+  const [noteOutlineToggleToken, setNoteOutlineToggleToken] = useState(0);
   const [search, setSearch] = useState("");
   const [memoFilterMode, setMemoFilterMode] = useState<MemoFilterMode>("all");
   const [memoSortMode, setMemoSortMode] = useState<MemoSortMode>("updated-desc");
@@ -1354,6 +1360,13 @@ export const WorkspaceApp = ({
 
     if (creatingMemoSelectionRef.current || pendingCreatedMemoIdRef.current) {
       return;
+    }
+
+    if (pendingQuickSwitcherMemoIdRef.current) {
+      if (!memos.some((memo) => memo.id === pendingQuickSwitcherMemoIdRef.current)) {
+        return;
+      }
+      pendingQuickSwitcherMemoIdRef.current = null;
     }
 
     if (createdMemoEditId && selectedMemoId === createdMemoEditId) {
@@ -2215,11 +2228,40 @@ export const WorkspaceApp = ({
     setActivePane("memos");
   };
 
-  const handleMobileSearch = () => {
+  const handleMobileSearch = useCallback(() => {
     setMobileBottomNavActive("search");
     setActivePane("memos");
     setMobileSearchFocusToken((value) => value + 1);
-  };
+  }, []);
+
+  const handleGlobalSearch = useCallback(() => {
+    navigateWorkspaceHome();
+    setMemoView("notebook");
+    setSelectedTag(null);
+    setSelectedNotebookId(null);
+    setMemoFilterMode("all");
+    setRightView("editor");
+    clearMemoSelection();
+    handleMobileSearch();
+  }, [clearMemoSelection, handleMobileSearch, navigateWorkspaceHome, setSelectedNotebookId]);
+
+  const handleOpenQuickSwitcherMemo = useCallback((memo: MemoSummary) => {
+    pendingQuickSwitcherMemoIdRef.current = memo.id;
+    setQuickSwitcherOpen(false);
+    setQuickSwitcherQuery("");
+    navigateWorkspaceHome();
+    setMemoView("notebook");
+    setSelectedTag(null);
+    setSelectedNotebookId(memo.notebookId);
+    setSearch("");
+    setMemoFilterMode("all");
+    setRightView("editor");
+    clearMemoSelection();
+    clearPendingCreatedMemo();
+    setCreatedMemoEditId(null);
+    setSelectedMemoId(memo.id);
+    setActivePane("editor");
+  }, [clearMemoSelection, clearPendingCreatedMemo, navigateWorkspaceHome, setSelectedMemoId, setSelectedNotebookId]);
 
   const handleCancelMobileSearch = () => {
     setSearch("");
@@ -2335,7 +2377,7 @@ export const WorkspaceApp = ({
     const removeCommandListener = bridge.onCommand((command) => {
       if (command === "new-memo") handleCreateMemo();
       if (command === "new-notebook") handleCreateNotebook();
-      if (command === "focus-search") handleMobileSearch();
+      if (command === "focus-search") handleGlobalSearch();
       if (command === "toggle-focus-mode") toggleDesktopFocusMode();
       if (command === "sync-now") {
         void runQueuedSync();
@@ -2365,7 +2407,7 @@ export const WorkspaceApp = ({
       removeCommandListener();
       removeMarkdownListener();
     };
-  }, [createMemoMutation, defaultMemoNotebookId, handleCreateMemo, handleCreateNotebook, handleMobileSearch, notebooks, selectedNotebookId, toggleDesktopFocusMode]);
+  }, [createMemoMutation, defaultMemoNotebookId, handleCreateMemo, handleCreateNotebook, handleGlobalSearch, notebooks, selectedNotebookId, toggleDesktopFocusMode]);
 
   const handleWorkspaceBackRequest = useCallback(() => {
     if (appNoticeDialog) {
@@ -2534,6 +2576,16 @@ export const WorkspaceApp = ({
         return;
       }
 
+      if (action === "openQuickSwitcher") {
+        event.preventDefault();
+        if (event.repeat || event.isComposing) {
+          return;
+        }
+        setQuickSwitcherQuery("");
+        setQuickSwitcherOpen(true);
+        return;
+      }
+
       const targetElement = event.target instanceof Element ? event.target : null;
       const isEditorTextTarget = Boolean(targetElement?.closest(".ProseMirror"));
 
@@ -2545,10 +2597,19 @@ export const WorkspaceApp = ({
           mobileNotebookPickerOpen ||
           notebookDeleteConfirmation ||
           notebookNameDialog ||
-          templatesOpen
+          templatesOpen ||
+          quickSwitcherOpen
       );
 
-      if (action === "openAiAssistant" || action === "saveAndSync" || action === "toggleEditorMode") {
+      if (
+        action === "openAiAssistant"
+        || action === "saveAndSync"
+        || action === "toggleReadingProtection"
+        || action === "toggleEditorMode"
+        || action === "toggleOutline"
+        || action === "openPreviousMemo"
+        || action === "openNextMemo"
+      ) {
         // These replace browser-level commands, so consume them throughout the
         // workspace even when the current editor cannot perform the action.
         event.preventDefault();
@@ -2561,8 +2622,19 @@ export const WorkspaceApp = ({
           setNoteAiAssistantOpenToken((value) => value + 1);
         } else if (action === "saveAndSync") {
           setNoteSaveAndSyncToken((value) => value + 1);
-        } else {
+        } else if (action === "toggleReadingProtection") {
+          setNoteReadingProtectionToggleToken((value) => value + 1);
+        } else if (action === "toggleEditorMode") {
           setNoteEditorModeToggleToken((value) => value + 1);
+        } else if (action === "toggleOutline") {
+          setNoteOutlineToggleToken((value) => value + 1);
+        } else {
+          const targetMemoId = action === "openPreviousMemo" ? previousMemoId : nextMemoId;
+          if (targetMemoId) {
+            clearPendingCreatedMemo();
+            setCreatedMemoEditId(null);
+            setSelectedMemoId(targetMemoId);
+          }
         }
         return;
       }
@@ -2577,16 +2649,19 @@ export const WorkspaceApp = ({
 
       if (action === "focusSearch") {
         event.preventDefault();
-        if (event.shiftKey || !selectedMemoId || !isDesktopViewport()) {
-          if (event.shiftKey) {
-            setSearch("");
-          }
+        if (!selectedMemoId || !isDesktopViewport()) {
           clearMemoSelection();
           handleMobileSearch();
           return;
         }
 
         setNoteSearchFocusToken((value) => value + 1);
+        return;
+      }
+
+      if (action === "focusGlobalSearch") {
+        event.preventDefault();
+        handleGlobalSearch();
         return;
       }
 
@@ -2620,11 +2695,13 @@ export const WorkspaceApp = ({
     rightView,
     appNoticeDialog,
     canCreateMemo,
+    clearPendingCreatedMemo,
     clearMemoSelection,
     createNotebookMutation.isPending,
     createMemoMutation.isPending,
     handleCreateNotebook,
     handleCreateMemo,
+    handleGlobalSearch,
     handleMobileSearch,
     shortcutSettings,
     emptyTrashConfirmationOpen,
@@ -2633,7 +2710,11 @@ export const WorkspaceApp = ({
     mobileNotebookPickerOpen,
     notebookDeleteConfirmation,
     notebookNameDialog,
+    nextMemoId,
+    previousMemoId,
+    quickSwitcherOpen,
     selectedMemoId,
+    setSelectedMemoId,
     templatesOpen,
   ]);
 
@@ -2734,7 +2815,7 @@ export const WorkspaceApp = ({
 
   return (
     <WorkspaceMotionProvider>
-      <div className="flex h-[100dvh] overflow-hidden bg-slate-50 text-slate-950">
+      <div className="edgeever-workspace-shell flex h-[100dvh] overflow-hidden text-slate-950">
       {pullToRefreshVisible && (
         <div
           className="pointer-events-none fixed inset-x-0 top-[max(0.75rem,env(safe-area-inset-top))] z-50 flex justify-center lg:hidden"
@@ -2761,7 +2842,7 @@ export const WorkspaceApp = ({
         >
           <aside
             className={cn(
-              "min-h-0 border-r border-slate-200 bg-white/75 backdrop-blur-lg",
+              "edgeever-workspace-sidebar min-h-0 border-r",
               desktopFocusModeActive
                 ? "hidden"
                 : visibleActivePane === "notebooks"
@@ -2831,11 +2912,11 @@ export const WorkspaceApp = ({
 
           <section
             className={cn(
-              "relative min-w-0 overflow-hidden border-r border-slate-200 bg-slate-50",
+              "edgeever-workspace-memo-list relative min-w-0 overflow-hidden border-r",
               desktopFocusModeActive
                 ? "hidden"
                 : rightView === "editor"
-                  ? (visibleActivePane === "memos" ? "block lg:block lg:bg-white/75 lg:backdrop-blur-lg" : "hidden lg:block lg:bg-white/75 lg:backdrop-blur-lg")
+                  ? (visibleActivePane === "memos" ? "block lg:block" : "hidden lg:block")
                   : (visibleActivePane === "memos" ? "block lg:hidden" : "hidden lg:hidden")
             )}
           >
@@ -2975,7 +3056,7 @@ export const WorkspaceApp = ({
             />
           </section>
 
-          <section className={cn("min-h-0 min-w-0 bg-white lg:block", visibleActivePane === "editor" ? "block" : "hidden")}>
+          <section className={cn("edgeever-workspace-editor min-h-0 min-w-0 lg:block", visibleActivePane === "editor" ? "block" : "hidden")}>
             {shouldRenderRightPane && (
               <Suspense fallback={<PaneLoadingFallback label={rightPaneLoadingLabel} />}>
                 <m.div key={rightView} className="h-full min-h-0 min-w-0" {...paneEnterMotion}>
@@ -3048,7 +3129,9 @@ export const WorkspaceApp = ({
                     replaceFocusToken={noteReplaceFocusToken}
                     aiAssistantOpenToken={noteAiAssistantOpenToken}
                     saveAndSyncToken={noteSaveAndSyncToken}
+                    readingProtectionToggleToken={noteReadingProtectionToggleToken}
                     editorModeToggleToken={noteEditorModeToggleToken}
+                    outlineToggleToken={noteOutlineToggleToken}
                     shortcutSettings={shortcutSettings}
                     onSyncRequested={syncMemosManually}
                     documentActionRequest={memoDocumentActionRequest}
@@ -3130,6 +3213,20 @@ export const WorkspaceApp = ({
           </section>
         </main>
       </div>
+
+      <QuickMemoSwitcher
+        open={quickSwitcherOpen}
+        query={quickSwitcherQuery}
+        repository={repository}
+        onOpenChange={(open) => {
+          setQuickSwitcherOpen(open);
+          if (!open) {
+            setQuickSwitcherQuery("");
+          }
+        }}
+        onQueryChange={setQuickSwitcherQuery}
+        onOpenMemo={handleOpenQuickSwitcherMemo}
+      />
 
       {memoDeleteConfirmation && (
         <MemoDeleteConfirmDialog

@@ -20,6 +20,8 @@ export const MERMAID_THEME_NAMES = [
   "one-dark",
 ] as const;
 export type MermaidThemeName = (typeof MERMAID_THEME_NAMES)[number];
+export const MERMAID_THEME_PREFERENCES = ["auto", ...MERMAID_THEME_NAMES] as const;
+export type MermaidThemePreference = (typeof MERMAID_THEME_PREFERENCES)[number];
 
 export interface MermaidThemePalette {
   bg: string;
@@ -55,6 +57,7 @@ export const EDITOR_THEME_NAMES = [
   "outline-emerald",
   "wechat-green",
   "modern-mint",
+  "marxico",
   "custom",
 ] as const;
 export type EditorThemeName = string;
@@ -113,7 +116,8 @@ interface AppearanceThemeContextValue {
 
 interface MermaidThemeContextValue {
   mermaidTheme: MermaidThemeName;
-  setMermaidTheme: (theme: MermaidThemeName) => void;
+  mermaidThemePreference: MermaidThemePreference;
+  setMermaidTheme: (theme: MermaidThemePreference) => void;
 }
 
 interface EditorThemeContextValue {
@@ -162,10 +166,19 @@ export const getStoredThemePreference = (): ThemePreference => {
   return stored === "light" || stored === "dark" || stored === "system" ? stored : "system";
 };
 
-export const getStoredMermaidTheme = (): MermaidThemeName => {
+export const getStoredMermaidTheme = (): MermaidThemePreference => {
   const stored = readLocalStorageItem(MERMAID_THEME_STORAGE_KEY);
-  return MERMAID_THEME_NAMES.includes(stored as MermaidThemeName) ? stored as MermaidThemeName : "zinc-light";
+  return MERMAID_THEME_PREFERENCES.includes(stored as MermaidThemePreference)
+    ? stored as MermaidThemePreference
+    : "auto";
 };
+
+export const resolveMermaidTheme = (
+  preference: MermaidThemePreference,
+  appearance: ResolvedTheme,
+): MermaidThemeName => preference === "auto"
+  ? appearance === "dark" ? "zinc-dark" : "zinc-light"
+  : preference;
 
 export const getStoredEditorTheme = (): string => {
   return readLocalStorageItem(EDITOR_THEME_STORAGE_KEY) || "default";
@@ -255,7 +268,7 @@ export const initializeTheme = () => {
 export const ThemeProvider = ({ children }: ThemeProviderProps) => {
   const [preference, setPreferenceState] = useState<ThemePreference>(getStoredThemePreference);
   const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(() => resolveTheme(preference));
-  const [mermaidTheme, setMermaidThemeState] = useState<MermaidThemeName>(getStoredMermaidTheme);
+  const [mermaidThemePreference, setMermaidThemePreference] = useState<MermaidThemePreference>(getStoredMermaidTheme);
   const [editorTheme, setEditorThemeState] = useState<string>(getStoredEditorTheme);
   const [customEditorThemes, setCustomEditorThemesState] = useState<CustomEditorTheme[]>(getStoredCustomEditorThemes);
 
@@ -306,8 +319,10 @@ export const ThemeProvider = ({ children }: ThemeProviderProps) => {
     window.localStorage.setItem(CUSTOM_EDITOR_THEMES_STORAGE_KEY, JSON.stringify(nextThemes));
   }, []);
 
-  const setMermaidTheme = useCallback((nextTheme: MermaidThemeName) => {
-    setMermaidThemeState(nextTheme);
+  const mermaidTheme = resolveMermaidTheme(mermaidThemePreference, resolvedTheme);
+
+  const setMermaidTheme = useCallback((nextTheme: MermaidThemePreference) => {
+    setMermaidThemePreference(nextTheme);
     window.localStorage.setItem(MERMAID_THEME_STORAGE_KEY, nextTheme);
   }, []);
 
@@ -328,9 +343,10 @@ export const ThemeProvider = ({ children }: ThemeProviderProps) => {
   const mermaidValue = useMemo(
     () => ({
       mermaidTheme,
+      mermaidThemePreference,
       setMermaidTheme,
     }),
-    [mermaidTheme, setMermaidTheme]
+    [mermaidTheme, mermaidThemePreference, setMermaidTheme]
   );
 
   const editorValue = useMemo(

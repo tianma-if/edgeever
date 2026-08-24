@@ -182,9 +182,8 @@ export const zhCN = {
     imageCompressionTitle: "压缩笔记内图片",
     imageCompressionDescription: "上传大图时在本地压缩，节省资源占用。",
     imageCompressionAria: "是否压缩笔记内图片",
-    aiGenerationTitle: "AI 生成",
     aiStreamingTitle: "流式返回 AI 结果",
-    aiStreamingDescription: "开启后可逐步看到生成内容，反馈更及时；但流式处理会解析大量响应分片，在 CPU 限制严格的 Cloudflare Workers 免费版上，长内容更容易生成失败。建议优先保持关闭以获得更好的稳定性。",
+    aiStreamingDescription: "开启后实时展示 AI 内容生成过程；关闭可获得更高稳定性。",
     aiStreamingAria: "是否流式返回 AI 结果",
     aiTagPromptTitle: "AI 标签建议指令",
     aiTagPromptDescription: "自定义 AI 如何根据笔记内容生成标签。此设置保存在工作区，各端共用。",
@@ -204,7 +203,7 @@ export const zhCN = {
     syncIntervalDescription: "定期将编辑内容同步到服务器，本地草稿仍会即时保留。",
     syncIntervals: { "30s": "每 30 秒", "5m": "每 5 分钟", "15m": "每 15 分钟", "30m": "每 30 分钟", "1h": "每 1 小时", "2h": "每 2 小时" },
     mermaidThemeTitle: "图表主题",
-    mermaidThemeDescription: "选择笔记中图表的视觉主题。",
+    mermaidThemeDescription: "跟随应用外观，或为笔记图表选择固定主题。",
     editorThemeTitle: "编辑器主题",
     editorThemeDescription: "选择正文编辑区的排版风格，偏好会保存在当前浏览器中。",
     editorContentAlignmentTitle: "笔记正文布局",
@@ -219,6 +218,7 @@ export const zhCN = {
       "outline-emerald": "Outline 品牌绿",
       "wechat-green": "微信经典绿",
       "modern-mint": "极客薄荷绿",
+      marxico: "经典蓝白",
       custom: "自定义",
     },
     customEditorTheme: {
@@ -241,6 +241,7 @@ export const zhCN = {
       contrastWarning: "正文、辅助文字、标题或强调色的对比度不足，请调整后保存。",
     },
     mermaidThemes: {
+      auto: "跟随应用外观",
       "zinc-light": "Zinc 浅色",
       "zinc-dark": "Zinc 深色",
       "tokyo-night": "Tokyo Night",
@@ -704,12 +705,28 @@ export const zhCN = {
         description: "在当前层级创建一个新笔记本。",
       },
       focusSearch: {
-        label: "搜索笔记",
-        description: "打开搜索或聚焦笔记内搜索。",
+        label: "搜索当前笔记",
+        description: "聚焦当前笔记内的文本搜索。",
+      },
+      focusGlobalSearch: {
+        label: "全局搜索笔记",
+        description: "聚焦笔记列表搜索，在全部笔记内容中查找。",
       },
       focusReplace: {
         label: "替换文本",
         description: "在当前笔记中打开替换。",
+      },
+      openQuickSwitcher: {
+        label: "快速切换笔记",
+        description: "搜索并打开任意未删除的笔记。",
+      },
+      openPreviousMemo: {
+        label: "上一篇笔记",
+        description: "打开当前列表中的上一篇笔记。",
+      },
+      openNextMemo: {
+        label: "下一篇笔记",
+        description: "打开当前列表中的下一篇笔记。",
       },
       openAiAssistant: {
         label: "打开 AI 助手",
@@ -719,11 +736,30 @@ export const zhCN = {
         label: "保存并同步",
         description: "立即保存当前笔记，并同步等待中的本地更改。",
       },
+      toggleReadingProtection: {
+        label: "切换阅读保护",
+        description: "在当前设备上切换笔记的阅读保护与编辑状态。",
+      },
       toggleEditorMode: {
         label: "切换编辑模式",
         description: "在 Markdown 源码与富文本编辑模式之间切换。",
       },
+      toggleOutline: {
+        label: "显示/隐藏文档大纲",
+        description: "在桌面端显示或隐藏当前笔记的文档大纲。",
+      },
     },
+  },
+  quickSwitcher: {
+    title: "快速切换笔记",
+    description: "搜索并打开任意未删除的笔记。",
+    placeholder: "搜索笔记标题或内容…",
+    recent: "最近更新",
+    results: "搜索结果",
+    empty: "没有找到匹配的笔记",
+    loading: "正在搜索…",
+    openHint: "打开 · Enter",
+    closeHint: "关闭 · Esc",
   },
   options: {
     memoDensity: {
@@ -992,6 +1028,8 @@ export const zhCN = {
     focusMode: "专注模式",
     enterFocusMode: "进入专注模式",
     exitFocusMode: "退出专注模式",
+    enableReadingProtection: "开启阅读保护",
+    disableReadingProtection: "关闭阅读保护并进入编辑",
     updatedAt: "更新于 {{time}}",
     done: "完成",
     uploadAttachment: "上传附件",
@@ -1136,6 +1174,8 @@ export const zhCN = {
     outline: "文档大纲",
     showOutline: "显示文档大纲",
     hideOutline: "隐藏文档大纲",
+    collapseOutlineHeading: "收起 {{name}}",
+    expandOutlineHeading: "展开 {{name}}",
   },
   sharing: {
     action: "分享笔记",

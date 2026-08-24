@@ -31,8 +31,9 @@ bun run release -- \
 覆盖审计在修改本地或 GitHub 状态之前执行。映射记录在跟踪 Issue 中，不写入
 公开 Release 说明。公开说明只包含用户可感知的变化、影响和必要的迁移提醒。
 
-使用 `--dry-run` 查看提交覆盖、原生端重建计划和说明。仅在发布后不应安装并
-启动 macOS 应用时使用 `--skip-install`。
+使用 `--dry-run` 查看提交覆盖、原生端重建计划和说明。发布完成后不会下载、
+安装或启动 macOS 应用；已安装的桌面端通过应用内自动更新机制获取新版。仅在
+确实需要原有安装验收时显式传入 `--install-desktop`。
 
 ## EdgeEver 特有规则
 
@@ -46,7 +47,7 @@ bun run release -- \
   GitHub Tag，避免仅涉及 Web 或 API 的 Release 触发无效原生更新。
 - 脚本负责创建跟踪 Issue 和 Draft Release、验证或复用原生资产、准备多架构
   Docker 镜像并同时写入 GHCR 与腾讯云 TCR 公共镜像、正式发布、关闭 Issue，
-  并安装与当前 Mac 架构匹配的 DMG。
+  默认不安装桌面端应用；安装能力作为显式选项保留。
   输出 Actions 链接后，Demo 部署会独立继续执行。
 - 此命令不执行移动端商店交付，详见
   [移动端商店交付](store-delivery.zh-CN.md)。
@@ -65,4 +66,4 @@ Actions Secret。对于 TCR 个人版，用户名是腾讯云账号 ID，密码�
   Release。
 - 发布后的原生资产或 Docker 镜像审计失败时，脚本会尝试将 Release 恢复为
   Draft，并保留 Issue。
-- 替换应用失败时，脚本会尽可能从 macOS 废纸篓备份恢复上一版应用。
+- 显式安装时若替换应用失败，脚本会尽可能从 macOS 废纸篓备份恢复上一版应用。

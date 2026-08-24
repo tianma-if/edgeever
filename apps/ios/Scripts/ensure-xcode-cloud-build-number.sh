@@ -123,12 +123,12 @@ print(
     f"next = {desired} (or higher) before Start Build."
 )
 
-# Best-effort: list ciProducts for this app (manual UI remains source of truth for next number)
-st, products = api("GET", f"/v1/apps/{app_id}/ciProducts?limit=10")
-if isinstance(products, dict):
-    for p in products.get("data", []):
-        attrs = p.get("attributes") or {}
-        print(f"ciProduct id={p.get('id')} name={attrs.get('name')} productType={attrs.get('productType')}")
+# Best-effort: read the ciProduct for this app (manual UI remains source of truth for next number)
+st, product = api("GET", f"/v1/apps/{app_id}/ciProduct")
+if isinstance(product, dict):
+    p = product.get("data") or {}
+    attrs = p.get("attributes") or {}
+    print(f"ciProduct id={p.get('id')} name={attrs.get('name')} productType={attrs.get('productType')}")
 
 if apply:
     version_file = ios_root / "Config" / "Version.xcconfig"

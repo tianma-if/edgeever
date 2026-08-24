@@ -1,9 +1,6 @@
 'use dom';
 
-import "mermaid/dist/mermaid.min.js";
 import "katex/dist/katex.min.css";
-import { renderMermaidSVG, THEMES } from "beautiful-mermaid";
-import { toCanvas } from "html-to-image";
 import Image from "@tiptap/extension-image";
 import CodeBlock from "@tiptap/extension-code-block";
 import Placeholder from "@tiptap/extension-placeholder";
@@ -343,12 +340,18 @@ const handleMobileResourceEvent = (
   return false;
 };
 
-const getMobileMermaidTheme = (theme: "light" | "dark") => THEMES[theme === "dark" ? "zinc-dark" : "zinc-light"];
+let beautifulMermaidRuntime: Promise<typeof import("beautiful-mermaid")> | null = null;
 
-const renderWithBeautifulMermaid = (source: string, theme: "light" | "dark") => {
+const loadBeautifulMermaid = () => {
+  beautifulMermaidRuntime ??= import("beautiful-mermaid");
+  return beautifulMermaidRuntime;
+};
+
+const renderWithBeautifulMermaid = async (source: string, theme: "light" | "dark") => {
   try {
+    const { renderMermaidSVG, THEMES } = await loadBeautifulMermaid();
     return renderMermaidSVG(source, {
-      ...getMobileMermaidTheme(theme),
+      ...THEMES[theme === "dark" ? "zinc-dark" : "zinc-light"],
       transparent: true,
       font: "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
       padding: 24,
@@ -392,7 +395,7 @@ const MermaidRenderRuntime = (props: MermaidRendererProps) => {
       const results: Array<{ source: string; svg: string | null }> = [];
       for (const source of sources) {
         try {
-          const beautifulSvg = renderWithBeautifulMermaid(source, props.theme);
+          const beautifulSvg = await renderWithBeautifulMermaid(source, props.theme);
           if (beautifulSvg) {
             results.push({ source, svg: inlineMermaidSvgStyles(beautifulSvg) });
             continue;
@@ -671,7 +674,9 @@ function LocalTiptapEditorImpl(props: LocalTiptapEditorProps) {
 
   const editor = useEditor({
     editable: !isViewer,
-    autofocus: autoFocus ? "end" : false,
+    // Focus only after the DOM view reports ready. Initial TipTap autofocus plus
+    // the Android bridge retry raced each other and could leave the WebView stuck.
+    autofocus: false,
     extensions: [
       StarterKit.configure({ codeBlock: false, link: { openOnClick: false } }),
       TaskList,
@@ -1158,6 +1163,7 @@ function LocalTiptapEditorImpl(props: LocalTiptapEditorProps) {
         const totalHeight = Math.max(1, Math.ceil(documentRoot.getBoundingClientRect().height));
         const backgroundColor = NOTE_IMAGE_BACKGROUND_COLORS[resolvedTheme] || themeCfg.canvasBg;
 
+        const { toCanvas } = await import("html-to-image");
         const canvas = await toCanvas(documentRoot, {
           backgroundColor,
           cacheBust: false,
@@ -2015,14 +2021,17 @@ const getMobileMermaidThemeVariables = (theme: "light" | "dark") => {
   };
 };
 
+let mermaidRuntime: Promise<typeof import("mermaid")["default"]> | null = null;
+
 const loadMermaid = () => {
-  const mermaid = (globalThis as typeof globalThis & {
-    mermaid?: typeof import("mermaid")["default"];
-  }).mermaid;
-  if (!mermaid) {
-    return Promise.reject(new Error("Mermaid runtime unavailable"));
-  }
-  return Promise.resolve(mermaid);
+  mermaidRuntime ??= import("mermaid/dist/mermaid.min.js").then(() => {
+    const mermaid = (globalThis as typeof globalThis & {
+      mermaid?: typeof import("mermaid")["default"];
+    }).mermaid;
+    if (!mermaid) throw new Error("Mermaid runtime unavailable");
+    return mermaid;
+  });
+  return mermaidRuntime;
 };
 
 const createMobileCodeBlockExtension = (
@@ -2133,7 +2142,7 @@ const createMobileCodeBlockExtension = (
           preview.replaceChildren(message);
           void loadMermaid()
             .then(async (mermaid) => {
-              const beautifulSvg = renderWithBeautifulMermaid(source, theme);
+              const beautifulSvg = await renderWithBeautifulMermaid(source, theme);
               if (beautifulSvg) {
                 return { svg: beautifulSvg };
               }

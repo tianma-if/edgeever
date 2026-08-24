@@ -120,10 +120,21 @@ describe("mobile app scope", () => {
     )?.[0];
 
     expect(createMemoSource).toMatch(/<LocalTiptapEditor\s+autoFocus\s/);
-    expect(createMemoSource).toContain("scheduleBodyKeyboard(60)");
+    expect(createMemoSource).toContain("scheduleBodyKeyboard(180, false)");
     expect(titleInput).toBeDefined();
     expect(titleInput).not.toContain("autoFocus");
     expect(createMemoSource).not.toContain("scheduleTitleFocus");
+  });
+
+  test("keeps editor startup recoverable and avoids competing autofocus paths", () => {
+    expect(workspaceSource).toContain("MOBILE_EDITOR_STARTUP_TIMEOUT_MS");
+    expect(workspaceSource).toContain("MobileEditorStartupOverlay");
+    expect(workspaceSource).toContain("key={editorStartup.attempt}");
+    expect(localTiptapEditorSource).toContain("autofocus: false");
+    expect(localTiptapEditorSource).toContain('import("mermaid/dist/mermaid.min.js")');
+    expect(localTiptapEditorSource).toContain('import("beautiful-mermaid")');
+    expect(localTiptapEditorSource).toContain('import("html-to-image")');
+    expect(localTiptapEditorSource).not.toContain('import "mermaid/dist/mermaid.min.js"');
   });
 
   test("declares iOS privacy strings and full-screen phone-on-iPad presentation", () => {

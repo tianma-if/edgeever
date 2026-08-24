@@ -87,7 +87,7 @@ const SidebarNavButton = ({
       tone === "warning"
         ? "text-amber-700 hover:bg-amber-50/70 hover:text-amber-800"
         : active
-          ? "bg-slate-100 text-slate-950"
+          ? "edgeever-workspace-selection text-slate-950"
           : "text-slate-700 hover:bg-slate-50 hover:text-slate-950"
     )}
     type="button"
@@ -116,7 +116,7 @@ const SidebarShortcutButton = ({
     <button
       className={cn(
         "flex h-9 min-w-0 w-full items-center justify-center rounded-md px-0 text-xs font-medium transition-colors duration-200",
-        active ? "bg-slate-100 text-slate-900" : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
+        active ? "edgeever-workspace-selection text-slate-900" : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
       )}
       type="button"
       aria-current={active ? "page" : undefined}
@@ -614,7 +614,7 @@ export const NotebookPane = ({
 
       </div>
 
-      <footer className="border-t border-slate-200 bg-white/80 px-3 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-sm">
+      <footer className="edgeever-workspace-sidebar-footer border-t border-slate-200 px-3 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-sm">
         <div className="space-y-1">
           {!window.edgeeverDesktop?.isAvailable && (
             <a

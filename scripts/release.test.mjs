@@ -78,6 +78,26 @@ describe("release automation", () => {
     });
   });
 
+  test("keeps post-release desktop installation explicitly opt-in", () => {
+    expect(parseReleaseArgs([
+      "--issue-title", "Release",
+      "--bump", "patch",
+      "--label", "maintenance",
+      "--change-en", "Update the release flow.",
+      "--change-zh", "更新发布流程。",
+      "--change-commit", "abc1234",
+    ])).toMatchObject({ installDesktop: false });
+    expect(parseReleaseArgs([
+      "--issue-title", "Release",
+      "--bump", "patch",
+      "--label", "maintenance",
+      "--change-en", "Update the release flow.",
+      "--change-zh", "更新发布流程。",
+      "--change-commit", "abc1234",
+      "--install-desktop",
+    ])).toMatchObject({ installDesktop: true });
+  });
+
   test("rejects mismatched bilingual changes", () => {
     expect(() =>
       parseReleaseArgs([

@@ -163,16 +163,16 @@ export const AiProviderCard = ({ provider: saved, defaultDisplayName, defaultMod
       <div className="flex flex-col gap-2.5 p-3.5 sm:p-4">
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <span className="truncate text-xs font-semibold text-slate-900">{effectiveDisplayName}</span>
-            <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-normal text-slate-600">
+            <span className="truncate text-sm font-semibold text-slate-900">{effectiveDisplayName}</span>
+            <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
               {providerLabel}
             </span>
-            <span className="max-w-full truncate font-mono text-xs text-slate-400">
+            <span className="max-w-full truncate font-mono text-[11px] text-slate-400">
               {formatBaseUrl(saved.baseUrl)}
             </span>
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
-            <span className="hidden text-xs text-slate-400 sm:inline">
+            <span className="hidden text-[11px] text-slate-400 sm:inline">
               {saved.isEnabled ? t("aiModel.serviceEnabledStatus") : t("aiModel.serviceDisabledStatus")}
             </span>
             <Switch

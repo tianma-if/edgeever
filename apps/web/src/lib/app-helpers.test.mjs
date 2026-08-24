@@ -3,6 +3,7 @@ import {
   DEFAULT_SHORTCUT_SETTINGS,
   DEFAULT_SYNC_INTERVAL_MS,
   DESKTOP_FOCUS_MODE_STORAGE_KEY,
+  DESKTOP_READING_PROTECTION_STORAGE_KEY,
   EDITOR_CONTENT_ALIGNMENT_STORAGE_KEY,
   NOTEBOOK_SORT_STORAGE_KEY,
   SHORTCUT_SETTINGS_STORAGE_KEY,
@@ -13,11 +14,13 @@ import {
   readNotebookSortPreference,
   readSyncIntervalPreference,
   readDesktopFocusModePreference,
+  readDesktopReadingProtectionPreference,
   readShortcutSettingsPreference,
   writeEditorContentAlignmentPreference,
   writeNotebookSortPreference,
   writeSyncIntervalPreference,
   writeDesktopFocusModePreference,
+  writeDesktopReadingProtectionPreference,
 } from "./app-helpers.ts";
 
 const originalWindow = globalThis.window;
@@ -78,6 +81,45 @@ describe("desktop focus mode preference", () => {
 
     expect(readDesktopFocusModePreference()).toBe(false);
     expect(() => writeDesktopFocusModePreference(true)).not.toThrow();
+  });
+});
+
+describe("desktop reading protection preference", () => {
+  test("defaults to editing and only accepts an explicit true value", () => {
+    const values = installLocalStorage();
+    expect(readDesktopReadingProtectionPreference()).toBe(false);
+
+    values.set(DESKTOP_READING_PROTECTION_STORAGE_KEY, "false");
+    expect(readDesktopReadingProtectionPreference()).toBe(false);
+
+    values.set(DESKTOP_READING_PROTECTION_STORAGE_KEY, "true");
+    expect(readDesktopReadingProtectionPreference()).toBe(true);
+  });
+
+  test("persists protected and editable modes", () => {
+    const values = installLocalStorage();
+
+    writeDesktopReadingProtectionPreference(true);
+    expect(values.get(DESKTOP_READING_PROTECTION_STORAGE_KEY)).toBe("true");
+
+    writeDesktopReadingProtectionPreference(false);
+    expect(values.get(DESKTOP_READING_PROTECTION_STORAGE_KEY)).toBe("false");
+  });
+
+  test("fails open when local storage is unavailable", () => {
+    globalThis.window = {
+      localStorage: {
+        getItem: () => {
+          throw new Error("blocked");
+        },
+        setItem: () => {
+          throw new Error("blocked");
+        },
+      },
+    };
+
+    expect(readDesktopReadingProtectionPreference()).toBe(false);
+    expect(() => writeDesktopReadingProtectionPreference(true)).not.toThrow();
   });
 });
 
@@ -189,7 +231,21 @@ describe("automatic sync interval preference", () => {
 });
 
 describe("workspace shortcut preferences", () => {
-  test("provides AI, save, sync, and editor mode defaults", () => {
+  test("provides navigation, AI, save, reading protection, and editor mode defaults", () => {
+    expect(DEFAULT_SHORTCUT_SETTINGS.focusGlobalSearch).toEqual({
+      key: "f",
+      ctrlOrMeta: true,
+      shift: true,
+      alt: false,
+    });
+    expect(DEFAULT_SHORTCUT_SETTINGS.openQuickSwitcher).toEqual({
+      key: "o",
+      ctrlOrMeta: true,
+      shift: false,
+      alt: false,
+    });
+    expect(DEFAULT_SHORTCUT_SETTINGS.openPreviousMemo.key).toBe("[");
+    expect(DEFAULT_SHORTCUT_SETTINGS.openNextMemo.key).toBe("]");
     expect(DEFAULT_SHORTCUT_SETTINGS.openAiAssistant).toEqual({
       key: "j",
       ctrlOrMeta: true,
@@ -208,6 +264,38 @@ describe("workspace shortcut preferences", () => {
       shift: false,
       alt: false,
     });
+    expect(DEFAULT_SHORTCUT_SETTINGS.toggleReadingProtection).toEqual({
+      key: "e",
+      ctrlOrMeta: true,
+      shift: false,
+      alt: false,
+    });
+    expect(DEFAULT_SHORTCUT_SETTINGS.toggleOutline).toEqual({
+      key: "1",
+      ctrlOrMeta: true,
+      shift: true,
+      alt: false,
+    });
+  });
+
+  test("migrates the unreleased reading protection shortcut without replacing custom bindings", () => {
+    const values = installLocalStorage();
+    values.set(SHORTCUT_SETTINGS_STORAGE_KEY, JSON.stringify({
+      toggleReadingProtection: { key: "l", ctrlOrMeta: true, shift: true, alt: false },
+    }));
+    expect(readShortcutSettingsPreference().toggleReadingProtection).toEqual(
+      DEFAULT_SHORTCUT_SETTINGS.toggleReadingProtection,
+    );
+
+    values.set(SHORTCUT_SETTINGS_STORAGE_KEY, JSON.stringify({
+      toggleReadingProtection: { key: "r", ctrlOrMeta: true, shift: true, alt: false },
+    }));
+    expect(readShortcutSettingsPreference().toggleReadingProtection).toEqual({
+      key: "r",
+      ctrlOrMeta: true,
+      shift: true,
+      alt: false,
+    });
   });
 
   test("fills new shortcut actions into legacy stored settings", () => {
@@ -219,8 +307,14 @@ describe("workspace shortcut preferences", () => {
     const settings = readShortcutSettingsPreference();
     expect(settings.createMemo.key).toBe("m");
     expect(settings.openAiAssistant).toEqual(DEFAULT_SHORTCUT_SETTINGS.openAiAssistant);
+    expect(settings.focusGlobalSearch).toEqual(DEFAULT_SHORTCUT_SETTINGS.focusGlobalSearch);
+    expect(settings.openQuickSwitcher).toEqual(DEFAULT_SHORTCUT_SETTINGS.openQuickSwitcher);
+    expect(settings.openPreviousMemo).toEqual(DEFAULT_SHORTCUT_SETTINGS.openPreviousMemo);
+    expect(settings.openNextMemo).toEqual(DEFAULT_SHORTCUT_SETTINGS.openNextMemo);
     expect(settings.saveAndSync).toEqual(DEFAULT_SHORTCUT_SETTINGS.saveAndSync);
+    expect(settings.toggleReadingProtection).toEqual(DEFAULT_SHORTCUT_SETTINGS.toggleReadingProtection);
     expect(settings.toggleEditorMode).toEqual(DEFAULT_SHORTCUT_SETTINGS.toggleEditorMode);
+    expect(settings.toggleOutline).toEqual(DEFAULT_SHORTCUT_SETTINGS.toggleOutline);
   });
 
   test("recognizes Ctrl and Command variants for the new actions", () => {
@@ -234,6 +328,22 @@ describe("workspace shortcut preferences", () => {
     });
 
     expect(getShortcutActionForEvent(
+      keyboardEvent("f", { metaKey: true, shiftKey: true }),
+      DEFAULT_SHORTCUT_SETTINGS,
+    )).toBe("focusGlobalSearch");
+    expect(getShortcutActionForEvent(
+      keyboardEvent("o", { ctrlKey: true }),
+      DEFAULT_SHORTCUT_SETTINGS,
+    )).toBe("openQuickSwitcher");
+    expect(getShortcutActionForEvent(
+      keyboardEvent("[", { metaKey: true }),
+      DEFAULT_SHORTCUT_SETTINGS,
+    )).toBe("openPreviousMemo");
+    expect(getShortcutActionForEvent(
+      keyboardEvent("]", { ctrlKey: true }),
+      DEFAULT_SHORTCUT_SETTINGS,
+    )).toBe("openNextMemo");
+    expect(getShortcutActionForEvent(
       keyboardEvent("j", { metaKey: true }),
       DEFAULT_SHORTCUT_SETTINGS,
     )).toBe("openAiAssistant");
@@ -242,8 +352,16 @@ describe("workspace shortcut preferences", () => {
       DEFAULT_SHORTCUT_SETTINGS,
     )).toBe("saveAndSync");
     expect(getShortcutActionForEvent(
+      keyboardEvent("e", { ctrlKey: true }),
+      DEFAULT_SHORTCUT_SETTINGS,
+    )).toBe("toggleReadingProtection");
+    expect(getShortcutActionForEvent(
       keyboardEvent("/", { metaKey: true }),
       DEFAULT_SHORTCUT_SETTINGS,
     )).toBe("toggleEditorMode");
+    expect(getShortcutActionForEvent(
+      keyboardEvent("!", { code: "Digit1", ctrlKey: true, shiftKey: true }),
+      DEFAULT_SHORTCUT_SETTINGS,
+    )).toBe("toggleOutline");
   });
 });

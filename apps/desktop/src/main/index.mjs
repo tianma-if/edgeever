@@ -397,8 +397,8 @@ const buildApplicationMenu = () => {
     {
       label: "View",
       submenu: [
-        { label: "Focus Search", accelerator: "CmdOrCtrl+K", click: () => sendDesktopCommand("focus-search") },
-        { label: "Toggle Focus Mode", accelerator: "CmdOrCtrl+Shift+F", click: () => sendDesktopCommand("toggle-focus-mode") },
+        { label: "Focus Search", accelerator: "CmdOrCtrl+Shift+F", click: () => sendDesktopCommand("focus-search") },
+        { label: "Toggle Focus Mode", click: () => sendDesktopCommand("toggle-focus-mode") },
         { type: "separator" },
         { role: "togglefullscreen" }, { role: "resetZoom" }, { role: "zoomIn" }, { role: "zoomOut" },
       ],

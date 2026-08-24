@@ -192,6 +192,62 @@ const ANDROID_SYSTEM_NAVIGATION_FALLBACK = 48;
 const DETAIL_CONTENT_HORIZONTAL_PADDING = 16;
 const DETAIL_TABLE_FIT_COLUMN_COUNT = 3;
 const DETAIL_TABLE_MIN_COLUMN_WIDTH = 132;
+const MOBILE_EDITOR_STARTUP_TIMEOUT_MS = 10_000;
+
+const useMobileEditorStartupGuard = ({ active, ready }: { active: boolean; ready: boolean }) => {
+  const [attempt, setAttempt] = useState(0);
+  const [timedOut, setTimedOut] = useState(false);
+
+  useEffect(() => {
+    if (!active || ready) {
+      setTimedOut(false);
+      return;
+    }
+    const timeout = setTimeout(() => setTimedOut(true), MOBILE_EDITOR_STARTUP_TIMEOUT_MS);
+    return () => clearTimeout(timeout);
+  }, [active, attempt, ready]);
+
+  const restart = useCallback(() => {
+    setTimedOut(false);
+    setAttempt((current) => current + 1);
+  }, []);
+
+  return { attempt, restart, timedOut };
+};
+
+const MobileEditorStartupOverlay = ({
+  onRetry,
+  timedOut,
+}: {
+  onRetry: () => void;
+  timedOut: boolean;
+}) => {
+  const { translate } = useMobileLocale();
+  return (
+    <View accessibilityLiveRegion="polite" style={styles.richEditorLoading}>
+      {!timedOut ? <ActivityIndicator color="#16a06e" size="large" /> : null}
+      <Text style={styles.richEditorLoadingTitle}>
+        {translate(timedOut ? "编辑器启动时间过长" : "正在启动编辑器")}
+      </Text>
+      <Text style={styles.mutedText}>
+        {translate(timedOut
+          ? "本地编辑器未能及时启动，可以重试或返回，当前草稿不会丢失。"
+          : "正在准备本地编辑器，笔记内容是安全的。")}
+      </Text>
+      {timedOut ? (
+        <Pressable
+          accessibilityLabel={translate("重试")}
+          accessibilityRole="button"
+          onPress={onRetry}
+          style={styles.actionButton}
+        >
+          <RotateCcw color="#0f172a" size={16} />
+          <Text style={styles.actionButtonText}>{translate("重试")}</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+};
 
 const resolveEditableMemoTitle = (title?: string | null) => {
   const trimmedTitle = title?.trim() ?? "";
@@ -2075,6 +2131,7 @@ const CreateMemoModal = ({
   const submitStartedRef = useRef(false);
   const [submitStarted, setSubmitStarted] = useState(false);
   const [resourceTarget, setResourceTarget] = useState<MobileResourceTarget | null>(null);
+  const editorStartup = useMobileEditorStartupGuard({ active: draftLoaded && Boolean(baseUrl), ready: editorReady });
   const { pickUploadAsset, uploadSourcePicker } = useMobileEditorUploadAsset();
   const targetNotebookId = notebookId || fallbackNotebookId;
   const selectedNotebookName = notebooks.find((notebook) => notebook.id === targetNotebookId)?.name ?? "选择笔记本";
@@ -2114,20 +2171,28 @@ const CreateMemoModal = ({
     }
   }, []);
 
-  const scheduleBodyKeyboard = useCallback((delayMs = 160) => {
+  const scheduleBodyKeyboard = useCallback((delayMs = 160, focusEditor = true) => {
     clearFocusTimers();
     // Full-tree create only mounts the editor DomWebView, so native IME show is safe again.
     focusTimerRef.current = setTimeout(() => {
       focusTimerRef.current = null;
-      safeDomCall(() => editorRef.current?.focusEnd());
+      if (focusEditor) {
+        safeDomCall(() => editorRef.current?.focusEnd());
+      }
       if (Platform.OS === "android") {
         keyboardTimerRef.current = setTimeout(() => {
           keyboardTimerRef.current = null;
           showEdgeEverKeyboard();
-        }, 120);
+        }, focusEditor ? 120 : 0);
       }
     }, delayMs);
   }, [clearFocusTimers]);
+
+  const retryEditorStartup = useCallback(() => {
+    clearFocusTimers();
+    setEditorReady(false);
+    editorStartup.restart();
+  }, [clearFocusTimers, editorStartup.restart]);
 
   // Component is only mounted while create is open — init once on mount.
   useEffect(() => {
@@ -2514,13 +2579,16 @@ const CreateMemoModal = ({
       onReady={async (elapsedMs) => {
         setEditorReady(true);
         recordEditorStartup(elapsedMs);
-        scheduleBodyKeyboard(60);
+        // LocalTiptapEditor owns caret placement; native only reveals the IME after
+        // its final focus retry so the two layers cannot race each other.
+        scheduleBodyKeyboard(180, false);
       }}
+      key={editorStartup.attempt}
       ref={editorRef}
       locale={resolvedLocale}
       theme={resolvedTheme}
     />
-  ) : null, [aiPromptsJson, baseUrl, cancelSelectionAi, draftLoaded, loadEditorResource, pushBodyToEditor, requestSelectionAi, resolvedLocale, resolvedTheme, scheduleBodyKeyboard, selectResource]);
+  ) : null, [aiPromptsJson, baseUrl, cancelSelectionAi, draftLoaded, editorStartup.attempt, loadEditorResource, pushBodyToEditor, requestSelectionAi, resolvedLocale, resolvedTheme, scheduleBodyKeyboard, selectResource]);
 
   return (
     <SafeAreaView edges={["top", "left", "right", "bottom"]} style={styles.createMemoSafeArea}>
@@ -2591,6 +2659,7 @@ const CreateMemoModal = ({
 
         <View style={styles.createMemoEditorFrame}>
           {editorElement}
+          {!editorReady ? <MobileEditorStartupOverlay onRetry={retryEditorStartup} timedOut={editorStartup.timedOut} /> : null}
         </View>
 
         {createMutation.error ? (
@@ -2851,6 +2920,7 @@ const RichEditorModal = ({
   const [error, setError] = useState<string | null>(null);
   const [startupMs, setStartupMs] = useState<number | null>(null);
   const [resourceTarget, setResourceTarget] = useState<MobileResourceTarget | null>(null);
+  const editorStartup = useMobileEditorStartupGuard({ active: Boolean(memo && baseUrl), ready });
   const { pickUploadAsset, uploadSourcePicker } = useMobileEditorUploadAsset();
   const notebookLabel = notebooks.find((notebook) => notebook.id === notebookId)?.name ?? "未分类";
   const saveLabel = error ? "保存失败" : saving ? "保存中" : uploading ? "上传中" : dirty ? (draftRestored ? "本地草稿" : "未保存") : ready ? "已保存" : "加载中";
@@ -2867,6 +2937,17 @@ const RichEditorModal = ({
       initialFocusTimerRef.current = null;
     }
   }, []);
+
+  const retryEditorStartup = useCallback(() => {
+    if (initialFocusTimerRef.current !== null) {
+      clearTimeout(initialFocusTimerRef.current);
+      initialFocusTimerRef.current = null;
+    }
+    setReady(false);
+    setStartupMs(null);
+    setError(null);
+    editorStartup.restart();
+  }, [editorStartup.restart]);
 
   const persistDraft = async (contentJson: TiptapDoc) => {
     const currentMemo = memoBaseRef.current;
@@ -3062,23 +3143,22 @@ const RichEditorModal = ({
           if (initialFocusTimerRef.current !== null) {
             clearTimeout(initialFocusTimerRef.current);
           }
-          // Full-tree edit mounts a single DomWebView — focus then show the soft keyboard.
-          initialFocusTimerRef.current = setTimeout(() => {
-            initialFocusTimerRef.current = null;
-            safeDomCall(() => editorRef.current?.focusEnd());
-            if (Platform.OS === "android") {
-              setTimeout(() => {
-                showEdgeEverKeyboard();
-              }, 120);
-            }
-          }, 60);
+          // The DOM editor performs its own bounded focus retry. Reveal the Android
+          // keyboard only after that retry instead of issuing another competing focus.
+          if (Platform.OS === "android") {
+            initialFocusTimerRef.current = setTimeout(() => {
+              initialFocusTimerRef.current = null;
+              showEdgeEverKeyboard();
+            }, 180);
+          }
         }}
+        key={editorStartup.attempt}
         ref={editorRef}
         locale={resolvedLocale}
         theme={resolvedTheme}
       />
     ) : null,
-    [aiPromptsJson, baseUrl, cancelSelectionAi, loadEditorResource, memo?.id, requestSelectionAi, resolvedLocale, resolvedTheme, selectResource]
+    [aiPromptsJson, baseUrl, cancelSelectionAi, editorStartup.attempt, loadEditorResource, memo?.id, requestSelectionAi, resolvedLocale, resolvedTheme, selectResource]
   );
 
   useEffect(() => {
@@ -3175,6 +3255,7 @@ const RichEditorModal = ({
             {draftRestored ? <Text style={styles.richEditorDraftNotice}>已恢复上次未完成的本地草稿</Text> : null}
             <View style={styles.richEditorFrame}>
               {editorElement}
+              {!ready ? <MobileEditorStartupOverlay onRetry={retryEditorStartup} timedOut={editorStartup.timedOut} /> : null}
             </View>
             {error ? <Text style={styles.richEditorInlineError}>{error}</Text> : null}
             {startupMs !== null && __DEV__ ? <Text style={styles.richEditorPerf}>本地编辑器启动：{startupMs}ms</Text> : null}

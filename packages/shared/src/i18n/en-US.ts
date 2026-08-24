@@ -182,9 +182,8 @@ export const enUS = {
     imageCompressionTitle: "Compress note images",
     imageCompressionDescription: "Compress large images locally before upload to reduce storage use.",
     imageCompressionAria: "Compress note images",
-    aiGenerationTitle: "AI generation",
     aiStreamingTitle: "Stream AI responses",
-    aiStreamingDescription: "Show generated content progressively for faster feedback. Streaming processes many response chunks and can make long generations fail on Cloudflare Workers Free because of its strict CPU limit. Keep this off for better reliability.",
+    aiStreamingDescription: "Turn on to watch AI content generation in real time; turn off for greater stability.",
     aiStreamingAria: "Stream AI responses",
     aiTagPromptTitle: "AI tag suggestion instruction",
     aiTagPromptDescription: "Customize how AI derives tags from note content. This workspace setting is shared by every client.",
@@ -204,7 +203,7 @@ export const enUS = {
     syncIntervalDescription: "Sync edits to the server automatically while keeping local drafts available immediately.",
     syncIntervals: { "30s": "Every 30 seconds", "5m": "Every 5 minutes", "15m": "Every 15 minutes", "30m": "Every 30 minutes", "1h": "Every hour", "2h": "Every 2 hours" },
     mermaidThemeTitle: "Diagram theme",
-    mermaidThemeDescription: "Choose the visual theme for diagrams in notes.",
+    mermaidThemeDescription: "Follow the app appearance or choose a fixed visual theme for diagrams.",
     editorThemeTitle: "Editor theme",
     editorThemeDescription: "Choose a writing style for the note editor. Saved in this browser.",
     editorContentAlignmentTitle: "Note content layout",
@@ -219,6 +218,7 @@ export const enUS = {
       "outline-emerald": "Outline Emerald",
       "wechat-green": "WeChat Classic Green",
       "modern-mint": "Modern Mint",
+      marxico: "Classic Blue & White",
       custom: "Custom",
     },
     customEditorTheme: {
@@ -241,6 +241,7 @@ export const enUS = {
       contrastWarning: "Body, muted, heading, or accent colors need more contrast before saving.",
     },
     mermaidThemes: {
+      auto: "Follow app appearance",
       "zinc-light": "Zinc Light",
       "zinc-dark": "Zinc Dark",
       "tokyo-night": "Tokyo Night",
@@ -704,12 +705,28 @@ export const enUS = {
         description: "Create a new notebook at the current level.",
       },
       focusSearch: {
-        label: "Search notes",
-        description: "Open search or focus search within the current note.",
+        label: "Search current note",
+        description: "Focus text search within the current note.",
+      },
+      focusGlobalSearch: {
+        label: "Search all notes",
+        description: "Focus list search to find content across all notes.",
       },
       focusReplace: {
         label: "Replace text",
         description: "Open replace in the current note.",
+      },
+      openQuickSwitcher: {
+        label: "Quick switcher",
+        description: "Search and open any note that is not in trash.",
+      },
+      openPreviousMemo: {
+        label: "Previous note",
+        description: "Open the previous note in the current list.",
+      },
+      openNextMemo: {
+        label: "Next note",
+        description: "Open the next note in the current list.",
       },
       openAiAssistant: {
         label: "Open AI assistant",
@@ -719,11 +736,30 @@ export const enUS = {
         label: "Save and sync",
         description: "Save the current note now and sync pending local changes.",
       },
+      toggleReadingProtection: {
+        label: "Toggle reading protection",
+        description: "Switch notes between reading protection and editing on this device.",
+      },
       toggleEditorMode: {
         label: "Switch editor mode",
         description: "Switch between Markdown source and rich text editing.",
       },
+      toggleOutline: {
+        label: "Show/hide document outline",
+        description: "Show or hide the current note's document outline on desktop.",
+      },
     },
+  },
+  quickSwitcher: {
+    title: "Quick switcher",
+    description: "Search and open any note that is not in trash.",
+    placeholder: "Search note titles or content…",
+    recent: "Recently updated",
+    results: "Search results",
+    empty: "No matching notes",
+    loading: "Searching…",
+    openHint: "Open · Enter",
+    closeHint: "Close · Esc",
   },
   options: {
     memoDensity: {
@@ -992,6 +1028,8 @@ export const enUS = {
     focusMode: "Focus mode",
     enterFocusMode: "Enter focus mode",
     exitFocusMode: "Exit focus mode",
+    enableReadingProtection: "Enable reading protection",
+    disableReadingProtection: "Disable reading protection and edit",
     updatedAt: "Updated {{time}}",
     done: "Done",
     uploadAttachment: "Upload attachment",
@@ -1138,6 +1176,8 @@ export const enUS = {
     outline: "Outline",
     showOutline: "Show outline",
     hideOutline: "Hide outline",
+    collapseOutlineHeading: "Collapse {{name}}",
+    expandOutlineHeading: "Expand {{name}}",
   },
   sharing: {
     action: "Share note",

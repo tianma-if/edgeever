@@ -7,5 +7,5 @@
 // ≥ this file and ≥ the latest ASC build. ci_pre_xcodebuild.sh also stamps
 // CI_BUILD_NUMBER into the archive when present.
 // Last completed ASC store build: 33 (2026-08-18, Cloud + altool). Build 35 was canceled; next Cloud run is 36+.
-MARKETING_VERSION = 1.35.2
-CURRENT_PROJECT_VERSION = 36
+MARKETING_VERSION = 1.38.0
+CURRENT_PROJECT_VERSION = 37

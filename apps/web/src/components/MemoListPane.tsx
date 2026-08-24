@@ -948,7 +948,7 @@ export const MemoListPane = ({
       tabIndex={0}
       onKeyDown={handleListKeyDown}
     >
-      <header className="border-b border-slate-200 bg-slate-50 px-4 pb-2 pt-[max(0.375rem,env(safe-area-inset-bottom))] lg:bg-white lg:py-3 lg:pt-3">
+      <header className="border-b border-slate-200 bg-slate-50 px-4 pb-2 pt-[max(0.375rem,env(safe-area-inset-bottom))] lg:bg-transparent lg:py-3 lg:pt-3">
         {selectionMode ? (
           <div className="mb-3 flex h-10 min-w-0 items-center gap-3 lg:hidden">
             <button

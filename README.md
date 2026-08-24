@@ -35,11 +35,12 @@ The public demo resets every day at 3:00 AM (China Standard Time) and restores s
 
 ## Features
 
-- **Deploy Your Way**: Run the same application on Cloudflare's free serverless platform or with Docker on a VPS, NAS, or home server—without forking the product code.
+- **Deploy Your Way**: Run the same application on Cloudflare's free serverless platform or with Docker on a VPS, NAS, or home server.
 - **Open Data, No Vendor Lock-in**: Built on standard SQLite with complete REST API, MCP, and CLI access. Your knowledge is stored transparently and accessible anytime without being locked to a single app.
 - **Lossless ZIP Backup & Portability**: Export your complete library as a clean archive containing Markdown, Front Matter, nested folders, relative attachment links, and version histories for instant restoration anywhere.
 - **Native AI Agent Synergy**: Deep integration with Model Context Protocol (MCP) allows AI tools like Claude Code, Codex, and Antigravity to read, organize, and summarize your notes, or sync seamlessly with Notion and Feishu Bitable.
 - **Bring Your Own AI Models**: Connect OpenAI, Anthropic, or Gemini-compatible services and third-party API relays to empower your editor with smart note summarization, key point extraction, proofreading, translation, and text continuation on full notes or selected text.
+- **Plugin Extensibility**: Install client plugins and themes from the Plugin Marketplace to extend note actions, editor commands, custom panels, and more.
 - **Unlimited Multi-Device Sync**: No commercial device caps or paywalls. Enjoy seamless synchronization across PC, tablet, and mobile via web, PWA, or browser.
 - **Classic Three-Pane Layout & Focus Mode**: Clean navigation featuring notebook trees, note lists, and an expansive editor, with a desktop focus mode to eliminate distractions.
 - **Unlimited Nested Notebooks**: Organize your knowledge with arbitrary folder depth.
@@ -222,17 +223,11 @@ https://your-domain/api/openapi.json
 
 Repository file: [docs/openapi.json](docs/openapi.json).
 
-## Plugin Development Preview
-
-The standalone Plugin Marketplace supports trusted client plugins and code-free theme packages installed from its verified index, a public GitHub repository, or a manifest URL. Plugins can query and update notes, work with editor selections, register commands and custom panels, use encrypted secret storage, and make allowlisted network requests. A unified top-right desktop entry includes recently used actions. Cron and background jobs are intentionally deferred. See [Plugin Development](docs/plugin-development.md).
-
 ## MCP
 
-Create an API token in **Profile** -> **MCP settings**, then give the token or full MCP configuration to your AI Agent. Once connected, the Agent can securely read, organize, and import notes within your account permissions. MCP also exposes full management of reusable note templates and AI instructions: agents can list, inspect, create, update, and delete both, create a note from a template, and restore missing built-in AI instructions. Template and instruction reads use the `read:memos` scope, while changes use `write:memos`. Repeating the same memo import will not create duplicate notes.
+Create an API token in **Profile** -> **MCP settings** and give it to your AI Agent. The Agent can then securely read, organize, and import notes, manage note templates and AI instructions, and connect your notes with tools such as Notion databases and Feishu Bitable—all within your account permissions.
 
-The Remote MCP endpoint supports the stateless `2026-07-28` protocol while retaining the handshake-based 2025 revisions for existing clients.
-
-With MCP, EdgeEver can also connect to tools such as Notion databases and Feishu Bitable, turning scattered ideas, information, and materials from everyday notes into structured data that is easier to organize, search, and manage.
+> Let your ideas run free: ask an AI Agent to organize fleeting thoughts, build a personal knowledge graph, create a profile from your notes, or tag them automatically.
 
 ## Image Compression
 
@@ -261,6 +256,7 @@ Docker runs the same frontend, API routes, services, authentication, MCP impleme
 
 - The "Minimal Emerald" theme typography layout is inspired by [obsidian-minimal](https://github.com/kepano/obsidian-minimal).
 - The "Outline Emerald" theme typography layout is inspired by [Outline](https://github.com/outline/outline).
+- The "Classic Blue & White" theme is inspired by the early [StackEdit](https://github.com/benweet/stackedit)/[Bootstrap](https://github.com/twbs/bootstrap) Markdown typography style, with Chinese typography details informed by [Marxico](https://maxiang.io/).
 
 ## Disclaimer
 

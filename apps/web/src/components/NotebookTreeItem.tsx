@@ -176,7 +176,7 @@ export const NotebookTreeItem = ({
             className={cn(
               "group relative flex h-9 items-center gap-1 rounded-md px-2 text-sm lg:text-[13px] transition-all duration-200 select-none",
               selected
-                ? "bg-slate-100 font-medium text-slate-950"
+                ? "edgeever-workspace-selection font-medium text-slate-950"
                 : hasSelectedDescendant
                   ? "bg-slate-50 text-slate-900 hover:bg-slate-100"
                   : "text-slate-700 hover:bg-slate-50",

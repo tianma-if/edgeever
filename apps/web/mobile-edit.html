@@ -14,9 +14,177 @@
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>编辑笔记 - EdgeEver</title>
+    <style>
+      #mobile-editor-bootstrap {
+        min-height: 100dvh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #fff;
+        color: #0f172a;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        padding: 24px;
+      }
+      .mobile-editor-bootstrap-card {
+        width: min(100%, 360px);
+        text-align: center;
+      }
+      .mobile-editor-bootstrap-spinner {
+        width: 28px;
+        height: 28px;
+        margin: 0 auto 16px;
+        border: 3px solid #d1fae5;
+        border-top-color: #16a06e;
+        border-radius: 999px;
+        animation: mobile-editor-bootstrap-spin 0.8s linear infinite;
+      }
+      .mobile-editor-bootstrap-title {
+        margin: 0;
+        font-size: 17px;
+        font-weight: 700;
+      }
+      .mobile-editor-bootstrap-detail {
+        margin: 8px 0 0;
+        color: #64748b;
+        font-size: 14px;
+        line-height: 1.55;
+      }
+      .mobile-editor-bootstrap-actions {
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+        margin-top: 20px;
+      }
+      .mobile-editor-bootstrap-action {
+        min-height: 40px;
+        border: 1px solid #cbd5e1;
+        border-radius: 9px;
+        background: #fff;
+        color: #0f172a;
+        font: inherit;
+        font-size: 14px;
+        font-weight: 700;
+        padding: 8px 16px;
+      }
+      .mobile-editor-bootstrap-action[data-primary="true"] {
+        border-color: #16a06e;
+        background: #16a06e;
+        color: #fff;
+      }
+      @keyframes mobile-editor-bootstrap-spin {
+        to { transform: rotate(360deg); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .mobile-editor-bootstrap-spinner { animation: none; }
+      }
+      @media (prefers-color-scheme: dark) {
+        #mobile-editor-bootstrap { background: #19222b; color: #f8fafc; }
+        .mobile-editor-bootstrap-detail { color: #94a3b8; }
+        .mobile-editor-bootstrap-action { border-color: #475569; background: #1e293b; color: #f8fafc; }
+      }
+    </style>
+    <script>
+      (() => {
+        const slowLoadDelayMs = 8000;
+        const english = navigator.language.toLowerCase().startsWith("en");
+        const labels = english
+          ? {
+              loading: "Opening editor…",
+              loadingDetail: "Your note is safe. This may take a moment on a slow connection.",
+              delayed: "The editor is taking longer than expected to open.",
+              failed: "The editor could not start.",
+              failedDetail: "Check your connection, then retry or return to the note list.",
+              back: "Back",
+              retry: "Retry",
+            }
+          : {
+              loading: "正在打开编辑器…",
+              loadingDetail: "笔记内容是安全的，网络较慢时可能需要稍等片刻。",
+              delayed: "编辑器启动时间较长，请检查网络连接。",
+              failed: "编辑器未能启动",
+              failedDetail: "请检查网络后重试，或先返回笔记列表。",
+              back: "返回",
+              retry: "重试",
+            };
+        let mounted = false;
+        let slowLoadTimer = 0;
+
+        const getElement = (id) => document.getElementById(id);
+        const setBootstrapCopy = (title, detail, state) => {
+          if (mounted) return;
+          const bootstrap = getElement("mobile-editor-bootstrap");
+          const titleElement = getElement("mobile-editor-bootstrap-title");
+          const detailElement = getElement("mobile-editor-bootstrap-detail");
+          const retryButton = getElement("mobile-editor-bootstrap-retry");
+          if (!bootstrap || !titleElement || !detailElement || !retryButton) return;
+          bootstrap.dataset.state = state;
+          titleElement.textContent = title;
+          detailElement.textContent = detail;
+          retryButton.hidden = state === "loading";
+        };
+        const showFailure = () => setBootstrapCopy(labels.failed, labels.failedDetail, "error");
+        const onWindowError = (event) => {
+          const target = event.target;
+          const failedCriticalResource = target instanceof HTMLScriptElement
+            || (target instanceof HTMLLinkElement && (target.rel === "stylesheet" || target.rel === "modulepreload"));
+          if (target === window || failedCriticalResource) showFailure();
+        };
+        const onUnhandledRejection = () => showFailure();
+        const returnToPreviousPage = () => {
+          if (history.length > 1) {
+            history.back();
+            return;
+          }
+          const params = new URLSearchParams(location.hash.slice(1));
+          const returnTo = params.get("returnTo");
+          location.replace(returnTo && returnTo.startsWith("/") ? returnTo : "/");
+        };
+        const bindBootstrap = () => {
+          setBootstrapCopy(labels.loading, labels.loadingDetail, "loading");
+          const backButton = getElement("mobile-editor-bootstrap-back");
+          const retryButton = getElement("mobile-editor-bootstrap-retry");
+          if (backButton) {
+            backButton.textContent = labels.back;
+            backButton.addEventListener("click", returnToPreviousPage);
+          }
+          if (retryButton) {
+            retryButton.textContent = labels.retry;
+            retryButton.addEventListener("click", () => location.reload());
+          }
+        };
+
+        window.edgeeverMobileEditorBootstrap = {
+          markMounted() {
+            mounted = true;
+            window.clearTimeout(slowLoadTimer);
+            window.removeEventListener("error", onWindowError, true);
+            window.removeEventListener("unhandledrejection", onUnhandledRejection);
+          },
+          showFailure,
+        };
+        window.addEventListener("error", onWindowError, true);
+        window.addEventListener("unhandledrejection", onUnhandledRejection);
+        document.addEventListener("DOMContentLoaded", bindBootstrap, { once: true });
+        slowLoadTimer = window.setTimeout(() => {
+          setBootstrapCopy(labels.delayed, labels.loadingDetail, "delayed");
+        }, slowLoadDelayMs);
+      })();
+    </script>
   </head>
   <body>
-    <div id="mobile-editor-root"></div>
+    <div id="mobile-editor-root">
+      <main id="mobile-editor-bootstrap" data-state="loading" role="status" aria-live="polite">
+        <section class="mobile-editor-bootstrap-card">
+          <div class="mobile-editor-bootstrap-spinner" aria-hidden="true"></div>
+          <h1 id="mobile-editor-bootstrap-title" class="mobile-editor-bootstrap-title">正在打开编辑器…</h1>
+          <p id="mobile-editor-bootstrap-detail" class="mobile-editor-bootstrap-detail">笔记内容是安全的，网络较慢时可能需要稍等片刻。</p>
+          <div class="mobile-editor-bootstrap-actions">
+            <button id="mobile-editor-bootstrap-back" class="mobile-editor-bootstrap-action" type="button">返回</button>
+            <button id="mobile-editor-bootstrap-retry" class="mobile-editor-bootstrap-action" data-primary="true" type="button" hidden>重试</button>
+          </div>
+        </section>
+      </main>
+    </div>
     <script type="module" src="/src/mobile-edit.tsx"></script>
   </body>
 </html>

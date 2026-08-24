@@ -315,9 +315,9 @@ export const MemoCard = ({
         "group relative overflow-hidden border border-slate-100 bg-white transition lg:rounded-none lg:border-x-0 lg:border-t-0 lg:border-slate-200 lg:shadow-none lg:last:border-b-0 dark:lg:border-slate-300/70 transition-all duration-200 select-none",
         listDensity === "compact" ? "rounded-md shadow-none" : "rounded-lg shadow-[0_4px_16px_rgba(15,23,42,0.045)]",
         !selectionMode && selected
-          ? "lg:bg-slate-100"
+          ? "edgeever-workspace-selection-desktop"
           : checked
-            ? "bg-slate-50 ring-1 ring-slate-200 lg:bg-slate-100 lg:ring-0"
+            ? "edgeever-workspace-selection-desktop bg-slate-50 ring-1 ring-slate-200 lg:ring-0"
             : "active:bg-slate-50 lg:hover:bg-slate-50"
       )}
     >
