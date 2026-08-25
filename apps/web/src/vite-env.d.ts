@@ -32,6 +32,7 @@ interface EdgeEverDesktopBridge {
   sidecarStatus(): Promise<{ available: boolean; path: string; scope: string }>;
   setAccountScope(accountId: string | null): Promise<{ ready: true; scope: string }>;
   updateStatus(): Promise<{ state: "idle" | "available" | "downloaded" }>;
+  checkUpdate(): Promise<{ state: "idle" | "available" | "downloaded" }>;
   downloadUpdate(): Promise<unknown>;
   installUpdate(): Promise<unknown>;
   sidecarRequest<T = unknown>(method: string, params?: Record<string, unknown>): Promise<T>;

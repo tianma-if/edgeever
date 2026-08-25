@@ -88,43 +88,44 @@ html[data-edgeever-environment="demo"] body::after {
 
 @layer base {
   :root {
-    --background: 80 11% 96%;
-    --foreground: 224 71% 4%;
-    --brand-green: #00a82d;
-    --brand-green-hover: #008f26;
-    --brand-green-muted: #e6f6ea;
-    --brand-green-soft: #f0fbf3;
-    --brand-green-border: #99dcab;
-    --brand-green-text: #00751f;
-    --brand-green-rgb: 0 168 45;
-    --brand-green-hover-rgb: 0 143 38;
-    --brand-green-50-rgb: 230 246 234;
-    --brand-green-100-rgb: 204 237 213;
-    --brand-green-200-rgb: 153 220 171;
-    --brand-green-300-rgb: 102 202 128;
-    --brand-green-400-rgb: 51 185 86;
-    --brand-green-500-rgb: 0 168 45;
-    --brand-green-600-rgb: 0 143 38;
-    --brand-green-700-rgb: 0 117 31;
-    --brand-green-800-rgb: 0 92 25;
-    --brand-green-900-rgb: 0 67 18;
-    --brand-green-950-rgb: 0 43 11;
-    --workspace-canvas: #f3f5f7;
-    --workspace-sidebar: #eff1f4;
-    --workspace-memo-list: #f6f7f9;
+    --background: 0 0% 96%;
+    --foreground: 0 0% 13%;
+    --brand-green: #16a06e;
+    --brand-green-hover: #12845b;
+    --brand-green-muted: #def1e9;
+    --brand-green-soft: #f0f8f4;
+    --brand-green-border: #b8dfd0;
+    --brand-green-text: #11694a;
+    --brand-green-rgb: 22 160 110;
+    --brand-green-hover-rgb: 18 132 91;
+    --brand-green-50-rgb: 240 248 244;
+    --brand-green-100-rgb: 222 241 233;
+    --brand-green-200-rgb: 184 223 208;
+    --brand-green-300-rgb: 125 196 170;
+    --brand-green-400-rgb: 62 174 134;
+    --brand-green-500-rgb: 22 160 110;
+    --brand-green-600-rgb: 18 132 91;
+    --brand-green-700-rgb: 17 105 74;
+    --brand-green-800-rgb: 17 83 60;
+    --brand-green-900-rgb: 15 68 50;
+    --brand-green-950-rgb: 7 37 28;
+    --workspace-canvas: #f2f2f2;
+    --workspace-sidebar: #f2f2f2;
+    --workspace-memo-list: #f7f7f7;
     --workspace-editor: #ffffff;
-    --workspace-divider: #dde1e7;
-    --workspace-selection: #eef2f6;
-    --slate-50-rgb: 248 250 252;
-    --slate-100-rgb: 241 245 249;
-    --slate-200-rgb: 226 232 240;
-    --slate-300-rgb: 203 213 225;
-    --slate-400-rgb: 148 163 184;
-    --slate-500-rgb: 100 116 139;
-    --slate-600-rgb: 71 85 105;
-    --slate-700-rgb: 51 65 85;
-    --slate-800-rgb: 30 41 59;
-    --slate-900-rgb: 15 23 42;
+    --workspace-divider: #dcdcdc;
+    --workspace-memo-divider: #dedede;
+    --workspace-selection: #e5e5e5;
+    --slate-50-rgb: 250 250 250;
+    --slate-100-rgb: 245 245 245;
+    --slate-200-rgb: 229 229 229;
+    --slate-300-rgb: 212 212 212;
+    --slate-400-rgb: 166 166 166;
+    --slate-500-rgb: 115 115 115;
+    --slate-600-rgb: 82 82 82;
+    --slate-700-rgb: 64 64 64;
+    --slate-800-rgb: 38 38 38;
+    --slate-900-rgb: 24 24 24;
     --dark-surface-rgb: 255 255 255;
     --editor-body-font-size: 0.9375rem;
     --editor-body-line-height: 1.6;
@@ -135,29 +136,29 @@ html[data-edgeever-environment="demo"] body::after {
     --editor-content-max-width: 880px;
 
     --card: 0 0% 100%;
-    --card-foreground: 224 71% 4%;
+    --card-foreground: 0 0% 13%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 224 71% 4%;
+    --popover-foreground: 0 0% 13%;
 
-    --primary: 136 100% 33%;
+    --primary: 158 76% 36%;
     --primary-foreground: 80 11% 96%;
 
-    --secondary: 136 55% 94%;
-    --secondary-foreground: 136 100% 25%;
+    --secondary: 158 32% 94%;
+    --secondary-foreground: 158 70% 25%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 0 0% 95%;
+    --muted-foreground: 0 0% 40%;
 
-    --accent: 136 55% 94%;
-    --accent-foreground: 136 100% 25%;
+    --accent: 158 32% 94%;
+    --accent-foreground: 158 70% 25%;
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 136 100% 33%;
+    --border: 0 0% 88%;
+    --input: 0 0% 88%;
+    --ring: 158 76% 36%;
 
     --radius: 0.5rem;
   }
@@ -173,42 +174,43 @@ html[data-edgeever-environment="demo"] body::after {
 
 :root.dark {
   color-scheme: dark;
-  --background: 210 26% 9%;
-  --foreground: 210 20% 89%;
-  --card: 211 22% 14%;
-  --card-foreground: 210 20% 89%;
-  --popover: 211 23% 15%;
-  --popover-foreground: 210 20% 89%;
+  --background: 150 8% 8%;
+  --foreground: 144 9% 88%;
+  --card: 150 10% 13%;
+  --card-foreground: 144 9% 88%;
+  --popover: 150 10% 14%;
+  --popover-foreground: 144 9% 88%;
   --primary: 160 76% 36%;
   --primary-foreground: 150 33% 97%;
-  --secondary: 210 20% 18%;
+  --secondary: 150 10% 18%;
   --secondary-foreground: 160 35% 72%;
-  --muted: 210 17% 18%;
-  --muted-foreground: 210 12% 62%;
-  --accent: 210 18% 20%;
+  --muted: 150 8% 18%;
+  --muted-foreground: 145 8% 62%;
+  --accent: 150 10% 20%;
   --accent-foreground: 160 40% 75%;
   --destructive: 0 72% 51%;
-  --destructive-foreground: 210 20% 96%;
-  --border: 210 16% 24%;
-  --input: 210 16% 24%;
+  --destructive-foreground: 144 12% 96%;
+  --border: 150 10% 23%;
+  --input: 150 10% 23%;
   --ring: 160 76% 36%;
-  --workspace-canvas: #10161c;
-  --workspace-sidebar: #131a21;
-  --workspace-memo-list: #161e26;
-  --workspace-editor: #19222b;
-  --workspace-divider: #2a3540;
-  --workspace-selection: #23323c;
-  --slate-50-rgb: 16 22 28;
-  --slate-100-rgb: 23 31 39;
-  --slate-200-rgb: 39 50 61;
-  --slate-300-rgb: 56 69 82;
-  --slate-400-rgb: 80 95 110;
-  --slate-500-rgb: 136 151 165;
-  --slate-600-rgb: 174 187 199;
-  --slate-700-rgb: 200 210 219;
-  --slate-800-rgb: 220 227 234;
-  --slate-900-rgb: 235 240 244;
-  --dark-surface-rgb: 25 34 43;
+  --workspace-canvas: #101311;
+  --workspace-sidebar: #121612;
+  --workspace-memo-list: #151a17;
+  --workspace-editor: #191e1b;
+  --workspace-divider: #2a312d;
+  --workspace-memo-divider: #3b4540;
+  --workspace-selection: #1d3028;
+  --slate-50-rgb: 15 20 17;
+  --slate-100-rgb: 21 28 24;
+  --slate-200-rgb: 38 49 43;
+  --slate-300-rgb: 55 68 61;
+  --slate-400-rgb: 78 92 84;
+  --slate-500-rgb: 137 150 142;
+  --slate-600-rgb: 182 195 187;
+  --slate-700-rgb: 202 212 206;
+  --slate-800-rgb: 221 229 224;
+  --slate-900-rgb: 233 239 235;
+  --dark-surface-rgb: 25 30 27;
   --brand-green: #16a06e;
   --brand-green-hover: #24b986;
   --brand-green-muted: #183a31;
@@ -255,10 +257,8 @@ html.edgeever-mobile-native-editing #root {
 
 body {
   margin: 0;
-  background:
-    linear-gradient(180deg, rgba(248, 250, 252, 0.98), rgba(241, 245, 249, 0.98)),
-    #f8fafc;
-  color: #0f172a;
+  background: var(--workspace-canvas);
+  color: hsl(var(--foreground));
   overscroll-behavior-x: none;
   overscroll-behavior-y: auto;
 }
@@ -329,6 +329,12 @@ html[data-edgeever-extension-theme] kbd {
   font-family: var(--edgeever-theme-font-mono, ui-monospace, monospace);
 }
 
+/* Keep the strongest text neutral instead of falling back to Tailwind's
+ * blue-black slate-950 literal. Background uses of slate-950 remain intact. */
+:root [class~="text-slate-950"] {
+  color: hsl(var(--foreground));
+}
+
 ::view-transition-old(root),
 ::view-transition-new(root) {
   animation-duration: 180ms;
@@ -369,6 +375,14 @@ html[data-edgeever-extension-theme] kbd {
   background: var(--workspace-selection);
 }
 
+.edgeever-memo-divider {
+  border-bottom-color: var(--workspace-memo-divider) !important;
+}
+
+:root.dark .edgeever-workspace-memo-list .edgeever-memo-divider {
+  border-bottom-color: var(--workspace-memo-divider) !important;
+}
+
 html[data-edgeever-extension-theme] .edgeever-workspace-shell {
   background: var(--edgeever-theme-background, var(--workspace-canvas));
 }
@@ -389,6 +403,10 @@ html[data-edgeever-extension-theme] .edgeever-workspace-editor {
 
 html[data-edgeever-extension-theme] .edgeever-workspace-selection {
   background: var(--edgeever-theme-surface-muted, var(--workspace-selection));
+}
+
+html[data-edgeever-extension-theme] .edgeever-memo-divider {
+  border-bottom-color: var(--edgeever-theme-border, var(--workspace-memo-divider)) !important;
 }
 
 @media (min-width: 1024px) {
@@ -445,6 +463,13 @@ html[data-edgeever-extension-theme] .edgeever-workspace-selection {
 :root.dark .edgeever-workspace-selection,
 :root.dark .edgeever-workspace-selection-desktop {
   background: var(--workspace-selection) !important;
+}
+
+/* Curated reading themes should feel like part of the note canvas in dark
+ * mode. Custom themes keep their explicit background as an intentional user
+ * choice, while bundled themes contribute typography and semantic colors. */
+:root.dark .edgeever-editor[data-editor-theme]:not([data-editor-theme="default"]):not([data-editor-theme="custom"]) {
+  --editor-theme-bg: var(--workspace-editor);
 }
 
 :root.dark .ProseMirror {
@@ -594,14 +619,14 @@ textarea {
   gap: 0.2rem;
   max-width: min(100%, 32rem);
   padding: 0.03rem 0.32rem 0.05rem;
-  border: 1px solid rgb(110 231 183 / 0.9);
+  border: 1px solid var(--brand-green-border);
   border-radius: 0.35rem;
-  background: linear-gradient(135deg, rgb(236 253 245), rgb(209 250 229));
-  color: rgb(4 120 87);
+  background: var(--brand-green-soft);
+  color: var(--brand-green-text);
   font-size: 0.9em;
   font-weight: 500;
   text-decoration: underline;
-  text-decoration-color: rgb(52 211 153 / 0.7);
+  text-decoration-color: color-mix(in srgb, var(--brand-green) 55%, transparent);
   text-underline-offset: 2px;
   vertical-align: baseline;
   cursor: pointer;
@@ -619,25 +644,25 @@ textarea {
 
 .ProseMirror a.edgeever-note-link:hover,
 .ProseMirror a[href^="#memo="]:hover {
-  color: rgb(6 95 70);
-  border-color: rgb(16 185 129);
-  background: rgb(167 243 208);
-  text-decoration-color: rgb(4 120 87);
-  box-shadow: 0 2px 8px rgb(16 185 129 / 0.2);
+  color: var(--brand-green-text);
+  border-color: var(--brand-green);
+  background: var(--brand-green-muted);
+  text-decoration-color: var(--brand-green-text);
+  box-shadow: 0 2px 8px rgb(var(--brand-green-rgb) / 0.1);
 }
 
 :root.dark .ProseMirror a.edgeever-note-link,
 :root.dark .ProseMirror a[href^="#memo="] {
-  border-color: rgb(52 211 153 / 0.7);
-  background: linear-gradient(135deg, rgb(6 78 59), rgb(6 95 70));
-  color: rgb(110 231 183);
+  border-color: var(--brand-green-border);
+  background: var(--brand-green-soft);
+  color: var(--brand-green-text);
 }
 
 :root.dark .ProseMirror a.edgeever-note-link:hover,
 :root.dark .ProseMirror a[href^="#memo="]:hover {
-  border-color: rgb(110 231 183);
-  background: rgb(6 95 70);
-  color: rgb(167 243 208);
+  border-color: var(--brand-green);
+  background: var(--brand-green-muted);
+  color: var(--brand-green-text);
 }
 
 .ProseMirror a.edgeever-attachment-link,
@@ -647,15 +672,15 @@ textarea {
   gap: 0.3rem;
   max-width: min(100%, 30rem);
   padding: 0.3rem 0.55rem;
-  border: 1px solid rgb(203 213 225 / 0.9);
+  border: 1px solid rgb(var(--slate-300-rgb) / 0.9);
   border-radius: 0.45rem;
-  background: linear-gradient(135deg, rgb(248 250 252), rgb(241 245 249));
-  color: rgb(30 41 59);
+  background: rgb(var(--slate-50-rgb));
+  color: rgb(var(--slate-800-rgb));
   font-size: 0.75rem;
   font-weight: 600;
   line-height: 1.2;
   text-decoration: none;
-  box-shadow: 0 1px 2px rgb(15 23 42 / 0.06);
+  box-shadow: 0 1px 2px rgb(var(--slate-900-rgb) / 0.04);
   transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
 }
 
@@ -672,16 +697,16 @@ textarea {
 
 .ProseMirror a.edgeever-attachment-link:hover,
 .ProseMirror a[href*="/api/v1/resources/"]:hover {
-  border-color: rgb(16 185 129 / 0.55);
-  background: linear-gradient(135deg, rgb(236 253 245), rgb(240 253 250));
-  box-shadow: 0 3px 10px rgb(15 118 110 / 0.12);
+  border-color: rgb(var(--brand-green-rgb) / 0.5);
+  background: var(--brand-green-soft);
+  box-shadow: 0 3px 10px rgb(var(--brand-green-rgb) / 0.08);
 }
 
 :root.dark .ProseMirror a.edgeever-attachment-link,
 :root.dark .ProseMirror a[href*="/api/v1/resources/"] {
-  border-color: rgb(71 85 105 / 0.8);
-  background: linear-gradient(135deg, rgb(30 41 59), rgb(15 23 42));
-  color: rgb(226 232 240);
+  border-color: rgb(var(--slate-300-rgb) / 0.8);
+  background: rgb(var(--slate-100-rgb));
+  color: rgb(var(--slate-800-rgb));
 }
 
 .ProseMirror ul,
@@ -1399,7 +1424,7 @@ textarea {
 
 :root.dark .ProseMirror tbody tr:hover td,
 :root.dark .markdown-content tbody tr:hover td {
-  background: #202b3d;
+  background: #202b25;
 }
 
 /* Theme-aware surfaces for legacy white utilities and fixed semantic colors. */
@@ -1460,19 +1485,19 @@ textarea {
 :root.dark [class~="bg-slate-900"],
 :root.dark [class*="bg-slate-900/"] { background-color: rgb(var(--slate-900-rgb)) !important; }
 
-:root.dark [class~="text-slate-50"] { color: #ebf0f4 !important; }
-:root.dark [class~="text-slate-100"] { color: #e2e8ed !important; }
-:root.dark [class~="text-slate-200"] { color: #d4dce3 !important; }
-:root.dark [class~="text-slate-300"] { color: #c4ced7 !important; }
-:root.dark [class~="text-slate-350"] { color: #aab7c3 !important; }
+:root.dark [class~="text-slate-50"] { color: #eef2ef !important; }
+:root.dark [class~="text-slate-100"] { color: #e5ebe7 !important; }
+:root.dark [class~="text-slate-200"] { color: #d7dfda !important; }
+:root.dark [class~="text-slate-300"] { color: #c6d0ca !important; }
+:root.dark [class~="text-slate-350"] { color: #aebbb3 !important; }
 :root.dark [class~="text-slate-400"],
-:root.dark [class*="text-slate-400/"] { color: rgb(130 145 161 / var(--dark-utility-alpha, 1)) !important; }
-:root.dark [class~="text-slate-500"] { color: #99a7b5 !important; }
+:root.dark [class*="text-slate-400/"] { color: rgb(132 148 138 / var(--dark-utility-alpha, 1)) !important; }
+:root.dark [class~="text-slate-500"] { color: #9aa9a0 !important; }
 :root.dark [class~="text-slate-600"],
-:root.dark [class~="text-slate-650"] { color: #b7c2cd !important; }
-:root.dark [class~="text-slate-700"] { color: #c8d2db !important; }
-:root.dark [class~="text-slate-800"] { color: #dce3ea !important; }
-:root.dark [class~="text-slate-900"] { color: #e7edf2 !important; }
+:root.dark [class~="text-slate-650"] { color: #b6c3bb !important; }
+:root.dark [class~="text-slate-700"] { color: #cad4ce !important; }
+:root.dark [class~="text-slate-800"] { color: #dde5e0 !important; }
+:root.dark [class~="text-slate-900"] { color: #e9efeb !important; }
 
 :root.dark [class~="border-slate-50"],
 :root.dark [class*="border-slate-50/"] { border-color: rgb(var(--slate-50-rgb)) !important; }

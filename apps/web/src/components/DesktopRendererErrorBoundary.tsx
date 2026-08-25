@@ -63,9 +63,13 @@ export class DesktopRendererErrorBoundary extends React.Component<{ children: Re
           <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-full bg-rose-50 text-xl text-rose-700">!</div>
           <h1 className="text-lg font-semibold">{zh ? "EdgeEver 页面出现异常" : "EdgeEver encountered a page error"}</h1>
           <p className="mt-2 text-sm leading-6 text-slate-600">
-            {zh
-              ? "问题已经记录到这台设备。你可以重新加载继续使用，并在提交前检查脱敏后的 GitHub Issue。"
-              : "The problem was recorded on this device. You can reload to continue and review the redacted GitHub Issue before submitting it."}
+            {desktop
+              ? (zh
+                  ? "问题已经记录到这台设备。你可以重新加载继续使用，并在提交前检查脱敏后的 GitHub Issue。"
+                  : "The problem was recorded on this device. You can reload to continue and review the redacted GitHub Issue before submitting it.")
+              : (zh
+                  ? "你可以重新加载继续使用。如果问题仍然出现，请检查浏览器控制台，并在提交 GitHub Issue 前移除敏感信息。"
+                  : "Reload to continue. If the problem persists, check the browser console and remove sensitive information before submitting a GitHub Issue.")}
           </p>
           <div className="mt-5 flex flex-wrap gap-3">
             <button

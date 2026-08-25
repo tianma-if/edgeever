@@ -1,19 +1,17 @@
 {
-  "version": "1.39.0",
+  "version": "1.40.0",
   "changes": {
     "en-US": [
-      "Switch quickly between recent memos from the workspace and explore refreshed demo notes.",
-      "Use Reading Protection mode and its keyboard shortcut to reduce accidental edits while reviewing notes.",
-      "Enjoy a calmer, more compact workspace with improved Classic and Mermaid rendering.",
-      "Navigate long documents with a refined outline and edit more comfortably on mobile with the new Marxico theme.",
-      "Configure AI models and generation preferences through a clearer, simplified settings layout."
+      "Access Web, desktop, Android, and iOS clients from a compact download menu in the sidebar.",
+      "Enjoy clearer workspace hierarchy, more consistent contrast, and refined colors across themes, editor views, exported notes, and print output.",
+      "Use self-hosted Docker instances over HTTP without client identity, sync, or rendering failures.",
+      "Desktop updates are now discovered more reliably, with clearer instance and version information in the app."
     ],
     "zh-CN": [
-      "可在工作区快速切换最近备忘录，并浏览焕新的演示笔记。",
-      "新增阅读保护模式及键盘快捷键，查看笔记时可减少误编辑。",
-      "工作区视觉层级更平静紧凑，并改进经典主题与 Mermaid 图表显示。",
-      "文档大纲导航更顺畅，移动端编辑体验同步优化，并新增 Marxico 主题。",
-      "AI 模型与生成偏好设置布局更清晰简洁。"
+      "现在可通过侧边栏中的紧凑下载菜单快速访问 Web、桌面、Android 和 iOS 客户端。",
+      "优化工作区层级、交互对比度与主题配色，并统一编辑视图、导出笔记和打印内容的视觉表现。",
+      "修复自托管 Docker 实例通过 HTTP 访问时可能出现的客户端标识、同步和渲染问题。",
+      "提升桌面端更新发现的可靠性，并在应用内提供更清晰的实例与版本信息。"
     ]
   }
 }

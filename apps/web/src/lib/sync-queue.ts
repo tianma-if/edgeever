@@ -31,6 +31,7 @@ import { getMemoSaveConflictInfo, parseMemoSaveConflictDetails } from "@/lib/mem
 import { getCachedLocalResourceBytes, removeCachedLocalResourceBytes } from "@/lib/local-resource-cache";
 import { isBrowserOffline } from "@/lib/network-status";
 import { parseTagsText } from "@/lib/utils";
+import { createClientUuid } from "@/lib/client-id";
 
 export type { SyncQueueSummary, SyncRunResult } from "@edgeever/shared";
 export type SyncQueueResult = MemoDetail | Notebook | MemoTemplate | Resource | null;
@@ -458,7 +459,7 @@ const claimQueueItem = (id: string) =>
       return null;
     }
 
-    const claimId = crypto.randomUUID();
+    const claimId = createClientUuid();
     const claimedItem: SyncQueueItem = {
       ...item,
       status: "syncing",

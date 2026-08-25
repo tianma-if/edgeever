@@ -6,6 +6,6 @@
 // (App Store Connect → Xcode Cloud → Settings → Build Number). Keep that value
 // ≥ this file and ≥ the latest ASC build. ci_pre_xcodebuild.sh also stamps
 // CI_BUILD_NUMBER into the archive when present.
-// Last completed ASC store build: 33 (2026-08-18, Cloud + altool). Build 35 was canceled; next Cloud run is 36+.
-MARKETING_VERSION = 1.38.0
-CURRENT_PROJECT_VERSION = 37
+// Last completed ASC store build: 38 (2026-08-23, Xcode Cloud). The next Cloud run must be 39+.
+MARKETING_VERSION = 1.39.0
+CURRENT_PROJECT_VERSION = 39

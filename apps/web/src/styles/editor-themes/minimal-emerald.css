@@ -15,15 +15,15 @@
 }
 
 :root.dark .edgeever-editor[data-editor-theme="minimal-emerald"]:not([data-editor-theme="default"]) {
-  --editor-theme-bg: #111827;
-  --editor-theme-text: #d1d5db;
-  --editor-theme-muted: #9ca3af;
-  --editor-theme-heading: #f9fafb;
-  --editor-theme-accent: #34d399;
-  --editor-theme-soft: #1f2937;
-  --editor-theme-border: #374151;
-  --editor-theme-code-bg: #1f2937;
-  --editor-theme-code-text: #6ee7b7;
+  --editor-theme-bg: var(--workspace-editor);
+  --editor-theme-text: #d8e0db;
+  --editor-theme-muted: #97a59c;
+  --editor-theme-heading: #f0f4f1;
+  --editor-theme-accent: #4fd1a1;
+  --editor-theme-soft: #202923;
+  --editor-theme-border: #314039;
+  --editor-theme-code-bg: #111713;
+  --editor-theme-code-text: #7ee0bc;
 }
 
 .edgeever-editor[data-editor-theme="minimal-emerald"]:not([data-editor-theme="default"]) .ProseMirror {
@@ -76,7 +76,7 @@
 .edgeever-editor[data-editor-theme="minimal-emerald"]:not([data-editor-theme="default"]) .ProseMirror a {
   color: var(--editor-theme-accent);
   text-decoration: underline;
-  text-decoration-color: rgba(5, 150, 105, 0.4);
+  text-decoration-color: color-mix(in srgb, var(--editor-theme-accent) 42%, transparent);
   text-underline-offset: 2px;
 }
 

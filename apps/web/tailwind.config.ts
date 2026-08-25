@@ -25,7 +25,7 @@ export default {
         ],
       },
       boxShadow: {
-        panel: "0 1px 2px rgb(15 23 42 / 0.07), 0 14px 34px rgb(36 56 39 / 0.08)",
+        panel: "0 1px 2px rgb(var(--slate-900-rgb) / 0.05), 0 16px 40px rgb(var(--slate-900-rgb) / 0.07)",
       },
       borderRadius: {
         lg: "var(--radius)",

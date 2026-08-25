@@ -4243,9 +4243,14 @@ const RichEditorPane = ({
             {!effectiveReadOnly && (
               <IconTooltip label={t("editor.save")}>
                 <Button
-                  className="hidden sm:inline-flex"
+                  className={cn(
+                    "hidden h-8 w-8 transition-colors sm:inline-flex",
+                    hasUnsavedChanges
+                      ? "text-emerald-600 hover:bg-emerald-50 hover:text-emerald-800 focus-visible:ring-2 focus-visible:ring-emerald-300"
+                      : "text-slate-400 hover:bg-slate-100 hover:text-slate-600 focus-visible:ring-2 focus-visible:ring-slate-300"
+                  )}
                   size="icon"
-                  variant="solid"
+                  variant="ghost"
                   aria-label={t("editor.save")}
                   onClick={() => saveMutation.mutate()}
                   disabled={!editor || saveMutation.isPending || !hasUnsavedChanges}

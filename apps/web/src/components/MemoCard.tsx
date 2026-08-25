@@ -312,7 +312,7 @@ export const MemoCard = ({
       draggable={!isTrashView}
       onDragStart={handleDragStart}
       className={cn(
-        "group relative overflow-hidden border border-slate-100 bg-white transition lg:rounded-none lg:border-x-0 lg:border-t-0 lg:border-slate-200 lg:shadow-none lg:last:border-b-0 dark:lg:border-slate-300/70 transition-all duration-200 select-none",
+        "edgeever-memo-divider group relative overflow-hidden border border-slate-100 bg-white transition lg:rounded-none lg:border-x-0 lg:border-t-0 lg:border-slate-200 lg:shadow-none lg:last:border-b-0 transition-all duration-200 select-none",
         listDensity === "compact" ? "rounded-md shadow-none" : "rounded-lg shadow-[0_4px_16px_rgba(15,23,42,0.045)]",
         !selectionMode && selected
           ? "edgeever-workspace-selection-desktop"
@@ -377,7 +377,7 @@ export const MemoCard = ({
           title={t("memoCard.interactionHint")}
         >
           <div className={cn("mb-2 flex min-w-0 items-center gap-1.5 text-base font-semibold leading-6 text-slate-950 lg:text-base", listDensity === "compact" && "mb-1")}>
-            {memo.isPinned && <Star className="h-4 w-4 shrink-0 fill-current text-slate-500" />}
+            {memo.isPinned && <Star className="h-4 w-4 shrink-0 fill-amber-400 text-amber-500" />}
             <span className="min-w-0 truncate">{memoTitle}</span>
           </div>
           <div
@@ -393,7 +393,10 @@ export const MemoCard = ({
               {formatMemoPreviewDate(memo.updatedAt, i18n.resolvedLanguage ?? i18n.language, t("memoCard.yesterday"))}
             </time>
             {memo.tags.slice(0, 3).map((tag) => (
-              <span key={tag} className="rounded-sm bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-900">
+              <span
+                key={tag}
+                className="rounded-sm border border-emerald-200/70 bg-emerald-50/70 px-1.5 py-0.5 text-xs font-medium text-emerald-800 transition-colors dark:border-emerald-800/50 dark:bg-emerald-950/40 dark:text-emerald-300"
+              >
                 #{tag}
               </span>
             ))}

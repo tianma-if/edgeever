@@ -12,6 +12,7 @@ import { useTranslation } from "react-i18next";
 import { useParams } from "react-router";
 import { api } from "@/lib/api";
 import { EdgeEverCodeBlock, codeBlockLowlight } from "@/lib/code-block";
+import { withEnvironmentTitlePrefix } from "@/lib/environment-title";
 import {
   parseImageWidth,
   getImageReferrerPolicy,
@@ -119,7 +120,12 @@ export const PublicSharePage = () => {
     robots.name = "robots";
     robots.content = "noindex,nofollow,noarchive";
     document.head.appendChild(robots);
-    if (share) document.title = `${share.title?.trim() || t("common.untitledMemo")} · EdgeEver`;
+    if (share) {
+      document.title = withEnvironmentTitlePrefix(
+        `${share.title?.trim() || t("common.untitledMemo")} · EdgeEver`,
+        { development: import.meta.env.DEV, profile: __EDGEEVER_DEVELOPMENT_PROFILE__ },
+      );
+    }
     return () => {
       document.title = previousTitle;
       robots.remove();

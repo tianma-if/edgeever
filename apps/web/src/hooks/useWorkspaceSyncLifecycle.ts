@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { isBrowserOffline, verifyBrowserConnectivity } from "@/lib/network-status";
 import { SYNC_QUEUE_DEFERRED_EVENT } from "@/lib/sync-events";
+import { createClientUuid } from "@/lib/client-id";
 import {
   BACKGROUND_WORKSPACE_REFRESH_INTERVAL_MS,
   claimBackgroundRefreshLease,
@@ -30,7 +31,7 @@ export const useWorkspaceSyncLifecycle = ({
   const deferredSyncPendingRef = useRef(false);
   const runQueuedSyncRef = useRef(runQueuedSync);
   const refreshWorkspaceRef = useRef(refreshWorkspace);
-  const backgroundRefreshOwnerRef = useRef(crypto.randomUUID());
+  const backgroundRefreshOwnerRef = useRef(createClientUuid());
 
   useEffect(() => {
     refreshWorkspaceRef.current = refreshWorkspace;

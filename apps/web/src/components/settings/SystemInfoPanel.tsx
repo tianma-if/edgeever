@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { CircleCheck, Copy, ExternalLink } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { CircleCheck, Copy, ExternalLink, LoaderCircle, RefreshCw, RotateCcw } from "lucide-react";
 import { Trans, useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { useDeployedUpdateNotice } from "@/hooks/useDeployedUpdateNotice";
@@ -84,14 +84,35 @@ export const getWebSystemInfoItems = (
 export const SystemInfoPanel = ({ active = true }: { active?: boolean }) => {
   const { t, i18n } = useTranslation();
   const [copied, setCopied] = useState(false);
+  const [desktopUpdateChecked, setDesktopUpdateChecked] = useState(false);
+  const queryClient = useQueryClient();
   const { release } = useDeployedUpdateNotice();
-  const instanceUrl = window.edgeeverDesktop?.isAvailable === true ? getConfiguredDesktopApiBaseUrl() : window.location.origin;
+  const desktopBridge = window.edgeeverDesktop;
+  const desktopAvailable = desktopBridge?.isAvailable === true;
+  const instanceUrl = desktopAvailable ? getConfiguredDesktopApiBaseUrl() : window.location.origin;
   const healthQuery = useQuery({
     queryKey: ["instance-health", instanceUrl],
     queryFn: () => api.getInstanceHealth(),
     enabled: active && Boolean(instanceUrl),
     staleTime: 5 * 60 * 1000,
     retry: 1,
+  });
+  const desktopUpdateStatusQuery = useQuery({
+    queryKey: ["desktop-update-status"],
+    queryFn: () => desktopBridge!.updateStatus(),
+    enabled: active && desktopAvailable,
+    refetchInterval: (query) => query.state.data?.state === "available" ? 1_000 : false,
+    retry: 1,
+  });
+  const desktopUpdateCheckMutation = useMutation({
+    mutationFn: () => desktopBridge!.checkUpdate(),
+    onSuccess: (status) => {
+      queryClient.setQueryData(["desktop-update-status"], status);
+      setDesktopUpdateChecked(true);
+    },
+  });
+  const desktopUpdateInstallMutation = useMutation({
+    mutationFn: () => desktopBridge!.installUpdate(),
   });
   const infoItems = useMemo(
     () => getWebSystemInfoItems(t, i18n.language, healthQuery.data?.runtime),
@@ -112,14 +133,72 @@ export const SystemInfoPanel = ({ active = true }: { active?: boolean }) => {
     window.setTimeout(() => setCopied(false), 1600);
   };
 
+  const desktopUpdateState = desktopUpdateStatusQuery.data?.state ?? "idle";
+  const desktopUpdateBusy = desktopUpdateCheckMutation.isPending || desktopUpdateInstallMutation.isPending;
+  const desktopUpdateStatus = desktopUpdateInstallMutation.isError || desktopUpdateCheckMutation.isError || desktopUpdateStatusQuery.isError
+    ? t("systemInfo.desktopUpdateFailed")
+    : desktopUpdateInstallMutation.isPending
+      ? t("systemInfo.desktopUpdateInstalling")
+      : desktopUpdateCheckMutation.isPending
+        ? t("systemInfo.desktopUpdateChecking")
+        : desktopUpdateState === "available"
+          ? t("systemInfo.desktopUpdateDownloading")
+          : desktopUpdateState === "downloaded"
+            ? t("systemInfo.desktopUpdateReady")
+            : desktopUpdateChecked
+              ? t("systemInfo.desktopUpdateCurrent")
+              : null;
+
+  const handleDesktopUpdate = () => {
+    if (desktopUpdateState === "downloaded") desktopUpdateInstallMutation.mutate();
+    else desktopUpdateCheckMutation.mutate();
+  };
+
   return (
     <div className="grid gap-3">
-      <div className="flex justify-end">
+      <div className="flex flex-wrap justify-end gap-2">
+        {desktopAvailable ? (
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 bg-white px-3 text-xs"
+            type="button"
+            disabled={desktopUpdateBusy || desktopUpdateState === "available"}
+            onClick={handleDesktopUpdate}
+          >
+            {desktopUpdateBusy || desktopUpdateState === "available"
+              ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+              : desktopUpdateState === "downloaded"
+                ? <RotateCcw className="h-3.5 w-3.5" />
+                : <RefreshCw className="h-3.5 w-3.5" />}
+            {desktopUpdateState === "downloaded"
+              ? t("systemInfo.desktopUpdateRestart")
+              : desktopUpdateState === "available"
+                ? t("systemInfo.desktopUpdateDownloading")
+                : desktopUpdateCheckMutation.isPending
+                  ? t("systemInfo.desktopUpdateChecking")
+                  : t("systemInfo.desktopCheckForUpdates")}
+          </Button>
+        ) : null}
         <Button size="sm" variant="outline" className="h-8 w-full bg-white px-3 text-xs sm:w-auto" type="button" onClick={() => void handleCopy()}>
           <Copy className="h-3.5 w-3.5" />
           {copied ? t("common.copied") : t("systemInfo.copy")}
         </Button>
       </div>
+      {desktopAvailable && desktopUpdateStatus ? (
+        <p
+          className={cn(
+            "text-right text-xs",
+            desktopUpdateInstallMutation.isError || desktopUpdateCheckMutation.isError || desktopUpdateStatusQuery.isError
+              ? "text-red-600"
+              : "text-slate-500",
+          )}
+          role="status"
+          aria-live="polite"
+        >
+          {desktopUpdateStatus}
+        </p>
+      ) : null}
       {active && release ? (
         <div className="flex items-start gap-2 rounded-md border border-emerald-200 border-l-2 border-l-emerald-500 bg-emerald-50/40 px-3 py-2 text-slate-800" role="status">
           <CircleCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />

@@ -298,17 +298,17 @@
  * but remap every hard-coded reading color so new and existing notes remain legible.
  */
 :root.dark .edgeever-editor[data-editor-theme="marxico"]:not([data-editor-theme="default"]) {
-  --editor-theme-bg: #19222b;
-  --editor-theme-text: #dce3ea;
-  --editor-theme-muted: #99a7b5;
-  --editor-theme-heading: #e7edf2;
-  --editor-theme-accent: #68b7ff;
-  --editor-theme-soft: #202d38;
-  --editor-theme-border: #344451;
-  --editor-theme-code-bg: #2b2027;
-  --editor-theme-code-text: #f0a6bd;
-  --editor-theme-table-stripe: #1d2832;
-  --editor-theme-table-hover: #24323e;
+  --editor-theme-bg: var(--workspace-editor);
+  --editor-theme-text: #d9e1dc;
+  --editor-theme-muted: #99a7a0;
+  --editor-theme-heading: #eef2ef;
+  --editor-theme-accent: #78b7e8;
+  --editor-theme-soft: #202a25;
+  --editor-theme-border: #39473f;
+  --editor-theme-code-bg: #2a2023;
+  --editor-theme-code-text: #f2b0c2;
+  --editor-theme-table-stripe: #1d2621;
+  --editor-theme-table-hover: #24312a;
   color-scheme: dark;
   background: var(--editor-theme-bg) !important;
 }
@@ -336,7 +336,7 @@
 }
 
 :root.dark .edgeever-editor[data-editor-theme="marxico"]:not([data-editor-theme="default"]) .ProseMirror a:not(.edgeever-attachment-link):hover {
-  color: #9acfff;
+  color: #acd5f4;
 }
 
 :root.dark .edgeever-editor[data-editor-theme="marxico"]:not([data-editor-theme="default"]) .ProseMirror blockquote {
@@ -351,7 +351,13 @@
 }
 
 :root.dark .edgeever-editor[data-editor-theme="marxico"]:not([data-editor-theme="default"]) .ProseMirror pre {
-  background: #202830;
+  background: #151d19;
+  color: var(--editor-theme-text);
+}
+
+:root.dark .edgeever-editor[data-editor-theme="marxico"]:not([data-editor-theme="default"]) .ProseMirror .edgeever-code-copy-button {
+  border-color: var(--editor-theme-border);
+  background: #151d19;
   color: var(--editor-theme-text);
 }
 

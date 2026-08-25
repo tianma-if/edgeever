@@ -192,7 +192,7 @@ export const MemoSelectionActionBar = ({
           onClick={onPin}
           disabled={selectedCount === 0 || isPinning || isTrashView}
         >
-          <Star className={cn("h-4 w-4", !pinTarget && "fill-current text-slate-700")} />
+          <Star className={cn("h-4 w-4", !pinTarget && "fill-amber-400 text-amber-500")} />
           {pinLabel}
         </Button>
         <Button
@@ -1264,10 +1264,10 @@ export const MemoListPane = ({
         <div className={cn("items-center gap-2", mobileSearchActive ? "hidden lg:flex" : "flex")}>
           <div
             className={cn(
-              "flex h-mobile-control min-w-0 flex-1 items-center gap-2 rounded-full border px-3 text-sm transition focus-within:ring-2 lg:rounded-md",
+              "flex h-mobile-control min-w-0 flex-1 items-center gap-2 rounded-full border px-3 text-sm transition-all duration-200 focus-within:ring-2 lg:rounded-md",
               searchActive
                 ? "border-emerald-400 bg-emerald-50/80 text-emerald-700 shadow-[0_0_0_1px_rgba(52,211,153,0.18)] ring-1 ring-emerald-200 focus-within:border-emerald-500 focus-within:bg-white focus-within:ring-emerald-300/50"
-                : "border-transparent bg-slate-100 text-slate-500 focus-within:border-slate-300 focus-within:bg-white focus-within:ring-slate-400/20 lg:border-slate-200 lg:bg-slate-50"
+                : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 focus-within:border-emerald-400/90 focus-within:bg-white focus-within:ring-emerald-200/60"
             )}
           >
             <Search className={cn("h-4 w-4 shrink-0", searchActive && "text-emerald-600")} />
@@ -1480,7 +1480,7 @@ export const MemoListPane = ({
                     onTogglePinMemo(memo);
                   }}
                 >
-                  <Star className={cn("h-4 w-4", memoContextMenu.memo.isPinned && "fill-current text-slate-700")} />
+                  <Star className={cn("h-4 w-4", memoContextMenu.memo.isPinned && "fill-amber-400 text-amber-500")} />
                   {memoContextMenu.memo.isPinned ? t("memoList.unpin") : t("memoList.pinMemo")}
                 </DropdownMenuItem>
               )}

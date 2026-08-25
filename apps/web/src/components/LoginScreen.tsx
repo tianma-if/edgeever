@@ -46,19 +46,18 @@ export const LoginScreen = ({ error, instanceUrl: initialInstanceUrl, isSubmitti
   };
 
   return (
-    <main className="flex h-[100dvh] items-center justify-center bg-gradient-to-tr from-emerald-50/70 via-emerald-50 to-emerald-100 px-4 py-8 text-slate-950">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgb(var(--brand-green-rgb)/0.06),transparent_45%)] pointer-events-none" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgb(var(--brand-green-rgb)/0.04),transparent_55%)] pointer-events-none" />
-      <GitHubRepositoryLink className="absolute right-4 top-[max(1rem,env(safe-area-inset-top))] z-10 h-10 w-10 justify-center rounded-full border border-slate-200 bg-white/85 text-slate-600 shadow-sm backdrop-blur transition hover:bg-white hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/70" iconClassName="h-5 w-5" />
+    <main className="flex h-[100dvh] items-center justify-center bg-[var(--workspace-canvas)] px-4 py-8 text-slate-950">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_15%,rgb(var(--brand-green-rgb)/0.045),transparent_42%)]" />
+      <GitHubRepositoryLink className="absolute right-4 top-[max(1rem,env(safe-area-inset-top))] z-10 h-10 w-10 justify-center rounded-full border border-slate-200 bg-white/85 text-slate-600 shadow-[0_4px_16px_rgb(var(--slate-900-rgb)/0.05)] backdrop-blur transition hover:border-slate-300 hover:bg-white hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60" iconClassName="h-5 w-5" />
       
-      <section className="relative w-full max-w-[400px] rounded-2xl border border-emerald-500/15 bg-white/95 p-8 shadow-[0_20px_50px_rgb(var(--brand-green-rgb)/0.08)] backdrop-blur-md transition-all duration-300 hover:shadow-[0_24px_60px_rgb(var(--brand-green-rgb)/0.12)]">
+      <section className="relative w-full max-w-[400px] rounded-2xl border border-slate-200 bg-white/95 p-8 shadow-[0_20px_50px_rgb(var(--slate-900-rgb)/0.08)] backdrop-blur-md">
         <div className="mb-8 flex items-center gap-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 text-white shadow-[0_8px_16px_-4px_rgb(var(--brand-green-rgb)/0.35)]">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500 text-white shadow-[0_8px_18px_-8px_rgb(var(--brand-green-rgb)/0.45)]">
             <LockKeyhole className="h-5.5 w-5.5" />
           </div>
           <div className="min-w-0">
             <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900">{t("login.title")}</h1>
-            <p className="mt-1 text-xs font-medium uppercase tracking-wider text-slate-400">{t("login.subtitle")}</p>
+            <p className="mt-1 text-xs font-medium tracking-wide text-slate-500">{t("login.subtitle")}</p>
           </div>
         </div>
 
@@ -85,7 +84,7 @@ export const LoginScreen = ({ error, instanceUrl: initialInstanceUrl, isSubmitti
               <span className="mb-2 block text-sm font-semibold text-slate-700">{t("login.desktopInstanceUrl")}</span>
               <Input
                 autoComplete="url"
-                className="h-11 rounded-lg bg-slate-50/50 px-3.5 focus-visible:bg-white focus-visible:ring-4 focus-visible:ring-emerald-500/10"
+                className="h-11 rounded-lg bg-slate-50/50 px-3.5 focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-emerald-500/20"
                 placeholder={t("login.instanceUrlPlaceholder")}
                 required
                 type="url"
@@ -99,7 +98,7 @@ export const LoginScreen = ({ error, instanceUrl: initialInstanceUrl, isSubmitti
             <span className="mb-2 block text-sm font-semibold text-slate-700">{t("login.username")}</span>
             <Input
               autoComplete="username"
-              className="h-11 rounded-lg bg-slate-50/50 px-3.5 focus-visible:bg-white focus-visible:ring-4 focus-visible:ring-emerald-500/10"
+              className="h-11 rounded-lg bg-slate-50/50 px-3.5 focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-emerald-500/20"
               required
               value={username}
               onChange={(event) => setUsername(event.target.value)}
@@ -110,7 +109,7 @@ export const LoginScreen = ({ error, instanceUrl: initialInstanceUrl, isSubmitti
             <span className="mb-2 block text-sm font-semibold text-slate-700">{t("login.password")}</span>
             <Input
               autoComplete="current-password"
-              className="h-11 rounded-lg bg-slate-50/50 px-3.5 focus-visible:bg-white focus-visible:ring-4 focus-visible:ring-emerald-500/10"
+              className="h-11 rounded-lg bg-slate-50/50 px-3.5 focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-emerald-500/20"
               required
               type="password"
               value={password}
@@ -119,7 +118,7 @@ export const LoginScreen = ({ error, instanceUrl: initialInstanceUrl, isSubmitti
           </label>
 
           <Button 
-            className="w-full h-11 justify-center rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-semibold transition-all duration-200 shadow-[0_8px_20px_-4px_rgb(var(--brand-green-rgb)/0.25)] hover:shadow-[0_12px_24px_-4px_rgb(var(--brand-green-rgb)/0.35)]"
+            className="h-11 w-full justify-center rounded-lg bg-emerald-500 font-semibold text-white shadow-[0_8px_20px_-8px_rgb(var(--brand-green-rgb)/0.35)] transition-colors duration-200 hover:bg-emerald-600"
             size="md" 
             type="submit" 
             variant="solid" 

@@ -5,6 +5,7 @@ import { localDb, selectNewestLocalDraft, type LocalDraft, type LocalMemo, type 
 import { cacheLocalResourceBytes, localResourceUrl, removeCachedLocalResourceBytes } from "@/lib/local-resource-cache";
 import { isBrowserOffline } from "@/lib/network-status";
 import { parseTagsText } from "@/lib/utils";
+import { createClientUuid } from "@/lib/client-id";
 
 export type LocalMemoListParams = {
   notebookId?: string | null;
@@ -275,7 +276,7 @@ export const createLocalMemo = async (
   const contentMarkdown = input.contentMarkdown ?? docToMarkdown(contentJson);
   const contentText = docToText(contentJson);
   const memo: MemoDetail = {
-    id: `local_${crypto.randomUUID()}`,
+    id: `local_${createClientUuid()}`,
     notebookId: input.notebookId,
     title: input.title?.trim() || null,
     excerpt: createExcerpt(contentText),
@@ -460,7 +461,7 @@ export const deleteLocalResource = async (scope: string, resourceId: string) => 
 
 export const createLocalResource = async (scope: string, memoId: string, file: File) => {
   const now = new Date().toISOString();
-  const id = `local_resource_${crypto.randomUUID()}`;
+  const id = `local_resource_${createClientUuid()}`;
   const url = localResourceUrl(id);
   await cacheLocalResourceBytes(url, file);
   const resource: ResourceListItem = {
@@ -517,7 +518,7 @@ export const deleteLocalNotebook = async (scope: string, notebookId: string) => 
 export const createLocalNotebook = async (scope: string, input: { name: string; parentId?: string | null }) => {
   const now = new Date().toISOString();
   const notebook: Notebook = {
-    id: `local_${crypto.randomUUID()}`,
+    id: `local_${createClientUuid()}`,
     parentId: input.parentId ?? null,
     name: input.name.trim(),
     slug: null,
@@ -537,7 +538,7 @@ export const createLocalTemplate = async (scope: string, input: { name: string; 
   const now = new Date().toISOString();
   const contentMarkdown = input.contentMarkdown ?? "";
   const template: MemoTemplate = {
-    id: `local_${crypto.randomUUID()}`,
+    id: `local_${createClientUuid()}`,
     name: input.name.trim(),
     description: input.description ?? null,
     title: input.title ?? null,

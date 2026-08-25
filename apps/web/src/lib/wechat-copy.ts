@@ -1,6 +1,7 @@
 import type { Editor } from "@tiptap/react";
 import { MEMO_CONTENT_STYLE } from "@edgeever/shared";
 import { marked } from "marked";
+import { MERMAID_THEME_PALETTES } from "@/components/ThemeProvider";
 import { copyHtmlToClipboard } from "@/lib/clipboard";
 import { parseCustomCssToStyles } from "@/lib/css-sandbox";
 
@@ -280,6 +281,7 @@ const renderMermaidSvg = async (source: string) => {
   const { renderMermaidSVG, THEMES } = await import("beautiful-mermaid");
   return renderMermaidSVG(source, {
     ...THEMES["zinc-light"],
+    ...MERMAID_THEME_PALETTES["zinc-light"],
     transparent: true,
     font: "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
     padding: 24,

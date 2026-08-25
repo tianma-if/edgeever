@@ -66,16 +66,17 @@ export const MermaidCodeBlock = ({ editor, node }: NodeViewProps) => {
     let cancelled = false;
     const timer = window.setTimeout(() => {
       setRenderState("loading");
+      const palette = MERMAID_THEME_PALETTES[mermaidTheme];
 
       const renderBeautiful = () => loadBeautifulMermaid()
         .then(({ renderMermaidSVG, THEMES }) => renderMermaidSVG(source, {
           ...THEMES[mermaidTheme],
+          ...palette,
           transparent: true,
           font: "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
           padding: 24,
         }));
       const renderOfficial = () => loadMermaid().then(async (mermaid) => {
-        const palette = MERMAID_THEME_PALETTES[mermaidTheme];
         mermaid.initialize({
           startOnLoad: false,
           securityLevel: "strict",

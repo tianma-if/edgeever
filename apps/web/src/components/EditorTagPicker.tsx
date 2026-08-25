@@ -155,9 +155,23 @@ export const EditorTagPicker = ({ contentMarkdown, disabled, loadTags, title, va
           aria-label={t("editor.tagPicker.open")}
           onClick={() => setOpen(true)}
         >
-          <span className="min-w-0 truncate">
-            {selectedTags.length > 0 ? selectedTags.map((tag) => `#${tag}`).join(", ") : t("editor.tagPlaceholder")}
-          </span>
+          {selectedTags.length > 0 ? (
+            <span className="flex min-w-0 items-center gap-1 overflow-hidden">
+              {selectedTags.slice(0, 3).map((tag) => (
+                <span
+                  key={tag}
+                  className="rounded-sm border border-emerald-200/70 bg-emerald-50/70 px-1.5 py-0.5 text-xs font-medium text-emerald-800 transition-colors dark:border-emerald-800/50 dark:bg-emerald-950/40 dark:text-emerald-300"
+                >
+                  #{tag}
+                </span>
+              ))}
+              {selectedTags.length > 3 && (
+                <span className="text-xs font-medium text-slate-400">+{selectedTags.length - 3}</span>
+              )}
+            </span>
+          ) : (
+            <span className="min-w-0 truncate text-slate-500">{t("editor.tagPlaceholder")}</span>
+          )}
           <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-400" />
         </button>
 

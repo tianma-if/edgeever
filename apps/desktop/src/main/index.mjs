@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, Tray, nativeImage, ipcMain, session, net, protocol, shell, dialog, safeStorage, clipboard } from "electron";
+import { app, BrowserWindow, Menu, Tray, nativeImage, ipcMain, session, net, protocol, shell, dialog, safeStorage, clipboard, powerMonitor } from "electron";
 import { existsSync } from "node:fs";
 import { appendFile, mkdir, readdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
@@ -76,6 +76,10 @@ let sidecar;
 let tray;
 let isQuitting = false;
 let updateState = "idle";
+let updateCheckInFlight = null;
+let updateDownloadInFlight = null;
+let updateCheckTimer = null;
+let lastUpdateCheckAt = 0;
 let sidecarScopeKey = "anonymous";
 let activeAccountId = null;
 let shutdownCleanupStarted = false;
@@ -84,6 +88,8 @@ let sidecarRestartAttempts = 0;
 let sidecarRestartInFlight = false;
 let localDataResetScheduled = false;
 let rendererCrashDialogOpen = false;
+const updateCheckIntervalMs = 60 * 60 * 1_000;
+const updateCheckFocusThrottleMs = 15 * 60 * 1_000;
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 const windowStatePath = () => join(app.getPath("userData"), "window-state.json");
 const instanceUrlPath = () => join(app.getPath("userData"), "instance-url");
@@ -508,18 +514,61 @@ const installDownloadedUpdate = () => {
   return { started: true };
 };
 
+const checkForDesktopUpdate = (reason, { force = false, throwOnError = false } = {}) => {
+  if (!app.isPackaged || process.env.EDGE_EVER_DISABLE_AUTO_UPDATE === "1" || updateState === "downloaded") {
+    return Promise.resolve(null);
+  }
+  if (updateCheckInFlight) {
+    return throwOnError ? updateCheckInFlight : updateCheckInFlight.catch(() => null);
+  }
+  if (updateDownloadInFlight) return Promise.resolve(null);
+  const now = Date.now();
+  if (!force && now - lastUpdateCheckAt < updateCheckFocusThrottleMs) return Promise.resolve(null);
+  lastUpdateCheckAt = now;
+  void writeDiagnostic("update.check-started", { reason });
+  updateCheckInFlight = autoUpdater.checkForUpdates()
+    .then((result) => {
+      if (result?.downloadPromise) {
+        updateDownloadInFlight = result.downloadPromise
+          .catch(async (error) => {
+            updateState = "idle";
+            refreshTrayMenu();
+            await writeDiagnostic("update.download-failed", { reason, message: error.message });
+          })
+          .finally(() => { updateDownloadInFlight = null; });
+      }
+      return result;
+    })
+    .catch(async (error) => {
+      await writeDiagnostic("update.check-failed", { reason, message: error.message });
+      throw error;
+    })
+    .finally(() => { updateCheckInFlight = null; });
+  return throwOnError ? updateCheckInFlight : updateCheckInFlight.catch(() => null);
+};
+
 const configureAutoUpdater = () => {
   if (!app.isPackaged || process.env.EDGE_EVER_DISABLE_AUTO_UPDATE === "1") return;
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
   autoUpdater.autoRunAppAfterInstall = true;
   autoUpdater.on("update-available", () => { updateState = "available"; refreshTrayMenu(); void writeDiagnostic("update.available"); });
+  autoUpdater.on("update-not-available", () => { updateState = "idle"; refreshTrayMenu(); void writeDiagnostic("update.not-available"); });
   autoUpdater.on("download-progress", (progress) => { void writeDiagnostic("update.download-progress", { percent: progress.percent }); });
   autoUpdater.on("update-downloaded", () => { updateState = "downloaded"; refreshTrayMenu(); void writeDiagnostic("update.downloaded"); });
-  autoUpdater.on("error", (error) => { isQuitting = false; void writeDiagnostic("update.error", { message: error.message }); });
-  void autoUpdater.checkForUpdates()
-    .then((result) => result?.downloadPromise?.catch((error) => writeDiagnostic("update.download-failed", { message: error.message })))
-    .catch((error) => writeDiagnostic("update.check-failed", { message: error.message }));
+  autoUpdater.on("error", (error) => {
+    isQuitting = false;
+    if (updateState !== "downloaded") updateState = "idle";
+    refreshTrayMenu();
+    void writeDiagnostic("update.error", { message: error.message });
+  });
+  void checkForDesktopUpdate("startup", { force: true });
+  updateCheckTimer = setInterval(() => {
+    void checkForDesktopUpdate("interval", { force: true });
+  }, updateCheckIntervalMs);
+  powerMonitor.on("resume", () => {
+    void checkForDesktopUpdate("resume", { force: true });
+  });
 };
 
 const startSidecar = async (accountId = null) => {
@@ -907,6 +956,10 @@ app.whenReady().then(async () => {
     return configuredApiBaseUrl;
   });
   ipcMain.handle("desktop:update-status", () => ({ state: updateState }));
+  ipcMain.handle("desktop:check-update", async () => {
+    await checkForDesktopUpdate("manual", { force: true, throwOnError: true });
+    return { state: updateState };
+  });
   ipcMain.handle("desktop:download-update", () => autoUpdater.downloadUpdate());
   ipcMain.handle("desktop:install-update", () => installDownloadedUpdate());
   ipcMain.handle("desktop:stage-resource", async (_event, input) => {
@@ -979,6 +1032,7 @@ app.whenReady().then(async () => {
   handleOpenTarget(process.argv);
   app.on("activate", () => {
     if (!showWindow(mainWindow)) void createWindow();
+    void checkForDesktopUpdate("activate");
   });
 });
 
@@ -1004,6 +1058,10 @@ app.on("before-quit", (event) => {
   if (sidecarRestartTimer) {
     clearTimeout(sidecarRestartTimer);
     sidecarRestartTimer = null;
+  }
+  if (updateCheckTimer) {
+    clearInterval(updateCheckTimer);
+    updateCheckTimer = null;
   }
   tray?.destroy();
   void (async () => {

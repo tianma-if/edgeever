@@ -39,6 +39,7 @@ import type {
 import { resolveInstanceUrlInput } from "@edgeever/shared";
 import type { MemoFilterMode, MemoSortMode } from "./app-helpers";
 import { readAiStreamingPreference } from "./ai-generation-preference";
+import { createClientUuid } from "./client-id";
 
 type ListNotebooksResponse = {
   notebooks: Notebook[];
@@ -227,10 +228,7 @@ export const saveDesktopApiBaseUrl = async (value: string) => {
 };
 
 const createWebDeviceId = () => {
-  const uuid = globalThis.crypto?.randomUUID?.();
-  return uuid
-    ? `web-${uuid}`
-    : `web-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
+  return `web-${createClientUuid()}`;
 };
 
 const getOrCreateWebDeviceId = () => {

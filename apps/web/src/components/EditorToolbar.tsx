@@ -208,7 +208,7 @@ export const EditorToolbar = ({
 
   return (
     <TooltipProvider delayDuration={0} skipDelayDuration={0}>
-      <div className="relative min-w-0 max-w-full border-t border-slate-200 bg-white">
+      <div className="relative min-w-0 max-w-full border-t border-slate-100 bg-white">
         <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-4 bg-gradient-to-r from-white to-transparent sm:hidden" />
         <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-4 bg-gradient-to-l from-white to-transparent sm:hidden" />
         <div
@@ -222,10 +222,10 @@ export const EditorToolbar = ({
                 <TooltipTrigger asChild>
                   <button
                     className={cn(
-                      "flex h-8 shrink-0 items-center rounded-md border px-2.5 text-xs font-medium transition disabled:pointer-events-none disabled:opacity-40",
+                      "flex h-8 shrink-0 items-center rounded-md border px-2.5 text-xs font-medium transition-colors disabled:pointer-events-none disabled:opacity-40",
                       markdownMode
                         ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                        : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                        : "border-slate-200/80 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
                     )}
                     type="button"
                     aria-label={markdownMode ? t("editorToolbar.richText") : t("editorToolbar.markdown")}
