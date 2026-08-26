@@ -10,6 +10,7 @@ import {
 } from "@edgeever/shared";
 import { api, ApiRequestError } from "@/lib/api";
 import { isDesktopResourceRuntime } from "@/lib/desktop-resources";
+import { notifyMemoIdRemapped, notifyMemoSyncAcknowledged } from "@/lib/sync-events";
 
 type StagedResourceRewrite = { memoId: string; placeholder: string; url: string };
 let lastSyncFailed = false;
@@ -152,12 +153,6 @@ const request = async <M extends keyof DesktopRpcResponses>(method: M, params: D
   return bridge.sidecarRequest<DesktopRpcResponses[M]>(method, params);
 };
 
-const applyRemoteMemo = async (memo: NonNullable<DesktopRpcResponses["memo.get"]>["memo"]) => {
-  await request("sync.apply", {
-    changes: [{ entityType: "memo", operation: "upsert", entityId: memo.id, memo, notebook: null }],
-  });
-};
-
 const applyRemoteNotebook = async (notebook: DesktopRpcResponses["notebook.list"]["notebooks"][number]) => {
   await request("sync.apply", {
     changes: [{ entityType: "notebook", operation: "upsert", entityId: notebook.id, notebook, memo: null }],
@@ -188,9 +183,8 @@ const acknowledge = async (
   remoteNotebook?: DesktopRpcResponses["notebook.list"]["notebooks"][number],
   remoteTemplate?: DesktopRpcResponses["template.list"]["templates"][number],
 ) => {
-  if (remoteMemo) await applyRemoteMemo(remoteMemo);
   if (remoteNotebook) await applyRemoteNotebook(remoteNotebook);
-  await request("sync.outbox.ack", { id: item.id, remoteMemo, remoteNotebook, remoteTemplate });
+  await request("sync.outbox.ack", { id: item.id, version: item.version, remoteMemo, remoteNotebook, remoteTemplate });
 };
 
 const syncOutboxItem = async (item: DesktopOutboxItem, stagedRewrites: StagedResourceRewrite[]) => {
@@ -380,15 +374,21 @@ const syncOutbox = async (stagedRewrites: StagedResourceRewrite[], onlyKinds?: S
       const result = await syncOutboxItem(item, stagedRewrites);
       if (item.kind === "memo.create" && result && typeof result === "object" && "id" in result && typeof result.id === "string") {
         memoIdMappings.set(item.entityId, result.id);
+        // Remap the live editor and advance its cloud base as soon as the
+        // create is acknowledged. Waiting for the workspace-wide sync to end
+        // leaves a window where the next autosave still sends revision 0.
+        notifyMemoIdRemapped(new Map([[item.entityId, result.id]]));
       }
       if (result && typeof result === "object" && "id" in result && typeof result.id === "string" && "contentJson" in result) {
-        syncedMemos.set(result.id, result as DesktopRpcResponses["memo.get"]["memo"]);
+        const syncedMemo = result as DesktopRpcResponses["memo.get"]["memo"];
+        syncedMemos.set(result.id, syncedMemo);
+        notifyMemoSyncAcknowledged(syncedMemo);
       }
       synced += 1;
     } catch (error) {
       const conflict = error instanceof ApiRequestError
         && (error.code === "revision_conflict" || error.code === "content_conflict" || error.code === "edit_session_conflict");
-      await request("sync.outbox.fail", { id: item.id, error: error instanceof Error ? error.message : String(error), conflict });
+      await request("sync.outbox.fail", { id: item.id, version: item.version, error: error instanceof Error ? error.message : String(error), conflict });
       if (conflict) conflicted += 1;
       else failed += 1;
     }
@@ -521,7 +521,9 @@ export const syncDesktopData = () => {
       if (stagedResources.failed === 0 && outbox.failed === 0 && outbox.conflicted === 0 && creates.conflicted === 0) {
         await removeSyncedStagedResources(stagedResources.stagedIds);
       }
-      if (outbox.conflicted === 0 && creates.conflicted === 0 && (typeof navigator === "undefined" || navigator.onLine)) await pullRemoteChanges();
+      const remaining = await request("sync.status", {});
+      if (remaining.pending === 0 && remaining.syncing === 0 && remaining.error === 0 && remaining.conflict === 0
+        && (typeof navigator === "undefined" || navigator.onLine)) await pullRemoteChanges();
       // Catch resources staged while the network sync itself was running.
       await remapStagedResourceMemoIds(creates.memoIdMappings);
       lastSyncFailed = false;
@@ -552,7 +554,7 @@ export const getDesktopSyncSummary = async () => {
 };
 
 export const discardDesktopConflicts = async () => {
-  const response = await request("sync.outbox.list", { limit: 200 });
+  const response = await request("sync.outbox.list", { limit: 200, includeConflicts: true });
   const conflicts = response.items.filter((item) => item.status === "conflict");
   let discarded = 0;
 
@@ -565,7 +567,7 @@ export const discardDesktopConflicts = async () => {
       await request("sync.apply", {
         changes: [{ entityType: "memo", operation: "upsert", entityId: remote.memo.id, memo: remote.memo, notebook: null }],
       });
-      await request("sync.outbox.ack", { id: item.id, remoteMemo: remote.memo });
+      await request("sync.outbox.ack", { id: item.id, version: item.version, remoteMemo: remote.memo });
     } else {
       await request("sync.outbox.discard", { id: item.id });
     }
@@ -585,13 +587,13 @@ export const discardDesktopMemoConflict = async (memoId: string) => {
     changes: [{ entityType: "memo", operation: "upsert", entityId: remote.memo.id, memo: remote.memo, notebook: null }],
   });
 
-  const response = await request("sync.outbox.list", { limit: 200 });
+  const response = await request("sync.outbox.list", { limit: 200, includeConflicts: true });
   for (const item of response.items) {
     if (item.entityId !== memoId || item.status !== "conflict") {
       continue;
     }
     if (item.kind === "memo.update") {
-      await request("sync.outbox.ack", { id: item.id, remoteMemo: remote.memo });
+      await request("sync.outbox.ack", { id: item.id, version: item.version, remoteMemo: remote.memo });
     } else {
       await request("sync.outbox.discard", { id: item.id });
     }

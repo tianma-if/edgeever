@@ -75,7 +75,11 @@ const SharedThemeBlock = Node.create({
 
 const SharedDocument = ({ share, token }: { share: PublicMemoShare; token: string }) => {
   const content = useMemo(
-    () => rewriteMemoResourcesForShare(resolveMemoContentDoc(share.contentJson, share.contentMarkdown), token),
+    () => rewriteMemoResourcesForShare(
+      resolveMemoContentDoc(share.contentJson, share.contentMarkdown),
+      token,
+      share.memoShareTokens,
+    ),
     [share, token],
   );
   const editor = useEditor({

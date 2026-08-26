@@ -8,6 +8,9 @@ index 8dd50e8f..396ebf35 100644
 +      return if (uri != null) {
 +        listOf(createUriPayload(context, uri, type))
 +      } else if (type == "text/plain") {
+@@ -21 +24 @@ internal class SimpleShareIntentDataParser {
+-        val text = intent.getStringExtra(Intent.EXTRA_TEXT) ?: return emptyList()
++        val text = intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString() ?: return emptyList()
 @@ -31,4 +34 @@ internal class SimpleShareIntentDataParser {
 -      } else {
 -        val uri = intent.getParcelableExtraCompat<Uri>(Intent.EXTRA_STREAM)
@@ -35,6 +38,9 @@ index 5f4d9423..8555d93a 100644
 -        listOfNotNull(uri?.let { resolveUri(context, it, type) })
 -      }
 +      } else emptyList()
+@@ -42 +42 @@ class ResolvingShareIntentDataParser {
+-      val text = intent.getStringExtra(Intent.EXTRA_TEXT) ?: return emptyList()
++      val text = intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString() ?: return emptyList()
 @@ -61 +61,3 @@ class ResolvingShareIntentDataParser {
 -      val specificMimeType = contentResolver.getType(uri) ?: mimeType
 +      val specificMimeType = contentResolver.getType(uri)

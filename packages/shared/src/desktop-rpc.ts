@@ -153,9 +153,9 @@ export type DesktopRpcParams = {
   "memo.revision.cache": { revision: import("./types").MemoRevision };
   "sync.status": Record<string, never>;
   "sync.bootstrap.prepare": { reset?: boolean };
-  "sync.outbox.list": { limit?: number };
-  "sync.outbox.ack": { id: number; remoteMemo?: MemoDetail; remoteNotebook?: Notebook; remoteTemplate?: MemoTemplate };
-  "sync.outbox.fail": { id: number; error: string; conflict?: boolean };
+  "sync.outbox.list": { limit?: number; includeConflicts?: boolean };
+  "sync.outbox.ack": { id: number; version?: number; remoteMemo?: MemoDetail; remoteNotebook?: Notebook; remoteTemplate?: MemoTemplate };
+  "sync.outbox.fail": { id: number; version?: number; error: string; conflict?: boolean };
   "sync.outbox.discard": { id: number };
   "sync.apply": { changes: Array<{ entityType: "memo" | "notebook"; operation: "upsert" | "delete"; memo?: MemoDetail | null; notebook?: Notebook | null; entityId: string }> };
   "sync.cursor.set": { cursor: number; syncIdentity: string };
@@ -172,6 +172,7 @@ export type DesktopOutboxItem = {
   entityId: string;
   payload: Record<string, unknown>;
   attemptCount: number;
+  version: number;
   status?: "pending" | "syncing" | "conflict" | "error";
   lastError?: string | null;
 };

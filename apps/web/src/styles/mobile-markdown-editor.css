@@ -569,6 +569,7 @@ html.dark .edgeever-mobile-tiptap-content a:hover {
   width: 18px;
   height: 18px;
   margin: 0;
+  border-radius: 3px;
   accent-color: #16a06e;
 }
 
@@ -581,16 +582,24 @@ html.dark .edgeever-mobile-tiptap-content a:hover {
   margin-bottom: 0;
 }
 
+.edgeever-mobile-tiptap-content ul[data-type="taskList"] li[data-checked="true"] > div > p {
+  color: #94a3b8;
+  text-decoration: line-through;
+  transition: color 150ms ease, text-decoration 150ms ease;
+}
+
 .edgeever-mobile-tiptap-content ul[data-type="taskList"] ul[data-type="taskList"] {
   margin: 4px 0 0;
   padding-left: 24px;
 }
 
 .edgeever-mobile-tiptap-content blockquote {
-  border-left: 3px solid #cbd5e1;
-  color: #475569;
+  border-left: 3px solid #16a06e;
+  border-radius: 1px 4px 4px 1px;
+  padding: 0.35rem 0.5rem 0.35rem 0.85rem;
+  color: #334155;
+  background: color-mix(in srgb, #16a06e 4%, transparent);
   margin: 0 0 0.85em;
-  padding-left: 0.9em;
 }
 
 .edgeever-mobile-tiptap-content hr {
@@ -608,16 +617,36 @@ html.dark .edgeever-mobile-tiptap-content a:hover {
   margin: 1.5rem 0;
 }
 
+.edgeever-mobile-tiptap-content code {
+  border: 1px solid #d4ebdc;
+  border-radius: 4px;
+  background: #f2f9f5;
+  padding: 0.12rem 0.38rem;
+  font-size: 0.875em;
+  font-weight: 550;
+  color: #0d5f3a;
+  font-family: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.edgeever-mobile-tiptap-content pre code {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  font-weight: normal;
+}
+
 .edgeever-mobile-tiptap-content .edgeever-code-source {
   overflow-x: auto;
-  border: 1px solid #d9eadf;
+  border: 1px solid #e2e8f0;
   border-radius: 8px;
-  background: #f7fbf8;
+  background: #f8fafc;
   padding: 0.9rem 1rem;
-  color: #1e293b;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  color: #0f172a;
+  font-family: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   font-size: 0.875em;
   white-space: pre;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.03);
 }
 
 .edgeever-mobile-tiptap-content .edgeever-mermaid-code-block {
@@ -736,55 +765,95 @@ html.dark .edgeever-mobile-tiptap-content a:hover {
 }
 
 .edgeever-mobile-tiptap-content .tableWrapper {
-  --mobile-table-column-width: clamp(5.5rem, calc((100vw - 3rem) / 3), 14rem);
+  --mobile-table-column-width: clamp(4.5rem, 24cqi, 12rem);
+  container-type: inline-size;
+  display: block;
   width: 100%;
   max-width: 100%;
+  min-width: 0;
   overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
   margin-top: 1.25rem;
   margin-right: auto;
   margin-bottom: 1.25rem;
   margin-left: 0;
-  border: 1px solid #d8d8d8;
-  border-radius: 2px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
   background: #fff;
   overscroll-behavior-inline: contain;
   scrollbar-color: rgb(100 116 139 / 0.28) transparent;
+  box-shadow: 0 1px 3px rgb(15 23 42 / 0.03);
 }
 
 .edgeever-mobile-tiptap-content table {
-  width: max-content;
-  min-width: 100% !important;
+  width: 100%;
+  max-width: none;
+  min-width: 100%;
   border-collapse: separate;
   border-spacing: 0;
   table-layout: fixed;
 }
 
+/* Container query responsive column distributions for 1-4 columns */
+.edgeever-mobile-tiptap-content table:has(> colgroup > col:first-child:last-child) {
+  --mobile-table-column-width: 100cqi;
+}
+
+.edgeever-mobile-tiptap-content table:has(> colgroup > col:first-child:nth-last-child(2)) {
+  --mobile-table-column-width: 50cqi;
+}
+
+.edgeever-mobile-tiptap-content table:has(> colgroup > col:first-child:nth-last-child(3)) {
+  --mobile-table-column-width: calc(100cqi / 3);
+}
+
+.edgeever-mobile-tiptap-content table:has(> colgroup > col:first-child:nth-last-child(4)) {
+  --mobile-table-column-width: 25cqi;
+}
+
+/* For tables with 5+ columns on narrow viewports, expand width and scroll inside tableWrapper */
+.edgeever-mobile-tiptap-content table:has(> colgroup > col:first-child:nth-last-child(n+5)) {
+  width: max-content;
+  --mobile-table-column-width: clamp(4.5rem, 24cqi, 12rem);
+}
+
+/* For tables without colgroup (plain markdown or pasted html), allow natural distribution */
+.edgeever-mobile-tiptap-content table:not(:has(colgroup)) {
+  table-layout: auto;
+  width: 100%;
+  min-width: 100%;
+}
+
 .edgeever-mobile-tiptap-content table col {
   width: var(--mobile-table-column-width) !important;
+  min-width: var(--mobile-table-column-width) !important;
 }
 
 .edgeever-mobile-tiptap-content th,
 .edgeever-mobile-tiptap-content td {
   position: relative;
-  width: var(--mobile-table-column-width);
-  min-width: var(--mobile-table-column-width);
+  width: var(--mobile-table-column-width, auto);
+  min-width: var(--mobile-table-column-width, 3.5rem);
+  max-width: var(--mobile-table-column-width, none);
   border: 0;
-  border-right: 1px solid #dedede;
-  border-bottom: 1px solid #dedede;
-  padding: 0.42rem 0.75rem;
+  border-right: 1px solid #e2e8f0;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 0.48rem 0.8rem;
   text-align: left;
   vertical-align: top;
   white-space: normal;
   overflow-wrap: anywhere;
-  line-height: 1.4;
+  word-break: break-word;
+  line-height: 1.45;
   transition: background-color 120ms ease;
 }
 
 .edgeever-mobile-tiptap-content th {
-  background: #f0f0f0;
-  color: #111827;
-  font-size: 0.875rem;
-  font-weight: 700;
+  background: #f8fafc;
+  color: #0f172a;
+  font-size: 0.84rem;
+  font-weight: 600;
 }
 
 .edgeever-mobile-tiptap-content th:last-child,
@@ -797,11 +866,11 @@ html.dark .edgeever-mobile-tiptap-content a:hover {
 }
 
 .edgeever-mobile-tiptap-content tbody tr:nth-child(even) td {
-  background: #f8f8f8;
+  background: #fafafa;
 }
 
 .edgeever-mobile-tiptap-content tbody tr:hover td {
-  background: #f3f4f6;
+  background: #f1f5f9;
 }
 
 .edgeever-mobile-tiptap-content th p,
@@ -817,20 +886,32 @@ html.dark .edgeever-mobile-tiptap-content a:hover {
   background: rgb(16 185 129 / 0.14);
 }
 
+:root.dark .edgeever-mobile-tiptap-content blockquote {
+  color: #cbd5e1;
+  background: color-mix(in srgb, #16a06e 7%, transparent);
+}
+
 :root.dark .edgeever-mobile-tiptap-content th {
-  background: #27303f;
+  background: #1e293b;
   color: #f8fafc;
 }
 
+:root.dark .edgeever-mobile-tiptap-content code {
+  border-color: rgba(22, 160, 110, 0.28);
+  background: rgba(22, 160, 110, 0.12);
+  color: #6ee7b7;
+}
+
 :root.dark .edgeever-mobile-tiptap-content .edgeever-code-source {
-  border-color: #166534;
-  background: #13261a;
-  color: #cbd5e1;
+  border-color: #334155;
+  background: #1e293b;
+  color: #e2e8f0;
 }
 
 :root.dark .edgeever-mobile-tiptap-content .tableWrapper {
   border-color: #334155;
   background: #0f172a;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.2);
 }
 
 :root.dark .edgeever-mobile-tiptap-content th,
@@ -843,7 +924,7 @@ html.dark .edgeever-mobile-tiptap-content a:hover {
 }
 
 :root.dark .edgeever-mobile-tiptap-content tbody tr:hover td {
-  background: #202b3d;
+  background: #1e293b;
 }
 
 .edgeever-mobile-tiptap-content p.is-editor-empty:first-child::before {

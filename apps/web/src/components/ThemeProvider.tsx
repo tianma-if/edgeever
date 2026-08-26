@@ -51,6 +51,28 @@ export const MERMAID_THEME_PALETTES: Record<MermaidThemeName, MermaidThemePalett
   "one-dark": { bg: "#282c34", fg: "#abb2bf", line: "#4b5263", accent: "#c678dd", muted: "#8f96a3" },
 };
 
+export const MARKDOWN_THEME_NAMES = [
+  "github-light",
+  "github-dark",
+  "one-dark",
+  "tokyo-night",
+  "tokyo-night-storm",
+  "dracula",
+  "nord",
+  "monokai",
+  "solarized-light",
+  "solarized-dark",
+  "vscode-dark",
+  "xcode-light",
+  "sublime",
+  "duotone-light",
+  "duotone-dark",
+  "gruvbox-dark",
+] as const;
+export type MarkdownThemeName = (typeof MARKDOWN_THEME_NAMES)[number];
+export const MARKDOWN_THEME_PREFERENCES = ["auto", ...MARKDOWN_THEME_NAMES] as const;
+export type MarkdownThemePreference = (typeof MARKDOWN_THEME_PREFERENCES)[number];
+
 export const EDITOR_THEME_NAMES = [
   "default",
   "minimal-emerald",
@@ -120,6 +142,12 @@ interface MermaidThemeContextValue {
   setMermaidTheme: (theme: MermaidThemePreference) => void;
 }
 
+interface MarkdownThemeContextValue {
+  markdownTheme: MarkdownThemeName;
+  markdownThemePreference: MarkdownThemePreference;
+  setMarkdownTheme: (theme: MarkdownThemePreference) => void;
+}
+
 interface EditorThemeContextValue {
   editorTheme: EditorThemeName;
   setEditorTheme: (theme: EditorThemeName) => void;
@@ -135,13 +163,15 @@ interface ThemeProviderProps {
 
 const THEME_STORAGE_KEY = "edgeever.theme";
 const MERMAID_THEME_STORAGE_KEY = "edgeever.mermaid-theme";
+const MARKDOWN_THEME_STORAGE_KEY = "edgeever.markdown-theme";
 const EDITOR_THEME_STORAGE_KEY = "edgeever.editor-theme";
 const CUSTOM_EDITOR_THEME_STORAGE_KEY = "edgeever.custom-editor-theme";
 const CUSTOM_EDITOR_THEMES_STORAGE_KEY = "edgeever.custom-editor-themes";
-const LIGHT_THEME_COLOR = "#f3f5f7";
+const LIGHT_THEME_COLOR = "#f8f9fa";
 const DARK_THEME_COLOR = "#101311";
 const AppearanceThemeContext = createContext<AppearanceThemeContextValue | null>(null);
 const MermaidThemeContext = createContext<MermaidThemeContextValue | null>(null);
+const MarkdownThemeContext = createContext<MarkdownThemeContextValue | null>(null);
 const EditorThemeContext = createContext<EditorThemeContextValue | null>(null);
 
 const getSystemTheme = () =>
@@ -179,6 +209,21 @@ export const resolveMermaidTheme = (
 ): MermaidThemeName => preference === "auto"
   ? appearance === "dark" ? "zinc-dark" : "zinc-light"
   : preference;
+
+export const getStoredMarkdownTheme = (): MarkdownThemePreference => {
+  const stored = readLocalStorageItem(MARKDOWN_THEME_STORAGE_KEY);
+  return MARKDOWN_THEME_PREFERENCES.includes(stored as MarkdownThemePreference)
+    ? (stored as MarkdownThemePreference)
+    : "tokyo-night";
+};
+
+export const resolveMarkdownTheme = (
+  preference: MarkdownThemePreference,
+  appearance: ResolvedTheme,
+): MarkdownThemeName =>
+  preference === "auto"
+    ? appearance === "dark" ? "tokyo-night" : "github-light"
+    : preference;
 
 export const getStoredEditorTheme = (): string => {
   return readLocalStorageItem(EDITOR_THEME_STORAGE_KEY) || "default";
@@ -269,6 +314,7 @@ export const ThemeProvider = ({ children }: ThemeProviderProps) => {
   const [preference, setPreferenceState] = useState<ThemePreference>(getStoredThemePreference);
   const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(() => resolveTheme(preference));
   const [mermaidThemePreference, setMermaidThemePreference] = useState<MermaidThemePreference>(getStoredMermaidTheme);
+  const [markdownThemePreference, setMarkdownThemePreference] = useState<MarkdownThemePreference>(getStoredMarkdownTheme);
   const [editorTheme, setEditorThemeState] = useState<string>(getStoredEditorTheme);
   const [customEditorThemes, setCustomEditorThemesState] = useState<CustomEditorTheme[]>(getStoredCustomEditorThemes);
 
@@ -326,6 +372,13 @@ export const ThemeProvider = ({ children }: ThemeProviderProps) => {
     window.localStorage.setItem(MERMAID_THEME_STORAGE_KEY, nextTheme);
   }, []);
 
+  const markdownTheme = resolveMarkdownTheme(markdownThemePreference, resolvedTheme);
+
+  const setMarkdownTheme = useCallback((nextTheme: MarkdownThemePreference) => {
+    setMarkdownThemePreference(nextTheme);
+    window.localStorage.setItem(MARKDOWN_THEME_STORAGE_KEY, nextTheme);
+  }, []);
+
   const setEditorTheme = useCallback((nextTheme: string) => {
     setEditorThemeState(nextTheme);
     window.localStorage.setItem(EDITOR_THEME_STORAGE_KEY, nextTheme);
@@ -349,6 +402,15 @@ export const ThemeProvider = ({ children }: ThemeProviderProps) => {
     [mermaidTheme, mermaidThemePreference, setMermaidTheme]
   );
 
+  const markdownValue = useMemo(
+    () => ({
+      markdownTheme,
+      markdownThemePreference,
+      setMarkdownTheme,
+    }),
+    [markdownTheme, markdownThemePreference, setMarkdownTheme]
+  );
+
   const editorValue = useMemo(
     () => ({
       editorTheme,
@@ -364,9 +426,11 @@ export const ThemeProvider = ({ children }: ThemeProviderProps) => {
   return (
     <AppearanceThemeContext.Provider value={appearanceValue}>
       <MermaidThemeContext.Provider value={mermaidValue}>
-        <EditorThemeContext.Provider value={editorValue}>
-          {children}
-        </EditorThemeContext.Provider>
+        <MarkdownThemeContext.Provider value={markdownValue}>
+          <EditorThemeContext.Provider value={editorValue}>
+            {children}
+          </EditorThemeContext.Provider>
+        </MarkdownThemeContext.Provider>
       </MermaidThemeContext.Provider>
     </AppearanceThemeContext.Provider>
   );
@@ -387,6 +451,16 @@ export const useMermaidTheme = () => {
 
   if (!context) {
     throw new Error("useMermaidTheme must be used within ThemeProvider");
+  }
+
+  return context;
+};
+
+export const useMarkdownTheme = () => {
+  const context = useContext(MarkdownThemeContext);
+
+  if (!context) {
+    throw new Error("useMarkdownTheme must be used within ThemeProvider");
   }
 
   return context;

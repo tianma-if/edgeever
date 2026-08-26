@@ -45,25 +45,35 @@ bun run release -- \
   Android arm64 APK。未变化的原生资产沿用原文件名、版本和校验和。
 - 桌面端和 Android 更新检查使用对应 Release 资产中记录的版本，而不是整体
   GitHub Tag，避免仅涉及 Web 或 API 的 Release 触发无效原生更新。
-- 脚本负责创建跟踪 Issue 和 Draft Release、验证或复用原生资产、准备多架构
-  Docker 镜像并同时写入 GHCR 与腾讯云 TCR 公共镜像、正式发布、关闭 Issue，
+- 脚本负责创建跟踪 Issue 和 Draft Release、验证或复用原生资产、准备并审计
+  GHCR 多架构 Docker 镜像、正式发布、关闭 Issue，
   默认不安装桌面端应用；安装能力作为显式选项保留。
   输出 Actions 链接后，Demo 部署会独立继续执行。
-- 此命令不执行移动端商店交付，详见
+- 独立工作流会把同一个已验证 Git 提交发送到 CNB；正式 Release 发布后，CNB
+  在腾讯云侧异步构建并审计 TCR 公共镜像。其耗时或失败不会阻塞 GitHub
+  Release，也不会把已发布版本恢复为 Draft。
+- 此命令不会自行授权或执行移动端商店交付。Draft 原生资产准备完成后，发布
+  命令会强制核验 Android APK 是否使用 Google Play 应用签名证书；未通过时
+  保持 Draft 并停止。此时先针对同一 Draft 执行
+  `bun run publish:stores -- --release vX.Y.Z --platform android --android-track production`，
+  再重新执行原发布命令续跑。详见
   [移动端商店交付](store-delivery.zh-CN.md)。
 
 ## 镜像仓库凭据
 
-官方仓库必须配置 `TENCENT_TCR_USERNAME` 和 `TENCENT_TCR_PASSWORD` 两个
-Actions Secret。对于 TCR 个人版，用户名是腾讯云账号 ID，密码是在 TCR 控制台
-初始化的固定登录密码。Draft 准备阶段会向 GHCR 与 TCR 写入相同标签；正式发布
-前会以匿名方式检查两个仓库。
+GitHub 官方仓库必须配置 `CNB_TCR_BUILD_PUSH_TOKEN` Actions Secret，该令牌仅
+拥有 CNB 源码镜像仓库的写权限。CNB 私有密钥仓库向可信的 `push` 和
+`tag_push` 流水线提供 `TCR_USERNAME` 与 `TCR_PASSWORD`。对于 TCR 个人版，
+用户名是腾讯云账号 ID，密码是在 TCR 控制台初始化的固定登录密码。GHCR 是正式
+发布的阻塞门禁；CNB 根据同一个 Git 提交异步构建 TCR，写入相同的公共标签，
+并独立核验匿名访问和双架构。两边独立构建，不要求 Registry Digest 相同。
 
 ## 失败与续跑
 
-- 本地验证、Draft 资产或 Docker 镜像失败时，Release 保持未发布状态。
+- 本地验证、Draft 资产或 GHCR 镜像失败时，Release 保持未发布状态。
+- CNB/TCR 异步构建失败时保留正式 Release，并独立修复、重跑。
 - 中断后重新执行相同命令，会续跑匹配的 Draft，不会重复创建 Issue、提交或
   Release。
-- 发布后的原生资产或 Docker 镜像审计失败时，脚本会尝试将 Release 恢复为
+- 发布后的原生资产或 GHCR 镜像审计失败时，脚本会尝试将 Release 恢复为
   Draft，并保留 Issue。
 - 显式安装时若替换应用失败，脚本会尽可能从 macOS 废纸篓备份恢复上一版应用。

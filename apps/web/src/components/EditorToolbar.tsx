@@ -25,6 +25,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { formatShortcutBinding, getActiveBlockValue, type ShortcutBinding } from "@/lib/app-helpers";
 import { CODE_BLOCK_LANGUAGES, getCodeBlockLanguageValue } from "@/lib/code-block";
 import { EditorTableMenu } from "@/components/EditorTableMenu";
+import { wrapIndentedParagraphInList } from "@/lib/editor-shortcuts";
 
 const EditorToolbarButton = ({
   active = false,
@@ -111,6 +112,21 @@ const insertMermaidDiagram = (editor: Editor) => {
       }
     )
     .run();
+};
+
+const toggleListAtSelection = (editor: Editor, listType: "bulletList" | "orderedList" | "taskList") => {
+  editor.commands.focus();
+  if (wrapIndentedParagraphInList(editor.state, editor.view.dispatch, listType)) {
+    return;
+  }
+
+  if (listType === "bulletList") {
+    editor.commands.toggleBulletList();
+  } else if (listType === "orderedList") {
+    editor.commands.toggleOrderedList();
+  } else {
+    editor.commands.toggleTaskList();
+  }
 };
 
 export const EditorToolbar = ({
@@ -365,7 +381,7 @@ export const EditorToolbar = ({
             title={`${t("editorToolbar.bulletList")} · ${t("editorToolbar.listIndentHint")}`}
             active={isActive("bulletList")}
             disabled={disabled}
-            onClick={() => run((current) => current.chain().focus().toggleBulletList().run())}
+            onClick={() => run((current) => toggleListAtSelection(current, "bulletList"))}
           >
             <List className="h-4 w-4" />
           </EditorToolbarButton>
@@ -373,7 +389,7 @@ export const EditorToolbar = ({
             title={`${t("editorToolbar.taskList")} · ${t("editorToolbar.listIndentHint")}`}
             active={isActive("taskList")}
             disabled={!canRun((current) => current.can().chain().focus().toggleTaskList().run())}
-            onClick={() => run((current) => current.chain().focus().toggleTaskList().run())}
+            onClick={() => run((current) => toggleListAtSelection(current, "taskList"))}
           >
             <ListTodo className="h-4 w-4" />
           </EditorToolbarButton>
@@ -381,7 +397,7 @@ export const EditorToolbar = ({
             title={`${t("editorToolbar.orderedList")} · ${t("editorToolbar.listIndentHint")}`}
             active={isActive("orderedList")}
             disabled={disabled}
-            onClick={() => run((current) => current.chain().focus().toggleOrderedList().run())}
+            onClick={() => run((current) => toggleListAtSelection(current, "orderedList"))}
           >
             <ListOrdered className="h-4 w-4" />
           </EditorToolbarButton>

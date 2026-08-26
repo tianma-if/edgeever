@@ -97,6 +97,43 @@ fn apply_migrations(connection: &Connection, migrations: &Path) -> rusqlite::Res
     Ok(())
 }
 
+fn ensure_sidecar_schema(connection: &Connection) -> rusqlite::Result<()> {
+    connection.execute_batch(
+        "CREATE TABLE IF NOT EXISTS _edgeever_sidecar_meta (
+           key TEXT PRIMARY KEY,
+           value TEXT NOT NULL,
+           updated_at TEXT NOT NULL
+         );
+         CREATE TABLE IF NOT EXISTS _edgeever_sidecar_outbox (
+           id INTEGER PRIMARY KEY AUTOINCREMENT,
+           kind TEXT NOT NULL,
+           entity_id TEXT NOT NULL,
+           payload_json TEXT NOT NULL CHECK (json_valid(payload_json)),
+           status TEXT NOT NULL DEFAULT 'pending',
+           attempt_count INTEGER NOT NULL DEFAULT 0,
+           last_error TEXT,
+           version INTEGER NOT NULL DEFAULT 1,
+           created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+           updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+         );
+         CREATE INDEX IF NOT EXISTS idx_sidecar_outbox_status ON _edgeever_sidecar_outbox(status, id);",
+    )?;
+
+    let has_version = connection
+        .prepare("PRAGMA table_info(_edgeever_sidecar_outbox)")?
+        .query_map([], |row| row.get::<_, String>(1))?
+        .collect::<Result<Vec<_>, _>>()?
+        .iter()
+        .any(|name| name == "version");
+    if !has_version {
+        connection.execute(
+            "ALTER TABLE _edgeever_sidecar_outbox ADD COLUMN version INTEGER NOT NULL DEFAULT 1",
+            [],
+        )?;
+    }
+    Ok(())
+}
+
 fn copy_directory(source: &Path, destination: &Path) -> io::Result<()> {
     if !source.exists() {
         return Ok(());
@@ -246,6 +283,7 @@ pub(crate) fn restore_database(
     drop(source);
     fs::remove_file(&source_copy).map_err(|error| error.to_string())?;
     apply_migrations(database, migrations).map_err(|error| error.to_string())?;
+    ensure_sidecar_schema(database).map_err(|error| error.to_string())?;
     let resource_source = if resource_restore_source.is_dir() {
         resource_restore_source.as_path()
     } else {
@@ -271,25 +309,7 @@ pub(crate) fn open_database(root: &Path, migrations: &Path) -> rusqlite::Result<
     let existed = root.join("edgeever.sqlite").exists();
     let connection = Connection::open(root.join("edgeever.sqlite"))?;
     connection.pragma_update(None, "journal_mode", "WAL")?;
-    connection.execute_batch(
-        "CREATE TABLE IF NOT EXISTS _edgeever_sidecar_meta (
-           key TEXT PRIMARY KEY,
-           value TEXT NOT NULL,
-           updated_at TEXT NOT NULL
-         );
-         CREATE TABLE IF NOT EXISTS _edgeever_sidecar_outbox (
-           id INTEGER PRIMARY KEY AUTOINCREMENT,
-           kind TEXT NOT NULL,
-           entity_id TEXT NOT NULL,
-           payload_json TEXT NOT NULL CHECK (json_valid(payload_json)),
-           status TEXT NOT NULL DEFAULT 'pending',
-           attempt_count INTEGER NOT NULL DEFAULT 0,
-           last_error TEXT,
-           created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-           updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
-         );
-         CREATE INDEX IF NOT EXISTS idx_sidecar_outbox_status ON _edgeever_sidecar_outbox(status, id);",
-    )?;
+    ensure_sidecar_schema(&connection)?;
     if existed {
         backup_database(&connection, root)?;
     }

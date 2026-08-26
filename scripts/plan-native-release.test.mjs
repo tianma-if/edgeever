@@ -22,6 +22,7 @@ describe("native release planning", () => {
       "scripts/configure-android-package-permissions.mjs",
       "scripts/verify-android-apk-signature.mjs",
       ".github/workflows/mobile-build.yml",
+      ".github/workflows/android-play-signature-audit.yml",
       ".github/workflows/store-delivery.yml",
       "scripts/download-play-universal-apk.mjs",
     ];

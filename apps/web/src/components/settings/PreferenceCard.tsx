@@ -1,4 +1,4 @@
-import { AlignHorizontalJustifyCenter, ChartNoAxesCombined, Image, Keyboard, Languages, MousePointerClick, Palette, RefreshCw, Sparkles } from "lucide-react";
+import { AlignHorizontalJustifyCenter, ChartNoAxesCombined, FileCode2, Image, Keyboard, Languages, MousePointerClick, Palette, RefreshCw, Sparkles } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { writeSyncIntervalPreference, type EditorContentAlignment, type ShortcutSettings, type SyncIntervalPreference } from "@/lib/app-helpers";
@@ -32,8 +32,10 @@ import {
 import { ShortcutSettingsItem } from "./ShortcutSettingsItem";
 import { CustomEditorThemeDialog } from "./CustomEditorThemeDialog";
 import {
+  MARKDOWN_THEME_PREFERENCES,
   MERMAID_THEME_PREFERENCES,
   useEditorTheme,
+  useMarkdownTheme,
   useMermaidTheme,
   DEFAULT_CUSTOM_LIGHT_COLORS,
   DEFAULT_CUSTOM_DARK_COLORS,
@@ -69,6 +71,7 @@ export const PreferenceCard = ({
     setEditorTheme,
   } = useEditorTheme();
   const { mermaidThemePreference, setMermaidTheme } = useMermaidTheme();
+  const { markdownThemePreference, setMarkdownTheme } = useMarkdownTheme();
   const [customThemeDialogOpen, setCustomThemeDialogOpen] = useState(false);
   const [editingTheme, setEditingTheme] = useState<CustomEditorTheme | null>(null);
   const [activeLocalePreference, setActiveLocalePreference] = useState<AppLocalePreference>(() => getAppLocalePreference());
@@ -303,6 +306,30 @@ export const PreferenceCard = ({
                 {activeCustom ? t("settings.customEditorTheme.edit") : t("settings.customEditorTheme.customize", "Customize")}
               </Button>
             )}
+          </div>
+        </div>
+
+        <div className="flex min-h-16 flex-col items-start gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+          <div className="flex min-w-0 items-start gap-3">
+            <FileCode2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" />
+            <div className="min-w-0">
+              <div className="text-sm font-semibold text-slate-900">{t("settings.markdownThemeTitle")}</div>
+              <div className="mt-0.5 text-xs leading-4 text-slate-500">{t("settings.markdownThemeDescription")}</div>
+            </div>
+          </div>
+          <div className="w-full shrink-0 sm:w-80">
+            <Select value={markdownThemePreference} onValueChange={(value) => setMarkdownTheme(value as typeof markdownThemePreference)}>
+              <SelectTrigger aria-label={t("settings.markdownThemeTitle")} className="h-9 bg-white">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {MARKDOWN_THEME_PREFERENCES.map((theme) => (
+                  <SelectItem key={theme} value={theme}>
+                    {t(`settings.markdownThemes.${theme}`)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
 

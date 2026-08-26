@@ -1,11 +1,11 @@
-import { useCallback, useState, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
+import { useCallback, useEffect, useState, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
 import type { QueryClient } from "@tanstack/react-query";
 import type { MemoDetail, MemoTemplate, Notebook, Resource } from "@edgeever/shared";
 import { isBrowserOffline } from "@/lib/network-status";
 import { emptySyncQueueSummary, type SyncQueueSummary } from "@/lib/sync-queue";
 import { notifyMemoIdRemapped, notifyMemoSyncAcknowledged } from "@/lib/sync-events";
-import { putLocalMemo, replaceLocalMemoId } from "@/lib/local-mirror";
-import { resolveCreatedMemoSelection, resolveSyncedMemoId } from "@/lib/workspace-refresh";
+import { observeLocalMemoIdMappings, putLocalMemo, replaceLocalMemoId } from "@/lib/local-mirror";
+import { resolveSyncedMemoId } from "@/lib/workspace-refresh";
 
 type UseWorkspaceQueuedSyncOptions = {
   isOnline: boolean;
@@ -31,6 +31,30 @@ export const useWorkspaceQueuedSync = ({
   const [syncSummary, setSyncSummary] = useState<SyncQueueSummary>(emptySyncQueueSummary);
   const [isSyncingQueuedChanges, setIsSyncingQueuedChanges] = useState(false);
 
+  const applyMemoIdMappings = useCallback((memoIdMappings: ReadonlyMap<string, string>) => {
+    if (memoIdMappings.size === 0) return;
+
+    notifyMemoIdRemapped(memoIdMappings);
+    const selectedMemoId = selectedMemoIdRef.current;
+    const pendingMemoId = pendingCreatedMemoIdRef.current;
+    const remappedSelectedMemoId = resolveSyncedMemoId(memoIdMappings, selectedMemoId);
+    const remappedPendingMemoId = resolveSyncedMemoId(memoIdMappings, pendingMemoId);
+    const nextSelectedMemoId = remappedSelectedMemoId !== selectedMemoId
+      ? remappedSelectedMemoId
+      : remappedPendingMemoId !== pendingMemoId
+        ? remappedPendingMemoId
+        : selectedMemoId;
+
+    pendingCreatedMemoIdRef.current = remappedPendingMemoId;
+    setCreatedMemoEditId((current) => resolveSyncedMemoId(memoIdMappings, current));
+    if (nextSelectedMemoId !== selectedMemoId) {
+      selectedMemoIdRef.current = nextSelectedMemoId;
+      setSelectedMemoId(nextSelectedMemoId);
+    }
+  }, [pendingCreatedMemoIdRef, selectedMemoIdRef, setCreatedMemoEditId, setSelectedMemoId]);
+
+  useEffect(() => observeLocalMemoIdMappings(localDataScope, applyMemoIdMappings), [applyMemoIdMappings, localDataScope]);
+
   const invalidateSyncQueries = useCallback(() => Promise.all([
     queryClient.invalidateQueries({ queryKey: ["memos"] }),
     queryClient.invalidateQueries({ queryKey: ["memo"] }),
@@ -49,12 +73,7 @@ export const useWorkspaceQueuedSync = ({
       if (window.edgeeverDesktop?.isAvailable) {
         const { getDesktopSyncSummary, syncDesktopData } = await import("@/lib/desktop-sync");
         const result = await syncDesktopData();
-        if (result.memoIdMappings.size > 0) {
-          notifyMemoIdRemapped(result.memoIdMappings);
-          pendingCreatedMemoIdRef.current = resolveSyncedMemoId(result.memoIdMappings, pendingCreatedMemoIdRef.current);
-          setCreatedMemoEditId((current) => resolveSyncedMemoId(result.memoIdMappings, current));
-          setSelectedMemoId((current) => resolveSyncedMemoId(result.memoIdMappings, current));
-        }
+        applyMemoIdMappings(result.memoIdMappings);
         window.dispatchEvent(new CustomEvent("edgeever:sync-completed", { detail: result }));
         setSyncSummary(await getDesktopSyncSummary());
         await invalidateSyncQueries();
@@ -73,18 +92,7 @@ export const useWorkspaceQueuedSync = ({
         onSynced: async (memo, item) => {
           if (item.kind === "memo.create") {
             const remappedMemo = await replaceLocalMemoId(localDataScope, item.memoId, memo);
-            const remappedSelection = resolveCreatedMemoSelection(
-              selectedMemoIdRef.current,
-              pendingCreatedMemoIdRef.current,
-              item.memoId,
-              memo.id,
-            );
-            if (remappedSelection === memo.id) {
-              selectedMemoIdRef.current = memo.id;
-              setSelectedMemoId(memo.id);
-              setCreatedMemoEditId(memo.id);
-              pendingCreatedMemoIdRef.current = memo.id;
-            }
+            applyMemoIdMappings(new Map([[item.memoId, memo.id]]));
             queryClient.setQueryData(["memo", memo.id, memo.isDeleted ? "trash" : "notebook"], { memo: remappedMemo });
           } else {
             await putLocalMemo(localDataScope, memo);
@@ -138,7 +146,7 @@ export const useWorkspaceQueuedSync = ({
     } finally {
       setIsSyncingQueuedChanges(false);
     }
-  }, [invalidateSyncQueries, localDataScope, pendingCreatedMemoIdRef, queryClient, selectedMemoIdRef, setCreatedMemoEditId, setOnline, setSelectedMemoId]);
+  }, [applyMemoIdMappings, invalidateSyncQueries, localDataScope, queryClient, setOnline]);
 
   const discardConflictsNow = useCallback(async () => {
     if (!isOnline) return;

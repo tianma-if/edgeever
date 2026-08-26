@@ -15,11 +15,11 @@ describe("application color system", () => {
   });
 
   test("keeps the light workspace achromatic while preserving text hierarchy", () => {
-    expect(globals).toContain("--workspace-canvas: #f2f2f2;");
-    expect(globals).toContain("--workspace-sidebar: #f2f2f2;");
-    expect(globals).toContain("--workspace-memo-list: #f7f7f7;");
+    expect(globals).toContain("--workspace-canvas: #f8f9fa;");
+    expect(globals).toContain("--workspace-sidebar: #f8f9fa;");
+    expect(globals).toContain("--workspace-memo-list: #fafafa;");
     expect(globals).toContain("--workspace-editor: #ffffff;");
-    expect(globals).toContain("--workspace-selection: #e5e5e5;");
+    expect(globals).toContain("--workspace-selection: #edf0f2;");
     expect(globals).toContain("--slate-500-rgb: 115 115 115;");
     expect(globals).not.toContain("--slate-500-rgb: 100 116 139;");
     expect(contrastRatio("#222222", "#ffffff")).toBeGreaterThanOrEqual(4.5);

@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, useCallback, useMemo, type CSSProperties, type FocusEvent as ReactFocusEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
+import { useRef, useState, useEffect, useCallback, useMemo, lazy, Suspense, type CSSProperties, type FocusEvent as ReactFocusEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useEditor, EditorContent, type Editor } from "@tiptap/react";
@@ -93,7 +93,14 @@ import {
 } from "./editor/NoteLinkSuggestion";
 import { WeChatIcon } from "./WeChatIcon";
 import { ThemeToggle } from "./ThemeToggle";
-import { useEditorTheme } from "./ThemeProvider";
+import { useEditorTheme, useMarkdownTheme } from "./ThemeProvider";
+import type { MarkdownSourceEditorRef } from "./editor/MarkdownSourceEditor";
+
+const MarkdownSourceEditor = lazy(() =>
+  import("./editor/MarkdownSourceEditor").then((module) => ({
+    default: module.MarkdownSourceEditor,
+  })),
+);
 import { sanitizeAndScopeCss } from "@/lib/css-sandbox";
 import { RevisionHistoryDialog } from "./dialogs/RevisionHistoryDialog";
 import { ExternalLinkDialog } from "./dialogs/ExternalLinkDialog";
@@ -155,7 +162,13 @@ import { NOTE_HTML_FULL_STYLES } from "@/lib/note-html-export-assets";
 import { downloadNoteHtmlFile, getHtmlImageEmbedNoticeKind } from "@/lib/note-html-export";
 import { openNotePrintPreview, serializeNoteDocumentForPrint } from "@/lib/note-print";
 import type { NoteImageFormat } from "@/lib/note-image-export";
-import { getAiSlashCommandStart, saveAndSyncEditor, shouldOpenAiFromSpace } from "@/lib/editor-shortcuts";
+import {
+  applyPlainTextTab,
+  getAiSlashCommandStart,
+  preserveEmptyListIndentOnBackspace,
+  saveAndSyncEditor,
+  shouldOpenAiFromSpace,
+} from "@/lib/editor-shortcuts";
 import {
   AI_SPACE_SHORTCUT_CHANGED_EVENT,
   readAiSpaceShortcutPreference,
@@ -751,6 +764,7 @@ const RichEditorPane = ({
 }: RichEditorPaneProps) => {
   const { t, i18n } = useTranslation();
   const { customEditorTheme, editorTheme } = useEditorTheme();
+  const { markdownTheme } = useMarkdownTheme();
   const queryClient = useQueryClient();
   const isSelectionMode = Boolean(selectionActionBar);
   const [title, setTitle] = useState("");
@@ -937,7 +951,7 @@ const RichEditorPane = ({
   const noteSearchInputRef = useRef<HTMLInputElement | null>(null);
   const noteReplaceInputRef = useRef<HTMLInputElement | null>(null);
   const noteSearchAutoSelectionRef = useRef<{ editor: Editor; identity: string } | null>(null);
-  const markdownTextAreaRef = useRef<HTMLTextAreaElement | null>(null);
+  const markdownSourceEditorRef = useRef<MarkdownSourceEditorRef | null>(null);
   const openExternalLinkDialogRef = useRef<() => void>(() => undefined);
   const slashCommandLabelsRef = useRef<SlashCommandLabels>({
     menu: "",
@@ -1045,7 +1059,7 @@ const RichEditorPane = ({
   const restoreScrollAfterModeChange = useCallback((targetMode: "markdown" | "rich", progress: number) => {
     const restore = (attempt: number) => {
       const target = targetMode === "markdown"
-        ? markdownTextAreaRef.current
+        ? markdownSourceEditorRef.current?.getScrollContainer() ?? null
         : editorScrollContainerRef.current;
 
       if (restoreEditorScrollProgress(target, progress) || attempt >= 2) {
@@ -1300,6 +1314,16 @@ const RichEditorPane = ({
       handleKeyDown: (view, event) => {
         const { selection } = view.state;
         const currentNode = selection.$from.parent;
+        if (event.key === "Backspace" && preserveEmptyListIndentOnBackspace(view.state, view.dispatch)) {
+          event.preventDefault();
+          return true;
+        }
+
+        if (event.key === "Tab" && applyPlainTextTab(view.state, view.dispatch, event.shiftKey)) {
+          event.preventDefault();
+          return true;
+        }
+
         if (aiSpaceShortcutEnabledRef.current && shouldOpenAiFromSpace({
           altKey: event.altKey,
           ctrlKey: event.ctrlKey,
@@ -1474,9 +1498,9 @@ const RichEditorPane = ({
     }
 
     if (useMarkdownSourceEditor) {
-      const textarea = markdownTextAreaRef.current;
-      const start = textarea?.selectionStart ?? markdownSource.length;
-      const end = textarea?.selectionEnd ?? start;
+      const selection = markdownSourceEditorRef.current?.getSelection() ?? { from: markdownSource.length, to: markdownSource.length };
+      const start = selection.from;
+      const end = selection.to;
       const selected = markdownSource.slice(start, end);
       const looksLikeUrl = /^(https?:\/\/\S+|www\.\S+)$/i.test(selected.trim());
       setExternalLinkDraft({
@@ -1533,9 +1557,9 @@ const RichEditorPane = ({
       }
 
       if (useMarkdownSourceEditor) {
-        const textarea = markdownTextAreaRef.current;
-        const start = textarea?.selectionStart ?? markdownSource.length;
-        const end = textarea?.selectionEnd ?? start;
+        const selection = markdownSourceEditorRef.current?.getSelection() ?? { from: markdownSource.length, to: markdownSource.length };
+        const start = selection.from;
+        const end = selection.to;
         const selected = markdownSource.slice(start, end);
         const label = selected.trim() ? selected : text;
         const snippet = formatMarkdownLink(label, href);
@@ -1543,10 +1567,8 @@ const RichEditorPane = ({
         setMarkdownSource(next);
         markDirtyStatus();
         window.requestAnimationFrame(() => {
-          const node = markdownTextAreaRef.current;
-          if (!node) return;
-          node.focus();
-          node.setSelectionRange(caret, caret);
+          markdownSourceEditorRef.current?.focus();
+          markdownSourceEditorRef.current?.setSelection(caret, caret);
         });
         return;
       }
@@ -2154,8 +2176,9 @@ const RichEditorPane = ({
       const contentMarkdown = source.slice(from, to).trim();
       if (to > from && contentMarkdown) selection = { kind: "plain", from, to, contentMarkdown };
     } else if (useMarkdownSourceEditor) {
-      const from = markdownTextAreaRef.current?.selectionStart ?? 0;
-      const to = markdownTextAreaRef.current?.selectionEnd ?? from;
+      const selectionPos = markdownSourceEditorRef.current?.getSelection() ?? { from: 0, to: 0 };
+      const from = selectionPos.from;
+      const to = selectionPos.to;
       insertionTarget = { kind: "markdown", position: to };
       const contentMarkdown = markdownSource.slice(from, to).trim();
       if (to > from && contentMarkdown) selection = { kind: "markdown", from, to, contentMarkdown };
@@ -2181,7 +2204,7 @@ const RichEditorPane = ({
     }
     if (!anchor) {
       const fallback = useMarkdownSourceEditor
-        ? markdownTextAreaRef.current?.getBoundingClientRect()
+        ? markdownSourceEditorRef.current?.getSelectionCoordinates() ?? markdownSourceEditorRef.current?.getScrollContainer()?.getBoundingClientRect()
         : useMobilePlainTextEditor
           ? mobileTextAreaRef.current?.getBoundingClientRect()
           : editorScrollContainerRef.current?.getBoundingClientRect();
@@ -2231,8 +2254,8 @@ const RichEditorPane = ({
         const { next, caret } = insertMarkdownSnippet(markdownSource, replacementDraft, aiSelection.from, aiSelection.to);
         setMarkdownSource(next);
         window.requestAnimationFrame(() => {
-          markdownTextAreaRef.current?.focus();
-          markdownTextAreaRef.current?.setSelectionRange(caret, caret);
+          markdownSourceEditorRef.current?.focus();
+          markdownSourceEditorRef.current?.setSelection(caret, caret);
         });
       } else if (aiSelection.kind === "rich" && isEditorReady(editor)) {
         const maxPos = editor.state.doc.content.size;
@@ -2276,8 +2299,8 @@ const RichEditorPane = ({
         const { next, caret } = insertAiDraftAtTextCursor(markdownSource, insertionDraft, aiInsertionTarget.position);
         setMarkdownSource(next);
         window.requestAnimationFrame(() => {
-          markdownTextAreaRef.current?.focus();
-          markdownTextAreaRef.current?.setSelectionRange(caret, caret);
+          markdownSourceEditorRef.current?.focus();
+          markdownSourceEditorRef.current?.setSelection(caret, caret);
         });
       } else if (isEditorReady(editor)) {
         const position = Math.max(0, Math.min(aiInsertionTarget.position, editor.state.doc.content.size));
@@ -2679,6 +2702,13 @@ const RichEditorPane = ({
       const syncedMemo = memoId ? result?.syncedMemos?.get(memoId) : null;
       advanceMemoSyncBase(syncedMemo);
 
+      // A newly created note keeps a local ID until its create request has
+      // been acknowledged and remapped. A different queue item completing
+      // must not make that note claim it is already synced.
+      if (!memoId || isLocalMemoId(memoId)) {
+        return;
+      }
+
       if (memoId && (result?.conflicted ?? 0) > 0) {
         void localDb.syncQueue.get(getMemoUpdateQueueId(memoId)).then((item) => {
           if (!item || item.status !== "conflict" || memoRef.current?.id !== memoId) {
@@ -2694,12 +2724,19 @@ const RichEditorPane = ({
         return;
       }
 
-      setSaveState((current) => {
-        if (current !== "queued") {
-          return current;
+      // Sync runs are workspace-wide. Confirm that this memo has no successor
+      // request left in the outbox before changing its per-note status.
+      void localDb.syncQueue.where("memoId").equals(memoId).first().then((item) => {
+        if (item || memoRef.current?.id !== memoId || hasUnsavedChangesRef.current) {
+          return;
         }
-        setSaveConflictInfo(null);
-        return "saved";
+        setSaveState((current) => {
+          if (current !== "queued") {
+            return current;
+          }
+          setSaveConflictInfo(null);
+          return "saved";
+        });
       });
     };
 
@@ -2717,7 +2754,7 @@ const RichEditorPane = ({
     }
 
     const scrollProgress = getEditorScrollProgress(
-      isMarkdownMode ? markdownTextAreaRef.current : editorScrollContainerRef.current,
+      isMarkdownMode ? (markdownSourceEditorRef.current?.getScrollContainer() ?? null) : editorScrollContainerRef.current,
     );
 
     if (isMarkdownMode) {
@@ -4323,7 +4360,7 @@ const RichEditorPane = ({
                     onClick={() => setShareOpen(true)}
                   >
                     <Link2 className={cn("h-4 w-4", isMemoShared ? "text-emerald-600" : "text-slate-500")} />
-                    {t(isMemoShared ? "sharing.manage" : "sharing.action")}
+                    {t(isLocalMemoId(memo.id) ? "sharing.afterSync" : isMemoShared ? "sharing.manage" : "sharing.action")}
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuItem
@@ -4398,7 +4435,7 @@ const RichEditorPane = ({
           </div>
         </div>
 
-        <div className="space-y-3 px-4 pb-4 pt-4 sm:px-7 lg:space-y-0 lg:pb-0.5 lg:pt-1.5">
+        <div className="space-y-1.5 px-4 pb-2.5 pt-2.5 sm:space-y-3 sm:px-7 sm:pb-4 sm:pt-4 lg:space-y-0 lg:pb-0.5 lg:pt-1.5">
           <input
             value={title}
             readOnly={effectiveReadOnly}
@@ -4407,12 +4444,12 @@ const RichEditorPane = ({
               persistCurrentDraft(event.target.value, tagsText, getMobilePlainTextValue());
               markDirty();
             }}
-            className="block w-full rounded-md border-0 bg-transparent text-2xl font-bold leading-tight text-slate-950 outline-none transition placeholder:text-slate-300 focus-visible:bg-muted focus-visible:shadow-[inset_3px_0_0_var(--brand-green)] sm:text-[26px]"
+            className="block w-full rounded-md border-0 bg-transparent text-xl font-bold leading-snug text-slate-950 outline-none transition placeholder:text-slate-300 focus-visible:bg-muted focus-visible:shadow-[inset_3px_0_0_var(--brand-green)] sm:text-2xl lg:text-[26px]"
             placeholder={t("common.untitledMemo")}
           />
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
             <button
-              className="flex h-8 min-w-0 max-w-full items-center gap-1 rounded-md border border-transparent bg-transparent px-2 text-sm font-medium text-slate-600 outline-none transition hover:border-slate-200 hover:bg-slate-50 hover:text-slate-900 focus-visible:border-emerald-300 focus-visible:ring-2 focus-visible:ring-emerald-500/20 disabled:opacity-50 sm:hidden"
+              className="flex h-7 min-w-0 max-w-full items-center gap-1 rounded-md border border-transparent bg-transparent px-1.5 text-xs font-medium text-slate-600 outline-none transition hover:border-slate-200 hover:bg-slate-50 hover:text-slate-900 focus-visible:border-emerald-300 focus-visible:ring-2 focus-visible:ring-emerald-500/20 disabled:opacity-50 sm:hidden"
               type="button"
               disabled={effectiveReadOnly || notebookUpdatePending}
               title={t("editor.currentNotebook")}
@@ -4682,7 +4719,7 @@ const RichEditorPane = ({
             "flex gap-8 transition-all duration-200",
             useMarkdownSourceEditor
               ? "h-full min-h-0 flex-1 items-stretch px-0 py-0"
-              : "min-h-full items-start px-6 py-4 sm:px-10",
+              : "min-h-full items-start px-4 py-2 sm:px-7 lg:px-10",
             desktopFocusMode
               ? "mx-auto w-full max-w-[1400px] justify-center"
               : editorContentAlignment === "center"
@@ -4746,42 +4783,23 @@ const RichEditorPane = ({
                 </div>
               </>
             ) : useMarkdownSourceEditor ? (
-              // Absolute fill: native <textarea> often ignores flex-1 height; pin to the pane instead.
               <div className="relative min-h-0 flex-1">
-                <textarea
-                  ref={markdownTextAreaRef}
-                  value={markdownSource}
-                  onChange={(event) => handleMarkdownSourceChange(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (!event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey && !event.nativeEvent.isComposing) {
-                      const caretPosition = event.currentTarget.selectionStart;
-                      const commandStart = getAiSlashCommandStart({
-                        caretPosition,
-                        insertedText: event.key,
-                        textBefore: event.currentTarget.value.slice(0, caretPosition),
-                      });
-                      if (commandStart !== null && event.currentTarget.selectionEnd === caretPosition) {
-                        event.preventDefault();
-                        const next = `${event.currentTarget.value.slice(0, commandStart)}${event.currentTarget.value.slice(caretPosition)}`;
-                        handleMarkdownSourceChange(next);
-                        window.requestAnimationFrame(() => {
-                          markdownTextAreaRef.current?.setSelectionRange(commandStart, commandStart);
-                          openAiAssistant();
-                        });
-                        return;
-                      }
-                    }
-                    if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === "k") {
-                      event.preventDefault();
-                      openExternalLinkDialog();
-                    }
-                  }}
-                  readOnly={effectiveReadOnly}
-                  spellCheck={false}
-                  aria-label={t("editor.markdownSourceAria")}
-                  className="absolute inset-0 h-full w-full resize-none border-0 bg-slate-950 px-4 py-3 font-mono text-sm leading-6 text-slate-100 outline-none placeholder:text-slate-500 sm:px-6"
-                  placeholder={`# ${t("editor.placeholder")}`}
-                />
+                <Suspense fallback={<div className="h-full w-full" />}>
+                  <MarkdownSourceEditor
+                    ref={markdownSourceEditorRef}
+                    value={markdownSource}
+                    onChange={handleMarkdownSourceChange}
+                    themeName={markdownTheme}
+                    readOnly={effectiveReadOnly}
+                    placeholder={`# ${t("editor.placeholder")}`}
+                    ariaLabel={t("editor.markdownSourceAria")}
+                    onSlashCommandTrigger={() => {
+                      openAiAssistant();
+                    }}
+                    onLinkShortcut={openExternalLinkDialog}
+                    className="absolute inset-0 h-full w-full"
+                  />
+                </Suspense>
               </div>
             ) : (
               <div

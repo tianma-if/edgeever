@@ -1,6 +1,6 @@
 {
   "name": "edgeever",
-  "version": "1.40.0",
+  "version": "1.42.1",
   "private": true,
   "type": "module",
   "workspaces": [
@@ -22,7 +22,7 @@
     "dev:api:demo": "bun scripts/local-dev.mjs api demo",
     "dev:self-hosted": "bun --watch scripts/self-hosted-server.mjs",
     "start:self-hosted": "bun scripts/self-hosted-server.mjs",
-    "test:docker-release": "bun test scripts/docker-release.test.mjs scripts/docker-installer.test.mjs scripts/build-cloudflare-worker.test.mjs tests/storage-adapter.test.ts",
+    "test:docker-release": "bun test scripts/docker-release.test.mjs scripts/prune-tcr-sha-tags.test.mjs scripts/docker-installer.test.mjs scripts/build-cloudflare-worker.test.mjs tests/storage-adapter.test.ts",
     "dev:remote": "concurrently -k -n api,web -c cyan,magenta \"bun run dev:api:remote\" \"bun run dev:web\"",
     "dev:api:remote": "bun scripts/run-wrangler.mjs dev --remote --port 8787",
     "dev:web": "vite --config apps/web/vite.config.ts --host 127.0.0.1 --port 5173",

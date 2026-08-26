@@ -64,9 +64,9 @@ docker compose up -d
 ```
 
 腾讯云公共镜像无需执行 `docker login`，支持 `linux/amd64` 与 `linux/arm64`。
-正式发布会向 GHCR 和 TCR 同时写入相同的版本标签与 `latest` 多平台镜像；发布
-审计会拒绝缺失、滞后或内容不一致的镜像。生产环境应通过
-`EDGE_EVER_VERSION` 固定正式版本标签。
+正式发布会向 GHCR 和 TCR 写入相同的版本标签与 `latest`。TCR 在腾讯云侧根据
+同一个已验证 Git 提交独立构建，因此 Registry Digest 可以与 GHCR 不同。生产
+环境应通过 `EDGE_EVER_VERSION` 固定正式版本标签。
 
 Compose 会创建一个命名卷。所有需要在容器替换后保留的数据都位于 `/data`：
 
@@ -85,15 +85,15 @@ Compose 会创建一个命名卷。所有需要在容器替换后保留的数据
 
 常用环境变量：
 
-| 变量 | 默认值 | 用途 |
-| --- | --- | --- |
-| `EDGE_EVER_AUTH_USERNAME` | `admin` | 初始管理员用户名 |
-| `EDGE_EVER_AUTH_PASSWORD` | 无 | 初始密码；新数据库必须提供 |
-| `EDGE_EVER_AUTH_PASSWORD_HASH` | 无 | 可替代明文引导密码的 PBKDF2 hash |
-| `EDGE_EVER_SESSION_TTL_DAYS` | `400` | 登录会话有效期 |
-| `EDGE_EVER_IDLE_TIMEOUT_SECONDS` | `120` | Bun 流式响应空闲超时，可设为 10 到 255 秒 |
-| `EDGE_EVER_STORAGE_ENCRYPTION_KEY` | 无 | 加密保存的外部对象存储凭据 |
-| `EDGE_EVER_CREDENTIALS_ENCRYPTION_KEY` | 自动派生 | 可选的独立 AI 凭据加密密钥 |
+| 变量                                   | 默认值   | 用途                                      |
+| -------------------------------------- | -------- | ----------------------------------------- |
+| `EDGE_EVER_AUTH_USERNAME`              | `admin`  | 初始管理员用户名                          |
+| `EDGE_EVER_AUTH_PASSWORD`              | 无       | 初始密码；新数据库必须提供                |
+| `EDGE_EVER_AUTH_PASSWORD_HASH`         | 无       | 可替代明文引导密码的 PBKDF2 hash          |
+| `EDGE_EVER_SESSION_TTL_DAYS`           | `400`    | 登录会话有效期                            |
+| `EDGE_EVER_IDLE_TIMEOUT_SECONDS`       | `120`    | Bun 流式响应空闲超时，可设为 10 到 255 秒 |
+| `EDGE_EVER_STORAGE_ENCRYPTION_KEY`     | 无       | 加密保存的外部对象存储凭据                |
+| `EDGE_EVER_CREDENTIALS_ENCRYPTION_KEY` | 自动派生 | 可选的独立 AI 凭据加密密钥                |
 
 Secret 可在受支持的变量名后追加 `_FILE`，并指向 Docker secret，例如
 `EDGE_EVER_AUTH_PASSWORD_FILE=/run/secrets/auth_password`。密码/hash、存储加密

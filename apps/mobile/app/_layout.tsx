@@ -14,7 +14,6 @@ import { SessionProvider } from "../src/lib/session";
 import { MobileThemeProvider, useMobileTheme } from "../src/lib/mobile-theme";
 import { MobileLocaleProvider } from "../src/lib/mobile-locale";
 import { AppDialogProvider } from "../src/components/AppDialogProvider";
-import { MobileUpdateToast } from "../src/components/MobileUpdateToast";
 import { MobileUpdateProvider } from "../src/lib/mobile-update";
 
 void SplashScreen.preventAutoHideAsync();
@@ -94,7 +93,6 @@ export default function RootLayout() {
                   >
                     <SessionProvider>
                       <Stack screenOptions={{ headerShown: false }} />
-                      <MobileUpdateToast />
                     </SessionProvider>
                   </PersistQueryClientProvider>
                 </MobileUpdateProvider>

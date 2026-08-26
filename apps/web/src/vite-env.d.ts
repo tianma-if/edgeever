@@ -31,10 +31,11 @@ interface EdgeEverDesktopBridge {
   openRendererIssue(details: DesktopRendererErrorDetails): Promise<{ opened: true }>;
   sidecarStatus(): Promise<{ available: boolean; path: string; scope: string }>;
   setAccountScope(accountId: string | null): Promise<{ ready: true; scope: string }>;
-  updateStatus(): Promise<{ state: "idle" | "available" | "downloaded" }>;
-  checkUpdate(): Promise<{ state: "idle" | "available" | "downloaded" }>;
+  updateStatus(): Promise<DesktopUpdateStatus>;
+  checkUpdate(): Promise<DesktopUpdateStatus>;
   downloadUpdate(): Promise<unknown>;
   installUpdate(): Promise<unknown>;
+  onUpdateStatus(callback: (status: DesktopUpdateStatus) => void): () => void;
   sidecarRequest<T = unknown>(method: string, params?: Record<string, unknown>): Promise<T>;
   stageResource(input: { memoId: string; name: string; type: string; bytes: ArrayBuffer }): Promise<{ id: string }>;
   listStagedResources(): Promise<Array<{ id: string; memoId: string; name: string; type: string; size: number }>>;
@@ -43,6 +44,11 @@ interface EdgeEverDesktopBridge {
   removeStagedResource(id: string): Promise<void>;
   onCommand(callback: (command: string) => void): () => void;
   onImportMarkdown(callback: (payload: { name: string; content: string }) => void): () => void;
+}
+
+interface DesktopUpdateStatus {
+  state: "idle" | "available" | "downloaded";
+  version: string | null;
 }
 
 type DesktopLocalDataResetErrorCode =

@@ -597,7 +597,20 @@ app.post("/api/v1/demo/reset", async (c) => {
     );
   }
 
-  await resetDemoData(c.env, Date.now());
+  const reset = await resetDemoData(c.env, Date.now());
+  if (!reset) {
+    c.header("Retry-After", String(Math.ceil(DEMO_RESET_COOLDOWN_MS / 1000)));
+    return c.json(
+      {
+        error: {
+          code: "demo_reset_in_progress",
+          message: "Demo reset is already in progress or cooling down",
+        },
+      },
+      409
+    );
+  }
+
   return c.json({
     success: true,
     message: "Demo seed data successfully restored",

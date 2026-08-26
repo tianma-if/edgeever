@@ -24,8 +24,11 @@ const RUN_DISCOVERY_TIMEOUT_MS = 60_000;
 export const RELEASE_WORKFLOWS = {
   desktop: "desktop-build.yml",
   mobile: "mobile-build.yml",
+  androidPlaySignature: "android-play-signature-audit.yml",
+  storeDelivery: "store-delivery.yml",
   docker: "docker-image.yml",
   demo: "deploy-demo.yml",
+  timings: "release-timings.yml",
 };
 
 export const RELEASE_VALIDATIONS = [
@@ -358,7 +361,7 @@ export const buildIssueBody = ({ changesEn, changesZh, commitCoverageAudit }) =>
   "## Acceptance criteria",
   "",
   "- Required type checks, Web build, and native release planning tests pass.",
-  "- The Draft Release contains audited macOS arm64 and x64 DMGs and an Android arm64 APK.",
+  "- The Draft Release contains audited macOS arm64 and x64 DMGs and a Play-signed Android arm64 APK.",
   "- Post-publication native asset audits pass.",
 ].join("\n");
 
@@ -622,11 +625,134 @@ const listWorkflowRuns = ({ repository, workflow, event }) => ghJson([
   "databaseId,displayTitle,headSha,createdAt,url,status,conclusion",
 ]);
 
+const releaseCheckpointMarker = (tag) =>
+  `<!-- edgeever-release-checkpoint:${tag}\n`;
+
+export const parseReleaseCheckpoint = (body, tag) => {
+  const marker = releaseCheckpointMarker(tag);
+  if (!body?.startsWith(marker)) return null;
+  const jsonEnd = body.lastIndexOf("\n-->");
+  if (jsonEnd <= marker.length) return null;
+  try {
+    return JSON.parse(body.slice(marker.length, jsonEnd));
+  } catch {
+    return null;
+  }
+};
+
+const loadReleaseCheckpoint = ({ repository, issueNumber, tag }) => {
+  const comments = ghJson([
+    "api",
+    `repos/${repository}/issues/${issueNumber}/comments?per_page=100`,
+  ]);
+  const comment = comments.find(({ body }) =>
+    body?.startsWith(releaseCheckpointMarker(tag)),
+  );
+  return {
+    commentId: comment?.id ?? null,
+    state: parseReleaseCheckpoint(comment?.body, tag) ?? {},
+  };
+};
+
+const saveReleaseCheckpoint = ({
+  repository,
+  issueNumber,
+  tag,
+  commentId,
+  state,
+}) => {
+  const body = `${releaseCheckpointMarker(tag)}${JSON.stringify(state)}\n-->`;
+  if (commentId) {
+    run("gh", [
+      "api",
+      "--method",
+      "PATCH",
+      `repos/${repository}/issues/comments/${commentId}`,
+      "--raw-field",
+      `body=${body}`,
+    ], { capture: true });
+    return commentId;
+  }
+  const comment = ghJson([
+    "api",
+    "--method",
+    "POST",
+    `repos/${repository}/issues/${issueNumber}/comments`,
+    "--raw-field",
+    `body=${body}`,
+  ]);
+  return comment.id;
+};
+
+const viewWorkflowRun = ({ repository, runId }) => ghJson([
+  "run",
+  "view",
+  String(runId),
+  "--repo",
+  repository,
+  "--json",
+  "status,conclusion,url,headSha,jobs",
+]);
+
+const waitForRerunStart = async ({ repository, runId }) => {
+  const deadline = Date.now() + 30_000;
+  while (Date.now() < deadline) {
+    const current = viewWorkflowRun({ repository, runId });
+    if (current.status !== "completed" || current.conclusion === "success") return;
+    await wait(2_000);
+  }
+  throw new Error(`Timed out waiting for rerun ${runId} to start.`);
+};
+
+export const draftRunResumeAction = ({ runId, runView, headSha }) => {
+  if (!runId || !runView || runView.headSha !== headSha) return "dispatch";
+  if (runView.status === "completed" && runView.conclusion !== "success") {
+    return "rerun";
+  }
+  return "reuse";
+};
+
+const resumeDraftWorkflowRun = async ({ repository, runId, headSha, label }) => {
+  if (!runId) return null;
+  const existing = viewWorkflowRun({ repository, runId });
+  const action = draftRunResumeAction({ runId, runView: existing, headSha });
+  if (action === "dispatch") return null;
+  if (action === "rerun") {
+    console.log(`[release] rerunning failed ${label}: ${existing.url}`);
+    run("gh", [
+      "run",
+      "rerun",
+      String(runId),
+      "--repo",
+      repository,
+      "--failed",
+    ]);
+    await waitForRerunStart({ repository, runId });
+  } else {
+    console.log(`[release] reusing ${label}: ${existing.url}`);
+  }
+  return Number(runId);
+};
+
+export const playDeliveryFailureStrategy = (runView) => {
+  const androidJob = runView.jobs?.find(
+    (job) => job.name === "Deliver Google Play",
+  );
+  const uploadStep = androidJob?.steps?.find(
+    (step) => step.name === "Upload bundle to Google Play",
+  );
+  if (!uploadStep || ["skipped", null, undefined].includes(uploadStep.conclusion)) {
+    return "rerun";
+  }
+  return "recover";
+};
+
 const dispatchReleaseWorkflow = async ({
   repository,
   workflow,
   tag,
   headSha,
+  inputs = { release_tag: tag },
 }) => {
   const existingRunIds = new Set(
     listWorkflowRuns({
@@ -644,8 +770,10 @@ const dispatchReleaseWorkflow = async ({
     repository,
     "--ref",
     "main",
-    "-f",
-    `release_tag=${tag}`,
+    ...Object.entries(inputs).flatMap(([key, value]) => [
+      "-f",
+      `${key}=${value}`,
+    ]),
   ], { capture: true });
   const returnedRunId = parseRunId(output);
   if (returnedRunId) {
@@ -669,6 +797,155 @@ const dispatchReleaseWorkflow = async ({
     await wait(2_000);
   }
   throw new Error(`Timed out discovering dispatched ${workflow} run for ${tag}.`);
+};
+
+const dispatchStoreDeliveryWorkflow = ({
+  repository,
+  tag,
+  headSha,
+  recoverPlayApk,
+}) => dispatchReleaseWorkflow({
+  repository,
+  workflow: RELEASE_WORKFLOWS.storeDelivery,
+  tag,
+  headSha,
+  inputs: {
+    release_tag: tag,
+    platform: "android",
+    android_track: "production",
+    recover_play_apk: recoverPlayApk,
+  },
+});
+
+const dispatchAndWaitForPlayRecovery = async ({
+  repository,
+  tag,
+  headSha,
+  checkpoint,
+  persistCheckpoint,
+}) => {
+  const recoveryRunId = await dispatchStoreDeliveryWorkflow({
+    repository,
+    tag,
+    headSha,
+    recoverPlayApk: true,
+  });
+  checkpoint.storeRecoveryRunId = recoveryRunId;
+  persistCheckpoint();
+  await waitForRun({
+    repository,
+    runId: recoveryRunId,
+    label: "Recover Play-signed Draft APK",
+  });
+  return recoveryRunId;
+};
+
+const ensurePlayDelivery = async ({
+  repository,
+  tag,
+  headSha,
+  checkpoint,
+  persistCheckpoint,
+}) => {
+  let storeRunId = checkpoint.storeRunId;
+  if (!storeRunId) {
+    storeRunId = await dispatchStoreDeliveryWorkflow({
+      repository,
+      tag,
+      headSha,
+      recoverPlayApk: false,
+    });
+    checkpoint.storeRunId = storeRunId;
+    persistCheckpoint();
+  } else {
+    const existing = viewWorkflowRun({ repository, runId: storeRunId });
+    if (existing.headSha !== headSha) {
+      throw new Error("Stored Play delivery Run targets a different commit.");
+    }
+    console.log(`[release] reusing Google Play delivery: ${existing.url}`);
+  }
+
+  try {
+    await waitForRun({
+      repository,
+      runId: storeRunId,
+      label: "Google Play delivery",
+    });
+    return storeRunId;
+  } catch (error) {
+    const failedRun = viewWorkflowRun({ repository, runId: storeRunId });
+    if (playDeliveryFailureStrategy(failedRun) === "recover") {
+      console.log(
+        "[release] Play upload may have completed; recovering its signed APK without re-uploading",
+      );
+      await dispatchAndWaitForPlayRecovery({
+        repository,
+        tag,
+        headSha,
+        checkpoint,
+        persistCheckpoint,
+      });
+      return storeRunId;
+    }
+
+    console.log("[release] Play upload did not start; dispatching a clean delivery retry");
+    storeRunId = await dispatchStoreDeliveryWorkflow({
+      repository,
+      tag,
+      headSha,
+      recoverPlayApk: false,
+    });
+    checkpoint.storeRunId = storeRunId;
+    persistCheckpoint();
+    await waitForRun({
+      repository,
+      runId: storeRunId,
+      label: "Google Play delivery retry",
+    });
+    return storeRunId;
+  }
+};
+
+const requirePlaySignedDraftApk = async ({
+  repository,
+  tag,
+  headSha,
+  checkpoint,
+  persistCheckpoint,
+  allowRecovery,
+}) => {
+  const dispatchGate = async () => {
+    const runId = await dispatchReleaseWorkflow({
+      repository,
+      workflow: RELEASE_WORKFLOWS.androidPlaySignature,
+      tag,
+      headSha,
+    });
+    checkpoint.androidPlaySignatureRunId = runId;
+    persistCheckpoint();
+    await waitForRun({
+      repository,
+      runId,
+      label: "Draft Android Play signature gate",
+    });
+  };
+
+  try {
+    await dispatchGate();
+  } catch (error) {
+    if (!allowRecovery) throw error;
+    console.log(
+      "[release] restoring the already delivered Play-signed APK before retrying its signature gate",
+    );
+    await dispatchAndWaitForPlayRecovery({
+      repository,
+      tag,
+      headSha,
+      checkpoint,
+      persistCheckpoint,
+    });
+    await dispatchGate();
+  }
 };
 
 const findReleaseRun = async ({
@@ -1011,26 +1288,77 @@ const releaseMain = async (options) => {
     console.log(`[release] Draft created: ${draftUrl}`);
   }
 
+  const storedCheckpoint = loadReleaseCheckpoint({
+    repository: options.repository,
+    issueNumber,
+    tag,
+  });
+  let checkpointCommentId = storedCheckpoint.commentId;
+  const checkpoint =
+    storedCheckpoint.state.releaseSha === releaseSha
+      ? storedCheckpoint.state
+      : { releaseSha };
+  const persistCheckpoint = () => {
+    checkpointCommentId = saveReleaseCheckpoint({
+      repository: options.repository,
+      issueNumber,
+      tag,
+      commentId: checkpointCommentId,
+      state: checkpoint,
+    });
+  };
+  persistCheckpoint();
+
+  const resolveDraftRun = async (field, workflow, label) => {
+    const reusableRunId = resumedDraft
+      ? await resumeDraftWorkflowRun({
+          repository: options.repository,
+          runId: checkpoint[field],
+          headSha: releaseSha,
+          label,
+        })
+      : null;
+    return reusableRunId ?? dispatchReleaseWorkflow({
+      repository: options.repository,
+      workflow,
+      tag,
+      headSha: releaseSha,
+    });
+  };
+
   const [desktopRunId, mobileRunId, dockerRunId] = await Promise.all([
-    dispatchReleaseWorkflow({
-      repository: options.repository,
-      workflow: RELEASE_WORKFLOWS.desktop,
-      tag,
-      headSha: releaseSha,
-    }),
-    dispatchReleaseWorkflow({
-      repository: options.repository,
-      workflow: RELEASE_WORKFLOWS.mobile,
-      tag,
-      headSha: releaseSha,
-    }),
-    dispatchReleaseWorkflow({
-      repository: options.repository,
-      workflow: RELEASE_WORKFLOWS.docker,
-      tag,
-      headSha: releaseSha,
-    }),
+    resolveDraftRun("desktopRunId", RELEASE_WORKFLOWS.desktop, "Draft desktop assets"),
+    resolveDraftRun("mobileRunId", RELEASE_WORKFLOWS.mobile, "Draft Android assets"),
+    resolveDraftRun("dockerRunId", RELEASE_WORKFLOWS.docker, "Draft Docker image"),
   ]);
+  Object.assign(checkpoint, { desktopRunId, mobileRunId, dockerRunId });
+  persistCheckpoint();
+
+  const androidReleaseReady = (async () => {
+    await waitForRun({
+      repository: options.repository,
+      runId: mobileRunId,
+      label: "Draft Android assets",
+    });
+    if (mobilePlan.rebuild) {
+      await ensurePlayDelivery({
+        repository: options.repository,
+        tag,
+        headSha: releaseSha,
+        checkpoint,
+        persistCheckpoint,
+      });
+    }
+    await requirePlaySignedDraftApk({
+      repository: options.repository,
+      tag,
+      headSha: releaseSha,
+      checkpoint,
+      persistCheckpoint,
+      allowRecovery: mobilePlan.rebuild,
+    });
+  })();
+
   await Promise.all([
     waitForRun({
       repository: options.repository,
@@ -1039,14 +1367,10 @@ const releaseMain = async (options) => {
     }),
     waitForRun({
       repository: options.repository,
-      runId: mobileRunId,
-      label: "Draft Android assets",
-    }),
-    waitForRun({
-      repository: options.repository,
       runId: dockerRunId,
       label: "Draft Docker image",
     }),
+    androidReleaseReady,
   ]);
 
   const draft = ghJson([
@@ -1161,6 +1485,41 @@ const releaseMain = async (options) => {
     "--body",
     `Released in [${tag}](${releaseUrl}).\n\nRequired local validations, Draft asset and image preparation, and post-publication audits passed.`,
   ]);
+  const timingDispatch = run("gh", [
+    "workflow",
+    "run",
+    RELEASE_WORKFLOWS.timings,
+    "--repo",
+    options.repository,
+    "--ref",
+    "main",
+    "-f",
+    `release_tag=${tag}`,
+    "-f",
+    `release_sha=${releaseSha}`,
+    "-f",
+    `issue_number=${issueNumber}`,
+    "-f",
+    `desktop_run_id=${desktopRunId}`,
+    "-f",
+    `desktop_mode=${desktopPlan.rebuild ? "rebuild" : "reuse"}`,
+    "-f",
+    `mobile_run_id=${mobileRunId}`,
+    "-f",
+    `mobile_mode=${mobilePlan.rebuild ? "rebuild" : "reuse"}`,
+    "-f",
+    `docker_run_id=${dockerRunId}`,
+    ...(checkpoint.storeRunId
+      ? ["-f", `store_run_id=${checkpoint.storeRunId}`]
+      : []),
+  ], { allowFailure: true });
+  if (timingDispatch.status === 0) {
+    console.log(
+      `[release] endpoint timing report continues in background: https://github.com/${options.repository}/actions/workflows/${RELEASE_WORKFLOWS.timings}`,
+    );
+  } else {
+    console.warn("[release] failed to dispatch the non-blocking endpoint timing report");
+  }
   run("gh", [
     "issue",
     "close",

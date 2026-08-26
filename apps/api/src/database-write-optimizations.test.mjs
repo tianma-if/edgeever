@@ -176,6 +176,28 @@ describe("database write optimizations", () => {
     sqlite.close();
   });
 
+  test("does not report a demo reset as successful when another reset owns the lease", async () => {
+    const { database, sqlite } = createDatabase();
+    expect(await acquireMaintenanceLease(database, "demo-reset", 60_000)).toStartWith("lease_");
+
+    const response = await fetchEdgeEverApp(
+      new Request("https://notes.example.com/api/v1/demo/reset", { method: "POST" }),
+      {
+        storage: { db: database, resources: {} },
+        EDGE_EVER_ALLOW_UNAUTHENTICATED: "true",
+        EDGE_EVER_DEMO_MODE: "true",
+      },
+      executionContext,
+    );
+
+    expect(response.status).toBe(409);
+    expect(response.headers.get("Retry-After")).toBe("60");
+    expect(await response.json()).toMatchObject({
+      error: { code: "demo_reset_in_progress" },
+    });
+    sqlite.close();
+  });
+
   test("touches API tokens at most once per hour", async () => {
     const { database, sqlite } = createDatabase();
     const token = "edgeever_api_test_token";

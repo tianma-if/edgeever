@@ -12,3 +12,5 @@ ios/
 # Keep local Expo module sources while excluding their generated artifacts.
 !modules/edgeever-keyboard/android/
 modules/edgeever-keyboard/android/build/
+!modules/edgeever-app-installer/android/
+modules/edgeever-app-installer/android/build/

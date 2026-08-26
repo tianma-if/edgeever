@@ -53,29 +53,43 @@ previous installation check is actually needed.
   Release asset rather than the overall GitHub tag. This prevents a Web-only or
   API-only Release from prompting an unnecessary native update.
 - The script creates the tracking Issue and Draft Release, validates or reuses
-  native assets, prepares the multi-platform Docker image in both GHCR and the
-  public Tencent TCR mirror, publishes, and closes the Issue without installing
+  native assets, prepares and audits the multi-platform GHCR image, publishes,
+  and closes the Issue without installing
   the desktop application by default; installation remains available as an
   explicit option.
   Demo deployment continues independently after its Actions URL is printed.
-- Mobile store delivery is not part of this command. See
+- A separate workflow sends the same verified Git commit to CNB. CNB builds and
+  audits the public Tencent TCR image inside Tencent Cloud after the formal
+  Release is published. Its duration or failure does not block the GitHub
+  Release or return a published version to Draft.
+- This command does not authorize or run mobile store delivery itself. After
+  Draft native assets are prepared, publication is blocked unless the Android
+  APK uses the Google Play app-signing certificate. If that gate fails, the
+  Release remains a Draft. Run
+  `bun run publish:stores -- --release vX.Y.Z --platform android --android-track production`
+  for that Draft, then rerun the original release command to resume. See
   [Mobile Store Delivery](store-delivery.md).
 
 ## Registry Credentials
 
-The official repository must define `TENCENT_TCR_USERNAME` and
-`TENCENT_TCR_PASSWORD` Actions secrets. For the TCR Personal Edition registry,
-the username is the Tencent Cloud account ID and the password is the fixed
-registry password initialized in the TCR console. Draft preparation publishes
-the same tags to GHCR and TCR; both registries are checked anonymously before
-the Release can be published.
+The official GitHub repository must define the `CNB_TCR_BUILD_PUSH_TOKEN`
+Actions secret with write access only to the CNB source mirror. The private CNB
+key repository provides `TCR_USERNAME` and `TCR_PASSWORD` to the trusted
+`push` and `tag_push` pipelines. For TCR Personal Edition, the username is the
+Tencent Cloud account ID and the password is the fixed registry password
+initialized in the TCR console. GHCR is the blocking Release gate. CNB builds
+TCR from the same Git commit, publishes the same public tags asynchronously,
+and independently verifies anonymous access and both supported architectures.
+Independent builds are not required to have the same registry digest.
 
 ## Failure and Resume
 
-- Validation, Draft asset, or Docker image failures leave the Release unpublished.
+- Validation, Draft asset, or GHCR image failures leave the Release unpublished.
+- An asynchronous CNB/TCR build failure leaves the formal Release intact and is
+  repaired or rerun independently.
 - Rerunning the same command resumes a matching Draft created by an interrupted
   run instead of creating another Issue, commit, or Release.
-- A failed post-publication native or Docker audit attempts to return the Release to
+- A failed post-publication native or GHCR audit attempts to return the Release to
   Draft and leaves the Issue open.
 - If an explicit application installation fails, the script restores the previous
   app from its macOS Trash backup when possible.

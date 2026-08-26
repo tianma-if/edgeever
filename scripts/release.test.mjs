@@ -1,12 +1,16 @@
 import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
 import {
   auditReleaseCommitCoverage,
   buildIssueBody,
   buildReleaseNotes,
   buildReleaseSummary,
   buildReleaseTitle,
+  draftRunResumeAction,
   nextVersion,
+  parseReleaseCheckpoint,
   parseReleaseArgs,
+  playDeliveryFailureStrategy,
   RELEASE_WORKFLOWS,
   RELEASE_VALIDATIONS,
   resolveReleaseVersion,
@@ -18,6 +22,78 @@ import {
 describe("release automation", () => {
   test("prepares and audits the official Docker image with every formal release", () => {
     expect(RELEASE_WORKFLOWS.docker).toBe("docker-image.yml");
+  });
+
+  test("dispatches a unified post-release endpoint timing report", () => {
+    expect(RELEASE_WORKFLOWS.timings).toBe("release-timings.yml");
+    const releaseSource = readFileSync(new URL("./release.mjs", import.meta.url), "utf8");
+    expect(releaseSource).toContain("desktop_run_id=\${desktopRunId}");
+    expect(releaseSource).toContain("mobile_run_id=\${mobileRunId}");
+    expect(releaseSource).toContain("docker_run_id=\${dockerRunId}");
+    expect(releaseSource).toContain("store_run_id=\${checkpoint.storeRunId}");
+    expect(releaseSource).toContain("endpoint timing report continues in background");
+  });
+
+  test("blocks publication until the Draft Android APK passes the Play signature gate", () => {
+    const releaseSource = readFileSync(new URL("./release.mjs", import.meta.url), "utf8");
+    const signatureGate = releaseSource.indexOf('label: "Draft Android Play signature gate"');
+    const publication = releaseSource.indexOf('"--draft=false"');
+
+    expect(RELEASE_WORKFLOWS.androidPlaySignature).toBe("android-play-signature-audit.yml");
+    expect(signatureGate).toBeGreaterThanOrEqual(0);
+    expect(publication).toBeGreaterThan(signatureGate);
+  });
+
+  test("starts Play delivery as soon as Android preparation finishes", () => {
+    const releaseSource = readFileSync(new URL("./release.mjs", import.meta.url), "utf8");
+    const androidReady = releaseSource.lastIndexOf("const androidReleaseReady");
+    const mobileWait = releaseSource.indexOf('label: "Draft Android assets"', androidReady);
+    const playDelivery = releaseSource.indexOf("await ensurePlayDelivery", androidReady);
+    const allDraftGates = releaseSource.indexOf("await Promise.all", androidReady);
+
+    expect(RELEASE_WORKFLOWS.storeDelivery).toBe("store-delivery.yml");
+    expect(mobileWait).toBeGreaterThan(androidReady);
+    expect(playDelivery).toBeGreaterThan(mobileWait);
+    expect(playDelivery).toBeLessThan(allDraftGates);
+  });
+
+  test("restores an exact Draft checkpoint without exposing it in Issue text", () => {
+    const checkpoint = { releaseSha: "abc", desktopRunId: 123 };
+    const body = `<!-- edgeever-release-checkpoint:v1.42.0\n${JSON.stringify(checkpoint)}\n-->`;
+    expect(parseReleaseCheckpoint(body, "v1.42.0")).toEqual(checkpoint);
+    expect(parseReleaseCheckpoint(body, "v1.42.1")).toBeNull();
+    expect(parseReleaseCheckpoint("malformed", "v1.42.0")).toBeNull();
+  });
+
+  test("reuses successful Draft runs and reruns only failed ones", () => {
+    const headSha = "abc";
+    expect(draftRunResumeAction({
+      runId: 1,
+      runView: { headSha, status: "completed", conclusion: "success" },
+      headSha,
+    })).toBe("reuse");
+    expect(draftRunResumeAction({
+      runId: 2,
+      runView: { headSha, status: "completed", conclusion: "failure" },
+      headSha,
+    })).toBe("rerun");
+    expect(draftRunResumeAction({
+      runId: 3,
+      runView: { headSha: "different", status: "completed", conclusion: "success" },
+      headSha,
+    })).toBe("dispatch");
+  });
+
+  test("only retries a Play delivery when upload definitely did not start", () => {
+    const run = (conclusion) => ({
+      jobs: [{
+        name: "Deliver Google Play",
+        steps: [{ name: "Upload bundle to Google Play", conclusion }],
+      }],
+    });
+    expect(playDeliveryFailureStrategy(run("skipped"))).toBe("rerun");
+    expect(playDeliveryFailureStrategy(run("success"))).toBe("recover");
+    expect(playDeliveryFailureStrategy(run("failure"))).toBe("recover");
   });
 
   test("runs the complete project regression suite before release", () => {
@@ -260,6 +336,7 @@ describe("release automation", () => {
     expect(body).toContain("## 中文说明");
     expect(body).toContain("- 并行检查。");
     expect(body).toContain("## Commit coverage audit");
+    expect(body).toContain("Play-signed Android arm64 APK");
     expect(body).toContain("- Change 1: `aaaaaaaa`");
     expect(body).toContain("- Excluded `bbbbbbbb`: test-only coverage");
   });

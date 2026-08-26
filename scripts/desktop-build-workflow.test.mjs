@@ -21,6 +21,11 @@ describe("desktop release workflow", () => {
     expect(regressionTests).toBeLessThan(releasePlan);
   });
 
+  test("rejects a published APK that is not Play-signed and restores Draft state", () => {
+    expect(mobileWorkflow).toContain("github.event_name == 'release' && secrets.ANDROID_PLAY_APP_SIGNER_SHA256");
+    expect(mobileWorkflow).toContain('gh release edit "$CURRENT_TAG" --repo "$GITHUB_REPOSITORY" --draft=true');
+  });
+
   test("assigns shared validation only to the arm64 matrix job", () => {
     expect(workflow).toContain([
       "          - arch: arm64",

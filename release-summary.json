@@ -1,17 +1,17 @@
 {
-  "version": "1.40.0",
+  "version": "1.42.1",
   "changes": {
     "en-US": [
-      "Access Web, desktop, Android, and iOS clients from a compact download menu in the sidebar.",
-      "Enjoy clearer workspace hierarchy, more consistent contrast, and refined colors across themes, editor views, exported notes, and print output.",
-      "Use self-hosted Docker instances over HTTP without client identity, sync, or rendering failures.",
-      "Desktop updates are now discovered more reliably, with clearer instance and version information in the app."
+      "Keep newly created notes selected after sync, and make links between publicly shared notes open correctly.",
+      "Make downloaded desktop updates clearly actionable so they can be installed without hunting for the update control.",
+      "Prevent desktop edits from being reported as sync conflicts after a newer local change supersedes an in-flight sync.",
+      "Improve nested-list editing so Tab, Shift+Tab, Backspace, and indentation controls behave consistently."
     ],
     "zh-CN": [
-      "现在可通过侧边栏中的紧凑下载菜单快速访问 Web、桌面、Android 和 iOS 客户端。",
-      "优化工作区层级、交互对比度与主题配色，并统一编辑视图、导出笔记和打印内容的视觉表现。",
-      "修复自托管 Docker 实例通过 HTTP 访问时可能出现的客户端标识、同步和渲染问题。",
-      "提升桌面端更新发现的可靠性，并在应用内提供更清晰的实例与版本信息。"
+      "修复新建笔记同步后的选中状态，并让公开分享笔记之间的引用链接正确打开。",
+      "让已下载的桌面更新显示明确的安装入口，无需再寻找更新控件。",
+      "修复桌面端较新的本地编辑覆盖同步中变更时被误报为同步冲突的问题。",
+      "改进多级列表编辑，使 Tab、Shift+Tab、退格键和缩进控件的行为保持一致。"
     ]
   }
 }

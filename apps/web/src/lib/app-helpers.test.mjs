@@ -8,6 +8,7 @@ import {
   NOTEBOOK_SORT_STORAGE_KEY,
   SHORTCUT_SETTINGS_STORAGE_KEY,
   SYNC_INTERVAL_STORAGE_KEY,
+  getSearchShortcutScope,
   getShortcutActionForEvent,
   getNotebookSortComparator,
   readEditorContentAlignmentPreference,
@@ -43,6 +44,16 @@ const installLocalStorage = (initialValue = null) => {
 
 afterEach(() => {
   globalThis.window = originalWindow;
+});
+
+describe("search shortcut scope", () => {
+  test("keeps Ctrl/Command+F within an open note regardless of viewport layout", () => {
+    expect(getSearchShortcutScope("memo-1")).toBe("note");
+  });
+
+  test("uses memo-list search when no note is open", () => {
+    expect(getSearchShortcutScope(null)).toBe("memo-list");
+  });
 });
 
 describe("desktop focus mode preference", () => {

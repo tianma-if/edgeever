@@ -1,0 +1,25 @@
+main:
+  push:
+    - name: build-tcr-main
+      runner:
+        cpus: 2
+      services:
+        - docker
+      imports:
+        - https://cnb.cool/tianma-if/edgeever-secrets/-/blob/main/tcr.yml
+      stages:
+        - name: Build and publish main image inside Tencent Cloud
+          script: bash scripts/publish-tcr-image.sh
+
+"v*":
+  tag_push:
+    - name: build-tcr-release
+      runner:
+        cpus: 2
+      services:
+        - docker
+      imports:
+        - https://cnb.cool/tianma-if/edgeever-secrets/-/blob/main/tcr.yml
+      stages:
+        - name: Build and publish release image inside Tencent Cloud
+          script: bash scripts/publish-tcr-image.sh

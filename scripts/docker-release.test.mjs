@@ -6,14 +6,19 @@ import { resolve } from "node:path";
 import { resolveSelfHostedConfig } from "./self-hosted-config.mjs";
 import { loadSelfHostedEnvironment } from "./self-hosted-secrets.mjs";
 
-const readProjectFile = (path) => readFileSync(resolve(import.meta.dir, "..", path), "utf8");
+const readProjectFile = (path) =>
+  readFileSync(resolve(import.meta.dir, "..", path), "utf8");
 
 describe("self-hosted runtime configuration", () => {
   test("uses the portable single-volume defaults", () => {
     const config = resolveSelfHostedConfig({}, "/opt/edgeever");
     expect(config.dataDirectory).toBe("/opt/edgeever/.edgeever-data");
-    expect(config.databaseFile).toBe("/opt/edgeever/.edgeever-data/edgeever.sqlite");
-    expect(config.resourcesDirectory).toBe("/opt/edgeever/.edgeever-data/resources");
+    expect(config.databaseFile).toBe(
+      "/opt/edgeever/.edgeever-data/edgeever.sqlite",
+    );
+    expect(config.resourcesDirectory).toBe(
+      "/opt/edgeever/.edgeever-data/resources",
+    );
     expect(config.port).toBe(8787);
     expect(config.storageBackend).toBe("local");
   });
@@ -23,7 +28,9 @@ describe("self-hosted runtime configuration", () => {
     const secretPath = resolve(directory, "password");
     try {
       await writeFile(secretPath, "secret-from-file\n");
-      const environment = await loadSelfHostedEnvironment({ EDGE_EVER_AUTH_PASSWORD_FILE: secretPath });
+      const environment = await loadSelfHostedEnvironment({
+        EDGE_EVER_AUTH_PASSWORD_FILE: secretPath,
+      });
       expect(environment.EDGE_EVER_AUTH_PASSWORD).toBe("secret-from-file");
       expect(environment.EDGE_EVER_AUTH_PASSWORD_FILE).toBeUndefined();
     } finally {
@@ -32,13 +39,15 @@ describe("self-hosted runtime configuration", () => {
   });
 
   test("rejects invalid ports and storage backends", () => {
-    expect(() => resolveSelfHostedConfig({ EDGE_EVER_PORT: "0" })).toThrow("EDGE_EVER_PORT");
-    expect(() => resolveSelfHostedConfig({ EDGE_EVER_STORAGE_BACKEND: "r2" })).toThrow(
-      "either local or s3",
+    expect(() => resolveSelfHostedConfig({ EDGE_EVER_PORT: "0" })).toThrow(
+      "EDGE_EVER_PORT",
     );
-    expect(() => resolveSelfHostedConfig({ EDGE_EVER_STORAGE_BACKEND: "s3" })).toThrow(
-      "EDGE_EVER_S3_BUCKET",
-    );
+    expect(() =>
+      resolveSelfHostedConfig({ EDGE_EVER_STORAGE_BACKEND: "r2" }),
+    ).toThrow("either local or s3");
+    expect(() =>
+      resolveSelfHostedConfig({ EDGE_EVER_STORAGE_BACKEND: "s3" }),
+    ).toThrow("EDGE_EVER_S3_BUCKET");
   });
 });
 
@@ -48,8 +57,12 @@ describe("Docker release contract", () => {
     expect(dockerfile).toContain("FROM oven/bun:1.3.14-alpine AS runtime");
     expect(dockerfile).toContain("COPY patches patches");
     expect(dockerfile).toContain("COPY docs docs");
-    expect(dockerfile).toContain("COPY release-summary.json release-summary.json");
-    expect(dockerfile).toContain("COPY --from=build /app/release-summary.json ./release-summary.json");
+    expect(dockerfile).toContain(
+      "COPY release-summary.json release-summary.json",
+    );
+    expect(dockerfile).toContain(
+      "COPY --from=build /app/release-summary.json ./release-summary.json",
+    );
     expect(dockerfile).toContain("--filter @edgeever/web");
     expect(dockerfile).toContain("--production --filter edgeever");
     expect(dockerfile).toContain("USER bun");
@@ -59,7 +72,9 @@ describe("Docker release contract", () => {
 
   test("keeps authentication explicit in Compose", () => {
     const compose = readProjectFile("compose.yaml");
-    expect(compose).toContain("EDGE_EVER_AUTH_PASSWORD: \"${EDGE_EVER_AUTH_PASSWORD:?");
+    expect(compose).toContain(
+      'EDGE_EVER_AUTH_PASSWORD: "${EDGE_EVER_AUTH_PASSWORD:?',
+    );
     expect(compose).toContain("edgeever-data:/data");
     expect(compose).toContain("no-new-privileges:true");
   });
@@ -68,34 +83,74 @@ describe("Docker release contract", () => {
     const application = readProjectFile("apps/api/src/index.ts");
     const selfHosted = readProjectFile("scripts/self-hosted-server.mjs");
     expect(application).toContain("export const fetchEdgeEverApp");
-    expect(application).toContain("storage: createCloudflareStorageAdapter(env)");
-    expect(selfHosted).toContain("fetchEdgeEverApp(request, env, executionContext)");
+    expect(application).toContain(
+      "storage: createCloudflareStorageAdapter(env)",
+    );
+    expect(selfHosted).toContain(
+      "fetchEdgeEverApp(request, env, executionContext)",
+    );
     expect(selfHosted).not.toContain("worker.fetch(");
   });
 
   test("gates official image publishing and release auditing", () => {
     const workflow = readProjectFile(".github/workflows/docker-image.yml");
-    expect(workflow.match(/github\.repository == 'tianma-if\/edgeever'/g)?.length).toBeGreaterThanOrEqual(2);
+    const mirrorWorkflow = readProjectFile(
+      ".github/workflows/docker-tcr-mirror.yml",
+    );
+    const cnbWorkflow = readProjectFile(".cnb.yml");
+    const tcrPublisher = readProjectFile("scripts/publish-tcr-image.sh");
+    expect(
+      workflow.match(/github\.repository == 'tianma-if\/edgeever'/g)?.length,
+    ).toBeGreaterThanOrEqual(2);
     expect(workflow).toContain("release_tag");
     expect(workflow).toContain("contents: write\n      packages: write");
-    expect(workflow).toContain("name: Publish official multi-platform image\n    runs-on: ubuntu-latest\n    timeout-minutes: 60");
+    expect(workflow).toContain(
+      "name: Publish official multi-platform image\n    runs-on: ubuntu-latest\n    timeout-minutes: 60",
+    );
     expect(workflow).toContain('gh release view "${RELEASE_TAG}"');
-    expect(workflow).not.toContain('releases/tags/${RELEASE_TAG}');
+    expect(workflow).not.toContain("releases/tags/${RELEASE_TAG}");
     expect(workflow).toContain("docker logout ghcr.io");
-    expect(workflow).toContain("TCR_IMAGE_NAME: ccr.ccs.tencentyun.com/edgeever/edgeever");
-    expect(workflow).toContain("secrets.TENCENT_TCR_USERNAME");
-    expect(workflow).toContain("secrets.TENCENT_TCR_PASSWORD");
-    expect(workflow).toContain("name: Mirror image to Tencent Cloud Container Registry");
-    expect(workflow).toContain('docker buildx imagetools create \\');
-    expect(workflow).toContain('--tag "${TCR_IMAGE_NAME}:${image_tag}"');
-    expect(workflow).toContain('"${GHCR_IMAGE_NAME}:${image_tag}"');
-    expect(workflow).toContain("for attempt in 1 2 3; do");
-    expect(workflow).toContain('Failed to mirror ${image_tag} after ${attempt} attempts');
-    expect(workflow).toContain('sleep "$((attempt * 15))"');
-    expect(workflow).not.toContain('echo "${TCR_IMAGE_NAME}:${RELEASE_TAG}"');
-    expect(workflow).toContain('docker logout ccr.ccs.tencentyun.com');
-    expect(workflow).toContain('test "${ghcr_digest}" = "${tcr_digest}"');
-    expect(workflow).toContain('for image in "${GHCR_IMAGE_NAME}" "${TCR_IMAGE_NAME}"');
     expect(workflow).toContain("docker buildx imagetools inspect");
+    expect(workflow).not.toContain("TCR_IMAGE_NAME");
+    expect(workflow).not.toContain("TENCENT_TCR_USERNAME");
+
+    expect(mirrorWorkflow).toContain(
+      "name: Build Tencent TCR image through CNB",
+    );
+    expect(mirrorWorkflow).toContain("workflow_run:");
+    expect(mirrorWorkflow).toContain("release:");
+    expect(mirrorWorkflow).toContain(
+      "github.event.workflow_run.event == 'push'",
+    );
+    expect(mirrorWorkflow).toContain("secrets.CNB_TCR_BUILD_PUSH_TOKEN");
+    expect(mirrorWorkflow).toContain("https://cnb.cool/tianma-if/edgeever");
+    expect(mirrorWorkflow).toContain('"HEAD:${destination}"');
+    expect(mirrorWorkflow).not.toContain("skopeo");
+    expect(mirrorWorkflow).not.toContain("ghcr.io");
+
+    expect(cnbWorkflow).toContain("main:\n  push:");
+    expect(cnbWorkflow).toContain('"v*":\n  tag_push:');
+    expect(cnbWorkflow).toContain("runner:\n        cpus: 2");
+    expect(cnbWorkflow).toContain("tianma-if/edgeever-secrets");
+    expect(cnbWorkflow).toContain("bash scripts/publish-tcr-image.sh");
+
+    expect(tcrPublisher).toContain(
+      'readonly TCR_IMAGE="${TCR_REGISTRY}/edgeever/edgeever"',
+    );
+    expect(tcrPublisher).toContain("--platform linux/amd64,linux/arm64");
+    expect(tcrPublisher).toContain('primary_tag="sha-${short_sha}"');
+    expect(tcrPublisher).toContain('promotion_tags=("${version}" latest)');
+    expect(tcrPublisher).toContain(
+      '--label "org.opencontainers.image.revision=${CNB_COMMIT}"',
+    );
+    expect(tcrPublisher).toContain("readonly build_attempts=3");
+    expect(tcrPublisher).toContain("attempt <= build_attempts");
+    expect(tcrPublisher).toContain("timeout --signal=TERM --kill-after=1m 15m");
+    expect(tcrPublisher).toContain("BuildKit can reuse completed layers");
+    expect(tcrPublisher).toContain("docker buildx imagetools create \\");
+    expect(tcrPublisher).toContain("org.opencontainers.image.revision");
+    expect(tcrPublisher).toContain("--format '{{json .Image}}'");
+    expect(tcrPublisher).toContain("TCR_SHA_TAGS_TO_KEEP=20");
+    expect(tcrPublisher).not.toContain("ghcr.io");
   });
 });

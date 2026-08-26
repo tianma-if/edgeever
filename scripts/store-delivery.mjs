@@ -13,6 +13,7 @@ Options:
   --release <tag>             Required formal GitHub Release tag
   --platform <target>         android, ios, or both (default: both)
   --android-track <track>     production, alpha, beta, or internal (default: production)
+  --recover-play-apk          Skip Play upload and recover its already signed APK
   --repository <owner/name>   GitHub repository (default: ${DEFAULT_REPOSITORY})
   --dry-run                   Print the workflow dispatch plan
   --help                      Show this help
@@ -25,6 +26,7 @@ export const parseStoreDeliveryArgs = (argv) => {
     androidTrack: "production",
     repository: DEFAULT_REPOSITORY,
     dryRun: false,
+    recoverPlayApk: false,
     help: false,
   };
   const valueOptions = new Map([
@@ -38,6 +40,10 @@ export const parseStoreDeliveryArgs = (argv) => {
     const argument = argv[index];
     if (argument === "--dry-run") {
       options.dryRun = true;
+      continue;
+    }
+    if (argument === "--recover-play-apk") {
+      options.recoverPlayApk = true;
       continue;
     }
     if (argument === "--help") {
@@ -91,6 +97,8 @@ const run = (options) => {
     `platform=${options.platform}`,
     "-f",
     `android_track=${options.androidTrack}`,
+    "-f",
+    `recover_play_apk=${options.recoverPlayApk}`,
   ];
   if (options.dryRun) {
     console.log(`gh ${args.join(" ")}`);
@@ -104,7 +112,9 @@ const run = (options) => {
     stdio: ["ignore", "pipe", "inherit"],
   });
   if (result.status !== 0) {
-    throw new Error(`GitHub workflow dispatch failed with status ${result.status ?? 1}.`);
+    throw new Error(
+      `GitHub workflow dispatch failed with status ${result.status ?? 1}.`,
+    );
   }
   const output = String(result.stdout ?? "").trim();
   console.log(output || "Store delivery workflow dispatched.");

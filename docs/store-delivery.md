@@ -2,10 +2,13 @@
 
 GitHub Releases and mobile store delivery are separate operations:
 
-- `bun run release` creates and audits the GitHub Release. It never contacts
-  Google Play or App Store Connect.
-- `bun run publish:stores` dispatches a manual store-delivery workflow for one
-  existing formal Release tag.
+- `bun run release` creates and audits the GitHub Release, but does not itself
+  authorize access to Google Play or App Store Connect. Android assets cannot
+  be published until they pass the Play app-signing gate.
+- `bun run publish:stores` dispatches a manual store-delivery workflow for a
+  matching Draft or an existing formal Release tag. When Android is rebuilt,
+  run it against the Draft so the Play-signed APK replaces the temporary
+  locally signed APK before publication.
 - Store delivery is the authorization to submit. By default, Google Play uses
   the Production track, while iOS continues from App Store Connect upload into
   App Review. Approved builds are released automatically.
@@ -15,7 +18,7 @@ GitHub Releases and mobile store delivery are separate operations:
 The workflow checks out the immutable Release tag rather than `main`. Before any
 store build starts, it verifies that:
 
-- the tag belongs to a formal, non-prerelease GitHub Release;
+- the tag belongs to a matching Draft or formal, non-prerelease GitHub Release;
 - the Release target and Git tag resolve to the same commit;
 - the audited range since the previous formal Release contains mobile runtime
   changes;
@@ -24,6 +27,13 @@ store build starts, it verifies that:
 
 A Release that reused the previous mobile binary is intentionally rejected. It
 does not represent a new store binary and should not be uploaded again.
+
+The publication gate accepts only `ANDROID_PLAY_APP_SIGNER_SHA256`. An APK
+signed by the local upload certificate may temporarily exist in a Draft for
+store processing, but cannot become the final Android asset of a formal
+Release. A failed gate leaves the Release as a Draft. If someone bypasses the
+release command and publishes manually, the `published` audit rejects that APK
+and restores Draft state.
 
 ## Prerequisites
 
@@ -67,6 +77,15 @@ Submit both platforms to Google Play Production and Apple App Review:
 bun run publish:stores -- --release v1.7.0
 ```
 
+Prepare the Android Play-signed asset for a Draft before formal publication:
+
+```sh
+bun run publish:stores -- \
+  --release v1.7.0 \
+  --platform android \
+  --android-track production
+```
+
 Deliver only Android to a closed testing track:
 
 ```sh
@@ -88,7 +107,8 @@ Actions artifacts, and uploads the AAB through EAS Submit.
 
 After Google Play finishes processing the bundle, the workflow downloads the
 Play-signed universal APK, verifies the pinned app-signing certificate, and
-replaces the GitHub Release Android asset. This makes installations from
+replaces the Draft or formal GitHub Release Android asset. A Draft replacement
+must also pass the independent pre-publication signature gate. This makes installations from
 Google Play and GitHub mutually updateable. The uploaded AAB is intentionally
 limited to `arm64-v8a`, so the Play-generated universal APK does not bundle
 unused 32-bit ARM or x86 native libraries. Automatic Protection must be

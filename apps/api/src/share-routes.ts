@@ -1,4 +1,4 @@
-import type { MemoShare, PublicMemoShare, TiptapDoc } from "@edgeever/shared";
+import { collectMemoLinkIds, resolveMemoContentDoc, type MemoShare, type PublicMemoShare, type TiptapDoc } from "@edgeever/shared";
 import type { Hono } from "hono";
 import type { AppEnv } from "./api-context";
 import { audit } from "./audit";
@@ -13,12 +13,14 @@ const SHARE_TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 
 type MemoShareRow = { memo_id: string; token: string; created_at: string; updated_at: string };
 type PublicMemoShareRow = {
+  workspace_id: string;
   title: string | null;
   content_json: string;
   content_markdown: string;
   tags_json: string;
   updated_at: string;
 };
+type ReferencedMemoShareRow = { memo_id: string; token: string };
 type SharedResourceRow = {
   object_key: string;
   storage_config_id: string;
@@ -55,7 +57,7 @@ export const registerPublicShareRoutes = (app: Hono<AppEnv>) => {
     if (!token) return notFound(c, "Shared note not found");
 
     const row = await c.env.storage.db.prepare(
-      `SELECT m.title, mc.content_json, mc.content_markdown, m.tags_json, m.updated_at
+      `SELECT ms.workspace_id, m.title, mc.content_json, mc.content_markdown, m.tags_json, m.updated_at
        FROM memo_shares ms
        INNER JOIN memos m ON m.id = ms.memo_id AND m.workspace_id = ms.workspace_id
        INNER JOIN memo_contents mc ON mc.memo_id = m.id
@@ -64,12 +66,30 @@ export const registerPublicShareRoutes = (app: Hono<AppEnv>) => {
     ).bind(token).first<PublicMemoShareRow>();
     if (!row) return notFound(c, "Shared note not found");
 
+    const contentJson = JSON.parse(row.content_json) as TiptapDoc;
+    const referencedMemoIds = collectMemoLinkIds(resolveMemoContentDoc(contentJson, row.content_markdown));
+    const memoShareTokens: Record<string, string> = {};
+    for (let offset = 0; offset < referencedMemoIds.length; offset += 80) {
+      const batch = referencedMemoIds.slice(offset, offset + 80);
+      const placeholders = batch.map(() => "?").join(", ");
+      const linkedShares = await c.env.storage.db.prepare(
+        `SELECT ms.memo_id, ms.token
+         FROM memo_shares ms
+         INNER JOIN memos m ON m.id = ms.memo_id AND m.workspace_id = ms.workspace_id
+         WHERE ms.workspace_id = ? AND ms.memo_id IN (${placeholders}) AND m.is_deleted = 0`
+      ).bind(row.workspace_id, ...batch).all<ReferencedMemoShareRow>();
+      for (const linkedShare of linkedShares.results) {
+        memoShareTokens[linkedShare.memo_id] = linkedShare.token;
+      }
+    }
+
     const share: PublicMemoShare = {
       title: row.title,
-      contentJson: JSON.parse(row.content_json) as TiptapDoc,
+      contentJson,
       contentMarkdown: row.content_markdown,
       tags: parseJsonArray(row.tags_json),
       updatedAt: row.updated_at,
+      memoShareTokens,
     };
     c.header("Cache-Control", "private, no-store");
     c.header("X-Robots-Tag", "noindex, nofollow, noarchive");

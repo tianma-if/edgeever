@@ -4,7 +4,7 @@ import { AppState, Platform, type AppStateStatus } from "react-native";
 import * as Updates from "expo-updates";
 import { Alert } from "../components/LocalizedText";
 import { useMobileLocale } from "./mobile-locale";
-import { downloadAndInstallAndroidApk } from "./android-apk-update";
+import { downloadAndroidApk, installDownloadedAndroidApk } from "./android-apk-update";
 import { findNewerMobileRelease, type MobileRelease } from "./mobile-release";
 
 const FOREGROUND_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
@@ -37,14 +37,96 @@ const MobileUpdateContext = createContext<MobileUpdateContextValue>({
 export const MobileUpdateProvider = ({ children }: { children: ReactNode }) => {
   const { resolvedLocale } = useMobileLocale();
   const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
+  const [downloadedInstallFileUri, setDownloadedInstallFileUri] = useState<string | null>(null);
   const [installRelease, setInstallRelease] = useState<MobileRelease | null>(null);
   const [status, setStatus] = useState<MobileUpdateStatus>("idle");
   const [updateKind, setUpdateKind] = useState<MobileUpdateKind | null>(null);
   const activeCheckRef = useRef<Promise<void> | null>(null);
+  const activeDownloadRef = useRef<Promise<string> | null>(null);
   const lastAutomaticCheckRef = useRef(0);
+  const pendingInstallPromptRef = useRef<{ fileUri: string; release: MobileRelease } | null>(null);
+  const promptedInstallVersionRef = useRef<string | null>(null);
   const isSupported = !__DEV__ && Updates.isEnabled;
   const english = resolvedLocale === "en-US";
   const installedVersion = Updates.runtimeVersion ?? Constants.expoConfig?.version ?? null;
+
+  const openPreparedInstaller = useCallback((release: MobileRelease, fileUri: string) => {
+    Alert.alert(
+      english ? "Update ready" : "更新已就绪",
+      english
+        ? `EdgeEver ${release.version} has been downloaded and is ready to install.`
+        : `EdgeEver ${release.version} 安装包已下载完成，可以立即安装。`,
+      [
+        {
+          text: english ? "Later" : "稍后",
+          style: "cancel",
+        },
+        {
+          text: english ? "Install now" : "立即安装",
+          onPress: () => {
+            setStatus("installing");
+            void installDownloadedAndroidApk(fileUri).then(() => {
+              setStatus("ready");
+            }).catch(() => {
+              setStatus("ready");
+              Alert.alert(
+                english ? "Could not open installer" : "无法打开安装器",
+                english
+                  ? "Allow EdgeEver to install apps when prompted, then try again."
+                  : "请在系统提示时允许 EdgeEver 安装应用，然后重试。"
+              );
+            });
+          },
+        },
+      ]
+    );
+  }, [english]);
+
+  const promptPreparedInstallerWhenActive = useCallback((release: MobileRelease, fileUri: string) => {
+    if (promptedInstallVersionRef.current === release.version) {
+      return;
+    }
+    if (AppState.currentState !== "active") {
+      pendingInstallPromptRef.current = { fileUri, release };
+      return;
+    }
+    pendingInstallPromptRef.current = null;
+    promptedInstallVersionRef.current = release.version;
+    openPreparedInstaller(release, fileUri);
+  }, [openPreparedInstaller]);
+
+  const prepareInstallRelease = useCallback(async (release: MobileRelease, promptWhenReady: boolean) => {
+    setInstallRelease(release);
+    setUpdateKind("install");
+
+    let download = activeDownloadRef.current;
+    if (!download) {
+      setDownloadProgress(0);
+      setStatus("downloading");
+      download = downloadAndroidApk(release, ({ progress }) => setDownloadProgress(progress));
+      activeDownloadRef.current = download;
+    }
+
+    try {
+      const fileUri = await download;
+      setDownloadedInstallFileUri(fileUri);
+      setDownloadProgress(null);
+      setStatus("ready");
+      if (promptWhenReady) {
+        promptPreparedInstallerWhenActive(release, fileUri);
+      }
+      return fileUri;
+    } catch (error) {
+      setDownloadedInstallFileUri(null);
+      setDownloadProgress(null);
+      setStatus("available");
+      throw error;
+    } finally {
+      if (activeDownloadRef.current === download) {
+        activeDownloadRef.current = null;
+      }
+    }
+  }, [promptPreparedInstallerWhenActive]);
 
   const runCheck = useCallback((userInitiated: boolean) => {
     if (activeCheckRef.current) {
@@ -74,9 +156,18 @@ export const MobileUpdateProvider = ({ children }: { children: ReactNode }) => {
             }
             const release = await findNewerMobileRelease(installedVersion);
             if (release) {
-              setInstallRelease(release);
-              setUpdateKind("install");
-              setStatus("available");
+              try {
+                await prepareInstallRelease(release, true);
+              } catch {
+                if (userInitiated) {
+                  Alert.alert(
+                    english ? "Download failed" : "下载失败",
+                    english
+                      ? "Could not prepare the update package. Check your connection and try again."
+                      : "无法准备更新安装包，请检查网络后重试。"
+                  );
+                }
+              }
               return;
             }
           } catch {
@@ -107,7 +198,7 @@ export const MobileUpdateProvider = ({ children }: { children: ReactNode }) => {
       activeCheckRef.current = null;
     });
     return check;
-  }, [english, installedVersion, isSupported]);
+  }, [english, installedVersion, isSupported, prepareInstallRelease]);
 
   useEffect(() => {
     const attemptAutomaticCheck = () => {
@@ -120,6 +211,10 @@ export const MobileUpdateProvider = ({ children }: { children: ReactNode }) => {
     const timer = setTimeout(attemptAutomaticCheck, 1_500);
     const subscription = AppState.addEventListener("change", (nextState: AppStateStatus) => {
       if (nextState === "active") {
+        const pendingPrompt = pendingInstallPromptRef.current;
+        if (pendingPrompt) {
+          promptPreparedInstallerWhenActive(pendingPrompt.release, pendingPrompt.fileUri);
+        }
         attemptAutomaticCheck();
       }
     });
@@ -128,50 +223,25 @@ export const MobileUpdateProvider = ({ children }: { children: ReactNode }) => {
       clearTimeout(timer);
       subscription.remove();
     };
-  }, [runCheck]);
+  }, [promptPreparedInstallerWhenActive, runCheck]);
 
   const openUpdate = useCallback(async () => {
     if (updateKind === "install") {
       if (Platform.OS !== "android" || !installRelease || status === "downloading" || status === "installing") {
         return;
       }
-      const sizeMb = Math.max(1, Math.ceil(installRelease.size / 1024 / 1024));
-      Alert.alert(
-        english ? "Update available" : "发现新版本",
-        english
-          ? `EdgeEver ${installRelease.version} is available. Download ${sizeMb} MB and install it now?`
-          : `EdgeEver ${installRelease.version} 已发布。是否立即下载 ${sizeMb} MB 安装包并更新？`,
-        [
-          {
-            text: english ? "Cancel" : "取消",
-            style: "cancel",
-          },
-          {
-            text: english ? "Download & install" : "下载并安装",
-            onPress: () => {
-              setDownloadProgress(0);
-              setStatus("downloading");
-              void downloadAndInstallAndroidApk(
-                installRelease,
-                ({ progress }) => setDownloadProgress(progress),
-                () => setStatus("installing")
-              ).then(() => {
-                setDownloadProgress(null);
-                setStatus("available");
-              }).catch(() => {
-                setDownloadProgress(null);
-                setStatus("available");
-                Alert.alert(
-                  english ? "Update failed" : "更新失败",
-                  english
-                    ? "Could not download or open the installer. Try again later."
-                    : "无法下载安装包或打开系统安装器，请稍后重试。"
-                );
-              });
-            },
-          },
-        ]
-      );
+      if (downloadedInstallFileUri) {
+        openPreparedInstaller(installRelease, downloadedInstallFileUri);
+        return;
+      }
+      void prepareInstallRelease(installRelease, true).catch(() => {
+        Alert.alert(
+          english ? "Download failed" : "下载失败",
+          english
+            ? "Could not prepare the update package. Check your connection and try again."
+            : "无法准备更新安装包，请检查网络后重试。"
+        );
+      });
       return;
     }
 
@@ -224,7 +294,7 @@ export const MobileUpdateProvider = ({ children }: { children: ReactNode }) => {
           : "无法下载应用内更新，请稍后再试。"
       );
     }
-  }, [english, installRelease, isSupported, status, updateKind]);
+  }, [downloadedInstallFileUri, english, installRelease, isSupported, openPreparedInstaller, prepareInstallRelease, status, updateKind]);
 
   const value = useMemo<MobileUpdateContextValue>(
     () => ({

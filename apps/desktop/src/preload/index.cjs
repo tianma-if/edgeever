@@ -19,6 +19,11 @@ contextBridge.exposeInMainWorld("edgeeverDesktop", Object.freeze({
   checkUpdate: () => ipcRenderer.invoke("desktop:check-update"),
   downloadUpdate: () => ipcRenderer.invoke("desktop:download-update"),
   installUpdate: () => ipcRenderer.invoke("desktop:install-update"),
+  onUpdateStatus: (callback) => {
+    const listener = (_event, status) => callback(status);
+    ipcRenderer.on("desktop:update-status-changed", listener);
+    return () => ipcRenderer.removeListener("desktop:update-status-changed", listener);
+  },
   sidecarRequest: (method, params = {}) => ipcRenderer.invoke("desktop:sidecar-request", method, params),
   stageResource: (input) => ipcRenderer.invoke("desktop:stage-resource", input),
   listStagedResources: () => ipcRenderer.invoke("desktop:list-staged-resources"),

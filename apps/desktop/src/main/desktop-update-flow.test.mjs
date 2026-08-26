@@ -5,6 +5,7 @@ const mainSource = readFileSync(new URL("./index.mjs", import.meta.url), "utf8")
 const preloadSource = readFileSync(new URL("../preload/index.cjs", import.meta.url), "utf8");
 const noticeSource = readFileSync(new URL("../../../web/src/components/DesktopUpdateNotice.tsx", import.meta.url), "utf8");
 const systemInfoSource = readFileSync(new URL("../../../web/src/components/settings/SystemInfoPanel.tsx", import.meta.url), "utf8");
+const notebookPaneSource = readFileSync(new URL("../../../web/src/components/NotebookPane.tsx", import.meta.url), "utf8");
 
 describe("desktop update flow", () => {
   test("downloads updates in the background and relaunches after installation", () => {
@@ -37,5 +38,16 @@ describe("desktop update flow", () => {
     expect(noticeSource).toContain('statusQuery.data?.state === "downloaded"');
     expect(noticeSource).toContain('t("systemInfo.desktopUpdateRestart")');
     expect(noticeSource).not.toContain("downloadUpdate()");
+  });
+
+  test("pushes update status and shows a native restart prompt after download", () => {
+    expect(mainSource).toContain('mainWindow.webContents.send("desktop:update-status-changed"');
+    expect(mainSource).toContain("promptForDownloadedUpdate(downloadedUpdateVersion)");
+    expect(mainSource).toContain('title: isChinese ? "EdgeEver 更新已就绪" : "EdgeEver update ready"');
+    expect(preloadSource).toContain('ipcRenderer.on("desktop:update-status-changed"');
+    expect(noticeSource).toContain("bridge.onUpdateStatus");
+    expect(noticeSource).toContain('role="alert"');
+    expect(notebookPaneSource).toContain("<DesktopUpdateNotice />");
+    expect(notebookPaneSource).toContain('className="flex items-center gap-1"');
   });
 });

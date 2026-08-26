@@ -75,14 +75,15 @@ audited range includes mobile runtime code, shared mobile packages,
 dependencies, native configuration, Android build tooling, or signer
 verification.
 
-This locally signed APK prepares the Draft without requiring a Google Play
-submission. After the matching AAB is delivered, the store-delivery workflow
+This locally signed APK is only a temporary Draft asset and is never accepted
+for formal publication. After the matching AAB is delivered, the store-delivery workflow
 downloads Google Play's signed universal APK and replaces the GitHub Release
 asset under the established filename. Because the uploaded AAB contains only
 `arm64-v8a`, the Play-generated APK also remains arm64-only. Publishing the
 Play-signed APK lets Play and GitHub installations update each other without
 uninstalling the app. The workflow pins and verifies the Play app-signing
-certificate before replacing the asset.
+certificate before replacing the asset. An independent pre-publication gate
+then verifies that the Draft APK uses only that Play app-signing certificate.
 
 ### Recommended local Play build
 
@@ -122,12 +123,14 @@ Set `EDGE_EVER_ANDROID_ENV_FILE` to use a different secure environment file.
 
 ### Automated store delivery
 
-The GitHub Release workflow never builds or uploads a Play bundle. After a
-formal Release that contains mobile changes is published, use the separate
+The GitHub Release workflow never builds or uploads a Play bundle. Before a
+Draft that contains mobile changes can be published, use the separate
 store-delivery workflow. It builds a signed AAB from the immutable Release tag,
 preserves the AAB and R8 mapping as Actions artifacts, and uploads the bundle
 through EAS Submit. It then replaces the GitHub APK with the Play-signed
-universal APK. See [Mobile Store Delivery](store-delivery.md).
+universal APK. Rerun the release command after that workflow succeeds; it
+audits the Play signer and resumes publication. See
+[Mobile Store Delivery](store-delivery.md).
 
 The upload keystore is only used to prove ownership when uploading bundles;
 Google Play App Signing manages the app signing key delivered to users. Keep an

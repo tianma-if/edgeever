@@ -5,7 +5,6 @@ import { useTranslation } from "react-i18next";
 import { PwaUpdateNotice } from "@/components/PwaUpdateNotice";
 import { PwaInstallProvider } from "@/components/PwaInstallContext";
 import { PwaIosPrompt } from "@/components/PwaIosPrompt";
-import { DesktopUpdateNotice } from "@/components/DesktopUpdateNotice";
 import { Button } from "@/components/ui/button";
 import {
   api,
@@ -230,7 +229,6 @@ export const App = () => {
         <Route path="/ai-prompts" element={<AuthenticatedWorkspace />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-      <DesktopUpdateNotice />
       <PwaUpdateNotice />
       <PwaIosPrompt />
     </PwaInstallProvider>

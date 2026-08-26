@@ -22,10 +22,12 @@ export const MobileUpdateCard = () => {
     : status === "installing"
       ? (english ? "Opening installer…" : "正在打开安装器…")
     : status === "ready"
-      ? (english ? "Restart to apply" : "重启以应用")
+      ? updateKind === "install"
+        ? (english ? "Install now" : "立即安装")
+        : (english ? "Restart to apply" : "重启以应用")
       : updateKind === "ota"
         ? (english ? "Download update" : "下载更新")
-        : (english ? "Download & install" : "下载并安装");
+        : (english ? "Prepare update" : "准备更新");
 
   return (
     <View style={styles.card}>

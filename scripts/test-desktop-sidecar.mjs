@@ -108,6 +108,75 @@ const coalescedUpdates = (await request("sync.outbox.list", { limit: 200 })).ite
 assert.equal(coalescedUpdates.length, 1, "offline autosaves should coalesce into one sidecar outbox item");
 assert.equal(coalescedUpdates[0].payload.contentMarkdown, "latest autosave");
 assert.equal((await request("memo.get", { memoId: coalesced.memo.id })).memo.revision, 0, "local autosaves must not advance the acknowledged cloud revision");
+assert.equal(coalescedUpdates[0].version, 2, "coalescing a newer autosave should advance the outbox version");
+
+const remapRace = await request("memo.create", { notebookId: inbox.id, title: "Remap race", contentMarkdown: "created locally", tags: [] });
+const remapCreate = (await request("sync.outbox.list", { limit: 200 })).items.find((item) => item.kind === "memo.create" && item.entityId === remapRace.memo.id);
+assert.ok(remapCreate, "new desktop memo should have a create outbox item");
+const remoteCreatedMemo = {
+  ...remapRace.memo,
+  id: "memo_remote_remap_race",
+  revision: 1,
+  updatedAt: "2026-08-26T02:15:21.000Z",
+};
+await request("sync.outbox.ack", { id: remapCreate.id, version: remapCreate.version, remoteMemo: remoteCreatedMemo });
+await request("memo.update", {
+  ...updatePayload("first save after create acknowledgement"),
+  memoId: remoteCreatedMemo.id,
+  expectedRevision: 0,
+  expectedContentHash: remapRace.memo.contentHash,
+});
+const remappedUpdate = (await request("sync.outbox.list", { limit: 200 })).items.find((item) => item.kind === "memo.update" && item.entityId === remoteCreatedMemo.id);
+assert.ok(remappedUpdate, "editing immediately after id remapping should queue a remote-id update");
+assert.equal(remappedUpdate.payload.expectedRevision, remoteCreatedMemo.revision, "a scheduled revision-0 autosave should rebase to its own create acknowledgement");
+assert.equal(remappedUpdate.payload.expectedContentHash, remoteCreatedMemo.contentHash);
+
+await request("memo.update", {
+  ...updatePayload("successor typed while the first request was in flight"),
+  memoId: remoteCreatedMemo.id,
+  expectedRevision: remoteCreatedMemo.revision,
+  expectedContentHash: remoteCreatedMemo.contentHash,
+});
+const successorBeforeAck = (await request("sync.outbox.list", { limit: 200 })).items.find((item) => item.id === remappedUpdate.id);
+assert.equal(successorBeforeAck.version, remappedUpdate.version + 1);
+const firstRemoteUpdate = {
+  ...remoteCreatedMemo,
+  revision: 2,
+  contentJson: remappedUpdate.payload.contentJson,
+  contentMarkdown: remappedUpdate.payload.contentMarkdown,
+  contentText: remappedUpdate.payload.contentMarkdown,
+  contentHash: "remote-hash-after-first-save",
+  updatedAt: "2026-08-26T02:15:22.000Z",
+};
+const supersededAck = await request("sync.outbox.ack", {
+  id: remappedUpdate.id,
+  version: remappedUpdate.version,
+  remoteMemo: firstRemoteUpdate,
+});
+assert.equal(supersededAck.superseded, true, "an acknowledgement must not delete a newer coalesced autosave");
+const successorAfterAck = (await request("sync.outbox.list", { limit: 200 })).items.find((item) => item.id === remappedUpdate.id);
+assert.ok(successorAfterAck, "the successor autosave should remain queued");
+assert.equal(successorAfterAck.status, "pending");
+assert.equal(successorAfterAck.payload.contentMarkdown, "successor typed while the first request was in flight");
+assert.equal(successorAfterAck.payload.expectedRevision, firstRemoteUpdate.revision);
+assert.equal(successorAfterAck.payload.expectedContentHash, firstRemoteUpdate.contentHash);
+const preservedSuccessor = await request("memo.get", { memoId: remoteCreatedMemo.id });
+assert.equal(preservedSuccessor.memo.contentMarkdown, "successor typed while the first request was in flight", "acknowledging an older request must preserve the live local draft");
+assert.equal(preservedSuccessor.memo.revision, firstRemoteUpdate.revision, "the preserved successor should advance to the acknowledged cloud revision");
+const secondRemoteUpdate = {
+  ...preservedSuccessor.memo,
+  revision: 3,
+  contentHash: "remote-hash-after-successor",
+  updatedAt: "2026-08-26T02:15:23.000Z",
+};
+const finalAck = await request("sync.outbox.ack", {
+  id: successorAfterAck.id,
+  version: successorAfterAck.version,
+  remoteMemo: secondRemoteUpdate,
+});
+assert.equal(finalAck.superseded, false);
+assert.ok(!(await request("sync.outbox.list", { limit: 200 })).items.some((item) => item.id === successorAfterAck.id), "the exact successor acknowledgement should clear the outbox item");
+assert.equal((await request("memo.get", { memoId: remoteCreatedMemo.id })).memo.revision, secondRemoteUpdate.revision);
 
 const batchNotebook = (await request("notebook.create", { name: "Batch destination" })).notebook;
 const batchFirst = (await request("memo.create", { notebookId: inbox.id, title: "Batch one", contentMarkdown: "batch one", tags: ["batch-tag"] })).memo;
@@ -226,7 +295,8 @@ const conflictMemo = await request("memo.create", { notebookId: inbox.id, title:
 const conflictCandidate = (await request("sync.outbox.list", { limit: 200 })).items.find((item) => item.entityId === conflictMemo.memo.id);
 assert.ok(conflictCandidate, "conflict test should create an outbox item");
 await request("sync.outbox.fail", { id: conflictCandidate.id, error: "test conflict", conflict: true });
-assert.ok((await request("sync.outbox.list", { limit: 200 })).items.some((item) => item.id === conflictCandidate.id && item.status === "conflict"));
+assert.ok(!(await request("sync.outbox.list", { limit: 200 })).items.some((item) => item.id === conflictCandidate.id), "conflicts must not be returned to the automatic retry loop");
+assert.ok((await request("sync.outbox.list", { limit: 200, includeConflicts: true })).items.some((item) => item.id === conflictCandidate.id && item.status === "conflict"), "conflicts should remain available to explicit recovery actions");
 await request("sync.outbox.discard", { id: conflictCandidate.id });
 assert.equal((await request("sync.status")).conflict, 0);
 

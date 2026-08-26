@@ -61,6 +61,7 @@ import {
   MAX_MEMO_LIST_WIDTH_PX,
   DEFAULT_MEMO_LIST_WIDTH_PX,
   isTextEntryTarget,
+  getSearchShortcutScope,
   getShortcutActionForEvent,
   getNotebookDropSortOrder,
   buildNotebookTree,
@@ -74,6 +75,7 @@ import { useBrowserBackLayer } from "@/lib/app-hooks";
 import { updateMemoSummaryInLists, type MemoListQueryData } from "@/lib/memo-list-cache";
 import { shouldAcceptRemoteMemoDetail } from "@/lib/memo-detail-freshness";
 import {
+  clearLocalScope,
   createLocalDataScope,
   putLocalMemo,
   putLocalNotebook,
@@ -737,13 +739,26 @@ export const WorkspaceApp = ({
   }, [pluginHost]);
 
   const resetDemoMutation = useMutation({
-    mutationFn: () => api.resetDemo(),
-    onSuccess: () => {
+    mutationFn: async () => {
+      await api.resetDemo();
+      await clearLocalScope(localDataScope);
+      await repository.sync();
+    },
+    onMutate: () => {
+      const previousSelectedMemoId = selectedMemoIdRef.current;
+      setSelectedMemoId(null);
+      setCreatedMemoEditId(null);
+      pendingCreatedMemoIdRef.current = null;
+      pendingQuickSwitcherMemoIdRef.current = null;
+      return { previousSelectedMemoId };
+    },
+    onSuccess: async () => {
       setDemoResetConfirmationOpen(false);
-      void Promise.all([
+      queryClient.removeQueries({ queryKey: ["memo"] });
+      await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["memos"] }),
-        queryClient.invalidateQueries({ queryKey: ["memo"] }),
         queryClient.invalidateQueries({ queryKey: ["notebooks"] }),
+        queryClient.invalidateQueries({ queryKey: ["templates"] }),
         queryClient.invalidateQueries({ queryKey: ["resources"] }),
         queryClient.invalidateQueries({ queryKey: ["tags"] }),
       ]);
@@ -752,8 +767,11 @@ export const WorkspaceApp = ({
         description: t("demo.resetSuccess"),
       });
     },
-    onError: () => {
+    onError: (_error, _variables, context) => {
       setDemoResetConfirmationOpen(false);
+      if (context?.previousSelectedMemoId) {
+        setSelectedMemoId(context.previousSelectedMemoId);
+      }
       setAppNoticeDialog({
         title: t("demo.resetFailed"),
         description: t("demo.resetFailed"),
@@ -2649,7 +2667,7 @@ export const WorkspaceApp = ({
 
       if (action === "focusSearch") {
         event.preventDefault();
-        if (!selectedMemoId || !isDesktopViewport()) {
+        if (getSearchShortcutScope(selectedMemoId) === "memo-list") {
           clearMemoSelection();
           handleMobileSearch();
           return;

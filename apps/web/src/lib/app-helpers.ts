@@ -63,6 +63,9 @@ export const isTextEntryTarget = (target: EventTarget | null) =>
   target instanceof HTMLElement &&
   Boolean(target.closest("input, textarea, select, [contenteditable='true'], [role='textbox'], .ProseMirror"));
 
+export const getSearchShortcutScope = (selectedMemoId: string | null): "note" | "memo-list" =>
+  selectedMemoId ? "note" : "memo-list";
+
 export const getNotebookAncestorIds = (nodes: NotebookNode[], targetNotebookId: string) => {
   const walk = (items: NotebookNode[], ancestors: string[]): string[] | null => {
     for (const node of items) {

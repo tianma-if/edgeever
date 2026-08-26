@@ -109,13 +109,13 @@ html[data-edgeever-environment="demo"] body::after {
     --brand-green-800-rgb: 17 83 60;
     --brand-green-900-rgb: 15 68 50;
     --brand-green-950-rgb: 7 37 28;
-    --workspace-canvas: #f2f2f2;
-    --workspace-sidebar: #f2f2f2;
-    --workspace-memo-list: #f7f7f7;
+    --workspace-canvas: #f8f9fa;
+    --workspace-sidebar: #f8f9fa;
+    --workspace-memo-list: #fafafa;
     --workspace-editor: #ffffff;
-    --workspace-divider: #dcdcdc;
-    --workspace-memo-divider: #dedede;
-    --workspace-selection: #e5e5e5;
+    --workspace-divider: #e9ebed;
+    --workspace-memo-divider: #edf0f2;
+    --workspace-selection: #edf0f2;
     --slate-50-rgb: 250 250 250;
     --slate-100-rgb: 245 245 245;
     --slate-200-rgb: 229 229 229;
@@ -261,6 +261,16 @@ body {
   color: hsl(var(--foreground));
   overscroll-behavior-x: none;
   overscroll-behavior-y: auto;
+}
+
+::selection {
+  background-color: rgb(var(--brand-green-rgb) / 0.18);
+  color: inherit;
+}
+
+:root.dark ::selection {
+  background-color: rgb(var(--brand-green-rgb) / 0.28);
+  color: inherit;
 }
 
 /* Installed theme packages only target this documented token layer. Keeping
@@ -472,7 +482,10 @@ html[data-edgeever-extension-theme] .edgeever-memo-divider {
   --editor-theme-bg: var(--workspace-editor);
 }
 
-:root.dark .ProseMirror {
+:root.dark .ProseMirror,
+:root.dark .ProseMirror h1,
+:root.dark .ProseMirror h2,
+:root.dark .ProseMirror h3 {
   color: hsl(var(--foreground));
 }
 
@@ -486,12 +499,14 @@ textarea {
   width: 100%;
   max-width: 100%;
   margin: 0;
-  color: #000;
+  color: #27272a;
   font-size: var(--editor-body-font-size);
   line-height: var(--editor-body-line-height);
   min-height: 100%;
   outline: none;
-  padding: 8px 12px 56px;
+  padding: 8px 0 56px;
+  tab-size: 4;
+  white-space: pre-wrap;
 }
 
 .edgeever-public-share .ProseMirror {
@@ -548,28 +563,35 @@ textarea {
   .ProseMirror {
     max-width: none;
     margin: 0;
-    padding: 18px 16px max(4rem, env(safe-area-inset-bottom));
+    padding: 8px 0 max(4rem, env(safe-area-inset-bottom));
   }
 }
 
 .ProseMirror h1 {
-  font-size: 2rem;
-  font-weight: 760;
-  line-height: 1.15;
-  margin: 0 0 1rem;
+  font-size: 1.875rem;
+  font-weight: 700;
+  line-height: 1.28;
+  letter-spacing: -0.022em;
+  margin: 0 0 0.85rem;
+  color: #0f172a;
 }
 
 .ProseMirror h2 {
-  font-size: 1.5rem;
-  font-weight: 720;
-  line-height: 1.2;
-  margin: 1.4rem 0 0.7rem;
+  font-size: 1.375rem;
+  font-weight: 650;
+  line-height: 1.32;
+  letter-spacing: -0.015em;
+  margin: 1.4rem 0 0.6rem;
+  color: #0f172a;
 }
 
 .ProseMirror h3 {
-  font-size: 1.2rem;
-  font-weight: 700;
-  margin: 1.2rem 0 0.6rem;
+  font-size: 1.125rem;
+  font-weight: 600;
+  line-height: 1.38;
+  letter-spacing: -0.01em;
+  margin: 1.15rem 0 0.5rem;
+  color: #1e293b;
 }
 
 .ProseMirror p {
@@ -751,6 +773,7 @@ textarea {
   width: 1rem;
   height: 1rem;
   margin: 0;
+  border-radius: 3px;
   accent-color: var(--brand-green);
   cursor: pointer;
 }
@@ -764,6 +787,13 @@ textarea {
   margin-bottom: 0;
 }
 
+.ProseMirror ul[data-type="taskList"] li[data-checked="true"] > div > p {
+  color: rgb(var(--slate-500-rgb));
+  text-decoration: line-through;
+  text-decoration-color: rgb(var(--slate-400-rgb));
+  transition: color 150ms ease, text-decoration 150ms ease;
+}
+
 .ProseMirror ul[data-type="taskList"] ul[data-type="taskList"] {
   margin: 0.25rem 0 0;
   padding-left: 1.5rem;
@@ -772,28 +802,32 @@ textarea {
 .ProseMirror blockquote {
   margin: 0 0 1rem;
   border-left: 3px solid var(--brand-green);
-  padding: 0.1rem 0 0.1rem 1rem;
-  color: #1e293b;
-  background: var(--brand-green-soft);
+  border-radius: 1px 4px 4px 1px;
+  padding: 0.35rem 0.5rem 0.35rem 0.85rem;
+  color: #334155;
+  background: color-mix(in srgb, var(--brand-green) 4%, transparent);
 }
 
 .ProseMirror code {
-  border: 1px solid #d9eadf;
-  border-radius: 5px;
-  background: #f6fbf7;
-  padding: 0.08rem 0.28rem;
-  font-size: 0.9em;
-  color: #1e293b;
+  border: 1px solid #d4ebdc;
+  border-radius: 4px;
+  background: #f2f9f5;
+  padding: 0.12rem 0.38rem;
+  font-size: 0.875em;
+  font-weight: 550;
+  color: #0d5f3a;
+  font-family: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
 .ProseMirror pre {
   margin: 0 0 1rem;
   overflow-x: auto;
-  border: 1px solid #d9eadf;
+  border: 1px solid rgb(var(--slate-300-rgb) / 0.6);
   border-radius: 8px;
-  background: #f7fbf8;
+  background: rgb(var(--slate-50-rgb) / 0.75);
   padding: 0.9rem 1rem;
-  color: #1e293b;
+  color: #0f172a;
+  box-shadow: 0 1px 2px rgb(var(--slate-900-rgb) / 0.03);
 }
 
 .ProseMirror pre code {
@@ -814,35 +848,41 @@ textarea {
   top: 0.45rem;
   right: 0.45rem;
   z-index: 1;
-  border: 1px solid #cbded1;
-  border-radius: 5px;
-  padding: 0.2rem 0.45rem;
-  background: rgb(247 251 248 / 0.92);
+  border: 1px solid rgb(var(--slate-300-rgb) / 0.7);
+  border-radius: 6px;
+  padding: 0.22rem 0.5rem;
+  background: rgb(255 255 255 / 0.88);
+  backdrop-filter: blur(6px);
   color: #475569;
   font: inherit;
   font-size: 0.72rem;
+  font-weight: 500;
   line-height: 1.4;
   cursor: pointer;
+  transition: border-color 150ms ease, color 150ms ease, background-color 150ms ease, box-shadow 150ms ease;
 }
 
 .ProseMirror .edgeever-code-copy-button:hover,
 .ProseMirror .edgeever-code-copy-button:focus-visible {
-  border-color: #0f766e;
-  color: #0f766e;
+  border-color: var(--brand-green);
+  color: var(--brand-green-text);
+  background: rgb(255 255 255 / 0.96);
+  box-shadow: 0 1px 4px rgb(var(--brand-green-rgb) / 0.12);
   outline: none;
 }
 
 .ProseMirror .edgeever-code-source {
   overflow-x: auto;
-  border: 1px solid #d9eadf;
+  border: 1px solid rgb(var(--slate-300-rgb) / 0.6);
   border-radius: 8px;
-  background: #f7fbf8;
+  background: rgb(var(--slate-50-rgb) / 0.75);
   padding: 0.9rem 1rem;
-  color: #1e293b;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  color: #0f172a;
+  font-family: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   font-size: 0.875em;
   white-space: pre;
   padding-right: 5.5rem;
+  box-shadow: 0 1px 2px rgb(var(--slate-900-rgb) / 0.03);
 }
 
 .ProseMirror .edgeever-mermaid-code-block {
@@ -1230,14 +1270,14 @@ textarea {
   margin: 1rem 0;
 }
 .markdown-content code {
-  font-family: monospace;
-  background-color: #f6fbf7;
-  color: #1e293b;
-  border: 1px solid #d9eadf;
-  padding: 0.125rem 0.35rem;
+  font-family: "JetBrains Mono", "Fira Code", monospace;
+  background-color: #f2f9f5;
+  color: #0d5f3a;
+  border: 1px solid #d4ebdc;
+  padding: 0.125rem 0.38rem;
   border-radius: 4px;
   font-size: 0.8rem;
-  font-weight: 600;
+  font-weight: 550;
 }
 .markdown-content pre code {
   background-color: transparent;
@@ -1259,32 +1299,77 @@ textarea {
 
 .ProseMirror .tableWrapper,
 .markdown-content .tableWrapper {
-  width: fit-content;
+  --mobile-table-column-width: clamp(4.5rem, 24cqi, 12rem);
+  container-type: inline-size;
+  display: block;
+  width: 100%;
   max-width: 100%;
+  min-width: 0;
   overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
   margin-top: 1.25rem;
   margin-right: auto;
   margin-bottom: 1.25rem;
   margin-left: 0;
-  border: 1px solid #d8d8d8;
-  border-radius: 2px;
+  border: 1px solid rgb(var(--slate-300-rgb) / 0.7);
+  border-radius: 6px;
   background: #fff;
   overscroll-behavior-inline: contain;
   scrollbar-color: rgb(100 116 139 / 0.28) transparent;
+  box-shadow: 0 1px 3px rgb(var(--slate-900-rgb) / 0.03);
 }
 
 .ProseMirror table,
 .markdown-content table {
-  width: max-content;
-  min-width: 42rem !important;
+  width: 100%;
+  max-width: none;
+  min-width: 100%;
   border-collapse: separate;
   border-spacing: 0;
   table-layout: fixed;
 }
 
+/* Container query responsive column distributions for 1-4 columns */
+.ProseMirror table:has(> colgroup > col:first-child:last-child),
+.markdown-content table:has(> colgroup > col:first-child:last-child) {
+  --mobile-table-column-width: 100cqi;
+}
+
+.ProseMirror table:has(> colgroup > col:first-child:nth-last-child(2)),
+.markdown-content table:has(> colgroup > col:first-child:nth-last-child(2)) {
+  --mobile-table-column-width: 50cqi;
+}
+
+.ProseMirror table:has(> colgroup > col:first-child:nth-last-child(3)),
+.markdown-content table:has(> colgroup > col:first-child:nth-last-child(3)) {
+  --mobile-table-column-width: calc(100cqi / 3);
+}
+
+.ProseMirror table:has(> colgroup > col:first-child:nth-last-child(4)),
+.markdown-content table:has(> colgroup > col:first-child:nth-last-child(4)) {
+  --mobile-table-column-width: 25cqi;
+}
+
+/* For tables with 5+ columns on narrow viewports, expand width and scroll inside tableWrapper */
+.ProseMirror table:has(> colgroup > col:first-child:nth-last-child(n+5)),
+.markdown-content table:has(> colgroup > col:first-child:nth-last-child(n+5)) {
+  width: max-content;
+  --mobile-table-column-width: clamp(4.5rem, 24cqi, 12rem);
+}
+
+/* For tables without colgroup (plain markdown or pasted html), allow natural distribution */
+.ProseMirror table:not(:has(colgroup)),
+.markdown-content table:not(:has(colgroup)) {
+  table-layout: auto;
+  width: 100%;
+  min-width: 100%;
+}
+
 .ProseMirror table col,
 .markdown-content table col {
-  width: 14rem !important;
+  width: var(--mobile-table-column-width) !important;
+  min-width: var(--mobile-table-column-width) !important;
 }
 
 .ProseMirror th,
@@ -1292,25 +1377,29 @@ textarea {
 .markdown-content th,
 .markdown-content td {
   position: relative;
-  width: 14rem;
-  min-width: 14rem;
+  width: var(--mobile-table-column-width, auto);
+  min-width: var(--mobile-table-column-width, 3.5rem);
+  max-width: var(--mobile-table-column-width, none);
   border: 0;
-  border-right: 1px solid #dedede;
-  border-bottom: 1px solid #dedede;
-  padding: 0.42rem 0.75rem;
+  border-right: 1px solid rgb(var(--slate-200-rgb) / 0.8);
+  border-bottom: 1px solid rgb(var(--slate-200-rgb) / 0.8);
+  padding: 0.48rem 0.8rem;
   text-align: left;
   vertical-align: top;
+  white-space: normal;
   overflow-wrap: anywhere;
-  line-height: 1.4;
+  word-break: break-word;
+  line-height: 1.45;
   transition: background-color 120ms ease;
 }
 
 .ProseMirror th,
 .markdown-content th {
-  background: #f0f0f0;
-  color: #111827;
-  font-size: 0.875rem;
-  font-weight: 700;
+  background: rgb(var(--slate-100-rgb) / 0.75);
+  color: #0f172a;
+  font-size: 0.84rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
 .ProseMirror th:last-child,
@@ -1327,59 +1416,34 @@ textarea {
 
 .ProseMirror tbody tr:nth-child(even) td,
 .markdown-content tbody tr:nth-child(even) td {
-  background: #f8f8f8;
+  background: rgb(var(--slate-50-rgb) / 0.5);
 }
 
 .ProseMirror tbody tr:hover td,
 .markdown-content tbody tr:hover td {
-  background: #f3f4f6;
-}
-
-@media (max-width: 767px) {
-  .ProseMirror .tableWrapper,
-  .markdown-content .tableWrapper {
-    --mobile-table-column-width: clamp(5.5rem, calc((100vw - 3rem) / 3), 14rem);
-    width: 100%;
-  }
-
-  .ProseMirror table,
-  .markdown-content table {
-    min-width: 100% !important;
-  }
-
-  .ProseMirror table col,
-  .markdown-content table col {
-    width: var(--mobile-table-column-width) !important;
-  }
-
-  .ProseMirror th,
-  .ProseMirror td,
-  .markdown-content th,
-  .markdown-content td {
-    width: var(--mobile-table-column-width);
-    min-width: var(--mobile-table-column-width);
-  }
+  background: rgb(var(--slate-100-rgb) / 0.6);
 }
 
 @media (min-width: 768px) {
-  .ProseMirror .tableWrapper {
+  .ProseMirror table:not(:has(> colgroup > col:first-child:nth-last-child(n+5))),
+  .markdown-content table:not(:has(> colgroup > col:first-child:nth-last-child(n+5))) {
     width: 100%;
-  }
-
-  .ProseMirror table {
-    width: 100%;
-    min-width: 100% !important;
     table-layout: auto;
   }
 
-  .ProseMirror table col {
+  .ProseMirror table:not(:has(> colgroup > col:first-child:nth-last-child(n+5))) col,
+  .markdown-content table:not(:has(> colgroup > col:first-child:nth-last-child(n+5))) col {
     width: auto !important;
+    min-width: 0 !important;
   }
 
-  .ProseMirror th,
-  .ProseMirror td {
+  .ProseMirror table:not(:has(> colgroup > col:first-child:nth-last-child(n+5))) th,
+  .ProseMirror table:not(:has(> colgroup > col:first-child:nth-last-child(n+5))) td,
+  .markdown-content table:not(:has(> colgroup > col:first-child:nth-last-child(n+5))) th,
+  .markdown-content table:not(:has(> colgroup > col:first-child:nth-last-child(n+5))) td {
     width: auto;
     min-width: 0;
+    max-width: none;
   }
 }
 
@@ -1400,31 +1464,32 @@ textarea {
 
 :root.dark .ProseMirror th,
 :root.dark .markdown-content th {
-  background: #27303f;
-  color: #f8fafc;
+  background: rgb(var(--slate-100-rgb) / 0.9);
+  color: #f1f5f9;
 }
 
 :root.dark .ProseMirror .tableWrapper,
 :root.dark .markdown-content .tableWrapper {
-  border-color: #334155;
-  background: #0f172a;
+  border-color: rgb(var(--slate-200-rgb) / 0.9);
+  background: var(--workspace-editor);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.2);
 }
 
 :root.dark .ProseMirror th,
 :root.dark .ProseMirror td,
 :root.dark .markdown-content th,
 :root.dark .markdown-content td {
-  border-color: #334155;
+  border-color: rgb(var(--slate-200-rgb) / 0.7);
 }
 
 :root.dark .ProseMirror tbody tr:nth-child(even) td,
 :root.dark .markdown-content tbody tr:nth-child(even) td {
-  background: #182235;
+  background: rgb(var(--slate-50-rgb) / 0.6);
 }
 
 :root.dark .ProseMirror tbody tr:hover td,
 :root.dark .markdown-content tbody tr:hover td {
-  background: #202b25;
+  background: rgb(var(--slate-100-rgb) / 0.8);
 }
 
 /* Theme-aware surfaces for legacy white utilities and fixed semantic colors. */
@@ -1639,14 +1704,34 @@ textarea {
 
 :root.dark .ProseMirror blockquote {
   color: #cbd5e1;
-  background: var(--brand-green-soft);
+  background: color-mix(in srgb, var(--brand-green) 7%, transparent);
 }
 
 :root.dark .ProseMirror code,
-:root.dark .ProseMirror pre {
-  border-color: #166534;
-  background: #13261a;
-  color: #cbd5e1;
+:root.dark .markdown-content code {
+  border-color: rgba(22, 160, 110, 0.28);
+  background: rgba(22, 160, 110, 0.12);
+  color: #6ee7b7;
+}
+
+:root.dark .ProseMirror pre,
+:root.dark .markdown-content pre {
+  border-color: rgb(var(--slate-200-rgb) / 0.8);
+  background: rgb(var(--slate-100-rgb) / 0.8);
+  color: #e2e8f0;
+}
+
+:root.dark .ProseMirror .edgeever-code-copy-button {
+  border-color: rgb(var(--slate-200-rgb) / 0.9);
+  background: rgb(var(--slate-100-rgb) / 0.9);
+  color: #94a3b8;
+}
+
+:root.dark .ProseMirror .edgeever-code-copy-button:hover,
+:root.dark .ProseMirror .edgeever-code-copy-button:focus-visible {
+  border-color: var(--brand-green);
+  color: var(--brand-green-text);
+  background: rgb(var(--slate-200-rgb));
 }
 
 :root.dark .ProseMirror .edgeever-mermaid-code-block {
@@ -1675,9 +1760,9 @@ textarea {
 }
 
 :root.dark .ProseMirror .edgeever-code-source {
-  border-color: #166534;
-  background: #13261a;
-  color: #cbd5e1;
+  border-color: rgb(var(--slate-200-rgb) / 0.8);
+  background: rgb(var(--slate-100-rgb) / 0.8);
+  color: #e2e8f0;
 }
 
 :root.dark .ProseMirror .edgeever-mermaid-preview {

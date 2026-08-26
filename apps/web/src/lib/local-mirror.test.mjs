@@ -7,6 +7,7 @@ globalThis.IDBKeyRange = IDBKeyRange;
 const { localDb } = await import("./local-db.ts");
 const {
   createLocalDataScope,
+  clearLocalScope,
   createLocalMemo,
   getLocalMemo,
   listLocalTemplates,
@@ -31,8 +32,11 @@ const {
   putLocalResource,
   createLocalResource,
   listLocalResources,
+  listLocalMemoIdMappings,
+  observeLocalMemoIdMappings,
   replaceLocalResources,
   remapLocalDraftMemoId,
+  replaceLocalMemoId,
   hasLocalSyncCursorRewound,
   syncLocalMirror,
 } = await import("./local-mirror.ts");
@@ -60,6 +64,93 @@ afterEach(async () => {
 });
 
 describe("local mirror", () => {
+  test("records a durable mapping when a new memo receives its remote id", async () => {
+    const scope = createLocalDataScope("https://notes.example.org", "user-1");
+    const localMemo = await createLocalMemo(scope, { notebookId: "inbox", title: "New note" });
+    const remoteMemo = {
+      ...localMemo,
+      id: "memo-remote",
+      revision: 1,
+      contentHash: "remote-hash",
+    };
+
+    await replaceLocalMemoId(scope, localMemo.id, remoteMemo);
+
+    expect(await listLocalMemoIdMappings(scope)).toEqual(new Map([[localMemo.id, remoteMemo.id]]));
+  });
+
+  test("observes a new memo id mapping so another live workspace can recover", async () => {
+    const scope = createLocalDataScope("https://notes.example.org", "user-1");
+    const localMemo = await createLocalMemo(scope, { notebookId: "inbox", title: "New note" });
+    const remoteMemo = {
+      ...localMemo,
+      id: "memo-remote",
+      revision: 1,
+      contentHash: "remote-hash",
+    };
+    const observedMapping = new Promise((resolve) => {
+      const unsubscribe = observeLocalMemoIdMappings(scope, (mappings) => {
+        if (mappings.get(localMemo.id) !== remoteMemo.id) return;
+        unsubscribe();
+        resolve(mappings);
+      });
+    });
+
+    await replaceLocalMemoId(scope, localMemo.id, remoteMemo);
+
+    expect(await observedMapping).toEqual(new Map([[localMemo.id, remoteMemo.id]]));
+  });
+
+  test("clears cached data, drafts, and pending changes for a reset scope", async () => {
+    const scope = createLocalDataScope("https://demo.edgeever.org", "user-1");
+    const otherScope = createLocalDataScope("https://notes.example.org", "user-2");
+    const scopedMemo = await createLocalMemo(scope, { notebookId: "demo-notebook", title: "Changed demo note" });
+    const otherMemo = await createLocalMemo(otherScope, { notebookId: "private-notebook", title: "Keep me" });
+    await localDb.drafts.bulkPut([
+      { memoId: scopedMemo.id, title: "Demo draft", contentJson: { type: "doc", content: [] }, tagsText: "", updatedAt: "2026-01-01T00:00:00.000Z" },
+      { memoId: otherMemo.id, title: "Private draft", contentJson: { type: "doc", content: [] }, tagsText: "", updatedAt: "2026-01-01T00:00:00.000Z" },
+    ]);
+    await localDb.syncQueue.bulkPut([
+      {
+        id: `memo.update:${scopedMemo.id}`,
+        kind: "memo.update",
+        scope,
+        memoId: scopedMemo.id,
+        status: "pending",
+        payload: {},
+        attemptCount: 0,
+        lastError: null,
+        nextAttemptAt: null,
+        claimId: null,
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+      {
+        id: `memo.update:${otherMemo.id}`,
+        kind: "memo.update",
+        scope: otherScope,
+        memoId: otherMemo.id,
+        status: "pending",
+        payload: {},
+        attemptCount: 0,
+        lastError: null,
+        nextAttemptAt: null,
+        claimId: null,
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+    ]);
+
+    await clearLocalScope(scope);
+
+    expect(await getLocalMemo(scope, scopedMemo.id)).toBeNull();
+    expect(await localDb.drafts.get(scopedMemo.id)).toBeUndefined();
+    expect(await localDb.syncQueue.get(`memo.update:${scopedMemo.id}`)).toBeUndefined();
+    expect(await getLocalMemo(otherScope, otherMemo.id)).not.toBeNull();
+    expect(await localDb.drafts.get(otherMemo.id)).toBeDefined();
+    expect(await localDb.syncQueue.get(`memo.update:${otherMemo.id}`)).toBeDefined();
+  });
+
   test("rebuilds the browser mirror when the server change cursor rewinds", () => {
     expect(hasLocalSyncCursorRewound(42, 7)).toBe(true);
     expect(hasLocalSyncCursorRewound(42, 42)).toBe(false);

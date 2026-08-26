@@ -1,4 +1,5 @@
 import type { TiptapDoc, TiptapNode, TiptapTextNode } from "./content";
+import { parseMemoLinkHref } from "./note-links";
 
 export type MemoShare = {
   memoId: string;
@@ -13,29 +14,42 @@ export type PublicMemoShare = {
   contentMarkdown: string;
   tags: string[];
   updatedAt: string;
+  memoShareTokens: Record<string, string>;
 };
 
 const RESOURCE_URL_PATTERN = /^\/api\/v1\/resources\/([^/?#]+)\/blob(?:[?#].*)?$/;
 
-const rewriteAttributeValue = (value: unknown, token: string) => {
+const rewriteAttributeValue = (
+  value: unknown,
+  token: string,
+  memoShareTokens: Readonly<Record<string, string>>,
+) => {
   if (typeof value !== "string") return value;
   const match = value.match(RESOURCE_URL_PATTERN);
-  return match
-    ? `/api/public/shares/${encodeURIComponent(token)}/resources/${encodeURIComponent(match[1])}/blob`
-    : value;
+  if (match) {
+    return `/api/public/shares/${encodeURIComponent(token)}/resources/${encodeURIComponent(match[1])}/blob`;
+  }
+
+  const memoId = parseMemoLinkHref(value);
+  const shareToken = memoId ? memoShareTokens[memoId] : null;
+  return shareToken ? `/share/${encodeURIComponent(shareToken)}` : value;
 };
 
-/** Rewrites only EdgeEver-owned resource URLs so a public viewer never needs a user session. */
-export const rewriteMemoResourcesForShare = (doc: TiptapDoc, token: string): TiptapDoc => {
+/** Rewrites EdgeEver-owned resources and publicly shared memo links for anonymous viewers. */
+export const rewriteMemoResourcesForShare = (
+  doc: TiptapDoc,
+  token: string,
+  memoShareTokens: Readonly<Record<string, string>> = {},
+): TiptapDoc => {
   const visit = (node: TiptapNode | TiptapTextNode): TiptapNode | TiptapTextNode => {
     const attrs = "attrs" in node && node.attrs
-      ? Object.fromEntries(Object.entries(node.attrs).map(([key, value]) => [key, rewriteAttributeValue(value, token)]))
+      ? Object.fromEntries(Object.entries(node.attrs).map(([key, value]) => [key, rewriteAttributeValue(value, token, memoShareTokens)]))
       : undefined;
     const marks = "marks" in node && node.marks
       ? node.marks.map((mark) => ({
           ...mark,
           attrs: mark.attrs
-            ? Object.fromEntries(Object.entries(mark.attrs).map(([key, value]) => [key, rewriteAttributeValue(value, token)]))
+            ? Object.fromEntries(Object.entries(mark.attrs).map(([key, value]) => [key, rewriteAttributeValue(value, token, memoShareTokens)]))
             : undefined,
         }))
       : undefined;
