@@ -97,22 +97,21 @@ Complete setup in 5 simple web steps:
 
 ### Option C: Docker on a VPS or NAS
 
-For a VPS or NAS outside mainland China, use the GitHub-hosted installer and
-GHCR image:
+Use the GitHub-hosted installer and the official GHCR image:
 
 ```sh
 curl -fsSL https://edgeever.org/install.sh | bash
 ```
 
-For a VPS or NAS located in mainland China, use the Tencent COS installer and
-Tencent TCR image for faster, more reliable downloads:
+The command pulls the latest image, generates an administrator password, starts
+EdgeEver with Docker Compose, and schedules daily automatic updates.
 
-```sh
-curl -fsSL https://edgeever-installer-1256854452.cos.ap-guangzhou.myqcloud.com/install.sh | bash -s -- --mirror tcr
-```
-
-Both commands pull the latest image, generate an administrator password, start
-EdgeEver with Docker Compose, and schedule daily automatic updates.
+The official EdgeEver container image is hosted on GitHub Container Registry
+(GHCR). Some network environments in mainland China may experience slow
+connections or timeouts. If the image cannot be pulled normally, configure an
+available network proxy or a trusted registry mirror before deployment. Users
+are responsible for evaluating the availability and security of
+third-party network and registry services.
 
 See the [Docker deployment guide](docs/deploy-docker.md) for manual deployment and configuration.
 
@@ -133,8 +132,6 @@ The Web Clipper is officially published for Chrome, Microsoft Edge, and Firefox.
   <a href="https://chromewebstore.google.com/detail/edgeever-web-clipper/gjadpfmanienmlofajibkfkkpfdkclgo"><img src="https://raw.githubusercontent.com/alrra/browser-logos/58881b84c4d73adc03c06fa2c275a7abee02d935/src/edge/edge.svg" alt="Install EdgeEver Web Clipper for Microsoft Edge" width="36" height="36" /></a>&nbsp;&nbsp;
   <a href="https://addons.mozilla.org/firefox/addon/edgeever-web-clipper/"><img src="https://raw.githubusercontent.com/alrra/browser-logos/58881b84c4d73adc03c06fa2c275a7abee02d935/src/firefox/firefox.svg" alt="Install EdgeEver Web Clipper for Firefox" width="36" height="36" /></a>
 </p>
-
-Developers can also use the [extension development guide](apps/extension/README.md) to build and load the extension from source.
 
 ## Native Clients
 
@@ -237,7 +234,7 @@ EdgeEver avoids Worker-side image processing to reduce compute and image-process
 
 ## Advanced Object Storage
 
-The instance owner can configure S3-compatible object storage under **Settings → Advanced → OSS object storage**. Changing storage does not migrate or affect existing attachments. Cloudflare deployments must also configure an `EDGE_EVER_STORAGE_ENCRYPTION_KEY` Worker Secret of at least 32 characters.
+The instance owner can configure S3-compatible object storage under **Settings → Advanced → OSS object storage**. Changing storage does not migrate or affect existing attachments.
 
 ## Migration
 

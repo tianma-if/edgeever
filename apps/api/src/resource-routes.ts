@@ -1,9 +1,10 @@
-import { ResourceUpdateSchema, type MemoDetail, type Resource } from "@edgeever/shared";
+import { isPdfAttachment, ResourceUpdateSchema, type MemoDetail, type Resource } from "@edgeever/shared";
 import { zValidator } from "@hono/zod-validator";
 import type { Hono } from "hono";
 import { auditStatement } from "./audit";
 import type { AppContext, AppEnv, AuditActor } from "./api-context";
 import { AppError } from "./app-error";
+import { parseByteRange, rangeNotSatisfiable } from "./byte-range";
 import { isoNow } from "./entity-utils";
 import { apiError, badRequest, notFound } from "./http-errors";
 import { resolveObjectStorage } from "./object-storage";
@@ -141,23 +142,44 @@ export const registerResourceRoutes = (
     );
     if (!resource) return notFound(context, "Resource not found");
 
+    const byteRange = parseByteRange(context.req.header("Range"), resource.byte_size);
+    if (byteRange.kind === "invalid") return rangeNotSatisfiable(resource.byte_size);
+
     const source = await resolveObjectStorage(context.env, resource.storage_config_id);
-    const object = await source.store.get(resource.object_key);
+    const object = await source.store.get(
+      resource.object_key,
+      byteRange.kind === "range" ? { range: byteRange.range } : undefined,
+    );
     if (!object) return notFound(context, "Resource object not found");
 
     const headers = new Headers();
     object.writeHttpMetadata(headers);
-    headers.set("Content-Type", resource.mime_type ?? headers.get("Content-Type") ?? "application/octet-stream");
+    headers.set(
+      "Content-Type",
+      isPdfAttachment(resource.mime_type, resource.filename)
+        ? "application/pdf"
+        : resource.mime_type ?? headers.get("Content-Type") ?? "application/octet-stream",
+    );
     headers.set("Cache-Control", headers.get("Cache-Control") ?? "private, max-age=3600");
-    headers.set("Content-Length", String(object.size));
+    headers.set("Accept-Ranges", "bytes");
+    if (byteRange.kind === "range") {
+      const length = object.range?.length ?? byteRange.range.length;
+      headers.set("Content-Length", String(length));
+      headers.set(
+        "Content-Range",
+        `bytes ${byteRange.range.offset}-${byteRange.range.offset + length - 1}/${resource.byte_size}`,
+      );
+    } else {
+      headers.set("Content-Length", String(resource.byte_size));
+    }
     headers.set(
       "Content-Disposition",
-      resource.kind === "image"
+      resource.kind === "image" || isPdfAttachment(resource.mime_type, resource.filename)
         ? contentDispositionInline(resource.filename)
         : contentDispositionAttachment(resource.filename),
     );
     headers.set("X-Content-Type-Options", "nosniff");
-    return new Response(object.body, { headers });
+    return new Response(object.body, { headers, status: byteRange.kind === "range" ? 206 : 200 });
   });
 
   app.patch(

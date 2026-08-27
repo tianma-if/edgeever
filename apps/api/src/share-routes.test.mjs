@@ -102,4 +102,39 @@ describe("public memo shares", () => {
     });
     sqlite.close();
   });
+
+  test("serves shared PDF byte ranges with public-share cache controls", async () => {
+    const { sqlite, environment } = createDatabaseEnvironment();
+    sqlite.query(
+      `INSERT INTO resources (id, memo_id, object_key, kind, mime_type, filename, byte_size)
+       VALUES (?, ?, ?, 'attachment', 'application/pdf', 'shared.pdf', 10)`,
+    ).run("res_shared", "memo_source", "shared-key");
+    let requestedOptions;
+    environment.storage.resources = {
+      get: async (_key, options) => {
+        requestedOptions = options;
+        return {
+          body: new Blob([new TextEncoder().encode("2345")]).stream(),
+          size: 10,
+          range: { offset: 2, length: 4 },
+          writeHttpMetadata: () => {},
+        };
+      },
+    };
+    const app = new Hono();
+    registerPublicShareRoutes(app);
+
+    const response = await app.request(
+      `/api/public/shares/${sourceToken}/resources/res_shared/blob`,
+      { headers: { Range: "bytes=2-5" } },
+      environment,
+    );
+
+    expect(requestedOptions).toEqual({ range: { offset: 2, length: 4 } });
+    expect(response.status).toBe(206);
+    expect(response.headers.get("Content-Range")).toBe("bytes 2-5/10");
+    expect(response.headers.get("Cache-Control")).toBe("private, no-store");
+    expect(await response.text()).toBe("2345");
+    sqlite.close();
+  });
 });

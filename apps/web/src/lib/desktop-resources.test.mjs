@@ -38,6 +38,15 @@ describe("desktop resource URLs", () => {
     expect(mapped.content?.[0]?.attrs?.src).toBe("/api/v1/resources/resource-1/blob");
   });
 
+  test("restores PDF node URLs before a memo is saved", () => {
+    const mapped = mapTiptapResourceUrls({
+      type: "doc",
+      content: [{ type: "pdfAttachment", attrs: { url: "edgeever-resource://resource/resource-pdf" } }],
+    }, toApiResourceUrl);
+
+    expect(mapped.content?.[0]?.attrs?.url).toBe("/api/v1/resources/resource-pdf/blob");
+  });
+
   test("exposes staged offline attachments as local resources", () => {
     expect(createStagedResourceListItem({ id: "stage-1", memoId: "memo-1", name: "photo.png", type: "image/png", size: 42 }, "2026-01-01T00:00:00.000Z")).toMatchObject({
       id: "staged_stage-1",

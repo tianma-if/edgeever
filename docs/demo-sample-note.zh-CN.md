@@ -146,7 +146,7 @@ sequenceDiagram
 - **多端原生支持**：
   - **Web / PWA**：支持现代浏览器全功能运行与离线安装；
   - **Android 原生客户端**：基于 Expo 与 SQLite 构建，已上架 Google Play，并提供签名 APK 下载；
-  - **iOS 原生客户端**：基于 Swift / SwiftUI 与 GRDB 原生实现，流畅细腻，已上架 App Store；
+  - **iOS 原生客户端**：基于 Swift / SwiftUI 与 GRDB 原生实现，流畅细腻，已上架 App Store（可使用非大陆区 Apple ID 下载）；
   - **macOS 桌面端**：Electron + Rust 高性能 Sidecar，支持 Apple Silicon 和 Intel Mac，内置静默后台更新；
   - **Windows 桌面端**：已开发完毕，即将正式推出。
 - **浏览器网页剪藏 (Web Clipper)**：已在 Chrome、Edge 和 Firefox 官方扩展商店发布，一键剔除网页广告，将正文纯净沉淀为 Markdown 笔记。
@@ -172,13 +172,10 @@ sequenceDiagram
 1. **Cloudflare Serverless（推荐，永久 100% 免费）**：基于 Workers + D1 数据库 + R2 对象存储构建，完全处于 Cloudflare 免费额度内，无需采购服务器，免运维、免证书续期。
 2. **Docker 一键自建（VPS / NAS / 家用服务器）**：
    ```sh
-   # 国际 VPS / NAS 极速安装（GHCR 镜像）
+   # 官方 GHCR 镜像
    curl -fsSL https://edgeever.org/install.sh | bash
-
-   # 大陆地区 VPS / NAS 镜像加速（腾讯云 TCR 镜像）
-   curl -fsSL https://edgeever-installer-1256854452.cos.ap-guangzhou.myqcloud.com/install.sh | bash -s -- --mirror tcr
    ```
-   单命令自动配置 Docker Compose 环境，并内置每日定时自动更新。
+   单命令自动配置 Docker Compose 环境，并内置每日定时自动更新。部分中国大陆网络环境可能需要自行配置可用的网络代理或可信的镜像加速服务，才能正常访问 GHCR。
 
 ### 💾 绝对的数据自由：无损 ZIP 导入与导出
 在**个人中心 → 导入与导出**中，可随时将完整笔记库打包导出为结构清晰的 ZIP 压缩包。解压后即为包含标准 YAML Front Matter、相对路径附件图片与完整修订版本的纯 Markdown 文件树，随时可在 Obsidian、VS Code 等任意工具中无缝打开，永不担心平台绑定！

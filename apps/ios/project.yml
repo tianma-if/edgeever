@@ -20,8 +20,8 @@ settings:
     TARGETED_DEVICE_FAMILY: "1"
     SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: false
     IPHONEOS_DEPLOYMENT_TARGET: "17.0"
-    CURRENT_PROJECT_VERSION: 39
-    MARKETING_VERSION: 1.39.0
+    CURRENT_PROJECT_VERSION: 40
+    MARKETING_VERSION: 1.42.1
     # Automatic signing: required for Xcode Cloud (managed certs/profiles for
     # App Store + Development exports). Local ExportOptions.plist still pins
     # App Store profiles for Scripts/archive-app-store.sh export.

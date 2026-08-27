@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import Lightbox from "yet-another-react-lightbox";
@@ -11,18 +11,11 @@ import "yet-another-react-lightbox/plugins/thumbnails.css";
 import {
   Archive,
   HardDrive,
-  ImageIcon,
-  File as FileIcon,
   ExternalLink,
   ChevronLeft,
   Search,
   Grid,
   List,
-  FileText,
-  FileSpreadsheet,
-  FileArchive,
-  Music,
-  Video,
   X,
   Loader2,
 } from "lucide-react";
@@ -32,6 +25,10 @@ import { ButtonTooltip } from "@/components/ui/button-tooltip";
 import { formatDateTime } from "@/lib/utils";
 import { WORKSPACE_PAGE_TITLE_CLASSNAME } from "@/lib/workspace-ui";
 import type { EdgeEverRepository } from "@/lib/repository";
+import { isPdfAttachment, type ResourceListItem } from "@edgeever/shared";
+import { PdfViewer } from "@/components/pdf/PdfViewer";
+import { PdfThumbnail } from "@/components/pdf/PdfThumbnail";
+import { AttachmentFileIcon } from "@/components/attachments/AttachmentFileIcon";
 
 export const formatBytes = (bytes: number) => {
   if (!Number.isFinite(bytes) || bytes <= 0) {
@@ -62,53 +59,6 @@ const DOCUMENT_MIME_TYPES = new Set([
   "text/javascript",
 ]);
 
-const getFileIcon = (mimeType: string | null, filename: string | null) => {
-  const mime = (mimeType || "").toLowerCase();
-  const ext = (filename || "").split(".").pop()?.toLowerCase() || "";
-
-  if (mime.startsWith("image/")) return <ImageIcon className="h-8 w-8 text-emerald-500" />;
-  if (mime.startsWith("audio/")) return <Music className="h-8 w-8 text-sky-500" />;
-  if (mime.startsWith("video/")) return <Video className="h-8 w-8 text-rose-500" />;
-
-  if (mime === "application/pdf" || ext === "pdf") {
-    return <FileText className="h-8 w-8 text-rose-600" />;
-  }
-
-  if (
-    mime.includes("spreadsheet") ||
-    mime.includes("excel") ||
-    ext === "xls" ||
-    ext === "xlsx" ||
-    ext === "csv"
-  ) {
-    return <FileSpreadsheet className="h-8 w-8 text-green-600" />;
-  }
-
-  if (
-    mime.includes("word") ||
-    mime.includes("officedocument.wordprocessingml") ||
-    ext === "doc" ||
-    ext === "docx"
-  ) {
-    return <FileText className="h-8 w-8 text-blue-600" />;
-  }
-
-  if (
-    mime.includes("zip") ||
-    mime.includes("tar") ||
-    mime.includes("rar") ||
-    mime.includes("gzip") ||
-    ext === "zip" ||
-    ext === "rar" ||
-    ext === "tar" ||
-    ext === "gz"
-  ) {
-    return <FileArchive className="h-8 w-8 text-amber-500" />;
-  }
-
-  return <FileIcon className="h-8 w-8 text-slate-400" />;
-};
-
 interface AssetsPaneProps {
   onClose: () => void;
   repository: EdgeEverRepository;
@@ -124,6 +74,7 @@ export const AssetsPane = ({ onClose, repository }: AssetsPaneProps) => {
     return (localStorage.getItem("assets_layout_mode") as "grid" | "list") || "grid";
   });
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [pdfPreview, setPdfPreview] = useState<ResourceListItem | null>(null);
 
   // Query resources
   const resourcesQuery = useQuery({
@@ -166,6 +117,11 @@ export const AssetsPane = ({ onClose, repository }: AssetsPaneProps) => {
     return filteredResources.filter((r) => r.kind === "image");
   }, [filteredResources]);
 
+  const pdfResources = useMemo(
+    () => filteredResources.filter((resource) => isPdfAttachment(resource.mimeType, resource.filename)),
+    [filteredResources],
+  );
+
   const slides = useMemo(() => {
     return imageResources.map((r) => ({
       src: r.url,
@@ -181,6 +137,35 @@ export const AssetsPane = ({ onClose, repository }: AssetsPaneProps) => {
     }
   };
 
+  const handleResourceOpen = (resource: ResourceListItem) => {
+    if (resource.kind === "image") {
+      handleImageClick(resource.id);
+    } else if (isPdfAttachment(resource.mimeType, resource.filename)) {
+      setPdfPreview(resource);
+    } else {
+      window.open(resource.url, "_blank", "noopener,noreferrer");
+    }
+  };
+
+  const showAdjacentPdf = useCallback((direction: -1 | 1) => {
+    setPdfPreview((current) => {
+      if (!current || pdfResources.length === 0) return current;
+      const currentIndex = pdfResources.findIndex((resource) => resource.id === current.id);
+      if (currentIndex === -1) return pdfResources[0] ?? current;
+      const nextIndex = (currentIndex + direction + pdfResources.length) % pdfResources.length;
+      return pdfResources[nextIndex] ?? current;
+    });
+  }, [pdfResources]);
+  const showPreviousPdf = useCallback(() => showAdjacentPdf(-1), [showAdjacentPdf]);
+  const showNextPdf = useCallback(() => showAdjacentPdf(1), [showAdjacentPdf]);
+
+  const getResourceOpenLabel = (resource: ResourceListItem) =>
+    isPdfAttachment(resource.mimeType, resource.filename)
+      ? t("assets.previewPdf", { filename: resource.filename || resource.id })
+      : resource.kind === "image"
+        ? t("assets.previewImage")
+        : t("assets.downloadOpen");
+
   const getResourceMemoSource = (resource: { memoDeleted: boolean; memoTitle: string | null; memoExcerpt: string | null; memoId: string }) =>
     resource.memoDeleted ? t("assets.deletedMemo") : resource.memoTitle || resource.memoExcerpt || resource.memoId;
 
@@ -190,16 +175,17 @@ export const AssetsPane = ({ onClose, repository }: AssetsPaneProps) => {
       {/* Header */}
       <header className="flex h-[calc(4rem+env(safe-area-inset-top))] shrink-0 items-end justify-between border-b border-slate-200 px-6 pb-3 pt-[env(safe-area-inset-top)] lg:h-16 lg:items-center lg:pb-0 lg:pt-0">
         <div className="flex items-center gap-3">
-          <Button
-            size="icon"
-            variant="ghost"
-            title={t("common.back")}
-            aria-label={t("common.back")}
-            onClick={onClose}
-            className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-slate-100"
-          >
-            <ChevronLeft className="h-5 w-5 text-slate-500" />
-          </Button>
+          <ButtonTooltip title={t("common.back")}>
+            <Button
+              size="icon"
+              variant="ghost"
+              aria-label={t("common.back")}
+              onClick={onClose}
+              className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-slate-100"
+            >
+              <ChevronLeft className="h-5 w-5 text-slate-500" />
+            </Button>
+          </ButtonTooltip>
           <div className="min-w-0">
             <h1 className={`flex items-center gap-2 ${WORKSPACE_PAGE_TITLE_CLASSNAME}`}>
               <Archive className="h-4.5 w-4.5 text-emerald-700" />
@@ -323,11 +309,14 @@ export const AssetsPane = ({ onClose, repository }: AssetsPaneProps) => {
                 >
                   {/* Thumbnail area */}
                   <div
-                    onClick={() => {
-                      if (resource.kind === "image") {
-                        handleImageClick(resource.id);
-                      } else {
-                        window.open(resource.url, "_blank", "noreferrer");
+                    role="button"
+                    tabIndex={0}
+                    aria-label={getResourceOpenLabel(resource)}
+                    onClick={() => handleResourceOpen(resource)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        handleResourceOpen(resource);
                       }
                     }}
                     className="relative aspect-square w-full cursor-pointer overflow-hidden bg-slate-50 flex items-center justify-center border-b border-slate-100"
@@ -339,9 +328,16 @@ export const AssetsPane = ({ onClose, repository }: AssetsPaneProps) => {
                         className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-103"
                         loading="lazy"
                       />
+                    ) : isPdfAttachment(resource.mimeType, resource.filename) ? (
+                      <PdfThumbnail
+                        url={resource.url}
+                        label={resource.filename || resource.id}
+                        byteSize={resource.byteSize}
+                        className="p-2"
+                      />
                     ) : (
                       <div className="flex flex-col items-center gap-1.5 p-3 text-center">
-                        {getFileIcon(resource.mimeType, resource.filename)}
+                        <AttachmentFileIcon mimeType={resource.mimeType} filename={resource.filename} />
                         <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold text-slate-500 uppercase tracking-wider">
                           {(resource.filename || "").split(".").pop() || "FILE"}
                         </span>
@@ -350,7 +346,11 @@ export const AssetsPane = ({ onClose, repository }: AssetsPaneProps) => {
                     {/* Hover detail overlay */}
                     <div className="absolute inset-0 bg-slate-900/40 opacity-0 transition-opacity duration-200 group-hover:opacity-100 flex items-center justify-center">
                       <span className="rounded bg-white/90 px-2.5 py-1.5 text-[11px] font-semibold text-slate-800 shadow flex items-center gap-1">
-                        {resource.kind === "image" ? t("assets.previewImage") : t("assets.downloadOpen")}
+                        {resource.kind === "image"
+                          ? t("assets.previewImage")
+                          : isPdfAttachment(resource.mimeType, resource.filename)
+                            ? t("pdfViewer.fullscreen")
+                            : t("assets.downloadOpen")}
                         <ExternalLink className="h-3 w-3" />
                       </span>
                     </div>
@@ -358,26 +358,24 @@ export const AssetsPane = ({ onClose, repository }: AssetsPaneProps) => {
 
                   {/* Metadata area */}
                   <div className="flex flex-col p-3 min-w-0">
-                    <span
-                      title={resource.filename || resource.id}
-                      className="truncate text-xs font-bold text-slate-800 leading-snug group-hover:text-emerald-700 transition-colors"
-                    >
-                      {resource.filename || resource.id}
-                    </span>
+                    <ButtonTooltip title={resource.filename || resource.id}>
+                      <span className="truncate text-xs font-bold text-slate-800 leading-snug group-hover:text-emerald-700 transition-colors">
+                        {resource.filename || resource.id}
+                      </span>
+                    </ButtonTooltip>
                     <span className="mt-1 flex items-center justify-between text-[10px] font-medium text-slate-400">
                       <span>{formatBytes(resource.byteSize)}</span>
                       <span>{(resource.mimeType?.split("/")[1] || resource.kind).toUpperCase()}</span>
                     </span>
-                    <span
-                      title={
-                        resource.memoDeleted
-                          ? t("assets.deletedMemo")
-                          : t("assets.fromMemo", { source: resource.memoTitle || resource.memoExcerpt || resource.memoId })
-                      }
-                      className="mt-1.5 truncate text-[9px] text-slate-400 border-t border-slate-50 pt-1"
-                    >
-                      📄 {resource.memoDeleted ? t("assets.deletedMemo") : resource.memoTitle || resource.memoExcerpt || t("assets.unnamedMemo")}
-                    </span>
+                    <ButtonTooltip title={
+                      resource.memoDeleted
+                        ? t("assets.deletedMemo")
+                        : t("assets.fromMemo", { source: resource.memoTitle || resource.memoExcerpt || resource.memoId })
+                    }>
+                      <span className="mt-1.5 truncate text-[9px] text-slate-400 border-t border-slate-50 pt-1">
+                        📄 {resource.memoDeleted ? t("assets.deletedMemo") : resource.memoTitle || resource.memoExcerpt || t("assets.unnamedMemo")}
+                      </span>
+                    </ButtonTooltip>
                   </div>
                 </div>
               ))}
@@ -392,11 +390,14 @@ export const AssetsPane = ({ onClose, repository }: AssetsPaneProps) => {
                 >
                   {/* Left Icon/Thumbnail */}
                   <div
-                    onClick={() => {
-                      if (resource.kind === "image") {
-                        handleImageClick(resource.id);
-                      } else {
-                        window.open(resource.url, "_blank", "noreferrer");
+                    role="button"
+                    tabIndex={0}
+                    aria-label={getResourceOpenLabel(resource)}
+                    onClick={() => handleResourceOpen(resource)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        handleResourceOpen(resource);
                       }
                     }}
                     className="relative flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-lg border border-slate-100 bg-slate-50/50"
@@ -408,8 +409,15 @@ export const AssetsPane = ({ onClose, repository }: AssetsPaneProps) => {
                         className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105"
                         loading="lazy"
                       />
+                    ) : isPdfAttachment(resource.mimeType, resource.filename) ? (
+                      <PdfThumbnail
+                        url={resource.url}
+                        label={resource.filename || resource.id}
+                        byteSize={resource.byteSize}
+                        className="p-1"
+                      />
                     ) : (
-                      getFileIcon(resource.mimeType, resource.filename)
+                      <AttachmentFileIcon mimeType={resource.mimeType} filename={resource.filename} />
                     )}
                   </div>
 
@@ -428,15 +436,17 @@ export const AssetsPane = ({ onClose, repository }: AssetsPaneProps) => {
                   </div>
 
                   {/* Right Actions */}
-                  <a
-                    href={resource.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    title={t("assets.openInNewWindow")}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-350 hover:bg-slate-50 hover:text-emerald-600 opacity-0 group-hover:opacity-100 transition-all duration-150"
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                  </a>
+                  <ButtonTooltip title={t("assets.openInNewWindow")}>
+                    <a
+                      href={resource.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label={t("assets.openInNewWindow")}
+                      className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-350 hover:bg-slate-50 hover:text-emerald-600 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-all duration-150"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                    </a>
+                  </ButtonTooltip>
                 </div>
               ))}
             </div>
@@ -454,6 +464,17 @@ export const AssetsPane = ({ onClose, repository }: AssetsPaneProps) => {
           plugins={[Zoom, Thumbnails]}
         />
       )}
+      {pdfPreview ? (
+        <PdfViewer
+          key={pdfPreview.id}
+          url={pdfPreview.url}
+          label={pdfPreview.filename || pdfPreview.id}
+          fullscreen
+          onRequestClose={() => setPdfPreview(null)}
+          onPrevious={pdfResources.length > 1 ? showPreviousPdf : undefined}
+          onNext={pdfResources.length > 1 ? showNextPdf : undefined}
+        />
+      ) : null}
     </div>
   );
 };

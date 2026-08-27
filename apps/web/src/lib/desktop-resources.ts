@@ -40,7 +40,7 @@ export const mapTiptapResourceUrls = (doc: TiptapDoc, mapper: (url: string) => s
 
     const result: Record<string, unknown> = {};
     for (const [key, child] of Object.entries(value)) {
-      result[key] = (key === "src" || key === "href") && typeof child === "string" ? mapper(child) : visit(child);
+      result[key] = (key === "src" || key === "href" || key === "url") && typeof child === "string" ? mapper(child) : visit(child);
     }
     return result;
   };

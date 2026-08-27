@@ -1,17 +1,13 @@
 {
-  "version": "1.42.1",
+  "version": "1.44.0",
   "changes": {
     "en-US": [
-      "Keep newly created notes selected after sync, and make links between publicly shared notes open correctly.",
-      "Make downloaded desktop updates clearly actionable so they can be installed without hunting for the update control.",
-      "Prevent desktop edits from being reported as sync conflicts after a newer local change supersedes an in-flight sync.",
-      "Improve nested-list editing so Tab, Shift+Tab, Backspace, and indentation controls behave consistently."
+      "Display attached files as consistent compact cards with recognizable type icons; PDF cards now toggle preview on click and load reliably in the desktop app.",
+      "Keep image uploads visually stable in the editor and clear image selection predictably when clicking the canvas."
     ],
     "zh-CN": [
-      "修复新建笔记同步后的选中状态，并让公开分享笔记之间的引用链接正确打开。",
-      "让已下载的桌面更新显示明确的安装入口，无需再寻找更新控件。",
-      "修复桌面端较新的本地编辑覆盖同步中变更时被误报为同步冲突的问题。",
-      "改进多级列表编辑，使 Tab、Shift+Tab、退格键和缩进控件的行为保持一致。"
+      "将附件统一显示为紧凑文件卡片并提供清晰的类型图标；PDF 卡片现在可单击切换预览，并在桌面端稳定加载。",
+      "图片上传时在编辑器中保持稳定的视觉占位，并在单击画布时可靠清除图片选中状态。"
     ]
   }
 }

@@ -200,6 +200,10 @@ export default defineConfig({
           "**/vendor-mermaid-*.js",
           "**/*Diagram-*.js",
           "**/vendor-codemirror-*.js",
+          // PDF.js is loaded only when a PDF preview or thumbnail is rendered.
+          // Keep its runtime out of the install-time app-shell precache and cache
+          // it after first use instead.
+          "**/vendor~pdf-*.js",
         ],
         navigateFallback: null,
         navigationPreload: true,
@@ -242,6 +246,17 @@ export default defineConfig({
               expiration: {
                 maxEntries: 120,
                 maxAgeSeconds: 60 * 60 * 24 * 30,
+              },
+            },
+          },
+          {
+            urlPattern: ({ url }) => /\/assets\/(?:vendor~pdf-|pdf\.worker\.min-)/.test(url.pathname),
+            handler: "CacheFirst",
+            options: {
+              cacheName: "edgeever-optional-pdf",
+              expiration: {
+                maxEntries: 4,
+                maxAgeSeconds: 30 * 24 * 60 * 60,
               },
             },
           },

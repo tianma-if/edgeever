@@ -93,8 +93,9 @@ const finishSyncAndVerifyReload = async (
   releaseCreate();
   const createResponse = await createResponsePromise;
   expect(createResponse.status()).toBe(201);
-  const created = await createResponse.json() as { memo: { id: string } };
+  const created = await createResponse.json() as { memo: { id: string; revision: number } };
   const memoId = created.memo.id;
+  expect(created.memo.revision).toBe(0);
 
   try {
     await expect.poll(async () => {
@@ -103,20 +104,64 @@ const finishSyncAndVerifyReload = async (
     }).toBe(true);
 
     await createSyncCompletedPromise;
+    const firstUpdateSyncCompletedPromise = page.evaluate(() => new Promise<void>((resolve) => {
+      window.addEventListener("edgeever:sync-completed", () => resolve(), { once: true });
+    }));
     await page.evaluate(() => window.dispatchEvent(new CustomEvent("edgeever:sync-queue-changed")));
     const updateResponse = await updateResponsePromise;
     expect(new URL(updateResponse.url()).pathname).toBe(`/api/v1/memos/${memoId}`);
+    expect(updateResponse.request().postDataJSON()).toMatchObject({
+      expectedRevision: created.memo.revision,
+    });
     expect(updateResponse.ok()).toBe(true);
-    const updated = await updateResponse.json() as { memo: { title: string; contentJson: unknown } };
+    const updated = await updateResponse.json() as { memo: { title: string; contentJson: unknown; revision: number } };
     expect(updated.memo.title).toBe(title);
     expect(JSON.stringify(updated.memo.contentJson)).toContain(content);
+    expect(updated.memo.revision).toBe(1);
+    await firstUpdateSyncCompletedPromise;
+
+    const followUp = ` after revision ${updated.memo.revision}`;
+    let releaseSecondUpdate!: () => void;
+    let markSecondUpdateStarted!: () => void;
+    let secondUpdateRequestBody: Record<string, unknown> | null = null;
+    const secondUpdateGate = new Promise<void>((resolve) => { releaseSecondUpdate = resolve; });
+    const secondUpdateStarted = new Promise<void>((resolve) => { markSecondUpdateStarted = resolve; });
+    await page.route(`**/api/v1/memos/${memoId}`, async (route: Route) => {
+      if (route.request().method() !== "PATCH") {
+        await route.continue();
+        return;
+      }
+      secondUpdateRequestBody = route.request().postDataJSON() as Record<string, unknown>;
+      markSecondUpdateStarted();
+      await secondUpdateGate;
+      await route.continue();
+    });
+    const secondUpdateResponsePromise = page.waitForResponse(
+      (response) => response.request().method() === "PATCH" && new URL(response.url()).pathname === `/api/v1/memos/${memoId}`,
+    );
+    const editor = page.locator(".ProseMirror[contenteditable='true']");
+    await editor.click();
+    await page.keyboard.press("End");
+    await page.keyboard.insertText(followUp);
+    await secondUpdateStarted;
+    expect(secondUpdateRequestBody).toMatchObject({ expectedRevision: updated.memo.revision });
+    const secondUpdateSyncCompletedPromise = page.evaluate(() => new Promise<void>((resolve) => {
+      window.addEventListener("edgeever:sync-completed", () => resolve(), { once: true });
+    }));
+    releaseSecondUpdate();
+    const secondUpdateResponse = await secondUpdateResponsePromise;
+    expect(secondUpdateResponse.ok()).toBe(true);
+    await secondUpdateSyncCompletedPromise;
+    await page.unroute(`**/api/v1/memos/${memoId}`);
 
     await expect.poll(async () => {
       const response = await page.request.get(`/api/v1/memos/${memoId}`);
       if (!response.ok()) return false;
       const body = await response.json() as { memo: { title: string; contentJson: unknown } };
-      return body.memo.title === title && JSON.stringify(body.memo.contentJson).includes(content);
+      const serializedContent = JSON.stringify(body.memo.contentJson);
+      return body.memo.title === title && serializedContent.includes(content) && serializedContent.includes(followUp);
     }).toBe(true);
+    await expect(page.getByText("有冲突", { exact: true })).toHaveCount(0);
 
     await page.reload();
     const memoCard = page.locator(`[data-memo-id="${memoId}"]`);
@@ -124,6 +169,7 @@ const finishSyncAndVerifyReload = async (
     await memoCard.locator("button").first().click();
     await expect(page.getByPlaceholder("无标题")).toHaveValue(title);
     await expect(page.locator(".ProseMirror[contenteditable='true']")).toContainText(content);
+    await expect(page.locator(".ProseMirror[contenteditable='true']")).toContainText(followUp.trim());
   } finally {
     await page.request.delete(`/api/v1/memos/${memoId}`);
     await page.request.delete(`/api/v1/memos/${memoId}?permanent=1`);
@@ -131,7 +177,7 @@ const finishSyncAndVerifyReload = async (
 };
 
 test.describe("new memo synchronization", () => {
-  test("preserves a draft written while memo creation is in flight", async ({ page }) => {
+  test("rebases a second autosave after memo creation reaches cloud revision 1", async ({ page }) => {
     const marker = `${Date.now()}-draft-only`;
     const title = `E2E create race ${marker}`;
     const content = `Content pasted before create completed ${marker}`;

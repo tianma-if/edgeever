@@ -706,6 +706,40 @@ textarea {
   transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
 }
 
+.edgeever-pdf-attachment-node,
+.edgeever-file-attachment-node {
+  display: block;
+  margin: 0.75rem 0 1rem;
+}
+
+.pdf-viewer-action {
+  display: inline-flex;
+  width: 2rem;
+  height: 2rem;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.45rem;
+  color: rgb(var(--slate-500-rgb));
+  transition: color 150ms ease, background 150ms ease;
+}
+
+.pdf-viewer-action:hover:not(:disabled),
+.pdf-viewer-action.is-active {
+  background: var(--brand-green-soft);
+  color: var(--brand-green-text);
+}
+
+.pdf-viewer-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
+
+.pdf-viewer-action svg {
+  width: 1rem;
+  height: 1rem;
+}
+
 .ProseMirror li:has(> p > a[href*="/api/v1/resources/"]) {
   margin-bottom: 0.25rem;
 }
@@ -729,6 +763,29 @@ textarea {
   border-color: rgb(var(--slate-300-rgb) / 0.8);
   background: rgb(var(--slate-100-rgb));
   color: rgb(var(--slate-800-rgb));
+}
+
+.ProseMirror .edgeever-pdf-viewer a.edgeever-attachment-link,
+.ProseMirror .edgeever-pdf-viewer a[href*="/api/v1/resources/"],
+.ProseMirror .edgeever-file-viewer a[href*="/api/v1/resources/"] {
+  max-width: none;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  font-size: inherit;
+}
+
+.ProseMirror .edgeever-pdf-viewer a.edgeever-attachment-link::before,
+.ProseMirror .edgeever-pdf-viewer a[href*="/api/v1/resources/"]::before,
+.ProseMirror .edgeever-file-viewer a[href*="/api/v1/resources/"]::before {
+  content: none;
+}
+
+.ProseMirror .edgeever-pdf-viewer a.pdf-viewer-action:hover,
+.ProseMirror .edgeever-file-viewer a.pdf-viewer-action:hover {
+  background: var(--brand-green-soft);
+  color: var(--brand-green-text);
 }
 
 .ProseMirror ul,
@@ -1041,6 +1098,88 @@ textarea {
   outline-offset: 3px;
 }
 
+.ProseMirror .edgeever-image-upload-placeholder {
+  position: relative;
+  display: block;
+  width: 100%;
+  max-width: 48rem;
+  height: clamp(12rem, 42vw, 28rem);
+  overflow: hidden;
+  margin: 1rem 0;
+  border: 1px solid var(--brand-green-border);
+  border-radius: 8px;
+  background:
+    linear-gradient(110deg, transparent 24%, rgb(255 255 255 / 0.72) 42%, transparent 60%) -18rem 0 / 18rem 100% no-repeat,
+    rgb(var(--slate-100-rgb) / 0.82);
+  animation: edgeever-image-placeholder-shimmer 1.35s ease-in-out infinite;
+  line-height: normal;
+}
+
+.ProseMirror .edgeever-image-upload-placeholder__preview {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  opacity: 0;
+  object-fit: contain;
+  transition: opacity 160ms ease;
+}
+
+.ProseMirror .edgeever-image-upload-placeholder.is-preview-ready {
+  background: rgb(var(--slate-100-rgb) / 0.82);
+  animation: none;
+}
+
+.ProseMirror .edgeever-image-upload-placeholder.is-preview-ready .edgeever-image-upload-placeholder__preview {
+  opacity: 1;
+}
+
+.ProseMirror .edgeever-image-upload-placeholder__status {
+  position: absolute;
+  left: 50%;
+  bottom: 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  transform: translateX(-50%);
+  border: 1px solid rgb(var(--slate-300-rgb) / 0.8);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.92);
+  padding: 0.4rem 0.75rem;
+  color: #475569;
+  box-shadow: 0 4px 16px rgb(15 23 42 / 0.12);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.ProseMirror .edgeever-image-upload-placeholder__spinner {
+  width: 0.85rem;
+  height: 0.85rem;
+  border: 2px solid rgb(var(--brand-green-rgb) / 0.2);
+  border-top-color: var(--brand-green);
+  border-radius: 999px;
+  animation: edgeever-image-placeholder-spin 700ms linear infinite;
+}
+
+@keyframes edgeever-image-placeholder-shimmer {
+  to { background-position: calc(100% + 18rem) 0, 0 0; }
+}
+
+@keyframes edgeever-image-placeholder-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ProseMirror .edgeever-image-upload-placeholder,
+  .ProseMirror .edgeever-image-upload-placeholder__spinner {
+    animation: none;
+  }
+}
+
 .ProseMirror .edgeever-image-node {
   position: relative;
   display: block;
@@ -1173,7 +1312,9 @@ textarea {
   color: #94a3b8;
   content: attr(data-placeholder);
   float: left;
+  font-size: inherit;
   height: 0;
+  line-height: inherit;
   pointer-events: none;
 }
 

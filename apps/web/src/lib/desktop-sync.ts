@@ -9,7 +9,7 @@ import {
   type TiptapDoc,
 } from "@edgeever/shared";
 import { api, ApiRequestError } from "@/lib/api";
-import { isDesktopResourceRuntime } from "@/lib/desktop-resources";
+import { isDesktopResourceRuntime, mapMarkdownResourceUrls, mapTiptapResourceUrls, toApiResourceUrl } from "@/lib/desktop-resources";
 import { notifyMemoIdRemapped, notifyMemoSyncAcknowledged } from "@/lib/sync-events";
 
 type StagedResourceRewrite = { memoId: string; placeholder: string; url: string };
@@ -108,6 +108,16 @@ export const rewriteStagedResource = (value: unknown, rewrites: StagedResourceRe
   return value;
 };
 
+export const normalizeDesktopMemoPayload = (payload: Record<string, unknown>): Record<string, unknown> => ({
+  ...payload,
+  contentJson: payload.contentJson && typeof payload.contentJson === "object"
+    ? mapTiptapResourceUrls(payload.contentJson as TiptapDoc, toApiResourceUrl)
+    : payload.contentJson,
+  contentMarkdown: typeof payload.contentMarkdown === "string"
+    ? mapMarkdownResourceUrls(payload.contentMarkdown, toApiResourceUrl)
+    : payload.contentMarkdown,
+});
+
 const patchCreatedMemoResources = async (rewrites: StagedResourceRewrite[]) => {
   const memoIds = [...new Set(rewrites.map((rewrite) => rewrite.memoId))];
   if (memoIds.length === 0) return;
@@ -188,9 +198,12 @@ const acknowledge = async (
 };
 
 const syncOutboxItem = async (item: DesktopOutboxItem, stagedRewrites: StagedResourceRewrite[]) => {
-  const payload = stagedRewrites.length > 0
+  const rewrittenPayload = stagedRewrites.length > 0
     ? rewriteStagedResource(item.payload, stagedRewrites.filter((rewrite) => rewrite.memoId === String(item.payload.memoId ?? item.entityId))) as Record<string, unknown>
     : item.payload;
+  const payload = item.kind === "memo.create" || item.kind === "memo.update"
+    ? normalizeDesktopMemoPayload(rewrittenPayload)
+    : rewrittenPayload;
   if (item.kind === "memo.create") {
     const data = await api.createMemo({
       notebookId: String(payload.notebookId),

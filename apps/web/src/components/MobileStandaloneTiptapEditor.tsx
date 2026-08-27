@@ -3,12 +3,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
+import { PdfAttachment } from "@/components/editor/PdfAttachment";
+import { FileAttachment } from "@/components/editor/FileAttachment";
 import Image from "@tiptap/extension-image";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
 import { mergeAttributes } from "@tiptap/core";
 import Placeholder from "@tiptap/extension-placeholder";
 import { TableKit } from "@tiptap/extension-table";
-import { createExcerpt, docToMarkdown, docToText, emptyDoc, getImageReferrerPolicy, MergeDivider, type MemoDetail, type MemoEditSession, type Notebook, type TagSummary, type TiptapDoc } from "@edgeever/shared";
+import { createExcerpt, docToMarkdown, docToText, emptyDoc, getImageReferrerPolicy, isPdfAttachment, MergeDivider, type MemoDetail, type MemoEditSession, type Notebook, type TagSummary, type TiptapDoc } from "@edgeever/shared";
 import { createEdgeEverMathematics } from "@edgeever/shared/mathematics";
 import { getMobileEditorInputAttributes, getMobileEditorPlaceholder } from "@edgeever/shared/mobile-editor";
 import {
@@ -195,6 +197,8 @@ export const MobileStandaloneTiptapEditor = ({
   const editor = useEditor({
     extensions: [
       StarterKit,
+      PdfAttachment,
+      FileAttachment,
       TaskList,
       TaskItem.configure({ nested: true }),
       MergeDivider,
@@ -631,19 +635,37 @@ export const MobileStandaloneTiptapEditor = ({
             title: file.name,
           })
           .run();
-      } else {
+      } else if (isPdfAttachment(file.type, resource.filename || file.name)) {
         editor
           .chain()
           .focus()
           .insertContent({
             type: "paragraph",
             content: [{
-              type: "text",
-              text: `附件：${resource.filename || file.name}`,
-              marks: [{
-                type: "link",
-                attrs: { href: resource.url, target: "_blank", class: "edgeever-attachment-link" },
-              }],
+              type: "edgeeverPdfAttachment",
+              attrs: {
+                url: resource.url,
+                label: `附件：${resource.filename || file.name}`,
+                displayMode: "compact",
+              },
+            }],
+          })
+          .run();
+      } else {
+        const filename = resource.filename || file.name;
+        editor
+          .chain()
+          .focus()
+          .insertContent({
+            type: "paragraph",
+            content: [{
+              type: "edgeeverFileAttachment",
+              attrs: {
+                url: resource.url,
+                label: `附件：${filename}`,
+                filename,
+                mimeType: file.type,
+              },
             }],
           })
           .run();

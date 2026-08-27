@@ -117,11 +117,10 @@ describe("Docker release contract", () => {
     expect(mirrorWorkflow).toContain(
       "name: Build Tencent TCR image through CNB",
     );
-    expect(mirrorWorkflow).toContain("workflow_run:");
+    expect(mirrorWorkflow).not.toContain("workflow_run:");
     expect(mirrorWorkflow).toContain("release:");
-    expect(mirrorWorkflow).toContain(
-      "github.event.workflow_run.event == 'push'",
-    );
+    expect(mirrorWorkflow).toContain("types:\n      - published");
+    expect(mirrorWorkflow).toContain("workflow_dispatch:");
     expect(mirrorWorkflow).toContain("secrets.CNB_TCR_BUILD_PUSH_TOKEN");
     expect(mirrorWorkflow).toContain("https://cnb.cool/tianma-if/edgeever");
     expect(mirrorWorkflow).toContain('"HEAD:${destination}"');

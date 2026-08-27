@@ -29,6 +29,7 @@ contextBridge.exposeInMainWorld("edgeeverDesktop", Object.freeze({
   listStagedResources: () => ipcRenderer.invoke("desktop:list-staged-resources"),
   remapStagedResourceMemoIds: (mappings) => ipcRenderer.invoke("desktop:remap-staged-resource-memo-ids", mappings),
   readStagedResource: (id) => ipcRenderer.invoke("desktop:read-staged-resource", id),
+  readResource: (id) => ipcRenderer.invoke("desktop:read-resource", id),
   removeStagedResource: (id) => ipcRenderer.invoke("desktop:remove-staged-resource", id),
   onCommand: (callback) => {
     const listener = (_event, command) => callback(command);

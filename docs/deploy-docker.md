@@ -21,17 +21,16 @@ With Docker Compose v2 already installed:
 curl -fsSL https://edgeever.org/install.sh | bash
 ```
 
-Use Tencent Cloud TCR in mainland China:
-
-```sh
-curl -fsSL https://edgeever-installer-1256854452.cos.ap-guangzhou.myqcloud.com/install.sh | bash -s -- --mirror tcr
-```
-
 The installer creates `~/edgeever`, generates an administrator password, pulls
 `latest`, starts the container, and waits for it to become healthy. Run the same
 command again to upgrade without replacing the password or `/data` volume. The
-mainland command downloads the installer and Compose configuration from Tencent
-COS and pulls the image from Tencent TCR.
+installer and Compose configuration use the official GHCR image.
+
+Some network environments in mainland China may experience slow connections or
+timeouts when accessing GHCR. If the image cannot be pulled normally, configure
+an available network proxy or a trusted registry mirror before deployment.
+Users are responsible for evaluating the availability and security of
+third-party network and registry services.
 
 By default, the installer schedules `~/edgeever/update.sh` with the current
 user's crontab at 04:17 server time every day. The updater refreshes the Compose
@@ -64,21 +63,8 @@ storage are ready.
 
 ### Image registry
 
-The default image is `ghcr.io/tianma-if/edgeever`. Users in mainland China can
-switch to Tencent Cloud TCR:
-
-```sh
-export EDGE_EVER_IMAGE=ccr.ccs.tencentyun.com/edgeever/edgeever
-export EDGE_EVER_VERSION=vX.Y.Z
-docker compose pull
-docker compose up -d
-```
-
-The public TCR image requires no `docker login` and supports `linux/amd64` and
-`linux/arm64`. Formal releases publish the same version tags and `latest` to
-GHCR and TCR. TCR is independently built from the same verified Git commit
-inside Tencent Cloud, so its registry digest may differ from GHCR. Pin
-`EDGE_EVER_VERSION` to a release tag in production.
+The official image is `ghcr.io/tianma-if/edgeever` and supports `linux/amd64`
+and `linux/arm64`. Pin `EDGE_EVER_VERSION` to a release tag in production.
 
 Compose creates one named volume. Everything that must survive a container
 replacement is under `/data`:

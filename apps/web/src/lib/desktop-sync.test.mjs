@@ -5,6 +5,7 @@ const {
   hasDesktopSyncStateReset,
   mergeMemoIdMappings,
   mergeSyncedMemos,
+  normalizeDesktopMemoPayload,
   orderBootstrapNotebooks,
   resolveDesktopMemoSyncBase,
   rewriteStagedResource,
@@ -21,6 +22,21 @@ describe("desktop staged resource sync", () => {
     expect(rewriteStagedResource(value, rewrites)).toEqual({
       contentJson: { type: "doc", content: [{ type: "image", attrs: { src: "/api/v1/resources/resource-1/blob" } }] },
       contentMarkdown: "![photo](/api/v1/resources/resource-1/blob)",
+    });
+  });
+
+  test("never sends desktop-only PDF URLs to the cloud", () => {
+    expect(normalizeDesktopMemoPayload({
+      contentJson: {
+        type: "doc",
+        content: [{ type: "pdfAttachment", attrs: { url: "edgeever-resource://resource/res_pdf" } }],
+      },
+      contentMarkdown: "[Attachment: report.pdf](edgeever-resource://resource/res_pdf)",
+    })).toMatchObject({
+      contentJson: {
+        content: [{ attrs: { url: "/api/v1/resources/res_pdf/blob" } }],
+      },
+      contentMarkdown: "[Attachment: report.pdf](/api/v1/resources/res_pdf/blob)",
     });
   });
 

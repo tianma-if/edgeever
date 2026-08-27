@@ -1,3 +1,5 @@
+import pLimit from "p-limit";
+
 export type FileBatchResult<T> =
   | { file: File; status: "fulfilled"; value: T }
   | { file: File; status: "rejected"; reason: unknown };
@@ -17,4 +19,10 @@ export const processFilesSequentially = async <T>(
   }
 
   return results;
+};
+
+/** Serialize separate paste/drop batches so each reads the post-insert cursor. */
+export const createFileBatchQueue = () => {
+  const limit = pLimit(1);
+  return <T>(task: () => Promise<T>) => limit(task);
 };

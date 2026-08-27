@@ -3,7 +3,7 @@
     "name": "EdgeEver",
     "slug": "edgeever",
     "scheme": "edgeever",
-    "version": "1.42.1",
+    "version": "1.44.0",
     "runtimeVersion": {
       "policy": "appVersion"
     },
@@ -33,7 +33,7 @@
     },
     "android": {
       "package": "org.edgeever.mobile",
-      "versionCode": 138,
+      "versionCode": 140,
       "permissions": [
         "android.permission.REQUEST_INSTALL_PACKAGES"
       ],

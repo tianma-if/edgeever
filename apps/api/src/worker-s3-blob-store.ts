@@ -36,6 +36,11 @@ const responseError = async (operation: string, response: Response) => {
   return new Error(`${operation} failed (${response.status})${detail ? `: ${detail}` : ""}`);
 };
 
+const totalSizeFromResponse = (response: Response) => {
+  const match = /\/(\d+)$/.exec(response.headers.get("content-range") ?? "");
+  return match ? Number(match[1]) : Number(response.headers.get("content-length") ?? 0);
+};
+
 export const createWorkerS3BlobStore = (config: WorkerS3Config): BlobStoreAdapter => {
   const client = new AwsClient({
     accessKeyId: config.accessKeyId,
@@ -45,15 +50,21 @@ export const createWorkerS3BlobStore = (config: WorkerS3Config): BlobStoreAdapte
   });
 
   return {
-    async get(objectKey): Promise<BlobObjectAdapter | null> {
-      const response = await client.fetch(createObjectUrl(config, objectKey).toString());
+    async get(objectKey, options): Promise<BlobObjectAdapter | null> {
+      const headers = new Headers();
+      const range = options?.range;
+      if (range) headers.set("range", `bytes=${range.offset}-${range.offset + range.length - 1}`);
+      const response = await client.fetch(createObjectUrl(config, objectKey).toString(), { headers });
       if (response.status === 404) return null;
       if (!response.ok) throw await responseError("Object download", response);
       if (!response.body) throw new Error("Object download returned an empty body.");
 
       return {
         body: response.body,
-        size: Number(response.headers.get("content-length") ?? 0),
+        size: totalSizeFromResponse(response),
+        range: range
+          ? { offset: range.offset, length: Number(response.headers.get("content-length") ?? range.length) }
+          : undefined,
         writeHttpMetadata: (headers) => {
           for (const name of ["content-type", "cache-control", "content-disposition", "etag", "last-modified"]) {
             const value = response.headers.get(name);

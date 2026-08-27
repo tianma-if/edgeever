@@ -216,7 +216,10 @@ export const createDesktopRepository = (): EdgeEverRepository => ({
   },
 
   createMemo: (input) => {
-    const rpcParams: DesktopMemoCreateParams = input;
+    const rpcParams: DesktopMemoCreateParams = {
+      ...input,
+      contentMarkdown: mapMarkdownResourceUrls(input.contentMarkdown, toApiResourceUrl),
+    };
     return request("memo.create", rpcParams).then((result) => {
       window.dispatchEvent(new CustomEvent("edgeever:sync-queue-changed"));
       return result;

@@ -1,8 +1,9 @@
-import { collectMemoLinkIds, resolveMemoContentDoc, type MemoShare, type PublicMemoShare, type TiptapDoc } from "@edgeever/shared";
+import { collectMemoLinkIds, isPdfAttachment, resolveMemoContentDoc, type MemoShare, type PublicMemoShare, type TiptapDoc } from "@edgeever/shared";
 import type { Hono } from "hono";
 import type { AppEnv } from "./api-context";
 import { audit } from "./audit";
 import { randomToken } from "./auth-crypto";
+import { parseByteRange, rangeNotSatisfiable } from "./byte-range";
 import { createId, isoNow, parseJsonArray } from "./entity-utils";
 import { notFound } from "./http-errors";
 import { resolveObjectStorage } from "./object-storage";
@@ -27,6 +28,7 @@ type SharedResourceRow = {
   kind: "image" | "attachment";
   mime_type: string | null;
   filename: string | null;
+  byte_size: number;
 };
 
 const mapMemoShare = (row: MemoShareRow): MemoShare => ({
@@ -39,10 +41,11 @@ const mapMemoShare = (row: MemoShareRow): MemoShare => ({
 const normalizeFilename = (filename: string) =>
   filename.trim().replace(/[\\/]/g, "-").replace(/[\u0000-\u001f\u007f]/g, "").slice(0, 160);
 
-const contentDisposition = (kind: SharedResourceRow["kind"], filename: string | null) => {
-  if (!filename) return kind === "image" ? "inline" : "attachment";
+const contentDisposition = (kind: SharedResourceRow["kind"], mimeType: string | null, filename: string | null) => {
+  const inline = kind === "image" || isPdfAttachment(mimeType, filename);
+  if (!filename) return inline ? "inline" : "attachment";
   const fallback = normalizeFilename(filename).replace(/"/g, "'");
-  const disposition = kind === "image" ? "inline" : "attachment";
+  const disposition = inline ? "inline" : "attachment";
   return `${disposition}; filename="${fallback}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
 };
 
@@ -101,7 +104,7 @@ export const registerPublicShareRoutes = (app: Hono<AppEnv>) => {
     if (!token) return notFound(c, "Shared resource not found");
 
     const resource = await c.env.storage.db.prepare(
-      `SELECT r.object_key, r.storage_config_id, r.kind, r.mime_type, r.filename
+      `SELECT r.object_key, r.storage_config_id, r.kind, r.mime_type, r.filename, r.byte_size
        FROM memo_shares ms
        INNER JOIN memos m ON m.id = ms.memo_id AND m.workspace_id = ms.workspace_id
        INNER JOIN resources r ON r.memo_id = m.id
@@ -110,19 +113,45 @@ export const registerPublicShareRoutes = (app: Hono<AppEnv>) => {
     ).bind(token, c.req.param("resourceId")).first<SharedResourceRow>();
     if (!resource) return notFound(c, "Shared resource not found");
 
+    const byteRange = parseByteRange(c.req.header("Range"), resource.byte_size);
+    if (byteRange.kind === "invalid") {
+      const response = rangeNotSatisfiable(resource.byte_size);
+      response.headers.set("Cache-Control", "private, no-store");
+      response.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");
+      return response;
+    }
+
     const source = await resolveObjectStorage(c.env, resource.storage_config_id);
-    const object = await source.store.get(resource.object_key);
+    const object = await source.store.get(
+      resource.object_key,
+      byteRange.kind === "range" ? { range: byteRange.range } : undefined,
+    );
     if (!object) return notFound(c, "Shared resource not found");
 
     const headers = new Headers();
     object.writeHttpMetadata(headers);
-    headers.set("Content-Type", resource.mime_type ?? headers.get("Content-Type") ?? "application/octet-stream");
-    headers.set("Content-Length", String(object.size));
-    headers.set("Content-Disposition", contentDisposition(resource.kind, resource.filename));
+    headers.set(
+      "Content-Type",
+      isPdfAttachment(resource.mime_type, resource.filename)
+        ? "application/pdf"
+        : resource.mime_type ?? headers.get("Content-Type") ?? "application/octet-stream",
+    );
+    headers.set("Accept-Ranges", "bytes");
+    if (byteRange.kind === "range") {
+      const length = object.range?.length ?? byteRange.range.length;
+      headers.set("Content-Length", String(length));
+      headers.set(
+        "Content-Range",
+        `bytes ${byteRange.range.offset}-${byteRange.range.offset + length - 1}/${resource.byte_size}`,
+      );
+    } else {
+      headers.set("Content-Length", String(resource.byte_size));
+    }
+    headers.set("Content-Disposition", contentDisposition(resource.kind, resource.mime_type, resource.filename));
     headers.set("Cache-Control", "private, no-store");
     headers.set("X-Content-Type-Options", "nosniff");
     headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");
-    return new Response(object.body, { headers });
+    return new Response(object.body, { headers, status: byteRange.kind === "range" ? 206 : 200 });
   });
 };
 

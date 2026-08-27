@@ -1,4 +1,4 @@
-import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
+import { mkdir, open, readFile, unlink, writeFile } from "node:fs/promises";
 import { dirname, resolve, sep } from "node:path";
 import type {
   BlobObjectAdapter,
@@ -79,10 +79,30 @@ const safeObjectPath = (rootDirectory: string, objectKey: string) => {
 };
 
 const createLocalBlobStore = (rootDirectory: string): BlobStoreAdapter => ({
-  async get(objectKey): Promise<BlobObjectAdapter | null> {
+  async get(objectKey, options): Promise<BlobObjectAdapter | null> {
     const target = safeObjectPath(rootDirectory, objectKey);
 
     try {
+      if (options?.range) {
+        const handle = await open(target, "r");
+        try {
+          const { size } = await handle.stat();
+          const bytes = new Uint8Array(options.range.length);
+          const { bytesRead } = await handle.read(bytes, 0, bytes.byteLength, options.range.offset);
+          const bodyBytes = bytes.subarray(0, bytesRead);
+          return {
+            body: new Response(bodyBytes).body as ReadableStream<Uint8Array>,
+            size,
+            range: { offset: options.range.offset, length: bytesRead },
+            writeHttpMetadata: (headers) => {
+              headers.set("Content-Length", String(bytesRead));
+            },
+          };
+        } finally {
+          await handle.close();
+        }
+      }
+
       const bytes = await readFile(target);
       return {
         body: new Response(bytes).body as ReadableStream<Uint8Array>,

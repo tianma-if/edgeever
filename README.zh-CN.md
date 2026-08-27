@@ -97,21 +97,19 @@ Cloudflare 在线部署可以选择以下两种方式之一：
 
 ### 方案三：在 VPS 或 NAS 上使用 Docker
 
-如果 VPS 或 NAS 位于中国大陆境外，使用 GitHub 托管的安装脚本和 GHCR 镜像：
+使用 GitHub 托管的安装脚本和官方 GHCR 镜像：
 
 ```sh
 curl -fsSL https://edgeever.org/install.sh | bash
 ```
 
-如果 VPS 或 NAS 位于中国大陆境内，使用腾讯云 COS 安装脚本和腾讯云 TCR 镜像，
-下载速度和稳定性通常更好：
-
-```sh
-curl -fsSL https://edgeever-installer-1256854452.cos.ap-guangzhou.myqcloud.com/install.sh | bash -s -- --mirror tcr
-```
-
-两种方式都会自动拉取最新镜像、生成管理员密码、使用 Docker Compose 启动
+该命令会自动拉取最新镜像、生成管理员密码、使用 Docker Compose 启动
 EdgeEver，并设置每日自动更新。手动部署与配置说明见 [Docker 部署文档](docs/deploy-docker.zh-CN.md)。
+
+EdgeEver 官方容器镜像托管于 GitHub Container Registry（GHCR）。部分中国大陆
+网络环境可能出现连接缓慢或超时。如果无法正常拉取，请在部署前自行配置可用的
+网络代理或可信的镜像加速服务。第三方网络及镜像服务的可用性和安全性由
+用户自行评估。
 
 ---
 
@@ -130,8 +128,6 @@ EdgeEver，并设置每日自动更新。手动部署与配置说明见 [Docker 
   <a href="https://chromewebstore.google.com/detail/edgeever-web-clipper/gjadpfmanienmlofajibkfkkpfdkclgo"><img src="https://raw.githubusercontent.com/alrra/browser-logos/58881b84c4d73adc03c06fa2c275a7abee02d935/src/edge/edge.svg" alt="为 Microsoft Edge 安装 EdgeEver 网页裁剪插件" width="36" height="36" /></a>&nbsp;&nbsp;
   <a href="https://addons.mozilla.org/zh-CN/firefox/addon/edgeever-web-clipper/"><img src="https://raw.githubusercontent.com/alrra/browser-logos/58881b84c4d73adc03c06fa2c275a7abee02d935/src/firefox/firefox.svg" alt="为 Firefox 安装 EdgeEver 网页裁剪插件" width="36" height="36" /></a>
 </p>
-
-开发者也可参考[扩展开发说明](apps/extension/README.md)从源码构建并加载插件。
 
 ## 关于客户端
 
@@ -234,7 +230,7 @@ Cloudflare Worker 侧执行图片处理会消耗计算/图片处理额度，因�
 
 ## 高级对象存储
 
-实例 Owner 可在**设置 → 高级设置 → OSS 对象存储**中配置兼容 S3 API 的对象存储。切换存储不会迁移或影响已有附件。Cloudflare 部署还需配置至少 32 个字符的 `EDGE_EVER_STORAGE_ENCRYPTION_KEY` Worker Secret。
+实例 Owner 可在**设置 → 高级设置 → OSS 对象存储**中配置兼容 S3 API 的对象存储。切换存储不会迁移或影响已有附件。
 
 ## 导入与迁移 (Migration)
 

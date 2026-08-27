@@ -108,10 +108,8 @@ Install or upgrade EdgeEver with Docker Compose.
 
 Usage:
   curl -fsSL https://edgeever.org/install.sh | bash
-  curl -fsSL https://edgeever-installer-1256854452.cos.ap-guangzhou.myqcloud.com/install.sh | bash -s -- --mirror tcr
 
 Options:
-  --mirror ghcr|tcr   Select the image registry (default: ghcr)
   --image IMAGE      Use a custom image repository
   --version TAG      Deploy an image tag (default: latest)
   --compose-url URL  Download Compose configuration from URL

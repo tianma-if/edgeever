@@ -1,6 +1,6 @@
 {
   "name": "edgeever",
-  "version": "1.42.1",
+  "version": "1.44.0",
   "private": true,
   "type": "module",
   "workspaces": [
@@ -149,6 +149,8 @@
     "katex": "0.16.22",
     "lucide-react": "latest",
     "marked": "^18.0.5",
+    "p-limit": "^6.2.0",
+    "pdfjs-dist": "^6.2.108",
     "react": "latest",
     "react-dom": "latest",
     "react-dropzone": "^15.0.0",

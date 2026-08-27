@@ -11,10 +11,21 @@ import type { D1Database, D1PreparedStatement } from "@cloudflare/workers-types"
 export type DatabaseAdapter = Pick<D1Database, "prepare" | "batch">;
 export type PreparedStatementAdapter = D1PreparedStatement;
 
+export type BlobRange = {
+  offset: number;
+  length: number;
+};
+
+export type BlobGetOptions = {
+  range?: BlobRange;
+};
+
 /** The subset of an object store response needed by the HTTP resource route. */
 export type BlobObjectAdapter = {
   body: ReadableStream<Uint8Array>;
+  /** Total object size, even when body contains only a requested range. */
   size: number;
+  range?: BlobRange;
   writeHttpMetadata: (headers: Headers) => void;
 };
 
@@ -24,7 +35,7 @@ export type BlobObjectAdapter = {
  * self-hosted adapter can map it to filesystem sidecars or S3 metadata.
  */
 export type BlobStoreAdapter = {
-  get: (key: string) => Promise<BlobObjectAdapter | null>;
+  get: (key: string, options?: BlobGetOptions) => Promise<BlobObjectAdapter | null>;
   put: (key: string, value: unknown, options?: unknown) => Promise<unknown>;
   delete: (keys: string | string[]) => Promise<void>;
 };

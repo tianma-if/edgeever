@@ -35,6 +35,17 @@ describe("editor typography contract", () => {
     expect(markdownLinkRules).toMatch(/text-decoration\s*:\s*underline/);
   });
 
+  test("keeps the rich-editor placeholder aligned with body typography", () => {
+    const globals = readStyle("./globals.css");
+    const placeholderRules = declarationsForSelector(
+      globals,
+      ".ProseMirror.edgeever-note-rich-editor p.is-empty::before",
+    );
+
+    expect(placeholderRules).toMatch(/font-size\s*:\s*inherit/);
+    expect(placeholderRules).toMatch(/line-height\s*:\s*inherit/);
+  });
+
   test("keeps bold text visibly distinct across platform font fallbacks", () => {
     const globals = readStyle("./globals.css");
     const defaultBoldRules = declarationsForSelector(globals, ".ProseMirror strong");
