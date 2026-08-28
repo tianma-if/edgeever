@@ -1,20 +1,23 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Constants from "expo-constants";
-import { AppState, Platform, type AppStateStatus } from "react-native";
+import { AppState, Linking, Platform, type AppStateStatus } from "react-native";
 import * as Updates from "expo-updates";
 import { Alert } from "../components/LocalizedText";
 import { useMobileLocale } from "./mobile-locale";
-import { downloadAndroidApk, installDownloadedAndroidApk } from "./android-apk-update";
-import { findNewerMobileRelease, type MobileRelease } from "./mobile-release";
+import {
+  ANDROID_INSTALL_UPDATE_SOURCES,
+  findNewerMobileRelease,
+  type MobileInstallUpdateSource,
+  type MobileRelease,
+} from "./mobile-release";
 
 const FOREGROUND_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
-type MobileUpdateStatus = "idle" | "checking" | "available" | "downloading" | "ready" | "installing";
+type MobileUpdateStatus = "idle" | "checking" | "available" | "downloading" | "ready";
 export type MobileUpdateKind = "install" | "ota";
 
 type MobileUpdateContextValue = {
   checkForUpdate: () => Promise<void>;
-  downloadProgress: number | null;
   hasUpdate: boolean;
   installedVersion: string | null;
   isSupported: boolean;
@@ -25,7 +28,6 @@ type MobileUpdateContextValue = {
 
 const MobileUpdateContext = createContext<MobileUpdateContextValue>({
   checkForUpdate: async () => undefined,
-  downloadProgress: null,
   hasUpdate: false,
   installedVersion: null,
   isSupported: false,
@@ -33,100 +35,64 @@ const MobileUpdateContext = createContext<MobileUpdateContextValue>({
   status: "idle",
   updateKind: null,
 });
+const MobileUpdateAvailableContext = createContext(false);
 
 export const MobileUpdateProvider = ({ children }: { children: ReactNode }) => {
   const { resolvedLocale } = useMobileLocale();
-  const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
-  const [downloadedInstallFileUri, setDownloadedInstallFileUri] = useState<string | null>(null);
   const [installRelease, setInstallRelease] = useState<MobileRelease | null>(null);
   const [status, setStatus] = useState<MobileUpdateStatus>("idle");
   const [updateKind, setUpdateKind] = useState<MobileUpdateKind | null>(null);
   const activeCheckRef = useRef<Promise<void> | null>(null);
-  const activeDownloadRef = useRef<Promise<string> | null>(null);
   const lastAutomaticCheckRef = useRef(0);
-  const pendingInstallPromptRef = useRef<{ fileUri: string; release: MobileRelease } | null>(null);
-  const promptedInstallVersionRef = useRef<string | null>(null);
   const isSupported = !__DEV__ && Updates.isEnabled;
   const english = resolvedLocale === "en-US";
   const installedVersion = Updates.runtimeVersion ?? Constants.expoConfig?.version ?? null;
 
-  const openPreparedInstaller = useCallback((release: MobileRelease, fileUri: string) => {
+  const openManualUpdateSource = useCallback((source: MobileInstallUpdateSource) => {
+    void Linking.openURL(source.url).catch(() => {
+      if (source.fallbackUrl) {
+        void Linking.openURL(source.fallbackUrl).catch(() => {
+          Alert.alert(
+            english ? "Could not open link" : "无法打开链接",
+            english ? "Check your browser settings and try again." : "请检查浏览器设置后重试。"
+          );
+        });
+        return;
+      }
+      Alert.alert(
+        english ? "Could not open link" : "无法打开链接",
+        english ? "Check your browser settings and try again." : "请检查浏览器设置后重试。"
+      );
+    });
+  }, [english]);
+
+  const openInstallUpdateOptions = useCallback((release: MobileRelease) => {
+    const googlePlay = ANDROID_INSTALL_UPDATE_SOURCES.find((source) => source.id === "google-play");
+    const github = ANDROID_INSTALL_UPDATE_SOURCES.find((source) => source.id === "github");
+    if (!googlePlay || !github) {
+      return;
+    }
     Alert.alert(
-      english ? "Update ready" : "更新已就绪",
+      english ? "Update available" : "发现新版本",
       english
-        ? `EdgeEver ${release.version} has been downloaded and is ready to install.`
-        : `EdgeEver ${release.version} 安装包已下载完成，可以立即安装。`,
+        ? `EdgeEver ${release.version} is available. Choose where to update.`
+        : `EdgeEver ${release.version} 已发布，请选择更新渠道。`,
       [
         {
           text: english ? "Later" : "稍后",
           style: "cancel",
         },
         {
-          text: english ? "Install now" : "立即安装",
-          onPress: () => {
-            setStatus("installing");
-            void installDownloadedAndroidApk(fileUri).then(() => {
-              setStatus("ready");
-            }).catch(() => {
-              setStatus("ready");
-              Alert.alert(
-                english ? "Could not open installer" : "无法打开安装器",
-                english
-                  ? "Allow EdgeEver to install apps when prompted, then try again."
-                  : "请在系统提示时允许 EdgeEver 安装应用，然后重试。"
-              );
-            });
-          },
+          text: english ? github.labelEn : github.labelZh,
+          onPress: () => openManualUpdateSource(github),
+        },
+        {
+          text: english ? googlePlay.labelEn : googlePlay.labelZh,
+          onPress: () => openManualUpdateSource(googlePlay),
         },
       ]
     );
-  }, [english]);
-
-  const promptPreparedInstallerWhenActive = useCallback((release: MobileRelease, fileUri: string) => {
-    if (promptedInstallVersionRef.current === release.version) {
-      return;
-    }
-    if (AppState.currentState !== "active") {
-      pendingInstallPromptRef.current = { fileUri, release };
-      return;
-    }
-    pendingInstallPromptRef.current = null;
-    promptedInstallVersionRef.current = release.version;
-    openPreparedInstaller(release, fileUri);
-  }, [openPreparedInstaller]);
-
-  const prepareInstallRelease = useCallback(async (release: MobileRelease, promptWhenReady: boolean) => {
-    setInstallRelease(release);
-    setUpdateKind("install");
-
-    let download = activeDownloadRef.current;
-    if (!download) {
-      setDownloadProgress(0);
-      setStatus("downloading");
-      download = downloadAndroidApk(release, ({ progress }) => setDownloadProgress(progress));
-      activeDownloadRef.current = download;
-    }
-
-    try {
-      const fileUri = await download;
-      setDownloadedInstallFileUri(fileUri);
-      setDownloadProgress(null);
-      setStatus("ready");
-      if (promptWhenReady) {
-        promptPreparedInstallerWhenActive(release, fileUri);
-      }
-      return fileUri;
-    } catch (error) {
-      setDownloadedInstallFileUri(null);
-      setDownloadProgress(null);
-      setStatus("available");
-      throw error;
-    } finally {
-      if (activeDownloadRef.current === download) {
-        activeDownloadRef.current = null;
-      }
-    }
-  }, [promptPreparedInstallerWhenActive]);
+  }, [english, openManualUpdateSource]);
 
   const runCheck = useCallback((userInitiated: boolean) => {
     if (activeCheckRef.current) {
@@ -156,18 +122,9 @@ export const MobileUpdateProvider = ({ children }: { children: ReactNode }) => {
             }
             const release = await findNewerMobileRelease(installedVersion);
             if (release) {
-              try {
-                await prepareInstallRelease(release, true);
-              } catch {
-                if (userInitiated) {
-                  Alert.alert(
-                    english ? "Download failed" : "下载失败",
-                    english
-                      ? "Could not prepare the update package. Check your connection and try again."
-                      : "无法准备更新安装包，请检查网络后重试。"
-                  );
-                }
-              }
+              setInstallRelease(release);
+              setUpdateKind("install");
+              setStatus("available");
               return;
             }
           } catch {
@@ -198,7 +155,7 @@ export const MobileUpdateProvider = ({ children }: { children: ReactNode }) => {
       activeCheckRef.current = null;
     });
     return check;
-  }, [english, installedVersion, isSupported, prepareInstallRelease]);
+  }, [english, installedVersion, isSupported]);
 
   useEffect(() => {
     const attemptAutomaticCheck = () => {
@@ -211,10 +168,6 @@ export const MobileUpdateProvider = ({ children }: { children: ReactNode }) => {
     const timer = setTimeout(attemptAutomaticCheck, 1_500);
     const subscription = AppState.addEventListener("change", (nextState: AppStateStatus) => {
       if (nextState === "active") {
-        const pendingPrompt = pendingInstallPromptRef.current;
-        if (pendingPrompt) {
-          promptPreparedInstallerWhenActive(pendingPrompt.release, pendingPrompt.fileUri);
-        }
         attemptAutomaticCheck();
       }
     });
@@ -223,25 +176,14 @@ export const MobileUpdateProvider = ({ children }: { children: ReactNode }) => {
       clearTimeout(timer);
       subscription.remove();
     };
-  }, [promptPreparedInstallerWhenActive, runCheck]);
+  }, [runCheck]);
 
   const openUpdate = useCallback(async () => {
     if (updateKind === "install") {
-      if (Platform.OS !== "android" || !installRelease || status === "downloading" || status === "installing") {
+      if (Platform.OS !== "android" || !installRelease) {
         return;
       }
-      if (downloadedInstallFileUri) {
-        openPreparedInstaller(installRelease, downloadedInstallFileUri);
-        return;
-      }
-      void prepareInstallRelease(installRelease, true).catch(() => {
-        Alert.alert(
-          english ? "Download failed" : "下载失败",
-          english
-            ? "Could not prepare the update package. Check your connection and try again."
-            : "无法准备更新安装包，请检查网络后重试。"
-        );
-      });
+      openInstallUpdateOptions(installRelease);
       return;
     }
 
@@ -294,25 +236,30 @@ export const MobileUpdateProvider = ({ children }: { children: ReactNode }) => {
           : "无法下载应用内更新，请稍后再试。"
       );
     }
-  }, [downloadedInstallFileUri, english, installRelease, isSupported, openPreparedInstaller, prepareInstallRelease, status, updateKind]);
+  }, [english, installRelease, isSupported, openInstallUpdateOptions, status, updateKind]);
 
+  const hasUpdate = status === "available" || status === "ready" || status === "downloading";
   const value = useMemo<MobileUpdateContextValue>(
     () => ({
       checkForUpdate: () => {
         return runCheck(true);
       },
-      downloadProgress,
-      hasUpdate: status === "available" || status === "ready" || status === "downloading" || status === "installing",
+      hasUpdate,
       installedVersion,
       isSupported,
       openUpdate,
       status,
       updateKind,
     }),
-    [downloadProgress, installedVersion, isSupported, openUpdate, runCheck, status, updateKind]
+    [hasUpdate, installedVersion, isSupported, openUpdate, runCheck, status, updateKind]
   );
 
-  return <MobileUpdateContext.Provider value={value}>{children}</MobileUpdateContext.Provider>;
+  return (
+    <MobileUpdateAvailableContext.Provider value={hasUpdate}>
+      <MobileUpdateContext.Provider value={value}>{children}</MobileUpdateContext.Provider>
+    </MobileUpdateAvailableContext.Provider>
+  );
 };
 
 export const useMobileUpdate = () => useContext(MobileUpdateContext);
+export const useMobileUpdateAvailable = () => useContext(MobileUpdateAvailableContext);

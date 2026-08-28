@@ -2221,6 +2221,20 @@ const baseWorkspaceStyles = StyleSheet.create({
     minHeight: MOBILE_UI_METRICS.minimumTouchTarget,
     minWidth: 58,
   },
+  bottomNavIcon: {
+    position: "relative",
+  },
+  bottomNavBadge: {
+    backgroundColor: "#10b981",
+    borderColor: "#ffffff",
+    borderRadius: 5,
+    borderWidth: 1,
+    height: 9,
+    position: "absolute",
+    right: -5,
+    top: -3,
+    width: 9,
+  },
   bottomNavText: {
     color: "#64748b",
     fontSize: 11,

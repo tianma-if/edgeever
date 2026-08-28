@@ -32,6 +32,7 @@ export type ResourceRow = {
   height: number | null;
   created_at: string;
   updated_at: string;
+  is_deleted?: number;
 };
 
 export type ResourceListRow = ResourceRow & {
@@ -149,10 +150,23 @@ export const prepareImageForStorage = (input: {
   },
 });
 
+const encodeRfc5987Value = (value: string) => encodeURIComponent(
+  value.replace(/[\uD800-\uDFFF]/gu, "\uFFFD"),
+).replace(/['()*]/g, (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`);
+
+const asciiFilenameFallback = (filename: string) => {
+  const normalized = filename.normalize("NFKD").replace(/[\u0300-\u036f]/g, "");
+  const ascii = normalized.replace(/[^\x20-\x7e]/g, "_").replace(/["\\]/g, "_");
+  const extension = /\.[A-Za-z0-9]{1,16}$/.exec(ascii)?.[0] ?? "";
+  const basename = extension ? ascii.slice(0, -extension.length) : ascii;
+  return /[A-Za-z0-9]/.test(basename) ? ascii : `download${extension}`;
+};
+
 const contentDisposition = (kind: "inline" | "attachment", filename: string | null) => {
   if (!filename) return kind;
-  const fallback = normalizeFilename(filename).replace(/"/g, "'");
-  return `${kind}; filename="${fallback}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
+  const normalized = normalizeFilename(filename);
+  if (!normalized) return kind;
+  return `${kind}; filename="${asciiFilenameFallback(normalized)}"; filename*=UTF-8''${encodeRfc5987Value(normalized)}`;
 };
 
 export const contentDispositionInline = (filename: string | null) => contentDisposition("inline", filename);

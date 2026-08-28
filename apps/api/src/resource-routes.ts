@@ -49,6 +49,7 @@ type ResourceRouteDependencies = {
     database: DatabaseAdapter,
     workspaceId: string,
     resourceId: string,
+    includeDeleted?: boolean,
   ) => Promise<ResourceRow | null>;
 };
 
@@ -233,23 +234,27 @@ export const registerResourceRoutes = (
       context.env.storage.db,
       getWorkspaceId(context),
       resourceId,
+      true,
     );
     if (!resource) return notFound(context, "Resource not found");
 
-    const now = isoNow();
-    const actor = getAuditActor(context);
-    await context.env.storage.db.batch([
-      context.env.storage.db.prepare(
-        `UPDATE resources SET is_deleted = 1, deleted_at = ?, updated_at = ? WHERE id = ?`,
-      ).bind(now, now, resourceId),
-      auditStatement(context.env.storage.db, actor.actorType, actor.actorId, "resource.delete", "resource", resourceId, {
-        memoId: resource.memo_id,
-        filename: resource.filename,
-        byteSize: resource.byte_size,
-      }),
-    ]);
     const source = await resolveObjectStorage(context.env, resource.storage_config_id);
     await source.store.delete(resource.object_key);
+
+    if (!resource.is_deleted) {
+      const now = isoNow();
+      const actor = getAuditActor(context);
+      await context.env.storage.db.batch([
+        context.env.storage.db.prepare(
+          `UPDATE resources SET is_deleted = 1, deleted_at = ?, updated_at = ? WHERE id = ?`,
+        ).bind(now, now, resourceId),
+        auditStatement(context.env.storage.db, actor.actorType, actor.actorId, "resource.delete", "resource", resourceId, {
+          memoId: resource.memo_id,
+          filename: resource.filename,
+          byteSize: resource.byte_size,
+        }),
+      ]);
+    }
     return context.json({ ok: true });
   });
 };

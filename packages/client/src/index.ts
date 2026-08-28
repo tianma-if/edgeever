@@ -170,14 +170,30 @@ export type MobileSyncChangesPage = {
 export class ApiRequestError extends Error {
   status: number;
   code?: string;
+  details?: unknown;
+  responseDiagnostics?: ApiResponseDiagnostics;
 
-  constructor(message: string, status: number, code?: string) {
+  constructor(
+    message: string,
+    status: number,
+    code?: string,
+    details?: unknown,
+    responseDiagnostics?: ApiResponseDiagnostics,
+  ) {
     super(message);
     this.name = "ApiRequestError";
     this.status = status;
     this.code = code;
+    this.details = details;
+    this.responseDiagnostics = responseDiagnostics;
   }
 }
+
+export type ApiResponseDiagnostics = {
+  cloudflareMitigated: boolean;
+  isEdgeEverApiError: boolean;
+  rayId?: string;
+};
 
 export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
   const fetchImpl = options.fetch ?? fetch;
@@ -202,17 +218,29 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
 
     if (!response.ok) {
       const body = await response.json().catch(() => null);
+      const rayId = response.headers.get("cf-ray")?.trim();
       const error =
         body && typeof body === "object" && "error" in body
-          ? (body as { error?: { code?: string; message?: string } }).error
+          ? (body as { error?: { code?: string; message?: string; details?: unknown } }).error
           : undefined;
       const message = error?.message ?? response.statusText;
+      const responseDiagnostics: ApiResponseDiagnostics = {
+        cloudflareMitigated: response.headers.get("cf-mitigated") === "challenge",
+        isEdgeEverApiError: Boolean(error && typeof error === "object"),
+        ...(rayId ? { rayId } : {}),
+      };
 
       if (response.status === 401) {
         options.onUnauthorized?.();
       }
 
-      throw new ApiRequestError(message || "Request failed", response.status, error?.code);
+      throw new ApiRequestError(
+        message || "Request failed",
+        response.status,
+        error?.code,
+        error?.details,
+        responseDiagnostics,
+      );
     }
 
     return response.json() as Promise<T>;

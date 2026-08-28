@@ -155,15 +155,18 @@ describe("store delivery command", () => {
     expect(buildScript).not.toContain("armeabi-v7a,arm64-v8a,x86,x86_64");
   });
 
-  test("removes the sideload-only install permission from Play bundles", () => {
+  test("keeps the self-update install permission out of Android builds", () => {
     const buildScript = readFileSync(
       new URL("./build-android-local.sh", import.meta.url),
       "utf8",
     );
+    const appConfig = readFileSync(
+      new URL("../apps/mobile/app.json", import.meta.url),
+      "utf8",
+    );
 
-    expect(buildScript).toContain('if [[ "$MODE" == "play" ]]');
-    expect(buildScript).toContain('"$ANDROID_MANIFEST" play');
-    expect(buildScript).toContain('"$ANDROID_MANIFEST" sideload');
+    expect(appConfig).not.toContain("android.permission.REQUEST_INSTALL_PACKAGES");
+    expect(buildScript).not.toContain("configure-android-package-permissions");
     expect(buildScript).toContain(
       'grep -q "android.permission.REQUEST_INSTALL_PACKAGES" "$PACKAGED_MANIFEST"',
     );

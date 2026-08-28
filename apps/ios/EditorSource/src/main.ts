@@ -13,6 +13,16 @@ import { NodeSelection } from "@tiptap/pm/state";
 import mermaid from "mermaid";
 import { toCanvas } from "html-to-image";
 import {
+  createNativeUnsupportedContentExtensions,
+  docToMarkdown,
+  NativeAttachmentMetadata,
+  prepareNativeEditorContent,
+  resolveAttachmentKind,
+  resolveNativeAttachmentContent,
+  restoreNativeEditorContent,
+  type TiptapDoc,
+} from "@edgeever/shared";
+import {
   type NoteImageTheme,
   type NoteImageFontStyle,
   type NoteImageFontSize,
@@ -144,6 +154,27 @@ function buildAttachmentTargetJson(href: string, label: string): string | null {
   });
 }
 
+const ATTACHMENT_KIND_CLASS_PREFIX = "edgeever-attachment-kind-";
+
+function normalizeAttachmentFilename(label: string): string {
+  return label.replace(/^\s*(?:附件[：:]|Attachment:)\s*/i, "").trim();
+}
+
+function decorateAttachmentLinks(root: ParentNode): void {
+  root.querySelectorAll<HTMLAnchorElement>(
+    'a.edgeever-attachment-link, a[href*="/api/v1/resources/"]'
+  ).forEach((link) => {
+    Array.from(link.classList).forEach((className) => {
+      if (className.startsWith(ATTACHMENT_KIND_CLASS_PREFIX)) link.classList.remove(className);
+    });
+    const filename = normalizeAttachmentFilename(link.textContent || "");
+    link.classList.add(
+      "edgeever-attachment-link",
+      `${ATTACHMENT_KIND_CLASS_PREFIX}${resolveAttachmentKind(null, filename)}`,
+    );
+  });
+}
+
 type ConfigureOptions = {
   mode?: "viewer" | "editor";
   locale?: string;
@@ -176,7 +207,7 @@ type ImageExportRequest = {
   branding?: boolean;
 };
 let mode: "viewer" | "editor" = "viewer";
-let locale = "zh-CN";
+let locale: "zh-CN" | "en-US" = "zh-CN";
 let currentPlaceholder = "开始输入…";
 let suppressChange = false;
 const resourceResolvers = new Map<string, (dataUrl: string | null) => void>();
@@ -675,6 +706,7 @@ function buildExtensions(placeholder: string) {
     StarterKit.configure({
       codeBlock: false,
     }),
+    NativeAttachmentMetadata,
     TaskList,
     TaskItem.configure({ nested: true }),
     MergeDivider,
@@ -686,6 +718,7 @@ function buildExtensions(placeholder: string) {
     TableKit.configure({
       table: { resizable: false },
     }),
+    ...createNativeUnsupportedContentExtensions(),
     Placeholder.configure({
       placeholder,
     }),
@@ -705,6 +738,7 @@ const editor = new Editor({
   content: { type: "doc", content: [{ type: "paragraph" }] },
   onUpdate: ({ editor: ed }) => {
     refreshToolbarState();
+    requestAnimationFrame(() => decorateAttachmentLinks(editorEl));
     if (suppressChange || mode !== "editor") return;
     emitChange(ed);
   },
@@ -863,14 +897,7 @@ const protectLiteralDollarPairs = (value: unknown): unknown => {
 };
 
 const serializeEditorMarkdown = (ed: Editor) => {
-  const manager = (ed.storage as { markdown?: { manager?: { serialize?: (doc: unknown) => string } } })
-    .markdown?.manager;
-  if (manager?.serialize) {
-    return manager.serialize(protectLiteralDollarPairs(ed.getJSON())).replaceAll(LITERAL_DOLLAR_PLACEHOLDER, "\\$");
-  }
-  return typeof ed.getMarkdown === "function"
-    ? ed.getMarkdown()
-    : ed.getText({ blockSeparator: "\n\n" });
+  return docToMarkdown(restoreNativeEditorContent(ed.getJSON() as TiptapDoc));
 };
 
 let pendingAiSelection: { from: number; to: number; isInline: boolean; documentFingerprint: string } | null = null;
@@ -984,7 +1011,7 @@ const parseAiSelectionReplacement = (ed: Editor, draft: string, isInline: boolea
 
 function emitChange(ed: Editor) {
   try {
-    const contentJson = JSON.stringify(ed.getJSON());
+    const contentJson = JSON.stringify(restoreNativeEditorContent(ed.getJSON() as TiptapDoc));
     const contentMarkdown = serializeEditorMarkdown(ed);
     post({ type: "change", contentMarkdown, contentJson });
   } catch (error) {
@@ -1111,6 +1138,7 @@ async function afterContentSet(theme: "light" | "dark" = "light") {
   editorEl.querySelectorAll<HTMLElement>("[data-placeholder]").forEach((element) => {
     element.dataset.placeholder = currentPlaceholder;
   });
+  decorateAttachmentLinks(editorEl);
   await hydrateProtectedImages(editorEl);
   if (mode === "viewer") {
     await renderMermaidBlocks(editorEl, theme);
@@ -1304,8 +1332,11 @@ const api: EdgeEverEditorAPI = {
   setDocumentFromJSON(json) {
     suppressChange = true;
     try {
-      const doc = JSON.parse(json);
-      editor.commands.setContent(doc);
+      const doc = JSON.parse(json) as TiptapDoc;
+      editor.commands.setContent(prepareNativeEditorContent(
+        resolveNativeAttachmentContent(doc),
+        locale,
+      ));
     } catch {
       editor.commands.setContent({ type: "doc", content: [{ type: "paragraph" }] });
     }
@@ -1327,7 +1358,7 @@ const api: EdgeEverEditorAPI = {
   },
 
   getDocument() {
-    return JSON.stringify(editor.getJSON());
+    return JSON.stringify(restoreNativeEditorContent(editor.getJSON() as TiptapDoc));
   },
 
   captureSelection() {

@@ -12,6 +12,8 @@ const PdfAttachmentNodeView = ({ node, updateAttributes }: NodeViewProps) => {
       <PdfViewer
         url={url}
         label={label}
+        filename={typeof node.attrs.filename === "string" ? node.attrs.filename : undefined}
+        byteSize={node.attrs.byteSize}
         expanded={displayMode === "inline"}
         onExpandedChange={(expanded) => updateAttributes({ displayMode: expanded ? "inline" : "compact" })}
       />

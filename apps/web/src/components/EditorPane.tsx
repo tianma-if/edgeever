@@ -1252,7 +1252,13 @@ const RichEditorPane = ({
         const uploadFile = shouldCompress ? (await compressImageForUpload(file)).file : file;
 
         setImageUploadState("uploading");
-        let resource: { kind: "image" | "attachment"; filename: string | null; url: string };
+        let resource: {
+          kind: "image" | "attachment";
+          filename: string | null;
+          mimeType: string | null;
+          byteSize: number;
+          url: string;
+        };
         try {
           const uploadedResource = (await repository.uploadMemoResource(targetMemoId, uploadFile)).resource;
           resource = { ...uploadedResource, url: toDesktopResourceUrl(uploadedResource.url) };
@@ -1263,6 +1269,8 @@ const RichEditorPane = ({
           resource = {
             kind: isImage ? "image" : "attachment",
             filename: uploadFile.name,
+            mimeType: uploadFile.type || null,
+            byteSize: uploadFile.size,
             url: `edgeever-staged://${staged.id}`,
           };
         }
@@ -1305,6 +1313,9 @@ const RichEditorPane = ({
               attrs: {
                 url: resource.url,
                 label: t("editor.attachmentLabel", { filename }),
+                filename,
+                mimeType: resource.mimeType || file.type || "application/pdf",
+                byteSize: resource.byteSize,
                 displayMode: "compact",
               },
             }],
@@ -1319,6 +1330,7 @@ const RichEditorPane = ({
               label: t("editor.attachmentLabel", { filename }),
               filename,
               mimeType: file.type,
+              byteSize: resource.byteSize,
             },
           }],
         };

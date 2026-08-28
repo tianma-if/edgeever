@@ -11,6 +11,7 @@ import {
   createEdgeEverMarkdownMathematics,
   INLINE_MATH_NODE_TYPE,
 } from "./mathematics-markdown";
+import { projectNativeUnknownContentForMarkdown } from "./mobile-content-compatibility";
 
 export {
   BLOCK_MATH_NODE_TYPE,
@@ -315,7 +316,9 @@ export const docToMarkdown = (doc: unknown): string => {
     return "";
   }
 
-  const serializableDoc = protectLiteralDollarPairs(stripEditorOnlyNodes(doc));
+  const serializableDoc = protectLiteralDollarPairs(projectNativeUnknownContentForMarkdown(
+    stripEditorOnlyNodes(doc) as TiptapDoc
+  ));
   return markdownManager
     .serialize(serializableDoc as Parameters<typeof markdownManager.serialize>[0])
     .replaceAll(LITERAL_DOLLAR_PLACEHOLDER, "\\$");

@@ -934,6 +934,9 @@ export const enUS = {
     fromMemo: "From: {{source}}",
     sourceMemo: "Source note: {{source}}",
     openInNewWindow: "Open in new window",
+    deleteTitle: "Delete attachment",
+    deleteDescription: "The attachment will be permanently removed from storage. Related links in the note will no longer open. This cannot be undone.",
+    deleteAria: "Delete attachment {{filename}}",
   },
   tagsDialog: {
     title: "Tags",

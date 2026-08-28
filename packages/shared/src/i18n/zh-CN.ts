@@ -934,6 +934,9 @@ export const zhCN = {
     fromMemo: "来自：{{source}}",
     sourceMemo: "来源笔记：{{source}}",
     openInNewWindow: "在新窗口打开",
+    deleteTitle: "删除附件",
+    deleteDescription: "附件将从存储空间中永久删除，笔记中的相关链接将无法再打开。此操作无法撤销。",
+    deleteAria: "删除附件 {{filename}}",
   },
   tagsDialog: {
     title: "标签",

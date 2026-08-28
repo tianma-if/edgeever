@@ -123,7 +123,7 @@ import { showEdgeEverKeyboard } from "../../modules/edgeever-keyboard";
 import { MobileResourceActions } from "../components/MobileResourceActions";
 import { MobileCreateChoiceModal, MobileTemplatePickerModal } from "../components/MobileTemplatePicker";
 import { resolveMobileThemeStyles, useMobileTheme } from "../lib/mobile-theme";
-import { useMobileUpdate } from "../lib/mobile-update";
+import { useMobileUpdateAvailable } from "../lib/mobile-update";
 import { createMemoSeedHasContent, type MobileCreateMemoSeed } from "../lib/mobile-templates";
 import { createMobileDraftWriteBarrier } from "../lib/mobile-draft-write-barrier";
 import { MobileMermaidDiagram, MobileMermaidProvider } from "../components/MobileMermaid";
@@ -294,6 +294,7 @@ export const WorkspaceScreen = ({
 }) => {
   const { resolvedTheme } = useMobileTheme();
   const { preference: localePreference, resolvedLocale, setPreference: setLocalePreference } = useMobileLocale();
+  const hasUpdate = useMobileUpdateAvailable();
   refreshWorkspaceThemeStyles(resolvedTheme);
   const { client, session, signOut } = useSession();
   const queryClient = useQueryClient();
@@ -1623,6 +1624,7 @@ export const WorkspaceScreen = ({
         </Pressable>
         <BottomNavItem
           active={false}
+          badge={hasUpdate}
           icon={<UserRound color="#64748b" size={20} />}
           label="我的"
           onPress={openSettings}
@@ -3593,9 +3595,18 @@ const ActionButton = ({
   </Pressable>
 );
 
-const BottomNavItem = ({ active = false, icon, label, onPress }: { active?: boolean; icon: ReactNode; label: string; onPress: () => void }) => (
-  <Pressable accessibilityRole="button" accessibilityState={{ selected: active }} onPress={onPress} style={styles.bottomNavItem}>
-    {icon}
+const BottomNavItem = ({ active = false, badge = false, icon, label, onPress }: { active?: boolean; badge?: boolean; icon: ReactNode; label: string; onPress: () => void }) => (
+  <Pressable
+    accessibilityLabel={badge ? `${label}，发现新版本` : label}
+    accessibilityRole="button"
+    accessibilityState={{ selected: active }}
+    onPress={onPress}
+    style={styles.bottomNavItem}
+  >
+    <View style={styles.bottomNavIcon}>
+      {icon}
+      {badge ? <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.bottomNavBadge} /> : null}
+    </View>
     <Text style={[styles.bottomNavText, active && styles.bottomNavTextActive]}>{label}</Text>
   </Pressable>
 );

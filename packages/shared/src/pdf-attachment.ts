@@ -1,5 +1,7 @@
 import { mergeAttributes, Node } from "@tiptap/core";
 import type { TiptapDoc, TiptapMark, TiptapNode, TiptapTextNode } from "./content";
+import { getAttachmentFilenameFromLabel } from "./resource-links";
+import { normalizeAttachmentByteSize } from "./attachment-metadata";
 
 export const PDF_ATTACHMENT_NODE_TYPE = "edgeeverPdfAttachment" as const;
 export const PDF_DISPLAY_MODES = ["compact", "inline"] as const;
@@ -36,6 +38,24 @@ export const PdfAttachment = Node.create({
         parseHTML: (element) => element.getAttribute("data-pdf-label") || "PDF",
         renderHTML: (attributes) => ({ "data-pdf-label": attributes.label || "PDF" }),
       },
+      filename: {
+        default: "",
+        parseHTML: (element) => element.getAttribute("data-pdf-name") || "",
+        renderHTML: (attributes) => ({ "data-pdf-name": attributes.filename || "" }),
+      },
+      mimeType: {
+        default: "application/pdf",
+        parseHTML: (element) => element.getAttribute("data-pdf-mime-type") || "application/pdf",
+        renderHTML: (attributes) => ({ "data-pdf-mime-type": attributes.mimeType || "application/pdf" }),
+      },
+      byteSize: {
+        default: null,
+        parseHTML: (element) => normalizeAttachmentByteSize(element.getAttribute("data-pdf-byte-size")),
+        renderHTML: (attributes) => {
+          const byteSize = normalizeAttachmentByteSize(attributes.byteSize);
+          return byteSize === null ? {} : { "data-pdf-byte-size": String(byteSize) };
+        },
+      },
       displayMode: {
         default: "compact",
         parseHTML: (element) => resolvePdfDisplayMode(element.getAttribute("data-pdf-display-mode")),
@@ -62,7 +82,14 @@ export const PdfAttachment = Node.create({
 
   parseMarkdown: (token) => ({
     type: PDF_ATTACHMENT_NODE_TYPE,
-    attrs: { url: token.url || "", label: token.label || "PDF", displayMode: "compact" },
+    attrs: {
+      url: token.url || "",
+      label: token.label || "PDF",
+      filename: getAttachmentFilenameFromLabel(token.label || "PDF"),
+      mimeType: "application/pdf",
+      byteSize: null,
+      displayMode: "compact",
+    },
   }),
 
   renderMarkdown: (node) => `[${escapeMarkdownLabel(String(node.attrs?.label || "PDF"))}](${String(node.attrs?.url || "")})`,
@@ -92,6 +119,16 @@ export const PdfAttachment = Node.create({
 const getLinkMark = (node: TiptapTextNode): TiptapMark | undefined =>
   node.marks?.find((mark) => mark.type === "link" && typeof mark.attrs?.href === "string");
 
+const getLinkAttachmentAttrs = (link: TiptapMark | undefined, label: string) => ({
+  filename: typeof link?.attrs?.attachmentFilename === "string"
+    ? link.attrs.attachmentFilename
+    : getAttachmentFilenameFromLabel(label),
+  mimeType: typeof link?.attrs?.attachmentMimeType === "string"
+    ? link.attrs.attachmentMimeType
+    : "application/pdf",
+  byteSize: normalizeAttachmentByteSize(link?.attrs?.attachmentByteSize),
+});
+
 /** Upgrade legacy standalone PDF link paragraphs without changing their Markdown representation. */
 export const upgradeStandalonePdfLinks = (doc: TiptapDoc): TiptapDoc => {
   let changed = false;
@@ -107,7 +144,12 @@ export const upgradeStandalonePdfLinks = (doc: TiptapDoc): TiptapDoc => {
             ...node,
             content: [{
               type: PDF_ATTACHMENT_NODE_TYPE,
-              attrs: { url: href, label: child.text, displayMode: "compact" },
+              attrs: {
+                url: href,
+                label: child.text,
+                ...getLinkAttachmentAttrs(link, child.text),
+                displayMode: "compact",
+              },
             }],
           };
         }

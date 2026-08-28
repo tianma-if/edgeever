@@ -1,6 +1,6 @@
 {
   "name": "@edgeever/desktop",
-  "version": "1.44.0",
+  "version": "1.45.2",
   "desktopName": "EdgeEver",
   "private": true,
   "description": "Native EdgeEver desktop client",
@@ -13,7 +13,7 @@
     "dist": "electron-builder --config electron-builder.yml"
   },
   "devDependencies": {
-    "electron": "^38.0.0",
+    "electron": "^44.0.0",
     "electron-builder": "^26.0.12"
   },
   "dependencies": {

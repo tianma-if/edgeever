@@ -10,24 +10,20 @@ import { useMobileTheme, resolveMobileThemeStyles } from "../lib/mobile-theme";
 export const MobileUpdateCard = () => {
   const { resolvedLocale } = useMobileLocale();
   const { resolvedTheme } = useMobileTheme();
-  const { checkForUpdate, downloadProgress, hasUpdate, isSupported, openUpdate, status, updateKind } = useMobileUpdate();
+  const { checkForUpdate, hasUpdate, isSupported, openUpdate, status, updateKind } = useMobileUpdate();
   const english = resolvedLocale === "en-US";
-  const busy = status === "checking" || status === "downloading" || status === "installing";
+  const busy = status === "checking" || status === "downloading";
   const styles = resolveMobileThemeStyles(baseStyles, resolvedTheme);
   const checkLabel = status === "checking"
     ? (english ? "Checking…" : "正在检查…")
     : (english ? "Check for updates" : "检查更新");
   const openLabel = status === "downloading"
-    ? (english ? `Downloading ${Math.round((downloadProgress ?? 0) * 100)}%` : `正在下载 ${Math.round((downloadProgress ?? 0) * 100)}%`)
-    : status === "installing"
-      ? (english ? "Opening installer…" : "正在打开安装器…")
+    ? (english ? "Downloading update…" : "正在下载更新…")
     : status === "ready"
-      ? updateKind === "install"
-        ? (english ? "Install now" : "立即安装")
-        : (english ? "Restart to apply" : "重启以应用")
+      ? (english ? "Restart to apply" : "重启以应用")
       : updateKind === "ota"
         ? (english ? "Download update" : "下载更新")
-        : (english ? "Prepare update" : "准备更新");
+        : (english ? "Choose update source" : "选择更新渠道");
 
   return (
     <View style={styles.card}>
@@ -35,8 +31,8 @@ export const MobileUpdateCard = () => {
         <Text style={styles.title}>{english ? "App updates" : "应用更新"}</Text>
         <Text style={styles.description}>
           {english
-            ? "EdgeEver automatically checks for compatible in-app updates and newer installable versions."
-            : "EdgeEver 会自动检查兼容的应用内热更新和新版安装包。"}
+            ? "EdgeEver automatically checks for compatible in-app updates and newer app versions."
+            : "EdgeEver 会自动检查兼容的应用内热更新和新版应用。"}
         </Text>
         <Text style={styles.version}>
           {english ? "Current version" : "当前版本"}: v{Updates.runtimeVersion ?? Constants.expoConfig?.version ?? "unknown"}
@@ -50,7 +46,7 @@ export const MobileUpdateCard = () => {
           onPress={() => void openUpdate()}
           style={[styles.button, busy && styles.buttonDisabled]}
         >
-          {status === "downloading" || status === "installing" ? <ActivityIndicator color="#047857" size="small" /> : <RefreshCw color="#047857" size={16} />}
+          {status === "downloading" ? <ActivityIndicator color="#047857" size="small" /> : <RefreshCw color="#047857" size={16} />}
           <Text style={styles.buttonText}>{openLabel}</Text>
         </Pressable>
       ) : null}

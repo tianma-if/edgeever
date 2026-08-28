@@ -1,4 +1,5 @@
 import React, { type ErrorInfo, type ReactNode } from "react";
+import { markRendererRecoveryRequired } from "@/lib/renderer-recovery";
 
 type RendererErrorDetails = {
   kind: "react-error";
@@ -30,6 +31,7 @@ export class DesktopRendererErrorBoundary extends React.Component<{ children: Re
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
+    markRendererRecoveryRequired();
     const details: RendererErrorDetails = {
       kind: "react-error",
       message: error.message,
@@ -65,11 +67,11 @@ export class DesktopRendererErrorBoundary extends React.Component<{ children: Re
           <p className="mt-2 text-sm leading-6 text-slate-600">
             {desktop
               ? (zh
-                  ? "问题已经记录到这台设备。你可以重新加载继续使用，并在提交前检查脱敏后的 GitHub Issue。"
-                  : "The problem was recorded on this device. You can reload to continue and review the redacted GitHub Issue before submitting it.")
+                  ? "问题已经记录到这台设备。重新加载后会进入安全启动模式，不再自动打开刚才的笔记。"
+                  : "The problem was recorded on this device. Reloading will enter safe startup mode instead of reopening the previous note.")
               : (zh
-                  ? "你可以重新加载继续使用。如果问题仍然出现，请检查浏览器控制台，并在提交 GitHub Issue 前移除敏感信息。"
-                  : "Reload to continue. If the problem persists, check the browser console and remove sensitive information before submitting a GitHub Issue.")}
+                  ? "安全重新加载后不会自动打开刚才的笔记。如果问题仍然出现，请检查浏览器控制台。"
+                  : "A safe reload will avoid reopening the previous note. If the problem persists, check the browser console.")}
           </p>
           <div className="mt-5 flex flex-wrap gap-3">
             <button
@@ -77,7 +79,7 @@ export class DesktopRendererErrorBoundary extends React.Component<{ children: Re
               type="button"
               onClick={() => window.location.reload()}
             >
-              {zh ? "重新加载" : "Reload"}
+              {zh ? "安全重新加载" : "Reload safely"}
             </button>
             {desktop ? (
               <button

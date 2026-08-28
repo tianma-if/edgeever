@@ -8,6 +8,7 @@ import { createId, isoNow, parseJsonArray } from "./entity-utils";
 import { notFound } from "./http-errors";
 import { resolveObjectStorage } from "./object-storage";
 import { getAuditActor, getWorkspaceId, requireUser } from "./request-auth";
+import { contentDispositionAttachment, contentDispositionInline } from "./resource-service";
 
 const SHARE_TOKEN_BYTES = 32;
 const SHARE_TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
@@ -38,15 +39,9 @@ const mapMemoShare = (row: MemoShareRow): MemoShare => ({
   updatedAt: row.updated_at,
 });
 
-const normalizeFilename = (filename: string) =>
-  filename.trim().replace(/[\\/]/g, "-").replace(/[\u0000-\u001f\u007f]/g, "").slice(0, 160);
-
 const contentDisposition = (kind: SharedResourceRow["kind"], mimeType: string | null, filename: string | null) => {
   const inline = kind === "image" || isPdfAttachment(mimeType, filename);
-  if (!filename) return inline ? "inline" : "attachment";
-  const fallback = normalizeFilename(filename).replace(/"/g, "'");
-  const disposition = inline ? "inline" : "attachment";
-  return `${disposition}; filename="${fallback}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
+  return inline ? contentDispositionInline(filename) : contentDispositionAttachment(filename);
 };
 
 const normalizeShareToken = (value: string) => {

@@ -127,4 +127,53 @@ describe("EdgeEver client HTTP contract", () => {
     }
     expect(unauthorized).toBe(1);
   });
+
+  test("preserves Cloudflare diagnostics when an HTML challenge intercepts the API", async () => {
+    const client = createEdgeEverClient({
+      fetch: async () => new Response("<html>challenge</html>", {
+        status: 403,
+        headers: {
+          "CF-Mitigated": "challenge",
+          "CF-Ray": "abc123-NRT",
+          "Content-Type": "text/html",
+        },
+      }),
+    });
+
+    try {
+      await client.login({ username: "admin", password: "secret" });
+      throw new Error("expected request to fail");
+    } catch (error) {
+      expect(error).toBeInstanceOf(ApiRequestError);
+      expect(error).toMatchObject({
+        status: 403,
+        message: "Request failed",
+        responseDiagnostics: {
+          cloudflareMitigated: true,
+          isEdgeEverApiError: false,
+          rayId: "abc123-NRT",
+        },
+      });
+    }
+  });
+
+  test("distinguishes EdgeEver API errors from edge security responses", async () => {
+    const client = createEdgeEverClient({
+      fetch: async () => jsonResponse(
+        { error: { code: "forbidden", message: "Forbidden", details: { reason: "policy" } } },
+        { status: 403, headers: { "CF-Ray": "def456-SJC", "Content-Type": "application/json" } },
+      ),
+    });
+
+    await expect(client.login({ username: "admin", password: "secret" })).rejects.toMatchObject({
+      status: 403,
+      code: "forbidden",
+      details: { reason: "policy" },
+      responseDiagnostics: {
+        cloudflareMitigated: false,
+        isEdgeEverApiError: true,
+        rayId: "def456-SJC",
+      },
+    });
+  });
 });

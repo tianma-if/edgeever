@@ -10,8 +10,31 @@ import {
   inspectLocalD1,
   parseEnvironmentFile,
 } from "./local-dev.mjs";
+import {
+  buildAdbReverseArguments,
+  parseAdbDevices,
+} from "./mobile-dev.mjs";
 
 describe("local development environment", () => {
+  test("targets every online Android device for local API reverse forwarding", () => {
+    const devices = parseAdbDevices([
+      "List of devices attached",
+      "emulator-5554\tdevice product:sdk_gphone64_arm64 model:sdk_gphone64_arm64",
+      "emulator-5556\toffline",
+      "R58M123456\tdevice usb:1-1",
+      "",
+    ].join("\n"));
+
+    expect(devices).toEqual(["emulator-5554", "R58M123456"]);
+    expect(buildAdbReverseArguments(devices[0], 8787)).toEqual([
+      "-s",
+      "emulator-5554",
+      "reverse",
+      "tcp:8787",
+      "tcp:8787",
+    ]);
+  });
+
   test("keeps persistent development and resettable demo profiles isolated", () => {
     expect(getLocalDevelopmentProfile("local")).toMatchObject({
       statePath: ".wrangler/state",

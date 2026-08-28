@@ -1,13 +1,15 @@
 {
-  "version": "1.44.0",
+  "version": "1.45.2",
   "changes": {
     "en-US": [
-      "Display attached files as consistent compact cards with recognizable type icons; PDF cards now toggle preview on click and load reliably in the desktop app.",
-      "Keep image uploads visually stable in the editor and clear image selection predictably when clicking the canvas."
+      "Show actionable diagnostics when mobile sign-in fails, making instance, network, and security-policy issues easier to resolve.",
+      "Allow attachments to be deleted safely from the asset library, with recoverable retries when storage cleanup is interrupted.",
+      "Route Android app upgrades through trusted Google Play or GitHub sources instead of requesting in-app package-install permission."
     ],
     "zh-CN": [
-      "将附件统一显示为紧凑文件卡片并提供清晰的类型图标；PDF 卡片现在可单击切换预览，并在桌面端稳定加载。",
-      "图片上传时在编辑器中保持稳定的视觉占位，并在单击画布时可靠清除图片选中状态。"
+      "移动端登录失败时显示可操作的诊断信息，帮助定位实例、网络与安全策略问题。",
+      "支持从附件库安全删除附件，并在存储清理中断时可靠重试。",
+      "Android 应用升级改为跳转 Google Play 或 GitHub 可信渠道，不再申请应用内安装软件包权限。"
     ]
   }
 }

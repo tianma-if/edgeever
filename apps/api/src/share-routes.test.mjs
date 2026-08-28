@@ -107,7 +107,7 @@ describe("public memo shares", () => {
     const { sqlite, environment } = createDatabaseEnvironment();
     sqlite.query(
       `INSERT INTO resources (id, memo_id, object_key, kind, mime_type, filename, byte_size)
-       VALUES (?, ?, ?, 'attachment', 'application/pdf', 'shared.pdf', 10)`,
+       VALUES (?, ?, ?, 'attachment', 'application/pdf', '共享报告.pdf', 10)`,
     ).run("res_shared", "memo_source", "shared-key");
     let requestedOptions;
     environment.storage.resources = {
@@ -133,6 +133,9 @@ describe("public memo shares", () => {
     expect(requestedOptions).toEqual({ range: { offset: 2, length: 4 } });
     expect(response.status).toBe(206);
     expect(response.headers.get("Content-Range")).toBe("bytes 2-5/10");
+    expect(response.headers.get("Content-Disposition")).toBe(
+      "inline; filename=\"download.pdf\"; filename*=UTF-8''%E5%85%B1%E4%BA%AB%E6%8A%A5%E5%91%8A.pdf",
+    );
     expect(response.headers.get("Cache-Control")).toBe("private, no-store");
     expect(await response.text()).toBe("2345");
     sqlite.close();

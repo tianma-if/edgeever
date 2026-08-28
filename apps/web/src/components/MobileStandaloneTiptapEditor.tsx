@@ -646,6 +646,9 @@ export const MobileStandaloneTiptapEditor = ({
               attrs: {
                 url: resource.url,
                 label: `附件：${resource.filename || file.name}`,
+                filename: resource.filename || file.name,
+                mimeType: resource.mimeType || file.type || "application/pdf",
+                byteSize: resource.byteSize,
                 displayMode: "compact",
               },
             }],
@@ -665,6 +668,7 @@ export const MobileStandaloneTiptapEditor = ({
                 label: `附件：${filename}`,
                 filename,
                 mimeType: file.type,
+                byteSize: resource.byteSize,
               },
             }],
           })

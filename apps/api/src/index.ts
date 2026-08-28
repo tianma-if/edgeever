@@ -3735,14 +3735,19 @@ const shouldSnapshotMemoRevision = async (
   return Date.parse(now) - Date.parse(latest.created_at) >= REVISION_SNAPSHOT_INTERVAL_MS;
 };
 
-const getResourceRow = async (db: D1Database, workspaceId: string, id: string): Promise<ResourceRow | null> =>
+const getResourceRow = async (
+  db: D1Database,
+  workspaceId: string,
+  id: string,
+  includeDeleted = false,
+): Promise<ResourceRow | null> =>
   db
     .prepare(
       `SELECT r.id, r.memo_id, r.original_memo_id, r.bucket_name, r.object_key, r.storage_config_id, r.kind, r.mime_type,
-              r.filename, r.byte_size, r.sha256, r.width, r.height, r.created_at, r.updated_at
+              r.filename, r.byte_size, r.sha256, r.width, r.height, r.created_at, r.updated_at, r.is_deleted
        FROM resources r
        INNER JOIN memos m ON m.id = r.memo_id
-       WHERE r.id = ? AND m.workspace_id = ? AND r.is_deleted = 0`
+       WHERE r.id = ? AND m.workspace_id = ?${includeDeleted ? "" : " AND r.is_deleted = 0"}`
     )
     .bind(id, workspaceId)
     .first<ResourceRow>();

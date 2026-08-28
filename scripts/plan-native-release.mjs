@@ -43,7 +43,6 @@ export const planNativeRelease = (platform, changedFiles) => {
           ".github/workflows/store-delivery.yml",
           "bun.lock",
           "scripts/build-android-local.sh",
-          "scripts/configure-android-package-permissions.mjs",
           "scripts/download-play-universal-apk.mjs",
           "scripts/verify-android-apk-signature.mjs",
           ...mobileOnlyDependencyPatches,

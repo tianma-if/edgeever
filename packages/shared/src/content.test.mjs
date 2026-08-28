@@ -64,6 +64,38 @@ describe("PDF attachment Markdown compatibility", () => {
     expect(resolveMemoContentDoc(legacyDoc, "").content[0]?.content?.[0]?.type).toBe(PDF_ATTACHMENT_NODE_TYPE);
   });
 
+  test("preserves native attachment metadata when upgrading a PDF link", () => {
+    const doc = resolveMemoContentDoc({
+      type: "doc",
+      content: [{
+        type: "paragraph",
+        content: [{
+          type: "text",
+          text: "附件：报告.pdf",
+          marks: [{
+            type: "link",
+            attrs: {
+              href: "/api/v1/resources/res_pdf/blob",
+              class: "edgeever-attachment-link edgeever-attachment-kind-pdf",
+              attachmentFilename: "报告.pdf",
+              attachmentMimeType: "application/pdf",
+              attachmentByteSize: 12582912,
+            },
+          }],
+        }],
+      }],
+    }, "");
+
+    expect(doc.content[0]?.content?.[0]).toMatchObject({
+      type: PDF_ATTACHMENT_NODE_TYPE,
+      attrs: {
+        filename: "报告.pdf",
+        mimeType: "application/pdf",
+        byteSize: 12582912,
+      },
+    });
+  });
+
   test("renders PDF links nested in Markdown lists", () => {
     const doc = markdownToDoc("- [Product brief.pdf](/api/v1/resources/res_pdf/blob)");
     expect(doc.content[0]?.content?.[0]?.content?.[0]?.content?.[0]?.type).toBe(PDF_ATTACHMENT_NODE_TYPE);

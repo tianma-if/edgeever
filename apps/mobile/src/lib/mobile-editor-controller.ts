@@ -33,6 +33,8 @@ type UploadedEditorResource = {
   kind: string;
   url: string;
   filename?: string | null;
+  mimeType?: string | null;
+  byteSize?: number | null;
 };
 
 export const applyMobileEditorUpload = (
@@ -46,7 +48,12 @@ export const applyMobileEditorUpload = (
     safeDomCall(() => editorRef.current?.completeImageUpload(uploadId, resource.url, filename));
     return;
   }
-  safeDomCall(() => editorRef.current?.appendAttachment(resource.url, filename));
+  safeDomCall(() => editorRef.current?.appendAttachment(
+    resource.url,
+    filename,
+    resource.mimeType || "",
+    resource.byteSize || 0,
+  ));
 };
 
 export const cancelMobileEditorUpload = (editorRef: EditorRef, uploadId: string | null) => {

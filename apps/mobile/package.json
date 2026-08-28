@@ -5,8 +5,8 @@
   "type": "module",
   "main": "expo-router/entry",
   "scripts": {
-    "dev": "expo start",
-    "android": "expo run:android",
+    "dev": "bun ../../scripts/mobile-dev.mjs",
+    "android": "bun ../../scripts/mobile-dev.mjs run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
     "typecheck": "tsc -p tsconfig.json --noEmit"
@@ -36,7 +36,6 @@
     "expo-file-system": "~57.0.1",
     "expo-image-manipulator": "~57.0.5",
     "expo-image-picker": "~57.0.5",
-    "expo-intent-launcher": "~57.0.1",
     "expo-router": "latest",
     "expo-secure-store": "latest",
     "expo-sharing": "~57.0.8",

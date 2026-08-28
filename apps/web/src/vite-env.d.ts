@@ -16,6 +16,7 @@ declare const __EDGEEVER_DEVELOPMENT_PROFILE__: "" | "local" | "demo";
 interface EdgeEverDesktopBridge {
   isAvailable: boolean;
   canClearLocalData: boolean;
+  recoveredAfterAbnormalExit: boolean;
   apiBaseUrl: string;
   setApiBaseUrl(value: string): Promise<string>;
   getSessionToken(): string;

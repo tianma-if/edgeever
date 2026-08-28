@@ -53,6 +53,7 @@ extraResources:
 mac:
   category: public.app-category.productivity
   icon: assets/icon.icns
+  minimumSystemVersion: "13.0"
   target:
     - target: dmg
     - target: zip

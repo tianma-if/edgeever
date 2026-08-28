@@ -90,6 +90,7 @@ let sidecarRestartAttempts = 0;
 let sidecarRestartInFlight = false;
 let localDataResetScheduled = false;
 let rendererCrashDialogOpen = false;
+let recoveredAfterAbnormalExit = false;
 const updateCheckIntervalMs = 60 * 60 * 1_000;
 const updateCheckFocusThrottleMs = 15 * 60 * 1_000;
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
@@ -886,8 +887,8 @@ app.whenReady().then(async () => {
   await loadConfiguredApiBaseUrl();
   await loadDesktopSessionToken();
   app.setAsDefaultProtocolClient("edgeever");
-  const previousSessionWasActive = existsSync(crashMarkerPath());
-  void writeDiagnostic(previousSessionWasActive ? "session.recovered-after-abnormal-exit" : "session.started");
+  recoveredAfterAbnormalExit = existsSync(crashMarkerPath());
+  void writeDiagnostic(recoveredAfterAbnormalExit ? "session.recovered-after-abnormal-exit" : "session.started");
   await writeFile(crashMarkerPath(), new Date().toISOString());
   session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
   registerResourceProtocol();
@@ -931,6 +932,7 @@ app.whenReady().then(async () => {
   });
   ipcMain.on("desktop:api-base-url-sync", (event) => { event.returnValue = configuredApiBaseUrl; });
   ipcMain.on("desktop:session-token-sync", (event) => { event.returnValue = desktopSessionToken; });
+  ipcMain.on("desktop:recovered-after-abnormal-exit-sync", (event) => { event.returnValue = recoveredAfterAbnormalExit; });
   ipcMain.handle("desktop:copy-text", (_event, value) => {
     if (typeof value !== "string") throw new Error("Clipboard value must be a string");
     clipboard.writeText(value);

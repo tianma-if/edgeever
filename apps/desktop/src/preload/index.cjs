@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer } = require("electron");
 contextBridge.exposeInMainWorld("edgeeverDesktop", Object.freeze({
   isAvailable: true,
   canClearLocalData: ipcRenderer.sendSync("desktop:local-data-reset-available-sync"),
+  recoveredAfterAbnormalExit: ipcRenderer.sendSync("desktop:recovered-after-abnormal-exit-sync"),
   sidecarStatus: () => ipcRenderer.invoke("desktop:sidecar-status"),
   setAccountScope: (accountId) => ipcRenderer.invoke("desktop:set-account-scope", accountId),
   apiBaseUrl: ipcRenderer.sendSync("desktop:api-base-url-sync"),

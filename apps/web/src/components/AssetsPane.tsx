@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import Lightbox from "yet-another-react-lightbox";
 import Zoom from "yet-another-react-lightbox/plugins/zoom";
@@ -18,6 +18,7 @@ import {
   List,
   X,
   Loader2,
+  Trash2,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,7 @@ import { isPdfAttachment, type ResourceListItem } from "@edgeever/shared";
 import { PdfViewer } from "@/components/pdf/PdfViewer";
 import { PdfThumbnail } from "@/components/pdf/PdfThumbnail";
 import { AttachmentFileIcon } from "@/components/attachments/AttachmentFileIcon";
+import { AppConfirmDialog } from "@/components/dialogs/ConfirmDialogs";
 
 export const formatBytes = (bytes: number) => {
   if (!Number.isFinite(bytes) || bytes <= 0) {
@@ -66,6 +68,7 @@ interface AssetsPaneProps {
 
 export const AssetsPane = ({ onClose, repository }: AssetsPaneProps) => {
   const { t } = useTranslation();
+  const queryClient = useQueryClient();
 
   // States
   const [searchQuery, setSearchQuery] = useState("");
@@ -75,6 +78,7 @@ export const AssetsPane = ({ onClose, repository }: AssetsPaneProps) => {
   });
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [pdfPreview, setPdfPreview] = useState<ResourceListItem | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ResourceListItem | null>(null);
 
   // Query resources
   const resourcesQuery = useQuery({
@@ -88,6 +92,19 @@ export const AssetsPane = ({ onClose, repository }: AssetsPaneProps) => {
     totalBytes: 0,
     imageCount: 0,
     attachmentCount: 0,
+  };
+
+  const deleteMutation = useMutation({
+    mutationFn: (resourceId: string) => repository.deleteResource(resourceId),
+    onSuccess: async () => {
+      setDeleteTarget(null);
+      await queryClient.invalidateQueries({ queryKey: ["resources"] });
+    },
+  });
+
+  const requestResourceDelete = (resource: ResourceListItem) => {
+    deleteMutation.reset();
+    setDeleteTarget(resource);
   };
 
   // Filter Logic
@@ -307,6 +324,18 @@ export const AssetsPane = ({ onClose, repository }: AssetsPaneProps) => {
                   key={resource.id}
                   className="group relative flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-all duration-200 hover:border-emerald-500/40 hover:shadow-md"
                 >
+                  <ButtonTooltip title={t("assets.deleteAria", { filename: resource.filename || resource.id })}>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      aria-label={t("assets.deleteAria", { filename: resource.filename || resource.id })}
+                      className="absolute right-2 top-2 z-10 h-8 w-8 bg-white/90 text-slate-500 opacity-0 shadow-sm transition-opacity hover:bg-rose-50 hover:text-rose-600 focus:opacity-100 group-hover:opacity-100"
+                      onClick={() => requestResourceDelete(resource)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </ButtonTooltip>
                   {/* Thumbnail area */}
                   <div
                     role="button"
@@ -436,6 +465,18 @@ export const AssetsPane = ({ onClose, repository }: AssetsPaneProps) => {
                   </div>
 
                   {/* Right Actions */}
+                  <ButtonTooltip title={t("assets.deleteAria", { filename: resource.filename || resource.id })}>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      aria-label={t("assets.deleteAria", { filename: resource.filename || resource.id })}
+                      className="h-8 w-8 text-slate-350 opacity-0 transition-all duration-150 hover:bg-rose-50 hover:text-rose-600 focus:opacity-100 group-hover:opacity-100"
+                      onClick={() => requestResourceDelete(resource)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </ButtonTooltip>
                   <ButtonTooltip title={t("assets.openInNewWindow")}>
                     <a
                       href={resource.url}
@@ -469,10 +510,26 @@ export const AssetsPane = ({ onClose, repository }: AssetsPaneProps) => {
           key={pdfPreview.id}
           url={pdfPreview.url}
           label={pdfPreview.filename || pdfPreview.id}
+          filename={pdfPreview.filename || undefined}
+          byteSize={pdfPreview.byteSize}
           fullscreen
           onRequestClose={() => setPdfPreview(null)}
           onPrevious={pdfResources.length > 1 ? showPreviousPdf : undefined}
           onNext={pdfResources.length > 1 ? showNextPdf : undefined}
+        />
+      ) : null}
+      {deleteTarget ? (
+        <AppConfirmDialog
+          title={t("assets.deleteTitle")}
+          description={t("assets.deleteDescription")}
+          confirmLabel={t("common.delete")}
+          error={deleteMutation.error instanceof Error ? deleteMutation.error.message : null}
+          isWorking={deleteMutation.isPending}
+          onCancel={() => {
+            deleteMutation.reset();
+            setDeleteTarget(null);
+          }}
+          onConfirm={() => deleteMutation.mutate(deleteTarget.id)}
         />
       ) : null}
     </div>

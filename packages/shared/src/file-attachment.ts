@@ -2,6 +2,7 @@ import { mergeAttributes, Node } from "@tiptap/core";
 import type { TiptapDoc, TiptapMark, TiptapNode, TiptapTextNode } from "./content";
 import { resolveAttachmentKind } from "./attachment-kind";
 import { getAttachmentFilenameFromLabel } from "./resource-links";
+import { normalizeAttachmentByteSize } from "./attachment-metadata";
 
 export const FILE_ATTACHMENT_NODE_TYPE = "edgeeverFileAttachment" as const;
 
@@ -50,6 +51,14 @@ export const FileAttachment = Node.create({
         parseHTML: (element) => element.getAttribute("data-file-mime-type") || "",
         renderHTML: (attributes) => ({ "data-file-mime-type": attributes.mimeType || "" }),
       },
+      byteSize: {
+        default: null,
+        parseHTML: (element) => normalizeAttachmentByteSize(element.getAttribute("data-file-byte-size")),
+        renderHTML: (attributes) => {
+          const byteSize = normalizeAttachmentByteSize(attributes.byteSize);
+          return byteSize === null ? {} : { "data-file-byte-size": String(byteSize) };
+        },
+      },
     };
   },
 
@@ -76,6 +85,7 @@ export const FileAttachment = Node.create({
         label,
         filename: getAttachmentFilenameFromLabel(label),
         mimeType: "",
+        byteSize: null,
       },
     };
   },
@@ -105,6 +115,14 @@ export const FileAttachment = Node.create({
 const getLinkMark = (node: TiptapTextNode): TiptapMark | undefined =>
   node.marks?.find((mark) => mark.type === "link" && typeof mark.attrs?.href === "string");
 
+const getLinkAttachmentAttrs = (link: TiptapMark | undefined, label: string) => ({
+  filename: typeof link?.attrs?.attachmentFilename === "string"
+    ? link.attrs.attachmentFilename
+    : getAttachmentFilenameFromLabel(label),
+  mimeType: typeof link?.attrs?.attachmentMimeType === "string" ? link.attrs.attachmentMimeType : "",
+  byteSize: normalizeAttachmentByteSize(link?.attrs?.attachmentByteSize),
+});
+
 /** Upgrade legacy standalone attachment links while preserving ordinary web links. */
 export const upgradeStandaloneFileLinks = (doc: TiptapDoc): TiptapDoc => {
   let changed = false;
@@ -123,8 +141,7 @@ export const upgradeStandaloneFileLinks = (doc: TiptapDoc): TiptapDoc => {
               attrs: {
                 url: href,
                 label: child.text,
-                filename: getAttachmentFilenameFromLabel(child.text),
-                mimeType: "",
+                ...getLinkAttachmentAttrs(link, child.text),
               },
             }],
           };

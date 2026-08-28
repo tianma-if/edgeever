@@ -125,4 +125,9 @@ EDGE_EVER_UPDATE_CHANNEL=edge
   4. 日常升级请优先用本工作流，而不是 GitHub **Sync fork**。
   5. 若旧版更新器报错 `without workflows permission`，请使用仓库所有者身份执行一次 **Sync fork**，然后重新运行 **Update deployed EdgeEver**。新版更新器会保留 `.github/workflows/**`，后续产品更新不会再触发这项权限限制。
 - **Git 已 push 但网站没变**：确认 Workers Builds 是否针对新的 `main` SHA 构建。可选：添加仓库 Secret `EDGE_EVER_CLOUDFLARE_DEPLOY_HOOK_URL`，让工作流在 publish 后调用 Deploy Hook。
+- **Android 或 iOS App 提示登录被 Cloudflare 或安全策略拦截**：
+  1. 重试一次并记录 App 显示的诊断代码、Ray ID 和大致时间。在 Cloudflare 中打开 **Security → Analytics → Events**，找到对应请求并确认其 **Service**、**Action** 和规则 ID，再决定调整哪项防护。
+  2. 原生 App 会直接调用 `/api/*`，无法完成交互式浏览器验证。不要尝试在 App 中嵌入该验证。请继续启用 EdgeEver 身份认证及应用层登录限流，但要确保合法 API 流量收到机器可解析的响应，而不是 Managed Challenge 或 Interactive Challenge。
+  3. 如果是自定义 WAF 规则发起验证，请缩小规则范围，不要验证 App 所需的 `/api/*` 请求。如果是 Managed Rules 或 Super Bot Fight Mode 误判，请创建范围尽可能小的 [Skip 规则或例外](https://developers.cloudflare.com/waf/custom-rules/skip/)，不要笼统关闭无关的安全防护。
+  4. Cloudflare 免费版 Bot Fight Mode 无法通过 WAF Skip 规则绕过。如果 Security Events 显示由 Bot Fight Mode 拦截，请按 Cloudflare 的[误报处理指引](https://developers.cloudflare.com/bots/troubleshooting/false-positives/)关闭该功能，或改用支持精确例外的防护模式。
 - **需要重置或手动恢复部署**：请参阅 [手动部署指南](manual-deploy.zh-CN.md)。
