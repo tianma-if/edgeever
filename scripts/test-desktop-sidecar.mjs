@@ -291,6 +291,44 @@ await assert.rejects(() => request("memo.get", { memoId: afterBackup.memo.id }),
 assert.equal(readFileSync(join(stagedResourceDirectory, "stage-test.bin"), "utf8"), "offline attachment snapshot", "restore should recover staged resources");
 const outbox = await request("sync.outbox.list", { limit: 100 });
 assert.ok(!outbox.items.some((item) => item.id === mergeOutbox.id), "a restored backup must not resurrect an acknowledged merge");
+
+const deferredMemo = await request("memo.create", { notebookId: inbox.id, title: "Deferred retry", contentMarkdown: "retry later", tags: [] });
+const deferredItem = (await request("sync.outbox.list", { limit: 200 })).items.find((item) => item.entityId === deferredMemo.memo.id);
+assert.ok(deferredItem, "deferred retry test should create an outbox item");
+await request("sync.outbox.fail", {
+  id: deferredItem.id,
+  version: deferredItem.version,
+  error: "temporary outage",
+  errorCode: "http_503",
+  retryable: true,
+  nextAttemptAt: "2099-01-01T00:00:00.000Z",
+});
+assert.ok(!(await request("sync.outbox.list", { limit: 200 })).items.some((item) => item.id === deferredItem.id), "a deferred error should wait until its retry time");
+const deferredDetails = (await request("sync.outbox.list", { limit: 200, includeConflicts: true })).items.find((item) => item.id === deferredItem.id);
+assert.equal(deferredDetails.lastErrorCode, "http_503");
+assert.equal(deferredDetails.retryable, true);
+assert.equal(deferredDetails.nextAttemptAt, "2099-01-01T00:00:00.000Z");
+await request("sync.outbox.retry", { id: deferredItem.id, version: deferredItem.version });
+assert.ok((await request("sync.outbox.list", { limit: 200 })).items.some((item) => item.id === deferredItem.id), "manual retry should make a deferred item immediately eligible");
+await request("sync.outbox.discard", { id: deferredItem.id });
+
+const recoveryCandidate = (await request("sync.outbox.list", { limit: 200 })).items.find((item) => item.kind === "memo.update" && item.entityId === coalesced.memo.id);
+assert.ok(recoveryCandidate, "recovery test should reuse a durable memo update");
+await request("sync.outbox.fail", {
+  id: recoveryCandidate.id,
+  version: recoveryCandidate.version,
+  error: "Memo not found",
+  errorCode: "memo_not_found",
+  retryable: false,
+});
+assert.ok(!(await request("sync.outbox.list", { limit: 200 })).items.some((item) => item.id === recoveryCandidate.id), "a permanent missing memo error must stop automatic retries");
+const recovered = await request("sync.outbox.recoverMemoUpdate", { id: recoveryCandidate.id, version: recoveryCandidate.version, notebookId: inbox.id });
+assert.equal(recovered.memo.contentMarkdown, "latest autosave", "recovery should preserve the failed update content");
+assert.deepEqual(recovered.memo.contentJson, recoveryCandidate.payload.contentJson, "recovery should preserve rich document content");
+assert.ok(!(await request("sync.outbox.list", { limit: 200, includeConflicts: true })).items.some((item) => item.id === recoveryCandidate.id), "recovery should remove the failed update");
+assert.ok((await request("sync.outbox.list", { limit: 200 })).items.some((item) => item.kind === "memo.create" && item.entityId === recovered.memo.id), "recovery should queue the new local note for upload");
+assert.ok((await request("sync.outbox.list", { limit: 200 })).items.some((item) => item.kind === "memo.update" && item.entityId === recovered.memo.id && JSON.stringify(item.payload.contentJson) === JSON.stringify(recoveryCandidate.payload.contentJson)), "recovery should queue a successor update that preserves rich content after create acknowledgement");
+
 const conflictMemo = await request("memo.create", { notebookId: inbox.id, title: "Conflict test", contentMarkdown: "local conflict", tags: [] });
 const conflictCandidate = (await request("sync.outbox.list", { limit: 200 })).items.find((item) => item.entityId === conflictMemo.memo.id);
 assert.ok(conflictCandidate, "conflict test should create an outbox item");
@@ -302,4 +340,4 @@ assert.equal((await request("sync.status")).conflict, 0);
 
 child.stdin.end();
 await new Promise((resolve) => child.once("close", resolve));
-console.log(JSON.stringify({ ok: true, checked: ["memo.create", "memo.list.search", "memo.list.subtree", "memo.update", "memo.update.coalesce", "memo.revisions", "memo.restoreRevision", "memo.revision.cache", "tag.rename", "memo.moveBatch", "memo.pinBatch", "memo.deleteBatch", "memo.restore", "memo.emptyTrash", "memo.merge", "template.cache", "template.create.payload", "template.delete", "storage.backup", "storage.backups", "storage.restore", "sync.outbox", "sync.outbox.discard"] }));
+console.log(JSON.stringify({ ok: true, checked: ["memo.create", "memo.list.search", "memo.list.subtree", "memo.update", "memo.update.coalesce", "memo.revisions", "memo.restoreRevision", "memo.revision.cache", "tag.rename", "memo.moveBatch", "memo.pinBatch", "memo.deleteBatch", "memo.restore", "memo.emptyTrash", "memo.merge", "template.cache", "template.create.payload", "template.delete", "storage.backup", "storage.backups", "storage.restore", "sync.outbox", "sync.outbox.retry", "sync.outbox.recoverMemoUpdate", "sync.outbox.discard"] }));

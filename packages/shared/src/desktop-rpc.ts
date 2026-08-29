@@ -110,6 +110,8 @@ export type DesktopRpcResponses = {
   "sync.outbox.list": { items: DesktopOutboxItem[] };
   "sync.outbox.ack": { ok: true; memo: MemoDetail | null; notebook: Notebook | null; template: MemoTemplate | null };
   "sync.outbox.fail": { ok: true };
+  "sync.outbox.retry": { ok: true };
+  "sync.outbox.recoverMemoUpdate": { ok: true; memo: MemoDetail };
   "sync.outbox.discard": { ok: true };
   "sync.apply": { applied: number };
   "sync.cursor.set": { ok: true };
@@ -155,8 +157,10 @@ export type DesktopRpcParams = {
   "sync.bootstrap.prepare": { reset?: boolean };
   "sync.outbox.list": { limit?: number; includeConflicts?: boolean };
   "sync.outbox.ack": { id: number; version?: number; remoteMemo?: MemoDetail; remoteNotebook?: Notebook; remoteTemplate?: MemoTemplate };
-  "sync.outbox.fail": { id: number; version?: number; error: string; conflict?: boolean };
-  "sync.outbox.discard": { id: number };
+  "sync.outbox.fail": { id: number; version?: number; error: string; errorCode?: string | null; conflict?: boolean; retryable?: boolean; nextAttemptAt?: string | null };
+  "sync.outbox.retry": { id: number; version?: number };
+  "sync.outbox.recoverMemoUpdate": { id: number; version?: number; notebookId: string };
+  "sync.outbox.discard": { id: number; version?: number };
   "sync.apply": { changes: Array<{ entityType: "memo" | "notebook"; operation: "upsert" | "delete"; memo?: MemoDetail | null; notebook?: Notebook | null; entityId: string }> };
   "sync.cursor.set": { cursor: number; syncIdentity: string };
   "system.info": Record<string, never>;
@@ -175,4 +179,9 @@ export type DesktopOutboxItem = {
   version: number;
   status?: "pending" | "syncing" | "conflict" | "error";
   lastError?: string | null;
+  lastErrorCode?: string | null;
+  retryable?: boolean;
+  nextAttemptAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
 };

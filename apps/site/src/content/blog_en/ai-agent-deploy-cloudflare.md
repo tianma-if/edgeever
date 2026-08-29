@@ -1,7 +1,7 @@
 ---
 draft: false
-title: "Deploy EdgeEver to Cloudflare: choose one of two options"
-snippet: "Deploy online with an AI Agent, or configure EdgeEver manually from a GitHub Fork in your own Cloudflare account."
+title: "Deploy a self-hosted notes app on Cloudflare: EdgeEver AI-assisted and manual guide"
+snippet: "Deploy EdgeEver with help from an AI Agent, or configure it manually from a GitHub Fork in your own Cloudflare account."
 image: {
     src: "/images/agent-deploy.jpg",
     alt: "Two ways to deploy EdgeEver to Cloudflare"

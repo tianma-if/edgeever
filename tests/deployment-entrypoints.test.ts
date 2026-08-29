@@ -19,6 +19,11 @@ import {
   shouldRedeploy,
 } from "../scripts/upstream-sync-plan.mjs";
 import { repositoryWranglerConfigError } from "../scripts/wrangler-runner.mjs";
+import {
+  edgeEverDeploymentEnvironment,
+  hasPlaceholderD1Binding,
+  shouldRunEdgeEverDeployment,
+} from "../packages/wrangler/dispatch.mjs";
 
 const repositoryRoot = resolve(import.meta.dir, "..");
 const normalizeLineEndings = (value: string) => value.replace(/\r\n/g, "\n");
@@ -110,6 +115,66 @@ describe("Cloudflare deployment entrypoints", () => {
     expect(wranglerConfig).toContain("no_bundle = true");
     expect(wranglerConfig).toContain("find_additional_modules = true");
     expect(wranglerConfig).toContain('globs = ["modules/*.js"]');
+  });
+
+  test("Cloudflare's default Wrangler command cannot bypass the deployment pipeline", () => {
+    const packageJson = JSON.parse(readRepositoryFile("package.json"));
+    const shimPackage = JSON.parse(readRepositoryFile("packages/wrangler/package.json"));
+    const shim = readRepositoryFile("packages/wrangler/bin/wrangler.js");
+    const englishGuide = readRepositoryFile("docs/deploy-cloudflare-button.md");
+    const chineseGuide = readRepositoryFile("docs/deploy-cloudflare-button.zh-CN.md");
+
+    expect(packageJson.devDependencies.wrangler).toBe("workspace:*");
+    expect(shimPackage.name).toBe("wrangler");
+    expect(shimPackage.dependencies["edgeever-wrangler-cli"]).toMatch(/^npm:wrangler@/);
+    expect(shim).toContain('["run", "deploy"]');
+    const placeholderConfig = 'database_id = "00000000-0000-0000-0000-000000000000"';
+    const legacyConfig = 'database_id = "11111111-1111-1111-1111-111111111111"';
+    expect(hasPlaceholderD1Binding(placeholderConfig)).toBe(true);
+    expect(hasPlaceholderD1Binding(legacyConfig)).toBe(false);
+    expect(shouldRunEdgeEverDeployment(
+      ["deploy"],
+      { WORKERS_CI: "1" },
+      placeholderConfig,
+    )).toBe(true);
+    expect(shouldRunEdgeEverDeployment(["deploy"], {}, placeholderConfig)).toBe(false);
+    expect(shouldRunEdgeEverDeployment(
+      ["deploy"],
+      { WORKERS_CI: "1" },
+      legacyConfig,
+    )).toBe(false);
+    expect(shouldRunEdgeEverDeployment(
+      ["deploy"],
+      { WORKERS_CI: "1", WRANGLER_CONFIG: "custom.toml" },
+      placeholderConfig,
+    )).toBe(false);
+    expect(shouldRunEdgeEverDeployment(
+      ["deploy", "--config", "custom.toml"],
+      { WORKERS_CI: "1" },
+      placeholderConfig,
+    )).toBe(false);
+    expect(shouldRunEdgeEverDeployment(
+      ["deploy", "--env", "production"],
+      { WORKERS_CI: "1" },
+      placeholderConfig,
+    )).toBe(false);
+    expect(shouldRunEdgeEverDeployment(
+      ["deploy", "--name", "custom-worker"],
+      { WORKERS_CI: "1" },
+      placeholderConfig,
+    )).toBe(false);
+    expect(shouldRunEdgeEverDeployment(
+      ["deploy"],
+      { WORKERS_CI: "1", EDGE_EVER_WRANGLER_BYPASS_SHIM: "1" },
+      placeholderConfig,
+    )).toBe(false);
+    expect(edgeEverDeploymentEnvironment({ WORKERS_CI: "1" }))
+      .toMatchObject({
+        EDGE_EVER_DEPLOYMENT_TRIGGER: "main_push",
+        EDGE_EVER_DEPLOYMENT_METHOD: "cloudflare_workers_builds_default",
+      });
+    expect(englishGuide).toContain("Deploy command: npx wrangler deploy");
+    expect(chineseGuide).toContain("Deploy command: npx wrangler deploy");
   });
 
   test("deployment verification lets piped diagnostics flush before exiting", () => {

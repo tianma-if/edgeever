@@ -1,5 +1,6 @@
 import {
   getMemoSyncBaseConflictDetails,
+  getSyncRetryAt,
   isMemoSyncBaseCurrent,
   type DesktopOutboxItem,
   type DesktopRpcParams,
@@ -399,10 +400,17 @@ const syncOutbox = async (stagedRewrites: StagedResourceRewrite[], onlyKinds?: S
       }
       synced += 1;
     } catch (error) {
-      const conflict = error instanceof ApiRequestError
-        && (error.code === "revision_conflict" || error.code === "content_conflict" || error.code === "edit_session_conflict");
-      await request("sync.outbox.fail", { id: item.id, version: item.version, error: error instanceof Error ? error.message : String(error), conflict });
-      if (conflict) conflicted += 1;
+      const disposition = classifyDesktopSyncFailure(item, error);
+      await request("sync.outbox.fail", {
+        id: item.id,
+        version: item.version,
+        error: error instanceof Error ? error.message : String(error),
+        errorCode: disposition.errorCode,
+        conflict: disposition.conflict,
+        retryable: disposition.retryable,
+        nextAttemptAt: disposition.retryable ? getSyncRetryAt(item.attemptCount + 1) : null,
+      });
+      if (disposition.conflict) conflicted += 1;
       else failed += 1;
     }
   }
@@ -423,6 +431,32 @@ export const hasDesktopSyncStateReset = (
 ) => remote.serverCursor < local.cursor || Boolean(
   remote.syncIdentity && remote.syncIdentity !== local.syncIdentity,
 );
+
+export const classifyDesktopSyncFailure = (item: Pick<DesktopOutboxItem, "kind">, error: unknown) => {
+  const conflict = error instanceof ApiRequestError
+    && (error.code === "revision_conflict" || error.code === "content_conflict" || error.code === "edit_session_conflict");
+  if (conflict) {
+    return { conflict: true, retryable: false, errorCode: error.code ?? "sync_conflict" };
+  }
+  if (error instanceof ApiRequestError) {
+    const missingMemo = item.kind === "memo.update" && error.status === 404;
+    return {
+      conflict: false,
+      retryable: !missingMemo && (error.status === 408 || error.status === 429 || error.status >= 500),
+      errorCode: missingMemo ? "memo_not_found" : error.code ?? `http_${error.status}`,
+    };
+  }
+  return {
+    conflict: false,
+    retryable: error instanceof TypeError,
+    errorCode: error instanceof TypeError ? "network_error" : "unexpected_sync_error",
+  };
+};
+
+export const shouldPullDesktopChanges = (
+  status: Pick<DesktopRpcResponses["sync.status"], "pending" | "syncing">,
+  online: boolean,
+) => online && status.pending === 0 && status.syncing === 0;
 
 export const orderBootstrapNotebooks = (notebooks: SyncBootstrapResponse["notebooks"]) => {
   const remaining = new Map(notebooks.map((notebook) => [notebook.id, notebook]));
@@ -535,8 +569,9 @@ export const syncDesktopData = () => {
         await removeSyncedStagedResources(stagedResources.stagedIds);
       }
       const remaining = await request("sync.status", {});
-      if (remaining.pending === 0 && remaining.syncing === 0 && remaining.error === 0 && remaining.conflict === 0
-        && (typeof navigator === "undefined" || navigator.onLine)) await pullRemoteChanges();
+      // A durable failed or conflicted outbox item must not freeze unrelated
+      // remote changes. The payload remains recoverable while pulls continue.
+      if (shouldPullDesktopChanges(remaining, typeof navigator === "undefined" || navigator.onLine)) await pullRemoteChanges();
       // Catch resources staged while the network sync itself was running.
       await remapStagedResourceMemoIds(creates.memoIdMappings);
       lastSyncFailed = false;
@@ -565,6 +600,52 @@ export const getDesktopSyncSummary = async () => {
   const error = status.error + (lastSyncFailed ? 1 : 0);
   return { total: status.pending + status.syncing + status.conflict + error, pending: status.pending, syncing: status.syncing, conflict: status.conflict, error };
 };
+
+export const getDesktopSyncIssues = async () => {
+  const response = await request("sync.outbox.list", { limit: 200, includeConflicts: true });
+  return response.items.filter((item) => item.status === "error" || item.status === "conflict");
+};
+
+export const retryDesktopSyncIssue = async (item: DesktopOutboxItem) => {
+  await request("sync.outbox.retry", { id: item.id, version: item.version });
+  window.dispatchEvent(new CustomEvent("edgeever:sync-queue-changed"));
+};
+
+export const discardDesktopSyncIssue = async (item: DesktopOutboxItem) => {
+  await request("sync.outbox.discard", { id: item.id, version: item.version });
+  window.dispatchEvent(new CustomEvent("edgeever:sync-queue-changed"));
+};
+
+export const recoverDesktopMemoUpdate = async (item: DesktopOutboxItem, notebookId: string) => {
+  const result = await request("sync.outbox.recoverMemoUpdate", { id: item.id, version: item.version, notebookId });
+  window.dispatchEvent(new CustomEvent("edgeever:sync-queue-changed"));
+  return result.memo;
+};
+
+const sanitizeDesktopSyncDiagnosticError = (value: string | null | undefined) => value
+  ? value
+      .slice(0, 500)
+      .replace(/https?:\/\/[^\s)\]}]+/gi, "[redacted-url]")
+      .replace(/\b(?:memo|notebook|template|resource)_[A-Za-z0-9_-]+\b/g, "[redacted-id]")
+      .replace(/\/Users\/[^/\s]+/g, "/Users/[redacted]")
+      .replace(/\bBearer\s+[^\s,;]+/gi, "Bearer [redacted]")
+  : value;
+
+export const createDesktopSyncDiagnosticText = (items: DesktopOutboxItem[]) => JSON.stringify({
+  generatedAt: new Date().toISOString(),
+  items: items.map((item) => ({
+    id: item.id,
+    kind: item.kind,
+    status: item.status,
+    attemptCount: item.attemptCount,
+    lastError: sanitizeDesktopSyncDiagnosticError(item.lastError),
+    lastErrorCode: item.lastErrorCode,
+    retryable: item.retryable,
+    nextAttemptAt: item.nextAttemptAt,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+  })),
+}, null, 2);
 
 export const discardDesktopConflicts = async () => {
   const response = await request("sync.outbox.list", { limit: 200, includeConflicts: true });

@@ -61,6 +61,10 @@ export const isD1MigrationApplyCommand = (args) => {
 
 export const buildWranglerEnvironment = (args, env = process.env) => ({
   ...env,
+  // The repository installs a Wrangler compatibility shim so Cloudflare's
+  // default `npx wrangler deploy` cannot bypass the validated pipeline. Calls
+  // originating from our runner must delegate straight to the official CLI.
+  EDGE_EVER_WRANGLER_BYPASS_SHIM: "1",
   ...(isD1MigrationApplyCommand(args) ? { CI: "true" } : {}),
 });
 

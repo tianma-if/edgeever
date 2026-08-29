@@ -58,6 +58,9 @@ describe("Docker release contract", () => {
     expect(dockerfile).toContain("COPY patches patches");
     expect(dockerfile).toContain("COPY docs docs");
     expect(dockerfile).toContain(
+      "COPY packages/wrangler/package.json packages/wrangler/package.json",
+    );
+    expect(dockerfile).toContain(
       "COPY release-summary.json release-summary.json",
     );
     expect(dockerfile).toContain(

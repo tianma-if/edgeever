@@ -112,6 +112,9 @@ fn ensure_sidecar_schema(connection: &Connection) -> rusqlite::Result<()> {
            status TEXT NOT NULL DEFAULT 'pending',
            attempt_count INTEGER NOT NULL DEFAULT 0,
            last_error TEXT,
+           last_error_code TEXT,
+           retryable INTEGER NOT NULL DEFAULT 1,
+           next_attempt_at TEXT,
            version INTEGER NOT NULL DEFAULT 1,
            created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
            updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
@@ -119,15 +122,31 @@ fn ensure_sidecar_schema(connection: &Connection) -> rusqlite::Result<()> {
          CREATE INDEX IF NOT EXISTS idx_sidecar_outbox_status ON _edgeever_sidecar_outbox(status, id);",
     )?;
 
-    let has_version = connection
+    let columns = connection
         .prepare("PRAGMA table_info(_edgeever_sidecar_outbox)")?
         .query_map([], |row| row.get::<_, String>(1))?
-        .collect::<Result<Vec<_>, _>>()?
-        .iter()
-        .any(|name| name == "version");
-    if !has_version {
+        .collect::<Result<Vec<_>, _>>()?;
+    if !columns.iter().any(|name| name == "version") {
         connection.execute(
             "ALTER TABLE _edgeever_sidecar_outbox ADD COLUMN version INTEGER NOT NULL DEFAULT 1",
+            [],
+        )?;
+    }
+    if !columns.iter().any(|name| name == "last_error_code") {
+        connection.execute(
+            "ALTER TABLE _edgeever_sidecar_outbox ADD COLUMN last_error_code TEXT",
+            [],
+        )?;
+    }
+    if !columns.iter().any(|name| name == "retryable") {
+        connection.execute(
+            "ALTER TABLE _edgeever_sidecar_outbox ADD COLUMN retryable INTEGER NOT NULL DEFAULT 1",
+            [],
+        )?;
+    }
+    if !columns.iter().any(|name| name == "next_attempt_at") {
+        connection.execute(
+            "ALTER TABLE _edgeever_sidecar_outbox ADD COLUMN next_attempt_at TEXT",
             [],
         )?;
     }
@@ -323,4 +342,44 @@ pub(crate) fn open_database(root: &Path, migrations: &Path) -> rusqlite::Result<
             .map_err(|error| rusqlite::Error::ToSqlConversionFailure(Box::new(error)))?;
     }
     Ok(connection)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn upgrades_legacy_outbox_with_retry_metadata() {
+        let connection = Connection::open_in_memory().expect("open test database");
+        connection
+            .execute_batch(
+                "CREATE TABLE _edgeever_sidecar_outbox (
+                   id INTEGER PRIMARY KEY AUTOINCREMENT,
+                   kind TEXT NOT NULL,
+                   entity_id TEXT NOT NULL,
+                   payload_json TEXT NOT NULL,
+                   status TEXT NOT NULL DEFAULT 'pending',
+                   attempt_count INTEGER NOT NULL DEFAULT 0,
+                   last_error TEXT,
+                   version INTEGER NOT NULL DEFAULT 1,
+                   created_at TEXT NOT NULL,
+                   updated_at TEXT NOT NULL
+                 );
+                 INSERT INTO _edgeever_sidecar_outbox
+                   (kind, entity_id, payload_json, status, last_error, created_at, updated_at)
+                 VALUES ('memo.update', 'memo_legacy', '{}', 'error', 'Memo not found', '2026-01-01', '2026-01-01');",
+            )
+            .expect("create legacy schema");
+
+        ensure_sidecar_schema(&connection).expect("upgrade legacy schema");
+
+        let upgraded: (bool, Option<String>, Option<String>) = connection
+            .query_row(
+                "SELECT retryable, last_error_code, next_attempt_at FROM _edgeever_sidecar_outbox WHERE entity_id = 'memo_legacy'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .expect("read upgraded row");
+        assert_eq!(upgraded, (true, None, None));
+    }
 }

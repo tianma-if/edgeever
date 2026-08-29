@@ -1,15 +1,15 @@
 {
-  "version": "1.45.2",
+  "version": "1.46.0",
   "changes": {
     "en-US": [
-      "Show actionable diagnostics when mobile sign-in fails, making instance, network, and security-policy issues easier to resolve.",
-      "Allow attachments to be deleted safely from the asset library, with recoverable retries when storage cleanup is interrupted.",
-      "Route Android app upgrades through trusted Google Play or GitHub sources instead of requesting in-app package-install permission."
+      "Prevent one failed desktop sync item from blocking notes created on other devices; add sync details with safe retry, recovery, discard, and redacted diagnostics.",
+      "Improve the official website's product messaging, navigation reliability, accessibility, and deployment call to action.",
+      "Clarify the manual deployment guidance."
     ],
     "zh-CN": [
-      "移动端登录失败时显示可操作的诊断信息，帮助定位实例、网络与安全策略问题。",
-      "支持从附件库安全删除附件，并在存储清理中断时可靠重试。",
-      "Android 应用升级改为跳转 Google Play 或 GitHub 可信渠道，不再申请应用内安装软件包权限。"
+      "修复桌面端单个失败同步项阻断其他设备新建笔记下行同步的问题；新增同步详情，支持安全重试、恢复为新笔记、放弃本地修改和复制脱敏诊断。",
+      "优化官网产品信息、导航可靠性、无障碍体验和部署引导。",
+      "完善手动部署指引。"
     ]
   }
 }

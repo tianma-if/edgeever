@@ -1,79 +1,63 @@
 ---
 draft: false
-title: "EdgeEver 当前能力概览：Cloudflare 自托管、开放 API 与 MCP"
-snippet: "基于核心仓库 README、文档和代码同步整理 EdgeEver 当前已经实现的产品能力。"
+title: "EdgeEver 产品全景能力概览：全平台客户端、自由部署、原生 AI 与创作者工作流"
+snippet: "基于核心仓库 README、文档与代码实现，全面整理 EdgeEver 当前的全平台、多部署、原生 AI 与开放数据能力。"
 image: {
     src: "/images/major-update.jpg",
-    alt: "EdgeEver 产品能力概览"
+    alt: "EdgeEver 产品全景概览"
 }
-publishDate: "2026-07-02 00:40"
+publishDate: "2026-08-28 12:00"
 category: "Product"
 author: "EdgeEver Team"
-tags: [updates, pwa, mcp, editor]
+tags: [updates, cross-platform, docker, mcp, ai-editor, creator]
 ---
 
-这篇文章同步核心仓库中已经明确存在的能力。EdgeEver 当前定位是：开源、自托管、Cloudflare-native 的现代笔记工作区，保留经典印象笔记的三栏体验，并提供 REST API、OpenAPI schema 和 Remote MCP endpoint。
+EdgeEver 是一款现代化的开源笔记工作区。它为你找回经典印象笔记的三栏高效体验，同时具备完全开放的数据架构、原生 AI Agent 联动与自由部署能力，让个人知识沉淀更轻量、更自由。
 
-以下内容来自同级 `edgeever` 核心仓库的 README、文档和实现结构。
+以下内容基于 `edgeever` 仓库的最新 README、架构文档和代码实现进行系统梳理。
 
 ---
 
-### 1. 经典三栏笔记工作区
+### 1. 自由选择部署方式：Cloudflare Serverless 与 Docker
 
-EdgeEver 保留熟悉的三栏布局：
+EdgeEver 同一套应用完美支持两种自托管形态：
 
-- 笔记本树
-- 笔记列表
-- 主编辑区
+- **Cloudflare Serverless 部署**：终身免服务器，完全运行在 Cloudflare Workers、D1 与 R2 免费额度内（可容纳约 15 万条短笔记和 5 万张图片），零月租、零运维。
+- **Docker 一键脚本自托管**：官方容器镜像托管于 GHCR，支持单行命令 `curl -fsSL https://edgeever.org/install.sh | bash` 在 VPS、NAS 或家庭服务器快速启动，存储按需扩展，轻松承载百万级笔记与海量附件。
 
-它支持无限级嵌套笔记本、笔记本拖拽排序和调整层级、多选移动笔记、多选合并笔记，以及富文本编辑。
+### 2. 全平台原生客户端与多端同步
 
-### 2. 开放内容模型
+摆脱商业笔记“免费版仅限 2 台设备”的束缚，自建专属 API 支持多端无缝协同：
 
-EdgeEver 同时保存三种内容形态：
+- **macOS 桌面端**：基于 Electron + Rust sidecar + SQLite 本地数据服务，兼顾极速本地响应、离线编辑与一键全屏专注模式。
+- **iOS 原生 App**：基于原生 SwiftUI（iOS 17+）构建，已上架 App Store，集成 TipTap EditorBundle 与本地 SQLite 镜像。
+- **Android App**：已上架 Google Play，同时在 GitHub Releases 提供签名 APK，支持离线记录与微信文章分享剪藏。
+- **浏览器剪藏插件**：已在 Chrome Web Store、Microsoft Edge 与 Firefox Add-ons 全面上架，智能捕获网页全文、选区与书签。
+- **Web / PWA**：支持现代浏览器直接访问并安装为 PWA，内置离线草稿与本地同步队列。
 
-```text
-content_json      TipTap/ProseMirror 文档，编辑器权威格式
-content_markdown  API、Agent、导入导出使用
-content_text      搜索、摘要和索引使用
-```
+### 3. 经典三栏布局、双视图与专注模式
 
-这样的设计让前端编辑器、REST API、MCP、导入导出和搜索索引可以各自使用合适的数据形态。
+- **经典三栏**：笔记本树、笔记列表与主编辑区一目了然，零迁移学习成本。
+- **富文本 / Markdown 双视图**：桌面端支持在 TipTap 富文本与 Markdown 源码视图之间自由切换。
+- **无限层级与批量操作**：支持无限多级笔记本嵌套、拖拽重排与笔记批量移动/合并。
+- **历史版本回溯**：自动记录修改历史，随时查阅与还原过往版本。
 
-### 3. Cloudflare-native 自托管
+### 4. 原生 AI Agent 智脑与内置多模型
 
-当前部署形态是一个 Cloudflare Worker：
+- **Remote MCP 协议**：内置 Model Context Protocol endpoint 与 stdio bridge，直接授权 Antigravity、Claude Code、Codex 等 AI 助手安全读写与整理笔记，也可与 Notion Database、飞书多维表格轻松打通。
+- **编辑器内置 AI 模型**：支持接入 OpenAI、Anthropic Claude、Google Gemini、DeepSeek 及自定义兼容服务，在编辑器中一键进行智能总结、语法校对、翻译、续写润色与提炼行动项。
 
-- `/api/*` 由 Hono API 处理
-- 前端静态资源由 Workers Assets 提供
-- D1 保存 notebooks、memos、memo_contents、resources 元数据等
-- R2 保存图片和附件对象
+### 5. 创作者排版与富媒体渲染
 
-核心 README 中给出的个人使用估算是：短笔记可达 15 万条，200KB 图片约可存放 5 万张。实际用量和费用仍以 Cloudflare 账号计划与官方定价为准。
+- **微信公众号一键排版复制**：专为中文创作者设计，Markdown 瞬间转换为带内联样式的公众号精美排版，一键复制粘贴直接发布。
+- **Mermaid 架构图与 KaTeX 公式**：原生渲染架构图、流程图、时序图与数学公式，切换视图时保留可编辑源码。
+- **PDF 预览与通用附件**：支持直观预览 PDF 文档，无缝插入 Office、压缩包及音视频等多媒体附件。
+- **单篇笔记便捷导出**：支持将单篇笔记一键导出为 Markdown、HTML 或 PDF 格式。
+- **前端智能图片压缩**：上传前在浏览器端静默压缩大图（精简 50%-90% 体积），加载更迅速、存储更省心。
 
-### 4. Web 端图片压缩与 PWA
+### 6. 数据主权、多账号空间与无损迁移
 
-网页端上传图片前，可以在浏览器本地把 PNG、JPEG、WebP、AVIF 尝试压缩为 WebP，并将最长边限制在 `2560px` 以内。如果压缩结果不比原图小，则保留原图。服务端不会额外执行 Cloudflare Images 式处理。
+- **多账号独立空间**：单实例支持创建多个独立成员账号，用户数据与 MCP Token 完全物理隔离。
+- **无损 ZIP 打包导出**：一键打包包含 Markdown、Front Matter、嵌套目录及附件的完整档案，支持跨实例完整还原。
+- **平滑迁入工具**：提供针对印象笔记（Evernote ENEX / evernote-backup）、Memos、Notion 与 Flomo 的自动化迁移工具与指南。
 
-EdgeEver 也支持 PWA 安装，前端使用 Workbox 和 Dexie 支撑离线草稿与本地同步队列。
-
-### 5. REST API、OpenAPI 与 MCP
-
-EdgeEver 提供：
-
-- REST API
-- `/api/openapi.json`
-- Remote MCP endpoint
-- CLI 与 MCP stdio bridge 脚本
-
-在 EdgeEver 左下角个人中心的 MCP 设置里创建 API Token 后，可以复制 Token 或完整 MCP 配置交给 AI Agent，让它读取和整理你的笔记。
-
-### 6. 更新到最新版
-
-如果你是通过 Fork 部署的：
-
-1. 打开你自己的 EdgeEver Fork 仓库。
-2. 点击 GitHub 页面上的 **Sync fork**，同步官方仓库的最新代码。
-3. 已配置 Cloudflare Workers Builds 时，产生的 push 会自动构建、执行 D1 migration 并发布，无需回到本地重新部署。
-
-如果是较早安装的实例、尚未连接 Workers Builds，请先按 [Cloudflare Workers Builds 自动部署](/manual-deploy#开启自动更新) 完成一次连接；之后再使用 **Sync fork** 更新。

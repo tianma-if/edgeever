@@ -12,6 +12,7 @@ COPY apps/web/package.json apps/web/package.json
 COPY packages/client/package.json packages/client/package.json
 COPY packages/plugin-api/package.json packages/plugin-api/package.json
 COPY packages/shared/package.json packages/shared/package.json
+COPY packages/wrangler/package.json packages/wrangler/package.json
 COPY patches patches
 
 FROM manifests AS dependencies

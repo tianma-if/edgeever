@@ -1,0 +1,14 @@
+{
+  "name": "wrangler",
+  "version": "4.112.0-edgeever.1",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "wrangler": "bin/wrangler.js",
+    "wrangler2": "bin/wrangler.js",
+    "cf-wrangler": "bin/wrangler.js"
+  },
+  "dependencies": {
+    "edgeever-wrangler-cli": "npm:wrangler@^4.112.0"
+  }
+}

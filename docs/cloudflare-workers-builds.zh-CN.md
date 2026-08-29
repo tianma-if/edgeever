@@ -2,7 +2,7 @@
 
 ## 配置
 
-使用[在线部署文档](deploy-cloudflare-button.zh-CN.md)中的构建命令和部署命令，仓库根目录为 `/`，生产分支为 `main`。
+手动导入仓库时，按[在线部署文档](deploy-cloudflare-button.zh-CN.md)保留 Cloudflare 默认的 `npx wrangler deploy` 命令，仓库根目录为 `/`，生产分支为 `main`。仓库提供的 Wrangler 兼容入口会把该默认命令接入 EdgeEver 的完整部署流水线。已有项目继续使用显式构建命令与 `bun run deploy:cloudflare-builds` 也受支持。
 
 授权：
 

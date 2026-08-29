@@ -57,18 +57,24 @@ Existing deployments created from older instructions do not need to rename or mi
 
 ---
 
-### Step 4: Set Build Commands & Start Build
+### Step 4: Start the Build
 
-In the Cloudflare project **Build settings**, configure:
+Keep the default deploy command filled in by Cloudflare:
+
+```text
+Deploy command: npx wrangler deploy
+```
+
+Click **Save and Deploy** to trigger the initial build. The repository's Wrangler compatibility entrypoint detects Workers Builds and routes the default command through EdgeEver's complete build, database migration, deployment, and live verification pipeline. You do not need to copy a custom command, and the D1 placeholder in `wrangler.toml` cannot be submitted to Cloudflare.
+
+The deployment pipeline automatically looks up the D1 UUID by the `edgeever` database name. Keep the tracked `wrangler.toml` unchanged; deployment rejects instance-specific values committed there. The Workers Builds API token must have D1 read/edit permission.
+
+Existing projects may keep using these explicit commands without changing them:
 
 ```text
 Build command:  bun install --frozen-lockfile && EDGE_EVER_DEPLOYMENT_TRIGGER=main_push EDGE_EVER_DEPLOYMENT_METHOD=cloudflare_workers_builds bun run build:cloudflare
 Deploy command: bun run deploy:cloudflare-builds
 ```
-
-Click **Save and Deploy** to trigger the initial build.
-
-The deploy command automatically looks up the D1 UUID by the `edgeever` database name. Keep the tracked `wrangler.toml` unchanged; deployment rejects instance-specific values committed there. The Workers Builds API token must have D1 read/edit permission.
 
 After publishing, the CI deployment records the actual public target reported by Wrangler and requests its `/api/health` endpoint. The build fails if the live Worker is missing its `DB` or `RESOURCES` binding, uses an unprepared D1 database, or does not return a healthy response.
 
@@ -117,7 +123,7 @@ Passwords and other credentials remain Worker runtime Secrets and must never be 
 
 ## Troubleshooting
 
-- **Initial build failed**: Check the Worker **Deployments** log. Verify that the standard resources are named exactly `edgeever` and `edgeever-resources`, and that the Workers Builds API token has D1 read/edit permission. For an intentionally different D1 database, set `EDGE_EVER_D1_DATABASE_NAME`; add `EDGE_EVER_D1_DATABASE_ID` only if automatic UUID discovery is unavailable.
+- **Initial build failed**: Check the Worker **Deployments** log for “routing it through EdgeEver's validated deployment pipeline”. Verify that the standard resources are named exactly `edgeever` and `edgeever-resources`, and that the Workers Builds API token has D1 read/edit permission. For an intentionally different D1 database, set `EDGE_EVER_D1_DATABASE_NAME`; add `EDGE_EVER_D1_DATABASE_ID` only if automatic UUID discovery is unavailable.
 - **Updates not syncing**:
   1. On the Fork **Actions** tab, enable **Update deployed EdgeEver** (scheduled workflows are off by default on public forks).
   2. Run it once with **Run workflow**. Open the bilingual job **Summary**: it separately reports the upstream target, Git publish result, deployment trigger, and whether the live deployment was verified.

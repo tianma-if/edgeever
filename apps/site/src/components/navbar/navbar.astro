@@ -104,7 +104,9 @@ const menuitems = [
         type="button"
         id="mobile-nav-toggle"
         aria-label="Toggle mobile menu"
-        class="lg:hidden p-2 rounded-xl border border-slate-200/80 bg-white/90 text-slate-700 hover:bg-slate-100 focus:outline-none transition-colors"
+        aria-controls="mobile-nav-menu"
+        aria-expanded="false"
+        class="lg:hidden min-h-11 min-w-11 p-2 rounded-xl border border-slate-200/80 bg-white/90 text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 focus-visible:ring-offset-2 transition-colors"
       >
         <svg id="hamburger-icon" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
@@ -131,7 +133,7 @@ const menuitems = [
                     {item.children.map((child) => (
                       <a
                         href={child.path}
-                        class="px-3 py-2 text-xs font-semibold text-slate-700 hover:text-emerald-700 hover:bg-emerald-50/70 rounded-xl transition-colors"
+                        class="flex min-h-11 items-center px-3 py-2 text-xs font-semibold text-slate-700 hover:text-emerald-700 hover:bg-emerald-50/70 rounded-xl transition-colors"
                       >
                         {child.title}
                       </a>
@@ -142,7 +144,7 @@ const menuitems = [
                 <li>
                   <a
                     href={item.path}
-                    class="block px-3 py-2 text-sm font-semibold text-slate-700 hover:text-emerald-700 hover:bg-emerald-50/70 rounded-xl transition-colors"
+                    class="flex min-h-11 items-center px-3 py-2 text-sm font-semibold text-slate-700 hover:text-emerald-700 hover:bg-emerald-50/70 rounded-xl transition-colors"
                   >
                     {item.title}
                   </a>
@@ -180,20 +182,40 @@ const menuitems = [
       var hamburgerIcon = document.getElementById("hamburger-icon");
       var closeIcon = document.getElementById("close-icon");
 
+      function setMenuOpen(isOpen) {
+        if (!menu || !toggleBtn) return;
+        menu.classList.toggle("hidden", !isOpen);
+        toggleBtn.setAttribute("aria-expanded", String(isOpen));
+        if (hamburgerIcon) hamburgerIcon.classList.toggle("hidden", isOpen);
+        if (closeIcon) closeIcon.classList.toggle("hidden", !isOpen);
+      }
+
       if (toggleBtn && menu) {
         e.preventDefault();
         e.stopPropagation();
         var isHidden = menu.classList.contains("hidden");
-        if (isHidden) {
-          menu.classList.remove("hidden");
-          if (hamburgerIcon) hamburgerIcon.classList.add("hidden");
-          if (closeIcon) closeIcon.classList.remove("hidden");
-        } else {
-          menu.classList.add("hidden");
-          if (hamburgerIcon) hamburgerIcon.classList.remove("hidden");
-          if (closeIcon) closeIcon.classList.add("hidden");
-        }
+        setMenuOpen(isHidden);
       }
+
+      // Close all open <details> menus when clicking outside
+      document.querySelectorAll("header details[open]").forEach(function (details) {
+        if (!details.contains(e.target)) {
+          details.removeAttribute("open");
+        }
+      });
+    });
+
+    document.addEventListener("keydown", function (e) {
+      if (e.key !== "Escape") return;
+      var toggleBtn = document.getElementById("mobile-nav-toggle");
+      var menu = document.getElementById("mobile-nav-menu");
+      if (!toggleBtn || !menu || menu.classList.contains("hidden")) return;
+
+      menu.classList.add("hidden");
+      toggleBtn.setAttribute("aria-expanded", "false");
+      document.getElementById("hamburger-icon")?.classList.remove("hidden");
+      document.getElementById("close-icon")?.classList.add("hidden");
+      toggleBtn.focus();
     });
   })();
 </script>

@@ -39,7 +39,7 @@ export const manualDeploymentCopy = {
       },
       {
         title: "Build & Verify",
-        body: "Start the first build with default settings. Once complete, visit /api/health to verify a 200 response before logging in.",
+        body: "Start the first build after importing the repository. Once complete, visit /api/health to verify a 200 response before logging in.",
       },
     ],
   },
@@ -64,7 +64,7 @@ export const manualDeploymentCopy = {
       },
       {
         title: "启动构建与验证",
-        body: "使用默认构建配置启动首次构建，部署完成后访问 /api/health 确认返回 200 即可开始使用。",
+        body: "导入仓库后直接启动首次构建。部署完成后访问 /api/health，确认返回 200 即可开始使用。",
       },
     ],
   },

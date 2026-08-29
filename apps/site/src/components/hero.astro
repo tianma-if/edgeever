@@ -8,8 +8,6 @@ import { getLocalizedPath, getSiteLocale, siteCopy } from "@/i18n";
 
 const locale = getSiteLocale(Astro.url.pathname);
 const copy = siteCopy[locale].hero;
-
-const agentPromptText = copy.agentPromptText;
 ---
 
 <main class="relative grid gap-8 lg:gap-10 lg:grid-cols-2 place-items-center pt-4 pb-10 md:pt-10 md:pb-16 overflow-hidden max-w-full">
@@ -23,8 +21,8 @@ const agentPromptText = copy.agentPromptText;
   <div class="relative z-20 w-full max-w-full flex flex-col items-start min-w-0">
     {copy.badgeText && (
       <a
-        href={`${getLocalizedPath(locale, "/")}blog?tag=migration`}
-        class="animate-rise flex items-center gap-2 max-w-full min-w-0 px-3 py-1.5 mb-5 md:mb-6 text-xs text-brand bg-brand/5 border border-brand-border/30 hover:border-brand/40 hover:bg-brand/10 rounded-full backdrop-blur-sm select-none hover:-translate-y-0.5 transition-all duration-300 group/badge cursor-pointer"
+        href={`${getLocalizedPath(locale, "/")}#platforms`}
+        class="animate-rise flex min-h-11 sm:min-h-0 items-center gap-2 max-w-full min-w-0 px-3 py-1.5 mb-5 md:mb-6 text-xs text-brand bg-brand/5 border border-brand-border/30 hover:border-brand/40 hover:bg-brand/10 rounded-full backdrop-blur-sm select-none hover:-translate-y-0.5 transition-all duration-300 group/badge cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 focus-visible:ring-offset-2"
         style="animation-delay: 0ms;"
       >
         <span class="relative flex h-2 w-2 shrink-0">
@@ -78,33 +76,48 @@ const agentPromptText = copy.agentPromptText;
       </a>
     </div>
 
-    <!-- Agent Terminal Prompt Pill (Pireel style) -->
+    <!-- Multi-Platform Client Badges -->
     <div class="animate-rise mt-6 w-full max-w-full sm:max-w-lg z-30 relative" style="animation-delay: 240ms;">
-      <!-- Hidden Textarea for clean text copying -->
-      <textarea id="agent-prompt-textarea" class="sr-only" aria-hidden="true" readonly>{agentPromptText}</textarea>
-
-      <div class="flex flex-col gap-1.5 w-full max-w-full">
-        <button
-          type="button"
-          id="copy-agent-prompt"
-          title="点击复制 AI 部署 Prompt 指令"
-          class="group relative flex items-center justify-between gap-2 w-full max-w-full rounded-2xl sm:rounded-full border border-slate-200/90 bg-white/90 backdrop-blur hover:border-emerald-500/60 p-2 sm:p-1.5 sm:pl-4 transition-all hover:shadow-md cursor-pointer text-left select-none z-30 min-w-0"
+      <div class="pt-4 border-t border-slate-200/60 flex flex-wrap items-center gap-2">
+        <span class="text-[11px] font-semibold text-slate-500 mr-1 select-none">
+          {locale === "en-US" ? "Get Apps:" : "获取客户端："}
+        </span>
+        <a
+          href="https://github.com/tianma-if/edgeever/releases"
+          target="_blank"
+          rel="noopener"
+          class="inline-flex min-h-11 sm:min-h-0 items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100/90 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 border border-slate-200/80 text-[11px] font-medium text-slate-700 transition-all shadow-2xs"
         >
-          <div class="flex items-center gap-2 overflow-hidden pointer-events-none min-w-0 flex-1">
-            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-emerald-600 shrink-0"><path d="M12 19h8"></path><path d="m4 17 6-6-6-6"></path></svg>
-            <span class="font-mono text-[10.5px] sm:text-xs text-slate-700 font-medium truncate min-w-0 flex-1">
-              {copy.terminalCmd}
-            </span>
-          </div>
-          <span class="copy-icon-box grid h-7 w-7 shrink-0 place-items-center rounded-full bg-slate-100 text-slate-500 group-hover:bg-emerald-50 group-hover:text-emerald-700 transition-colors pointer-events-none">
-            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg>
-          </span>
-          <span id="prompt-tooltip" class="absolute -top-10 right-2 sm:right-4 hidden rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white shadow-lg transition-opacity pointer-events-none z-50 flex items-center gap-1.5">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-            <span>{copy.copySuccess}</span>
-          </span>
-        </button>
-        <span class="text-[10.5px] sm:text-[11.5px] text-slate-600 pl-2 sm:pl-4 font-medium select-none truncate max-w-full">{copy.terminalSub}</span>
+          <Icon name="bx:bxl-apple" class="w-3.5 h-3.5" />
+          <span>macOS</span>
+        </a>
+        <a
+          href="https://apps.apple.com/us/app/edgeever/id6792625631"
+          target="_blank"
+          rel="noopener"
+          class="inline-flex min-h-11 sm:min-h-0 items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100/90 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 border border-slate-200/80 text-[11px] font-medium text-slate-700 transition-all shadow-2xs"
+        >
+          <Icon name="bx:bx-mobile" class="w-3.5 h-3.5" />
+          <span>iOS</span>
+        </a>
+        <a
+          href="https://play.google.com/store/apps/details?id=org.edgeever.mobile"
+          target="_blank"
+          rel="noopener"
+          class="inline-flex min-h-11 sm:min-h-0 items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100/90 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 border border-slate-200/80 text-[11px] font-medium text-slate-700 transition-all shadow-2xs"
+        >
+          <Icon name="bx:bxl-android" class="w-3.5 h-3.5" />
+          <span>Android</span>
+        </a>
+        <a
+          href="https://chromewebstore.google.com/detail/edgeever-web-clipper/gjadpfmanienmlofajibkfkkpfdkclgo"
+          target="_blank"
+          rel="noopener"
+          class="inline-flex min-h-11 sm:min-h-0 items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100/90 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 border border-slate-200/80 text-[11px] font-medium text-slate-700 transition-all shadow-2xs"
+        >
+          <Icon name="bx:bx-extension" class="w-3.5 h-3.5" />
+          <span>{locale === "en-US" ? "Clipper" : "剪藏插件"}</span>
+        </a>
       </div>
     </div>
   </div>
@@ -147,78 +160,6 @@ const agentPromptText = copy.agentPromptText;
     </div>
   </div>
 </main>
-
-<script is:inline>
-  (function () {
-    function fallbackCopyText(text) {
-      var textarea = document.createElement("textarea");
-      textarea.value = text;
-      textarea.style.position = "fixed";
-      textarea.style.left = "-9999px";
-      textarea.style.top = "-9999px";
-      document.body.appendChild(textarea);
-      textarea.focus();
-      textarea.select();
-      var successful = false;
-      try {
-        successful = document.execCommand("copy");
-      } catch (err) {
-        console.error("execCommand copy error:", err);
-      }
-      document.body.removeChild(textarea);
-      return successful;
-    }
-
-    document.addEventListener("click", function (e) {
-      var btn = e.target && e.target.closest ? e.target.closest("#copy-agent-prompt") : null;
-      if (!btn) return;
-
-      e.preventDefault();
-      e.stopPropagation();
-
-      var textarea = document.getElementById("agent-prompt-textarea");
-      var textToCopy = textarea ? textarea.value : "";
-      if (!textToCopy) return;
-
-      var tooltip = document.getElementById("prompt-tooltip");
-      var iconContainer = btn.querySelector(".copy-icon-box");
-
-      function showSuccess() {
-        btn.classList.add("border-emerald-500", "bg-emerald-50");
-        if (tooltip) {
-          tooltip.classList.remove("hidden");
-        }
-        if (iconContainer) {
-          iconContainer.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-emerald-600"><polyline points="20 6 9 17 4 12"></polyline></svg>';
-        }
-        setTimeout(function () {
-          btn.classList.remove("border-emerald-500", "bg-emerald-50");
-          if (tooltip) {
-            tooltip.classList.add("hidden");
-          }
-          if (iconContainer) {
-            iconContainer.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg>';
-          }
-        }, 2500);
-      }
-
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(textToCopy).then(function () {
-          showSuccess();
-        }).catch(function (err) {
-          console.warn("navigator.clipboard failed, fallback to execCommand", err);
-          if (fallbackCopyText(textToCopy)) {
-            showSuccess();
-          }
-        });
-      } else {
-        if (fallbackCopyText(textToCopy)) {
-          showSuccess();
-        }
-      }
-    });
-  })();
-</script>
 
 <style>
   .hero-slogan {

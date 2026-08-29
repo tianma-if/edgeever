@@ -12,6 +12,8 @@ use std::io::{self, BufRead, Write};
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+const PROTOCOL_VERSION: i64 = 2;
+
 #[derive(Debug, Deserialize)]
 struct RpcRequest {
     id: Value,
@@ -61,8 +63,11 @@ fn enqueue_change(
                 .execute(
                     "UPDATE _edgeever_sidecar_outbox
                  SET payload_json = ?1,
-                     status = ?2,
+                     status = CASE WHEN ?2 = 'conflict' THEN 'conflict' ELSE 'pending' END,
                      last_error = CASE WHEN ?2 = 'conflict' THEN last_error ELSE NULL END,
+                     last_error_code = CASE WHEN ?2 = 'conflict' THEN last_error_code ELSE NULL END,
+                     retryable = 1,
+                     next_attempt_at = NULL,
                      version = version + 1,
                      updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
                  WHERE id = ?3",
@@ -999,7 +1004,10 @@ fn create_memo(database: &Connection, params: &Value) -> Result<Value, String> {
         .unwrap_or("")
         .to_owned();
     let tags = params.get("tags").cloned().unwrap_or_else(|| json!([]));
-    let content_json = markdown_doc(&markdown);
+    let content_json = params
+        .get("contentJson")
+        .cloned()
+        .unwrap_or_else(|| markdown_doc(&markdown));
     let content_json_text = content_json.to_string();
     let text = markdown.lines().collect::<Vec<_>>().join(" ");
     let id = now_id("memo_local");
@@ -1328,14 +1336,14 @@ fn sync_outbox_list(database: &Connection, params: &Value) -> Result<Value, Stri
         .clamp(1, 200);
     let include_conflicts = bool_param(params, "includeConflicts", false);
     let sql = if include_conflicts {
-        "SELECT id, kind, entity_id, payload_json, attempt_count, status, last_error, version FROM _edgeever_sidecar_outbox WHERE status IN ('pending', 'error', 'conflict') ORDER BY id LIMIT ?1"
+        "SELECT id, kind, entity_id, payload_json, attempt_count, status, last_error, version, last_error_code, retryable, next_attempt_at, created_at, updated_at FROM _edgeever_sidecar_outbox WHERE status IN ('pending', 'error', 'conflict') ORDER BY id LIMIT ?1"
     } else {
-        "SELECT id, kind, entity_id, payload_json, attempt_count, status, last_error, version FROM _edgeever_sidecar_outbox WHERE status IN ('pending', 'error') ORDER BY id LIMIT ?1"
+        "SELECT id, kind, entity_id, payload_json, attempt_count, status, last_error, version, last_error_code, retryable, next_attempt_at, created_at, updated_at FROM _edgeever_sidecar_outbox WHERE status = 'pending' OR (status = 'error' AND retryable = 1 AND (next_attempt_at IS NULL OR next_attempt_at <= strftime('%Y-%m-%dT%H:%M:%fZ','now'))) ORDER BY id LIMIT ?1"
     };
     let mut statement = database.prepare(sql).map_err(|e| e.to_string())?;
     let rows = statement.query_map([limit], |row| {
         let payload: String = row.get(3)?;
-        Ok(json!({ "id": row.get::<_, i64>(0)?, "kind": row.get::<_, String>(1)?, "entityId": row.get::<_, String>(2)?, "payload": serde_json::from_str::<Value>(&payload).unwrap_or_else(|_| json!({})), "attemptCount": row.get::<_, i64>(4)?, "status": row.get::<_, String>(5)?, "lastError": row.get::<_, Option<String>>(6)?, "version": row.get::<_, i64>(7)? }))
+        Ok(json!({ "id": row.get::<_, i64>(0)?, "kind": row.get::<_, String>(1)?, "entityId": row.get::<_, String>(2)?, "payload": serde_json::from_str::<Value>(&payload).unwrap_or_else(|_| json!({})), "attemptCount": row.get::<_, i64>(4)?, "status": row.get::<_, String>(5)?, "lastError": row.get::<_, Option<String>>(6)?, "version": row.get::<_, i64>(7)?, "lastErrorCode": row.get::<_, Option<String>>(8)?, "retryable": row.get::<_, bool>(9)?, "nextAttemptAt": row.get::<_, Option<String>>(10)?, "createdAt": row.get::<_, String>(11)?, "updatedAt": row.get::<_, String>(12)? }))
     }).map_err(|e| e.to_string())?;
     let items: Result<Vec<_>, _> = rows.collect();
     Ok(json!({ "items": items.map_err(|e| e.to_string())? }))
@@ -1664,12 +1672,107 @@ fn sync_outbox_fail(database: &Connection, params: &Value) -> Result<Value, Stri
     } else {
         "error"
     };
+    let error_code = params.get("errorCode").and_then(Value::as_str);
+    let retryable = params
+        .get("retryable")
+        .and_then(Value::as_bool)
+        .unwrap_or(true);
+    let next_attempt_at = params.get("nextAttemptAt").and_then(Value::as_str);
     let updated = if let Some(version) = params.get("version").and_then(Value::as_i64) {
-        database.execute("UPDATE _edgeever_sidecar_outbox SET status = ?1, attempt_count = attempt_count + 1, last_error = ?2, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?3 AND version = ?4", rusqlite::params![status, error, id, version]).map_err(|e| e.to_string())?
+        database.execute("UPDATE _edgeever_sidecar_outbox SET status = ?1, attempt_count = attempt_count + 1, last_error = ?2, last_error_code = ?3, retryable = ?4, next_attempt_at = ?5, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?6 AND version = ?7", rusqlite::params![status, error, error_code, retryable, next_attempt_at, id, version]).map_err(|e| e.to_string())?
     } else {
-        database.execute("UPDATE _edgeever_sidecar_outbox SET status = ?1, attempt_count = attempt_count + 1, last_error = ?2, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?3", rusqlite::params![status, error, id]).map_err(|e| e.to_string())?
+        database.execute("UPDATE _edgeever_sidecar_outbox SET status = ?1, attempt_count = attempt_count + 1, last_error = ?2, last_error_code = ?3, retryable = ?4, next_attempt_at = ?5, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?6", rusqlite::params![status, error, error_code, retryable, next_attempt_at, id]).map_err(|e| e.to_string())?
     };
     Ok(json!({ "ok": true, "superseded": updated == 0 }))
+}
+
+fn sync_outbox_retry(database: &Connection, params: &Value) -> Result<Value, String> {
+    let id = params
+        .get("id")
+        .and_then(Value::as_i64)
+        .ok_or_else(|| "Missing outbox id".to_owned())?;
+    let version = params.get("version").and_then(Value::as_i64);
+    let updated = if let Some(version) = version {
+        database.execute(
+            "UPDATE _edgeever_sidecar_outbox SET status = 'pending', retryable = 1, next_attempt_at = NULL, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?1 AND version = ?2 AND status = 'error'",
+            rusqlite::params![id, version],
+        )
+    } else {
+        database.execute(
+            "UPDATE _edgeever_sidecar_outbox SET status = 'pending', retryable = 1, next_attempt_at = NULL, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?1 AND status = 'error'",
+            [id],
+        )
+    }
+    .map_err(|e| e.to_string())?;
+    if updated == 0 {
+        return Err("The failed sync item changed before retry".to_owned());
+    }
+    Ok(json!({ "ok": true }))
+}
+
+fn sync_outbox_recover_memo_update(database: &Connection, params: &Value) -> Result<Value, String> {
+    let id = params
+        .get("id")
+        .and_then(Value::as_i64)
+        .ok_or_else(|| "Missing outbox id".to_owned())?;
+    let notebook_id = string_param(params, "notebookId")?;
+    let requested_version = params.get("version").and_then(Value::as_i64);
+    let (kind, payload_text, version, status): (String, String, i64, String) = database
+        .query_row(
+            "SELECT kind, payload_json, version, status FROM _edgeever_sidecar_outbox WHERE id = ?1",
+            [id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+        )
+        .map_err(|e| e.to_string())?;
+    if kind != "memo.update" || status != "error" {
+        return Err("Only failed memo updates can be recovered".to_owned());
+    }
+    if requested_version.is_some_and(|value| value != version) {
+        return Err("The failed update changed before recovery".to_owned());
+    }
+    let notebook_exists: bool = database
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM notebooks WHERE id = ?1 AND is_deleted = 0)",
+            [&notebook_id],
+            |row| row.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+    if !notebook_exists {
+        return Err("Recovery notebook not found".to_owned());
+    }
+    let mut payload: Value = serde_json::from_str(&payload_text).map_err(|e| e.to_string())?;
+    let object = payload
+        .as_object_mut()
+        .ok_or_else(|| "Invalid failed memo payload".to_owned())?;
+    object.insert("notebookId".to_owned(), json!(notebook_id));
+    let memo = create_memo(database, &payload)?;
+    let recovered_id = string_param(&memo, "id")?;
+    payload["memoId"] = json!(recovered_id);
+    payload["expectedRevision"] = json!(0);
+    payload["expectedContentHash"] = memo
+        .get("contentHash")
+        .cloned()
+        .unwrap_or_else(|| json!(""));
+    enqueue_change(database, "memo.update", &recovered_id, &payload)?;
+    let removed = database
+        .execute(
+            "DELETE FROM _edgeever_sidecar_outbox WHERE id = ?1 AND version = ?2 AND status = 'error'",
+            rusqlite::params![id, version],
+        )
+        .map_err(|e| e.to_string())?;
+    if removed == 0 {
+        database
+            .execute(
+                "DELETE FROM _edgeever_sidecar_outbox WHERE entity_id = ?1",
+                [&recovered_id],
+            )
+            .ok();
+        database
+            .execute("DELETE FROM memos WHERE id = ?1", [&recovered_id])
+            .ok();
+        return Err("The failed update changed before recovery".to_owned());
+    }
+    Ok(json!({ "ok": true, "memo": memo }))
 }
 
 fn sync_outbox_discard(database: &Connection, params: &Value) -> Result<Value, String> {
@@ -1677,9 +1780,18 @@ fn sync_outbox_discard(database: &Connection, params: &Value) -> Result<Value, S
         .get("id")
         .and_then(Value::as_i64)
         .ok_or_else(|| "Missing outbox id".to_owned())?;
-    database
-        .execute("DELETE FROM _edgeever_sidecar_outbox WHERE id = ?1", [id])
-        .map_err(|e| e.to_string())?;
+    let removed = if let Some(version) = params.get("version").and_then(Value::as_i64) {
+        database.execute(
+            "DELETE FROM _edgeever_sidecar_outbox WHERE id = ?1 AND version = ?2",
+            rusqlite::params![id, version],
+        )
+    } else {
+        database.execute("DELETE FROM _edgeever_sidecar_outbox WHERE id = ?1", [id])
+    }
+    .map_err(|e| e.to_string())?;
+    if removed == 0 {
+        return Err("The sync item changed before it was discarded".to_owned());
+    }
     Ok(json!({ "ok": true }))
 }
 
@@ -1763,7 +1875,7 @@ fn handle(
             "platform": env::consts::OS,
             "architecture": env::consts::ARCH,
             "dataDir": root,
-            "protocolVersion": 1,
+            "protocolVersion": PROTOCOL_VERSION,
         })),
         "storage.health" => database
             .query_row("SELECT 1", [], |row| row.get::<_, i64>(0))
@@ -1779,6 +1891,10 @@ fn handle(
         "sync.outbox.list" => sync_outbox_list(database, &request.params),
         "sync.outbox.ack" => sync_outbox_ack(database, &request.params),
         "sync.outbox.fail" => sync_outbox_fail(database, &request.params),
+        "sync.outbox.retry" => sync_outbox_retry(database, &request.params),
+        "sync.outbox.recoverMemoUpdate" => {
+            sync_outbox_recover_memo_update(database, &request.params)
+        }
         "sync.outbox.discard" => sync_outbox_discard(database, &request.params),
         "sync.apply" => apply_sync_changes(database, &request.params),
         "sync.cursor.set" => {
@@ -1878,7 +1994,10 @@ fn chrono_like_now() -> String {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let root = data_dir();
     let mut database = open_database(&root, &migrations_dir())?;
-    println!("{}", json!({ "event": "ready", "protocolVersion": 1 }));
+    println!(
+        "{}",
+        json!({ "event": "ready", "protocolVersion": PROTOCOL_VERSION })
+    );
     io::stdout().flush()?;
 
     for line in io::stdin().lock().lines() {

@@ -16,17 +16,17 @@ const copy = siteCopy[locale].nav;
         href="https://www.dujin.org/"
         target="_blank"
         rel="noopener noreferrer"
-        title="感谢独立博主缙哥哥在项目成长中提出的宝贵建议与教程分享"
-        class="hover:text-emerald-700 transition-colors"
+        aria-label={locale === "en-US" ? "Thanks to independent blogger Dujin for product feedback and tutorials" : "感谢独立博主缙哥哥在项目成长中提出的宝贵建议与教程分享"}
+        class="inline-flex min-h-11 sm:min-h-0 items-center hover:text-emerald-700 transition-colors"
       >
         {locale === "en-US" ? "Thanks" : "特别致谢"}
       </a>
       <span class="text-slate-300">•</span>
-      <a href={getLocalizedPath(locale, "/contact")} class="hover:text-emerald-700 transition-colors">
+      <a href={getLocalizedPath(locale, "/contact")} class="inline-flex min-h-11 sm:min-h-0 items-center hover:text-emerald-700 transition-colors">
         {copy.contact}
       </a>
       <span class="text-slate-300">•</span>
-      <a href={getLocalizedPath(locale, "/privacy")} class="hover:text-emerald-700 transition-colors">
+      <a href={getLocalizedPath(locale, "/privacy")} class="inline-flex min-h-11 sm:min-h-0 items-center hover:text-emerald-700 transition-colors">
         {copy.privacy}
       </a>
       <span class="text-slate-300">•</span>
@@ -34,7 +34,7 @@ const copy = siteCopy[locale].nav;
         href="https://github.com/tianma-if/edgeever"
         target="_blank"
         rel="noopener"
-        class="hover:text-emerald-700 transition-colors"
+        class="inline-flex min-h-11 sm:min-h-0 items-center hover:text-emerald-700 transition-colors"
       >
         GitHub
       </a>

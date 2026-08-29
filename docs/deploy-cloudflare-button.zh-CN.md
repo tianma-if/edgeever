@@ -57,18 +57,24 @@
 
 ---
 
-### 步骤 4：设置构建命令并启动构建
+### 步骤 4：启动构建
 
-在 Cloudflare 项目的 **Build settings**（构建设置）中配置：
+保留 Cloudflare 自动填写的默认部署命令：
+
+```text
+Deploy command: npx wrangler deploy
+```
+
+点击 **Save and Deploy** 启动首次构建部署。仓库提供的 Wrangler 兼容入口会识别 Workers Builds，并自动将默认命令接入 EdgeEver 的完整构建、数据库迁移、部署及线上验证流水线。因此无需复制自定义命令，也不会把 `wrangler.toml` 中的 D1 占位符提交给 Cloudflare。
+
+部署流水线会根据 `edgeever` 数据库名称自动查询 D1 UUID。受版本控制的 `wrangler.toml` 必须保持不变；若把实例专属配置提交到该文件，部署会直接拒绝。Workers Builds API Token 必须具有 D1 读取和编辑权限。
+
+已有项目继续使用下列显式命令也受支持，无需修改：
 
 ```text
 Build command:  bun install --frozen-lockfile && EDGE_EVER_DEPLOYMENT_TRIGGER=main_push EDGE_EVER_DEPLOYMENT_METHOD=cloudflare_workers_builds bun run build:cloudflare
 Deploy command: bun run deploy:cloudflare-builds
 ```
-
-点击 **Save and Deploy** 启动首次构建部署。
-
-部署命令会根据 `edgeever` 数据库名称自动查询 D1 UUID。受版本控制的 `wrangler.toml` 必须保持不变；若把实例专属配置提交到该文件，部署会直接拒绝。Workers Builds API Token 必须具有 D1 读取和编辑权限。
 
 发布完成后，CI 部署会记录 Wrangler 返回的实际公网入口，并请求该入口的 `/api/health`。如果线上 Worker 缺少 `DB` 或 `RESOURCES` binding、绑定了未初始化的 D1，或没有返回健康状态，构建会直接失败。
 
@@ -117,7 +123,7 @@ EDGE_EVER_UPDATE_CHANNEL=edge
 
 ## 常见问题与排错
 
-- **首次构建失败**：请检查 Cloudflare 控制台中 Worker 的 **Deployments** 构建日志，确认标准资源名称严格为 `edgeever` 与 `edgeever-resources`，并确认 Workers Builds API Token 具有 D1 读取和编辑权限。如有意使用其他 D1 数据库，请设置 `EDGE_EVER_D1_DATABASE_NAME`；仅在自动查询 UUID 不可用时再添加 `EDGE_EVER_D1_DATABASE_ID`。
+- **首次构建失败**：请检查 Cloudflare 控制台中 Worker 的 **Deployments** 构建日志，确认日志包含“routing it through EdgeEver's validated deployment pipeline”，标准资源名称严格为 `edgeever` 与 `edgeever-resources`，并确认 Workers Builds API Token 具有 D1 读取和编辑权限。如有意使用其他 D1 数据库，请设置 `EDGE_EVER_D1_DATABASE_NAME`；仅在自动查询 UUID 不可用时再添加 `EDGE_EVER_D1_DATABASE_ID`。
 - **无法同步上游更新**：
   1. 打开 Fork 的 **Actions**，启用 **Update deployed EdgeEver**（公共 Fork 上定时任务默认关闭）。
   2. 手动 **Run workflow** 一次，打开中英双语 Job **Summary**：会分别展示上游目标、Git 发布结果、部署触发状态，以及线上部署是否已经验证。

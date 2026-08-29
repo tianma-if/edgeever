@@ -35,7 +35,7 @@ The public demo resets every day at 3:00 AM (China Standard Time) and restores s
 
 ## Features
 
-- **Deploy Your Way**: Run the same application on Cloudflare's free serverless platform or with Docker on a VPS, NAS, or home server.
+- **Deploy Your Way**: Run the same application on Cloudflare's free serverless platform or with Docker on a VPS, NAS, or home server. Based on Cloudflare's free storage allowances, a personal deployment can hold roughly 150,000 short notes and 50,000 images; Docker storage scales on demand to easily support millions of notes and a vast image library.
 - **Open Data, No Vendor Lock-in**: Built on standard SQLite with complete REST API, MCP, and CLI access. Your knowledge is stored transparently and accessible anytime without being locked to a single app.
 - **Lossless ZIP Backup & Portability**: Export your complete library as a clean archive containing Markdown, Front Matter, nested folders, relative attachment links, and version histories for instant restoration anywhere.
 - **Native AI Agent Synergy**: Deep integration with Model Context Protocol (MCP) allows AI tools like Claude Code, Codex, and Antigravity to read, organize, and summarize your notes, or sync seamlessly with Notion and Feishu Bitable.
@@ -89,7 +89,7 @@ Complete setup in 5 simple web steps:
 2. **Enable Actions**: Open the Fork's **Actions** tab and click **I understand my workflows, go ahead and enable them** so the GitHub Actions workflow named **Update deployed EdgeEver** can run automatically, keeping you up to date with the latest **EdgeEver** features and fixes.
 3. **Import into Cloudflare**: Log into the Cloudflare Dashboard, navigate to **Workers & Pages**, and choose to import your Fork repository.
 4. **Create Resources & Credentials**: Create D1 `edgeever` and R2 `edgeever-resources`, then set the Worker Secret `EDGE_EVER_AUTH_PASSWORD` as your admin password. The deploy command creates the bindings; do not edit Fork files.
-5. **Build & Verify**: Start the first build with default settings. Once complete, visit `/api/health` to verify a `200` response before logging in.
+5. **Build & Verify**: Start the first build after importing the repository. Once complete, visit `/api/health` to verify a `200` response before logging in.
 
 > 📖 For full step-by-step instructions and configuration details, see the [Online Deployment Guide](docs/deploy-cloudflare-button.md).
 
@@ -148,15 +148,11 @@ On platforms without a native client, EdgeEver can be installed as a PWA using C
 - Bugs, feature requests, and deployment issues: [GitHub Issues](https://github.com/tianma-if/edgeever/issues)
 - Code contributions: read the [Contribution Guide](CONTRIBUTING.md). If your Fork is also used to deploy EdgeEver, keep its `main` branch deployment-only. Create a separate branch from the official `upstream/main` for synchronization, development, and pull requests; do not develop on or Sync fork the deployment `main`.
 
-### WeChat Community Group
+### Telegram Community
 
-Welcome to the EdgeEver AI community group, home to many Vibe Coding builders and AI enthusiasts. Join us to discuss the EdgeEver experience, real-world AI Agent applications, cost-effective or free AI resources, and automation workflows.
+Welcome to the EdgeEver community. Join us to discuss the EdgeEver experience, real-world AI Agent applications, cost-effective or free AI resources, and automation workflows.
 
-> The group QR code is valid for 7 days. If it has expired, add WeChat `m1245207870` and include “EdgeEver group” in your request.
-
-<p align="center">
-  <img src="assets/wechat-group-qr.jpg" alt="EdgeEver AI community group QR code" width="260" />
-</p>
+👉 [Join the EdgeEver Telegram group](https://t.me/+wwUx1BYLrIdiZjY1)
 
 ## Tech Stack
 

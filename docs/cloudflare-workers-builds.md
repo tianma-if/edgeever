@@ -2,7 +2,7 @@
 
 ## Setup
 
-Use the build and deploy commands from the [online deployment guide](deploy-cloudflare-button.md), with root directory `/` and production branch `main`.
+For a manual repository import, keep Cloudflare's default `npx wrangler deploy` command as described in the [online deployment guide](deploy-cloudflare-button.md), with root directory `/` and production branch `main`. The repository-provided Wrangler compatibility entrypoint routes that default command through the complete EdgeEver deployment pipeline. Existing projects using the explicit build and `bun run deploy:cloudflare-builds` commands remain supported.
 
 Authorization:
 
