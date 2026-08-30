@@ -16,6 +16,10 @@ import { join, resolve, sep } from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import { nativeReleaseAssetsReady } from "./check-native-release-assets.mjs";
 import { planNativeRelease } from "./plan-native-release.mjs";
+import {
+  assertWindowsUpdateSigningKey,
+  signWindowsUpdateManifest,
+} from "./sign-windows-update-manifest.mjs";
 
 const DEFAULT_REPOSITORY = "tianma-if/edgeever";
 const VERSION_BUMPS = new Set(["patch", "minor", "major"]);
@@ -42,6 +46,7 @@ export const RELEASE_VALIDATIONS = [
       "test",
       "scripts/plan-native-release.test.mjs",
       "scripts/check-native-release-assets.test.mjs",
+      "scripts/windows-update-metadata.test.mjs",
       "scripts/release.test.mjs",
       "scripts/validate-store-delivery.test.mjs",
       "scripts/store-delivery.test.mjs",
@@ -360,7 +365,7 @@ export const buildIssueBody = ({ changesEn, changesZh, commitCoverageAudit }) =>
   "## Acceptance criteria",
   "",
   "- Required type checks, Web build, and native release planning tests pass.",
-  "- The Draft Release contains audited macOS arm64 and x64 DMGs and a Play-signed Android arm64 APK.",
+  "- The Draft Release contains audited macOS arm64/x64 DMGs, an unsigned Windows x64 Preview with an independently signed update manifest, and a Play-signed Android arm64 APK.",
   "- Post-publication native asset audits pass.",
 ].join("\n");
 
@@ -693,6 +698,11 @@ const viewWorkflowRun = ({ repository, runId }) => ghJson([
   "status,conclusion,url,headSha,jobs",
 ]);
 
+export const signedWindowsUpdateAuditPassed = (runView) =>
+  runView.jobs?.some(
+    (job) => job.name === "Audit signed Windows update" && job.conclusion === "success",
+  ) ?? false;
+
 const waitForRerunStart = async ({ repository, runId }) => {
   const deadline = Date.now() + 30_000;
   while (Date.now() < deadline) {
@@ -1010,15 +1020,60 @@ const assertDraftAssets = ({
       .map((asset) => asset.name)
       .filter((name) =>
         /^EdgeEver-.*-mac-(?:arm64|x64)\.(?:dmg|zip)(?:\.blockmap)?$/.test(name) ||
-        name === "latest-mac.yml"
+        /^EdgeEver-.*-windows-x64\.exe$/.test(name) ||
+        [
+          "latest-mac.yml",
+          "latest.yml",
+          "latest-windows.json",
+          "latest-windows.json.sig",
+          "SHA256SUMS-windows.txt",
+        ].includes(name)
       );
     if (
-      previousDesktopNames.length !== 9 ||
+      previousDesktopNames.length !== 14 ||
       !previousDesktopNames.every((name) =>
         reusedAssetMatches(previousAssets, assets, name)
       )
     ) {
       throw new Error("Reused desktop asset filename, size, or checksum changed.");
+    }
+  }
+};
+
+const signDraftWindowsUpdate = ({ repository, tag }) => {
+  const temporaryDirectory = mkdtempSync(join(tmpdir(), "edgeever-windows-update-signing-"));
+  const manifestPath = join(temporaryDirectory, "latest-windows.json");
+  const signaturePath = `${manifestPath}.sig`;
+  try {
+    run("gh", [
+      "release",
+      "download",
+      tag,
+      "--repo",
+      repository,
+      "--pattern",
+      "latest-windows.json",
+      "--dir",
+      temporaryDirectory,
+    ]);
+    signWindowsUpdateManifest({
+      manifestPath,
+      signaturePath,
+      privateKeyPath: process.env.EDGE_EVER_WINDOWS_UPDATE_SIGNING_KEY,
+    });
+    run("gh", [
+      "release",
+      "upload",
+      tag,
+      signaturePath,
+      "--repo",
+      repository,
+      "--clobber",
+    ]);
+    console.log(`[release] signed Windows update manifest for ${tag}`);
+  } finally {
+    if (temporaryDirectory.startsWith(`${tmpdir()}${sep}edgeever-windows-update-signing-`)) {
+      rmSync(temporaryDirectory, { recursive: true, force: true });
     }
   }
 };
@@ -1221,6 +1276,13 @@ const releaseMain = async (options) => {
     return;
   }
 
+  if (desktopPlan.rebuild) {
+    assertWindowsUpdateSigningKey({
+      privateKeyPath: process.env.EDGE_EVER_WINDOWS_UPDATE_SIGNING_KEY,
+    });
+    console.log("[release] Windows update signing key matches the pinned desktop trust anchor");
+  }
+
   let issueNumber;
   let releaseSha;
   if (resumedDraft) {
@@ -1371,6 +1433,37 @@ const releaseMain = async (options) => {
     }),
     androidReleaseReady,
   ]);
+
+  let windowsUpdateAuditRunId;
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    if (desktopPlan.rebuild) {
+      signDraftWindowsUpdate({ repository: options.repository, tag });
+    }
+    windowsUpdateAuditRunId = await dispatchReleaseWorkflow({
+      repository: options.repository,
+      workflow: RELEASE_WORKFLOWS.desktop,
+      tag,
+      headSha: releaseSha,
+    });
+    checkpoint.windowsUpdateAuditRunId = windowsUpdateAuditRunId;
+    persistCheckpoint();
+    await waitForRun({
+      repository: options.repository,
+      runId: windowsUpdateAuditRunId,
+      label: "Draft signed Windows update audit",
+    });
+    const auditRun = viewWorkflowRun({
+      repository: options.repository,
+      runId: windowsUpdateAuditRunId,
+    });
+    if (signedWindowsUpdateAuditPassed(auditRun)) break;
+    if (!desktopPlan.rebuild || attempt === 3) {
+      throw new Error("Draft signed Windows update workflow completed without running its audit job.");
+    }
+    console.log(
+      "[release] desktop assets changed while preparing the signature; signing the latest manifest and retrying its audit",
+    );
+  }
 
   const draft = ghJson([
     "release",

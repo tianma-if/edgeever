@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "@edgeever/client": "workspace:*",
     "@codemirror/lang-markdown": "^6.5.2",
     "@fontsource-variable/noto-sans-sc": "^5.2.8",
     "@tiptap/extension-code-block-lowlight": "3.27.1",

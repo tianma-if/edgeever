@@ -1,5 +1,4 @@
 import { useRef, useState, useEffect, useCallback, useMemo, lazy, Suspense, type CSSProperties, type FocusEvent as ReactFocusEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
-import { createPortal } from "react-dom";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useEditor, EditorContent, type Editor } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
@@ -48,20 +47,6 @@ import { GitHubRepositoryLink } from "@/components/GitHubRepositoryLink";
 import { ClipboardCopyNotice } from "@/components/ClipboardCopyNotice";
 import { Input } from "@/components/ui/input";
 import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
-import {
-  Drawer,
-  DrawerContent,
-  DrawerHeader,
-  DrawerTitle,
-} from "@/components/ui/drawer";
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -70,14 +55,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { EditorToolbar } from "./EditorToolbar";
 import { EditorOutline } from "./EditorOutline";
 import { EditorTagPicker } from "./EditorTagPicker";
@@ -144,7 +121,9 @@ import { DEFAULT_IMAGE_WIDTH_PERCENT } from "@edgeever/shared/image-display";
 import { createEdgeEverMathematics } from "@edgeever/shared/mathematics";
 import { codeBlockLowlight, EdgeEverCodeBlock } from "@/lib/code-block";
 import { compressImageForUpload } from "@/lib/image-compression";
-import { localDb, type MemoUpdateSyncPayload } from "@/lib/local-db";
+import { LOCAL_DATABASE_INTERRUPTED_EVENT, localDb, selectNewestLocalDraft, type MemoUpdateSyncPayload } from "@/lib/local-db";
+import { LocalDatabaseUnavailableError } from "@/lib/local-database-recovery";
+import { persistEmergencyDraft, readEmergencyDraft, removeEmergencyDraft } from "@/lib/emergency-draft";
 import { getMemoUpdateQueueId, isMemoUpdateAlreadyApplied, queueMemoUpdate, shouldQueueMemoSaveError } from "@/lib/sync-queue";
 import {
   formatLocalDraftClipboardText,
@@ -225,20 +204,23 @@ import {
 import { ImageViewer } from "./editor/ImageViewer";
 import { PdfAttachment } from "./editor/PdfAttachment";
 import { FileAttachment } from "./editor/FileAttachment";
-import {
-  createNoteSearchHighlightPlugin,
-  formatNoteSearchMatchLabel,
-  getNextSearchMatchIndex,
-  getSearchNavigationIdentity,
-  getSearchMatchesFromDocument,
-  NOTE_SEARCH_HIGHLIGHT_PLUGIN_KEY,
-  type NoteSearchMatch,
-} from "./editor/note-search";
 import { getEditorScrollProgress, restoreEditorScrollProgress } from "./editor/editor-mode-scroll";
 import { useEditorSaveStatus } from "./editor/useEditorSaveStatus";
+import { useEditorNoteSearchController } from "./editor/useEditorNoteSearchController";
+import { EditorNoteLinkPicker } from "./editor/EditorNoteLinkPicker";
+import { EditorResourceDialogs } from "./editor/EditorResourceDialogs";
+import { EditorNoteSearchBar } from "./editor/EditorNoteSearchBar";
+import { EditorSaveRecoveryBanner } from "./editor/EditorSaveRecoveryBanner";
+import {
+  EmptyEditorHeader,
+  IconTooltip,
+  MobileNotebookSelectSheet,
+  NoteLinkInteractionHint,
+  ResourceActionMenu,
+  type NoteLinkHintPosition,
+} from "./editor/EditorPaneChrome";
 import { resolveEditorDraftState } from "./editor/editor-draft-state";
 import type { EdgeEverPluginHost, PluginEditorAdapter } from "@/lib/plugins/plugin-host";
-import { PluginToolbarMenu } from "@/components/plugins/PluginToolbarMenu";
 import {
   useEditorResourceActions,
   type AttachmentMenuTarget,
@@ -262,31 +244,6 @@ const requiresLocalEditSession = (memo: MemoDetail) =>
   isDesktopResourceRuntime() ||
   isLocalMemoId(memo.id) ||
   isBrowserOffline();
-
-const IconTooltip = ({ label, children }: { label: string; children: ReactNode }) => (
-  <TooltipProvider delayDuration={0} skipDelayDuration={0}>
-    <Tooltip>
-      <TooltipTrigger asChild>{children}</TooltipTrigger>
-      <TooltipContent side="bottom">{label}</TooltipContent>
-    </Tooltip>
-  </TooltipProvider>
-);
-
-const EmptyEditorHeader = ({ pluginHost, onOpenPluginManager }: {
-  pluginHost: EdgeEverPluginHost;
-  onOpenPluginManager: () => void;
-}) => (
-  <header className="hidden h-12 shrink-0 items-center justify-end gap-1 border-b border-slate-100 px-5 lg:flex">
-    <PluginToolbarMenu host={pluginHost} onManage={onOpenPluginManager} />
-    <ThemeToggle />
-  </header>
-);
-
-type NoteLinkHintPosition = {
-  left: number;
-  top: number;
-  placement: "above" | "below" | "inside-bottom-right";
-};
 
 type AiSelectionContext = {
   kind: "markdown" | "plain";
@@ -343,102 +300,6 @@ const getNoteLinkHintPosition = (link: HTMLAnchorElement): NoteLinkHintPosition 
   };
 };
 
-const NoteLinkInteractionHint = ({
-  label,
-  position,
-}: {
-  label: string;
-  position: NoteLinkHintPosition;
-}) => createPortal(
-  <div
-    role="tooltip"
-    className="pointer-events-none fixed z-[100] whitespace-nowrap rounded-md bg-slate-950 px-2.5 py-1.5 text-xs font-medium text-white shadow-md"
-    style={{
-      left: position.left,
-      top: position.top,
-      transform: position.placement === "above" ? "translate(-50%, -100%)" : "translateX(-50%)",
-    }}
-  >
-    {label}
-  </div>,
-  document.body
-);
-
-const ResourceActionMenu = ({
-  target,
-  canRename,
-  canDelete,
-  labels,
-  onDownload,
-  onSaveAs,
-  onRename,
-  onDelete,
-  onMouseEnter,
-  onMouseLeave,
-}: {
-  target: ResourceMenuTarget;
-  canRename: boolean;
-  canDelete: boolean;
-  labels: { download: string; saveAs: string; rename: string; delete: string; unavailable: string };
-  onDownload: () => void;
-  onSaveAs: () => void;
-  onRename: () => void;
-  onDelete: () => void;
-  onMouseEnter: () => void;
-  onMouseLeave: () => void;
-}) => createPortal(
-  <div
-    data-edgeever-resource-menu
-    role="toolbar"
-    aria-label={labels.download}
-    className="fixed z-[110] flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-1 shadow-lg"
-    style={{
-      left: target.position.left,
-      top: target.position.top,
-      transform: target.position.placement === "inside-bottom-right"
-        ? "translate(-100%, -100%)"
-        : target.position.placement === "above"
-          ? "translate(-50%, -100%)"
-          : "translateX(-50%)",
-    }}
-    onMouseEnter={onMouseEnter}
-    onMouseLeave={onMouseLeave}
-  >
-    <Button type="button" size="sm" variant="ghost" title={labels.download} onClick={onDownload}>
-      <FileDown className="h-3.5 w-3.5" />
-      {labels.download}
-    </Button>
-    <Button type="button" size="sm" variant="ghost" title={labels.saveAs} onClick={onSaveAs}>
-      <Save className="h-3.5 w-3.5" />
-      {labels.saveAs}
-    </Button>
-    <Button
-      type="button"
-      size="sm"
-      variant="ghost"
-      title={canRename ? labels.rename : labels.unavailable}
-      disabled={!canRename}
-      onClick={onRename}
-    >
-      <Pencil className="h-3.5 w-3.5" />
-      {labels.rename}
-    </Button>
-    <Button
-      type="button"
-      size="sm"
-      variant="ghost"
-      className="text-slate-600 hover:bg-rose-50 hover:text-rose-600"
-      title={canDelete ? labels.delete : labels.unavailable}
-      disabled={!canDelete}
-      onClick={onDelete}
-    >
-      <Trash2 className="h-3.5 w-3.5" />
-      {labels.delete}
-    </Button>
-  </div>,
-  document.body
-);
-
 const findAttachmentLinkRange = (
   editor: Editor,
   href: string
@@ -460,42 +321,10 @@ const findAttachmentLinkRange = (
   return { from: from as number, to: to as number, marks };
 };
 
-type MobileImeDebugEntry = {
-  id: number;
-  event: string;
-  activeElement: string;
-  inputType?: string;
-  isComposing?: boolean;
-  key?: string;
-  valueLength: number;
-  time: string;
-};
-
 type MobilePlainTextElement = HTMLTextAreaElement | HTMLDivElement;
 
 const isEditorReady = (editor: Editor | null | undefined): editor is Editor =>
   Boolean(editor && !editor.isDestroyed && (editor as { extensionManager?: unknown }).extensionManager);
-
-const getActiveElementLabel = () => {
-  if (typeof document === "undefined") {
-    return "document unavailable";
-  }
-
-  const element = document.activeElement;
-  if (!element) {
-    return "none";
-  }
-
-  const tag = element.tagName.toLowerCase();
-  const id = element.id ? `#${element.id}` : "";
-  const className =
-    element instanceof HTMLElement && element.className
-      ? `.${String(element.className).trim().split(/\s+/).slice(0, 2).join(".")}`
-      : "";
-  const role = element.getAttribute("role");
-
-  return `${tag}${id}${className}${role ? `[role=${role}]` : ""}`;
-};
 
 const getMobilePlainTextElementValue = (element: MobilePlainTextElement | null) => {
   if (!element) {
@@ -544,14 +373,6 @@ const focusMobilePlainTextElement = (element: MobilePlainTextElement | null) => 
   selection?.addRange(range);
 };
 
-const getEditorSearchMatches = (editor: Editor | null, query: string): NoteSearchMatch[] => {
-  if (!isEditorReady(editor)) {
-    return [];
-  }
-
-  return getSearchMatchesFromDocument(editor.state.doc, query);
-};
-
 const getResourceFilesFromDataTransfer = (dataTransfer: DataTransfer | null) => {
   if (!dataTransfer) {
     return [];
@@ -589,77 +410,6 @@ class MemoSaveRequestError extends Error {
     this.tagsText = tagsText;
   }
 }
-
-const MobileNotebookSelectSheet = ({
-  isUpdating,
-  options,
-  selectedNotebookId,
-  onClose,
-  onSelect,
-}: {
-  isUpdating: boolean;
-  options: any[];
-  selectedNotebookId: string;
-  onClose: () => void;
-  onSelect: (notebookId: string) => void;
-}) => {
-  const { t } = useTranslation();
-  const listRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    window.setTimeout(() => {
-      const selectedNode = listRef.current?.querySelector<HTMLElement>(
-        `[data-mobile-notebook-select-id="${CSS.escape(selectedNotebookId)}"]`
-      );
-      selectedNode?.scrollIntoView({ block: "center" });
-    }, 0);
-  }, [selectedNotebookId]);
-
-  return (
-    <Drawer open={true} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DrawerContent className="inset-x-0 max-h-[62dvh] overflow-hidden border-x-0 border-b-0 pb-[env(safe-area-inset-bottom)] lg:hidden">
-        <header className="flex h-12 items-center justify-between border-b border-slate-200 px-4">
-          <DrawerHeader className="min-w-0 p-0">
-            <DrawerTitle className="text-base">{t("editor.currentNotebook")}</DrawerTitle>
-          </DrawerHeader>
-          <Button size="icon" variant="ghost" title={t("editor.close")} aria-label={t("editor.close")} onClick={onClose}>
-            <X className="h-4 w-4" />
-          </Button>
-        </header>
-        <Command className="min-h-0 flex-1">
-          <CommandInput placeholder={t("editor.searchNotebook")} />
-          <CommandList ref={listRef} className="max-h-[calc(62dvh-6.25rem-env(safe-area-inset-bottom))] p-2">
-            <CommandEmpty>{t("editor.noNotebookFound")}</CommandEmpty>
-            <CommandGroup>
-              {options.map((option) => {
-                const selected = option.id === selectedNotebookId;
-                return (
-                  <CommandItem
-                    key={option.id}
-                    className={cn(
-                      "h-12 px-3 text-base",
-                      selected ? "bg-emerald-50 font-semibold text-emerald-700 data-[selected=true]:bg-emerald-50" : "text-slate-700"
-                    )}
-                    style={{ paddingLeft: `${12 + option.depth * 18}px` }}
-                    value={option.id}
-                    keywords={[option.name, option.selectLabel, option.slug ?? ""]}
-                    data-mobile-notebook-select-id={option.id}
-                    aria-label={selected ? t("editor.currentNotebookAria", { name: option.name }) : t("editor.switchToNotebook", { name: option.name })}
-                    aria-current={selected ? "page" : undefined}
-                    disabled={isUpdating}
-                    onSelect={() => onSelect(option.id)}
-                  >
-                    <span className="min-w-0 flex-1 truncate">{option.name}</span>
-                  </CommandItem>
-                );
-              })}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </DrawerContent>
-    </Drawer>
-  );
-};
 
 type EditorPaneProps = {
   memo: MemoDetail | null;
@@ -701,7 +451,6 @@ type EditorPaneProps = {
   onOpenMemo?: (memoId: string) => void;
   onOpenAiPrompts?: () => void;
   pluginHost: EdgeEverPluginHost;
-  onOpenPluginManager: () => void;
 };
 
 type RichEditorPaneProps = EditorPaneProps & {
@@ -775,7 +524,6 @@ const RichEditorPane = ({
   onOpenMemo,
   onOpenAiPrompts,
   pluginHost,
-  onOpenPluginManager,
   onRequestMobileNativeEdit,
 }: RichEditorPaneProps) => {
   const { t, i18n } = useTranslation();
@@ -799,7 +547,12 @@ const RichEditorPane = ({
   } = useEditorSaveStatus();
   const [conflictActionPending, setConflictActionPending] = useState<"adopt" | "copy" | null>(null);
   const [conflictActionMessage, setConflictActionMessage] = useState<string | null>(null);
+  const [storageSaveError, setStorageSaveError] = useState(false);
   const [hydratedEditorMemoId, setHydratedEditorMemoId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setStorageSaveError(false);
+  }, [memo?.id]);
   const [editorStateVersion, setEditorStateVersion] = useState(0);
   const [editorContentVersion, setEditorContentVersion] = useState(0);
   const [imageUploadState, setImageUploadState] = useState<"idle" | "compressing" | "uploading" | "error">("idle");
@@ -858,10 +611,7 @@ const RichEditorPane = ({
   const [markdownSource, setMarkdownSource] = useState("");
   const [isMarkdownMode, setIsMarkdownMode] = useState(false);
   const [mobileToolbarOpen, setMobileToolbarOpen] = useState(false);
-  const [mobileImeDebugOpen, setMobileImeDebugOpen] = useState(false);
   const [editorOutlineCollapsed, setEditorOutlineCollapsed] = useState(false);
-  const [mobileImeDebugActiveElement, setMobileImeDebugActiveElement] = useState(getActiveElementLabel);
-  const [mobileImeDebugEvents, setMobileImeDebugEvents] = useState<MobileImeDebugEntry[]>([]);
   const [wechatCopyState, setWechatCopyState] = useState<"idle" | "copying" | "copied" | "error">("idle");
   const [memoIdCopyNotice, setMemoIdCopyNotice] = useState<{ status: "copied" | "error"; id: string } | null>(null);
   const handledSaveAndSyncTokenRef = useRef(saveAndSyncToken);
@@ -962,13 +712,8 @@ const RichEditorPane = ({
   const mobileTextAreaRef = useRef<MobilePlainTextElement | null>(null);
   const mobileDraftTimerRef = useRef<number | null>(null);
   const mobileSaveTimerRef = useRef<number | null>(null);
-  const mobileImeDebugEventIdRef = useRef(0);
-  const mobileImeDebugRecorderRef = useRef<(eventName: string, event?: unknown) => void>(() => undefined);
-  const markMobilePlainTextDirtyRef = useRef<() => void>(() => undefined);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const noteSearchInputRef = useRef<HTMLInputElement | null>(null);
-  const noteReplaceInputRef = useRef<HTMLInputElement | null>(null);
-  const noteSearchAutoSelectionRef = useRef<{ editor: Editor; identity: string } | null>(null);
   const markdownSourceEditorRef = useRef<MarkdownSourceEditorRef | null>(null);
   const openExternalLinkDialogRef = useRef<() => void>(() => undefined);
   const slashCommandLabelsRef = useRef<SlashCommandLabels>({
@@ -1970,208 +1715,32 @@ const RichEditorPane = ({
     };
   }, [editor]);
 
-  const noteSearchMatches = useMemo(
-    () => getEditorSearchMatches(editor, noteSearchQuery),
-    [dirtyVersion, editor, memo?.id, noteSearchQuery]
-  );
-  const contentSearchMatches = useMemo(
-    () => getEditorSearchMatches(editor, contentSearchQuery),
-    [contentSearchQuery, dirtyVersion, editor, memo?.id]
-  );
-
-  const selectNoteSearchMatch = useCallback(
-    (index: number, matches: NoteSearchMatch[]) => {
-      const match = matches[index];
-
-      if (!isEditorReady(editor) || !match) {
-        return;
-      }
-
-      // `setTextSelection` updates the ProseMirror selection but does not
-      // request the view to scroll to it. This is especially visible while
-      // the search input keeps focus, because the browser cannot scroll the
-      // editor selection for us in that case.
-      editor.chain().setTextSelection({ from: match.from, to: match.to }).scrollIntoView().run();
-
-      window.requestAnimationFrame(() => {
-        const scrollContainer = editorScrollContainerRef.current;
-        const domPosition = editor.view.domAtPos(match.from);
-        const node = domPosition.node.nodeType === Node.TEXT_NODE
-          ? domPosition.node.parentElement
-          : domPosition.node instanceof Element
-            ? domPosition.node
-            : domPosition.node.parentElement;
-
-        if (!scrollContainer || !node) {
-          return;
-        }
-
-        const containerRect = scrollContainer.getBoundingClientRect();
-        const nodeRect = node.getBoundingClientRect();
-        const padding = 24;
-        const isAbove = nodeRect.top < containerRect.top + padding;
-        const isBelow = nodeRect.bottom > containerRect.bottom - padding;
-
-        if (isAbove || isBelow) {
-          const targetTop = scrollContainer.scrollTop + nodeRect.top - containerRect.top
-            - (scrollContainer.clientHeight - nodeRect.height) / 2;
-          scrollContainer.scrollTo({ top: Math.max(0, targetTop), behavior: "smooth" });
-        }
-      });
-    },
-    [editor]
-  );
-
-  useEffect(() => {
-    if (!isEditorReady(editor)) {
-      return;
-    }
-
-    const searchHighlightPlugin = createNoteSearchHighlightPlugin({
-      getQuery: () => noteSearchOpen ? noteSearchQuery : contentSearchQuery,
-      getActiveIndex: () => noteSearchOpen ? noteSearchIndex : 0,
-    });
-
-    editor.registerPlugin(searchHighlightPlugin);
-
-    return () => {
-      if (isEditorReady(editor)) {
-        editor.unregisterPlugin(NOTE_SEARCH_HIGHLIGHT_PLUGIN_KEY);
-      }
-    };
-  }, [contentSearchQuery, editor, noteSearchIndex, noteSearchOpen, noteSearchQuery]);
-
-  const focusNoteSearchInput = useCallback(() => {
-    window.requestAnimationFrame(() => {
-      noteSearchInputRef.current?.focus();
-      noteSearchInputRef.current?.select();
-    });
-  }, []);
-
-  const openNoteSearch = useCallback((showReplace = false) => {
-    setNoteSearchOpen(true);
-    setNoteSearchReplaceOpen(showReplace);
-    focusNoteSearchInput();
-  }, [focusNoteSearchInput]);
-
-  const openNoteReplace = useCallback(() => {
-    if (effectiveReadOnly) return;
-    setNoteSearchOpen(true);
-    setNoteSearchReplaceOpen(true);
-    focusNoteSearchInput();
-  }, [effectiveReadOnly, focusNoteSearchInput]);
-
-  const closeNoteSearch = useCallback(() => {
-    setNoteSearchOpen(false);
-    if (isEditorReady(editor)) {
-      editor.commands.focus();
-    }
-  }, [editor]);
-
-  useEffect(() => {
-    if (!noteSearchOpen) {
-      return;
-    }
-
-    const handleNoteSearchEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || event.defaultPrevented) {
-        return;
-      }
-
-      event.preventDefault();
-      event.stopPropagation();
-      closeNoteSearch();
-    };
-
-    // Capture the event so Escape works even when focus has moved to the
-    // editor, toolbar, or another control outside the search inputs.
-    window.addEventListener("keydown", handleNoteSearchEscape, true);
-    return () => window.removeEventListener("keydown", handleNoteSearchEscape, true);
-  }, [closeNoteSearch, noteSearchOpen]);
-
-  const moveNoteSearchMatch = useCallback(
-    (direction: 1 | -1) => {
-      if (noteSearchMatches.length === 0) {
-        return;
-      }
-
-      setNoteSearchIndex((current) => {
-        const next = getNextSearchMatchIndex(current, direction, noteSearchMatches.length);
-        selectNoteSearchMatch(next, noteSearchMatches);
-        return next;
-      });
-    },
-    [noteSearchMatches, selectNoteSearchMatch]
-  );
-
-  useEffect(() => {
-    if (searchFocusToken === 0) {
-      return;
-    }
-
-    openNoteSearch();
-  }, [openNoteSearch, searchFocusToken]);
-
-  useEffect(() => {
-    if (replaceFocusToken === 0) {
-      return;
-    }
-
-    openNoteReplace();
-  }, [openNoteReplace, replaceFocusToken]);
-
-  useEffect(() => {
-    if (!isEditorReady(editor)) {
-      return;
-    }
-
-    const source = noteSearchOpen ? "note" : "content";
-    const query = noteSearchOpen ? noteSearchQuery : contentSearchQuery;
-    const matches = noteSearchOpen ? noteSearchMatches : contentSearchMatches;
-    const identity = getSearchNavigationIdentity(memo?.id ?? null, source, query);
-    const previousSelection = noteSearchAutoSelectionRef.current;
-
-    // Match positions change after every document edit. Only a new search,
-    // note, or search source should move the editor selection automatically.
-    if (previousSelection?.editor === editor && previousSelection.identity === identity) {
-      return;
-    }
-
-    noteSearchAutoSelectionRef.current = { editor, identity };
-    setNoteSearchIndex(0);
-
-    if (matches[0]) {
-      selectNoteSearchMatch(0, matches);
-    }
-  }, [contentSearchMatches, contentSearchQuery, editor, memo?.id, noteSearchMatches, noteSearchOpen, noteSearchQuery, selectNoteSearchMatch]);
-
-  useEffect(() => {
-    setNoteSearchIndex((current) => noteSearchMatches.length === 0
-      ? 0
-      : Math.min(current, noteSearchMatches.length - 1));
-  }, [noteSearchMatches.length]);
-
-  const replaceAllNoteSearchMatches = useCallback(() => {
-    if (!isEditorReady(editor) || effectiveReadOnly || noteSearchMatches.length === 0) {
-      return;
-    }
-
-    editor
-      .chain()
-      .focus()
-      .command(({ tr, dispatch }) => {
-        for (const match of [...noteSearchMatches].reverse()) {
-          tr.insertText(noteSearchReplacement, match.from, match.to);
-        }
-
-        dispatch?.(tr);
-        return true;
-      })
-      .run();
-
-    setNoteSearchIndex(0);
-    window.requestAnimationFrame(() => noteSearchInputRef.current?.focus());
-  }, [editor, effectiveReadOnly, noteSearchMatches, noteSearchReplacement]);
+  const {
+    closeSearch: closeNoteSearch,
+    matchLabel: noteSearchMatchLabel,
+    matches: noteSearchMatches,
+    moveMatch: moveNoteSearchMatch,
+    openReplace: openNoteReplace,
+    openSearch: openNoteSearch,
+    replaceAllMatches: replaceAllNoteSearchMatches,
+  } = useEditorNoteSearchController({
+    contentSearchQuery,
+    dirtyVersion,
+    editor,
+    editorScrollContainerRef,
+    memoId: memo?.id ?? null,
+    noteSearchIndex,
+    noteSearchInputRef,
+    noteSearchOpen,
+    noteSearchQuery,
+    noteSearchReplacement,
+    readOnly: effectiveReadOnly,
+    replaceFocusToken,
+    searchFocusToken,
+    setNoteSearchIndex,
+    setNoteSearchOpen,
+    setNoteSearchReplaceOpen,
+  });
 
   useEffect(() => {
     if (!isEditorReady(editor)) {
@@ -2192,50 +1761,6 @@ const RichEditorPane = ({
     () => (mobileTextAreaRef.current ? getMobilePlainTextElementValue(mobileTextAreaRef.current) : mobilePlainText),
     [mobilePlainText]
   );
-
-  const recordMobileImeDebugEvent = useCallback((eventName: string, event?: unknown) => {
-    const plainTextElement = mobileTextAreaRef.current;
-    const nativeEvent = event && typeof event === "object" && "nativeEvent" in event
-      ? (event as { nativeEvent?: unknown }).nativeEvent
-      : event;
-    const inputEvent = nativeEvent as Partial<InputEvent> | undefined;
-    const keyboardEvent = nativeEvent as Partial<KeyboardEvent> | undefined;
-
-    mobileImeDebugEventIdRef.current += 1;
-    setMobileImeDebugActiveElement(getActiveElementLabel());
-    setMobileImeDebugEvents((current) =>
-      [
-        {
-          id: mobileImeDebugEventIdRef.current,
-          event: eventName,
-          activeElement: getActiveElementLabel(),
-          inputType: typeof inputEvent?.inputType === "string" ? inputEvent.inputType : undefined,
-          isComposing: typeof inputEvent?.isComposing === "boolean" ? inputEvent.isComposing : undefined,
-          key: typeof keyboardEvent?.key === "string" ? keyboardEvent.key : undefined,
-          valueLength: getMobilePlainTextElementValue(plainTextElement).length,
-          time: new Date().toLocaleTimeString("zh-CN", { hour12: false }),
-        },
-        ...current,
-      ].slice(0, 20)
-    );
-  }, []);
-
-  useEffect(() => {
-    mobileImeDebugRecorderRef.current = recordMobileImeDebugEvent;
-  }, [recordMobileImeDebugEvent]);
-
-  useEffect(() => {
-    if (!useMobilePlainTextEditor) {
-      return;
-    }
-
-    recordMobileImeDebugEvent("mount-mobile-plain-editor");
-    const timer = window.setInterval(() => {
-      setMobileImeDebugActiveElement(getActiveElementLabel());
-    }, 800);
-
-    return () => window.clearInterval(timer);
-  }, [recordMobileImeDebugEvent, useMobilePlainTextEditor]);
 
   const persistCurrentDraft = useCallback(
     (nextTitle = title, nextTagsText = tagsText, nextMobilePlainText = getMobilePlainTextValue()) => {
@@ -2515,6 +2040,30 @@ const RichEditorPane = ({
   }, [getCurrentContentJson, tagsText, title]);
 
   useEffect(() => {
+    const handleLocalDatabaseInterrupted = () => {
+      const currentMemo = memoRef.current;
+      const contentJson = getCurrentContentJson();
+      if (currentMemo && contentJson && !currentMemo.isDeleted) {
+        persistEmergencyDraft({
+          memoId: currentMemo.id,
+          expectedRevision: currentMemo.revision,
+          title,
+          tagsText,
+          contentJson,
+          updatedAt: new Date().toISOString(),
+        });
+        setHasUnsavedChanges(true);
+      }
+      setStorageSaveError(true);
+      setSaveConflictInfo(null);
+      setSaveState("error");
+    };
+
+    window.addEventListener(LOCAL_DATABASE_INTERRUPTED_EVENT, handleLocalDatabaseInterrupted);
+    return () => window.removeEventListener(LOCAL_DATABASE_INTERRUPTED_EVENT, handleLocalDatabaseInterrupted);
+  }, [getCurrentContentJson, setHasUnsavedChanges, setSaveConflictInfo, setSaveState, tagsText, title]);
+
+  useEffect(() => {
     const currentEditor = editorRef.current;
     let cancelled = false;
 
@@ -2533,6 +2082,7 @@ const RichEditorPane = ({
       setIsMarkdownMode(false);
       setMobilePlainTextElementValue(mobileTextAreaRef.current, "");
       setSaveState("idle");
+      setStorageSaveError(false);
       if (isEditorReady(currentEditor)) {
         currentEditor.commands.clearContent();
       }
@@ -2600,12 +2150,13 @@ const RichEditorPane = ({
     memoRef.current = memo;
 
     void (async () => {
-      let [draft, queuedUpdate] = memo.isDeleted
+      let [indexedDbDraft, queuedUpdate] = memo.isDeleted
         ? [null, null]
         : await Promise.all([
             localDb.drafts.get(memo.id),
             localDb.syncQueue.get(getMemoUpdateQueueId(memo.id)),
           ]);
+      let draft = selectNewestLocalDraft(indexedDbDraft, readEmergencyDraft(memo.id));
 
       if (cancelled) {
         return;
@@ -2616,6 +2167,7 @@ const RichEditorPane = ({
           localDb.syncQueue.delete(queuedUpdate.id),
           localDb.drafts.delete(memo.id),
         ]);
+        removeEmergencyDraft(memo.id);
         draft = null;
         queuedUpdate = undefined;
       }
@@ -2623,6 +2175,7 @@ const RichEditorPane = ({
       const resolvedDraft = resolveEditorDraftState({ memo, draft, queuedUpdate });
       if (draft && !queuedUpdate && resolvedDraft.source === "memo") {
         await localDb.drafts.delete(memo.id);
+        removeEmergencyDraft(memo.id);
       }
       const {
         title: nextTitle,
@@ -3234,11 +2787,24 @@ const RichEditorPane = ({
         contentMarkdown: useMarkdownSourceEditor ? markdownSource : undefined,
         tags: parseTagsText(tagsText),
       };
+      persistEmergencyDraft({
+        memoId: currentMemo.id,
+        expectedRevision: currentMemo.revision,
+        title,
+        tagsText,
+        contentJson,
+        updatedAt: new Date().toISOString(),
+      });
       const { memo: localMemo } = await repository.updateMemo(currentMemo, payload);
       return { memo: localMemo, snapshot, queued: true };
     },
-    onMutate: () => setSaveState("saving"),
+    onMutate: () => {
+      setStorageSaveError(false);
+      setSaveState("saving");
+    },
     onSuccess: async ({ memo: savedMemo, snapshot, queued }) => {
+      setStorageSaveError(false);
+      removeEmergencyDraft(savedMemo.id);
       memoRef.current = savedMemo;
       const currentEditSession = editSessionRef.current;
       if (currentEditSession) {
@@ -3267,7 +2833,7 @@ const RichEditorPane = ({
       if (currentSnapshot() === snapshot) {
         setMobilePlainText(docToMarkdown(savedMemo.contentJson));
         setHasUnsavedChanges(false);
-        await localDb.drafts.delete(savedMemo.id);
+        void localDb.drafts.delete(savedMemo.id).catch(() => undefined);
         setSaveConflictInfo(null);
         setSaveState(queued ? "queued" : "saved");
         if (!queued) {
@@ -3282,6 +2848,13 @@ const RichEditorPane = ({
       setSaveState("idle");
     },
     onError: async (error) => {
+      if (error instanceof LocalDatabaseUnavailableError) {
+        setStorageSaveError(true);
+        setSaveConflictInfo(null);
+        setSaveState("error");
+        return;
+      }
+      setStorageSaveError(false);
       const sourceError = error instanceof MemoSaveRequestError ? error.originalError : error;
       const conflictInfo = getMemoSaveConflictInfo(sourceError);
 
@@ -3300,6 +2873,7 @@ const RichEditorPane = ({
           contentJson: error.payload.contentJson,
           updatedAt: new Date().toISOString(),
         });
+        removeEmergencyDraft(error.payload.memoId);
 
         setHasUnsavedChanges(false);
         setSaveConflictInfo(null);
@@ -3609,7 +3183,7 @@ const RichEditorPane = ({
     if (!hasUnsavedChangesRef.current) {
       setHasUnsavedChanges(true);
       setSaveState((current) => (current === "conflict" ? current : "idle"));
-    } else if (saveState === "saved") {
+    } else if (saveState === "saved" || saveState === "error") {
       setSaveState("idle");
     }
 
@@ -3631,7 +3205,8 @@ const RichEditorPane = ({
         memoRef.current.isDeleted ||
         !hasUnsavedChangesRef.current ||
         saveMutationPending ||
-        saveState === "conflict"
+        saveState === "conflict" ||
+        saveState === "error"
       ) {
         return;
       }
@@ -3639,10 +3214,6 @@ const RichEditorPane = ({
       mutateSave();
     }, EDITOR_LOCAL_SAVE_DELAY_MS);
   }, [getMobilePlainTextValue, mutateSave, persistCurrentDraft, saveMutationPending, saveState, tagsText, title]);
-
-  useEffect(() => {
-    markMobilePlainTextDirtyRef.current = markMobilePlainTextDirty;
-  }, [markMobilePlainTextDirty]);
 
   useEffect(() => {
     if (!useMobilePlainTextEditor) {
@@ -3654,35 +3225,13 @@ const RichEditorPane = ({
       return;
     }
 
-    const recordNativeEvent = (event: Event) => {
-      mobileImeDebugRecorderRef.current(event.type, event);
-    };
-    const handleNativeInput = (event: Event) => {
-      mobileImeDebugRecorderRef.current(event.type, event);
-      markMobilePlainTextDirtyRef.current();
-    };
-
-    plainTextElement.addEventListener("focus", recordNativeEvent);
-    plainTextElement.addEventListener("blur", recordNativeEvent);
-    plainTextElement.addEventListener("click", recordNativeEvent);
-    plainTextElement.addEventListener("beforeinput", recordNativeEvent);
-    plainTextElement.addEventListener("compositionstart", recordNativeEvent);
-    plainTextElement.addEventListener("compositionupdate", recordNativeEvent);
-    plainTextElement.addEventListener("compositionend", recordNativeEvent);
+    const handleNativeInput = () => markMobilePlainTextDirty();
     plainTextElement.addEventListener("input", handleNativeInput);
-    mobileImeDebugRecorderRef.current("native-listeners-ready");
 
     return () => {
-      plainTextElement.removeEventListener("focus", recordNativeEvent);
-      plainTextElement.removeEventListener("blur", recordNativeEvent);
-      plainTextElement.removeEventListener("click", recordNativeEvent);
-      plainTextElement.removeEventListener("beforeinput", recordNativeEvent);
-      plainTextElement.removeEventListener("compositionstart", recordNativeEvent);
-      plainTextElement.removeEventListener("compositionupdate", recordNativeEvent);
-      plainTextElement.removeEventListener("compositionend", recordNativeEvent);
       plainTextElement.removeEventListener("input", handleNativeInput);
     };
-  }, [useMobilePlainTextEditor]);
+  }, [markMobilePlainTextDirty, useMobilePlainTextEditor]);
 
   useEffect(() => () => clearMobileEditorTimers(), [clearMobileEditorTimers]);
 
@@ -3700,7 +3249,8 @@ const RichEditorPane = ({
       !editor ||
       !hasUnsavedChanges ||
       saveMutationPending ||
-      saveState === "conflict"
+      saveState === "conflict" ||
+      saveState === "error"
     ) {
       return;
     }
@@ -3857,7 +3407,7 @@ const RichEditorPane = ({
   if (isLoading && !memo) {
     return (
       <div className="flex h-full min-w-0 flex-col bg-white">
-        <EmptyEditorHeader pluginHost={pluginHost} onOpenPluginManager={onOpenPluginManager} />
+        <EmptyEditorHeader />
         {selectionActionBar}
         <div className="flex min-h-0 flex-1 items-center justify-center text-sm text-slate-500">{t("editor.loading")}</div>
       </div>
@@ -3867,7 +3417,7 @@ const RichEditorPane = ({
   if (!memo) {
     return (
       <div className="flex h-full min-w-0 flex-col bg-white">
-        <EmptyEditorHeader pluginHost={pluginHost} onOpenPluginManager={onOpenPluginManager} />
+        <EmptyEditorHeader />
         {selectionActionBar}
         <div className="flex min-h-0 flex-1 items-center justify-center px-8 text-center">
           <div>
@@ -3929,38 +3479,12 @@ const RichEditorPane = ({
     notebookUpdatePending ||
     imageUploadState === "compressing" ||
     imageUploadState === "uploading";
-  const noteSearchMatchLabel = formatNoteSearchMatchLabel(
-    noteSearchQuery,
-    noteSearchIndex,
-    noteSearchMatches.length,
-  );
-  const mobileImeDebugEditorFocused =
-    typeof document !== "undefined" && mobileTextAreaRef.current === document.activeElement;
-  const mobileImeDebugLogText = [
-    `memoId=${memo.id}`,
-    `mobile=${isMobileViewport}`,
-    `editingState=${isMobileEditing}`,
-    `editingActive=${mobileEditingActive}`,
-    `plainTextEditor=${useMobilePlainTextEditor}`,
-    `editorFocused=${mobileImeDebugEditorFocused}`,
-    `activeElement=${mobileImeDebugActiveElement}`,
-    `valueLength=${getMobilePlainTextValue().length}`,
-    `saveState=${saveState}`,
-    ...mobileImeDebugEvents.map((entry) =>
-      `${entry.time} ${entry.event} active=${entry.activeElement} len=${entry.valueLength}` +
-      `${entry.inputType ? ` inputType=${entry.inputType}` : ""}` +
-      `${entry.isComposing !== undefined ? ` composing=${entry.isComposing}` : ""}` +
-      `${entry.key ? ` key=${entry.key}` : ""}`
-    ),
-  ].join("\n");
-
-  const appendMobilePlainText = (nextText: string, eventName: string) => {
+  const appendMobilePlainText = (nextText: string) => {
     const currentText = getMobilePlainTextValue();
     const nextValue = `${currentText}${currentText ? "\n" : ""}${nextText}`;
     setMobilePlainText(nextValue);
     setMobilePlainTextElementValue(mobileTextAreaRef.current, nextValue);
     markMobilePlainTextDirty();
-    recordMobileImeDebugEvent(eventName);
     window.requestAnimationFrame(() => focusMobileInputTarget());
   };
 
@@ -3971,21 +3495,19 @@ const RichEditorPane = ({
       return;
     }
 
-    appendMobilePlainText(nextText, "prompt-input");
+    appendMobilePlainText(nextText);
   };
 
   const handleMobileClipboardInput = async () => {
     try {
       const nextText = await navigator.clipboard?.readText();
       if (!nextText?.trim()) {
-        recordMobileImeDebugEvent("clipboard-empty");
         focusMobileInputTarget();
         return;
       }
 
-      appendMobilePlainText(nextText, "clipboard-input");
+      appendMobilePlainText(nextText);
     } catch {
-      recordMobileImeDebugEvent("clipboard-error");
       window.alert(t("editor.clipboardReadFailed"));
       focusMobileInputTarget();
     }
@@ -4113,51 +3635,15 @@ const RichEditorPane = ({
         onRemove={removeExternalLink}
       />
       {noteLinkPickerOpen && (
-        <div className="absolute left-3 right-3 top-14 z-30 h-[min(22rem,calc(100%-4rem))] max-w-xl rounded-lg border border-slate-200 bg-white shadow-xl sm:left-5 sm:right-auto sm:w-[28rem]" role="dialog" aria-label={t("noteLinkPicker.title")}>
-          <Command shouldFilter={false}>
-            <div className="flex items-center justify-between border-b border-slate-100 pr-2">
-              <CommandInput
-                autoFocus
-                value={noteLinkQuery}
-                placeholder={t("noteLinkPicker.searchPlaceholder")}
-                onValueChange={setNoteLinkQuery}
-                onKeyDown={(event) => {
-                  if (event.key === "Escape") {
-                    setNoteLinkPickerOpen(false);
-                  }
-                }}
-              />
-              <button
-                type="button"
-                className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-                aria-label={t("noteLinkPicker.close")}
-                onClick={() => setNoteLinkPickerOpen(false)}
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <CommandList>
-              {noteLinkResultsQuery.isLoading ? (
-                <div className="p-6 text-center text-sm text-slate-500">{t("noteLinkPicker.loading")}</div>
-              ) : (
-                <>
-                  <CommandEmpty>{t("noteLinkPicker.empty")}</CommandEmpty>
-                  <CommandGroup>
-                    {(noteLinkResultsQuery.data?.memos ?? [])
-                      .filter((candidate) => candidate.id !== memo?.id && !candidate.isDeleted)
-                      .map((candidate) => (
-                        <CommandItem key={candidate.id} value={candidate.id} onSelect={() => insertMemoLink(candidate)}>
-                          <Link2 className="h-4 w-4 shrink-0 text-emerald-600" />
-                          <span className="min-w-0 flex-1 truncate">{candidate.title || t("common.untitledMemo")}</span>
-                          <span className="max-w-40 truncate text-xs text-slate-400">{candidate.excerpt}</span>
-                        </CommandItem>
-                      ))}
-                  </CommandGroup>
-                </>
-              )}
-            </CommandList>
-          </Command>
-        </div>
+        <EditorNoteLinkPicker
+          query={noteLinkQuery}
+          isLoading={noteLinkResultsQuery.isLoading}
+          memos={noteLinkResultsQuery.data?.memos ?? []}
+          currentMemoId={memo.id}
+          onQueryChange={setNoteLinkQuery}
+          onClose={() => setNoteLinkPickerOpen(false)}
+          onInsert={insertMemoLink}
+        />
       )}
       <header className="shrink-0 border-b border-slate-200 bg-white">
         <div className="flex min-h-12 items-center justify-between gap-2 border-b border-slate-100 px-3 py-2 sm:px-5">
@@ -4401,7 +3887,6 @@ const RichEditorPane = ({
                 {deployedUpdateUnseen ? <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-emerald-500 ring-2 ring-white" /> : null}
               </Button>
             </IconTooltip>
-            <PluginToolbarMenu host={pluginHost} onManage={onOpenPluginManager} />
             <ThemeToggle />
             {!effectiveReadOnly && (
               <IconTooltip label={t("editor.save")}>
@@ -4634,95 +4119,22 @@ const RichEditorPane = ({
             )}
           </div>
         </div>
-        {noteSearchOpen && (
-          <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 px-4 py-2 sm:px-7">
-            <Search className="h-4 w-4 shrink-0 text-slate-400" />
-            <Input
-              ref={noteSearchInputRef}
-              value={noteSearchQuery}
-              className="h-8 min-w-[12rem] flex-1"
-              placeholder={t("editor.searchPlaceholder")}
-              onChange={(event) => setNoteSearchQuery(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  moveNoteSearchMatch(event.shiftKey ? -1 : 1);
-                }
-
-                if (event.key === "Escape") {
-                  event.preventDefault();
-                  closeNoteSearch();
-                }
-              }}
-            />
-            {noteSearchReplaceOpen && (
-              <Input
-                ref={noteReplaceInputRef}
-                value={noteSearchReplacement}
-                className="h-8 min-w-[12rem] flex-1"
-                placeholder={t("editor.replacePlaceholder")}
-                disabled={effectiveReadOnly}
-                onChange={(event) => setNoteSearchReplacement(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    replaceAllNoteSearchMatches();
-                  }
-
-                  if (event.key === "Escape") {
-                    event.preventDefault();
-                    closeNoteSearch();
-                  }
-                }}
-              />
-            )}
-            <span
-              className={cn(
-                "w-12 shrink-0 text-center text-xs tabular-nums",
-                noteSearchQuery.trim() && noteSearchMatches.length === 0 ? "text-rose-500" : "text-slate-500"
-              )}
-              aria-live="polite"
-            >
-              {noteSearchMatchLabel}
-            </span>
-            <Button
-              size="icon"
-              variant="ghost"
-              title={t("editor.previousSearchResult")}
-              aria-label={t("editor.previousSearchResult")}
-              disabled={noteSearchMatches.length === 0}
-              onClick={() => moveNoteSearchMatch(-1)}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Button
-              size="icon"
-              variant="ghost"
-              title={t("editor.nextSearchResult")}
-              aria-label={t("editor.nextSearchResult")}
-              disabled={noteSearchMatches.length === 0}
-              onClick={() => moveNoteSearchMatch(1)}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-            {noteSearchReplaceOpen && (
-              <Button
-                size="sm"
-                variant="solid"
-                title={t("editor.replaceAll")}
-                aria-label={t("editor.replaceAll")}
-                disabled={effectiveReadOnly || noteSearchMatches.length === 0}
-                onClick={replaceAllNoteSearchMatches}
-              >
-                <ReplaceAll className="h-4 w-4" />
-                {t("editor.replaceAll")}
-              </Button>
-            )}
-            <Button size="icon" variant="ghost" title={t("editor.closeSearch")} aria-label={t("editor.closeSearch")} onClick={closeNoteSearch}>
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-        )}
+        {noteSearchOpen ? (
+          <EditorNoteSearchBar
+            inputRef={noteSearchInputRef}
+            query={noteSearchQuery}
+            replacement={noteSearchReplacement}
+            replaceOpen={noteSearchReplaceOpen}
+            readOnly={effectiveReadOnly}
+            matchCount={noteSearchMatches.length}
+            matchLabel={noteSearchMatchLabel}
+            onQueryChange={setNoteSearchQuery}
+            onReplacementChange={setNoteSearchReplacement}
+            onMoveMatch={moveNoteSearchMatch}
+            onReplaceAll={replaceAllNoteSearchMatches}
+            onClose={closeNoteSearch}
+          />
+        ) : null}
         {(!isMobileViewport || (mobileToolbarOpen && !useMobilePlainTextEditor)) && (
           <EditorToolbar
             editor={editor}
@@ -4736,44 +4148,17 @@ const RichEditorPane = ({
             onPickNoteLink={() => setNoteLinkPickerOpen(true)}
           />
         )}
-        {saveState === "conflict" && saveConflictReason ? (
-          <div
-            className="flex flex-col gap-2 border-t border-rose-100 bg-rose-50 px-3 py-2 text-xs leading-relaxed text-rose-800 sm:px-5"
-            role="alert"
-          >
-            <div className="flex items-start gap-2">
-              <CircleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              <span className="min-w-0 flex-1">{saveConflictReason}</span>
-            </div>
-            <div className="flex flex-wrap items-center gap-2 pl-5">
-              <Button
-                size="sm"
-                variant="solid"
-                className="h-7 bg-rose-700 px-2.5 text-[11px] text-white hover:bg-rose-800"
-                disabled={conflictActionPending !== null}
-                onClick={() => void handleAdoptCloudAndReload()}
-              >
-                {conflictActionPending === "adopt"
-                  ? t("editor.saveState.conflictAdopting")
-                  : t("editor.saveState.conflictAdoptCloud")}
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-7 px-2.5 text-[11px] text-rose-800 hover:bg-rose-100"
-                disabled={conflictActionPending !== null}
-                onClick={() => void handleCopyLocalDraft()}
-              >
-                {t("editor.saveState.conflictCopyDraft")}
-              </Button>
-              {conflictActionMessage ? (
-                <span className="text-[11px] font-medium text-rose-700" role="status" aria-live="polite">
-                  {conflictActionMessage}
-                </span>
-              ) : null}
-            </div>
-          </div>
-        ) : null}
+        <EditorSaveRecoveryBanner
+          saveState={saveState}
+          conflictReason={saveConflictReason}
+          storageSaveError={storageSaveError}
+          savePending={saveMutationPending}
+          actionPending={conflictActionPending}
+          actionMessage={conflictActionMessage}
+          onAdoptCloud={handleAdoptCloudAndReload}
+          onCopyDraft={handleCopyLocalDraft}
+          onRetry={mutateSave}
+        />
       </header>
 
       <div
@@ -5016,156 +4401,22 @@ const RichEditorPane = ({
         />
       )}
 
-      <Dialog
-        open={resourceDialog?.action === "rename"}
-        onOpenChange={(open) => {
-          if (!open) closeResourceDialog();
-        }}
-      >
-        <DialogContent>
-          <form
-            className="contents"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void handleResourceRename();
-            }}
-          >
-            <DialogHeader>
-              <DialogTitle>{resourceDialogLabels.renameTitle}</DialogTitle>
-              <DialogDescription>{resourceDialogLabels.renameDescription}</DialogDescription>
-            </DialogHeader>
-            <label className="grid gap-2 text-sm font-medium text-slate-700">
-              {resourceDialogLabels.filenameLabel}
-              <Input
-                autoFocus
-                value={resourceFilename}
-                maxLength={160}
-                disabled={resourceActionPending}
-                onChange={(event) => setResourceFilename(event.target.value)}
-              />
-            </label>
-            {resourceActionError && (
-              <p className="text-sm text-rose-600" role="alert">{resourceActionError}</p>
-            )}
-            <DialogFooter>
-              <Button type="button" variant="ghost" disabled={resourceActionPending} onClick={closeResourceDialog}>
-                {t("common.cancel")}
-              </Button>
-              <Button type="submit" variant="solid" disabled={resourceActionPending || !resourceFilename.trim()}>
-                {resourceActionPending ? t("common.saving") : t("common.save")}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
-        open={resourceDialog?.action === "delete"}
-        onOpenChange={(open) => {
-          if (!open) closeResourceDialog();
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{resourceDialogLabels.deleteTitle}</DialogTitle>
-            <DialogDescription>{resourceDialogLabels.deleteDescription}</DialogDescription>
-          </DialogHeader>
-          <p className="truncate rounded-md bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700">
-            {resourceDialog?.target.filename}
-          </p>
-          {resourceActionError && (
-            <p className="text-sm text-rose-600" role="alert">{resourceActionError}</p>
-          )}
-          <DialogFooter>
-            <Button type="button" variant="ghost" disabled={resourceActionPending} onClick={closeResourceDialog}>
-              {t("common.cancel")}
-            </Button>
-            <Button type="button" variant="danger" disabled={resourceActionPending} onClick={() => void handleResourceDelete()}>
-              {resourceActionPending ? t("common.processing") : t("common.delete")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {resourceActionError && !resourceDialog && (
-        <div className="fixed bottom-5 left-1/2 z-[120] -translate-x-1/2 rounded-md bg-rose-600 px-3 py-2 text-sm font-medium text-white shadow-lg" role="alert">
-          {resourceActionError}
-        </div>
-      )}
+      <EditorResourceDialogs
+        dialog={resourceDialog}
+        labels={resourceDialogLabels}
+        filename={resourceFilename}
+        pending={resourceActionPending}
+        error={resourceActionError}
+        onFilenameChange={setResourceFilename}
+        onClose={closeResourceDialog}
+        onRename={handleResourceRename}
+        onDelete={handleResourceDelete}
+      />
 
       {memoIdCopyNotice && (
         <ClipboardCopyNotice status={memoIdCopyNotice.status}>
           {t(memoIdCopyNotice.status === "copied" ? "editor.noteIdCopied" : "editor.noteIdCopyFailed", { id: memoIdCopyNotice.id })}
         </ClipboardCopyNotice>
-      )}
-
-      {false && useMobilePlainTextEditor && (
-        <div className="fixed left-2 right-2 top-[max(3.5rem,env(safe-area-inset-top))] z-[70] rounded-md border border-amber-200 bg-amber-50/95 p-2 text-[11px] text-slate-800 shadow-lg backdrop-blur sm:hidden">
-          <div className="flex items-center justify-between gap-2">
-            <button
-              className="min-w-0 flex-1 truncate text-left font-semibold"
-              type="button"
-              onClick={() => setMobileImeDebugOpen((open) => !open)}
-            >
-              IME 诊断：{mobileImeDebugEditorFocused ? "正文已聚焦" : "正文未聚焦"} · len {getMobilePlainTextValue().length}
-            </button>
-            <button
-              className="rounded border border-amber-300 bg-white px-2 py-1 font-medium text-slate-700"
-              type="button"
-              onClick={() => void handleMobileClipboardInput()}
-            >
-              粘贴
-            </button>
-            <button
-              className="rounded border border-amber-300 bg-white px-2 py-1 font-medium text-slate-700"
-              type="button"
-              onClick={handleMobilePromptInput}
-            >
-              输入
-            </button>
-            <button
-              className="rounded border border-amber-300 bg-white px-2 py-1 font-medium text-slate-700"
-              type="button"
-              onClick={() => {
-                focusMobileInputTarget();
-                recordMobileImeDebugEvent("debug-focus-button");
-              }}
-            >
-              聚焦
-            </button>
-            <button
-              className="rounded border border-amber-300 bg-white px-2 py-1 font-medium text-slate-700"
-              type="button"
-              onClick={() => {
-                void navigator.clipboard?.writeText(mobileImeDebugLogText);
-              }}
-            >
-              复制
-            </button>
-          </div>
-          {mobileImeDebugOpen && (
-            <div className="mt-2 max-h-40 overflow-auto rounded border border-amber-200 bg-white/80 p-2 font-mono leading-5">
-              <div>active: {mobileImeDebugActiveElement}</div>
-              <div>editorFocused: {String(mobileImeDebugEditorFocused)}</div>
-              <div>mode: mobile={String(isMobileViewport)} editingState={String(isMobileEditing)} editingActive={String(mobileEditingActive)} plain={String(useMobilePlainTextEditor)}</div>
-              <div>save: {saveState} dirty={String(hasUnsavedChanges)}</div>
-              <div className="mt-1 border-t border-amber-100 pt-1">
-                {mobileImeDebugEvents.length === 0 ? (
-                  <div>暂无事件。点正文或按键后这里应该变化。</div>
-                ) : (
-                  mobileImeDebugEvents.map((entry) => (
-                    <div key={entry.id}>
-                      {entry.time} {entry.event} len={entry.valueLength}
-                      {entry.inputType ? ` type=${entry.inputType}` : ""}
-                      {entry.isComposing !== undefined ? ` comp=${entry.isComposing}` : ""}
-                      {entry.key ? ` key=${entry.key}` : ""}
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          )}
-        </div>
       )}
 
       {isMobileViewport && !mobileEditingActive && !readOnly && (

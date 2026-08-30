@@ -3,20 +3,30 @@ import { clean, gt, valid } from "semver";
 const LATEST_RELEASE_API_URL = "https://api.github.com/repos/tianma-if/edgeever/releases/latest";
 
 export const GITHUB_LATEST_RELEASE_URL = "https://github.com/tianma-if/edgeever/releases/latest";
+export const ANDROID_APPLICATION_ID = "org.edgeever.mobile";
 export const GOOGLE_PLAY_APP_URL = "market://details?id=org.edgeever.mobile";
 export const GOOGLE_PLAY_WEB_URL = "https://play.google.com/store/apps/details?id=org.edgeever.mobile";
 
-export type MobileInstallUpdateSource = {
-  fallbackUrl?: string;
-  id: "github" | "google-play";
+type MobileInstallUpdateSourceBase = {
   labelEn: string;
   labelZh: string;
   url: string;
 };
 
+export type MobileInstallUpdateSource =
+  | MobileInstallUpdateSourceBase & {
+    applicationId: string;
+    fallbackUrl: string;
+    id: "google-play";
+  }
+  | MobileInstallUpdateSourceBase & {
+    id: "github";
+  };
+
 /** Manual destinations presented when a newer Android binary is available. */
 export const ANDROID_INSTALL_UPDATE_SOURCES: readonly MobileInstallUpdateSource[] = [
   {
+    applicationId: ANDROID_APPLICATION_ID,
     fallbackUrl: GOOGLE_PLAY_WEB_URL,
     id: "google-play",
     labelEn: "Update on Google Play",

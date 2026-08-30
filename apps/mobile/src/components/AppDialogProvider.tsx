@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { Modal, StyleSheet, View, type AlertButton } from "react-native";
+import { Modal, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { AlertTriangle, ShieldCheck, X } from "./icons";
+import { AlertTriangle, GitHub, GooglePlay, ShieldCheck, X } from "./icons";
 import { Pressable, Text } from "./LocalizedText";
-import { registerAppDialogPresenter, type AppDialogRequest } from "./app-dialog-controller";
+import { registerAppDialogPresenter, type AppDialogButton, type AppDialogRequest } from "./app-dialog-controller";
 import { translateCurrentMobileText } from "../lib/mobile-locale";
 import { resolveMobileThemeStyles, useMobileTheme } from "../lib/mobile-theme";
 
@@ -21,7 +21,7 @@ export const AppDialogProvider = ({ children }: { children: ReactNode }) => {
     }
     return request.buttons?.length
       ? request.buttons
-      : [{ text: translateCurrentMobileText("确定") } satisfies AlertButton];
+      : [{ text: translateCurrentMobileText("确定") } satisfies AppDialogButton];
   }, [request]);
   const cancelButton = buttons.find((button) => button.style === "cancel");
   const destructive = buttons.some((button) => button.style === "destructive");
@@ -36,7 +36,7 @@ export const AppDialogProvider = ({ children }: { children: ReactNode }) => {
     activeRequest?.options?.onDismiss?.();
   }, [cancelButton, request]);
 
-  const selectButton = (button: AlertButton) => {
+  const selectButton = (button: AppDialogButton) => {
     setRequest(null);
     button.onPress?.();
   };
@@ -88,6 +88,7 @@ export const AppDialogProvider = ({ children }: { children: ReactNode }) => {
               {[...buttons].reverse().map((button, index) => {
                 const isDestructive = button.style === "destructive";
                 const isCancel = button.style === "cancel";
+                const iconColor = isCancel ? "#0f172a" : "#ffffff";
                 return (
                   <Pressable
                     accessibilityRole="button"
@@ -98,6 +99,11 @@ export const AppDialogProvider = ({ children }: { children: ReactNode }) => {
                       isDestructive ? styles.buttonDanger : isCancel ? styles.buttonOutline : styles.buttonPrimary,
                     ]}
                   >
+                    {button.icon === "google-play"
+                      ? <GooglePlay accessibilityElementsHidden color={iconColor} size={19} />
+                      : button.icon === "github"
+                        ? <GitHub accessibilityElementsHidden color={iconColor} size={18} />
+                        : null}
                     <Text style={[
                       styles.buttonText,
                       isDestructive ? styles.buttonTextDanger : isCancel ? styles.buttonTextOutline : styles.buttonTextPrimary,
@@ -203,6 +209,8 @@ const baseStyles = StyleSheet.create({
     alignItems: "center",
     borderRadius: 7,
     borderWidth: 1,
+    flexDirection: "row",
+    gap: 9,
     justifyContent: "center",
     minHeight: 42,
     paddingHorizontal: 16,

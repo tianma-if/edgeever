@@ -244,7 +244,7 @@ test.describe("AI custom prompts", () => {
     await page.keyboard.press("Enter");
     const emptyParagraph = editor.locator("p").last();
     await expect(emptyParagraph).toHaveClass(/is-empty/);
-    await expect(emptyParagraph).toHaveAttribute("data-placeholder", "按 Space 使用 AI，输入 / 浏览命令");
+    await expect(emptyParagraph).toHaveAttribute("data-placeholder", "Space 唤起 AI · / 浏览命令 · @ 引用笔记");
     const renderedPlaceholder = await emptyParagraph.evaluate((element) => {
       const style = getComputedStyle(element, "::before");
       return {
@@ -253,7 +253,7 @@ test.describe("AI custom prompts", () => {
         visibility: style.visibility,
       };
     });
-    expect(renderedPlaceholder.content).toContain("按 Space 使用 AI，输入 / 浏览命令");
+    expect(renderedPlaceholder.content).toContain("Space 唤起 AI · / 浏览命令 · @ 引用笔记");
     expect(renderedPlaceholder.display).not.toBe("none");
     expect(renderedPlaceholder.visibility).not.toBe("hidden");
 
@@ -292,7 +292,7 @@ test.describe("AI custom prompts", () => {
     await page.keyboard.press("End");
     await page.keyboard.press("Enter");
     const emptyParagraph = editor.locator("p").last();
-    await expect(emptyParagraph).toHaveAttribute("data-placeholder", "输入 / 浏览命令");
+    await expect(emptyParagraph).toHaveAttribute("data-placeholder", "/ 浏览命令 · @ 引用笔记");
 
     await page.keyboard.press("Space");
     await expect(page.getByRole("dialog", { name: "AI 笔记助手" })).toBeHidden();

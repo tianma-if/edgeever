@@ -1,7 +1,11 @@
+import type { QueryClient } from "@tanstack/react-query";
+import type { MemoDetail } from "@edgeever/shared";
+
 export type WorkspaceRefreshMode = "background" | "manual";
 export type WorkspaceMemoView = "notebook" | "trash";
 
-export const BACKGROUND_WORKSPACE_REFRESH_INTERVAL_MS = 30_000;
+export const DEFERRED_MEMO_SYNC_DELAY_MS = 30_000;
+export const BACKGROUND_WORKSPACE_REFRESH_INTERVAL_MS = 5 * 60_000;
 export const BACKGROUND_WORKSPACE_REFRESH_LEASE_MS = BACKGROUND_WORKSPACE_REFRESH_INTERVAL_MS * 2;
 export const BACKGROUND_WORKSPACE_REFRESH_COALESCE_MS = 1_000;
 
@@ -84,6 +88,40 @@ export const resolveSyncedMemoId = (
   memoIdMappings: ReadonlyMap<string, string>,
   memoId: string | null,
 ) => memoId ? memoIdMappings.get(memoId) ?? memoId : null;
+
+type MemoDetailQueryData = { memo: MemoDetail };
+
+/**
+ * Keep the active editor backed by cached detail while sync replaces a local
+ * memo id with its durable server id. Without this handoff, React Query briefly
+ * observes an empty query under the new key and swaps the editor for its loading
+ * state until the desktop sidecar returns the same memo again.
+ */
+export const preserveRemappedMemoDetailQueries = (
+  queryClient: Pick<QueryClient, "getQueryData" | "setQueryData">,
+  memoIdMappings: ReadonlyMap<string, string>,
+) => {
+  for (const [temporaryId, remoteId] of memoIdMappings) {
+    if (temporaryId === remoteId) continue;
+
+    for (const view of ["notebook", "trash"] as const) {
+      const remoteKey = ["memo", remoteId, view] as const;
+      if (queryClient.getQueryData<MemoDetailQueryData>(remoteKey)?.memo) continue;
+
+      const temporary = queryClient.getQueryData<MemoDetailQueryData>([
+        "memo",
+        temporaryId,
+        view,
+      ]);
+      if (!temporary?.memo) continue;
+
+      queryClient.setQueryData<MemoDetailQueryData>(remoteKey, {
+        ...temporary,
+        memo: { ...temporary.memo, id: remoteId },
+      });
+    }
+  }
+};
 
 export const resolveCreatedMemoSelection = (
   currentMemoId: string | null,

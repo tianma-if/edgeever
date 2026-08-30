@@ -21,8 +21,9 @@ const installTestWindow = ({ hostname = "localhost" } = {}) => {
 };
 
 afterEach(async () => {
-  await localDb.transaction("rw", [localDb.templates, localDb.notebooks, localDb.memos, localDb.resources, localDb.revisions, localDb.syncMeta, localDb.syncQueue], async () => {
+  await localDb.transaction("rw", [localDb.drafts, localDb.templates, localDb.notebooks, localDb.memos, localDb.resources, localDb.revisions, localDb.syncMeta, localDb.syncQueue], async () => {
     await Promise.all([
+      localDb.drafts.clear(),
       localDb.templates.clear(),
       localDb.notebooks.clear(),
       localDb.memos.clear(),
@@ -119,6 +120,34 @@ describe("web repository offline boundaries", () => {
       expect(deferredEvents).toBe(1);
       expect(immediateEvents).toBe(0);
     } finally {
+      restoreWindow();
+    }
+  });
+
+  test("rolls back the local memo when queuing its sync update fails", async () => {
+    const restoreWindow = installTestWindow();
+    const scope = "https://demo.edgeever.org|user-1";
+    const memo = await createLocalMemo(scope, { notebookId: "nb-1", contentMarkdown: "Original" });
+    const failQueueWrite = () => { throw new Error("queue unavailable"); };
+    localDb.syncQueue.hook("creating", failQueueWrite);
+
+    try {
+      await expect(createWebRepository(scope).updateMemo(memo, {
+        expectedRevision: memo.revision,
+        expectedContentHash: memo.contentHash,
+        editSessionId: "local-edit",
+        title: "Changed",
+        contentJson: {
+          type: "doc",
+          content: [{ type: "paragraph", content: [{ type: "text", text: "Changed" }] }],
+        },
+        tags: [],
+      })).rejects.toThrow("queue unavailable");
+
+      expect((await localDb.memos.get([scope, memo.id]))?.contentText).toBe("Original");
+      expect(await localDb.syncQueue.get(`memo.update:${memo.id}`)).toBeUndefined();
+    } finally {
+      localDb.syncQueue.hook("creating").unsubscribe(failQueueWrite);
       restoreWindow();
     }
   });

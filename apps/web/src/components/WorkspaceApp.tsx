@@ -795,9 +795,7 @@ export const WorkspaceApp = ({
     setImageCompressionEnabled,
     setMemoListWidth,
     setShortcutSettings,
-    setSyncIntervalMs,
     shortcutSettings,
-    syncIntervalMs,
   } = useWorkspacePreferences();
   const [rightView, setRightView] = useState<"editor" | "settings" | "plugins" | "assets" | "tags" | "templates" | "ai-prompts" | "evernote-migration">(() =>
     isInitialSettingsRoute
@@ -1311,12 +1309,11 @@ export const WorkspaceApp = ({
   }, [mobilePullToRefreshActive, refreshLatestMemos]);
 
   useWorkspaceSyncLifecycle({
-    pendingSyncCount: syncSummary.total,
+    failedSyncCount: syncSummary.error,
     backgroundRefreshKey: localDataScope,
     refreshWorkspace: refreshWorkspaceFromServer,
     runQueuedSync,
     setOnline: setIsOnline,
-    syncIntervalMs,
   });
 
   const selectedNotebookDescendantIds = useMemo(
@@ -2921,8 +2918,8 @@ export const WorkspaceApp = ({
                   onOpenAssets={handleOpenAssets}
                   onOpenTags={handleOpenTags}
                   onOpenTemplates={handleOpenTemplates}
-                  onOpenAiPrompts={handleOpenAiPrompts}
-                  onOpenPluginMarketplace={handleOpenPluginManager}
+                  pluginHost={pluginHost}
+                  onOpenPluginManager={handleOpenPluginManager}
                   onOpenSettings={handleOpenSettings}
                   onOpenTrash={() => {
                     navigateWorkspaceTrash();
@@ -3100,8 +3097,6 @@ export const WorkspaceApp = ({
                   onOpenAiPrompts={handleOpenAiPrompts}
                     imageCompressionEnabled={imageCompressionEnabled}
                     onImageCompressionChange={setImageCompressionEnabled}
-                    syncIntervalMs={syncIntervalMs}
-                    onSyncIntervalChange={setSyncIntervalMs}
                     shortcutSettings={shortcutSettings}
                     onShortcutSettingsChange={setShortcutSettings}
                     editorContentAlignment={editorContentAlignment}
@@ -3115,8 +3110,6 @@ export const WorkspaceApp = ({
                     refreshWorkspaceAfterImport={async () => {
                       await refreshWorkspaceFromServer("manual");
                     }}
-                    pluginHost={pluginHost}
-                    onOpenPluginMarketplace={handleOpenPluginManager}
                   />
                   ) : rightView === "plugins" ? (
                     <PluginMarketplacePane host={pluginHost} onClose={handleClosePluginMarketplace} />
@@ -3158,7 +3151,6 @@ export const WorkspaceApp = ({
                       memo={selectedMemo}
                       repository={repository}
                       pluginHost={pluginHost}
-                      onOpenPluginManager={handleOpenPluginManager}
                     onOpenAiPrompts={handleOpenAiPrompts}
                     desktopFocusMode={desktopFocusModeActive}
                     onToggleDesktopFocusMode={toggleDesktopFocusMode}

@@ -44,6 +44,9 @@ describe("release timing report", () => {
         job("macOS x64", start, 600, [
           step("Package desktop installer", start, 300),
         ]),
+        job("Windows x64 unsigned Preview", start, 420, [
+          step("Package unsigned Windows installer", start, 240),
+        ]),
       ]),
       desktopMode: "rebuild",
       mobile: payload("Mobile", start, 540, [
@@ -83,6 +86,7 @@ describe("release timing report", () => {
       "Docker TCR (amd64 + arm64)",
       "macOS arm64",
       "macOS x64",
+      "Windows x64 Preview",
       "Android arm64",
       "Google Play signed APK",
     ]);
@@ -95,6 +99,9 @@ describe("release timing report", () => {
     );
     expect(markdown).toContain(
       "| macOS x64 | rebuild | success | 10m 00s | package + notarize 5m 00s |",
+    );
+    expect(markdown).toContain(
+      "| Windows x64 Preview | rebuild | success | 7m 00s | package 4m 00s |",
     );
     expect(markdown).toContain(
       "| Google Play signed APK | build + deliver | success | 11m 00s | AAB build 3m 00s; Play upload 4m 00s |",
@@ -120,7 +127,7 @@ describe("release timing report", () => {
     const report = createReleaseTimingReport({
       ...common,
       desktop: payload("Desktop", start, 40, [
-        job("Reuse macOS release assets", start, 40),
+        job("Reuse desktop release assets", start, 40),
       ]),
       desktopMode: "reuse",
       mobile: payload("Mobile", start, 30, [
@@ -130,7 +137,7 @@ describe("release timing report", () => {
     });
 
     expect(report.rows.at(-2)).toMatchObject({
-      target: "macOS arm64 + x64",
+      target: "macOS arm64 + x64 + Windows x64",
       mode: "reuse",
       durationMs: 40_000,
     });
@@ -146,7 +153,7 @@ describe("release timing report", () => {
     const report = createReleaseTimingReport({
       release: { tag: "v1.41.2", sha: "ghi", publishedAt: start },
       desktop: payload("Desktop", start, 40, [
-        job("Reuse macOS release assets", start, 40),
+        job("Reuse desktop release assets", start, 40),
       ]),
       desktopMode: "reuse",
       mobile: payload("Mobile", start, 30, [

@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld("edgeeverDesktop", Object.freeze({
   canClearLocalData: ipcRenderer.sendSync("desktop:local-data-reset-available-sync"),
   recoveredAfterAbnormalExit: ipcRenderer.sendSync("desktop:recovered-after-abnormal-exit-sync"),
   sidecarStatus: () => ipcRenderer.invoke("desktop:sidecar-status"),
+  systemInfo: () => ipcRenderer.invoke("desktop:system-info"),
   setAccountScope: (accountId) => ipcRenderer.invoke("desktop:set-account-scope", accountId),
   apiBaseUrl: ipcRenderer.sendSync("desktop:api-base-url-sync"),
   setApiBaseUrl: (value) => ipcRenderer.invoke("desktop:set-api-base-url", value),

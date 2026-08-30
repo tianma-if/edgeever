@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import {
+  ANDROID_APPLICATION_ID,
   ANDROID_INSTALL_UPDATE_SOURCES,
   findNewerMobileRelease,
   GITHUB_LATEST_RELEASE_URL,
@@ -73,6 +74,7 @@ test("rejects invalid release responses instead of claiming the app is current",
 test("offers Google Play and the latest GitHub Release as manual update destinations", () => {
   expect(ANDROID_INSTALL_UPDATE_SOURCES).toEqual([
     {
+      applicationId: ANDROID_APPLICATION_ID,
       fallbackUrl: GOOGLE_PLAY_WEB_URL,
       id: "google-play",
       labelEn: "Update on Google Play",

@@ -3,7 +3,14 @@ import type {
   ResourceListItem,
   ResourceStorageSummary,
 } from "@edgeever/shared";
+import { auditStatement } from "./audit";
+import type { AppContext, AuditActor } from "./api-context";
 import { AppError } from "./app-error";
+import { createId, isoNow } from "./entity-utils";
+import { sha256Bytes } from "./hash-utils";
+import { resolveObjectStorage } from "./object-storage";
+import { getWorkspaceId } from "./request-auth";
+import type { DatabaseAdapter } from "./storage-contract";
 
 export const MAX_IMAGE_UPLOAD_BYTES = 100 * 1024 * 1024;
 export const MAX_ATTACHMENT_UPLOAD_BYTES = 100 * 1024 * 1024;
@@ -149,6 +156,201 @@ export const prepareImageForStorage = (input: {
     compression: "disabled",
   },
 });
+
+export const getResourceRow = async (
+  database: DatabaseAdapter,
+  workspaceId: string,
+  resourceId: string,
+  includeDeleted = false,
+): Promise<ResourceRow | null> =>
+  database
+    .prepare(
+      `SELECT r.id, r.memo_id, r.original_memo_id, r.bucket_name, r.object_key, r.storage_config_id, r.kind, r.mime_type,
+              r.filename, r.byte_size, r.sha256, r.width, r.height, r.created_at, r.updated_at, r.is_deleted
+       FROM resources r
+       INNER JOIN memos m ON m.id = r.memo_id
+       WHERE r.id = ? AND m.workspace_id = ?${includeDeleted ? "" : " AND r.is_deleted = 0"}`,
+    )
+    .bind(resourceId, workspaceId)
+    .first<ResourceRow>();
+
+export const listResourcesForMemo = async (
+  database: DatabaseAdapter,
+  workspaceId: string,
+  memoId: string,
+): Promise<Resource[]> => {
+  const rows = await database
+    .prepare(
+      `SELECT r.id, r.memo_id, r.original_memo_id, r.bucket_name, r.object_key, r.storage_config_id, r.kind, r.mime_type,
+              r.filename, r.byte_size, r.sha256, r.width, r.height, r.created_at, r.updated_at
+       FROM resources r
+       INNER JOIN memos m ON m.id = r.memo_id
+       WHERE r.memo_id = ? AND m.workspace_id = ? AND r.is_deleted = 0
+       ORDER BY r.created_at ASC, r.id ASC`,
+    )
+    .bind(memoId, workspaceId)
+    .all<ResourceRow>();
+
+  return rows.results.map(mapResource);
+};
+
+export const listResourcesForMcp = async (
+  database: DatabaseAdapter,
+  workspaceId: string,
+  limit: number,
+) => {
+  const [rows, stats] = await Promise.all([
+    database.prepare(
+      `SELECT r.id, r.memo_id, r.original_memo_id, r.bucket_name, r.object_key, r.storage_config_id, r.kind,
+              r.mime_type, r.filename, r.byte_size, r.sha256, r.width, r.height,
+              r.created_at, r.updated_at, m.title AS memo_title, m.excerpt AS memo_excerpt,
+              m.is_deleted AS memo_is_deleted
+       FROM resources r
+       INNER JOIN memos m ON m.id = r.memo_id
+       WHERE m.workspace_id = ? AND r.is_deleted = 0
+       ORDER BY r.created_at DESC
+       LIMIT ?`,
+    ).bind(workspaceId, limit).all<ResourceListRow>(),
+    database.prepare(
+      `SELECT COUNT(*) AS total_count,
+              COALESCE(SUM(byte_size), 0) AS total_bytes,
+              COALESCE(SUM(CASE WHEN kind = 'image' THEN 1 ELSE 0 END), 0) AS image_count,
+              COALESCE(SUM(CASE WHEN kind = 'attachment' THEN 1 ELSE 0 END), 0) AS attachment_count
+       FROM resources r
+       INNER JOIN memos m ON m.id = r.memo_id
+       WHERE m.workspace_id = ? AND r.is_deleted = 0`,
+    ).bind(workspaceId).first<ResourceStatsRow>(),
+  ]);
+
+  return {
+    resources: rows.results.map(mapResourceListItem),
+    summary: mapResourceStorageSummary(stats),
+  };
+};
+
+type ResourceCreateInput = {
+  memoId: string;
+  filename: string;
+  mimeType: string;
+  bytes: Uint8Array;
+  actor: AuditActor;
+};
+
+const storeResource = async (
+  context: AppContext,
+  input: ResourceCreateInput & {
+    kind: "image" | "attachment";
+    width: number | null;
+    height: number | null;
+    metadata: Record<string, unknown>;
+    auditMetadata: Record<string, unknown>;
+    objectKeyExtension?: string;
+  },
+) => {
+  const resourceId = createId("res");
+  const now = isoNow();
+  const workspaceId = getWorkspaceId(context);
+  const filename = normalizeFilename(input.filename) || `${resourceId}${input.objectKeyExtension ?? ""}`;
+  const metadata = input.kind === "attachment"
+    ? { ...input.metadata, originalFilename: filename }
+    : input.metadata;
+  const objectKey = `workspaces/${workspaceId}/memos/${input.memoId}/${resourceId}${input.objectKeyExtension ?? ""}`;
+  const destination = await resolveObjectStorage(context.env);
+  const checksum = await sha256Bytes(input.bytes);
+
+  await destination.store.put(objectKey, input.bytes, {
+    httpMetadata: {
+      contentType: input.mimeType,
+      cacheControl: "private, max-age=3600",
+    },
+    customMetadata: {
+      memoId: input.memoId,
+      resourceId,
+      filename,
+    },
+  });
+
+  try {
+    await context.env.storage.db.batch([
+      context.env.storage.db.prepare(
+        `INSERT INTO resources (
+          id, memo_id, bucket_name, object_key, storage_config_id, kind, mime_type, filename,
+          byte_size, sha256, width, height, metadata_json, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        resourceId,
+        input.memoId,
+        destination.bucketName,
+        objectKey,
+        destination.configId,
+        input.kind,
+        input.mimeType,
+        filename,
+        input.bytes.byteLength,
+        checksum,
+        input.width,
+        input.height,
+        JSON.stringify(metadata),
+        now,
+        now,
+      ),
+      auditStatement(
+        context.env.storage.db,
+        input.actor.actorType,
+        input.actor.actorId,
+        "resource.create",
+        "resource",
+        resourceId,
+        { memoId: input.memoId, mimeType: input.mimeType, byteSize: input.bytes.byteLength, ...input.auditMetadata },
+      ),
+    ]);
+  } catch (error) {
+    await destination.store.delete(objectKey);
+    throw error;
+  }
+
+  const resource = await getResourceRow(context.env.storage.db, workspaceId, resourceId);
+  if (!resource) {
+    throw new AppError("not_found", "Resource not found", 404);
+  }
+  return mapResource(resource);
+};
+
+export const createImageResource = async (
+  context: AppContext,
+  input: ResourceCreateInput & { source: "upload" | "mcp" },
+): Promise<Resource> => {
+  validateImageUpload(input.mimeType, input.bytes.byteLength);
+  const processed = prepareImageForStorage(input);
+  const extension = inferImageExtension(processed.filename, processed.mimeType);
+  return storeResource(context, {
+    ...input,
+    filename: processed.filename,
+    mimeType: processed.mimeType,
+    bytes: processed.bytes,
+    kind: "image",
+    width: processed.width,
+    height: processed.height,
+    metadata: processed.metadata,
+    auditMetadata: { compressed: processed.compressed },
+    objectKeyExtension: extension,
+  });
+};
+
+export const createAttachmentResource = async (
+  context: AppContext,
+  input: ResourceCreateInput,
+): Promise<Resource> => {
+  validateAttachmentUpload(input.bytes.byteLength);
+  return storeResource(context, {
+    ...input,
+    kind: "attachment",
+    width: null,
+    height: null,
+    metadata: {},
+    auditMetadata: {},
+  });
+};
 
 const encodeRfc5987Value = (value: string) => encodeURIComponent(
   value.replace(/[\uD800-\uDFFF]/gu, "\uFFFD"),

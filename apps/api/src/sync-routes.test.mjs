@@ -200,4 +200,50 @@ describe("sync route contracts", () => {
       serverCursor: 22,
     });
   });
+
+  test("batches detail queries below Cloudflare D1's bound-parameter limit", async () => {
+    const changes = Array.from({ length: 200 }, (_, index) => ({
+      id: index + 1,
+      entity_type: "memo",
+      entity_id: `memo_${String(index + 1).padStart(3, "0")}`,
+      operation: "upsert",
+      server_cursor: 200,
+      sync_identity: "workspace-created-at",
+    }));
+    const detailQueryBindingCounts = [];
+    const database = {
+      prepare: (sql) => ({
+        bind: (...bindings) => {
+          if (bindings.length > 100) {
+            throw new Error(`D1_ERROR: too many SQL variables (${bindings.length})`);
+          }
+          return {
+            all: async () => {
+              if (sql.includes("WITH workspace_state")) return { results: changes };
+              if (sql.includes("FROM memos m")) {
+                detailQueryBindingCounts.push(bindings.length);
+                return {
+                  results: bindings.slice(1).map((id) => ({ id, title: `Title ${id}` })),
+                };
+              }
+              return { results: [] };
+            },
+            first: async () => null,
+          };
+        },
+      }),
+    };
+    const response = await createApp().request(
+      "/api/v1/sync/changes?cursor=0&limit=200",
+      {},
+      { storage: { db: database, resources: {} } },
+    );
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.changes).toHaveLength(200);
+    expect(body.changes[0]).toMatchObject({ entityId: "memo_001", operation: "upsert" });
+    expect(body.changes.at(-1)).toMatchObject({ entityId: "memo_200", operation: "upsert" });
+    expect(detailQueryBindingCounts).toEqual([91, 91, 21]);
+  });
 });

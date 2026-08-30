@@ -1367,7 +1367,7 @@ export const MemoListPane = ({
 
       <div
         ref={listScrollRef}
-        className="relative min-h-0 flex-1 overflow-y-auto p-3 pb-[calc(7rem+env(safe-area-inset-bottom))] lg:pb-3 lg:pr-3"
+        className="relative min-h-0 flex-1 overflow-y-auto p-3 pb-[calc(7rem+env(safe-area-inset-bottom))] lg:px-0 lg:pb-3 lg:[scrollbar-gutter:stable_both-edges]"
       >
         {isLoading || (isRefreshing && memos.length === 0) ? (
           <div className="px-2 py-4 text-sm text-slate-500">{t("memoList.fetchingLatest")}</div>

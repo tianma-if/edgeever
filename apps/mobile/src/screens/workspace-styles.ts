@@ -1047,8 +1047,35 @@ const baseWorkspaceStyles = StyleSheet.create({
     padding: 14,
   },
   systemInfoRows: {
-    borderTopColor: "#e2e8f0",
-    borderTopWidth: 1,
+    borderColor: "#e2e8f0",
+    borderRadius: 8,
+    borderWidth: 1,
+    overflow: "hidden",
+  },
+  systemInfoSection: {
+    gap: 9,
+    paddingHorizontal: 12,
+    paddingTop: 14,
+  },
+  systemInfoSectionHeader: {
+    alignItems: "flex-start",
+    flexDirection: "row",
+    gap: 8,
+  },
+  systemInfoSectionCopy: {
+    flex: 1,
+    gap: 2,
+    minWidth: 0,
+  },
+  systemInfoSectionTitle: {
+    color: "#0f172a",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  systemInfoSectionDescription: {
+    color: "#64748b",
+    fontSize: 11,
+    lineHeight: 16,
   },
   systemInfoRow: {
     borderBottomColor: "#e2e8f0",

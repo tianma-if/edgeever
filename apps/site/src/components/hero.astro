@@ -92,6 +92,16 @@ const copy = siteCopy[locale].hero;
           <span>macOS</span>
         </a>
         <a
+          href="https://github.com/tianma-if/edgeever/releases/latest"
+          target="_blank"
+          rel="noopener"
+          aria-label={copy.windowsPreviewWarning}
+          class="inline-flex min-h-11 sm:min-h-0 items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50/90 hover:bg-amber-100 hover:text-amber-800 hover:border-amber-400 border border-amber-200/90 text-[11px] font-medium text-amber-800 transition-all shadow-2xs"
+        >
+          <Icon name="bx:bxl-windows" class="w-3.5 h-3.5" />
+          <span>{copy.windowsPreview}</span>
+        </a>
+        <a
           href="https://apps.apple.com/us/app/edgeever/id6792625631"
           target="_blank"
           rel="noopener"
@@ -119,6 +129,10 @@ const copy = siteCopy[locale].hero;
           <span>{locale === "en-US" ? "Clipper" : "剪藏插件"}</span>
         </a>
       </div>
+      <p class="mt-2 flex max-w-xl items-start gap-1.5 text-[10px] leading-4 text-amber-800">
+        <Icon name="bx:bx-error" class="mt-0.5 h-3 w-3 shrink-0" />
+        <span>{copy.windowsPreviewWarning}</span>
+      </p>
     </div>
   </div>
 

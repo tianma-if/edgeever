@@ -1,25 +1,21 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import {
   DEFAULT_SHORTCUT_SETTINGS,
-  DEFAULT_SYNC_INTERVAL_MS,
   DESKTOP_FOCUS_MODE_STORAGE_KEY,
   DESKTOP_READING_PROTECTION_STORAGE_KEY,
   EDITOR_CONTENT_ALIGNMENT_STORAGE_KEY,
   NOTEBOOK_SORT_STORAGE_KEY,
   SHORTCUT_SETTINGS_STORAGE_KEY,
-  SYNC_INTERVAL_STORAGE_KEY,
   getSearchShortcutScope,
   getShortcutActionForEvent,
   getNotebookSortComparator,
   readEditorContentAlignmentPreference,
   readNotebookSortPreference,
-  readSyncIntervalPreference,
   readDesktopFocusModePreference,
   readDesktopReadingProtectionPreference,
   readShortcutSettingsPreference,
   writeEditorContentAlignmentPreference,
   writeNotebookSortPreference,
-  writeSyncIntervalPreference,
   writeDesktopFocusModePreference,
   writeDesktopReadingProtectionPreference,
 } from "./app-helpers.ts";
@@ -191,53 +187,6 @@ describe("custom notebook sorting", () => {
     ];
 
     expect(notebooks.sort(compare).map((item) => item.id)).toEqual(["first", "second", "third"]);
-  });
-});
-
-describe("automatic sync interval preference", () => {
-  test("defaults to 30 seconds", () => {
-    installLocalStorage();
-    expect(readSyncIntervalPreference()).toBe(DEFAULT_SYNC_INTERVAL_MS);
-    expect(DEFAULT_SYNC_INTERVAL_MS).toBe(30_000);
-  });
-
-  test("reads and writes sync intervals", () => {
-    const values = installLocalStorage();
-
-    writeSyncIntervalPreference("30s");
-    expect(values.get(SYNC_INTERVAL_STORAGE_KEY)).toBe("30s");
-    expect(readSyncIntervalPreference()).toBe(30_000);
-
-    writeSyncIntervalPreference("5m");
-    expect(values.get(SYNC_INTERVAL_STORAGE_KEY)).toBe("5m");
-    expect(readSyncIntervalPreference()).toBe(300_000);
-  });
-
-  test("preserves the legacy preference stored under the old key", () => {
-    const values = installLocalStorage();
-    values.set("edgeever.autoSaveInterval", "15m");
-    expect(readSyncIntervalPreference()).toBe(900_000);
-  });
-
-  test("migrates the former one-minute default to 30 seconds", () => {
-    const values = installLocalStorage();
-    values.set(SYNC_INTERVAL_STORAGE_KEY, "1m");
-    expect(readSyncIntervalPreference()).toBe(30_000);
-  });
-
-  test("falls back to the default for unknown or unavailable storage", () => {
-    const values = installLocalStorage();
-    values.set(SYNC_INTERVAL_STORAGE_KEY, "unexpected");
-    expect(readSyncIntervalPreference()).toBe(30_000);
-
-    globalThis.window = {
-      localStorage: {
-        getItem: () => {
-          throw new Error("blocked");
-        },
-      },
-    };
-    expect(readSyncIntervalPreference()).toBe(30_000);
   });
 });
 

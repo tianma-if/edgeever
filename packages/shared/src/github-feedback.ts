@@ -8,6 +8,7 @@ export type GitHubFeedbackSystemInfoItem = {
 export const buildGitHubFeedbackUrl = ({
   contentHeading,
   contentPrompt,
+  diagnostics,
   privacyNotice,
   systemInfo,
   systemInfoHeading,
@@ -16,6 +17,11 @@ export const buildGitHubFeedbackUrl = ({
 }: {
   contentHeading: string;
   contentPrompt: string;
+  diagnostics?: {
+    heading: string;
+    notice: string;
+    text: string;
+  };
   privacyNotice: string;
   systemInfo: GitHubFeedbackSystemInfoItem[];
   systemInfoHeading: string;
@@ -27,6 +33,16 @@ export const buildGitHubFeedbackUrl = ({
     "",
     `<!-- ${contentPrompt} -->`,
     "",
+    ...(diagnostics ? [
+      `## ${diagnostics.heading}`,
+      "",
+      `<!-- ${diagnostics.notice} -->`,
+      "",
+      "```json",
+      diagnostics.text,
+      "```",
+      "",
+    ] : []),
     `## ${systemInfoHeading}`,
     "",
     `<!-- ${systemInfoNotice} -->`,

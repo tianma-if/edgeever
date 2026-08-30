@@ -51,9 +51,12 @@ export const planNativeRelease = (platform, changedFiles) => {
           ".github/workflows/desktop-build.yml",
           "bun.lock",
           "scripts/create-mac-update-metadata.mjs",
+          "scripts/create-windows-update-metadata.mjs",
           "scripts/desktop-icns.mjs",
           "scripts/prepare-desktop-icons.mjs",
           "scripts/run-desktop-builder.mjs",
+          "scripts/sign-windows-update-manifest.mjs",
+          "scripts/verify-windows-update-release.mjs",
           "scripts/verify-desktop-package.mjs",
         ]);
 

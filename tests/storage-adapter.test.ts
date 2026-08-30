@@ -14,10 +14,52 @@ describe("storage adapter", () => {
 
     expect(adapter.db).toBe(db);
     expect(adapter.resources).toBe(resources);
+    expect(adapter.diagnostics).toEqual({
+      database: "d1",
+      resources: "r2",
+      migrationTable: "d1_migrations",
+    });
   });
 
   test("keeps the self-hosted database dialect explicit", () => {
     expect(SELF_HOSTED_DATABASE_DIALECT).toBe("sqlite");
+  });
+
+  test("implements the portable statement result contract without D1 types", async () => {
+    const executions: Array<{ sql: string; bindings: unknown[] }> = [];
+    const sqlite = {
+      query: (sql: string) => ({
+        all: (...bindings: unknown[]) => [{ sql, value: bindings[0] }],
+        get: (...bindings: unknown[]) => ({ sql, value: bindings[0] }),
+        run: (...bindings: unknown[]) => {
+          executions.push({ sql, bindings });
+          return { changes: 1, lastInsertRowid: 7 };
+        },
+      }),
+      transaction: (callback: () => void) => () => callback(),
+    };
+    const database = createSelfHostedStorageAdapter(sqlite, ".edgeever-unused-resources").db;
+    const statement = database.prepare("SELECT ? AS value").bind("edgeever");
+
+    await expect(statement.all<{ sql: string; value: string }>()).resolves.toMatchObject({
+      success: true,
+      results: [{ sql: "SELECT ? AS value", value: "edgeever" }],
+    });
+    await expect(statement.first<string>("value")).resolves.toBe("edgeever");
+    await expect(database.prepare("UPDATE notes SET value = ?").bind("updated").run()).resolves.toMatchObject({
+      success: true,
+      results: [],
+      meta: { changes: 1, lastInsertRowid: 7 },
+    });
+    await expect(database.batch([
+      database.prepare("DELETE FROM notes WHERE id = ?").bind("one"),
+      database.prepare("DELETE FROM notes WHERE id = ?").bind("two"),
+    ])).resolves.toHaveLength(2);
+    expect(executions.map(({ bindings }) => bindings)).toEqual([
+      ["updated"],
+      ["one"],
+      ["two"],
+    ]);
   });
 
   test("stores attachments in a persistent filesystem directory", async () => {
@@ -29,6 +71,11 @@ describe("storage adapter", () => {
 
     try {
       const adapter = createSelfHostedStorageAdapter(sqlite, directory);
+      expect(adapter.diagnostics).toEqual({
+        database: "sqlite",
+        resources: "filesystem",
+        migrationTable: "_edgeever_migrations",
+      });
       await adapter.resources.put("workspace/memo/image.bin", new Uint8Array([1, 2, 3]));
 
       expect(await readFile(`${directory}/workspace/memo/image.bin`)).toEqual(new Uint8Array([1, 2, 3]));
@@ -77,6 +124,11 @@ describe("storage adapter", () => {
       { bucket: "edgeever", endpoint: "http://minio:9000" },
       client as never,
     );
+    expect(adapter.diagnostics).toEqual({
+      database: "sqlite",
+      resources: "s3",
+      migrationTable: "_edgeever_migrations",
+    });
 
     await adapter.resources.put("memo/image.txt", new Uint8Array([1]), {
       httpMetadata: { contentType: "text/plain" },

@@ -25,6 +25,10 @@ import { trayIconPath } from "./tray-icon.mjs";
 import { writeRichClipboard } from "./clipboard-write.mjs";
 import { LocalDataResetError, scheduleMacLocalDataReset } from "./local-data-reset.mjs";
 import { buildDesktopDiagnosticIssueUrl, normalizeDesktopDiagnostic } from "./desktop-diagnostics.mjs";
+import {
+  fetchTrustedWindowsUpdate,
+  verifyDownloadedWindowsUpdate,
+} from "./windows-update-trust.mjs";
 import electronUpdater from "electron-updater";
 
 const { autoUpdater } = electronUpdater;
@@ -82,6 +86,8 @@ let updateCheckTimer = null;
 let lastUpdateCheckAt = 0;
 let downloadedUpdateVersion = null;
 let promptedUpdateVersion = null;
+let trustedWindowsUpdate = null;
+let windowsDownloadedUpdateVerified = false;
 let sidecarScopeKey = "anonymous";
 let activeAccountId = null;
 let shutdownCleanupStarted = false;
@@ -145,6 +151,16 @@ const writeDiagnostic = async (event, details = {}) => {
   }
 };
 
+const desktopRuntimeSystemInfo = () => ({
+  appVersion: app.getVersion(),
+  platform: process.platform,
+  architecture: process.arch,
+  osVersion: process.getSystemVersion?.() || "unknown",
+  osRelease: operatingSystemRelease(),
+  electron: process.versions.electron || "unknown",
+  chrome: process.versions.chrome || "unknown",
+});
+
 const desktopDiagnosticSystemInfo = async () => {
   let gpu = "unknown";
   let gpuFeatures = "unknown";
@@ -168,13 +184,7 @@ const desktopDiagnosticSystemInfo = async () => {
     // Some renderer failures can also make GPU feature inspection unavailable.
   }
   return {
-    appVersion: app.getVersion(),
-    platform: process.platform,
-    architecture: process.arch,
-    osVersion: process.getSystemVersion?.() || "unknown",
-    osRelease: operatingSystemRelease(),
-    electron: process.versions.electron || "unknown",
-    chrome: process.versions.chrome || "unknown",
+    ...desktopRuntimeSystemInfo(),
     gpu,
     gpuFeatures,
   };
@@ -535,12 +545,37 @@ const publishDesktopUpdateStatus = () => {
 };
 
 const installDownloadedUpdate = () => {
-  if (updateState !== "downloaded") return { started: false };
+  if (
+    updateState !== "downloaded" ||
+    (process.platform === "win32" && !windowsDownloadedUpdateVerified)
+  ) return { started: false };
   // The normal window close handler hides the app. Mark this as a real quit
   // before electron-updater closes windows so installation can proceed.
   isQuitting = true;
   autoUpdater.quitAndInstall(false, true);
   return { started: true };
+};
+
+const trackDesktopUpdateDownload = (downloadPromise, reason) => {
+  updateDownloadInFlight = Promise.resolve(downloadPromise)
+    .catch(async (error) => {
+      updateState = "idle";
+      downloadedUpdateVersion = null;
+      windowsDownloadedUpdateVerified = false;
+      refreshTrayMenu();
+      publishDesktopUpdateStatus();
+      await writeDiagnostic("update.download-failed", { reason, message: error.message });
+    })
+    .finally(() => { updateDownloadInFlight = null; });
+  return updateDownloadInFlight;
+};
+
+const downloadTrustedDesktopUpdate = (reason) => {
+  if (updateDownloadInFlight) return updateDownloadInFlight;
+  if (process.platform === "win32" && !trustedWindowsUpdate) {
+    return Promise.reject(new Error("Windows update metadata has not passed the signature gate"));
+  }
+  return trackDesktopUpdateDownload(autoUpdater.downloadUpdate(), reason);
 };
 
 const promptForDownloadedUpdate = async (version) => {
@@ -584,19 +619,32 @@ const checkForDesktopUpdate = (reason, { force = false, throwOnError = false } =
   lastUpdateCheckAt = now;
   void writeDiagnostic("update.check-started", { reason });
   updateCheckInFlight = autoUpdater.checkForUpdates()
-    .then((result) => {
+    .then(async (result) => {
+      if (process.platform === "win32" && result?.isUpdateAvailable) {
+        trustedWindowsUpdate = await fetchTrustedWindowsUpdate({
+          version: result.updateInfo.version,
+          updateInfo: result.updateInfo,
+          fetchImpl: net.fetch,
+        });
+        windowsDownloadedUpdateVerified = false;
+        void writeDiagnostic("update.windows-manifest-verified", {
+          version: trustedWindowsUpdate.version,
+          keyId: trustedWindowsUpdate.keyId,
+        });
+        void downloadTrustedDesktopUpdate(reason);
+      }
       if (result?.downloadPromise) {
-        updateDownloadInFlight = result.downloadPromise
-          .catch(async (error) => {
-            updateState = "idle";
-            refreshTrayMenu();
-            await writeDiagnostic("update.download-failed", { reason, message: error.message });
-          })
-          .finally(() => { updateDownloadInFlight = null; });
+        trackDesktopUpdateDownload(result.downloadPromise, reason);
       }
       return result;
     })
     .catch(async (error) => {
+      updateState = "idle";
+      downloadedUpdateVersion = null;
+      trustedWindowsUpdate = null;
+      windowsDownloadedUpdateVerified = false;
+      refreshTrayMenu();
+      publishDesktopUpdateStatus();
       await writeDiagnostic("update.check-failed", { reason, message: error.message });
       throw error;
     })
@@ -606,12 +654,16 @@ const checkForDesktopUpdate = (reason, { force = false, throwOnError = false } =
 
 const configureAutoUpdater = () => {
   if (!app.isPackaged || process.env.EDGE_EVER_DISABLE_AUTO_UPDATE === "1") return;
-  autoUpdater.autoDownload = true;
-  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.autoDownload = process.platform !== "win32";
+  autoUpdater.autoInstallOnAppQuit = process.platform !== "win32";
   autoUpdater.autoRunAppAfterInstall = true;
   autoUpdater.on("update-available", (info) => {
     updateState = "available";
     downloadedUpdateVersion = info?.version || null;
+    if (process.platform === "win32") {
+      trustedWindowsUpdate = null;
+      windowsDownloadedUpdateVerified = false;
+    }
     refreshTrayMenu();
     publishDesktopUpdateStatus();
     void writeDiagnostic("update.available", { version: info?.version });
@@ -619,20 +671,47 @@ const configureAutoUpdater = () => {
   autoUpdater.on("update-not-available", () => {
     updateState = "idle";
     downloadedUpdateVersion = null;
+    trustedWindowsUpdate = null;
+    windowsDownloadedUpdateVerified = false;
     refreshTrayMenu();
     publishDesktopUpdateStatus();
     void writeDiagnostic("update.not-available");
   });
   autoUpdater.on("download-progress", (progress) => { void writeDiagnostic("update.download-progress", { percent: progress.percent }); });
   autoUpdater.on("update-downloaded", (info) => {
-    updateState = "downloaded";
-    downloadedUpdateVersion = info?.version || downloadedUpdateVersion;
-    refreshTrayMenu();
-    publishDesktopUpdateStatus();
-    void writeDiagnostic("update.downloaded", { version: downloadedUpdateVersion });
-    void promptForDownloadedUpdate(downloadedUpdateVersion).catch((error) => {
-      promptedUpdateVersion = null;
-      void writeDiagnostic("update.prompt-failed", { message: error.message });
+    void (async () => {
+      if (process.platform === "win32") {
+        if (!trustedWindowsUpdate || trustedWindowsUpdate.version !== info?.version) {
+          throw new Error("Downloaded Windows update has no matching trusted manifest");
+        }
+        await verifyDownloadedWindowsUpdate({
+          path: info.downloadedFile,
+          manifest: trustedWindowsUpdate,
+        });
+        windowsDownloadedUpdateVerified = true;
+        autoUpdater.autoInstallOnAppQuit = true;
+      }
+      updateState = "downloaded";
+      downloadedUpdateVersion = info?.version || downloadedUpdateVersion;
+      refreshTrayMenu();
+      publishDesktopUpdateStatus();
+      await writeDiagnostic("update.downloaded", { version: downloadedUpdateVersion });
+      await promptForDownloadedUpdate(downloadedUpdateVersion).catch((error) => {
+        promptedUpdateVersion = null;
+        void writeDiagnostic("update.prompt-failed", { message: error.message });
+      });
+    })().catch(async (error) => {
+      if (process.platform !== "win32") {
+        await writeDiagnostic("update.download-handler-failed", { message: error.message });
+        return;
+      }
+      autoUpdater.autoInstallOnAppQuit = false;
+      updateState = "idle";
+      downloadedUpdateVersion = null;
+      windowsDownloadedUpdateVerified = false;
+      refreshTrayMenu();
+      publishDesktopUpdateStatus();
+      await writeDiagnostic("update.windows-package-blocked", { message: error.message });
     });
   });
   autoUpdater.on("error", (error) => {
@@ -640,6 +719,7 @@ const configureAutoUpdater = () => {
     if (updateState !== "downloaded") {
       updateState = "idle";
       downloadedUpdateVersion = null;
+      windowsDownloadedUpdateVerified = false;
     }
     refreshTrayMenu();
     publishDesktopUpdateStatus();
@@ -911,6 +991,7 @@ app.whenReady().then(async () => {
     return result;
   });
   ipcMain.handle("desktop:sidecar-status", () => ({ available: Boolean(sidecar), path: sidecarPath, scope: sidecarScopeKey }));
+  ipcMain.handle("desktop:system-info", () => desktopRuntimeSystemInfo());
   ipcMain.handle("desktop:set-account-scope", async (_event, accountId) => {
     const normalizedAccountId = typeof accountId === "string" && accountId.trim() ? accountId.trim() : null;
     const nextScopeKey = accountScopeKey(configuredApiBaseUrl, normalizedAccountId);
@@ -1044,7 +1125,7 @@ app.whenReady().then(async () => {
     await checkForDesktopUpdate("manual", { force: true, throwOnError: true });
     return desktopUpdateStatus();
   });
-  ipcMain.handle("desktop:download-update", () => autoUpdater.downloadUpdate());
+  ipcMain.handle("desktop:download-update", () => downloadTrustedDesktopUpdate("manual-download"));
   ipcMain.handle("desktop:install-update", () => installDownloadedUpdate());
   ipcMain.handle("desktop:stage-resource", async (_event, input) => {
     const { memoId, name, type, bytes } = normalizeStagedResourceInput(input);

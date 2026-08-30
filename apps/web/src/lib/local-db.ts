@@ -1,6 +1,13 @@
 import type { MemoDetail, MemoRevision, MemoTemplate, Notebook, ResourceListItem, TiptapDoc } from "@edgeever/shared";
 import Dexie, { type Table } from "dexie";
 
+export const LOCAL_DATABASE_INTERRUPTED_EVENT = "edgeever:local-database-interrupted";
+
+const notifyLocalDatabaseInterrupted = (reason: "blocked" | "versionchange") => {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent(LOCAL_DATABASE_INTERRUPTED_EVENT, { detail: { reason } }));
+};
+
 export type LocalDraft = {
   memoId: string;
   expectedRevision?: number;
@@ -103,6 +110,8 @@ class EdgeEverLocalDb extends Dexie {
 
   constructor() {
     super("edgeever-local");
+    this.on("blocked", () => notifyLocalDatabaseInterrupted("blocked"));
+    this.on("versionchange", () => notifyLocalDatabaseInterrupted("versionchange"));
     this.version(1).stores({
       drafts: "memoId, updatedAt",
     });

@@ -1,4 +1,22 @@
-import { createExcerpt, docToMarkdown, docToText, markdownToDoc, mergeMemoDocs, resolveMemoContentDoc, resolveMergedMemoTitle, type MemoDetail, type MemoRevision, type MemoSummary, type MemoTemplate, type Notebook, type ResourceListItem, type TagSummary, type TiptapDoc } from "@edgeever/shared";
+import {
+  createExcerpt,
+  docToMarkdown,
+  docToText,
+  hasSyncCursorRewound,
+  hasSyncStateReset,
+  markdownToDoc,
+  mergeMemoDocs,
+  resolveMemoContentDoc,
+  resolveMergedMemoTitle,
+  type MemoDetail,
+  type MemoRevision,
+  type MemoSummary,
+  type MemoTemplate,
+  type Notebook,
+  type ResourceListItem,
+  type TagSummary,
+  type TiptapDoc,
+} from "@edgeever/shared";
 import { liveQuery } from "dexie";
 import type { MemoFilterMode, MemoSortMode } from "@/lib/app-helpers";
 import { api, type SyncChangesResponse } from "@/lib/api";
@@ -38,8 +56,7 @@ export const createLocalDataScope = (baseUrl: string, userId?: string | null) =>
 const getMeta = async (scope: string, key: string) =>
   (await localDb.syncMeta.get([scope, key]))?.value ?? null;
 
-export const hasLocalSyncCursorRewound = (localCursor: number, serverCursor?: number) =>
-  typeof serverCursor === "number" && Number.isFinite(serverCursor) && serverCursor < localCursor;
+export const hasLocalSyncCursorRewound = hasSyncCursorRewound;
 
 export const isLocalMirrorInitialized = async (scope: string) => Boolean(await getMeta(scope, SYNC_IDENTITY_KEY));
 
@@ -147,10 +164,10 @@ const performSyncLocalMirror = async (scope: string) => {
   let currentCursor = cursor;
   let response = await api.syncChanges({ cursor: currentCursor, limit: CHANGE_PAGE_SIZE });
 
-  if (
-    hasLocalSyncCursorRewound(currentCursor, response.serverCursor) ||
-    (response.syncIdentity && response.syncIdentity !== storedIdentity)
-  ) {
+  if (hasSyncStateReset(
+    { cursor: currentCursor, syncIdentity: storedIdentity },
+    response,
+  )) {
     // Restoring or clearing a server database can restart the change-log
     // sequence without replacing the workspace row. In that case the saved
     // browser cursor is ahead of the server and an incremental request looks
@@ -172,7 +189,11 @@ const performSyncLocalMirror = async (scope: string) => {
   if (response.syncIdentity) {
     await setMeta(scope, SYNC_IDENTITY_KEY, response.syncIdentity);
   }
-  if (response.serverCursor > currentCursor && response.changes.length === 0) {
+  if (
+    typeof response.serverCursor === "number"
+    && response.serverCursor > currentCursor
+    && response.changes.length === 0
+  ) {
     await setMeta(scope, SYNC_CURSOR_KEY, String(response.cursor));
   }
   return { bootstrapped: false, changed };

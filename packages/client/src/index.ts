@@ -19,6 +19,7 @@ import type {
   Resource,
   ResourceListItem,
   ResourceStorageSummary,
+  ObjectStorageSettings,
   PublicMemoShare,
   TagSummary,
   TiptapDoc,
@@ -33,13 +34,42 @@ import type {
   AiTagSuggestionPromptUpdateInput,
   AiTagSuggestionsRequestInput,
   AiTagSuggestionsResponse,
+  SyncBootstrapResponse,
+  SyncChange,
+  SyncChangesResponse,
 } from "@edgeever/shared";
 
+export type EdgeEverClientRequestContext = {
+  path: string;
+  token?: string;
+};
+
 export type EdgeEverClientOptions = {
-  baseUrl?: string;
-  token?: string | null;
+  baseUrl?: string | (() => string);
+  token?: string | null | (() => string | null | undefined);
   fetch?: typeof fetch;
-  onUnauthorized?: () => void;
+  beforeRequest?: (context: EdgeEverClientRequestContext) => void | Promise<void>;
+  shouldAttachToken?: (path: string) => boolean;
+  onUnauthorized?: (context: EdgeEverClientRequestContext) => void | Promise<void>;
+};
+
+export type InstanceHealth = {
+  ok: true;
+  name: string;
+  runtime?: string | null;
+  authMode?: string | null;
+  build?: string | null;
+  migration?: string | null;
+  storage?: {
+    database?: "d1" | "sqlite" | string | null;
+    resources?: "r2" | "filesystem" | "s3" | string | null;
+  } | null;
+  objectStorageProvider?: "builtin" | "s3" | "unknown" | string | null;
+};
+
+export type InstanceRelease = {
+  version: string;
+  changes: Record<string, readonly string[]>;
 };
 
 export type MemoFilterMode = "all" | "tagged" | "untagged" | "pinned";
@@ -83,6 +113,11 @@ export type UserResponse = {
 
 export type ListLoginDeviceSessionsResponse = {
   sessions: LoginDeviceSession[];
+};
+
+export type ObjectStorageSettingsResponse = {
+  settings: ObjectStorageSettings;
+  externalSettings?: ObjectStorageSettings | null;
 };
 
 export type MemoResponse = {
@@ -141,31 +176,14 @@ export type AiProviderUpdatePayload = {
   isEnabled: boolean;
 };
 
-export type MobileSyncBootstrapPage = {
-  notebooks: Notebook[];
-  memos: MemoDetail[];
-  snapshotCursor: number;
-  syncIdentity?: string;
-  totalCount: number;
-  nextAfterId: string | null;
-};
+/** @deprecated Use SyncBootstrapResponse; kept for mobile source compatibility. */
+export type MobileSyncBootstrapPage = SyncBootstrapResponse;
 
-export type MobileSyncChange = {
-  cursor: number;
-  entityType: "notebook" | "memo";
-  entityId: string;
-  operation: "upsert" | "delete";
-  notebook: Notebook | null;
-  memo: MemoDetail | null;
-};
+/** @deprecated Use SyncChange; kept for mobile source compatibility. */
+export type MobileSyncChange = SyncChange;
 
-export type MobileSyncChangesPage = {
-  changes: MobileSyncChange[];
-  cursor: number;
-  hasMore: boolean;
-  serverCursor?: number;
-  syncIdentity?: string;
-};
+/** @deprecated Use SyncChangesResponse; kept for mobile source compatibility. */
+export type MobileSyncChangesPage = SyncChangesResponse;
 
 export class ApiRequestError extends Error {
   status: number;
@@ -195,58 +213,115 @@ export type ApiResponseDiagnostics = {
   rayId?: string;
 };
 
+export type { SyncBootstrapResponse, SyncChangesResponse };
+
 export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
-  const fetchImpl = options.fetch ?? fetch;
-  const baseUrl = normalizeBaseUrl(options.baseUrl);
+  const getFetch = () => options.fetch ?? globalThis.fetch;
+  const getBaseUrl = () => normalizeBaseUrl(
+    typeof options.baseUrl === "function" ? options.baseUrl() : options.baseUrl,
+  );
+  const getToken = () => {
+    const token = typeof options.token === "function" ? options.token() : options.token;
+    return token || undefined;
+  };
 
-  const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
+  const send = async (
+    path: string,
+    init?: RequestInit,
+    requestOptions?: { attachToken?: boolean; setJsonContentType?: boolean },
+  ) => {
+    const token = getToken();
+    const context: EdgeEverClientRequestContext = { path, ...(token ? { token } : {}) };
+    await options.beforeRequest?.(context);
+
     const headers = new Headers(init?.headers);
+    const attachToken = requestOptions?.attachToken
+      ?? options.shouldAttachToken?.(path)
+      ?? true;
 
-    if (options.token && !headers.has("Authorization")) {
-      headers.set("Authorization", `Bearer ${options.token}`);
+    if (token && attachToken && !headers.has("Authorization")) {
+      headers.set("Authorization", `Bearer ${token}`);
     }
 
-    if (!(init?.body instanceof FormData) && !headers.has("Content-Type")) {
+    if (
+      requestOptions?.setJsonContentType !== false
+      && !(init?.body instanceof FormData)
+      && !headers.has("Content-Type")
+    ) {
       headers.set("Content-Type", "application/json");
     }
 
-    const response = await fetchImpl(`${baseUrl}${path}`, {
+    const requestUrl = isAbsoluteHttpUrl(path) ? path : `${getBaseUrl()}${path}`;
+    const response = await getFetch()(requestUrl, {
       credentials: "include",
       ...init,
       headers,
     });
 
+    return { context, response };
+  };
+
+  const throwRequestError = async (
+    context: EdgeEverClientRequestContext,
+    response: Response,
+    fallbackMessage = "Request failed",
+  ): Promise<never> => {
+    const body = await response.json().catch(() => null);
+    const rayId = response.headers.get("cf-ray")?.trim();
+    const error =
+      body && typeof body === "object" && "error" in body
+        ? (body as { error?: { code?: string; message?: string; details?: unknown } }).error
+        : undefined;
+    const responseDiagnostics: ApiResponseDiagnostics = {
+      cloudflareMitigated: response.headers.get("cf-mitigated") === "challenge",
+      isEdgeEverApiError: Boolean(error && typeof error === "object"),
+      ...(rayId ? { rayId } : {}),
+    };
+
+    if (response.status === 401) {
+      void options.onUnauthorized?.(context);
+    }
+
+    throw new ApiRequestError(
+      error?.message || response.statusText || fallbackMessage,
+      response.status,
+      error?.code,
+      error?.details,
+      responseDiagnostics,
+    );
+  };
+
+  const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
+    const { context, response } = await send(path, init);
+
     if (!response.ok) {
-      const body = await response.json().catch(() => null);
-      const rayId = response.headers.get("cf-ray")?.trim();
-      const error =
-        body && typeof body === "object" && "error" in body
-          ? (body as { error?: { code?: string; message?: string; details?: unknown } }).error
-          : undefined;
-      const message = error?.message ?? response.statusText;
-      const responseDiagnostics: ApiResponseDiagnostics = {
-        cloudflareMitigated: response.headers.get("cf-mitigated") === "challenge",
-        isEdgeEverApiError: Boolean(error && typeof error === "object"),
-        ...(rayId ? { rayId } : {}),
-      };
-
-      if (response.status === 401) {
-        options.onUnauthorized?.();
-      }
-
-      throw new ApiRequestError(
-        message || "Request failed",
-        response.status,
-        error?.code,
-        error?.details,
-        responseDiagnostics,
-      );
+      await throwRequestError(context, response);
     }
 
     return response.json() as Promise<T>;
   };
 
+  const requestBlob = async (path: string) => {
+    const isAbsolute = isAbsoluteHttpUrl(path);
+    const { context, response } = await send(path, undefined, {
+      attachToken: !isAbsolute,
+      setJsonContentType: false,
+    });
+    if (!response.ok) await throwRequestError(context, response, "Resource download failed");
+    return response.blob();
+  };
+
+  const requestArrayBuffer = async (path: string) => {
+    const { context, response } = await send(path, undefined, { setJsonContentType: false });
+    if (!response.ok) await throwRequestError(context, response, "Binary download failed");
+    return response.arrayBuffer();
+  };
+
   return {
+    getInstanceHealth: () => request<InstanceHealth>("/api/health"),
+
+    getInstanceRelease: () => request<InstanceRelease>("/api/release"),
+
     getSession: () => request<AuthSession>("/api/v1/auth/session"),
 
     getPublicMemoShare: (token: string) =>
@@ -257,6 +332,12 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
 
     revokeLoginDeviceSession: (sessionId: string) =>
       request<{ ok: true }>(`/api/v1/auth/sessions/${sessionId}`, { method: "DELETE" }),
+
+    updateLoginDeviceSession: (sessionId: string, payload: { label: string | null }) =>
+      request<{ ok: true }>(`/api/v1/auth/sessions/${sessionId}`, {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      }),
 
     revokeOtherLoginDeviceSessions: () =>
       request<{ ok: true }>("/api/v1/auth/sessions", { method: "DELETE" }),
@@ -272,6 +353,39 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
         method: "POST",
         body: JSON.stringify(payload),
       }),
+
+    getObjectStorageSettings: () =>
+      request<ObjectStorageSettingsResponse>("/api/v1/instance/object-storage"),
+
+    testObjectStorageConnection: (payload: {
+      endpoint: string;
+      region: string;
+      bucket: string;
+      accessKeyId: string;
+      secretAccessKey?: string;
+      forcePathStyle: boolean;
+      objectPrefix: string;
+    }) => request<{ ok: true }>("/api/v1/instance/object-storage/test", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+    updateObjectStorageSettings: (payload:
+      | { provider: "builtin" }
+      | {
+          provider: "s3";
+          displayName: string;
+          endpoint: string;
+          region: string;
+          bucket: string;
+          accessKeyId: string;
+          secretAccessKey?: string;
+          forcePathStyle: boolean;
+          objectPrefix: string;
+        }) => request<ObjectStorageSettingsResponse>("/api/v1/instance/object-storage", {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
 
     getAiSettings: (locale?: string) => {
       const search = locale ? `?locale=${encodeURIComponent(locale)}` : "";
@@ -295,7 +409,12 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
         method: "DELETE",
       }),
 
-    testAiProvider: (providerConfigId: string, payload: { modelId: string }) =>
+    testAiProvider: (providerConfigId: string, payload: {
+      modelId: string;
+      provider?: AiProvider;
+      baseUrl?: string;
+      apiKey?: string;
+    }) =>
       request<{ ok: true; response: string }>(`/api/v1/ai/providers/${encodeURIComponent(providerConfigId)}/test`, {
         method: "POST",
         body: JSON.stringify(payload),
@@ -374,19 +493,14 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
       payload: AiGenerateInput,
       streamOptions: { signal?: AbortSignal; onEvent: (event: AiStreamEvent) => void },
     ) => {
-      const headers = new Headers({ "Content-Type": "application/json" });
-      if (options.token) headers.set("Authorization", `Bearer ${options.token}`);
-      const response = await fetchImpl(`${baseUrl}/api/v1/ai/generate`, {
+      const path = "/api/v1/ai/generate";
+      const { context, response } = await send(path, {
         method: "POST",
-        credentials: "include",
-        headers,
         body: JSON.stringify(payload),
         signal: streamOptions.signal,
       });
       if (!response.ok) {
-        const body = await response.json().catch(() => null) as { error?: { code?: string; message?: string } } | null;
-        if (response.status === 401) options.onUnauthorized?.();
-        throw new ApiRequestError(body?.error?.message || response.statusText, response.status, body?.error?.code);
+        await throwRequestError(context, response);
       }
       if (!response.body) throw new ApiRequestError("Streaming response is unavailable", 502, "ai_stream_unavailable");
       const reader = response.body.getReader();
@@ -429,6 +543,20 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
 
     listNotebooks: () => request<ListNotebooksResponse>("/api/v1/notebooks"),
 
+    syncBootstrap: (params?: { afterId?: string | null; limit?: number }) => {
+      const search = new URLSearchParams();
+      if (params?.afterId) search.set("afterId", params.afterId);
+      if (params?.limit) search.set("limit", String(params.limit));
+      const suffix = search.toString() ? `?${search.toString()}` : "";
+      return request<SyncBootstrapResponse>(`/api/v1/sync/bootstrap${suffix}`);
+    },
+
+    syncChanges: (params: { cursor: number; limit?: number }) => {
+      const search = new URLSearchParams({ cursor: String(params.cursor) });
+      if (params.limit) search.set("limit", String(params.limit));
+      return request<SyncChangesResponse>(`/api/v1/sync/changes?${search.toString()}`);
+    },
+
     getMobileSyncBootstrapPage: (afterId: string | null = null, limit = 100) => {
       const search = new URLSearchParams({ limit: String(limit) });
       if (afterId) {
@@ -455,6 +583,11 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
     deleteNotebook: (notebookId: string) =>
       request<{ ok: true }>(`/api/v1/notebooks/${notebookId}`, {
         method: "DELETE",
+      }),
+
+    restoreNotebook: (notebookId: string) =>
+      request<NotebookResponse>(`/api/v1/notebooks/${notebookId}/restore`, {
+        method: "POST",
       }),
 
     listTags: () => request<ListTagsResponse>("/api/v1/tags"),
@@ -550,11 +683,37 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
 
     listTemplates: () => request<ListTemplatesResponse>("/api/v1/templates"),
 
+    createTemplate: (payload: {
+      name: string;
+      description?: string | null;
+      memoId?: string;
+      title?: string | null;
+      contentMarkdown?: string;
+      tags?: string[];
+    }) => request<TemplateResponse>("/api/v1/templates", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+    updateTemplate: (templateId: string, payload: {
+      name?: string;
+      description?: string | null;
+      title?: string | null;
+      contentMarkdown?: string;
+      tags?: string[];
+    }) => request<TemplateResponse>(`/api/v1/templates/${templateId}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+
     useTemplate: (templateId: string, notebookId: string) =>
       request<MemoResponse>(`/api/v1/templates/${templateId}/use`, {
         method: "POST",
         body: JSON.stringify({ notebookId }),
       }),
+
+    deleteTemplate: (templateId: string) =>
+      request<{ ok: true }>(`/api/v1/templates/${templateId}`, { method: "DELETE" }),
 
     moveMemos: (payload: { memoIds: string[]; notebookId: string }) =>
       request<{ ok: true; moved: number }>("/api/v1/memos/batch/move", {
@@ -657,34 +816,25 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
       });
     },
 
-    getResourceBlob: async (resourceUrl: string) => {
-      const headers = new Headers();
+    getResourceBlob: (resourceUrl: string) => requestBlob(resourceUrl),
 
-      if (options.token) {
-        headers.set("Authorization", `Bearer ${options.token}`);
-      }
+    downloadGithubPluginAsset: (
+      owner: string,
+      repository: string,
+      assetId: number,
+      assetName: "manifest.json" | "main.js" | "styles.css",
+    ) => requestArrayBuffer(
+      `/api/v1/plugins/github/${encodeURIComponent(owner)}/${encodeURIComponent(repository)}/assets/${assetId}/${encodeURIComponent(assetName)}`,
+    ),
 
-      const response = await fetchImpl(`${baseUrl}${resourceUrl}`, {
-        credentials: "include",
-        headers,
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          options.onUnauthorized?.();
-        }
-
-        throw new ApiRequestError(response.statusText || "Resource download failed", response.status);
-      }
-
-      return response.blob();
-    },
-
-    uploadMemoResource: (memoId: string, file: FormData) =>
-      request<ResourceResponse>(`/api/v1/memos/${memoId}/resources`, {
+    uploadMemoResource: (memoId: string, file: Blob | FormData) => {
+      const form = file instanceof FormData ? file : new FormData();
+      if (!(file instanceof FormData)) form.append("file", file);
+      return request<ResourceResponse>(`/api/v1/memos/${memoId}/resources`, {
         method: "POST",
-        body: file,
-      }),
+        body: form,
+      });
+    },
 
     updateMemo: (
       memoId: string,
@@ -730,6 +880,11 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
         method: "POST",
         body: JSON.stringify(payload),
       }),
+
+    resetDemo: () =>
+      request<{ success: true }>("/api/v1/demo/reset", {
+        method: "POST",
+      }),
   };
 };
 
@@ -740,3 +895,5 @@ const normalizeBaseUrl = (value?: string) => {
 
   return value.replace(/\/+$/, "");
 };
+
+const isAbsoluteHttpUrl = (value: string) => /^https?:\/\//i.test(value);

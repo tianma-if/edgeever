@@ -1,50 +1,57 @@
 import type { MemoDetail, MemoSummary, MemoTemplate, Notebook, ResourceListItem, ResourceStorageSummary } from "./types";
 import type { TiptapDoc } from "./content";
 
-export type DesktopRpcMethod =
-  | "system.info"
-  | "storage.health"
-  | "storage.backup"
-  | "storage.backups"
-  | "storage.restore"
-  | "sync.status"
-  | "sync.bootstrap.prepare"
-  | "notebook.list"
-  | "notebook.create"
-  | "notebook.update"
-  | "notebook.delete"
-  | "notebook.restore"
-  | "template.list"
-  | "template.cache"
-  | "template.create"
-  | "template.update"
-  | "template.delete"
-  | "resource.list"
-  | "resource.cache"
-  | "resource.delete"
-  | "tag.list"
-  | "tag.rename"
-  | "tag.delete"
-  | "memo.moveBatch"
-  | "memo.deleteBatch"
-  | "memo.emptyTrash"
-  | "memo.pinBatch"
-  | "memo.merge"
-  | "memo.list"
-  | "memo.get"
-  | "memo.create"
-  | "memo.update"
-  | "memo.delete"
-  | "memo.restore"
-  | "memo.revisions"
-  | "memo.restoreRevision"
-  | "memo.revision.cache"
-  | "sync.outbox.list"
-  | "sync.outbox.ack"
-  | "sync.outbox.fail"
-  | "sync.outbox.discard"
-  | "sync.apply"
-  | "sync.cursor.set";
+export const DESKTOP_SIDECAR_PROTOCOL_VERSION = 2;
+
+export const DESKTOP_RPC_METHODS = [
+  "system.info",
+  "storage.health",
+  "storage.backup",
+  "storage.backups",
+  "storage.restore",
+  "sync.status",
+  "sync.bootstrap.prepare",
+  "sync.outbox.list",
+  "sync.outbox.ack",
+  "sync.outbox.fail",
+  "sync.outbox.retry",
+  "sync.outbox.recoverMemoUpdate",
+  "sync.outbox.discard",
+  "sync.apply",
+  "sync.cursor.set",
+  "notebook.list",
+  "notebook.create",
+  "notebook.update",
+  "notebook.delete",
+  "notebook.restore",
+  "template.list",
+  "template.cache",
+  "template.create",
+  "template.update",
+  "template.delete",
+  "resource.list",
+  "resource.cache",
+  "resource.delete",
+  "tag.list",
+  "tag.rename",
+  "tag.delete",
+  "memo.moveBatch",
+  "memo.deleteBatch",
+  "memo.emptyTrash",
+  "memo.pinBatch",
+  "memo.merge",
+  "memo.list",
+  "memo.get",
+  "memo.create",
+  "memo.update",
+  "memo.delete",
+  "memo.restore",
+  "memo.revisions",
+  "memo.restoreRevision",
+  "memo.revision.cache",
+] as const;
+
+export type DesktopRpcMethod = (typeof DESKTOP_RPC_METHODS)[number];
 
 export type DesktopMemoListParams = {
   notebookId?: string | null;
@@ -169,6 +176,17 @@ export type DesktopRpcParams = {
   "storage.backups": Record<string, never>;
   "storage.restore": { path: string };
 };
+
+type DesktopRpcContractMismatch =
+  | Exclude<DesktopRpcMethod, keyof DesktopRpcParams>
+  | Exclude<keyof DesktopRpcParams, DesktopRpcMethod>
+  | Exclude<DesktopRpcMethod, keyof DesktopRpcResponses>
+  | Exclude<keyof DesktopRpcResponses, DesktopRpcMethod>;
+
+type AssertNoDesktopRpcContractMismatch<Mismatch extends never> = Mismatch;
+
+export type DesktopRpcContractIsComplete =
+  AssertNoDesktopRpcContractMismatch<DesktopRpcContractMismatch>;
 
 export type DesktopOutboxItem = {
   id: number;

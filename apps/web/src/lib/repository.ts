@@ -39,8 +39,9 @@ import {
   type LocalMemoListParams,
   type LocalMemoListResponse,
 } from "@/lib/local-mirror";
-import { discardWebMemoConflict, getMemoUpdateQueueId, queueLocalAction, queueMemoCreate, queueMemoDelete, queueMemoRestore, queueMemoUpdate } from "@/lib/sync-queue";
+import { discardWebMemoConflict, getMemoUpdateQueueId, putMemoUpdateQueueItem, queueLocalAction, queueMemoCreate, queueMemoDelete, queueMemoRestore, queueMemoUpdate } from "@/lib/sync-queue";
 import { localDb, type MemoUpdateSyncPayload } from "@/lib/local-db";
+import { runLocalDatabaseOperationWithRecovery } from "@/lib/local-database-recovery";
 import { createDesktopRepository } from "@/lib/desktop-repository";
 import { isBrowserOffline } from "@/lib/network-status";
 import { notifySyncQueueDeferred } from "@/lib/sync-events";
@@ -472,8 +473,13 @@ export const createWebRepository = (scope: string): EdgeEverRepository => {
 
   async updateMemo(memo, input) {
     const payload: MemoUpdateSyncPayload = { ...input, memoId: memo.id };
-    const updated = await putLocalMemoUpdate(scope, memo, payload);
-    await queueMemoUpdate(payload, scope);
+    const updated = await runLocalDatabaseOperationWithRecovery(() =>
+      localDb.transaction("rw", [localDb.memos, localDb.syncQueue], async () => {
+        const nextMemo = await putLocalMemoUpdate(scope, memo, payload);
+        await putMemoUpdateQueueItem(payload, scope);
+        return nextMemo;
+      })
+    );
     notifySyncQueueDeferred();
     return { memo: updated, queued: true };
   },

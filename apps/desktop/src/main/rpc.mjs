@@ -1,11 +1,14 @@
 import { createInterface } from "node:readline";
 
+export const SIDECAR_PROTOCOL_VERSION = 2;
+
 export class SidecarRpcClient {
   #child;
   #nextId = 1;
   #pending = new Map();
   #ready = null;
   #readyMessage = null;
+  #readyError = null;
 
   constructor(child) {
     this.#child = child;
@@ -29,6 +32,15 @@ export class SidecarRpcClient {
     }
 
     if (message.event === "ready") {
+      if (message.protocolVersion !== SIDECAR_PROTOCOL_VERSION) {
+        const error = new Error(
+          `Unsupported EdgeEver sidecar protocol: expected ${SIDECAR_PROTOCOL_VERSION}, received ${message.protocolVersion ?? "unknown"}`,
+        );
+        this.#readyError = error;
+        this.#ready?.reject(error);
+        this.#ready = null;
+        return;
+      }
       this.#readyMessage = message;
       this.#ready?.resolve(message);
       this.#ready = null;
@@ -44,6 +56,7 @@ export class SidecarRpcClient {
 
   waitUntilReady(timeoutMs = 5000) {
     if (this.#readyMessage) return Promise.resolve(this.#readyMessage);
+    if (this.#readyError) return Promise.reject(this.#readyError);
     if (!this.#ready) {
       this.#ready = {};
       this.#ready.promise = new Promise((resolve, reject) => {

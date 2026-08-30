@@ -198,6 +198,43 @@ describe("database write optimizations", () => {
     sqlite.close();
   });
 
+  test("does not rewrite current demo seed data while listing notebooks", async () => {
+    const { database, sqlite } = createDatabase();
+    const resources = {
+      put: async () => {},
+    };
+    const request = () => fetchEdgeEverApp(
+      new Request("https://notes.example.com/api/v1/notebooks"),
+      {
+        storage: { db: database, resources },
+        EDGE_EVER_ALLOW_UNAUTHENTICATED: "true",
+        EDGE_EVER_DEMO_MODE: "true",
+      },
+      executionContext,
+    );
+
+    expect((await request()).status).toBe(200);
+    expect(sqlite.query(
+      "SELECT COUNT(*) AS count FROM memos WHERE id IN ('memo_demo_overview', 'memo_demo_overview_en')",
+    ).get().count).toBe(2);
+
+    const changesAfterSeed = sqlite.query("SELECT total_changes() AS count").get().count;
+    expect((await request()).status).toBe(200);
+    expect((await request()).status).toBe(200);
+    expect(sqlite.query("SELECT total_changes() AS count").get().count).toBe(changesAfterSeed);
+
+    sqlite.query("UPDATE memos SET title = 'Changed demo title' WHERE id = 'memo_demo_overview'").run();
+    const changesBeforeRepair = sqlite.query("SELECT total_changes() AS count").get().count;
+    expect((await request()).status).toBe(200);
+    expect(sqlite.query("SELECT title FROM memos WHERE id = 'memo_demo_overview'").get().title).not.toBe("Changed demo title");
+    expect(sqlite.query("SELECT total_changes() AS count").get().count).toBeGreaterThan(changesBeforeRepair);
+
+    const changesAfterRepair = sqlite.query("SELECT total_changes() AS count").get().count;
+    expect((await request()).status).toBe(200);
+    expect(sqlite.query("SELECT total_changes() AS count").get().count).toBe(changesAfterRepair);
+    sqlite.close();
+  });
+
   test("touches API tokens at most once per hour", async () => {
     const { database, sqlite } = createDatabase();
     const token = "edgeever_api_test_token";

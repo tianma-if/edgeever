@@ -1,7 +1,14 @@
 import type { createEdgeEverClient, ListMemosResponse, MemoFilterMode, MemoSortMode } from "@edgeever/client";
-import type { MemoDetail, MemoSummary, Notebook, TagSummary } from "@edgeever/shared";
+import {
+  hasSyncStateReset,
+  isSyncMetadataInitialized,
+  splitSyncBootstrapWriteBatches,
+  type MemoDetail,
+  type MemoSummary,
+  type Notebook,
+  type TagSummary,
+} from "@edgeever/shared";
 import * as SQLite from "expo-sqlite";
-import { hasMobileSyncCursorRewound, hasMobileSyncIdentityChanged, isMobileSyncMetadataInitialized, splitMobileBootstrapWriteBatches } from "./mobile-sync-protocol";
 import { summarizeMobileTags } from "./mobile-tags";
 
 const DATABASE_NAME = "edgeever-mobile.db";
@@ -50,7 +57,7 @@ export const isMobileLocalMirrorInitialized = async (scope: string) => {
   const metadata = new Map(rows.map((row) => [row.key, row.value]));
   const cursorValue = metadata.get("cursor");
   const identityValue = metadata.get("identity");
-  return isMobileSyncMetadataInitialized(cursorValue, identityValue);
+  return isSyncMetadataInitialized(cursorValue, identityValue);
 };
 
 export const listLocalNotebooks = async (scope: string): Promise<{ notebooks: Notebook[] }> => {
@@ -262,7 +269,7 @@ const performMobileLocalMirrorSync = async (
         snapshotCursor = page.snapshotCursor;
         snapshotIdentity = page.syncIdentity || "legacy";
       }
-      const writeBatches = splitMobileBootstrapWriteBatches(page.memos, BOOTSTRAP_WRITE_BATCH_SIZE);
+      const writeBatches = splitSyncBootstrapWriteBatches(page.memos, BOOTSTRAP_WRITE_BATCH_SIZE);
       for (const [batchIndex, memos] of writeBatches.entries()) {
         await db.withExclusiveTransactionAsync(async (tx) => {
           if (batchIndex === 0) {
@@ -290,7 +297,10 @@ const performMobileLocalMirrorSync = async (
 
   while (true) {
     const page = await client.getMobileSyncChanges(cursor, CHANGE_PAGE_SIZE);
-    if (hasMobileSyncCursorRewound(cursor, page.serverCursor) || hasMobileSyncIdentityChanged(syncIdentity, page.syncIdentity)) {
+    if (hasSyncStateReset(
+      { cursor, syncIdentity },
+      { serverCursor: page.serverCursor, syncIdentity: page.syncIdentity },
+    )) {
       // A restored/replaced server database can legitimately restart its
       // change sequence. Rebuild the mirror instead of treating the stale
       // local cursor as proof that no remote notes exist.

@@ -71,9 +71,12 @@ describe("native release planning", () => {
     const changedFiles = [
       ".github/workflows/desktop-build.yml",
       "scripts/create-mac-update-metadata.mjs",
+      "scripts/create-windows-update-metadata.mjs",
       "scripts/prepare-desktop-icons.mjs",
       "scripts/desktop-icns.mjs",
       "scripts/run-desktop-builder.mjs",
+      "scripts/sign-windows-update-manifest.mjs",
+      "scripts/verify-windows-update-release.mjs",
     ];
     expect(planNativeRelease("desktop", changedFiles)).toEqual({
       rebuild: true,

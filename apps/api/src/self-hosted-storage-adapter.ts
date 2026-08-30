@@ -4,6 +4,8 @@ import type {
   BlobObjectAdapter,
   BlobStoreAdapter,
   DatabaseAdapter,
+  DatabaseQueryResult,
+  PreparedStatementAdapter,
   RelationalDatabaseDialect,
   StorageAdapter,
 } from "./storage-contract";
@@ -20,7 +22,10 @@ export type SqliteDatabaseLike = {
 
 export const SELF_HOSTED_DATABASE_DIALECT: RelationalDatabaseDialect = "sqlite";
 
-class SqlitePreparedStatement {
+const sqliteResultMeta = (result: unknown): Record<string, unknown> =>
+  result && typeof result === "object" ? { ...result as Record<string, unknown> } : {};
+
+class SqlitePreparedStatement implements PreparedStatementAdapter {
   constructor(
     private readonly sqlite: SqliteDatabaseLike,
     readonly sql: string,
@@ -31,36 +36,48 @@ class SqlitePreparedStatement {
     return new SqlitePreparedStatement(this.sqlite, this.sql, bindings);
   }
 
-  async all() {
+  async all<T = Record<string, unknown>>(): Promise<DatabaseQueryResult<T>> {
     return {
-      results: this.sqlite.query(this.sql).all(...this.bindings),
+      results: this.sqlite.query(this.sql).all(...this.bindings) as T[],
       success: true,
       meta: {},
     };
   }
 
-  async first<T = Record<string, unknown>>() {
-    return (this.sqlite.query(this.sql).get(...this.bindings) as T | null | undefined) ?? null;
+  async first<T = unknown>(columnName: string): Promise<T | null>;
+  async first<T = Record<string, unknown>>(): Promise<T | null>;
+  async first<T>(columnName?: string): Promise<T | null> {
+    const row = this.sqlite.query(this.sql).get(...this.bindings);
+    if (row === null || row === undefined) return null;
+    if (columnName === undefined) return row as T;
+    if (typeof row !== "object" || !(columnName in row)) return null;
+    return (row as Record<string, unknown>)[columnName] as T;
   }
 
-  async run() {
-    this.sqlite.query(this.sql).run(...this.bindings);
-    return { success: true, meta: {} };
+  async run<T = Record<string, unknown>>(): Promise<DatabaseQueryResult<T>> {
+    const result = this.sqlite.query(this.sql).run(...this.bindings);
+    return { results: [], success: true, meta: sqliteResultMeta(result) };
   }
 }
 
-class SqliteDatabaseAdapter {
+class SqliteDatabaseAdapter implements DatabaseAdapter {
   constructor(private readonly sqlite: SqliteDatabaseLike) {}
 
   prepare(sql: string) {
     return new SqlitePreparedStatement(this.sqlite, sql);
   }
 
-  async batch(statements: SqlitePreparedStatement[]) {
-    const results: unknown[] = [];
+  async batch<T = unknown>(
+    statements: PreparedStatementAdapter[],
+  ): Promise<DatabaseQueryResult<T>[]> {
+    const results: DatabaseQueryResult<T>[] = [];
     this.sqlite.transaction(() => {
       for (const statement of statements) {
-        results.push(this.sqlite.query(statement.sql).run(...statement.bindings));
+        if (!(statement instanceof SqlitePreparedStatement)) {
+          throw new TypeError("SQLite batches can only execute statements prepared by the same adapter");
+        }
+        const result = this.sqlite.query(statement.sql).run(...statement.bindings);
+        results.push({ results: [], success: true, meta: sqliteResultMeta(result) });
       }
     })();
     return results;
@@ -164,6 +181,11 @@ export const createSelfHostedStorageAdapter = (
   sqlite: SqliteDatabaseLike,
   resourcesDirectory: string,
 ): StorageAdapter => ({
-  db: new SqliteDatabaseAdapter(sqlite) as unknown as DatabaseAdapter,
+  db: new SqliteDatabaseAdapter(sqlite),
   resources: createLocalBlobStore(resourcesDirectory),
+  diagnostics: {
+    database: "sqlite",
+    resources: "filesystem",
+    migrationTable: "_edgeever_migrations",
+  },
 });

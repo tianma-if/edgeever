@@ -31,6 +31,16 @@ actor APIClient {
         onUnauthorized = handler
     }
 
+    // MARK: - Instance diagnostics
+
+    func getInstanceHealth() async throws -> InstanceHealth {
+        try await request(path: "/api/health")
+    }
+
+    func getInstanceRelease() async throws -> InstanceRelease {
+        try await request(path: "/api/release")
+    }
+
     // MARK: - Auth
 
     func login(_ input: LoginInput) async throws -> AuthSession {

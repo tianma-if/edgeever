@@ -31,6 +31,15 @@ interface EdgeEverDesktopBridge {
   recordRendererError(details: DesktopRendererErrorDetails): Promise<{ recorded: true }>;
   openRendererIssue(details: DesktopRendererErrorDetails): Promise<{ opened: true }>;
   sidecarStatus(): Promise<{ available: boolean; path: string; scope: string }>;
+  systemInfo(): Promise<{
+    appVersion: string;
+    platform: string;
+    architecture: string;
+    osVersion: string;
+    osRelease: string;
+    electron: string;
+    chrome: string;
+  }>;
   setAccountScope(accountId: string | null): Promise<{ ready: true; scope: string }>;
   updateStatus(): Promise<DesktopUpdateStatus>;
   checkUpdate(): Promise<DesktopUpdateStatus>;

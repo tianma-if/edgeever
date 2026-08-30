@@ -6,7 +6,11 @@ const readSource = (path: string) => readFileSync(new URL(path, import.meta.url)
 const androidAssistantSource = readSource("../apps/mobile/src/components/MobileAiAssistantModal.tsx");
 const androidEditorSource = readSource("../apps/mobile/src/components/LocalTiptapEditor.tsx");
 const androidDetailSource = readSource("../apps/mobile/src/screens/WorkspaceMemoDetail.tsx");
-const androidWorkspaceSource = readSource("../apps/mobile/src/screens/WorkspaceScreen.tsx");
+const androidWorkspaceSource = [
+  readSource("../apps/mobile/src/screens/WorkspaceScreen.tsx"),
+  readSource("../apps/mobile/src/screens/WorkspaceEditors.tsx"),
+  readSource("../apps/mobile/src/screens/WorkspacePickers.tsx"),
+].join("\n");
 const androidSessionSource = readSource("../apps/mobile/src/lib/session.tsx");
 const iosAssistantSource = readSource("../apps/ios/EdgeEver/Features/Workspace/AiAssistantSheet.swift");
 const iosDetailSource = readSource("../apps/ios/EdgeEver/Features/Workspace/MemoDetailView.swift");

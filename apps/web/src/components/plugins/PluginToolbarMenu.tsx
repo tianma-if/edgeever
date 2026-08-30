@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { PluginPanelDialog } from "@/components/plugins/PluginPanelDialog";
+import { cn } from "@/lib/utils";
 import type {
   EdgeEverPluginHost,
   RegisteredPluginAction,
@@ -20,9 +21,11 @@ import type {
 
 const actionKey = (action: RegisteredPluginAction) => `${action.type}:${action.pluginId}:${action.id}`;
 
-export const PluginToolbarMenu = ({ host, onManage }: {
+export const PluginToolbarMenu = ({ host, onManage, align = "end", className }: {
   host: EdgeEverPluginHost;
   onManage: () => void;
+  align?: "start" | "center" | "end";
+  className?: string;
 }) => {
   const { t } = useTranslation();
   const snapshot = useSyncExternalStore(host.subscribe, host.getSnapshot, host.getSnapshot);
@@ -109,7 +112,7 @@ export const PluginToolbarMenu = ({ host, onManage }: {
             <TooltipTrigger asChild>
               <DropdownMenuTrigger asChild>
                 <Button
-                  className="relative hidden h-8 w-8 text-slate-500 hover:bg-slate-100 hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-emerald-500/70 lg:inline-flex"
+                  className={cn("relative hidden h-8 w-8 text-slate-500 hover:bg-slate-100 hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-emerald-500/70 lg:inline-flex", className)}
                   size="icon"
                   variant="ghost"
                   aria-label={t("plugins.toolbar.open")}
@@ -122,7 +125,7 @@ export const PluginToolbarMenu = ({ host, onManage }: {
             <TooltipContent side="bottom">{t("plugins.toolbar.open")}</TooltipContent>
           </Tooltip>
         </TooltipProvider>
-        <DropdownMenuContent align="end" className="w-72">
+        <DropdownMenuContent align={align} className="w-72">
           {snapshot.recentActions.length ? (
             <>
               <DropdownMenuLabel className="flex items-center gap-2 text-xs text-slate-500">

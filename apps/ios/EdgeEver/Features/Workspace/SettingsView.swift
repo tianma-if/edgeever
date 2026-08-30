@@ -20,6 +20,10 @@ struct SettingsView: View {
     @State private var tab: RootTab?
     @State private var showLocalePicker = false
     @State private var copiedSystemInfo = false
+    @State private var instanceHealth: InstanceHealth?
+    @State private var instanceVersion: String?
+    @State private var instanceLatencyMilliseconds: Int?
+    @State private var instanceDiagnosticsFailed = false
 
     private var title: String {
         switch tab {
@@ -68,6 +72,10 @@ struct SettingsView: View {
         }
         .background(AppTheme.background.ignoresSafeArea())
         .preferredColorScheme(env.preferences.colorScheme)
+        .task(id: tab) {
+            guard tab == .system else { return }
+            await loadInstanceDiagnostics()
+        }
     }
 
     // MARK: - Header (Android settingsHeader)
@@ -448,14 +456,28 @@ struct SettingsView: View {
                     .frame(minHeight: 44)
                 }
                 .buttonStyle(.plain)
-
-                ForEach(Array(systemInfoItems.enumerated()), id: \.offset) { index, item in
-                    infoRow(item.label, item.value, showBorder: true)
-                }
-                infoRow(env.preferences.t("实例", en: "Instance"),
-                        env.session.session?.baseUrl ?? "—",
-                        showBorder: true)
             }
+
+            systemInfoGroup(
+                title: env.preferences.t("云端实例", en: "Cloud instance"),
+                description: env.preferences.t("当前连接实例的版本与部署环境。", en: "Version and deployment environment for the connected instance."),
+                icon: "cloud",
+                items: cloudSystemInfoItems
+            )
+
+            systemInfoGroup(
+                title: env.preferences.t("当前客户端", en: "Current client"),
+                description: env.preferences.t("这台设备上的 EdgeEver 应用与运行环境。", en: "The EdgeEver app and runtime environment on this device."),
+                icon: "iphone",
+                items: clientSystemInfoItems
+            )
+
+            systemInfoGroup(
+                title: env.preferences.t("连接与同步", en: "Connection and sync"),
+                description: env.preferences.t("实例连接与本地同步队列状态。", en: "Connection and local sync queue status."),
+                icon: "arrow.triangle.2.circlepath",
+                items: connectionSystemInfoItems
+            )
 
             Button {
                 Task { await env.runSyncCycle() }
@@ -494,7 +516,7 @@ struct SettingsView: View {
         }
     }
 
-    private var systemInfoItems: [(label: String, value: String)] {
+    private var clientSystemInfoItems: [(label: String, value: String)] {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"
         let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "—"
         let language = env.preferences.localeCode == "system"
@@ -512,8 +534,110 @@ struct SettingsView: View {
         ]
     }
 
+    private var cloudSystemInfoItems: [(label: String, value: String)] {
+        var items: [(label: String, value: String)] = [
+            (env.preferences.t("实例版本", en: "Instance version"), instanceVersion.map { "v\($0.replacingOccurrences(of: "^v", with: "", options: .regularExpression))" } ?? unknownSystemInfoValue),
+            (env.preferences.t("实例构建", en: "Instance build"), instanceHealth?.build ?? unknownSystemInfoValue),
+            (env.preferences.t("数据库版本", en: "Database version"), instanceHealth?.migration ?? unknownSystemInfoValue),
+            (env.preferences.t("数据库后端", en: "Database backend"), databaseBackendLabel(instanceHealth?.storage?.database)),
+            (env.preferences.t("新上传对象存储", en: "New upload object storage"), objectStorageLabel(instanceHealth)),
+        ]
+        if instanceHealth?.objectStorageProvider == "s3" {
+            items.append((
+                env.preferences.t("已有附件", en: "Existing attachments"),
+                env.preferences.t("继续从原存储读取", en: "Read from original storage")
+            ))
+        }
+        items.append((
+            env.preferences.t("部署平台", en: "Deployment platform"),
+            deploymentPlatformLabel(instanceHealth?.runtime)
+        ))
+        return items
+    }
+
+    private var connectionSystemInfoItems: [(label: String, value: String)] {
+        let queueItems = env.session.dataScope.flatMap { try? env.outbox.listItems(scope: $0) } ?? []
+        let pending = queueItems.filter { $0.status == .pending || $0.status == .syncing }.count
+        let failed = queueItems.filter { $0.status == .error || $0.status == .conflict }.count
+        let connection = instanceHealth != nil
+            ? env.preferences.t("连接正常", en: "Connected")
+            : instanceDiagnosticsFailed
+                ? env.preferences.t("连接失败", en: "Connection failed")
+                : env.preferences.t("正在检查", en: "Checking")
+        return [
+            (env.preferences.t("实例连接", en: "Instance connection"), connection),
+            (env.preferences.t("请求耗时", en: "Request latency"), instanceLatencyMilliseconds.map { "\($0) ms" } ?? unknownSystemInfoValue),
+            (env.preferences.t("待同步", en: "Pending sync"), String(pending)),
+            (env.preferences.t("失败或冲突", en: "Failed or conflicted"), String(failed)),
+        ]
+    }
+
+    private var unknownSystemInfoValue: String {
+        env.preferences.t("未知", en: "Unknown")
+    }
+
+    private func databaseBackendLabel(_ backend: String?) -> String {
+        switch backend {
+        case "d1": return "D1"
+        case "sqlite": return "SQLite"
+        case let value?: return value
+        case nil: return unknownSystemInfoValue
+        }
+    }
+
+    private func objectStorageLabel(_ health: InstanceHealth?) -> String {
+        if health?.objectStorageProvider == "s3" {
+            return env.preferences.t("第三方 S3 兼容 OSS", en: "Third-party S3-compatible OSS")
+        }
+        guard health?.objectStorageProvider == "builtin" else { return unknownSystemInfoValue }
+        switch health?.storage?.resources {
+        case "r2": return env.preferences.t("内置 R2", en: "Built-in R2")
+        case "filesystem": return env.preferences.t("本地文件系统", en: "Local filesystem")
+        case "s3": return env.preferences.t("实例内置 S3 兼容存储", en: "Instance-provided S3-compatible storage")
+        default: return unknownSystemInfoValue
+        }
+    }
+
+    private func deploymentPlatformLabel(_ runtime: String?) -> String {
+        switch runtime {
+        case "cloudflare-workers": return "Cloudflare"
+        case "self-hosted-bun": return "Docker"
+        default: return unknownSystemInfoValue
+        }
+    }
+
     private var systemInfoText: String {
-        systemInfoItems.map { "\($0.label): \($0.value)" }.joined(separator: "\n")
+        [
+            systemInfoTextSection(env.preferences.t("云端实例", en: "Cloud instance"), items: cloudSystemInfoItems),
+            systemInfoTextSection(env.preferences.t("当前客户端", en: "Current client"), items: clientSystemInfoItems),
+            systemInfoTextSection(env.preferences.t("连接与同步", en: "Connection and sync"), items: connectionSystemInfoItems),
+        ].joined(separator: "\n\n")
+    }
+
+    private func systemInfoTextSection(_ title: String, items: [(label: String, value: String)]) -> String {
+        ([title] + items.map { "\($0.label): \($0.value)" }).joined(separator: "\n")
+    }
+
+    private func loadInstanceDiagnostics() async {
+        guard env.session.isSignedIn else {
+            instanceDiagnosticsFailed = true
+            return
+        }
+        instanceDiagnosticsFailed = false
+        let startedAt = Date()
+        do {
+            async let health = env.session.client.getInstanceHealth()
+            async let release = env.session.client.getInstanceRelease()
+            let (resolvedHealth, resolvedRelease) = try await (health, release)
+            instanceHealth = resolvedHealth
+            instanceVersion = resolvedRelease.version
+            instanceLatencyMilliseconds = max(0, Int(Date().timeIntervalSince(startedAt) * 1_000))
+        } catch {
+            instanceHealth = nil
+            instanceVersion = nil
+            instanceLatencyMilliseconds = nil
+            instanceDiagnosticsFailed = true
+        }
     }
 
     private var feedbackURL: URL? {
@@ -574,7 +698,28 @@ struct SettingsView: View {
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(AppTheme.border, lineWidth: 1)
-        )
+            )
+    }
+
+    private func systemInfoGroup(
+        title: String,
+        description: String,
+        icon: String,
+        items: [(label: String, value: String)]
+    ) -> some View {
+        settingsGroup(title: title, icon: icon) {
+            Text(description)
+                .font(.system(size: 12))
+                .foregroundStyle(AppTheme.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 12)
+
+            ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+                infoRow(item.label, item.value, showBorder: true)
+            }
+        }
     }
 
     private func preferenceBlock<Content: View>(

@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, ClipboardCopy, RefreshCw, RotateCcw, Trash2 } from "lucide-react";
-import type { DesktopOutboxItem, Notebook } from "@edgeever/shared";
+import { AlertTriangle, ExternalLink, RefreshCw, RotateCcw, Trash2 } from "lucide-react";
+import { buildGitHubFeedbackUrl, type DesktopOutboxItem, type Notebook } from "@edgeever/shared";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AppConfirmDialog } from "@/components/dialogs/ConfirmDialogs";
-import { copyTextToClipboard } from "@/lib/clipboard";
+import { getWebSystemInfoItems } from "@/components/settings/SystemInfoCard";
 import {
   createDesktopSyncDiagnosticText,
   discardDesktopSyncIssue,
@@ -37,7 +37,6 @@ export const DesktopSyncIssuesDialog = ({
   const [loading, setLoading] = useState(false);
   const [workingId, setWorkingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
   const [recovering, setRecovering] = useState<DesktopOutboxItem | null>(null);
   const [discarding, setDiscarding] = useState<DesktopOutboxItem | null>(null);
   const [recoveryNotebookId, setRecoveryNotebookId] = useState("");
@@ -47,6 +46,20 @@ export const DesktopSyncIssuesDialog = ({
     () => new Intl.DateTimeFormat(i18n.language, { dateStyle: "short", timeStyle: "medium" }),
     [i18n.language],
   );
+  const reportIssueUrl = useMemo(() => buildGitHubFeedbackUrl({
+    contentHeading: t("notebookPane.syncDetails.reportContentHeading"),
+    contentPrompt: t("notebookPane.syncDetails.reportContentPrompt"),
+    diagnostics: {
+      heading: t("notebookPane.syncDetails.reportDiagnosticsHeading"),
+      notice: t("notebookPane.syncDetails.reportDiagnosticsNotice"),
+      text: createDesktopSyncDiagnosticText(items),
+    },
+    privacyNotice: t("feedback.privacyNotice"),
+    systemInfo: getWebSystemInfoItems(t, i18n.language),
+    systemInfoHeading: t("feedback.systemInfoHeading"),
+    systemInfoNotice: t("feedback.systemInfoNotice"),
+    titlePrefix: t("notebookPane.syncDetails.reportTitlePrefix"),
+  }), [i18n.language, items, t]);
   const formatTime = (value: string | null | undefined) => {
     if (!value) return null;
     const time = new Date(value);
@@ -157,17 +170,18 @@ export const DesktopSyncIssuesDialog = ({
           </div>
 
           <DialogFooter className="gap-2 sm:justify-between">
-            <Button
-              variant="outline"
-              disabled={items.length === 0}
-              onClick={() => void copyTextToClipboard(createDesktopSyncDiagnosticText(items)).then((success) => {
-                if (!success) return;
-                setCopied(true);
-                window.setTimeout(() => setCopied(false), 1500);
-              })}
-            >
-              <ClipboardCopy className="mr-1.5 h-4 w-4" />
-              {copied ? t("common.copied") : t("notebookPane.syncDetails.copyDiagnostics")}
+            <Button variant="outline" disabled={items.length === 0} asChild={items.length > 0}>
+              {items.length > 0 ? (
+                <a href={reportIssueUrl} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="mr-1.5 h-4 w-4" />
+                  {t("notebookPane.syncDetails.reportIssue")}
+                </a>
+              ) : (
+                <span>
+                  <ExternalLink className="mr-1.5 h-4 w-4" />
+                  {t("notebookPane.syncDetails.reportIssue")}
+                </span>
+              )}
             </Button>
             <Button variant="outline" onClick={() => onOpenChange(false)}>{t("common.close")}</Button>
           </DialogFooter>

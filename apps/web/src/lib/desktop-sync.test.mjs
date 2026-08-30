@@ -145,10 +145,32 @@ describe("desktop sync failure handling", () => {
     }]);
 
     expect(diagnostic).toContain("memo_not_found");
+    expect(diagnostic).toContain('"totalItemCount": 1');
+    expect(diagnostic).not.toContain('"id": 7');
     expect(diagnostic).not.toContain("private-memo-id");
     expect(diagnostic).not.toContain("private note body");
     expect(diagnostic).not.toContain("memo_private123");
     expect(diagnostic).not.toContain("private.example.test");
+  });
+
+  test("bounds diagnostics for a prefilled GitHub Issue URL", () => {
+    const items = Array.from({ length: 200 }, (_, id) => ({
+      id,
+      kind: "memo.update",
+      entityId: `memo_private_${id}`,
+      payload: { contentMarkdown: "private note body" },
+      attemptCount: 99_999,
+      version: 1,
+      status: "error",
+      lastError: "Temporary failure ".repeat(40),
+      lastErrorCode: "network_error",
+      retryable: true,
+    }));
+    const diagnostic = createDesktopSyncDiagnosticText(items);
+
+    expect(diagnostic).toContain('"totalItemCount": 200');
+    expect(diagnostic).toContain('"includedItemCount": 5');
+    expect(encodeURIComponent(diagnostic).length).toBeLessThan(6_000);
   });
 
   test("allows remote pulls while durable errors are handled separately", () => {

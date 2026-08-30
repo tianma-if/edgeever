@@ -22,7 +22,11 @@ function job(name, startedAt, completedAt, packageDurationSeconds) {
         completed_at: packageStart,
       },
       {
-        name: name.startsWith("macOS") ? "Package desktop installer" : "Build signed release APK for GitHub Release",
+        name: name.startsWith("macOS")
+          ? "Package desktop installer"
+          : name.startsWith("Windows")
+            ? "Package unsigned Windows installer"
+            : "Build signed release APK for GitHub Release",
         conclusion: "success",
         started_at: packageStart,
         completed_at: packageEnd,
@@ -38,18 +42,24 @@ describe("native build timing reports", () => {
     expect(formatDuration(123_000)).toBe("2m 03s");
   });
 
-  test("reports both desktop architectures from Actions timestamps", () => {
+  test("reports both macOS architectures and Windows x64 from Actions timestamps", () => {
     const report = createTimingReport({
       jobs: [
         job("macOS arm64", "2026-08-13T00:00:00Z", "2026-08-13T00:06:00Z", 180),
         job("macOS x64", "2026-08-13T00:00:00Z", "2026-08-13T00:09:00Z", 360),
+        job("Windows x64 unsigned Preview", "2026-08-13T00:00:00Z", "2026-08-13T00:07:00Z", 240),
       ],
     }, "desktop", { runId: "123" });
 
     expect(report.runId).toBe("123");
-    expect(report.targets.map((target) => target.name)).toEqual(["macOS arm64", "macOS x64"]);
+    expect(report.targets.map((target) => target.name)).toEqual([
+      "macOS arm64",
+      "macOS x64",
+      "Windows x64 Preview",
+    ]);
     expect(report.targets[1].packageDurationMs).toBe(360_000);
     expect(renderTimingMarkdown(report)).toContain("| macOS x64 | success | 9m 00s | 1m 00s | 6m 00s | 2m 00s |");
+    expect(renderTimingMarkdown(report)).toContain("| Windows x64 Preview | success | 7m 00s | 1m 00s | 4m 00s | 2m 00s |");
   });
 
   test("selects the release Android package step", () => {

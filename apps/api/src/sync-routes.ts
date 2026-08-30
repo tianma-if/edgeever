@@ -40,6 +40,20 @@ type SyncRouteDependencies = {
   mapMemoDetail: (row: SyncMemoDetailRow) => MemoDetail;
 };
 
+// Cloudflare D1 accepts at most 100 bound parameters per query. Each detail
+// query also binds the workspace id, so keep entity batches comfortably below
+// that ceiling. A large import can place 200 distinct entities in one change
+// page; querying all of them in one IN clause would make sync return HTTP 500.
+const SYNC_DETAIL_ID_BATCH_SIZE = 90;
+
+const splitSyncDetailIds = (ids: string[]) => {
+  const batches: string[][] = [];
+  for (let index = 0; index < ids.length; index += SYNC_DETAIL_ID_BATCH_SIZE) {
+    batches.push(ids.slice(index, index + SYNC_DETAIL_ID_BATCH_SIZE));
+  }
+  return batches;
+};
+
 export const registerSyncRoutes = (
   app: Hono<AppEnv>,
   dependencies: SyncRouteDependencies,
@@ -150,33 +164,37 @@ export const registerSyncRoutes = (
     const notebookIds = Array.from(new Set(compactedPage
       .filter((change) => change.entity_type === "notebook" && change.operation === "upsert")
       .map((change) => change.entity_id)));
-    const memoPlaceholders = memoIds.map(() => "?").join(", ");
-    const notebookPlaceholders = notebookIds.map(() => "?").join(", ");
-    const [memoRows, notebookRows] = await Promise.all([
-      memoIds.length > 0
-        ? context.env.storage.db.prepare(
+    const [memoRowBatches, notebookRowBatches] = await Promise.all([
+      Promise.all(splitSyncDetailIds(memoIds).map((batch) => {
+        const placeholders = batch.map(() => "?").join(", ");
+        return context.env.storage.db.prepare(
           `SELECT m.id, m.notebook_id, m.title, m.excerpt, m.tags_json, m.is_pinned,
                   m.is_archived, m.is_deleted, m.created_at, m.updated_at, m.deleted_at, mc.revision,
                   mc.content_json, mc.content_markdown, mc.content_text, mc.content_hash,
                   m.source_memo_ids, m.merge_source_count, m.merged_into_memo_id
            FROM memos m
            INNER JOIN memo_contents mc ON mc.memo_id = m.id
-           WHERE m.workspace_id = ? AND m.id IN (${memoPlaceholders})`,
-        ).bind(workspaceId, ...memoIds).all<SyncMemoDetailRow>()
-        : Promise.resolve({ results: [] as SyncMemoDetailRow[] }),
-      notebookIds.length > 0
-        ? context.env.storage.db.prepare(
+           WHERE m.workspace_id = ? AND m.id IN (${placeholders})`,
+        ).bind(workspaceId, ...batch).all<SyncMemoDetailRow>();
+      })),
+      Promise.all(splitSyncDetailIds(notebookIds).map((batch) => {
+        const placeholders = batch.map(() => "?").join(", ");
+        return context.env.storage.db.prepare(
           `SELECT n.id, n.parent_id, n.name, n.slug, n.icon, n.color, n.sort_order,
                   n.created_at, n.updated_at, COUNT(m.id) AS memo_count, MAX(m.updated_at) AS last_memo_updated_at
            FROM notebooks n
            LEFT JOIN memos m ON m.notebook_id = n.id AND m.workspace_id = n.workspace_id AND m.is_deleted = 0
-           WHERE n.workspace_id = ? AND n.is_deleted = 0 AND n.id IN (${notebookPlaceholders})
+           WHERE n.workspace_id = ? AND n.is_deleted = 0 AND n.id IN (${placeholders})
            GROUP BY n.id, n.parent_id, n.name, n.slug, n.icon, n.color, n.sort_order, n.created_at, n.updated_at`,
-        ).bind(workspaceId, ...notebookIds).all<NotebookRow>()
-        : Promise.resolve({ results: [] as NotebookRow[] }),
+        ).bind(workspaceId, ...batch).all<NotebookRow>();
+      })),
     ]);
-    const memosById = new Map(memoRows.results.map((row) => [row.id, dependencies.mapMemoDetail(row)]));
-    const notebooksById = new Map(notebookRows.results.map((row) => [row.id, mapNotebook(row)]));
+    const memosById = new Map(memoRowBatches
+      .flatMap((batch) => batch.results)
+      .map((row) => [row.id, dependencies.mapMemoDetail(row)]));
+    const notebooksById = new Map(notebookRowBatches
+      .flatMap((batch) => batch.results)
+      .map((row) => [row.id, mapNotebook(row)]));
     const changes = compactedPage.map((change) => {
       if (change.entity_type === "memo") {
         const memo = change.operation === "upsert" ? memosById.get(change.entity_id) ?? null : null;

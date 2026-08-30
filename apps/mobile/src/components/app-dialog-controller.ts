@@ -1,7 +1,13 @@
 import type { AlertButton, AlertOptions } from "react-native";
 
+export type AppDialogButtonIcon = "github" | "google-play";
+
+export type AppDialogButton = AlertButton & {
+  icon?: AppDialogButtonIcon;
+};
+
 export type AppDialogRequest = {
-  buttons?: AlertButton[];
+  buttons?: AppDialogButton[];
   message?: string;
   options?: AlertOptions;
   title: string;

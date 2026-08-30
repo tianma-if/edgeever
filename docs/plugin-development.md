@@ -220,7 +220,7 @@ context.ui.panels.register({
 
 ## Desktop plugin entry
 
-After a plugin is enabled, a unified puzzle button appears in the top-right of the desktop editor and settings page. Its menu groups commands and panels by plugin, keeps recently used actions at the top, and links directly to extension management. Individual plugins do not each consume a toolbar icon.
+After a plugin is enabled, a unified puzzle button appears in the desktop workspace shortcuts on the left. Its menu groups commands and panels by plugin, keeps recently used actions at the top, and links directly to extension management. Individual plugins do not each consume a toolbar icon.
 
 ## Theme manifest
 

@@ -29,6 +29,26 @@ struct MobileSession: Codable, Equatable, Sendable {
     var user: AuthUser?
 }
 
+struct InstanceStorageDiagnostics: Codable, Equatable, Sendable {
+    var database: String?
+    var resources: String?
+}
+
+struct InstanceHealth: Codable, Equatable, Sendable {
+    var ok: Bool
+    var name: String
+    var runtime: String?
+    var authMode: String?
+    var build: String?
+    var migration: String?
+    var storage: InstanceStorageDiagnostics?
+    var objectStorageProvider: String?
+}
+
+struct InstanceRelease: Codable, Equatable, Sendable {
+    var version: String
+}
+
 struct LoginDeviceSession: Codable, Equatable, Sendable, Identifiable {
     var id: String
     var userAgent: String?

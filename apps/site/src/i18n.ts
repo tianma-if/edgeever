@@ -28,7 +28,7 @@ export const siteCopy = {
   "zh-CN": {
     layout: {
       defaultDescription:
-        "EdgeEver 是开源、原生支持 AI 的自托管笔记工作区。保留经典印象笔记三栏体验，覆盖 macOS、iOS、Android 与浏览器剪藏，支持在 Cloudflare 免费额度内运行或使用 Docker 一键自托管。",
+        "EdgeEver 是开源、原生支持 AI 的自托管笔记工作区。保留经典印象笔记三栏体验，覆盖 macOS、Windows 预览版、iOS、Android 与浏览器剪藏，支持在 Cloudflare 免费额度内运行或使用 Docker 一键自托管。",
       defaultTitle: `EdgeEver - ${siteTaglines["zh-CN"]}`,
       imageAlt: "EdgeEver 笔记应用截图",
       ogLocale: "zh_CN",
@@ -60,8 +60,10 @@ export const siteCopy = {
       popHighlight: "印象笔记开源经典平替 · 全平台客户端覆盖",
       demo: "在线演示",
       agentInstall: "一键 AI 部署",
+      windowsPreview: "Windows 预览版",
+      windowsPreviewWarning: "Windows x64 为未签名预览版，系统或组织策略可能警告或阻止安装。请仅从官方 GitHub Release 下载。",
       imageAlt: "EdgeEver product preview",
-      badgeText: "💡 全平台覆盖：macOS、iOS、Android、浏览器剪藏 · Cloudflare 免费额度 & Docker 一键安装",
+      badgeText: "💡 全平台覆盖：macOS、Windows 预览版、iOS、Android、浏览器剪藏 · Cloudflare 免费额度 & Docker 一键安装",
     },
     bento: {
       eyebrow: "WHY EDGEEVER",
@@ -116,7 +118,7 @@ export const siteCopy = {
       card5: {
         badge: "全端主权",
         title: "全平台客户端与无损 ZIP 归档",
-        desc: "覆盖 macOS（Electron+Rust+SQLite）、原生 iOS（SwiftUI）、Android 及剪藏插件；基于标准 SQLite 与无损 ZIP 导出，数据完全自主掌控。",
+        desc: "覆盖 macOS、Windows x64 预览版、原生 iOS（SwiftUI）、Android 及剪藏插件；基于标准 SQLite 与无损 ZIP 导出，数据完全自主掌控。",
         archiveTitle: "edgeever-backup.zip",
         archiveSub: "包含 Markdown、Front Matter、附件与历史版本",
       },
@@ -240,10 +242,11 @@ export const siteCopy = {
         },
         {
           title: "全平台客户端与多端同步",
-          summary: "覆盖 macOS、iOS、Android、浏览器剪藏插件与 Web/PWA，摆脱商业软件的设备数限制。",
+          summary: "覆盖 macOS、Windows x64 预览版、iOS、Android、浏览器剪藏插件与 Web/PWA，摆脱商业软件的设备数限制。",
           points: [
             "不限设备登录数：自建专属 API，彻底打碎商业笔记“免费版仅限 2 台设备”的枷锁。",
             "macOS 桌面端：基于 Electron + Rust sidecar + SQLite，兼顾极致本地性能与离线编辑同步。",
+            "Windows x64 预览版：提供本地 SQLite 与自动更新；当前未使用 Authenticode 签名，安装时可能出现系统或组织策略警告。",
             "移动原生端：iOS 原生 SwiftUI App（已上架 App Store）与 Android App（Google Play / APK），支持微信文章剪藏。",
             "浏览器剪藏插件：Chrome、Microsoft Edge 与 Firefox 商店全上架，一键捕获网页全文与书签。",
           ],
@@ -289,7 +292,7 @@ export const siteCopy = {
   "en-US": {
     layout: {
       defaultDescription:
-        "EdgeEver is an open-source, AI-native, self-hosted Evernote alternative. Enjoy a classic three-pane workspace across macOS, iOS, Android, and Web Clipper, running within Cloudflare's free tier or on Docker.",
+        "EdgeEver is an open-source, AI-native, self-hosted Evernote alternative. Enjoy a classic three-pane workspace across macOS, Windows Preview, iOS, Android, and Web Clipper, running within Cloudflare's free tier or on Docker.",
       defaultTitle: "Open-Source, Self-Hosted Evernote Alternative | EdgeEver",
       imageAlt: "EdgeEver notes app screenshot",
       ogLocale: "en_US",
@@ -321,8 +324,10 @@ export const siteCopy = {
       popHighlight: "Open-Source Evernote Alternative · Apps Across Platforms",
       demo: "Live demo",
       agentInstall: "Deploy with AI",
+      windowsPreview: "Windows Preview",
+      windowsPreviewWarning: "Windows x64 is an unsigned Preview. Windows or organization policy may warn or block it; download only from the official GitHub Release.",
       imageAlt: "EdgeEver product preview",
-      badgeText: "💡 All Platforms: macOS, iOS, Android, Web Clipper · Cloudflare Free Tier & 1-Line Docker Deploy",
+      badgeText: "💡 All Platforms: macOS, Windows Preview, iOS, Android, Web Clipper · Cloudflare Free Tier & 1-Line Docker Deploy",
     },
     bento: {
       eyebrow: "WHY EDGEEVER",
@@ -377,7 +382,7 @@ export const siteCopy = {
       card5: {
         badge: "Data Sovereignty",
         title: "Apps Across Platforms & Lossless ZIP Backup",
-        desc: "Available on macOS (Electron+Rust+SQLite), native iOS (SwiftUI), Android (Google Play/APK), and Web Clipper. Lossless ZIP export and standard SQLite provide full ownership.",
+        desc: "Available on macOS, Windows x64 Preview, native iOS (SwiftUI), Android (Google Play/APK), and Web Clipper. Lossless ZIP export and standard SQLite provide full ownership.",
         archiveTitle: "edgeever-backup.zip",
         archiveSub: "Markdown + Attachments + Revision History",
       },
@@ -501,10 +506,11 @@ export const siteCopy = {
         },
         {
           title: "Apps Across Platforms & Multi-Device Sync",
-          summary: "Available across macOS, iOS, Android, browser Web Clipper, and Web/PWA, freeing you from commercial device caps.",
+          summary: "Available across macOS, Windows x64 Preview, iOS, Android, browser Web Clipper, and Web/PWA, freeing you from commercial device caps.",
           points: [
             "Unlimited Devices: Self-hosted API eliminates commercial restrictions like the '2-device login limit'.",
             "macOS Desktop App: Electron + Rust sidecar + SQLite for blazing fast local performance and offline sync.",
+            "Windows x64 Preview: Local SQLite and automatic updates; the current build is not Authenticode-signed, so Windows or organization policy may warn or block installation.",
             "Mobile Native Apps: Native SwiftUI iOS App (on App Store) and Android App (on Google Play & GitHub APK).",
             "Web Clipper Extension: Official extensions on Chrome Web Store, Microsoft Edge, and Firefox Add-ons.",
           ],

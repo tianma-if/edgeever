@@ -1,9 +1,21 @@
+import { execSync } from "node:child_process";
 import { rm, stat } from "node:fs/promises";
 import { resolve, sep } from "node:path";
 import { build } from "esbuild";
 
 export const CLOUDFLARE_WORKER_OUTPUT_DIRECTORY = resolve(".wrangler/edgeever-worker");
 const normalizePath = (value) => value.replaceAll("\\", "/");
+const resolveBuildId = () => {
+  const environmentBuildId = process.env.WORKERS_CI_COMMIT_SHA
+    ?? process.env.CF_PAGES_COMMIT_SHA
+    ?? process.env.GITHUB_SHA;
+  if (environmentBuildId) return environmentBuildId.slice(0, 12);
+  try {
+    return execSync("git rev-parse --short=12 HEAD", { encoding: "utf8" }).trim();
+  } catch {
+    return "unknown";
+  }
+};
 
 export const buildCloudflareWorker = async () => {
   const generatedRoot = resolve(".wrangler");
@@ -32,6 +44,9 @@ export const buildCloudflareWorker = async () => {
     metafile: true,
     write: true,
     allowOverwrite: true,
+    define: {
+      __EDGEEVER_INSTANCE_BUILD_ID__: JSON.stringify(resolveBuildId()),
+    },
     outExtension: { ".js": ".js" },
   });
 

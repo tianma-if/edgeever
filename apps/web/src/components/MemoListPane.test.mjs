@@ -11,3 +11,11 @@ describe("memo context menu", () => {
     expect(source).not.toContain("contextMoveOpen");
   });
 });
+
+describe("desktop memo list spacing", () => {
+  test("reserves matching desktop scrollbar gutters on both sides", () => {
+    const source = readFileSync(new URL("./MemoListPane.tsx", import.meta.url), "utf8");
+
+    expect(source).toContain("lg:px-0 lg:pb-3 lg:[scrollbar-gutter:stable_both-edges]");
+  });
+});

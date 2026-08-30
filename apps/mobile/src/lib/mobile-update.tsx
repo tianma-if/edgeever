@@ -3,6 +3,7 @@ import Constants from "expo-constants";
 import { AppState, Linking, Platform, type AppStateStatus } from "react-native";
 import * as Updates from "expo-updates";
 import { Alert } from "../components/LocalizedText";
+import { openGooglePlayDetails } from "../../modules/edgeever-app-store";
 import { useMobileLocale } from "./mobile-locale";
 import {
   ANDROID_INSTALL_UPDATE_SOURCES,
@@ -10,6 +11,7 @@ import {
   type MobileInstallUpdateSource,
   type MobileRelease,
 } from "./mobile-release";
+import { openMobileInstallUpdateSource } from "./mobile-update-destination";
 
 const FOREGROUND_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
@@ -48,23 +50,60 @@ export const MobileUpdateProvider = ({ children }: { children: ReactNode }) => {
   const english = resolvedLocale === "en-US";
   const installedVersion = Updates.runtimeVersion ?? Constants.expoConfig?.version ?? null;
 
+  const showLinkError = useCallback(() => {
+    Alert.alert(
+      english ? "Could not open link" : "无法打开链接",
+      english ? "Check your browser settings and try again." : "请检查浏览器设置后重试。"
+    );
+  }, [english]);
+
   const openManualUpdateSource = useCallback((source: MobileInstallUpdateSource) => {
-    void Linking.openURL(source.url).catch(() => {
-      if (source.fallbackUrl) {
-        void Linking.openURL(source.fallbackUrl).catch(() => {
-          Alert.alert(
-            english ? "Could not open link" : "无法打开链接",
-            english ? "Check your browser settings and try again." : "请检查浏览器设置后重试。"
-          );
-        });
+    void openMobileInstallUpdateSource(source, {
+      openGooglePlayDetails,
+      openUrl: Linking.openURL,
+    }).then((result) => {
+      if (result.status !== "google-play-unavailable") {
         return;
       }
-      Alert.alert(
-        english ? "Could not open link" : "无法打开链接",
-        english ? "Check your browser settings and try again." : "请检查浏览器设置后重试。"
-      );
+      if (result.reason === "not-installed") {
+        Alert.alert(
+          english ? "Google Play is not installed" : "未安装 Google Play",
+          english
+            ? "Google Play Store is not installed on this device, so this update channel is unavailable."
+            : "这台设备未安装 Google Play 商店，无法通过该渠道更新。"
+        );
+        return;
+      }
+      const { fallbackUrl, reason } = result;
+      const copy = reason === "disabled"
+        ? {
+          message: english
+            ? "Google Play Store is disabled. Enable it in system settings, or open the web listing instead."
+            : "Google Play 商店已被停用，请先在系统设置中启用，或改用网页版。",
+          title: english ? "Google Play is disabled" : "Google Play 已停用",
+        }
+        : {
+          message: english
+            ? "Google Play Store could not handle this update link. Try again later, or open the web listing instead."
+            : "Google Play 商店无法处理这个更新链接，请稍后重试，或改用网页版。",
+          title: english ? "Could not open Google Play" : "无法打开 Google Play",
+        };
+      Alert.alert(copy.title, copy.message, [
+        {
+          text: english ? "Cancel" : "取消",
+          style: "cancel",
+        },
+        {
+          text: english ? "Open web listing" : "打开网页版",
+          onPress: () => {
+            void Linking.openURL(fallbackUrl).catch(showLinkError);
+          },
+        },
+      ]);
+    }).catch(() => {
+      showLinkError();
     });
-  }, [english]);
+  }, [english, showLinkError]);
 
   const openInstallUpdateOptions = useCallback((release: MobileRelease) => {
     const googlePlay = ANDROID_INSTALL_UPDATE_SOURCES.find((source) => source.id === "google-play");
@@ -83,10 +122,12 @@ export const MobileUpdateProvider = ({ children }: { children: ReactNode }) => {
           style: "cancel",
         },
         {
+          icon: "github",
           text: english ? github.labelEn : github.labelZh,
           onPress: () => openManualUpdateSource(github),
         },
         {
+          icon: "google-play",
           text: english ? googlePlay.labelEn : googlePlay.labelZh,
           onPress: () => openManualUpdateSource(googlePlay),
         },

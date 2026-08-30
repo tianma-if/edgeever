@@ -7,7 +7,6 @@ import {
   Plus,
   LayoutList,
   LayoutTemplate,
-  Sparkles,
   BookPlus,
   ArrowDownWideNarrow,
   Notebook as NotebookIcon,
@@ -24,7 +23,6 @@ import {
   Download,
   ExternalLink,
   RotateCcw,
-  Store,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -53,8 +51,10 @@ import {
   writeNotebookSortPreference,
 } from "@/lib/app-helpers";
 import type { EdgeEverRepository } from "@/lib/repository";
+import type { EdgeEverPluginHost } from "@/lib/plugins/plugin-host";
 import { statusSettleMotion } from "@/lib/motion";
 import { DesktopUpdateNotice } from "./DesktopUpdateNotice";
+import { PluginToolbarMenu } from "./plugins/PluginToolbarMenu";
 
 const DesktopSyncIssuesDialog = lazy(() => import("./DesktopSyncIssuesDialog").then((module) => ({ default: module.DesktopSyncIssuesDialog })));
 
@@ -349,8 +349,8 @@ export const NotebookPane = ({
   onOpenTags,
   onOpenAssets,
   onOpenTemplates,
-  onOpenAiPrompts,
-  onOpenPluginMarketplace,
+  pluginHost,
+  onOpenPluginManager,
   onOpenTrash,
   onEmptyTrash,
   onOpenSettings,
@@ -385,8 +385,8 @@ export const NotebookPane = ({
   onOpenTags: () => void;
   onOpenAssets: () => void;
   onOpenTemplates: () => void;
-  onOpenAiPrompts: () => void;
-  onOpenPluginMarketplace: () => void;
+  pluginHost: EdgeEverPluginHost;
+  onOpenPluginManager: () => void;
   onOpenTrash: () => void;
   onEmptyTrash: () => void;
   onOpenSettings: () => void;
@@ -522,12 +522,16 @@ export const NotebookPane = ({
       </header>
 
       <TooltipProvider delayDuration={0} skipDelayDuration={0}>
-        <nav className="grid shrink-0 grid-cols-2 gap-0.5 border-b border-slate-100 px-2 py-1.5 sm:grid-cols-3 lg:grid-cols-6" aria-label={t("notebookPane.secondaryEntries")}>
+        <nav className="grid shrink-0 grid-cols-2 gap-0.5 border-b border-slate-100 px-2 py-1.5 sm:grid-cols-3 lg:grid-cols-5" aria-label={t("notebookPane.secondaryEntries")}>
           <SidebarShortcutButton icon={<Tags className="h-4 w-4" />} label={t("mobileSheets.tags")} onClick={onOpenTags} />
           <SidebarShortcutButton icon={<Archive className="h-4 w-4" />} label={t("mobileSheets.assets")} onClick={onOpenAssets} />
           {showTemplateEntry && <SidebarShortcutButton icon={<LayoutTemplate className="h-4 w-4" />} label={t("nav.templates")} onClick={onOpenTemplates} />}
-          <SidebarShortcutButton icon={<Sparkles className="h-4 w-4" />} label={t("nav.prompts")} onClick={onOpenAiPrompts} />
-          <SidebarShortcutButton icon={<Store className="h-4 w-4" />} label={t("plugins.marketplace.title")} onClick={onOpenPluginMarketplace} />
+          <PluginToolbarMenu
+            host={pluginHost}
+            onManage={onOpenPluginManager}
+            align="start"
+            className="h-9 w-full rounded-md px-0 text-slate-600"
+          />
           <SidebarTrashShortcut active={view === "trash"} onOpenTrash={onOpenTrash} onEmptyTrash={onEmptyTrash} />
         </nav>
       </TooltipProvider>
@@ -723,19 +727,27 @@ export const NotebookPane = ({
                         </div>
                       </a>
                     </DropdownMenuItem>
-                    <DropdownMenuItem
-                      disabled
-                      className="flex cursor-not-allowed items-center justify-between gap-2.5 rounded-md px-2 py-1.5 text-sm text-slate-400 opacity-60 dark:text-slate-500"
-                    >
-                      <div className="flex min-w-0 items-center gap-2.5">
-                        <BrandIconContainer className="opacity-60">
-                          <BrandIcon path={WINDOWS_ICON_PATH} color="#0078D4" />
-                        </BrandIconContainer>
-                        <span className="truncate">{t("pwa.sidebarWindows") || "Windows"}</span>
-                      </div>
-                      <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500 dark:bg-slate-800 dark:text-slate-400">
-                        {t("pwa.sidebarWindowsBadge") || "即将推出"}
-                      </span>
+                    <DropdownMenuItem asChild>
+                      <a
+                        href={DESKTOP_DOWNLOAD_URL}
+                        target="_blank"
+                        rel="noreferrer"
+                        aria-label={`${t("pwa.sidebarWindows")} ${t("pwa.sidebarWindowsBadge")}`}
+                        className="group flex cursor-pointer items-center justify-between gap-2.5 rounded-md px-2 py-1.5 text-sm text-slate-700 outline-none transition-colors hover:bg-slate-100 hover:text-slate-900 focus:bg-slate-100 focus:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
+                      >
+                        <div className="flex min-w-0 items-center gap-2.5">
+                          <BrandIconContainer>
+                            <BrandIcon path={WINDOWS_ICON_PATH} color="#0078D4" />
+                          </BrandIconContainer>
+                          <span className="truncate font-medium">{t("pwa.sidebarWindows") || "Windows"}</span>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-1 text-amber-700 dark:text-amber-400">
+                          <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold dark:bg-amber-950/40">
+                            {t("pwa.sidebarWindowsBadge") || "Preview"}
+                          </span>
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </div>
+                      </a>
                     </DropdownMenuItem>
                   </>
                 )}

@@ -71,6 +71,8 @@ describe("Docker release contract", () => {
     expect(dockerfile).toContain("USER bun");
     expect(dockerfile).toContain('VOLUME ["/data"]');
     expect(dockerfile).toContain("HEALTHCHECK");
+    expect(dockerfile).toContain("ARG EDGE_EVER_BUILD_ID=unknown");
+    expect(dockerfile).toContain("EDGE_EVER_BUILD_ID=${EDGE_EVER_BUILD_ID}");
   });
 
   test("keeps authentication explicit in Compose", () => {
@@ -114,6 +116,8 @@ describe("Docker release contract", () => {
     expect(workflow).not.toContain("releases/tags/${RELEASE_TAG}");
     expect(workflow).toContain("docker logout ghcr.io");
     expect(workflow).toContain("docker buildx imagetools inspect");
+    expect(workflow).toContain('docker build --build-arg EDGE_EVER_BUILD_ID="${GITHUB_SHA}"');
+    expect(workflow).toContain("EDGE_EVER_BUILD_ID=${{ github.sha }}");
     expect(workflow).not.toContain("TCR_IMAGE_NAME");
     expect(workflow).not.toContain("TENCENT_TCR_USERNAME");
 

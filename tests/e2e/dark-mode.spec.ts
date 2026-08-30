@@ -98,7 +98,12 @@ test.describe("dark mode visual contracts", () => {
 
   test("notebook move picker keeps highlighted options dark and selected labels clean", async ({ page }) => {
     await page.goto("/");
-    await page.getByRole("button", { name: "选择笔记", exact: true }).click();
+    const selectMemosButton = page.getByRole("button", { name: "选择笔记", exact: true });
+    if (await selectMemosButton.isDisabled()) {
+      await page.getByRole("button", { name: "手动同步笔记", exact: true }).click();
+    }
+    await expect(selectMemosButton).toBeEnabled({ timeout: 20_000 });
+    await selectMemosButton.click();
 
     const actionBar = page.locator("[data-memo-selection-action-bar]");
     const actionCard = actionBar.locator(":scope > div");
