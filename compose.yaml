@@ -8,6 +8,7 @@ services:
     environment:
       EDGE_EVER_AUTH_USERNAME: "${EDGE_EVER_AUTH_USERNAME:-admin}"
       EDGE_EVER_AUTH_PASSWORD: "${EDGE_EVER_AUTH_PASSWORD:?Set EDGE_EVER_AUTH_PASSWORD before starting EdgeEver}"
+      EDGE_EVER_CONTAINER_IMAGE: "${EDGE_EVER_IMAGE:-ghcr.io/tianma-if/edgeever}"
     volumes:
       - edgeever-data:/data
     security_opt:

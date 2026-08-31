@@ -7,6 +7,7 @@ export type Bindings = {
   storage: StorageAdapter;
   EDGE_EVER_AUTH_USERNAME?: string;
   EDGE_EVER_RUNTIME?: string;
+  EDGE_EVER_CONTAINER_IMAGE?: string;
   EDGE_EVER_AUTH_PASSWORD?: string;
   EDGE_EVER_AUTH_PASSWORD_HASH?: string;
   EDGE_EVER_SESSION_TTL_DAYS?: string;

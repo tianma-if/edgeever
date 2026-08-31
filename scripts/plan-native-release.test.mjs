@@ -69,14 +69,17 @@ describe("native release planning", () => {
 
   test("rebuilds desktop when its architecture packaging pipeline changes", () => {
     const changedFiles = [
+      ".cargo/config.toml",
       ".github/workflows/desktop-build.yml",
       "scripts/create-mac-update-metadata.mjs",
       "scripts/create-windows-update-metadata.mjs",
       "scripts/prepare-desktop-icons.mjs",
       "scripts/desktop-icns.mjs",
+      "scripts/pe-imports.mjs",
       "scripts/run-desktop-builder.mjs",
       "scripts/sign-windows-update-manifest.mjs",
       "scripts/verify-windows-update-release.mjs",
+      "scripts/verify-packaged-desktop-startup.mjs",
     ];
     expect(planNativeRelease("desktop", changedFiles)).toEqual({
       rebuild: true,

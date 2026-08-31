@@ -668,6 +668,13 @@ export const zhCN = {
       docker: "Docker",
       unknown: "未知",
     },
+    containerImageSource: "容器镜像来源",
+    containerImageSources: {
+      "official-ghcr": "GitHub Container Registry（GHCR）",
+      "official-cn-mirror": "中国大陆官方镜像",
+      custom: "自定义镜像",
+      unknown: "未知",
+    },
     deployment: "自动部署方式",
     deploymentTriggers: {
       github_release: "正式 Release 触发",

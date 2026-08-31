@@ -25,7 +25,7 @@ export type SystemInfoItem = {
   status?: "connected" | "connecting" | "failed" | "warning" | "error" | "default";
 };
 
-type InstanceSystemDiagnostics = Pick<InstanceHealth, "build" | "migration" | "objectStorageProvider" | "storage"> & {
+type InstanceSystemDiagnostics = Pick<InstanceHealth, "build" | "containerImageSource" | "migration" | "objectStorageProvider" | "storage"> & {
   runtime?: string | null;
 };
 
@@ -60,6 +60,11 @@ const getDeploymentDescription = (t: (key: string) => string) => {
   const trigger = t(`systemInfo.deploymentTriggers.${__EDGEEVER_DEPLOYMENT_TRIGGER__}`);
   const method = t(`systemInfo.deploymentMethods.${__EDGEEVER_DEPLOYMENT_METHOD__}`);
   return `${trigger} · ${method}`;
+};
+
+const getContainerImageSourceTranslationKey = (source: string | null | undefined) => {
+  if (source === "official-ghcr" || source === "official-cn-mirror" || source === "custom") return source;
+  return "unknown";
 };
 
 const getColSpanClass = (colSpan?: SystemInfoItem["colSpan"]) => {
@@ -129,6 +134,12 @@ const getWebSystemInfoGroups = (
           label: t("systemInfo.deploymentPlatform"),
           value: t(`systemInfo.deploymentPlatforms.${resolveDeploymentPlatform(diagnostics.instance?.runtime)}`),
         },
+        ...(diagnostics.instance?.runtime === "self-hosted-bun"
+          ? [{
+              label: t("systemInfo.containerImageSource"),
+              value: t(`systemInfo.containerImageSources.${getContainerImageSourceTranslationKey(diagnostics.instance.containerImageSource)}`),
+            }]
+          : []),
         { label: t("systemInfo.deployment"), value: getDeploymentDescription(t), colSpan: "full" },
       ],
     },

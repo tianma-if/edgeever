@@ -4,6 +4,8 @@ import { describe, expect, test } from "bun:test";
 const workflow = readFileSync(new URL("../.github/workflows/desktop-build.yml", import.meta.url), "utf8");
 const mobileWorkflow = readFileSync(new URL("../.github/workflows/mobile-build.yml", import.meta.url), "utf8");
 const desktopPackageVerifier = readFileSync(new URL("./verify-desktop-package.mjs", import.meta.url), "utf8");
+const packagedStartupVerifier = readFileSync(new URL("./verify-packaged-desktop-startup.mjs", import.meta.url), "utf8");
+const cargoConfig = readFileSync(new URL("../.cargo/config.toml", import.meta.url), "utf8");
 
 function step(name) {
   const start = workflow.indexOf(`      - name: ${name}\n`);
@@ -83,6 +85,13 @@ describe("desktop release workflow", () => {
     expect(workflow).toContain("allow-missing-windows-signature");
     expect(workflow).toContain("name: Audit signed Windows update");
     expect(workflow).toContain("verify-windows-update-release.mjs");
+    expect(workflow).toContain("name: Run packaged Windows sidecar integration tests");
+    expect(workflow).toContain("name: Verify packaged Windows first launch");
+    expect(workflow).toContain("verify:packaged-desktop-startup");
+    expect(packagedStartupVerifier).toContain('new Set(["sidecar.ready", "renderer.bootstrap-ready"])');
+    expect(desktopPackageVerifier).toContain("isVisualCppRuntimeDll");
+    expect(cargoConfig).toContain('target.x86_64-pc-windows-msvc');
+    expect(cargoConfig).toContain('target-feature=+crt-static');
     expect(desktopPackageVerifier).toContain(
       'path.replaceAll("\\\\", "/")',
     );

@@ -1,5 +1,6 @@
 import React, { type ErrorInfo, type ReactNode } from "react";
 import { markRendererRecoveryRequired } from "@/lib/renderer-recovery";
+import { reportDesktopRendererReadyAfterPaint } from "@/lib/desktop-renderer-ready";
 
 type RendererErrorDetails = {
   kind: "react-error";
@@ -41,6 +42,7 @@ export class DesktopRendererErrorBoundary extends React.Component<{ children: Re
     this.setState({ error: details });
     console.error("Caught React renderer error", error, info.componentStack);
     void window.edgeeverDesktop?.recordRendererError(details).catch(() => undefined);
+    reportDesktopRendererReadyAfterPaint();
   }
 
   private report = async () => {

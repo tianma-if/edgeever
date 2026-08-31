@@ -1,15 +1,13 @@
 {
-  "version": "1.49.0",
+  "version": "1.50.0",
   "changes": {
     "en-US": [
-      "Add a Windows x64 Preview with secure automatic updates; unsigned builds may show a Windows security warning, so download only from the official EdgeEver Release.",
-      "Keep personal self-hosted instances aligned with each official Release automatically.",
-      "Reduce redundant demo seed writes to improve API reliability and database efficiency."
+      "System information now identifies whether a self-hosted Docker deployment is running the official EdgeEver image or a custom image, making support diagnostics clearer.",
+      "Windows Preview now launches the packaged interface reliably, avoids a missing Visual C++ runtime dependency, and shows actionable diagnostics instead of a silent white screen when startup fails."
     ],
     "zh-CN": [
-      "新增 Windows x64 预览版并支持安全自动更新；由于安装包暂未使用 Authenticode 签名，Windows 可能显示安全警告，请仅从 EdgeEver 官方 Release 下载。",
-      "个人自托管实例现在会随每个官方 Release 自动同步部署。",
-      "减少 Demo 示例数据的重复写入，提升 API 可靠性与数据库效率。"
+      "系统信息现在会标识 Docker 自托管部署使用的是 EdgeEver 官方镜像还是自定义镜像，便于排查部署问题。",
+      "Windows 预览版现在可以可靠启动打包界面，不再依赖缺失的 Visual C++ 运行库；启动失败时会显示可操作的诊断信息，而不是无提示白屏。"
     ]
   }
 }

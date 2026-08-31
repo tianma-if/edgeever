@@ -488,6 +488,7 @@ const getMobileSystemInfoText = (localePreference: MobileLocaleMode) =>
         connectionDescription: "Connection and local sync queue status.",
         connectionFailed: "Connection failed",
         connectionSection: "Connection and sync",
+        containerImageSource: "Container image source",
         databaseBackend: "Database backend",
         databaseVersion: "Database version",
         description: "View cloud instance and current client diagnostics.",
@@ -527,6 +528,7 @@ const getMobileSystemInfoText = (localePreference: MobileLocaleMode) =>
         connectionDescription: "实例连接与本地同步队列状态。",
         connectionFailed: "连接失败",
         connectionSection: "连接与同步",
+        containerImageSource: "容器镜像来源",
         databaseBackend: "数据库后端",
         databaseVersion: "数据库版本",
         description: "查看云端实例与当前客户端的诊断信息。",
@@ -559,6 +561,15 @@ const getMobileDeploymentPlatform = (runtime: string | null | undefined, english
   if (runtime === "cloudflare-workers") return "Cloudflare";
   if (runtime === "self-hosted-bun") return "Docker";
   return english ? "Unknown" : "未知";
+};
+
+const getMobileContainerImageSource = (source: string | null | undefined, english: boolean) => {
+  switch (source) {
+    case "official-ghcr": return "GitHub Container Registry (GHCR)";
+    case "official-cn-mirror": return english ? "Official mainland China mirror" : "中国大陆官方镜像";
+    case "custom": return english ? "Custom image" : "自定义镜像";
+    default: return english ? "Unknown" : "未知";
+  }
 };
 
 const getMobileDatabaseBackend = (backend: string | null | undefined, unknown: string) => {
@@ -627,6 +638,9 @@ const getMobileSystemInfoGroups = (
           ? [{ label: copy.existingAttachments, value: copy.existingAttachmentsOriginalStorage }]
           : []),
         { label: copy.deploymentPlatform, value: getMobileDeploymentPlatform(instance?.health.runtime, english) },
+        ...(instance?.health.runtime === "self-hosted-bun"
+          ? [{ label: copy.containerImageSource, value: getMobileContainerImageSource(instance.health.containerImageSource, english) }]
+          : []),
       ],
       title: copy.cloudSection,
     },

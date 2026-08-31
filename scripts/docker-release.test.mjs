@@ -80,6 +80,9 @@ describe("Docker release contract", () => {
     expect(compose).toContain(
       'EDGE_EVER_AUTH_PASSWORD: "${EDGE_EVER_AUTH_PASSWORD:?',
     );
+    expect(compose).toContain(
+      'EDGE_EVER_CONTAINER_IMAGE: "${EDGE_EVER_IMAGE:-ghcr.io/tianma-if/edgeever}"',
+    );
     expect(compose).toContain("edgeever-data:/data");
     expect(compose).toContain("no-new-privileges:true");
   });

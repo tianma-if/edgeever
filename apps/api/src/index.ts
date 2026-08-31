@@ -6,6 +6,7 @@ import {
 } from "@edgeever/shared";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { resolveContainerImageSource } from "./container-image-source";
 import openApiSpec from "../../../docs/openapi.json";
 import releaseSummary from "../../../release-summary.json";
 import {
@@ -198,10 +199,15 @@ app.get("/api/health", async (c) => {
     );
   }
 
+  const runtime = c.env.EDGE_EVER_RUNTIME ?? "cloudflare-workers";
+
   return c.json({
     ok: true,
     name: "edgeever",
-    runtime: c.env.EDGE_EVER_RUNTIME ?? "cloudflare-workers",
+    runtime,
+    ...(runtime === "self-hosted-bun"
+      ? { containerImageSource: resolveContainerImageSource(c.env.EDGE_EVER_CONTAINER_IMAGE) }
+      : {}),
     authMode,
     build: INSTANCE_BUILD_ID.slice(0, 12),
     migration: await getAppliedMigration(c.env),

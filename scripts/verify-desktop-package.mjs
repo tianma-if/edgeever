@@ -4,6 +4,7 @@ import { existsSync, openSync, closeSync, readFileSync, readSync, readdirSync, r
 import { basename, join } from "node:path";
 import { listPackage } from "@electron/asar";
 import { assertMacIcnsComplete } from "./desktop-icns.mjs";
+import { isVisualCppRuntimeDll, readPeImportedDlls } from "./pe-imports.mjs";
 
 const outputDirectory = join(process.cwd(), "release", "desktop");
 const version = JSON.parse(
@@ -101,6 +102,12 @@ if (requestedPlatform === "darwin") {
   assert.ok(existsSync(join(resources, "migrations")), "Windows app bundle is missing migrations");
   verifyPeX64(executable, "Electron executable");
   verifyPeX64(sidecar, "Rust sidecar");
+  const sidecarRuntimeImports = readPeImportedDlls(sidecar).filter(isVisualCppRuntimeDll);
+  assert.deepEqual(
+    sidecarRuntimeImports,
+    [],
+    `Windows sidecar must statically link the Visual C++ runtime; found: ${sidecarRuntimeImports.join(", ")}`,
+  );
   const asarPath = join(resources, "app.asar");
   assert.ok(existsSync(asarPath), `Windows app bundle is missing app.asar: ${asarPath}`);
   const asarFiles = listAsarFiles(asarPath);

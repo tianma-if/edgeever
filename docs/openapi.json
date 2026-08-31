@@ -40,6 +40,11 @@
                     "runtime": {
                       "type": "string"
                     },
+                    "containerImageSource": {
+                      "type": "string",
+                      "enum": ["official-ghcr", "official-cn-mirror", "custom", "unknown"],
+                      "description": "Current container image repository classification for Docker deployments. Custom repository addresses are not exposed."
+                    },
                     "authMode": {
                       "type": "string",
                       "enum": ["required", "disabled"]

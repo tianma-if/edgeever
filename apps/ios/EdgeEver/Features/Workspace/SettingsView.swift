@@ -552,6 +552,12 @@ struct SettingsView: View {
             env.preferences.t("部署平台", en: "Deployment platform"),
             deploymentPlatformLabel(instanceHealth?.runtime)
         ))
+        if instanceHealth?.runtime == "self-hosted-bun" {
+            items.append((
+                env.preferences.t("容器镜像来源", en: "Container image source"),
+                containerImageSourceLabel(instanceHealth?.containerImageSource)
+            ))
+        }
         return items
     }
 
@@ -602,6 +608,15 @@ struct SettingsView: View {
         switch runtime {
         case "cloudflare-workers": return "Cloudflare"
         case "self-hosted-bun": return "Docker"
+        default: return unknownSystemInfoValue
+        }
+    }
+
+    private func containerImageSourceLabel(_ source: String?) -> String {
+        switch source {
+        case "official-ghcr": return "GitHub Container Registry (GHCR)"
+        case "official-cn-mirror": return env.preferences.t("中国大陆官方镜像", en: "Official mainland China mirror")
+        case "custom": return env.preferences.t("自定义镜像", en: "Custom image")
         default: return unknownSystemInfoValue
         }
     }

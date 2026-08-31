@@ -17,10 +17,6 @@ const browser = await chromium.launch({
   headless: true,
   args: [
     "--allow-file-access-from-files",
-    // Electron permits the packaged renderer to normalize index.html to the
-    // file:// root. Match that behavior so this check exercises module
-    // evaluation rather than failing inside Chromium's stricter file history.
-    "--disable-web-security",
   ],
 });
 
@@ -37,6 +33,9 @@ try {
       // Keep observing long enough to catch post-mount update loops that leave
       // packaged desktop windows blank after briefly rendering.
       await page.waitForTimeout(2_000);
+      if (await page.locator(readySelector).first().count() === 0) {
+        throw new Error(`${label} disappeared after startup.`);
+      }
     } catch (error) {
       if (pageErrors.length === 0) throw error;
     } finally {
@@ -50,7 +49,7 @@ try {
 
   await verifyEntry({
     filePath: entryPath,
-    readySelector: "#root > *",
+    readySelector: '[data-edgeever-renderer-ready="true"] #root > *',
     label: "Desktop renderer",
   });
   await verifyEntry({

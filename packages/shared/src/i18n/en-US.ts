@@ -668,6 +668,13 @@ export const enUS = {
       docker: "Docker",
       unknown: "Unknown",
     },
+    containerImageSource: "Container image source",
+    containerImageSources: {
+      "official-ghcr": "GitHub Container Registry (GHCR)",
+      "official-cn-mirror": "Official mainland China mirror",
+      custom: "Custom image",
+      unknown: "Unknown",
+    },
     deployment: "Deployment",
     deploymentTriggers: {
       github_release: "GitHub Release trigger",

@@ -17,6 +17,7 @@ contextBridge.exposeInMainWorld("edgeeverDesktop", Object.freeze({
   clearLocalData: () => ipcRenderer.invoke("desktop:clear-local-data"),
   recordRendererError: (details) => ipcRenderer.invoke("desktop:record-renderer-error", details),
   openRendererIssue: (details) => ipcRenderer.invoke("desktop:open-renderer-issue", details),
+  rendererBootstrapReady: () => ipcRenderer.send("desktop:renderer-bootstrap-ready"),
   updateStatus: () => ipcRenderer.invoke("desktop:update-status"),
   checkUpdate: () => ipcRenderer.invoke("desktop:check-update"),
   downloadUpdate: () => ipcRenderer.invoke("desktop:download-update"),

@@ -38,6 +38,7 @@ struct InstanceHealth: Codable, Equatable, Sendable {
     var ok: Bool
     var name: String
     var runtime: String?
+    var containerImageSource: String?
     var authMode: String?
     var build: String?
     var migration: String?
