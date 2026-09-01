@@ -4,6 +4,13 @@ type PdfResourceBridge = Pick<EdgeEverDesktopBridge, "readResource" | "readStage
 
 export type PdfDocumentSource = { url: string } | { data: Uint8Array };
 
+export const MAX_INLINE_PDF_BYTES = 50 * 1024 * 1024;
+
+export const canPreviewPdfInline = (byteSize: unknown) =>
+  typeof byteSize !== "number"
+  || !Number.isFinite(byteSize)
+  || byteSize <= MAX_INLINE_PDF_BYTES;
+
 const parseDesktopResourceId = (url: string, scheme: "edgeever-resource:" | "edgeever-staged:") => {
   try {
     const parsed = new URL(url);

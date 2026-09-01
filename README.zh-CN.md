@@ -35,7 +35,7 @@ EdgeEver 是一款现代化的开源笔记工作区。它为你找回经典印�
 
 ## 功能
 
-- **自由选择部署方式**：同一套应用既可免费运行于 Cloudflare Serverless，也可通过 Docker 部署到 VPS、NAS 或家庭服务器。按 Cloudflare 免费存储额度估算，个人部署可容纳约 15 万条短笔记和约 5 万张图片；Docker 存储可按需扩展，轻松承载百万级笔记与海量图片。
+- **自由选择部署方式**：既可免费运行于 Cloudflare Serverless，也可通过 Docker 部署到 VPS、NAS 或家庭服务器。按 Cloudflare 免费存储额度估算，个人部署可容纳约 15 万条短笔记和约 5 万张图片；Docker 存储可按需扩展，轻松承载百万级笔记与海量图片。
 - **数据开放，不设围墙**：基于标准 SQLite 存储，提供 REST API、MCP 与 CLI 接口。数据随时可读可导，不再担心被任何特定平台绑定。
 - **无损 ZIP 打包与无缝迁移**：一键打包导出包含 Markdown、Front Matter、嵌套目录及附件的完整档案，同时保留历史版本与结构化数据，方便在不同实例间完整还原。
 - **原生 AI Agent 智脑联动**：内置 MCP（Model Context Protocol）协议，支持 Claude Code、Codex、Antigravity 等 AI 助手直接读取与整理笔记，也可与 Notion Database、飞书多维表格轻松打通。
@@ -52,11 +52,12 @@ EdgeEver 是一款现代化的开源笔记工作区。它为你找回经典印�
 - **公开笔记分享**：支持公开分享笔记，并可随时取消分享。
 - **移动 App 微信公众号文章剪藏**：在手机上将微信公众号文章分享至 EdgeEver，即可提取正文并保存为可继续编辑的笔记。
 - **智能前端图片压缩**：图片上传前在浏览器端静默完成压缩，常见截图与大图精简 50%-90% 体积，加载更迅速、存储更省心。
-- **通用文件附件支持**：支持轻松上传并插入 PDF、Office 文档、压缩包及音视频等各种附件。
+- **通用文件附件支持**：支持轻松上传并插入 PDF、Office 文档、压缩包及音视频等各种附件；通过分片上传与流式处理，安全支持最大 1 GiB 附件。
 - **高效多选与批量操作**：支持笔记批量合并、批量移动，以及笔记本拖拽排序与层级调整。
 - **离线草稿与同步队列**：网络不稳定时自动保存离线草稿，恢复连线后自动入队同步。
+- **登录防暴力破解保护**：服务端按账号与 IP 记录失败登录并自动限流、冷却，降低暴力破解与密码喷洒攻击风险，守护私密笔记数据。
 - **多账号与个人空间隔离**：单实例支持创建多个独立账号，用户数据相互隔离，配备直观的管理员账号管理与安全加密机制。
-- **全平台多端覆盖**：支持 Web、[Android](https://play.google.com/store/apps/details?id=org.edgeever.mobile)、[macOS](https://github.com/tianma-if/edgeever/releases)、[Windows x64 预览版](https://github.com/tianma-if/edgeever/releases/latest) 和 [iOS](https://apps.apple.com/us/app/edgeever/id6792625631)；网页裁剪插件支持 [Chrome](https://chromewebstore.google.com/detail/edgeever-web-clipper/gjadpfmanienmlofajibkfkkpfdkclgo)、[Edge](https://chromewebstore.google.com/detail/edgeever-web-clipper/gjadpfmanienmlofajibkfkkpfdkclgo) 和 [Firefox](https://addons.mozilla.org/zh-CN/firefox/addon/edgeever-web-clipper/)。
+- **全平台多端覆盖**：支持 Web、[Android](https://play.google.com/store/apps/details?id=org.edgeever.mobile)、[macOS](https://github.com/tianma-if/edgeever/releases)、[Windows](https://github.com/tianma-if/edgeever/releases/latest) 和 [iOS](https://apps.apple.com/us/app/edgeever/id6792625631)；网页裁剪插件支持 [Chrome](https://chromewebstore.google.com/detail/edgeever-web-clipper/gjadpfmanienmlofajibkfkkpfdkclgo)、[Edge](https://chromewebstore.google.com/detail/edgeever-web-clipper/gjadpfmanienmlofajibkfkkpfdkclgo) 和 [Firefox](https://addons.mozilla.org/zh-CN/firefox/addon/edgeever-web-clipper/)。
 
 ## 部署
 
@@ -71,11 +72,13 @@ Cloudflare 在线部署可以选择以下两种方式之一：
 ```text
 请在线完成 EdgeEver 部署：
 1. Fork https://github.com/tianma-if/edgeever。
-2. 将这个 Fork 导入 Cloudflare Workers & Pages。
-3. 创建 D1 `edgeever` 与 R2 `edgeever-resources`，设置
-   `EDGE_EVER_AUTH_PASSWORD` Worker Secret，并配置生产环境 `main` 构建。
-4. 启动首次构建，验证 `/api/health`、`/api/openapi.json` 和登录。
-5. 启用并手动运行一次名为 `Update deployed EdgeEver` 的 GitHub Actions 工作流，
+2. 在 Cloudflare 中创建 D1 `edgeever` 与 R2 `edgeever-resources`。
+3. 将这个 Fork 导入 Cloudflare Workers & Pages，并将 `main` 设为生产分支。
+4. 添加一个名为 `EDGE_EVER_AUTH_PASSWORD` 的 Worker Secret，值为用户自行设置的
+   管理员登录密码，建议使用至少 32 个字符且仅用于此实例的强密码。
+5. 启动首次构建，验证 `/api/health`、`/api/openapi.json`，并使用用户名 `admin`
+   和配置的密码验证登录。
+6. 启用并手动运行一次名为 `Update deployed EdgeEver` 的 GitHub Actions 工作流，
    以便后续自动同步更新，持续获得 EdgeEver 最新的产品特性和问题修复。
 ```
 
@@ -83,13 +86,14 @@ Cloudflare 在线部署可以选择以下两种方式之一：
 
 ### 方案二：手动在线部署
 
-仅需在网页端完成 5 步极简配置：
+仅需在网页端完成 6 步配置：
 
 1. **Fork 仓库**：在 GitHub 点击右上角 **Fork**，将项目 Fork 到您的个人账户下。
-2. **启用 Actions**：进入 Fork 的 **Actions** 标签页，点击 **I understand my workflows, go ahead and enable them**，确保名为 **Update deployed EdgeEver** 的 GitHub Actions 工作流能够自动运行，从而持续获得 **EdgeEver** 最新的产品特性和问题修复。
-3. **导入 Cloudflare**：登录 Cloudflare 控制台，进入 **Workers & Pages**，选择导入该 Fork 仓库。
-4. **创建资源与登录凭据**：创建 D1 `edgeever` 与 R2 `edgeever-resources`，并添加 Worker Secret `EDGE_EVER_AUTH_PASSWORD` 作为管理员登录密码。binding 由部署命令生成，不要修改 Fork 中的文件。
-5. **启动构建与验证**：导入仓库后直接启动首次构建。部署完成后访问 `/api/health`，确认返回 `200` 即可开始使用。
+2. **创建 Cloudflare 资源**：创建 D1 `edgeever` 与 R2 `edgeever-resources`。
+3. **导入并配置项目**：在 Cloudflare **Workers & Pages** 中导入该 Fork，并将 `main` 设为生产分支。binding 由部署命令生成，不要修改 Fork 中的文件。
+4. **设置管理员密码**：添加一个名为 `EDGE_EVER_AUTH_PASSWORD` 的 Worker Secret，并将其值设为您要使用的管理员登录密码。建议使用至少 32 个字符且仅用于此实例的强密码。
+5. **首次构建与验证**：启动首次构建。部署完成后访问 `/api/health`，确认返回 `200`，并使用用户名 `admin` 和配置的密码验证登录。
+6. **启用自动更新**：进入 Fork 的 **Actions** 标签页，点击 **I understand my workflows, go ahead and enable them**，然后手动运行一次 **Update deployed EdgeEver**，确保后续能够自动获得 EdgeEver 的最新功能与修复。
 
 > 📖 包含具体参数与构建命令的详细步骤，请查看 [在线部署完整文档](docs/deploy-cloudflare-button.zh-CN.md)。
 
@@ -129,17 +133,16 @@ EdgeEver 官方容器镜像托管于 GitHub Container Registry（GHCR）。部�
   <a href="https://addons.mozilla.org/zh-CN/firefox/addon/edgeever-web-clipper/"><img src="https://raw.githubusercontent.com/alrra/browser-logos/58881b84c4d73adc03c06fa2c275a7abee02d935/src/firefox/firefox.svg" alt="为 Firefox 安装 EdgeEver 网页裁剪插件" width="36" height="36" /></a>
 </p>
 
-## 关于客户端
+## 客户端下载
 
-原生客户端提供更流畅、稳定的使用体验，以及更完善的系统级集成，并支持本地存储与离线编辑。恢复联网后，内容会自动增量同步，适合高频使用和弱网场景。
+<p>
+  <a href="https://github.com/tianma-if/edgeever/releases/latest"><img src="apps/web/public/icons/platforms/macos.svg" alt="下载 macOS 客户端" width="40" height="40" /></a>&nbsp;&nbsp;
+  <a href="https://github.com/tianma-if/edgeever/releases/latest"><img src="apps/web/public/icons/platforms/windows.svg" alt="下载 Windows 客户端" width="40" height="40" /></a>&nbsp;&nbsp;
+  <a href="https://play.google.com/store/apps/details?id=org.edgeever.mobile"><img src="apps/web/public/icons/platforms/google-play.svg" alt="从 Google Play 下载 Android 客户端" width="40" height="40" /></a>&nbsp;&nbsp;
+  <a href="https://apps.apple.com/us/app/edgeever/id6792625631"><img src="apps/web/public/icons/platforms/app-store.svg" alt="从 App Store 下载 iOS 客户端" width="40" height="40" /></a>
+</p>
 
-Android App 现已上架 [Google Play](https://play.google.com/store/apps/details?id=org.edgeever.mobile)，也可从 [GitHub Releases](https://github.com/tianma-if/edgeever/releases) 下载签名 APK。iOS App 现已上架 [App Store](https://apps.apple.com/us/app/edgeever/id6792625631)，可使用非大陆区的 Apple ID 下载。
-
-macOS App 与未签名的 [Windows x64 预览版](https://github.com/tianma-if/edgeever/releases/latest) 均可从 GitHub Releases 下载。Windows 预览版尚未使用 Authenticode 签名，系统或组织策略可能显示警告或阻止安装；请仅从 EdgeEver 官方 Release 下载。不要为安装 EdgeEver 降低 Windows 安全设置；如策略阻止安装，请继续使用 Web/PWA 客户端。
-
-安装后，Windows 预览版仍保留正常的自动更新体验：EdgeEver 发现新 Release 后，会在下载前验证独立 Ed25519 签名的更新清单，下载完成后再次验证安装包，再提示重启安装（选择稍后则在退出 EdgeEver 时自动安装）；清单缺失、签名错误或文件不一致都会停止更新。详见 [Windows 预览版安全与更新说明](docs/windows-preview.zh-CN.md)。
-
-暂无原生客户端的平台，可通过 Chrome 或 Edge 将 EdgeEver 安装为 PWA 使用。
+iOS 客户端需要使用非中国大陆区 Apple ID 下载。
 
 ## 社区与反馈
 

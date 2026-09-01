@@ -738,8 +738,11 @@ export const enUS = {
     working: "Preparing notes and attachments…",
     importing: "Importing notes and attachments…",
     progress: "{{completed}} / {{total}}",
+    scanning: "Checking ZIP structure…",
+    scanProgress: "{{percentage}}%",
     complete: "Export complete. Your ZIP download has started.",
     error: "Export failed. Check your connection and try again.",
+    largeBackupRequiresStreaming: "This backup is too large for an in-memory export. Use Chrome, Edge, or the desktop app to save it as a stream.",
     desktopLocalTitle: "Desktop local backups",
     desktopLocalDescription: "The sidecar keeps the five most recent backups in the local SQLite data directory. A protective backup is created before every restore.",
     desktopLocalBackup: "Back up now",
@@ -771,6 +774,7 @@ export const enUS = {
     webdavComplete: "Backup uploaded: {{filename}}",
     webdavErrors: {
       network: "Could not connect to the WebDAV service. Check the URL, CORS, and network connection.",
+      largeBackupRequiresStreaming: "This backup is too large for this browser. Use Chrome, Edge, or the desktop app for disk-backed WebDAV backup.",
       unknown: "The WebDAV operation failed. Check your settings and try again.",
     },
     importComplete: "EdgeEver ZIP imported successfully.",
@@ -1053,6 +1057,7 @@ export const enUS = {
   pdfViewer: {
     loading: "Loading PDF…",
     unavailable: "This PDF cannot be previewed. You can still download it or open it externally.",
+    previewTooLarge: "Preview disabled over 50 MiB",
     fullscreenLabel: "PDF viewer: {{filename}}",
     zoomIn: "Zoom in",
     zoomOut: "Zoom out",

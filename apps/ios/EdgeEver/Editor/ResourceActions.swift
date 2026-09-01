@@ -494,21 +494,11 @@ struct ResourceActionSheet: View {
         let token = env.session.session?.token
         let path = "/api/v1/resources/\(target.resourceId)/blob"
         let client = APIClient(baseURL: base, token: token)
-        let result = try await client.getResourceData(path: path)
-        guard !result.data.isEmpty else { throw ResourceActionError.emptyFile }
         let safeName = target.filename
             .replacingOccurrences(of: "/", with: "_")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         let name = safeName.isEmpty ? "\(target.resourceId).bin" : safeName
-        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("edgeever-share", isDirectory: true)
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        let fileURL = dir.appendingPathComponent(name)
-        if FileManager.default.fileExists(atPath: fileURL.path) {
-            try FileManager.default.removeItem(at: fileURL)
-        }
-        try result.data.write(to: fileURL, options: .atomic)
-        // Document picker / share sheet need a file URL that remains readable while presented.
-        return fileURL
+        return try await client.downloadResourceFile(path: path, suggestedFilename: name)
     }
 }
 

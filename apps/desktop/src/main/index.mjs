@@ -1,18 +1,24 @@
 import { app, BrowserWindow, Menu, Tray, nativeImage, ipcMain, session, net, protocol, shell, dialog, safeStorage, clipboard, powerMonitor } from "electron";
-import { existsSync } from "node:fs";
-import { appendFile, mkdir, readdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
+import { createReadStream, existsSync } from "node:fs";
+import { appendFile, mkdir, open, readdir, readFile, rename, rm, stat, unlink, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
+import { Readable } from "node:stream";
 import { execFile, spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { release as operatingSystemRelease } from "node:os";
 import { SidecarRpcClient } from "./rpc.mjs";
 import { resourceRequestHeaders } from "./resource-request.mjs";
-import { cachedResourceResponse, isSafeResourceId, resourceIdFromRequest } from "./resource-url.mjs";
+import { isSafeResourceId, parseByteRangeHeader, resourceIdFromRequest } from "./resource-url.mjs";
 import { isSupportedAssociatedFile } from "./file-association.mjs";
 import { accountDataDirectory, accountScopeKey } from "./account-scope.mjs";
 import { rotateDiagnosticLog } from "./diagnostic-log.mjs";
 import { restrictDirectory, restrictFile } from "./file-permissions.mjs";
-import { normalizeStagedResourceInput, remapStagedResourceMetadata } from "./staged-resource.mjs";
+import {
+  STAGED_RESOURCE_PART_BYTES,
+  normalizeStagedResourceMetadataInput,
+  normalizeStagedResourcePart,
+  remapStagedResourceMetadata,
+} from "./staged-resource.mjs";
 import {
   isMountedDiskImageVolume,
   isMountedInstallerPath,
@@ -550,11 +556,37 @@ const handleResourceProtocolRequest = async (request) => {
   const bytesPath = join(directory, `${resourceId}.bin`);
   const metadataPath = join(directory, `${resourceId}.json`);
 
+  const fileResponse = async (path, contentType, rangeHeader) => {
+    const { size } = await stat(path);
+    const range = parseByteRangeHeader(rangeHeader, size);
+    const headers = new Headers({
+      "Accept-Ranges": "bytes",
+      "Cache-Control": "no-store",
+      "Content-Type": contentType || "application/octet-stream",
+    });
+    if (range.kind === "invalid") {
+      headers.set("Content-Range", `bytes */${size}`);
+      return new Response(null, { status: 416, headers });
+    }
+    const selected = range.kind === "range" ? range : { offset: 0, length: size };
+    headers.set("Content-Length", String(selected.length));
+    if (range.kind === "range") {
+      headers.set("Content-Range", `bytes ${selected.offset}-${selected.offset + selected.length - 1}/${size}`);
+    }
+    const stream = createReadStream(path, {
+      start: selected.offset,
+      end: selected.offset + selected.length - 1,
+    });
+    return new Response(Readable.toWeb(stream), {
+      status: range.kind === "range" ? 206 : 200,
+      headers,
+    });
+  };
+
   try {
-    const bytes = await readFile(bytesPath);
     let metadata = {};
     try { metadata = JSON.parse(await readFile(metadataPath, "utf8")); } catch {}
-    return cachedResourceResponse(bytes, metadata.contentType, request.headers.get("range"));
+    return await fileResponse(bytesPath, metadata.contentType, request.headers.get("range"));
   } catch {
     // Fall through to the instance while online, then persist the response.
   }
@@ -568,7 +600,6 @@ const handleResourceProtocolRequest = async (request) => {
     if (rangeHeader) headers.set("range", rangeHeader);
     const response = await net.fetch(sourceUrl, { headers });
     if (!response.ok) return new Response("Resource request failed", { status: response.status });
-    const body = Buffer.from(await response.arrayBuffer());
     if (response.status === 206) {
       const responseHeaders = new Headers({
         "Accept-Ranges": response.headers.get("accept-ranges") || "bytes",
@@ -579,15 +610,51 @@ const handleResourceProtocolRequest = async (request) => {
         const value = response.headers.get(name);
         if (value) responseHeaders.set(name, value);
       }
-      return new Response(body, { status: 206, headers: responseHeaders });
+      return new Response(response.body, { status: 206, headers: responseHeaders });
     }
+    if (!response.body) return new Response("Resource response body is empty", { status: 502 });
     await mkdir(directory, { recursive: true });
     await restrictDirectory(directory);
-    await writeFile(bytesPath, body, { mode: 0o600 });
-    await writeFile(metadataPath, JSON.stringify({ contentType: response.headers.get("content-type") || "application/octet-stream" }), { mode: 0o600 });
-    await restrictFile(bytesPath);
-    await restrictFile(metadataPath);
-    return cachedResourceResponse(body, response.headers.get("content-type"), null);
+    const temporaryPath = `${bytesPath}.download-${crypto.randomUUID()}`;
+    const output = await open(temporaryPath, "w", 0o600);
+    const reader = response.body.getReader();
+    let finished = false;
+    const cleanup = async () => {
+      if (!finished) {
+        finished = true;
+        await output.close().catch(() => {});
+        await rm(temporaryPath, { force: true }).catch(() => {});
+      }
+    };
+    const streamedBody = new ReadableStream({
+      async pull(controller) {
+        try {
+          const next = await reader.read();
+          if (next.done) {
+            await output.close();
+            await rename(temporaryPath, bytesPath);
+            await writeFile(metadataPath, JSON.stringify({ contentType: response.headers.get("content-type") || "application/octet-stream" }), { mode: 0o600 });
+            await restrictFile(bytesPath);
+            await restrictFile(metadataPath);
+            finished = true;
+            controller.close();
+            return;
+          }
+          await output.write(next.value);
+          controller.enqueue(next.value);
+        } catch (error) {
+          await cleanup();
+          controller.error(error);
+        }
+      },
+      async cancel(reason) {
+        await reader.cancel(reason).catch(() => {});
+        await cleanup();
+      },
+    });
+    const responseHeaders = new Headers(response.headers);
+    responseHeaders.set("Cache-Control", "no-store");
+    return new Response(streamedBody, { status: 200, headers: responseHeaders });
   } catch (error) {
     void writeDiagnostic("resource.cache-failed", { resourceId, message: error.message });
     return new Response("Resource unavailable", { status: 504 });
@@ -604,10 +671,13 @@ const registerResourceProtocol = () => {
     const directory = stagedResourceDirectory();
     try {
       const metadata = JSON.parse(await readFile(join(directory, `${stagedId}.json`), "utf8"));
-      const bytes = await readFile(join(directory, `${stagedId}.bin`));
-      return new Response(bytes, {
+      const path = join(directory, `${stagedId}.bin`);
+      const { size } = await stat(path);
+      const stream = createReadStream(path);
+      return new Response(Readable.toWeb(stream), {
         headers: {
           "Content-Type": metadata.type || "application/octet-stream",
+          "Content-Length": String(size),
           "Cache-Control": "no-store",
         },
       });
@@ -1251,20 +1321,59 @@ const startApplication = async () => {
   });
   ipcMain.handle("desktop:download-update", () => downloadTrustedDesktopUpdate("manual-download"));
   ipcMain.handle("desktop:install-update", () => installDownloadedUpdate());
-  ipcMain.handle("desktop:stage-resource", async (_event, input) => {
-    const { memoId, name, type, bytes } = normalizeStagedResourceInput(input);
+  ipcMain.handle("desktop:stage-resource-begin", async (_event, input) => {
+    const { memoId, name, type, size } = normalizeStagedResourceMetadataInput(input);
     const id = `stage_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     const directory = stagedResourceDirectory();
     await mkdir(directory, { recursive: true });
     await restrictDirectory(directory);
-    const metadata = { id, memoId, name, type, size: bytes.byteLength };
+    const metadata = { id, memoId, name, type, size };
+    const pendingMetadataPath = join(directory, `${id}.pending.json`);
+    const pendingBytesPath = join(directory, `${id}.pending.bin`);
+    await writeFile(pendingMetadataPath, JSON.stringify(metadata), { mode: 0o600 });
+    await writeFile(pendingBytesPath, new Uint8Array(), { mode: 0o600 });
+    await restrictFile(pendingMetadataPath);
+    await restrictFile(pendingBytesPath);
+    return { id, partSize: STAGED_RESOURCE_PART_BYTES };
+  });
+  ipcMain.handle("desktop:stage-resource-append", async (_event, id, value) => {
+    if (!isSafeResourceId(id)) throw new Error("Invalid staged resource id");
+    const bytes = normalizeStagedResourcePart(value);
+    const directory = stagedResourceDirectory();
+    const pendingMetadataPath = join(directory, `${id}.pending.json`);
+    const pendingBytesPath = join(directory, `${id}.pending.bin`);
+    const metadata = JSON.parse(await readFile(pendingMetadataPath, "utf8"));
+    const current = await stat(pendingBytesPath);
+    if (current.size + bytes.byteLength > metadata.size) {
+      throw new Error("Staged resource received more bytes than declared");
+    }
+    await appendFile(pendingBytesPath, bytes);
+    return { receivedBytes: current.size + bytes.byteLength };
+  });
+  ipcMain.handle("desktop:stage-resource-complete", async (_event, id) => {
+    if (!isSafeResourceId(id)) throw new Error("Invalid staged resource id");
+    const directory = stagedResourceDirectory();
+    const pendingMetadataPath = join(directory, `${id}.pending.json`);
+    const pendingBytesPath = join(directory, `${id}.pending.bin`);
+    const metadata = JSON.parse(await readFile(pendingMetadataPath, "utf8"));
+    const current = await stat(pendingBytesPath);
+    if (current.size !== metadata.size) throw new Error("Staged resource is incomplete");
     const metadataPath = join(directory, `${id}.json`);
     const bytesPath = join(directory, `${id}.bin`);
+    await rename(pendingBytesPath, bytesPath);
     await writeFile(metadataPath, JSON.stringify(metadata), { mode: 0o600 });
-    await writeFile(bytesPath, Buffer.from(bytes), { mode: 0o600 });
     await restrictFile(metadataPath);
     await restrictFile(bytesPath);
+    await unlink(pendingMetadataPath).catch(() => {});
     return { id };
+  });
+  ipcMain.handle("desktop:stage-resource-abort", async (_event, id) => {
+    if (!isSafeResourceId(id)) throw new Error("Invalid staged resource id");
+    const directory = stagedResourceDirectory();
+    await Promise.all([
+      unlink(join(directory, `${id}.pending.json`)).catch(() => {}),
+      unlink(join(directory, `${id}.pending.bin`)).catch(() => {}),
+    ]);
   });
   ipcMain.handle("desktop:list-staged-resources", async () => {
     const directory = stagedResourceDirectory();
@@ -1302,6 +1411,25 @@ const startApplication = async () => {
     const bytes = await readFile(join(directory, `${id}.bin`));
     return { ...metadata, bytes: new Uint8Array(bytes) };
   });
+  ipcMain.handle("desktop:read-staged-resource-part", async (_event, id, start, length) => {
+    if (!isSafeResourceId(id)) throw new Error("Invalid staged resource id");
+    if (!Number.isSafeInteger(start) || start < 0) throw new Error("Invalid staged resource offset");
+    if (!Number.isSafeInteger(length) || length <= 0 || length > STAGED_RESOURCE_PART_BYTES) {
+      throw new Error("Invalid staged resource part length");
+    }
+    const path = join(stagedResourceDirectory(), `${id}.bin`);
+    const details = await stat(path);
+    if (start >= details.size || start + length > details.size) throw new Error("Invalid staged resource range");
+    const handle = await open(path, "r");
+    try {
+      const bytes = Buffer.allocUnsafe(length);
+      const { bytesRead } = await handle.read(bytes, 0, length, start);
+      if (bytesRead !== length) throw new Error("Staged resource part is incomplete");
+      return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytesRead);
+    } finally {
+      await handle.close();
+    }
+  });
   ipcMain.handle("desktop:read-resource", async (_event, id) => {
     if (!isSafeResourceId(id)) throw new Error("Invalid resource id");
     const response = await handleResourceProtocolRequest(new Request(
@@ -1319,6 +1447,8 @@ const startApplication = async () => {
     await Promise.all([
       unlink(join(directory, `${id}.json`)).catch(() => {}),
       unlink(join(directory, `${id}.bin`)).catch(() => {}),
+      unlink(join(directory, `${id}.pending.json`)).catch(() => {}),
+      unlink(join(directory, `${id}.pending.bin`)).catch(() => {}),
     ]);
   });
 

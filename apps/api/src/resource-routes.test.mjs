@@ -55,7 +55,7 @@ const createEnvironment = () => ({
   },
 });
 
-const createApp = (auth = agentAuth, getResourceRow = async () => null) => {
+const createApp = (auth = agentAuth, getResourceRow = async () => null, overrides = {}) => {
   const app = new Hono();
   app.onError((error, context) => context.json({ error: { message: error.message } }, 500));
   app.use("/api/v1/*", async (context, next) => {
@@ -68,6 +68,11 @@ const createApp = (auth = agentAuth, getResourceRow = async () => null) => {
     createImageResource: async () => { throw new Error("Unexpected upload"); },
     getMemoDetail: async () => null,
     getResourceRow,
+    initiateResourceUpload: async () => { throw new Error("Unexpected multipart initialization"); },
+    uploadResourcePart: async () => { throw new Error("Unexpected multipart part"); },
+    completeResourceUpload: async () => { throw new Error("Unexpected multipart completion"); },
+    abortResourceUpload: async () => { throw new Error("Unexpected multipart abort"); },
+    ...overrides,
   });
   return app;
 };
@@ -106,6 +111,75 @@ describe("resource route contracts", () => {
 
     expect(response.status).toBe(403);
     expect(await response.json()).toMatchObject({ error: { code: "forbidden" } });
+  });
+
+  test("initializes a bounded multipart upload after memo authorization", async () => {
+    let input;
+    const response = await createApp(
+      { ...agentAuth, scopes: ["write:resources"] },
+      async () => null,
+      {
+        getMemoDetail: async () => ({ id: "memo_1" }),
+        initiateResourceUpload: async (_context, value) => {
+          input = value;
+          return {
+            id: "upload_1",
+            resourceId: "res_1",
+            partSize: 8 * 1024 * 1024,
+            partCount: 2,
+            byteSize: 9 * 1024 * 1024,
+            expiresAt: "2026-09-01T00:00:00.000Z",
+          };
+        },
+      },
+    ).request(
+      "/api/v1/memos/memo_1/resource-uploads",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          filename: "archive.zip",
+          mimeType: "application/zip",
+          byteSize: 9 * 1024 * 1024,
+        }),
+      },
+      createEnvironment(),
+    );
+
+    expect(response.status).toBe(201);
+    expect(input).toEqual({
+      memoId: "memo_1",
+      filename: "archive.zip",
+      mimeType: "application/zip",
+      byteSize: 9 * 1024 * 1024,
+    });
+    expect(await response.json()).toMatchObject({ upload: { id: "upload_1", partCount: 2 } });
+  });
+
+  test("streams an exact-sized upload part to the multipart service", async () => {
+    let streamed = "";
+    const response = await createApp(
+      { ...agentAuth, scopes: ["write:resources"] },
+      async () => null,
+      {
+        uploadResourcePart: async (_context, uploadId, partNumber, body, byteSize) => {
+          streamed = await new Response(body).text();
+          expect({ uploadId, partNumber, byteSize }).toEqual({ uploadId: "upload_1", partNumber: 2, byteSize: 4 });
+          return { partNumber, byteSize };
+        },
+      },
+    ).request(
+      "/api/v1/resource-uploads/upload_1/parts/2",
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/octet-stream", "Content-Length": "4" },
+        body: "part",
+      },
+      createEnvironment(),
+    );
+
+    expect(response.status).toBe(200);
+    expect(streamed).toBe("part");
   });
 
   test("serves PDF attachments with UTF-8 filenames inline using an ASCII-safe header", async () => {

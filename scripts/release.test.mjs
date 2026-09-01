@@ -6,17 +6,22 @@ import {
   buildReleaseNotes,
   buildReleaseSummary,
   buildReleaseTitle,
+  checkpointRunIds,
   draftRunResumeAction,
   nextVersion,
   parseReleaseCheckpoint,
   parseReleaseArgs,
+  playDeliveryResumeAction,
   playDeliveryFailureStrategy,
+  prepareReleaseCheckpoint,
+  recordCheckpointRun,
   RELEASE_WORKFLOWS,
   RELEASE_VALIDATIONS,
   resolveReleaseVersion,
   reusedAssetMatches,
   selectPublishedDmg,
   signedWindowsUpdateAuditPassed,
+  shouldCancelSupersededRun,
   waitForRun,
 } from "./release.mjs";
 
@@ -31,7 +36,8 @@ describe("release automation", () => {
     expect(releaseSource).toContain("desktop_run_id=\${desktopRunId}");
     expect(releaseSource).toContain("mobile_run_id=\${mobileRunId}");
     expect(releaseSource).toContain("docker_run_id=\${dockerRunId}");
-    expect(releaseSource).toContain("store_run_id=\${checkpoint.storeRunId}");
+    expect(releaseSource).toContain("store_run_id=\${timingStoreRunId}");
+    expect(releaseSource).toContain("attempt_run_ids=\${timingAttemptRunIds}");
     expect(releaseSource).toContain("endpoint timing report continues in background");
   });
 
@@ -95,6 +101,69 @@ describe("release automation", () => {
     expect(parseReleaseCheckpoint(body, "v1.42.0")).toEqual(checkpoint);
     expect(parseReleaseCheckpoint(body, "v1.42.1")).toBeNull();
     expect(parseReleaseCheckpoint("malformed", "v1.42.0")).toBeNull();
+  });
+
+  test("preserves Play delivery and Run history when a Draft target advances", () => {
+    const storedState = {
+      releaseSha: "old",
+      desktopRunId: 11,
+      storeRunId: 12,
+      playDelivery: { tag: "v1.42.0", releaseSha: "old", storeRunId: 12 },
+    };
+    const checkpoint = prepareReleaseCheckpoint({ storedState, releaseSha: "new" });
+    expect(checkpoint).toMatchObject({
+      releaseSha: "new",
+      playDelivery: storedState.playDelivery,
+      runHistory: [
+        { field: "desktopRunId", runId: 11, releaseSha: "old" },
+        { field: "storeRunId", runId: 12, releaseSha: "old" },
+      ],
+    });
+    expect(checkpoint.desktopRunId).toBeUndefined();
+    recordCheckpointRun(checkpoint, "mobileRunId", 13);
+    recordCheckpointRun(checkpoint, "mobileRunId", 13);
+    expect(checkpointRunIds(checkpoint)).toEqual([11, 12, 13]);
+  });
+
+  test("verifies an immutable Play delivery without uploading across mobile-compatible fixes", () => {
+    const playDelivery = { tag: "v1.42.0", releaseSha: "old" };
+    expect(playDeliveryResumeAction({
+      playDelivery,
+      tag: "v1.42.0",
+      headSha: "old",
+    })).toBe("verify");
+    expect(playDeliveryResumeAction({
+      playDelivery,
+      tag: "v1.42.0",
+      headSha: "new",
+      mobileInputsChanged: false,
+    })).toBe("verify");
+    expect(playDeliveryResumeAction({
+      playDelivery,
+      tag: "v1.42.0",
+      headSha: "new",
+      mobileInputsChanged: true,
+    })).toBe("block");
+    expect(playDeliveryResumeAction({
+      playDelivery,
+      tag: "v1.43.0",
+      headSha: "new",
+    })).toBe("upload");
+  });
+
+  test("cancels only active Runs from superseded release targets", () => {
+    expect(shouldCancelSupersededRun({
+      runView: { headSha: "old", status: "in_progress" },
+      headSha: "new",
+    })).toBe(true);
+    expect(shouldCancelSupersededRun({
+      runView: { headSha: "old", status: "completed" },
+      headSha: "new",
+    })).toBe(false);
+    expect(shouldCancelSupersededRun({
+      runView: { headSha: "new", status: "in_progress" },
+      headSha: "new",
+    })).toBe(false);
   });
 
   test("reuses successful Draft runs and reruns only failed ones", () => {

@@ -15,11 +15,10 @@
 
 ## 首次部署图文指南
 
-### 步骤 1：Fork 仓库并开启 Actions
+### 步骤 1：Fork 仓库
 
 1. 访问 EdgeEver 官方仓库：`https://github.com/tianma-if/edgeever`。
 2. 点击右上角 **Fork** 按钮，将仓库 Fork 到您的个人 GitHub 账户下。
-3. 进入您 Fork 后的仓库，切换到 **Actions** 标签页，点击 **"I understand my workflows, go ahead and enable them"** 启用自动化工作流。
 
 ---
 
@@ -36,20 +35,13 @@
 
 ---
 
-### 步骤 3：导入项目并配置登录 Secret
+### 步骤 3：导入项目
 
 1. 在 Cloudflare 控制台中，进入 **Workers & Pages** -> **Overview**，点击 **Create application** -> **Pages** / **Workers** (选择导入 Git 仓库)。
 2. 选择 **Connect to Git**，授权并选中您刚才 Fork 的 `edgeever` 仓库。
 3. 在项目设置中：
    - **Production branch**：选择 `main`
    - **Root directory**：保持留空或默认 `/`
-4. 在 **Settings** -> **Variables and Secrets** 中添加登录密码：
-
-| 类型 (Type) | 名称 (Name) | 值 (Value) | 说明 |
-| :--- | :--- | :--- | :--- |
-| **Secret** | `EDGE_EVER_AUTH_PASSWORD` | 设置一个高强度管理员密码 | 初始登录凭据 |
-
-> `EDGE_EVER_AUTH_PASSWORD` 是 Worker 运行时 Secret，不是 Workers Builds 构建变量。标准部署命令会复用并验证这个 Secret；无需、也不应把密码重复填写到构建变量中。
 
 仓库中的部署命令会根据标准资源名称生成 `DB` 与 `RESOURCES` binding。不要修改 `wrangler.toml`，也不要在控制台中重复添加 binding。
 
@@ -57,7 +49,19 @@
 
 ---
 
-### 步骤 4：启动构建
+### 步骤 4：设置管理员密码
+
+在 Worker 的 **Settings** -> **Variables and Secrets** 中添加以下 Secret：
+
+| 类型 (Type) | 名称 (Name) | 值 (Value) | 说明 |
+| :--- | :--- | :--- | :--- |
+| **Secret** | `EDGE_EVER_AUTH_PASSWORD` | 建议至少 32 个字符且仅用于此实例的强密码 | 管理员登录密码 |
+
+`EDGE_EVER_AUTH_PASSWORD` 是变量名，Secret 的值才是您自行设置的管理员登录密码。它属于 Worker 运行时 Secret，不是 Workers Builds 构建变量；无需、也不应把密码重复填写到构建变量中。
+
+---
+
+### 步骤 5：启动构建
 
 保留 Cloudflare 自动填写的默认部署命令：
 
@@ -80,7 +84,7 @@ Deploy command: bun run deploy:cloudflare-builds
 
 ---
 
-### 步骤 5：验证部署与登录
+### 步骤 6：验证部署、登录与自动更新
 
 1. 构建完成后，Cloudflare 会为您生成一个二级域名（如 `https://edgeever.your-subdomain.workers.dev`）。
 2. 在浏览器打开该域名下的健康检查接口：`https://你的域名/api/health`，确认返回 `200` 及 JSON：
@@ -88,7 +92,8 @@ Deploy command: bun run deploy:cloudflare-builds
    { "ok": true }
    ```
 3. 打开主站首页，输入您配置的管理员用户名（默认是 `admin`）和密码（`EDGE_EVER_AUTH_PASSWORD`）测试登录并开始使用。
-4. 返回 Fork 的 GitHub 仓库 **Actions** 页面，手动触发运行一次 **Update deployed EdgeEver** 工作流，确保未来可自动跟进上游更新。
+4. 返回 Fork 的 GitHub 仓库 **Actions** 页面，点击 **I understand my workflows, go ahead and enable them** 启用工作流。
+5. 手动运行一次 **Update deployed EdgeEver**，确保未来可自动跟进上游更新，并确认 Cloudflare 收到这次构建事件。
 
 ---
 
@@ -116,6 +121,8 @@ EDGE_EVER_UPDATE_CHANNEL=edge
 | `EDGE_EVER_R2_PREVIEW_BUCKET_NAME` | 预览环境 R2 存储桶名称 |
 | `EDGE_EVER_WORKERS_DEV` | 启用或禁用 `workers.dev` 路由 |
 | `EDGE_EVER_CUSTOM_DOMAIN` / `EDGE_EVER_ROUTE_PATTERN` | 自定义路由 |
+
+如需自定义初始管理员用户名，请在首次构建前设置 `EDGE_EVER_AUTH_USERNAME`。普通部署无需配置，直接使用默认用户名 `admin` 即可；管理员账号已创建后，仅修改该变量不会重命名现有账号。
 
 密码及其他凭据始终属于 Worker 运行时 Secret，绝不能放入 Builds 构建变量。高级本地部署也可以使用被 Git 忽略的 `.env.local`，或仓库外部的 `WRANGLER_CONFIG` 文件。
 

@@ -70,4 +70,37 @@ describe("Worker S3-compatible blob store", () => {
     expect(object?.range).toEqual({ offset: 2, length: 4 });
     expect(await new Response(object?.body).text()).toBe("2345");
   });
+
+  test("signs the complete multipart lifecycle", async () => {
+    const requests = [];
+    globalThis.fetch = async (request) => {
+      requests.push(request);
+      const url = new URL(request.url);
+      if (request.method === "POST" && url.searchParams.has("uploads")) {
+        return new Response("<InitiateMultipartUploadResult><UploadId>provider-1</UploadId></InitiateMultipartUploadResult>");
+      }
+      if (request.method === "PUT") return new Response(null, { headers: { etag: '"part-1"' } });
+      if (request.method === "POST" && url.searchParams.get("uploadId") === "provider-1") {
+        expect(await request.text()).toContain("<PartNumber>1</PartNumber>");
+        return new Response("<CompleteMultipartUploadResult />");
+      }
+      return new Response(null, { status: 405 });
+    };
+    const store = createWorkerS3BlobStore({
+      endpoint: "https://objects.example.com",
+      region: "us-east-1",
+      bucket: "edgeever",
+      accessKeyId: "access-key",
+      secretAccessKey: "secret-key",
+      forcePathStyle: true,
+      objectPrefix: "notes",
+    });
+
+    const upload = await store.createMultipartUpload("archive.bin");
+    const part = await upload.uploadPart(1, new Uint8Array([1, 2, 3]));
+    await upload.complete([part]);
+
+    expect(upload.uploadId).toBe("provider-1");
+    expect(requests.map((request) => request.method)).toEqual(["POST", "PUT", "POST"]);
+  });
 });

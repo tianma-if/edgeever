@@ -147,7 +147,10 @@ export const uploadWebDavBackup = async (
 
   const filename = `edgeever-${timestamp.toISOString().replace(/[:.]/g, "-")}.zip`;
   const remotePath = `${normalized.remotePath}/${filename}`;
-  const uploaded = await client.putFileContents(remotePath, await archive.arrayBuffer(), {
+  // The fetch-backed browser client accepts Blob/File bodies even though its
+  // published TypeScript signature only lists ArrayBuffer-like payloads.
+  const uploaded = await client.putFileContents(remotePath, archive as never, {
+    contentLength: archive.size,
     overwrite: false,
   });
 

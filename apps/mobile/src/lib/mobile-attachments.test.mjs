@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+  buildMobileResourceDownloadRequest,
   deleteMobileAttachmentFromDoc,
   deleteMobileResourceFromDoc,
   getMobileAttachmentTarget,
@@ -29,6 +30,16 @@ const doc = {
 };
 
 describe("mobile attachments", () => {
+  test("builds a native disk download request with protected-resource authentication", () => {
+    expect(buildMobileResourceDownloadRequest("res/a", {
+      baseUrl: "https://notes.example///",
+      token: "secret",
+    })).toEqual({
+      url: "https://notes.example/api/v1/resources/res%2Fa/blob",
+      headers: { Authorization: "Bearer secret" },
+    });
+  });
+
   test("recognizes resource links and attachment paragraphs", () => {
     expect(getMobileAttachmentTarget(href, "📄 报告：report.pdf")).toEqual(attachmentTarget);
     expect(getParagraphAttachmentTarget({

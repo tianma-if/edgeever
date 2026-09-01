@@ -504,7 +504,7 @@ export const MemoDetailModal = ({
   const downloadResource = useCallback(async (target: MobileResourceTarget) => {
     if (!client) throw new Error(resolvedLocale === "en-US" ? "The resource client is unavailable." : "当前无法读取资源。");
     try {
-      await openMobileResource(client, target);
+      await openMobileResource(client, target, { baseUrl, token: session?.token });
     } catch (error) {
       Alert.alert(
         resolvedLocale === "en-US" ? "Unable to open resource" : "无法打开资源",
@@ -512,17 +512,17 @@ export const MemoDetailModal = ({
       );
       throw error;
     }
-  }, [client, resolvedLocale]);
+  }, [baseUrl, client, resolvedLocale, session?.token]);
   const saveResourceAs = useCallback(async (target: MobileResourceTarget) => {
     if (!client) throw new Error(resolvedLocale === "en-US" ? "The resource client is unavailable." : "当前无法读取资源。");
-    const result = await saveMobileResourceAs(client, target);
+    const result = await saveMobileResourceAs(client, target, { baseUrl, token: session?.token });
     if (result.kind === "saf") {
       Alert.alert(
         resolvedLocale === "en-US" ? "Downloaded" : "下载成功",
         resolvedLocale === "en-US" ? `Saved ${result.filename}` : `已保存：${result.filename}`
       );
     }
-  }, [client, resolvedLocale]);
+  }, [baseUrl, client, resolvedLocale, session?.token]);
 
   const loadViewerResource = useCallback((source: string) => {
     if (!client) {

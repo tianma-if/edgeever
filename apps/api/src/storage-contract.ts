@@ -47,6 +47,21 @@ export type BlobObjectAdapter = {
   writeHttpMetadata: (headers: Headers) => void;
 };
 
+export type BlobUploadedPart = {
+  partNumber: number;
+  etag: string;
+};
+
+export type BlobMultipartUploadAdapter = {
+  readonly uploadId: string;
+  uploadPart: (
+    partNumber: number,
+    value: ReadableStream<Uint8Array> | ArrayBuffer | ArrayBufferView | Blob,
+  ) => Promise<BlobUploadedPart>;
+  complete: (parts: BlobUploadedPart[]) => Promise<unknown>;
+  abort: () => Promise<void>;
+};
+
 /**
  * Deliberately uses unknown for provider-specific upload metadata. The API
  * passes through metadata such as content type and cache control, while a
@@ -55,6 +70,8 @@ export type BlobObjectAdapter = {
 export type BlobStoreAdapter = {
   get: (key: string, options?: BlobGetOptions) => Promise<BlobObjectAdapter | null>;
   put: (key: string, value: unknown, options?: unknown) => Promise<unknown>;
+  createMultipartUpload: (key: string, options?: unknown) => Promise<BlobMultipartUploadAdapter>;
+  resumeMultipartUpload: (key: string, uploadId: string) => BlobMultipartUploadAdapter;
   delete: (keys: string | string[]) => Promise<void>;
 };
 

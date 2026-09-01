@@ -28,10 +28,14 @@ contextBridge.exposeInMainWorld("edgeeverDesktop", Object.freeze({
     return () => ipcRenderer.removeListener("desktop:update-status-changed", listener);
   },
   sidecarRequest: (method, params = {}) => ipcRenderer.invoke("desktop:sidecar-request", method, params),
-  stageResource: (input) => ipcRenderer.invoke("desktop:stage-resource", input),
+  beginStagedResource: (input) => ipcRenderer.invoke("desktop:stage-resource-begin", input),
+  appendStagedResource: (id, bytes) => ipcRenderer.invoke("desktop:stage-resource-append", id, bytes),
+  completeStagedResource: (id) => ipcRenderer.invoke("desktop:stage-resource-complete", id),
+  abortStagedResource: (id) => ipcRenderer.invoke("desktop:stage-resource-abort", id),
   listStagedResources: () => ipcRenderer.invoke("desktop:list-staged-resources"),
   remapStagedResourceMemoIds: (mappings) => ipcRenderer.invoke("desktop:remap-staged-resource-memo-ids", mappings),
   readStagedResource: (id) => ipcRenderer.invoke("desktop:read-staged-resource", id),
+  readStagedResourcePart: (id, start, length) => ipcRenderer.invoke("desktop:read-staged-resource-part", id, start, length),
   readResource: (id) => ipcRenderer.invoke("desktop:read-resource", id),
   removeStagedResource: (id) => ipcRenderer.invoke("desktop:remove-staged-resource", id),
   onCommand: (callback) => {

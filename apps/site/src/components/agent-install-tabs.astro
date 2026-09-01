@@ -7,11 +7,9 @@ const isEnglish = locale === "en-US";
 
 const copy = isEnglish
   ? {
-      architectureIntro:
-        "EdgeEver uses a pure Serverless architecture that runs entirely within Cloudflare's free tiers. No VPS or server rental is required, and there is no need to configure Docker or SSL certificates.",
-      chooseOne: "You can deploy online using either of the following two options:",
       oneClick: "Option B: Manual Online Deployment",
       agent: "Option A: Deploy with an AI Agent",
+      docker: "Option C: Docker Deployment",
       recommended: "Recommended",
       agentIntro:
         "Copy the prompt below directly into an AI Agent (such as Codex, Claude, Cursor, workbuddy, Antigravity, OpenClaw, Hermes Agent, etc.). During execution, if access to GitHub or Cloudflare is required, review the requested permissions and follow the prompts to authorize access.",
@@ -23,6 +21,12 @@ const copy = isEnglish
       oneClickGuide: "Open the online deployment guide",
       oneClickGuideHref:
         "https://github.com/tianma-if/edgeever/blob/main/docs/deploy-cloudflare-button.md",
+      dockerTitle: "One-command Docker self-hosting",
+      dockerPrerequisite: "Install Docker with Docker Compose v2 before running the command.",
+      dockerGuide: "Open the complete Docker deployment guide",
+      dockerGuideHref: "/en/docker-deploy",
+      dockerCommandLabel: "COMMAND",
+      copyCommand: "Copy command",
       promptLabel: "PROMPT",
       copyPrompt: "Copy prompt",
       copying: "Copying...",
@@ -31,11 +35,9 @@ const copy = isEnglish
       promptText: deploymentPrompts["en-US"],
     }
   : {
-      architectureIntro:
-        "EdgeEver 采用纯 Serverless 架构，完全运行在 Cloudflare 免费配额内，无需购买服务器/VPS，也无需配置 Docker 或 SSL 证书。",
-      chooseOne: "您可以选择以下两种方式之一在线部署：",
       oneClick: "方案二：手动在线部署",
       agent: "方案一：AI Agent 一键部署",
+      docker: "方案三：Docker 部署",
       recommended: "推荐",
       agentIntro:
         "将下方提示词直接复制发送给 AI Agent（如 Codex、Claude、Cursor、workbuddy、Antigravity、OpenClaw、Hermes Agent 等）。执行过程中，如需访问 GitHub 或 Cloudflare，请确认权限范围并按提示完成授权。",
@@ -47,6 +49,12 @@ const copy = isEnglish
       oneClickGuide: "查看在线部署文档",
       oneClickGuideHref:
         "https://github.com/tianma-if/edgeever/blob/main/docs/deploy-cloudflare-button.zh-CN.md",
+      dockerTitle: "一条命令完成 Docker 自托管",
+      dockerPrerequisite: "运行命令前，请先安装 Docker 环境（含 Docker Compose v2）。",
+      dockerGuide: "查看完整 Docker 部署指南",
+      dockerGuideHref: "/docker-deploy",
+      dockerCommandLabel: "COMMAND",
+      copyCommand: "复制命令",
       promptLabel: "PROMPT",
       copyPrompt: "复制提示词",
       copying: "复制中...",
@@ -57,32 +65,58 @@ const copy = isEnglish
 ---
 
 <section class="not-prose relative left-1/2 my-10 w-[min(92vw,960px)] -translate-x-1/2" data-agent-install-tabs>
-  <div class="mx-auto mb-5 max-w-3xl space-y-3 text-center text-sm leading-relaxed text-slate-600 sm:text-base">
-    <p>{copy.architectureIntro}</p>
-    <p class="font-bold text-slate-800">{copy.chooseOne}</p>
-  </div>
-
   <!-- Segmented Control Tab Header (Radix / Shadcn Segmented Control Pill Style) -->
-  <div class="mx-auto max-w-lg p-1 rounded-2xl bg-slate-200/80 border border-slate-300/60 grid grid-cols-2 gap-1 text-xs sm:text-sm font-semibold select-none shadow-2xs">
+  <div
+    class="mx-auto grid max-w-[900px] grid-cols-1 gap-1 rounded-2xl border border-slate-300/60 bg-slate-200/80 p-1 text-xs font-semibold shadow-2xs select-none md:grid-cols-3 lg:text-sm"
+    role="tablist"
+    aria-label={isEnglish ? "Deployment options" : "部署方式"}
+  >
     <button
-      class="agent-install-tab active flex items-center justify-center gap-1.5 px-2 sm:px-3 py-2 sm:py-2.5 rounded-xl transition-all cursor-pointer bg-white text-slate-950 font-bold shadow-xs"
+      class="agent-install-tab active flex items-center justify-center gap-1.5 whitespace-nowrap px-2 sm:px-3 py-2 sm:py-2.5 rounded-xl transition-all cursor-pointer bg-white text-slate-950 font-bold shadow-xs"
       type="button"
+      role="tab"
+      id="agent-install-tab-agent"
       data-tab-target="agent"
+      aria-controls="agent-install-panel-agent"
+      aria-label={`${copy.agent} · Cloudflare`}
       aria-selected="true">
-      <span class="truncate">{copy.agent}</span>
+      <Icon class="h-4 w-4 shrink-0 text-[#F48120]" name="simple-icons:cloudflare" aria-hidden="true" />
+      <span>{copy.agent}</span>
       <span class="shrink-0 rounded-md bg-emerald-100 text-emerald-800 px-1.5 py-0.5 text-[10px] sm:text-xs font-bold">{copy.recommended}</span>
     </button>
     <button
-      class="agent-install-tab flex items-center justify-center gap-1.5 px-2 sm:px-3 py-2 sm:py-2.5 rounded-xl transition-all cursor-pointer text-slate-500 hover:text-slate-900"
+      class="agent-install-tab flex items-center justify-center gap-1.5 whitespace-nowrap px-2 sm:px-3 py-2 sm:py-2.5 rounded-xl transition-all cursor-pointer text-slate-500 hover:text-slate-900"
       type="button"
+      role="tab"
+      id="agent-install-tab-one-click"
       data-tab-target="one-click"
+      aria-controls="agent-install-panel-one-click"
+      aria-label={`${copy.oneClick} · Cloudflare`}
       aria-selected="false">
-      <span class="truncate">{copy.oneClick}</span>
+      <Icon class="h-4 w-4 shrink-0 text-[#F48120]" name="simple-icons:cloudflare" aria-hidden="true" />
+      <span>{copy.oneClick}</span>
+    </button>
+    <button
+      class="agent-install-tab flex items-center justify-center gap-1.5 whitespace-nowrap px-2 sm:px-3 py-2 sm:py-2.5 rounded-xl transition-all cursor-pointer text-slate-500 hover:text-slate-900"
+      type="button"
+      role="tab"
+      id="agent-install-tab-docker"
+      data-tab-target="docker"
+      aria-controls="agent-install-panel-docker"
+      aria-selected="false">
+      <Icon class="h-4 w-4 shrink-0 text-[#2496ED]" name="bx:bxl-docker" aria-hidden="true" />
+      <span>{copy.docker}</span>
     </button>
   </div>
 
   <div class="mt-6 overflow-hidden rounded-[28px] bg-slate-100/90 px-4 py-6 sm:px-10 md:px-14 sm:py-8 border border-slate-200/60 shadow-xs">
-    <div class="agent-install-panel hidden" data-tab-panel="one-click">
+    <div
+      class="agent-install-panel hidden"
+      id="agent-install-panel-one-click"
+      role="tabpanel"
+      aria-labelledby="agent-install-tab-one-click"
+      data-tab-panel="one-click"
+    >
       <div class="mx-auto max-w-3xl text-xs leading-relaxed text-slate-600 sm:text-sm md:text-base">
         <p class="text-center font-semibold text-slate-800">{copy.oneClickIntro}</p>
         <ol class="mt-5 space-y-3 text-left">
@@ -111,7 +145,13 @@ const copy = isEnglish
       </div>
     </div>
 
-    <div class="agent-install-panel" data-tab-panel="agent">
+    <div
+      class="agent-install-panel"
+      id="agent-install-panel-agent"
+      role="tabpanel"
+      aria-labelledby="agent-install-tab-agent"
+      data-tab-panel="agent"
+    >
       <div class="mx-auto mb-6 max-w-3xl text-center sm:text-left text-xs sm:text-sm md:text-base leading-relaxed text-slate-600 font-sans">
         <p class="text-center leading-relaxed">{copy.agentIntro}</p>
       </div>
@@ -171,6 +211,56 @@ const copy = isEnglish
       </div>
     </div>
 
+    <div
+      class="agent-install-panel hidden"
+      id="agent-install-panel-docker"
+      role="tabpanel"
+      aria-labelledby="agent-install-tab-docker"
+      data-tab-panel="docker"
+    >
+      <div class="mx-auto max-w-3xl text-center font-sans">
+        <div class="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-emerald-100 text-emerald-800">
+          <Icon class="h-7 w-7" name="bx:bxl-docker" />
+        </div>
+        <h2 class="mt-4 text-lg font-bold text-slate-900 sm:text-xl">{copy.dockerTitle}</h2>
+        <p class="mt-2 text-xs leading-relaxed text-slate-600 sm:text-sm md:text-base">{copy.dockerPrerequisite}</p>
+      </div>
+
+      <div class="mx-auto mt-6 max-w-3xl overflow-hidden rounded-2xl border border-slate-800 bg-slate-950 font-mono text-xs shadow-2xl sm:text-sm">
+        <div class="flex items-center justify-between rounded-t-2xl border-b border-slate-800/80 bg-slate-900/90 px-3.5 py-2.5 select-none sm:px-4">
+          <span class="flex items-center gap-1.5 text-xs font-bold text-emerald-400">
+            <Icon class="h-3.5 w-3.5" name="bx:bx-terminal" />
+            {copy.dockerCommandLabel}
+          </span>
+          <button
+            type="button"
+            class="agent-install-copy group inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-slate-700/80 bg-slate-800 px-3 py-1 text-xs text-slate-300 transition-all hover:border-emerald-500/50 hover:bg-emerald-950/90 hover:text-emerald-300"
+            data-copy-text="curl -fsSL https://edgeever.org/install.sh | bash"
+            data-copy-default={copy.copyCommand}
+            data-copy-copying={copy.copying}
+            data-copy-copied={copy.copied}
+            data-copy-failed={copy.copyFailed}
+          >
+            <Icon class="h-3.5 w-3.5 text-slate-400 transition-colors group-hover:text-emerald-400" name="bx:bx-copy" />
+            <span data-copy-label>{copy.copyCommand}</span>
+          </button>
+        </div>
+        <div class="rounded-b-2xl bg-slate-950/95 p-4 text-slate-200 sm:p-6">
+          <pre class="m-0 whitespace-pre-wrap break-all font-mono text-xs leading-relaxed sm:text-sm">curl -fsSL https://edgeever.org/install.sh | bash</pre>
+        </div>
+      </div>
+
+      <div class="mt-7 flex justify-center">
+        <a
+          class="inline-flex items-center gap-2 rounded-full bg-brand px-8 py-3 text-xs font-semibold text-white shadow-[0_14px_30px_-18px_rgb(var(--edgeever-brand-rgb)/0.85)] transition hover:-translate-y-0.5 hover:bg-brand-hover active:scale-95 sm:text-base"
+          href={copy.dockerGuideHref}
+        >
+          <Icon class="h-5 w-5" name="bx:bx-book-open" />
+          {copy.dockerGuide}
+        </a>
+      </div>
+    </div>
+
   </div>
 </section>
 
@@ -207,28 +297,50 @@ const copy = isEnglish
       const tabs = Array.from(root.querySelectorAll("[data-tab-target]"));
       const panels = Array.from(root.querySelectorAll("[data-tab-panel]"));
 
+      const activateTab = (tab) => {
+        const target = tab.getAttribute("data-tab-target");
+
+        tabs.forEach((item) => {
+          const isActive = item === tab;
+          item.setAttribute("aria-selected", String(isActive));
+          item.setAttribute("tabindex", isActive ? "0" : "-1");
+          item.classList.toggle("active", isActive);
+          if (isActive) {
+            item.classList.add("bg-white", "text-slate-950", "font-bold", "shadow-xs");
+            item.classList.remove("text-slate-500");
+          } else {
+            item.classList.remove("bg-white", "text-slate-950", "font-bold", "shadow-xs");
+            item.classList.add("text-slate-500");
+          }
+        });
+
+        panels.forEach((panel) => {
+          panel.classList.toggle("hidden", panel.getAttribute("data-tab-panel") !== target);
+        });
+      };
+
       tabs.forEach((tab) => {
         tab.addEventListener("click", () => {
-          const target = tab.getAttribute("data-tab-target");
+          activateTab(tab);
+        });
 
-          tabs.forEach((item) => {
-            const isActive = item === tab;
-            item.setAttribute("aria-selected", String(isActive));
-            item.classList.toggle("active", isActive);
-            if (isActive) {
-              item.classList.add("bg-white", "text-slate-950", "font-bold", "shadow-xs");
-              item.classList.remove("text-slate-500");
-            } else {
-              item.classList.remove("bg-white", "text-slate-950", "font-bold", "shadow-xs");
-              item.classList.add("text-slate-500");
-            }
-          });
+        tab.addEventListener("keydown", (event) => {
+          const currentIndex = tabs.indexOf(tab);
+          let nextIndex = currentIndex;
 
-          panels.forEach((panel) => {
-            panel.classList.toggle("hidden", panel.getAttribute("data-tab-panel") !== target);
-          });
+          if (event.key === "ArrowRight" || event.key === "ArrowDown") nextIndex = (currentIndex + 1) % tabs.length;
+          if (event.key === "ArrowLeft" || event.key === "ArrowUp") nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+          if (event.key === "Home") nextIndex = 0;
+          if (event.key === "End") nextIndex = tabs.length - 1;
+          if (nextIndex === currentIndex) return;
+
+          event.preventDefault();
+          activateTab(tabs[nextIndex]);
+          tabs[nextIndex].focus();
         });
       });
+
+      activateTab(tabs.find((tab) => tab.getAttribute("aria-selected") === "true") || tabs[0]);
 
       root.querySelectorAll(".agent-install-copy").forEach((button) => {
         button.addEventListener("click", async () => {

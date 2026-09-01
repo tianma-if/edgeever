@@ -23,7 +23,7 @@ import { ButtonTooltip } from "@/components/ui/button-tooltip";
 import { isDesktopResourceRuntime, toApiResourceUrl } from "@/lib/desktop-resources";
 import { cn } from "@/lib/utils";
 import { loadPdfJs } from "./pdfjs-loader";
-import { loadPdfDocumentSource } from "./pdf-document-source";
+import { canPreviewPdfInline, loadPdfDocumentSource } from "./pdf-document-source";
 
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 2.5;
@@ -193,7 +193,8 @@ export const PdfViewer = ({
   const [failed, setFailed] = useState(false);
   const [internalFullscreen, setInternalFullscreen] = useState(false);
   const isFullscreen = fullscreen || internalFullscreen;
-  const expanded = isFullscreen || (controlledExpanded ?? uncontrolledExpanded);
+  const previewAllowed = canPreviewPdfInline(byteSize);
+  const expanded = previewAllowed && (isFullscreen || (controlledExpanded ?? uncontrolledExpanded));
   const metadata = formatAttachmentMetadata("application/pdf", filename || label, byteSize);
 
   useEffect(() => {
@@ -237,6 +238,7 @@ export const PdfViewer = ({
   const handleError = useCallback(() => setFailed(true), []);
   const closeFullscreen = () => fullscreen ? onRequestClose?.() : setInternalFullscreen(false);
   const setExpanded = (nextExpanded: boolean) => {
+    if (!previewAllowed) return;
     if (controlledExpanded === undefined) setUncontrolledExpanded(nextExpanded);
     onExpandedChange?.(nextExpanded);
   };
@@ -275,13 +277,15 @@ export const PdfViewer = ({
             type="button"
             className="edgeever-attachment-link flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left disabled:cursor-default"
             aria-expanded={expanded}
-            disabled={isFullscreen}
+            disabled={isFullscreen || !previewAllowed}
             onClick={() => setExpanded(!expanded)}
           >
             <AttachmentFileIcon mimeType="application/pdf" filename={filename || label} className="h-5 w-5 shrink-0" />
             <span className="flex min-w-0 flex-col">
               <span className="truncate text-sm font-semibold text-slate-800">{label}</span>
-              <span className="truncate text-xs font-medium text-slate-500">{metadata}</span>
+              <span className="truncate text-xs font-medium text-slate-500">
+                {previewAllowed ? metadata : `${metadata} · ${t("pdfViewer.previewTooLarge")}`}
+              </span>
             </span>
           </button>
           {expanded && !failed ? (

@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   createReleaseTimingReport,
   renderReleaseTimingMarkdown,
+  summarizeReleaseAttempts,
 } from "./report-release-timings.mjs";
 
 const step = (name, start, seconds) => ({
@@ -178,5 +179,51 @@ describe("release timing report", () => {
     expect(renderReleaseTimingMarkdown(report)).toContain(
       "At least one post-publication endpoint failed or was not observed",
     );
+  });
+
+  test("reports every Draft attempt and distinguishes Play APK recovery", () => {
+    const start = "2026-08-25T00:00:00Z";
+    const attempts = [
+      payload("Desktop failed", start, 420, []),
+      payload("Desktop retry", "2026-08-25T00:07:30Z", 360, []),
+    ];
+    Object.assign(attempts[0].run, { id: 1, head_sha: "old", conclusion: "failure" });
+    Object.assign(attempts[1].run, { id: 2, head_sha: "new", conclusion: "success" });
+    expect(summarizeReleaseAttempts(attempts)).toEqual({
+      workflowRunCount: 2,
+      releaseTargetCount: 2,
+      failedRunCount: 1,
+      endToEndDurationMs: 810_000,
+      cumulativeWorkflowDurationMs: 780_000,
+    });
+
+    const common = {
+      release: { tag: "v1.41.3", sha: "new", publishedAt: start },
+      desktop: payload("Desktop", start, 40, [job("Plan desktop release asset", start, 40)]),
+      desktopMode: "rebuild",
+      mobile: payload("Mobile", start, 30, [job("Plan Android release asset", start, 30)]),
+      mobileMode: "rebuild",
+      docker: payload("Docker", start, 60, [job("Publish official multi-platform image", start, 60)]),
+      store: payload("Store recovery", start, 120, [
+        job("Deliver Google Play", start, 120, [
+          step("Download Play-signed universal APK", start, 45),
+        ]),
+      ]),
+      storeMode: "recover",
+      attempts,
+      cloudflare: payload("Cloudflare", start, 60, [job("Build and deploy Demo Worker", start, 60)]),
+      tcrSource: payload("TCR", start, 15, [job("Trigger asynchronous Tencent-side image build", start, 15)]),
+      tcrReadyAt: "2026-08-25T00:02:00Z",
+      tcrStatus: "success",
+    };
+    const report = createReleaseTimingReport(common);
+    expect(report.rows.at(-1)).toMatchObject({
+      target: "Google Play signed APK",
+      mode: "recover",
+      detail: "recovered existing Play-signed APK 45s",
+    });
+    const markdown = renderReleaseTimingMarkdown(report);
+    expect(markdown).toContain("across **2 workflow runs** and **2 release target(s)**");
+    expect(markdown).toContain("1 run(s) failed or were cancelled");
   });
 });

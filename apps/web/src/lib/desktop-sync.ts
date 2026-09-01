@@ -67,9 +67,15 @@ const syncStagedResources = async (memoIdMappings: Map<string, string>) => {
     // that the note content containing the placeholder has been saved.
     if (!isStagedResourceReferenced(pendingPayloads, item.id)) continue;
     try {
-      const stored = await window.edgeeverDesktop!.readStagedResource(item.id);
       const memoId = memoIdMappings.get(item.memoId) ?? item.memoId;
-      const uploaded = await api.uploadMemoResource(memoId, new File([stored.bytes as unknown as ArrayBuffer], stored.name, { type: stored.type }));
+      const uploaded = await api.uploadMemoResourceParts(memoId, {
+        filename: item.name,
+        mimeType: item.type,
+        byteSize: item.size,
+        readPart: async (start, end) => new Blob([
+          await window.edgeeverDesktop!.readStagedResourcePart(item.id, start, end - start),
+        ], { type: item.type }),
+      });
       await window.edgeeverDesktop!.sidecarRequest("resource.cache", { resource: uploaded.resource });
       rewrites.push({ memoId, placeholder: `edgeever-staged://${item.id}`, url: uploaded.resource.url });
       stagedIds.push(item.id);

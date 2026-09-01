@@ -1,7 +1,10 @@
-import { mkdir, open, readFile, unlink, writeFile } from "node:fs/promises";
+import { createReadStream } from "node:fs";
+import { mkdir, open, rename, rm, stat, unlink, writeFile } from "node:fs/promises";
 import { dirname, resolve, sep } from "node:path";
+import { Readable } from "node:stream";
 import type {
   BlobObjectAdapter,
+  BlobMultipartUploadAdapter,
   BlobStoreAdapter,
   DatabaseAdapter,
   DatabaseQueryResult,
@@ -95,37 +98,89 @@ const safeObjectPath = (rootDirectory: string, objectKey: string) => {
   return target;
 };
 
+const localMultipartUpload = (
+  rootDirectory: string,
+  objectKey: string,
+  uploadId: string,
+): BlobMultipartUploadAdapter => {
+  const uploadDirectory = safeObjectPath(rootDirectory, `.uploads/${uploadId}`);
+  const partPath = (partNumber: number) => resolve(uploadDirectory, `${partNumber}.part`);
+
+  return {
+    uploadId,
+    async uploadPart(partNumber, value) {
+      await mkdir(uploadDirectory, { recursive: true });
+      const bytes = value instanceof ReadableStream
+        ? new Uint8Array(await new Response(value).arrayBuffer())
+        : value instanceof Blob
+          ? new Uint8Array(await value.arrayBuffer())
+          : value instanceof ArrayBuffer
+            ? new Uint8Array(value)
+            : new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+      await writeFile(partPath(partNumber), bytes);
+      return { partNumber, etag: `local-${partNumber}-${bytes.byteLength}` };
+    },
+    async complete(parts) {
+      const target = safeObjectPath(rootDirectory, objectKey);
+      const temporaryTarget = `${target}.upload-${uploadId}`;
+      await mkdir(dirname(target), { recursive: true });
+      const output = await open(temporaryTarget, "w");
+      try {
+        for (const part of [...parts].sort((left, right) => left.partNumber - right.partNumber)) {
+          const source = partPath(part.partNumber);
+          const info = await stat(source);
+          if (part.etag !== `local-${part.partNumber}-${info.size}`) {
+            throw new Error(`Multipart upload part ${part.partNumber} does not match its recorded ETag.`);
+          }
+          const input = await open(source, "r");
+          try {
+            for await (const chunk of input.createReadStream()) {
+              await output.write(chunk);
+            }
+          } finally {
+            await input.close();
+          }
+        }
+      } catch (error) {
+        await output.close();
+        await rm(temporaryTarget, { force: true });
+        throw error;
+      }
+      await output.close();
+      await rename(temporaryTarget, target);
+      await rm(uploadDirectory, { recursive: true, force: true });
+    },
+    async abort() {
+      await rm(uploadDirectory, { recursive: true, force: true });
+    },
+  };
+};
+
 const createLocalBlobStore = (rootDirectory: string): BlobStoreAdapter => ({
   async get(objectKey, options): Promise<BlobObjectAdapter | null> {
     const target = safeObjectPath(rootDirectory, objectKey);
 
     try {
-      if (options?.range) {
-        const handle = await open(target, "r");
-        try {
-          const { size } = await handle.stat();
-          const bytes = new Uint8Array(options.range.length);
-          const { bytesRead } = await handle.read(bytes, 0, bytes.byteLength, options.range.offset);
-          const bodyBytes = bytes.subarray(0, bytesRead);
-          return {
-            body: new Response(bodyBytes).body as ReadableStream<Uint8Array>,
-            size,
-            range: { offset: options.range.offset, length: bytesRead },
-            writeHttpMetadata: (headers) => {
-              headers.set("Content-Length", String(bytesRead));
-            },
-          };
-        } finally {
-          await handle.close();
-        }
-      }
-
-      const bytes = await readFile(target);
+      const { size } = await stat(target);
+      const requestedRange = options?.range;
+      const rangeLength = requestedRange
+        ? Math.max(0, Math.min(requestedRange.length, size - requestedRange.offset))
+        : size;
+      const nodeStream = createReadStream(target, requestedRange
+        ? {
+            start: requestedRange.offset,
+            end: requestedRange.offset + rangeLength - 1,
+          }
+        : undefined);
+      const body = Readable.toWeb(nodeStream) as ReadableStream<Uint8Array>;
       return {
-        body: new Response(bytes).body as ReadableStream<Uint8Array>,
-        size: bytes.byteLength,
+        body,
+        size,
+        ...(requestedRange
+          ? { range: { offset: requestedRange.offset, length: rangeLength } }
+          : {}),
         writeHttpMetadata: (headers) => {
-          headers.set("Content-Length", String(bytes.byteLength));
+          headers.set("Content-Length", String(rangeLength));
         },
       };
     } catch (error) {
@@ -156,6 +211,14 @@ const createLocalBlobStore = (rootDirectory: string): BlobStoreAdapter => ({
     }
 
     throw new Error("Unsupported local resource payload");
+  },
+
+  async createMultipartUpload(objectKey) {
+    return localMultipartUpload(rootDirectory, objectKey, crypto.randomUUID());
+  },
+
+  resumeMultipartUpload(objectKey, uploadId) {
+    return localMultipartUpload(rootDirectory, objectKey, uploadId);
   },
 
   async delete(objectKeys) {

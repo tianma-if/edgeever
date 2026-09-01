@@ -3056,35 +3056,26 @@ const RichEditorPane = ({
   const getResourceActionFailure = useCallback((target: ResourceMenuTarget) =>
     target.kind === "image" ? t("editor.imageActions.failed") : t("editor.attachmentActions.failed"), [t]);
 
-  const fetchResourceBlob = useCallback(async (target: ResourceMenuTarget) => {
-    try {
-      return await api.getResourceBlob(target.url);
-    } catch (error) {
-      if (target.resourceId) throw error;
-      const response = await fetch(target.url);
-      if (!response.ok) throw new Error(response.statusText || getResourceActionFailure(target));
-      return response.blob();
-    }
+  const fetchResourceResponse = useCallback(async (target: ResourceMenuTarget) => {
+    const response = target.url.startsWith("edgeever-resource:") || target.url.startsWith("edgeever-staged:")
+      ? await fetch(target.url)
+      : await api.getResourceResponse(target.url);
+    if (!response.ok) throw new Error(response.statusText || getResourceActionFailure(target));
+    return response;
   }, [getResourceActionFailure]);
 
-  const downloadBlob = useCallback((blob: Blob, filename: string) => {
-    const objectUrl = URL.createObjectURL(blob);
+  const downloadResourceDirectly = useCallback((target: ResourceMenuTarget) => {
     const anchor = document.createElement("a");
-    anchor.href = objectUrl;
-    anchor.download = filename;
+    anchor.href = target.url;
+    anchor.download = target.filename;
     anchor.click();
-    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
   }, []);
 
   const handleResourceDownload = useCallback(async (target: ResourceMenuTarget) => {
     hideResourceMenu();
     clearResourceActionError();
-    try {
-      downloadBlob(await fetchResourceBlob(target), target.filename);
-    } catch (error) {
-      failResourceAction(error instanceof Error ? error.message : getResourceActionFailure(target));
-    }
-  }, [clearResourceActionError, downloadBlob, failResourceAction, fetchResourceBlob, getResourceActionFailure, hideResourceMenu]);
+    downloadResourceDirectly(target);
+  }, [clearResourceActionError, downloadResourceDirectly, hideResourceMenu]);
 
   const handleResourceSaveAs = useCallback(async (target: ResourceMenuTarget) => {
     hideResourceMenu();
@@ -3092,25 +3083,25 @@ const RichEditorPane = ({
     try {
       const savePicker = (window as Window & {
         showSaveFilePicker?: (options: { suggestedName: string }) => Promise<{
-          createWritable: () => Promise<{ write: (data: Blob) => Promise<void>; close: () => Promise<void> }>;
+          createWritable: () => Promise<WritableStream<Uint8Array>>;
         }>;
       }).showSaveFilePicker;
 
       if (!savePicker) {
-        downloadBlob(await fetchResourceBlob(target), target.filename);
+        downloadResourceDirectly(target);
         return;
       }
 
       const handle = await savePicker.call(window, { suggestedName: target.filename });
-      const blob = await fetchResourceBlob(target);
+      const response = await fetchResourceResponse(target);
+      if (!response.body) throw new Error(getResourceActionFailure(target));
       const writable = await handle.createWritable();
-      await writable.write(blob);
-      await writable.close();
+      await response.body.pipeTo(writable);
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
       failResourceAction(error instanceof Error ? error.message : getResourceActionFailure(target));
     }
-  }, [clearResourceActionError, downloadBlob, failResourceAction, fetchResourceBlob, getResourceActionFailure, hideResourceMenu]);
+  }, [clearResourceActionError, downloadResourceDirectly, failResourceAction, fetchResourceResponse, getResourceActionFailure, hideResourceMenu]);
 
   const openResourceDialog = useCallback((action: ResourceDialogState["action"], target: ResourceMenuTarget) => {
     openResourceActionDialog(action, target);

@@ -106,12 +106,52 @@ describe("EdgeEver client HTTP contract", () => {
     expect(call.headers.get("Content-Type")).toBeNull();
   });
 
-  test("keeps multipart restore bodies free of a synthetic JSON content type", async () => {
-    let headers;
+  test("exposes an authenticated resource response without forcing Blob buffering", async () => {
+    let authorization;
     const client = createEdgeEverClient({
+      baseUrl: "https://notes.example",
+      token: "secret",
       fetch: async (_input, init) => {
-        headers = new Headers(init.headers);
-        return jsonResponse({ ok: true });
+        authorization = new Headers(init.headers).get("Authorization");
+        return new Response(new ReadableStream({
+          start(controller) {
+            controller.enqueue(new Uint8Array([1, 2]));
+            controller.enqueue(new Uint8Array([3]));
+            controller.close();
+          },
+        }), { headers: { "Content-Length": "3" } });
+      },
+    });
+
+    const response = await client.getResourceResponse("/api/v1/resources/res/blob");
+    expect(authorization).toBe("Bearer secret");
+    expect(response).toBeInstanceOf(Response);
+    expect(response.headers.get("Content-Length")).toBe("3");
+    expect(Array.from(new Uint8Array(await response.arrayBuffer()))).toEqual([1, 2, 3]);
+  });
+
+  test("streams restored resources through bounded multipart requests", async () => {
+    const calls = [];
+    const client = createEdgeEverClient({
+      fetch: async (input, init) => {
+        const path = String(input);
+        calls.push({ path, headers: new Headers(init.headers), body: init.body });
+        if (path.endsWith("/uploads")) {
+          return jsonResponse({
+            upload: {
+              id: "restore_upload",
+              resourceId: "resource/id",
+              partSize: 4,
+              partCount: 2,
+              byteSize: 5,
+              expiresAt: "2026-09-01T00:00:00.000Z",
+            },
+          }, { status: 201 });
+        }
+        if (path.includes("/parts/")) {
+          return jsonResponse({ part: { partNumber: Number(path.split("/").at(-1)), byteSize: init.body.size } });
+        }
+        return jsonResponse({ resource: { id: "resource/id" } }, { status: 201 });
       },
     });
 
@@ -123,14 +163,113 @@ describe("EdgeEver client HTTP contract", () => {
         filename: "file.bin",
         mimeType: "application/octet-stream",
         kind: "attachment",
-        size: 1,
-        url: "/blob",
-        createdAt: "",
-        updatedAt: "",
+        byteSize: 5,
+        sha256: null,
+        width: null,
+        height: null,
+        originalMemoId: null,
+        archivePath: "resources/file.bin",
+        createdAt: "2026-08-31T00:00:00.000Z",
+        updatedAt: "2026-08-31T00:00:00.000Z",
       },
-      new Blob(["x"]),
+      new Blob(["abcde"]),
     );
-    expect(headers.has("Content-Type")).toBe(false);
+    expect(calls.map((call) => call.path)).toEqual([
+      "/api/v1/restores/json/resources/resource%2Fid/uploads",
+      "/api/v1/resource-uploads/restore_upload/parts/1",
+      "/api/v1/resource-uploads/restore_upload/parts/2",
+      "/api/v1/resource-uploads/restore_upload/complete",
+    ]);
+    expect(await calls[1].body.text()).toBe("abcd");
+    expect(await calls[2].body.text()).toBe("e");
+    expect(calls[1].headers.get("Content-Type")).toBe("application/octet-stream");
+  });
+
+  test("uploads memo resources as ordered resumable parts", async () => {
+    const calls = [];
+    const file = new File(["abcdefghij"], "archive.bin", { type: "application/octet-stream" });
+    const client = createEdgeEverClient({
+      fetch: async (input, init) => {
+        const path = String(input);
+        calls.push({ path, method: init.method, body: init.body });
+        if (path.endsWith("/resource-uploads")) {
+          expect(JSON.parse(init.body)).toEqual({
+            filename: "archive.bin",
+            mimeType: "application/octet-stream",
+            byteSize: 10,
+          });
+          return jsonResponse({
+            upload: {
+              id: "upload_1",
+              resourceId: "res_1",
+              partSize: 4,
+              partCount: 3,
+              byteSize: 10,
+              expiresAt: "2026-09-01T00:00:00.000Z",
+            },
+          }, { status: 201 });
+        }
+        if (path.includes("/parts/")) {
+          const partNumber = Number(path.split("/").at(-1));
+          return jsonResponse({ part: { partNumber, byteSize: init.body.size } });
+        }
+        return jsonResponse({ resource: { id: "res_1", url: "/api/v1/resources/res_1/blob" } }, { status: 201 });
+      },
+    });
+
+    const result = await client.uploadMemoResource("memo/1", file);
+
+    expect(result.resource.id).toBe("res_1");
+    expect(calls.map(({ path }) => path)).toEqual([
+      "/api/v1/memos/memo%2F1/resource-uploads",
+      "/api/v1/resource-uploads/upload_1/parts/1",
+      "/api/v1/resource-uploads/upload_1/parts/2",
+      "/api/v1/resource-uploads/upload_1/parts/3",
+      "/api/v1/resource-uploads/upload_1/complete",
+    ]);
+    expect(await calls[1].body.text()).toBe("abcd");
+    expect(await calls[2].body.text()).toBe("efgh");
+    expect(await calls[3].body.text()).toBe("ij");
+  });
+
+  test("uploads a file-backed source without requesting more than one part at a time", async () => {
+    const ranges = [];
+    const bodies = [];
+    const client = createEdgeEverClient({
+      fetch: async (input, init) => {
+        const path = String(input);
+        if (path.endsWith("/resource-uploads")) {
+          return jsonResponse({
+            upload: {
+              id: "upload_staged",
+              resourceId: "res_staged",
+              partSize: 4,
+              partCount: 3,
+              byteSize: 9,
+              expiresAt: "2026-09-01T00:00:00.000Z",
+            },
+          }, { status: 201 });
+        }
+        if (path.includes("/parts/")) {
+          bodies.push(await init.body.text());
+          return jsonResponse({ part: { partNumber: Number(path.split("/").at(-1)), byteSize: init.body.size } });
+        }
+        return jsonResponse({ resource: { id: "res_staged" } }, { status: 201 });
+      },
+    });
+
+    await client.uploadMemoResourceParts("memo_1", {
+      filename: "offline.bin",
+      mimeType: "application/octet-stream",
+      byteSize: 9,
+      readPart: async (start, end) => {
+        ranges.push([start, end]);
+        return new Blob(["abcdefghi".slice(start, end)]);
+      },
+    });
+
+    expect(ranges).toEqual([[0, 4], [4, 8], [8, 9]]);
+    expect(bodies).toEqual(["abcd", "efgh", "i"]);
   });
 
   test("sends unsaved note content to the AI tag suggestion endpoint", async () => {

@@ -1,13 +1,11 @@
 {
-  "version": "1.50.0",
+  "version": "1.51.1",
   "changes": {
     "en-US": [
-      "System information now identifies whether a self-hosted Docker deployment is running the official EdgeEver image or a custom image, making support diagnostics clearer.",
-      "Windows Preview now launches the packaged interface reliably, avoids a missing Visual C++ runtime dependency, and shows actionable diagnostics instead of a silent white screen when startup fails."
+      "Restore the macOS, Windows, Android, and iOS icons in the desktop download menu."
     ],
     "zh-CN": [
-      "系统信息现在会标识 Docker 自托管部署使用的是 EdgeEver 官方镜像还是自定义镜像，便于排查部署问题。",
-      "Windows 预览版现在可以可靠启动打包界面，不再依赖缺失的 Visual C++ 运行库；启动失败时会显示可操作的诊断信息，而不是无提示白屏。"
+      "修复桌面端下载菜单中 macOS、Windows、Android 和 iOS 图标无法显示的问题。"
     ]
   }
 }

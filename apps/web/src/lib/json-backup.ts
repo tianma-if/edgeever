@@ -15,7 +15,16 @@ import {
   type Notebook,
   type Resource,
 } from "@edgeever/shared";
-import { strFromU8, strToU8, unzip, Zip, ZipDeflate, ZipPassThrough } from "fflate";
+import {
+  strFromU8,
+  strToU8,
+  Unzip,
+  UnzipInflate,
+  Zip,
+  ZipDeflate,
+  ZipPassThrough,
+  type UnzipFile,
+} from "fflate";
 import {
   buildMarkdownFrontMatter,
   buildNotebookExportPaths,
@@ -62,14 +71,24 @@ type JsonBackupPage = {
 type JsonBackupSource = {
   listNotebooks: () => Promise<{ notebooks: Notebook[] }>;
   getPage: (offset: number, limit: number) => Promise<JsonBackupPage>;
-  getResourceBlob: (resourceUrl: string) => Promise<Blob>;
+  getResourceResponse?: (resourceUrl: string) => Promise<Response>;
+  getResourceBlob?: (resourceUrl: string) => Promise<Blob>;
   listPrompts: () => Promise<{ prompts: JsonBackupAiPrompt[] }>;
+};
+
+type JsonResourceRestoreSink = {
+  write: (chunk: Uint8Array) => Promise<void>;
+  close: () => Promise<unknown>;
+  abort: () => Promise<void>;
 };
 
 type JsonRestoreTarget = {
   restoreNotebooks: (notebooks: JsonBackupNotebook[]) => Promise<unknown>;
   restoreMemos: (memos: JsonBackupMemo[]) => Promise<unknown>;
-  restoreResource: (resourceId: string, metadata: JsonBackupResource, file: Blob) => Promise<unknown>;
+  createResourceRestoreSink: (
+    resourceId: string,
+    metadata: JsonBackupResource,
+  ) => Promise<JsonResourceRestoreSink>;
   restorePrompts: (prompts: JsonBackupAiPrompt[]) => Promise<unknown>;
 };
 
@@ -78,17 +97,49 @@ export type ParsedEdgeEverZip = {
   notebooks: JsonBackupNotebook[];
   memos: JsonBackupMemo[];
   prompts: JsonBackupAiPrompt[];
-  files: Record<string, Uint8Array>;
+  archive: Blob;
 };
 
 const PAGE_SIZE = 25;
 const ZIP_MIME_TYPE = "application/zip";
+const MAX_BUFFERED_ZIP_BYTES = 128 * 1024 * 1024;
 const jsonBytes = (value: unknown) => strToU8(`${JSON.stringify(value, null, 2)}\n`);
 
 const addJsonFile = (zip: Zip, path: string, value: unknown) => {
   const file = new ZipDeflate(path, { level: 6 });
   zip.add(file);
   file.push(jsonBytes(value), true);
+};
+
+const streamResourceIntoZip = async (
+  source: JsonBackupSource,
+  resourceUrl: string,
+  file: ZipPassThrough,
+  waitForOutputCapacity: () => Promise<void>,
+) => {
+  if (!source.getResourceResponse && !source.getResourceBlob) {
+    throw new Error("A resource response source is required");
+  }
+  const response = source.getResourceResponse
+    ? await source.getResourceResponse(resourceUrl)
+    : new Response(await source.getResourceBlob!(resourceUrl));
+  if (!response.ok) throw new Error(`Resource download failed (${response.status})`);
+  if (!response.body) {
+    file.push(new Uint8Array(), true);
+    return;
+  }
+  const reader = response.body.getReader();
+  try {
+    while (true) {
+      const next = await reader.read();
+      if (next.done) break;
+      file.push(next.value, false);
+      await waitForOutputCapacity();
+    }
+    file.push(new Uint8Array(), true);
+  } finally {
+    reader.releaseLock();
+  }
 };
 
 const toBackupNotebook = (notebook: Notebook): JsonBackupNotebook => ({
@@ -103,7 +154,7 @@ const toBackupNotebook = (notebook: Notebook): JsonBackupNotebook => ({
   updatedAt: notebook.updatedAt,
 });
 
-export const createEdgeEverZip = async (
+export const createEdgeEverZipStream = async (
   source: JsonBackupSource,
   version: { edgeeverVersion: string; buildId: string },
   onProgress?: (progress: EdgeEverZipProgress) => void
@@ -114,25 +165,31 @@ export const createEdgeEverZip = async (
   ]);
   const notebookPaths = buildNotebookExportPaths(notebooks);
   const memoNamesByNotebook = new Map<string, Set<string>>();
-  const chunks: ArrayBuffer[] = [];
+  let zip: Zip | null = null;
+  let releaseBackpressure: (() => void) | null = null;
 
-  return new Promise<Blob>((resolve, reject) => {
-    const zip = new Zip((error, data, final) => {
-      if (error) {
-        reject(error);
-        return;
-      }
-      chunks.push(new Uint8Array(data).buffer);
-      if (final) {
-        resolve(new Blob(chunks, { type: ZIP_MIME_TYPE }));
-      }
-    });
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      const waitForOutputCapacity = () => {
+        if ((controller.desiredSize ?? 1) > 0) return Promise.resolve();
+        return new Promise<void>((resolve) => {
+          releaseBackpressure = resolve;
+        });
+      };
+      zip = new Zip((error, data, final) => {
+        if (error) {
+          controller.error(error);
+          return;
+        }
+        if (data.byteLength > 0) controller.enqueue(data);
+        if (final) controller.close();
+      });
 
-    void (async () => {
-      try {
+      void (async () => {
+        try {
         const backupNotebooks = notebooks.map(toBackupNotebook);
-        addJsonFile(zip, "notebooks.json", backupNotebooks);
-        addJsonFile(zip, "prompts.json", prompts);
+        addJsonFile(zip!, "notebooks.json", backupNotebooks);
+        addJsonFile(zip!, "prompts.json", prompts);
         let offset = 0;
         let completed = 0;
         let total = 0;
@@ -178,10 +235,9 @@ export const createEdgeEverZip = async (
               );
               const relativePath = `${assetDirectory}/${filename}`;
               const archivePath = `${markdownDirectory}/${relativePath}`;
-              const blob = await source.getResourceBlob(resource.url);
               const file = new ZipPassThrough(archivePath);
-              zip.add(file);
-              file.push(new Uint8Array(await blob.arrayBuffer()), true);
+              zip!.add(file);
+              await streamResourceIntoZip(source, resource.url, file, waitForOutputCapacity);
               backupResources.push({
                 id: resource.id,
                 memoId: resource.memoId,
@@ -202,9 +258,9 @@ export const createEdgeEverZip = async (
             }
 
             const revisions = revisionsByMemo.get(memo.id) ?? [];
-            addJsonFile(zip, `memos/${memo.id}.json`, { memo, revisions, resources: backupResources });
+            addJsonFile(zip!, `memos/${memo.id}.json`, { memo, revisions, resources: backupResources });
             const markdownFile = new ZipDeflate(`${markdownDirectory}/${memoStem}.md`, { level: 6 });
-            zip.add(markdownFile);
+            zip!.add(markdownFile);
             markdownFile.push(strToU8(`${buildMarkdownFrontMatter(memo, notebookPath)}${markdown}`), true);
             revisionCount += revisions.length;
             completed += 1;
@@ -233,37 +289,248 @@ export const createEdgeEverZip = async (
             prompts: prompts.length,
           },
         };
-        addJsonFile(zip, "manifest.json", manifest);
-        zip.end();
-      } catch (error) {
-        zip.terminate();
-        reject(error);
-      }
-    })();
+        addJsonFile(zip!, "manifest.json", manifest);
+        zip!.end();
+        } catch (error) {
+          zip?.terminate();
+          controller.error(error);
+        }
+      })();
+    },
+    pull() {
+      releaseBackpressure?.();
+      releaseBackpressure = null;
+    },
+    cancel() {
+      releaseBackpressure?.();
+      releaseBackpressure = null;
+      zip?.terminate();
+    },
   });
 };
 
-const parseJsonFile = (
-  files: Record<string, Uint8Array>,
-  path: string,
-  missingCode: EdgeEverZipImportErrorCode = "missingData"
-) => {
-  const data = files[path];
-  if (!data) {
-    throw new EdgeEverZipImportError(missingCode);
+export const createEdgeEverZip = async (
+  source: JsonBackupSource,
+  version: { edgeeverVersion: string; buildId: string },
+  onProgress?: (progress: EdgeEverZipProgress) => void,
+) => new Response(await createEdgeEverZipStream(source, version, onProgress), {
+  headers: { "Content-Type": ZIP_MIME_TYPE },
+}).blob();
+
+export class EdgeEverZipMemoryLimitError extends Error {
+  constructor() {
+    super("This backup is too large for an in-memory export. Use a browser that supports streaming file saves.");
+    this.name = "EdgeEverZipMemoryLimitError";
   }
+}
+
+const bufferedZipBlob = async (stream: ReadableStream<Uint8Array>) => {
+  const reader = stream.getReader();
+  const chunks: ArrayBuffer[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      const next = await reader.read();
+      if (next.done) break;
+      total += next.value.byteLength;
+      if (total > MAX_BUFFERED_ZIP_BYTES) {
+        await reader.cancel();
+        throw new EdgeEverZipMemoryLimitError();
+      }
+      const copy = new Uint8Array(next.value.byteLength);
+      copy.set(next.value);
+      chunks.push(copy.buffer);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  return new Blob(chunks, { type: ZIP_MIME_TYPE });
+};
+
+type StreamingFileHandle = {
+  createWritable: () => Promise<WritableStream<Uint8Array>>;
+  getFile?: () => Promise<File>;
+};
+
+export const saveEdgeEverZip = async (
+  source: JsonBackupSource,
+  version: { edgeeverVersion: string; buildId: string },
+  onProgress?: (progress: EdgeEverZipProgress) => void,
+) => {
+  const filename = `edgeever-export-${new Date().toISOString().slice(0, 10)}.zip`;
+  const savePicker = (window as Window & {
+    showSaveFilePicker?: (options: { suggestedName: string }) => Promise<StreamingFileHandle>;
+  }).showSaveFilePicker;
+  if (savePicker) {
+    const handle = await savePicker.call(window, { suggestedName: filename });
+    const stream = await createEdgeEverZipStream(source, version, onProgress);
+    await stream.pipeTo(await handle.createWritable());
+    return { filename, streamed: true as const };
+  }
+
+  const stream = await createEdgeEverZipStream(source, version, onProgress);
+  downloadEdgeEverZip(await bufferedZipBlob(stream), filename);
+  return { filename, streamed: false as const };
+};
+
+export const createEdgeEverZipTemporaryFile = async (
+  source: JsonBackupSource,
+  version: { edgeeverVersion: string; buildId: string },
+  onProgress?: (progress: EdgeEverZipProgress) => void,
+) => {
+  const storage = navigator.storage as StorageManager & {
+    getDirectory?: () => Promise<{
+      getFileHandle: (name: string, options: { create: true }) => Promise<StreamingFileHandle>;
+      removeEntry: (name: string) => Promise<void>;
+    }>;
+  };
+  if (!storage.getDirectory) {
+    const stream = await createEdgeEverZipStream(source, version, onProgress);
+    return { file: await bufferedZipBlob(stream), cleanup: async () => {} };
+  }
+
+  const root = await storage.getDirectory();
+  const name = `edgeever-backup-${crypto.randomUUID()}.zip`;
+  const handle = await root.getFileHandle(name, { create: true });
+  const stream = await createEdgeEverZipStream(source, version, onProgress);
+  try {
+    await stream.pipeTo(await handle.createWritable());
+    if (!handle.getFile) throw new Error("The temporary backup file is unavailable");
+    return {
+      file: await handle.getFile(),
+      cleanup: () => root.removeEntry(name).catch(() => {}),
+    };
+  } catch (error) {
+    await root.removeEntry(name).catch(() => {});
+    throw error;
+  }
+};
+
+type ZipEntryConsumer = {
+  write?: (chunk: Uint8Array) => void | Promise<void>;
+  close?: () => void | Promise<void>;
+};
+
+const streamZipEntries = async (
+  blob: Blob,
+  onEntry: (file: UnzipFile) => ZipEntryConsumer,
+  onInputProgress?: (completedBytes: number) => void,
+) => {
+  let processing = Promise.resolve();
+  const unzipper = new Unzip((file) => {
+    const consumer = onEntry(file);
+    file.ondata = (error, data, final) => {
+      processing = processing.then(async () => {
+        if (error) throw new EdgeEverZipImportError("invalidZip", error);
+        if (data?.byteLength) await consumer.write?.(data);
+        if (final) await consumer.close?.();
+      });
+    };
+    file.start();
+  });
+  unzipper.register(UnzipInflate);
+
+  const reader = blob.stream().getReader();
+  let completedBytes = 0;
+  try {
+    while (true) {
+      const next = await reader.read();
+      completedBytes += next.value?.byteLength ?? 0;
+      onInputProgress?.(completedBytes);
+      try {
+        unzipper.push(next.value ?? new Uint8Array(), next.done);
+      } catch (error) {
+        if (error instanceof EdgeEverZipImportError) throw error;
+        throw new EdgeEverZipImportError("invalidZip", error);
+      }
+      await processing;
+      if (next.done) break;
+    }
+  } finally {
+    reader.releaseLock();
+  }
+};
+
+const MAX_ZIP_METADATA_ENTRY_BYTES = 32 * 1024 * 1024;
+const MAX_ZIP_ENTRY_BYTES = 1024 * 1024 * 1024;
+const MAX_RESTORED_IMAGE_BYTES = 100 * 1024 * 1024;
+
+const isStructuredZipEntry = (path: string) => path === "manifest.json"
+  || path === "notebooks.json"
+  || path === "prompts.json"
+  || /^memos\/[^/]+\.json$/.test(path);
+
+const concatZipChunks = (chunks: Uint8Array[], total: number) => {
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes;
+};
+
+const scanEdgeEverZip = async (blob: Blob, onProgress?: (percentage: number) => void) => {
+  const signature = new Uint8Array(await blob.slice(0, 4).arrayBuffer());
+  const signatureValue = signature.length === 4
+    ? signature[0] | (signature[1] << 8) | (signature[2] << 16) | (signature[3] << 24)
+    : 0;
+  if (signatureValue !== 0x04034b50 && signatureValue !== 0x06054b50) {
+    throw new EdgeEverZipImportError("invalidZip");
+  }
+  const entrySizes = new Map<string, number>();
+  const structuredEntries = new Map<string, Uint8Array>();
+  let lastPercentage = -1;
+
+  await streamZipEntries(blob, (file) => {
+    if (entrySizes.has(file.name)) {
+      throw new EdgeEverZipImportError("invalidZip", new Error(`Duplicate ZIP entry: ${file.name}`));
+    }
+    entrySizes.set(file.name, -1);
+    const structured = isStructuredZipEntry(file.name);
+    const chunks: Uint8Array[] = [];
+    let byteSize = 0;
+    return {
+      write(chunk) {
+        byteSize += chunk.byteLength;
+        const limit = structured ? MAX_ZIP_METADATA_ENTRY_BYTES : MAX_ZIP_ENTRY_BYTES;
+        if (byteSize > limit) {
+          throw new EdgeEverZipImportError(structured ? "invalidData" : "incompleteResources");
+        }
+        if (structured) {
+          const copy = new Uint8Array(chunk.byteLength);
+          copy.set(chunk);
+          chunks.push(copy);
+        }
+      },
+      close() {
+        entrySizes.set(file.name, byteSize);
+        if (structured) structuredEntries.set(file.name, concatZipChunks(chunks, byteSize));
+      },
+    };
+  }, (completedBytes) => {
+    const percentage = blob.size > 0 ? Math.min(100, Math.round((completedBytes / blob.size) * 100)) : 100;
+    if (percentage !== lastPercentage) {
+      lastPercentage = percentage;
+      onProgress?.(percentage);
+    }
+  });
+
+  return { entrySizes, structuredEntries };
+};
+
+const parseJsonEntry = (
+  entries: Map<string, Uint8Array>,
+  path: string,
+  missingCode: EdgeEverZipImportErrorCode = "missingData",
+) => {
+  const data = entries.get(path);
+  if (!data) throw new EdgeEverZipImportError(missingCode);
   try {
     return JSON.parse(strFromU8(data)) as unknown;
   } catch (error) {
     throw new EdgeEverZipImportError(path === "manifest.json" ? "invalidManifest" : "invalidData", error);
   }
-};
-
-const unzipBlob = async (blob: Blob) => {
-  const bytes = new Uint8Array(await blob.arrayBuffer());
-  return new Promise<Record<string, Uint8Array>>((resolve, reject) => {
-    unzip(bytes, (error, files) => error ? reject(new EdgeEverZipImportError("invalidZip", error)) : resolve(files));
-  });
 };
 
 const sortNotebooksForRestore = (notebooks: JsonBackupNotebook[]) => {
@@ -278,9 +545,12 @@ const sortNotebooksForRestore = (notebooks: JsonBackupNotebook[]) => {
   return [...notebooks].sort((left, right) => depth(left) - depth(right));
 };
 
-export const parseEdgeEverZip = async (blob: Blob): Promise<ParsedEdgeEverZip> => {
-  const files = await unzipBlob(blob);
-  const manifestValue = parseJsonFile(files, "manifest.json", "missingManifest");
+export const parseEdgeEverZip = async (
+  blob: Blob,
+  onProgress?: (percentage: number) => void,
+): Promise<ParsedEdgeEverZip> => {
+  const { entrySizes, structuredEntries } = await scanEdgeEverZip(blob, onProgress);
+  const manifestValue = parseJsonEntry(structuredEntries, "manifest.json", "missingManifest");
   if (!manifestValue || typeof manifestValue !== "object") {
     throw new EdgeEverZipImportError("invalidManifest");
   }
@@ -296,7 +566,7 @@ export const parseEdgeEverZip = async (blob: Blob): Promise<ParsedEdgeEverZip> =
     throw new EdgeEverZipImportError("invalidManifest", manifestResult.error);
   }
   const manifest = manifestResult.data;
-  const notebooksValue = parseJsonFile(files, "notebooks.json");
+  const notebooksValue = parseJsonEntry(structuredEntries, "notebooks.json");
   if (!Array.isArray(notebooksValue)) {
     throw new EdgeEverZipImportError("invalidData");
   }
@@ -306,23 +576,23 @@ export const parseEdgeEverZip = async (blob: Blob): Promise<ParsedEdgeEverZip> =
   }
   const notebooks = sortNotebooksForRestore(notebooksResult.data);
   const promptsValue = manifest.formatVersion >= 2
-    ? parseJsonFile(files, "prompts.json")
+    ? parseJsonEntry(structuredEntries, "prompts.json")
     : [];
   const promptsResult = JsonBackupAiPromptSchema.array().safeParse(promptsValue);
   if (!promptsResult.success) {
     throw new EdgeEverZipImportError("invalidData", promptsResult.error);
   }
   const prompts = promptsResult.data as JsonBackupAiPrompt[];
-  const memoPaths = Object.keys(files).filter((path) => /^memos\/[^/]+\.json$/.test(path)).sort();
+  const memoPaths = [...structuredEntries.keys()].filter((path) => /^memos\/[^/]+\.json$/.test(path)).sort();
   const memos: JsonBackupMemo[] = [];
   for (const path of memoPaths) {
-    const memoResult = JsonBackupMemoSchema.safeParse(parseJsonFile(files, path));
+    const memoResult = JsonBackupMemoSchema.safeParse(parseJsonEntry(structuredEntries, path));
     if (!memoResult.success) {
       throw new EdgeEverZipImportError("invalidData", memoResult.error);
     }
     memos.push(memoResult.data as JsonBackupMemo);
   }
-  const markdownCount = Object.keys(files).filter((path) => /^notes\/.+\.md$/.test(path)).length;
+  const markdownCount = [...entrySizes.keys()].filter((path) => /^notes\/.+\.md$/.test(path)).length;
 
   if (
     manifest.counts.notebooks !== notebooks.length
@@ -334,18 +604,25 @@ export const parseEdgeEverZip = async (blob: Blob): Promise<ParsedEdgeEverZip> =
   }
 
   const resources = memos.flatMap((memo) => memo.resources);
+  const resourcePaths = new Set(resources.map((resource) => resource.archivePath));
   const revisionCount = memos.reduce((count, memo) => count + memo.revisions.length, 0);
   if (manifest.counts.revisions !== revisionCount) {
     throw new EdgeEverZipImportError("incompleteData");
   }
   if (
     manifest.counts.resources !== resources.length
-    || resources.some((resource) => !files[resource.archivePath] || files[resource.archivePath].byteLength !== resource.byteSize)
+    || resourcePaths.size !== resources.length
+    || resources.some((resource) => (
+      resource.byteSize <= 0
+      || resource.byteSize > (resource.kind === "image" ? MAX_RESTORED_IMAGE_BYTES : MAX_ZIP_ENTRY_BYTES)
+      || isStructuredZipEntry(resource.archivePath)
+      || entrySizes.get(resource.archivePath) !== resource.byteSize
+    ))
   ) {
     throw new EdgeEverZipImportError("incompleteResources");
   }
 
-  return { manifest, notebooks, memos, prompts, files };
+  return { manifest, notebooks, memos, prompts, archive: blob };
 };
 
 export const restoreEdgeEverZip = async (
@@ -381,18 +658,51 @@ export const restoreEdgeEverZip = async (
     onProgress?.({ completed, total });
   }
 
-  for (const memo of backup.memos) {
-    for (const resource of memo.resources) {
-      await target.restoreResource(
-        resource.id,
-        resource,
-        new Blob([new Uint8Array(backup.files[resource.archivePath])], {
-          type: resource.mimeType || "application/octet-stream",
-        })
-      );
-      completed += 1;
-      onProgress?.({ completed, total });
-    }
+  const resourcesByPath = new Map(
+    backup.memos.flatMap((memo) => memo.resources).map((resource) => [resource.archivePath, resource]),
+  );
+  const restoredPaths = new Set<string>();
+  const activeSinks = new Set<JsonResourceRestoreSink>();
+  try {
+    await streamZipEntries(backup.archive, (file) => {
+      const resource = resourcesByPath.get(file.name);
+      if (!resource) return {};
+      const sinkPromise = target.createResourceRestoreSink(resource.id, resource);
+      let byteSize = 0;
+      return {
+        async write(chunk) {
+          byteSize += chunk.byteLength;
+          if (byteSize > resource.byteSize) {
+            const sink = await sinkPromise;
+            await sink.abort();
+            throw new EdgeEverZipImportError("incompleteResources");
+          }
+          const sink = await sinkPromise;
+          activeSinks.add(sink);
+          await sink.write(chunk);
+        },
+        async close() {
+          const sink = await sinkPromise;
+          activeSinks.add(sink);
+          if (byteSize !== resource.byteSize) {
+            await sink.abort();
+            activeSinks.delete(sink);
+            throw new EdgeEverZipImportError("incompleteResources");
+          }
+          await sink.close();
+          activeSinks.delete(sink);
+          restoredPaths.add(file.name);
+          completed += 1;
+          onProgress?.({ completed, total });
+        },
+      };
+    });
+  } catch (error) {
+    await Promise.all([...activeSinks].map((sink) => sink.abort().catch(() => undefined)));
+    throw error;
+  }
+  if (restoredPaths.size !== resourcesByPath.size) {
+    throw new EdgeEverZipImportError("incompleteResources");
   }
 };
 
@@ -406,12 +716,14 @@ export const restoreEdgeEverZipAndRefresh = async (
   await refreshWorkspace();
 };
 
-export const downloadEdgeEverZip = (blob: Blob) => {
-  const date = new Date().toISOString().slice(0, 10);
+export const downloadEdgeEverZip = (
+  blob: Blob,
+  filename = `edgeever-export-${new Date().toISOString().slice(0, 10)}.zip`,
+) => {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = `edgeever-export-${date}.zip`;
+  anchor.download = filename;
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();

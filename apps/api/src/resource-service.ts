@@ -13,7 +13,7 @@ import { getWorkspaceId } from "./request-auth";
 import type { DatabaseAdapter } from "./storage-contract";
 
 export const MAX_IMAGE_UPLOAD_BYTES = 100 * 1024 * 1024;
-export const MAX_ATTACHMENT_UPLOAD_BYTES = 100 * 1024 * 1024;
+export const MAX_ATTACHMENT_UPLOAD_BYTES = 1024 * 1024 * 1024;
 
 export const SUPPORTED_IMAGE_MIME_TYPES = new Set([
   "image/png",
@@ -106,13 +106,13 @@ export const validateImageUpload = (mimeType: string, size: number) => {
     );
   }
   if (size <= 0 || size > MAX_IMAGE_UPLOAD_BYTES) {
-    throw new AppError("upload_too_large", "Image must be between 1 byte and 50 MB.", 413);
+    throw new AppError("upload_too_large", "Image must be between 1 byte and 100 MiB.", 413);
   }
 };
 
 export const validateAttachmentUpload = (size: number) => {
   if (size <= 0 || size > MAX_ATTACHMENT_UPLOAD_BYTES) {
-    throw new AppError("upload_too_large", "Attachment must be between 1 byte and 100 MB.", 413);
+    throw new AppError("upload_too_large", "Attachment must be between 1 byte and 1 GiB.", 413);
   }
 };
 

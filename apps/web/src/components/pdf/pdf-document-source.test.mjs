@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { loadPdfDocumentSource } from "./pdf-document-source.ts";
+import { canPreviewPdfInline, loadPdfDocumentSource, MAX_INLINE_PDF_BYTES } from "./pdf-document-source.ts";
 
 const bridge = {
   readResource: async (id) => ({ type: "application/pdf", bytes: new Uint8Array([1, id.length]) }),
@@ -7,6 +7,12 @@ const bridge = {
 };
 
 describe("PDF document sources", () => {
+  test("keeps oversized PDFs compact instead of materializing them for inline preview", () => {
+    expect(canPreviewPdfInline(MAX_INLINE_PDF_BYTES)).toBe(true);
+    expect(canPreviewPdfInline(MAX_INLINE_PDF_BYTES + 1)).toBe(false);
+    expect(canPreviewPdfInline(undefined)).toBe(true);
+  });
+
   test("keeps normal web URLs for PDF.js network loading", async () => {
     await expect(loadPdfDocumentSource("https://example.com/report.pdf", bridge)).resolves.toEqual({
       url: "https://example.com/report.pdf",

@@ -28,7 +28,7 @@ export const siteCopy = {
   "zh-CN": {
     layout: {
       defaultDescription:
-        "EdgeEver 是开源、原生支持 AI 的自托管笔记工作区。保留经典印象笔记三栏体验，覆盖 macOS、Windows 预览版、iOS、Android 与浏览器剪藏，支持在 Cloudflare 免费额度内运行或使用 Docker 一键自托管。",
+        "EdgeEver 是开源、原生支持 AI 的自托管笔记工作区。保留经典印象笔记三栏体验，覆盖 macOS、Windows、iOS、Android 与浏览器剪藏，支持在 Cloudflare 免费额度内运行或使用 Docker 一键自托管。",
       defaultTitle: `EdgeEver - ${siteTaglines["zh-CN"]}`,
       imageAlt: "EdgeEver 笔记应用截图",
       ogLocale: "zh_CN",
@@ -42,6 +42,7 @@ export const siteCopy = {
       evernoteMigration: "从印象笔记迁移",
       memosMigration: "从 Memos 迁移",
       notionMigration: "从 Notion 迁移",
+      flomoMigration: "从 Flomo 迁移",
       advancedPlay: "搭配AI Agent的玩法",
       blog: "博客",
       contact: "联系我们",
@@ -60,10 +61,9 @@ export const siteCopy = {
       popHighlight: "印象笔记开源经典平替 · 全平台客户端覆盖",
       demo: "在线演示",
       agentInstall: "一键 AI 部署",
-      windowsPreview: "Windows 预览版",
-      windowsPreviewWarning: "Windows x64 为未签名预览版，系统或组织策略可能警告或阻止安装。请仅从官方 GitHub Release 下载。",
+      windows: "Windows",
       imageAlt: "EdgeEver product preview",
-      badgeText: "💡 全平台覆盖：macOS、Windows 预览版、iOS、Android、浏览器剪藏 · Cloudflare 免费额度 & Docker 一键安装",
+      badgeText: "💡 全平台覆盖：macOS、Windows、iOS、Android、浏览器剪藏 · Cloudflare 免费额度 & Docker 一键安装",
     },
     bento: {
       eyebrow: "WHY EDGEEVER",
@@ -118,7 +118,7 @@ export const siteCopy = {
       card5: {
         badge: "全端主权",
         title: "全平台客户端与无损 ZIP 归档",
-        desc: "覆盖 macOS、Windows x64 预览版、原生 iOS（SwiftUI）、Android 及剪藏插件；基于标准 SQLite 与无损 ZIP 导出，数据完全自主掌控。",
+        desc: "覆盖 macOS、Windows、原生 iOS（SwiftUI）、Android 及剪藏插件；基于标准 SQLite 与无损 ZIP 导出，数据完全自主掌控。",
         archiveTitle: "edgeever-backup.zip",
         archiveSub: "包含 Markdown、Front Matter、附件与历史版本",
       },
@@ -242,11 +242,11 @@ export const siteCopy = {
         },
         {
           title: "全平台客户端与多端同步",
-          summary: "覆盖 macOS、Windows x64 预览版、iOS、Android、浏览器剪藏插件与 Web/PWA，摆脱商业软件的设备数限制。",
+          summary: "覆盖 macOS、Windows、iOS、Android、浏览器剪藏插件与 Web/PWA，摆脱商业软件的设备数限制。",
           points: [
             "不限设备登录数：自建专属 API，彻底打碎商业笔记“免费版仅限 2 台设备”的枷锁。",
             "macOS 桌面端：基于 Electron + Rust sidecar + SQLite，兼顾极致本地性能与离线编辑同步。",
-            "Windows x64 预览版：提供本地 SQLite 与自动更新；当前未使用 Authenticode 签名，安装时可能出现系统或组织策略警告。",
+            "Windows x64：提供本地 SQLite 与自动更新；当前未使用 Authenticode 签名，安装时可能出现系统或组织策略警告。",
             "移动原生端：iOS 原生 SwiftUI App（已上架 App Store）与 Android App（Google Play / APK），支持微信文章剪藏。",
             "浏览器剪藏插件：Chrome、Microsoft Edge 与 Firefox 商店全上架，一键捕获网页全文与书签。",
           ],
@@ -269,8 +269,8 @@ export const siteCopy = {
       description: "快速上手 EdgeEver 的核心路径：自由部署专属实例、无缝迁移旧笔记，并通过 MCP 接入 AI 助手构建第二大脑。",
       items: [
         {
-          title: "两种方式部署 EdgeEver",
-          summary: "让 AI Agent 代为完成 Cloudflare 部署，或使用单行脚本在 VPS/NAS 上 Docker 极速自托管。",
+          title: "选择 EdgeEver 部署方式",
+          summary: "让 AI Agent 辅助或手动完成 Cloudflare 部署，也可使用单行脚本在 VPS/NAS 上 Docker 自托管。",
           href: "/blog/ai-agent-deploy-cloudflare",
           cta: "查看部署指南",
         },
@@ -292,7 +292,7 @@ export const siteCopy = {
   "en-US": {
     layout: {
       defaultDescription:
-        "EdgeEver is an open-source, AI-native, self-hosted Evernote alternative. Enjoy a classic three-pane workspace across macOS, Windows Preview, iOS, Android, and Web Clipper, running within Cloudflare's free tier or on Docker.",
+        "EdgeEver is an open-source, AI-native, self-hosted Evernote alternative. Enjoy a classic three-pane workspace across macOS, Windows, iOS, Android, and Web Clipper, running within Cloudflare's free tier or on Docker.",
       defaultTitle: "Open-Source, Self-Hosted Evernote Alternative | EdgeEver",
       imageAlt: "EdgeEver notes app screenshot",
       ogLocale: "en_US",
@@ -306,6 +306,7 @@ export const siteCopy = {
       evernoteMigration: "Migrate from Evernote",
       memosMigration: "Migrate from Memos",
       notionMigration: "Migrate from Notion",
+      flomoMigration: "Migrate from Flomo",
       advancedPlay: "AI Agent plays",
       blog: "Blog",
       contact: "Contact",
@@ -324,10 +325,9 @@ export const siteCopy = {
       popHighlight: "Open-Source Evernote Alternative · Apps Across Platforms",
       demo: "Live demo",
       agentInstall: "Deploy with AI",
-      windowsPreview: "Windows Preview",
-      windowsPreviewWarning: "Windows x64 is an unsigned Preview. Windows or organization policy may warn or block it; download only from the official GitHub Release.",
+      windows: "Windows",
       imageAlt: "EdgeEver product preview",
-      badgeText: "💡 All Platforms: macOS, Windows Preview, iOS, Android, Web Clipper · Cloudflare Free Tier & 1-Line Docker Deploy",
+      badgeText: "💡 All Platforms: macOS, Windows, iOS, Android, Web Clipper · Cloudflare Free Tier & 1-Line Docker Deploy",
     },
     bento: {
       eyebrow: "WHY EDGEEVER",
@@ -382,7 +382,7 @@ export const siteCopy = {
       card5: {
         badge: "Data Sovereignty",
         title: "Apps Across Platforms & Lossless ZIP Backup",
-        desc: "Available on macOS, Windows x64 Preview, native iOS (SwiftUI), Android (Google Play/APK), and Web Clipper. Lossless ZIP export and standard SQLite provide full ownership.",
+        desc: "Available on macOS, Windows, native iOS (SwiftUI), Android (Google Play/APK), and Web Clipper. Lossless ZIP export and standard SQLite provide full ownership.",
         archiveTitle: "edgeever-backup.zip",
         archiveSub: "Markdown + Attachments + Revision History",
       },
@@ -506,11 +506,11 @@ export const siteCopy = {
         },
         {
           title: "Apps Across Platforms & Multi-Device Sync",
-          summary: "Available across macOS, Windows x64 Preview, iOS, Android, browser Web Clipper, and Web/PWA, freeing you from commercial device caps.",
+          summary: "Available across macOS, Windows, iOS, Android, browser Web Clipper, and Web/PWA, freeing you from commercial device caps.",
           points: [
             "Unlimited Devices: Self-hosted API eliminates commercial restrictions like the '2-device login limit'.",
             "macOS Desktop App: Electron + Rust sidecar + SQLite for blazing fast local performance and offline sync.",
-            "Windows x64 Preview: Local SQLite and automatic updates; the current build is not Authenticode-signed, so Windows or organization policy may warn or block installation.",
+            "Windows x64: Local SQLite and automatic updates; the current build is not Authenticode-signed, so Windows or organization policy may warn or block installation.",
             "Mobile Native Apps: Native SwiftUI iOS App (on App Store) and Android App (on Google Play & GitHub APK).",
             "Web Clipper Extension: Official extensions on Chrome Web Store, Microsoft Edge, and Firefox Add-ons.",
           ],
@@ -533,8 +533,8 @@ export const siteCopy = {
       description: "The fastest paths into EdgeEver: deploy your own instance, move an existing Evernote archive, then connect MCP-powered AI workflows.",
       items: [
         {
-          title: "Two ways to deploy EdgeEver",
-          summary: "Let an AI Agent complete Cloudflare deployment, or run a 1-line script for Docker self-hosting on VPS/NAS.",
+          title: "Choose how to deploy EdgeEver",
+          summary: "Use an AI Agent or manual setup for Cloudflare, or run a one-line Docker installer on a VPS or NAS.",
           href: "/blog/ai-agent-deploy-cloudflare",
           cta: "Read deployment guide",
         },

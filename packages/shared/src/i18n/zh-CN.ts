@@ -738,8 +738,11 @@ export const zhCN = {
     working: "正在整理笔记和附件…",
     importing: "正在导入笔记和附件…",
     progress: "{{completed}} / {{total}}",
+    scanning: "正在检查 ZIP 结构…",
+    scanProgress: "{{percentage}}%",
     complete: "导出完成，ZIP 文件已开始下载。",
     error: "导出失败，请检查网络连接后重试。",
+    largeBackupRequiresStreaming: "备份体积过大，不能在内存中生成。请使用 Chrome、Edge 或桌面应用流式保存。",
     desktopLocalTitle: "桌面端本地备份",
     desktopLocalDescription: "sidecar 会在本机 SQLite 数据目录中保留最近 5 份备份。恢复前会自动创建保护性备份。",
     desktopLocalBackup: "立即备份",
@@ -771,6 +774,7 @@ export const zhCN = {
     webdavComplete: "备份已上传：{{filename}}",
     webdavErrors: {
       network: "无法连接 WebDAV 服务。请检查地址、CORS 和网络连接。",
+      largeBackupRequiresStreaming: "备份体积超过当前浏览器的安全内存范围，请使用 Chrome、Edge 或桌面应用进行磁盘暂存备份。",
       unknown: "WebDAV 操作失败，请检查配置后重试。",
     },
     importComplete: "EdgeEver ZIP 导入完成。",
@@ -1053,6 +1057,7 @@ export const zhCN = {
   pdfViewer: {
     loading: "正在加载 PDF…",
     unavailable: "无法预览此 PDF，你仍可下载或在外部打开。",
+    previewTooLarge: "超过 50 MiB，不自动预览",
     fullscreenLabel: "PDF 查看器：{{filename}}",
     zoomIn: "放大",
     zoomOut: "缩小",

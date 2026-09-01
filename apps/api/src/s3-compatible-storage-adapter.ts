@@ -1,11 +1,15 @@
 import {
+  AbortMultipartUploadCommand,
+  CompleteMultipartUploadCommand,
+  CreateMultipartUploadCommand,
   DeleteObjectsCommand,
   GetObjectCommand,
   PutObjectCommand,
   S3Client,
+  UploadPartCommand,
 } from "@aws-sdk/client-s3";
 import type { Readable } from "node:stream";
-import type { BlobStoreAdapter, BlobObjectAdapter, StorageAdapter } from "./storage-contract";
+import type { BlobMultipartUploadAdapter, BlobStoreAdapter, BlobObjectAdapter, StorageAdapter } from "./storage-contract";
 import type { SqliteDatabaseLike } from "./self-hosted-storage-adapter";
 import { createSelfHostedStorageAdapter } from "./self-hosted-storage-adapter";
 
@@ -71,61 +75,111 @@ const createS3BlobStore = (
       ? { accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey }
       : undefined,
   }),
-): BlobStoreAdapter => ({
-  async get(objectKey, options): Promise<BlobObjectAdapter | null> {
-    try {
-      const range = options?.range;
-      const result = await client.send(new GetObjectCommand({
+): BlobStoreAdapter => {
+  const resumeMultipartUpload = (objectKey: string, uploadId: string): BlobMultipartUploadAdapter => ({
+    uploadId,
+    async uploadPart(partNumber, value) {
+      const result = await client.send(new UploadPartCommand({
         Bucket: config.bucket,
         Key: objectKey,
-        Range: range ? `bytes=${range.offset}-${range.offset + range.length - 1}` : undefined,
+        UploadId: uploadId,
+        PartNumber: partNumber,
+        Body: value as never,
       }));
-      if (!result.Body) {
-        return null;
-      }
-
-      const body = await toWebStream(result.Body);
-      return {
-        body,
-        size: totalSizeFromContentRange(result.ContentRange) ?? result.ContentLength ?? 0,
-        range: range ? { offset: range.offset, length: result.ContentLength ?? range.length } : undefined,
-        writeHttpMetadata: (headers) => {
-          if (result.ContentType) headers.set("Content-Type", result.ContentType);
-          if (result.CacheControl) headers.set("Cache-Control", result.CacheControl);
-          if (result.ContentDisposition) headers.set("Content-Disposition", result.ContentDisposition);
-          if (result.ETag) headers.set("ETag", result.ETag);
-          if (result.LastModified) headers.set("Last-Modified", result.LastModified.toUTCString());
-        },
-      };
-    } catch (error) {
-      if (isMissingObjectError(error)) return null;
-      throw error;
-    }
-  },
-
-  async put(objectKey, value, options) {
-    const metadata = options as { httpMetadata?: Record<string, string> } | undefined;
-    const httpMetadata = metadata?.httpMetadata ?? {};
-    await client.send(new PutObjectCommand({
-      Bucket: config.bucket,
-      Key: objectKey,
-      Body: value as never,
-      ContentType: httpMetadata.contentType,
-      CacheControl: httpMetadata.cacheControl,
-      ContentDisposition: httpMetadata.contentDisposition,
-    }));
-  },
-
-  async delete(objectKeys) {
-    const keys = Array.isArray(objectKeys) ? objectKeys : [objectKeys];
-    for (let index = 0; index < keys.length; index += 1000) {
-      await client.send(new DeleteObjectsCommand({
+      if (!result.ETag) throw new Error("Multipart upload part did not return an ETag.");
+      return { partNumber, etag: result.ETag };
+    },
+    async complete(parts) {
+      await client.send(new CompleteMultipartUploadCommand({
         Bucket: config.bucket,
-        Delete: { Objects: keys.slice(index, index + 1000).map((Key) => ({ Key })) },
+        Key: objectKey,
+        UploadId: uploadId,
+        MultipartUpload: {
+          Parts: parts.map((part) => ({ PartNumber: part.partNumber, ETag: part.etag })),
+        },
       }));
-    }
-  },
-});
+    },
+    async abort() {
+      await client.send(new AbortMultipartUploadCommand({
+        Bucket: config.bucket,
+        Key: objectKey,
+        UploadId: uploadId,
+      }));
+    },
+  });
+
+  return {
+    async get(objectKey, options): Promise<BlobObjectAdapter | null> {
+      try {
+        const range = options?.range;
+        const result = await client.send(new GetObjectCommand({
+          Bucket: config.bucket,
+          Key: objectKey,
+          Range: range ? `bytes=${range.offset}-${range.offset + range.length - 1}` : undefined,
+        }));
+        if (!result.Body) {
+          return null;
+        }
+
+        const body = await toWebStream(result.Body);
+        return {
+          body,
+          size: totalSizeFromContentRange(result.ContentRange) ?? result.ContentLength ?? 0,
+          range: range ? { offset: range.offset, length: result.ContentLength ?? range.length } : undefined,
+          writeHttpMetadata: (headers) => {
+            if (result.ContentType) headers.set("Content-Type", result.ContentType);
+            if (result.CacheControl) headers.set("Cache-Control", result.CacheControl);
+            if (result.ContentDisposition) headers.set("Content-Disposition", result.ContentDisposition);
+            if (result.ETag) headers.set("ETag", result.ETag);
+            if (result.LastModified) headers.set("Last-Modified", result.LastModified.toUTCString());
+          },
+        };
+      } catch (error) {
+        if (isMissingObjectError(error)) return null;
+        throw error;
+      }
+    },
+
+    async put(objectKey, value, options) {
+      const metadata = options as { httpMetadata?: Record<string, string> } | undefined;
+      const httpMetadata = metadata?.httpMetadata ?? {};
+      await client.send(new PutObjectCommand({
+        Bucket: config.bucket,
+        Key: objectKey,
+        Body: value as never,
+        ContentType: httpMetadata.contentType,
+        CacheControl: httpMetadata.cacheControl,
+        ContentDisposition: httpMetadata.contentDisposition,
+      }));
+    },
+
+    async createMultipartUpload(objectKey, options) {
+      const metadata = options as { httpMetadata?: Record<string, string> } | undefined;
+      const httpMetadata = metadata?.httpMetadata ?? {};
+      const result = await client.send(new CreateMultipartUploadCommand({
+        Bucket: config.bucket,
+        Key: objectKey,
+        ContentType: httpMetadata.contentType,
+        CacheControl: httpMetadata.cacheControl,
+        ContentDisposition: httpMetadata.contentDisposition,
+      }));
+      if (!result.UploadId) throw new Error("Multipart upload initialization did not return an upload ID.");
+      return resumeMultipartUpload(objectKey, result.UploadId);
+    },
+
+    resumeMultipartUpload,
+
+    async delete(objectKeys) {
+      const keys = Array.isArray(objectKeys) ? objectKeys : [objectKeys];
+      for (let index = 0; index < keys.length; index += 1000) {
+        await client.send(new DeleteObjectsCommand({
+          Bucket: config.bucket,
+          Delete: { Objects: keys.slice(index, index + 1000).map((Key) => ({ Key })) },
+        }));
+      }
+    },
+  };
+};
 
 /**
  * S3-compatible storage for self-hosted deployments. The SQLite adapter is

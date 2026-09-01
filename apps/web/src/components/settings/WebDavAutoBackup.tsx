@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { api } from "@/lib/api";
-import { createEdgeEverZip } from "@/lib/json-backup";
+import { createEdgeEverZipTemporaryFile } from "@/lib/json-backup";
 import {
   isWebDavBackupDue,
   loadWebDavBackupConfig,
@@ -31,11 +31,11 @@ export const WebDavAutoBackup = () => {
       const attemptAt = new Date().toISOString();
       saveWebDavBackupSchedule({ ...schedule, lastAttemptAt: attemptAt });
       try {
-        const archive = await createEdgeEverZip(
-          { listNotebooks: api.listNotebooks, listPrompts: api.listAiPrompts, getPage: api.getJsonBackupPage, getResourceBlob: api.getResourceBlob },
+        const temporary = await createEdgeEverZipTemporaryFile(
+          { listNotebooks: api.listNotebooks, listPrompts: api.listAiPrompts, getPage: api.getJsonBackupPage, getResourceResponse: api.getResourceResponse },
           { edgeeverVersion: __EDGEEVER_APP_VERSION__, buildId: __EDGEEVER_BUILD_ID__ }
         );
-        await uploadWebDavBackup(config, password, archive);
+        await uploadWebDavBackup(config, password, temporary.file).finally(temporary.cleanup);
         saveWebDavBackupSchedule({ ...schedule, lastAttemptAt: attemptAt, lastSuccessAt: new Date().toISOString() });
       } catch (error) {
         console.error("Automatic WebDAV backup failed", error);

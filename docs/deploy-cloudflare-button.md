@@ -15,11 +15,10 @@ This document provides a detailed step-by-step guide for deploying EdgeEver onli
 
 ## Step-by-Step Deployment Guide
 
-### Step 1: Fork the Repository & Enable Actions
+### Step 1: Fork the Repository
 
 1. Visit the official EdgeEver repository: `https://github.com/tianma-if/edgeever`.
 2. Click the **Fork** button at the top right to fork the repository into your GitHub account.
-3. Go to your Forked repository, navigate to the **Actions** tab, and click **"I understand my workflows, go ahead and enable them"** to activate automated workflows.
 
 ---
 
@@ -36,20 +35,13 @@ Log into your [Cloudflare Dashboard](https://dash.cloudflare.com/):
 
 ---
 
-### Step 3: Import Project & Configure the Login Secret
+### Step 3: Import the Project
 
 1. In Cloudflare Dashboard, navigate to **Workers & Pages** -> **Overview**, click **Create application** -> **Pages** / **Workers** (Import Git Repository).
 2. Click **Connect to Git**, authorize Cloudflare, and select your Forked `edgeever` repository.
 3. Project settings:
    - **Production branch**: `main`
    - **Root directory**: Leave blank or default `/`
-4. Under **Settings** -> **Variables and Secrets**, add the login password:
-
-| Type | Name | Value | Purpose |
-| :--- | :--- | :--- | :--- |
-| **Secret** | `EDGE_EVER_AUTH_PASSWORD` | Set a strong admin password | Initial login credential |
-
-> `EDGE_EVER_AUTH_PASSWORD` is a Worker runtime Secret, not a Workers Builds variable. The standard deploy command reuses and verifies this Secret; do not duplicate the password in build variables.
 
 The repository's deployment command creates the `DB` and `RESOURCES` bindings from the standard resource names. Do not edit `wrangler.toml` or add duplicate bindings in the Dashboard.
 
@@ -57,7 +49,19 @@ Existing deployments created from older instructions do not need to rename or mi
 
 ---
 
-### Step 4: Start the Build
+### Step 4: Set the Administrator Password
+
+Under the Worker's **Settings** -> **Variables and Secrets**, add this Secret:
+
+| Type | Name | Value | Purpose |
+| :--- | :--- | :--- | :--- |
+| **Secret** | `EDGE_EVER_AUTH_PASSWORD` | Preferably at least 32 characters and unique to this instance | Administrator login password |
+
+`EDGE_EVER_AUTH_PASSWORD` is the variable name; the Secret value is the administrator login password you choose. It is a Worker runtime Secret, not a Workers Builds variable, so do not duplicate the password in build variables.
+
+---
+
+### Step 5: Start the Build
 
 Keep the default deploy command filled in by Cloudflare:
 
@@ -80,7 +84,7 @@ After publishing, the CI deployment records the actual public target reported by
 
 ---
 
-### Step 5: Verify Deployment & Login
+### Step 6: Verify Deployment, Login & Automatic Updates
 
 1. After deployment completes, Cloudflare will assign a default domain (e.g., `https://edgeever.your-subdomain.workers.dev`).
 2. Visit the health check endpoint in your browser: `https://<your-domain>/api/health`, and confirm it returns HTTP `200` with:
@@ -88,7 +92,8 @@ After publishing, the CI deployment records the actual public target reported by
    { "ok": true }
    ```
 3. Open the homepage, log in with your configured administrator username (default: `admin`) and `EDGE_EVER_AUTH_PASSWORD`, and start using EdgeEver!
-4. Go back to your Fork's **Actions** tab on GitHub and manually trigger **Update deployed EdgeEver** once to ensure upstream updates will sync properly in the future.
+4. Go back to your Fork's **Actions** tab on GitHub and click **I understand my workflows, go ahead and enable them**.
+5. Manually run **Update deployed EdgeEver** once to ensure future upstream updates can sync, and confirm Cloudflare receives the resulting build event.
 
 ---
 
@@ -116,6 +121,8 @@ Ordinary deployments do not need these settings. To customize an instance, add n
 | `EDGE_EVER_R2_PREVIEW_BUCKET_NAME` | Preview R2 bucket name |
 | `EDGE_EVER_WORKERS_DEV` | Enable or disable the `workers.dev` route |
 | `EDGE_EVER_CUSTOM_DOMAIN` / `EDGE_EVER_ROUTE_PATTERN` | Custom routing |
+
+To customize the initial administrator username, set `EDGE_EVER_AUTH_USERNAME` before the first build. Ordinary deployments need no configuration and can use the default username `admin`. Changing only this variable after the administrator account exists does not rename that account.
 
 Passwords and other credentials remain Worker runtime Secrets and must never be added to Builds variables. An advanced local deployment may instead use the git-ignored `.env.local` or an external `WRANGLER_CONFIG` file.
 

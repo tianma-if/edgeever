@@ -533,9 +533,7 @@ export const CreateMemoModal = ({
       const memo = await materializeMemoForImage();
       setImageOperation("uploading");
       const uploadAsset = await prepareUploadAsset(asset, imageCompressionEnabled);
-      const form = new FormData();
-      form.append("file", new ExpoFile(uploadAsset.uri));
-      const { resource } = await client!.uploadMemoResource(memo.id, form);
+      const { resource } = await client!.uploadMemoResource(memo.id, new ExpoFile(uploadAsset.uri));
       applyMobileEditorUpload(editorRef, resource, uploadId, uploadAsset.name || (resource.kind === "image" ? "图片" : "附件"));
     } catch (error) {
       cancelMobileEditorUpload(editorRef, uploadId);
@@ -1004,9 +1002,7 @@ export const RichEditorModal = ({
         safeDomCall(() => editorRef.current?.beginImageUpload(uploadId, previewDataUrl));
       }
       const uploadAsset = await prepareUploadAsset(asset, imageCompressionEnabled);
-      const form = new FormData();
-      form.append("file", new ExpoFile(uploadAsset.uri));
-      const { resource } = await client.uploadMemoResource(memo.id, form);
+      const { resource } = await client.uploadMemoResource(memo.id, new ExpoFile(uploadAsset.uri));
       applyMobileEditorUpload(editorRef, resource, uploadId, uploadAsset.name || (resource.kind === "image" ? "图片" : "附件"));
     } catch (uploadError) {
       cancelMobileEditorUpload(editorRef, uploadId);

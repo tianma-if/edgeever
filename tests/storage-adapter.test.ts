@@ -87,6 +87,58 @@ describe("storage adapter", () => {
     }
   });
 
+  test("streams full and ranged filesystem downloads in bounded chunks", async () => {
+    const directory = await mkdtemp(`${tmpdir()}/edgeever-storage-`);
+    const sqlite = {
+      query: () => ({ all: () => [], get: () => null, run: () => undefined }),
+      transaction: (callback: () => void) => () => callback(),
+    };
+    const payload = new Uint8Array(2 * 1024 * 1024);
+    payload.fill(7);
+
+    try {
+      const store = createSelfHostedStorageAdapter(sqlite, directory).resources;
+      await store.put("workspace/memo/large.bin", payload);
+      const object = await store.get("workspace/memo/large.bin");
+      const reader = object!.body.getReader();
+      const first = await reader.read();
+      expect(first.done).toBe(false);
+      expect(first.value!.byteLength).toBeLessThan(payload.byteLength);
+      await reader.cancel();
+
+      const ranged = await store.get("workspace/memo/large.bin", {
+        range: { offset: 1_000_000, length: 100_000 },
+      });
+      expect(ranged?.range).toEqual({ offset: 1_000_000, length: 100_000 });
+      expect((await new Response(ranged!.body).arrayBuffer()).byteLength).toBe(100_000);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("assembles filesystem multipart uploads without exposing staging parts", async () => {
+    const directory = await mkdtemp(`${tmpdir()}/edgeever-storage-`);
+    const sqlite = {
+      query: () => ({ all: () => [], get: () => null, run: () => undefined }),
+      transaction: (callback: () => void) => () => callback(),
+    };
+
+    try {
+      const store = createSelfHostedStorageAdapter(sqlite, directory).resources;
+      const upload = await store.createMultipartUpload("workspace/memo/archive.bin");
+      const second = await upload.uploadPart(2, new Uint8Array([4, 5]));
+      const first = await upload.uploadPart(1, new Uint8Array([1, 2, 3]));
+      await upload.complete([first, second]);
+
+      expect(await readFile(`${directory}/workspace/memo/archive.bin`)).toEqual(
+        new Uint8Array([1, 2, 3, 4, 5]),
+      );
+      expect(await store.get(`.uploads/${upload.uploadId}/1.part`)).toBeNull();
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   test("rejects attachment path traversal", async () => {
     const directory = await mkdtemp(`${tmpdir()}/edgeever-storage-`);
     const sqlite = {
@@ -139,6 +191,38 @@ describe("storage adapter", () => {
       "PutObjectCommand:memo/image.txt",
       "GetObjectCommand:memo/image.txt",
       "DeleteObjectsCommand:",
+    ]);
+  });
+
+  test("maps multipart lifecycle operations to an S3-compatible client", async () => {
+    const commands: string[] = [];
+    const client = {
+      send: async (command: { constructor: { name: string }; input: { PartNumber?: number } }) => {
+        commands.push(`${command.constructor.name}:${command.input.PartNumber ?? ""}`);
+        if (command.constructor.name === "CreateMultipartUploadCommand") return { UploadId: "provider-upload" };
+        if (command.constructor.name === "UploadPartCommand") return { ETag: `etag-${command.input.PartNumber}` };
+        return {};
+      },
+    };
+    const sqlite = {
+      query: () => ({ all: () => [], get: () => null, run: () => undefined }),
+      transaction: (callback: () => void) => () => callback(),
+    };
+    const store = createS3CompatibleStorageAdapter(
+      sqlite,
+      { bucket: "edgeever", endpoint: "http://minio:9000" },
+      client as never,
+    ).resources;
+
+    const upload = await store.createMultipartUpload("memo/archive.bin");
+    const part = await upload.uploadPart(1, new Uint8Array([1, 2, 3]));
+    await upload.complete([part]);
+
+    expect(part).toEqual({ partNumber: 1, etag: "etag-1" });
+    expect(commands).toEqual([
+      "CreateMultipartUploadCommand:",
+      "UploadPartCommand:1",
+      "CompleteMultipartUploadCommand:",
     ]);
   });
 });

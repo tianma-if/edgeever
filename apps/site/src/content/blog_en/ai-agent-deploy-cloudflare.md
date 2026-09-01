@@ -1,13 +1,13 @@
 ---
 draft: false
-title: "Deploy a self-hosted notes app on Cloudflare: EdgeEver AI-assisted and manual guide"
-snippet: "Deploy EdgeEver with help from an AI Agent, or configure it manually from a GitHub Fork in your own Cloudflare account."
+title: "Self-host EdgeEver with Cloudflare or Docker"
+snippet: "Run EdgeEver on Cloudflare Serverless, or install it with Docker on a VPS, NAS, or home server."
 image: {
     src: "/images/agent-deploy.jpg",
-    alt: "Two ways to deploy EdgeEver to Cloudflare"
+    alt: "Cloudflare and Docker self-hosting options for EdgeEver"
 }
 publishDate: "2026-07-02 00:50"
 category: "Deployment"
 author: "EdgeEver Team"
-tags: [cloudflare, deploy, ai-agent, serverless]
+tags: [cloudflare, docker, deploy, ai-agent, self-hosted]
 ---

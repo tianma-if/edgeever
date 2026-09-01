@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
-import { createEdgeEverZip, type EdgeEverZipProgress } from "@/lib/json-backup";
+import { createEdgeEverZipTemporaryFile, EdgeEverZipMemoryLimitError, type EdgeEverZipProgress } from "@/lib/json-backup";
 import {
   loadWebDavBackupConfig,
   loadWebDavBackupPassword,
@@ -52,6 +52,7 @@ export const WebDavBackupCard = () => {
   };
 
   const describeError = (error: unknown) => {
+    if (error instanceof EdgeEverZipMemoryLimitError) return t("dataExport.webdavErrors.largeBackupRequiresStreaming");
     if (error instanceof TypeError) return t("dataExport.webdavErrors.network");
     if (error instanceof Error && error.message) return error.message;
     return t("dataExport.webdavErrors.unknown");
@@ -79,12 +80,13 @@ export const WebDavBackupCard = () => {
     setMessage(null);
     try {
       const normalized = persistSettings();
-      const archive = await createEdgeEverZip(
-        { listNotebooks: api.listNotebooks, listPrompts: api.listAiPrompts, getPage: api.getJsonBackupPage, getResourceBlob: api.getResourceBlob },
+      const temporary = await createEdgeEverZipTemporaryFile(
+        { listNotebooks: api.listNotebooks, listPrompts: api.listAiPrompts, getPage: api.getJsonBackupPage, getResourceResponse: api.getResourceResponse },
         { edgeeverVersion: __EDGEEVER_APP_VERSION__, buildId: __EDGEEVER_BUILD_ID__ },
         setProgress
       );
-      const result = await uploadWebDavBackup(normalized, password, archive);
+      const result = await uploadWebDavBackup(normalized, password, temporary.file)
+        .finally(temporary.cleanup);
       const nextSchedule = { ...schedule, lastSuccessAt: new Date().toISOString() };
       saveWebDavBackupSchedule(nextSchedule);
       setSchedule(nextSchedule);

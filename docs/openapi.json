@@ -1299,7 +1299,7 @@
       ],
       "post": {
         "summary": "Upload an image or attachment resource for a memo",
-        "description": "Uploads an image or attachment resource for a memo. Images are stored as provided; server-side compression is disabled.",
+        "description": "Legacy single-request upload for files up to 100 MiB. New clients should use the resumable multipart upload endpoints. Images are stored as provided; server-side compression is disabled.",
         "requestBody": {
           "required": true,
           "content": {
@@ -1334,6 +1334,103 @@
               }
             }
           }
+        }
+      }
+    },
+    "/api/v1/memos/{id}/resource-uploads": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/MemoId"
+        }
+      ],
+      "post": {
+        "summary": "Initialize a resumable resource upload",
+        "description": "Creates an 8 MiB-part upload session. Attachments support up to 1 GiB; images support up to 100 MiB to keep decoding and previews bounded. The session expires after 24 hours.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "filename": { "type": "string" },
+                  "mimeType": { "type": "string" },
+                  "byteSize": { "type": "integer", "minimum": 1, "maximum": 1073741824 }
+                },
+                "required": ["filename", "mimeType", "byteSize"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Initialized upload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "upload": { "$ref": "#/components/schemas/ResourceUpload" }
+                  },
+                  "required": ["upload"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/resource-uploads/{uploadId}/parts/{partNumber}": {
+      "parameters": [
+        { "name": "uploadId", "in": "path", "required": true, "schema": { "type": "string" } },
+        { "name": "partNumber", "in": "path", "required": true, "schema": { "type": "integer", "minimum": 1 } }
+      ],
+      "put": {
+        "summary": "Upload or replace one resource part",
+        "description": "Streams one exact-sized part to object storage. Repeating a part number safely replaces that part.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/octet-stream": {
+              "schema": { "type": "string", "format": "binary" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Part stored" }
+        }
+      }
+    },
+    "/api/v1/resource-uploads/{uploadId}/complete": {
+      "parameters": [
+        { "name": "uploadId", "in": "path", "required": true, "schema": { "type": "string" } }
+      ],
+      "post": {
+        "summary": "Complete a resource upload",
+        "responses": {
+          "201": {
+            "description": "Completed resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "resource": { "$ref": "#/components/schemas/Resource" } },
+                  "required": ["resource"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/resource-uploads/{uploadId}": {
+      "parameters": [
+        { "name": "uploadId", "in": "path", "required": true, "schema": { "type": "string" } }
+      ],
+      "delete": {
+        "summary": "Abort a resource upload",
+        "responses": {
+          "200": { "description": "Upload aborted" }
         }
       }
     },
@@ -1465,13 +1562,44 @@
         "responses": { "200": { "$ref": "#/components/responses/Ok" } }
       }
     },
+    "/api/v1/restores/json/resources/{id}/uploads": {
+      "parameters": [
+        { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+      ],
+      "post": {
+        "summary": "Initialize a resumable resource restore",
+        "description": "Interactive-user-only restore session that preserves the resource ID from an EdgeEver ZIP. The client streams decompressed bytes through the shared 8 MiB multipart endpoints, supporting attachments up to 1 GiB without buffering the resource or archive in memory.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "type": "object", "additionalProperties": true }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Initialized restore upload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "upload": { "$ref": "#/components/schemas/ResourceUpload" } },
+                  "required": ["upload"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/restores/json/resources/{id}": {
       "parameters": [
         { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
       ],
       "put": {
-        "summary": "Import one resource from an EdgeEver ZIP",
-        "description": "Interactive-user-only resource import. The multipart metadata field contains the structured EdgeEver ZIP resource record.",
+        "summary": "Import one small resource from an EdgeEver ZIP (legacy)",
+        "description": "Interactive-user-only compatibility endpoint for resources up to 100 MiB. Larger restores use the resumable restore session so request parsing remains memory-bounded.",
         "requestBody": {
           "required": true,
           "content": {
@@ -2618,6 +2746,18 @@
           }
         },
         "required": ["id", "memoId", "originalMemoId", "kind", "mimeType", "filename", "byteSize", "sha256", "width", "height", "createdAt", "updatedAt", "url"]
+      },
+      "ResourceUpload": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "resourceId": { "type": "string" },
+          "partSize": { "type": "integer", "const": 8388608 },
+          "partCount": { "type": "integer", "minimum": 1, "maximum": 50 },
+          "byteSize": { "type": "integer", "minimum": 1, "maximum": 1073741824 },
+          "expiresAt": { "type": "string", "format": "date-time" }
+        },
+        "required": ["id", "resourceId", "partSize", "partCount", "byteSize", "expiresAt"]
       },
       "ResourceListItem": {
         "allOf": [

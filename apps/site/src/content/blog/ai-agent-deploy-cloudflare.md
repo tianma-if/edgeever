@@ -1,13 +1,13 @@
 ---
 draft: false
-title: "Cloudflare 自托管笔记应用部署指南：EdgeEver AI 辅助与手动部署"
-snippet: "使用 AI Agent 辅助部署 EdgeEver，或从 GitHub Fork 后手动完成 Cloudflare 配置。"
+title: "EdgeEver 自托管部署指南：Cloudflare 与 Docker"
+snippet: "使用 Cloudflare 免费 Serverless，或在 VPS、NAS 与家庭服务器上一键完成 Docker 自托管。"
 image: {
     src: "/images/agent-deploy.jpg",
-    alt: "EdgeEver 的两种 Cloudflare 部署方案"
+    alt: "EdgeEver 的 Cloudflare 与 Docker 自托管方案"
 }
 publishDate: "2026-07-02 00:50"
 category: "Deployment"
 author: "EdgeEver Team"
-tags: [cloudflare, deploy, ai-agent, serverless]
+tags: [cloudflare, docker, deploy, ai-agent, self-hosted]
 ---
