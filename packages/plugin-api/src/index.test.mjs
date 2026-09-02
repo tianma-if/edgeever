@@ -10,8 +10,8 @@ describe("extension manifests", () => {
       version: "1.0.0",
       apiVersion: "1",
       entry: "./main.js",
-      permissions: ["notes:read", "notes:read", "ui:commands"],
-    })).toMatchObject({ permissions: ["notes:read", "ui:commands"] });
+      permissions: ["notes:read", "notes:read", "templates:read", "templates:write", "ui:commands", "ui:navigation", "ui:embeds"],
+    })).toMatchObject({ permissions: ["notes:read", "templates:read", "templates:write", "ui:commands", "ui:navigation", "ui:embeds"] });
   });
 
   test("rejects undeclared permissions", () => {
@@ -60,6 +60,51 @@ describe("extension manifests", () => {
       entry: "./main.js",
       permissions: ["network"],
     })).toThrow("must declare networkHosts");
+  });
+
+  test("normalizes a host-rendered plugin settings schema", () => {
+    const manifest = parseExtensionManifest({
+      type: "plugin",
+      id: "org.edgeever.settings",
+      name: "Settings",
+      version: "1.0.0",
+      apiVersion: "1",
+      entry: "./main.js",
+      permissions: [],
+      settings: {
+        fields: [
+          { key: "endpoint", type: "text", label: "Endpoint", default: "https://example.com" },
+          { key: "token", type: "secret", label: "Token", required: true },
+          { key: "limit", type: "number", label: "Limit", default: 10, min: 1, max: 100 },
+          { key: "enabled", type: "boolean", label: "Enabled", default: true },
+          { key: "format", type: "select", label: "Format", options: [{ value: "md", label: "Markdown" }] },
+        ],
+      },
+    });
+
+    expect(manifest.type).toBe("plugin");
+    expect(manifest.settings?.fields).toHaveLength(5);
+    expect(manifest.settings?.fields[0]).toMatchObject({ key: "endpoint", default: "https://example.com" });
+  });
+
+  test("rejects unsafe or ambiguous plugin settings", () => {
+    const base = {
+      type: "plugin",
+      id: "org.edgeever.settings-invalid",
+      name: "Settings",
+      version: "1.0.0",
+      apiVersion: "1",
+      entry: "./main.js",
+      permissions: [],
+    };
+    expect(() => parseExtensionManifest({
+      ...base,
+      settings: { fields: [{ key: "token", type: "secret", label: "Token", default: "plaintext" }] },
+    })).toThrow("cannot declare a default");
+    expect(() => parseExtensionManifest({
+      ...base,
+      settings: { fields: [{ key: "mode", type: "select", label: "Mode", options: [{ value: "a", label: "A" }, { value: "a", label: "Again" }] }] },
+    })).toThrow("duplicate select value");
   });
 });
 

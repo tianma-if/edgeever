@@ -12,12 +12,131 @@ import { loadPluginMarketplace } from "@/lib/plugins/plugin-marketplace";
 import { GitHubMark } from "@/components/GitHubRepositoryLink";
 import { checkPluginUpdates, type PluginUpdateInfo } from "@/lib/plugins/plugin-updates";
 import { PluginUpdateDialog } from "@/components/plugins/PluginUpdateDialog";
+import type { PluginManifest, PluginSettingValue } from "@edgeever/plugin-api";
 
 const permissionLabel = (permission: string) => permission.replace(":", " · ");
+
+const PluginSettingsSection = ({ host, manifest }: { host: EdgeEverPluginHost; manifest: PluginManifest }) => {
+  const { t } = useTranslation();
+  const fields = manifest.settings?.fields ?? [];
+  const [values, setValues] = useState<Record<string, PluginSettingValue | "">>({});
+  const [configuredSecrets, setConfiguredSecrets] = useState<Record<string, boolean>>({});
+  const [loading, setLoading] = useState(fields.length > 0);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    setLoading(fields.length > 0);
+    setMessage(null);
+    void Promise.all(fields.map(async (field) => {
+      if (field.type === "secret") return { key: field.key, value: "" as const, configured: await host.hasSettingValue(manifest.id, field.key) };
+      return { key: field.key, value: await host.getSettingValue(manifest.id, field.key) ?? "", configured: false };
+    })).then((loaded) => {
+      if (!active) return;
+      setValues(Object.fromEntries(loaded.map((item) => [item.key, item.value])));
+      setConfiguredSecrets(Object.fromEntries(loaded.map((item) => [item.key, item.configured])));
+      setLoading(false);
+    }).catch((error) => {
+      if (!active) return;
+      setMessage(error instanceof Error ? error.message : String(error));
+      setLoading(false);
+    });
+    return () => { active = false; };
+  }, [host, manifest.id, manifest.version]);
+
+  if (fields.length === 0) return null;
+
+  const save = async () => {
+    setSaving(true);
+    setMessage(null);
+    try {
+      for (const field of fields) {
+        const value = values[field.key];
+        if (field.type === "secret" && value === "") {
+          if (field.required && !configuredSecrets[field.key]) throw new Error(t("plugins.settings.required", { name: field.label }));
+          continue;
+        }
+        if (value === "") {
+          if (field.required) throw new Error(t("plugins.settings.required", { name: field.label }));
+          await host.removeSettingValue(manifest.id, field.key);
+          continue;
+        }
+        await host.setSettingValue(manifest.id, field.key, value);
+        if (field.type === "secret") {
+          setConfiguredSecrets((current) => ({ ...current, [field.key]: true }));
+          setValues((current) => ({ ...current, [field.key]: "" }));
+        }
+      }
+      setMessage(t("plugins.settings.saved"));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <section className="rounded-lg border border-slate-200 p-4">
+      <h3 className="text-xs font-semibold text-slate-700">{t("plugins.settings.title")}</h3>
+      {loading ? <p className="mt-3 text-xs text-slate-400">{t("common.loading")}</p> : (
+        <div className="mt-3 grid gap-4">
+          {fields.map((field) => {
+            const value = values[field.key] ?? "";
+            return (
+              <label key={field.key} className="grid gap-1.5 text-xs text-slate-700">
+                <span className="font-medium">{field.label}{field.required ? " *" : ""}</span>
+                {field.type === "boolean" ? (
+                  <Switch
+                    aria-label={field.label}
+                    checked={value === true}
+                    onCheckedChange={(checked) => setValues((current) => ({ ...current, [field.key]: checked }))}
+                  />
+                ) : field.type === "select" ? (
+                  <select
+                    className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/70"
+                    value={String(value)}
+                    onChange={(event) => setValues((current) => ({ ...current, [field.key]: event.target.value }))}
+                  >
+                    {!field.required ? <option value="">{t("plugins.settings.none")}</option> : null}
+                    {field.options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  </select>
+                ) : (
+                  <Input
+                    type={field.type === "secret" ? "password" : field.type === "number" ? "number" : "text"}
+                    value={String(value)}
+                    placeholder={field.type === "secret" && configuredSecrets[field.key]
+                      ? t("plugins.settings.secretConfigured")
+                      : field.type === "text" || field.type === "secret"
+                        ? field.placeholder
+                        : undefined}
+                    min={field.type === "number" ? field.min : undefined}
+                    max={field.type === "number" ? field.max : undefined}
+                    step={field.type === "number" ? field.step : undefined}
+                    onChange={(event) => setValues((current) => ({
+                      ...current,
+                      [field.key]: field.type === "number" && event.target.value !== "" ? Number(event.target.value) : event.target.value,
+                    }))}
+                  />
+                )}
+                {field.description ? <span className="text-slate-400">{field.description}</span> : null}
+              </label>
+            );
+          })}
+          <div className="flex items-center gap-3">
+            <Button size="sm" disabled={saving} onClick={() => void save()}>{saving ? t("common.saving") : t("common.save")}</Button>
+            {message ? <span className="text-xs text-slate-500" role="status">{message}</span> : null}
+          </div>
+        </div>
+      )}
+    </section>
+  );
+};
 
 const PluginDetailView = ({
   commands,
   extension,
+  host,
   panels,
   pendingId,
   update,
@@ -29,6 +148,7 @@ const PluginDetailView = ({
 }: {
   commands: RegisteredPluginCommand[];
   extension: InstalledExtension;
+  host: EdgeEverPluginHost;
   panels: RegisteredPluginPanel[];
   pendingId: string | null;
   update?: PluginUpdateInfo;
@@ -109,6 +229,8 @@ const PluginDetailView = ({
           </div>
         </section>
       ) : null}
+
+      {manifest.type === "plugin" ? <PluginSettingsSection host={host} manifest={manifest} /> : null}
 
       {extension.error ? <div className="text-sm text-rose-600">{extension.error}</div> : null}
 
@@ -306,6 +428,7 @@ export const PluginManagerCard = ({
           selectedExtension ? (
             <PluginDetailView
               extension={selectedExtension}
+              host={host}
               update={updateQuery.data?.updates.find((update) => update.pluginId === selectedExtension.manifest.id)}
               commands={snapshot.commands.filter((command) => command.pluginId === selectedExtension.manifest.id)}
               panels={snapshot.panels.filter((panel) => panel.pluginId === selectedExtension.manifest.id)}

@@ -269,6 +269,8 @@ export const zhCN = {
       title: "自定义编辑器主题",
       description: "调整正文编辑区的颜色，设置仅保存在当前浏览器中。",
       edit: "编辑配色",
+      import: "导入",
+      export: "导出",
       reset: "恢复默认",
       name: "主题名称",
       background: "背景色",
@@ -282,7 +284,16 @@ export const zhCN = {
       previewBody: "这是一段正文预览，用来感受背景、文字和边框的组合效果。",
       previewMuted: "辅助说明文字需要在柔和背景上保持清晰。",
       previewAccent: "强调文字",
-      contrastWarning: "正文、辅助文字、标题或强调色的对比度不足，请调整后保存。",
+      contrastWarning: "{{mode}}的{{fields}}对比度较低；你仍可保存此主题。",
+      modes: {
+        light: "浅色模式",
+        dark: "深色模式",
+      },
+      importErrors: {
+        invalidFile: "无法导入：文件不是有效的 EdgeEver 编辑器主题。",
+        unsupportedVersion: "无法导入：该主题文件版本暂不受支持。",
+        fileTooLarge: "无法导入：主题文件超过 64 KiB。",
+      },
     },
     mermaidThemes: {
       auto: "跟随应用外观",
@@ -348,6 +359,13 @@ export const zhCN = {
     empty: "当前设备尚未安装插件或主题。",
     toggle: "启用或停用 {{name}}",
     uninstall: "卸载",
+    settings: {
+      title: "插件设置",
+      saved: "设置已保存到当前设备。",
+      required: "{{name}} 为必填项。",
+      secretConfigured: "已配置，留空表示保持不变",
+      none: "无",
+    },
     details: {
       title: "插件详情",
       open: "查看 {{name}} 详情",
@@ -582,6 +600,9 @@ export const zhCN = {
     customInstruction: "告诉 AI 你想怎么处理",
     customInstructionPlaceholder: "例如：改写成一封简洁、友好的邮件，并保留所有日期。",
     customInstructionRequired: "请输入你希望 AI 执行的指令。",
+    inputContent: "输入要处理的内容",
+    inputContentPlaceholder: "输入内容；留空则处理当前整篇笔记。",
+    inputScope: "输入内容",
     addAttachment: "添加文件",
     attachments: "已添加文件",
     removeAttachment: "移除 {{name}}",
@@ -619,6 +640,9 @@ export const zhCN = {
     replace: "替换笔记",
     replaceSelection: "接受并替换选中内容",
     applyFailed: "无法应用生成结果。请重新选择内容后再试。",
+    sourceRequired: "当前处理方式需要笔记内容。请先输入内容，或改用自定义指令从空白开始生成。",
+    requestInvalid: "AI 请求参数无效，请检查处理方式和输入内容后重试。",
+    networkError: "无法连接服务。请确认服务正在运行，然后重试。",
     configure: "请先在“我的 → AI 集成”中配置 AI 模型。",
   },
   accountInfo: {
@@ -1070,6 +1094,10 @@ export const zhCN = {
     expand: "展开预览",
     previous: "上一个 PDF",
     next: "下一个 PDF",
+  },
+  audioPlayer: {
+    label: "音频播放器：{{filename}}",
+    unavailable: "当前设备无法播放此音频格式，你仍可下载或在外部打开。",
   },
   editor: {
     imageScale: "图片缩放",

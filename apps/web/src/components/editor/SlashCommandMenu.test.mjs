@@ -57,6 +57,33 @@ describe("slash command menu", () => {
     expect(filterSlashCommandItems(items, "timestamp").map((item) => item.id)).toEqual(["current-date-time"]);
   });
 
+  test("assigns every item a unique lowercase slash command alias", () => {
+    expect(items.map((item) => item.command)).toEqual([
+      "ai",
+      "text",
+      "h1",
+      "h2",
+      "h3",
+      "date",
+      "time",
+      "datetime",
+      "bullet",
+      "numbered",
+      "task",
+      "quote",
+      "code",
+      "divider",
+      "table",
+      "upload",
+      "note",
+      "link",
+    ]);
+    expect(items.every((item) => /^[a-z][a-z0-9]*$/.test(item.command))).toBe(true);
+    expect(new Set(items.map((item) => item.command)).size).toBe(items.length);
+    expect(filterSlashCommandItems(items, "table").map((item) => item.id)).toEqual(["table"]);
+    expect(filterSlashCommandItems(items, "task").map((item) => item.id)).toEqual(["task-list"]);
+  });
+
   test("formats local date and time as stable static text", () => {
     const date = new Date(2026, 0, 2, 3, 4, 5);
 

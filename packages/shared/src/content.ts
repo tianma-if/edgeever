@@ -12,6 +12,10 @@ import {
   INLINE_MATH_NODE_TYPE,
 } from "./mathematics-markdown";
 import { projectNativeUnknownContentForMarkdown } from "./mobile-content-compatibility";
+import { PluginEmbed, PLUGIN_EMBED_NODE_TYPE } from "./plugin-embed";
+
+export { PluginEmbed, PLUGIN_EMBED_NODE_TYPE, pluginEmbedToMarkdown, normalizePluginEmbedAttributes } from "./plugin-embed";
+export type { PluginEmbedAttributes } from "./plugin-embed";
 
 export {
   BLOCK_MATH_NODE_TYPE,
@@ -98,6 +102,7 @@ const markdownManager = new MarkdownManager({
     PdfAttachment,
     FileAttachment,
     MergeDivider,
+    PluginEmbed,
     ...createEdgeEverMarkdownMathematics(),
     Markdown.configure({
       markedOptions: { gfm: true },
@@ -140,6 +145,7 @@ export const resolveMemoContentDoc = (
     docContainsNodeType(currentDoc, "taskList") ||
     docContainsNodeType(currentDoc, "edgeeverThemeBlock") ||
     docContainsNodeType(currentDoc, MERGE_DIVIDER_NODE_TYPE) ||
+    docContainsNodeType(currentDoc, PLUGIN_EMBED_NODE_TYPE) ||
     docContainsNodeType(currentDoc, BLOCK_MATH_NODE_TYPE) ||
     docContainsNodeType(currentDoc, INLINE_MATH_NODE_TYPE)
     || docContainsNodeType(currentDoc, PDF_ATTACHMENT_NODE_TYPE)

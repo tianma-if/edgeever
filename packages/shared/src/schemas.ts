@@ -255,7 +255,8 @@ export const AiGenerateSchema = z.object({
   if (!input.promptId && input.action === "custom" && !input.instruction) {
     context.addIssue({ code: "custom", path: ["instruction"], message: "An instruction is required for a custom action." });
   }
-  if (!input.title && !input.contentMarkdown.trim() && input.attachments.length === 0) {
+  const canGenerateWithoutSource = input.action === "custom" && Boolean(input.instruction || input.promptId);
+  if (!input.title && !input.contentMarkdown.trim() && input.attachments.length === 0 && !canGenerateWithoutSource) {
     context.addIssue({ code: "custom", path: ["contentMarkdown"], message: "Note content is required." });
   }
   const totalAttachmentBytes = input.attachments.reduce(

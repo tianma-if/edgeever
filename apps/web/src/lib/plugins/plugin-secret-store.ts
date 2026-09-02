@@ -46,6 +46,7 @@ export interface PluginSecretStorage {
   get(pluginId: string, key: string): Promise<string | null>;
   set(pluginId: string, key: string, value: string): Promise<void>;
   remove(pluginId: string, key: string): Promise<void>;
+  clearNamespace(pluginId: string): Promise<void>;
 }
 
 export class WebPluginSecretStore implements PluginSecretStorage {
@@ -101,6 +102,21 @@ export class WebPluginSecretStore implements PluginSecretStorage {
     const database = await this.database();
     const transaction = database.transaction(SECRET_STORE, "readwrite");
     transaction.objectStore(SECRET_STORE).delete(this.recordId(pluginId, key));
+    await transactionDone(transaction);
+  }
+
+  async clearNamespace(pluginId: string) {
+    const database = await this.database();
+    const transaction = database.transaction(SECRET_STORE, "readwrite");
+    const store = transaction.objectStore(SECRET_STORE);
+    const request = store.openCursor();
+    request.addEventListener("success", () => {
+      const cursor = request.result;
+      if (!cursor) return;
+      const record = cursor.value as EncryptedSecret;
+      if (record.id.startsWith(`${pluginId}:`)) cursor.delete();
+      cursor.continue();
+    });
     await transactionDone(transaction);
   }
 }

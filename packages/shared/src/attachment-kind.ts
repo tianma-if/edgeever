@@ -17,6 +17,31 @@ export type AttachmentKind = (typeof ATTACHMENT_KINDS)[number];
 const extensionOf = (filename: string | null | undefined) =>
   filename?.trim().toLowerCase().match(/\.([a-z0-9]+)(?:[?#].*)?$/)?.[1] ?? "";
 
+const AUDIO_MIME_TYPES_BY_EXTENSION: Readonly<Record<string, string>> = {
+  aac: "audio/aac",
+  aiff: "audio/aiff",
+  ape: "audio/x-ape",
+  flac: "audio/flac",
+  m4a: "audio/mp4",
+  mp3: "audio/mpeg",
+  oga: "audio/ogg",
+  ogg: "audio/ogg",
+  opus: "audio/ogg",
+  wav: "audio/wav",
+  weba: "audio/webm",
+  wma: "audio/x-ms-wma",
+};
+
+/** Resolve an audio MIME type without overriding a specific type supplied by storage. */
+export const resolveAudioMimeType = (
+  mimeType: string | null | undefined,
+  filename: string | null | undefined,
+) => {
+  const mime = mimeType?.trim().toLowerCase() ?? "";
+  if (mime.startsWith("audio/")) return mime;
+  return AUDIO_MIME_TYPES_BY_EXTENSION[extensionOf(filename)] ?? null;
+};
+
 export const resolveAttachmentKind = (
   mimeType: string | null | undefined,
   filename: string | null | undefined,
@@ -25,7 +50,7 @@ export const resolveAttachmentKind = (
   const extension = extensionOf(filename);
 
   if (mime.startsWith("image/")) return "image";
-  if (mime.startsWith("audio/")) return "audio";
+  if (resolveAudioMimeType(mime, filename)) return "audio";
   if (mime.startsWith("video/")) return "video";
   if (mime === "application/pdf" || extension === "pdf") return "pdf";
 

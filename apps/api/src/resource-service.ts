@@ -352,6 +352,90 @@ export const createAttachmentResource = async (
   });
 };
 
+export const replaceResourceContent = async (
+  context: AppContext,
+  input: {
+    resourceId: string;
+    expectedContentHash: string;
+    filename: string;
+    mimeType: string;
+    bytes: Uint8Array;
+    actor: AuditActor;
+  },
+): Promise<Resource> => {
+  const workspaceId = getWorkspaceId(context);
+  const current = await getResourceRow(context.env.storage.db, workspaceId, input.resourceId);
+  if (!current) throw new AppError("not_found", "Resource not found", 404);
+  if (!current.sha256 || current.sha256 !== input.expectedContentHash) {
+    throw new AppError("resource_conflict", "The resource changed after it was read.", 409);
+  }
+
+  if (current.kind === "image") validateImageUpload(input.mimeType, input.bytes.byteLength);
+  else validateAttachmentUpload(input.bytes.byteLength);
+
+  const filename = normalizeFilename(input.filename) || current.filename || input.resourceId;
+  const mimeType = input.mimeType || "application/octet-stream";
+  const contentHash = await sha256Bytes(input.bytes);
+  if (
+    contentHash === current.sha256
+    && filename === current.filename
+    && mimeType === current.mime_type
+  ) return mapResource(current);
+
+  const source = await resolveObjectStorage(context.env, current.storage_config_id);
+  const nextObjectKey = `${current.object_key}.version-${createId("blob")}`;
+  await source.store.put(nextObjectKey, input.bytes, {
+    httpMetadata: { contentType: mimeType, cacheControl: "private, max-age=3600" },
+    customMetadata: { memoId: current.memo_id, resourceId: current.id, filename },
+  });
+
+  const now = isoNow();
+  let pointerSwapped = false;
+  try {
+    await context.env.storage.db.prepare(
+      `UPDATE resources
+       SET object_key = ?, mime_type = ?, filename = ?, byte_size = ?, sha256 = ?, width = NULL, height = NULL, updated_at = ?
+       WHERE id = ? AND sha256 = ? AND is_deleted = 0`,
+    ).bind(
+      nextObjectKey,
+      mimeType,
+      filename,
+      input.bytes.byteLength,
+      contentHash,
+      now,
+      current.id,
+      input.expectedContentHash,
+    ).run();
+
+    const updated = await getResourceRow(context.env.storage.db, workspaceId, current.id);
+    if (!updated || updated.object_key !== nextObjectKey) {
+      throw new AppError("resource_conflict", "The resource changed while it was being saved.", 409);
+    }
+    pointerSwapped = true;
+
+    await auditStatement(
+      context.env.storage.db,
+      input.actor.actorType,
+      input.actor.actorId,
+      "resource.content.update",
+      "resource",
+      current.id,
+      {
+        memoId: current.memo_id,
+        previousContentHash: current.sha256,
+        contentHash,
+        byteSize: input.bytes.byteLength,
+        mimeType,
+      },
+    ).run();
+    await source.store.delete(current.object_key).catch(() => undefined);
+    return mapResource(updated);
+  } catch (error) {
+    if (!pointerSwapped) await source.store.delete(nextObjectKey).catch(() => undefined);
+    throw error;
+  }
+};
+
 const encodeRfc5987Value = (value: string) => encodeURIComponent(
   value.replace(/[\uD800-\uDFFF]/gu, "\uFFFD"),
 ).replace(/['()*]/g, (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`);

@@ -130,6 +130,7 @@ import {
   createAttachmentResource,
   createImageResource,
   getResourceRow,
+  replaceResourceContent,
 } from "./resource-service";
 
 // Compatibility aliases keep the existing SQL-heavy implementation small
@@ -359,6 +360,7 @@ registerResourceRoutes(app, {
   uploadResourcePart: (...args) => uploadResourcePart(...args),
   completeResourceUpload: (...args) => completeResourceUpload(...args),
   abortResourceUpload: (...args) => abortResourceUpload(...args),
+  replaceResourceContent: (...args) => replaceResourceContent(...args),
 });
 
 app.post("/api/v1/demo/reset", async (c) => {

@@ -1,6 +1,6 @@
 {
   "name": "edgeever",
-  "version": "1.51.1",
+  "version": "1.53.0",
   "private": true,
   "type": "module",
   "workspaces": [
@@ -41,6 +41,7 @@
     "build:android:play:local": "bun --env-file=${EDGE_EVER_ANDROID_ENV_FILE:-$HOME/.config/edgeever/android/signing.env} run build:android:play",
     "dev:site": "bun --cwd apps/site dev",
     "build": "bun run build:web",
+    "build:plugin-api": "bun run --cwd packages/plugin-api build",
     "build:extension": "vite build --config apps/extension/vite.config.ts",
     "build:extension:firefox": "bun run --cwd apps/extension build:firefox",
     "lint:extension:firefox": "bun run --cwd apps/extension lint:firefox",
@@ -130,14 +131,14 @@
     "@radix-ui/react-toggle-group": "^1.1.19",
     "@radix-ui/react-tooltip": "^1.2.16",
     "@tanstack/react-query": "latest",
-    "@tiptap/core": "3.27.1",
-    "@tiptap/extension-image": "^3.27.1",
-    "@tiptap/extension-list": "3.27.1",
-    "@tiptap/extension-placeholder": "latest",
-    "@tiptap/extension-table": "3.27.1",
-    "@tiptap/react": "latest",
-    "@tiptap/starter-kit": "latest",
-    "@tiptap/suggestion": "3.27.1",
+    "@tiptap/core": "3.31.0",
+    "@tiptap/extension-image": "3.31.0",
+    "@tiptap/extension-list": "3.31.0",
+    "@tiptap/extension-placeholder": "3.31.0",
+    "@tiptap/extension-table": "3.31.0",
+    "@tiptap/react": "3.31.0",
+    "@tiptap/starter-kit": "3.31.0",
+    "@tiptap/suggestion": "3.31.0",
     "ai": "^7.0.58",
     "aws4fetch": "^1.0.20",
     "class-variance-authority": "latest",
@@ -190,8 +191,12 @@
     "vite-plugin-pwa": "^1.3.0",
     "wrangler": "workspace:*"
   },
+  "overrides": {
+    "prosemirror-model": "1.25.11",
+    "react-native": "0.86.3"
+  },
   "patchedDependencies": {
-    "expo-sharing@57.0.8": "patches/expo-sharing@57.0.8.patch",
+    "expo-sharing@57.0.16": "patches/expo-sharing@57.0.16.patch",
     "mermaid@11.16.0": "patches/mermaid@11.16.0.patch"
   }
 }

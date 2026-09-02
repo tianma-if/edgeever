@@ -154,6 +154,177 @@ test.describe("AI custom prompts", () => {
     await expect(composer).toBeVisible();
   });
 
+  test("drags the AI assistant by its header and keeps it inside the viewport", async ({ page }) => {
+    const memo = await createMemo(page, `e2e-ai-drag-${Date.now()}`, "用于测试 AI 助手拖动。");
+    const assistant = await openMemoAssistant(page, memo.id, notebookName);
+    const dragHandle = assistant.locator('[data-ai-assistant-drag-handle="true"]');
+    const [initialBox, handleBox] = await Promise.all([
+      assistant.boundingBox(),
+      dragHandle.boundingBox(),
+    ]);
+    expect(initialBox).not.toBeNull();
+    expect(handleBox).not.toBeNull();
+    expect(handleBox!.y).toBeCloseTo(initialBox!.y, 0);
+    expect(handleBox!.height).toBeGreaterThanOrEqual(60);
+    const viewport = page.viewportSize();
+    expect(viewport).not.toBeNull();
+
+    const maxLeft = viewport!.width - initialBox!.width - 12;
+    const maxTop = viewport!.height - initialBox!.height - 12;
+    const targetLeft = initialBox!.x > (12 + maxLeft) / 2
+      ? Math.max(12, initialBox!.x - 140)
+      : Math.min(maxLeft, initialBox!.x + 140);
+    const targetTop = initialBox!.y > (12 + maxTop) / 2
+      ? Math.max(12, initialBox!.y - 80)
+      : Math.min(maxTop, initialBox!.y + 80);
+    const deltaX = targetLeft - initialBox!.x;
+    const deltaY = targetTop - initialBox!.y;
+
+    const startX = handleBox!.x + Math.min(80, handleBox!.width / 2);
+    const startY = handleBox!.y + 6;
+    await page.mouse.move(startX, startY);
+    await page.mouse.down();
+    await page.mouse.move(startX + deltaX, startY + deltaY, { steps: 5 });
+    await page.mouse.up();
+
+    const movedBox = await assistant.boundingBox();
+    expect(movedBox).not.toBeNull();
+    expect(movedBox!.x).toBeCloseTo(targetLeft, 0);
+    expect(movedBox!.y).toBeCloseTo(targetTop, 0);
+
+    const movedHandleBox = await dragHandle.boundingBox();
+    expect(movedHandleBox).not.toBeNull();
+    await page.mouse.move(movedHandleBox!.x + 40, movedHandleBox!.y + movedHandleBox!.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(viewport!.width - 1, viewport!.height - 1, { steps: 5 });
+    await page.mouse.up();
+
+    const clampedBox = await assistant.boundingBox();
+    expect(clampedBox).not.toBeNull();
+    expect(clampedBox!.x + clampedBox!.width).toBeLessThanOrEqual(viewport!.width - 11);
+    expect(clampedBox!.y + clampedBox!.height).toBeLessThanOrEqual(viewport!.height - 11);
+  });
+
+  test("generates from a blank note with a custom instruction and explains source requirements", async ({ page }) => {
+    const memo = await createMemo(page, `e2e-ai-blank-${Date.now()}`, "");
+    await ensureAuthenticatedPage(page);
+    await page.getByRole("button", { name: new RegExp(notebookName) }).click();
+    await page.locator(`[data-memo-id="${memo.id}"]`).locator("button").first().click();
+    await expect(page.locator(".ProseMirror[contenteditable='true']")).toBeVisible();
+    await page.getByPlaceholder("无标题笔记", { exact: true }).fill("");
+
+    let customRequest: Record<string, unknown> | null = null;
+    let translatedRequest: Record<string, unknown> | null = null;
+    let refinedRequest: Record<string, unknown> | null = null;
+    await page.route("**/api/v1/ai/generate", async (route) => {
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      if (body.action === "custom" && body.contentMarkdown === "Write a poem.") {
+        refinedRequest = body;
+        await route.fulfill({
+          status: 200,
+          contentType: "text/event-stream; charset=utf-8",
+          body: [
+            `data: ${JSON.stringify({ type: "start" })}`,
+            `data: ${JSON.stringify({ type: "text-delta", text: "Compose a poem." })}`,
+            `data: ${JSON.stringify({ type: "finish", finishReason: "stop" })}`,
+            "",
+          ].join("\n\n"),
+        });
+        return;
+      }
+      if (body.action === "translate") {
+        translatedRequest = body;
+        await route.fulfill({
+          status: 200,
+          contentType: "text/event-stream; charset=utf-8",
+          body: [
+            `data: ${JSON.stringify({ type: "start" })}`,
+            `data: ${JSON.stringify({ type: "text-delta", text: "Write a poem." })}`,
+            `data: ${JSON.stringify({ type: "finish", finishReason: "stop" })}`,
+            "",
+          ].join("\n\n"),
+        });
+        return;
+      }
+      if (body.action !== "custom" || body.promptId) {
+        await route.fulfill({
+          status: 400,
+          contentType: "application/json",
+          body: JSON.stringify({
+            error: {
+              code: "ai_source_required",
+              message: "Note content is required for this AI action.",
+            },
+          }),
+        });
+        return;
+      }
+      customRequest = body;
+      await route.fulfill({
+        status: 200,
+        contentType: "text/event-stream; charset=utf-8",
+        body: [
+          `data: ${JSON.stringify({ type: "start" })}`,
+          `data: ${JSON.stringify({ type: "text-delta", text: "你好！祝你今天一切顺利。" })}`,
+          `data: ${JSON.stringify({ type: "finish", finishReason: "stop" })}`,
+          "",
+        ].join("\n\n"),
+      });
+    });
+
+    await page.getByRole("button", { name: "打开 AI 写作助手", exact: true }).click();
+    const assistant = page.getByRole("dialog", { name: "AI 笔记助手" });
+    await expect(assistant).toBeVisible();
+    await assistant.getByRole("button", { name: "生成", exact: true }).click();
+    const result = assistant.getByTestId("ai-assistant-result");
+    await expect(result.getByRole("alert")).toHaveText("当前处理方式需要笔记内容。请先输入内容，或改用自定义指令从空白开始生成。");
+    await expect(result).not.toContainText("生成结果将显示在这里。");
+    await expect(assistant).not.toContainText("contentMarkdown");
+
+    await assistant.getByRole("button", { name: "自定义指令", exact: true }).click();
+    const instruction = assistant.getByRole("textbox", { name: "告诉 AI 你想怎么处理" });
+    await instruction.fill("写一首诗");
+    await selectAction(assistant, "翻译");
+    await expect(assistant.getByRole("textbox", { name: "输入要处理的内容" })).toHaveValue("写一首诗");
+    await assistant.getByRole("button", { name: "生成", exact: true }).click();
+    await expect(result).toHaveText("Write a poem.");
+    expect(translatedRequest).toMatchObject({
+      action: "translate",
+      title: "",
+      contentMarkdown: "写一首诗",
+      targetLanguage: "en",
+    });
+    expect(translatedRequest).not.toHaveProperty("instruction");
+
+    const refinement = assistant.getByRole("textbox", { name: "继续调整" });
+    await refinement.fill("更自然");
+    await assistant.getByRole("button", { name: "调整", exact: true }).click();
+    await expect(result).toHaveText("Compose a poem.");
+    await expect(refinement).toHaveValue("更自然");
+    expect(refinedRequest).toMatchObject({
+      action: "custom",
+      title: "",
+      contentMarkdown: "Write a poem.",
+      targetLanguage: "en",
+    });
+    expect(refinedRequest?.instruction).toContain("Keep the entire revised result in the target language: en.");
+    expect(refinedRequest?.instruction).toContain("Original processing action:\ntranslate");
+    expect(refinedRequest?.instruction).toContain("Original processing instruction:");
+    expect(refinedRequest?.instruction).toContain("Follow-up request:\n更自然");
+
+    await assistant.getByRole("button", { name: "清除结果", exact: true }).click();
+    await assistant.getByRole("button", { name: "自定义指令", exact: true }).click();
+    await expect(instruction).toHaveValue("写一首诗");
+    await assistant.getByRole("button", { name: "生成", exact: true }).click();
+    await expect(assistant.getByText("你好！祝你今天一切顺利。", { exact: true })).toBeVisible();
+    expect(customRequest).toMatchObject({
+      action: "custom",
+      title: "",
+      contentMarkdown: "",
+      instruction: "写一首诗",
+    });
+  });
+
   test("opens the function menu from a bare slash and runs its AI command", async ({ page }) => {
     const memo = await createMemo(page, `e2e-slash-menu-${Date.now()}`, "斜杠菜单测试");
     await ensureAuthenticatedPage(page);

@@ -1,11 +1,17 @@
 {
-  "version": "1.51.1",
+  "version": "1.53.0",
   "changes": {
     "en-US": [
-      "Restore the macOS, Windows, Android, and iOS icons in the desktop download menu."
+      "Play supported audio attachments directly inside notes.",
+      "Preserve rich table content, including task lists, when switching between rich-text and Markdown editing.",
+      "Restore missing attachment sizes for legacy notes when the file metadata is still available.",
+      "Show familiar slash-command aliases in the editor so formatting commands are easier to find."
     ],
     "zh-CN": [
-      "修复桌面端下载菜单中 macOS、Windows、Android 和 iOS 图标无法显示的问题。"
+      "支持在笔记中直接播放兼容的音频附件。",
+      "在富文本与 Markdown 编辑模式之间切换时，保留表格中的任务列表等富内容。",
+      "旧笔记的附件元数据仍可读取时，自动恢复缺失的文件大小。",
+      "在编辑器中显示常用斜杠命令别名，让格式命令更容易查找。"
     ]
   }
 }

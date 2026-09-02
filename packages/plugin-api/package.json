@@ -1,10 +1,23 @@
 {
   "name": "@edgeever/plugin-api",
   "version": "0.1.0",
-  "private": true,
+  "description": "Public contracts and manifest helpers for EdgeEver client plugins and themes.",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
   },
-  "types": "./src/index.ts"
+  "types": "./dist/index.d.ts",
+  "files": ["dist", "README.md"],
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "bun build ./src/index.ts --outdir ./dist --target browser --format esm && tsc -p tsconfig.build.json",
+    "prepack": "bun run build"
+  },
+  "license": "AGPL-3.0-or-later"
 }

@@ -36,7 +36,7 @@ describe("native release planning", () => {
       "package.json",
       "bun.lock",
       "apps/mobile/app.json",
-      "patches/expo-sharing@57.0.8.patch",
+      "patches/expo-sharing@57.0.16.patch",
       "scripts/plan-native-release.mjs",
       "scripts/plan-native-release.test.mjs",
     ];
@@ -46,7 +46,7 @@ describe("native release planning", () => {
       relevantChanges: [
         "bun.lock",
         "apps/mobile/app.json",
-        "patches/expo-sharing@57.0.8.patch",
+        "patches/expo-sharing@57.0.16.patch",
       ],
     });
     expect(planNativeRelease("desktop", changedFiles)).toEqual({

@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { RotateCcw, Sun, Moon } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Download, Moon, RotateCcw, Sun, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,13 +12,19 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { sanitizeAndScopeCss } from "@/lib/css-sandbox";
-import { contrastRatio } from "@/lib/color-contrast";
 import {
+  CustomEditorThemeFileError,
   DEFAULT_CUSTOM_LIGHT_COLORS,
   DEFAULT_CUSTOM_DARK_COLORS,
+  MAX_CUSTOM_EDITOR_THEME_FILE_BYTES,
+  customEditorThemeFileName,
+  getEditorThemeContrastIssues,
+  isValidThemeColors,
+  parseCustomEditorThemeFile,
+  serializeCustomEditorTheme,
   type CustomEditorTheme,
   type ThemeColors,
-} from "../ThemeProvider";
+} from "@/lib/custom-editor-theme";
 
 interface CustomEditorThemeDialogProps {
   open: boolean;
@@ -39,12 +45,6 @@ const COLOR_FIELDS = [
   ["border", "settings.customEditorTheme.border"],
 ] as const;
 
-const hasAccessibleContrast = (colors: ThemeColors) =>
-  contrastRatio(colors.text, colors.background) >= 4.5 &&
-  contrastRatio(colors.muted, colors.soft) >= 4.5 &&
-  contrastRatio(colors.heading, colors.background) >= 4.5 &&
-  contrastRatio(colors.accent, colors.background) >= 3;
-
 export const CustomEditorThemeDialog = ({
   open,
   theme,
@@ -53,14 +53,17 @@ export const CustomEditorThemeDialog = ({
   onDelete,
   isDefaultTheme = false,
 }: CustomEditorThemeDialogProps) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [draft, setDraft] = useState<CustomEditorTheme>(theme);
   const [activeMode, setActiveMode] = useState<"light" | "dark">("light");
+  const [importError, setImportError] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
       setDraft(theme);
       setActiveMode("light");
+      setImportError(null);
     }
   }, [open, theme]);
 
@@ -79,15 +82,48 @@ export const CustomEditorThemeDialog = ({
   const activeColors = draft[activeMode] || DEFAULT_CUSTOM_LIGHT_COLORS;
   const defaultColors = activeMode === "light" ? DEFAULT_CUSTOM_LIGHT_COLORS : DEFAULT_CUSTOM_DARK_COLORS;
 
-  const validColors = (colors: ThemeColors) =>
-    COLOR_FIELDS.every(([key]) => /^#[0-9a-f]{6}$/i.test(colors[key]));
-
   const valid =
     draft.name.trim().length > 0 &&
-    validColors(draft.light) &&
-    validColors(draft.dark) &&
-    hasAccessibleContrast(draft.light) &&
-    hasAccessibleContrast(draft.dark);
+    isValidThemeColors(draft.light) &&
+    isValidThemeColors(draft.dark);
+  const lightContrastIssues = isValidThemeColors(draft.light) ? getEditorThemeContrastIssues(draft.light) : [];
+  const darkContrastIssues = isValidThemeColors(draft.dark) ? getEditorThemeContrastIssues(draft.dark) : [];
+  const activeContrastIssues = activeMode === "light" ? lightContrastIssues : darkContrastIssues;
+
+  const describeImportError = (error: unknown) => {
+    if (error instanceof CustomEditorThemeFileError) {
+      return t(`settings.customEditorTheme.importErrors.${error.code}`);
+    }
+    return t("settings.customEditorTheme.importErrors.invalidFile");
+  };
+
+  const handleImport = async (file: File | undefined) => {
+    if (!file) return;
+    setImportError(null);
+    try {
+      if (file.size > MAX_CUSTOM_EDITOR_THEME_FILE_BYTES) {
+        throw new CustomEditorThemeFileError("fileTooLarge", "Editor theme file is too large.");
+      }
+      const imported = parseCustomEditorThemeFile(await file.text());
+      setDraft({ id: `custom-${crypto.randomUUID()}`, ...imported });
+      setActiveMode("light");
+    } catch (error) {
+      setImportError(describeImportError(error));
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handleExport = () => {
+    const url = URL.createObjectURL(new Blob([serializeCustomEditorTheme(draft)], { type: "application/json;charset=utf-8" }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = customEditorThemeFileName(draft.name);
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
+  };
 
   const handleReset = () => {
     setDraft((current) => ({
@@ -168,11 +204,16 @@ export const CustomEditorThemeDialog = ({
               </div>
             ))}
           </div>
-          {!valid && validColors(draft.light) && validColors(draft.dark) ? (
+          {activeContrastIssues.length > 0 ? (
             <p className="rounded-md bg-amber-50 px-2.5 py-2 text-[11px] leading-4 text-amber-800">
-              {t("settings.customEditorTheme.contrastWarning")}
+              {t("settings.customEditorTheme.contrastWarning", {
+                mode: t(`settings.customEditorTheme.modes.${activeMode}`),
+                fields: new Intl.ListFormat(i18n.resolvedLanguage ?? i18n.language, { type: "conjunction" })
+                  .format(activeContrastIssues.map((field) => t(`settings.customEditorTheme.${field}`))),
+              })}
             </p>
           ) : null}
+          {importError ? <p className="rounded-md bg-red-50 px-2.5 py-2 text-[11px] leading-4 text-red-700" role="alert">{importError}</p> : null}
 
           {/* Custom CSS Textarea */}
           <label className="grid gap-1 text-xs font-semibold text-slate-700">
@@ -218,10 +259,25 @@ export const CustomEditorThemeDialog = ({
         </div>
         <DialogFooter className="gap-2 sm:gap-0 mt-3 pt-2 border-t border-slate-100">
           <div className="flex flex-1 gap-2">
-            <Button variant="ghost" size="sm" className="h-8 px-2.5 text-xs text-slate-500 hover:text-slate-800" onClick={handleReset} title={t("settings.customEditorTheme.reset")}>
+            <Button variant="ghost" size="sm" className="h-8 px-2.5 text-xs text-slate-500 hover:text-slate-800" onClick={handleReset}>
               <RotateCcw className="h-3.5 w-3.5 mr-1" />
               {t("settings.customEditorTheme.reset")}
             </Button>
+            <Button variant="ghost" size="sm" className="h-8 px-2.5 text-xs text-slate-500 hover:text-slate-800" onClick={() => fileInputRef.current?.click()}>
+              <Upload className="h-3.5 w-3.5 mr-1" />
+              {t("settings.customEditorTheme.import")}
+            </Button>
+            <Button variant="ghost" size="sm" className="h-8 px-2.5 text-xs text-slate-500 hover:text-slate-800" disabled={!valid} onClick={handleExport}>
+              <Download className="h-3.5 w-3.5 mr-1" />
+              {t("settings.customEditorTheme.export")}
+            </Button>
+            <input
+              ref={fileInputRef}
+              className="hidden"
+              type="file"
+              accept=".json,application/json"
+              onChange={(event) => void handleImport(event.target.files?.[0])}
+            />
             {onDelete && !isDefaultTheme && (
               <Button
                 variant="danger"

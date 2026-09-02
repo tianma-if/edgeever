@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { resolveEditorDraftState } from "./editor-draft-state.ts";
+import {
+  resolveEditorDraftState,
+  shouldReplaceEditorDocument,
+} from "./editor-draft-state.ts";
 
 const doc = (text) => ({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text }] }] });
 
@@ -123,5 +126,30 @@ describe("editor draft source resolution", () => {
 
     expect(state.source).toBe("draft");
     expect(state.hasUnsavedChanges).toBe(false);
+  });
+});
+
+describe("editor document hydration", () => {
+  test("does not replace a newly mounted empty note with the same empty document", () => {
+    const emptyDocument = { type: "doc", content: [{ type: "paragraph" }] };
+    expect(shouldReplaceEditorDocument(emptyDocument, emptyDocument)).toBe(false);
+  });
+
+  test("replaces the mounted memo when a recovered local draft has different content", () => {
+    expect(shouldReplaceEditorDocument(doc("remote body"), doc("recovered draft"))).toBe(true);
+  });
+
+  test("does not treat rich documents with the same markdown text as identical", () => {
+    const plainDocument = doc("same body");
+    const themedDocument = {
+      type: "doc",
+      content: [{ type: "edgeeverThemeBlock", attrs: { theme: "paper" }, content: plainDocument.content }],
+    };
+
+    expect(shouldReplaceEditorDocument(plainDocument, themedDocument)).toBe(true);
+  });
+
+  test("hydrates when the current editor document cannot be read", () => {
+    expect(shouldReplaceEditorDocument(null, doc("remote body"))).toBe(true);
   });
 });

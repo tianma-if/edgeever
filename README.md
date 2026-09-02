@@ -142,10 +142,10 @@ The Web Clipper is officially published for Chrome, Microsoft Edge, and Firefox.
 ## Client Downloads
 
 <p>
-  <a href="https://github.com/tianma-if/edgeever/releases/latest"><img src="apps/web/public/icons/platforms/macos.svg" alt="Download EdgeEver for macOS" width="40" height="40" /></a>&nbsp;&nbsp;
-  <a href="https://github.com/tianma-if/edgeever/releases/latest"><img src="apps/web/public/icons/platforms/windows.svg" alt="Download EdgeEver for Windows" width="40" height="40" /></a>&nbsp;&nbsp;
-  <a href="https://play.google.com/store/apps/details?id=org.edgeever.mobile"><img src="apps/web/public/icons/platforms/google-play.svg" alt="Download EdgeEver for Android from Google Play" width="40" height="40" /></a>&nbsp;&nbsp;
-  <a href="https://apps.apple.com/us/app/edgeever/id6792625631"><img src="apps/web/public/icons/platforms/app-store.svg" alt="Download EdgeEver for iOS from the App Store" width="40" height="40" /></a>
+  <a href="https://github.com/tianma-if/edgeever/releases/latest"><img src="assets/readme/platforms/macos.svg" alt="Download EdgeEver for macOS" width="40" height="40" /></a>&nbsp;&nbsp;
+  <a href="https://github.com/tianma-if/edgeever/releases/latest"><img src="assets/readme/platforms/windows.svg" alt="Download EdgeEver for Windows" width="40" height="40" /></a>&nbsp;&nbsp;
+  <a href="https://play.google.com/store/apps/details?id=org.edgeever.mobile"><img src="assets/readme/platforms/google-play.svg" alt="Download EdgeEver for Android from Google Play" width="40" height="40" /></a>&nbsp;&nbsp;
+  <a href="https://apps.apple.com/us/app/edgeever/id6792625631"><img src="assets/readme/platforms/app-store.svg" alt="Download EdgeEver for iOS from the App Store" width="40" height="40" /></a>
 </p>
 
 The iOS app requires an Apple ID from outside mainland China.
@@ -160,6 +160,10 @@ The iOS app requires an Apple ID from outside mainland China.
 Welcome to the EdgeEver community. Join us to discuss the EdgeEver experience, real-world AI Agent applications, cost-effective or free AI resources, and automation workflows.
 
 👉 [Join the EdgeEver Telegram group](https://t.me/+wwUx1BYLrIdiZjY1)
+
+## Plugins and Themes
+
+EdgeEver supports device-local plugins and code-free themes on Web and desktop, installable from the Plugin Marketplace, GitHub, or a Manifest URL. Developers can use `@edgeever/plugin-api`; see the [plugin development guide](docs/plugin-development.md).
 
 ## Tech Stack
 

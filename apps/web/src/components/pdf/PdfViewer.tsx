@@ -20,6 +20,7 @@ import { useTranslation } from "react-i18next";
 import { AttachmentFileIcon } from "@/components/attachments/AttachmentFileIcon";
 import { COMPACT_ATTACHMENT_WIDTH_CLASS } from "@/components/attachments/attachment-layout";
 import { ButtonTooltip } from "@/components/ui/button-tooltip";
+import { useAttachmentByteSize } from "@/hooks/useAttachmentByteSize";
 import { isDesktopResourceRuntime, toApiResourceUrl } from "@/lib/desktop-resources";
 import { cn } from "@/lib/utils";
 import { loadPdfJs } from "./pdfjs-loader";
@@ -193,9 +194,10 @@ export const PdfViewer = ({
   const [failed, setFailed] = useState(false);
   const [internalFullscreen, setInternalFullscreen] = useState(false);
   const isFullscreen = fullscreen || internalFullscreen;
-  const previewAllowed = canPreviewPdfInline(byteSize);
+  const resolvedByteSize = useAttachmentByteSize(resolvedUrl, byteSize);
+  const previewAllowed = canPreviewPdfInline(resolvedByteSize);
   const expanded = previewAllowed && (isFullscreen || (controlledExpanded ?? uncontrolledExpanded));
-  const metadata = formatAttachmentMetadata("application/pdf", filename || label, byteSize);
+  const metadata = formatAttachmentMetadata("application/pdf", filename || label, resolvedByteSize);
 
   useEffect(() => {
     const root = rootRef.current;

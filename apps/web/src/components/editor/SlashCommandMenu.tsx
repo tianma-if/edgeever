@@ -71,12 +71,12 @@ export type SlashCommandActions = {
 };
 
 export type SlashCommandItem = {
+  command: string;
   id: SlashCommandId;
   group: SlashCommandGroup;
   icon: SlashCommandIcon;
   keywords: string[];
   label: string;
-  shortcut?: string;
 };
 
 const slashCommandPluginKey = new PluginKey("edgeever-slash-command");
@@ -93,30 +93,30 @@ export const formatCurrentDateTime = (date: Date) =>
   `${formatCurrentDate(date)} ${formatCurrentTime(date)}`;
 
 export const createSlashCommandItems = (labels: SlashCommandLabels): SlashCommandItem[] => [
-  { id: "ai", group: "suggested", icon: Bot, label: labels.items.ai, shortcut: "/ai", keywords: ["ai", "assistant", "人工智能", "智能", "写作"] },
-  { id: "paragraph", group: "basic", icon: Pilcrow, label: labels.items.paragraph, keywords: ["text", "paragraph", "正文", "文本"] },
-  { id: "heading-1", group: "basic", icon: Heading1, label: labels.items["heading-1"], shortcut: "#", keywords: ["h1", "heading", "标题"] },
-  { id: "heading-2", group: "basic", icon: Heading2, label: labels.items["heading-2"], shortcut: "##", keywords: ["h2", "heading", "标题"] },
-  { id: "heading-3", group: "basic", icon: Heading3, label: labels.items["heading-3"], shortcut: "###", keywords: ["h3", "heading", "标题"] },
-  { id: "current-date", group: "basic", icon: CalendarDays, label: labels.items["current-date"], shortcut: "/date", keywords: ["date", "today", "日期", "今天"] },
-  { id: "current-time", group: "basic", icon: Clock3, label: labels.items["current-time"], shortcut: "/time", keywords: ["time", "now", "时间", "现在"] },
-  { id: "current-date-time", group: "basic", icon: CalendarClock, label: labels.items["current-date-time"], shortcut: "/datetime", keywords: ["datetime", "timestamp", "日期时间", "时间戳"] },
-  { id: "bullet-list", group: "basic", icon: List, label: labels.items["bullet-list"], shortcut: "-", keywords: ["bullet", "list", "无序", "列表"] },
-  { id: "ordered-list", group: "basic", icon: ListOrdered, label: labels.items["ordered-list"], shortcut: "1.", keywords: ["ordered", "numbered", "list", "有序", "编号"] },
-  { id: "task-list", group: "basic", icon: ListTodo, label: labels.items["task-list"], shortcut: "[ ]", keywords: ["task", "todo", "check", "任务", "待办"] },
-  { id: "blockquote", group: "basic", icon: Quote, label: labels.items.blockquote, shortcut: ">", keywords: ["quote", "引用"] },
-  { id: "code-block", group: "basic", icon: Braces, label: labels.items["code-block"], shortcut: "```", keywords: ["code", "代码"] },
-  { id: "divider", group: "insert", icon: BetweenHorizontalStart, label: labels.items.divider, shortcut: "---", keywords: ["divider", "rule", "分割", "分隔"] },
-  { id: "table", group: "insert", icon: Table2, label: labels.items.table, keywords: ["table", "表格"] },
-  { id: "attachment", group: "insert", icon: FileUp, label: labels.items.attachment, keywords: ["file", "upload", "attachment", "文件", "上传", "附件"] },
-  { id: "note-link", group: "insert", icon: Link, label: labels.items["note-link"], keywords: ["note", "link", "memo", "笔记", "引用"] },
-  { id: "external-link", group: "insert", icon: Link, label: labels.items["external-link"], keywords: ["url", "link", "web", "链接", "网址"] },
+  { id: "ai", command: "ai", group: "suggested", icon: Bot, label: labels.items.ai, keywords: ["assistant", "人工智能", "智能", "写作"] },
+  { id: "paragraph", command: "text", group: "basic", icon: Pilcrow, label: labels.items.paragraph, keywords: ["paragraph", "正文", "文本"] },
+  { id: "heading-1", command: "h1", group: "basic", icon: Heading1, label: labels.items["heading-1"], keywords: ["heading", "标题"] },
+  { id: "heading-2", command: "h2", group: "basic", icon: Heading2, label: labels.items["heading-2"], keywords: ["heading", "标题"] },
+  { id: "heading-3", command: "h3", group: "basic", icon: Heading3, label: labels.items["heading-3"], keywords: ["heading", "标题"] },
+  { id: "current-date", command: "date", group: "basic", icon: CalendarDays, label: labels.items["current-date"], keywords: ["today", "日期", "今天"] },
+  { id: "current-time", command: "time", group: "basic", icon: Clock3, label: labels.items["current-time"], keywords: ["now", "时间", "现在"] },
+  { id: "current-date-time", command: "datetime", group: "basic", icon: CalendarClock, label: labels.items["current-date-time"], keywords: ["timestamp", "日期时间", "时间戳"] },
+  { id: "bullet-list", command: "bullet", group: "basic", icon: List, label: labels.items["bullet-list"], keywords: ["list", "无序", "列表"] },
+  { id: "ordered-list", command: "numbered", group: "basic", icon: ListOrdered, label: labels.items["ordered-list"], keywords: ["ordered", "list", "有序", "编号"] },
+  { id: "task-list", command: "task", group: "basic", icon: ListTodo, label: labels.items["task-list"], keywords: ["todo", "check", "任务", "待办"] },
+  { id: "blockquote", command: "quote", group: "basic", icon: Quote, label: labels.items.blockquote, keywords: ["引用"] },
+  { id: "code-block", command: "code", group: "basic", icon: Braces, label: labels.items["code-block"], keywords: ["代码"] },
+  { id: "divider", command: "divider", group: "insert", icon: BetweenHorizontalStart, label: labels.items.divider, keywords: ["rule", "分割", "分隔"] },
+  { id: "table", command: "table", group: "insert", icon: Table2, label: labels.items.table, keywords: ["表格"] },
+  { id: "attachment", command: "upload", group: "insert", icon: FileUp, label: labels.items.attachment, keywords: ["file", "attachment", "文件", "上传", "附件"] },
+  { id: "note-link", command: "note", group: "insert", icon: Link, label: labels.items["note-link"], keywords: ["link", "memo", "笔记", "引用"] },
+  { id: "external-link", command: "link", group: "insert", icon: Link, label: labels.items["external-link"], keywords: ["url", "web", "链接", "网址"] },
 ];
 
 export const filterSlashCommandItems = (items: SlashCommandItem[], query: string) => {
   const normalizedQuery = query.trim().toLocaleLowerCase();
   if (!normalizedQuery) return items;
-  return items.filter((item) => [item.label, item.id, ...item.keywords]
+  return items.filter((item) => [item.command, item.label, item.id, ...item.keywords]
     .some((value) => value.toLocaleLowerCase().includes(normalizedQuery)));
 };
 
@@ -186,7 +186,7 @@ export const SlashCommandMenu = forwardRef<SlashCommandMenuHandle, SlashCommandM
                     >
                       <Icon className="h-4 w-4 shrink-0 text-slate-500" />
                       <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                      {item.shortcut ? <CommandShortcut>{item.shortcut}</CommandShortcut> : null}
+                      <CommandShortcut className="font-mono tracking-normal">/{item.command}</CommandShortcut>
                     </CommandItem>
                   );
                 })}

@@ -24,6 +24,17 @@ export type EditorDraftState = {
   hasUnsavedChanges: boolean;
 };
 
+/**
+ * TipTap is created with the memo snapshot before the asynchronous local-draft
+ * lookup finishes. Replacing that already-identical document during hydration
+ * resets the ProseMirror view and selection, which is visible in slower desktop
+ * runtimes as a second editor paint.
+ */
+export const shouldReplaceEditorDocument = (
+  currentDocument: TiptapDoc | null,
+  nextDocument: TiptapDoc,
+) => currentDocument === null || JSON.stringify(currentDocument) !== JSON.stringify(nextDocument);
+
 type ResolveEditorDraftStateInput = {
   memo: MemoDetail;
   draft?: LocalDraft | null;

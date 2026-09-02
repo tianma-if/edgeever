@@ -133,6 +133,17 @@ export const createDesktopRepository = (): EdgeEverRepository => ({
     return { resource: { ...result.resource, url: toDesktopResourceUrl(result.resource.url) } };
   },
 
+  readResource: async (resourceId) => (
+    await api.getResourceResponse(`/api/v1/resources/${encodeURIComponent(resourceId)}/blob`, { cache: "no-store" })
+  ).blob(),
+
+  updateResource: async (resourceId, file, expectedContentHash) => {
+    const result = await api.updateResourceContent(resourceId, file, expectedContentHash);
+    await request("resource.delete", { resourceId });
+    await request("resource.cache", { resource: result.resource });
+    return { resource: { ...result.resource, url: toDesktopResourceUrl(result.resource.url) } };
+  },
+
   listResources: async () => {
     const local = await request("resource.list", { limit: 500 });
     const staged = await listStagedResources();

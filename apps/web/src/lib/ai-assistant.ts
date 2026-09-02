@@ -43,6 +43,52 @@ export {
   promptNeedsTone,
 };
 
+export const resolveAiAssistantComposerInput = ({
+  composerText,
+  isFreeformCustom,
+  noteContentMarkdown,
+  noteTitle,
+}: {
+  composerText: string;
+  isFreeformCustom: boolean;
+  noteContentMarkdown: string;
+  noteTitle: string;
+}) => {
+  const usesComposerAsSource = !isFreeformCustom && Boolean(composerText.trim());
+  return {
+    contentMarkdown: usesComposerAsSource ? composerText : noteContentMarkdown,
+    customInstruction: isFreeformCustom ? composerText : "",
+    title: usesComposerAsSource ? "" : noteTitle,
+    usesComposerAsSource,
+  };
+};
+
+export const buildAiRefinementInstruction = ({
+  originalAction,
+  originalInstruction,
+  refinement,
+  targetLanguage,
+  tone,
+}: {
+  originalAction: AiAction;
+  originalInstruction?: string;
+  refinement: string;
+  targetLanguage?: AiTargetLanguage;
+  tone?: AiTone;
+}) => [
+  "Revise only the supplied current result according to the follow-up request.",
+  "Continue the original processing task instead of starting a different task. Preserve the result's language, purpose, factual meaning, and useful formatting unless the follow-up explicitly requests a change.",
+  `Original processing action:\n${originalAction}`,
+  originalInstruction?.trim()
+    ? `Original processing instruction:\n${originalInstruction.trim()}`
+    : undefined,
+  targetLanguage
+    ? `Keep the entire revised result in the target language: ${targetLanguage}. Do not translate it back to the language used by the follow-up request.`
+    : undefined,
+  tone ? `Keep the revised result in the requested tone: ${tone}.` : undefined,
+  `Follow-up request:\n${refinement}`,
+].filter(Boolean).join("\n\n");
+
 export const buildAiAssistantRequest = ({
   action,
   contentMarkdown,

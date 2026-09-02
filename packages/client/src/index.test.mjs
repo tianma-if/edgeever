@@ -232,6 +232,28 @@ describe("EdgeEver client HTTP contract", () => {
     expect(await calls[3].body.text()).toBe("ij");
   });
 
+  test("replaces resource content with a multipart concurrency baseline", async () => {
+    let request;
+    const client = createEdgeEverClient({
+      fetch: async (input, init) => {
+        request = { path: String(input), init };
+        return jsonResponse({ resource: { id: "res_1", sha256: "next" } });
+      },
+    });
+    const file = new File(["scene"], "drawing.excalidraw", { type: "application/vnd.excalidraw+json" });
+
+    await client.updateResourceContent("res/1", file, "previous");
+
+    expect(request.path).toBe("/api/v1/resources/res%2F1/blob");
+    expect(request.init.method).toBe("PUT");
+    expect(request.init.body).toBeInstanceOf(FormData);
+    expect(request.init.body.get("file")).toBeInstanceOf(File);
+    expect(await request.init.body.get("file").text()).toBe("scene");
+    expect(request.init.body.get("expectedContentHash")).toBe("previous");
+    expect(request.init.body.get("mimeType")).toBe("application/vnd.excalidraw+json");
+    expect(request.init.body.get("filename")).toBe("drawing.excalidraw");
+  });
+
   test("uploads a file-backed source without requesting more than one part at a time", async () => {
     const ranges = [];
     const bodies = [];

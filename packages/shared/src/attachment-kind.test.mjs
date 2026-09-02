@@ -1,15 +1,24 @@
 import { describe, expect, test } from "bun:test";
-import { resolveAttachmentKind } from "./attachment-kind.ts";
+import { resolveAttachmentKind, resolveAudioMimeType } from "./attachment-kind.ts";
 
 describe("attachment kind", () => {
   test("uses MIME types for media and filenames for common documents", () => {
     expect(resolveAttachmentKind("audio/mpeg", "recording.bin")).toBe("audio");
+    expect(resolveAttachmentKind("application/octet-stream", "recording.FLAC")).toBe("audio");
+    expect(resolveAttachmentKind(null, "archive.ape")).toBe("audio");
     expect(resolveAttachmentKind(null, "report.PDF")).toBe("pdf");
     expect(resolveAttachmentKind(null, "budget.xlsx")).toBe("spreadsheet");
     expect(resolveAttachmentKind(null, "proposal.docx")).toBe("document");
     expect(resolveAttachmentKind(null, "pitch.pptx")).toBe("presentation");
     expect(resolveAttachmentKind(null, "source.ts")).toBe("code");
     expect(resolveAttachmentKind(null, "backup.7z")).toBe("archive");
+  });
+
+  test("normalizes common audio MIME types from filenames", () => {
+    expect(resolveAudioMimeType("application/octet-stream", "voice.mp3")).toBe("audio/mpeg");
+    expect(resolveAudioMimeType("", "lossless.flac")).toBe("audio/flac");
+    expect(resolveAudioMimeType("audio/x-custom", "voice.mp3")).toBe("audio/x-custom");
+    expect(resolveAudioMimeType("application/octet-stream", "payload.bin")).toBeNull();
   });
 
   test("falls back predictably for text and unknown files", () => {

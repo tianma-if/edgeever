@@ -60,6 +60,12 @@ import { EditorOutline } from "./EditorOutline";
 import { EditorTagPicker } from "./EditorTagPicker";
 import { useAiBubbleMenu } from "./editor/useAiBubbleMenu";
 import {
+  createMarkdownModeSnapshot,
+  isMarkdownSourceUnchanged,
+  resolveMarkdownModeContent,
+  type MarkdownModeSnapshot,
+} from "./editor/editor-mode-content";
+import {
   ImageUploadPlaceholderExtension,
   addImageUploadPlaceholder,
   createImageUploadPlaceholder,
@@ -107,6 +113,8 @@ import {
   MEMO_CONTENT_STYLE,
   markdownToDoc,
   MergeDivider,
+  PLUGIN_EMBED_NODE_TYPE,
+  pluginEmbedToMarkdown,
   isPdfAttachment,
   resolveMemoContentDoc,
   type Notebook,
@@ -204,6 +212,7 @@ import {
 import { ImageViewer } from "./editor/ImageViewer";
 import { PdfAttachment } from "./editor/PdfAttachment";
 import { FileAttachment } from "./editor/FileAttachment";
+import { createPluginEmbedExtension } from "./editor/PluginEmbed";
 import { getEditorScrollProgress, restoreEditorScrollProgress } from "./editor/editor-mode-scroll";
 import { useEditorSaveStatus } from "./editor/useEditorSaveStatus";
 import { useEditorNoteSearchController } from "./editor/useEditorNoteSearchController";
@@ -219,7 +228,10 @@ import {
   ResourceActionMenu,
   type NoteLinkHintPosition,
 } from "./editor/EditorPaneChrome";
-import { resolveEditorDraftState } from "./editor/editor-draft-state";
+import {
+  resolveEditorDraftState,
+  shouldReplaceEditorDocument,
+} from "./editor/editor-draft-state";
 import type { EdgeEverPluginHost, PluginEditorAdapter } from "@/lib/plugins/plugin-host";
 import {
   useEditorResourceActions,
@@ -451,6 +463,7 @@ type EditorPaneProps = {
   onOpenMemo?: (memoId: string) => void;
   onOpenAiPrompts?: () => void;
   pluginHost: EdgeEverPluginHost;
+  pluginNavigationRequest?: { id: number; noteId: string; search: string } | null;
 };
 
 type RichEditorPaneProps = EditorPaneProps & {
@@ -524,6 +537,7 @@ const RichEditorPane = ({
   onOpenMemo,
   onOpenAiPrompts,
   pluginHost,
+  pluginNavigationRequest,
   onRequestMobileNativeEdit,
 }: RichEditorPaneProps) => {
   const { t, i18n } = useTranslation();
@@ -575,6 +589,7 @@ const RichEditorPane = ({
   const [noteSearchReplaceOpen, setNoteSearchReplaceOpen] = useState(false);
   const [noteSearchReplacement, setNoteSearchReplacement] = useState("");
   const [noteSearchIndex, setNoteSearchIndex] = useState(0);
+  const handledPluginNavigationRequestRef = useRef(0);
   const [noteLinkPickerOpen, setNoteLinkPickerOpen] = useState(false);
   const [noteLinkQuery, setNoteLinkQuery] = useState("");
   const [noteLinkHintPosition, setNoteLinkHintPosition] = useState<NoteLinkHintPosition | null>(null);
@@ -715,6 +730,7 @@ const RichEditorPane = ({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const noteSearchInputRef = useRef<HTMLInputElement | null>(null);
   const markdownSourceEditorRef = useRef<MarkdownSourceEditorRef | null>(null);
+  const markdownModeSnapshotRef = useRef<MarkdownModeSnapshot | null>(null);
   const openExternalLinkDialogRef = useRef<() => void>(() => undefined);
   const slashCommandLabelsRef = useRef<SlashCommandLabels>({
     menu: "",
@@ -1119,6 +1135,7 @@ const RichEditorPane = ({
     });
   }, [queryClient, repository, resourceInsertionLimit, t]);
 
+  const pluginEmbedExtension = useMemo(() => createPluginEmbedExtension(pluginHost), [pluginHost]);
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -1129,6 +1146,7 @@ const RichEditorPane = ({
       TaskItem.configure({ nested: true }),
       EdgeEverCodeBlock.configure({ lowlight: codeBlockLowlight, defaultLanguage: "plaintext" }),
       MergeDivider,
+      pluginEmbedExtension,
       PdfAttachment,
       FileAttachment,
       ...createEdgeEverMathematics(),
@@ -1743,6 +1761,23 @@ const RichEditorPane = ({
   });
 
   useEffect(() => {
+    if (
+      !pluginNavigationRequest
+      || !memo
+      || pluginNavigationRequest.id === handledPluginNavigationRequestRef.current
+      || pluginNavigationRequest.noteId !== memo.id
+      || hydratedEditorMemoId !== memo.id
+      || !isEditorReady(editor)
+    ) return;
+    handledPluginNavigationRequestRef.current = pluginNavigationRequest.id;
+    setNoteSearchQuery(pluginNavigationRequest.search);
+    setNoteSearchIndex(0);
+    setNoteSearchReplaceOpen(false);
+    setNoteSearchOpen(true);
+    window.requestAnimationFrame(() => noteSearchInputRef.current?.focus());
+  }, [editor, hydratedEditorMemoId, memo?.id, pluginNavigationRequest]);
+
+  useEffect(() => {
     if (!isEditorReady(editor)) {
       return;
     }
@@ -1783,7 +1818,11 @@ const RichEditorPane = ({
         contentJson: useMobilePlainTextEditor
           ? markdownToDoc(nextMobilePlainText)
           : useMarkdownSourceEditor
-            ? markdownToDoc(markdownSource)
+            ? resolveMarkdownModeContent(
+                markdownModeSnapshotRef.current,
+                currentMemo.id,
+                markdownSource,
+              )
             : (currentEditor?.getJSON() as TiptapDoc),
         updatedAt: new Date().toISOString(),
       });
@@ -2008,7 +2047,11 @@ const RichEditorPane = ({
     }
 
     if (useMarkdownSourceEditor) {
-      return markdownToDoc(markdownSource);
+      return resolveMarkdownModeContent(
+        markdownModeSnapshotRef.current,
+        memoRef.current?.id,
+        markdownSource,
+      );
     }
 
     const currentEditor = editorRef.current;
@@ -2072,6 +2115,7 @@ const RichEditorPane = ({
       editSessionRef.current = null;
       hydratedMemoIdRef.current = null;
       appliedEditorSourceKeyRef.current = null;
+      markdownModeSnapshotRef.current = null;
       setHydratedEditorMemoId(null);
       editingMemoIdRef.current = null;
       setHasUnsavedChanges(false);
@@ -2095,6 +2139,7 @@ const RichEditorPane = ({
     if (!sameMemo) {
       hydratedMemoIdRef.current = null;
       appliedEditorSourceKeyRef.current = null;
+      markdownModeSnapshotRef.current = null;
       setHydratedEditorMemoId(null);
     }
 
@@ -2187,10 +2232,14 @@ const RichEditorPane = ({
       } = resolvedDraft;
 
       const alreadyHydratedSameMemo = sameMemo && hydratedMemoIdRef.current === memo.id;
+      const currentEditorDocument = isEditorReady(currentEditor)
+        ? currentEditor.getJSON() as TiptapDoc
+        : null;
+      const shouldReplaceDocument = shouldReplaceEditorDocument(currentEditorDocument, nextContent);
       const editorMarkdownMatches = Boolean(
         alreadyHydratedSameMemo &&
-        isEditorReady(currentEditor) &&
-        docToMarkdown(currentEditor.getJSON() as TiptapDoc) === nextMarkdown &&
+        currentEditorDocument &&
+        docToMarkdown(currentEditorDocument) === nextMarkdown &&
         title === nextTitle &&
         tagsText === nextTagsText
       );
@@ -2248,9 +2297,12 @@ const RichEditorPane = ({
       setTagsText(nextTagsText);
       setMobilePlainText(nextMarkdown);
       setMarkdownSource(nextMarkdown);
+      markdownModeSnapshotRef.current = isMarkdownMode
+        ? createMarkdownModeSnapshot(memo.id, nextContent, nextMarkdown)
+        : null;
       setMobilePlainTextElementValue(mobileTextAreaRef.current, nextMarkdown);
 
-      if (isEditorReady(currentEditor)) {
+      if (isEditorReady(currentEditor) && shouldReplaceDocument) {
         try {
           currentEditor.commands.setContent(nextContent);
         } catch (err) {
@@ -2427,6 +2479,25 @@ const RichEditorPane = ({
     };
   }, []);
 
+  const applyMarkdownSourceToRichText = useCallback((scrollProgress: number) => {
+    if (!isEditorReady(editor)) {
+      return;
+    }
+
+    hydratingRef.current = true;
+    editor.commands.setContent(resolveMarkdownModeContent(
+      markdownModeSnapshotRef.current,
+      memoRef.current?.id,
+      markdownSource,
+    ));
+    markdownModeSnapshotRef.current = null;
+    setIsMarkdownMode(false);
+    restoreScrollAfterModeChange("rich", scrollProgress);
+    window.setTimeout(() => {
+      hydratingRef.current = false;
+    }, 0);
+  }, [editor, markdownSource, restoreScrollAfterModeChange]);
+
   const handleMarkdownModeChange = useCallback(() => {
     if (effectiveReadOnly || !isEditorReady(editor)) {
       return;
@@ -2437,20 +2508,23 @@ const RichEditorPane = ({
     );
 
     if (isMarkdownMode) {
-      hydratingRef.current = true;
-      editor.commands.setContent(markdownToDoc(markdownSource));
-      setIsMarkdownMode(false);
-      restoreScrollAfterModeChange("rich", scrollProgress);
-      window.setTimeout(() => {
-        hydratingRef.current = false;
-      }, 0);
+      applyMarkdownSourceToRichText(scrollProgress);
       return;
     }
 
-    setMarkdownSource(docToMarkdown(editor.getJSON() as TiptapDoc));
+    const currentMemoId = memoRef.current?.id;
+    if (!currentMemoId) {
+      return;
+    }
+    const snapshot = createMarkdownModeSnapshot(
+      currentMemoId,
+      editor.getJSON() as TiptapDoc,
+    );
+    markdownModeSnapshotRef.current = snapshot;
+    setMarkdownSource(snapshot.markdownSource);
     setIsMarkdownMode(true);
     restoreScrollAfterModeChange("markdown", scrollProgress);
-  }, [editor, effectiveReadOnly, isMarkdownMode, markdownSource, restoreScrollAfterModeChange]);
+  }, [applyMarkdownSourceToRichText, editor, effectiveReadOnly, isMarkdownMode, markdownSource, restoreScrollAfterModeChange]);
 
   const handleMarkdownSourceChange = useCallback((value: string) => {
     setMarkdownSource(value);
@@ -2905,6 +2979,35 @@ const RichEditorPane = ({
           contentMarkdown: context?.contentMarkdown ?? "",
         };
       },
+      getDocument: () => ({
+        noteId: pluginEditorMemoId,
+        contentMarkdown: isMarkdownMode
+          ? markdownSource
+          : docToMarkdown(editor.getJSON() as TiptapDoc),
+        hasUnsavedChanges: hasUnsavedChanges || saveMutation.isPending,
+      }),
+      replaceDocument: (contentMarkdown) => {
+        if (isMarkdownMode) setMarkdownSource(contentMarkdown);
+        else editor.commands.setContent(markdownToDoc(contentMarkdown));
+        markDirty();
+      },
+      insertEmbed: (embed) => {
+        const attributes = {
+          id: embed.id,
+          pluginId: embed.pluginId,
+          type: embed.type,
+          resourceId: embed.resourceId,
+          previewResourceId: embed.previewResourceId,
+          title: embed.title,
+          dataJson: JSON.stringify(embed.data),
+        };
+        if (isMarkdownMode) {
+          setMarkdownSource((current) => `${current.trimEnd()}${current.trim() ? "\n\n" : ""}${pluginEmbedToMarkdown(attributes)}\n`);
+        } else {
+          editor.chain().focus().insertContent({ type: PLUGIN_EMBED_NODE_TYPE, attrs: attributes }).run();
+        }
+        markDirty();
+      },
       replaceSelection: (contentMarkdown) => {
         const { selection, doc } = editor.state;
         const context = getRichTextAiSelectionContext(doc, selection);
@@ -2917,7 +3020,7 @@ const RichEditorPane = ({
       },
     };
     return pluginHost.setEditorAdapter(adapter);
-  }, [editor, effectiveReadOnly, hydratedEditorMemoId, pluginEditorMemoId, pluginHost]);
+  }, [editor, effectiveReadOnly, hasUnsavedChanges, hydratedEditorMemoId, isMarkdownMode, markdownSource, markDirty, pluginEditorMemoId, pluginHost, saveMutation.isPending]);
   // useMutation returns a new result object on every render. Depending on the
   // whole object makes autosave timers restart during unrelated renders and
   // can starve a recovered draft indefinitely. These members are stable (or
@@ -3351,6 +3454,9 @@ const RichEditorPane = ({
       setTagsText(nextTagsText);
       setMobilePlainText(nextMarkdown);
       setMarkdownSource(nextMarkdown);
+      markdownModeSnapshotRef.current = isMarkdownMode
+        ? createMarkdownModeSnapshot(remoteMemo.id, nextContent, nextMarkdown)
+        : null;
       setMobilePlainTextElementValue(mobileTextAreaRef.current, nextMarkdown);
 
       const currentEditor = editorRef.current;
@@ -3385,7 +3491,7 @@ const RichEditorPane = ({
     } finally {
       setConflictActionPending(null);
     }
-  }, [conflictActionPending, onSaved, queryClient, repository, t]);
+  }, [conflictActionPending, isMarkdownMode, onSaved, queryClient, repository, t]);
 
   if (isSelectionMode) {
     return (

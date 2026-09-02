@@ -956,6 +956,18 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
         body: JSON.stringify({ filename }),
       }),
 
+    updateResourceContent: (resourceId: string, file: Blob, expectedContentHash: string) => {
+      const form = new FormData();
+      form.append("file", file);
+      form.append("expectedContentHash", expectedContentHash);
+      form.append("mimeType", file.type || "application/octet-stream");
+      if (file instanceof File) form.append("filename", file.name);
+      return request<ResourceResponse>(`/api/v1/resources/${encodeURIComponent(resourceId)}/blob`, {
+        method: "PUT",
+        body: form,
+      });
+    },
+
     deleteResource: (resourceId: string) =>
       request<{ ok: true }>(`/api/v1/resources/${encodeURIComponent(resourceId)}`, {
         method: "DELETE",

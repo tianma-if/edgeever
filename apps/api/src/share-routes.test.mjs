@@ -140,4 +140,35 @@ describe("public memo shares", () => {
     expect(await response.text()).toBe("2345");
     sqlite.close();
   });
+
+  test("serves filename-detected shared audio inline", async () => {
+    const { sqlite, environment } = createDatabaseEnvironment();
+    sqlite.query(
+      `INSERT INTO resources (id, memo_id, object_key, kind, mime_type, filename, byte_size)
+       VALUES (?, ?, ?, 'attachment', 'application/octet-stream', 'recording.mp3', 10)`,
+    ).run("res_audio", "memo_source", "audio-key");
+    environment.storage.resources = {
+      get: async () => ({
+        body: new Blob([new Uint8Array(10)]).stream(),
+        size: 10,
+        writeHttpMetadata: () => {},
+      }),
+    };
+    const app = new Hono();
+    registerPublicShareRoutes(app);
+
+    const response = await app.request(
+      `/api/public/shares/${sourceToken}/resources/res_audio/blob`,
+      {},
+      environment,
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toBe("audio/mpeg");
+    expect(response.headers.get("Content-Disposition")).toBe(
+      "inline; filename=\"recording.mp3\"; filename*=UTF-8''recording.mp3",
+    );
+    expect(response.headers.get("Accept-Ranges")).toBe("bytes");
+    sqlite.close();
+  });
 });

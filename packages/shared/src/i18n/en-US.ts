@@ -269,6 +269,8 @@ export const enUS = {
       title: "Custom editor theme",
       description: "Adjust editor colors. This setting is saved in the current browser.",
       edit: "Edit colors",
+      import: "Import",
+      export: "Export",
       reset: "Restore defaults",
       name: "Theme name",
       background: "Background",
@@ -282,7 +284,16 @@ export const enUS = {
       previewBody: "This is a body text preview to help you evaluate the color combination.",
       previewMuted: "Muted supporting text should remain clear on the soft background.",
       previewAccent: "Accent text",
-      contrastWarning: "Body, muted, heading, or accent colors need more contrast before saving.",
+      contrastWarning: "{{fields}} have low contrast in {{mode}}. You can still save this theme.",
+      modes: {
+        light: "light mode",
+        dark: "dark mode",
+      },
+      importErrors: {
+        invalidFile: "Import failed: this is not a valid EdgeEver editor theme file.",
+        unsupportedVersion: "Import failed: this editor theme file version is not supported.",
+        fileTooLarge: "Import failed: the editor theme file exceeds 64 KiB.",
+      },
     },
     mermaidThemes: {
       auto: "Follow app appearance",
@@ -348,6 +359,13 @@ export const enUS = {
     empty: "No plugins or themes are installed on this device.",
     toggle: "Enable or disable {{name}}",
     uninstall: "Uninstall",
+    settings: {
+      title: "Plugin settings",
+      saved: "Settings saved on this device.",
+      required: "{{name}} is required.",
+      secretConfigured: "Configured — leave blank to keep unchanged",
+      none: "None",
+    },
     details: {
       title: "Plugin details",
       open: "View details for {{name}}",
@@ -582,6 +600,9 @@ export const enUS = {
     customInstruction: "Tell AI what to do",
     customInstructionPlaceholder: "For example: Rewrite this as a concise, friendly email and preserve every date.",
     customInstructionRequired: "Enter an instruction for AI.",
+    inputContent: "Content to process",
+    inputContentPlaceholder: "Enter content, or leave blank to process the whole note.",
+    inputScope: "Input content",
     addAttachment: "Add files",
     attachments: "Attached files",
     removeAttachment: "Remove {{name}}",
@@ -619,6 +640,9 @@ export const enUS = {
     replace: "Replace note",
     replaceSelection: "Accept and replace selection",
     applyFailed: "Could not apply the generated result. Select the content again and retry.",
+    sourceRequired: "This action needs note content. Add some content first, or use a custom prompt to generate from a blank note.",
+    requestInvalid: "The AI request is invalid. Check the selected action and input, then try again.",
+    networkError: "Could not connect to the service. Make sure it is running, then try again.",
     configure: "Configure an AI model in Me → AI Integrations first.",
   },
   accountInfo: {
@@ -1070,6 +1094,10 @@ export const enUS = {
     expand: "Expand preview",
     previous: "Previous PDF",
     next: "Next PDF",
+  },
+  audioPlayer: {
+    label: "Audio player: {{filename}}",
+    unavailable: "This audio format cannot be played on this device. You can still download it or open it externally.",
   },
   editor: {
     imageScale: "Image scale",

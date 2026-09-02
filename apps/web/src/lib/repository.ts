@@ -46,6 +46,8 @@ import { createDesktopRepository } from "@/lib/desktop-repository";
 import { isBrowserOffline } from "@/lib/network-status";
 import { notifySyncQueueDeferred } from "@/lib/sync-events";
 import { isActiveLocalMemoUpdateStatus, shouldAcceptRemoteMemoDetail } from "@/lib/memo-detail-freshness";
+import { cacheLocalResourceBytes, getCachedLocalResourceBytes } from "@/lib/local-resource-cache";
+import { withRepositoryMutationEvents } from "@/lib/repository-events";
 
 export type EdgeEverRepository = {
   listNotebooks(): Promise<{ notebooks: Notebook[] }>;
@@ -59,6 +61,8 @@ export type EdgeEverRepository = {
   deleteTemplate(templateId: string): Promise<{ ok: true }>;
   useTemplate(templateId: string, notebookId: string): Promise<{ memo: MemoDetail }>;
   uploadMemoResource(memoId: string, file: File): Promise<{ resource: Resource }>;
+  readResource(resourceId: string): Promise<Blob>;
+  updateResource(resourceId: string, file: File, expectedContentHash: string): Promise<{ resource: Resource }>;
   listResources(): Promise<{ resources: ResourceListItem[]; summary: ResourceStorageSummary }>;
   renameResource(resourceId: string, filename: string): Promise<{ resource: Resource }>;
   deleteResource(resourceId: string): Promise<{ ok: true }>;
@@ -300,6 +304,34 @@ export const createWebRepository = (scope: string): EdgeEverRepository => {
     }
     const result = await api.uploadMemoResource(memoId, file);
     await putLocalResource(scope, { ...result.resource, memoTitle: null, memoExcerpt: null, memoDeleted: false });
+    return result;
+  },
+  async readResource(resourceId) {
+    const local = (await listLocalResources(scope)).resources.find((resource) => resource.id === resourceId);
+    if (isOffline()) {
+      if (!local?.url) throw new Error("The resource is not available offline.");
+      const cached = await getCachedLocalResourceBytes(local.url);
+      if (cached) return cached;
+      throw new Error("The resource is not available offline.");
+    }
+    const url = local?.url ?? `/api/v1/resources/${encodeURIComponent(resourceId)}/blob`;
+    const blob = await (await api.getResourceResponse(url, { cache: "no-store" })).blob();
+    await cacheLocalResourceBytes(url, blob).catch(() => undefined);
+    return blob;
+  },
+  async updateResource(resourceId, file, expectedContentHash) {
+    if (isOffline() || resourceId.startsWith("local_resource_")) {
+      throw new Error("Attachments can only be updated after they are synced.");
+    }
+    const existing = (await listLocalResources(scope)).resources.find((resource) => resource.id === resourceId);
+    const result = await api.updateResourceContent(resourceId, file, expectedContentHash);
+    await putLocalResource(scope, {
+      ...result.resource,
+      memoTitle: existing?.memoTitle ?? null,
+      memoExcerpt: existing?.memoExcerpt ?? null,
+      memoDeleted: existing?.memoDeleted ?? false,
+    });
+    await cacheLocalResourceBytes(result.resource.url, file);
     return result;
   },
   async listResources() {
@@ -549,7 +581,7 @@ export const createWebRepository = (scope: string): EdgeEverRepository => {
 
 export const createRepository = (scope: string): EdgeEverRepository => {
   if (typeof window !== "undefined" && window.edgeeverDesktop?.isAvailable) {
-    return createDesktopRepository();
+    return withRepositoryMutationEvents(createDesktopRepository(), scope);
   }
-  return createWebRepository(scope);
+  return withRepositoryMutationEvents(createWebRepository(scope), scope);
 };

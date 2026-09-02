@@ -136,10 +136,10 @@ EdgeEver 官方容器镜像托管于 GitHub Container Registry（GHCR）。部�
 ## 客户端下载
 
 <p>
-  <a href="https://github.com/tianma-if/edgeever/releases/latest"><img src="apps/web/public/icons/platforms/macos.svg" alt="下载 macOS 客户端" width="40" height="40" /></a>&nbsp;&nbsp;
-  <a href="https://github.com/tianma-if/edgeever/releases/latest"><img src="apps/web/public/icons/platforms/windows.svg" alt="下载 Windows 客户端" width="40" height="40" /></a>&nbsp;&nbsp;
-  <a href="https://play.google.com/store/apps/details?id=org.edgeever.mobile"><img src="apps/web/public/icons/platforms/google-play.svg" alt="从 Google Play 下载 Android 客户端" width="40" height="40" /></a>&nbsp;&nbsp;
-  <a href="https://apps.apple.com/us/app/edgeever/id6792625631"><img src="apps/web/public/icons/platforms/app-store.svg" alt="从 App Store 下载 iOS 客户端" width="40" height="40" /></a>
+  <a href="https://github.com/tianma-if/edgeever/releases/latest"><img src="assets/readme/platforms/macos.svg" alt="下载 macOS 客户端" width="40" height="40" /></a>&nbsp;&nbsp;
+  <a href="https://github.com/tianma-if/edgeever/releases/latest"><img src="assets/readme/platforms/windows.svg" alt="下载 Windows 客户端" width="40" height="40" /></a>&nbsp;&nbsp;
+  <a href="https://play.google.com/store/apps/details?id=org.edgeever.mobile"><img src="assets/readme/platforms/google-play.svg" alt="从 Google Play 下载 Android 客户端" width="40" height="40" /></a>&nbsp;&nbsp;
+  <a href="https://apps.apple.com/us/app/edgeever/id6792625631"><img src="assets/readme/platforms/app-store.svg" alt="从 App Store 下载 iOS 客户端" width="40" height="40" /></a>
 </p>
 
 iOS 客户端需要使用非中国大陆区 Apple ID 下载。
@@ -158,6 +158,10 @@ iOS 客户端需要使用非中国大陆区 Apple ID 下载。
 <p align="center">
   <img src="assets/wechat-group-qr.jpg" alt="EdgeEver AI 交流群二维码" width="260" />
 </p>
+
+## 插件与主题
+
+EdgeEver 的 Web 与桌面端支持安装在当前设备的插件和无代码主题，可从插件市场、GitHub 或 Manifest 地址安装。开发者可使用 `@edgeever/plugin-api`，详情参阅[插件开发文档](docs/plugin-development.zh-CN.md)。
 
 ## 技术栈
 

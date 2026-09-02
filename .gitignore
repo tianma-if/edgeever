@@ -9,6 +9,8 @@
 node_modules/
 .idea/
 dist/
+!packages/plugin-api/dist/
+!packages/plugin-api/dist/**
 build/
 apps/extension/dist-firefox/
 apps/extension/web-ext-artifacts/
