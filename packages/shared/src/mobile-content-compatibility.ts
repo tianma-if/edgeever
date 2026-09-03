@@ -29,6 +29,7 @@ export const NATIVE_EDITOR_NODE_TYPES = new Set<string>([
   "hardBreak",
   "horizontalRule",
   "image",
+  "edgeeverImageGallery",
   "table",
   "tableRow",
   "tableHeader",

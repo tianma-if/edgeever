@@ -14,6 +14,7 @@ export const PLUGIN_PERMISSIONS = [
   "network",
   "storage",
   "secrets",
+  "schedules",
   "editor:read",
   "editor:write",
   "ui:commands",
@@ -272,6 +273,33 @@ export interface PluginCommand {
   run: () => void | Promise<void>;
 }
 
+export type PluginScheduleMissedRunPolicy = "run-once" | "skip";
+
+export interface PluginScheduleInput {
+  /** Stable plugin-local identifier. Reusing it updates the same persistent schedule. */
+  key: string;
+  name: string;
+  commandId: string;
+  cronExpression: string;
+  timezone?: string;
+  missedRunPolicy?: PluginScheduleMissedRunPolicy;
+  isEnabled?: boolean;
+}
+
+export interface PluginSchedule extends Required<Omit<PluginScheduleInput, "timezone" | "missedRunPolicy" | "isEnabled">> {
+  timezone: string;
+  missedRunPolicy: PluginScheduleMissedRunPolicy;
+  isEnabled: boolean;
+  runsOnThisDevice: boolean;
+  lastRun: {
+    status: "running" | "succeeded" | "failed";
+    scheduledFor: string;
+    startedAt: string;
+    finishedAt: string | null;
+    errorMessage: string | null;
+  } | null;
+}
+
 export interface PluginEditorSelection {
   noteId: string;
   from: number;
@@ -377,6 +405,12 @@ export interface PluginContext {
   };
   commands: {
     register(command: PluginCommand): () => void;
+  };
+  schedules: {
+    /** Creates or updates one persistent schedule owned by this plugin. Desktop only. */
+    upsert(input: PluginScheduleInput): Promise<PluginSchedule>;
+    list(): Promise<PluginSchedule[]>;
+    remove(key: string): Promise<void>;
   };
   events: {
     on<K extends keyof PluginEventMap>(event: K, listener: (payload: PluginEventMap[K]) => void): () => void;

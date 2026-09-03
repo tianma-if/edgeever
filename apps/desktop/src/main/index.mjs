@@ -33,6 +33,7 @@ import { LocalDataResetError, scheduleMacLocalDataReset } from "./local-data-res
 import { buildDesktopDiagnosticIssueUrl, normalizeDesktopDiagnostic } from "./desktop-diagnostics.mjs";
 import { createRendererStartupGuard } from "./renderer-startup-guard.mjs";
 import { waitForChildProcessSpawn } from "./child-process-start.mjs";
+import { ScheduledTaskScheduler } from "./scheduled-task-scheduler.mjs";
 import {
   fetchTrustedWindowsUpdate,
   verifyDownloadedWindowsUpdate,
@@ -109,6 +110,22 @@ let rendererStartupGuard = null;
 let rendererUnresponsiveTimer = null;
 let rendererUnresponsiveDialogOpen = false;
 let recoveredAfterAbnormalExit = false;
+const pendingScheduledTaskRuns = [];
+const sendScheduledTaskRun = (task, scheduledFor) => {
+  const payload = { task, scheduledFor: scheduledFor.toISOString() };
+  if (!mainWindow || mainWindow.isDestroyed() || !rendererReady) {
+    pendingScheduledTaskRuns.push(payload);
+    return;
+  }
+  mainWindow.webContents.send("desktop:scheduled-task", payload);
+};
+const scheduledTaskScheduler = new ScheduledTaskScheduler({
+  onRun: async (task, scheduledFor) => sendScheduledTaskRun(task, scheduledFor),
+  onError: (error, task) => void writeDiagnostic("scheduled-task.scheduler-error", {
+    taskId: task?.id,
+    message: error instanceof Error ? error.message : String(error),
+  }),
+});
 const updateCheckIntervalMs = 60 * 60 * 1_000;
 const updateCheckFocusThrottleMs = 15 * 60 * 1_000;
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
@@ -472,6 +489,13 @@ const flushPendingDesktopCommands = () => {
   if (!rendererReady || !mainWindow || mainWindow.isDestroyed()) return;
   while (pendingDesktopCommands.length > 0) {
     mainWindow.webContents.send("desktop:command", pendingDesktopCommands.shift());
+  }
+};
+
+const flushPendingScheduledTaskRuns = () => {
+  if (!rendererReady || !mainWindow || mainWindow.isDestroyed()) return;
+  while (pendingScheduledTaskRuns.length > 0) {
+    mainWindow.webContents.send("desktop:scheduled-task", pendingScheduledTaskRuns.shift());
   }
 };
 
@@ -891,6 +915,7 @@ const configureAutoUpdater = () => {
   }, updateCheckIntervalMs);
   powerMonitor.on("resume", () => {
     void checkForDesktopUpdate("resume", { force: true });
+    void scheduledTaskScheduler.runMissedOccurrences();
   });
 };
 
@@ -1185,6 +1210,7 @@ const startApplication = async () => {
   ipcMain.handle("desktop:set-account-scope", async (_event, accountId) => {
     const normalizedAccountId = typeof accountId === "string" && accountId.trim() ? accountId.trim() : null;
     const nextScopeKey = accountScopeKey(configuredApiBaseUrl, normalizedAccountId);
+    scheduledTaskScheduler.clear();
     if (sidecar && sidecarScopeKey === nextScopeKey) {
       await sidecar.waitUntilReady();
       return { ready: true, scope: nextScopeKey };
@@ -1200,6 +1226,7 @@ const startApplication = async () => {
     rendererReady = true;
     flushPendingDesktopCommands();
     flushPendingMarkdownImport();
+    flushPendingScheduledTaskRuns();
   });
   ipcMain.on("desktop:renderer-bootstrap-ready", (event) => {
     if (event.sender !== mainWindow?.webContents) return;
@@ -1219,8 +1246,15 @@ const startApplication = async () => {
     return { stored: Boolean(desktopSessionToken) };
   });
   ipcMain.handle("desktop:clear-session-token", async () => {
+    scheduledTaskScheduler.clear();
     await saveDesktopSessionToken("");
     return { stored: false };
+  });
+  ipcMain.handle("desktop:sync-scheduled-tasks", async (event, tasks) => {
+    if (event.sender !== mainWindow?.webContents) throw new Error("Scheduled tasks must come from the main window");
+    if (!Array.isArray(tasks) || tasks.length > 1_000) throw new Error("Invalid scheduled task list");
+    await scheduledTaskScheduler.reconcile(tasks);
+    return { scheduled: scheduledTaskScheduler.entries.size };
   });
   ipcMain.handle("desktop:record-renderer-error", async (event, details) => {
     if (event.sender !== mainWindow?.webContents) throw new Error("Renderer diagnostics must come from the main window");
@@ -1304,6 +1338,7 @@ const startApplication = async () => {
       if (parsed.protocol !== "http:" && parsed.protocol !== "https:") throw new Error("Desktop API URL must use HTTP(S)");
     }
     if (normalized === configuredApiBaseUrl) return configuredApiBaseUrl;
+    scheduledTaskScheduler.clear();
     configuredApiBaseUrl = normalized;
     await writeFile(instanceUrlPath(), configuredApiBaseUrl);
     if (sidecar) {
@@ -1492,6 +1527,7 @@ app.on("before-quit", (event) => {
   event.preventDefault();
   shutdownCleanupStarted = true;
   isQuitting = true;
+  scheduledTaskScheduler.clear();
   rendererStartupGuard?.complete();
   clearRendererUnresponsiveTimer();
   if (sidecarRestartTimer) {

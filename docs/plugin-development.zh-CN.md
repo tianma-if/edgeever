@@ -1,6 +1,6 @@
 # EdgeEver 插件开发（P0 预览版）
 
-EdgeEver P0 扩展 API 支持受信任的客户端插件和无代码主题包。用户可以从已验证插件市场、公开 GitHub 仓库或 Manifest 地址安装扩展；扩展安装在当前设备，并且只在 EdgeEver 打开期间运行。当前预览版不包含定时或后台任务、Webhook、不受约束的 TipTap 扩展和严格的 JavaScript 沙箱。
+EdgeEver P0 扩展 API 支持受信任的客户端插件和无代码主题包。用户可以从已验证插件市场、公开 GitHub 仓库或 Manifest 地址安装扩展；扩展安装在当前设备，并且只在 EdgeEver 打开期间运行。桌面端用户可以为已注册的插件命令设置定时计划，并在 EdgeEver 运行期间执行。当前预览版不包含 Webhook、服务端常驻后台运行时、不受约束的 TipTap 扩展和严格的 JavaScript 沙箱。
 
 ## 安全模型
 
@@ -102,6 +102,7 @@ Registry 格式：
 - `network`
 - `storage`
 - `secrets`
+- `schedules`
 - `editor:read`
 - `editor:write`
 - `ui:commands`
@@ -145,6 +146,36 @@ export default definePlugin({
 ```
 
 每次注册都会返回清理函数。插件停用时，宿主也会自动清理已注册的命令和事件。
+
+## 定时任务 API
+
+桌面插件可以持久化定时执行自己的已注册命令。Manifest 需要同时声明 `ui:commands` 和 `schedules`，先注册命令，再用稳定的插件内计划键调用 `upsert()`：
+
+```js
+export default {
+  async activate(context) {
+    context.commands.register({
+      id: "refresh-feeds",
+      title: "刷新订阅源",
+      async run() {
+        // 只要桌面端保持运行，插件命令就可以执行耗时任务。
+      }
+    });
+
+    await context.schedules.upsert({
+      key: "hourly-refresh",
+      name: "每小时刷新订阅源",
+      commandId: "refresh-feeds",
+      cronExpression: "0 * * * *",
+      missedRunPolicy: "run-once"
+    });
+  }
+};
+```
+
+`upsert()` 以“插件 ID + 计划键”为幂等标识，因此插件每次激活时调用也不会重复创建。第一台创建计划的桌面设备会保持为执行设备；同一插件在另一台电脑激活时只更新同一份计划定义，不会抢走执行权。省略 `isEnabled` 会保留用户的启停选择。插件可以通过 `context.schedules.list()` 查看自己的计划，并用 `context.schedules.remove(key)` 删除。
+
+执行中心只保留最近 30 天的定时任务执行记录。过期记录会在升级时立即清理，并在后续执行或查看记录时持续物理删除。
 
 ### SDK 包
 
@@ -432,7 +463,8 @@ await context.ui.panels.open("dashboard", { state: { resourceId } });
 
 - 插件只安装在当前设备，不参与同步。
 - 插件只在应用打开期间运行。
-- 暂无 Cron、Webhook 接收端、后台运行环境、市场投稿后台和自动审核流水线。
+- 桌面插件可以持久化定时执行自己的已注册命令，用户则可以在插件页面管理这些计划并分页查看执行记录。计划通过工作区同步、绑定一台桌面设备，并且只在该设备运行 EdgeEver 时执行；错过的计划可以选择跳过，或在恢复后合并补跑一次。这不是服务端常驻后台运行时。
+- 暂无 Webhook 接收端、服务端后台运行环境、市场投稿后台和自动审核流水线。
 - 权限声明属于 API 能力检查，不是针对受信任 JavaScript 的严格沙箱。
 - 自定义面板可以从桌面端统一插件菜单或插件管理页打开，尚未支持固定到主导航或编辑器侧栏。
 - Secret Storage 仅保存在当前设备，不会同步到其他设备。

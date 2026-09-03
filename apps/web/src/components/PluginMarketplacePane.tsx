@@ -8,13 +8,16 @@ import { PluginManagerCard } from "@/components/settings/PluginManagerCard";
 import type { EdgeEverPluginHost } from "@/lib/plugins/plugin-host";
 import { contentEnterMotion } from "@/lib/motion";
 import { WORKSPACE_PAGE_TITLE_CLASSNAME } from "@/lib/workspace-ui";
+import { ExecutionCenterButton } from "@/components/execution/ExecutionCenterButton";
 
 export const PluginMarketplacePane = ({
   host,
   onClose,
+  onOpenExecutionCenter,
 }: {
   host: EdgeEverPluginHost;
   onClose: () => void;
+  onOpenExecutionCenter: () => void;
 }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -45,7 +48,10 @@ export const PluginMarketplacePane = ({
             <span className="truncate text-slate-900">{t("plugins.marketplace.title")}</span>
           </h1>
         </div>
-        <ThemeToggle className="inline-flex" showLabel />
+        <div className="flex items-center gap-1">
+          <ExecutionCenterButton onClick={onOpenExecutionCenter} />
+          <ThemeToggle className="inline-flex" showLabel />
+        </div>
       </header>
 
       <main className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:py-7">

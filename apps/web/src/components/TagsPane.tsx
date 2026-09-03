@@ -9,15 +9,18 @@ import { WORKSPACE_PAGE_TITLE_CLASSNAME } from "@/lib/workspace-ui";
 import type { TagSummary } from "@edgeever/shared";
 import { AppConfirmDialog } from "./dialogs/ConfirmDialogs";
 import type { EdgeEverRepository } from "@/lib/repository";
+import { ExecutionCenterButton } from "@/components/execution/ExecutionCenterButton";
 
 export const TagsPane = ({
   onClose,
   onSelectTag,
   repository,
+  onOpenExecutionCenter,
 }: {
   onClose: () => void;
   onSelectTag: (tag: string) => void;
   repository: EdgeEverRepository;
+  onOpenExecutionCenter: () => void;
 }) => {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -49,7 +52,7 @@ export const TagsPane = ({
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col bg-white">
-      <header className="flex h-[calc(4rem+env(safe-area-inset-top))] shrink-0 items-end border-b border-slate-200 px-6 pb-3 pt-[env(safe-area-inset-top)] lg:h-16 lg:items-center lg:pb-0 lg:pt-0">
+      <header className="flex h-[calc(4rem+env(safe-area-inset-top))] shrink-0 items-end justify-between border-b border-slate-200 px-6 pb-3 pt-[env(safe-area-inset-top)] lg:h-16 lg:items-center lg:pb-0 lg:pt-0">
         <div className="flex min-w-0 items-center gap-3">
           <Button size="icon" variant="ghost" title={t("common.back")} aria-label={t("common.back")} onClick={onClose} className="h-9 w-9 rounded-lg hover:bg-slate-100">
             <ChevronLeft className="h-5 w-5 text-slate-500" />
@@ -59,6 +62,7 @@ export const TagsPane = ({
             <p className="mt-0.5 text-xs text-slate-500">{t("tagsDialog.count", { count: tags.length })}</p>
           </div>
         </div>
+        <ExecutionCenterButton onClick={onOpenExecutionCenter} />
       </header>
 
       <main className="min-h-0 flex-1 overflow-y-auto px-4 py-4 lg:px-6 lg:py-6">

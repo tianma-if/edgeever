@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { BubbleMenuProps } from "@tiptap/react/menus";
+import type { EditorState } from "@tiptap/pm/state";
 import {
   AI_SELECTION_MENU_CHANGED_EVENT,
   readAiSelectionMenuPreference,
@@ -10,17 +11,27 @@ type BubbleMenuOptions = NonNullable<BubbleMenuProps["options"]>;
 
 const AI_BUBBLE_MENU_OPTIONS: BubbleMenuOptions = { placement: "top" };
 
+// Image/gallery node selections are non-empty too, but belong to the image
+// controls. DOM text would also include their toolbar labels; read the doc.
+export const hasAiTextSelection = ({ doc, selection }: Pick<EditorState, "doc" | "selection">): boolean => (
+  !selection.empty && selection.ranges.some(({ $from, $to }) => (
+    doc.textBetween($from.pos, $to.pos, " ", "").trim().length > 0
+  ))
+);
+
 export const shouldShowAiBubbleMenu = ({
   assistantOpen,
   editable,
   enabled,
   selectionEmpty,
+  selectionHasText,
 }: {
   assistantOpen: boolean;
   editable: boolean;
   enabled: boolean;
   selectionEmpty: boolean;
-}): boolean => enabled && editable && !selectionEmpty && !assistantOpen;
+  selectionHasText: boolean;
+}): boolean => enabled && editable && !selectionEmpty && selectionHasText && !assistantOpen;
 
 export const useAiBubbleMenu = (assistantOpen: boolean) => {
   const [enabled, setEnabled] = useState(readAiSelectionMenuPreference);
@@ -52,6 +63,7 @@ export const useAiBubbleMenu = (assistantOpen: boolean) => {
       editable: editor.isEditable,
       enabled,
       selectionEmpty: editor.state.selection.empty,
+      selectionHasText: hasAiTextSelection(editor.state),
     }),
     [assistantOpen, enabled],
   );

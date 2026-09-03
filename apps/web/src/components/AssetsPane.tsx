@@ -31,6 +31,7 @@ import { PdfViewer } from "@/components/pdf/PdfViewer";
 import { PdfThumbnail } from "@/components/pdf/PdfThumbnail";
 import { AttachmentFileIcon } from "@/components/attachments/AttachmentFileIcon";
 import { AppConfirmDialog } from "@/components/dialogs/ConfirmDialogs";
+import { ExecutionCenterButton } from "@/components/execution/ExecutionCenterButton";
 
 export const formatBytes = (bytes: number) => {
   if (!Number.isFinite(bytes) || bytes <= 0) {
@@ -64,9 +65,10 @@ const DOCUMENT_MIME_TYPES = new Set([
 interface AssetsPaneProps {
   onClose: () => void;
   repository: EdgeEverRepository;
+  onOpenExecutionCenter: () => void;
 }
 
-export const AssetsPane = ({ onClose, repository }: AssetsPaneProps) => {
+export const AssetsPane = ({ onClose, repository, onOpenExecutionCenter }: AssetsPaneProps) => {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
 
@@ -220,6 +222,7 @@ export const AssetsPane = ({ onClose, repository }: AssetsPaneProps) => {
             </p>
           </div>
         </div>
+        <ExecutionCenterButton onClick={onOpenExecutionCenter} />
       </header>
 
       {/* Toolbar (Filters, Search, Layout mode) */}

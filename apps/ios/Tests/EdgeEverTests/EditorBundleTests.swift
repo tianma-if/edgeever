@@ -1,8 +1,57 @@
 import XCTest
+import WebKit
 @testable import EdgeEver
 
 /// Ensures the TipTap editor HTML is actually shipped in the app (not the plain-text fallback).
 final class EditorBundleTests: XCTestCase {
+    @MainActor
+    func testNativeImageBatchCreatesAnEditableGallery() async throws {
+        let url = try XCTUnwrap(TipTapWebView.Coordinator.packagedEditorHTMLURL())
+        let loaded = expectation(description: "editor bridge ready")
+        final class Loader: NSObject, WKScriptMessageHandler {
+            let loaded: XCTestExpectation
+            init(_ loaded: XCTestExpectation) { self.loaded = loaded }
+            func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+                if (message.body as? [String: Any])?["type"] as? String == "ready" { loaded.fulfill() }
+            }
+        }
+        let loader = Loader(loaded)
+        let config = WKWebViewConfiguration()
+        config.preferences.setValue(true, forKey: "allowFileAccessFromFileURLs")
+        config.userContentController.add(loader, name: "edgeever")
+        let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 390, height: 844), configuration: config)
+        webView.loadFileURL(url, allowingReadAccessTo: url.deletingLastPathComponent())
+        await fulfillment(of: [loaded], timeout: 30)
+        let result = try await webView.evaluateJavaScript("""
+        (() => {
+          const api = window.EdgeEverEditor;
+          api.configure({mode:'editor', locale:'en-US'});
+          api.setDocumentFromJSON(JSON.stringify({type:'doc',content:[{type:'paragraph'}]}));
+          const images = ['green','red','blue'].map(color => 'data:image/svg+xml,' + encodeURIComponent(
+            '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><rect width="20" height="20" fill="' + color + '"/></svg>'));
+          images.forEach((src, i) => api.completeImageUpload('test-' + i, src, 'photo-' + i));
+          const grouped = api.groupImages(images);
+          const toolbar = document.querySelector('.edgeever-native-gallery-toolbar');
+          toolbar?.querySelectorAll('button')[3].click();
+          const doc = JSON.parse(api.getDocument());
+          const gallery = doc.content.find(node => node.type === 'edgeeverImageGallery');
+          const controlsHidden = [...document.querySelectorAll('.edgeever-native-gallery-content .edgeever-image-size-controls')]
+            .every(node => getComputedStyle(node).display === 'none');
+          api.configure({mode:'viewer', locale:'en-US'});
+          return { grouped, layout:gallery?.attrs.layout, sources:gallery?.content.map(node => node.attrs.src),
+            orderPreserved:JSON.stringify(gallery?.content.map(node => node.attrs.src)) === JSON.stringify(images),
+            controlsHidden, viewerToolbarHidden:toolbar?.hidden };
+        })()
+        """) as? [String: Any]
+        XCTAssertEqual(result?["grouped"] as? Bool, true)
+        XCTAssertEqual(result?["layout"] as? String, "1")
+        XCTAssertEqual((result?["sources"] as? [String])?.count, 3)
+        XCTAssertEqual(result?["orderPreserved"] as? Bool, true)
+        XCTAssertEqual(result?["controlsHidden"] as? Bool, true)
+        XCTAssertEqual(result?["viewerToolbarHidden"] as? Bool, true)
+        config.userContentController.removeScriptMessageHandler(forName: "edgeever")
+    }
+
     func testPackagedEditorHTMLIsPresentAndLarge() throws {
         let url = TipTapWebView.Coordinator.packagedEditorHTMLURL()
         XCTAssertNotNil(url, "EditorBundle/index.html must be in the app bundle so Markdown renders")

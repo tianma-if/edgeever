@@ -6,19 +6,14 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Camera, FileText, Image as ImageIcon, X } from "../components/icons";
 import { Alert, Pressable, Text } from "../components/LocalizedText";
 import type { MobileImageUploadAsset } from "../lib/mobile-image-upload";
-import { normalizeMobileImagePickerAsset } from "../lib/mobile-image-picker";
+import { normalizeMobileImagePickerAssets } from "../lib/mobile-image-picker";
 import { resolveMobileThemeStyles, useMobileTheme } from "../lib/mobile-theme";
 
 type MobileEditorUploadSource = "camera" | "file" | "library";
 type SourceResolver = (source: MobileEditorUploadSource | null) => void;
 const NATIVE_PICKER_PRESENTATION_DELAY_MS = 120;
 
-const getImagePickerAsset = (result: ImagePicker.ImagePickerResult): MobileImageUploadAsset | null => {
-  if (result.canceled || !result.assets[0]) {
-    return null;
-  }
-  return normalizeMobileImagePickerAsset(result.assets[0]);
-};
+const getImagePickerAssets = normalizeMobileImagePickerAssets;
 
 const requestCameraAccess = async () => {
   const current = await ImagePicker.getCameraPermissionsAsync();
@@ -44,17 +39,18 @@ const requestCameraAccess = async () => {
 
 const pickWithImagePicker = async (source: "camera" | "library") => {
   if (source === "camera" && !(await requestCameraAccess())) {
-    return null;
+    return [];
   }
   const options: ImagePicker.ImagePickerOptions = {
     allowsEditing: false,
     mediaTypes: ["images"],
     quality: 1,
+    ...(source === "library" ? { allowsMultipleSelection: true, selectionLimit: 20, orderedSelection: true } : {}),
   };
   const result = source === "camera"
     ? await ImagePicker.launchCameraAsync(options)
     : await ImagePicker.launchImageLibraryAsync(options);
-  return getImagePickerAsset(result);
+  return getImagePickerAssets(result);
 };
 
 const pickWithDocumentPicker = async (): Promise<MobileImageUploadAsset | null> => {
@@ -83,7 +79,7 @@ const getPendingAndroidImage = async () => {
     return null;
   }
   if ("canceled" in pending) {
-    return getImagePickerAsset(pending);
+    return getImagePickerAssets(pending);
   }
   throw new Error(pending.message || "系统未能恢复上次选择的图片，请重试");
 };
@@ -170,23 +166,25 @@ export const useMobileEditorUploadAsset = () => {
     setSourcePickerVisible(true);
   }), []);
 
-  const pickUploadAsset = useCallback(async (): Promise<MobileImageUploadAsset | null> => {
+  const pickUploadAssets = useCallback(async (): Promise<MobileImageUploadAsset[]> => {
     const pendingImage = await getPendingAndroidImage();
     if (pendingImage) {
       return pendingImage;
     }
     const source = await chooseSource();
     if (!source) {
-      return null;
+      return [];
     }
     // Let the native source sheet finish dismissing before presenting another
     // native controller. This avoids intermittent "already presenting" errors.
     await new Promise((resolve) => setTimeout(resolve, NATIVE_PICKER_PRESENTATION_DELAY_MS));
-    return source === "file" ? pickWithDocumentPicker() : pickWithImagePicker(source);
+    if (source !== "file") return pickWithImagePicker(source);
+    const asset = await pickWithDocumentPicker();
+    return asset ? [asset] : [];
   }, [chooseSource]);
 
   return {
-    pickUploadAsset,
+    pickUploadAssets,
     uploadSourcePicker: (
       <MobileEditorUploadSourcePicker
         onClose={() => settleSource(null)}

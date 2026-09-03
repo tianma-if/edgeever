@@ -1,5 +1,6 @@
 @import "highlight.js/styles/github.css";
 @import "./editor-themes/index.css";
+@import "./code-highlight-dark.css";
 
 @tailwind base;
 @tailwind components;
@@ -1232,9 +1233,132 @@ textarea {
 }
 
 .ProseMirror .edgeever-image-node:hover .edgeever-image-preview-control,
+.ProseMirror .edgeever-image-node.is-selected .edgeever-image-preview-control,
 .ProseMirror .edgeever-image-preview-control:focus-within {
   opacity: 1;
   pointer-events: auto;
+}
+
+.ProseMirror [data-edgeever-image-gallery] {
+  position: relative;
+  margin: 1rem 0;
+}
+
+.ProseMirror [data-edgeever-image-gallery]:not(.edgeever-image-gallery),
+.ProseMirror .edgeever-image-gallery__content > div {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(11rem, 100%), 1fr));
+  align-items: stretch;
+  gap: 0.65rem;
+}
+
+.ProseMirror [data-edgeever-image-gallery][data-image-count="4"]:not(.edgeever-image-gallery),
+.ProseMirror [data-edgeever-image-gallery][data-image-count="4"] .edgeever-image-gallery__content > div,
+.ProseMirror [data-edgeever-image-gallery][data-image-gallery-layout="2"]:not(.edgeever-image-gallery),
+.ProseMirror [data-edgeever-image-gallery][data-image-gallery-layout="2"] .edgeever-image-gallery__content > div {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.ProseMirror [data-edgeever-image-gallery][data-image-gallery-layout="3"]:not(.edgeever-image-gallery),
+.ProseMirror [data-edgeever-image-gallery][data-image-gallery-layout="3"] .edgeever-image-gallery__content > div {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.ProseMirror [data-edgeever-image-gallery][data-image-gallery-layout="1"]:not(.edgeever-image-gallery),
+.ProseMirror [data-edgeever-image-gallery][data-image-gallery-layout="1"] .edgeever-image-gallery__content > div {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.ProseMirror [data-edgeever-image-gallery] > img,
+.ProseMirror .edgeever-image-gallery__content > img,
+.ProseMirror .edgeever-image-gallery__content > .edgeever-image-node,
+.ProseMirror .edgeever-image-gallery__content > div > div {
+  width: 100% !important;
+  min-width: 0;
+  height: 100%;
+  min-height: 8rem;
+  max-height: none;
+  margin: 0;
+  overflow: hidden;
+  border-radius: 8px;
+  background: transparent;
+}
+
+.ProseMirror .edgeever-image-gallery__content > div > div > .edgeever-image-node {
+  width: 100% !important;
+  min-width: 0;
+  height: 100%;
+  max-height: none;
+  margin: 0 !important;
+  overflow: hidden;
+  border-radius: 8px;
+  background: transparent;
+}
+
+.ProseMirror [data-edgeever-image-gallery] > img,
+.ProseMirror .edgeever-image-gallery__content > img,
+.ProseMirror .edgeever-image-gallery__content > .edgeever-image-node > img,
+.ProseMirror .edgeever-image-gallery__content > div > div > .edgeever-image-node > img {
+  display: block;
+  width: 100% !important;
+  height: 100%;
+  min-height: 8rem;
+  max-height: 18rem;
+  margin: 0;
+  object-fit: cover;
+}
+
+.ProseMirror .edgeever-image-gallery__toolbar {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  width: fit-content;
+  max-width: 100%;
+  margin-bottom: 0.5rem;
+  align-items: center;
+  gap: 0.25rem;
+  border: 1px solid rgba(var(--brand-green-200-rgb), 0.95);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.96);
+  padding: 0.3rem;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.16);
+}
+
+.ProseMirror .edgeever-image-gallery__button {
+  min-width: 2rem;
+  height: 2rem;
+  border-radius: 6px;
+  padding: 0 0.5rem;
+  color: #475569;
+  font-size: 0.75rem;
+  font-weight: 650;
+  line-height: 1;
+}
+
+.ProseMirror .edgeever-image-gallery__button:hover,
+.ProseMirror .edgeever-image-gallery__button:focus-visible,
+.ProseMirror .edgeever-image-gallery__button.is-active {
+  background: var(--brand-green-muted);
+  color: var(--brand-green-text);
+}
+
+.ProseMirror .edgeever-image-gallery__button:focus-visible {
+  outline: 2px solid var(--brand-green);
+  outline-offset: 1px;
+}
+
+@media (max-width: 520px) {
+  .ProseMirror [data-edgeever-image-gallery]:not(.edgeever-image-gallery),
+  .ProseMirror .edgeever-image-gallery__content > div,
+  .ProseMirror [data-edgeever-image-gallery][data-image-gallery-layout="3"]:not(.edgeever-image-gallery),
+  .ProseMirror [data-edgeever-image-gallery][data-image-gallery-layout="3"] .edgeever-image-gallery__content > div {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ProseMirror [data-edgeever-image-gallery][data-image-gallery-layout="1"]:not(.edgeever-image-gallery),
+  .ProseMirror [data-edgeever-image-gallery][data-image-gallery-layout="1"] .edgeever-image-gallery__content > div {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .ProseMirror .edgeever-image-preview-button {

@@ -1,6 +1,6 @@
 export declare const PLUGIN_API_VERSION: "1";
 export declare const THEME_API_VERSION: "1";
-export declare const PLUGIN_PERMISSIONS: readonly ["notes:read", "notes:write", "notes:delete", "metadata:read", "metadata:write", "resources:read", "resources:write", "templates:read", "templates:write", "network", "storage", "secrets", "editor:read", "editor:write", "ui:commands", "ui:navigation", "ui:notices", "ui:panels", "ui:embeds"];
+export declare const PLUGIN_PERMISSIONS: readonly ["notes:read", "notes:write", "notes:delete", "metadata:read", "metadata:write", "resources:read", "resources:write", "templates:read", "templates:write", "network", "storage", "secrets", "schedules", "editor:read", "editor:write", "ui:commands", "ui:navigation", "ui:notices", "ui:panels", "ui:embeds"];
 export type PluginPermission = (typeof PLUGIN_PERMISSIONS)[number];
 export type ExtensionPlatform = "web" | "desktop" | "android" | "ios";
 export interface PluginManifest {
@@ -248,6 +248,30 @@ export interface PluginCommand {
     title: string;
     run: () => void | Promise<void>;
 }
+export type PluginScheduleMissedRunPolicy = "run-once" | "skip";
+export interface PluginScheduleInput {
+    /** Stable plugin-local identifier. Reusing it updates the same persistent schedule. */
+    key: string;
+    name: string;
+    commandId: string;
+    cronExpression: string;
+    timezone?: string;
+    missedRunPolicy?: PluginScheduleMissedRunPolicy;
+    isEnabled?: boolean;
+}
+export interface PluginSchedule extends Required<Omit<PluginScheduleInput, "timezone" | "missedRunPolicy" | "isEnabled">> {
+    timezone: string;
+    missedRunPolicy: PluginScheduleMissedRunPolicy;
+    isEnabled: boolean;
+    runsOnThisDevice: boolean;
+    lastRun: {
+        status: "running" | "succeeded" | "failed";
+        scheduledFor: string;
+        startedAt: string;
+        finishedAt: string | null;
+        errorMessage: string | null;
+    } | null;
+}
 export interface PluginEditorSelection {
     noteId: string;
     from: number;
@@ -366,6 +390,12 @@ export interface PluginContext {
     };
     commands: {
         register(command: PluginCommand): () => void;
+    };
+    schedules: {
+        /** Creates or updates one persistent schedule owned by this plugin. Desktop only. */
+        upsert(input: PluginScheduleInput): Promise<PluginSchedule>;
+        list(): Promise<PluginSchedule[]>;
+        remove(key: string): Promise<void>;
     };
     events: {
         on<K extends keyof PluginEventMap>(event: K, listener: (payload: PluginEventMap[K]) => void): () => void;

@@ -383,6 +383,24 @@ final class SharedTipTapRuntime: NSObject, WKScriptMessageHandler, WKNavigationD
         return true
     }
 
+    /// Group only successfully inserted images from this picker batch.
+    func groupImages(sources: [String]) async -> Bool {
+        guard ready, session?.mode == .editor,
+              let json = try? JSONEncoder().encode(sources) else { return false }
+        let encoded = json.base64EncodedString()
+        let js = """
+        (function(){
+          const bytes = Uint8Array.from(atob('\(encoded)'), c => c.charCodeAt(0));
+          return window.EdgeEverEditor.groupImages(JSON.parse(new TextDecoder().decode(bytes)));
+        })();
+        """
+        return await withCheckedContinuation { continuation in
+            webView.evaluateJavaScript(js) { result, _ in
+                continuation.resume(returning: (result as? Bool) ?? false)
+            }
+        }
+    }
+
     /// Read current editor markdown + JSON after a mutation (avoids racing the async bridge onChange).
     func snapshotContent() async -> (markdown: String, json: String)? {
         guard ready else { return nil }

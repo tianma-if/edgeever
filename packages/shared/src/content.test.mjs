@@ -403,6 +403,29 @@ describe("Theme block compatibility", () => {
   });
 });
 
+describe("image gallery compatibility", () => {
+  const galleryDoc = {
+    type: "doc",
+    content: [{
+      type: "edgeeverImageGallery",
+      attrs: { layout: "auto" },
+      content: [
+        { type: "image", attrs: { src: "/one.png", alt: "one" } },
+        { type: "image", attrs: { src: "/two.png", alt: "two" } },
+      ],
+    }],
+  };
+
+  test("exports gallery images as portable sequential Markdown", () => {
+    expect(docToMarkdown(galleryDoc)).toBe("![one](/one.png)\n\n![two](/two.png)");
+  });
+
+  test("keeps the richer gallery JSON when a Markdown projection also exists", () => {
+    expect(resolveMemoContentDoc(galleryDoc, "![one](/one.png)\n\n![two](/two.png)"))
+      .toEqual(galleryDoc);
+  });
+});
+
 describe("merge divider", () => {
   test("joins source docs with a semantic merge divider node", () => {
     const merged = mergeMemoDocs([

@@ -53,6 +53,36 @@ describe("editor draft source resolution", () => {
     expect(state.hasUnsavedChanges).toBe(false);
   });
 
+  test("repairs invalid saved gallery images and marks the memo for autosave", () => {
+    const state = resolveEditorDraftState({
+      memo: {
+        ...memo,
+        contentJson: {
+          type: "doc",
+          content: [
+            {
+              type: "edgeeverImageGallery",
+              attrs: { layout: "3" },
+              content: [{ type: "image", attrs: { src: null } }],
+            },
+            {
+              type: "edgeeverImageGallery",
+              attrs: { layout: "1" },
+              content: [
+                { type: "image", attrs: { src: "/one.png" } },
+                { type: "image", attrs: { src: "/two.png" } },
+              ],
+            },
+          ],
+        },
+      },
+    });
+
+    expect(state.contentJson.content).toHaveLength(1);
+    expect(state.contentJson.content[0].content).toHaveLength(2);
+    expect(state.hasUnsavedChanges).toBe(true);
+  });
+
   test("uses a newer draft and marks it dirty without a queue entry", () => {
     const state = resolveEditorDraftState({
       memo,

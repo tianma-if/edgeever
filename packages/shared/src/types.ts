@@ -52,6 +52,41 @@ export type MemoTemplate = {
   updatedAt: string;
 };
 
+export type ScheduledTaskMissedRunPolicy = "run-once" | "skip";
+
+export type ScheduledPluginCommandPayload = {
+  pluginId: string;
+  commandId: string;
+};
+
+export type ScheduledTask = {
+  id: string;
+  name: string;
+  taskType: "plugin-command";
+  taskPayload: ScheduledPluginCommandPayload;
+  ownerPluginId: string | null;
+  pluginScheduleKey: string | null;
+  cronExpression: string;
+  timezone: string;
+  executorDeviceId: string;
+  missedRunPolicy: ScheduledTaskMissedRunPolicy;
+  isEnabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+  lastRun: ScheduledTaskRun | null;
+};
+
+export type ScheduledTaskRun = {
+  id: string;
+  taskId: string;
+  scheduledFor: string;
+  executorDeviceId: string;
+  status: "running" | "succeeded" | "failed";
+  errorMessage: string | null;
+  startedAt: string;
+  finishedAt: string | null;
+};
+
 export type MemoEditSession = {
   id: string;
   memoId: string;

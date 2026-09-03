@@ -6,6 +6,7 @@ import {
   useEffect,
   useMemo,
   useRef,
+  useSyncExternalStore,
   type CSSProperties,
   type ReactNode,
   type MouseEvent,
@@ -29,7 +30,8 @@ import { MemoListPane, MemoSelectionActionBar } from "./MemoListPane";
 import { QuickMemoSwitcher } from "./QuickMemoSwitcher";
 import { AppConfirmDialog, MemoDeleteConfirmDialog, NotebookNameDialog } from "./dialogs/ConfirmDialogs";
 import { PluginPanelDialog } from "./plugins/PluginPanelDialog";
-import { api } from "@/lib/api";
+import { api, getOrCreateClientDeviceId } from "@/lib/api";
+import { createPluginScheduleAdapter } from "@/lib/plugins/plugin-schedule-adapter";
 import {
   clearMobileEditorReturnPreview,
   consumeStandaloneMobileEditorReturn,
@@ -155,6 +157,9 @@ const EvernoteImportGuidePane = lazy(() =>
 const TagsPane = lazy(() => import("./TagsPane").then((module) => ({ default: module.TagsPane })));
 const TemplatesPane = lazy(() => import("./TemplatesPane").then((module) => ({ default: module.TemplatesPane })));
 const AiPromptsPane = lazy(() => import("./AiPromptsPane").then((module) => ({ default: module.AiPromptsPane })));
+const ExecutionCenterPane = lazy(() =>
+  import("./execution/ExecutionCenterPane").then((module) => ({ default: module.ExecutionCenterPane }))
+);
 
 const PaneLoadingFallback = ({ label = "Loading" }: { label?: string }) => (
   <div className="flex h-full min-h-0 items-center justify-center bg-white text-sm font-medium text-slate-400" role="status">
@@ -678,6 +683,7 @@ export const WorkspaceApp = ({
     navigatePlugins: navigateWorkspacePlugins,
     navigateTemplates: navigateWorkspaceTemplates,
     navigateAiPrompts: navigateWorkspaceAiPrompts,
+    navigateExecutionCenter: navigateWorkspaceExecutionCenter,
   } = useWorkspaceRoute();
   const localDataScope = useMemo(
     () => createLocalDataScope(window.location.origin, user?.id),
@@ -688,12 +694,13 @@ export const WorkspaceApp = ({
   const isInitialPluginsRoute = route.isPlugins;
   const isInitialTemplatesRoute = route.isTemplates;
   const isInitialAiPromptsRoute = route.isAiPrompts;
+  const isInitialExecutionCenterRoute = route.isExecutionCenter;
   const isInitialMobileEditorReturn = Boolean(route.mobileEditorReturnMemoId);
   const isTrashRoute = route.isTrash;
   const [rendererRecoveryMode, setRendererRecoveryMode] = useState(() =>
     Boolean(window.edgeeverDesktop?.recoveredAfterAbnormalExit) || isRendererRecoveryRequired()
   );
-  const [activePane, setActivePane] = useState<Pane>(() => ((isInitialSettingsRoute || isInitialPluginsRoute || isInitialTemplatesRoute || isInitialAiPromptsRoute) && !isInitialMobileEditorReturn ? "editor" : "memos"));
+  const [activePane, setActivePane] = useState<Pane>(() => ((isInitialSettingsRoute || isInitialPluginsRoute || isInitialTemplatesRoute || isInitialAiPromptsRoute || isInitialExecutionCenterRoute) && !isInitialMobileEditorReturn ? "editor" : "memos"));
   const [memoView, setMemoView] = useState<MemoView>(() => (isTrashRoute ? "trash" : "notebook"));
   const {
     beginMemoSelection,
@@ -725,10 +732,19 @@ export const WorkspaceApp = ({
   const [notebookDeleteConfirmation, setNotebookDeleteConfirmation] = useState<Notebook | null>(null);
   const [appNoticeDialog, setAppNoticeDialog] = useState<AppNoticeDialogState | null>(null);
   const [demoResetConfirmationOpen, setDemoResetConfirmationOpen] = useState(false);
+  const scheduledTaskDeviceId = useMemo(
+    () => window.edgeeverDesktop?.isAvailable ? getOrCreateClientDeviceId() : null,
+    [],
+  );
+  const pluginScheduleAdapter = useMemo(() => scheduledTaskDeviceId
+    ? createPluginScheduleAdapter(scheduledTaskDeviceId, () =>
+        queryClient.invalidateQueries({ queryKey: ["scheduled-tasks"] }))
+    : undefined, [queryClient, scheduledTaskDeviceId]);
   const pluginHost = useMemo(() => new EdgeEverPluginHost({
     repository,
     scope: localDataScope,
     onNotice: (message) => setAppNoticeDialog({ title: t("plugins.noticeTitle"), description: message }),
+    scheduleAdapter: pluginScheduleAdapter,
     onWorkspaceChanged: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["memos"] }),
@@ -739,20 +755,104 @@ export const WorkspaceApp = ({
         queryClient.invalidateQueries({ queryKey: ["resources"] }),
       ]);
     },
-  }), [localDataScope, queryClient, repository, t]);
+  }), [localDataScope, pluginScheduleAdapter, queryClient, repository, t]);
+  const [pluginHostReady, setPluginHostReady] = useState(false);
+  const pluginHostSnapshot = useSyncExternalStore(pluginHost.subscribe, pluginHost.getSnapshot, pluginHost.getSnapshot);
+  useEffect(() => {
+    let active = true;
+    setPluginHostReady(false);
+    void pluginHost.activateEnabled().then(() => {
+      if (active) setPluginHostReady(true);
+    }).catch(() => {
+      if (active) setPluginHostReady(false);
+    });
+    return () => {
+      active = false;
+      void pluginHost.dispose();
+    };
+  }, [pluginHost]);
+  const scheduledTasksQuery = useQuery({
+    queryKey: ["scheduled-tasks", scheduledTaskDeviceId],
+    queryFn: () => api.listScheduledTasks(scheduledTaskDeviceId ?? undefined),
+    enabled: Boolean(scheduledTaskDeviceId && pluginHostReady),
+    refetchInterval: 60_000,
+  });
+  const runningScheduledTaskIdsRef = useRef(new Set<string>());
+  const runnableScheduledTasks = useMemo(() => {
+    const commandKeys = new Set(pluginHostSnapshot.commands.map((command) => `${command.pluginId}\0${command.id}`));
+    return (scheduledTasksQuery.data?.tasks ?? []).filter((task) =>
+      commandKeys.has(`${task.taskPayload.pluginId}\0${task.taskPayload.commandId}`));
+  }, [pluginHostSnapshot.commands, scheduledTasksQuery.data?.tasks]);
+
+  useEffect(() => {
+    if (!scheduledTaskDeviceId || !scheduledTasksQuery.data?.tasks) return;
+    const interrupted = scheduledTasksQuery.data.tasks.filter((task) =>
+      task.lastRun?.status === "running" && !runningScheduledTaskIdsRef.current.has(task.id));
+    if (interrupted.length === 0) return;
+    void Promise.all(interrupted.map((task) => api.finishScheduledTaskRun(task.id, task.lastRun!.id, {
+      executorDeviceId: scheduledTaskDeviceId,
+      status: "failed",
+      errorMessage: "The desktop app stopped before the scheduled task completed.",
+    }).catch(() => null))).then(() => {
+      void Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["scheduled-tasks"] }),
+        queryClient.invalidateQueries({ queryKey: ["scheduled-task-run-history"] }),
+      ]);
+    });
+  }, [queryClient, scheduledTaskDeviceId, scheduledTasksQuery.data?.tasks]);
+
+  useEffect(() => {
+    const bridge = window.edgeeverDesktop;
+    if (!bridge?.isAvailable || !scheduledTaskDeviceId || !pluginHostReady) return;
+    void bridge.syncScheduledTasks(runnableScheduledTasks).catch(() => {});
+  }, [pluginHostReady, runnableScheduledTasks, scheduledTaskDeviceId]);
+
+  useEffect(() => () => {
+    void window.edgeeverDesktop?.syncScheduledTasks([]).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const bridge = window.edgeeverDesktop;
+    if (!bridge?.isAvailable || !scheduledTaskDeviceId || !pluginHostReady) return;
+    return bridge.onScheduledTask(async ({ task, scheduledFor }) => {
+      if (task.executorDeviceId !== scheduledTaskDeviceId || runningScheduledTaskIdsRef.current.has(task.id)) return;
+      runningScheduledTaskIdsRef.current.add(task.id);
+      let runId: string | null = null;
+      try {
+        const claimed = await api.claimScheduledTaskRun(task.id, {
+          scheduledFor,
+          executorDeviceId: scheduledTaskDeviceId,
+        });
+        runId = claimed.run.id;
+        if (task.taskType !== "plugin-command") throw new Error("Unsupported scheduled task type.");
+        await pluginHost.runCommand(task.taskPayload.pluginId, task.taskPayload.commandId);
+        await api.finishScheduledTaskRun(task.id, runId, {
+          executorDeviceId: scheduledTaskDeviceId,
+          status: "succeeded",
+        });
+      } catch (error) {
+        if (runId) {
+          await api.finishScheduledTaskRun(task.id, runId, {
+            executorDeviceId: scheduledTaskDeviceId,
+            status: "failed",
+            errorMessage: error instanceof Error ? error.message : String(error),
+          }).catch(() => {});
+        }
+      } finally {
+        runningScheduledTaskIdsRef.current.delete(task.id);
+        void Promise.all([
+          queryClient.invalidateQueries({ queryKey: ["scheduled-tasks"] }),
+          queryClient.invalidateQueries({ queryKey: ["scheduled-task-run-history"] }),
+        ]);
+      }
+    });
+  }, [pluginHost, pluginHostReady, queryClient, scheduledTaskDeviceId]);
   const [requestedPluginPanel, setRequestedPluginPanel] = useState<{
     panel: RegisteredPluginPanel;
     options?: PluginPanelOpenOptions;
   } | null>(null);
   const pluginNavigationRequestIdRef = useRef(0);
   const [pluginNavigationRequest, setPluginNavigationRequest] = useState<{ id: number; noteId: string; search: string } | null>(null);
-
-  useEffect(() => {
-    void pluginHost.activateEnabled();
-    return () => {
-      void pluginHost.dispose();
-    };
-  }, [pluginHost]);
 
   useEffect(() => pluginHost.setPanelAdapter({
     openPanel(pluginId, panelId, options) {
@@ -828,7 +928,7 @@ export const WorkspaceApp = ({
     setShortcutSettings,
     shortcutSettings,
   } = useWorkspacePreferences();
-  const [rightView, setRightView] = useState<"editor" | "settings" | "plugins" | "assets" | "tags" | "templates" | "ai-prompts" | "evernote-migration">(() =>
+  const [rightView, setRightView] = useState<"editor" | "settings" | "plugins" | "assets" | "tags" | "templates" | "ai-prompts" | "execution-center" | "evernote-migration">(() =>
     isInitialSettingsRoute
       ? "settings"
       : isInitialPluginsRoute
@@ -837,6 +937,8 @@ export const WorkspaceApp = ({
         ? "templates"
         : isInitialAiPromptsRoute
           ? "ai-prompts"
+          : isInitialExecutionCenterRoute
+            ? "execution-center"
           : "editor"
   );
   const [templatesOpen, setTemplatesOpen] = useState(false);
@@ -1197,6 +1299,14 @@ export const WorkspaceApp = ({
       return;
     }
 
+    if (route.isExecutionCenter) {
+      skipNextHomeRouteSyncRef.current = false;
+      setRightView("execution-center");
+      setMobileBottomNavActive("home");
+      setActivePane("editor");
+      return;
+    }
+
     if (skipNextHomeRouteSyncRef.current) {
       skipNextHomeRouteSyncRef.current = false;
       return;
@@ -1205,7 +1315,7 @@ export const WorkspaceApp = ({
     setMemoView(isTrashRoute ? "trash" : "notebook");
     setRightView("editor");
     setMobileBottomNavActive("home");
-  }, [isTrashRoute, route.isSettings, route.isPlugins, route.isTemplates, route.isAiPrompts]);
+  }, [isTrashRoute, route.isSettings, route.isPlugins, route.isTemplates, route.isAiPrompts, route.isExecutionCenter]);
 
   useEffect(() => {
     if (window.edgeeverDesktop?.isAvailable) {
@@ -2411,6 +2521,23 @@ export const WorkspaceApp = ({
     setActivePane("editor");
   };
 
+  const handleOpenExecutionCenter = () => {
+    clearHiddenMobileSearch();
+    navigateWorkspaceExecutionCenter();
+    setRightView("execution-center");
+    setMobileBottomNavActive("home");
+    setActivePane("editor");
+  };
+
+  const handleCloseExecutionCenter = () => {
+    navigateWorkspaceHome();
+    setRightView("editor");
+    setMobileBottomNavActive("home");
+    if (!isDesktopViewport()) {
+      setActivePane("memos");
+    }
+  };
+
   const handleCloseAssets = () => {
     navigateWorkspaceHome();
     setRightView("editor");
@@ -2575,6 +2702,11 @@ export const WorkspaceApp = ({
       return true;
     }
 
+    if (rightView === "execution-center") {
+      handleCloseExecutionCenter();
+      return true;
+    }
+
     if (rightView === "tags") {
       handleCloseAssets();
       return true;
@@ -2611,6 +2743,7 @@ export const WorkspaceApp = ({
     emptyTrashMutation.isPending,
     handleCloseAssets,
     handleCloseSettings,
+    handleCloseExecutionCenter,
     handleCloseTemplates,
     handleCancelMobileSearch,
 	    memoDeleteConfirmation,
@@ -2883,6 +3016,8 @@ export const WorkspaceApp = ({
           ? t("templates.title")
         : rightView === "ai-prompts"
           ? t("aiPrompts.title")
+        : rightView === "execution-center"
+          ? t("executionHistory.centerTitle")
         : rightView === "evernote-migration"
           ? t("workspace.loading.migration")
           : t("workspace.loading.editor");
@@ -3149,6 +3284,7 @@ export const WorkspaceApp = ({
                 <m.div key={rightView} className="h-full min-h-0 min-w-0" {...paneEnterMotion}>
                   {rightView === "settings" ? (
                     <SettingsPane
+                    onOpenExecutionCenter={handleOpenExecutionCenter}
                     onClose={handleCloseSettings}
                     onOpenTemplates={handleOpenTemplates}
                   onOpenAiPrompts={handleOpenAiPrompts}
@@ -3169,11 +3305,11 @@ export const WorkspaceApp = ({
                     }}
                   />
                   ) : rightView === "plugins" ? (
-                    <PluginMarketplacePane host={pluginHost} onClose={handleClosePluginMarketplace} />
+                    <PluginMarketplacePane host={pluginHost} onClose={handleClosePluginMarketplace} onOpenExecutionCenter={handleOpenExecutionCenter} />
                   ) : rightView === "assets" ? (
-                    <AssetsPane onClose={handleCloseAssets} repository={repository} />
+                    <AssetsPane onClose={handleCloseAssets} repository={repository} onOpenExecutionCenter={handleOpenExecutionCenter} />
                   ) : rightView === "tags" ? (
-                    <TagsPane onClose={handleCloseAssets} onSelectTag={handleSelectTag} repository={repository} />
+                    <TagsPane onClose={handleCloseAssets} onSelectTag={handleSelectTag} repository={repository} onOpenExecutionCenter={handleOpenExecutionCenter} />
                   ) : rightView === "templates" ? (
                     <TemplatesPane
                     canCreateMemo={canCreateMemo}
@@ -3188,11 +3324,14 @@ export const WorkspaceApp = ({
                     onUpdateSavedTemplate={async (templateId, payload) => {
                       await updateTemplateMutation.mutateAsync({ templateId, payload });
                     }}
+                    onOpenExecutionCenter={handleOpenExecutionCenter}
                   />
                   ) : rightView === "ai-prompts" ? (
-                    <AiPromptsPane onClose={handleCloseAiPrompts} />
+                    <AiPromptsPane onClose={handleCloseAiPrompts} onOpenExecutionCenter={handleOpenExecutionCenter} />
+                  ) : rightView === "execution-center" ? (
+                    <ExecutionCenterPane currentDeviceId={scheduledTaskDeviceId} onClose={handleCloseExecutionCenter} />
                   ) : rightView === "evernote-migration" ? (
-                    <EvernoteImportGuidePane onClose={() => setRightView("settings")} />
+                    <EvernoteImportGuidePane onClose={() => setRightView("settings")} onOpenExecutionCenter={handleOpenExecutionCenter} />
                   ) : rendererRecoveryMode ? (
                     <EditorRecoveryPane />
                   ) : (
@@ -3205,6 +3344,7 @@ export const WorkspaceApp = ({
                       }}
                     >
                       <EditorPane
+                      onOpenExecutionCenter={handleOpenExecutionCenter}
                       memo={selectedMemo}
                       repository={repository}
                       pluginHost={pluginHost}

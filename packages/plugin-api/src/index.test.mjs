@@ -10,8 +10,8 @@ describe("extension manifests", () => {
       version: "1.0.0",
       apiVersion: "1",
       entry: "./main.js",
-      permissions: ["notes:read", "notes:read", "templates:read", "templates:write", "ui:commands", "ui:navigation", "ui:embeds"],
-    })).toMatchObject({ permissions: ["notes:read", "templates:read", "templates:write", "ui:commands", "ui:navigation", "ui:embeds"] });
+      permissions: ["notes:read", "notes:read", "templates:read", "templates:write", "schedules", "ui:commands", "ui:navigation", "ui:embeds"],
+    })).toMatchObject({ permissions: ["notes:read", "templates:read", "templates:write", "schedules", "ui:commands", "ui:navigation", "ui:embeds"] });
   });
 
   test("rejects undeclared permissions", () => {

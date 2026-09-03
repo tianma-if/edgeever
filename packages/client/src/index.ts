@@ -15,6 +15,8 @@ import type {
   MemoSummary,
   MemoShare,
   MemoTemplate,
+  ScheduledTask,
+  ScheduledTaskRun,
   Notebook,
   Resource,
   ResourceListItem,
@@ -138,6 +140,37 @@ export type ListTemplatesResponse = {
 
 export type TemplateResponse = {
   template: MemoTemplate;
+};
+
+export type ListScheduledTasksResponse = {
+  tasks: ScheduledTask[];
+};
+
+export type ScheduledTaskResponse = {
+  task: ScheduledTask;
+};
+
+export type ScheduledTaskRunResponse = {
+  run: ScheduledTaskRun;
+};
+
+export type ScheduledTaskRunsResponse = {
+  runs: ScheduledTaskRun[];
+  totalCount: number;
+  nextOffset: number | null;
+};
+
+export type ScheduledTaskRunHistoryItem = ScheduledTaskRun & {
+  taskName: string;
+  pluginId: string;
+  ownerPluginId: string | null;
+  pluginScheduleKey: string | null;
+};
+
+export type ScheduledTaskRunHistoryResponse = {
+  runs: ScheduledTaskRunHistoryItem[];
+  totalCount: number;
+  nextOffset: number | null;
 };
 
 export type MemoShareResponse = {
@@ -893,6 +926,98 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
 
     deleteTemplate: (templateId: string) =>
       request<{ ok: true }>(`/api/v1/templates/${templateId}`, { method: "DELETE" }),
+
+    listScheduledTasks: (executorDeviceId?: string) => {
+      const search = new URLSearchParams();
+      if (executorDeviceId) search.set("executorDeviceId", executorDeviceId);
+      const suffix = search.size > 0 ? `?${search.toString()}` : "";
+      return request<ListScheduledTasksResponse>(`/api/v1/scheduled-tasks${suffix}`);
+    },
+
+    listScheduledTaskRunHistory: (offset = 0, limit = 50) => {
+      const search = new URLSearchParams({ offset: String(offset), limit: String(limit) });
+      return request<ScheduledTaskRunHistoryResponse>(`/api/v1/scheduled-task-runs?${search.toString()}`);
+    },
+
+    listPluginScheduledTasks: (pluginId: string) => request<ListScheduledTasksResponse>(
+      `/api/v1/scheduled-tasks/plugin/${encodeURIComponent(pluginId)}`,
+    ),
+
+    upsertPluginScheduledTask: (payload: {
+      pluginId: string;
+      scheduleKey: string;
+      name: string;
+      commandId: string;
+      cronExpression: string;
+      timezone: string;
+      executorDeviceId: string;
+      missedRunPolicy?: "run-once" | "skip";
+      isEnabled?: boolean;
+    }) => request<ScheduledTaskResponse>("/api/v1/scheduled-tasks/plugin-upsert", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+    deletePluginScheduledTask: (pluginId: string, scheduleKey: string) => request<{ ok: true }>(
+      `/api/v1/scheduled-tasks/plugin/${encodeURIComponent(pluginId)}/${encodeURIComponent(scheduleKey)}`,
+      { method: "DELETE" },
+    ),
+
+    createScheduledTask: (payload: {
+      name: string;
+      taskType: "plugin-command";
+      taskPayload: { pluginId: string; commandId: string };
+      cronExpression: string;
+      timezone: string;
+      executorDeviceId: string;
+      missedRunPolicy?: "run-once" | "skip";
+      isEnabled?: boolean;
+    }) => request<ScheduledTaskResponse>("/api/v1/scheduled-tasks", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+    updateScheduledTask: (taskId: string, payload: {
+      name?: string;
+      taskPayload?: { pluginId: string; commandId: string };
+      cronExpression?: string;
+      timezone?: string;
+      executorDeviceId?: string;
+      missedRunPolicy?: "run-once" | "skip";
+      isEnabled?: boolean;
+    }) => request<ScheduledTaskResponse>(`/api/v1/scheduled-tasks/${encodeURIComponent(taskId)}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+
+    deleteScheduledTask: (taskId: string) => request<{ ok: true }>(
+      `/api/v1/scheduled-tasks/${encodeURIComponent(taskId)}`,
+      { method: "DELETE" },
+    ),
+
+    listScheduledTaskRuns: (taskId: string, offset = 0, limit = 50) => {
+      const search = new URLSearchParams({ offset: String(offset), limit: String(limit) });
+      return request<ScheduledTaskRunsResponse>(
+        `/api/v1/scheduled-tasks/${encodeURIComponent(taskId)}/runs?${search.toString()}`,
+      );
+    },
+
+    claimScheduledTaskRun: (taskId: string, payload: {
+      scheduledFor: string;
+      executorDeviceId: string;
+    }) => request<ScheduledTaskRunResponse>(
+      `/api/v1/scheduled-tasks/${encodeURIComponent(taskId)}/runs/claim`,
+      { method: "POST", body: JSON.stringify(payload) },
+    ),
+
+    finishScheduledTaskRun: (taskId: string, runId: string, payload: {
+      executorDeviceId: string;
+      status: "succeeded" | "failed";
+      errorMessage?: string | null;
+    }) => request<ScheduledTaskRunResponse>(
+      `/api/v1/scheduled-tasks/${encodeURIComponent(taskId)}/runs/${encodeURIComponent(runId)}/finish`,
+      { method: "POST", body: JSON.stringify(payload) },
+    ),
 
     moveMemos: (payload: { memoIds: string[]; notebookId: string }) =>
       request<{ ok: true; moved: number }>("/api/v1/memos/batch/move", {

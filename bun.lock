@@ -28,6 +28,7 @@
         "@tiptap/extension-list": "3.31.0",
         "@tiptap/extension-placeholder": "3.31.0",
         "@tiptap/extension-table": "3.31.0",
+        "@tiptap/pm": "3.31.0",
         "@tiptap/react": "3.31.0",
         "@tiptap/starter-kit": "3.31.0",
         "@tiptap/suggestion": "3.31.0",
@@ -36,6 +37,7 @@
         "class-variance-authority": "latest",
         "clsx": "latest",
         "cmdk": "^1.1.1",
+        "croner": "^10.0.1",
         "dexie": "latest",
         "fast-xml-parser": "^5.9.3",
         "fflate": "^0.8.3",
@@ -90,8 +92,9 @@
     },
     "apps/desktop": {
       "name": "@edgeever/desktop",
-      "version": "1.52.0",
+      "version": "1.53.0",
       "dependencies": {
+        "croner": "^10.0.1",
         "electron-updater": "^6.6.2",
       },
       "devDependencies": {
@@ -206,6 +209,7 @@
       "dependencies": {
         "@codemirror/lang-markdown": "^6.5.2",
         "@edgeever/client": "workspace:*",
+        "@floating-ui/react-dom": "^2.1.8",
         "@fontsource-variable/noto-sans-sc": "^5.2.8",
         "@tiptap/extension-code-block-lowlight": "3.31.0",
         "@tiptap/pm": "3.31.0",
@@ -1953,6 +1957,8 @@
     "cose-base": ["cose-base@1.0.3", "", { "dependencies": { "layout-base": "^1.0.0" } }, "sha512-s9whTXInMSgAp/NVXVNuVxVKzGH2qck3aQlVHxDCdAEPgtMKwc4Wq6/QKhgdEdgbLSi9rBTAcPoRa6JpiG4ksg=="],
 
     "crelt": ["crelt@1.0.7", "", {}, "sha512-aK6BbWfhf4U/wCcLHKPJl/xa6VkVstRaPywWtMKGwuOLc/wZTyQYuoxgvZnNsBvv7Kg3YTBQYYBCggcviQczuA=="],
+
+    "croner": ["croner@10.0.1", "", {}, "sha512-ixNtAJndqh173VQ4KodSdJEI6nuioBWI0V1ITNKhZZsO0pEMoDxz539T4FTTbSZ/xIOSuDnzxLVRqBVSvPNE2g=="],
 
     "cross-dirname": ["cross-dirname@0.1.0", "", {}, "sha512-+R08/oI0nl3vfPcqftZRpytksBXDzOUveBq/NBVx0sUp1axwzPQrKinNx5yd5sxPu8j1wIy8AfnVQ+5eFdha6Q=="],
 

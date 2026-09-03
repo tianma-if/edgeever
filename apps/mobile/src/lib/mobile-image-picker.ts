@@ -25,6 +25,11 @@ const getFilenameExtension = (filename?: string | null) => {
 const getTimestampedPhotoFilename = (timestamp: number) =>
   `photo-${new Date(timestamp).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z")}.jpg`;
 
+export const normalizeMobileImagePickerAssets = (result: {
+  canceled: boolean;
+  assets: MobileImagePickerAsset[] | null;
+}): MobileImageUploadAsset[] => result.canceled ? [] : (result.assets ?? []).map((asset) => normalizeMobileImagePickerAsset(asset));
+
 export const normalizeMobileImagePickerAsset = (
   asset: MobileImagePickerAsset,
   timestamp = Date.now()

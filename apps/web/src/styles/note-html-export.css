@@ -200,6 +200,35 @@ body {
   margin: 1.25rem auto;
 }
 
+.edgeever-html-content [data-edgeever-image-gallery] {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.65rem;
+  margin: 1.25rem 0;
+}
+
+.edgeever-html-content [data-edgeever-image-gallery][data-image-count="4"],
+.edgeever-html-content [data-edgeever-image-gallery][data-image-gallery-layout="2"] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.edgeever-html-content [data-edgeever-image-gallery][data-image-gallery-layout="3"] {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.edgeever-html-content [data-edgeever-image-gallery][data-image-gallery-layout="1"] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.edgeever-html-content [data-edgeever-image-gallery] > img {
+  width: 100%;
+  height: 13rem;
+  max-height: none;
+  margin: 0;
+  border-radius: 0.5rem;
+  object-fit: cover;
+}
+
 .edgeever-html-mermaid svg {
   margin: 0 auto;
 }

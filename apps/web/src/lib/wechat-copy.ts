@@ -361,6 +361,41 @@ const embedImagesForWeChat = async (root: HTMLElement, originalImages: HTMLImage
   }));
 };
 
+const convertImageGalleriesForWeChat = (root: HTMLElement) => {
+  root.querySelectorAll<HTMLElement>("[data-edgeever-image-gallery]").forEach((gallery) => {
+    const images = Array.from(gallery.children).filter(
+      (child): child is HTMLImageElement => child.tagName === "IMG",
+    );
+    if (images.length < 2) return;
+
+    const layout = gallery.getAttribute("data-image-gallery-layout");
+    let columns = Math.min(images.length, 3);
+    if (layout === "1") {
+      columns = 1;
+    } else if (layout === "2" || (layout !== "3" && images.length === 4)) {
+      columns = 2;
+    } else if (layout === "3") {
+      columns = 3;
+    }
+    const table = document.createElement("table");
+    table.setAttribute("role", "presentation");
+    table.style.cssText = "width: 100%; margin: 1em 0; border: 0; border-collapse: separate; border-spacing: 6px; table-layout: fixed;";
+    const body = document.createElement("tbody");
+
+    images.forEach((image, index) => {
+      if (index % columns === 0) body.appendChild(document.createElement("tr"));
+      const cell = document.createElement("td");
+      cell.style.cssText = `width: ${100 / columns}%; border: 0; padding: 0; vertical-align: middle;`;
+      image.style.cssText = "display: block; width: 100%; height: auto; max-height: 18em; margin: 0; border-radius: 6px; object-fit: cover;";
+      cell.appendChild(image);
+      body.lastElementChild?.appendChild(cell);
+    });
+
+    table.appendChild(body);
+    gallery.replaceWith(table);
+  });
+};
+
 export const buildWeChatClipboardHtml = async (editor: Editor) => {
   const container = document.createElement("div");
   container.innerHTML = editor.getHTML();
@@ -383,6 +418,7 @@ export const buildWeChatClipboardHtml = async (editor: Editor) => {
   const customCss = customStyleTag?.dataset.originalCss || "";
 
   applyInlineStyles(container, editorTheme, customColors, customCss);
+  convertImageGalleriesForWeChat(container);
   await embedMermaidForWeChat(container, editor);
   const originalImages = Array.from(editor.view.dom.querySelectorAll<HTMLImageElement>("img"));
   await embedImagesForWeChat(container, originalImages);

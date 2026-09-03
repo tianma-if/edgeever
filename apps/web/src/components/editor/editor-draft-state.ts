@@ -1,5 +1,6 @@
 import {
   docToMarkdown,
+  normalizeImageGalleries,
   resolveMemoContentDoc,
   type MemoDetail,
   type TiptapDoc,
@@ -48,7 +49,7 @@ export const isLocalDraftEquivalentToMemo = (memo: MemoDetail, draft: LocalDraft
   const memoContent = resolveMemoContentDoc(memo.contentJson, memo.contentMarkdown);
   return draft.title === getEditableMemoTitle(memo.title) &&
     stringArraysEqual(parseTagsText(draft.tagsText), memo.tags) &&
-    docToMarkdown(draft.contentJson) === docToMarkdown(memoContent);
+    docToMarkdown(normalizeImageGalleries(draft.contentJson)) === docToMarkdown(memoContent);
 };
 
 /**
@@ -84,11 +85,15 @@ export const resolveEditorDraftState = ({
     : useQueuedPayload && queuedPayload
       ? queuedPayload.tags.join(", ")
       : memo.tags.join(", ");
-  const contentJson = useDraft && draft
+  const sourceContentJson = useDraft && draft
     ? draft.contentJson
     : useQueuedPayload && queuedPayload
       ? queuedPayload.contentJson
       : resolveMemoContentDoc(memo.contentJson, memo.contentMarkdown);
+  const contentJson = normalizeImageGalleries(sourceContentJson);
+  const repairedSavedContent = source === "memo" && Boolean(
+    memo.contentJson && normalizeImageGalleries(memo.contentJson) !== memo.contentJson,
+  );
   const contentMarkdown = docToMarkdown(contentJson);
   const sourceVersion = source === "draft" && draft
     ? draft.updatedAt
@@ -103,6 +108,6 @@ export const resolveEditorDraftState = ({
     tagsText,
     contentJson,
     contentMarkdown,
-    hasUnsavedChanges: Boolean(useDraft && !queuedUpdate),
+    hasUnsavedChanges: Boolean((useDraft && !queuedUpdate) || repairedSavedContent),
   };
 };

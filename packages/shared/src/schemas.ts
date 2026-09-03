@@ -72,6 +72,56 @@ export const TemplateUseSchema = z.object({
   notebookId: z.string().trim().min(1),
 });
 
+const ScheduledPluginCommandPayloadSchema = z.object({
+  pluginId: z.string().trim().min(3).max(200),
+  commandId: z.string().trim().min(1).max(200),
+});
+
+export const ScheduledTaskCreateSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  taskType: z.literal("plugin-command"),
+  taskPayload: ScheduledPluginCommandPayloadSchema,
+  cronExpression: z.string().trim().min(1).max(160),
+  timezone: z.string().trim().min(1).max(80),
+  executorDeviceId: z.string().trim().min(16).max(160),
+  missedRunPolicy: z.enum(["run-once", "skip"]).default("run-once"),
+  isEnabled: z.boolean().default(true),
+});
+
+export const ScheduledTaskUpdateSchema = ScheduledTaskCreateSchema.omit({
+  taskType: true,
+  taskPayload: true,
+  executorDeviceId: true,
+}).partial().extend({
+  taskPayload: ScheduledPluginCommandPayloadSchema.optional(),
+  executorDeviceId: z.string().trim().min(16).max(160).optional(),
+}).refine((input) => Object.values(input).some((value) => value !== undefined), {
+  message: "At least one field is required.",
+});
+
+export const PluginScheduleUpsertSchema = z.object({
+  pluginId: z.string().trim().min(3).max(200),
+  scheduleKey: z.string().trim().regex(/^[a-z0-9][a-z0-9._-]*$/i).max(120),
+  name: z.string().trim().min(1).max(120),
+  commandId: z.string().trim().min(1).max(200),
+  cronExpression: z.string().trim().min(1).max(160),
+  timezone: z.string().trim().min(1).max(80),
+  executorDeviceId: z.string().trim().min(16).max(160),
+  missedRunPolicy: z.enum(["run-once", "skip"]).default("run-once"),
+  isEnabled: z.boolean().optional(),
+});
+
+export const ScheduledTaskClaimSchema = z.object({
+  scheduledFor: z.string().datetime(),
+  executorDeviceId: z.string().trim().min(16).max(160),
+});
+
+export const ScheduledTaskFinishSchema = z.object({
+  executorDeviceId: z.string().trim().min(16).max(160),
+  status: z.enum(["succeeded", "failed"]),
+  errorMessage: z.string().trim().max(2_000).nullable().optional(),
+});
+
 export const MoveMemosSchema = z.object({
   memoIds: z.array(z.string().trim().min(1)).min(1).max(100),
   notebookId: z.string().trim().min(1),
@@ -311,6 +361,11 @@ export type MemoCreateInput = z.infer<typeof MemoCreateSchema>;
 export type MemoUpdateInput = z.infer<typeof MemoUpdateSchema>;
 export type TemplateCreateInput = z.infer<typeof TemplateCreateSchema>;
 export type TemplateUpdateInput = z.infer<typeof TemplateUpdateSchema>;
+export type ScheduledTaskCreateInput = z.input<typeof ScheduledTaskCreateSchema>;
+export type ScheduledTaskUpdateInput = z.infer<typeof ScheduledTaskUpdateSchema>;
+export type PluginScheduleUpsertInput = z.input<typeof PluginScheduleUpsertSchema>;
+export type ScheduledTaskClaimInput = z.infer<typeof ScheduledTaskClaimSchema>;
+export type ScheduledTaskFinishInput = z.infer<typeof ScheduledTaskFinishSchema>;
 export type MoveMemosInput = z.infer<typeof MoveMemosSchema>;
 export type DeleteMemosInput = z.infer<typeof DeleteMemosSchema>;
 export type MergeMemosInput = z.infer<typeof MergeMemosSchema>;

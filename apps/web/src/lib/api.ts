@@ -143,7 +143,7 @@ export const saveDesktopApiBaseUrl = async (value: string) => {
 
 const createWebDeviceId = () => `web-${createClientUuid()}`;
 
-const getOrCreateWebDeviceId = () => {
+export const getOrCreateClientDeviceId = () => {
   try {
     const existing = window.localStorage.getItem(WEB_DEVICE_ID_STORAGE_KEY);
     if (existing) return existing;
@@ -258,7 +258,7 @@ export const api = {
   },
 
   login: async (payload: { username: string; password: string }) => {
-    const session = await client.login({ ...payload, deviceId: getOrCreateWebDeviceId() });
+    const session = await client.login({ ...payload, deviceId: getOrCreateClientDeviceId() });
     desktopSessionRejected = false;
     return session;
   },

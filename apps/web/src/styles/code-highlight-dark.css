@@ -1,0 +1,88 @@
+/*
+ * Lowlight always emits the same Highlight.js token classes. The default
+ * GitHub import in globals.css covers light mode; scope GitHub Dark's token
+ * palette to EdgeEver's explicit app theme so a user override does not depend
+ * on the operating-system color scheme.
+ */
+:root.dark .ProseMirror .edgeever-code-block .hljs {
+  background: transparent;
+  color: #c9d1d9;
+}
+
+:root.dark .ProseMirror .edgeever-code-block .hljs-doctag,
+:root.dark .ProseMirror .edgeever-code-block .hljs-keyword,
+:root.dark .ProseMirror .edgeever-code-block .hljs-meta .hljs-keyword,
+:root.dark .ProseMirror .edgeever-code-block .hljs-template-tag,
+:root.dark .ProseMirror .edgeever-code-block .hljs-template-variable,
+:root.dark .ProseMirror .edgeever-code-block .hljs-type,
+:root.dark .ProseMirror .edgeever-code-block .hljs-variable.language_ {
+  color: #ff7b72;
+}
+
+:root.dark .ProseMirror .edgeever-code-block .hljs-title,
+:root.dark .ProseMirror .edgeever-code-block .hljs-title.class_,
+:root.dark .ProseMirror .edgeever-code-block .hljs-title.class_.inherited__,
+:root.dark .ProseMirror .edgeever-code-block .hljs-title.function_ {
+  color: #d2a8ff;
+}
+
+:root.dark .ProseMirror .edgeever-code-block .hljs-attr,
+:root.dark .ProseMirror .edgeever-code-block .hljs-attribute,
+:root.dark .ProseMirror .edgeever-code-block .hljs-literal,
+:root.dark .ProseMirror .edgeever-code-block .hljs-meta,
+:root.dark .ProseMirror .edgeever-code-block .hljs-number,
+:root.dark .ProseMirror .edgeever-code-block .hljs-operator,
+:root.dark .ProseMirror .edgeever-code-block .hljs-variable,
+:root.dark .ProseMirror .edgeever-code-block .hljs-selector-attr,
+:root.dark .ProseMirror .edgeever-code-block .hljs-selector-class,
+:root.dark .ProseMirror .edgeever-code-block .hljs-selector-id {
+  color: #79c0ff;
+}
+
+:root.dark .ProseMirror .edgeever-code-block .hljs-regexp,
+:root.dark .ProseMirror .edgeever-code-block .hljs-string,
+:root.dark .ProseMirror .edgeever-code-block .hljs-meta .hljs-string {
+  color: #a5d6ff;
+}
+
+:root.dark .ProseMirror .edgeever-code-block .hljs-built_in,
+:root.dark .ProseMirror .edgeever-code-block .hljs-symbol {
+  color: #ffa657;
+}
+
+:root.dark .ProseMirror .edgeever-code-block .hljs-comment,
+:root.dark .ProseMirror .edgeever-code-block .hljs-code,
+:root.dark .ProseMirror .edgeever-code-block .hljs-formula {
+  color: #8b949e;
+}
+
+:root.dark .ProseMirror .edgeever-code-block .hljs-name,
+:root.dark .ProseMirror .edgeever-code-block .hljs-quote,
+:root.dark .ProseMirror .edgeever-code-block .hljs-selector-tag,
+:root.dark .ProseMirror .edgeever-code-block .hljs-selector-pseudo {
+  color: #7ee787;
+}
+
+:root.dark .ProseMirror .edgeever-code-block .hljs-subst,
+:root.dark .ProseMirror .edgeever-code-block .hljs-emphasis,
+:root.dark .ProseMirror .edgeever-code-block .hljs-strong {
+  color: #c9d1d9;
+}
+
+:root.dark .ProseMirror .edgeever-code-block .hljs-section {
+  color: #58a6ff;
+}
+
+:root.dark .ProseMirror .edgeever-code-block .hljs-bullet {
+  color: #f2cc60;
+}
+
+:root.dark .ProseMirror .edgeever-code-block .hljs-addition {
+  background-color: #033a16;
+  color: #aff5b4;
+}
+
+:root.dark .ProseMirror .edgeever-code-block .hljs-deletion {
+  background-color: #67060c;
+  color: #ffdcd7;
+}

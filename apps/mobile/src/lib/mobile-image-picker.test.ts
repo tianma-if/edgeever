@@ -1,5 +1,15 @@
 import { expect, test } from "bun:test";
-import { normalizeMobileImagePickerAsset } from "./mobile-image-picker";
+import { normalizeMobileImagePickerAsset, normalizeMobileImagePickerAssets } from "./mobile-image-picker";
+
+test("keeps every picked image in selection order and handles cancellation", () => {
+  const assets = [
+    { uri: "file:///first.png", fileName: "first.png" },
+    { uri: "file:///second.jpg", fileName: "second.jpg" },
+  ];
+  expect(normalizeMobileImagePickerAssets({ canceled: false, assets }).map((asset) => asset.name))
+    .toEqual(["first.png", "second.jpg"]);
+  expect(normalizeMobileImagePickerAssets({ canceled: true, assets: null })).toEqual([]);
+});
 
 test("normalizes an image-picker asset for the existing upload pipeline", () => {
   expect(normalizeMobileImagePickerAsset({

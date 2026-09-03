@@ -38,6 +38,7 @@ import { ThemeToggle } from "./ThemeToggle";
 import type { AuthUser } from "@edgeever/shared";
 import { contentEnterMotion } from "@/lib/motion";
 import { useDeployedUpdateNotice } from "@/hooks/useDeployedUpdateNotice";
+import { ExecutionCenterButton } from "@/components/execution/ExecutionCenterButton";
 
 interface SettingsPaneProps {
   onClose: () => void;
@@ -56,6 +57,7 @@ interface SettingsPaneProps {
   isOwner: boolean;
   user: AuthUser | null;
   refreshWorkspaceAfterImport: () => Promise<void>;
+  onOpenExecutionCenter: () => void;
 }
 
 // Slate and brand color variables already switch values with the root theme.
@@ -95,6 +97,7 @@ export const SettingsPane = ({
   isOwner,
   user,
   refreshWorkspaceAfterImport,
+  onOpenExecutionCenter,
 }: SettingsPaneProps) => {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<TabKey>("general");
@@ -283,6 +286,7 @@ export const SettingsPane = ({
           </div>
         </div>
         <div className="flex items-center gap-1">
+          <ExecutionCenterButton onClick={onOpenExecutionCenter} />
           <ThemeToggle className="inline-flex" showLabel />
         </div>
       </header>

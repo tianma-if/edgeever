@@ -68,6 +68,24 @@ describe("native editor unknown-content compatibility", () => {
       .toEqual(futureDocument);
   });
 
+  test("keeps image galleries native on Android and iOS", () => {
+    const galleryDocument = {
+      type: "doc",
+      content: [{
+        type: "edgeeverImageGallery",
+        attrs: { layout: "auto" },
+        content: [
+          { type: "image", attrs: { src: "/one.png" } },
+          { type: "image", attrs: { src: "/two.png" } },
+        ],
+      }],
+    };
+
+    expect(prepareNativeEditorContent(galleryDocument)).toEqual(galleryDocument);
+    expect(restoreNativeEditorContent(prepareNativeEditorContent(galleryDocument)))
+      .toEqual(galleryDocument);
+  });
+
   test("keeps Markdown generation alive by projecting unknown content to text", () => {
     const markdown = docToMarkdown(futureDocument);
     expect(markdown).toContain("保留主题块正文");

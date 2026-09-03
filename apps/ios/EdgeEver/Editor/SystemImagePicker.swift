@@ -10,6 +10,7 @@ enum ImagePickerResult {
     case cancelled
     case failed(String)
     case picked(Data, filename: String)
+    case pickedImages([(data: Data, filename: String)])
 }
 
 enum CameraCaptureNextStep: Equatable {
@@ -45,7 +46,8 @@ struct SystemImagePicker: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> PHPickerViewController {
         var config = PHPickerConfiguration(photoLibrary: .shared())
         config.filter = .images
-        config.selectionLimit = 1
+        config.selectionLimit = 20
+        config.selection = .ordered
         config.preferredAssetRepresentationMode = .current
         let picker = PHPickerViewController(configuration: config)
         picker.delegate = context.coordinator
@@ -68,18 +70,22 @@ struct SystemImagePicker: UIViewControllerRepresentable {
 
         func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
             guard !settled else { return }
-            guard let provider = results.first?.itemProvider else {
+            guard !results.isEmpty else {
                 settled = true
                 DispatchQueue.main.async { self.onFinish(.cancelled) }
                 return
             }
             Task {
                 do {
-                    let (data, name) = try await Self.loadImage(from: provider)
+                    var images: [(data: Data, filename: String)] = []
+                    for result in results {
+                        let (data, name) = try await Self.loadImage(from: result.itemProvider)
+                        images.append((data: data, filename: name))
+                    }
                     await MainActor.run {
                         guard !self.settled else { return }
                         self.settled = true
-                        self.onFinish(.picked(data, filename: name))
+                        self.onFinish(.pickedImages(images))
                     }
                 } catch {
                     await MainActor.run {

@@ -13,6 +13,7 @@ import {
 } from "./mathematics-markdown";
 import { projectNativeUnknownContentForMarkdown } from "./mobile-content-compatibility";
 import { PluginEmbed, PLUGIN_EMBED_NODE_TYPE } from "./plugin-embed";
+import { ImageGallery, IMAGE_GALLERY_NODE_TYPE, normalizeImageGalleries } from "./image-gallery";
 
 export { PluginEmbed, PLUGIN_EMBED_NODE_TYPE, pluginEmbedToMarkdown, normalizePluginEmbedAttributes } from "./plugin-embed";
 export type { PluginEmbedAttributes } from "./plugin-embed";
@@ -99,6 +100,7 @@ const markdownManager = new MarkdownManager({
     TaskItem.configure({ nested: true }),
     TableKit,
     Image,
+    ImageGallery,
     PdfAttachment,
     FileAttachment,
     MergeDivider,
@@ -137,13 +139,16 @@ export const resolveMemoContentDoc = (
   contentMarkdown: string | null | undefined
 ): TiptapDoc => {
   const currentDoc = contentJson && Array.isArray(contentJson.content)
-    ? upgradeStandaloneFileLinks(upgradeStandalonePdfLinks(upgradeLegacyAttachmentLinks(contentJson)))
+    ? normalizeImageGalleries(
+        upgradeStandaloneFileLinks(upgradeStandalonePdfLinks(upgradeLegacyAttachmentLinks(contentJson))),
+      )
     : emptyDoc();
   if (
     !contentMarkdown?.trim() ||
     docContainsNodeType(currentDoc, "table") ||
     docContainsNodeType(currentDoc, "taskList") ||
     docContainsNodeType(currentDoc, "edgeeverThemeBlock") ||
+    docContainsNodeType(currentDoc, IMAGE_GALLERY_NODE_TYPE) ||
     docContainsNodeType(currentDoc, MERGE_DIVIDER_NODE_TYPE) ||
     docContainsNodeType(currentDoc, PLUGIN_EMBED_NODE_TYPE) ||
     docContainsNodeType(currentDoc, BLOCK_MATH_NODE_TYPE) ||

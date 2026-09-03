@@ -4,6 +4,15 @@ import {
   stripMobileImageUploadPlaceholders,
 } from "./mobile-image-upload-placeholder";
 
+test("cleans up empty or singleton galleries after removing failed upload placeholders", () => {
+  const pending = { type: "image", attrs: { src: createMobileImageUploadPlaceholderSource("batch") } };
+  const saved = { type: "image", attrs: { src: "/api/v1/resources/done/blob" } };
+  expect(stripMobileImageUploadPlaceholders({ type: "doc", content: [
+    { type: "edgeeverImageGallery", content: [pending] },
+    { type: "edgeeverImageGallery", content: [pending, saved] },
+  ] }).content).toEqual([saved]);
+});
+
 test("removes transient image upload placeholders before a note is persisted", () => {
   const placeholderSource = createMobileImageUploadPlaceholderSource("upload-1");
   const result = stripMobileImageUploadPlaceholders({

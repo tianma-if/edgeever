@@ -673,6 +673,140 @@
         }
       }
     },
+    "/api/v1/scheduled-tasks": {
+      "get": {
+        "summary": "List scheduled plugin commands",
+        "parameters": [{ "name": "executorDeviceId", "in": "query", "schema": { "type": "string" } }],
+        "responses": {
+          "200": {
+            "description": "Scheduled task list",
+            "content": { "application/json": { "schema": {
+              "type": "object",
+              "properties": { "tasks": { "type": "array", "items": { "$ref": "#/components/schemas/ScheduledTask" } } },
+              "required": ["tasks"]
+            } } }
+          },
+          "403": { "$ref": "#/components/responses/Error" }
+        }
+      },
+      "post": {
+        "summary": "Create a device-bound scheduled plugin command",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ScheduledTaskCreateInput" } } } },
+        "responses": {
+          "201": { "description": "Created scheduled task", "content": { "application/json": { "schema": { "type": "object", "properties": { "task": { "$ref": "#/components/schemas/ScheduledTask" } }, "required": ["task"] } } } },
+          "400": { "$ref": "#/components/responses/Error" },
+          "403": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/v1/scheduled-task-runs": {
+      "get": {
+        "summary": "List system-wide scheduled task execution history",
+        "parameters": [
+          { "name": "offset", "in": "query", "schema": { "type": "integer", "minimum": 0, "default": 0 } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 50 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Workspace scheduled task execution history",
+            "content": { "application/json": { "schema": {
+              "type": "object",
+              "properties": {
+                "runs": { "type": "array", "items": { "$ref": "#/components/schemas/ScheduledTaskRunHistoryItem" } },
+                "totalCount": { "type": "integer" },
+                "nextOffset": { "type": ["integer", "null"] }
+              },
+              "required": ["runs", "totalCount", "nextOffset"]
+            } } }
+          },
+          "403": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/v1/scheduled-tasks/{id}": {
+      "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+      "patch": {
+        "summary": "Update a scheduled plugin command",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ScheduledTaskUpdateInput" } } } },
+        "responses": { "200": { "description": "Updated scheduled task" }, "404": { "$ref": "#/components/responses/Error" } }
+      },
+      "delete": {
+        "summary": "Delete a scheduled plugin command",
+        "responses": { "200": { "$ref": "#/components/responses/Ok" }, "404": { "$ref": "#/components/responses/Error" } }
+      }
+    },
+    "/api/v1/scheduled-tasks/plugin-upsert": {
+      "post": {
+        "summary": "Idempotently create or update a plugin-owned schedule",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PluginScheduleUpsertInput" } } } },
+        "responses": {
+          "200": { "description": "Plugin-owned scheduled task", "content": { "application/json": { "schema": { "type": "object", "properties": { "task": { "$ref": "#/components/schemas/ScheduledTask" } }, "required": ["task"] } } } },
+          "400": { "$ref": "#/components/responses/Error" },
+          "403": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/v1/scheduled-tasks/plugin/{pluginId}": {
+      "parameters": [{ "name": "pluginId", "in": "path", "required": true, "schema": { "type": "string" } }],
+      "get": {
+        "summary": "List schedules owned by one plugin",
+        "responses": { "200": { "description": "Plugin schedule list" }, "403": { "$ref": "#/components/responses/Error" } }
+      }
+    },
+    "/api/v1/scheduled-tasks/plugin/{pluginId}/{scheduleKey}": {
+      "parameters": [
+        { "name": "pluginId", "in": "path", "required": true, "schema": { "type": "string" } },
+        { "name": "scheduleKey", "in": "path", "required": true, "schema": { "type": "string" } }
+      ],
+      "delete": {
+        "summary": "Delete a schedule owned by one plugin",
+        "responses": { "200": { "$ref": "#/components/responses/Ok" }, "404": { "$ref": "#/components/responses/Error" } }
+      }
+    },
+    "/api/v1/scheduled-tasks/{id}/runs/claim": {
+      "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+      "post": {
+        "summary": "Atomically claim one scheduled occurrence",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ScheduledTaskClaimInput" } } } },
+        "responses": { "201": { "description": "Claimed task run" }, "409": { "$ref": "#/components/responses/Error" } }
+      }
+    },
+    "/api/v1/scheduled-tasks/{id}/runs": {
+      "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+      "get": {
+        "summary": "List execution history for a scheduled task",
+        "parameters": [
+          { "name": "offset", "in": "query", "schema": { "type": "integer", "minimum": 0, "default": 0 } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 50 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Scheduled task execution history",
+            "content": { "application/json": { "schema": {
+              "type": "object",
+              "properties": {
+                "runs": { "type": "array", "items": { "$ref": "#/components/schemas/ScheduledTaskRun" } },
+                "totalCount": { "type": "integer" },
+                "nextOffset": { "type": ["integer", "null"] }
+              },
+              "required": ["runs", "totalCount", "nextOffset"]
+            } } }
+          },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/v1/scheduled-tasks/{taskId}/runs/{runId}/finish": {
+      "parameters": [
+        { "name": "taskId", "in": "path", "required": true, "schema": { "type": "string" } },
+        { "name": "runId", "in": "path", "required": true, "schema": { "type": "string" } }
+      ],
+      "post": {
+        "summary": "Finish a scheduled task run",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ScheduledTaskFinishInput" } } } },
+        "responses": { "200": { "description": "Finished task run" }, "409": { "$ref": "#/components/responses/Error" } }
+      }
+    },
     "/api/v1/tags": {
       "get": {
         "summary": "List tag summaries",
@@ -1943,6 +2077,115 @@
           }
         },
         "required": ["ok"]
+      },
+      "ScheduledTaskRun": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "taskId": { "type": "string" },
+          "scheduledFor": { "type": "string", "format": "date-time" },
+          "executorDeviceId": { "type": "string" },
+          "status": { "type": "string", "enum": ["running", "succeeded", "failed"] },
+          "errorMessage": { "type": ["string", "null"] },
+          "startedAt": { "type": "string", "format": "date-time" },
+          "finishedAt": { "type": ["string", "null"], "format": "date-time" }
+        },
+        "required": ["id", "taskId", "scheduledFor", "executorDeviceId", "status", "errorMessage", "startedAt", "finishedAt"]
+      },
+      "ScheduledTaskRunHistoryItem": {
+        "allOf": [
+          { "$ref": "#/components/schemas/ScheduledTaskRun" },
+          {
+            "type": "object",
+            "properties": {
+              "taskName": { "type": "string" },
+              "pluginId": { "type": "string" },
+              "ownerPluginId": { "type": ["string", "null"] },
+              "pluginScheduleKey": { "type": ["string", "null"] }
+            },
+            "required": ["taskName", "pluginId", "ownerPluginId", "pluginScheduleKey"]
+          }
+        ]
+      },
+      "ScheduledTask": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "taskType": { "type": "string", "const": "plugin-command" },
+          "taskPayload": { "$ref": "#/components/schemas/ScheduledTaskPayload" },
+          "ownerPluginId": { "type": ["string", "null"] },
+          "pluginScheduleKey": { "type": ["string", "null"] },
+          "cronExpression": { "type": "string" },
+          "timezone": { "type": "string" },
+          "executorDeviceId": { "type": "string" },
+          "missedRunPolicy": { "type": "string", "enum": ["run-once", "skip"] },
+          "isEnabled": { "type": "boolean" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" },
+          "lastRun": { "oneOf": [{ "$ref": "#/components/schemas/ScheduledTaskRun" }, { "type": "null" }] }
+        },
+        "required": ["id", "name", "taskType", "taskPayload", "ownerPluginId", "pluginScheduleKey", "cronExpression", "timezone", "executorDeviceId", "missedRunPolicy", "isEnabled", "createdAt", "updatedAt", "lastRun"]
+      },
+      "ScheduledTaskPayload": {
+        "type": "object",
+        "properties": { "pluginId": { "type": "string" }, "commandId": { "type": "string" } },
+        "required": ["pluginId", "commandId"]
+      },
+      "ScheduledTaskCreateInput": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "maxLength": 120 },
+          "taskType": { "type": "string", "const": "plugin-command" },
+          "taskPayload": { "$ref": "#/components/schemas/ScheduledTaskPayload" },
+          "cronExpression": { "type": "string", "maxLength": 160 },
+          "timezone": { "type": "string", "maxLength": 80 },
+          "executorDeviceId": { "type": "string" },
+          "missedRunPolicy": { "type": "string", "enum": ["run-once", "skip"], "default": "run-once" },
+          "isEnabled": { "type": "boolean", "default": true }
+        },
+        "required": ["name", "taskType", "taskPayload", "cronExpression", "timezone", "executorDeviceId"]
+      },
+      "ScheduledTaskUpdateInput": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "maxLength": 120 },
+          "taskPayload": { "$ref": "#/components/schemas/ScheduledTaskPayload" },
+          "cronExpression": { "type": "string", "maxLength": 160 },
+          "timezone": { "type": "string", "maxLength": 80 },
+          "executorDeviceId": { "type": "string" },
+          "missedRunPolicy": { "type": "string", "enum": ["run-once", "skip"] },
+          "isEnabled": { "type": "boolean" }
+        }
+      },
+      "PluginScheduleUpsertInput": {
+        "type": "object",
+        "properties": {
+          "pluginId": { "type": "string" },
+          "scheduleKey": { "type": "string", "maxLength": 120 },
+          "name": { "type": "string", "maxLength": 120 },
+          "commandId": { "type": "string", "maxLength": 200 },
+          "cronExpression": { "type": "string", "maxLength": 160 },
+          "timezone": { "type": "string", "maxLength": 80 },
+          "executorDeviceId": { "type": "string" },
+          "missedRunPolicy": { "type": "string", "enum": ["run-once", "skip"], "default": "run-once" },
+          "isEnabled": { "type": "boolean" }
+        },
+        "required": ["pluginId", "scheduleKey", "name", "commandId", "cronExpression", "timezone", "executorDeviceId"]
+      },
+      "ScheduledTaskClaimInput": {
+        "type": "object",
+        "properties": { "scheduledFor": { "type": "string", "format": "date-time" }, "executorDeviceId": { "type": "string" } },
+        "required": ["scheduledFor", "executorDeviceId"]
+      },
+      "ScheduledTaskFinishInput": {
+        "type": "object",
+        "properties": {
+          "executorDeviceId": { "type": "string" },
+          "status": { "type": "string", "enum": ["succeeded", "failed"] },
+          "errorMessage": { "type": ["string", "null"], "maxLength": 2000 }
+        },
+        "required": ["executorDeviceId", "status"]
       },
       "ApiError": {
         "type": "object",

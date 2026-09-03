@@ -24,6 +24,7 @@ import { WORKSPACE_PAGE_TITLE_CLASSNAME } from "@/lib/workspace-ui";
 import { copyTextToClipboard } from "@/lib/clipboard";
 import { ClipboardCopyNotice } from "@/components/ClipboardCopyNotice";
 import type { MemoTemplate as SavedMemoTemplate } from "@edgeever/shared";
+import { ExecutionCenterButton } from "@/components/execution/ExecutionCenterButton";
 
 const TemplateIconAction = ({
   children,
@@ -63,6 +64,7 @@ export const TemplatesPane = ({
   onUseSavedTemplate,
   onDeleteSavedTemplate,
   onUpdateSavedTemplate,
+  onOpenExecutionCenter,
 }: {
   canCreateMemo: boolean;
   isCreating: boolean;
@@ -72,6 +74,7 @@ export const TemplatesPane = ({
   onUseSavedTemplate: (template: SavedMemoTemplate) => void;
   onDeleteSavedTemplate: (template: SavedMemoTemplate) => void;
   onUpdateSavedTemplate: (templateId: string, payload: { name: string; description: string | null; title: string | null; contentMarkdown: string; tags: string[] }) => Promise<void>;
+  onOpenExecutionCenter: () => void;
 }) => {
   const { t } = useTranslation();
   const [editingTemplate, setEditingTemplate] = useState<SavedMemoTemplate | null>(null);
@@ -158,7 +161,7 @@ export const TemplatesPane = ({
     <TooltipProvider>
       <div className="flex h-full min-h-0 min-w-0 flex-col bg-slate-50/60">
       {/* Header */}
-      <header className="flex h-[calc(3.75rem+env(safe-area-inset-top))] shrink-0 items-end border-b border-slate-200/80 bg-white px-6 pb-3 pt-[env(safe-area-inset-top)] lg:h-16 lg:items-center lg:pb-0 lg:pt-0 shadow-2xs">
+      <header className="flex h-[calc(3.75rem+env(safe-area-inset-top))] shrink-0 items-end justify-between border-b border-slate-200/80 bg-white px-6 pb-3 pt-[env(safe-area-inset-top)] lg:h-16 lg:items-center lg:pb-0 lg:pt-0 shadow-2xs">
         <div className="flex min-w-0 items-center gap-3">
           <Tooltip>
             <TooltipTrigger asChild>
@@ -176,6 +179,7 @@ export const TemplatesPane = ({
             <p className="mt-0.5 text-xs text-slate-500">{t("templates.description")}</p>
           </div>
         </div>
+        <ExecutionCenterButton onClick={onOpenExecutionCenter} />
       </header>
 
       {/* Main Content Area */}

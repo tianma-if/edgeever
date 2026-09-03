@@ -1,17 +1,19 @@
 {
-  "version": "1.53.0",
+  "version": "1.54.0",
   "changes": {
     "en-US": [
-      "Play supported audio attachments directly inside notes.",
-      "Preserve rich table content, including task lists, when switching between rich-text and Markdown editing.",
-      "Restore missing attachment sizes for legacy notes when the file metadata is still available.",
-      "Show familiar slash-command aliases in the editor so formatting commands are easier to find."
+      "Arrange multiple images automatically or in two columns, three columns, or a single column, with reversible layouts and improved gallery display and image menus. Related to #342.",
+      "On Android, select multiple images at once and adjust gallery layouts directly while preserving insertion order and existing selected images. Related to #342.",
+      "Schedule plugin commands on desktop to run automatically while the app is open, and manage schedules and view execution history in plugin settings.",
+      "Improve text and syntax-highlighting contrast in dark-mode code blocks for easier reading. Related to #340.",
+      "Use consistent sign-out wording for the current device and other devices in the login-device list."
     ],
     "zh-CN": [
-      "支持在笔记中直接播放兼容的音频附件。",
-      "在富文本与 Markdown 编辑模式之间切换时，保留表格中的任务列表等富内容。",
-      "旧笔记的附件元数据仍可读取时，自动恢复缺失的文件大小。",
-      "在编辑器中显示常用斜杠命令别名，让格式命令更容易查找。"
+      "多张图片支持自动、双栏、三栏和单列排版，可随时调整或恢复布局；改善图库显示及图片菜单交互。关联 #342。",
+      "Android 支持一次选择多张图片并直接调整图库布局，保留插入顺序并避免覆盖已选图片。关联 #342。",
+      "桌面端支持为插件命令设置定时任务，在应用运行期间自动执行，可在插件管理中管理任务和查看执行记录。",
+      "提升深色模式下代码块的文字与语法高亮对比度，改善阅读体验。关联 #340。",
+      "统一登录设备列表中的退出操作文案，使当前设备与其他设备的操作更清晰一致。"
     ]
   }
 }

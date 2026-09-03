@@ -1,4 +1,4 @@
-import type { TiptapDoc, TiptapNode } from "@edgeever/shared";
+import { normalizeImageGalleries, type TiptapDoc, type TiptapNode } from "@edgeever/shared";
 
 const IMAGE_UPLOAD_PLACEHOLDER_PREFIX = "edgeever-image-upload://";
 
@@ -21,8 +21,8 @@ export const stripMobileImageUploadPlaceholders = (doc: TiptapDoc): TiptapDoc =>
   });
 
   const content = stripNodes(doc.content);
-  return {
+  return normalizeImageGalleries({
     ...doc,
     content: content.length > 0 ? content : [{ type: "paragraph" }],
-  };
+  });
 };

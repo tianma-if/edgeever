@@ -199,7 +199,7 @@ export const LoginDevicesCard = ({ authRequired, isLoggingOut, onLogout }: Login
                         disabled={isLoggingOut}
                         onClick={onLogout}
                       >
-                        {isLoggingOut ? t("session.loggingOut") : t("session.logout")}
+                        {isLoggingOut ? t("session.loggingOut") : t("loginDevices.revokeDevice")}
                       </Button>
                     ) : (
                       <Button

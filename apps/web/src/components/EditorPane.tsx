@@ -89,6 +89,7 @@ import {
 } from "./editor/NoteLinkSuggestion";
 import { WeChatIcon } from "./WeChatIcon";
 import { ThemeToggle } from "./ThemeToggle";
+import { ExecutionCenterButton } from "./execution/ExecutionCenterButton";
 import { useEditorTheme, useMarkdownTheme } from "./ThemeProvider";
 import type { MarkdownSourceEditorRef } from "./editor/MarkdownSourceEditor";
 
@@ -110,9 +111,11 @@ import { EDITOR_CONTENT_MAX_WIDTH, EDITOR_CONTENT_MAX_WIDTH_COLLAPSED } from "@/
 import {
   countMemoCharacters,
   docToMarkdown,
+  groupConsecutiveImagesIntoGalleries,
   MEMO_CONTENT_STYLE,
   markdownToDoc,
   MergeDivider,
+  normalizeImageGalleries,
   PLUGIN_EMBED_NODE_TYPE,
   pluginEmbedToMarkdown,
   isPdfAttachment,
@@ -209,6 +212,7 @@ import {
   type ImageMenuRequestDetail,
   type ImagePreviewRequestDetail,
 } from "./editor/ResizableImage";
+import { EditableImageGallery } from "./editor/ImageGallery";
 import { ImageViewer } from "./editor/ImageViewer";
 import { PdfAttachment } from "./editor/PdfAttachment";
 import { FileAttachment } from "./editor/FileAttachment";
@@ -464,6 +468,7 @@ type EditorPaneProps = {
   onOpenAiPrompts?: () => void;
   pluginHost: EdgeEverPluginHost;
   pluginNavigationRequest?: { id: number; noteId: string; search: string } | null;
+  onOpenExecutionCenter: () => void;
 };
 
 type RichEditorPaneProps = EditorPaneProps & {
@@ -538,6 +543,7 @@ const RichEditorPane = ({
   onOpenAiPrompts,
   pluginHost,
   pluginNavigationRequest,
+  onOpenExecutionCenter,
   onRequestMobileNativeEdit,
 }: RichEditorPaneProps) => {
   const { t, i18n } = useTranslation();
@@ -1111,7 +1117,11 @@ const RichEditorPane = ({
           insertion.focus();
         }
         insertion
-          .insertContentAt(safeInsertionTarget, content, { updateSelection })
+          .insertContentAt(
+            safeInsertionTarget,
+            groupConsecutiveImagesIntoGalleries(content),
+            { updateSelection },
+          )
           .run();
         if (!updateSelection) {
           // ProseMirror can still map a cursor at the document boundary to a
@@ -1151,6 +1161,7 @@ const RichEditorPane = ({
       FileAttachment,
       ...createEdgeEverMathematics(),
       ThemeBlock,
+      EditableImageGallery,
       ResizableImage.configure({
         allowBase64: false,
         inline: false,
@@ -1527,9 +1538,9 @@ const RichEditorPane = ({
         ...detail,
         kind: "image",
         position: {
-          left: Math.min(Math.max(rect.right - 8, 12), window.innerWidth - 12),
-          top: Math.min(Math.max(rect.bottom - 8, 12), window.innerHeight - 12),
-          placement: "inside-bottom-right",
+          left: rect.left + rect.width / 2,
+          top: rect.bottom + 8,
+          placement: "below",
         },
       });
     };
@@ -1823,7 +1834,7 @@ const RichEditorPane = ({
                 currentMemo.id,
                 markdownSource,
               )
-            : (currentEditor?.getJSON() as TiptapDoc),
+            : normalizeImageGalleries(currentEditor?.getJSON() as TiptapDoc),
         updatedAt: new Date().toISOString(),
       });
     },
@@ -2059,7 +2070,7 @@ const RichEditorPane = ({
       return null;
     }
 
-    return currentEditor.getJSON() as TiptapDoc;
+    return normalizeImageGalleries(currentEditor.getJSON() as TiptapDoc);
   }, [getMobilePlainTextValue, markdownSource, useMarkdownSourceEditor, useMobilePlainTextEditor]);
 
   const characterCount = useMemo(() => {
@@ -3972,11 +3983,6 @@ const RichEditorPane = ({
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
-            <IconTooltip label={t("editor.versionHistory")}>
-              <Button className="hidden h-8 w-8 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-slate-300 min-[1600px]:inline-flex" size="icon" variant="ghost" aria-label={t("editor.versionHistory")} onClick={() => setHistoryOpen(true)}>
-                <History className="h-5 w-5" strokeWidth={2.25} />
-              </Button>
-            </IconTooltip>
             <GitHubRepositoryLink className="hidden h-8 w-8 justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/70 min-[1600px]:inline-flex" iconClassName="h-5 w-5" />
             <IconTooltip label={t("systemInfo.title")}>
               <Button className="relative hidden h-8 w-8 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-emerald-500/70 min-[1600px]:inline-flex" size="icon" variant="ghost" aria-label={t("systemInfo.title")} onClick={() => setSystemInfoOpen(true)}>
@@ -3984,6 +3990,7 @@ const RichEditorPane = ({
                 {deployedUpdateUnseen ? <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-emerald-500 ring-2 ring-white" /> : null}
               </Button>
             </IconTooltip>
+            <ExecutionCenterButton className="h-8 w-8" onClick={onOpenExecutionCenter} />
             <ThemeToggle />
             {!effectiveReadOnly && (
               <IconTooltip label={t("editor.save")}>

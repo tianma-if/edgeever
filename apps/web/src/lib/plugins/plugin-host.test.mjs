@@ -53,6 +53,47 @@ beforeEach(() => {
 });
 
 describe("EdgeEverPluginHost", () => {
+  test("lets a permitted plugin idempotently own schedules for its registered commands", async () => {
+    const calls = [];
+    const scheduleAdapter = {
+      upsert: async (pluginId, input) => {
+        calls.push({ pluginId, input });
+        return {
+          ...input,
+          timezone: input.timezone ?? "UTC",
+          missedRunPolicy: input.missedRunPolicy ?? "run-once",
+          isEnabled: input.isEnabled ?? true,
+          runsOnThisDevice: true,
+          lastRun: null,
+        };
+      },
+      list: async () => [],
+      remove: async () => undefined,
+    };
+    const host = new EdgeEverPluginHost({ repository, scope: "test", scheduleAdapter });
+    host.installManifest({
+      type: "plugin",
+      id: "org.edgeever.schedule-test",
+      name: "Schedule Test",
+      version: "1.0.0",
+      apiVersion: "1",
+      entry: new URL("./plugin-host-schedules.fixture.mjs", import.meta.url).href,
+      permissions: ["ui:commands", "schedules"],
+    }, "https://example.com/schedule-plugin/manifest.json");
+
+    await host.setEnabled("org.edgeever.schedule-test", true);
+    expect(calls).toEqual([{
+      pluginId: "org.edgeever.schedule-test",
+      input: {
+        key: "hourly-refresh",
+        name: "Hourly refresh",
+        commandId: "refresh",
+        cronExpression: "0 * * * *",
+      },
+    }]);
+    await host.dispose();
+  });
+
   test("applies a validated code-free theme", async () => {
     const host = new EdgeEverPluginHost({ repository, scope: "test" });
     host.installManifest({

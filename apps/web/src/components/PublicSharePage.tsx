@@ -16,6 +16,7 @@ import { withEnvironmentTitlePrefix } from "@/lib/environment-title";
 import {
   parseImageWidth,
   getImageReferrerPolicy,
+  ImageGallery,
   MergeDivider,
   PluginEmbed,
   resolveMemoContentDoc,
@@ -97,6 +98,7 @@ const SharedDocument = ({ share, token }: { share: PublicMemoShare; token: strin
       FileAttachment,
       ...createEdgeEverMathematics(),
       SharedThemeBlock,
+      ImageGallery,
       SharedImage.configure({ allowBase64: false, inline: false }),
       TableKit.configure({ table: { renderWrapper: true } }),
     ],

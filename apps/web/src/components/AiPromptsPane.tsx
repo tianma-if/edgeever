@@ -40,6 +40,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { api, ApiRequestError } from "@/lib/api";
 import { WORKSPACE_PAGE_TITLE_CLASSNAME } from "@/lib/workspace-ui";
 import { formatDateTime } from "@/lib/utils";
+import { ExecutionCenterButton } from "@/components/execution/ExecutionCenterButton";
 
 const emptyForm = () => ({
   name: "",
@@ -49,7 +50,7 @@ const emptyForm = () => ({
   resultMode: "both" as AiPromptResultMode,
 });
 
-export const AiPromptsPane = ({ onClose }: { onClose: () => void }) => {
+export const AiPromptsPane = ({ onClose, onOpenExecutionCenter }: { onClose: () => void; onOpenExecutionCenter: () => void }) => {
   const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<AiPromptTemplate | null>(null);
@@ -168,7 +169,7 @@ export const AiPromptsPane = ({ onClose }: { onClose: () => void }) => {
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col bg-slate-50/60">
-      <header className="flex h-[calc(3.75rem+env(safe-area-inset-top))] shrink-0 items-end border-b border-slate-200/80 bg-white px-6 pb-3 pt-[env(safe-area-inset-top)] shadow-2xs lg:h-16 lg:items-center lg:pb-0 lg:pt-0">
+      <header className="flex h-[calc(3.75rem+env(safe-area-inset-top))] shrink-0 items-end justify-between border-b border-slate-200/80 bg-white px-6 pb-3 pt-[env(safe-area-inset-top)] shadow-2xs lg:h-16 lg:items-center lg:pb-0 lg:pt-0">
         <div className="flex min-w-0 items-center gap-3">
           <TooltipProvider delayDuration={0}>
             <Tooltip>
@@ -188,6 +189,7 @@ export const AiPromptsPane = ({ onClose }: { onClose: () => void }) => {
             <p className="mt-0.5 text-xs text-slate-500">{t("aiPrompts.description")}</p>
           </div>
         </div>
+        <ExecutionCenterButton onClick={onOpenExecutionCenter} />
       </header>
 
       <main className="min-h-0 flex-1 overflow-y-auto px-4 py-6 lg:px-8 lg:py-8">

@@ -39,6 +39,7 @@ struct MemoEditView: View {
     @State private var showTagPicker = false
     @State private var showImageSourcePicker = false
     @State private var imagePickerRoute: ImagePickerRoute?
+    @State private var isImportingImageBatch = false
     @State private var showCameraAccessAlert = false
     @State private var cameraAccessCanOpenSettings = false
     @State private var cameraAccessMessage = ""
@@ -72,7 +73,7 @@ struct MemoEditView: View {
     private var isDirty: Bool { get { viewModel.isDirty } nonmutating set { viewModel.isDirty = newValue } }
     private var isSaving: Bool { get { viewModel.isSaving } nonmutating set { viewModel.isSaving = newValue } }
     private var isCreating: Bool { get { viewModel.isCreating } nonmutating set { viewModel.isCreating = newValue } }
-    private var isUploading: Bool { get { viewModel.isUploading } nonmutating set { viewModel.isUploading = newValue } }
+    private var isUploading: Bool { get { viewModel.isUploading || isImportingImageBatch } nonmutating set { viewModel.isUploading = newValue } }
     private var editorReady: Bool { get { viewModel.editorReady } nonmutating set { viewModel.editorReady = newValue } }
     private var suppressPersistence: Bool { get { viewModel.suppressPersistence } nonmutating set { viewModel.suppressPersistence = newValue } }
     private var contentHydrated: Bool { get { viewModel.contentHydrated } nonmutating set { viewModel.contentHydrated = newValue } }
@@ -677,6 +678,8 @@ struct MemoEditView: View {
             showUploadError = true
         case .picked(let data, let filename):
             Task { _ = await insertImageData(data, filename: filename) }
+        case .pickedImages(let images):
+            Task { await insertImageBatch(images) }
         }
     }
 
@@ -1190,7 +1193,27 @@ struct MemoEditView: View {
     }
 
     /// Upload bytes from the system PHPicker and insert into TipTap.
-    private func insertImageData(_ data: Data, filename: String) async -> Bool {
+    private func insertImageBatch(_ images: [(data: Data, filename: String)]) async {
+        guard !isUploading, !images.isEmpty else { return }
+        isImportingImageBatch = true
+        var sources: [String] = []
+        for image in images {
+            let succeeded = await insertImageData(image.data, filename: image.filename) { sources.append($0) }
+            if !succeeded { break }
+        }
+        if sources.count > 1 {
+            _ = await SharedTipTapRuntime.editor.groupImages(sources: sources)
+            await pullEditorSnapshotIfPossible()
+        }
+        isImportingImageBatch = false
+        if !sources.isEmpty {
+            editGeneration &+= 1
+            isDirty = true
+            await drainPendingSave()
+        }
+    }
+
+    private func insertImageData(_ data: Data, filename: String, onInserted: ((String) -> Void)? = nil) async -> Bool {
         let succeeded = await viewModel.performUpload {
             NSLog("MemoEditView insertImageData: start bytes=%d name=%@", data.count, filename)
             let compress = env.preferences.useCompression
@@ -1242,6 +1265,7 @@ struct MemoEditView: View {
                     )
                 )
             }
+            onInserted?(imageSrc)
             // Snapshot TipTap JSON (order is authoritative). Only inject if the resource
             // is truly missing — never append a second image node at document end.
             await pullEditorSnapshotIfPossible()

@@ -1,5 +1,5 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { BadgeCheck, BookOpen, Download, ExternalLink, PanelRightOpen, Play, Puzzle, RefreshCw, Trash2 } from "lucide-react";
+import { BadgeCheck, BookOpen, CalendarClock, Download, ExternalLink, History, PanelRightOpen, Play, Puzzle, RefreshCw, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -13,8 +13,215 @@ import { GitHubMark } from "@/components/GitHubRepositoryLink";
 import { checkPluginUpdates, type PluginUpdateInfo } from "@/lib/plugins/plugin-updates";
 import { PluginUpdateDialog } from "@/components/plugins/PluginUpdateDialog";
 import type { PluginManifest, PluginSettingValue } from "@edgeever/plugin-api";
+import type { ScheduledTask } from "@edgeever/shared";
+import { Cron } from "croner";
+import { api, getOrCreateClientDeviceId } from "@/lib/api";
+import { ScheduledTaskRunHistoryDialog } from "@/components/execution/ScheduledTaskRunHistoryDialog";
 
 const permissionLabel = (permission: string) => permission.replace(":", " · ");
+
+const commandKey = (command: RegisteredPluginCommand) => JSON.stringify([command.pluginId, command.id]);
+
+const ScheduledPluginTasksSection = ({ commands }: { commands: RegisteredPluginCommand[] }) => {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const deviceId = window.edgeeverDesktop?.isAvailable ? getOrCreateClientDeviceId() : null;
+  const [selectedCommandKey, setSelectedCommandKey] = useState("");
+  const [name, setName] = useState("");
+  const [cronExpression, setCronExpression] = useState("0 9 * * *");
+  const [timezone, setTimezone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
+  const [missedRunPolicy, setMissedRunPolicy] = useState<"run-once" | "skip">("run-once");
+  const [pending, setPending] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [historyTask, setHistoryTask] = useState<ScheduledTask | null>(null);
+  const tasksQuery = useQuery({
+    queryKey: ["scheduled-tasks", deviceId],
+    queryFn: () => api.listScheduledTasks(deviceId ?? undefined),
+    enabled: Boolean(deviceId),
+    refetchInterval: 60_000,
+  });
+
+  if (!deviceId) return null;
+
+  const selectedCommand = commands.find((command) => commandKey(command) === selectedCommandKey);
+  const refresh = async () => {
+    await queryClient.invalidateQueries({ queryKey: ["scheduled-tasks"] });
+  };
+  const updateTask = async (taskId: string, isEnabled: boolean) => {
+    setMessage(null);
+    try {
+      await api.updateScheduledTask(taskId, { isEnabled });
+      await refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    }
+  };
+  const deleteTask = async (taskId: string) => {
+    setMessage(null);
+    try {
+      await api.deleteScheduledTask(taskId);
+      await refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    }
+  };
+  const createTask = async () => {
+    if (!selectedCommand) return;
+    setPending(true);
+    setMessage(null);
+    let validator: Cron | null = null;
+    try {
+      validator = new Cron(cronExpression.trim(), { timezone: timezone.trim(), paused: true });
+      if (!validator.nextRun()) throw new Error(t("plugins.schedules.noNextRun"));
+      await api.createScheduledTask({
+        name: name.trim() || selectedCommand.title,
+        taskType: "plugin-command",
+        taskPayload: { pluginId: selectedCommand.pluginId, commandId: selectedCommand.id },
+        cronExpression: cronExpression.trim(),
+        timezone: timezone.trim(),
+        executorDeviceId: deviceId,
+        missedRunPolicy,
+      });
+      setName("");
+      setMessage(t("plugins.schedules.created"));
+      await refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      validator?.stop();
+      setPending(false);
+    }
+  };
+
+  const tasks = tasksQuery.data?.tasks ?? [];
+  return (
+    <section className="rounded-lg border border-emerald-100 bg-emerald-50/20 p-4">
+      <div className="flex items-start gap-2">
+        <CalendarClock className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" />
+        <div>
+          <h3 className="text-xs font-semibold text-slate-800">{t("plugins.schedules.title")}</h3>
+          <p className="mt-1 text-xs leading-5 text-slate-500">{t("plugins.schedules.description")}</p>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-2">
+        <label className="grid gap-1.5 text-xs font-medium text-slate-700">
+          {t("plugins.schedules.command")}
+          <select
+            className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm font-normal text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/70"
+            value={selectedCommandKey}
+            onChange={(event) => {
+              const nextKey = event.target.value;
+              setSelectedCommandKey(nextKey);
+              const command = commands.find((candidate) => commandKey(candidate) === nextKey);
+              if (command && !name.trim()) setName(command.title);
+            }}
+          >
+            <option value="">{t("plugins.schedules.chooseCommand")}</option>
+            {commands.map((command) => (
+              <option key={commandKey(command)} value={commandKey(command)}>{command.title} · {command.pluginId}</option>
+            ))}
+          </select>
+        </label>
+        <label className="grid gap-1.5 text-xs font-medium text-slate-700">
+          {t("plugins.schedules.name")}
+          <Input value={name} maxLength={120} onChange={(event) => setName(event.target.value)} />
+        </label>
+        <label className="grid gap-1.5 text-xs font-medium text-slate-700">
+          {t("plugins.schedules.cron")}
+          <Input className="font-mono" value={cronExpression} maxLength={160} onChange={(event) => setCronExpression(event.target.value)} />
+        </label>
+        <label className="grid gap-1.5 text-xs font-medium text-slate-700">
+          {t("plugins.schedules.timezone")}
+          <Input value={timezone} maxLength={80} onChange={(event) => setTimezone(event.target.value)} />
+        </label>
+        <label className="grid gap-1.5 text-xs font-medium text-slate-700">
+          {t("plugins.schedules.missedRun")}
+          <select
+            className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm font-normal text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/70"
+            value={missedRunPolicy}
+            onChange={(event) => setMissedRunPolicy(event.target.value as "run-once" | "skip")}
+          >
+            <option value="run-once">{t("plugins.schedules.runOnce")}</option>
+            <option value="skip">{t("plugins.schedules.skip")}</option>
+          </select>
+        </label>
+        <div className="flex items-end">
+          <Button className="h-9 gap-1.5" disabled={pending || !selectedCommand || !cronExpression.trim() || !timezone.trim()} onClick={() => void createTask()}>
+            <CalendarClock className="h-3.5 w-3.5" />
+            {pending ? t("common.saving") : t("plugins.schedules.create")}
+          </Button>
+        </div>
+      </div>
+      {message ? <p className="mt-3 text-xs text-slate-600">{message}</p> : null}
+
+      {tasks.length > 0 ? (
+        <div className="mt-4 grid gap-2">
+          {tasks.map((task) => {
+            const command = commands.find((candidate) =>
+              candidate.pluginId === task.taskPayload.pluginId && candidate.id === task.taskPayload.commandId);
+            return (
+              <div key={task.id} className="flex flex-wrap items-center gap-3 rounded-md border border-slate-200 bg-white px-3 py-2">
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-xs font-semibold text-slate-800">{task.name}</div>
+                  <div className="mt-0.5 truncate font-mono text-[10px] text-slate-400">
+                    {task.cronExpression} · {task.timezone} · {command?.title ?? `${task.taskPayload.pluginId}:${task.taskPayload.commandId}`}
+                  </div>
+                  {task.ownerPluginId && task.pluginScheduleKey ? (
+                    <div className="mt-1 truncate text-[10px] text-emerald-700/80">
+                      {t("plugins.schedules.pluginManaged", {
+                        plugin: task.ownerPluginId,
+                        key: task.pluginScheduleKey,
+                      })}
+                    </div>
+                  ) : null}
+                  {task.lastRun ? (
+                    <div className={`mt-1 text-[10px] ${task.lastRun.status === "failed" ? "text-rose-600" : "text-slate-400"}`}>
+                      {t(`plugins.schedules.status.${task.lastRun.status}`)} · {new Date(task.lastRun.startedAt).toLocaleString()}
+                    </div>
+                  ) : null}
+                </div>
+                <Switch
+                  aria-label={t("plugins.schedules.toggle", { name: task.name })}
+                  checked={task.isEnabled}
+                  onCheckedChange={(isEnabled) => void updateTask(task.id, isEnabled)}
+                />
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-8 gap-1.5 px-2 text-slate-600"
+                  aria-label={t("plugins.schedules.historyFor", { name: task.name })}
+                  onClick={() => setHistoryTask(task)}
+                >
+                  <History className="h-3.5 w-3.5" />
+                  <span>{t("plugins.schedules.history")}</span>
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-8 px-2 text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                  aria-label={t("plugins.schedules.delete", { name: task.name })}
+                  onClick={() => void deleteTask(task.id)}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="mt-4 text-xs text-slate-400">{t("plugins.schedules.empty")}</p>
+      )}
+      <ScheduledTaskRunHistoryDialog
+        task={historyTask}
+        currentDeviceId={deviceId}
+        onOpenChange={(open) => {
+          if (!open) setHistoryTask(null);
+        }}
+      />
+    </section>
+  );
+};
 
 const PluginSettingsSection = ({ host, manifest }: { host: EdgeEverPluginHost; manifest: PluginManifest }) => {
   const { t } = useTranslation();
@@ -423,6 +630,8 @@ export const PluginManagerCard = ({
       </CardHeader>
       <CardContent className="grid gap-4 p-4 pt-0 sm:px-5 sm:pb-5">
         {error ? <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">{error}</div> : null}
+
+        <ScheduledPluginTasksSection commands={snapshot.commands} />
 
         {selectedPluginId ? (
           selectedExtension ? (

@@ -43,6 +43,12 @@ contextBridge.exposeInMainWorld("edgeeverDesktop", Object.freeze({
     ipcRenderer.on("desktop:command", listener);
     return () => ipcRenderer.removeListener("desktop:command", listener);
   },
+  syncScheduledTasks: (tasks) => ipcRenderer.invoke("desktop:sync-scheduled-tasks", tasks),
+  onScheduledTask: (callback) => {
+    const listener = (_event, payload) => callback(payload);
+    ipcRenderer.on("desktop:scheduled-task", listener);
+    return () => ipcRenderer.removeListener("desktop:scheduled-task", listener);
+  },
   onImportMarkdown: (callback) => {
     const listener = (_event, payload) => callback(payload);
     ipcRenderer.on("desktop:import-markdown", listener);

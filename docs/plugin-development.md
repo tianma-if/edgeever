@@ -1,6 +1,6 @@
 # EdgeEver Plugin Development (P0 Preview)
 
-EdgeEver's P0 extension API supports trusted client plugins and no-code theme packages. Users can install extensions from the verified marketplace, a public GitHub repository, or a manifest URL. Extensions are installed per device and run only while EdgeEver is open. Scheduled/background jobs, webhooks, unrestricted TipTap extensions, and a hard JavaScript sandbox are not part of this preview.
+EdgeEver's P0 extension API supports trusted client plugins and no-code theme packages. Users can install extensions from the verified marketplace, a public GitHub repository, or a manifest URL. Extensions are installed per device and run only while EdgeEver is open. On desktop, users can schedule a registered plugin command while EdgeEver is running. Webhooks, an always-on server background runtime, unrestricted TipTap extensions, and a hard JavaScript sandbox are not part of this preview.
 
 ## Security model
 
@@ -102,6 +102,7 @@ Supported permissions:
 - `network`
 - `storage`
 - `secrets`
+- `schedules`
 - `editor:read`
 - `editor:write`
 - `ui:commands`
@@ -145,6 +146,36 @@ export default definePlugin({
 ```
 
 Every registration returns a disposer. The host also disposes registered commands and events automatically when a plugin is disabled.
+
+## Schedules API
+
+Desktop plugins can persistently schedule one of their own registered commands. Declare both `ui:commands` and `schedules`, register the command first, then use a stable plugin-local key with `upsert()`:
+
+```js
+export default {
+  async activate(context) {
+    context.commands.register({
+      id: "refresh-feeds",
+      title: "Refresh feeds",
+      async run() {
+        // Long-running plugin work is allowed while the desktop app remains open.
+      }
+    });
+
+    await context.schedules.upsert({
+      key: "hourly-refresh",
+      name: "Hourly feed refresh",
+      commandId: "refresh-feeds",
+      cronExpression: "0 * * * *",
+      missedRunPolicy: "run-once"
+    });
+  }
+};
+```
+
+`upsert()` is idempotent for the pair of plugin ID and schedule key, so calling it on every activation does not create duplicates. The first desktop device that creates the schedule remains its executor; activation on another device updates the same definition without stealing execution. Omitting `isEnabled` preserves the user's enabled/disabled choice. Plugins can inspect and remove their own schedules with `context.schedules.list()` and `context.schedules.remove(key)`.
+
+The execution center retains scheduled-task run history for the most recent 30 days only. Expired records are removed immediately during upgrade and continue to be physically pruned when runs execute or history is viewed.
 
 ### SDK package
 
@@ -432,7 +463,8 @@ The first demonstrates note queries, selection replacement, commands, and a cust
 
 - Plugins are installed on one device and are not synchronized.
 - Plugins run only while the app is open.
-- There is no Cron, webhook receiver, background runtime, marketplace submission backend, or automated review pipeline.
+- Desktop plugins can persistently schedule their own registered commands, and users can manage those schedules and inspect paginated run history from the plugin page. A schedule is synced through the workspace, bound to one desktop device, and runs only while EdgeEver is open on that device. A missed occurrence can either be skipped or coalesced into one recovery run. This is not an always-on server background runtime.
+- There is no webhook receiver, server background runtime, marketplace submission backend, or automated review pipeline.
 - Declared permissions are API capability checks, not a hard sandbox for trusted JavaScript.
 - Custom panels open from the unified desktop plugin menu or extension settings and cannot yet be pinned to the main navigation or editor sidebar.
 - Secret storage is device-local and does not sync to other devices.

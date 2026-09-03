@@ -21,6 +21,8 @@ import {
   type PluginPermission,
   type PluginApiErrorCode,
   type PluginResource,
+  type PluginSchedule,
+  type PluginScheduleInput,
   type PluginSettingField,
   type PluginSettingValue,
   type PluginEditorSelection,
@@ -158,6 +160,12 @@ export interface PluginPanelAdapter {
   openPanel(pluginId: string, panelId: string, options?: PluginPanelOpenOptions): void | Promise<void>;
 }
 
+export interface PluginScheduleAdapter {
+  upsert(pluginId: string, input: PluginScheduleInput): Promise<PluginSchedule>;
+  list(pluginId: string): Promise<PluginSchedule[]>;
+  remove(pluginId: string, key: string): Promise<void>;
+}
+
 export interface PluginHostSnapshot {
   extensions: InstalledExtension[];
   commands: RegisteredPluginCommand[];
@@ -174,6 +182,7 @@ interface PluginHostOptions {
   onNotice?: (message: string) => void;
   secretStorage?: PluginSecretStorage;
   packageStorage?: PluginPackageStorage;
+  scheduleAdapter?: PluginScheduleAdapter;
 }
 
 interface ActivePlugin {
@@ -407,6 +416,7 @@ export class EdgeEverPluginHost {
   private readonly onNotice?: (message: string) => void;
   private readonly secretStorage: PluginSecretStorage;
   private readonly packageStorage: PluginPackageStorage;
+  private readonly scheduleAdapter?: PluginScheduleAdapter;
   private readonly listeners = new Set<() => void>();
   private readonly activePlugins = new Map<string, ActivePlugin>();
   private readonly commands = new Map<string, PluginCommand & { pluginId: string }>();
@@ -433,6 +443,7 @@ export class EdgeEverPluginHost {
     this.onNotice = options.onNotice;
     this.secretStorage = options.secretStorage ?? new WebPluginSecretStore();
     this.packageStorage = options.packageStorage ?? new WebPluginPackageStore();
+    this.scheduleAdapter = options.scheduleAdapter;
     this.recentActions = this.readRecentActions();
     this.refreshSnapshot();
   }
@@ -1126,6 +1137,32 @@ export class EdgeEverPluginHost {
           };
           disposers.push(dispose);
           return dispose;
+        },
+      },
+      schedules: {
+        upsert: async (input) => {
+          assertPermission(manifest, "schedules");
+          if (!this.scheduleAdapter) throw new Error("Plugin schedules are only available in the EdgeEver desktop app.");
+          if (!/^[a-z0-9][a-z0-9._-]*$/i.test(input.key) || input.key.length > 120) {
+            throw new Error("Plugin schedule key is invalid.");
+          }
+          if (!this.commands.has(`${manifest.id}:${input.commandId}`)) {
+            throw new Error(`Plugin command must be registered before it can be scheduled: ${input.commandId}`);
+          }
+          return this.scheduleAdapter.upsert(manifest.id, input);
+        },
+        list: async () => {
+          assertPermission(manifest, "schedules");
+          if (!this.scheduleAdapter) throw new Error("Plugin schedules are only available in the EdgeEver desktop app.");
+          return this.scheduleAdapter.list(manifest.id);
+        },
+        remove: async (key) => {
+          assertPermission(manifest, "schedules");
+          if (!this.scheduleAdapter) throw new Error("Plugin schedules are only available in the EdgeEver desktop app.");
+          if (!/^[a-z0-9][a-z0-9._-]*$/i.test(key) || key.length > 120) {
+            throw new Error("Plugin schedule key is invalid.");
+          }
+          await this.scheduleAdapter.remove(manifest.id, key);
         },
       },
       events: {

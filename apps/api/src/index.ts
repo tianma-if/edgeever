@@ -86,6 +86,7 @@ import {
 import { registerPluginDistributionRoutes } from "./plugin-distribution-routes";
 import { registerSyncRoutes } from "./sync-routes";
 import { registerMemoRoutes } from "./memo-routes";
+import { registerScheduledTaskRoutes } from "./scheduled-task-routes";
 import { registerBackupRoutes } from "./backup-routes";
 import { registerMcpRoutes } from "./mcp-routes";
 import { callMcpTool as callMcpToolService } from "./mcp-tool-service";
@@ -311,6 +312,7 @@ registerSyncRoutes(app, {
 });
 registerTagRoutes(app);
 registerPluginDistributionRoutes(app);
+registerScheduledTaskRoutes(app);
 registerMemoShareRoutes(app);
 registerTemplateRoutes(app, {
   createMemoRecord: (...args) => createMemoRecord(...args),

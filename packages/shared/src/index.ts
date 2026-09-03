@@ -11,6 +11,7 @@ export * from "./native-attachment-content";
 export * from "./backup";
 export * from "./github-feedback";
 export * from "./image-display";
+export * from "./image-gallery";
 export * from "./image-referrer";
 export * from "./markdown-image";
 export * from "./memo-safety";

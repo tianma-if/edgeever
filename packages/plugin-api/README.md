@@ -18,6 +18,18 @@ export default definePlugin({
 
 The package ships ESM JavaScript and TypeScript declarations. Plugin bundles must produce a single `main.js` file without relative imports before distribution. See the EdgeEver plugin development guide for the Manifest format, permissions, settings Schema, release assets, and marketplace verification rules.
 
+Desktop plugins can declare the `schedules` permission and idempotently schedule one of their own registered commands:
+
+```ts
+context.commands.register({ id: "refresh", title: "Refresh", run: refresh });
+await context.schedules.upsert({
+  key: "hourly-refresh",
+  name: "Hourly refresh",
+  commandId: "refresh",
+  cronExpression: "0 * * * *",
+});
+```
+
 Conflict-safe Markdown edits use the note baseline returned by `context.notes.get()`:
 
 ```ts
