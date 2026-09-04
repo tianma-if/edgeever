@@ -1,0 +1,84 @@
+name: Build fnOS FPK
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Git tag (vX.Y.Z) to build the FPK for"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build-fpk:
+    if: github.repository == 'tianma-if/edgeever'
+    name: Build and attach FPK
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Resolve release tag
+        id: tag
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          INPUT_RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          if [[ "${EVENT_NAME}" == "release" ]]; then
+            tag="${RELEASE_TAG}"
+          else
+            tag="${INPUT_RELEASE_TAG}"
+          fi
+          if [[ ! "${tag}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "release tag must match vX.Y.Z" >&2
+            exit 1
+          fi
+          echo "value=${tag}" >> "$GITHUB_OUTPUT"
+
+      - name: Install fnpack
+        run: |
+          mkdir -p /tmp/fnpack
+          curl -fsSL -o /tmp/fnpack/fnpack https://static2.fnnas.com/fnpack/fnpack-1.2.3-linux-amd64
+          chmod +x /tmp/fnpack/fnpack
+          /tmp/fnpack/fnpack --help > /dev/null
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Update FPK version from release tag
+        run: bun scripts/build-fpk.mjs "${{ steps.tag.outputs.value }}"
+
+      - name: Build FPK package
+        run: |
+          cd apps/fnos
+          /tmp/fnpack/fnpack build
+
+      - name: Verify FPK version matches the release tag
+        run: |
+          rm -rf /tmp/fpk-verify
+          mkdir -p /tmp/fpk-verify
+          tar xf apps/fnos/edgeever.fpk -C /tmp/fpk-verify
+          fpk_version="$(grep -oP '^version\s*=\s*\K[0-9.]+' /tmp/fpk-verify/manifest)"
+          expected="${{ steps.tag.outputs.value }}"
+          test "$fpk_version" = "${expected#v}"
+
+      - name: Rename FPK artifact with version
+        run: |
+          mv apps/fnos/edgeever.fpk "apps/fnos/edgeever-${{ steps.tag.outputs.value }}.fpk"
+
+      - name: Upload FPK asset to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.tag.outputs.value }}
+        run: |
+          gh release upload "$RELEASE_TAG" "apps/fnos/edgeever-${RELEASE_TAG}.fpk" --repo "$GITHUB_REPOSITORY" --clobber
