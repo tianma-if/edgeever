@@ -43,6 +43,13 @@ import { deleteStoredObjects } from "./object-storage";
 import { getAuditActor, getWorkspaceId } from "./request-auth";
 import type { DatabaseAdapter, PreparedStatementAdapter } from "./storage-contract";
 
+// Internal callers can bind a reviewed operation and its receipt to the same
+// atomic batch as the existing memo mutation. Never populated from HTTP input.
+export type MemoMutationCommit = {
+  before: PreparedStatementAdapter[];
+  after: (memoId: string) => PreparedStatementAdapter[];
+};
+
 const clampNumber = (value: number, min: number, max: number) =>
   Number.isNaN(value) ? min : Math.min(Math.max(value, min), max);
 
@@ -761,7 +768,8 @@ export const mergeMemosRecord = async (
   workspaceId: string,
   input: { memoIds: string[]; notebookId?: string; title?: string },
   actor: { actorType: "user" | "agent"; actorId: string | null },
-  actorLabel: string
+  actorLabel: string,
+  commit?: MemoMutationCommit,
 ) => {
   const uniqueMemoIds = Array.from(new Set(input.memoIds));
 
@@ -799,7 +807,7 @@ export const mergeMemosRecord = async (
         .filter((row) => row.is_deleted && row.merged_into_memo_id)
         .map((row) => row.merged_into_memo_id as string),
     );
-    if (activeRows.length === 0 && mergedTargetIds.size === 1) {
+    if (!commit && activeRows.length === 0 && mergedTargetIds.size === 1) {
       const [mergedTargetId] = mergedTargetIds;
       const completedMerge = await getMemoDetail(db, workspaceId, mergedTargetId);
       const completedSourceIds = new Set(completedMerge?.sourceMemoIds ?? []);
@@ -841,6 +849,7 @@ export const mergeMemosRecord = async (
   const now = isoNow();
 
   await db.batch([
+    ...(commit?.before ?? []),
     db
       .prepare(
         `INSERT INTO memos (
@@ -891,6 +900,7 @@ export const mergeMemosRecord = async (
     auditStatement(db, actor.actorType, actor.actorId, "memo.merge", "memo", newMemoId, {
       sourceMemoIds: uniqueMemoIds,
     }),
+    ...(commit?.after(newMemoId) ?? []),
   ]);
 
   const memo = await getMemoDetail(db, workspaceId, newMemoId);
@@ -1144,6 +1154,7 @@ export const updateMemoRecord = async (
   actor: { actorType: "user" | "agent"; actorId: string | null },
   actorLabel: string,
   requireEditSession = false,
+  commit?: MemoMutationCommit,
 ): Promise<
   | { memo: MemoDetail; error?: never; message?: never; status?: never; details?: never }
   | { error: string; message: string; status?: number; details?: Record<string, unknown> }
@@ -1234,6 +1245,7 @@ export const updateMemoRecord = async (
 
   if (!hasContentUpdate) {
     if (input.isPinned === undefined || isPinned === Boolean(current.is_pinned)) {
+      if (commit) await db.batch([...commit.before, ...commit.after(id)]);
       const memo = await getMemoDetail(db, workspaceId, id);
 
       if (!memo) {
@@ -1244,6 +1256,7 @@ export const updateMemoRecord = async (
     }
 
     await db.batch([
+      ...(commit?.before ?? []),
       db
         .prepare(
           `UPDATE memos
@@ -1252,6 +1265,7 @@ export const updateMemoRecord = async (
         )
         .bind(isPinned ? 1 : 0, actorLabel, updatedAt, input.createdAt ?? null, id, workspaceId),
       auditStatement(db, actor.actorType, actor.actorId, isPinned ? "memo.pin" : "memo.unpin", "memo", id, {}),
+      ...(commit?.after(id) ?? []),
     ]);
 
     const memo = await getMemoDetail(db, workspaceId, id);
@@ -1302,6 +1316,7 @@ export const updateMemoRecord = async (
     && input.updatedAt === undefined;
 
   if (unchanged) {
+    if (commit) await db.batch([...commit.before, ...commit.after(id)]);
     return { memo: mapMemoDetail(current) };
   }
 
@@ -1339,6 +1354,7 @@ export const updateMemoRecord = async (
       : [];
 
   await db.batch([
+    ...(commit?.before ?? []),
     ...revisionStatements,
     db
       .prepare(
@@ -1361,6 +1377,7 @@ export const updateMemoRecord = async (
     auditStatement(db, actor.actorType, actor.actorId, "memo.update", "memo", id, {
       revision: nextRevision,
     }),
+    ...(commit?.after(id) ?? []),
   ]);
 
   const memo = await getMemoDetail(db, workspaceId, id);

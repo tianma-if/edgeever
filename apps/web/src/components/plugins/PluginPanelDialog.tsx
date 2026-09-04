@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import type { PluginPanelCloseDecision, PluginPanelOpenOptions } from "@edgeever/plugin-api";
 import { useTranslation } from "react-i18next";
 import { AppConfirmDialog } from "@/components/dialogs/ConfirmDialogs";
@@ -13,7 +13,7 @@ export const PluginPanelDialog = ({ host, panel, options, onClose }: {
   onClose: () => void;
 }) => {
   const { t } = useTranslation();
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [container, setContainer] = useState<HTMLDivElement | null>(null);
   const [mountError, setMountError] = useState<string | null>(null);
   const [closeConfirmation, setCloseConfirmation] = useState<Exclude<PluginPanelCloseDecision, boolean> | null>(null);
   const [checkingClose, setCheckingClose] = useState(false);
@@ -21,7 +21,7 @@ export const PluginPanelDialog = ({ host, panel, options, onClose }: {
   const panelId = panel?.id ?? null;
 
   useEffect(() => {
-    const container = containerRef.current;
+    // Container is reactive so delayed portal attachment mounts the plugin.
     if (!container || !panelPluginId || !panelId) return;
     let disposed = false;
     let disposePanel: (() => void) | null = null;
@@ -38,7 +38,7 @@ export const PluginPanelDialog = ({ host, panel, options, onClose }: {
       disposePanel?.();
       container.replaceChildren();
     };
-  }, [host, options, panelId, panelPluginId]);
+  }, [container, host, options, panelId, panelPluginId]);
 
   const requestClose = async () => {
     if (!panelPluginId || !panelId || checkingClose) return;
@@ -67,7 +67,7 @@ export const PluginPanelDialog = ({ host, panel, options, onClose }: {
             <DialogDescription>{t("plugins.panelDescription")}</DialogDescription>
           </DialogHeader>
           {mountError ? <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">{mountError}</div> : null}
-          <div ref={containerRef} className={cn(
+          <div ref={setContainer} className={cn(
             "min-h-40 rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-700",
             panel?.presentation === "fullscreen" && "min-h-0 flex-1 overflow-hidden",
           )} />

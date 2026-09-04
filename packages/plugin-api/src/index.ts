@@ -12,6 +12,8 @@ export const PLUGIN_PERMISSIONS = [
   "templates:read",
   "templates:write",
   "network",
+  "network:public",
+  "ai:generate",
   "storage",
   "secrets",
   "schedules",
@@ -42,6 +44,10 @@ export interface PluginManifest {
   settings?: PluginSettingsSchema;
 }
 
+/**
+ * Declarative setting metadata. EdgeEver owns the layout, controls, validation,
+ * state feedback, and responsive behavior; plugins cannot supply presentation code or styles.
+ */
 interface PluginSettingBase {
   key: string;
   label: string;
@@ -57,6 +63,7 @@ export type PluginSettingField =
   | (PluginSettingBase & { type: "select"; default?: string; options: Array<{ value: string; label: string }> });
 
 export interface PluginSettingsSchema {
+  /** Host-rendered fields in display order. Arbitrary UI markup and styling are intentionally unsupported. */
   fields: PluginSettingField[];
 }
 
@@ -369,6 +376,10 @@ export interface PluginPanel {
 
 export interface PluginContext {
   pluginId: string;
+  ai: {
+    status(): Promise<{ configured: boolean; modelName?: string }>;
+    generate(input: { system: string; prompt: string; maxOutputTokens?: number; signal?: AbortSignal }): Promise<{ text: string }>;
+  };
   notes: {
     query(input?: PluginNoteQuery): Promise<PluginNoteQueryResult>;
     queryContent(input?: PluginNoteQuery): Promise<PluginNoteContentQueryResult>;
@@ -450,7 +461,8 @@ export interface PluginContext {
     remove(key: string): Promise<void>;
   };
   network: {
-    fetch(input: string, init?: RequestInit): Promise<Response>;
+    /** direct preserves browser fetch. public uses authenticated, bounded HTTPS GET/HEAD transport. */
+    fetch(input: string, init?: RequestInit & { transport?: "direct" | "public" }): Promise<Response>;
   };
   ui: {
     showNotice(message: string): void;
@@ -606,6 +618,7 @@ export const parseExtensionManifest = (value: unknown): ExtensionManifest => {
     const permissions = [...new Set(value.permissions.map(String))];
     const unsupported = permissions.find((permission) => !allowedPermissions.has(permission));
     if (unsupported) throw new Error(`Unsupported plugin permission: ${unsupported}`);
+    if (permissions.includes("network:public") && !permissions.includes("network")) throw new Error("Public network transport also requires the network permission.");
     const networkHosts = value.networkHosts === undefined
       ? undefined
       : Array.isArray(value.networkHosts)

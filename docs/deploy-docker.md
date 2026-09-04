@@ -94,13 +94,12 @@ Common environment variables:
 | `EDGE_EVER_AUTH_PASSWORD_HASH`         | none    | PBKDF2 hash alternative to the plaintext bootstrap password |
 | `EDGE_EVER_SESSION_TTL_DAYS`           | `400`   | Login session lifetime                                      |
 | `EDGE_EVER_IDLE_TIMEOUT_SECONDS`       | `120`   | Bun streaming idle timeout, from 10 to 255 seconds          |
-| `EDGE_EVER_STORAGE_ENCRYPTION_KEY`     | none    | Encrypts saved external object-storage credentials          |
 | `EDGE_EVER_CREDENTIALS_ENCRYPTION_KEY` | derived | Optional independent AI credential encryption key           |
 
 For secrets, append `_FILE` to a supported variable and point it at a Docker
 secret, for example `EDGE_EVER_AUTH_PASSWORD_FILE=/run/secrets/auth_password`.
-The password/hash, storage encryption keys, and S3 access credentials support
-this form. Do not set both the direct variable and its `_FILE` counterpart.
+The password/hash and S3 access credentials support this form. Do not set both
+the direct variable and its `_FILE` counterpart.
 
 `EDGE_EVER_ALLOW_UNAUTHENTICATED=true` is available for isolated development
 only. Do not expose an unauthenticated instance to a network.
@@ -142,10 +141,11 @@ of the `/data` volume for complete instance recovery:
    `resources` directory.
 3. Start the service with `docker compose start edgeever`.
 
-Keep `EDGE_EVER_STORAGE_ENCRYPTION_KEY` and any explicitly configured
-`EDGE_EVER_CREDENTIALS_ENCRYPTION_KEY` in a separate secret backup. A volume
-backup cannot decrypt stored credentials without those keys. When S3 storage
-is enabled, back up the bucket separately.
+Keep the instance authentication secret and any explicitly configured
+`EDGE_EVER_CREDENTIALS_ENCRYPTION_KEY` in a separate secret backup. EdgeEver
+derives purpose-specific keys for saved credentials from the authentication
+secret, so a volume backup cannot decrypt them without it. When S3 storage is
+enabled, back up the bucket separately.
 
 Restore only while EdgeEver is stopped, into an empty volume, and restore the
 matching secret keys at the same time. Test backups periodically on a separate

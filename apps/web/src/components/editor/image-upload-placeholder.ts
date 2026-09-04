@@ -45,6 +45,7 @@ const renderPlaceholder = (placeholder: ImageUploadPlaceholder) => {
   spinner.setAttribute("aria-hidden", "true");
 
   const label = document.createElement("span");
+  label.className = "edgeever-image-upload-placeholder__label";
   label.textContent = placeholder.statusLabel;
   status.appendChild(spinner);
   status.appendChild(label);
@@ -135,6 +136,20 @@ export const removeImageUploadPlaceholder = (
   if (placeholder.previewUrl) {
     URL.revokeObjectURL(placeholder.previewUrl);
   }
+};
+
+export const updateImageUploadPlaceholder = (
+  editor: Editor | null | undefined,
+  placeholder: ImageUploadPlaceholder,
+  statusLabel: string,
+) => {
+  placeholder.statusLabel = statusLabel;
+  if (!editor || editor.isDestroyed) return;
+  // Update the widget in place so its decoded local preview stays mounted.
+  const element = editor.view.dom.querySelector(`[data-placeholder-id="${placeholder.id}"]`);
+  element?.setAttribute("aria-label", `${statusLabel}: ${placeholder.filename}`);
+  const label = element?.querySelector(".edgeever-image-upload-placeholder__label");
+  if (label) label.textContent = statusLabel;
 };
 
 /** Keep the local preview visible until the persisted image can paint. */

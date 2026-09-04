@@ -349,6 +349,7 @@ export const NotebookPane = ({
   onOpenTags,
   onOpenAssets,
   onOpenTemplates,
+  companionActive,
   pluginHost,
   onOpenPluginManager,
   onOpenTrash,
@@ -385,6 +386,7 @@ export const NotebookPane = ({
   onOpenTags: () => void;
   onOpenAssets: () => void;
   onOpenTemplates: () => void;
+  companionActive: boolean;
   pluginHost: EdgeEverPluginHost;
   onOpenPluginManager: () => void;
   onOpenTrash: () => void;
@@ -592,9 +594,9 @@ export const NotebookPane = ({
           </button>
         )}
 
-        <nav className="mb-3 space-y-1" aria-label={t("notebookPane.entries")}>
+        <nav className="mb-3 space-y-1" aria-label={t("companion.primaryNavigation")}>
           <SidebarNavButton
-            active={view === "notebook" && selectedNotebookId === null}
+            active={!companionActive && view === "notebook" && selectedNotebookId === null}
             icon={<LayoutList className="h-4 w-4" />}
             label={t("notebookPane.allMemos")}
             onClick={onBackToList}
@@ -664,7 +666,7 @@ export const NotebookPane = ({
                 key={node.id}
                 node={node}
                 depth={0}
-                selectedNotebookId={selectedNotebookId}
+                selectedNotebookId={companionActive ? null : selectedNotebookId}
                 onSelect={onSelect}
                 onCreateNotebook={onCreateNotebook}
                 onRenameNotebook={onRenameNotebook}

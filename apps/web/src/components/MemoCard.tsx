@@ -2,10 +2,10 @@ import { useRef, useState, useEffect, type DragEvent, type MouseEvent, type Poin
 import { useTranslation } from "react-i18next";
 import * as m from "motion/react-m";
 import { Star, Check, MoreHorizontal, RotateCcw, Trash2 } from "lucide-react";
-import type { MemoSummary } from "@edgeever/shared";
+import { getMemoListTimestamp, type MemoSummary } from "@edgeever/shared";
 import { cn } from "@/lib/utils";
 import { selectionSettleMotion } from "@/lib/motion";
-import type { MemoListDensity } from "@/lib/app-helpers";
+import type { MemoListDensity, MemoSortMode } from "@/lib/app-helpers";
 import { isDefaultMemoTitle, MEMO_DRAG_MIME, setMemoDragPreview } from "@/lib/app-helpers";
 
 const MEMO_LONG_PRESS_DELAY_MS = 520;
@@ -47,6 +47,7 @@ export const MemoCard = ({
   isTrashView,
   selectionMode,
   listDensity,
+  sortMode,
   multiSelectKeyDown,
   onOpen,
   onRestore,
@@ -64,6 +65,7 @@ export const MemoCard = ({
   isTrashView: boolean;
   selectionMode: boolean;
   listDensity: MemoListDensity;
+  sortMode: MemoSortMode;
   multiSelectKeyDown: boolean;
   onOpen: () => void;
   onRestore: () => void;
@@ -81,6 +83,12 @@ export const MemoCard = ({
   const [modifierHoverActive, setModifierHoverActive] = useState(false);
   const memoTitle = memo.title?.trim() && !isDefaultMemoTitle(memo.title) ? memo.title.trim() : t("common.untitledMemo");
   const memoExcerpt = memo.excerpt.trim() || t("memoCard.emptyMemo");
+  const listTimestamp = getMemoListTimestamp(memo, sortMode);
+  const listTimestampLabel = formatMemoPreviewDate(
+    listTimestamp.value,
+    i18n.resolvedLanguage ?? i18n.language,
+    t("memoCard.yesterday"),
+  );
   const showSelectionControl = selectionMode || checked || multiSelectKeyDown || modifierHoverActive;
   const selectionControlLabel = checked
     ? t("memoCard.unselect", { title: memoTitle })
@@ -389,8 +397,8 @@ export const MemoCard = ({
             {memoExcerpt}
           </div>
           <div className={cn("mt-3.5 flex flex-wrap items-center gap-2", listDensity === "compact" && "mt-1.5")}>
-            <time className="text-xs font-normal text-slate-500 dark:text-slate-400">
-              {formatMemoPreviewDate(memo.updatedAt, i18n.resolvedLanguage ?? i18n.language, t("memoCard.yesterday"))}
+            <time className="text-xs font-normal text-slate-500 dark:text-slate-400" dateTime={listTimestamp.value}>
+              {t(listTimestamp.field === "createdAt" ? "memoCard.createdAt" : "memoCard.updatedAt", { time: listTimestampLabel })}
             </time>
             {memo.tags.slice(0, 3).map((tag) => (
               <span

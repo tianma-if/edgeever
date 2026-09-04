@@ -1,6 +1,6 @@
 {
   "name": "edgeever",
-  "version": "1.54.0",
+  "version": "1.55.0",
   "private": true,
   "type": "module",
   "workspaces": [
@@ -59,7 +59,7 @@
     "release": "bun scripts/release.mjs",
     "publish:stores": "bun scripts/store-delivery.mjs",
     "test:desktop:sidecar": "bun scripts/test-desktop-sidecar.mjs",
-    "test:desktop": "bun test apps/desktop/src/main/account-scope.test.mjs apps/desktop/src/main/child-process-start.test.mjs apps/desktop/src/main/clipboard-write.test.mjs apps/desktop/src/main/desktop-diagnostics.test.mjs apps/desktop/src/main/desktop-update-flow.test.mjs apps/desktop/src/main/diagnostic-log.test.mjs apps/desktop/src/main/file-association.test.mjs apps/desktop/src/main/file-permissions.test.mjs apps/desktop/src/main/installation-location.test.mjs apps/desktop/src/main/local-data-reset.test.mjs apps/desktop/src/main/renderer-recovery.test.mjs apps/desktop/src/main/renderer-startup-guard.test.mjs apps/desktop/src/main/resource-request.test.mjs apps/desktop/src/main/resource-url.test.mjs apps/desktop/src/main/scheduled-task-scheduler.test.mjs apps/desktop/src/main/staged-resource.test.mjs apps/desktop/src/main/tray-icon.test.mjs apps/desktop/src/main/user-data-directory.test.mjs apps/desktop/src/main/window-open-policy.test.mjs apps/desktop/src/main/window-visibility.test.mjs apps/desktop/src/main/windows-update-trust.test.mjs apps/web/src/lib/api.test.mjs apps/web/src/lib/app-page-path.test.mjs apps/web/src/lib/clipboard.test.mjs apps/web/src/lib/desktop-renderer-ready.test.mjs apps/web/src/lib/desktop-repository.test.mjs apps/web/src/lib/desktop-resources.test.mjs apps/web/src/lib/desktop-sync.test.mjs apps/web/src/lib/local-mirror.test.mjs apps/web/src/lib/repository.test.mjs apps/web/src/lib/runtime.test.mjs apps/web/src/lib/sync-queue.test.mjs && bun run test:desktop:sidecar",
+    "test:desktop": "bun test apps/desktop/src/main/account-scope.test.mjs apps/desktop/src/main/child-process-start.test.mjs apps/desktop/src/main/clipboard-write.test.mjs apps/desktop/src/main/desktop-diagnostics.test.mjs apps/desktop/src/main/desktop-update-flow.test.mjs apps/desktop/src/main/diagnostic-log.test.mjs apps/desktop/src/main/file-association.test.mjs apps/desktop/src/main/file-permissions.test.mjs apps/desktop/src/main/installation-location.test.mjs apps/desktop/src/main/local-data-reset.test.mjs apps/desktop/src/main/plugin-public-network.test.mjs apps/desktop/src/main/renderer-recovery.test.mjs apps/desktop/src/main/renderer-startup-guard.test.mjs apps/desktop/src/main/resource-request.test.mjs apps/desktop/src/main/resource-url.test.mjs apps/desktop/src/main/scheduled-task-scheduler.test.mjs apps/desktop/src/main/staged-resource.test.mjs apps/desktop/src/main/tray-icon.test.mjs apps/desktop/src/main/user-data-directory.test.mjs apps/desktop/src/main/window-open-policy.test.mjs apps/desktop/src/main/window-visibility.test.mjs apps/desktop/src/main/windows-update-trust.test.mjs apps/web/src/lib/api.test.mjs apps/web/src/lib/app-page-path.test.mjs apps/web/src/lib/clipboard.test.mjs apps/web/src/lib/desktop-renderer-ready.test.mjs apps/web/src/lib/desktop-repository.test.mjs apps/web/src/lib/desktop-resources.test.mjs apps/web/src/lib/desktop-sync.test.mjs apps/web/src/lib/local-mirror.test.mjs apps/web/src/lib/repository.test.mjs apps/web/src/lib/runtime.test.mjs apps/web/src/lib/sync-queue.test.mjs && bun run test:desktop:sidecar",
     "verify:desktop-renderer": "bun scripts/verify-desktop-renderer.mjs",
     "verify:packaged-desktop-startup": "bun scripts/verify-packaged-desktop-startup.mjs",
     "verify:desktop-package": "bun scripts/verify-desktop-package.mjs",
@@ -103,9 +103,6 @@
       },
       "EDGE_EVER_AUTH_PASSWORD": {
         "description": "首次登录密码，必填。请设置一个仅用于此实例的强密码；部署后可在个人设置中修改。"
-      },
-      "EDGE_EVER_STORAGE_ENCRYPTION_KEY": {
-        "description": "可选。启用高级设置中的第三方 OSS 时必填，用于加密保存在 D1 中的对象存储访问密钥。"
       },
       "EDGE_EVER_CREDENTIALS_ENCRYPTION_KEY": {
         "description": "可选的高级配置。覆盖从实例认证 Secret 自动派生的 AI 凭据加密密钥，用于独立密钥轮换。"

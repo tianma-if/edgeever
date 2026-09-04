@@ -39,6 +39,7 @@ import {
   verifyDownloadedWindowsUpdate,
 } from "./windows-update-trust.mjs";
 import electronUpdater from "electron-updater";
+import { createPluginPublicNetworkRuntime } from "./plugin-public-network.mjs";
 
 const { autoUpdater } = electronUpdater;
 
@@ -108,6 +109,7 @@ let rendererCrashDialogOpen = false;
 let rendererStartupFailureDialogOpen = false;
 let rendererStartupGuard = null;
 let rendererUnresponsiveTimer = null;
+const pluginPublicNetwork = createPluginPublicNetworkRuntime();
 let rendererUnresponsiveDialogOpen = false;
 let recoveredAfterAbnormalExit = false;
 const pendingScheduledTaskRuns = [];
@@ -1249,6 +1251,13 @@ const startApplication = async () => {
     scheduledTaskScheduler.clear();
     await saveDesktopSessionToken("");
     return { stored: false };
+  });
+  ipcMain.handle("desktop:public-network-fetch", async (event, requestId, input) => {
+    if (event.sender !== mainWindow?.webContents) throw new Error("Public network requests must come from the main window");
+    return pluginPublicNetwork.fetch(requestId, input);
+  });
+  ipcMain.on("desktop:cancel-public-network-fetch", (event, requestId) => {
+    if (event.sender === mainWindow?.webContents && typeof requestId === "string") pluginPublicNetwork.cancel(requestId);
   });
   ipcMain.handle("desktop:sync-scheduled-tasks", async (event, tasks) => {
     if (event.sender !== mainWindow?.webContents) throw new Error("Scheduled tasks must come from the main window");

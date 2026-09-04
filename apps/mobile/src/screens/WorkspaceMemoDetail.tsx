@@ -37,7 +37,7 @@ import { useMobileTheme } from "../lib/mobile-theme";
 import { useSession } from "../lib/session";
 import { beginEditorStartup } from "../lib/startup-performance";
 import type { MobileSyncQueueItem } from "../lib/sync-queue";
-import { getTextSearchMatches } from "./workspace-utils";
+import { formatMemoDetailDate, getTextSearchMatches } from "./workspace-utils";
 import { styles } from "./workspace-styles";
 
 const ANDROID_SYSTEM_NAVIGATION_FALLBACK = 48;
@@ -984,6 +984,11 @@ export const MemoDetailModal = ({
                   />
                 </View>
               </View>
+              <Text selectable style={styles.detailTimestamps}>
+                {resolvedLocale === "en-US" ? "Created" : "创建于"} {formatMemoDetailDate(memo.createdAt, resolvedLocale)}
+                {" · "}
+                {resolvedLocale === "en-US" ? "Updated" : "更新于"} {formatMemoDetailDate(memo.updatedAt, resolvedLocale)}
+              </Text>
               {searchOpen ? (
                 <View style={styles.noteSearchPanel}>
                   <View style={styles.searchBox}>

@@ -46,12 +46,28 @@ describe("editor typography contract", () => {
     expect(placeholderRules).toMatch(/line-height\s*:\s*inherit/);
   });
 
-  test("keeps bold text visibly distinct across platform font fallbacks", () => {
+  test("keeps bold and italic text visible across platform font fallbacks", () => {
     const globals = readStyle("./globals.css");
+    const mobileEditor = readStyle("./mobile-markdown-editor.css");
     const defaultBoldRules = declarationsForSelector(globals, ".ProseMirror strong");
+    const defaultItalicRules = declarationsForSelector(globals, ".ProseMirror em");
+    const mobileBoldRules = declarationsForSelector(
+      mobileEditor,
+      ".edgeever-mobile-tiptap-content strong",
+    );
+    const mobileItalicRules = declarationsForSelector(
+      mobileEditor,
+      ".edgeever-mobile-tiptap-content em",
+    );
 
-    expect(defaultBoldRules).toMatch(/font-synthesis\s*:\s*weight/);
+    expect(defaultBoldRules).toMatch(/font-synthesis\s*:\s*weight style/);
     expect(defaultBoldRules).toMatch(/font-weight\s*:\s*800/);
+    expect(defaultItalicRules).toMatch(/font-synthesis\s*:\s*weight style/);
+    expect(defaultItalicRules).toMatch(/font-style\s*:\s*italic/);
+    expect(mobileBoldRules).toMatch(/font-synthesis\s*:\s*weight style/);
+    expect(mobileBoldRules).toMatch(/font-weight\s*:\s*800/);
+    expect(mobileItalicRules).toMatch(/font-synthesis\s*:\s*weight style/);
+    expect(mobileItalicRules).toMatch(/font-style\s*:\s*italic/);
 
     for (const filename of PRESET_THEME_FILES) {
       const source = readStyle(`./editor-themes/${filename}`);

@@ -30,7 +30,7 @@ const environment = {
     },
     resources: {},
   },
-  EDGE_EVER_STORAGE_ENCRYPTION_KEY: "x".repeat(32),
+  EDGE_EVER_AUTH_PASSWORD: "x".repeat(32),
 };
 
 class SqliteD1PreparedStatement {
@@ -84,7 +84,7 @@ const createDatabaseEnvironment = () => {
     sqlite,
     environment: {
       storage: { db: new SqliteD1Database(sqlite), resources: {} },
-      EDGE_EVER_STORAGE_ENCRYPTION_KEY: "x".repeat(32),
+      EDGE_EVER_AUTH_PASSWORD: "x".repeat(32),
     },
   };
 };

@@ -34,7 +34,7 @@ export type ShortcutBinding = {
   alt: boolean;
 };
 export type ShortcutSettings = Record<ShortcutAction, ShortcutBinding>;
-export type MobileBottomNavItem = "home" | "search" | "templates" | "settings";
+export type MobileBottomNavItem = "home" | "search" | "templates" | "settings" | "companion";
 export type MemoContextMenuState = { memo: MemoSummary; x: number; y: number };
 export type MemoDocumentAction =
   | "share"
@@ -131,6 +131,7 @@ export { DEFAULT_MEMO_TITLE };
 export const IMAGE_COMPRESSION_STORAGE_KEY = "edgeever.imageCompressionEnabled";
 export const DESKTOP_FOCUS_MODE_STORAGE_KEY = "edgeever.desktopFocusMode";
 export const DESKTOP_READING_PROTECTION_STORAGE_KEY = "edgeever.desktopReadingProtection";
+export const EDITOR_OUTLINE_COLLAPSED_STORAGE_KEY = "edgeever.editorOutlineCollapsed";
 export const EDITOR_CONTENT_ALIGNMENT_STORAGE_KEY = "edgeever.editorContentAlignment";
 export const MEMO_LIST_DENSITY_STORAGE_KEY = "edgeever.memoListDensity";
 export const MEMO_LIST_WIDTH_STORAGE_KEY = "edgeever.memoListWidth";
@@ -350,6 +351,22 @@ export const readDesktopReadingProtectionPreference = () => {
 export const writeDesktopReadingProtectionPreference = (enabled: boolean) => {
   try {
     window.localStorage.setItem(DESKTOP_READING_PROTECTION_STORAGE_KEY, enabled ? "true" : "false");
+  } catch {
+    // Local storage can be unavailable in private or restricted browser contexts.
+  }
+};
+
+export const readEditorOutlineCollapsedPreference = () => {
+  try {
+    return window.localStorage.getItem(EDITOR_OUTLINE_COLLAPSED_STORAGE_KEY) !== "false";
+  } catch {
+    return true;
+  }
+};
+
+export const writeEditorOutlineCollapsedPreference = (collapsed: boolean) => {
+  try {
+    window.localStorage.setItem(EDITOR_OUTLINE_COLLAPSED_STORAGE_KEY, collapsed ? "true" : "false");
   } catch {
     // Local storage can be unavailable in private or restricted browser contexts.
   }

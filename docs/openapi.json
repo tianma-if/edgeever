@@ -48,9 +48,24 @@
                     "authMode": {
                       "type": "string",
                       "enum": ["required", "disabled"]
+                    },
+                    "deployment": {
+                      "type": "object",
+                      "description": "Deployment trigger and execution method reported by the running instance.",
+                      "properties": {
+                        "trigger": {
+                          "type": "string",
+                          "enum": ["github_release", "main_push", "manual", "unknown"]
+                        },
+                        "method": {
+                          "type": "string",
+                          "enum": ["github_actions", "cloudflare_workers_builds", "local_cli", "unknown"]
+                        }
+                      },
+                      "required": ["trigger", "method"]
                     }
                   },
-                  "required": ["ok", "name", "runtime", "authMode"]
+                  "required": ["ok", "name", "runtime", "authMode", "deployment"]
                 }
               }
             }

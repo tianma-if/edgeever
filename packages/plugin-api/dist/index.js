@@ -12,6 +12,8 @@ var PLUGIN_PERMISSIONS = [
   "templates:read",
   "templates:write",
   "network",
+  "network:public",
+  "ai:generate",
   "storage",
   "secrets",
   "schedules",
@@ -204,6 +206,8 @@ var parseExtensionManifest = (value) => {
     const unsupported = permissions.find((permission) => !allowedPermissions.has(permission));
     if (unsupported)
       throw new Error(`Unsupported plugin permission: ${unsupported}`);
+    if (permissions.includes("network:public") && !permissions.includes("network"))
+      throw new Error("Public network transport also requires the network permission.");
     const networkHosts = value.networkHosts === undefined ? undefined : Array.isArray(value.networkHosts) ? value.networkHosts.map(String) : (() => {
       throw new Error("networkHosts must be an array.");
     })();

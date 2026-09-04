@@ -17,28 +17,9 @@ export const compressImageForUpload = async (file: File): Promise<ImageCompressi
   }
 
   try {
-    const image = await loadImage(file);
-    const width = image.naturalWidth;
-    const height = image.naturalHeight;
-
-    if (width <= 0 || height <= 0) {
-      return unchanged(file);
-    }
-
-    const scale = Math.min(1, MAX_COMPRESSED_IMAGE_EDGE / Math.max(width, height));
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.max(1, Math.round(width * scale));
-    canvas.height = Math.max(1, Math.round(height * scale));
-
-    const context = canvas.getContext("2d", { alpha: true });
-
-    if (!context) {
-      return unchanged(file);
-    }
-
-    context.drawImage(image, 0, 0, canvas.width, canvas.height);
-
-    const blob = await canvasToBlob(canvas, COMPRESSED_IMAGE_TYPE, IMAGE_COMPRESSION_QUALITY);
+    // Decoding, resizing and WebP encoding must not compete with the editor's
+    // painting/input work. Older browsers retain the original canvas fallback.
+    const blob = await compressInWorker(file).catch(() => compressOnCanvas(file));
 
     if (!blob || blob.type !== COMPRESSED_IMAGE_TYPE || blob.size >= file.size) {
       return unchanged(file);
@@ -55,6 +36,47 @@ export const compressImageForUpload = async (file: File): Promise<ImageCompressi
     };
   } catch {
     return unchanged(file);
+  }
+};
+
+const compressInWorker = (file: File): Promise<Blob | null> => new Promise((resolve, reject) => {
+  const worker = new Worker(new URL("./image-compression.worker.ts", import.meta.url), { type: "module" });
+  const finish = (blob: Blob | null, error?: Error) => {
+    clearTimeout(timeout);
+    worker.terminate();
+    if (error) reject(error);
+    else resolve(blob);
+  };
+  const timeout = setTimeout(() => finish(null, new Error("Image compression timed out.")), 15_000);
+  worker.onmessage = (event: MessageEvent<{ blob: Blob | null; error?: string }>) => {
+    finish(event.data.blob, event.data.error ? new Error(event.data.error) : undefined);
+  };
+  worker.onerror = () => finish(null, new Error("Image compression worker failed."));
+  worker.onmessageerror = () => finish(null, new Error("Image compression response could not be read."));
+  try {
+    worker.postMessage({ file, maxEdge: MAX_COMPRESSED_IMAGE_EDGE, type: COMPRESSED_IMAGE_TYPE, quality: IMAGE_COMPRESSION_QUALITY });
+  } catch (error) {
+    finish(null, error instanceof Error ? error : new Error(String(error)));
+  }
+});
+
+const compressOnCanvas = async (file: File) => {
+  const image = await loadImage(file);
+  const width = image.naturalWidth;
+  const height = image.naturalHeight;
+  if (width <= 0 || height <= 0) return null;
+
+  const scale = Math.min(1, MAX_COMPRESSED_IMAGE_EDGE / Math.max(width, height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(width * scale));
+  canvas.height = Math.max(1, Math.round(height * scale));
+  try {
+    const context = canvas.getContext("2d", { alpha: true });
+    if (!context) return null;
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    return await canvasToBlob(canvas, COMPRESSED_IMAGE_TYPE, IMAGE_COMPRESSION_QUALITY);
+  } finally {
+    canvas.width = canvas.height = 0;
   }
 };
 

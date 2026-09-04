@@ -60,6 +60,11 @@ import { EditorOutline } from "./EditorOutline";
 import { EditorTagPicker } from "./EditorTagPicker";
 import { useAiBubbleMenu } from "./editor/useAiBubbleMenu";
 import {
+  createEditorInstanceMemoIdentity,
+  reconcileEditorInstanceMemoIdentity,
+  remapEditorInstanceMemoIdentity,
+} from "./editor/editor-instance-identity";
+import {
   createMarkdownModeSnapshot,
   isMarkdownSourceUnchanged,
   resolveMarkdownModeContent,
@@ -71,6 +76,7 @@ import {
   createImageUploadPlaceholder,
   removeImageUploadPlaceholder,
   waitForImageSourceReady,
+  updateImageUploadPlaceholder,
 } from "./editor/image-upload-placeholder";
 import {
   clampResourceInsertionTarget,
@@ -78,6 +84,7 @@ import {
   getResourceInsertionTarget,
   shouldSelectInsertedResources,
 } from "@/lib/resource-insertion-target";
+import { insertUploadedResources } from "@/lib/resource-insertion";
 import {
   createSlashCommandExtension,
   type SlashCommandActions,
@@ -106,12 +113,11 @@ import { ShareNoteImageDialog, type ShareNoteImageSource } from "./dialogs/Share
 import { AiAssistantDialog, type AiAssistantAnchor } from "./dialogs/AiAssistantDialog";
 import { api } from "@/lib/api";
 import { isDesktopResourceRuntime, stageDesktopResource, toDesktopResourceUrl } from "@/lib/desktop-resources";
-import { cn, formatDateTime, parseTagsText } from "@/lib/utils";
+import { cn, formatDateTime, formatLocalizedDateTime, parseTagsText } from "@/lib/utils";
 import { EDITOR_CONTENT_MAX_WIDTH, EDITOR_CONTENT_MAX_WIDTH_COLLAPSED } from "@/lib/workspace-ui";
 import {
   countMemoCharacters,
   docToMarkdown,
-  groupConsecutiveImagesIntoGalleries,
   MEMO_CONTENT_STYLE,
   markdownToDoc,
   MergeDivider,
@@ -152,7 +158,9 @@ import {
   getEditableMemoTitle,
   getNotebookMoveOptions,
   readDesktopReadingProtectionPreference,
+  readEditorOutlineCollapsedPreference,
   writeDesktopReadingProtectionPreference,
+  writeEditorOutlineCollapsedPreference,
   type EditorContentAlignment,
   type MemoDocumentActionRequest,
   type ShortcutSettings,
@@ -193,7 +201,7 @@ import {
   isAttachmentLinkHref,
 } from "@/lib/editor-external-link";
 import { insertAiDraftAtTextCursor } from "@/lib/ai-draft-insertion";
-import { createFileBatchQueue, processFilesSequentially } from "@/lib/file-batch";
+import { createFileBatchQueue, processFileUploadBatch } from "@/lib/file-batch";
 import { MEMO_ID_REMAPPED_EVENT, MEMO_SYNC_ACKNOWLEDGED_EVENT } from "@/lib/sync-events";
 import { useStandaloneMobileEditor } from "@/hooks/useStandaloneMobileEditor";
 import { statusSettleMotion } from "@/lib/motion";
@@ -469,6 +477,7 @@ type EditorPaneProps = {
   pluginHost: EdgeEverPluginHost;
   pluginNavigationRequest?: { id: number; noteId: string; search: string } | null;
   onOpenExecutionCenter: () => void;
+  companionDiscoveryHub?: ReactNode;
 };
 
 type RichEditorPaneProps = EditorPaneProps & {
@@ -544,6 +553,7 @@ const RichEditorPane = ({
   pluginHost,
   pluginNavigationRequest,
   onOpenExecutionCenter,
+  companionDiscoveryHub,
   onRequestMobileNativeEdit,
 }: RichEditorPaneProps) => {
   const { t, i18n } = useTranslation();
@@ -632,7 +642,7 @@ const RichEditorPane = ({
   const [markdownSource, setMarkdownSource] = useState("");
   const [isMarkdownMode, setIsMarkdownMode] = useState(false);
   const [mobileToolbarOpen, setMobileToolbarOpen] = useState(false);
-  const [editorOutlineCollapsed, setEditorOutlineCollapsed] = useState(false);
+  const [editorOutlineCollapsed, setEditorOutlineCollapsed] = useState(readEditorOutlineCollapsedPreference);
   const [wechatCopyState, setWechatCopyState] = useState<"idle" | "copying" | "copied" | "error">("idle");
   const [memoIdCopyNotice, setMemoIdCopyNotice] = useState<{ status: "copied" | "error"; id: string } | null>(null);
   const handledSaveAndSyncTokenRef = useRef(saveAndSyncToken);
@@ -703,6 +713,19 @@ const RichEditorPane = ({
       const nextProtectedMode = !protectedMode;
       writeDesktopReadingProtectionPreference(nextProtectedMode);
       return nextProtectedMode;
+    });
+  }, []);
+
+  const handleEditorOutlineCollapsedChange = useCallback((collapsed: boolean) => {
+    setEditorOutlineCollapsed(collapsed);
+    writeEditorOutlineCollapsedPreference(collapsed);
+  }, []);
+
+  const toggleEditorOutline = useCallback(() => {
+    setEditorOutlineCollapsed((collapsed) => {
+      const nextCollapsed = !collapsed;
+      writeEditorOutlineCollapsedPreference(nextCollapsed);
+      return nextCollapsed;
     });
   }, []);
 
@@ -835,6 +858,14 @@ const RichEditorPane = ({
   }
   const hydratingRef = useRef(false);
   const hydratedMemoIdRef = useRef<string | null>(null);
+  const editorInstanceMemoIdentityRef = useRef(
+    createEditorInstanceMemoIdentity(memo?.id ?? null),
+  );
+  editorInstanceMemoIdentityRef.current = reconcileEditorInstanceMemoIdentity(
+    editorInstanceMemoIdentityRef.current,
+    memo?.id ?? null,
+  );
+  const editorInstanceMemoKey = editorInstanceMemoIdentityRef.current.instanceKey;
   /** Last content source applied to the editor — used to skip redundant setContent. */
   const appliedEditorSourceKeyRef = useRef<string | null>(null);
   const editingMemoIdRef = useRef<string | null>(memo?.id ?? null);
@@ -867,6 +898,10 @@ const RichEditorPane = ({
       if (!nextMemoId || nextMemoId === currentMemo.id) return;
 
       const previousMemoId = currentMemo.id;
+      editorInstanceMemoIdentityRef.current = remapEditorInstanceMemoIdentity(
+        editorInstanceMemoIdentityRef.current,
+        mappings,
+      );
       memoRef.current = { ...currentMemo, id: nextMemoId };
       if (editingMemoIdRef.current === previousMemoId) editingMemoIdRef.current = nextMemoId;
       if (hydratedMemoIdRef.current === previousMemoId) {
@@ -987,12 +1022,13 @@ const RichEditorPane = ({
     const targetMemoId = currentMemo.id;
     const interactionVersionAtRequest = editorCanvasInteractionVersionRef.current;
     const placeholderPosition = currentEditor.state.selection.from;
-    const imagePlaceholders = files
+    const imagePlaceholderByFile = new Map(files
       .filter((file) => SUPPORTED_PASTE_IMAGE_TYPES.has(file.type))
-      .map((file) => createImageUploadPlaceholder(
+      .map((file) => [file, createImageUploadPlaceholder(
         file,
         t("editor.uploadState.imagePreparing"),
-      ));
+      )] as const));
+    const imagePlaceholders = [...imagePlaceholderByFile.values()];
     imagePlaceholders.forEach((placeholder) => {
       addImageUploadPlaceholder(currentEditor, placeholder, placeholderPosition);
     });
@@ -1011,14 +1047,25 @@ const RichEditorPane = ({
       // Rapid consecutive pastes otherwise race with the same stale cursor.
       const insertionTarget = getResourceInsertionTarget(insertionEditor.state.selection);
       setImageUploadState("uploading");
+      const imageReadiness: Promise<void>[] = [];
 
-      const results = await processFilesSequentially(files, async (file) => {
+      const results = await processFileUploadBatch(files, async (file) => {
         const isImage = SUPPORTED_PASTE_IMAGE_TYPES.has(file.type);
         const shouldCompress = isImage && imageCompressionEnabledRef.current;
+        const placeholder = imagePlaceholderByFile.get(file);
+        if (placeholder) updateImageUploadPlaceholder(editorRef.current, placeholder,
+          t(shouldCompress ? "editor.uploadState.imageCompressing" : "editor.uploadState.uploading"));
         setImageUploadState(shouldCompress ? "compressing" : "uploading");
-        const uploadFile = shouldCompress ? (await compressImageForUpload(file)).file : file;
-
+        const preparedFile = shouldCompress ? (await compressImageForUpload(file)).file : file;
+        if (placeholder) updateImageUploadPlaceholder(editorRef.current, placeholder,
+          t("editor.uploadState.waitingToUpload"));
+        return preparedFile;
+      }, async (uploadFile, file) => {
+        const isImage = SUPPORTED_PASTE_IMAGE_TYPES.has(file.type);
+        const placeholder = imagePlaceholderByFile.get(file);
         setImageUploadState("uploading");
+        if (placeholder) updateImageUploadPlaceholder(editorRef.current, placeholder,
+          t("editor.uploadState.uploading"));
         let resource: {
           kind: "image" | "attachment";
           filename: string | null;
@@ -1041,6 +1088,9 @@ const RichEditorPane = ({
             url: `edgeever-staged://${staged.id}`,
           };
         }
+        if (resource.kind === "image") {
+          imageReadiness.push(waitForImageSourceReady(resource.url));
+        }
         return resource;
       });
 
@@ -1048,10 +1098,7 @@ const RichEditorPane = ({
       if (successfulResults.length > 0) {
         void queryClient.invalidateQueries({ queryKey: ["resources"] });
       }
-
-      await Promise.all(successfulResults.map(({ value: resource }) =>
-        resource.kind === "image" ? waitForImageSourceReady(resource.url) : Promise.resolve()
-      ));
+      await Promise.all(imageReadiness);
 
       const activeEditor = editorRef.current;
       if (memoRef.current?.id !== targetMemoId || !isEditorReady(activeEditor)) {
@@ -1117,11 +1164,11 @@ const RichEditorPane = ({
           insertion.focus();
         }
         insertion
-          .insertContentAt(
+          .command(insertUploadedResources(
             safeInsertionTarget,
-            groupConsecutiveImagesIntoGalleries(content),
-            { updateSelection },
-          )
+            content,
+            updateSelection,
+          ))
           .run();
         if (!updateSelection) {
           // ProseMirror can still map a cursor at the document boundary to a
@@ -1321,10 +1368,10 @@ const RichEditorPane = ({
       },
     },
   }, [
-    // A ProseMirror undo history belongs to exactly one memo. Reusing the same
-    // Editor instance across memo switches lets Ctrl/Cmd+Z undo the hydration
-    // transaction and restore another memo's entire document.
-    memo?.id,
+    // A ProseMirror undo history belongs to exactly one logical memo. A newly
+    // created memo keeps the same instance while its local id is remapped to a
+    // durable id; an actual memo switch still receives a fresh undo history.
+    editorInstanceMemoKey,
   ]);
 
   useEffect(() => {
@@ -3089,8 +3136,8 @@ const RichEditorPane = ({
       return;
     }
 
-    setEditorOutlineCollapsed((current) => !current);
-  }, [editorShortcutBlocked, isMobileViewport, outlineToggleToken, useMarkdownSourceEditor, useMobilePlainTextEditor]);
+    toggleEditorOutline();
+  }, [editorShortcutBlocked, isMobileViewport, outlineToggleToken, toggleEditorOutline, useMarkdownSourceEditor, useMobilePlainTextEditor]);
 
   useEffect(() => {
     if (handledSaveAndSyncTokenRef.current === saveAndSyncToken || saveMutationPending) {
@@ -3578,7 +3625,9 @@ const RichEditorPane = ({
         ? "bg-emerald-50 text-emerald-700"
         : saveStateClassName;
 
-  const updatedLabel = formatDateTime(memo.updatedAt);
+  const memoDateLocale = i18n.resolvedLanguage ?? i18n.language;
+  const createdLabel = formatLocalizedDateTime(memo.createdAt, memoDateLocale);
+  const updatedLabel = formatLocalizedDateTime(memo.updatedAt, memoDateLocale);
   const currentNotebookLabel = notebookOptions.find((notebook) => notebook.id === memo.notebookId)?.name ?? t("editor.notebookFallback");
   const currentMarkdownForAi = getCurrentMarkdownForAi();
 
@@ -3819,9 +3868,6 @@ const RichEditorPane = ({
                 </Button>
               </IconTooltip>
             </div>
-            <span className="hidden truncate text-xs text-slate-400 sm:inline">
-              {t("editor.updatedAt", { time: updatedLabel })}
-            </span>
           </div>
 
           <div className="flex shrink-0 items-center gap-1">
@@ -3990,6 +4036,7 @@ const RichEditorPane = ({
                 {deployedUpdateUnseen ? <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-emerald-500 ring-2 ring-white" /> : null}
               </Button>
             </IconTooltip>
+            {companionDiscoveryHub}
             <ExecutionCenterButton className="h-8 w-8" onClick={onOpenExecutionCenter} />
             <ThemeToggle />
             {!effectiveReadOnly && (
@@ -4204,6 +4251,9 @@ const RichEditorPane = ({
                 markDirty();
               }}
             />
+            <span className="w-full px-1.5 text-xs leading-5 text-slate-400">
+              {t("editor.timestamps", { createdTime: createdLabel, updatedTime: updatedLabel })}
+            </span>
             {!readOnly && (
               <IconTooltip label={`${t(desktopReadingProtection ? "editor.disableReadingProtection" : "editor.enableReadingProtection")} (${formatShortcutBinding(shortcutSettings.toggleReadingProtection)})`}>
                 <Button
@@ -4295,6 +4345,7 @@ const RichEditorPane = ({
                 "--editor-theme-light-heading": customEditorTheme.light.heading,
                 "--editor-theme-light-accent": customEditorTheme.light.accent,
                 "--editor-theme-light-soft": customEditorTheme.light.soft,
+                "--editor-theme-light-code-bg": customEditorTheme.light.codeBackground,
                 "--editor-theme-light-border": customEditorTheme.light.border,
                 "--editor-theme-dark-bg": customEditorTheme.dark.background,
                 "--editor-theme-dark-text": customEditorTheme.dark.text,
@@ -4302,6 +4353,7 @@ const RichEditorPane = ({
                 "--editor-theme-dark-heading": customEditorTheme.dark.heading,
                 "--editor-theme-dark-accent": customEditorTheme.dark.accent,
                 "--editor-theme-dark-soft": customEditorTheme.dark.soft,
+                "--editor-theme-dark-code-bg": customEditorTheme.dark.codeBackground,
                 "--editor-theme-dark-border": customEditorTheme.dark.border,
               }
             : {}),
@@ -4455,7 +4507,7 @@ const RichEditorPane = ({
               scrollContainer={editorScrollContainer}
               collapsed={editorOutlineCollapsed}
               shortcutLabel={formatShortcutBinding(shortcutSettings.toggleOutline)}
-              onCollapsedChange={setEditorOutlineCollapsed}
+              onCollapsedChange={handleEditorOutlineCollapsedChange}
             />
           )}
         </div>

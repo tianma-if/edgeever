@@ -1,4 +1,13 @@
+import { createPluginCapabilities } from './plugin-capabilities';
 import type {
+  CompanionMemory,
+  CompanionDiscoverySettings,
+  CompanionDiscoverySettingsInput,
+  CompanionDiscoveryItem,
+  CompanionAction,
+  CompanionTurn,
+  CompanionTurnInput,
+  CompanionEvent,
   ApiToken,
   AuthSession,
   LoginInput,
@@ -39,7 +48,33 @@ import type {
   SyncBootstrapResponse,
   SyncChange,
   SyncChangesResponse,
+  DeploymentMetadata,
+  PluginPublicFetchRequest,
+  PluginPublicFetchResponse,
 } from "@edgeever/shared";
+
+const MAX_SINGLE_REQUEST_UPLOAD_BYTES = 5 * 1024 * 1024;
+
+async function consumeEventStream<T>(body: ReadableStream<Uint8Array>, onEvent: (event: T) => void) {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  const emit = (frame: string) => {
+    const data = frame.split("\n").find(line => line.startsWith("data: "))?.slice(6);
+    if (data) onEvent(JSON.parse(data) as T);
+  };
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      buffer += decoder.decode(value, { stream: !done });
+      const frames = buffer.split("\n\n");
+      buffer = frames.pop() ?? "";
+      for (const frame of frames) emit(frame);
+      if (done) break;
+    }
+    if (buffer) emit(buffer);
+  } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
+}
 
 export type EdgeEverClientRequestContext = {
   path: string;
@@ -69,6 +104,7 @@ export type InstanceHealth = {
   containerImageSource?: "official-ghcr" | "official-cn-mirror" | "custom" | "unknown" | string | null;
   authMode?: string | null;
   build?: string | null;
+  deployment?: DeploymentMetadata | null;
   migration?: string | null;
   storage?: {
     database?: "d1" | "sqlite" | string | null;
@@ -353,6 +389,30 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
     return response.json() as Promise<T>;
   };
 
+  const requestPluginPublic = async (input: PluginPublicFetchRequest, signal?: AbortSignal): Promise<PluginPublicFetchResponse> => {
+    const { context, response } = await send("/api/v1/plugins/network/fetch", {
+      method: "POST",
+      body: JSON.stringify(input),
+      signal,
+    });
+    const upstreamStatus = response.headers.get("x-edgeever-upstream-status");
+    if (!response.ok || !upstreamStatus) await throwRequestError(context, response, "Public network request failed");
+    const status = Number(upstreamStatus);
+    if (!Number.isInteger(status) || status < 100 || status > 599) throw new Error("Invalid public network response status");
+    const headers: Record<string, string> = {};
+    for (const [key, value] of response.headers) {
+      const prefix = "x-edgeever-upstream-header-";
+      if (key.startsWith(prefix)) headers[key.slice(prefix.length)] = value;
+    }
+    return {
+      url: input.url,
+      status,
+      statusText: decodeURIComponent(response.headers.get("x-edgeever-upstream-status-text") ?? ""),
+      headers,
+      body: await response.arrayBuffer(),
+    };
+  };
+
   const requestResourceResponse = async (path: string, init?: RequestInit) => {
     const isAbsolute = isAbsoluteHttpUrl(path);
     const { context, response } = await send(path, init, {
@@ -531,6 +591,7 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
 
   return {
     getInstanceHealth: () => request<InstanceHealth>("/api/health"),
+    ...createPluginCapabilities(request, requestPluginPublic),
 
     getInstanceRelease: () => request<InstanceRelease>("/api/release"),
 
@@ -701,6 +762,39 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
         signal,
       }),
 
+    listCompanionMemories: () => request<{ memories: CompanionMemory[] }>("/api/v1/companion/memories"),
+    getCompanionDiscoverySettings: () => request<{ settings: CompanionDiscoverySettings }>("/api/v1/companion/discovery/settings"),
+    saveCompanionDiscoverySettings: (input: CompanionDiscoverySettingsInput) => request<{ settings: CompanionDiscoverySettings }>("/api/v1/companion/discovery/settings", { method: "PUT", body: JSON.stringify(input) }),
+    listCompanionDiscoveries: () => request<{ items: CompanionDiscoveryItem[] }>("/api/v1/companion/discovery"),
+    checkCompanionDiscoveries: (locale: string, signal?: AbortSignal) => request<{ items: CompanionDiscoveryItem[] }>(`/api/v1/companion/discovery/check?locale=${encodeURIComponent(locale)}`, { method: "POST", body: "{}", signal }),
+    acknowledgeCompanionDiscovery: (id: string, dismiss = false) => request<{ ok: true }>(`/api/v1/companion/discovery/${encodeURIComponent(id)}/${dismiss ? "dismiss" : "seen"}`, { method: "POST", body: "{}" }),
+    listCompanionActions: () => request<{ actions: CompanionAction[] }>("/api/v1/companion/actions"),
+    applyCompanionAction: (id: string) => request<{ action: CompanionAction }>(`/api/v1/companion/actions/${encodeURIComponent(id)}/apply`, { method: "POST", body: "{}" }),
+    dismissCompanionAction: (id: string) => request<{ action: CompanionAction }>(`/api/v1/companion/actions/${encodeURIComponent(id)}/dismiss`, { method: "POST", body: "{}" }),
+    saveCompanionMemory: (content: string, sourceTurnId?: string) => request<{ memory: CompanionMemory }>("/api/v1/companion/memories", {
+      method: "POST", body: JSON.stringify({ content, sourceTurnId }),
+    }),
+    updateCompanionMemory: (memory: CompanionMemory, content: string) => request<{ memory: CompanionMemory }>(`/api/v1/companion/memories/${encodeURIComponent(memory.id)}`, {
+      method: "PATCH", body: JSON.stringify({ content, version: memory.version }),
+    }),
+    forgetCompanionMemory: (memory: CompanionMemory) => request<{ ok: true }>(`/api/v1/companion/memories/${encodeURIComponent(memory.id)}?version=${memory.version}`, { method: "DELETE" }),
+    listCompanionTurns: () => request<{ turns: CompanionTurn[] }>("/api/v1/companion/turns"),
+    getCompanionTurn: (id: string) => request<{ turn: CompanionTurn }>(`/api/v1/companion/turns/${encodeURIComponent(id)}`),
+    cancelCompanionTurn: (id: string) => request<{ ok: true }>(`/api/v1/companion/turns/${encodeURIComponent(id)}/cancel`, { method: "POST", body: "{}" }),
+    clearCompanionHistory: () => request<{ ok: true }>("/api/v1/companion/history", { method: "DELETE" }),
+    exportCompanion: () => request<{ version: 1; exportedAt: string; memories: CompanionMemory[]; turns: CompanionTurn[]; actions: CompanionAction[] }>("/api/v1/companion/export"),
+    importCompanionMemories: (memories: { content: string }[]) => request<{ memories: CompanionMemory[] }>("/api/v1/companion/import-memories", {
+      method: "POST", body: JSON.stringify({ version: 1, memories }),
+    }),
+    streamCompanion: async (payload: CompanionTurnInput, options: { signal?: AbortSignal; onEvent: (event: CompanionEvent) => void }) => {
+      const { context, response } = await send("/api/v1/companion/turns", {
+        method: "POST", body: JSON.stringify(payload), signal: options.signal,
+      });
+      if (!response.ok) await throwRequestError(context, response);
+      if (!response.body) throw new ApiRequestError("Stream unavailable", 502, "companion_failed");
+      await consumeEventStream(response.body, options.onEvent);
+    },
+
     streamAiGeneration: async (
       payload: AiGenerateInput,
       streamOptions: { signal?: AbortSignal; onEvent: (event: AiStreamEvent) => void },
@@ -715,22 +809,7 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
         await throwRequestError(context, response);
       }
       if (!response.body) throw new ApiRequestError("Streaming response is unavailable", 502, "ai_stream_unavailable");
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-      while (true) {
-        const { done, value } = await reader.read();
-        buffer += decoder.decode(value, { stream: !done });
-        const frames = buffer.split("\n\n");
-        buffer = frames.pop() ?? "";
-        for (const frame of frames) {
-          const data = frame.split("\n").find((line) => line.startsWith("data: "))?.slice(6);
-          if (data) streamOptions.onEvent(JSON.parse(data) as AiStreamEvent);
-        }
-        if (done) break;
-      }
-      const trailingData = buffer.split("\n").find((line) => line.startsWith("data: "))?.slice(6);
-      if (trailingData) streamOptions.onEvent(JSON.parse(trailingData) as AiStreamEvent);
+      await consumeEventStream(response.body, streamOptions.onEvent);
     },
 
     listUsers: () => request<ListUsersResponse>("/api/v1/users"),
@@ -1158,12 +1237,19 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
     ),
 
     uploadMemoResource: (memoId: string, file: Blob | FormData) => {
-      if (!(file instanceof FormData)) {
+      // Small files do not benefit from an upload session's three round trips.
+      // Keep large attachments on the bounded-memory, resumable path.
+      if (!(file instanceof FormData) && file.size > MAX_SINGLE_REQUEST_UPLOAD_BYTES) {
         return uploadMemoResourceMultipart(memoId, file);
       }
       const form = file instanceof FormData ? file : new FormData();
-      if (!(file instanceof FormData)) form.append("file", file);
-      return request<ResourceResponse>(`/api/v1/memos/${memoId}/resources`, {
+      if (!(file instanceof FormData)) {
+        const filename = "name" in file && typeof file.name === "string" && file.name.trim()
+          ? file.name
+          : "attachment";
+        form.append("file", file, filename);
+      }
+      return request<ResourceResponse>(`/api/v1/memos/${encodeURIComponent(memoId)}/resources`, {
         method: "POST",
         body: form,
       });

@@ -1,6 +1,7 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { Clock3, LoaderCircle, PanelRightOpen, Play, Puzzle, Settings2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -13,6 +14,7 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { PluginPanelDialog } from "@/components/plugins/PluginPanelDialog";
 import { cn } from "@/lib/utils";
+import { getPluginDetailPath, getPluginToolbarGroups } from "@/lib/plugins/plugin-navigation";
 import type {
   EdgeEverPluginHost,
   RegisteredPluginAction,
@@ -36,15 +38,8 @@ export const PluginToolbarMenu = ({ host, onManage, align = "end", className }: 
   const activePanelPluginId = activePanel?.pluginId ?? null;
   const activePanelId = activePanel?.id ?? null;
 
-  const groups = snapshot.extensions.flatMap((extension) => {
-    if (!extension.enabled || extension.manifest.type !== "plugin") return [];
-    const actions: RegisteredPluginAction[] = [
-      ...snapshot.commands.filter((command) => command.pluginId === extension.manifest.id).map((command) => ({ ...command, type: "command" as const })),
-      ...snapshot.panels.filter((panel) => panel.pluginId === extension.manifest.id).map((panel) => ({ ...panel, type: "panel" as const })),
-    ];
-    return actions.length ? [{ pluginId: extension.manifest.id, name: extension.manifest.name, actions }] : [];
-  });
-  const hasActions = groups.length > 0;
+  const groups = getPluginToolbarGroups(snapshot);
+  const hasActions = groups.some((group) => group.actions.length > 0);
   const pluginNames = new Map(snapshot.extensions.map((extension) => [extension.manifest.id, extension.manifest.name]));
   const activePanelRegistered = Boolean(activePanelPluginId && activePanelId && snapshot.panels.some(
     (panel) => panel.pluginId === activePanelPluginId && panel.id === activePanelId
@@ -137,11 +132,19 @@ export const PluginToolbarMenu = ({ host, onManage, align = "end", className }: 
             </>
           ) : null}
 
-          {hasActions ? groups.map((group, index) => (
+          {groups.length > 0 ? groups.map((group, index) => (
             <div key={group.pluginId}>
               {index > 0 ? <DropdownMenuSeparator /> : null}
               <DropdownMenuLabel className="truncate text-xs text-slate-500">{group.name}</DropdownMenuLabel>
               {group.actions.map((action) => renderAction(action, group.pluginId))}
+              {group.hasSettings ? (
+                <DropdownMenuItem asChild className="gap-2" onSelect={() => setOpen(false)}>
+                  <Link to={getPluginDetailPath(group.pluginId, "settings")} aria-label={t("plugins.settings.open", { name: group.name })}>
+                    <Settings2 className="h-4 w-4 text-slate-500" />
+                    {t("plugins.settings.title")}
+                  </Link>
+                </DropdownMenuItem>
+              ) : null}
             </div>
           )) : (
             <div className="px-2 py-5 text-center text-xs leading-5 text-slate-500">{t("plugins.toolbar.empty")}</div>

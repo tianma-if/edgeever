@@ -3,6 +3,7 @@ import {
   DEFAULT_SHORTCUT_SETTINGS,
   DESKTOP_FOCUS_MODE_STORAGE_KEY,
   DESKTOP_READING_PROTECTION_STORAGE_KEY,
+  EDITOR_OUTLINE_COLLAPSED_STORAGE_KEY,
   EDITOR_CONTENT_ALIGNMENT_STORAGE_KEY,
   NOTEBOOK_SORT_STORAGE_KEY,
   SHORTCUT_SETTINGS_STORAGE_KEY,
@@ -13,11 +14,13 @@ import {
   readNotebookSortPreference,
   readDesktopFocusModePreference,
   readDesktopReadingProtectionPreference,
+  readEditorOutlineCollapsedPreference,
   readShortcutSettingsPreference,
   writeEditorContentAlignmentPreference,
   writeNotebookSortPreference,
   writeDesktopFocusModePreference,
   writeDesktopReadingProtectionPreference,
+  writeEditorOutlineCollapsedPreference,
 } from "./app-helpers.ts";
 
 const originalWindow = globalThis.window;
@@ -127,6 +130,45 @@ describe("desktop reading protection preference", () => {
 
     expect(readDesktopReadingProtectionPreference()).toBe(false);
     expect(() => writeDesktopReadingProtectionPreference(true)).not.toThrow();
+  });
+});
+
+describe("editor outline preference", () => {
+  test("defaults to collapsed and only expands for an explicit false value", () => {
+    const values = installLocalStorage();
+    expect(readEditorOutlineCollapsedPreference()).toBe(true);
+
+    values.set(EDITOR_OUTLINE_COLLAPSED_STORAGE_KEY, "true");
+    expect(readEditorOutlineCollapsedPreference()).toBe(true);
+
+    values.set(EDITOR_OUTLINE_COLLAPSED_STORAGE_KEY, "false");
+    expect(readEditorOutlineCollapsedPreference()).toBe(false);
+  });
+
+  test("persists collapsed and expanded states", () => {
+    const values = installLocalStorage();
+
+    writeEditorOutlineCollapsedPreference(false);
+    expect(values.get(EDITOR_OUTLINE_COLLAPSED_STORAGE_KEY)).toBe("false");
+
+    writeEditorOutlineCollapsedPreference(true);
+    expect(values.get(EDITOR_OUTLINE_COLLAPSED_STORAGE_KEY)).toBe("true");
+  });
+
+  test("falls back to collapsed when local storage is unavailable", () => {
+    globalThis.window = {
+      localStorage: {
+        getItem: () => {
+          throw new Error("blocked");
+        },
+        setItem: () => {
+          throw new Error("blocked");
+        },
+      },
+    };
+
+    expect(readEditorOutlineCollapsedPreference()).toBe(true);
+    expect(() => writeEditorOutlineCollapsedPreference(false)).not.toThrow();
   });
 });
 

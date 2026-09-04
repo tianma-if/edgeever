@@ -82,8 +82,11 @@ export const resolveAiCredentialEncryptionKeys = (environment: AiCredentialEnvir
   resolveCredentialEncryptionKey(environment.EDGE_EVER_STORAGE_ENCRYPTION_KEY),
 ]);
 
-export const resolvePrimaryAiCredentialEncryptionKey = (environment: AiCredentialEnvironment) =>
-  resolveAiCredentialEncryptionKeys(environment)[0];
+export const resolvePrimaryAiCredentialEncryptionKey = (environment: AiCredentialEnvironment) => [
+  deriveAiCredentialKey(resolveCredentialEncryptionKey(environment.EDGE_EVER_CREDENTIALS_ENCRYPTION_KEY)),
+  deriveAiCredentialKey(resolveCredentialEncryptionKey(environment.EDGE_EVER_AUTH_PASSWORD)),
+  deriveAiCredentialKey(resolveCredentialEncryptionKey(environment.EDGE_EVER_AUTH_PASSWORD_HASH)),
+].find(Boolean);
 
 export const decryptAiCredential = async (
   encryptedValue: string,

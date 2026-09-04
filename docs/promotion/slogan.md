@@ -18,12 +18,12 @@
 
 ## 🐙 GitHub "About" 短描述 (Description)
 
-### 🇨🇳 🇺🇸 中英双语（推荐）
-> **Serverless, 100% free, and open-source Evernote alternative on Cloudflare with native MCP. | 无需服务器、0费用、原生支持 AI Agent 的开源自托管『印象笔记』**
-* *字符数*：192 字符（显示完美，不被截断）
+### 🇺🇸 纯英文（当前采用）
+> **Open-source, AI-native knowledge base & Evernote alternative with native MCP. Zero-cost on Cloudflare or Docker.**
+* *字符数*：111 字符（精炼利落，兼顾知识库、经典笔记替代、原生 MCP 与自托管部署）
 
-### 🇺🇸 纯英文备选（最简版）
-> **Serverless, 100% free, and open-source Evernote alternative self-hosted on Cloudflare. AI-native with Remote MCP support.**
+### 🇨🇳 🇺🇸 中英双语备选
+> **Open-source, AI-native knowledge base & Evernote alternative with native MCP. Zero-cost on Cloudflare or Docker. | 开源、原生支持 AI、0费用自托管的个人知识库与「印象笔记」替代品**
 
 ---
 

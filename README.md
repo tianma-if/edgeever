@@ -5,9 +5,9 @@
 
 [简体中文](README.zh-CN.md) | English
 
-> **EdgeEver: An open-source, AI-native, and portable self-hosted Evernote alternative.**
+> **EdgeEver: An open-source, AI-native knowledge base & portable Evernote alternative.**
 
-EdgeEver is a modern, open-source notes workspace built for effortless knowledge management. It revives the beloved Evernote-style three-pane layout while offering an open data architecture and seamless AI Agent integration for complete ownership and smart productivity.
+EdgeEver is a modern, open-source notes and knowledge base workspace. It revives the beloved Evernote-style three-pane layout while offering an open data architecture and seamless AI Agent integration for complete ownership and smart productivity.
 
 > 💡 **Serverless & 100% Free Forever**
 > EdgeEver can run within Cloudflare's free quotas with no server purchase or VPS maintenance. Users who prefer a VPS, NAS, or home server can deploy the same application with Docker.
@@ -183,6 +183,8 @@ EdgeEver supports device-local plugins and code-free themes on Web and desktop, 
 bun install
 bun run dev
 ```
+
+Local development signs in automatically; fresh databases use `owner` / `edgeever-local-dev`. Log out to test the login screen.
 
 ## Project Structure
 

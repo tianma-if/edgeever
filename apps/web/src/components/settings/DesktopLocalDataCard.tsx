@@ -4,6 +4,13 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
+  SETTINGS_CARD_DESCRIPTION_CLASSNAME,
+  SETTINGS_CARD_HEADER_CLASSNAME,
+  SETTINGS_CARD_ICON_CLASSNAME,
+  SETTINGS_CARD_TITLE_CLASSNAME,
+} from "./settings-ui";
+import { cn } from "@/lib/utils";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -46,12 +53,12 @@ export const DesktopLocalDataCard = () => {
   return (
     <>
       <Card className="w-full min-w-0 overflow-hidden border-rose-100 bg-rose-50/30 shadow-none">
-        <CardHeader className="p-4 pb-3 sm:p-5 sm:pb-3">
-          <CardTitle className="flex items-center gap-2 text-sm text-rose-800">
-            <AlertTriangle className="h-4 w-4" />
+        <CardHeader className={SETTINGS_CARD_HEADER_CLASSNAME}>
+          <CardTitle className={cn(SETTINGS_CARD_TITLE_CLASSNAME, "text-rose-800")}>
+            <AlertTriangle className={cn(SETTINGS_CARD_ICON_CLASSNAME, "text-rose-700")} />
             {t("localDataReset.title")}
           </CardTitle>
-          <CardDescription className="text-xs leading-5">{t("localDataReset.description")}</CardDescription>
+          <CardDescription className={SETTINGS_CARD_DESCRIPTION_CLASSNAME}>{t("localDataReset.description")}</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 p-4 pt-0 sm:px-5 sm:pb-5">
           {errorCode ? (

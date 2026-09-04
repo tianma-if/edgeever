@@ -28,7 +28,7 @@ export const siteCopy = {
   "zh-CN": {
     layout: {
       defaultDescription:
-        "EdgeEver 是开源、原生支持 AI 的自托管笔记工作区。保留经典印象笔记三栏体验，覆盖 macOS、Windows、iOS、Android 与浏览器剪藏，支持在 Cloudflare 免费额度内运行或使用 Docker 一键自托管。",
+        "EdgeEver 是开源、原生支持 AI 的自托管笔记与知识库工作区。保留经典印象笔记三栏体验，覆盖 macOS、Windows、iOS、Android 与浏览器剪藏，支持在 Cloudflare 免费额度内运行或使用 Docker 一键自托管。",
       defaultTitle: `EdgeEver - ${siteTaglines["zh-CN"]}`,
       imageAlt: "EdgeEver 笔记应用截图",
       ogLocale: "zh_CN",
@@ -292,7 +292,7 @@ export const siteCopy = {
   "en-US": {
     layout: {
       defaultDescription:
-        "EdgeEver is an open-source, AI-native, self-hosted Evernote alternative. Enjoy a classic three-pane workspace across macOS, Windows, iOS, Android, and Web Clipper, running within Cloudflare's free tier or on Docker.",
+        "EdgeEver is an open-source, AI-native knowledge base and Evernote alternative. Enjoy a classic three-pane workspace across macOS, Windows, iOS, Android, and Web Clipper, running within Cloudflare's free tier or on Docker.",
       defaultTitle: "Open-Source, Self-Hosted Evernote Alternative | EdgeEver",
       imageAlt: "EdgeEver notes app screenshot",
       ogLocale: "en_US",

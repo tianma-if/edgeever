@@ -23,6 +23,7 @@
   --editor-theme-heading: var(--editor-theme-light-heading);
   --editor-theme-accent: var(--editor-theme-light-accent);
   --editor-theme-soft: var(--editor-theme-light-soft);
+  --editor-theme-code-bg: var(--editor-theme-light-code-bg);
   --editor-theme-border: var(--editor-theme-light-border);
 }
 
@@ -33,6 +34,7 @@
   --editor-theme-heading: var(--editor-theme-dark-heading);
   --editor-theme-accent: var(--editor-theme-dark-accent);
   --editor-theme-soft: var(--editor-theme-dark-soft);
+  --editor-theme-code-bg: var(--editor-theme-dark-code-bg);
   --editor-theme-border: var(--editor-theme-dark-border);
 }
 .edgeever-editor[data-editor-theme]:not([data-editor-theme="default"]) .ProseMirror {

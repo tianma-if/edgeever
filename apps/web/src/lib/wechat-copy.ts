@@ -60,13 +60,14 @@ const THEME_BLOCK_STYLES: Record<string, { block: string; label: string }> = {
 const applyInlineStyles = (
   root: HTMLElement,
   editorTheme?: string,
-  customColors?: { bg: string; text: string; accent: string; soft: string; border: string } | null,
+  customColors?: { bg: string; text: string; accent: string; soft: string; codeBackground: string; border: string } | null,
   customCss?: string
 ) => {
   const textColor = customColors ? customColors.text : "#333";
   const bgColors = customColors ? customColors.bg : "#ffffff";
   const accent = customColors ? customColors.accent : "#059669";
   const soft = customColors ? customColors.soft : "#f0fdfa";
+  const codeBackground = customColors ? customColors.codeBackground : "#f6f8fa";
   const border = customColors ? customColors.border : "#e5e7eb";
 
   const customStyles = customCss ? parseCustomCssToStyles(customCss) : null;
@@ -91,9 +92,9 @@ const applyInlineStyles = (
       } else if (tagName === "a") {
         style = `color: ${accent}; text-decoration: underline;`;
       } else if (tagName === "code") {
-        style = `padding: 0.15em 0.35em; border-radius: 3px; background: ${soft}; color: ${textColor}; font-family: Menlo, Consolas, monospace; font-size: 0.9em;`;
+        style = `padding: 0.15em 0.35em; border-radius: 3px; background: ${codeBackground}; color: ${textColor}; font-family: Menlo, Consolas, monospace; font-size: 0.9em;`;
       } else if (tagName === "pre") {
-        style = `margin: 1em 0; padding: 12px 14px; overflow: hidden; border-radius: 6px; background: ${soft}; color: ${textColor}; line-height: 1.6; text-align: left;`;
+        style = `margin: 1em 0; padding: 12px 14px; overflow: hidden; border-radius: 6px; background: ${codeBackground}; color: ${textColor}; line-height: 1.6; text-align: left;`;
       } else if (tagName === "hr") {
         style = `margin: 1.5em 0; border: 0; border-top: 1px solid ${border};`;
       } else if (tagName === "th") {
@@ -403,14 +404,16 @@ export const buildWeChatClipboardHtml = async (editor: Editor) => {
   const closestContainer = editor.view.dom.closest<HTMLElement>("[data-editor-theme]");
   const editorTheme = closestContainer?.dataset.editorTheme;
   
-  let customColors: { bg: string; text: string; accent: string; soft: string; border: string } | null = null;
+  let customColors: { bg: string; text: string; accent: string; soft: string; codeBackground: string; border: string } | null = null;
   if (closestContainer && editorTheme === "custom") {
+    const colors = getComputedStyle(closestContainer);
     customColors = {
-      bg: closestContainer.style.getPropertyValue("--editor-theme-bg") || "#ffffff",
-      text: closestContainer.style.getPropertyValue("--editor-theme-text") || "#1f2937",
-      accent: closestContainer.style.getPropertyValue("--editor-theme-accent") || "#059669",
-      soft: closestContainer.style.getPropertyValue("--editor-theme-soft") || "#ecfdf5",
-      border: closestContainer.style.getPropertyValue("--editor-theme-border") || "#a7f3d0",
+      bg: colors.getPropertyValue("--editor-theme-bg") || "#ffffff",
+      text: colors.getPropertyValue("--editor-theme-text") || "#1f2937",
+      accent: colors.getPropertyValue("--editor-theme-accent") || "#059669",
+      soft: colors.getPropertyValue("--editor-theme-soft") || "#ecfdf5",
+      codeBackground: colors.getPropertyValue("--editor-theme-code-bg") || "#e0ece9",
+      border: colors.getPropertyValue("--editor-theme-border") || "#a7f3d0",
     };
   }
 
@@ -435,14 +438,16 @@ export const copyMarkdownToWeChat = async (markdown: string) => {
   const closestContainer = document.querySelector<HTMLElement>("[data-editor-theme]");
   const editorTheme = closestContainer?.dataset.editorTheme;
   
-  let customColors: { bg: string; text: string; accent: string; soft: string; border: string } | null = null;
+  let customColors: { bg: string; text: string; accent: string; soft: string; codeBackground: string; border: string } | null = null;
   if (closestContainer && editorTheme === "custom") {
+    const colors = getComputedStyle(closestContainer);
     customColors = {
-      bg: closestContainer.style.getPropertyValue("--editor-theme-bg") || "#ffffff",
-      text: closestContainer.style.getPropertyValue("--editor-theme-text") || "#1f2937",
-      accent: closestContainer.style.getPropertyValue("--editor-theme-accent") || "#059669",
-      soft: closestContainer.style.getPropertyValue("--editor-theme-soft") || "#ecfdf5",
-      border: closestContainer.style.getPropertyValue("--editor-theme-border") || "#a7f3d0",
+      bg: colors.getPropertyValue("--editor-theme-bg") || "#ffffff",
+      text: colors.getPropertyValue("--editor-theme-text") || "#1f2937",
+      accent: colors.getPropertyValue("--editor-theme-accent") || "#059669",
+      soft: colors.getPropertyValue("--editor-theme-soft") || "#ecfdf5",
+      codeBackground: colors.getPropertyValue("--editor-theme-code-bg") || "#e0ece9",
+      border: colors.getPropertyValue("--editor-theme-border") || "#a7f3d0",
     };
   }
 

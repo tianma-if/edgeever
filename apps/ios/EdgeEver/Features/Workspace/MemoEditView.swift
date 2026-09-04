@@ -1201,7 +1201,7 @@ struct MemoEditView: View {
             let succeeded = await insertImageData(image.data, filename: image.filename) { sources.append($0) }
             if !succeeded { break }
         }
-        if sources.count > 1 {
+        if !sources.isEmpty {
             _ = await SharedTipTapRuntime.editor.groupImages(sources: sources)
             await pullEditorSnapshotIfPossible()
         }
@@ -1266,6 +1266,9 @@ struct MemoEditView: View {
                 )
             }
             onInserted?(imageSrc)
+            if !isImportingImageBatch {
+                _ = await SharedTipTapRuntime.editor.groupImages(sources: [imageSrc])
+            }
             // Snapshot TipTap JSON (order is authoritative). Only inject if the resource
             // is truly missing — never append a second image node at document end.
             await pullEditorSnapshotIfPossible()

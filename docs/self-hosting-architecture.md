@@ -55,10 +55,10 @@ ambiguous.
 - Keep the current migration files append-only; do not fork the schema for
   Docker.
 - Keep root secrets in environment variables or Docker secrets, never in the
-  image or database. Object-storage secrets use `EDGE_EVER_STORAGE_ENCRYPTION_KEY`.
-  Personal AI model API keys automatically use an AI-specific key derived from
-  the existing instance authentication secret; an optional
-  `EDGE_EVER_CREDENTIALS_ENCRYPTION_KEY` can override it for advanced key rotation.
+  image or database. Object-storage secrets and personal AI model API keys use
+  separate purpose-specific keys derived from the existing instance
+  authentication secret. An optional `EDGE_EVER_CREDENTIALS_ENCRYPTION_KEY`
+  can override the AI credential key for advanced rotation.
   Stored credentials must remain AES-GCM ciphertext.
 - Make `/data` the only required persistent application path so NAS users can
   back up one volume.

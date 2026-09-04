@@ -2,6 +2,7 @@ import { Database } from "bun:sqlite";
 import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { resolve, sep } from "node:path";
 import { spawnSync } from "node:child_process";
+import { createLocalDevelopmentSession } from "./local-dev-auth.mjs";
 
 export const LOCAL_DEV_API_URL = "http://127.0.0.1:8787";
 export const LOCAL_DEV_WEB_URL = "http://127.0.0.1:5173";
@@ -199,8 +200,9 @@ const runProfileWeb = (profile) => {
   assertChildSucceeded(result);
 };
 
-const startProfile = (profile) => {
+const startProfile = async (profile) => {
   runLocalMigrations(profile);
+  if (profile.name === "local") await createProfileSession(profile);
   console.log(`[local-dev] ${profile.label} migrations ready: ${resolve(profile.statePath)}`);
   const result = spawnSync(
     process.execPath,
@@ -239,8 +241,21 @@ const waitForLocalApi = async (timeoutMs = 30_000) => {
   throw new Error(`Local API did not become healthy within ${timeoutMs / 1_000}s: ${lastError?.message ?? "unknown error"}`);
 };
 
-const ensureLocalAiSeed = async () => {
-  const settingsResponse = await fetch(`${LOCAL_DEV_API_URL}/api/v1/ai/settings`);
+const createProfileSession = async (profile) => {
+  if (profile.name !== "local") throw new Error("Automatic login is only available for local development.");
+  const paths = findLocalD1DatabasePaths(profile.statePath);
+  if (paths.length !== 1) throw new Error("Expected one local database. Run bun run dev:prepare first.");
+  const database = new Database(paths[0], { readwrite: true });
+  try {
+    return await createLocalDevelopmentSession(database);
+  } finally {
+    database.close();
+  }
+};
+
+const ensureLocalAiSeed = async (token) => {
+  const headers = { Authorization: `Bearer ${token}` };
+  const settingsResponse = await fetch(`${LOCAL_DEV_API_URL}/api/v1/ai/settings`, { headers });
   if (!settingsResponse.ok) {
     throw new Error(`Cannot read local AI settings: HTTP ${settingsResponse.status}`);
   }
@@ -256,7 +271,7 @@ const ensureLocalAiSeed = async () => {
 
   const createResponse = await fetch(`${LOCAL_DEV_API_URL}/api/v1/ai/providers`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { ...headers, "Content-Type": "application/json" },
     body: JSON.stringify(profile.seed),
   });
   if (!createResponse.ok) {
@@ -281,6 +296,7 @@ export const buildReadyBanner = (profile, ai = null) => {
     `[local-dev] ${profile.label} ready`,
     `[local-dev] Web:  ${LOCAL_DEV_WEB_URL}`,
     `[local-dev] API:  ${LOCAL_DEV_API_URL}`,
+    ...(profile.name === "local" ? ["[local-dev] Auth: real local owner session; browser auto-login (EDGE_EVER_LOCAL_AUTO_LOGIN=false to disable)"] : []),
     `[local-dev] Data: ${resolve(profile.statePath)} (${profile.demoSeed ? "resettable demo data" : "persistent development data"})`,
     ...(aiLabel ? [`[local-dev] AI:   ${aiLabel}`] : []),
     "",
@@ -361,14 +377,17 @@ const main = async () => {
     runLocalMigrations(profile);
     console.log(`[local-dev] ${profile.label} migrations ready: ${resolve(profile.statePath)}`);
   } else if (command === "start") {
-    startProfile(profile);
+    await startProfile(profile);
   } else if (command === "api") {
     runProfileApi(profile);
   } else if (command === "web") {
     runProfileWeb(profile);
   } else if (command === "ready") {
     await waitForLocalApi();
-    printReadyBanner(profile, profile.bootstrapAi ? await ensureLocalAiSeed() : null);
+    const session = profile.bootstrapAi ? await createProfileSession(profile) : null;
+    printReadyBanner(profile, session ? await ensureLocalAiSeed(session.token) : null);
+  } else if (command === "auth-session") {
+    console.log(JSON.stringify(await createProfileSession(profile)));
   } else if (command === "reset") {
     if (profile.name !== "demo") throw new Error("Only the demo profile is resettable.");
     await resetDemoProfile(profile);

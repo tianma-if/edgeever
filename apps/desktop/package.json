@@ -1,6 +1,6 @@
 {
   "name": "@edgeever/desktop",
-  "version": "1.54.0",
+  "version": "1.55.0",
   "desktopName": "EdgeEver",
   "private": true,
   "description": "Native EdgeEver desktop client",
@@ -17,6 +17,7 @@
     "electron-builder": "^26.0.12"
   },
   "dependencies": {
+    "@edgeever/public-network": "workspace:*",
     "croner": "^10.0.1",
     "electron-updater": "^6.6.2"
   }

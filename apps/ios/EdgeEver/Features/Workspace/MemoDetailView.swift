@@ -685,6 +685,16 @@ struct MemoDetailView: View {
                 .padding(.top, 12)
                 .accessibilityIdentifier(DetailMemoChrome.metaRow)
 
+                Text(
+                    "\(env.preferences.t("创建于", en: "Created")) \(MemoDetailDate.format(memo.createdAt, locale: env.preferences.resolvedLocale))"
+                    + " · "
+                    + "\(env.preferences.t("更新于", en: "Updated")) \(MemoDetailDate.format(memo.updatedAt, locale: env.preferences.resolvedLocale))"
+                )
+                .font(.system(size: 12))
+                .foregroundStyle(AppTheme.muted)
+                .padding(.top, 4)
+                .textSelection(.enabled)
+
                 if searchOpen {
                     HStack(spacing: 8) {
                         Image(systemName: "magnifyingglass")

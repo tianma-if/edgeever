@@ -42,6 +42,7 @@ const COLOR_FIELDS = [
   ["heading", "settings.customEditorTheme.heading"],
   ["accent", "settings.customEditorTheme.accent"],
   ["soft", "settings.customEditorTheme.soft"],
+  ["codeBackground", "settings.customEditorTheme.codeBackground"],
   ["border", "settings.customEditorTheme.border"],
 ] as const;
 
@@ -196,6 +197,7 @@ export const CustomEditorThemeDialog = ({
                   />
                   <Input
                     value={activeColors[key]}
+                    aria-label={t(labelKey)}
                     onChange={(event) => updateColor(key as keyof ThemeColors, event.target.value)}
                     maxLength={7}
                     className="h-7 w-20 px-1.5 font-mono text-[11px]"
@@ -239,6 +241,7 @@ export const CustomEditorThemeDialog = ({
               className="ProseMirror p-3 text-xs leading-6"
               style={{
                 color: activeColors.text,
+                padding: "0.75rem",
               }}
             >
               {draft.customCss && (
@@ -254,6 +257,27 @@ export const CustomEditorThemeDialog = ({
               <strong style={{ color: activeColors.accent }}>
                 {t("settings.customEditorTheme.previewAccent")}
               </strong>
+              <blockquote
+                style={{
+                  background: activeColors.soft,
+                  color: activeColors.muted,
+                  borderColor: activeColors.accent,
+                  margin: "0.75rem 0 0",
+                  padding: "0.8rem 1rem",
+                }}
+              >
+                <p>{t("settings.customEditorTheme.previewQuote")}</p>
+                <pre
+                  style={{
+                    background: activeColors.codeBackground,
+                    color: activeColors.text,
+                    borderColor: activeColors.border,
+                    marginBottom: 0,
+                  }}
+                >
+                  <code style={{ background: "transparent", color: "inherit" }}>{'const message = "Hello, EdgeEver!";'}</code>
+                </pre>
+              </blockquote>
             </div>
           </div>
         </div>

@@ -73,7 +73,15 @@ describe("extension manifests", () => {
       permissions: [],
       settings: {
         fields: [
-          { key: "endpoint", type: "text", label: "Endpoint", default: "https://example.com" },
+          {
+            key: "endpoint",
+            type: "text",
+            label: "Endpoint",
+            default: "https://example.com",
+            className: "plugin-owned-layout",
+            style: { color: "red" },
+            html: "<script>alert(1)</script>",
+          },
           { key: "token", type: "secret", label: "Token", required: true },
           { key: "limit", type: "number", label: "Limit", default: 10, min: 1, max: 100 },
           { key: "enabled", type: "boolean", label: "Enabled", default: true },
@@ -85,6 +93,9 @@ describe("extension manifests", () => {
     expect(manifest.type).toBe("plugin");
     expect(manifest.settings?.fields).toHaveLength(5);
     expect(manifest.settings?.fields[0]).toMatchObject({ key: "endpoint", default: "https://example.com" });
+    expect(manifest.settings?.fields[0]).not.toHaveProperty("className");
+    expect(manifest.settings?.fields[0]).not.toHaveProperty("style");
+    expect(manifest.settings?.fields[0]).not.toHaveProperty("html");
   });
 
   test("rejects unsafe or ambiguous plugin settings", () => {

@@ -62,13 +62,10 @@ bun run deploy:manual
 
 ## 启用第三方 OSS 设置
 
-如需在**设置 → 高级设置**中配置兼容 S3 API 的对象存储，请先给已部署的 Worker 添加一个稳定的加密 Secret：
-
-```sh
-bunx wrangler secret put EDGE_EVER_STORAGE_ENCRYPTION_KEY
-```
-
-请使用至少 32 个字符的随机值并安全备份。EdgeEver 会先加密外部 Secret Access Key，再将其保存到 D1。丢失或更换这个加密密钥会导致之前保存的外部凭据无法使用。添加 Secret 后重新部署或重启 Worker，然后先使用“测试连接”，再保存 OSS 配置。个人 AI 模型凭据会自动使用已有的实例认证 Secret，不需要配置这个变量。
+在**设置 → 高级设置**中配置兼容 S3 API 的对象存储，并在保存前使用“测试连接”。
+EdgeEver 会使用从现有实例认证 Secret 派生的专用密钥加密外部 Secret Access Key，
+再将其保存到 D1，无需增加其他加密变量。请保持实例认证 Secret 稳定并安全备份；
+丢失或更换它会导致已保存的外部凭据无法使用。
 
 ## 故障恢复
 

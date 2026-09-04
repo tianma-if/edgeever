@@ -15,10 +15,11 @@ import {
   getActiveObjectStorageConfig,
   getObjectStorageConfig,
   mapObjectStorageSettings,
-  resolveObjectStorageEncryptionKey,
+  resolvePrimaryObjectStorageEncryptionKey,
+  resolveStoredObjectStorageSecret,
 } from "./object-storage";
 import { requireOwner } from "./request-auth";
-import { decryptSecret, encryptSecret } from "./secret-encryption";
+import { encryptSecret } from "./secret-encryption";
 import { testWorkerS3Connection } from "./worker-s3-blob-store";
 
 type ObjectStorageRouteDependencies = {
@@ -26,7 +27,7 @@ type ObjectStorageRouteDependencies = {
 };
 
 const hasEncryptionKey = (context: AppContext) => Boolean(
-  resolveObjectStorageEncryptionKey(context.env.EDGE_EVER_STORAGE_ENCRYPTION_KEY),
+  resolvePrimaryObjectStorageEncryptionKey(context.env),
 );
 
 const getSubmittedObjectStorageSecret = async (
@@ -35,13 +36,10 @@ const getSubmittedObjectStorageSecret = async (
 ) => {
   if (submittedSecret) return submittedSecret;
   const existing = await getObjectStorageConfig(context.env.storage.db, S3_STORAGE_CONFIG_ID);
-  const encryptionKey = resolveObjectStorageEncryptionKey(
-    context.env.EDGE_EVER_STORAGE_ENCRYPTION_KEY,
-  );
-  if (!existing?.secret_access_key_encrypted || !encryptionKey) {
+  if (!existing?.secret_access_key_encrypted) {
     throw new AppError("object_storage_secret_required", "Secret Access Key is required.", 400);
   }
-  return decryptSecret(existing.secret_access_key_encrypted, encryptionKey);
+  return resolveStoredObjectStorageSecret(context.env.storage.db, existing, context.env);
 };
 
 export const registerObjectStorageRoutes = (
@@ -127,14 +125,12 @@ export const registerObjectStorageRoutes = (
           ),
         ]);
       } else {
-        const encryptionKey = resolveObjectStorageEncryptionKey(
-          context.env.EDGE_EVER_STORAGE_ENCRYPTION_KEY,
-        );
+        const encryptionKey = resolvePrimaryObjectStorageEncryptionKey(context.env);
         if (!encryptionKey) {
           return apiError(
             context,
-            "object_storage_encryption_key_missing",
-            "Configure EDGE_EVER_STORAGE_ENCRYPTION_KEY before saving external credentials.",
+            "object_storage_authentication_required",
+            "Instance authentication is required before saving external credentials.",
             400,
           );
         }

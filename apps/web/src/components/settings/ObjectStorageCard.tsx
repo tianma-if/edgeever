@@ -4,6 +4,13 @@ import { CheckCircle2, Cloud, Database, Loader2, TriangleAlert } from "lucide-re
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  SETTINGS_CARD_DESCRIPTION_CLASSNAME,
+  SETTINGS_CARD_HEADER_CLASSNAME,
+  SETTINGS_CARD_ICON_CLASSNAME,
+  SETTINGS_CARD_TITLE_CLASSNAME,
+  SETTINGS_ITEM_TITLE_CLASSNAME,
+} from "./settings-ui";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { ApiRequestError, api } from "@/lib/api";
@@ -67,8 +74,8 @@ export const ObjectStorageCard = ({ demoMode }: { demoMode: boolean }) => {
   };
 
   const errorMessage = (error: unknown) => {
-    if (error instanceof ApiRequestError && error.code === "object_storage_encryption_key_missing") {
-      return t("objectStorage.encryptionKeyMissing");
+    if (error instanceof ApiRequestError && error.code === "object_storage_authentication_required") {
+      return t("objectStorage.authenticationRequired");
     }
     return error instanceof Error ? error.message : t("objectStorage.failed");
   };
@@ -79,12 +86,14 @@ export const ObjectStorageCard = ({ demoMode }: { demoMode: boolean }) => {
 
   return (
     <Card className="w-full min-w-0 overflow-hidden shadow-none">
-      <CardHeader className="p-4 sm:p-5">
-        <CardTitle className="flex items-center gap-2 text-sm">
-          <Cloud className="h-4 w-4 text-emerald-700" />
+      <CardHeader className={SETTINGS_CARD_HEADER_CLASSNAME}>
+        <CardTitle className={SETTINGS_CARD_TITLE_CLASSNAME}>
+          <Cloud className={SETTINGS_CARD_ICON_CLASSNAME} />
           {t("objectStorage.title")}
         </CardTitle>
-        <CardDescription>{t("objectStorage.description")}</CardDescription>
+        <CardDescription className={SETTINGS_CARD_DESCRIPTION_CLASSNAME}>
+          {t("objectStorage.description")}
+        </CardDescription>
       </CardHeader>
       <CardContent className="p-4 pt-0 sm:px-5 sm:pb-5">
         {settingsQuery.isLoading ? (
@@ -103,7 +112,7 @@ export const ObjectStorageCard = ({ demoMode }: { demoMode: boolean }) => {
                   )}
                 >
                   {item === "builtin" ? <Database className="mt-0.5 h-4 w-4 text-emerald-700" /> : <Cloud className="mt-0.5 h-4 w-4 text-emerald-700" />}
-                  <span><span className="block text-sm font-semibold text-slate-800">{t(`objectStorage.providers.${item}.title`)}</span><span className="mt-0.5 block text-xs leading-5 text-slate-500">{t(`objectStorage.providers.${item}.description`)}</span></span>
+                  <span><span className={cn("block", SETTINGS_ITEM_TITLE_CLASSNAME)}>{t(`objectStorage.providers.${item}.title`)}</span><span className="mt-0.5 block text-xs leading-5 text-slate-500">{t(`objectStorage.providers.${item}.description`)}</span></span>
                 </button>
               ))}
             </div>
@@ -112,7 +121,7 @@ export const ObjectStorageCard = ({ demoMode }: { demoMode: boolean }) => {
               <div className="grid gap-4 rounded-xl border border-slate-200 bg-slate-50/50 p-4">
                 {!encryptionConfigured ? (
                   <p className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-800">
-                    <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />{t("objectStorage.encryptionKeyMissing")}
+                    <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />{t("objectStorage.authenticationRequired")}
                   </p>
                 ) : null}
                 <div className="grid gap-4 sm:grid-cols-2">

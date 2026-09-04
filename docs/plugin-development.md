@@ -275,7 +275,9 @@ context.events.on("template.updated", ({ template }) => console.log(template.nam
 
 ## Host-rendered settings
 
-Plugins can declare settings that EdgeEver renders consistently in plugin details. Supported field types are `text`, `secret`, `number`, `boolean`, and `select`:
+Plugins can declare settings that EdgeEver renders consistently on a dedicated Plugin settings page within plugin details. Installed plugin cards and the plugin toolbar menu link directly to this page. Plugins without settings fields have no settings entry, while disabled plugins remain configurable. Settings are stored on the current device only. Put defaults and credentials in settings, and use plugin commands or functional panels for actual operations; ordinary configuration does not need a separate custom panel. Supported field types are `text`, `secret`, `number`, `boolean`, and `select`:
+
+The settings Schema is deliberately declarative. EdgeEver owns field layout, controls, spacing, validation, responsive behavior, accessibility, save states, and secret presentation. Presentation properties such as HTML, components, CSS classes, inline styles, colors, typography, or custom setting-page navigation are ignored. A plugin decides what can be configured, not how the settings page looks. Use commands or a clearly named functional panel for complex workflows such as authorization, connectivity tests, migrations, and index rebuilding; do not recreate ordinary settings in a custom panel.
 
 ```json
 {
@@ -468,3 +470,46 @@ The first demonstrates note queries, selection replacement, commands, and a cust
 - Declared permissions are API capability checks, not a hard sandbox for trusted JavaScript.
 - Custom panels open from the unified desktop plugin menu or extension settings and cannot yet be pinned to the main navigation or editor sidebar.
 - Secret storage is device-local and does not sync to other devices.
+
+## Generic AI and public network capabilities (unreleased)
+
+Plugins may declare `ai:generate` to use the current workspace's default AI model. These calls take ordinary prompts; source parsing, business workflows and prompts belong to the plugin. Credentials stay in the host.
+
+```ts
+const status = await context.ai.status(); // { configured, modelName? }
+const result = await context.ai.generate({
+  system: "Translate the supplied text into English.",
+  prompt: "用户提供的文本",
+  maxOutputTokens: 1000,
+  signal: controller.signal,
+});
+```
+
+`system` is limited to 8,000 characters, `prompt` to 90,000, output to 5,000 tokens, and generation to 120 seconds. The backend requires an interactive user session, disables AI in public demo mode, and redacts provider errors. AI calls have a four-request per-workspace guard in each backend instance; this is not a distributed quota. Model charges follow the configured provider. Plugin deactivation aborts outstanding calls.
+
+Existing `network.fetch(url, init)` remains browser fetch with CORS and omitted credentials. Add both `network` and `network:public`, declare `networkHosts`, and explicitly select `transport: "public"` to use the generic public Internet transport:
+
+```json
+{
+  "permissions": ["network", "network:public"],
+  "networkHosts": ["example.org"]
+}
+```
+
+```ts
+const response = await context.network.fetch("https://example.org/feed.xml", {
+  transport: "public",
+  headers: { Accept: "application/rss+xml" },
+  redirect: "manual",
+  signal: controller.signal,
+});
+const feed = await response.text(); // Parse inside the plugin.
+```
+
+Public mode supports HTTPS GET/HEAD on port 443, no request body or credentials, a 20-second deadline, and at most 2,000,000 decoded response bytes. It always returns redirects without following them (`redirect: "error"` rejects them). Upstream 403/429 remain upstream status codes; this transport does not bypass platform restrictions. Allowed request headers: Accept, Accept-Language, If-None-Match, If-Modified-Since, Range. Only content/cache metadata, Location and Retry-After are returned; Set-Cookie is excluded. The response is buffered within the size limit, not an unlimited streaming proxy.
+
+The host selects the least expensive safe transport without changing the plugin API. Web first tries browser fetch; a readable CORS response stays entirely client-side, while a browser network/CORS `TypeError` falls back to the authenticated backend relay. Desktop uses its Electron main process and the user's own network, capped at four concurrent requests. It does not relay public content through the EdgeEver backend. Cancellation propagates to every transport.
+
+All native/server drivers share one policy package. Desktop and self-hosted Bun validate every DNS answer and pass the validated address directly to TLS; private, special-use and mixed public/private answers are rejected. Cloudflare fallback uses workerd's default public-only Internet egress and no private-service bindings. Synthetic VPN/fake-IP DNS answers in reserved ranges are rejected; do not disable this check. Nonstandard workerd deployments must preserve public-only global egress. The Web fallback returns bounded binary bytes rather than Base64 JSON, avoiding Base64's transfer expansion.
+
+Plugin permission/domain checks run in the trusted client host. Backend routes independently require user authentication and enforce public-only egress; they do not trust client-supplied plugin IDs or allowlists, and do not claim server-attested per-plugin isolation. The trusted-JavaScript limitation still applies. The backend never receives a source enum, search window, evidence schema or report workflow.

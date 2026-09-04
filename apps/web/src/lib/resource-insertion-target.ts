@@ -2,6 +2,7 @@ import type { Editor } from "@tiptap/core";
 import { GapCursor } from "@tiptap/pm/gapcursor";
 import type { Selection } from "@tiptap/pm/state";
 import { NodeSelection, Selection as ProseMirrorSelection } from "@tiptap/pm/state";
+import { IMAGE_GALLERY_NODE_TYPE } from "@edgeever/shared";
 
 export type ResourceInsertionTarget = number | { from: number; to: number };
 
@@ -12,6 +13,11 @@ export type ResourceInsertionTarget = number | { from: number; to: number };
  */
 export const getResourceInsertionTarget = (selection: Selection): ResourceInsertionTarget => {
   if (selection instanceof NodeSelection) {
+    for (let depth = selection.$from.depth; depth > 0; depth -= 1) {
+      if (selection.$from.node(depth).type.name === IMAGE_GALLERY_NODE_TYPE) {
+        return selection.$from.after(depth);
+      }
+    }
     return selection.to;
   }
 

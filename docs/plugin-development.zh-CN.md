@@ -275,7 +275,9 @@ context.events.on("template.updated", ({ template }) => console.log(template.nam
 
 ## 宿主统一渲染的设置
 
-插件可以在 Manifest 中声明设置，由 EdgeEver 在插件详情页统一渲染。目前支持 `text`、`secret`、`number`、`boolean` 和 `select`：
+插件可以在 Manifest 中声明设置，由 EdgeEver 在插件详情的独立「插件设置」页面统一渲染。已安装插件卡片和插件工具菜单均可直达该页面；未声明配置项的插件不显示设置入口，停用的插件仍可配置。设置仅保存在当前设备。默认行为和凭据应放在设置中，实际操作使用插件命令或功能面板，无需为普通配置另建面板。目前支持 `text`、`secret`、`number`、`boolean` 和 `select`：
+
+设置 Schema 有意保持为声明式结构。字段布局、控件、间距、校验、响应式行为、无障碍、保存状态和密钥呈现均由 EdgeEver 管理；Manifest 中的 HTML、组件、CSS class、内联样式、颜色、字体以及自定义设置页导航等展示属性会被忽略。插件决定“配置什么”，而不是“设置页长什么样”。授权、连通性测试、数据迁移、索引重建等复杂流程应使用命令或命名清晰的功能面板，不要在自定义面板中重复实现普通设置。
 
 ```json
 {
@@ -468,3 +470,46 @@ await context.ui.panels.open("dashboard", { state: { resourceId } });
 - 权限声明属于 API 能力检查，不是针对受信任 JavaScript 的严格沙箱。
 - 自定义面板可以从桌面端统一插件菜单或插件管理页打开，尚未支持固定到主导航或编辑器侧栏。
 - Secret Storage 仅保存在当前设备，不会同步到其他设备。
+
+## 通用 AI 与公开网络能力（尚未发布）
+
+插件可声明 `ai:generate` 调用当前工作区的默认 AI 模型。接口只接受普通提示词；来源解析、业务流程和提示词属于插件，凭据保留在宿主。
+
+```ts
+const status = await context.ai.status(); // { configured, modelName? }
+const result = await context.ai.generate({
+  system: "把给定文本翻译成英文。",
+  prompt: "用户提供的文本",
+  maxOutputTokens: 1000,
+  signal: controller.signal,
+});
+```
+
+`system` 最多 8,000 字符，`prompt` 最多 90,000 字符，输出最多 5,000 token，生成最长 120 秒。后端要求交互式用户会话，公开演示模式禁用 AI，供应商错误脱敏。每个后端实例对每工作区的 AI 调用设置四路并发保护，不是分布式配额。模型费用沿用已配置供应商的计费；停用插件会中止其调用。
+
+已有 `network.fetch(url, init)` 保留浏览器 fetch 行为，受 CORS 限制并省略凭据。使用通用公开网络传输时，需要同时声明 `network`、`network:public` 和 `networkHosts`，并显式选择 `transport: "public"`：
+
+```json
+{
+  "permissions": ["network", "network:public"],
+  "networkHosts": ["example.org"]
+}
+```
+
+```ts
+const response = await context.network.fetch("https://example.org/feed.xml", {
+  transport: "public",
+  headers: { Accept: "application/rss+xml" },
+  redirect: "manual",
+  signal: controller.signal,
+});
+const feed = await response.text(); // 插件自己解析。
+```
+
+公开模式仅支持 443 端口的 HTTPS GET／HEAD，不携带请求体和凭据；超时 20 秒，解码后的响应正文最多 2,000,000 字节。重定向只返回、不跟随（`redirect: "error"` 会拒绝）。来源的 403／429 保留为来源状态，不绕过平台访问限制。允许的请求头为 Accept、Accept-Language、If-None-Match、If-Modified-Since、Range；仅返回内容／缓存元数据、Location 和 Retry-After，不返回 Set-Cookie。响应在上限内缓冲，不是无限流式代理。
+
+宿主在不改变插件 API 的前提下选择成本最低的安全传输。Web 先尝试浏览器请求：CORS 可读的响应完全留在客户端；只有浏览器以网络／CORS `TypeError` 拒绝时，才回退到已认证的后端中继。桌面端通过 Electron 主进程和用户本机网络请求，最多四路并发，不再把公开内容转发到 EdgeEver 后端。取消信号会传递到所有传输路径。
+
+桌面端、自托管与云端驱动共用同一策略包。桌面端和 Bun 自托管会校验全部 DNS 结果，并把已校验地址直接交给 TLS；私网、特殊用途和混合公私地址全部拒绝。Cloudflare 回退使用 workerd 默认的仅公开 Internet 出口，不使用私网服务绑定。VPN／fake-IP DNS 返回的保留地址也会拒绝，不应禁用检查；非标准 workerd 部署须保留仅公开网络出口。Web 回退返回有大小限制的二进制正文，不再使用 Base64 JSON，避免 Base64 的额外传输体积。
+
+插件权限和域名检查在可信客户端宿主执行。后端独立要求用户认证并限制仅公开网络，不信任客户端提交的插件 ID 或白名单，也不声称提供服务端证明的插件隔离；仍遵循可信 JavaScript 边界。后端不接收来源枚举、搜索时间范围、证据结构或报告流程。

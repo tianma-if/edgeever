@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fetchEdgeEverApp } from "./index.ts";
 import { createSelfHostedStorageAdapter } from "./self-hosted-storage-adapter.ts";
+import { createEdgeEverClient } from "../../../packages/client/src/index.ts";
 
 const temporaryDirectories = [];
 afterEach(async () => {
@@ -22,8 +23,8 @@ const requestJson = async (environment, path, init = {}) => {
   return body;
 };
 
-describe("resource multipart upload integration", () => {
-  test("assembles a large resource through the shared API and filesystem adapter", async () => {
+describe("resource upload integration", () => {
+  test("uploads small images directly and assembles large resources through the filesystem adapter", async () => {
     const directory = await mkdtemp(`${tmpdir()}/edgeever-upload-integration-`);
     temporaryDirectories.push(directory);
     const database = new Database(join(directory, "edgeever.sqlite"), { create: true });
@@ -52,6 +53,27 @@ describe("resource multipart upload integration", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ notebookId: notebook.notebook.id, title: "Multipart", contentMarkdown: "" }),
     });
+
+    const uploadPaths = [];
+    const client = createEdgeEverClient({
+      baseUrl: "http://edgeever.test",
+      fetch: (input, init) => {
+        uploadPaths.push(new URL(input).pathname);
+        return fetchEdgeEverApp(new Request(input, init), environment,
+          { waitUntil: () => undefined, passThroughOnException: () => undefined });
+      },
+    });
+    const smallImage = new File([
+      Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=", "base64"),
+    ], "small.png", { type: "image/png" });
+    const images = await Promise.all([0, 1].map(() => client.uploadMemoResource(memo.memo.id, smallImage)));
+    expect(uploadPaths).toEqual(Array(2).fill(`/api/v1/memos/${memo.memo.id}/resources`));
+    for (const { resource } of images) {
+      expect(resource).toMatchObject({ filename: "small.png", kind: "image", mimeType: "image/png", byteSize: smallImage.size });
+      const imageRow = database.query("SELECT object_key FROM resources WHERE id = ?").get(resource.id);
+      expect(await readFile(join(resourcesDirectory, imageRow.object_key)))
+        .toEqual(Buffer.from(await smallImage.arrayBuffer()));
+    }
 
     const file = new Uint8Array(8 * 1024 * 1024 + 3);
     file.fill(7);

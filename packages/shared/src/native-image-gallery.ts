@@ -2,6 +2,7 @@ import type { Editor, NodeViewRenderer } from "@tiptap/core";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { NodeSelection, type EditorState } from "@tiptap/pm/state";
 import { IMAGE_GALLERY_LAYOUTS, IMAGE_GALLERY_NODE_TYPE, resolveImageGalleryLayout } from "./image-gallery";
+import { mergeUploadedImagesIntoAdjacentGalleries } from "./image-gallery-editing";
 
 /** Adding images while an image/gallery is selected must not replace that content. */
 export const getImageInsertionRange = (doc: ProseMirrorNode, selection: { from: number; to: number }) => {
@@ -38,9 +39,9 @@ export const createImageInsertTransaction = (
   return tr;
 };
 
-/** Group only consecutive top-level images from this upload batch. Never move user text. */
+/** Group completed uploads, then extend adjacent galleries without moving user text. */
 export const groupUploadedImages = (editor: Editor, sources: readonly string[]): boolean => {
-  if (!editor.isEditable || editor.isDestroyed || sources.length < 2) return false;
+  if (!editor.isEditable || editor.isDestroyed || sources.length === 0) return false;
   const type = editor.schema.nodes[IMAGE_GALLERY_NODE_TYPE];
   if (!type) return false;
   const wanted = new Set(sources);
@@ -52,16 +53,25 @@ export const groupUploadedImages = (editor: Editor, sources: readonly string[]):
       current.images.push(node);
       current.to = pos + node.nodeSize;
     } else {
-      if (current && current.images.length > 1) groups.push(current);
+      if (current) groups.push(current);
       current = null;
     }
   });
-  if (current && (current as typeof groups[number]).images.length > 1) groups.push(current);
+  if (current) groups.push(current);
   if (!groups.length) return false;
   const tr = editor.state.tr;
+  const uploadedNodes: ProseMirrorNode[] = [];
   for (const group of groups.reverse()) {
-    tr.replaceWith(group.from, group.to, type.create({ layout: "auto" }, group.images));
+    if (group.images.length === 1) {
+      uploadedNodes.push(group.images[0]!);
+    } else {
+      const gallery = type.create({ layout: "auto" }, group.images);
+      tr.replaceWith(group.from, group.to, gallery);
+      uploadedNodes.push(gallery);
+    }
   }
+  mergeUploadedImagesIntoAdjacentGalleries(tr, uploadedNodes);
+  if (!tr.docChanged) return false;
   editor.view.dispatch(tr);
   return true;
 };

@@ -1,6 +1,7 @@
 import { execSync } from "node:child_process";
 import { rm, stat } from "node:fs/promises";
 import { resolve, sep } from "node:path";
+import { resolveDeploymentBuildMetadata } from "@edgeever/shared/deployment-metadata";
 import { build } from "esbuild";
 
 export const CLOUDFLARE_WORKER_OUTPUT_DIRECTORY = resolve(".wrangler/edgeever-worker");
@@ -18,6 +19,7 @@ const resolveBuildId = () => {
 };
 
 export const buildCloudflareWorker = async () => {
+  const deploymentMetadata = resolveDeploymentBuildMetadata(process.env);
   const generatedRoot = resolve(".wrangler");
   if (!CLOUDFLARE_WORKER_OUTPUT_DIRECTORY.startsWith(`${generatedRoot}${sep}`)) {
     throw new Error(
@@ -46,6 +48,8 @@ export const buildCloudflareWorker = async () => {
     allowOverwrite: true,
     define: {
       __EDGEEVER_INSTANCE_BUILD_ID__: JSON.stringify(resolveBuildId()),
+      __EDGEEVER_INSTANCE_DEPLOYMENT_TRIGGER__: JSON.stringify(deploymentMetadata.trigger),
+      __EDGEEVER_INSTANCE_DEPLOYMENT_METHOD__: JSON.stringify(deploymentMetadata.method),
     },
     outExtension: { ".js": ".js" },
   });
@@ -77,7 +81,7 @@ export const buildCloudflareWorker = async () => {
     ...lazyModules.map((module) =>
       `[worker-build] on-demand module: ${(module.bytes / 1024).toFixed(2)} KiB`),
   ].join("\n"));
-  return { entry, sharedModules, lazyModules };
+  return { entry, sharedModules, lazyModules, metafile: result.metafile };
 };
 
 if (import.meta.main) {

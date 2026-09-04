@@ -6,7 +6,9 @@
   "exports": {
     ".": "./src/index.ts",
     "./ai-prompt-seeds": "./src/ai-prompt-seeds.ts",
+    "./deployment-metadata": "./src/deployment-metadata.ts",
     "./image-display": "./src/image-display.ts",
+    "./image-gallery-editing": "./src/image-gallery-editing.ts",
     "./native-image-gallery": "./src/native-image-gallery.ts",
     "./i18n": "./src/i18n/index.ts",
     "./memo-template-seeds": "./src/memo-template-seeds.ts",

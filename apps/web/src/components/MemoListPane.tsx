@@ -1414,6 +1414,7 @@ export const MemoListPane = ({
                   isTrashView={view === "trash"}
                   selectionMode={selectionMode}
                   listDensity={listDensity}
+                  sortMode={view === "trash" ? "updated-desc" : sortMode}
                   multiSelectKeyDown={multiSelectKeyDown}
                   onOpen={() => onOpenMemo(memo.id)}
                   onRestore={() => onRestoreMemo(memo.id)}

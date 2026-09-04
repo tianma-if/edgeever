@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { buildNotebookTree, parseTagsText } from "./utils.ts";
+import { buildNotebookTree, formatLocalizedDateTime, parseTagsText } from "./utils.ts";
 
 const notebook = (id, parentId, memoCount, lastMemoUpdatedAt = null) => ({
   id,
@@ -63,5 +63,15 @@ describe("tag text parsing", () => {
       "ideas",
       "work",
     ]);
+  });
+});
+
+describe("localized date formatting", () => {
+  test("includes the year for historical memo timestamps", () => {
+    expect(formatLocalizedDateTime("2010-08-30T12:34:00.000Z", "en-US")).toContain("2010");
+  });
+
+  test("fails gracefully for invalid timestamps", () => {
+    expect(formatLocalizedDateTime("not-a-date", "zh-CN")).toBe("");
   });
 });

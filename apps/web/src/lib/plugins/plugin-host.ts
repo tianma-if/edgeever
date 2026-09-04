@@ -178,6 +178,10 @@ export interface PluginHostSnapshot {
 interface PluginHostOptions {
   repository: EdgeEverRepository;
   scope: string;
+  aiAdapter?: PluginContext['ai'];
+  publicNetworkAdapter?: {
+    fetchPublic(input: { url: string; method: 'GET' | 'HEAD'; headers: Record<string, string> }, options?: { signal?: AbortSignal }): Promise<{ status: number; statusText: string; url: string; headers: Record<string, string>; body: ArrayBuffer }>;
+  };
   onWorkspaceChanged?: () => void | Promise<void>;
   onNotice?: (message: string) => void;
   secretStorage?: PluginSecretStorage;
@@ -410,6 +414,8 @@ const normalizePanelState = (state: PluginPanelOpenOptions["state"] | undefined)
 };
 
 export class EdgeEverPluginHost {
+  private readonly aiAdapter?: PluginHostOptions['aiAdapter'];
+  private readonly publicNetworkAdapter?: PluginHostOptions['publicNetworkAdapter'];
   private readonly repository: EdgeEverRepository;
   private readonly scope: string;
   private readonly onWorkspaceChanged?: () => void | Promise<void>;
@@ -435,8 +441,18 @@ export class EdgeEverPluginHost {
   private themeObserver: MutationObserver | null = null;
   private repositoryEventDisposer: (() => void) | null = null;
   private started = false;
+  private lifecycleQueue: Promise<void> = Promise.resolve();
+  private readonly activatingPlugins = new Map<string, Promise<void>>();
+
+  private enqueueLifecycle(action: () => Promise<void>) {
+    const pending = this.lifecycleQueue.then(action, action);
+    this.lifecycleQueue = pending.catch(() => undefined);
+    return pending;
+  }
 
   constructor(options: PluginHostOptions) {
+    this.aiAdapter = options.aiAdapter;
+    this.publicNetworkAdapter = options.publicNetworkAdapter;
     this.repository = options.repository;
     this.scope = options.scope;
     this.onWorkspaceChanged = options.onWorkspaceChanged;
@@ -476,13 +492,15 @@ export class EdgeEverPluginHost {
     };
   }
 
-  async activateEnabled() {
+  activateEnabled() {
+    return this.enqueueLifecycle(async () => {
     this.start();
     for (const extension of this.extensions) {
       if (!extension.enabled || extension.manifest.type !== "plugin") continue;
       await this.activatePlugin(extension.manifest.id).catch(() => undefined);
     }
     this.applyActiveTheme();
+    });
   }
 
   async installFromSource(input: string) {
@@ -768,14 +786,16 @@ export class EdgeEverPluginHost {
     return dispose;
   }
 
-  async dispose() {
+  dispose() {
+    return this.enqueueLifecycle(async () => {
     this.started = false;
     window.removeEventListener("edgeever:sync-queue-changed", this.handleSyncQueueChanged);
     this.themeObserver?.disconnect();
     this.themeObserver = null;
     this.repositoryEventDisposer?.();
     this.repositoryEventDisposer = null;
-    for (const pluginId of [...this.activePlugins.keys()]) await this.deactivatePlugin(pluginId);
+    for (const pluginId of new Set([...this.activePlugins.keys(), ...this.activatingPlugins.keys()])) await this.deactivatePlugin(pluginId);
+    });
   }
 
   private start() {
@@ -816,7 +836,15 @@ export class EdgeEverPluginHost {
     return extension;
   }
 
-  private async activatePlugin(pluginId: string) {
+  private activatePlugin(pluginId: string) {
+    const current = this.activatingPlugins.get(pluginId);
+    if (current) return current;
+    const pending = this.activatePluginOnce(pluginId).finally(() => { this.activatingPlugins.delete(pluginId); });
+    this.activatingPlugins.set(pluginId, pending);
+    return pending;
+  }
+
+  private async activatePluginOnce(pluginId: string) {
     if (this.activePlugins.has(pluginId)) return;
     const extension = this.requireExtension(pluginId);
     if (extension.manifest.type !== "plugin") return;
@@ -870,6 +898,7 @@ export class EdgeEverPluginHost {
   }
 
   private async deactivatePlugin(pluginId: string) {
+    await this.activatingPlugins.get(pluginId)?.catch(() => undefined);
     const active = this.activePlugins.get(pluginId);
     if (!active) return;
     this.activePlugins.delete(pluginId);
@@ -904,8 +933,23 @@ export class EdgeEverPluginHost {
   private createContext(manifest: PluginManifest, disposers: Array<() => void>): PluginContext {
     const storagePrefix = `${STORAGE_PREFIX}:${this.scope}:${manifest.id}:`;
     const secretNamespace = `${this.scope}:${manifest.id}`;
+    const lifetime = new AbortController();
+    disposers.push(() => lifetime.abort());
     return {
       pluginId: manifest.id,
+      ai: {
+        status: async () => {
+          assertPermission(manifest, 'ai:generate'); lifetime.signal.throwIfAborted();
+          if (!this.aiAdapter) return { configured: false };
+          const result = await this.aiAdapter.status(); lifetime.signal.throwIfAborted(); return result;
+        },
+        generate: async input => {
+          assertPermission(manifest, 'ai:generate'); lifetime.signal.throwIfAborted();
+          if (!this.aiAdapter) throw new Error('AI generation is unavailable in this host.');
+          const signal = AbortSignal.any([lifetime.signal, ...(input.signal ? [input.signal] : [])]);
+          const result = await this.aiAdapter.generate({ ...input, signal }); signal.throwIfAborted(); return result;
+        },
+      },
       notes: {
         query: async (input = {}) => {
           assertPermission(manifest, "notes:read");
@@ -1337,6 +1381,7 @@ export class EdgeEverPluginHost {
       network: {
         fetch: async (input, init) => {
           assertPermission(manifest, "network");
+          lifetime.signal.throwIfAborted();
           const url = new URL(input);
           if (url.protocol !== "https:" && !(url.protocol === "http:" && ["localhost", "127.0.0.1"].includes(url.hostname))) {
             throw new Error("Plugin network requests must use HTTPS, except for localhost development.");
@@ -1344,7 +1389,22 @@ export class EdgeEverPluginHost {
           if (!manifest.networkHosts?.length || !isAllowedNetworkHost(url.hostname.toLocaleLowerCase(), manifest.networkHosts)) {
             throw new Error(`${url.hostname} is not declared in this plugin's networkHosts.`);
           }
-          return window.fetch(url, { ...init, credentials: "omit" });
+          const { transport = 'direct', ...requestInit } = init ?? {};
+          const signal = AbortSignal.any([lifetime.signal, ...(requestInit.signal ? [requestInit.signal] : [])]);
+          if (transport === 'public') {
+            assertPermission(manifest, 'network:public');
+            if (!this.publicNetworkAdapter) throw new Error('Public network transport is unavailable in this host.');
+            const method = (requestInit.method ?? 'GET').toUpperCase();
+            if (!['GET', 'HEAD'].includes(method) || requestInit.body != null || requestInit.credentials === 'include') throw new Error('Public transport supports credential-free GET/HEAD only.');
+            const data = await this.publicNetworkAdapter.fetchPublic({ url: url.href, method: method as 'GET' | 'HEAD', headers: Object.fromEntries(new Headers(requestInit.headers)) }, { signal });
+            signal.throwIfAborted();
+            if (requestInit.redirect === 'error' && data.status >= 300 && data.status < 400) throw new Error('Public request returned a redirect.');
+            const response = new Response(method === 'HEAD' || [204, 205, 304].includes(data.status) ? null : data.body, { status: data.status, statusText: data.statusText, headers: data.headers });
+            Object.defineProperty(response, 'url', { value: data.url });
+            return response;
+          }
+          if (transport !== 'direct') throw new Error('Unsupported network transport.');
+          return window.fetch(url, { ...requestInit, signal, credentials: "omit" });
         },
       },
       ui: {

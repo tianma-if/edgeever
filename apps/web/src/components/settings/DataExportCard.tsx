@@ -4,6 +4,12 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
+  SETTINGS_CARD_DESCRIPTION_CLASSNAME,
+  SETTINGS_CARD_HEADER_CLASSNAME,
+  SETTINGS_CARD_ICON_CLASSNAME,
+  SETTINGS_CARD_TITLE_CLASSNAME,
+} from "./settings-ui";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -154,14 +160,14 @@ export const DataExportCard = ({ refreshWorkspaceAfterImport }: DataExportCardPr
   return (
     <>
       <Card className="w-full min-w-0 overflow-hidden shadow-none">
-        <CardHeader className="p-4 sm:p-5">
+        <CardHeader className={SETTINGS_CARD_HEADER_CLASSNAME}>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0 space-y-1">
-              <CardTitle className="flex items-center gap-2 text-sm font-semibold">
-                <DatabaseBackup className="h-4 w-4 text-emerald-700 shrink-0" />
+              <CardTitle className={SETTINGS_CARD_TITLE_CLASSNAME}>
+                <DatabaseBackup className={SETTINGS_CARD_ICON_CLASSNAME} />
                 {t("dataExport.title")}
               </CardTitle>
-              <CardDescription className="text-xs leading-relaxed text-slate-500">
+              <CardDescription className={SETTINGS_CARD_DESCRIPTION_CLASSNAME}>
                 {t("dataExport.description")}
               </CardDescription>
             </div>

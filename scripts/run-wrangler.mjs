@@ -332,9 +332,9 @@ const runtimeVars = {
   EDGE_EVER_R2_BUCKET_NAME: resolvedR2BucketName,
   EDGE_EVER_DEMO_MODE: envValue("DEMO_MODE"),
   EDGE_EVER_LOCAL_DEMO_SEED: envValue("LOCAL_DEMO_SEED"),
-  // Auth-free access is a local-development capability. Remote deployments
-  // fail closed when credentials and users are both missing.
-  EDGE_EVER_ALLOW_UNAUTHENTICATED: isLocalCommand ? "true" : undefined,
+  // Persistent local development uses real sessions. Only the isolated local
+  // demo stays auth-free; remote deployments always fail closed.
+  EDGE_EVER_ALLOW_UNAUTHENTICATED: isLocalCommand ? String(envValue("LOCAL_DEMO_SEED") === "true") : undefined,
 };
 const runtimeVarLines = Object.entries(runtimeVars)
   .filter(([, value]) => Boolean(value))

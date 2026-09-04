@@ -483,6 +483,20 @@ input {
   white-space: pre-wrap;
 }
 
+/* Keep semantic emphasis visible even though the standalone shell disables
+ * synthetic font faces globally. Both values preserve nested bold-italic text. */
+.edgeever-mobile-tiptap-content strong,
+.edgeever-mobile-tiptap-content b {
+  font-synthesis: weight style;
+  font-weight: 800;
+}
+
+.edgeever-mobile-tiptap-content em,
+.edgeever-mobile-tiptap-content i {
+  font-synthesis: weight style;
+  font-style: italic;
+}
+
 /* External hyperlinks — match desktop default ProseMirror link styling. */
 .edgeever-mobile-tiptap-content a {
   color: #00751f;

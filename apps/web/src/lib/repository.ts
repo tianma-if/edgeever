@@ -432,6 +432,10 @@ export const createWebRepository = (scope: string): EdgeEverRepository => {
   },
 
   async getMemo(memoId, includeDeleted = false) {
+    if (memoId.startsWith("local_")) {
+      const mapping = await localDb.idMappings.get([scope, memoId]);
+      memoId = mapping?.remoteId ?? memoId;
+    }
     const localPromise = getLocalMemoWithoutBlocking(scope, memoId);
 
     const remotePromise = api.getMemo(memoId, { includeDeleted });

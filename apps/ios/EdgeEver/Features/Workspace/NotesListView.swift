@@ -554,7 +554,8 @@ struct NotesListView: View {
                 memo: memo,
                 density: density,
                 locale: env.preferences.resolvedLocale,
-                isEnglish: env.preferences.isEnglish
+                isEnglish: env.preferences.isEnglish,
+                sort: store.sort
             )
             .padding(density.cardPadding)
             .padding(.leading, store.selectionMode ? 12 : density.cardPadding)
@@ -577,6 +578,7 @@ struct MemoCardContent: View {
     var density: ListDensity = .preview
     var locale: Locale = .current
     var isEnglish: Bool = false
+    var sort: MemoSortMode = .updatedDesc
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -605,7 +607,7 @@ struct MemoCardContent: View {
             }
 
             HStack(alignment: .center, spacing: 8) {
-                Text(MemoPreviewDate.format(memo.updatedAt, locale: locale, isEnglish: isEnglish))
+                Text("\(timestampLabel) \(MemoPreviewDate.format(timestampField.value(from: memo), locale: locale, isEnglish: isEnglish))")
                     .font(AppTheme.memoDateFont)
                     .foregroundStyle(AppTheme.meta)
                 ForEach(Array(memo.tags.prefix(3)), id: \.self) { tag in
@@ -626,5 +628,16 @@ struct MemoCardContent: View {
     private var displayTitle: String {
         let t = memo.title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return t.isEmpty ? (isEnglish ? "Untitled note" : "无标题笔记") : t
+    }
+
+    private var timestampField: MemoListTimestampField {
+        MemoListTimestampField.resolve(for: sort)
+    }
+
+    private var timestampLabel: String {
+        switch timestampField {
+        case .createdAt: isEnglish ? "Created" : "创建"
+        case .updatedAt: isEnglish ? "Updated" : "更新"
+        }
     }
 }

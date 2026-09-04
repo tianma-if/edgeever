@@ -86,12 +86,11 @@ Compose 会创建一个命名卷。所有需要在容器替换后保留的数据
 | `EDGE_EVER_AUTH_PASSWORD_HASH`         | 无       | 可替代明文引导密码的 PBKDF2 hash          |
 | `EDGE_EVER_SESSION_TTL_DAYS`           | `400`    | 登录会话有效期                            |
 | `EDGE_EVER_IDLE_TIMEOUT_SECONDS`       | `120`    | Bun 流式响应空闲超时，可设为 10 到 255 秒 |
-| `EDGE_EVER_STORAGE_ENCRYPTION_KEY`     | 无       | 加密保存的外部对象存储凭据                |
 | `EDGE_EVER_CREDENTIALS_ENCRYPTION_KEY` | 自动派生 | 可选的独立 AI 凭据加密密钥                |
 
 Secret 可在受支持的变量名后追加 `_FILE`，并指向 Docker secret，例如
-`EDGE_EVER_AUTH_PASSWORD_FILE=/run/secrets/auth_password`。密码/hash、存储加密
-密钥和 S3 访问凭据均支持这种形式。同一个 Secret 不得同时设置直接变量与
+`EDGE_EVER_AUTH_PASSWORD_FILE=/run/secrets/auth_password`。密码/hash 和 S3
+访问凭据均支持这种形式。同一个 Secret 不得同时设置直接变量与
 对应的 `_FILE` 变量。
 
 `EDGE_EVER_ALLOW_UNAUTHENTICATED=true` 仅用于隔离的开发环境，严禁将未鉴权
@@ -131,9 +130,9 @@ HTTPS，并转发原始 Host 和客户端地址。严禁公开 SQLite、`/data` 
 2. 完整复制或快照命名卷，包括 SQLite 文件与 `resources` 目录。
 3. 执行 `docker compose start edgeever` 恢复服务。
 
-请单独备份 `EDGE_EVER_STORAGE_ENCRYPTION_KEY`，以及显式配置的
-`EDGE_EVER_CREDENTIALS_ENCRYPTION_KEY`。缺少这些密钥时，卷备份无法解密已保存
-的凭据。使用 S3 时还需独立备份存储桶。
+请单独备份实例认证 Secret，以及显式配置的
+`EDGE_EVER_CREDENTIALS_ENCRYPTION_KEY`。EdgeEver 会从认证 Secret 派生不同用途
+的凭据密钥，缺少它时卷备份无法解密已保存的凭据。使用 S3 时还需独立备份存储桶。
 
 只能在 EdgeEver 停止时恢复到空卷，并同时恢复匹配的 Secret。应定期在独立
 实例中验证备份。

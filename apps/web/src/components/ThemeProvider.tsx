@@ -3,6 +3,7 @@ import {
   DEFAULT_CUSTOM_DARK_COLORS,
   DEFAULT_CUSTOM_EDITOR_THEME,
   DEFAULT_CUSTOM_LIGHT_COLORS,
+  normalizeThemeColors,
   type CustomEditorTheme,
   type ThemeColors,
 } from "@/lib/custom-editor-theme";
@@ -197,18 +198,6 @@ export const getStoredEditorTheme = (): string => {
   return readLocalStorageItem(EDITOR_THEME_STORAGE_KEY) || "default";
 };
 
-const isHexColor = (value: unknown): value is string => typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value);
-
-const normalizeThemeColors = (value: Partial<ThemeColors> | undefined, fallback: ThemeColors): ThemeColors => ({
-  background: isHexColor(value?.background) ? value.background : fallback.background,
-  text: isHexColor(value?.text) ? value.text : fallback.text,
-  muted: isHexColor(value?.muted) ? value.muted : fallback.muted,
-  heading: isHexColor(value?.heading) ? value.heading : fallback.heading,
-  accent: isHexColor(value?.accent) ? value.accent : fallback.accent,
-  soft: isHexColor(value?.soft) ? value.soft : fallback.soft,
-  border: isHexColor(value?.border) ? value.border : fallback.border,
-});
-
 const normalizeCustomEditorTheme = (theme: CustomEditorTheme): CustomEditorTheme => ({
   ...theme,
   light: normalizeThemeColors(theme.light, DEFAULT_CUSTOM_LIGHT_COLORS),
@@ -239,7 +228,7 @@ export const getStoredCustomEditorThemes = (): CustomEditorTheme[] => {
         const migratedTheme: CustomEditorTheme = {
           id: "custom-migrated",
           name: oldTheme.name || "My custom theme",
-          light: {
+          light: normalizeThemeColors({
             background: oldTheme.background || DEFAULT_CUSTOM_LIGHT_COLORS.background,
             text: oldTheme.text || DEFAULT_CUSTOM_LIGHT_COLORS.text,
             muted: oldTheme.muted || DEFAULT_CUSTOM_LIGHT_COLORS.muted,
@@ -247,7 +236,7 @@ export const getStoredCustomEditorThemes = (): CustomEditorTheme[] => {
             accent: oldTheme.accent || DEFAULT_CUSTOM_LIGHT_COLORS.accent,
             soft: oldTheme.soft || DEFAULT_CUSTOM_LIGHT_COLORS.soft,
             border: oldTheme.border || DEFAULT_CUSTOM_LIGHT_COLORS.border,
-          },
+          }, DEFAULT_CUSTOM_LIGHT_COLORS),
           dark: DEFAULT_CUSTOM_DARK_COLORS,
           customCss: "",
         };

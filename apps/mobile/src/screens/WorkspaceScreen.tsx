@@ -1194,6 +1194,7 @@ export const WorkspaceScreen = ({
           isRefreshing={isRefreshing}
           memoFilterMode={memoFilterMode}
           memoListDensity={memoListDensity}
+          memoSortMode={memoSortMode}
           memoView={memoView}
           memos={visibleMemos}
           notebooks={notebooks}

@@ -6,6 +6,7 @@ export const WORKSPACE_SETTINGS_PATH = "/settings";
 export const WORKSPACE_PLUGINS_PATH = "/plugins";
 export const WORKSPACE_TEMPLATES_PATH = "/templates";
 export const WORKSPACE_AI_PROMPTS_PATH = "/ai-prompts";
+export const WORKSPACE_COMPANION_PATH = "/companion";
 export const WORKSPACE_EXECUTION_CENTER_PATH = "/execution-center";
 export const WORKSPACE_TRASH_SEARCH = "?view=trash";
 
@@ -16,6 +17,7 @@ export type WorkspaceRouteState = {
   isPlugins: boolean;
   isTemplates: boolean;
   isAiPrompts: boolean;
+  isCompanion: boolean;
   isExecutionCenter: boolean;
   isTrash: boolean;
   mobileEditorReturnMemoId: string | null;
@@ -28,6 +30,7 @@ export const resolveWorkspaceRoute = (pathname: string, search: string): Workspa
   isPlugins: pathname === WORKSPACE_PLUGINS_PATH || pathname.startsWith(`${WORKSPACE_PLUGINS_PATH}/`),
   isTemplates: pathname === WORKSPACE_TEMPLATES_PATH,
   isAiPrompts: pathname === WORKSPACE_AI_PROMPTS_PATH,
+  isCompanion: pathname === WORKSPACE_COMPANION_PATH,
   isExecutionCenter: pathname === WORKSPACE_EXECUTION_CENTER_PATH,
   isTrash: pathname === "/" && search === WORKSPACE_TRASH_SEARCH,
   mobileEditorReturnMemoId: new URLSearchParams(search).get(MOBILE_EDITOR_RETURN_PARAM),
@@ -69,6 +72,10 @@ export const useWorkspaceRoute = () => {
     if (!route.isExecutionCenter) navigate(WORKSPACE_EXECUTION_CENTER_PATH);
   }, [navigate, route.isExecutionCenter]);
 
+  const navigateCompanion = useCallback(() => {
+    if (!route.isCompanion) navigate(WORKSPACE_COMPANION_PATH);
+  }, [navigate, route.isCompanion]);
+
   return {
     route,
     navigateHome,
@@ -76,6 +83,7 @@ export const useWorkspaceRoute = () => {
     navigatePlugins,
     navigateTemplates,
     navigateAiPrompts,
+    navigateCompanion,
     navigateExecutionCenter,
     navigateTrash,
   };

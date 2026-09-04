@@ -535,6 +535,9 @@ export const CreateMemoModal = ({
       const uploadAsset = await prepareUploadAsset(asset, imageCompressionEnabled);
       const { resource } = await client!.uploadMemoResource(memo.id, new ExpoFile(uploadAsset.uri));
       applyMobileEditorUpload(editorRef, resource, uploadId, uploadAsset.name || (resource.kind === "image" ? "图片" : "附件"));
+      if (resource.kind === "image" && !keepBusy) {
+        safeDomCall(() => editorRef.current?.finishImageBatch([resource.url]));
+      }
       return resource.kind === "image" ? resource.url : null;
     } catch (error) {
       cancelMobileEditorUpload(editorRef, uploadId);

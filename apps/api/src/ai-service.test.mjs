@@ -16,6 +16,7 @@ import {
   decryptAiCredential,
   resolveAiCredentialEncryptionKeys,
   resolveCredentialEncryptionKey,
+  resolvePrimaryAiCredentialEncryptionKey,
   streamAiGeneration,
 } from "./ai-service.ts";
 import { encryptSecret } from "./secret-encryption.ts";
@@ -313,6 +314,12 @@ describe("AI model service", () => {
       EDGE_EVER_AUTH_PASSWORD: "current-auth-secret",
       EDGE_EVER_STORAGE_ENCRYPTION_KEY: "legacy-storage-key",
     })).resolves.toBe("provider-key");
+  });
+
+  test("never uses the legacy object-storage key for new AI credentials", () => {
+    expect(resolvePrimaryAiCredentialEncryptionKey({
+      EDGE_EVER_STORAGE_ENCRYPTION_KEY: "legacy-storage-key",
+    })).toBeUndefined();
   });
 
   test("never exposes the encrypted API key in settings", () => {

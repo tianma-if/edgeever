@@ -1,6 +1,6 @@
 import { memo, useRef, type ReactNode } from "react";
-import type { MemoFilterMode } from "@edgeever/client";
-import { DEFAULT_MEMO_TITLE, type MemoSummary, type Notebook } from "@edgeever/shared";
+import type { MemoFilterMode, MemoSortMode } from "@edgeever/client";
+import { DEFAULT_MEMO_TITLE, getMemoListTimestamp, type MemoSummary, type Notebook } from "@edgeever/shared";
 import { MOBILE_UI_METRICS, toggleMobileMemoFilterMode } from "@edgeever/shared/mobile-ui";
 import { FlatList, Platform, RefreshControl, View } from "react-native";
 import Animated, { FadeInDown, FadeOutUp, LinearTransition, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
@@ -25,6 +25,7 @@ export const NotesView = ({
   isRefreshing,
   memoFilterMode,
   memoListDensity,
+  memoSortMode,
   memoView,
   memos,
   notebooks,
@@ -55,6 +56,7 @@ export const NotesView = ({
   isRefreshing: boolean;
   memoFilterMode: MemoFilterMode;
   memoListDensity: MobileMemoListDensity;
+  memoSortMode: MemoSortMode;
   memoView: MemoView;
   memos: MemoSummary[];
   notebooks: Notebook[];
@@ -204,6 +206,7 @@ export const NotesView = ({
       isLoadingMore={isLoadingMore}
       isRefreshing={isRefreshing}
       listDensity={memoListDensity}
+      sortMode={memoView === "trash" ? "updated-desc" : memoSortMode}
       memos={memos}
       onMemoLongPress={onMemoLongPress}
       onMemoPress={onMemoPress}
@@ -229,6 +232,7 @@ const MemoList = ({
   isLoadingMore = false,
   isRefreshing,
   listDensity,
+  sortMode,
   memos,
   onMemoLongPress,
   onMemoPress,
@@ -248,6 +252,7 @@ const MemoList = ({
   isLoadingMore?: boolean;
   isRefreshing: boolean;
   listDensity: MobileMemoListDensity;
+  sortMode: MemoSortMode;
   memos: MemoSummary[];
   onMemoLongPress?: (memo: MemoSummary) => void;
   onMemoPress: (memoId: string) => void;
@@ -321,6 +326,7 @@ const MemoList = ({
         <MemoCard
           memo={item}
           listDensity={listDensity}
+          sortMode={sortMode}
           onLongPress={!selectionMode && onMemoLongPress ? () => onMemoLongPress(item) : undefined}
           onPress={() => onMemoPress(item.id)}
           selected={selectedMemoIds.has(item.id)}
@@ -405,6 +411,7 @@ const MobileFilterButton = ({ active, icon, label, onPress }: { active: boolean;
 const MemoCard = memo(function MemoCard({
   listDensity,
   memo,
+  sortMode,
   onLongPress,
   onPress,
   selected = false,
@@ -412,13 +419,19 @@ const MemoCard = memo(function MemoCard({
 }: {
   listDensity: MobileMemoListDensity;
   memo: MemoSummary;
+  sortMode: MemoSortMode;
   onLongPress?: () => void;
   onPress: () => void;
   selected?: boolean;
   selectionMode?: boolean;
 }) {
-  const localePreference = useMobileLocale().preference;
+  const { preference: localePreference, resolvedLocale } = useMobileLocale();
   const memoTitle = memo.title?.trim() || DEFAULT_MEMO_TITLE;
+  const listTimestamp = getMemoListTimestamp(memo, sortMode);
+  const listTimestampLabel = formatMemoPreviewDate(listTimestamp.value, localePreference);
+  const listTimestampKind = listTimestamp.field === "createdAt"
+    ? (resolvedLocale === "en-US" ? "Created" : "创建")
+    : (resolvedLocale === "en-US" ? "Updated" : "更新");
   const handledLongPressRef = useRef(false);
   const pressScale = useSharedValue(1);
   const pressAnimatedStyle = useAnimatedStyle(() => ({
@@ -487,7 +500,7 @@ const MemoCard = memo(function MemoCard({
           </Text>
         ) : null}
         <View style={[styles.memoMeta, listDensity === "compact" && styles.memoMetaCompact]}>
-          <Text style={styles.memoDate}>{formatMemoPreviewDate(memo.updatedAt, localePreference)}</Text>
+          <Text style={styles.memoDate}>{listTimestampKind} {listTimestampLabel}</Text>
           {memo.tags.slice(0, 3).map((tag) => (
             <Text key={tag} style={styles.tag}>
               #{tag}
@@ -500,6 +513,7 @@ const MemoCard = memo(function MemoCard({
 }, (previous, next) =>
   previous.memo === next.memo &&
   previous.listDensity === next.listDensity &&
+  previous.sortMode === next.sortMode &&
   previous.selected === next.selected &&
   previous.selectionMode === next.selectionMode
 );

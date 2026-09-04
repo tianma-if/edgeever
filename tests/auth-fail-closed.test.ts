@@ -79,9 +79,25 @@ describe("production authentication guard", () => {
     expect(await response.json()).toMatchObject({
       ok: true,
       build: expect.any(String),
+      deployment: { trigger: "unknown", method: "unknown" },
       migration: "0035",
       storage: { database: "d1", resources: "r2" },
       objectStorageProvider: "s3",
+    });
+  });
+
+  test("reports deployment metadata supplied by the running instance", async () => {
+    const response = await fetchApi("/api/health", {
+      DB: createDatabase({ userId: "owner" }),
+      RESOURCES: {},
+      EDGE_EVER_AUTH_PASSWORD: "configured-secret",
+      EDGE_EVER_DEPLOYMENT_TRIGGER: "github_release",
+      EDGE_EVER_DEPLOYMENT_METHOD: "github_actions",
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      deployment: { trigger: "github_release", method: "github_actions" },
     });
   });
 

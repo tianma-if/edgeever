@@ -1,6 +1,6 @@
 export declare const PLUGIN_API_VERSION: "1";
 export declare const THEME_API_VERSION: "1";
-export declare const PLUGIN_PERMISSIONS: readonly ["notes:read", "notes:write", "notes:delete", "metadata:read", "metadata:write", "resources:read", "resources:write", "templates:read", "templates:write", "network", "storage", "secrets", "schedules", "editor:read", "editor:write", "ui:commands", "ui:navigation", "ui:notices", "ui:panels", "ui:embeds"];
+export declare const PLUGIN_PERMISSIONS: readonly ["notes:read", "notes:write", "notes:delete", "metadata:read", "metadata:write", "resources:read", "resources:write", "templates:read", "templates:write", "network", "network:public", "ai:generate", "storage", "secrets", "schedules", "editor:read", "editor:write", "ui:commands", "ui:navigation", "ui:notices", "ui:panels", "ui:embeds"];
 export type PluginPermission = (typeof PLUGIN_PERMISSIONS)[number];
 export type ExtensionPlatform = "web" | "desktop" | "android" | "ios";
 export interface PluginManifest {
@@ -17,6 +17,10 @@ export interface PluginManifest {
     networkHosts?: string[];
     settings?: PluginSettingsSchema;
 }
+/**
+ * Declarative setting metadata. EdgeEver owns the layout, controls, validation,
+ * state feedback, and responsive behavior; plugins cannot supply presentation code or styles.
+ */
 interface PluginSettingBase {
     key: string;
     label: string;
@@ -48,6 +52,7 @@ export type PluginSettingField = (PluginSettingBase & {
     }>;
 });
 export interface PluginSettingsSchema {
+    /** Host-rendered fields in display order. Arbitrary UI markup and styling are intentionally unsupported. */
     fields: PluginSettingField[];
 }
 export type PluginSettingValue = string | number | boolean;
@@ -332,6 +337,20 @@ export interface PluginPanel {
 }
 export interface PluginContext {
     pluginId: string;
+    ai: {
+        status(): Promise<{
+            configured: boolean;
+            modelName?: string;
+        }>;
+        generate(input: {
+            system: string;
+            prompt: string;
+            maxOutputTokens?: number;
+            signal?: AbortSignal;
+        }): Promise<{
+            text: string;
+        }>;
+    };
     notes: {
         query(input?: PluginNoteQuery): Promise<PluginNoteQueryResult>;
         queryContent(input?: PluginNoteQuery): Promise<PluginNoteContentQueryResult>;
@@ -438,7 +457,10 @@ export interface PluginContext {
         remove(key: string): Promise<void>;
     };
     network: {
-        fetch(input: string, init?: RequestInit): Promise<Response>;
+        /** direct preserves browser fetch. public uses authenticated, bounded HTTPS GET/HEAD transport. */
+        fetch(input: string, init?: RequestInit & {
+            transport?: "direct" | "public";
+        }): Promise<Response>;
     };
     ui: {
         showNotice(message: string): void;

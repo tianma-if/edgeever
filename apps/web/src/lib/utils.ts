@@ -57,6 +57,19 @@ export const formatDateTime = (value: string) =>
     minute: "2-digit",
   }).format(new Date(value));
 
+export const formatLocalizedDateTime = (value: string, locale: string) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+
+  return new Intl.DateTimeFormat(locale, {
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+};
+
 export const parseTagsText = (value: string) =>
   value
     .split(/[,，\n]+/)

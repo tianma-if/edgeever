@@ -62,13 +62,12 @@ Do not commit `.env.local` or write passwords to D1.
 
 ## Enable third-party OSS settings
 
-To configure an S3-compatible object store from **Settings → Advanced**, add a stable encryption secret to the deployed Worker:
-
-```sh
-bunx wrangler secret put EDGE_EVER_STORAGE_ENCRYPTION_KEY
-```
-
-Use a random value of at least 32 characters and keep a secure backup. EdgeEver encrypts the external Secret Access Key before storing it in D1. Losing or changing this encryption key makes previously saved external credentials unusable. After adding the secret, redeploy or restart the Worker, then use **Test connection** before saving the OSS configuration. Personal AI model credentials use the existing instance authentication secret automatically and do not require this variable.
+Configure an S3-compatible object store from **Settings → Advanced**, then use
+**Test connection** before saving it. EdgeEver encrypts the external Secret
+Access Key with a purpose-specific key derived from the existing instance
+authentication secret before storing it in D1. No additional encryption
+variable is required. Keep the instance authentication secret stable and back
+it up; changing or losing it makes saved external credentials unusable.
 
 ## Recovery
 

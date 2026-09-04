@@ -1,11 +1,13 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { DeploymentMetadata } from "@edgeever/shared/deployment-metadata";
 import { Activity, CircleCheck, Cloud, Copy, ExternalLink, LoaderCircle, MonitorSmartphone, RefreshCw, RotateCcw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { useDeployedUpdateNotice } from "@/hooks/useDeployedUpdateNotice";
 import { detectWebClientKind } from "@/lib/client-environment";
 import { api, getConfiguredDesktopApiBaseUrl, type InstanceHealth } from "@/lib/api";
+import { resolveSystemInfoDeploymentMetadata } from "@/lib/deployment-metadata";
 import { resolveDeploymentPlatform } from "@/lib/instance-runtime";
 import {
   getClientRuntimeDiagnostics,
@@ -25,7 +27,7 @@ export type SystemInfoItem = {
   status?: "connected" | "connecting" | "failed" | "warning" | "error" | "default";
 };
 
-type InstanceSystemDiagnostics = Pick<InstanceHealth, "build" | "containerImageSource" | "migration" | "objectStorageProvider" | "storage"> & {
+type InstanceSystemDiagnostics = Pick<InstanceHealth, "build" | "containerImageSource" | "deployment" | "migration" | "objectStorageProvider" | "storage"> & {
   runtime?: string | null;
 };
 
@@ -56,9 +58,12 @@ const detectOperatingSystem = (userAgent: string, platform: string) => {
   return null;
 };
 
-const getDeploymentDescription = (t: (key: string) => string) => {
-  const trigger = t(`systemInfo.deploymentTriggers.${__EDGEEVER_DEPLOYMENT_TRIGGER__}`);
-  const method = t(`systemInfo.deploymentMethods.${__EDGEEVER_DEPLOYMENT_METHOD__}`);
+const getDeploymentDescription = (
+  t: (key: string) => string,
+  deployment: DeploymentMetadata,
+) => {
+  const trigger = t(`systemInfo.deploymentTriggers.${deployment.trigger}`);
+  const method = t(`systemInfo.deploymentMethods.${deployment.method}`);
   return `${trigger} · ${method}`;
 };
 
@@ -92,6 +97,14 @@ const getWebSystemInfoGroups = (
       window.matchMedia("(display-mode: fullscreen)").matches,
     navigatorStandalone: (navigator as NavigatorWithStandalone).standalone === true,
   });
+  const deployment = resolveSystemInfoDeploymentMetadata(
+    diagnostics.instance?.deployment,
+    {
+      trigger: __EDGEEVER_DEPLOYMENT_TRIGGER__,
+      method: __EDGEEVER_DEPLOYMENT_METHOD__,
+    },
+    clientKind !== "desktopApp",
+  );
 
   return [
     {
@@ -140,7 +153,7 @@ const getWebSystemInfoGroups = (
               value: t(`systemInfo.containerImageSources.${getContainerImageSourceTranslationKey(diagnostics.instance.containerImageSource)}`),
             }]
           : []),
-        { label: t("systemInfo.deployment"), value: getDeploymentDescription(t), colSpan: "full" },
+        { label: t("systemInfo.deployment"), value: getDeploymentDescription(t, deployment), colSpan: "full" },
       ],
     },
     {

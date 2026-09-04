@@ -5,6 +5,12 @@ import { Copy, KeyRound, Plus, ShieldCheck, Trash2 } from "lucide-react";
 import type { ApiToken } from "@edgeever/shared";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  SETTINGS_CARD_DESCRIPTION_CLASSNAME,
+  SETTINGS_CARD_HEADER_CLASSNAME,
+  SETTINGS_CARD_ICON_CLASSNAME,
+  SETTINGS_CARD_TITLE_CLASSNAME,
+} from "./settings-ui";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -369,14 +375,14 @@ export const McpConfigCard = () => {
   return (
     <>
       <Card className="w-full min-w-0 overflow-hidden shadow-none">
-        <CardHeader className="p-4 sm:p-5">
+        <CardHeader className={SETTINGS_CARD_HEADER_CLASSNAME}>
           <div className="flex items-start justify-between gap-3">
             <div>
-              <CardTitle className="flex items-center gap-2 text-sm">
-                <KeyRound className="h-4 w-4 text-emerald-700" />
+              <CardTitle className={SETTINGS_CARD_TITLE_CLASSNAME}>
+                <KeyRound className={SETTINGS_CARD_ICON_CLASSNAME} />
                 {t("mcp.title")}
               </CardTitle>
-              <CardDescription className="mt-1 text-xs text-slate-500">{t("mcp.description")}</CardDescription>
+              <CardDescription className={SETTINGS_CARD_DESCRIPTION_CLASSNAME}>{t("mcp.description")}</CardDescription>
             </div>
             <McpExampleDialog />
           </div>

@@ -4,6 +4,12 @@ import { Bot, ChevronDown, Loader2, RotateCcw, Save } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  SETTINGS_CARD_DESCRIPTION_CLASSNAME,
+  SETTINGS_CARD_HEADER_CLASSNAME,
+  SETTINGS_CARD_ICON_CLASSNAME,
+  SETTINGS_CARD_TITLE_CLASSNAME,
+} from "./settings-ui";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -39,15 +45,15 @@ export const AiTagSuggestionPromptCard = () => {
   return (
     <Collapsible open={expanded} onOpenChange={setExpanded} asChild>
       <Card className="w-full min-w-0 overflow-hidden shadow-none">
-        <CardHeader className="p-4">
+        <CardHeader className={SETTINGS_CARD_HEADER_CLASSNAME}>
           <CollapsibleTrigger asChild>
             <button className="flex w-full min-w-0 items-start justify-between gap-3 text-left" type="button">
               <span className="min-w-0">
-                <CardTitle className="flex items-center gap-2 text-sm">
-                  <Bot className="h-4 w-4 text-emerald-700" />
+                <CardTitle className={SETTINGS_CARD_TITLE_CLASSNAME}>
+                  <Bot className={SETTINGS_CARD_ICON_CLASSNAME} />
                   {t("settings.aiTagPromptTitle")}
                 </CardTitle>
-                <CardDescription className="mt-1 text-xs leading-5 text-slate-500">
+                <CardDescription className={SETTINGS_CARD_DESCRIPTION_CLASSNAME}>
                   {t("settings.aiTagPromptDescription")}
                 </CardDescription>
               </span>

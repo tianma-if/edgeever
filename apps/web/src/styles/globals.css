@@ -601,13 +601,20 @@ textarea {
   padding: 0;
 }
 
-/* Do not rely on the browser's relative `bolder` mapping here. Linux Chrome
- * can render CJK fallback fonts with too little contrast between regular and
- * bold, especially when the installed family has no matching bold face. */
+/* The root deliberately disables synthetic font faces for the application UI,
+ * but rich-text emphasis must remain visible when a platform fallback font has
+ * no matching bold or italic face. Allow both forms here so nested bold-italic
+ * marks work regardless of their DOM order. */
 .ProseMirror strong,
 .ProseMirror b {
-  font-synthesis: weight;
+  font-synthesis: weight style;
   font-weight: 800;
+}
+
+.ProseMirror em,
+.ProseMirror i {
+  font-synthesis: weight style;
+  font-style: italic;
 }
 
 /* External hyperlinks (default theme).

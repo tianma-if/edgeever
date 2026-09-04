@@ -39,12 +39,14 @@ globalThis.MutationObserver = class {
 const { EdgeEverPluginHost, applyPluginMarkdownEdits } = await import("./plugin-host.ts");
 const { sha256Hex } = await import("./github-plugin-distribution.ts");
 const { withRepositoryMutationEvents } = await import("../repository-events.ts");
+const { results: capabilityResults } = await import('./plugin-capabilities.fixture.mjs');
 
 const repository = {
   listMemos: async () => ({ memos: [], totalCount: 0, nextCursor: null }),
 };
 
 beforeEach(() => {
+  capabilityResults.clear();
   values.clear();
   styles.clear();
   eventListeners.clear();
@@ -53,6 +55,27 @@ beforeEach(() => {
 });
 
 describe("EdgeEverPluginHost", () => {
+  test('generic AI/public network calls require declared permissions and destination hosts', async () => {
+    const calls = [];
+    const host = new EdgeEverPluginHost({ repository, scope: 'test',
+      aiAdapter: { status: async () => ({ configured: true }), generate: async input => { calls.push(input); return { text: 'HELLO' }; } },
+      publicNetworkAdapter: { fetchPublic: async input => { calls.push(input); return { url: input.url, status: 429, statusText: 'Too Many Requests', headers: {}, body: new TextEncoder().encode('limited').buffer }; } },
+    });
+    const install = async (id, permissions) => {
+      host.installManifest({ type: 'plugin', id, name: id, version: '1.0.0', apiVersion: '1', entry: new URL('./plugin-capabilities.fixture.mjs', import.meta.url).href, permissions: ['ui:commands', ...permissions], networkHosts: ['example.org'] }, 'https://example.org/manifest.json');
+      await host.setEnabled(id, true);
+    };
+    await install('org.test.denied', ['network']);
+    await expect(host.runCommand('org.test.denied', 'ai')).rejects.toThrow();
+    await expect(host.runCommand('org.test.denied', 'public')).rejects.toThrow(); expect(calls).toHaveLength(0);
+    await install('org.test.allowed', ['network', 'network:public', 'ai:generate']);
+    await expect(host.runCommand('org.test.allowed', 'unlisted')).rejects.toThrow();
+    await expect(host.runCommand('org.test.allowed', 'post')).rejects.toThrow(); expect(calls).toHaveLength(0);
+    await host.runCommand('org.test.allowed', 'ai'); expect(capabilityResults.get('org.test.allowed')).toEqual({ text: 'HELLO' });
+    await host.runCommand('org.test.allowed', 'public'); expect(capabilityResults.get('org.test.allowed')).toEqual({ status: 429, text: 'limited', url: 'https://example.org/feed' });
+    expect(calls[0].signal.aborted).toBe(false); await host.setEnabled('org.test.allowed', false); expect(calls[0].signal.aborted).toBe(true);
+    await host.dispose();
+  });
   test("lets a permitted plugin idempotently own schedules for its registered commands", async () => {
     const calls = [];
     const scheduleAdapter = {

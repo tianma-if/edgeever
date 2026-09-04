@@ -1902,6 +1902,12 @@ const baseWorkspaceStyles = StyleSheet.create({
   detailTagsPlaceholder: {
     color: "#94a3b8",
   },
+  detailTimestamps: {
+    color: "#94a3b8",
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 4,
+  },
   detailDivider: {
     backgroundColor: "#e2e8f0",
     height: 1,

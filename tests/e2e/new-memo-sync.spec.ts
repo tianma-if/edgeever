@@ -177,6 +177,95 @@ const finishSyncAndVerifyReload = async (
 };
 
 test.describe("new memo synchronization", () => {
+  test("keeps the new memo editor mounted and focused while its local id is remapped", async ({ page }) => {
+    const heldCreate = await holdNextMemoCreate(page);
+    let memoId: string | null = null;
+
+    try {
+      await page.goto("/");
+      await page.getByRole("button", { name: "新建笔记", exact: true }).click();
+      await heldCreate.createStarted;
+
+      const editor = page.locator(".ProseMirror[contenteditable='true']");
+      await expect(editor).toBeEditable();
+      await editor.click();
+      await expect(editor).toBeFocused();
+
+      const editorObservation = page.evaluate(() => new Promise<{
+        disconnected: boolean;
+        focusLost: boolean;
+        mapping: Array<[string, string]>;
+        replaced: boolean;
+        stillFocused: boolean;
+      }>((resolve, reject) => {
+        const originalEditor = document.querySelector(".ProseMirror[contenteditable='true']");
+        if (!(originalEditor instanceof HTMLElement)) {
+          reject(new Error("Expected a mounted memo editor before id remapping"));
+          return;
+        }
+
+        let disconnected = false;
+        let focusLost = document.activeElement !== originalEditor;
+        let replaced = false;
+        const sampleEditorState = () => {
+          disconnected ||= !originalEditor.isConnected;
+          focusLost ||= document.activeElement !== originalEditor;
+          replaced ||= document.querySelector(".ProseMirror[contenteditable='true']") !== originalEditor;
+        };
+        const sampleInterval = window.setInterval(sampleEditorState, 5);
+        const mutationObserver = new MutationObserver(sampleEditorState);
+        mutationObserver.observe(document.body, { childList: true, subtree: true });
+        originalEditor.addEventListener("focusout", () => { focusLost = true; });
+
+        window.addEventListener("edgeever:memo-id-remapped", (event) => {
+          const detail = (event as CustomEvent<Map<string, string>>).detail;
+          window.setTimeout(() => {
+            sampleEditorState();
+            window.clearInterval(sampleInterval);
+            mutationObserver.disconnect();
+            resolve({
+              disconnected,
+              focusLost,
+              mapping: [...detail.entries()],
+              replaced,
+              stillFocused: document.activeElement === originalEditor,
+            });
+          }, 1_200);
+        }, { once: true });
+      }));
+
+      heldCreate.releaseCreate();
+      const createResponse = await heldCreate.createResponse;
+      expect(createResponse.status()).toBe(201);
+      const created = await createResponse.json() as { memo: { id: string } };
+      memoId = created.memo.id;
+
+      const observation = await editorObservation;
+      expect(observation.mapping).toContainEqual([expect.any(String), memoId]);
+      expect(observation.mapping[0]?.[0]).not.toBe(memoId);
+      expect(observation).toMatchObject({
+        disconnected: false,
+        focusLost: false,
+        replaced: false,
+        stillFocused: true,
+      });
+      await expect(editor).toBeFocused();
+    } finally {
+      heldCreate.releaseCreate();
+      if (!memoId) {
+        const createResponse = await heldCreate.createResponse.catch(() => null);
+        if (createResponse?.status() === 201) {
+          const created = await createResponse.json() as { memo: { id: string } };
+          memoId = created.memo.id;
+        }
+      }
+      if (memoId) {
+        await page.request.delete(`/api/v1/memos/${memoId}`);
+        await page.request.delete(`/api/v1/memos/${memoId}?permanent=1`);
+      }
+    }
+  });
+
   test("rebases a second autosave after memo creation reaches cloud revision 1", async ({ page }) => {
     const marker = `${Date.now()}-draft-only`;
     const title = `E2E create race ${marker}`;
