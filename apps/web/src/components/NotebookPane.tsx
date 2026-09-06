@@ -1,13 +1,15 @@
-import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import * as m from "motion/react-m";
 import {
   ChevronLeft,
+  ChevronDown,
   Plus,
   LayoutList,
   LayoutTemplate,
   BookPlus,
+  Boxes,
   ArrowDownWideNarrow,
   Notebook as NotebookIcon,
   Tags,
@@ -23,20 +25,27 @@ import {
   Download,
   ExternalLink,
   RotateCcw,
+  FileText,
+  Network,
+  Workflow,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { NotebookTreeItem } from "./NotebookTreeItem";
 import { cn } from "@/lib/utils";
-import type { Notebook, AuthUser } from "@edgeever/shared";
+import type { Notebook, AuthUser, DiagramKind } from "@edgeever/shared";
 import type { NotebookNode, NotebookDropPosition, NotebookSortMode } from "@/lib/app-helpers";
 import type { SyncQueueSummary } from "@/lib/sync-queue";
 import {
@@ -48,20 +57,65 @@ import {
   writeNotebookSortPreference,
 } from "@/lib/app-helpers";
 import type { EdgeEverRepository } from "@/lib/repository";
+import type { EdgeEverPluginHost } from "@/lib/plugins/plugin-host";
 import { statusSettleMotion } from "@/lib/motion";
+import { DesktopUpdateNotice } from "./DesktopUpdateNotice";
+import { PluginToolbarMenu } from "./plugins/PluginToolbarMenu";
+
+const DesktopSyncIssuesDialog = lazy(() => import("./DesktopSyncIssuesDialog").then((module) => ({ default: module.DesktopSyncIssuesDialog })));
 
 const NOTEBOOK_DRAG_SCROLL_EDGE_PX = 56;
 const NOTEBOOK_DRAG_SCROLL_MAX_STEP_PX = 18;
 const DESKTOP_DOWNLOAD_URL = "https://github.com/tianma-if/edgeever/releases/latest";
+const ANDROID_PLAY_URL = "https://play.google.com/store/apps/details?id=org.edgeever.mobile";
+const ANDROID_APK_URL = "https://github.com/tianma-if/edgeever/releases/latest";
+const IOS_DOWNLOAD_URL = "https://apps.apple.com/us/app/edgeever/id6792625631";
 const CHROMIUM_CLIPPER_URL = "https://chromewebstore.google.com/detail/edgeever-web-clipper/gjadpfmanienmlofajibkfkkpfdkclgo";
 const FIREFOX_CLIPPER_URL = "https://addons.mozilla.org/firefox/addon/edgeever-web-clipper/";
 
-const BrowserBrandIcon = ({ path, color }: { path: string; color: string }) => (
-  <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" aria-hidden="true" style={{ color }}>
+const BrandIconContainer = ({ children, className }: { children: ReactNode; className?: string }) => (
+  <span
+    className={cn(
+      "flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+      className
+    )}
+  >
+    {children}
+  </span>
+);
+
+const BrandIcon = ({ path, color, className }: { path: string; color: string; className?: string }) => (
+  <svg className={cn("h-3.5 w-3.5 shrink-0", className)} viewBox="0 0 24 24" aria-hidden="true" style={{ color }}>
     <path fill="currentColor" d={path} />
   </svg>
 );
 
+const DiagramBetaBadge = () => (
+  <Badge
+    variant="outline"
+    className="ml-auto border-emerald-200/80 bg-emerald-50 px-1.5 py-0 text-[10px] leading-4 tracking-wide text-emerald-700 dark:border-emerald-800/60 dark:bg-emerald-950/50 dark:text-emerald-300"
+  >
+    Beta
+  </Badge>
+);
+
+const AppStoreIcon = () => (
+  <svg className="h-3.5 w-3.5 shrink-0 rounded-[2px] bg-[#0D96F6] p-[1.5px] text-white" viewBox="0 0 24 24" aria-hidden="true">
+    <path fill="currentColor" d="m8.809 14.92l6.11-11.037c.084-.152.168-.302.244-.459c.069-.142.127-.285.165-.44c.08-.326.058-.666-.066-.977a1.5 1.5 0 0 0-.62-.735a1.42 1.42 0 0 0-.922-.193c-.32.043-.613.194-.844.43c-.11.11-.2.235-.283.368c-.092.146-.175.298-.259.45l-.386.697l-.387-.698c-.084-.151-.167-.303-.259-.449a2.2 2.2 0 0 0-.283-.369a1.45 1.45 0 0 0-.844-.429a1.42 1.42 0 0 0-.921.193a1.5 1.5 0 0 0-.62.735a1.6 1.6 0 0 0-.066.977c.038.155.096.298.164.44c.076.157.16.307.244.459l1.248 2.254l-4.862 8.782H2.03c-.168 0-.336 0-.503.01c-.152.009-.3.028-.448.071c-.31.09-.582.28-.778.548A1.58 1.58 0 0 0 .3 17.404c.197.268.468.457.779.548c.148.043.296.062.448.071c.167.01.335.01.503.01h13.097a2 2 0 0 0 .1-.27c.415-1.416-.616-2.844-2.035-2.844zm-5.696 3.622l-.792 1.5c-.082.156-.165.31-.239.471a2.4 2.4 0 0 0-.16.452a1.7 1.7 0 0 0 .064 1.003c.121.318.334.583.607.755s.589.242.901.197c.314-.044.6-.198.826-.44c.108-.115.196-.242.278-.378c.09-.15.171-.306.253-.462L6 19.464c-.09-.15-.947-1.47-2.887-.922m20.586-3.006a1.47 1.47 0 0 0-.779-.54a2 2 0 0 0-.448-.071c-.168-.01-.335-.01-.503-.01h-3.321L14.258 7.1a4.06 4.06 0 0 0-1.076 2.198a4.64 4.64 0 0 0 .546 3l5.274 9.393c.084.15.167.3.259.444c.084.13.174.253.283.364c.231.232.524.38.845.423s.643-.024.922-.19a1.5 1.5 0 0 0 .621-.726c.125-.307.146-.642.066-.964a2.2 2.2 0 0 0-.165-.434c-.075-.155-.16-.303-.244-.453l-1.216-2.166h1.596c.168 0 .335 0 .503-.009c.152-.009.3-.028.448-.07a1.47 1.47 0 0 0 .78-.541a1.54 1.54 0 0 0 .3-.916a1.54 1.54 0 0 0-.3-.916" />
+  </svg>
+);
+
+const GooglePlayIcon = () => (
+  <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 28.99 31.99" aria-hidden="true">
+    <path fill="#EA4335" d="M13.54 15.28.12 29.34a3.66 3.66 0 0 0 5.33 2.16l15.1-8.6Z" />
+    <path fill="#FBBC04" d="m27.11 12.89l-6.53-3.74l-7.35 6.45l7.38 7.28l6.48-3.7a3.54 3.54 0 0 0 1.5-4.79a3.62 3.62 0 0 0-1.5-1.5" />
+    <path fill="#4285F4" d="M.12 2.66a3.57 3.57 0 0 0-.12.92v24.84a3.57 3.57 0 0 0 .12.92L14 15.64Z" />
+    <path fill="#34A853" d="m13.64 16l6.94-6.85L5.5.51A3.73 3.73 0 0 0 3.63 0A3.64 3.64 0 0 0 .12 2.65Z" />
+  </svg>
+);
+
+const APPLE_ICON_PATH = "M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04c-2.04.027-3.91 1.183-4.961 3.014c-2.117 3.675-.546 9.103 1.519 12.09c1.013 1.454 2.208 3.09 3.792 3.039c1.52-.065 2.09-.987 3.935-.987c1.831 0 2.35.987 3.96.948c1.637-.026 2.676-1.48 3.676-2.948c1.156-1.688 1.636-3.325 1.662-3.415c-.039-.013-3.182-1.221-3.22-4.857c-.026-3.04 2.48-4.494 2.597-4.559c-1.429-2.09-3.623-2.324-4.39-2.376c-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83c-1.207.052-2.662.805-3.532 1.818c-.78.896-1.454 2.338-1.273 3.714c1.338.104 2.715-.688 3.559-1.701";
+const WINDOWS_ICON_PATH = "M0 0h11.377v11.372H0Zm12.623 0H24v11.372H12.623ZM0 12.623h11.377V24H0Zm12.623 0H24V24H12.623";
 const CHROME_ICON_PATH = "M12 0C8.21 0 4.831 1.757 2.632 4.501l3.953 6.848A5.454 5.454 0 0 1 12 6.545h10.691A12 12 0 0 0 12 0M1.931 5.47A11.94 11.94 0 0 0 0 12c0 6.012 4.42 10.991 10.189 11.864l3.953-6.847a5.45 5.45 0 0 1-6.865-2.29zm13.342 2.166a5.446 5.446 0 0 1 1.45 7.09l.002.001h-.002l-5.344 9.257q.309.015.621.016c6.627 0 12-5.373 12-12c0-1.54-.29-3.011-.818-4.364zM12 16.364a4.364 4.364 0 1 1 0-8.728a4.364 4.364 0 0 1 0 8.728";
 const EDGE_ICON_PATH = "M21.86 17.86q.14 0 .25.12q.1.13.1.25t-.11.33l-.32.46l-.43.53l-.44.5q-.21.25-.38.42l-.22.23q-.58.53-1.34 1.04t-1.6.91q-.86.4-1.74.64t-1.67.24q-.9 0-1.69-.28q-.8-.28-1.48-.78T9.57 21.3q-.53-.66-.92-1.44q-.38-.77-.58-1.6t-.2-1.67q0-1 .32-1.96q.33-.97.87-1.8q.14.95.55 1.77t1.02 1.5q.6.68 1.38 1.21q.78.54 1.64.9t1.77.56q.92.2 1.8.2q1.12 0 2.18-.24q1.06-.23 2.06-.72l.2-.1zm-15.5-1.27q0 1.1.27 2.15q.27 1.06.78 2.03q.51.96 1.24 1.77q.74.82 1.66 1.4q-1.47-.2-2.8-.74q-1.33-.55-2.48-1.37q-1.15-.83-2.08-1.9q-.92-1.07-1.58-2.33T.36 14.94Q0 13.54 0 12.06q0-.81.32-1.49q.31-.68.83-1.23q.53-.55 1.2-.96q.66-.4 1.35-.66q.74-.27 1.5-.39q.78-.12 1.55-.12q.7 0 1.42.1q.72.12 1.4.35t1.32.57q.63.35 1.16.83q-.35 0-.7.07q-.33.07-.65.23v-.02q-.63.28-1.2.74t-1.05 1.04t-.87 1.26q-.38.67-.65 1.39q-.27.71-.42 1.44q-.15.72-.15 1.38M11.96.06q1.7 0 3.33.39q1.63.38 3.07 1.15q1.43.77 2.62 1.93q1.18 1.16 1.98 2.7q.49.94.76 1.96q.28 1 .28 2.08q0 .89-.23 1.7q-.24.8-.69 1.48t-1.1 1.22q-.64.53-1.45.88q-.54.24-1.11.36q-.58.13-1.16.13q-.42 0-.97-.03q-.54-.03-1.1-.12q-.55-.1-1.05-.28q-.5-.19-.84-.5q-.12-.09-.23-.24q-.1-.16-.1-.33q0-.15.16-.35t.35-.5q.2-.28.36-.68t.16-.95q0-1.06-.4-1.96q-.4-.91-1.06-1.64q-.66-.74-1.52-1.28q-.86-.55-1.79-.89q-.84-.3-1.72-.44q-.87-.14-1.76-.14q-1.55 0-3.06.45T.94 7.55q.71-1.74 1.81-3.13q1.1-1.38 2.52-2.35Q6.68 1.1 8.37.58q1.7-.52 3.58-.52Z";
 const FIREFOX_ICON_PATH = "M8.824 7.287c.008 0 .004 0 0 0m-2.8-1.4c.006 0 .003 0 0 0m16.754 2.161c-.505-1.215-1.53-2.528-2.333-2.943c.654 1.283 1.033 2.57 1.177 3.53l.002.02c-1.314-3.278-3.544-4.6-5.366-7.477c-.091-.147-.184-.292-.273-.446a4 4 0 0 1-.13-.24a2 2 0 0 1-.172-.46a.03.03 0 0 0-.027-.03a.04.04 0 0 0-.021 0l-.006.001l-.01.005l.005-.008c-2.585 1.515-3.657 4.168-3.932 5.856a6.2 6.2 0 0 0-2.305.587a.297.297 0 0 0-.147.37c.057.162.24.24.396.17a5.6 5.6 0 0 1 2.008-.523l.067-.005a5.9 5.9 0 0 1 1.957.222l.095.03a6 6 0 0 1 .616.228q.12.054.238.112l.107.055a6 6 0 0 1 .368.211a5.95 5.95 0 0 1 2.034 2.104c-.62-.437-1.733-.868-2.803-.681c4.183 2.09 3.06 9.292-2.737 9.02a5.2 5.2 0 0 1-1.513-.292a4 4 0 0 1-.538-.232c-1.42-.735-2.593-2.121-2.74-3.806c0 0 .537-2 3.845-2c.357 0 1.38-.998 1.398-1.287c-.005-.095-2.029-.9-2.817-1.677c-.422-.416-.622-.616-.8-.767a4 4 0 0 0-.301-.227a5.4 5.4 0 0 1-.032-2.842c-1.195.544-2.124 1.403-2.8 2.163h-.006c-.46-.584-.428-2.51-.402-2.913c-.006-.025-.343.176-.389.206a8.4 8.4 0 0 0-1.136.974q-.596.606-1.085 1.303a9.8 9.8 0 0 0-1.562 3.52c-.003.013-.11.487-.19 1.073q-.02.135-.037.272a8 8 0 0 0-.069.667l-.002.034l-.023.387l-.001.06C.386 18.795 5.593 24 12.016 24c5.752 0 10.527-4.176 11.463-9.661q.028-.223.052-.448c.232-1.994-.025-4.09-.753-5.844z";
@@ -85,14 +139,14 @@ const SidebarNavButton = ({
       tone === "warning"
         ? "text-amber-700 hover:bg-amber-50/70 hover:text-amber-800"
         : active
-          ? "bg-slate-100 text-slate-950"
+          ? "edgeever-workspace-selection text-slate-950 font-medium"
           : "text-slate-700 hover:bg-slate-50 hover:text-slate-950"
     )}
     type="button"
     aria-current={active ? "page" : undefined}
     onClick={onClick}
   >
-    <span className="flex h-4 w-4 shrink-0 items-center justify-center">{icon}</span>
+    <span className={cn("flex h-4 w-4 shrink-0 items-center justify-center transition-colors duration-200", active && "text-emerald-600 dark:text-emerald-400")}>{icon}</span>
     <span className="min-w-0 flex-1 truncate">{label}</span>
   </button>
 );
@@ -114,7 +168,7 @@ const SidebarShortcutButton = ({
     <button
       className={cn(
         "flex h-9 min-w-0 w-full items-center justify-center rounded-md px-0 text-xs font-medium transition-colors duration-200",
-        active ? "bg-slate-100 text-slate-900" : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
+        active ? "edgeever-workspace-selection text-emerald-600 dark:text-emerald-400" : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
       )}
       type="button"
       aria-current={active ? "page" : undefined}
@@ -203,14 +257,17 @@ const SyncStatusBar = ({
   isSyncing,
   onSyncNow,
   onDiscardConflicts,
+  notebooks,
 }: {
   summary: SyncQueueSummary;
   isOnline: boolean;
   isSyncing: boolean;
   onSyncNow: () => void;
   onDiscardConflicts: () => void;
+  notebooks: Notebook[];
 }) => {
   const { t } = useTranslation();
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const hasQueuedWork = summary.total > 0;
   const label = getSyncStatusLabel(summary, isOnline, isSyncing, t);
   const statusClassName = !isOnline
@@ -243,7 +300,13 @@ const SyncStatusBar = ({
           <CheckCircle2 className="h-4 w-4" />
         )}
       </m.span>
-      <span className="min-w-0 flex-1 truncate text-xs font-medium">{label}</span>
+      <button
+        className="min-w-0 flex-1 truncate text-left text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
+        type="button"
+        onClick={() => setDetailsOpen(true)}
+      >
+        {label}
+      </button>
       {summary.conflict > 0 && (
         <button
           className="shrink-0 rounded-md px-2 py-1 text-[11px] font-semibold text-amber-800 transition-colors hover:bg-white/70 disabled:opacity-50"
@@ -255,16 +318,32 @@ const SyncStatusBar = ({
         </button>
       )}
       {hasQueuedWork && (
-        <button
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md hover:bg-white/70 disabled:opacity-50 transition-colors"
-          type="button"
-          title={t("notebookPane.syncNow")}
-          aria-label={t("notebookPane.syncNow")}
-          disabled={!isOnline || isSyncing}
-          onClick={onSyncNow}
-        >
-          <RefreshCw className="h-3.5 w-3.5" />
-        </button>
+        <TooltipProvider delayDuration={0}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md hover:bg-white/70 disabled:opacity-50 transition-colors"
+                type="button"
+                aria-label={t("notebookPane.syncNow")}
+                disabled={!isOnline || isSyncing}
+                onClick={onSyncNow}
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>{t("notebookPane.syncNow")}</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
+      {detailsOpen && (
+        <Suspense fallback={null}>
+          <DesktopSyncIssuesDialog
+            open={detailsOpen}
+            onOpenChange={setDetailsOpen}
+            notebooks={notebooks}
+            onSyncNow={onSyncNow}
+          />
+        </Suspense>
       )}
     </div>
   );
@@ -285,6 +364,9 @@ export const NotebookPane = ({
   onOpenTags,
   onOpenAssets,
   onOpenTemplates,
+  companionActive,
+  pluginHost,
+  onOpenPluginManager,
   onOpenTrash,
   onEmptyTrash,
   onOpenSettings,
@@ -319,10 +401,13 @@ export const NotebookPane = ({
   onOpenTags: () => void;
   onOpenAssets: () => void;
   onOpenTemplates: () => void;
+  companionActive: boolean;
+  pluginHost: EdgeEverPluginHost;
+  onOpenPluginManager: () => void;
   onOpenTrash: () => void;
   onEmptyTrash: () => void;
   onOpenSettings: () => void;
-  onCreateMemo: () => void;
+  onCreateMemo: (kind?: DiagramKind) => void;
   canCreateMemo: boolean;
   isCreatingMemo: boolean;
   syncSummary: SyncQueueSummary;
@@ -346,6 +431,11 @@ export const NotebookPane = ({
   const notebookDragScrollFrameRef = useRef<number | null>(null);
   const [expandSiblingsRequest, setExpandSiblingsRequest] = useState<{ parentId: string | null; token: number } | null>(null);
   const [notebookSortMode, setNotebookSortMode] = useState<NotebookSortMode>(readNotebookSortPreference);
+
+  const handleMoveNotebook = useCallback((notebookId: string, targetNotebookId: string, position: NotebookDropPosition) => {
+    setNotebookSortMode("custom");
+    onMoveNotebook(notebookId, targetNotebookId, position);
+  }, [onMoveNotebook]);
 
   const stopNotebookDragAutoScroll = useCallback(() => {
     if (notebookDragScrollFrameRef.current === null) {
@@ -449,10 +539,16 @@ export const NotebookPane = ({
       </header>
 
       <TooltipProvider delayDuration={0} skipDelayDuration={0}>
-        <nav className="grid shrink-0 grid-cols-4 gap-0.5 border-b border-slate-100 px-2 py-1.5" aria-label={t("notebookPane.secondaryEntries")}>
+        <nav className="grid shrink-0 grid-cols-2 gap-0.5 border-b border-slate-100 px-2 py-1.5 sm:grid-cols-3 lg:grid-cols-5" aria-label={t("notebookPane.secondaryEntries")}>
           <SidebarShortcutButton icon={<Tags className="h-4 w-4" />} label={t("mobileSheets.tags")} onClick={onOpenTags} />
           <SidebarShortcutButton icon={<Archive className="h-4 w-4" />} label={t("mobileSheets.assets")} onClick={onOpenAssets} />
           {showTemplateEntry && <SidebarShortcutButton icon={<LayoutTemplate className="h-4 w-4" />} label={t("nav.templates")} onClick={onOpenTemplates} />}
+          <PluginToolbarMenu
+            host={pluginHost}
+            onManage={onOpenPluginManager}
+            align="start"
+            className="h-9 w-full rounded-md px-0 text-slate-600"
+          />
           <SidebarTrashShortcut active={view === "trash"} onOpenTrash={onOpenTrash} onEmptyTrash={onEmptyTrash} />
         </nav>
       </TooltipProvider>
@@ -465,25 +561,59 @@ export const NotebookPane = ({
             isSyncing={isSyncingQueuedChanges}
             onSyncNow={onSyncQueuedChanges}
             onDiscardConflicts={onDiscardConflicts}
+            notebooks={notebooks}
           />
         </div>
       )}
 
       <div className="hidden shrink-0 px-3 pb-4 pt-4 lg:block">
-        <div className="flex overflow-hidden rounded-full border border-slate-200 bg-white shadow-[0_8px_22px_rgba(15,23,42,0.06)]">
+        <div className="flex overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_5px_16px_rgba(15,23,42,0.06)] transition-shadow duration-200 hover:shadow-[0_7px_20px_rgba(15,23,42,0.09)]">
           <button
-            className="group flex h-14 min-w-0 flex-1 items-center gap-3 px-3 text-left transition-all duration-200 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+            className="group flex h-12 min-w-0 flex-1 items-center gap-3 px-3 text-left transition-colors duration-150 hover:bg-slate-50 focus-visible:bg-slate-50 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
             type="button"
-            title={t("notebookPane.newMemo")}
             aria-label={t("notebookPane.newMemo")}
-            onClick={onCreateMemo}
+            onClick={() => onCreateMemo()}
             disabled={!canCreateMemo || isCreatingMemo}
           >
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white shadow-[0_8px_18px_rgb(var(--brand-green-rgb)/0.28)] transition-transform duration-200 group-hover:scale-105">
-              <Plus className="h-6 w-6" />
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white shadow-[0_5px_12px_rgb(var(--brand-green-rgb)/0.22)] transition-transform duration-150 group-hover:scale-[1.03] group-focus-visible:ring-2 group-focus-visible:ring-emerald-500/70 group-focus-visible:ring-offset-2">
+              <Plus className="h-5 w-5" />
             </span>
             <span className="min-w-0 truncate text-sm font-semibold text-slate-950">{t("notebookPane.newMemo")}</span>
           </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                className="group relative flex h-12 w-[6.25rem] shrink-0 items-center justify-center gap-1 px-2 text-xs font-medium text-slate-600 transition-colors before:absolute before:inset-y-2.5 before:left-0 before:w-px before:bg-slate-200 hover:bg-emerald-50/70 hover:text-emerald-700 focus-visible:bg-emerald-50/70 focus-visible:text-emerald-700 focus-visible:outline-none data-[state=open]:bg-emerald-50 data-[state=open]:text-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                type="button"
+                aria-label={t("diagram.createType")}
+                disabled={!canCreateMemo || isCreatingMemo}
+              >
+                <span className="truncate">{t("diagram.moreTypes")}</span>
+                <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform duration-150 group-data-[state=open]:rotate-180" aria-hidden="true" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" sideOffset={8} className="w-52">
+              <DropdownMenuItem onSelect={() => onCreateMemo()}>
+                <FileText className="h-4 w-4" />
+                {t("diagram.normalNote")}
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => onCreateMemo("mind-map")}>
+                <Network className="h-4 w-4" />
+                {t("diagram.mindMap")}
+                <DiagramBetaBadge />
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => onCreateMemo("flowchart")}>
+                <Workflow className="h-4 w-4" />
+                {t("diagram.flowchart")}
+                <DiagramBetaBadge />
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => onCreateMemo("architecture")}>
+                <Boxes className="h-4 w-4" />
+                {t("diagram.architecture")}
+                <DiagramBetaBadge />
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -512,9 +642,9 @@ export const NotebookPane = ({
           </button>
         )}
 
-        <nav className="mb-3 space-y-1" aria-label={t("notebookPane.entries")}>
+        <nav className="mb-3 space-y-1" aria-label={t("companion.primaryNavigation")}>
           <SidebarNavButton
-            active={view === "notebook" && selectedNotebookId === null}
+            active={!companionActive && view === "notebook" && selectedNotebookId === null}
             icon={<LayoutList className="h-4 w-4" />}
             label={t("notebookPane.allMemos")}
             onClick={onBackToList}
@@ -542,16 +672,24 @@ export const NotebookPane = ({
               <BookPlus className="h-3.5 w-3.5" />
             </button>
             <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  className="flex h-6 w-6 items-center justify-center rounded-md text-slate-500 transition-colors duration-200 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/70"
-                  type="button"
-                  title={t("notebookPane.sortTitle", { label: activeNotebookSortLabel })}
-                  aria-label={t("notebookPane.sortTitle", { label: activeNotebookSortLabel })}
-                >
-                  <ArrowDownWideNarrow className="h-3.5 w-3.5" />
-                </button>
-              </DropdownMenuTrigger>
+              <TooltipProvider delayDuration={0} skipDelayDuration={0}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        className="flex h-6 w-6 items-center justify-center rounded-md text-slate-500 transition-colors duration-200 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/70"
+                        type="button"
+                        aria-label={t("notebookPane.sortTitle", { label: activeNotebookSortLabel })}
+                      >
+                        <ArrowDownWideNarrow className="h-3.5 w-3.5" />
+                      </button>
+                    </DropdownMenuTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    {t("notebookPane.sortTitle", { label: activeNotebookSortLabel })}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
               <DropdownMenuContent align="end" className="w-36">
                 {notebookSortOptions.map((option) => (
                   <DropdownMenuCheckboxItem
@@ -576,12 +714,12 @@ export const NotebookPane = ({
                 key={node.id}
                 node={node}
                 depth={0}
-                selectedNotebookId={selectedNotebookId}
+                selectedNotebookId={companionActive ? null : selectedNotebookId}
                 onSelect={onSelect}
                 onCreateNotebook={onCreateNotebook}
                 onRenameNotebook={onRenameNotebook}
                 onDeleteNotebook={onDeleteNotebook}
-                onMoveNotebook={onMoveNotebook}
+                onMoveNotebook={handleMoveNotebook}
                 onMoveMemos={onMoveMemos}
                 onDragScroll={handleNotebookScrollDragOver}
                 expandSiblingsRequest={expandSiblingsRequest}
@@ -593,78 +731,198 @@ export const NotebookPane = ({
 
       </div>
 
-      <footer className="border-t border-slate-200 bg-white/80 px-3 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-sm">
+      <footer className="edgeever-workspace-sidebar-footer border-t border-slate-200 px-3 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-sm">
         <div className="space-y-1">
-          {!window.edgeeverDesktop?.isAvailable && (
-            <a
-              href={DESKTOP_DOWNLOAD_URL}
-              target="_blank"
-              rel="noreferrer"
-              className="flex min-h-11 w-full items-start gap-3 rounded-md px-3 py-2 text-left text-emerald-700 transition-colors duration-200 hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70"
-              title={t("pwa.sidebarInstallTitle") || "下载 EdgeEver 桌面客户端"}
-              aria-label={t("pwa.sidebarInstallTitle") || "下载 EdgeEver 桌面客户端"}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                className="flex h-8 w-full items-center gap-3 rounded-md px-3 text-left text-sm font-medium leading-none text-slate-700 transition-colors duration-200 hover:bg-slate-50 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70 data-[state=open]:bg-slate-100 data-[state=open]:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white dark:data-[state=open]:bg-slate-800"
+                type="button"
+                aria-label={t("pwa.sidebarDownloadsTitle") || "下载 EdgeEver 客户端与浏览器插件"}
+              >
+                <span className="flex h-4 w-4 shrink-0 items-center justify-center text-emerald-600 dark:text-emerald-400">
+                  <Download className="h-4 w-4" />
+                </span>
+                <span className="min-w-0 flex-1 truncate">{t("pwa.sidebarDownloads") || "下载客户端"}</span>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              side="top"
+              align="start"
+              sideOffset={6}
+              className="w-64 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-800 dark:bg-slate-900"
             >
-              <span className="flex h-4 w-4 shrink-0 items-center justify-center mt-0.5">
-                <Download className="h-4 w-4 text-emerald-600" />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-semibold leading-4">
-                  {t("pwa.sidebarInstall") || "下载桌面客户端"}
-                </span>
-                <span className="mt-1 block truncate whitespace-nowrap text-[11px] font-normal leading-4 text-slate-400">
-                  {t("pwa.sidebarInstallAvailability") || "Mac 可用 · Windows 敬请期待"}
-                </span>
-              </span>
-            </a>
-          )}
-          {demoMode && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  className="flex h-8 w-full items-center gap-3 rounded-md px-3 text-left text-sm font-medium leading-none text-slate-500 transition-colors duration-200 hover:bg-slate-50 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70"
-                  type="button"
-                  title={t("pwa.sidebarClipperTitle") || "安装 EdgeEver 浏览器剪藏插件"}
-                  aria-label={t("pwa.sidebarClipperTitle") || "安装 EdgeEver 浏览器剪藏插件"}
-                >
-                  <span className="flex h-4 w-4 shrink-0 items-center justify-center">
-                    <ExternalLink className="h-3.5 w-3.5 text-slate-400" />
-                  </span>
-                  <span className="min-w-0 flex-1 truncate">{t("pwa.sidebarClipper") || "安装浏览器剪藏插件"}</span>
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" side="top" className="w-52">
+              <DropdownMenuGroup>
+                <DropdownMenuLabel className="px-2 py-1 text-[11px] font-medium uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                  {t("pwa.sidebarGroupApps") || "客户端应用"}
+                </DropdownMenuLabel>
                 <DropdownMenuItem asChild>
-                  <a className="gap-2" href={CHROMIUM_CLIPPER_URL} target="_blank" rel="noreferrer">
-                    <span className="flex w-9 items-center gap-1">
-                      <BrowserBrandIcon path={CHROME_ICON_PATH} color="#4285F4" />
-                      <BrowserBrandIcon path={EDGE_ICON_PATH} color="#0C59A4" />
-                    </span>
-                    <span>Chrome / Edge</span>
+                  <a
+                    href={DESKTOP_DOWNLOAD_URL}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="group flex cursor-pointer items-center justify-between gap-2.5 rounded-md px-2 py-1.5 text-sm text-slate-700 outline-none transition-colors hover:bg-slate-100 hover:text-slate-900 focus:bg-slate-100 focus:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
+                  >
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <BrandIconContainer>
+                        <BrandIcon path={APPLE_ICON_PATH} color="#111827" />
+                      </BrandIconContainer>
+                      <span className="truncate font-medium">{t("pwa.sidebarMac") || "macOS"}</span>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300">
+                      <span className="text-[11px]">DMG</span>
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </div>
                   </a>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <a className="gap-2" href={FIREFOX_CLIPPER_URL} target="_blank" rel="noreferrer">
-                    <span className="flex w-9 items-center">
-                      <BrowserBrandIcon path={FIREFOX_ICON_PATH} color="#FF7139" />
-                    </span>
-                    <span>Firefox</span>
+                  <a
+                    href={DESKTOP_DOWNLOAD_URL}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label={`${t("pwa.sidebarWindows")} ${t("pwa.sidebarWindowsBadge")}`}
+                    className="group flex cursor-pointer items-center justify-between gap-2.5 rounded-md px-2 py-1.5 text-sm text-slate-700 outline-none transition-colors hover:bg-slate-100 hover:text-slate-900 focus:bg-slate-100 focus:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
+                  >
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <BrandIconContainer>
+                        <BrandIcon path={WINDOWS_ICON_PATH} color="#0078D4" />
+                      </BrandIconContainer>
+                      <span className="truncate font-medium">{t("pwa.sidebarWindows") || "Windows"}</span>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1 text-amber-700 dark:text-amber-400">
+                      <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold dark:bg-amber-950/40">
+                        {t("pwa.sidebarWindowsBadge") || "Preview"}
+                      </span>
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </div>
                   </a>
                 </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-          <button
-            onClick={onOpenSettings}
-            className="flex h-8 w-full items-center gap-3 rounded-md px-3 text-left text-sm font-medium leading-none text-slate-700 transition-colors duration-200 hover:bg-slate-50 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/70"
-            type="button"
-            title={t("notebookPane.profile")}
-            aria-label={t("notebookPane.profile")}
-          >
-            <span className="flex h-4 w-4 shrink-0 items-center justify-center">
-              <CircleUserRound className="h-4 w-4" />
-            </span>
-            <span className="min-w-0 flex-1 truncate">{t("notebookPane.profile")}</span>
-          </button>
+                <DropdownMenuItem asChild>
+                  <a
+                    href={ANDROID_PLAY_URL}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label={t("pwa.sidebarAndroidTitle") || "在 Google Play 下载 EdgeEver 安卓端"}
+                    className="group flex cursor-pointer items-center justify-between gap-2.5 rounded-md px-2 py-1.5 text-sm text-slate-700 outline-none transition-colors hover:bg-slate-100 hover:text-slate-900 focus:bg-slate-100 focus:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
+                  >
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <BrandIconContainer>
+                        <GooglePlayIcon />
+                      </BrandIconContainer>
+                      <span className="truncate font-medium">{t("pwa.sidebarAndroid") || "Android"}</span>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300">
+                      <span className="text-[11px]">{t("pwa.sidebarAndroidGooglePlay") || "Google Play"}</span>
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </div>
+                  </a>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <a
+                    href={ANDROID_APK_URL}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="group flex cursor-pointer items-center justify-between gap-2.5 rounded-md px-2 py-1.5 text-sm text-slate-700 outline-none transition-colors hover:bg-slate-100 hover:text-slate-900 focus:bg-slate-100 focus:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
+                  >
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <BrandIconContainer>
+                        <Download className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                      </BrandIconContainer>
+                      <span className="truncate font-medium">{t("pwa.sidebarAndroidApk") || "APK 下载"}</span>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300">
+                      <span className="text-[11px]">Releases</span>
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </div>
+                  </a>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <a
+                    href={IOS_DOWNLOAD_URL}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label={t("pwa.sidebarIosTitle") || "在 App Store 下载 EdgeEver iOS 端（仅支持非大陆区 Apple ID）"}
+                    className="group flex cursor-pointer items-center justify-between gap-2.5 rounded-md px-2 py-1.5 text-sm text-slate-700 outline-none transition-colors hover:bg-slate-100 hover:text-slate-900 focus:bg-slate-100 focus:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
+                  >
+                    <div className="flex min-w-0 items-center gap-2">
+                      <BrandIconContainer>
+                        <AppStoreIcon />
+                      </BrandIconContainer>
+                      <span className="truncate font-medium">{t("pwa.sidebarIos") || "iOS"}</span>
+                      <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                        {t("pwa.sidebarIosRegionBadge") || "非大陆区"}
+                      </span>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300">
+                      <span className="text-[11px]">{t("pwa.sidebarIosBadge") || "App Store"}</span>
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </div>
+                  </a>
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
+              <DropdownMenuSeparator className="my-1 bg-slate-100 dark:bg-slate-800" />
+              <DropdownMenuGroup>
+                <DropdownMenuLabel className="px-2 py-1 text-[11px] font-medium uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                  {t("pwa.sidebarGroupClippers") || "浏览器剪藏插件"}
+                </DropdownMenuLabel>
+                <DropdownMenuItem asChild>
+                  <a
+                    href={CHROMIUM_CLIPPER_URL}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="group flex cursor-pointer items-center justify-between gap-2.5 rounded-md px-2 py-1.5 text-sm text-slate-700 outline-none transition-colors hover:bg-slate-100 hover:text-slate-900 focus:bg-slate-100 focus:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
+                  >
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <BrandIconContainer>
+                        <div className="flex items-center -space-x-1">
+                          <BrandIcon path={CHROME_ICON_PATH} color="#4285F4" className="h-3 w-3" />
+                          <BrandIcon path={EDGE_ICON_PATH} color="#0C59A4" className="h-3 w-3" />
+                        </div>
+                      </BrandIconContainer>
+                      <span className="truncate font-medium">{t("pwa.sidebarChromeEdge") || "Chrome / Edge"}</span>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300">
+                      <span className="text-[11px]">{t("pwa.sidebarWebStoreBadge") || "扩展商店"}</span>
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </div>
+                  </a>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <a
+                    href={FIREFOX_CLIPPER_URL}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="group flex cursor-pointer items-center justify-between gap-2.5 rounded-md px-2 py-1.5 text-sm text-slate-700 outline-none transition-colors hover:bg-slate-100 hover:text-slate-900 focus:bg-slate-100 focus:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
+                  >
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <BrandIconContainer>
+                        <BrandIcon path={FIREFOX_ICON_PATH} color="#FF7139" />
+                      </BrandIconContainer>
+                      <span className="truncate font-medium">{t("pwa.sidebarFirefox") || "Firefox"}</span>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300">
+                      <span className="text-[11px]">{t("pwa.sidebarAddonsBadge") || "附加组件"}</span>
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </div>
+                  </a>
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={onOpenSettings}
+              className="flex h-8 min-w-0 flex-1 items-center gap-3 rounded-md px-3 text-left text-sm font-medium leading-none text-slate-700 transition-colors duration-200 hover:bg-slate-50 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/70"
+              type="button"
+              aria-label={t("notebookPane.profile")}
+            >
+              <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+                <CircleUserRound className="h-4 w-4" />
+              </span>
+              <span className="min-w-0 flex-1 truncate">{t("notebookPane.profile")}</span>
+            </button>
+            <DesktopUpdateNotice />
+          </div>
         </div>
       </footer>
     </div>

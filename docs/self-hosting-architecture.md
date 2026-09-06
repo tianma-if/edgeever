@@ -1,7 +1,8 @@
 # Self-hosting and Docker architecture
 
-Docker-based self-hosting is planned for VPS, NAS, and home servers. It is not
-available as a supported release yet.
+Docker-based self-hosting supports VPS, NAS, and home servers without creating
+a second product implementation. Cloudflare and Docker execute the same Hono
+application and differ only at thin runtime and infrastructure adapter seams.
 
 ## Current boundary
 
@@ -13,11 +14,11 @@ current concrete implementation lives in
 - `DatabaseAdapter`: SQL statements and batches.
 - `BlobStoreAdapter`: attachment `get`, `put`, and `delete` operations.
 
-Cloudflare D1 and R2 remain the production adapter today. This keeps the
-existing Worker deployment unchanged while reserving a stable replacement
-point for a self-hosted adapter.
+Cloudflare injects the D1/R2 adapter into `fetchEdgeEverApp`; the Bun entrypoint
+injects the SQLite/filesystem or SQLite/S3 adapter into that same function.
+Neither entrypoint owns route or business decisions.
 
-The shared self-hosted configuration shape is also defined as
+The shared self-hosted configuration shape is defined as
 `SelfHostedStorageConfig`, with one application data directory, one SQLite
 database file, and one attachment directory.
 
@@ -27,10 +28,10 @@ contracts. It is intentionally not implemented yet. SQLite remains the
 default self-hosted database; PostgreSQL will be useful for larger teams,
 higher write concurrency, and external database operations.
 
-## Intended Docker shape
+## Docker shape
 
-The first supported container deployment should be a single application
-container with two persistent mounts:
+The supported container deployment is a single application container with one
+persistent `/data` mount:
 
 ```text
 EdgeEver container
@@ -38,10 +39,10 @@ EdgeEver container
 └── attachment store      -> /data/resources
 ```
 
-The initial self-hosted adapter preserves the existing SQLite schema and
+The self-hosted adapter preserves the existing SQLite schema and
 `migrations/*.sql` files. Attachments are addressed by the same opaque object
-keys currently stored in `resources.object_key`; the experimental runtime
-already supports both a local filesystem backend and an S3-compatible backend.
+keys stored in `resources.object_key`; the runtime supports both a local
+filesystem backend and an S3-compatible backend.
 
 When PostgreSQL is implemented, it must introduce an explicit SQL dialect and
 migration set for PostgreSQL-specific full-text search and transaction
@@ -53,10 +54,12 @@ ambiguous.
 - Keep `/api/*`, `/mcp`, `/api/openapi.json`, and `/api/health` unchanged.
 - Keep the current migration files append-only; do not fork the schema for
   Docker.
-- Keep root secrets such as `EDGE_EVER_STORAGE_ENCRYPTION_KEY` in environment
-  variables or Docker secrets, never in the image or database. Credentials
-  entered through the instance settings may be stored only as AES-GCM
-  ciphertext protected by that deployment-level key.
+- Keep root secrets in environment variables or Docker secrets, never in the
+  image or database. Object-storage secrets and personal AI model API keys use
+  separate purpose-specific keys derived from the existing instance
+  authentication secret. An optional `EDGE_EVER_CREDENTIALS_ENCRYPTION_KEY`
+  can override the AI credential key for advanced rotation.
+  Stored credentials must remain AES-GCM ciphertext.
 - Make `/data` the only required persistent application path so NAS users can
   back up one volume.
 - Support `EDGE_EVER_AUTH_USERNAME`, `EDGE_EVER_AUTH_PASSWORD`, and session
@@ -68,11 +71,10 @@ ambiguous.
 - Expose a health check that distinguishes process availability from database
   readiness and attachment-store readiness.
 
-This document is an architecture reservation, not a Docker deployment guide.
-Until a self-hosted adapter and backup/upgrade procedure are tested, the
-Cloudflare deployment remains the only supported production deployment.
+Operational instructions, including secrets, HTTPS, backups, upgrades, and NAS
+permissions, live in [Deploy EdgeEver with Docker](deploy-docker.md).
 
-An experimental local runtime is available for adapter development:
+The Docker image and local development use the same Bun runtime:
 
 ```sh
 bun run build:web
@@ -80,7 +82,9 @@ EDGE_EVER_AUTH_PASSWORD='<strong-password>' bun run start:self-hosted
 ```
 
 Set `EDGE_EVER_DATA_DIR` to the directory that should be persisted by Docker
-or a NAS volume. This runtime is not yet a supported release artifact.
+or a NAS volume.
+Long-running streaming responses use a 120-second idle timeout by default. Set
+`EDGE_EVER_IDLE_TIMEOUT_SECONDS` to a value from 10 to 255 to override it.
 
 The same runtime can use an S3-compatible object store:
 

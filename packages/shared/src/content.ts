@@ -1,8 +1,27 @@
 import Image from "@tiptap/extension-image";
+import { TaskItem, TaskList } from "@tiptap/extension-list";
 import { TableKit } from "@tiptap/extension-table";
 import { Markdown, MarkdownManager } from "@tiptap/markdown";
 import StarterKit from "@tiptap/starter-kit";
 import { MergeDivider, MERGE_DIVIDER_NODE_TYPE } from "./merge-divider";
+import { PdfAttachment, PDF_ATTACHMENT_NODE_TYPE, upgradeStandalonePdfLinks } from "./pdf-attachment";
+import { FileAttachment, FILE_ATTACHMENT_NODE_TYPE, upgradeStandaloneFileLinks } from "./file-attachment";
+import {
+  BLOCK_MATH_NODE_TYPE,
+  createEdgeEverMarkdownMathematics,
+  INLINE_MATH_NODE_TYPE,
+} from "./mathematics-markdown";
+import { projectNativeUnknownContentForMarkdown } from "./mobile-content-compatibility";
+import { PluginEmbed, PLUGIN_EMBED_NODE_TYPE } from "./plugin-embed";
+import { ImageGallery, IMAGE_GALLERY_NODE_TYPE, normalizeImageGalleries } from "./image-gallery";
+
+export { PluginEmbed, PLUGIN_EMBED_NODE_TYPE, pluginEmbedToMarkdown, normalizePluginEmbedAttributes } from "./plugin-embed";
+export type { PluginEmbedAttributes } from "./plugin-embed";
+
+export {
+  BLOCK_MATH_NODE_TYPE,
+  INLINE_MATH_NODE_TYPE,
+} from "./mathematics-markdown";
 
 export {
   MergeDivider,
@@ -11,6 +30,23 @@ export {
   mergeMemoDocs,
   createMergeDividerNode,
 } from "./merge-divider";
+
+export {
+  PdfAttachment,
+  PDF_ATTACHMENT_NODE_TYPE,
+  PDF_DISPLAY_MODES,
+  isPdfAttachment,
+  resolvePdfDisplayMode,
+  upgradeStandalonePdfLinks,
+} from "./pdf-attachment";
+export type { PdfDisplayMode } from "./pdf-attachment";
+
+export {
+  FileAttachment,
+  FILE_ATTACHMENT_NODE_TYPE,
+  isFileAttachmentLink,
+  upgradeStandaloneFileLinks,
+} from "./file-attachment";
 
 export type TiptapTextNode = {
   type: "text";
@@ -60,9 +96,16 @@ export const emptyDoc = (): TiptapDoc => ({
 const markdownManager = new MarkdownManager({
   extensions: [
     StarterKit,
+    TaskList,
+    TaskItem.configure({ nested: true }),
     TableKit,
     Image,
+    ImageGallery,
+    PdfAttachment,
+    FileAttachment,
     MergeDivider,
+    PluginEmbed,
+    ...createEdgeEverMarkdownMathematics(),
     Markdown.configure({
       markedOptions: { gfm: true },
     }),
@@ -96,13 +139,22 @@ export const resolveMemoContentDoc = (
   contentMarkdown: string | null | undefined
 ): TiptapDoc => {
   const currentDoc = contentJson && Array.isArray(contentJson.content)
-    ? upgradeLegacyAttachmentLinks(contentJson)
+    ? normalizeImageGalleries(
+        upgradeStandaloneFileLinks(upgradeStandalonePdfLinks(upgradeLegacyAttachmentLinks(contentJson))),
+      )
     : emptyDoc();
   if (
     !contentMarkdown?.trim() ||
     docContainsNodeType(currentDoc, "table") ||
+    docContainsNodeType(currentDoc, "taskList") ||
     docContainsNodeType(currentDoc, "edgeeverThemeBlock") ||
-    docContainsNodeType(currentDoc, MERGE_DIVIDER_NODE_TYPE)
+    docContainsNodeType(currentDoc, IMAGE_GALLERY_NODE_TYPE) ||
+    docContainsNodeType(currentDoc, MERGE_DIVIDER_NODE_TYPE) ||
+    docContainsNodeType(currentDoc, PLUGIN_EMBED_NODE_TYPE) ||
+    docContainsNodeType(currentDoc, BLOCK_MATH_NODE_TYPE) ||
+    docContainsNodeType(currentDoc, INLINE_MATH_NODE_TYPE)
+    || docContainsNodeType(currentDoc, PDF_ATTACHMENT_NODE_TYPE)
+    || docContainsNodeType(currentDoc, FILE_ATTACHMENT_NODE_TYPE)
   ) {
     return currentDoc;
   }
@@ -111,9 +163,13 @@ export const resolveMemoContentDoc = (
   // Some older saves left an empty JSON document behind while retaining the
   // real body in Markdown. Treat that as a compatibility case too; otherwise
   // the editor can show the Markdown body while list excerpts see an empty
-  // JSON document. Also recover merge dividers when only Markdown still has them.
+  // JSON document. Also recover task lists and merge dividers when only Markdown
+  // still retains their semantics.
   return docContainsNodeType(markdownDoc, "table")
+    || docContainsNodeType(markdownDoc, "taskList")
     || docContainsNodeType(markdownDoc, MERGE_DIVIDER_NODE_TYPE)
+    || docContainsNodeType(markdownDoc, BLOCK_MATH_NODE_TYPE)
+    || docContainsNodeType(markdownDoc, INLINE_MATH_NODE_TYPE)
     || !docToText(currentDoc)
     ? markdownDoc
     : currentDoc;
@@ -184,6 +240,18 @@ export const docToText = (doc: unknown): string => {
       }
     }
 
+    if (current.type === PDF_ATTACHMENT_NODE_TYPE || current.type === FILE_ATTACHMENT_NODE_TYPE) {
+      const label = getStringAttr(current.attrs, "label");
+      if (label) pieces.push(label);
+    }
+
+    if (current.type === BLOCK_MATH_NODE_TYPE || current.type === INLINE_MATH_NODE_TYPE) {
+      const latex = getStringAttr(current.attrs, "latex");
+      if (latex) {
+        pieces.push(latex);
+      }
+    }
+
     if (Array.isArray(current.content)) {
       for (const child of current.content) {
         walk(child);
@@ -222,10 +290,15 @@ export const countMemoCharacters = (doc: unknown): number => {
       return;
     }
 
-    const current = node as { text?: unknown; content?: unknown };
+    const current = node as { type?: unknown; text?: unknown; attrs?: Record<string, unknown>; content?: unknown };
 
     if (typeof current.text === "string") {
       pieces.push(current.text);
+    }
+
+    if (current.type === PDF_ATTACHMENT_NODE_TYPE || current.type === FILE_ATTACHMENT_NODE_TYPE) {
+      const label = getStringAttr(current.attrs, "label");
+      if (label) pieces.push(label);
     }
 
     if (Array.isArray(current.content)) {
@@ -254,7 +327,33 @@ export const docToMarkdown = (doc: unknown): string => {
     return "";
   }
 
-  return markdownManager.serialize(stripEditorOnlyNodes(doc) as Parameters<typeof markdownManager.serialize>[0]);
+  const serializableDoc = protectLiteralDollarPairs(projectNativeUnknownContentForMarkdown(
+    stripEditorOnlyNodes(doc) as TiptapDoc
+  ));
+  return markdownManager
+    .serialize(serializableDoc as Parameters<typeof markdownManager.serialize>[0])
+    .replaceAll(LITERAL_DOLLAR_PLACEHOLDER, "\\$");
+};
+
+const LITERAL_DOLLAR_PLACEHOLDER = "\uE000edgeever-dollar\uE001";
+
+/** Preserve dollar pairs that are text rather than inline-math nodes. */
+const protectLiteralDollarPairs = (value: unknown): unknown => {
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+
+  const node = value as { type?: unknown; text?: unknown; content?: unknown };
+  if (node.type === "text" && typeof node.text === "string") {
+    const dollarCount = Array.from(node.text).filter((character) => character === "$").length;
+    return dollarCount >= 2
+      ? { ...node, text: node.text.replaceAll("$", LITERAL_DOLLAR_PLACEHOLDER) }
+      : value;
+  }
+
+  return Array.isArray(node.content)
+    ? { ...node, content: node.content.map(protectLiteralDollarPairs) }
+    : value;
 };
 
 /**

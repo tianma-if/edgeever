@@ -144,6 +144,20 @@ export const formatMemoPreviewDate = (value: string, localePreference: MobileLoc
   return new Intl.DateTimeFormat(locale, { year: "numeric", month: "numeric", day: "numeric" }).format(date);
 };
 
+export const formatMemoDetailDate = (value: string, locale: string) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+  return new Intl.DateTimeFormat(locale, {
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+};
+
 export const sortMemoSummaries = (memos: MemoSummary[], sortMode: unknown) =>
   [...memos].sort((left, right) => {
     if (sortMode === "title-asc") {

@@ -7,6 +7,12 @@ export type NoteSearchMatch = {
   to: number;
 };
 
+export const getSearchNavigationIdentity = (
+  memoId: string | null,
+  source: "note" | "content",
+  query: string,
+) => JSON.stringify([memoId, source, query]);
+
 export const NOTE_SEARCH_HIGHLIGHT_PLUGIN_KEY = new PluginKey("edgeever-note-search-highlight");
 
 export const getSearchMatchesFromDocument = (

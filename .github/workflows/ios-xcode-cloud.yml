@@ -1,0 +1,298 @@
+name: Control iOS Xcode Cloud
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Inspect workflows or start the selected Archive workflow
+        required: true
+        type: choice
+        options:
+          - inspect
+          - start
+          - monitor
+          - store-status
+          - submit-review
+        default: inspect
+      workflow_id:
+        description: Optional Xcode Cloud workflow ID; auto-selects a single enabled Archive workflow when empty
+        required: false
+        type: string
+      build_run_id:
+        description: Xcode Cloud build run ID to monitor
+        required: false
+        type: string
+      app_store_version:
+        description: App Store marketing version to inspect
+        required: false
+        type: string
+        default: "1.57.0"
+      app_store_build_id:
+        description: App Store Connect build resource ID to inspect
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  xcode-cloud:
+    if: github.repository == 'tianma-if/edgeever' && inputs.mode != 'submit-review'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Install App Store Connect client dependencies
+        run: python3 -m pip install --quiet PyJWT cryptography
+
+      - name: Inspect or start Xcode Cloud
+        env:
+          ASC_APP_ID: "6792625631"
+          ASC_API_ISSUER: ${{ secrets.EDGEEVER_APPLE_API_ISSUER }}
+          ASC_API_KEY_ID: ${{ secrets.EDGEEVER_APPLE_API_KEY_ID }}
+          ASC_API_KEY_BASE64: ${{ secrets.EDGEEVER_APPLE_API_KEY_BASE64 }}
+          XCODE_CLOUD_MODE: ${{ inputs.mode }}
+          XCODE_CLOUD_WORKFLOW_ID: ${{ inputs.workflow_id }}
+          XCODE_CLOUD_BUILD_RUN_ID: ${{ inputs.build_run_id }}
+          APP_STORE_VERSION: ${{ inputs.app_store_version }}
+          APP_STORE_BUILD_ID: ${{ inputs.app_store_build_id }}
+        run: |
+          python3 - <<'PY'
+          import base64
+          import json
+          import os
+          import re
+          import time
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+
+          import jwt
+
+          app_id = os.environ["ASC_APP_ID"]
+          issuer = os.environ["ASC_API_ISSUER"]
+          key_id = os.environ["ASC_API_KEY_ID"]
+          private_key = base64.b64decode(os.environ["ASC_API_KEY_BASE64"]).decode()
+          mode = os.environ["XCODE_CLOUD_MODE"]
+          requested_workflow_id = os.environ.get("XCODE_CLOUD_WORKFLOW_ID", "").strip()
+          build_run_id = os.environ.get("XCODE_CLOUD_BUILD_RUN_ID", "").strip()
+          store_version = os.environ.get("APP_STORE_VERSION", "").strip()
+          store_build_id = os.environ.get("APP_STORE_BUILD_ID", "").strip()
+
+          now = int(time.time())
+          token = jwt.encode(
+              {"iss": issuer, "iat": now, "exp": now + 20 * 60, "aud": "appstoreconnect-v1"},
+              private_key,
+              algorithm="ES256",
+              headers={"kid": key_id, "typ": "JWT"},
+          )
+
+          def api(method, path, body=None):
+              request = urllib.request.Request(
+                  "https://api.appstoreconnect.apple.com" + path,
+                  data=None if body is None else json.dumps(body).encode(),
+                  method=method,
+              )
+              request.add_header("Authorization", f"Bearer {token}")
+              if body is not None:
+                  request.add_header("Content-Type", "application/json")
+              try:
+                  with urllib.request.urlopen(request) as response:
+                      payload = response.read().decode()
+                      return json.loads(payload) if payload else {}
+              except urllib.error.HTTPError as error:
+                  details = error.read().decode()
+                  raise SystemExit(f"App Store Connect API {method} {path} failed ({error.code}): {details}")
+
+          if mode == "monitor":
+              if not build_run_id:
+                  raise SystemExit("build_run_id is required in monitor mode")
+              deadline = time.time() + 85 * 60
+              while True:
+                  run = api("GET", f"/v1/ciBuildRuns/{build_run_id}")["data"]
+                  attributes = run.get("attributes") or {}
+                  progress = attributes.get("executionProgress")
+                  completion = attributes.get("completionStatus")
+                  print(
+                      f"Xcode Cloud build #{attributes.get('number')} "
+                      f"progress={progress} completion={completion}",
+                      flush=True,
+                  )
+                  if progress == "COMPLETE":
+                      actions = api(
+                          "GET",
+                          f"/v1/ciBuildRuns/{build_run_id}/actions?limit=200&"
+                          "fields[ciBuildActions]=name,actionType,executionProgress,completionStatus,issueCounts",
+                      )
+                      for action in actions.get("data", []):
+                          action_attributes = action.get("attributes") or {}
+                          print(
+                              f"- action={action_attributes.get('name')} "
+                              f"type={action_attributes.get('actionType')} "
+                              f"completion={action_attributes.get('completionStatus')} "
+                              f"issues={action_attributes.get('issueCounts')}"
+                          )
+                      builds = api(
+                          "GET",
+                          f"/v1/ciBuildRuns/{build_run_id}/builds?limit=50&"
+                          "fields[builds]=version,processingState,uploadedDate",
+                      )
+                      for build in builds.get("data", []):
+                          build_attributes = build.get("attributes") or {}
+                          print(
+                              f"- App Store build id={build.get('id')} "
+                              f"version={build_attributes.get('version')} "
+                              f"processing={build_attributes.get('processingState')} "
+                              f"uploaded={build_attributes.get('uploadedDate')}"
+                          )
+                      if completion != "SUCCEEDED":
+                          raise SystemExit(f"Xcode Cloud build completed with {completion}")
+                      raise SystemExit(0)
+                  if time.time() >= deadline:
+                      raise SystemExit("Timed out waiting for Xcode Cloud build")
+                  time.sleep(30)
+
+          if mode == "store-status":
+              if not store_version or not store_build_id:
+                  raise SystemExit("app_store_version and app_store_build_id are required in store-status mode")
+              version_query = urllib.parse.urlencode({
+                  "filter[platform]": "IOS",
+                  "filter[versionString]": store_version,
+                  "fields[appStoreVersions]": "platform,versionString,appStoreState,releaseType,build",
+                  "limit": 10,
+              })
+              versions = api("GET", f"/v1/apps/{app_id}/appStoreVersions?{version_query}")
+              print(f"App Store version records for {store_version}: {len(versions.get('data', []))}")
+              for version in versions.get("data", []):
+                  attributes = version.get("attributes") or {}
+                  print(
+                      f"- version id={version.get('id')} state={attributes.get('appStoreState')} "
+                      f"releaseType={attributes.get('releaseType')}"
+                  )
+                  try:
+                      attached = api(
+                          "GET",
+                          f"/v1/appStoreVersions/{version['id']}/build?fields[builds]=version,processingState",
+                      )
+                  except SystemExit:
+                      attached = {"data": None}
+                  attached_data = attached.get("data") or {}
+                  attached_attributes = attached_data.get("attributes") or {}
+                  print(
+                      f"- attached build id={attached_data.get('id')} "
+                      f"version={attached_attributes.get('version')} "
+                      f"processing={attached_attributes.get('processingState')}"
+                  )
+              build = api(
+                  "GET",
+                  f"/v1/builds/{store_build_id}?fields[builds]=version,processingState,uploadedDate",
+              )["data"]
+              build_attributes = build.get("attributes") or {}
+              print(
+                  f"Requested build id={build.get('id')} version={build_attributes.get('version')} "
+                  f"processing={build_attributes.get('processingState')} "
+                  f"uploaded={build_attributes.get('uploadedDate')}"
+              )
+              raise SystemExit(0)
+
+          product = api("GET", f"/v1/apps/{app_id}/ciProduct").get("data")
+          workflows = []
+          for product in [product] if product else []:
+              product_id = product["id"]
+              query = urllib.parse.urlencode({
+                  "limit": 50,
+                  "fields[ciWorkflows]": "name,isEnabled,lastModifiedDate",
+              })
+              response = api("GET", f"/v1/ciProducts/{product_id}/workflows?{query}")
+              workflows.extend(response.get("data", []))
+
+          if not workflows:
+              raise SystemExit("No Xcode Cloud workflows found for EdgeEver")
+
+          print("Available Xcode Cloud workflows:")
+          for workflow in workflows:
+              attributes = workflow.get("attributes") or {}
+              print(
+                  f"- id={workflow['id']} name={attributes.get('name')} "
+                  f"enabled={attributes.get('isEnabled')} modified={attributes.get('lastModifiedDate')}"
+              )
+
+          if mode == "inspect":
+              raise SystemExit(0)
+
+          if requested_workflow_id:
+              matches = [workflow for workflow in workflows if workflow["id"] == requested_workflow_id]
+          else:
+              matches = [
+                  workflow
+                  for workflow in workflows
+                  if (workflow.get("attributes") or {}).get("isEnabled")
+                  and re.search(
+                      r"archive|app\s*store|release",
+                      str((workflow.get("attributes") or {}).get("name", "")),
+                      re.IGNORECASE,
+                  )
+              ]
+
+          if len(matches) != 1:
+              raise SystemExit(
+                  f"Expected exactly one matching enabled Archive workflow, found {len(matches)}; "
+                  "rerun with workflow_id from the list above"
+              )
+
+          workflow = matches[0]
+          result = api(
+              "POST",
+              "/v1/ciBuildRuns",
+              {
+                  "data": {
+                      "type": "ciBuildRuns",
+                      "attributes": {},
+                      "relationships": {
+                          "workflow": {
+                              "data": {"type": "ciWorkflows", "id": workflow["id"]}
+                          }
+                      },
+                  }
+              },
+          )
+          build = result["data"]
+          attributes = build.get("attributes") or {}
+          print(
+              f"Started Xcode Cloud build id={build['id']} number={attributes.get('number')} "
+              f"status={attributes.get('executionProgress')}"
+          )
+          PY
+
+  submit-review:
+    if: github.repository == 'tianma-if/edgeever' && inputs.mode == 'submit-review'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out the submission source
+        uses: actions/checkout@v4
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+
+      - name: Install fastlane
+        run: gem install fastlane --no-document
+
+      - name: Submit App Store build for review
+        env:
+          APP_STORE_BUILD_NUMBER: "42"
+          APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.EDGEEVER_APPLE_API_ISSUER }}
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.EDGEEVER_APPLE_API_KEY_ID }}
+          APP_STORE_CONNECT_API_KEY_P8_BASE64: ${{ secrets.EDGEEVER_APPLE_API_KEY_BASE64 }}
+          APP_STORE_RELEASE_NOTES_ZH: |-
+            新增图片画廊编辑与自动布局，多图笔记的整理和浏览更加自然。
+            改进附件类型与大小显示，并提升大文件处理能力。
+            优化笔记排序、图片上传和编辑兼容性，提升日常使用稳定性。
+          APP_STORE_RELEASE_NOTES_EN: |-
+            Add editable image galleries with automatic layouts for smoother multi-image notes.
+            Improve attachment type and size details, with better support for large files.
+            Refine note sorting, image uploads, and editor compatibility for greater reliability.
+          APP_STORE_VERSION: ${{ inputs.app_store_version }}
+        run: fastlane ios submit_review
+        working-directory: apps/ios

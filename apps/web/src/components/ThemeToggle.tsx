@@ -3,11 +3,11 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { useTheme } from "./ThemeProvider";
+import { useAppearanceTheme } from "./ThemeProvider";
 
 export const ThemeToggle = ({ className, showLabel = false }: { className?: string; showLabel?: boolean }) => {
   const { t } = useTranslation();
-  const { resolvedTheme, setPreference } = useTheme();
+  const { resolvedTheme, setPreference } = useAppearanceTheme();
   const nextTheme = resolvedTheme === "dark" ? "light" : "dark";
   const label = nextTheme === "dark" ? t("settings.themeToggleToDark") : t("settings.themeToggleToLight");
 

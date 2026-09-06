@@ -19,6 +19,7 @@ afterAll(() => {
 const {
   mapTiptapResourceUrls,
   createStagedResourceListItem,
+  stageDesktopResource,
   toApiResourceUrl,
   toDesktopResourceUrl,
 } = await import("./desktop-resources.ts");
@@ -38,6 +39,15 @@ describe("desktop resource URLs", () => {
     expect(mapped.content?.[0]?.attrs?.src).toBe("/api/v1/resources/resource-1/blob");
   });
 
+  test("restores PDF node URLs before a memo is saved", () => {
+    const mapped = mapTiptapResourceUrls({
+      type: "doc",
+      content: [{ type: "pdfAttachment", attrs: { url: "edgeever-resource://resource/resource-pdf" } }],
+    }, toApiResourceUrl);
+
+    expect(mapped.content?.[0]?.attrs?.url).toBe("/api/v1/resources/resource-pdf/blob");
+  });
+
   test("exposes staged offline attachments as local resources", () => {
     expect(createStagedResourceListItem({ id: "stage-1", memoId: "memo-1", name: "photo.png", type: "image/png", size: 42 }, "2026-01-01T00:00:00.000Z")).toMatchObject({
       id: "staged_stage-1",
@@ -47,5 +57,27 @@ describe("desktop resource URLs", () => {
       url: "edgeever-staged://stage-1",
       createdAt: "2026-01-01T00:00:00.000Z",
     });
+  });
+
+  test("stages offline attachments in bounded chunks", async () => {
+    const parts = [];
+    window.edgeeverDesktop.beginStagedResource = async (metadata) => {
+      expect(metadata).toMatchObject({ memoId: "memo-1", name: "archive.bin", size: 18 });
+      return { id: "stage-streamed", partSize: 8 };
+    };
+    window.edgeeverDesktop.appendStagedResource = async (_id, bytes) => {
+      parts.push(Array.from(new Uint8Array(bytes)));
+      return { receivedBytes: parts.reduce((total, part) => total + part.length, 0) };
+    };
+    window.edgeeverDesktop.completeStagedResource = async (id) => ({ id });
+    window.edgeeverDesktop.abortStagedResource = async () => {};
+
+    const staged = await stageDesktopResource(
+      "memo-1",
+      new File(["abcdefghijklmnopqr"], "archive.bin", { type: "application/octet-stream" }),
+    );
+
+    expect(staged).toEqual({ id: "stage-streamed" });
+    expect(parts.map((part) => part.length)).toEqual([8, 8, 2]);
   });
 });

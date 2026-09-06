@@ -2,6 +2,9 @@ export const createId = (prefix: string) => `${prefix}_${crypto.randomUUID().rep
 
 export const isoNow = () => new Date().toISOString();
 
+export const clampNumber = (value: number, min: number, max: number) =>
+  Number.isNaN(value) ? min : Math.min(Math.max(value, min), max);
+
 export const parseJsonArray = (json: string): string[] => {
   try {
     const value = JSON.parse(json);

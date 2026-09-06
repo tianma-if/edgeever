@@ -39,7 +39,7 @@ struct NotebookPickerSheet: View {
     var body: some View {
         VStack(spacing: 0) {
             Capsule()
-                .fill(Color(hex: 0xCBD5E1))
+                .fill(AppTheme.sheetHandle)
                 .frame(width: 42, height: 4)
                 .padding(.top, 10)
                 .padding(.bottom, 8)
@@ -193,7 +193,7 @@ struct NotebookPickerSheet: View {
                 .padding(.bottom, 12)
             }
         }
-        .background(Color.white)
+        .background(AppTheme.card)
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.hidden)
         .onAppear {

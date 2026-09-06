@@ -5,17 +5,31 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./ai-prompt-seeds": "./src/ai-prompt-seeds.ts",
+    "./deployment-metadata": "./src/deployment-metadata.ts",
+    "./editor-link": "./src/editor-link.ts",
     "./image-display": "./src/image-display.ts",
+    "./image-gallery-editing": "./src/image-gallery-editing.ts",
+    "./native-image-gallery": "./src/native-image-gallery.ts",
     "./i18n": "./src/i18n/index.ts",
+    "./memo-template-seeds": "./src/memo-template-seeds.ts",
+    "./mathematics": "./src/mathematics.ts",
     "./mobile-editor": "./src/mobile-editor.ts",
-    "./mobile-ui": "./src/mobile-ui.ts"
+    "./mobile-ui": "./src/mobile-ui.ts",
+    "./note-image-card": "./src/note-image-card.ts"
   },
   "types": "./src/index.ts",
   "dependencies": {
-    "@tiptap/core": "3.27.1",
-    "@tiptap/extension-image": "3.27.1",
-    "@tiptap/extension-table": "3.27.1",
-    "@tiptap/markdown": "3.27.1",
-    "@tiptap/starter-kit": "3.27.1"
+    "@tiptap/core": "3.31.0",
+    "@tiptap/extension-image": "3.31.0",
+    "@tiptap/extension-link": "3.31.0",
+    "@tiptap/extension-list": "3.31.0",
+    "@tiptap/extension-mathematics": "3.31.0",
+    "@tiptap/extension-table": "3.31.0",
+    "@tiptap/markdown": "3.31.0",
+    "@tiptap/pm": "3.31.0",
+    "@tiptap/starter-kit": "3.31.0",
+    "katex": "0.16.22",
+    "zod": "4.4.3"
   }
 }

@@ -226,3 +226,36 @@ enum MemoPreviewDate {
         return f.string(from: date)
     }
 }
+
+enum MemoListTimestampField {
+    case createdAt
+    case updatedAt
+
+    static func resolve(for sort: MemoSortMode) -> Self {
+        sort == .createdDesc ? .createdAt : .updatedAt
+    }
+
+    func value(from memo: MemoSummary) -> String {
+        switch self {
+        case .createdAt: memo.createdAt
+        case .updatedAt: memo.updatedAt
+        }
+    }
+}
+
+enum MemoDetailDate {
+    static func format(
+        _ iso: String,
+        locale: Locale = .current,
+        timeZone: TimeZone = .current
+    ) -> String {
+        let parsers = [ISO8601DateFormatter.edgeEver, ISO8601DateFormatter.edgeEverFallback]
+        guard let date = parsers.compactMap({ $0.date(from: iso) }).first else { return "" }
+        let formatter = DateFormatter()
+        formatter.locale = locale
+        formatter.timeZone = timeZone
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
+    }
+}

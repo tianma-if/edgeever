@@ -17,6 +17,7 @@ export const AppConfirmDialog = ({
   cancelLabel,
   confirmLabel,
   description,
+  error,
   hideCancel = false,
   isWorking = false,
   title,
@@ -28,6 +29,7 @@ export const AppConfirmDialog = ({
   cancelLabel?: string;
   confirmLabel: string;
   description: string;
+  error?: string | null;
   hideCancel?: boolean;
   isWorking?: boolean;
   title: string;
@@ -60,6 +62,7 @@ export const AppConfirmDialog = ({
             <DialogDescription className="mt-1 text-sm leading-5 text-slate-500">
               {description}
             </DialogDescription>
+            {error ? <p className="mt-2 text-sm text-rose-600" role="alert">{error}</p> : null}
           </div>
         </DialogHeader>
         <DialogFooter className="flex flex-col-reverse gap-2 px-5 py-4 sm:flex-row sm:justify-end border-t border-slate-50 bg-slate-50/50">

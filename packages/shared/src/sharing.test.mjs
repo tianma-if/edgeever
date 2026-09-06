@@ -35,4 +35,22 @@ describe("shared memo resources", () => {
     expect(rewritten.content[2].content[0].marks[0].attrs.href).toBe("https://example.com/file");
     expect(source.content[0].attrs.src).toBe("/api/v1/resources/res_image/blob");
   });
+
+  test("rewrites references to publicly shared notes without exposing private targets", () => {
+    const source = {
+      type: "doc",
+      content: [{
+        type: "paragraph",
+        content: [
+          { type: "text", text: "Public", marks: [{ type: "link", attrs: { href: "#memo=memo_public" } }] },
+          { type: "text", text: "Private", marks: [{ type: "link", attrs: { href: "#memo=memo_private" } }] },
+        ],
+      }],
+    };
+
+    const rewritten = rewriteMemoResourcesForShare(source, "source_token", { memo_public: "target_token" });
+
+    expect(rewritten.content[0].content[0].marks[0].attrs.href).toBe("/share/target_token");
+    expect(rewritten.content[0].content[1].marks[0].attrs.href).toBe("#memo=memo_private");
+  });
 });

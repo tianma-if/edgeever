@@ -1,50 +1,57 @@
 import type { MemoDetail, MemoSummary, MemoTemplate, Notebook, ResourceListItem, ResourceStorageSummary } from "./types";
 import type { TiptapDoc } from "./content";
 
-export type DesktopRpcMethod =
-  | "system.info"
-  | "storage.health"
-  | "storage.backup"
-  | "storage.backups"
-  | "storage.restore"
-  | "sync.status"
-  | "sync.bootstrap.prepare"
-  | "notebook.list"
-  | "notebook.create"
-  | "notebook.update"
-  | "notebook.delete"
-  | "notebook.restore"
-  | "template.list"
-  | "template.cache"
-  | "template.create"
-  | "template.update"
-  | "template.delete"
-  | "resource.list"
-  | "resource.cache"
-  | "resource.delete"
-  | "tag.list"
-  | "tag.rename"
-  | "tag.delete"
-  | "memo.moveBatch"
-  | "memo.deleteBatch"
-  | "memo.emptyTrash"
-  | "memo.pinBatch"
-  | "memo.merge"
-  | "memo.list"
-  | "memo.get"
-  | "memo.create"
-  | "memo.update"
-  | "memo.delete"
-  | "memo.restore"
-  | "memo.revisions"
-  | "memo.restoreRevision"
-  | "memo.revision.cache"
-  | "sync.outbox.list"
-  | "sync.outbox.ack"
-  | "sync.outbox.fail"
-  | "sync.outbox.discard"
-  | "sync.apply"
-  | "sync.cursor.set";
+export const DESKTOP_SIDECAR_PROTOCOL_VERSION = 2;
+
+export const DESKTOP_RPC_METHODS = [
+  "system.info",
+  "storage.health",
+  "storage.backup",
+  "storage.backups",
+  "storage.restore",
+  "sync.status",
+  "sync.bootstrap.prepare",
+  "sync.outbox.list",
+  "sync.outbox.ack",
+  "sync.outbox.fail",
+  "sync.outbox.retry",
+  "sync.outbox.recoverMemoUpdate",
+  "sync.outbox.discard",
+  "sync.apply",
+  "sync.cursor.set",
+  "notebook.list",
+  "notebook.create",
+  "notebook.update",
+  "notebook.delete",
+  "notebook.restore",
+  "template.list",
+  "template.cache",
+  "template.create",
+  "template.update",
+  "template.delete",
+  "resource.list",
+  "resource.cache",
+  "resource.delete",
+  "tag.list",
+  "tag.rename",
+  "tag.delete",
+  "memo.moveBatch",
+  "memo.deleteBatch",
+  "memo.emptyTrash",
+  "memo.pinBatch",
+  "memo.merge",
+  "memo.list",
+  "memo.get",
+  "memo.create",
+  "memo.update",
+  "memo.delete",
+  "memo.restore",
+  "memo.revisions",
+  "memo.restoreRevision",
+  "memo.revision.cache",
+] as const;
+
+export type DesktopRpcMethod = (typeof DESKTOP_RPC_METHODS)[number];
 
 export type DesktopMemoListParams = {
   notebookId?: string | null;
@@ -60,7 +67,9 @@ export type DesktopMemoListParams = {
 export type DesktopMemoCreateParams = {
   notebookId: string;
   title?: string;
+  contentJson?: TiptapDoc;
   contentMarkdown?: string;
+  contentText?: string;
   tags?: string[];
 };
 
@@ -106,10 +115,12 @@ export type DesktopRpcResponses = {
   "memo.restoreRevision": { memo: MemoDetail };
   "memo.revision.cache": { ok: true };
   "sync.status": { pending: number; syncing: number; conflict: number; error: number; cursor: number; syncIdentity: string | null; lastSyncedAt: string | null };
-  "sync.bootstrap.prepare": { clearedSeedData: boolean };
+  "sync.bootstrap.prepare": { clearedSeedData: boolean; rebuiltMirror: boolean };
   "sync.outbox.list": { items: DesktopOutboxItem[] };
   "sync.outbox.ack": { ok: true; memo: MemoDetail | null; notebook: Notebook | null; template: MemoTemplate | null };
   "sync.outbox.fail": { ok: true };
+  "sync.outbox.retry": { ok: true };
+  "sync.outbox.recoverMemoUpdate": { ok: true; memo: MemoDetail };
   "sync.outbox.discard": { ok: true };
   "sync.apply": { applied: number };
   "sync.cursor.set": { ok: true };
@@ -152,11 +163,13 @@ export type DesktopRpcParams = {
   "memo.restoreRevision": { memoId: string; revisionId: string };
   "memo.revision.cache": { revision: import("./types").MemoRevision };
   "sync.status": Record<string, never>;
-  "sync.bootstrap.prepare": Record<string, never>;
-  "sync.outbox.list": { limit?: number };
-  "sync.outbox.ack": { id: number; remoteMemo?: MemoDetail; remoteNotebook?: Notebook; remoteTemplate?: MemoTemplate };
-  "sync.outbox.fail": { id: number; error: string; conflict?: boolean };
-  "sync.outbox.discard": { id: number };
+  "sync.bootstrap.prepare": { reset?: boolean };
+  "sync.outbox.list": { limit?: number; includeConflicts?: boolean };
+  "sync.outbox.ack": { id: number; version?: number; remoteMemo?: MemoDetail; remoteNotebook?: Notebook; remoteTemplate?: MemoTemplate };
+  "sync.outbox.fail": { id: number; version?: number; error: string; errorCode?: string | null; conflict?: boolean; retryable?: boolean; nextAttemptAt?: string | null };
+  "sync.outbox.retry": { id: number; version?: number };
+  "sync.outbox.recoverMemoUpdate": { id: number; version?: number; notebookId: string };
+  "sync.outbox.discard": { id: number; version?: number };
   "sync.apply": { changes: Array<{ entityType: "memo" | "notebook"; operation: "upsert" | "delete"; memo?: MemoDetail | null; notebook?: Notebook | null; entityId: string }> };
   "sync.cursor.set": { cursor: number; syncIdentity: string };
   "system.info": Record<string, never>;
@@ -166,12 +179,29 @@ export type DesktopRpcParams = {
   "storage.restore": { path: string };
 };
 
+type DesktopRpcContractMismatch =
+  | Exclude<DesktopRpcMethod, keyof DesktopRpcParams>
+  | Exclude<keyof DesktopRpcParams, DesktopRpcMethod>
+  | Exclude<DesktopRpcMethod, keyof DesktopRpcResponses>
+  | Exclude<keyof DesktopRpcResponses, DesktopRpcMethod>;
+
+type AssertNoDesktopRpcContractMismatch<Mismatch extends never> = Mismatch;
+
+export type DesktopRpcContractIsComplete =
+  AssertNoDesktopRpcContractMismatch<DesktopRpcContractMismatch>;
+
 export type DesktopOutboxItem = {
   id: number;
   kind: "memo.create" | "memo.update" | "memo.delete" | "memo.restore" | "memo.move" | "memo.deleteBatch" | "memo.emptyTrash" | "memo.pinBatch" | "memo.merge" | "notebook.create" | "notebook.update" | "notebook.delete" | "notebook.restore" | "template.create" | "template.update" | "template.delete" | "tag.rename" | "tag.delete";
   entityId: string;
   payload: Record<string, unknown>;
   attemptCount: number;
+  version: number;
   status?: "pending" | "syncing" | "conflict" | "error";
   lastError?: string | null;
+  lastErrorCode?: string | null;
+  retryable?: boolean;
+  nextAttemptAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
 };

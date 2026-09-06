@@ -1,7 +1,7 @@
 import Constants from "expo-constants";
 import * as Updates from "expo-updates";
-import { ActivityIndicator, StyleSheet, View } from "react-native";
-import { RefreshCw } from "./icons";
+import { StyleSheet, View } from "react-native";
+import { ActivityIndicator, RefreshCw } from "./icons";
 import { Pressable, Text } from "./LocalizedText";
 import { useMobileLocale } from "../lib/mobile-locale";
 import { useMobileUpdate } from "../lib/mobile-update";
@@ -18,12 +18,12 @@ export const MobileUpdateCard = () => {
     ? (english ? "Checking…" : "正在检查…")
     : (english ? "Check for updates" : "检查更新");
   const openLabel = status === "downloading"
-    ? (english ? "Downloading…" : "正在下载…")
+    ? (english ? "Downloading update…" : "正在下载更新…")
     : status === "ready"
       ? (english ? "Restart to apply" : "重启以应用")
       : updateKind === "ota"
         ? (english ? "Download update" : "下载更新")
-        : (english ? "Get update" : "前往更新");
+        : (english ? "Choose update source" : "选择更新渠道");
 
   return (
     <View style={styles.card}>
@@ -31,8 +31,8 @@ export const MobileUpdateCard = () => {
         <Text style={styles.title}>{english ? "App updates" : "应用更新"}</Text>
         <Text style={styles.description}>
           {english
-            ? "EdgeEver automatically checks for compatible in-app updates. Manual checks also look for newer installable versions."
-            : "EdgeEver 会自动检查兼容的应用内热更新；手动检查还会查找更新的安装包版本。"}
+            ? "EdgeEver automatically checks for compatible in-app updates and newer app versions."
+            : "EdgeEver 会自动检查兼容的应用内热更新和新版应用。"}
         </Text>
         <Text style={styles.version}>
           {english ? "Current version" : "当前版本"}: v{Updates.runtimeVersion ?? Constants.expoConfig?.version ?? "unknown"}
@@ -41,10 +41,10 @@ export const MobileUpdateCard = () => {
       {hasUpdate ? (
         <Pressable
           accessibilityRole="button"
-          accessibilityState={{ busy: status === "downloading", disabled: status === "downloading" }}
-          disabled={status === "downloading"}
+          accessibilityState={{ busy, disabled: busy }}
+          disabled={busy}
           onPress={() => void openUpdate()}
-          style={[styles.button, status === "downloading" && styles.buttonDisabled]}
+          style={[styles.button, busy && styles.buttonDisabled]}
         >
           {status === "downloading" ? <ActivityIndicator color="#047857" size="small" /> : <RefreshCw color="#047857" size={16} />}
           <Text style={styles.buttonText}>{openLabel}</Text>

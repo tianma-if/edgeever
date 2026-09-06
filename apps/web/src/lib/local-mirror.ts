@@ -1,15 +1,36 @@
-import { createExcerpt, docToMarkdown, docToText, markdownToDoc, mergeMemoDocs, resolveMemoContentDoc, resolveMergedMemoTitle, type MemoDetail, type MemoRevision, type MemoSummary, type MemoTemplate, type Notebook, type ResourceListItem, type TagSummary, type TiptapDoc } from "@edgeever/shared";
+import {
+  createExcerpt,
+  docToMarkdown,
+  docToText,
+  hasSyncCursorRewound,
+  hasSyncStateReset,
+  markdownToDoc,
+  mergeMemoDocs,
+  resolveMemoContentDoc,
+  resolveMergedMemoTitle,
+  type MemoDetail,
+  type MemoRevision,
+  type MemoSummary,
+  type MemoTemplate,
+  type Notebook,
+  type ResourceListItem,
+  type TagSummary,
+  type TiptapDoc,
+} from "@edgeever/shared";
+import { liveQuery } from "dexie";
 import type { MemoFilterMode, MemoSortMode } from "@/lib/app-helpers";
 import { api, type SyncChangesResponse } from "@/lib/api";
 import { localDb, selectNewestLocalDraft, type LocalDraft, type LocalMemo, type LocalNotebook, type LocalResource, type LocalRevision } from "@/lib/local-db";
 import { cacheLocalResourceBytes, localResourceUrl, removeCachedLocalResourceBytes } from "@/lib/local-resource-cache";
 import { isBrowserOffline } from "@/lib/network-status";
 import { parseTagsText } from "@/lib/utils";
+import { createClientUuid } from "@/lib/client-id";
 
 export type LocalMemoListParams = {
   notebookId?: string | null;
   notebookIds?: string[];
   q?: string;
+  tag?: string;
   trash?: boolean;
   sort?: MemoSortMode;
   filter?: MemoFilterMode;
@@ -34,6 +55,8 @@ export const createLocalDataScope = (baseUrl: string, userId?: string | null) =>
 
 const getMeta = async (scope: string, key: string) =>
   (await localDb.syncMeta.get([scope, key]))?.value ?? null;
+
+export const hasLocalSyncCursorRewound = hasSyncCursorRewound;
 
 export const isLocalMirrorInitialized = async (scope: string) => Boolean(await getMeta(scope, SYNC_IDENTITY_KEY));
 
@@ -141,7 +164,15 @@ const performSyncLocalMirror = async (scope: string) => {
   let currentCursor = cursor;
   let response = await api.syncChanges({ cursor: currentCursor, limit: CHANGE_PAGE_SIZE });
 
-  if (response.syncIdentity && response.syncIdentity !== storedIdentity) {
+  if (hasSyncStateReset(
+    { cursor: currentCursor, syncIdentity: storedIdentity },
+    response,
+  )) {
+    // Restoring or clearing a server database can restart the change-log
+    // sequence without replacing the workspace row. In that case the saved
+    // browser cursor is ahead of the server and an incremental request looks
+    // empty even though the IndexedDB mirror is stale. Rebuild from the
+    // authoritative snapshot just as we do for a changed sync identity.
     changed = await bootstrapScope(scope);
     return { bootstrapped: true, changed };
   }
@@ -158,7 +189,11 @@ const performSyncLocalMirror = async (scope: string) => {
   if (response.syncIdentity) {
     await setMeta(scope, SYNC_IDENTITY_KEY, response.syncIdentity);
   }
-  if (response.serverCursor > currentCursor && response.changes.length === 0) {
+  if (
+    typeof response.serverCursor === "number"
+    && response.serverCursor > currentCursor
+    && response.changes.length === 0
+  ) {
     await setMeta(scope, SYNC_CURSOR_KEY, String(response.cursor));
   }
   return { bootstrapped: false, changed };
@@ -203,10 +238,12 @@ export const listLocalMemos = async (scope: string, params: LocalMemoListParams)
   let memos = await localDb.memos.where("scope").equals(scope).toArray();
   const notebookIds = params.notebookIds ?? (params.notebookId ? [params.notebookId] : null);
   const q = params.q?.trim().toLocaleLowerCase();
+  const tag = params.tag?.trim().toLocaleLowerCase();
 
   memos = memos.filter((memo) => {
     if (memo.isDeleted !== Boolean(params.trash)) return false;
     if (notebookIds?.length && !notebookIds.includes(memo.notebookId)) return false;
+    if (tag && !memo.tags.some((memoTag) => memoTag.toLocaleLowerCase() === tag)) return false;
     if (params.filter === "tagged" && memo.tags.length === 0) return false;
     if (params.filter === "untagged" && memo.tags.length > 0) return false;
     if (params.filter === "pinned" && !memo.isPinned) return false;
@@ -261,7 +298,7 @@ export const createLocalMemo = async (
   const contentMarkdown = input.contentMarkdown ?? docToMarkdown(contentJson);
   const contentText = docToText(contentJson);
   const memo: MemoDetail = {
-    id: `local_${crypto.randomUUID()}`,
+    id: `local_${createClientUuid()}`,
     notebookId: input.notebookId,
     title: input.title?.trim() || null,
     excerpt: createExcerpt(contentText),
@@ -302,6 +339,23 @@ export const remapLocalDraftMemoId = async (temporaryId: string, remoteId: strin
     }
     await localDb.drafts.delete(temporaryId);
   });
+};
+
+export const listLocalMemoIdMappings = async (scope: string) => new Map(
+  (await localDb.idMappings.where("scope").equals(scope).toArray())
+    .map(({ temporaryId, remoteId }) => [temporaryId, remoteId] as const),
+);
+
+export const observeLocalMemoIdMappings = (
+  scope: string,
+  onChange: (mappings: ReadonlyMap<string, string>) => void,
+) => {
+  const subscription = liveQuery(() => listLocalMemoIdMappings(scope)).subscribe({
+    next: onChange,
+    error: () => onChange(new Map()),
+  });
+
+  return () => subscription.unsubscribe();
 };
 
 export const replaceLocalMemoId = async (scope: string, temporaryId: string, memo: MemoDetail) => {
@@ -446,7 +500,7 @@ export const deleteLocalResource = async (scope: string, resourceId: string) => 
 
 export const createLocalResource = async (scope: string, memoId: string, file: File) => {
   const now = new Date().toISOString();
-  const id = `local_resource_${crypto.randomUUID()}`;
+  const id = `local_resource_${createClientUuid()}`;
   const url = localResourceUrl(id);
   await cacheLocalResourceBytes(url, file);
   const resource: ResourceListItem = {
@@ -503,7 +557,7 @@ export const deleteLocalNotebook = async (scope: string, notebookId: string) => 
 export const createLocalNotebook = async (scope: string, input: { name: string; parentId?: string | null }) => {
   const now = new Date().toISOString();
   const notebook: Notebook = {
-    id: `local_${crypto.randomUUID()}`,
+    id: `local_${createClientUuid()}`,
     parentId: input.parentId ?? null,
     name: input.name.trim(),
     slug: null,
@@ -523,7 +577,7 @@ export const createLocalTemplate = async (scope: string, input: { name: string; 
   const now = new Date().toISOString();
   const contentMarkdown = input.contentMarkdown ?? "";
   const template: MemoTemplate = {
-    id: `local_${crypto.randomUUID()}`,
+    id: `local_${createClientUuid()}`,
     name: input.name.trim(),
     description: input.description ?? null,
     title: input.title ?? null,
@@ -702,10 +756,11 @@ export const restoreLocalMemo = async (scope: string, memoId: string) => {
 
 export const clearLocalScope = async (scope: string) => {
   const scopedResources = await localDb.resources.where("scope").equals(scope).toArray();
-  await localDb.transaction("rw", [localDb.notebooks, localDb.memos, localDb.templates, localDb.revisions, localDb.resources, localDb.syncQueue, localDb.syncMeta, localDb.idMappings], async () => {
+  await localDb.transaction("rw", [localDb.drafts, localDb.notebooks, localDb.memos, localDb.templates, localDb.revisions, localDb.resources, localDb.syncQueue, localDb.syncMeta, localDb.idMappings], async () => {
     const scopedMemos = await localDb.memos.where("scope").equals(scope).toArray();
     const scopedMemoIds = new Set(scopedMemos.map((memo) => memo.id));
     const queuedItems = await localDb.syncQueue.toArray();
+    await localDb.drafts.bulkDelete([...scopedMemoIds]);
     await localDb.notebooks.where("scope").equals(scope).delete();
     await localDb.memos.where("scope").equals(scope).delete();
     await localDb.templates.where("scope").equals(scope).delete();

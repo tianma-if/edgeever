@@ -1,13 +1,47 @@
 import "./styles.css";
+import "katex/dist/katex.min.css";
 import { Editor, mergeAttributes, Node } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import Image from "@tiptap/extension-image";
+import { TaskItem, TaskList } from "@tiptap/extension-list";
 import Placeholder from "@tiptap/extension-placeholder";
 import CodeBlock from "@tiptap/extension-code-block";
 import { TableKit } from "@tiptap/extension-table";
 import { Markdown } from "@tiptap/markdown";
+import { EdgeEverLink } from "@edgeever/shared/editor-link";
+import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { NodeSelection } from "@tiptap/pm/state";
 import mermaid from "mermaid";
+import { toCanvas } from "html-to-image";
+import {
+  createNativeUnsupportedContentExtensions,
+  docToMarkdown,
+  NativeAttachmentMetadata,
+  prepareNativeEditorContent,
+  resolveAttachmentKind,
+  resolveNativeAttachmentContent,
+  restoreNativeEditorContent,
+  type TiptapDoc,
+} from "@edgeever/shared";
+import {
+  type NoteImageTheme,
+  type NoteImageFontStyle,
+  type NoteImageFontSize,
+  type NoteImageCardWidth,
+  NOTE_IMAGE_CARD_WIDTH_PIXELS,
+  NOTE_IMAGE_BACKGROUND_COLORS,
+  NOTE_IMAGE_THEMES,
+  resolveTheme,
+  buildImageExportBasename,
+  buildNoteImageCardMarkup,
+  generateCardCss,
+} from "@edgeever/shared/note-image-card";
+import { createEdgeEverMathematics } from "./mathematics";
+import { createImageInsertTransaction, createNativeImageGalleryView, groupUploadedImages, NATIVE_IMAGE_GALLERY_CSS } from "@edgeever/shared/native-image-gallery";
+
+const galleryStyle = document.createElement("style");
+galleryStyle.textContent = NATIVE_IMAGE_GALLERY_CSS;
+document.head.append(galleryStyle);
 
 /** Keep in sync with packages/shared MergeDivider (iOS bundle cannot import monorepo shared). */
 const MERGE_DIVIDER_MARKDOWN_MARKER = "<!-- edgeever:merge-divider -->";
@@ -56,12 +90,66 @@ const MergeDivider = Node.create({
   },
 });
 
+/** Keep in sync with packages/shared ImageGallery to avoid duplicate TipTap runtime types. */
+const ImageGallery = Node.create({
+  name: "edgeeverImageGallery",
+  group: "block",
+  content: "image+",
+  defining: true,
+  isolating: true,
+  addNodeView() { return createNativeImageGalleryView(() => locale); },
+  addAttributes() {
+    return {
+      layout: {
+        default: "auto",
+        parseHTML: (element: HTMLElement) => {
+          const layout = element.getAttribute("data-image-gallery-layout");
+          return layout === "1" || layout === "2" || layout === "3" ? layout : "auto";
+        },
+        renderHTML: (attributes: { layout?: unknown }) => ({
+          "data-image-gallery-layout": attributes.layout === "1" || attributes.layout === "2" || attributes.layout === "3"
+            ? attributes.layout
+            : "auto",
+        }),
+      },
+    };
+  },
+  parseHTML() {
+    return [{ tag: "div[data-edgeever-image-gallery]" }];
+  },
+  renderHTML({ node, HTMLAttributes }) {
+    return [
+      "div",
+      mergeAttributes(HTMLAttributes, {
+        "data-edgeever-image-gallery": "true",
+        "data-image-count": String(node.childCount),
+      }),
+      0,
+    ];
+  },
+});
+
 type BridgeMessage =
   | { type: "ready"; startupMs: number }
   | { type: "change"; contentMarkdown: string; contentJson: string }
   | { type: "loadResource"; requestId: string; source: string }
   | { type: "resourcePress"; targetJson: string }
   | { type: "imagePreview"; source: string; alt: string }
+  | { type: "doubleTap" }
+  | { type: "pickImage" }
+  | { type: "searchResult"; count: number; index: number }
+  | { type: "imageExportChunk"; requestId: string; chunk: string }
+  | {
+      type: "imageExportComplete";
+      requestId: string;
+      filename: string;
+      mimeType: string;
+      width: number;
+      height: number;
+      totalImages: number;
+      failedImages: number;
+    }
+  | { type: "imageExportError"; requestId: string; message: string }
   | { type: "activeFlags"; flags: number }
   | { type: "log"; message: string }
   | { type: "error"; message: string };
@@ -112,6 +200,27 @@ function buildAttachmentTargetJson(href: string, label: string): string | null {
   });
 }
 
+const ATTACHMENT_KIND_CLASS_PREFIX = "edgeever-attachment-kind-";
+
+function normalizeAttachmentFilename(label: string): string {
+  return label.replace(/^\s*(?:附件[：:]|Attachment:)\s*/i, "").trim();
+}
+
+function decorateAttachmentLinks(root: ParentNode): void {
+  root.querySelectorAll<HTMLAnchorElement>(
+    'a.edgeever-attachment-link, a[href*="/api/v1/resources/"]'
+  ).forEach((link) => {
+    Array.from(link.classList).forEach((className) => {
+      if (className.startsWith(ATTACHMENT_KIND_CLASS_PREFIX)) link.classList.remove(className);
+    });
+    const filename = normalizeAttachmentFilename(link.textContent || "");
+    link.classList.add(
+      "edgeever-attachment-link",
+      `${ATTACHMENT_KIND_CLASS_PREFIX}${resolveAttachmentKind(null, filename)}`,
+    );
+  });
+}
+
 type ConfigureOptions = {
   mode?: "viewer" | "editor";
   locale?: string;
@@ -120,7 +229,32 @@ type ConfigureOptions = {
 };
 
 const startedAt = performance.now();
+const IMAGE_EXPORT_WIDTH = 768;
+const IMAGE_EXPORT_PIXEL_RATIO = 1.5;
+const IMAGE_EXPORT_CHUNK_SIZE = 256 * 1024;
+
+type ImageExportRequest = {
+  requestId: string;
+  format: "jpeg" | "png";
+  title: string;
+  fallbackTitle: string;
+  notebook?: string;
+  tags?: string[];
+  updatedAt?: string;
+  background?: "mint" | "slate" | "warm" | NoteImageTheme;
+  theme?: NoteImageTheme;
+  fontStyle?: NoteImageFontStyle;
+  fontSize?: NoteImageFontSize;
+  cardWidth?: NoteImageCardWidth;
+  showTitle?: boolean;
+  showNotebook?: boolean;
+  showTags?: boolean;
+  showUpdatedAt?: boolean;
+  branding?: boolean;
+};
 let mode: "viewer" | "editor" = "viewer";
+let locale: "zh-CN" | "en-US" = "zh-CN";
+let currentPlaceholder = "开始输入…";
 let suppressChange = false;
 const resourceResolvers = new Map<string, (dataUrl: string | null) => void>();
 let resourceSeq = 0;
@@ -132,6 +266,22 @@ function post(msg: BridgeMessage) {
   } catch {
     // native host unavailable (browser preview)
   }
+}
+
+function sanitizeImageExportBasename(title: string, fallback: string) {
+  return title.replace(/[\u0000-\u001f<>:"/\\|?*]/g, "-").replace(/\s+/g, " ").replace(/[. ]+$/g, "").trim().slice(0, 100) || fallback;
+}
+
+async function blobToBytes(blob: Blob) {
+  return new Uint8Array(await blob.arrayBuffer());
+}
+
+function bytesToBase64(bytes: Uint8Array) {
+  let binary = "";
+  for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+  }
+  return btoa(binary);
 }
 
 function isProtectedResource(src: string): boolean {
@@ -601,15 +751,23 @@ function buildExtensions(placeholder: string) {
   return [
     StarterKit.configure({
       codeBlock: false,
+      link: false,
     }),
+    EdgeEverLink,
+    NativeAttachmentMetadata,
+    TaskList,
+    TaskItem.configure({ nested: true }),
     MergeDivider,
+    ...createEdgeEverMathematics(),
     CodeBlock.configure({
       languageClassPrefix: "language-",
     }),
+    ImageGallery,
     createEdgeEverImageExtension(),
     TableKit.configure({
       table: { resizable: false },
     }),
+    ...createNativeUnsupportedContentExtensions(),
     Placeholder.configure({
       placeholder,
     }),
@@ -628,9 +786,12 @@ const editor = new Editor({
   editable: false,
   content: { type: "doc", content: [{ type: "paragraph" }] },
   onUpdate: ({ editor: ed }) => {
+    refreshToolbarState();
+    requestAnimationFrame(() => decorateAttachmentLinks(editorEl));
     if (suppressChange || mode !== "editor") return;
     emitChange(ed);
   },
+  onSelectionUpdate: () => refreshToolbarState(),
   editorProps: {
     attributes: {
       class: "edgeever-prose",
@@ -645,6 +806,17 @@ const editor = new Editor({
       },
     },
   },
+});
+
+// Evernote-style viewer shortcut: a deliberate double tap on ordinary note
+// content enters edit mode. Resource controls keep their existing gestures.
+editorEl.addEventListener("dblclick", (event) => {
+  if (mode !== "viewer") return;
+  const target = event.target as HTMLElement | null;
+  if (!target || target.closest("a, button, img, input, textarea, select, .edgeever-image-node")) return;
+  event.preventDefault();
+  event.stopPropagation();
+  post({ type: "doubleTap" });
 });
 
 /**
@@ -768,31 +940,210 @@ function handleResourcePointer(event: Event, kind: "click" | "contextmenu"): boo
   editorEl.addEventListener("touchcancel", clear, { passive: true });
 })();
 
+const LITERAL_DOLLAR_PLACEHOLDER = "\uE000edgeever-dollar\uE001";
+
+const protectLiteralDollarPairs = (value: unknown): unknown => {
+  if (!value || typeof value !== "object") return value;
+  const node = value as { type?: unknown; text?: unknown; content?: unknown };
+  if (node.type === "text" && typeof node.text === "string") {
+    const dollarCount = Array.from(node.text).filter((character) => character === "$").length;
+    return dollarCount >= 2
+      ? { ...node, text: node.text.replaceAll("$", LITERAL_DOLLAR_PLACEHOLDER) }
+      : value;
+  }
+  return Array.isArray(node.content)
+    ? { ...node, content: node.content.map(protectLiteralDollarPairs) }
+    : value;
+};
+
+const serializeEditorMarkdown = (ed: Editor) => {
+  return docToMarkdown(restoreNativeEditorContent(ed.getJSON() as TiptapDoc));
+};
+
+let pendingAiSelection: { from: number; to: number; isInline: boolean; documentFingerprint: string } | null = null;
+
+const serializeSelectionMarkdown = (ed: Editor, from: number, to: number) => {
+  const manager = (ed.storage as { markdown?: { manager?: { serialize?: (doc: unknown) => string } } })
+    .markdown?.manager;
+  const content = ed.state.doc.slice(from, to).content.toJSON();
+  if (manager?.serialize) {
+    return manager
+      .serialize(protectLiteralDollarPairs({ type: "doc", content }))
+      .replaceAll(LITERAL_DOLLAR_PLACEHOLDER, "\\$");
+  }
+  return ed.state.doc.textBetween(from, to, "\n\n");
+};
+
+type AiSelectionContext = {
+  from: number;
+  to: number;
+  isInline: boolean;
+  markdown: string;
+  text: string;
+};
+
+type ParsedMarkdownNode = {
+  type?: string;
+  text?: string;
+  content?: ParsedMarkdownNode[];
+  [key: string]: unknown;
+};
+
+const AI_INLINE_SENTINEL = "edgeever-inline-sentinel";
+
+const serializeInlineSelectionMarkdown = (ed: Editor, content: unknown[], fallback: string) => {
+  const manager = (ed.storage as { markdown?: { manager?: { serialize?: (doc: unknown) => string } } })
+    .markdown?.manager;
+  if (!manager?.serialize) return fallback;
+  return manager
+    .serialize(protectLiteralDollarPairs({ type: "doc", content: [{ type: "paragraph", content }] }))
+    .replaceAll(LITERAL_DOLLAR_PLACEHOLDER, "\\$");
+};
+
+const getAiSelectionContext = (ed: Editor): AiSelectionContext | null => {
+  const selection = ed.state.selection;
+  if (selection.empty || selection.from >= selection.to) return null;
+
+  const selectedTextblocks: Array<{
+    node: ProseMirrorNode;
+    contentFrom: number;
+    contentTo: number;
+    from: number;
+    to: number;
+  }> = [];
+  ed.state.doc.nodesBetween(selection.from, selection.to, (node, pos) => {
+    if (!node.isTextblock) return true;
+    const contentFrom = pos + 1;
+    const contentTo = contentFrom + node.content.size;
+    const from = Math.max(selection.from, contentFrom);
+    const to = Math.min(selection.to, contentTo);
+    if (to > from) selectedTextblocks.push({ node, contentFrom, contentTo, from, to });
+    return false;
+  });
+
+  if (selectedTextblocks.length === 1) {
+    const block = selectedTextblocks[0];
+    const selectedBlock = block.node.cut(
+      block.from - block.contentFrom,
+      block.to - block.contentFrom,
+    ).toJSON() as { content?: unknown[] };
+    const text = ed.state.doc.textBetween(block.from, block.to, "\n");
+    const markdown = serializeInlineSelectionMarkdown(ed, selectedBlock.content ?? [], text).trim();
+    return markdown
+      ? { from: block.from, to: block.to, isInline: true, markdown, text }
+      : null;
+  }
+
+  const markdown = serializeSelectionMarkdown(ed, selection.from, selection.to).trim();
+  return markdown
+    ? {
+        from: selection.from,
+        to: selection.to,
+        isInline: false,
+        markdown,
+        text: ed.state.doc.textBetween(selection.from, selection.to, "\n\n"),
+      }
+    : null;
+};
+
+const parseAiSelectionReplacement = (ed: Editor, draft: string, isInline: boolean): unknown[] => {
+  const manager = (ed.storage as { markdown?: { manager?: { parse?: (value: string) => { content?: unknown[] } } } })
+    .markdown?.manager;
+  const normalizedDraft = draft.trim();
+  const blockContent = manager?.parse?.(normalizedDraft).content ?? [{ type: "text", text: normalizedDraft }];
+  if (!isInline) return blockContent;
+
+  const inlineDraft = normalizedDraft.replace(/\s*\n+\s*/g, " ");
+  const inlineContent = manager?.parse?.(`${AI_INLINE_SENTINEL}${inlineDraft}`).content;
+  const paragraph = inlineContent?.length === 1 ? inlineContent[0] as ParsedMarkdownNode : null;
+  const paragraphContent = paragraph?.type === "paragraph" ? paragraph.content ?? [] : [];
+  const firstNode = paragraphContent[0];
+  if (firstNode?.type !== "text" || typeof firstNode.text !== "string" || !firstNode.text.startsWith(AI_INLINE_SENTINEL)) {
+    return [{ type: "text", text: inlineDraft }];
+  }
+
+  const firstText = firstNode.text.slice(AI_INLINE_SENTINEL.length);
+  return [
+    ...(firstText ? [{ ...firstNode, text: firstText }] : []),
+    ...paragraphContent.slice(1),
+  ];
+};
+
 function emitChange(ed: Editor) {
   try {
-    const contentJson = JSON.stringify(ed.getJSON());
-    // @tiptap/markdown storage
-    const storage = ed.storage as { markdown?: { getMarkdown?: () => string } };
-    const contentMarkdown =
-      storage.markdown?.getMarkdown?.() ??
-      // fallback: plain text
-      ed.getText({ blockSeparator: "\n\n" });
+    const contentJson = JSON.stringify(restoreNativeEditorContent(ed.getJSON() as TiptapDoc));
+    const contentMarkdown = serializeEditorMarkdown(ed);
     post({ type: "change", contentMarkdown, contentJson });
   } catch (error) {
     post({ type: "error", message: error instanceof Error ? error.message : String(error) });
   }
 }
 
+type EditorSearchMatch = { from: number; to: number };
+
+function getEditorSearchMatches(ed: Editor, query: string): EditorSearchMatch[] {
+  const needle = query.trim().toLocaleLowerCase();
+  if (needle.length === 0) return [];
+
+  const characters: Array<{ char: string; pos: number }> = [];
+  let previousTextEnd: number | null = null;
+  ed.state.doc.descendants((node, pos) => {
+    if (!node.isText || !node.text) return;
+    if (previousTextEnd !== null && pos > previousTextEnd) {
+      characters.push({ char: "\u0000", pos: -1 });
+    }
+    for (let index = 0; index < node.text.length; index += 1) {
+      characters.push({ char: node.text[index] ?? "", pos: pos + index });
+    }
+    previousTextEnd = pos + node.text.length;
+  });
+
+  const haystack = characters.map((item) => item.char).join("").toLocaleLowerCase();
+  const matches: EditorSearchMatch[] = [];
+  let index = haystack.indexOf(needle);
+  while (index !== -1) {
+    const start = characters[index];
+    const end = characters[index + needle.length - 1];
+    if (start && end && start.pos >= 0 && end.pos >= 0) {
+      matches.push({ from: start.pos, to: end.pos + 1 });
+    }
+    index = haystack.indexOf(needle, index + needle.length);
+  }
+  return matches;
+}
+
+const activeListItemType = () => editor.isActive("taskItem") ? "taskItem" : "listItem";
+
 function setToolbarVisible(visible: boolean) {
   toolbarEl.classList.toggle("editor-mode", visible);
   toolbarEl.innerHTML = "";
   if (!visible) return;
   const actions: Array<{ id: string; label: string; run: () => void }> = [
+    {
+      id: "image",
+      label: "▧+",
+      run: () => post({ type: "pickImage" }),
+    },
     { id: "bold", label: "B", run: () => editor.chain().focus().toggleBold().run() },
     {
       id: "bullet",
       label: "•",
       run: () => editor.chain().focus().toggleBulletList().run(),
+    },
+    {
+      id: "task",
+      label: "☑",
+      run: () => editor.chain().focus().toggleTaskList().run(),
+    },
+    {
+      id: "indent",
+      label: "⇥",
+      run: () => editor.chain().focus().sinkListItem(activeListItemType()).run(),
+    },
+    {
+      id: "outdent",
+      label: "⇤",
+      run: () => editor.chain().focus().liftListItem(activeListItemType()).run(),
     },
     {
       id: "quote",
@@ -804,34 +1155,156 @@ function setToolbarVisible(visible: boolean) {
       label: "—",
       run: () => editor.chain().focus().setHorizontalRule().run(),
     },
-    {
-      id: "h2",
-      label: "H2",
-      run: () => editor.chain().focus().toggleHeading({ level: 2 }).run(),
-    },
-    {
-      id: "code",
-      label: "</>",
-      run: () => editor.chain().focus().toggleCodeBlock().run(),
-    },
   ];
   for (const action of actions) {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.textContent = action.label;
     btn.dataset.action = action.id;
+    const labels: Record<string, [string, string]> = {
+      image: ["插入图片", "Insert image"],
+      bold: ["粗体", "Bold"],
+      bullet: ["项目符号列表", "Bullet list"],
+      task: ["任务清单", "Task list"],
+      indent: ["增加列表缩进", "Increase list indent"],
+      outdent: ["减少列表缩进", "Decrease list indent"],
+      quote: ["引用", "Block quote"],
+      hr: ["分隔线", "Horizontal rule"],
+    };
+    btn.setAttribute("aria-label", labels[action.id]?.[locale === "en-US" ? 1 : 0] ?? action.id);
     btn.addEventListener("click", () => {
       action.run();
-      emitChange(editor);
+      if (action.id !== "image") emitChange(editor);
+      refreshToolbarState();
     });
     toolbarEl.appendChild(btn);
   }
+  refreshToolbarState();
+}
+
+function refreshToolbarState() {
+  const active: Record<string, boolean> = {
+    bold: editor.isActive("bold"),
+    bullet: editor.isActive("bulletList"),
+    task: editor.isActive("taskList"),
+    quote: editor.isActive("blockquote"),
+  };
+  toolbarEl.querySelectorAll<HTMLButtonElement>("button[data-action]").forEach((button) => {
+    button.classList.toggle("is-active", active[button.dataset.action ?? ""] ?? false);
+  });
 }
 
 async function afterContentSet(theme: "light" | "dark" = "light") {
+  editorEl.querySelectorAll<HTMLElement>("[data-placeholder]").forEach((element) => {
+    element.dataset.placeholder = currentPlaceholder;
+  });
+  decorateAttachmentLinks(editorEl);
   await hydrateProtectedImages(editorEl);
   if (mode === "viewer") {
     await renderMermaidBlocks(editorEl, theme);
+  }
+}
+
+async function exportNoteImage(request: ImageExportRequest) {
+  if (!request.requestId || (request.format !== "png" && request.format !== "jpeg")) return;
+  const resolvedTheme = resolveTheme(request.background, request.theme);
+  const fontStyle = request.fontStyle ?? "serif";
+  const fontSize = request.fontSize ?? "lg";
+  const cardWidth = request.cardWidth ?? "standard";
+  const targetWidth = NOTE_IMAGE_CARD_WIDTH_PIXELS[cardWidth] || 680;
+  const themeCfg = NOTE_IMAGE_THEMES[resolvedTheme] || NOTE_IMAGE_THEMES.slate;
+
+  const editorClone = editor.view.dom.cloneNode(true) as HTMLElement;
+  editorClone.removeAttribute("contenteditable");
+  editorClone.querySelectorAll("button, [contenteditable='true']").forEach((element) => {
+    element.removeAttribute("contenteditable");
+    if (element instanceof HTMLButtonElement) element.remove();
+  });
+
+  const bodyHtml = editorClone.innerHTML;
+
+  const host = document.createElement("div");
+  host.style.cssText = `position:fixed;left:-100000px;top:0;width:${targetWidth}px;pointer-events:none;`;
+  const style = document.createElement("style");
+  style.textContent = generateCardCss({ theme: resolvedTheme, fontStyle, fontSize, cardWidth });
+
+  const cardMarkup = buildNoteImageCardMarkup({
+    title: request.title || request.fallbackTitle,
+    notebook: request.notebook,
+    tags: request.tags,
+    updatedAt: request.updatedAt,
+    bodyHtml,
+    theme: resolvedTheme,
+    fontStyle,
+    showTitle: request.showTitle ?? true,
+    showNotebook: request.showNotebook ?? false,
+    showTags: request.showTags ?? false,
+    showUpdatedAt: request.showUpdatedAt ?? true,
+    showBranding: request.branding ?? true,
+  });
+
+  host.appendChild(style);
+  host.insertAdjacentHTML("beforeend", cardMarkup);
+  const documentRoot = host.lastElementChild as HTMLElement;
+  documentRoot.style.width = `${targetWidth}px`;
+  documentRoot.style.maxWidth = "none";
+  documentRoot.style.margin = "0";
+
+  document.body.appendChild(host);
+
+  try {
+    await document.fonts?.ready;
+    await Promise.all(Array.from(documentRoot.querySelectorAll("img")).map(async (image) => {
+      if (image.complete) return;
+      try { await image.decode(); } catch { /* Export the readable remainder. */ }
+    }));
+    const exportedImages = Array.from(
+      documentRoot.querySelectorAll<HTMLImageElement>(".edgeever-card-body img"),
+    );
+    const failedImages = exportedImages.filter((image) => !image.complete || image.naturalWidth === 0).length;
+    const totalHeight = Math.max(1, Math.ceil(documentRoot.getBoundingClientRect().height));
+    const backgroundColor = NOTE_IMAGE_BACKGROUND_COLORS[resolvedTheme] || themeCfg.canvasBg;
+
+    const canvas = await toCanvas(documentRoot, {
+      backgroundColor,
+      cacheBust: false,
+      height: totalHeight,
+      pixelRatio: 2,
+      skipFonts: true,
+      width: targetWidth,
+    });
+    const blob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        (result) => result ? resolve(result) : reject(new Error("Image renderer returned an empty file")),
+        request.format === "jpeg" ? "image/jpeg" : "image/png",
+        request.format === "jpeg" ? 0.92 : 1,
+      );
+    });
+
+    const extension = request.format === "jpeg" ? "jpg" : "png";
+    const basename = buildImageExportBasename(request.title, request.fallbackTitle);
+    const bytes = await blobToBytes(blob);
+    const filename = `${basename}.${extension}`;
+    const mimeType = request.format === "jpeg" ? "image/jpeg" : "image/png";
+    const base64 = bytesToBase64(bytes);
+    for (let offset = 0; offset < base64.length; offset += IMAGE_EXPORT_CHUNK_SIZE) {
+      post({ type: "imageExportChunk", requestId: request.requestId, chunk: base64.slice(offset, offset + IMAGE_EXPORT_CHUNK_SIZE) });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+    post({
+      type: "imageExportComplete",
+      requestId: request.requestId,
+      filename,
+      mimeType,
+      width: canvas.width,
+      height: canvas.height,
+      totalImages: exportedImages.length,
+      failedImages,
+    });
+  } catch (error) {
+    post({ type: "imageExportError", requestId: request.requestId, message: error instanceof Error ? error.message : "Image export failed" });
+  } finally {
+    host.remove();
   }
 }
 
@@ -842,27 +1315,39 @@ export type EdgeEverEditorAPI = {
   resolveResource: (requestId: string, dataUrl: string | null) => void;
   getMarkdown: () => string;
   getDocument: () => string;
+  captureSelection: () => string | null;
+  applySelectionDraft: (markdown: string, mode: "append" | "replace") => boolean;
+  undo: () => boolean;
   focusEnd: () => void;
   flush: () => void;
   exec: (actionId: string) => void;
   beginImageUpload: (uploadId: string, previewDataUrl: string) => void;
   completeImageUpload: (uploadId: string, imageUrl: string, alt: string) => void;
+  groupImages: (sources: string[]) => boolean;
   cancelImageUpload: (uploadId: string) => void;
+  search: (query: string, requestedIndex: number) => void;
+  exportImage: (request: ImageExportRequest) => void;
 };
 
 const api: EdgeEverEditorAPI = {
+  exportImage(request) {
+    void exportNoteImage(request);
+  },
   configure(opts) {
     const nextMode = opts.mode === "editor" ? "editor" : "viewer";
     const modeChanged = nextMode !== mode;
     mode = nextMode;
+    locale = opts.locale === "en-US" ? "en-US" : "zh-CN";
     editor.setEditable(mode === "editor");
     setToolbarVisible(mode === "editor");
     document.documentElement.dataset.theme = opts.theme || "light";
     document.body.classList.toggle("viewer-mode", mode === "viewer");
     document.body.classList.toggle("editor-mode", mode === "editor");
     if (opts.placeholder) {
-      // placeholder is extension config; update via meta class
-      editorEl.setAttribute("data-placeholder", opts.placeholder);
+      currentPlaceholder = opts.placeholder;
+      editorEl.querySelectorAll<HTMLElement>("[data-placeholder]").forEach((element) => {
+        element.dataset.placeholder = currentPlaceholder;
+      });
     }
     // Match Evernote-style edit entry: focus the surface when entering editor mode.
     // Combined with setContent's default end selection, caret lands at document end.
@@ -875,6 +1360,7 @@ const api: EdgeEverEditorAPI = {
         }
       });
     }
+    void afterContentSet(opts.theme || "light");
   },
 
   setMarkdown(md) {
@@ -907,8 +1393,11 @@ const api: EdgeEverEditorAPI = {
   setDocumentFromJSON(json) {
     suppressChange = true;
     try {
-      const doc = JSON.parse(json);
-      editor.commands.setContent(doc);
+      const doc = JSON.parse(json) as TiptapDoc;
+      editor.commands.setContent(prepareNativeEditorContent(
+        resolveNativeAttachmentContent(doc),
+        locale,
+      ));
     } catch {
       editor.commands.setContent({ type: "doc", content: [{ type: "paragraph" }] });
     }
@@ -926,12 +1415,65 @@ const api: EdgeEverEditorAPI = {
   },
 
   getMarkdown() {
-    const storage = editor.storage as { markdown?: { getMarkdown?: () => string } };
-    return storage.markdown?.getMarkdown?.() ?? editor.getText({ blockSeparator: "\n\n" });
+    return serializeEditorMarkdown(editor);
   },
 
   getDocument() {
-    return JSON.stringify(editor.getJSON());
+    return JSON.stringify(restoreNativeEditorContent(editor.getJSON() as TiptapDoc));
+  },
+
+  captureSelection() {
+    const context = getAiSelectionContext(editor);
+    if (!context) {
+      pendingAiSelection = null;
+      return null;
+    }
+    pendingAiSelection = {
+      from: context.from,
+      to: context.to,
+      isInline: context.isInline,
+      documentFingerprint: JSON.stringify(editor.getJSON()),
+    };
+    return JSON.stringify({
+      from: context.from,
+      to: context.to,
+      markdown: context.markdown,
+      text: context.text,
+    });
+  },
+
+  applySelectionDraft(markdown, applyMode) {
+    const range = pendingAiSelection;
+    if (!range || !markdown.trim()) return false;
+    if (JSON.stringify(editor.getJSON()) !== range.documentFingerprint) {
+      pendingAiSelection = null;
+      return false;
+    }
+    const docSize = editor.state.doc.content.size;
+    const from = Math.min(Math.max(range.from, 0), docSize);
+    const to = Math.min(Math.max(range.to, from), docSize);
+    try {
+      const manager = (editor.storage as { markdown?: { manager?: { parse?: (value: string) => { content?: unknown[] } } } })
+        .markdown?.manager;
+      const parsed = manager?.parse?.(markdown);
+      const content = applyMode === "replace"
+        ? parseAiSelectionReplacement(editor, markdown, range.isInline)
+        : parsed?.content ?? markdown;
+      const insertRange = applyMode === "append" ? { from: to, to } : { from, to };
+      editor.chain().focus().insertContentAt(insertRange, content as never).run();
+      pendingAiSelection = null;
+      emitChange(editor);
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
+  undo() {
+    if (!editor.can().undo()) return false;
+    const changed = editor.commands.undo();
+    if (changed) emitChange(editor);
+    return changed;
   },
 
   focusEnd() {
@@ -960,6 +1502,7 @@ const api: EdgeEverEditorAPI = {
     const map: Record<string, () => void> = {
       bold: () => editor.chain().focus().toggleBold().run(),
       bulletList: () => editor.chain().focus().toggleBulletList().run(),
+      taskList: () => editor.chain().focus().toggleTaskList().run(),
       blockquote: () => editor.chain().focus().toggleBlockquote().run(),
       horizontalRule: () => editor.chain().focus().setHorizontalRule().run(),
       heading2: () => editor.chain().focus().toggleHeading({ level: 2 }).run(),
@@ -983,26 +1526,42 @@ const api: EdgeEverEditorAPI = {
   },
 
   completeImageUpload(uploadId, imageUrl, alt) {
-    // Always mutate ProseMirror via setImage — DOM-only attr writes do not persist.
-    // Native hydrate rewrites display src under file:// after emitChange.
-    editor
-      .chain()
-      .focus()
-      .setImage({ src: imageUrl, alt: alt || uploadId || "" })
-      .run();
-    const imgs = editorEl.querySelectorAll("img");
-    const last = imgs[imgs.length - 1] as HTMLImageElement | undefined;
-    if (last) {
-      last.dataset.originalSrc = imageUrl;
-      delete last.dataset.uploadId;
-    }
+    if (!editor.isEditable) return;
+    editor.view.dispatch(createImageInsertTransaction(editor.state, {
+      src: imageUrl, alt: alt || uploadId || "",
+    }));
     emitChange(editor);
+  },
+
+  groupImages(sources) {
+    const grouped = groupUploadedImages(editor, sources);
+    if (grouped) emitChange(editor);
+    return grouped;
   },
 
   cancelImageUpload(uploadId) {
     const img = editorEl.querySelector(`img[data-upload-id="${uploadId}"]`);
     img?.remove();
     emitChange(editor);
+  },
+
+  search(query, requestedIndex) {
+    const matches = getEditorSearchMatches(editor, query);
+    const index = matches.length > 0
+      ? Math.min(Math.max(Number.isFinite(requestedIndex) ? requestedIndex : 0, 0), matches.length - 1)
+      : 0;
+    const match = matches[index];
+    if (match) {
+      editor.commands.setTextSelection({ from: match.from, to: match.to });
+      try {
+        const dom = editor.view.domAtPos(match.from).node;
+        const element = dom instanceof Element ? dom : dom.parentElement;
+        element?.scrollIntoView({ block: "center", behavior: "smooth" });
+      } catch {
+        /* ignore */
+      }
+    }
+    post({ type: "searchResult", count: matches.length, index });
   },
 };
 

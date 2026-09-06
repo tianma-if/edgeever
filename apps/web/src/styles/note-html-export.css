@@ -1,0 +1,337 @@
+* {
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: light;
+}
+
+body {
+  margin: 0;
+  background: #f8fafc;
+  color: #172033;
+}
+
+.edgeever-html-shell {
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 3rem;
+}
+
+.edgeever-html-document {
+  color: #172033;
+  font-family: system-ui, -apple-system, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  font-size: 16px;
+  line-height: 1.72;
+  overflow-wrap: anywhere;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 2rem 1.75rem 2.5rem;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 4%);
+}
+
+.edgeever-html-title {
+  margin: 0 0 0.75rem;
+  color: #0f172a;
+  font-size: 2rem;
+  font-weight: 760;
+  line-height: 1.2;
+}
+
+.edgeever-html-meta {
+  margin: 0 0 1.5rem;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 0.85rem;
+  color: #64748b;
+  font-size: 0.875rem;
+}
+
+.edgeever-html-content > :first-child {
+  margin-top: 0;
+}
+
+.edgeever-html-content h1,
+.edgeever-html-content h2,
+.edgeever-html-content h3 {
+  color: #0f172a;
+  line-height: 1.25;
+}
+
+.edgeever-html-content h1 {
+  margin: 1.75rem 0 0.75rem;
+  font-size: 1.6rem;
+}
+
+.edgeever-html-content h2 {
+  margin: 1.5rem 0 0.65rem;
+  font-size: 1.35rem;
+}
+
+.edgeever-html-content h3 {
+  margin: 1.25rem 0 0.55rem;
+  font-size: 1.15rem;
+}
+
+.edgeever-html-content p {
+  margin: 0 0 0.9rem;
+}
+
+.edgeever-html-content ul,
+.edgeever-html-content ol {
+  margin: 0 0 1rem;
+  padding-left: 1.5rem;
+}
+
+.edgeever-html-content li {
+  margin: 0.25rem 0;
+}
+
+.edgeever-html-content ul[data-type="taskList"] {
+  padding-left: 0;
+  list-style: none;
+}
+
+.edgeever-html-content ul[data-type="taskList"] li[data-checked] {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.edgeever-html-content ul[data-type="taskList"] li[data-checked] > label {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  margin-top: 0.25rem;
+}
+
+.edgeever-html-content ul[data-type="taskList"] li[data-checked] > label input {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  accent-color: #16a06e;
+}
+
+.edgeever-html-content ul[data-type="taskList"] li[data-checked] > div {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.edgeever-html-content ul[data-type="taskList"] li[data-checked] > div > p {
+  margin-bottom: 0;
+}
+
+.edgeever-html-content ul[data-type="taskList"] ul[data-type="taskList"] {
+  margin: 0.25rem 0 0;
+  padding-left: 1.5rem;
+}
+
+.edgeever-html-content blockquote {
+  margin: 1rem 0;
+  border-left: 4px solid #10b981;
+  background: #f0fdf4;
+  padding: 0.75rem 1rem;
+  color: #334155;
+}
+
+.edgeever-html-content hr {
+  margin: 1.5rem 0;
+  border: 0;
+  border-top: 1px solid #cbd5e1;
+}
+
+.edgeever-html-content hr.edgeever-merge-divider,
+.edgeever-html-content hr[data-edgeever-merge-divider] {
+  margin: 1.75rem 0;
+  border: 0;
+  border-top: 2px solid #66ca80;
+  background: transparent;
+  height: 0;
+}
+
+.edgeever-html-content a {
+  color: #047857;
+  text-decoration: underline;
+}
+
+.edgeever-html-content code {
+  border-radius: 0.25rem;
+  background: #f1f5f9;
+  padding: 0.1rem 0.35rem;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.9em;
+}
+
+.edgeever-html-content pre,
+.edgeever-html-content .edgeever-code-source {
+  max-width: 100%;
+  margin: 1rem 0;
+  border: 1px solid #dbe4ea;
+  border-radius: 0.5rem;
+  background: #f8fafc;
+  padding: 0.85rem 1rem;
+  color: #1e293b;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.875rem;
+  line-height: 1.55;
+  overflow-x: auto;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.edgeever-html-content pre code {
+  background: transparent;
+  padding: 0;
+}
+
+.edgeever-html-content img,
+.edgeever-html-mermaid svg {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: 80vh;
+  object-fit: contain;
+}
+
+.edgeever-html-content figure,
+.edgeever-html-mermaid {
+  max-width: 100%;
+  margin: 1.25rem auto;
+}
+
+.edgeever-html-content [data-edgeever-image-gallery] {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.65rem;
+  margin: 1.25rem 0;
+}
+
+.edgeever-html-content [data-edgeever-image-gallery][data-image-count="4"],
+.edgeever-html-content [data-edgeever-image-gallery][data-image-gallery-layout="2"] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.edgeever-html-content [data-edgeever-image-gallery][data-image-gallery-layout="3"] {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.edgeever-html-content [data-edgeever-image-gallery][data-image-gallery-layout="1"] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.edgeever-html-content [data-edgeever-image-gallery] > img {
+  width: 100%;
+  height: 13rem;
+  max-height: none;
+  margin: 0;
+  border-radius: 0.5rem;
+  object-fit: cover;
+}
+
+.edgeever-html-mermaid svg {
+  margin: 0 auto;
+}
+
+.edgeever-html-content table {
+  width: 100%;
+  margin: 1.25rem 0;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.edgeever-html-content th,
+.edgeever-html-content td {
+  border: 1px solid #cbd5e1;
+  padding: 0.5rem 0.65rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.edgeever-html-content th {
+  background: #f1f5f9;
+  font-weight: 700;
+}
+
+.edgeever-html-content [data-edgeever-theme-block] {
+  margin: 1.25rem 0;
+  border: 1px solid #a7f3d0;
+  border-left: 4px solid #059669;
+  border-radius: 0.5rem;
+  background: #f0fdf4;
+  padding: 0.85rem 1rem;
+}
+
+.edgeever-html-content [data-theme-block-kind="chapter"] {
+  border-width: 3px 0 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.edgeever-html-content .tableWrapper {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.edgeever-html-content .tiptap-mathematics-render[data-type="block-math"] {
+  max-width: 100%;
+  margin: 1.25rem 0;
+  overflow-x: auto;
+  text-align: center;
+}
+
+.edgeever-html-content .edgeever-image-controls,
+.edgeever-html-content .edgeever-code-copy-button,
+.edgeever-html-content .edgeever-theme-block__toolbar,
+.edgeever-html-content .edgeever-mermaid-source {
+  display: none !important;
+}
+
+.hljs-comment,
+.hljs-quote {
+  color: #64748b;
+}
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal {
+  color: #7c3aed;
+}
+
+.hljs-string,
+.hljs-title,
+.hljs-section {
+  color: #047857;
+}
+
+.hljs-number,
+.hljs-symbol,
+.hljs-bullet {
+  color: #b45309;
+}
+
+.hljs-built_in,
+.hljs-type,
+.hljs-attribute {
+  color: #0369a1;
+}
+
+@media print {
+  body {
+    background: #ffffff;
+  }
+
+  .edgeever-html-shell {
+    max-width: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .edgeever-html-document {
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 0;
+  }
+}

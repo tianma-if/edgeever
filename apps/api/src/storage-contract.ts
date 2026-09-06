@@ -1,21 +1,65 @@
 /**
  * Platform-neutral storage seams used by the API layer.
  *
- * The current production adapter is Cloudflare D1/R2, so these contracts are
- * intentionally compatible with the Workers runtime types. A future
- * self-hosted adapter can implement the same operations with SQLite and a
- * filesystem or S3-compatible object store without changing route logic.
+ * These contracts describe only the operations consumed by application code.
+ * Runtime adapters translate D1, SQLite, R2, filesystem, or S3 primitives into
+ * these shapes without leaking provider SDK types into routes and services.
  */
-import type { D1Database, D1PreparedStatement } from "@cloudflare/workers-types";
+export type DatabaseOperationResult = {
+  success: true;
+  meta: Record<string, unknown>;
+};
 
-export type DatabaseAdapter = Pick<D1Database, "prepare" | "batch">;
-export type PreparedStatementAdapter = D1PreparedStatement;
+export type DatabaseQueryResult<T = unknown> = DatabaseOperationResult & {
+  results: T[];
+};
+
+export type PreparedStatementAdapter = {
+  bind: (...values: unknown[]) => PreparedStatementAdapter;
+  first: {
+    <T = unknown>(columnName: string): Promise<T | null>;
+    <T = Record<string, unknown>>(): Promise<T | null>;
+  };
+  run: <T = Record<string, unknown>>() => Promise<DatabaseQueryResult<T>>;
+  all: <T = Record<string, unknown>>() => Promise<DatabaseQueryResult<T>>;
+};
+
+export type DatabaseAdapter = {
+  prepare: (query: string) => PreparedStatementAdapter;
+  batch: <T = unknown>(statements: PreparedStatementAdapter[]) => Promise<DatabaseQueryResult<T>[]>;
+};
+
+export type BlobRange = {
+  offset: number;
+  length: number;
+};
+
+export type BlobGetOptions = {
+  range?: BlobRange;
+};
 
 /** The subset of an object store response needed by the HTTP resource route. */
 export type BlobObjectAdapter = {
   body: ReadableStream<Uint8Array>;
+  /** Total object size, even when body contains only a requested range. */
   size: number;
+  range?: BlobRange;
   writeHttpMetadata: (headers: Headers) => void;
+};
+
+export type BlobUploadedPart = {
+  partNumber: number;
+  etag: string;
+};
+
+export type BlobMultipartUploadAdapter = {
+  readonly uploadId: string;
+  uploadPart: (
+    partNumber: number,
+    value: ReadableStream<Uint8Array> | ArrayBuffer | ArrayBufferView | Blob,
+  ) => Promise<BlobUploadedPart>;
+  complete: (parts: BlobUploadedPart[]) => Promise<unknown>;
+  abort: () => Promise<void>;
 };
 
 /**
@@ -24,8 +68,10 @@ export type BlobObjectAdapter = {
  * self-hosted adapter can map it to filesystem sidecars or S3 metadata.
  */
 export type BlobStoreAdapter = {
-  get: (key: string) => Promise<BlobObjectAdapter | null>;
+  get: (key: string, options?: BlobGetOptions) => Promise<BlobObjectAdapter | null>;
   put: (key: string, value: unknown, options?: unknown) => Promise<unknown>;
+  createMultipartUpload: (key: string, options?: unknown) => Promise<BlobMultipartUploadAdapter>;
+  resumeMultipartUpload: (key: string, uploadId: string) => BlobMultipartUploadAdapter;
   delete: (keys: string | string[]) => Promise<void>;
 };
 
@@ -33,27 +79,26 @@ export type BlobStoreAdapter = {
 export type StorageAdapter = {
   db: DatabaseAdapter;
   resources: BlobStoreAdapter;
+  diagnostics: {
+    database: "d1" | "sqlite";
+    resources: "r2" | "filesystem" | "s3";
+    migrationTable: "d1_migrations" | "_edgeever_migrations";
+  };
 };
 
 /** Database engines that a self-hosted deployment may select. */
 export type RelationalDatabaseDialect = "sqlite" | "postgresql";
 
 /**
- * Future driver-neutral relational contract. The current API still consumes
- * the D1-compatible DatabaseAdapter above; this contract prevents a future
- * PostgreSQL implementation from leaking driver-specific calls into routes.
+ * Future transaction-oriented relational contract. The current API consumes
+ * the statement-oriented DatabaseAdapter above; this contract prevents a
+ * future PostgreSQL implementation from leaking driver calls into routes.
  */
 export type RelationalDatabaseAdapter = {
   readonly dialect: RelationalDatabaseDialect;
   query<T>(sql: string, parameters?: readonly unknown[]): Promise<readonly T[]>;
   execute(sql: string, parameters?: readonly unknown[]): Promise<void>;
   transaction<T>(callback: (database: RelationalDatabaseAdapter) => Promise<T>): Promise<T>;
-};
-
-/** Cloudflare's native Worker bindings, used only by the platform adapter. */
-export type CloudflareStorageBindings = {
-  DB: DatabaseAdapter;
-  RESOURCES: BlobStoreAdapter;
 };
 
 export type StorageAdapterKind = "cloudflare" | "self_hosted";

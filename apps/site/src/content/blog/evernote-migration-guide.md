@@ -1,7 +1,7 @@
 ---
 draft: false
-title: "从印象笔记迁移到 EdgeEver 指南"
-snippet: "通过 EdgeEver MCP、evernote-backup 和 ENEX 导入脚本，把你拥有的笔记资料迁移到自托管实例。"
+title: "从印象笔记迁移到自托管笔记应用：EdgeEver ENEX 完整指南"
+snippet: "通过 ENEX、evernote-backup 与 EdgeEver MCP，完整迁移笔记、附件、时间信息和嵌套笔记本。"
 image: {
     src: "/images/evernote-migration.jpg",
     alt: "从印象笔记迁移到 EdgeEver"

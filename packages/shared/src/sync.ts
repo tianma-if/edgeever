@@ -25,13 +25,19 @@ export type SyncChangesResponse = {
   changes: SyncChange[];
   cursor: number;
   hasMore: boolean;
-  serverCursor: number;
+  /** Absent on older servers; clients must keep the current mirror when omitted. */
+  serverCursor?: number;
   syncIdentity?: string;
 };
 
 export type SyncCursorState = {
   cursor: number;
   syncIdentity: string;
+};
+
+export type RemoteSyncCursorState = {
+  serverCursor?: number;
+  syncIdentity?: string;
 };
 
 export type SyncOutboxOperation =
@@ -139,4 +145,42 @@ export const getNextSyncQueueRetryDelay = (
   }
 
   return Math.max(minimumDelayMs, Math.min(...retryTimes) - now);
+};
+
+export const hasSyncCursorRewound = (localCursor: number, serverCursor?: number) =>
+  typeof serverCursor === "number"
+  && Number.isFinite(serverCursor)
+  && serverCursor < localCursor;
+
+export const hasSyncIdentityChanged = (localIdentity: string, serverIdentity?: string) =>
+  typeof serverIdentity === "string"
+  && serverIdentity.length > 0
+  && serverIdentity !== localIdentity;
+
+export const hasSyncStateReset = (
+  local: SyncCursorState,
+  remote: RemoteSyncCursorState,
+) => hasSyncCursorRewound(local.cursor, remote.serverCursor)
+  || hasSyncIdentityChanged(local.syncIdentity, remote.syncIdentity);
+
+export const isSyncMetadataInitialized = (
+  cursorValue: string | null | undefined,
+  identityValue: string | null | undefined,
+) => Boolean(identityValue?.trim())
+  && typeof cursorValue === "string"
+  && cursorValue.trim().length > 0
+  && Number.isFinite(Number(cursorValue));
+
+export const splitSyncBootstrapWriteBatches = <T>(
+  items: readonly T[],
+  batchSize: number,
+): T[][] => {
+  const normalizedBatchSize = Math.max(1, Math.floor(batchSize));
+  if (items.length === 0) {
+    return [[]];
+  }
+  return Array.from(
+    { length: Math.ceil(items.length / normalizedBatchSize) },
+    (_, index) => items.slice(index * normalizedBatchSize, (index + 1) * normalizedBatchSize),
+  );
 };

@@ -1,0 +1,68 @@
+name: Audit Android Play Signature
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Draft Release tag whose Android APK must use the Play app-signing certificate"
+        required: true
+        type: string
+
+permissions:
+  # Draft Releases are only visible to a token with repository write access.
+  contents: write
+
+jobs:
+  audit:
+    if: github.repository == 'tianma-if/edgeever'
+    name: Require Play-signed Draft APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate matching Draft Release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          release="$(gh release view "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --json isDraft,isPrerelease,tagName,targetCommitish)"
+          test "$(jq -r '.isDraft' <<<"$release")" = "true"
+          test "$(jq -r '.isPrerelease' <<<"$release")" = "false"
+          test "$(jq -r '.tagName' <<<"$release")" = "$RELEASE_TAG"
+          release_target="$(jq -r '.targetCommitish' <<<"$release")"
+          test -n "$release_target"
+          echo "target_commitish=$release_target" >> "$GITHUB_OUTPUT"
+
+      - name: Check out the immutable Draft target
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ steps.release.outputs.target_commitish }}
+          fetch-depth: 0
+
+      - name: Verify the checked-out Draft target
+        env:
+          RELEASE_TARGET: ${{ steps.release.outputs.target_commitish }}
+        run: test "$(git rev-parse HEAD)" = "$(git rev-parse "${RELEASE_TARGET}^{commit}")"
+
+      - name: Download the Draft Android APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/android-release"
+          gh release download "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern 'edgeever-android-v*-arm64-v8a.apk' \
+            --dir "$RUNNER_TEMP/android-release"
+          test "$(find "$RUNNER_TEMP/android-release" -type f -name 'edgeever-android-v*-arm64-v8a.apk' | wc -l | tr -d ' ')" = "1"
+          apk_path="$(find "$RUNNER_TEMP/android-release" -type f -name 'edgeever-android-v*-arm64-v8a.apk' -print -quit)"
+          echo "apk_path=$apk_path" >> "$GITHUB_ENV"
+
+      - name: Require the Play app-signing certificate
+        env:
+          ANDROID_PLAY_APP_SIGNER_SHA256: ${{ secrets.ANDROID_PLAY_APP_SIGNER_SHA256 }}
+          EDGE_EVER_ANDROID_ALLOWED_SIGNER_SHA256: ${{ secrets.ANDROID_PLAY_APP_SIGNER_SHA256 }}
+        run: |
+          test -n "$ANDROID_PLAY_APP_SIGNER_SHA256"
+          node scripts/verify-android-apk-signature.mjs "$apk_path"

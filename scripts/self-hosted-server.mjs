@@ -2,21 +2,24 @@ import { Database } from "bun:sqlite";
 import { mkdir, readdir, readFile } from "node:fs/promises";
 import { dirname, extname, join, normalize, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import worker from "../apps/api/src/index.ts";
+import { hasBootstrapCredential } from "../apps/api/src/auth-bootstrap.ts";
+import { isUnauthenticatedAccessEnabled } from "../apps/api/src/auth-state.ts";
+import { fetchEdgeEverApp } from "../apps/api/src/index.ts";
+import { nodePublicFetch } from "../apps/api/src/node-public-network.ts";
 import { createSelfHostedStorageAdapter } from "../apps/api/src/self-hosted-storage-adapter.ts";
 import { createS3CompatibleStorageAdapter } from "../apps/api/src/s3-compatible-storage-adapter.ts";
+import { resolveSelfHostedConfig } from "./self-hosted-config.mjs";
+import { loadSelfHostedEnvironment } from "./self-hosted-secrets.mjs";
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const dataDirectory = resolve(process.env.EDGE_EVER_DATA_DIR ?? join(projectRoot, ".edgeever-data"));
-const databaseFile = resolve(process.env.EDGE_EVER_SQLITE_FILE ?? join(dataDirectory, "edgeever.sqlite"));
-const resourcesDirectory = resolve(process.env.EDGE_EVER_RESOURCES_DIR ?? join(dataDirectory, "resources"));
-const webDirectory = resolve(process.env.EDGE_EVER_WEB_DIR ?? join(projectRoot, "apps/web/dist"));
-const port = Number(process.env.PORT ?? process.env.EDGE_EVER_PORT ?? 8787);
+const runtimeEnvironment = await loadSelfHostedEnvironment(process.env);
+const config = resolveSelfHostedConfig(runtimeEnvironment, projectRoot);
+const { dataDirectory, databaseFile, resourcesDirectory, webDirectory } = config;
 
 await mkdir(dataDirectory, { recursive: true });
 await mkdir(resourcesDirectory, { recursive: true });
 const sqlite = new Database(databaseFile, { create: true });
-sqlite.exec("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;");
+sqlite.exec("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA busy_timeout = 5000;");
 
 const migrationFiles = (await readdir(join(projectRoot, "migrations")))
   .filter((name) => name.endsWith(".sql"))
@@ -46,39 +49,52 @@ for (const name of migrationFiles) {
   console.log(`[self-hosted] applied migration ${name}`);
 }
 
-const storageBackend = process.env.EDGE_EVER_STORAGE_BACKEND ?? "local";
-const storage = storageBackend === "s3"
+const existingUser = sqlite.query("SELECT id FROM users WHERE is_disabled = 0 LIMIT 1").get();
+if (
+  !existingUser
+  && !hasBootstrapCredential(runtimeEnvironment.EDGE_EVER_AUTH_PASSWORD, runtimeEnvironment.EDGE_EVER_AUTH_PASSWORD_HASH)
+  && !isUnauthenticatedAccessEnabled(runtimeEnvironment.EDGE_EVER_ALLOW_UNAUTHENTICATED)
+) {
+  sqlite.close();
+  throw new Error(
+    "Authentication is not configured. Set EDGE_EVER_AUTH_PASSWORD (recommended), "
+    + "EDGE_EVER_AUTH_PASSWORD_HASH, or explicitly set EDGE_EVER_ALLOW_UNAUTHENTICATED=true.",
+  );
+}
+
+const storage = config.storageBackend === "s3"
   ? createS3CompatibleStorageAdapter(sqlite, {
-      bucket: process.env.EDGE_EVER_S3_BUCKET ?? "",
-      region: process.env.EDGE_EVER_S3_REGION,
-      endpoint: process.env.EDGE_EVER_S3_ENDPOINT,
-      accessKeyId: process.env.EDGE_EVER_S3_ACCESS_KEY_ID,
-      secretAccessKey: process.env.EDGE_EVER_S3_SECRET_ACCESS_KEY,
-      forcePathStyle: process.env.EDGE_EVER_S3_FORCE_PATH_STYLE
-        ? process.env.EDGE_EVER_S3_FORCE_PATH_STYLE === "true"
+      bucket: runtimeEnvironment.EDGE_EVER_S3_BUCKET ?? "",
+      region: runtimeEnvironment.EDGE_EVER_S3_REGION,
+      endpoint: runtimeEnvironment.EDGE_EVER_S3_ENDPOINT,
+      accessKeyId: runtimeEnvironment.EDGE_EVER_S3_ACCESS_KEY_ID,
+      secretAccessKey: runtimeEnvironment.EDGE_EVER_S3_SECRET_ACCESS_KEY,
+      forcePathStyle: runtimeEnvironment.EDGE_EVER_S3_FORCE_PATH_STYLE
+        ? runtimeEnvironment.EDGE_EVER_S3_FORCE_PATH_STYLE === "true"
         : undefined,
     })
   : createSelfHostedStorageAdapter(sqlite, resourcesDirectory);
-
-if (storageBackend === "s3" && !process.env.EDGE_EVER_S3_BUCKET) {
-  throw new Error("EDGE_EVER_S3_BUCKET is required when EDGE_EVER_STORAGE_BACKEND=s3");
-}
 const env = {
-  DB: storage.db,
-  RESOURCES: storage.resources,
-  EDGE_EVER_AUTH_USERNAME: process.env.EDGE_EVER_AUTH_USERNAME ?? "admin",
+  storage,
+  publicNetworkFetch: nodePublicFetch,
+  EDGE_EVER_AUTH_USERNAME: runtimeEnvironment.EDGE_EVER_AUTH_USERNAME ?? "admin",
   EDGE_EVER_RUNTIME: "self-hosted-bun",
-  EDGE_EVER_AUTH_PASSWORD: process.env.EDGE_EVER_AUTH_PASSWORD,
-  EDGE_EVER_AUTH_PASSWORD_HASH: process.env.EDGE_EVER_AUTH_PASSWORD_HASH,
-  EDGE_EVER_SESSION_TTL_DAYS: process.env.EDGE_EVER_SESSION_TTL_DAYS ?? "400",
-  EDGE_EVER_AUTH_LOGIN_WINDOW_SECONDS: process.env.EDGE_EVER_AUTH_LOGIN_WINDOW_SECONDS,
-  EDGE_EVER_AUTH_LOGIN_USERNAME_MAX_ATTEMPTS: process.env.EDGE_EVER_AUTH_LOGIN_USERNAME_MAX_ATTEMPTS,
-  EDGE_EVER_AUTH_LOGIN_USERNAME_COOLDOWN_SECONDS: process.env.EDGE_EVER_AUTH_LOGIN_USERNAME_COOLDOWN_SECONDS,
-  EDGE_EVER_AUTH_LOGIN_IP_MAX_ATTEMPTS: process.env.EDGE_EVER_AUTH_LOGIN_IP_MAX_ATTEMPTS,
-  EDGE_EVER_AUTH_LOGIN_IP_COOLDOWN_SECONDS: process.env.EDGE_EVER_AUTH_LOGIN_IP_COOLDOWN_SECONDS,
-  EDGE_EVER_STORAGE_ENCRYPTION_KEY: process.env.EDGE_EVER_STORAGE_ENCRYPTION_KEY,
-  EDGE_EVER_DEMO_MODE: process.env.EDGE_EVER_DEMO_MODE,
-  EDGE_EVER_ALLOW_UNAUTHENTICATED: process.env.EDGE_EVER_ALLOW_UNAUTHENTICATED,
+  EDGE_EVER_CONTAINER_IMAGE: runtimeEnvironment.EDGE_EVER_CONTAINER_IMAGE,
+  EDGE_EVER_DEPLOYMENT_TRIGGER: runtimeEnvironment.EDGE_EVER_DEPLOYMENT_TRIGGER,
+  EDGE_EVER_DEPLOYMENT_METHOD: runtimeEnvironment.EDGE_EVER_DEPLOYMENT_METHOD,
+  EDGE_EVER_AUTH_PASSWORD: runtimeEnvironment.EDGE_EVER_AUTH_PASSWORD,
+  EDGE_EVER_AUTH_PASSWORD_HASH: runtimeEnvironment.EDGE_EVER_AUTH_PASSWORD_HASH,
+  EDGE_EVER_SESSION_TTL_DAYS: runtimeEnvironment.EDGE_EVER_SESSION_TTL_DAYS ?? "400",
+  EDGE_EVER_AUTH_LOGIN_WINDOW_SECONDS: runtimeEnvironment.EDGE_EVER_AUTH_LOGIN_WINDOW_SECONDS,
+  EDGE_EVER_AUTH_LOGIN_USERNAME_MAX_ATTEMPTS: runtimeEnvironment.EDGE_EVER_AUTH_LOGIN_USERNAME_MAX_ATTEMPTS,
+  EDGE_EVER_AUTH_LOGIN_USERNAME_COOLDOWN_SECONDS: runtimeEnvironment.EDGE_EVER_AUTH_LOGIN_USERNAME_COOLDOWN_SECONDS,
+  EDGE_EVER_AUTH_LOGIN_IP_MAX_ATTEMPTS: runtimeEnvironment.EDGE_EVER_AUTH_LOGIN_IP_MAX_ATTEMPTS,
+  EDGE_EVER_AUTH_LOGIN_IP_COOLDOWN_SECONDS: runtimeEnvironment.EDGE_EVER_AUTH_LOGIN_IP_COOLDOWN_SECONDS,
+  // Legacy decryption fallback for credentials saved by older releases.
+  EDGE_EVER_STORAGE_ENCRYPTION_KEY: runtimeEnvironment.EDGE_EVER_STORAGE_ENCRYPTION_KEY,
+  EDGE_EVER_CREDENTIALS_ENCRYPTION_KEY: runtimeEnvironment.EDGE_EVER_CREDENTIALS_ENCRYPTION_KEY,
+  EDGE_EVER_DEMO_MODE: runtimeEnvironment.EDGE_EVER_DEMO_MODE,
+  EDGE_EVER_ALLOW_UNAUTHENTICATED: runtimeEnvironment.EDGE_EVER_ALLOW_UNAUTHENTICATED,
 };
 
 const executionContext = {
@@ -121,11 +137,15 @@ const serveStatic = async (request) => {
 };
 
 const server = Bun.serve({
-  port,
+  hostname: config.hostname,
+  port: config.port,
+  // Model providers may take longer than Bun's 10-second default to emit the
+  // first streaming token. Keep the connection alive within Bun's supported range.
+  idleTimeout: config.idleTimeout,
   async fetch(request) {
     const pathname = new URL(request.url).pathname;
     if (pathname.startsWith("/api/") || pathname === "/mcp" || pathname.startsWith("/mcp/")) {
-      return worker.fetch(request, env, executionContext);
+      return fetchEdgeEverApp(request, env, executionContext);
     }
     return serveStatic(request);
   },
@@ -133,4 +153,25 @@ const server = Bun.serve({
 
 console.log(`[self-hosted] listening on ${server.url}`);
 console.log(`[self-hosted] data directory: ${dataDirectory}`);
-console.log(`[self-hosted] storage backend: ${storageBackend}`);
+console.log(`[self-hosted] storage backend: ${config.storageBackend}`);
+console.log(`[self-hosted] idle timeout: ${config.idleTimeout}s`);
+
+let shuttingDown = false;
+const shutdown = async (signal) => {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`[self-hosted] received ${signal}; shutting down`);
+
+  try {
+    await server.stop();
+    sqlite.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+    sqlite.close();
+    console.log("[self-hosted] shutdown complete");
+  } catch (error) {
+    console.error("[self-hosted] shutdown failed", error);
+    process.exitCode = 1;
+  }
+};
+
+process.once("SIGTERM", () => void shutdown("SIGTERM"));
+process.once("SIGINT", () => void shutdown("SIGINT"));

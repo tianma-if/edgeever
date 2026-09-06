@@ -84,6 +84,7 @@ const createDependencies = (overrides = {}) => ({
   restoreJsonMemos: async () => {},
   restoreJsonNotebooks: async () => {},
   sha256Bytes: async () => "checksum",
+  initiateResourceRestoreUpload: async () => { throw new Error("Unexpected restore upload"); },
   ...overrides,
 });
 
@@ -171,6 +172,52 @@ describe("backup route contracts", () => {
     );
     expect(allowed.status).toBe(200);
     expect(restored.slice(1)).toEqual(["ws_1", payload.notebooks]);
+  });
+
+  test("initializes a resumable resource restore with the original resource id", async () => {
+    let received;
+    const metadata = {
+      id: "res_restore",
+      memoId: "memo_1",
+      originalMemoId: null,
+      kind: "attachment",
+      mimeType: "application/octet-stream",
+      filename: "archive.bin",
+      byteSize: 600 * 1024 * 1024,
+      sha256: "checksum",
+      width: null,
+      height: null,
+      createdAt: "2026-08-08T00:00:00.000Z",
+      updatedAt: "2026-08-08T00:00:00.000Z",
+      archivePath: "resources/res_restore/archive.bin",
+    };
+    const response = await createApp(createDependencies({
+      initiateResourceRestoreUpload: async (_context, input) => {
+        received = input;
+        return {
+          id: "upload_restore",
+          resourceId: input.id,
+          partSize: 8 * 1024 * 1024,
+          partCount: 75,
+          byteSize: input.byteSize,
+          expiresAt: "2026-09-01T00:00:00.000Z",
+        };
+      },
+    }), userAuth).request(
+      "/api/v1/restores/json/resources/res_restore/uploads",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(metadata),
+      },
+      { storage: { db: createDatabase(), resources: {} } },
+    );
+
+    expect(response.status).toBe(201);
+    expect(received).toEqual(metadata);
+    expect(await response.json()).toMatchObject({
+      upload: { resourceId: "res_restore", partCount: 75 },
+    });
   });
 
   test("maps damaged revision JSON to an empty document", () => {

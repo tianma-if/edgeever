@@ -40,7 +40,7 @@ struct ApiTokensView: View {
                     }
                 }
             }
-            .background(Color.white)
+            .background(AppTheme.card)
             .clipShape(RoundedRectangle(cornerRadius: 12))
             .overlay(RoundedRectangle(cornerRadius: 12).stroke(AppTheme.border, lineWidth: 1))
 
@@ -50,7 +50,7 @@ struct ApiTokensView: View {
                 TextField(env.preferences.t("名称", en: "Name"), text: $newName)
                     .padding(.horizontal, 12)
                     .frame(height: 44)
-                    .background(Color.white)
+                    .background(AppTheme.card)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                     .overlay(RoundedRectangle(cornerRadius: 8).stroke(AppTheme.border, lineWidth: 1))
                 Button {
@@ -72,7 +72,7 @@ struct ApiTokensView: View {
                 }
             }
             .padding(16)
-            .background(Color.white)
+            .background(AppTheme.card)
             .clipShape(RoundedRectangle(cornerRadius: 12))
             .overlay(RoundedRectangle(cornerRadius: 12).stroke(AppTheme.border, lineWidth: 1))
         }

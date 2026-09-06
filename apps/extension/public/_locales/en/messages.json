@@ -107,6 +107,12 @@
   "saveSettings": {
     "message": "Save settings"
   },
+  "projectAndSource": {
+    "message": "GitHub project & source"
+  },
+  "reportIssue": {
+    "message": "Report an issue"
+  },
   "privacyPolicy": {
     "message": "Privacy policy"
   },

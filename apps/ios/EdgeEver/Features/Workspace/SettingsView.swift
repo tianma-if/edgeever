@@ -4,6 +4,7 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(AppEnvironment.self) private var env
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
 
     private enum RootTab: Hashable {
         case general
@@ -18,6 +19,11 @@ struct SettingsView: View {
 
     @State private var tab: RootTab?
     @State private var showLocalePicker = false
+    @State private var copiedSystemInfo = false
+    @State private var instanceHealth: InstanceHealth?
+    @State private var instanceVersion: String?
+    @State private var instanceLatencyMilliseconds: Int?
+    @State private var instanceDiagnosticsFailed = false
 
     private var title: String {
         switch tab {
@@ -66,6 +72,10 @@ struct SettingsView: View {
         }
         .background(AppTheme.background.ignoresSafeArea())
         .preferredColorScheme(env.preferences.colorScheme)
+        .task(id: tab) {
+            guard tab == .system else { return }
+            await loadInstanceDiagnostics()
+        }
     }
 
     // MARK: - Header (Android settingsHeader)
@@ -100,16 +110,11 @@ struct SettingsView: View {
 
             Button {
                 withAnimation(Motion.chip) {
-                    // cycle: system → light → dark → system
-                    switch env.preferences.theme {
-                    case "light": env.preferences.theme = "dark"
-                    case "dark": env.preferences.theme = "system"
-                    default: env.preferences.theme = "light"
-                    }
+                    env.preferences.theme = resolvedDarkMode ? "light" : "dark"
                 }
             } label: {
                 HStack(spacing: 8) {
-                    Image(systemName: env.preferences.theme == "dark" ? "sun.max" : "moon")
+                    Image(systemName: resolvedDarkMode ? "sun.max" : "moon")
                         .font(.system(size: 16, weight: .semibold))
                     Text(themeToggleLabel)
                         .font(.system(size: 14, weight: .bold))
@@ -123,7 +128,7 @@ struct SettingsView: View {
         }
         .padding(.horizontal, 12)
         .frame(minHeight: 56)
-        .background(Color.white)
+        .background(AppTheme.card)
         .overlay(alignment: .bottom) {
             Rectangle().fill(AppTheme.border).frame(height: 1)
         }
@@ -131,10 +136,14 @@ struct SettingsView: View {
 
     private var themeToggleLabel: String {
         // Android shows the *action* text: switch to light when dark, else switch to dark
-        if env.preferences.theme == "dark" || (env.preferences.theme == "system" && env.preferences.colorScheme == .dark) {
+        if resolvedDarkMode {
             return env.preferences.t("切换到浅色模式", en: "Light mode")
         }
         return env.preferences.t("切换到深色模式", en: "Dark mode")
+    }
+
+    private var resolvedDarkMode: Bool {
+        env.preferences.theme == "dark" || (env.preferences.theme == "system" && colorScheme == .dark)
     }
 
     // MARK: - Root Me menu (Android activeTab === null)
@@ -190,9 +199,7 @@ struct SettingsView: View {
                     trailing: .external,
                     showBorder: true
                 ) {
-                    if let url = URL(string: "https://github.com/tianma-if/edgeever/issues") {
-                        UIApplication.shared.open(url)
-                    }
+                    if let url = feedbackURL { UIApplication.shared.open(url) }
                 }
             }
         }
@@ -204,7 +211,7 @@ struct SettingsView: View {
         VStack(spacing: 0) {
             content()
         }
-        .background(Color.white)
+        .background(AppTheme.card)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -235,7 +242,7 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(title)
                         .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(Color(hex: 0x1E293B))
+                        .foregroundStyle(AppTheme.title)
                     if let subtitle {
                         Text(subtitle)
                             .font(.system(size: 12))
@@ -309,7 +316,7 @@ struct SettingsView: View {
                         }
                         .padding(.horizontal, 12)
                         .frame(minHeight: 40)
-                        .background(Color.white)
+                        .background(AppTheme.card)
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                         .overlay(
                             RoundedRectangle(cornerRadius: 8).stroke(AppTheme.border, lineWidth: 1)
@@ -363,7 +370,7 @@ struct SettingsView: View {
                 Spacer(minLength: 0)
             }
             .padding(16)
-            .background(Color.white)
+            .background(AppTheme.card)
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -412,18 +419,18 @@ struct SettingsView: View {
                     .foregroundStyle(.white)
                     .padding(.horizontal, 14)
                     .frame(minHeight: 40)
-                    .background(Color(hex: 0xE11D48))
+                    .background(AppTheme.dangerAction)
                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
                 .buttonStyle(.plain)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(16)
-            .background(Color(hex: 0xFFF1F2))
+            .background(AppTheme.dangerSurface)
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(Color(hex: 0xFECACA), lineWidth: 1)
+                    .stroke(AppTheme.dangerBorder, lineWidth: 1)
             )
         }
     }
@@ -431,19 +438,46 @@ struct SettingsView: View {
     private var systemContent: some View {
         VStack(spacing: 16) {
             settingsGroup(title: env.preferences.t("系统信息", en: "System info"), icon: "info.circle") {
-                infoRow(env.preferences.t("版本", en: "Version"),
-                        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—",
-                        showBorder: false)
-                infoRow("Build",
-                        Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "—",
-                        showBorder: true)
-                infoRow(env.preferences.t("实例", en: "Instance"),
-                        env.session.session?.baseUrl ?? "—",
-                        showBorder: true)
-                infoRow(env.preferences.t("运行环境", en: "Runtime"),
-                        "Native SwiftUI",
-                        showBorder: true)
+                Button {
+                    UIPasteboard.general.string = systemInfoText
+                    copiedSystemInfo = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) { copiedSystemInfo = false }
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: copiedSystemInfo ? "checkmark.shield" : "doc.on.doc")
+                        Text(copiedSystemInfo
+                            ? env.preferences.t("已复制", en: "Copied")
+                            : env.preferences.t("复制信息", en: "Copy info"))
+                            .font(.system(size: 14, weight: .bold))
+                        Spacer()
+                    }
+                    .foregroundStyle(copiedSystemInfo ? AppTheme.accentStrong : AppTheme.title)
+                    .padding(.horizontal, 16)
+                    .frame(minHeight: 44)
+                }
+                .buttonStyle(.plain)
             }
+
+            systemInfoGroup(
+                title: env.preferences.t("云端实例", en: "Cloud instance"),
+                description: env.preferences.t("当前连接实例的版本与部署环境。", en: "Version and deployment environment for the connected instance."),
+                icon: "cloud",
+                items: cloudSystemInfoItems
+            )
+
+            systemInfoGroup(
+                title: env.preferences.t("当前客户端", en: "Current client"),
+                description: env.preferences.t("这台设备上的 EdgeEver 应用与运行环境。", en: "The EdgeEver app and runtime environment on this device."),
+                icon: "iphone",
+                items: clientSystemInfoItems
+            )
+
+            systemInfoGroup(
+                title: env.preferences.t("连接与同步", en: "Connection and sync"),
+                description: env.preferences.t("实例连接与本地同步队列状态。", en: "Connection and local sync queue status."),
+                icon: "arrow.triangle.2.circlepath",
+                items: connectionSystemInfoItems
+            )
 
             Button {
                 Task { await env.runSyncCycle() }
@@ -457,7 +491,7 @@ struct SettingsView: View {
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: 44)
                 .foregroundStyle(AppTheme.title)
-                .background(Color.white)
+                .background(AppTheme.card)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 .overlay(RoundedRectangle(cornerRadius: 12).stroke(AppTheme.border, lineWidth: 1))
             }
@@ -482,6 +516,181 @@ struct SettingsView: View {
         }
     }
 
+    private var clientSystemInfoItems: [(label: String, value: String)] {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "—"
+        let language = env.preferences.localeCode == "system"
+            ? "\(env.preferences.resolvedLocale.identifier) (\(env.preferences.t("跟随系统", en: "Follow system")))"
+            : env.preferences.resolvedLocale.identifier
+        return [
+            (env.preferences.t("版本", en: "Version"), "v\(version)"),
+            (env.preferences.t("构建", en: "Build"), build),
+            (env.preferences.t("客户端", en: "Client"), env.preferences.t("移动应用", en: "Mobile app")),
+            (env.preferences.t("系统", en: "System"), "iOS"),
+            (env.preferences.t("系统版本", en: "System version"), UIDevice.current.systemVersion),
+            (env.preferences.t("语言", en: "Language"), language),
+            (env.preferences.t("时区", en: "Time zone"), TimeZone.current.identifier),
+            (env.preferences.t("安装形态", en: "Mode"), env.preferences.t("原生 SwiftUI 应用", en: "Native SwiftUI app")),
+        ]
+    }
+
+    private var cloudSystemInfoItems: [(label: String, value: String)] {
+        var items: [(label: String, value: String)] = [
+            (env.preferences.t("实例版本", en: "Instance version"), instanceVersion.map { "v\($0.replacingOccurrences(of: "^v", with: "", options: .regularExpression))" } ?? unknownSystemInfoValue),
+            (env.preferences.t("实例构建", en: "Instance build"), instanceHealth?.build ?? unknownSystemInfoValue),
+            (env.preferences.t("数据库版本", en: "Database version"), instanceHealth?.migration ?? unknownSystemInfoValue),
+            (env.preferences.t("数据库后端", en: "Database backend"), databaseBackendLabel(instanceHealth?.storage?.database)),
+            (env.preferences.t("新上传对象存储", en: "New upload object storage"), objectStorageLabel(instanceHealth)),
+        ]
+        if instanceHealth?.objectStorageProvider == "s3" {
+            items.append((
+                env.preferences.t("已有附件", en: "Existing attachments"),
+                env.preferences.t("继续从原存储读取", en: "Read from original storage")
+            ))
+        }
+        items.append((
+            env.preferences.t("部署平台", en: "Deployment platform"),
+            deploymentPlatformLabel(instanceHealth?.runtime)
+        ))
+        if instanceHealth?.runtime == "self-hosted-bun" {
+            items.append((
+                env.preferences.t("容器镜像来源", en: "Container image source"),
+                containerImageSourceLabel(instanceHealth?.containerImageSource)
+            ))
+        }
+        return items
+    }
+
+    private var connectionSystemInfoItems: [(label: String, value: String)] {
+        let queueItems = env.session.dataScope.flatMap { try? env.outbox.listItems(scope: $0) } ?? []
+        let pending = queueItems.filter { $0.status == .pending || $0.status == .syncing }.count
+        let failed = queueItems.filter { $0.status == .error || $0.status == .conflict }.count
+        let connection = instanceHealth != nil
+            ? env.preferences.t("连接正常", en: "Connected")
+            : instanceDiagnosticsFailed
+                ? env.preferences.t("连接失败", en: "Connection failed")
+                : env.preferences.t("正在检查", en: "Checking")
+        return [
+            (env.preferences.t("实例连接", en: "Instance connection"), connection),
+            (env.preferences.t("请求耗时", en: "Request latency"), instanceLatencyMilliseconds.map { "\($0) ms" } ?? unknownSystemInfoValue),
+            (env.preferences.t("待同步", en: "Pending sync"), String(pending)),
+            (env.preferences.t("失败或冲突", en: "Failed or conflicted"), String(failed)),
+        ]
+    }
+
+    private var unknownSystemInfoValue: String {
+        env.preferences.t("未知", en: "Unknown")
+    }
+
+    private func databaseBackendLabel(_ backend: String?) -> String {
+        switch backend {
+        case "d1": return "D1"
+        case "sqlite": return "SQLite"
+        case let value?: return value
+        case nil: return unknownSystemInfoValue
+        }
+    }
+
+    private func objectStorageLabel(_ health: InstanceHealth?) -> String {
+        if health?.objectStorageProvider == "s3" {
+            return env.preferences.t("第三方 S3 兼容 OSS", en: "Third-party S3-compatible OSS")
+        }
+        guard health?.objectStorageProvider == "builtin" else { return unknownSystemInfoValue }
+        switch health?.storage?.resources {
+        case "r2": return env.preferences.t("内置 R2", en: "Built-in R2")
+        case "filesystem": return env.preferences.t("本地文件系统", en: "Local filesystem")
+        case "s3": return env.preferences.t("实例内置 S3 兼容存储", en: "Instance-provided S3-compatible storage")
+        default: return unknownSystemInfoValue
+        }
+    }
+
+    private func deploymentPlatformLabel(_ runtime: String?) -> String {
+        switch runtime {
+        case "cloudflare-workers": return "Cloudflare"
+        case "self-hosted-bun": return "Docker"
+        default: return unknownSystemInfoValue
+        }
+    }
+
+    private func containerImageSourceLabel(_ source: String?) -> String {
+        switch source {
+        case "official-ghcr": return "GitHub Container Registry (GHCR)"
+        case "official-cn-mirror": return env.preferences.t("中国大陆官方镜像", en: "Official mainland China mirror")
+        case "custom": return env.preferences.t("自定义镜像", en: "Custom image")
+        default: return unknownSystemInfoValue
+        }
+    }
+
+    private var systemInfoText: String {
+        [
+            systemInfoTextSection(env.preferences.t("云端实例", en: "Cloud instance"), items: cloudSystemInfoItems),
+            systemInfoTextSection(env.preferences.t("当前客户端", en: "Current client"), items: clientSystemInfoItems),
+            systemInfoTextSection(env.preferences.t("连接与同步", en: "Connection and sync"), items: connectionSystemInfoItems),
+        ].joined(separator: "\n\n")
+    }
+
+    private func systemInfoTextSection(_ title: String, items: [(label: String, value: String)]) -> String {
+        ([title] + items.map { "\($0.label): \($0.value)" }).joined(separator: "\n")
+    }
+
+    private func loadInstanceDiagnostics() async {
+        guard env.session.isSignedIn else {
+            instanceDiagnosticsFailed = true
+            return
+        }
+        instanceDiagnosticsFailed = false
+        let startedAt = Date()
+        do {
+            async let health = env.session.client.getInstanceHealth()
+            async let release = env.session.client.getInstanceRelease()
+            let (resolvedHealth, resolvedRelease) = try await (health, release)
+            instanceHealth = resolvedHealth
+            instanceVersion = resolvedRelease.version
+            instanceLatencyMilliseconds = max(0, Int(Date().timeIntervalSince(startedAt) * 1_000))
+        } catch {
+            instanceHealth = nil
+            instanceVersion = nil
+            instanceLatencyMilliseconds = nil
+            instanceDiagnosticsFailed = true
+        }
+    }
+
+    private var feedbackURL: URL? {
+        let english = env.preferences.isEnglish
+        let heading = english ? "Feedback" : "反馈内容"
+        let prompt = english
+            ? "Describe the problem, steps to reproduce it, or the feature you would like to see."
+            : "请描述遇到的问题、复现步骤，或你希望增加的功能。"
+        let privacy = english
+            ? "GitHub Issues are public. Do not include passwords, tokens, instance URLs, or private note content."
+            : "GitHub Issue 公开可见，请勿提交密码、Token、实例地址或私人笔记内容。"
+        let infoHeading = english ? "System information" : "系统信息"
+        let notice = english
+            ? "The following information was generated by EdgeEver to help diagnose the issue."
+            : "以下信息由 EdgeEver 自动生成，可帮助定位问题。"
+        let body = """
+        ## \(heading)
+
+        \(prompt)
+
+        > \(privacy)
+
+        ## \(infoHeading)
+
+        \(notice)
+
+        ```text
+        \(systemInfoText)
+        ```
+        """
+        var components = URLComponents(string: "https://github.com/tianma-if/edgeever/issues/new")
+        components?.queryItems = [
+            URLQueryItem(name: "title", value: english ? "[Feedback] " : "[反馈] "),
+            URLQueryItem(name: "body", value: body),
+        ]
+        return components?.url
+    }
+
     private func settingsGroup<Content: View>(
         title: String,
         icon: String,
@@ -499,12 +708,33 @@ struct SettingsView: View {
             .padding(16)
             content()
         }
-        .background(Color.white)
+        .background(AppTheme.card)
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(AppTheme.border, lineWidth: 1)
-        )
+            )
+    }
+
+    private func systemInfoGroup(
+        title: String,
+        description: String,
+        icon: String,
+        items: [(label: String, value: String)]
+    ) -> some View {
+        settingsGroup(title: title, icon: icon) {
+            Text(description)
+                .font(.system(size: 12))
+                .foregroundStyle(AppTheme.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 12)
+
+            ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+                infoRow(item.label, item.value, showBorder: true)
+            }
+        }
     }
 
     private func preferenceBlock<Content: View>(

@@ -3,12 +3,31 @@ import {
   buildMobileWebClipDraft,
   buildMobileWebClipDraftFromRenderedPage,
   extractPageTitle,
+  getSharedImages,
   getSharedWebUrl,
   htmlToMarkdown,
   isWeChatArticleUrl,
 } from "./mobile-web-clip";
 
 describe("mobile web clip", () => {
+  test("normalizes resolved images shared by another Android app", () => {
+    expect(getSharedImages([
+      {
+        contentMimeType: "image/webp",
+        contentType: "image",
+        contentUri: "file:///cache/zhihu-image.webp",
+        mimeType: "image/*",
+        originalName: "zhihu-image.webp",
+        shareType: "image",
+        value: "content://com.zhihu.android/image/42",
+      },
+    ])).toEqual([{
+      mimeType: "image/webp",
+      name: "zhihu-image.webp",
+      uri: "file:///cache/zhihu-image.webp",
+    }]);
+  });
+
   test("extracts a WeChat URL embedded in shared text", () => {
     expect(getSharedWebUrl([
       { shareType: "text", value: "一篇文章\nhttps://mp.weixin.qq.com/s/abc123" },

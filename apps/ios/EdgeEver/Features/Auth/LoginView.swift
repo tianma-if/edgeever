@@ -30,10 +30,11 @@ struct LoginView: View {
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(AppTheme.slate)
                     .frame(width: 42, height: 42)
-                    .background(Color.white)
+                    .background(AppTheme.card)
                     .clipShape(Circle())
                     .overlay(Circle().stroke(AppTheme.border, lineWidth: 1))
             }
+            .accessibilityLabel(env.preferences.t("GitHub 仓库", en: "GitHub repository"))
             .padding(.trailing, 18)
             .padding(.top, 18)
             .zIndex(2)
@@ -65,7 +66,7 @@ struct LoginView: View {
 
                     field(
                         env.preferences.t("实例地址", en: "Instance URL"),
-                        placeholder: "https://notes.example.com",
+                        placeholder: EdgeEverPublicDemo.instanceURLString,
                         text: $baseUrl,
                         keyboard: .URL,
                         secure: false
@@ -114,7 +115,7 @@ struct LoginView: View {
                         .frame(maxWidth: .infinity)
                         .frame(height: 48)
                         .foregroundStyle(.white)
-                        .background(canSubmit ? AppTheme.title : Color(hex: 0xCBD5E1))
+                        .background(canSubmit ? AppTheme.title : AppTheme.disabledFill)
                         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                     }
                     .buttonStyle(CreateButtonPressStyle())
@@ -165,7 +166,7 @@ struct LoginView: View {
             .foregroundStyle(AppTheme.title)
             .padding(.horizontal, 14)
             .frame(height: 48)
-            .background(Color.white)
+            .background(AppTheme.card)
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)

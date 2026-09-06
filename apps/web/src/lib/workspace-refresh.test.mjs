@@ -1,16 +1,68 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
+import { QueryClient } from "@tanstack/react-query";
 import {
   BACKGROUND_WORKSPACE_REFRESH_INTERVAL_MS,
+  claimBackgroundRefreshLease,
+  createRefreshSingleFlight,
+  DEFERRED_MEMO_SYNC_DELAY_MS,
+  releaseBackgroundRefreshLease,
   refreshWorkspaceData,
+  preserveRemappedMemoDetailQueries,
   resolveCreatedMemoSelection,
   resolveSyncedMemoId,
   shouldNavigateHomeWhenOpeningMemo,
 } from "./workspace-refresh.ts";
 
 describe("refreshWorkspaceData", () => {
-  it("uses a shared 30-second background refresh interval", () => {
-    assert.equal(BACKGROUND_WORKSPACE_REFRESH_INTERVAL_MS, 30_000);
+  it("uses a fixed 30-second delay for uploading memo edits", () => {
+    assert.equal(DEFERRED_MEMO_SYNC_DELAY_MS, 30_000);
+  });
+
+  it("uses a shared five-minute background refresh interval", () => {
+    assert.equal(BACKGROUND_WORKSPACE_REFRESH_INTERVAL_MS, 5 * 60_000);
+  });
+
+  it("allows only one tab to own a live background refresh lease", () => {
+    const values = new Map();
+    const storage = {
+      getItem: (key) => values.get(key) ?? null,
+      setItem: (key, value) => values.set(key, value),
+      removeItem: (key) => values.delete(key),
+    };
+
+    assert.equal(claimBackgroundRefreshLease({ storage, key: "sync", ownerId: "tab-a", now: 1_000, leaseMs: 500 }), true);
+    assert.equal(claimBackgroundRefreshLease({ storage, key: "sync", ownerId: "tab-b", now: 1_100, leaseMs: 500 }), false);
+    releaseBackgroundRefreshLease({ storage, key: "sync", ownerId: "tab-b" });
+    assert.equal(claimBackgroundRefreshLease({ storage, key: "sync", ownerId: "tab-b", now: 1_501, leaseMs: 500 }), true);
+  });
+
+  it("coalesces concurrent and immediately repeated background refreshes", async () => {
+    let now = 1_000;
+    let calls = 0;
+    let finish;
+    const run = createRefreshSingleFlight({
+      now: () => now,
+      coalesceMs: 100,
+      refresh: () => new Promise((resolve) => {
+        calls += 1;
+        finish = resolve;
+      }),
+    });
+
+    const first = run();
+    const concurrent = run();
+    assert.equal(first, concurrent);
+    assert.equal(calls, 1);
+    finish("done");
+    assert.equal(await first, "done");
+    assert.equal(await run(), null);
+    now += 101;
+    finish = undefined;
+    const next = run();
+    assert.equal(calls, 2);
+    finish("again");
+    assert.equal(await next, "again");
   });
 
   it("keeps the trash route when opening a deleted memo", () => {
@@ -24,6 +76,47 @@ describe("refreshWorkspaceData", () => {
     assert.equal(resolveSyncedMemoId(mappings, "memo_local_1"), "memo_remote_1");
     assert.equal(resolveSyncedMemoId(mappings, "memo_existing"), "memo_existing");
     assert.equal(resolveSyncedMemoId(mappings, null), null);
+  });
+
+  it("preserves the active memo detail while desktop sync changes its query key", () => {
+    const queryClient = new QueryClient();
+    const temporaryMemo = {
+      id: "memo_local_1",
+      title: "",
+      contentMarkdown: "",
+      tags: [],
+    };
+    queryClient.setQueryData(["memo", temporaryMemo.id, "notebook"], { memo: temporaryMemo });
+
+    preserveRemappedMemoDetailQueries(
+      queryClient,
+      new Map([[temporaryMemo.id, "memo_remote_1"]]),
+    );
+
+    assert.deepEqual(
+      queryClient.getQueryData(["memo", "memo_remote_1", "notebook"]),
+      { memo: { ...temporaryMemo, id: "memo_remote_1" } },
+    );
+  });
+
+  it("does not replace an already cached remote memo during id handoff", () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(["memo", "memo_local_1", "notebook"], {
+      memo: { id: "memo_local_1", title: "local", contentMarkdown: "", tags: [] },
+    });
+    queryClient.setQueryData(["memo", "memo_remote_1", "notebook"], {
+      memo: { id: "memo_remote_1", title: "remote", contentMarkdown: "", tags: [] },
+    });
+
+    preserveRemappedMemoDetailQueries(
+      queryClient,
+      new Map([["memo_local_1", "memo_remote_1"]]),
+    );
+
+    assert.equal(
+      queryClient.getQueryData(["memo", "memo_remote_1", "notebook"]).memo.title,
+      "remote",
+    );
   });
 
   it("remaps a created memo selection without closing over the selected memo state", () => {

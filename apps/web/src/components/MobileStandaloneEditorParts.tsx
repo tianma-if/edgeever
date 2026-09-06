@@ -1,4 +1,4 @@
-import { Bold, Check, ChevronDown, ImagePlus, List, ListIndentDecrease, ListIndentIncrease, Minus, Quote } from "lucide-react";
+import { Bold, Check, ChevronDown, ImagePlus, List, ListIndentDecrease, ListIndentIncrease, ListTodo, Minus, Quote } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   MOBILE_EDITOR_TOOLBAR_ACTIONS,
@@ -56,6 +56,7 @@ export const MobileEditorToolbar = ({
   disabled,
   boldActive,
   bulletListActive,
+  taskListActive,
   increaseListIndentAvailable,
   decreaseListIndentAvailable,
   blockquoteActive,
@@ -63,6 +64,7 @@ export const MobileEditorToolbar = ({
   onPickImage,
   onToggleBold,
   onToggleBulletList,
+  onToggleTaskList,
   onIncreaseListIndent,
   onDecreaseListIndent,
   onToggleBlockquote,
@@ -71,6 +73,7 @@ export const MobileEditorToolbar = ({
   disabled: boolean;
   boldActive: boolean;
   bulletListActive: boolean;
+  taskListActive: boolean;
   increaseListIndentAvailable: boolean;
   decreaseListIndentAvailable: boolean;
   blockquoteActive: boolean;
@@ -78,6 +81,7 @@ export const MobileEditorToolbar = ({
   onPickImage: () => void;
   onToggleBold: () => void;
   onToggleBulletList: () => void;
+  onToggleTaskList: () => void;
   onIncreaseListIndent: () => void;
   onDecreaseListIndent: () => void;
   onToggleBlockquote: () => void;
@@ -87,6 +91,7 @@ export const MobileEditorToolbar = ({
     image: <ImagePlus aria-hidden="true" size={18} strokeWidth={2} />,
     bold: <Bold aria-hidden="true" size={17} strokeWidth={2.4} />,
     bulletList: <List aria-hidden="true" size={18} strokeWidth={2.2} />,
+    taskList: <ListTodo aria-hidden="true" size={18} strokeWidth={2.1} />,
     increaseListIndent: <ListIndentIncrease aria-hidden="true" size={18} strokeWidth={2.1} />,
     decreaseListIndent: <ListIndentDecrease aria-hidden="true" size={18} strokeWidth={2.1} />,
     blockquote: <Quote aria-hidden="true" size={17} strokeWidth={2.2} />,
@@ -96,6 +101,7 @@ export const MobileEditorToolbar = ({
     image: onPickImage,
     bold: onToggleBold,
     bulletList: onToggleBulletList,
+    taskList: onToggleTaskList,
     increaseListIndent: onIncreaseListIndent,
     decreaseListIndent: onDecreaseListIndent,
     blockquote: onToggleBlockquote,
@@ -104,6 +110,7 @@ export const MobileEditorToolbar = ({
   const activeStates: Partial<Record<MobileEditorToolbarActionId, boolean>> = {
     bold: boldActive,
     bulletList: bulletListActive,
+    taskList: taskListActive,
     blockquote: blockquoteActive,
   };
 

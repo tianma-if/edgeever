@@ -29,7 +29,6 @@ const createApp = (authenticateRequest) => {
   const app = new Hono();
   registerUserRoutes(app, {
     authenticateRequest,
-    createDefaultNotebookRows: () => [],
     getInstanceUser: async () => null,
   });
   return app;

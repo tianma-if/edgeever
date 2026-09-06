@@ -1,6 +1,8 @@
 import type { Editor } from "@tiptap/react";
 import { MEMO_CONTENT_STYLE } from "@edgeever/shared";
 import { marked } from "marked";
+import { MERMAID_THEME_PALETTES } from "@/components/ThemeProvider";
+import { copyHtmlToClipboard } from "@/lib/clipboard";
 import { parseCustomCssToStyles } from "@/lib/css-sandbox";
 
 const BODY_LINE_HEIGHT = MEMO_CONTENT_STYLE.body.lineHeight / MEMO_CONTENT_STYLE.body.fontSize;
@@ -58,13 +60,14 @@ const THEME_BLOCK_STYLES: Record<string, { block: string; label: string }> = {
 const applyInlineStyles = (
   root: HTMLElement,
   editorTheme?: string,
-  customColors?: { bg: string; text: string; accent: string; soft: string; border: string } | null,
+  customColors?: { bg: string; text: string; accent: string; soft: string; codeBackground: string; border: string } | null,
   customCss?: string
 ) => {
   const textColor = customColors ? customColors.text : "#333";
   const bgColors = customColors ? customColors.bg : "#ffffff";
   const accent = customColors ? customColors.accent : "#059669";
   const soft = customColors ? customColors.soft : "#f0fdfa";
+  const codeBackground = customColors ? customColors.codeBackground : "#f6f8fa";
   const border = customColors ? customColors.border : "#e5e7eb";
 
   const customStyles = customCss ? parseCustomCssToStyles(customCss) : null;
@@ -89,9 +92,9 @@ const applyInlineStyles = (
       } else if (tagName === "a") {
         style = `color: ${accent}; text-decoration: underline;`;
       } else if (tagName === "code") {
-        style = `padding: 0.15em 0.35em; border-radius: 3px; background: ${soft}; color: ${textColor}; font-family: Menlo, Consolas, monospace; font-size: 0.9em;`;
+        style = `padding: 0.15em 0.35em; border-radius: 3px; background: ${codeBackground}; color: ${textColor}; font-family: Menlo, Consolas, monospace; font-size: 0.9em;`;
       } else if (tagName === "pre") {
-        style = `margin: 1em 0; padding: 12px 14px; overflow: hidden; border-radius: 6px; background: ${soft}; color: ${textColor}; line-height: 1.6; text-align: left;`;
+        style = `margin: 1em 0; padding: 12px 14px; overflow: hidden; border-radius: 6px; background: ${codeBackground}; color: ${textColor}; line-height: 1.6; text-align: left;`;
       } else if (tagName === "hr") {
         style = `margin: 1.5em 0; border: 0; border-top: 1px solid ${border};`;
       } else if (tagName === "th") {
@@ -279,6 +282,7 @@ const renderMermaidSvg = async (source: string) => {
   const { renderMermaidSVG, THEMES } = await import("beautiful-mermaid");
   return renderMermaidSVG(source, {
     ...THEMES["zinc-light"],
+    ...MERMAID_THEME_PALETTES["zinc-light"],
     transparent: true,
     font: "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
     padding: 24,
@@ -358,6 +362,41 @@ const embedImagesForWeChat = async (root: HTMLElement, originalImages: HTMLImage
   }));
 };
 
+const convertImageGalleriesForWeChat = (root: HTMLElement) => {
+  root.querySelectorAll<HTMLElement>("[data-edgeever-image-gallery]").forEach((gallery) => {
+    const images = Array.from(gallery.children).filter(
+      (child): child is HTMLImageElement => child.tagName === "IMG",
+    );
+    if (images.length < 2) return;
+
+    const layout = gallery.getAttribute("data-image-gallery-layout");
+    let columns = Math.min(images.length, 3);
+    if (layout === "1") {
+      columns = 1;
+    } else if (layout === "2" || (layout !== "3" && images.length === 4)) {
+      columns = 2;
+    } else if (layout === "3") {
+      columns = 3;
+    }
+    const table = document.createElement("table");
+    table.setAttribute("role", "presentation");
+    table.style.cssText = "width: 100%; margin: 1em 0; border: 0; border-collapse: separate; border-spacing: 6px; table-layout: fixed;";
+    const body = document.createElement("tbody");
+
+    images.forEach((image, index) => {
+      if (index % columns === 0) body.appendChild(document.createElement("tr"));
+      const cell = document.createElement("td");
+      cell.style.cssText = `width: ${100 / columns}%; border: 0; padding: 0; vertical-align: middle;`;
+      image.style.cssText = "display: block; width: 100%; height: auto; max-height: 18em; margin: 0; border-radius: 6px; object-fit: cover;";
+      cell.appendChild(image);
+      body.lastElementChild?.appendChild(cell);
+    });
+
+    table.appendChild(body);
+    gallery.replaceWith(table);
+  });
+};
+
 export const buildWeChatClipboardHtml = async (editor: Editor) => {
   const container = document.createElement("div");
   container.innerHTML = editor.getHTML();
@@ -365,14 +404,16 @@ export const buildWeChatClipboardHtml = async (editor: Editor) => {
   const closestContainer = editor.view.dom.closest<HTMLElement>("[data-editor-theme]");
   const editorTheme = closestContainer?.dataset.editorTheme;
   
-  let customColors: { bg: string; text: string; accent: string; soft: string; border: string } | null = null;
+  let customColors: { bg: string; text: string; accent: string; soft: string; codeBackground: string; border: string } | null = null;
   if (closestContainer && editorTheme === "custom") {
+    const colors = getComputedStyle(closestContainer);
     customColors = {
-      bg: closestContainer.style.getPropertyValue("--editor-theme-bg") || "#ffffff",
-      text: closestContainer.style.getPropertyValue("--editor-theme-text") || "#1f2937",
-      accent: closestContainer.style.getPropertyValue("--editor-theme-accent") || "#059669",
-      soft: closestContainer.style.getPropertyValue("--editor-theme-soft") || "#ecfdf5",
-      border: closestContainer.style.getPropertyValue("--editor-theme-border") || "#a7f3d0",
+      bg: colors.getPropertyValue("--editor-theme-bg") || "#ffffff",
+      text: colors.getPropertyValue("--editor-theme-text") || "#1f2937",
+      accent: colors.getPropertyValue("--editor-theme-accent") || "#059669",
+      soft: colors.getPropertyValue("--editor-theme-soft") || "#ecfdf5",
+      codeBackground: colors.getPropertyValue("--editor-theme-code-bg") || "#e0ece9",
+      border: colors.getPropertyValue("--editor-theme-border") || "#a7f3d0",
     };
   }
 
@@ -380,35 +421,11 @@ export const buildWeChatClipboardHtml = async (editor: Editor) => {
   const customCss = customStyleTag?.dataset.originalCss || "";
 
   applyInlineStyles(container, editorTheme, customColors, customCss);
+  convertImageGalleriesForWeChat(container);
   await embedMermaidForWeChat(container, editor);
   const originalImages = Array.from(editor.view.dom.querySelectorAll<HTMLImageElement>("img"));
   await embedImagesForWeChat(container, originalImages);
   return container.outerHTML;
-};
-
-const copyHtmlToClipboard = async (html: string, plainText: string) => {
-  if (navigator.clipboard && "ClipboardItem" in window) {
-    await navigator.clipboard.write([new ClipboardItem({
-      "text/html": new Blob([html], { type: "text/html" }),
-      "text/plain": new Blob([plainText], { type: "text/plain" }),
-    })]);
-    return;
-  }
-
-  const selection = window.getSelection();
-  const range = document.createRange();
-  const container = document.createElement("div");
-  container.setAttribute("contenteditable", "true");
-  container.style.cssText = "position: fixed; left: -99999px; top: 0;";
-  container.innerHTML = html;
-  document.body.appendChild(container);
-  range.selectNodeContents(container);
-  selection?.removeAllRanges();
-  selection?.addRange(range);
-  const copied = document.execCommand("copy");
-  selection?.removeAllRanges();
-  container.remove();
-  if (!copied) throw new Error("Clipboard copy was not available");
 };
 
 export const copyEditorToWeChat = async (editor: Editor) =>
@@ -421,14 +438,16 @@ export const copyMarkdownToWeChat = async (markdown: string) => {
   const closestContainer = document.querySelector<HTMLElement>("[data-editor-theme]");
   const editorTheme = closestContainer?.dataset.editorTheme;
   
-  let customColors: { bg: string; text: string; accent: string; soft: string; border: string } | null = null;
+  let customColors: { bg: string; text: string; accent: string; soft: string; codeBackground: string; border: string } | null = null;
   if (closestContainer && editorTheme === "custom") {
+    const colors = getComputedStyle(closestContainer);
     customColors = {
-      bg: closestContainer.style.getPropertyValue("--editor-theme-bg") || "#ffffff",
-      text: closestContainer.style.getPropertyValue("--editor-theme-text") || "#1f2937",
-      accent: closestContainer.style.getPropertyValue("--editor-theme-accent") || "#059669",
-      soft: closestContainer.style.getPropertyValue("--editor-theme-soft") || "#ecfdf5",
-      border: closestContainer.style.getPropertyValue("--editor-theme-border") || "#a7f3d0",
+      bg: colors.getPropertyValue("--editor-theme-bg") || "#ffffff",
+      text: colors.getPropertyValue("--editor-theme-text") || "#1f2937",
+      accent: colors.getPropertyValue("--editor-theme-accent") || "#059669",
+      soft: colors.getPropertyValue("--editor-theme-soft") || "#ecfdf5",
+      codeBackground: colors.getPropertyValue("--editor-theme-code-bg") || "#e0ece9",
+      border: colors.getPropertyValue("--editor-theme-border") || "#a7f3d0",
     };
   }
 

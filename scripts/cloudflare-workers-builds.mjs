@@ -92,7 +92,7 @@ const buildVariables = () => {
     if (current !== undefined) merged.set(key, current);
   }
 
-  const runtimeNames = [
+  const deploymentNames = [
     "WORKER_NAME",
     "WORKERS_DEV",
     "D1_DATABASE_NAME",
@@ -100,9 +100,12 @@ const buildVariables = () => {
     "R2_BUCKET_NAME",
     "R2_PREVIEW_BUCKET_NAME",
     "AUTH_USERNAME",
-    "AUTH_PASSWORD",
-    "AUTH_PASSWORD_HASH",
     "SESSION_TTL_DAYS",
+    "AUTH_LOGIN_WINDOW_SECONDS",
+    "AUTH_LOGIN_USERNAME_MAX_ATTEMPTS",
+    "AUTH_LOGIN_USERNAME_COOLDOWN_SECONDS",
+    "AUTH_LOGIN_IP_MAX_ATTEMPTS",
+    "AUTH_LOGIN_IP_COOLDOWN_SECONDS",
     "DEMO_MODE",
     "DEMO_RESET_CRON",
     "CUSTOM_DOMAIN",
@@ -111,20 +114,16 @@ const buildVariables = () => {
   const entries = [];
 
   if (instanceKey) entries.push(["EDGE_EVER_INSTANCE", instanceKey]);
-  for (const name of runtimeNames) {
+  for (const name of deploymentNames) {
     const scoped = instanceKey ? `EDGE_EVER_${instanceKey}_${name}` : "";
     const key = scoped && merged.get(scoped)?.trim() ? scoped : `EDGE_EVER_${name}`;
-    const current = merged.get(key)?.trim() || (name === "AUTH_USERNAME" ? "admin" : "");
+    const current = merged.get(key)?.trim() || "";
     if (current) entries.push([key, current]);
-  }
-
-  if (!entries.some(([key]) => key.endsWith("AUTH_PASSWORD") || key.endsWith("AUTH_PASSWORD_HASH"))) {
-    throw new Error("Missing EDGE_EVER_AUTH_PASSWORD or EDGE_EVER_AUTH_PASSWORD_HASH. Run deploy:setup before configuring Workers Builds.");
   }
 
   return Object.fromEntries(entries.map(([key, current]) => [key, {
     value: current.replace(/\\\$/g, "$"),
-    is_secret: key.endsWith("AUTH_PASSWORD") || key.endsWith("AUTH_PASSWORD_HASH"),
+    is_secret: false,
   }]));
 };
 

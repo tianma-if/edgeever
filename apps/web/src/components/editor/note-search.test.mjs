@@ -3,6 +3,7 @@ import { Schema } from "@tiptap/pm/model";
 import {
   formatNoteSearchMatchLabel,
   getNextSearchMatchIndex,
+  getSearchNavigationIdentity,
   getSearchMatchesFromDocument,
 } from "./note-search.ts";
 
@@ -53,5 +54,22 @@ describe("note search", () => {
     expect(formatNoteSearchMatchLabel("alpha", 1, 3)).toBe("2/3");
     expect(formatNoteSearchMatchLabel("alpha", 0, 0)).toBe("0/0");
     expect(formatNoteSearchMatchLabel("  ", 0, 3)).toBe("0/0");
+  });
+
+  test("does not treat document edits as a new search navigation request", () => {
+    const identityBeforeEdit = getSearchNavigationIdentity("memo-1", "note", "alpha");
+    const matchesBeforeEdit = getSearchMatchesFromDocument(
+      documentWithParagraphs("alpha before"),
+      "alpha",
+    );
+    const identityAfterEdit = getSearchNavigationIdentity("memo-1", "note", "alpha");
+    const matchesAfterEdit = getSearchMatchesFromDocument(
+      documentWithParagraphs("changed text", "alpha after"),
+      "alpha",
+    );
+
+    expect(matchesAfterEdit).not.toEqual(matchesBeforeEdit);
+    expect(identityAfterEdit).toBe(identityBeforeEdit);
+    expect(getSearchNavigationIdentity("memo-1", "note", "beta")).not.toBe(identityBeforeEdit);
   });
 });

@@ -54,7 +54,7 @@ struct UsersManagementView: View {
                     }
                 }
             }
-            .background(Color.white)
+            .background(AppTheme.card)
             .clipShape(RoundedRectangle(cornerRadius: 12))
             .overlay(RoundedRectangle(cornerRadius: 12).stroke(AppTheme.border, lineWidth: 1))
 
@@ -95,7 +95,7 @@ struct UsersManagementView: View {
                 .buttonStyle(.plain)
             }
             .padding(16)
-            .background(Color.white)
+            .background(AppTheme.card)
             .clipShape(RoundedRectangle(cornerRadius: 12))
             .overlay(RoundedRectangle(cornerRadius: 12).stroke(AppTheme.border, lineWidth: 1))
         }

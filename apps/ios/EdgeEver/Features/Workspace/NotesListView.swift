@@ -157,7 +157,7 @@ struct NotesListView: View {
                     .foregroundStyle(AppTheme.danger)
                     .padding(10)
                     .frame(maxWidth: .infinity)
-                    .background(Color.white.opacity(0.96))
+                    .background(AppTheme.card.opacity(0.96))
                     .transition(Motion.softFade)
                     .edgeEverErrorShake(on: err)
             }
@@ -199,7 +199,7 @@ struct NotesListView: View {
             .frame(maxWidth: .infinity)
             .padding(.horizontal, 16)
             .padding(.vertical, 34)
-            .background(Color.white)
+            .background(AppTheme.card)
             .overlay(
                 RoundedRectangle(cornerRadius: 8)
                     .stroke(style: StrokeStyle(lineWidth: 1, dash: [5, 4]))
@@ -452,10 +452,10 @@ struct NotesListView: View {
                             .foregroundStyle(AppTheme.title)
                             .padding(.horizontal, 14)
                             .frame(minHeight: 38)
-                            .background(Color.white)
+                            .background(AppTheme.card)
                             .overlay(
                                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                    .stroke(Color(hex: 0xCBD5E1), lineWidth: 1)
+                                    .stroke(AppTheme.border, lineWidth: 1)
                             )
                             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                         }
@@ -469,7 +469,7 @@ struct NotesListView: View {
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 16)
         .padding(.vertical, 34)
-        .background(Color.white)
+        .background(AppTheme.card)
         .overlay(
             RoundedRectangle(cornerRadius: 8)
                 .stroke(style: StrokeStyle(lineWidth: 1, dash: [5, 4]))
@@ -536,7 +536,7 @@ struct NotesListView: View {
             if store.selectionMode {
                 ZStack {
                     Circle()
-                        .stroke(selected ? AppTheme.title : Color(hex: 0xCBD5E1), lineWidth: 1)
+                        .stroke(selected ? AppTheme.title : AppTheme.border, lineWidth: 1)
                         .background(Circle().fill(selected ? AppTheme.title : Color.clear))
                         .frame(width: 24, height: 24)
                     if selected {
@@ -554,13 +554,14 @@ struct NotesListView: View {
                 memo: memo,
                 density: density,
                 locale: env.preferences.resolvedLocale,
-                isEnglish: env.preferences.isEnglish
+                isEnglish: env.preferences.isEnglish,
+                sort: store.sort
             )
             .padding(density.cardPadding)
             .padding(.leading, store.selectionMode ? 12 : density.cardPadding)
         }
         .frame(maxWidth: .infinity, minHeight: density.cardMinHeight, alignment: .leading)
-        .background(selected ? AppTheme.background : Color.white)
+        .background(selected ? AppTheme.background : AppTheme.card)
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -577,6 +578,7 @@ struct MemoCardContent: View {
     var density: ListDensity = .preview
     var locale: Locale = .current
     var isEnglish: Bool = false
+    var sort: MemoSortMode = .updatedDesc
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -605,7 +607,7 @@ struct MemoCardContent: View {
             }
 
             HStack(alignment: .center, spacing: 8) {
-                Text(MemoPreviewDate.format(memo.updatedAt, locale: locale, isEnglish: isEnglish))
+                Text("\(timestampLabel) \(MemoPreviewDate.format(timestampField.value(from: memo), locale: locale, isEnglish: isEnglish))")
                     .font(AppTheme.memoDateFont)
                     .foregroundStyle(AppTheme.meta)
                 ForEach(Array(memo.tags.prefix(3)), id: \.self) { tag in
@@ -625,6 +627,17 @@ struct MemoCardContent: View {
 
     private var displayTitle: String {
         let t = memo.title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return t.isEmpty ? "无标题笔记" : t
+        return t.isEmpty ? (isEnglish ? "Untitled note" : "无标题笔记") : t
+    }
+
+    private var timestampField: MemoListTimestampField {
+        MemoListTimestampField.resolve(for: sort)
+    }
+
+    private var timestampLabel: String {
+        switch timestampField {
+        case .createdAt: isEnglish ? "Created" : "创建"
+        case .updatedAt: isEnglish ? "Updated" : "更新"
+        }
     }
 }

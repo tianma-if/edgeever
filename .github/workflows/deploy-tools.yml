@@ -6,16 +6,16 @@ on:
       - "scripts/cloudflare-deploy.mjs"
       - "scripts/wrangler-output.mjs"
       - "scripts/run-wrangler.mjs"
+      - "scripts/upstream-sync-plan.mjs"
       - "scripts/wrangler-runner.mjs"
       - "scripts/verify-deployment.mjs"
       - ".dev.vars.example"
-      - ".github/workflows/sync-edgeever-upstream.yml"
+      - ".github/workflows/**"
       - "tests/deployment-entrypoints.test.ts"
       - "tests/wrangler-runner.test.ts"
       - "tests/deployment-verify.test.ts"
       - "package.json"
       - "bun.lock"
-      - ".github/workflows/deploy-tools.yml"
   push:
     branches:
       - main
@@ -23,22 +23,23 @@ on:
       - "scripts/cloudflare-deploy.mjs"
       - "scripts/wrangler-output.mjs"
       - "scripts/run-wrangler.mjs"
+      - "scripts/upstream-sync-plan.mjs"
       - "scripts/wrangler-runner.mjs"
       - "scripts/verify-deployment.mjs"
       - ".dev.vars.example"
-      - ".github/workflows/sync-edgeever-upstream.yml"
+      - ".github/workflows/**"
       - "tests/deployment-entrypoints.test.ts"
       - "tests/wrangler-runner.test.ts"
       - "tests/deployment-verify.test.ts"
       - "package.json"
       - "bun.lock"
-      - ".github/workflows/deploy-tools.yml"
 
 permissions:
   contents: read
 
 jobs:
   wrangler:
+    if: github.repository == 'tianma-if/edgeever'
     name: Wrangler runner (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
@@ -53,8 +54,6 @@ jobs:
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
 
       - name: Install dependencies
         run: bun install --frozen-lockfile

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { createMemoLinkHref, parseMemoLinkHref } from "./note-links.ts";
+import { collectMemoLinkIds, createMemoLinkHref, parseMemoLinkHref } from "./note-links.ts";
 import { docToMarkdown, markdownToDoc } from "./content.ts";
 
 describe("stable memo links", () => {
@@ -25,5 +25,11 @@ describe("stable memo links", () => {
       marks: [{ type: "link", attrs: { href: "#memo=memo_project" } }],
     });
     expect(docToMarkdown(doc)).toBe(markdown);
+  });
+
+  test("collects unique referenced memo ids from link marks", () => {
+    const doc = markdownToDoc("[项目](#memo=memo_project) 和 [项目副本](#memo=memo_project) 及 [待办](#memo=memo_todo)");
+
+    expect(collectMemoLinkIds(doc)).toEqual(["memo_project", "memo_todo"]);
   });
 });

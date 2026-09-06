@@ -15,9 +15,16 @@ struct TipTapWebView: UIViewRepresentable {
     let markdown: String
     let baseURL: URL?
     let token: String?
+    let locale: String
+    let theme: String
+    let placeholder: String
     let onChange: ((String, String) -> Void)?
     var onResourcePress: ((ResourceTarget) -> Void)? = nil
     var onImagePreview: ((_ source: String, _ alt: String) -> Void)? = nil
+    var onDoubleTap: (() -> Void)? = nil
+    var onPickImage: (() -> Void)? = nil
+    var onSearchResult: ((_ count: Int, _ index: Int) -> Void)? = nil
+    var onImageExportEvent: (([String: Any]) -> Void)? = nil
     var onBodyReady: (() -> Void)? = nil
 
     func makeCoordinator() -> Coordinator {
@@ -26,7 +33,7 @@ struct TipTapWebView: UIViewRepresentable {
 
     func makeUIView(context: Context) -> TipTapHostView {
         let host = TipTapHostView()
-        host.backgroundColor = .white
+        host.backgroundColor = .clear
         host.clipsToBounds = true
         return host
     }
@@ -42,9 +49,16 @@ struct TipTapWebView: UIViewRepresentable {
                 markdown: markdown,
                 baseURL: baseURL,
                 token: token,
+                locale: locale,
+                theme: theme,
+                placeholder: placeholder,
                 onChange: onChange,
                 onResourcePress: onResourcePress,
                 onImagePreview: onImagePreview,
+                onDoubleTap: onDoubleTap,
+                onPickImage: onPickImage,
+                onSearchResult: onSearchResult,
+                onImageExportEvent: onImageExportEvent,
                 onBodyReady: onBodyReady
             )
         )
@@ -440,6 +454,11 @@ enum TipTapResourceLoader {
         if (suppress || mode !== 'editor') return;
         const md = htmlToMd(editor.innerHTML);
         post({ type: 'change', contentMarkdown: md, contentJson: JSON.stringify({type:'doc',content:[{type:'paragraph',content:[{type:'text',text:md}]}]}) });
+      });
+      editor.addEventListener('dblclick', (event) => {
+        if (mode !== 'viewer' || event.target.closest('a,button,img,input,textarea,select')) return;
+        event.preventDefault();
+        post({ type: 'doubleTap' });
       });
       post({ type: 'ready', startupMs: 0 });
     })();

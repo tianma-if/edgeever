@@ -1,0 +1,114 @@
+name: Deploy personal EdgeEver
+
+on:
+  release:
+    types:
+      - published
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: edgeever-personal-deployment
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    # This is the maintainer's personal instance. Downstream Forks must never
+    # allocate a runner or inherit the official repository's deployment path.
+    if: github.repository == 'tianma-if/edgeever'
+    name: Build and deploy personal Worker
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      EDGE_EVER_WORKER_NAME: ${{ secrets.EDGE_EVER_TIANMA_WORKER_NAME }}
+      EDGE_EVER_D1_DATABASE_NAME: ${{ secrets.EDGE_EVER_TIANMA_D1_DATABASE_NAME }}
+      EDGE_EVER_D1_DATABASE_ID: ${{ secrets.EDGE_EVER_TIANMA_D1_DATABASE_ID }}
+      EDGE_EVER_R2_BUCKET_NAME: ${{ secrets.EDGE_EVER_TIANMA_R2_BUCKET_NAME }}
+      EDGE_EVER_R2_PREVIEW_BUCKET_NAME: ${{ secrets.EDGE_EVER_TIANMA_R2_PREVIEW_BUCKET_NAME }}
+      EDGE_EVER_AUTH_USERNAME: ${{ secrets.EDGE_EVER_TIANMA_AUTH_USERNAME }}
+      EDGE_EVER_SESSION_TTL_DAYS: ${{ secrets.EDGE_EVER_TIANMA_SESSION_TTL_DAYS }}
+      EDGE_EVER_CUSTOM_DOMAIN: ${{ secrets.EDGE_EVER_TIANMA_CUSTOM_DOMAIN }}
+      EDGE_EVER_DEPLOYMENT_URL: ${{ secrets.EDGE_EVER_TIANMA_CUSTOM_DOMAIN }}
+      EDGE_EVER_DEPLOYMENT_TRIGGER: ${{ github.event_name == 'release' && 'github_release' || 'manual' }}
+      EDGE_EVER_DEPLOYMENT_METHOD: "github_actions"
+
+    steps:
+      - name: Resolve formal Release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_RELEASE_TAG: ${{ github.event.release.tag_name || '' }}
+          EVENT_RELEASE_PUBLISHED_AT: ${{ github.event.release.published_at || '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          release_tag="${EVENT_RELEASE_TAG}"
+          release_published_at="${EVENT_RELEASE_PUBLISHED_AT}"
+          if [[ -z "${release_tag}" ]]; then
+            release_tag="$(gh api repos/tianma-if/edgeever/releases/latest --jq '.tag_name')"
+            release_published_at="$(gh api repos/tianma-if/edgeever/releases/latest --jq '.published_at')"
+          fi
+          if [[ ! "${release_tag}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Expected a formal vX.Y.Z Release, got ${release_tag}" >&2
+            exit 1
+          fi
+          {
+            echo "tag=${release_tag}"
+            echo "version=${release_tag#v}"
+            echo "published_at=${release_published_at}"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Checkout personal instance source
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ steps.release.outputs.tag }}
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Deploy personal Worker
+        env:
+          EDGE_EVER_RELEASED_AT: ${{ steps.release.outputs.published_at }}
+        run: bun run deploy
+
+      - name: Verify deployed Release version
+        env:
+          EXPECTED_RELEASE_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          node --input-type=module <<'NODE'
+          const rawBaseUrl = process.env.EDGE_EVER_DEPLOYMENT_URL?.trim() ?? "";
+          const expectedVersion = process.env.EXPECTED_RELEASE_VERSION?.trim() ?? "";
+          if (!rawBaseUrl || !expectedVersion) {
+            throw new Error("Deployment URL and expected Release version are required.");
+          }
+          const baseUrl = /^[a-z][a-z0-9+.-]*:\/\//i.test(rawBaseUrl)
+            ? rawBaseUrl
+            : `https://${rawBaseUrl}`;
+          const releaseUrl = new URL("/api/release", `${baseUrl.replace(/\/$/, "")}/`);
+          let actualVersion = "";
+          for (let attempt = 1; attempt <= 4; attempt += 1) {
+            const response = await fetch(releaseUrl, {
+              headers: { Accept: "application/json" },
+              signal: AbortSignal.timeout(10_000),
+            });
+            if (response.ok) {
+              const release = await response.json();
+              actualVersion = String(release?.version ?? "").replace(/^v/, "");
+              if (actualVersion === expectedVersion) break;
+            }
+            if (attempt < 4) await new Promise((resolve) => setTimeout(resolve, 2_000));
+          }
+          if (actualVersion !== expectedVersion) {
+            throw new Error(
+              `Personal instance reports v${actualVersion || "unknown"}; expected v${expectedVersion}.`,
+            );
+          }
+          console.log(`[ok] personal instance Release: v${actualVersion}`);
+          NODE

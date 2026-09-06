@@ -7,6 +7,7 @@ globalThis.IDBKeyRange = IDBKeyRange;
 const { localDb } = await import("./local-db.ts");
 const {
   createLocalDataScope,
+  clearLocalScope,
   createLocalMemo,
   getLocalMemo,
   listLocalTemplates,
@@ -31,9 +32,15 @@ const {
   putLocalResource,
   createLocalResource,
   listLocalResources,
+  listLocalMemoIdMappings,
+  observeLocalMemoIdMappings,
   replaceLocalResources,
   remapLocalDraftMemoId,
+  replaceLocalMemoId,
+  hasLocalSyncCursorRewound,
+  syncLocalMirror,
 } = await import("./local-mirror.ts");
+const { api } = await import("./api.ts");
 const { getCachedLocalResourceBytes } = await import("./local-resource-cache.ts");
 
 afterEach(async () => {
@@ -57,6 +64,135 @@ afterEach(async () => {
 });
 
 describe("local mirror", () => {
+  test("records a durable mapping when a new memo receives its remote id", async () => {
+    const scope = createLocalDataScope("https://notes.example.org", "user-1");
+    const localMemo = await createLocalMemo(scope, { notebookId: "inbox", title: "New note" });
+    const remoteMemo = {
+      ...localMemo,
+      id: "memo-remote",
+      revision: 1,
+      contentHash: "remote-hash",
+    };
+
+    await replaceLocalMemoId(scope, localMemo.id, remoteMemo);
+
+    expect(await listLocalMemoIdMappings(scope)).toEqual(new Map([[localMemo.id, remoteMemo.id]]));
+  });
+
+  test("observes a new memo id mapping so another live workspace can recover", async () => {
+    const scope = createLocalDataScope("https://notes.example.org", "user-1");
+    const localMemo = await createLocalMemo(scope, { notebookId: "inbox", title: "New note" });
+    const remoteMemo = {
+      ...localMemo,
+      id: "memo-remote",
+      revision: 1,
+      contentHash: "remote-hash",
+    };
+    const observedMapping = new Promise((resolve) => {
+      const unsubscribe = observeLocalMemoIdMappings(scope, (mappings) => {
+        if (mappings.get(localMemo.id) !== remoteMemo.id) return;
+        unsubscribe();
+        resolve(mappings);
+      });
+    });
+
+    await replaceLocalMemoId(scope, localMemo.id, remoteMemo);
+
+    expect(await observedMapping).toEqual(new Map([[localMemo.id, remoteMemo.id]]));
+  });
+
+  test("clears cached data, drafts, and pending changes for a reset scope", async () => {
+    const scope = createLocalDataScope("https://demo.edgeever.org", "user-1");
+    const otherScope = createLocalDataScope("https://notes.example.org", "user-2");
+    const scopedMemo = await createLocalMemo(scope, { notebookId: "demo-notebook", title: "Changed demo note" });
+    const otherMemo = await createLocalMemo(otherScope, { notebookId: "private-notebook", title: "Keep me" });
+    await localDb.drafts.bulkPut([
+      { memoId: scopedMemo.id, title: "Demo draft", contentJson: { type: "doc", content: [] }, tagsText: "", updatedAt: "2026-01-01T00:00:00.000Z" },
+      { memoId: otherMemo.id, title: "Private draft", contentJson: { type: "doc", content: [] }, tagsText: "", updatedAt: "2026-01-01T00:00:00.000Z" },
+    ]);
+    await localDb.syncQueue.bulkPut([
+      {
+        id: `memo.update:${scopedMemo.id}`,
+        kind: "memo.update",
+        scope,
+        memoId: scopedMemo.id,
+        status: "pending",
+        payload: {},
+        attemptCount: 0,
+        lastError: null,
+        nextAttemptAt: null,
+        claimId: null,
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+      {
+        id: `memo.update:${otherMemo.id}`,
+        kind: "memo.update",
+        scope: otherScope,
+        memoId: otherMemo.id,
+        status: "pending",
+        payload: {},
+        attemptCount: 0,
+        lastError: null,
+        nextAttemptAt: null,
+        claimId: null,
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+    ]);
+
+    await clearLocalScope(scope);
+
+    expect(await getLocalMemo(scope, scopedMemo.id)).toBeNull();
+    expect(await localDb.drafts.get(scopedMemo.id)).toBeUndefined();
+    expect(await localDb.syncQueue.get(`memo.update:${scopedMemo.id}`)).toBeUndefined();
+    expect(await getLocalMemo(otherScope, otherMemo.id)).not.toBeNull();
+    expect(await localDb.drafts.get(otherMemo.id)).toBeDefined();
+    expect(await localDb.syncQueue.get(`memo.update:${otherMemo.id}`)).toBeDefined();
+  });
+
+  test("rebuilds the browser mirror when the server change cursor rewinds", () => {
+    expect(hasLocalSyncCursorRewound(42, 7)).toBe(true);
+    expect(hasLocalSyncCursorRewound(42, 42)).toBe(false);
+    expect(hasLocalSyncCursorRewound(42, 64)).toBe(false);
+    expect(hasLocalSyncCursorRewound(42)).toBe(false);
+  });
+
+  test("replaces stale IndexedDB data after the server change log is reset", async () => {
+    const scope = createLocalDataScope("https://demo.edgeever.org", "user-1");
+    await createLocalMemo(scope, { notebookId: "old-notebook", title: "Stale cached note" });
+    await localDb.syncMeta.bulkPut([
+      { scope, key: "cursor", value: "42", updatedAt: "2026-01-01T00:00:00.000Z" },
+      { scope, key: "identity", value: "same-workspace", updatedAt: "2026-01-01T00:00:00.000Z" },
+    ]);
+    const originalSyncChanges = api.syncChanges;
+    const originalSyncBootstrap = api.syncBootstrap;
+    api.syncChanges = async () => ({
+      changes: [],
+      cursor: 42,
+      hasMore: false,
+      serverCursor: 7,
+      syncIdentity: "same-workspace",
+    });
+    api.syncBootstrap = async () => ({
+      notebooks: [],
+      memos: [],
+      snapshotCursor: 7,
+      syncIdentity: "same-workspace",
+      totalCount: 0,
+      nextAfterId: null,
+    });
+
+    try {
+      expect(await syncLocalMirror(scope)).toEqual({ bootstrapped: true, changed: 0 });
+      expect((await listLocalMemos(scope, {})).totalCount).toBe(0);
+      expect((await localDb.syncMeta.get([scope, "cursor"]))?.value).toBe("7");
+    } finally {
+      api.syncChanges = originalSyncChanges;
+      api.syncBootstrap = originalSyncBootstrap;
+    }
+  });
+
   test("keeps the newest draft when memo ids are remapped more than once", async () => {
     await localDb.drafts.put({
       memoId: "local-memo",
@@ -92,6 +228,18 @@ describe("local mirror", () => {
     expect(result.totalCount).toBe(1);
     expect(result.memos[0]?.id).toBe(memo.id);
     expect(result.memos[0]?.excerpt).toContain("Hello local first");
+  });
+
+  test("filters local memos by an exact tag across notebooks", async () => {
+    const scope = createLocalDataScope("https://demo.edgeever.org", "user-1");
+    const expected = await createLocalMemo(scope, { notebookId: "nb-a", tags: ["Demo"] });
+    await createLocalMemo(scope, { notebookId: "nb-b", tags: ["demo-extra"] });
+    await createLocalMemo(scope, { notebookId: "nb-b", title: "Demo without tag" });
+
+    const result = await listLocalMemos(scope, { tag: "demo" });
+
+    expect(result.totalCount).toBe(1);
+    expect(result.memos.map((memo) => memo.id)).toEqual([expected.id]);
   });
 
   test("updates local content and preserves the memo identity", async () => {

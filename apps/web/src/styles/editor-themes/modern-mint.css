@@ -15,15 +15,15 @@
 }
 
 :root.dark .edgeever-editor[data-editor-theme="modern-mint"]:not([data-editor-theme="default"]) {
-  --editor-theme-bg: #111a18;
-  --editor-theme-text: #cbd5e1;
-  --editor-theme-muted: #8fa39f;
-  --editor-theme-heading: #f1f5f9;
-  --editor-theme-accent: #14b8a6;
-  --editor-theme-soft: #182b26;
-  --editor-theme-border: #24423a;
-  --editor-theme-code-bg: #1e293b;
-  --editor-theme-code-text: #2ee5b5;
+  --editor-theme-bg: var(--workspace-editor);
+  --editor-theme-text: #d2ded9;
+  --editor-theme-muted: #90a49b;
+  --editor-theme-heading: #eff6f3;
+  --editor-theme-accent: #2dc9ac;
+  --editor-theme-soft: #1b2b25;
+  --editor-theme-border: #2f473e;
+  --editor-theme-code-bg: #101916;
+  --editor-theme-code-text: #66e5c7;
 }
 
 .edgeever-editor[data-editor-theme="modern-mint"]:not([data-editor-theme="default"]) .ProseMirror {
@@ -77,12 +77,8 @@
 .edgeever-editor[data-editor-theme="modern-mint"]:not([data-editor-theme="default"]) .ProseMirror a {
   color: var(--editor-theme-accent);
   text-decoration: underline;
-  text-decoration-color: rgba(0, 179, 138, 0.4);
+  text-decoration-color: color-mix(in srgb, var(--editor-theme-accent) 42%, transparent);
   text-underline-offset: 2px;
-}
-
-:root.dark .edgeever-editor[data-editor-theme="modern-mint"]:not([data-editor-theme="default"]) .ProseMirror a {
-  text-decoration-color: rgba(20, 184, 166, 0.4);
 }
 
 .edgeever-editor[data-editor-theme="modern-mint"]:not([data-editor-theme="default"]) .ProseMirror blockquote {

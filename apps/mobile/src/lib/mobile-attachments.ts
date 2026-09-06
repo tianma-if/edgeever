@@ -13,6 +13,19 @@ export type MobileImageTarget = MobileResourceTarget & { kind: "image" };
 
 type AttachmentClient = Pick<ReturnType<typeof createEdgeEverClient>, "getResourceBlob">;
 
+export type MobileResourceDownloadOptions = {
+  baseUrl: string;
+  token?: string | null;
+};
+
+export const buildMobileResourceDownloadRequest = (
+  resourceId: string,
+  options: MobileResourceDownloadOptions,
+) => ({
+  url: `${options.baseUrl.replace(/\/+$/, "")}/api/v1/resources/${encodeURIComponent(resourceId)}/blob`,
+  headers: options.token ? { Authorization: `Bearer ${options.token}` } : undefined,
+});
+
 /**
  * Convert a Blob to bytes. React Native's Blob polyfill has no arrayBuffer(),
  * so calling blob.arrayBuffer() throws "undefined is not a function".
@@ -249,21 +262,23 @@ export class MobileResourceCancelledError extends Error {
   }
 }
 
-const cacheMobileResource = async (client: AttachmentClient, target: MobileResourceTarget) => {
+const cacheMobileResource = async (
+  _client: AttachmentClient,
+  target: MobileResourceTarget,
+  options: MobileResourceDownloadOptions,
+) => {
   const { Directory, File, Paths } = await import("expo-file-system");
-  // The DOM editor resolves relative links against the instance URL for display.
-  // The client itself prefixes the instance base URL, so always give it the
-  // canonical relative resource path here.
-  const blob = await client.getResourceBlob(`/api/v1/resources/${encodeURIComponent(target.resourceId)}/blob`);
-  const bytes = await readBlobAsUint8Array(blob);
   const directory = new Directory(Paths.cache, "edgeever-attachments");
   if (!directory.exists) directory.create({ idempotent: true, intermediates: true });
   const file = new File(directory, `${target.resourceId}-${safeCacheFilename(target.filename)}`);
   if (file.exists) file.delete();
-  file.create({ overwrite: true, intermediates: true });
-  file.write(bytes);
+  const request = buildMobileResourceDownloadRequest(target.resourceId, options);
+  await File.downloadFileAsync(request.url, file, {
+    headers: request.headers,
+    idempotent: true,
+  });
 
-  return { blob, file };
+  return { file };
 };
 
 const shareCachedResource = async (
@@ -281,9 +296,13 @@ const shareCachedResource = async (
   return fileUri;
 };
 
-export const openMobileResource = async (client: AttachmentClient, target: MobileResourceTarget) => {
-  const { blob, file } = await cacheMobileResource(client, target);
-  const mimeType = resolveResourceMimeType(target.filename, blob.type);
+export const openMobileResource = async (
+  client: AttachmentClient,
+  target: MobileResourceTarget,
+  options: MobileResourceDownloadOptions,
+) => {
+  const { file } = await cacheMobileResource(client, target, options);
+  const mimeType = resolveResourceMimeType(target.filename);
   return shareCachedResource(file.uri, {
     dialogTitle: target.filename,
     mimeType,
@@ -295,10 +314,15 @@ export const openMobileResource = async (client: AttachmentClient, target: Mobil
  * Android: the action sheet Modal must be closed first — SAF needs a free activity
  * result channel; otherwise the folder picker never appears and it looks like a no-op.
  */
-export const saveMobileResourceAs = async (client: AttachmentClient, target: MobileResourceTarget) => {
+export const saveMobileResourceAs = async (
+  client: AttachmentClient,
+  target: MobileResourceTarget,
+  options: MobileResourceDownloadOptions,
+) => {
   const { Platform } = await import("react-native");
-  const { blob, file } = await cacheMobileResource(client, target);
-  const mimeType = resolveResourceMimeType(target.filename, blob.type);
+  const { File } = await import("expo-file-system");
+  const { file } = await cacheMobileResource(client, target, options);
+  const mimeType = resolveResourceMimeType(target.filename);
   const exportName = resolveExportFilename(target.filename, mimeType);
 
   if (Platform.OS === "android") {
@@ -314,10 +338,7 @@ export const saveMobileResourceAs = async (client: AttachmentClient, target: Mob
         exportName,
         mimeType
       );
-      const base64 = await file.base64();
-      await FileSystem.StorageAccessFramework.writeAsStringAsync(destination, base64, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
+      await file.copy(new File(destination), { overwrite: true });
       return { kind: "saf" as const, uri: destination, filename: exportName };
     } catch (error) {
       if (error instanceof MobileResourceCancelledError) {

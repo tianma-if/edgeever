@@ -61,6 +61,35 @@ const holdNextMemoCreate = async (page: Page) => {
   return { createResponse, createStarted, releaseCreate };
 };
 
+const holdNextMemoCreateResponse = async (page: Page) => {
+  let releaseCreate!: () => void;
+  let resolveCreatedMemo!: (memo: { id: string }) => void;
+  const createGate = new Promise<void>((resolve) => {
+    releaseCreate = resolve;
+  });
+  const createdMemo = new Promise<{ id: string }>((resolve) => {
+    resolveCreatedMemo = resolve;
+  });
+  const createResponse = page.waitForResponse(
+    (response) => response.request().method() === "POST" && new URL(response.url()).pathname === "/api/v1/memos",
+  );
+
+  await page.route("**/api/v1/memos", async (route: Route) => {
+    if (route.request().method() !== "POST") {
+      await route.continue();
+      return;
+    }
+
+    const response = await route.fetch();
+    const created = await response.json() as { memo: { id: string } };
+    resolveCreatedMemo(created.memo);
+    await createGate;
+    await route.fulfill({ response });
+  });
+
+  return { createdMemo, createResponse, releaseCreate };
+};
+
 const editNewMemo = async (page: Page, title: string, content: string) => {
   await page.getByRole("button", { name: "新建笔记", exact: true }).click();
 
@@ -93,8 +122,9 @@ const finishSyncAndVerifyReload = async (
   releaseCreate();
   const createResponse = await createResponsePromise;
   expect(createResponse.status()).toBe(201);
-  const created = await createResponse.json() as { memo: { id: string } };
+  const created = await createResponse.json() as { memo: { id: string; revision: number } };
   const memoId = created.memo.id;
+  expect(created.memo.revision).toBe(0);
 
   try {
     await expect.poll(async () => {
@@ -103,20 +133,64 @@ const finishSyncAndVerifyReload = async (
     }).toBe(true);
 
     await createSyncCompletedPromise;
+    const firstUpdateSyncCompletedPromise = page.evaluate(() => new Promise<void>((resolve) => {
+      window.addEventListener("edgeever:sync-completed", () => resolve(), { once: true });
+    }));
     await page.evaluate(() => window.dispatchEvent(new CustomEvent("edgeever:sync-queue-changed")));
     const updateResponse = await updateResponsePromise;
     expect(new URL(updateResponse.url()).pathname).toBe(`/api/v1/memos/${memoId}`);
+    expect(updateResponse.request().postDataJSON()).toMatchObject({
+      expectedRevision: created.memo.revision,
+    });
     expect(updateResponse.ok()).toBe(true);
-    const updated = await updateResponse.json() as { memo: { title: string; contentJson: unknown } };
+    const updated = await updateResponse.json() as { memo: { title: string; contentJson: unknown; revision: number } };
     expect(updated.memo.title).toBe(title);
     expect(JSON.stringify(updated.memo.contentJson)).toContain(content);
+    expect(updated.memo.revision).toBe(1);
+    await firstUpdateSyncCompletedPromise;
+
+    const followUp = ` after revision ${updated.memo.revision}`;
+    let releaseSecondUpdate!: () => void;
+    let markSecondUpdateStarted!: () => void;
+    let secondUpdateRequestBody: Record<string, unknown> | null = null;
+    const secondUpdateGate = new Promise<void>((resolve) => { releaseSecondUpdate = resolve; });
+    const secondUpdateStarted = new Promise<void>((resolve) => { markSecondUpdateStarted = resolve; });
+    await page.route(`**/api/v1/memos/${memoId}`, async (route: Route) => {
+      if (route.request().method() !== "PATCH") {
+        await route.continue();
+        return;
+      }
+      secondUpdateRequestBody = route.request().postDataJSON() as Record<string, unknown>;
+      markSecondUpdateStarted();
+      await secondUpdateGate;
+      await route.continue();
+    });
+    const secondUpdateResponsePromise = page.waitForResponse(
+      (response) => response.request().method() === "PATCH" && new URL(response.url()).pathname === `/api/v1/memos/${memoId}`,
+    );
+    const editor = page.locator(".ProseMirror[contenteditable='true']");
+    await editor.click();
+    await page.keyboard.press("End");
+    await page.keyboard.insertText(followUp);
+    await secondUpdateStarted;
+    expect(secondUpdateRequestBody).toMatchObject({ expectedRevision: updated.memo.revision });
+    const secondUpdateSyncCompletedPromise = page.evaluate(() => new Promise<void>((resolve) => {
+      window.addEventListener("edgeever:sync-completed", () => resolve(), { once: true });
+    }));
+    releaseSecondUpdate();
+    const secondUpdateResponse = await secondUpdateResponsePromise;
+    expect(secondUpdateResponse.ok()).toBe(true);
+    await secondUpdateSyncCompletedPromise;
+    await page.unroute(`**/api/v1/memos/${memoId}`);
 
     await expect.poll(async () => {
       const response = await page.request.get(`/api/v1/memos/${memoId}`);
       if (!response.ok()) return false;
       const body = await response.json() as { memo: { title: string; contentJson: unknown } };
-      return body.memo.title === title && JSON.stringify(body.memo.contentJson).includes(content);
+      const serializedContent = JSON.stringify(body.memo.contentJson);
+      return body.memo.title === title && serializedContent.includes(content) && serializedContent.includes(followUp);
     }).toBe(true);
+    await expect(page.getByText("有冲突", { exact: true })).toHaveCount(0);
 
     await page.reload();
     const memoCard = page.locator(`[data-memo-id="${memoId}"]`);
@@ -124,6 +198,7 @@ const finishSyncAndVerifyReload = async (
     await memoCard.locator("button").first().click();
     await expect(page.getByPlaceholder("无标题")).toHaveValue(title);
     await expect(page.locator(".ProseMirror[contenteditable='true']")).toContainText(content);
+    await expect(page.locator(".ProseMirror[contenteditable='true']")).toContainText(followUp.trim());
   } finally {
     await page.request.delete(`/api/v1/memos/${memoId}`);
     await page.request.delete(`/api/v1/memos/${memoId}?permanent=1`);
@@ -131,7 +206,112 @@ const finishSyncAndVerifyReload = async (
 };
 
 test.describe("new memo synchronization", () => {
-  test("preserves a draft written while memo creation is in flight", async ({ page }) => {
+  test("keeps the new memo editor editable and focused when desktop sync remaps its id early", async ({ page }) => {
+    const heldCreate = await holdNextMemoCreateResponse(page);
+    let memoId: string | null = null;
+
+    try {
+      await page.goto("/");
+      await page.getByRole("button", { name: "新建笔记", exact: true }).click();
+      const createdMemo = await heldCreate.createdMemo;
+      memoId = createdMemo.id;
+
+      let temporaryMemoId: string | null = null;
+      await expect.poll(async () => {
+        const items = await readIndexedDbStore<StoredQueueItem>(page, "syncQueue");
+        temporaryMemoId = items.find((item) => item.kind === "memo.create")?.memoId ?? null;
+        return temporaryMemoId;
+      }).toMatch(/^local_/);
+
+      const editor = page.locator(".ProseMirror[contenteditable='true']");
+      await expect(editor).toBeEditable();
+      await editor.click();
+      await expect(editor).toBeFocused();
+
+      const editorObservation = page.evaluate(() => new Promise<{
+        disconnected: boolean;
+        focusLost: boolean;
+        mapping: Array<[string, string]>;
+        replaced: boolean;
+        stillFocused: boolean;
+      }>((resolve, reject) => {
+        const originalEditor = document.querySelector(".ProseMirror[contenteditable='true']");
+        if (!(originalEditor instanceof HTMLElement)) {
+          reject(new Error("Expected a mounted memo editor before id remapping"));
+          return;
+        }
+
+        let disconnected = false;
+        let focusLost = document.activeElement !== originalEditor;
+        let replaced = false;
+        const sampleEditorState = () => {
+          disconnected ||= !originalEditor.isConnected;
+          focusLost ||= document.activeElement !== originalEditor;
+          replaced ||= document.querySelector(".ProseMirror[contenteditable='true']") !== originalEditor;
+        };
+        const sampleInterval = window.setInterval(sampleEditorState, 5);
+        const mutationObserver = new MutationObserver(sampleEditorState);
+        mutationObserver.observe(document.body, { childList: true, subtree: true });
+        originalEditor.addEventListener("focusout", () => { focusLost = true; });
+
+        window.addEventListener("edgeever:memo-id-remapped", (event) => {
+          const detail = (event as CustomEvent<Map<string, string>>).detail;
+          window.setTimeout(() => {
+            sampleEditorState();
+            window.clearInterval(sampleInterval);
+            mutationObserver.disconnect();
+            resolve({
+              disconnected,
+              focusLost,
+              mapping: [...detail.entries()],
+              replaced,
+              stillFocused: document.activeElement === originalEditor,
+            });
+          }, 1_200);
+        }, { once: true });
+      }));
+
+      await page.evaluate(({ localId, remoteId }) => {
+        window.dispatchEvent(new CustomEvent("edgeever:memo-id-remapped", {
+          detail: new Map([[localId, remoteId]]),
+        }));
+      }, { localId: temporaryMemoId!, remoteId: memoId });
+
+      const observation = await editorObservation;
+      expect(observation.mapping).toContainEqual([temporaryMemoId, memoId]);
+      expect(observation).toMatchObject({
+        disconnected: false,
+        focusLost: false,
+        replaced: false,
+        stillFocused: true,
+      });
+      await expect(editor).toBeEditable();
+      await expect(editor).toBeFocused();
+
+      heldCreate.releaseCreate();
+      const createResponse = await heldCreate.createResponse;
+      expect(createResponse.status()).toBe(201);
+      const created = await createResponse.json() as { memo: { id: string } };
+      expect(created.memo.id).toBe(memoId);
+      await expect(editor).toBeEditable();
+      await expect(editor).toBeFocused();
+    } finally {
+      heldCreate.releaseCreate();
+      if (!memoId) {
+        const createResponse = await heldCreate.createResponse.catch(() => null);
+        if (createResponse?.status() === 201) {
+          const created = await createResponse.json() as { memo: { id: string } };
+          memoId = created.memo.id;
+        }
+      }
+      if (memoId) {
+        await page.request.delete(`/api/v1/memos/${memoId}`);
+        await page.request.delete(`/api/v1/memos/${memoId}?permanent=1`);
+      }
+    }
+  });
+
+  test("rebases a second autosave after memo creation reaches cloud revision 1", async ({ page }) => {
     const marker = `${Date.now()}-draft-only`;
     const title = `E2E create race ${marker}`;
     const content = `Content pasted before create completed ${marker}`;

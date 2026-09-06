@@ -146,7 +146,7 @@ struct RevisionsView: View {
                     .foregroundStyle(canRestore ? AppTheme.title : AppTheme.muted)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 10)
-                    .background(Color.white)
+                    .background(AppTheme.card)
                     .overlay(
                         RoundedRectangle(cornerRadius: 10, style: .continuous)
                             .stroke(AppTheme.border, lineWidth: 1)
@@ -158,7 +158,7 @@ struct RevisionsView: View {
             }
         }
         .padding(14)
-        .background(Color.white)
+        .background(AppTheme.card)
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -235,7 +235,7 @@ struct RevisionsView: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
-            .background(active ? AppTheme.filterActive : Color.white)
+            .background(active ? AppTheme.filterActive : AppTheme.card)
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -252,7 +252,7 @@ struct RevisionsView: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 28)
         .padding(.horizontal, 12)
-        .background(Color.white)
+        .background(AppTheme.card)
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -275,7 +275,7 @@ struct RevisionsView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .textSelection(.enabled)
                     .padding(14)
-                    .background(Color.white)
+                    .background(AppTheme.card)
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .overlay(
                         RoundedRectangle(cornerRadius: 12, style: .continuous)

@@ -9,8 +9,19 @@ import { WORKSPACE_PAGE_TITLE_CLASSNAME } from "@/lib/workspace-ui";
 import type { TagSummary } from "@edgeever/shared";
 import { AppConfirmDialog } from "./dialogs/ConfirmDialogs";
 import type { EdgeEverRepository } from "@/lib/repository";
+import { ExecutionCenterButton } from "@/components/execution/ExecutionCenterButton";
 
-export const TagsPane = ({ onClose, repository }: { onClose: () => void; repository: EdgeEverRepository }) => {
+export const TagsPane = ({
+  onClose,
+  onSelectTag,
+  repository,
+  onOpenExecutionCenter,
+}: {
+  onClose: () => void;
+  onSelectTag: (tag: string) => void;
+  repository: EdgeEverRepository;
+  onOpenExecutionCenter: () => void;
+}) => {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [editingTagName, setEditingTagName] = useState<string | null>(null);
@@ -41,7 +52,7 @@ export const TagsPane = ({ onClose, repository }: { onClose: () => void; reposit
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col bg-white">
-      <header className="flex h-[calc(4rem+env(safe-area-inset-top))] shrink-0 items-end border-b border-slate-200 px-6 pb-3 pt-[env(safe-area-inset-top)] lg:h-16 lg:items-center lg:pb-0 lg:pt-0">
+      <header className="flex h-[calc(4rem+env(safe-area-inset-top))] shrink-0 items-end justify-between border-b border-slate-200 px-6 pb-3 pt-[env(safe-area-inset-top)] lg:h-16 lg:items-center lg:pb-0 lg:pt-0">
         <div className="flex min-w-0 items-center gap-3">
           <Button size="icon" variant="ghost" title={t("common.back")} aria-label={t("common.back")} onClick={onClose} className="h-9 w-9 rounded-lg hover:bg-slate-100">
             <ChevronLeft className="h-5 w-5 text-slate-500" />
@@ -51,6 +62,7 @@ export const TagsPane = ({ onClose, repository }: { onClose: () => void; reposit
             <p className="mt-0.5 text-xs text-slate-500">{t("tagsDialog.count", { count: tags.length })}</p>
           </div>
         </div>
+        <ExecutionCenterButton onClick={onOpenExecutionCenter} />
       </header>
 
       <main className="min-h-0 flex-1 overflow-y-auto px-4 py-4 lg:px-6 lg:py-6">
@@ -66,8 +78,8 @@ export const TagsPane = ({ onClose, repository }: { onClose: () => void; reposit
                 const nextName = editingTagValue.trim();
                 return (
                   <div key={tag.name} className={cn("flex min-h-12 items-center gap-3 rounded-md border border-slate-200 bg-white px-3 py-2", isEditing && "border-emerald-200 bg-emerald-50/30")}>
-                    <span className="min-w-0 flex-1">
-                      {isEditing ? (
+                    {isEditing ? (
+                      <div className="min-w-0 flex-1">
                         <form className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center" onSubmit={(event) => { event.preventDefault(); if (nextName && nextName !== tag.name && !renameMutation.isPending) renameMutation.mutate({ tag: tag.name, name: nextName }); }}>
                           <label className="sr-only" htmlFor={`tag-rename-${tag.name}`}>{t("tagsDialog.nameLabel")}</label>
                           <Input id={`tag-rename-${tag.name}`} className="h-9 min-w-0 flex-1 focus-visible:border-emerald-300 focus-visible:ring-emerald-500/20" value={editingTagValue} autoFocus disabled={renameMutation.isPending} maxLength={80} onChange={(event) => setEditingTagValue(event.target.value)} onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); cancelRename(); } }} />
@@ -76,10 +88,16 @@ export const TagsPane = ({ onClose, repository }: { onClose: () => void; reposit
                             <Button size="sm" type="button" variant="outline" onClick={cancelRename} disabled={renameMutation.isPending}>{t("common.cancel")}</Button>
                           </div>
                         </form>
-                      ) : (
+                      </div>
+                    ) : (
+                      <button
+                        className="min-w-0 flex-1 rounded-md px-1 py-1 text-left transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30"
+                        type="button"
+                        onClick={() => onSelectTag(tag.name)}
+                      >
                         <><span className="block truncate text-sm font-semibold text-slate-950">#{tag.name}</span><span className="mt-1 block text-xs text-slate-500">{t("tagsDialog.memoCount", { count: tag.memoCount })}{tag.updatedAt ? ` · ${formatDateTime(tag.updatedAt)}` : ""}</span></>
-                      )}
-                    </span>
+                      </button>
+                    )}
                     {!isEditing && <><Button size="icon" variant="ghost" title={t("tagsDialog.renameTitle")} aria-label={t("tagsDialog.renameAria", { name: tag.name })} onClick={() => { setEditingTagName(tag.name); setEditingTagValue(tag.name); }}><Pencil className="h-4 w-4" /></Button><Button size="icon" variant="danger" title={t("tagsDialog.deleteTitle")} aria-label={t("tagsDialog.deleteAria", { name: tag.name })} onClick={() => setTagDeleteConfirmation(tag)}><Trash2 className="h-4 w-4" /></Button></>}
                   </div>
                 );

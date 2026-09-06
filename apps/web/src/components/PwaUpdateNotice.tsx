@@ -1,18 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, RefreshCw, X } from "lucide-react";
+import { RefreshCw, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
-  consumePwaBuildUpdate,
-  consumePwaUpdateReloadPending,
   PWA_UPDATE_NOTICE_EVENT,
   type PwaUpdateNoticeEvent,
   type PwaUpdateNoticeKind,
 } from "@/lib/pwa-update-notice";
 
 type Notice = {
-  buildLabel?: string;
   id: number;
   kind: PwaUpdateNoticeKind;
 };
@@ -51,14 +48,6 @@ const watchDisplayMode = (onChange: () => void) => {
   };
 };
 
-const getNoticeDescription = (notice: Notice, fallbackDescription: string, t: ReturnType<typeof useTranslation>["t"]) => {
-  if (notice.kind === "updated" && notice.buildLabel) {
-    return t("pwa.latestWithBuild", { buildLabel: notice.buildLabel });
-  }
-
-  return fallbackDescription;
-};
-
 export const PwaUpdateNotice = () => {
   const { t } = useTranslation();
   const [displayMode, setDisplayMode] = useState(() => getDisplayMode());
@@ -74,18 +63,9 @@ export const PwaUpdateNotice = () => {
       return;
     }
 
-    const buildLabel = __EDGEEVER_BUILD_LABEL__;
-
-    if (
-      consumePwaUpdateReloadPending() ||
-      consumePwaBuildUpdate(__EDGEEVER_BUILD_ID__, { notifyWhenMissingBaseline: true })
-    ) {
-      setNotice({ buildLabel, id: Date.now(), kind: "updated" });
-    }
-
     const handleNotice = (event: Event) => {
-      const { buildLabel: eventBuildLabel, kind } = (event as PwaUpdateNoticeEvent).detail;
-      setNotice({ buildLabel: eventBuildLabel ?? buildLabel, id: Date.now(), kind });
+      const { kind } = (event as PwaUpdateNoticeEvent).detail;
+      setNotice({ id: Date.now(), kind });
     };
 
     window.addEventListener(PWA_UPDATE_NOTICE_EVENT, handleNotice);
@@ -106,10 +86,6 @@ export const PwaUpdateNotice = () => {
       checking: {
         title: t("pwa.checkingTitle"),
         description: t("pwa.checkingDescription"),
-      },
-      updated: {
-        title: t("pwa.appliedTitle"),
-        description: t("pwa.appliedDescription"),
       },
       "reload-required": {
         title: t("pwa.readyTitle"),
@@ -139,18 +115,12 @@ export const PwaUpdateNotice = () => {
       aria-live="polite"
     >
       <div className="flex items-start gap-3">
-        <div
-          className={cn(
-            "mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full",
-            notice.kind === "updated" ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-600"
-          )}
-          aria-hidden="true"
-        >
-          {notice.kind === "updated" ? <CheckCircle2 className="h-4 w-4" /> : <RefreshCw className="h-4 w-4" />}
+        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-600" aria-hidden="true">
+          <RefreshCw className="h-4 w-4" />
         </div>
         <div className="min-w-0 flex-1">
           <div className="text-sm font-semibold leading-5">{copy.title}</div>
-          <div className="mt-0.5 text-xs leading-5 text-slate-500">{getNoticeDescription(notice, copy.description, t)}</div>
+          <div className="mt-0.5 text-xs leading-5 text-slate-500">{copy.description}</div>
           {isReloadRequired ? (
             <Button className="mt-2" size="sm" variant="solid" onClick={() => window.location.reload()}>
               {t("pwa.refreshNow")}

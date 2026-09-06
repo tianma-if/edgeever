@@ -8,8 +8,6 @@ import { getLocalizedPath, getSiteLocale, siteCopy } from "@/i18n";
 
 const locale = getSiteLocale(Astro.url.pathname);
 const copy = siteCopy[locale].hero;
-
-const agentPromptText = copy.agentPromptText;
 ---
 
 <main class="relative grid gap-8 lg:gap-10 lg:grid-cols-2 place-items-center pt-4 pb-10 md:pt-10 md:pb-16 overflow-hidden max-w-full">
@@ -23,8 +21,8 @@ const agentPromptText = copy.agentPromptText;
   <div class="relative z-20 w-full max-w-full flex flex-col items-start min-w-0">
     {copy.badgeText && (
       <a
-        href={`${getLocalizedPath(locale, "/")}blog?tag=migration`}
-        class="animate-rise flex items-center gap-2 max-w-full min-w-0 px-3 py-1.5 mb-5 md:mb-6 text-xs text-brand bg-brand/5 border border-brand-border/30 hover:border-brand/40 hover:bg-brand/10 rounded-full backdrop-blur-sm select-none hover:-translate-y-0.5 transition-all duration-300 group/badge cursor-pointer"
+        href={`${getLocalizedPath(locale, "/")}#platforms`}
+        class="animate-rise flex min-h-11 sm:min-h-0 items-center gap-2 max-w-full min-w-0 px-3 py-1.5 mb-5 md:mb-6 text-xs text-brand bg-brand/5 border border-brand-border/30 hover:border-brand/40 hover:bg-brand/10 rounded-full backdrop-blur-sm select-none hover:-translate-y-0.5 transition-all duration-300 group/badge cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 focus-visible:ring-offset-2"
         style="animation-delay: 0ms;"
       >
         <span class="relative flex h-2 w-2 shrink-0">
@@ -58,16 +56,25 @@ const agentPromptText = copy.agentPromptText;
         <Icon class="w-4 h-4" name="bx:bx-show" />
         <span>{copy.demo}</span>
       </Link>
-      <Link
-        size="lg"
-        style="outline"
-        rel="noopener"
+      <a
         href="https://github.com/tianma-if/edgeever"
-        class="flex gap-2 items-center justify-center px-6 py-3 border border-slate-200 hover:border-slate-400 bg-white/80 backdrop-blur-sm text-slate-800 transition-all rounded-full font-semibold text-sm hover:-translate-y-0.5 w-full sm:w-auto text-center"
-        target="_blank">
-        <Icon class="text-slate-800 w-4 h-4" name="bx:bxl-github" />
-        <span>GitHub Star</span>
-      </Link>
+        target="_blank"
+        rel="noopener"
+        aria-label="EdgeEver on GitHub"
+        class="group flex gap-2 items-center justify-center px-4 sm:px-4.5 py-3 border border-slate-200/90 hover:border-slate-400 bg-white/90 backdrop-blur-sm text-slate-800 transition-all rounded-full font-semibold text-sm hover:-translate-y-0.5 shadow-2xs hover:shadow-sm w-full sm:w-auto text-center"
+      >
+        <Icon class="text-slate-800 w-4 h-4 shrink-0 transition-transform duration-200 group-hover:scale-110" name="bx:bxl-github" />
+        <div class="flex items-center gap-1.5 font-medium text-xs">
+          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 group-hover:bg-amber-50 group-hover:text-amber-800 transition-colors">
+            <Icon name="bx:bxs-star" class="w-3.5 h-3.5 text-amber-500" />
+            <span data-github-stars>--</span>
+          </span>
+          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 group-hover:bg-slate-200/80 transition-colors">
+            <Icon name="bx:git-repo-forked" class="w-3.5 h-3.5 text-slate-500" />
+            <span data-github-forks>--</span>
+          </span>
+        </div>
+      </a>
       <a
         rel="noopener"
         href={getLocalizedPath(locale, "/blog/ai-agent-deploy-cloudflare")}
@@ -78,33 +85,57 @@ const agentPromptText = copy.agentPromptText;
       </a>
     </div>
 
-    <!-- Agent Terminal Prompt Pill (Pireel style) -->
+    <!-- Multi-Platform Client Badges -->
     <div class="animate-rise mt-6 w-full max-w-full sm:max-w-lg z-30 relative" style="animation-delay: 240ms;">
-      <!-- Hidden Textarea for clean text copying -->
-      <textarea id="agent-prompt-textarea" class="sr-only" aria-hidden="true" readonly>{agentPromptText}</textarea>
-
-      <div class="flex flex-col gap-1.5 w-full max-w-full">
-        <button
-          type="button"
-          id="copy-agent-prompt"
-          title="点击复制 AI 部署 Prompt 指令"
-          class="group relative flex items-center justify-between gap-2 w-full max-w-full rounded-2xl sm:rounded-full border border-slate-200/90 bg-white/90 backdrop-blur hover:border-emerald-500/60 p-2 sm:p-1.5 sm:pl-4 transition-all hover:shadow-md cursor-pointer text-left select-none z-30 min-w-0"
+      <div class="pt-4 border-t border-slate-200/60 flex flex-wrap items-center gap-2">
+        <span class="text-[11px] font-semibold text-slate-500 mr-1 select-none">
+          {locale === "en-US" ? "Get Apps:" : "获取客户端："}
+        </span>
+        <a
+          href="https://github.com/tianma-if/edgeever/releases"
+          target="_blank"
+          rel="noopener"
+          class="inline-flex min-h-11 sm:min-h-0 items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100/90 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 border border-slate-200/80 text-[11px] font-medium text-slate-700 transition-all shadow-2xs"
         >
-          <div class="flex items-center gap-2 overflow-hidden pointer-events-none min-w-0 flex-1">
-            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-emerald-600 shrink-0"><path d="M12 19h8"></path><path d="m4 17 6-6-6-6"></path></svg>
-            <span class="font-mono text-[10.5px] sm:text-xs text-slate-700 font-medium truncate min-w-0 flex-1">
-              {copy.terminalCmd}
-            </span>
-          </div>
-          <span class="copy-icon-box grid h-7 w-7 shrink-0 place-items-center rounded-full bg-slate-100 text-slate-500 group-hover:bg-emerald-50 group-hover:text-emerald-700 transition-colors pointer-events-none">
-            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg>
-          </span>
-          <span id="prompt-tooltip" class="absolute -top-10 right-2 sm:right-4 hidden rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white shadow-lg transition-opacity pointer-events-none z-50 flex items-center gap-1.5">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-            <span>{copy.copySuccess}</span>
-          </span>
-        </button>
-        <span class="text-[10.5px] sm:text-[11.5px] text-slate-600 pl-2 sm:pl-4 font-medium select-none truncate max-w-full">{copy.terminalSub}</span>
+          <Icon name="bx:bxl-apple" class="w-3.5 h-3.5" />
+          <span>macOS</span>
+        </a>
+        <a
+          href="https://github.com/tianma-if/edgeever/releases/latest"
+          target="_blank"
+          rel="noopener"
+          class="inline-flex min-h-11 sm:min-h-0 items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100/90 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 border border-slate-200/80 text-[11px] font-medium text-slate-700 transition-all shadow-2xs"
+        >
+          <Icon name="bx:bxl-windows" class="w-3.5 h-3.5" />
+          <span>{copy.windows}</span>
+        </a>
+        <a
+          href="https://apps.apple.com/us/app/edgeever/id6792625631"
+          target="_blank"
+          rel="noopener"
+          class="inline-flex min-h-11 sm:min-h-0 items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100/90 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 border border-slate-200/80 text-[11px] font-medium text-slate-700 transition-all shadow-2xs"
+        >
+          <Icon name="bx:bx-mobile" class="w-3.5 h-3.5" />
+          <span>iOS</span>
+        </a>
+        <a
+          href="https://play.google.com/store/apps/details?id=org.edgeever.mobile"
+          target="_blank"
+          rel="noopener"
+          class="inline-flex min-h-11 sm:min-h-0 items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100/90 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 border border-slate-200/80 text-[11px] font-medium text-slate-700 transition-all shadow-2xs"
+        >
+          <Icon name="bx:bxl-android" class="w-3.5 h-3.5" />
+          <span>Android</span>
+        </a>
+        <a
+          href="https://chromewebstore.google.com/detail/edgeever-web-clipper/gjadpfmanienmlofajibkfkkpfdkclgo"
+          target="_blank"
+          rel="noopener"
+          class="inline-flex min-h-11 sm:min-h-0 items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100/90 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 border border-slate-200/80 text-[11px] font-medium text-slate-700 transition-all shadow-2xs"
+        >
+          <Icon name="bx:bx-extension" class="w-3.5 h-3.5" />
+          <span>{locale === "en-US" ? "Clipper" : "剪藏插件"}</span>
+        </a>
       </div>
     </div>
   </div>
@@ -148,78 +179,6 @@ const agentPromptText = copy.agentPromptText;
   </div>
 </main>
 
-<script is:inline>
-  (function () {
-    function fallbackCopyText(text) {
-      var textarea = document.createElement("textarea");
-      textarea.value = text;
-      textarea.style.position = "fixed";
-      textarea.style.left = "-9999px";
-      textarea.style.top = "-9999px";
-      document.body.appendChild(textarea);
-      textarea.focus();
-      textarea.select();
-      var successful = false;
-      try {
-        successful = document.execCommand("copy");
-      } catch (err) {
-        console.error("execCommand copy error:", err);
-      }
-      document.body.removeChild(textarea);
-      return successful;
-    }
-
-    document.addEventListener("click", function (e) {
-      var btn = e.target && e.target.closest ? e.target.closest("#copy-agent-prompt") : null;
-      if (!btn) return;
-
-      e.preventDefault();
-      e.stopPropagation();
-
-      var textarea = document.getElementById("agent-prompt-textarea");
-      var textToCopy = textarea ? textarea.value : "";
-      if (!textToCopy) return;
-
-      var tooltip = document.getElementById("prompt-tooltip");
-      var iconContainer = btn.querySelector(".copy-icon-box");
-
-      function showSuccess() {
-        btn.classList.add("border-emerald-500", "bg-emerald-50");
-        if (tooltip) {
-          tooltip.classList.remove("hidden");
-        }
-        if (iconContainer) {
-          iconContainer.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-emerald-600"><polyline points="20 6 9 17 4 12"></polyline></svg>';
-        }
-        setTimeout(function () {
-          btn.classList.remove("border-emerald-500", "bg-emerald-50");
-          if (tooltip) {
-            tooltip.classList.add("hidden");
-          }
-          if (iconContainer) {
-            iconContainer.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg>';
-          }
-        }, 2500);
-      }
-
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(textToCopy).then(function () {
-          showSuccess();
-        }).catch(function (err) {
-          console.warn("navigator.clipboard failed, fallback to execCommand", err);
-          if (fallbackCopyText(textToCopy)) {
-            showSuccess();
-          }
-        });
-      } else {
-        if (fallbackCopyText(textToCopy)) {
-          showSuccess();
-        }
-      }
-    });
-  })();
-</script>
-
 <style>
   .hero-slogan {
     font-family:
@@ -233,3 +192,64 @@ const agentPromptText = copy.agentPromptText;
       sans-serif;
   }
 </style>
+
+<script is:inline>
+  (function () {
+    function formatCount(count) {
+      if (typeof count !== "number") return String(count);
+      if (count >= 1000) {
+        return (count / 1000).toFixed(1).replace(/\.0$/, "") + "k";
+      }
+      return count.toLocaleString();
+    }
+
+    async function fetchGitHubStats() {
+      var starEls = document.querySelectorAll("[data-github-stars]");
+      var forkEls = document.querySelectorAll("[data-github-forks]");
+      if (!starEls.length && !forkEls.length) return;
+
+      // 1. Direct real-time fetch from GitHub API (always fresh, no cache)
+      try {
+        var res = await fetch("https://api.github.com/repos/tianma-if/edgeever", {
+          headers: { Accept: "application/vnd.github.v3+json" },
+          cache: "no-store",
+        });
+        if (res.ok) {
+          var data = await res.json();
+          if (typeof data.stargazers_count === "number") {
+            starEls.forEach(function (el) { el.textContent = formatCount(data.stargazers_count); });
+          }
+          if (typeof data.forks_count === "number") {
+            forkEls.forEach(function (el) { el.textContent = formatCount(data.forks_count); });
+          }
+          return;
+        }
+      } catch (e) {
+        // Fall back to Shields live JSON endpoint if GitHub API is unavailable/rate-limited
+      }
+
+      // 2. Fallback: Shields.io live JSON API (same data source as Readme badges)
+      try {
+        var responses = await Promise.all([
+          fetch("https://img.shields.io/github/stars/tianma-if/edgeever.json", { cache: "no-store" }),
+          fetch("https://img.shields.io/github/forks/tianma-if/edgeever.json", { cache: "no-store" }),
+        ]);
+        if (responses[0].ok) {
+          var sData = await responses[0].json();
+          var sVal = sData.value || sData.message;
+          if (sVal) starEls.forEach(function (el) { el.textContent = sVal; });
+        }
+        if (responses[1].ok) {
+          var fData = await responses[1].json();
+          var fVal = fData.value || fData.message;
+          if (fVal) forkEls.forEach(function (el) { el.textContent = fVal; });
+        }
+      } catch (e) {
+        // Ignore fallback errors
+      }
+    }
+
+    fetchGitHubStats();
+    document.addEventListener("astro:page-load", fetchGitHubStats);
+  })();
+</script>

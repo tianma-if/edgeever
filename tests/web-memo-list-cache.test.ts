@@ -61,4 +61,16 @@ describe("memo list cache updates", () => {
     expect(flattened[0]?.revision).toBe(3);
     expect(cached?.pages[0]?.totalCount).toBe(1);
   });
+
+  test("removes a note when an edit no longer matches the selected exact tag", () => {
+    const queryClient = new QueryClient();
+    const queryKey = ["memos", "notebook", null, "", "all", "updated-desc", [], "demo"] as const;
+    queryClient.setQueryData(queryKey, queryData([[memo({ tags: ["Demo"] })]], 1));
+
+    updateMemoSummaryInLists(queryClient, memo({ tags: ["demo-extra"], revision: 2 }));
+
+    const cached = queryClient.getQueryData<MemoListQueryData>(queryKey);
+    expect(cached?.pages[0]?.memos).toEqual([]);
+    expect(cached?.pages[0]?.totalCount).toBe(0);
+  });
 });

@@ -29,6 +29,7 @@ enum MemoCreateCommit {
         expectedContentHash: String?,
         notebookId: String,
         title: String,
+        untitledTitle: String = "无标题笔记",
         contentMarkdown: String,
         contentJSON: String?,
         tags: [String],
@@ -40,7 +41,7 @@ enum MemoCreateCommit {
         guard !notebookId.isEmpty else {
             throw APIError(status: 400, code: nil, message: "请选择笔记本")
         }
-        let displayTitle = title.isEmpty ? "无标题笔记" : title
+        let displayTitle = title.isEmpty ? untitledTitle : title
 
         if isMaterializedServerId(memoId), let serverId = memoId {
             guard var memo = try mirror.resolveMemo(scope: scope, id: serverId) else {

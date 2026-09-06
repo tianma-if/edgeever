@@ -11,6 +11,10 @@ extension URL {
     }
 }
 
+enum EdgeEverPublicDemo {
+    static let instanceURLString = "https://demo.edgeever.org"
+}
+
 enum EdgeEverURLNormalizer {
     static func normalizeInstanceURL(_ raw: String) throws -> URL {
         var trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -22,6 +26,10 @@ enum EdgeEverURLNormalizer {
         }
         guard var components = URLComponents(string: trimmed), let host = components.host, !host.isEmpty else {
             throw EdgeEverURLError.invalid
+        }
+        if host.lowercased() == "demo" {
+            components.scheme = "https"
+            components.host = "demo.edgeever.org"
         }
         components.fragment = nil
         components.query = nil

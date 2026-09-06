@@ -1,0 +1,12 @@
+{
+  "name": "@edgeever/public-network",
+  "version": "0.1.3",
+  "private": true,
+  "type": "module",
+  "files": ["src/"],
+  "exports": {
+    "./policy": { "types": "./src/policy.d.ts", "default": "./src/policy.mjs" },
+    "./node": { "types": "./src/node.d.ts", "default": "./src/node.mjs" }
+  },
+  "dependencies": { "ipaddr.js": "^2.2.0" }
+}

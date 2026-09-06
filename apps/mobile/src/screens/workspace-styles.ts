@@ -743,7 +743,7 @@ const baseWorkspaceStyles = StyleSheet.create({
   memoCard: {
     alignItems: "stretch",
     backgroundColor: "#ffffff",
-    borderColor: "#f1f5f9",
+    borderColor: "#e2e8f0",
     borderRadius: 8,
     borderWidth: 1,
     flexDirection: "row",
@@ -757,15 +757,15 @@ const baseWorkspaceStyles = StyleSheet.create({
   },
   memoCardSelected: {
     backgroundColor: "#f8fafc",
-    borderColor: "#e2e8f0",
+    borderColor: "#cbd5e1",
   },
   memoCardContent: {
     flex: 1,
     minWidth: 0,
-    padding: 16,
+    padding: 15,
   },
   memoCardContentCompact: {
-    padding: 13,
+    padding: 12,
   },
   memoCardContentWithSelection: {
     paddingLeft: 12,
@@ -797,7 +797,7 @@ const baseWorkspaceStyles = StyleSheet.create({
   memoTitle: {
     color: "#0f172a",
     flex: 1,
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "700",
   },
   memoPinnedStar: {
@@ -807,33 +807,35 @@ const baseWorkspaceStyles = StyleSheet.create({
     width: 16,
   },
   memoExcerpt: {
-    color: "#0f172a",
-    fontSize: 14,
-    lineHeight: 20,
-    marginTop: 8,
-    minHeight: 40,
+    color: "#475569",
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: 6,
+    minHeight: 38,
   },
   memoMeta: {
     alignItems: "center",
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
-    marginTop: 20,
+    marginTop: 14,
   },
   memoMetaCompact: {
-    marginTop: 8,
+    marginTop: 6,
   },
   memoDate: {
-    color: "#334155",
+    color: "#64748b",
     fontSize: 12,
-    fontWeight: "500",
+    fontWeight: "400",
   },
   tag: {
-    backgroundColor: "#f1f5f9",
-    borderRadius: 2,
-    color: "#0f172a",
-    fontSize: 12,
-    fontWeight: "500",
+    backgroundColor: "#ecfdf5",
+    borderColor: "#a7f3d0",
+    borderRadius: 3,
+    borderWidth: 1,
+    color: "#047857",
+    fontSize: 11,
+    fontWeight: "600",
     overflow: "hidden",
     paddingHorizontal: 6,
     paddingVertical: 2,
@@ -1002,30 +1004,6 @@ const baseWorkspaceStyles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 17,
   },
-  templateBadge: {
-    borderRadius: 999,
-    borderWidth: 1,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-  },
-  templateBadgeBuiltIn: {
-    backgroundColor: "#f8fafc",
-    borderColor: "#e2e8f0",
-  },
-  templateBadgeCustom: {
-    backgroundColor: "#ecfdf5",
-    borderColor: "#a7f3d0",
-  },
-  templateBadgeText: {
-    fontSize: 10,
-    fontWeight: "700",
-  },
-  templateBadgeTextBuiltIn: {
-    color: "#64748b",
-  },
-  templateBadgeTextCustom: {
-    color: "#047857",
-  },
   templateChoiceRow: {
     alignItems: "center",
     borderRadius: 12,
@@ -1069,8 +1047,35 @@ const baseWorkspaceStyles = StyleSheet.create({
     padding: 14,
   },
   systemInfoRows: {
-    borderTopColor: "#e2e8f0",
-    borderTopWidth: 1,
+    borderColor: "#e2e8f0",
+    borderRadius: 8,
+    borderWidth: 1,
+    overflow: "hidden",
+  },
+  systemInfoSection: {
+    gap: 9,
+    paddingHorizontal: 12,
+    paddingTop: 14,
+  },
+  systemInfoSectionHeader: {
+    alignItems: "flex-start",
+    flexDirection: "row",
+    gap: 8,
+  },
+  systemInfoSectionCopy: {
+    flex: 1,
+    gap: 2,
+    minWidth: 0,
+  },
+  systemInfoSectionTitle: {
+    color: "#0f172a",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  systemInfoSectionDescription: {
+    color: "#64748b",
+    fontSize: 11,
+    lineHeight: 16,
   },
   systemInfoRow: {
     borderBottomColor: "#e2e8f0",
@@ -1235,10 +1240,30 @@ const baseWorkspaceStyles = StyleSheet.create({
     color: "#64748b",
     flex: 1,
     fontSize: 15,
-    lineHeight: 23,
-    minHeight: 36,
+    lineHeight: 20,
     minWidth: 0,
     padding: 0,
+  },
+  createMemoTagsButton: {
+    alignItems: "center",
+    flex: 1,
+    flexDirection: "row",
+    gap: 6,
+    minHeight: 36,
+    minWidth: 0,
+  },
+  createMemoTagsPlaceholder: {
+    color: "#94a3b8",
+  },
+  smartTagButton: {
+    alignItems: "center",
+    borderRadius: 8,
+    height: 34,
+    justifyContent: "center",
+    width: 34,
+  },
+  smartTagButtonSuccess: {
+    backgroundColor: "#ecfdf5",
   },
   createMemoToolButton: {
     alignItems: "center",
@@ -1268,6 +1293,9 @@ const baseWorkspaceStyles = StyleSheet.create({
   },
   richEditorSafeArea: {
     backgroundColor: "#ffffff",
+    flex: 1,
+  },
+  richEditorKeyboardAvoiding: {
     flex: 1,
   },
   richEditorHeaderStatus: {
@@ -1310,6 +1338,12 @@ const baseWorkspaceStyles = StyleSheet.create({
     right: 0,
     top: 0,
     zIndex: 2,
+  },
+  richEditorLoadingTitle: {
+    color: "#0f172a",
+    fontSize: 15,
+    fontWeight: "800",
+    textAlign: "center",
   },
   richEditorWebView: {
     backgroundColor: "#ffffff",
@@ -1547,6 +1581,53 @@ const baseWorkspaceStyles = StyleSheet.create({
   },
   notebookPickerRowActive: {
     backgroundColor: "#f1f5f9",
+  },
+  tagPickerSelectedList: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 10,
+  },
+  tagPickerChip: {
+    alignItems: "center",
+    backgroundColor: "#ecfdf5",
+    borderRadius: 999,
+    flexDirection: "row",
+    gap: 4,
+    minHeight: 32,
+    paddingHorizontal: 11,
+  },
+  tagPickerChipText: {
+    color: "#047857",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  tagPickerCreateText: {
+    color: "#047857",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  tagPickerLoading: {
+    paddingVertical: 28,
+  },
+  tagPickerCheckbox: {
+    alignItems: "center",
+    borderColor: "#cbd5e1",
+    borderRadius: 5,
+    borderWidth: 1,
+    height: 22,
+    justifyContent: "center",
+    width: 22,
+  },
+  tagPickerCheckboxSelected: {
+    backgroundColor: "#16a06e",
+    borderColor: "#16a06e",
+  },
+  tagPickerRowText: {
+    color: "#0f172a",
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "700",
   },
   actionSheetHandle: {
     alignSelf: "center",
@@ -1820,6 +1901,12 @@ const baseWorkspaceStyles = StyleSheet.create({
   },
   detailTagsPlaceholder: {
     color: "#94a3b8",
+  },
+  detailTimestamps: {
+    color: "#94a3b8",
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 4,
   },
   detailDivider: {
     backgroundColor: "#e2e8f0",
@@ -2120,7 +2207,7 @@ const baseWorkspaceStyles = StyleSheet.create({
     borderWidth: 4,
     height: MOBILE_UI_METRICS.floatingCreateButtonSize,
     justifyContent: "center",
-    marginTop: -16,
+    marginTop: -MOBILE_UI_METRICS.floatingCreateButtonLift,
     shadowColor: "#10b981",
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.28,
@@ -2166,6 +2253,20 @@ const baseWorkspaceStyles = StyleSheet.create({
     gap: 4,
     minHeight: MOBILE_UI_METRICS.minimumTouchTarget,
     minWidth: 58,
+  },
+  bottomNavIcon: {
+    position: "relative",
+  },
+  bottomNavBadge: {
+    backgroundColor: "#10b981",
+    borderColor: "#ffffff",
+    borderRadius: 5,
+    borderWidth: 1,
+    height: 9,
+    position: "absolute",
+    right: -5,
+    top: -3,
+    width: 9,
   },
   bottomNavText: {
     color: "#64748b",

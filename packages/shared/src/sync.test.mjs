@@ -6,7 +6,12 @@ import {
   getNextSyncQueueRetryDelay,
   getSyncRetryAt,
   getSyncRetryDelayMs,
+  hasSyncCursorRewound,
+  hasSyncIdentityChanged,
+  hasSyncStateReset,
+  isSyncMetadataInitialized,
   isMemoSyncBaseCurrent,
+  splitSyncBootstrapWriteBatches,
   summarizeSyncQueue,
 } from "./sync.ts";
 
@@ -81,5 +86,24 @@ describe("shared sync queue contract", () => {
       currentContentHash: "remote-hash",
       source: "offline_sync",
     });
+  });
+
+  test("detects a reset shared by mobile and desktop mirrors", () => {
+    expect(hasSyncCursorRewound(42, 7)).toBe(true);
+    expect(hasSyncCursorRewound(42, 42)).toBe(false);
+    expect(hasSyncIdentityChanged("workspace-a", "workspace-b")).toBe(true);
+    expect(hasSyncIdentityChanged("workspace-a", "workspace-a")).toBe(false);
+    expect(hasSyncStateReset(
+      { cursor: 42, syncIdentity: "workspace-a" },
+      { serverCursor: 64, syncIdentity: "workspace-b" },
+    )).toBe(true);
+  });
+
+  test("validates mirror metadata and splits bootstrap writes", () => {
+    expect(isSyncMetadataInitialized("42", "workspace-a")).toBe(true);
+    expect(isSyncMetadataInitialized("not-a-number", "workspace-a")).toBe(false);
+    expect(splitSyncBootstrapWriteBatches(Array.from({ length: 123 }, (_, index) => index), 50)
+      .map((batch) => batch.length)).toEqual([50, 50, 23]);
+    expect(splitSyncBootstrapWriteBatches([], 50)).toEqual([[]]);
   });
 });

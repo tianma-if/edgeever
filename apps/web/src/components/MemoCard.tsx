@@ -2,10 +2,10 @@ import { useRef, useState, useEffect, type DragEvent, type MouseEvent, type Poin
 import { useTranslation } from "react-i18next";
 import * as m from "motion/react-m";
 import { Star, Check, MoreHorizontal, RotateCcw, Trash2 } from "lucide-react";
-import type { MemoSummary } from "@edgeever/shared";
+import { getMemoListTimestamp, type MemoSummary } from "@edgeever/shared";
 import { cn } from "@/lib/utils";
 import { selectionSettleMotion } from "@/lib/motion";
-import type { MemoListDensity } from "@/lib/app-helpers";
+import type { MemoListDensity, MemoSortMode } from "@/lib/app-helpers";
 import { isDefaultMemoTitle, MEMO_DRAG_MIME, setMemoDragPreview } from "@/lib/app-helpers";
 
 const MEMO_LONG_PRESS_DELAY_MS = 520;
@@ -47,6 +47,7 @@ export const MemoCard = ({
   isTrashView,
   selectionMode,
   listDensity,
+  sortMode,
   multiSelectKeyDown,
   onOpen,
   onRestore,
@@ -64,6 +65,7 @@ export const MemoCard = ({
   isTrashView: boolean;
   selectionMode: boolean;
   listDensity: MemoListDensity;
+  sortMode: MemoSortMode;
   multiSelectKeyDown: boolean;
   onOpen: () => void;
   onRestore: () => void;
@@ -81,6 +83,12 @@ export const MemoCard = ({
   const [modifierHoverActive, setModifierHoverActive] = useState(false);
   const memoTitle = memo.title?.trim() && !isDefaultMemoTitle(memo.title) ? memo.title.trim() : t("common.untitledMemo");
   const memoExcerpt = memo.excerpt.trim() || t("memoCard.emptyMemo");
+  const listTimestamp = getMemoListTimestamp(memo, sortMode);
+  const listTimestampLabel = formatMemoPreviewDate(
+    listTimestamp.value,
+    i18n.resolvedLanguage ?? i18n.language,
+    t("memoCard.yesterday"),
+  );
   const showSelectionControl = selectionMode || checked || multiSelectKeyDown || modifierHoverActive;
   const selectionControlLabel = checked
     ? t("memoCard.unselect", { title: memoTitle })
@@ -312,18 +320,18 @@ export const MemoCard = ({
       draggable={!isTrashView}
       onDragStart={handleDragStart}
       className={cn(
-        "group relative overflow-hidden border border-slate-100 bg-white transition lg:rounded-none lg:border-x-0 lg:border-t-0 lg:border-slate-200 lg:shadow-none lg:last:border-b-0 dark:lg:border-slate-300/70 transition-all duration-200 select-none",
+        "edgeever-memo-divider group relative overflow-hidden border border-slate-100 bg-white transition lg:rounded-none lg:border-x-0 lg:border-t-0 lg:border-slate-200 lg:shadow-none lg:last:border-b-0 transition-all duration-200 select-none",
         listDensity === "compact" ? "rounded-md shadow-none" : "rounded-lg shadow-[0_4px_16px_rgba(15,23,42,0.045)]",
         !selectionMode && selected
-          ? "lg:bg-slate-100"
+          ? "edgeever-workspace-selection-desktop"
           : checked
-            ? "bg-slate-50 ring-1 ring-slate-200 lg:bg-slate-100 lg:ring-0"
+            ? "edgeever-workspace-selection-desktop bg-slate-50 ring-1 ring-slate-200 lg:ring-0"
             : "active:bg-slate-50 lg:hover:bg-slate-50"
       )}
     >
       {!selectionMode && selected ? (
         <m.span
-          className="pointer-events-none absolute inset-y-3 left-0 z-10 hidden w-[3px] origin-center rounded-r-full bg-emerald-500 lg:block"
+          className="pointer-events-none absolute inset-y-2.5 left-0 z-10 hidden w-[3px] origin-center rounded-r-full bg-emerald-500 shadow-[0_0_8px_rgba(22,160,110,0.35)] lg:block"
           aria-hidden="true"
           {...selectionSettleMotion}
         />
@@ -356,8 +364,8 @@ export const MemoCard = ({
         )}
         <button
           className={cn(
-            "min-w-0 flex-1 px-4 py-4 text-left touch-pan-y focus-visible:bg-slate-50 focus-visible:shadow-[inset_3px_0_0_rgb(148,163,184)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-slate-400/60 [-webkit-touch-callout:none] lg:py-4 transition-all duration-200",
-            listDensity === "compact" && "py-3",
+            "min-w-0 flex-1 px-4 py-3.5 text-left touch-pan-y focus-visible:bg-slate-50 focus-visible:shadow-[inset_3px_0_0_rgb(148,163,184)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-slate-400/60 [-webkit-touch-callout:none] lg:py-3.5 transition-all duration-200",
+            listDensity === "compact" && "py-2.5",
             showSelectionControl && "pl-3 lg:pl-3",
             !isTrashView && !multiSelectKeyDown && "lg:cursor-grab lg:active:cursor-grabbing",
             multiSelectKeyDown && "cursor-copy"
@@ -376,24 +384,29 @@ export const MemoCard = ({
           onKeyDown={handleKeyDown}
           title={t("memoCard.interactionHint")}
         >
-          <div className={cn("mb-2 flex min-w-0 items-center gap-1.5 text-base font-semibold leading-6 text-slate-950 lg:text-base", listDensity === "compact" && "mb-1")}>
-            {memo.isPinned && <Star className="h-4 w-4 shrink-0 fill-current text-slate-500" />}
+          <div className={cn("mb-1.5 flex min-w-0 items-center gap-1.5 text-[15px] font-semibold tracking-[-0.012em] leading-snug text-slate-950", listDensity === "compact" && "mb-0.5 text-[14px]")}>
+            {memo.isPinned && <Star className="h-4 w-4 shrink-0 fill-amber-400 text-amber-500" />}
             <span className="min-w-0 truncate">{memoTitle}</span>
           </div>
           <div
             className={cn(
-              "line-clamp-2 min-h-10 text-sm leading-5 text-slate-950",
-              listDensity === "compact" && "line-clamp-1 min-h-0 text-[13px]"
+              "line-clamp-2 min-h-10 text-[13px] leading-relaxed text-slate-600 dark:text-slate-400",
+              listDensity === "compact" && "line-clamp-1 min-h-0 text-[12.5px]"
             )}
           >
             {memoExcerpt}
           </div>
-          <div className={cn("mt-5 flex flex-wrap items-center gap-2", listDensity === "compact" && "mt-2")}>
-            <time className="text-xs font-medium text-slate-800 lg:text-sm lg:font-normal lg:text-slate-800">
-              {formatMemoPreviewDate(memo.updatedAt, i18n.resolvedLanguage ?? i18n.language, t("memoCard.yesterday"))}
+          <div className={cn("mt-3.5 flex flex-wrap items-center gap-2", listDensity === "compact" && "mt-1.5")}>
+            <time className="text-xs font-normal text-slate-500 dark:text-slate-400" dateTime={listTimestamp.value}>
+              {listTimestamp.field === "createdAt"
+                ? t("memoCard.createdAt", { time: listTimestampLabel })
+                : listTimestampLabel}
             </time>
             {memo.tags.slice(0, 3).map((tag) => (
-              <span key={tag} className="rounded-sm bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-900">
+              <span
+                key={tag}
+                className="rounded-[3px] border border-emerald-200/60 bg-emerald-50/60 px-1.5 py-0.5 text-[11px] font-medium tracking-tight text-emerald-800 transition-colors dark:border-emerald-800/40 dark:bg-emerald-950/30 dark:text-emerald-300"
+              >
                 #{tag}
               </span>
             ))}
@@ -413,6 +426,7 @@ export const MemoCard = ({
               title={t("memoCard.moreActions")}
               aria-label={t("memoCard.moreActions")}
               aria-haspopup="menu"
+              data-memo-actions-trigger
               onClick={(event) => {
                 event.stopPropagation();
                 onOpenKeyboardContextMenu(event.currentTarget);

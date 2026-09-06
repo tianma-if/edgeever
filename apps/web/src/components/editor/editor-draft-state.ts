@@ -1,5 +1,6 @@
 import {
   docToMarkdown,
+  normalizeImageGalleries,
   resolveMemoContentDoc,
   type MemoDetail,
   type TiptapDoc,
@@ -10,6 +11,7 @@ import type {
   SyncQueueItem,
 } from "@/lib/local-db";
 import { getEditableMemoTitle } from "@/lib/app-helpers";
+import { parseTagsText } from "@/lib/utils";
 
 export type EditorDraftSource = "draft" | "queue" | "memo";
 
@@ -23,10 +25,31 @@ export type EditorDraftState = {
   hasUnsavedChanges: boolean;
 };
 
+/**
+ * TipTap is created with the memo snapshot before the asynchronous local-draft
+ * lookup finishes. Replacing that already-identical document during hydration
+ * resets the ProseMirror view and selection, which is visible in slower desktop
+ * runtimes as a second editor paint.
+ */
+export const shouldReplaceEditorDocument = (
+  currentDocument: TiptapDoc | null,
+  nextDocument: TiptapDoc,
+) => currentDocument === null || JSON.stringify(currentDocument) !== JSON.stringify(nextDocument);
+
 type ResolveEditorDraftStateInput = {
   memo: MemoDetail;
   draft?: LocalDraft | null;
   queuedUpdate?: SyncQueueItem | null;
+};
+
+const stringArraysEqual = (first: string[], second: string[]) =>
+  first.length === second.length && first.every((value, index) => value === second[index]);
+
+export const isLocalDraftEquivalentToMemo = (memo: MemoDetail, draft: LocalDraft) => {
+  const memoContent = resolveMemoContentDoc(memo.contentJson, memo.contentMarkdown);
+  return draft.title === getEditableMemoTitle(memo.title) &&
+    stringArraysEqual(parseTagsText(draft.tagsText), memo.tags) &&
+    docToMarkdown(normalizeImageGalleries(draft.contentJson)) === docToMarkdown(memoContent);
 };
 
 /**
@@ -40,7 +63,8 @@ export const resolveEditorDraftState = ({
 }: ResolveEditorDraftStateInput): EditorDraftState => {
   const draftUpdatedAt = draft ? Date.parse(draft.updatedAt) : 0;
   const remoteUpdatedAt = Date.parse(memo.updatedAt);
-  const useDraft = Boolean(draft && (queuedUpdate || draftUpdatedAt >= remoteUpdatedAt));
+  const draftHasLocalChanges = Boolean(draft && !isLocalDraftEquivalentToMemo(memo, draft));
+  const useDraft = Boolean(draft && draftHasLocalChanges && (queuedUpdate || draftUpdatedAt >= remoteUpdatedAt));
   const queuedPayload = queuedUpdate?.kind === "memo.update"
     ? queuedUpdate.payload as MemoUpdateSyncPayload
     : null;
@@ -61,11 +85,15 @@ export const resolveEditorDraftState = ({
     : useQueuedPayload && queuedPayload
       ? queuedPayload.tags.join(", ")
       : memo.tags.join(", ");
-  const contentJson = useDraft && draft
+  const sourceContentJson = useDraft && draft
     ? draft.contentJson
     : useQueuedPayload && queuedPayload
       ? queuedPayload.contentJson
       : resolveMemoContentDoc(memo.contentJson, memo.contentMarkdown);
+  const contentJson = normalizeImageGalleries(sourceContentJson);
+  const repairedSavedContent = source === "memo" && Boolean(
+    memo.contentJson && normalizeImageGalleries(memo.contentJson) !== memo.contentJson,
+  );
   const contentMarkdown = docToMarkdown(contentJson);
   const sourceVersion = source === "draft" && draft
     ? draft.updatedAt
@@ -80,6 +108,6 @@ export const resolveEditorDraftState = ({
     tagsText,
     contentJson,
     contentMarkdown,
-    hasUnsavedChanges: Boolean(useDraft && !queuedUpdate),
+    hasUnsavedChanges: Boolean((useDraft && !queuedUpdate) || repairedSavedContent),
   };
 };

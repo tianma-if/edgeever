@@ -9,11 +9,11 @@ const copy = siteCopy[locale].marquee;
 const doubleItems = [...copy.items, ...copy.items];
 ---
 
-<section class="mt-12 md:mt-24 w-full overflow-hidden py-8 md:py-10 bg-slate-50/60 border-y border-slate-200/60">
+<section id="platforms" class="mt-12 md:mt-24 w-full overflow-hidden py-8 md:py-10 bg-slate-50/60 border-y border-slate-200/60 scroll-mt-6">
   <div class="max-w-4xl mx-auto text-center px-4 mb-6 md:mb-8">
-    <h3 class="text-xl sm:text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight">
+    <h2 class="text-xl sm:text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight">
       {copy.title}
-    </h3>
+    </h2>
     <p class="text-slate-500 text-xs sm:text-sm mt-1.5 md:mt-2 leading-relaxed">
       {copy.subtitle}
     </p>
@@ -22,8 +22,8 @@ const doubleItems = [...copy.items, ...copy.items];
   <!-- Marquee Container with Side Gradient Fades -->
   <div class="group relative mt-4 md:mt-6 w-full">
     <div class="flex w-max gap-3 sm:gap-4 animate-site-marquee group-hover:[animation-play-state:paused]">
-      {doubleItems.map((item) => (
-        <div class={`relative w-64 sm:w-72 shrink-0 rounded-2xl border border-slate-200/80 bg-gradient-to-br ${item.color} p-4 sm:p-5 shadow-xs transition-all duration-300 hover:shadow-md hover:border-emerald-400 bg-white`}>
+      {doubleItems.map((item, index) => (
+        <div aria-hidden={index >= copy.items.length ? "true" : undefined} class={`relative w-64 sm:w-72 shrink-0 rounded-2xl border border-slate-200/80 bg-gradient-to-br ${item.color} p-4 sm:p-5 shadow-xs transition-all duration-300 hover:shadow-md hover:border-emerald-400 bg-white`}>
           <div class="flex items-center justify-between mb-2.5 sm:mb-3">
             <span class="px-2 py-0.5 text-[9.5px] sm:text-[10px] font-bold text-emerald-700 bg-emerald-100/80 rounded-md">
               {item.tag}

@@ -46,7 +46,7 @@ const bento = siteCopy[locale].bento;
       <!-- Micro UI Mockup: Three-Pane Preview (Responsive Layout for Mobile) -->
       <div class="relative w-full rounded-xl border border-slate-200/80 bg-slate-50/80 p-2 sm:p-2.5 shadow-inner mt-2 sm:mt-4 overflow-hidden group-hover:border-emerald-300 transition-colors">
         <div class="grid grid-cols-12 gap-1.5 sm:gap-2 h-44 md:h-52 text-[10px] sm:text-[11px] font-sans">
-          <!-- Left Notebook Tree (Hidden on extra small mobile screens < 400px to maintain clean readability) -->
+          <!-- Left Notebook Tree -->
           <div class="hidden sm:flex col-span-3 bg-white rounded-lg border border-slate-200/60 p-2 sm:p-2.5 flex-col gap-1.5 shadow-2xs overflow-hidden">
             <div class="flex items-center gap-1.5 text-slate-400 font-bold text-[9px] sm:text-[10px] uppercase mb-0.5">
               <Icon name="bx:bx-folder" class="w-3.5 h-3.5 text-emerald-600" />
@@ -113,7 +113,7 @@ const bento = siteCopy[locale].bento;
           <span class="flex items-center gap-1.5 text-emerald-400 font-semibold truncate">
             <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0"></span> {bento.card2.mockupStatus}
           </span>
-          <span class="shrink-0 text-[9px] sm:text-[10px]">Antigravity / Codex</span>
+          <span class="shrink-0 text-[9px] sm:text-[10px]">Claude / Codex / DeepSeek</span>
         </div>
         <div class="bg-slate-800/80 p-2 rounded text-slate-300 text-[10px] sm:text-[10.5px] truncate">
           <span class="text-emerald-400 font-bold">&gt;</span> {bento.card2.mockupCmd}

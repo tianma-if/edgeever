@@ -121,12 +121,19 @@ enum EditorContentCodec {
                 let src = attrs["src"] as? String ?? ""
                 let alt = attrs["alt"] as? String ?? ""
                 if !src.isEmpty { lines.append("![\(alt)](\(src))") }
-            case "bulletList", "orderedList":
+            case "bulletList", "orderedList", "taskList":
                 if let items = dict["content"] as? [Any] {
                     for item in items {
                         guard let itemDict = item as? [String: Any] else { continue }
                         let text = blockText(itemDict)
-                        if !text.isEmpty { lines.append("- \(text)") }
+                        if !text.isEmpty {
+                            if type == "taskList" {
+                                let checked = (itemDict["attrs"] as? [String: Any])?["checked"] as? Bool ?? false
+                                lines.append("- [\(checked ? "x" : " ")] \(text)")
+                            } else {
+                                lines.append("- \(text)")
+                            }
+                        }
                     }
                 }
             case "blockquote":

@@ -5,6 +5,7 @@ describe("mobile UI contract", () => {
   test("keeps core touch targets and navigation metrics stable", () => {
     expect(MOBILE_UI_METRICS.minimumTouchTarget).toBeGreaterThanOrEqual(44);
     expect(MOBILE_UI_METRICS.bottomNavigationHeight).toBe(52);
+    expect(MOBILE_UI_METRICS.floatingCreateButtonLift).toBe(16);
     expect(MOBILE_UI_METRICS.floatingCreateButtonSize).toBe(52);
   });
 

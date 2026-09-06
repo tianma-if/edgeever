@@ -1,10 +1,12 @@
 import react from "@vitejs/plugin-react";
+import { resolveDeploymentBuildMetadata } from "@edgeever/shared/deployment-metadata";
 import { execSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { fileURLToPath, URL } from "node:url";
 import { defineConfig, type Plugin } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
-import { resolveAppVersion, resolveDeploymentMethod, resolveDeploymentTrigger, resolveReleaseTimestamp } from "./build-metadata";
+import { localDevelopmentAuth } from "./local-dev-auth";
+import { resolveAppVersion, resolveReleaseTimestamp } from "./build-metadata";
 
 const readPackageVersion = () => {
   try {
@@ -16,6 +18,31 @@ const readPackageVersion = () => {
   } catch {
     return "0.0.0";
   }
+};
+
+const readReleaseSummary = (packageVersion: string) => {
+  const summaryPath = fileURLToPath(new URL("../../release-summary.json", import.meta.url));
+  const summary = JSON.parse(readFileSync(summaryPath, "utf8")) as {
+    version?: unknown;
+    changes?: unknown;
+  };
+  const localizedChanges = summary.changes && typeof summary.changes === "object" && !Array.isArray(summary.changes)
+    ? Object.entries(summary.changes)
+    : [];
+  if (
+    summary.version !== packageVersion ||
+    localizedChanges.length === 0 ||
+    !localizedChanges.every(([locale, changes]) =>
+      /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/.test(locale) &&
+      Array.isArray(changes) &&
+      changes.length > 0 &&
+      changes.every((item) => typeof item === "string" && item.trim())
+    ) ||
+    !localizedChanges.some(([locale]) => locale.toLowerCase() === "en-us")
+  ) {
+    throw new Error(`release-summary.json must contain valid localized changes and an en-US fallback for package version ${packageVersion}.`);
+  }
+  return summary as { version: string; changes: Record<string, string[]> };
 };
 
 const readGitCommit = () => {
@@ -56,22 +83,13 @@ const buildId = process.env.WORKERS_CI_COMMIT_SHA?.slice(0, 12)
   ?? readGitCommit()
   ?? "local";
 const gitDescription = readGitDescription();
-const appVersion = resolveAppVersion(readPackageVersion(), gitDescription);
+const packageVersion = readPackageVersion();
+const appVersion = resolveAppVersion(packageVersion, gitDescription);
+const releaseSummary = readReleaseSummary(packageVersion);
 const OPTIONAL_CHUNK_WARNING_LIMIT_KB = 1_700;
 const TARGET_VENDOR_CHUNK_BYTES = 450 * 1024;
 const releaseTimestamp = resolveReleaseTimestamp(process.env.EDGE_EVER_RELEASED_AT) || readLatestReleaseCommitTimestamp();
-const deploymentTrigger = resolveDeploymentTrigger(
-  process.env.EDGE_EVER_DEPLOYMENT_TRIGGER
-    ?? (process.env.WORKERS_CI_COMMIT_SHA ? "main_push" : undefined)
-);
-const deploymentMethod = resolveDeploymentMethod(
-  process.env.EDGE_EVER_DEPLOYMENT_METHOD
-    ?? (process.env.WORKERS_CI_COMMIT_SHA
-      ? "cloudflare_workers_builds"
-      : process.env.GITHUB_ACTIONS
-        ? "github_actions"
-        : undefined)
-);
+const deploymentMetadata = resolveDeploymentBuildMetadata(process.env);
 const isDesktopBuild = process.env.EDGE_EVER_DESKTOP_BUILD === "1";
 const developmentServiceWorkerReset: Plugin = {
   name: "edgeever-development-service-worker-reset",
@@ -113,10 +131,14 @@ export default defineConfig({
     __EDGEEVER_BUILD_ID__: JSON.stringify(buildId),
     __EDGEEVER_BUILD_LABEL__: JSON.stringify(buildId === "local" ? "local" : buildId.slice(0, 7)),
     __EDGEEVER_RELEASED_AT__: JSON.stringify(releaseTimestamp),
-    __EDGEEVER_DEPLOYMENT_TRIGGER__: JSON.stringify(deploymentTrigger),
-    __EDGEEVER_DEPLOYMENT_METHOD__: JSON.stringify(deploymentMethod),
+    __EDGEEVER_RELEASE_SUMMARY__: JSON.stringify(releaseSummary),
+    __EDGEEVER_DEPLOYMENT_TRIGGER__: JSON.stringify(deploymentMetadata.trigger),
+    __EDGEEVER_DEPLOYMENT_METHOD__: JSON.stringify(deploymentMetadata.method),
+    __EDGEEVER_DEVELOPMENT_PROFILE__: JSON.stringify(process.env.EDGE_EVER_DEVELOPMENT_PROFILE ?? ""),
+    __EDGEEVER_DESKTOP_BUILD__: JSON.stringify(isDesktopBuild),
   },
   plugins: [
+    localDevelopmentAuth(),
     developmentServiceWorkerReset,
     react(),
     VitePWA({
@@ -170,6 +192,13 @@ export default defineConfig({
           "**/*mermaid.core-*.js",
           "**/vendor-mermaid-*.js",
           "**/*Diagram-*.js",
+          "**/*DiagramEditorPane-*.js",
+          "**/vendor-x6-*.js",
+          "**/vendor-codemirror-*.js",
+          // PDF.js is loaded only when a PDF preview or thumbnail is rendered.
+          // Keep its runtime out of the install-time app-shell precache and cache
+          // it after first use instead.
+          "**/vendor~pdf-*.js",
         ],
         navigateFallback: null,
         navigationPreload: true,
@@ -205,13 +234,24 @@ export default defineConfig({
             },
           },
           {
-            urlPattern: ({ url }) => /\/assets\/(?:.*beautiful-mermaid|vendor-mermaid|.*mermaid\.core|.*Diagram-)/.test(url.pathname),
+            urlPattern: ({ url }) => /\/assets\/(?:.*beautiful-mermaid|vendor-mermaid|.*mermaid\.core|.*Diagram-|vendor-x6|vendor-codemirror)/.test(url.pathname),
             handler: "CacheFirst",
             options: {
               cacheName: "edgeever-optional-diagrams",
               expiration: {
                 maxEntries: 120,
                 maxAgeSeconds: 60 * 60 * 24 * 30,
+              },
+            },
+          },
+          {
+            urlPattern: ({ url }) => /\/assets\/(?:vendor~pdf-|pdf\.worker\.min-)/.test(url.pathname),
+            handler: "CacheFirst",
+            options: {
+              cacheName: "edgeever-optional-pdf",
+              expiration: {
+                maxEntries: 4,
+                maxAgeSeconds: 30 * 24 * 60 * 60,
               },
             },
           },
@@ -252,7 +292,7 @@ export default defineConfig({
       ? false
       : {
           resolveDependencies: (_filename, dependencies) => dependencies.filter((dependency) =>
-            !/(?:vendor-code-highlight|vendor-(?:mermaid|D3|tiptap|prosemirror|floating)|ui-primitives)/.test(dependency),
+            !/(?:vendor-code-highlight|vendor-(?:mermaid|D3|tiptap|prosemirror|floating|codemirror|x6|zod)|vendor-radix(?!-slot)|ui-primitives|ui-button-tooltip)/.test(dependency),
           ),
         },
     rolldownOptions: {
@@ -261,15 +301,28 @@ export default defineConfig({
         "mobile-edit": fileURLToPath(new URL("./mobile-edit.html", import.meta.url)),
         "note-print": fileURLToPath(new URL("./note-print.html", import.meta.url)),
         "tiptap-ime-test": fileURLToPath(new URL("./tiptap-ime-test.html", import.meta.url)),
+        ...(isDesktopBuild
+          ? {
+              "desktop-renderer-test": fileURLToPath(
+                new URL("./desktop-renderer-test.html", import.meta.url)
+              ),
+            }
+          : {}),
       },
       output: {
         codeSplitting: {
           groups: [
             {
               name: "vendor-code-highlight",
-              test: /node_modules[\\/](?:lowlight|highlight\.js|@tiptap[\\/]extension-code-block-lowlight)[\\/]/,
+              test: /node_modules[\\/](?:lowlight|highlight\.js)[\\/]/,
               priority: 50,
-              maxSize: TARGET_VENDOR_CHUNK_BYTES,
+              // lowlight registers highlight.js languages through a cyclic
+              // module graph. Splitting this group by size can evaluate a
+              // language before its constructor is initialized in packaged
+              // file:// desktop builds, leaving the entire window blank. Keep
+              // that graph atomic, but leave TipTap's lightweight adapter in
+              // the regular extension group so plain mobile code blocks do not
+              // inherit the highlighter as a startup dependency.
             },
             {
               name: "vendor-react",
@@ -277,9 +330,23 @@ export default defineConfig({
               priority: 40,
             },
             {
+              name: "vendor-x6",
+              test: /node_modules[\\/]@antv[\\/]x6[\\/]/,
+              priority: 39,
+              // X6 initializes registries and plugins through a cyclic module
+              // graph. Size-based splitting can evaluate clipboard storage
+              // before Config is initialized, crashing the lazy diagram editor.
+              // Keep the graph atomic and defer the resulting chunk instead.
+            },
+            {
               name: "vendor-prosemirror",
               test: /node_modules[\\/](prosemirror-|orderedmap|rope-sequence)[\\/]/,
               priority: 38,
+            },
+            {
+              name: "vendor-codemirror",
+              test: /[\\/]node_modules[\\/](?:@codemirror|@lezer|@uiw[\\/](?:react-)?codemirror|@uiw[\\/]codemirror-themes|codemirror)[\\/]/,
+              priority: 37,
             },
             {
               name: "vendor-tiptap-pm",
@@ -298,7 +365,7 @@ export default defineConfig({
             },
             {
               name: "vendor-tiptap-extensions",
-              test: /node_modules[\\/]@tiptap[\\/](extension-|extensions)[\\/]/,
+              test: /node_modules[\\/](?:@tiptap[\\/](?:extension-|extensions)|tiptap-)[\\/]/,
               priority: 30,
             },
             {
@@ -322,6 +389,16 @@ export default defineConfig({
               priority: 25,
             },
             {
+              name: "vendor-zod",
+              test: /node_modules[\\/]zod[\\/]/,
+              priority: 22,
+            },
+            {
+              name: "vendor-i18n",
+              test: /node_modules[\\/](i18next|react-i18next)[\\/]/,
+              priority: 21,
+            },
+            {
               name: "vendor-storage",
               test: /node_modules[\\/](dexie|workbox-window)[\\/]/,
               priority: 20,
@@ -330,6 +407,13 @@ export default defineConfig({
               name: "vendor-icons",
               test: /node_modules[\\/]lucide-react[\\/]/,
               priority: 18,
+            },
+            {
+              name: "vendor-radix-slot",
+              test: /node_modules[\\/]@radix-ui[\\/](?:react-slot|react-compose-refs)[\\/]/,
+              priority: 17,
+              // Button needs Slot in the app shell. Keep this tiny primitive
+              // separate from overlays that are loaded with lazy screens.
             },
             {
               name: "vendor-radix",
@@ -363,6 +447,16 @@ export default defineConfig({
               test: /[\\/](?:beautiful-mermaid|elkjs|entities)(?:@|[\\/])/,
               priority: 13,
               maxSize: TARGET_VENDOR_CHUNK_BYTES,
+            },
+            {
+              name: "ui-button",
+              test: /src[\\/]components[\\/]ui[\\/]button\.tsx$/,
+              priority: 12,
+            },
+            {
+              name: "ui-button-tooltip",
+              test: /src[\\/]components[\\/]ui[\\/]button-tooltip\.tsx$/,
+              priority: 12,
             },
             {
               name: "ui-primitives",

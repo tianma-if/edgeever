@@ -46,9 +46,16 @@ describe("instance authentication state", () => {
     ).toBe("disabled");
   });
 
-  test("recognizes missing D1 bindings and unapplied migrations", () => {
+  test("recognizes only schema errors as unapplied migrations", () => {
     expect(isDatabaseNotReadyError(new Error("D1_ERROR: no such table: users"))).toBe(true);
-    expect(isDatabaseNotReadyError(new TypeError("Cannot read properties of undefined (reading 'prepare')"))).toBe(true);
+    expect(isDatabaseNotReadyError(new Error("D1_COLUMN_NOTFOUND: users.is_disabled"))).toBe(true);
+    expect(isDatabaseNotReadyError(new Error("query failed", {
+      cause: new Error("D1_ERROR: no such column: is_disabled"),
+    }))).toBe(true);
+    expect(isDatabaseNotReadyError(new Error("D1_ERROR: Network connection lost."))).toBe(false);
+    expect(isDatabaseNotReadyError(new Error("D1_ERROR: Exceeded maximum DB size."))).toBe(false);
+    expect(isDatabaseNotReadyError(new Error("D1_EXEC_ERROR: near SELECTZ: syntax error"))).toBe(false);
+    expect(isDatabaseNotReadyError(new TypeError("Cannot read properties of undefined (reading 'prepare')"))).toBe(false);
     expect(isDatabaseNotReadyError(new Error("network timeout"))).toBe(false);
   });
 });

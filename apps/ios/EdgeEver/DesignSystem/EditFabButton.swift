@@ -15,7 +15,11 @@ struct EditFabButton: UIViewRepresentable {
         var config = UIButton.Configuration.filled()
         config.image = UIImage(systemName: "pencil", withConfiguration: UIImage.SymbolConfiguration(pointSize: 18, weight: .semibold))
         config.baseForegroundColor = .white
-        config.baseBackgroundColor = UIColor(red: 0x10 / 255, green: 0xB9 / 255, blue: 0x81 / 255, alpha: 1)
+        config.baseBackgroundColor = UIColor { traits in
+            traits.userInterfaceStyle == .dark
+                ? UIColor(red: 0x04 / 255, green: 0x78 / 255, blue: 0x57 / 255, alpha: 1)
+                : UIColor(red: 0x10 / 255, green: 0xB9 / 255, blue: 0x81 / 255, alpha: 1)
+        }
         config.cornerStyle = .capsule
         config.contentInsets = NSDirectionalEdgeInsets(top: 14, leading: 14, bottom: 14, trailing: 14)
         button.configuration = config

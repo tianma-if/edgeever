@@ -1,0 +1,84 @@
+name: Build Tencent TCR image through CNB
+
+on:
+  release:
+    types:
+      - published
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: "Git ref or SHA already verified by the GHCR workflow"
+        required: true
+        type: string
+      destination_ref:
+        description: "CNB destination: main or a formal vX.Y.Z tag"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docker-tcr-cnb-source-sync
+  cancel-in-progress: false
+
+jobs:
+  sync-source:
+    if: github.repository == 'tianma-if/edgeever'
+    name: Trigger asynchronous Tencent-side image build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Resolve verified source and CNB destination
+        id: source
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          INPUT_SOURCE_REF: ${{ inputs.source_ref }}
+          INPUT_DESTINATION_REF: ${{ inputs.destination_ref }}
+        run: |
+          if [[ "${EVENT_NAME}" == "release" ]]; then
+            source_ref="${RELEASE_TAG}"
+            destination_ref="${RELEASE_TAG}"
+          else
+            source_ref="${INPUT_SOURCE_REF}"
+            destination_ref="${INPUT_DESTINATION_REF}"
+          fi
+          if [[ "${destination_ref}" != "main" ]] && [[ ! "${destination_ref}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "destination_ref must be main or vX.Y.Z" >&2
+            exit 1
+          fi
+          {
+            echo "source_ref=${source_ref}"
+            echo "destination_ref=${destination_ref}"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Check out the GHCR-verified source
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ steps.source.outputs.source_ref }}
+          fetch-depth: 0
+
+      - name: Verify formal source metadata
+        if: steps.source.outputs.destination_ref != 'main'
+        env:
+          RELEASE_TAG: ${{ steps.source.outputs.destination_ref }}
+        run: |
+          test "$(jq -r '.version' package.json)" = "${RELEASE_TAG#v}"
+          test "$(git rev-parse HEAD)" = "$(git rev-list -n 1 "${RELEASE_TAG}")"
+
+      - name: Push the same Git commit to CNB
+        env:
+          CNB_PUSH_TOKEN: ${{ secrets.CNB_TCR_BUILD_PUSH_TOKEN }}
+          DESTINATION_REF: ${{ steps.source.outputs.destination_ref }}
+        run: |
+          test -n "${CNB_PUSH_TOKEN}"
+          auth="$(printf 'cnb:%s' "${CNB_PUSH_TOKEN}" | base64 -w 0)"
+          if [[ "${DESTINATION_REF}" == "main" ]]; then
+            destination="refs/heads/main"
+          else
+            destination="refs/tags/${DESTINATION_REF}"
+          fi
+          git -c http.extraHeader="Authorization: Basic ${auth}" push \
+            https://cnb.cool/tianma-if/edgeever \
+            "HEAD:${destination}"

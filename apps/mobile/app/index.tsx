@@ -1,10 +1,11 @@
 import * as SplashScreen from "expo-splash-screen";
 import { useIncomingShare } from "expo-sharing";
 import { useIsRestoring } from "@tanstack/react-query";
-import { lazy, Suspense, useEffect } from "react";
+import { lazy, Suspense, useCallback, useEffect } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { Text } from "../src/components/LocalizedText";
 import { LoginScreen } from "../src/screens/LoginScreen";
+import { clearAndRefreshIncomingShare } from "../src/lib/incoming-share-lifecycle";
 import { useSession } from "../src/lib/session";
 import { markStartup } from "../src/lib/startup-performance";
 import { resolveMobileThemeStyles, useMobileTheme } from "../src/lib/mobile-theme";
@@ -16,7 +17,23 @@ const WorkspaceScreen = lazy(() =>
 export default function IndexScreen() {
   const { isLoading, session } = useSession();
   const isRestoringCache = useIsRestoring();
-  const { clearSharedPayloads, sharedPayloads } = useIncomingShare();
+  const {
+    clearSharedPayloads,
+    error: incomingShareError,
+    isResolving: isResolvingIncomingShare,
+    resolvedSharedPayloads,
+    refreshSharePayloads,
+    sharedPayloads,
+  } = useIncomingShare();
+  const incomingSharePayloads = resolvedSharedPayloads.length > 0
+    ? resolvedSharedPayloads
+    : sharedPayloads;
+  const isWaitingForBinaryShareResolution = !incomingShareError
+    && resolvedSharedPayloads.length === 0
+    && sharedPayloads.some((payload) => payload.shareType !== "text" && payload.shareType !== "url");
+  const handleIncomingShareHandled = useCallback(() => {
+    void clearAndRefreshIncomingShare(clearSharedPayloads, refreshSharePayloads);
+  }, [clearSharedPayloads, refreshSharePayloads]);
 
   useEffect(() => {
     if (!isLoading && !isRestoringCache) {
@@ -32,8 +49,10 @@ export default function IndexScreen() {
   return session ? (
     <Suspense fallback={<StartupPlaceholder showBrand />}>
       <WorkspaceScreen
-        incomingSharePayloads={sharedPayloads}
-        onIncomingShareHandled={clearSharedPayloads}
+        incomingShareError={incomingShareError}
+        incomingShareIsResolving={isResolvingIncomingShare || isWaitingForBinaryShareResolution}
+        incomingSharePayloads={incomingSharePayloads}
+        onIncomingShareHandled={handleIncomingShareHandled}
       />
     </Suspense>
   ) : (

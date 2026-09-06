@@ -14,12 +14,12 @@ struct AccountPasswordPanel: View {
             HStack(alignment: .top, spacing: 10) {
                 Image(systemName: "key.fill")
                     .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(Color(hex: 0x15803D))
+                    .foregroundStyle(AppTheme.accentStrong)
                     .padding(.top, 2)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(env.preferences.t("修改密码", en: "Change password"))
                         .font(.system(size: 16, weight: .heavy))
-                        .foregroundStyle(Color(hex: 0x17211A))
+                        .foregroundStyle(AppTheme.title)
                     Text(env.preferences.t(
                         "修改后会保留当前设备登录，并退出其他设备上的登录会话。",
                         en: "Keeps this device signed in and signs out other sessions."
@@ -37,7 +37,7 @@ struct AccountPasswordPanel: View {
             if let message {
                 Text(message)
                     .font(.system(size: 13, weight: isError ? .regular : .bold))
-                    .foregroundStyle(isError ? Color(hex: 0xBE123C) : Color(hex: 0x15803D))
+                    .foregroundStyle(isError ? AppTheme.danger : AppTheme.accentStrong)
             }
 
             Button {
@@ -50,7 +50,7 @@ struct AccountPasswordPanel: View {
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .frame(minHeight: 48)
-                    .background(Color(hex: 0x15803D))
+                    .background(AppTheme.accentAction)
                     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                     .opacity(busy ? 0.45 : 1)
             }
@@ -59,7 +59,7 @@ struct AccountPasswordPanel: View {
         }
         .padding(16)
         .padding(.bottom, 8)
-        .background(Color.white)
+        .background(AppTheme.card)
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -76,11 +76,11 @@ struct AccountPasswordPanel: View {
                 .font(.system(size: 15))
                 .padding(.horizontal, 13)
                 .frame(minHeight: 48)
-                .background(Color.white)
+                .background(AppTheme.card)
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .stroke(Color(hex: 0xCAD8CC), lineWidth: 1)
+                        .stroke(AppTheme.border, lineWidth: 1)
                 )
         }
     }

@@ -1,9 +1,10 @@
-import { ResourceUpdateSchema, type MemoDetail, type Resource } from "@edgeever/shared";
+import { isPdfAttachment, resolveAudioMimeType, ResourceUpdateSchema, type MemoDetail, type Resource } from "@edgeever/shared";
 import { zValidator } from "@hono/zod-validator";
 import type { Hono } from "hono";
 import { auditStatement } from "./audit";
 import type { AppContext, AppEnv, AuditActor } from "./api-context";
 import { AppError } from "./app-error";
+import { parseByteRange, rangeNotSatisfiable } from "./byte-range";
 import { isoNow } from "./entity-utils";
 import { apiError, badRequest, notFound } from "./http-errors";
 import { resolveObjectStorage } from "./object-storage";
@@ -19,6 +20,7 @@ import {
   type ResourceRow,
   type ResourceStatsRow,
 } from "./resource-service";
+import type { initiateResourceUpload as initiateResourceUploadService } from "./resource-upload-service";
 import { getAuditActor, getWorkspaceId, requireScopes } from "./request-auth";
 import type { DatabaseAdapter } from "./storage-contract";
 
@@ -48,7 +50,39 @@ type ResourceRouteDependencies = {
     database: DatabaseAdapter,
     workspaceId: string,
     resourceId: string,
+    includeDeleted?: boolean,
   ) => Promise<ResourceRow | null>;
+  initiateResourceUpload: typeof initiateResourceUploadService;
+  uploadResourcePart: (
+    context: AppContext,
+    uploadId: string,
+    partNumber: number,
+    body: ReadableStream<Uint8Array>,
+    byteSize: number,
+  ) => Promise<{ partNumber: number; byteSize: number }>;
+  completeResourceUpload: (
+    context: AppContext,
+    uploadId: string,
+    actor: AuditActor,
+  ) => Promise<Resource>;
+  abortResourceUpload: (context: AppContext, uploadId: string) => Promise<void>;
+  replaceResourceContent: (context: AppContext, input: {
+    resourceId: string;
+    expectedContentHash: string;
+    filename: string;
+    mimeType: string;
+    bytes: Uint8Array;
+    actor: AuditActor;
+  }) => Promise<Resource>;
+};
+
+const MAX_LEGACY_RESOURCE_UPLOAD_BYTES = 100 * 1024 * 1024;
+
+const appErrorResponse = (context: AppContext, error: unknown) => {
+  if (error instanceof AppError) {
+    return apiError(context, error.code, error.message, error.status);
+  }
+  throw error;
 };
 
 export const registerResourceRoutes = (
@@ -94,6 +128,19 @@ export const registerResourceRoutes = (
     const denied = requireScopes(context, "write:resources");
     if (denied) return denied;
 
+    const declaredRequestBytes = Number(context.req.header("Content-Length"));
+    if (
+      Number.isFinite(declaredRequestBytes)
+      && declaredRequestBytes > MAX_LEGACY_RESOURCE_UPLOAD_BYTES + 1024 * 1024
+    ) {
+      return apiError(
+        context,
+        "multipart_upload_required",
+        "Files larger than 100 MiB must use the resumable multipart upload API.",
+        413,
+      );
+    }
+
     const memoId = context.req.param("id");
     const memo = await dependencies.getMemoDetail(
       context.env.storage.db,
@@ -106,6 +153,14 @@ export const registerResourceRoutes = (
     const file = form.get("file");
     if (!(file instanceof File)) {
       return badRequest(context, "Expected multipart form field named file.");
+    }
+    if (file.size > MAX_LEGACY_RESOURCE_UPLOAD_BYTES) {
+      return apiError(
+        context,
+        "multipart_upload_required",
+        "Files larger than 100 MiB must use the resumable multipart upload API.",
+        413,
+      );
     }
 
     const input = {
@@ -121,13 +176,99 @@ export const registerResourceRoutes = (
         ? await dependencies.createImageResource(context, { ...input, source: "upload" })
         : await dependencies.createAttachmentResource(context, input);
     } catch (error) {
-      if (error instanceof AppError) {
-        return apiError(context, error.code, error.message, error.status);
-      }
-      throw error;
+      return appErrorResponse(context, error);
     }
 
     return context.json({ resource }, 201);
+  });
+
+  app.post("/api/v1/memos/:id/resource-uploads", async (context) => {
+    const denied = requireScopes(context, "write:resources");
+    if (denied) return denied;
+
+    const memoId = context.req.param("id");
+    const memo = await dependencies.getMemoDetail(
+      context.env.storage.db,
+      getWorkspaceId(context),
+      memoId,
+    );
+    if (!memo) return notFound(context, "Memo not found");
+
+    const payload = await context.req.json().catch(() => null) as Record<string, unknown> | null;
+    const filename = typeof payload?.filename === "string" ? payload.filename : "";
+    const mimeType = typeof payload?.mimeType === "string" && payload.mimeType.trim()
+      ? payload.mimeType.trim()
+      : "application/octet-stream";
+    const byteSize = Number(payload?.byteSize);
+    if (!filename.trim() || !Number.isSafeInteger(byteSize) || byteSize <= 0) {
+      return badRequest(context, "filename and a positive integer byteSize are required.");
+    }
+
+    try {
+      const upload = await dependencies.initiateResourceUpload(context, {
+        memoId,
+        filename,
+        mimeType,
+        byteSize,
+      });
+      return context.json({ upload }, 201);
+    } catch (error) {
+      return appErrorResponse(context, error);
+    }
+  });
+
+  app.put("/api/v1/resource-uploads/:id/parts/:partNumber", async (context) => {
+    const denied = requireScopes(context, "write:resources");
+    if (denied) return denied;
+
+    const body = context.req.raw.body;
+    const byteSize = Number(context.req.header("Content-Length"));
+    if (!body || !Number.isSafeInteger(byteSize) || byteSize <= 0) {
+      return apiError(
+        context,
+        "invalid_upload_part",
+        "Multipart upload parts require a positive Content-Length header.",
+        411,
+      );
+    }
+    try {
+      const part = await dependencies.uploadResourcePart(
+        context,
+        context.req.param("id"),
+        Number(context.req.param("partNumber")),
+        body,
+        byteSize,
+      );
+      return context.json({ part });
+    } catch (error) {
+      return appErrorResponse(context, error);
+    }
+  });
+
+  app.post("/api/v1/resource-uploads/:id/complete", async (context) => {
+    const denied = requireScopes(context, "write:resources");
+    if (denied) return denied;
+    try {
+      const resource = await dependencies.completeResourceUpload(
+        context,
+        context.req.param("id"),
+        getAuditActor(context),
+      );
+      return context.json({ resource }, 201);
+    } catch (error) {
+      return appErrorResponse(context, error);
+    }
+  });
+
+  app.delete("/api/v1/resource-uploads/:id", async (context) => {
+    const denied = requireScopes(context, "write:resources");
+    if (denied) return denied;
+    try {
+      await dependencies.abortResourceUpload(context, context.req.param("id"));
+      return context.json({ ok: true });
+    } catch (error) {
+      return appErrorResponse(context, error);
+    }
   });
 
   app.get("/api/v1/resources/:id/blob", async (context) => {
@@ -141,23 +282,86 @@ export const registerResourceRoutes = (
     );
     if (!resource) return notFound(context, "Resource not found");
 
+    const byteRange = parseByteRange(context.req.header("Range"), resource.byte_size);
+    if (byteRange.kind === "invalid") return rangeNotSatisfiable(resource.byte_size);
+
     const source = await resolveObjectStorage(context.env, resource.storage_config_id);
-    const object = await source.store.get(resource.object_key);
+    const object = await source.store.get(
+      resource.object_key,
+      byteRange.kind === "range" ? { range: byteRange.range } : undefined,
+    );
     if (!object) return notFound(context, "Resource object not found");
 
     const headers = new Headers();
     object.writeHttpMetadata(headers);
-    headers.set("Content-Type", resource.mime_type ?? headers.get("Content-Type") ?? "application/octet-stream");
+    const audioMimeType = resolveAudioMimeType(resource.mime_type, resource.filename);
+    headers.set(
+      "Content-Type",
+      isPdfAttachment(resource.mime_type, resource.filename)
+        ? "application/pdf"
+        : audioMimeType ?? resource.mime_type ?? headers.get("Content-Type") ?? "application/octet-stream",
+    );
     headers.set("Cache-Control", headers.get("Cache-Control") ?? "private, max-age=3600");
-    headers.set("Content-Length", String(object.size));
+    headers.set("Accept-Ranges", "bytes");
+    if (byteRange.kind === "range") {
+      const length = object.range?.length ?? byteRange.range.length;
+      headers.set("Content-Length", String(length));
+      headers.set(
+        "Content-Range",
+        `bytes ${byteRange.range.offset}-${byteRange.range.offset + length - 1}/${resource.byte_size}`,
+      );
+    } else {
+      headers.set("Content-Length", String(resource.byte_size));
+    }
     headers.set(
       "Content-Disposition",
-      resource.kind === "image"
+      resource.kind === "image" || isPdfAttachment(resource.mime_type, resource.filename) || audioMimeType
         ? contentDispositionInline(resource.filename)
         : contentDispositionAttachment(resource.filename),
     );
     headers.set("X-Content-Type-Options", "nosniff");
-    return new Response(object.body, { headers });
+    return new Response(object.body, { headers, status: byteRange.kind === "range" ? 206 : 200 });
+  });
+
+  app.put("/api/v1/resources/:id/blob", async (context) => {
+    const denied = requireScopes(context, "write:resources");
+    if (denied) return denied;
+
+    const declaredRequestBytes = Number(context.req.header("Content-Length"));
+    if (
+      Number.isFinite(declaredRequestBytes)
+      && declaredRequestBytes > MAX_LEGACY_RESOURCE_UPLOAD_BYTES + 1024 * 1024
+    ) {
+      return apiError(context, "upload_too_large", "Resource replacements must be at most 100 MiB.", 413);
+    }
+
+    const form = await context.req.raw.formData();
+    const file = form.get("file");
+    const expectedContentHash = form.get("expectedContentHash");
+    const declaredMimeType = form.get("mimeType");
+    const declaredFilename = form.get("filename");
+    if (!(file instanceof File) || typeof expectedContentHash !== "string" || !expectedContentHash.trim()) {
+      return badRequest(context, "file and expectedContentHash are required.");
+    }
+    if (file.size > MAX_LEGACY_RESOURCE_UPLOAD_BYTES) {
+      return apiError(context, "upload_too_large", "Resource replacements must be at most 100 MiB.", 413);
+    }
+
+    try {
+      const resource = await dependencies.replaceResourceContent(context, {
+        resourceId: context.req.param("id"),
+        expectedContentHash,
+        filename: typeof declaredFilename === "string" && declaredFilename.trim() ? declaredFilename : file.name,
+        mimeType: typeof declaredMimeType === "string" && declaredMimeType.trim()
+          ? declaredMimeType
+          : file.type || "application/octet-stream",
+        bytes: new Uint8Array(await file.arrayBuffer()),
+        actor: getAuditActor(context),
+      });
+      return context.json({ resource });
+    } catch (error) {
+      return appErrorResponse(context, error);
+    }
   });
 
   app.patch(
@@ -211,23 +415,27 @@ export const registerResourceRoutes = (
       context.env.storage.db,
       getWorkspaceId(context),
       resourceId,
+      true,
     );
     if (!resource) return notFound(context, "Resource not found");
 
-    const now = isoNow();
-    const actor = getAuditActor(context);
-    await context.env.storage.db.batch([
-      context.env.storage.db.prepare(
-        `UPDATE resources SET is_deleted = 1, deleted_at = ?, updated_at = ? WHERE id = ?`,
-      ).bind(now, now, resourceId),
-      auditStatement(context.env.storage.db, actor.actorType, actor.actorId, "resource.delete", "resource", resourceId, {
-        memoId: resource.memo_id,
-        filename: resource.filename,
-        byteSize: resource.byte_size,
-      }),
-    ]);
     const source = await resolveObjectStorage(context.env, resource.storage_config_id);
     await source.store.delete(resource.object_key);
+
+    if (!resource.is_deleted) {
+      const now = isoNow();
+      const actor = getAuditActor(context);
+      await context.env.storage.db.batch([
+        context.env.storage.db.prepare(
+          `UPDATE resources SET is_deleted = 1, deleted_at = ?, updated_at = ? WHERE id = ?`,
+        ).bind(now, now, resourceId),
+        auditStatement(context.env.storage.db, actor.actorType, actor.actorId, "resource.delete", "resource", resourceId, {
+          memoId: resource.memo_id,
+          filename: resource.filename,
+          byteSize: resource.byte_size,
+        }),
+      ]);
+    }
     return context.json({ ok: true });
   });
 };

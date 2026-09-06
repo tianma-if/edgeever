@@ -37,7 +37,7 @@ struct DevicesView: View {
                     }
                 }
             }
-            .background(Color.white)
+            .background(AppTheme.card)
             .clipShape(RoundedRectangle(cornerRadius: 12))
             .overlay(RoundedRectangle(cornerRadius: 12).stroke(AppTheme.border, lineWidth: 1))
 
@@ -52,7 +52,7 @@ struct DevicesView: View {
                     .frame(maxWidth: .infinity)
                     .frame(height: 44)
                     .foregroundStyle(AppTheme.title)
-                    .background(Color.white)
+                    .background(AppTheme.card)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                     .overlay(RoundedRectangle(cornerRadius: 12).stroke(AppTheme.border, lineWidth: 1))
             }

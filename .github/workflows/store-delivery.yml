@@ -26,9 +26,14 @@ on:
           - alpha
           - beta
           - internal
+      recover_play_apk:
+        description: "Skip the completed Play upload and recover its signed APK"
+        required: true
+        default: false
+        type: boolean
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: edgeever-store-delivery-${{ inputs.release_tag }}
@@ -42,48 +47,71 @@ jobs:
     outputs:
       version: ${{ steps.validate.outputs.version }}
       version_code: ${{ steps.validate.outputs.version_code }}
+      release_target: ${{ steps.release.outputs.release_target }}
     steps:
-      - name: Check out the immutable Release tag
-        uses: actions/checkout@v5
-        with:
-          ref: ${{ inputs.release_tag }}
-          fetch-depth: 0
-
-      - name: Validate formal Release and resolve its predecessor
+      - name: Validate Release and resolve its formal predecessor
         id: release
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
           release="$(
-            gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}"
+            gh release view "$RELEASE_TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --json isDraft,isPrerelease,tagName,targetCommitish
           )"
-          test "$(jq -r '.draft' <<<"$release")" = "false"
-          test "$(jq -r '.prerelease' <<<"$release")" = "false"
-          test "$(jq -r '.tag_name' <<<"$release")" = "$RELEASE_TAG"
+          release_is_draft="$(jq -r '.isDraft' <<<"$release")"
+          test "$release_is_draft" = "true" -o "$release_is_draft" = "false"
+          test "$(jq -r '.isPrerelease' <<<"$release")" = "false"
+          test "$(jq -r '.tagName' <<<"$release")" = "$RELEASE_TAG"
 
-          release_target="$(jq -r '.target_commitish' <<<"$release")"
-          test "$(git rev-parse "${RELEASE_TAG}^{commit}")" = "$(git rev-parse "${release_target}^{commit}")"
+          release_target="$(jq -r '.targetCommitish' <<<"$release")"
+          test -n "$release_target"
+          test "$release_target" != "null"
+          echo "release_target=$release_target" >> "$GITHUB_OUTPUT"
 
           mapfile -t release_tags < <(
             gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
               --jq '.[] | select(.draft == false and .prerelease == false) | .tag_name'
           )
           previous_tag=""
-          current_found="false"
-          for candidate in "${release_tags[@]}"; do
-            if [[ "$current_found" = "true" ]]; then
-              previous_tag="$candidate"
-              break
-            fi
-            if [[ "$candidate" = "$RELEASE_TAG" ]]; then
-              current_found="true"
-            fi
-          done
-          test "$current_found" = "true"
+          if [[ "$release_is_draft" = "true" ]]; then
+            previous_tag="${release_tags[0]:-}"
+          else
+            current_found="false"
+            for candidate in "${release_tags[@]}"; do
+              if [[ "$current_found" = "true" ]]; then
+                previous_tag="$candidate"
+                break
+              fi
+              if [[ "$candidate" = "$RELEASE_TAG" ]]; then
+                current_found="true"
+              fi
+            done
+            test "$current_found" = "true"
+          fi
           test -n "$previous_tag"
-          git fetch origin "refs/tags/${previous_tag}:refs/tags/${previous_tag}"
           echo "previous_tag=$previous_tag" >> "$GITHUB_OUTPUT"
+
+      - name: Check out the immutable Release target
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ steps.release.outputs.release_target }}
+          fetch-depth: 0
+
+      - name: Validate the checked-out Release target
+        env:
+          PREVIOUS_TAG: ${{ steps.release.outputs.previous_tag }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          RELEASE_TARGET: ${{ steps.release.outputs.release_target }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$(git rev-parse "${RELEASE_TARGET}^{commit}")"
+          git fetch origin "refs/tags/${PREVIOUS_TAG}:refs/tags/${PREVIOUS_TAG}"
+          if git rev-parse --verify --quiet "refs/tags/${RELEASE_TAG}" >/dev/null; then
+            test "$(git rev-parse "${RELEASE_TAG}^{commit}")" = "$(git rev-parse "${RELEASE_TARGET}^{commit}")"
+          else
+            git tag "$RELEASE_TAG" "$RELEASE_TARGET"
+          fi
 
       - name: Validate mobile version and audited change range
         id: validate
@@ -93,6 +121,7 @@ jobs:
           PREVIOUS_TAG: ${{ steps.release.outputs.previous_tag }}
           RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
+          set -o pipefail
           node scripts/validate-store-delivery.mjs \
             "$RELEASE_TAG" \
             "$PREVIOUS_TAG" \
@@ -102,7 +131,11 @@ jobs:
 
   android:
     needs: plan
-    if: inputs.platform == 'android' || inputs.platform == 'both'
+    if: >-
+      ${{
+        github.repository == 'tianma-if/edgeever' &&
+        (inputs.platform == 'android' || inputs.platform == 'both')
+      }}
     name: Deliver Google Play
     runs-on: [self-hosted, macOS, ARM64, edgeever-mobile]
     timeout-minutes: 60
@@ -112,25 +145,45 @@ jobs:
       ANDROID_SDK_ROOT: /opt/homebrew/share/android-commandlinetools
       JAVA_HOME: /opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home
     steps:
-      - name: Check out the immutable Release tag
+      - name: Check out the immutable Release target
         uses: actions/checkout@v5
         with:
-          ref: ${{ inputs.release_tag }}
+          ref: ${{ needs.plan.outputs.release_target }}
           clean: true
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: 1.3.14
 
       - name: Set up EAS CLI
+        if: ${{ !inputs.recover_play_apk }}
         uses: expo/expo-github-action@v8
         with:
           eas-version: 21.4.0
           packager: npm
           token: ${{ secrets.EXPO_TOKEN }}
 
+      - name: Install dependencies
+        if: ${{ !inputs.recover_play_apk }}
+        run: |
+          for attempt in 1 2 3; do
+            if bun install --frozen-lockfile \
+              --cache-dir "$RUNNER_TEMP/edgeever-bun-cache-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${attempt}"; then
+              exit 0
+            fi
+            echo "Dependency install failed on attempt ${attempt}/3" >&2
+          done
+          exit 1
+
+      - name: Install Play APK recovery dependency
+        if: ${{ inputs.recover_play_apk }}
+        run: |
+          if ! bun install --frozen-lockfile \
+            --cache-dir "$RUNNER_TEMP/edgeever-bun-cache-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"; then
+            node --input-type=module -e "await import('google-auth-library')"
+          fi
+
       - name: Restore Android upload keystore
+        if: ${{ !inputs.recover_play_apk }}
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
@@ -139,14 +192,17 @@ jobs:
           chmod 600 "$RUNNER_TEMP/edgeever-upload.p12"
 
       - name: Build and verify signed Play bundle
+        if: ${{ !inputs.recover_play_apk }}
         env:
           ANDROID_KEYSTORE_FILE: ${{ runner.temp }}/edgeever-upload.p12
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          EDGE_EVER_ANDROID_PLAY_ARCHS: arm64-v8a
         run: bun run build:android:play
 
       - name: Preserve Play bundle and deobfuscation mapping
+        if: ${{ !inputs.recover_play_apk }}
         uses: actions/upload-artifact@v7
         with:
           name: edgeever-${{ inputs.release_tag }}-google-play
@@ -157,6 +213,7 @@ jobs:
           compression-level: 0
 
       - name: Upload bundle to Google Play
+        if: ${{ !inputs.recover_play_apk }}
         env:
           ANDROID_TRACK: ${{ inputs.android_track }}
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
@@ -170,27 +227,59 @@ jobs:
             --wait
         working-directory: apps/mobile
 
+      - name: Download Play-signed universal APK
+        env:
+          ANDROID_PLAY_APP_SIGNER_SHA256: ${{ secrets.ANDROID_PLAY_APP_SIGNER_SHA256 }}
+          GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64 }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          VERSION_CODE: ${{ needs.plan.outputs.version_code }}
+        run: |
+          apk_path="$RUNNER_TEMP/edgeever-android-${RELEASE_TAG}-arm64-v8a.apk"
+          node scripts/download-play-universal-apk.mjs "$VERSION_CODE" "$apk_path"
+          echo "apk_path=$apk_path" >> "$GITHUB_ENV"
+
+      - name: Verify Play app signature
+        env:
+          EDGE_EVER_ANDROID_ALLOWED_SIGNER_SHA256: ${{ secrets.ANDROID_PLAY_APP_SIGNER_SHA256 }}
+        run: node scripts/verify-android-apk-signature.mjs "$apk_path"
+
+      - name: Verify Play APK architecture
+        run: |
+          actual_archs="$(unzip -Z1 "$apk_path" | sed -n 's#^lib/\([^/]*\)/.*#\1#p' | sort -u | paste -sd, -)"
+          if [[ "$actual_archs" != "arm64-v8a" ]]; then
+            echo "::error::Expected an arm64-v8a Play APK, received: ${actual_archs:-no native libraries}."
+            exit 1
+          fi
+
+      - name: Replace GitHub Release APK with the Play-signed build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: gh release upload "$RELEASE_TAG" "$apk_path" --repo "$GITHUB_REPOSITORY" --clobber
+
       - name: Remove temporary upload keystore
         if: always()
         run: rm -f "$RUNNER_TEMP/edgeever-upload.p12"
 
   ios:
     needs: plan
-    if: inputs.platform == 'ios' || inputs.platform == 'both'
+    if: >-
+      ${{
+        github.repository == 'tianma-if/edgeever' &&
+        (inputs.platform == 'ios' || inputs.platform == 'both')
+      }}
     name: Deliver App Store Connect
     runs-on: ubuntu-latest
     timeout-minutes: 90
     environment: store-delivery
     steps:
-      - name: Check out the immutable Release tag
+      - name: Check out the immutable Release target
         uses: actions/checkout@v5
         with:
-          ref: ${{ inputs.release_tag }}
+          ref: ${{ needs.plan.outputs.release_target }}
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: 1.3.14
 
       - name: Set up EAS CLI
         uses: expo/expo-github-action@v8
@@ -207,7 +296,9 @@ jobs:
           working-directory: apps/mobile
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: >-
+          bun install --frozen-lockfile
+          --cache-dir "$RUNNER_TEMP/edgeever-bun-cache-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
 
       - name: Build the iOS archive on EAS
         id: build

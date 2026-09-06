@@ -69,6 +69,32 @@ final class LocalMirrorRepository: @unchecked Sendable {
         }
     }
 
+    func listTags(scope: String) throws -> [TagSummary] {
+        try dbQueue.read { db in
+            let rows = try Row.fetchAll(
+                db,
+                sql: "SELECT data_json FROM mobile_memos WHERE scope = ? AND is_deleted = 0",
+                arguments: [scope]
+            )
+            var summaries: [String: (memoCount: Int, updatedAt: String?)] = [:]
+            for row in rows {
+                let raw = row["data_json"] as String
+                guard let memo = try? EdgeEverJSON.decoder.decode(MemoDetail.self, from: Data(raw.utf8)) else { continue }
+                for name in Set(memo.tags.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }).filter({ !$0.isEmpty }) {
+                    var summary = summaries[name] ?? (memoCount: 0, updatedAt: nil)
+                    summary.memoCount += 1
+                    if summary.updatedAt == nil || memo.updatedAt > summary.updatedAt! {
+                        summary.updatedAt = memo.updatedAt
+                    }
+                    summaries[name] = summary
+                }
+            }
+            return summaries
+                .map { TagSummary(name: $0.key, memoCount: $0.value.memoCount, updatedAt: $0.value.updatedAt) }
+                .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        }
+    }
+
     func listMemos(scope: String, params: LocalMemoListParams) throws -> LocalMemoListResult {
         try dbQueue.read { db in
             var conditions = ["scope = ?", "is_deleted = ?"]

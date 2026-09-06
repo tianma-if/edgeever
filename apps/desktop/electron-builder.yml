@@ -53,6 +53,7 @@ extraResources:
 mac:
   category: public.app-category.productivity
   icon: assets/icon.icns
+  minimumSystemVersion: "13.0"
   target:
     - target: dmg
     - target: zip
@@ -68,6 +69,9 @@ win:
   target:
     - nsis
   artifactName: EdgeEver-${version}-windows-${arch}.${ext}
+nsis:
+  oneClick: true
+  perMachine: false
 linux:
   category: Utility
   syncDesktopName: true

@@ -16,13 +16,15 @@ Use this page for advanced configuration, troubleshooting, and emergency recover
    bun run deploy:manual
    ```
 
-`deploy:setup` creates or reuses D1 and R2 and writes configuration to the git-ignored `.env.local`. Without `EDGE_EVER_PASSWORD`, the default login is `admin` / `admin123`.
+`deploy:setup` creates or reuses D1 and R2 and writes configuration to the git-ignored `.env.local`. `EDGE_EVER_PASSWORD` is required for a new deployment; there is no default production password.
+
+For local CLI deployment, set `EDGE_EVER_DEPLOYMENT_URL=https://<your-worker-domain>` in `.env.local` to include the live `/api/health` request in deployment verification. CI deployments discover the public URL automatically from Wrangler output. Without an explicit URL, local verification still checks the remote D1 schema and Worker Secret, then reports that the live health check was skipped.
 
 After deployment, confirm:
 
 - `/api/health` returns `200` with `"ok": true`
 - `/api/openapi.json` is reachable
-- `admin` can log in
+- `admin` can log in with the password supplied through `EDGE_EVER_PASSWORD`
 
 ## Create resources manually
 
@@ -60,13 +62,12 @@ Do not commit `.env.local` or write passwords to D1.
 
 ## Enable third-party OSS settings
 
-To configure an S3-compatible object store from **Settings → Advanced**, add a stable encryption secret to the deployed Worker:
-
-```sh
-bunx wrangler secret put EDGE_EVER_STORAGE_ENCRYPTION_KEY
-```
-
-Use a random value of at least 32 characters and keep a secure backup. EdgeEver encrypts the external Secret Access Key before storing it in D1. Losing or changing this encryption key makes previously saved external credentials unusable. After adding the secret, redeploy or restart the Worker, then use **Test connection** before saving the OSS configuration.
+Configure an S3-compatible object store from **Settings → Advanced**, then use
+**Test connection** before saving it. EdgeEver encrypts the external Secret
+Access Key with a purpose-specific key derived from the existing instance
+authentication secret before storing it in D1. No additional encryption
+variable is required. Keep the instance authentication secret stable and back
+it up; changing or losing it makes saved external credentials unusable.
 
 ## Recovery
 

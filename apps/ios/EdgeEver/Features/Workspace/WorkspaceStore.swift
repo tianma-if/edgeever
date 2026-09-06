@@ -32,10 +32,6 @@ final class WorkspaceStore {
         return notebooks.first { $0.id == selectedNotebookId }
     }
 
-    var titleLabel: String {
-        activeNotebook?.name ?? "全部笔记"
-    }
-
     func reload(env: AppEnvironment, resetOffset: Bool = true) {
         guard let scope = env.session.dataScope else {
             notebooks = []
@@ -117,6 +113,25 @@ final class WorkspaceStore {
         selectedMemoIds = MobileUI.toggleMemoSelection(current: selectedMemoIds, memoId: memoId)
     }
 
+    var allVisibleMemosSelected: Bool {
+        !memos.isEmpty && memos.allSatisfy { selectedMemoIds.contains($0.id) }
+    }
+
+    var nextSelectionPinValue: Bool {
+        let selected = memos.filter { selectedMemoIds.contains($0.id) }
+        return !selected.isEmpty && !selected.allSatisfy(\.isPinned)
+    }
+
+    func toggleVisibleSelection() {
+        let visibleIds = Set(memos.map(\.id))
+        if allVisibleMemosSelected {
+            selectedMemoIds.subtract(visibleIds)
+        } else {
+            selectionMode = true
+            selectedMemoIds.formUnion(visibleIds)
+        }
+    }
+
     /// Request a rebound animation on a list card after create/edit returns to the list.
     func requestMemoBounce(memoId: String?) {
         guard let memoId, !memoId.isEmpty else { return }
@@ -168,6 +183,30 @@ final class WorkspaceStore {
                 tags: nil
             )
             try env.mirror.upsertMemo(scope: scope, memo: updated)
+            reload(env: env)
+        } catch {
+            listError = error.localizedDescription
+        }
+    }
+
+    func pinSelection(env: AppEnvironment, isPinned: Bool) async {
+        guard let scope = env.session.dataScope, !selectedMemoIds.isEmpty else { return }
+        do {
+            for memoId in selectedMemoIds {
+                let updated = try await env.session.client.updateMemo(
+                    id: memoId,
+                    expectedRevision: nil,
+                    expectedContentHash: nil,
+                    editSessionId: nil,
+                    notebookId: nil,
+                    title: nil,
+                    isPinned: isPinned,
+                    contentMarkdown: nil,
+                    tags: nil
+                )
+                try env.mirror.upsertMemo(scope: scope, memo: updated)
+            }
+            clearSelection()
             reload(env: env)
         } catch {
             listError = error.localizedDescription

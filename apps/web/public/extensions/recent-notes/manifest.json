@@ -1,0 +1,12 @@
+{
+  "type": "plugin",
+  "id": "org.edgeever.examples.recent-notes",
+  "name": "Recent Notes Example",
+  "version": "1.1.0",
+  "apiVersion": "1",
+  "description": "Demonstrates note queries, editor selections, commands, notices, and a custom panel.",
+  "author": "EdgeEver",
+  "entry": "./main.js",
+  "platforms": ["web", "desktop"],
+  "permissions": ["notes:read", "editor:read", "editor:write", "ui:commands", "ui:notices", "ui:panels"]
+}

@@ -4,7 +4,6 @@ const MEMO_LIST_DENSITY_KEY = "edgeever.mobile.memoListDensity";
 const IMAGE_COMPRESSION_KEY = "edgeever.mobile.imageCompressionEnabled";
 const LOCALE_PREFERENCE_KEY = "edgeever.mobile.localePreference";
 const THEME_PREFERENCE_KEY = "edgeever.mobile.themePreference";
-const UPDATE_TOAST_DISMISSED_VERSION_KEY = "edgeever.mobile.updateToastDismissedVersion";
 
 export type MobileMemoListDensity = "preview" | "compact";
 export type MobileLocalePreference = "system" | "zh-CN" | "en-US";
@@ -37,17 +36,5 @@ export const readMobileThemePreference = async (): Promise<MobileThemePreference
 };
 
 export const writeMobileThemePreference = (theme: MobileThemePreference) => AsyncStorage.setItem(THEME_PREFERENCE_KEY, theme);
-
-/** Installed app version for which the update toast was already shown (until the user upgrades). */
-export const readMobileUpdateToastDismissedVersion = async () => AsyncStorage.getItem(UPDATE_TOAST_DISMISSED_VERSION_KEY);
-
-export const writeMobileUpdateToastDismissedVersion = (installedVersion: string) =>
-  AsyncStorage.setItem(UPDATE_TOAST_DISMISSED_VERSION_KEY, installedVersion);
-
-/** Show the toast only once per installed version while a newer package is available. */
-export const shouldShowMobileUpdateToastForVersion = (
-  installedVersion: string | null | undefined,
-  dismissedForVersion: string | null | undefined
-) => Boolean(installedVersion) && dismissedForVersion !== installedVersion;
 
 const isMobileLocalePreference = (value: unknown): value is MobileLocalePreference => value === "system" || value === "zh-CN" || value === "en-US";

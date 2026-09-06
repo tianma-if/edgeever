@@ -39,12 +39,15 @@ import {
   type LocalMemoListParams,
   type LocalMemoListResponse,
 } from "@/lib/local-mirror";
-import { discardWebMemoConflict, getMemoUpdateQueueId, queueLocalAction, queueMemoCreate, queueMemoDelete, queueMemoRestore, queueMemoUpdate } from "@/lib/sync-queue";
+import { discardWebMemoConflict, getMemoUpdateQueueId, putMemoUpdateQueueItem, queueLocalAction, queueMemoCreate, queueMemoDelete, queueMemoRestore, queueMemoUpdate } from "@/lib/sync-queue";
 import { localDb, type MemoUpdateSyncPayload } from "@/lib/local-db";
+import { runLocalDatabaseOperationWithRecovery } from "@/lib/local-database-recovery";
 import { createDesktopRepository } from "@/lib/desktop-repository";
 import { isBrowserOffline } from "@/lib/network-status";
 import { notifySyncQueueDeferred } from "@/lib/sync-events";
 import { isActiveLocalMemoUpdateStatus, shouldAcceptRemoteMemoDetail } from "@/lib/memo-detail-freshness";
+import { cacheLocalResourceBytes, getCachedLocalResourceBytes } from "@/lib/local-resource-cache";
+import { withRepositoryMutationEvents } from "@/lib/repository-events";
 
 export type EdgeEverRepository = {
   listNotebooks(): Promise<{ notebooks: Notebook[] }>;
@@ -58,6 +61,8 @@ export type EdgeEverRepository = {
   deleteTemplate(templateId: string): Promise<{ ok: true }>;
   useTemplate(templateId: string, notebookId: string): Promise<{ memo: MemoDetail }>;
   uploadMemoResource(memoId: string, file: File): Promise<{ resource: Resource }>;
+  readResource(resourceId: string): Promise<Blob>;
+  updateResource(resourceId: string, file: File, expectedContentHash: string): Promise<{ resource: Resource }>;
   listResources(): Promise<{ resources: ResourceListItem[]; summary: ResourceStorageSummary }>;
   renameResource(resourceId: string, filename: string): Promise<{ resource: Resource }>;
   deleteResource(resourceId: string): Promise<{ ok: true }>;
@@ -71,7 +76,7 @@ export type EdgeEverRepository = {
   mergeMemos(input: { memoIds: string[]; notebookId?: string; title?: string }): Promise<{ memo: MemoDetail }>;
   listMemos(params: LocalMemoListParams): Promise<LocalMemoListResponse>;
   getMemo(memoId: string, includeDeleted?: boolean): Promise<{ memo: MemoDetail }>;
-  createMemo(input: { notebookId: string; title?: string; contentMarkdown?: string; tags?: string[] }): Promise<{ memo: MemoDetail }>;
+  createMemo(input: { notebookId: string; title?: string; contentJson?: TiptapDoc; contentMarkdown?: string; tags?: string[] }): Promise<{ memo: MemoDetail }>;
   updateMemo(memo: MemoDetail, input: Omit<MemoUpdateSyncPayload, "memoId">): Promise<{ memo: MemoDetail; queued: true }>;
   /**
    * Drop the local conflicted draft for a note and replace the local copy with
@@ -104,6 +109,44 @@ const cacheMemoWithoutBlocking = (scope: string, memo: MemoDetail) => {
 const hasActiveLocalMemoUpdate = async (memoId: string) => {
   const item = await localDb.syncQueue.get(getMemoUpdateQueueId(memoId));
   return isActiveLocalMemoUpdateStatus(item?.status);
+};
+
+const reconcileLocalTemplates = async (
+  scope: string,
+  remoteTemplates: MemoTemplate[],
+): Promise<MemoTemplate[]> => {
+  const [local, queuedItems] = await Promise.all([
+    listLocalTemplates(scope),
+    localDb.syncQueue.filter((item) => item.scope === scope && item.kind.startsWith("template.")).toArray(),
+  ]);
+  const localById = new Map(local.templates.map((template) => [template.id, template]));
+  const pendingUpsertIds = new Set(
+    queuedItems
+      .filter((item) => item.kind === "template.create" || item.kind === "template.update")
+      .map((item) => item.memoId),
+  );
+  const pendingDeleteIds = new Set(
+    queuedItems.filter((item) => item.kind === "template.delete").map((item) => item.memoId),
+  );
+  const reconciled = new Map<string, MemoTemplate>();
+
+  for (const remote of remoteTemplates) {
+    if (pendingDeleteIds.has(remote.id)) continue;
+    reconciled.set(remote.id, pendingUpsertIds.has(remote.id) ? localById.get(remote.id) ?? remote : remote);
+  }
+  for (const templateId of pendingUpsertIds) {
+    const localTemplate = localById.get(templateId);
+    if (localTemplate) reconciled.set(templateId, localTemplate);
+  }
+
+  const templates = [...reconciled.values()].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+  await localDb.transaction("rw", localDb.templates, async () => {
+    await localDb.templates.where("scope").equals(scope).delete();
+    if (templates.length > 0) {
+      await localDb.templates.bulkPut(templates.map((template) => ({ ...template, scope })));
+    }
+  });
+  return templates;
 };
 
 /**
@@ -187,13 +230,13 @@ export const createWebRepository = (scope: string): EdgeEverRepository => {
 
   async listTemplates() {
     const local = await listLocalTemplates(scope);
-    if (local.templates.length > 0 || isOffline()) {
-      if (!isOffline()) void api.listTemplates().then((remote) => Promise.all(remote.templates.map((template) => putLocalTemplate(scope, template)))).catch(() => {});
+    if (isOffline()) return local;
+    try {
+      const remote = await api.listTemplates();
+      return { templates: await reconcileLocalTemplates(scope, remote.templates) };
+    } catch {
       return local;
     }
-    const remote = await api.listTemplates();
-    await Promise.all(remote.templates.map((template) => putLocalTemplate(scope, template)));
-    return remote;
   },
   createTemplate: async (input) => {
     const template = await createLocalTemplate(scope, input);
@@ -261,6 +304,34 @@ export const createWebRepository = (scope: string): EdgeEverRepository => {
     }
     const result = await api.uploadMemoResource(memoId, file);
     await putLocalResource(scope, { ...result.resource, memoTitle: null, memoExcerpt: null, memoDeleted: false });
+    return result;
+  },
+  async readResource(resourceId) {
+    const local = (await listLocalResources(scope)).resources.find((resource) => resource.id === resourceId);
+    if (isOffline()) {
+      if (!local?.url) throw new Error("The resource is not available offline.");
+      const cached = await getCachedLocalResourceBytes(local.url);
+      if (cached) return cached;
+      throw new Error("The resource is not available offline.");
+    }
+    const url = local?.url ?? `/api/v1/resources/${encodeURIComponent(resourceId)}/blob`;
+    const blob = await (await api.getResourceResponse(url, { cache: "no-store" })).blob();
+    await cacheLocalResourceBytes(url, blob).catch(() => undefined);
+    return blob;
+  },
+  async updateResource(resourceId, file, expectedContentHash) {
+    if (isOffline() || resourceId.startsWith("local_resource_")) {
+      throw new Error("Attachments can only be updated after they are synced.");
+    }
+    const existing = (await listLocalResources(scope)).resources.find((resource) => resource.id === resourceId);
+    const result = await api.updateResourceContent(resourceId, file, expectedContentHash);
+    await putLocalResource(scope, {
+      ...result.resource,
+      memoTitle: existing?.memoTitle ?? null,
+      memoExcerpt: existing?.memoExcerpt ?? null,
+      memoDeleted: existing?.memoDeleted ?? false,
+    });
+    await cacheLocalResourceBytes(result.resource.url, file);
     return result;
   },
   async listResources() {
@@ -350,6 +421,7 @@ export const createWebRepository = (scope: string): EdgeEverRepository => {
       notebookId: params.notebookId,
       includeDescendants: Boolean(params.notebookIds?.length),
       q: params.q,
+      tag: params.tag,
       trash: params.trash,
       filter: params.filter,
       sort: params.sort,
@@ -360,6 +432,10 @@ export const createWebRepository = (scope: string): EdgeEverRepository => {
   },
 
   async getMemo(memoId, includeDeleted = false) {
+    if (memoId.startsWith("local_")) {
+      const mapping = await localDb.idMappings.get([scope, memoId]);
+      memoId = mapping?.remoteId ?? memoId;
+    }
     const localPromise = getLocalMemoWithoutBlocking(scope, memoId);
 
     const remotePromise = api.getMemo(memoId, { includeDeleted });
@@ -418,6 +494,7 @@ export const createWebRepository = (scope: string): EdgeEverRepository => {
       temporaryId: memo.id,
       notebookId: input.notebookId,
       title: input.title ?? "",
+      contentJson: input.contentJson,
       contentMarkdown: input.contentMarkdown,
       tags: input.tags ?? [],
       createdAt: memo.createdAt,
@@ -433,8 +510,13 @@ export const createWebRepository = (scope: string): EdgeEverRepository => {
 
   async updateMemo(memo, input) {
     const payload: MemoUpdateSyncPayload = { ...input, memoId: memo.id };
-    const updated = await putLocalMemoUpdate(scope, memo, payload);
-    await queueMemoUpdate(payload, scope);
+    const updated = await runLocalDatabaseOperationWithRecovery(() =>
+      localDb.transaction("rw", [localDb.memos, localDb.syncQueue], async () => {
+        const nextMemo = await putLocalMemoUpdate(scope, memo, payload);
+        await putMemoUpdateQueueItem(payload, scope);
+        return nextMemo;
+      })
+    );
     notifySyncQueueDeferred();
     return { memo: updated, queued: true };
   },
@@ -504,7 +586,7 @@ export const createWebRepository = (scope: string): EdgeEverRepository => {
 
 export const createRepository = (scope: string): EdgeEverRepository => {
   if (typeof window !== "undefined" && window.edgeeverDesktop?.isAvailable) {
-    return createDesktopRepository();
+    return withRepositoryMutationEvents(createDesktopRepository(), scope);
   }
-  return createWebRepository(scope);
+  return withRepositoryMutationEvents(createWebRepository(scope), scope);
 };

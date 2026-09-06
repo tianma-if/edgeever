@@ -35,6 +35,9 @@ mock.module("./local-mirror", () => ({
     memos.set(memoId, { ...memo, isDeleted: true });
     return true;
   },
+  upsertLocalMemo: async (_scope: string, memo: { id: string; isDeleted?: boolean }) => {
+    memos.set(memo.id, memo);
+  },
 }));
 
 const {
@@ -136,4 +139,56 @@ test("resolves remapped temporary ids to remote deletes", async () => {
   expect(result).toEqual({ deleted: 1, localOnly: 0, remote: 1 });
   expect(deletedMemoIds).toEqual(["memo-mapped"]);
   expect(memos.get("memo-mapped")?.isDeleted).toBe(true);
+});
+
+test("updates the local mirror before the remote delete completes", async () => {
+  const scope = "https://one.example";
+  memos.set("memo-1", { id: "memo-1" });
+  let releaseDelete: (() => void) | undefined;
+  const remoteDelete = new Promise<void>((resolve) => {
+    releaseDelete = resolve;
+  });
+
+  const deletion = deleteMobileMemos({
+    client: {
+      deleteMemo: async () => {
+        await remoteDelete;
+        return { ok: true as const };
+      },
+      deleteMemos: async () => {
+        throw new Error("should use single delete");
+      },
+    } as never,
+    dataScope: scope,
+    syncQueueScope: scope,
+    memoIds: ["memo-1"],
+    permanent: false,
+  });
+
+  await Bun.sleep(0);
+  expect(memos.get("memo-1")?.isDeleted).toBe(true);
+  releaseDelete?.();
+  await deletion;
+});
+
+test("rolls the local mirror back when the remote delete fails", async () => {
+  const scope = "https://one.example";
+  memos.set("memo-1", { id: "memo-1" });
+
+  await expect(deleteMobileMemos({
+    client: {
+      deleteMemo: async () => {
+        throw new Error("network unavailable");
+      },
+      deleteMemos: async () => {
+        throw new Error("should use single delete");
+      },
+    } as never,
+    dataScope: scope,
+    syncQueueScope: scope,
+    memoIds: ["memo-1"],
+    permanent: false,
+  })).rejects.toThrow("network unavailable");
+
+  expect(memos.get("memo-1")).toEqual({ id: "memo-1" });
 });

@@ -1,6 +1,6 @@
 import Foundation
 
-/// Port of `apps/mobile/src/lib/mobile-sync-protocol.ts`.
+/// Native counterpart of the shared TypeScript sync-state contract in `packages/shared/src/sync.ts`.
 enum SyncProtocol {
     static func hasCursorRewound(localCursor: Int, serverCursor: Int?) -> Bool {
         guard let serverCursor else { return false }

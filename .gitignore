@@ -4,10 +4,13 @@
 !.env.example
 !.env.local.example
 !.env.android.local.example
+!.env.local-dev.example
 
 node_modules/
 .idea/
 dist/
+!packages/plugin-api/dist/
+!packages/plugin-api/dist/**
 build/
 apps/extension/dist-firefox/
 apps/extension/web-ext-artifacts/
@@ -23,6 +26,7 @@ target/
 .wrangler/
 .wrangler.generated-migrations/
 .wrangler.generated*.toml
+.wrangler.deployment-targets.json
 .dev.vars
 wrangler.local.toml
 
@@ -40,3 +44,8 @@ credentials.json
 
 # Local App Review crash dumps / image self-test screenshots.
 .tmp-app-review-crashes/
+
+# Local brand concept and research drafts.
+/assets/brand/edgeever-concept-13.png
+/docs/notion-ai-feature-landscape.en-US.md
+/docs/notion-ai-feature-landscape.zh-CN.md

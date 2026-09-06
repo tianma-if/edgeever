@@ -21,10 +21,37 @@ describe("native release planning", () => {
       "scripts/build-android-local.sh",
       "scripts/verify-android-apk-signature.mjs",
       ".github/workflows/mobile-build.yml",
+      ".github/workflows/android-play-signature-audit.yml",
+      ".github/workflows/store-delivery.yml",
+      "scripts/download-play-universal-apk.mjs",
     ];
     expect(planNativeRelease("mobile", changedFiles)).toEqual({
       rebuild: true,
       relevantChanges: changedFiles,
+    });
+  });
+
+  test("keeps an expo-sharing dependency patch scoped to Android", () => {
+    const changedFiles = [
+      "package.json",
+      "bun.lock",
+      "apps/mobile/app.json",
+      "patches/expo-sharing@57.0.16.patch",
+      "scripts/plan-native-release.mjs",
+      "scripts/plan-native-release.test.mjs",
+    ];
+
+    expect(planNativeRelease("mobile", changedFiles)).toEqual({
+      rebuild: true,
+      relevantChanges: [
+        "bun.lock",
+        "apps/mobile/app.json",
+        "patches/expo-sharing@57.0.16.patch",
+      ],
+    });
+    expect(planNativeRelease("desktop", changedFiles)).toEqual({
+      rebuild: false,
+      relevantChanges: [],
     });
   });
 
@@ -42,11 +69,17 @@ describe("native release planning", () => {
 
   test("rebuilds desktop when its architecture packaging pipeline changes", () => {
     const changedFiles = [
+      ".cargo/config.toml",
       ".github/workflows/desktop-build.yml",
       "scripts/create-mac-update-metadata.mjs",
+      "scripts/create-windows-update-metadata.mjs",
       "scripts/prepare-desktop-icons.mjs",
       "scripts/desktop-icns.mjs",
+      "scripts/pe-imports.mjs",
       "scripts/run-desktop-builder.mjs",
+      "scripts/sign-windows-update-manifest.mjs",
+      "scripts/verify-windows-update-release.mjs",
+      "scripts/verify-packaged-desktop-startup.mjs",
     ];
     expect(planNativeRelease("desktop", changedFiles)).toEqual({
       rebuild: true,
@@ -56,7 +89,7 @@ describe("native release planning", () => {
 
   test("does not rebuild desktop for release notes or a root version bump alone", () => {
     expect(
-      planNativeRelease("desktop", ["package.json", "AGENTS.md"]),
+      planNativeRelease("desktop", ["package.json", "release-summary.json", "AGENTS.md"]),
     ).toEqual({ rebuild: false, relevantChanges: [] });
   });
 });

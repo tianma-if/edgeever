@@ -29,6 +29,27 @@ struct MobileSession: Codable, Equatable, Sendable {
     var user: AuthUser?
 }
 
+struct InstanceStorageDiagnostics: Codable, Equatable, Sendable {
+    var database: String?
+    var resources: String?
+}
+
+struct InstanceHealth: Codable, Equatable, Sendable {
+    var ok: Bool
+    var name: String
+    var runtime: String?
+    var containerImageSource: String?
+    var authMode: String?
+    var build: String?
+    var migration: String?
+    var storage: InstanceStorageDiagnostics?
+    var objectStorageProvider: String?
+}
+
+struct InstanceRelease: Codable, Equatable, Sendable {
+    var version: String
+}
+
 struct LoginDeviceSession: Codable, Equatable, Sendable, Identifiable {
     var id: String
     var userAgent: String?
@@ -123,6 +144,94 @@ struct MemoEditSession: Codable, Equatable, Sendable {
     var baseRevision: Int
     var baseContentHash: String
     var expiresAt: String
+}
+
+// MARK: - AI note processing
+
+enum AiAction: String, Codable, CaseIterable, Sendable, Identifiable {
+    case summarize
+    case extractKeyPoints = "extract-key-points"
+    case extractTodos = "extract-todos"
+    case rewriteProofread = "rewrite-proofread"
+    case translate
+    case improveWriting = "improve-writing"
+    case fixSpellingGrammar = "fix-spelling-grammar"
+    case makeShorter = "make-shorter"
+    case makeLonger = "make-longer"
+    case simplifyLanguage = "simplify-language"
+    case changeTone = "change-tone"
+    case continueWriting = "continue-writing"
+    case custom
+
+    var id: String { rawValue }
+}
+
+struct AiGenerateInput: Encodable, Sendable {
+    var action: AiAction
+    var promptId: String? = nil
+    var locale: String? = nil
+    var title: String
+    var contentMarkdown: String
+    var targetLanguage: String?
+    var tone: String? = nil
+    var instruction: String? = nil
+}
+
+struct AiTagSuggestionsInput: Encodable, Sendable {
+    var title: String
+    var contentMarkdown: String
+    var currentTags: [String]
+    var locale: String
+}
+
+struct AiTagSuggestion: Codable, Equatable, Sendable, Identifiable {
+    var name: String
+    var existing: Bool
+
+    var id: String { name }
+}
+
+struct AiTagSuggestionsResponse: Codable, Equatable, Sendable {
+    var suggestions: [AiTagSuggestion]
+}
+
+enum AiPromptParameterKind: String, Codable, Sendable {
+    case none
+    case targetLanguage = "target-language"
+    case tone
+}
+
+enum AiPromptResultMode: String, Codable, Sendable {
+    case append
+    case replace
+    case both
+}
+
+struct AiPromptTemplate: Codable, Equatable, Sendable, Identifiable {
+    var id: String
+    var origin: String
+    var seedKey: String?
+    var action: AiAction
+    var parameterKind: AiPromptParameterKind
+    var resultMode: AiPromptResultMode
+    var nameCustomized: Bool
+    var descriptionCustomized: Bool
+    var instructionCustomized: Bool
+    var name: String
+    var description: String?
+    var instruction: String
+    var createdAt: String
+    var updatedAt: String
+}
+
+struct AiStreamEvent: Decodable, Sendable {
+    var type: String
+    var text: String?
+    var code: String?
+    var message: String?
+    var finishReason: String?
+    var inputTokens: Int?
+    var outputTokens: Int?
 }
 
 struct Resource: Codable, Equatable, Sendable, Identifiable {
@@ -258,6 +367,10 @@ struct ApiTokensResponse: Codable, Sendable {
 
 struct TagsResponse: Codable, Sendable {
     var tags: [TagSummary]
+}
+
+struct AiPromptsResponse: Codable, Sendable {
+    var prompts: [AiPromptTemplate]
 }
 
 // MARK: - Outbox / drafts domain

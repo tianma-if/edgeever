@@ -62,6 +62,7 @@ afterAll(() => {
 });
 
 const {
+  ApiRequestError,
   DESKTOP_API_BASE_URL_STORAGE_KEY,
   api,
   cacheDesktopSession,
@@ -88,6 +89,15 @@ describe("desktop instance setup", () => {
       ["storage", "https://notes.example.com"],
     ]);
     expect(storage.get(DESKTOP_API_BASE_URL_STORAGE_KEY)).toBe("https://notes.example.com");
+  });
+
+  test("maps the App Review demo alias to the public instance", async () => {
+    calls.length = 0;
+    const saving = saveDesktopApiBaseUrl("demo");
+    await Promise.resolve();
+    expect(calls).toEqual([["bridge:start", "https://demo.edgeever.org"]]);
+    completeSave();
+    await expect(saving).resolves.toBe("https://demo.edgeever.org");
   });
 
   test("clears the cached session when the login form changes instances", async () => {
@@ -314,5 +324,90 @@ describe("desktop instance setup", () => {
       url: "https://notes.example.com/api/v1/sync/bootstrap?limit=200",
       authorization: "Bearer replacement-session-token",
     });
+  });
+
+  test("does not clear a replacement session when an older desktop token is rejected late", async () => {
+    events.length = 0;
+    storage.set(DESKTOP_API_BASE_URL_STORAGE_KEY, "https://notes.example.com");
+    await cacheDesktopSession({
+      authRequired: true,
+      authenticated: true,
+      demoMode: false,
+      sessionToken: "stale-session-token",
+      user: { id: "user-1", username: "admin", displayName: null, role: "owner" },
+    });
+
+    let releaseRequest;
+    globalThis.fetch = async () => {
+      await new Promise((resolve) => {
+        releaseRequest = resolve;
+      });
+      return new Response(JSON.stringify({ error: { code: "unauthorized", message: "Authentication required" } }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      });
+    };
+
+    const staleRequest = api.syncBootstrap({ limit: 200 });
+    await Promise.resolve();
+    await cacheDesktopSession({
+      authRequired: true,
+      authenticated: true,
+      demoMode: false,
+      sessionToken: "current-session-token",
+      user: { id: "user-1", username: "admin", displayName: "Owner", role: "owner" },
+    });
+    releaseRequest();
+
+    await expect(staleRequest).rejects.toMatchObject({ status: 401 });
+    await Promise.resolve();
+    expect(secureSessionToken).toBe("current-session-token");
+    expect(getCachedDesktopSession()).toMatchObject({ authenticated: true, user: { id: "user-1" } });
+    expect(events).toEqual([]);
+  });
+
+  test("preserves Cloudflare response diagnostics for login failures", async () => {
+    globalThis.fetch = async () => new Response("<html>challenge</html>", {
+      status: 403,
+      headers: {
+        "CF-Mitigated": "challenge",
+        "CF-Ray": "abc123-SJC",
+        "Content-Type": "text/html",
+      },
+    });
+
+    try {
+      await api.login({ username: "admin", password: "secret" });
+      throw new Error("Expected login to fail");
+    } catch (error) {
+      expect(error).toBeInstanceOf(ApiRequestError);
+      expect(error).toMatchObject({
+        status: 403,
+        responseDiagnostics: {
+          cloudflareMitigated: true,
+          isEdgeEverApiError: false,
+          rayId: "abc123-SJC",
+        },
+      });
+    }
+  });
+
+  test("sends the disabled-by-default AI streaming preference and honors opt-in", async () => {
+    const requestBodies = [];
+    globalThis.fetch = async (_url, init) => {
+      requestBodies.push(JSON.parse(String(init?.body)));
+      return new Response('data: {"type":"finish"}\n\n', {
+        headers: { "Content-Type": "text/event-stream" },
+      });
+    };
+    const payload = { action: "summarize", title: "Note", contentMarkdown: "Body" };
+
+    storage.delete("edgeever.aiStreamingEnabled");
+    await api.streamAiGeneration(payload, { onEvent: () => {} });
+    storage.set("edgeever.aiStreamingEnabled", "true");
+    await api.streamAiGeneration(payload, { onEvent: () => {} });
+    await api.streamAiGeneration({ ...payload, stream: false }, { onEvent: () => {} });
+
+    expect(requestBodies.map((body) => body.stream)).toEqual([false, true, false]);
   });
 });

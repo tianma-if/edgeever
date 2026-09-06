@@ -16,13 +16,15 @@
    bun run deploy:manual
    ```
 
-`deploy:setup` 会创建或复用 D1、R2，并将配置写入被 Git 忽略的 `.env.local`。不设置 `EDGE_EVER_PASSWORD` 时，默认登录为 `admin` / `admin123`。
+`deploy:setup` 会创建或复用 D1、R2，并将配置写入被 Git 忽略的 `.env.local`。新部署必须提供 `EDGE_EVER_PASSWORD`，生产环境不存在默认密码。
+
+使用本地 CLI 部署时，可在 `.env.local` 中设置 `EDGE_EVER_DEPLOYMENT_URL=https://<你的 Worker 域名>`，让部署验证同时请求线上的 `/api/health`；CI 部署会自动从 Wrangler 输出中识别公网地址。未显式配置地址时，本地验证仍会检查远端 D1 schema 和 Worker Secret，并明确提示已跳过线上健康检查。
 
 部署完成后，确认：
 
 - `/api/health` 返回 `200` 和 `"ok": true`
 - `/api/openapi.json` 可以访问
-- `admin` 可以登录
+- `admin` 可以使用通过 `EDGE_EVER_PASSWORD` 提供的密码登录
 
 ## 手动创建资源
 
@@ -60,13 +62,10 @@ bun run deploy:manual
 
 ## 启用第三方 OSS 设置
 
-如需在**设置 → 高级设置**中配置兼容 S3 API 的对象存储，请先给已部署的 Worker 添加一个稳定的加密 Secret：
-
-```sh
-bunx wrangler secret put EDGE_EVER_STORAGE_ENCRYPTION_KEY
-```
-
-请使用至少 32 个字符的随机值并安全备份。EdgeEver 会先加密外部 Secret Access Key，再将其保存到 D1。丢失或更换这个加密密钥会导致之前保存的外部凭据无法使用。添加 Secret 后重新部署或重启 Worker，然后先使用“测试连接”，再保存 OSS 配置。
+在**设置 → 高级设置**中配置兼容 S3 API 的对象存储，并在保存前使用“测试连接”。
+EdgeEver 会使用从现有实例认证 Secret 派生的专用密钥加密外部 Secret Access Key，
+再将其保存到 D1，无需增加其他加密变量。请保持实例认证 Secret 稳定并安全备份；
+丢失或更换它会导致已保存的外部凭据无法使用。
 
 ## 故障恢复
 

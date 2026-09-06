@@ -119,7 +119,7 @@ sqlite.run(
    )`
 );
 sqlite.run(
-  `INSERT INTO memos_fts (memo_id, title, content_text, tags)
+  `INSERT INTO memo_search_documents (memo_id, title, content_text, tags)
    VALUES ('memo_bug', 'Bug Memo', 'Bug', '')`
 );
 

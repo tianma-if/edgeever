@@ -28,6 +28,37 @@ final class MobileUIParityTests: XCTestCase {
         XCTAssertEqual(multi, ["a", "b"])
     }
 
+    func testMemoListTimestampMatchesSortMode() {
+        let memo = MemoSummary(
+            id: "memo",
+            notebookId: "notebook",
+            title: "Imported",
+            excerpt: "",
+            tags: [],
+            isPinned: false,
+            isArchived: false,
+            isDeleted: false,
+            revision: 0,
+            createdAt: "2010-08-30T02:00:00.000Z",
+            updatedAt: "2026-08-25T01:59:00.000Z",
+            deletedAt: nil
+        )
+
+        XCTAssertEqual(MemoListTimestampField.resolve(for: .createdDesc).value(from: memo), memo.createdAt)
+        XCTAssertEqual(MemoListTimestampField.resolve(for: .updatedDesc).value(from: memo), memo.updatedAt)
+        XCTAssertEqual(MemoListTimestampField.resolve(for: .titleAsc).value(from: memo), memo.updatedAt)
+    }
+
+    func testMemoDetailDateIncludesHistoricalYear() {
+        let value = MemoDetailDate.format(
+            "2010-08-30T12:34:00.000Z",
+            locale: Locale(identifier: "en_US"),
+            timeZone: TimeZone(secondsFromGMT: 0)!
+        )
+        XCTAssertTrue(value.contains("2010"))
+        XCTAssertEqual(MemoDetailDate.format("not-a-date"), "")
+    }
+
     func testNotebookDescendantsMatchTree() {
         let notebooks = [
             makeNotebook(id: "root", parent: nil, name: "Root", order: 0),

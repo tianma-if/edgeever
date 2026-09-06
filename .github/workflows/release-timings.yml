@@ -1,0 +1,278 @@
+name: Report Release build timings
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Formal vX.Y.Z Release"
+        required: true
+        type: string
+      release_sha:
+        description: "Release commit SHA"
+        required: true
+        type: string
+      issue_number:
+        description: "Related Issue receiving the timing report"
+        required: true
+        type: string
+      desktop_run_id:
+        description: "Draft desktop preparation Run ID"
+        required: true
+        type: string
+      desktop_mode:
+        description: "Desktop release plan"
+        required: true
+        type: choice
+        options: [rebuild, reuse]
+      mobile_run_id:
+        description: "Draft Android preparation Run ID"
+        required: true
+        type: string
+      mobile_mode:
+        description: "Android release plan"
+        required: true
+        type: choice
+        options: [rebuild, reuse]
+      docker_run_id:
+        description: "Draft GHCR preparation Run ID"
+        required: true
+        type: string
+      store_run_id:
+        description: "Google Play delivery Run ID when Android was rebuilt"
+        required: false
+        type: string
+      attempt_run_ids:
+        description: "Comma-separated Draft workflow Run IDs across every release attempt"
+        required: false
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+  issues: write
+
+concurrency:
+  group: release-build-timings-${{ inputs.release_tag }}
+  cancel-in-progress: false
+
+jobs:
+  report:
+    if: github.repository == 'tianma-if/edgeever'
+    name: Collect all Release endpoint timings
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TCR_IMAGE: ccr.ccs.tencentyun.com/edgeever/edgeever
+
+    steps:
+      - name: Check out timing reporter
+        uses: actions/checkout@v5
+
+      - name: Resolve Release and post-publication workflow runs
+        id: release
+        env:
+          RELEASE_SHA: ${{ inputs.release_sha }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          release_json="$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isDraft,isPrerelease,publishedAt,targetCommitish,url)"
+          test "$(jq -r '.isDraft' <<<"$release_json")" = "false"
+          test "$(jq -r '.isPrerelease' <<<"$release_json")" = "false"
+          test "$(jq -r '.targetCommitish' <<<"$release_json")" = "$RELEASE_SHA"
+
+          find_release_run() {
+            local workflow="$1"
+            local deadline=$((SECONDS + 120))
+            while ((SECONDS < deadline)); do
+              run_id="$(
+                gh run list \
+                  --repo "$GITHUB_REPOSITORY" \
+                  --workflow "$workflow" \
+                  --event release \
+                  --limit 20 \
+                  --json databaseId,displayTitle,headSha \
+                  --jq ".[] | select(.displayTitle == \"$RELEASE_TAG\" and .headSha == \"$RELEASE_SHA\") | .databaseId" |
+                  head -n 1
+              )"
+              if [[ -n "$run_id" ]]; then
+                printf '%s' "$run_id"
+                return 0
+              fi
+              sleep 5
+            done
+            return 1
+          }
+
+          demo_run_id="$(find_release_run deploy-demo.yml)"
+          tcr_run_id="$(find_release_run docker-tcr-mirror.yml)"
+          {
+            echo "published_at=$(jq -r '.publishedAt' <<<"$release_json")"
+            echo "release_url=$(jq -r '.url' <<<"$release_json")"
+            echo "demo_run_id=$demo_run_id"
+            echo "tcr_run_id=$tcr_run_id"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Wait for Cloudflare deployment and TCR source sync
+        id: post_release
+        env:
+          DEMO_RUN_ID: ${{ steps.release.outputs.demo_run_id }}
+          TCR_RUN_ID: ${{ steps.release.outputs.tcr_run_id }}
+        run: |
+          wait_for_run() {
+            local run_id="$1"
+            while true; do
+              run_json="$(gh run view "$run_id" --repo "$GITHUB_REPOSITORY" --json status,conclusion,url)"
+              status="$(jq -r '.status' <<<"$run_json")"
+              if [[ "$status" = "completed" ]]; then
+                jq -r '.conclusion' <<<"$run_json"
+                return 0
+              fi
+              sleep 10
+            done
+          }
+
+          echo "demo_conclusion=$(wait_for_run "$DEMO_RUN_ID")" >> "$GITHUB_OUTPUT"
+          echo "tcr_source_conclusion=$(wait_for_run "$TCR_RUN_ID")" >> "$GITHUB_OUTPUT"
+
+      - name: Observe public TCR Release readiness
+        id: tcr
+        env:
+          RELEASE_SHA: ${{ inputs.release_sha }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          SOURCE_CONCLUSION: ${{ steps.post_release.outputs.tcr_source_conclusion }}
+        run: |
+          status="failure"
+          ready_at=""
+          if [[ "$SOURCE_CONCLUSION" = "success" ]]; then
+            for attempt in $(seq 1 180); do
+              if raw_manifest="$(docker buildx imagetools inspect --raw "${TCR_IMAGE}:${RELEASE_TAG}" 2>/dev/null)" &&
+                jq -e '([.manifests[].platform.architecture] | index("amd64") != null) and ([.manifests[].platform.architecture] | index("arm64") != null)' <<<"$raw_manifest" >/dev/null; then
+                metadata="$(docker buildx imagetools inspect "${TCR_IMAGE}:${RELEASE_TAG}" --format '{{json .Image}}' 2>/dev/null || true)"
+                if jq -e --arg revision "$RELEASE_SHA" 'length >= 2 and all(.[]; .config.Labels["org.opencontainers.image.revision"] == $revision)' <<<"$metadata" >/dev/null 2>&1; then
+                  status="success"
+                  ready_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+                  break
+                fi
+              fi
+              sleep 15
+            done
+            if [[ "$status" != "success" ]]; then
+              status="timeout"
+            fi
+          fi
+          {
+            echo "status=$status"
+            echo "ready_at=$ready_at"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Download exact Actions timing data
+        env:
+          DEMO_RUN_ID: ${{ steps.release.outputs.demo_run_id }}
+          DESKTOP_RUN_ID: ${{ inputs.desktop_run_id }}
+          DOCKER_RUN_ID: ${{ inputs.docker_run_id }}
+          MOBILE_RUN_ID: ${{ inputs.mobile_run_id }}
+          STORE_RUN_ID: ${{ inputs.store_run_id }}
+          ATTEMPT_RUN_IDS: ${{ inputs.attempt_run_ids }}
+          TCR_RUN_ID: ${{ steps.release.outputs.tcr_run_id }}
+        run: |
+          collect_run() {
+            local name="$1"
+            local run_id="$2"
+            gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}" > "$RUNNER_TEMP/${name}-run.json"
+            gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/jobs?filter=latest&per_page=100" > "$RUNNER_TEMP/${name}-jobs.json"
+            jq -s '{run: .[0], jobs: .[1].jobs}' \
+              "$RUNNER_TEMP/${name}-run.json" \
+              "$RUNNER_TEMP/${name}-jobs.json" \
+              > "$RUNNER_TEMP/${name}.json"
+          }
+
+          collect_run desktop "$DESKTOP_RUN_ID"
+          collect_run mobile "$MOBILE_RUN_ID"
+          collect_run docker "$DOCKER_RUN_ID"
+          if [[ -n "$STORE_RUN_ID" ]]; then
+            collect_run store "$STORE_RUN_ID"
+          fi
+          collect_run cloudflare "$DEMO_RUN_ID"
+          collect_run tcr-source "$TCR_RUN_ID"
+
+          mkdir -p "$RUNNER_TEMP/attempts"
+          attempt_files=()
+          IFS=',' read -ra attempt_run_ids <<<"$ATTEMPT_RUN_IDS"
+          for run_id in "${attempt_run_ids[@]}"; do
+            [[ -z "$run_id" ]] && continue
+            [[ "$run_id" =~ ^[0-9]+$ ]]
+            gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}" > "$RUNNER_TEMP/attempts/${run_id}-run.json"
+            gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/jobs?filter=latest&per_page=100" > "$RUNNER_TEMP/attempts/${run_id}-jobs.json"
+            jq -s '{run: .[0], jobs: .[1].jobs}' \
+              "$RUNNER_TEMP/attempts/${run_id}-run.json" \
+              "$RUNNER_TEMP/attempts/${run_id}-jobs.json" \
+              > "$RUNNER_TEMP/attempts/${run_id}.json"
+            attempt_files+=("$RUNNER_TEMP/attempts/${run_id}.json")
+          done
+          if (( ${#attempt_files[@]} > 0 )); then
+            jq -s 'unique_by(.run.id)' "${attempt_files[@]}" > "$RUNNER_TEMP/attempts.json"
+          else
+            printf '[]\n' > "$RUNNER_TEMP/attempts.json"
+          fi
+
+      - name: Generate unified Release timing report
+        env:
+          RELEASE_URL: ${{ steps.release.outputs.release_url }}
+          TCR_READY_AT: ${{ steps.tcr.outputs.ready_at }}
+          TCR_STATUS: ${{ steps.tcr.outputs.status }}
+        run: |
+          store_args=()
+          if [[ -f "$RUNNER_TEMP/store.json" ]]; then
+            store_args=(--store "$RUNNER_TEMP/store.json")
+          fi
+          node scripts/report-release-timings.mjs \
+            --tag "${{ inputs.release_tag }}" \
+            --sha "${{ inputs.release_sha }}" \
+            --published-at "${{ steps.release.outputs.published_at }}" \
+            --release-url "$RELEASE_URL" \
+            --desktop "$RUNNER_TEMP/desktop.json" \
+            --desktop-mode "${{ inputs.desktop_mode }}" \
+            --mobile "$RUNNER_TEMP/mobile.json" \
+            --mobile-mode "${{ inputs.mobile_mode }}" \
+            --docker "$RUNNER_TEMP/docker.json" \
+            "${store_args[@]}" \
+            --attempts "$RUNNER_TEMP/attempts.json" \
+            --cloudflare "$RUNNER_TEMP/cloudflare.json" \
+            --tcr-source "$RUNNER_TEMP/tcr-source.json" \
+            --tcr-ready-at "$TCR_READY_AT" \
+            --tcr-status "$TCR_STATUS" \
+            --json "$RUNNER_TEMP/release-build-timings.json" \
+            --markdown "$RUNNER_TEMP/release-build-timings.md"
+          cat "$RUNNER_TEMP/release-build-timings.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Return timing report to the related Issue
+        env:
+          ISSUE_NUMBER: ${{ inputs.issue_number }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          marker="<!-- edgeever-release-build-timings:${RELEASE_TAG} -->"
+          comment_file="$RUNNER_TEMP/release-build-timings-comment.md"
+          printf '%s\n\n' "$marker" > "$comment_file"
+          cat "$RUNNER_TEMP/release-build-timings.md" >> "$comment_file"
+          comment_id="$(
+            gh api "repos/${GITHUB_REPOSITORY}/issues/${ISSUE_NUMBER}/comments?per_page=100" \
+              --paginate \
+              --jq ".[] | select(.body | startswith(\"$marker\")) | .id" |
+              head -n 1
+          )"
+          if [[ -n "$comment_id" ]]; then
+            jq -n --rawfile body "$comment_file" '{body: $body}' |
+              gh api --method PATCH "repos/${GITHUB_REPOSITORY}/issues/comments/${comment_id}" --input - >/dev/null
+          else
+            gh issue comment "$ISSUE_NUMBER" \
+              --repo "$GITHUB_REPOSITORY" \
+              --body-file "$comment_file"
+          fi
+
+      - name: Upload machine-readable Release timing report
+        uses: actions/upload-artifact@v7
+        with:
+          name: edgeever-${{ inputs.release_tag }}-build-timings
+          path: ${{ runner.temp }}/release-build-timings.json
+          if-no-files-found: error
+          retention-days: 90

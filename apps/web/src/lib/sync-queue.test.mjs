@@ -30,6 +30,75 @@ afterEach(async () => {
 });
 
 describe("web sync conflict recovery", () => {
+  test("preserves a newer draft written while a memo update is in flight", async () => {
+    const previousOnline = globalThis.navigator?.onLine;
+    if (globalThis.navigator) Object.defineProperty(globalThis.navigator, "onLine", { configurable: true, value: true });
+    const scope = createLocalDataScope("https://demo.edgeever.org", "user-1");
+    const createdMemo = await createLocalMemo(scope, { notebookId: "inbox" });
+    const remoteMemo = {
+      ...createdMemo,
+      id: "memo-draft-in-flight",
+      revision: 1,
+      contentHash: "hash-1",
+    };
+    const syncedContent = { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "synced snapshot" }] }] };
+    const newerContent = { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "still typing" }] }] };
+    await putLocalMemo(scope, remoteMemo);
+    await queueMemoUpdate({
+      memoId: remoteMemo.id,
+      expectedRevision: 1,
+      expectedContentHash: "hash-1",
+      editSessionId: "edit-a",
+      title: "Synced snapshot",
+      contentJson: syncedContent,
+      tags: [],
+    }, scope);
+
+    let updateStarted;
+    let releaseUpdate;
+    const updateStartedPromise = new Promise((resolve) => { updateStarted = resolve; });
+    const releaseUpdatePromise = new Promise((resolve) => { releaseUpdate = resolve; });
+    const original = {
+      createMemoEditSession: api.createMemoEditSession,
+      updateMemo: api.updateMemo,
+    };
+    api.createMemoEditSession = async () => ({ editSession: { id: "fresh-edit", baseRevision: 1, baseContentHash: "hash-1" } });
+    api.updateMemo = async (_memoId, payload) => {
+      updateStarted();
+      await releaseUpdatePromise;
+      return { memo: { ...remoteMemo, ...payload, revision: 2, contentHash: "hash-2" } };
+    };
+
+    try {
+      const callbackOrder = [];
+      const syncing = syncQueuedChanges({
+        scope,
+        onMemoAcknowledged: () => callbackOrder.push("acknowledged"),
+        onSynced: () => callbackOrder.push("synced"),
+      });
+      await updateStartedPromise;
+      await localDb.drafts.put({
+        memoId: remoteMemo.id,
+        title: "Still typing",
+        tagsText: "",
+        contentJson: newerContent,
+        updatedAt: "2099-01-01T00:00:00.000Z",
+      });
+      releaseUpdate();
+
+      expect(await syncing).toMatchObject({ synced: 1, conflicted: 0 });
+      expect(callbackOrder).toEqual(["acknowledged", "synced"]);
+      expect(await localDb.drafts.get(remoteMemo.id)).toMatchObject({
+        title: "Still typing",
+        contentJson: newerContent,
+      });
+    } finally {
+      api.createMemoEditSession = original.createMemoEditSession;
+      api.updateMemo = original.updateMemo;
+      if (globalThis.navigator) Object.defineProperty(globalThis.navigator, "onLine", { configurable: true, value: previousOnline });
+    }
+  });
+
   test("preserves a draft written while a new memo create request is in flight", async () => {
     const previousOnline = globalThis.navigator?.onLine;
     if (globalThis.navigator) Object.defineProperty(globalThis.navigator, "onLine", { configurable: true, value: true });

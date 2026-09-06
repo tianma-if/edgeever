@@ -1,0 +1,61 @@
+name: Sync Docker installer mirror
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/site/public/install.sh"
+      - "apps/site/public/compose.yaml"
+      - ".github/workflows/sync-docker-installer.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    if: github.repository == 'tianma-if/edgeever'
+    name: Publish Tencent COS mirror
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install Tencent COSCMD
+        run: |
+          python3 -m venv "${RUNNER_TEMP}/coscmd"
+          "${RUNNER_TEMP}/coscmd/bin/pip" install --disable-pip-version-check 'coscmd==1.9.0.6'
+          echo "${RUNNER_TEMP}/coscmd/bin" >> "${GITHUB_PATH}"
+
+      - name: Configure COSCMD
+        env:
+          COS_BUCKET: ${{ vars.TENCENT_COS_INSTALLER_BUCKET }}
+          COS_REGION: ${{ vars.TENCENT_COS_INSTALLER_REGION }}
+          COS_SECRET_ID: ${{ secrets.TENCENT_COS_INSTALLER_SECRET_ID }}
+          COS_SECRET_KEY: ${{ secrets.TENCENT_COS_INSTALLER_SECRET_KEY }}
+        run: |
+          test -n "${COS_BUCKET}"
+          test -n "${COS_REGION}"
+          test -n "${COS_SECRET_ID}"
+          test -n "${COS_SECRET_KEY}"
+          coscmd config \
+            -a "${COS_SECRET_ID}" \
+            -s "${COS_SECRET_KEY}" \
+            -b "${COS_BUCKET}" \
+            -r "${COS_REGION}"
+
+      - name: Upload installer files
+        run: |
+          coscmd upload -f apps/site/public/install.sh install.sh
+          coscmd upload -f apps/site/public/compose.yaml compose.yaml
+
+      - name: Verify public mirror
+        env:
+          COS_BUCKET: ${{ vars.TENCENT_COS_INSTALLER_BUCKET }}
+          COS_REGION: ${{ vars.TENCENT_COS_INSTALLER_REGION }}
+        run: |
+          base_url="https://${COS_BUCKET}.cos.${COS_REGION}.myqcloud.com"
+          curl --fail --silent --show-error "${base_url}/install.sh" | cmp apps/site/public/install.sh -
+          curl --fail --silent --show-error "${base_url}/compose.yaml" | cmp apps/site/public/compose.yaml -

@@ -60,4 +60,23 @@ const answer = 42;
     expect(doc.content.map((node) => node.type)).toEqual(["codeBlock", "image"]);
     expect(docToMarkdown(doc)).toBe(markdown);
   });
+
+  test("parses and serializes inline and block LaTeX", () => {
+    const markdown = `Euler: $e^{i\\pi}+1=0$.
+
+$$
+\\frac{a}{b}
+$$`;
+
+    const doc = markdownToDoc(markdown);
+    expect(doc.content[0]?.content?.[1]).toMatchObject({
+      type: "inlineMath",
+      attrs: { latex: "e^{i\\pi}+1=0" },
+    });
+    expect(doc.content[1]).toMatchObject({
+      type: "blockMath",
+      attrs: { latex: "\\frac{a}{b}" },
+    });
+    expect(docToMarkdown(doc)).toBe(markdown);
+  });
 });

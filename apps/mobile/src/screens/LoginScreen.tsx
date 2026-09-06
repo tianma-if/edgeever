@@ -1,6 +1,5 @@
 import { useState } from "react";
 import {
-  ActivityIndicator,
   KeyboardAvoidingView,
   Linking,
   Platform,
@@ -8,9 +7,12 @@ import {
   StyleSheet,
   View,
 } from "react-native";
+import { PUBLIC_DEMO_INSTANCE_URL } from "@edgeever/shared";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ExternalLink, LockKeyhole } from "../components/icons";
+import { ActivityIndicator, GitHub, LockKeyhole } from "../components/icons";
 import { Pressable, Text, TextInput } from "../components/LocalizedText";
+import { formatMobileLoginError } from "../lib/login-error";
+import { useMobileLocale } from "../lib/mobile-locale";
 import { resolveMobileThemeStyles, useMobileTheme, type MobileResolvedTheme } from "../lib/mobile-theme";
 import { useSession } from "../lib/session";
 
@@ -18,6 +20,7 @@ const GITHUB_REPOSITORY_URL = "https://github.com/tianma-if/edgeever";
 
 export const LoginScreen = () => {
   const { resolvedTheme } = useMobileTheme();
+  const { resolvedLocale } = useMobileLocale();
   refreshLoginThemeStyles(resolvedTheme);
   const { signIn } = useSession();
   const [baseUrl, setBaseUrl] = useState("");
@@ -39,7 +42,7 @@ export const LoginScreen = () => {
     try {
       await signIn({ baseUrl, username, password });
     } catch (signInError) {
-      setError(signInError instanceof Error ? signInError.message : "登录失败");
+      setError(formatMobileLoginError(signInError, resolvedLocale));
     } finally {
       setSubmitting(false);
     }
@@ -48,7 +51,7 @@ export const LoginScreen = () => {
   return (
     <SafeAreaView style={styles.safeArea}>
       <Pressable accessibilityLabel="GitHub 仓库" accessibilityRole="link" onPress={() => Linking.openURL(GITHUB_REPOSITORY_URL)} style={styles.githubButton}>
-        <ExternalLink color="#475569" size={20} />
+        <GitHub color="#475569" size={20} />
       </Pressable>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.keyboard}>
         <ScrollView
@@ -73,7 +76,7 @@ export const LoginScreen = () => {
                 autoCorrect={false}
                 keyboardType="url"
                 onChangeText={setBaseUrl}
-                placeholder="https://notes.example.com"
+                placeholder={PUBLIC_DEMO_INSTANCE_URL}
                 placeholderTextColor="#94a3b8"
                 style={styles.input}
                 value={baseUrl}

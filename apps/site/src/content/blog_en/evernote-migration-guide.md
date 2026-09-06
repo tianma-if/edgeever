@@ -1,7 +1,7 @@
 ---
 draft: false
-title: "Guide to migrating from Evernote to EdgeEver"
-snippet: "Migrate notes you own into a self-hosted EdgeEver instance with EdgeEver MCP, evernote-backup, and the ENEX import script."
+title: "How to migrate from Evernote to a self-hosted notes app: EdgeEver ENEX guide"
+snippet: "Use ENEX, evernote-backup, and EdgeEver MCP to preserve notes, attachments, timestamps, and nested notebooks."
 image: {
     src: "/images/evernote-migration.jpg",
     alt: "Migrating from Evernote to EdgeEver"

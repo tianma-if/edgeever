@@ -14,6 +14,7 @@ import {
 import { zValidator } from "@hono/zod-validator";
 import type { Hono } from "hono";
 import type { AppEnv } from "./api-context";
+import { AppError } from "./app-error";
 import { isoNow, parseJsonArray } from "./entity-utils";
 import { apiError, badRequest, conflict, notFound } from "./http-errors";
 import { resolveObjectStorage } from "./object-storage";
@@ -26,6 +27,7 @@ import {
 } from "./resource-service";
 import { getWorkspaceId, requireScopes, requireUser } from "./request-auth";
 import type { DatabaseAdapter } from "./storage-contract";
+import type { initiateResourceRestoreUpload as initiateResourceRestoreUploadService } from "./resource-upload-service";
 
 export type BackupMemoDetailRow = {
   id: string;
@@ -82,7 +84,10 @@ type BackupRouteDependencies = {
     notebooks: JsonBackupNotebook[],
   ) => Promise<void>;
   sha256Bytes: (bytes: Uint8Array) => Promise<string>;
+  initiateResourceRestoreUpload: typeof initiateResourceRestoreUploadService;
 };
+
+const MAX_LEGACY_RESTORE_BYTES = 100 * 1024 * 1024;
 
 const parseRevisionDoc = (json: string): TiptapDoc => {
   try {
@@ -243,9 +248,37 @@ export const registerBackupRoutes = (
     },
   );
 
+  app.post("/api/v1/restores/json/resources/:id/uploads", async (context) => {
+    const denied = requireUser(context);
+    if (denied) return denied;
+    const metadata = await context.req.json().catch(() => null);
+    if (!metadata || typeof metadata !== "object" || (metadata as { id?: unknown }).id !== context.req.param("id")) {
+      return badRequest(context, "Restore resource metadata is invalid.");
+    }
+    try {
+      const upload = await dependencies.initiateResourceRestoreUpload(context, metadata);
+      return context.json({ upload }, 201);
+    } catch (error) {
+      if (error instanceof AppError) {
+        return apiError(context, error.code, error.message, error.status);
+      }
+      throw error;
+    }
+  });
+
   app.put("/api/v1/restores/json/resources/:id", async (context) => {
     const denied = requireUser(context);
     if (denied) return denied;
+
+    const declaredRequestBytes = Number(context.req.header("Content-Length"));
+    if (Number.isFinite(declaredRequestBytes) && declaredRequestBytes > MAX_LEGACY_RESTORE_BYTES + 1024 * 1024) {
+      return apiError(
+        context,
+        "multipart_upload_required",
+        "Backup resources larger than 100 MiB must use the resumable restore API.",
+        413,
+      );
+    }
 
     const form = await context.req.raw.formData();
     const file = form.get("file");
@@ -273,7 +306,7 @@ export const registerBackupRoutes = (
     }
 
     const maxBytes = metadata.kind === "image" ? MAX_IMAGE_UPLOAD_BYTES : MAX_ATTACHMENT_UPLOAD_BYTES;
-    if (file.size <= 0 || file.size > maxBytes) {
+    if (file.size <= 0 || file.size > Math.min(maxBytes, MAX_LEGACY_RESTORE_BYTES)) {
       return apiError(context, "upload_too_large", "Backup resource size is invalid.", 413);
     }
 

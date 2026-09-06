@@ -3,6 +3,9 @@ import { Command as CommandPrimitive } from "cmdk";
 import { Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+const COMMAND_ITEM_STRONG_SELECTED_CLASS_NAME =
+  "border-l-[3px] border-l-transparent data-[selected=true]:border-l-slate-500 data-[selected=true]:bg-slate-100 data-[selected=true]:text-slate-950 data-[selected=true]:shadow-[inset_0_0_0_1px_rgb(203_213_225)] data-[selected=true]:[&_svg]:text-slate-700";
+
 const Command = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive>,
   React.ComponentPropsWithoutRef<typeof CommandPrimitive>
@@ -108,4 +111,5 @@ export {
   CommandItem,
   CommandSeparator,
   CommandShortcut,
+  COMMAND_ITEM_STRONG_SELECTED_CLASS_NAME,
 };

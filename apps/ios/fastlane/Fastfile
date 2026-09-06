@@ -7,6 +7,10 @@ platform :ios do
   lane :submit_review do
     version = ENV.fetch("APP_STORE_VERSION")
     build_number = ENV.fetch("APP_STORE_BUILD_NUMBER")
+    release_notes = {
+      "zh-Hans" => ENV.fetch("APP_STORE_RELEASE_NOTES_ZH"),
+      "en-US" => ENV.fetch("APP_STORE_RELEASE_NOTES_EN")
+    }
 
     api_key = app_store_connect_api_key(
       key_id: ENV.fetch("APP_STORE_CONNECT_API_KEY_ID"),
@@ -26,8 +30,9 @@ platform :ios do
       phased_release: false,
       force: true,
       skip_binary_upload: true,
-      skip_metadata: true,
+      skip_metadata: false,
       skip_screenshots: true,
+      release_notes: release_notes,
       run_precheck_before_submit: false,
       precheck_include_in_app_purchases: false
     )

@@ -1,6 +1,6 @@
 import type { createEdgeEverClient } from "@edgeever/client";
 import { clearMobileMemoDraft } from "./mobile-drafts";
-import { deleteLocalMemo, resolveLocalMemo, softDeleteLocalMemo } from "./local-mirror";
+import { deleteLocalMemo, resolveLocalMemo, softDeleteLocalMemo, upsertLocalMemo } from "./local-mirror";
 import { cancelMobileMemoQueueItems, listMobileSyncQueueItems } from "./sync-queue";
 
 type MobileClient = ReturnType<typeof createEdgeEverClient>;
@@ -67,21 +67,26 @@ export const deleteMobileMemos = async ({
     if (!client) {
       throw new Error("当前无法连接实例，请稍后重试");
     }
-    if (uniqueRemoteIds.length === 1) {
-      await client.deleteMemo(uniqueRemoteIds[0]!, { permanent });
-    } else {
-      await client.deleteMemos({ memoIds: uniqueRemoteIds, permanent });
-    }
-    await Promise.all(
-      uniqueRemoteIds.map(async (memoId) => {
-        if (permanent) {
-          await deleteLocalMemo(dataScope, memoId);
-        } else {
-          await softDeleteLocalMemo(dataScope, memoId);
-        }
-        await clearMobileMemoDraft(memoId);
-      })
+    const originalMemos = new Map(
+      (await Promise.all(uniqueRemoteIds.map(async (memoId) => [memoId, await resolveLocalMemo(dataScope, memoId)] as const)))
+        .filter((entry): entry is readonly [string, NonNullable<typeof entry[1]>] => Boolean(entry[1]))
     );
+    await Promise.all(
+      uniqueRemoteIds.map((memoId) => permanent
+        ? deleteLocalMemo(dataScope, memoId)
+        : softDeleteLocalMemo(dataScope, memoId))
+    );
+    try {
+      if (uniqueRemoteIds.length === 1) {
+        await client.deleteMemo(uniqueRemoteIds[0]!, { permanent });
+      } else {
+        await client.deleteMemos({ memoIds: uniqueRemoteIds, permanent });
+      }
+    } catch (error) {
+      await Promise.all(Array.from(originalMemos.values()).map((memo) => upsertLocalMemo(dataScope, memo)));
+      throw error;
+    }
+    await Promise.all(uniqueRemoteIds.map((memoId) => clearMobileMemoDraft(memoId)));
   }
 
   return {

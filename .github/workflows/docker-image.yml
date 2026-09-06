@@ -1,0 +1,222 @@
+name: Build and publish Docker image
+
+on:
+  pull_request:
+    paths:
+      - "apps/api/**"
+      - "apps/web/**"
+      - "packages/**"
+      - "docs/**"
+      - "scripts/self-hosted-*.mjs"
+      - "migrations/**"
+      - "patches/**"
+      - "Dockerfile"
+      - ".dockerignore"
+      - "compose.yaml"
+      - "bunfig.toml"
+      - "package.json"
+      - "bun.lock"
+      - "tailwind.config.ts"
+      - "tsconfig.json"
+      - ".github/workflows/docker-image.yml"
+      - ".github/workflows/docker-tcr-mirror.yml"
+      - ".cnb.yml"
+      - "scripts/publish-tcr-image.sh"
+      - "scripts/prune-tcr-sha-tags.mjs"
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/api/**"
+      - "apps/web/**"
+      - "packages/**"
+      - "docs/**"
+      - "scripts/self-hosted-*.mjs"
+      - "migrations/**"
+      - "patches/**"
+      - "Dockerfile"
+      - ".dockerignore"
+      - "compose.yaml"
+      - "bunfig.toml"
+      - "package.json"
+      - "bun.lock"
+      - "tailwind.config.ts"
+      - "tsconfig.json"
+      - ".github/workflows/docker-image.yml"
+      - ".github/workflows/docker-tcr-mirror.yml"
+      - ".cnb.yml"
+      - "scripts/publish-tcr-image.sh"
+      - "scripts/prune-tcr-sha-tags.mjs"
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Draft release tag to publish (for example v1.33.0); leave empty for main"
+        required: false
+        type: string
+  release:
+    types:
+      - published
+
+permissions:
+  contents: read
+
+env:
+  GHCR_IMAGE_NAME: ghcr.io/tianma-if/edgeever
+
+jobs:
+  container-test:
+    if: github.repository == 'tianma-if/edgeever' && github.event_name != 'release'
+    name: Build and verify container
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Build local image
+        run: docker build --build-arg EDGE_EVER_BUILD_ID="${GITHUB_SHA}" --tag edgeever:ci .
+
+      - name: Start container
+        run: |
+          docker run --detach --name edgeever-ci \
+            --env EDGE_EVER_AUTH_PASSWORD=container-ci-password \
+            --publish 127.0.0.1:8787:8787 \
+            edgeever:ci
+
+      - name: Verify shared API and persistent storage
+        run: |
+          for attempt in $(seq 1 60); do
+            if health="$(curl --fail --silent --show-error http://127.0.0.1:8787/api/health)"; then
+              break
+            fi
+            sleep 1
+          done
+          echo "${health}" | jq -e '.ok == true and .runtime == "self-hosted-bun" and .authMode == "required"'
+          docker exec edgeever-ci test -f /data/edgeever.sqlite
+          docker exec edgeever-ci test -d /data/resources
+
+      - name: Stop container gracefully
+        run: |
+          docker stop --timeout 30 edgeever-ci
+          docker logs edgeever-ci | grep -F '[self-hosted] shutdown complete'
+
+      - name: Show container logs on failure
+        if: failure()
+        run: docker logs edgeever-ci || true
+
+  publish:
+    if: >-
+      github.repository == 'tianma-if/edgeever' &&
+      github.event_name != 'pull_request' &&
+      github.event_name != 'release'
+    needs: container-test
+    name: Publish official multi-platform image
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Resolve image tags
+        id: image
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          if [[ -n "${RELEASE_TAG}" ]]; then
+            if [[ ! "${RELEASE_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "release_tag must match vX.Y.Z" >&2
+              exit 1
+            fi
+            release_json="$(gh release view "${RELEASE_TAG}" --repo "${GITHUB_REPOSITORY}" --json isDraft,isPrerelease,targetCommitish)"
+            if [[ "$(jq -r '.isDraft' <<<"${release_json}")" != "true" ]] || [[ "$(jq -r '.isPrerelease' <<<"${release_json}")" != "false" ]]; then
+              echo "${RELEASE_TAG} must identify a non-prerelease Draft release" >&2
+              exit 1
+            fi
+            version="${RELEASE_TAG#v}"
+            expected_version="$(jq -r '.version' package.json)"
+            target_commitish="$(jq -r '.targetCommitish' <<<"${release_json}")"
+            if [[ "${version}" != "${expected_version}" ]] || [[ "${target_commitish}" != "${GITHUB_SHA}" ]]; then
+              echo "Draft tag, package version, target commit, and workflow commit must match" >&2
+              exit 1
+            fi
+            {
+              echo "tags<<EOF"
+              echo "${GHCR_IMAGE_NAME}:${RELEASE_TAG}"
+              echo "${GHCR_IMAGE_NAME}:${version}"
+              echo "${GHCR_IMAGE_NAME}:latest"
+              echo "EOF"
+              echo "version=${version}"
+              echo "audit_tag=${RELEASE_TAG}"
+            } >> "${GITHUB_OUTPUT}"
+          else
+            short_sha="${GITHUB_SHA:0:12}"
+            {
+              echo "tags<<EOF"
+              echo "${GHCR_IMAGE_NAME}:main"
+              echo "${GHCR_IMAGE_NAME}:sha-${short_sha}"
+              echo "EOF"
+              echo "version=main"
+              echo "audit_tag=main"
+            } >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Sign in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and publish image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          build-args: |
+            EDGE_EVER_BUILD_ID=${{ github.sha }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.image.outputs.tags }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.image.outputs.version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Verify anonymous GHCR image access
+        run: |
+          docker logout ghcr.io
+          docker buildx imagetools inspect "${GHCR_IMAGE_NAME}:${{ steps.image.outputs.audit_tag }}"
+          docker buildx imagetools inspect --raw "${GHCR_IMAGE_NAME}:${{ steps.image.outputs.audit_tag }}" |
+            jq -e '([.manifests[].platform.architecture] | index("amd64") != null) and ([.manifests[].platform.architecture] | index("arm64") != null)'
+
+  release-audit:
+    if: github.repository == 'tianma-if/edgeever' && github.event_name == 'release'
+    name: Audit published Docker image
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Verify prepared public image tags
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          release_inspect="$(docker buildx imagetools inspect "${GHCR_IMAGE_NAME}:${RELEASE_TAG}")"
+          latest_inspect="$(docker buildx imagetools inspect "${GHCR_IMAGE_NAME}:latest")"
+          release_digest="$(sed -n 's/^Digest:[[:space:]]*//p' <<<"${release_inspect}" | head -n 1)"
+          latest_digest="$(sed -n 's/^Digest:[[:space:]]*//p' <<<"${latest_inspect}" | head -n 1)"
+          test -n "${release_digest}"
+          test "${release_digest}" = "${latest_digest}"
+          docker buildx imagetools inspect --raw "${GHCR_IMAGE_NAME}:${RELEASE_TAG}" |
+            jq -e '([.manifests[].platform.architecture] | index("amd64") != null) and ([.manifests[].platform.architecture] | index("arm64") != null)'

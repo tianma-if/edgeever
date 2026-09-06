@@ -45,22 +45,7 @@ export const decodeDemoAttachment = (resource: DemoAttachmentSeed): Uint8Array =
   return Uint8Array.from(binary, (character) => character.charCodeAt(0));
 };
 
-export const DEMO_ATTACHMENT_MARKDOWN_ZH = `
-### 📎 7. 附件上传与下载示例
+export const DEMO_ATTACHMENT_MARKDOWN_ZH = "";
 
-下面这些是真实存储在 Demo R2 中的示例附件，点击即可下载，帮助你快速体验不同文件类型的附件能力：
+export const DEMO_ATTACHMENT_MARKDOWN_EN = "";
 
-- [📄 产品简介 PDF：edgeever-product-brief.pdf](/api/v1/resources/res_demo_product_brief_pdf/blob)
-- [📊 功能矩阵 CSV：feature-matrix.csv](/api/v1/resources/res_demo_feature_matrix_csv/blob)
-- [📦 附件示例压缩包：edgeever-attachment-demo.zip](/api/v1/resources/res_demo_attachment_bundle_zip/blob)
-`;
-
-export const DEMO_ATTACHMENT_MARKDOWN_EN = `
-### 📎 7. Attachment Upload & Download Demo
-
-These are real sample files stored in the Demo R2 bucket. Click any card to download and try different attachment types:
-
-- [📄 Product brief PDF: edgeever-product-brief.pdf](/api/v1/resources/res_demo_product_brief_pdf/blob)
-- [📊 Feature matrix CSV: feature-matrix.csv](/api/v1/resources/res_demo_feature_matrix_csv/blob)
-- [📦 Attachment demo archive: edgeever-attachment-demo.zip](/api/v1/resources/res_demo_attachment_bundle_zip/blob)
-`;

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { copyTextToClipboard } from "./clipboard.ts";
+import { copyHtmlToClipboard, copyTextToClipboard } from "./clipboard.ts";
 
 const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
 const originalNavigator = Object.getOwnPropertyDescriptor(globalThis, "navigator");
@@ -61,5 +61,40 @@ describe("copyTextToClipboard", () => {
 
     await expect(copyTextToClipboard("browser value")).resolves.toBe(true);
     expect(calls).toEqual(["browser value"]);
+  });
+});
+
+describe("copyHtmlToClipboard", () => {
+  test("uses the native rich clipboard bridge in the desktop app", async () => {
+    const calls = [];
+    globalThis.window = {
+      edgeeverDesktop: {
+        isAvailable: true,
+        copyHtml: async (...values) => {
+          calls.push(values);
+          return true;
+        },
+      },
+    };
+    Object.defineProperty(globalThis, "navigator", {
+      configurable: true,
+      value: { clipboard: { write: () => { throw new Error("browser clipboard should not be used"); } } },
+    });
+
+    await expect(copyHtmlToClipboard("<strong>Hello</strong>", "Hello")).resolves.toBeUndefined();
+    expect(calls).toEqual([["<strong>Hello</strong>", "Hello"]]);
+  });
+
+  test("fails when native rich clipboard verification fails", async () => {
+    globalThis.window = {
+      edgeeverDesktop: {
+        isAvailable: true,
+        copyHtml: async () => false,
+      },
+    };
+
+    await expect(copyHtmlToClipboard("<strong>Hello</strong>", "Hello")).rejects.toThrow(
+      "Native rich clipboard verification failed",
+    );
   });
 });

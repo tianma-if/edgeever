@@ -40,12 +40,32 @@
                     "runtime": {
                       "type": "string"
                     },
+                    "containerImageSource": {
+                      "type": "string",
+                      "enum": ["official-ghcr", "official-cn-mirror", "custom", "unknown"],
+                      "description": "Current container image repository classification for Docker deployments. Custom repository addresses are not exposed."
+                    },
                     "authMode": {
                       "type": "string",
                       "enum": ["required", "disabled"]
+                    },
+                    "deployment": {
+                      "type": "object",
+                      "description": "Deployment trigger and execution method reported by the running instance.",
+                      "properties": {
+                        "trigger": {
+                          "type": "string",
+                          "enum": ["github_release", "main_push", "manual", "unknown"]
+                        },
+                        "method": {
+                          "type": "string",
+                          "enum": ["github_actions", "cloudflare_workers_builds", "local_cli", "unknown"]
+                        }
+                      },
+                      "required": ["trigger", "method"]
                     }
                   },
-                  "required": ["ok", "name", "runtime", "authMode"]
+                  "required": ["ok", "name", "runtime", "authMode", "deployment"]
                 }
               }
             }
@@ -64,6 +84,240 @@
           "200": {
             "description": "OpenAPI 3.1 schema"
           }
+        }
+      }
+    },
+    "/api/v1/ai/settings": {
+      "get": {
+        "summary": "List AI providers, their models, and the workspace default model",
+        "responses": {
+          "200": {
+            "description": "AI settings with all API keys omitted",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AiSettings" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Error" },
+          "403": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/v1/ai/providers": {
+      "post": {
+        "summary": "Add an AI provider service",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AiProviderCreateInput" } } }
+        },
+        "responses": {
+          "201": { "description": "Provider created" },
+          "400": { "$ref": "#/components/responses/Error" },
+          "401": { "$ref": "#/components/responses/Error" },
+          "403": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/v1/ai/providers/{providerConfigId}": {
+      "parameters": [{ "name": "providerConfigId", "in": "path", "required": true, "schema": { "type": "string" } }],
+      "put": {
+        "summary": "Update or enable/disable an AI provider service",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AiProviderUpdateInput" } } } },
+        "responses": {
+          "200": { "description": "Provider updated" },
+          "400": { "$ref": "#/components/responses/Error" },
+          "401": { "$ref": "#/components/responses/Error" },
+          "403": { "$ref": "#/components/responses/Error" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      },
+      "delete": {
+        "summary": "Delete an AI provider and all of its models",
+        "responses": {
+          "200": { "description": "Provider deleted" },
+          "401": { "$ref": "#/components/responses/Error" },
+          "403": { "$ref": "#/components/responses/Error" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/v1/ai/providers/{providerConfigId}/test": {
+      "post": {
+        "summary": "Test a saved AI provider with a model ID",
+        "parameters": [{ "name": "providerConfigId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "type": "object", "properties": { "modelId": { "type": "string", "minLength": 1, "maxLength": 200 } }, "required": ["modelId"] } } }
+        },
+        "responses": {
+          "200": { "description": "The model endpoint responded successfully" },
+          "400": { "$ref": "#/components/responses/Error" },
+          "401": { "$ref": "#/components/responses/Error" },
+          "403": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/v1/ai/providers/{providerConfigId}/discover-models": {
+      "post": {
+        "summary": "Discover models exposed by a saved provider service",
+        "parameters": [{ "name": "providerConfigId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "Discovered models" },
+          "400": { "$ref": "#/components/responses/Error" },
+          "401": { "$ref": "#/components/responses/Error" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/v1/ai/providers/{providerConfigId}/models": {
+      "post": {
+        "summary": "Add a model to an AI provider service",
+        "parameters": [{ "name": "providerConfigId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AiModelCreateInput" } } } },
+        "responses": {
+          "201": { "description": "Model added" },
+          "400": { "$ref": "#/components/responses/Error" },
+          "401": { "$ref": "#/components/responses/Error" },
+          "403": { "$ref": "#/components/responses/Error" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/v1/ai/providers/{providerConfigId}/models/{modelConfigId}": {
+      "delete": {
+        "summary": "Remove a model from an AI provider service",
+        "parameters": [
+          { "name": "providerConfigId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "modelConfigId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Model removed" },
+          "401": { "$ref": "#/components/responses/Error" },
+          "403": { "$ref": "#/components/responses/Error" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/v1/ai/default-model": {
+      "put": {
+        "summary": "Choose or clear the workspace default AI model",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "properties": { "modelConfigId": { "type": ["string", "null"] } }, "required": ["modelConfigId"] } } } },
+        "responses": {
+          "200": { "description": "Default model updated" },
+          "400": { "$ref": "#/components/responses/Error" },
+          "401": { "$ref": "#/components/responses/Error" },
+          "403": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/v1/ai/generate": {
+      "post": {
+        "summary": "Run a note AI action using the current workspace model",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "action": { "type": "string", "enum": ["summarize", "extract-key-points", "extract-todos", "rewrite-proofread", "translate", "improve-writing", "fix-spelling-grammar", "make-shorter", "make-longer", "simplify-language", "change-tone", "continue-writing", "custom"] },
+                  "promptId": { "type": "string", "minLength": 1, "maxLength": 200, "description": "Saved prompt to resolve inside the authenticated workspace" },
+                  "locale": { "type": "string", "maxLength": 35 },
+                  "title": { "type": "string", "maxLength": 160 },
+                  "contentMarkdown": { "type": "string", "maxLength": 300000 },
+                  "stream": { "type": "boolean", "default": false, "description": "Stream normalized text deltas when enabled; disabled by default for lower Worker CPU usage" },
+                  "targetLanguage": { "type": "string", "enum": ["en", "zh-CN", "zh-TW", "ja", "ko", "es", "fr", "de", "pt"], "description": "Required when the action or selected prompt requests a target language" },
+                  "tone": { "type": "string", "enum": ["professional", "friendly", "casual", "direct"] },
+                  "instruction": { "type": "string", "minLength": 1, "maxLength": 2000, "description": "Freeform instruction; ignored when promptId is supplied" }
+                },
+                "required": ["action", "title", "contentMarkdown"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Server-sent events containing start, text-delta, finish, or error events",
+            "content": { "text/event-stream": { "schema": { "type": "string" } } }
+          },
+          "400": { "$ref": "#/components/responses/Error" },
+          "401": { "$ref": "#/components/responses/Error" },
+          "403": { "$ref": "#/components/responses/Error" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/v1/ai/prompts": {
+      "get": {
+        "summary": "List the current workspace prompt library",
+        "parameters": [{ "name": "locale", "in": "query", "schema": { "type": "string" } }],
+        "responses": {
+          "200": {
+            "description": "Localized prompt templates",
+            "content": { "application/json": { "schema": { "type": "object", "properties": { "prompts": { "type": "array", "items": { "$ref": "#/components/schemas/AiPromptTemplate" } } }, "required": ["prompts"] } } }
+          },
+          "401": { "$ref": "#/components/responses/Error" },
+          "403": { "$ref": "#/components/responses/Error" }
+        }
+      },
+      "post": {
+        "summary": "Create a reusable prompt",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AiPromptCreateInput" } } } },
+        "responses": {
+          "201": { "description": "Prompt created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AiPromptResponse" } } } },
+          "400": { "$ref": "#/components/responses/Error" },
+          "401": { "$ref": "#/components/responses/Error" },
+          "403": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/v1/ai/prompts/{promptId}": {
+      "parameters": [{ "name": "promptId", "in": "path", "required": true, "schema": { "type": "string" } }],
+      "patch": {
+        "summary": "Update prompt text or execution behavior",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AiPromptUpdateInput" } } } },
+        "responses": {
+          "200": { "description": "Prompt updated", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AiPromptResponse" } } } },
+          "400": { "$ref": "#/components/responses/Error" },
+          "401": { "$ref": "#/components/responses/Error" },
+          "403": { "$ref": "#/components/responses/Error" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      },
+      "delete": {
+        "summary": "Delete a prompt",
+        "responses": {
+          "200": { "$ref": "#/components/responses/Ok" },
+          "401": { "$ref": "#/components/responses/Error" },
+          "403": { "$ref": "#/components/responses/Error" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/v1/ai/prompts/restore-defaults": {
+      "post": {
+        "summary": "Restore missing factory prompts without overwriting edits",
+        "parameters": [{ "name": "locale", "in": "query", "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "Updated prompt list and restored count" },
+          "401": { "$ref": "#/components/responses/Error" },
+          "403": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/v1/restores/json/ai-prompts": {
+      "post": {
+        "summary": "Restore prompt templates from an EdgeEver ZIP backup",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "type": "object", "properties": { "prompts": { "type": "array", "maxItems": 100, "items": { "$ref": "#/components/schemas/AiPromptTemplate" } } }, "required": ["prompts"] } } }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/Ok" },
+          "400": { "$ref": "#/components/responses/Error" },
+          "401": { "$ref": "#/components/responses/Error" },
+          "403": { "$ref": "#/components/responses/Error" }
         }
       }
     },
@@ -432,6 +686,140 @@
             "$ref": "#/components/responses/Error"
           }
         }
+      }
+    },
+    "/api/v1/scheduled-tasks": {
+      "get": {
+        "summary": "List scheduled plugin commands",
+        "parameters": [{ "name": "executorDeviceId", "in": "query", "schema": { "type": "string" } }],
+        "responses": {
+          "200": {
+            "description": "Scheduled task list",
+            "content": { "application/json": { "schema": {
+              "type": "object",
+              "properties": { "tasks": { "type": "array", "items": { "$ref": "#/components/schemas/ScheduledTask" } } },
+              "required": ["tasks"]
+            } } }
+          },
+          "403": { "$ref": "#/components/responses/Error" }
+        }
+      },
+      "post": {
+        "summary": "Create a device-bound scheduled plugin command",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ScheduledTaskCreateInput" } } } },
+        "responses": {
+          "201": { "description": "Created scheduled task", "content": { "application/json": { "schema": { "type": "object", "properties": { "task": { "$ref": "#/components/schemas/ScheduledTask" } }, "required": ["task"] } } } },
+          "400": { "$ref": "#/components/responses/Error" },
+          "403": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/v1/scheduled-task-runs": {
+      "get": {
+        "summary": "List system-wide scheduled task execution history",
+        "parameters": [
+          { "name": "offset", "in": "query", "schema": { "type": "integer", "minimum": 0, "default": 0 } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 50 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Workspace scheduled task execution history",
+            "content": { "application/json": { "schema": {
+              "type": "object",
+              "properties": {
+                "runs": { "type": "array", "items": { "$ref": "#/components/schemas/ScheduledTaskRunHistoryItem" } },
+                "totalCount": { "type": "integer" },
+                "nextOffset": { "type": ["integer", "null"] }
+              },
+              "required": ["runs", "totalCount", "nextOffset"]
+            } } }
+          },
+          "403": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/v1/scheduled-tasks/{id}": {
+      "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+      "patch": {
+        "summary": "Update a scheduled plugin command",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ScheduledTaskUpdateInput" } } } },
+        "responses": { "200": { "description": "Updated scheduled task" }, "404": { "$ref": "#/components/responses/Error" } }
+      },
+      "delete": {
+        "summary": "Delete a scheduled plugin command",
+        "responses": { "200": { "$ref": "#/components/responses/Ok" }, "404": { "$ref": "#/components/responses/Error" } }
+      }
+    },
+    "/api/v1/scheduled-tasks/plugin-upsert": {
+      "post": {
+        "summary": "Idempotently create or update a plugin-owned schedule",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PluginScheduleUpsertInput" } } } },
+        "responses": {
+          "200": { "description": "Plugin-owned scheduled task", "content": { "application/json": { "schema": { "type": "object", "properties": { "task": { "$ref": "#/components/schemas/ScheduledTask" } }, "required": ["task"] } } } },
+          "400": { "$ref": "#/components/responses/Error" },
+          "403": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/v1/scheduled-tasks/plugin/{pluginId}": {
+      "parameters": [{ "name": "pluginId", "in": "path", "required": true, "schema": { "type": "string" } }],
+      "get": {
+        "summary": "List schedules owned by one plugin",
+        "responses": { "200": { "description": "Plugin schedule list" }, "403": { "$ref": "#/components/responses/Error" } }
+      }
+    },
+    "/api/v1/scheduled-tasks/plugin/{pluginId}/{scheduleKey}": {
+      "parameters": [
+        { "name": "pluginId", "in": "path", "required": true, "schema": { "type": "string" } },
+        { "name": "scheduleKey", "in": "path", "required": true, "schema": { "type": "string" } }
+      ],
+      "delete": {
+        "summary": "Delete a schedule owned by one plugin",
+        "responses": { "200": { "$ref": "#/components/responses/Ok" }, "404": { "$ref": "#/components/responses/Error" } }
+      }
+    },
+    "/api/v1/scheduled-tasks/{id}/runs/claim": {
+      "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+      "post": {
+        "summary": "Atomically claim one scheduled occurrence",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ScheduledTaskClaimInput" } } } },
+        "responses": { "201": { "description": "Claimed task run" }, "409": { "$ref": "#/components/responses/Error" } }
+      }
+    },
+    "/api/v1/scheduled-tasks/{id}/runs": {
+      "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+      "get": {
+        "summary": "List execution history for a scheduled task",
+        "parameters": [
+          { "name": "offset", "in": "query", "schema": { "type": "integer", "minimum": 0, "default": 0 } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 50 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Scheduled task execution history",
+            "content": { "application/json": { "schema": {
+              "type": "object",
+              "properties": {
+                "runs": { "type": "array", "items": { "$ref": "#/components/schemas/ScheduledTaskRun" } },
+                "totalCount": { "type": "integer" },
+                "nextOffset": { "type": ["integer", "null"] }
+              },
+              "required": ["runs", "totalCount", "nextOffset"]
+            } } }
+          },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/v1/scheduled-tasks/{taskId}/runs/{runId}/finish": {
+      "parameters": [
+        { "name": "taskId", "in": "path", "required": true, "schema": { "type": "string" } },
+        { "name": "runId", "in": "path", "required": true, "schema": { "type": "string" } }
+      ],
+      "post": {
+        "summary": "Finish a scheduled task run",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ScheduledTaskFinishInput" } } } },
+        "responses": { "200": { "description": "Finished task run" }, "409": { "$ref": "#/components/responses/Error" } }
       }
     },
     "/api/v1/tags": {
@@ -1060,7 +1448,7 @@
       ],
       "post": {
         "summary": "Upload an image or attachment resource for a memo",
-        "description": "Uploads an image or attachment resource for a memo. Images are stored as provided; server-side compression is disabled.",
+        "description": "Legacy single-request upload for files up to 100 MiB. New clients should use the resumable multipart upload endpoints. Images are stored as provided; server-side compression is disabled.",
         "requestBody": {
           "required": true,
           "content": {
@@ -1095,6 +1483,103 @@
               }
             }
           }
+        }
+      }
+    },
+    "/api/v1/memos/{id}/resource-uploads": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/MemoId"
+        }
+      ],
+      "post": {
+        "summary": "Initialize a resumable resource upload",
+        "description": "Creates an 8 MiB-part upload session. Attachments support up to 1 GiB; images support up to 100 MiB to keep decoding and previews bounded. The session expires after 24 hours.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "filename": { "type": "string" },
+                  "mimeType": { "type": "string" },
+                  "byteSize": { "type": "integer", "minimum": 1, "maximum": 1073741824 }
+                },
+                "required": ["filename", "mimeType", "byteSize"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Initialized upload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "upload": { "$ref": "#/components/schemas/ResourceUpload" }
+                  },
+                  "required": ["upload"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/resource-uploads/{uploadId}/parts/{partNumber}": {
+      "parameters": [
+        { "name": "uploadId", "in": "path", "required": true, "schema": { "type": "string" } },
+        { "name": "partNumber", "in": "path", "required": true, "schema": { "type": "integer", "minimum": 1 } }
+      ],
+      "put": {
+        "summary": "Upload or replace one resource part",
+        "description": "Streams one exact-sized part to object storage. Repeating a part number safely replaces that part.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/octet-stream": {
+              "schema": { "type": "string", "format": "binary" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Part stored" }
+        }
+      }
+    },
+    "/api/v1/resource-uploads/{uploadId}/complete": {
+      "parameters": [
+        { "name": "uploadId", "in": "path", "required": true, "schema": { "type": "string" } }
+      ],
+      "post": {
+        "summary": "Complete a resource upload",
+        "responses": {
+          "201": {
+            "description": "Completed resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "resource": { "$ref": "#/components/schemas/Resource" } },
+                  "required": ["resource"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/resource-uploads/{uploadId}": {
+      "parameters": [
+        { "name": "uploadId", "in": "path", "required": true, "schema": { "type": "string" } }
+      ],
+      "delete": {
+        "summary": "Abort a resource upload",
+        "responses": {
+          "200": { "description": "Upload aborted" }
         }
       }
     },
@@ -1226,13 +1711,44 @@
         "responses": { "200": { "$ref": "#/components/responses/Ok" } }
       }
     },
+    "/api/v1/restores/json/resources/{id}/uploads": {
+      "parameters": [
+        { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+      ],
+      "post": {
+        "summary": "Initialize a resumable resource restore",
+        "description": "Interactive-user-only restore session that preserves the resource ID from an EdgeEver ZIP. The client streams decompressed bytes through the shared 8 MiB multipart endpoints, supporting attachments up to 1 GiB without buffering the resource or archive in memory.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "type": "object", "additionalProperties": true }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Initialized restore upload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "upload": { "$ref": "#/components/schemas/ResourceUpload" } },
+                  "required": ["upload"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/restores/json/resources/{id}": {
       "parameters": [
         { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
       ],
       "put": {
-        "summary": "Import one resource from an EdgeEver ZIP",
-        "description": "Interactive-user-only resource import. The multipart metadata field contains the structured EdgeEver ZIP resource record.",
+        "summary": "Import one small resource from an EdgeEver ZIP (legacy)",
+        "description": "Interactive-user-only compatibility endpoint for resources up to 100 MiB. Larger restores use the resumable restore session so request parsing remains memory-bounded.",
         "requestBody": {
           "required": true,
           "content": {
@@ -1577,6 +2093,115 @@
         },
         "required": ["ok"]
       },
+      "ScheduledTaskRun": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "taskId": { "type": "string" },
+          "scheduledFor": { "type": "string", "format": "date-time" },
+          "executorDeviceId": { "type": "string" },
+          "status": { "type": "string", "enum": ["running", "succeeded", "failed"] },
+          "errorMessage": { "type": ["string", "null"] },
+          "startedAt": { "type": "string", "format": "date-time" },
+          "finishedAt": { "type": ["string", "null"], "format": "date-time" }
+        },
+        "required": ["id", "taskId", "scheduledFor", "executorDeviceId", "status", "errorMessage", "startedAt", "finishedAt"]
+      },
+      "ScheduledTaskRunHistoryItem": {
+        "allOf": [
+          { "$ref": "#/components/schemas/ScheduledTaskRun" },
+          {
+            "type": "object",
+            "properties": {
+              "taskName": { "type": "string" },
+              "pluginId": { "type": "string" },
+              "ownerPluginId": { "type": ["string", "null"] },
+              "pluginScheduleKey": { "type": ["string", "null"] }
+            },
+            "required": ["taskName", "pluginId", "ownerPluginId", "pluginScheduleKey"]
+          }
+        ]
+      },
+      "ScheduledTask": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "taskType": { "type": "string", "const": "plugin-command" },
+          "taskPayload": { "$ref": "#/components/schemas/ScheduledTaskPayload" },
+          "ownerPluginId": { "type": ["string", "null"] },
+          "pluginScheduleKey": { "type": ["string", "null"] },
+          "cronExpression": { "type": "string" },
+          "timezone": { "type": "string" },
+          "executorDeviceId": { "type": "string" },
+          "missedRunPolicy": { "type": "string", "enum": ["run-once", "skip"] },
+          "isEnabled": { "type": "boolean" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" },
+          "lastRun": { "oneOf": [{ "$ref": "#/components/schemas/ScheduledTaskRun" }, { "type": "null" }] }
+        },
+        "required": ["id", "name", "taskType", "taskPayload", "ownerPluginId", "pluginScheduleKey", "cronExpression", "timezone", "executorDeviceId", "missedRunPolicy", "isEnabled", "createdAt", "updatedAt", "lastRun"]
+      },
+      "ScheduledTaskPayload": {
+        "type": "object",
+        "properties": { "pluginId": { "type": "string" }, "commandId": { "type": "string" } },
+        "required": ["pluginId", "commandId"]
+      },
+      "ScheduledTaskCreateInput": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "maxLength": 120 },
+          "taskType": { "type": "string", "const": "plugin-command" },
+          "taskPayload": { "$ref": "#/components/schemas/ScheduledTaskPayload" },
+          "cronExpression": { "type": "string", "maxLength": 160 },
+          "timezone": { "type": "string", "maxLength": 80 },
+          "executorDeviceId": { "type": "string" },
+          "missedRunPolicy": { "type": "string", "enum": ["run-once", "skip"], "default": "run-once" },
+          "isEnabled": { "type": "boolean", "default": true }
+        },
+        "required": ["name", "taskType", "taskPayload", "cronExpression", "timezone", "executorDeviceId"]
+      },
+      "ScheduledTaskUpdateInput": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "maxLength": 120 },
+          "taskPayload": { "$ref": "#/components/schemas/ScheduledTaskPayload" },
+          "cronExpression": { "type": "string", "maxLength": 160 },
+          "timezone": { "type": "string", "maxLength": 80 },
+          "executorDeviceId": { "type": "string" },
+          "missedRunPolicy": { "type": "string", "enum": ["run-once", "skip"] },
+          "isEnabled": { "type": "boolean" }
+        }
+      },
+      "PluginScheduleUpsertInput": {
+        "type": "object",
+        "properties": {
+          "pluginId": { "type": "string" },
+          "scheduleKey": { "type": "string", "maxLength": 120 },
+          "name": { "type": "string", "maxLength": 120 },
+          "commandId": { "type": "string", "maxLength": 200 },
+          "cronExpression": { "type": "string", "maxLength": 160 },
+          "timezone": { "type": "string", "maxLength": 80 },
+          "executorDeviceId": { "type": "string" },
+          "missedRunPolicy": { "type": "string", "enum": ["run-once", "skip"], "default": "run-once" },
+          "isEnabled": { "type": "boolean" }
+        },
+        "required": ["pluginId", "scheduleKey", "name", "commandId", "cronExpression", "timezone", "executorDeviceId"]
+      },
+      "ScheduledTaskClaimInput": {
+        "type": "object",
+        "properties": { "scheduledFor": { "type": "string", "format": "date-time" }, "executorDeviceId": { "type": "string" } },
+        "required": ["scheduledFor", "executorDeviceId"]
+      },
+      "ScheduledTaskFinishInput": {
+        "type": "object",
+        "properties": {
+          "executorDeviceId": { "type": "string" },
+          "status": { "type": "string", "enum": ["succeeded", "failed"] },
+          "errorMessage": { "type": ["string", "null"], "maxLength": 2000 }
+        },
+        "required": ["executorDeviceId", "status"]
+      },
       "ApiError": {
         "type": "object",
         "properties": {
@@ -1736,6 +2361,117 @@
             { "type": "object", "properties": { "provider": { "const": "s3" }, "displayName": { "type": "string", "minLength": 1, "maxLength": 80 } }, "required": ["provider", "displayName"] }
           ] }
         ]
+      },
+      "AiModel": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "providerConfigId": { "type": "string" },
+          "modelId": { "type": "string" },
+          "displayName": { "type": "string" }
+        },
+        "required": ["id", "providerConfigId", "modelId", "displayName"]
+      },
+      "AiProvider": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "provider": { "type": "string", "enum": ["openai-compatible", "anthropic", "google"] },
+          "displayName": { "type": "string" },
+          "baseUrl": { "type": "string", "format": "uri" },
+          "isEnabled": { "type": "boolean" },
+          "hasApiKey": { "type": "boolean" },
+          "models": { "type": "array", "items": { "$ref": "#/components/schemas/AiModel" } }
+        },
+        "required": ["id", "provider", "displayName", "baseUrl", "isEnabled", "hasApiKey", "models"]
+      },
+      "AiSettings": {
+        "type": "object",
+        "properties": {
+          "providers": { "type": "array", "items": { "$ref": "#/components/schemas/AiProvider" } },
+          "defaultModelId": { "type": ["string", "null"] },
+          "encryptionConfigured": { "type": "boolean" },
+          "readOnly": { "type": "boolean" }
+        },
+        "required": ["providers", "defaultModelId", "encryptionConfigured", "readOnly"]
+      },
+      "AiProviderCreateInput": {
+        "type": "object",
+        "properties": {
+          "provider": { "type": "string", "enum": ["openai-compatible", "anthropic", "google"] },
+          "displayName": { "type": "string", "minLength": 1, "maxLength": 80 },
+          "baseUrl": { "type": "string", "format": "uri", "maxLength": 500 },
+          "apiKey": { "type": "string", "minLength": 1, "maxLength": 4096 },
+          "isEnabled": { "type": "boolean", "default": true },
+          "initialModelId": { "type": "string", "minLength": 1, "maxLength": 200 }
+        },
+        "required": ["provider", "displayName", "baseUrl", "apiKey"]
+      },
+      "AiProviderUpdateInput": {
+        "type": "object",
+        "properties": {
+          "provider": { "type": "string", "enum": ["openai-compatible", "anthropic", "google"] },
+          "displayName": { "type": "string", "minLength": 1, "maxLength": 80 },
+          "baseUrl": { "type": "string", "format": "uri", "maxLength": 500 },
+          "apiKey": { "type": "string", "minLength": 1, "maxLength": 4096 },
+          "isEnabled": { "type": "boolean", "default": true }
+        },
+        "required": ["provider", "displayName", "baseUrl"]
+      },
+      "AiModelCreateInput": {
+        "type": "object",
+        "properties": {
+          "modelId": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "displayName": { "type": "string", "minLength": 1, "maxLength": 200 }
+        },
+        "required": ["modelId"]
+      },
+      "AiPromptTemplate": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "origin": { "type": "string", "enum": ["default", "custom"] },
+          "seedKey": { "type": ["string", "null"] },
+          "action": { "type": "string", "enum": ["summarize", "extract-key-points", "extract-todos", "rewrite-proofread", "translate", "improve-writing", "fix-spelling-grammar", "make-shorter", "make-longer", "simplify-language", "change-tone", "continue-writing", "custom"] },
+          "parameterKind": { "type": "string", "enum": ["none", "target-language", "tone"] },
+          "resultMode": { "type": "string", "enum": ["append", "replace", "both"] },
+          "nameCustomized": { "type": "boolean" },
+          "descriptionCustomized": { "type": "boolean" },
+          "instructionCustomized": { "type": "boolean" },
+          "name": { "type": "string", "minLength": 1, "maxLength": 80 },
+          "description": { "type": ["string", "null"], "maxLength": 200 },
+          "instruction": { "type": "string", "minLength": 1, "maxLength": 2000 },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        },
+        "required": ["id", "origin", "seedKey", "action", "parameterKind", "resultMode", "nameCustomized", "descriptionCustomized", "instructionCustomized", "name", "description", "instruction", "createdAt", "updatedAt"]
+      },
+      "AiPromptCreateInput": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 80 },
+          "description": { "type": "string", "maxLength": 200 },
+          "instruction": { "type": "string", "minLength": 1, "maxLength": 2000 },
+          "parameterKind": { "type": "string", "enum": ["none", "target-language", "tone"], "default": "none" },
+          "resultMode": { "type": "string", "enum": ["append", "replace", "both"], "default": "both" }
+        },
+        "required": ["name", "instruction"]
+      },
+      "AiPromptUpdateInput": {
+        "type": "object",
+        "minProperties": 1,
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 80 },
+          "description": { "type": ["string", "null"], "maxLength": 200 },
+          "instruction": { "type": "string", "minLength": 1, "maxLength": 2000 },
+          "parameterKind": { "type": "string", "enum": ["none", "target-language", "tone"] },
+          "resultMode": { "type": "string", "enum": ["append", "replace", "both"] }
+        }
+      },
+      "AiPromptResponse": {
+        "type": "object",
+        "properties": { "prompt": { "$ref": "#/components/schemas/AiPromptTemplate" } },
+        "required": ["prompt"]
       },
       "LoginInput": {
         "type": "object",
@@ -2268,6 +3004,18 @@
           }
         },
         "required": ["id", "memoId", "originalMemoId", "kind", "mimeType", "filename", "byteSize", "sha256", "width", "height", "createdAt", "updatedAt", "url"]
+      },
+      "ResourceUpload": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "resourceId": { "type": "string" },
+          "partSize": { "type": "integer", "const": 8388608 },
+          "partCount": { "type": "integer", "minimum": 1, "maximum": 50 },
+          "byteSize": { "type": "integer", "minimum": 1, "maximum": 1073741824 },
+          "expiresAt": { "type": "string", "format": "date-time" }
+        },
+        "required": ["id", "resourceId", "partSize", "partCount", "byteSize", "expiresAt"]
       },
       "ResourceListItem": {
         "allOf": [

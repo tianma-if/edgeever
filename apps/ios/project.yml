@@ -20,8 +20,8 @@ settings:
     TARGETED_DEVICE_FAMILY: "1"
     SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: false
     IPHONEOS_DEPLOYMENT_TARGET: "17.0"
-    CURRENT_PROJECT_VERSION: 33
-    MARKETING_VERSION: 1.12.6
+    CURRENT_PROJECT_VERSION: 42
+    MARKETING_VERSION: 1.57.0
     # Automatic signing: required for Xcode Cloud (managed certs/profiles for
     # App Store + Development exports). Local ExportOptions.plist still pins
     # App Store profiles for Scripts/archive-app-store.sh export.
@@ -93,7 +93,7 @@ targets:
           NSAllowsArbitraryLoads: true
           NSAllowsArbitraryLoadsInWebContent: true
         NSPhotoLibraryUsageDescription: EdgeEver needs photo library access to insert images into notes.
-        NSCameraUsageDescription: EdgeEver only uses the camera if content inside a note explicitly requests it.
+        NSCameraUsageDescription: EdgeEver needs camera access to take photos and insert them into notes.
         NSMicrophoneUsageDescription: EdgeEver only uses the microphone if content inside a note explicitly requests it.
     entitlements:
       path: EdgeEver/Resources/EdgeEver.entitlements

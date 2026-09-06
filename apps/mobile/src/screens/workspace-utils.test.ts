@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { Notebook } from "@edgeever/shared";
 import {
   filterCollapsedNotebookOptions,
+  formatMemoDetailDate,
   flattenNotebooks,
   getNotebookAncestorIds,
   getNotebookParentIdSet,
@@ -50,5 +51,10 @@ describe("mobile workspace utilities", () => {
       { start: 4, end: 7 },
       { start: 9, end: 12 },
     ]);
+  });
+
+  test("formats historical memo details with a year and handles invalid timestamps", () => {
+    expect(formatMemoDetailDate("2010-08-30T12:34:00.000Z", "en-US")).toContain("2010");
+    expect(formatMemoDetailDate("not-a-date", "zh-CN")).toBe("");
   });
 });

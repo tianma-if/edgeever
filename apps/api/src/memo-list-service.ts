@@ -43,6 +43,7 @@ export type ListMemosInput = {
   notebookId?: string;
   includeNotebookDescendants?: boolean;
   query?: string;
+  tag?: string;
   includeTrash?: boolean;
   sort?: string;
   filter?: string;
@@ -150,6 +151,7 @@ export const listMemos = async (
 ): Promise<ListMemosResult> => {
   const notebookId = input.notebookId;
   const query = input.query?.trim();
+  const tag = input.tag?.trim();
   const includeTrash = input.includeTrash === true;
   const sort = normalizeMemoListSort(input.sort);
   const filter = normalizeMemoListFilter(input.filter);
@@ -184,6 +186,13 @@ export const listMemos = async (
       baseConditions.push("m.notebook_id = ?");
       baseBinds.push(notebookId);
     }
+  }
+
+  if (tag) {
+    baseConditions.push(
+      "EXISTS (SELECT 1 FROM memo_tags mt WHERE mt.memo_id = m.id AND mt.workspace_id = ? AND mt.normalized_name = LOWER(?))",
+    );
+    baseBinds.push(input.workspaceId, tag);
   }
 
   if (filter === "tagged") baseConditions.push("m.tags_json <> '[]'");

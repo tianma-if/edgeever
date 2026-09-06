@@ -4,12 +4,21 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  SETTINGS_CARD_DESCRIPTION_CLASSNAME,
+  SETTINGS_CARD_HEADER_CLASSNAME,
+  SETTINGS_CARD_ICON_CLASSNAME,
+  SETTINGS_CARD_TITLE_CLASSNAME,
+  SETTINGS_ITEM_TITLE_CLASSNAME,
+} from "./settings-ui";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
 import { LoginSessionRevokeDialog, type LoginSessionRevokeTarget } from "./LoginSessionRevokeDialog";
 
 interface LoginDevicesCardProps {
   authRequired: boolean;
+  isLoggingOut: boolean;
+  onLogout: () => void;
 }
 
 type DeviceKind = "mobile" | "tablet" | "desktop" | "unknownDevice";
@@ -66,7 +75,7 @@ const formatSessionTime = (value: string, locale: string) =>
     minute: "2-digit",
   }).format(new Date(value));
 
-export const LoginDevicesCard = ({ authRequired }: LoginDevicesCardProps) => {
+export const LoginDevicesCard = ({ authRequired, isLoggingOut, onLogout }: LoginDevicesCardProps) => {
   const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
   const [revokeTarget, setRevokeTarget] = useState<LoginSessionRevokeTarget | null>(null);
@@ -109,13 +118,13 @@ export const LoginDevicesCard = ({ authRequired }: LoginDevicesCardProps) => {
   return (
     <>
       <Card className="w-full min-w-0 overflow-hidden shadow-none">
-        <CardHeader className="p-4">
+        <CardHeader className={SETTINGS_CARD_HEADER_CLASSNAME}>
           <div>
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <MonitorSmartphone className="h-4 w-4 text-emerald-700" />
+            <CardTitle className={SETTINGS_CARD_TITLE_CLASSNAME}>
+              <MonitorSmartphone className={SETTINGS_CARD_ICON_CLASSNAME} />
               {t("loginDevices.title")}
             </CardTitle>
-            <CardDescription className="mt-1">{t("loginDevices.description")}</CardDescription>
+            <CardDescription className={SETTINGS_CARD_DESCRIPTION_CLASSNAME}>{t("loginDevices.description")}</CardDescription>
           </div>
         </CardHeader>
         <CardContent className="p-4 pt-0">
@@ -152,7 +161,7 @@ export const LoginDevicesCard = ({ authRequired }: LoginDevicesCardProps) => {
                             }}
                           />
                         ) : (
-                          <p className="text-sm font-semibold text-slate-800">{session.label || t(`loginDevices.${deviceKind}`)}</p>
+                          <p className={SETTINGS_ITEM_TITLE_CLASSNAME}>{session.label || t(`loginDevices.${deviceKind}`)}</p>
                         )}
                         {session.isCurrent ? (
                           <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
@@ -190,7 +199,16 @@ export const LoginDevicesCard = ({ authRequired }: LoginDevicesCardProps) => {
                           onClick={() => { setEditingSessionId(session.id); setLabelDraft(session.label ?? ""); }}
                         ><Pencil className="h-4 w-4" /></Button>
                       )}
-                    {!session.isCurrent ? (
+                    {session.isCurrent ? (
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        disabled={isLoggingOut}
+                        onClick={onLogout}
+                      >
+                        {isLoggingOut ? t("session.loggingOut") : t("loginDevices.revokeDevice")}
+                      </Button>
+                    ) : (
                       <Button
                         size="sm"
                         variant="danger"
@@ -199,7 +217,7 @@ export const LoginDevicesCard = ({ authRequired }: LoginDevicesCardProps) => {
                       >
                         {t("loginDevices.revokeDevice")}
                       </Button>
-                    ) : null}
+                    )}
                     </div>
                   </li>
                 );

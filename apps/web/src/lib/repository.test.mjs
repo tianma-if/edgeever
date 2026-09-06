@@ -21,8 +21,9 @@ const installTestWindow = ({ hostname = "localhost" } = {}) => {
 };
 
 afterEach(async () => {
-  await localDb.transaction("rw", [localDb.templates, localDb.notebooks, localDb.memos, localDb.resources, localDb.revisions, localDb.syncMeta, localDb.syncQueue], async () => {
+  await localDb.transaction("rw", [localDb.drafts, localDb.templates, localDb.notebooks, localDb.memos, localDb.resources, localDb.revisions, localDb.syncMeta, localDb.syncQueue], async () => {
     await Promise.all([
+      localDb.drafts.clear(),
       localDb.templates.clear(),
       localDb.notebooks.clear(),
       localDb.memos.clear(),
@@ -35,6 +36,56 @@ afterEach(async () => {
 });
 
 describe("web repository offline boundaries", () => {
+  test("reconciles stale template cache entries while preserving queued local edits", async () => {
+    const previousOnline = globalThis.navigator?.onLine;
+    if (globalThis.navigator) Object.defineProperty(globalThis.navigator, "onLine", { configurable: true, value: true });
+    const restoreWindow = installTestWindow();
+    const scope = "https://demo.edgeever.org|user-1";
+    const template = (id, name, updatedAt) => ({
+      id,
+      name,
+      description: null,
+      title: name,
+      contentJson: { type: "doc", content: [] },
+      contentMarkdown: "",
+      tags: [],
+      createdAt: updatedAt,
+      updatedAt,
+    });
+    const stale = template("template-stale", "Stale", "2026-01-01T00:00:00.000Z");
+    const edited = template("template-edited", "Local edit", "2026-01-03T00:00:00.000Z");
+    const remoteEdited = template("template-edited", "Remote old", "2026-01-02T00:00:00.000Z");
+    const remote = template("template-remote", "Remote", "2026-01-04T00:00:00.000Z");
+    await localDb.templates.bulkPut([{ ...stale, scope }, { ...edited, scope }]);
+    await localDb.syncQueue.put({
+      id: `action:${scope}:template.update:${edited.id}`,
+      kind: "template.update",
+      scope,
+      memoId: edited.id,
+      status: "pending",
+      payload: { templateId: edited.id, name: edited.name },
+      attemptCount: 0,
+      lastError: null,
+      nextAttemptAt: null,
+      claimId: null,
+      createdAt: edited.updatedAt,
+      updatedAt: edited.updatedAt,
+    });
+    const originalListTemplates = api.listTemplates;
+    api.listTemplates = async () => ({ templates: [remote, remoteEdited] });
+
+    try {
+      const result = await createWebRepository(scope).listTemplates();
+      expect(result.templates.map((item) => item.id)).toEqual([remote.id, edited.id]);
+      expect(result.templates.find((item) => item.id === edited.id)?.name).toBe("Local edit");
+      expect(await localDb.templates.get([scope, stale.id])).toBeUndefined();
+    } finally {
+      api.listTemplates = originalListTemplates;
+      restoreWindow();
+      if (globalThis.navigator) Object.defineProperty(globalThis.navigator, "onLine", { configurable: true, value: previousOnline });
+    }
+  });
+
   test("saves memo edits locally while deferring remote synchronization", async () => {
     const restoreWindow = installTestWindow();
     let immediateEvents = 0;
@@ -69,6 +120,34 @@ describe("web repository offline boundaries", () => {
       expect(deferredEvents).toBe(1);
       expect(immediateEvents).toBe(0);
     } finally {
+      restoreWindow();
+    }
+  });
+
+  test("rolls back the local memo when queuing its sync update fails", async () => {
+    const restoreWindow = installTestWindow();
+    const scope = "https://demo.edgeever.org|user-1";
+    const memo = await createLocalMemo(scope, { notebookId: "nb-1", contentMarkdown: "Original" });
+    const failQueueWrite = () => { throw new Error("queue unavailable"); };
+    localDb.syncQueue.hook("creating", failQueueWrite);
+
+    try {
+      await expect(createWebRepository(scope).updateMemo(memo, {
+        expectedRevision: memo.revision,
+        expectedContentHash: memo.contentHash,
+        editSessionId: "local-edit",
+        title: "Changed",
+        contentJson: {
+          type: "doc",
+          content: [{ type: "paragraph", content: [{ type: "text", text: "Changed" }] }],
+        },
+        tags: [],
+      })).rejects.toThrow("queue unavailable");
+
+      expect((await localDb.memos.get([scope, memo.id]))?.contentText).toBe("Original");
+      expect(await localDb.syncQueue.get(`memo.update:${memo.id}`)).toBeUndefined();
+    } finally {
+      localDb.syncQueue.hook("creating").unsubscribe(failQueueWrite);
       restoreWindow();
     }
   });

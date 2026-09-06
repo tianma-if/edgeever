@@ -1,5 +1,5 @@
 import { emptyDoc, resolveMemoContentDoc, type MemoDetail, type Resource, type TiptapDoc } from "@edgeever/shared";
-import { ApiRequestError } from "@/lib/api";
+import { ApiRequestError, api } from "@/lib/api";
 
 export const MOBILE_EDITOR_LEAVE_SAVE_TIMEOUT_MS = 1600;
 export const MOBILE_EDITOR_INITIAL_FOCUS_DELAY_MS = 160;
@@ -114,13 +114,7 @@ export const requestMobileEditorJson = async <T,>(path: string, init?: RequestIn
 };
 
 export const uploadMobileEditorResource = async (memoId: string, file: File) => {
-  const form = new FormData();
-  form.append("file", file);
-
-  return requestMobileEditorJson<MobileEditorResourceResponse>(`/api/v1/memos/${encodeURIComponent(memoId)}/resources`, {
-    method: "POST",
-    body: form,
-  });
+  return api.uploadMemoResource(memoId, file);
 };
 
 export const normalizeMobileEditorDoc = (memo: MemoDetail): TiptapDoc => {

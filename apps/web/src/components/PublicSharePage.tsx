@@ -1,5 +1,7 @@
+import "katex/dist/katex.min.css";
 import { Node, mergeAttributes } from "@tiptap/core";
 import Image from "@tiptap/extension-image";
+import { TaskItem, TaskList } from "@tiptap/extension-list";
 import { TableKit } from "@tiptap/extension-table";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
@@ -10,14 +12,20 @@ import { useTranslation } from "react-i18next";
 import { useParams } from "react-router";
 import { api } from "@/lib/api";
 import { EdgeEverCodeBlock, codeBlockLowlight } from "@/lib/code-block";
+import { withEnvironmentTitlePrefix } from "@/lib/environment-title";
 import {
   parseImageWidth,
   getImageReferrerPolicy,
+  ImageGallery,
   MergeDivider,
+  PluginEmbed,
   resolveMemoContentDoc,
   rewriteMemoResourcesForShare,
   type PublicMemoShare,
 } from "@edgeever/shared";
+import { createEdgeEverMathematics } from "@edgeever/shared/mathematics";
+import { PdfAttachment } from "@/components/editor/PdfAttachment";
+import { FileAttachment } from "@/components/editor/FileAttachment";
 
 const SharedImage = Image.extend({
   addAttributes() {
@@ -71,15 +79,26 @@ const SharedThemeBlock = Node.create({
 
 const SharedDocument = ({ share, token }: { share: PublicMemoShare; token: string }) => {
   const content = useMemo(
-    () => rewriteMemoResourcesForShare(resolveMemoContentDoc(share.contentJson, share.contentMarkdown), token),
+    () => rewriteMemoResourcesForShare(
+      resolveMemoContentDoc(share.contentJson, share.contentMarkdown),
+      token,
+      share.memoShareTokens,
+    ),
     [share, token],
   );
   const editor = useEditor({
     extensions: [
       StarterKit.configure({ codeBlock: false, link: { openOnClick: true } }),
+      TaskList,
+      TaskItem.configure({ nested: true }),
       EdgeEverCodeBlock.configure({ lowlight: codeBlockLowlight, defaultLanguage: "plaintext" }),
       MergeDivider,
+      PluginEmbed,
+      PdfAttachment,
+      FileAttachment,
+      ...createEdgeEverMathematics(),
       SharedThemeBlock,
+      ImageGallery,
       SharedImage.configure({ allowBase64: false, inline: false }),
       TableKit.configure({ table: { renderWrapper: true } }),
     ],
@@ -113,7 +132,12 @@ export const PublicSharePage = () => {
     robots.name = "robots";
     robots.content = "noindex,nofollow,noarchive";
     document.head.appendChild(robots);
-    if (share) document.title = `${share.title?.trim() || t("common.untitledMemo")} · EdgeEver`;
+    if (share) {
+      document.title = withEnvironmentTitlePrefix(
+        `${share.title?.trim() || t("common.untitledMemo")} · EdgeEver`,
+        { development: import.meta.env.DEV, profile: __EDGEEVER_DEVELOPMENT_PROFILE__ },
+      );
+    }
     return () => {
       document.title = previousTitle;
       robots.remove();

@@ -107,6 +107,12 @@
   "saveSettings": {
     "message": "保存设置"
   },
+  "projectAndSource": {
+    "message": "GitHub 项目与源码"
+  },
+  "reportIssue": {
+    "message": "反馈问题"
+  },
   "privacyPolicy": {
     "message": "隐私政策"
   },

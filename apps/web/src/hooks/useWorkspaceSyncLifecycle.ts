@@ -1,26 +1,39 @@
 import { useEffect, useRef } from "react";
 import { isBrowserOffline, verifyBrowserConnectivity } from "@/lib/network-status";
 import { SYNC_QUEUE_DEFERRED_EVENT } from "@/lib/sync-events";
-import { BACKGROUND_WORKSPACE_REFRESH_INTERVAL_MS, type WorkspaceRefreshMode } from "@/lib/workspace-refresh";
+import { createClientUuid } from "@/lib/client-id";
+import {
+  BACKGROUND_WORKSPACE_REFRESH_INTERVAL_MS,
+  claimBackgroundRefreshLease,
+  createRefreshSingleFlight,
+  DEFERRED_MEMO_SYNC_DELAY_MS,
+  releaseBackgroundRefreshLease,
+  type WorkspaceRefreshMode,
+} from "@/lib/workspace-refresh";
 
 type RefreshWorkspace = (mode: WorkspaceRefreshMode) => Promise<unknown>;
 
 export const useWorkspaceSyncLifecycle = ({
-  pendingSyncCount,
+  failedSyncCount,
+  backgroundRefreshKey,
   refreshWorkspace,
   runQueuedSync,
   setOnline,
-  syncIntervalMs,
 }: {
-  pendingSyncCount: number;
+  failedSyncCount: number;
+  backgroundRefreshKey: string;
   refreshWorkspace: RefreshWorkspace;
   runQueuedSync: () => Promise<void>;
   setOnline: (online: boolean) => void;
-  syncIntervalMs: number | null;
 }) => {
   const deferredSyncTimerRef = useRef<number | null>(null);
-  const deferredSyncPendingRef = useRef(false);
   const runQueuedSyncRef = useRef(runQueuedSync);
+  const refreshWorkspaceRef = useRef(refreshWorkspace);
+  const backgroundRefreshOwnerRef = useRef(createClientUuid());
+
+  useEffect(() => {
+    refreshWorkspaceRef.current = refreshWorkspace;
+  }, [refreshWorkspace]);
 
   useEffect(() => {
     runQueuedSyncRef.current = runQueuedSync;
@@ -93,7 +106,6 @@ export const useWorkspaceSyncLifecycle = ({
 
   useEffect(() => {
     const handleQueueChanged = () => {
-      deferredSyncPendingRef.current = false;
       if (deferredSyncTimerRef.current !== null) {
         window.clearTimeout(deferredSyncTimerRef.current);
         deferredSyncTimerRef.current = null;
@@ -106,21 +118,17 @@ export const useWorkspaceSyncLifecycle = ({
 
   useEffect(() => {
     const scheduleDeferredSync = () => {
-      deferredSyncPendingRef.current = true;
       if (deferredSyncTimerRef.current !== null) {
         window.clearTimeout(deferredSyncTimerRef.current);
         deferredSyncTimerRef.current = null;
       }
-      if (syncIntervalMs === null) return;
       deferredSyncTimerRef.current = window.setTimeout(() => {
         deferredSyncTimerRef.current = null;
-        deferredSyncPendingRef.current = false;
         void runQueuedSyncRef.current();
-      }, syncIntervalMs);
+      }, DEFERRED_MEMO_SYNC_DELAY_MS);
     };
 
     window.addEventListener(SYNC_QUEUE_DEFERRED_EVENT, scheduleDeferredSync);
-    if (deferredSyncPendingRef.current) scheduleDeferredSync();
     return () => {
       window.removeEventListener(SYNC_QUEUE_DEFERRED_EVENT, scheduleDeferredSync);
       if (deferredSyncTimerRef.current !== null) {
@@ -128,31 +136,66 @@ export const useWorkspaceSyncLifecycle = ({
         deferredSyncTimerRef.current = null;
       }
     };
-  }, [syncIntervalMs]);
+  }, []);
 
   useEffect(() => {
+    const leaseKey = `edgeever.background-refresh:${backgroundRefreshKey}`;
+    const ownerId = backgroundRefreshOwnerRef.current;
+    const runRefresh = createRefreshSingleFlight({
+      refresh: () => refreshWorkspaceRef.current("background"),
+    });
     const refreshVisibleWorkspace = () => {
       if (document.visibilityState === "hidden" || isBrowserOffline()) return;
-      void refreshWorkspace("background").catch(() => {
+      // Focus and visibility events remain immediate. Periodic refreshes use
+      // a short cross-tab lease so multiple visible EdgeEver tabs do not all
+      // poll D1 every five minutes.
+      void runRefresh().catch(() => {
         // A later focus, visibility, or interval refresh will retry.
       });
     };
 
-    const intervalId = window.setInterval(refreshVisibleWorkspace, BACKGROUND_WORKSPACE_REFRESH_INTERVAL_MS);
+    const refreshLeaseOwner = () => {
+      if (document.visibilityState === "hidden" || isBrowserOffline()) return;
+      try {
+        if (!claimBackgroundRefreshLease({ storage: window.localStorage, key: leaseKey, ownerId })) return;
+      } catch {
+        // Restricted storage environments still get normal single-tab sync.
+      }
+      refreshVisibleWorkspace();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        try {
+          releaseBackgroundRefreshLease({ storage: window.localStorage, key: leaseKey, ownerId });
+        } catch {
+          // Ignore unavailable local storage.
+        }
+        return;
+      }
+      refreshVisibleWorkspace();
+    };
+
+    const intervalId = window.setInterval(refreshLeaseOwner, BACKGROUND_WORKSPACE_REFRESH_INTERVAL_MS);
     window.addEventListener("focus", refreshVisibleWorkspace);
     window.addEventListener("pageshow", refreshVisibleWorkspace);
-    document.addEventListener("visibilitychange", refreshVisibleWorkspace);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => {
       window.clearInterval(intervalId);
       window.removeEventListener("focus", refreshVisibleWorkspace);
       window.removeEventListener("pageshow", refreshVisibleWorkspace);
-      document.removeEventListener("visibilitychange", refreshVisibleWorkspace);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      try {
+        releaseBackgroundRefreshLease({ storage: window.localStorage, key: leaseKey, ownerId });
+      } catch {
+        // Ignore unavailable local storage.
+      }
     };
-  }, [refreshWorkspace]);
+  }, [backgroundRefreshKey]);
 
   useEffect(() => {
-    if (pendingSyncCount === 0) return;
+    if (failedSyncCount === 0) return;
     const timer = window.setInterval(() => void runQueuedSync(), 15_000);
     return () => window.clearInterval(timer);
-  }, [pendingSyncCount, runQueuedSync]);
+  }, [failedSyncCount, runQueuedSync]);
 };

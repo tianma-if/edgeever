@@ -20,8 +20,10 @@ on:
       - ".github/workflows/mobile-build.yml"
       - "scripts/build-android-local.sh"
       - "scripts/verify-android-apk-signature.mjs"
+      - "scripts/download-play-universal-apk.mjs"
 
 permissions:
+  actions: read
   contents: write
 
 concurrency:
@@ -61,6 +63,15 @@ jobs:
           test "$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq '.isDraft')" = "true"
           target_commitish="$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json targetCommitish --jq '.targetCommitish')"
           test "$(git rev-parse "${target_commitish}^{commit}")" = "$(git rev-parse "${GITHUB_SHA}^{commit}")"
+
+      - name: Set up Bun for release validation
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install release validation dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run full project regression tests
+        run: bun run test
 
       - name: Compare with previous formal release
         id: plan
@@ -106,7 +117,9 @@ jobs:
           fi
 
           mapfile -t current_assets < <(
-            gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${CURRENT_TAG}" \
+            gh release view "$CURRENT_TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --json assets \
               --jq '.assets[].name'
           )
           asset_ready="$(
@@ -122,6 +135,8 @@ jobs:
       - name: Verify existing APK uses the pinned signer
         if: steps.plan.outputs.asset_ready == 'true'
         env:
+          ANDROID_PLAY_APP_SIGNER_SHA256: ${{ secrets.ANDROID_PLAY_APP_SIGNER_SHA256 }}
+          EDGE_EVER_ANDROID_ALLOWED_SIGNER_SHA256: ${{ github.event_name == 'release' && secrets.ANDROID_PLAY_APP_SIGNER_SHA256 || format('22bf52a9501c89020f5acc966960152c826bfa64f31e578e858d088f8cd75d87,{0}', secrets.ANDROID_PLAY_APP_SIGNER_SHA256) }}
           CURRENT_TAG: ${{ inputs.release_tag || github.event.release.tag_name }}
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -132,7 +147,26 @@ jobs:
             --dir "$RUNNER_TEMP/native-assets"
           apk_path="$(find "$RUNNER_TEMP/native-assets" -type f -name 'edgeever-android-v*-arm64-v8a.apk' -print -quit)"
           test -n "$apk_path"
+          test -n "$ANDROID_PLAY_APP_SIGNER_SHA256"
           node scripts/verify-android-apk-signature.mjs "$apk_path"
+
+  restore-invalid-published-release:
+    needs: release-plan
+    if: >-
+      ${{
+        always() &&
+        github.repository == 'tianma-if/edgeever' &&
+        github.event_name == 'release' &&
+        needs.release-plan.result == 'failure'
+      }}
+    name: Restore invalid Android Release to Draft
+    runs-on: ubuntu-latest
+    steps:
+      - name: Restore Draft state
+        env:
+          CURRENT_TAG: ${{ github.event.release.tag_name }}
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "$CURRENT_TAG" --repo "$GITHUB_REPOSITORY" --draft=true
 
   reuse-release-apk:
     needs: release-plan
@@ -153,6 +187,8 @@ jobs:
       - name: Copy latest compatible APK without renaming
         env:
           CURRENT_TAG: ${{ inputs.release_tag || github.event.release.tag_name }}
+          ANDROID_PLAY_APP_SIGNER_SHA256: ${{ secrets.ANDROID_PLAY_APP_SIGNER_SHA256 }}
+          EDGE_EVER_ANDROID_ALLOWED_SIGNER_SHA256: ${{ secrets.ANDROID_PLAY_APP_SIGNER_SHA256 }}
           GH_TOKEN: ${{ github.token }}
           PREVIOUS_TAG: ${{ needs.release-plan.outputs.previous_tag }}
         run: |
@@ -163,6 +199,7 @@ jobs:
             --dir "$RUNNER_TEMP/native-assets"
           test "$(find "$RUNNER_TEMP/native-assets" -type f -name 'edgeever-android-v*-arm64-v8a.apk' | wc -l | tr -d ' ')" = "1"
           apk_path="$(find "$RUNNER_TEMP/native-assets" -type f -name 'edgeever-android-v*-arm64-v8a.apk' -print -quit)"
+          test -n "$ANDROID_PLAY_APP_SIGNER_SHA256"
           node scripts/verify-android-apk-signature.mjs "$apk_path"
           gh release upload "$CURRENT_TAG" "$RUNNER_TEMP/native-assets/"* \
             --repo "$GITHUB_REPOSITORY" \
@@ -242,6 +279,8 @@ jobs:
 
       - name: Verify release APK signature
         if: github.event_name == 'workflow_dispatch'
+        env:
+          EDGE_EVER_ANDROID_ALLOWED_SIGNER_SHA256: 22bf52a9501c89020f5acc966960152c826bfa64f31e578e858d088f8cd75d87,${{ secrets.ANDROID_PLAY_APP_SIGNER_SHA256 }}
         run: node scripts/verify-android-apk-signature.mjs apps/mobile/android/app/build/outputs/apk/release/app-release.apk
 
       - name: Upload APK
@@ -266,3 +305,39 @@ jobs:
       - name: Remove temporary upload keystore
         if: always()
         run: rm -f "$RUNNER_TEMP/edgeever-upload.p12"
+
+  native-build-timings:
+    needs: android
+    if: >-
+      ${{
+        always() &&
+        github.repository == 'tianma-if/edgeever' &&
+        needs.android.result != 'skipped'
+      }}
+    name: Report Android build timings
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout timing reporter
+        uses: actions/checkout@v5
+
+      - name: Collect native build timings
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api \
+            "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/jobs?filter=latest&per_page=100" \
+            > "$RUNNER_TEMP/actions-jobs.json"
+          node scripts/report-native-build-timings.mjs \
+            --input "$RUNNER_TEMP/actions-jobs.json" \
+            --platform android \
+            --json "$RUNNER_TEMP/native-build-timings.json" \
+            --markdown "$RUNNER_TEMP/native-build-timings.md"
+          cat "$RUNNER_TEMP/native-build-timings.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload machine-readable timing report
+        uses: actions/upload-artifact@v7
+        with:
+          name: edgeever-android-build-timings-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/native-build-timings.json
+          if-no-files-found: error
+          retention-days: 90

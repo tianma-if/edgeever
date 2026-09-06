@@ -1,0 +1,11 @@
+{
+  "version": "1.58.1",
+  "changes": {
+    "en-US": [
+      "Fix the diagram editor failing to open when creating or viewing mind map and flowchart notes in desktop and production builds."
+    ],
+    "zh-CN": [
+      "修复桌面端及生产环境中新建或打开思维导图、流程图笔记时编辑器无法显示的问题。"
+    ]
+  }
+}

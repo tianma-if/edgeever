@@ -24,8 +24,22 @@ export const resolveInstanceAuthMode = ({
 };
 
 export const isDatabaseNotReadyError = (error: unknown) => {
-  const message = error instanceof Error ? error.message : String(error);
-  return /D1_ERROR|no such table|no such column|DB\.prepare is not a function|Cannot read properties of undefined.*prepare/i.test(
-    message,
+  const messages: string[] = [];
+  const visited = new Set<unknown>();
+  let current: unknown = error;
+
+  while (current !== undefined && current !== null && !visited.has(current)) {
+    visited.add(current);
+    if (current instanceof Error) {
+      messages.push(current.message);
+      current = current.cause;
+      continue;
+    }
+    messages.push(String(current));
+    break;
+  }
+
+  return messages.some((message) =>
+    /\b(?:no such table|no such column|D1_COLUMN_NOTFOUND)\b/i.test(message)
   );
 };

@@ -43,7 +43,7 @@
 		<true/>
 	</dict>
 	<key>NSCameraUsageDescription</key>
-	<string>EdgeEver only uses the camera if content inside a note explicitly requests it.</string>
+	<string>EdgeEver needs camera access to take photos and insert them into notes.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>EdgeEver only uses the microphone if content inside a note explicitly requests it.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

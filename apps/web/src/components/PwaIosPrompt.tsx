@@ -25,10 +25,12 @@ export const PwaIosPrompt = () => {
         </button>
 
         <div className="flex items-start gap-3.5 pr-6">
-          {/* EdgeEver Logo representation */}
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white shadow-md shadow-emerald-500/10">
-            <span className="text-lg font-bold tracking-tight">EE</span>
-          </div>
+          <img
+            src="/favicon.svg"
+            alt=""
+            aria-hidden="true"
+            className="h-11 w-11 shrink-0"
+          />
 
           <div className="min-w-0 flex-1">
             <h3 className="text-sm font-bold text-slate-900 leading-snug">

@@ -4,13 +4,14 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: "Prepare macOS assets on this existing Draft Release (optional)"
+        description: "Prepare macOS and Windows assets on this existing Draft Release (optional)"
         required: false
         type: string
   release:
     types: [published]
 
 permissions:
+  actions: read
   contents: write
 
 jobs:
@@ -78,7 +79,9 @@ jobs:
           fi
 
           mapfile -t current_assets < <(
-            gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${CURRENT_TAG}" \
+            gh release view "$CURRENT_TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --json assets \
               --jq '.assets[].name'
           )
           asset_ready="$(
@@ -102,10 +105,10 @@ jobs:
         needs.release-plan.outputs.asset_ready == 'false' &&
         needs.release-plan.outputs.rebuild == 'false'
       }}
-    name: Reuse macOS release assets
+    name: Reuse desktop release assets
     runs-on: ubuntu-latest
     steps:
-      - name: Copy latest compatible macOS assets without renaming
+      - name: Copy latest compatible desktop assets without renaming
         env:
           CURRENT_TAG: ${{ inputs.release_tag || github.event.release.tag_name }}
           GH_TOKEN: ${{ github.token }}
@@ -123,8 +126,13 @@ jobs:
             --pattern 'EdgeEver-*-mac-x64.zip' \
             --pattern 'EdgeEver-*-mac-x64.zip.blockmap' \
             --pattern 'latest-mac.yml' \
+            --pattern 'EdgeEver-*-windows-x64.exe' \
+            --pattern 'latest.yml' \
+            --pattern 'latest-windows.json' \
+            --pattern 'latest-windows.json.sig' \
+            --pattern 'SHA256SUMS-windows.txt' \
             --dir "$RUNNER_TEMP/native-assets"
-          test "$(find "$RUNNER_TEMP/native-assets" -type f | wc -l | tr -d ' ')" = "9"
+          test "$(find "$RUNNER_TEMP/native-assets" -type f | wc -l | tr -d ' ')" = "14"
           gh release upload "$CURRENT_TAG" "$RUNNER_TEMP/native-assets/"* \
             --repo "$GITHUB_REPOSITORY" \
             --clobber
@@ -154,8 +162,10 @@ jobs:
         include:
           - arch: arm64
             runner: macos-15
+            shared_validation: true
           - arch: x64
             runner: macos-15-intel
+            shared_validation: false
 
     steps:
       - name: Check out source
@@ -163,13 +173,15 @@ jobs:
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: 1.3.14
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Cache Bun dependencies
+      # Restoring this large cache is consistently slower than a cold install on
+      # the Intel runner. The arm64 job owns the shared validation and keeps the
+      # cache because its restore path is substantially faster.
+      - name: Cache Bun dependencies for shared validation
+        if: matrix.shared_validation
         uses: actions/cache@v5
         with:
           path: ~/.bun/install/cache
@@ -248,25 +260,36 @@ jobs:
         run: bun run build:web
 
       - name: Verify Web precache budget
+        if: matrix.shared_validation
         run: bun run verify:web-performance
 
       - name: Run project type checks
+        if: matrix.shared_validation
         run: |
           bun run typecheck
           bun run typecheck:mobile
 
       - name: Build debug sidecar for integration tests
+        if: matrix.shared_validation
         run: cargo build --manifest-path crates/desktop-sidecar/Cargo.toml
 
       - name: Run desktop regression tests
+        if: matrix.shared_validation
         run: bun run test:desktop
 
-      - name: Build Rust sidecar
+      - name: Verify packaged renderer startup
+        if: matrix.shared_validation
+        run: bun run verify:desktop-renderer
+
+      - name: Validate Rust sidecar
+        if: matrix.shared_validation
         run: |
           cargo fmt --manifest-path crates/desktop-sidecar/Cargo.toml -- --check
           cargo clippy --manifest-path crates/desktop-sidecar/Cargo.toml --all-targets -- -D warnings
           cargo test --manifest-path crates/desktop-sidecar/Cargo.toml
-          cargo build --manifest-path crates/desktop-sidecar/Cargo.toml --release
+
+      - name: Build architecture-specific Rust sidecar
+        run: cargo build --manifest-path crates/desktop-sidecar/Cargo.toml --release
 
       - name: Prepare Apple notarization API key
         env:
@@ -309,12 +332,12 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  desktop-assets:
-    needs: [release-plan, desktop]
+  windows:
+    needs: release-plan
     if: >-
       ${{
         always() &&
-        needs.desktop.result == 'success' &&
+        github.repository == 'tianma-if/edgeever' &&
         (
           (github.event_name == 'workflow_dispatch' && inputs.release_tag == '') ||
           (
@@ -326,16 +349,184 @@ jobs:
           )
         )
       }}
-    name: Finalize macOS release assets
+    name: Windows x64 unsigned Preview
+    runs-on: windows-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Bun dependencies
+        uses: actions/cache@v5
+        with:
+          path: ~\AppData\Local\bun\install\cache
+          key: ${{ runner.os }}-x64-bun-${{ hashFiles('bun.lock') }}
+
+      - name: Cache Rust dependencies and sidecar builds
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~\.cargo\registry
+            ~\.cargo\git
+            crates\desktop-sidecar\target
+          key: ${{ runner.os }}-x64-rust-${{ hashFiles('crates/desktop-sidecar/Cargo.lock', 'crates/desktop-sidecar/**/*.rs') }}
+          restore-keys: |
+            ${{ runner.os }}-x64-rust-
+
+      - name: Cache Electron downloads
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~\AppData\Local\electron\Cache
+            ~\AppData\Local\electron-builder\Cache
+          key: ${{ runner.os }}-x64-electron-${{ hashFiles('bun.lock', 'apps/desktop/package.json') }}
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          for ($attempt = 1; $attempt -le 3; $attempt++) {
+            bun install --frozen-lockfile
+            $installExitCode = $LASTEXITCODE
+            if ($installExitCode -eq 0) { exit 0 }
+            if ($attempt -eq 3) { exit $installExitCode }
+            Write-Warning "Dependency installation failed on attempt $attempt; retrying."
+            Start-Sleep -Seconds (15 * $attempt)
+          }
+
+      - name: Build Web renderer
+        env:
+          EDGE_EVER_DESKTOP_BUILD: "1"
+        run: bun run build:web
+
+      - name: Build x64 Rust sidecar
+        run: cargo build --manifest-path crates/desktop-sidecar/Cargo.toml --release
+
+      - name: Package unsigned Windows installer
+        env:
+          EDGE_EVER_DESKTOP_ARCH: x64
+          EDGE_EVER_DESKTOP_TARGET: win
+        run: bun scripts/run-desktop-builder.mjs --publish never
+
+      - name: Verify Windows package contents and architecture
+        env:
+          EDGE_EVER_DESKTOP_ARCH: x64
+          EDGE_EVER_VERIFY_TARGET: win32
+        run: bun scripts/verify-desktop-package.mjs
+
+      - name: Run packaged Windows sidecar integration tests
+        shell: pwsh
+        run: |
+          $env:EDGE_EVER_SIDECAR_PATH = (Resolve-Path "release/desktop/win-unpacked/resources/sidecar/edgeever-sidecar.exe").Path
+          $env:EDGE_EVER_MIGRATIONS_PATH = (Resolve-Path "release/desktop/win-unpacked/resources/migrations").Path
+          bun scripts/test-desktop-sidecar.mjs
+
+      - name: Verify packaged Windows first launch
+        run: bun run verify:packaged-desktop-startup -- release/desktop/win-unpacked/EdgeEver.exe
+
+      - name: Verify that Preview executables are unsigned
+        shell: pwsh
+        run: |
+          $version = (Get-Content apps/desktop/package.json | ConvertFrom-Json).version
+          $paths = @(
+            "release/desktop/EdgeEver-$version-windows-x64.exe",
+            "release/desktop/win-unpacked/EdgeEver.exe",
+            "release/desktop/win-unpacked/resources/sidecar/edgeever-sidecar.exe"
+          )
+          foreach ($path in $paths) {
+            $signature = Get-AuthenticodeSignature -LiteralPath $path
+            if ($signature.Status -ne "NotSigned") {
+              throw "Unsigned Preview asset unexpectedly has an Authenticode signature: $path ($($signature.Status))"
+            }
+          }
+
+      - name: Create Windows update metadata
+        shell: pwsh
+        run: |
+          $version = (Get-Content apps/desktop/package.json | ConvertFrom-Json).version
+          node scripts/create-windows-update-metadata.mjs release/desktop $version
+
+      - name: Stage Windows Preview assets
+        uses: actions/upload-artifact@v6
+        with:
+          name: edgeever-desktop-Windows-x64-staging
+          path: |
+            release/desktop/EdgeEver-*-windows-x64.exe
+            release/desktop/latest.yml
+            release/desktop/latest-windows.json
+            release/desktop/SHA256SUMS-windows.txt
+          if-no-files-found: error
+          retention-days: 14
+
+  native-build-timings:
+    needs: [desktop, windows]
+    if: >-
+      ${{
+        always() &&
+        github.repository == 'tianma-if/edgeever' &&
+        (needs.desktop.result != 'skipped' || needs.windows.result != 'skipped')
+      }}
+    name: Report desktop build timings
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out timing reporter
+        uses: actions/checkout@v5
+
+      - name: Collect native build timings
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api \
+            "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/jobs?filter=latest&per_page=100" \
+            > "$RUNNER_TEMP/actions-jobs.json"
+          node scripts/report-native-build-timings.mjs \
+            --input "$RUNNER_TEMP/actions-jobs.json" \
+            --platform desktop \
+            --json "$RUNNER_TEMP/native-build-timings.json" \
+            --markdown "$RUNNER_TEMP/native-build-timings.md"
+          cat "$RUNNER_TEMP/native-build-timings.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload machine-readable timing report
+        uses: actions/upload-artifact@v6
+        with:
+          name: edgeever-desktop-build-timings-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/native-build-timings.json
+          if-no-files-found: error
+          retention-days: 90
+
+  desktop-assets:
+    needs: [release-plan, desktop, windows]
+    if: >-
+      ${{
+        always() &&
+        github.repository == 'tianma-if/edgeever' &&
+        needs.desktop.result == 'success' &&
+        needs.windows.result == 'success' &&
+        (
+          (github.event_name == 'workflow_dispatch' && inputs.release_tag == '') ||
+          (
+            github.event_name == 'workflow_dispatch' &&
+            inputs.release_tag != '' &&
+            needs.release-plan.result == 'success' &&
+            needs.release-plan.outputs.asset_ready == 'false' &&
+            needs.release-plan.outputs.rebuild == 'true'
+          )
+        )
+      }}
+    name: Finalize desktop release assets
     runs-on: ubuntu-latest
     steps:
       - name: Check out source
         uses: actions/checkout@v5
 
-      - name: Download architecture-specific assets
+      - name: Download platform-specific assets
         uses: actions/download-artifact@v7
         with:
-          pattern: edgeever-desktop-macOS-*-staging
+          pattern: edgeever-desktop-*-staging
           path: release/desktop
           merge-multiple: true
 
@@ -345,7 +536,7 @@ jobs:
           node scripts/create-mac-update-metadata.mjs release/desktop "$version"
           asset_ready="$(
             find release/desktop -maxdepth 1 -type f -exec basename {} \; |
-              node scripts/check-native-release-assets.mjs desktop true "v${version}" "$version"
+              node scripts/check-native-release-assets.mjs desktop true "v${version}" "$version" allow-missing-windows-signature
           )"
           test "$asset_ready" = "true"
 
@@ -362,7 +553,44 @@ jobs:
       - name: Upload combined desktop installers and metadata
         uses: actions/upload-artifact@v6
         with:
-          name: edgeever-desktop-macOS-arm64-x64
+          name: edgeever-desktop-macOS-and-Windows-x64
           path: release/desktop/*
           if-no-files-found: error
           retention-days: 14
+
+  windows-update-audit:
+    needs: release-plan
+    if: >-
+      ${{
+        always() &&
+        github.repository == 'tianma-if/edgeever' &&
+        needs.release-plan.result == 'success' &&
+        needs.release-plan.outputs.asset_ready == 'true' &&
+        (
+          github.event_name == 'release' ||
+          (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')
+        )
+      }}
+    name: Audit signed Windows update
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+
+      - name: Download Windows release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag || github.event.release.tag_name }}
+        run: |
+          mkdir -p release/desktop
+          gh release download "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern 'EdgeEver-*-windows-x64.exe' \
+            --pattern 'latest.yml' \
+            --pattern 'latest-windows.json' \
+            --pattern 'latest-windows.json.sig' \
+            --pattern 'SHA256SUMS-windows.txt' \
+            --dir release/desktop
+
+      - name: Verify signature and installer digests
+        run: node scripts/verify-windows-update-release.mjs release/desktop

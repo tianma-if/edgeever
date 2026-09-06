@@ -6,6 +6,7 @@ import {
   inferImageExtension,
   mapResourceListItem,
   normalizeFilename,
+  replaceResourceContent,
   validateAttachmentUpload,
   validateImageUpload,
 } from "./resource-service.ts";
@@ -55,9 +56,12 @@ describe("resource service contracts", () => {
 
   test("normalizes filenames and keeps UTF-8 download names", () => {
     expect(normalizeFilename("  reports/季度\u0000.pdf  ")).toBe("reports-季度.pdf");
-    expect(contentDispositionAttachment("季度报告.pdf")).toContain(
-      "filename*=UTF-8''%E5%AD%A3%E5%BA%A6%E6%8A%A5%E5%91%8A.pdf",
+    const disposition = contentDispositionAttachment("季度报告 (最终版)'*.pdf");
+    expect(disposition).toBe(
+      "attachment; filename=\"download.pdf\"; filename*=UTF-8''%E5%AD%A3%E5%BA%A6%E6%8A%A5%E5%91%8A%20%28%E6%9C%80%E7%BB%88%E7%89%88%29%27%2A.pdf",
     );
+    expect(new Headers({ "Content-Disposition": disposition }).get("Content-Disposition")).toBe(disposition);
+    expect(contentDispositionAttachment("résumé.pdf")).toContain('filename="resume.pdf"');
   });
 
   test("infers normalized image extensions", () => {
@@ -70,5 +74,90 @@ describe("resource service contracts", () => {
     expect(() => validateAttachmentUpload(MAX_ATTACHMENT_UPLOAD_BYTES)).not.toThrow();
     expect(() => validateImageUpload("image/svg+xml", 128)).toThrow();
     expect(() => validateAttachmentUpload(MAX_ATTACHMENT_UPLOAD_BYTES + 1)).toThrow();
+  });
+
+  test("replaces bytes through a conditional object-pointer swap", async () => {
+    let current = { ...resourceRow, kind: "attachment", mime_type: "application/octet-stream" };
+    const stored = [];
+    const deleted = [];
+    const database = {
+      prepare(sql) {
+        const statement = {
+          bind(...values) {
+            return {
+              first: async () => {
+                if (sql.includes("object_storage_configs")) return {
+                  id: "builtin", provider: "builtin", display_name: "Builtin", endpoint: null,
+                  region: null, bucket: null, access_key_id: null, secret_access_key_encrypted: null,
+                  force_path_style: 0, object_prefix: "", is_active: 1,
+                };
+                if (sql.includes("FROM resources")) return current;
+                return null;
+              },
+              run: async () => {
+                if (sql.startsWith("UPDATE resources") && current.sha256 === values[7]) {
+                  current = {
+                    ...current,
+                    object_key: values[0],
+                    mime_type: values[1],
+                    filename: values[2],
+                    byte_size: values[3],
+                    sha256: values[4],
+                    width: null,
+                    height: null,
+                    updated_at: values[5],
+                  };
+                }
+                return { success: true, results: [], meta: {} };
+              },
+            };
+          },
+          first: async () => null,
+          run: async () => ({ success: true, results: [], meta: {} }),
+        };
+        return statement;
+      },
+    };
+    const context = {
+      get: () => ({ workspaceId: "ws_1" }),
+      env: {
+        storage: {
+          db: database,
+          resources: {
+            put: async (key, bytes) => stored.push({ key, bytes }),
+            delete: async (key) => deleted.push(key),
+          },
+        },
+      },
+    };
+
+    const updated = await replaceResourceContent(context, {
+      resourceId: "res_1",
+      expectedContentHash: "checksum",
+      filename: "drawing.excalidraw",
+      mimeType: "application/vnd.excalidraw+json",
+      bytes: new TextEncoder().encode("scene"),
+      actor: { actorType: "agent", actorId: "token_1" },
+    });
+
+    expect(updated).toMatchObject({
+      id: "res_1",
+      filename: "drawing.excalidraw",
+      mimeType: "application/vnd.excalidraw+json",
+      byteSize: 5,
+    });
+    expect(stored).toHaveLength(1);
+    expect(stored[0].key).not.toBe(resourceRow.object_key);
+    expect(deleted).toEqual([resourceRow.object_key]);
+
+    await expect(replaceResourceContent(context, {
+      resourceId: "res_1",
+      expectedContentHash: "stale",
+      filename: "drawing.excalidraw",
+      mimeType: "application/vnd.excalidraw+json",
+      bytes: new TextEncoder().encode("other"),
+      actor: { actorType: "agent", actorId: "token_1" },
+    })).rejects.toMatchObject({ code: "resource_conflict", status: 409 });
+    expect(stored).toHaveLength(1);
   });
 });

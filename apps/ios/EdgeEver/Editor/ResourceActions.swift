@@ -160,7 +160,7 @@ struct ResourceActionSheet: View {
         VStack(spacing: 0) {
             // Handle
             Capsule()
-                .fill(Color(hex: 0xCBD5E1))
+                .fill(AppTheme.sheetHandle)
                 .frame(width: 42, height: 4)
                 .padding(.top, 10)
                 .padding(.bottom, 14)
@@ -170,10 +170,10 @@ struct ResourceActionSheet: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(mode == .rename ? renameTitle : actionsTitle)
                         .font(.system(size: 19, weight: .heavy))
-                        .foregroundStyle(Color(hex: 0x0F172A))
+                        .foregroundStyle(AppTheme.title)
                     Text(target.filename)
                         .font(.system(size: 13))
-                        .foregroundStyle(Color(hex: 0x64748B))
+                        .foregroundStyle(AppTheme.secondary)
                         .lineLimit(1)
                 }
                 Spacer(minLength: 8)
@@ -182,7 +182,7 @@ struct ResourceActionSheet: View {
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(Color(hex: 0x475569))
+                        .foregroundStyle(AppTheme.slate)
                         .frame(width: 40, height: 40)
                 }
                 .buttonStyle(.plain)
@@ -202,7 +202,7 @@ struct ResourceActionSheet: View {
                         .controlSize(.small)
                     Text(env.preferences.t("正在准备文件…", en: "Preparing file…"))
                         .font(.system(size: 13))
-                        .foregroundStyle(Color(hex: 0x64748B))
+                        .foregroundStyle(AppTheme.secondary)
                     Spacer()
                 }
                 .padding(.top, 10)
@@ -211,14 +211,14 @@ struct ResourceActionSheet: View {
             if let error {
                 Text(error)
                     .font(.system(size: 13))
-                    .foregroundStyle(Color(hex: 0xBE123C))
+                    .foregroundStyle(AppTheme.danger)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.top, 10)
             }
         }
         .padding(.horizontal, 20)
         .padding(.bottom, 28)
-        .background(Color.white)
+        .background(AppTheme.card)
         .onAppear { filename = target.filename }
         .confirmationDialog(deleteTitle, isPresented: $showDeleteConfirm, titleVisibility: .visible) {
             Button(env.preferences.t("删除", en: "Delete"), role: .destructive) {
@@ -312,7 +312,7 @@ struct ResourceActionSheet: View {
                 mode = .rename
             }
             Rectangle()
-                .fill(Color(hex: 0xE2E8F0))
+                .fill(AppTheme.border)
                 .frame(height: 1)
                 .padding(.vertical, 4)
             actionRow(
@@ -329,7 +329,7 @@ struct ResourceActionSheet: View {
                     en: "Rename and delete are available after the resource has synced."
                 ))
                 .font(.system(size: 12))
-                .foregroundStyle(Color(hex: 0x64748B))
+                .foregroundStyle(AppTheme.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.top, 4)
             }
@@ -341,7 +341,7 @@ struct ResourceActionSheet: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(env.preferences.t("文件名", en: "Filename"))
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(Color(hex: 0x475569))
+                .foregroundStyle(AppTheme.slate)
             TextField("", text: $filename)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
@@ -349,7 +349,7 @@ struct ResourceActionSheet: View {
                 .frame(minHeight: 46)
                 .background(
                     RoundedRectangle(cornerRadius: 9)
-                        .stroke(Color(hex: 0xCBD5E1), lineWidth: 1)
+                        .stroke(AppTheme.border, lineWidth: 1)
                 )
                 .disabled(pending)
 
@@ -360,11 +360,11 @@ struct ResourceActionSheet: View {
                 } label: {
                     Text(env.preferences.t("取消", en: "Cancel"))
                         .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(Color(hex: 0x475569))
+                        .foregroundStyle(AppTheme.slate)
                         .frame(minWidth: 84, minHeight: 42)
                         .overlay(
                             RoundedRectangle(cornerRadius: 9)
-                                .stroke(Color(hex: 0xCBD5E1), lineWidth: 1)
+                                .stroke(AppTheme.border, lineWidth: 1)
                         )
                 }
                 .buttonStyle(.plain)
@@ -383,7 +383,7 @@ struct ResourceActionSheet: View {
                         }
                     }
                     .frame(minWidth: 84, minHeight: 42)
-                    .background(Color(hex: 0x059669))
+                    .background(AppTheme.accentAction)
                     .clipShape(RoundedRectangle(cornerRadius: 9))
                 }
                 .buttonStyle(.plain)
@@ -406,11 +406,11 @@ struct ResourceActionSheet: View {
             HStack(spacing: 14) {
                 Image(systemName: systemImage)
                     .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(danger ? Color(hex: 0xBE123C) : Color(hex: 0x0F172A))
+                    .foregroundStyle(danger ? AppTheme.danger : AppTheme.title)
                     .frame(width: 22)
                 Text(label)
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(danger ? Color(hex: 0xBE123C) : Color(hex: 0x0F172A))
+                    .foregroundStyle(danger ? AppTheme.danger : AppTheme.title)
                 Spacer()
             }
             .frame(minHeight: 52)
@@ -494,21 +494,11 @@ struct ResourceActionSheet: View {
         let token = env.session.session?.token
         let path = "/api/v1/resources/\(target.resourceId)/blob"
         let client = APIClient(baseURL: base, token: token)
-        let result = try await client.getResourceData(path: path)
-        guard !result.data.isEmpty else { throw ResourceActionError.emptyFile }
         let safeName = target.filename
             .replacingOccurrences(of: "/", with: "_")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         let name = safeName.isEmpty ? "\(target.resourceId).bin" : safeName
-        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("edgeever-share", isDirectory: true)
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        let fileURL = dir.appendingPathComponent(name)
-        if FileManager.default.fileExists(atPath: fileURL.path) {
-            try FileManager.default.removeItem(at: fileURL)
-        }
-        try result.data.write(to: fileURL, options: .atomic)
-        // Document picker / share sheet need a file URL that remains readable while presented.
-        return fileURL
+        return try await client.downloadResourceFile(path: path, suggestedFilename: name)
     }
 }
 
@@ -764,7 +754,7 @@ private enum ResourceActionError: LocalizedError {
 }
 
 /// System share sheet with completion so the user always gets feedback.
-private struct ActivityShareView: UIViewControllerRepresentable {
+struct ActivityShareView: UIViewControllerRepresentable {
     let items: [Any]
     var onComplete: (_ completed: Bool, _ activityType: UIActivity.ActivityType?, _ error: Error?) -> Void
 

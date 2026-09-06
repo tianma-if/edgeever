@@ -1,7 +1,17 @@
 export type MobileSharedPayload = {
+  contentMimeType?: string | null;
+  contentType?: string | null;
+  contentUri?: string | null;
   mimeType?: string;
+  originalName?: string | null;
   shareType?: string;
   value?: string;
+};
+
+export type MobileSharedImage = {
+  mimeType: string;
+  name: string;
+  uri: string;
 };
 
 export type MobileWebClipDraft = {
@@ -73,6 +83,22 @@ export const getSharedWebUrl = (payloads: MobileSharedPayload[]) => {
   }
   return null;
 };
+
+export const getSharedImages = (payloads: MobileSharedPayload[]): MobileSharedImage[] =>
+  payloads.flatMap((payload, index) => {
+    const mimeType = payload.contentMimeType?.trim() || payload.mimeType?.trim() || "";
+    const isImage = payload.contentType === "image" || payload.shareType === "image" || mimeType.startsWith("image/");
+    const uri = payload.contentUri?.trim() || payload.value?.trim() || "";
+    if (!isImage || !uri) {
+      return [];
+    }
+
+    return [{
+      mimeType: mimeType || "image/jpeg",
+      name: payload.originalName?.trim() || `shared-image-${index + 1}`,
+      uri,
+    }];
+  });
 
 export const isWeChatArticleUrl = (value: string) => {
   try {
