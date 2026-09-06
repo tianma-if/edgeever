@@ -56,16 +56,25 @@ const copy = siteCopy[locale].hero;
         <Icon class="w-4 h-4" name="bx:bx-show" />
         <span>{copy.demo}</span>
       </Link>
-      <Link
-        size="lg"
-        style="outline"
-        rel="noopener"
+      <a
         href="https://github.com/tianma-if/edgeever"
-        class="flex gap-2 items-center justify-center px-6 py-3 border border-slate-200 hover:border-slate-400 bg-white/80 backdrop-blur-sm text-slate-800 transition-all rounded-full font-semibold text-sm hover:-translate-y-0.5 w-full sm:w-auto text-center"
-        target="_blank">
-        <Icon class="text-slate-800 w-4 h-4" name="bx:bxl-github" />
-        <span>GitHub Star</span>
-      </Link>
+        target="_blank"
+        rel="noopener"
+        aria-label="EdgeEver on GitHub"
+        class="group flex gap-2 items-center justify-center px-4 sm:px-4.5 py-3 border border-slate-200/90 hover:border-slate-400 bg-white/90 backdrop-blur-sm text-slate-800 transition-all rounded-full font-semibold text-sm hover:-translate-y-0.5 shadow-2xs hover:shadow-sm w-full sm:w-auto text-center"
+      >
+        <Icon class="text-slate-800 w-4 h-4 shrink-0 transition-transform duration-200 group-hover:scale-110" name="bx:bxl-github" />
+        <div class="flex items-center gap-1.5 font-medium text-xs">
+          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 group-hover:bg-amber-50 group-hover:text-amber-800 transition-colors">
+            <Icon name="bx:bxs-star" class="w-3.5 h-3.5 text-amber-500" />
+            <span data-github-stars>--</span>
+          </span>
+          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 group-hover:bg-slate-200/80 transition-colors">
+            <Icon name="bx:git-repo-forked" class="w-3.5 h-3.5 text-slate-500" />
+            <span data-github-forks>--</span>
+          </span>
+        </div>
+      </a>
       <a
         rel="noopener"
         href={getLocalizedPath(locale, "/blog/ai-agent-deploy-cloudflare")}
@@ -183,3 +192,64 @@ const copy = siteCopy[locale].hero;
       sans-serif;
   }
 </style>
+
+<script is:inline>
+  (function () {
+    function formatCount(count) {
+      if (typeof count !== "number") return String(count);
+      if (count >= 1000) {
+        return (count / 1000).toFixed(1).replace(/\.0$/, "") + "k";
+      }
+      return count.toLocaleString();
+    }
+
+    async function fetchGitHubStats() {
+      var starEls = document.querySelectorAll("[data-github-stars]");
+      var forkEls = document.querySelectorAll("[data-github-forks]");
+      if (!starEls.length && !forkEls.length) return;
+
+      // 1. Direct real-time fetch from GitHub API (always fresh, no cache)
+      try {
+        var res = await fetch("https://api.github.com/repos/tianma-if/edgeever", {
+          headers: { Accept: "application/vnd.github.v3+json" },
+          cache: "no-store",
+        });
+        if (res.ok) {
+          var data = await res.json();
+          if (typeof data.stargazers_count === "number") {
+            starEls.forEach(function (el) { el.textContent = formatCount(data.stargazers_count); });
+          }
+          if (typeof data.forks_count === "number") {
+            forkEls.forEach(function (el) { el.textContent = formatCount(data.forks_count); });
+          }
+          return;
+        }
+      } catch (e) {
+        // Fall back to Shields live JSON endpoint if GitHub API is unavailable/rate-limited
+      }
+
+      // 2. Fallback: Shields.io live JSON API (same data source as Readme badges)
+      try {
+        var responses = await Promise.all([
+          fetch("https://img.shields.io/github/stars/tianma-if/edgeever.json", { cache: "no-store" }),
+          fetch("https://img.shields.io/github/forks/tianma-if/edgeever.json", { cache: "no-store" }),
+        ]);
+        if (responses[0].ok) {
+          var sData = await responses[0].json();
+          var sVal = sData.value || sData.message;
+          if (sVal) starEls.forEach(function (el) { el.textContent = sVal; });
+        }
+        if (responses[1].ok) {
+          var fData = await responses[1].json();
+          var fVal = fData.value || fData.message;
+          if (fVal) forkEls.forEach(function (el) { el.textContent = fVal; });
+        }
+      } catch (e) {
+        // Ignore fallback errors
+      }
+    }
+
+    fetchGitHubStats();
+    document.addEventListener("astro:page-load", fetchGitHubStats);
+  })();
+</script>

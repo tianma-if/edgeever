@@ -41,18 +41,18 @@ export function CompanionDiscoverySettingsCard({ scope, onOpenCompanion, onOpenA
     timeStyle: "short",
   }).format(new Date(value));
 
-  const save = async (enabled: boolean) => {
+  const save = async (enabled: boolean, preferences?: { learningEnabled?: boolean; useMemory?: boolean }) => {
     if (!settings || busy) return;
     setBusy(true);
     setError(null);
     try {
-      if (enabled) {
+      if (enabled && !settings.enabled) {
         const current = aiSettings ?? (await aiQuery.refetch()).data;
         const ready = Boolean(current?.encryptionConfigured && current.providers.some(provider =>
           provider.isEnabled && provider.models.some(model => model.id === current.defaultModelId)));
         if (!ready) { setError("model"); return; }
       }
-      const result = await api.saveCompanionDiscoverySettings({ enabled, version: settings.version });
+      const result = await api.saveCompanionDiscoverySettings({ enabled, version: settings.version, ...preferences });
       client.setQueryData(discoverySettingsKey(scope), result.settings);
       client.setQueryData(discoveryFeedKey(scope), []);
     } catch (cause) {
@@ -119,6 +119,14 @@ export function CompanionDiscoverySettingsCard({ scope, onOpenCompanion, onOpenA
           </div>
         ) : null}
 
+        <div className="space-y-3 rounded-lg border p-4">
+          <p className="text-sm text-slate-500">{t("companion.learning.help")}</p>
+          {(["learningEnabled", "useMemory"] as const).map(key => <div key={key} className="flex items-center justify-between gap-3">
+            <label htmlFor={`paw-${key}`} className="text-sm">{t(`companion.learning.${key}`)}</label>
+            <Switch id={`paw-${key}`} checked={settings?.[key] ?? false} disabled={busy || !settings}
+              onCheckedChange={value => void save(enabled, { [key]: value })} />
+          </div>)}
+        </div>
         <section
           className="space-y-3 rounded-lg border border-slate-200/80 bg-white p-4 dark:border-slate-800 dark:bg-slate-900"
           aria-labelledby="companion-discovery-status-title"

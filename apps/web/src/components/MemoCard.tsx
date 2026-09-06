@@ -398,7 +398,9 @@ export const MemoCard = ({
           </div>
           <div className={cn("mt-3.5 flex flex-wrap items-center gap-2", listDensity === "compact" && "mt-1.5")}>
             <time className="text-xs font-normal text-slate-500 dark:text-slate-400" dateTime={listTimestamp.value}>
-              {t(listTimestamp.field === "createdAt" ? "memoCard.createdAt" : "memoCard.updatedAt", { time: listTimestampLabel })}
+              {listTimestamp.field === "createdAt"
+                ? t("memoCard.createdAt", { time: listTimestampLabel })
+                : listTimestampLabel}
             </time>
             {memo.tags.slice(0, 3).map((tag) => (
               <span

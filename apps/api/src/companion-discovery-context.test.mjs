@@ -35,6 +35,9 @@ test("only exact supplied aliases can resolve to real note IDs", () => {
 test("discovery copy is constrained to compact three-line content", () => {
   const context = discoveryContext(input);
   expect(context.instructions).toContain("at most 3 short lines");
+  expect(context.instructions).toContain("specific evidence or content connection");
+  expect(context.instructions).toContain("never paraphrase the action");
+  expect(context.instructions).toContain("If there is no useful non-redundant reason, return null");
   const base = { kind: "insight", title: "Short title", sourceIds: ["n1", "n2"], targetId: null };
   expect(CompanionDiscoveryOutputSchema.safeParse({ suggestion: { ...base, body: "One\nTwo\nThree" } }).success).toBe(true);
   expect(CompanionDiscoveryOutputSchema.safeParse({ suggestion: { ...base, body: "One\nTwo\nThree\nFour" } }).success).toBe(false);

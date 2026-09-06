@@ -1,3 +1,4 @@
+import { companionMemoryText } from "@/lib/companion-memory";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronLeft, MessageCircle } from "lucide-react";
@@ -51,7 +52,7 @@ function CompanionWorkspace({ beforeApply, onNotesChanged, onOpenNote }: Compani
   const [message, setMessage] = useState("");
   const [memoryContent, setMemoryContent] = useState("");
   const [editing, setEditing] = useState<CompanionMemory | null>(null);
-  const [useMemory, setUseMemory] = useState(true);
+  const [useMemory, setUseMemory] = useState(false);
   const [allowNotes, setAllowNotes] = useState(false);
   const [tab, setTab] = useState<"chat" | "memories">("chat");
   const [busy, setBusy] = useState(false);
@@ -75,8 +76,9 @@ function CompanionWorkspace({ beforeApply, onNotesChanged, onOpenNote }: Compani
     return t("companion.failed");
   };
   const reload = async () => {
-    const [memoryResult, turnResult, actionResult] = await Promise.all([api.listCompanionMemories(), api.listCompanionTurns(), api.listCompanionActions()]);
+    const [memoryResult, turnResult, actionResult, settingsResult] = await Promise.all([api.listCompanionMemories(), api.listCompanionTurns(), api.listCompanionActions(), api.getCompanionDiscoverySettings()]);
     if (!alive.current) return;
+    setUseMemory(settingsResult.settings.useMemory === true);
     setMemories(memoryResult.memories);
     setTurns(turnResult.turns);
     setActions(actionResult.actions);
@@ -94,7 +96,7 @@ function CompanionWorkspace({ beforeApply, onNotesChanged, onOpenNote }: Compani
     if (locked.current) return;
     locked.current = true;
     setBusy(true); setError(null);
-    try { await work(); await reload(); }
+    try { await work(); await reload(); window.dispatchEvent(new Event("edgeever:companion-memory-changed")); }
     catch (cause) { if (alive.current) setError(explainError(cause)); }
     finally { locked.current = false; if (alive.current) setBusy(false); }
   };
@@ -230,9 +232,17 @@ function CompanionWorkspace({ beforeApply, onNotesChanged, onOpenNote }: Compani
             </div>
           </form>
           {memories.map(memory => <article key={memory.id} className="space-y-2 rounded-lg border p-3 text-sm">
-            <p className="whitespace-pre-wrap break-words">{memory.content}</p>
-            <p className="text-xs text-slate-500">{t(memory.sourceTurnId ? "companion.fromMessage" : "companion.fromManual")}</p>
-            <Button size="sm" variant="ghost" disabled={busy} onClick={() => { setEditing(memory); setMemoryContent(memory.content); }}>{t("companion.correct")}</Button>
+            <p className="whitespace-pre-wrap break-words">{companionMemoryText(memory, t)}</p>
+            {memory.scopeNotebookName ? <p className="text-xs text-slate-500">{memory.scopeNotebookName}</p> : null}
+            <p className="text-xs text-slate-500">{memory.kind === "inferred" ? t(`companion.learning.${memory.state ?? "candidate"}`) : t(memory.sourceTurnId ? "companion.fromMessage" : "companion.fromManual")}</p>
+            {memory.evidence?.length ? <details className="text-xs text-slate-500">
+              <summary className="cursor-pointer">{t("companion.learning.evidence")}</summary>
+              <ul className="mt-2 space-y-1">{memory.evidence.map((entry, index) => <li key={`${entry.memoId}-${index}`}>
+                {new Date(entry.createdAt).toLocaleDateString(i18n.resolvedLanguage)} · <Button variant="ghost" size="sm" className="h-auto p-0 text-xs underline"
+                  disabled={!entry.notebookId} onClick={() => entry.notebookId && onOpenNote(entry.memoId, entry.notebookId)}>{entry.title || t("common.untitledMemo")}</Button>
+              </li>)}</ul>
+            </details> : null}
+            <Button size="sm" variant="ghost" disabled={busy} onClick={() => { setEditing(memory); setMemoryContent(companionMemoryText(memory, t)); }}>{t("companion.correct")}</Button>
             <Button size="sm" variant="ghost" disabled={busy} onClick={() => setConfirmation(memory)}>{t("companion.forget")}</Button>
           </article>)}
           <p className="text-xs text-slate-500">{t("companion.backupHelp")}</p>
@@ -243,9 +253,9 @@ function CompanionWorkspace({ beforeApply, onNotesChanged, onOpenNote }: Compani
               const file = event.target.files?.[0]; event.target.value = "";
               if (file) void perform(async () => {
                 if (file.size > 10 * 1024 * 1024) throw new Error("File too large");
-                const data = JSON.parse(await file.text()) as { version: number; memories: { content: string }[] };
-                if (data.version !== 1 || !Array.isArray(data.memories)) throw new Error("Invalid backup");
-                await api.importCompanionMemories(data.memories.map(memory => ({ content: memory.content })));
+                const data = JSON.parse(await file.text()) as { version: number; memories: CompanionMemory[]; controls?: { useMemory: boolean; learningEnabled: boolean } };
+                if (![1, 2].includes(data.version) || !Array.isArray(data.memories)) throw new Error("Invalid backup");
+                await api.importCompanionMemories(data.memories.map(memory => ({ content: memory.content, kind: memory.kind })), data.controls);
               });
             }} />
             <Button variant="outline" disabled={busy || loading} onClick={() => setConfirmation("history")}>{t("companion.clearHistory")}</Button>
@@ -254,7 +264,10 @@ function CompanionWorkspace({ beforeApply, onNotesChanged, onOpenNote }: Compani
       </div>
       {tab === "chat" ? <form onSubmit={send} className="space-y-2 border-t pt-3">
         <div className="flex flex-wrap gap-4 text-sm">
-          <label className="flex items-center gap-2"><Checkbox checked={useMemory} disabled={busy} onCheckedChange={checked => setUseMemory(checked === true)} />{t("companion.useMemory")}</label>
+          <label className="flex items-center gap-2"><Checkbox checked={useMemory} disabled={busy} onCheckedChange={checked => void perform(async () => {
+            const { settings } = await api.getCompanionDiscoverySettings();
+            await api.saveCompanionDiscoverySettings({ enabled: settings.enabled, version: settings.version, useMemory: checked === true });
+          })} />{t("companion.useMemory")}</label>
           <label className="flex items-center gap-2"><Checkbox checked={allowNotes} disabled={busy} onCheckedChange={checked => setAllowNotes(checked === true)} />{t("companion.allowNotes")}</label>
         </div>
         <details className="text-xs leading-relaxed text-slate-500">

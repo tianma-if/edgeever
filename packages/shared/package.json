@@ -7,6 +7,7 @@
     ".": "./src/index.ts",
     "./ai-prompt-seeds": "./src/ai-prompt-seeds.ts",
     "./deployment-metadata": "./src/deployment-metadata.ts",
+    "./editor-link": "./src/editor-link.ts",
     "./image-display": "./src/image-display.ts",
     "./image-gallery-editing": "./src/image-gallery-editing.ts",
     "./native-image-gallery": "./src/native-image-gallery.ts",
@@ -21,12 +22,14 @@
   "dependencies": {
     "@tiptap/core": "3.31.0",
     "@tiptap/extension-image": "3.31.0",
+    "@tiptap/extension-link": "3.31.0",
     "@tiptap/extension-list": "3.31.0",
     "@tiptap/extension-mathematics": "3.31.0",
     "@tiptap/extension-table": "3.31.0",
     "@tiptap/markdown": "3.31.0",
     "@tiptap/pm": "3.31.0",
     "@tiptap/starter-kit": "3.31.0",
-    "katex": "0.16.22"
+    "katex": "0.16.22",
+    "zod": "4.4.3"
   }
 }

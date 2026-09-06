@@ -13,6 +13,7 @@ import {
   getDesktopSyncIssues,
   recoverDesktopMemoUpdate,
   retryDesktopSyncIssue,
+  type DesktopGlobalSyncIssue,
 } from "@/lib/desktop-sync";
 
 const isRecoverableMissingMemo = (item: DesktopOutboxItem) => item.kind === "memo.update"
@@ -34,8 +35,10 @@ export const DesktopSyncIssuesDialog = ({
 }) => {
   const { i18n, t } = useTranslation();
   const [items, setItems] = useState<DesktopOutboxItem[]>([]);
+  const [globalIssue, setGlobalIssue] = useState<DesktopGlobalSyncIssue | null>(null);
   const [loading, setLoading] = useState(false);
   const [workingId, setWorkingId] = useState<number | null>(null);
+  const [workingGlobal, setWorkingGlobal] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [recovering, setRecovering] = useState<DesktopOutboxItem | null>(null);
   const [discarding, setDiscarding] = useState<DesktopOutboxItem | null>(null);
@@ -52,14 +55,14 @@ export const DesktopSyncIssuesDialog = ({
     diagnostics: {
       heading: t("notebookPane.syncDetails.reportDiagnosticsHeading"),
       notice: t("notebookPane.syncDetails.reportDiagnosticsNotice"),
-      text: createDesktopSyncDiagnosticText(items),
+      text: createDesktopSyncDiagnosticText(items, globalIssue),
     },
     privacyNotice: t("feedback.privacyNotice"),
     systemInfo: getWebSystemInfoItems(t, i18n.language),
     systemInfoHeading: t("feedback.systemInfoHeading"),
     systemInfoNotice: t("feedback.systemInfoNotice"),
     titlePrefix: t("notebookPane.syncDetails.reportTitlePrefix"),
-  }), [i18n.language, items, t]);
+  }), [globalIssue, i18n.language, items, t]);
   const formatTime = (value: string | null | undefined) => {
     if (!value) return null;
     const time = new Date(value);
@@ -70,7 +73,9 @@ export const DesktopSyncIssuesDialog = ({
     setLoading(true);
     setError(null);
     try {
-      setItems(await getDesktopSyncIssues());
+      const details = await getDesktopSyncIssues();
+      setItems(details.items);
+      setGlobalIssue(details.globalIssue);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : String(loadError));
     } finally {
@@ -110,9 +115,22 @@ export const DesktopSyncIssuesDialog = ({
     void runAction(item, () => discardDesktopSyncIssue(item));
   };
 
+  const retryGlobalIssue = async () => {
+    setWorkingGlobal(true);
+    setError(null);
+    try {
+      await onSyncNow();
+      await load();
+    } catch (actionError) {
+      setError(actionError instanceof Error ? actionError.message : String(actionError));
+    } finally {
+      setWorkingGlobal(false);
+    }
+  };
+
   return (
     <>
-      <Dialog open={open && !recovering && !discarding} onOpenChange={(nextOpen) => { if (workingId === null) onOpenChange(nextOpen); }}>
+      <Dialog open={open && !recovering && !discarding} onOpenChange={(nextOpen) => { if (workingId === null && !workingGlobal) onOpenChange(nextOpen); }}>
         <DialogContent className="max-h-[min(720px,calc(100vh-2rem))] max-w-2xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{t("notebookPane.syncDetails.title")}</DialogTitle>
@@ -121,9 +139,28 @@ export const DesktopSyncIssuesDialog = ({
 
           {error ? <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{error}</p> : null}
           {loading ? <p className="py-8 text-center text-sm text-slate-500">{t("common.loading")}</p> : null}
-          {!loading && items.length === 0 ? <p className="py-8 text-center text-sm text-slate-500">{t("notebookPane.syncDetails.empty")}</p> : null}
+          {!loading && items.length === 0 && !globalIssue ? <p className="py-8 text-center text-sm text-slate-500">{t("notebookPane.syncDetails.empty")}</p> : null}
 
           <div className="space-y-3">
+            {globalIssue ? (
+              <section className="rounded-lg border border-amber-200 bg-amber-50/60 p-4">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-slate-900">{t("notebookPane.syncDetails.globalFailure")}</p>
+                    <p className="mt-1 break-words text-sm text-amber-900">{globalIssue.message || t("notebookPane.syncDetails.unknownError")}</p>
+                    <p className="mt-1 text-xs text-slate-500">{t("notebookPane.syncDetails.errorCode", { code: globalIssue.errorCode ?? globalIssue.phase })}</p>
+                    {formatTime(globalIssue.occurredAt) ? <p className="mt-1 text-xs text-slate-500">{t("notebookPane.syncDetails.lastAttempt", { time: formatTime(globalIssue.occurredAt) })}</p> : null}
+                  </div>
+                </div>
+                <div className="mt-3 flex justify-end">
+                  <Button size="sm" variant="outline" disabled={workingGlobal} onClick={() => void retryGlobalIssue()}>
+                    <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                    {t("notebookPane.syncDetails.retry")}
+                  </Button>
+                </div>
+              </section>
+            ) : null}
             {items.map((item) => {
               const recoverable = isRecoverableMissingMemo(item);
               const working = workingId === item.id;
@@ -170,8 +207,8 @@ export const DesktopSyncIssuesDialog = ({
           </div>
 
           <DialogFooter className="gap-2 sm:justify-between">
-            <Button variant="outline" disabled={items.length === 0} asChild={items.length > 0}>
-              {items.length > 0 ? (
+            <Button variant="outline" disabled={items.length === 0 && !globalIssue} asChild={items.length > 0 || Boolean(globalIssue)}>
+              {items.length > 0 || globalIssue ? (
                 <a href={reportIssueUrl} target="_blank" rel="noopener noreferrer">
                   <ExternalLink className="mr-1.5 h-4 w-4" />
                   {t("notebookPane.syncDetails.reportIssue")}

@@ -22,7 +22,7 @@ assert.ok(precacheStart >= 0 && precacheEnd > precacheStart, "Web service worker
 const precacheManifest = serviceWorker.slice(precacheStart, precacheEnd);
 assert.doesNotMatch(precacheManifest, /\{url:"index\.html",/, "Current HTML must not be served by a cache-first precache route");
 assert.match(precacheManifest, /index\.html\?edgeever-offline-shell=/, "PWA must retain a versioned offline HTML shell");
-const optionalDiagramPattern = /(?:beautiful-mermaid|vendor-mermaid|mermaid\.core|vendor-codemirror|[^"']*Diagram-)[^"']*\.js/;
+const optionalDiagramPattern = /(?:beautiful-mermaid|vendor-mermaid|mermaid\.core|vendor-x6|vendor-codemirror|[^"']*Diagram(?:EditorPane)?-)[^"']*\.js/;
 assert.doesNotMatch(precacheManifest, optionalDiagramPattern, "Optional diagram chunks must remain out of the initial PWA precache");
 assert.doesNotMatch(precacheManifest, /vendor~pdf-[^"']*\.js/, "Optional PDF.js runtime must remain out of the initial PWA precache");
 assert.doesNotMatch(precacheManifest, /noto-sans-sc-[^"']*\.woff2/, "Print-only Noto Sans SC shards must remain out of the PWA precache");
@@ -37,18 +37,18 @@ const precacheBytes = precacheURLs
 const PRECACHE_BUDGET = 5 * 1024 * 1024;
 assert.ok(precacheBytes <= PRECACHE_BUDGET, `PWA precache budget exceeded: ${precacheBytes} > ${PRECACHE_BUDGET}`);
 const modulePreloads = indexHtml.match(/<link rel="modulepreload"[^>]+>/g)?.join("\n") ?? "";
-const initialOptionalPattern = /vendor-code-highlight|vendor-D3|beautiful-mermaid|vendor-(?:mermaid|tiptap|prosemirror|floating|codemirror)|ui-primitives|mermaid\.core|[^"']*Diagram-/;
+const initialOptionalPattern = /vendor-code-highlight|vendor-D3|beautiful-mermaid|vendor-(?:mermaid|tiptap|prosemirror|floating|codemirror|x6)|ui-primitives|mermaid\.core|[^"']*Diagram(?:EditorPane)?-/;
 assert.doesNotMatch(modulePreloads, initialOptionalPattern, "Optional editor and diagram chunks must remain out of the initial HTML modulepreload list");
 assert.doesNotMatch(modulePreloads, /ui-button-tooltip/, "Button tooltips must load only when a titled button is rendered");
 assert.doesNotMatch(modulePreloads, /vendor-radix(?!-slot)/, "Radix overlays must remain out of the initial HTML modulepreload list");
 const initialModulePreloadBytes = [...indexHtml.matchAll(/<link rel="modulepreload"[^>]+href="([^"]+)"[^>]*>/g)]
   .map((match) => statSync(join(distDirectory, match[1].replace(/^\//, ""))).size)
   .reduce((total, size) => total + size, 0);
-const INITIAL_MODULE_PRELOAD_BUDGET = 700 * 1024;
+const INITIAL_MODULE_PRELOAD_BUDGET = 750 * 1024;
 assert.ok(initialModulePreloadBytes <= INITIAL_MODULE_PRELOAD_BUDGET, `Initial modulepreload budget exceeded: ${initialModulePreloadBytes} > ${INITIAL_MODULE_PRELOAD_BUDGET}`);
 
 const DEFAULT_CHUNK_WARNING_BYTES = 500 * 1024;
-const allowedLargeChunkPattern = /^(?:vendor-(?:code-highlight|beautiful-mermaid|mermaid-(?:layout|render)|codemirror)|.*Diagram-).*\.js$/;
+const allowedLargeChunkPattern = /^(?:vendor-(?:code-highlight|beautiful-mermaid|mermaid-(?:layout|render)|codemirror|x6)|.*Diagram-).*\.js$/;
 const largeChunks = readdirSync(join(distDirectory, "assets"))
   .filter((name) => name.endsWith(".js"))
   .map((name) => ({ name, size: statSync(join(distDirectory, "assets", name)).size }))

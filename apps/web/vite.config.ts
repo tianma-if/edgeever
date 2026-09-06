@@ -192,6 +192,8 @@ export default defineConfig({
           "**/*mermaid.core-*.js",
           "**/vendor-mermaid-*.js",
           "**/*Diagram-*.js",
+          "**/*DiagramEditorPane-*.js",
+          "**/vendor-x6-*.js",
           "**/vendor-codemirror-*.js",
           // PDF.js is loaded only when a PDF preview or thumbnail is rendered.
           // Keep its runtime out of the install-time app-shell precache and cache
@@ -232,7 +234,7 @@ export default defineConfig({
             },
           },
           {
-            urlPattern: ({ url }) => /\/assets\/(?:.*beautiful-mermaid|vendor-mermaid|.*mermaid\.core|.*Diagram-|vendor-codemirror)/.test(url.pathname),
+            urlPattern: ({ url }) => /\/assets\/(?:.*beautiful-mermaid|vendor-mermaid|.*mermaid\.core|.*Diagram-|vendor-x6|vendor-codemirror)/.test(url.pathname),
             handler: "CacheFirst",
             options: {
               cacheName: "edgeever-optional-diagrams",
@@ -290,7 +292,7 @@ export default defineConfig({
       ? false
       : {
           resolveDependencies: (_filename, dependencies) => dependencies.filter((dependency) =>
-            !/(?:vendor-code-highlight|vendor-(?:mermaid|D3|tiptap|prosemirror|floating|codemirror|zod)|vendor-radix(?!-slot)|ui-primitives|ui-button-tooltip)/.test(dependency),
+            !/(?:vendor-code-highlight|vendor-(?:mermaid|D3|tiptap|prosemirror|floating|codemirror|x6|zod)|vendor-radix(?!-slot)|ui-primitives|ui-button-tooltip)/.test(dependency),
           ),
         },
     rolldownOptions: {
@@ -326,6 +328,15 @@ export default defineConfig({
               name: "vendor-react",
               test: /node_modules[\\/](react|react-dom|scheduler|react-router)[\\/]/,
               priority: 40,
+            },
+            {
+              name: "vendor-x6",
+              test: /node_modules[\\/]@antv[\\/]x6[\\/]/,
+              priority: 39,
+              // X6 initializes registries and plugins through a cyclic module
+              // graph. Size-based splitting can evaluate clipboard storage
+              // before Config is initialized, crashing the lazy diagram editor.
+              // Keep the graph atomic and defer the resulting chunk instead.
             },
             {
               name: "vendor-prosemirror",

@@ -95,7 +95,7 @@ describe("quiet discoveries", () => {
     const f = await setup(kind); await f.enable(); await f.run();
     const cached = f.sqlite.query("SELECT last_input_hash FROM companion_discovery_settings").get().last_input_hash;
     expect(cached).toMatch(/^[0-9a-f]{64}$/);
-    f.sqlite.exec("UPDATE notebooks SET name = 'Renamed notebook' WHERE id = 'ideas'; UPDATE companion_discovery_settings SET last_check_at = '2020-01-01';");
+    f.sqlite.exec("UPDATE notebooks SET sort_order = sort_order + 1 WHERE id = 'ideas'; UPDATE companion_discovery_settings SET last_check_at = '2020-01-01';");
     await f.run();
     expect(f.calls()).toBe(1); expect(f.modelCalls()).toBe(1);
     expect(f.sqlite.query("SELECT last_input_hash FROM companion_discovery_settings").get().last_input_hash).toBe(cached);

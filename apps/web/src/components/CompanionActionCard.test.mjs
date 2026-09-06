@@ -20,12 +20,12 @@ async function render(overrides = {}, busy = false, lng = "zh-CN") {
   })));
 }
 describe("companion suggestion cards", () => {
-  test("keeps merging behind an explicit preview with consequences and source order", async () => {
+  test("keeps merging behind an explicit preview with source order", async () => {
     const html = await render();
     expect(html).toContain("合并后的标题：Ideas");
     expect(html).toContain(">确认<");
-    expect(html).toContain("原公开分享失效");
-    expect(html).toContain("不做 AI 改写或删减");
+    expect(html).not.toContain("原公开分享失效");
+    expect(html).not.toContain("建议 24 小时后失效");
     expect(html.indexOf("Idea a")).toBeLessThan(html.indexOf("Idea b"));
   });
   test("shows additive tags and preserves existing tag disclosure", async () => {
@@ -33,6 +33,8 @@ describe("companion suggestion cards", () => {
     expect(html).toContain("已有标签：original");
     expect(html).toContain("仅追加：new");
     expect(html).toContain(">确认<");
+    expect(html).not.toContain("只给这篇笔记追加列出的标签");
+    expect(html).not.toContain("建议 24 小时后失效");
     expect(html).not.toContain("确认追加标签");
   });
   test("applied or invalid proposals cannot be confirmed again", async () => {
@@ -68,10 +70,10 @@ describe("companion suggestion cards", () => {
     expect(html).toContain("42");
     expect(html).toContain("所有使用这个标签的笔记");
   });
-  test("disables actions while busy and includes English consequences", async () => {
+  test("disables actions while busy without extra English help copy", async () => {
     const html = await render({}, true, "en-US");
     expect(html).toContain('disabled=""');
-    expect(html).toContain("their public shares are revoked");
+    expect(html).not.toContain("their public shares are revoked");
     expect(html).not.toContain("companion.actions.");
   });
 });

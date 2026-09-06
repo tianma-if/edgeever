@@ -136,6 +136,7 @@ import {
   parseMemoLinkHref,
 } from "@edgeever/shared";
 import { DEFAULT_IMAGE_WIDTH_PERCENT } from "@edgeever/shared/image-display";
+import { EdgeEverLink } from "@edgeever/shared/editor-link";
 import { createEdgeEverMathematics } from "@edgeever/shared/mathematics";
 import { codeBlockLowlight, EdgeEverCodeBlock } from "@/lib/code-block";
 import { compressImageForUpload } from "@/lib/image-compression";
@@ -1203,8 +1204,9 @@ const RichEditorPane = ({
     extensions: [
       StarterKit.configure({
         codeBlock: false,
-        link: { openOnClick: false },
+        link: false,
       }),
+      EdgeEverLink.configure({ openOnClick: false }),
       TaskList,
       TaskItem.configure({ nested: true }),
       EdgeEverCodeBlock.configure({ lowlight: codeBlockLowlight, defaultLanguage: "plaintext" }),
@@ -3881,7 +3883,7 @@ const RichEditorPane = ({
               </IconTooltip>
             </div>
             <span className="hidden truncate text-xs text-slate-400 sm:inline">
-              {t("editor.updatedAt", { time: updatedLabel })}
+              {updatedLabel}
             </span>
           </div>
 

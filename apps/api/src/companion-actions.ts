@@ -1,3 +1,4 @@
+import { refreshCompanionPreferences } from "./companion-learning";
 import { CompanionActionPlanSchema, normalizeTags, type CompanionAction, type CompanionActionNote,
   type CompanionActionPlan } from "@edgeever/shared";
 import { AppError } from "./app-error";
@@ -79,6 +80,7 @@ export const dismissCompanionAction = async (db: DatabaseAdapter, scope: Compani
 // Snapshot checks and note writes share one batch, including the receipt. This
 // covers edits/deletion/dismissal on another device and retries after disconnect.
 export const applyCompanionAction = async (db: DatabaseAdapter, scope: CompanionScope, id: string, context?: AppContext) => {
+  await refreshCompanionPreferences(db, scope);
   const action = await getCompanionAction(db, scope, id);
   if (!action) throw new AppError("not_found", "Suggestion not found.", 404);
   if (action.status === "applied") return action;

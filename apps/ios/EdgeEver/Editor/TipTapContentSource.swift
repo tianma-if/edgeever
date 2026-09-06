@@ -20,6 +20,11 @@ enum TipTapContentSource: Sendable {
         // Fall back to markdown for empty/stub JSON or when markdown encodes richer structure
         // (tables / headings) that a flattened contentJson lost.
         if mode == .viewer {
+            // Visual diagram metadata lives only in Markdown. The editor bundle
+            // converts both current and legacy envelopes into a Mermaid view.
+            if markdown.contains("<!-- edgeever-diagram-v1:") {
+                return Decision(useJSON: false, payload: markdown, fingerprint: "md:\(markdown)")
+            }
             if jsonUsable {
                 if jsonHasImageWidth(json) {
                     return Decision(useJSON: true, payload: documentJSON, fingerprint: "json:\(json)")

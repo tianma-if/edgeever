@@ -1,8 +1,10 @@
+import { learnCompanionPreferences, refreshCompanionPreferences, applicableMemories } from "./companion-learning";
+import { selectCompanionMemories } from "./companion-memory-context";
 import { CompanionDiscoveryOutputSchema, type CompanionDiscoveryItem, type CompanionDiscoverySettings,
   type CompanionDiscoverySettingsInput, type MemoDetail } from "@edgeever/shared";
 import type { DatabaseAdapter } from "./storage-contract";
 import type { CompanionScope } from "./companion-service";
-import { beginCompanionTurn, checkpointCompanionTurn, getCompanionTurn, companionRevision } from "./companion-service";
+import { beginCompanionTurn, checkpointCompanionTurn, listCompanionMemories, saveCompanionMemory, getCompanionTurn, companionRevision } from "./companion-service";
 import { AppError } from "./app-error";
 import { getMemoDetail, searchMemoSummaries } from "./memo-service";
 import { companionWorkspaceCursor, proposeCompanionToolAction, workspaceCursorSql } from "./companion-tool-actions";
@@ -11,9 +13,9 @@ import type { loadDefaultAiModel } from "./ai-service";
 import type { generateCompanionDiscovery } from "./companion-discovery-runtime";
 import { discoveryInputHash } from "./companion-discovery-context";
 
-type SettingsRow = { enabled: number; version: number; last_cursor: number;
+type SettingsRow = { learning_enabled: number; recall_enabled: number; last_memory_revision: number; enabled: number; version: number; last_cursor: number;
   last_check_at: string | null; last_status: CompanionDiscoverySettings["lastStatus"]; active_turn_id: string | null; last_input_hash: string | null };
-type FeedRow = { id: string; kind: CompanionDiscoveryItem["kind"]; title: string; body: string; action_id: string | null;
+type FeedRow = { memory_ids_json: string; id: string; kind: CompanionDiscoveryItem["kind"]; title: string; body: string; action_id: string | null;
   sources_json: string; seen_at: string | null; created_at: string };
 const keys = (scope: CompanionScope) => [scope.workspaceId, scope.ownerId];
 const changed = () => new AppError("companion_discovery_conflict", "Discovery settings or notes changed. Refresh before continuing.", 409);
@@ -32,18 +34,24 @@ const settingsRow = (db: DatabaseAdapter, scope: CompanionScope) => db.prepare(
 
 export async function getDiscoverySettings(db: DatabaseAdapter, scope: CompanionScope): Promise<CompanionDiscoverySettings> {
   const row = await settingsRow(db, scope);
-  return { enabled: row?.enabled === 1, version: row?.version ?? 0,
+  return { enabled: row?.enabled === 1, learningEnabled: row?.learning_enabled === 1, useMemory: row?.recall_enabled === 1, version: row?.version ?? 0,
     lastCheckAt: row?.last_check_at ?? null,
     lastStatus: row?.last_status === "running" && Date.now() - Date.parse(row.last_check_at ?? "") > 90_000 ? "failed" : row?.last_status ?? "quiet" };
 }
 
 export async function saveDiscoverySettings(db: DatabaseAdapter, scope: CompanionScope, input: CompanionDiscoverySettingsInput) {
   await db.prepare("INSERT OR IGNORE INTO companion_discovery_settings(workspace_id, owner_id) VALUES (?, ?)").bind(...keys(scope)).run();
+  await db.prepare("INSERT OR IGNORE INTO companion_state(workspace_id, owner_id) VALUES (?, ?)").bind(...keys(scope)).run();
+  const previous = await settingsRow(db, scope);
+  const learning = input.learningEnabled ?? previous?.learning_enabled === 1;
+  const useMemory = input.useMemory ?? previous?.recall_enabled === 1;
   const check = crypto.randomUUID();
   await db.batch([
     db.prepare(`INSERT INTO companion_action_checks(id, valid) VALUES (?, CASE WHEN EXISTS (
       SELECT 1 FROM companion_discovery_settings WHERE workspace_id = ? AND owner_id = ? AND version = ?) THEN 1 ELSE 0 END)`)
       .bind(check, ...keys(scope), input.version),
+    db.prepare("UPDATE companion_state SET memory_revision = memory_revision + 1 WHERE workspace_id = ? AND owner_id = ?").bind(...keys(scope)),
+    db.prepare("UPDATE companion_turns SET status = 'cancelled' WHERE workspace_id = ? AND owner_id = ? AND status = 'running'").bind(...keys(scope)),
     // Revoke unconfirmed work atomically with settings. Already-started user
     // confirmations retain their receipt and are allowed to finish.
     db.prepare(`UPDATE companion_turns SET status = 'cancelled' WHERE workspace_id = ? AND owner_id = ?
@@ -52,15 +60,18 @@ export async function saveDiscoverySettings(db: DatabaseAdapter, scope: Companio
       AND NOT EXISTS (SELECT 1 FROM companion_actions a WHERE a.turn_id = companion_turns.id AND (a.execution_token IS NOT NULL OR a.status = 'applied'))`)
       .bind(...keys(scope), ...keys(scope), ...keys(scope)),
     // Keep the old storage column for migration compatibility, not permissions.
-    db.prepare(`UPDATE companion_discovery_settings SET enabled = ?, notebook_ids_json = '[]', version = version + 1,
+    db.prepare(`UPDATE companion_discovery_settings SET enabled = ?, learning_cursor = CASE WHEN ? = 1 AND (learning_enabled = 0 OR enabled = 0)
+        THEN (SELECT COALESCE(MAX(rowid), 0) FROM audit_events) ELSE learning_cursor END,
+      learning_enabled = ?, recall_enabled = ?, last_memory_revision = -1, notebook_ids_json = '[]', version = version + 1,
       last_status = 'quiet', active_turn_id = NULL WHERE workspace_id = ? AND owner_id = ?`)
-      .bind(Number(input.enabled), ...keys(scope)),
+      .bind(Number(input.enabled), Number(learning), Number(learning), Number(useMemory), ...keys(scope)),
     db.prepare("DELETE FROM companion_action_checks WHERE id = ?").bind(check),
   ]).catch(error => { if (/constraint/i.test(String(error))) throw changed(); throw error; });
   return getDiscoverySettings(db, scope);
 }
 
 export async function listDiscoveries(db: DatabaseAdapter, scope: CompanionScope): Promise<CompanionDiscoveryItem[]> {
+  const memories = await listCompanionMemories(db, scope);
   const rows = await db.prepare(`SELECT d.* FROM companion_discoveries d JOIN companion_discovery_settings s
     ON s.workspace_id = d.workspace_id AND s.owner_id = d.owner_id
     JOIN companion_turns t ON t.id = d.turn_id JOIN companion_state cs ON cs.workspace_id = d.workspace_id AND cs.owner_id = d.owner_id
@@ -85,7 +96,9 @@ export async function listDiscoveries(db: DatabaseAdapter, scope: CompanionScope
       if (!valid || (action && action.status !== "pending" && action.status !== "uncertain")) continue;
     }
     items.push({ id: row.id, kind: row.kind, title: row.title, body: row.body, sources, action,
-      seen: row.seen_at !== null, createdAt: row.created_at });
+      memories: (JSON.parse(row.memory_ids_json) as string[]).flatMap(id => {
+        const memory = memories.find(m => m.id === id); return memory ? [memory] : [];
+      }), seen: row.seen_at !== null, createdAt: row.created_at });
   }
   return items;
 }
@@ -111,8 +124,9 @@ async function candidatesFor(db: DatabaseAdapter, scope: CompanionScope) {
   const anchor = recent[0];
   if (!anchor || Date.parse(anchor.updatedAt) < Date.now() - 14 * 86400000) return [];
   const segmenter = new Intl.Segmenter("zh", { granularity: "word" });
-  const term = [...segmenter.segment(anchor.title || anchor.excerpt)].find(part => part.isWordLike && part.segment.length >= 2)?.segment;
-  const related = term ? await searchMemoSummaries(db, { workspaceId: scope.workspaceId, query: term, limit: 8 }) : [];
+  const terms = [...new Set([...segmenter.segment(anchor.title || anchor.excerpt)]
+    .filter(part => part.isWordLike && part.segment.length >= 2).map(part => part.segment))].slice(0, 3);
+  const related = (await Promise.all(terms.map(query => searchMemoSummaries(db, { workspaceId: scope.workspaceId, query, limit: 4 })))).flat();
   const ids = [...new Set([anchor.id, ...related.map(note => note.id), ...recent.map(note => note.id)])].slice(0, 12);
   const notes: MemoDetail[] = [];
   let budget = 12000;
@@ -133,15 +147,23 @@ export async function checkDiscoveries(db: DatabaseAdapter, scope: CompanionScop
   locale: string; signal: AbortSignal; loadModel: () => ReturnType<typeof loadDefaultAiModel>;
   generate?: typeof generateCompanionDiscovery;
 }) {
-  const settings = await settingsRow(db, scope);
+  let settings = await settingsRow(db, scope);
   if (!settings?.enabled) return;
+  await learnCompanionPreferences(db, scope);
+  await refreshCompanionPreferences(db, scope);
+  const memoryRevision = await companionRevision(db, scope);
+  const allMemories = await listCompanionMemories(db, scope, false);
+  settings = await settingsRow(db, scope);
+  if (!settings?.enabled) return;
+  if (await companionRevision(db, scope) !== memoryRevision) throw changed();
   const cursor = await companionWorkspaceCursor(db, scope.workspaceId);
   const now = new Date().toISOString();
   const turnId = crypto.randomUUID();
-  const claim = await db.prepare(`UPDATE companion_discovery_settings SET last_check_at = ?, last_cursor = ?, last_status = 'running', active_turn_id = ?
-    WHERE workspace_id = ? AND owner_id = ? AND enabled = 1 AND version = ? AND last_cursor <> ?
-      AND (last_check_at IS NULL OR last_check_at < ?)`)
-    .bind(now, cursor, turnId, ...keys(scope), settings.version, cursor, new Date(Date.now() - 86400000).toISOString()).run();
+  const claim = await db.prepare(`UPDATE companion_discovery_settings SET last_check_at = ?, last_cursor = ?, last_memory_revision = ?, last_status = 'running', active_turn_id = ?
+    WHERE workspace_id = ? AND owner_id = ? AND enabled = 1 AND version = ? AND (last_cursor <> ? OR last_memory_revision <> ?)
+      AND (last_check_at IS NULL OR last_check_at < ? OR (last_memory_revision <> ? AND last_check_at < ?))`)
+    .bind(now, cursor, memoryRevision, turnId, ...keys(scope), settings.version, cursor, memoryRevision,
+      new Date(Date.now() - 86400000).toISOString(), memoryRevision, new Date(Date.now() - 3600000).toISOString()).run();
   if (Number(claim.meta.changes) !== 1) return;
   let turn: Awaited<ReturnType<typeof beginCompanionTurn>> | null = null;
   const finish = (status: string, inputHash: string | null = null) => db.prepare(`UPDATE companion_discovery_settings SET last_status = ?, active_turn_id = NULL,
@@ -150,17 +172,23 @@ export async function checkDiscoveries(db: DatabaseAdapter, scope: CompanionScop
   const assertCurrent = async () => {
     options.signal.throwIfAborted();
     const current = await settingsRow(db, scope);
-    if (!current?.enabled || current.version !== settings.version || current.active_turn_id !== turnId
+    if (await companionRevision(db, scope) !== memoryRevision || !current?.enabled || current.version !== settings.version || current.active_turn_id !== turnId
       || await companionWorkspaceCursor(db, scope.workspaceId) !== cursor) throw changed();
     if (turn && ((await getCompanionTurn(db, scope, turnId))?.status !== "running"
       || await companionRevision(db, scope) !== turn.memory_revision)) throw changed();
   };
   try {
     const candidates = await candidatesFor(db, scope);
-    if (candidates.length < 2) { await finish("quiet"); return; }
+    if (candidates.length < 1) { await finish("quiet"); return; }
     await assertCurrent();
+    const memories = settings.recall_enabled ? selectCompanionMemories(applicableMemories(allMemories,
+      candidates.map(note => note.notebookId), candidates.flatMap(note => note.tags)),
+      candidates.map(note => `${note.title} ${note.tags.join(" ")} ${note.contentMarkdown.slice(0, 500)}`).join(" ")) : [];
+    const notebooks = (await db.prepare("SELECT id, name FROM notebooks WHERE workspace_id = ? AND is_deleted = 0 ORDER BY id LIMIT 100")
+      .bind(scope.workspaceId).all<{ id: string; name: string }>()).results;
     const generationInput = {
-      candidates: candidates.map(note => ({ id: note.id, title: note.title, contentMarkdown: note.contentMarkdown, updatedAt: note.updatedAt, plainText: plainText(note.contentJson) })),
+      memories, notebooks,
+      candidates: candidates.map(note => ({ id: note.id, title: note.title, contentMarkdown: note.contentMarkdown, updatedAt: note.updatedAt, notebookId: note.notebookId, tags: note.tags, plainText: plainText(note.contentJson) })),
       anchorId: candidates[0].id, locale: options.locale,
     };
     const contextRevision = await companionRevision(db, scope);
@@ -175,7 +203,7 @@ export async function checkDiscoveries(db: DatabaseAdapter, scope: CompanionScop
     await assertCurrent();
     if (inputHash === settings.last_input_hash) { await finish("quiet"); return; }
     const model = await options.loadModel();
-    turn = await beginCompanionTurn(db, scope, { id: turnId, threadId: turnId, message: "Quiet discovery", useMemory: false,
+    turn = await beginCompanionTurn(db, scope, { id: turnId, threadId: turnId, message: "Quiet discovery", useMemory: settings.recall_enabled === 1,
       allowNotes: true, locale: options.locale === "zh-CN" ? "zh-CN" : "en-US" }, model.modelId);
     await db.prepare("UPDATE companion_turns SET origin = 'discovery' WHERE id = ? AND workspace_id = ? AND owner_id = ?").bind(turnId, ...keys(scope)).run();
     await assertCurrent();
@@ -189,7 +217,13 @@ export async function checkDiscoveries(db: DatabaseAdapter, scope: CompanionScop
     const sources = suggestion.sourceIds.map(id => candidates.find(note => note.id === id));
     if (sources.some(note => !note) || new Set(suggestion.sourceIds).size !== sources.length || !suggestion.sourceIds.includes(candidates[0].id)) throw changed();
     const notes = sources as MemoDetail[];
-    const fingerprint = `${suggestion.kind}:${[...suggestion.sourceIds].sort().join(":")}`;
+    if ((suggestion.memoryIds ?? []).some(id => !memories.some(memory => memory.id === id))) throw changed();
+    if (["insight", "merge", "append"].includes(suggestion.kind) && notes.length < 2) throw changed();
+    if (settings.recall_enabled && allMemories.some(memory => (!memory.state || memory.state === "active") && notes.some(note => memory.ruleKey === JSON.stringify(["avoid", note.notebookId, suggestion.kind])))) {
+      await db.prepare("DELETE FROM companion_turns WHERE id = ? AND workspace_id = ? AND owner_id = ?").bind(turnId, ...keys(scope)).run();
+      await finish("quiet", inputHash); return;
+    }
+    const fingerprint = `${suggestion.kind}:${[...suggestion.sourceIds].sort().join(":")}${["move", "tag"].includes(suggestion.kind) ? `:${suggestion.notebookId ?? ""}:${JSON.stringify(suggestion.tags ?? [])}` : ""}`;
     const duplicate = await db.prepare("SELECT id FROM companion_discoveries WHERE workspace_id = ? AND owner_id = ? AND fingerprint = ?")
       .bind(...keys(scope), fingerprint).first();
     if (duplicate) {
@@ -201,7 +235,15 @@ export async function checkDiscoveries(db: DatabaseAdapter, scope: CompanionScop
     if (suggestion.kind !== "insight") {
       let toolName: string;
       let args: Record<string, unknown>;
-      if (suggestion.kind === "merge") {
+      if (suggestion.kind === "move") {
+        if (!suggestion.notebookId || !notebooks.some(n => n.id === suggestion.notebookId) || notes.some(n => n.notebookId === suggestion.notebookId)) throw changed();
+        toolName = "move_memos";
+        args = { memoIds: notes.map(n => n.id), notebookId: suggestion.notebookId };
+      } else if (suggestion.kind === "tag") {
+        if (notes.length !== 1 || !suggestion.tags?.length || suggestion.tags.some(tag => !candidates.some(n => n.tags.includes(tag)))) throw changed();
+        toolName = "add_tags_to_memos";
+        args = { memoIds: [notes[0].id], tags: suggestion.tags };
+      } else if (suggestion.kind === "merge") {
         toolName = "merge_memos";
         args = { memoIds: notes.map(note => note.id), title: suggestion.title, notebookId: notes[0].notebookId };
       } else {
@@ -231,8 +273,8 @@ export async function checkDiscoveries(db: DatabaseAdapter, scope: CompanionScop
           AND (${workspaceCursorSql}) = ?) THEN 1 ELSE 0 END)`)
         .bind(id, ...keys(scope), settings.version, turnId, new Date().toISOString(), scope.workspaceId, cursor),
       db.prepare(`INSERT INTO companion_discoveries(id, workspace_id, owner_id, turn_id, action_id, settings_version,
-        kind, title, body, sources_json, fingerprint, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-        .bind(id, ...keys(scope), turnId, actionId, settings.version, suggestion.kind, suggestion.title, suggestion.body, JSON.stringify(sourceRefs), fingerprint, now),
+        kind, title, body, sources_json, fingerprint, created_at, memory_ids_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+        .bind(id, ...keys(scope), turnId, actionId, settings.version, suggestion.kind, suggestion.title, suggestion.body, JSON.stringify(sourceRefs), fingerprint, now, JSON.stringify(suggestion.memoryIds ?? [])),
       db.prepare("UPDATE companion_turns SET status = 'completed', response = ?, sources_json = ? WHERE id = ?")
         .bind(suggestion.body, JSON.stringify(sourceRefs), turnId),
       db.prepare("DELETE FROM companion_action_checks WHERE id = ?").bind(id),
@@ -243,4 +285,19 @@ export async function checkDiscoveries(db: DatabaseAdapter, scope: CompanionScop
     await finish("failed");
     throw error;
   }
+}
+
+// An explicit feedback button is a user statement, not an inference from dismissal.
+export async function rememberDiscoveryFeedback(db: DatabaseAdapter, scope: CompanionScope, id: string) {
+  const item = (await listDiscoveries(db, scope)).find(item => item.id === id);
+  if (!item || item.kind === "insight" || !item.action || item.action.status !== "pending") throw changed();
+  const source = item.sources[0];
+  const notebook = await db.prepare("SELECT name FROM notebooks WHERE id = ? AND workspace_id = ? AND is_deleted = 0")
+    .bind(source.notebookId, scope.workspaceId).first<{ name: string }>();
+  if (!notebook) throw changed();
+  const content = `Do not suggest ${item.kind} operations for notes in notebook “${notebook.name}”. The user explicitly requested this.`.slice(0, 500);
+  const previous = (await listCompanionMemories(db, scope)).find(memory => memory.content === content && memory.scopeNotebookId === source.notebookId);
+  if (!previous) await saveCompanionMemory(db, scope, { content, scopeNotebookId: source.notebookId,
+    ruleKey: JSON.stringify(["avoid", source.notebookId, item.kind]) });
+  await acknowledgeDiscovery(db, scope, id, true);
 }

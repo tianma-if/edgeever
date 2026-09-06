@@ -8,15 +8,18 @@ import Placeholder from "@tiptap/extension-placeholder";
 import CodeBlock from "@tiptap/extension-code-block";
 import { TableKit } from "@tiptap/extension-table";
 import { Markdown } from "@tiptap/markdown";
+import { EdgeEverLink } from "@edgeever/shared/editor-link";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { NodeSelection } from "@tiptap/pm/state";
 import mermaid from "mermaid";
 import { toCanvas } from "html-to-image";
 import {
   createNativeUnsupportedContentExtensions,
+  diagramFallbackMarkdown,
   docToMarkdown,
   NativeAttachmentMetadata,
   prepareNativeEditorContent,
+  parseDiagramDocument,
   resolveAttachmentKind,
   resolveNativeAttachmentContent,
   restoreNativeEditorContent,
@@ -750,7 +753,9 @@ function buildExtensions(placeholder: string) {
   return [
     StarterKit.configure({
       codeBlock: false,
+      link: false,
     }),
+    EdgeEverLink,
     NativeAttachmentMetadata,
     TaskList,
     TaskItem.configure({ nested: true }),
@@ -1362,21 +1367,23 @@ const api: EdgeEverEditorAPI = {
 
   setMarkdown(md) {
     suppressChange = true;
+    const diagram = mode === "viewer" ? parseDiagramDocument(md) : null;
+    const displayMarkdown = diagram ? diagramFallbackMarkdown(diagram) : md;
     try {
-      editor.commands.setContent(md || "", { contentType: "markdown" } as never);
+      editor.commands.setContent(displayMarkdown || "", { contentType: "markdown" } as never);
     } catch {
       try {
         const manager = (editor.storage as { markdown?: { manager?: { parse: (s: string) => unknown } } }).markdown
           ?.manager;
         if (manager) {
-          editor.commands.setContent(manager.parse(md || "") as never);
+          editor.commands.setContent(manager.parse(displayMarkdown || "") as never);
         } else {
           throw new Error("no markdown manager");
         }
       } catch {
         editor.commands.setContent({
           type: "doc",
-          content: [{ type: "paragraph", content: md ? [{ type: "text", text: md }] : [] }],
+          content: [{ type: "paragraph", content: displayMarkdown ? [{ type: "text", text: displayMarkdown }] : [] }],
         });
       }
     }

@@ -59,31 +59,54 @@ const BubbleMenuTransactionRegression = () => {
   );
 };
 
-const DesktopRendererTest = () => (
-  <main data-desktop-renderer-test-ready>
-    <BubbleMenuTransactionRegression />
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button aria-label="More actions" title="More actions">
-          More
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent>
-        <DropdownMenuItem>Rename</DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+const useDiagramEditorRegressionReady = () => {
+  const [ready, setReady] = useState(false);
 
-    <Select defaultValue="notebook-one">
-      <SelectTrigger aria-label="Notebook">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="notebook-one">Notebook one</SelectItem>
-        <SelectItem value="notebook-two">Notebook two</SelectItem>
-      </SelectContent>
-    </Select>
-  </main>
-);
+  useEffect(() => {
+    let mounted = true;
+    void import("@/components/DiagramEditorPane").then(() => {
+      if (mounted) setReady(true);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  return ready;
+};
+
+const DesktopRendererTest = () => {
+  const diagramEditorReady = useDiagramEditorRegressionReady();
+
+  return (
+    <main
+      data-desktop-renderer-test-ready
+      data-diagram-editor-regression-ready={diagramEditorReady ? "true" : "false"}
+    >
+      <BubbleMenuTransactionRegression />
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button aria-label="More actions" title="More actions">
+            More
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent>
+          <DropdownMenuItem>Rename</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <Select defaultValue="notebook-one">
+        <SelectTrigger aria-label="Notebook">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="notebook-one">Notebook one</SelectItem>
+          <SelectItem value="notebook-two">Notebook two</SelectItem>
+        </SelectContent>
+      </Select>
+    </main>
+  );
+};
 
 const root = document.getElementById("desktop-renderer-test-root");
 

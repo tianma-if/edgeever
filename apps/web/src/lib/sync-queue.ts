@@ -645,6 +645,7 @@ const syncQueueItem = async (item: SyncQueueItem): Promise<SyncQueueResult> => {
     const data = await api.createMemo({
       notebookId: payload.notebookId,
       title: payload.title,
+      contentJson: payload.contentJson,
       contentMarkdown: payload.contentMarkdown,
       tags: payload.tags,
       createdAt: payload.createdAt,

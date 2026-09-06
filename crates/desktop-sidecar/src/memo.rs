@@ -482,7 +482,11 @@ pub(crate) fn create_memo(database: &Connection, params: &Value) -> Result<Value
         .cloned()
         .unwrap_or_else(|| markdown_doc(&markdown));
     let content_json_text = content_json.to_string();
-    let text = markdown.lines().collect::<Vec<_>>().join(" ");
+    let text = params
+        .get("contentText")
+        .and_then(Value::as_str)
+        .map(str::to_owned)
+        .unwrap_or_else(|| markdown.lines().collect::<Vec<_>>().join(" "));
     let id = now_id("memo_local");
     let hash = content_hash(&markdown, &content_json_text);
     let tx = database
@@ -497,7 +501,8 @@ pub(crate) fn create_memo(database: &Connection, params: &Value) -> Result<Value
         "memo.create",
         &id,
         &json!({
-            "temporaryId": id, "notebookId": notebook_id, "title": title, "contentMarkdown": markdown,
+            "temporaryId": id, "notebookId": notebook_id, "title": title, "contentJson": content_json,
+            "contentMarkdown": markdown,
             "tags": tags, "createdAt": memo.get("createdAt").and_then(Value::as_str).unwrap_or(""),
             "updatedAt": memo.get("updatedAt").and_then(Value::as_str).unwrap_or("")
         }),

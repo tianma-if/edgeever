@@ -38,14 +38,15 @@ describe("quiet discovery UI", () => {
     expect(html).not.toContain("fixed bottom-24");
     expect(html).not.toContain('role="dialog"'); expect(html).not.toContain("有新发现");
   });
-  test("Paw mode explains benefits and exposes its inactive state without personalization controls", async () => {
+  test("Paw mode explains benefits and offers separate learning and memory controls", async () => {
     const html = await render(false, "zh-CN", true);
     expect(html).toContain("开启后，EdgeEver 会像猫爪轻推纸片一样，帮你归拢零散碎片、将新想法沉淀到已有笔记、挑出过往的相关灵感。");
     expect(html).toContain("用得越久，猫爪越懂你。");
     expect(html).toContain("猫爪模式");
     expect(html).toContain("猫爪状态"); expect(html).toContain("未运行");
     expect(html).toContain("尚未检查"); expect(html).toContain("启用后才会检查");
-    expect(html).not.toContain("个性化偏好"); expect(html).not.toContain("发现时参考个人记忆");
+    expect(html).toContain("从操作中学习"); expect(html).toContain("使用已保存的记忆");
+    expect(html).toContain('id="paw-learningEnabled"'); expect(html).toContain('id="paw-useMemory"');
     expect(html).toContain('role="switch"'); expect(html).not.toContain('disabled=""');
     expect(html).toContain('aria-checked="false"');
     expect(html).not.toContain('role="checkbox"'); expect(html).not.toContain("<fieldset");
@@ -85,5 +86,14 @@ describe("quiet discovery UI", () => {
     expect(source).not.toContain("companion.discovery.types.");
     expect(source).not.toContain("companion.discovery.panelDescription");
     expect(source).not.toContain("companion.discovery.tagline");
+  });
+  test("composes the discovery panel from shared shadcn UI primitives", () => {
+    const source = readFileSync(new URL("./CompanionDiscoveryHub.tsx", import.meta.url), "utf8");
+    expect(source).toContain('from "@/components/ui/card"');
+    expect(source).toContain('from "@/components/ui/badge"');
+    expect(source).toContain('from "@/components/ui/alert"');
+    expect(source).toContain("<Card");
+    expect(source).toContain("<Badge");
+    expect(source).toContain('<Alert variant="destructive"');
   });
 });

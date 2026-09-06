@@ -92,25 +92,27 @@ const requireAsset = (release: GithubReleaseResponse, name: string) => {
 
 type GithubAssetDownloader = (
   coordinates: GithubRepositoryCoordinates,
+  releaseTag: string,
   asset: GithubReleaseAsset,
 ) => Promise<ArrayBuffer>;
 
-const downloadGithubAssetThroughApi: GithubAssetDownloader = (coordinates, asset) =>
+const downloadGithubAssetThroughApi: GithubAssetDownloader = (coordinates, releaseTag, asset) =>
   api.downloadGithubPluginAsset(
     coordinates.owner,
     coordinates.repository,
-    asset.id,
+    releaseTag,
     asset.name as "manifest.json" | "main.js" | "styles.css",
   );
 
 const downloadAsset = async (
   coordinates: GithubRepositoryCoordinates,
+  releaseTag: string,
   asset: GithubReleaseAsset,
   maximumBytes: number,
   download: GithubAssetDownloader,
 ) => {
   if (asset.size > maximumBytes) throw new Error(`${asset.name} exceeds the allowed package size.`);
-  const buffer = await download(coordinates, asset);
+  const buffer = await download(coordinates, releaseTag, asset);
   if (buffer.byteLength > maximumBytes) throw new Error(`${asset.name} exceeds the allowed package size.`);
   const checksum = await sha256Hex(buffer);
   if (asset.digest?.startsWith("sha256:") && asset.digest.slice(7).toLocaleLowerCase() !== checksum) {
@@ -194,9 +196,9 @@ export const downloadGithubExtension = async (
   const mainAsset = requireAsset(release, "main.js");
   const stylesAsset = release.assets.find((asset) => asset.name === "styles.css") ?? null;
   const [downloadedManifest, downloadedMain, downloadedStyles] = await Promise.all([
-    downloadAsset(coordinates, manifestAsset, 256 * 1024, downloadAssetBytes),
-    downloadAsset(coordinates, mainAsset, MAX_MAIN_JS_BYTES, downloadAssetBytes),
-    stylesAsset ? downloadAsset(coordinates, stylesAsset, MAX_STYLES_CSS_BYTES, downloadAssetBytes) : Promise.resolve(null),
+    downloadAsset(coordinates, release.tag_name, manifestAsset, 256 * 1024, downloadAssetBytes),
+    downloadAsset(coordinates, release.tag_name, mainAsset, MAX_MAIN_JS_BYTES, downloadAssetBytes),
+    stylesAsset ? downloadAsset(coordinates, release.tag_name, stylesAsset, MAX_STYLES_CSS_BYTES, downloadAssetBytes) : Promise.resolve(null),
   ]);
   const releaseManifest = parseExtensionManifest(JSON.parse(new TextDecoder().decode(downloadedManifest.buffer)) as unknown);
   assertReleaseManifest(repositoryManifest, releaseManifest);

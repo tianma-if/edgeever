@@ -29,7 +29,7 @@ describe("standalone mobile editor bootstrap", () => {
   });
 
   test("does not load desktop syntax highlighting on the mobile editor critical path", () => {
-    expect(mobileEditorComponent).toContain("StarterKit,");
+    expect(mobileEditorComponent).toContain("StarterKit.configure({ link: false })");
     expect(mobileEditorComponent).not.toContain("codeBlock: false");
     expect(mobileEditorComponent).not.toContain('from "@/lib/code-block"');
     expect(mobileEditorComponent).not.toContain("codeBlockLowlight");

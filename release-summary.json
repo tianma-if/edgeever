@@ -1,15 +1,11 @@
 {
-  "version": "1.57.0",
+  "version": "1.59.0",
   "changes": {
     "en-US": [
-      "Add direct note editing gestures on mobile.",
-      "Keep system information accessible in compact desktop layouts.",
-      "Restore one-click Windows installation and silent upgrades; existing installation directories remain unchanged, while fresh installs no longer offer a custom path."
+      "Add visual architecture diagram notes with semantic components, system boundaries, labeled connections, automatic layout, revision history, and PNG/SVG export on Web and desktop; Android and iOS preserve the same data and provide a semantic read-only view."
     ],
     "zh-CN": [
-      "移动端支持通过手势直接进入笔记编辑。",
-      "紧凑桌面布局中保持系统信息入口可用。",
-      "Windows 恢复一键安装和静默升级；现有安装目录保持不变，新安装不再提供自定义目录。"
+      "新增可视化架构图笔记：Web 与桌面端支持语义组件、系统边界、连线说明、自动布局、历史版本及 PNG/SVG 导出；Android 与 iOS 保留同一份数据并提供语义化只读视图。"
     ]
   }
 }

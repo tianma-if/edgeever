@@ -76,7 +76,7 @@ export type EdgeEverRepository = {
   mergeMemos(input: { memoIds: string[]; notebookId?: string; title?: string }): Promise<{ memo: MemoDetail }>;
   listMemos(params: LocalMemoListParams): Promise<LocalMemoListResponse>;
   getMemo(memoId: string, includeDeleted?: boolean): Promise<{ memo: MemoDetail }>;
-  createMemo(input: { notebookId: string; title?: string; contentMarkdown?: string; tags?: string[] }): Promise<{ memo: MemoDetail }>;
+  createMemo(input: { notebookId: string; title?: string; contentJson?: TiptapDoc; contentMarkdown?: string; tags?: string[] }): Promise<{ memo: MemoDetail }>;
   updateMemo(memo: MemoDetail, input: Omit<MemoUpdateSyncPayload, "memoId">): Promise<{ memo: MemoDetail; queued: true }>;
   /**
    * Drop the local conflicted draft for a note and replace the local copy with
@@ -494,6 +494,7 @@ export const createWebRepository = (scope: string): EdgeEverRepository => {
       temporaryId: memo.id,
       notebookId: input.notebookId,
       title: input.title ?? "",
+      contentJson: input.contentJson,
       contentMarkdown: input.contentMarkdown,
       tags: input.tags ?? [],
       createdAt: memo.createdAt,

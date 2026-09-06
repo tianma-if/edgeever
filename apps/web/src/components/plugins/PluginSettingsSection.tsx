@@ -170,7 +170,6 @@ export const PluginSettingsSection = ({ host, manifest }: { host: EdgeEverPlugin
     <section className="min-w-0" aria-labelledby={`${formId}-title`}>
       <header className="border-b border-slate-200 pb-5">
         <h3 id={`${formId}-title`} className="text-base font-semibold text-slate-900">{t("plugins.settings.title")}</h3>
-        <p className="mt-1.5 max-w-3xl text-sm leading-6 text-slate-500">{t("plugins.settings.description")}</p>
       </header>
       {loading ? <p className="py-8 text-sm text-slate-500" role="status">{t("common.loading")}</p> : loadError ? (
         <div className="mt-5 grid justify-items-start gap-3 rounded-lg border border-rose-200 bg-rose-50 p-4">

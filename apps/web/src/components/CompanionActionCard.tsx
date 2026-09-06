@@ -86,10 +86,6 @@ export function CompanionActionCard({ action, busy, onApply, onDismiss, onOpenNo
             </div>
           )}
 
-          <p className="text-[11px] leading-relaxed text-slate-400 dark:text-slate-500">
-            {t(merge ? "companion.actions.mergeHelp" : "companion.actions.tagHelp")}
-          </p>
-
           <div className="flex items-center justify-end gap-2 border-t border-slate-100 pt-2.5 dark:border-slate-800/80">
             <Button
               size="sm"

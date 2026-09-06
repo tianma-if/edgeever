@@ -8,7 +8,7 @@ import { createSelfHostedStorageAdapter } from "./self-hosted-storage-adapter.ts
 import { registerCompanionRoutes } from "./companion-routes.ts";
 import { beginCompanionTurn, checkpointCompanionTurn, clearCompanionHistory, companionRevision, forgetCompanionMemory,
   getCompanionTurn, importCompanionMemories, listCompanionMemories, listCompanionTurns, saveCompanionMemory } from "./companion-service.ts";
-import { companionMessages, selectCompanionMemories, streamCompanion } from "./companion-runtime.ts";
+import { COMPANION_INSTRUCTIONS, companionMessages, selectCompanionMemories, streamCompanion } from "./companion-runtime.ts";
 import { applyCompanionAction, proposeCompanionAction, listCompanionActions, dismissCompanionAction } from "./companion-actions.ts";
 import { createMemoRecord, getMemoDetail, updateMemoRecord } from "./memo-service.ts";
 import { COMPANION_MCP_TOOLS } from "./companion-tool-catalog.ts";
@@ -326,6 +326,12 @@ describe("companion HTTP contracts", () => {
 });
 
 describe("actual AI SDK companion runtime", () => {
+  test("proposal reasons contain evidence instead of card boilerplate", () => {
+    expect(COMPANION_INSTRUCTIONS).toContain("concrete evidence or content relationship");
+    expect(COMPANION_INSTRUCTIONS).toContain("Never use _reason to paraphrase the operation");
+    expect(COMPANION_INSTRUCTIONS).toContain("If there is no useful non-redundant reason, do not propose");
+  });
+
   test("the real tool loop persists a proposal but exposes no execute-write tool", async () => {
     const { db, notes, row, complete, context } = await organizationFixture();
     const calls = [

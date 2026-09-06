@@ -13,6 +13,7 @@ type TagSummaryRow = {
 };
 
 type MemoTagUpdateRow = {
+  notebook_id: string;
   id: string;
   title: string | null;
   tags_json: string;
@@ -28,7 +29,7 @@ const mapTagSummary = (row: TagSummaryRow): TagSummary => ({
 const getMemoRowsByTag = async (db: DatabaseAdapter, workspaceId: string, tag: string) => {
   const rows = await db
     .prepare(
-      `SELECT m.id, m.title, m.tags_json, c.content_text
+      `SELECT m.id, m.title, m.tags_json, m.notebook_id, c.content_text
        FROM memos m
        INNER JOIN memo_contents c ON c.memo_id = m.id
        WHERE m.workspace_id = ? AND m.is_deleted = 0
@@ -165,7 +166,7 @@ export const updateTagsForMemos = async (
   const placeholders = memoIds.map(() => "?").join(", ");
   const rows = await db
     .prepare(
-      `SELECT m.id, m.title, m.tags_json, c.content_text
+      `SELECT m.id, m.title, m.tags_json, m.notebook_id, c.content_text
        FROM memos m
        INNER JOIN memo_contents c ON c.memo_id = m.id
        WHERE m.workspace_id = ? AND m.is_deleted = 0 AND m.id IN (${placeholders})`
@@ -183,7 +184,7 @@ export const updateTagsForMemos = async (
       const nextTags = input.mode === "add"
         ? normalizeTags([...currentTags, ...tags])
         : currentTags.filter((tag) => !tags.includes(tag));
-      return { memoId: row.id, title: row.title, currentTags, nextTags, contentText: row.content_text };
+      return { notebookId: row.notebook_id, memoId: row.id, title: row.title, currentTags, nextTags, contentText: row.content_text };
     })
     .filter((change) => JSON.stringify(change.currentTags) !== JSON.stringify(change.nextTags));
 
@@ -222,7 +223,9 @@ export const updateTagsForMemos = async (
         input.mode === "add" ? "tag.add" : "tag.remove",
         "memo",
         change.memoId,
-        { tags }
+        { tags, learning: { version: 1, workspaceId: input.workspaceId,
+          fromNotebookId: change.notebookId, toNotebookId: change.notebookId,
+          beforeTags: change.currentTags, afterTags: change.nextTags } }
       )
     );
   }

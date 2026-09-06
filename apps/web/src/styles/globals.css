@@ -476,6 +476,76 @@ html[data-edgeever-extension-theme] .edgeever-memo-divider {
   background: var(--workspace-selection) !important;
 }
 
+/* X6 ships blue/orange interaction chrome. Keep the engine behavior while
+ * making selection and keyboard focus belong to EdgeEver's visual system. */
+.edgeever-diagram-canvas:focus-visible {
+  box-shadow: inset 0 0 0 2px rgb(var(--brand-green-rgb) / 0.5);
+}
+
+.edgeever-diagram-canvas .x6-widget-selection-rubberband {
+  border-color: var(--brand-green) !important;
+  background-color: var(--brand-green-muted) !important;
+}
+
+.edgeever-diagram-canvas .x6-widget-selection-box,
+.edgeever-diagram-canvas .x6-widget-selection-inner {
+  border-color: var(--brand-green) !important;
+  box-shadow: 0 2px 8px rgb(var(--brand-green-rgb) / 0.18) !important;
+}
+
+.edgeever-diagram-canvas[data-diagram-theme="ink"] .x6-widget-selection-box,
+.edgeever-diagram-canvas[data-diagram-theme="ink"] .x6-widget-selection-inner {
+  border-color: #68d6b0 !important;
+  box-shadow: 0 2px 10px rgb(104 214 176 / 0.22) !important;
+}
+
+.edgeever-diagram-canvas[data-diagram-kind="flowchart"] .x6-widget-selection-box-node,
+.edgeever-diagram-canvas[data-diagram-kind="architecture"] .x6-widget-selection-box-node {
+  pointer-events: none !important;
+}
+
+.edgeever-diagram-canvas .x6-port-body {
+  opacity: 0;
+  transition: opacity 120ms ease, filter 120ms ease;
+}
+
+.edgeever-diagram-canvas[data-diagram-kind="flowchart"] .x6-port-body,
+.edgeever-diagram-canvas[data-diagram-kind="architecture"] .x6-port-body {
+  cursor: crosshair;
+  pointer-events: none;
+}
+
+.edgeever-diagram-canvas[data-diagram-kind="flowchart"] .edgeever-flow-port-hit-area,
+.edgeever-diagram-canvas[data-diagram-kind="architecture"] .edgeever-flow-port-hit-area {
+  fill: transparent;
+  stroke: transparent;
+  pointer-events: all;
+}
+
+.edgeever-diagram-canvas[data-diagram-kind="flowchart"] .edgeever-flow-port-dot,
+.edgeever-diagram-canvas[data-diagram-kind="architecture"] .edgeever-flow-port-dot {
+  pointer-events: none;
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: filter 120ms ease, transform 120ms ease;
+}
+
+.edgeever-diagram-canvas[data-diagram-kind="flowchart"] .x6-node.edgeever-flow-node-active .edgeever-flow-port-dot,
+.edgeever-diagram-canvas[data-diagram-kind="architecture"] .x6-node.edgeever-flow-node-active .edgeever-flow-port-dot {
+  fill: var(--brand-green) !important;
+  stroke: var(--workspace-editor) !important;
+  stroke-width: 2px !important;
+  filter: drop-shadow(0 1px 3px rgb(var(--brand-green-rgb) / 0.3));
+}
+
+.edgeever-diagram-canvas[data-diagram-kind="flowchart"] .x6-port-body:hover .edgeever-flow-port-dot,
+.edgeever-diagram-canvas[data-diagram-kind="flowchart"] .x6-available-magnet + .edgeever-flow-port-dot,
+.edgeever-diagram-canvas[data-diagram-kind="architecture"] .x6-port-body:hover .edgeever-flow-port-dot,
+.edgeever-diagram-canvas[data-diagram-kind="architecture"] .x6-available-magnet + .edgeever-flow-port-dot {
+  filter: drop-shadow(0 1px 3px rgb(var(--brand-green-rgb) / 0.28));
+  transform: scale(1.12);
+}
+
 /* Curated reading themes should feel like part of the note canvas in dark
  * mode. Custom themes keep their explicit background as an intentional user
  * choice, while bundled themes contribute typography and semantic colors. */

@@ -2,7 +2,9 @@ import { describe, expect, test } from "bun:test";
 
 const {
   classifyDesktopSyncFailure,
+  createDesktopSyncIssueDetails,
   createDesktopSyncDiagnosticText,
+  createDesktopSyncSummary,
   isStagedResourceReferenced,
   hasDesktopSyncStateReset,
   mergeMemoIdMappings,
@@ -11,6 +13,7 @@ const {
   orderBootstrapNotebooks,
   resolveDesktopMemoSyncBase,
   rewriteStagedResource,
+  shouldAttemptDesktopRecoveryPull,
   shouldPullDesktopChanges,
 } = await import("./desktop-sync.ts");
 const { ApiRequestError } = await import("./api.ts");
@@ -153,6 +156,26 @@ describe("desktop sync failure handling", () => {
     expect(diagnostic).not.toContain("private.example.test");
   });
 
+  test("keeps a global failure visible in both the summary and details", () => {
+    const globalIssue = {
+      phase: "pull_remote_changes",
+      message: "Request failed at https://private.example.test/api/v1/sync/changes",
+      errorCode: "http_500",
+      occurredAt: "2026-09-05T00:00:00.000Z",
+    };
+
+    expect(createDesktopSyncSummary({ pending: 0, syncing: 0, conflict: 0, error: 0 }, globalIssue)).toEqual({
+      total: 1,
+      pending: 0,
+      syncing: 0,
+      conflict: 0,
+      error: 1,
+    });
+    expect(createDesktopSyncIssueDetails([], globalIssue)).toEqual({ globalIssue, items: [] });
+    expect(createDesktopSyncDiagnosticText([], globalIssue)).toContain("pull_remote_changes");
+    expect(createDesktopSyncDiagnosticText([], globalIssue)).not.toContain("private.example.test");
+  });
+
   test("bounds diagnostics for a prefilled GitHub Issue URL", () => {
     const items = Array.from({ length: 200 }, (_, id) => ({
       id,
@@ -177,5 +200,14 @@ describe("desktop sync failure handling", () => {
     expect(shouldPullDesktopChanges({ pending: 0, syncing: 0, error: 1, conflict: 1 }, true)).toBe(true);
     expect(shouldPullDesktopChanges({ pending: 1, syncing: 0, error: 0, conflict: 0 }, true)).toBe(false);
     expect(shouldPullDesktopChanges({ pending: 0, syncing: 0, error: 0, conflict: 0 }, false)).toBe(false);
+  });
+
+  test("attempts a recovery pull only when no local upload can be overwritten", () => {
+    expect(shouldAttemptDesktopRecoveryPull("sync_staged_resources", { pending: 0, syncing: 0 }, true)).toBe(true);
+    expect(shouldAttemptDesktopRecoveryPull("sync_staged_resources", { pending: 1, syncing: 0 }, true)).toBe(false);
+    expect(shouldAttemptDesktopRecoveryPull("sync_staged_resources", { pending: 0, syncing: 1 }, true)).toBe(false);
+    expect(shouldAttemptDesktopRecoveryPull("pull_remote_changes", { pending: 0, syncing: 0 }, true)).toBe(false);
+    expect(shouldAttemptDesktopRecoveryPull("finalize_resource_remap", { pending: 0, syncing: 0 }, true)).toBe(false);
+    expect(shouldAttemptDesktopRecoveryPull("sync_staged_resources", { pending: 0, syncing: 0 }, false)).toBe(false);
   });
 });

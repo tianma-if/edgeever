@@ -4,10 +4,12 @@ import { useTranslation } from "react-i18next";
 import * as m from "motion/react-m";
 import {
   ChevronLeft,
+  ChevronDown,
   Plus,
   LayoutList,
   LayoutTemplate,
   BookPlus,
+  Boxes,
   ArrowDownWideNarrow,
   Notebook as NotebookIcon,
   Tags,
@@ -23,8 +25,12 @@ import {
   Download,
   ExternalLink,
   RotateCcw,
+  FileText,
+  Network,
+  Workflow,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -39,7 +45,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { NotebookTreeItem } from "./NotebookTreeItem";
 import { cn } from "@/lib/utils";
-import type { Notebook, AuthUser } from "@edgeever/shared";
+import type { Notebook, AuthUser, DiagramKind } from "@edgeever/shared";
 import type { NotebookNode, NotebookDropPosition, NotebookSortMode } from "@/lib/app-helpers";
 import type { SyncQueueSummary } from "@/lib/sync-queue";
 import {
@@ -82,6 +88,15 @@ const BrandIcon = ({ path, color, className }: { path: string; color: string; cl
   <svg className={cn("h-3.5 w-3.5 shrink-0", className)} viewBox="0 0 24 24" aria-hidden="true" style={{ color }}>
     <path fill="currentColor" d={path} />
   </svg>
+);
+
+const DiagramBetaBadge = () => (
+  <Badge
+    variant="outline"
+    className="ml-auto border-emerald-200/80 bg-emerald-50 px-1.5 py-0 text-[10px] leading-4 tracking-wide text-emerald-700 dark:border-emerald-800/60 dark:bg-emerald-950/50 dark:text-emerald-300"
+  >
+    Beta
+  </Badge>
 );
 
 const AppStoreIcon = () => (
@@ -392,7 +407,7 @@ export const NotebookPane = ({
   onOpenTrash: () => void;
   onEmptyTrash: () => void;
   onOpenSettings: () => void;
-  onCreateMemo: () => void;
+  onCreateMemo: (kind?: DiagramKind) => void;
   canCreateMemo: boolean;
   isCreatingMemo: boolean;
   syncSummary: SyncQueueSummary;
@@ -552,20 +567,53 @@ export const NotebookPane = ({
       )}
 
       <div className="hidden shrink-0 px-3 pb-4 pt-4 lg:block">
-        <div className="flex overflow-hidden rounded-full border border-slate-200/90 bg-white shadow-[0_8px_22px_rgba(15,23,42,0.06)] transition-all duration-200 hover:border-emerald-200/80 hover:shadow-[0_8px_24px_rgba(22,160,110,0.12)]">
+        <div className="flex overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_5px_16px_rgba(15,23,42,0.06)] transition-shadow duration-200 hover:shadow-[0_7px_20px_rgba(15,23,42,0.09)]">
           <button
-            className="group flex h-14 min-w-0 flex-1 items-center gap-3 px-3 text-left transition-all duration-200 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+            className="group flex h-12 min-w-0 flex-1 items-center gap-3 px-3 text-left transition-colors duration-150 hover:bg-slate-50 focus-visible:bg-slate-50 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
             type="button"
-            title={t("notebookPane.newMemo")}
             aria-label={t("notebookPane.newMemo")}
-            onClick={onCreateMemo}
+            onClick={() => onCreateMemo()}
             disabled={!canCreateMemo || isCreatingMemo}
           >
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white shadow-[0_8px_18px_rgb(var(--brand-green-rgb)/0.28)] transition-transform duration-200 group-hover:scale-105">
-              <Plus className="h-6 w-6" />
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white shadow-[0_5px_12px_rgb(var(--brand-green-rgb)/0.22)] transition-transform duration-150 group-hover:scale-[1.03] group-focus-visible:ring-2 group-focus-visible:ring-emerald-500/70 group-focus-visible:ring-offset-2">
+              <Plus className="h-5 w-5" />
             </span>
             <span className="min-w-0 truncate text-sm font-semibold text-slate-950">{t("notebookPane.newMemo")}</span>
           </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                className="group relative flex h-12 w-[6.25rem] shrink-0 items-center justify-center gap-1 px-2 text-xs font-medium text-slate-600 transition-colors before:absolute before:inset-y-2.5 before:left-0 before:w-px before:bg-slate-200 hover:bg-emerald-50/70 hover:text-emerald-700 focus-visible:bg-emerald-50/70 focus-visible:text-emerald-700 focus-visible:outline-none data-[state=open]:bg-emerald-50 data-[state=open]:text-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                type="button"
+                aria-label={t("diagram.createType")}
+                disabled={!canCreateMemo || isCreatingMemo}
+              >
+                <span className="truncate">{t("diagram.moreTypes")}</span>
+                <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform duration-150 group-data-[state=open]:rotate-180" aria-hidden="true" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" sideOffset={8} className="w-52">
+              <DropdownMenuItem onSelect={() => onCreateMemo()}>
+                <FileText className="h-4 w-4" />
+                {t("diagram.normalNote")}
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => onCreateMemo("mind-map")}>
+                <Network className="h-4 w-4" />
+                {t("diagram.mindMap")}
+                <DiagramBetaBadge />
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => onCreateMemo("flowchart")}>
+                <Workflow className="h-4 w-4" />
+                {t("diagram.flowchart")}
+                <DiagramBetaBadge />
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => onCreateMemo("architecture")}>
+                <Boxes className="h-4 w-4" />
+                {t("diagram.architecture")}
+                <DiagramBetaBadge />
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 

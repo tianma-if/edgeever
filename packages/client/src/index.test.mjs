@@ -149,6 +149,28 @@ describe("EdgeEver client HTTP contract", () => {
     expect(Array.from(new Uint8Array(await response.arrayBuffer()))).toEqual([1, 2, 3]);
   });
 
+  test("downloads GitHub plugin assets through the release-tag route", async () => {
+    let requestUrl;
+    const client = createEdgeEverClient({
+      fetch: async (input) => {
+        requestUrl = String(input);
+        return new Response(new Uint8Array([1, 2, 3]));
+      },
+    });
+
+    const buffer = await client.downloadGithubPluginAsset(
+      "example-owner",
+      "example-plugin",
+      "v1.2.3-preview.1",
+      "main.js",
+    );
+
+    expect(requestUrl).toBe(
+      "/api/v1/plugins/github/example-owner/example-plugin/releases/v1.2.3-preview.1/assets/main.js",
+    );
+    expect(Array.from(new Uint8Array(buffer))).toEqual([1, 2, 3]);
+  });
+
   test("streams restored resources through bounded multipart requests", async () => {
     const calls = [];
     const client = createEdgeEverClient({

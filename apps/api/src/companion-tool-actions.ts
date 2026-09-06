@@ -120,9 +120,9 @@ export async function applyCompanionToolAction(context: AppContext, scope: Compa
   const guarded: DatabaseAdapter = { prepare: query => wrap(db.prepare(query), /^\s*(?:SELECT|WITH RECURSIVE)\b/i.test(query)), batch: guardedBatch };
   const toolContext: AppContext = Object.create(context, { env: { value: {
     ...context.env, storage: { ...context.env.storage, db: guarded },
-  } } });
+  } }, get: { value: (key: string) => key === "auth" ? { ...context.get("auth"), actorType: "agent" } : context.get(key as "auth") } });
   try {
-    const result = await executeWorkspaceTool(toolContext, context.get("auth"), action.plan.toolName, args);
+    const result = await executeWorkspaceTool(toolContext, { ...context.get("auth"), actorType: "agent" }, action.plan.toolName, args);
     const memo = (result as { memo?: { id?: string; notebookId?: string } } | null)?.memo;
     // Keep a compact receipt, not a second full copy of generated note bodies.
     const receipt = memo ? { memoId: memo.id, notebookId: memo.notebookId } : result;

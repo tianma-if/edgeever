@@ -1,6 +1,7 @@
 {
   "name": "edgeever",
-  "version": "1.57.0",
+  "version": "1.59.0",
+  "packageManager": "bun@1.3.14",
   "private": true,
   "type": "module",
   "workspaces": [
@@ -8,7 +9,9 @@
     "packages/*"
   ],
   "scripts": {
-    "test": "bun test --path-ignore-patterns='tests/e2e/**'",
+    "test": "bun run test:bulk && bun run test:integration",
+    "test:bulk": "bun test --path-ignore-patterns='tests/e2e/**' --path-ignore-patterns='apps/api/src/companion-learning.test.mjs' --path-ignore-patterns='apps/api/src/resource-upload-integration.test.mjs'",
+    "test:integration": "bun test apps/api/src/companion-learning.test.mjs apps/api/src/resource-upload-integration.test.mjs",
     "dev": "bun run dev:local",
     "dev:api": "bun run dev:api:local",
     "dev:local": "bun scripts/local-dev.mjs start local",

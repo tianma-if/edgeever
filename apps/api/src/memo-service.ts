@@ -714,12 +714,12 @@ export const moveMemosToNotebook = async (
   const placeholders = uniqueMemoIds.map(() => "?").join(", ");
   const rows = await db
     .prepare(
-      `SELECT id, notebook_id
+      `SELECT id, notebook_id, tags_json
        FROM memos
        WHERE workspace_id = ? AND is_deleted = 0 AND id IN (${placeholders})`
     )
     .bind(workspaceId, ...uniqueMemoIds)
-    .all<{ id: string; notebook_id: string }>();
+    .all<{ id: string; notebook_id: string; tags_json: string }>();
 
   if (rows.results.length !== uniqueMemoIds.length) {
     throw new AppError("missing_memos", "One or more memos cannot be moved.", 400);
@@ -741,6 +741,8 @@ export const moveMemosToNotebook = async (
       auditStatement(db, actor.actorType, actor.actorId, "memo.move", "memo", row.id, {
         fromNotebookId: row.notebook_id,
         toNotebookId: notebookId,
+        learning: { version: 1, workspaceId, fromNotebookId: row.notebook_id, toNotebookId: notebookId,
+          beforeTags: JSON.parse(row.tags_json), afterTags: JSON.parse(row.tags_json) },
       })
     );
   }
@@ -915,13 +917,15 @@ export const mergeMemosRecord = async (
 export const createMemoRecord = async (
   db: DatabaseAdapter,
   workspaceId: string,
-  input: { notebookId: string; title?: string; contentMarkdown?: string; tags?: string[]; createdAt?: string; updatedAt?: string },
+  input: { notebookId: string; title?: string; contentJson?: unknown; contentMarkdown?: string; tags?: string[]; createdAt?: string; updatedAt?: string },
   actor: { actorType: "user" | "agent"; actorId: string | null },
   actorLabel: string
 ): Promise<MemoDetail> => {
   const tags = normalizeTags(input.tags);
   const contentMarkdown = input.contentMarkdown ?? "";
-  const contentJson = markdownToDoc(contentMarkdown);
+  const contentJson = input.contentJson && typeof input.contentJson === "object"
+    ? input.contentJson as TiptapDoc
+    : markdownToDoc(contentMarkdown);
   const contentText = docToText(contentJson);
   const title = normalizeMemoTitle(input.title);
   const excerpt = createExcerpt(contentText);
@@ -1376,6 +1380,8 @@ export const updateMemoRecord = async (
     ...editSessionStatements,
     auditStatement(db, actor.actorType, actor.actorId, "memo.update", "memo", id, {
       revision: nextRevision,
+      learning: { version: 1, workspaceId, fromNotebookId: current.notebook_id, toNotebookId: notebookId,
+        beforeTags: JSON.parse(current.tags_json), afterTags: tags },
     }),
     ...(commit?.after(id) ?? []),
   ]);

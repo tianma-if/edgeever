@@ -15,10 +15,11 @@ import {
 } from "react";
 import { useInfiniteQuery, useQuery, useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import type { PluginPanelOpenOptions } from "@edgeever/plugin-api";
-import { Home, Search, UserRound, Plus, ChevronDown, ChevronRight, RefreshCw, X } from "lucide-react";
+import { Home, Search, UserRound, Plus, ChevronDown, ChevronRight, RefreshCw, X, FileText, Network, Workflow, Boxes } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import * as m from "motion/react-m";
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import {
   Drawer,
   DrawerContent,
@@ -43,7 +44,7 @@ import {
 } from "@/lib/mobile-editor";
 import { cn } from "@/lib/utils";
 import { isBrowserOffline, isBrowserOnline } from "@/lib/network-status";
-import { createExcerpt, docToText, getNotebookDescendantIds, resolveMemoContentDoc, type Notebook, type AuthUser, type MemoSummary, type MemoDetail, type MemoTemplate as SavedMemoTemplate } from "@edgeever/shared";
+import { createDefaultDiagramDocument, createExcerpt, diagramFallbackMarkdown, docToText, getNotebookDescendantIds, markdownToDoc, parseDiagramDocument, resolveMemoContentDoc, serializeDiagramDocument, type DiagramKind, type Notebook, type AuthUser, type MemoSummary, type MemoDetail, type MemoTemplate as SavedMemoTemplate } from "@edgeever/shared";
 import { toggleMobileMemoSelection } from "@edgeever/shared/mobile-ui";
 import type {
   Pane,
@@ -148,6 +149,7 @@ const getVerticalScrollContainer = (target: EventTarget | null) => {
 };
 
 const EditorPane = lazy(() => import("./EditorPane").then((module) => ({ default: module.EditorPane })));
+const DiagramEditorPane = lazy(() => import("./DiagramEditorPane"));
 const AssetsPane = lazy(() => import("./AssetsPane").then((module) => ({ default: module.AssetsPane })));
 const SettingsPane = lazy(() => import("./SettingsPane").then((module) => ({ default: module.SettingsPane })));
 const PluginMarketplacePane = lazy(() => import("./PluginMarketplacePane").then((module) => ({ default: module.PluginMarketplacePane })));
@@ -363,7 +365,7 @@ const MobileBottomNav = ({
   activeItem: MobileBottomNavItem;
   canCreateMemo: boolean;
   isCreating: boolean;
-  onCreateMemo: () => void;
+  onCreateMemo: (kind?: DiagramKind) => void;
   onHome: () => void;
   onOpenSettings: () => void;
 }) => {
@@ -377,16 +379,25 @@ const MobileBottomNav = ({
     >
       <div className="relative grid h-mobile-bottom-nav grid-cols-3 items-center">
         <MobileBottomNavButton active={activeItem === "home"} icon={<Home className="h-5 w-5" />} label={t("nav.home")} onClick={onHome} />
-        <button
-          className="flex h-mobile-touch flex-col items-center justify-center gap-0.5 rounded-md text-xs font-medium text-emerald-700 transition hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
-          type="button"
-          aria-label={createMemoLabel}
-          disabled={!canCreateMemo || isCreating}
-          onClick={onCreateMemo}
-        >
-          <Plus className="h-5 w-5" />
-          <span>{t("nav.createMemo")}</span>
-        </button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              className="flex h-mobile-touch flex-col items-center justify-center gap-0.5 rounded-md text-xs font-medium text-emerald-700 transition hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+              type="button"
+              aria-label={createMemoLabel}
+              disabled={!canCreateMemo || isCreating}
+            >
+              <Plus className="h-5 w-5" />
+              <span>{t("nav.createMemo")}</span>
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="center" side="top" sideOffset={8} className="w-52">
+            <DropdownMenuItem onSelect={() => onCreateMemo()}><FileText className="h-4 w-4" />{t("diagram.normalNote")}</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => onCreateMemo("mind-map")}><Network className="h-4 w-4" />{t("diagram.mindMap")}</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => onCreateMemo("flowchart")}><Workflow className="h-4 w-4" />{t("diagram.flowchart")}</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => onCreateMemo("architecture")}><Boxes className="h-4 w-4" />{t("diagram.architecture")}</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <MobileBottomNavButton active={activeItem === "settings"} icon={<UserRound className="h-5 w-5" />} label={t("nav.mine")} onClick={onOpenSettings} />
       </div>
     </nav>
@@ -1667,6 +1678,7 @@ export const WorkspaceApp = ({
     },
     onSuccess: (data) => {
       const targetNotebookId = data.memo.notebookId;
+      const isDiagram = Boolean(parseDiagramDocument(data.memo.contentMarkdown));
 
       setMemoView("notebook");
       setSearch("");
@@ -1688,11 +1700,11 @@ export const WorkspaceApp = ({
       navigateWorkspaceHome();
       setRightView("editor");
       pendingCreatedMemoIdRef.current = data.memo.id;
-      setCreatedMemoEditId(data.memo.id);
+      setCreatedMemoEditId(isDiagram ? null : data.memo.id);
       setSelectedMemoId(data.memo.id);
       setActivePane("editor");
 
-      if (!isDesktopViewport()) {
+      if (!isDesktopViewport() && !isDiagram) {
         openStandaloneMobileEditor(data.memo.id);
       }
     },
@@ -2035,6 +2047,7 @@ export const WorkspaceApp = ({
     ? queryClient.getQueryData<{ memo: MemoDetail }>(memoDetailQueryKey(detailMemoId, memoView))?.memo ?? null
     : null;
   const selectedMemo = memoQuery.data?.memo ?? cachedSelectedMemo;
+  const selectedDiagram = parseDiagramDocument(selectedMemo?.contentMarkdown);
   const desktopFocusModeActive = Boolean(
     isDesktop && desktopFocusMode && rightView === "editor" && selectedMemo && !memoSelectionModeActive
   );
@@ -2103,7 +2116,7 @@ export const WorkspaceApp = ({
     setNotebookDeleteConfirmation(notebook);
   };
 
-  const handleCreateMemo = () => {
+  const handleCreateMemo = (kind?: DiagramKind) => {
     const targetNotebookId = createMemoNotebookId;
 
     if (!targetNotebookId || memoView === "trash") {
@@ -2113,10 +2126,12 @@ export const WorkspaceApp = ({
     setTemplatesOpen(false);
     setMobileBottomNavActive("home");
     creatingMemoSelectionRef.current = true;
+    const diagram = kind ? createDefaultDiagramDocument(kind) : null;
     createMemoMutation.mutate({
       notebookId: targetNotebookId,
-      title: "",
-      contentMarkdown: "",
+      title: diagram ? (kind === "mind-map" ? t("diagram.mindMap") : kind === "architecture" ? t("diagram.architecture") : t("diagram.flowchart")) : "",
+      contentJson: diagram ? markdownToDoc(diagramFallbackMarkdown(diagram)) : undefined,
+      contentMarkdown: diagram ? serializeDiagramDocument(diagram) : "",
       tags: [],
     });
   };
@@ -3401,6 +3416,54 @@ export const WorkspaceApp = ({
                         setActivePane("memos");
                       }}
                     >
+                      {selectedMemo && selectedDiagram ? (
+                        <DiagramEditorPane
+                          memo={selectedMemo}
+                          repository={repository}
+                          readOnly={memoView === "trash" || selectedMemo.isDeleted}
+                          desktopFocusMode={desktopFocusModeActive}
+                          hasNextMemo={Boolean(nextMemoId)}
+                          hasPreviousMemo={Boolean(previousMemoId)}
+                          onBackToList={() => {
+                            clearPendingCreatedMemo();
+                            setActivePane("memos");
+                          }}
+                          onDeleted={async (memoId) => {
+                            deleteMemoMutation.mutate({ memoId, permanent: false });
+                          }}
+                          onOpenNextMemo={() => {
+                            if (nextMemoId) {
+                              clearPendingCreatedMemo();
+                              setCreatedMemoEditId(null);
+                              setSelectedMemoId(nextMemoId);
+                            }
+                          }}
+                          onOpenPreviousMemo={() => {
+                            if (previousMemoId) {
+                              clearPendingCreatedMemo();
+                              setCreatedMemoEditId(null);
+                              setSelectedMemoId(previousMemoId);
+                            }
+                          }}
+                          onPermanentDeleted={async (memoId) => {
+                            setMemoDeleteConfirmation({ kind: "single", memoIds: [memoId], permanent: true });
+                          }}
+                          onRestored={async (memoId) => {
+                            await restoreMemoMutation.mutateAsync(memoId);
+                          }}
+                          onSaved={async (memo) => {
+                            await putLocalMemo(localDataScope, memo);
+                            cacheMemoDetail(queryClient, memo, memoView);
+                            updateMemoSummaryInLists(queryClient, memoToSummary(memo));
+                            await Promise.all([
+                              queryClient.invalidateQueries({ queryKey: ["memos"], refetchType: "inactive" }),
+                              queryClient.invalidateQueries({ queryKey: ["notebooks"], refetchType: "inactive" }),
+                            ]);
+                          }}
+                          onSaveAsTemplate={handleSaveAsTemplate}
+                          onToggleDesktopFocusMode={toggleDesktopFocusMode}
+                        />
+                      ) : (
                       <EditorPane
                       onOpenExecutionCenter={handleOpenExecutionCenter}
                       companionDiscoveryHub={authRequired && Boolean(user) && !demoMode ? (
@@ -3506,6 +3569,7 @@ export const WorkspaceApp = ({
                     onMobileDefaultEditConsumed={handleMobileDefaultEditConsumed}
                     onSaveAsTemplate={handleSaveAsTemplate}
                     />
+                      )}
                     </EditorPaneErrorBoundary>
                   )}
                 </m.div>

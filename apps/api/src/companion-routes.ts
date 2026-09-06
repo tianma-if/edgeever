@@ -13,7 +13,7 @@ import { beginCompanionTurn, checkpointCompanionTurn, clearCompanionHistory, com
   saveCompanionMemory, importCompanionMemories, type CompanionScope } from "./companion-service";
 import type { streamCompanion } from "./companion-runtime";
 import { applyCompanionAction, dismissCompanionAction, listCompanionActions } from "./companion-actions";
-import { acknowledgeDiscovery, checkDiscoveries, getDiscoverySettings, listDiscoveries, saveDiscoverySettings } from "./companion-discovery";
+import { acknowledgeDiscovery, rememberDiscoveryFeedback, checkDiscoveries, getDiscoverySettings, listDiscoveries, saveDiscoverySettings } from "./companion-discovery";
 
 const scopeFor = (c: AppContext): CompanionScope => ({ workspaceId: getWorkspaceId(c), ownerId: c.get("auth").actorId! });
 const fail = (c: AppContext, error: unknown) => error instanceof AppError
@@ -42,7 +42,8 @@ export const registerCompanionRoutes = (parent: Hono<AppEnv>, dependencies: {
     const input = c.req.valid("json");
     // Validate the same default model used by an actual discovery check.
     // Turning Paw mode off must remain possible when a provider is unavailable.
-    if (input.enabled) {
+    const previous = await getDiscoverySettings(c.env.storage.db, scopeFor(c));
+    if (input.enabled && !previous.enabled) {
       await (dependencies.loadModel ?? loadDefaultAiModel)(c.env.storage.db, getWorkspaceId(c), c.env);
     }
     return c.json({ settings: await saveDiscoverySettings(c.env.storage.db, scopeFor(c), input) });
@@ -59,6 +60,11 @@ export const registerCompanionRoutes = (parent: Hono<AppEnv>, dependencies: {
       });
       return c.json({ items: await listDiscoveries(c.env.storage.db, scopeFor(c)) });
     } finally { clearTimeout(timeout); }
+  });
+  app.post("/api/v1/companion/discovery/:id/feedback", async c => {
+    if (!CompanionIdSchema.safeParse(c.req.param("id")).success) return notFound(c, "Discovery not found.");
+    await rememberDiscoveryFeedback(c.env.storage.db, scopeFor(c), c.req.param("id"));
+    return c.json({ ok: true });
   });
   for (const operation of ["seen", "dismiss"] as const) app.post(`/api/v1/companion/discovery/:id/${operation}`, async c => {
     if (!CompanionIdSchema.safeParse(c.req.param("id")).success) return notFound(c, "Discovery not found.");
@@ -114,7 +120,8 @@ export const registerCompanionRoutes = (parent: Hono<AppEnv>, dependencies: {
     const scope = scopeFor(c);
     const rows = await c.env.storage.db.prepare("SELECT * FROM companion_turns WHERE workspace_id = ? AND owner_id = ? ORDER BY created_at")
       .bind(scope.workspaceId, scope.ownerId).all<import("./companion-service").TurnRow>();
-    return c.json({ version: 1, exportedAt: new Date().toISOString(),
+    const settings = await getDiscoverySettings(c.env.storage.db, scope);
+    return c.json({ version: 2, controls: { useMemory: settings.useMemory === true, learningEnabled: settings.learningEnabled === true }, exportedAt: new Date().toISOString(),
       memories: await listCompanionMemories(c.env.storage.db, scope), turns: rows.results.map(mapCompanionTurn),
       actions: await listCompanionActions(c.env.storage.db, scope, 1500),
       discoverySettings: await getDiscoverySettings(c.env.storage.db, scope),
@@ -123,7 +130,7 @@ export const registerCompanionRoutes = (parent: Hono<AppEnv>, dependencies: {
   });
   app.post("/api/v1/companion/import-memories", zValidator("json", CompanionMemoryImportSchema), async c => {
     const scope = scopeFor(c);
-    return c.json({ memories: await importCompanionMemories(c.env.storage.db, scope, c.req.valid("json").memories.map(m => m.content)) });
+    return c.json({ memories: await importCompanionMemories(c.env.storage.db, scope, c.req.valid("json").memories, c.req.valid("json").controls) });
   });
 
   app.post("/api/v1/companion/turns", zValidator("json", CompanionTurnInputSchema), async c => {
@@ -133,7 +140,15 @@ export const registerCompanionRoutes = (parent: Hono<AppEnv>, dependencies: {
     const duplicate = await getCompanionTurn(db, scope, input.id);
     if (duplicate) return apiError(c, "companion_request_exists", "This request already exists. Recover it by its ID; it will not be billed again.", 409);
     const model = await (dependencies.loadModel ?? loadDefaultAiModel)(db, scope.workspaceId, c.env);
+    await listCompanionMemories(db, scope);
+    const expectedRevision = await companionRevision(db, scope);
+    const settings = await getDiscoverySettings(db, scope);
+    input.useMemory = input.useMemory && settings.useMemory === true;
     const row = await beginCompanionTurn(db, scope, input, model.modelId);
+    if (row.memory_revision !== expectedRevision) {
+      await db.prepare("UPDATE companion_turns SET status = 'cancelled' WHERE id = ? AND workspace_id = ? AND owner_id = ?").bind(row.id, scope.workspaceId, scope.ownerId).run();
+      throw new AppError("companion_context_changed", "Memory settings changed. Retry with current settings.", 409);
+    }
     const stop = new AbortController();
     const timeout = setTimeout(() => stop.abort(), 60_000);
     const signal = AbortSignal.any([stop.signal, c.req.raw.signal]);

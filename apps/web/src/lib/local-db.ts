@@ -42,6 +42,7 @@ export type MemoCreateSyncPayload = {
   temporaryId: string;
   notebookId: string;
   title: string;
+  contentJson?: TiptapDoc;
   contentMarkdown?: string;
   tags: string[];
   createdAt: string;
