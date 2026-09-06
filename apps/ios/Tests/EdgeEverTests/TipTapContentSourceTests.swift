@@ -3,6 +3,16 @@ import XCTest
 @testable import EdgeEver
 
 final class TipTapContentSourceTests: XCTestCase {
+    func testViewerPrefersMarkdownForVisualDiagramEnvelope() {
+        let decision = TipTapContentSource.resolve(
+            mode: .viewer,
+            documentJSON: #"{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"legacy node list"}]}]}"#,
+            markdown: "# legacy\n\n- node list\n\n<!-- edgeever-diagram-v1:abc -->"
+        )
+        XCTAssertFalse(decision.useJSON)
+        XCTAssertTrue(decision.payload.contains("edgeever-diagram-v1"))
+    }
+
     func testEditorMarkdownRemainsAuthoritativeForRichStructures() {
         let markdown = """
         1. first
@@ -243,6 +253,63 @@ final class TipTapContentSourceTests: XCTestCase {
             markdown: sample
         )
         XCTAssertFalse(decision.useJSON)
+    }
+
+    /// Live WKWebView regression for the portable projection of visual diagram notes.
+    @MainActor
+    func testPackagedViewerRendersAllVisualDiagramFallbacksAsSVG() async throws {
+        let htmlURL = try XCTUnwrap(
+            TipTapResourceLoader.packagedEditorHTMLURL(),
+            "EditorBundle must be available in the native app test host"
+        )
+        let config = WKWebViewConfiguration()
+        config.preferences.setValue(true, forKey: "allowFileAccessFromFileURLs")
+        let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 390, height: 800), configuration: config)
+        webView.loadFileURL(htmlURL, allowingReadAccessTo: htmlURL.deletingLastPathComponent())
+
+        for _ in 0..<100 {
+            if try await evalBool(webView, "!!window.EdgeEverEditor") { break }
+            try await Task.sleep(nanoseconds: 100_000_000)
+        }
+        let editorReady = try await evalBool(webView, "!!window.EdgeEverEditor")
+        XCTAssertTrue(editorReady)
+
+        func envelope(_ json: String) -> String {
+            let marker = Data(json.utf8).base64EncodedString()
+                .replacingOccurrences(of: "+", with: "-")
+                .replacingOccurrences(of: "/", with: "_")
+                .replacingOccurrences(of: "=", with: "")
+            return "# legacy\n\n- node list only\n\n<!-- edgeever-diagram-v1:\(marker) -->"
+        }
+        let samples = [
+            envelope(#"{"schemaVersion":1,"kind":"mind-map","nodes":[{"id":"a","label":"核心主题","x":0,"y":0,"width":100,"height":40,"shape":"topic"},{"id":"b","label":"分支主题","x":160,"y":0,"width":100,"height":40,"shape":"topic","parentId":"a"}],"edges":[{"id":"e","source":"a","target":"b"}]}"#),
+            envelope(#"{"schemaVersion":1,"kind":"flowchart","nodes":[{"id":"a","label":"开始","x":0,"y":0,"width":100,"height":40,"shape":"terminator"},{"id":"b","label":"处理步骤","x":0,"y":100,"width":100,"height":40,"shape":"process"}],"edges":[{"id":"e","source":"a","target":"b"}]}"#),
+            envelope(#"{"schemaVersion":2,"kind":"architecture","nodes":[{"id":"system","label":"应用系统","x":0,"y":0,"width":500,"height":300,"shape":"boundary"},{"id":"api","label":"API 服务","x":40,"y":40,"width":156,"height":64,"shape":"service","parentId":"system"},{"id":"db","label":"数据库","x":260,"y":40,"width":150,"height":72,"shape":"database","parentId":"system"}],"edges":[{"id":"query","source":"api","target":"db","label":"查询","kind":"data"}]}"#),
+        ]
+
+        for sample in samples {
+            let b64 = Data(sample.utf8).base64EncodedString()
+            _ = try await eval(webView, """
+            (function(){
+              window.EdgeEverEditor.configure({ mode: 'viewer', locale: 'zh-CN', theme: 'light' });
+              var bin = atob('\(b64)');
+              var bytes = new Uint8Array(bin.length);
+              for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+              window.EdgeEverEditor.setMarkdown(new TextDecoder('utf-8').decode(bytes));
+              return true;
+            })()
+            """)
+
+            var svgCount = 0
+            for _ in 0..<100 {
+                svgCount = try await evalInt(webView, "document.querySelectorAll('.edgeever-mermaid svg').length")
+                if svgCount == 1 { break }
+                try await Task.sleep(nanoseconds: 100_000_000)
+            }
+            XCTAssertEqual(svgCount, 1, "each visual-note envelope must render as SVG in the iOS viewer")
+            let leakedLegacyFallback = try await evalBool(webView, "document.body.innerText.includes('node list only')")
+            XCTAssertFalse(leakedLegacyFallback)
+        }
     }
 
     // MARK: - JS helpers

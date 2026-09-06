@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { DEFAULT_MEMO_TITLE, resolveMemoContentDoc, type MemoDetail, type TiptapDoc } from "@edgeever/shared";
+import { DEFAULT_MEMO_TITLE, type MemoDetail, type TiptapDoc } from "@edgeever/shared";
 import {
   type NoteImageTheme,
   type NoteImageFontStyle,
@@ -18,6 +18,7 @@ import { MobileAiAssistantModal } from "../components/MobileAiAssistantModal";
 import { MobileResourceActions } from "../components/MobileResourceActions";
 import { SAFE_DOM_WEBVIEW_PROPS } from "../lib/mobile-dom";
 import { getNextMobileNoteSearchIndex } from "../lib/mobile-note-search";
+import { getMobileVisualDiagramKind, resolveMobileMemoViewerContent } from "../lib/mobile-diagram";
 import { safeDomCall } from "../lib/safe-dom-call";
 import {
   getMobileImageTarget,
@@ -497,7 +498,11 @@ export const MemoDetailModal = ({
 
   const baseUrl = session?.baseUrl.replace(/\/+$/, "") ?? "";
   const viewerContent = useMemo<TiptapDoc>(
-    () => (memo ? resolveMemoContentDoc(memo.contentJson, memo.contentMarkdown) : { type: "doc", content: [{ type: "paragraph" }] }),
+    () => (memo ? resolveMobileMemoViewerContent(memo.contentJson, memo.contentMarkdown) : { type: "doc", content: [{ type: "paragraph" }] }),
+    [memo]
+  );
+  const visualDiagramKind = useMemo(
+    () => (memo ? getMobileVisualDiagramKind(memo.contentMarkdown) : null),
     [memo]
   );
 
@@ -960,7 +965,7 @@ export const MemoDetailModal = ({
         ) : memo ? (
           <View style={detailLayoutStyles.body}>
             <View style={detailLayoutStyles.meta}>
-              {!memo.isDeleted ? (
+              {!memo.isDeleted && !visualDiagramKind ? (
                 <Pressable
                   accessibilityHint="进入编辑并聚焦标题"
                   accessibilityLabel="编辑笔记标题"
@@ -1069,7 +1074,7 @@ export const MemoDetailModal = ({
                 locale={resolvedLocale}
                 mode="viewer"
                 onImagePreview={onImagePreview}
-                onDoublePress={async () => {
+                onDoublePress={visualDiagramKind ? undefined : async () => {
                   beginEditorStartup();
                   onRichEdit(memo, "body");
                 }}
@@ -1103,7 +1108,7 @@ export const MemoDetailModal = ({
             <Text style={styles.errorText}>笔记加载失败</Text>
           </View>
         )}
-        {memo && !memo.isDeleted ? (
+        {memo && !memo.isDeleted && !visualDiagramKind ? (
           <Pressable
             accessibilityLabel="编辑笔记"
             accessibilityRole="button"
@@ -1122,7 +1127,7 @@ export const MemoDetailModal = ({
               <Pressable style={styles.actionSheet}>
                 <View style={styles.actionSheetHandle} />
                 <Text style={styles.actionSheetTitle}>{resolvedLocale === "en-US" ? "Note actions" : "笔记操作"}</Text>
-                {!memo.isDeleted ? (
+                {!memo.isDeleted && !visualDiagramKind ? (
                   <DetailActionSheetItem
                     icon={<Sparkles color="#16A06E" size={18} />}
                     label={resolvedLocale === "en-US" ? "AI note assistant" : "AI 笔记助手"}

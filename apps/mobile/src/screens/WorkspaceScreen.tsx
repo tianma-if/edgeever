@@ -19,7 +19,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Alert, Pressable, Text } from "../components/LocalizedText";
 import { ApiRequestError } from "@edgeever/client";
-import { DEFAULT_MEMO_TITLE, getNotebookDescendantIds, markdownToDoc, type MemoDetail } from "@edgeever/shared";
+import { DEFAULT_MEMO_TITLE, getNotebookDescendantIds, markdownToDoc, parseDiagramDocument, type MemoDetail } from "@edgeever/shared";
 import { MOBILE_UI_METRICS, toggleMobileMemoFilterMode } from "@edgeever/shared/mobile-ui";
 import { clearMobileMemoDraft, readMobileMemoDraft, type MobileMemoDraft } from "../lib/mobile-drafts";
 import {
@@ -435,6 +435,15 @@ export const WorkspaceScreen = ({
   }, []);
 
   const openRichEditor = useCallback(async (memo: MemoDetail, initialFocus: "body" | "title" = "body") => {
+    if (parseDiagramDocument(memo.contentMarkdown)) {
+      Alert.alert(
+        resolvedLocale === "en-US" ? "View-only diagram" : "图表暂为只读",
+        resolvedLocale === "en-US"
+          ? "Visual diagram editing is currently available on Web and desktop."
+          : "可视化图表目前请在 Web 或桌面端编辑。"
+      );
+      return;
+    }
     // Unmount detail DomWebView before the editable instance mounts (Android IME).
     beginEditorStartup();
     let editingMemo = memo;
@@ -456,7 +465,7 @@ export const WorkspaceScreen = ({
     memoDraftPrefetchRef.current.delete(memo.id);
     setSelectedMemoId(null);
     setRichEditingSession({ draft, initialFocus, memo: editingMemo });
-  }, [client, dataScope, loadMemoDraft, queryClient, syncQueueScope]);
+  }, [client, dataScope, loadMemoDraft, queryClient, resolvedLocale, syncQueueScope]);
 
   const memos = useMemo(() => memosQuery.data?.pages.flatMap((page) => page.memos) ?? [], [memosQuery.data]);
   const searchResults = useMemo(() => searchQuery.data?.pages.flatMap((page) => page.memos) ?? [], [searchQuery.data]);

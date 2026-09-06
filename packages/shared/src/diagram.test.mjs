@@ -37,6 +37,13 @@ describe("diagram document", () => {
     expect(parsed.nodes.find((node) => node.id === "api").parentId).toBe("system");
     expect(parsed.edges.find((edge) => edge.id === "request").kind).toBe("request");
     expect(diagramFallbackMarkdown(document)).toContain("# 架构图");
+    const fallback = diagramDocumentToMermaid(document);
+    expect(fallback).toContain('subgraph n0["应用系统"]');
+    expect(fallback).toContain('shape: display, label: "Web 客户端"');
+    expect(fallback).toContain('shape: st-rect, label: "API 服务"');
+    expect(fallback).toContain('shape: cyl, label: "数据库"');
+    expect(fallback).toContain('shape: disk, label: "对象存储"');
+    expect(fallback).toContain("classDef archDatabase");
   });
 
   test("rejects malformed and dangling graph data", () => {

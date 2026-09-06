@@ -1,11 +1,11 @@
 {
-  "version": "1.58.1",
+  "version": "1.59.0",
   "changes": {
     "en-US": [
-      "Fix the diagram editor failing to open when creating or viewing mind map and flowchart notes in desktop and production builds."
+      "Add visual architecture diagram notes with semantic components, system boundaries, labeled connections, automatic layout, revision history, and PNG/SVG export on Web and desktop; Android and iOS preserve the same data and provide a semantic read-only view."
     ],
     "zh-CN": [
-      "修复桌面端及生产环境中新建或打开思维导图、流程图笔记时编辑器无法显示的问题。"
+      "新增可视化架构图笔记：Web 与桌面端支持语义组件、系统边界、连线说明、自动布局、历史版本及 PNG/SVG 导出；Android 与 iOS 保留同一份数据并提供语义化只读视图。"
     ]
   }
 }

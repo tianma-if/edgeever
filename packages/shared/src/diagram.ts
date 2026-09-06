@@ -191,6 +191,81 @@ export const diagramDocumentToMermaid = (document: DiagramDocument) => {
   const direction = document.kind === "mind-map" ? "LR" : "TD";
   const lines = [`flowchart ${direction}`];
 
+  if (document.kind === "architecture") {
+    const nodeById = new Map(document.nodes.map((node) => [node.id, node]));
+    const childrenByParent = new Map<string, typeof document.nodes>();
+    for (const node of document.nodes) {
+      if (!node.parentId) continue;
+      const children = childrenByParent.get(node.parentId) ?? [];
+      children.push(node);
+      childrenByParent.set(node.parentId, children);
+    }
+    const shapeNames: Partial<Record<DiagramNodeShape, string>> = {
+      client: "display",
+      frontend: "win-pane",
+      service: "st-rect",
+      database: "cyl",
+      storage: "disk",
+      queue: "lin-rect",
+      security: "hex",
+      external: "cloud",
+    };
+    const classNames: Partial<Record<DiagramNodeShape, string>> = {
+      client: "archClient",
+      frontend: "archFrontend",
+      service: "archService",
+      database: "archDatabase",
+      storage: "archStorage",
+      queue: "archQueue",
+      security: "archSecurity",
+      external: "archExternal",
+    };
+    const rendered = new Set<string>();
+    const renderNode = (node: DiagramNode, indent: string) => {
+      if (rendered.has(node.id)) return;
+      rendered.add(node.id);
+      const id = nodeIds.get(node.id)!;
+      const label = escapeMermaidLabel(node.label);
+      if (node.shape === "boundary") {
+        lines.push(`${indent}subgraph ${id}["${label}"]`);
+        lines.push(`${indent}  direction TD`);
+        for (const child of childrenByParent.get(node.id) ?? []) renderNode(child, `${indent}  `);
+        lines.push(`${indent}end`);
+        return;
+      }
+      lines.push(`${indent}${id}@{ shape: ${shapeNames[node.shape] ?? "rect"}, label: "${label}" }`);
+      const className = classNames[node.shape];
+      if (className) lines.push(`${indent}class ${id} ${className}`);
+    };
+
+    for (const node of document.nodes) {
+      if (!node.parentId || !nodeById.has(node.parentId)) renderNode(node, "  ");
+    }
+    for (const node of document.nodes) renderNode(node, "  ");
+
+    for (const edge of document.edges) {
+      const source = nodeIds.get(edge.source);
+      const target = nodeIds.get(edge.target);
+      if (!source || !target) continue;
+      const label = edge.label ? `|"${escapeMermaidLabel(edge.label)}"|` : "";
+      const connector = edge.bidirectional ? `<-->${label}` : edge.kind === "async" ? `-.->${label}` : `-->${label}`;
+      lines.push(`  ${source} ${connector} ${target}`);
+    }
+
+    lines.push("  classDef archClient fill:#ECFEFF,stroke:#0891B2,color:#0F172A,stroke-width:2px");
+    lines.push("  classDef archFrontend fill:#EFF6FF,stroke:#2563EB,color:#0F172A,stroke-width:2px");
+    lines.push("  classDef archService fill:#ECFDF5,stroke:#16A06E,color:#0F172A,stroke-width:2px");
+    lines.push("  classDef archDatabase fill:#F5F3FF,stroke:#7C3AED,color:#0F172A,stroke-width:2px");
+    lines.push("  classDef archStorage fill:#FFFBEB,stroke:#D97706,color:#0F172A,stroke-width:2px");
+    lines.push("  classDef archQueue fill:#FFF7ED,stroke:#EA580C,color:#0F172A,stroke-width:2px");
+    lines.push("  classDef archSecurity fill:#FFF1F2,stroke:#E11D48,color:#0F172A,stroke-width:2px");
+    lines.push("  classDef archExternal fill:#F8FAFC,stroke:#64748B,color:#0F172A,stroke-width:2px,stroke-dasharray:6 4");
+    for (const boundary of document.nodes.filter((node) => node.shape === "boundary")) {
+      lines.push(`  style ${nodeIds.get(boundary.id)} fill:transparent,stroke:#64748B,stroke-width:1.5px,stroke-dasharray:7 5`);
+    }
+    return lines.join("\n");
+  }
+
   for (const node of document.nodes) {
     const id = nodeIds.get(node.id)!;
     const label = escapeMermaidLabel(node.label);

@@ -75,7 +75,7 @@ struct MemoDetailView: View {
         .background(AppTheme.card)
         // UIKit FAB in overlay — SwiftUI Button over WKWebView often receives zero taps.
         .overlay(alignment: .bottomTrailing) {
-            if let memo, !memo.isDeleted {
+            if let memo, !memo.isDeleted, !isVisualDiagram(memo) {
                 EditFabButton(
                     accessibilityLabel: env.preferences.t("编辑笔记", en: "Edit note")
                 ) {
@@ -304,8 +304,10 @@ struct MemoDetailView: View {
             titleVisibility: .visible
         ) {
             if let memo {
-                Button(env.preferences.t("编辑", en: "Edit")) { onEdit(memo.id, .body) }
-                if !memo.isDeleted && !isTemporaryMemoId(memo.id) {
+                if !isVisualDiagram(memo) {
+                    Button(env.preferences.t("编辑", en: "Edit")) { onEdit(memo.id, .body) }
+                }
+                if !memo.isDeleted && !isTemporaryMemoId(memo.id) && !isVisualDiagram(memo) {
                     Button(env.preferences.t("AI 笔记助手", en: "AI note assistant")) {
                         showAiAssistant = true
                     }
@@ -774,7 +776,7 @@ struct MemoDetailView: View {
                     onImagePreview: { source, alt in
                         imagePreview = (source, alt)
                     },
-                    onDoubleTap: {
+                    onDoubleTap: isVisualDiagram(memo) ? nil : {
                         onEdit(memo.id, .body)
                     },
                     onPickImage: nil,
@@ -859,9 +861,13 @@ struct MemoDetailView: View {
                     .multilineTextAlignment(.leading)
             }
             .buttonStyle(.plain)
-            .disabled(memo.isDeleted)
-            .accessibilityLabel(env.preferences.t("编辑笔记标题", en: "Edit note title"))
-            .accessibilityHint(env.preferences.t("进入编辑并聚焦标题", en: "Opens editing with the title focused"))
+            .disabled(memo.isDeleted || isVisualDiagram(memo))
+            .accessibilityLabel(isVisualDiagram(memo)
+                ? env.preferences.t("图表标题", en: "Diagram title")
+                : env.preferences.t("编辑笔记标题", en: "Edit note title"))
+            .accessibilityHint(isVisualDiagram(memo)
+                ? env.preferences.t("可视化图表请在 Web 或桌面端编辑", en: "Edit visual diagrams on Web or desktop")
+                : env.preferences.t("进入编辑并聚焦标题", en: "Opens editing with the title focused"))
             .accessibilityIdentifier(DetailMemoChrome.title)
         }
     }
@@ -876,6 +882,10 @@ struct MemoDetailView: View {
         } catch {
             self.error = error.localizedDescription
         }
+    }
+
+    private func isVisualDiagram(_ memo: MemoDetail) -> Bool {
+        memo.contentMarkdown.contains("<!-- edgeever-diagram-v1:")
     }
 
     private func refreshSyncStatus() {
