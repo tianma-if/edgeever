@@ -12,6 +12,7 @@ import {
 } from "./locales";
 import { enUS } from "./resources/en-US";
 import { zhCN } from "./resources/zh-CN";
+import { ruRU } from "./resources/ru-RU";
 
 export {
   defaultLocale,
@@ -25,6 +26,7 @@ export {
 export const resources = {
   "zh-CN": { translation: zhCN },
   "en-US": { translation: enUS },
+  "ru-RU": { translation: ruRU },
 } as const;
 
 void i18n.use(initReactI18next).init({
