@@ -1,4 +1,4 @@
-export type MemoTemplateSeedLocale = "zh-CN" | "en-US";
+export type MemoTemplateSeedLocale = "zh-CN" | "en-US" | "ru-RU";
 
 export type MemoTemplateSeedTranslation = {
   title: string;
@@ -17,9 +17,10 @@ const seed = (
   metadata: Omit<MemoTemplateSeed, "translations">,
   zhCN: MemoTemplateSeedTranslation,
   enUS: MemoTemplateSeedTranslation,
+  ruRU: MemoTemplateSeedTranslation,
 ): MemoTemplateSeed => ({
   ...metadata,
-  translations: { "zh-CN": zhCN, "en-US": enUS },
+  translations: { "zh-CN": zhCN, "en-US": enUS, "ru-RU": ruRU },
 });
 
 export const DEFAULT_MEMO_TEMPLATE_SEEDS: readonly MemoTemplateSeed[] = [
@@ -35,6 +36,11 @@ export const DEFAULT_MEMO_TEMPLATE_SEEDS: readonly MemoTemplateSeed[] = [
       description: "Capture fleeting thoughts, ideas, links, and immediate action items.",
       contentMarkdown: "## 💡 Fleeting Thoughts\n\n- \n\n## 📌 Context & Notes\n\n\n\n## 🚀 Next Actions\n\n- [ ] ",
     },
+    {
+      title: "Быстрая заметка",
+      description: "Быстро зафиксируй мелькнувшую мысль, идею, ссылку или немедленное действие.",
+      contentMarkdown: "## 💡 Мысль на лету\n\n- \n\n## 📌 Контекст и пояснения\n\n\n\n## 🚀 Следующие шаги\n\n- [ ] ",
+    },
   ),
   seed(
     { key: "meeting", translationKey: "meeting", tag: "meeting" },
@@ -47,6 +53,11 @@ export const DEFAULT_MEMO_TEMPLATE_SEEDS: readonly MemoTemplateSeed[] = [
       title: "Meeting Minutes",
       description: "Structured log for agenda, key decisions, and action items with owners.",
       contentMarkdown: "# 📝 Meeting Minutes\n\n- **Time**:\n- **Host/Recorder**:\n- **Attendees**:\n\n---\n\n## 🎯 Goal\n\n- \n\n## 💬 Discussion & Decisions\n\n1. **[Topic 1]**\n   - Points:\n   - ✅ **Decision**:\n\n2. **[Topic 2]**\n   - Points:\n   - ✅ **Decision**:\n\n## 📋 Action Items\n\n- [ ] **[Owner]** Task description (Due: MM-DD)\n- [ ] **[Owner]** Task description (Due: MM-DD)\n",
+    },
+    {
+      title: "Протокол встречи",
+      description: "Структурированная запись повестки, ключевых решений и задач с ответственными.",
+      contentMarkdown: "# 📝 Протокол встречи\n\n- **Время**:\n- **Ведущий/секретарь**:\n- **Участники**:\n\n---\n\n## 🎯 Цель встречи\n\n- \n\n## 💬 Обсуждение и решения\n\n1. **[Вопрос 1]**\n   - Ключевые моменты:\n   - ✅ **Решение**:\n\n2. **[Вопрос 2]**\n   - Ключевые моменты:\n   - ✅ **Решение**:\n\n## 📋 Задачи (Action Items)\n\n- [ ] **[Ответственный]** Описание задачи (срок: MM-DD)\n- [ ] **[Ответственный]** Описание задачи (срок: MM-DD)\n",
     },
   ),
   seed(
@@ -61,6 +72,11 @@ export const DEFAULT_MEMO_TEMPLATE_SEEDS: readonly MemoTemplateSeed[] = [
       description: "Summarize weekly highlights, blockers, and next week's key priorities.",
       contentMarkdown: "# 🗓️ Weekly Status Report\n\n## 🌟 Highlights\n\n- [x] **[Project/Feature]** Accomplishment details\n- [x] **[Project/Feature]** Accomplishment details\n\n## 🚧 Blockers & Risks\n\n- ⚠️ **Blocker**: Reason and required support\n\n## 🎯 Next Week Priorities\n\n- [ ] \n- [ ] \n- [ ] \n\n## 💡 Reflection & Insights\n\n- \n",
     },
+    {
+      title: "Итоги недели",
+      description: "Подведи итоги недели: главные результаты, риски и приоритеты на следующую.",
+      contentMarkdown: "# 🗓️ Итоги недели\n\n## 🌟 Главные результаты (Highlights)\n\n- [x] **[Проект/функция]** Что сделано и с каким результатом\n- [x] **[Проект/функция]** Что сделано и с каким результатом\n\n## 🚧 Блокеры и риски\n\n- ⚠️ **Блокер**: причина и нужная поддержка\n\n## 🎯 Приоритеты на следующую неделю\n\n- [ ] \n- [ ] \n- [ ] \n\n## 💡 Выводы и размышления\n\n- \n",
+    },
   ),
   seed(
     { key: "reading", translationKey: "reading", tag: "reading" },
@@ -73,6 +89,11 @@ export const DEFAULT_MEMO_TEMPLATE_SEEDS: readonly MemoTemplateSeed[] = [
       title: "Reading Note Card",
       description: "Extract key takeaways, quotes, reflections, and connected concepts.",
       contentMarkdown: "# 📖 Reading Note Card\n\n- **Book/Article**:\n- **Author/Source**:\n- **Rating**: ⭐⭐⭐⭐⭐\n\n---\n\n## 💡 Key Takeaway\n\n> \n\n## ✍️ Highlights & Quotes\n\n> [Quote content]\n> —— *Original Source*\n\n## 🧠 Personal Reflections\n\n- \n\n## 🔗 Action & Practice\n\n- [ ] **Action Plan**:\n",
+    },
+    {
+      title: "Карточка прочитанного",
+      description: "Выдели главные мысли, цитаты, личные выводы и связи с другими знаниями.",
+      contentMarkdown: "# 📖 Карточка прочитанного\n\n- **Книга/статья**:\n- **Автор/источник**:\n- **Оценка**: ⭐⭐⭐⭐⭐\n\n---\n\n## 💡 Главная мысль (Key Takeaway)\n\n> \n\n## ✍️ Ключевые идеи и цитаты\n\n> [Цитата]\n> —— *Источник*\n\n## 🧠 Мои размышления\n\n- \n\n## 🔗 Связи и действия\n\n- [ ] **Что применить на практике**:\n",
     },
   ),
   seed(
@@ -87,12 +108,29 @@ export const DEFAULT_MEMO_TEMPLATE_SEEDS: readonly MemoTemplateSeed[] = [
       description: "Define OKRs, Key Results, milestones, and task checklists.",
       contentMarkdown: "# 🎯 Goal Breakdown\n\n- **Period**:\n- **Owner**:\n\n---\n\n## 📌 Objective\n\n> \n\n## 📈 Key Results\n\n- **KR 1**: Target metric -> Current progress\n- **KR 2**: Target metric -> Current progress\n\n## 🗓️ Milestones\n\n- [ ] **Phase 1 (Date)**: Target\n- [ ] **Phase 2 (Date)**: Target\n\n## 📋 Execution Checklist\n\n- [ ] \n- [ ] \n",
     },
+    {
+      title: "Цели и задачи",
+      description: "Определи цели OKR, ключевые результаты, вехи и конкретный список задач.",
+      contentMarkdown: "# 🎯 Разбор цели\n\n- **Период**:\n- **Ответственный**:\n\n---\n\n## 📌 Цель (Objective)\n\n> \n\n## 📈 Ключевые результаты (Key Results)\n\n- **KR 1**: Целевой показатель → текущий прогресс\n- **KR 2**: Целевой показатель → текущий прогресс\n\n## 🗓️ Вехи (Milestones)\n\n- [ ] **Этап 1 (дата)**: результат этапа\n- [ ] **Этап 2 (дата)**: результат этапа\n\n## 📋 Список задач\n\n- [ ] \n- [ ] \n",
+    },
   ),
 ];
 
 export const normalizeMemoTemplateSeedLocale = (
   locale: string | null | undefined,
-): MemoTemplateSeedLocale => locale?.toLowerCase().startsWith("en") ? "en-US" : "zh-CN";
+): MemoTemplateSeedLocale => {
+  const normalized = locale?.toLowerCase() ?? "";
+
+  if (normalized.startsWith("en")) {
+    return "en-US";
+  }
+
+  if (normalized.startsWith("ru")) {
+    return "ru-RU";
+  }
+
+  return "zh-CN";
+};
 
 export const localizeMemoTemplateSeed = (
   templateSeed: MemoTemplateSeed,
