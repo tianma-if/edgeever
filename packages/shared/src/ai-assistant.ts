@@ -19,7 +19,7 @@ export type AiAction = (typeof AI_ACTIONS)[number];
 export const AI_TONES = ["professional", "friendly", "casual", "direct"] as const;
 export type AiTone = (typeof AI_TONES)[number];
 
-export const AI_TARGET_LANGUAGES = ["en", "zh-CN", "zh-TW", "ja", "ko", "es", "fr", "de", "pt"] as const;
+export const AI_TARGET_LANGUAGES = ["en", "zh-CN", "zh-TW", "ja", "ko", "es", "fr", "de", "pt", "ru"] as const;
 export type AiTargetLanguage = (typeof AI_TARGET_LANGUAGES)[number];
 
 export const AI_ATTACHMENT_MEDIA_TYPES = [
@@ -86,8 +86,19 @@ const NON_REPLACEABLE_AI_ACTIONS: readonly AiAction[] = [
 export const getDefaultAiAction = (hasSelection: boolean): AiAction =>
   hasSelection ? "improve-writing" : "summarize";
 
-export const getDefaultAiTargetLanguage = (locale: string | undefined): AiTargetLanguage =>
-  locale?.toLowerCase().startsWith("zh") ? "en" : "zh-CN";
+export const getDefaultAiTargetLanguage = (locale: string | undefined): AiTargetLanguage => {
+  const normalized = locale?.toLowerCase() ?? "";
+
+  if (normalized.startsWith("zh")) {
+    return "en";
+  }
+
+  if (normalized.startsWith("ru")) {
+    return "en";
+  }
+
+  return "zh-CN";
+};
 
 export const AI_ASSISTANT_LAST_ACTION_STORAGE_KEY = "edgeever.aiAssistant.lastAction";
 
