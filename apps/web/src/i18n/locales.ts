@@ -1,4 +1,4 @@
-export const supportedLocales = ["zh-CN", "en-US"] as const;
+export const supportedLocales = ["zh-CN", "en-US", "ru-RU"] as const;
 
 export type SupportedLocale = (typeof supportedLocales)[number];
 export type AppLocalePreference = "system" | SupportedLocale;
@@ -11,6 +11,7 @@ const legacyLocaleStorageKey = "edgeever.locale";
 export const localeLabels: Record<SupportedLocale, string> = {
   "zh-CN": "简体中文",
   "en-US": "English",
+  "ru-RU": "Русский",
 };
 
 export const normalizeLocale = (locale: string | null | undefined): SupportedLocale | null => {
@@ -26,6 +27,10 @@ export const normalizeLocale = (locale: string | null | undefined): SupportedLoc
 
   if (normalized === "en" || normalized === "en-us" || normalized.startsWith("en-")) {
     return "en-US";
+  }
+
+  if (normalized === "ru" || normalized.startsWith("ru-")) {
+    return "ru-RU";
   }
 
   return null;

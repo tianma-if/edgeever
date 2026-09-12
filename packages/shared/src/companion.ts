@@ -15,7 +15,7 @@ export const CompanionTurnInputSchema = z.object({
   message: z.string().trim().min(1).max(4000),
   useMemory: z.boolean().default(true),
   allowNotes: z.boolean().default(false),
-  locale: z.enum(["zh-CN", "en-US"]).default("en-US"),
+  locale: z.enum(["zh-CN", "en-US", "ru-RU"]).default("en-US"),
 }).strict();
 export type CompanionTurnInput = z.infer<typeof CompanionTurnInputSchema>;
 export type CompanionMemory = {

@@ -5,7 +5,7 @@ import type {
 } from "./ai-assistant";
 
 export type AiPromptSeedKey = Exclude<AiAction, "custom">;
-export type AiPromptSeedLocale = "zh-CN" | "en-US";
+export type AiPromptSeedLocale = "zh-CN" | "en-US" | "ru-RU";
 
 export type AiPromptSeedTranslation = {
   name: string;
@@ -26,14 +26,26 @@ const seed = (
   metadata: Omit<AiPromptSeed, keyof AiPromptSeedTranslation | "translations">,
   zhCN: AiPromptSeedTranslation,
   enUS: AiPromptSeedTranslation,
+  ruRU: AiPromptSeedTranslation,
 ): AiPromptSeed => ({
   ...metadata,
   ...zhCN,
-  translations: { "zh-CN": zhCN, "en-US": enUS },
+  translations: { "zh-CN": zhCN, "en-US": enUS, "ru-RU": ruRU },
 });
 
-export const normalizeAiPromptSeedLocale = (locale: string | null | undefined): AiPromptSeedLocale =>
-  locale?.toLowerCase().startsWith("en") ? "en-US" : "zh-CN";
+export const normalizeAiPromptSeedLocale = (locale: string | null | undefined): AiPromptSeedLocale => {
+  const normalized = locale?.toLowerCase() ?? "";
+
+  if (normalized.startsWith("en")) {
+    return "en-US";
+  }
+
+  if (normalized.startsWith("ru")) {
+    return "ru-RU";
+  }
+
+  return "zh-CN";
+};
 
 export const localizeAiPromptSeed = (
   promptSeed: AiPromptSeed,
@@ -83,6 +95,18 @@ export const DEFAULT_AI_PROMPT_SEEDS: readonly AiPromptSeed[] = [
         "Preserve the note's language and return only the summary in Markdown.",
       ].join(""),
     },
+    {
+      name: "Суммировать",
+      description: "Сжать заметку до темы, выводов и практических результатов",
+      instruction: [
+        "Сделай по-настоящему сжатое резюме заметки, а не переписывай её построчно, не пересказывай синонимами и не повторяй вслед за текстом. ",
+        "Определи центральную тему, основные утверждения, ключевые выводы и практические результаты. ",
+        "Опусти повторы, риторические обороты, примеры, цитаты и второстепенные детали, если только они не нужны для понимания ключевого вывода. ",
+        "Для объёмной заметки ориентируйся примерно на 20–30% от исходной длины и используй 3–7 сжатых пунктов Markdown; для короткой — 1–3 предложения. ",
+        "Не воспроизводи длинные отрывки дословно и не добавляй факты, которых нет в источнике. ",
+        "Сохрани язык заметки и верни только резюме в формате Markdown.",
+      ].join(""),
+    },
   ),
   seed(
     { key: "translate", action: "translate", parameterKind: "target-language", resultMode: "both" },
@@ -95,6 +119,11 @@ export const DEFAULT_AI_PROMPT_SEEDS: readonly AiPromptSeed[] = [
       name: "Translate",
       description: "Translate into a selected language while preserving formatting",
       instruction: "Translate the complete note into the target language specified by the user. Preserve its meaning, Markdown structure, links, and code blocks. Return only the translated note without commentary.",
+    },
+    {
+      name: "Перевести",
+      description: "Перевести на выбранный язык с сохранением структуры и форматирования",
+      instruction: "Переведи всю заметку на указанный пользователем целевой язык. Сохрани смысл, структуру Markdown, ссылки и блоки кода. Верни только перевод, без комментариев.",
     },
   ),
   seed(
@@ -109,6 +138,11 @@ export const DEFAULT_AI_PROMPT_SEEDS: readonly AiPromptSeed[] = [
       description: "Correct the language and improve clarity and flow",
       instruction: "Polish the content by correcting spelling, grammar, and punctuation and improving word choice, sentence structure, clarity, and flow. Do not change its meaning or deliberately shorten it. Preserve its language and useful Markdown formatting. Return only the polished content.",
     },
+    {
+      name: "Отредактировать",
+      description: "Исправить язык и улучшить ясность и плавность текста",
+      instruction: "Отредактируй текст: исправь орфографию, грамматику и пунктуацию, улучши выбор слов, структуру предложений, ясность и плавность. Не меняй смысл и не сокращай намеренно. Сохрани язык оригинала и полезное форматирование Markdown. Верни только отредактированный текст.",
+    },
   ),
   seed(
     { key: "make-shorter", action: "make-shorter", parameterKind: "none", resultMode: "both" },
@@ -121,6 +155,11 @@ export const DEFAULT_AI_PROMPT_SEEDS: readonly AiPromptSeed[] = [
       name: "Make concise",
       description: "Remove repetition and make the writing concise and direct",
       instruction: "Refine the content by removing repetition, filler, and unnecessary modifiers and by combining sentences where useful. Make it concise, clear, and direct while preserving every key fact, claim, and the original meaning. Do not add new information. Preserve its language and useful Markdown formatting. Return only the refined content.",
+    },
+    {
+      name: "Сделать короче",
+      description: "Убрать повторы и сделать текст кратким и прямым",
+      instruction: "Отредактируй текст: убери повторы, воду и лишние украшения, объедини предложения, где это уместно. Сделай изложение кратким, ясным и прямым, сохранив все ключевые факты, утверждения и исходный смысл. Не добавляй новую информацию. Сохрани язык оригинала и полезное форматирование Markdown. Верни только отредактированный текст.",
     },
   ),
   seed(
@@ -135,6 +174,11 @@ export const DEFAULT_AI_PROMPT_SEEDS: readonly AiPromptSeed[] = [
       description: "Rewrite as a natural and engaging Xiaohongshu post",
       instruction: "Rewrite the content as a Xiaohongshu-ready post. Add an engaging title, use a natural and approachable voice, short paragraphs, and clear structure, include a few contextually appropriate emoji, and end with 3–8 relevant hashtags. Preserve the source's key facts and claims without exaggerating results or inventing experiences, data, or conclusions. Return only the publishable post.",
     },
+    {
+      name: "В стиле Xiaohongshu",
+      description: "Переписать как естественный и увлекательный пост для Xiaohongshu",
+      instruction: "Перепиши текст как пост, готовый к публикации в Xiaohongshu: добавь привлекательный заголовок, используй естественный и дружелюбный тон, короткие абзацы и чёткую структуру, добавь несколько уместных по смыслу эмодзи и заверши 3–8 релевантными хештегами. Сохрани ключевые факты и утверждения источника, не преувеличивай результаты и не выдумывай опыт, данные или выводы. Верни только готовый к публикации пост.",
+    },
   ),
   seed(
     { key: "simplify-language", action: "simplify-language", parameterKind: "none", resultMode: "both" },
@@ -147,6 +191,11 @@ export const DEFAULT_AI_PROMPT_SEEDS: readonly AiPromptSeed[] = [
       name: "Convert to X (Twitter) style",
       description: "Rewrite as a concise, opinionated post or thread",
       instruction: "Rewrite the content for X (Twitter): lead with the main point and make it concise, opinionated, and easy to scan. Return one post when the key information fits; otherwise return a compact numbered thread. Use hashtags sparingly and only when useful. Preserve the source's facts and position without manufacturing hype or information. Return only the publishable post or thread.",
+    },
+    {
+      name: "В стиле X (Twitter)",
+      description: "Переписать как краткий пост или тред с позицией",
+      instruction: "Перепиши текст для X (Twitter): начинай сразу с главного, формулируй кратко, с позицией и удобно для чтения. Если ключевая информация умещается — верни один пост; если нет — компактный нумерованный тред. Используй хештеги умеренно и только когда это уместно. Сохрани факты и позицию источника, не создавай искусственного ажиотажа и не выдумывай информацию. Верни только готовый к публикации пост или тред.",
     },
   ),
 ];
