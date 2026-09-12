@@ -540,6 +540,8 @@ export const ruRU = {
     },
     customInstruction: "Скажите ИИ, что делать",
     customInstructionPlaceholder: "Например: Перепиши это как краткое дружелюбное письмо и сохрани все даты.",
+    customInstructionSelected: "Скажите ИИ, что сделать с выделенным",
+    customInstructionSelectedPlaceholder: "Например: Сделай текст более разговорным, сохрани термины и не меняй структуру.",
     customInstructionRequired: "Введите инструкцию для ИИ.",
     addAttachment: "Добавить файлы",
     attachments: "Прикреплённые файлы",
