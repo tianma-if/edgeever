@@ -171,7 +171,7 @@ The instance administrator can create, disable, or reset member accounts in **Pr
 
 - **Smart Article Extraction**: Automatically extracts article content and converts it into clean Markdown, preserving the source URL and clipping timestamp.
 - **Selection & Context Menu Clipping**: Save selected text or right-clicked images directly as notes without capturing the entire page.
-- **X (Twitter) Post Clipping**: Right-click any post to automatically expand full text and archive the author, timestamp, and attached images together.
+- **Deep Social & Community Clipping**: Native support for X (Twitter), Xiaohongshu, Zhihu, Reddit, and GitHub with one-click sending.
 - **Private Self-Hosted Direct Connection**: Sends clipped content directly to your personal EdgeEver instance without third-party relays.
 
 ## Community and Feedback
@@ -279,9 +279,8 @@ Web, PWA, and desktop upload memo edits after 30 seconds of inactivity and check
 
 ## Acknowledgements
 
-- EdgeEver's note-taking product design was also informed by the publicly available product experiences of mature note-taking tools such as [Evernote](https://evernote.com/). The related features were independently designed and implemented by EdgeEver.
+- EdgeEver's note-taking product design was also informed by the publicly available product experiences of mature note-taking tools such as [Evernote](https://evernote.com/) and [Notion](https://www.notion.com/). The related features were independently designed and implemented by EdgeEver.
 - The product design of mind-map and visual-diagram notes was informed by the publicly available product experiences of [XMind](https://xmind.com/) and [ProcessOn](https://www.processon.com/). These features were independently designed and implemented by EdgeEver.
-- Editor theme typography, heading hierarchy, and chapter structure draw from the public work of [obsidian-minimal](https://github.com/kepano/obsidian-minimal), [Outline](https://github.com/outline/outline), and [墨格](https://moyufang.cn/editor). Names, assets, and implementations are original to EdgeEver.
 
 ## Trademark and Brand Use
 

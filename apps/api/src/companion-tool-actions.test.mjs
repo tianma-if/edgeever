@@ -158,21 +158,24 @@ describe("shared companion MCP adapter", () => {
     expect(await tools.update_memo.execute({ memoId: f.notes[1].id, title: "Title only" })).toMatchObject({ applied: true });
     expect(await getMemoDetail(f.db, scope.workspaceId, f.notes[1].id)).toMatchObject({ title: "Title only", contentMarkdown: "Two original content" });
     await tools.get_memo.execute({ memoId: f.notes[0].id });
-    const proposed = await tools.update_memo.execute({ memoId: f.notes[0].id, title: "Changed", contentMarkdown: "Exact replacement" });
-    const proposalId = proposed.proposalId;
-    expect(proposed).toMatchObject({ status: "awaiting_user_confirmation", proposalId: expect.any(String) });
-    expect(await getMemoDetail(f.db, scope.workspaceId, f.notes[0].id)).toMatchObject({ title: "One", contentMarkdown: "One original content" });
-    expect((await getCompanionAction(f.db, scope, proposalId))?.preview?.baseContentMarkdown).toBe("One original content");
-    const fresh = await getMemoDetail(f.db, scope.workspaceId, f.notes[1].id);
-    const conflictId = await f.propose("update_memo", { memoId: f.notes[1].id, contentMarkdown: "Should not land" }, new Map([[f.notes[1].id, fresh.revision]]));
-    f.sqlite.query("UPDATE memo_contents SET revision = revision + 1 WHERE memo_id = ?").run(f.notes[1].id);
-    await f.complete();
-    expect((await f.request(`actions/${proposalId}/apply`)).status).toBe(200);
+    const updated = await tools.update_memo.execute({ memoId: f.notes[0].id, title: "Changed", contentMarkdown: "Exact replacement" });
+    expect(updated).toMatchObject({ applied: true, id: f.notes[0].id, title: "Changed" });
+    expect(updated).not.toHaveProperty("proposalId");
     expect(await getMemoDetail(f.db, scope.workspaceId, f.notes[0].id)).toMatchObject({ title: "Changed", contentMarkdown: "Exact replacement" });
-    const conflict = await f.request(`actions/${conflictId}/apply`);
-    expect(conflict.status).toBe(409);
-    expect(await conflict.json()).toMatchObject({ error: { code: "companion_action_conflict" } });
-    expect(await getMemoDetail(f.db, scope.workspaceId, f.notes[1].id)).toMatchObject({ title: "Title only", contentMarkdown: "Two original content" });
+    expect(f.sqlite.query("SELECT COUNT(*) AS n FROM companion_actions").get().n).toBe(0);
+    expect(await tools.update_memo.execute({ memoId: f.notes[0].id, contentMarkdown: "Second replacement" }))
+      .toMatchObject({ applied: true, id: f.notes[0].id });
+    expect((await getMemoDetail(f.db, scope.workspaceId, f.notes[0].id)).contentMarkdown).toBe("Second replacement");
+  });
+  test("an auto-applied body edit does not overwrite a note changed after its read", async () => {
+    const f = await setup();
+    const tools = createCompanionTools({ ...f, scope, signal: new AbortController().signal, assertActive: async () => {}, sources: [] });
+    await tools.get_memo.execute({ memoId: f.notes[0].id });
+    await updateMemoRecord(f.db, scope.workspaceId, f.notes[0].id, { contentMarkdown: "Newer edit" }, actor, "owner");
+    expect(await tools.update_memo.execute({ memoId: f.notes[0].id, contentMarkdown: "Stale replacement" }))
+      .toMatchObject({ error: expect.any(String) });
+    expect((await getMemoDetail(f.db, scope.workspaceId, f.notes[0].id)).contentMarkdown).toBe("Newer edit");
+    expect(f.sqlite.query("SELECT COUNT(*) AS n FROM companion_actions").get().n).toBe(0);
   });
   test("move, tag, and notebook writes execute immediately without a confirmation card", async () => {
     const f = await setup();

@@ -1,4 +1,7 @@
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { describe, expect, test } from "bun:test";
 import {
   canonicalZhihuUrl,
@@ -33,6 +36,11 @@ const labels = {
   sourceLabel: "来源",
   capturedAtLabel: "抓取时间",
   timeLabel: "时间",
+  questionLabel: "问题",
+  articleLabel: "文章",
+  authorLabel: "作者：",
+  answerLabel: "回答",
+  articleBodyLabel: "正文",
 };
 
 const located = {
@@ -73,6 +81,26 @@ describe("zhihu addresses", () => {
 });
 
 describe("zhihu note content", () => {
+  test("browser bundle converts HTML without a document in the background", async () => {
+    const outdir = mkdtempSync(join(tmpdir(), "edgeever-zhihu-worker-"));
+    try {
+      const result = await Bun.build({
+        entrypoints: [fileURLToPath(new URL("./src/zhihu-clip.ts", import.meta.url))],
+        target: "browser",
+        format: "esm",
+        outdir,
+      });
+      expect(result.success).toBe(true);
+      expect(typeof document).toBe("undefined");
+      const browserModule = await import(pathToFileURL(join(outdir, "zhihu-clip.js")).href);
+      const body = browserModule.zhihuBodyFromHtml(html, "图片");
+      expect(body.markdown).toContain("岸上没有人。潜水员听见叫声。");
+      expect(body.markdown).toContain(`![岸边](${imageUrl})`);
+    } finally {
+      rmSync(outdir, { recursive: true, force: true });
+    }
+  });
+
   test("keeps the answer text, original photo, author, and canonical link", () => {
     expect(zhihuTimeIso(1790739645)).toBe("2026-09-30T03:40:45.000Z");
     const body = zhihuBodyFromHtml(html, "图片");
@@ -97,14 +125,15 @@ describe("zhihu note content", () => {
     expect(resolved?.author).toBe("苏澄宇");
     const markdown = zhihuNoteMarkdown({
       ...labels,
+      kind: "answer",
       author: resolved.author,
       title: resolved.title,
       body: body.markdown,
       noteUrl: resolved.noteUrl,
       datetime: zhihuTimeIso(resolved.timeSeconds),
     });
-    expect(markdown.startsWith("苏澄宇")).toBe(true);
-    expect(markdown).toContain("谁叫我上来的？");
+    expect(markdown.startsWith("## 问题\n\n> 谁叫我上来的？\n\n**作者：** 苏澄宇\n\n## 回答\n\n岸上没有人。")).toBe(true);
+    expect(markdown).toContain("\n\n---\n\n来源:");
     expect(markdown).toContain(`(${answerUrl})`);
     expect(markdown).toContain("时间: 2026-09-30T03:40:45.000Z");
     expect(replaceZhihuImageUrls(markdown, [{ url: imageUrl, resourceId: "res 1" }])).toContain(
@@ -113,6 +142,20 @@ describe("zhihu note content", () => {
     expect(replaceZhihuImageUrls(markdown, [{ url: imageUrl, resourceId: "res 1" }])).not.toContain("zhimg.com");
     expect(zhihuNoteTitle({ title: "", author: "苏澄宇", body: "岸上没有人。", fallback: "一篇知乎内容" }))
       .toBe("苏澄宇: 岸上没有人。");
+  });
+
+  test("labels article title, author, and body separately", () => {
+    const markdown = zhihuNoteMarkdown({
+      ...labels,
+      kind: "article",
+      title: "专栏标题",
+      author: "页面作者",
+      body: "专栏标题\n\n文章正文。",
+      noteUrl: articleUrl,
+      datetime: "",
+    });
+    expect(markdown).toStartWith("## 文章\n\n> 专栏标题\n\n**作者：** 页面作者\n\n## 正文\n\n文章正文。");
+    expect(markdown).not.toContain("## 回答");
   });
 
   test("uses the open page when the api content is missing or shorter than a truncated copy", () => {
@@ -216,6 +259,7 @@ describe("saveCapturedZhihuNote", () => {
   test("creates the note with the remote photo, then rewrites a successful upload", async () => {
     const fixture = client();
     const saved = await saveCapturedZhihuNote(fixture.api, {
+      kind: "answer",
       notebookId: "",
       title: "谁叫我上来的？",
       author: "苏澄宇",
@@ -236,6 +280,7 @@ describe("saveCapturedZhihuNote", () => {
     expect(fixture.calls.created.notebookId).toBe("nb_first");
     expect(fixture.calls.created.tags).toEqual(["web-clip"]);
     expect(fixture.calls.created.contentMarkdown).toContain(imageUrl);
+    expect(fixture.calls.created.contentMarkdown).toContain("## 回答\n\n岸上没有人。");
     expect(fixture.calls.saved.contentMarkdown).toContain("![岸边](/api/v1/resources/res_1/blob)");
     expect(fixture.calls.saved.contentMarkdown).not.toContain("zhimg.com");
     expect(fixture.calls.saved.expectedRevision).toBe(3);

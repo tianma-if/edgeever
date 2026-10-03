@@ -11,8 +11,14 @@
   "webClipper": {
     "message": "Web Clipper"
   },
-  "popupDescription": {
-    "message": "表示中のページや選択した内容を取り込みます。選択した文字の右クリックでその文章を、画像の右クリックで画像を、X 上の投稿の右クリックでその投稿を、小紅書のノート本文の右クリックでそのノートを、GitHub のリポジトリページの右クリックでアドレスと紹介文を保存できます。"
+  "supportedPlatformsLabel": {
+    "message": "最適化された主要プラットフォーム："
+  },
+  "platformXiaohongshu": {
+    "message": "小紅書"
+  },
+  "platformZhihu": {
+    "message": "知乎"
   },
   "saveCurrentPage": {
     "message": "このページを取り込む"
@@ -34,6 +40,9 @@
   },
   "optionsTitle": {
     "message": "EdgeEver Web Clipper の設定"
+  },
+  "optionsSubtitle": {
+    "message": "EdgeEver インスタンスへの接続と既定のノートブックを設定します。"
   },
   "diagnosticsTitle": {
     "message": "情報と診断"
@@ -203,10 +212,10 @@
     "message": "（このページから読み取れる本文はありませんでした）"
   },
   "saveSelectionToEdgeEver": {
-    "message": "選択した文字を EdgeEver に保存"
+    "message": "選択したテキストを EdgeEver に保存"
   },
   "selectionSaveHint": {
-    "message": "ページ上の文字を選択して右クリックし、「選択した文字を EdgeEver に保存」を選びます。その文章は、上で選んだ既定のノートブックに 1 件のノートとして保存されます。"
+    "message": "ページ上の文字を選択して右クリックし、「選択したテキストを EdgeEver に保存」を選びます。その文章は、上で選んだ既定のノートブックに 1 件のノートとして保存されます。"
   },
   "savingSelection": {
     "message": "選択した文字を保存しています…"
@@ -280,10 +289,10 @@
     "message": "この保存は終了しています。画像を右クリックしてやり直してください。"
   },
   "saveTweetToEdgeEver": {
-    "message": "この投稿を EdgeEver に保存"
+    "message": "投稿を EdgeEver に保存"
   },
   "tweetSaveHint": {
-    "message": "X で投稿を右クリックし、「この投稿を EdgeEver に保存」を選びます。本文は「さらに表示」で折りたたまれた部分も含めて保存され、表示中の画像とともに、上で選んだ既定のノートブックへ 1 件のノートになります。"
+    "message": "X で投稿を右クリックし、「投稿を EdgeEver に保存」を選びます。本文は「さらに表示」で折りたたまれた部分も含めて保存され、表示中の画像とともに、上で選んだ既定のノートブックへ 1 件のノートになります。"
   },
   "savingTweet": {
     "message": "この投稿を保存しています…"
@@ -316,16 +325,16 @@
     "message": "投稿"
   },
   "tweetSaveWindowTitle": {
-    "message": "この投稿を EdgeEver に保存"
+    "message": "投稿を EdgeEver に保存"
   },
   "tweetTimeLabel": {
     "message": "日時"
   },
   "saveGithubRepoToEdgeEver": {
-    "message": "このリポジトリを EdgeEver に保存"
+    "message": "リポジトリ情報を EdgeEver に保存"
   },
   "githubRepoSaveHint": {
-    "message": "GitHub のリポジトリページまたはコード一覧で、ページの余白、紹介文、または README 本文を右クリックし、「このリポジトリを EdgeEver に保存」を選びます。アドレスと紹介文は、上で選んだ既定のノートブックに 1 件のノートとして保存されます。Issue、ディスカッション、単一ファイルのページは保存しません。"
+    "message": "GitHub のリポジトリページまたはコード一覧で、ページの余白、紹介文、または README 本文を右クリックし、「リポジトリ情報を EdgeEver に保存」を選びます。アドレスと紹介文は、上で選んだ既定のノートブックに 1 件のノートとして保存されます。Issue、ディスカッション、単一ファイルのページは保存しません。"
   },
   "savingGithubRepo": {
     "message": "このリポジトリを保存しています…"
@@ -352,10 +361,10 @@
     "message": "トピック"
   },
   "saveXhsToEdgeEver": {
-    "message": "この小紅書ノートを EdgeEver に保存"
+    "message": "ノートを EdgeEver に保存"
   },
   "xhsSaveHint": {
-    "message": "小紅書でノート本文を右クリックし、「この小紅書ノートを EdgeEver に保存」を選びます。タイトル、本文、画像が 1 件のノートになります。コメントは含めません。画像を右クリックした場合は、その画像だけを保存します。"
+    "message": "小紅書でノート本文を右クリックし、「ノートを EdgeEver に保存」を選びます。タイトル、本文、画像が 1 件のノートになります。コメントは含めません。画像を右クリックした場合は、その画像だけを保存します。"
   },
   "savingXhs": {
     "message": "このノートを保存しています…"
@@ -391,16 +400,31 @@
     "message": "小紅書のノート"
   },
   "xhsSaveWindowTitle": {
-    "message": "この小紅書ノートを EdgeEver に保存"
+    "message": "ノートを EdgeEver に保存"
   },
   "xhsLocationLabel": {
     "message": "場所"
   },
   "saveZhihuToEdgeEver": {
-    "message": "この知乎の回答または記事を EdgeEver に保存"
+    "message": "回答・記事を EdgeEver に保存"
+  },
+  "zhihuQuestionLabel": {
+    "message": "質問"
+  },
+  "zhihuArticleLabel": {
+    "message": "記事"
+  },
+  "zhihuAuthorLabel": {
+    "message": "著者："
+  },
+  "zhihuAnswerLabel": {
+    "message": "回答"
+  },
+  "zhihuArticleBodyLabel": {
+    "message": "本文"
   },
   "zhihuSaveHint": {
-    "message": "知乎で回答または記事の本文を右クリックし、「この知乎の回答または記事を EdgeEver に保存」を選びます。タイトル、著者、本文、画像が 1 件のノートになります。コメントは含めません。画像を右クリックした場合は、その画像だけを保存します。"
+    "message": "知乎で回答または記事の本文を右クリックし、「回答・記事を EdgeEver に保存」を選びます。タイトル、著者、本文、画像が 1 件のノートになります。コメントは含めません。画像を右クリックした場合は、その画像だけを保存します。"
   },
   "savingZhihu": {
     "message": "この知乎の回答または記事を保存しています…"
@@ -436,6 +460,30 @@
     "message": "知乎の回答または記事"
   },
   "zhihuSaveWindowTitle": {
-    "message": "この知乎の回答または記事を EdgeEver に保存"
+    "message": "回答・記事を EdgeEver に保存"
+  },
+  "saveRedditToEdgeEver": {
+    "message": "Reddit の投稿を EdgeEver に保存"
+  },
+  "savingReddit": {
+    "message": "Reddit の投稿を保存しています…"
+  },
+  "redditSaved": {
+    "message": "Reddit の投稿をノートに保存しました。"
+  },
+  "redditNotFound": {
+    "message": "Reddit の投稿が見つかりません。投稿の上で右クリックしてください。"
+  },
+  "redditRightClickAgain": {
+    "message": "Reddit の投稿を認識できるようになりました。同じ投稿をもう一度右クリックしてください。"
+  },
+  "redditAuthorLabel": {
+    "message": "投稿者"
+  },
+  "redditCommunityLabel": {
+    "message": "コミュニティ"
+  },
+  "redditLinkLabel": {
+    "message": "外部リンク"
   }
 }

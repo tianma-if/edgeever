@@ -661,6 +661,10 @@ struct SettingsView: View {
                 value: instanceVersion.map { "v\($0.replacingOccurrences(of: "^v", with: "", options: .regularExpression))" } ?? unknownSystemInfoValue
             ),
             SystemInfoItem(label: env.preferences.t("实例构建", en: "Instance build"), value: instanceHealth?.build ?? unknownSystemInfoValue),
+            SystemInfoItem(
+                label: env.preferences.t("实例部署时间", en: "Instance deployment time", ja: "インスタンスのデプロイ時刻"),
+                value: deploymentVersionTimeLabel(instanceHealth?.deploymentVersionCreatedAt)
+            ),
             SystemInfoItem(label: env.preferences.t("数据库版本", en: "Database version"), value: instanceHealth?.migration ?? unknownSystemInfoValue),
             SystemInfoItem(label: env.preferences.t("数据库后端", en: "Database backend"), value: databaseBackendLabel(instanceHealth?.storage?.database)),
             SystemInfoItem(label: env.preferences.t("新上传对象存储", en: "New upload object storage"), value: objectStorageLabel(instanceHealth)),
@@ -706,6 +710,18 @@ struct SettingsView: View {
 
     private var unknownSystemInfoValue: String {
         env.preferences.t("未知", en: "Unknown")
+    }
+
+    private func deploymentVersionTimeLabel(_ timestamp: String?) -> String {
+        guard let timestamp else { return unknownSystemInfoValue }
+        let parser = ISO8601DateFormatter()
+        parser.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let parsed = parser.date(from: timestamp) ?? ISO8601DateFormatter().date(from: timestamp)
+        guard let parsed else { return unknownSystemInfoValue }
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter.string(from: parsed)
     }
 
     private func databaseBackendLabel(_ backend: String?) -> String {

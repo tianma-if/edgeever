@@ -21,3 +21,11 @@ export const resolveInstanceDeploymentMetadata = (
   trigger: resolveDeploymentTrigger(environment.EDGE_EVER_DEPLOYMENT_TRIGGER?.trim() || bundledTrigger),
   method: resolveDeploymentMethod(environment.EDGE_EVER_DEPLOYMENT_METHOD?.trim() || bundledMethod),
 });
+
+export const resolveDeploymentVersionCreatedAt = (
+  environment: Pick<Bindings, "deploymentVersionCreatedAt">,
+): string | null => {
+  const timestamp = environment.deploymentVersionCreatedAt;
+  if (!timestamp || !Number.isFinite(Date.parse(timestamp))) return null;
+  return new Date(timestamp).toISOString();
+};

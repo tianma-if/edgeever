@@ -511,6 +511,7 @@ def command_store_status(args: argparse.Namespace, client: AppStoreConnect) -> N
             "filter[platform]": "IOS",
             "filter[versionString]": args.version,
             "fields[appStoreVersions]": "platform,versionString,appStoreState,releaseType,build",
+            "include": "build",
             "limit": 10,
         }
     )
@@ -518,9 +519,11 @@ def command_store_status(args: argparse.Namespace, client: AppStoreConnect) -> N
     print(f"App Store version records for {args.version}: {len(versions.get('data', []))}")
     for version in versions.get("data", []):
         attributes = version.get("attributes") or {}
+        linked_build = ((version.get("relationships") or {}).get("build") or {}).get("data") or {}
         print(
             f"- version id={version.get('id')} state={attributes.get('appStoreState')} "
-            f"releaseType={attributes.get('releaseType')}"
+            f"releaseType={attributes.get('releaseType')} "
+            f"build_id={linked_build.get('id')}"
         )
     build = client.request(
         "GET",
@@ -531,6 +534,95 @@ def command_store_status(args: argparse.Namespace, client: AppStoreConnect) -> N
         f"Requested build id={build.get('id')} version={attributes.get('version')} "
         f"processing={attributes.get('processingState')} "
         f"uploaded={attributes.get('uploadedDate')}"
+    )
+    linked_build_ids = {
+        (((version.get("relationships") or {}).get("build") or {}).get("data") or {}).get("id")
+        for version in versions.get("data", [])
+    }
+    for build_id in sorted((linked_build_ids | {args.build_id}) - {None}):
+        prerelease = client.request("GET", f"/v1/builds/{build_id}/preReleaseVersion").get("data") or {}
+        print(
+            f"- build id={build_id} marketing_version="
+            f"{(prerelease.get('attributes') or {}).get('version')}"
+        )
+
+
+def command_cancel_review(args: argparse.Namespace, client: AppStoreConnect) -> None:
+    version_query = urllib.parse.urlencode(
+        {
+            "filter[platform]": "IOS",
+            "filter[versionString]": args.version,
+            "fields[appStoreVersions]": "versionString,appStoreState,build",
+            "include": "build",
+            "limit": 10,
+        }
+    )
+    versions = client.request("GET", f"/v1/apps/{client.app_id}/appStoreVersions?{version_query}").get("data") or []
+    if len(versions) != 1:
+        raise SystemExit(f"Expected exactly one iOS App Store version {args.version}; found {len(versions)}")
+    version = versions[0]
+    attributes = version.get("attributes") or {}
+    linked_build = ((version.get("relationships") or {}).get("build") or {}).get("data") or {}
+    if attributes.get("appStoreState") != "WAITING_FOR_REVIEW" or linked_build.get("id") != args.current_build_id:
+        raise SystemExit("App Store version state or linked build changed; refusing to cancel review")
+
+    replacement = client.request(
+        "GET", f"/v1/builds/{args.replacement_build_id}?fields[builds]=version,processingState"
+    ).get("data") or {}
+    prerelease = client.request(
+        "GET", f"/v1/builds/{args.replacement_build_id}/preReleaseVersion"
+    ).get("data") or {}
+    if (
+        (replacement.get("attributes") or {}).get("processingState") != "VALID"
+        or (prerelease.get("attributes") or {}).get("version") != args.version
+    ):
+        raise SystemExit("Replacement build is not VALID for the requested marketing version")
+
+    review_query = urllib.parse.urlencode(
+        {
+            "filter[platform]": "IOS",
+            "filter[state]": "WAITING_FOR_REVIEW",
+            "fields[reviewSubmissions]": "state,appStoreVersionForReview",
+            "include": "appStoreVersionForReview",
+            "limit": 50,
+        }
+    )
+    submissions = client.request("GET", f"/v1/apps/{client.app_id}/reviewSubmissions?{review_query}").get("data") or []
+    matching = [
+        submission for submission in submissions
+        if (((submission.get("relationships") or {}).get("appStoreVersionForReview") or {}).get("data") or {}).get("id") == version.get("id")
+    ]
+    if len(matching) != 1:
+        raise SystemExit(f"Expected one waiting review submission for {args.version}; found {len(matching)}")
+    submission_id = matching[0]["id"]
+    items_query = urllib.parse.urlencode(
+        {"fields[reviewSubmissionItems]": "state,appStoreVersion", "include": "appStoreVersion", "limit": 50}
+    )
+    items = client.request("GET", f"/v1/reviewSubmissions/{submission_id}/items?{items_query}").get("data") or []
+    item_summary = [
+        {
+            "id": item.get("id"),
+            "state": (item.get("attributes") or {}).get("state"),
+            "relationships": {
+                name: (relationship.get("data") or {}).get("id")
+                for name, relationship in (item.get("relationships") or {}).items()
+            },
+        }
+        for item in items
+    ]
+    if len(items) != 1 or (
+        (((items[0].get("relationships") or {}).get("appStoreVersion") or {}).get("data") or {}).get("id") != version.get("id")
+    ):
+        raise SystemExit(f"Review submission has unexpected items; refusing to cancel: {item_summary}")
+
+    response = client.request(
+        "PATCH",
+        f"/v1/reviewSubmissions/{submission_id}",
+        {"data": {"type": "reviewSubmissions", "id": submission_id, "attributes": {"canceled": True}}},
+    )
+    print(
+        f"Canceled review submission {submission_id} for {args.version}; "
+        f"state={((response.get('data') or {}).get('attributes') or {}).get('state')}"
     )
 
 
@@ -562,6 +654,11 @@ def build_parser() -> argparse.ArgumentParser:
     status = sub.add_parser("store-status", help="Inspect an App Store version/build")
     status.add_argument("--version", required=True)
     status.add_argument("--build-id", required=True)
+
+    cancel = sub.add_parser("cancel-review", help="Cancel a mismatched iOS review submission")
+    cancel.add_argument("--version", required=True)
+    cancel.add_argument("--current-build-id", required=True)
+    cancel.add_argument("--replacement-build-id", required=True)
     return parser
 
 
@@ -582,6 +679,9 @@ def main(argv: list[str] | None = None) -> None:
         return
     if args.command == "store-status":
         command_store_status(args, client)
+        return
+    if args.command == "cancel-review":
+        command_cancel_review(args, client)
         return
     raise SystemExit(f"Unsupported command: {args.command}")
 

@@ -30,4 +30,19 @@ describe("plugin settings layout", () => {
       { compact: false, keys: ["alerts.email", "alerts.push"] },
     ]);
   });
+
+  test("keeps settings without dot namespaces in a single unified group", () => {
+    const fields = [
+      { key: "global-filter", type: "text", label: "Filter" },
+      { key: "task-format", type: "select", label: "Format", options: [{ value: "dataview", label: "Dataview" }] },
+      { key: "set-done-date", type: "boolean", label: "Done date" },
+      { key: "set-cancelled-date", type: "boolean", label: "Cancelled date" },
+      { key: "set-created-date", type: "boolean", label: "Created date" },
+      { key: "recurrence-insert", type: "select", label: "Recurrence", options: [{ value: "before", label: "Before" }] },
+    ];
+
+    expect(groupPluginSettingFields(fields).map((group) => ({ compact: group.compact, keys: group.fields.map((field) => field.key) }))).toEqual([
+      { compact: false, keys: ["global-filter", "task-format", "set-done-date", "set-cancelled-date", "set-created-date", "recurrence-insert"] },
+    ]);
+  });
 });

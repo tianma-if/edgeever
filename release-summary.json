@@ -1,38 +1,23 @@
 {
-  "version": "1.97.0",
+  "version": "1.99.0",
   "changes": {
     "en-US": [
-      "Choose whether notebook views include notes from sub-notebooks across Web, Android, and iOS.",
-      "Create infographic notes through MCP and the AI companion; desktop infographic conversations now follow the selected agent mode and preserve custom titles.",
-      "Infographic notes show cleaner labels and the correct icons in desktop note lists.",
-      "The AI assistant is available in diagram and table notes, opens note links in the workspace, and saves new companion notes to the inbox without an extra prompt.",
-      "Android sharing now handles incoming file streams more reliably and reports shares it cannot resolve.",
-      "Diagram editing no longer exposes the background when expanded, and the demo sequence diagram renders without overlap.",
-      "Plugin settings can display localized field names and options.",
-      "New note images now use medium display width by default.",
-      "Interface and reading preferences have clearer labels and layout, including the Mermaid theme setting."
+      "The AI assistant can apply requested note content edits directly, with more reliable translation follow-ups and clearer selection prompts. Note revisions remain available.",
+      "The browser clipper adds a Reddit post action to the context menu and improves the Xiaohongshu and Zhihu clipping menus. Update the extension to use these changes.",
+      "Editor changes prevent unsaved title and tag details from carrying over to another note, and preserve external links whose labels resemble file names.",
+      "Android and iOS sign-in screens now leave the username field blank for account selection."
     ],
     "zh-CN": [
-      "现在可选择笔记本视图是否显示子笔记本中的笔记，适用于 Web、Android 和 iOS。",
-      "现在可通过 MCP 和 AI 助手创建信息图笔记；桌面端信息图对话会遵循所选 Agent 模式，并保留自定义标题。",
-      "信息图笔记列表标签更加简洁，桌面端图标显示正确。",
-      "图表和表格笔记现在可使用 AI 助手；助手中的笔记链接会在工作区打开，新建笔记可直接存入收件箱。",
-      "Android 分享现在能更可靠地处理传入文件，并提示无法解析的分享内容。",
-      "展开图表编辑器时不再露出背景，Demo 中的时序图也不再重叠。",
-      "插件设置现在可以显示本地化的字段名称和选项。",
-      "笔记中新添加的图片现在默认以中等宽度显示。",
-      "界面与阅读偏好的名称和布局更加清晰，包括 Mermaid 主题设置。"
+      "AI 助手可直接应用用户要求的笔记正文修改；翻译后续操作和选中文本提示更准确，笔记修订记录仍可使用。",
+      "网页剪藏插件新增右键保存 Reddit 帖子，并改进小红书和知乎的剪藏菜单；更新插件后即可使用。",
+      "编辑器修复了未保存标题和标签串到另一篇笔记的问题，并保留标签看起来像文件名的外部链接。",
+      "Android 和 iOS 登录页现在将用户名留空，方便选择自己的账户。"
     ],
     "ja": [
-      "Web、Android、iOS で、ノートブックに子ノートブックのノートを表示するか選べるようになりました。",
-      "MCP と AI アシスタントからインフォグラフィックノートを作成できるようになり、デスクトップでは選択中のエージェントモードとカスタムタイトルを維持します。",
-      "インフォグラフィックノートの一覧表示を整理し、デスクトップで正しいアイコンを表示します。",
-      "図と表のノートで AI アシスタントを使えるようになり、ノートのリンクはワークスペースで開き、新しいノートは追加確認なしで受信箱に保存されます。",
-      "Android の共有で受信ファイルをより確実に処理し、読み取れない共有内容を通知します。",
-      "図エディターを拡大しても背景が露出せず、デモのシーケンス図も重ならなくなりました。",
-      "プラグイン設定で項目名と選択肢をローカライズして表示できるようになりました。",
-      "ノートに新しく追加する画像は、既定で中サイズの幅で表示されます。",
-      "Mermaid のテーマ設定を含め、画面と閲覧の設定名や配置を分かりやすくしました。"
+      "AI アシスタントが依頼されたノート本文の変更を直接反映できるようになりました。翻訳後の操作と選択テキストの案内も改善し、改訂履歴は引き続き利用できます。",
+      "Web クリッパーに Reddit 投稿を保存する右クリックメニューを追加し、小紅書と知乎のメニューを改善しました。利用するには拡張機能を更新してください。",
+      "未保存のタイトルやタグが別のノートへ引き継がれる問題を修正し、ファイル名のようなラベルを持つ外部リンクを保持します。",
+      "Android と iOS のログイン画面でユーザー名を空欄にし、使用するアカウントを選べるようにしました。"
     ]
   }
 }

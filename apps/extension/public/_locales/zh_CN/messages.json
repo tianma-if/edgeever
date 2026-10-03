@@ -11,8 +11,14 @@
   "webClipper": {
     "message": "网页剪藏"
   },
-  "popupDescription": {
-    "message": "剪藏当前网页或选中内容。选中文字后右键可以保存这段文字；在图片上右键可以保存图片；在 X 上右键可以保存这条推文；在小红书笔记正文上右键可以保存这篇笔记；在 GitHub 仓库页上右键可以保存仓库地址和简介。"
+  "supportedPlatformsLabel": {
+    "message": "已深度适配主流平台："
+  },
+  "platformXiaohongshu": {
+    "message": "小红书"
+  },
+  "platformZhihu": {
+    "message": "知乎"
   },
   "saveCurrentPage": {
     "message": "剪藏当前网页"
@@ -34,6 +40,9 @@
   },
   "optionsTitle": {
     "message": "EdgeEver Web Clipper 设置"
+  },
+  "optionsSubtitle": {
+    "message": "配置自托管 EdgeEver 实例连接与默认剪藏笔记本。"
   },
   "diagnosticsTitle": {
     "message": "关于与诊断信息"
@@ -203,10 +212,10 @@
     "message": "（网页没有可提取的正文内容）"
   },
   "saveSelectionToEdgeEver": {
-    "message": "保存选中文字到 EdgeEver"
+    "message": "保存所选内容到 EdgeEver"
   },
   "selectionSaveHint": {
-    "message": "选中网页上的一段文字后右键，选择“保存选中文字到 EdgeEver”。这段文字会存成一条新笔记，放进上面选择的默认笔记本。"
+    "message": "选中网页上的一段文字后右键，选择“保存所选内容到 EdgeEver”。这段文字会存成一条新笔记，放进上面选择的默认笔记本。"
   },
   "savingSelection": {
     "message": "正在保存选中文字……"
@@ -280,10 +289,10 @@
     "message": "这次保存已经结束。请在图片上重新右键。"
   },
   "saveTweetToEdgeEver": {
-    "message": "保存这条推文到 EdgeEver"
+    "message": "保存推文到 EdgeEver"
   },
   "tweetSaveHint": {
-    "message": "在 X 上右键一条推文，选择“保存这条推文到 EdgeEver”。正文会完整保存，包括被「显示更多」折叠的部分；已经显示的图片也会放进同一条新笔记，笔记本与上面的默认笔记本相同。"
+    "message": "在 X 上右键一条推文，选择“保存推文到 EdgeEver”。正文会完整保存，包括被「显示更多」折叠的部分；已经显示的图片也会放进同一条新笔记，笔记本与上面的默认笔记本相同。"
   },
   "savingTweet": {
     "message": "正在保存这条推文……"
@@ -316,16 +325,16 @@
     "message": "一条推文"
   },
   "tweetSaveWindowTitle": {
-    "message": "保存这条推文到 EdgeEver"
+    "message": "保存推文到 EdgeEver"
   },
   "tweetTimeLabel": {
     "message": "时间"
   },
   "saveGithubRepoToEdgeEver": {
-    "message": "保存这个仓库到 EdgeEver"
+    "message": "保存仓库信息到 EdgeEver"
   },
   "githubRepoSaveHint": {
-    "message": "在 GitHub 仓库主页或代码目录上，右键页面空白、简介或 README 正文，选择“保存这个仓库到 EdgeEver”。仓库地址和简介会存成一条新笔记，放进上面选择的默认笔记本。Issue、讨论和单个文件页不会保存。"
+    "message": "在 GitHub 仓库主页或代码目录上，右键页面空白、简介或 README 正文，选择“保存仓库信息到 EdgeEver”。仓库地址和简介会存成一条新笔记，放进上面选择的默认笔记本。Issue、讨论和单个文件页不会保存。"
   },
   "savingGithubRepo": {
     "message": "正在保存这个仓库……"
@@ -352,10 +361,10 @@
     "message": "话题"
   },
   "saveXhsToEdgeEver": {
-    "message": "保存这篇小红书笔记到 EdgeEver"
+    "message": "保存笔记到 EdgeEver"
   },
   "xhsSaveHint": {
-    "message": "在小红书笔记正文上右键，选择“保存这篇小红书笔记到 EdgeEver”。标题、正文和笔记里的图片会存成一条新笔记，评论不会写入。右键图片仍然只保存这张图片。"
+    "message": "在小红书笔记正文上右键，选择“保存笔记到 EdgeEver”。标题、正文和笔记里的图片会存成一条新笔记，评论不会写入。右键图片仍然只保存这张图片。"
   },
   "savingXhs": {
     "message": "正在保存这篇笔记……"
@@ -391,16 +400,31 @@
     "message": "一篇小红书笔记"
   },
   "xhsSaveWindowTitle": {
-    "message": "保存这篇小红书笔记到 EdgeEver"
+    "message": "保存笔记到 EdgeEver"
   },
   "xhsLocationLabel": {
     "message": "地点"
   },
   "saveZhihuToEdgeEver": {
-    "message": "保存这篇知乎回答或文章到 EdgeEver"
+    "message": "保存回答/文章到 EdgeEver"
+  },
+  "zhihuQuestionLabel": {
+    "message": "问题"
+  },
+  "zhihuArticleLabel": {
+    "message": "文章"
+  },
+  "zhihuAuthorLabel": {
+    "message": "作者："
+  },
+  "zhihuAnswerLabel": {
+    "message": "回答"
+  },
+  "zhihuArticleBodyLabel": {
+    "message": "正文"
   },
   "zhihuSaveHint": {
-    "message": "在知乎回答或文章的正文上右键，选择“保存这篇知乎回答或文章到 EdgeEver”。标题、作者、正文和图片会存成一条新笔记，评论不会写入。右键图片仍然只保存这张图片。"
+    "message": "在知乎回答或文章的正文上右键，选择“保存回答/文章到 EdgeEver”。标题、作者、正文和图片会存成一条新笔记，评论不会写入。右键图片仍然只保存这张图片。"
   },
   "savingZhihu": {
     "message": "正在保存这篇知乎内容……"
@@ -436,6 +460,30 @@
     "message": "一篇知乎内容"
   },
   "zhihuSaveWindowTitle": {
-    "message": "保存这篇知乎回答或文章到 EdgeEver"
+    "message": "保存回答/文章到 EdgeEver"
+  },
+  "saveRedditToEdgeEver": {
+    "message": "保存 Reddit 帖子到 EdgeEver"
+  },
+  "savingReddit": {
+    "message": "正在保存这条 Reddit 帖子……"
+  },
+  "redditSaved": {
+    "message": "已把这条 Reddit 帖子存成笔记。"
+  },
+  "redditNotFound": {
+    "message": "没有定位到这条 Reddit 帖子。请直接在帖子上右键。"
+  },
+  "redditRightClickAgain": {
+    "message": "现在可以识别 Reddit 帖子了。请在同一条帖子上再次右键。"
+  },
+  "redditAuthorLabel": {
+    "message": "作者"
+  },
+  "redditCommunityLabel": {
+    "message": "社区"
+  },
+  "redditLinkLabel": {
+    "message": "外部链接"
   }
 }

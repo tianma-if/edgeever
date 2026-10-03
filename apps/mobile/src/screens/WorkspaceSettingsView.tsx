@@ -547,6 +547,7 @@ const getMobileSystemInfoText = (localePreference: MobileLocaleMode) =>
         followSystem: "Follow system",
         installMode: "Mode",
         instanceBuild: "Instance build",
+        deploymentVersionTime: "Instance deployment time",
         instanceConnection: "Instance connection",
         instanceUrl: "Instance URL",
         instanceVersion: "Instance version",
@@ -596,6 +597,7 @@ const getMobileSystemInfoText = (localePreference: MobileLocaleMode) =>
         followSystem: "跟随系统",
         installMode: "安装形态",
         instanceBuild: "实例构建",
+        deploymentVersionTime: "实例部署时间",
         instanceConnection: "实例连接",
         instanceUrl: "实例地址",
         instanceVersion: "实例版本",
@@ -758,6 +760,12 @@ const getMobileSystemInfoGroups = (
         { label: copy.databaseBackend, value: getMobileDatabaseBackend(instance?.health.storage?.database, copy.unknown) },
         { label: copy.deploymentPlatform, value: getMobileDeploymentPlatform(instance?.health.runtime, english) },
         { label: copy.instanceBuild, mono: true, value: instance?.health.build || copy.unknown, wide: true },
+        {
+          label: copy.deploymentVersionTime,
+          value: instance?.health.deploymentVersionCreatedAt && Number.isFinite(Date.parse(instance.health.deploymentVersionCreatedAt))
+            ? new Intl.DateTimeFormat(english ? "en-US" : "zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(instance.health.deploymentVersionCreatedAt))
+            : copy.unknown,
+        },
         { fullWidth: true, label: copy.newUploadObjectStorage, value: getMobileObjectStorage(instance?.health, english, copy.unknown) },
         ...(instance?.health.objectStorageProvider === "s3"
           ? [{ fullWidth: true, label: copy.existingAttachments, value: copy.existingAttachmentsOriginalStorage }]

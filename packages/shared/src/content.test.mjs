@@ -156,6 +156,46 @@ describe("file attachment Markdown compatibility", () => {
     expect(doc.content[0]?.content?.[0]?.type).toBe("text");
   });
 
+  test("keeps a research category ending in .AI as a link, including an older rich-text link", () => {
+    const markdown = "[arXiv cs.AI](https://arxiv.org/list/cs.AI/recent)";
+    const parsed = markdownToDoc(markdown);
+    expect(parsed.content[0]?.content?.[0]).toMatchObject({
+      type: "text",
+      text: "arXiv cs.AI",
+      marks: [{ type: "link", attrs: { href: "https://arxiv.org/list/cs.AI/recent" } }],
+    });
+    expect(resolveMemoContentDoc(parsed, markdown).content[0]?.content?.[0]?.type).toBe("text");
+    expect(markdownToDoc("[arXiv cs\\.AI](https://arxiv.org/list/cs.AI/recent)").content[0]?.content?.[0]?.type)
+      .toBe("text");
+  });
+
+  test("repairs an already saved false attachment card without changing real .ai attachments", () => {
+    const url = "https://arxiv.org/list/cs.AI/recent";
+    const savedDoc = {
+      type: "doc",
+      content: [{
+        type: "paragraph",
+        content: [{ type: FILE_ATTACHMENT_NODE_TYPE, attrs: { label: "arXiv cs.AI", filename: "arXiv cs.AI", url } }],
+      }, {
+        type: "paragraph",
+        content: [{ type: FILE_ATTACHMENT_NODE_TYPE, attrs: { label: "icon.ai", url: "/api/v1/resources/res_ai/blob" } }],
+      }],
+    };
+    const resolved = resolveMemoContentDoc(savedDoc, "");
+    expect(resolved.content[0]?.content?.[0]).toMatchObject({
+      type: "text",
+      text: "arXiv cs.AI",
+      marks: [{ type: "link", attrs: { href: url } }],
+    });
+    expect(resolved.content[1]?.content?.[0]?.type).toBe(FILE_ATTACHMENT_NODE_TYPE);
+    expect(docToMarkdown(resolved).split("\n")[0]).toBe(`[arXiv cs.AI](${url})`);
+  });
+
+  test("recognizes an explicitly marked external attachment", () => {
+    expect(markdownToDoc("[Attachment: icon.ai](https://example.com/download?id=1)").content[0]?.content?.[0]?.type)
+      .toBe(FILE_ATTACHMENT_NODE_TYPE);
+  });
+
   test("preserves an empty external link through Markdown and JSON", () => {
     const markdown = "Before [](https://example.com/path) and [named](https://example.com).";
     const doc = markdownToDoc(markdown);

@@ -227,6 +227,7 @@ describe("Cloudflare deployment entrypoints", () => {
 
   test("rejects instance-specific values in the repository Wrangler config", () => {
     const repositoryConfig = readRepositoryFile("wrangler.toml");
+    expect(repositoryConfig).toContain('[version_metadata]\nbinding = "CF_VERSION_METADATA"');
     const instanceConfigs = [
       repositoryConfig.replace('name = "edgeever"', 'name = "my-notes"'),
       repositoryConfig.replace("workers_dev = true", "workers_dev = false"),

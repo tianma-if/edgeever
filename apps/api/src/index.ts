@@ -46,7 +46,7 @@ import {
 } from "./backup-service";
 import { sha256, sha256Bytes } from "./hash-utils";
 import { INSTANCE_BUILD_ID } from "./instance-build";
-import { resolveInstanceDeploymentMetadata } from "./instance-deployment";
+import { resolveDeploymentVersionCreatedAt, resolveInstanceDeploymentMetadata } from "./instance-deployment";
 import type {
   DatabaseAdapter,
   PreparedStatementAdapter,
@@ -233,6 +233,7 @@ app.get("/api/health", async (c) => {
     authMode,
     build: INSTANCE_BUILD_ID.slice(0, 12),
     deployment: resolveInstanceDeploymentMetadata(c.env),
+    deploymentVersionCreatedAt: resolveDeploymentVersionCreatedAt(c.env),
     migration: await getAppliedMigration(c.env),
     storage: {
       database: c.env.storage.diagnostics.database,
@@ -441,6 +442,7 @@ const worker = {
     return fetchEdgeEverApp(request, {
       ...env,
       storage: createCloudflareStorageAdapter(env),
+      deploymentVersionCreatedAt: env.CF_VERSION_METADATA?.timestamp,
       // workerd's default Internet egress checks resolved addresses against its public-only network policy.
       publicNetworkFetch: (url, init) => fetch(url, init),
     }, ctx);

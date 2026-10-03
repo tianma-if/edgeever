@@ -4,7 +4,7 @@ import Pow
 struct LoginView: View {
     @Environment(AppEnvironment.self) private var env
     @State private var baseUrl = ""
-    @State private var username = "admin"
+    @State private var username = ""
     @State private var password = ""
     @State private var error: String?
     @State private var submitting = false
@@ -75,7 +75,7 @@ struct LoginView: View {
 
                     field(
                         env.preferences.t("用户名", en: "Username", ja: "ユーザー名"),
-                        placeholder: "owner",
+                        placeholder: "",
                         text: $username,
                         keyboard: .default,
                         secure: false

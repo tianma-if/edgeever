@@ -29,7 +29,7 @@ The detailed descriptions below are the 0.1.9 text resubmitted on 2026-10-02. An
 
 #### Summary
 
-将当前网页、选中文字、右键图片、X 推文、小红书笔记、知乎回答或文章，或 GitHub 仓库保存到你自托管的 EdgeEver 实例。
+将当前网页、选中文字、右键图片、X 推文、Reddit 帖子、小红书笔记、知乎回答或文章，或 GitHub 仓库保存到你自托管的 EdgeEver 实例。
 
 #### Detailed description
 
@@ -38,11 +38,12 @@ EdgeEver Web Clipper 可以把当前网页，或你选中的那一部分，保�
 主要功能：
 
 - 自动提取文章正文，并转换为便于搜索和编辑的 Markdown。
-- 选中一段文字后右键，选择“保存选中文字到 EdgeEver”，只保存这段文字。
+- 选中一段文字后右键，选择“保存所选内容到 EdgeEver”，只保存这段文字。
 - 在图片上右键，选择“保存图片到 EdgeEver”，把图片文件存成一条新笔记。
 - 在 X 上右键推文，保存展开后的全文和已经显示的图片。
 - 在小红书上保存笔记的标题、正文和图片，不写入评论。
 - 在知乎上保存指针下的回答或文章，包括标题、作者、正文和图片，不写入评论。
+- 在 Reddit 上右键帖子，保存标题、作者、社区、正文、链接和图片，不写入评论。
 - 在 GitHub 仓库页上保存地址和简介；页面上有主页、语言、许可证和话题时一并写入。
 - 这些命令直接出现在右键菜单的第一级。
 - 笔记会保留来源和剪藏时间。
@@ -57,7 +58,7 @@ EdgeEver 是开源、自托管的现代笔记工作区。项目主页与源代�
 
 #### Summary
 
-Save a webpage, selected text, a right-clicked image, an X post, a Xiaohongshu note, a Zhihu answer or article, or a GitHub repository to your self-hosted EdgeEver.
+Save a webpage, selected text, a right-clicked image, an X post, a Reddit post, a Xiaohongshu note, a Zhihu answer or article, or a GitHub repository to your self-hosted EdgeEver.
 
 #### Detailed description
 
@@ -71,6 +72,7 @@ Key features:
 - On X, right-click the post and save the expanded text with the photos already shown.
 - On Xiaohongshu, save the note title, text, and photos. Comments are left out.
 - On Zhihu, save the answer or article under the pointer, including its title, author, text, and photos. Comments are left out.
+- On Reddit, right-click a post to save its title, author, community, text, links, and images. Comments are left out.
 - On a GitHub repository page, save the address and description, plus the homepage, language, license, and topics when the page shows them.
 - These commands stay on the top-level right-click menu.
 - The note keeps its source and the time it was clipped.
@@ -85,15 +87,15 @@ EdgeEver is an open-source, self-hosted modern notes workspace. Project homepage
 
 ### Single purpose
 
-Save the current webpage, user-selected text, a user-chosen image, one X post, one Xiaohongshu note, one Zhihu answer or article, or one GitHub repository card to the self-hosted EdgeEver instance explicitly configured by the user.
+Save the current webpage, user-selected text, a user-chosen image, one X post, one Reddit post, one Xiaohongshu note, one Zhihu answer or article, or one GitHub repository card to the self-hosted EdgeEver instance explicitly configured by the user.
 
 ### Permission justifications
 
-- `activeTab`: Read the active page only after the user clicks the extension's save action or chooses Save selection to EdgeEver, Save image to EdgeEver, Save this post to EdgeEver, Save this Xiaohongshu note to EdgeEver, Save this Zhihu answer or article to EdgeEver, or Save this repository to EdgeEver.
-- `contextMenus`: Add one top-level item for the thing the user right-clicked: selected text, an image, an X post, a Xiaohongshu note, a Zhihu answer or article, or a GitHub repository page. It runs only after the user selects that item.
+- `activeTab`: Read the active page only after the user clicks the extension's save action or chooses a save command for selected text, an image, an X post, a Reddit post, a Xiaohongshu note, a Zhihu item, or a GitHub repository.
+- `contextMenus`: Add one top-level item for the thing the user right-clicked: selected text, an image, an X post, a Reddit post, a Xiaohongshu note, a Zhihu answer or article, or a GitHub repository page. It runs only after the user selects that item.
 - `scripting`: Inject the packaged capture script into the active page after the user initiates a capture.
 - `storage`: Store the user's EdgeEver instance URL, API token, and default notebook ID locally.
-- Optional host permissions: API calls go only to the EdgeEver instance the user approves. If a page cannot provide an image file, the extension asks for that image's site, or for all sites when the user chooses that option, and uses the access only to download the chosen image. Saving from an X timeline asks for access to X so the extension can remember the post under the pointer. That script only records the target and runs after the user allows it. Saving from a Xiaohongshu feed asks for Xiaohongshu for the same reason. An open note page can be saved without that extra permission. On Zhihu, a content script remembers the answer or article under the pointer and does not send the page anywhere. The full text is read only after the user chooses Save this Zhihu answer or article to EdgeEver, and it is sent only to the user's instance. If that listener is missing, the extension asks once for Zhihu and then asks the user to right-click the same text again.
+- Optional host permissions: API calls go only to the EdgeEver instance the user approves. If a page cannot provide an image file, the extension asks for that image's site, or for all sites when the user chooses that option, and uses the access only to download the chosen image. Saving from an X or Xiaohongshu feed may ask for site access to identify the item under the pointer. On Zhihu and Reddit, a content script only remembers the item under the pointer. Its content is read after the user chooses the save command. If that listener is unavailable, the extension asks the user to right-click the same item again.
 
 Each permission justification field accepts at most 1,000 characters. The host text above is the wording saved with the 0.1.9 draft.
 

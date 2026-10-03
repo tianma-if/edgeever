@@ -38,25 +38,7 @@ export const clipSelectionForSend = (text: string) => {
   return { sentText: text.slice(0, end), truncated: true };
 };
 
-// A short single-line first paragraph, followed by a blank line, is the
-// "already this language" note. The writable translation is the rest.
-const TRANSLATION_NOTE_MAX = 80;
-
-export const translationReplacement = (response: string) => {
-  const trimmed = response.trim();
-  if (!trimmed) return "";
-  const parts = trimmed.split(/\n[ \t]*\n/);
-  const first = parts[0]?.trim() ?? "";
-  if (
-    parts.length > 1
-    && first.length > 0
-    && first.length <= TRANSLATION_NOTE_MAX
-    && !first.includes("\n")
-  ) {
-    return parts.slice(1).join("\n\n").trim();
-  }
-  return trimmed;
-};
+export const translationReplacement = (response: string) => response.trim();
 
 export const selectionAiUserMessage = ({
   instruction,

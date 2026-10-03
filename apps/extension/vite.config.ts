@@ -36,11 +36,13 @@ export default defineConfig({
         "capture-github": fileURLToPath(new URL("./src/capture-github.ts", import.meta.url)),
         "capture-xhs": fileURLToPath(new URL("./src/capture-xhs.ts", import.meta.url)),
         "capture-zhihu": fileURLToPath(new URL("./src/capture-zhihu.ts", import.meta.url)),
+        "capture-reddit": fileURLToPath(new URL("./src/capture-reddit.ts", import.meta.url)),
         "tweet-target": fileURLToPath(new URL("./src/tweet-target.ts", import.meta.url)),
         "tweet-save": fileURLToPath(new URL("./tweet-save.html", import.meta.url)),
         "xhs-target": fileURLToPath(new URL("./src/xhs-target.ts", import.meta.url)),
         "xhs-save": fileURLToPath(new URL("./xhs-save.html", import.meta.url)),
         "zhihu-target": fileURLToPath(new URL("./src/zhihu-target.ts", import.meta.url)),
+        "reddit-target": fileURLToPath(new URL("./src/reddit-target.ts", import.meta.url)),
         "zhihu-save": fileURLToPath(new URL("./zhihu-save.html", import.meta.url)),
       },
       output: {

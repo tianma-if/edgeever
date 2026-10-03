@@ -37,6 +37,11 @@ import {
   selectionNoteTitle,
 } from "./selection-clip";
 import {
+  redditPostFromApi,
+  redditPostFromDom,
+  saveCapturedRedditPost,
+} from "./reddit-clip";
+import {
   canonicalStatusUrl,
   isCapturedTweet,
   saveCapturedTweetNote,
@@ -118,6 +123,15 @@ const ZHIHU_DOCUMENT_PATTERNS = [
   "https://zhihu.com/*",
   "https://zhuanlan.zhihu.com/*",
   "https://www.zhuanlan.zhihu.com/*",
+];
+const REDDIT_MENU_ID = "save-reddit";
+const REDDIT_LINK_MENU_ID = "save-reddit-link";
+const REDDIT_DOCUMENT_PATTERNS = [
+  "https://reddit.com/*",
+  "https://www.reddit.com/*",
+  "https://old.reddit.com/*",
+  "https://new.reddit.com/*",
+  "https://sh.reddit.com/*",
 ];
 
 const toMarkdown = (page: CapturedPage) => {
@@ -444,6 +458,7 @@ const pendingTweetReads = new Map<string, (result: unknown) => void>();
 const pendingGithubReads = new Map<string, (result: unknown) => void>();
 const pendingXhsReads = new Map<string, (result: unknown) => void>();
 const pendingZhihuReads = new Map<string, (result: unknown) => void>();
+const pendingRedditReads = new Map<string, (result: unknown) => void>();
 let clipQueue = Promise.resolve();
 let completingImageSave = false;
 
@@ -908,6 +923,7 @@ const saveLocatedZhihu = async (
     if (stored) images.push({ ...stored, sourceUrl: image.url });
   }
   await saveCapturedZhihuNote(imageNoteClient(settings), {
+    kind: note.kind,
     notebookId: settings.notebookId,
     title: zhihuNoteTitle({
       title: note.title,
@@ -925,6 +941,11 @@ const saveLocatedZhihu = async (
     sourceLabel: t("sourceLabel"),
     capturedAtLabel: t("capturedAtLabel"),
     timeLabel: t("tweetTimeLabel"),
+    questionLabel: t("zhihuQuestionLabel"),
+    articleLabel: t("zhihuArticleLabel"),
+    authorLabel: t("zhihuAuthorLabel"),
+    answerLabel: t("zhihuAnswerLabel"),
+    articleBodyLabel: t("zhihuArticleBodyLabel"),
   });
 };
 
@@ -965,6 +986,86 @@ const saveZhihuFromMenu = async (
     await showFeedback(tabId, frameId, t("zhihuSaved"), "success");
   } catch (error) {
     const message = describeZhihuError(error);
+    if (message === t("completePluginConfiguration") || message === t("instancePermissionRequired")) {
+      await chrome.runtime.openOptionsPage();
+    }
+    await showFeedback(tabId, frameId, message, "error");
+  }
+};
+
+const readRedditFromPage = async (tabId: number, frameId: number | null, pageUrl: string) => {
+  const requestId = crypto.randomUUID();
+  const result = await new Promise<unknown>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      pendingRedditReads.delete(requestId);
+      reject(new Error(t("captureTimeout")));
+    }, 12_000);
+    pendingRedditReads.set(requestId, (value) => {
+      clearTimeout(timeout);
+      resolve(value);
+    });
+    const target = scriptTarget(tabId, frameId);
+    const inject = async () => {
+      await chrome.scripting.executeScript({
+        target,
+        func: (value: unknown) => {
+          (globalThis as { __edgeeverRedditClipPayload?: unknown }).__edgeeverRedditClipPayload = value;
+        },
+        args: [{ requestId, pageUrl }],
+      });
+      await chrome.scripting.executeScript({ target, files: ["assets/capture-reddit.js"] });
+    };
+    void inject().catch((error: unknown) => {
+      clearTimeout(timeout);
+      pendingRedditReads.delete(requestId);
+      reject(new Error(describeCaptureError(error)));
+    });
+  });
+  return result && typeof result === "object" ? result as Record<string, unknown> : {};
+};
+
+const saveRedditFromMenu = async (
+  info: { pageUrl?: string; linkUrl?: string; frameId?: number },
+  tab?: { id?: number; url?: string },
+) => {
+  const tabId = typeof tab?.id === "number" ? tab.id : null;
+  const frameId = typeof info.frameId === "number" ? info.frameId : null;
+  try {
+    const settings = await ensureClipperReady();
+    if (!tabId) throw new Error(t("redditNotFound"));
+    const result = await readRedditFromPage(tabId, frameId, info.linkUrl || tab?.url || info.pageUrl || "");
+    if (result.ok === false && result.reason === "needs-listener") {
+      await chrome.scripting.executeScript({ target: { tabId }, files: ["assets/reddit-target.js"] });
+      await showFeedback(tabId, frameId, t("redditRightClickAgain"), "success");
+      return;
+    }
+    const id = typeof result.id === "string" ? result.id : "";
+    const post = redditPostFromApi(result.api, id) ?? redditPostFromDom(result.dom, id);
+    if (!post) throw new Error(t("redditNotFound"));
+    await showFeedback(tabId, frameId, t("savingReddit"), "success");
+    const images = [];
+    for (const image of post.images) {
+      const stored = await readTweetImage(tabId, frameId, image.url, image.alt || post.title);
+      if (stored) images.push({ ...stored, url: image.url });
+    }
+    await saveCapturedRedditPost(imageNoteClient(settings), post, {
+      notebookId: settings.notebookId,
+      sourceLabel: t("sourceLabel"),
+      capturedAtLabel: t("capturedAtLabel"),
+      timeLabel: t("tweetTimeLabel"),
+      authorLabel: t("redditAuthorLabel"),
+      communityLabel: t("redditCommunityLabel"),
+      linkLabel: t("redditLinkLabel"),
+      capturedAt: new Date().toISOString(),
+      images,
+    });
+    await showFeedback(tabId, frameId, t("redditSaved"), "success");
+  } catch (error) {
+    const message = error instanceof Error && error.message === t("redditNotFound")
+      ? error.message
+      : error instanceof Error && error.message === "no-notebook"
+        ? t("noAvailableNotebooks")
+        : describeImageError(error);
     if (message === t("completePluginConfiguration") || message === t("instancePermissionRequired")) {
       await chrome.runtime.openOptionsPage();
     }
@@ -1187,10 +1288,12 @@ const registerClipMenus = () => {
   // on the top-level menu: a photo saves the image, selected words save the
   // passage, the rest of an X post saves the post, a GitHub repository page
   // saves the repository, the rest of a Xiaohongshu note saves the note, and
-  // the rest of a Zhihu answer or article saves that item.
-  // Link context is omitted because a linked image would otherwise show both
-  // commands. Recreate from scratch so a previous registration cannot keep an
-  // overlapping item.
+  // the rest of a Zhihu answer or article or Reddit post saves that item.
+  // The Reddit title-link command is limited to Reddit post permalinks, so
+  // linked photos keep the image command. Recreate from scratch so a previous
+  // registration cannot keep an overlapping item. Context menus persist across
+  // service worker and event page restarts; removing them at module startup can
+  // leave the browser with no menus while the background is waking up.
   chrome.contextMenus.removeAll(() => {
     void chrome.runtime.lastError;
     createClipMenus();
@@ -1246,12 +1349,28 @@ const createClipMenus = () => {
   }, () => {
     void chrome.runtime.lastError;
   });
+  chrome.contextMenus.create({
+    id: REDDIT_MENU_ID,
+    title: t("saveRedditToEdgeEver"),
+    contexts: ["page", "video"],
+    documentUrlPatterns: REDDIT_DOCUMENT_PATTERNS,
+  }, () => {
+    void chrome.runtime.lastError;
+  });
+  chrome.contextMenus.create({
+    id: REDDIT_LINK_MENU_ID,
+    title: t("saveRedditToEdgeEver"),
+    contexts: ["link"],
+    documentUrlPatterns: REDDIT_DOCUMENT_PATTERNS,
+    targetUrlPatterns: REDDIT_DOCUMENT_PATTERNS.map((pattern) => pattern.replace("/*", "/*/comments/*")),
+  }, () => {
+    void chrome.runtime.lastError;
+  });
 };
 
 chrome.runtime.onInstalled.addListener(registerClipMenus);
-registerClipMenus();
 
-chrome.contextMenus.onClicked.addListener((info: { menuItemId?: string | number; srcUrl?: string; pageUrl?: string; frameId?: number; selectionText?: string }, tab?: { id?: number; url?: string; title?: string }) => {
+chrome.contextMenus.onClicked.addListener((info: { menuItemId?: string | number; srcUrl?: string; pageUrl?: string; linkUrl?: string; frameId?: number; selectionText?: string }, tab?: { id?: number; url?: string; title?: string }) => {
   if (info.menuItemId === SELECTION_MENU_ID) {
     void enqueueClip(() => saveSelectionFromMenu(info, tab));
     return;
@@ -1274,6 +1393,10 @@ chrome.contextMenus.onClicked.addListener((info: { menuItemId?: string | number;
   }
   if (info.menuItemId === ZHIHU_MENU_ID) {
     void enqueueClip(() => saveZhihuFromMenu(info, tab));
+    return;
+  }
+  if (info.menuItemId === REDDIT_MENU_ID || info.menuItemId === REDDIT_LINK_MENU_ID) {
+    void enqueueClip(() => saveRedditFromMenu(info, tab));
   }
 });
 
@@ -1328,6 +1451,12 @@ chrome.runtime.onMessage.addListener((message: { type?: string; page?: CapturedP
   if (message.type === "pageZhihuRead" && message.requestId) {
     pendingZhihuReads.get(message.requestId)?.(message.result);
     pendingZhihuReads.delete(message.requestId);
+    return false;
+  }
+
+  if (message.type === "pageRedditRead" && message.requestId) {
+    pendingRedditReads.get(message.requestId)?.(message.result);
+    pendingRedditReads.delete(message.requestId);
     return false;
   }
 

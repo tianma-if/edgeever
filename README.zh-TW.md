@@ -167,7 +167,7 @@ curl -fsSL https://edgeever.org/install.sh | bash
 
 - **智慧內文擷取**：自動擷取網頁文章正文並轉為純淨 Markdown，完整保留來源網址與擷取時間。
 - **選取與右鍵擷取**：反白選取文字或右鍵任意圖片直接儲存為獨立筆記，無需抓取整頁多餘內容。
-- **X (Twitter) 推文擷取**：右鍵單則推文自動展開長文全文，連同作者、發布時間與附圖完整歸檔。
+- **社群與平台深度擷取**：深度適配 X (Twitter)、小紅書、知乎、Reddit 與 GitHub，一鍵發送。
 - **自託管隱私直連**：擷取內容直傳個人自託管執行個體，不經過任何第三方伺服器轉發。
 
 ## 社群與回饋
@@ -280,9 +280,8 @@ Web、PWA 與桌面版會在停止編輯 30 秒後上傳筆記，並在頁面可
 
 ## 致謝
 
-- EdgeEver 的筆記產品設計也參考了 [Evernote（印象筆記）](https://evernote.com/) 等成熟筆記工具的公開產品體驗。相關功能由 EdgeEver 獨立設計與實作。
+- EdgeEver 的筆記產品設計也參考了 [Evernote（印象筆記）](https://evernote.com/)、[Notion](https://www.notion.com/) 等成熟筆記工具的公開產品體驗。相關功能由 EdgeEver 獨立設計與實作。
 - 心智圖與視覺化圖表筆記的產品設計參考了 [XMind](https://xmind.com/) 和 [ProcessOn](https://www.processon.com/) 等圖表工具的公開產品體驗。相關功能由 EdgeEver 獨立設計與實作。
-- 編輯器主題的排版架構、標題層級與章節結構參考了 [obsidian-minimal](https://github.com/kepano/obsidian-minimal)、[Outline](https://github.com/outline/outline) 和 [墨格](https://moyufang.cn/editor) 的公開方案。名稱、素材與實作均由 EdgeEver 獨立完成。
 
 ## 商標與品牌使用
 

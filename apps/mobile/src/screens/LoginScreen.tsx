@@ -24,7 +24,7 @@ export const LoginScreen = () => {
   refreshLoginThemeStyles(resolvedTheme);
   const { signIn } = useSession();
   const [baseUrl, setBaseUrl] = useState("");
-  const [username, setUsername] = useState("admin");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -89,8 +89,6 @@ export const LoginScreen = () => {
                 autoCapitalize="none"
                 autoCorrect={false}
                 onChangeText={setUsername}
-                placeholder="owner"
-                placeholderTextColor="#94a3b8"
                 style={styles.input}
                 value={username}
               />

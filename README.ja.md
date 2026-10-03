@@ -170,7 +170,7 @@ curl -fsSL https://edgeever.org/install.sh | bash
 
 - **スマートな本文抽出**：Web ページの本文を自動抽出し、クリーンな Markdown に変換。元記事の URL とクリップ日時を保持します。
 - **選択テキストと画像のクリップ**：テキストを選択するか画像を右クリックして、ページ全体を保存することなく直接ノートとして保存できます。
-- **X（旧 Twitter）ポストの保存**：ポストを右クリックして長文を自動展開し、投稿者、日時、添付画像とともに完全な形で保存します。
+- **SNS・コミュニティの高精度クリップ**：X（旧 Twitter）、小紅書（RED）、知乎（Zhihu）、Reddit、GitHub にネイティブ対応。ワンクリックで送信。
 - **セルフホストへのプライベート直接通信**：クリップした内容は個人の EdgeEver インスタンスに直接送信され、第三者の中継サーバーを経由しません。
 
 ## コミュニティとフィードバック
@@ -278,9 +278,8 @@ Web、PWA、デスクトップは、編集が 30 秒止まったあとでノー�
 
 ## 謝辞
 
-- ノート製品の設計は、[Evernote](https://evernote.com/) など成熟したノートツールの公開されている製品体験も参考にしています。関連機能は EdgeEver が独自に設計し、実装しています。
+- ノート製品の設計は、[Evernote](https://evernote.com/) や [Notion](https://www.notion.com/) など成熟したノートツールの公開されている製品体験も参考にしています。関連機能は EdgeEver が独自に設計し、実装しています。
 - マインドマップと視覚的な図のノートは、[XMind](https://xmind.com/) と [ProcessOn](https://www.processon.com/) の公開されている製品体験を参考にしています。関連機能は EdgeEver が独自に設計し、実装しています。
-- エディタテーマのタイポグラフィ、見出し階層、章立ては [obsidian-minimal](https://github.com/kepano/obsidian-minimal)、[Outline](https://github.com/outline/outline)、[墨格](https://moyufang.cn/editor) の公開成果を参考にしています。名称、素材、実装は EdgeEver のオリジナルです。
 
 ## 商標とブランド
 

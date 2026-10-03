@@ -75,7 +75,7 @@ export const streamCompanion = async (args: {
   const receipts = args.input.allowNotes ? await companionExecutionReceipts(args.db, args.scope, args.input, args.revision, run.tools) : [];
   const agent = new ToolLoopAgent({
     model: args.model,
-    instructions: companionAgentInstructions(args.input, args.memories, receipts),
+    instructions: companionAgentInstructions(args.input, args.memories, receipts, args.history, args.revision),
     tools,
     stopWhen: [isStepCount(COMPANION_MAX_STEPS), () => run.pause.ask],
     maxOutputTokens: COMPANION_MAX_OUTPUT_TOKENS,

@@ -41,6 +41,7 @@ struct InstanceHealth: Codable, Equatable, Sendable {
     var containerImageSource: String?
     var authMode: String?
     var build: String?
+    var deploymentVersionCreatedAt: String?
     var migration: String?
     var storage: InstanceStorageDiagnostics?
     var objectStorageProvider: String?

@@ -169,7 +169,7 @@ curl -fsSL https://edgeever.org/install.sh | bash
 
 - **智能正文提取**：自动提取网页文章正文并转为纯净 Markdown，自动保留来源网址与剪藏时间。
 - **划选与右键剪藏**：选中局部文字或右键任意图片直接存为独立笔记，无需抓取整页冗余内容。
-- **X (Twitter) 推文剪藏**：右键单条推文自动展开长文全文，连同作者、发布时间与配图完整归档。
+- **社媒与社区深度剪藏**：深度适配 X (Twitter)、小红书、知乎、Reddit 与 GitHub，一键发送。
 - **自托管隐私直连**：剪藏内容直传个人自托管实例，不经过任何第三方服务器中转。
 
 ## 社区与反馈
@@ -282,9 +282,8 @@ Web、PWA 与桌面端会在停止编辑 30 秒后上传笔记，并在页面可
 
 ## 致谢
 
-- EdgeEver 的笔记产品设计也参考了 [Evernote（印象笔记）](https://evernote.com/) 等成熟笔记工具的公开产品体验。相关功能由 EdgeEver 独立设计与实现。
+- EdgeEver 的笔记产品设计也参考了 [Evernote（印象笔记）](https://evernote.com/)、[Notion](https://www.notion.com/) 等成熟笔记工具的公开产品体验。相关功能由 EdgeEver 独立设计与实现。
 - 思维导图与可视化图表笔记的产品设计参考了 [XMind](https://xmind.com/) 和 [ProcessOn](https://www.processon.com/) 等图表工具的公开产品体验。相关功能由 EdgeEver 独立设计与实现。
-- 编辑器主题的排版架构、标题层级与章节结构参考了 [obsidian-minimal](https://github.com/kepano/obsidian-minimal)、[Outline](https://github.com/outline/outline) 和 [墨格](https://moyufang.cn/editor) 的公开方案。名称、素材与实现均由 EdgeEver 独立完成。
 
 ## 商标与品牌使用
 

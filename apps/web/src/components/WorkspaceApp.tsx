@@ -77,18 +77,12 @@ import {
   resolveSelectionMoveTargetNotebookId,
 } from "@/lib/app-helpers";
 import { useBrowserBackLayer } from "@/lib/app-hooks";
-import { updateMemoSummaryInLists, type MemoListQueryData } from "@/lib/memo-list-cache";
+import { updateMemoSummaryInLists } from "@/lib/memo-list-cache";
 import {
   cacheMemoDetail,
   evictIdleMemoDetails,
-  clearTrashMemoLists,
-  collectMemoSummariesFromCache,
-  decrementNotebookMemoCounts,
-  getAdjacentMemoIdAfterRemoval,
   memoDetailQueryKey,
   memoToSummary,
-  removeMemoSummariesFromLists,
-  type ListNotebooksQueryData,
 } from "@/lib/workspace-memo-cache";
 import {
   getVerticalScrollContainer,
@@ -122,6 +116,7 @@ import { useNoteProse } from "@/hooks/useNoteProse";
 import { useWorkspacePreferences } from "@/hooks/useWorkspacePreferences";
 import { useWorkspaceSelection } from "@/hooks/useWorkspaceSelection";
 import { useWorkspaceQueuedSync } from "@/hooks/useWorkspaceQueuedSync";
+import { useWorkspaceMemoRemoval } from "@/hooks/useWorkspaceMemoRemoval";
 import { EdgeEverPluginHost, type RegisteredPluginPanel } from "@/lib/plugins/plugin-host";
 import { loadResolvedPluginMarketplace } from "@/lib/plugins/plugin-marketplace";
 import { updateOfficialMarketplacePlugins } from "@/lib/plugins/plugin-updates";
@@ -165,21 +160,6 @@ const PaneLoadingFallback = ({ label = "Loading" }: { label?: string }) => (
     {label}
   </div>
 );
-
-type MemoDeleteOptimisticContext = {
-  previousMemoLists: Array<[readonly unknown[], MemoListQueryData | undefined]>;
-  previousMemoDetails: Array<[readonly unknown[], { memo: MemoDetail } | undefined]>;
-  previousNotebooks: ListNotebooksQueryData | undefined;
-  previousActivePane: Pane;
-  previousSelectedMemoId: string | null;
-};
-
-type EmptyTrashOptimisticContext = {
-  previousMemoLists: Array<[readonly unknown[], MemoListQueryData | undefined]>;
-  previousMemoDetails: Array<[readonly unknown[], { memo: MemoDetail } | undefined]>;
-  previousActivePane: Pane;
-  previousSelectedMemoId: string | null;
-};
 
 export const WorkspaceApp = ({
   authRequired,
@@ -1437,181 +1417,18 @@ export const WorkspaceApp = ({
     },
   });
 
-  const deleteMemosMutation = useMutation({
-    mutationFn: repository.deleteMemos,
-    onMutate: async (variables): Promise<MemoDeleteOptimisticContext> => {
-      const deletedMemoIds = new Set(variables.memoIds);
-      await Promise.all([
-        queryClient.cancelQueries({ queryKey: ["memos"] }),
-        queryClient.cancelQueries({ queryKey: ["memo"] }),
-        queryClient.cancelQueries({ queryKey: ["notebooks"] }),
-      ]);
-
-      const previousMemoLists = queryClient.getQueriesData<MemoListQueryData>({ queryKey: ["memos"] });
-      const previousMemoDetails = queryClient.getQueriesData<{ memo: MemoDetail }>({ queryKey: ["memo"] });
-      const previousNotebooks = queryClient.getQueryData<ListNotebooksQueryData>(["notebooks"]);
-      const removedMemos = collectMemoSummariesFromCache(queryClient, deletedMemoIds);
-
-      clearMemoSelection();
-
-      if (selectedMemoId && deletedMemoIds.has(selectedMemoId)) {
-        setSelectedMemoId(getAdjacentMemoIdAfterRemoval(memos, deletedMemoIds, selectedMemoId));
-        setActivePane("memos");
-      }
-
-      removeMemoSummariesFromLists(queryClient, deletedMemoIds);
-      decrementNotebookMemoCounts(queryClient, removedMemos);
-
-      return { previousMemoLists, previousMemoDetails, previousNotebooks, previousActivePane: activePane, previousSelectedMemoId: selectedMemoId };
-    },
-    onError: (_error, _variables, context) => {
-      context?.previousMemoLists.forEach(([queryKey, data]) => {
-        queryClient.setQueryData(queryKey, data);
-      });
-      context?.previousMemoDetails.forEach(([queryKey, data]) => {
-        queryClient.setQueryData(queryKey, data);
-      });
-      queryClient.setQueryData(["notebooks"], context?.previousNotebooks);
-      setSelectedMemoId(context?.previousSelectedMemoId ?? null);
-      setActivePane(context?.previousActivePane ?? "memos");
-    },
-    onSettled: (_data, _error, variables) => {
-      const refetchType = _error ? "active" : "inactive";
-      const deletedMemoIds = new Set(variables?.memoIds ?? []);
-
-      if (!_error) {
-        for (const memoId of deletedMemoIds) {
-          queryClient.removeQueries({ queryKey: ["memo", memoId] });
-        }
-      }
-
-      void Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["memos"], refetchType }),
-        queryClient.invalidateQueries({ queryKey: ["memo"], refetchType }),
-        queryClient.invalidateQueries({ queryKey: ["notebooks"], refetchType }),
-        queryClient.invalidateQueries({ queryKey: ["resources"], refetchType: _error ? "active" : "all" }),
-      ]);
-    },
-  });
-
-  const deleteMemoMutation = useMutation({
-    mutationFn: async ({ memoId, permanent }: { memoId: string; permanent?: boolean }) => {
-      return repository.deleteMemo(memoId, Boolean(permanent));
-    },
-    onMutate: async (variables): Promise<MemoDeleteOptimisticContext> => {
-      const deletedMemoIds = new Set([variables.memoId]);
-      await Promise.all([
-        queryClient.cancelQueries({ queryKey: ["memos"] }),
-        queryClient.cancelQueries({ queryKey: ["memo", variables.memoId] }),
-        queryClient.cancelQueries({ queryKey: ["notebooks"] }),
-      ]);
-
-      const previousMemoLists = queryClient.getQueriesData<MemoListQueryData>({ queryKey: ["memos"] });
-      const previousMemoDetails = queryClient.getQueriesData<{ memo: MemoDetail }>({ queryKey: ["memo", variables.memoId] });
-      const previousNotebooks = queryClient.getQueryData<ListNotebooksQueryData>(["notebooks"]);
-      const removedMemos = collectMemoSummariesFromCache(queryClient, deletedMemoIds);
-
-      if (selectedMemoId === variables.memoId) {
-        setSelectedMemoId(getAdjacentMemoIdAfterRemoval(memos, deletedMemoIds, variables.memoId));
-        setActivePane("memos");
-      }
-
-      removeMemoSummariesFromLists(queryClient, deletedMemoIds);
-      decrementNotebookMemoCounts(queryClient, removedMemos);
-
-      return { previousMemoLists, previousMemoDetails, previousNotebooks, previousActivePane: activePane, previousSelectedMemoId: selectedMemoId };
-    },
-    onError: (_error, _variables, context) => {
-      context?.previousMemoLists.forEach(([queryKey, data]) => {
-        queryClient.setQueryData(queryKey, data);
-      });
-      context?.previousMemoDetails.forEach(([queryKey, data]) => {
-        queryClient.setQueryData(queryKey, data);
-      });
-      queryClient.setQueryData(["notebooks"], context?.previousNotebooks);
-      setSelectedMemoId(context?.previousSelectedMemoId ?? null);
-      setActivePane(context?.previousActivePane ?? "memos");
-    },
-    onSettled: (_data, _error, variables) => {
-      const refetchType = _error ? "active" : "inactive";
-
-      if (!_error) {
-        queryClient.removeQueries({ queryKey: ["memo", variables?.memoId] });
-      }
-      void Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["memos"], refetchType }),
-        queryClient.invalidateQueries({ queryKey: ["notebooks"], refetchType }),
-        queryClient.invalidateQueries({ queryKey: ["resources"], refetchType: _error ? "active" : "all" }),
-      ]);
-    },
-  });
-
-  const emptyTrashMutation = useMutation({
-    mutationFn: repository.emptyTrash,
-    onMutate: async (): Promise<EmptyTrashOptimisticContext> => {
-      const previousActivePane = activePane;
-      const previousSelectedMemoId = selectedMemoId;
-
-      // Leave the editor before cancelling/refetching its detail query. On a
-      // desktop layout the editor remains mounted even when the memo pane is
-      // visible, so keeping a trashed memo selected while its query is being
-      // invalidated can render a deleted detail and repeatedly re-select it.
-      setEmptyTrashConfirmationOpen(false);
-      clearMemoSelection();
-      setSelectedMemoId(null);
-      setActivePane("memos");
-
-      await Promise.all([
-        queryClient.cancelQueries({ queryKey: ["memos"] }),
-        queryClient.cancelQueries({ queryKey: ["memo"] }),
-        queryClient.cancelQueries({ queryKey: ["resources"] }),
-      ]);
-
-      const previousMemoLists = queryClient.getQueriesData<MemoListQueryData>({ queryKey: ["memos"] });
-      const previousMemoDetails = queryClient.getQueriesData<{ memo: MemoDetail }>({ queryKey: ["memo"] });
-
-      // Keep the optimistic update limited to list data. Removing the active
-      // memo detail query here can make the editor render with a missing memo
-      // during the same React update and blank the whole workspace.
-      clearTrashMemoLists(queryClient);
-
-      return { previousMemoLists, previousMemoDetails, previousActivePane, previousSelectedMemoId };
-    },
-    onError: (_error, _variables, context) => {
-      context?.previousMemoLists.forEach(([queryKey, data]) => {
-        queryClient.setQueryData(queryKey, data);
-      });
-      context?.previousMemoDetails.forEach(([queryKey, data]) => {
-        queryClient.setQueryData(queryKey, data);
-      });
-      setSelectedMemoId(context?.previousSelectedMemoId ?? null);
-      setActivePane(context?.previousActivePane ?? "memos");
-      setAppNoticeDialog({
-        title: t("workspaceDialogs.emptyTrashFailedTitle"),
-        description: t("workspaceDialogs.emptyTrashFailedDescription"),
-      });
-    },
-    onSuccess: () => {
-      // The trash detail queries are no longer valid after a successful
-      // permanent delete. Remove them before invalidating the remaining
-      // active queries so an editor cannot briefly observe a 404 detail.
-      queryClient.removeQueries({
-        queryKey: ["memo"],
-        predicate: (query) => {
-          const data = query.state.data as { memo?: { isDeleted?: boolean } } | undefined;
-          return data?.memo?.isDeleted === true;
-        },
-      });
-      setSelectedMemoId(null);
-      setActivePane("memos");
-    },
-    onSettled: () => {
-      void Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["memos"], refetchType: "active" }),
-        queryClient.invalidateQueries({ queryKey: ["memo"], refetchType: "active" }),
-        queryClient.invalidateQueries({ queryKey: ["resources"], refetchType: "active" }),
-      ]);
-    },
+  const { deleteMemosMutation, deleteMemoMutation, emptyTrashMutation } = useWorkspaceMemoRemoval({
+    activePane,
+    clearMemoSelection,
+    memos,
+    queryClient,
+    repository,
+    selectedMemoId,
+    setActivePane,
+    setAppNoticeDialog,
+    setEmptyTrashConfirmationOpen,
+    setSelectedMemoId,
+    t,
   });
 
   const restoreMemoMutation = useMutation({

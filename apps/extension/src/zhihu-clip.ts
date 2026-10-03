@@ -1,3 +1,4 @@
+import { createDocument } from "@mixmark-io/domino";
 import TurndownService from "turndown";
 import type { ImageNoteClient } from "./image-clip";
 
@@ -220,13 +221,17 @@ const normalizeMarkdown = (value: string) => value.replace(/\n{3,}/g, "\n\n").tr
 
 export const zhihuBodyFromHtml = (html: string, altFallback: string) => {
   const prepared = prepareZhihuHtml(html);
+  // The extension background has no document. Give Turndown a parsed node so
+  // its browser bundle never tries to create a document in the service worker.
+  const root = createDocument(prepared.html).body;
+  if (!root) throw new Error("zhihu-dom-unavailable");
   const turndown = new TurndownService({
     bulletListMarker: "-",
     codeBlockStyle: "fenced",
     headingStyle: "atx",
     linkStyle: "inlined",
   });
-  let markdown = normalizeMarkdown(turndown.turndown(prepared.html));
+  let markdown = normalizeMarkdown(turndown.turndown(root));
   prepared.images.forEach((image, index) => {
     const alt = escapeImageAlt(image.alt || altFallback);
     markdown = markdown.replaceAll(`EDGEVERZHIHUIMG${index}`, `![${alt}](${image.url})`);
@@ -316,6 +321,7 @@ export const zhihuNoteTitle = (input: { title: string; author: string; body: str
 };
 
 export const zhihuNoteMarkdown = (input: {
+  kind: "answer" | "article";
   author: string;
   title: string;
   body: string;
@@ -325,26 +331,37 @@ export const zhihuNoteMarkdown = (input: {
   sourceLabel: string;
   capturedAtLabel: string;
   timeLabel: string;
+  questionLabel: string;
+  articleLabel: string;
+  authorLabel: string;
+  answerLabel: string;
+  articleBodyLabel: string;
 }) => {
   const blocks: string[] = [];
-  const author = plainLine(input.author);
-  if (author) blocks.push(author);
   const title = plainLine(input.title);
+  const author = plainLine(input.author);
   const body = input.body.trim();
-  if (title && !body.startsWith(title)) blocks.push(title);
-  if (body) blocks.push(body);
+  const firstLine = body.split("\n", 1)[0]?.trim();
+  const firstBreak = body.indexOf("\n");
+  const contentBody = title && firstLine === title
+    ? (firstBreak === -1 ? "" : body.slice(firstBreak + 1).trim())
+    : body;
+  if (title) blocks.push(`## ${input.kind === "answer" ? input.questionLabel : input.articleLabel}\n\n> ${title}`);
+  if (author) blocks.push(`**${input.authorLabel}** ${author}`);
+  if (contentBody) blocks.push(`## ${input.kind === "answer" ? input.answerLabel : input.articleBodyLabel}\n\n${contentBody}`);
   const footer = [
     input.noteUrl ? `${input.sourceLabel}: [${escapeMarkdownLabel(input.noteUrl)}](${markdownDestination(input.noteUrl)})` : "",
     input.datetime ? `${input.timeLabel}: ${input.datetime}` : "",
     `${input.capturedAtLabel}: ${input.capturedAt}`,
   ].filter(Boolean);
-  blocks.push(footer.join("\n\n"));
+  blocks.push(`---\n\n${footer.join("\n\n")}`);
   return blocks.join("\n\n");
 };
 
 export const saveCapturedZhihuNote = async (
   client: ImageNoteClient,
   input: {
+    kind: "answer" | "article";
     notebookId: string;
     title: string;
     author: string;
@@ -357,6 +374,11 @@ export const saveCapturedZhihuNote = async (
     sourceLabel: string;
     capturedAtLabel: string;
     timeLabel: string;
+    questionLabel: string;
+    articleLabel: string;
+    authorLabel: string;
+    answerLabel: string;
+    articleBodyLabel: string;
   },
 ) => {
   let notebookId = input.notebookId;
@@ -367,6 +389,7 @@ export const saveCapturedZhihuNote = async (
   if (!notebookId) throw new Error("no-notebook");
 
   const markdownFor = (uploaded: Array<{ url: string; resourceId: string }>) => zhihuNoteMarkdown({
+    kind: input.kind,
     author: input.author,
     title: input.noteTitle,
     body: replaceZhihuImageUrls(input.body, uploaded),
@@ -376,6 +399,11 @@ export const saveCapturedZhihuNote = async (
     sourceLabel: input.sourceLabel,
     capturedAtLabel: input.capturedAtLabel,
     timeLabel: input.timeLabel,
+    questionLabel: input.questionLabel,
+    articleLabel: input.articleLabel,
+    authorLabel: input.authorLabel,
+    answerLabel: input.answerLabel,
+    articleBodyLabel: input.articleBodyLabel,
   });
   const created = await client.createMemo({
     notebookId,

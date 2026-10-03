@@ -15,6 +15,23 @@ import { parseTagsText } from "@/lib/utils";
 
 export type EditorDraftSource = "draft" | "queue" | "memo";
 
+export type EditorMemoFields = {
+  memoId: string | null;
+  title: string;
+  tagsText: string;
+};
+
+export const getWritableEditorMemoFields = (
+  fields: EditorMemoFields,
+  memoId: string | null,
+  hydratedMemoId: string | null,
+  hydrating: boolean,
+): EditorMemoFields | null => (
+  !hydrating && memoId && fields.memoId === memoId && hydratedMemoId === memoId
+    ? fields
+    : null
+);
+
 export type EditorDraftState = {
   source: EditorDraftSource;
   sourceKey: string;

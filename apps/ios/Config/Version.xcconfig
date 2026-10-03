@@ -8,5 +8,5 @@
 // CI_BUILD_NUMBER into the archive when present.
 // Last completed ASC store build: 48 (2026-09-14, Xcode Cloud, v1.70.0).
 // Build 49 is reserved for the 1.74.0 App Store submission.
-MARKETING_VERSION = 1.97.0
+MARKETING_VERSION = 1.99.0
 CURRENT_PROJECT_VERSION = 49

@@ -9,7 +9,6 @@ import {
   pluginSettingLoadSignature,
 } from "./plugin-settings-commit";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -156,13 +155,17 @@ const PluginSettingFieldRow = ({
   );
 
   if (compact) {
-    return <Card className="flex min-w-0 items-start justify-between gap-4 p-4 shadow-none">{content}</Card>;
+    return (
+      <div className="flex min-w-0 items-start justify-between gap-3 rounded-lg bg-slate-50/60 p-3">
+        {content}
+      </div>
+    );
   }
 
   return (
     <div className={field.type === "boolean"
-      ? "flex min-w-0 items-start justify-between gap-4 px-4 py-4 sm:px-5"
-      : "grid min-w-0 gap-3 px-4 py-4 sm:px-5 md:grid-cols-[minmax(0,14rem)_minmax(0,1fr)] md:gap-8"}>
+      ? "flex min-w-0 items-start justify-between gap-4 py-3.5"
+      : "grid min-w-0 gap-3 py-3.5 md:grid-cols-[minmax(0,14rem)_minmax(0,1fr)] md:gap-8"}>
       {content}
     </div>
   );
@@ -306,18 +309,18 @@ export const PluginSettingsSection = ({ host, manifest }: { host: EdgeEverPlugin
 
   return (
     <section className="min-w-0" aria-labelledby={`${formId}-title`}>
-      <header className="border-b border-slate-200 pb-5">
-        <h3 id={`${formId}-title`} className="text-sm font-semibold text-slate-900">{t("plugins.settings.title")}</h3>
+      <header className="border-b border-slate-200 pb-3">
+        <h3 id={`${formId}-title`} className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t("plugins.settings.title")}</h3>
       </header>
       {loading ? <p className="py-8 text-xs leading-5 text-slate-500" role="status">{t("common.loading")}</p> : loadError ? (
-        <div className="mt-5 grid justify-items-start gap-3 rounded-lg border border-rose-200 bg-rose-50 p-4">
+        <div className="mt-4 grid justify-items-start gap-3 rounded-lg border border-rose-200 bg-rose-50 p-4">
           <p className="text-xs leading-6 text-rose-700" role="alert">{t("plugins.settings.loadFailed", { message: loadError })}</p>
           <Button size="sm" variant="outline" onClick={() => setLoadAttempt((attempt) => attempt + 1)}>{t("plugins.settings.retry")}</Button>
         </div>
       ) : (
         <form onSubmit={(event) => event.preventDefault()}>
-          <div className="py-5">
-            {fieldGroups.map((group, groupIndex) => {
+          <div className="divide-y divide-slate-100">
+            {fieldGroups.map((group) => {
               const rows = group.fields.map((field) => {
                 const value = values[field.key] ?? "";
                 const inputId = `${formId}-${field.key}`;
@@ -336,23 +339,19 @@ export const PluginSettingsSection = ({ host, manifest }: { host: EdgeEverPlugin
                 );
               });
               return group.compact ? (
-                <div
-                  key={group.id}
-                  className={`grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4${groupIndex > 0 ? " mt-5" : ""}`}
-                >
-                  {rows}
+                <div key={group.id} className="py-3">
+                  <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+                    {rows}
+                  </div>
                 </div>
               ) : (
-                <Card
-                  key={group.id}
-                  className={`${groupIndex > 0 ? "mt-5 " : ""}divide-y divide-slate-100 overflow-hidden shadow-none`}
-                >
+                <div key={group.id} className="divide-y divide-slate-100">
                   {rows}
-                </Card>
+                </div>
               );
             })}
           </div>
-          {error ? <p className="border-t border-slate-200 pt-4 text-xs leading-5 text-rose-700" role="alert">{t("plugins.settings.saveFailed", { message: error })}</p> : null}
+          {error ? <p className="border-t border-slate-200 pt-3 text-xs leading-5 text-rose-700" role="alert">{t("plugins.settings.saveFailed", { message: error })}</p> : null}
         </form>
       )}
     </section>

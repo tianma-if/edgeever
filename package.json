@@ -1,6 +1,6 @@
 {
   "name": "edgeever",
-  "version": "1.97.0",
+  "version": "1.99.0",
   "packageManager": "bun@1.3.14",
   "private": true,
   "type": "module",

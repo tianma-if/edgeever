@@ -20,11 +20,11 @@ const escapeMarkdownLabel = (value: string) =>
   value.replace(/\\/g, "\\\\").replace(/\[/g, "\\[").replace(/\]/g, "\\]");
 
 export const isFileAttachmentLink = (label: string, url: string) => {
-  const filename = getAttachmentFilenameFromLabel(label) || label || url;
-  if (resolveAttachmentKind(null, filename) === "pdf" || resolveAttachmentKind(null, url) === "pdf") {
+  if (resolveAttachmentKind(null, getAttachmentFilenameFromLabel(label)) === "pdf" || resolveAttachmentKind(null, url) === "pdf") {
     return false;
   }
-  return ATTACHMENT_LABEL_PATTERN.test(label) || RESOURCE_URL_PATTERN.test(url) || resolveAttachmentKind(null, filename) !== "file";
+  // A link title can end in a file extension without linking to a file (for example, "arXiv cs.AI").
+  return ATTACHMENT_LABEL_PATTERN.test(label) || RESOURCE_URL_PATTERN.test(url);
 };
 
 export const FileAttachment = Node.create({
@@ -141,6 +141,20 @@ const getLinkAttachmentAttrs = (link: TiptapMark | undefined, label: string) => 
 /** Upgrade legacy standalone attachment links while preserving ordinary web links. */
 export const upgradeStandaloneFileLinks = (doc: TiptapDoc): TiptapDoc => {
   let changed = false;
+  const visitChild = (child: TiptapNode | TiptapTextNode): TiptapNode | TiptapTextNode => {
+    if (child.type === "text") return child;
+    if (child.type === FILE_ATTACHMENT_NODE_TYPE) {
+      const label = typeof child.attrs?.label === "string" ? child.attrs.label : "";
+      const url = typeof child.attrs?.url === "string" ? child.attrs.url : "";
+      const mimeType = typeof child.attrs?.mimeType === "string" ? child.attrs.mimeType : "";
+      const byteSize = normalizeAttachmentByteSize(child.attrs?.byteSize);
+      if (label && url && !mimeType && byteSize === null && !isFileAttachmentLink(label, url)) {
+        changed = true;
+        return { type: "text", text: label, marks: [{ type: "link", attrs: { href: url, target: "_blank" } }] };
+      }
+    }
+    return visit(child);
+  };
   const visit = (node: TiptapNode): TiptapNode => {
     if (node.type === "paragraph" && node.content?.length === 1) {
       const child = node.content[0];
@@ -163,9 +177,7 @@ export const upgradeStandaloneFileLinks = (doc: TiptapDoc): TiptapDoc => {
         }
       }
     }
-    return node.content
-      ? { ...node, content: node.content.map((child) => child.type === "text" ? child : visit(child)) }
-      : node;
+    return node.content ? { ...node, content: node.content.map(visitChild) } : node;
   };
   const content = doc.content.map(visit);
   return changed ? { ...doc, content } : doc;

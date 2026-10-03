@@ -9,7 +9,7 @@ import { registerCompanionRoutes } from "./companion-routes.ts";
 import { beginCompanionTurn, checkpointCompanionTurn, clearCompanionHistory, companionRevision, forgetCompanionMemory,
   getCompanionTurn, importCompanionMemories, listCompanionMemories, listCompanionTurns, saveCompanionMemory } from "./companion-service.ts";
 import { parseCompanionMentionQuery } from "@edgeever/shared";
-import { COMPANION_INSTRUCTIONS, companionMessages, companionTurnInstructions, companionUserContent, selectCompanionMemories, streamCompanion } from "./companion-runtime.ts";
+import { COMPANION_INSTRUCTIONS, companionAgentInstructions, companionMessages, companionTurnInstructions, companionUserContent, selectCompanionMemories, streamCompanion } from "./companion-runtime.ts";
 import { applyCompanionAction, proposeCompanionAction, listCompanionActions, dismissCompanionAction } from "./companion-actions.ts";
 import { createMemoRecord, getMemoDetail, updateMemoRecord } from "./memo-service.ts";
 import { COMPANION_MCP_TOOLS } from "./companion-tool-catalog.ts";
@@ -104,6 +104,41 @@ describe("companion turn context", () => {
     expect(companionTurnInstructions(input({ allowNotes: true }))).toBe("");
     expect(parseCompanionMentionQuery("see @note", 9)).toEqual({ query: "note", start: 4, end: 9 });
     expect(parseCompanionMentionQuery("hello", 5)).toBeNull();
+  });
+
+  test("a replacement follow-up retains the latest translation after an older, unrelated translation", () => {
+    const next = input({ allowNotes: true, useMemory: false, message: "用翻译后的内容替换原笔记。",
+      focus: { memoId: "memo_current", title: "Napoleon quote" } });
+    const base = { thread_id: next.threadId, status: "completed", memory_revision: 3, use_memory: 0,
+      allow_notes: 1, sources_json: "[]" };
+    const history = [
+      { ...base, id: "latest", message: "翻译一下当前笔记。", response: "拿破仑说：当你的敌人正在犯错时，千万不要打断他。" },
+      { ...base, id: "older", message: "请把下面这段翻译成日文：极客知识库", response: "ギーク知識ベース" },
+    ];
+    const messages = companionMessages(next, history, 3);
+    expect(messages.map(message => message.content)).toEqual([
+      history[1].message, history[1].response, history[0].message, history[0].response,
+      expect.stringContaining("用翻译后的内容替换原笔记。"),
+    ]);
+    expect(messages.at(-1).content).toContain("[note:memo_current]");
+    expect(COMPANION_INSTRUCTIONS).toContain("An older translation of different text does not override the latest relevant translation.");
+  });
+
+  test("unqualified translations follow conversation language and ask only when source already matches", () => {
+    const instructions = (message, locale) => companionAgentInstructions(input({ locale, message, allowNotes: true }), [], []);
+    expect(instructions("翻译一下当前笔记。", "ja")).toContain("Simplified Chinese (current request)");
+    expect(instructions("このノートを翻訳して", "zh-CN")).toContain("Japanese (current request)");
+    expect(instructions("このノートを翻訳して", "zh-CN")).toContain("Reply in Japanese unless the user asks otherwise.");
+    expect(instructions("Translate this note", "zh-CN")).toContain("English (current request)");
+    expect(instructions("Translate this note", "zh-CN")).toContain("source is already mainly in English");
+    expect(instructions("Translate this note", "zh-CN")).toContain("otherwise ask which other language");
+    const next = input({ locale: "zh-CN", message: "🔄", useMemory: false });
+    const prior = { id: "prior", thread_id: next.threadId, status: "completed", memory_revision: 3, use_memory: 0,
+      allow_notes: 0, sources_json: "[]", message: "このノートを翻訳して", response: "Translation" };
+    expect(companionAgentInstructions(next, [], [], [prior], 3)).toContain("Japanese (recent conversation)");
+    expect(companionAgentInstructions(next, [], [], [{ ...prior, use_memory: 1 }], 3)).toContain("Simplified Chinese (interface)");
+    expect(companionAgentInstructions({ ...next, message: "请翻译我正在看的内容，并把译文作为回复写给我。" }, [], [], [prior], 3))
+      .toContain("Japanese (recent conversation)");
   });
 });
 
@@ -530,11 +565,11 @@ describe("companion client-direct HTTP contracts", () => {
 });
 
 describe("actual AI SDK companion runtime", () => {
-  test("proposal reasons contain evidence instead of card boilerplate", () => {
-    expect(COMPANION_INSTRUCTIONS).toContain("awaiting_user_confirmation");
-    expect(COMPANION_INSTRUCTIONS).toContain("Never describe that proposal as applied");
-    expect(COMPANION_INSTRUCTIONS).not.toContain("All available write tools execute immediately");
-    expect(COMPANION_INSTRUCTIONS).not.toContain("user must confirm the suggestion card");
+  test("assistant instructions describe direct note edits and trustworthy receipts", () => {
+    expect(COMPANION_INSTRUCTIONS).toContain("update_memo with contentMarkdown, execute immediately");
+    expect(COMPANION_INSTRUCTIONS).toContain("Read the complete current note before replacing its body");
+    expect(COMPANION_INSTRUCTIONS).toContain("Only report a note operation as completed when the tool result says applied");
+    expect(COMPANION_INSTRUCTIONS).not.toContain("awaiting_user_confirmation");
     expect(COMPANION_INSTRUCTIONS).toContain("[Note title](#memo=memo_abc123)");
     expect(COMPANION_INSTRUCTIONS).toContain("Do not drop memo_");
     expect(COMPANION_INSTRUCTIONS).toContain("not as a heading");
@@ -588,7 +623,27 @@ describe("actual AI SDK companion runtime", () => {
     expect(await listCompanionActions(db, scope)).toEqual([]);
   });
 
-  test("truncated notes cannot be used for a write proposal", async () => {
+  test("the real tool loop replaces note content without a confirmation card", async () => {
+    const { db, notes, row, complete, context } = await organizationFixture();
+    const calls = [
+      { toolName: "get_memo", input: JSON.stringify({ memoId: notes[0].id }) },
+      { toolName: "update_memo", input: JSON.stringify({ memoId: notes[0].id, contentMarkdown: "Translated content" }) },
+    ];
+    const model = new MockLanguageModelV4({ doStream: async () => {
+      const call = calls.shift();
+      return { stream: simulateReadableStream({ chunks: call ? [
+        { type: "tool-call", toolCallId: crypto.randomUUID(), ...call }, { ...finish, finishReason: { unified: "tool-calls" } },
+      ] : [{ type: "text-start", id: "1" }, { type: "text-delta", id: "1", delta: "Updated." }, { type: "text-end", id: "1" }, finish] }) };
+    } });
+    const result = await streamCompanion({ db, context, scope, input: input({ id: row.id, threadId: row.thread_id, allowNotes: true }), model,
+      memories: [], history: [], revision: 0, signal: new AbortController().signal, sources: [], assertActive: async () => {} });
+    expect(await result.text).toBe("Updated.");
+    expect((await getMemoDetail(db, scope.workspaceId, notes[0].id)).contentMarkdown).toBe("Translated content");
+    await complete();
+    expect(await listCompanionActions(db, scope)).toEqual([]);
+  });
+
+  test("truncated notes cannot be used for a body edit", async () => {
     const { db, notes, row, context } = await organizationFixture();
     await updateMemoRecord(db, scope.workspaceId, notes[0].id, { contentMarkdown: "x".repeat(9000) }, { actorType: "user", actorId: scope.ownerId }, scope.ownerId);
     const calls = [

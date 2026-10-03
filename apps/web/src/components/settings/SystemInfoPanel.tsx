@@ -32,7 +32,7 @@ export type SystemInfoItem = {
   localOnly?: boolean;
 };
 
-type InstanceSystemDiagnostics = Pick<InstanceHealth, "build" | "containerImageSource" | "deployment" | "migration" | "objectStorageProvider" | "storage"> & {
+type InstanceSystemDiagnostics = Pick<InstanceHealth, "build" | "containerImageSource" | "deployment" | "deploymentVersionCreatedAt" | "migration" | "objectStorageProvider" | "storage"> & {
   runtime?: string | null;
 };
 
@@ -162,6 +162,12 @@ const getWebSystemInfoGroups = (
           mono: true,
         },
         { label: t("systemInfo.instanceBuild"), value: diagnostics.instance?.build ?? t("systemInfo.unknown"), mono: true },
+        {
+          label: t("systemInfo.deploymentVersionTime"),
+          value: diagnostics.instance?.deploymentVersionCreatedAt && Number.isFinite(Date.parse(diagnostics.instance.deploymentVersionCreatedAt))
+            ? new Intl.DateTimeFormat(language, { dateStyle: "medium", timeStyle: "short" }).format(new Date(diagnostics.instance.deploymentVersionCreatedAt))
+            : t("systemInfo.unknown"),
+        },
         { label: t("systemInfo.databaseMigration"), value: diagnostics.instance?.migration ?? t("systemInfo.unknown"), mono: true },
         {
           label: t("systemInfo.databaseBackend"),

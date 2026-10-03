@@ -436,6 +436,7 @@ export type PromptInputProps = Omit<
   HTMLAttributes<HTMLFormElement>,
   "onSubmit" | "onError"
 > & {
+  inputGroupClassName?: string;
   accept?: string; // e.g., "image/*" or leave undefined for any
   multiple?: boolean;
   // When true, accepts drops anywhere on document. Default false (opt-in).
@@ -457,6 +458,7 @@ export type PromptInputProps = Omit<
 
 export const PromptInput = ({
   className,
+  inputGroupClassName,
   accept,
   multiple,
   globalDrop,
@@ -780,7 +782,6 @@ export const PromptInput = ({
         multiple={multiple}
         onChange={handleChange}
         ref={inputRef}
-        title="Upload files"
         type="file"
       />
       <form
@@ -789,7 +790,7 @@ export const PromptInput = ({
         ref={formRef}
         {...props}
       >
-        <InputGroup className="overflow-hidden">{children}</InputGroup>
+        <InputGroup className={cn("overflow-hidden", inputGroupClassName)}>{children}</InputGroup>
       </form>
     </>
   );
