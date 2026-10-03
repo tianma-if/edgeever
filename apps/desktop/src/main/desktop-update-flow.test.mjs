@@ -91,4 +91,9 @@ describe("desktop update flow", () => {
     expect(systemInfoSource).toContain("clientAheadOfInstanceByPlatform");
     expect(systemInfoSource).toContain("isClientAheadOfInstance");
   });
+
+  test("updates the existing tray context menu in-place without destroying the tray instance", () => {
+    expect(mainSource).not.toContain("tray.destroy();\n  createTray();");
+    expect(mainSource).toContain("tray.setContextMenu(buildTrayContextMenu())");
+  });
 });
