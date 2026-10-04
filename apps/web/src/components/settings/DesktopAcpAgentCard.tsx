@@ -137,7 +137,6 @@ const DesktopAcpAgentCardBody = ({ bridge }: { bridge: boolean }) => {
   const hasDetails = Boolean(
     shown?.state === "not_installed" ||
     shown?.state === "needs_login" ||
-    (shown?.state === "available" && authMethods.length > 0) ||
     shown?.updateError
   );
 
@@ -371,13 +370,10 @@ const DesktopAcpAgentCardBody = ({ bridge }: { bridge: boolean }) => {
                   {shown?.state === "needs_login" && adapterId === "piAgent" ? (
                     <p className="text-xs leading-relaxed text-slate-600">{t("aiAssistant.agentSource.piAgentLoginHint")}</p>
                   ) : null}
-                  {(shown?.state === "needs_login" || shown?.state === "available") && isWorkBuddy ? (
+                  {shown?.state === "needs_login" && isWorkBuddy ? (
                     <p className="text-xs leading-relaxed text-slate-600">{t(adapterId === "workbuddyCn" ? "aiAssistant.agentSource.workbuddyCnLoginHint" : "aiAssistant.agentSource.workbuddyIntlLoginHint")}</p>
                   ) : null}
-                  {shown?.state === "available" && !isWorkBuddy && authMethods.length ? (
-                    <p className="text-xs leading-relaxed text-slate-600">{t("aiAssistant.agentSource.authAvailableHint")}</p>
-                  ) : null}
-                  {(shown?.state === "needs_login" || shown?.state === "available") && authMethods.length ? (
+                  {shown?.state === "needs_login" && authMethods.length ? (
                     <div className="flex flex-wrap gap-2 pt-0.5">
                       {authMethods.map((method) => (
                         <Button key={method.id} type="button" variant="outline" size="sm" className="h-8 bg-card text-xs font-normal" disabled={authenticating} onClick={() => void authenticate(method.id)}>
