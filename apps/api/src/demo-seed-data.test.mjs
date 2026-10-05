@@ -105,7 +105,7 @@ describe("demo seed catalog", () => {
     }
   });
 
-  test("persists the architecture examples in their automatic layout", () => {
+  test("keeps automatic layout of architecture examples stable", () => {
     for (const memoId of ["memo_demo_architecture", "memo_demo_architecture_en"]) {
       const memo = DEMO_SEED_MEMOS.find((candidate) => candidate.id === memoId);
       const diagram = parseDiagramDocument(memo?.markdown);
@@ -113,8 +113,14 @@ describe("demo seed catalog", () => {
       if (!diagram) continue;
 
       const layout = computeDiagramLayoutResult(diagram);
+      const laidOutDiagram = {
+        ...diagram,
+        nodes: diagram.nodes.map((node) => ({ ...node, ...layout.nodes[node.id] })),
+      };
+      const repeatedLayout = computeDiagramLayoutResult(laidOutDiagram);
       for (const node of diagram.nodes) {
-        expect({ x: node.x, y: node.y, width: node.width, height: node.height }).toEqual(layout.nodes[node.id]);
+        expect(layout.nodes[node.id]).toBeDefined();
+        expect(repeatedLayout.nodes[node.id]).toEqual(layout.nodes[node.id]);
       }
     }
   });

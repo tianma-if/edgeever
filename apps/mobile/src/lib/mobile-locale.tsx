@@ -19,6 +19,17 @@ type MobileLocaleContextValue = {
 type TranslationPair = { source: string; target: string; pattern?: RegExp; placeholders?: string[] };
 
 const mobileOnlyTranslations = new Map<string, string>([
+  ["新建笔记本", "New notebook"],
+  ["创建笔记本", "Create notebook"],
+  ["笔记本名称", "Notebook name"],
+  ["顶层笔记本", "Top level"],
+  ["位于「{{name}}」下", "Under {{name}}"],
+  ["暂无笔记本", "No notebooks"],
+  ["先创建一个笔记本，再开始记录。", "Create a notebook to start taking notes."],
+  ["创建笔记本失败，请重试", "Could not create the notebook. Try again."],
+  ["连接尚未就绪", "Connection is not ready"],
+  ["笔记本已创建", "Notebook created"],
+  ["本机缓存更新失败，正在重新同步。", "The local cache could not update. Syncing again now."],
   ["本级暂无笔记", "No notes directly in this notebook"],
   ["无法保存“父笔记本中显示子笔记本笔记”设置，请稍后重试", "Could not save the \"Show notes from sub-notebooks\" setting. Please try again."],
   ["子笔记本中还有 {{count}} 条笔记。可以打开子笔记本查看，或在设置中开启“父笔记本中显示子笔记本笔记”。", "Its sub-notebooks still contain {{count}} notes. Open a sub-notebook to see them, or turn on \"Show notes from sub-notebooks\" in Settings."],
@@ -208,6 +219,17 @@ const mobileOnlyTranslations = new Map<string, string>([
 ]);
 
 const mobileOnlyJapanese = new Map<string, string>([
+  ["新建笔记本", "新しいノートブック"],
+  ["创建笔记本", "ノートブックを作成"],
+  ["笔记本名称", "ノートブック名"],
+  ["顶层笔记本", "最上位"],
+  ["位于「{{name}}」下", "「{{name}}」の下"],
+  ["暂无笔记本", "ノートブックがありません"],
+  ["先创建一个笔记本，再开始记录。", "ノートブックを作成して記録を始めましょう。"],
+  ["创建笔记本失败，请重试", "ノートブックを作成できませんでした。再試行してください。"],
+  ["连接尚未就绪", "接続の準備ができていません"],
+  ["笔记本已创建", "ノートブックを作成しました"],
+  ["本机缓存更新失败，正在重新同步。", "端末のキャッシュを更新できませんでした。再同期しています。"],
   ["本级暂无笔记", "このノートブック直下にノートはありません"],
   ["无法保存“父笔记本中显示子笔记本笔记”设置，请稍后重试", "「サブノートブックのノートを表示」の設定を保存できませんでした。しばらくしてから再試行してください。"],
   ["子笔记本中还有 {{count}} 条笔记。可以打开子笔记本查看，或在设置中开启“父笔记本中显示子笔记本笔记”。", "サブノートブックにはまだ {{count}} 件のノートがあります。サブノートブックを開くか、設定で「サブノートブックのノートを表示」をオンにしてください。"],

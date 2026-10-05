@@ -70,6 +70,12 @@ final class LocalMirrorRepository: @unchecked Sendable {
         }
     }
 
+    func saveNotebook(scope: String, notebook: Notebook) throws {
+        try dbQueue.write { db in
+            try upsertNotebook(db, scope: scope, notebook: notebook)
+        }
+    }
+
     func listTags(scope: String) throws -> [TagSummary] {
         try dbQueue.read { db in
             let rows = try Row.fetchAll(

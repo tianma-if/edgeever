@@ -197,16 +197,18 @@ export const NotesView = ({
       </View>
 
     <MemoList
-      emptyActions={memoView === "notebook" && notebooks.length > 0 && !searchActive && !filterActive
-        ? [
-          { label: "新建笔记", onPress: onCreate, variant: "primary" as const },
-          ...(onCreateFromTemplate
-            ? [{ label: "从模板新建", onPress: onCreateFromTemplate, variant: "secondary" as const }]
-            : []),
-        ]
+      emptyActions={memoView === "notebook" && !searchActive && !filterActive
+        ? notebooks.length === 0
+          ? [{ label: "新建笔记本", onPress: onOpenNotebookPicker, variant: "primary" as const }]
+          : [
+            { label: "新建笔记", onPress: onCreate, variant: "primary" as const },
+            ...(onCreateFromTemplate
+              ? [{ label: "从模板新建", onPress: onCreateFromTemplate, variant: "secondary" as const }]
+              : []),
+          ]
         : undefined}
-      emptyDescription={hiddenDescendantMemoCount > 0 ? `子笔记本中还有 ${hiddenDescendantMemoCount} 条笔记。可以打开子笔记本查看，或在设置中开启“父笔记本中显示子笔记本笔记”。` : searchActive ? "换个关键词再试" : filterActive ? "试试切换筛选条件，或调整搜索关键词。" : memoView === "trash" ? "删除的笔记会显示在这里。" : "先创建一条笔记，之后可以在这里快速预览、搜索和批量整理。"}
-      emptyTitle={hiddenDescendantMemoCount > 0 ? "本级暂无笔记" : searchActive ? "没有找到匹配笔记" : filterActive ? "没有符合筛选的笔记" : memoView === "trash" ? "回收站为空" : "暂无笔记"}
+      emptyDescription={hiddenDescendantMemoCount > 0 ? `子笔记本中还有 ${hiddenDescendantMemoCount} 条笔记。可以打开子笔记本查看，或在设置中开启“父笔记本中显示子笔记本笔记”。` : searchActive ? "换个关键词再试" : filterActive ? "试试切换筛选条件，或调整搜索关键词。" : memoView === "trash" ? "删除的笔记会显示在这里。" : notebooks.length === 0 ? "先创建一个笔记本，再开始记录。" : "先创建一条笔记，之后可以在这里快速预览、搜索和批量整理。"}
+      emptyTitle={hiddenDescendantMemoCount > 0 ? "本级暂无笔记" : searchActive ? "没有找到匹配笔记" : filterActive ? "没有符合筛选的笔记" : memoView === "trash" ? "回收站为空" : notebooks.length === 0 ? "暂无笔记本" : "暂无笔记"}
       error={error}
       initialSyncProgress={initialSyncProgress}
       isError={isError}

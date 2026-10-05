@@ -181,7 +181,7 @@ describe("diagram document", () => {
     expect(fallback).toContain("classDef archDatabase");
   });
 
-  test("projects forward diagonal architecture edges through horizontal ports", () => {
+  test("projects forward diagonal architecture edges through horizontal anchors", () => {
     const document = createDefaultDiagramDocument("architecture");
     const edge = document.edges[0];
     const source = document.nodes.find((node) => node.id === edge.source);
@@ -190,8 +190,8 @@ describe("diagram document", () => {
     Object.assign(target, { x: 446, y: 658, width: 170, height: 68 });
 
     const projectedEdge = diagramDocumentToX6Cells(document, "light").edges[0];
-    expect(projectedEdge.source.port).toBe("right");
-    expect(projectedEdge.target.port).toBe("left");
+    expect(projectedEdge.source.anchor.name).toBe("right");
+    expect(projectedEdge.target.anchor.name).toBe("left");
   });
 
   test("routes aligned architecture edges around intervening components", () => {
@@ -207,6 +207,8 @@ describe("diagram document", () => {
     expect(edge.router.name).toBe("manhattan");
     expect(edge.router.args.excludeNodes).toContain("system");
     expect(edge.router.args.excludeNodes).not.toContain("database");
+    expect(edge.router.args.startDirections).toEqual([edge.source.anchor.name]);
+    expect(edge.router.args.endDirections).toEqual([edge.target.anchor.name]);
   });
 
   test("projects architecture edge labels below component typography", () => {
@@ -244,8 +246,8 @@ describe("diagram document", () => {
     expect(dark.nodes.find((node) => node.id === "api").attrs.body.fill).not.toBe(
       dark.nodes.find((node) => node.id === "database").attrs.body.fill,
     );
-    expect(projected.edges[0].source.port).toBeDefined();
-    expect(projected.edges[0].target.port).toBeDefined();
+    expect(projected.edges[0].source.anchor.name).toBeDefined();
+    expect(projected.edges[0].target.anchor.name).toBeDefined();
     expect(["normal", "manhattan"]).toContain(projected.edges[0].router.name);
   });
 

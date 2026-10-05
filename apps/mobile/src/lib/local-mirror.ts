@@ -84,6 +84,11 @@ export const listLocalNotebooks = async (scope: string): Promise<{ notebooks: No
   };
 };
 
+export const upsertLocalNotebook = async (scope: string, notebook: Notebook) => {
+  const db = await getDatabase();
+  await upsertNotebook(db, scope, notebook);
+};
+
 export const listLocalTags = async (scope: string): Promise<{ tags: TagSummary[] }> => {
   const db = await getDatabase();
   const rows = await db.getAllAsync<StoredMemoRow>(

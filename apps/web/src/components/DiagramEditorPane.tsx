@@ -1,4 +1,5 @@
 import { diagramEditorSnapshot } from "@/lib/diagram-editor-snapshot";
+import { focusArchitectureRelations } from "@/lib/architecture-relations";
 import { MemoTitleInput } from "@/components/MemoTitleInput";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent as ReactDragEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { Dom, Export, Graph, History, Keyboard, Scroller, Selection, type Edge, type Node } from "@antv/x6";
@@ -116,7 +117,9 @@ import {
   ARCHITECTURE_NODE_LINE_HEIGHT,
   ARCHITECTURE_SHAPE_RESOURCE,
   architectureEdgePorts,
+  architectureEdgeTerminals,
   architectureEdgeRouter,
+  architectureTerminalAnchor,
   architectureEdgeVisual,
   architectureIconOffset,
   architectureNodeVisual,
@@ -171,6 +174,7 @@ import { api } from "@/lib/api";
 import { EDITOR_LOCAL_SAVE_DELAY_MS, formatShortcutBinding, getNotebookMoveOptions, type ShortcutSettings } from "@/lib/app-helpers";
 import { copyTextToClipboard } from "@/lib/clipboard";
 import {
+  architectureNodeHeight,
   compactArchitectureNodeSize,
   compactFlowchartNodeSize,
   flowchartNodePresentation,
@@ -1111,7 +1115,14 @@ const diagramNodePresentation = (
     fontSize, 'font-size': fontSize, 'font-weight': kind === "architecture" ? ARCHITECTURE_NODE_FONT_WEIGHT : !node.parentId ? 650 : 500,
     lineHeight,
   });
-  return { ...size, height: Math.max(size.height, text.split("\n").length * lineHeight + 16), text };
+  const lineCount = text.split("\n").length;
+  return {
+    ...size,
+    height: kind === "architecture"
+      ? architectureNodeHeight(node.shape, lineCount)
+      : Math.max(size.height, lineCount * lineHeight + 16),
+    text,
+  };
 };
 
 const diagramNodeSize = (node: DiagramDocument["nodes"][number], kind: DiagramDocument["kind"], structure?: DiagramStructure) => {
@@ -1376,6 +1387,14 @@ const applyOrthogonalEdgePorts = (graph: Graph, kind: DiagramDocument["kind"]) =
   const boundaryIds = kind === "architecture"
     ? graph.getNodes().filter((node) => node.getData<NodeData>()?.shape === "boundary").map((node) => node.id)
     : [];
+  const architectureTerminals = kind === "architecture"
+    ? architectureEdgeTerminals(
+      graph.getNodes().filter((node) => !boundaryIds.includes(node.id)).map((node) => ({
+        id: node.id, ...node.getPosition(), ...node.getSize(),
+      })),
+      graph.getEdges().map((edge) => ({ id: edge.id, source: edge.getSourceCellId(), target: edge.getTargetCellId() })),
+    )
+    : null;
   for (const edge of graph.getEdges()) {
     const source = edge.getSourceNode();
     const target = edge.getTargetNode();
@@ -1385,10 +1404,15 @@ const applyOrthogonalEdgePorts = (graph: Graph, kind: DiagramDocument["kind"]) =
     const ports = kind === "architecture"
       ? architectureEdgePorts(sourceBox, targetBox)
       : flowchartEdgePorts(sourceBox, targetBox);
-    edge.setSource({ cell: source.id, port: ports.source });
-    edge.setTarget({ cell: target.id, port: ports.target });
+    const terminal = architectureTerminals?.get(edge.id);
+    edge.setSource(terminal
+      ? { cell: source.id, anchor: architectureTerminalAnchor(terminal.source) }
+      : { cell: source.id, port: ports.source });
+    edge.setTarget(terminal
+      ? { cell: target.id, anchor: architectureTerminalAnchor(terminal.target) }
+      : { cell: target.id, port: ports.target });
     edge.setRouter(kind === "architecture"
-      ? architectureEdgeRouter(source.id, target.id, boundaryIds)
+      ? architectureEdgeRouter(source.id, target.id, boundaryIds, ports)
       : flowchartEdgeIsStraight(sourceBox, targetBox) ? { name: "normal" } : FLOWCHART_EDGE_ROUTER);
   }
 };
@@ -1673,6 +1697,9 @@ export const DiagramEditorPane = ({
   const editSessionRef = useRef<MemoEditSession | null>(null);
   const saveRef = useRef<() => void>(() => undefined);
   const document = parseDiagramDocument(memo.contentMarkdown);
+  const denseArchitecture = document?.kind === "architecture"
+    && document.edges.length >= 16
+    && document.edges.length / Math.max(1, document.nodes.filter((node) => node.shape !== "boundary").length) >= 1.1;
   const documentTheme = document?.kind === "architecture"
     ? resolveDiagramTheme(document.theme ?? "brand")
     : document?.kind === "flowchart"
@@ -1695,6 +1722,7 @@ export const DiagramEditorPane = ({
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [selectedEdgeLabel, setSelectedEdgeLabel] = useState("");
   const [hasSelection, setHasSelection] = useState(false);
+  const [showAllArchitectureLabels, setShowAllArchitectureLabels] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [tagsDirty, setTagsDirty] = useState(false);
   const [dirtyVersion, setDirtyVersion] = useState(0);
@@ -2014,6 +2042,16 @@ export const DiagramEditorPane = ({
       showNodeSelectionBox: true,
       showEdgeSelectionBox: true,
     }));
+    let relationHover: { type: "node" | "edge"; id: string } | null = null;
+    let relationSelection: { type: "node" | "edge"; id: string } | null = null;
+    const refreshRelationFocus = () => {
+      if (document.kind === "architecture") {
+        focusArchitectureRelations(graph, containerRef.current, relationHover ?? relationSelection);
+      }
+    };
+    if (document.kind === "architecture") {
+      graph.on("render:done", refreshRelationFocus);
+    }
     graph.addNodes(document.nodes.map((node) => {
       const inferredResourceIcon = document.kind === "architecture" && !node.resourceIcon
         ? inferArchitectureResourceIcon(node.label, t)
@@ -2032,6 +2070,25 @@ export const DiagramEditorPane = ({
     }
     graph.addEdges(document.edges.map((edge) => edgeMetadata(edge, document.kind, documentTheme, appearance, documentStructure)));
     if (usesOrthogonalDiagramEdges(document.kind)) applyOrthogonalEdgePorts(graph, document.kind);
+    if (document.kind === "architecture") {
+      graph.on("node:mouseenter", ({ node }: { node: Node }) => {
+        if (node.getData<NodeData>()?.shape === "boundary") return;
+        relationHover = { type: "node", id: node.id };
+        refreshRelationFocus();
+      });
+      graph.on("node:mouseleave", ({ node }: { node: Node }) => {
+        if (relationHover?.type === "node" && relationHover.id === node.id) relationHover = null;
+        refreshRelationFocus();
+      });
+      graph.on("edge:mouseenter", ({ edge }: { edge: Edge }) => {
+        relationHover = { type: "edge", id: edge.id };
+        refreshRelationFocus();
+      });
+      graph.on("edge:mouseleave", ({ edge }: { edge: Edge }) => {
+        if (relationHover?.type === "edge" && relationHover.id === edge.id) relationHover = null;
+        refreshRelationFocus();
+      });
+    }
     applyGraphPalette(graph, documentTheme, document.kind, appearance, documentStructure);
     graph.on("scale", () => setZoomPercent(Math.round(graph.scale().sx * 100)));
     graph.cleanHistory();
@@ -2087,6 +2144,9 @@ export const DiagramEditorPane = ({
       updateHistory();
     };
     const clearSelectionAfterHistory = () => {
+      relationSelection = null;
+      relationHover = null;
+      refreshRelationFocus();
       refreshArchitecturePorts();
       applyGraphPalette(graph, themeRef.current, document.kind, appearanceRef.current, structureRef.current);
       graph.cleanSelection();
@@ -2113,6 +2173,10 @@ export const DiagramEditorPane = ({
     });
     graph.on("node:click", ({ node }: { node: Node }) => {
       const data = node.getData<NodeData>();
+      relationSelection = document.kind === "architecture" && data?.shape !== "boundary"
+        ? { type: "node", id: node.id }
+        : null;
+      refreshRelationFocus();
       dismissFlowQuickCreate();
       if (isConnectableDiagram(document.kind)) setOnlyFlowNodePortsActive(graph, node);
       containerRef.current?.focus({ preventScroll: true });
@@ -2138,6 +2202,8 @@ export const DiagramEditorPane = ({
       }
     });
     graph.on("edge:click", ({ edge }: { edge: Edge }) => {
+      relationSelection = { type: "edge", id: edge.id };
+      refreshRelationFocus();
       dismissFlowQuickCreate();
       if (isConnectableDiagram(document.kind)) setOnlyFlowNodePortsActive(graph);
       setSelectedNodeId(null);
@@ -2147,6 +2213,9 @@ export const DiagramEditorPane = ({
       setHasSelection(true);
     });
     graph.on("blank:click", () => {
+      relationSelection = null;
+      relationHover = null;
+      refreshRelationFocus();
       dismissFlowQuickCreate();
       if (isConnectableDiagram(document.kind)) setOnlyFlowNodePortsActive(graph);
       setSelectedNodeId(null);
@@ -2156,12 +2225,20 @@ export const DiagramEditorPane = ({
       setHasSelection(false);
     });
     graph.on("edge:removed", ({ edge }: { edge: Edge }) => {
+      if (relationSelection?.type === "edge" && relationSelection.id === edge.id) relationSelection = null;
+      if (relationHover?.type === "edge" && relationHover.id === edge.id) relationHover = null;
+      refreshRelationFocus();
       const draft = edge.getData<{ quickConnectDraft?: boolean; restoreHistory?: boolean }>();
       if (flowQuickCreateRef.current?.draftEdgeId === edge.id) {
         flowQuickCreateRef.current = null;
         setFlowQuickCreate(null);
       }
       if (draft?.quickConnectDraft && draft.restoreHistory) graph.enableHistory();
+    });
+    graph.on("node:removed", ({ node }: { node: Node }) => {
+      if (relationSelection?.type === "node" && relationSelection.id === node.id) relationSelection = null;
+      if (relationHover?.type === "node" && relationHover.id === node.id) relationHover = null;
+      refreshRelationFocus();
     });
     const showFlowQuickCreate = (
       edge: Edge,
@@ -2435,6 +2512,7 @@ export const DiagramEditorPane = ({
       ));
     });
     return () => {
+      if (containerRef.current) delete containerRef.current.dataset.relationsFocused;
       containerRef.current?.removeEventListener("pointerdown", handleFlowPointerDown, true);
       window.removeEventListener("pointerup", handleFlowPointerUp, true);
       flowPointerDragRef.current = null;
@@ -3340,6 +3418,7 @@ export const DiagramEditorPane = ({
       <div className="flex min-h-0 flex-1 flex-col">
         <DiagramToolbar
           appearance={resolvedTheme}
+          architectureLabels={denseArchitecture ? { showAll: showAllArchitectureLabels, onToggle: () => setShowAllArchitectureLabels((current) => !current) } : undefined}
           canRedo={historyState.redo}
           canUndo={historyState.undo}
           hasSelection={hasSelection}
@@ -3446,6 +3525,7 @@ export const DiagramEditorPane = ({
             data-architecture-placement={pendingArchitectureItem ? "active" : undefined}
             data-diagram-appearance={resolvedTheme}
             data-diagram-kind={document.kind}
+            data-label-mode={denseArchitecture && !showAllArchitectureLabels ? "focus" : "all"}
             data-diagram-theme={theme}
             data-shift-select={shiftSelectActive ? "active" : undefined}
             data-space-pan={spacePanActive ? "active" : undefined}
@@ -3466,6 +3546,12 @@ export const DiagramEditorPane = ({
                 </kbd>
                 <span>{t("diagram.navHintBoxSelect")}</span>
               </span>
+              {denseArchitecture && !showAllArchitectureLabels ? (
+                <>
+                  <span className="text-slate-300 dark:text-slate-600">·</span>
+                  <span>{t("diagram.navHintFocusRelations")}</span>
+                </>
+              ) : null}
               {document.kind === "mind-map" && (
                 <>
                   <span className="text-slate-300 dark:text-slate-600">·</span>

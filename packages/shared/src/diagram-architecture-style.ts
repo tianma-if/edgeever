@@ -22,20 +22,24 @@ export const ARCHITECTURE_ICON_INSET = 10;
 export type ArchitectureAppearance = "light" | "dark";
 export type ArchitectureEdgePortName = "top" | "right" | "bottom" | "left";
 export type ArchitectureEdgeBox = { x: number; y: number; width: number; height: number };
+const NARROW_COLUMN_GAP = 32;
+const CLEAR_VERTICAL_GAP = 64;
 
 export const architectureEdgeRouter = (
   sourceId: string,
   targetId: string,
   boundaryIds: string[],
+  ports?: { source: ArchitectureEdgePortName; target: ArchitectureEdgePortName },
 ) => ({
   name: "manhattan" as const,
   args: {
-    padding: 12,
+    padding: 8,
     step: 8,
     maxLoopCount: 5000,
     // Boundaries are visual containers; components and endpoints are the obstacles.
     // Per-edge exclusions also keep X6's shared obstacle map specific to this edge.
     excludeNodes: [...new Set([sourceId, targetId, ...boundaryIds])],
+    ...(ports ? { startDirections: [ports.source], endDirections: [ports.target] } : {}),
   },
 });
 
@@ -45,14 +49,83 @@ export const architectureEdgePorts = (
 ): { source: ArchitectureEdgePortName; target: ArchitectureEdgePortName } => {
   const sourceRight = source.x + source.width;
   const targetRight = target.x + target.width;
-  if (target.x >= sourceRight) return { source: "right", target: "left" };
-  if (targetRight <= source.x) return { source: "left", target: "right" };
+  const verticalGapAbove = source.y - (target.y + target.height);
+  const verticalGapBelow = target.y - (source.y + source.height);
+  if (target.x >= sourceRight) {
+    // A narrow side corridor cannot accommodate a horizontal approach when
+    // the target is several rows away; enter from its nearer vertical side.
+    if (target.x - sourceRight < NARROW_COLUMN_GAP && verticalGapAbove > CLEAR_VERTICAL_GAP) return { source: "right", target: "bottom" };
+    if (target.x - sourceRight < NARROW_COLUMN_GAP && verticalGapBelow > CLEAR_VERTICAL_GAP) return { source: "right", target: "top" };
+    return { source: "right", target: "left" };
+  }
+  if (targetRight <= source.x) {
+    if (source.x - targetRight < NARROW_COLUMN_GAP && verticalGapAbove > CLEAR_VERTICAL_GAP) return { source: "left", target: "bottom" };
+    if (source.x - targetRight < NARROW_COLUMN_GAP && verticalGapBelow > CLEAR_VERTICAL_GAP) return { source: "left", target: "top" };
+    return { source: "left", target: "right" };
+  }
 
   const sourceCenterY = source.y + source.height / 2;
   const targetCenterY = target.y + target.height / 2;
   return targetCenterY >= sourceCenterY
     ? { source: "bottom", target: "top" }
     : { source: "top", target: "bottom" };
+};
+
+export type ArchitectureEdgeTerminal = { side: ArchitectureEdgePortName; offset: number };
+
+export const architectureTerminalAnchor = ({ side, offset }: ArchitectureEdgeTerminal) => ({
+  name: side,
+  args: side === "left" || side === "right" ? { dy: offset } : { dx: offset },
+});
+
+/** Spread edges on a node face so separate relationships do not leave through one point. */
+export const architectureEdgeTerminals = (
+  nodes: Array<ArchitectureEdgeBox & { id: string }>,
+  edges: Array<{ id: string; source: string; target: string }>,
+) => {
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  const terminals = new Map<string, { source: ArchitectureEdgeTerminal; target: ArchitectureEdgeTerminal }>();
+  const faces = new Map<string, Array<{ edgeId: string; end: "source" | "target"; opposite: number }>>();
+  for (const edge of edges) {
+    const source = nodeById.get(edge.source);
+    const target = nodeById.get(edge.target);
+    if (!source || !target) continue;
+    const ports = architectureEdgePorts(source, target);
+    terminals.set(edge.id, {
+      source: { side: ports.source, offset: 0 },
+      target: { side: ports.target, offset: 0 },
+    });
+    for (const [end, node, side, oppositeNode] of [
+      ["source", source, ports.source, target],
+      ["target", target, ports.target, source],
+    ] as const) {
+      const key = `${node.id}:${side}`;
+      const face = faces.get(key) ?? [];
+      face.push({
+        edgeId: edge.id,
+        end,
+        opposite: side === "left" || side === "right"
+          ? oppositeNode.y + oppositeNode.height / 2
+          : oppositeNode.x + oppositeNode.width / 2,
+      });
+      faces.set(key, face);
+    }
+  }
+  for (const [key, face] of faces) {
+    if (face.length < 2) continue;
+    const separator = key.lastIndexOf(":");
+    const node = nodeById.get(key.slice(0, separator));
+    const side = key.slice(separator + 1);
+    if (!node) continue;
+    const length = side === "left" || side === "right" ? node.height : node.width;
+    const span = Math.min(Math.max(0, length - 28), (face.length - 1) * 16);
+    face.sort((a, b) => a.opposite - b.opposite || a.edgeId.localeCompare(b.edgeId));
+    face.forEach(({ edgeId, end }, index) => {
+      const terminal = terminals.get(edgeId);
+      if (terminal) terminal[end].offset = Math.round(-span / 2 + span * index / (face.length - 1));
+    });
+  }
+  return terminals;
 };
 
 export type ArchitectureComponentShape = Exclude<

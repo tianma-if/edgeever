@@ -57,7 +57,11 @@ struct WorkspaceView: View {
                             store: store,
                             path: $path,
                             onCreateNote: { openCreateNote() },
-                            onCreateFromTemplate: { openCreateFromTemplate() }
+                            onCreateFromTemplate: { openCreateFromTemplate() },
+                            onCreateNotebook: {
+                                store.startCreatingNotebook = true
+                                store.showNotebookPicker = true
+                            }
                         )
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }

@@ -12,6 +12,7 @@ import {
   ChevronDown,
   ChevronRight,
   Folder,
+  Plus,
   Search,
   Tag,
   TagPlus,
@@ -89,6 +90,7 @@ export const NotebookPickerModal = ({
   includeAllNotes = true,
   notebooks,
   onClose,
+  onCreate,
   onSelect,
   visible,
 }: {
@@ -96,12 +98,19 @@ export const NotebookPickerModal = ({
   includeAllNotes?: boolean;
   notebooks: Notebook[];
   onClose: () => void;
+  onCreate?: (name: string, parentId: string | null) => Promise<string>;
   onSelect: (notebookId: string) => void;
   visible: boolean;
 }) => {
   const { translate } = useMobileLocale();
   const safeAreaInsets = useSafeAreaInsets();
   const [searchText, setSearchText] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [newNotebookName, setNewNotebookName] = useState("");
+  const [newNotebookParentId, setNewNotebookParentId] = useState<string | null>(null);
+  const [createError, setCreateError] = useState("");
+  const [isSavingNotebook, setIsSavingNotebook] = useState(false);
+  const createInFlight = useRef(false);
   const [collapsedNotebookIds, setCollapsedNotebookIds] = useState<Set<string>>(() => new Set());
   const selectedScroll = useAutoCenterSelectedScrollRow(visible, activeNotebookId);
   const notebookOptions = flattenNotebooks(notebooks);
@@ -119,9 +128,32 @@ export const NotebookPickerModal = ({
   useEffect(() => {
     if (visible) {
       setSearchText("");
+      setCreating(false);
+      setNewNotebookName("");
+      setNewNotebookParentId(null);
+      setCreateError("");
       setCollapsedNotebookIds(new Set(Array.from(childNotebookIds).filter((notebookId) => !activeNotebookAncestorIds.has(notebookId))));
     }
   }, [visible, activeNotebookId, notebooks]);
+
+  const submitNewNotebook = async () => {
+    const name = newNotebookName.trim();
+    if (!onCreate || createInFlight.current || !name || name.length > 80) {
+      return;
+    }
+    createInFlight.current = true;
+    setIsSavingNotebook(true);
+    setCreateError("");
+    try {
+      const notebookId = await onCreate(name, newNotebookParentId);
+      onSelect(notebookId);
+    } catch (error) {
+      setCreateError(error instanceof Error ? error.message : "创建笔记本失败，请重试");
+    } finally {
+      createInFlight.current = false;
+      setIsSavingNotebook(false);
+    }
+  };
 
   const toggleNotebookCollapsed = (notebookId: string) => {
     setCollapsedNotebookIds((current) => {
@@ -155,6 +187,34 @@ export const NotebookPickerModal = ({
               <X color="#0f172a" size={20} />
             </Pressable>
           </View>
+
+          {onCreate ? (
+            <View style={styles.notebookCreateWrap}>
+              <Pressable accessibilityLabel="新建笔记本" accessibilityRole="button" onPress={() => { setCreating((value) => !value); setCreateError(""); }} style={styles.notebookCreateToggle}>
+                <Plus color="#059669" size={18} />
+                <Text style={styles.notebookCreateToggleText}>新建笔记本</Text>
+              </Pressable>
+              {creating ? (
+                <View style={styles.notebookCreateForm}>
+                  <TextInput accessibilityLabel="笔记本名称" autoFocus maxLength={80} onChangeText={setNewNotebookName} placeholder="笔记本名称" placeholderTextColor="#94a3b8" returnKeyType="done" style={styles.notebookCreateInput} value={newNotebookName} />
+                  <View style={styles.notebookCreateParentRow}>
+                    <Pressable accessibilityRole="button" accessibilityState={{ selected: newNotebookParentId === null }} onPress={() => setNewNotebookParentId(null)} style={[styles.notebookCreateParentChoice, newNotebookParentId === null && styles.notebookCreateParentChoiceActive]}>
+                      <Text style={styles.notebookCreateParentText}>顶层笔记本</Text>
+                    </Pressable>
+                    {activeNotebookId !== ALL_NOTES_ID ? (
+                      <Pressable accessibilityRole="button" accessibilityState={{ selected: newNotebookParentId === activeNotebookId }} onPress={() => setNewNotebookParentId(activeNotebookId)} style={[styles.notebookCreateParentChoice, newNotebookParentId === activeNotebookId && styles.notebookCreateParentChoiceActive]}>
+                        <Text numberOfLines={1} style={styles.notebookCreateParentText}>{translate(`位于「${activeNotebookName}」下`)}</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                  {createError ? <Text accessibilityRole="alert" style={styles.notebookCreateError}>{createError}</Text> : null}
+                  <Pressable accessibilityLabel="创建笔记本" accessibilityRole="button" accessibilityState={{ disabled: !newNotebookName.trim() || isSavingNotebook }} disabled={!newNotebookName.trim() || isSavingNotebook} onPress={() => void submitNewNotebook()} style={styles.notebookCreateSubmit}>
+                    {isSavingNotebook ? <ActivityIndicator color="#ffffff" size="small" /> : <Text style={styles.notebookCreateSubmitText}>创建笔记本</Text>}
+                  </Pressable>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
 
           <ScrollView
             contentContainerStyle={styles.notebookPickerContent}

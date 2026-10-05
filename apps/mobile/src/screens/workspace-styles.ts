@@ -1541,6 +1541,73 @@ const baseWorkspaceStyles = StyleSheet.create({
     justifyContent: "center",
     width: 32,
   },
+  notebookCreateWrap: {
+    borderBottomColor: "#e2e8f0",
+    borderBottomWidth: 1,
+    paddingHorizontal: 16,
+  },
+  notebookCreateToggle: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 8,
+    minHeight: 44,
+  },
+  notebookCreateToggleText: {
+    color: "#059669",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  notebookCreateForm: {
+    gap: 8,
+    paddingBottom: 12,
+  },
+  notebookCreateInput: {
+    borderColor: "#cbd5e1",
+    borderRadius: 8,
+    borderWidth: 1,
+    color: "#0f172a",
+    fontSize: 15,
+    minHeight: 42,
+    paddingHorizontal: 12,
+  },
+  notebookCreateParentRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  notebookCreateParentChoice: {
+    borderColor: "#cbd5e1",
+    borderRadius: 7,
+    borderWidth: 1,
+    flex: 1,
+    justifyContent: "center",
+    minHeight: 36,
+    paddingHorizontal: 8,
+  },
+  notebookCreateParentChoiceActive: {
+    borderColor: "#059669",
+    backgroundColor: "#ecfdf5",
+  },
+  notebookCreateParentText: {
+    color: "#0f172a",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  notebookCreateError: {
+    color: "#dc2626",
+    fontSize: 12,
+  },
+  notebookCreateSubmit: {
+    alignItems: "center",
+    backgroundColor: "#059669",
+    borderRadius: 8,
+    justifyContent: "center",
+    minHeight: 40,
+  },
+  notebookCreateSubmitText: {
+    color: "#ffffff",
+    fontSize: 14,
+    fontWeight: "700",
+  },
   notebookPickerSectionHeader: {
     alignItems: "center",
     flexDirection: "row",

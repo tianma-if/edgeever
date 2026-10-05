@@ -1,26 +1,29 @@
 {
-  "version": "1.99.2",
+  "version": "1.100.0",
   "changes": {
     "en-US": [
-      "Markdown source editing now preserves the caret and rich table cells; edits to table content that Markdown cannot represent show a clear warning.",
-      "Feedback reports now include instance diagnostics to help identify connection problems.",
-      "Web Clipper 0.1.16 fixes page capture in Chromium browsers; the store update is pending review.",
-      "The Linux desktop app no longer creates duplicate tray icons when its menu changes.",
-      "The Best Practices guide now covers mobile image sharing, WeChat article clipping, and more capture workflows."
+      "Create top-level or nested notebooks directly in the Android and iOS apps.",
+      "AI-created notes open in the workspace, while new flowcharts and mind maps use improved default themes and simpler editing controls.",
+      "Architecture diagrams now lay out dense relationships more clearly, with arrows routed to node borders and around other nodes.",
+      "Markdown caret alignment and the trash action target are corrected, with refreshed platform icons.",
+      "The Best Practices guide adds AI diagram and infographic workflows and clearer navigation.",
+      "Support and partnership guides now offer direct sponsorship options and updated community links."
     ],
     "zh-CN": [
-      "Markdown 源码编辑现可保持光标位置与富文本表格单元格；若表格内容无法由 Markdown 完整表示，会明确提示未应用该次修改。",
-      "反馈报告现包含实例诊断信息，便于定位连接问题。",
-      "网页剪藏插件 0.1.16 修复 Chromium 浏览器中的页面抓取；商店更新仍待审核。",
-      "Linux 桌面端更新托盘菜单时不再产生重复图标。",
-      "最佳实践指南现涵盖移动端图片分享、微信公众号文章剪藏和更多内容收集流程。"
+      "Android 与 iOS 现可直接创建顶层或子笔记本。",
+      "AI 创建的笔记可直接在工作区打开；新流程图和思维导图采用更合适的默认主题，编辑操作也更清晰。",
+      "架构图中的密集关系更易辨认，连线会贴合节点边缘并绕开其他节点。",
+      "修正 Markdown 光标与删除操作的点击位置，并更新平台图标。",
+      "最佳实践指南新增 AI 图表与信息图流程，并优化导航。",
+      "赞助与合作指南现提供直接支持方式，并更新社区入口。"
     ],
     "ja": [
-      "Markdown ソース編集でカーソル位置とリッチテキストの表セルを保持します。Markdown で表現できない表の変更には、適用されなかったことを明示します。",
-      "フィードバックレポートにインスタンスの診断情報を含め、接続問題の特定を助けます。",
-      "Web Clipper 0.1.16 は Chromium ブラウザーでのページ取得を修正します。ストアの更新は審査待ちです。",
-      "Linux デスクトップアプリでトレイメニューの更新時にアイコンが重複しなくなりました。",
-      "ベストプラクティスガイドに、モバイルでの画像共有、WeChat 記事のクリップなどの収集手順を追加しました。"
+      "Android と iOS アプリから最上位または子ノートブックを直接作成できます。",
+      "AI が作成したノートをワークスペースで開けます。新しいフローチャートとマインドマップの既定テーマと編集操作も改善しました。",
+      "構成図の密集した関係を見やすくし、矢印がノードの境界に接続して他のノードを避けるようにしました。",
+      "Markdown のカーソル位置と削除操作のクリック位置を修正し、プラットフォームアイコンを更新しました。",
+      "ベストプラクティスガイドに AI 図表とインフォグラフィックの手順を追加し、ナビゲーションを改善しました。",
+      "支援・パートナーシップガイドに直接支援する方法を追加し、コミュニティへのリンクを更新しました。"
     ]
   }
 }

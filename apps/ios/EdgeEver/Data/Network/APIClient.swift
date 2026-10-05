@@ -99,6 +99,21 @@ actor APIClient {
         )
     }
 
+    // MARK: - Notebooks
+
+    func createNotebook(name: String, parentId: String?) async throws -> Notebook {
+        struct Body: Encodable {
+            var name: String
+            var parentId: String?
+        }
+        let response: NotebookResponse = try await request(
+            path: "/api/v1/notebooks",
+            method: "POST",
+            body: Body(name: name, parentId: parentId)
+        )
+        return response.notebook
+    }
+
     // MARK: - Memos
 
     func createMemo(

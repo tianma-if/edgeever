@@ -715,6 +715,28 @@ html[data-edgeever-extension-theme] .edgeever-memo-divider {
   box-shadow: inset 0 0 0 2px rgb(var(--brand-green-rgb) / 0.5);
 }
 
+.edgeever-diagram-canvas[data-diagram-kind="architecture"][data-relations-focused="true"] .x6-edge:not(.edgeever-relation-focused) {
+  opacity: 0.12;
+}
+
+.edgeever-diagram-canvas[data-diagram-kind="architecture"][data-relations-focused="true"] .x6-node:not(.edgeever-relation-focused):not(.edgeever-relation-boundary) {
+  opacity: 0.4;
+}
+
+.edgeever-diagram-canvas[data-diagram-kind="architecture"][data-relations-focused="true"] .x6-edge.edgeever-relation-focused {
+  filter: drop-shadow(0 0 3px rgb(22 160 110 / 0.22));
+}
+
+.edgeever-diagram-canvas[data-diagram-kind="architecture"][data-label-mode="focus"] .x6-edge-labels {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.edgeever-diagram-canvas[data-diagram-kind="architecture"][data-label-mode="focus"][data-relations-focused="true"] .x6-edge.edgeever-relation-focused .x6-edge-labels {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 /* X6 owns the scroll extent so oversized diagrams remain reachable in both
  * directions while the editor chrome stays fixed around the viewport. */
 .edgeever-diagram-scroller {

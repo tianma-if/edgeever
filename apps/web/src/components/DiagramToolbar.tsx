@@ -4,6 +4,8 @@ import {
   BookOpen,
   ChevronDown,
   Download,
+  Eye,
+  EyeOff,
   FileCode2,
   FileImage,
   Redo2,
@@ -140,6 +142,7 @@ type DiagramToolbarProps = {
   canUndo: boolean;
   hasSelection: boolean;
   leading?: ReactNode;
+  architectureLabels?: { showAll: boolean; onToggle: () => void };
   onAutoLayout: () => void;
   onDeleteSelection: () => void;
   onExport: (format: "png" | "svg") => void;
@@ -256,6 +259,7 @@ export const DiagramToolbar = ({
   canUndo,
   hasSelection,
   leading,
+  architectureLabels,
   onAutoLayout,
   onDeleteSelection,
   onExport,
@@ -295,6 +299,17 @@ export const DiagramToolbar = ({
           <TooltipContent>{t("diagram.autoLayoutTooltip")}</TooltipContent>
         </Tooltip>
       )}
+      {architectureLabels ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button size="sm" variant={architectureLabels.showAll ? "soft" : "ghost"} className="gap-1.5 px-2.5" aria-pressed={architectureLabels.showAll} onClick={architectureLabels.onToggle}>
+              {architectureLabels.showAll ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+              {t("diagram.allEdgeLabels")}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{t(architectureLabels.showAll ? "diagram.hideDenseEdgeLabels" : "diagram.showAllEdgeLabels")}</TooltipContent>
+        </Tooltip>
+      ) : null}
       <MemoEditorToolbarDivider />
       <Tooltip><TooltipTrigger asChild><Button size="icon" variant="ghost" aria-label={t("diagram.zoomOut")} onClick={onZoomOut}><ZoomOut className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent>{t("diagram.zoomOut")}</TooltipContent></Tooltip>
       <DiagramZoomPercentField zoomPercent={zoomPercent} onZoomTo={onZoomTo} />

@@ -8,6 +8,11 @@ struct NotebookPickerSheet: View {
 
     @State private var query = ""
     @State private var collapsedIds: Set<String> = []
+    @State private var isCreating = false
+    @State private var isSaving = false
+    @State private var newName = ""
+    @State private var newParentId: String?
+    @State private var createError: String?
 
     private var parentIds: Set<String> {
         NotebookHierarchy.parentIdsWithChildren(from: store.notebooks)
@@ -56,6 +61,17 @@ struct NotebookPickerSheet: View {
                 }
                 Spacer(minLength: 8)
                 Button {
+                    isCreating.toggle()
+                    createError = nil
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(AppTheme.accent)
+                        .frame(width: 36, height: 36)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(env.preferences.t("新建笔记本", en: "New notebook", ja: "新しいノートブック"))
+                Button {
                     dismiss()
                 } label: {
                     Image(systemName: "xmark")
@@ -69,6 +85,51 @@ struct NotebookPickerSheet: View {
             .frame(minHeight: 56)
             .overlay(alignment: .bottom) {
                 Rectangle().fill(AppTheme.border).frame(height: 1)
+            }
+
+            if isCreating {
+                VStack(alignment: .leading, spacing: 8) {
+                    TextField(env.preferences.t("笔记本名称", en: "Notebook name", ja: "ノートブック名"), text: $newName)
+                        .font(.system(size: 15))
+                        .foregroundStyle(AppTheme.title)
+                        .textInputAutocapitalization(.sentences)
+                        .padding(.horizontal, 12)
+                        .frame(height: 42)
+                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(AppTheme.border))
+                    HStack(spacing: 8) {
+                        parentChoice(env.preferences.t("顶层笔记本", en: "Top level", ja: "最上位"), id: nil)
+                        if let selected = store.selectedNotebookId {
+                            parentChoice(env.preferences.t("位于「\(activeName)」下", en: "Under \(activeName)", ja: "「\(activeName)」の下"), id: selected)
+                        }
+                    }
+                    if let createError {
+                        Text(createError)
+                            .font(.system(size: 12))
+                            .foregroundStyle(.red)
+                            .accessibilityAddTraits(.updatesFrequently)
+                    }
+                    Button {
+                        Task { await createNotebook() }
+                    } label: {
+                        Group {
+                            if isSaving {
+                                ProgressView().tint(.white)
+                            } else {
+                                Text(env.preferences.t("创建笔记本", en: "Create notebook", ja: "ノートブックを作成"))
+                            }
+                        }
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 40)
+                        .background(AppTheme.accent)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isSaving || newName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
             }
 
             ScrollView {
@@ -194,9 +255,11 @@ struct NotebookPickerSheet: View {
             }
         }
         .background(AppTheme.card)
-        .presentationDetents([.medium, .large])
+        .presentationDetents(isCreating ? [.large] : [.medium, .large])
         .presentationDragIndicator(.hidden)
         .onAppear {
+            isCreating = store.startCreatingNotebook
+            store.startCreatingNotebook = false
             // Match Android: collapse branches not on the path to the active notebook.
             let parents = parentIds
             if let selected = store.selectedNotebookId {
@@ -206,6 +269,48 @@ struct NotebookPickerSheet: View {
                 collapsedIds = parents
             }
             query = ""
+        }
+    }
+
+    private func parentChoice(_ title: String, id: String?) -> some View {
+        Button {
+            newParentId = id
+        } label: {
+            Text(title)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(AppTheme.title)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, minHeight: 36)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 7)
+                        .stroke(newParentId == id ? AppTheme.accent : AppTheme.border)
+                )
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(newParentId == id ? .isSelected : [])
+    }
+
+    private func createNotebook() async {
+        let name = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !isSaving, !name.isEmpty, name.count <= 80 else { return }
+        isSaving = true
+        createError = nil
+        defer { isSaving = false }
+        do {
+            let notebook = try await env.session.client.createNotebook(name: name, parentId: newParentId)
+            if let scope = env.session.dataScope {
+                try? env.mirror.saveNotebook(scope: scope, notebook: notebook)
+            }
+            store.selectedTag = nil
+            store.selectedNotebookId = notebook.id
+            store.reload(env: env)
+            if !store.notebooks.contains(where: { $0.id == notebook.id }) {
+                store.notebooks.append(notebook)
+            }
+            dismiss()
+            Task { await env.runSyncCycle() }
+        } catch {
+            createError = error.localizedDescription
         }
     }
 

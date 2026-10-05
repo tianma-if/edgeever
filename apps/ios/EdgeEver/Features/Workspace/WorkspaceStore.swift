@@ -19,6 +19,7 @@ final class WorkspaceStore {
     var selectionMode = false
     var selectedMemoIds: Set<String> = []
     var showNotebookPicker = false
+    var startCreatingNotebook = false
     var showActions = false
     var showTagFilterPicker = false
 

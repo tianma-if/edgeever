@@ -19,7 +19,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Alert, Pressable, Text } from "../components/LocalizedText";
 import { ApiRequestError } from "@edgeever/client";
-import { DEFAULT_MEMO_TITLE, getNotebookScopeIds, hasDiagramDocumentMarker, markdownToDoc, type MemoDetail } from "@edgeever/shared";
+import { DEFAULT_MEMO_TITLE, getNotebookScopeIds, hasDiagramDocumentMarker, markdownToDoc, type MemoDetail, type Notebook } from "@edgeever/shared";
 import { MOBILE_UI_METRICS, toggleMobileMemoFilterMode } from "@edgeever/shared/mobile-ui";
 import { clearMobileMemoDraft, readMobileMemoDraft, type MobileMemoDraft } from "../lib/mobile-drafts";
 import {
@@ -55,6 +55,7 @@ import {
   getLocalMemo,
   listLocalMemos,
   listLocalNotebooks,
+  upsertLocalNotebook,
   listLocalTags,
   resolveLocalMemo,
   syncMobileLocalMirror,
@@ -1342,6 +1343,25 @@ export const WorkspaceScreen = ({
         activeNotebookId={activeNotebookId}
         notebooks={notebooks}
         onClose={() => setNotebookPickerOpen(false)}
+        onCreate={async (name, parentId) => {
+          if (!client) {
+            throw new Error("连接尚未就绪");
+          }
+          const { notebook } = await client.createNotebook({ name, parentId });
+          queryClient.setQueryData<{ notebooks: Notebook[] }>(["mobile", "notebooks"], (current) => ({
+            notebooks: [...(current?.notebooks ?? []).filter((item) => item.id !== notebook.id), notebook],
+          }));
+          try {
+            await upsertLocalNotebook(dataScope, notebook);
+            void queryClient.invalidateQueries({ queryKey: ["mobile", "notebooks"] });
+          } catch {
+            Alert.alert("笔记本已创建", "本机缓存更新失败，正在重新同步。", [{ text: "好的" }]);
+            void syncMobileLocalMirror(client, dataScope)
+              .then(() => queryClient.invalidateQueries({ queryKey: ["mobile", "notebooks"] }))
+              .catch(() => undefined);
+          }
+          return notebook.id;
+        }}
         onSelect={(notebookId) => {
           setSelectedTag(null);
           setActiveNotebookId(notebookId);

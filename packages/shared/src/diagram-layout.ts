@@ -1,4 +1,4 @@
-import { compactFlowchartNodeSize, flowchartNodePresentation } from "./diagram-node-presentation";
+import { compactFlowchartNodeSize, flowchartNodePresentation, visualTextUnits } from "./diagram-node-presentation";
 export { compactFlowchartNodeSize, flowchartNodePresentation } from "./diagram-node-presentation";
 import { DIAGRAM_READABLE_MIN_SCALE, FLOWCHART_LAYOUT_SPACING } from "./diagram-flowchart-style";
 export {
@@ -115,12 +115,13 @@ const FLOWCHART_DETACHED_GAP = 56;
 const FLOWCHART_DETACHED_ROW_GAP = 24;
 const FLOWCHART_DETACHED_ROW_WIDTH = 960;
 const ARCHITECTURE_LAYOUT_ROW_WIDTH = 1480;
+const ARCHITECTURE_LAYOUT_TARGET_RATIO = 1.35;
 const ARCHITECTURE_GROUP_HORIZONTAL_GAP = 72;
 const ARCHITECTURE_GROUP_VERTICAL_GAP = 88;
 const ARCHITECTURE_GROUP_PAD_X = 36;
 const ARCHITECTURE_GROUP_PAD_Y = 56;
 const ARCHITECTURE_LAYOUT_SPACING = { rank: 96, node: 40 };
-const ARCHITECTURE_META_SPACING = { rank: 88, node: 56 };
+const ARCHITECTURE_META_SPACING = { rank: 128, node: 56 };
 const ARCHITECTURE_ORIGIN = 32;
 
 export const compactArchitectureNodeSize = (
@@ -130,8 +131,25 @@ export const compactArchitectureNodeSize = (
   if (shape === "boundary") return authored ?? { width: 560, height: 320 };
   if (shape === "database") return { width: 150, height: 72 };
   if (shape === "queue") return { width: 156, height: 60 };
-  if (shape === "security") return { width: 148, height: 68 };
-  return { width: 156, height: 64 };
+  if (shape === "security") return { width: 148, height: 60 };
+  return { width: 156, height: 56 };
+};
+
+export const architectureNodeHeight = (shape: DiagramNodeShape, lineCount: number) => {
+  const baseHeight = compactArchitectureNodeSize(shape).height;
+  return Math.max(baseHeight, lineCount <= 1 ? 56 : lineCount === 2 ? 60 : lineCount * 17 + 20);
+};
+
+const architectureNodeSizeForLabel = (shape: DiagramNodeShape, label: string) => {
+  const { width } = compactArchitectureNodeSize(shape);
+  if (shape === "boundary") return compactArchitectureNodeSize(shape);
+  // Reserve space during semantic layout before the browser measures the final wrapping.
+  const capacity = (width - 66) / 12;
+  const lineCount = label.split("\n").reduce(
+    (count, paragraph) => count + Math.max(1, Math.ceil(visualTextUnits(paragraph) / capacity)),
+    0,
+  );
+  return { width, height: architectureNodeHeight(shape, lineCount) };
 };
 
 const computeMindMapLayout = (
@@ -519,6 +537,52 @@ const layoutArchitectureGraph = (
   return width(vertical) < width(positions) ? vertical : positions;
 };
 
+const layoutArchitectureMetaGraph = (
+  nodes: Array<{ id: string; width: number; height: number }>,
+  edges: Array<{ source: string; target: string }>,
+  direction: "left-to-right" | "top-to-bottom",
+  margin: { x: number; y: number },
+): DiagramLayoutPositions => {
+  const vertical = layoutDagreGraph(nodes, edges, "top-to-bottom", ARCHITECTURE_META_SPACING, margin);
+  if (direction === "top-to-bottom" || nodes.length === 0) return vertical;
+  const horizontal = layoutDagreGraph(nodes, edges, "left-to-right", ARCHITECTURE_META_SPACING, margin);
+  const size = (positions: DiagramLayoutPositions) => ({
+    width: Math.max(...nodes.map((node) => positions[node.id].x + node.width))
+      - Math.min(...nodes.map((node) => positions[node.id].x)),
+    height: Math.max(...nodes.map((node) => positions[node.id].y + node.height))
+      - Math.min(...nodes.map((node) => positions[node.id].y)),
+  });
+  if (size(horizontal).width <= ARCHITECTURE_LAYOUT_ROW_WIDTH) return horizontal;
+  if (nodes.length < 3) return vertical;
+
+  const wrapped: DiagramLayoutPositions = {};
+  let x = margin.x;
+  let y = margin.y;
+  let rowHeight = 0;
+  for (const node of [...nodes].sort((left, right) => (
+    horizontal[left.id].x - horizontal[right.id].x
+    || horizontal[left.id].y - horizontal[right.id].y
+    || left.id.localeCompare(right.id)
+  ))) {
+    if (x > margin.x && x + node.width > margin.x + ARCHITECTURE_LAYOUT_ROW_WIDTH) {
+      x = margin.x;
+      y += rowHeight + ARCHITECTURE_GROUP_VERTICAL_GAP;
+      rowHeight = 0;
+    }
+    wrapped[node.id] = { x, y };
+    x += node.width + ARCHITECTURE_GROUP_HORIZONTAL_GAP;
+    rowHeight = Math.max(rowHeight, node.height);
+  }
+  const fitCost = (positions: DiagramLayoutPositions) => {
+    const bounds = size(positions);
+    const targetHeight = ARCHITECTURE_LAYOUT_ROW_WIDTH / ARCHITECTURE_LAYOUT_TARGET_RATIO;
+    const overflow = Math.max(bounds.width / ARCHITECTURE_LAYOUT_ROW_WIDTH, bounds.height / targetHeight);
+    const aspectError = Math.abs(Math.log((bounds.width / bounds.height) / ARCHITECTURE_LAYOUT_TARGET_RATIO));
+    return overflow + aspectError * 0.2;
+  };
+  return fitCost(wrapped) < fitCost(vertical) ? wrapped : vertical;
+};
+
 const wrapArchitectureGroups = (
   document: DiagramDocument,
   positions: DiagramLayoutPositions,
@@ -812,11 +876,18 @@ const computeArchitectureLayout = (document: DiagramDocument, options: DiagramLa
   const groupMetaNodes = groups.map((group) => {
     const memberIds = new Set(group.members.map((node) => node.id));
     const intraEdges = document.edges.filter((edge) => memberIds.has(edge.source) && memberIds.has(edge.target));
+    const crossEdgeCount = document.edges.filter((edge) => (
+      memberIds.has(edge.source) !== memberIds.has(edge.target)
+    )).length;
+    // Cross-boundary relations need separate vertical lanes beside their nodes.
+    // Keep sparse groups compact while giving dense groups room for labels.
+    const nodeGap = Math.min(112, ARCHITECTURE_LAYOUT_SPACING.node
+      + Math.round(crossEdgeCount / group.members.length * 22));
     const inner = layoutArchitectureGraph(
       group.members,
       intraEdges,
       direction,
-      ARCHITECTURE_LAYOUT_SPACING,
+      { ...ARCHITECTURE_LAYOUT_SPACING, node: nodeGap },
       { x: 0, y: 0 },
       ARCHITECTURE_LAYOUT_ROW_WIDTH - ARCHITECTURE_GROUP_PAD_X * 2,
     );
@@ -869,11 +940,10 @@ const computeArchitectureLayout = (document: DiagramDocument, options: DiagramLa
   }
 
   const metaMargin = { x: ARCHITECTURE_ORIGIN, y: ARCHITECTURE_ORIGIN };
-  const metaPositions = layoutArchitectureGraph(
+  const metaPositions = layoutArchitectureMetaGraph(
     metaNodes,
     metaEdges,
     direction,
-    ARCHITECTURE_META_SPACING,
     metaMargin,
   );
 
@@ -1069,7 +1139,7 @@ export const compileDiagramIr = (ir: DiagramIr): DiagramDocument => {
     const size = ir.kind === "mind-map"
       ? mindMapNodePresentation(node.label, mindMapNodeRole(ir.nodes, node.id), ir.structure)
       : ir.kind === "architecture"
-        ? compactArchitectureNodeSize(shape)
+        ? architectureNodeSizeForLabel(shape, node.label)
         : flowchartNodePresentation(shape, node.label);
     return {
       id: node.id,

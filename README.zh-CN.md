@@ -11,16 +11,16 @@
     <a href="https://github.com/tianma-if/edgeever/pkgs/container/edgeever"><img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fghcr-badge.elias.eu.org%2Fapi%2Ftianma-if%2Fedgeever%2Fedgeever&query=downloadCount&style=social&logo=docker&label=Docker%20Pulls" alt="Docker Pulls" /></a>
     <a href="https://www.producthunt.com/products/edgeever?utm_source=other&utm_medium=social"><img src="https://img.shields.io/badge/Product%20Hunt-ea532a?style=social&logo=product-hunt" alt="Product Hunt" /></a>
     <a href="https://hellogithub.com/repository/tianma-if/edgeever" target="_blank"><img src="https://api.hellogithub.com/v1/widgets/recommend.svg?rid=150fee4403f6433880bda91e9576ac06&claim_uid=TWNAjisURpnhL1l&theme=small" alt="Featured｜HelloGitHub" /></a>
-    <a href="https://afdian.com/a/tianma-if"><img src="https://img.shields.io/badge/爱发电-946ce6?style=social&logo=github-sponsors" alt="爱发电赞助" /></a>
+    <a href="#赞助与支持"><img src="https://img.shields.io/badge/Sponsor-支持项目-ea4aaa?logo=github-sponsors" alt="赞助与支持" /></a>
   </p>
   <p>
     <b>简体中文</b> | <a href="README.zh-TW.md">繁體中文</a> | <a href="README.md">English</a> | <a href="README.ja.md">日本語</a>
   </p>
   <p>
-    <a href="#wechat-group">💬 微信交流群</a> &nbsp;|&nbsp;
+    <a href="#wechat-group"><img src="assets/readme/community/wechat.svg" alt="WeChat" width="16" height="16" align="absmiddle" /> 微信交流群</a> &nbsp;|&nbsp;
     <a href="https://demo.edgeever.org">🌐 在线演示</a> &nbsp;|&nbsp;
     <a href="#客户端下载">📱 客户端下载</a> &nbsp;|&nbsp;
-    <a href="docs/best-practices.zh-CN.md">💡 最佳实践</a>
+    <a href="docs/best-practices.zh-CN.md">✨ 场景与最佳实践</a>
   </p>
 </div>
 
@@ -185,10 +185,10 @@ curl -fsSL https://edgeever.org/install.sh | bash
 
 欢迎加入 EdgeEver AI 交流群，这里聚集了大量 Vibe Coding 与 AI 玩家。一起交流 EdgeEver 体验、AI Agent 实战落地、高性价比/免费 AI 资源及自动化工作流。
 
-> 群二维码 7 天内有效。如果二维码过期，请添加微信 `m1245207870`，并备注“EdgeEver 进群”。
+> 当前交流群人数已满 200 人，无法直接扫码进群。请扫描下方二维码或添加微信 `m1245207870`，并备注“EdgeEver 进群”，群主将手动邀请您加入。
 
 <p align="center">
-  <img src="assets/wechat-group-qr.jpg" alt="EdgeEver AI 交流群二维码" width="260" />
+  <img src="assets/wechat-group-qr.jpg" alt="微信联系人二维码" width="260" />
 </p>
 
 ## 插件与主题
@@ -281,6 +281,13 @@ Docker 与 Cloudflare 共用同一套前端、API 路由、业务服务、鉴权
 ## 同步时序
 
 Web、PWA 与桌面端会在停止编辑 30 秒后上传笔记，并在页面可见时每 5 分钟检查云端变更；窗口聚焦与手动刷新仍会立即拉取。可在 [`apps/web/src/lib/workspace-refresh.ts`](apps/web/src/lib/workspace-refresh.ts) 中调整 `DEFERRED_MEMO_SYNC_DELAY_MS` 和 `BACKGROUND_WORKSPACE_REFRESH_INTERVAL_MS`。
+
+## 赞助与支持
+
+EdgeEver 是免费开源项目。保持跨平台客户端（macOS、Windows、Linux、iOS、Android）的持续演进、真机测试、证书签名以及多运行时生态建设，都需要长期的精力与资源投入。
+
+- [支持 EdgeEver](docs/sponsor.zh-CN.md) —— 通过微信支付或支付宝自愿赞助
+- [赞助商与合作伙伴](docs/partners.zh-CN.md) —— 支持基础设施、开发工具、服务或社区合作
 
 ## 致谢
 

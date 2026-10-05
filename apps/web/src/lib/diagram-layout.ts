@@ -1,5 +1,6 @@
 export {
   compileDiagramIr,
+  architectureNodeHeight,
   compactArchitectureNodeSize,
   compactFlowchartNodeSize,
   flowchartNodePresentation,

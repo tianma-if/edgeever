@@ -180,6 +180,41 @@ describe("diagram auto layout", () => {
     expect(compactArchitectureNodeSize("boundary", { width: 640, height: 360 })).toEqual({ width: 640, height: 360 });
   });
 
+  test("reserves height for wrapped architecture labels while shortening compact nodes", () => {
+    const document = compileDiagramIr({
+      kind: "architecture",
+      nodes: [
+        { id: "short", type: "service", label: "API" },
+        { id: "medium", type: "service", label: "商品与库存查询服务" },
+        { id: "long", type: "service", label: "商品与库存查询服务及活动规则配置中心" },
+      ],
+      edges: [],
+    });
+    const heights = Object.fromEntries(document.nodes.map((node) => [node.id, node.height]));
+    expect(heights.short).toBe(56);
+    expect(heights.medium).toBe(60);
+    expect(heights.long).toBeGreaterThan(heights.medium);
+  });
+
+  test("opens vertical lanes for groups with many cross-boundary relations", () => {
+    const nodes = [
+      { id: "business", type: "boundary", label: "业务层" },
+      { id: "data", type: "boundary", label: "数据层" },
+      ...Array.from({ length: 4 }, (_, index) => ({ id: `service-${index}`, type: "service", label: `服务 ${index}`, parentId: "business" })),
+      ...Array.from({ length: 4 }, (_, index) => ({ id: `store-${index}`, type: "database", label: `存储 ${index}`, parentId: "data" })),
+    ];
+    const edges = Array.from({ length: 4 }, (_, service) => Array.from({ length: 4 }, (_, store) => ({
+      source: `service-${service}`, target: `store-${store}`,
+    }))).flat();
+    const rowGap = (document) => {
+      const services = document.nodes.filter((node) => node.parentId === "business").sort((a, b) => a.y - b.y);
+      return Math.min(...services.slice(1).map((node, index) => node.y - services[index].y - services[index].height));
+    };
+    const sparse = compileDiagramIr({ kind: "architecture", nodes, edges: edges.slice(0, 1) });
+    const dense = compileDiagramIr({ kind: "architecture", nodes, edges });
+    expect(rowGap(dense)).toBeGreaterThan(rowGap(sparse) + 40);
+  });
+
   test("turns a long ungrouped architecture pipeline downward on creation and auto layout", () => {
     const nodes = Array.from({ length: 17 }, (_, index) => ({
       id: `service-${index}`,
@@ -284,6 +319,35 @@ describe("diagram auto layout", () => {
       - Math.min(...boundaries.map((node) => node.x));
     expect(contentWidth).toBeLessThanOrEqual(1480);
     expect(new Set(boundaries.map((node) => node.y)).size).toBeGreaterThan(1);
+  });
+
+  test("uses two rows of architecture groups when a single column wastes horizontal space", () => {
+    const nodes = [];
+    const edges = [];
+    let previousId;
+    for (let groupIndex = 0; groupIndex < 4; groupIndex += 1) {
+      const boundaryId = `group-${groupIndex}`;
+      nodes.push({ id: boundaryId, label: boundaryId, type: "boundary" });
+      for (let nodeIndex = 0; nodeIndex < 2; nodeIndex += 1) {
+        const id = `${boundaryId}-node-${nodeIndex}`;
+        nodes.push({ id, label: id, type: "service", parentId: boundaryId });
+        if (previousId) edges.push({ source: previousId, target: id });
+        previousId = id;
+      }
+    }
+    const document = compileDiagramIr({ kind: "architecture", nodes, edges });
+    const boundaries = document.nodes.filter((node) => node.shape === "boundary");
+    const width = Math.max(...boundaries.map((node) => node.x + node.width))
+      - Math.min(...boundaries.map((node) => node.x));
+    expect(width).toBeGreaterThan(900);
+    expect(width).toBeLessThanOrEqual(1480);
+    expect(new Set(boundaries.map((node) => node.y)).size).toBe(2);
+    const relayout = computeDiagramLayoutResult(document);
+    const relayoutWidth = Math.max(...boundaries.map((node) => relayout.nodes[node.id].x + relayout.nodes[node.id].width))
+      - Math.min(...boundaries.map((node) => relayout.nodes[node.id].x));
+    expect(relayoutWidth).toBeGreaterThan(900);
+    const vertical = computeDiagramLayoutResult(document, { direction: "top-to-bottom" });
+    expect(vertical.nodes["group-1"].y).toBeGreaterThan(vertical.nodes["group-0"].y);
   });
 
   test("returns a complete strategy result for every diagram kind", () => {

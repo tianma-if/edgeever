@@ -4,7 +4,9 @@ import {
   ARCHITECTURE_EDGE_LABEL_LINE_HEIGHT,
   ARCHITECTURE_LABEL_FONT,
   architectureEdgePorts,
+  architectureEdgeTerminals,
   architectureEdgeRouter,
+  architectureTerminalAnchor,
   architectureEdgeVisual,
   architectureNodeVisual,
   resolveArchitectureSurface,
@@ -149,6 +151,9 @@ export const diagramDocumentToX6Cells = (
   });
   const projectedById = new Map(nodes.map((node) => [node.id, node]));
   const architectureBoundaryIds = document.nodes.filter((node) => node.shape === "boundary").map((node) => node.id);
+  const architectureTerminals = document.kind === "architecture"
+    ? architectureEdgeTerminals(document.nodes.filter((node) => node.shape !== "boundary"), document.edges)
+    : null;
   const edges = document.edges.map((edge) => {
     const edgeKind = edge.kind ?? (document.kind === "architecture" ? "dependency" : undefined);
     const sourceNode = projectedById.get(edge.source);
@@ -187,20 +192,25 @@ export const diagramDocumentToX6Cells = (
       : null;
     const orthogonalStraight = document.kind === "flowchart"
       && Boolean(orthogonalPorts && sourceNode && targetNode && flowchartEdgeIsStraight(sourceNode, targetNode));
+    const architectureTerminal = architectureTerminals?.get(edge.id);
     return {
       id: edge.id,
       source: document.kind === "mind-map"
         ? { cell: edge.source, ...(sourceTerminal ?? { anchor: { name: sides.source } }) }
+        : architectureTerminal
+          ? { cell: edge.source, anchor: architectureTerminalAnchor(architectureTerminal.source) }
         : orthogonalPorts
           ? { cell: edge.source, port: orthogonalPorts.source }
           : { cell: edge.source },
       target: document.kind === "mind-map"
         ? { cell: edge.target, ...(targetTerminal ?? { anchor: { name: sides.target } }) }
+        : architectureTerminal
+          ? { cell: edge.target, anchor: architectureTerminalAnchor(architectureTerminal.target) }
         : orthogonalPorts
           ? { cell: edge.target, port: orthogonalPorts.target }
           : { cell: edge.target },
       router: document.kind === "architecture"
-        ? architectureEdgeRouter(edge.source, edge.target, architectureBoundaryIds)
+        ? architectureEdgeRouter(edge.source, edge.target, architectureBoundaryIds, orthogonalPorts ?? undefined)
         : document.kind === "flowchart"
           ? (orthogonalStraight ? { name: "normal" } : FLOWCHART_EDGE_ROUTER)
           : undefined,
