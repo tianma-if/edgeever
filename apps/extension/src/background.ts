@@ -68,6 +68,18 @@ import {
   zhihuTimeIso,
   type ZhihuLocateSuccess,
 } from "./zhihu-clip";
+import { bilibiliCaptureFromRead, bilibiliTargetFromUrl } from "./video/bilibili";
+import { VIDEO_DOCUMENT_PATTERNS } from "./video/patterns";
+import { isBilibiliPageRead, readBilibiliVideoInPage } from "./video/read-bilibili-in-page";
+import { isYouTubePageRead, readYouTubeVideoInPage } from "./video/read-youtube-in-page";
+import {
+  persistVideoNote,
+  postVideoOutline,
+  videoOutlineRequestBody,
+  type VideoNoteLabels,
+} from "./video/video-note";
+import type { OutlineAttempt, VideoNoteToast } from "./video/types";
+import { youtubeCaptureFromRead, youtubeTargetFromUrl } from "./video/youtube";
 import { t } from "./i18n";
 
 type CapturedPage = {
@@ -124,6 +136,7 @@ const ZHIHU_DOCUMENT_PATTERNS = [
   "https://zhuanlan.zhihu.com/*",
   "https://www.zhuanlan.zhihu.com/*",
 ];
+const VIDEO_MENU_ID = "save-video";
 const REDDIT_MENU_ID = "save-reddit";
 const REDDIT_LINK_MENU_ID = "save-reddit-link";
 const REDDIT_DOCUMENT_PATTERNS = [
@@ -462,7 +475,7 @@ const pendingRedditReads = new Map<string, (result: unknown) => void>();
 let clipQueue = Promise.resolve();
 let completingImageSave = false;
 
-const enqueueClip = (job: () => Promise<void>) => {
+const enqueueClip = <T>(job: () => Promise<T>): Promise<T> => {
   const run = clipQueue.then(job, job);
   clipQueue = run.then(() => undefined, () => undefined);
   return run;
@@ -1282,18 +1295,146 @@ const saveSelectionFromMenu = async (
   }
 };
 
+const videoLabels = (): VideoNoteLabels => ({
+  source: t("videoSourceLabel"),
+  platform: t("videoPlatformLabel"),
+  captions: t("videoCaptionsLabel"),
+  capturedAt: t("videoCapturedAtLabel"),
+  summary: t("videoSummaryHeading"),
+  outline: t("videoOutlineHeading"),
+  takeaways: t("videoTakeawaysHeading"),
+  transcript: t("videoTranscriptHeading"),
+  coverAlt: t("videoCoverAlt"),
+  youtube: t("videoPlatformYouTube"),
+  bilibili: t("videoPlatformBilibili"),
+  captionsAuto: t("videoCaptionsAuto"),
+  captionsCreator: t("videoCaptionsCreator"),
+  noCaptions: t("videoNoCaptions"),
+  fallbackTitle: t("videoNoteFallbackTitle"),
+});
+
+const videoToastMessage = (toast: VideoNoteToast) => {
+  switch (toast) {
+    case "saved": return t("videoNoteSaved");
+    case "transcript": return t("videoTranscriptSaved");
+    case "transcript-scope": return t("videoTranscriptNeedScope");
+    case "transcript-model": return t("videoTranscriptNeedModel");
+    case "transcript-too-long": return t("videoTranscriptTooLong");
+    case "info": return t("videoInfoSaved");
+    case "unsupported": return t("videoPageUnsupported");
+    default: return t("videoNotRead");
+  }
+};
+
+const capturedOnDate = () => {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${now.getFullYear()}-${month}-${day}`;
+};
+
+const readVideoCapture = async (tabId: number, frameId: number | null, pageUrl: string) => {
+  const uiLanguage = typeof chrome.i18n.getUILanguage === "function" ? chrome.i18n.getUILanguage() : "en";
+  try {
+    if (youtubeTargetFromUrl(pageUrl)) {
+      const [injected] = await chrome.scripting.executeScript({
+        target: scriptTarget(tabId, frameId),
+        world: "MAIN",
+        func: readYouTubeVideoInPage,
+        args: [uiLanguage],
+      });
+      const read = injected?.result;
+      if (!isYouTubePageRead(read)) return { ok: false as const, reason: "not-found" as const };
+      if (!read.ok) return read;
+      return youtubeCaptureFromRead(pageUrl, read);
+    }
+    if (bilibiliTargetFromUrl(pageUrl)) {
+      const [injected] = await chrome.scripting.executeScript({
+        target: scriptTarget(tabId, frameId),
+        world: "MAIN",
+        func: readBilibiliVideoInPage,
+        args: [uiLanguage],
+      });
+      const read = injected?.result;
+      if (!isBilibiliPageRead(read)) return { ok: false as const, reason: "not-found" as const };
+      if (!read.ok) return read;
+      return bilibiliCaptureFromRead(pageUrl, read);
+    }
+  } catch {
+    return { ok: false as const, reason: "not-found" as const };
+  }
+  return { ok: false as const, reason: "unsupported" as const };
+};
+
+const performVideoSave = async (
+  settings: ExtensionSettings,
+  tabId: number,
+  frameId: number | null,
+  pageUrl: string,
+) => {
+  const read = await readVideoCapture(tabId, frameId, pageUrl);
+  if (!read.ok) return { created: false, message: videoToastMessage(read.reason) };
+  let attempt: OutlineAttempt | null = null;
+  if (read.capture.cues.length > 0) {
+    attempt = await postVideoOutline(settings, videoOutlineRequestBody(read.capture));
+  }
+  const saved = await persistVideoNote({
+    notebookId: await notebookForClip(settings),
+    capture: read.capture,
+    labels: videoLabels(),
+    capturedOn: capturedOnDate(),
+    attempt,
+    createMemo: (body) => edgeEverRequest(settings, "/api/v1/memos", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+    createWithImage: (body) => imageNoteClient(settings).createWithImage(body),
+  });
+  return { created: true, message: videoToastMessage(saved.toast) };
+};
+
+const saveVideoFromMenu = async (
+  info: { pageUrl?: string; frameId?: number },
+  tab?: { id?: number; url?: string },
+) => {
+  const tabId = typeof tab?.id === "number" ? tab.id : null;
+  const frameId = typeof info.frameId === "number" ? info.frameId : null;
+  const pageUrl = tab?.url || info.pageUrl || "";
+  try {
+    const settings = await ensureClipperReady();
+    if (!tabId) throw new Error(t("videoNotRead"));
+    await showFeedback(tabId, frameId, t("savingVideoNote"), "success");
+    const result = await performVideoSave(settings, tabId, frameId, pageUrl);
+    await showFeedback(tabId, frameId, result.message, result.created ? "success" : "error");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (message === t("completePluginConfiguration") || message === t("instancePermissionRequired")) {
+      await chrome.runtime.openOptionsPage();
+    }
+    const shown = message === t("completePluginConfiguration")
+      || message === t("instancePermissionRequired")
+      || message === t("noAvailableNotebooks")
+      || message === t("videoNotRead")
+      ? message
+      : describeSaveError(error);
+    await showFeedback(tabId, frameId, shown, "error");
+  }
+};
+
 const registerClipMenus = () => {
   // Chrome and Firefox fold an extension into a submenu when more than one of
   // its items is visible. These contexts stay disjoint so each command remains
   // on the top-level menu: a photo saves the image, selected words save the
   // passage, the rest of an X post saves the post, a GitHub repository page
-  // saves the repository, the rest of a Xiaohongshu note saves the note, and
-  // the rest of a Zhihu answer or article or Reddit post saves that item.
-  // The Reddit title-link command is limited to Reddit post permalinks, so
-  // linked photos keep the image command. Recreate from scratch so a previous
-  // registration cannot keep an overlapping item. Context menus persist across
-  // service worker and event page restarts; removing them at module startup can
-  // leave the browser with no menus while the background is waking up.
+  // saves the repository, the rest of a Xiaohongshu note saves the note, the
+  // rest of a Zhihu answer or article or Reddit post saves that item, and a
+  // YouTube or Bilibili watch page saves the video. The video patterns do not
+  // share a host with those page commands. The Reddit title-link command is
+  // limited to Reddit post permalinks, so linked photos keep the image command.
+  // Recreate from scratch so a previous registration cannot keep an overlapping
+  // item. Context menus persist across service worker and event page restarts;
+  // removing them at module startup can leave the browser with no menus while
+  // the background is waking up.
   chrome.contextMenus.removeAll(() => {
     void chrome.runtime.lastError;
     createClipMenus();
@@ -1366,6 +1507,14 @@ const createClipMenus = () => {
   }, () => {
     void chrome.runtime.lastError;
   });
+  chrome.contextMenus.create({
+    id: VIDEO_MENU_ID,
+    title: t("saveVideoNoteToEdgeEver"),
+    contexts: ["page", "video"],
+    documentUrlPatterns: VIDEO_DOCUMENT_PATTERNS,
+  }, () => {
+    void chrome.runtime.lastError;
+  });
 };
 
 chrome.runtime.onInstalled.addListener(registerClipMenus);
@@ -1397,6 +1546,10 @@ chrome.contextMenus.onClicked.addListener((info: { menuItemId?: string | number;
   }
   if (info.menuItemId === REDDIT_MENU_ID || info.menuItemId === REDDIT_LINK_MENU_ID) {
     void enqueueClip(() => saveRedditFromMenu(info, tab));
+    return;
+  }
+  if (info.menuItemId === VIDEO_MENU_ID) {
+    void enqueueClip(() => saveVideoFromMenu(info, tab));
   }
 });
 
@@ -1570,6 +1723,12 @@ chrome.runtime.onMessage.addListener((message: { type?: string; page?: CapturedP
         }
 
         const pageUrl = tab.url || "";
+        if (youtubeTargetFromUrl(pageUrl) || bilibiliTargetFromUrl(pageUrl)) {
+          const result = await enqueueClip(() => performVideoSave(settings, tab.id, null, pageUrl));
+          sendResponse(result.created ? { ok: true, message: result.message } : { ok: false, message: result.message });
+          return;
+        }
+
         if (githubRepoTarget(pageUrl)) {
           let facts: GithubRepoFacts | null = null;
           try {

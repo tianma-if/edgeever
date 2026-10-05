@@ -2500,7 +2500,7 @@ export const zhCN = {
     accessLevels: {
       full: {
         label: "完全访问",
-        description: "可读取、创建和修改所有笔记、笔记本、标签及附件，并将笔记移入回收站。",
+        description: "可读取、创建和修改所有笔记、笔记本、标签及附件，将笔记移入回收站，并用已配置的默认模型生成视频笔记总结。",
       },
       "read-only": {
         label: "只读访问",
@@ -2535,6 +2535,7 @@ export const zhCN = {
       "write:resources": "管理附件",
       "read:tags": "读取标签",
       "write:tags": "管理标签",
+      "ai:generate": "生成视频笔记总结",
     },
   },
   advancedPlay: {

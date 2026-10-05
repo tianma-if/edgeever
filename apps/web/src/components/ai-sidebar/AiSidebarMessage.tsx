@@ -14,10 +14,11 @@ export const AiSidebarMessage = memo(
   ({ className, children, isAnimating }: { children: string; className?: string; isAnimating?: boolean }) => (
     <Streamdown
       allowedTags={sidebarNoteLinkAllowedTags}
-      className={cn("size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0", className)}
+      className={cn("ai-sidebar-message size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0", className)}
       components={sidebarNoteLinkComponents}
       isAnimating={isAnimating}
       plugins={sidebarStreamdownPlugins}
+      tableMaxHeight={240}
     >
       {rewriteSidebarNoteLinks(children)}
     </Streamdown>
