@@ -183,10 +183,10 @@ curl -fsSL https://edgeever.org/install.sh | bash
 
 歡迎加入 EdgeEver AI 交流群，這裡聚集了大量 Vibe Coding 與 AI 玩家。一起交流 EdgeEver 體驗、AI Agent 實戰落地、高性價比／免費 AI 資源及自動化工作流程。
 
-> 群組 QR Code 7 天內有效。如果 QR Code 過期，請加入微信 `m1245207870`，並備註「EdgeEver 進群」。
+> 目前交流群人數已滿 200 人，無法直接掃碼進群。請掃描下方 QR Code 或加入微信 `m1245207870`，並備註「EdgeEver 進群」，群主將手動邀請您加入。
 
 <p align="center">
-  <img src="assets/wechat-group-qr.jpg" alt="EdgeEver AI 交流群 QR Code" width="260" />
+  <img src="assets/wechat-group-qr.jpg" alt="微信聯絡人 QR Code" width="260" />
 </p>
 
 ## 外掛與主題
