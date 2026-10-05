@@ -13,8 +13,8 @@ const require = createRequire(import.meta.url);
 const npmCli = path.join(path.dirname(require.resolve("npm")), "bin", "npm-cli.js");
 const REGISTRY_URL = "https://cdn.agentclientprotocol.com/registry/v1/latest/registry.json";
 const PI_PACKAGE_URL = "https://registry.npmjs.org/pi-acp/latest";
-export const MAX_ARCHIVE_BYTES = 500 * 1024 * 1024;
-export const MAX_EXTRACTED_BYTES = 2 * 1024 * 1024 * 1024;
+const MAX_ARCHIVE_BYTES = 300 * 1024 * 1024;
+const MAX_EXTRACTED_BYTES = 1024 * 1024 * 1024;
 const VERSION_PATTERN = /^\d+\.\d+\.\d+$/;
 const SUPPORTED_MAJOR = { codex: 2, antigravity: 1 };
 
@@ -271,18 +271,18 @@ export function createAcpAdapterManager({ root, fetchImpl = fetch, platform = pr
   const prune = async () => {
     for (const id of ["codex", "antigravity", "piAgent"]) {
       const current = get(id)?.version;
+      if (!current) continue;
       const folder = path.join(root, id);
       const names = await readdir(folder).catch(() => []);
-      const versions = names.filter((name) => VERSION_PATTERN.test(name) && (!current || name !== current))
+      const versions = names.filter((name) => VERSION_PATTERN.test(name) && name !== current)
         .sort((a, b) => compareVersions(b, a));
       for (const name of names) {
-        if (name.startsWith(".stage-") || (current && versions.includes(name) && name !== versions[0])) {
+        if (name.startsWith(".stage-") || (versions.includes(name) && name !== versions[0])) {
           await rm(path.join(folder, name), { recursive: true, force: true });
         }
       }
     }
   };
-
 
   return { get, install, prune, installedIds: () => ["codex", "antigravity", "piAgent"].filter((id) => get(id)) };
 }

@@ -185,10 +185,10 @@ curl -fsSL https://edgeever.org/install.sh | bash
 
 欢迎加入 EdgeEver AI 交流群，这里聚集了大量 Vibe Coding 与 AI 玩家。一起交流 EdgeEver 体验、AI Agent 实战落地、高性价比/免费 AI 资源及自动化工作流。
 
-> 当前交流群人数已满 200 人，无法直接扫码进群。请扫描下方二维码或添加微信 `m1245207870`，并备注“EdgeEver 进群”，群主将手动邀请您加入。
+> 群二维码 7 天内有效。如果二维码过期，请添加微信 `m1245207870`，并备注“EdgeEver 进群”。
 
 <p align="center">
-  <img src="assets/wechat-group-qr.jpg" alt="微信联系人二维码" width="260" />
+  <img src="assets/wechat-group-qr.jpg" alt="EdgeEver AI 交流群二维码" width="260" />
 </p>
 
 ## 插件与主题

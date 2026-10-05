@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { zipSync } from "fflate";
-import { MAX_ARCHIVE_BYTES, MAX_EXTRACTED_BYTES, createAcpAdapterManager, managedAdapterCommand, selectAdapterRelease, selectPiAdapterRelease } from "./acp-adapter-manager.mjs";
+import { createAcpAdapterManager, managedAdapterCommand, selectAdapterRelease, selectPiAdapterRelease } from "./acp-adapter-manager.mjs";
 
 const codexEntry = (version) => ({
   id: "codex-acp",
@@ -172,63 +172,4 @@ describe("managed ACP adapters", () => {
       await rm(root, { recursive: true, force: true });
     }
   });
-
-  test("prunes orphaned stage directories even when the adapter is uninstalled", async () => {
-    const root = await mkdtemp(path.join(tmpdir(), "edgeever-prune-orphaned-"));
-    const stageDir = path.join(root, "antigravity", ".stage-1.3.0-12345-67890");
-    await mkdir(stageDir, { recursive: true });
-    const manager = createAcpAdapterManager({ root });
-    expect(manager.get("antigravity")).toBeNull();
-    try {
-      await manager.prune();
-      expect(existsSync(stageDir)).toBe(false);
-    } finally {
-      await rm(root, { recursive: true, force: true });
-    }
-  });
-
-  test("configures archive and extracted size limits to 500 MiB and 2 GiB", () => {
-    expect(MAX_ARCHIVE_BYTES).toBe(500 * 1024 * 1024);
-    expect(MAX_EXTRACTED_BYTES).toBe(2 * 1024 * 1024 * 1024);
-  });
-
-  test("enforces archive size cap of 500 MiB and rejects larger downloads", async () => {
-    const root = await mkdtemp(path.join(tmpdir(), "edgeever-archive-size-"));
-    const entry = {
-      id: "antigravity-acp",
-      version: "1.3.0",
-      distribution: { binary: { "darwin-aarch64": {
-        archive: "https://dl.google.com/agy-extensions/releases/macos/test.zip",
-        cmd: "./agy_acp_server.par",
-      } } },
-    };
-    let contentLength = 350 * 1024 * 1024;
-    const manager = createAcpAdapterManager({
-      root,
-      platform: "darwin",
-      arch: "arm64",
-      fetchImpl: async (url) => {
-        if (url.endsWith(".zip")) {
-          return new Response(new ReadableStream({
-            start(controller) {
-              controller.error(new Error("aborted_after_header_check"));
-            },
-          }), {
-            status: 200,
-            headers: { "content-length": String(contentLength) },
-          });
-        }
-        return new Response(JSON.stringify({ agents: [entry] }), { status: 200 });
-      },
-    });
-    try {
-      await expect(manager.install("antigravity", async () => ({ state: "available" }))).rejects.toThrow("aborted_after_header_check");
-      contentLength = 501 * 1024 * 1024;
-      await expect(manager.install("antigravity", async () => ({ state: "available" }))).rejects.toThrow("adapter_too_large");
-    } finally {
-      await rm(root, { recursive: true, force: true });
-    }
-  });
 });
-
-
