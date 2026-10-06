@@ -485,5 +485,80 @@
   },
   "redditLinkLabel": {
     "message": "Linked page"
+  },
+  "saveVideoNoteToEdgeEver": {
+    "message": "Save video note to EdgeEver"
+  },
+  "savingVideoNote": {
+    "message": "Saving this video note…"
+  },
+  "videoNoteSaved": {
+    "message": "Saved the video note."
+  },
+  "videoTranscriptSaved": {
+    "message": "Saved the captions. No summary was generated."
+  },
+  "videoTranscriptNeedScope": {
+    "message": "Saved the captions. No summary was generated. Add the ai:generate scope to the token in settings, and choose a default model."
+  },
+  "videoTranscriptNeedModel": {
+    "message": "Saved the captions. No summary was generated. Choose a default model first."
+  },
+  "videoTranscriptTooLong": {
+    "message": "Saved the captions. This video is too long to summarize."
+  },
+  "videoInfoSaved": {
+    "message": "Saved the video details."
+  },
+  "videoPageUnsupported": {
+    "message": "This page is not supported yet."
+  },
+  "videoNotRead": {
+    "message": "Could not read this video."
+  },
+  "videoSourceLabel": {
+    "message": "Source"
+  },
+  "videoPlatformLabel": {
+    "message": "Platform"
+  },
+  "videoCaptionsLabel": {
+    "message": "Captions"
+  },
+  "videoCapturedAtLabel": {
+    "message": "Saved"
+  },
+  "videoSummaryHeading": {
+    "message": "Summary"
+  },
+  "videoOutlineHeading": {
+    "message": "Outline"
+  },
+  "videoTakeawaysHeading": {
+    "message": "Takeaways"
+  },
+  "videoTranscriptHeading": {
+    "message": "Transcript"
+  },
+  "videoCoverAlt": {
+    "message": "Cover"
+  },
+  "videoPlatformYouTube": {
+    "message": "YouTube"
+  },
+  "videoPlatformBilibili": {
+    "message": "Bilibili"
+  },
+  "videoCaptionsAuto": {
+    "message": "Automatic captions"
+  },
+  "videoCaptionsCreator": {
+    "message": "Creator captions"
+  },
+  "videoNoCaptions": {
+    "message": "This video has no captions."
+  },
+  "videoNoteFallbackTitle": {
+    "message": "Video note"
   }
 }

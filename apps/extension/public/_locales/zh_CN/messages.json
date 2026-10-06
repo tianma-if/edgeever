@@ -485,5 +485,80 @@
   },
   "redditLinkLabel": {
     "message": "外部链接"
+  },
+  "saveVideoNoteToEdgeEver": {
+    "message": "保存视频笔记到 EdgeEver"
+  },
+  "savingVideoNote": {
+    "message": "正在保存视频笔记……"
+  },
+  "videoNoteSaved": {
+    "message": "已保存视频笔记"
+  },
+  "videoTranscriptSaved": {
+    "message": "已保存字幕，总结未生成"
+  },
+  "videoTranscriptNeedScope": {
+    "message": "已保存字幕，总结未生成。请在设置中为 Token 加上 ai:generate，并配置默认模型。"
+  },
+  "videoTranscriptNeedModel": {
+    "message": "已保存字幕，总结未生成。请先配置默认模型。"
+  },
+  "videoTranscriptTooLong": {
+    "message": "已保存字幕。这篇太长，没有生成总结。"
+  },
+  "videoInfoSaved": {
+    "message": "已保存视频信息"
+  },
+  "videoPageUnsupported": {
+    "message": "暂不支持这个页面"
+  },
+  "videoNotRead": {
+    "message": "没有读到这个视频"
+  },
+  "videoSourceLabel": {
+    "message": "来源"
+  },
+  "videoPlatformLabel": {
+    "message": "平台"
+  },
+  "videoCaptionsLabel": {
+    "message": "字幕"
+  },
+  "videoCapturedAtLabel": {
+    "message": "保存时间"
+  },
+  "videoSummaryHeading": {
+    "message": "核心总结"
+  },
+  "videoOutlineHeading": {
+    "message": "分段大纲"
+  },
+  "videoTakeawaysHeading": {
+    "message": "要点"
+  },
+  "videoTranscriptHeading": {
+    "message": "字幕实录"
+  },
+  "videoCoverAlt": {
+    "message": "封面"
+  },
+  "videoPlatformYouTube": {
+    "message": "YouTube"
+  },
+  "videoPlatformBilibili": {
+    "message": "哔哩哔哩"
+  },
+  "videoCaptionsAuto": {
+    "message": "平台自动字幕"
+  },
+  "videoCaptionsCreator": {
+    "message": "创作者字幕"
+  },
+  "videoNoCaptions": {
+    "message": "这一集没有可用字幕"
+  },
+  "videoNoteFallbackTitle": {
+    "message": "视频笔记"
   }
 }

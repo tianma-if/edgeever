@@ -485,5 +485,80 @@
   },
   "redditLinkLabel": {
     "message": "外部リンク"
+  },
+  "saveVideoNoteToEdgeEver": {
+    "message": "動画ノートを EdgeEver に保存"
+  },
+  "savingVideoNote": {
+    "message": "動画ノートを保存しています…"
+  },
+  "videoNoteSaved": {
+    "message": "動画ノートを保存しました。"
+  },
+  "videoTranscriptSaved": {
+    "message": "字幕を保存しました。要約は生成されていません。"
+  },
+  "videoTranscriptNeedScope": {
+    "message": "字幕を保存しました。要約は生成されていません。設定でトークンに ai:generate を追加し、既定のモデルを選んでください。"
+  },
+  "videoTranscriptNeedModel": {
+    "message": "字幕を保存しました。要約は生成されていません。先に既定のモデルを選んでください。"
+  },
+  "videoTranscriptTooLong": {
+    "message": "字幕を保存しました。この動画は長すぎるため、要約は生成されていません。"
+  },
+  "videoInfoSaved": {
+    "message": "動画情報を保存しました。"
+  },
+  "videoPageUnsupported": {
+    "message": "このページにはまだ対応していません。"
+  },
+  "videoNotRead": {
+    "message": "この動画を読み取れませんでした。"
+  },
+  "videoSourceLabel": {
+    "message": "出典"
+  },
+  "videoPlatformLabel": {
+    "message": "プラットフォーム"
+  },
+  "videoCaptionsLabel": {
+    "message": "字幕"
+  },
+  "videoCapturedAtLabel": {
+    "message": "保存日"
+  },
+  "videoSummaryHeading": {
+    "message": "要約"
+  },
+  "videoOutlineHeading": {
+    "message": "章立て"
+  },
+  "videoTakeawaysHeading": {
+    "message": "要点"
+  },
+  "videoTranscriptHeading": {
+    "message": "字幕全文"
+  },
+  "videoCoverAlt": {
+    "message": "カバー"
+  },
+  "videoPlatformYouTube": {
+    "message": "YouTube"
+  },
+  "videoPlatformBilibili": {
+    "message": "ビリビリ"
+  },
+  "videoCaptionsAuto": {
+    "message": "自動字幕"
+  },
+  "videoCaptionsCreator": {
+    "message": "投稿者の字幕"
+  },
+  "videoNoCaptions": {
+    "message": "この動画には使える字幕がありません。"
+  },
+  "videoNoteFallbackTitle": {
+    "message": "動画ノート"
   }
 }
