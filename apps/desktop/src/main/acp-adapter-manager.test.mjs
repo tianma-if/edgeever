@@ -192,7 +192,7 @@ describe("managed ACP adapters", () => {
     expect(MAX_EXTRACTED_BYTES).toBe(2 * 1024 * 1024 * 1024);
   });
 
-  test("updates binary ACP adapters from an older version to a larger newer version with staging and rollback protection", async () => {
+  test("updates binary ACP adapters from an older version to a larger newer version with staging and rollback protection (simulated)", async () => {
     const root = await mkdtemp(path.join(tmpdir(), "edgeever-cross-version-agy-"));
     const versionRoot = path.join(root, "antigravity");
     const oldVersionDir = path.join(versionRoot, "1.2.1");

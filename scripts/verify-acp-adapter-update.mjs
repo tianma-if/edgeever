@@ -1,3 +1,15 @@
+/**
+ * ACP Adapter Installer Simulated Cross-Version Regression Test
+ *
+ * Fast, hermetic regression test that exercises installer state machine
+ * transitions: staging directories, atomic version migration, manifest persistence,
+ * rollback protection upon validation failure, and version pruning.
+ *
+ * Uses synthetic payloads, placeholder shell scripts, and mocked validation callbacks
+ * for CI execution without network dependencies or gigabyte-scale downloads.
+ * For real end-to-end verification with official distribution archives and live ACP
+ * handshakes on Linux, see scripts/verify-acp-adapter-real-e2e.mjs.
+ */
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync } from "node:fs";
 import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
@@ -12,7 +24,7 @@ export async function runAcpAdapterCrossVersionVerification({ silent = false } =
 
   try {
     log("=================================================================");
-    log("ACP Adapter Installer Real Cross-Version Verification");
+    log("ACP Adapter Installer Simulated Cross-Version Regression Test");
     log("=================================================================");
 
     const versionRoot = path.join(root, "antigravity");
@@ -132,7 +144,7 @@ export async function runAcpAdapterCrossVersionVerification({ silent = false } =
     log("[5/5] Verified size caps: 500 MiB archive cap and 2 GiB extracted cap verified.");
 
     log("=================================================================");
-    log("ACP Adapter Installer Cross-Version Verification: ALL PASSED");
+    log("ACP Adapter Installer Simulated Cross-Version Regression: ALL PASSED");
     log("=================================================================");
     return true;
   } finally {
