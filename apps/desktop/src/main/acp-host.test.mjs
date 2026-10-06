@@ -797,14 +797,13 @@ describe("ACP stdio session", () => {
       expect(probed.authMethods).toEqual([{ id: "browser", name: "Browser" }]);
       const authenticated = await runtime.authenticateAdapter({ id: "antigravity", path: scriptPath, methodId: "browser" });
       expect(authenticated.state).toBe("available");
-      expect(authenticated.authMethods).toBeUndefined();
       expect((await readReport(reportPath)).authMethod).toBe("browser");
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
   }, 15_000);
 
-  sessionTest("hides ACP login methods when an agent can already create a session", async () => {
+  sessionTest("keeps ACP login methods visible when another agent can already create a session", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "edgeever-acp-optional-auth-"));
     try {
       const scriptPath = await writeFakeAgent(directory, {
@@ -818,7 +817,7 @@ describe("ACP stdio session", () => {
       const runtime = createAcpHostRuntime();
       const probed = await runtime.probeAdapter({ id: "antigravity", path: scriptPath });
       expect(probed.state).toBe("available");
-      expect(probed.authMethods).toBeUndefined();
+      expect(probed.authMethods).toEqual([{ id: "browser", name: "Browser" }]);
     } finally {
       await rm(directory, { recursive: true, force: true });
     }

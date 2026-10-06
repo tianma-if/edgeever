@@ -87,13 +87,13 @@ const createDatabaseEnvironment = () => {
   };
 };
 
-const createApp = ({ currentAuth = auth, demoMode = false, suggestTags, testConnection, generateVideoOutline } = {}) => {
+const createApp = ({ currentAuth = auth, demoMode = false, suggestTags, testConnection } = {}) => {
   const app = new Hono();
   app.use("/api/v1/*", async (context, next) => {
     context.set("auth", currentAuth);
     await next();
   });
-  registerAiRoutes(app, { isDemoMode: () => demoMode, suggestTags, testConnection, generateVideoOutline });
+  registerAiRoutes(app, { isDemoMode: () => demoMode, suggestTags, testConnection });
   return app;
 };
 
@@ -626,119 +626,5 @@ describe("AI route contracts", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ readOnly: true });
     sqlite.close();
-  });
-});
-
-const videoOutlineBody = (overrides = {}) => ({
-  platform: "youtube",
-  title: "Current video",
-  author: "Channel",
-  duration: 90,
-  hasChapters: false,
-  blocks: [
-    { start: 0, text: "Hello world" },
-    { start: 45, text: "Second block" },
-  ],
-  ...overrides,
-});
-
-describe("video outline", () => {
-  test("requires a session or the ai:generate scope and returns no provider credentials", async () => {
-    const body = JSON.stringify(videoOutlineBody());
-    const request = { method: "POST", headers: { "content-type": "application/json" }, body };
-    const anonymous = await createApp({ currentAuth: null }).request("/api/v1/ai/video-outline", request, environment);
-    expect(anonymous.status).toBe(401);
-    const clipper = createApp({
-      currentAuth: { ...auth, kind: "agent", actorType: "agent", scopes: ["write:memos", "write:resources"] },
-    });
-    const denied = await clipper.request("/api/v1/ai/video-outline", request, environment);
-    expect(denied.status).toBe(403);
-    expect(await denied.json()).toMatchObject({ error: { code: "forbidden" } });
-
-    let prompt = "";
-    const allowed = createApp({
-      currentAuth: { ...auth, kind: "agent", actorType: "agent", scopes: ["ai:generate"] },
-      generateVideoOutline: async (input) => {
-        prompt = input.prompt;
-        return JSON.stringify({
-          tldr: "One sentence.",
-          sections: [
-            { start: 999, text: "not a block start" },
-            { start: 46, text: "near the second block" },
-          ],
-          takeaways: ["Reuse this."],
-        });
-      },
-    });
-    const response = await allowed.request("/api/v1/ai/video-outline", request, environment);
-    expect(response.status).toBe(200);
-    const payload = await response.json();
-    expect(payload).toEqual({
-      tldr: "One sentence.",
-      sections: [{ start: 45, text: "near the second block" }],
-      takeaways: ["Reuse this."],
-    });
-    expect(JSON.stringify(payload)).not.toContain("apiKey");
-    expect(prompt).toContain("[0] Hello world");
-    expect(prompt).toContain("[45] Second block");
-    expect(prompt).not.toContain("```");
-    const settings = await allowed.request("/api/v1/ai/settings", {}, environment);
-    expect(settings.status).toBe(403);
-  });
-
-  test("asks only for a summary when chapters already exist and drops model sections", async () => {
-    let prompt = "";
-    const app = createApp({
-      generateVideoOutline: async (input) => {
-        prompt = input.prompt;
-        return "```json\n{\"tldr\":\"Chapters stay.\",\"sections\":[{\"start\":0,\"text\":\"rewritten\"}],\"takeaways\":[\"Keep.\"]}\n```";
-      },
-    });
-    const response = await app.request("/api/v1/ai/video-outline", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(videoOutlineBody({ hasChapters: true })),
-    }, environment);
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({
-      tldr: "Chapters stay.",
-      sections: [],
-      takeaways: ["Keep."],
-    });
-    expect(prompt).toContain("Do not return sections.");
-  });
-
-  test("returns ai_not_configured when the workspace has no default model", async () => {
-    const { sqlite, environment: databaseEnvironment } = createDatabaseEnvironment();
-    const response = await createApp().request("/api/v1/ai/video-outline", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(videoOutlineBody()),
-    }, databaseEnvironment);
-    expect(response.status).toBe(409);
-    expect(await response.json()).toMatchObject({ error: { code: "ai_not_configured" } });
-    sqlite.close();
-  });
-
-  test("rejects an oversized transcript and invalid model JSON", async () => {
-    const oversized = await createApp().request("/api/v1/ai/video-outline", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(videoOutlineBody({
-        blocks: Array.from({ length: 7 }, (_, index) => ({ start: index * 60, text: "字".repeat(7000) })),
-      })),
-    }, environment);
-    expect(oversized.status).toBe(413);
-    expect(await oversized.json()).toMatchObject({ error: { code: "video_outline_too_long" } });
-
-    const invalid = await createApp({
-      generateVideoOutline: async () => "not json",
-    }).request("/api/v1/ai/video-outline", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(videoOutlineBody()),
-    }, environment);
-    expect(invalid.status).toBe(422);
-    expect(await invalid.json()).toMatchObject({ error: { code: "video_outline_invalid" } });
   });
 });

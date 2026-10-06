@@ -1,6 +1,6 @@
 {
   "name": "@edgeever/extension",
-  "version": "0.1.17",
+  "version": "0.1.16",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,7 +9,7 @@
     "dev": "vite --config vite.config.ts",
     "lint:firefox": "web-ext lint --source-dir dist-firefox --output text",
     "package:firefox": "bun run build:firefox && bun run lint:firefox && web-ext build --source-dir dist-firefox --artifacts-dir web-ext-artifacts --overwrite-dest",
-    "test": "bun test manifest.test.mjs context-menus.test.mjs popup.test.mjs capture-bundle.test.mjs image-clip.test.mjs tweet-clip.test.mjs selection-clip.test.mjs github-repo.test.mjs xhs-clip.test.mjs zhihu-clip.test.mjs reddit-clip.test.mjs video-clip.test.mjs"
+    "test": "bun test manifest.test.mjs context-menus.test.mjs popup.test.mjs capture-bundle.test.mjs image-clip.test.mjs tweet-clip.test.mjs selection-clip.test.mjs github-repo.test.mjs xhs-clip.test.mjs zhihu-clip.test.mjs reddit-clip.test.mjs"
   },
   "dependencies": {
     "@mixmark-io/domino": "2.2.0",

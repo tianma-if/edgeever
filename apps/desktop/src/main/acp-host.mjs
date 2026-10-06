@@ -799,7 +799,7 @@ export function createAcpHostRuntime(options = {}) {
             const prepared = id === "piAgent" ? withPiPath(command, resolutionDeps(commandDeps))
               : id === "antigravity" ? withAntigravityMacProxy(command, commandDeps) : command;
             connected = await withHandshakeTimeout((signal) => connect(prepared, `install-${id}`, () => {}, signal), 90_000);
-            return { ...adapterShell(id), state: "available", promptCapabilities: connected.promptCapabilities };
+            return { ...adapterShell(id), state: "available", promptCapabilities: connected.promptCapabilities, authMethods: connected.authMethods };
           } catch (error) {
             return { ...adapterShell(id), ...failureFields(classifyAcpFailure(error)), ...(isAuthRequiredError(error) ? { authMethods: error.authMethods ?? [] } : {}) };
           } finally {
@@ -870,6 +870,7 @@ export function createAcpHostRuntime(options = {}) {
         ...adapterShell(id),
         state: "available",
         promptCapabilities: connected.promptCapabilities,
+        authMethods: connected.authMethods,
         ...(resolved.version ? { version: resolved.version, managed: true } : {}),
       };
       latestStatus.set(id, adapter);
@@ -887,7 +888,7 @@ export function createAcpHostRuntime(options = {}) {
       let connected;
       try {
         connected = await withHandshakeTimeout((signal) => connect(resolved.command, `auth-${id}`, () => {}, signal, input.methodId), 5 * 60_000);
-        const adapter = { ...adapterShell(id), state: "available", promptCapabilities: connected.promptCapabilities, ...(resolved.version ? { version: resolved.version, managed: true } : {}) };
+        const adapter = { ...adapterShell(id), state: "available", promptCapabilities: connected.promptCapabilities, authMethods: connected.authMethods, ...(resolved.version ? { version: resolved.version, managed: true } : {}) };
         latestStatus.set(id, adapter);
         return adapter;
       } catch (error) {
