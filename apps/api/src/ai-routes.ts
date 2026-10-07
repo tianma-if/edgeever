@@ -46,17 +46,7 @@ import {
 } from "./ai-service";
 import { createId, isoNow } from "./entity-utils";
 import { apiError, forbidden, notFound } from "./http-errors";
-import { getWorkspaceId, requireScopes, requireUser } from "./request-auth";
-import {
-  VIDEO_OUTLINE_MAX_CHARS,
-  VIDEO_OUTLINE_SYSTEM_PROMPT,
-  VideoOutlineRequestSchema,
-  buildVideoOutlineUserPrompt,
-  generateVideoOutlineText,
-  normalizeVideoOutline,
-  parseVideoOutlineModelText,
-  videoOutlineInputChars,
-} from "./video-outline";
+import { getWorkspaceId, requireUser } from "./request-auth";
 import { encryptSecret } from "./secret-encryption";
 import { listTagSummaries } from "./tag-service";
 
@@ -70,11 +60,6 @@ type AiRouteDependencies = {
     existingTags: string[];
     locale?: string;
   }) => Promise<string[]>;
-  generateVideoOutline?: (input: {
-    system: string;
-    prompt: string;
-    abortSignal?: AbortSignal;
-  }) => Promise<string>;
 };
 
 const providerErrorMessage = (error: unknown) => {
@@ -787,39 +772,6 @@ export const registerAiRoutes = (app: Hono<AppEnv>, dependencies: AiRouteDepende
         });
       } catch (error) {
         return withAiError(context, error, "ai_generation_failed");
-      }
-    },
-  );
-
-  app.post(
-    "/api/v1/ai/video-outline",
-    zValidator("json", VideoOutlineRequestSchema),
-    async (context) => {
-      const denied = requireScopes(context, "ai:generate");
-      if (denied) return denied;
-      const input = context.req.valid("json");
-      if (videoOutlineInputChars(input) > VIDEO_OUTLINE_MAX_CHARS) {
-        return apiError(
-          context,
-          "video_outline_too_long",
-          "This transcript is too long to summarize.",
-          413,
-        );
-      }
-      try {
-        const system = VIDEO_OUTLINE_SYSTEM_PROMPT;
-        const prompt = buildVideoOutlineUserPrompt(input);
-        const text = dependencies.generateVideoOutline
-          ? await dependencies.generateVideoOutline({ system, prompt, abortSignal: context.req.raw.signal })
-          : await generateVideoOutlineText({
-            model: await loadDefaultAiModel(context.env.storage.db, getWorkspaceId(context), context.env),
-            system,
-            prompt,
-            abortSignal: context.req.raw.signal,
-          });
-        return context.json(normalizeVideoOutline(parseVideoOutlineModelText(text), input));
-      } catch (error) {
-        return withAiError(context, error, "video_outline_invalid");
       }
     },
   );

@@ -65,17 +65,6 @@ EdgeEver 是一款現代化的開源筆記與個人知識庫工作區。它為�
 
 > iOS 用戶端需要使用非中國大陸區 Apple ID 下載。
 
-## ✨ 場景與最佳實踐
-
-從跨渠道內容捕獲到深度知識表達與業務協同，EdgeEver 為個人與團隊提供了高效流暢的端到端工作流：
-
-- 💬 **全渠道剪藏與沉澱**：macOS 端[微信聊天記錄一鍵歸檔](docs/best-practices.zh-CN.md#1-微信聊天记录一键归档与整理)；瀏覽器外掛一鍵剪藏[小紅書畫廊](docs/best-practices.zh-CN.md#2-小红书图文笔记一键剪藏)、[X (Twitter) 推文與引用](docs/best-practices.zh-CN.md#3-x-twitter-推文与引用一键剪藏)、[知乎問答](docs/best-practices.zh-CN.md#4-知乎回答与文章一键精准剪藏)、[Reddit 討論帖](docs/best-practices.zh-CN.md#5-reddit-讨论帖一键剪藏)與 [GitHub 倉庫](docs/best-practices.zh-CN.md#8-github-开源仓库信息一键剪藏)；手機端隨時分享[全網圖片](docs/best-practices.zh-CN.md#9-移动端社媒图片一键转存笔记)與[微信公眾號文章](docs/best-practices.zh-CN.md#10-手机端一键剪藏微信公众号文章)。
-- 🚀 **智慧視覺化表達**：借助伴隨式 AI 助手，自然語言一句話產生可互動的[心智圖、流程圖與架構圖](docs/best-practices.zh-CN.md#11-ai-对话一键生成思维导图流程图与架构图)，或一鍵產生精美的[專業時間線資訊圖](docs/best-practices.zh-CN.md#12-ai-智能生成专业信息图时间线对比图架构图等)。
-- 📊 **多維資料與線上協作**：AI 一句話建構[自媒體選題與人事多維表格](docs/best-practices.zh-CN.md#13-借助右侧-ai-助手一句话生成多维表格)，並一鍵開啟[對外公開的線上收集表單](docs/best-practices.zh-CN.md#14-多维表格一键生成在线公开收集表单)。
-- ✍️ **創作者一鍵發布**：支援[一鍵複製內聯富文本到微信公眾號](docs/best-practices.zh-CN.md#6-一键复制笔记到微信公众号排版)，以及 AI RSS 日報一鍵產生[高質感長圖海報](docs/best-practices.zh-CN.md#7-ai-rss-智能订阅日报与精美长图分享)。
-
-👉 查看全部 14 個實機展示與操作效果：**[完整場景與最佳實踐指南](docs/best-practices.zh-CN.md)**
-
 ## 功能
 
 - **自由選擇部署方式**：既可免費執行於 Cloudflare Serverless，也可透過 Docker 部署到 VPS、NAS 或家用伺服器。按 Cloudflare 免費儲存額度估算，個人部署可容納約 15 萬條短筆記和約 5 萬張圖片；Docker 儲存可按需擴充，輕鬆承載百萬級筆記與海量圖片。
@@ -194,10 +183,10 @@ curl -fsSL https://edgeever.org/install.sh | bash
 
 歡迎加入 EdgeEver AI 交流群，這裡聚集了大量 Vibe Coding 與 AI 玩家。一起交流 EdgeEver 體驗、AI Agent 實戰落地、高性價比／免費 AI 資源及自動化工作流程。
 
-> 目前交流群人數已滿 200 人，無法直接掃碼進群。請掃描下方 QR Code 或加入微信 `m1245207870`，並備註「EdgeEver 進群」，群主將手動邀請您加入。
+> 群組 QR Code 7 天內有效。如果 QR Code 過期，請加入微信 `m1245207870`，並備註「EdgeEver 進群」。
 
 <p align="center">
-  <img src="assets/wechat-group-qr.jpg" alt="微信聯絡人 QR Code" width="260" />
+  <img src="assets/wechat-group-qr.jpg" alt="EdgeEver AI 交流群 QR Code" width="260" />
 </p>
 
 ## 外掛與主題

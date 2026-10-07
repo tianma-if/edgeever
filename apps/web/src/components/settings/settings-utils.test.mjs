@@ -33,17 +33,5 @@ describe("API token access levels", () => {
     expect(getStoredTokenAccessLevel([...ALL_TOKEN_SCOPES].reverse())).toBe("full");
     expect(getStoredTokenAccessLevel([...READ_ONLY_SCOPES].reverse())).toBe("read-only");
     expect(getStoredTokenAccessLevel(["read:memos", "write:memos"])).toBe("legacy-custom");
-    expect(getTokenScopesForAccessLevel("full")).toContain("ai:generate");
-    expect(getTokenScopesForAccessLevel("read-only")).not.toContain("ai:generate");
-    expect(getStoredTokenAccessLevel([
-      "read:notebooks",
-      "write:notebooks",
-      "read:memos",
-      "write:memos",
-      "read:resources",
-      "write:resources",
-      "read:tags",
-      "write:tags",
-    ])).toBe("full");
   });
 });

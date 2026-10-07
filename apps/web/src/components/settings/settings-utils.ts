@@ -10,20 +10,6 @@ export const ALL_TOKEN_SCOPES = [
   "write:resources",
   "read:tags",
   "write:tags",
-  "ai:generate",
-];
-
-// Tokens issued before video-note summaries keep this set. They stay labeled
-// full and do not gain ai:generate until the user creates a new token.
-export const PREVIOUS_FULL_TOKEN_SCOPES = [
-  "read:notebooks",
-  "write:notebooks",
-  "read:memos",
-  "write:memos",
-  "read:resources",
-  "write:resources",
-  "read:tags",
-  "write:tags",
 ];
 
 export type TokenAccessLevel = "full" | "read-only";
@@ -71,10 +57,7 @@ export const getStoredTokenAccessLevel = (
   scopes: string[],
   availableScopes: string[] = ALL_TOKEN_SCOPES,
 ): StoredTokenAccessLevel => {
-  if (
-    sameScopes(scopes, getTokenScopesForAccessLevel("full", availableScopes))
-    || sameScopes(scopes, PREVIOUS_FULL_TOKEN_SCOPES)
-  ) {
+  if (sameScopes(scopes, getTokenScopesForAccessLevel("full", availableScopes))) {
     return "full";
   }
 

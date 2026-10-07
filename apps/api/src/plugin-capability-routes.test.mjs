@@ -12,16 +12,9 @@ function fixture({ kind = 'user', demo = false, fetch = async () => new Response
 
 test('generic capabilities reject agent tokens, unauthenticated access and public demo calls', async () => {
   for (const options of [{ kind: 'agent' }, { kind: null }, { demo: true }]) {
-    const call = fixture({
-      ...options,
-      fetch: () => { throw new Error('must not run'); },
-      loadCredentials: async () => { throw new Error('credentials must stay on the server'); },
-    });
+    const call = fixture({ ...options, fetch: () => { throw new Error('must not run'); } });
     expect((await call('network/fetch', { url: 'https://example.org' })).status).toBe(403);
     expect((await call('ai/status')).status).toBe(403);
-    const prepare = await call('ai/generate/prepare', { system: '', prompt: 'caption text' });
-    expect(prepare.status).toBe(403);
-    expect(await prepare.text()).not.toContain('apiKey');
   }
 });
 

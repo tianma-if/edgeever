@@ -65,17 +65,6 @@ EdgeEver は、オープンソースのノートと知識ベースの作業領�
 
 > iOS アプリは、中国本土以外の Apple ID が必要です。
 
-## ✨ 活用シーンとショーケース
-
-マルチチャネルでの情報収集からビジュアル表現、チーム連携まで、EdgeEver は摩擦のないエンドツーエンドのワークフローを提供します：
-
-- 💬 **全方位のクリッピングと蓄積**：macOS 版での[微信チャット履歴の一括取り込み](docs/best-practices.md#1-one-click-wechat-chat-history-archiving)；ブラウザ拡張による[小紅書ギャラリー](docs/best-practices.md#2-one-click-xiaohongshu-red-note-clipping)、[X (Twitter) 投稿と引用](docs/best-practices.md#3-one-click-x-twitter-post--quote-clipping)、[知乎の回答](docs/best-practices.md#4-one-click-zhihu-answer--column-article-clipping)、[Reddit ディスカッション](docs/best-practices.md#5-one-click-reddit-discussion-post-clipping)、[GitHub リポジトリ](docs/best-practices.md#8-one-click-github-repository-metadata-clipping) のワンクリック保存；スマホからの[画像](docs/best-practices.md#9-one-click-mobile-image-sharing-to-notes) や [微信記事](docs/best-practices.md#10-one-click-wechat-article-clipping-on-mobile) の直接共有。
-- 🚀 **インテリジェントなビジュアル表現**：AI アシスタントへの指示だけで、編集可能な[マインドマップ・フローチャート・アーキテクチャ図](docs/best-practices.md#11-ai-conversational-generation-of-mind-maps-flowcharts--architecture-diagrams) や美しい[タイムラインインフォグラフィック](docs/best-practices.md#12-ai-powered-generation-of-professional-infographics) をその場で生成。
-- 📊 **多次元データベースとオンライン集計**：プロンプトから[コンテンツ企画・人事名簿の多次元テーブル](docs/best-practices.md#13-instant-multi-dimensional-database-table-generation-via-ai-prompt) を構築し、ワンクリックで[一般公開の回答フォーム](docs/best-practices.md#14-one-click-public-online-form-collection-from-database-tables) を発行。
-- ✍️ **クリエイター向けワンクリック配信**：[インライン CSS を保持した微信公式アカウントへのコピー](docs/best-practices.md#6-one-click-note-copy-to-wechat-official-account--blogs) や、AI RSS 日報からの[高解像度ポスター画像書き出し](docs/best-practices.md#7-ai-rss-daily-digest--elegant-image-poster-sharing) に対応。
-
-👉 全 14 の実機スクリーンショットと解説を見る：**[完全な活用シーンとショーケースガイド](docs/best-practices.md)**
-
 ## 機能
 
 - **導入方法を選べる**：Cloudflare の無料 Serverless、または VPS / NAS / 自宅サーバーの Docker。Cloudflare の無料保存の目安では、個人なら短いノート約 15 万、画像約 5 万。Docker の保存は必要に応じて伸ばせ、ノート数百万件と大きな画像庫にも足ります。

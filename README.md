@@ -65,17 +65,6 @@ The public demo resets every day at 3:00 AM (China Standard Time) and restores s
 
 > The iOS app requires an Apple ID from outside mainland China.
 
-## ✨ Showcase & Workflows
-
-From multi-channel inspiration capture to deep visual expression and team collaboration, EdgeEver delivers frictionless, end-to-end workflows:
-
-- 💬 **Universal Web & Mobile Clipping**: One-click [WeChat chat history archiving](docs/best-practices.md#1-one-click-wechat-chat-history-archiving) on macOS; browser extension clipping for [Xiaohongshu galleries](docs/best-practices.md#2-one-click-xiaohongshu-red-note-clipping), [X (Twitter) posts & quotes](docs/best-practices.md#3-one-click-x-twitter-post--quote-clipping), [Zhihu Q&As](docs/best-practices.md#4-one-click-zhihu-answer--column-article-clipping), [Reddit discussions](docs/best-practices.md#5-one-click-reddit-discussion-post-clipping), and [GitHub repositories](docs/best-practices.md#8-one-click-github-repository-metadata-clipping); seamless mobile sharing for [photos](docs/best-practices.md#9-one-click-mobile-image-sharing-to-notes) and [WeChat articles](docs/best-practices.md#10-one-click-wechat-article-clipping-on-mobile).
-- 🚀 **Intelligent Visual Notes**: Prompt the AI assistant to generate interactive, editable [mind maps, flowcharts & architecture diagrams](docs/best-practices.md#11-ai-conversational-generation-of-mind-maps-flowcharts--architecture-diagrams), or stylized [timeline infographics](docs/best-practices.md#12-ai-powered-generation-of-professional-infographics) in-place.
-- 📊 **Multi-Dimensional Databases & Forms**: Generate structured [topic banks and HR rosters via AI prompts](docs/best-practices.md#13-instant-multi-dimensional-database-table-generation-via-ai-prompt), and publish [public online collection forms](docs/best-practices.md#14-one-click-public-online-form-collection-from-database-tables) with one click.
-- ✍️ **One-Click Publishing for Creators**: Export notes with [inline CSS into WeChat Official Accounts](docs/best-practices.md#6-one-click-note-copy-to-wechat-official-account--blogs) or generate [elegant long-image posters from AI RSS daily digests](docs/best-practices.md#7-ai-rss-daily-digest--elegant-image-poster-sharing).
-
-👉 Explore all 14 step-by-step showcases with screenshots: **[Complete Showcase & Workflows Guide](docs/best-practices.md)**
-
 ## Features
 
 - **Deploy Your Way**: Run on Cloudflare's free serverless platform or with Docker on a VPS, NAS, or home server. Based on Cloudflare's free storage allowances, a personal deployment can hold roughly 150,000 short notes and 50,000 images; Docker storage scales on demand to easily support millions of notes and a vast image library.
