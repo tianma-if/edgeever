@@ -5,7 +5,7 @@ import { Hono } from "hono";
 import { createSelfHostedStorageAdapter } from "./self-hosted-storage-adapter.ts";
 import { registerCompanionRoutes } from "./companion-routes.ts";
 import { beginCompanionTurn, checkpointCompanionTurn, clearCompanionHistory, saveCompanionMemory } from "./companion-service.ts";
-import { createDefaultTableDocument, parseDiagramDocument, parseInfographicDocument, serializeTableDocument } from "@edgeever/shared";
+import { createDefaultTableDocument, parseDiagramDocument, parseInfographicDocument, parseTableDocument, serializeTableDocument } from "@edgeever/shared";
 import { createMemoRecord, getMemoDetail, normalizeSearchTimeBound, updateMemoRecord } from "./memo-service.ts";
 import { companionWorkspaceCursor, proposeCompanionToolAction } from "./companion-tool-actions.ts";
 import { getCompanionAction, applyCompanionAction, dismissCompanionAction } from "./companion-actions.ts";
@@ -49,7 +49,7 @@ async function setup() {
 
 describe("shared companion MCP adapter", () => {
   test("reuses the exact reviewed MCP definitions, with no administration or upload tools", () => {
-    expect(COMPANION_MCP_TOOLS).toHaveLength(44);
+    expect(COMPANION_MCP_TOOLS).toHaveLength(47);
     for (const definition of COMPANION_MCP_TOOLS) expect(MCP_TOOLS.includes(definition)).toBe(true);
     for (const name of ["upload_memo_image", "upload_memo_attachment", "empty_trash", "share_memo"]) {
       expect(() => validateCompanionTool(name, {})).toThrow();
@@ -115,7 +115,7 @@ describe("shared companion MCP adapter", () => {
   test("read and dry-run tools reuse MCP without writing or requiring a proposal", async () => {
     const f = await setup();
     const tools = createCompanionTools({ ...f, scope, signal: new AbortController().signal, assertActive: async () => {}, sources: [] });
-    expect(Object.keys(tools)).toHaveLength(46);
+    expect(Object.keys(tools)).toHaveLength(49);
     expect(await tools.get_memo.execute({ memoId: f.notes[0].id })).toMatchObject({ content: "One original content" });
     expect(await tools.trash_memos.execute({ memoIds: [f.notes[0].id], dryRun: true })).toMatchObject({ dryRun: true });
     expect(await getMemoDetail(f.db, scope.workspaceId, f.notes[0].id)).not.toBeNull();
@@ -241,6 +241,43 @@ describe("shared companion MCP adapter", () => {
     expect(updated).toMatchObject({ applied: true, id: created.id, nodeCount: 4 });
     expect(parseDiagramDocument((await getMemoDetail(f.db, scope.workspaceId, created.id)).contentMarkdown).nodes.map(node => node.id))
       .toContain("eval");
+    expect(f.sqlite.query("SELECT COUNT(*) AS n FROM companion_actions").get().n).toBe(0);
+  });
+  test("creates a structured table in the inbox and adds a record using real field IDs", async () => {
+    const f = await setup();
+    const inboxId = `${scope.workspaceId}_inbox`;
+    f.sqlite.query("INSERT INTO notebooks(id, workspace_id, name, slug) VALUES (?, ?, '等待分类', 'inbox')").run(inboxId, scope.workspaceId);
+    const input = { ...f.input, message: "帮我生成一个自媒体选题库的多维表格" };
+    const definition = companionToolDefinitions(input).find(tool => tool.name === "create_table_memo");
+    expect(definition).toBeTruthy();
+    expect(definition.inputSchema.required).not.toContain("notebookId");
+    expect(definition.description).toContain("editable structured table");
+    const sources = [];
+    const tools = createCompanionTools({ ...f, input, scope, signal: new AbortController().signal, assertActive: async () => {}, sources });
+    const created = await tools.create_table_memo.execute({
+      title: "自媒体选题库",
+      fields: [
+        { name: "选题标题", type: "text" },
+        { name: "平台", type: "select", options: ["小红书", "抖音", "公众号"] },
+        { name: "计划发布时间", type: "date" },
+      ],
+    });
+    expect(created).toMatchObject({ applied: true, title: "自媒体选题库", notebookId: inboxId, fieldCount: 3 });
+    expect(created).not.toHaveProperty("memo");
+    expect(sources.map(source => source.id)).toContain(created.id);
+    const memo = await getMemoDetail(f.db, scope.workspaceId, created.id);
+    expect(parseTableDocument(memo.contentMarkdown)).toMatchObject({ records: [], fields: [
+      { name: "选题标题", type: "text" },
+      { name: "平台", type: "select", options: ["小红书", "抖音", "公众号"] },
+      { name: "计划发布时间", type: "date" },
+    ] });
+    const table = await tools.get_table_records.execute({ memoId: created.id });
+    expect(table).toMatchObject({ memoId: created.id, totalRecords: 0 });
+    const cells = Object.fromEntries(table.fields.slice(0, 2).map((field, index) => [field.id, ["秋季选题", "小红书"][index]]));
+    const added = await tools.add_table_record.execute({ memoId: created.id, expectedRevision: table.revision, cells });
+    expect(added).toMatchObject({ applied: true });
+    expect((await tools.get_table_records.execute({ memoId: created.id })).totalRecords).toBe(1);
+    expect(parseTableDocument((await getMemoDetail(f.db, scope.workspaceId, created.id)).contentMarkdown).records).toHaveLength(1);
     expect(f.sqlite.query("SELECT COUNT(*) AS n FROM companion_actions").get().n).toBe(0);
   });
   test("refuses to replace a structured table with update_memo", async () => {

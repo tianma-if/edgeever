@@ -65,6 +65,17 @@ EdgeEver 是一款现代化的开源笔记与个人知识库工作区。它为�
 
 > iOS 客户端需要使用非中国大陆区 Apple ID 下载。
 
+## ✨ 场景与最佳实践
+
+从跨渠道内容捕获到深度知识表达与业务协作，EdgeEver 为个人与团队提供了高效流畅的端到端工作流：
+
+- 💬 **全渠道剪藏与沉淀**：macOS 端[微信聊天记录一键归档](docs/best-practices.zh-CN.md#1-微信聊天记录一键归档与整理)；浏览器插件一键剪藏[小红书画廊](docs/best-practices.zh-CN.md#2-小红书图文笔记一键剪藏)、[X (Twitter) 推文与引用](docs/best-practices.zh-CN.md#3-x-twitter-推文与引用一键剪藏)、[知乎问答](docs/best-practices.zh-CN.md#4-知乎回答与文章一键精准剪藏)、[Reddit 讨论帖](docs/best-practices.zh-CN.md#5-reddit-讨论帖一键剪藏)与 [GitHub 仓库](docs/best-practices.zh-CN.md#8-github-开源仓库信息一键剪藏)；手机端随时分享[全网图片](docs/best-practices.zh-CN.md#9-移动端社媒图片一键转存笔记)与[微信公众号文章](docs/best-practices.zh-CN.md#10-手机端一键剪藏微信公众号文章)。
+- 🚀 **智能可视化表达**：借助伴随式 AI 助手，自然语言一句话生成可交互的[思维导图、流程图与架构图](docs/best-practices.zh-CN.md#11-ai-对话一键生成思维导图流程图与架构图)，或一键生成精美的[专业时间线信息图](docs/best-practices.zh-CN.md#12-ai-智能生成专业信息图时间线对比图架构图等)。
+- 📊 **多维数据与在线协作**：AI 一句话搭建[自媒体选题与人事多维表格](docs/best-practices.zh-CN.md#13-借助右侧-ai-助手一句话生成多维表格)，并一键开启[对外公开的在线收集表单](docs/best-practices.zh-CN.md#14-多维表格一键生成在线公开收集表单)。
+- ✍️ **创作者一键分发**：支持[一键复制内联富文本到微信公众号](docs/best-practices.zh-CN.md#6-一键复制笔记到微信公众号排版)，以及 AI RSS 日报一键生成[高颜值长图海报](docs/best-practices.zh-CN.md#7-ai-rss-智能订阅日报与精美长图分享)。
+
+👉 查看全部 14 个实机演示与操作效果：**[完整场景与最佳实践指南](docs/best-practices.zh-CN.md)**
+
 ## 功能
 
 - **自由选择部署方式**：既可免费运行于 Cloudflare Serverless，也可通过 Docker 部署到 VPS、NAS 或家庭服务器。按 Cloudflare 免费存储额度估算，个人部署可容纳约 15 万条短笔记和约 5 万张图片；Docker 存储可按需扩展，轻松承载百万级笔记与海量图片。
@@ -185,10 +196,10 @@ curl -fsSL https://edgeever.org/install.sh | bash
 
 欢迎加入 EdgeEver AI 交流群，这里聚集了大量 Vibe Coding 与 AI 玩家。一起交流 EdgeEver 体验、AI Agent 实战落地、高性价比/免费 AI 资源及自动化工作流。
 
-> 群二维码 7 天内有效。如果二维码过期，请添加微信 `m1245207870`，并备注“EdgeEver 进群”。
+> 当前交流群人数已满 200 人，无法直接扫码进群。请扫描下方二维码或添加微信 `m1245207870`，并备注“EdgeEver 进群”，群主将手动邀请您加入。
 
 <p align="center">
-  <img src="assets/wechat-group-qr.jpg" alt="EdgeEver AI 交流群二维码" width="260" />
+  <img src="assets/wechat-group-qr.jpg" alt="微信联系人二维码" width="260" />
 </p>
 
 ## 插件与主题

@@ -40,7 +40,7 @@ saveButton?.addEventListener("click", async () => {
       throw new Error(response?.message || t("saveFailed"));
     }
 
-    setStatus(t("savedToEdgeEver"), "success");
+    setStatus(typeof response.message === "string" && response.message ? response.message : t("savedToEdgeEver"), "success");
   } catch (error) {
     setStatus(error instanceof Error ? error.message : t("saveFailed"), "error");
   } finally {

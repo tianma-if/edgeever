@@ -11,6 +11,7 @@ export const ALL_TOKEN_SCOPES = [
   "write:resources",
   "read:tags",
   "write:tags",
+  "ai:generate",
 ] as const;
 
 export type TokenScope = (typeof ALL_TOKEN_SCOPES)[number];

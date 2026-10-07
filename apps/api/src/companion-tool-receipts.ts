@@ -33,14 +33,21 @@ export function describeCompanionTool(
     const memos = Array.isArray(record?.memos) ? record.memos : [];
     return memos.slice(0, 5).map(item => effect("listed", asMemo(item)));
   }
-  if (name === "get_memo" || name === "get_diagram") return [effect("read", memo ?? { id: String(args.memoId ?? record?.id ?? "") })];
-  if (name === "create_memo" || name === "create_diagram_memo" || name === "create_infographic_memo" || name === "use_note_template") {
+  if (name === "get_memo" || name === "get_diagram" || name === "get_table_records") {
+    return [effect("read", memo ?? { id: String(args.memoId ?? record?.memoId ?? record?.id ?? "") })];
+  }
+  if (name === "create_memo" || name === "create_table_memo" || name === "create_diagram_memo" || name === "create_infographic_memo" || name === "use_note_template") {
     return [effect("created", memo)];
   }
   if (name === "update_memo" || name === "update_diagram" || name === "restore_memo_revision") {
     const id = memo?.id ?? String(args.memoId ?? "");
     const before = prior(id);
     return [effect("updated", memo ?? { id, title: before?.title }, { previousRevision: before?.revision })];
+  }
+  if (name === "add_table_record") {
+    const id = String(record?.memoId ?? args.memoId ?? "");
+    return [effect("updated", { id, revision: typeof record?.revision === "number" ? record.revision : undefined },
+      { previousRevision: prior(id)?.revision })];
   }
   if (name === "merge_memos") {
     const created = effect("merged", memo);

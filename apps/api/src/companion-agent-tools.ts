@@ -15,7 +15,7 @@ import { AppError } from "./app-error";
 const AUTO_APPLY_WRITES = new Set(
   COMPANION_MCP_TOOLS.filter(tool => !tool.annotations.readOnlyHint).map(tool => tool.name),
 );
-const INBOX_DEFAULT_NOTEBOOK_TOOLS = new Set(["create_memo", "create_diagram_memo", "create_infographic_memo", "use_note_template"]);
+const INBOX_DEFAULT_NOTEBOOK_TOOLS = new Set(["create_memo", "create_table_memo", "create_diagram_memo", "create_infographic_memo", "use_note_template"]);
 
 export async function resolveWorkspaceInboxId(db: DatabaseAdapter, workspaceId: string) {
   const preferred = workspaceInboxId(workspaceId);
@@ -118,7 +118,10 @@ const TOOL_HINTS: Record<string, string> = {
   list_memos: " To list a named notebook, call find_notebooks first and pass that id. Without notebookId this lists the whole workspace, newest updated first. For newly created notes in a time range, use search_memos with createdAfter. If hasMore is true, say the list is incomplete.",
   search_memos: " Searches note titles and bodies, not notebook names. query is optional. For recently created or added notes, pass createdAfter (YYYY-MM-DD or ISO date-time) and omit query; never put this week/最近/新增 in query. For recently edited notes, use updatedAfter. Do not pass notebookId unless find_notebooks or list_notebooks returned it. For notes in a named notebook, find_notebooks then list_memos. If hasMore is true, say the list is incomplete.",
   list_tags: " Use this when the user names a tag.",
-  create_memo: " For prose Markdown notes only. Never use this for 思维导图/mind maps, 流程图/flowcharts, 架构图, or 信息图/infographics. Use create_diagram_memo for diagrams and create_infographic_memo for infographics. If the user did not name a notebook, omit notebookId. The note is saved in the inbox (等待分类). Do not ask which notebook.",
+  create_memo: " For prose Markdown notes only. Never use this for structured tables/多维表格, 思维导图/mind maps, 流程图/flowcharts, 架构图, or 信息图/infographics. Use create_table_memo for tables, create_diagram_memo for diagrams, and create_infographic_memo for infographics. If the user did not name a notebook, omit notebookId. The note is saved in the inbox (等待分类). Do not ask which notebook.",
+  create_table_memo: " Create an editable structured table/多维表格 from the user's requested field plan. Infer useful field names and types when unspecified. Select fields need explicit options. This creates an empty table; only add records if the user requested example or supplied records. If the user did not name a notebook, omit notebookId so it is saved in the inbox (等待分类). Do not ask which notebook, and do not use the open notebook unless the user named it.",
+  get_table_records: " Read an existing structured table's fields, record IDs, and revision. Use this before adding a record so cell keys are actual field IDs. Do not infer field IDs from names.",
+  add_table_record: " Add one requested record to a structured table. First call get_table_records, then use its field IDs and latest revision. Do not invent factual records to fill a new table.",
   create_diagram_memo: " Create an editable visual diagram note. kind=mind-map for 思维导图/mind map, flowchart for 流程图, architecture for 架构图. Never use this for 信息图/infographic; call create_infographic_memo. Omit edge ids; EdgeEver generates them. For mind maps, give a root and children with parentId; omit node type. If the user did not name a notebook, omit notebookId. The diagram is saved in the inbox (等待分类). Do not ask which notebook, and do not use the open notebook unless the user named it. Build nodes from the open note body in Focus DATA when the user refers to this note.",
   create_infographic_memo: " Create an AntV infographic note (信息图). A share, proportion, or 占比 uses template chart-pie-donut-plain-text and numeric data.values, not a mind map. If the user did not supply the figures, say in data.desc that they are illustrative and are not an official disclosure. If the user did not name a notebook, omit notebookId. The infographic is saved in the inbox (等待分类). Do not ask which notebook, and do not use the open notebook unless the user named it.",
   get_diagram: " Read an existing editable diagram as a semantic graph. Call this before update_diagram. Do not use get_memo when you only need the diagram structure.",
@@ -417,6 +420,19 @@ export function createCompanionTools(args: { db: DatabaseAdapter; scope: Compani
               revision: created.memo.revision,
               template: created.template,
               infographic: true,
+            });
+          }
+          if (definition.name === "create_table_memo") {
+            const created = result as { memo: MemoDetail; fields?: unknown[] };
+            remember(created.memo);
+            return done({
+              applied: true,
+              id: created.memo.id,
+              title: created.memo.title,
+              notebookId: created.memo.notebookId,
+              notebookName: await notebookName(created.memo.notebookId),
+              revision: created.memo.revision,
+              fieldCount: Array.isArray(created.fields) ? created.fields.length : undefined,
             });
           }
           if (definition.name === "update_diagram") {

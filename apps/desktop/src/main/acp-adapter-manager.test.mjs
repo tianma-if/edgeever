@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { zipSync } from "fflate";
-import { createAcpAdapterManager, managedAdapterCommand, selectAdapterRelease, selectPiAdapterRelease } from "./acp-adapter-manager.mjs";
+import { MAX_ARCHIVE_BYTES, MAX_EXTRACTED_BYTES, createAcpAdapterManager, managedAdapterCommand, selectAdapterRelease, selectPiAdapterRelease } from "./acp-adapter-manager.mjs";
 
 const codexEntry = (version) => ({
   id: "codex-acp",
@@ -172,4 +172,170 @@ describe("managed ACP adapters", () => {
       await rm(root, { recursive: true, force: true });
     }
   });
+
+  test("prunes orphaned stage directories even when the adapter is uninstalled", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "edgeever-prune-orphaned-"));
+    const stageDir = path.join(root, "antigravity", ".stage-1.3.0-12345-67890");
+    await mkdir(stageDir, { recursive: true });
+    const manager = createAcpAdapterManager({ root });
+    expect(manager.get("antigravity")).toBeNull();
+    try {
+      await manager.prune();
+      expect(existsSync(stageDir)).toBe(false);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  test("configures archive and extracted size limits to 500 MiB and 2 GiB", () => {
+    expect(MAX_ARCHIVE_BYTES).toBe(500 * 1024 * 1024);
+    expect(MAX_EXTRACTED_BYTES).toBe(2 * 1024 * 1024 * 1024);
+  });
+
+  test("updates binary ACP adapters from an older version to a larger newer version with staging and rollback protection (simulated)", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "edgeever-cross-version-agy-"));
+    const versionRoot = path.join(root, "antigravity");
+    const oldVersionDir = path.join(versionRoot, "1.2.1");
+    const ancientVersionDir = path.join(versionRoot, "1.1.0");
+    const orphanedStageDir = path.join(versionRoot, ".stage-1.2.0-orphaned");
+    await mkdir(oldVersionDir, { recursive: true });
+    await mkdir(ancientVersionDir, { recursive: true });
+    await mkdir(orphanedStageDir, { recursive: true });
+
+    const oldBinary = path.join(oldVersionDir, "agy_acp_server.par");
+    const ancientBinary = path.join(ancientVersionDir, "agy_acp_server.par");
+    await writeFile(oldBinary, "#!/bin/sh\necho old-1.2.1", { mode: 0o700 });
+    await writeFile(ancientBinary, "#!/bin/sh\necho ancient-1.1.0", { mode: 0o700 });
+    await writeFile(path.join(root, "installed.json"), JSON.stringify({ antigravity: { version: "1.2.1" } }), { mode: 0o600 });
+
+    const newZipBytes = zipSync({
+      "agy_acp_server.par": [new TextEncoder().encode("#!/bin/sh\necho new-1.3.0"), { level: 1 }],
+      localharness_external: [new Uint8Array([42]), { level: 1 }],
+    });
+
+    const registryEntry = {
+      id: "antigravity-acp",
+      version: "1.3.0",
+      distribution: { binary: { "linux-x86_64": {
+        archive: "https://dl.google.com/agy-extensions/releases/linux/agy-acp-server-1.3.0-linux-x86_64.zip",
+        cmd: "./agy_acp_server.par",
+        args: ["--uid="],
+      } } },
+    };
+
+    let downloadBytesCounted = 0;
+    const manager = createAcpAdapterManager({
+      root,
+      platform: "linux",
+      arch: "x64",
+      fetchImpl: async (url) => {
+        if (url.endsWith(".zip")) {
+          // Provide 334 MiB content-length header matching real Antigravity v1.3.0 Linux distribution (>300 MiB old cap)
+          return new Response(new ReadableStream({
+            start(controller) {
+              downloadBytesCounted += newZipBytes.length;
+              controller.enqueue(newZipBytes);
+              controller.close();
+            },
+          }), {
+            status: 200,
+            headers: { "content-length": String(334 * 1024 * 1024) },
+          });
+        }
+        return new Response(JSON.stringify({ agents: [registryEntry] }), { status: 200 });
+      },
+    });
+
+    try {
+      // 1. Initial state: verify old version 1.2.1 is recognized
+      expect(manager.get("antigravity")?.version).toBe("1.2.1");
+      expect(manager.get("antigravity")?.command.command).toBe(oldBinary);
+
+      // 2. Failed update: staged validation fails handshake
+      await expect(manager.install("antigravity", async () => ({
+        state: "failed",
+        detail: "handshake_failed",
+      }), { updateOnly: true })).rejects.toThrow("handshake_failed");
+
+      // Verify old version remains intact and active
+      expect(manager.get("antigravity")?.version).toBe("1.2.1");
+      expect(manager.get("antigravity")?.command.command).toBe(oldBinary);
+      expect(JSON.parse(await readFile(path.join(root, "installed.json"), "utf8")).antigravity.version).toBe("1.2.1");
+      expect(existsSync(oldBinary)).toBe(true);
+
+      // Verify staged directory was cleanly purged on failure
+      const intermediateNames = await readdir(versionRoot);
+      expect(intermediateNames.some((name) => name.startsWith(".stage-1.3.0"))).toBe(false);
+
+      // 3. Successful update: staged validation passes
+      const updateResult = await manager.install("antigravity", async (command) => {
+        expect(command.command).toContain(".stage-1.3.0");
+        expect(command.args).toEqual(["--uid="]);
+        return { state: "available", promptCapabilities: { image: true } };
+      }, { updateOnly: true });
+
+      expect(updateResult.updated).toBe(true);
+      expect(updateResult.version).toBe("1.3.0");
+
+      // Verify installed state migrated to 1.3.0
+      expect(manager.get("antigravity")?.version).toBe("1.3.0");
+      const newBinary = path.join(versionRoot, "1.3.0", "agy_acp_server.par");
+      expect(manager.get("antigravity")?.command.command).toBe(newBinary);
+      expect(JSON.parse(await readFile(path.join(root, "installed.json"), "utf8")).antigravity.version).toBe("1.3.0");
+      expect(await readFile(newBinary, "utf8")).toContain("new-1.3.0");
+
+      // Verify old 1.2.1 directory is still retained alongside 1.3.0 for rollback safety before prune
+      expect(existsSync(oldBinary)).toBe(true);
+
+      // 4. Prune: keeps current (1.3.0) and immediate previous fallback (1.2.1), deletes older (1.1.0) and orphaned stages
+      await manager.prune();
+      expect(existsSync(path.join(versionRoot, "1.3.0"))).toBe(true);
+      expect(existsSync(path.join(versionRoot, "1.2.1"))).toBe(true);
+      expect(existsSync(ancientVersionDir)).toBe(false);
+      expect(existsSync(orphanedStageDir)).toBe(false);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  test("enforces archive size cap of 500 MiB and rejects larger downloads", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "edgeever-archive-size-"));
+    const entry = {
+      id: "antigravity-acp",
+      version: "1.3.0",
+      distribution: { binary: { "darwin-aarch64": {
+        archive: "https://dl.google.com/agy-extensions/releases/macos/test.zip",
+        cmd: "./agy_acp_server.par",
+      } } },
+    };
+    let contentLength = 350 * 1024 * 1024;
+    const manager = createAcpAdapterManager({
+      root,
+      platform: "darwin",
+      arch: "arm64",
+      fetchImpl: async (url) => {
+        if (url.endsWith(".zip")) {
+          return new Response(new ReadableStream({
+            start(controller) {
+              controller.error(new Error("aborted_after_header_check"));
+            },
+          }), {
+            status: 200,
+            headers: { "content-length": String(contentLength) },
+          });
+        }
+        return new Response(JSON.stringify({ agents: [entry] }), { status: 200 });
+      },
+    });
+    try {
+      await expect(manager.install("antigravity", async () => ({ state: "available" }))).rejects.toThrow("aborted_after_header_check");
+      contentLength = 501 * 1024 * 1024;
+      await expect(manager.install("antigravity", async () => ({ state: "available" }))).rejects.toThrow("adapter_too_large");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
 });
+
+
+
