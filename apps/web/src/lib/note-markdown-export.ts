@@ -1,3 +1,15 @@
+import { mergeMarkdownFrontMatter, splitMarkdownFrontMatter } from "@edgeever/shared";
+
+/** Single-note exports retain existing properties without adding application metadata. */
+export const buildSingleNoteMarkdown = (markdown: string, title: string, tags: string[]) => {
+  const properties = splitMarkdownFrontMatter(markdown);
+  if (!properties?.values) return markdown;
+  const metadata: Record<string, unknown> = {};
+  if (Object.hasOwn(properties.values, "title")) metadata.title = title;
+  if (Object.hasOwn(properties.values, "tags")) metadata.tags = tags;
+  return Object.keys(metadata).length ? mergeMarkdownFrontMatter(markdown, metadata) : markdown;
+};
+
 const WINDOWS_RESERVED_NAME = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i;
 
 export const buildMarkdownFilename = (title: string, fallback: string) => {

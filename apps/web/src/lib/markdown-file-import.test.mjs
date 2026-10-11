@@ -6,6 +6,12 @@ import {
 } from "./markdown-file-import.ts";
 
 describe("Markdown file import", () => {
+  test("imports title and tags from properties while keeping unknown fields in the document", async () => {
+    const markdown = "---\ntitle: Imported title\ntags: [archive, '#research']\nauthor: [Alice]\n---\n\nBody";
+    expect(await readMarkdownFile({ name: "file.md", text: async () => markdown })).toEqual({
+      title: "Imported title", tags: ["archive", "research"], contentMarkdown: markdown,
+    });
+  });
   test("accepts Markdown extensions case-insensitively", () => {
     expect(isMarkdownFile({ name: "notes.md" })).toBe(true);
     expect(isMarkdownFile({ name: "notes.MARKDOWN" })).toBe(true);

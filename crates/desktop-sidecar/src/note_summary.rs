@@ -49,6 +49,10 @@ pub(crate) fn note_list_metadata(markdown: &str) -> Value {
         }
     }
     metadata.insert("infographic".to_owned(), json!(is_infographic(markdown)));
+    metadata.insert(
+        "poster".to_owned(),
+        json!(markdown.contains("<!-- edgeever-poster-v1:")),
+    );
     match table_preview(markdown) {
         Some(preview) => {
             metadata.insert("structuredTable".to_owned(), json!(true));

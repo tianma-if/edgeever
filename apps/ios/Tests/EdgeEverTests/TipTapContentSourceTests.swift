@@ -37,6 +37,14 @@ final class TipTapContentSourceTests: XCTestCase {
         XCTAssertTrue(decision.payload.contains("infographic list-row-simple-horizontal-arrow"))
     }
 
+    func testPosterViewerKeepsPreviewAndStripsSource() {
+        let markdown = "![Poster](/api/v1/resources/res_preview/blob)\n\n<!-- edgeever-poster-v1:abc -->"
+        let decision = TipTapContentSource.resolve(mode: .viewer, documentJSON: "{}", markdown: markdown)
+        XCTAssertFalse(decision.useJSON)
+        XCTAssertTrue(decision.payload.contains("res_preview/blob"))
+        XCTAssertFalse(decision.payload.contains("edgeever-poster-v1"))
+    }
+
     func testEditorMarkdownRemainsAuthoritativeForRichStructures() {
         let markdown = """
         1. first

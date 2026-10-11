@@ -32,6 +32,10 @@ enum TipTapContentSource: Sendable {
                 let stripped = stripStructuredTableMarker(markdown)
                 return Decision(useJSON: false, payload: stripped, fingerprint: "table:\(stripped)")
             }
+            if markdown.contains("<!-- edgeever-poster-v1:") {
+                let stripped = markdown.replacingOccurrences(of: #"<!--\s*edgeever-poster-v1:[\s\S]*?-->"#, with: "", options: .regularExpression).trimmingCharacters(in: .whitespacesAndNewlines)
+                return Decision(useJSON: false, payload: stripped, fingerprint: "poster:\(stripped)")
+            }
             if markdown.contains("<!-- edgeever-infographic-v1:") {
                 let stripped = stripInfographicMarker(markdown)
                 return Decision(useJSON: false, payload: stripped, fingerprint: "infographic:\(stripped)")

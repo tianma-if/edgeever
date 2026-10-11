@@ -176,9 +176,29 @@ interface EdgeEverDesktopBridge {
   }) => void): () => void;
 }
 
+interface DesktopUpdateDiagnostic {
+  at: string;
+  stage: string;
+  version: string;
+  platform: string;
+  arch: string;
+  code: string | null;
+  message: string;
+  source: string;
+}
+
+interface DesktopUpdateDownloadProgress {
+  percent: number | null;
+  transferred: number | null;
+  total: number | null;
+  bytesPerSecond: number | null;
+}
+
 interface DesktopUpdateStatus {
   state: "idle" | "available" | "downloaded";
   version: string | null;
+  error?: DesktopUpdateDiagnostic | null;
+  progress?: DesktopUpdateDownloadProgress | null;
 }
 
 type DesktopLocalDataResetErrorCode =

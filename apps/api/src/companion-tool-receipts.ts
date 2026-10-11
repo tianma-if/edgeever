@@ -33,13 +33,13 @@ export function describeCompanionTool(
     const memos = Array.isArray(record?.memos) ? record.memos : [];
     return memos.slice(0, 5).map(item => effect("listed", asMemo(item)));
   }
-  if (name === "get_memo" || name === "get_diagram" || name === "get_table_records") {
+  if (name === "get_memo" || name === "get_diagram" || name === "get_poster" || name === "get_table_records") {
     return [effect("read", memo ?? { id: String(args.memoId ?? record?.memoId ?? record?.id ?? "") })];
   }
   if (name === "create_memo" || name === "create_table_memo" || name === "create_diagram_memo" || name === "create_infographic_memo" || name === "use_note_template") {
     return [effect("created", memo)];
   }
-  if (name === "update_memo" || name === "update_diagram" || name === "restore_memo_revision") {
+  if (name === "update_memo" || name === "update_diagram" || name === "update_poster" || name === "restore_memo_revision") {
     const id = memo?.id ?? String(args.memoId ?? "");
     const before = prior(id);
     return [effect("updated", memo ?? { id, title: before?.title }, { previousRevision: before?.revision })];

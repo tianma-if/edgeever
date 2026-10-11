@@ -124,6 +124,8 @@ const TOOL_HINTS: Record<string, string> = {
   add_table_record: " Add one requested record to a structured table. First call get_table_records, then use its field IDs and latest revision. Do not invent factual records to fill a new table.",
   create_diagram_memo: " Create an editable visual diagram note. kind=mind-map for 思维导图/mind map, flowchart for 流程图, architecture for 架构图. Never use this for 信息图/infographic; call create_infographic_memo. Omit edge ids; EdgeEver generates them. For mind maps, give a root and children with parentId; omit node type. If the user did not name a notebook, omit notebookId. The diagram is saved in the inbox (等待分类). Do not ask which notebook, and do not use the open notebook unless the user named it. Build nodes from the open note body in Focus DATA when the user refers to this note.",
   create_infographic_memo: " Create an AntV infographic note (信息图). A share, proportion, or 占比 uses template chart-pie-donut-plain-text and numeric data.values, not a mind map. If the user did not supply the figures, say in data.desc that they are illustrative and are not an official disclosure. If the user did not name a notebook, omit notebookId. The infographic is saved in the inbox (等待分类). Do not ask which notebook, and do not use the open notebook unless the user named it.",
+  get_poster: " Read the existing poster canvas and elements before editing. Do not use raw Markdown for posters.",
+  update_poster: " Edit poster text, colors, typography and positions after get_poster. Preserve unmentioned and locked elements. Pass the revision you read.",
   get_diagram: " Read an existing editable diagram as a semantic graph. Call this before update_diagram. Do not use get_memo when you only need the diagram structure.",
   update_diagram: " Edit an existing diagram after get_diagram. Pass expectedRevision from get_diagram. Use add_node, update_node, remove_node, add_edge, update_edge, or remove_edge. Do not create a new diagram unless the user asked for a new note.",
   use_note_template: " Create a new memo from a template. If the user did not name a notebook, omit notebookId. The note is saved in the inbox (等待分类). Do not ask which notebook.",
@@ -258,6 +260,7 @@ export function createCompanionTools(args: { db: DatabaseAdapter; scope: Compani
   if (!args.input.allowNotes || !args.context) return {};
   const session = args.session ?? emptyCompanionAgentSession();
   const inspected = new Map(Object.entries(session.inspected));
+  const posterReads = new Map<string, number>();
   const persistSession = () => {
     session.inspected = Object.fromEntries(inspected);
   };
@@ -356,15 +359,15 @@ export function createCompanionTools(args: { db: DatabaseAdapter; scope: Compani
           }
           parameters_.expectedRevision = memo.revision;
         }
-        if (autoApply && parameters_.dryRun !== true && (definition.name === "update_memo" || definition.name === "update_diagram" || definition.name === "restore_memo_revision")) {
+        if (autoApply && parameters_.dryRun !== true && (definition.name === "update_memo" || definition.name === "update_diagram" || definition.name === "update_poster" || definition.name === "restore_memo_revision")) {
           const memo = await getMemoDetail(args.db, args.scope.workspaceId, String(parameters_.memoId));
-          if (!memo || inspected.get(memo.id) !== memo.revision) {
+          if (!memo || inspected.get(memo.id) !== memo.revision || (definition.name === "update_poster" && posterReads.get(memo.id) !== memo.revision)) {
             throw new AppError("companion_action_unread",
               definition.name === "update_diagram"
                 ? "Call get_diagram on this note before changing it."
                 : "Read the complete source notes before changing their content.", 400);
           }
-          if (definition.name === "update_diagram") parameters_.expectedRevision = memo.revision;
+          if (definition.name === "update_diagram" || definition.name === "update_poster") parameters_.expectedRevision = memo.revision;
         }
         if (autoApply && parameters_.dryRun !== true && definition.name === "merge_memos") {
           const memoIds = Array.isArray(parameters_.memoIds) ? parameters_.memoIds.map(String) : [];
@@ -375,7 +378,7 @@ export function createCompanionTools(args: { db: DatabaseAdapter; scope: Compani
             }
           }
         }
-        if ((definition.name === "get_memo" || definition.name === "get_diagram") && inspected.has(String(parameters_.memoId))) {
+        if ((definition.name === "get_memo" || definition.name === "get_diagram" || (definition.name === "get_poster" && posterReads.get(String(parameters_.memoId)) === inspected.get(String(parameters_.memoId)))) && inspected.has(String(parameters_.memoId))) {
           // The original full result remains in this run's model messages. Only
           // reuse it after authorization/context/cursor checks, never across runs.
           return done({ id: parameters_.memoId, revision: inspected.get(String(parameters_.memoId)), alreadyRead: true,
@@ -447,7 +450,7 @@ export function createCompanionTools(args: { db: DatabaseAdapter; scope: Compani
               changes: updated.changes,
             });
           }
-          if (definition.name === "update_memo") {
+          if (definition.name === "update_memo" || definition.name === "update_poster") {
             const updated = (result as { memo: MemoDetail }).memo;
             const receipt = await done({ applied: true, id: updated.id, title: updated.title,
               notebookId: updated.notebookId, revision: updated.revision });
@@ -463,15 +466,16 @@ export function createCompanionTools(args: { db: DatabaseAdapter; scope: Compani
           return done({ applied: true, ...(typeof result === "object" && result ? result as object : { result }) });
         }
         if (current !== await companionWorkspaceCursor(args.db, args.scope.workspaceId)) return done({ error: "Notes changed during this read. Start a fresh request." });
-        if (definition.name === "get_diagram") {
-          const payload = result as { memo: { id: string; title: string | null; revision: number }; diagram: { kind?: string; nodes?: unknown[] } };
+        if (definition.name === "get_diagram" || definition.name === "get_poster") {
+          const payload = result as { memo: { id: string; title: string | null; revision: number; notebookId?: string }; diagram: { kind?: string; nodes?: unknown[] } };
           inspected.set(payload.memo.id, payload.memo.revision);
+          if (definition.name === "get_poster") posterReads.set(payload.memo.id, payload.memo.revision);
           const known = args.sources.find(source => source.id === payload.memo.id);
           remember({
             id: payload.memo.id,
             title: payload.memo.title,
             revision: payload.memo.revision,
-            notebookId: known?.notebookId || "",
+            notebookId: known?.notebookId || payload.memo.notebookId || "",
           });
           return done(payload);
         }

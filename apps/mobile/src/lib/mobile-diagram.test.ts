@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, test } from "bun:test";
-import { createDefaultDiagramDocument, createDefaultTableDocument, diagramFallbackMarkdown, serializeDiagramDocument, serializeInfographicDocument, serializeTableDocument, tableFallbackMarkdown } from "@edgeever/shared";
-import { getMobileVisualDiagramKind, hasMobileInfographic, hasMobileStructuredTable, hasMobileVisualDiagram, resolveMobileMemoViewerContent } from "./mobile-diagram";
+import { createPosterDocument, serializePosterDocument, createDefaultDiagramDocument, createDefaultTableDocument, diagramFallbackMarkdown, serializeDiagramDocument, serializeInfographicDocument, serializeTableDocument, tableFallbackMarkdown } from "@edgeever/shared";
+import { hasMobilePoster, getMobileVisualDiagramKind, hasMobileInfographic, hasMobileStructuredTable, hasMobileVisualDiagram, resolveMobileMemoViewerContent } from "./mobile-diagram";
 
 const hasMermaidCodeBlock = (doc: { content?: Array<{ type?: string; attrs?: { language?: string } }> }) =>
   Boolean(doc.content?.some((node) => node.type === "codeBlock" && node.attrs?.language === "mermaid"));
@@ -45,6 +45,15 @@ describe("mobile visual diagram viewer", () => {
     const broken = `${tableFallbackMarkdown(createDefaultTableDocument())}\n\n<!-- edgeever-table-v1:not-json -->`;
     expect(hasMobileStructuredTable(broken)).toBe(true);
     expect(JSON.stringify(resolveMobileMemoViewerContent(null, broken))).not.toContain("edgeever-table-v1");
+  });
+
+  test("shows a poster preview and keeps editable source out of the native reader", () => {
+    const markdown = serializePosterDocument({ ...createPosterDocument("Poster"), previewResourceId: "res_preview" });
+    expect(hasMobilePoster(markdown)).toBe(true);
+    const doc = resolveMobileMemoViewerContent(null, markdown);
+    expect(JSON.stringify(doc)).toContain("res_preview/blob");
+    expect(JSON.stringify(doc)).not.toContain("edgeever-poster-v1");
+    expect(hasMobilePoster("text\n<!-- edgeever-poster-v1:broken -->")).toBe(true);
   });
 
   test("shows infographic syntax without exposing its marker to the native viewer", () => {

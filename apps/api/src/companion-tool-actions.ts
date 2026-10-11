@@ -27,7 +27,7 @@ export async function proposeCompanionToolAction(db: DatabaseAdapter, scope: Com
   for (const id of new Set([...ids, ...evidenceIds])) {
     const memo = await getMemoDetail(db, scope.workspaceId, id, toolName === "restore_memos");
     if (!memo) throw stale();
-    if ((toolName === "update_memo" || toolName === "merge_memos") && inspected.get(id) !== memo.revision) {
+    if ((toolName === "update_memo" || toolName === "update_poster" || toolName === "merge_memos") && inspected.get(id) !== memo.revision) {
       throw new AppError("companion_action_unread", "Read the complete source notes before changing their content or merging them.", 400);
     }
     notes.push({ id, title: memo.title ?? "", revision: memo.revision, notebookId: memo.notebookId,

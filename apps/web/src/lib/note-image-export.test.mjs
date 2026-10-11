@@ -37,7 +37,7 @@ describe("note image export helpers", () => {
     expect(markup).toContain("EdgeEver");
   });
 
-  test("includes terminal header bar when fontStyle is mono", () => {
+  test("keeps terminal decoration separate from manual font choice", () => {
     const markup = buildNoteImageCardMarkup({
       title: "Geek Note",
       notebook: "Dev",
@@ -49,9 +49,9 @@ describe("note image export helpers", () => {
       showBranding: false,
     });
 
-    expect(markup).toContain("edgeever-terminal-header");
-    expect(markup).toContain("dot-red");
-    expect(markup).toContain("dot-green");
+    expect(markup).not.toContain("edgeever-terminal-header");
+    expect(markup).not.toContain("dot-red");
+    expect(markup).not.toContain("dot-green");
     expect(markup).not.toContain("edgeever-card-footer");
   });
 
@@ -63,17 +63,17 @@ describe("note image export helpers", () => {
       cardWidth: "wide",
     });
 
-    expect(midnightCss).toContain(NOTE_IMAGE_THEMES.midnight.canvasBg);
+    expect(midnightCss).toContain(NOTE_IMAGE_THEMES.terminal.canvasBg);
     expect(midnightCss).toContain("800px");
     expect(midnightCss).toContain("JetBrains Mono");
   });
 
-  test("generates notepad theme with tear strip, ruled lines, and brand logo", () => {
+  test("generates editorial theme with brand logo", () => {
     const markup = buildNoteImageCardMarkup({
-      title: "Notepad Note",
+      title: "Editorial Note",
       notebook: "Work",
-      bodyHtml: "<p>Smartisan style note line</p>",
-      theme: "notepad",
+      bodyHtml: "<p>New Yorker style editorial essay</p>",
+      theme: "editorial",
       fontStyle: "serif",
       showTitle: true,
       showNotebook: false,
@@ -82,30 +82,31 @@ describe("note image export helpers", () => {
       showBranding: true,
     });
 
-    expect(markup).toContain("edgeever-card-tear-strip");
+    expect(markup).toContain('data-theme="editorial"');
     expect(markup).toContain("edgeever-brand-logo");
     expect(markup).not.toContain("edgeever-meta-notebook");
 
-    const notepadCss = generateCardCss({
-      theme: "notepad",
+    const editorialCss = generateCardCss({
+      theme: "editorial",
       fontStyle: "serif",
       fontSize: "lg",
       cardWidth: "standard",
     });
-    expect(notepadCss).toContain("edgeever-card-tear-strip");
-    expect(notepadCss).toContain("edgeever-brand-logo");
+    expect(editorialCss).toContain('data-theme="editorial"');
+    expect(editorialCss).toContain("edgeever-brand-logo");
   });
 
-  test("generates xuan rice paper theme with brand logo", () => {
+  test("generates film theme with brand logo", () => {
     const markup = buildNoteImageCardMarkup({
       title: "Poem Note",
-      bodyHtml: "<p>东方诗意</p>",
-      theme: "xuan",
+      bodyHtml: "<p>Kodak film aesthetic</p>",
+      theme: "film",
       fontStyle: "serif",
       showTitle: true,
       showBranding: true,
     });
 
+    expect(markup).toContain('data-theme="film"');
     expect(markup).toContain("edgeever-brand-logo");
   });
 });

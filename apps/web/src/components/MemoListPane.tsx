@@ -673,7 +673,7 @@ export const MemoListPane = ({
 
   const handleCopyContextMemoToWeChat = async () => {
     const memo = memoContextMenu?.memo;
-    if (!memo || memo.diagramKind || memo.structuredTable || memo.infographic || wechatCopyPendingRef.current) return;
+    if (!memo || memo.diagramKind || memo.structuredTable || memo.infographic || memo.poster || wechatCopyPendingRef.current) return;
     setMemoContextMenu(null);
     wechatCopyPendingRef.current = true;
     if (wechatCopyNoticeTimerRef.current !== null) {
@@ -1674,7 +1674,7 @@ export const MemoListPane = ({
                     <Share2 className="h-4 w-4 text-slate-500" />
                     {t(isLocalMemoId(memoContextMenu.memo.id) ? "sharing.afterSync" : "sharing.action")}
                   </DropdownMenuItem>
-                  {!memoContextMenu.memo.diagramKind && !memoContextMenu.memo.structuredTable && !memoContextMenu.memo.infographic && (
+                  {!memoContextMenu.memo.diagramKind && !memoContextMenu.memo.structuredTable && !memoContextMenu.memo.infographic && !memoContextMenu.memo.poster && (
                     <DropdownMenuItem
                       className="flex h-9 w-full items-center gap-2 px-3 text-left text-xs text-slate-700 hover:bg-slate-50 cursor-pointer outline-none"
                       onClick={() => void handleCopyContextMemoToWeChat()}

@@ -270,7 +270,7 @@ export const EditorOutline = ({ editor, scrollContainer, collapsed, shortcutLabe
         className={cn(
           "select-none overflow-x-hidden",
           collapsed
-            ? "absolute right-2 top-6 z-10 h-8 w-8 overflow-hidden"
+            ? "absolute right-0 top-6 z-10 h-8 w-8 overflow-hidden"
             : "sticky top-6 h-fit max-h-[calc(100vh-8rem)] shrink-0 overflow-y-auto py-2"
         )}
         style={!collapsed ? { width: EDITOR_OUTLINE_WIDTH } : undefined}

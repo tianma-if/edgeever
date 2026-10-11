@@ -10,6 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { IconTooltip } from "@/components/editor/EditorPaneChrome";
 import { cn } from "@/lib/utils";
 
 export const MemoEditorHeaderActions = ({
@@ -43,17 +44,16 @@ export const MemoEditorHeaderActions = ({
       />
       <ExecutionCenterButton className="h-8 w-8" onClick={onOpenExecutionCenter} />
       <DropdownMenu>
-        <DropdownMenuTrigger asChild>
+        <IconTooltip label={t("editor.more")}><DropdownMenuTrigger asChild>
           <Button
             className={moreButtonClassName}
             size="icon"
             variant="ghost"
-            title={t("editor.more")}
             aria-label={t("editor.moreAria")}
           >
             <MoreHorizontal className="h-4 w-4" />
           </Button>
-        </DropdownMenuTrigger>
+        </DropdownMenuTrigger></IconTooltip>
         <DropdownMenuContent
           align="end"
           className={cn("border border-slate-200 bg-card py-1 shadow-md", moreMenuClassName)}

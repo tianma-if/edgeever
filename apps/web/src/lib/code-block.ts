@@ -3,6 +3,9 @@ import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
 import type { Editor } from "@tiptap/core";
 import { ReactNodeViewRenderer } from "@tiptap/react";
 import { MermaidCodeBlock } from "@/components/MermaidCodeBlock";
+import { NoteProperties } from "@/components/editor/NoteProperties";
+import { FRONT_MATTER_LANGUAGE } from "@edgeever/shared";
+import { createElement } from "react";
 
 export const codeBlockLowlight = createLowlight(common);
 
@@ -30,7 +33,9 @@ export const EdgeEverCodeBlock = CodeBlockLowlight.extend({
   },
 
   addNodeView() {
-    return ReactNodeViewRenderer(MermaidCodeBlock);
+    return ReactNodeViewRenderer((props) => createElement(
+      props.node.attrs.language === FRONT_MATTER_LANGUAGE ? NoteProperties : MermaidCodeBlock, props,
+    ));
   },
 });
 

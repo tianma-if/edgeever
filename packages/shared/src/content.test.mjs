@@ -400,6 +400,59 @@ describe("Mermaid Markdown conversion", () => {
 describe("LaTeX Markdown conversion", () => {
   const markdown = "Euler: $e^{i\\pi}+1=0$.\n\n$$\n\\frac{a}{b}\n$$";
 
+  test("renders the issue #514 math fence while preserving its inline code example", () => {
+    const inline = "$\\Gamma(n) = (n-1)!\\quad\\forall n\\in\\mathbb N$";
+    const latex = "\\Gamma(z) = \\int_0^\\infty t^{z-1}e^{-t}dt\\,.";
+    const doc = markdownToDoc(`The Gamma function satisfying \`${inline}\`\n\n\`\`\`math\n${latex}\n\`\`\``);
+    expect(doc.content[0].content[1]).toMatchObject({ type: "text", text: inline, marks: [{ type: "code" }] });
+    expect(doc.content[1]).toEqual({ type: "blockMath", attrs: { latex } });
+    expect(markdownToDoc(docToMarkdown(doc))).toEqual(doc);
+  });
+
+  test("uses standard fence parsing for tilde, longer, nested, and ordinary fences", () => {
+    for (const fence of ["~~~", "````"]) {
+      expect(markdownToDoc(`${fence}math\nx^2\n${fence}`).content[0]).toEqual({
+        type: "blockMath", attrs: { latex: "x^2" },
+      });
+    }
+    expect(markdownToDoc("> ```math\n> x^2\n> ```").content[0].content[0].type).toBe("blockMath");
+    for (const language of ["", "latex", "javascript", "mermaid"]) {
+      expect(markdownToDoc(`\`\`\`${language}\n$x$\n\`\`\``).content[0].type).toBe("codeBlock");
+    }
+    expect(markdownToDoc("```math\n\n```").content[0].type).toBe("codeBlock");
+    expect(markdownToDoc("````markdown\n```math\nx^2\n```\n````").content[0].type).toBe("codeBlock");
+  });
+
+  test("keeps code dollar pairs unchanged through repeated Markdown round trips", () => {
+    for (const source of ["`$x$`", "```js\nconst cost = '$100$';\nconst formula = '$x$';\n```", "```\n$$x^2$$\n```"]) {
+      const original = markdownToDoc(source);
+      let current = original;
+      for (let i = 0; i < 3; i += 1) current = markdownToDoc(docToMarkdown(current));
+      expect(current).toEqual(original);
+      expect(docToMarkdown(original)).toBe(source);
+    }
+  });
+
+  test("upgrades legacy math code blocks without losing rich table cells or image widths", () => {
+    const legacy = {
+      type: "doc",
+      content: [
+        { type: "codeBlock", attrs: { language: "math" }, content: [{ type: "text", text: "x^2" }] },
+        { type: "table", content: [{ type: "tableRow", content: [{ type: "tableCell", content: [
+          { type: "paragraph", content: [{ type: "text", text: "Rich", marks: [{ type: "bold" }] }] },
+          { type: "image", attrs: { src: "/image.png", width: "50%" } },
+        ] }] }] },
+        { type: "paragraph", content: [{ type: "text", text: "$x$", marks: [{ type: "code" }] }] },
+      ],
+    };
+    const before = JSON.stringify(legacy);
+    const resolved = resolveMemoContentDoc(legacy, "```math\nx^2\n```");
+    expect(resolved.content[0]).toEqual({ type: "blockMath", attrs: { latex: "x^2" } });
+    expect(resolved.content.slice(1)).toEqual(legacy.content.slice(1));
+    expect(JSON.stringify(legacy)).toBe(before);
+    expect(resolveMemoContentDoc(resolved, docToMarkdown(resolved))).toEqual(resolved);
+  });
+
   test("round-trips inline and block formula nodes", () => {
     const doc = markdownToDoc(markdown);
 

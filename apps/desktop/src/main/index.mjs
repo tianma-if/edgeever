@@ -48,6 +48,9 @@ import {
   verifyDownloadedWindowsUpdate,
 } from "./windows-update-trust.mjs";
 import electronUpdater from "electron-updater";
+import { createUpdateDiagnostic } from "./update-diagnostics.mjs";
+import { normalizeUpdateProgress } from "./update-progress.mjs";
+import { inspectWindowsTaskbarShortcuts } from "./windows-taskbar-diagnostics.mjs";
 import { createPluginPublicNetworkRuntime } from "./plugin-public-network.mjs";
 import { createAiDirectRuntime } from "./ai-direct.mjs";
 import { createAcpHostRuntime, registerAcpIpc } from "./acp-host.mjs";
@@ -125,6 +128,8 @@ let sidecar;
 let tray;
 let isQuitting = false;
 let updateState = "idle";
+let updateError = null;
+let updateProgress = null;
 let updateCheckInFlight = null;
 let updateDownloadInFlight = null;
 let updateCheckTimer = null;
@@ -1091,7 +1096,15 @@ const refreshTrayMenu = () => {
 const desktopUpdateStatus = () => ({
   state: updateState,
   version: downloadedUpdateVersion,
+  error: updateError,
+  progress: updateProgress,
 });
+
+const recordUpdateError = (error, stage) => {
+  updateError = createUpdateDiagnostic(error, {
+    stage, version: app.getVersion(), platform: process.platform, arch: process.arch,
+  });
+};
 
 const publishDesktopUpdateStatus = () => {
   if (!mainWindow || mainWindow.isDestroyed()) return;
@@ -1115,9 +1128,11 @@ const trackDesktopUpdateDownload = (downloadPromise, reason) => {
   updateDownloadInFlight = Promise.resolve(downloadPromise)
     .catch(async (error) => {
       updateState = "idle";
+      updateProgress = null;
       downloadedUpdateVersion = null;
       windowsDownloadedUpdateVerified = false;
       refreshTrayMenu();
+      recordUpdateError(error, "download");
       publishDesktopUpdateStatus();
       await writeDiagnostic("update.download-failed", { reason, message: error.message });
     })
@@ -1172,10 +1187,14 @@ const checkForDesktopUpdate = (reason, { force = false, throwOnError = false } =
   const now = Date.now();
   if (!force && now - lastUpdateCheckAt < updateCheckFocusThrottleMs) return Promise.resolve(null);
   lastUpdateCheckAt = now;
+  updateError = null;
+  publishDesktopUpdateStatus();
+  let diagnosticStage = "check";
   void writeDiagnostic("update.check-started", { reason });
   updateCheckInFlight = autoUpdater.checkForUpdates()
     .then(async (result) => {
       if (process.platform === "win32" && result?.isUpdateAvailable) {
+        diagnosticStage = "verify-windows-metadata";
         trustedWindowsUpdate = await fetchTrustedWindowsUpdate({
           version: result.updateInfo.version,
           updateInfo: result.updateInfo,
@@ -1195,10 +1214,12 @@ const checkForDesktopUpdate = (reason, { force = false, throwOnError = false } =
     })
     .catch(async (error) => {
       updateState = "idle";
+      updateProgress = null;
       downloadedUpdateVersion = null;
       trustedWindowsUpdate = null;
       windowsDownloadedUpdateVerified = false;
       refreshTrayMenu();
+      recordUpdateError(error, diagnosticStage);
       publishDesktopUpdateStatus();
       await writeDiagnostic("update.check-failed", { reason, message: error.message });
       throw error;
@@ -1225,6 +1246,7 @@ const configureAutoUpdater = () => {
   autoUpdater.autoRunAppAfterInstall = true;
   autoUpdater.on("update-available", (info) => {
     updateState = "available";
+    updateProgress = null;
     downloadedUpdateVersion = info?.version || null;
     if (process.platform === "win32") {
       trustedWindowsUpdate = null;
@@ -1236,6 +1258,7 @@ const configureAutoUpdater = () => {
   });
   autoUpdater.on("update-not-available", () => {
     updateState = "idle";
+    updateProgress = null;
     downloadedUpdateVersion = null;
     trustedWindowsUpdate = null;
     windowsDownloadedUpdateVerified = false;
@@ -1246,7 +1269,11 @@ const configureAutoUpdater = () => {
       void diagnosticWritten.finally(() => setTimeout(() => app.quit(), 100));
     }
   });
-  autoUpdater.on("download-progress", (progress) => { void writeDiagnostic("update.download-progress", { percent: progress.percent }); });
+  autoUpdater.on("download-progress", (progress) => {
+    updateProgress = normalizeUpdateProgress(progress);
+    publishDesktopUpdateStatus();
+    void writeDiagnostic("update.download-progress", { percent: progress.percent });
+  });
   autoUpdater.on("update-downloaded", (info) => {
     void (async () => {
       if (process.platform === "win32") {
@@ -1261,6 +1288,8 @@ const configureAutoUpdater = () => {
         autoUpdater.autoInstallOnAppQuit = true;
       }
       updateState = "downloaded";
+      updateProgress = null;
+      updateError = null;
       downloadedUpdateVersion = info?.version || downloadedUpdateVersion;
       refreshTrayMenu();
       publishDesktopUpdateStatus();
@@ -1280,9 +1309,11 @@ const configureAutoUpdater = () => {
       }
       autoUpdater.autoInstallOnAppQuit = false;
       updateState = "idle";
+      updateProgress = null;
       downloadedUpdateVersion = null;
       windowsDownloadedUpdateVerified = false;
       refreshTrayMenu();
+      recordUpdateError(error, "verify-windows-package");
       publishDesktopUpdateStatus();
       await writeDiagnostic("update.windows-package-blocked", { message: error.message });
     });
@@ -1291,10 +1322,12 @@ const configureAutoUpdater = () => {
     isQuitting = false;
     if (updateState !== "downloaded") {
       updateState = "idle";
+      updateProgress = null;
       downloadedUpdateVersion = null;
       windowsDownloadedUpdateVerified = false;
     }
     refreshTrayMenu();
+    recordUpdateError(error, updateDownloadInFlight ? "download" : "check");
     publishDesktopUpdateStatus();
     void writeDiagnostic("update.error", { message: error.message });
   });
@@ -1598,6 +1631,13 @@ const startApplication = async () => {
   app.setAsDefaultProtocolClient("edgeever");
   recoveredAfterAbnormalExit = existsSync(crashMarkerPath());
   void writeDiagnostic(recoveredAfterAbnormalExit ? "session.recovered-after-abnormal-exit" : "session.started");
+  void inspectWindowsTaskbarShortcuts({
+    platform: process.platform, packaged: app.isPackaged,
+    appData: app.getPath("appData"), executable: app.getPath("exe"),
+    readdir, readShortcutLink: (path) => shell.readShortcutLink(path), existsSync,
+  }).then((result) => {
+    if (result) return writeDiagnostic("windows.taskbar-shortcuts", result);
+  }).catch((error) => { void writeDiagnostic("windows.taskbar-shortcuts-unavailable", { message: error.message }); });
   await writeFile(crashMarkerPath(), new Date().toISOString());
   session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
   registerDesktopAppProtocol();
@@ -1837,7 +1877,12 @@ const startApplication = async () => {
   });
   ipcMain.handle("desktop:update-status", () => desktopUpdateStatus());
   ipcMain.handle("desktop:check-update", async () => {
-    await checkForDesktopUpdate("manual", { force: true, throwOnError: true });
+    try {
+      await checkForDesktopUpdate("manual", { force: true, throwOnError: true });
+    } catch (error) {
+      // Return structured details rather than losing them in Electron IPC errors.
+      if (!updateError) recordUpdateError(error, "check");
+    }
     return desktopUpdateStatus();
   });
   ipcMain.handle("desktop:download-update", () => downloadTrustedDesktopUpdate("manual-download"));

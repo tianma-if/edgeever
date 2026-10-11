@@ -1,7 +1,7 @@
 import { Database } from "bun:sqlite";
 import { describe, expect, test } from "bun:test";
 import { globSync, readFileSync } from "node:fs";
-import { addTableField, createDefaultTableDocument, serializeTableDocument, updateTableCell } from "@edgeever/shared";
+import { createPosterDocument, serializePosterDocument, parsePosterDocument, markdownToDoc, addTableField, createDefaultTableDocument, serializeTableDocument, updateTableCell } from "@edgeever/shared";
 import {
   acquireMaintenanceLease,
   createMemoEditSession,
@@ -208,6 +208,21 @@ describe("database write optimizations", () => {
     );
     expect(removed.releasedResources?.map((resource) => resource.id)).toEqual(["res_table_file"]);
     expect(sqlite.query("SELECT is_deleted FROM resources WHERE id = 'res_table_file'").get().is_deleted).toBe(1);
+    sqlite.close();
+  });
+
+  test("protects new poster source from legacy contentJson edits and stale revisions", async () => {
+    const { database, sqlite } = createDatabase();
+    const memo = getSeedMemo(sqlite), actor = { actorType: "user", actorId: "user_owner" };
+    const first = await updateMemoRecord(database, memo.workspace_id, memo.id, { contentMarkdown: serializePosterDocument(createPosterDocument("Poster")) }, actor, "owner");
+    expect(parsePosterDocument(first.memo.contentMarkdown)).not.toBeNull();
+    const legacy = await updateMemoRecord(database, memo.workspace_id, memo.id, { contentJson: markdownToDoc("legacy editor changed preview") }, actor, "owner");
+    expect(legacy.error).toBe("poster_update_required");
+    const next = await updateMemoRecord(database, memo.workspace_id, memo.id, { expectedRevision: first.memo.revision, expectedContentHash: first.memo.contentHash, contentMarkdown: serializePosterDocument(createPosterDocument("New design")) }, actor, "owner");
+    expect(parsePosterDocument(next.memo.contentMarkdown).elements[1].text).toBe("New design");
+    const stale = await updateMemoRecord(database, memo.workspace_id, memo.id, { expectedRevision: first.memo.revision, expectedContentHash: first.memo.contentHash, contentMarkdown: first.memo.contentMarkdown }, actor, "owner");
+    expect(stale.error).toBeTruthy();
+    expect(parsePosterDocument(sqlite.query("SELECT content_markdown FROM memo_contents WHERE memo_id = ?").get(memo.id).content_markdown).elements[1].text).toBe("New design");
     sqlite.close();
   });
 

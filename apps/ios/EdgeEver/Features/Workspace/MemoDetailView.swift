@@ -24,8 +24,8 @@ struct MemoDetailView: View {
     @State private var imageExportBuffer = MemoImageExportBuffer()
     @State private var imageShareOptionsOpen = false
     @State private var imageShareFormat = "png"
-    @State private var imageShareTheme = "aurora"
-    @State private var imageShareFontStyle = "serif"
+    @State private var imageShareTheme = "mint"
+    @State private var imageShareFontStyle = "auto"
     @State private var imageShareFontSize = "lg"
     @State private var imageShareCardWidth = "wide"
     @State private var imageShareTitle = true
@@ -188,23 +188,24 @@ struct MemoDetailView: View {
                 Form {
                     Section(env.preferences.t("主题风格", en: "Theme", pl: "Motyw")) {
                         Picker(env.preferences.t("主题风格", en: "Theme", pl: "Motyw"), selection: $imageShareTheme) {
+                            Text(env.preferences.t("纯白", en: "Pure White", pl: "Czysta biel")).tag("slate")
+                            Text(env.preferences.t("薄荷", en: "Mint", pl: "Mięta")).tag("mint")
                             Text(env.preferences.t("极光渐变", en: "Aurora", pl: "Zorza")).tag("aurora")
                             Text(env.preferences.t("暮色晚霞", en: "Sunset", pl: "Zachód słońca")).tag("sunset")
-                            Text(env.preferences.t("暗夜曜石", en: "Midnight", pl: "Północ")).tag("midnight")
-                            Text(env.preferences.t("薄荷", en: "Mint", pl: "Mięta")).tag("mint")
-                            Text(env.preferences.t("紫雾流光", en: "Lavender", pl: "Lawenda")).tag("lavender")
-                            Text(env.preferences.t("经典便签", en: "Notepad", pl: "Notatnik")).tag("notepad")
-                            Text(env.preferences.t("水墨宣纸", en: "Rice Paper", pl: "Papier ryżowy")).tag("xuan")
+                            Text(env.preferences.t("黑白编辑", en: "Black & White", pl: "Czerń i biel")).tag("editorial")
+                            Text(env.preferences.t("极客终端", en: "Terminal", pl: "Terminal")).tag("terminal")
+                            Text(env.preferences.t("书页", en: "Book Page", pl: "Strona książki")).tag("film")
                         }
                         .pickerStyle(.menu)
                     }
                     Section(env.preferences.t("字体风格", en: "Typography", pl: "Typografia")) {
                         Picker(env.preferences.t("字体风格", en: "Typography", pl: "Typografia"), selection: $imageShareFontStyle) {
+                            Text(env.preferences.t("跟随主题", en: "Follow Theme", pl: "Zgodnie z motywem")).tag("auto")
                             Text(env.preferences.t("文艺衬线", en: "Serif", pl: "Szeryfowa")).tag("serif")
                             Text(env.preferences.t("现代无衬线", en: "Sans", pl: "Bezszeryfowa")).tag("sans")
                             Text(env.preferences.t("极客等宽", en: "Mono", pl: "Monospace")).tag("mono")
                         }
-                        .pickerStyle(.segmented)
+                        .pickerStyle(.menu)
                     }
                     Section(env.preferences.t("字号大小", en: "Font size", pl: "Rozmiar czcionki")) {
                         Picker(env.preferences.t("字号大小", en: "Font size", pl: "Rozmiar czcionki"), selection: $imageShareFontSize) {
@@ -959,7 +960,9 @@ struct MemoDetailView: View {
                 : isVisualDiagram(memo)
                 ? env.preferences.t("图表标题", en: "Diagram title", pl: "Tytuł diagramu")
                 : env.preferences.t("编辑笔记标题", en: "Edit note title", pl: "Edytuj tytuł notatki"))
-            .accessibilityHint(isInfographic(memo)
+            .accessibilityHint(memo.contentMarkdown.contains("<!-- edgeever-poster-v1:")
+                ? env.preferences.t("海报请在 Web 或桌面端编辑", en: "Edit posters on Web or desktop", pl: "Plakaty edytuj w wersji webowej lub desktopowej")
+                : isInfographic(memo)
                 ? env.preferences.t("信息图请在 Web 或桌面端编辑", en: "Edit infographics on Web or desktop", pl: "Infografiki edytuj w wersji webowej lub desktopowej")
                 : isStructuredTable(memo)
                 ? env.preferences.t("多维表格请在 Web 或桌面端编辑", en: "Edit databases on Web or desktop", pl: "Bazy danych edytuj w wersji webowej lub desktopowej")
@@ -995,7 +998,7 @@ struct MemoDetailView: View {
     }
 
     private func blocksRichTextEdit(_ memo: MemoDetail) -> Bool {
-        isVisualDiagram(memo) || isStructuredTable(memo) || isInfographic(memo)
+        isVisualDiagram(memo) || isStructuredTable(memo) || isInfographic(memo) || memo.contentMarkdown.contains("<!-- edgeever-poster-v1:")
     }
 
     private func refreshSyncStatus() {
@@ -1194,8 +1197,8 @@ struct MemoDetailView: View {
     private func exportMemoImage(
         _ memo: MemoDetail,
         format: String,
-        theme: String = "aurora",
-        fontStyle: String = "serif",
+        theme: String = "mint",
+        fontStyle: String = "auto",
         fontSize: String = "lg",
         cardWidth: String = "wide",
         showTitle: Bool = true,

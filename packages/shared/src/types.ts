@@ -3,7 +3,7 @@ import type { AiAction, AiPromptParameterKind, AiPromptResultMode } from "./ai-a
 import type { DiagramKind, DiagramSummaryPreview } from "./diagram";
 import type { TableSummaryPreview } from "./table";
 
-export type NoteCreateKind = DiagramKind | "infographic" | "table";
+export type NoteCreateKind = DiagramKind | "infographic" | "table" | "poster";
 
 export type Notebook = {
   id: string;
@@ -29,6 +29,7 @@ export type MemoSummary = {
   structuredTable?: boolean;
   tablePreview?: TableSummaryPreview;
   infographic?: boolean;
+  poster?: boolean;
   videoNote?: boolean;
   tags: string[];
   isPinned: boolean;

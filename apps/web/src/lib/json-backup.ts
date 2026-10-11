@@ -24,7 +24,7 @@ import {
   ZipPassThrough,
 } from "fflate";
 import {
-  buildMarkdownFrontMatter,
+  buildNoteMarkdown,
   buildNotebookExportPaths,
   getExportResourceExtension,
   replaceExportResourceUrl,
@@ -259,7 +259,7 @@ export const createEdgeEverZipStream = async (
             addJsonFile(zip!, `memos/${memo.id}.json`, { memo, revisions, resources: backupResources });
             const markdownFile = new ZipDeflate(`${markdownDirectory}/${memoStem}.md`, { level: 6 });
             zip!.add(markdownFile);
-            markdownFile.push(strToU8(`${buildMarkdownFrontMatter(memo, notebookPath)}${markdown}`), true);
+            markdownFile.push(strToU8(buildNoteMarkdown(markdown, memo, notebookPath)), true);
             revisionCount += revisions.length;
             completed += 1;
             onProgress?.({ completed, total });

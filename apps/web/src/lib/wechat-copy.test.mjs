@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { parseHTML } from "../../../../node_modules/.bun/linkedom@0.18.13/node_modules/linkedom/esm/index.js";
+import { parseHTML } from "linkedom";
 
 const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
 const originalDocument = Object.getOwnPropertyDescriptor(globalThis, "document");

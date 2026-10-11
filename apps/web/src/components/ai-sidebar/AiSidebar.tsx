@@ -996,6 +996,7 @@ function AiSidebarSession({
         : turn));
       if (event.type === "error" && event.message) {
         setError(event.message === "note_access_unavailable" ? t("aiAssistant.sidebar.noteAccessUnavailable")
+          : event.message === "workbuddy_credentials_unavailable" ? t("aiAssistant.agentSource.workbuddyCredentialsUnavailable")
           : event.message === "needs_login" ? t(localAdapterId === "workbuddyCn" || localAdapterId === "workbuddyIntl"
             ? "aiAssistant.sidebar.workbuddyLoginRequired" : "aiAssistant.sidebar.localLoginRequired")
             : event.message === "agent_refused" ? t("aiAssistant.sidebar.agentRefused") : event.message);
@@ -1004,6 +1005,9 @@ function AiSidebarSession({
         active.current = null;
         locked.current = false;
         setBusy(false);
+        // Local agents write through MCP, outside the renderer's query cache.
+        // Also refresh failed runs, which may have completed some writes.
+        void onCompanionNotesChanged?.().catch(() => undefined);
       }
     }
   };
@@ -1561,7 +1565,7 @@ function AiSidebarSession({
           <PanelRightClose className="h-4 w-4" />
         </Button>
       </div>
-      {error ? <p role="alert" className="shrink-0 px-3 pt-2 text-sm text-rose-700">{error}</p> : null}
+      {error ? <p role="alert" className="shrink-0 px-3 pt-2 text-xs leading-5 text-rose-700">{error}</p> : null}
       <Conversation key={menuThreadId} className="min-h-0 flex-1">
         <ConversationContent className={sidebarThreadClassName}>
           {loading && visibleCompanion ? <p role="status" className="text-sm text-slate-500">{t("common.loading")}</p> : null}

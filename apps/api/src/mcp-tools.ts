@@ -364,6 +364,37 @@ const MCP_TOOL_DEFINITIONS = [
     },
   },
   {
+    name: "get_poster",
+    description: "Read an editable poster's canvas, element IDs, text, colors and geometry. Read before update_poster; never decode or replace poster Markdown.",
+    inputSchema: { type: "object", required: ["memoId"], additionalProperties: false, properties: { memoId: { type: "string", minLength: 1 } } },
+  },
+  {
+    name: "update_poster",
+    description: "Edit an existing poster's text, colors, typography and element positions. Preserve unmentioned elements and locked elements. Read get_poster first and pass its expectedRevision. Use dryRun to preview. After changes the editor regenerates the preview image.",
+    inputSchema: {
+      type: "object", required: ["memoId", "expectedRevision"], additionalProperties: false,
+      properties: {
+        memoId: { type: "string", minLength: 1 }, expectedRevision: { type: "integer", minimum: 0 }, dryRun: { type: "boolean" },
+        background: { type: "string", pattern: "^#[0-9a-fA-F]{6}$" },
+        backgroundGradient: { type: ["object", "null"], additionalProperties: false, required: ["kind", "from", "to"], properties: {
+          kind: { type: "string", enum: ["linear", "radial"] }, from: { type: "string", pattern: "^#[0-9a-fA-F]{6}$" }, to: { type: "string", pattern: "^#[0-9a-fA-F]{6}$" }, angle: { type: "number", minimum: -360, maximum: 360 },
+        } },
+        edits: { type: "array", maxItems: 100, items: {
+          type: "object", required: ["id", "patch"], additionalProperties: false,
+          properties: { id: { type: "string", minLength: 1 }, patch: {
+            type: "object", additionalProperties: false, properties: {
+              text: { type: "string", maxLength: 8000 }, fill: { type: "string", pattern: "^#[0-9a-fA-F]{6}$" },
+              fontSize: { type: "number", minimum: 4, maximum: 8192 }, fontWeight: { type: "string", enum: ["normal", "bold"] }, textAlign: { type: "string", enum: ["left", "center", "right"] },
+              x: { type: "number", minimum: -8192, maximum: 8192 }, y: { type: "number", minimum: -8192, maximum: 8192 },
+              width: { type: "number", minimum: 1, maximum: 8192 }, height: { type: "number", minimum: 1, maximum: 8192 },
+              rotation: { type: "number", minimum: -360, maximum: 360 }, opacity: { type: "number", minimum: 0, maximum: 1 },
+            },
+          } },
+        } },
+      },
+    },
+  },
+  {
     name: "get_diagram",
     description:
       "Read an editable diagram as a semantic graph. Coordinates and dimensions are omitted by default; set includeLayout only for an explicit visual-layout task.",
@@ -979,6 +1010,7 @@ const READ_ONLY_MCP_TOOLS = new Set([
   "get_memo",
   "get_table_records",
   "get_diagram",
+  "get_poster",
   "list_memo_resources",
   "list_resources",
   "list_memo_revisions",

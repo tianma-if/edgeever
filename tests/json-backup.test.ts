@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { AiPromptTemplate, JsonBackupMemo, JsonBackupNotebook, MemoDetail, Notebook, Resource } from "@edgeever/shared";
+import { splitMarkdownFrontMatter } from "@edgeever/shared";
 import { strFromU8, strToU8, unzipSync, zipSync } from "fflate";
 import {
   createEdgeEverZip,
@@ -161,7 +162,7 @@ describe("EdgeEver ZIP", () => {
     const files = unzipSync(new Uint8Array(await blob.arrayBuffer()));
     expect(Array.from(files[backup.memos[0].resources[0].archivePath])).toEqual([1, 2, 3]);
     const markdown = strFromU8(files["notes/Root/Child/Backup note.md"]);
-    expect(markdown).toContain("edgeever_id: \"memo_backup\"");
+    expect(splitMarkdownFrontMatter(markdown)?.values?.edgeever_id).toBe("memo_backup");
     expect(markdown).toContain("![asset](Backup%20note.assets/asset.png)");
     expect(backup.memos[0].resources[0].archivePath).toBe("notes/Root/Child/Backup note.assets/asset.png");
   });

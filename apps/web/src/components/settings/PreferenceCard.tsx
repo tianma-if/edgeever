@@ -1,7 +1,6 @@
-import { AlignHorizontalJustifyCenter, AlignVerticalSpaceAround, AppWindow, BookOpenText, ChartNoAxesCombined, Code2, Image, Keyboard, Languages, ListTree, MousePointerClick, Palette, Sparkles, SpellCheck, SunMoon, Type } from "lucide-react";
+import { AlignVerticalSpaceAround, AppWindow, BookOpenText, ChartNoAxesCombined, Code2, Image, Keyboard, Languages, ListTree, MousePointerClick, Palette, Sparkles, SpellCheck, SunMoon, Type } from "lucide-react";
 import { useState, useEffect, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import type { EditorContentWidth } from "@/lib/editor-content-width";
 import type { NoteProsePatch, NoteProsePaletteChoice, ResolvedNoteProse } from "@edgeever/shared";
 import { DEFAULT_NOTE_PROSE_CSS, MAX_NOTE_PROSE_CSS_BYTES, NOTE_PROSE_FONT_SIZES, NOTE_PROSE_PALETTE_CHOICES, NOTE_PROSE_PALETTES, noteProseCssDropsDeclarations } from "@edgeever/shared";
 import {
@@ -201,8 +200,6 @@ const NOTE_PROSE_LINE_HEIGHT_OPTIONS = [
 interface PreferenceCardProps {
   imageCompressionEnabled: boolean;
   onImageCompressionChange: (enabled: boolean) => void;
-  editorContentWidth: EditorContentWidth;
-  onEditorContentWidthChange: (width: EditorContentWidth) => void;
   noteProse: ResolvedNoteProse;
   onNoteProseChange: (patch: NoteProsePatch) => void;
 }
@@ -210,8 +207,6 @@ interface PreferenceCardProps {
 export const PreferenceCard = ({
   imageCompressionEnabled,
   onImageCompressionChange,
-  editorContentWidth,
-  onEditorContentWidthChange,
   noteProse,
   onNoteProseChange,
 }: PreferenceCardProps) => {
@@ -423,29 +418,6 @@ export const PreferenceCard = ({
       </PreferenceSection>
 
       <PreferenceSection title={t("settings.groups.reading")}>
-        <div className="hidden min-h-16 flex-col items-start gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 lg:flex">
-          <div className="flex min-w-0 items-center gap-3">
-            <AlignHorizontalJustifyCenter className="h-4 w-4 shrink-0 text-slate-500" />
-            <div className="min-w-0">
-              <div className={SETTINGS_ITEM_TITLE_CLASSNAME}>{t("settings.editorContentWidthTitle")}</div>
-            </div>
-          </div>
-          <div className="w-full shrink-0 sm:w-80">
-            <Select
-              value={editorContentWidth}
-              onValueChange={(value) => onEditorContentWidthChange(value as EditorContentWidth)}
-            >
-              <SelectTrigger aria-label={t("settings.editorContentWidthTitle")} className="h-9 bg-card">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="standard">{t("settings.editorContentWidths.standard")}</SelectItem>
-                <SelectItem value="wide">{t("settings.editorContentWidths.wide")}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
         <div className="flex min-h-16 flex-col items-start gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
           <div className="flex min-w-0 items-center gap-3">
             <BookOpenText className="h-4 w-4 shrink-0 text-slate-500" />

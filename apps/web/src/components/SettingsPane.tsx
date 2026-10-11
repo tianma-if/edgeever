@@ -22,7 +22,6 @@ import * as m from "motion/react-m";
 import { Button } from "@/components/ui/button";
 
 import type { ShortcutSettings } from "@/lib/app-helpers";
-import type { EditorContentWidth } from "@/lib/editor-content-width";
 import type { NoteProsePatch, ResolvedNoteProse } from "@edgeever/shared";
 import { BETA_BADGE_CLASSNAME, WORKSPACE_PAGE_TITLE_CLASSNAME } from "@/lib/workspace-ui";
 import { cn } from "@/lib/utils";
@@ -57,8 +56,6 @@ interface SettingsPaneProps {
   onImageCompressionChange: (enabled: boolean) => void;
   shortcutSettings: ShortcutSettings;
   onShortcutSettingsChange: (settings: ShortcutSettings) => void;
-  editorContentWidth: EditorContentWidth;
-  onEditorContentWidthChange: (width: EditorContentWidth) => void;
   noteProse: ResolvedNoteProse;
   onNoteProseChange: (patch: NoteProsePatch) => void;
   onLogout: () => void;
@@ -96,8 +93,6 @@ export const SettingsPane = ({
   onImageCompressionChange,
   shortcutSettings,
   onShortcutSettingsChange,
-  editorContentWidth,
-  onEditorContentWidthChange,
   noteProse,
   onNoteProseChange,
   onLogout,
@@ -221,8 +216,6 @@ export const SettingsPane = ({
             <PreferenceCard
               imageCompressionEnabled={imageCompressionEnabled}
               onImageCompressionChange={onImageCompressionChange}
-              editorContentWidth={editorContentWidth}
-              onEditorContentWidthChange={onEditorContentWidthChange}
               noteProse={noteProse}
               onNoteProseChange={onNoteProseChange}
             />

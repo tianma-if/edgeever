@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { globSync, readFileSync } from "node:fs";
 import { Database } from "bun:sqlite";
 import { callMcpTool } from "./index.ts";
-import { addTableField, parseDiagramDocument, parseInfographicDocument, parseTableDocument, serializeTableDocument, createDefaultTableDocument } from "@edgeever/shared";
+import { createPosterDocument, serializePosterDocument, parsePosterDocument, addTableField, parseDiagramDocument, parseInfographicDocument, parseTableDocument, serializeTableDocument, createDefaultTableDocument } from "@edgeever/shared";
 
 class SqliteD1PreparedStatement {
   constructor(db, sql, bindings = []) {
@@ -72,6 +72,26 @@ const createFixture = (scopes = ["read:memos", "write:memos"]) => {
 };
 
 describe("MCP template and AI instruction management", () => {
+  test("poster tools preserve untouched elements, previews, scopes and revision guards", async () => {
+    const { sqlite, auth, context } = createFixture();
+    sqlite.query("INSERT INTO notebooks (id, workspace_id, name) VALUES (?, ?, ?)").run("nb_posters", "ws_mcp", "Posters");
+    const poster = { ...createPosterDocument("Original"), previewResourceId: "old_preview" };
+    const created = await callMcpTool(context, auth, "create_memo", { notebookId: "nb_posters", title: "Poster", contentMarkdown: serializePosterDocument(poster) });
+    const read = await callMcpTool(context, auth, "get_poster", { memoId: created.memo.id });
+    const heading = read.poster.elements.find(element => element.type === "text");
+    const input = { memoId: created.memo.id, expectedRevision: read.memo.revision, edits: [{ id: heading.id, patch: { text: "Updated", fill: "#16A06E" } }] };
+    const preview = await callMcpTool(context, auth, "update_poster", { ...input, dryRun: true });
+    expect(preview.poster.elements.find(element => element.id === heading.id).text).toBe("Updated");
+    expect((await callMcpTool(context, auth, "get_poster", { memoId: created.memo.id })).poster.previewResourceId).toBe("old_preview");
+    await expect(callMcpTool(context, { ...auth, scopes: ["read:memos"] }, "update_poster", input)).rejects.toThrow();
+    await expect(callMcpTool(context, { ...auth, workspaceId: "ws_other" }, "get_poster", { memoId: created.memo.id })).rejects.toThrow();
+    const result = await callMcpTool(context, auth, "update_poster", input);
+    expect(result.poster.previewResourceId).toBeUndefined();
+    expect(result.poster.elements.filter(element => element.id !== heading.id)).toEqual(read.poster.elements.filter(element => element.id !== heading.id));
+    expect(parsePosterDocument(result.memo.contentMarkdown).elements.find(element => element.id === heading.id).text).toBe("Updated");
+    await expect(callMcpTool(context, auth, "update_poster", input)).rejects.toThrow();
+    await expect(callMcpTool(context, auth, "update_poster", { ...input, expectedRevision: result.memo.revision, edits: [{ id: "missing", patch: { text: "Bad" } }] })).rejects.toThrow();
+  });
   test.each([
     ["mind-map", [
       { id: "root", label: "Root" },

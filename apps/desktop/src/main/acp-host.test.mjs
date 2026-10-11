@@ -84,9 +84,9 @@ const collector = () => {
   };
 };
 
-const fakeAgentSource = ({ reportPath, secretPath, allowImage, allowEmbedded, hold, requireAuth, advertiseAuth, promptRefusal, hangAuth, hangSession }) => `#!/usr/bin/env bun
+const fakeAgentSource = ({ reportPath, secretPath, allowImage, allowEmbedded, hold, requireAuth, advertiseAuth, promptRefusal, hangAuth, hangSession, workBuddyAccountApi, workBuddyLoginFailure, workBuddyUnreadable, workBuddyUnreadableAfterLogin, authMethodId = "browser" }) => `#!/usr/bin/env bun
 import * as acp from ${JSON.stringify(sdkHref)};
-import { writeFileSync } from "node:fs";
+import { writeFileSync, readFileSync } from "node:fs";
 
 const reportPath = ${JSON.stringify(reportPath)};
 const secretPath = ${JSON.stringify(secretPath)};
@@ -98,7 +98,37 @@ const advertiseAuth = ${advertiseAuth ? "true" : "false"};
 const promptRefusal = ${promptRefusal ? JSON.stringify(promptRefusal) : "null"};
 let authenticated = false;
 const report = { initialize: null, newSession: null, permission: null, readError: null, readResult: null, prompt: null, authMethod: null };
+if (${workBuddyAccountApi ? "true" : "false"}) {
+  try { Object.assign(report, JSON.parse(readFileSync(reportPath, "utf8"))); authenticated = report.accountLogin === true && ${workBuddyLoginFailure ? "false" : "true"}; } catch {}
+}
+if (${workBuddyUnreadable ? "true" : "false"}) authenticated = true;
+const restoredAccount = authenticated;
 const save = () => writeFileSync(reportPath, JSON.stringify(report));
+if (${workBuddyAccountApi ? "true" : "false"}) {
+  const { createServer } = await import("node:http");
+  const server = createServer(async (req, res) => {
+    if (req.headers.authorization !== "Bearer " + process.env.CODEBUDDY_GATEWAY_PASSWORD) {
+      res.writeHead(401); res.end(); return;
+    }
+    const login = req.url.endsWith("/login");
+    if (login) {
+      let body = "";
+      for await (const chunk of req) body += chunk;
+      report.accountLoginMethod = JSON.parse(body).method;
+      report.accountLogin = true;
+      report.edition = process.env.CODEBUDDY_INTERNET_ENVIRONMENT ?? null;
+      authenticated = ${workBuddyLoginFailure ? "false" : "true"};
+      save();
+    }
+    res.setHeader("Content-Type", "application/json");
+    res.end(JSON.stringify({ data: login ? { success: true } : {
+      authenticated,
+      ...(authenticated ? { account: { userId: "fake-user" } } : {}),
+      ...(report.accountLogin && ${workBuddyLoginFailure ? "true" : "false"} ? { loginError: "account.login.failed" } : {}),
+    } }));
+  });
+  await new Promise((resolve) => server.listen(Number(process.env.SERVER__PORT), "127.0.0.1", resolve));
+}
 writeFileSync(reportPath + ".pid", String(process.pid));
 let releaseHold = () => {};
 const released = new Promise((resolve) => {
@@ -136,9 +166,10 @@ acp.agent({ name: "edgeever-fake-agent" })
     return {
       protocolVersion: ctx.params.protocolVersion,
       agentCapabilities: { promptCapabilities: { image: allowImage, embeddedContext: allowEmbedded } },
-      authMethods: requireAuth || advertiseAuth ? [{ id: "browser", name: "Browser" }] : [],
+      authMethods: requireAuth || advertiseAuth ? [{ id: ${JSON.stringify(authMethodId)}, name: "Browser" }] : [],
     };
   })
+  .onRequest("_codebuddy.ai/getUserInfo", (params) => params, () => ({ userInfo: authenticated ? { ${workBuddyUnreadable ? 'userId: "saved-user"' : 'accessToken: "new-token"'} , ...(${workBuddyUnreadableAfterLogin ? "true" : "false"} && restoredAccount ? { accessToken: undefined, userId: "saved-user" } : {}) } : undefined }))
   .onRequest("authenticate", (ctx) => {
     report.authMethod = ctx.params.methodId;
     if (${hangAuth ? "true" : "false"}) {
@@ -887,6 +918,64 @@ describe("ACP stdio session", () => {
       await rm(directory, { recursive: true, force: true });
     }
   }, 15_000);
+
+  sessionTest("WorkBuddy encrypted metadata cannot count as a usable connection or successful login", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "edgeever-acp-unreadable-auth-"));
+    const reportPath = path.join(directory, "report.json");
+    try {
+      const scriptPath = await writeFakeAgent(directory, { reportPath, requireAuth: true, workBuddyAccountApi: true, workBuddyUnreadable: true, authMethodId: "external" });
+      const runtime = createAcpHostRuntime({ adapterManager: { get: () => ({ command: { command: process.execPath, args: [scriptPath] } }) } });
+      expect(await runtime.probeAdapter({ id: "workbuddyIntl" })).toMatchObject({ state: "failed", detail: "workbuddy_credentials_unavailable" });
+      expect(await runtime.authenticateAdapter({ id: "workbuddyIntl", methodId: "external" })).toMatchObject({ state: "failed", detail: "workbuddy_credentials_unavailable" });
+      const events = [];
+      await runtime.prompt({ adapterId: "workbuddyIntl", prompt: "hello", noteAccess: false }, (event) => events.push(event));
+      expect(events).toMatchObject([{ type: "error", message: "workbuddy_credentials_unavailable" }]);
+      const report = await readReport(reportPath);
+      expect(report.accountLogin).toBeUndefined();
+      expect(report.newSession).toBeNull();
+    } finally { await rm(directory, { recursive: true, force: true }); }
+  }, 10_000);
+
+  sessionTest("WorkBuddy login must survive a fresh chat process before reporting success", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "edgeever-acp-auth-restore-"));
+    const reportPath = path.join(directory, "report.json");
+    try {
+      const scriptPath = await writeFakeAgent(directory, { reportPath, requireAuth: true, workBuddyAccountApi: true, workBuddyUnreadableAfterLogin: true, authMethodId: "external" });
+      const runtime = createAcpHostRuntime({ adapterManager: { get: () => ({ command: { command: process.execPath, args: [scriptPath] } }) } });
+      expect(await runtime.authenticateAdapter({ id: "workbuddyIntl", methodId: "external" })).toMatchObject({ state: "failed", detail: "workbuddy_credentials_unavailable" });
+      expect((await readReport(reportPath)).accountLogin).toBe(true);
+    } finally { await rm(directory, { recursive: true, force: true }); }
+  }, 10_000);
+
+  for (const adapterId of ["workbuddyIntl", "workbuddyCn"]) for (const loginFailure of [false, true]) sessionTest(`${adapterId} account login ${loginFailure ? "returns failure without hanging" : "verifies ACP session without the broken authenticate RPC"}`, async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "edgeever-acp-workbuddy-auth-"));
+    const reportPath = path.join(directory, "report.json");
+    try {
+      const scriptPath = await writeFakeAgent(directory, {
+        reportPath, requireAuth: true, hangAuth: true, authMethodId: adapterId === "workbuddyCn" ? "internal" : "external",
+        workBuddyAccountApi: true, workBuddyLoginFailure: loginFailure,
+      });
+      const runtime = createAcpHostRuntime({
+        authenticationTimeoutMs: 5_000,
+        adapterManager: { get: () => ({ command: { command: process.execPath, args: [scriptPath], env: adapterId === "workbuddyCn" ? { CODEBUDDY_INTERNET_ENVIRONMENT: "internal" } : {}, unsetEnv: adapterId === "workbuddyIntl" ? ["CODEBUDDY_INTERNET_ENVIRONMENT"] : [] }, version: "fixture" }) },
+      });
+      const result = await runtime.authenticateAdapter({ id: adapterId, methodId: adapterId === "workbuddyCn" ? "internal" : "external" });
+      expect(result.state).toBe(loginFailure ? "needs_login" : "available");
+      if (loginFailure) {
+        expect(result.detail).toBe("authentication_failed");
+        expect(result.authMethods).toEqual([{ id: adapterId === "workbuddyCn" ? "internal" : "external", name: "Browser" }]);
+      }
+      const report = await readReport(reportPath);
+      expect(report.authMethod).toBeNull();
+      expect(report.accountLogin).toBe(true);
+      expect(report.accountLoginMethod).toBe(adapterId === "workbuddyCn" ? "internal" : "external");
+      expect(report.edition).toBe(adapterId === "workbuddyCn" ? "internal" : null);
+      expect(Boolean(report.newSession)).toBe(!loginFailure);
+      expect(runtime.listAdapters().find((adapter) => adapter.id === adapterId).state).toBe(result.state);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  }, 10_000);
 
   sessionTest("ends an unanswered login with retry methods instead of a connection failure", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "edgeever-acp-auth-timeout-"));

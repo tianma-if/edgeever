@@ -1,3 +1,4 @@
+import { AI_ASSISTANT_LAUNCHER_POSITION } from "@/lib/ai-assistant-launcher";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from "@tanstack/react-table";
@@ -526,10 +527,26 @@ export const TableEditorPane = ({
   const pendingUploadIdsRef = useRef(new Set<string>());
   const savedSnapshotRef = useRef(parsed ? snapshotOf(memo.title ?? "", parsed) : "");
   const saveRef = useRef<() => void>(() => undefined);
-  if (memo.revision >= memoRef.current.revision) memoRef.current = memo;
   titleRef.current = title;
   documentRef.current = document;
   editingRef.current = editing;
+
+  useEffect(() => {
+    // Keep the displayed table and its save base in sync after AI/server edits.
+    // An active local edit must retain its original revision for conflict checks.
+    if (!parsed || dirty || saving || editing || memo.revision < memoRef.current.revision) return;
+    const nextTitle = memo.title ?? "";
+    const nextSnapshot = snapshotOf(nextTitle, parsed);
+    memoRef.current = memo;
+    if (nextSnapshot === savedSnapshotRef.current) return;
+    setTitle(nextTitle);
+    titleRef.current = nextTitle;
+    setDocument(parsed);
+    documentRef.current = parsed;
+    savedSnapshotRef.current = nextSnapshot;
+    setSaveError(null);
+    setSaveFailed(false);
+  }, [dirty, editing, memo, parsed, saving]);
 
   useEffect(() => {
     editSessionRef.current = null;
@@ -716,7 +733,7 @@ export const TableEditorPane = ({
         variant="outline"
         size="icon"
         data-ai-assistant-launcher=""
-        className="absolute bottom-[calc(1.25rem+env(safe-area-inset-bottom))] right-5 z-30 size-11 rounded-full border-slate-200 bg-card text-slate-950 shadow-[0_8px_24px_rgba(15,23,42,0.14)] hover:bg-card hover:text-slate-950"
+        className={`${AI_ASSISTANT_LAUNCHER_POSITION} absolute z-30 size-11 rounded-full border-slate-200 bg-card text-slate-950 shadow-[0_8px_24px_rgba(15,23,42,0.14)] hover:bg-card hover:text-slate-950`}
         aria-label={t("aiAssistant.open")}
         onClick={() => {
           setAiSidebarOpen(true);

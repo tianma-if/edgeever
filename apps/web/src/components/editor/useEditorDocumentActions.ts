@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import type { Editor } from "@tiptap/react";
 import { docToMarkdown, markdownToDoc, type MemoDetail, type TiptapDoc } from "@edgeever/shared";
 import type { MemoDocumentActionRequest } from "@/lib/app-helpers";
-import { downloadMarkdownFile } from "@/lib/note-markdown-export";
+import { buildSingleNoteMarkdown, downloadMarkdownFile } from "@/lib/note-markdown-export";
 import { downloadNoteHtmlFile, getHtmlImageEmbedNoticeKind } from "@/lib/note-html-export";
 import { NOTE_HTML_FULL_STYLES } from "@/lib/note-html-export-assets";
 import { openNotePrintPreview, serializeNoteDocumentForPrint } from "@/lib/note-print";
@@ -142,8 +142,8 @@ export const useEditorDocumentActions = ({
       return;
     }
 
-    downloadMarkdownFile(content.markdown, title, t("common.untitledMemo"));
-  }, [memo, resolveExportContent, t, title]);
+    downloadMarkdownFile(buildSingleNoteMarkdown(content.markdown, title, parseTagsText(tagsText)), title, t("common.untitledMemo"));
+  }, [memo, notebookName, resolveExportContent, t, tagsText, title]);
 
   const handleExportHtml = useCallback(async () => {
     const content = resolveExportContent();

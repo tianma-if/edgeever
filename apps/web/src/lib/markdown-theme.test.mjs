@@ -77,7 +77,7 @@ describe("markdown theme contracts", () => {
     expect(toolbar).not.toContain("namedEditorThemes");
     expect(toolbar).toContain('t("editorToolbar.blockStyle")');
     expect(toolbar).toContain("<Heading");
-    expect(toolbar).not.toContain("<Palette");
+    expect(toolbar).toContain('markdownMode ? <Palette className="h-4 w-4" /> : <Heading className="h-4 w-4" />');
     expect(toolbar).toContain("EDITOR_HEADING_LEVELS");
   });
 

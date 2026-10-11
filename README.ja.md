@@ -180,7 +180,7 @@ curl -fsSL https://edgeever.org/install.sh | bash
 
 ### Telegram コミュニティ
 
-EdgeEver の使い方、AI Agent の実例、費用対効果の高い / 無料の AI 資源、自動化の流れを話す場です。
+EdgeEver コミュニティへようこそ。Vibe Coding や AI を探求する仲間が集まり、最先端の AI 生産性と個人ナレッジベースのベストプラクティスを共有しています。
 
 👉 [EdgeEver の Telegram グループに参加](https://t.me/+wwUx1BYLrIdiZjY1)
 
@@ -287,6 +287,7 @@ EdgeEver は無料のオープンソースプロジェクトです。クロス�
 
 - ノート製品の設計は、[Evernote](https://evernote.com/) や [Notion](https://www.notion.com/) など成熟したノートツールの公開されている製品体験も参考にしています。関連機能は EdgeEver が独自に設計し、実装しています。
 - マインドマップと視覚的な図のノートは、[XMind](https://xmind.com/) と [ProcessOn](https://www.processon.com/) の公開されている製品体験を参考にしています。関連機能は EdgeEver が独自に設計し、実装しています。
+- EdgeEver のポスターデザイン機能は、向阳乔木（joeseesun）の [Qiaomu Design](https://github.com/joeseesun/qiaomu-cover-design) を参考にし、MIT ライセンスに基づいてテンプレートと文字組みエンジンを改変して利用しています。
 
 ## 商標とブランド
 

@@ -1252,7 +1252,7 @@ async function afterContentSet(theme: "light" | "dark" = "light") {
 async function exportNoteImage(request: ImageExportRequest) {
   if (!request.requestId || (request.format !== "png" && request.format !== "jpeg")) return;
   const resolvedTheme = resolveTheme(request.background, request.theme);
-  const fontStyle = request.fontStyle ?? "serif";
+  const fontStyle = request.fontStyle ?? "auto";
   const fontSize = request.fontSize ?? "lg";
   const cardWidth = request.cardWidth ?? "wide";
   const targetWidth = NOTE_IMAGE_CARD_WIDTH_PIXELS[cardWidth] || NOTE_IMAGE_CARD_WIDTH_PIXELS.wide;

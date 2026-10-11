@@ -344,12 +344,15 @@ const CreateMemoTypeItems = ({ onCreateMemo }: { onCreateMemo: (kind?: NoteCreat
       <DropdownMenuItem className="gap-2 text-xs leading-5" onSelect={() => onCreateMemo("infographic")}>
         <PieChart className="h-4 w-4 shrink-0" />
         <span className="min-w-0 flex-1 truncate">{t("infographic.name")}</span>
+      </DropdownMenuItem>
+      <DropdownMenuItem className="gap-2 text-xs leading-5" onSelect={() => onCreateMemo("poster")}>
+        <FileText className="h-4 w-4 shrink-0" />
+        <span className="min-w-0 flex-1 truncate">{t("poster.name")}</span>
         <span className={BETA_BADGE_CLASSNAME}>Beta</span>
       </DropdownMenuItem>
       <DropdownMenuItem className="gap-2 text-xs leading-5" onSelect={() => onCreateMemo("table")}>
         <Table2 className="h-4 w-4 shrink-0" />
         <span className="min-w-0 flex-1 truncate">{t("structuredTable.name")}</span>
-        <span className={BETA_BADGE_CLASSNAME}>Beta</span>
       </DropdownMenuItem>
     </>
   );

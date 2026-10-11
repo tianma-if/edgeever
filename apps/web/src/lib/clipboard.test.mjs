@@ -7,6 +7,7 @@ const originalNavigator = Object.getOwnPropertyDescriptor(globalThis, "navigator
 const originalDocument = Object.getOwnPropertyDescriptor(globalThis, "document");
 const originalClipboardItem = Object.getOwnPropertyDescriptor(globalThis, "ClipboardItem");
 const originalURL = Object.getOwnPropertyDescriptor(globalThis, "URL");
+const originalFetch = Object.getOwnPropertyDescriptor(globalThis, "fetch");
 
 const restoreGlobal = (name, descriptor) => {
   if (descriptor) {
@@ -22,6 +23,7 @@ afterEach(() => {
   restoreGlobal("document", originalDocument);
   restoreGlobal("ClipboardItem", originalClipboardItem);
   restoreGlobal("URL", originalURL);
+  restoreGlobal("fetch", originalFetch);
 });
 
 describe("copyTextToClipboard", () => {

@@ -1,7 +1,18 @@
-import { mergeAttributes, Node } from "@tiptap/core";
+import { Extension, mergeAttributes, Node } from "@tiptap/core";
 
 export const BLOCK_MATH_NODE_TYPE = "blockMath" as const;
 export const INLINE_MATH_NODE_TYPE = "inlineMath" as const;
+
+/** Reuse the Markdown lexer's fence handling, including nesting and fence length. */
+export const MathCodeFence = Extension.create({
+  name: "mathCodeFence",
+  priority: 101,
+  markdownTokenName: "code",
+  parseMarkdown: (token) => {
+    if (token.lang !== "math" || !token.text?.trim()) return [];
+    return { type: BLOCK_MATH_NODE_TYPE, attrs: { latex: token.text.trim() } };
+  },
+});
 
 const isEscaped = (source: string, index: number) => {
   let backslashCount = 0;

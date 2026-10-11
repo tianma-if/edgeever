@@ -19,6 +19,7 @@ import {
   resolveTheme,
   buildImageExportBasename,
   buildNoteImageCardMarkup,
+  estimateReadingStats,
   generateCardCss,
 } from "@edgeever/shared/note-image-card";
 
@@ -40,6 +41,7 @@ export {
   resolveTheme,
   buildImageExportBasename,
   buildNoteImageCardMarkup,
+  estimateReadingStats,
   generateCardCss,
 };
 
@@ -57,6 +59,10 @@ export type DownloadNoteImageOptions = NoteHtmlExportMeta & {
   showNotebook?: boolean;
   showTags?: boolean;
   showUpdatedAt?: boolean;
+  author?: string;
+  showAuthor?: boolean;
+  showReadingTime?: boolean;
+  readingTimeText?: string;
   styles: string;
 };
 
@@ -129,13 +135,17 @@ export const createNoteImage = async ({
   format,
   background,
   theme,
-  fontStyle = "serif",
+  fontStyle = "auto",
   fontSize = "lg",
   cardWidth = "wide",
   showTitle = true,
   showNotebook = false,
   showTags = false,
   showUpdatedAt = true,
+  author = "",
+  showAuthor = false,
+  showReadingTime = false,
+  readingTimeText = "",
   styles,
 }: DownloadNoteImageOptions): Promise<PreparedNoteImage> => {
   const resolvedTheme = resolveTheme(background, theme);
@@ -171,6 +181,10 @@ export const createNoteImage = async ({
       showTags,
       showUpdatedAt,
       showBranding: branding,
+      author,
+      showAuthor,
+      showReadingTime,
+      readingTimeText,
     }),
   );
 

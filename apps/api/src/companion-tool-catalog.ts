@@ -6,7 +6,7 @@ import { AppError } from "./app-error";
 // capabilities must be reviewed rather than silently acquiring user authority.
 const allowed = new Set([
   "get_current_user", "search_memos", "list_memos", "get_memo", "create_memo", "create_table_memo", "get_table_records", "add_table_record", "create_diagram_memo", "create_infographic_memo", "get_diagram",
-  "update_diagram",
+  "update_diagram", "get_poster", "update_poster",
   "import_memos", "update_memo",
   "trash_memos", "restore_memos", "move_memos", "add_tags_to_memos", "remove_tags_from_memos",
   "rename_tag", "delete_tag", "merge_memos", "list_memo_resources", "list_resources",

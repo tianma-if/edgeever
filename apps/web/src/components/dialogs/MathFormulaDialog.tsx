@@ -6,27 +6,13 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { MathFormulaDraft, MathFormulaKind } from "@/components/editor/math-formula";
-
-const renderPreviewHtml = (latex: string, kind: MathFormulaKind) => {
-  const trimmed = latex.trim();
-  if (!trimmed) return "";
-  try {
-    return katex.renderToString(trimmed, {
-      displayMode: kind === "block",
-      throwOnError: false,
-      strict: "warn",
-      trust: false,
-    });
-  } catch {
-    return "";
-  }
-};
+import { MathVisualInput } from "@/components/editor/MathVisualInput";
+import { hasMathPlaceholders, renderMathPreview } from "@/components/editor/math-formula-preview";
 
 export const MathFormulaDialog = ({
   open,
@@ -41,13 +27,14 @@ export const MathFormulaDialog = ({
   onApply: (draft: MathFormulaDraft) => void;
   onRemove?: () => void;
 }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const latexId = useId();
   const previewId = useId();
   const latexInputRef = useRef<HTMLTextAreaElement>(null);
   const [kind, setKind] = useState<MathFormulaKind>(draft?.kind ?? "inline");
   const [latex, setLatex] = useState(draft?.latex ?? "");
   const [error, setError] = useState<string | null>(null);
+  const [inputMode, setInputMode] = useState<"visual" | "source">("visual");
   const editing = typeof draft?.pos === "number";
 
   useEffect(() => {
@@ -55,18 +42,26 @@ export const MathFormulaDialog = ({
     setKind(draft?.kind ?? "inline");
     setLatex(draft?.latex ?? "");
     setError(null);
-    const timer = window.setTimeout(() => {
-      latexInputRef.current?.focus();
-      latexInputRef.current?.select();
-    }, 0);
-    return () => window.clearTimeout(timer);
+    setInputMode("visual");
   }, [draft, open]);
 
-  const previewHtml = useMemo(() => renderPreviewHtml(latex, kind), [kind, latex]);
+  useEffect(() => {
+    if (open && inputMode === "source") latexInputRef.current?.focus();
+  }, [inputMode, open]);
+
+  const previewHtml = useMemo(() => renderMathPreview(latex, kind), [kind, latex]);
+  const incomplete = hasMathPlaceholders(latex);
 
   const submit = () => {
+    if (incomplete) return;
     if (!latex.trim()) {
       setError(t("mathFormulaDialog.errorEmpty"));
+      return;
+    }
+    try {
+      katex.renderToString(latex.trim(), { throwOnError: true, trust: false, strict: "warn" });
+    } catch {
+      setError(t("mathFormulaDialog.previewError"));
       return;
     }
     onApply({
@@ -81,15 +76,12 @@ export const MathFormulaDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg gap-0 overflow-hidden p-0">
+      <DialogContent aria-describedby={undefined} className="max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-2xl gap-0 overflow-y-auto p-0">
         <DialogHeader className="border-b border-slate-200 px-5 py-5 pr-12 text-left">
           <DialogTitle className="flex items-center gap-2 text-sm leading-6">
             <Sigma className="h-5 w-5 text-slate-700" />
             {editing ? t("mathFormulaDialog.editTitle") : t("mathFormulaDialog.title")}
           </DialogTitle>
-          <DialogDescription className="pt-1 leading-5">
-            {t("mathFormulaDialog.description")}
-          </DialogDescription>
         </DialogHeader>
 
         <form
@@ -107,7 +99,7 @@ export const MathFormulaDialog = ({
                   type="button"
                   className={
                     kind === value
-                      ? "flex-1 rounded-sm bg-workspace-selection px-3 py-1.5 text-xs font-semibold text-slate-950"
+                      ? "flex-1 rounded-sm bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-950"
                       : "flex-1 rounded-sm px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
                   }
                   aria-pressed={kind === value}
@@ -120,9 +112,29 @@ export const MathFormulaDialog = ({
           )}
 
           <div className="space-y-1.5">
-            <label htmlFor={latexId} className="text-xs font-medium text-slate-600">
-              {t("mathFormulaDialog.latexLabel")}
-            </label>
+            <div className="flex items-center justify-between gap-2">
+              <label htmlFor={latexId} className="text-xs font-medium text-slate-600">
+                {t(inputMode === "visual" ? "mathFormulaDialog.visualLabel" : "mathFormulaDialog.latexLabel")}
+              </label>
+              <Button type="button" variant="ghost" size="sm" onClick={() => {
+                setInputMode(inputMode === "visual" ? "source" : "visual");
+                setError(null);
+              }}>
+                {t(inputMode === "visual" ? "mathFormulaDialog.sourceMode" : "mathFormulaDialog.visualMode")}
+              </Button>
+            </div>
+            {inputMode === "visual" ? (open ? (
+              <MathVisualInput
+                id={latexId}
+                value={latex}
+                label={t("mathFormulaDialog.visualLabel")}
+                loadingLabel={t("mathFormulaDialog.loading")}
+                language={i18n.resolvedLanguage ?? i18n.language}
+                hint={incomplete ? t("mathFormulaDialog.incomplete") : undefined}
+                onChange={(value) => { setLatex(value); setError(null); }}
+                onLoadError={() => { setInputMode("source"); setError(t("mathFormulaDialog.loadError")); }}
+              />
+            ) : null) : (
             <textarea
               ref={latexInputRef}
               id={latexId}
@@ -137,6 +149,8 @@ export const MathFormulaDialog = ({
                 if (error) setError(null);
               }}
             />
+            )}
+            {inputMode === "source" && incomplete && <p className="text-xs leading-5 text-slate-500" role="status">{t("mathFormulaDialog.incomplete")}</p>}
           </div>
 
           <div className="space-y-1.5">
@@ -189,7 +203,7 @@ export const MathFormulaDialog = ({
               <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
                 {t("common.cancel")}
               </Button>
-              <Button type="submit" variant="solid">
+              <Button type="submit" variant="solid" disabled={incomplete}>
                 {t("mathFormulaDialog.apply")}
               </Button>
             </div>

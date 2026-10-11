@@ -1,4 +1,5 @@
 import type { MemoDetail, Notebook, Resource } from "@edgeever/shared";
+import { mergeMarkdownFrontMatter } from "@edgeever/shared";
 import { strToU8, Zip, ZipDeflate, ZipPassThrough } from "fflate";
 
 export type MarkdownExportProgress = {
@@ -101,21 +102,19 @@ export const buildNotebookExportPaths = (notebooks: Notebook[]) => {
   return pathById;
 };
 
-const yamlString = (value: string) => JSON.stringify(value);
+export const buildNoteMarkdown = (markdown: string, memo: MemoDetail, notebookPath: string) =>
+  mergeMarkdownFrontMatter(markdown, {
+    title: memo.title?.trim() || "Untitled note",
+    tags: memo.tags,
+    notebook: notebookPath,
+    created: memo.createdAt,
+    updated: memo.updatedAt,
+    pinned: memo.isPinned,
+    edgeever_id: memo.id,
+  });
 
-export const buildMarkdownFrontMatter = (memo: MemoDetail, notebookPath: string) => [
-  "---",
-  `title: ${yamlString(memo.title?.trim() || "Untitled note")}`,
-  `tags: ${JSON.stringify(memo.tags)}`,
-  `notebook: ${yamlString(notebookPath)}`,
-  `created: ${yamlString(memo.createdAt)}`,
-  `updated: ${yamlString(memo.updatedAt)}`,
-  `pinned: ${memo.isPinned}`,
-  `edgeever_id: ${yamlString(memo.id)}`,
-  "---",
-  "",
-  "",
-].join("\n");
+export const buildMarkdownFrontMatter = (memo: MemoDetail, notebookPath: string) =>
+  buildNoteMarkdown("", memo, notebookPath);
 
 export const getExportResourceExtension = (resource: Resource) => {
   const filenameExtension = resource.filename?.match(/\.([a-z0-9]{1,12})$/i)?.[1];
@@ -221,7 +220,7 @@ export const createMarkdownExport = async (
 
             const markdownFile = new ZipDeflate(`${notebookPath}/${memoStem}.md`, { level: 6 });
             zip.add(markdownFile);
-            markdownFile.push(strToU8(`${buildMarkdownFrontMatter(memo, notebookPath)}${markdown}`), true);
+            markdownFile.push(strToU8(buildNoteMarkdown(markdown, memo, notebookPath)), true);
             completed += 1;
             onProgress?.({ completed, total: page.totalCount });
           }

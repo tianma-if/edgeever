@@ -1,0 +1,72 @@
+.edgeever-math-visual-input {
+  --keyboard-accent-color: rgb(var(--slate-900-rgb));
+  --keyboard-background: hsl(var(--card));
+  --keycap-height: 36px;
+  --keycap-font-size: 18px;
+  --keycap-gap: 2px;
+  --keyboard-padding-top: 0px;
+  --keyboard-padding-bottom: 0px;
+  --keyboard-toolbar-background: hsl(var(--card));
+  --keyboard-toolbar-text: rgb(var(--slate-600-rgb));
+  --keycap-background: rgb(var(--slate-100-rgb));
+  --keycap-background-hover: rgb(var(--slate-200-rgb));
+  --keycap-background-active: rgb(var(--slate-200-rgb));
+  --keycap-background-pressed: rgb(var(--slate-200-rgb));
+  --keycap-text: rgb(var(--slate-900-rgb));
+  --keycap-text-active: rgb(var(--slate-900-rgb));
+  --keycap-text-pressed: rgb(var(--slate-900-rgb));
+  --keycap-border: rgb(var(--slate-200-rgb));
+  --keycap-border-bottom: rgb(var(--slate-200-rgb));
+  --keycap-primary-background: rgb(var(--slate-100-rgb));
+  --keycap-primary-background-hover: rgb(var(--slate-200-rgb));
+  --keycap-primary-text: rgb(var(--slate-900-rgb));
+  --keycap-secondary-background: rgb(var(--slate-100-rgb));
+  --keycap-secondary-background-hover: rgb(var(--slate-200-rgb));
+  --keycap-secondary-text: rgb(var(--slate-900-rgb));
+  --keycap-secondary-border: rgb(var(--slate-200-rgb));
+  --keycap-secondary-border-bottom: rgb(var(--slate-200-rgb));
+  --box-placeholder-color: rgb(var(--slate-500-rgb));
+  --variant-panel-background: hsl(var(--card));
+  --variant-keycap-background-active: rgb(var(--slate-200-rgb));
+}
+
+/* MathLive's default modifier padding assumes taller keys. Keep icons centered
+   in our compact keys, including Shift and Backspace's edge-aligned defaults. */
+.edgeever-math-visual-input .ML__keyboard .MLK__rows .MLK__row > .action,
+.edgeever-math-visual-input .ML__keyboard .MLK__rows .MLK__row > .shift {
+  padding: 0;
+  align-items: center;
+  justify-content: center;
+}
+
+.edgeever-math-visual-input .ML__keyboard .MLK__rows .MLK__row > .action > svg,
+.edgeever-math-visual-input .ML__keyboard .MLK__rows .MLK__row > .shift > svg {
+  margin: 0;
+}
+
+.edgeever-math-visual-input math-field {
+  display: block;
+  width: 100%;
+  min-height: 56px;
+  border: 1px solid rgb(var(--slate-200-rgb));
+  border-radius: 6px;
+  padding: 8px 12px;
+  background: hsl(var(--card));
+  color: rgb(var(--slate-900-rgb));
+  font-size: 22px;
+  --caret-color: rgb(var(--slate-900-rgb));
+  --selection-background-color: rgb(var(--slate-200-rgb));
+}
+
+.edgeever-math-visual-input math-field:focus-within {
+  border-color: rgb(var(--slate-500-rgb));
+  outline: 2px solid rgb(var(--slate-900-rgb) / 10%);
+}
+
+.edgeever-math-visual-input math-field::part(virtual-keyboard-toggle) {
+  color: rgb(var(--slate-500-rgb));
+}
+
+.edgeever-math-visual-input math-field::part(menu-toggle) {
+  display: none;
+}

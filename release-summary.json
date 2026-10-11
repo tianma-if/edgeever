@@ -1,20 +1,29 @@
 {
-  "version": "1.106.0",
+  "version": "1.109.0",
   "changes": {
     "en-US": [
-      "Install the Claude ACP connector directly from desktop settings and improve the accuracy of agent connection and login status.",
-      "Make local AI agents easier to identify with brand logos and clearer connection details.",
-      "Cache AI provider model lists with automatic daily refresh and manual refresh, and improve model selection controls."
+      "Refresh note image sharing with refined themes, theme-matched typography, monogram avatars, and a streamlined preview.",
+      "Android fullscreen note images now support pinch zoom and dragging to inspect details (#520).",
+      "Make poster editing more reliable by avoiding false save and draft recovery conflicts, improving editor startup, and consolidating zoom controls.",
+      "Keep the AI assistant launcher consistently positioned across note editors.",
+      "Restore the all-notes view when the selected notebook is deleted from another client.",
+      "Improve WorkBuddy login checks so unusable saved credentials are reported instead of appearing connected."
     ],
     "zh-CN": [
-      "可直接从桌面设置安装 Claude ACP 连接器，并改进 Agent 连接与登录状态的准确性。",
-      "为本地 AI Agent 添加品牌图标，并简化连接详情，便于识别和配置。",
-      "缓存 AI 服务商模型列表，支持每日自动刷新和手动刷新，并改进模型选择操作。"
+      "升级笔记图片分享：精修主题、支持跟随主题的字体、字母头像，并简化预览操作。",
+      "Android 笔记图片全屏后支持双指缩放和拖动，便于查看大图细节（#520）。",
+      "提升海报编辑可靠性：避免误报保存及草稿恢复冲突，改善编辑器启动，并统一缩放操作。",
+      "统一各类笔记编辑器中 AI 助手入口的位置与间距。",
+      "选中的笔记本被其他客户端删除后，自动恢复全部笔记列表。",
+      "改善 WorkBuddy 登录检查，避免不可用的已保存凭据被误显示为连接成功。"
     ],
     "ja": [
-      "デスクトップ設定から Claude ACP コネクターを直接インストールできるようになり、エージェントの接続状態とログイン状態の判定を改善しました。",
-      "ローカル AI エージェントにブランドアイコンを追加し、接続情報を見やすく整理しました。",
-      "AI プロバイダーのモデル一覧をキャッシュし、毎日の自動更新と手動更新に対応しました。モデル選択の操作も改善しました。"
+      "ノートの画像共有に洗練されたテーマ、テーマに合わせたフォント、イニシャルアイコン、使いやすいプレビューを追加しました。",
+      "Android の全画面画像でピンチズームとドラッグに対応し、細部を確認しやすくしました（#520）。",
+      "ポスター編集の保存・下書き復元時の誤った競合を修正し、起動とズーム操作を改善しました。",
+      "各ノート編集画面で AI アシスタントの位置と間隔を統一しました。",
+      "選択中のノートブックが別の端末で削除された場合、すべてのノート一覧に戻るよう修正しました。",
+      "WorkBuddy のログイン確認を改善し、使用できない保存済み認証情報を接続成功と表示する問題を修正しました。"
     ]
   }
 }

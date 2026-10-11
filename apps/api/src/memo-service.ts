@@ -1,3 +1,4 @@
+import { hasPosterDocumentMarker, parsePosterDocument } from "@edgeever/shared";
 import {
   createExcerpt,
   DEFAULT_MEMO_TITLE,
@@ -1346,6 +1347,12 @@ export const updateMemoRecord = async (
   const tags = input.tags === undefined ? parseJsonArray(current.tags_json) : normalizeTags(input.tags);
   const excerpt = createExcerpt(contentText);
   const notebookId = input.notebookId ?? current.notebook_id;
+  if (hasPosterDocumentMarker(current.content_markdown) && !parsePosterDocument(contentMarkdown)) {
+    return { error: "poster_update_required", message: "Poster source must be edited on a supported client.", status: 409 };
+  }
+  if (hasPosterDocumentMarker(contentMarkdown) && !parsePosterDocument(contentMarkdown)) {
+    return { error: "invalid_poster", message: "Invalid poster source.", status: 400 };
+  }
   const currentTable = parseTableDocument(current.content_markdown);
   const nextTable = parseTableDocument(contentMarkdown);
   if (currentTable && !nextTable) {

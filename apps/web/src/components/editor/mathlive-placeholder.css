@@ -1,0 +1,31 @@
+/* MathLive does not expose expression placeholders as a CSS part. This sheet
+   lives inside this math-field's shadow root and only styles empty input slots. */
+.edgeever-math-input-slot {
+  position: relative;
+  padding: 0;
+  outline: 1px dashed rgb(var(--slate-500-rgb));
+  border-radius: 3px;
+  background: rgb(var(--slate-50-rgb));
+  /* MathLive uses !important for selected glyph colors. Hide the square glyph
+     while preserving its layout and the editor's selection/hit testing. */
+  color: transparent !important;
+  opacity: 1;
+  cursor: text;
+}
+
+.edgeever-math-input-slot.ML__selected,
+.ML__placeholder-selected {
+  outline-color: rgb(var(--slate-700-rgb));
+  background: rgb(var(--slate-100-rgb));
+}
+
+.ML__focused .edgeever-math-input-slot.ML__selected::after,
+.ML__focused .ML__placeholder-selected::after {
+  content: "";
+  position: absolute;
+  top: 15%;
+  bottom: 15%;
+  left: 50%;
+  border-left: 1px solid rgb(var(--slate-900-rgb));
+  pointer-events: none;
+}

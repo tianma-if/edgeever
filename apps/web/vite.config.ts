@@ -124,6 +124,11 @@ self.addEventListener("activate", (event) => {
 
 export default defineConfig({
   root: "apps/web",
+  // Poster creation loads Fabric through a lazy module. Prepare it at startup
+  // so the first poster does not trigger dependency optimization mid-session.
+  optimizeDeps: {
+    include: ["fabric"],
+  },
   // Packaged Electron apps load index.html via file://, so root-absolute
   // asset URLs resolve to the filesystem root and leave a blank window.
   base: isDesktopBuild ? "./" : "/",

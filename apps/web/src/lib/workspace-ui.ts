@@ -11,4 +11,3 @@ export const BETA_BADGE_CLASSNAME =
  */
 export const EDITOR_OUTLINE_WIDTH = "300px";
 export const EDITOR_CONTENT_MAX_WIDTH = "880px";
-export const EDITOR_CONTENT_MAX_WIDTH_COLLAPSED = "1200px";

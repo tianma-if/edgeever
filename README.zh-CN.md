@@ -181,7 +181,7 @@ curl -fsSL https://edgeever.org/install.sh | bash
 
 <h3 id="wechat-group">微信交流群</h3>
 
-欢迎加入 EdgeEver AI 交流群，这里聚集了大量 Vibe Coding 与 AI 玩家。一起交流 EdgeEver 体验、AI Agent 实战落地、高性价比/免费 AI 资源及自动化工作流。
+欢迎加入 EdgeEver AI 交流群，这里聚集了大量 Vibe Coding 与 AI 玩家。一起交流前沿 AI 生产力与个人知识库的最佳实践。
 
 > 扫描下方二维码或添加微信 `m1245207870`（备注“EdgeEver 进群”），群主将手动邀请入群。
 
@@ -291,6 +291,7 @@ EdgeEver 是免费开源项目。保持跨平台客户端（macOS、Windows、Li
 
 - EdgeEver 的笔记产品设计也参考了 [Evernote（印象笔记）](https://evernote.com/)、[Notion](https://www.notion.com/) 等成熟笔记工具的公开产品体验。相关功能由 EdgeEver 独立设计与实现。
 - 思维导图与可视化图表笔记的产品设计参考了 [XMind](https://xmind.com/) 和 [ProcessOn](https://www.processon.com/) 等图表工具的公开产品体验。相关功能由 EdgeEver 独立设计与实现。
+- EdgeEver 的海报设计工作台借鉴了向阳乔木（joeseesun）的 [Qiaomu Design](https://github.com/joeseesun/qiaomu-cover-design)，并基于其 MIT 开源许可改编了模板与字体排版引擎。
 
 ## 商标与品牌使用
 

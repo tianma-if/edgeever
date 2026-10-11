@@ -7,6 +7,7 @@ let completeSave;
 let secureSessionToken = "";
 let failSecureSessionWrite = false;
 const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+const originalFetch = Object.getOwnPropertyDescriptor(globalThis, "fetch");
 
 // Must be installed before importing modules that read `window` at load time.
 globalThis.window = {
@@ -54,6 +55,11 @@ globalThis.window = {
 };
 
 afterAll(() => {
+  if (originalFetch) {
+    Object.defineProperty(globalThis, "fetch", originalFetch);
+  } else {
+    delete globalThis.fetch;
+  }
   if (originalWindow) {
     Object.defineProperty(globalThis, "window", originalWindow);
   } else {
