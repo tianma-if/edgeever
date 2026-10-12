@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 
+const downloadSource = readFileSync(new URL("./settings/ClientDownloadsPanel.tsx", import.meta.url), "utf8");
+
 const source = readFileSync(new URL("./NotebookPane.tsx", import.meta.url), "utf8");
 
 test("keeps proactive AI out of primary navigation", () => {
@@ -115,22 +117,21 @@ describe("NotebookPane tree expansion persistence", () => {
   });
 });
 
-describe("NotebookPane client downloads", () => {
+describe("Profile client downloads", () => {
   test("keeps macOS, Windows, and Linux downloads visible in the desktop runtime", () => {
-    expect(source).toContain('t("pwa.sidebarMac") || "macOS"');
-    expect(source).toContain('t("pwa.sidebarWindows") || "Windows"');
-    expect(source).toContain('t("pwa.sidebarLinux") || "Linux"');
-    expect(source).not.toContain("!window.edgeeverDesktop?.isAvailable");
+    expect(downloadSource).toContain('t("pwa.sidebarMac")');
+    expect(downloadSource).toContain('t("pwa.sidebarWindows")');
+    expect(downloadSource).toContain('t("pwa.sidebarLinux")');
+    expect(downloadSource).not.toContain("!window.edgeeverDesktop?.isAvailable");
   });
 
   test("labels Windows and Linux by package format instead of a preview badge", () => {
-    const downloads = source.split('pwa.sidebarDownloadsTitle')[1]?.split("</DropdownMenu>")[0];
+    const downloads = downloadSource;
 
-    expect(downloads).toContain(">AppImage</span>");
-    expect(downloads).toContain(">EXE</span>");
+    expect(downloads).toContain('format="AppImage · x86_64"');
+    expect(downloads).toContain('format="EXE · x64"');
     expect(downloads).toContain('t("pwa.sidebarLinuxAvailability")');
     expect(downloads).toContain('t("pwa.sidebarWindowsAvailability")');
-    expect(downloads).toContain("<Tooltip>");
     expect(downloads).not.toContain("sidebarLinuxBadge");
     expect(downloads).not.toContain("sidebarWindowsBadge");
     expect(downloads).not.toContain('|| "Preview"');
@@ -138,13 +139,13 @@ describe("NotebookPane client downloads", () => {
   });
 
   test("renders platform icons inline so desktop protocols do not break them", () => {
-    expect(source).toContain("<BrandIcon path={APPLE_ICON_PATH}");
-    expect(source).toContain("<BrandIcon path={WINDOWS_ICON_PATH}");
-    expect(source).toContain('<BrandIcon path={LINUX_ICON_PATH} className="h-4 w-4"');
-    expect(source).toContain("<GooglePlayIcon />");
-    expect(source).toContain("<AppStoreIcon />");
-    expect(source).toContain("<ChromeIcon />");
-    expect(source).not.toContain('src="/icons/platforms/');
+    expect(downloadSource).toContain("<BrandIcon path={APPLE_ICON_PATH}");
+    expect(downloadSource).toContain("<BrandIcon path={WINDOWS_ICON_PATH}");
+    expect(downloadSource).toContain('<BrandIcon path={LINUX_ICON_PATH}');
+    expect(downloadSource).toContain("<GooglePlayIcon />");
+    expect(downloadSource).toContain("<AppStoreIcon />");
+    expect(downloadSource).toContain("<ChromeIcon />");
+    expect(downloadSource).not.toContain('src="/icons/platforms/');
   });
 });
 

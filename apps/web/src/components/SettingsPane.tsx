@@ -3,6 +3,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Database,
+  Download,
   Info,
   Keyboard,
   KeyRound,
@@ -25,6 +26,7 @@ import type { ShortcutSettings } from "@/lib/app-helpers";
 import type { NoteProsePatch, ResolvedNoteProse } from "@edgeever/shared";
 import { BETA_BADGE_CLASSNAME, WORKSPACE_PAGE_TITLE_CLASSNAME } from "@/lib/workspace-ui";
 import { cn } from "@/lib/utils";
+import { ClientDownloadsPanel } from "./settings/ClientDownloadsPanel";
 import { AccountInfoCard } from "./settings/AccountInfoCard";
 import { DataExportCard } from "./settings/DataExportCard";
 import { DesktopLocalDataCard } from "./settings/DesktopLocalDataCard";
@@ -76,7 +78,7 @@ const SettingsGroup = ({ children }: { children: ReactNode }) => (
   </div>
 );
 
-type TabKey = "general" | "shortcuts" | "users" | "data" | "ai" | "mcp" | "speech" | "sharing" | "advanced" | "account" | "system";
+type TabKey = "general" | "shortcuts" | "users" | "data" | "ai" | "mcp" | "speech" | "sharing" | "advanced" | "account" | "system" | "downloads";
 
 interface TabItem {
   key: TabKey;
@@ -170,6 +172,11 @@ export const SettingsPane = ({
       key: "account",
       label: t("settings.tabs.account"),
       icon: Shield,
+    },
+    {
+      key: "downloads",
+      label: t("pwa.sidebarDownloads"),
+      icon: Download,
     },
     {
       key: "system",
@@ -286,6 +293,8 @@ export const SettingsPane = ({
             )}
           </SettingsGroup>
         );
+      case "downloads":
+        return <ClientDownloadsPanel />;
       case "system":
         return <SystemInfoPanel />;
       default:
