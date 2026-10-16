@@ -8,12 +8,37 @@ import {
 } from "./local-data-reset.mjs";
 
 describe("desktop local data reset", () => {
-  test("only accepts a direct child of the application-data directory", () => {
+  test("only accepts a direct child or a single @scope/name directory of the application-data directory", () => {
     expect(managedUserDataDirectory(
       "/Users/example/Library/Application Support/EdgeEver",
       "/Users/example/Library/Application Support",
     )).toBe("/Users/example/Library/Application Support/EdgeEver");
+    expect(managedUserDataDirectory(
+      "/Users/example/Library/Application Support/@edgeever/desktop",
+      "/Users/example/Library/Application Support",
+    )).toBe("/Users/example/Library/Application Support/@edgeever/desktop");
 
+    expect(() => managedUserDataDirectory(
+      "/Users/example/Library/Application Support/@edgeever/desktop/accounts",
+      "/Users/example/Library/Application Support",
+    )).toThrow();
+    // Two levels are allowed only under an @scope; another app's vendor folder is not.
+    expect(() => managedUserDataDirectory(
+      "/Users/example/Library/Application Support/SomeVendor/SomeApp",
+      "/Users/example/Library/Application Support",
+    )).toThrow();
+    for (const scoped of ["@/desktop", "@a@b/desktop"]) {
+      try {
+        managedUserDataDirectory(
+          `/Users/example/Library/Application Support/${scoped}`,
+          "/Users/example/Library/Application Support",
+        );
+        throw new Error(`expected ${scoped} to be rejected`);
+      } catch (error) {
+        expect(error).toBeInstanceOf(LocalDataResetError);
+        expect(error.code).toBe("unsafe-data-directory");
+      }
+    }
     expect(() => managedUserDataDirectory(
       "/Users/example/Library/Application Support",
       "/Users/example/Library/Application Support",

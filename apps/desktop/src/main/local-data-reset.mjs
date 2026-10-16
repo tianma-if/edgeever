@@ -30,20 +30,27 @@ export class LocalDataResetError extends Error {
   }
 }
 
+// Electron derives userData from the package name, so a scoped package such as
+// "@edgeever/desktop" lives at "<appData>/@edgeever/desktop".
+const isManagedRelativePath = (relativeTarget) => {
+  const segments = relativeTarget.split(sep);
+  if (segments.some((segment) => !segment || segment === "." || segment === "..")) return false;
+  if (segments.length === 1) return true;
+  return segments.length === 2 && /^@[^@]+$/.test(segments[0]);
+};
+
 export const managedUserDataDirectory = (userDataDirectory, appDataDirectory) => {
   const target = resolve(userDataDirectory);
   const appData = resolve(appDataDirectory);
   const relativeTarget = relative(appData, target);
   if (
     !relativeTarget ||
-    relativeTarget === ".." ||
-    relativeTarget.startsWith(`..${sep}`) ||
     isAbsolute(relativeTarget) ||
-    relativeTarget.includes(sep)
+    !isManagedRelativePath(relativeTarget)
   ) {
     throw new LocalDataResetError(
       "unsafe-data-directory",
-      "EdgeEver local data must be a direct child of the application-data directory",
+      "EdgeEver local data must be a direct child of the application-data directory or a single @scope/name directory in it",
     );
   }
   return target;
