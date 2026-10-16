@@ -13,7 +13,7 @@ export async function prepareWorkBuddyAuth(command) {
   return {
     command: {
       ...command,
-      args: [...command.args, "--serve", "--acp-transport", "stdio", "--host", "127.0.0.1", "--port", String(port)],
+      args: [...command.args, ...(command.args.includes("--serve") ? [] : ["--serve", "--acp-transport", "stdio", "--host", "127.0.0.1"]), "--port", String(port)],
       env: { ...command.env, SERVER__HOST: "127.0.0.1", SERVER__PORT: String(port), CODEBUDDY_GATEWAY_AUTH: "password", CODEBUDDY_GATEWAY_PASSWORD: password },
     },
     endpoint: `http://127.0.0.1:${port}`,

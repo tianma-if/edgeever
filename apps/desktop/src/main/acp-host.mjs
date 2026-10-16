@@ -209,13 +209,14 @@ function resolveWorkBuddy(id, deps) {
       const actual = deps.realpath(candidate);
       if (!deps.stat(actual).isFile()) continue;
       deps.access(actual, fsConstants.R_OK);
+      const liteBundle = isWorkBuddyLiteBundle(actual, deps);
       if (deps.platform === "darwin") {
         const executable = path.resolve(path.dirname(actual), "../../../../MacOS/Electron");
         if (deps.exists(executable)) {
-          return { ok: true, command: workBuddyCommand(executable, actual, id, true) };
+          return { ok: true, command: workBuddyCommand(executable, actual, id, true, liteBundle) };
         }
       }
-      return { ok: true, command: workBuddyCommand(deps.executablePath, actual, id) };
+      return { ok: true, command: workBuddyCommand(deps.executablePath, actual, id, false, liteBundle) };
     } catch { /* Try another installed WorkBuddy application. */ }
   }
   const external = findOnPath(deps.platform === "win32" ? ["codebuddy.exe"] : ["codebuddy"], deps);
@@ -224,10 +225,20 @@ function resolveWorkBuddy(id, deps) {
     : { ok: false, state: "not_installed" };
 }
 
-function workBuddyCommand(executablePath, bundledCli, id, nativeBootstrap = false) {
+// WorkBuddy 5.8+ ships only dist/codebuddy-lite-wb.mjs. That bundle loads only
+// with CODEBUDDY_FORCE_LITE_WB_BUNDLE, and its bare --acp runs a one-shot print
+// session; stdio ACP is served only alongside --serve, whose gateway stays on loopback.
+function isWorkBuddyLiteBundle(bundledCli, deps) {
+  const dist = path.resolve(path.dirname(bundledCli), "../dist");
+  return deps.exists(path.join(dist, "codebuddy-lite-wb.mjs")) && !deps.exists(path.join(dist, "codebuddy.js"));
+}
+
+function workBuddyCommand(executablePath, bundledCli, id, nativeBootstrap = false, liteBundle = false) {
   const edition = id === "workbuddyCn" ? { CODEBUDDY_INTERNET_ENVIRONMENT: "internal" } : {};
+  const acpArgs = liteBundle ? ["--acp", "--serve", "--acp-transport", "stdio", "--host", "127.0.0.1"] : ["--acp"];
+  const bundleEnv = liteBundle ? { CODEBUDDY_FORCE_LITE_WB_BUNDLE: "1", SERVER__HOST: "127.0.0.1" } : {};
   return bundledCli
-    ? { command: executablePath, args: [...(nativeBootstrap ? [fileURLToPath(new URL("./workbuddy-launch.cjs", import.meta.url))] : []), bundledCli, "--acp"], env: { ...edition, ELECTRON_RUN_AS_NODE: "1" }, ...(id === "workbuddyIntl" ? { unsetEnv: ["CODEBUDDY_INTERNET_ENVIRONMENT"] } : {}) }
+    ? { command: executablePath, args: [...(nativeBootstrap ? [fileURLToPath(new URL("./workbuddy-launch.cjs", import.meta.url))] : []), bundledCli, ...acpArgs], env: { ...edition, ...bundleEnv, ELECTRON_RUN_AS_NODE: "1" }, ...(id === "workbuddyIntl" ? { unsetEnv: ["CODEBUDDY_INTERNET_ENVIRONMENT"] } : {}) }
     : { command: executablePath, args: ["--acp"], env: edition, ...(id === "workbuddyIntl" ? { unsetEnv: ["CODEBUDDY_INTERNET_ENVIRONMENT"] } : {}) };
 }
 

@@ -23,6 +23,7 @@ import {
   sanitizeFailureDetail,
   spawnAcpChild,
 } from "./acp-host.mjs";
+import { prepareWorkBuddyAuth } from "./workbuddy-auth.mjs";
 
 const require = createRequire(import.meta.url);
 const sdkHref = pathToFileURL(require.resolve("@agentclientprotocol/sdk")).href;
@@ -478,6 +479,21 @@ describe("ACP command allow-list", () => {
       expect(nativeInternational.command.args.slice(1)).toEqual([realpathSync(bundled), "--acp"]);
       expect(nativeInternational.command.env).toEqual({ ELECTRON_RUN_AS_NODE: "1" });
       expect(nativeInternational.command.unsetEnv).toEqual(["CODEBUDDY_INTERNET_ENVIRONMENT"]);
+      // WorkBuddy 5.8+ ships only the lite-wb bundle, whose stdio ACP needs --serve.
+      const dist = path.resolve(path.dirname(bundled), "../dist");
+      await mkdir(dist, { recursive: true });
+      await writeFile(path.join(dist, "codebuddy-lite-wb.mjs"), "// fake lite-wb bundle");
+      const liteDomestic = resolveAcpCommand({ id: "workbuddyCn" }, deps);
+      expect(liteDomestic.command.args.slice(1)).toEqual([realpathSync(bundled), "--acp", "--serve", "--acp-transport", "stdio", "--host", "127.0.0.1"]);
+      expect(liteDomestic.command.env).toEqual({ CODEBUDDY_INTERNET_ENVIRONMENT: "internal", CODEBUDDY_FORCE_LITE_WB_BUNDLE: "1", SERVER__HOST: "127.0.0.1", ELECTRON_RUN_AS_NODE: "1" });
+      const liteAuth = await prepareWorkBuddyAuth(liteDomestic.command);
+      for (const flag of ["--serve", "--acp-transport", "--host", "--port"]) {
+        expect(liteAuth.command.args.filter((arg) => arg === flag)).toHaveLength(1);
+      }
+      expect(liteAuth.command.args).toEqual([...liteDomestic.command.args, "--port", new URL(liteAuth.endpoint).port]);
+      // A full bundle beside lite-wb keeps the legacy launch.
+      await writeFile(path.join(dist, "codebuddy.js"), "// fake full bundle");
+      expect(resolveAcpCommand({ id: "workbuddyCn" }, deps).command.args.slice(1)).toEqual([realpathSync(bundled), "--acp"]);
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
