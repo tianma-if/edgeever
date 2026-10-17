@@ -1,12 +1,14 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { MemoTemplate } from "@edgeever/shared";
+import { listMemoTemplateGallery } from "@edgeever/shared/memo-template-gallery";
 import { localizeDefaultMemoTemplate } from "@edgeever/shared/memo-template-seeds";
 import type { createEdgeEverClient } from "@edgeever/client";
 import { Modal, Pressable, ScrollView, View } from "react-native";
 import { ActivityIndicator, FileText, LayoutTemplate, X } from "./icons";
 import { Text } from "./LocalizedText";
 import {
+  galleryEntryToMobileSelectableTemplate,
   mobileTemplateToCreateSeed,
   toMobileSelectableTemplate,
   type MobileCreateMemoSeed,
@@ -62,6 +64,10 @@ export const MobileTemplatePickerModal = ({
       toMobileSelectableTemplate(localizeDefaultMemoTemplate(template, resolvedLocale))
     )),
     [resolvedLocale, savedTemplatesQuery.data],
+  );
+  const galleryTemplates = useMemo(
+    () => listMemoTemplateGallery(resolvedLocale).map(galleryEntryToMobileSelectableTemplate),
+    [resolvedLocale],
   );
   const isLoadingSaved = savedTemplatesQuery.isLoading || savedTemplatesQuery.isFetching;
   const savedLoadErrorMessage = savedTemplatesQuery.error instanceof Error
@@ -135,6 +141,10 @@ export const MobileTemplatePickerModal = ({
             </Text>
           ) : null}
           {savedTemplates.map((template) => (
+            <TemplateRow key={template.id} onPress={() => handleSelect(template)} template={template} />
+          ))}
+          <Text style={styles.actionSheetSectionTitle}>{translate("模板库")}</Text>
+          {galleryTemplates.map((template) => (
             <TemplateRow key={template.id} onPress={() => handleSelect(template)} template={template} />
           ))}
         </ScrollView>

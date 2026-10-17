@@ -1,11 +1,25 @@
 import { describe, expect, test } from "bun:test";
+import { localizeMemoTemplateGalleryItem, MEMO_TEMPLATE_GALLERY } from "@edgeever/shared/memo-template-gallery";
 import {
   createMemoSeedHasContent,
+  galleryEntryToMobileSelectableTemplate,
   mobileTemplateToCreateSeed,
   toMobileSelectableTemplate,
 } from "./mobile-templates";
 
 describe("mobile-templates", () => {
+  test("turns a gallery template into a create seed without saving it", () => {
+    const entry = localizeMemoTemplateGalleryItem(MEMO_TEMPLATE_GALLERY[0], "pl");
+    const selectable = galleryEntryToMobileSelectableTemplate(entry);
+
+    expect(selectable.id).toBe("gallery:daily-journal");
+    expect(mobileTemplateToCreateSeed(selectable)).toEqual({
+      title: entry.title,
+      contentMarkdown: entry.contentMarkdown,
+      tagsText: "template, daily-journal",
+    });
+  });
+
   test("maps a persisted template to a selectable row", () => {
     const selectableSaved = toMobileSelectableTemplate(
       {

@@ -8,6 +8,7 @@ import {
   type MemoTemplate,
   type TiptapDoc,
 } from "@edgeever/shared";
+import { listMemoTemplateGallery } from "@edgeever/shared/memo-template-gallery";
 import { localizeDefaultMemoTemplate } from "@edgeever/shared/memo-template-seeds";
 import { zValidator } from "@hono/zod-validator";
 import type { Hono } from "hono";
@@ -116,6 +117,12 @@ export const registerTemplateRoutes = (
   const { createMemoRecord, getMemoDetail } = dependencies;
   app.get("/api/v1/templates", async (c) => {
     return c.json({ templates: await listMemoTemplates(c.env.storage.db, getWorkspaceId(c)) });
+  });
+
+  // Optional templates clients offer next to the workspace's own; reading the
+  // gallery never writes to the workspace.
+  app.get("/api/v1/templates/gallery", (c) => {
+    return c.json({ templates: listMemoTemplateGallery(c.req.query("locale")) });
   });
 
   app.post("/api/v1/templates", zValidator("json", TemplateCreateSchema), async (c) => {

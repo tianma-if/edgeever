@@ -120,6 +120,7 @@ struct TemplatePickerSheet: View {
     var onSelect: (CreateMemoSeed) -> Void
 
     @State private var templates: [SelectableMemoTemplate] = []
+    @State private var galleryTemplates: [SelectableMemoTemplate] = []
     @State private var isLoading = false
     @State private var loadFailed = false
 
@@ -193,6 +194,13 @@ struct TemplatePickerSheet: View {
                     ForEach(templates) { template in
                         templateRow(template)
                     }
+
+                    if !galleryTemplates.isEmpty {
+                        sectionTitle(env.preferences.t("模板库", en: "Template Gallery", pl: "Galeria szablonów"))
+                        ForEach(galleryTemplates) { template in
+                            templateRow(template)
+                        }
+                    }
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 8)
@@ -204,6 +212,7 @@ struct TemplatePickerSheet: View {
         .presentationDragIndicator(.hidden)
         .accessibilityIdentifier("templatePickerSheet")
         .task { await loadTemplates() }
+        .task { await loadGallery() }
     }
 
     private func loadTemplates() async {
@@ -216,6 +225,16 @@ struct TemplatePickerSheet: View {
         } catch {
             loadFailed = true
             templates = []
+        }
+    }
+
+    /// Servers without the gallery endpoint simply leave the section hidden.
+    private func loadGallery() async {
+        do {
+            let list = try await env.session.client.listTemplateGallery(locale: env.preferences.apiLocale)
+            galleryTemplates = list.map(SelectableMemoTemplate.init)
+        } catch {
+            galleryTemplates = []
         }
     }
 

@@ -366,6 +366,14 @@ actor APIClient {
         return response.templates
     }
 
+    func listTemplateGallery(locale: String) async throws -> [MemoTemplateGalleryEntry] {
+        let response: TemplateGalleryResponse = try await request(
+            path: "/api/v1/templates/gallery",
+            query: [.init(name: "locale", value: locale)]
+        )
+        return response.templates
+    }
+
     func useTemplate(templateId: String, notebookId: String) async throws -> MemoDetail {
         struct Body: Encodable {
             var notebookId: String

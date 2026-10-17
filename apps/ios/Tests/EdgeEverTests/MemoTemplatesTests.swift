@@ -36,4 +36,14 @@ final class MemoTemplatesTests: XCTestCase {
         XCTAssertEqual(row.title, "自定义")
         XCTAssertEqual(row.contentMarkdown, "# Hi")
     }
+
+    func testGalleryEntryBecomesCreateSeed() throws {
+        let json = #"{"templates":[{"key":"daily-journal","name":"Dziennik dnia","description":"Opis","title":"Dziennik dnia","contentMarkdown":"- Plan","tags":["template","daily-journal"]}]}"#
+        let response = try EdgeEverJSON.decoder.decode(TemplateGalleryResponse.self, from: Data(json.utf8))
+        let row = SelectableMemoTemplate(try XCTUnwrap(response.templates.first))
+        XCTAssertEqual(row.id, "gallery:daily-journal")
+        XCTAssertEqual(row.createSeed.title, "Dziennik dnia")
+        XCTAssertEqual(row.createSeed.contentMarkdown, "- Plan")
+        XCTAssertEqual(row.createSeed.tagsText, "template, daily-journal")
+    }
 }

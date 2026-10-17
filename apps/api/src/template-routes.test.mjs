@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { mapMemoTemplateRow } from "./template-routes.ts";
+import { Hono } from "hono";
+import { listMemoTemplateGallery } from "@edgeever/shared/memo-template-gallery";
+import { mapMemoTemplateRow, registerTemplateRoutes } from "./template-routes.ts";
 
 const row = {
   id: "template_1",
@@ -33,5 +35,18 @@ describe("template route mapping", () => {
       type: "doc",
       content: [{ type: "paragraph" }],
     });
+  });
+});
+
+describe("template gallery route", () => {
+  test("lists the gallery in the requested language without touching storage", async () => {
+    const app = new Hono();
+    registerTemplateRoutes(app, { createMemoRecord: async () => null, getMemoDetail: async () => null });
+
+    const response = await app.request("/api/v1/templates/gallery?locale=pl-PL", {}, {});
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.templates).toEqual(listMemoTemplateGallery("pl"));
   });
 });

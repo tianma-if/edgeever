@@ -1,4 +1,5 @@
 import type { MemoTemplate } from "@edgeever/shared";
+import type { MemoTemplateGalleryEntry } from "@edgeever/shared/memo-template-gallery";
 
 export type MobileCreateMemoSeed = {
   title: string;
@@ -27,6 +28,17 @@ export const toMobileSelectableTemplate = (
     tags: template.tags,
   };
 };
+
+export const galleryEntryToMobileSelectableTemplate = (
+  entry: MemoTemplateGalleryEntry,
+): MobileSelectableTemplate => ({
+  id: `gallery:${entry.key}`,
+  name: entry.name,
+  description: entry.description,
+  title: entry.title,
+  contentMarkdown: entry.contentMarkdown,
+  tags: entry.tags,
+});
 
 export const mobileTemplateToCreateSeed = (template: MobileSelectableTemplate): MobileCreateMemoSeed => ({
   title: template.title,
