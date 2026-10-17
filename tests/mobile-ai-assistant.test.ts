@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
+import { enUS } from "../packages/shared/src/i18n/en-US";
 
 const readSource = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 
@@ -26,8 +27,9 @@ describe("native mobile AI note assistant", () => {
       "rewrite-proofread",
       "translate",
     ]) {
-      expect(androidAssistantSource).toContain(`"${action}"`);
+      expect(Object.keys(enUS.aiAssistant.actions)).toContain(action);
     }
+    expect(androidAssistantSource).toContain("getMobileCatalog(resolvedLocale).aiAssistant.actions");
 
     for (const action of [
       "case summarize",
@@ -79,7 +81,7 @@ describe("native mobile AI note assistant", () => {
   });
 
   test("keeps the assistant reachable from each native note action menu", () => {
-    expect(androidDetailSource).toContain('label={resolvedLocale !== "zh-CN" ? "AI note assistant" : "AI 笔记助手"}');
+    expect(androidDetailSource).toContain("label={getMobileCatalog(resolvedLocale).aiAssistant.title}");
     expect(androidDetailSource).toContain("setAiAssistantOpen(true)");
     expect(androidDetailSource).toContain("<MobileAiAssistantModal");
     expect(iosDetailSource).toContain('env.preferences.t("AI 笔记助手", en: "AI note assistant"');

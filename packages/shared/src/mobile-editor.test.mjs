@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   MOBILE_EDITOR_ACTIVE_FLAGS,
   MOBILE_EDITOR_TOOLBAR_ACTIONS,
+  getMobileEditorCopy,
   getMobileEditorInputAttributes,
   getMobileEditorImageScaleLabel,
   getMobileEditorImageWidthPresetLabel,
@@ -53,5 +54,25 @@ describe("mobile editor contract", () => {
       inputmode: "text",
       spellcheck: "true",
     });
+  });
+});
+
+const collectCopyKeys = (value, prefix = "") =>
+  typeof value === "string"
+    ? [prefix]
+    : Object.entries(value).flatMap(([key, child]) => collectCopyKeys(child, prefix ? `${prefix}.${key}` : key));
+
+describe("mobile editor copy", () => {
+  test("ships the same keys for every locale", () => {
+    const englishKeys = collectCopyKeys(getMobileEditorCopy("en-US"));
+    for (const locale of ["zh-CN", "ja", "pl"]) {
+      expect({ locale, keys: collectCopyKeys(getMobileEditorCopy(locale)) }).toEqual({ locale, keys: englishKeys });
+    }
+  });
+
+  test("localizes editor overlays instead of falling back to English", () => {
+    expect(getMobileEditorCopy("pl").codeBlock.copy).toBe("Kopiuj kod");
+    expect(getMobileEditorCopy("ja").codeBlock.copy).toBe("コードをコピー");
+    expect(getMobileEditorCopy("zh-CN").codeBlock.copy).toBe("复制代码");
   });
 });

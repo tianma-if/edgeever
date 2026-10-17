@@ -5,6 +5,7 @@ import type { LocalTiptapEditorRef } from "../components/LocalTiptapEditor";
 import { buildMobileAiStreamBridgePayload, parseMobileSelectionAiRequest } from "../lib/mobile-ai-selection";
 import { safeDomCall } from "../lib/safe-dom-call";
 import type { useSession } from "../lib/session";
+import { getMobileCatalog } from "../lib/mobile-locale";
 
 type MobileAiClient = NonNullable<ReturnType<typeof useSession>["client"]>;
 
@@ -37,9 +38,9 @@ export const useMobileSelectionAi = ({
   }, []);
 
   const requestSelectionAi = useCallback(async (requestJson: string) => {
-    if (!client) throw new Error(resolvedLocale !== "zh-CN" ? "AI is unavailable while signed out." : "当前未登录，无法使用 AI。");
+    if (!client) throw new Error(getMobileCatalog(resolvedLocale).mobile.ai.signedOut);
     const request = parseMobileSelectionAiRequest(requestJson);
-    if (!request) throw new Error(resolvedLocale !== "zh-CN" ? "The AI request is invalid." : "AI 请求无效。");
+    if (!request) throw new Error(getMobileCatalog(resolvedLocale).mobile.ai.invalidRequest);
 
     activeRequestRef.current?.controller.abort();
     const controller = new AbortController();
@@ -64,12 +65,10 @@ export const useMobileSelectionAi = ({
     }).catch((requestError) => {
       if (controller.signal.aborted) return;
       const message = requestError instanceof ApiRequestError && requestError.code === "ai_not_configured"
-        ? (resolvedLocale !== "zh-CN"
-            ? "Configure a model in Models and agents on the web or desktop app first."
-            : "请先在 Web 或桌面端的“模型与代理”中配置模型。")
+        ? getMobileCatalog(resolvedLocale).mobile.ai.modelNotConfigured
         : requestError instanceof Error
           ? requestError.message
-          : resolvedLocale !== "zh-CN" ? "AI generation failed." : "AI 生成失败。";
+          : getMobileCatalog(resolvedLocale).mobile.ai.generationFailed;
       safeDomCall(() => editorRef.current?.pushAiStreamEvent(buildMobileAiStreamBridgePayload(request.requestId, {
         type: "error",
         code: "ai_generation_failed",

@@ -20,7 +20,7 @@ import {
 } from "../lib/mobile-editor-controller";
 import { clearMobileMemoDraft, writeMobileMemoDraft, type MobileMemoDraft } from "../lib/mobile-drafts";
 import { prepareUploadAsset } from "../lib/mobile-image-upload";
-import { localizeMissingNotebookName, useMobileLocale } from "../lib/mobile-locale";
+import { localizeMissingNotebookName, useMobileLocale, getMobileCatalog, formatMobileCopy } from "../lib/mobile-locale";
 import { useSession } from "../lib/session";
 import { recordEditorStartup } from "../lib/startup-performance";
 import { safeDomCall } from "../lib/safe-dom-call";
@@ -64,14 +64,10 @@ const alertProtectedImageLoadFailure = (
 ) => {
   const statusLabel = failure.status != null
     ? String(failure.status)
-    : locale !== "zh-CN"
-      ? "network error"
-      : "网络错误";
+    : getMobileCatalog(locale).mobile.common.networkError;
   Alert.alert(
-    locale !== "zh-CN" ? "Image failed to load" : "图片加载失败",
-    locale !== "zh-CN"
-      ? `Could not load a note image (${statusLabel}). Check the network and try again.`
-      : `笔记中的图片未能加载（${statusLabel}）。请检查网络后重试。`
+    getMobileCatalog(locale).mobile.common.imageLoadFailed,
+    formatMobileCopy(getMobileCatalog(locale).mobile.common.noteImageLoadFailed, { status: statusLabel })
   );
 };
 

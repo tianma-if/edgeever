@@ -91,7 +91,7 @@ describe("mobile app scope", () => {
 
   test("keeps version history reachable from an active note", () => {
     expect(memoDetailSource).toContain("{!memo.isDeleted ? (");
-    expect(memoDetailSource).toContain('label={resolvedLocale !== "zh-CN" ? "Version history" : "版本历史"}');
+    expect(memoDetailSource).toContain("label={getMobileCatalog(resolvedLocale).editor.versionHistory}");
     expect(memoDetailSource).toContain("onPress={() => closeActionsAndRun(() => onOpenRevisions(memo))}");
     expect(memoDetailSource).toContain('syncStatus === "conflict"');
     expect(memoDetailSource).toContain("onResolveSyncConflict");

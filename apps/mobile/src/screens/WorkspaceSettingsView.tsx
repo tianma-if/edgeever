@@ -7,7 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { BackHandler, Dimensions, Linking, Modal, PixelRatio, Platform, ScrollView, Switch, View } from "react-native";
 import { Activity, ActivityIndicator, Check, ChevronDown, ChevronLeft, ChevronRight, Cloud, Copy, ExternalLink, Image as ImageIcon, Info, LogOut, MessageSquare, MonitorSmartphone, Moon, RefreshCw, ShieldCheck, SlidersHorizontal, Sun, UserRound } from "../components/icons";
 import { Pressable, Text } from "../components/LocalizedText";
-import { useMobileLocale } from "../lib/mobile-locale";
+import { useMobileLocale, getMobileCatalog, type MobileLocale } from "../lib/mobile-locale";
 import { useMobileTheme } from "../lib/mobile-theme";
 import { useMobileUpdate } from "../lib/mobile-update";
 import type { MobileLocalePreference } from "../lib/preferences";
@@ -34,15 +34,15 @@ const readMobileDeviceModel = () => {
 };
 
 const formatExecutionEnvironment = (environment: string | null | undefined, localePreference: MobileLocaleMode = "system") => {
-  const english = isEnglishMobileLocale(localePreference);
+  const locale = getResolvedMobileLocale(localePreference);
 
   switch (environment) {
     case "standalone":
-      return english ? "Standalone app" : "独立安装包";
+      return getMobileCatalog(locale).mobile.settings.standaloneApp;
     case "storeClient":
-      return english ? "Expo Go / development client" : "Expo Go / 开发客户端";
+      return getMobileCatalog(locale).mobile.settings.expoGo;
     case "bare":
-      return english ? "Native app" : "原生应用";
+      return getMobileCatalog(locale).mobile.settings.nativeApp;
     default:
       return environment || getMobileSystemInfoText(localePreference).unknown;
   }
@@ -411,21 +411,21 @@ const SystemInfoCard = ({
   const [expanded, setExpanded] = useState(defaultExpanded);
   const { checkForUpdate, hasUpdate, openUpdate, status, updateKind } = useMobileUpdate();
   const localePreference = useMobileLocalePreference();
-  const english = isEnglishMobileLocale(localePreference);
+  const locale = getResolvedMobileLocale(localePreference);
   const copy = getMobileSystemInfoText(localePreference);
   const infoGroups = getMobileSystemInfoGroups(localePreference, { connectionState, instance, instanceUrl, sync });
   const description = hasUpdate ? copy.updateAvailableDescription : copy.description;
   const checking = status === "checking";
   const downloading = status === "downloading";
   const checkLabel = checking
-    ? (english ? "Checking…" : "正在检查…")
-    : (english ? "Check for updates" : "检查更新");
+    ? getMobileCatalog(locale).mobile.update.checking
+    : getMobileCatalog(locale).mobile.update.checkForUpdates;
   const openUpdateLabel = downloading
-    ? (english ? "Downloading…" : "正在下载…")
+    ? getMobileCatalog(locale).mobile.update.downloading
     : status === "ready"
-      ? (english ? "Restart to apply" : "重启以应用")
+      ? getMobileCatalog(locale).mobile.update.restartToApply
       : updateKind === "ota"
-        ? (english ? "Download update" : "下载更新")
+        ? getMobileCatalog(locale).mobile.update.downloadUpdate
         : copy.openUpdate;
 
   const copySystemInfo = async () => {
@@ -451,7 +451,7 @@ const SystemInfoCard = ({
       </Pressable>
       {expanded ? (
         <View style={styles.settingsAccordionContent}>
-          <SettingsActionButton label={copied ? (english ? "Copied" : "已复制") : (english ? "Copy info" : "复制信息")} onPress={copySystemInfo}>
+          <SettingsActionButton label={copied ? getMobileCatalog(locale).common.copied : getMobileCatalog(locale).systemInfo.copy} onPress={copySystemInfo}>
             {copied ? <ShieldCheck color="#047857" size={16} /> : <Copy color="#0f172a" size={16} />}
           </SettingsActionButton>
           {hasUpdate ? (
@@ -518,108 +518,49 @@ const MobileSystemInfoSection = ({ group }: { group: MobileSystemInfoGroup }) =>
 };
 
 
-const getMobileSystemInfoText = (localePreference: MobileLocaleMode) =>
-  isEnglishMobileLocale(localePreference)
-    ? {
-        build: "Build type",
-        developmentBuild: "Development",
-        productionBuild: "Production",
-        client: "Client",
-        clientAheadOfInstanceCloudflare: "This client is newer than the connected cloud instance. You can wait for the daily automatic instance update, or run the Update deployed EdgeEver workflow.",
-        clientAheadOfInstanceDocker: "This client is newer than the connected cloud instance. You can wait for the daily automatic instance update, or run ./update.sh in the install directory (default ~/edgeever).",
-        clientAheadOfInstanceUnknown: "This client is newer than the connected cloud instance. You can wait for the daily automatic instance update, or update the instance manually.",
-        clientDescription: "The EdgeEver app and runtime environment on this device.",
-        clientSection: "Current client",
-        cloudDescription: "Version and deployment environment for the connected instance.",
-        cloudSection: "Cloud instance",
-        connected: "Connected",
-        connectionChecking: "Checking",
-        connectionDescription: "Connection and local sync queue status.",
-        connectionFailed: "Connection failed",
-        connectionSection: "Connection and sync",
-        containerImageSource: "Container image source",
-        databaseBackend: "Database backend",
-        databaseVersion: "Database version",
-        description: "View cloud instance and current client diagnostics.",
-        deploymentPlatform: "Deployment platform",
-        existingAttachments: "Existing attachments",
-        existingAttachmentsOriginalStorage: "Read from original storage",
-        failedSync: "Failed or conflicted",
-        followSystem: "Follow system",
-        installMode: "Mode",
-        instanceBuild: "Instance build",
-        deploymentVersionTime: "Instance deployment time",
-        instanceConnection: "Instance connection",
-        instanceUrl: "Instance URL",
-        instanceVersion: "Instance version",
-        language: "Language",
-        newUploadObjectStorage: "New upload object storage",
-        pendingSync: "Pending sync",
-        platform: "System",
-        mobileApp: "Mobile app",
-        platformVersion: "System version",
-        requestLatency: "Health check time",
-        deviceModel: "Device model",
-        screenResolution: "Screen resolution",
-        screenResolutionValue: "{{screen}} @{{dpr}}x",
-        timeZone: "Time zone",
-        openUpdate: "Get update",
-        title: "System info",
-        unknown: "Unknown",
-        updateAvailableDescription: "A new version is available. Tap for details.",
-        updateAvailableTitle: "Update available",
-        version: "Version",
-      }
-    : {
-        build: "构建类型",
-        developmentBuild: "开发版",
-        productionBuild: "正式版",
-        client: "客户端",
-        clientAheadOfInstanceCloudflare: "当前客户端版本高于云端实例。可等待每天自动更新，或手动运行 Update deployed EdgeEver 工作流。",
-        clientAheadOfInstanceDocker: "当前客户端版本高于云端实例。可等待每天自动更新，或在安装目录执行 ./update.sh（默认 ~/edgeever）。",
-        clientAheadOfInstanceUnknown: "当前客户端版本高于云端实例。可等待每天自动更新，也可手动更新实例。",
-        clientDescription: "这台设备上的 EdgeEver 应用与运行环境。",
-        clientSection: "当前客户端",
-        cloudDescription: "当前连接实例的版本与部署环境。",
-        cloudSection: "云端实例",
-        connected: "连接正常",
-        connectionChecking: "正在检查",
-        connectionDescription: "实例连接与本地同步队列状态。",
-        connectionFailed: "连接失败",
-        connectionSection: "连接与同步",
-        containerImageSource: "容器镜像来源",
-        databaseBackend: "数据库后端",
-        databaseVersion: "数据库版本",
-        description: "查看云端实例与当前客户端的诊断信息。",
-        deploymentPlatform: "部署平台",
-        existingAttachments: "已有附件",
-        existingAttachmentsOriginalStorage: "继续从原存储读取",
-        failedSync: "失败或冲突",
-        followSystem: "跟随系统",
-        installMode: "安装形态",
-        instanceBuild: "实例构建",
-        deploymentVersionTime: "实例部署时间",
-        instanceConnection: "实例连接",
-        instanceUrl: "实例地址",
-        instanceVersion: "实例版本",
-        language: "语言",
-        newUploadObjectStorage: "新上传对象存储",
-        pendingSync: "待同步",
-        platform: "系统",
-        mobileApp: "移动应用",
-        platformVersion: "系统版本",
-        requestLatency: "健康检查耗时",
-        deviceModel: "设备型号",
-        screenResolution: "屏幕分辨率",
-        screenResolutionValue: "{{screen}} @{{dpr}}x",
-        timeZone: "时区",
-        openUpdate: "前往更新",
-        title: "系统信息",
-        unknown: "未知",
-        updateAvailableDescription: "发现新版本，点按查看详情。",
-        updateAvailableTitle: "发现新版本",
-        version: "版本",
-      };
+const getMobileSystemInfoText = (localePreference: MobileLocaleMode) => {
+  const { mobile, systemInfo } = getMobileCatalog(getResolvedMobileLocale(localePreference));
+  return {
+    ...mobile.systemInfo,
+    client: systemInfo.client,
+    clientAheadOfInstanceCloudflare: systemInfo.clientAheadOfInstanceByPlatform.cloudflare,
+    clientAheadOfInstanceDocker: systemInfo.clientAheadOfInstanceByPlatform.docker,
+    clientAheadOfInstanceUnknown: systemInfo.clientAheadOfInstanceByPlatform.unknown,
+    clientDescription: systemInfo.clientSectionDescription,
+    clientSection: systemInfo.clientSection,
+    cloudDescription: systemInfo.cloudSectionDescription,
+    cloudSection: systemInfo.cloudSection,
+    connected: systemInfo.connectionConnected,
+    connectionChecking: systemInfo.connectionChecking,
+    connectionFailed: systemInfo.connectionFailed,
+    connectionSection: systemInfo.connectionSection,
+    containerImageSource: systemInfo.containerImageSource,
+    databaseBackend: systemInfo.databaseBackend,
+    databaseVersion: systemInfo.databaseMigration,
+    deploymentPlatform: systemInfo.deploymentPlatform,
+    deploymentVersionTime: systemInfo.deploymentVersionTime,
+    deviceModel: systemInfo.deviceModel,
+    existingAttachments: systemInfo.existingAttachments,
+    failedSync: systemInfo.failedSync,
+    installMode: systemInfo.installMode,
+    instanceBuild: systemInfo.instanceBuild,
+    instanceConnection: systemInfo.instanceConnection,
+    instanceUrl: systemInfo.instanceUrl,
+    instanceVersion: systemInfo.instanceVersion,
+    language: systemInfo.language,
+    mobileApp: systemInfo.clients.mobileApp,
+    newUploadObjectStorage: systemInfo.newUploadObjectStorage,
+    pendingSync: systemInfo.pendingSync,
+    platform: systemInfo.os,
+    requestLatency: systemInfo.requestLatency,
+    screenResolution: systemInfo.screenResolution,
+    screenResolutionValue: systemInfo.screenResolutionValue,
+    timeZone: systemInfo.timeZone,
+    title: systemInfo.title,
+    unknown: systemInfo.unknown,
+    version: systemInfo.version,
+  };
+};
 
 const getMobileClientAheadNotice = (
   copy: ReturnType<typeof getMobileSystemInfoText>,
@@ -632,18 +573,18 @@ const getMobileClientAheadNotice = (
   return copy.clientAheadOfInstanceUnknown;
 };
 
-const getMobileDeploymentPlatform = (runtime: string | null | undefined, english: boolean) => {
+const getMobileDeploymentPlatform = (runtime: string | null | undefined, locale: MobileLocale) => {
   if (runtime === "cloudflare-workers") return "Cloudflare";
   if (runtime === "self-hosted-bun") return "Docker";
-  return english ? "Unknown" : "未知";
+  return getMobileCatalog(locale).systemInfo.unknown;
 };
 
-const getMobileContainerImageSource = (source: string | null | undefined, english: boolean) => {
+const getMobileContainerImageSource = (source: string | null | undefined, locale: MobileLocale) => {
   switch (source) {
     case "official-ghcr": return "GitHub Container Registry (GHCR)";
-    case "official-cn-mirror": return english ? "Official mainland China mirror" : "中国大陆官方镜像";
-    case "custom": return english ? "Custom image" : "自定义镜像";
-    default: return english ? "Unknown" : "未知";
+    case "official-cn-mirror": return getMobileCatalog(locale).systemInfo.containerImageSources["official-cn-mirror"];
+    case "custom": return getMobileCatalog(locale).systemInfo.containerImageSources.custom;
+    default: return getMobileCatalog(locale).systemInfo.unknown;
   }
 };
 
@@ -653,13 +594,13 @@ const getMobileDatabaseBackend = (backend: string | null | undefined, unknown: s
   return backend || unknown;
 };
 
-const getMobileObjectStorage = (health: InstanceHealth | undefined, english: boolean, unknown: string) => {
-  if (health?.objectStorageProvider === "s3") return english ? "Third-party S3-compatible OSS" : "第三方 S3 兼容 OSS";
+const getMobileObjectStorage = (health: InstanceHealth | undefined, locale: MobileLocale, unknown: string) => {
+  if (health?.objectStorageProvider === "s3") return getMobileCatalog(locale).systemInfo.objectStorageBackends.external_s3;
   if (health?.objectStorageProvider !== "builtin") return unknown;
   switch (health.storage?.resources) {
-    case "r2": return english ? "Built-in R2" : "内置 R2";
-    case "filesystem": return english ? "Local filesystem" : "本地文件系统";
-    case "s3": return english ? "Instance-provided S3-compatible storage" : "实例内置 S3 兼容存储";
+    case "r2": return getMobileCatalog(locale).systemInfo.objectStorageBackends.builtin_r2;
+    case "filesystem": return getMobileCatalog(locale).systemInfo.objectStorageBackends.builtin_filesystem;
+    case "s3": return getMobileCatalog(locale).systemInfo.objectStorageBackends.builtin_s3;
     default: return unknown;
   }
 };
@@ -720,7 +661,6 @@ const getMobileSystemInfoGroups = (
   } = {},
 ): MobileSystemInfoGroup[] => {
   const copy = getMobileSystemInfoText(localePreference);
-  const english = isEnglishMobileLocale(localePreference);
   const resolvedLocale = getResolvedMobileLocale(localePreference);
   const platformName =
     Platform.OS === "android"
@@ -748,7 +688,7 @@ const getMobileSystemInfoGroups = (
 
   return [
     {
-      columns: english ? 2 : 3,
+      columns: resolvedLocale === "zh-CN" ? 3 : 2,
       description: copy.cloudDescription,
       id: "cloud",
       notice: getMobileClientAheadNotice(copy, instance?.version, instance?.health.runtime),
@@ -759,26 +699,26 @@ const getMobileSystemInfoGroups = (
         { label: copy.instanceVersion, mono: true, value: instance?.version ? `v${instance.version.replace(/^v/, "")}` : copy.unknown },
         { label: copy.databaseVersion, mono: true, value: instance?.health.migration || copy.unknown },
         { label: copy.databaseBackend, value: getMobileDatabaseBackend(instance?.health.storage?.database, copy.unknown) },
-        { label: copy.deploymentPlatform, value: getMobileDeploymentPlatform(instance?.health.runtime, english) },
+        { label: copy.deploymentPlatform, value: getMobileDeploymentPlatform(instance?.health.runtime, resolvedLocale) },
         { label: copy.instanceBuild, mono: true, value: instance?.health.build || copy.unknown, wide: true },
         {
           label: copy.deploymentVersionTime,
           value: instance?.health.deploymentVersionCreatedAt && Number.isFinite(Date.parse(instance.health.deploymentVersionCreatedAt))
-            ? new Intl.DateTimeFormat(english ? "en-US" : "zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(instance.health.deploymentVersionCreatedAt))
+            ? new Intl.DateTimeFormat(resolvedLocale, { dateStyle: "medium", timeStyle: "short" }).format(new Date(instance.health.deploymentVersionCreatedAt))
             : copy.unknown,
         },
-        { fullWidth: true, label: copy.newUploadObjectStorage, value: getMobileObjectStorage(instance?.health, english, copy.unknown) },
+        { fullWidth: true, label: copy.newUploadObjectStorage, value: getMobileObjectStorage(instance?.health, resolvedLocale, copy.unknown) },
         ...(instance?.health.objectStorageProvider === "s3"
           ? [{ fullWidth: true, label: copy.existingAttachments, value: copy.existingAttachmentsOriginalStorage }]
           : []),
         ...(instance?.health.runtime === "self-hosted-bun"
-          ? [{ fullWidth: true, label: copy.containerImageSource, value: getMobileContainerImageSource(instance.health.containerImageSource, english) }]
+          ? [{ fullWidth: true, label: copy.containerImageSource, value: getMobileContainerImageSource(instance.health.containerImageSource, resolvedLocale) }]
           : []),
       ],
       title: copy.cloudSection,
     },
     {
-      columns: english ? 2 : 3,
+      columns: resolvedLocale === "zh-CN" ? 3 : 2,
       description: copy.clientDescription,
       id: "client",
       items: [

@@ -31,7 +31,7 @@ import {
   writeMobileMemoListDensity,
   type MobileMemoListDensity,
 } from "../lib/preferences";
-import { localizeUntitledMemoTitle, localizeMissingNotebookName, toMobileSyncErrorSourceText, useMobileLocale } from "../lib/mobile-locale";
+import { localizeUntitledMemoTitle, localizeMissingNotebookName, toMobileSyncErrorSourceText, useMobileLocale, getMobileCatalog } from "../lib/mobile-locale";
 import { useSession } from "../lib/session";
 import {
   clearMobileMemoUpdateQueueItem,
@@ -471,10 +471,8 @@ export const WorkspaceScreen = ({
   const openRichEditor = useCallback((memo: MemoDetail, initialFocus: "body" | "title" = "body") => {
     if (hasDiagramDocumentMarker(memo.contentMarkdown)) {
       Alert.alert(
-        resolvedLocale !== "zh-CN" ? "View-only diagram" : "图表暂为只读",
-        resolvedLocale !== "zh-CN"
-          ? "Visual diagram editing is currently available on Web and desktop."
-          : "可视化图表目前请在 Web 或桌面端编辑。"
+        getMobileCatalog(resolvedLocale).mobile.workspace.diagramReadOnly,
+        getMobileCatalog(resolvedLocale).mobile.workspace.diagramReadOnlyHint
       );
       return;
     }
@@ -1093,7 +1091,7 @@ export const WorkspaceScreen = ({
       memo.contentJson,
       target,
       resource.filename || filename,
-      resolvedLocale !== "zh-CN" ? "Attachment: " : "附件："
+      getMobileCatalog(resolvedLocale).mobile.common.attachmentPrefix
     );
     await localUpdateMemoMutation.mutateAsync({
       memo,

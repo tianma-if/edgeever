@@ -27,7 +27,7 @@ describe("copy current note ID", () => {
 
   test("copies the raw memo ID from both native mobile clients", () => {
     expect(androidDetailSource).toContain("Clipboard.setStringAsync(memo.id)");
-    expect(androidDetailSource).toContain('resolvedLocale !== "zh-CN" ? "Copy note ID" : "复制笔记 ID"');
+    expect(androidDetailSource).toContain("getMobileCatalog(resolvedLocale).editor.copyNoteId");
     expect(androidDetailSource).toContain("disabled={!canCopyMemoId}");
     expect(iosDetailSource).toContain("UIPasteboard.general.string = memo.id");
     expect(iosDetailSource).toContain('env.preferences.t("复制笔记 ID", en: "Copy note ID"');

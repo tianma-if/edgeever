@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { localizeMissingNotebookName, localizeUntitledMemoTitle, toMobileSyncErrorSourceText, translateMobileText } from "./mobile-locale.tsx";
+import { formatMobileCopy, getMobileCatalog, localizeMissingNotebookName, localizeUntitledMemoTitle, toMobileSyncErrorSourceText, translateMobileText } from "./mobile-locale.tsx";
 
 describe("mobile locale translation", () => {
   test("keeps Chinese copy unchanged for the Chinese locale", () => {
@@ -101,6 +101,24 @@ describe("mobile locale translation", () => {
     expect(localizeMissingNotebookName("ja")).toBe("未分類");
     expect(localizeMissingNotebookName("pl")).toBe("Nieprzypisane");
     expect(localizeMissingNotebookName("zh-CN")).toBe("未分类");
+  });
+
+  test("translates accessibility label templates for every locale", () => {
+    expect(translateMobileText("编辑笔记标题：Plan", "pl")).toBe("Edytuj tytuł notatki: Plan");
+    expect(translateMobileText("新建标签 praca", "pl")).toBe("Utwórz tag praca");
+    expect(translateMobileText("标签 praca", "en-US")).toBe("Tag praca");
+    expect(translateMobileText("Ustawienia，发现新版本", "pl")).toBe("Ustawienia, dostępna aktualizacja");
+    expect(translateMobileText("新建标签 x", "ja")).toBe("タグ x を作成");
+  });
+
+  test("reads native copy from the shared catalog for every locale", () => {
+    expect(getMobileCatalog("pl").mobile.update.title).toBe("Aktualizacje aplikacji");
+    expect(getMobileCatalog("ja").mobile.update.title).toBe("アプリのアップデート");
+    expect(getMobileCatalog("en-US").mobile.update.title).toBe("App updates");
+    expect(getMobileCatalog("zh-CN").mobile.update.title).toBe("应用更新");
+    expect(formatMobileCopy(getMobileCatalog("pl").mobile.login.serverError, { status: 503 }))
+      .toBe("Instancja zwróciła błąd serwera (HTTP 503).");
+    expect(formatMobileCopy("{{known}} {{missing}}", { known: "a" })).toBe("a {{missing}}");
   });
 
   test("localizes the suspicious overwrite sync error the server reports in English", () => {

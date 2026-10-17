@@ -4,7 +4,7 @@ import { AppState, Linking, Platform, type AppStateStatus } from "react-native";
 import * as Updates from "expo-updates";
 import { Alert } from "../components/LocalizedText";
 import { openGooglePlayDetails } from "../../modules/edgeever-app-store";
-import { useMobileLocale } from "./mobile-locale";
+import { useMobileLocale, getMobileCatalog, formatMobileCopy } from "./mobile-locale";
 import {
   ANDROID_INSTALL_UPDATE_SOURCES,
   findNewerMobileRelease,
@@ -47,15 +47,14 @@ export const MobileUpdateProvider = ({ children }: { children: ReactNode }) => {
   const activeCheckRef = useRef<Promise<void> | null>(null);
   const lastAutomaticCheckRef = useRef(0);
   const isSupported = !__DEV__ && Updates.isEnabled;
-  const english = resolvedLocale !== "zh-CN";
   const installedVersion = Updates.runtimeVersion ?? Constants.expoConfig?.version ?? null;
 
   const showLinkError = useCallback(() => {
     Alert.alert(
-      english ? "Could not open link" : "无法打开链接",
-      english ? "Check your browser settings and try again." : "请检查浏览器设置后重试。"
+      getMobileCatalog(resolvedLocale).mobile.update.linkOpenFailed,
+      getMobileCatalog(resolvedLocale).mobile.update.linkOpenFailedHint
     );
-  }, [english]);
+  }, [resolvedLocale]);
 
   const openManualUpdateSource = useCallback((source: MobileInstallUpdateSource) => {
     void openMobileInstallUpdateSource(source, {
@@ -67,34 +66,28 @@ export const MobileUpdateProvider = ({ children }: { children: ReactNode }) => {
       }
       if (result.reason === "not-installed") {
         Alert.alert(
-          english ? "Google Play is not installed" : "未安装 Google Play",
-          english
-            ? "Google Play Store is not installed on this device, so this update channel is unavailable."
-            : "这台设备未安装 Google Play 商店，无法通过该渠道更新。"
+          getMobileCatalog(resolvedLocale).mobile.update.playNotInstalled,
+          getMobileCatalog(resolvedLocale).mobile.update.playNotInstalledHint
         );
         return;
       }
       const { fallbackUrl, reason } = result;
       const copy = reason === "disabled"
         ? {
-          message: english
-            ? "Google Play Store is disabled. Enable it in system settings, or open the web listing instead."
-            : "Google Play 商店已被停用，请先在系统设置中启用，或改用网页版。",
-          title: english ? "Google Play is disabled" : "Google Play 已停用",
+          message: getMobileCatalog(resolvedLocale).mobile.update.playDisabledHint,
+          title: getMobileCatalog(resolvedLocale).mobile.update.playDisabled,
         }
         : {
-          message: english
-            ? "Google Play Store could not handle this update link. Try again later, or open the web listing instead."
-            : "Google Play 商店无法处理这个更新链接，请稍后重试，或改用网页版。",
-          title: english ? "Could not open Google Play" : "无法打开 Google Play",
+          message: getMobileCatalog(resolvedLocale).mobile.update.playUnavailableHint,
+          title: getMobileCatalog(resolvedLocale).mobile.update.playUnavailable,
         };
       Alert.alert(copy.title, copy.message, [
         {
-          text: english ? "Cancel" : "取消",
+          text: getMobileCatalog(resolvedLocale).common.cancel,
           style: "cancel",
         },
         {
-          text: english ? "Open web listing" : "打开网页版",
+          text: getMobileCatalog(resolvedLocale).mobile.update.openWebListing,
           onPress: () => {
             void Linking.openURL(fallbackUrl).catch(showLinkError);
           },
@@ -103,7 +96,7 @@ export const MobileUpdateProvider = ({ children }: { children: ReactNode }) => {
     }).catch(() => {
       showLinkError();
     });
-  }, [english, showLinkError]);
+  }, [resolvedLocale, showLinkError]);
 
   const openInstallUpdateOptions = useCallback((release: MobileRelease) => {
     const googlePlay = ANDROID_INSTALL_UPDATE_SOURCES.find((source) => source.id === "google-play");
@@ -112,28 +105,26 @@ export const MobileUpdateProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
     Alert.alert(
-      english ? "Update available" : "发现新版本",
-      english
-        ? `EdgeEver ${release.version} is available. Choose where to update.`
-        : `EdgeEver ${release.version} 已发布，请选择更新渠道。`,
+      getMobileCatalog(resolvedLocale).mobile.update.available,
+      formatMobileCopy(getMobileCatalog(resolvedLocale).mobile.update.releaseAvailable, { version: release.version }),
       [
         {
-          text: english ? "Later" : "稍后",
+          text: getMobileCatalog(resolvedLocale).mobile.update.later,
           style: "cancel",
         },
         {
           icon: "github",
-          text: english ? github.labelEn : github.labelZh,
+          text: getMobileCatalog(resolvedLocale).mobile.update.sources[github.id],
           onPress: () => openManualUpdateSource(github),
         },
         {
           icon: "google-play",
-          text: english ? googlePlay.labelEn : googlePlay.labelZh,
+          text: getMobileCatalog(resolvedLocale).mobile.update.sources[googlePlay.id],
           onPress: () => openManualUpdateSource(googlePlay),
         },
       ]
     );
-  }, [english, openManualUpdateSource]);
+  }, [resolvedLocale, openManualUpdateSource]);
 
   const runCheck = useCallback((userInitiated: boolean) => {
     if (activeCheckRef.current) {
@@ -143,10 +134,8 @@ export const MobileUpdateProvider = ({ children }: { children: ReactNode }) => {
     if (!isSupported) {
       if (userInitiated) {
         Alert.alert(
-          english ? "Updates unavailable" : "暂无法检查更新",
-          english
-            ? "Update checks are available in installed release builds, not Expo Go or development builds."
-            : "检查更新仅适用于已安装的正式版，Expo Go 和开发版暂不支持。"
+          getMobileCatalog(resolvedLocale).mobile.update.unsupported,
+          getMobileCatalog(resolvedLocale).mobile.update.unsupportedHint
         );
       }
       return Promise.resolve();
@@ -196,7 +185,7 @@ export const MobileUpdateProvider = ({ children }: { children: ReactNode }) => {
       activeCheckRef.current = null;
     });
     return check;
-  }, [english, installedVersion, isSupported]);
+  }, [resolvedLocale, installedVersion, isSupported]);
 
   useEffect(() => {
     const attemptAutomaticCheck = () => {
@@ -243,25 +232,24 @@ export const MobileUpdateProvider = ({ children }: { children: ReactNode }) => {
       if (!result.isNew) {
         setUpdateKind(null);
         setStatus("idle");
-        if (english) {
-          Alert.alert("No update", "No downloadable in-app update was found.");
-        } else {
-          Alert.alert("暂无更新", "没有可下载的应用内更新。");
-        }
+        Alert.alert(
+          getMobileCatalog(resolvedLocale).mobile.update.none,
+          getMobileCatalog(resolvedLocale).mobile.update.noneHint,
+        );
         return;
       }
 
       setStatus("ready");
       Alert.alert(
-        english ? "Update ready" : "更新已就绪",
-        english ? "Restart now to apply the update." : "重启后即可应用更新。",
+        getMobileCatalog(resolvedLocale).mobile.update.ready,
+        getMobileCatalog(resolvedLocale).mobile.update.readyHint,
         [
           {
-            text: english ? "Later" : "稍后",
+            text: getMobileCatalog(resolvedLocale).mobile.update.later,
             style: "cancel",
           },
           {
-            text: english ? "Restart" : "立即重启",
+            text: getMobileCatalog(resolvedLocale).mobile.update.restart,
             onPress: () => {
               void Updates.reloadAsync();
             },
@@ -271,13 +259,11 @@ export const MobileUpdateProvider = ({ children }: { children: ReactNode }) => {
     } catch {
       setStatus("available");
       Alert.alert(
-        english ? "Update failed" : "更新失败",
-        english
-          ? "Could not download the in-app update. Try again later."
-          : "无法下载应用内更新，请稍后再试。"
+        getMobileCatalog(resolvedLocale).mobile.update.failed,
+        getMobileCatalog(resolvedLocale).mobile.update.failedHint
       );
     }
-  }, [english, installRelease, isSupported, openInstallUpdateOptions, status, updateKind]);
+  }, [resolvedLocale, installRelease, isSupported, openInstallUpdateOptions, status, updateKind]);
 
   const hasUpdate = status === "available" || status === "ready" || status === "downloading";
   const value = useMemo<MobileUpdateContextValue>(
