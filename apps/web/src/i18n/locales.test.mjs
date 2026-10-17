@@ -46,6 +46,11 @@ describe("web locale resolution", () => {
     expect(getBrowserLocale()).toBe("pl");
   });
 
+  test("keeps Czech browser languages on the shipped cs locale", () => {
+    setNavigatorLanguages(["cs-CZ", "en-US"]);
+    expect(getBrowserLocale()).toBe("cs");
+  });
+
   test("falls unmatched browser languages back to English instead of Chinese", () => {
     setNavigatorLanguages(["fr-FR", "de-DE"]);
     expect(getBrowserLocale()).toBe("en-US");

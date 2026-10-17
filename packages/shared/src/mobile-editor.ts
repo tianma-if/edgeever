@@ -2,7 +2,7 @@ import type { Editor } from "@tiptap/core";
 import { EditorState } from "@tiptap/pm/state";
 import type { ImageWidthPresetId } from "./image-display";
 
-export type MobileEditorLocale = "zh-CN" | "en-US" | "ja" | "pl";
+export type MobileEditorLocale = "zh-CN" | "en-US" | "ja" | "pl" | "cs";
 
 export type MobileEditorToolbarActionId =
   | "undo"
@@ -130,6 +130,29 @@ const MOBILE_EDITOR_COPY = {
       medium: "Średni",
       large: "Duży",
       full: "Pełna szerokość",
+    },
+  },
+  cs: {
+    placeholder: "Začněte psát...",
+    toolbar: "Panel nástrojů editoru",
+    actions: {
+      undo: "Zpět",
+      redo: "Znovu",
+      image: "Nahrát obrázek",
+      bold: "Tučné",
+      bulletList: "Odrážkový seznam",
+      taskList: "Seznam úkolů",
+      increaseListIndent: "Zvýšit úroveň seznamu (Tab)",
+      decreaseListIndent: "Snížit úroveň seznamu (Shift + Tab)",
+      blockquote: "Citace",
+      horizontalRule: "Vodorovná čára",
+    },
+    imageScale: "Velikost zobrazení obrázku",
+    imageSizes: {
+      small: "Malý",
+      medium: "Střední",
+      large: "Velký",
+      full: "Plná šířka",
     },
   },
 } as const;

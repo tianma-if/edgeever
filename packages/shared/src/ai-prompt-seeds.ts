@@ -6,7 +6,7 @@ import type {
 import { resolveSupportedLocale } from "./i18n/locales";
 
 export type AiPromptSeedKey = Exclude<AiAction, "custom">;
-export type AiPromptSeedLocale = "zh-CN" | "en-US" | "ja" | "pl";
+export type AiPromptSeedLocale = "zh-CN" | "en-US" | "ja" | "pl" | "cs";
 
 export type AiPromptSeedTranslation = {
   name: string;
@@ -29,10 +29,11 @@ const seed = (
   enUS: AiPromptSeedTranslation,
   ja: AiPromptSeedTranslation,
   pl: AiPromptSeedTranslation,
+  cs: AiPromptSeedTranslation,
 ): AiPromptSeed => ({
   ...metadata,
   ...zhCN,
-  translations: { "zh-CN": zhCN, "en-US": enUS, ja, pl },
+  translations: { "zh-CN": zhCN, "en-US": enUS, ja, pl, cs },
 });
 
 export const normalizeAiPromptSeedLocale = (locale: string | null | undefined): AiPromptSeedLocale =>
@@ -110,6 +111,18 @@ export const DEFAULT_AI_PROMPT_SEEDS: readonly AiPromptSeed[] = [
         "Zachowaj język notatki i zwróć wyłącznie podsumowanie w formacie Markdown.",
       ].join(""),
     },
+    {
+      name: "Shrnout",
+      description: "Zhustí poznámku na téma, závěry a konkrétní kroky",
+      instruction: [
+        "Vytvoř skutečně zhuštěné shrnutí poznámky, místo abys ji přepisoval, parafrázoval řádek po řádku nebo opakoval. ",
+        "Urči hlavní téma, klíčová tvrzení, zásadní závěry a konkrétní kroky. ",
+        "Vynech opakování, řečnické obraty, příklady, citace a drobné detaily, pokud nejsou nutné k pochopení klíčového závěru. ",
+        "U rozsáhlé poznámky miř zhruba na 20–30 % délky zdroje a použij 3–7 stručných odrážek v Markdownu; u krátké poznámky použij 1–3 stručné věty. ",
+        "Nepřebírej doslova dlouhé pasáže a nepřidávej fakta, která ve zdroji nejsou. ",
+        "Zachovej jazyk poznámky a vrať pouze shrnutí v Markdownu.",
+      ].join(""),
+    },
   ),
   seed(
     { key: "translate", action: "translate", parameterKind: "target-language", resultMode: "both" },
@@ -132,6 +145,11 @@ export const DEFAULT_AI_PROMPT_SEEDS: readonly AiPromptSeed[] = [
       name: "Przetłumacz",
       description: "Przetłumacz na wybrany język, zachowując formatowanie",
       instruction: "Przetłumacz całą notatkę na język docelowy wskazany przez użytkownika. Zachowaj jej znaczenie, strukturę Markdown, linki i bloki kodu. Zwróć wyłącznie przetłumaczoną notatkę, bez komentarzy.",
+    },
+    {
+      name: "Přeložit",
+      description: "Přeloží do zvoleného jazyka se zachováním formátování",
+      instruction: "Přelož celou poznámku do cílového jazyka, který uživatel zadal. Zachovej její význam, strukturu Markdownu, odkazy a bloky kódu. Vrať pouze přeloženou poznámku bez komentářů.",
     },
   ),
   seed(
@@ -156,6 +174,11 @@ export const DEFAULT_AI_PROMPT_SEEDS: readonly AiPromptSeed[] = [
       description: "Popraw język oraz zwiększ przejrzystość i płynność tekstu",
       instruction: "Dopracuj treść: popraw pisownię, gramatykę i interpunkcję oraz ulepsz dobór słów, budowę zdań, przejrzystość i płynność. Nie zmieniaj jej znaczenia ani celowo jej nie skracaj. Zachowaj jej język i przydatne formatowanie Markdown. Zwróć wyłącznie dopracowaną treść.",
     },
+    {
+      name: "Vylepšit text",
+      description: "Opraví jazyk a zlepší srozumitelnost a plynulost",
+      instruction: "Vylepši obsah: oprav pravopis, gramatiku a interpunkci a zlepši volbu slov, stavbu vět, srozumitelnost a plynulost. Neměň jeho význam a záměrně ho nezkracuj. Zachovej jeho jazyk a užitečné formátování Markdownu. Vrať pouze vylepšený obsah.",
+    },
   ),
   seed(
     { key: "make-shorter", action: "make-shorter", parameterKind: "none", resultMode: "both" },
@@ -178,6 +201,11 @@ export const DEFAULT_AI_PROMPT_SEEDS: readonly AiPromptSeed[] = [
       name: "Skróć i uprość",
       description: "Usuń powtórzenia i napisz tekst zwięźle i konkretnie",
       instruction: "Dopracuj treść, usuwając powtórzenia, puste frazy i zbędne określenia oraz łącząc zdania tam, gdzie to pomaga. Spraw, by tekst był zwięzły, jasny i konkretny, zachowując każdy kluczowy fakt, tezę i pierwotne znaczenie. Nie dodawaj nowych informacji. Zachowaj jej język i przydatne formatowanie Markdown. Zwróć wyłącznie dopracowaną treść.",
+    },
+    {
+      name: "Zestručnit",
+      description: "Odstraní opakování a text zestruční a zpřímí",
+      instruction: "Uprav obsah tak, že odstraníš opakování, vatu a zbytečná rozvíjející slova a tam, kde to pomůže, spojíš věty. Text má být stručný, jasný a přímý a zachovat každý klíčový fakt, tvrzení i původní význam. Nepřidávej nové informace. Zachovej jeho jazyk a užitečné formátování Markdownu. Vrať pouze upravený obsah.",
     },
   ),
   seed(
@@ -202,6 +230,11 @@ export const DEFAULT_AI_PROMPT_SEEDS: readonly AiPromptSeed[] = [
       description: "Znajdź działania do wykonania i utwórz listę zadań",
       instruction: "Wyodrębnij z notatki jawne lub domniemane zadania do wykonania jako listę zadań Markdown z użyciem '- [ ]'. Zachowaj jej język i nie wymyślaj zadań. Jeśli nie ma zadań do wykonania, napisz to krótko w języku notatki.",
     },
+    {
+      name: "Vytáhnout úkoly",
+      description: "Najde práci k provedení a vytvoří seznam úkolů",
+      instruction: "Vytáhni z poznámky výslovné i nevyslovené úkoly k provedení jako seznam úkolů v Markdownu pomocí '- [ ]'. Zachovej její jazyk a nevymýšlej úkoly. Pokud v ní žádné úkoly nejsou, stručně to napiš v jazyce poznámky.",
+    },
   ),
   seed(
     { key: "continue-writing", action: "continue-writing", parameterKind: "none", resultMode: "append" },
@@ -224,6 +257,11 @@ export const DEFAULT_AI_PROMPT_SEEDS: readonly AiPromptSeed[] = [
       name: "Pisz dalej",
       description: "Kontynuuj naturalnie od końca notatki",
       instruction: "Kontynuuj pisanie naturalnie od miejsca, w którym kończy się notatka. Zwróć wyłącznie nową kontynuację, bez oryginalnej treści. Zachowaj jej język i styl Markdown.",
+    },
+    {
+      name: "Pokračovat v psaní",
+      description: "Přirozeně naváže na konec poznámky",
+      instruction: "Přirozeně pokračuj v psaní od místa, kde poznámka končí. Vrať pouze nové pokračování, ne původní obsah. Zachovej její jazyk a styl Markdownu.",
     },
   ),
 ];

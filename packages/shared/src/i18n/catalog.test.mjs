@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { enUS } from "./en-US.ts";
 import { ja } from "./ja.ts";
 import { pl } from "./pl.ts";
+import { cs } from "./cs.ts";
 import { zhCN } from "./zh-CN.ts";
 import { supportedLocales } from "./locales.ts";
 
@@ -20,12 +21,14 @@ const collectKeys = (value, prefix = "") => {
 
 describe("shared i18n catalogs", () => {
   test("ships Japanese alongside Chinese and English with matching keys", () => {
-    expect(supportedLocales).toEqual(["zh-CN", "en-US", "ja", "pl"]);
+    expect(supportedLocales).toEqual(["zh-CN", "en-US", "ja", "pl", "cs"]);
     expect(collectKeys(ja)).toEqual(collectKeys(enUS));
     expect(collectKeys(ja)).toEqual(collectKeys(zhCN));
     expect(ja.login.title).toContain("サインイン");
     expect(ja.editor.imageScale).toContain("画像");
     expect(collectKeys(pl)).toEqual(collectKeys(enUS));
     expect(pl.login.title).toContain("Zaloguj");
+    expect(collectKeys(cs)).toEqual(collectKeys(enUS));
+    expect(cs.login.title).toContain("Přihlášení");
   });
 });

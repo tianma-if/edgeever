@@ -23,6 +23,9 @@ describe("supported locale matching", () => {
     expect(matchSupportedLocale("pl")).toBe("pl");
     expect(matchSupportedLocale("pl-PL")).toBe("pl");
     expect(matchSupportedLocale("pl_PL")).toBe("pl");
+    expect(matchSupportedLocale("cs")).toBe("cs");
+    expect(matchSupportedLocale("cs-CZ")).toBe("cs");
+    expect(matchSupportedLocale("cs_CZ")).toBe("cs");
   });
 
   test("does not treat unrelated tags as a shipped locale", () => {
@@ -41,6 +44,7 @@ describe("supported locale resolution", () => {
     expect(resolveSupportedLocale(null)).toBe("zh-CN");
     expect(resolveSupportedLocale("")).toBe("zh-CN");
     expect(resolveSupportedLocale("ja-JP")).toBe("ja");
+    expect(resolveSupportedLocale("cs-CZ")).toBe("cs");
     expect(resolveSupportedLocale("ko")).toBe("en-US");
     expect(resolveSupportedLocale("de-DE")).toBe("en-US");
   });

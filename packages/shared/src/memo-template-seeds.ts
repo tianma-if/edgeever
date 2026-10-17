@@ -1,6 +1,6 @@
 import { resolveSupportedLocale } from "./i18n/locales";
 
-export type MemoTemplateSeedLocale = "zh-CN" | "en-US" | "ja" | "pl";
+export type MemoTemplateSeedLocale = "zh-CN" | "en-US" | "ja" | "pl" | "cs";
 
 export type MemoTemplateSeedTranslation = {
   title: string;
@@ -21,9 +21,10 @@ const seed = (
   enUS: MemoTemplateSeedTranslation,
   ja: MemoTemplateSeedTranslation,
   pl: MemoTemplateSeedTranslation,
+  cs: MemoTemplateSeedTranslation,
 ): MemoTemplateSeed => ({
   ...metadata,
-  translations: { "zh-CN": zhCN, "en-US": enUS, ja, pl },
+  translations: { "zh-CN": zhCN, "en-US": enUS, ja, pl, cs },
 });
 
 export const DEFAULT_MEMO_TEMPLATE_SEEDS: readonly MemoTemplateSeed[] = [
@@ -49,6 +50,11 @@ export const DEFAULT_MEMO_TEMPLATE_SEEDS: readonly MemoTemplateSeed[] = [
       description: "Zapisuj ulotne myśli, pomysły, linki i działania do natychmiastowego podjęcia.",
       contentMarkdown: "## 💡 Ulotne myśli\n\n- \n\n## 📌 Kontekst i uwagi\n\n\n\n## 🚀 Kolejne kroki\n\n- [ ] ",
     },
+    {
+      title: "Rychlý nápad",
+      description: "Zachyťte prchavé myšlenky, nápady, odkazy a okamžité úkoly.",
+      contentMarkdown: "## 💡 Prchavé myšlenky\n\n- \n\n## 📌 Kontext a poznámky\n\n\n\n## 🚀 Další kroky\n\n- [ ] ",
+    },
   ),
   seed(
     { key: "meeting", translationKey: "meeting", tag: "meeting" },
@@ -71,6 +77,11 @@ export const DEFAULT_MEMO_TEMPLATE_SEEDS: readonly MemoTemplateSeed[] = [
       title: "Notatka ze spotkania",
       description: "Uporządkowany zapis agendy, kluczowych decyzji i zadań z osobami odpowiedzialnymi.",
       contentMarkdown: "# 📝 Notatka ze spotkania\n\n- **Termin**:\n- **Prowadzący/protokolant**:\n- **Uczestnicy**:\n\n---\n\n## 🎯 Cel\n\n- \n\n## 💬 Dyskusja i decyzje\n\n1. **[Temat 1]**\n   - Najważniejsze punkty:\n   - ✅ **Decyzja**:\n\n2. **[Temat 2]**\n   - Najważniejsze punkty:\n   - ✅ **Decyzja**:\n\n## 📋 Zadania do wykonania\n\n- [ ] **[Osoba odpowiedzialna]** Opis zadania (termin: MM-DD)\n- [ ] **[Osoba odpowiedzialna]** Opis zadania (termin: MM-DD)\n",
+    },
+    {
+      title: "Zápis z porady",
+      description: "Strukturovaný zápis programu, klíčových rozhodnutí a úkolů s odpovědnými osobami.",
+      contentMarkdown: "# 📝 Zápis z porady\n\n- **Čas**:\n- **Vede/zapisuje**:\n- **Účastníci**:\n\n---\n\n## 🎯 Cíl\n\n- \n\n## 💬 Diskuse a rozhodnutí\n\n1. **[Téma 1]**\n   - Body:\n   - ✅ **Rozhodnutí**:\n\n2. **[Téma 2]**\n   - Body:\n   - ✅ **Rozhodnutí**:\n\n## 📋 Úkoly\n\n- [ ] **[Odpovědná osoba]** Popis úkolu (termín: DD. MM.)\n- [ ] **[Odpovědná osoba]** Popis úkolu (termín: DD. MM.)\n",
     },
   ),
   seed(
@@ -95,6 +106,11 @@ export const DEFAULT_MEMO_TEMPLATE_SEEDS: readonly MemoTemplateSeed[] = [
       description: "Podsumuj najważniejsze osiągnięcia tygodnia, blokery i kluczowe priorytety na kolejny tydzień.",
       contentMarkdown: "# 🗓️ Tygodniowy raport postępów\n\n## 🌟 Najważniejsze osiągnięcia\n\n- [x] **[Projekt/funkcja]** Szczegóły osiągnięcia\n- [x] **[Projekt/funkcja]** Szczegóły osiągnięcia\n\n## 🚧 Blokery i ryzyka\n\n- ⚠️ **Bloker**: Przyczyna i potrzebne wsparcie\n\n## 🎯 Priorytety na kolejny tydzień\n\n- [ ] \n- [ ] \n- [ ] \n\n## 💡 Refleksje i wnioski\n\n- \n",
     },
+    {
+      title: "Týdenní přehled a stav",
+      description: "Shrňte úspěchy týdne, překážky a hlavní priority na příští týden.",
+      contentMarkdown: "# 🗓️ Týdenní zpráva o stavu\n\n## 🌟 Hlavní úspěchy\n\n- [x] **[Projekt/funkce]** Podrobnosti o výsledku\n- [x] **[Projekt/funkce]** Podrobnosti o výsledku\n\n## 🚧 Překážky a rizika\n\n- ⚠️ **Překážka**: Důvod a potřebná pomoc\n\n## 🎯 Priority na příští týden\n\n- [ ] \n- [ ] \n- [ ] \n\n## 💡 Reflexe a postřehy\n\n- \n",
+    },
   ),
   seed(
     { key: "reading", translationKey: "reading", tag: "reading" },
@@ -118,6 +134,11 @@ export const DEFAULT_MEMO_TEMPLATE_SEEDS: readonly MemoTemplateSeed[] = [
       description: "Wyodrębnij kluczowe wnioski, cytaty, własne refleksje i powiązane zagadnienia.",
       contentMarkdown: "# 📖 Karta lektury\n\n- **Książka/artykuł**:\n- **Autor/źródło**:\n- **Ocena**: ⭐⭐⭐⭐⭐\n\n---\n\n## 💡 Najważniejszy wniosek\n\n> \n\n## ✍️ Najciekawsze fragmenty i cytaty\n\n> [Treść cytatu]\n> —— *Źródło*\n\n## 🧠 Własne refleksje\n\n- \n\n## 🔗 Działanie i praktyka\n\n- [ ] **Plan działania**:\n",
     },
+    {
+      title: "Čtenářská karta",
+      description: "Zaznamenejte hlavní myšlenky, citáty, vlastní úvahy a související pojmy.",
+      contentMarkdown: "# 📖 Čtenářská karta\n\n- **Kniha/článek**:\n- **Autor/zdroj**:\n- **Hodnocení**: ⭐⭐⭐⭐⭐\n\n---\n\n## 💡 Hlavní myšlenka\n\n> \n\n## ✍️ Zajímavé pasáže a citáty\n\n> [Text citátu]\n> —— *Původní zdroj*\n\n## 🧠 Vlastní úvahy\n\n- \n\n## 🔗 Akce a praxe\n\n- [ ] **Akční plán**:\n",
+    },
   ),
   seed(
     { key: "okr", translationKey: "okr", tag: "okr" },
@@ -140,6 +161,11 @@ export const DEFAULT_MEMO_TEMPLATE_SEEDS: readonly MemoTemplateSeed[] = [
       title: "Cele i podział zadań",
       description: "Określ cele OKR, kluczowe rezultaty, kamienie milowe i listy zadań.",
       contentMarkdown: "# 🎯 Podział celu\n\n- **Okres**:\n- **Osoba odpowiedzialna**:\n\n---\n\n## 📌 Cel (Objective)\n\n> \n\n## 📈 Kluczowe rezultaty (Key Results)\n\n- **KR 1**: Docelowy wskaźnik -> Obecny postęp\n- **KR 2**: Docelowy wskaźnik -> Obecny postęp\n\n## 🗓️ Kamienie milowe\n\n- [ ] **Etap 1 (data)**: Cel etapu\n- [ ] **Etap 2 (data)**: Cel etapu\n\n## 📋 Lista zadań do wykonania\n\n- [ ] \n- [ ] \n",
+    },
+    {
+      title: "Cíle a rozpad úkolů",
+      description: "Definujte OKR, klíčové výsledky, milníky a kontrolní seznamy úkolů.",
+      contentMarkdown: "# 🎯 Rozpad cíle\n\n- **Období**:\n- **Odpovídá**:\n\n---\n\n## 📌 Cíl (Objective)\n\n> \n\n## 📈 Klíčové výsledky (Key Results)\n\n- **KR 1**: Cílová metrika -> Aktuální stav\n- **KR 2**: Cílová metrika -> Aktuální stav\n\n## 🗓️ Milníky\n\n- [ ] **Fáze 1 (datum)**: Cíl\n- [ ] **Fáze 2 (datum)**: Cíl\n\n## 📋 Seznam úkolů\n\n- [ ] \n- [ ] \n",
     },
   ),
 ];
