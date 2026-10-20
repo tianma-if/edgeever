@@ -1,6 +1,7 @@
 import { isStepCount, tool, ToolLoopAgent, type LanguageModel } from "ai";
 import { z } from "zod";
 import { infographicRequestsTimeline, type InfographicAgentEvent, type InfographicAgentRequest } from "@edgeever/shared";
+import { throwIfAborted } from "./abort-signal";
 
 export const runInfographicAgent = async (args: {
   input: InfographicAgentRequest;
@@ -64,7 +65,7 @@ export const runInfographicAgent = async (args: {
   ];
   const result = await agent.stream({ messages, abortSignal: args.signal });
   for await (const part of result.fullStream) {
-    args.signal.throwIfAborted();
+    throwIfAborted(args.signal);
     if (part.type === "error") throw part.error;
     if (part.type !== "text-delta" || !part.text || !proposed || asked) continue;
     response += part.text;

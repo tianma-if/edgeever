@@ -12,6 +12,7 @@ import type {
 } from "@edgeever/shared";
 import type { ModelMessage } from "ai";
 import { companionFailureDiagnostics, sealCompanionProcess } from "@edgeever/shared";
+import { throwIfAborted } from "./abort-signal";
 import { createClientAiModel } from "./ai-model";
 
 const asRecord = (value: unknown): Record<string, unknown> | null =>
@@ -232,7 +233,7 @@ export const streamDirectCompanion = async (
       abortSignal: options.signal,
     });
     for await (const part of result.fullStream) {
-      options.signal?.throwIfAborted();
+      throwIfAborted(options.signal);
       if (part.type === "error") throw part.error;
       if (part.type !== "text-delta") continue;
       const delta = typeof part.text === "string" ? part.text : "";

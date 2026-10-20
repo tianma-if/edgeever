@@ -65,6 +65,36 @@ describe("direct AI generation client", () => {
  expect(events.some(e=>e.type==="text-delta"&&e.text==="Hello")).toBe(true);expect(paths).toEqual(["/api/v1/ai/generate/prepare"]);expect(calls).toBe(1);
 });
 
+  // React Native's abort-controller@3 polyfill exposes only `aborted` (#629).
+  const legacySignal = (aborted) => ({ aborted, addEventListener() {}, removeEventListener() {} });
+
+  test("streams with a React Native AbortSignal that lacks throwIfAborted", async () => {
+    const client = createEdgeEverClient({
+      directAiGeneration: true,
+      fetch: async () => Response.json({ provider: "openai-compatible", baseUrl: "https://model.example/v1", apiKey: "key", modelId: "model", system: "Summarize", prompt: "Body", maxOutputTokens: 32, resultBoundary: { start: "<r>", end: "</r>" } }),
+      providerFetch: async () => new Response('data: {"choices":[{"delta":{"content":"<r>Hello</r>"}}]}\n\ndata: [DONE]\n\n'),
+    });
+    const events = [];
+    await client.streamAiGeneration(
+      { action: "summarize", title: "Note", contentMarkdown: "Body" },
+      { signal: legacySignal(false), onEvent: (event) => events.push(event) },
+    );
+    expect(events.some((event) => event.type === "text-delta" && event.text === "Hello")).toBe(true);
+  });
+
+  test("rejects an aborted React Native AbortSignal with AbortError before preparing", async () => {
+    let prepared = false;
+    const client = createEdgeEverClient({
+      directAiGeneration: true,
+      fetch: async () => { prepared = true; return new Response("{}", { status: 404 }); },
+    });
+    await expect(client.streamAiGeneration(
+      { action: "summarize", title: "Note", contentMarkdown: "Body" },
+      { signal: legacySignal(true), onEvent() {} },
+    )).rejects.toMatchObject({ name: "AbortError" });
+    expect(prepared).toBe(false);
+  });
+
   test("fails without instance generation when direct prepare is missing", async () => {
     const urls = [];
     const client = createEdgeEverClient({
