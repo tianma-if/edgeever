@@ -192,3 +192,18 @@ test("browser fallback continues the same prepared turn and completes the stream
   expect(events).toContainEqual({ type: "text-delta", text: "Relayed reply" });
   expect(events.at(-1)).toMatchObject({ type: "done", turn: { id: preparedTurn.turn.id, status: "completed" } });
 });
+
+test("a resumed turn with answered questions completes after the reply (#637)", async () => {
+  const { streamDirectCompanion } = await import("./companion-direct-stream.ts");
+  const answered = [{ id: "language", prompt: "Which language?", inputType: "single_select", options: [{ id: "en", label: "English" }] }];
+  const completed = [];
+  await streamDirectCompanion({ ...preparedTurn, turn: { ...preparedTurn.turn, questions: answered } }, {
+    fetch: async () => new Response('data: {"choices":[{"delta":{"content":"Translated note."}}]}\n\ndata: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n', { headers: { "content-type": "text/event-stream" } }),
+    onEvent: () => {},
+    executeTool: async () => { throw new Error("must not execute tools"); },
+    checkpoint: async () => {},
+    complete: async body => { completed.push(body); return { turn: { ...preparedTurn.turn, ...body } }; },
+  });
+  expect(completed).toHaveLength(1);
+  expect(completed[0]).toMatchObject({ status: "completed", response: "Translated note." });
+});
