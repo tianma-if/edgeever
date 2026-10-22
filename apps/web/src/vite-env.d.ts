@@ -152,11 +152,19 @@ interface EdgeEverDesktopBridge {
     detail?: string;
     authMethods?: Array<{ id: string; name: string }>;
   }>;
+  prepareAcp?(input: {
+    adapterId: "codex" | "claudeCode" | "antigravity" | "openClaw" | "hermesAgent" | "grokBuild" | "deepseekHarness" | "piAgent" | "workbuddyCn" | "workbuddyIntl";
+    path?: string;
+    sessionKey?: string;
+    noteAccess?: boolean;
+  }): Promise<{ ready: boolean }>;
   promptAcp?(input: {
     adapterId: "codex" | "claudeCode" | "antigravity" | "openClaw" | "hermesAgent" | "grokBuild" | "deepseekHarness" | "piAgent" | "workbuddyCn" | "workbuddyIntl";
     path?: string;
     prompt: string;
     contextText?: string;
+    historyText?: string;
+    sessionKey?: string;
     attachments?: Array<{ filename: string; mediaType: string; dataBase64: string }>;
     noteAccess?: boolean;
   }): Promise<{ requestId: string; rejectedAttachments?: Array<{ filename: string; reason: string }> }>;

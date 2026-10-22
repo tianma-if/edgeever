@@ -436,6 +436,9 @@ pub(crate) fn list_memos(database: &Connection, params: &Value) -> Result<Value,
         Some("title-asc") => {
             "COALESCE(m.title, m.excerpt) COLLATE NOCASE ASC, m.updated_at DESC, m.id DESC"
         }
+        Some("title-desc") => {
+            "COALESCE(m.title, m.excerpt) COLLATE NOCASE DESC, m.updated_at DESC, m.id DESC"
+        }
         _ if trash => "m.deleted_at DESC, m.id DESC",
         _ => "m.is_pinned DESC, m.updated_at DESC, m.id DESC",
     };

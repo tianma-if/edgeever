@@ -217,7 +217,9 @@ export const resumeCompanionTurn = async (db: DatabaseAdapter, scope: CompanionS
   await listCompanionTurns(db, scope);
   const row = await getCompanionTurn(db, scope, id);
   if (!row || row.status !== "interrupted") throw new AppError("companion_resume_unavailable", "This request cannot be continued.", 409);
-  const result = await db.prepare(`UPDATE companion_turns SET status = 'running', expires_at = ?, answers_json = COALESCE(?, answers_json)
+  // Answered questions are resolved; keeping them would end the resumed run as interrupted again.
+  const result = await db.prepare(`UPDATE companion_turns SET status = 'running', expires_at = ?, answers_json = COALESCE(?, answers_json),
+      questions_json = '[]'
     WHERE workspace_id = ? AND owner_id = ? AND id = ? AND status = 'interrupted'`).bind(
     companionTurnLease(), answers ? JSON.stringify(answers.slice(0, 3)) : null, ...bindScope(scope), id).run();
   if (Number(result.meta.changes) !== 1) throw new AppError("companion_busy", "A conversation is already running or this request was already submitted. Refresh to recover its result.", 409);

@@ -1,0 +1,507 @@
+{
+  "generatedAt": "2026-10-20T08:34:12.642Z",
+  "baselineCommit": "d966052002889729c6850732f2baeb75c342a2e6",
+  "environment": {
+    "bun": "1.3.14",
+    "sqlite": "3.54.0"
+  },
+  "method": "Actual migrations plus disposable SQLite/data models. Decision rows distinguish executed evidence, source facts, issue alternatives, external documentation, and judgment. Not a user experiment, runtime implementation, browser acceptance, or crawler test.",
+  "migrations": [
+    "migrations/0001_initial.sql",
+    "migrations/0002_auth.sql",
+    "migrations/0003_search_and_trash.sql",
+    "migrations/0004_memo_revision_metadata.sql",
+    "migrations/0005_default_uncategorized_notebook.sql",
+    "migrations/0006_default_notebook_set.sql",
+    "migrations/0007_api_token_value.sql",
+    "migrations/0009_drop_profile_snapshots.sql",
+    "migrations/0010_restore_default_inbox_notebook.sql",
+    "migrations/0011_memo_edit_sessions.sql",
+    "migrations/0012_multi_user_workspaces.sql",
+    "migrations/0013_mobile_sync_changes.sql",
+    "migrations/0014_repair_seed_memo_content_hash.sql",
+    "migrations/0015_auth_session_devices.sql",
+    "migrations/0016_templates.sql",
+    "migrations/0017_seed_default_templates.sql",
+    "migrations/0018_fix_seed_template_markdown.sql",
+    "migrations/0019_auth_session_metadata.sql",
+    "migrations/0020_auth_login_attempts.sql",
+    "migrations/0021_memo_import_sources.sql",
+    "migrations/0022_memo_shares.sql",
+    "migrations/0023_instance_object_storage.sql",
+    "migrations/0024_ai_model_configs.sql",
+    "migrations/0025_ai_providers_and_models.sql",
+    "migrations/0026_ai_prompt_templates.sql",
+    "migrations/0027_seed_default_ai_prompts.sql",
+    "migrations/0028_seed_remaining_ai_prompts.sql",
+    "migrations/0029_ai_prompt_behavior_and_localization.sql",
+    "migrations/0030_unify_editable_note_templates.sql",
+    "migrations/0031_limit_default_memo_templates.sql",
+    "migrations/0032_limit_default_ai_prompts.sql",
+    "migrations/0033_ai_tag_suggestion_prompt.sql",
+    "migrations/0034_search_documents_and_maintenance_leases.sql",
+    "migrations/0035_normalized_memo_tags.sql",
+    "migrations/0036_resource_multipart_uploads.sql",
+    "migrations/0037_scheduled_plugin_tasks.sql",
+    "migrations/0038_plugin_owned_schedules.sql",
+    "migrations/0039_scheduled_task_run_retention.sql",
+    "migrations/0040_companion_memory.sql",
+    "migrations/0041_companion_actions.sql",
+    "migrations/0042_companion_tool_execution.sql",
+    "migrations/0043_companion_discovery.sql",
+    "migrations/0044_companion_discovery_input_hash.sql",
+    "migrations/0045_companion_learning.sql",
+    "migrations/0046_restore_workspace_inbox_identity.sql",
+    "migrations/0047_replace_social_ai_prompts.sql",
+    "migrations/0048_workspace_extensions.sql",
+    "migrations/0049_companion_agent_run.sql",
+    "migrations/0050_companion_process_text.sql",
+    "migrations/0051_companion_agent_session.sql",
+    "migrations/0052_memo_share_passwords.sql",
+    "migrations/0053_collapse_duplicate_inbox_notebooks.sql",
+    "migrations/0054_user_note_body_font.sql",
+    "migrations/0055_table_forms.sql",
+    "migrations/0056_user_note_prose.sql",
+    "migrations/0057_companion_attachments.sql",
+    "migrations/0058_retire_emerald_note_palette.sql",
+    "migrations/0059_retire_custom_note_palette.sql",
+    "migrations/0060_ai_transcription_settings.sql",
+    "migrations/0061_video_transcript_jobs.sql",
+    "migrations/0062_ai_transcription_providers.sql",
+    "migrations/0063_ai_transcription_provider_standard.sql",
+    "migrations/0064_retire_video_transcription.sql",
+    "migrations/0065_restore_speech_transcription.sql",
+    "migrations/0066_poster_render_jobs.sql",
+    "migrations/0067_notebook_shares.sql",
+    "migrations/0068_notebook_share_passwords.sql",
+    "migrations/0069_share_password_encryption.sql",
+    "migrations/0070_workspace_seed_localization.sql",
+    "migrations/0071_fix_welcome_memo_markdown.sql"
+  ],
+  "executedChecks": [
+    "zero_new_tables_two_added_columns",
+    "old_share_defaults_unchanged",
+    "default_tag_policy_does_not_hide_old_drafts",
+    "tag_exclusion_filters_directory_note_and_resource",
+    "independent_child_share_keeps_its_own_tag_policy",
+    "english_body_search_filters_before_pagination",
+    "chinese_body_substring_and_tag_filter",
+    "title_natural_order_needs_no_rank_rows",
+    "atomic_settings_patch_preserves_other_fields_and_password",
+    "invalid_homepage_write_rejected",
+    "homepage_validated_against_merged_tag_policy",
+    "unknown_item_overrides_are_not_silently_supported",
+    "json_homepage_move_falls_back_without_foreign_key",
+    "json_homepage_delete_falls_back_without_cleanup_job",
+    "cross_workspace_and_outside_notes_denied",
+    "deleted_ancestor_denies_descendants",
+    "alias_database_uniqueness_is_case_insensitive",
+    "alias_resolution_only_returns_identity_not_protected_metadata",
+    "password_overrides_indexing_flag",
+    "explicit_unprotected_indexing_can_be_enabled",
+    "clearing_password_does_not_reenable_indexing",
+    "site_title_derived_from_existing_root_name",
+    "server_metadata_model_escapes_untrusted_text",
+    "metadata_size_independent_of_note_count",
+    "on_demand_preview_avoids_directory_and_full_body_payload",
+    "revocation_denies_token_and_alias_paths"
+  ],
+  "executedCheckCount": 26,
+  "expectedCounterexamples": [
+    {
+      "ablation": "remove_server_tag_filter",
+      "observed": "hidden_note_returned",
+      "criterionViolated": "exclude_drafts"
+    },
+    {
+      "ablation": "keep_title_only_search",
+      "observed": "body_only_matches_lost",
+      "criterionViolated": "full_text_search"
+    },
+    {
+      "ablation": "filter_after_pagination",
+      "observed": "empty_page_despite_visible_matches",
+      "criterionViolated": "complete_visible_search_page"
+    }
+  ],
+  "issueCoverage": {
+    "requirementGroups": 13,
+    "exclusionAlternative": "tags",
+    "orderingAlternative": "title/number",
+    "removedAdvancedBehaviors": [
+      "per-site arbitrary note overrides",
+      "site-specific drag ordering",
+      "independent site title/description",
+      "non-JS full article HTML",
+      "sitemap discovery"
+    ],
+    "userUsabilityMeasured": false
+  },
+  "persistence": {
+    "newTables": 0,
+    "newColumns": [
+      "site_slug",
+      "site_settings_json"
+    ],
+    "settingsBudgetBytes": 16384,
+    "configurationSizes": [
+      {
+        "noteCount": 100,
+        "settingsBytes": 256
+      },
+      {
+        "noteCount": 1000,
+        "settingsBytes": 256
+      },
+      {
+        "noteCount": 10000,
+        "settingsBytes": 256
+      },
+      {
+        "noteCount": 50000,
+        "settingsBytes": 256
+      }
+    ]
+  },
+  "previewPayloads": [
+    {
+      "noteCount": 100,
+      "directoryBytes": 12293,
+      "directoryWithPreviewBytes": 22893,
+      "onePreviewBytes": 125,
+      "fullArticleBytes": 210140
+    },
+    {
+      "noteCount": 1000,
+      "directoryBytes": 123894,
+      "directoryWithPreviewBytes": 229894,
+      "onePreviewBytes": 125,
+      "fullArticleBytes": 210140
+    },
+    {
+      "noteCount": 10000,
+      "directoryBytes": 1248895,
+      "directoryWithPreviewBytes": 2308895,
+      "onePreviewBytes": 125,
+      "fullArticleBytes": 210140
+    }
+  ],
+  "reusedPriorEvidence": {
+    "file": "docs/public-notebook-site-schema-ablation.json",
+    "baselineCommit": "d966052002889729c6850732f2baeb75c342a2e6",
+    "commonFunctionalScenarios": 19,
+    "benchmarkGroups": 12,
+    "rerun": false,
+    "limitation": "Prior override-table necessity was conditional on retaining per-item manual state; that premise is removed here."
+  },
+  "decisions": [
+    {
+      "id": "R01",
+      "subject": "article_toc",
+      "decision": "keep",
+      "evidenceType": "issue_requirement",
+      "rationale": "H1-H4 navigation and scrollspy are explicit requirements."
+    },
+    {
+      "id": "R02",
+      "subject": "light_dark_system",
+      "decision": "keep_reuse",
+      "evidenceType": "source_inspection",
+      "rationale": "Reuse ThemeProvider and edgeever.theme; no second preference system."
+    },
+    {
+      "id": "R03",
+      "subject": "code_copy_language_collapse",
+      "decision": "keep_reuse",
+      "evidenceType": "issue_and_source",
+      "rationale": "Copy/highlighting already exist; add only missing labels and collapse controls."
+    },
+    {
+      "id": "R04",
+      "subject": "internal_hover_preview",
+      "decision": "keep",
+      "evidenceType": "payload_measurement",
+      "rationale": "Keep a bounded on-demand preview; do not inflate every directory item or fetch complete articles."
+    },
+    {
+      "id": "R05",
+      "subject": "image_and_diagram_controls",
+      "decision": "keep_reuse",
+      "evidenceType": "issue_and_source",
+      "rationale": "Reuse lightbox/zoom/fit; add single-click entry and fullscreen, not another viewer."
+    },
+    {
+      "id": "R06",
+      "subject": "body_full_text_search",
+      "decision": "keep_reuse",
+      "evidenceType": "executed_counterexample",
+      "rationale": "Title-only search loses body matches; reuse existing FTS and Chinese fallback."
+    },
+    {
+      "id": "R07",
+      "subject": "tag_filter",
+      "decision": "keep",
+      "evidenceType": "executed_model",
+      "rationale": "Use the same search endpoint with a tag predicate; no global tag cloud/count API."
+    },
+    {
+      "id": "R08",
+      "subject": "custom_homepage",
+      "decision": "keep",
+      "evidenceType": "executed_model",
+      "rationale": "One JSON homeMemoId checked against live visibility; invalid targets fall back to directory."
+    },
+    {
+      "id": "R09",
+      "subject": "draft_exclusion",
+      "decision": "choose_tag_policy",
+      "evidenceType": "issue_alternative_and_executed_model",
+      "rationale": "The issue permits draft state OR tags. Use existing note tags plus site excludedTags."
+    },
+    {
+      "id": "R10",
+      "subject": "custom_ordering",
+      "decision": "choose_title_order",
+      "evidenceType": "issue_alternative_and_executed_model",
+      "rationale": "The issue permits manual OR title/number order. Use existing/title modes and numeric title sorting."
+    },
+    {
+      "id": "R11",
+      "subject": "custom_slug",
+      "decision": "keep",
+      "evidenceType": "executed_model",
+      "rationale": "Keep a unique slug and identity resolver; do not alter token-scoped unlock cookies."
+    },
+    {
+      "id": "R12",
+      "subject": "logo_header_footer",
+      "decision": "keep",
+      "evidenceType": "issue_requirement",
+      "rationale": "Keep structured display settings and HTTPS logo URL; no independent upload pipeline."
+    },
+    {
+      "id": "R13",
+      "subject": "seo_and_social_cards",
+      "decision": "keep_metadata",
+      "evidenceType": "external_primary_documentation",
+      "rationale": "Keep server HTML head and indexing controls; crawler acceptance remains unverified."
+    },
+    {
+      "id": "D01",
+      "subject": "two_or_one_item_override_tables",
+      "decision": "remove_for_selected_scope",
+      "evidenceType": "issue_alternatives_and_executed_model",
+      "rationale": "No per-item state remains when exclusion uses tags and sorting uses titles."
+    },
+    {
+      "id": "D02",
+      "subject": "independent_site_title",
+      "decision": "derive",
+      "evidenceType": "source_and_design_judgment",
+      "rationale": "Use root notebook name; independent override is an additional product choice."
+    },
+    {
+      "id": "D03",
+      "subject": "independent_site_description",
+      "decision": "derive",
+      "evidenceType": "source_and_design_judgment",
+      "rationale": "Use visible homepage or article excerpt; no separate description field."
+    },
+    {
+      "id": "D04",
+      "subject": "site_slug_column",
+      "decision": "keep",
+      "evidenceType": "executed_model",
+      "rationale": "One column with a case-insensitive unique index keeps lookup and uniqueness simple."
+    },
+    {
+      "id": "D05",
+      "subject": "home_memo_id_column",
+      "decision": "move_to_settings_json",
+      "evidenceType": "executed_model",
+      "rationale": "Live validation already handles moves and soft deletion; a single stale pointer is bounded."
+    },
+    {
+      "id": "D06",
+      "subject": "logo_url_column",
+      "decision": "move_to_settings_json",
+      "evidenceType": "executed_model",
+      "rationale": "Bounded display metadata does not need an independent SQL column."
+    },
+    {
+      "id": "D07",
+      "subject": "header_links_column",
+      "decision": "move_to_settings_json",
+      "evidenceType": "executed_model",
+      "rationale": "Preserve structured links in the bounded settings object."
+    },
+    {
+      "id": "D08",
+      "subject": "footer_text_column",
+      "decision": "move_to_settings_json",
+      "evidenceType": "executed_model",
+      "rationale": "Preserve footer text in settings."
+    },
+    {
+      "id": "D09",
+      "subject": "allow_indexing_column",
+      "decision": "move_to_settings_json",
+      "evidenceType": "executed_model",
+      "rationale": "Effective indexing checks the JSON flag and current password; setting passwords clears the flag."
+    },
+    {
+      "id": "D10",
+      "subject": "excluded_tags_column",
+      "decision": "move_to_settings_json",
+      "evidenceType": "executed_model",
+      "rationale": "JSON tags are filtered against existing memo_tags before pagination."
+    },
+    {
+      "id": "D11",
+      "subject": "two_sort_mode_columns",
+      "decision": "one_json_sort_mode",
+      "evidenceType": "executed_model",
+      "rationale": "Use one existing/title mode for the site; no separate note/chapter controls."
+    },
+    {
+      "id": "A01",
+      "subject": "separate_site_get",
+      "decision": "reuse_existing_get",
+      "evidenceType": "source_inspection",
+      "rationale": "Extend authenticated share GET with owner settings."
+    },
+    {
+      "id": "A02",
+      "subject": "site_settings_patch",
+      "decision": "keep_separate",
+      "evidenceType": "source_and_executed_model",
+      "rationale": "Preserve existing password PATCH semantics; config-only writes do not rotate passwords."
+    },
+    {
+      "id": "A03",
+      "subject": "content_management_get",
+      "decision": "remove",
+      "evidenceType": "selected_scope",
+      "rationale": "No site-specific item editor is needed."
+    },
+    {
+      "id": "A04",
+      "subject": "per_note_exclusion_patch",
+      "decision": "remove",
+      "evidenceType": "selected_scope",
+      "rationale": "Use existing note tag editing."
+    },
+    {
+      "id": "A05",
+      "subject": "manual_order_put",
+      "decision": "remove",
+      "evidenceType": "selected_scope",
+      "rationale": "Title order requires no rank persistence or drag/drop command."
+    },
+    {
+      "id": "A06",
+      "subject": "public_search",
+      "decision": "keep",
+      "evidenceType": "executed_model",
+      "rationale": "Needed for body/tag search with server visibility and pagination."
+    },
+    {
+      "id": "A07",
+      "subject": "public_preview",
+      "decision": "keep",
+      "evidenceType": "payload_measurement",
+      "rationale": "Keeps preview responses bounded and avoids eager directory growth."
+    },
+    {
+      "id": "A08",
+      "subject": "alias_resolver",
+      "decision": "make_explicit",
+      "evidenceType": "source_and_executed_model",
+      "rationale": "Return token identity only so SPA aliases use existing canonical API/cookie paths."
+    },
+    {
+      "id": "I01",
+      "subject": "complete_article_ssr",
+      "decision": "defer",
+      "evidenceType": "external_primary_documentation_and_judgment",
+      "rationale": "Keep SPA article rendering and server head; non-JS full-body crawlability is not retained."
+    },
+    {
+      "id": "I02",
+      "subject": "sitemap",
+      "decision": "defer",
+      "evidenceType": "issue_not_explicit_and_primary_documentation",
+      "rationale": "It can improve discovery, but is not needed to implement the requested indexing switch/cards."
+    },
+    {
+      "id": "I03",
+      "subject": "new_content_index",
+      "decision": "remove",
+      "evidenceType": "source_inspection",
+      "rationale": "Existing FTS and normalized tags already cover the queries."
+    },
+    {
+      "id": "I04",
+      "subject": "second_theme_storage",
+      "decision": "remove",
+      "evidenceType": "source_inspection",
+      "rationale": "Same-origin app and public site share this device's appearance preference."
+    },
+    {
+      "id": "I05",
+      "subject": "second_image_diagram_renderer",
+      "decision": "remove",
+      "evidenceType": "source_inspection",
+      "rationale": "Reuse existing renderers."
+    },
+    {
+      "id": "I06",
+      "subject": "publication_snapshot_version",
+      "decision": "exclude",
+      "evidenceType": "existing_live_share_contract",
+      "rationale": "Keep live sharing; no review/publish lifecycle."
+    },
+    {
+      "id": "I07",
+      "subject": "new_polling_or_push_invalidation",
+      "decision": "remove",
+      "evidenceType": "source_inspection",
+      "rationale": "Reuse current refresh and error handling; do not claim instantaneous recall of loaded text."
+    },
+    {
+      "id": "I08",
+      "subject": "public_cdn_cache",
+      "decision": "exclude",
+      "evidenceType": "existing_privacy_contract",
+      "rationale": "Keep no-store and no-referrer."
+    },
+    {
+      "id": "I09",
+      "subject": "duplicate_runtime_business_logic",
+      "decision": "remove",
+      "evidenceType": "project_contract",
+      "rationale": "Cloudflare/Docker share visibility and metadata services with thin entry adapters."
+    },
+    {
+      "id": "V01",
+      "subject": "all_validation_layers_each_phase",
+      "decision": "replace_with_affected_flows",
+      "evidenceType": "user_instruction",
+      "rationale": "Reuse unchanged checks and use three actual-flow acceptance scenarios after implementation."
+    }
+  ],
+  "notVerified": [
+    "Product UI and usability",
+    "Real password unlock and upgrade",
+    "Cloudflare/Docker page handlers",
+    "Crawler indexing and social previews",
+    "Production query/network performance",
+    "Concurrent writer contention"
+  ],
+  "externalReferences": [
+    "https://github.com/tianma-if/edgeever/issues/591",
+    "https://developers.google.com/search/docs/crawling-indexing/javascript/javascript-seo-basics",
+    "https://developers.google.com/search/docs/crawling-indexing/sitemaps/overview",
+    "https://ogp.me/"
+  ]
+}

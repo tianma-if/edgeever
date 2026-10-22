@@ -9,6 +9,8 @@ import {
 } from "./notebook-share-routes";
 import { hashPassword } from "./auth-crypto";
 import { registerPublicShareRoutes } from "./share-routes";
+import { renderNotebookSitePage } from "./notebook-site-page";
+import { PUBLIC_PAGE_ROBOTS } from "@edgeever/shared/public-page-headers";
 
 const databases = [];
 afterEach(() => databases.splice(0).forEach((db) => db.close()));
@@ -78,6 +80,8 @@ const fixture = (legacyHash) => {
   db.exec(readFileSync("migrations/0068_notebook_share_passwords.sql", "utf8"));
   if (legacyHash) db.run("UPDATE notebook_shares SET password_hash = ?", [legacyHash]);
   db.exec(readFileSync("migrations/0069_share_password_encryption.sql", "utf8"));
+  for (const file of migrations.filter((file) => file > "migrations/0069_share_password_encryption.sql"))
+    db.exec(readFileSync(file, "utf8"));
   const environment = {
     EDGE_EVER_CREDENTIALS_ENCRYPTION_KEY: "test-share-master-key",
     storage: createSelfHostedStorageAdapter(
@@ -119,6 +123,244 @@ const fixture = (legacyHash) => {
     );
   return { db, app, environment, request, addMemo, blobReads: () => blobReads };
 };
+
+const manage = (f, path, body, init = {}) => f.app.request(`/api/v1/notebooks/root/share${path}`, {
+  method: body === undefined ? "GET" : "PATCH",
+  ...(body === undefined ? {} : { body: JSON.stringify(body), headers: { "content-type": "application/json" } }),
+  ...init,
+}, f.environment);
+
+describe("public notebook site controls", () => {
+  test("old share upgrade preserves scope, token, and password while settings patch is independent", async () => {
+    const f = fixture(await hashPassword("old-password"));
+    const before = f.db.query("SELECT token, password_hash FROM notebook_shares").get();
+    const saved = await manage(f, "/site", { siteSlug: "My-Docs", settings: { footerText: "Example", sortMode: "title" } });
+    expect(saved.status).toBe(200);
+    expect((await saved.json()).share.siteSlug).toBe("my-docs");
+    await manage(f, "/site", { settings: { logoUrl: "https://example.org/logo.png" } });
+    const { share } = await (await manage(f, "")).json();
+    expect(share.siteSettings.footerText).toBe("Example");
+    expect(share.siteSettings.allowIndexing).toBe(false);
+    expect(f.db.query("SELECT token, password_hash FROM notebook_shares").get()).toEqual(before);
+    expect((await f.request()).status).toBe(403);
+    const unlocked = await f.request("/unlock", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ password: "old-password" }) });
+    const cookie = unlocked.headers.get("set-cookie").split(";")[0];
+    const directory = await (await f.request("", { headers: { cookie } })).json();
+    expect(directory.share.memos).toHaveLength(3);
+  });
+
+  test("exclusion gates every read path, keeps independent shares, and restores idempotently", async () => {
+    const f = fixture();
+    const child = await f.app.request("/api/v1/notebooks/child/share", { method: "POST" }, f.environment);
+    const childToken = (await child.json()).share.token;
+    expect((await manage(f, "/memos/memo_child", { excluded: true })).status).toBe(200);
+    expect((await manage(f, "/memos/memo_child", { excluded: true })).status).toBe(200);
+    const directory = await (await f.request()).json();
+    expect(directory.share.memos.map((m) => m.id)).not.toContain("memo_child");
+    for (const path of ["/memos/memo_child", "/memos/memo_child/preview", "/resources/res_memo_child/blob"])
+      expect((await f.request(path)).status).toBe(404);
+    expect(f.blobReads()).toBe(0);
+    const search = await (await f.request("/search?q=memo&limit=1")).json();
+    expect(search.memos).toHaveLength(1);
+    expect(search.memos[0].id).not.toBe("memo_child");
+    expect((await f.app.request(`/api/public/notebook-shares/${childToken}/memos/memo_child`, {}, f.environment)).status).toBe(200);
+    const excluded = await (await manage(f, "/excluded-memos")).json();
+    expect(excluded.memos.map((m) => m.id)).toEqual(["memo_child"]);
+    f.db.run("UPDATE memos SET tags_json = '[\"draft\"]' WHERE id = 'memo_child'");
+    f.db.run("UPDATE memos SET notebook_id = 'private' WHERE id = 'memo_child'");
+    f.db.run("UPDATE memos SET notebook_id = 'child' WHERE id = 'memo_child'");
+    expect((await f.request("/memos/memo_child")).status).toBe(404);
+    await manage(f, "/memos/memo_child", { excluded: false });
+    await manage(f, "/memos/memo_child", { excluded: false });
+    expect((await f.request("/memos/memo_child")).status).toBe(200);
+    expect((await f.request("/memos/memo_child/preview")).status).toBe(200);
+  });
+
+  test("original-note controls list live ancestor sites with independent exclusions and no new shares", async () => {
+    const f = fixture();
+    await f.app.request("/api/v1/notebooks/child/share", { method: "POST" }, f.environment);
+    const sites = (id = "memo_child", init = {}) => f.app.request(`/api/v1/memos/${id}/notebook-sites`, init, f.environment);
+    const response = await sites();
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+    expect((await response.json()).sites).toEqual([
+      { notebookId: "child", notebookName: "child", excluded: false },
+      { notebookId: "root", notebookName: "root", excluded: false },
+    ]);
+    await manage(f, "/memos/memo_child", { excluded: true });
+    expect((await (await sites()).json()).sites).toEqual([
+      { notebookId: "child", notebookName: "child", excluded: false },
+      { notebookId: "root", notebookName: "root", excluded: true },
+    ]);
+    expect((await f.request("/memos/memo_child")).status).toBe(404);
+    const childToken = f.db.query("SELECT token FROM notebook_shares WHERE notebook_id = 'child'").get().token;
+    expect((await f.app.request(`/api/public/notebook-shares/${childToken}/memos/memo_child`, {}, f.environment)).status).toBe(200);
+    expect((await (await sites("memo_grand")).json()).sites).toHaveLength(2);
+    expect(f.db.query("SELECT COUNT(*) AS count FROM memo_shares").get().count).toBe(1);
+    expect((await (await sites("memo_private")).json()).sites).toEqual([]);
+    f.db.run("UPDATE memos SET notebook_id = 'private' WHERE id = 'memo_child'");
+    f.db.run("UPDATE notebooks SET parent_id = 'foreign' WHERE id = 'private'");
+    expect((await (await sites()).json()).sites).toEqual([]);
+    f.db.run("UPDATE notebooks SET is_deleted = 1 WHERE id = 'child'");
+    expect((await (await sites("memo_grand")).json()).sites).toEqual([]);
+    for (const kind of ["none", "agent"])
+      expect((await sites("memo_grand", { headers: { "test-auth": kind } })).status).toBe(403);
+    for (const id of ["missing", "memo_other"])
+      expect((await sites(id)).status).toBe(404);
+    f.db.run("UPDATE memos SET is_deleted = 1 WHERE id = 'memo_grand'");
+    expect((await sites("memo_grand")).status).toBe(404);
+  });
+
+  test("owner content management filters before paging and reports exclusions beyond the first page", async () => {
+    const f = fixture();
+    for (let i = 0; i < 105; i++) f.addMemo(`bulk_${String(i).padStart(3, "0")}`, "child");
+    await manage(f, "/memos/bulk_075", { excluded: true });
+    await manage(f, "/memos/memo_child", { excluded: true });
+    const firstResponse = await manage(f, "/memos?limit=20");
+    expect(firstResponse.status).toBe(200);
+    const first = await firstResponse.json();
+    expect(first.memos).toHaveLength(20);
+    expect(first.nextCursor).toBe("bulk_019");
+    expect(first.memos.every((memo) => typeof memo.excluded === "boolean")).toBe(true);
+    expect(first.memos[0].contentJson).toBeUndefined();
+    const later = await (await manage(f, "/memos?limit=20&cursor=bulk_074")).json();
+    expect(later.memos[0]).toMatchObject({ id: "bulk_075", notebookId: "child", notebookName: "child", excluded: true });
+    const excluded = await (await manage(f, "/memos?visibility=excluded&limit=1")).json();
+    expect(excluded.memos.map((memo) => memo.id)).toEqual(["bulk_075"]);
+    const nextExcluded = await (await manage(f, `/memos?visibility=excluded&limit=1&cursor=${excluded.nextCursor}`)).json();
+    expect(nextExcluded.memos.map((memo) => memo.id)).toEqual(["memo_child"]);
+    expect(nextExcluded.nextCursor).toBeNull();
+    f.db.run("UPDATE memo_contents SET content_text = 'OwnerBodyNeedle 中文正文检索' WHERE memo_id = 'bulk_075'");
+    for (const q of ["OwnerBodyNeedle", "正文检索"]) {
+      const found = await (await manage(f, `/memos?q=${encodeURIComponent(q)}`)).json();
+      expect(found.memos.map((memo) => memo.id)).toEqual(["bulk_075"]);
+      const picker = await (await manage(f, `/memos?visibility=public&q=${encodeURIComponent(q)}`)).json();
+      expect(picker.memos).toHaveLength(0);
+    }
+    expect((await manage(f, "/memos?visibility=invalid")).status).toBe(400);
+    for (const kind of ["none", "agent"])
+      expect((await manage(f, "/memos", undefined, { headers: { "test-auth": kind } })).status).toBe(403);
+    expect((await f.app.request("/api/v1/notebooks/foreign/share/memos", {}, f.environment)).status).toBe(404);
+    f.db.run("UPDATE notebooks SET is_deleted = 1 WHERE id = 'root'");
+    expect((await manage(f, "/memos")).status).toBe(404);
+  });
+
+  test("body and Chinese search filter before paging and combine with exact tags", async () => {
+    const f = fixture();
+    for (const id of ["memo_root", "memo_child", "memo_grand"]) {
+      f.db.run("UPDATE memo_contents SET content_text = 'OnlyBodyWord 中文检索内容' WHERE memo_id = ?", [id]);
+      f.db.run("INSERT OR REPLACE INTO memo_search_documents (memo_id, title, content_text, tags) VALUES (?, ?, 'OnlyBodyWord 中文检索内容', '')", [id, id]);
+    }
+    f.db.run(`UPDATE memos SET tags_json = '["guide"]' WHERE id = 'memo_root'`);
+    await manage(f, "/memos/memo_child", { excluded: true });
+    for (const q of ["OnlyBodyWord", "检索"]) {
+      const result = await (await f.request(`/search?q=${encodeURIComponent(q)}&limit=1`)).json();
+      expect(result.memos).toHaveLength(1);
+      expect(result.memos[0].excerpt).toContain(q);
+      expect(result.nextCursor).not.toBeNull();
+      const page2 = await (await f.request(`/search?q=${encodeURIComponent(q)}&limit=1&cursor=${result.nextCursor}`)).json();
+      expect(page2.memos).toHaveLength(1);
+      expect(page2.memos[0].id).not.toBe(result.memos[0].id);
+      expect(page2.nextCursor).toBeNull();
+    }
+    const tagged = await (await f.request("/search?q=OnlyBodyWord&tag=guide")).json();
+    expect(tagged.memos.map((m) => m.id)).toEqual(["memo_root"]);
+    const longBody = "prefix ".repeat(90) + "Alpha different words Omega";
+    f.db.run("UPDATE memo_contents SET content_text = ? WHERE memo_id = 'memo_root'", [longBody]);
+    f.db.run("UPDATE memo_search_documents SET content_text = ? WHERE memo_id = 'memo_root'", [longBody]);
+    const multiword = await (await f.request("/search?q=Alpha%20Omega")).json();
+    expect(multiword.memos[0].excerpt).toContain("Alpha");
+    expect(multiword.memos[0].excerpt).toContain("Omega");
+  });
+
+  test("rejects invalid targets, unknown settings, non-HTTPS URLs and oversized merged settings", async () => {
+    const f = fixture();
+    for (const id of ["memo_private", "memo_other", "missing"])
+      expect((await manage(f, `/memos/${id}`, { excluded: true })).status).toBe(404);
+    for (const settings of [{ homeMemoId: "memo_private" }, { excludedTags: ["draft"] }, { logoUrl: "javascript:alert(1)" }, { logoUrl: "broken" }, { headerLinks: [{ label: "x", url: "broken" }] }, { headerLinks: [{ label: "x", url: "http://example.org" }] }, { footerText: "x".repeat(17_000) }])
+      expect((await manage(f, "/site", { settings })).status).toBe(400);
+    expect((await manage(f, "/site", { settings: { footerText: "ok" } }, { headers: { "content-type": "application/json", "test-auth": "agent" } })).status).toBe(403);
+    expect((await manage(f, "/site", { settings: { footerText: "ok" } }, { headers: { "content-type": "application/json", "test-auth": "none" } })).status).toBe(403);
+  });
+
+  test("homepages fall back on exclusion and aliases disclose identity only", async () => {
+    const f = fixture();
+    await manage(f, "/site", { siteSlug: "My-Docs", settings: { homeMemoId: "memo_child" } });
+    expect((await (await f.request()).json()).share.settings.homeMemoId).toBe("memo_child");
+    await manage(f, "/memos/memo_child", { excluded: true });
+    expect((await (await f.request()).json()).share.settings.homeMemoId).toBeNull();
+    expect((await manage(f, "/site", { settings: { homeMemoId: "memo_child" } })).status).toBe(400);
+    const alias = await f.app.request("/api/public/notebook-sites/my-docs/resolve", {}, f.environment);
+    expect(await alias.json()).toEqual({ token });
+    const child = await f.app.request("/api/v1/notebooks/child/share", { method: "POST" }, f.environment);
+    expect(child.status).toBe(200);
+    const collision = await f.app.request("/api/v1/notebooks/child/share/site", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ siteSlug: "MY-DOCS" }) }, f.environment);
+    expect(collision.status).toBe(409);
+    await f.app.request("/api/v1/notebooks/root/share", { method: "DELETE" }, f.environment);
+    expect((await f.app.request("/api/public/notebook-sites/my-docs/resolve", {}, f.environment)).status).toBe(404);
+    expect(f.db.query("SELECT count(*) AS count FROM notebook_share_excluded_memos").get().count).toBe(0);
+  });
+
+  test("enabling or rotating passwords disables indexing and clearing does not re-enable it", async () => {
+    const f = fixture();
+    await manage(f, "/site", { settings: { allowIndexing: true } });
+    expect((await (await f.request()).json()).share.settings.allowIndexing).toBe(true);
+    await manage(f, "", { passwordProtected: true });
+    expect((await manage(f, "/site", { settings: { allowIndexing: true } })).status).toBe(400);
+    await manage(f, "", { passwordProtected: false });
+    expect((await (await f.request()).json()).share.settings.allowIndexing).toBe(false);
+  });
+
+  test("server HTML escapes metadata, preserves protected privacy, and denies excluded aliases", async () => {
+    const f = fixture();
+    f.db.run("UPDATE memos SET title = ?, excerpt = ? WHERE id = 'memo_child'", ["<script>secret()</script> $& $' $$", 'A & B "quote"']);
+    await manage(f, "/site", { siteSlug: "docs", settings: { allowIndexing: true, homeMemoId: "memo_child" } });
+    const render = (path) => renderNotebookSitePage(new Request(`https://example.org${path}`), f.environment.storage.db,
+      async () => new Response('<html><head><title>Old</title><meta name="description" content="old"></head><body><div id="root"></div></body></html>', { headers: { "content-type": "text/html" } }));
+    const visible = await render("/s/docs/memo_child");
+    expect(visible.status).toBe(200);
+    expect(visible.headers.get("X-Robots-Tag")).toBe("index, follow");
+    const html = await visible.text();
+    expect(html).toContain("&lt;script&gt;secret()&lt;/script&gt;");
+    expect(html).toContain("&lt;script&gt;secret()&lt;/script&gt; $&amp; $&#39; $$");
+    expect(html).not.toContain("<script>secret()");
+    expect(html).toContain('rel="canonical" href="https://example.org/s/docs/memo_child"');
+    expect(html).toContain('property="og:description" content="A &amp; B &quot;quote&quot;"');
+    for (const suffix of ["", "/memo_child"]) {
+      const tokenPage = await render(`/share/notebook/${token}${suffix}`);
+      expect(tokenPage.status).toBe(200);
+      expect(tokenPage.headers.get("X-Robots-Tag")).toBe(PUBLIC_PAGE_ROBOTS);
+      const tokenHtml = await tokenPage.text();
+      expect(tokenHtml).toContain(`<meta name="robots" content="${PUBLIC_PAGE_ROBOTS}">`);
+      expect(tokenHtml).toContain(`rel="canonical" href="https://example.org/s/docs${suffix}"`);
+    }
+    await manage(f, "/memos/memo_child", { excluded: true });
+    const hidden = await render("/s/docs/memo_child");
+    expect(hidden.status).toBe(404);
+    expect(hidden.headers.get("X-Robots-Tag")).toBe(PUBLIC_PAGE_ROBOTS);
+    expect(await hidden.text()).not.toContain("secret()");
+    await manage(f, "", { passwordProtected: true });
+    const protectedPage = await render("/s/docs");
+    expect(protectedPage.headers.get("X-Robots-Tag")).toBe(PUBLIC_PAGE_ROBOTS);
+    expect(await protectedPage.text()).not.toContain("secret()");
+    expect(await render("/share/individual-token")).toBeNull();
+  });
+
+  test("Token pages without an alias remain noindex after opting in", async () => {
+    const f = fixture();
+    await manage(f, "/site", { settings: { allowIndexing: true } });
+    for (const suffix of ["", "/memo_child"]) {
+      const url = `https://example.org/share/notebook/${token}${suffix}`;
+      const response = await renderNotebookSitePage(new Request(url), f.environment.storage.db,
+        async () => new Response("<html><head></head><body></body></html>"));
+      expect(response.status).toBe(200);
+      expect(response.headers.get("X-Robots-Tag")).toBe(PUBLIC_PAGE_ROBOTS);
+      const html = await response.text();
+      expect(html).toContain(`<meta name="robots" content="${PUBLIC_PAGE_ROBOTS}">`);
+      expect(html).toContain(`rel="canonical" href="${url}"`);
+    }
+  });
+});
 
 describe("live recursive notebook sharing", () => {
   test("upgrades existing data without creating individual shares; exposes only the live workspace subtree", async () => {

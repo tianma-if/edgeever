@@ -146,6 +146,7 @@ let windowsDownloadedUpdateVerified = false;
 let sidecarScopeKey = "anonymous";
 let activeAccountId = null;
 let shutdownCleanupStarted = false;
+let releaseDesktopAcpSessions = async () => {};
 let sidecarRestartTimer = null;
 let sidecarRestartAttempts = 0;
 let sidecarRestartInFlight = false;
@@ -1873,6 +1874,7 @@ const startApplication = async () => {
       return validateTrustedAcpPath(selection.filePaths[0], { excludedRoot: app.getPath("userData") });
     },
   });
+  releaseDesktopAcpSessions = () => acpRuntime.releaseWarmSessions();
   await acpRuntime.pruneAdapters().catch(() => {});
   const refreshAdapters = () => { void acpRuntime.installDetected().catch(() => []).then(() => acpRuntime.updateInstalled()).catch(() => {}); };
   const firstAdapterRefresh = setTimeout(refreshAdapters, 10_000);
@@ -2263,6 +2265,7 @@ app.on("before-quit", (event) => {
   }
   tray?.destroy();
   void (async () => {
+    await releaseDesktopAcpSessions().catch(() => {});
     await stopSidecar();
     await unlink(crashMarkerPath()).catch(() => {});
     await writeDiagnostic("session.quit");

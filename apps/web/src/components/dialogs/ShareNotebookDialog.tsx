@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Copy, ExternalLink, LoaderCircle, Share2, Trash2 } from "lucide-react";
+import { Check, ChevronDown, Copy, ExternalLink, LoaderCircle, Settings2, Share2, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useLocation } from "react-router";
@@ -15,11 +15,13 @@ import { SharePasswordControls } from "./SharePasswordControls";
 import { ShareQrCode } from "./ShareQrCode";
 import { SHARE_DIALOG_PRIMARY_BUTTON_CLASS_NAME, SHARE_DIALOG_WIDTH_CLASS_NAME } from "./share-dialog-layout";
 import { Input } from "@/components/ui/input";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { NotebookSiteSettings } from "../NotebookSiteSettings";
 import { api, getConfiguredDesktopApiBaseUrl } from "@/lib/api";
 import { copyTextToClipboard } from "@/lib/clipboard";
 
-export const getPublicNotebookShareUrl = (token: string) =>
-  `${(getConfiguredDesktopApiBaseUrl() || window.location.origin).replace(/\/$/, "")}/share/notebook/${encodeURIComponent(token)}`;
+export const getPublicNotebookShareUrl = (token: string, slug?: string | null) =>
+  `${(getConfiguredDesktopApiBaseUrl() || window.location.origin).replace(/\/$/, "")}${slug ? `/s/${encodeURIComponent(slug)}` : `/share/notebook/${encodeURIComponent(token)}`}`;
 
 export const ShareNotebookDialog = ({
   notebookId,
@@ -100,7 +102,8 @@ export const ShareNotebookDialog = ({
 
   const revealedPassword = share?.passwordProtected ? share.password ?? "" : "";
 
-  const shareUrl = share ? getPublicNotebookShareUrl(share.token) : "";
+  const shareUrl = share ? getPublicNotebookShareUrl(share.token, share.siteSlug) : "";
+  const sitePath = `/notebooks/${encodeURIComponent(notebookId)}/site`;
   const busy = query.isFetching || create.isPending || revoke.isPending || passwordMutation.isPending;
   const failed = query.isError || create.isError || revoke.isError || passwordMutation.isError;
   const hasPassword = Boolean(share?.passwordProtected && revealedPassword);
@@ -122,7 +125,7 @@ export const ShareNotebookDialog = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         ref={dialogContentRef}
-        className={`${SHARE_DIALOG_WIDTH_CLASS_NAME} space-y-4`}
+        className={`${SHARE_DIALOG_WIDTH_CLASS_NAME} max-h-[90dvh] overflow-y-auto space-y-4`}
         onOpenAutoFocus={(event) => {
           event.preventDefault();
           dialogContentRef.current?.focus({ preventScroll: true });
@@ -131,7 +134,7 @@ export const ShareNotebookDialog = ({
         <DialogHeader className="space-y-1.5 text-left">
           <DialogTitle className="flex items-center gap-2 text-base font-semibold">
             <Share2 className="h-5 w-5 text-slate-700" />
-            {t(share ? "sharing.manage" : inherited ? "sharing.notebookInheritedAction" : "sharing.notebookTitle")}
+            {t("sharing.notebookTitle")}
           </DialogTitle>
           <DialogDescription className="text-xs leading-5 text-slate-500">
             <span className="font-medium text-slate-800">{notebookName}</span>
@@ -189,6 +192,22 @@ export const ShareNotebookDialog = ({
             {share.passwordProtected ? null : (
               <ShareQrCode key={`qr-${share.token}`} url={shareUrl} hint={t("sharing.qrCodeNotebookHint")} />
             )}
+            {location.pathname !== sitePath && <Collapsible key={`site-settings-${share.token}`}>
+              <CollapsibleTrigger asChild>
+                <Button type="button" variant="outline" className="group w-full justify-between">
+                  <span className="flex items-center gap-2"><Settings2 className="h-4 w-4" />{t("notebookSite.advancedSettings")}</span>
+                  <ChevronDown className="h-4 w-4 transition-transform group-data-[state=open]:rotate-180" />
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent forceMount className="pt-4 data-[state=closed]:hidden">
+                <NotebookSiteSettings
+                  key={`${share.token}-${share.passwordProtected}`}
+                  notebookId={notebookId}
+                  share={share}
+                  onSaved={(data) => { queryClient.setQueryData(queryKey, data); void invalidate(); }}
+                />
+              </CollapsibleContent>
+            </Collapsible>}
 
             <div className="flex items-center justify-between pt-2">
               <Button

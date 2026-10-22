@@ -176,7 +176,7 @@ const result = await context.notes.query({
   notebookId: "optional-notebook-id",
   text: "keyword",
   tags: ["todo"],
-  sort: "updated-desc", // "updated-desc" | "created-desc" | "title-asc"
+  sort: "updated-desc", // "updated-desc" | "created-desc" | "title-asc" | "title-desc"
   limit: 50,
   offset: 0
 });

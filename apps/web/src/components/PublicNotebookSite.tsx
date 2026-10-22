@@ -1,4 +1,8 @@
 import type { PublicNotebookShare } from "@edgeever/shared";
+import { NotebookSiteSearch, NotebookSiteSearchContext } from "./NotebookSiteSearch";
+import { useAppearanceTheme, type ThemePreference } from "./ThemeProvider";
+import { ButtonTooltip } from "./ui/button-tooltip";
+import "./notebook-site.css";
 import { getMemoDisplayTitle } from "@edgeever/shared";
 import {
   ArrowLeft,
@@ -9,7 +13,6 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Search,
-  X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
@@ -29,7 +32,6 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from "@/components/ui/drawer";
-import { Input } from "@/components/ui/input";
 import {
   Tooltip,
   TooltipContent,
@@ -152,21 +154,16 @@ const NoteTitle = ({ memo }: { memo: Memo }) => {
 
 const HomepageContents = ({
   sections,
-  matchingIds,
-  filtering,
   href,
   onNavigate,
 }: {
   sections: Section[];
-  matchingIds: ReadonlySet<string>;
-  filtering: boolean;
   href: (id: string) => string;
   onNavigate: () => void;
 }) => {
   const { t } = useTranslation();
-  const { children, visibleSections } = useMemo(() => {
+  const children = useMemo(() => {
     const children = new Map<string, Section[]>();
-    const visibleSections = new Set<string>();
     for (const section of sections) {
       const parent = section.path.at(-2);
       if (parent) {
@@ -174,15 +171,9 @@ const HomepageContents = ({
         siblings.push(section);
         children.set(parent.id, siblings);
       }
-      if (
-        !filtering ||
-        section.memos.some((memo) => matchingIds.has(memo.id))
-      ) {
-        for (const ancestor of section.path) visibleSections.add(ancestor.id);
-      }
     }
-    return { children, visibleSections };
-  }, [sections, matchingIds, filtering]);
+    return children;
+  }, [sections]);
   const renderContents = (section: Section, nested: boolean): ReactNode => (
     <ul
       className={cn(
@@ -191,7 +182,6 @@ const HomepageContents = ({
       )}
     >
       {section.memos
-        .filter((memo) => matchingIds.has(memo.id))
         .map((memo) => (
           <li key={memo.id} className="pl-1 marker:text-slate-400">
             <Link
@@ -207,7 +197,6 @@ const HomepageContents = ({
           </li>
         ))}
       {(children.get(section.notebook.id) ?? [])
-        .filter((child) => visibleSections.has(child.notebook.id))
         .map((child) => (
           <li
             key={child.notebook.id}
@@ -217,10 +206,7 @@ const HomepageContents = ({
             <span className="break-words font-semibold text-slate-900">
               {child.notebook.name}
             </span>
-            {(child.memos.some((memo) => matchingIds.has(memo.id)) ||
-              children
-                .get(child.notebook.id)
-                ?.some((item) => visibleSections.has(item.notebook.id))) &&
+            {(child.memos.length > 0 || children.has(child.notebook.id)) &&
               renderContents(child, true)}
           </li>
         ))}
@@ -240,23 +226,23 @@ const HomepageContents = ({
   );
 };
 
-export const PublicNotebookSite = ({
-  share,
-  token,
-  selectedId,
-  children,
-}: {
-  share: PublicNotebookShare;
-  token: string;
-  selectedId?: string;
-  children?: ReactNode;
+const SiteLogo = ({ src }: { src?: string | null }) => {
+  const [failed, setFailed] = useState(false);
+  return src && !failed ? <img src={src} alt="" className="size-8 shrink-0 rounded-lg object-contain" onError={() => setFailed(true)} /> : <BookOpen className="size-6 shrink-0" />;
+};
+
+export const PublicNotebookSite = ({ share, token, selectedId, children }: {
+  share: PublicNotebookShare; token: string; selectedId?: string; children?: ReactNode;
 }) => {
   const { t } = useTranslation();
   const { hash } = useLocation();
-  const [search, setSearch] = useState("");
+  const { preference, setPreference } = useAppearanceTheme();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const root = `/share/notebook/${encodeURIComponent(token)}`;
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [tag, setTag] = useState("");
+  const root = share.siteSlug ? `/s/${encodeURIComponent(share.siteSlug)}` : `/share/notebook/${encodeURIComponent(token)}`;
+  const directory = `${root}?contents=1`;
   const href = (id: string) => `${root}/${encodeURIComponent(id)}`;
   const sections = useMemo(() => {
     const result: Section[] = [];
@@ -266,408 +252,77 @@ export const PublicNotebookSite = ({
     for (const notebook of share.notebooks) {
       if (!notebook.parentId) continue;
       const siblings = children.get(notebook.parentId) ?? [];
-      siblings.push(notebook);
-      children.set(notebook.parentId, siblings);
+      siblings.push(notebook); children.set(notebook.parentId, siblings);
     }
     for (const memo of share.memos) {
       const siblings = memos.get(memo.notebookId) ?? [];
-      siblings.push(memo);
-      memos.set(memo.notebookId, siblings);
+      siblings.push(memo); memos.set(memo.notebookId, siblings);
     }
     const visited = new Set<string>();
     const visit = (notebook: Notebook, path: Notebook[]) => {
       if (visited.has(notebook.id)) return;
       visited.add(notebook.id);
       const nextPath = [...path, notebook];
-      result.push({
-        notebook,
-        path: nextPath,
-        memos: memos.get(notebook.id) ?? [],
-      });
-      for (const child of children.get(notebook.id) ?? [])
-        visit(child, nextPath);
+      result.push({ notebook, path: nextPath, memos: memos.get(notebook.id) ?? [] });
+      for (const child of children.get(notebook.id) ?? []) visit(child, nextPath);
     };
-    visit(
-      notebooks.get(share.notebookId) ?? {
-        id: share.notebookId,
-        parentId: null,
-        name: share.name,
-      },
-      [],
-    );
+    visit(notebooks.get(share.notebookId) ?? { id: share.notebookId, parentId: null, name: share.name }, []);
     return result;
   }, [share]);
-  const notes = useMemo(
-    () =>
-      sections.flatMap((section) =>
-        section.memos.map((memo) => ({ memo, section })),
-      ),
-    [sections],
-  );
-  const query = search.trim().toLocaleLowerCase();
-  const matches = useMemo(
-    () =>
-      notes.filter(({ memo }) =>
-        getMemoDisplayTitle(memo.title, t("common.untitledMemo"))
-          .toLocaleLowerCase()
-          .includes(query),
-      ),
-    [notes, query, t],
-  );
-  const matchingIds = useMemo(
-    () => new Set(matches.map(({ memo }) => memo.id)),
-    [matches],
-  );
+  const notes = useMemo(() => sections.flatMap((section) => section.memos.map((memo) => ({ memo, section }))), [sections]);
   const index = notes.findIndex(({ memo }) => memo.id === selectedId);
   const current = notes[index];
-  const navigate = () => {
-    setMobileOpen(false);
-    setSearch("");
-  };
+  const navigate = () => setMobileOpen(false);
   useEffect(() => {
-    // Reset reading position only on navigation, never on the periodic content refresh.
-    if (!selectedId && hash) {
-      try {
-        document
-          .getElementById(decodeURIComponent(hash.slice(1)))
-          ?.scrollIntoView({ block: "start", behavior: "instant" });
-      } catch {
-        // A malformed fragment must not prevent the site from rendering.
+    const shortcut = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault(); setSearchOpen((open) => !open);
       }
-    } else {
-      window.scrollTo({ top: 0, behavior: "instant" });
-    }
+    };
+    window.addEventListener("keydown", shortcut);
+    return () => window.removeEventListener("keydown", shortcut);
+  }, []);
+  useEffect(() => {
+    if (hash && !selectedId) {
+      try { document.getElementById(decodeURIComponent(hash.slice(1)))?.scrollIntoView({ block: "start", behavior: "instant" }); } catch { /* Ignore malformed fragments. */ }
+    } else if (!hash) window.scrollTo({ top: 0, behavior: "instant" });
   }, [selectedId, token, hash]);
-  const contents = (
-    <TooltipProvider delayDuration={400}>
-      <div className="flex min-h-0 flex-1 flex-col">
-        <div className="px-6 pb-4">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-2.5 size-3.5 text-slate-400" />
-            <Input
-              type="search"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder={t("sharing.siteSearch")}
-              aria-label={t("sharing.siteSearch")}
-              className="h-9 border-transparent bg-slate-100/70 pl-9 pr-9 text-xs focus-visible:border-slate-300"
-            />
-            {search && (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                className="absolute right-1.5 top-1"
-                aria-label={t("sharing.siteClearSearch")}
-                onClick={() => setSearch("")}
-              >
-                <X className="size-3.5" />
-              </Button>
-            )}
-          </div>
-        </div>
-        <nav
-          aria-label={t("sharing.notebookContents")}
-          className="min-h-0 flex-1 overflow-y-auto px-5 pb-6"
-        >
-          <Link
-            to={root}
-            onClick={navigate}
-            aria-current={!selectedId ? "page" : undefined}
-            className={cn(
-              linkClass,
-              "block px-3 py-2 text-[13px] font-medium",
-              !selectedId
-                ? "text-slate-900"
-                : "text-slate-600 hover:bg-slate-100",
-            )}
-          >
-            {t("sharing.siteHome")}
-          </Link>
-          {query ? (
-            <>
-              <p className="px-2 py-2 text-xs text-slate-500" role="status">
-                {t("sharing.siteResults", { count: matches.length })}
-              </p>
-              <ul>
-                {matches.map(({ memo, section }) => (
-                  <li key={memo.id}>
-                    <Link
-                      to={href(memo.id)}
-                      onClick={navigate}
-                      className={cn(
-                        linkClass,
-                        "block px-3 py-2 text-[13px] leading-5 text-slate-600 hover:bg-slate-100/70",
-                      )}
-                    >
-                      <NoteTitle memo={memo} />
-                      <span className="mt-1 block text-xs text-slate-400">
-                        {section.path.map((item) => item.name).join(" / ")}
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-              {!matches.length && (
-                <p className="px-2 py-4 text-sm text-slate-500">
-                  {t("sharing.siteNoResults")}
-                </p>
-              )}
-            </>
-          ) : (
-            <>
-              {sections[0] && (
-                <NavigationNotes
-                  memos={sections[0].memos}
-                  selectedId={selectedId}
-                  href={href}
-                  onNavigate={navigate}
-                />
-              )}
-              {sections
-                .slice(1)
-                .filter((section) => section.memos.length)
-                .map((section) => (
-                  <NavigationSection
-                    key={section.notebook.id}
-                    section={section}
-                    selectedId={selectedId}
-                    containsSelection={
-                      current?.section.notebook.id === section.notebook.id
-                    }
-                    href={href}
-                    onNavigate={navigate}
-                  />
-                ))}
-            </>
-          )}
-        </nav>
-        <div className="px-8 py-5 text-[11px] text-slate-400">
-          {t("sharing.sitePoweredBy")}
-        </div>
-      </div>
-    </TooltipProvider>
-  );
-  return (
-    <div
-      data-site-theme="default"
-      className="min-h-[100dvh] bg-card text-slate-900"
-    >
-      <a
-        href="#notebook-site-content"
-        className="sr-only z-[60] rounded-md bg-card p-3 focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
-      >
-        {t("sharing.siteSkipToContent")}
-      </a>
-      <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-4 border-b border-slate-200 bg-card/95 px-4 backdrop-blur sm:px-6">
-        <Link
-          to={root}
-          onClick={navigate}
-          className={cn(
-            linkClass,
-            "flex min-w-0 items-center gap-3 font-semibold",
-          )}
-        >
-          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
-            <BookOpen className="size-5" />
-          </span>
-          <span className="truncate">{share.name}</span>
-        </Link>
-        <div className="flex shrink-0 items-center gap-3">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="hidden lg:inline-flex"
-            aria-label={t(
-              sidebarOpen
-                ? "sharing.siteHideContents"
-                : "sharing.siteShowContents",
-            )}
-            title={t(
-              sidebarOpen
-                ? "sharing.siteHideContents"
-                : "sharing.siteShowContents",
-            )}
-            aria-expanded={sidebarOpen}
-            aria-controls="notebook-site-sidebar"
-            onClick={() => setSidebarOpen((open) => !open)}
-          >
-            {sidebarOpen ? (
-              <PanelLeftClose className="size-4" />
-            ) : (
-              <PanelLeftOpen className="size-4" />
-            )}
-          </Button>
-          <span className="hidden text-xs text-slate-500 sm:block">
-            {t("sharing.readOnly")}
-          </span>
-          <Drawer
-            open={mobileOpen}
-            onOpenChange={setMobileOpen}
-            shouldScaleBackground={false}
-          >
-            <DrawerTrigger asChild>
-              <Button variant="outline" size="sm" className="lg:hidden">
-                <Menu className="size-4" />
-                {t("sharing.notebookContents")}
-              </Button>
-            </DrawerTrigger>
-            <DrawerContent className="h-[85dvh] bg-card">
-              <DrawerHeader className="relative pr-12">
-                <DrawerClose asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label={t("common.close")}
-                    className="absolute right-3 top-2"
-                  >
-                    <X className="size-4" />
-                  </Button>
-                </DrawerClose>
-                <DrawerTitle>{share.name}</DrawerTitle>
-                <DrawerDescription>
-                  {t("sharing.siteNoteCount", { count: notes.length })}
-                </DrawerDescription>
-              </DrawerHeader>
-              {contents}
-            </DrawerContent>
-          </Drawer>
+  const contents = <div className="flex min-h-0 flex-1 flex-col">
+    <div className="px-6 pb-4"><Button variant="outline" className="w-full justify-start text-xs" onClick={() => setSearchOpen(true)}><Search className="size-4" />{t("sharing.siteSearch")}</Button></div>
+    <nav aria-label={t("sharing.notebookContents")} className="min-h-0 flex-1 overflow-y-auto px-5 pb-6">
+      <Link to={root} onClick={navigate} className={`${linkClass} block px-3 py-2 text-sm font-medium`}>{t("sharing.siteHome")}</Link>
+      {share.settings?.homeMemoId && <Link to={directory} onClick={navigate} className={`${linkClass} block px-3 py-2 text-sm`}>{t("notebookSite.directory")}</Link>}
+      {sections[0] && <NavigationNotes memos={sections[0].memos} selectedId={selectedId} href={href} onNavigate={navigate} />}
+      {sections.slice(1).filter((section) => section.memos.length).map((section) => <NavigationSection key={section.notebook.id} section={section} selectedId={selectedId} containsSelection={section.memos.some((memo) => memo.id === selectedId)} href={href} onNavigate={navigate} />)}
+    </nav><div className="px-8 py-5 text-[11px] text-muted-foreground">{t("sharing.sitePoweredBy")}</div>
+  </div>;
+  return <NotebookSiteSearchContext.Provider value={(selectedTag) => { setTag(selectedTag ?? ""); setSearchOpen(true); }}><TooltipProvider delayDuration={400}>
+    <div data-site-theme="default" className="edgeever-notebook-site min-h-[100dvh] bg-card text-foreground">
+      <a href="#notebook-site-content" className="sr-only z-[60] rounded-md bg-card p-3 focus:not-sr-only focus:fixed focus:left-4 focus:top-4">{t("sharing.siteSkipToContent")}</a>
+      <header className="sticky top-0 z-30 flex min-h-16 flex-wrap items-center justify-between gap-3 border-b bg-card/95 px-4 py-3 backdrop-blur sm:px-6">
+        <Link to={root} onClick={navigate} className={`${linkClass} flex min-w-0 items-center gap-3 font-semibold`}><SiteLogo key={share.settings?.logoUrl} src={share.settings?.logoUrl} /><span className="max-w-[40vw] truncate">{share.name}</span></Link>
+        <div className="flex flex-wrap items-center gap-3">
+          <nav className="flex flex-wrap gap-3 text-xs">{share.settings?.headerLinks.map((link, i) => <a key={i} href={link.url} target="_blank" rel="noopener noreferrer" className="underline underline-offset-4">{link.label}</a>)}</nav>
+          <select aria-label={t("notebookSite.theme")} value={preference} onChange={(event) => setPreference(event.target.value as ThemePreference)} className="max-w-28 rounded border bg-background px-1 py-1 text-xs">{(["light", "dark", "system"] as const).map((value) => <option key={value} value={value}>{t(`notebookSite.${value}`)}</option>)}</select>
+          <ButtonTooltip title={t(sidebarOpen ? "sharing.siteHideContents" : "sharing.siteShowContents")}><Button variant="ghost" size="icon" className="hidden lg:inline-flex" aria-label={t(sidebarOpen ? "sharing.siteHideContents" : "sharing.siteShowContents")} aria-expanded={sidebarOpen} aria-controls="notebook-site-sidebar" onClick={() => setSidebarOpen((open) => !open)}>{sidebarOpen ? <PanelLeftClose className="size-4" /> : <PanelLeftOpen className="size-4" />}</Button></ButtonTooltip>
+          <Drawer open={mobileOpen} onOpenChange={setMobileOpen} shouldScaleBackground={false}><DrawerTrigger asChild><Button variant="outline" size="sm" className="lg:hidden"><Menu className="size-4" />{t("sharing.notebookContents")}</Button></DrawerTrigger><DrawerContent className="h-[85dvh] bg-card"><DrawerHeader><DrawerTitle>{share.name}</DrawerTitle><DrawerDescription>{t("sharing.siteNoteCount", { count: notes.length })}</DrawerDescription><DrawerClose asChild><Button variant="outline" size="sm">{t("common.close")}</Button></DrawerClose></DrawerHeader>{contents}</DrawerContent></Drawer>
         </div>
       </header>
       <div className="mx-auto flex max-w-[1600px] items-start">
-        <aside
-          id="notebook-site-sidebar"
-          className={cn(
-            "sticky top-16 hidden h-[calc(100dvh-4rem)] w-72 shrink-0 flex-col border-r border-slate-200/70 bg-card pt-6",
-            sidebarOpen && "lg:flex",
-          )}
-        >
-          {contents}
-        </aside>
-        <main
-          id="notebook-site-content"
-          tabIndex={-1}
-          className="min-w-0 flex-1 outline-none"
-        >
-          {!selectedId ? (
-            <div className="mx-auto max-w-5xl px-5 py-10 sm:px-10 sm:py-14">
-              <p className="mb-4 text-sm font-medium text-slate-500">
-                {t("sharing.siteNoteCount", { count: notes.length })}
-              </p>
-              <h1 className="break-words text-3xl font-bold tracking-tight sm:text-4xl">
-                {share.name}
-              </h1>
-              {!notes.length && (
-                <p className="mt-4 text-sm text-slate-500">
-                  {t("sharing.notebookEmpty")}
-                </p>
-              )}
-              {query && (
-                <p className="mt-6 text-sm text-slate-500" role="status">
-                  {t("sharing.siteResults", { count: matches.length })}
-                </p>
-              )}
-              {(!query || matches.length > 0) && (
-                <HomepageContents
-                  sections={sections}
-                  matchingIds={matchingIds}
-                  filtering={Boolean(query)}
-                  href={href}
-                  onNavigate={navigate}
-                />
-              )}
-              {query && !matches.length && (
-                <p className="py-10 text-sm text-slate-500">
-                  {t("sharing.siteNoResults")}
-                </p>
-              )}
-            </div>
-          ) : (
-            <>
-              <nav
-                aria-label={t("sharing.siteBreadcrumb")}
-                className="mx-auto flex max-w-4xl flex-wrap items-center gap-2 px-5 pt-7 text-xs leading-6 text-slate-500 sm:px-10"
-              >
-                <Link
-                  to={root}
-                  onClick={navigate}
-                  className={cn(linkClass, "hover:text-slate-900")}
-                >
-                  {t("sharing.siteHome")}
-                </Link>
-                {current?.section.path.map((notebook) => (
-                  <span key={notebook.id} className="contents">
-                    <ChevronRight className="size-3 shrink-0" />
-                    <Link
-                      to={`${root}#section-${notebook.id}`}
-                      onClick={navigate}
-                      className={cn(
-                        linkClass,
-                        "break-words hover:text-slate-900",
-                      )}
-                    >
-                      {notebook.name}
-                    </Link>
-                  </span>
-                ))}
-                {current && (
-                  <>
-                    <ChevronRight className="size-3 shrink-0" />
-                    <span
-                      aria-current="page"
-                      className="break-words text-slate-700"
-                    >
-                      <NoteTitle memo={current.memo} />
-                    </span>
-                  </>
-                )}
-              </nav>
-              {children}
-              {current && (
-                <nav
-                  aria-label={t("sharing.siteReadingNavigation")}
-                  className="mx-auto grid max-w-4xl grid-cols-2 gap-4 border-t border-slate-200 px-5 py-8 sm:px-10"
-                >
-                  {notes[index - 1] ? (
-                    <Link
-                      to={href(notes[index - 1].memo.id)}
-                      onClick={navigate}
-                      className={cn(linkClass, "min-w-0 p-3 hover:bg-slate-50")}
-                    >
-                      <span className="mb-2 flex items-center gap-2 text-xs text-slate-500">
-                        <ArrowLeft className="size-3.5" />
-                        {t("sharing.sitePrevious")}
-                      </span>
-                      <span className="text-sm font-medium">
-                        <NoteTitle memo={notes[index - 1].memo} />
-                      </span>
-                    </Link>
-                  ) : (
-                    <span />
-                  )}
-                  {notes[index + 1] && (
-                    <Link
-                      to={href(notes[index + 1].memo.id)}
-                      onClick={navigate}
-                      className={cn(
-                        linkClass,
-                        "min-w-0 p-3 text-right hover:bg-slate-50",
-                      )}
-                    >
-                      <span className="mb-2 flex items-center justify-end gap-2 text-xs text-slate-500">
-                        {t("sharing.siteNext")}
-                        <ArrowRight className="size-3.5" />
-                      </span>
-                      <span className="text-sm font-medium">
-                        <NoteTitle memo={notes[index + 1].memo} />
-                      </span>
-                    </Link>
-                  )}
-                </nav>
-              )}
-            </>
-          )}
+        <aside id="notebook-site-sidebar" className={cn("sticky top-16 hidden h-[calc(100dvh-4rem)] w-72 shrink-0 flex-col border-r bg-card pt-6", sidebarOpen && "lg:flex")}>{contents}</aside>
+        <main id="notebook-site-content" tabIndex={-1} className="min-w-0 flex-1 outline-none">
+          {!selectedId ? <div className="mx-auto max-w-5xl px-5 py-10 sm:px-10 sm:py-14"><p className="mb-4 text-sm text-muted-foreground">{t("sharing.siteNoteCount", { count: notes.length })}</p><h1 className="break-words text-3xl font-bold">{share.name}</h1>{!notes.length && <p className="mt-4">{t("sharing.notebookEmpty")}</p>}<HomepageContents sections={sections} href={href} onNavigate={navigate} /></div> : <>
+            <nav aria-label={t("sharing.siteBreadcrumb")} className="flex flex-wrap items-center gap-2 border-b px-5 py-3 text-xs text-muted-foreground"><Link to={root} onClick={navigate}>{t("sharing.siteHome")}</Link>{current?.section.path.map((notebook) => <span key={notebook.id} className="contents"><ChevronRight className="size-3" /><Link to={`${directory}#section-${notebook.id}`} onClick={navigate}>{notebook.name}</Link></span>)}{current && <span aria-current="page"><NoteTitle memo={current.memo} /></span>}</nav>
+            {children}
+            {current && <nav aria-label={t("sharing.siteReadingNavigation")} className="mx-auto grid max-w-4xl grid-cols-2 gap-4 border-t px-5 py-8 sm:px-10">
+              {notes[index - 1] ? <Link to={href(notes[index - 1].memo.id)} onClick={navigate} className={`${linkClass} min-w-0 p-3 hover:bg-muted`}><span className="mb-2 flex items-center gap-2 text-xs text-muted-foreground"><ArrowLeft className="size-3.5" />{t("sharing.sitePrevious")}</span><NoteTitle memo={notes[index - 1].memo} /></Link> : <span />}
+              {notes[index + 1] && <Link to={href(notes[index + 1].memo.id)} onClick={navigate} className={`${linkClass} min-w-0 p-3 text-right hover:bg-muted`}><span className="mb-2 flex items-center justify-end gap-2 text-xs text-muted-foreground">{t("sharing.siteNext")}<ArrowRight className="size-3.5" /></span><NoteTitle memo={notes[index + 1].memo} /></Link>}
+            </nav>}
+          </>}
+          {share.settings?.footerText && <footer className="whitespace-pre-wrap border-t px-5 py-6 text-sm text-muted-foreground">{share.settings.footerText}</footer>}
         </main>
       </div>
     </div>
-  );
+    <NotebookSiteSearch token={token} share={share} root={root} open={searchOpen} setOpen={setSearchOpen} tag={tag} setTag={setTag} />
+  </TooltipProvider></NotebookSiteSearchContext.Provider>;
 };

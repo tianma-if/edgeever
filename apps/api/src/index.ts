@@ -120,6 +120,7 @@ import {
 } from "./user-routes";
 import { registerNotebookRoutes } from "./notebook-routes";
 import { registerNotebookShareRoutes, registerPublicNotebookShareRoutes } from "./notebook-share-routes";
+import { isNotebookSitePagePath, renderNotebookSitePage } from "./notebook-site-page";
 import { registerMemoShareRoutes, registerPublicShareRoutes } from "./share-routes";
 import { registerPublicTableFormRoutes, registerTableFormRoutes } from "./table-form-routes";
 import {
@@ -454,6 +455,10 @@ export const fetchEdgeEverApp = async (
 
 const worker = {
   async fetch(request: Request, env: WorkerBindings, ctx: ExecutionContext) {
+    if (isNotebookSitePagePath(new URL(request.url).pathname)) {
+      return (await renderNotebookSitePage(request, createCloudflareStorageAdapter(env).db,
+        () => env.ASSETS.fetch(new Request(new URL("/", request.url), { method: "GET" }))))!;
+    }
     return fetchEdgeEverApp(request, {
       ...env,
       storage: createCloudflareStorageAdapter(env),

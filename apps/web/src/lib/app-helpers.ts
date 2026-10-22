@@ -169,6 +169,7 @@ export const getMemoSortOptions = (t: TFunction): Array<{ value: MemoSortMode; l
   { value: "updated-desc", label: t("options.memoSort.updatedDesc") },
   { value: "created-desc", label: t("options.memoSort.createdDesc") },
   { value: "title-asc", label: t("options.memoSort.titleAsc") },
+  { value: "title-desc", label: t("options.memoSort.titleDesc") },
 ];
 
 const NOTEBOOK_SORT_VALUES: NotebookSortMode[] = ["custom", "name-asc", "memo-count-desc", "updated-desc"];
@@ -707,14 +708,14 @@ export const sortMemos = (memos: MemoSummary[], sortMode: MemoSortMode, prioriti
       return first.isPinned ? -1 : 1;
     }
 
-    if (sortMode === "title-asc") {
+    if (sortMode === "title-asc" || sortMode === "title-desc") {
       const titleCompare = getMemoTitle(first.title).localeCompare(getMemoTitle(second.title), "zh-CN", {
         numeric: true,
         sensitivity: "base",
       });
 
       if (titleCompare !== 0) {
-        return titleCompare;
+        return sortMode === "title-desc" ? -titleCompare : titleCompare;
       }
 
       return compareDateDesc(first.updatedAt, second.updatedAt);

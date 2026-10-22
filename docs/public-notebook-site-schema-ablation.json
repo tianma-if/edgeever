@@ -1,0 +1,947 @@
+{
+  "generatedAt": "2026-10-20T08:09:19.336Z",
+  "baselineCommit": "d966052002889729c6850732f2baeb75c342a2e6",
+  "environment": {
+    "bun": "1.3.14",
+    "sqlite": "3.54.0",
+    "platform": "darwin",
+    "arch": "arm64"
+  },
+  "method": {
+    "actualMigrations": [
+      "migrations/0001_initial.sql",
+      "migrations/0002_auth.sql",
+      "migrations/0003_search_and_trash.sql",
+      "migrations/0004_memo_revision_metadata.sql",
+      "migrations/0005_default_uncategorized_notebook.sql",
+      "migrations/0006_default_notebook_set.sql",
+      "migrations/0007_api_token_value.sql",
+      "migrations/0009_drop_profile_snapshots.sql",
+      "migrations/0010_restore_default_inbox_notebook.sql",
+      "migrations/0011_memo_edit_sessions.sql",
+      "migrations/0012_multi_user_workspaces.sql",
+      "migrations/0013_mobile_sync_changes.sql",
+      "migrations/0014_repair_seed_memo_content_hash.sql",
+      "migrations/0015_auth_session_devices.sql",
+      "migrations/0016_templates.sql",
+      "migrations/0017_seed_default_templates.sql",
+      "migrations/0018_fix_seed_template_markdown.sql",
+      "migrations/0019_auth_session_metadata.sql",
+      "migrations/0020_auth_login_attempts.sql",
+      "migrations/0021_memo_import_sources.sql",
+      "migrations/0022_memo_shares.sql",
+      "migrations/0023_instance_object_storage.sql",
+      "migrations/0024_ai_model_configs.sql",
+      "migrations/0025_ai_providers_and_models.sql",
+      "migrations/0026_ai_prompt_templates.sql",
+      "migrations/0027_seed_default_ai_prompts.sql",
+      "migrations/0028_seed_remaining_ai_prompts.sql",
+      "migrations/0029_ai_prompt_behavior_and_localization.sql",
+      "migrations/0030_unify_editable_note_templates.sql",
+      "migrations/0031_limit_default_memo_templates.sql",
+      "migrations/0032_limit_default_ai_prompts.sql",
+      "migrations/0033_ai_tag_suggestion_prompt.sql",
+      "migrations/0034_search_documents_and_maintenance_leases.sql",
+      "migrations/0035_normalized_memo_tags.sql",
+      "migrations/0036_resource_multipart_uploads.sql",
+      "migrations/0037_scheduled_plugin_tasks.sql",
+      "migrations/0038_plugin_owned_schedules.sql",
+      "migrations/0039_scheduled_task_run_retention.sql",
+      "migrations/0040_companion_memory.sql",
+      "migrations/0041_companion_actions.sql",
+      "migrations/0042_companion_tool_execution.sql",
+      "migrations/0043_companion_discovery.sql",
+      "migrations/0044_companion_discovery_input_hash.sql",
+      "migrations/0045_companion_learning.sql",
+      "migrations/0046_restore_workspace_inbox_identity.sql",
+      "migrations/0047_replace_social_ai_prompts.sql",
+      "migrations/0048_workspace_extensions.sql",
+      "migrations/0049_companion_agent_run.sql",
+      "migrations/0050_companion_process_text.sql",
+      "migrations/0051_companion_agent_session.sql",
+      "migrations/0052_memo_share_passwords.sql",
+      "migrations/0053_collapse_duplicate_inbox_notebooks.sql",
+      "migrations/0054_user_note_body_font.sql",
+      "migrations/0055_table_forms.sql",
+      "migrations/0056_user_note_prose.sql",
+      "migrations/0057_companion_attachments.sql",
+      "migrations/0058_retire_emerald_note_palette.sql",
+      "migrations/0059_retire_custom_note_palette.sql",
+      "migrations/0060_ai_transcription_settings.sql",
+      "migrations/0061_video_transcript_jobs.sql",
+      "migrations/0062_ai_transcription_providers.sql",
+      "migrations/0063_ai_transcription_provider_standard.sql",
+      "migrations/0064_retire_video_transcription.sql",
+      "migrations/0065_restore_speech_transcription.sql",
+      "migrations/0066_poster_render_jobs.sql",
+      "migrations/0067_notebook_shares.sql",
+      "migrations/0068_notebook_share_passwords.sql",
+      "migrations/0069_share_password_encryption.sql",
+      "migrations/0070_workspace_seed_localization.sql",
+      "migrations/0071_fix_welcome_memo_markdown.sql"
+    ],
+    "unchangedCommonSiteColumns": [
+      "site_title TEXT",
+      "site_description TEXT NOT NULL DEFAULT ''",
+      "site_slug TEXT",
+      "home_memo_id TEXT REFERENCES memos(id) ON DELETE SET NULL",
+      "logo_url TEXT",
+      "header_links_json TEXT NOT NULL DEFAULT '[]'",
+      "footer_text TEXT NOT NULL DEFAULT ''",
+      "allow_indexing INTEGER NOT NULL DEFAULT 0 CHECK(allow_indexing IN (0, 1))",
+      "excluded_tags_json TEXT NOT NULL DEFAULT '[]'",
+      "notebook_sort_mode TEXT NOT NULL DEFAULT 'existing'",
+      "memo_sort_mode TEXT NOT NULL DEFAULT 'existing'"
+    ],
+    "variants": [
+      "two_tables",
+      "one_table",
+      "json_column"
+    ],
+    "noteIdFormat": "memo_ followed by 32 hex characters (same length as createId('memo'))",
+    "functionalScope": "Local SQL policy and persistence model, not HTTP/browser/authentication acceptance",
+    "benchmarkScope": "In-memory SQLite; warm prepared statements; 2 warmups and up to 15 samples (at least 3, stop after 500 ms of measured work); no network, D1 billing, disk I/O, or concurrent-writer throughput measured",
+    "jsonReadStrategy": "SQL hidden-ID set filters before pagination; directory includes a second SQL read plus one server-side JSON parse/map/sort; direct JSON path extraction for individual notes/resources",
+    "searchOrder": "Identical FTS term in every candidate body; tie by note ID for all variants. Manual directory order is not search relevance.",
+    "updateStrategy": "Relational field upserts vs atomic json_patch of the existing row; no client read-modify-write replacement",
+    "order": "Variants run sequentially; absolute timings are illustrative, not a production SLO",
+    "remeasurement": "Reused unchanged relational directory/point/update measurements. Remeasured the optimized JSON strategy and relational search after standardizing FTS tie order. The discarded JSON join had a SCAN e LEFT-JOIN plan; those timings are not used as evidence against JSON."
+  },
+  "functional": [
+    {
+      "variant": "two_tables",
+      "casesPassed": 19,
+      "cases": [
+        "default_scope",
+        "per_share_exclusion",
+        "direct_note_denied",
+        "resource_denied",
+        "independent_child_share",
+        "tag_exclusion",
+        "hidden_homepage_fallback",
+        "memo_manual_order",
+        "chapter_manual_order",
+        "new_note_appends",
+        "fts_exclusion_before_limit",
+        "moved_out_denied",
+        "deleted_ancestor_denied",
+        "cross_workspace_denied",
+        "disjoint_field_updates_preserved",
+        "physical_delete_homepage_cleared",
+        "revocation_denies_reads",
+        "independent_share_survives_revocation",
+        "revocation_cleans_overrides"
+      ],
+      "databaseIntegrity": {
+        "rejectsMissingTarget": true,
+        "automaticallyRemovesDeletedTarget": true,
+        "rejectsBothTargets": null
+      },
+      "legacyTokenAndHashPreserved": true
+    },
+    {
+      "variant": "one_table",
+      "casesPassed": 21,
+      "cases": [
+        "default_scope",
+        "per_share_exclusion",
+        "direct_note_denied",
+        "resource_denied",
+        "independent_child_share",
+        "tag_exclusion",
+        "hidden_homepage_fallback",
+        "memo_manual_order",
+        "chapter_manual_order",
+        "new_note_appends",
+        "fts_exclusion_before_limit",
+        "moved_out_denied",
+        "deleted_ancestor_denied",
+        "cross_workspace_denied",
+        "disjoint_field_updates_preserved",
+        "physical_delete_homepage_cleared",
+        "one_table_exactly_one_target",
+        "one_table_chapter_cannot_be_excluded",
+        "revocation_denies_reads",
+        "independent_share_survives_revocation",
+        "revocation_cleans_overrides"
+      ],
+      "databaseIntegrity": {
+        "rejectsMissingTarget": true,
+        "automaticallyRemovesDeletedTarget": true,
+        "rejectsBothTargets": true
+      },
+      "legacyTokenAndHashPreserved": true
+    },
+    {
+      "variant": "json_column",
+      "casesPassed": 19,
+      "cases": [
+        "default_scope",
+        "per_share_exclusion",
+        "direct_note_denied",
+        "resource_denied",
+        "independent_child_share",
+        "tag_exclusion",
+        "hidden_homepage_fallback",
+        "memo_manual_order",
+        "chapter_manual_order",
+        "new_note_appends",
+        "fts_exclusion_before_limit",
+        "moved_out_denied",
+        "deleted_ancestor_denied",
+        "cross_workspace_denied",
+        "disjoint_field_updates_preserved",
+        "physical_delete_homepage_cleared",
+        "revocation_denies_reads",
+        "independent_share_survives_revocation",
+        "revocation_cleans_overrides"
+      ],
+      "databaseIntegrity": {
+        "rejectsMissingTarget": false,
+        "automaticallyRemovesDeletedTarget": false,
+        "rejectsBothTargets": null
+      },
+      "legacyTokenAndHashPreserved": true
+    }
+  ],
+  "benchmarks": [
+    {
+      "variant": "two_tables",
+      "noteCount": 100,
+      "overrideCount": 10,
+      "configJsonBytes": 717,
+      "directory": {
+        "samples": 15,
+        "p50Ms": 0.0595,
+        "p95Ms": 0.0692
+      },
+      "point": {
+        "samples": 15,
+        "p50Ms": 0.0133,
+        "p95Ms": 0.142
+      },
+      "search": {
+        "samples": 15,
+        "p50Ms": 0.1138,
+        "p95Ms": 0.1735
+      },
+      "update": {
+        "samples": 15,
+        "p50Ms": 0.0025,
+        "p95Ms": 0.0048
+      },
+      "pointQueryPlan": [
+        "CO-ROUTINE tree",
+        "SETUP",
+        "SEARCH ns USING INDEX sqlite_autoindex_notebook_shares_1 (id=?)",
+        "SEARCH n USING INDEX sqlite_autoindex_notebooks_1 (id=?)",
+        "RECURSIVE STEP",
+        "SEARCH n USING INDEX idx_notebooks_deleted (is_deleted=?)",
+        "SCAN t",
+        "SEARCH m USING INDEX sqlite_autoindex_memos_1 (id=?)",
+        "SEARCH ns USING INDEX sqlite_autoindex_notebook_shares_1 (id=?)",
+        "CORRELATED SCALAR SUBQUERY 3",
+        "SEARCH mt USING COVERING INDEX sqlite_autoindex_memo_tags_1 (memo_id=?)",
+        "SCAN tags VIRTUAL TABLE INDEX 1:",
+        "SCAN t",
+        "SEARCH e USING INDEX sqlite_autoindex_ab_memo_settings_1 (share_id=? AND memo_id=?) LEFT-JOIN",
+        "USE TEMP B-TREE FOR LAST 3 TERMS OF ORDER BY"
+      ],
+      "directoryQueryPlan": [
+        "CO-ROUTINE tree",
+        "SETUP",
+        "SEARCH ns USING INDEX sqlite_autoindex_notebook_shares_1 (id=?)",
+        "SEARCH n USING INDEX sqlite_autoindex_notebooks_1 (id=?)",
+        "RECURSIVE STEP",
+        "SEARCH n USING INDEX idx_notebooks_deleted (is_deleted=?)",
+        "SCAN t",
+        "SEARCH m USING INDEX idx_memos_trash_feed (is_deleted=?)",
+        "SEARCH t USING AUTOMATIC COVERING INDEX (id=? AND workspace_id=?)",
+        "SEARCH ns USING INDEX sqlite_autoindex_notebook_shares_1 (id=?)",
+        "CORRELATED SCALAR SUBQUERY 3",
+        "SEARCH mt USING COVERING INDEX sqlite_autoindex_memo_tags_1 (memo_id=?)",
+        "SCAN tags VIRTUAL TABLE INDEX 1:",
+        "SEARCH e USING INDEX sqlite_autoindex_ab_memo_settings_1 (share_id=? AND memo_id=?) LEFT-JOIN",
+        "USE TEMP B-TREE FOR ORDER BY"
+      ]
+    },
+    {
+      "variant": "one_table",
+      "noteCount": 100,
+      "overrideCount": 10,
+      "configJsonBytes": 717,
+      "directory": {
+        "samples": 15,
+        "p50Ms": 0.0604,
+        "p95Ms": 0.0722
+      },
+      "point": {
+        "samples": 15,
+        "p50Ms": 0.0117,
+        "p95Ms": 0.0154
+      },
+      "search": {
+        "samples": 15,
+        "p50Ms": 0.1122,
+        "p95Ms": 0.232
+      },
+      "update": {
+        "samples": 15,
+        "p50Ms": 0.002,
+        "p95Ms": 0.0042
+      },
+      "pointQueryPlan": [
+        "CO-ROUTINE tree",
+        "SETUP",
+        "SEARCH ns USING INDEX sqlite_autoindex_notebook_shares_1 (id=?)",
+        "SEARCH n USING INDEX sqlite_autoindex_notebooks_1 (id=?)",
+        "RECURSIVE STEP",
+        "SEARCH n USING INDEX idx_notebooks_deleted (is_deleted=?)",
+        "SCAN t",
+        "SEARCH m USING INDEX sqlite_autoindex_memos_1 (id=?)",
+        "SEARCH ns USING INDEX sqlite_autoindex_notebook_shares_1 (id=?)",
+        "CORRELATED SCALAR SUBQUERY 3",
+        "SEARCH mt USING COVERING INDEX sqlite_autoindex_memo_tags_1 (memo_id=?)",
+        "SCAN tags VIRTUAL TABLE INDEX 1:",
+        "SCAN t",
+        "SEARCH e USING INDEX ab_item_memo (share_id=? AND memo_id=?) LEFT-JOIN",
+        "USE TEMP B-TREE FOR LAST 3 TERMS OF ORDER BY"
+      ],
+      "directoryQueryPlan": [
+        "CO-ROUTINE tree",
+        "SETUP",
+        "SEARCH ns USING INDEX sqlite_autoindex_notebook_shares_1 (id=?)",
+        "SEARCH n USING INDEX sqlite_autoindex_notebooks_1 (id=?)",
+        "RECURSIVE STEP",
+        "SEARCH n USING INDEX idx_notebooks_deleted (is_deleted=?)",
+        "SCAN t",
+        "SEARCH m USING INDEX idx_memos_trash_feed (is_deleted=?)",
+        "SEARCH t USING AUTOMATIC COVERING INDEX (id=? AND workspace_id=?)",
+        "SEARCH ns USING INDEX sqlite_autoindex_notebook_shares_1 (id=?)",
+        "CORRELATED SCALAR SUBQUERY 3",
+        "SEARCH mt USING COVERING INDEX sqlite_autoindex_memo_tags_1 (memo_id=?)",
+        "SCAN tags VIRTUAL TABLE INDEX 1:",
+        "SEARCH e USING INDEX ab_item_memo (share_id=? AND memo_id=?) LEFT-JOIN",
+        "USE TEMP B-TREE FOR ORDER BY"
+      ]
+    },
+    {
+      "variant": "json_column",
+      "noteCount": 100,
+      "overrideCount": 10,
+      "configJsonBytes": 717,
+      "directory": {
+        "samples": 15,
+        "p50Ms": 0.0832,
+        "p95Ms": 0.1847
+      },
+      "point": {
+        "samples": 15,
+        "p50Ms": 0.0124,
+        "p95Ms": 0.0134
+      },
+      "search": {
+        "samples": 15,
+        "p50Ms": 0.1019,
+        "p95Ms": 0.1206
+      },
+      "update": {
+        "samples": 15,
+        "p50Ms": 0.0036,
+        "p95Ms": 0.0103
+      },
+      "directoryQueryPlan": [
+        "CO-ROUTINE tree",
+        "SETUP",
+        "SEARCH ns USING INDEX sqlite_autoindex_notebook_shares_1 (id=?)",
+        "SEARCH n USING INDEX sqlite_autoindex_notebooks_1 (id=?)",
+        "RECURSIVE STEP",
+        "SEARCH n USING INDEX idx_notebooks_deleted (is_deleted=?)",
+        "SCAN t",
+        "SEARCH m USING INDEX idx_memos_trash_feed (is_deleted=?)",
+        "LIST SUBQUERY 3",
+        "SEARCH cfg USING INDEX sqlite_autoindex_notebook_shares_1 (id=?)",
+        "SCAN j VIRTUAL TABLE INDEX 3:",
+        "CREATE BLOOM FILTER",
+        "SEARCH t USING AUTOMATIC COVERING INDEX (id=? AND workspace_id=?)",
+        "SEARCH ns USING INDEX sqlite_autoindex_notebook_shares_1 (id=?)",
+        "CORRELATED SCALAR SUBQUERY 4",
+        "SEARCH mt USING COVERING INDEX sqlite_autoindex_memo_tags_1 (memo_id=?)",
+        "SCAN tags VIRTUAL TABLE INDEX 1:",
+        "USE TEMP B-TREE FOR ORDER BY"
+      ],
+      "pointQueryPlan": [
+        "CO-ROUTINE tree",
+        "SETUP",
+        "SEARCH ns USING INDEX sqlite_autoindex_notebook_shares_1 (id=?)",
+        "SEARCH n USING INDEX sqlite_autoindex_notebooks_1 (id=?)",
+        "RECURSIVE STEP",
+        "SEARCH n USING INDEX idx_notebooks_deleted (is_deleted=?)",
+        "SCAN t",
+        "SEARCH m USING INDEX sqlite_autoindex_memos_1 (id=?)",
+        "SEARCH ns USING INDEX sqlite_autoindex_notebook_shares_1 (id=?)",
+        "CORRELATED SCALAR SUBQUERY 3",
+        "SEARCH mt USING COVERING INDEX sqlite_autoindex_memo_tags_1 (memo_id=?)",
+        "SCAN tags VIRTUAL TABLE INDEX 1:",
+        "SCAN t"
+      ]
+    },
+    {
+      "variant": "two_tables",
+      "noteCount": 1000,
+      "overrideCount": 100,
+      "configJsonBytes": 7018,
+      "directory": {
+        "samples": 15,
+        "p50Ms": 0.6742,
+        "p95Ms": 0.8593
+      },
+      "point": {
+        "samples": 15,
+        "p50Ms": 0.0137,
+        "p95Ms": 0.0243
+      },
+      "search": {
+        "samples": 15,
+        "p50Ms": 0.4637,
+        "p95Ms": 0.5256
+      },
+      "update": {
+        "samples": 15,
+        "p50Ms": 0.0018,
+        "p95Ms": 0.0047
+      },
+      "pointQueryPlan": [
+        "CO-ROUTINE tree",
+        "SETUP",
+        "SEARCH ns USING INDEX sqlite_autoindex_notebook_shares_1 (id=?)",
+        "SEARCH n USING INDEX sqlite_autoindex_notebooks_1 (id=?)",
+        "RECURSIVE STEP",
+        "SEARCH n USING INDEX idx_notebooks_deleted (is_deleted=?)",
+        "SCAN t",
+        "SEARCH m USING INDEX sqlite_autoindex_memos_1 (id=?)",
+        "SEARCH ns USING INDEX sqlite_autoindex_notebook_shares_1 (id=?)",
+        "CORRELATED SCALAR SUBQUERY 3",
+        "SEARCH mt USING COVERING INDEX sqlite_autoindex_memo_tags_1 (memo_id=?)",
+        "SCAN tags VIRTUAL TABLE INDEX 1:",
+        "SCAN t",
+        "SEARCH e USING INDEX sqlite_autoindex_ab_memo_settings_1 (share_id=? AND memo_id=?) LEFT-JOIN",
+        "USE TEMP B-TREE FOR LAST 3 TERMS OF ORDER BY"
+      ],
+      "directoryQueryPlan": [
+        "CO-ROUTINE tree",
+        "SETUP",
+        "SEARCH ns USING INDEX sqlite_autoindex_notebook_shares_1 (id=?)",
+        "SEARCH n USING INDEX sqlite_autoindex_notebooks_1 (id=?)",
+        "RECURSIVE STEP",
+        "SEARCH n USING INDEX idx_notebooks_deleted (is_deleted=?)",
+        "SCAN t",
+        "SEARCH m USING INDEX idx_memos_trash_feed (is_deleted=?)",
+        "SEARCH t USING AUTOMATIC COVERING INDEX (id=? AND workspace_id=?)",
+        "SEARCH ns USING INDEX sqlite_autoindex_notebook_shares_1 (id=?)",
+        "CORRELATED SCALAR SUBQUERY 3",
+        "SEARCH mt USING COVERING INDEX sqlite_autoindex_memo_tags_1 (memo_id=?)",
+        "SCAN tags VIRTUAL TABLE INDEX 1:",
+        "SEARCH e USING INDEX sqlite_autoindex_ab_memo_settings_1 (share_id=? AND memo_id=?) LEFT-JOIN",
+        "USE TEMP B-TREE FOR ORDER BY"
+      ]
+    },
+    {
+      "variant": "one_table",
+      "noteCount": 1000,
+      "overrideCount": 100,
+      "configJsonBytes": 7018,
+      "directory": {
+        "samples": 15,
+        "p50Ms": 0.5508,
+        "p95Ms": 0.7784
+      },
+      "point": {
+        "samples": 15,
+        "p50Ms": 0.0126,
+        "p95Ms": 0.0382
+      },
+      "search": {
+        "samples": 15,
+        "p50Ms": 0.5009,
+        "p95Ms": 0.5832
+      },
+      "update": {
+        "samples": 15,
+        "p50Ms": 0.0017,
+        "p95Ms": 0.0052
+      },
+      "pointQueryPlan": [
+        "CO-ROUTINE tree",
+        "SETUP",
+        "SEARCH ns USING INDEX sqlite_autoindex_notebook_shares_1 (id=?)",
+        "SEARCH n USING INDEX sqlite_autoindex_notebooks_1 (id=?)",
+        "RECURSIVE STEP",
+        "SEARCH n USING INDEX idx_notebooks_deleted (is_deleted=?)",
+        "SCAN t",
+        "SEARCH m USING INDEX sqlite_autoindex_memos_1 (id=?)",
+        "SEARCH ns USING INDEX sqlite_autoindex_notebook_shares_1 (id=?)",
+        "CORRELATED SCALAR SUBQUERY 3",
+        "SEARCH mt USING COVERING INDEX sqlite_autoindex_memo_tags_1 (memo_id=?)",
+        "SCAN tags VIRTUAL TABLE INDEX 1:",
+        "SCAN t",
+        "SEARCH e USING INDEX ab_item_memo (share_id=? AND memo_id=?) LEFT-JOIN",
+        "USE TEMP B-TREE FOR LAST 3 TERMS OF ORDER BY"
+      ],
+      "directoryQueryPlan": [
+        "CO-ROUTINE tree",
+        "SETUP",
+        "SEARCH ns USING INDEX sqlite_autoindex_notebook_shares_1 (id=?)",
+        "SEARCH n USING INDEX sqlite_autoindex_notebooks_1 (id=?)",
+        "RECURSIVE STEP",
+        "SEARCH n USING INDEX idx_notebooks_deleted (is_deleted=?)",
+        "SCAN t",
+        "SEARCH m USING INDEX idx_memos_trash_feed (is_deleted=?)",
+        "SEARCH t USING AUTOMATIC COVERING INDEX (id=? AND workspace_id=?)",
+        "SEARCH ns USING INDEX sqlite_autoindex_notebook_shares_1 (id=?)",
+        "CORRELATED SCALAR SUBQUERY 3",
+        "SEARCH mt USING COVERING INDEX sqlite_autoindex_memo_tags_1 (memo_id=?)",
+        "SCAN tags VIRTUAL TABLE INDEX 1:",
+        "SEARCH e USING INDEX ab_item_memo (share_id=? AND memo_id=?) LEFT-JOIN",
+        "USE TEMP B-TREE FOR ORDER BY"
+      ]
+    },
+    {
+      "variant": "json_column",
+      "noteCount": 1000,
+      "overrideCount": 100,
+      "configJsonBytes": 7018,
+      "directory": {
+        "samples": 15,
+        "p50Ms": 0.7777,
+        "p95Ms": 0.9995
+      },
+      "point": {
+        "samples": 15,
+        "p50Ms": 0.0214,
+        "p95Ms": 0.0795
+      },
+      "search": {
+        "samples": 15,
+        "p50Ms": 0.6839,
+        "p95Ms": 1.0468
+      },
+      "update": {
+        "samples": 15,
+        "p50Ms": 0.012,
+        "p95Ms": 0.0223
+      },
+      "directoryQueryPlan": [
+        "CO-ROUTINE tree",
+        "SETUP",
+        "SEARCH ns USING INDEX sqlite_autoindex_notebook_shares_1 (id=?)",
+        "SEARCH n USING INDEX sqlite_autoindex_notebooks_1 (id=?)",
+        "RECURSIVE STEP",
+        "SEARCH n USING INDEX idx_notebooks_deleted (is_deleted=?)",
+        "SCAN t",
+        "SEARCH m USING INDEX idx_memos_trash_feed (is_deleted=?)",
+        "LIST SUBQUERY 3",
+        "SEARCH cfg USING INDEX sqlite_autoindex_notebook_shares_1 (id=?)",
+        "SCAN j VIRTUAL TABLE INDEX 3:",
+        "CREATE BLOOM FILTER",
+        "SEARCH t USING AUTOMATIC COVERING INDEX (id=? AND workspace_id=?)",
+        "SEARCH ns USING INDEX sqlite_autoindex_notebook_shares_1 (id=?)",
+        "CORRELATED SCALAR SUBQUERY 4",
+        "SEARCH mt USING COVERING INDEX sqlite_autoindex_memo_tags_1 (memo_id=?)",
+        "SCAN tags VIRTUAL TABLE INDEX 1:",
+        "USE TEMP B-TREE FOR ORDER BY"
+      ],
+      "pointQueryPlan": [
+        "CO-ROUTINE tree",
+        "SETUP",
+        "SEARCH ns USING INDEX sqlite_autoindex_notebook_shares_1 (id=?)",
+        "SEARCH n USING INDEX sqlite_autoindex_notebooks_1 (id=?)",
+        "RECURSIVE STEP",
+        "SEARCH n USING INDEX idx_notebooks_deleted (is_deleted=?)",
+        "SCAN t",
+        "SEARCH m USING INDEX sqlite_autoindex_memos_1 (id=?)",
+        "SEARCH ns USING INDEX sqlite_autoindex_notebook_shares_1 (id=?)",
+        "CORRELATED SCALAR SUBQUERY 3",
+        "SEARCH mt USING COVERING INDEX sqlite_autoindex_memo_tags_1 (memo_id=?)",
+        "SCAN tags VIRTUAL TABLE INDEX 1:",
+        "SCAN t"
+      ]
+    },
+    {
+      "variant": "two_tables",
+      "noteCount": 10000,
+      "overrideCount": 1000,
+      "configJsonBytes": 70919,
+      "directory": {
+        "samples": 15,
+        "p50Ms": 5.5652,
+        "p95Ms": 5.9131
+      },
+      "point": {
+        "samples": 15,
+        "p50Ms": 0.0127,
+        "p95Ms": 0.0275
+      },
+      "search": {
+        "samples": 15,
+        "p50Ms": 4.1289,
+        "p95Ms": 4.4661
+      },
+      "update": {
+        "samples": 15,
+        "p50Ms": 0.0017,
+        "p95Ms": 0.0036
+      },
+      "pointQueryPlan": [
+        "CO-ROUTINE tree",
+        "SETUP",
+        "SEARCH ns USING INDEX sqlite_autoindex_notebook_shares_1 (id=?)",
+        "SEARCH n USING INDEX sqlite_autoindex_notebooks_1 (id=?)",
+        "RECURSIVE STEP",
+        "SEARCH n USING INDEX idx_notebooks_deleted (is_deleted=?)",
+        "SCAN t",
+        "SEARCH m USING INDEX sqlite_autoindex_memos_1 (id=?)",
+        "SEARCH ns USING INDEX sqlite_autoindex_notebook_shares_1 (id=?)",
+        "CORRELATED SCALAR SUBQUERY 3",
+        "SEARCH mt USING COVERING INDEX sqlite_autoindex_memo_tags_1 (memo_id=?)",
+        "SCAN tags VIRTUAL TABLE INDEX 1:",
+        "SCAN t",
+        "SEARCH e USING INDEX sqlite_autoindex_ab_memo_settings_1 (share_id=? AND memo_id=?) LEFT-JOIN",
+        "USE TEMP B-TREE FOR LAST 3 TERMS OF ORDER BY"
+      ],
+      "directoryQueryPlan": [
+        "CO-ROUTINE tree",
+        "SETUP",
+        "SEARCH ns USING INDEX sqlite_autoindex_notebook_shares_1 (id=?)",
+        "SEARCH n USING INDEX sqlite_autoindex_notebooks_1 (id=?)",
+        "RECURSIVE STEP",
+        "SEARCH n USING INDEX idx_notebooks_deleted (is_deleted=?)",
+        "SCAN t",
+        "SEARCH m USING INDEX idx_memos_trash_feed (is_deleted=?)",
+        "SEARCH t USING AUTOMATIC COVERING INDEX (id=? AND workspace_id=?)",
+        "SEARCH ns USING INDEX sqlite_autoindex_notebook_shares_1 (id=?)",
+        "CORRELATED SCALAR SUBQUERY 3",
+        "SEARCH mt USING COVERING INDEX sqlite_autoindex_memo_tags_1 (memo_id=?)",
+        "SCAN tags VIRTUAL TABLE INDEX 1:",
+        "SEARCH e USING INDEX sqlite_autoindex_ab_memo_settings_1 (share_id=? AND memo_id=?) LEFT-JOIN",
+        "USE TEMP B-TREE FOR ORDER BY"
+      ]
+    },
+    {
+      "variant": "one_table",
+      "noteCount": 10000,
+      "overrideCount": 1000,
+      "configJsonBytes": 70919,
+      "directory": {
+        "samples": 15,
+        "p50Ms": 5.8717,
+        "p95Ms": 6.4982
+      },
+      "point": {
+        "samples": 15,
+        "p50Ms": 0.013,
+        "p95Ms": 0.02
+      },
+      "search": {
+        "samples": 15,
+        "p50Ms": 3.7865,
+        "p95Ms": 4.0996
+      },
+      "update": {
+        "samples": 15,
+        "p50Ms": 0.002,
+        "p95Ms": 0.0053
+      },
+      "pointQueryPlan": [
+        "CO-ROUTINE tree",
+        "SETUP",
+        "SEARCH ns USING INDEX sqlite_autoindex_notebook_shares_1 (id=?)",
+        "SEARCH n USING INDEX sqlite_autoindex_notebooks_1 (id=?)",
+        "RECURSIVE STEP",
+        "SEARCH n USING INDEX idx_notebooks_deleted (is_deleted=?)",
+        "SCAN t",
+        "SEARCH m USING INDEX sqlite_autoindex_memos_1 (id=?)",
+        "SEARCH ns USING INDEX sqlite_autoindex_notebook_shares_1 (id=?)",
+        "CORRELATED SCALAR SUBQUERY 3",
+        "SEARCH mt USING COVERING INDEX sqlite_autoindex_memo_tags_1 (memo_id=?)",
+        "SCAN tags VIRTUAL TABLE INDEX 1:",
+        "SCAN t",
+        "SEARCH e USING INDEX ab_item_memo (share_id=? AND memo_id=?) LEFT-JOIN",
+        "USE TEMP B-TREE FOR LAST 3 TERMS OF ORDER BY"
+      ],
+      "directoryQueryPlan": [
+        "CO-ROUTINE tree",
+        "SETUP",
+        "SEARCH ns USING INDEX sqlite_autoindex_notebook_shares_1 (id=?)",
+        "SEARCH n USING INDEX sqlite_autoindex_notebooks_1 (id=?)",
+        "RECURSIVE STEP",
+        "SEARCH n USING INDEX idx_notebooks_deleted (is_deleted=?)",
+        "SCAN t",
+        "SEARCH m USING INDEX idx_memos_trash_feed (is_deleted=?)",
+        "SEARCH t USING AUTOMATIC COVERING INDEX (id=? AND workspace_id=?)",
+        "SEARCH ns USING INDEX sqlite_autoindex_notebook_shares_1 (id=?)",
+        "CORRELATED SCALAR SUBQUERY 3",
+        "SEARCH mt USING COVERING INDEX sqlite_autoindex_memo_tags_1 (memo_id=?)",
+        "SCAN tags VIRTUAL TABLE INDEX 1:",
+        "SEARCH e USING INDEX ab_item_memo (share_id=? AND memo_id=?) LEFT-JOIN",
+        "USE TEMP B-TREE FOR ORDER BY"
+      ]
+    },
+    {
+      "variant": "json_column",
+      "noteCount": 10000,
+      "overrideCount": 1000,
+      "configJsonBytes": 70919,
+      "directory": {
+        "samples": 15,
+        "p50Ms": 6.3594,
+        "p95Ms": 8.4825
+      },
+      "point": {
+        "samples": 15,
+        "p50Ms": 0.0695,
+        "p95Ms": 0.0784
+      },
+      "search": {
+        "samples": 15,
+        "p50Ms": 4.1332,
+        "p95Ms": 4.4292
+      },
+      "update": {
+        "samples": 15,
+        "p50Ms": 0.0754,
+        "p95Ms": 0.0909
+      },
+      "directoryQueryPlan": [
+        "CO-ROUTINE tree",
+        "SETUP",
+        "SEARCH ns USING INDEX sqlite_autoindex_notebook_shares_1 (id=?)",
+        "SEARCH n USING INDEX sqlite_autoindex_notebooks_1 (id=?)",
+        "RECURSIVE STEP",
+        "SEARCH n USING INDEX idx_notebooks_deleted (is_deleted=?)",
+        "SCAN t",
+        "SEARCH m USING INDEX idx_memos_trash_feed (is_deleted=?)",
+        "LIST SUBQUERY 3",
+        "SEARCH cfg USING INDEX sqlite_autoindex_notebook_shares_1 (id=?)",
+        "SCAN j VIRTUAL TABLE INDEX 3:",
+        "CREATE BLOOM FILTER",
+        "SEARCH t USING AUTOMATIC COVERING INDEX (id=? AND workspace_id=?)",
+        "SEARCH ns USING INDEX sqlite_autoindex_notebook_shares_1 (id=?)",
+        "CORRELATED SCALAR SUBQUERY 4",
+        "SEARCH mt USING COVERING INDEX sqlite_autoindex_memo_tags_1 (memo_id=?)",
+        "SCAN tags VIRTUAL TABLE INDEX 1:",
+        "USE TEMP B-TREE FOR ORDER BY"
+      ],
+      "pointQueryPlan": [
+        "CO-ROUTINE tree",
+        "SETUP",
+        "SEARCH ns USING INDEX sqlite_autoindex_notebook_shares_1 (id=?)",
+        "SEARCH n USING INDEX sqlite_autoindex_notebooks_1 (id=?)",
+        "RECURSIVE STEP",
+        "SEARCH n USING INDEX idx_notebooks_deleted (is_deleted=?)",
+        "SCAN t",
+        "SEARCH m USING INDEX sqlite_autoindex_memos_1 (id=?)",
+        "SEARCH ns USING INDEX sqlite_autoindex_notebook_shares_1 (id=?)",
+        "CORRELATED SCALAR SUBQUERY 3",
+        "SEARCH mt USING COVERING INDEX sqlite_autoindex_memo_tags_1 (memo_id=?)",
+        "SCAN tags VIRTUAL TABLE INDEX 1:",
+        "SCAN t"
+      ]
+    },
+    {
+      "variant": "two_tables",
+      "noteCount": 10000,
+      "overrideCount": 10000,
+      "configJsonBytes": 718920,
+      "directory": {
+        "samples": 15,
+        "p50Ms": 5.1214,
+        "p95Ms": 5.9272
+      },
+      "point": {
+        "samples": 15,
+        "p50Ms": 0.0126,
+        "p95Ms": 0.0151
+      },
+      "search": {
+        "samples": 15,
+        "p50Ms": 4.0203,
+        "p95Ms": 4.4488
+      },
+      "update": {
+        "samples": 15,
+        "p50Ms": 0.0015,
+        "p95Ms": 0.0075
+      },
+      "pointQueryPlan": [
+        "CO-ROUTINE tree",
+        "SETUP",
+        "SEARCH ns USING INDEX sqlite_autoindex_notebook_shares_1 (id=?)",
+        "SEARCH n USING INDEX sqlite_autoindex_notebooks_1 (id=?)",
+        "RECURSIVE STEP",
+        "SEARCH n USING INDEX idx_notebooks_deleted (is_deleted=?)",
+        "SCAN t",
+        "SEARCH m USING INDEX sqlite_autoindex_memos_1 (id=?)",
+        "SEARCH ns USING INDEX sqlite_autoindex_notebook_shares_1 (id=?)",
+        "CORRELATED SCALAR SUBQUERY 3",
+        "SEARCH mt USING COVERING INDEX sqlite_autoindex_memo_tags_1 (memo_id=?)",
+        "SCAN tags VIRTUAL TABLE INDEX 1:",
+        "SCAN t",
+        "SEARCH e USING INDEX sqlite_autoindex_ab_memo_settings_1 (share_id=? AND memo_id=?) LEFT-JOIN",
+        "USE TEMP B-TREE FOR LAST 3 TERMS OF ORDER BY"
+      ],
+      "directoryQueryPlan": [
+        "CO-ROUTINE tree",
+        "SETUP",
+        "SEARCH ns USING INDEX sqlite_autoindex_notebook_shares_1 (id=?)",
+        "SEARCH n USING INDEX sqlite_autoindex_notebooks_1 (id=?)",
+        "RECURSIVE STEP",
+        "SEARCH n USING INDEX idx_notebooks_deleted (is_deleted=?)",
+        "SCAN t",
+        "SEARCH m USING INDEX idx_memos_trash_feed (is_deleted=?)",
+        "SEARCH t USING AUTOMATIC COVERING INDEX (id=? AND workspace_id=?)",
+        "SEARCH ns USING INDEX sqlite_autoindex_notebook_shares_1 (id=?)",
+        "CORRELATED SCALAR SUBQUERY 3",
+        "SEARCH mt USING COVERING INDEX sqlite_autoindex_memo_tags_1 (memo_id=?)",
+        "SCAN tags VIRTUAL TABLE INDEX 1:",
+        "SEARCH e USING INDEX sqlite_autoindex_ab_memo_settings_1 (share_id=? AND memo_id=?) LEFT-JOIN",
+        "USE TEMP B-TREE FOR ORDER BY"
+      ]
+    },
+    {
+      "variant": "one_table",
+      "noteCount": 10000,
+      "overrideCount": 10000,
+      "configJsonBytes": 718920,
+      "directory": {
+        "samples": 15,
+        "p50Ms": 5.6033,
+        "p95Ms": 6.4393
+      },
+      "point": {
+        "samples": 15,
+        "p50Ms": 0.0136,
+        "p95Ms": 0.02
+      },
+      "search": {
+        "samples": 15,
+        "p50Ms": 4.1953,
+        "p95Ms": 4.4987
+      },
+      "update": {
+        "samples": 15,
+        "p50Ms": 0.0021,
+        "p95Ms": 0.0032
+      },
+      "pointQueryPlan": [
+        "CO-ROUTINE tree",
+        "SETUP",
+        "SEARCH ns USING INDEX sqlite_autoindex_notebook_shares_1 (id=?)",
+        "SEARCH n USING INDEX sqlite_autoindex_notebooks_1 (id=?)",
+        "RECURSIVE STEP",
+        "SEARCH n USING INDEX idx_notebooks_deleted (is_deleted=?)",
+        "SCAN t",
+        "SEARCH m USING INDEX sqlite_autoindex_memos_1 (id=?)",
+        "SEARCH ns USING INDEX sqlite_autoindex_notebook_shares_1 (id=?)",
+        "CORRELATED SCALAR SUBQUERY 3",
+        "SEARCH mt USING COVERING INDEX sqlite_autoindex_memo_tags_1 (memo_id=?)",
+        "SCAN tags VIRTUAL TABLE INDEX 1:",
+        "SCAN t",
+        "SEARCH e USING INDEX ab_item_memo (share_id=? AND memo_id=?) LEFT-JOIN",
+        "USE TEMP B-TREE FOR LAST 3 TERMS OF ORDER BY"
+      ],
+      "directoryQueryPlan": [
+        "CO-ROUTINE tree",
+        "SETUP",
+        "SEARCH ns USING INDEX sqlite_autoindex_notebook_shares_1 (id=?)",
+        "SEARCH n USING INDEX sqlite_autoindex_notebooks_1 (id=?)",
+        "RECURSIVE STEP",
+        "SEARCH n USING INDEX idx_notebooks_deleted (is_deleted=?)",
+        "SCAN t",
+        "SEARCH m USING INDEX idx_memos_trash_feed (is_deleted=?)",
+        "SEARCH t USING AUTOMATIC COVERING INDEX (id=? AND workspace_id=?)",
+        "SEARCH ns USING INDEX sqlite_autoindex_notebook_shares_1 (id=?)",
+        "CORRELATED SCALAR SUBQUERY 3",
+        "SEARCH mt USING COVERING INDEX sqlite_autoindex_memo_tags_1 (memo_id=?)",
+        "SCAN tags VIRTUAL TABLE INDEX 1:",
+        "SEARCH e USING INDEX ab_item_memo (share_id=? AND memo_id=?) LEFT-JOIN",
+        "USE TEMP B-TREE FOR ORDER BY"
+      ]
+    },
+    {
+      "variant": "json_column",
+      "noteCount": 10000,
+      "overrideCount": 10000,
+      "configJsonBytes": 718920,
+      "directory": {
+        "samples": 15,
+        "p50Ms": 9.2974,
+        "p95Ms": 11.7198
+      },
+      "point": {
+        "samples": 15,
+        "p50Ms": 0.5821,
+        "p95Ms": 0.6379
+      },
+      "search": {
+        "samples": 15,
+        "p50Ms": 6.4183,
+        "p95Ms": 6.6666
+      },
+      "update": {
+        "samples": 15,
+        "p50Ms": 0.7673,
+        "p95Ms": 0.819
+      },
+      "directoryQueryPlan": [
+        "CO-ROUTINE tree",
+        "SETUP",
+        "SEARCH ns USING INDEX sqlite_autoindex_notebook_shares_1 (id=?)",
+        "SEARCH n USING INDEX sqlite_autoindex_notebooks_1 (id=?)",
+        "RECURSIVE STEP",
+        "SEARCH n USING INDEX idx_notebooks_deleted (is_deleted=?)",
+        "SCAN t",
+        "SEARCH m USING INDEX idx_memos_trash_feed (is_deleted=?)",
+        "LIST SUBQUERY 3",
+        "SEARCH cfg USING INDEX sqlite_autoindex_notebook_shares_1 (id=?)",
+        "SCAN j VIRTUAL TABLE INDEX 3:",
+        "CREATE BLOOM FILTER",
+        "SEARCH t USING AUTOMATIC COVERING INDEX (id=? AND workspace_id=?)",
+        "SEARCH ns USING INDEX sqlite_autoindex_notebook_shares_1 (id=?)",
+        "CORRELATED SCALAR SUBQUERY 4",
+        "SEARCH mt USING COVERING INDEX sqlite_autoindex_memo_tags_1 (memo_id=?)",
+        "SCAN tags VIRTUAL TABLE INDEX 1:",
+        "USE TEMP B-TREE FOR ORDER BY"
+      ],
+      "pointQueryPlan": [
+        "CO-ROUTINE tree",
+        "SETUP",
+        "SEARCH ns USING INDEX sqlite_autoindex_notebook_shares_1 (id=?)",
+        "SEARCH n USING INDEX sqlite_autoindex_notebooks_1 (id=?)",
+        "RECURSIVE STEP",
+        "SEARCH n USING INDEX idx_notebooks_deleted (is_deleted=?)",
+        "SCAN t",
+        "SEARCH m USING INDEX sqlite_autoindex_memos_1 (id=?)",
+        "SEARCH ns USING INDEX sqlite_autoindex_notebook_shares_1 (id=?)",
+        "CORRELATED SCALAR SUBQUERY 3",
+        "SEARCH mt USING COVERING INDEX sqlite_autoindex_memo_tags_1 (memo_id=?)",
+        "SCAN tags VIRTUAL TABLE INDEX 1:",
+        "SCAN t"
+      ]
+    }
+  ],
+  "configurationSizes": [
+    {
+      "overrideCount": 1000,
+      "bytes": 70919
+    },
+    {
+      "overrideCount": 10000,
+      "bytes": 718920
+    },
+    {
+      "overrideCount": 50000,
+      "bytes": 3638920
+    }
+  ]
+}

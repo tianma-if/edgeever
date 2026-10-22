@@ -250,7 +250,8 @@ export const streamDirectCompanion = async (
       throw new Error("No text returned.");
     }
     const usage = usageFrom(await result.totalUsage);
-    await finish(pause.ask || questions.length ? "interrupted" : "completed", usage);
+    // Only a question asked in this run pauses it; older instances still return answered questions on resume.
+    await finish(pause.ask ? "interrupted" : "completed", usage);
   } catch (error) {
     if (options.signal?.aborted) {
       await finish("interrupted");

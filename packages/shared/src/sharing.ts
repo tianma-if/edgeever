@@ -2,6 +2,7 @@ import { FONT_IDS } from "./font-catalog";
 import type { TiptapDoc, TiptapNode, TiptapTextNode } from "./content";
 import type { PublicNoteProse } from "./note-prose";
 import { parseMemoLinkHref } from "./note-links";
+import type { NotebookSiteSettings } from "./notebook-site";
 
 export type MemoShare = {
   memoId: string;
@@ -20,6 +21,8 @@ export type ManagedMemoShare = MemoShare & {
 };
 
 export type NotebookShare = {
+  siteSlug?: string | null;
+  siteSettings?: NotebookSiteSettings;
   notebookId: string;
   notebookName: string;
   token: string;
@@ -31,6 +34,8 @@ export type NotebookShare = {
 };
 
 export type PublicNotebookShare = {
+  siteSlug?: string | null;
+  settings?: NotebookSiteSettings;
   notebookId: string;
   name: string;
   notebooks: Array<{ id: string; parentId: string | null; name: string }>;

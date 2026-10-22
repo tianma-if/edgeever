@@ -66,7 +66,7 @@ export type DesktopMemoListParams = {
   q?: string;
   tag?: string;
   trash?: boolean;
-  sort?: "updated-desc" | "created-desc" | "title-asc";
+  sort?: "updated-desc" | "created-desc" | "title-asc" | "title-desc";
   filter?: "all" | "pinned" | "tagged" | "untagged";
   limit?: number;
   offset?: number;

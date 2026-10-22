@@ -1,17 +1,26 @@
 {
-  "version": "2.1.0",
+  "version": "2.2.0",
   "changes": {
     "en-US": [
-      "In-note Markdown heading links such as [Section](#section-name) scroll to the matching heading in the current note instead of opening a new window. This works in the editor, the phone web editor, and public share pages.",
-      "Desktop agents opened from the Dock, Finder, or Start Menu can find npx and npm when starting configured MCP servers."
+      "Public notebook sites now include an outline for long notes, full-text search, and per-site settings for the address alias, home note, appearance, and search indexing. Authors can exclude individual notes from a site. Existing share links, passwords, and live updates stay in place. Self-hosted instances apply the database migration on startup, so back up before upgrading. Thanks @sivdead for #634.",
+      "Note lists can sort titles from Z to A on the web, Android, iOS, and desktop. Pinned notes stay first, and notes that share a title keep their previous order.",
+      "A local agent keeps its thinking visible until the answer starts.",
+      "Follow-up messages in a desktop sidebar chat stay on the local agent that is already running, instead of starting a new process and session each time.",
+      "Resuming an interrupted companion chat no longer asks questions that were already answered. Thanks @yulei666 for #638."
     ],
     "zh-CN": [
-      "笔记里的 Markdown 标题链接（例如 [章节](#章节名)）会滚到当前笔记中对应的标题，不再打开新窗口。电脑编辑器、手机网页编辑器和公开分享页都适用。",
-      "从程序坞、访达或开始菜单打开桌面端后，本机 Agent 启动已配置的 MCP 服务时可以找到 npx 和 npm。"
+      "公开笔记本站点现在可以显示长文目录、搜索正文，并按站点设置访问别名、首页、外观和是否允许收录。作者可以把单篇笔记从某个站点排除。原有分享链接、密码和实时更新保持不变。自托管实例会在启动时自动迁移数据库，升级前请先备份。感谢 @sivdead 的贡献（#634）。",
+      "笔记列表可以按标题从 Z 到 A 排序，Web、Android、iOS 和桌面端都可用。置顶笔记仍在最前，标题相同的笔记保持原来的次序。",
+      "本机 Agent 会一直显示思考过程，直到回答开始。",
+      "在桌面端侧栏里继续和同一个本机 Agent 对话时，会沿用已经启动的进程，不用每次重新打开会话。",
+      "中断后继续的随身助手对话，不会再弹出已经回答过的问题。感谢 @yulei666 的贡献（#638）。"
     ],
     "ja": [
-      "ノート内の Markdown 見出しリンク（例: [章](#章名)）は、新しいウィンドウを開かず、今開いているノートの対応する見出しへ移動します。エディタ、スマホ向け Web エディタ、公開共有ページで有効です。",
-      "Dock、Finder、スタートメニューから開いたデスクトップ版でも、ローカル Agent が設定済みの MCP サーバーを起動するときに npx と npm を見つけられます。"
+      "公開ノートブックサイトに、長文の見出しナビ、本文検索、サイトごとのアドレス別名・ホーム・外観・検索インデックス設定を追加しました。サイトごとに個別のノートを除外できます。既存の共有リンク、パスワード、リアルタイム更新はそのままです。セルフホスト版は起動時にデータベースを移行するので、アップグレード前にバックアップしてください。@sivdead さんの貢献（#634）に感謝します。",
+      "ノート一覧をタイトルの Z から A の順に並べられるようになりました。Web、Android、iOS、デスクトップで使えます。ピン留めしたノートは先頭のまま、同じタイトルの順序も従来どおりです。",
+      "ローカル Agent は、回答が始まるまで思考過程を表示し続けます。",
+      "デスクトップのサイドバーで同じローカル Agent に続けて送るメッセージは、起動済みのプロセスを使い、毎回新しいセッションを開かなくなりました。",
+      "中断したコンパニオンの会話を再開しても、すでに回答した質問は再度表示されません。@yulei666 さんの貢献（#638）に感謝します。"
     ]
   }
 }

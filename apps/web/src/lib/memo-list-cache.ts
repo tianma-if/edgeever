@@ -59,11 +59,14 @@ const sortMemoSummariesForList = (memos: MemoSummary[], queryKey: readonly unkno
   const sortMode = queryKey[5];
   const sorted = [...memos];
 
-  if (sortMode === "title-asc") {
+  if (sortMode === "title-asc" || sortMode === "title-desc") {
+    const direction = sortMode === "title-desc" ? -1 : 1;
     return sorted.sort((left, right) => {
       const leftTitle = left.title?.trim() || left.excerpt || DEFAULT_MEMO_TITLE;
       const rightTitle = right.title?.trim() || right.excerpt || DEFAULT_MEMO_TITLE;
-      return leftTitle.localeCompare(rightTitle, "zh-CN") || left.id.localeCompare(right.id);
+      const titleCompare = leftTitle.localeCompare(rightTitle, "zh-CN");
+      if (titleCompare !== 0) return titleCompare * direction;
+      return left.id.localeCompare(right.id);
     });
   }
 

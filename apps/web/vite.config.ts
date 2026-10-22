@@ -197,6 +197,7 @@ export default defineConfig({
           {
             urlPattern: ({ request, url }) =>
               request.mode === "navigate" &&
+              !/^\/(?:share\/notebook|s)\//.test(url.pathname) &&
               !["/mobile-edit.html", "/note-print.html", "/tiptap-ime-test.html"].includes(url.pathname),
             handler: "NetworkFirst",
             options: {

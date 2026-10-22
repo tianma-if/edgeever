@@ -158,6 +158,7 @@ final class MobileUIParityTests: XCTestCase {
         XCTAssertEqual(MemoListTimestampField.resolve(for: .createdDesc).value(from: memo), memo.createdAt)
         XCTAssertEqual(MemoListTimestampField.resolve(for: .updatedDesc).value(from: memo), memo.updatedAt)
         XCTAssertEqual(MemoListTimestampField.resolve(for: .titleAsc).value(from: memo), memo.updatedAt)
+        XCTAssertEqual(MemoListTimestampField.resolve(for: .titleDesc).value(from: memo), memo.updatedAt)
     }
 
     func testMemoDetailDateIncludesHistoricalYear() {

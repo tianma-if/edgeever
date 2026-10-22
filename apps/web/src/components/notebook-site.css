@@ -1,0 +1,7 @@
+.edgeever-notebook-site .edgeever-public-share { position: relative; }
+.edgeever-notebook-site .edgeever-notebook-code pre { margin: 0; border: 0; border-radius: 0; overflow-x: auto; padding: 1rem; }
+.edgeever-notebook-site .tiptap img { cursor: zoom-in; }
+.edgeever-notebook-site .tiptap img:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+html:has(.edgeever-notebook-site) body,
+html:has(.edgeever-notebook-site) #root { overflow: visible; }
+html:has(.edgeever-notebook-site) body.yarl__no_scroll { overflow: hidden; }

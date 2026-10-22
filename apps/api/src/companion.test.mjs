@@ -434,6 +434,32 @@ describe("companion client-direct HTTP contracts", () => {
     expect((await getCompanionTurn(setup.db, scope, payload.id)).status).toBe("completed");
   });
 
+  test("resume clears answered questions so the resumed turn can complete (#637)", async () => {
+    const setup = fixture({ loadCredentials: async () => credentials });
+    const payload = input({ message: "翻译这篇笔记", allowNotes: true });
+    expect((await setup.request("turns/prepare", "POST", payload)).status).toBe(200);
+    const asked = await setup.request(`turns/${payload.id}/tools`, "POST", {
+      name: "ask_user_question",
+      input: { questions: [{ id: "language", prompt: "翻译成哪种语言？", inputType: "single_select", options: [{ id: "en", label: "English" }] }] },
+      response: "", process: "",
+    });
+    const askedBody = await asked.json();
+    expect(askedBody.pause).toBe(true);
+    expect((await setup.request(`turns/${payload.id}/complete`, "POST", { response: "", status: "interrupted" })).status).toBe(200);
+    expect((await setup.request(`turns/${payload.id}/resume/prepare`, "POST", {})).status).toBe(400);
+
+    const resumed = await setup.request(`turns/${payload.id}/resume/prepare`, "POST", {
+      answers: [{ questionId: "language", optionIds: ["en"] }],
+    });
+    expect(resumed.status).toBe(200);
+    const prepared = await resumed.json();
+    expect(prepared.turn.questions).toEqual([]);
+    expect(prepared.messages.at(-1).content).toContain("\"optionIds\":[\"en\"]");
+
+    const completed = await setup.request(`turns/${payload.id}/complete`, "POST", { response: "Translated note.", status: "completed" });
+    expect((await completed.json()).turn).toMatchObject({ status: "completed", questions: [], response: "Translated note." });
+  });
+
 });
 
 describe("actual AI SDK companion runtime", () => {

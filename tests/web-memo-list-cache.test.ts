@@ -78,6 +78,21 @@ describe("memo list cache updates", () => {
     expect(cached?.pages[0]?.totalCount).toBe(1);
   });
 
+  test("reorders a cached list from Z to A without reversing the id tie break", () => {
+    const queryClient = new QueryClient();
+    const queryKey = ["memos", "notebook", null, "", "all", "title-desc"] as const;
+    queryClient.setQueryData(queryKey, queryData([[
+      memo({ id: "memo-b", title: "Alpha" }),
+      memo({ id: "memo-a", title: "Alpha" }),
+      memo({ id: "memo-z", title: "Zulu" }),
+    ]]));
+
+    updateMemoSummaryInLists(queryClient, memo({ id: "memo-z", title: "Zulu", revision: 2 }));
+
+    const titles = queryClient.getQueryData<MemoListQueryData>(queryKey)?.pages[0]?.memos.map((item) => item.id);
+    expect(titles).toEqual(["memo-z", "memo-a", "memo-b"]);
+  });
+
   test("removes a note when an edit no longer matches the selected exact tag", () => {
     const queryClient = new QueryClient();
     const queryKey = ["memos", "notebook", null, "", "all", "updated-desc", [], "demo"] as const;

@@ -31,6 +31,7 @@ export * from "./revision-diff";
 export * from "./resource-links";
 export * from "./schemas";
 export * from "./sharing";
+export * from "./notebook-site";
 export * from "./sync";
 export * from "./desktop-rpc";
 export * from "./details";

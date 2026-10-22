@@ -239,7 +239,7 @@ export interface PluginNoteQuery {
   notebookId?: string;
   text?: string;
   tags?: string[];
-  sort?: "updated-desc" | "created-desc" | "title-asc";
+  sort?: "updated-desc" | "created-desc" | "title-asc" | "title-desc";
   limit?: number;
   offset?: number;
 }

@@ -88,13 +88,14 @@ const collector = () => {
 
 const fakeAgentSource = ({ reportPath, secretPath, allowImage, allowEmbedded, hold, requireAuth, advertiseAuth, promptRefusal, hangAuth, hangSession, failSessionBeforeLogin, workBuddyAccountApi, workBuddyLoginFailure, workBuddyUnreadable, workBuddyUnreadableAfterLogin, authMethodId = "browser", authStatusKind, advertiseAuthStatus = false, authStatusDelay = 20, stderrText, promptAuthStatusKind }) => `#!/usr/bin/env bun
 import * as acp from ${JSON.stringify(sdkHref)};
-import { writeFileSync, readFileSync } from "node:fs";
+import { writeFileSync, readFileSync, appendFileSync } from "node:fs";
 
 const reportPath = ${JSON.stringify(reportPath)};
 const secretPath = ${JSON.stringify(secretPath)};
 const allowImage = ${allowImage ? "true" : "false"};
 const allowEmbedded = ${allowEmbedded ? "true" : "false"};
 const hold = ${hold ? "true" : "false"};
+let held = false;
 const requireAuth = ${requireAuth ? "true" : "false"};
 const advertiseAuth = ${advertiseAuth ? "true" : "false"};
 const promptRefusal = ${promptRefusal ? JSON.stringify(promptRefusal) : "null"};
@@ -197,6 +198,8 @@ acp.agent({ name: "edgeever-fake-agent" })
   .onRequest("session/new", (ctx) => {
     if (${failSessionBeforeLogin ? "true" : "false"} && !authenticated) throw new acp.RequestError(-32603, "connection_failed");
     if (requireAuth && !authenticated) throw new acp.RequestError(-32000, "auth_required");
+    report.sessionCount = (report.sessionCount ?? 0) + 1;
+    appendFileSync(reportPath + ".sessions", String(process.pid) + "\\n");
     report.newSession = { cwd: ctx.params.cwd, mcpServers: ctx.params.mcpServers };
     save();
     if (${hangSession ? "true" : "false"}) return new Promise(() => {});
@@ -206,6 +209,7 @@ acp.agent({ name: "edgeever-fake-agent" })
     if (${promptAuthStatusKind ? "true" : "false"}) {
       await ctx.client.notify("_auth/status_update", { authStatus: { kind: ${JSON.stringify(promptAuthStatusKind ?? "none")}, label: "Fixture" } });
     }
+    report.prompts = [...(report.prompts ?? []), ctx.params.prompt];
     report.prompt = ctx.params.prompt;
     save();
     if (promptRefusal) return promptRefusal;
@@ -221,7 +225,7 @@ acp.agent({ name: "edgeever-fake-agent" })
       sessionId: ctx.params.sessionId,
       update: { sessionUpdate: "tool_call", toolCallId: "call_1", name: "search", title: "Search notes", status: "pending" },
     });
-    if (!hold) {
+    if (!(hold && !held)) {
       try {
         const result = await ctx.client.request("fs/read_text_file", { sessionId: ctx.params.sessionId, path: secretPath });
         report.readResult = result?.content ?? result ?? null;
@@ -237,6 +241,7 @@ acp.agent({ name: "edgeever-fake-agent" })
       save();
       return { stopReason: "end_turn" };
     }
+    held = true;
     await released;
     return { stopReason: "cancelled" };
   })
@@ -251,6 +256,16 @@ const writeFakeAgent = async (directory, options) => {
   await writeFile(scriptPath, fakeAgentSource(options), "utf8");
   await chmod(scriptPath, 0o755);
   return scriptPath;
+};
+
+const processAlive = (pid) => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    if (error?.code === "ESRCH") return false;
+    throw error;
+  }
 };
 
 const waitUntilExited = async (pid) => {
@@ -541,10 +556,11 @@ describe("ACP prompt blocks", () => {
   });
 
   test("puts a Codex user's request before context for a useful thread title", () => {
-    const content = buildPromptContent({ prompt: "分析资金往来", contextText: "Current note and earlier turns", promptFirst: true });
+    const content = buildPromptContent({ prompt: "分析资金往来", contextText: "Current note and earlier turns", historyText: "Earlier turns", promptFirst: true });
     expect(content.blocks).toEqual([
       { type: "text", text: "分析资金往来" },
       { type: "text", text: "Current note and earlier turns" },
+      { type: "text", text: "Earlier turns" },
     ]);
   });
 
@@ -1416,6 +1432,301 @@ describe("ACP stdio session", () => {
       await rm(directory, { recursive: true, force: true });
     }
   }, 15_000);
+
+  const chat = "11111111-1111-4111-8111-111111111111";
+  const otherChat = "22222222-2222-4222-8222-222222222222";
+
+  sessionTest("reuses one ACP process for the same chat and omits replayed history", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "edgeever-acp-warm-"));
+    const reportPath = path.join(directory, "report.json");
+    let closed = false;
+    const runtime = createAcpHostRuntime({
+      mcpAccess: () => ({ baseUrl: "https://notes.example", sessionToken: "login-secret", accountId: "account-a" }),
+      startMcpBridge: () => ({
+        url: "http://127.0.0.1:12345",
+        secret: "temporary-secret",
+        close: async () => { closed = true; },
+      }),
+    });
+    try {
+      const scriptPath = await writeFakeAgent(directory, {
+        reportPath,
+        secretPath: path.join(directory, "secret.txt"),
+        allowImage: false,
+        allowEmbedded: false,
+        hold: false,
+      });
+      const prompt = (text, events) => runtime.prompt({
+        adapterId: "antigravity",
+        path: scriptPath,
+        prompt: text,
+        sessionKey: chat,
+        contextText: "Current note",
+        historyText: "Earlier turns",
+      }, events.emit);
+      const firstEvents = collector();
+      const first = await prompt("hello", firstEvents);
+      await firstEvents.waitFor((event) => event.type === "done" && event.requestId === first.requestId);
+      const pid = Number(await readFile(`${reportPath}.pid`, "utf8"));
+      expect(processAlive(pid)).toBe(true);
+      expect(closed).toBe(false);
+      const secondEvents = collector();
+      const second = await prompt("again", secondEvents);
+      const delta = await secondEvents.waitFor((event) => event.type === "text-delta");
+      expect(delta).toEqual({ requestId: second.requestId, type: "text-delta", text: "hello from agent" });
+      expect(secondEvents.events.some((event) => event.requestId === first.requestId)).toBe(false);
+      await secondEvents.waitFor((event) => event.type === "done");
+      expect(Number(await readFile(`${reportPath}.pid`, "utf8"))).toBe(pid);
+      expect(processAlive(pid)).toBe(true);
+      const report = await readReport(reportPath);
+      expect(report.sessionCount).toBe(1);
+      expect(report.prompts).toHaveLength(2);
+      expect(JSON.stringify(report.prompts[0])).toContain("edgeever-current-workspace");
+      expect(JSON.stringify(report.prompts[0])).toContain("Earlier turns");
+      expect(JSON.stringify(report.prompts[1])).not.toContain("edgeever-current-workspace");
+      expect(JSON.stringify(report.prompts[1])).not.toContain("Earlier turns");
+      expect(JSON.stringify(report.prompts[1])).toContain("Current note");
+      expect(closed).toBe(false);
+      await runtime.releaseWarmSessions();
+      await waitUntilExited(pid);
+      expect(closed).toBe(true);
+    } finally {
+      await runtime.releaseWarmSessions();
+      await rm(directory, { recursive: true, force: true });
+    }
+  }, 15_000);
+
+  sessionTest("keeps a cancelled chat process and rejects an overlapping prompt", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "edgeever-acp-warm-cancel-"));
+    const reportPath = path.join(directory, "report.json");
+    const runtime = createAcpHostRuntime();
+    try {
+      const scriptPath = await writeFakeAgent(directory, {
+        reportPath,
+        secretPath: path.join(directory, "secret.txt"),
+        allowImage: false,
+        allowEmbedded: false,
+        hold: true,
+      });
+      const events = collector();
+      const first = await runtime.prompt({
+        adapterId: "antigravity",
+        path: scriptPath,
+        prompt: "wait",
+        sessionKey: chat,
+        historyText: "Earlier turns",
+      }, events.emit);
+      await events.waitFor((event) => event.type === "text-delta");
+      const overlap = collector();
+      const second = await runtime.prompt({
+        adapterId: "antigravity",
+        path: scriptPath,
+        prompt: "too soon",
+        sessionKey: chat,
+      }, overlap.emit);
+      expect(await overlap.waitFor((event) => event.type === "error")).toEqual({ requestId: second.requestId, type: "error", message: "session_busy" });
+      expect(await runtime.cancel(first.requestId)).toEqual({ ok: true });
+      await events.waitFor((event) => event.type === "done");
+      const pid = Number(await readFile(`${reportPath}.pid`, "utf8"));
+      expect(processAlive(pid)).toBe(true);
+      const continued = collector();
+      const third = await runtime.prompt({
+        adapterId: "antigravity",
+        path: scriptPath,
+        prompt: "continue",
+        sessionKey: chat,
+        historyText: "Earlier turns",
+      }, continued.emit);
+      expect((await continued.waitFor((event) => event.type === "text-delta")).requestId).toBe(third.requestId);
+      await continued.waitFor((event) => event.type === "done");
+      const report = await readReport(reportPath);
+      expect(report.sessionCount).toBe(1);
+      expect(report.prompts).toHaveLength(2);
+      expect(JSON.stringify(report.prompts[1])).not.toContain("Earlier turns");
+      expect(processAlive(pid)).toBe(true);
+    } finally {
+      await runtime.releaseWarmSessions();
+      await rm(directory, { recursive: true, force: true });
+    }
+  }, 15_000);
+
+  sessionTest("starts a separate process for another chat or another account", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "edgeever-acp-warm-reset-"));
+    const reportPath = path.join(directory, "report.json");
+    let accountId = "account-a";
+    const runtime = createAcpHostRuntime({
+      warmSessionLimit: 3,
+      mcpAccess: () => ({ baseUrl: "https://notes.example", sessionToken: "login-secret", accountId }),
+      startMcpBridge: () => ({ url: "http://127.0.0.1:12345", secret: "temporary-secret", close: async () => {} }),
+    });
+    try {
+      const scriptPath = await writeFakeAgent(directory, {
+        reportPath,
+        secretPath: path.join(directory, "secret.txt"),
+        allowImage: false,
+        allowEmbedded: false,
+        hold: false,
+      });
+      const send = async (sessionKey) => {
+        const events = collector();
+        await runtime.prompt({
+          adapterId: "antigravity",
+          path: scriptPath,
+          prompt: "hello",
+          sessionKey,
+          historyText: "Earlier turns",
+        }, events.emit);
+        await events.waitFor((event) => event.type === "done");
+        return Number(await readFile(`${reportPath}.pid`, "utf8"));
+      };
+      const firstPid = await send(chat);
+      const secondPid = await send(otherChat);
+      expect(secondPid).not.toBe(firstPid);
+      expect(processAlive(firstPid)).toBe(true);
+      expect(processAlive(secondPid)).toBe(true);
+      accountId = "account-b";
+      const switchedPid = await send(chat);
+      expect(switchedPid).not.toBe(firstPid);
+      expect(processAlive(firstPid)).toBe(false);
+      expect(processAlive(secondPid)).toBe(true);
+      expect(JSON.stringify((await readReport(reportPath)).prompts.at(-1))).toContain("Earlier turns");
+    } finally {
+      await runtime.releaseWarmSessions();
+      await rm(directory, { recursive: true, force: true });
+    }
+  }, 15_000);
+
+  sessionTest("starts over after the chat process has been idle", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "edgeever-acp-warm-idle-"));
+    const reportPath = path.join(directory, "report.json");
+    const runtime = createAcpHostRuntime({ warmIdleMs: 80 });
+    try {
+      const scriptPath = await writeFakeAgent(directory, {
+        reportPath,
+        secretPath: path.join(directory, "secret.txt"),
+        allowImage: false,
+        allowEmbedded: false,
+        hold: false,
+      });
+      const send = async () => {
+        const events = collector();
+        await runtime.prompt({
+          adapterId: "antigravity",
+          path: scriptPath,
+          prompt: "hello",
+          sessionKey: chat,
+          historyText: "Earlier turns",
+        }, events.emit);
+        await events.waitFor((event) => event.type === "done");
+        return Number(await readFile(`${reportPath}.pid`, "utf8"));
+      };
+      const firstPid = await send();
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      await waitUntilExited(firstPid);
+      const secondPid = await send();
+      expect(secondPid).not.toBe(firstPid);
+      expect(JSON.stringify((await readReport(reportPath)).prompt)).toContain("Earlier turns");
+    } finally {
+      await runtime.releaseWarmSessions();
+      await rm(directory, { recursive: true, force: true });
+    }
+  }, 15_000);
+
+  sessionTest("a read-only turn does not continue inside the note-writing process", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "edgeever-acp-warm-readonly-"));
+    const reportPath = path.join(directory, "report.json");
+    const runtime = createAcpHostRuntime({
+      mcpAccess: () => ({ baseUrl: "https://notes.example", sessionToken: "login-secret", accountId: "account-a" }),
+      startMcpBridge: () => ({ url: "http://127.0.0.1:12345", secret: "temporary-secret", close: async () => {} }),
+    });
+    try {
+      const scriptPath = await writeFakeAgent(directory, {
+        reportPath,
+        secretPath: path.join(directory, "secret.txt"),
+        allowImage: false,
+        allowEmbedded: false,
+        hold: false,
+      });
+      const send = async ({ noteAccess = true } = {}) => {
+        const events = collector();
+        await runtime.prompt({
+          adapterId: "antigravity",
+          path: scriptPath,
+          prompt: "hello",
+          sessionKey: chat,
+          historyText: "Earlier turns",
+          noteAccess,
+        }, events.emit);
+        await events.waitFor((event) => event.type === "done");
+        return Number(await readFile(`${reportPath}.pid`, "utf8"));
+      };
+      const writingPid = await send();
+      const readingPid = await send({ noteAccess: false });
+      expect(readingPid).not.toBe(writingPid);
+      expect(processAlive(writingPid)).toBe(false);
+      expect(JSON.stringify((await readReport(reportPath)).newSession.mcpServers)).toBe("[]");
+      const resumedPid = await send();
+      expect(resumedPid).not.toBe(readingPid);
+      expect(processAlive(readingPid)).toBe(false);
+      expect(JSON.stringify((await readReport(reportPath)).prompt)).toContain("Earlier turns");
+      expect(JSON.stringify((await readReport(reportPath)).newSession.mcpServers)).toContain("edgeever-current-workspace");
+    } finally {
+      await runtime.releaseWarmSessions();
+      await rm(directory, { recursive: true, force: true });
+    }
+  }, 15_000);
+
+  sessionTest("starts one ACP process for a prepared chat and keeps it for the next turn", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "edgeever-acp-prepare-"));
+    const reportPath = path.join(directory, "report.json");
+    const runtime = createAcpHostRuntime();
+    try {
+      const scriptPath = await writeFakeAgent(directory, {
+        reportPath,
+        secretPath: path.join(directory, "secret.txt"),
+        allowImage: false,
+        allowEmbedded: false,
+        hold: false,
+      });
+      const input = {
+        adapterId: "antigravity",
+        path: scriptPath,
+        sessionKey: chat,
+        historyText: "Earlier turns",
+        noteAccess: false,
+      };
+      const preparing = runtime.prepare(input);
+      const events = collector();
+      const sent = runtime.prompt({ ...input, prompt: "hello" }, events.emit);
+      expect(await preparing).toEqual({ ready: true });
+      await sent;
+      await events.waitFor((event) => event.type === "done");
+      expect((await readFile(`${reportPath}.sessions`, "utf8")).trim().split("\n")).toEqual([
+        String(Number(await readFile(`${reportPath}.pid`, "utf8"))),
+      ]);
+      const report = await readReport(reportPath);
+      expect(report.sessionCount).toBe(1);
+      expect(JSON.stringify(report.prompt)).toContain("Earlier turns");
+      const again = collector();
+      await runtime.prompt({ ...input, prompt: "next" }, again.emit);
+      await again.waitFor((event) => event.type === "done");
+      const continued = await readReport(reportPath);
+      expect(continued.sessionCount).toBe(1);
+      expect(continued.prompts).toHaveLength(2);
+      expect(JSON.stringify(continued.prompts[1])).not.toContain("Earlier turns");
+      expect((await readFile(`${reportPath}.sessions`, "utf8")).trim().split("\n")).toHaveLength(1);
+    } finally {
+      await runtime.releaseWarmSessions();
+      await rm(directory, { recursive: true, force: true });
+    }
+  }, 15_000);
+
+  sessionTest("rejects a session key that is not a chat id before starting an agent", async () => {
+    const runtime = createAcpHostRuntime();
+    const events = collector();
+    const result = await runtime.prompt({ adapterId: "codex", prompt: "hello", sessionKey: "../secret" }, events.emit);
+    expect(await events.waitFor((event) => event.type === "error")).toEqual({ requestId: result.requestId, type: "error", message: "invalid_session" });
+  });
 });
 
 test("desktop preload and main process expose the ACP host", async () => {
@@ -1425,16 +1736,18 @@ test("desktop preload and main process expose the ACP host", async () => {
     Bun.file(new URL("./acp-host.mjs", import.meta.url)).text(),
   ]);
   expect(main).toContain("registerAcpIpc(ipcMain, createAcpHostRuntime({");
+  expect(main).toContain("await releaseDesktopAcpSessions().catch(() => {});");
   expect(preload).toContain('installAcpAdapter: (id) => ipcRenderer.invoke("desktop:acp-install", id)');
   expect(preload).toContain('authenticateAcpAdapter: (input) => ipcRenderer.invoke("desktop:acp-authenticate", input)');
   expect(host).toContain('ipcMain.handle("desktop:acp-prompt"');
   expect(preload).toContain('listAcpAdapters: () => ipcRenderer.invoke("desktop:acp-list")');
   expect(preload).toContain('probeAcpAdapter: (input) => ipcRenderer.invoke("desktop:acp-probe", input)');
+  expect(preload).toContain('prepareAcp: (input) => ipcRenderer.invoke("desktop:acp-prepare", input)');
   expect(preload).toContain('promptAcp: (input) => ipcRenderer.invoke("desktop:acp-prompt", input)');
   expect(preload).toContain('cancelAcp: (requestId) => ipcRenderer.invoke("desktop:acp-cancel", requestId)');
   expect(preload).toContain('ipcRenderer.on("desktop:acp-event"');
   const handlers = new Map();
   registerAcpIpc({ handle: (channel, handler) => handlers.set(channel, handler) });
-  expect([...handlers.keys()]).toEqual(["desktop:acp-list", "desktop:acp-choose-path", "desktop:acp-probe", "desktop:acp-install", "desktop:acp-authenticate", "desktop:acp-prompt", "desktop:acp-cancel"]);
+  expect([...handlers.keys()]).toEqual(["desktop:acp-list", "desktop:acp-choose-path", "desktop:acp-probe", "desktop:acp-install", "desktop:acp-authenticate", "desktop:acp-prepare", "desktop:acp-prompt", "desktop:acp-cancel"]);
   await expect(handlers.get("desktop:acp-prompt")({ sender: {} }, { prompt: "test" })).rejects.toThrow("acp_prompt_forbidden");
 });

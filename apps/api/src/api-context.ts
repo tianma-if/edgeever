@@ -39,6 +39,7 @@ export type Bindings = {
 };
 
 export type WorkerBindings = Omit<Bindings, "storage" | "publicNetworkFetch" | "deploymentVersionCreatedAt"> & CloudflareStorageBindings & {
+  ASSETS: Fetcher;
   CF_VERSION_METADATA?: { timestamp?: string };
 };
 

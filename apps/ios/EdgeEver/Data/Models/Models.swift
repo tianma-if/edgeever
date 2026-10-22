@@ -422,6 +422,7 @@ enum MemoSortMode: String, CaseIterable, Sendable {
     case updatedDesc = "updated-desc"
     case createdDesc = "created-desc"
     case titleAsc = "title-asc"
+    case titleDesc = "title-desc"
 }
 
 enum MemoFilterMode: String, CaseIterable, Sendable {

@@ -120,6 +120,15 @@ struct ListActionsSheet: View {
                         store.reload(env: env)
                         dismiss()
                     }
+                    optionRow(
+                        active: store.sort == .titleDesc,
+                        icon: nil,
+                        label: env.preferences.t("标题 Z-A", en: "Title Z-A", ja: "タイトル Z-A", pl: "Tytuł Z–A")
+                    ) {
+                        store.sort = .titleDesc
+                        store.reload(env: env)
+                        dismiss()
+                    }
 
                     divider
                     sheetItem(

@@ -20,6 +20,7 @@ test("ACP ignores caller paths on all execution channels and preserves main-owne
       listAdapters: () => [{ id: "antigravity" }],
       probeAdapter: (input) => calls.push(input),
       authenticateAdapter: (input) => calls.push(input),
+      prepare: (input) => calls.push(input),
       prompt: (input) => calls.push(input),
     };
     const register = () => {
@@ -32,7 +33,7 @@ test("ACP ignores caller paths on all execution channels and preserves main-owne
       });
       return handlers;
     };
-    const channels = ["desktop:acp-probe", "desktop:acp-authenticate", "desktop:acp-prompt"];
+    const channels = ["desktop:acp-probe", "desktop:acp-authenticate", "desktop:acp-prepare", "desktop:acp-prompt"];
     const handlers = register();
     for (const channel of channels) {
       const input = { id: "antigravity", adapterId: "antigravity", path: "/attacker/payload" };

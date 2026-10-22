@@ -11,6 +11,7 @@ import { ShareQrCode } from "./ShareQrCode";
 import { SHARE_DIALOG_PRIMARY_BUTTON_CLASS_NAME, SHARE_DIALOG_WIDTH_CLASS_NAME } from "./share-dialog-layout";
 import { api, getConfiguredDesktopApiBaseUrl } from "@/lib/api";
 import { copyTextToClipboard } from "@/lib/clipboard";
+import { MemoNotebookSites } from "../MemoNotebookSites";
 
 export const getPublicShareUrl = (token: string) => {
   const baseUrl = getConfiguredDesktopApiBaseUrl() || window.location.origin;
@@ -35,7 +36,6 @@ export const ShareMemoDialog = ({
   const [copyTarget, setCopyTarget] = useState<"link" | "password" | "both">("link");
   const copyResetTimerRef = useRef<number | null>(null);
   const dialogContentRef = useRef<HTMLDivElement>(null);
-  const autoCreateAttemptRef = useRef<string | null>(null);
   const queryKey = memoShareQueryKey(memoId);
   const shareQuery = useQuery({
     queryKey,
@@ -60,11 +60,10 @@ export const ShareMemoDialog = ({
     },
   });
   const revokeMutation = useMutation({
-    mutationFn: () => api.revokeMemoShare(memoId),
-    onSuccess: () => {
-      queryClient.setQueryData(queryKey, { share: null });
+    mutationFn: (targetMemoId: string) => api.revokeMemoShare(targetMemoId),
+    onSuccess: (_, targetMemoId) => {
+      queryClient.setQueryData(memoShareQueryKey(targetMemoId), { share: null });
       void queryClient.invalidateQueries({ queryKey: ["memo-shares"] });
-      onOpenChange(false);
     },
   });
   useEffect(() => {
@@ -85,20 +84,6 @@ export const ShareMemoDialog = ({
   const isWorking = shareQuery.isLoading || createMutation.isPending || passwordMutation.isPending || revokeMutation.isPending;
   const error = shareQuery.error || createMutation.error || passwordMutation.error || revokeMutation.error;
 
-  useEffect(() => {
-    if (!open) {
-      autoCreateAttemptRef.current = null;
-      return;
-    }
-    // Wait for a successful read: a failed lookup must not enable public access.
-    // Attempt once per opening, including under StrictMode and after refetches.
-    if (shareQuery.isSuccess && !shareQuery.isFetching && !share &&
-        !revokeMutation.isSuccess && autoCreateAttemptRef.current !== memoId) {
-      autoCreateAttemptRef.current = memoId;
-      createMutation.mutate();
-    }
-  }, [open, memoId, shareQuery.isSuccess, shareQuery.isFetching, share, revokeMutation.isSuccess, createMutation.mutate]);
-
   const markCopied = (target: "link" | "password" | "both", copied: boolean) => {
     setCopyTarget(target);
     setCopyState(copied ? "copied" : "error");
@@ -118,7 +103,7 @@ export const ShareMemoDialog = ({
       <DialogContent
         ref={dialogContentRef}
         aria-describedby={undefined}
-        className={`${SHARE_DIALOG_WIDTH_CLASS_NAME} space-y-4`}
+        className={`${SHARE_DIALOG_WIDTH_CLASS_NAME} max-h-[85dvh] space-y-4 overflow-y-auto`}
         onOpenAutoFocus={(event) => {
           event.preventDefault();
           dialogContentRef.current?.focus({ preventScroll: true });
@@ -131,7 +116,9 @@ export const ShareMemoDialog = ({
           </DialogTitle>
         </DialogHeader>
 
-        {shareQuery.isLoading || (!share && !error) ? (
+        <MemoNotebookSites key={memoId} memoId={memoId} />
+        <h2 className="text-sm font-semibold">{t("sharing.individual")}</h2>
+        {shareQuery.isLoading ? (
           <div className="flex min-h-20 items-center justify-center text-slate-500" role="status">
             <LoaderCircle className="h-5 w-5 animate-spin" aria-label={t("sharing.publicLoading")} />
           </div>
@@ -180,7 +167,7 @@ export const ShareMemoDialog = ({
             )}
 
             <div className="flex items-center justify-between pt-2">
-              <Button variant="danger" disabled={isWorking} onClick={() => revokeMutation.mutate()}>
+              <Button variant="danger" disabled={isWorking} onClick={() => revokeMutation.mutate(memoId, { onSuccess: () => onOpenChange(false) })}>
                 <Trash2 className="h-4 w-4" />
                 {t("sharing.revoke")}
               </Button>
@@ -201,7 +188,7 @@ export const ShareMemoDialog = ({
             }}
           >
             {createMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
-            {t("sharing.retry")}
+            {t(shareQuery.isError ? "sharing.retry" : "sharing.createIndividual")}
           </Button>
         )}
         {error ? <p className="text-xs leading-5 text-rose-600" role="alert">{t("sharing.error")}</p> : null}

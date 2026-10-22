@@ -148,6 +148,7 @@ export const NotesActionsModal = ({
           <SheetOptionRow active={memoSortMode === "updated-desc"} label="最近更新" onPress={() => onSortModeChange("updated-desc")} />
           <SheetOptionRow active={memoSortMode === "created-desc"} label="创建时间" onPress={() => onSortModeChange("created-desc")} />
           <SheetOptionRow active={memoSortMode === "title-asc"} label="标题 A-Z" onPress={() => onSortModeChange("title-asc")} />
+          <SheetOptionRow active={memoSortMode === "title-desc"} label="标题 Z-A" onPress={() => onSortModeChange("title-desc")} />
         </ScrollView>
       </Pressable>
     </Pressable>

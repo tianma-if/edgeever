@@ -69,13 +69,7 @@ export const NotebookTreeItem = ({
   const [shareOpen, setShareOpen] = useState(false);
   const directlyShared = Boolean(sharedNotebookIds?.has(node.id));
   const publicNotebook = inheritedPublic || directlyShared;
-  const shareActionLabel = t(
-    directlyShared
-      ? "sharing.manage"
-      : inheritedPublic
-        ? "sharing.notebookInheritedAction"
-        : "sharing.notebookTitle",
-  );
+  const shareActionLabel = t("sharing.notebookTitle");
   const open = !collapsedNotebookIds.has(node.id);
   const hasChildren = node.children.length > 0;
   const showsSplitCount = !showDescendantNotes && hasChildren;
@@ -314,7 +308,8 @@ export const NotebookTreeItem = ({
                 <TooltipProvider><Tooltip><TooltipTrigger asChild>
                   <button
                     className={cn(
-                      "edgeever-reveal-on-touch hidden h-6 w-6 items-center justify-center rounded-md group-focus-within:flex group-hover:flex transition-colors duration-150",
+                      "edgeever-reveal-on-touch h-6 w-6 items-center justify-center rounded-md transition-colors duration-150",
+                      directlyShared ? "flex" : "hidden group-focus-within:flex group-hover:flex",
                       selected ? "hover:bg-slate-200" : "hover:bg-slate-100"
                     )}
                     type="button"

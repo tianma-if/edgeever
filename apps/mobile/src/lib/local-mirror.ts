@@ -136,7 +136,9 @@ export const listLocalMemos = async (scope: string, params: LocalMemoListParams)
       ? "is_pinned DESC, created_at DESC, id DESC"
       : params.sort === "title-asc"
         ? "is_pinned DESC, title COLLATE NOCASE ASC, updated_at DESC, id DESC"
-        : "is_pinned DESC, updated_at DESC, id DESC";
+        : params.sort === "title-desc"
+          ? "is_pinned DESC, title COLLATE NOCASE DESC, updated_at DESC, id DESC"
+          : "is_pinned DESC, updated_at DESC, id DESC";
   const tag = params.tag?.trim() ?? "";
   const limit = params.limit ?? 50;
   const offset = Math.max(0, params.offset ?? 0);

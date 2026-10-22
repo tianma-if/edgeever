@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { Notebook } from "@edgeever/shared";
+import type { MemoSummary, Notebook } from "@edgeever/shared";
 import {
   filterCollapsedNotebookOptions,
   formatMemoDetailDate,
@@ -11,6 +11,7 @@ import {
   isEnglishMobileLocale,
   markdownToLocalText,
   parseTags,
+  sortMemoSummaries,
 } from "./workspace-utils";
 
 const notebook = (id: string, parentId: string | null, sortOrder: number): Notebook => ({
@@ -90,5 +91,26 @@ describe("mobile workspace utilities", () => {
     } finally {
       Intl.DateTimeFormat.prototype.resolvedOptions = original;
     }
+  });
+
+  test("reverses title order and keeps equal titles in their original order", () => {
+    const memo = (id: string, title: string): MemoSummary => ({
+      id,
+      notebookId: "nb",
+      title,
+      excerpt: "",
+      tags: [],
+      isPinned: false,
+      isArchived: false,
+      isDeleted: false,
+      revision: 1,
+      createdAt: "2026-08-01T00:00:00.000Z",
+      updatedAt: "2026-08-01T00:00:00.000Z",
+      deletedAt: null,
+    });
+    const memos = [memo("b", "Alpha"), memo("a", "Alpha"), memo("z", "Zulu")];
+
+    expect(sortMemoSummaries(memos, "title-asc").map((item) => item.id)).toEqual(["b", "a", "z"]);
+    expect(sortMemoSummaries(memos, "title-desc").map((item) => item.id)).toEqual(["z", "b", "a"]);
   });
 });

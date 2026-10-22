@@ -214,7 +214,7 @@ const clipLine = (value: string) => {
   return text.length > LOCAL_AGENT_TRANSCRIPT_LINE ? `${text.slice(0, LOCAL_AGENT_TRANSCRIPT_LINE)}…` : text;
 };
 
-// One-shot ACP calls do not keep the agent process. The current thread's earlier replies are the session.
+// Sent only when the desktop has to start a new ACP process. A live chat already has this history.
 export const localAgentTranscript = (
   turns: readonly { threadId: string; message: string; response: string; status: string; createdAt: string }[],
   threadId: string,

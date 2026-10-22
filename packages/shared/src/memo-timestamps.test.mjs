@@ -24,5 +24,9 @@ describe("memo list timestamps", () => {
       field: "updatedAt",
       value: timestamps.updatedAt,
     });
+    expect(getMemoListTimestamp(timestamps, "title-desc")).toEqual({
+      field: "updatedAt",
+      value: timestamps.updatedAt,
+    });
   });
 });

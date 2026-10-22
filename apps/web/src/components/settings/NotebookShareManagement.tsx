@@ -135,7 +135,7 @@ export const NotebookShareManagement = ({
                 {share.notebookName}
               </span>
               <ShareManagementActions
-                onOpen={() => window.open(getPublicNotebookShareUrl(share.token), "_blank", "noopener,noreferrer")}
+                onOpen={() => window.open(getPublicNotebookShareUrl(share.token, share.siteSlug), "_blank", "noopener,noreferrer")}
                 onManage={() => setManaged(share)}
               />
             </div>

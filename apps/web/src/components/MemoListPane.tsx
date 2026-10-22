@@ -63,6 +63,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { MemoCard } from "./MemoCard";
+import { MemoNotebookSites } from "./MemoNotebookSites";
 import { ClipboardCopyNotice } from "./ClipboardCopyNotice";
 import { WeChatCopyProgress } from "./WeChatCopyProgress";
 import { cn } from "@/lib/utils";
@@ -1656,6 +1657,7 @@ export const MemoListPane = ({
                     {contextShareQuery.data?.share ? <Globe className="h-4 w-4 text-slate-950" /> : <Share2 className="h-4 w-4 text-slate-500" />}
                     {t(isLocalMemoId(memoContextMenu.memo.id) ? "sharing.afterSync" : contextShareQuery.data?.share ? "sharing.manage" : "sharing.action")}
                   </DropdownMenuItem>
+                  {!isLocalMemoId(memoContextMenu.memo.id) && <MemoNotebookSites key={memoContextMenu.memo.id} memoId={memoContextMenu.memo.id} presentation="menu" />}
                   {!memoContextMenu.memo.diagramKind && !memoContextMenu.memo.structuredTable && !memoContextMenu.memo.infographic && !memoContextMenu.memo.poster && (
                     <DropdownMenuItem
                       className="flex h-9 w-full items-center gap-2 px-3 text-left text-xs text-slate-700 hover:bg-slate-50 cursor-pointer outline-none"

@@ -166,8 +166,9 @@ export const formatMemoDetailDate = (value: string, locale: string) => {
 
 export const sortMemoSummaries = (memos: MemoSummary[], sortMode: unknown) =>
   [...memos].sort((left, right) => {
-    if (sortMode === "title-asc") {
-      return (left.title || DEFAULT_MEMO_TITLE).localeCompare(right.title || DEFAULT_MEMO_TITLE);
+    if (sortMode === "title-asc" || sortMode === "title-desc") {
+      const titleCompare = (left.title || DEFAULT_MEMO_TITLE).localeCompare(right.title || DEFAULT_MEMO_TITLE);
+      return sortMode === "title-desc" ? -titleCompare : titleCompare;
     }
     if (sortMode === "created-desc") {
       return right.createdAt.localeCompare(left.createdAt);

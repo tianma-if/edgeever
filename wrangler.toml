@@ -19,7 +19,7 @@ watch_dir = ["apps/api/src", "packages/shared/src"]
 directory = "apps/web/dist"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
-run_worker_first = ["/api/*", "/mcp", "/__scheduled"]
+run_worker_first = ["/api/*", "/mcp", "/__scheduled", "/share/notebook/*", "/s/*"]
 
 [[d1_databases]]
 binding = "DB"

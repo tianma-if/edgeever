@@ -1,4 +1,7 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { Button } from "./ui/button";
+import { ButtonTooltip } from "./ui/button-tooltip";
 import { Graph } from "@antv/x6";
 import {
   attachDiagramReader,
@@ -26,12 +29,25 @@ export const ReadOnlyX6Diagram = ({
   diagram,
   locale,
   theme,
+  controls = false,
 }: {
   diagram: DiagramDocument;
   locale: "zh-CN" | "en-US" | "ja" | "pl";
   theme: "light" | "dark";
+  controls?: boolean;
 }) => {
+  const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
+  const graphRef = useRef<Graph | null>(null);
+  const [fullscreen, setFullscreen] = useState(false);
+  useEffect(() => {
+    if (!fullscreen) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") setFullscreen(false); };
+    window.addEventListener("keydown", escape);
+    return () => { document.body.style.overflow = previous; window.removeEventListener("keydown", escape); };
+  }, [fullscreen]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -65,6 +81,7 @@ export const ReadOnlyX6Diagram = ({
       panning: { enabled: true },
       mousewheel: { enabled: true, minScale: 0.1, maxScale: 2.5 },
     });
+    graphRef.current = graph;
     graph.addNodes(cells.nodes);
     graph.addEdges(cells.edges);
     const sized = {
@@ -85,11 +102,12 @@ export const ReadOnlyX6Diagram = ({
       observer.disconnect();
       reader.dispose();
       graph.dispose();
+      graphRef.current = null;
     };
   }, [diagram, locale, theme]);
 
   return (
-    <section className="edgeever-x6-document">
+    <section className={`edgeever-x6-document${fullscreen ? " edgeever-x6-fullscreen" : ""}`}>
       <style>{`
         .edgeever-x6-document, .edgeever-diagram-reader-host {
           display: flex;
@@ -99,6 +117,10 @@ export const ReadOnlyX6Diagram = ({
           padding: 8px 12px 16px;
         }
         .edgeever-diagram-reader-controls { flex: 0 0 auto; }
+        .edgeever-x6-document.edgeever-x6-fullscreen {
+          position: fixed; inset: 0; z-index: 60; height: 100dvh; min-height: 100dvh;
+          background: ${theme === "dark" ? DIAGRAM_CANVAS_DARK : DIAGRAM_CANVAS_LIGHT};
+        }
         .edgeever-x6-diagram {
           flex: 1 1 auto;
           width: 100%;
@@ -113,6 +135,10 @@ export const ReadOnlyX6Diagram = ({
         .edgeever-x6-diagram .x6-graph-svg { overflow: hidden; }
         .edgeever-x6-diagram .x6-node { cursor: pointer; }
       `}</style>
+      {controls && <div className="flex shrink-0 justify-end gap-2 pb-2">
+        <ButtonTooltip title={t("notebookSite.fit")}><Button variant="outline" size="sm" onClick={() => { graphRef.current?.zoomToFit({ maxScale: 1, padding: 28 }); graphRef.current?.centerContent(); }}>{t("notebookSite.fit")}</Button></ButtonTooltip>
+        <ButtonTooltip title={t(fullscreen ? "notebookSite.exitFullscreen" : "notebookSite.fullscreen")}><Button variant="outline" size="sm" aria-pressed={fullscreen} onClick={() => setFullscreen((value) => !value)}>{t(fullscreen ? "notebookSite.exitFullscreen" : "notebookSite.fullscreen")}</Button></ButtonTooltip>
+      </div>}
       <div
         aria-label={diagramTitle(diagram, locale)}
         className="edgeever-x6-diagram"

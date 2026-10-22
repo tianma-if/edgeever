@@ -55,6 +55,7 @@ import {
   AI_SIDEBAR_THREAD_KEY,
   AI_SIDEBAR_WIDTH_KEY,
   cancelDesktopAcp,
+  prepareDesktopAcp,
   promptDesktopAcp,
   readAiSidebarAdapter,
   readAiSidebarSource,
@@ -1054,6 +1055,25 @@ function AiSidebarSession({
   }, [open, busy]);
 
   useEffect(() => {
+    if (!open || source !== "local") return;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      if (cancelled || locked.current) return;
+      const adapter = readLocalAdapter();
+      if (!adapter) return;
+      void prepareDesktopAcp({
+        adapterId: adapter.id,
+        ...(adapter.path ? { path: adapter.path } : {}),
+        sessionKey: localThreadId,
+      }).catch(() => undefined);
+    }, 400);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [open, source, localAdapterId, localThreadId]);
+
+  useEffect(() => {
     if (!companionAvailable || source === "local") {
       setLoading(false);
       return;
@@ -1207,7 +1227,9 @@ function AiSidebarSession({
           ...(adapter.path ? { path: adapter.path } : {}),
           prompt: text,
           ...(options?.readOnly ? { noteAccess: false } : {}),
-          ...((noteContext || transcript) ? { contextText: [noteContext, transcript].filter(Boolean).join("\n\n") } : {}),
+          sessionKey: activeLocalThreadId,
+          ...(noteContext ? { contextText: noteContext } : {}),
+          ...(transcript ? { historyText: transcript } : {}),
           ...(snapshot.length ? {
             attachments: snapshot.map((item) => ({
               filename: item.filename,
@@ -1661,7 +1683,12 @@ function AiSidebarSession({
               </Message>
               <Message from="assistant">
                 {turn.reasoning.trim() || turn.tools.length ? (
-                  <AiSidebarLocalProcess reasoning={turn.reasoning} tools={turn.tools} running={turn.status === "running"} />
+                  <AiSidebarLocalProcess
+                    reasoning={turn.reasoning}
+                    tools={turn.tools}
+                    running={turn.status === "running"}
+                    answering={turn.response.trim().length > 0 || turn.images.length > 0}
+                  />
                 ) : turn.status === "running" ? (
                   <p role="status" className="flex items-center gap-2 text-xs text-slate-500">
                     <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />

@@ -78,6 +78,10 @@ export type DesktopAcpPromptInput = {
   path?: string;
   prompt: string;
   contextText?: string;
+  // Replayed only when this chat has no live ACP process. A live session already contains it.
+  historyText?: string;
+  // Keeps one agent process for this sidebar chat. Omit it for a one-shot call.
+  sessionKey?: string;
   attachments?: DesktopAcpAttachment[];
   // Infographic edits apply a validated proposal in the editor. They must not
   // also grant the agent write access to the note document.
@@ -199,6 +203,12 @@ export const authenticateDesktopAcpAdapter = async (input: { id: DesktopAcpAdapt
   const desktop = bridge();
   if (!desktop?.authenticateAcpAdapter) throw new Error("desktop_acp_unavailable");
   return desktop.authenticateAcpAdapter(input);
+};
+
+export const prepareDesktopAcp = async (input: Omit<DesktopAcpPromptInput, "prompt" | "contextText" | "historyText" | "attachments">) => {
+  const desktop = bridge();
+  if (!desktop?.prepareAcp || !input.sessionKey) return { ready: false as const };
+  return desktop.prepareAcp(input);
 };
 
 export const promptDesktopAcp = async (input: DesktopAcpPromptInput): Promise<DesktopAcpPromptResult> => {

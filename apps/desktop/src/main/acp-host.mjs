@@ -30,6 +30,11 @@ const AUTH_REQUIRED_CODE = -32000;
 const MAX_ATTACHMENTS = 8;
 const MAX_ATTACHMENT_CHARS = 8_000_000;
 const HANDSHAKE_TIMEOUT_MS = 20_000;
+const WARM_SESSION_LIMIT = 2;
+const WARM_IDLE_MS = 10 * 60_000;
+const WARM_CANCEL_GRACE_MS = 5_000;
+const HISTORY_TEXT_LIMIT = 16_000;
+const SESSION_KEY_PATTERN = /^[A-Za-z0-9_-]{1,80}$/;
 const WORKSPACE_MARKER = `${path.sep}edgeever-acp-`;
 const IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 
@@ -365,11 +370,14 @@ const rejectAttachment = (attachment, reason) => ({
   reason,
 });
 
-export function buildPromptContent({ prompt, contextText, attachments, promptCapabilities = {}, promptFirst = false } = {}) {
+export function buildPromptContent({ prompt, contextText, historyText, attachments, promptCapabilities = {}, promptFirst = false } = {}) {
   const blocks = [];
   const rejectedAttachments = [];
+  const contextBlocks = [];
+  if (typeof contextText === "string" && contextText.length > 0) contextBlocks.push({ type: "text", text: contextText });
+  if (typeof historyText === "string" && historyText.length > 0) contextBlocks.push({ type: "text", text: historyText });
   if (promptFirst) blocks.push({ type: "text", text: typeof prompt === "string" ? prompt : "" });
-  if (typeof contextText === "string" && contextText.length > 0) blocks.push({ type: "text", text: contextText });
+  blocks.push(...contextBlocks);
   if (!promptFirst) blocks.push({ type: "text", text: typeof prompt === "string" ? prompt : "" });
   const list = Array.isArray(attachments) ? attachments : [];
   list.forEach((attachment, index) => {
@@ -740,7 +748,8 @@ const createEdgeEverAcpClient = (requestId, emit, allowPermissions, onAuthStatus
     return allowPermissions ? automaticAcpPermissionResponse(params) : { outcome: { outcome: "cancelled" } };
   },
   sessionUpdate(params) {
-    for (const event of eventsFromSessionUpdate(requestId, params)) emit(event);
+    const id = typeof requestId === "function" ? requestId() : requestId;
+    for (const event of eventsFromSessionUpdate(id, params)) emit(event);
   },
   readTextFile() {
     throw new Error("filesystem access is not available");
@@ -827,6 +836,11 @@ export function createAcpHostRuntime(options = {}) {
   const commandDeps = options;
   const manager = options.adapterManager ?? (options.adapterStore ? createAcpAdapterManager({ root: options.adapterStore, executablePath: options.executablePath, fetchImpl: options.adapterFetchImpl }) : null);
   const active = new Map();
+  const warmSessions = new Map();
+  const preparing = new Map();
+  const warmLimit = Number.isInteger(options.warmSessionLimit) && options.warmSessionLimit > 0 ? options.warmSessionLimit : WARM_SESSION_LIMIT;
+  const warmIdleMs = Number.isInteger(options.warmIdleMs) && options.warmIdleMs >= 0 ? options.warmIdleMs : WARM_IDLE_MS;
+  const warmCancelGraceMs = Number.isInteger(options.warmCancelGraceMs) && options.warmCancelGraceMs >= 0 ? options.warmCancelGraceMs : WARM_CANCEL_GRACE_MS;
   const updateFailures = new Map();
   const installingIds = new Set();
   const latestStatus = new Map();
@@ -854,6 +868,11 @@ export function createAcpHostRuntime(options = {}) {
   };
 
   const connect = async (command, requestId, emit, signal, authMethodId, mcpServers = [], allowPermissions = false, workBuddyAuth = null, verifyWorkBuddy = false) => {
+    const sink = emit && typeof emit === "object" && typeof emit.emit === "function"
+      ? emit
+      : { emit: typeof emit === "function" ? emit : () => {} };
+    const notifyConnection = (event) => sink.emit(event);
+    const liveRequestId = () => (typeof requestId === "function" ? requestId() : requestId);
     const cwd = await createAcpWorkspace(mkdtempImpl, options.tmpRoot);
     let child = null;
     let authMethods = [];
@@ -876,7 +895,7 @@ export function createAcpHostRuntime(options = {}) {
       // Correlate transient Windows consoles with adapter connections without
       // logging command arguments, environment variables or credential paths.
       const processDiagnostic = (event, details = {}) => {
-        try { options.onProcessDiagnostic?.({ event, requestId, pid: child.pid, ...details }); } catch { /* diagnostics are optional */ }
+        try { options.onProcessDiagnostic?.({ event, requestId: liveRequestId(), pid: child.pid, ...details }); } catch { /* diagnostics are optional */ }
       };
       processDiagnostic("spawned");
       child.once("exit", (code, signal) => processDiagnostic("exited", { code, signal }));
@@ -910,7 +929,7 @@ export function createAcpHostRuntime(options = {}) {
       });
       child.stderr?.on("end", () => { recordStderr(stderrBuffer); stderrBuffer = ""; });
       const stream = acpNdJsonStream(child);
-      const connection = new ClientSideConnection(() => createEdgeEverAcpClient(requestId, emit, allowPermissions, onAuthStatus), stream);
+      const connection = new ClientSideConnection(() => createEdgeEverAcpClient(liveRequestId, notifyConnection, allowPermissions, onAuthStatus), stream);
       void connection.closed?.catch(() => {});
       const initialized = await connection.initialize(acpInitializeParams(version));
       authMethods = publicAuthMethods(initialized);
@@ -988,7 +1007,106 @@ export function createAcpHostRuntime(options = {}) {
     }
   };
 
+  const sessionKeyOf = (input) => {
+    if (input.sessionKey == null || input.sessionKey === "") return null;
+    if (typeof input.sessionKey !== "string" || !SESSION_KEY_PATTERN.test(input.sessionKey)) {
+      throw new Error("invalid_session");
+    }
+    return input.sessionKey;
+  };
+  const commandFingerprint = (command) => (
+    typeof command === "string" ? command : `${command?.command ?? ""}\0${(command?.args ?? []).join("\0")}`
+  );
+  const discardConnected = async (connected, mcpBridge) => {
+    const stopped = connected?.stop?.() ?? Promise.resolve();
+    const closedBridge = mcpBridge?.close?.() ?? Promise.resolve();
+    try { await stopped; } catch { /* The process may already be gone. */ }
+    if (connected?.cwd) await cleanupWorkspace(connected.cwd);
+    try { await closedBridge; } catch { /* The bridge may already be closed. */ }
+  };
+  const retireWarm = async (warm) => {
+    if (!warm || warm.retired) return;
+    warm.retired = true;
+    warm.busy = false;
+    clearTimeout(warm.idleTimer);
+    for (const [key, value] of warmSessions) if (value === warm) warmSessions.delete(key);
+    await discardConnected(warm, warm.mcpBridge);
+  };
+  const armIdle = (warm) => {
+    clearTimeout(warm.idleTimer);
+    warm.lastUsed = Date.now();
+    if (!(warmIdleMs > 0)) return;
+    warm.idleTimer = setTimeout(() => {
+      if (warm.busy) armIdle(warm);
+      else void retireWarm(warm);
+    }, warmIdleMs);
+    warm.idleTimer.unref?.();
+  };
+  const retireSiblingSessions = async (keepKey, sessionKey) => {
+    const suffix = `\0${sessionKey}`;
+    const siblings = [...warmSessions.entries()].filter(([key, warm]) => key !== keepKey && key.endsWith(suffix) && !warm.busy && !warm.retired);
+    for (const [, warm] of siblings) await retireWarm(warm);
+  };
+  // One handshake is shared by a sidebar prepare and the first prompt. The
+  // session stays up for later turns instead of spawning a process per message.
+  const startWarmSession = (key, spec) => {
+    const requestRef = { id: "", open: false, notify: () => {} };
+    const job = (async () => {
+      await ensureWarmCapacity();
+      let mcpBridge = null;
+      try {
+        if (spec.wantsNotes && spec.access) mcpBridge = await (options.startMcpBridge ?? startAcpMcpBridge)(spec.access);
+        const sink = { emit: (event) => { if (requestRef.open) requestRef.notify(event); } };
+        const connected = await withHandshakeTimeout((signal) => connect(
+          spec.command, () => requestRef.id, sink, signal, undefined,
+          mcpBridge ? [mcpServerFor(mcpBridge)] : [], true, null, spec.verifyWorkBuddy,
+        ));
+        spec.rememberPromptStatus({
+          state: "available",
+          authMethods: connected.authMethods,
+          promptCapabilities: connected.promptCapabilities,
+        });
+        const warm = {
+          ...connected,
+          requestRef,
+          mcpBridge,
+          busy: false,
+          prompted: false,
+          retired: false,
+          lastUsed: Date.now(),
+          idleTimer: null,
+        };
+        warmSessions.set(key, warm);
+        connected.child?.once("exit", () => { void retireWarm(warm); });
+        armIdle(warm);
+        return warm;
+      } catch (error) {
+        const failure = classifyAcpFailure(error);
+        spec.rememberPromptStatus({
+          ...failureFields(failure),
+          ...(failure.state === "needs_login" ? { authMethods: error.authMethods ?? [] } : {}),
+        });
+        try { await mcpBridge?.close(); } catch { /* The bridge may already be closed. */ }
+        throw error;
+      }
+    })();
+    preparing.set(key, job);
+    job.finally(() => { if (preparing.get(key) === job) preparing.delete(key); }).catch(() => {});
+    return job;
+  };
+  const ensureWarmCapacity = async () => {
+    while (warmSessions.size >= warmLimit) {
+      const idle = [...warmSessions.values()].filter((warm) => !warm.busy && !warm.retired);
+      if (!idle.length) return;
+      idle.sort((left, right) => left.lastUsed - right.lastUsed);
+      await retireWarm(idle[0]);
+    }
+  };
+
   return {
+    async releaseWarmSessions() {
+      await Promise.all([...warmSessions.values()].map((warm) => retireWarm(warm)));
+    },
     clearAdapterStatus(id) { latestStatus.delete(id); },
     listAdapters(configuredPaths = {}) {
       return ["codex", "claudeCode", "antigravity", "openClaw", "hermesAgent", "grokBuild", "deepseekHarness", "piAgent", "workbuddyCn", "workbuddyIntl"].map((id) => {
@@ -1136,6 +1254,59 @@ export function createAcpHostRuntime(options = {}) {
       }
     },
 
+    // Open the selected chat's agent before the user sends. Every desktop
+    // client uses this; it is not tied to one machine or one agent.
+    async prepare(input) {
+      if (!input || typeof input !== "object" || !Object.hasOwn(ADAPTERS, input.adapterId)) return { ready: false };
+      let sessionKey;
+      try { sessionKey = sessionKeyOf(input); } catch { return { ready: false }; }
+      if (!sessionKey) return { ready: false };
+      const resolved = resolveCommand({ id: input.adapterId, path: input.path });
+      if (!resolved.ok) return { ready: false };
+      const customPath = input.adapterId === "antigravity" && typeof input.path === "string" ? input.path.trim() : "";
+      const rememberPromptStatus = (fields) => latestStatus.set(input.adapterId, {
+        ...adapterShell(input.adapterId),
+        ...fields,
+        ...(customPath ? { customPath } : {}),
+      });
+      const wantsNotes = Boolean(options.mcpAccess) && input.noteAccess !== false && input.adapterId !== "openClaw";
+      let access = null;
+      if (wantsNotes) {
+        try { access = await options.mcpAccess(); } catch { return { ready: false }; }
+      }
+      const key = [
+        input.adapterId,
+        commandFingerprint(resolved.command),
+        customPath,
+        wantsNotes ? "notes" : "isolated",
+        wantsNotes ? `${access?.baseUrl ?? ""}\0${access?.accountId ?? ""}` : "",
+        sessionKey,
+      ].join("\0");
+      let warm = warmSessions.get(key) ?? null;
+      if (warm && (warm.retired || warm.child?.exitCode != null || warm.child?.signalCode != null)) {
+        await retireWarm(warm);
+        warm = null;
+      }
+      if (warm?.busy || warm) {
+        if (warm && !warm.busy) armIdle(warm);
+        return { ready: true };
+      }
+      try {
+        await (preparing.get(key) ?? startWarmSession(key, {
+          command: resolved.command,
+          wantsNotes,
+          access,
+          verifyWorkBuddy: input.adapterId === "workbuddyCn" || input.adapterId === "workbuddyIntl",
+          rememberPromptStatus,
+        }));
+        return { ready: true };
+      } catch {
+        return { ready: false };
+      }
+    },
+
+    // Sidebar chats reuse one process and ACP session. Follow-up turns skip
+    // startup and the replayed transcript. Calls without sessionKey stay one-shot.
     async prompt(input, emit = () => {}) {
       if (!input || typeof input !== "object" || typeof input.prompt !== "string") throw new Error("invalid_prompt");
       if (!Object.hasOwn(ADAPTERS, input.adapterId)) throw new Error("unknown_adapter");
@@ -1145,6 +1316,12 @@ export function createAcpHostRuntime(options = {}) {
         notify({ requestId, type: "error", message });
         return { requestId };
       };
+      let sessionKey;
+      try {
+        sessionKey = sessionKeyOf(input);
+      } catch {
+        return fail("invalid_session");
+      }
       const resolved = resolveCommand({ id: input.adapterId, path: input.path });
       if (!resolved.ok) return fail(promptFailureMessage(resolved));
       const customPath = input.adapterId === "antigravity" && typeof input.path === "string" ? input.path.trim() : "";
@@ -1153,91 +1330,174 @@ export function createAcpHostRuntime(options = {}) {
         ...fields,
         ...(customPath ? { customPath } : {}),
       });
-
-      let connected;
-      let mcpBridge;
-      try {
-        // OpenClaw's ACP Gateway bridge rejects session-scoped MCP servers.
-        if (options.mcpAccess && input.noteAccess !== false && input.adapterId !== "openClaw") {
-          const access = await options.mcpAccess();
-          mcpBridge = await (options.startMcpBridge ?? startAcpMcpBridge)(access);
+      // OpenClaw's ACP Gateway bridge rejects session-scoped MCP servers.
+      const wantsNotes = Boolean(options.mcpAccess) && input.noteAccess !== false && input.adapterId !== "openClaw";
+      let access = null;
+      if (wantsNotes) {
+        try {
+          access = await options.mcpAccess();
+        } catch (error) {
+          return fail(promptFailureMessage(classifyAcpFailure(error)));
         }
-      } catch (error) {
-        return fail(promptFailureMessage(classifyAcpFailure(error)));
       }
-      try {
-        connected = await withHandshakeTimeout((signal) => connect(
-          resolved.command, requestId, notify, signal, undefined,
-          mcpBridge ? [mcpServerFor(mcpBridge)] : [], true, null, input.adapterId === "workbuddyCn" || input.adapterId === "workbuddyIntl",
-        ));
-        rememberPromptStatus({
-          state: "available",
-          authMethods: connected.authMethods,
-          promptCapabilities: connected.promptCapabilities,
+      const accountKey = wantsNotes ? `${access?.baseUrl ?? ""}\0${access?.accountId ?? ""}` : "";
+      const key = sessionKey ? [
+        input.adapterId,
+        commandFingerprint(resolved.command),
+        customPath,
+        wantsNotes ? "notes" : "isolated",
+        accountKey,
+        sessionKey,
+      ].join("\0") : null;
+      let warm = key ? warmSessions.get(key) ?? null : null;
+      if (warm && (warm.retired || warm.child?.exitCode != null || warm.child?.signalCode != null)) {
+        await retireWarm(warm);
+        warm = null;
+      }
+      if (warm?.busy) return fail("session_busy");
+      // A read-only turn must not continue inside the note-writing process.
+      // Dropping the other process makes the next normal turn replay the transcript.
+      if (key) await retireSiblingSessions(key, sessionKey);
+
+      const verifyWorkBuddy = input.adapterId === "workbuddyCn" || input.adapterId === "workbuddyIntl";
+      const claim = (session) => {
+        session.requestRef.id = requestId;
+        session.requestRef.open = true;
+        session.requestRef.notify = notify;
+        session.busy = true;
+        clearTimeout(session.idleTimer);
+      };
+      if (!warm && key) {
+        const pending = preparing.get(key) ?? startWarmSession(key, {
+          command: resolved.command, wantsNotes, access, verifyWorkBuddy, rememberPromptStatus,
         });
-      } catch (error) {
-        const failure = classifyAcpFailure(error);
-        rememberPromptStatus({
-          ...failureFields(failure),
-          ...(failure.state === "needs_login" ? { authMethods: error.authMethods ?? [] } : {}),
-        });
-        await mcpBridge?.close();
-        return fail(promptFailureMessage(failure));
+        try {
+          warm = await pending;
+        } catch (error) {
+          return fail(promptFailureMessage(classifyAcpFailure(error)));
+        }
+        if (warm.retired || warm.child?.exitCode != null || warm.child?.signalCode != null) {
+          await retireWarm(warm);
+          return fail("connection_failed");
+        }
+        if (warm.busy) return fail("session_busy");
+      }
+      let connected = warm;
+      let mcpBridge = warm?.mcpBridge ?? null;
+      // prompted is set only after a turn is delivered. Preparing a process
+      // still sends the transcript with the first real question.
+      const resumeConversation = warm?.prompted === true;
+      if (warm) {
+        claim(warm);
+        try { options.onProcessDiagnostic?.({ event: resumeConversation ? "reused" : "ready", requestId, pid: warm.child?.pid }); } catch { /* diagnostics are optional */ }
+      } else {
+        try {
+          if (wantsNotes && access) mcpBridge = await (options.startMcpBridge ?? startAcpMcpBridge)(access);
+        } catch (error) {
+          return fail(promptFailureMessage(classifyAcpFailure(error)));
+        }
+        const spawnedRequest = { id: requestId, open: true, notify };
+        const sink = { emit: (event) => { if (spawnedRequest.open) spawnedRequest.notify(event); } };
+        try {
+          connected = await withHandshakeTimeout((signal) => connect(
+            resolved.command, () => spawnedRequest.id, sink, signal, undefined,
+            mcpBridge ? [mcpServerFor(mcpBridge)] : [], true, null, verifyWorkBuddy,
+          ));
+          rememberPromptStatus({
+            state: "available",
+            authMethods: connected.authMethods,
+            promptCapabilities: connected.promptCapabilities,
+          });
+        } catch (error) {
+          const failure = classifyAcpFailure(error);
+          rememberPromptStatus({
+            ...failureFields(failure),
+            ...(failure.state === "needs_login" ? { authMethods: error.authMethods ?? [] } : {}),
+          });
+          try { await mcpBridge?.close(); } catch { /* The bridge may already be closed. */ }
+          return fail(promptFailureMessage(failure));
+        }
+        connected.requestRef = spawnedRequest;
       }
 
+      const requestRef = warm ? warm.requestRef : connected.requestRef;
       let content;
       try {
+        const historyText = !resumeConversation && typeof input.historyText === "string" ? input.historyText.slice(-HISTORY_TEXT_LIMIT) : "";
         content = buildPromptContent({
           prompt: input.prompt,
           contextText: input.contextText,
+          historyText,
           attachments: input.attachments,
           promptCapabilities: connected.promptCapabilities,
           // Codex derives its thread title from the start of the first user turn.
           promptFirst: input.adapterId === "codex",
         });
-        if (mcpBridge) {
+        if (mcpBridge && !resumeConversation) {
           content.blocks.splice(input.adapterId === "codex" ? 1 : 0, 0, {
             type: "text",
             text: "For EdgeEver note operations in this conversation, use only the session-provided MCP server named edgeever-current-workspace. It is connected to the account currently signed in to EdgeEver. Ignore any EdgeEver MCP server from your persistent configuration, which may target a different instance or account. For a request to generate a poster or 海报笔记, first call get_poster_capabilities and read templates and browserDesignTemplates. Select by zhUse/enUse, the requested style and target platform (fit). Respect a named template. Use a basic templates ID for create_poster_memo.template. Full browserDesignTemplates IDs go only in request_poster_render.templateId, even when IDs overlap. For a new poster, apply the chosen full design during initial rendering if appropriate; an existing poster requires an explicit template-change request. With sections, basic styles share grid/list layout and differ mainly in palette. Then use create_poster_memo with concise copy; it produces the actual editable poster type. Never manually encode poster source, inspect local files to discover the format, or substitute poster-style Markdown. If the tool is unavailable or fails, report that clearly. To query posters, use search_memos or list_memos with poster=true rather than searching the title for 海报. For detailed design, read get_poster_capabilities for valid fields, fonts, platform sizes and operations. Read and edit a poster with get_poster then update_poster. apply_template replaces the layout and must be requested. get_poster_preview and export_poster provide saved previews and editable source, not fresh rendering. Request new PNG rendering or a full browser template with request_poster_render and expectedRevision; an online desktop/Web client handles it. Query get_poster_render_job no faster than every 5 seconds; only completed means rendered, then get_poster_preview. Pending means waiting for a client; report that honestly. Delete exact queried IDs with trash_memos; restore them with restore_memos. When you create a note, include a clickable Markdown link to it in your final answer: [note title](#memo=exact_memo_id_from_tool_result). Do not show the note ID as plain text or use an https://edgeever.ai/memo/ URL; that URL opens an external website instead of the current workspace.",
           });
         }
       } catch (error) {
-        await connected.stop();
-        await cleanupWorkspace(connected.cwd);
-        await mcpBridge?.close();
+        requestRef.open = false;
+        if (warm) {
+          warm.busy = false;
+          armIdle(warm);
+        } else {
+          await discardConnected(connected, mcpBridge);
+        }
         return fail(promptFailureMessage(classifyAcpFailure(error)));
       }
 
+      let resolveSettled;
+      const whenSettled = new Promise((resolve) => { resolveSettled = resolve; });
       const session = {
         cancelled: false,
         settled: false,
-        ...connected,
+        keep: Boolean(warm),
+        warm,
+        connected,
         mcpBridge,
+        connection: connected.connection,
+        sessionId: connected.sessionId,
+        requestRef,
+        whenSettled,
+        stop: connected.stop,
       };
       active.set(requestId, session);
-      const finish = (event) => {
+      const finish = (event, { drop }) => {
         if (session.settled) return;
         session.settled = true;
+        requestRef.open = false;
         notify(event);
         active.delete(requestId);
-        void session.stop().then(() => cleanupWorkspace(session.cwd));
-        void session.mcpBridge?.close();
+        if (warm && !drop && !warm.retired) {
+          warm.busy = false;
+          armIdle(warm);
+        } else if (warm) {
+          void retireWarm(warm);
+        } else {
+          void discardConnected(connected, mcpBridge);
+        }
+        resolveSettled();
       };
+      if (warm) warm.prompted = true;
       void connected.connection.prompt({ sessionId: connected.sessionId, prompt: content.blocks }).then((result) => {
-        if (session.cancelled) return finish({ requestId, type: "done" });
+        if (session.cancelled) return finish({ requestId, type: "done" }, { drop: false });
         const failure = connected.authenticationRequired() ? "needs_login" : promptResultFailure(result);
         if (failure === "needs_login") {
           rememberPromptStatus({ state: "needs_login", authMethods: connected.authMethods });
         }
-        finish(failure ? { requestId, type: "error", message: failure } : { requestId, type: "done" });
+        finish(failure ? { requestId, type: "error", message: failure } : { requestId, type: "done" }, { drop: Boolean(failure) });
       }).catch((error) => {
-        if (session.cancelled) finish({ requestId, type: "done" });
+        if (session.cancelled) finish({ requestId, type: "done" }, { drop: warm?.retired === true });
         else {
           const failure = connected.authenticationRequired() ? { state: "needs_login" } : classifyAcpFailure(error);
           if (failure.state === "needs_login") {
             rememberPromptStatus({ state: "needs_login", authMethods: connected.authMethods });
           }
-          finish({ requestId, type: "error", message: promptFailureMessage(failure) });
+          finish({ requestId, type: "error", message: promptFailureMessage(failure) }, { drop: true });
         }
       });
       return { requestId, rejectedAttachments: content.rejectedAttachments };
@@ -1250,7 +1510,15 @@ export function createAcpHostRuntime(options = {}) {
       try {
         if (session.connection && session.sessionId) await session.connection.cancel({ sessionId: session.sessionId });
       } catch {
-        // The process may already be gone. Killing it is enough.
+        // The process may already be gone. Killing it is enough for a one-shot call.
+      }
+      if (session.keep) {
+        let timer;
+        const timedOut = new Promise((resolve) => { timer = setTimeout(() => resolve("timeout"), warmCancelGraceMs); });
+        const outcome = await Promise.race([session.whenSettled.then(() => "settled"), timedOut]);
+        clearTimeout(timer);
+        if (outcome === "timeout") await retireWarm(session.warm);
+        return { ok: true };
       }
       await session.stop();
       void session.mcpBridge?.close();
@@ -1311,6 +1579,10 @@ export function registerAcpIpc(ipcMain, runtime = createAcpHostRuntime(), {
   ipcMain.handle("desktop:acp-authenticate", async (event, input) => {
     if (!allowInstall(event.sender, event)) throw new Error("adapter_auth_forbidden");
     return runtime.authenticateAdapter(await withRecordedPath(input));
+  });
+  ipcMain.handle("desktop:acp-prepare", async (event, input) => {
+    if (!allowPrompt(event.sender, event)) throw new Error("acp_prepare_forbidden");
+    return runtime.prepare(await withRecordedPath(input));
   });
   ipcMain.handle("desktop:acp-prompt", async (event, input) => {
     if (!allowPrompt(event.sender, event)) throw new Error("acp_prompt_forbidden");
