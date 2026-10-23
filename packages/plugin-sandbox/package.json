@@ -1,0 +1,19 @@
+{
+  "name": "@edgeever/plugin-sandbox",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Platform-agnostic WebView sandbox runtime that runs EdgeEver plugins inside mobile hosts.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts"
+    }
+  },
+  "types": "./src/index.ts",
+  "sideEffects": false,
+  "license": "AGPL-3.0-or-later",
+  "dependencies": {
+    "@edgeever/plugin-api": "workspace:*"
+  }
+}
