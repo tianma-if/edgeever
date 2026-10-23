@@ -2572,8 +2572,8 @@ export const enUS = {
     pdfExport: {
       preparing: "Preparing print preview…",
       ready: "Print preview is ready",
-      hint: "Choose “Save as PDF” in the print dialog.",
-      print: "Print / Save PDF",
+      hint: "The downloaded PDF includes the heading outline in the viewer's sidebar.",
+      print: "Save PDF",
       close: "Close",
       error: "Could not generate the print preview",
       popupBlocked: "The browser blocked the print preview window. Allow pop-ups for EdgeEver and try again.",

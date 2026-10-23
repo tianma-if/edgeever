@@ -43,6 +43,7 @@
     "motion": "^12.43.0",
     "nanoid": "^6.0.1",
     "pagedjs": "^0.4.3",
+    "pdf-lib": "1.17.1",
     "streamdown": "^2.6.0",
     "use-stick-to-bottom": "^1.1.6"
   }

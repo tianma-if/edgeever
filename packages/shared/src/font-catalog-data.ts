@@ -37,6 +37,13 @@ export type RemoteNoteImageFont = keyof typeof FONT_CATALOG;
 export const isRemoteNoteImageFont = (value: string): value is RemoteNoteImageFont => Object.hasOwn(FONT_CATALOG, value);
 
 export const FONT_IDS = Object.keys(FONT_CATALOG) as RemoteNoteImageFont[];
+
+/** Note-body settings menu only. Poster and image-share lists keep FONT_IDS order. */
+export const NOTE_BODY_FONT_MENU_GROUPS = {
+  chineseReading: ["wenkai", "zhuque", "source-han-serif", "source-han-sans", "puhui"],
+  chineseDisplay: ["smiley", "heavy", "puhui-heavy", "youshe", "shuhei", "douyin", "mashan", "jiangcheng", "huangyou", "glow", "kuaile", "source-han-serif-heavy"],
+  latin: ["inter", "spacegrotesk", "dmserif", "anton", "bebas", "jetbrains"],
+} as const satisfies Record<"chineseReading" | "chineseDisplay" | "latin", readonly RemoteNoteImageFont[]>;
 export const findCatalogFont = (idOrFamily: string) => FONT_IDS.find(id => id === idOrFamily || FONT_CATALOG[id].family === idOrFamily || FONT_CATALOG[id].posterFamily === idOrFamily);
 export const catalogFontStack = (id: RemoteNoteImageFont) => `"${FONT_CATALOG[id].family}", "${OFFLINE_SANS_FAMILY}", system-ui, sans-serif`;
 export const CATALOG_FONT_STACKS = Object.fromEntries(FONT_IDS.map(id => [id, catalogFontStack(id)])) as Record<RemoteNoteImageFont, string>;

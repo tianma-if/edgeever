@@ -8,7 +8,9 @@ describe("editor body font preference", () => {
     const fontFaces = readFileSync(new URL("../../lib/editor-body-font-faces.ts", import.meta.url), "utf8");
 
     expect(preferenceCard).toContain('t("settings.editorBodyFontTitle")');
-    expect(preferenceCard).toContain('includeCatalog ? FONT_IDS : ["wenkai", "zhuque"]');
+    expect(preferenceCard).toContain("NOTE_BODY_FONT_MENU_GROUPS");
+    expect(preferenceCard).not.toContain("editorBodyFontGroups");
+    expect(preferenceCard).toContain('["wenkai", "zhuque"]');
     expect(preferenceCard).toContain('value={id} textValue={t(FONT_CATALOG[id].labelKey)}');
     expect(preferenceCard).toContain('["source-han-serif", "sourceHanSerif"]');
     expect(preferenceCard).toContain('value="custom"');

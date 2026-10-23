@@ -488,7 +488,7 @@ html[data-theme="dark"] .edgeever-image-size-button.is-active {
   padding: 2px 5px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.88em;
-  font-weight: 550;
+  font-weight: 400;
 }
 
 .edgeever-prose pre code,

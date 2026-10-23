@@ -2838,6 +2838,7 @@ const RichEditorPane = ({
     hydratedEditorMemoId,
     markdownSource,
     memo,
+    noteProse,
     notebookName: notebookOptions.find((notebook) => notebook.id === memo?.notebookId)?.name ?? "",
     onDocumentActionConsumed,
     onSaveAsTemplate,

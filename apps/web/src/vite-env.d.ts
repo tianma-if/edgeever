@@ -255,6 +255,11 @@ interface DesktopRendererErrorDetails {
   exitCode?: number;
 }
 
+interface EdgeEverPrintBridge {
+  savePdf: () => Promise<Uint8Array>;
+}
+
 interface Window {
   edgeeverDesktop?: EdgeEverDesktopBridge;
+  edgeeverPrint?: EdgeEverPrintBridge;
 }

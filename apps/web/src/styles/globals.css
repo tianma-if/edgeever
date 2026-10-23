@@ -1743,7 +1743,7 @@ html[data-edgeever-extension-theme] .edgeever-memo-divider {
   box-shadow: inset 0 0 0 1px rgb(61 68 80 / 0.08);
   padding: 0.08em 0.28em;
   font-size: var(--editor-code-font-size, 0.875em);
-  font-weight: 450;
+  font-weight: 400;
   color: #3d4450;
   font-family: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
@@ -2524,7 +2524,7 @@ html[data-edgeever-extension-theme] .edgeever-memo-divider {
   padding: 0.08em 0.28em;
   border-radius: 4px;
   font-size: 0.8rem;
-  font-weight: 450;
+  font-weight: 400;
 }
 .markdown-content pre code {
   background-color: transparent;

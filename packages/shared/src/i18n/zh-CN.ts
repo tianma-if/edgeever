@@ -2570,8 +2570,8 @@ export const zhCN = {
     pdfExport: {
       preparing: "正在生成打印预览…",
       ready: "打印预览已就绪",
-      hint: "请在打印对话框中选择“另存为 PDF”。",
-      print: "打印 / 保存 PDF",
+      hint: "下载的 PDF 带有标题目录，可在阅读器左侧栏打开。",
+      print: "保存 PDF",
       close: "关闭",
       error: "打印预览生成失败",
       popupBlocked: "浏览器阻止了打印预览窗口，请允许 EdgeEver 打开弹出式窗口后重试。",

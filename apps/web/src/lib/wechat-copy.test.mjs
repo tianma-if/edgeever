@@ -80,16 +80,19 @@ describe("preparePublishArticle", () => {
         "--note-palette-accent": "#B39AE8",
         "--note-palette-light-accent": "#7351CF",
         "--note-palette-text": "#3F3F46",
+        "--note-palette-code-bg": "#F3F1FF",
         "--note-palette-code-text": "#5B4EE0",
       })[name] ?? "",
     });
     try {
       const context = readEditorCopyContext(container);
       expect(context.colors.accent).toBe("#7351CF");
+      expect(context.colors.codeText).toBe("#5B4EE0");
+      expect(context.colors.codeBackground).toBe("#F3F1FF");
       const root = preparePublishArticle("<p><strong>重点</strong> <code>Cmd/Ctrl + E</code></p>", container);
       expect(css(root.querySelector("strong"))).toContain("color:#7351CF");
-      expect(css(root.querySelector("code"))).toContain("color:#3d4450");
-      expect(css(root.querySelector("code"))).toContain("background:#e9edf1");
+      expect(css(root.querySelector("code"))).toContain("color:#5B4EE0");
+      expect(css(root.querySelector("code"))).toContain("background:#F3F1FF");
     } finally {
       globalThis.getComputedStyle = previous;
     }

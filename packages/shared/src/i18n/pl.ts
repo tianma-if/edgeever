@@ -2561,8 +2561,8 @@ export const pl = {
     pdfExport: {
       preparing: "Przygotowywanie podglądu wydruku…",
       ready: "Podgląd wydruku jest gotowy",
-      hint: "W oknie drukowania wybierz „Zapisz jako PDF”.",
-      print: "Drukuj / zapisz PDF",
+      hint: "Pobrany PDF zawiera konspekt nagłówków na pasku bocznym czytnika.",
+      print: "Zapisz PDF",
       close: "Zamknij",
       error: "Nie udało się wygenerować podglądu wydruku",
       popupBlocked: "Przeglądarka zablokowała okno podglądu wydruku. Zezwól EdgeEver na wyskakujące okna i spróbuj ponownie.",

@@ -1,26 +1,23 @@
 {
-  "version": "2.2.0",
+  "version": "2.3.0",
   "changes": {
     "en-US": [
-      "Public notebook sites now include an outline for long notes, full-text search, and per-site settings for the address alias, home note, appearance, and search indexing. Authors can exclude individual notes from a site. Existing share links, passwords, and live updates stay in place. Self-hosted instances apply the database migration on startup, so back up before upgrading. Thanks @sivdead for #634.",
-      "Note lists can sort titles from Z to A on the web, Android, iOS, and desktop. Pinned notes stay first, and notes that share a title keep their previous order.",
-      "A local agent keeps its thinking visible until the answer starts.",
-      "Follow-up messages in a desktop sidebar chat stay on the local agent that is already running, instead of starting a new process and session each time.",
-      "Resuming an interrupted companion chat no longer asks questions that were already answered. Thanks @yulei666 for #638."
+      "On the web and desktop, exported PDFs follow the note's light prose, including type size, line height, palette, custom CSS, and the note font. Page headers no longer repeat the note title, and long tables continue across pages. The file includes a heading outline in the viewer's sidebar, and saving downloads it directly.",
+      "On the web and desktop, a named palette now colors inline code while code blocks stay unchanged. Inline code uses a regular weight, including in exported PDFs and copies for WeChat. Android and iOS editors use that same regular weight.",
+      "On the web and desktop, the note body font menu lists faces meant for long reading first, then display faces and Latin-only faces. A saved choice, poster fonts, and the interface font list stay unchanged.",
+      "On the web and desktop, document outline rows indent 12px per level, so deeper headings keep more of their text. Collapse, heading jumps, and the current-heading highlight stay the same. Thanks @sivdead for #645."
     ],
     "zh-CN": [
-      "公开笔记本站点现在可以显示长文目录、搜索正文，并按站点设置访问别名、首页、外观和是否允许收录。作者可以把单篇笔记从某个站点排除。原有分享链接、密码和实时更新保持不变。自托管实例会在启动时自动迁移数据库，升级前请先备份。感谢 @sivdead 的贡献（#634）。",
-      "笔记列表可以按标题从 Z 到 A 排序，Web、Android、iOS 和桌面端都可用。置顶笔记仍在最前，标题相同的笔记保持原来的次序。",
-      "本机 Agent 会一直显示思考过程，直到回答开始。",
-      "在桌面端侧栏里继续和同一个本机 Agent 对话时，会沿用已经启动的进程，不用每次重新打开会话。",
-      "中断后继续的随身助手对话，不会再弹出已经回答过的问题。感谢 @yulei666 的贡献（#638）。"
+      "在 Web 和桌面端导出的 PDF 会沿用笔记的浅色正文，包括字号、行距、配色、自定义样式和正文字体。页眉不再重复笔记标题，超长表格可以跨页续排。文件带有标题目录，可在阅读器侧栏打开，保存时直接下载。",
+      "在 Web 和桌面端，笔记选用配色后，行内代码会使用同一套颜色，代码块保持不变。行内代码改为常规字重，导出的 PDF 和复制到公众号时也一样。Android 与 iOS 编辑器里的行内代码同样改为常规字重。",
+      "Web 和桌面端的笔记正文字体菜单把适合长文阅读的字体放在前面，标题字体和仅含拉丁字母的字体分在后面。已经选好的字体、海报字体和界面字体列表保持不变。",
+      "Web 和桌面端的文档大纲每一层缩进收紧为 12px，深层标题能留下更多文字。折叠、标题跳转和当前标题高亮保持不变。感谢 @sivdead 的贡献（#645）。"
     ],
     "ja": [
-      "公開ノートブックサイトに、長文の見出しナビ、本文検索、サイトごとのアドレス別名・ホーム・外観・検索インデックス設定を追加しました。サイトごとに個別のノートを除外できます。既存の共有リンク、パスワード、リアルタイム更新はそのままです。セルフホスト版は起動時にデータベースを移行するので、アップグレード前にバックアップしてください。@sivdead さんの貢献（#634）に感謝します。",
-      "ノート一覧をタイトルの Z から A の順に並べられるようになりました。Web、Android、iOS、デスクトップで使えます。ピン留めしたノートは先頭のまま、同じタイトルの順序も従来どおりです。",
-      "ローカル Agent は、回答が始まるまで思考過程を表示し続けます。",
-      "デスクトップのサイドバーで同じローカル Agent に続けて送るメッセージは、起動済みのプロセスを使い、毎回新しいセッションを開かなくなりました。",
-      "中断したコンパニオンの会話を再開しても、すでに回答した質問は再度表示されません。@yulei666 さんの貢献（#638）に感謝します。"
+      "Web とデスクトップで書き出した PDF は、文字サイズ、行間、配色、カスタム CSS、本文フォントを含むノートの明るい本文に従います。ページ上部にノートのタイトルは繰り返されず、長い表は次のページへ続きます。PDF には見出しの目次があり、ビューアのサイドバーで開けます。保存するとファイルが直接ダウンロードされます。",
+      "Web とデスクトップでは、ノートに配色を選ぶとインラインコードはその配色に従い、コードブロックはそのままです。インラインコードは通常の太さになり、書き出した PDF と WeChat 向けのコピーも同じです。Android と iOS のエディタでも同じ太さです。",
+      "Web とデスクトップのノート本文フォントメニューでは、長文向けの書体を先に並べ、見出し向けの書体とラテン文字だけの書体はその後にまとめます。保存済みの選択、ポスター用フォント、画面フォントの一覧はそのままです。",
+      "Web とデスクトップの文書アウトラインは、階層ごとに 12px 字下げになり、深い見出しでも文字がより多く残ります。折りたたみ、見出しへの移動、現在の見出しの強調はそのままです。@sivdead さんの貢献（#645）に感謝します。"
     ]
   }
 }

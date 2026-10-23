@@ -2,18 +2,11 @@
   size: A4;
   margin: 18mm 17mm 20mm;
 
-  @top-center {
-    content: string(edgeever-note-title);
-    color: #64748b;
-    font-family: "Noto Sans SC Variable", sans-serif;
-    font-size: 8.5pt;
-  }
-
   @bottom-center {
     content: counter(page) " / " counter(pages);
-    color: #64748b;
-    font-family: "Noto Sans SC Variable", sans-serif;
-    font-size: 8.5pt;
+    color: #737373;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", "Noto Sans SC Variable", sans-serif;
+    font-size: 9pt;
   }
 }
 
@@ -21,36 +14,34 @@
   box-sizing: border-box;
 }
 
-.edgeever-print-content .tiptap-mathematics-render[data-type="block-math"] {
-  max-width: 100%;
-  margin: 5mm 0;
-  overflow: hidden;
-  text-align: center;
-}
-
 .edgeever-print-document {
-  color: #172033;
-  font-family: "Noto Sans SC Variable", sans-serif;
-  font-size: 10.5pt;
-  line-height: 1.72;
+  --edgeever-system-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", "Noto Sans SC Variable", sans-serif;
+  color: #27272a;
+  font-family: var(--editor-body-font-family, var(--edgeever-system-font-family));
+  font-size: var(--editor-body-font-size, 16px);
+  font-feature-settings: "chws" 1;
+  letter-spacing: -0.005em;
+  line-height: var(--editor-body-line-height, 1.65);
   overflow-wrap: anywhere;
 }
 
 .edgeever-print-title {
-  string-set: edgeever-note-title content(text);
-  margin: 0 0 4mm;
-  color: #0f172a;
-  font-size: 24pt;
-  font-weight: 760;
-  line-height: 1.18;
+  margin: 0 0 0.75rem;
+  color: #1a1d21;
+  font-size: 1.5em;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1.28;
 }
 
 .edgeever-print-meta {
-  margin: 0 0 9mm;
-  border-bottom: 0.3mm solid #dbe4ea;
-  padding-bottom: 4mm;
-  color: #64748b;
-  font-size: 8.5pt;
+  margin: 0 0 1.5rem;
+  border-bottom: 1px solid #e5e5e5;
+  padding-bottom: 0.75rem;
+  color: #737373;
+  font-size: 0.8125rem;
+  letter-spacing: 0;
+  line-height: 1.45;
 }
 
 .edgeever-print-content > :first-child {
@@ -59,41 +50,95 @@
 
 .edgeever-print-content h1,
 .edgeever-print-content h2,
-.edgeever-print-content h3 {
+.edgeever-print-content h3,
+.edgeever-print-content h4,
+.edgeever-print-content h5,
+.edgeever-print-content h6 {
   break-after: avoid-page;
-  color: #0f172a;
-  line-height: 1.25;
+  font-weight: 600;
 }
 
 .edgeever-print-content h1 {
-  margin: 8mm 0 3.5mm;
-  font-size: 19pt;
+  margin: 0 0 0.85rem;
+  color: #1a1d21;
+  font-size: 1.5em;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1.28;
 }
 
 .edgeever-print-content h2 {
-  margin: 7mm 0 3mm;
-  font-size: 15pt;
+  margin: 1.4rem 0 0.6rem;
+  color: #27272a;
+  font-size: 1.25em;
+  letter-spacing: -0.015em;
+  line-height: 1.32;
 }
 
 .edgeever-print-content h3 {
-  margin: 6mm 0 2.5mm;
-  font-size: 12.5pt;
+  margin: 1.15rem 0 0.5rem;
+  color: #27272a;
+  font-size: 1.125em;
+  letter-spacing: -0.01em;
+  line-height: 1.38;
+}
+
+.edgeever-print-content h4 {
+  margin: 1.05rem 0 0.45rem;
+  color: #1e293b;
+  font-size: 1.0625em;
+  letter-spacing: -0.006em;
+  line-height: 1.4;
+}
+
+.edgeever-print-content h5 {
+  margin: 0.95rem 0 0.4rem;
+  color: #334155;
+  font-size: 1em;
+  line-height: 1.42;
+}
+
+.edgeever-print-content h6 {
+  margin: 0.85rem 0 0.35rem;
+  color: #334155;
+  font-size: 0.9375em;
+  line-height: 1.45;
 }
 
 .edgeever-print-content p {
-  margin: 0 0 3.5mm;
+  margin: 0 0 var(--editor-paragraph-spacing, 8px);
   orphans: 3;
   widows: 3;
 }
 
+.edgeever-print-content strong,
+.edgeever-print-content b {
+  font-synthesis: weight style;
+  font-weight: 800;
+}
+
+.edgeever-print-content em,
+.edgeever-print-content i {
+  font-synthesis: weight style;
+  font-style: italic;
+}
+
 .edgeever-print-content ul,
 .edgeever-print-content ol {
-  margin: 0 0 4mm;
-  padding-left: 6mm;
+  margin: 0 0 1rem;
+  padding-left: 1.5rem;
+}
+
+.edgeever-print-content ul {
+  list-style-type: disc;
+}
+
+.edgeever-print-content ol {
+  list-style-type: decimal;
 }
 
 .edgeever-print-content li {
-  margin: 1mm 0;
+  margin: 0.25rem 0;
 }
 
 .edgeever-print-content ul[data-type="taskList"] {
@@ -104,7 +149,7 @@
 .edgeever-print-content ul[data-type="taskList"] li[data-checked] {
   display: flex;
   align-items: flex-start;
-  gap: 2mm;
+  gap: 0.55rem;
   break-inside: avoid-page;
 }
 
@@ -112,12 +157,12 @@
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
-  margin-top: 0.8mm;
+  margin-top: 0.2rem;
 }
 
 .edgeever-print-content ul[data-type="taskList"] li[data-checked] > label input {
-  width: 4mm;
-  height: 4mm;
+  width: 1rem;
+  height: 1rem;
   margin: 0;
   accent-color: #1a1d21;
 }
@@ -131,71 +176,152 @@
   margin-bottom: 0;
 }
 
+.edgeever-print-content ul[data-type="taskList"] li[data-checked="true"] > div > p {
+  color: #737373;
+  text-decoration: line-through;
+  text-decoration-color: #a6a6a6;
+}
+
 .edgeever-print-content ul[data-type="taskList"] ul[data-type="taskList"] {
-  margin: 1mm 0 0;
-  padding-left: 6mm;
+  margin: 0.25rem 0 0;
+  padding-left: 1.5rem;
 }
 
 .edgeever-print-content blockquote {
   break-inside: avoid-page;
-  margin: 4mm 0;
-  border-left: 1mm solid #10b981;
-  background: #f0fdf4;
-  padding: 3mm 4mm;
-  color: #334155;
+  margin: 0 0 1rem;
+  border: 0;
+  border-radius: 8px;
+  background: #f3f5f7;
+  padding: 0.75rem 1rem;
+  color: #3d4450;
 }
 
 .edgeever-print-content hr {
-  margin: 7mm 0;
+  margin: 1.5rem 0;
   border: 0;
-  border-top: 0.3mm solid #cbd5e1;
+  border-top: 1px solid #1a1d21;
 }
 
 .edgeever-print-content hr.edgeever-merge-divider,
 .edgeever-print-content hr[data-edgeever-merge-divider] {
-  margin: 8mm 0;
+  margin: 1.5rem 0;
   border: 0;
-  border-top: 0.5mm solid #66ca80;
+  border-top: 2px solid #1a1d21;
   background: transparent;
   height: 0;
 }
 
 .edgeever-print-content a {
-  color: #047857;
+  color: #404040;
+  font-weight: 500;
   text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, #404040 45%, transparent);
+  text-underline-offset: 2px;
 }
 
-.edgeever-print-content code {
-  border-radius: 1mm;
-  background: #f1f5f9;
-  padding: 0.2mm 0.8mm;
-  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+.edgeever-print-content a.edgeever-note-link,
+.edgeever-print-content a[href^="#memo="] {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  max-width: 100%;
+  padding: 0.03rem 0.32rem 0.05rem;
+  border: 1px solid #e5e5e5;
+  border-radius: 0.35rem;
+  background: #f5f5f5;
+  color: #404040;
   font-size: 0.9em;
+  font-weight: 500;
+  text-decoration-color: color-mix(in srgb, #737373 55%, transparent);
+  vertical-align: baseline;
+}
+
+.edgeever-print-content a.edgeever-attachment-link,
+.edgeever-print-content a[href*="/api/v1/resources/"] {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  max-width: 100%;
+  padding: 0.3rem 0.55rem;
+  border: 1px solid rgb(212 212 212 / 0.9);
+  border-radius: 0.45rem;
+  background: #fafafa;
+  color: #262626;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.2;
+  text-decoration: none;
+}
+
+.edgeever-print-content a.edgeever-attachment-link::before,
+.edgeever-print-content a[href*="/api/v1/resources/"]::before {
+  content: "📎";
+  flex: 0 0 auto;
+  font-size: 0.8rem;
+}
+
+.edgeever-print-content :not(pre) > code {
+  border: 0;
+  border-radius: 4px;
+  background: #e9edf1;
+  box-shadow: inset 0 0 0 1px rgb(61 68 80 / 0.08);
+  padding: 0.08em 0.28em;
+  color: #3d4450;
+  font-family: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: var(--editor-code-font-size, 14px);
+  font-weight: 400;
 }
 
 .edgeever-print-content pre,
 .edgeever-print-content .edgeever-code-source {
   break-inside: avoid-page;
   max-width: 100%;
-  margin: 4mm 0;
-  border: 0.3mm solid #dbe4ea;
-  border-radius: 2mm;
-  background: #f8fafc;
-  padding: 3.5mm 4mm;
-  color: #1e293b;
-  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-  font-size: 8.5pt;
-  line-height: 1.55;
+  margin: 0 0 1rem;
+  border: 1px solid rgb(212 212 212 / 0.6);
+  border-radius: 8px;
+  background: rgb(250 250 250 / 0.75);
+  padding: 0.9rem 1rem;
+  color: #24292e;
+  box-shadow: 0 1px 2px rgb(24 24 24 / 0.03);
+  font-family: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: var(--editor-code-font-size, 14px);
+  font-weight: 550;
+  line-height: 1.6;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
 
 .edgeever-print-content pre code {
+  border: 0;
+  border-radius: 0;
   background: transparent;
+  box-shadow: none;
   padding: 0;
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
 }
 
-.edgeever-print-content img,
+.edgeever-print-content .tiptap-mathematics-render[data-type="block-math"] {
+  max-width: 100%;
+  margin: 1rem 0;
+  overflow: hidden;
+  text-align: center;
+}
+
+.edgeever-print-content img {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: 220mm;
+  margin: 1rem 0;
+  border: 1px solid #b8dfd0;
+  border-radius: 8px;
+  object-fit: contain;
+}
+
 .edgeever-print-mermaid svg {
   display: block;
   width: auto;
@@ -209,14 +335,14 @@
 .edgeever-print-mermaid {
   break-inside: avoid-page;
   max-width: 100%;
-  margin: 5mm auto;
+  margin: 1rem auto;
 }
 
 .edgeever-print-content [data-edgeever-image-gallery] {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 3mm;
-  margin: 5mm 0;
+  gap: 0.65rem;
+  margin: 1rem 0;
   break-inside: avoid-page;
 }
 
@@ -230,10 +356,9 @@
 
 .edgeever-print-content [data-edgeever-image-gallery] > img {
   width: 100%;
-  height: 52mm;
+  height: 13rem;
   max-height: none;
   margin: 0;
-  border-radius: 2mm;
   object-fit: cover;
 }
 
@@ -241,38 +366,73 @@
   margin: 0 auto;
 }
 
+.edgeever-print-mermaid text {
+  font-family: var(--editor-body-font-family, var(--edgeever-system-font-family));
+}
+
+/* The wrapper is only a scroll frame in the editor. Keeping that box in print
+ * makes paged.js move the whole table to the next page. */
+.edgeever-print-content .tableWrapper {
+  display: contents;
+}
+
 .edgeever-print-content table {
   width: 100%;
-  margin: 5mm 0;
+  margin: 1.25rem 0;
   border-collapse: collapse;
-  font-size: 8.5pt;
   line-height: 1.45;
+  break-inside: auto;
+}
+
+.edgeever-print-content .tableWrapper table {
+  margin: 0;
 }
 
 .edgeever-print-content thead {
   display: table-header-group;
+  break-inside: auto;
+}
+
+.edgeever-print-content tbody {
+  break-inside: auto;
 }
 
 .edgeever-print-content tr {
-  break-inside: avoid-page;
+  break-inside: avoid;
 }
 
 .edgeever-print-content th,
 .edgeever-print-content td {
-  border: 0.3mm solid #cbd5e1;
-  padding: 2mm 2.5mm;
+  break-inside: avoid;
+  border: 1px solid rgb(229 229 229 / 0.8);
+  padding: 0.48rem 0.8rem;
   text-align: left;
   vertical-align: top;
+  overflow-wrap: anywhere;
 }
 
 .edgeever-print-content th {
-  background: #f1f5f9;
-  font-weight: 700;
+  background: rgb(245 245 245 / 0.75);
+  color: #181818;
+  font-size: 0.84em;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.edgeever-print-content tbody tr:nth-child(even) td {
+  background: rgb(250 250 250 / 0.5);
+}
+
+.edgeever-print-content th p,
+.edgeever-print-content td p {
+  margin: 0;
+  letter-spacing: inherit;
+  line-height: inherit;
 }
 
 .edgeever-print-content details {
   break-inside: avoid-page;
-  margin: 2mm 0;
+  margin: 0.15em 0;
   padding: 0;
   border: 0;
   background: transparent;
@@ -290,23 +450,18 @@
 
 .edgeever-print-content [data-edgeever-theme-block] {
   break-inside: avoid-page;
-  margin: 5mm 0;
-  border: 0.3mm solid #a7f3d0;
-  border-left: 1mm solid #059669;
-  border-radius: 2mm;
-  background: #f0fdf4;
-  padding: 3.5mm 4mm;
+  margin: 1.25rem 0;
+  border: 1px solid #dbeee5;
+  border-radius: 6px;
+  background: #fbfefc;
+  padding: 0.8rem 1rem;
 }
 
 .edgeever-print-content [data-theme-block-kind="chapter"] {
-  border-width: 1mm 0 0;
-  border-radius: 0;
-  background: transparent;
-}
-
-.edgeever-print-content .tableWrapper {
-  max-width: 100%;
-  overflow: visible;
+  border-width: 0;
+  border-left: 4px solid #16a06e;
+  border-radius: 6px;
+  background: #f0f8f4;
 }
 
 .edgeever-print-content .edgeever-image-controls,
@@ -314,33 +469,4 @@
 .edgeever-print-content .edgeever-theme-block__toolbar,
 .edgeever-print-content .edgeever-mermaid-source {
   display: none !important;
-}
-
-.hljs-comment,
-.hljs-quote {
-  color: #64748b;
-}
-
-.hljs-keyword,
-.hljs-selector-tag,
-.hljs-literal {
-  color: #7c3aed;
-}
-
-.hljs-string,
-.hljs-title,
-.hljs-section {
-  color: #047857;
-}
-
-.hljs-number,
-.hljs-symbol,
-.hljs-bullet {
-  color: #b45309;
-}
-
-.hljs-built_in,
-.hljs-type,
-.hljs-attribute {
-  color: #0369a1;
 }
