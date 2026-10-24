@@ -21,6 +21,7 @@ export const localeLabels: Record<SupportedLocale, string> = {
   "en-US": "English",
   ja: "日本語",
   pl: "Polski",
+  cs: "Čeština",
 };
 
 export const normalizeLocale = (locale: string | null | undefined): SupportedLocale | null =>

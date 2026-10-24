@@ -1,4 +1,4 @@
-export const supportedLocales = ["zh-CN", "en-US", "ja", "pl"] as const;
+export const supportedLocales = ["zh-CN", "en-US", "ja", "pl", "cs"] as const;
 
 export type SupportedLocale = (typeof supportedLocales)[number];
 
@@ -29,6 +29,10 @@ export const matchSupportedLocale = (locale: string | null | undefined): Support
 
   if (normalized === "pl" || normalized.startsWith("pl-")) {
     return "pl";
+  }
+
+  if (normalized === "cs" || normalized.startsWith("cs-")) {
+    return "cs";
   }
 
   return null;

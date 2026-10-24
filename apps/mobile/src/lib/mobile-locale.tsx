@@ -797,8 +797,11 @@ const polishTemplateTranslations = [
   ...plTranslationPairs.filter((pair) => pair.pattern),
 ].sort((left, right) => right.source.length - left.source.length);
 
-const resolveSystemLocale = (): SupportedMobileLocale =>
-  resolveSupportedLocale(Intl.DateTimeFormat().resolvedOptions().locale);
+// The Android client does not ship Czech yet, so Czech systems keep English.
+const resolveSystemLocale = (): SupportedMobileLocale => {
+  const locale = resolveSupportedLocale(Intl.DateTimeFormat().resolvedOptions().locale);
+  return locale === "cs" ? "en-US" : locale;
+};
 
 const applyTemplateTranslations = (value: string, pairs: TranslationPair[]) => {
   for (const pair of pairs) {
