@@ -2821,6 +2821,13 @@ export const zhCN = {
     },
   },
   editorToolbar: {
+    colors: "文字和高亮颜色",
+    textColor: "文字颜色",
+    highlightColor: "高亮颜色",
+    defaultColor: "默认文字颜色",
+    noHighlight: "无高亮",
+    resetColors: "重置文字和高亮颜色",
+    colorNames: { gray: "灰色", brown: "棕色", orange: "橙色", yellow: "黄色", green: "绿色", blue: "蓝色", purple: "紫色", pink: "粉色", red: "红色" },
     toolbar: "编辑器工具栏",
     showMore: "显示更多编辑工具",
     showLess: "收起编辑器工具栏",

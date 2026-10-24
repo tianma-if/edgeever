@@ -47,6 +47,7 @@ export const NATIVE_EDITOR_NODE_TYPES = new Set<string>([
 ]);
 
 export const NATIVE_EDITOR_MARK_TYPES = new Set<string>([
+  "textStyle",
   "bold",
   "italic",
   "strike",

@@ -2812,6 +2812,13 @@ export const pl = {
     },
   },
   editorToolbar: {
+    colors: "Kolory tekstu i podświetlenia",
+    textColor: "Kolor tekstu",
+    highlightColor: "Kolor podświetlenia",
+    defaultColor: "Domyślny kolor tekstu",
+    noHighlight: "Bez podświetlenia",
+    resetColors: "Resetuj kolory tekstu i podświetlenia",
+    colorNames: { gray: "Szary", brown: "Brązowy", orange: "Pomarańczowy", yellow: "Żółty", green: "Zielony", blue: "Niebieski", purple: "Fioletowy", pink: "Różowy", red: "Czerwony" },
     toolbar: "Pasek narzędzi edytora",
     showMore: "Pokaż więcej narzędzi edycji",
     showLess: "Zwiń pasek narzędzi edytora",

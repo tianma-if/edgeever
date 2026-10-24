@@ -2823,6 +2823,13 @@ export const enUS = {
     },
   },
   editorToolbar: {
+    colors: "Text and highlight colors",
+    textColor: "Text color",
+    highlightColor: "Highlight color",
+    defaultColor: "Default text color",
+    noHighlight: "No highlight",
+    resetColors: "Reset text and highlight colors",
+    colorNames: { gray: "Gray", brown: "Brown", orange: "Orange", yellow: "Yellow", green: "Green", blue: "Blue", purple: "Purple", pink: "Pink", red: "Red" },
     toolbar: "Editor toolbar",
     showMore: "Show more editing tools",
     showLess: "Collapse editor toolbar",

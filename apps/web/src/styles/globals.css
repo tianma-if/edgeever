@@ -5,6 +5,7 @@
 @import "./publish-layout.css";
 @import "./note-prose.css";
 @import "./code-highlight-dark.css";
+@import "../../../../packages/shared/src/text-colors.css";
 
 @source "../../node_modules/streamdown/dist";
 @custom-variant dark (&:where(.dark, .dark *));

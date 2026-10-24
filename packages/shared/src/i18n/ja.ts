@@ -2812,6 +2812,13 @@ export const ja = {
     },
   },
   editorToolbar: {
+    colors: "文字色とハイライト色",
+    textColor: "文字色",
+    highlightColor: "ハイライト色",
+    defaultColor: "既定の文字色",
+    noHighlight: "ハイライトなし",
+    resetColors: "文字色とハイライト色をリセット",
+    colorNames: { gray: "グレー", brown: "ブラウン", orange: "オレンジ", yellow: "イエロー", green: "グリーン", blue: "ブルー", purple: "パープル", pink: "ピンク", red: "レッド" },
     toolbar: "エディタツールバー",
     showMore: "編集ツールをさらに表示",
     showLess: "エディタツールバーを閉じる",

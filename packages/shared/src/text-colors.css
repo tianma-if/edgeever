@@ -1,0 +1,19 @@
+/* Stored colors retain portable hex values; known palette colors adapt at display time. */
+:is(:root.dark, :root[data-theme="dark"]) [data-ee-text-color="gray"] { color: #b8b7b3 !important; }
+:is(:root.dark, :root[data-theme="dark"]) [data-ee-text-color="brown"] { color: #c99b82 !important; }
+:is(:root.dark, :root[data-theme="dark"]) [data-ee-text-color="orange"] { color: #e6a064 !important; }
+:is(:root.dark, :root[data-theme="dark"]) [data-ee-text-color="yellow"] { color: #dfc36a !important; }
+:is(:root.dark, :root[data-theme="dark"]) [data-ee-text-color="green"] { color: #8dc5a5 !important; }
+:is(:root.dark, :root[data-theme="dark"]) [data-ee-text-color="blue"] { color: #82bce0 !important; }
+:is(:root.dark, :root[data-theme="dark"]) [data-ee-text-color="purple"] { color: #bd9cdb !important; }
+:is(:root.dark, :root[data-theme="dark"]) [data-ee-text-color="pink"] { color: #e29cbe !important; }
+:is(:root.dark, :root[data-theme="dark"]) [data-ee-text-color="red"] { color: #ec9691 !important; }
+:is(:root.dark, :root[data-theme="dark"]) [data-ee-background-color="gray"] { background-color: #373735 !important; }
+:is(:root.dark, :root[data-theme="dark"]) [data-ee-background-color="brown"] { background-color: #493a34 !important; }
+:is(:root.dark, :root[data-theme="dark"]) [data-ee-background-color="orange"] { background-color: #523b28 !important; }
+:is(:root.dark, :root[data-theme="dark"]) [data-ee-background-color="yellow"] { background-color: #4f462b !important; }
+:is(:root.dark, :root[data-theme="dark"]) [data-ee-background-color="green"] { background-color: #2d4437 !important; }
+:is(:root.dark, :root[data-theme="dark"]) [data-ee-background-color="blue"] { background-color: #293f50 !important; }
+:is(:root.dark, :root[data-theme="dark"]) [data-ee-background-color="purple"] { background-color: #443451 !important; }
+:is(:root.dark, :root[data-theme="dark"]) [data-ee-background-color="pink"] { background-color: #503346 !important; }
+:is(:root.dark, :root[data-theme="dark"]) [data-ee-background-color="red"] { background-color: #543432 !important; }
