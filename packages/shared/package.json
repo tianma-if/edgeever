@@ -20,6 +20,7 @@
     "./i18n/zh-CN": "./src/i18n/zh-CN.ts",
     "./i18n/ja": "./src/i18n/ja.ts",
     "./i18n/pl": "./src/i18n/pl.ts",
+    "./i18n/ru": "./src/i18n/ru.ts",
     "./i18n/locales": "./src/i18n/locales.ts",
     "./memo-template-seeds": "./src/memo-template-seeds.ts",
     "./default-workspace-seeds": "./src/default-workspace-seeds.ts",

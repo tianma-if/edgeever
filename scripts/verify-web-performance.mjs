@@ -43,7 +43,7 @@ assert.ok(initialModulePreloadBytes <= INITIAL_MODULE_PRELOAD_BUDGET, `Initial m
 
 const startupGraph = readWebStartupGraph(distDirectory);
 assert.ok(startupGraph.initialJavaScriptBytes <= 1024 * 1024, `Eager JavaScript exceeds 1 MiB: ${startupGraph.initialJavaScriptBytes}`);
-const eagerOptionalPattern = /(?:^|\/)(?:vendor-(?:code-highlight|beautiful-mermaid|mermaid|tiptap|prosemirror|codemirror|x6|infographic|streamdown)|i18n-(?:ja|pl)-|(?:WorkspaceApp|EditorPane|DiagramEditorPane|PosterEditorPane|TableEditorPane|InfographicEditorPane)-)/;
+const eagerOptionalPattern = /(?:^|\/)(?:vendor-(?:code-highlight|beautiful-mermaid|mermaid|tiptap|prosemirror|codemirror|x6|infographic|streamdown)|i18n-(?:ja|pl|ru)-|(?:WorkspaceApp|EditorPane|DiagramEditorPane|PosterEditorPane|TableEditorPane|InfographicEditorPane)-)/;
 assert.ok(!startupGraph.initialJavaScriptFiles.some(file => eagerOptionalPattern.test(file)), "Optional editors and locales must remain outside the actual startup module graph");
 
 // Optional fonts must remain downloads, even when the desktop installer packages all Web files.

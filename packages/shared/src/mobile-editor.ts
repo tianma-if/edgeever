@@ -2,7 +2,7 @@ import type { Editor } from "@tiptap/core";
 import { EditorState } from "@tiptap/pm/state";
 import type { ImageWidthPresetId } from "./image-display";
 
-export type MobileEditorLocale = "zh-CN" | "en-US" | "ja" | "pl";
+export type MobileEditorLocale = "zh-CN" | "en-US" | "ja" | "pl" | "ru";
 
 export type MobileEditorToolbarActionId =
   | "undo"
@@ -130,6 +130,29 @@ const MOBILE_EDITOR_COPY = {
       medium: "Średni",
       large: "Duży",
       full: "Pełna szerokość",
+    },
+  },
+  ru: {
+    placeholder: "Начните запись...",
+    toolbar: "Панель редактора",
+    actions: {
+      undo: "Отменить",
+      redo: "Повторить",
+      image: "Загрузить изображение",
+      bold: "Полужирный",
+      bulletList: "Маркированный список",
+      taskList: "Список задач",
+      increaseListIndent: "Увеличить уровень списка (Tab)",
+      decreaseListIndent: "Уменьшить уровень списка (Shift + Tab)",
+      blockquote: "Цитата",
+      horizontalRule: "Горизонтальная линия",
+    },
+    imageScale: "Размер изображения",
+    imageSizes: {
+      small: "Маленький",
+      medium: "Средний",
+      large: "Большой",
+      full: "На всю ширину",
     },
   },
 } as const;

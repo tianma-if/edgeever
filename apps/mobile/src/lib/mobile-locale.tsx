@@ -1,5 +1,5 @@
 import { DEFAULT_MEMO_TITLE, getMemoSaveErrorReasonKey } from "@edgeever/shared";
-import { enUS, ja, pl, zhCN } from "@edgeever/shared/i18n";
+import { enUS, ja, pl, ru, zhCN } from "@edgeever/shared/i18n";
 import { resolveSupportedLocale } from "@edgeever/shared/i18n/locales";
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
@@ -8,7 +8,7 @@ import {
   type MobileLocalePreference,
 } from "./preferences";
 
-type SupportedMobileLocale = "zh-CN" | "en-US" | "ja" | "pl";
+type SupportedMobileLocale = "zh-CN" | "en-US" | "ja" | "pl" | "ru";
 type MobileLocaleContextValue = {
   preference: MobileLocalePreference;
   resolvedLocale: SupportedMobileLocale;
@@ -753,6 +753,7 @@ const zhStrings = flattenStrings(zhCN);
 const enStrings = flattenStrings(enUS);
 const jaStrings = flattenStrings(ja);
 const plStrings = flattenStrings(pl);
+const ruStrings = flattenStrings(ru);
 
 const buildTranslationPairs = (targets: Map<string, string>) =>
   Array.from(zhStrings.entries()).flatMap(([key, source]) => {
@@ -766,6 +767,7 @@ const buildTranslationPairs = (targets: Map<string, string>) =>
 const enTranslationPairs = buildTranslationPairs(enStrings);
 const jaTranslationPairs = buildTranslationPairs(jaStrings);
 const plTranslationPairs = buildTranslationPairs(plStrings);
+const ruTranslationPairs = buildTranslationPairs(ruStrings);
 const exactEnglishTranslations = new Map(
   enTranslationPairs.filter((pair) => !pair.pattern).map((pair) => [pair.source, pair.target]),
 );
@@ -774,6 +776,9 @@ const exactJapaneseTranslations = new Map(
 );
 const exactPolishTranslations = new Map(
   plTranslationPairs.filter((pair) => !pair.pattern).map((pair) => [pair.source, pair.target]),
+);
+const exactRussianTranslations = new Map(
+  ruTranslationPairs.filter((pair) => !pair.pattern).map((pair) => [pair.source, pair.target]),
 );
 const mobileTemplateTranslations: TranslationPair[] = Array.from(mobileOnlyTranslations.entries())
   .filter(([source]) => source.includes("{{"))
@@ -795,6 +800,9 @@ const japaneseTemplateTranslations = [
 const polishTemplateTranslations = [
   ...mobilePolishTemplateTranslations,
   ...plTranslationPairs.filter((pair) => pair.pattern),
+].sort((left, right) => right.source.length - left.source.length);
+const russianTemplateTranslations = [
+  ...ruTranslationPairs.filter((pair) => pair.pattern),
 ].sort((left, right) => right.source.length - left.source.length);
 
 const resolveSystemLocale = (): SupportedMobileLocale =>
@@ -828,6 +836,15 @@ export const translateMobileText = (value: string, locale: SupportedMobileLocale
     if (exact) return exact;
     return applyTemplateTranslations(value, polishTemplateTranslations) ?? value;
   }
+  if (locale === "ru") {
+    const exact = exactRussianTranslations.get(value);
+    if (exact) return exact;
+    const fromCatalog = applyTemplateTranslations(value, russianTemplateTranslations);
+    if (fromCatalog) return fromCatalog;
+    const english = mobileOnlyTranslations.get(value) ?? exactEnglishTranslations.get(value);
+    if (english) return english;
+    return applyTemplateTranslations(value, englishTemplateTranslations) ?? value;
+  }
   const exact = mobileOnlyTranslations.get(value) ?? exactEnglishTranslations.get(value);
   if (exact) {
     return exact;
@@ -859,6 +876,7 @@ export const localizeMissingNotebookName = (locale: SupportedMobileLocale) => {
   if (locale === "en-US") return "Uncategorized";
   if (locale === "ja") return "未分類";
   if (locale === "pl") return "Nieprzypisane";
+  if (locale === "ru") return "Без блокнота";
   return "未分类";
 };
 

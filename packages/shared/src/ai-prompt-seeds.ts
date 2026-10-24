@@ -6,7 +6,7 @@ import type {
 import { resolveSupportedLocale } from "./i18n/locales";
 
 export type AiPromptSeedKey = Exclude<AiAction, "custom">;
-export type AiPromptSeedLocale = "zh-CN" | "en-US" | "ja" | "pl";
+export type AiPromptSeedLocale = "zh-CN" | "en-US" | "ja" | "pl" | "ru";
 
 export type AiPromptSeedTranslation = {
   name: string;
@@ -29,10 +29,11 @@ const seed = (
   enUS: AiPromptSeedTranslation,
   ja: AiPromptSeedTranslation,
   pl: AiPromptSeedTranslation,
+  ru: AiPromptSeedTranslation,
 ): AiPromptSeed => ({
   ...metadata,
   ...zhCN,
-  translations: { "zh-CN": zhCN, "en-US": enUS, ja, pl },
+  translations: { "zh-CN": zhCN, "en-US": enUS, ja, pl, ru },
 });
 
 export const normalizeAiPromptSeedLocale = (locale: string | null | undefined): AiPromptSeedLocale =>
@@ -110,6 +111,18 @@ export const DEFAULT_AI_PROMPT_SEEDS: readonly AiPromptSeed[] = [
         "Zachowaj język notatki i zwróć wyłącznie podsumowanie w formacie Markdown.",
       ].join(""),
     },
+    {
+      name: "Кратко",
+      description: "Сжать заметку до темы, выводов и действий",
+      instruction: [
+        "Сделайте настоящее краткое изложение заметки, а не пересказ предложения за предложением и не повтор текста. ",
+        "Выделите главную тему, основные мысли, ключевые выводы и действия. ",
+        "Опустите повторы, риторику, примеры, цитаты и второстепенные детали, если без них вывод всё равно понятен. ",
+        "Для длинной заметки ориентируйтесь примерно на 20–30% исходного объёма и 3–7 коротких пунктов Markdown; для короткой хватит 1–3 предложений. ",
+        "Не копируйте длинные фрагменты дословно и не добавляйте факты, которых нет в тексте. ",
+        "Сохраните язык заметки и верните только краткое изложение в Markdown.",
+      ].join(""),
+    },
   ),
   seed(
     { key: "translate", action: "translate", parameterKind: "target-language", resultMode: "both" },
@@ -132,6 +145,11 @@ export const DEFAULT_AI_PROMPT_SEEDS: readonly AiPromptSeed[] = [
       name: "Przetłumacz",
       description: "Przetłumacz na wybrany język, zachowując formatowanie",
       instruction: "Przetłumacz całą notatkę na język docelowy wskazany przez użytkownika. Zachowaj jej znaczenie, strukturę Markdown, linki i bloki kodu. Zwróć wyłącznie przetłumaczoną notatkę, bez komentarzy.",
+    },
+    {
+      name: "Перевести",
+      description: "Перевести на выбранный язык, сохранив оформление",
+      instruction: "Переведите заметку целиком на язык, который указал пользователь. Сохраните смысл, структуру Markdown, ссылки и блоки кода. Верните только перевод, без комментариев.",
     },
   ),
   seed(
@@ -156,6 +174,11 @@ export const DEFAULT_AI_PROMPT_SEEDS: readonly AiPromptSeed[] = [
       description: "Popraw język oraz zwiększ przejrzystość i płynność tekstu",
       instruction: "Dopracuj treść: popraw pisownię, gramatykę i interpunkcję oraz ulepsz dobór słów, budowę zdań, przejrzystość i płynność. Nie zmieniaj jej znaczenia ani celowo jej nie skracaj. Zachowaj jej język i przydatne formatowanie Markdown. Zwróć wyłącznie dopracowaną treść.",
     },
+    {
+      name: "Улучшить текст",
+      description: "Исправить язык и сделать текст яснее и плавнее",
+      instruction: "Улучшите текст: исправьте орфографию, грамматику и пунктуацию, подберите слова, структуру фраз, ясность и плавность. Не меняйте смысл и не сокращайте текст нарочно. Сохраните язык и полезное оформление Markdown. Верните только улучшенный текст.",
+    },
   ),
   seed(
     { key: "make-shorter", action: "make-shorter", parameterKind: "none", resultMode: "both" },
@@ -178,6 +201,11 @@ export const DEFAULT_AI_PROMPT_SEEDS: readonly AiPromptSeed[] = [
       name: "Skróć i uprość",
       description: "Usuń powtórzenia i napisz tekst zwięźle i konkretnie",
       instruction: "Dopracuj treść, usuwając powtórzenia, puste frazy i zbędne określenia oraz łącząc zdania tam, gdzie to pomaga. Spraw, by tekst był zwięzły, jasny i konkretny, zachowując każdy kluczowy fakt, tezę i pierwotne znaczenie. Nie dodawaj nowych informacji. Zachowaj jej język i przydatne formatowanie Markdown. Zwróć wyłącznie dopracowaną treść.",
+    },
+    {
+      name: "Короче и яснее",
+      description: "Убрать повторы и написать короче и прямее",
+      instruction: "Сократите текст: уберите повторы, пустые фразы и лишние определения, объедините предложения, где это уместно. Сделайте его коротким, ясным и прямым, сохранив каждый важный факт, мысль и исходный смысл. Не добавляйте новой информации. Сохраните язык и полезное оформление Markdown. Верните только сокращённый текст.",
     },
   ),
   seed(
@@ -202,6 +230,11 @@ export const DEFAULT_AI_PROMPT_SEEDS: readonly AiPromptSeed[] = [
       description: "Znajdź działania do wykonania i utwórz listę zadań",
       instruction: "Wyodrębnij z notatki jawne lub domniemane zadania do wykonania jako listę zadań Markdown z użyciem '- [ ]'. Zachowaj jej język i nie wymyślaj zadań. Jeśli nie ma zadań do wykonania, napisz to krótko w języku notatki.",
     },
+    {
+      name: "Выделить задачи",
+      description: "Найти дела и составить список задач",
+      instruction: "Выделите из заметки явные и подразумеваемые дела и оформите их списком задач Markdown через '- [ ]'. Сохраните язык заметки и не придумывайте задачи. Если дел нет, коротко напишите об этом на языке заметки.",
+    },
   ),
   seed(
     { key: "continue-writing", action: "continue-writing", parameterKind: "none", resultMode: "append" },
@@ -224,6 +257,11 @@ export const DEFAULT_AI_PROMPT_SEEDS: readonly AiPromptSeed[] = [
       name: "Pisz dalej",
       description: "Kontynuuj naturalnie od końca notatki",
       instruction: "Kontynuuj pisanie naturalnie od miejsca, w którym kończy się notatka. Zwróć wyłącznie nową kontynuację, bez oryginalnej treści. Zachowaj jej język i styl Markdown.",
+    },
+    {
+      name: "Продолжить текст",
+      description: "Продолжить естественно с конца заметки",
+      instruction: "Продолжите текст естественно с того места, где заметка заканчивается. Верните только продолжение, без исходного текста. Сохраните язык и стиль Markdown.",
     },
   ),
 ];

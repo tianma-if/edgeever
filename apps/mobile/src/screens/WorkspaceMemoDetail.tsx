@@ -165,7 +165,7 @@ const loadAuthenticatedImageDataUrl = (
 };
 
 const alertProtectedImageLoadFailure = (
-  locale: "zh-CN" | "en-US" | "ja" | "pl",
+  locale: "zh-CN" | "en-US" | "ja" | "pl" | "ru",
   failure: ProtectedResourceLoadFailure
 ) => {
   const statusLabel = failure.status != null ? String(failure.status) : locale !== "zh-CN" ? "network error" : "网络错误";

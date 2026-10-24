@@ -223,7 +223,7 @@ export default defineConfig({
             },
           },
           {
-            urlPattern: ({ url }) => /\/assets\/i18n-(?:ja|pl)-/.test(url.pathname),
+            urlPattern: ({ url }) => /\/assets\/i18n-(?:ja|pl|ru)-/.test(url.pathname),
             handler: "CacheFirst",
             options: {
               cacheName: "edgeever-optional-locales",
@@ -292,7 +292,7 @@ export default defineConfig({
       ? false
       : {
           resolveDependencies: (_filename, dependencies) => dependencies.filter((dependency) =>
-            !/(?:vendor-code-highlight|vendor-(?:mermaid|D3|tiptap|prosemirror|floating|codemirror|x6|infographic|zod|streamdown)|vendor~(?:wasm|emacs-lisp)-|vendor-radix(?!-slot)|ui-primitives|ui-button-tooltip|i18n-(?:ja|pl)-)/.test(dependency),
+            !/(?:vendor-code-highlight|vendor-(?:mermaid|D3|tiptap|prosemirror|floating|codemirror|x6|infographic|zod|streamdown)|vendor~(?:wasm|emacs-lisp)-|vendor-radix(?!-slot)|ui-primitives|ui-button-tooltip|i18n-(?:ja|pl|ru)-)/.test(dependency),
           ),
         },
     rolldownOptions: {
@@ -345,6 +345,11 @@ export default defineConfig({
             {
               name: "i18n-pl",
               test: /[\\/]i18n[\\/](?:resources[\\/])?pl\.ts$/,
+              priority: 41,
+            },
+            {
+              name: "i18n-ru",
+              test: /[\\/]i18n[\\/](?:resources[\\/])?ru\.ts$/,
               priority: 41,
             },
             {
