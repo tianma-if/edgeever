@@ -1013,6 +1013,16 @@ export const ja = {
     imageCompressionAria: "ノート内の画像を圧縮する",
     showDescendantNotesTitle: "サブノートブックのノートを表示",
     showDescendantNotesAria: "親ノートブックにサブノートブックのノートを表示する",
+    loginItem: {
+      title: "起動後に開く",
+      aria: "パソコンの起動後に EdgeEver を開く",
+      description: "パソコンの起動後、EdgeEver を自動で開きます。",
+      launchModeLabel: "起動後",
+      launchModeWindow: "メインウィンドウを開く",
+      launchModeTray: "トレイに残す",
+      requiresApproval: "システム設定で EdgeEver の起動を許可すると、この設定が有効になります。",
+      saveFailed: "この設定を保存できませんでした。",
+    },
     spellcheckTitle: "スペルミスに下線を表示",
     spellcheckAria: "ノートエディタでスペルミスの可能性がある語に下線を表示する",
     aiSelectionMenuTitle: "文字選択時に AI アシスタントを表示",
@@ -2304,6 +2314,8 @@ export const ja = {
   },
   editor: {
     imageScale: "画像の倍率",
+    imageAlignment: "画像の配置",
+    imageAlignments: { left: "画像を左揃え", center: "画像を中央揃え", right: "画像を右揃え" },
     scaleTo: "{{percent}}% に拡大縮小",
     imageSizeSmall: "小",
     imageSizeMedium: "中",
@@ -2313,6 +2325,8 @@ export const ja = {
     previewImage: "画像をプレビュー",
     imageGallery: {
       toolbar: "画像ギャラリーのレイアウト",
+      fitLabel: "画像のフィット",
+      fits: { width: "幅に合わせる", height: "高さに合わせる" },
       layouts: {
         auto: "自動",
         "2": "2 列",

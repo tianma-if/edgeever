@@ -1,7 +1,7 @@
 import type { Editor, NodeViewRenderer } from "@tiptap/core";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { NodeSelection, type EditorState } from "@tiptap/pm/state";
-import { IMAGE_GALLERY_LAYOUTS, IMAGE_GALLERY_NODE_TYPE, resolveImageGalleryLayout } from "./image-gallery";
+import { IMAGE_GALLERY_FITS, IMAGE_GALLERY_LAYOUTS, IMAGE_GALLERY_NODE_TYPE, resolveImageGalleryFit, resolveImageGalleryLayout } from "./image-gallery";
 import { mergeUploadedImagesIntoAdjacentGalleries } from "./image-gallery-editing";
 
 /** Adding images while an image/gallery is selected must not replace that content. */
@@ -77,10 +77,10 @@ export const groupUploadedImages = (editor: Editor, sources: readonly string[]):
 };
 
 const IMAGE_GALLERY_COPY = {
-  "zh-CN": { label: "图片画廊布局", auto: "自动", single: "单列", columns: (count: string) => `${count} 栏` },
-  "en-US": { label: "Image gallery layout", auto: "Auto", single: "Single", columns: (count: string) => `${count} columns` },
-  ja: { label: "画像ギャラリーのレイアウト", auto: "自動", single: "1列", columns: (count: string) => `${count}列` },
-  pl: { label: "Układ galerii obrazów", auto: "Auto", single: "1 kolumna", columns: (count: string) => `${count} kolumny` },
+  "zh-CN": { label: "图片画廊布局", auto: "自动", single: "单列", columns: (count: string) => `${count} 栏`, width: "适应宽度", height: "适应高度" },
+  "en-US": { label: "Image gallery layout", auto: "Auto", single: "Single", columns: (count: string) => `${count} columns`, width: "Fit width", height: "Fit height" },
+  ja: { label: "画像ギャラリーのレイアウト", auto: "自動", single: "1列", columns: (count: string) => `${count}列`, width: "幅に合わせる", height: "高さに合わせる" },
+  pl: { label: "Układ galerii obrazów", auto: "Auto", single: "1 kolumna", columns: (count: string) => `${count} kolumny`, width: "Dopasuj szerokość", height: "Dopasuj wysokość" },
 };
 
 export const imageGalleryCopy = (locale: string) =>
@@ -99,7 +99,11 @@ export const createNativeImageGalleryView = (getLocale: () => string): NodeViewR
     toolbar.setAttribute("role", "toolbar");
     const contentDOM = document.createElement("div");
     contentDOM.className = "edgeever-native-gallery-content";
-    const buttons = IMAGE_GALLERY_LAYOUTS.map((layout) => {
+    const controls = [
+      ...IMAGE_GALLERY_LAYOUTS.map((value) => ({ attribute: "layout" as const, value })),
+      ...IMAGE_GALLERY_FITS.map((value) => ({ attribute: "fit" as const, value })),
+    ];
+    const buttons = controls.map(({ attribute, value }) => {
       const button = document.createElement("button");
       button.type = "button";
       button.addEventListener("pointerdown", (event) => event.stopPropagation());
@@ -111,25 +115,29 @@ export const createNativeImageGalleryView = (getLocale: () => string): NodeViewR
         if (!editor.isEditable || typeof pos !== "number") return;
         const target = editor.state.doc.nodeAt(pos);
         if (target?.type.name !== IMAGE_GALLERY_NODE_TYPE) return;
-        editor.view.dispatch(editor.state.tr.setNodeMarkup(pos, undefined, { ...target.attrs, layout }));
+        editor.view.dispatch(editor.state.tr.setNodeMarkup(pos, undefined, { ...target.attrs, [attribute]: value }));
       });
       toolbar.appendChild(button);
-      return { button, layout };
+      return { button, attribute, value };
     });
     dom.appendChild(toolbar);
     dom.appendChild(contentDOM);
     const sync = () => {
       const copy = imageGalleryCopy(getLocale());
       const layout = resolveImageGalleryLayout(current.attrs.layout);
+      const fit = resolveImageGalleryFit(current.attrs.fit);
       dom.dataset.imageGalleryLayout = layout;
+      dom.dataset.imageGalleryFit = fit;
       dom.dataset.imageCount = String(current.childCount);
       toolbar.hidden = !editor.isEditable;
       toolbar.setAttribute("aria-label", copy.label);
       for (const item of buttons) {
-        item.button.textContent = item.layout === "auto" ? copy.auto
-          : item.layout === "1" ? copy.single
-          : copy.columns(item.layout);
-        item.button.setAttribute("aria-pressed", String(item.layout === layout));
+        item.button.textContent = item.attribute === "fit"
+          ? copy[item.value as "width" | "height"]
+          : item.value === "auto" ? copy.auto
+          : item.value === "1" ? copy.single
+          : copy.columns(item.value);
+        item.button.setAttribute("aria-pressed", String(item.value === (item.attribute === "fit" ? fit : layout)));
       }
     };
     sync();
@@ -167,5 +175,9 @@ export const NATIVE_IMAGE_GALLERY_CSS = `
 @media (min-width: 600px) { [data-image-gallery-layout="3"] > .edgeever-native-gallery-content { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 .edgeever-native-gallery-content > * { width: 100% !important; min-width: 0; height: 100%; margin: 0 !important; overflow: hidden; border-radius: 10px; background: transparent; }
 .edgeever-native-gallery-content > img, .edgeever-native-gallery-content > * > img { width: 100% !important; height: 100%; min-height: 112px; max-height: 220px; object-fit: cover; }
+[data-edgeever-image-gallery][data-image-gallery-fit="height"] > img,
+[data-edgeever-image-gallery][data-image-gallery-fit="height"] > .edgeever-image-node > img,
+[data-edgeever-image-gallery][data-image-gallery-fit="height"] > .edgeever-native-gallery-content > img,
+[data-edgeever-image-gallery][data-image-gallery-fit="height"] > .edgeever-native-gallery-content > * > img { height: 220px; min-height: 0; object-fit: contain; }
 .edgeever-native-gallery-content .edgeever-image-size-controls { display: none !important; }
 `;

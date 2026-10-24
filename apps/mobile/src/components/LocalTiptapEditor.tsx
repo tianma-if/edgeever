@@ -31,6 +31,7 @@ import {
   markdownToDoc,
   MEMO_CONTENT_STYLE,
   createEdgeEverDocumentExtensions,
+  applyImageAlignment,
   DETAILS_EDITOR_CSS,
   wrapDetailsContentHtml,
   NativeAttachmentMetadata,
@@ -2299,6 +2300,7 @@ const applyImageWidth = (
   const width = parseImageWidth(attributes.width) ?? NEW_IMAGE_WIDTH_PERCENT;
   element.style.width = `${width}%`;
   element.dataset.width = String(width);
+  applyImageAlignment(element, attributes.alignment);
   return width;
 };
 

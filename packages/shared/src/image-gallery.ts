@@ -1,8 +1,13 @@
 import { mergeAttributes, Node } from "@tiptap/core";
 import type { TiptapDoc, TiptapNode, TiptapTextNode } from "./content";
+import { parseImageAlignment } from "./image-alignment";
 
 export const IMAGE_GALLERY_NODE_TYPE = "edgeeverImageGallery" as const;
 export const IMAGE_GALLERY_LAYOUTS = ["auto", "2", "3", "1"] as const;
+export const IMAGE_GALLERY_FITS = ["width", "height"] as const;
+export type ImageGalleryFit = (typeof IMAGE_GALLERY_FITS)[number];
+export const resolveImageGalleryFit = (value: unknown): ImageGalleryFit =>
+  value === "height" ? "height" : "width";
 /** In-document src used while a mobile upload has not finished. */
 export const TRANSIENT_IMAGE_UPLOAD_PREFIX = "edgeever-image-upload://";
 
@@ -16,8 +21,9 @@ export const resolveImageGalleryLayout = (value: unknown): ImageGalleryLayout =>
     : "auto";
 
 /**
- * A rich-editor-only layout container. Markdown deliberately serializes its
- * children as ordinary sequential images so exports stay portable.
+ * Width-fit galleries retain the ordinary sequential-image Markdown projection.
+ * Height-fit galleries use invisible comments to keep their presentation when
+ * editing Markdown, while images remain readable in other Markdown readers.
  */
 export const ImageGallery = Node.create({
   name: IMAGE_GALLERY_NODE_TYPE,
@@ -28,6 +34,15 @@ export const ImageGallery = Node.create({
 
   addAttributes() {
     return {
+      fit: {
+        default: "width",
+        parseHTML: (element: HTMLElement) => resolveImageGalleryFit(
+          element.getAttribute("data-image-gallery-fit"),
+        ),
+        renderHTML: (attributes: { fit?: unknown }) => ({
+          "data-image-gallery-fit": resolveImageGalleryFit(attributes.fit),
+        }),
+      },
       layout: {
         default: "auto",
         parseHTML: (element: HTMLElement) => resolveImageGalleryLayout(
@@ -56,7 +71,40 @@ export const ImageGallery = Node.create({
   },
 
   renderMarkdown(node, helpers) {
-    return helpers.renderChildren(node.content ?? [], "\n\n");
+    const images = helpers.renderChildren(node.content ?? [], "\n\n");
+    if (resolveImageGalleryFit(node.attrs?.fit) === "width") return images;
+    const layout = resolveImageGalleryLayout(node.attrs?.layout);
+    return `<!-- edgeever:image-gallery fit=height layout=${layout} -->\n\n${images}\n\n<!-- /edgeever:image-gallery -->`;
+  },
+
+  parseMarkdown(token, helpers) {
+    const content = helpers.parseChildren(token.tokens ?? []);
+    // A source edit can split a gallery with text. Keep all edited content,
+    // rather than forcing non-images into an image-only schema.
+    if (content.length < 2 || content.some((child) => child.type !== "image")) return content;
+    return helpers.createNode(IMAGE_GALLERY_NODE_TYPE, {
+      fit: resolveImageGalleryFit(token.fit),
+      layout: resolveImageGalleryLayout(token.layout),
+    }, content);
+  },
+
+  markdownTokenizer: {
+    name: IMAGE_GALLERY_NODE_TYPE,
+    level: "block",
+    start(source: string) {
+      return source.indexOf("<!-- edgeever:image-gallery ");
+    },
+    tokenize(source: string, _tokens, lexer) {
+      const match = /^<!-- edgeever:image-gallery fit=(width|height) layout=(auto|1|2|3) -->\s*\n([\s\S]*?)\n<!-- \/edgeever:image-gallery -->/.exec(source);
+      if (!match) return undefined;
+      return {
+        type: IMAGE_GALLERY_NODE_TYPE,
+        raw: match[0],
+        fit: match[1],
+        layout: match[2],
+        tokens: lexer.blockTokens(match[3]!.trim()),
+      };
+    },
   },
 });
 
@@ -81,6 +129,12 @@ export const groupConsecutiveImagesIntoGalleries = (nodes: TiptapNode[]): Tiptap
   };
 
   for (const node of nodes) {
+    // Explicitly positioned images remain standalone during Markdown import.
+    if (node.type === "image" && parseImageAlignment(node.attrs?.alignment)) {
+      flushImages();
+      grouped.push(node);
+      continue;
+    }
     if (node.type === "image") {
       images.push(node);
       continue;

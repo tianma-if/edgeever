@@ -32,6 +32,8 @@ contextBridge.exposeInMainWorld("edgeeverDesktop", Object.freeze({
   systemInfo: () => ipcRenderer.invoke("desktop:system-info"),
   globalShortcut: () => ipcRenderer.invoke("desktop:global-shortcut"),
   setGlobalShortcut: (binding) => ipcRenderer.invoke("desktop:set-global-shortcut", binding),
+  loginItem: () => ipcRenderer.invoke("desktop:login-item"),
+  setLoginItem: (patch) => ipcRenderer.invoke("desktop:set-login-item", patch),
   captureGlobalShortcut: (capturing) => ipcRenderer.invoke("desktop:capture-global-shortcut", capturing),
   setAccountScope: (accountId) => ipcRenderer.invoke("desktop:set-account-scope", accountId),
   apiBaseUrl: ipcRenderer.sendSync("desktop:api-base-url-sync"),
@@ -106,6 +108,14 @@ contextBridge.exposeInMainWorld("edgeeverDesktop", Object.freeze({
     const listener = (_event, command) => callback(command);
     ipcRenderer.on("desktop:command", listener);
     return () => ipcRenderer.removeListener("desktop:command", listener);
+  },
+  setRichTextHeadingShortcutActive: (active) => {
+    ipcRenderer.sendSync("desktop:rich-text-heading-shortcut", active === true);
+  },
+  onHeadingShortcut: (callback) => {
+    const listener = (_event, level) => callback(level);
+    ipcRenderer.on("desktop:heading-shortcut", listener);
+    return () => ipcRenderer.removeListener("desktop:heading-shortcut", listener);
   },
   onHibernatePrepare: (callback) => {
     const listener = async () => {

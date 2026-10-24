@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { copyHtmlToClipboard, copyImageBlobToClipboard, copyImageUrlToClipboard, copyTextToClipboard } from "./clipboard.ts";
+import { copyHtmlToClipboard, copyImageBlobToClipboard, copyImageUrlToClipboard, copyTextToClipboard, installDesktopClipboardBridge } from "./clipboard.ts";
 
 const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
 const originalNavigator = Object.getOwnPropertyDescriptor(globalThis, "navigator");
@@ -68,6 +68,76 @@ describe("copyTextToClipboard", () => {
 
     await expect(copyTextToClipboard("browser value")).resolves.toBe(true);
     expect(calls).toEqual(["browser value"]);
+  });
+});
+
+describe("installDesktopClipboardBridge", () => {
+  test("routes renderer clipboard writes through the desktop bridge", async () => {
+    const calls = [];
+    const browserWrites = [];
+    globalThis.window = {
+      edgeeverDesktop: {
+        isAvailable: true,
+        copyText: async (value) => {
+          calls.push(["text", value]);
+          return true;
+        },
+        copyHtml: async (html, plainText) => {
+          calls.push(["html", html, plainText]);
+          return true;
+        },
+      },
+    };
+    const clipboard = {
+      writeText: async (value) => browserWrites.push(["writeText", value]),
+      write: async (items) => browserWrites.push(["write", items]),
+    };
+    Object.defineProperty(globalThis, "navigator", { configurable: true, value: { clipboard } });
+
+    expect(installDesktopClipboardBridge()).toBe(true);
+    expect(installDesktopClipboardBridge()).toBe(false);
+    await clipboard.writeText("graph TD\n  A-->B");
+    await clipboard.write([{
+      types: ["text/plain", "text/html"],
+      getType: async (type) => new Blob([type === "text/html" ? "<pre>A-->B</pre>" : "A-->B"], { type }),
+    }]);
+
+    expect(calls).toEqual([
+      ["text", "graph TD\n  A-->B"],
+      ["html", "<pre>A-->B</pre>", "A-->B"],
+    ]);
+    expect(browserWrites).toEqual([]);
+  });
+
+  test("rejects when the desktop clipboard bridge cannot verify the write", async () => {
+    globalThis.window = {
+      edgeeverDesktop: {
+        isAvailable: true,
+        copyText: async () => false,
+      },
+    };
+    const clipboard = { writeText: async () => { throw new Error("browser clipboard should not be used"); } };
+    Object.defineProperty(globalThis, "navigator", { configurable: true, value: { clipboard } });
+
+    expect(installDesktopClipboardBridge()).toBe(true);
+    await expect(clipboard.writeText("source")).rejects.toThrow("Clipboard write failed");
+  });
+
+  test("leaves the browser clipboard alone outside the desktop app", () => {
+    const writeText = async () => {};
+    globalThis.window = {};
+    Object.defineProperty(globalThis, "navigator", {
+      configurable: true,
+      value: { clipboard: { writeText } },
+    });
+
+    expect(installDesktopClipboardBridge()).toBe(false);
+    expect(navigator.clipboard.writeText).toBe(writeText);
+  });
+
+  test("the desktop shell installs the bridge before the app renders", () => {
+    const source = readFileSync(new URL("../main.tsx", import.meta.url), "utf8");
+    expect(source).toContain("installDesktopClipboardBridge()");
   });
 });
 

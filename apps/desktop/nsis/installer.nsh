@@ -8,4 +8,8 @@
 
 !macro customUnInstall
   DeleteRegKey HKCU "Software\Classes\*\shell\EdgeEver"
+  DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "EdgeEver"
+  ClearErrors
+  DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run" "EdgeEver"
+  ClearErrors
 !macroend

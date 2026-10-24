@@ -19,7 +19,7 @@ describe("note print appearance", () => {
     expect(css).not.toContain("color: #");
   });
 
-  test("tints links, bold, and checked boxes with the account palette", () => {
+  test("tints links, bold, checked boxes, and tables with the account palette", () => {
     const css = notePrintAppearanceCss(notePrintAppearanceFromProse(resolveNoteProse({
       palette: "teal",
       customCss: "strong { color: #112233 }",
@@ -28,6 +28,8 @@ describe("note print appearance", () => {
     expect(css).toContain("color: #14796E");
     expect(css).toContain("color: #20AD9D");
     expect(css).toContain("accent-color: #20AD9D");
+    expect(css).toContain("background: #F2FBFA;");
+    expect(css).not.toContain("border-color: #CDEFEA;");
     expect(css).toContain(".edgeever-editor .ProseMirror strong { color: #112233; }");
     expect(css).not.toContain("not-a-theme");
   });

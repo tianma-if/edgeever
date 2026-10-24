@@ -1013,6 +1013,16 @@ export const pl = {
     imageCompressionAria: "Kompresuj obrazy w notatkach",
     showDescendantNotesTitle: "Pokazuj notatki z podnotatników",
     showDescendantNotesAria: "Pokazuj notatki z podnotatników w notatnikach nadrzędnych",
+    loginItem: {
+      title: "Uruchamiaj po włączeniu komputera",
+      aria: "Uruchamiaj EdgeEver po włączeniu komputera",
+      description: "Otwieraj EdgeEver po uruchomieniu komputera.",
+      launchModeLabel: "Po uruchomieniu",
+      launchModeWindow: "Otwórz główne okno",
+      launchModeTray: "Zostaw w zasobniku",
+      requiresApproval: "Zezwól EdgeEver w ustawieniach systemu, aby dokończyć włączanie.",
+      saveFailed: "Nie udało się zapisać tego ustawienia.",
+    },
     spellcheckTitle: "Podkreślaj błędy pisowni",
     spellcheckAria: "Podkreślaj możliwe błędy pisowni w edytorze notatek",
     aiSelectionMenuTitle: "Pokazuj asystenta AI po zaznaczeniu tekstu",
@@ -2304,6 +2314,8 @@ export const pl = {
   },
   editor: {
     imageScale: "Skala obrazu",
+    imageAlignment: "Wyrównanie obrazu",
+    imageAlignments: { left: "Wyrównaj obraz do lewej", center: "Wyśrodkuj obraz", right: "Wyrównaj obraz do prawej" },
     scaleTo: "Skaluj do {{percent}}%",
     imageSizeSmall: "Mały",
     imageSizeMedium: "Średni",
@@ -2313,6 +2325,8 @@ export const pl = {
     previewImage: "Podgląd obrazu",
     imageGallery: {
       toolbar: "Układ galerii obrazów",
+      fitLabel: "Dopasowanie obrazu",
+      fits: { width: "Dopasuj szerokość", height: "Dopasuj wysokość" },
       layouts: {
         auto: "Automatyczny",
         "2": "2 kolumny",

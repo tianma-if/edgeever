@@ -7,8 +7,9 @@ import { FileAttachment } from "@/components/editor/FileAttachment";
 import Image from "@tiptap/extension-image";
 import { mergeAttributes } from "@tiptap/core";
 import Placeholder from "@tiptap/extension-placeholder";
-import { createExcerpt, createEdgeEverDocumentExtensions, docToMarkdown, docToText, emptyDoc, getImageReferrerPolicy, isPdfAttachment, wrapDetailsContentHtml, type MemoDetail, type MemoEditSession, type Notebook, type TagSummary, type TiptapDoc } from "@edgeever/shared";
+import { ImageGallery, createExcerpt, createEdgeEverDocumentExtensions, docToMarkdown, docToText, emptyDoc, getImageReferrerPolicy, isPdfAttachment, wrapDetailsContentHtml, type MemoDetail, type MemoEditSession, type Notebook, type TagSummary, type TiptapDoc } from "@edgeever/shared";
 import { createEdgeEverMathematics } from "@edgeever/shared/mathematics";
+import { createNativeImageGalleryView, NATIVE_IMAGE_GALLERY_CSS } from "@edgeever/shared/native-image-gallery";
 import { NEW_IMAGE_WIDTH_PERCENT } from "@edgeever/shared/image-display";
 import { insertUploadedResources } from "@/lib/resource-insertion";
 import { getResourceInsertionTarget } from "@/lib/resource-insertion-target";
@@ -87,6 +88,8 @@ export const MobileStandaloneTiptapEditor = ({
   const { t, i18n } = useTranslation();
   const memoId = memoIdProp ?? params.get("memoId");
   const locale = normalizeLocale(i18n.resolvedLanguage ?? i18n.language) ?? defaultLocale;
+  const localeRef = useRef(locale);
+  localeRef.current = locale;
   const draftKey = getMobileEditorDraftKey(memoId);
   const [memo, setMemo] = useState<MemoDetail | null>(null);
   const memoRef = useRef<MemoDetail | null>(null);
@@ -206,6 +209,9 @@ export const MobileStandaloneTiptapEditor = ({
         image: ProtectedExternalImage.configure({
           allowBase64: false,
           inline: false,
+        }),
+        gallery: ImageGallery.extend({
+          addNodeView() { return createNativeImageGalleryView(() => localeRef.current); },
         }),
         pdf: PdfAttachment,
         file: FileAttachment,
@@ -959,6 +965,7 @@ export const MobileStandaloneTiptapEditor = ({
 
   return (
     <div className="mobile-editor-shell">
+      <style>{NATIVE_IMAGE_GALLERY_CSS}</style>
       <MobileEditorHeader saveLabel={saveLabel} statusClassName={statusClassName} saveState={saveState} onLeave={() => void leavePage()} />
 
       <main className="mobile-editor-main">

@@ -1024,6 +1024,16 @@ export const enUS = {
     imageCompressionAria: "Compress note images",
     showDescendantNotesTitle: "Show notes from sub-notebooks",
     showDescendantNotesAria: "Show notes from sub-notebooks in parent notebooks",
+    loginItem: {
+      title: "Launch at startup",
+      aria: "Launch EdgeEver at startup",
+      description: "Open EdgeEver after this computer starts.",
+      launchModeLabel: "After startup",
+      launchModeWindow: "Open the main window",
+      launchModeTray: "Stay in the tray",
+      requiresApproval: "Allow EdgeEver in System Settings to finish turning this on.",
+      saveFailed: "Could not save this setting.",
+    },
     spellcheckTitle: "Underline spelling mistakes",
     spellcheckAria: "Underline possible spelling mistakes in the note editor",
     aiSelectionMenuTitle: "Show AI assistant when text is selected",
@@ -2315,6 +2325,8 @@ export const enUS = {
   },
   editor: {
     imageScale: "Image scale",
+    imageAlignment: "Image alignment",
+    imageAlignments: { left: "Align image left", center: "Center image", right: "Align image right" },
     scaleTo: "Scale to {{percent}}%",
     imageSizeSmall: "Small",
     imageSizeMedium: "Medium",
@@ -2324,6 +2336,8 @@ export const enUS = {
     previewImage: "Preview image",
     imageGallery: {
       toolbar: "Image gallery layout",
+      fitLabel: "Image fit",
+      fits: { width: "Fit width", height: "Fit height" },
       layouts: {
         auto: "Auto",
         "2": "2 columns",

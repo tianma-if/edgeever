@@ -362,6 +362,10 @@
   object-fit: cover;
 }
 
+.edgeever-print-content [data-edgeever-image-gallery][data-image-gallery-fit="height"] > img {
+  object-fit: contain;
+}
+
 .edgeever-print-mermaid svg {
   margin: 0 auto;
 }

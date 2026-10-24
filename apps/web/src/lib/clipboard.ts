@@ -186,3 +186,61 @@ export const copyImageBlobToClipboard = async (blob: Blob): Promise<boolean> => 
   }
 };
 
+const desktopClipboardBridges = new WeakSet<object>();
+
+const clipboardWriteFailed = () => new DOMException("Clipboard write failed", "NotAllowedError");
+
+const clipboardItemText = async (item: ClipboardItem, type: string) => (await item.getType(type)).text();
+
+const imageClipboardType = (types: ReadonlyArray<string>) => (
+  ["image/png", "image/jpeg", "image/webp", "image/gif"].find((type) => types.includes(type))
+);
+
+// Electron denies every renderer permission request, including clipboard-write.
+// Streamdown's code, diagram, and table controls call navigator.clipboard and
+// ignore the rejection, so those buttons do nothing in the desktop app.
+const writeDesktopClipboardText = async (data: string) => {
+  if (!await copyTextToClipboard(data)) throw clipboardWriteFailed();
+};
+
+const writeDesktopClipboardItems = async (items: ClipboardItems) => {
+  if (!items.length) throw clipboardWriteFailed();
+  for (const item of items) {
+    const types = item.types;
+    if (types.includes("text/html")) {
+      const plain = types.includes("text/plain") ? await clipboardItemText(item, "text/plain") : "";
+      await copyHtmlToClipboard(await clipboardItemText(item, "text/html"), plain);
+      continue;
+    }
+    const imageType = imageClipboardType(types);
+    if (imageType) {
+      if (!await copyImageBlobToClipboard(await item.getType(imageType))) throw clipboardWriteFailed();
+      continue;
+    }
+    if (types.includes("text/plain")) {
+      if (!await copyTextToClipboard(await clipboardItemText(item, "text/plain"))) throw clipboardWriteFailed();
+      continue;
+    }
+    throw clipboardWriteFailed();
+  }
+};
+
+const assignClipboardMethod = (clipboard: Clipboard, name: "write" | "writeText", value: Clipboard["write"] | Clipboard["writeText"]) => {
+  try {
+    if (name === "write") clipboard.write = value as Clipboard["write"];
+    else clipboard.writeText = value as Clipboard["writeText"];
+  } catch {
+    Object.defineProperty(clipboard, name, { configurable: true, enumerable: true, writable: true, value });
+  }
+};
+
+export const installDesktopClipboardBridge = () => {
+  if (typeof window === "undefined" || window.edgeeverDesktop?.isAvailable !== true) return false;
+  const clipboard = navigator.clipboard;
+  if (!clipboard || desktopClipboardBridges.has(clipboard)) return false;
+  assignClipboardMethod(clipboard, "writeText", writeDesktopClipboardText);
+  assignClipboardMethod(clipboard, "write", writeDesktopClipboardItems);
+  desktopClipboardBridges.add(clipboard);
+  return true;
+};
+

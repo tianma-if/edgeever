@@ -2,8 +2,10 @@ import { describe, expect, test } from "bun:test";
 import { EditorState, TextSelection } from "@tiptap/pm/state";
 import { Schema } from "@tiptap/pm/model";
 import {
+  applyHeadingLevelShortcut,
   applyPlainTextTab,
   getAiSlashCommandStart,
+  headingShortcutLevelFromEvent,
   preserveEmptyListIndentOnBackspace,
   saveAndSyncEditor,
   shouldOpenAiFromSpace,
@@ -233,5 +235,160 @@ describe("editor shortcut actions", () => {
     })).rejects.toThrow("save failed");
 
     expect(calls).toEqual(["save"]);
+  });
+});
+
+const headingSchema = new Schema({
+  nodes: {
+    doc: { content: "block+" },
+    paragraph: { content: "inline*", group: "block" },
+    heading: {
+      content: "inline*",
+      group: "block",
+      attrs: { level: { default: 1 } },
+    },
+    codeBlock: { content: "text*", group: "block", code: true },
+    bulletList: { content: "listItem+", group: "block" },
+    listItem: { content: "paragraph block*" },
+    text: { group: "inline" },
+  },
+  marks: {
+    bold: {},
+  },
+});
+
+const headingState = (nodes, from, to = from) => {
+  const doc = headingSchema.node("doc", null, nodes);
+  return EditorState.create({ doc, selection: TextSelection.create(doc, from, to) });
+};
+
+const runHeading = (state, level) => {
+  let nextState = state;
+  let dispatched = false;
+  const handled = applyHeadingLevelShortcut(state, (transaction) => {
+    dispatched = true;
+    nextState = state.apply(transaction);
+  }, level);
+  return { handled, dispatched, state: nextState };
+};
+
+const keyEvent = (overrides) => ({
+  key: "1",
+  code: "Digit1",
+  ctrlKey: true,
+  metaKey: false,
+  altKey: false,
+  shiftKey: false,
+  isComposing: false,
+  keyCode: 49,
+  repeat: false,
+  ...overrides,
+});
+
+describe("heading level shortcuts", () => {
+  test("reads Mod+0 through Mod+6 from the physical key", () => {
+    expect(headingShortcutLevelFromEvent(keyEvent({ key: "1", code: "Digit1" }))).toBe(1);
+    expect(headingShortcutLevelFromEvent(keyEvent({ key: "&", code: "Digit1" }))).toBe(1);
+    expect(headingShortcutLevelFromEvent(keyEvent({ key: "0", code: "Digit0", ctrlKey: false, metaKey: true }))).toBe(0);
+    expect(headingShortcutLevelFromEvent(keyEvent({ key: "3", code: "Numpad3" }))).toBe(3);
+    expect(headingShortcutLevelFromEvent(keyEvent({ key: "4", code: "" }))).toBe(4);
+    expect(headingShortcutLevelFromEvent(keyEvent({ shiftKey: true }))).toBeNull();
+    expect(headingShortcutLevelFromEvent(keyEvent({ altKey: true }))).toBeNull();
+    expect(headingShortcutLevelFromEvent(keyEvent({ ctrlKey: false }))).toBeNull();
+    expect(headingShortcutLevelFromEvent(keyEvent({ isComposing: true }))).toBeNull();
+    expect(headingShortcutLevelFromEvent(keyEvent({ keyCode: 229 }))).toBeNull();
+    expect(headingShortcutLevelFromEvent(keyEvent({ repeat: true }))).toBeNull();
+    expect(headingShortcutLevelFromEvent(keyEvent({ key: "7", code: "Digit7" }))).toBeNull();
+  });
+
+  test("turns an empty paragraph into a heading before text is typed", () => {
+    const result = runHeading(
+      headingState([headingSchema.node("paragraph")], 1),
+      2,
+    );
+
+    expect(result.handled).toBe(true);
+    expect(result.state.doc.child(0).type.name).toBe("heading");
+    expect(result.state.doc.child(0).attrs.level).toBe(2);
+    expect(result.state.doc.child(0).content.size).toBe(0);
+    expect(result.state.selection.from).toBe(1);
+  });
+
+  test("keeps existing text and marks when changing heading level", () => {
+    const bold = headingSchema.marks.bold.create();
+    const result = runHeading(headingState([
+      headingSchema.node("heading", { level: 1 }, [
+        headingSchema.text("Hello ", [bold]),
+        headingSchema.text("there"),
+      ]),
+    ], 3), 4);
+
+    const heading = result.state.doc.child(0);
+    expect(result.handled).toBe(true);
+    expect(heading.type.name).toBe("heading");
+    expect(heading.attrs.level).toBe(4);
+    expect(heading.textContent).toBe("Hello there");
+    expect(heading.child(0).marks.map((mark) => mark.type.name)).toEqual(["bold"]);
+    expect(heading.child(1).marks).toEqual([]);
+  });
+
+  test("restores body text and updates every selected paragraph", () => {
+    const restored = runHeading(headingState([
+      headingSchema.node("heading", { level: 3 }, headingSchema.text("Title")),
+    ], 2), 0);
+    const both = runHeading(headingState([
+      headingSchema.node("paragraph", null, headingSchema.text("one")),
+      headingSchema.node("paragraph", null, headingSchema.text("two")),
+      headingSchema.node("paragraph", null, headingSchema.text("three")),
+    ], 1, 6), 2);
+
+    expect(restored.state.doc.child(0).type.name).toBe("paragraph");
+    expect(restored.state.doc.textContent).toBe("Title");
+    expect(both.state.doc.child(0).type.name).toBe("heading");
+    expect(both.state.doc.child(0).attrs.level).toBe(2);
+    expect(both.state.doc.child(1).type.name).toBe("heading");
+    expect(both.state.doc.child(2).type.name).toBe("paragraph");
+    expect(both.state.doc.textContent).toBe("onetwothree");
+  });
+
+  test("leaves the document alone when the level is already applied", () => {
+    const state = headingState([
+      headingSchema.node("heading", { level: 2 }, headingSchema.text("Title")),
+    ], 2);
+    const result = runHeading(state, 2);
+
+    expect(result.handled).toBe(false);
+    expect(result.dispatched).toBe(false);
+    expect(result.state.doc).toBe(state.doc);
+  });
+
+  test("does not convert code blocks or list item paragraphs", () => {
+    const code = runHeading(headingState([
+      headingSchema.node("paragraph", null, headingSchema.text("title")),
+      headingSchema.node("codeBlock", null, headingSchema.text("const n = 1")),
+    ], 1, 12), 1);
+    const codeOnly = runHeading(headingState([
+      headingSchema.node("codeBlock", null, headingSchema.text("const n = 1")),
+    ], 3), 1);
+    const list = headingSchema.node("doc", null, [
+      headingSchema.node("bulletList", null, [
+        headingSchema.node("listItem", null, [
+          headingSchema.node("paragraph", null, headingSchema.text("item")),
+        ]),
+      ]),
+    ]);
+    const listResult = runHeading(
+      EditorState.create({ doc: list, selection: TextSelection.create(list, 3) }),
+      1,
+    );
+
+    expect(code.state.doc.child(0).type.name).toBe("heading");
+    expect(code.state.doc.child(0).textContent).toBe("title");
+    expect(code.state.doc.child(1).type.name).toBe("codeBlock");
+    expect(code.state.doc.child(1).textContent).toBe("const n = 1");
+    expect(codeOnly.handled).toBe(false);
+    expect(codeOnly.state.doc.child(0).type.name).toBe("codeBlock");
+    expect(listResult.handled).toBe(false);
+    expect(listResult.state.doc.child(0).child(0).child(0).type.name).toBe("paragraph");
   });
 });

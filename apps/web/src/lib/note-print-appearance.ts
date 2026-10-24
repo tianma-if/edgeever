@@ -65,6 +65,12 @@ const paletteRules = (palette: NoteProsePaletteChoice) => {
     ".edgeever-print-content ul[data-type=\"taskList\"] li[data-checked] > label input {",
     `  accent-color: ${colors.accent};`,
     "}",
+    ".edgeever-print-content th {",
+    `  background: ${colors.surface};`,
+    "}",
+    ".edgeever-print-content tbody tr:nth-child(even) td {",
+    `  background: color-mix(in srgb, ${colors.surface} 60%, transparent);`,
+    "}",
   ].join("\n");
 };
 

@@ -81,7 +81,7 @@ describe("editor typography contract", () => {
     expect(prose).not.toContain('data-note-palette="custom"');
   });
 
-  test("named palettes recolor links, bold, inline code, and checked task boxes", () => {
+  test("named palettes recolor links, bold, inline code, checked task boxes, and table surfaces", () => {
     const prose = readStyle("./note-prose.css");
 
     expect(prose).toMatch(/color:\s*var\(--note-palette-link\)/);
@@ -92,10 +92,10 @@ describe("editor typography contract", () => {
     expect(prose).toMatch(/ul\[data-type="taskList"\] li\[data-checked\] > label input/);
     expect(prose).toMatch(/\.ProseMirror code/);
     expect(prose).toMatch(/\.ProseMirror pre code/);
+    expect(prose).toMatch(/background:\s*var\(--note-palette-surface\)/);
     const globals = readStyle("./globals.css");
     expect(declarationsForSelector(globals, ".ProseMirror code")).toContain("color: #3d4450;");
     expect(prose).not.toMatch(/--note-palette-text/);
-    expect(prose).not.toMatch(/--note-palette-surface/);
     expect(prose).not.toMatch(/--note-palette-muted/);
     expect(prose).not.toMatch(/--note-palette-divider/);
     expect(prose).not.toMatch(/blockquote/);

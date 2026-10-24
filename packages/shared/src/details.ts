@@ -3,6 +3,7 @@ import { Details, DetailsContent, DetailsSummary } from "@tiptap/extension-detai
 import { resolveAttachmentKind, resolveVideoMimeType } from "./attachment-kind";
 import { FILE_ATTACHMENT_NODE_TYPE } from "./file-attachment";
 import { parseImageWidth } from "./image-display";
+import { alignedImageToHtml, parseImageAlignment, type ImageAlignment } from "./image-alignment";
 import { getResourceIdFromUrl } from "./resource-links";
 
 export const DETAILS_NODE_TYPE = "details" as const;
@@ -149,7 +150,7 @@ const remoteVideoFromSrc = (src: string): RemoteVideo | null => {
 
 type PreparedDetailsBody = {
   markdown: string;
-  images: Array<{ src: string; width: number | null }>;
+  images: Array<{ src: string; width: number | null; alignment?: ImageAlignment }>;
   videoUrls: string[];
 };
 
@@ -189,7 +190,8 @@ const prepareDetailsBody = (source: string): PreparedDetailsBody => {
       if (!src) return tag;
       const alt = readHtmlAttr(attrs || "", "alt");
       const title = readHtmlAttr(attrs || "", "title");
-      images.push({ src, width: readPercentWidth(readHtmlAttr(attrs || "", "width")) });
+      const alignment = parseImageAlignment(readHtmlAttr(attrs || "", "data-image-align"));
+      images.push({ src, width: readPercentWidth(readHtmlAttr(attrs || "", "width")), ...(alignment ? { alignment } : {}) });
       return title ? `![${alt}](${src} "${title}")` : `![${alt}](${src})`;
     },
   );
@@ -209,8 +211,11 @@ const applyDetailsMedia = (
       const src = typeof node.attrs?.src === "string" ? node.attrs.src : "";
       if (expected && expected.src === src) {
         imageIndex += 1;
-        if (expected.width != null) {
-          return { ...node, attrs: { ...node.attrs, width: expected.width } };
+        if (expected.width != null || expected.alignment) {
+          return { ...node, attrs: { ...node.attrs,
+            ...(expected.width != null ? { width: expected.width } : {}),
+            ...(expected.alignment ? { alignment: expected.alignment } : {}),
+          } };
         }
       }
       return node;
@@ -240,6 +245,7 @@ const htmlAttribute = (name: string, value: string) => `${name}="${escapeHtml(va
 const renderDetailsImage = (node: JSONContent) => {
   const src = typeof node.attrs?.src === "string" ? node.attrs.src.trim() : "";
   if (!isDetailsImageSrc(src)) return null;
+  if (parseImageAlignment(node.attrs?.alignment)) return alignedImageToHtml(node);
   const alt = typeof node.attrs?.alt === "string" ? node.attrs.alt.trim() : "";
   const title = typeof node.attrs?.title === "string" ? node.attrs.title.trim() : "";
   const width = node.attrs?.width == null || node.attrs.width === ""

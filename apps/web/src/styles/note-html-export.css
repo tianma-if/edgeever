@@ -263,6 +263,10 @@ body {
   object-fit: cover;
 }
 
+.edgeever-html-content [data-edgeever-image-gallery][data-image-gallery-fit="height"] > img {
+  object-fit: contain;
+}
+
 .edgeever-html-mermaid svg {
   margin: 0 auto;
 }

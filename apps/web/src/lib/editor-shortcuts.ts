@@ -268,3 +268,82 @@ export const shouldOpenAiFromSpace = ({
   && keyCode !== 229
   && selectionEmpty
   && isEmptyParagraph;
+
+export type HeadingShortcutLevel = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+
+const HEADING_SHORTCUT_TEXT_BLOCKS = new Set(["paragraph", "heading"]);
+
+type HeadingShortcutKeyEvent = {
+  key: string;
+  code?: string;
+  ctrlKey?: boolean;
+  metaKey?: boolean;
+  altKey?: boolean;
+  shiftKey?: boolean;
+  isComposing?: boolean;
+  keyCode?: number;
+  repeat?: boolean;
+};
+
+/**
+ * Typora-style heading chords: Mod+1..6 set that heading, Mod+0 sets body text.
+ * Shift stays free for the outline shortcut. Alt stays free for TipTap's toggle.
+ * The desktop main process mirrors this match for Mod+0 in heading-shortcut.mjs.
+ */
+export const headingShortcutLevelFromEvent = (
+  event: HeadingShortcutKeyEvent,
+): HeadingShortcutLevel | null => {
+  if (event.isComposing || event.keyCode === 229 || event.repeat) return null;
+  if (event.altKey || event.shiftKey) return null;
+  if (!event.ctrlKey && !event.metaKey) return null;
+
+  const codeLevel = /^(?:Digit|Numpad)([0-6])$/.exec(event.code ?? "");
+  if (codeLevel) return Number(codeLevel[1]) as HeadingShortcutLevel;
+  if (/^[0-6]$/.test(event.key)) return Number(event.key) as HeadingShortcutLevel;
+  return null;
+};
+
+/**
+ * Sets every selected paragraph or heading to one level. Other blocks, including
+ * code blocks and list-item paragraphs the schema cannot replace, stay put.
+ * Pressing the current level again changes nothing.
+ */
+export const applyHeadingLevelShortcut = (
+  state: EditorState,
+  dispatch: ((transaction: Transaction) => void) | undefined,
+  level: HeadingShortcutLevel,
+) => {
+  const target = level === 0 ? state.schema.nodes.paragraph : state.schema.nodes.heading;
+  if (!target) return false;
+
+  const positions: number[] = [];
+  for (const range of state.selection.ranges) {
+    state.doc.nodesBetween(range.$from.pos, range.$to.pos, (node, pos) => {
+      if (!node.isTextblock) return;
+      if (!HEADING_SHORTCUT_TEXT_BLOCKS.has(node.type.name)) return false;
+      const nextAttrs = level === 0 ? null : { ...node.attrs, level };
+      if (node.hasMarkup(target, nextAttrs)) return false;
+      const $pos = state.doc.resolve(pos);
+      if (node.type !== target && !$pos.parent.canReplaceWith($pos.index(), $pos.index() + 1, target)) {
+        return false;
+      }
+      positions.push(pos);
+      return false;
+    });
+  }
+
+  if (positions.length === 0) return false;
+  if (!dispatch) return true;
+
+  const transaction = state.tr;
+  for (const pos of positions) {
+    const mapped = transaction.mapping.map(pos);
+    const node = transaction.doc.nodeAt(mapped);
+    if (!node || !HEADING_SHORTCUT_TEXT_BLOCKS.has(node.type.name)) continue;
+    const nextAttrs = level === 0 ? null : { ...node.attrs, level };
+    if (node.hasMarkup(target, nextAttrs)) continue;
+    transaction.setNodeMarkup(mapped, target, nextAttrs);
+  }
+  dispatch(transaction.scrollIntoView());
+  return true;
+};

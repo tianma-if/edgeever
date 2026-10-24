@@ -66,6 +66,7 @@ const applyLegacyWeChatStyles = (
     : "box-shadow: inset 0 0 0 1px rgba(61,68,80,0.08);";
   const accent = colors?.accent ?? BODY_COLOR;
   const bold = colors ? `font-weight: 800; color: ${accent};` : "font-weight: 800;";
+  const thBackground = colors ? colors.surface : "#f5f5f5";
   const textStyle = `font-family: ${PUBLISH_FONT}; font-size: ${fontSize}; line-height: ${lineHeight}; letter-spacing: -0.005em; color: ${BODY_COLOR};`;
   const styles: Record<string, string> = {
     p: `margin: 0 0 ${PARAGRAPH_SPACING}; padding: 0; ${textStyle}`,
@@ -88,7 +89,7 @@ const applyLegacyWeChatStyles = (
     pre: `margin: 0 0 16px; padding: 14px 16px; overflow: hidden; border: 1px solid #e4e4e4; border-radius: 8px; background: #fafafa; color: #0f172a; font-family: ${PUBLISH_MONO}; font-size: ${codeSize}; line-height: 1.6; text-align: left; white-space: pre-wrap;`,
     hr: "margin: 24px 0; border: 0; border-top: 1px solid #1a1d21;",
     table: `width: 100%; margin: 20px 0; border-collapse: collapse; font-size: ${fontSize}; line-height: 1.45;`,
-    th: "padding: 8px 13px; border: 1px solid #e5e5e5; background: #f5f5f5; color: #0f172a; font-weight: 600; font-size: 13px; text-align: left;",
+    th: `padding: 8px 13px; border: 1px solid #e5e5e5; background: ${thBackground}; color: #0f172a; font-weight: 600; font-size: 13px; text-align: left;`,
     td: `padding: 8px 13px; border: 1px solid #e5e5e5; color: ${BODY_COLOR}; text-align: left;`,
     img: "display: block; max-width: 100%; height: auto; margin: 16px 0; border: 1px solid #b8dfd0; border-radius: 8px;",
   };
@@ -115,6 +116,18 @@ const applyLegacyWeChatStyles = (
   root.querySelectorAll<HTMLElement>("pre code").forEach((element) => {
     element.style.cssText = `padding: 0; border: 0; background: transparent; color: inherit; font-family: ${PUBLISH_MONO}; font-size: ${codeSize}; font-weight: 400; white-space: pre-wrap;`;
   });
+
+  if (colors) {
+    root.querySelectorAll<HTMLElement>("table").forEach((table) => {
+      table.querySelectorAll<HTMLElement>("tbody tr").forEach((tr, index) => {
+        if (index % 2 === 1) {
+          tr.querySelectorAll<HTMLElement>("td").forEach((td) => {
+            td.style.backgroundColor = colors.surface;
+          });
+        }
+      });
+    });
+  }
 };
 
 const applyInlineStyles = (

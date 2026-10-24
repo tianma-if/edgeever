@@ -1024,6 +1024,16 @@ export const zhCN = {
     imageCompressionAria: "是否压缩笔记内图片",
     showDescendantNotesTitle: "父笔记本中显示子笔记本笔记",
     showDescendantNotesAria: "是否在父笔记本中显示子笔记本中的笔记",
+    loginItem: {
+      title: "开机后启动",
+      aria: "开机后启动 EdgeEver",
+      description: "开机后自动打开 EdgeEver。",
+      launchModeLabel: "启动后",
+      launchModeWindow: "打开主窗口",
+      launchModeTray: "只在托盘运行",
+      requiresApproval: "还需要在系统设置里允许 EdgeEver 开机后启动。",
+      saveFailed: "无法保存这项设置。",
+    },
     spellcheckTitle: "标记拼写错误",
     spellcheckAria: "是否在笔记编辑器中用波浪线标记可能的拼写错误",
     aiSelectionMenuTitle: "选中文字时显示 AI 助手",
@@ -2315,6 +2325,8 @@ export const zhCN = {
   },
   editor: {
     imageScale: "图片缩放",
+    imageAlignment: "图片对齐",
+    imageAlignments: { left: "图片左对齐", center: "图片居中", right: "图片右对齐" },
     scaleTo: "缩放到 {{percent}}%",
     imageSizeSmall: "较小",
     imageSizeMedium: "适中",
@@ -2324,6 +2336,8 @@ export const zhCN = {
     previewImage: "预览大图",
     imageGallery: {
       toolbar: "图片画廊布局",
+      fitLabel: "图片适应方式",
+      fits: { width: "适应宽度", height: "适应高度" },
       layouts: {
         auto: "自动",
         "2": "2 栏",
