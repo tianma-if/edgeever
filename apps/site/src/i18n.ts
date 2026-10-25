@@ -114,6 +114,7 @@ export const siteCopy = {
       memosMigration: "从 Memos 迁移",
       notionMigration: "从 Notion 迁移",
       flomoMigration: "从 Flomo 迁移",
+      bestPractices: "真机演示",
       advancedPlay: "搭配AI Agent的玩法",
       blog: "博客",
       backToBlog: "返回博客",
@@ -144,6 +145,7 @@ export const siteCopy = {
       eyebrow: "WHY EDGEEVER",
       heading: "重新定义自托管知识工作区",
       subheading: "告别商业笔记的臃肿广告、设备限制与昂贵订阅。每一个设计细节，都旨在打造流畅、开放、隐私可控且原生支持 AI 的第二大脑。",
+      showcaseCta: "查看 17 个真机案例演示与最佳实践",
       card1: {
         badge: "经典重现",
         title: "经典三栏与专注模式，熟悉更轻快",
@@ -360,6 +362,12 @@ export const siteCopy = {
           cta: "查看迁移指南",
         },
         {
+          title: "17 个真机场景与实操指南",
+          summary: "浏览三栏写作、微信与全渠道剪藏、AI 导图/信息图/多维表格、本机 ACP 协同及海报排版实机演示。",
+          href: "/guides/best-practices",
+          cta: "查看实机案例",
+        },
+        {
           title: "AI Agent 进阶玩法",
           summary: "用 MCP 读取真实笔记，生成知识地图、标签建议和个人资料整理工作流。",
           href: "/guides/advanced-play",
@@ -389,6 +397,7 @@ export const siteCopy = {
       memosMigration: "Migrate from Memos",
       notionMigration: "Migrate from Notion",
       flomoMigration: "Migrate from Flomo",
+      bestPractices: "Showcase",
       advancedPlay: "AI Agent plays",
       blog: "Blog",
       backToBlog: "Back to blog",
@@ -419,6 +428,7 @@ export const siteCopy = {
       eyebrow: "WHY EDGEEVER",
       heading: "Rebuilt for Self-Hosted Knowledge & AI Workflows",
       subheading: "Say goodbye to ads, device caps, and expensive subscriptions. Every detail is crafted for a fast, open, and private second brain.",
+      showcaseCta: "Explore 17 real-world workflows & screenshots",
       card1: {
         badge: "Classic UI",
         title: "Classic Three-Pane Layout, Faster & Lighter",
@@ -633,6 +643,12 @@ export const siteCopy = {
           summary: "Use EdgeEver MCP, evernote-backup, and the ENEX import script to migrate an old notes library into your self-hosted instance.",
           href: "/blog/evernote-migration-guide",
           cta: "Read migration guide",
+        },
+        {
+          title: "17 Real-World Workflows",
+          summary: "Visual walkthrough of three-pane editing, omnichannel clipping, AI diagrams & databases, local ACP agents, and poster design.",
+          href: "/guides/best-practices",
+          cta: "View showcase",
         },
         {
           title: "AI Agent advanced play",

@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { ArrowUp, PanelRightClose, Sparkles, Undo2 } from "lucide-react";
+import { ArrowUp, Sparkles, Undo2 } from "lucide-react";
 import { useState, type MouseEvent } from "react";
 import type { InfographicConversationTurn } from "@edgeever/shared";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ import {
   usePromptInputController,
 } from "@/components/ai-elements/prompt-input";
 import { cn } from "@/lib/utils";
+import { infographicTurnSessionId, resolveInfographicSessionId } from "@/lib/infographic-sessions";
 import { SidebarAgentModeStatus } from "./SidebarAgentModeStatus";
 import { memoIdFromSidebarLinkEvent, rewriteSidebarNoteLinks, sidebarNoteLinkAllowedTags, sidebarNoteLinkComponents } from "./sidebar-note-links";
 
@@ -42,9 +43,12 @@ export type InfographicSidebarController = {
   readOnly: boolean;
   canUndo: boolean;
   hasGraphic: boolean;
+  activeSessionId: string | null;
   onSubmit: (prompt: string) => Promise<void>;
   onUndo: () => void;
   onStop: () => void;
+  onSelectSession: (sessionId: string) => void;
+  onCreateSession: () => void;
 };
 
 function InfographicSidebarComposer({ session, selectionPending, onPendingChange }: { session: InfographicSidebarController; selectionPending: boolean; onPendingChange: (pending: boolean) => void }) {
@@ -112,18 +116,15 @@ function InfographicReply({ children, isAnimating }: { children: string; isAnima
 
 export function InfographicSidebarSession({
   session,
-  noteTitle,
-  onOpenChange,
   onOpenNote,
 }: {
   session: InfographicSidebarController;
-  noteTitle?: string;
-  onOpenChange: (open: boolean) => void;
   onOpenNote?: (memoId: string, notebookId: string) => void;
 }) {
   const { t, i18n } = useTranslation();
   const [selectionPending, setSelectionPending] = useState(false);
-  const title = noteTitle?.trim() || t("infographic.name");
+  const viewingId = resolveInfographicSessionId(session.turns, session.activeSessionId);
+  const visibleTurns = session.turns.filter((turn) => infographicTurnSessionId(turn) === viewingId);
   const openLinkedNote = (event: MouseEvent<HTMLElement>) => {
     const linkedId = memoIdFromSidebarLinkEvent(event);
     if (!linkedId || !onOpenNote) return;
@@ -137,33 +138,17 @@ export function InfographicSidebarSession({
         : t(turn.kind === "generated" ? "infographic.historyGenerated" : "infographic.historyRefined", { title: turn.resultTitle || t("infographic.name") }));
 
   return (
-    <div className="flex h-full min-h-0 min-w-0 flex-col bg-card" data-infographic-ai-sidebar="">
-      <div className="flex h-12 shrink-0 items-center gap-2 border-b border-slate-200 px-2">
-        <span className="flex min-w-0 flex-1 items-center gap-1.5 px-1.5 text-[13px] text-slate-800">
-          <Sparkles className="size-3.5 shrink-0" aria-hidden="true" />
-          <span className="truncate">{title}</span>
-        </span>
-        <Button
-          type="button"
-          size="icon-sm"
-          variant="ghost"
-          title={t("aiAssistant.sidebar.close")}
-          aria-label={t("aiAssistant.sidebar.close")}
-          onClick={() => onOpenChange(false)}
-        >
-          <PanelRightClose className="h-4 w-4" />
-        </Button>
-      </div>
-      <Conversation className="min-h-0 flex-1" aria-label={t("infographic.historyTitle")}>
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-card" data-infographic-ai-sidebar="">
+      <Conversation key={viewingId} className="min-h-0 flex-1" aria-label={t("infographic.historyTitle")}>
         <ConversationContent className={threadClassName} onClick={openLinkedNote}>
-          {!session.turns.length && !session.activeTurn ? (
+          {!visibleTurns.length && !session.activeTurn ? (
             <ConversationEmptyState
               icon={<Sparkles className="h-6 w-6" />}
               title={t(session.hasGraphic ? "infographic.refine" : "infographic.describe")}
               description={t(session.hasGraphic ? "infographic.refinePrompt" : "infographic.prompt")}
             />
           ) : null}
-          {session.turns.map((turn) => (
+          {visibleTurns.map((turn) => (
             <div key={turn.id} data-infographic-turn={turn.id} className="space-y-2">
               <Message from="user">
                 <MessageContent className={userMessageClassName}>{turn.prompt}</MessageContent>

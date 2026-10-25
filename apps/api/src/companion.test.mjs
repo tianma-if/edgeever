@@ -95,6 +95,40 @@ describe("companion turn context", () => {
       message: "给这张图加一个评估节点",
       focus: { memoId: "memo_1", notebookId: "nb_demo_features", title: "RAG 原理", diagramKind: "mind-map" },
     }))).toContain("editable mind-map");
+    const independentDiagram = companionUserContent(input({
+      message: "帮我生成一个AI大模型的思维导图。",
+      focus: { memoId: "memo_distill", title: "大模型蒸馏流程图", diagramKind: "flowchart" },
+    }));
+    expect(independentDiagram).toContain("did not refer to the note open in the editor");
+    expect(independentDiagram).toContain("帮我生成一个AI大模型的思维导图。");
+    expect(independentDiagram).not.toContain("memo_distill");
+    expect(independentDiagram).not.toContain("大模型蒸馏流程图");
+    expect(independentDiagram).not.toContain("Call get_diagram");
+    const referredDiagram = companionUserContent(input({
+      message: "根据这篇生成思维导图",
+      focus: { memoId: "memo_distill", title: "大模型蒸馏流程图", diagramKind: "flowchart" },
+    }));
+    expect(referredDiagram).toContain("[note:memo_distill]");
+    expect(referredDiagram).toContain("Call get_diagram");
+    expect(referredDiagram).not.toContain("did not refer to the note open in the editor");
+    const attachedDiagram = companionUserContent(input({
+      message: "帮我生成一个AI大模型的思维导图。",
+      focus: {
+        memoId: "memo_distill", title: "大模型蒸馏流程图",
+        contentMarkdown: "教师模型、软标签、学生模型。",
+      },
+    }));
+    expect(attachedDiagram).toContain("教师模型、软标签、学生模型。");
+    expect(attachedDiagram).toContain("[note:memo_distill]");
+    for (const message of ["生成思维导图", "生成一个思维导图", "整理成思维导图", "把这个做成思维导图", "画一个流程图"]) {
+      const fromOpenNote = companionUserContent(input({
+        message,
+        focus: { memoId: "memo_distill", title: "大模型蒸馏流程图", diagramKind: "flowchart" },
+      }));
+      expect(fromOpenNote, message).toContain("[note:memo_distill]");
+      expect(fromOpenNote, message).toContain("大模型蒸馏流程图");
+      expect(fromOpenNote, message).not.toContain("did not refer to the note open in the editor");
+    }
     expect(companionUserContent(input({
       message: "整理这些",
       mentions: [{ type: "notebook", id: "nb_study", title: "学习资料" }],
@@ -483,6 +517,8 @@ describe("actual AI SDK companion runtime", () => {
     expect(COMPANION_INSTRUCTIONS).toContain("chart-pie-donut-plain-text");
     expect(COMPANION_INSTRUCTIONS).toContain("思维导图");
     expect(COMPANION_INSTRUCTIONS).toContain("架构图/architecture diagram means kind=architecture");
+    expect(COMPANION_INSTRUCTIONS).toContain("does not refer to the open note");
+    expect(COMPANION_INSTRUCTIONS).toContain("build it only from the requested topic");
     expect(COMPANION_INSTRUCTIONS).toContain("update_diagram");
     expect(COMPANION_INSTRUCTIONS).toContain("这篇");
     expect(COMPANION_INSTRUCTIONS).not.toContain("You cannot create or edit diagrams");

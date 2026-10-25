@@ -36,6 +36,9 @@ describe("infographic editor header", () => {
     expect(source).toContain("<AiSidebar");
     expect(source).toContain("infographic={infographicAssistant}");
     expect(source).toContain("nextInfographicNoteTitle");
+    expect(source).toContain("infographicSessionHistory");
+    expect(source).toContain("onCreateSession");
+    expect(source).toContain("activeSessionId");
     expect(source).toContain("edgeever-infographic-preview");
   });
 });

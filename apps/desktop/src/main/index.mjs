@@ -1870,9 +1870,10 @@ const startApplication = async () => {
     await saveDesktopSessionToken("");
     return { stored: false };
   });
-  ipcMain.handle("desktop:picgo-test", (event, endpoint) => {
+  ipcMain.handle("desktop:picgo-test", (event, input) => {
     if (event.sender !== mainWindow?.webContents) throw new Error("PicGo requests must come from the main window");
-    return testPicGoConnection(endpoint);
+    const target = input && typeof input === "object" ? input : { endpoint: input, serverKey: "" };
+    return testPicGoConnection(target.endpoint, { serverKey: target.serverKey });
   });
   // Serialize uploads and error dialogs across rapid pastes and multi-image batches.
   const queuePicGoUpload = createPicGoUploadQueue({

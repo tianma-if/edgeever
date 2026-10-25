@@ -2,17 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ClipboardEvent,
 import { AnimatePresence } from "motion/react";
 import * as m from "motion/react-m";
 import { useTranslation } from "react-i18next";
-import { ArrowUp, Check, ChevronDown, Download, FileText, Loader2, PanelRightClose, Plus, Search, Sparkles, X } from "lucide-react";
+import { ArrowUp, Download, FileText, Loader2, PanelRightClose, Plus, Sparkles, X } from "lucide-react";
 import type { CompanionAction, CompanionAnswer, CompanionEvent, CompanionFailureDiagnostics, CompanionTurn, CompanionTurnInput } from "@edgeever/shared";
 import { buildRevisionDiffRows, companionFailureDiagnostics, createMemoLinkHref } from "@edgeever/shared";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Attachment,
@@ -70,7 +63,6 @@ import {
   parseLocalAgentTurns,
   resolveLocalAgentThreadId,
   saveLocalAgentTurns,
-  type ChatThreadSummary,
 } from "@/lib/local-agent-threads";
 import { LocalAgentImageStore } from "@/lib/local-agent-images";
 import { appendLocalAgentText } from "@/lib/local-agent-response";
@@ -89,6 +81,7 @@ import { CompanionCreatedNoteLinks } from "../CompanionCreatedNoteLinks";
 import { AiSidebarMessage } from "./AiSidebarMessage";
 import { AiSidebarLocalProcess } from "./AiSidebarLocalProcess";
 import { AiAgentSelector } from "./AiAgentSelector";
+import { AiSidebarThreadMenu } from "./AiSidebarThreadMenu";
 import { InfographicSidebarSession, type InfographicSidebarController } from "./InfographicSidebarSession";
 import { memoIdFromSidebarLinkEvent } from "./sidebar-note-links";
 
@@ -239,7 +232,6 @@ export const readAiSidebarWidth = () => {
 };
 
 const THREAD_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const THREAD_RECENCY_MS = 30 * 24 * 60 * 60 * 1000;
 
 const readAiSidebarThread = () => {
   const value = readStorage(AI_SIDEBAR_THREAD_KEY);
@@ -249,108 +241,6 @@ const readAiSidebarThread = () => {
 const writeAiSidebarThread = (threadId: string) => {
   writeStorage(AI_SIDEBAR_THREAD_KEY, threadId);
 };
-
-const sidebarThreadLabel = (title: string) => {
-  const clause = title.split(/[，。！？!?；;：:\n]/)[0]?.trim() || title;
-  return clause.length >= 2 ? clause : title;
-};
-
-function AiSidebarThreadMenu({
-  threads,
-  threadId,
-  title,
-  onSelect,
-  onCreate,
-}: {
-  threads: ChatThreadSummary[];
-  threadId: string;
-  title: string;
-  onSelect: (threadId: string) => void;
-  onCreate: () => void;
-}) {
-  const { t } = useTranslation();
-  const [query, setQuery] = useState("");
-  const [searching, setSearching] = useState(false);
-  const normalized = query.trim().toLocaleLowerCase();
-  const visible = threads.filter((thread) => !normalized || thread.title.toLocaleLowerCase().includes(normalized));
-  const cutoff = Date.now() - THREAD_RECENCY_MS;
-  const recent = visible.filter((thread) => Date.parse(thread.updatedAt) >= cutoff);
-  const older = visible.filter((thread) => Date.parse(thread.updatedAt) < cutoff);
-  const searchOnRecent = recent.length > 0 || older.length === 0;
-
-  const renderGroup = (label: string, items: ChatThreadSummary[], withSearch: boolean) => {
-    if (!items.length) return null;
-    return (
-      <div>
-        {searching ? null : (
-          <div className="flex items-center gap-2 px-2 py-1.5 text-xs text-slate-500">
-            <span className="min-w-0 flex-1">{label}</span>
-            {withSearch ? (
-              <button
-                type="button"
-                className="rounded-sm p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-                aria-label={t("aiAssistant.sidebar.historySearch")}
-                onClick={() => setSearching(true)}
-              >
-                <Search className="size-3.5" aria-hidden="true" />
-              </button>
-            ) : null}
-          </div>
-        )}
-        {items.map((thread) => (
-          <DropdownMenuItem
-            key={thread.id}
-            className="justify-between gap-3 py-2 text-sm"
-            onSelect={() => onSelect(thread.id)}
-          >
-            <span className="truncate">{thread.title}</span>
-            {thread.id === threadId ? <Check className="size-4 shrink-0 text-slate-700" aria-hidden="true" /> : <span className="size-4 shrink-0" aria-hidden="true" />}
-          </DropdownMenuItem>
-        ))}
-      </div>
-    );
-  };
-
-  return (
-    <DropdownMenu onOpenChange={(open) => { if (!open) { setQuery(""); setSearching(false); } }}>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          className="flex h-8 min-w-0 max-w-52 items-center gap-1 rounded-full px-2 text-left text-[13px] font-medium text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
-          data-ai-thread-menu=""
-          aria-label={`${title} · ${t("aiAssistant.sidebar.history")}`}
-        >
-          <Sparkles className="size-3.5 shrink-0 text-slate-500" aria-hidden="true" />
-          <span className="min-w-0 truncate">{sidebarThreadLabel(title)}</span>
-          <ChevronDown className="size-3.5 shrink-0 text-slate-400" aria-hidden="true" />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="z-[60] max-h-80 w-72 overflow-y-auto p-1.5">
-        {searching ? (
-          <input
-            autoFocus
-            value={query}
-            placeholder={t("aiAssistant.sidebar.historySearch")}
-            className="mb-1 h-8 w-full rounded-md border border-slate-200 bg-card px-2 text-sm text-slate-950 outline-none placeholder:text-slate-400"
-            aria-label={t("aiAssistant.sidebar.historySearch")}
-            onChange={(event) => setQuery(event.target.value)}
-            onKeyDown={(event) => event.stopPropagation()}
-          />
-        ) : null}
-        <DropdownMenuItem className="gap-2 py-2 text-sm" onSelect={onCreate}>
-          <Plus className="size-3.5 shrink-0" aria-hidden="true" />
-          {t("aiAssistant.sidebar.newThread")}
-        </DropdownMenuItem>
-        {threads.length ? <DropdownMenuSeparator /> : null}
-        {renderGroup(t("aiAssistant.sidebar.historyRecent"), recent, searchOnRecent && !searching)}
-        {renderGroup(t("aiAssistant.sidebar.historyOlder"), older, !searchOnRecent && !searching)}
-        {normalized && !visible.length ? (
-          <p className="px-2 py-3 text-sm text-slate-500">{t("aiAssistant.sidebar.historyEmpty")}</p>
-        ) : null}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
 
 const readLocalAdapter = readAiSidebarAdapter;
 
@@ -760,6 +650,7 @@ function AiSidebarSession({
   beforeCompanionApply,
   onCompanionNotesChanged,
   onOpenCompanionNote,
+  infographic,
   addFilesRef,
   onStopReady,
 }: AiSidebarProps & {
@@ -782,6 +673,8 @@ function AiSidebarSession({
     ) ?? createClientUuid()
   ));
   const [threadId, setThreadId] = useState<string>(() => readAiSidebarThread() ?? createClientUuid());
+  const graphicAvailable = Boolean(infographic);
+  const [graphicOpen, setGraphicOpen] = useState(graphicAvailable);
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [conflicts, setConflicts] = useState<Record<string, string>>({});
@@ -816,7 +709,8 @@ function AiSidebarSession({
 
   useEffect(() => {
     setIncludeCurrentNote(false);
-  }, [memoId]);
+    setGraphicOpen(graphicAvailable);
+  }, [graphicAvailable, memoId]);
 
   const explainDiagnostics = useCallback((diagnostics?: CompanionFailureDiagnostics) => {
     if (!diagnostics) return "";
@@ -1530,6 +1424,7 @@ function AiSidebarSession({
   const menuThreads = source === "builtin" ? companionThreads : localThreadList;
   const menuThreadId = source === "builtin" ? threadId : localThreadId;
   const threadTitle = menuThreads.find((thread) => thread.id === menuThreadId)?.title || t("aiAssistant.sidebar.newThread");
+  const graphicTitle = t("aiAssistant.sidebar.currentInfographic");
   const rememberThread = (id: string) => {
     threadPinned.current = true;
     setThreadId(id);
@@ -1540,6 +1435,19 @@ function AiSidebarSession({
     setLocalThreadId(id);
     setError(null);
     writeStorage(AI_SIDEBAR_LOCAL_THREAD_KEY, id);
+  };
+  const openAssistantThread = (id: string) => {
+    setGraphicOpen(false);
+    if (source === "local") selectLocalThread(id);
+    else rememberThread(id);
+  };
+  const createAssistantThread = () => {
+    setGraphicOpen(false);
+    if (source === "local") {
+      if (localTurns.some((turn) => turn.threadId === localThreadId)) selectLocalThread(createClientUuid());
+      return;
+    }
+    if (companionThreads.some((thread) => thread.id === threadId)) rememberThread(createClientUuid());
   };
   const threadTurns = turns.filter((turn) => turn.threadId === threadId).slice().reverse();
   const localThreadTurns = localTurns.filter((turn) => turn.threadId === localThreadId);
@@ -1588,16 +1496,13 @@ function AiSidebarSession({
       <div className="flex h-12 shrink-0 items-center gap-2 border-b border-slate-200 px-2">
         <AiSidebarThreadMenu
           threads={menuThreads}
-          threadId={menuThreadId}
-          title={threadTitle}
-          onSelect={source === "builtin" ? rememberThread : selectLocalThread}
-          onCreate={() => {
-            if (source === "local") {
-              if (localTurns.some((turn) => turn.threadId === localThreadId)) selectLocalThread(createClientUuid());
-              return;
-            }
-            if (companionThreads.some((thread) => thread.id === threadId)) rememberThread(createClientUuid());
-          }}
+          threadId={graphicOpen ? "" : menuThreadId}
+          title={graphicOpen ? (noteTitle?.trim() || graphicTitle) : threadTitle}
+          pinned={graphicAvailable ? { id: "infographic", title: graphicTitle } : null}
+          pinnedActive={graphicOpen}
+          onSelectPinned={() => setGraphicOpen(true)}
+          onSelect={openAssistantThread}
+          onCreate={createAssistantThread}
         />
         <Button
           type="button"
@@ -1611,6 +1516,13 @@ function AiSidebarSession({
           <PanelRightClose className="h-4 w-4" />
         </Button>
       </div>
+      {graphicOpen && infographic ? (
+        <InfographicSidebarSession
+          session={infographic}
+          onOpenNote={onOpenCompanionNote}
+        />
+      ) : (
+      <>
       {error ? <p role="alert" className="shrink-0 px-3 pt-2 text-xs leading-5 text-rose-700">{error}</p> : null}
       <Conversation key={menuThreadId} className="min-h-0 flex-1">
         <ConversationContent className={sidebarThreadClassName}>
@@ -1805,6 +1717,8 @@ function AiSidebarSession({
           />
         </PromptInputProvider>
       </div>
+      </>
+      )}
     </div>
   );
 }
@@ -1926,16 +1840,7 @@ export function AiSidebar(props: AiSidebarProps) {
               </Tooltip>
             </TooltipProvider>
           ) : null}
-          {props.infographic ? (
-            <InfographicSidebarSession
-              session={props.infographic}
-              noteTitle={props.noteTitle}
-              onOpenChange={onOpenChange}
-              onOpenNote={props.onOpenCompanionNote}
-            />
-          ) : (
-            <AiSidebarSession {...props} addFilesRef={addFilesRef} onStopReady={onStopReady} />
-          )}
+          <AiSidebarSession {...props} addFilesRef={addFilesRef} onStopReady={onStopReady} />
         </div>
       </m.aside>
     </>

@@ -46,6 +46,18 @@ describe("infographic note format", () => {
       { id: "edit", prompt: "阿里巴巴", response: "已替换对比对象。", decision: "对比关系未变，因此沿用原模板。", kind: "refined", resultTitle: "腾讯 vs 阿里巴巴", template: "compare-binary-horizontal-badge-card-vs", createdAt: "2026-09-24T10:01:00.000Z" },
     ] };
     expect(parseInfographicDocument(serializeInfographicDocument(document))).toEqual(document);
+    const sessioned = {
+      schemaVersion: 1,
+      syntax: "infographic sequence-steps-simple\ndata\n  title 发布流程",
+      activeSessionId: "session-new",
+      history: [
+        { id: "old", prompt: "做成发布流程", createdAt: "2026-10-01T00:00:00.000Z", kind: "generated", resultTitle: "发布流程" },
+        { id: "new", prompt: "换成里程碑", createdAt: "2026-10-24T00:00:00.000Z", kind: "refined", resultTitle: "里程碑", sessionId: "session-new" },
+      ],
+    };
+    expect(parseInfographicDocument(serializeInfographicDocument(sessioned))).toEqual(sessioned);
+    expect(parseInfographicDocument(serializeInfographicDocument({ schemaVersion: 1, syntax: "", activeSessionId: "session empty" }))).toBeNull();
+    expect(parseInfographicDocument(serializeInfographicDocument({ ...sessioned, history: [{ ...sessioned.history[1], sessionId: "bad id" }] }))).toBeNull();
     expect(InfographicAgentRequestSchema.safeParse({ prompt: "修改", currentContent: "", candidates: ["compare-binary-horizontal-badge-card-vs"], history: [{ prompt: "原请求", response: "原回复" }] }).success).toBe(true);
     expect(InfographicAgentRequestSchema.safeParse({ prompt: "修改", currentContent: "", candidates: [], history: [] }).success).toBe(false);
   });

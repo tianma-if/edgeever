@@ -105,6 +105,26 @@ const copy = {
     save: "Zapisz",
     syncedOnly: "Zmiana nazwy i usuwanie będą dostępne po zsynchronizowaniu zasobu.",
   },
+  ru: {
+    attachmentActions: "Действия с вложением",
+    imageActions: "Действия с изображением",
+    cancel: "Отмена",
+    delete: "Удалить",
+    attachmentDeleteConfirm: "Вложение будет безвозвратно удалено из хранилища и этой заметки. Это действие нельзя отменить.",
+    attachmentDeleteTitle: "Удалить вложение",
+    share: "Поделиться",
+    download: "Скачать",
+    downloadFailed: "Не удалось скачать",
+    failed: "Не удалось выполнить действие с ресурсом. Попробуйте снова.",
+    filename: "Имя файла",
+    rename: "Переименовать",
+    attachmentRenameTitle: "Переименовать вложение",
+    imageDeleteConfirm: "Изображение будет безвозвратно удалено из хранилища и этой заметки. Это действие нельзя отменить.",
+    imageDeleteTitle: "Удалить изображение",
+    imageRenameTitle: "Переименовать изображение",
+    save: "Сохранить",
+    syncedOnly: "Переименование и удаление будут доступны после синхронизации ресурса.",
+  },
 } as const;
 
 export const MobileAttachmentCard = ({

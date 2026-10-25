@@ -1,18 +1,108 @@
-// PicGo owns uploader credentials. This bridge only sends image bytes to its
-// local HTTP server; it never reads the clipboard or writes temporary files.
-export const normalizePicGoEndpoint = (value) => {
-  const url = new URL(value);
-  if (url.protocol !== "http:" || !["127.0.0.1", "localhost", "[::1]"].includes(url.hostname)
-    || url.username || url.password || url.hash || url.search || url.pathname !== "/upload") {
-    throw new Error("Use a local PicGo address such as http://127.0.0.1:36677/upload");
+// PicGo and PicList own the image-host credentials. This bridge only posts
+// image bytes to the server address the user saved. It never reads the
+// clipboard or writes temporary files.
+import { lookup } from "node:dns/promises";
+import { BlockList, isIP } from "node:net";
+
+const ADDRESS_ERROR = "Use a PicGo or PicList upload address such as http://127.0.0.1:36677/upload";
+const BLOCKED_HOSTNAMES = new Set(["metadata.google.internal", "metadata.goog"]);
+
+const blockedAddresses = new BlockList();
+blockedAddresses.addSubnet("0.0.0.0", 8, "ipv4");
+blockedAddresses.addSubnet("169.254.0.0", 16, "ipv4");
+blockedAddresses.addSubnet("224.0.0.0", 4, "ipv4");
+blockedAddresses.addSubnet("240.0.0.0", 4, "ipv4");
+blockedAddresses.addAddress("100.100.100.200", "ipv4");
+blockedAddresses.addSubnet("fe80::", 10, "ipv6");
+blockedAddresses.addSubnet("ff00::", 8, "ipv6");
+blockedAddresses.addAddress("::", "ipv6");
+blockedAddresses.addAddress("fd00:ec2::254", "ipv6");
+
+const canonicalHost = (hostname) => {
+  let host = String(hostname).toLowerCase();
+  if (host.endsWith(".")) host = host.slice(0, -1);
+  if (host.startsWith("[") && host.endsWith("]")) host = host.slice(1, -1);
+  return host;
+};
+
+const isLiteralHost = (host) => host.includes(":") || /^\d{1,3}(\.\d{1,3}){3}$/.test(host);
+
+// Link-local and cloud metadata addresses are rejected. LAN and public
+// addresses stay available because a remote PicList usually lives on a NAS.
+export const isBlockedPicGoAddress = (address) => {
+  const mapped = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i.exec(address);
+  const candidate = mapped ? mapped[1] : address;
+  const family = isIP(candidate);
+  if (family === 4) {
+    const canonical = candidate.split(".").map((part) => String(Number(part))).join(".");
+    if (canonical !== candidate) return true;
+    return blockedAddresses.check(candidate, "ipv4");
   }
+  if (family === 6) return blockedAddresses.check(candidate, "ipv6");
+  return true;
+};
+
+const assertHostShape = (hostname) => {
+  const host = canonicalHost(hostname);
+  if (!host || BLOCKED_HOSTNAMES.has(host) || /^\d+$/.test(host)) throw new Error(ADDRESS_ERROR);
+  if (isLiteralHost(host) && isBlockedPicGoAddress(host)) throw new Error(ADDRESS_ERROR);
+};
+
+export const normalizePicGoServerKey = (value) => {
+  if (value == null || value === "") return "";
+  if (typeof value !== "string") throw new Error("PicGo server key is invalid");
+  const key = value.trim();
+  if (!key) return "";
+  if (key.length > 512 || /[\u0000-\u0020\u007f]/.test(key)) throw new Error("PicGo server key is invalid");
+  return key;
+};
+
+export const normalizePicGoEndpoint = (value) => {
+  let url;
+  try { url = new URL(value); }
+  catch { throw new Error(ADDRESS_ERROR); }
+  if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || url.hash || url.search || url.pathname !== "/upload") {
+    throw new Error(ADDRESS_ERROR);
+  }
+  assertHostShape(url.hostname);
   return url;
 };
 
+const buildPicGoUrl = (endpoint, serverKey, pathname) => {
+  const url = normalizePicGoEndpoint(endpoint);
+  url.pathname = pathname;
+  const key = normalizePicGoServerKey(serverKey);
+  if (key) url.searchParams.set("key", key);
+  return url;
+};
+
+const assertPicGoHostAllowed = async (hostname, lookupImpl) => {
+  assertHostShape(hostname);
+  const host = canonicalHost(hostname);
+  if (isLiteralHost(host)) return;
+  let records;
+  try {
+    records = await lookupImpl(host, { all: true, verbatim: true });
+  } catch {
+    throw new Error("PicGo host could not be resolved");
+  }
+  if (!Array.isArray(records) || records.length === 0) throw new Error("PicGo host could not be resolved");
+  for (const record of records) {
+    if (!record || typeof record.address !== "string" || isBlockedPicGoAddress(record.address)) throw new Error(ADDRESS_ERROR);
+  }
+};
+
 const request = async (url, body, fetchImpl, timeoutMs) => {
-  const response = await fetchImpl(url, {
-    method: "POST", body, redirect: "error", signal: AbortSignal.timeout(timeoutMs),
-  });
+  let response;
+  try {
+    response = await fetchImpl(url, {
+      method: "POST", body, redirect: "error", signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch (error) {
+    const name = error && typeof error === "object" ? error.name : "";
+    if (name === "TimeoutError" || name === "AbortError") throw new Error("PicGo did not respond in time");
+    throw new Error("PicGo could not be reached");
+  }
   if (!response.ok) throw new Error(`PicGo HTTP ${response.status}`);
   const reader = response.body?.getReader();
   if (!reader) throw new Error("PicGo returned an empty response");
@@ -33,19 +123,24 @@ const request = async (url, body, fetchImpl, timeoutMs) => {
   const bytes = new Uint8Array(length);
   let offset = 0;
   for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
-  return JSON.parse(new TextDecoder().decode(bytes));
+  try {
+    return JSON.parse(new TextDecoder().decode(bytes));
+  } catch {
+    throw new Error("PicGo returned an unreadable response");
+  }
 };
 
-export const testPicGoConnection = async (endpoint, { fetchImpl = fetch, timeoutMs = 5000 } = {}) => {
-  const url = normalizePicGoEndpoint(endpoint);
-  url.pathname = "/heartbeat";
+export const testPicGoConnection = async (endpoint, { fetchImpl = fetch, timeoutMs = 5000, serverKey = "", lookupImpl = lookup } = {}) => {
+  const url = buildPicGoUrl(endpoint, serverKey, "/heartbeat");
+  await assertPicGoHostAllowed(url.hostname, lookupImpl);
   const data = await request(url, undefined, fetchImpl, timeoutMs);
-  if (data?.success !== true || data.result !== "alive") throw new Error("The local service did not identify itself as PicGo");
+  if (data?.success !== true || data.result !== "alive") throw new Error("The service did not identify itself as PicGo or PicList");
   return true;
 };
 
-export const uploadPicGoImage = async (input, { fetchImpl = fetch, timeoutMs = 60000 } = {}) => {
-  const url = normalizePicGoEndpoint(input.endpoint);
+export const uploadPicGoImage = async (input, { fetchImpl = fetch, timeoutMs = 60000, lookupImpl = lookup } = {}) => {
+  const url = buildPicGoUrl(input.endpoint, input.serverKey, "/upload");
+  await assertPicGoHostAllowed(url.hostname, lookupImpl);
   const bytes = input.bytes;
   if (!(bytes instanceof Uint8Array) || bytes.byteLength === 0 || bytes.byteLength > 50 * 1024 * 1024
     || typeof input.mimeType !== "string" || !input.mimeType.startsWith("image/")) {

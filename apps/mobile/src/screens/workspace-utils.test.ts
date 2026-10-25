@@ -65,6 +65,7 @@ describe("mobile workspace utilities", () => {
     expect(getResolvedMobileLocale("zh-CN")).toBe("zh-CN");
     expect(getResolvedMobileLocale("en-US")).toBe("en-US");
     expect(getResolvedMobileLocale("pl")).toBe("pl");
+    expect(getResolvedMobileLocale("ru")).toBe("ru");
     expect(isEnglishMobileLocale("zh-CN")).toBe(false);
     expect(isEnglishMobileLocale("en-US")).toBe(true);
   });
@@ -85,6 +86,9 @@ describe("mobile workspace utilities", () => {
       expect(isEnglishMobileLocale("system")).toBe(true);
       withLocale("pl");
       expect(getResolvedMobileLocale("system")).toBe("pl");
+      withLocale("ru-RU");
+      expect(getResolvedMobileLocale("system")).toBe("ru");
+      expect(isEnglishMobileLocale("system")).toBe(true);
       withLocale("fr-FR");
       expect(getResolvedMobileLocale("system")).toBe("en-US");
       expect(isEnglishMobileLocale("system")).toBe(true);

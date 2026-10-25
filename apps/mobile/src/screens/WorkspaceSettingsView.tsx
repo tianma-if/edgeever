@@ -53,6 +53,7 @@ const MOBILE_LOCALE_OPTIONS: Array<{ label: string; value: MobileLocalePreferenc
   { label: "English", value: "en-US" },
   { label: "日本語", value: "ja" },
   { label: "Polski", value: "pl" },
+  { label: "Русский", value: "ru" },
 ];
 type SettingsTab = "general" | "account" | "system";
 export type MobileLocaleMode = MobileLocalePreference;

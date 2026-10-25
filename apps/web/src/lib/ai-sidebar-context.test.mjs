@@ -43,6 +43,19 @@ describe("AI sidebar note context", () => {
     expect(sidebarLocalContextText(selected, false, conversation())).not.toContain(note.contentMarkdown);
   });
 
+  test("a new diagram request leaves the open note out of local agent context", () => {
+    const message = "帮我生成一个AI大模型的思维导图。";
+    const localContext = sidebarLocalContextText(note, false, conversation(message));
+    expect(localContext).toContain("did not refer to the note open in the editor");
+    expect(localContext).not.toContain("note-1");
+    expect(localContext).not.toContain(note.noteTitle);
+    expect(localContext).not.toContain(note.contentMarkdown);
+    expect(sidebarLocalContextText(note, false, conversation("根据这篇生成思维导图"))).toContain("ID: note-1");
+    expect(sidebarLocalContextText(note, false, conversation("生成思维导图"))).toContain("ID: note-1");
+    expect(sidebarLocalContextText(note, false, conversation("整理成思维导图"))).toContain(note.noteTitle);
+    expect(sidebarLocalContextText(note, true, conversation(message))).toContain(note.contentMarkdown);
+  });
+
   test("switching notes sends only the newly open note identity", () => {
     const switched = { ...note, memoId: "note-2", noteTitle: "第二篇", contentMarkdown: "第二篇正文" };
     expect(sidebarCompanionFocus(switched, false)).toEqual({ memoId: "note-2", title: "第二篇" });

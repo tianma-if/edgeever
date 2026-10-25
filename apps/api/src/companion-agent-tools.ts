@@ -1,4 +1,4 @@
-import { COMPANION_NOTE_EDIT_MAX_CHARS, parseDiagramDocument, parseInfographicDocument, parseTableDocument, type CompanionSource, type CompanionTodo, type CompanionToolCall, type CompanionToolDefinition, type CompanionTurnInput, type MemoDetail, type MemoSummary } from "@edgeever/shared";
+import { COMPANION_NOTE_EDIT_MAX_CHARS, explicitDiagramKind, independentDiagramRequest, parseDiagramDocument, parseInfographicDocument, parseTableDocument, type CompanionSource, type CompanionTodo, type CompanionToolCall, type CompanionToolDefinition, type CompanionTurnInput, type MemoDetail, type MemoSummary } from "@edgeever/shared";
 import type { DatabaseAdapter } from "./storage-contract";
 import type { AppContext } from "./api-context";
 import type { CompanionScope } from "./companion-service";
@@ -56,18 +56,7 @@ const withOptionalInboxNotebook = (definition: CompanionToolDefinition): Compani
   };
 };
 
-type ExplicitDiagramKind = "mind-map" | "flowchart" | "architecture";
-
-const EXPLICIT_DIAGRAM_KIND_PATTERNS: Array<[ExplicitDiagramKind, RegExp]> = [
-  ["mind-map", /(?:思维导图|思維導圖|心智图|心智圖|腦圖|mind[ -]?map|マインドマップ)/iu],
-  ["flowchart", /(?:流程图|流程圖|flow[ -]?chart|フローチャート)/iu],
-  ["architecture", /(?:架构图|架構圖|architectur(?:e|al)[ -]?diagram|アーキテクチャ図)/iu],
-];
-
-export const explicitDiagramKind = (message: string): ExplicitDiagramKind | undefined => {
-  const matches = EXPLICIT_DIAGRAM_KIND_PATTERNS.filter(([, pattern]) => pattern.test(message));
-  return matches.length === 1 ? matches[0][0] : undefined;
-};
+export { explicitDiagramKind, independentDiagramRequest };
 
 export const requestsInfographic = (message: string) =>
   /(?:信息图|資訊圖|インフォグラフィック|\binfographic\b)/iu.test(message);
@@ -123,12 +112,12 @@ const TOOL_HINTS: Record<string, string> = {
   create_table_memo: " Create an editable structured table/多维表格 from the user's requested field plan. Infer useful field names and types when unspecified. Select fields need explicit options. This creates an empty table; only add records if the user requested example or supplied records. If the user did not name a notebook, omit notebookId so it is saved in the inbox (等待分类). Do not ask which notebook, and do not use the open notebook unless the user named it.",
   get_table_records: " Read an existing structured table's fields, record IDs, and revision. Use this before adding a record so cell keys are actual field IDs. Do not infer field IDs from names.",
   add_table_record: " Add one requested record to a structured table. First call get_table_records, then use its field IDs and latest revision. Do not invent factual records to fill a new table.",
-  create_diagram_memo: " Create an editable visual diagram note. kind=mind-map for 思维导图/mind map, flowchart for 流程图, architecture for 架构图. Never use this for 信息图/infographic; call create_infographic_memo. Omit edge ids; EdgeEver generates them. For mind maps, give a root and children with parentId; omit node type. If the user did not name a notebook, omit notebookId. The diagram is saved in the inbox (等待分类). Do not ask which notebook, and do not use the open notebook unless the user named it. Build nodes from the open note body in Focus DATA when the user refers to this note.",
+  create_diagram_memo: " Create an editable visual diagram note. kind=mind-map for 思维导图/mind map, flowchart for 流程图, architecture for 架构图. Never use this for 信息图/infographic; call create_infographic_memo. Omit edge ids; EdgeEver generates them. For mind maps, give a root and children with parentId; omit node type. If the user did not name a notebook, omit notebookId. The diagram is saved in the inbox (等待分类). Do not ask which notebook, and do not use the open notebook unless the user named it. Build from the open note when the user referred to it, attached it, or asked for a diagram without a separate subject. When they named a separate subject, such as 一个关于某主题的思维导图, build only that subject and do not read the open note.",
   create_poster_memo: " Create a real editable poster (海报笔记), never poster-style Markdown. Plan the key takeaway first. For informative topics such as 产业布局, summaries, comparisons and guides, provide 3–6 useful heading/body sections, not just a heading and generic subtitle. Choose grid for categories, list for steps, and a style suited to the subject. Use referenced note content and do not invent figures or sources. Quotes/slogans/minimal covers can omit sections. The tool handles editable canvas layout and encoding. If no notebook was named, omit notebookId and use the inbox. Report failure instead of substituting prose.",
   create_infographic_memo: " Create an AntV infographic note (信息图). A share, proportion, or 占比 uses template chart-pie-donut-plain-text and numeric data.values, not a mind map. If the user did not supply the figures, say in data.desc that they are illustrative and are not an official disclosure. If the user did not name a notebook, omit notebookId. The infographic is saved in the inbox (等待分类). Do not ask which notebook, and do not use the open notebook unless the user named it.",
   get_poster: " Read the existing poster canvas and elements before editing. Do not use raw Markdown for posters.",
   update_poster: " Edit poster text, colors, typography and positions after get_poster. Preserve unmentioned and locked elements. Pass the revision you read.",
-  get_diagram: " Read an existing editable diagram as a semantic graph. Call this before update_diagram. Do not use get_memo when you only need the diagram structure.",
+  get_diagram: " Read an existing editable diagram as a semantic graph. Call this before update_diagram. Do not use get_memo when you only need the diagram structure. Do not read the open note when the user named a separate diagram subject and did not refer to that note. Do read it when they ask to change it, or to diagram the open note.",
   update_diagram: " Edit an existing diagram after get_diagram. Pass expectedRevision from get_diagram. Use add_node, update_node, remove_node, add_edge, update_edge, or remove_edge. Do not create a new diagram unless the user asked for a new note.",
   use_note_template: " Create a new memo from a template. If the user did not name a notebook, omit notebookId. The note is saved in the inbox (等待分类). Do not ask which notebook.",
   create_note_template: " Save a reusable note template from Markdown or from an existing memoId.",
@@ -335,6 +324,14 @@ export function createCompanionTools(args: { db: DatabaseAdapter; scope: Compani
           }
           return payload;
         };
+        if ((definition.name === "get_memo" || definition.name === "get_diagram")
+          && independentDiagramRequest(args.input)
+          && args.input.focus?.memoId
+          && String(parameters_.memoId) === args.input.focus.memoId) {
+          return done({
+            error: "The user did not refer to the open note and did not attach its content. Do not read it. Create the requested diagram from the user's topic alone with create_diagram_memo.",
+          });
+        }
         const current = await companionWorkspaceCursor(args.db, args.scope.workspaceId);
         session.cursor ??= current;
         if (session.cursor !== current) return done({ error: "Notes changed during this request. Start a fresh request." });

@@ -168,7 +168,7 @@ const SharedDocument = ({
   access,
   site = false,
 }: {
-  locale: "zh-CN" | "en-US" | "ja" | "pl";
+  locale: "zh-CN" | "en-US" | "ja" | "pl" | "ru";
   share: PublicMemoShare;
   token: string;
   access?: ShareBodyAccess;

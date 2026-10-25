@@ -40,7 +40,7 @@ describe("login item support", () => {
     expect(parseLoginItemPreference("{")).toEqual({ openAtLogin: false, launchMode: "window" });
     expect(parseLoginItemPreference({ openAtLogin: true, launchMode: "tray" })).toEqual({
       openAtLogin: true,
-      launchMode: "tray",
+      launchMode: "window",
     });
     expect(parseLoginItemPreference({ openAtLogin: "yes", launchMode: "elsewhere" })).toEqual({
       openAtLogin: false,
@@ -56,7 +56,7 @@ describe("login item support", () => {
     expect(normalizeLoginItemPatch(current, { openAtLogin: "yes" })).toBeNull();
     expect(normalizeLoginItemPatch(current, { launchMode: "tray" })).toEqual({
       openAtLogin: true,
-      launchMode: "tray",
+      launchMode: "window",
     });
   });
 });
@@ -88,7 +88,7 @@ describe("login item startup plan", () => {
       openAtLogin: true,
       path: exePath,
       name: LOGIN_ITEM_NAME,
-      args: [START_HIDDEN_ARG],
+      args: [],
       enabled: true,
     });
   });
@@ -105,6 +105,13 @@ describe("login item startup plan", () => {
   });
 
   test("leaves a matching Windows entry untouched and removes one the user turned off", () => {
+    expect(startupLoginItemPlan({
+      platform: "win32",
+      packaged: true,
+      saved: { openAtLogin: true, launchMode: "tray" },
+      os: { launchItems: [windowsItem({ args: [START_HIDDEN_ARG] })] },
+      executablePath: exePath,
+    }).action).toBe("apply");
     expect(startupLoginItemPlan({
       platform: "win32",
       packaged: true,
@@ -161,7 +168,7 @@ describe("login item startup plan", () => {
       os: null,
       osReadable: false,
       executablePath: exePath,
-    })).toMatchObject({ action: "none", openAtLogin: true, launchMode: "tray" });
+    })).toMatchObject({ action: "none", openAtLogin: true, launchMode: "window" });
     expect(startupLoginItemPlan({
       platform: "linux",
       packaged: true,
@@ -173,19 +180,18 @@ describe("login item startup plan", () => {
 });
 
 describe("hidden login launch", () => {
-  test("hides a tray login and shows a launch that opens a note", () => {
-    expect(shouldStartHidden({ argv: ["EdgeEver.exe", START_HIDDEN_ARG], launchMode: "tray" })).toBe(true);
+  test("opens the main window after login, including an older hidden launch", () => {
+    expect(shouldStartHidden({ argv: ["EdgeEver.exe", START_HIDDEN_ARG], launchMode: "tray" })).toBe(false);
     expect(shouldStartHidden({
       argv: ["EdgeEver.exe"],
       wasOpenedAtLogin: true,
       launchMode: "tray",
-    })).toBe(true);
+    })).toBe(false);
     expect(shouldStartHidden({
       argv: ["EdgeEver.exe"],
       wasOpenedAtLogin: true,
       launchMode: "window",
     })).toBe(false);
-    expect(shouldStartHidden({ argv: ["EdgeEver.exe"], launchMode: "tray" })).toBe(false);
     expect(shouldStartHidden({
       argv: ["EdgeEver.exe", START_HIDDEN_ARG, "--share-file", "D:\\Notes\\a.md"],
       opensContent: commandLineOpensContent(
@@ -253,12 +259,13 @@ describe("login item controller", () => {
     const harness = createHarness("win32");
     harness.files.set("/user/login-item.json", JSON.stringify({ openAtLogin: true, launchMode: "tray" }));
     const state = await harness.controller.reconcileAtStartup();
-    expect(state).toMatchObject({ supported: true, openAtLogin: true, launchMode: "tray", status: "enabled" });
+    expect(state).toMatchObject({ supported: true, openAtLogin: true, launchMode: "window", status: "enabled" });
+    expect(JSON.parse(harness.files.get("/user/login-item.json")).launchMode).toBe("window");
     expect(harness.calls).toEqual([{
       openAtLogin: true,
       path: exePath,
       name: LOGIN_ITEM_NAME,
-      args: [START_HIDDEN_ARG],
+      args: [],
       enabled: true,
     }]);
   });
@@ -278,20 +285,20 @@ describe("login item controller", () => {
     await expect(harness.controller.update({ launchMode: "background" })).resolves.toMatchObject({ error: "invalid" });
   });
 
-  test("keeps macOS approval visible and hides only a login launch", async () => {
+  test("keeps macOS approval visible and opens the window after login", async () => {
     const harness = createHarness("darwin");
     harness.files.set("/user/login-item.json", JSON.stringify({ openAtLogin: true, launchMode: "tray" }));
     harness.setRegistry({ status: "requires-approval" });
     harness.setOpenedAtLogin(true);
     const state = await harness.controller.reconcileAtStartup();
-    expect(state).toMatchObject({ openAtLogin: true, launchMode: "tray", status: "requires-approval" });
+    expect(state).toMatchObject({ openAtLogin: true, launchMode: "window", status: "requires-approval" });
     expect(harness.calls).toEqual([]);
     expect(harness.controller.wasOpenedAtLogin()).toBe(true);
     expect(shouldStartHidden({
       argv: ["EdgeEver"],
       wasOpenedAtLogin: harness.controller.wasOpenedAtLogin(),
       launchMode: state.launchMode,
-    })).toBe(true);
+    })).toBe(false);
   });
 });
 

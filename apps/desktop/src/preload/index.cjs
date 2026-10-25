@@ -54,7 +54,7 @@ contextBridge.exposeInMainWorld("edgeeverDesktop", Object.freeze({
   },
   setSessionToken: (value) => ipcRenderer.invoke("desktop:set-session-token", value),
   clearSessionToken: () => ipcRenderer.invoke("desktop:clear-session-token"),
-  testPicGoConnection: (endpoint) => ipcRenderer.invoke("desktop:picgo-test", endpoint),
+  testPicGoConnection: (input) => ipcRenderer.invoke("desktop:picgo-test", input),
   uploadPicGoImage: (input) => ipcRenderer.invoke("desktop:picgo-upload", input),
   publicNetworkFetch: (requestId, input) => ipcRenderer.invoke("desktop:public-network-fetch", requestId, input),
   cancelPublicNetworkFetch: async (requestId) => { ipcRenderer.send("desktop:cancel-public-network-fetch", requestId); },

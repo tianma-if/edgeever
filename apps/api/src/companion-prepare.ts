@@ -4,7 +4,7 @@ import type {
   CompanionAnswer, CompanionMemory, CompanionModelContentPart, CompanionPreparedMessage, CompanionPreparedTurn,
   CompanionQuestion, CompanionTodo, CompanionToolCall, CompanionTurnInput,
 } from "@edgeever/shared";
-import { COMPANION_MATH_FORMAT_INSTRUCTION, POSTER_TEMPLATE_SELECTION_INSTRUCTION, conversationLanguage, translationTargetInstruction } from "@edgeever/shared";
+import { COMPANION_MATH_FORMAT_INSTRUCTION, INDEPENDENT_DIAGRAM_FOCUS_NOTE, OPEN_NOTE_DIAGRAM_FOCUS_NOTE, POSTER_TEMPLATE_SELECTION_INSTRUCTION, conversationLanguage, explicitDiagramKind, independentDiagramRequest, translationTargetInstruction } from "@edgeever/shared";
 import { AppError } from "./app-error";
 import type { DatabaseAdapter } from "./storage-contract";
 import { loadCompanionAttachmentParts } from "./companion-attachments";
@@ -41,13 +41,13 @@ When listing or recommending notes, reply with a markdown link that copies the e
 If grouping by notebook, put the notebook name on its own line in bold, not as a heading, and do not add emoji or icons. Keep the list compact.
 Do not paste note bodies, headings, excerpts, or raw IDs. Do not use [note:ID] in user-visible replies.
 Never show notebook or memo IDs as plain text; they belong only inside #memo= links.
-The currently open note is only editor context. If the user names a notebook, tag, or topic, look it up with tools. Do not assume they mean the open notebook unless they say this note, this notebook, 这篇, 当前, or 这个笔记本.
+The currently open note is only editor context. If the user names a notebook, tag, or topic, look it up with tools. Do not assume they mean the open notebook unless they say this notebook, 这个笔记本, or 当前笔记本. Use the open note when they refer to it (这篇, 当前, 这张图, this note), when they ask to convert or summarize it, or when they ask for a diagram without naming a separate subject. A new diagram that names its own subject, such as 生成一个关于某主题的思维导图, does not refer to the open note. Do not read or copy the open note for that request.
 When asked what is in a named notebook, immediately call find_notebooks with that name, then list_memos for the match. Do not ask permission to search.
 When asked what is new, recent, added, created, or updated (最近/新增/本周/this week), immediately call search_memos with createdAfter for created/added/新增 or updatedAfter for edited/updated/改过. Compute the bound from Current date. Omit query unless there is also a topic keyword; never put the time phrase in query. Do not ask which notebook or tag first. If createdAfter returns nothing for an added/新增 question, try updatedAfter before concluding there are no new notes.
 search_memos matches note titles and bodies, not notebook names. Query is optional. Named tags go through list_tags or search_memos tags.
 If list_memos or search_memos sets hasMore, say the list is incomplete instead of implying that is everything.
 When the user refers to this note, 这篇, 当前, or the open note, use the Open note body in Focus DATA. If that body is truncated, call get_memo. If Focus DATA says the open note is a diagram, call get_diagram. Do not invent structure from the title alone.
-When the user asks for a mind map, 思维导图, flowchart, 流程图, architecture diagram, or 架构图 of the open note, build it from that body (or get_memo/get_diagram first). To create a new diagram note, call create_diagram_memo. Do not use create_memo, Markdown outlines, or Mermaid. Preserve an explicitly requested type exactly: 思维导图/mind map means kind=mind-map, 流程图/flowchart means kind=flowchart, and 架构图/architecture diagram means kind=architecture. For mind maps, supply a root node and children with parentId; omit node type. If the user did not name a notebook, omit notebookId so it is saved in the inbox notebook (等待分类). Do not ask which notebook, and do not use the open notebook unless the user named it. Reply with the new note link.
+When the user asks for a mind map, 思维导图, flowchart, 流程图, architecture diagram, or 架构图, call create_diagram_memo. If they named a separate subject and did not refer to the open note, build it only from the requested topic and do not call get_memo or get_diagram on the open note. If they did not name a separate subject, or they referred to the open note, build the diagram from that note: call get_memo, or get_diagram when it is a diagram. Do not use create_memo, Markdown outlines, or Mermaid. Preserve an explicitly requested type exactly: 思维导图/mind map means kind=mind-map, 流程图/flowchart means kind=flowchart, and 架构图/architecture diagram means kind=architecture. For mind maps, supply a root node and children with parentId; omit node type. If the user did not name a notebook, omit notebookId so it is saved in the inbox notebook (等待分类). Do not ask which notebook, and do not use the open notebook unless the user named it. Reply with the new note link.
 ${POSTER_TEMPLATE_SELECTION_INSTRUCTION}
 When the user asks to generate a poster or 海报笔记, call create_poster_memo after planning the message and visual hierarchy. For informative subjects (industry layouts, explainers, comparisons, guides), supply 3–6 distinct heading/body sections and choose grid for categories or list for steps. A heading plus a generic subtitle is not a complete informative poster. Use supplied content when referenced, never invent statistics or sources, and choose a template suited to the topic. Quotes, slogans and explicitly minimal covers can omit sections. It creates the actual editable poster type. Never substitute poster-style Markdown, manually encode source, or search local files for the format. Report tool failure honestly. If the user did not name a notebook, omit notebookId. Reply with the new note link.
 When the user asks for an infographic, 信息图, 資訊圖, or インフォグラフィック, call create_infographic_memo. Do not use create_diagram_memo, create_memo, Markdown, or Mermaid for that request. A share, proportion, or 占比 is a pie infographic: template chart-pie-donut-plain-text and numeric data.values, not a mind map. If the user did not supply the figures, say in data.desc that they are illustrative and are not an official disclosure. If the user did not name a notebook, omit notebookId. Reply with the new note link.
@@ -68,9 +68,11 @@ export type CompanionRunState = {
 };
 
 export function companionUserContent(input: CompanionTurnInput): string {
-  const focus = input.focus;
-  const mentions = input.mentions ?? [];
-  if (!focus?.memoId && !focus?.selectionMarkdown?.trim() && !focus?.contentMarkdown?.trim() && !focus?.diagramKind && !mentions.length) {
+  const independent = independentDiagramRequest(input);
+  const focus = independent ? undefined : input.focus;
+  const mentions = (input.mentions ?? []).filter(mention =>
+    !(independent && mention.type === "memo" && mention.id === input.focus?.memoId));
+  if (!independent && !focus?.memoId && !focus?.selectionMarkdown?.trim() && !focus?.contentMarkdown?.trim() && !focus?.diagramKind && !mentions.length) {
     return input.message;
   }
   const lines = [
@@ -78,6 +80,8 @@ export function companionUserContent(input: CompanionTurnInput): string {
     "If the user names another notebook, tag, or topic, look it up with tools instead of using this notebook.",
     "If the user creates a note, diagram, or infographic without naming a notebook, omit notebookId. It is saved in the inbox notebook (等待分类). Do not ask which notebook, and do not use this open notebook unless the user named it.",
   ];
+  if (independent) lines.push(INDEPENDENT_DIAGRAM_FOCUS_NOTE);
+  else if (explicitDiagramKind(input.message) && input.focus?.memoId) lines.push(OPEN_NOTE_DIAGRAM_FOCUS_NOTE);
   if (mentions.length) {
     lines.push("Pinned context (the user attached these; treat them as the primary scope):");
     for (const mention of mentions) {

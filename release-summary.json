@@ -1,29 +1,29 @@
 {
-  "version": "2.4.0",
+  "version": "2.5.0",
   "changes": {
     "en-US": [
-      "On the web and desktop, select a standalone image to align it left, center, or right. The choice stays with that image through save, Markdown edits, and reload. Existing images keep their previous layout until an alignment is chosen, and galleries keep their own layout. Android and iOS apply a saved alignment and do not add a picker in this release. Thanks @MadlyFX for #654.",
-      "Each image gallery can fit its width or its height. Fit width keeps the previous cropped tiles, and fit height shows every image whole inside an even tile. The choice stays with that gallery, and sharing, HTML export, and print follow it. Older galleries stay on fit width. Android and iOS gallery toolbars offer the same choice. Thanks @MadlyFX for #655.",
-      "On the web and desktop, Ctrl or Cmd plus 1 through 6 sets the current rich-text paragraph to that heading, and 0 restores body text. Markdown source and plain-text editing are unchanged. On the desktop app, that 0 chord no longer also resets the window zoom.",
-      "Packaged Windows and macOS can open EdgeEver after the computer starts. The switch stays off until it is turned on. It can then open the main window or stay in the tray.",
-      "On the web and desktop, a named palette now tints table headers and alternating rows with that palette's quiet surface color. Borders stay neutral, and dark mode follows the same palette. Print and copies for WeChat use those table backgrounds.",
-      "In the desktop app, code blocks in assistant replies can be copied."
+      "The web app, the in-app desktop interface, and Android can switch to Russian. A Russian system or browser language selects it when no language has been chosen yet. Text that is not translated yet stays in English, and assistant replies do not follow Russian in this release. Desktop system menus, iOS, and the browser clipper stay as they are. Thanks @Sergmay911 for #668.",
+      "The desktop app can upload images to a remote PicList or PicGo server. In image-host settings, enter the service address and a server key when the server requires one. The address can be a NAS or another computer, and the path stays /upload. Use HTTPS for a remote server. Those images stay on the external host and are left out of EdgeEver backups. The website keeps the built-in image host.",
+      "A startup launch of the desktop app opens the main window. The tray-only option is removed. A saved tray-only preference opens the main window on the next launch.",
+      "Infographic notes use the same assistant session menu as other notes. Past chats can be opened, and a new chat can be started. The graphic being edited stays as its own row in that menu, and its generation history remains on the note.",
+      "When a request already names the diagram subject, the assistant no longer reads the open note. A request to diagram or convert the open note still uses that note.",
+      "The marketing site adds a Showcase page with 17 real-world workflows, linked from the top navigation."
     ],
     "zh-CN": [
-      "在 Web 和桌面端选中单独的图片后，可以左对齐、居中或右对齐。选择会保存在这张图片上，保存、编辑 Markdown 和重新打开后仍然保留。已有图片在选择之前保持原来的排版，图库仍使用自己的布局。Android 与 iOS 会按已保存的对齐显示，这次还不提供选择按钮。感谢 @MadlyFX 的贡献（#654）。",
-      "每个图片画廊可以选择适应宽度或适应高度。适应宽度保持原来的裁剪效果，适应高度会在同样大小的格子里完整显示每张图片。设置只影响当前画廊，分享、HTML 导出和打印会跟着变化，旧画廊仍使用适应宽度。Android 与 iOS 的画廊工具栏也提供这两个选项。感谢 @MadlyFX 的贡献（#655）。",
-      "在 Web 和桌面端的富文本里，按 Ctrl 或 ⌘ 加 1 到 6 可以把当前段落设成对应标题，按 0 恢复正文。Markdown 源码和纯文本编辑不受影响。桌面端按 0 时不再同时重置窗口缩放。",
-      "打包后的 Windows 和 macOS 可以在开机后启动 EdgeEver。这项开关默认关闭。开启后可以选择打开主窗口，或只留在托盘。",
-      "在 Web 和桌面端，笔记选用配色后，表格表头和隔行底色会使用同一套浅色表面，边框保持中性，深色模式也会跟着变浅。打印和复制到公众号时的表格背景使用同一套配色。",
-      "桌面端里，助手回复中的代码块可以复制了。"
+      "Web、桌面端应用内和 Android 可以切换到俄语。系统或浏览器语言是俄语、且还没有手动选过语言时，会自动使用俄语。还没有翻译的文字继续显示英文，助手回复这次仍不跟随俄语。桌面端的系统菜单、iOS 和浏览器剪藏插件这次不变。感谢 @Sergmay911 的贡献（#668）。",
+      "桌面端可以把图片上传到远程 PicList 或 PicGo。在设置的图床里填写服务地址，服务器要求密钥时再填写服务密钥。地址可以是 NAS 或其他电脑，路径保持为 /upload。远程服务请使用 HTTPS。这些图片留在外部图床，不会进入 EdgeEver 备份。网页版仍然使用内置图床。",
+      "桌面端开机启动时会打开主窗口。只留在托盘的选项已经去掉。以前选过只留在托盘的，下次启动会改成打开主窗口。",
+      "信息图笔记和其他笔记使用同一个助手会话菜单，可以打开以往的对话，也可以新开对话。正在编辑的信息图在菜单里单独占一行，它的生成记录仍保存在这篇笔记上。",
+      "让助手画一张已经写明主题的图时，不再读取当前打开的笔记。要求把当前笔记画成图或转换成图时，仍然使用这篇笔记。",
+      "官网新增「真机演示」页面，收录 17 个真实使用场景，可以从顶部导航进入。"
     ],
     "ja": [
-      "Web とデスクトップで単独の画像を選び、左揃え、中央揃え、右揃えにできます。選択はその画像に保存され、保存、Markdown の編集、開き直しの後も残ります。既存の画像は選ぶまで以前の配置のままです。ギャラリーは独自の配置を使います。Android と iOS は保存された配置を表示しますが、今回は選択ボタンを追加しません。@MadlyFX の貢献に感謝します（#654）。",
-      "各画像ギャラリーで、幅に合わせるか高さに合わせるかを選べます。幅に合わせるは従来のトリミング表示です。高さに合わせると、同じ大きさのマス内に各画像を全体表示します。設定はそのギャラリーだけに保存され、共有、HTML 書き出し、印刷にも反映されます。既存のギャラリーは幅に合わせたままです。Android と iOS のギャラリーツールバーにもこの二つがあります。@MadlyFX の貢献に感謝します（#655）。",
-      "Web とデスクトップのリッチテキストで、Ctrl または ⌘ と 1 から 6 を押すと現在の段落がそのレベルの見出しになり、0 で本文に戻します。Markdown ソースとプレーンテキストの編集には影響しません。デスクトップアプリでは、0 を押してもウィンドウの拡大率が同時にリセットされません。",
-      "パッケージ版の Windows と macOS では、パソコンの起動後に EdgeEver を開けます。このスイッチは自分でオンにするまでオフです。オンにすると、メインウィンドウを開くか、トレイだけに残すかを選べます。",
-      "Web とデスクトップでノートの配色を選ぶと、表の見出しと交互の行が同じ落ち着いた面の色になり、枠線は中立のままです。ダークモードでも表面の色は配色に合わせます。印刷と微信公式アカウント向けコピーの表背景も同じ配色を使います。",
-      "デスクトップアプリで、アシスタントの返信にあるコードブロックをコピーできるようになりました。"
+      "Web、デスクトップ版のアプリ内界面、Android でロシア語に切り替えられます。システムまたはブラウザの言語がロシア語で、言語を手動選択していない場合は自動でロシア語になります。未翻訳の文言は英語のままです。アシスタントの返信は今回ロシア語に従いません。デスクトップのシステムメニュー、iOS、ブラウザのクリップ拡張は変わりません。@Sergmay911 の貢献に感謝します（#668）。",
+      "デスクトップ版は、リモートの PicList または PicGo に画像をアップロードできます。図床の設定でサービスアドレスを入力し、サーバーが鍵を求める場合はサービスキーも入力します。アドレスは NAS や別のパソコンでもよく、パスは /upload のままです。リモートのサーバーには HTTPS を使ってください。これらの画像は外部の画像ホストに残り、EdgeEver のバックアップには含まれません。Web 版はこれまでどおり内蔵の画像ホストを使います。",
+      "デスクトップ版をログイン時に起動すると、メインウィンドウが開きます。トレイのみの選択肢はなくなりました。以前トレイのみを保存していた場合も、次回の起動からメインウィンドウが開きます。",
+      "インフォグラフィックのノートでも、他のノートと同じアシスタントのセッションメニューを使えます。過去のチャットを開いたり、新しいチャットを始めたりできます。編集中の図はメニュー内の独立した一行のままで、その生成履歴はこのノートに残ります。",
+      "図にしてほしい主題を依頼の中ですでに指定している場合、アシスタントは開いているノートを読まなくなります。開いているノートを図にする、または図へ変換する依頼では、これまでどおりそのノートを使います。",
+      "紹介サイトに「実機デモ」ページを追加しました。17 の実用例を上部のナビゲーションから開けます。"
     ]
   }
 }

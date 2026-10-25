@@ -1,6 +1,6 @@
 {
   "name": "edgeever",
-  "version": "2.4.0",
+  "version": "2.5.0",
   "packageManager": "bun@1.3.14",
   "private": true,
   "type": "module",
@@ -62,7 +62,8 @@
     "benchmark:desktop:sidecar": "bun scripts/benchmark-desktop-sidecar.mjs",
     "verify:web-performance": "bun scripts/verify-web-performance.mjs",
     "verify:web-startup": "bun scripts/verify-web-startup-browser.mjs",
-    "test:release-planning": "bun test scripts/plan-native-release.test.mjs scripts/check-native-release-assets.test.mjs scripts/create-mac-update-metadata.test.mjs scripts/windows-update-metadata.test.mjs scripts/linux-update-release.test.mjs scripts/desktop-build-workflow.test.mjs scripts/pe-imports.test.mjs scripts/report-native-build-timings.test.mjs scripts/release.test.mjs scripts/validate-store-delivery.test.mjs scripts/store-delivery.test.mjs scripts/xcode-cloud-control.test.mjs scripts/download-play-universal-apk.test.mjs scripts/verify-android-apk-signature.test.mjs scripts/desktop-icns.test.mjs scripts/verify-desktop-cross-version-startup.test.mjs scripts/preview-macos-dock-icon.test.mjs apps/web/src/lib/version-check.test.mjs apps/mobile/src/lib/mobile-release.test.ts",
+    "test:release-planning": "bun test scripts/plan-native-release.test.mjs scripts/check-native-release-assets.test.mjs scripts/create-mac-update-metadata.test.mjs scripts/windows-update-metadata.test.mjs scripts/linux-update-release.test.mjs scripts/desktop-build-workflow.test.mjs scripts/pe-imports.test.mjs scripts/report-native-build-timings.test.mjs scripts/release.test.mjs scripts/sync-readme-contributors.test.mjs scripts/validate-store-delivery.test.mjs scripts/store-delivery.test.mjs scripts/xcode-cloud-control.test.mjs scripts/download-play-universal-apk.test.mjs scripts/verify-android-apk-signature.test.mjs scripts/desktop-icns.test.mjs scripts/verify-desktop-cross-version-startup.test.mjs scripts/preview-macos-dock-icon.test.mjs apps/web/src/lib/version-check.test.mjs apps/mobile/src/lib/mobile-release.test.ts",
+    "sync:contributors": "bun scripts/sync-readme-contributors.mjs",
     "release": "bun scripts/release.mjs",
     "publish:stores": "bun scripts/store-delivery.mjs",
     "publish:extension": "bun scripts/publish-web-clipper.mjs",

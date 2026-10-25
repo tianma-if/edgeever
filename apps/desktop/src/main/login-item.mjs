@@ -1,6 +1,6 @@
 // Windows can disable a Run value from Task Manager without deleting it.
-// macOS login items cannot carry a start-hidden argument, so a tray launch is
-// decided from the saved mode when this process was opened at login.
+// A login launch always opens the main window. Older installs may still have
+// saved "tray" or passed --start-hidden; both are treated as a normal window.
 
 export const LOGIN_ITEM_NAME = "EdgeEver";
 export const START_HIDDEN_ARG = "--start-hidden";
@@ -8,7 +8,7 @@ export const START_HIDDEN_ARG = "--start-hidden";
 export const loginItemSupported = ({ platform, packaged }) =>
   packaged === true && (platform === "win32" || platform === "darwin");
 
-export const normalizeLaunchMode = (value) => (value === "tray" ? "tray" : "window");
+export const normalizeLaunchMode = () => "window";
 
 export const parseLoginItemPreference = (raw) => {
   let value = raw;
@@ -26,9 +26,7 @@ export const parseLoginItemPreference = (raw) => {
   };
 };
 
-export const loginItemArgs = (launchMode) => (
-  normalizeLaunchMode(launchMode) === "tray" ? [START_HIDDEN_ARG] : []
-);
+export const loginItemArgs = () => [];
 
 export const normalizeLoginItemArgs = (args, executablePath) => {
   if (!Array.isArray(args)) return [];
@@ -66,16 +64,7 @@ export const commandLineOpensContent = (argv, { isAssociatedFile } = {}) => {
   return false;
 };
 
-export const shouldStartHidden = ({
-  argv,
-  wasOpenedAtLogin = false,
-  launchMode = "window",
-  opensContent = false,
-} = {}) => {
-  if (opensContent) return false;
-  if (Array.isArray(argv) && argv.includes(START_HIDDEN_ARG)) return true;
-  return wasOpenedAtLogin === true && normalizeLaunchMode(launchMode) === "tray";
-};
+export const shouldStartHidden = () => false;
 
 const unavailablePlan = () => ({
   supported: false,
@@ -201,7 +190,7 @@ export const normalizeLoginItemPatch = (current, patch) => {
   if (hasMode && patch.launchMode !== "window" && patch.launchMode !== "tray") return null;
   return {
     openAtLogin: hasOpen ? patch.openAtLogin : current.openAtLogin === true,
-    launchMode: hasMode ? patch.launchMode : normalizeLaunchMode(current.launchMode),
+    launchMode: "window",
   };
 };
 
@@ -258,10 +247,21 @@ export const createLoginItemController = ({
   return {
     reconcileAtStartup() {
       return enqueue(async () => {
+        let migrateTray = false;
         try {
-          saved = parseLoginItemPreference(await readFile(preferencePath, "utf8"));
+          const raw = JSON.parse(await readFile(preferencePath, "utf8"));
+          saved = parseLoginItemPreference(raw);
+          migrateTray = raw?.launchMode === "tray";
         } catch {
           saved = { openAtLogin: false, launchMode: "window" };
+        }
+        if (migrateTray) {
+          try {
+            await persist(saved);
+          } catch {
+            // The in-memory preference already opens the window. A failed rewrite
+            // must not turn startup off.
+          }
         }
         if (platform === "darwin") {
           try {

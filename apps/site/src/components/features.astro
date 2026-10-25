@@ -1,17 +1,17 @@
 ---
 import { Icon } from "astro-icon/components";
-import { getSiteLocale, siteCopy } from "@/i18n";
+import { getLocalizedPath, getSiteLocale, siteCopy } from "@/i18n";
 
 const locale = getSiteLocale(Astro.url.pathname);
 const bento = siteCopy[locale].bento;
 ---
 
-<section class="mt-12 md:mt-24 relative overflow-hidden" aria-labelledby="bento-features">
+<section id="features" class="mt-12 md:mt-24 relative overflow-hidden scroll-mt-6" aria-labelledby="bento-features">
   <!-- Subtle Glow background -->
   <div class="absolute top-1/3 left-1/2 -translate-x-1/2 w-[700px] h-[400px] bg-emerald-500/5 rounded-full blur-3xl -z-10 pointer-events-none"></div>
 
   <!-- Header -->
-  <div class="max-w-3xl mb-8 md:mb-16 text-center mx-auto px-4">
+  <div class="max-w-3xl mb-8 md:mb-14 text-center mx-auto px-4">
     <span class="inline-block px-3.5 py-1 text-xs font-bold tracking-widest text-emerald-600 bg-emerald-50 rounded-full border border-emerald-200/60 uppercase">
       {bento.eyebrow}
     </span>
@@ -21,6 +21,18 @@ const bento = siteCopy[locale].bento;
     <p class="text-slate-600 mt-3 sm:mt-4 text-xs sm:text-sm md:text-base leading-relaxed max-w-2xl mx-auto">
       {bento.subheading}
     </p>
+    <div class="mt-5 flex justify-center">
+      <a
+        href={getLocalizedPath(locale, "/guides/best-practices")}
+        class="group inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs sm:text-sm font-semibold text-emerald-800 bg-emerald-50/90 hover:bg-emerald-100/90 border border-emerald-200/80 hover:border-emerald-300 shadow-2xs transition-all hover:-translate-y-0.5"
+      >
+        <Icon name="bx:bx-images" class="w-4 h-4 text-emerald-600 shrink-0" />
+        <span>{bento.showcaseCta}</span>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3.5 h-3.5 text-emerald-600 transition-transform group-hover:translate-x-0.5 shrink-0">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+        </svg>
+      </a>
+    </div>
   </div>
 
   <!-- Bento Grid Container -->

@@ -1,6 +1,6 @@
 import { resolveSupportedLocale } from "./i18n/locales";
 
-export type MemoTemplateSeedLocale = "zh-CN" | "en-US" | "ja" | "pl";
+export type MemoTemplateSeedLocale = "zh-CN" | "en-US" | "ja" | "pl" | "ru";
 
 export type MemoTemplateSeedTranslation = {
   title: string;
@@ -21,9 +21,10 @@ const seed = (
   enUS: MemoTemplateSeedTranslation,
   ja: MemoTemplateSeedTranslation,
   pl: MemoTemplateSeedTranslation,
+  ru: MemoTemplateSeedTranslation,
 ): MemoTemplateSeed => ({
   ...metadata,
-  translations: { "zh-CN": zhCN, "en-US": enUS, ja, pl },
+  translations: { "zh-CN": zhCN, "en-US": enUS, ja, pl, ru },
 });
 
 export const DEFAULT_MEMO_TEMPLATE_SEEDS: readonly MemoTemplateSeed[] = [
@@ -49,6 +50,11 @@ export const DEFAULT_MEMO_TEMPLATE_SEEDS: readonly MemoTemplateSeed[] = [
       description: "Zapisuj ulotne myśli, pomysły, linki i działania do natychmiastowego podjęcia.",
       contentMarkdown: "## 💡 Ulotne myśli\n\n- \n\n## 📌 Kontekst i uwagi\n\n\n\n## 🚀 Kolejne kroki\n\n- [ ] ",
     },
+    {
+      title: "Быстрая заметка",
+      description: "Записывайте мимолётные мысли, идеи, ссылки и ближайшие действия.",
+      contentMarkdown: "## 💡 Мимолётные мысли\n\n- \n\n## 📌 Контекст и заметки\n\n\n\n## 🚀 Дальше\n\n- [ ] ",
+    },
   ),
   seed(
     { key: "meeting", translationKey: "meeting", tag: "meeting" },
@@ -71,6 +77,11 @@ export const DEFAULT_MEMO_TEMPLATE_SEEDS: readonly MemoTemplateSeed[] = [
       title: "Notatka ze spotkania",
       description: "Uporządkowany zapis agendy, kluczowych decyzji i zadań z osobami odpowiedzialnymi.",
       contentMarkdown: "# 📝 Notatka ze spotkania\n\n- **Termin**:\n- **Prowadzący/protokolant**:\n- **Uczestnicy**:\n\n---\n\n## 🎯 Cel\n\n- \n\n## 💬 Dyskusja i decyzje\n\n1. **[Temat 1]**\n   - Najważniejsze punkty:\n   - ✅ **Decyzja**:\n\n2. **[Temat 2]**\n   - Najważniejsze punkty:\n   - ✅ **Decyzja**:\n\n## 📋 Zadania do wykonania\n\n- [ ] **[Osoba odpowiedzialna]** Opis zadania (termin: MM-DD)\n- [ ] **[Osoba odpowiedzialna]** Opis zadania (termin: MM-DD)\n",
+    },
+    {
+      title: "Протокол встречи",
+      description: "Структурированная запись повестки, решений и задач с ответственными.",
+      contentMarkdown: "# 📝 Протокол встречи\n\n- **Время**:\n- **Ведущий/запись**:\n- **Участники**:\n\n---\n\n## 🎯 Цель\n\n- \n\n## 💬 Обсуждение и решения\n\n1. **[Тема 1]**\n   - Главное:\n   - ✅ **Решение**:\n\n2. **[Тема 2]**\n   - Главное:\n   - ✅ **Решение**:\n\n## 📋 Задачи\n\n- [ ] **[Ответственный]** Описание задачи (срок: ММ-ДД)\n- [ ] **[Ответственный]** Описание задачи (срок: ММ-ДД)\n",
     },
   ),
   seed(
@@ -95,6 +106,11 @@ export const DEFAULT_MEMO_TEMPLATE_SEEDS: readonly MemoTemplateSeed[] = [
       description: "Podsumuj najważniejsze osiągnięcia tygodnia, blokery i kluczowe priorytety na kolejny tydzień.",
       contentMarkdown: "# 🗓️ Tygodniowy raport postępów\n\n## 🌟 Najważniejsze osiągnięcia\n\n- [x] **[Projekt/funkcja]** Szczegóły osiągnięcia\n- [x] **[Projekt/funkcja]** Szczegóły osiągnięcia\n\n## 🚧 Blokery i ryzyka\n\n- ⚠️ **Bloker**: Przyczyna i potrzebne wsparcie\n\n## 🎯 Priorytety na kolejny tydzień\n\n- [ ] \n- [ ] \n- [ ] \n\n## 💡 Refleksje i wnioski\n\n- \n",
     },
+    {
+      title: "Итоги недели",
+      description: "Главное за неделю, препятствия и приоритеты на следующую.",
+      contentMarkdown: "# 🗓️ Отчёт за неделю\n\n## 🌟 Главное\n\n- [x] **[Проект/функция]** Что сделано\n- [x] **[Проект/функция]** Что сделано\n\n## 🚧 Препятствия и риски\n\n- ⚠️ **Препятствие**: причина и какая помощь нужна\n\n## 🎯 Приоритеты на следующую неделю\n\n- [ ] \n- [ ] \n- [ ] \n\n## 💡 Выводы\n\n- \n",
+    },
   ),
   seed(
     { key: "reading", translationKey: "reading", tag: "reading" },
@@ -118,6 +134,11 @@ export const DEFAULT_MEMO_TEMPLATE_SEEDS: readonly MemoTemplateSeed[] = [
       description: "Wyodrębnij kluczowe wnioski, cytaty, własne refleksje i powiązane zagadnienia.",
       contentMarkdown: "# 📖 Karta lektury\n\n- **Książka/artykuł**:\n- **Autor/źródło**:\n- **Ocena**: ⭐⭐⭐⭐⭐\n\n---\n\n## 💡 Najważniejszy wniosek\n\n> \n\n## ✍️ Najciekawsze fragmenty i cytaty\n\n> [Treść cytatu]\n> —— *Źródło*\n\n## 🧠 Własne refleksje\n\n- \n\n## 🔗 Działanie i praktyka\n\n- [ ] **Plan działania**:\n",
     },
+    {
+      title: "Карточка чтения",
+      description: "Главные выводы, цитаты, собственные мысли и связанные идеи.",
+      contentMarkdown: "# 📖 Карточка чтения\n\n- **Книга/статья**:\n- **Автор/источник**:\n- **Оценка**: ⭐⭐⭐⭐⭐\n\n---\n\n## 💡 Главный вывод\n\n> \n\n## ✍️ Цитаты\n\n> [Текст цитаты]\n> —— *Источник*\n\n## 🧠 Свои мысли\n\n- \n\n## 🔗 Что сделать\n\n- [ ] **План**:\n",
+    },
   ),
   seed(
     { key: "okr", translationKey: "okr", tag: "okr" },
@@ -140,6 +161,11 @@ export const DEFAULT_MEMO_TEMPLATE_SEEDS: readonly MemoTemplateSeed[] = [
       title: "Cele i podział zadań",
       description: "Określ cele OKR, kluczowe rezultaty, kamienie milowe i listy zadań.",
       contentMarkdown: "# 🎯 Podział celu\n\n- **Okres**:\n- **Osoba odpowiedzialna**:\n\n---\n\n## 📌 Cel (Objective)\n\n> \n\n## 📈 Kluczowe rezultaty (Key Results)\n\n- **KR 1**: Docelowy wskaźnik -> Obecny postęp\n- **KR 2**: Docelowy wskaźnik -> Obecny postęp\n\n## 🗓️ Kamienie milowe\n\n- [ ] **Etap 1 (data)**: Cel etapu\n- [ ] **Etap 2 (data)**: Cel etapu\n\n## 📋 Lista zadań do wykonania\n\n- [ ] \n- [ ] \n",
+    },
+    {
+      title: "Цели и разбиение задач",
+      description: "Цели OKR, ключевые результаты, вехи и список дел.",
+      contentMarkdown: "# 🎯 Разбор цели\n\n- **Период**:\n- **Ответственный**:\n\n---\n\n## 📌 Цель (Objective)\n\n> \n\n## 📈 Ключевые результаты (Key Results)\n\n- **KR 1**: целевой показатель -> текущий прогресс\n- **KR 2**: целевой показатель -> текущий прогресс\n\n## 🗓️ Вехи\n\n- [ ] **Этап 1 (дата)**: результат этапа\n- [ ] **Этап 2 (дата)**: результат этапа\n\n## 📋 Список дел\n\n- [ ] \n- [ ] \n",
     },
   ),
 ];

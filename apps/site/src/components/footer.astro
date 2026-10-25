@@ -30,6 +30,10 @@ const copy = siteCopy[locale].nav;
         {locale === "zh-CN" ? "特别致谢" : locale === "ja" ? "謝辞" : locale === "pl" ? "Podziękowania" : "Thanks"}
       </a>
       <span class="text-slate-300">•</span>
+      <a href={getLocalizedPath(locale, "/guides/best-practices")} class="inline-flex min-h-11 sm:min-h-0 items-center hover:text-emerald-700 transition-colors">
+        {copy.bestPractices}
+      </a>
+      <span class="text-slate-300">•</span>
       <a href={getLocalizedPath(locale, "/self-hosted-evernote-alternative")} class="inline-flex min-h-11 sm:min-h-0 items-center hover:text-emerald-700 transition-colors">
         {copy.selfHostedAlternative}
       </a>

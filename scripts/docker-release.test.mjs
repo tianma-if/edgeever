@@ -58,6 +58,7 @@ describe("Docker release contract", () => {
       dockerfile.indexOf("FROM oven/bun:1.3.14-alpine AS runtime"),
     );
     const packageMetadata = JSON.parse(readProjectFile("package.json"));
+    expect(dockerfile).toContain("FROM --platform=$BUILDPLATFORM oven/bun:1.3.14-alpine AS manifests");
     expect(dockerfile).toContain("FROM oven/bun:1.3.14-alpine AS runtime");
     expect(dockerfile).toContain("COPY patches patches");
     expect(dockerfile).toContain("COPY docs docs");

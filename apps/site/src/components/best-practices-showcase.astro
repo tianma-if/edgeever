@@ -1,0 +1,328 @@
+---
+import { Icon } from "astro-icon/components";
+import Container from "@/components/container.astro";
+import Layout from "@/layouts/Layout.astro";
+import { bestPracticesPageCopy, showcaseCaseAssets } from "@/data/best-practices";
+import { getLocalizedPath, getSiteLocale } from "@/i18n";
+
+const locale = getSiteLocale(Astro.url.pathname);
+const copy = bestPracticesPageCopy[locale];
+const pageUrl = new URL(Astro.url.pathname, Astro.site).toString();
+
+const allCases = copy.categories.flatMap((category) => category.cases);
+
+const jsonLd = [
+  {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    name: copy.title,
+    description: copy.description,
+    url: pageUrl,
+    inLanguage: locale,
+    isPartOf: {
+      "@type": "WebSite",
+      name: "EdgeEver",
+      url: new URL(getLocalizedPath(locale, "/"), Astro.site).toString(),
+    },
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    name: copy.title,
+    numberOfItems: allCases.length,
+    itemListElement: allCases.map((item, idx) => ({
+      "@type": "ListItem",
+      position: idx + 1,
+      name: `${item.number}. ${item.title}`,
+      description: item.lead,
+      url: `${pageUrl}#case-${item.number}`,
+    })),
+  },
+];
+---
+
+<Layout title={copy.title} description={copy.description} jsonLd={jsonLd}>
+  <Container>
+    <main class="mx-auto max-w-6xl py-10 md:py-16">
+      <!-- Hero Header -->
+      <header class="max-w-3xl">
+        <span class="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-bold tracking-widest text-emerald-700 bg-emerald-50 rounded-full border border-emerald-200/70 uppercase">
+          <Icon name="bx:bx-grid-alt" class="w-3.5 h-3.5 text-emerald-600" />
+          <span>{copy.eyebrow}</span>
+        </span>
+        <h1 class="mt-3.5 text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-slate-900 leading-[1.15]">
+          {copy.title}
+        </h1>
+        <p class="mt-4 text-sm sm:text-base md:text-lg leading-relaxed text-slate-600">
+          {copy.description}
+        </p>
+
+        <!-- Action Buttons -->
+        <div class="mt-6 flex flex-wrap items-center gap-3">
+          <a
+            href="https://demo.edgeever.org"
+            target="_blank"
+            rel="noopener"
+            class="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-xs sm:text-sm font-semibold text-white bg-brand hover:bg-brand-hover shadow-sm transition-all hover:-translate-y-0.5"
+          >
+            <Icon name="bx:bx-show" class="w-4 h-4" />
+            <span>{copy.demoCta}</span>
+          </a>
+          <a
+            href={getLocalizedPath(locale, "/blog/ai-agent-deploy-cloudflare")}
+            class="inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-xs sm:text-sm font-semibold text-brand-text bg-brand/5 border border-brand/20 hover:border-brand/40 hover:bg-brand/10 transition-all"
+          >
+            <Icon name="simple-icons:cloudflare" class="w-3.5 h-3.5" />
+            <span>{copy.deployCta}</span>
+          </a>
+          <a
+            href={copy.githubDocHref}
+            target="_blank"
+            rel="noopener"
+            class="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-full text-xs sm:text-sm font-semibold text-slate-700 bg-white border border-slate-200/90 hover:border-slate-300 hover:bg-slate-50 transition-all"
+          >
+            <Icon name="bx:bxl-github" class="w-4 h-4 text-slate-800" />
+            <span>{copy.githubDocCta}</span>
+          </a>
+        </div>
+      </header>
+
+      <!-- Sticky Category Bar & Scenario Directory -->
+      <nav
+        aria-label={copy.eyebrow}
+        class="sticky top-3 z-30 mt-8 rounded-2xl border border-slate-200/90 bg-white/90 backdrop-blur-md p-2.5 sm:p-3 shadow-sm"
+      >
+        <div class="flex items-center justify-between gap-2 overflow-x-auto no-scrollbar">
+          <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            {
+              copy.categories.map((cat) => (
+                <a
+                  href={`#cat-${cat.id}`}
+                  class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-700 hover:text-emerald-700 hover:bg-emerald-50/80 border border-transparent hover:border-emerald-200/60 transition-colors whitespace-nowrap"
+                >
+                  <span>{cat.badge}</span>
+                  <span class="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-mono text-slate-500">
+                    {cat.cases.length}
+                  </span>
+                </a>
+              ))
+            }
+          </div>
+          <span class="hidden lg:inline-flex items-center gap-1.5 text-[11px] text-slate-400 pr-2 shrink-0">
+            <Icon name="bx:bx-zoom-in" class="w-3.5 h-3.5 text-emerald-600" />
+            <span>{copy.zoomHint}</span>
+          </span>
+        </div>
+      </nav>
+
+      <!-- Compact 17-Scenario Quick Index -->
+      <div class="mt-4 rounded-2xl border border-slate-200/70 bg-slate-50/70 p-4 sm:p-5">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-2">
+          {
+            allCases.map((item) => (
+              <a
+                href={`#case-${item.number}`}
+                class="group flex items-center gap-2 py-1 text-xs sm:text-[13px] text-slate-600 hover:text-emerald-700 transition-colors truncate"
+              >
+                <span class="inline-flex h-5 w-6 shrink-0 items-center justify-center rounded bg-white border border-slate-200/80 font-mono text-[10.5px] font-bold text-emerald-700 group-hover:border-emerald-300 group-hover:bg-emerald-50 transition-colors">
+                  {item.number}
+                </span>
+                <span class="truncate font-medium">{item.title}</span>
+              </a>
+            ))
+          }
+        </div>
+      </div>
+
+      <!-- Categories & Cases -->
+      <div class="mt-10 sm:mt-14 space-y-14 sm:space-y-20">
+        {
+          copy.categories.map((category, catIdx) => (
+            <section id={`cat-${category.id}`} class="scroll-mt-24">
+              <div class="border-b border-slate-200/80 pb-4 mb-6 sm:mb-8">
+                <span class="inline-block px-2.5 py-0.5 text-[11px] font-bold text-emerald-700 bg-emerald-100/70 rounded-md">
+                  {category.badge}
+                </span>
+                <h2 class="mt-2 text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+                  {category.title}
+                </h2>
+                <p class="mt-1.5 text-xs sm:text-sm md:text-base text-slate-600">
+                  {category.description}
+                </p>
+              </div>
+
+              <div class="space-y-8 sm:space-y-10">
+                {category.cases.map((caseItem, caseIdx) => {
+                  const assetConfig = showcaseCaseAssets[caseItem.id];
+                  const isFirstCase = catIdx === 0 && caseIdx === 0;
+                  const gridClass =
+                    assetConfig.layout === "grid-3"
+                      ? "grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-5 items-start"
+                      : assetConfig.layout === "grid-2"
+                        ? "grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 items-start"
+                        : "flex flex-col gap-5 sm:gap-6";
+
+                  return (
+                    <article
+                      id={`case-${caseItem.number}`}
+                      class="scroll-mt-24 rounded-2xl sm:rounded-3xl border border-slate-200/90 bg-white p-5 sm:p-7 md:p-8 shadow-xs transition-shadow hover:shadow-md"
+                    >
+                      <!-- Case Header -->
+                      <div class="max-w-4xl">
+                        <div class="flex items-center gap-2.5">
+                          <span class="inline-flex items-center justify-center px-2.5 py-0.5 rounded-lg bg-emerald-600 text-white font-mono text-xs font-bold">
+                            #{caseItem.number}
+                          </span>
+                          <h3 class="text-lg sm:text-xl md:text-2xl font-bold text-slate-900 tracking-tight">
+                            {caseItem.title}
+                          </h3>
+                        </div>
+
+                        <p class="mt-3 text-xs sm:text-sm md:text-base leading-relaxed text-slate-600">
+                          {caseItem.lead}
+                        </p>
+
+                        <ul class="mt-3 space-y-1.5 text-xs sm:text-sm text-slate-600">
+                          {caseItem.bullets.map((bullet) => (
+                            <li class="flex items-start gap-2 leading-relaxed">
+                              <span class="mt-1.5 h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" />
+                              <span>{bullet}</span>
+                            </li>
+                          ))}
+                        </ul>
+
+                        {caseItem.links && caseItem.links.length > 0 && (
+                          <div class="mt-3.5 flex flex-wrap items-center gap-2">
+                            {caseItem.links.map((link) => (
+                              <a
+                                href={link.href}
+                                target="_blank"
+                                rel="noopener"
+                                class="inline-flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100/80 border border-emerald-200/70 transition-colors"
+                              >
+                                <span>{link.label}</span>
+                                <Icon name="bx:bx-link-external" class="w-3.5 h-3.5" />
+                              </a>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <!-- Case Screenshots -->
+                      <div class={`mt-5 sm:mt-6 ${gridClass}`}>
+                        {caseItem.media.map((mediaItem, mediaIdx) => {
+                          const imgAsset = assetConfig.images[mediaIdx];
+                          if (!imgAsset) return null;
+
+                          return (
+                            <figure class="flex flex-col rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white overflow-hidden shadow-2xs">
+                              <figcaption class="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-slate-200/70 bg-slate-50/80 text-xs sm:text-sm font-semibold text-slate-700">
+                                <span class="truncate">{mediaItem.caption}</span>
+                                <span class="text-[11px] font-normal text-slate-400 shrink-0 flex items-center gap-1">
+                                  <Icon name="bx:bx-fullscreen" class="w-3.5 h-3.5" />
+                                </span>
+                              </figcaption>
+                              <button
+                                type="button"
+                                data-lightbox-src={imgAsset.src}
+                                data-lightbox-alt={mediaItem.alt}
+                                data-lightbox-caption={`${caseItem.number}. ${caseItem.title} — ${mediaItem.caption}`}
+                                class="relative block w-full overflow-hidden bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 cursor-zoom-in"
+                                aria-label={`${mediaItem.caption} - ${copy.zoomHint}`}
+                              >
+                                <img
+                                  src={imgAsset.src}
+                                  width={imgAsset.width}
+                                  height={imgAsset.height}
+                                  alt={mediaItem.alt}
+                                  loading={isFirstCase && mediaIdx === 0 ? "eager" : "lazy"}
+                                  decoding="async"
+                                  class="w-full h-auto block mx-auto"
+                                />
+                              </button>
+                            </figure>
+                          );
+                        })}
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            </section>
+          ))
+        }
+      </div>
+    </main>
+  </Container>
+
+  <!-- Image Lightbox Dialog -->
+  <dialog
+    id="showcase-lightbox"
+    class="m-auto max-h-[92vh] max-w-[94vw] rounded-2xl border border-slate-700/80 bg-slate-950/95 p-2 sm:p-4 text-white shadow-2xl backdrop:bg-slate-950/75 backdrop:backdrop-blur-xs"
+  >
+    <div class="flex flex-col gap-2.5 max-h-[88vh]">
+      <div class="flex items-center justify-between gap-4 px-2 pt-1">
+        <p id="showcase-lightbox-caption" class="text-xs sm:text-sm font-medium text-slate-200 truncate"></p>
+        <button
+          type="button"
+          id="showcase-lightbox-close"
+          aria-label={copy.closePreview}
+          class="inline-flex items-center gap-1 rounded-lg bg-slate-800 hover:bg-slate-700 px-2.5 py-1 text-xs font-semibold text-slate-200 transition-colors shrink-0 cursor-pointer"
+        >
+          <span>ESC</span>
+          <Icon name="bx:bx-x" class="w-4 h-4" />
+        </button>
+      </div>
+      <div class="overflow-auto flex items-center justify-center rounded-xl bg-slate-900/60 p-1">
+        <img
+          id="showcase-lightbox-img"
+          src=""
+          alt=""
+          class="max-h-[80vh] max-w-[90vw] w-auto h-auto object-contain rounded-lg"
+        />
+      </div>
+    </div>
+  </dialog>
+</Layout>
+
+<script is:inline>
+  (function () {
+    function initLightbox() {
+      var dialog = document.getElementById("showcase-lightbox");
+      var img = document.getElementById("showcase-lightbox-img");
+      var caption = document.getElementById("showcase-lightbox-caption");
+      var closeBtn = document.getElementById("showcase-lightbox-close");
+      if (!dialog || !img || !caption) return;
+
+      document.querySelectorAll("[data-lightbox-src]").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          var src = btn.getAttribute("data-lightbox-src");
+          var alt = btn.getAttribute("data-lightbox-alt") || "";
+          var cap = btn.getAttribute("data-lightbox-caption") || alt;
+          if (!src) return;
+          img.setAttribute("src", src);
+          img.setAttribute("alt", alt);
+          caption.textContent = cap;
+          if (typeof dialog.showModal === "function") {
+            dialog.showModal();
+          }
+        });
+      });
+
+      if (closeBtn) {
+        closeBtn.addEventListener("click", function () {
+          dialog.close();
+        });
+      }
+
+      dialog.addEventListener("click", function (e) {
+        if (e.target === dialog) {
+          dialog.close();
+        }
+      });
+    }
+
+    initLightbox();
+    document.addEventListener("astro:page-load", initLightbox);
+  })();
+</script>

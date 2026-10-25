@@ -1,5 +1,8 @@
 # syntax=docker/dockerfile:1.7
-FROM oven/bun:1.3.14-alpine AS manifests
+# The web bundle and self-hosted server are plain JavaScript. Build them on the
+# runner's own architecture. QEMU arm64 hangs in Vite until the publish job hits
+# its timeout. The runtime image below still follows the target architecture.
+FROM --platform=$BUILDPLATFORM oven/bun:1.3.14-alpine AS manifests
 WORKDIR /app
 
 COPY package.json bun.lock bunfig.toml ./

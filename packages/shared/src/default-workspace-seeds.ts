@@ -16,35 +16,35 @@ export const DEFAULT_NOTEBOOK_SEEDS: readonly DefaultNotebookSeed[] = [
     slug: "inbox",
     color: "#0f766e",
     sortOrder: 10,
-    names: { "zh-CN": "等待分类", "en-US": "Inbox", ja: "受信トレイ", pl: "Skrzynka" },
+    names: { "zh-CN": "等待分类", "en-US": "Inbox", ja: "受信トレイ", pl: "Skrzynka", ru: "Входящие" },
   },
   {
     key: "projects",
     slug: "work-projects",
     color: "#2563eb",
     sortOrder: 20,
-    names: { "zh-CN": "工作项目", "en-US": "Work Projects", ja: "仕事のプロジェクト", pl: "Projekty zawodowe" },
+    names: { "zh-CN": "工作项目", "en-US": "Work Projects", ja: "仕事のプロジェクト", pl: "Projekty zawodowe", ru: "Рабочие проекты" },
   },
   {
     key: "learning",
     slug: "learning-resources",
     color: "#7c3aed",
     sortOrder: 30,
-    names: { "zh-CN": "学习资料", "en-US": "Learning Resources", ja: "学習資料", pl: "Materiały do nauki" },
+    names: { "zh-CN": "学习资料", "en-US": "Learning Resources", ja: "学習資料", pl: "Materiały do nauki", ru: "Учебные материалы" },
   },
   {
     key: "creative",
     slug: "creative-ideas",
     color: "#db2777",
     sortOrder: 40,
-    names: { "zh-CN": "灵感创作", "en-US": "Creative Ideas", ja: "アイデアと創作", pl: "Pomysły i twórczość" },
+    names: { "zh-CN": "灵感创作", "en-US": "Creative Ideas", ja: "アイデアと創作", pl: "Pomysły i twórczość", ru: "Творческие идеи" },
   },
   {
     key: "personal",
     slug: "personal-life",
     color: "#ea580c",
     sortOrder: 50,
-    names: { "zh-CN": "生活个人", "en-US": "Personal Life", ja: "暮らしと個人", pl: "Życie prywatne" },
+    names: { "zh-CN": "生活个人", "en-US": "Personal Life", ja: "暮らしと個人", pl: "Życie prywatne", ru: "Личная жизнь" },
   },
 ];
 
@@ -99,6 +99,13 @@ export const WELCOME_MEMO_TRANSLATIONS: Record<SupportedLocale, WelcomeMemoTrans
     paragraphs: [
       "To Twoja pierwsza notatka w EdgeEver: trzy panele, działanie na brzegu sieci i gotowość do pracy z agentami AI.",
       "Teraz możesz tworzyć notatniki, pisać notatki, przeszukiwać treści i scalać kilka notatek w jedną nową, trwałą notatkę.",
+    ],
+  },
+  ru: {
+    title: "Добро пожаловать в EdgeEver",
+    paragraphs: [
+      "Это первая заметка в EdgeEver: три панели, работа на краю сети и готовность к агентам ИИ.",
+      "Дальше можно создавать блокноты, писать заметки, искать по содержимому и объединять несколько заметок в одну новую долгосрочную.",
     ],
   },
 };

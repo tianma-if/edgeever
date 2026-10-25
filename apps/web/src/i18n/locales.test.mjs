@@ -46,6 +46,11 @@ describe("web locale resolution", () => {
     expect(getBrowserLocale()).toBe("pl");
   });
 
+  test("keeps Russian browser languages on the shipped ru locale", () => {
+    setNavigatorLanguages(["ru-RU", "en-US"]);
+    expect(getBrowserLocale()).toBe("ru");
+  });
+
   test("falls unmatched browser languages back to English instead of Chinese", () => {
     setNavigatorLanguages(["fr-FR", "de-DE"]);
     expect(getBrowserLocale()).toBe("en-US");

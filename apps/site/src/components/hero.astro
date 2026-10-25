@@ -1,7 +1,6 @@
 ---
 import { Picture } from "astro:assets";
 import heroProductImage from "@/assets/edgeever-hero-product.png";
-import Link from "@/components/ui/link.astro";
 import { Icon } from "astro-icon/components";
 import { Meteors } from "@/components/magicui/meteors";
 import { getLocalizedPath, getSiteLocale, siteCopy } from "@/i18n";
@@ -48,39 +47,44 @@ const copy = siteCopy[locale].hero;
 
     <!-- Primary Action Buttons -->
     <div class="animate-rise mt-6 sm:mt-8 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto max-w-full z-20" style="animation-delay: 160ms;">
-      <Link
+      <a
         href="https://demo.edgeever.org"
         target="_blank"
-        class="group flex gap-2 items-center justify-center px-6 py-3 text-white bg-brand border-transparent shadow-[0_12px_30px_-14px_rgb(var(--edgeever-brand-rgb)/0.8)] hover:bg-brand-hover hover:shadow-brand/40 transition-all duration-300 hover:-translate-y-0.5 rounded-full font-semibold text-sm w-full sm:w-auto text-center"
+        class="group inline-flex h-11 gap-2 items-center justify-center px-6 text-white bg-brand border border-transparent shadow-[0_12px_30px_-14px_rgb(var(--edgeever-brand-rgb)/0.8)] hover:bg-brand-hover hover:shadow-brand/40 transition-all duration-300 hover:-translate-y-0.5 rounded-full font-semibold text-sm w-full sm:w-auto text-center"
         rel="noopener">
-        <Icon class="w-4 h-4" name="bx:bx-show" />
+        <Icon class="w-4 h-4 shrink-0" name="bx:bx-show" />
         <span>{copy.demo}</span>
-      </Link>
+      </a>
       <a
         href="https://github.com/tianma-if/edgeever"
         target="_blank"
         rel="noopener"
         aria-label="EdgeEver on GitHub"
-        class="group flex gap-2 items-center justify-center px-4 sm:px-4.5 py-3 border border-slate-200/90 hover:border-slate-400 bg-white/90 backdrop-blur-sm text-slate-800 transition-all rounded-full font-semibold text-sm hover:-translate-y-0.5 shadow-2xs hover:shadow-sm w-full sm:w-auto text-center"
+        class="group inline-flex h-11 gap-2.5 items-center justify-center px-5 border border-slate-200/90 hover:border-brand/40 bg-white/90 hover:bg-brand-soft/60 backdrop-blur-sm text-slate-800 transition-all duration-300 rounded-full font-semibold text-sm hover:-translate-y-0.5 shadow-2xs hover:shadow-sm w-full sm:w-auto text-center"
       >
-        <Icon class="text-slate-800 w-4 h-4 shrink-0 transition-transform duration-200 group-hover:scale-110" name="bx:bxl-github" />
-        <div class="flex items-center gap-1.5 font-medium text-xs">
-          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 group-hover:bg-amber-50 group-hover:text-amber-800 transition-colors">
-            <Icon name="bx:bxs-star" class="w-3.5 h-3.5 text-amber-500" />
+        <span class="inline-flex items-center gap-1.5">
+          <Icon class="text-slate-800 w-4 h-4 shrink-0 transition-transform duration-200 group-hover:scale-110" name="bx:bxl-github" />
+          <span>GitHub</span>
+        </span>
+        <span class="h-3.5 w-px bg-slate-200 group-hover:bg-brand/25 transition-colors" aria-hidden="true"></span>
+        <span class="inline-flex items-center gap-2 text-xs font-medium text-slate-600 tabular-nums">
+          <span class="inline-flex items-center gap-1 group-hover:text-slate-900 transition-colors">
+            <Icon name="bx:bxs-star" class="w-3.5 h-3.5 text-slate-400 group-hover:text-amber-500 transition-colors" />
             <span data-github-stars>--</span>
           </span>
-          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 group-hover:bg-slate-200/80 transition-colors">
-            <Icon name="bx:git-repo-forked" class="w-3.5 h-3.5 text-slate-500" />
+          <span class="text-slate-300 select-none" aria-hidden="true">·</span>
+          <span class="inline-flex items-center gap-1 group-hover:text-slate-900 transition-colors">
+            <Icon name="bx:git-repo-forked" class="w-3.5 h-3.5 text-slate-400 group-hover:text-brand transition-colors" />
             <span data-github-forks>--</span>
           </span>
-        </div>
+        </span>
       </a>
       <a
         rel="noopener"
         href={getLocalizedPath(locale, "/blog/ai-agent-deploy-cloudflare")}
-        class="flex gap-2 items-center justify-center px-5 py-3 bg-brand/5 border border-brand/20 hover:border-brand/40 text-brand-text hover:bg-brand/10 transition-all rounded-full font-semibold text-sm hover:-translate-y-0.5 w-full sm:w-auto text-center"
-        >
-        <Icon class="w-4 h-4" name="simple-icons:cloudflare" />
+        class="inline-flex h-11 gap-2 items-center justify-center px-5 bg-brand/5 border border-brand/20 hover:border-brand/40 text-brand-text hover:bg-brand/10 transition-all duration-300 rounded-full font-semibold text-sm hover:-translate-y-0.5 w-full sm:w-auto text-center"
+      >
+        <Icon class="w-4 h-4 shrink-0" name="simple-icons:cloudflare" />
         <span>{copy.agentInstall}</span>
       </a>
     </div>

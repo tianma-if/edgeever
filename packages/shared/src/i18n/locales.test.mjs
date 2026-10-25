@@ -23,6 +23,9 @@ describe("supported locale matching", () => {
     expect(matchSupportedLocale("pl")).toBe("pl");
     expect(matchSupportedLocale("pl-PL")).toBe("pl");
     expect(matchSupportedLocale("pl_PL")).toBe("pl");
+    expect(matchSupportedLocale("ru")).toBe("ru");
+    expect(matchSupportedLocale("ru-RU")).toBe("ru");
+    expect(matchSupportedLocale("ru_RU")).toBe("ru");
   });
 
   test("does not treat unrelated tags as a shipped locale", () => {

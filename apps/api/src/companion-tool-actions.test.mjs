@@ -397,6 +397,78 @@ describe("shared companion MCP adapter", () => {
     expect(diagram.edges).toMatchObject([{ source: "web", target: "api", kind: "request" }]);
     expect(diagram.edges[0].id).toBeTruthy();
   });
+  test("a new mind map request cannot read the open diagram", async () => {
+    const f = await setup();
+    const creator = createCompanionTools({ ...f, scope, signal: new AbortController().signal, assertActive: async () => {}, sources: [] });
+    const created = await creator.create_diagram_memo.execute({
+      notebookId: "ideas",
+      title: "大模型蒸馏流程图",
+      kind: "flowchart",
+      nodes: [
+        { id: "teacher", label: "准备教师模型", type: "process" },
+        { id: "student", label: "训练学生模型", type: "process" },
+      ],
+      edges: [{ source: "teacher", target: "student" }],
+    });
+    const request = {
+      ...f.input,
+      message: "帮我生成一个AI大模型的思维导图。",
+      focus: { memoId: created.id, title: "大模型蒸馏流程图", diagramKind: "flowchart" },
+    };
+    const tools = createCompanionTools({ ...f, input: request, scope, signal: new AbortController().signal, assertActive: async () => {}, sources: [] });
+    const blockedDiagram = await tools.get_diagram.execute({ memoId: created.id });
+    expect(blockedDiagram).toMatchObject({ error: expect.stringContaining("did not refer to the open note") });
+    expect(blockedDiagram.diagram).toBeUndefined();
+    const blockedMemo = await tools.get_memo.execute({ memoId: created.id });
+    expect(blockedMemo).toMatchObject({ error: expect.stringContaining("did not refer to the open note") });
+    expect(blockedMemo.diagram).toBeUndefined();
+
+    const referred = createCompanionTools({
+      ...f,
+      input: { ...request, message: "根据这篇生成思维导图" },
+      scope,
+      signal: new AbortController().signal,
+      assertActive: async () => {},
+      sources: [],
+    });
+    expect(await referred.get_diagram.execute({ memoId: created.id })).toMatchObject({
+      memo: { id: created.id }, diagram: { kind: "flowchart" },
+    });
+
+    const edit = createCompanionTools({
+      ...f,
+      input: { ...request, message: "加一个评估节点" },
+      scope,
+      signal: new AbortController().signal,
+      assertActive: async () => {},
+      sources: [],
+    });
+    expect(await edit.get_diagram.execute({ memoId: created.id })).toMatchObject({ diagram: { kind: "flowchart" } });
+
+    const attached = createCompanionTools({
+      ...f,
+      input: { ...request, focus: { ...request.focus, contentMarkdown: "教师模型、软标签、学生模型。" } },
+      scope,
+      signal: new AbortController().signal,
+      assertActive: async () => {},
+      sources: [],
+    });
+    expect(await attached.get_diagram.execute({ memoId: created.id })).toMatchObject({ diagram: { kind: "flowchart" } });
+
+    for (const message of ["生成思维导图", "整理成思维导图", "把这个做成思维导图"]) {
+      const fromOpenNote = createCompanionTools({
+        ...f,
+        input: { ...request, message },
+        scope,
+        signal: new AbortController().signal,
+        assertActive: async () => {},
+        sources: [],
+      });
+      expect(await fromOpenNote.get_diagram.execute({ memoId: created.id }), message).toMatchObject({
+        diagram: { kind: "flowchart" },
+      });
+    }
+  });
   test("an explicit diagram type narrows the Agent schema and rejects a mismatched write", async () => {
     expect(explicitDiagramKind("帮我生成一个架构图笔记作为说明。")).toBe("architecture");
     expect(explicitDiagramKind("Create a flow chart note.")).toBe("flowchart");

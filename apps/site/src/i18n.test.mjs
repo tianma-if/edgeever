@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { bestPracticesPageCopy, showcaseCaseAssets } from "./data/best-practices.ts";
 import { alternativePageCopy } from "./data/self-hosted-evernote-alternative.ts";
 import {
   getLocalizedPath,
@@ -87,5 +88,20 @@ describe("site locale routing", () => {
     expect(collectKeys(alternativePageCopy.pl)).toEqual(collectKeys(alternativePageCopy["zh-CN"]));
     expect(siteCopy.pl.layout.ogLocale).toBe("pl_PL");
     expect(siteCopy.pl.nav.backToBlog).toBe("Wróć do bloga");
+  });
+
+  test("keeps best practices showcase copy and media counts aligned across locales", () => {
+    for (const locale of siteLocales) {
+      expect(collectKeys(bestPracticesPageCopy[locale])).toEqual(
+        collectKeys(bestPracticesPageCopy["zh-CN"]),
+      );
+      const cases = bestPracticesPageCopy[locale].categories.flatMap((c) => c.cases);
+      expect(cases).toHaveLength(17);
+      for (const item of cases) {
+        const assets = showcaseCaseAssets[item.id];
+        expect(assets).toBeDefined();
+        expect(item.media).toHaveLength(assets.images.length);
+      }
+    }
   });
 });

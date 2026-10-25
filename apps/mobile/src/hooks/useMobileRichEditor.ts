@@ -59,7 +59,7 @@ const createLocalImagePreviewDataUrl = async (asset: { mimeType?: string | null;
 };
 
 const alertProtectedImageLoadFailure = (
-  locale: "zh-CN" | "en-US" | "ja" | "pl",
+  locale: "zh-CN" | "en-US" | "ja" | "pl" | "ru",
   failure: ProtectedResourceLoadFailure
 ) => {
   const statusLabel = failure.status != null

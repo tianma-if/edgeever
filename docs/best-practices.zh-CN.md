@@ -15,22 +15,21 @@
 - [6. X (Twitter) 推文与引用剪藏](#6-x-twitter-推文与引用剪藏)
 - [7. 知乎回答与文章剪藏](#7-知乎回答与文章剪藏)
 - [8. Reddit 讨论帖剪藏](#8-reddit-讨论帖剪藏)
-- [9. GitHub 仓库元数据剪藏](#9-github-仓库元数据剪藏)
 
 ### AI 增强与多维数据组织
-- [10. AI 对话生成思维导图、流程图与架构图](#10-ai-对话生成思维导图流程图与架构图)
-- [11. AI 生成结构化信息图（时间线、对比矩阵、象限图等）](#11-ai-生成结构化信息图时间线对比矩阵象限图等)
-- [12. AI 对话构建多维表格](#12-ai-对话构建多维表格)
-- [13. 多维表格生成公开收集表单](#13-多维表格生成公开收集表单)
-- [14. 连接本机 Agent (ACP) 实现笔记协同](#14-连接本机-agent-acp-实现笔记协同)
+- [9. AI 对话生成思维导图、流程图与架构图](#9-ai-对话生成思维导图流程图与架构图)
+- [10. AI 生成结构化信息图（时间线、对比矩阵、象限图等）](#10-ai-生成结构化信息图时间线对比矩阵象限图等)
+- [11. AI 对话构建多维表格](#11-ai-对话构建多维表格)
+- [12. 多维表格生成公开收集表单](#12-多维表格生成公开收集表单)
+- [13. 连接本机 Agent (ACP) 实现笔记协同](#13-连接本机-agent-acp-实现笔记协同)
 
 ### 排版与多渠道分发
-- [15. 笔记导出多主题长图与代码卡片](#15-笔记导出多主题长图与代码卡片)
-- [16. 笔记制作社交媒体海报与封面](#16-笔记制作社交媒体海报与封面)
-- [17. 复制笔记至微信公众号排版](#17-复制笔记至微信公众号排版)
+- [14. 笔记导出多主题长图与代码卡片](#14-笔记导出多主题长图与代码卡片)
+- [15. 笔记制作社交媒体海报与封面](#15-笔记制作社交媒体海报与封面)
+- [16. 复制笔记至微信公众号排版](#16-复制笔记至微信公众号排版)
 
 ### 开放生态与插件扩展
-- [18. 开放插件 API 与自定义插件开发](#18-开放插件-api-与自定义插件开发)
+- [17. 开放插件 API 与自定义插件开发](#17-开放插件-api-与自定义插件开发)
 
 ---
 
@@ -93,9 +92,13 @@ EdgeEver 采用「目录树 · 笔记列表 · 编辑区」三栏布局：
 - 提取标题、话题标签、正文、发布时间与原文链接。
 - 多图内容自动排版为多栏画廊。
 
-| 1. 右键菜单剪藏 | 2. 多栏画廊笔记效果 |
-| :---: | :---: |
-| ![右键保存小红书笔记到 EdgeEver](assets/best-practices/original-image/web-clipper/xiaohongshu/xiaohongshu.png) | ![EdgeEver 剪藏后的小红书笔记多栏画廊效果](assets/best-practices/original-image/web-clipper/xiaohongshu/xiaohongshu-in-note.png) |
+| 1. 右键菜单剪藏 |
+| :---: |
+| ![右键保存小红书笔记到 EdgeEver](assets/best-practices/original-image/web-clipper/xiaohongshu/xiaohongshu.png) |
+
+| 2. 多栏画廊笔记效果 |
+| :---: |
+| ![EdgeEver 剪藏后的小红书笔记多栏画廊效果](assets/best-practices/original-image/web-clipper/xiaohongshu/xiaohongshu-in-note.png) |
 
 ---
 
@@ -106,9 +109,13 @@ EdgeEver 采用「目录树 · 笔记列表 · 编辑区」三栏布局：
 - 提取作者、推文正文、外链、引用推文（Quote Tweet）及附带图集。
 - 自动渲染为多栏画廊排版。
 
-| 1. 右键保存推文 | 2. 包含引用与图集的笔记效果 |
-| :---: | :---: |
-| ![右键保存推文到 EdgeEver](assets/best-practices/original-image/web-clipper/twitter/twitter.png) | ![EdgeEver 剪藏后的 X 推文笔记效果](assets/best-practices/original-image/web-clipper/twitter/twitter-in-note.png) |
+| 1. 右键保存推文 |
+| :---: |
+| ![右键保存推文到 EdgeEver](assets/best-practices/original-image/web-clipper/twitter/twitter.png) |
+
+| 2. 包含引用与图集的笔记效果 |
+| :---: |
+| ![EdgeEver 剪藏后的 X 推文笔记效果](assets/best-practices/original-image/web-clipper/twitter/twitter-in-note.png) |
 
 ---
 
@@ -118,9 +125,13 @@ EdgeEver 采用「目录树 · 笔记列表 · 编辑区」三栏布局：
 
 - 解析问题标题、作者、正文、发布时间与原始链接，生成问答结构笔记。
 
-| 1. 右键保存回答/文章 | 2. 问答结构笔记预览 |
-| :---: | :---: |
-| ![右键保存知乎回答到 EdgeEver](assets/best-practices/original-image/web-clipper/zhihu/zhihu.png) | ![EdgeEver 剪藏后的知乎回答笔记效果](assets/best-practices/original-image/web-clipper/zhihu/zhihu-in-note.png) |
+| 1. 右键保存回答/文章 |
+| :---: |
+| ![右键保存知乎回答到 EdgeEver](assets/best-practices/original-image/web-clipper/zhihu/zhihu.png) |
+
+| 2. 问答结构笔记预览 |
+| :---: |
+| ![EdgeEver 剪藏后的知乎回答笔记效果](assets/best-practices/original-image/web-clipper/zhihu/zhihu-in-note.png) |
 
 ---
 
@@ -130,65 +141,73 @@ EdgeEver 采用「目录树 · 笔记列表 · 编辑区」三栏布局：
 
 - 捕获帖子标题、所属版块（Subreddit，如 `r/AskReddit`）、作者、时间戳及链接，保留社区元数据。
 
-| 1. 右键保存帖子 | 2. 包含社区元数据的笔记预览 |
-| :---: | :---: |
-| ![右键保存 Reddit 帖子到 EdgeEver](assets/best-practices/reddit-clip-menu.png) | ![EdgeEver 剪藏后的 Reddit 帖子笔记效果](assets/best-practices/reddit-clipped-note.png) |
+| 1. 右键保存帖子 |
+| :---: |
+| ![右键保存 Reddit 帖子到 EdgeEver](assets/best-practices/original-image/web-clipper/reddit/reddit.png) |
 
----
-
-### 9. GitHub 仓库元数据剪藏
-
-在 GitHub 仓库页面右键点击「保存仓库信息到 EdgeEver」。
-
-- 提取仓库名称（Owner/Repo）、简介、官方主页、编程语言、许可证与话题标签，生成技术卡片。
-
-| 1. 右键保存仓库信息 | 2. 结构化仓库卡片预览 |
-| :---: | :---: |
-| ![右键保存 GitHub 仓库信息到 EdgeEver](assets/best-practices/github-clip-menu.png) | ![EdgeEver 剪藏后的 GitHub 仓库卡片笔记](assets/best-practices/github-clipped-note.png) |
+| 2. 包含社区元数据的笔记预览 |
+| :---: |
+| ![EdgeEver 剪藏后的 Reddit 帖子笔记效果](assets/best-practices/original-image/web-clipper/reddit/reddit-in-note.png) |
 
 ---
 
 ## AI 增强与多维数据组织
 
-### 10. AI 对话生成思维导图、流程图与架构图
+### 9. AI 对话生成思维导图、流程图与架构图
 
 在 AI 伴随助手（或连接的本地 Agent）中输入自然语言指令（如“帮我生成一个关于大语言模型的思维导图 / 流程图 / 架构图”），在笔记内直接生成可交互图表。
 
 - 支持节点拖拽编辑、自动布局、条件分支与系统拓扑展示。
 
-| 1. 交互式思维导图 | 2. 标准流程图 | 3. 系统架构图 |
-| :---: | :---: | :---: |
-| ![AI对话生成可编辑思维导图](assets/best-practices/ai-diagram-mindmap.png) | ![AI对话生成可编辑流程图](assets/best-practices/ai-diagram-flowchart.png) | ![AI对话生成可编辑系统架构图](assets/best-practices/ai-diagram-architecture.png) |
+| 1. 交互式思维导图 |
+| :---: |
+| ![AI对话生成可编辑思维导图](assets/best-practices/original-image/ai-diagram/ai-mindmap.png) |
+
+| 2. 标准流程图 |
+| :---: |
+| ![AI对话生成可编辑流程图](assets/best-practices/original-image/ai-diagram/ai-flowchart.png) |
+
+| 3. 系统架构图 |
+| :---: |
+| ![AI对话生成可编辑系统架构图](assets/best-practices/original-image/ai-diagram/ai-architecture.png) |
 
 ---
 
-### 11. AI 生成结构化信息图（时间线、对比矩阵、象限图等）
+### 10. AI 生成结构化信息图（时间线、对比矩阵、象限图等）
 
 利用内置模板库，在 AI 助手对话中描述要呈现的主题与重点，快速生成结构化视觉笔记。
 
 - 涵盖时间线、对比矩阵、四象限、层级图等模板。
 - 支持对话微调内容，或直接导出为矢量图。
 
-| 1. 信息图模板库 | 2. 时间线信息图生成效果 |
-| :---: | :---: |
-| ![EdgeEver信息图示例与模板库](assets/best-practices/ai-infographic-templates.png) | ![AI生成字节跳动发展历程时间线信息图](assets/best-practices/ai-infographic-generated.png) |
+| 1. 技术演进路线信息图 |
+| :---: |
+| ![AI生成大模型技术演进路线信息图](assets/best-practices/original-image/ai-diagram/ai-infographic-ai-roadmap.png) |
+
+| 2. 发展历程时间线信息图 |
+| :---: |
+| ![AI生成字节跳动发展历程时间线信息图](assets/best-practices/original-image/ai-diagram/ai-infographic-bytedance.png) |
 
 ---
 
-### 12. AI 对话构建多维表格
+### 11. AI 对话构建多维表格
 
 在 AI 助手中发送自然语言指令（如“生成自媒体选题库”或“生成员工信息登记表”），自动搭建多维数据表。
 
 - 自动配置单选标签、文本、日期、链接等字段类型。
 - 自动填充初始示例数据，支持视图切换、筛选排序与 CSV 导出。
 
-| 1. 选题库多维表格 | 2. 员工信息多维表格 |
-| :---: | :---: |
-| ![AI生成自媒体选题库多维表格](assets/best-practices/original-image/database-note/database-hot-select.png) | ![AI生成员工信息登记多维表格](assets/best-practices/original-image/database-note/database-employee-register.png) |
+| 1. 选题库多维表格 |
+| :---: |
+| ![AI生成自媒体选题库多维表格](assets/best-practices/original-image/database-note/database-hot-select.png) |
+
+| 2. 员工信息多维表格 |
+| :---: |
+| ![AI生成员工信息登记多维表格](assets/best-practices/original-image/database-note/database-employee-register.png) |
 
 ---
 
-### 13. 多维表格生成公开收集表单
+### 12. 多维表格生成公开收集表单
 
 在多维表格顶部点击「表单收集」，将当前数据表转为公开在线表单。
 
@@ -201,7 +220,7 @@ EdgeEver 采用「目录树 · 笔记列表 · 编辑区」三栏布局：
 
 ---
 
-### 14. 连接本机 Agent (ACP) 实现笔记协同
+### 13. 连接本机 Agent (ACP) 实现笔记协同
 
 EdgeEver 支持 **ACP (Agent Client Protocol)** 协议，允许桌面端连接本机运行的各类 AI Agent（如 Codex、Claude Code、DeepSeek Harness、Antigravity 等）。
 
@@ -216,7 +235,7 @@ EdgeEver 支持 **ACP (Agent Client Protocol)** 协议，允许桌面端连接�
 
 ## 排版与多渠道分发
 
-### 15. 笔记导出多主题长图与代码卡片
+### 14. 笔记导出多主题长图与代码卡片
 
 使用「分享为图片」功能，将笔记排版为高分辨率长图或卡片。
 
@@ -229,7 +248,7 @@ EdgeEver 支持 **ACP (Agent Client Protocol)** 协议，允许桌面端连接�
 
 ---
 
-### 16. 笔记制作社交媒体海报与封面
+### 15. 笔记制作社交媒体海报与封面
 
 在笔记操作菜单中选择「制作海报」（或通过「新建 → 海报」），将笔记标题与要点导入海报设计工作台。
 
@@ -242,21 +261,25 @@ EdgeEver 支持 **ACP (Agent Client Protocol)** 协议，允许桌面端连接�
 
 ---
 
-### 17. 复制笔记至微信公众号排版
+### 16. 复制笔记至微信公众号排版
 
 在笔记菜单中选择「复制到公众号 / 博客」，将笔记转换为内联 CSS 样式的富文本。
 
 - 粘贴至微信公众号后台，完整保留表格、引用块、代码块、列表及字体样式。
 
-| 1. 复制到公众号 / 博客 | 2. 公众号后台编辑器粘贴效果 |
-| :---: | :---: |
-| ![EdgeEver 笔记菜单点击复制到公众号](assets/best-practices/original-image/wechat-article-copy-to/right-menu.png) | ![微信公众号后台粘贴后的排版效果](assets/best-practices/original-image/wechat-article-copy-to/show-in-wechat-editor.png) |
+| 1. 复制到公众号 / 博客 |
+| :---: |
+| ![EdgeEver 笔记菜单点击复制到公众号](assets/best-practices/original-image/wechat-article-copy-to/right-menu.png) |
+
+| 2. 公众号后台编辑器粘贴效果 |
+| :---: |
+| ![微信公众号后台粘贴后的排版效果](assets/best-practices/original-image/wechat-article-copy-to/show-in-wechat-editor.png) |
 
 ---
 
 ## 开放生态与插件扩展
 
-### 18. 开放插件 API 与自定义插件开发
+### 17. 开放插件 API 与自定义插件开发
 
 EdgeEver 内置插件扩展管理，支持通过 GitHub 仓库或 Manifest 地址一键安装，配置在 Web 与桌面端跨设备隔离同步。
 
@@ -266,6 +289,10 @@ EdgeEver 内置插件扩展管理，支持通过 GitHub 仓库或 Manifest 地�
   - **AI RSS 订阅助手 ([EdgeEver AI RSS](https://github.com/tianma-if/edgeever-ai-rss))**：抓取订阅源并结合 AI 生成分类每日简报。
 - 更多规范与指南详见 [EdgeEver 插件开发指南](plugin-development.zh-CN.md)。
 
-| 1. 插件与主题管理中心 | 2. 官方 AI RSS 插件生成的日报笔记效果 |
-| :---: | :---: |
-| ![EdgeEver 插件市场与官方插件管理](assets/best-practices/original-image/plugin/official-in.png) | ![EdgeEver AI RSS 插件自动生成的结构化日报笔记](assets/best-practices/original-image/plugin/ai-daily.png) |
+| 1. 插件与主题管理中心 |
+| :---: |
+| ![EdgeEver 插件市场与官方插件管理](assets/best-practices/original-image/plugin/official-in.png) |
+
+| 2. 插件 API 体系与开发文档 |
+| :---: |
+| ![EdgeEver 插件开发 API 命名空间与规范文档](assets/best-practices/original-image/plugin/plugin-api.png) |

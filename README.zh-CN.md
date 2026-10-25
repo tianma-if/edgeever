@@ -79,7 +79,7 @@ EdgeEver 是一款现代化的开源笔记与个人知识库工作区。它保�
 <a id="features"></a>
 ## 核心功能与场景矩阵
 
-一站式连接「灵感捕获 · 深度创作 · 知识沉淀」的全能工作区：
+一站式连接「灵感捕获 · 深度创作 · 知识沉淀」的全能工作区（👉 **[查看 17 个实机案例演示与最佳实践](docs/best-practices.zh-CN.md)**）：
 
 | 模块 | 基础功能 | 进阶特性 |
 | :--- | :--- | :--- |
@@ -89,8 +89,6 @@ EdgeEver 是一款现代化的开源笔记与个人知识库工作区。它保�
 | **数据与可视化** | • 原生表格编辑与 Markdown 表格渲染<br>• 原生 Mermaid 流程图、时序图与架构图渲染 | • **AI 多维表格**：自然语言一句话生成业务数据库（含标签、日期等字段）<br>• **在线公开收集表单**：多维表格一键生成免登录外链表单，填报数据实时入库<br>• **AI 智能信息图与导图**：一键生成时间线、对比图、象限矩阵及思维导图 |
 | **AI 与生态** | • 侧边伴随式 AI 助手，选区/全文一键总结、翻译与润色<br>• BYOK（自带模型）：兼容 OpenAI、Anthropic、Gemini 等主流协议 | • **原生 Agent 协议互联**：内置 MCP（外部 Agent 读写笔记）与 ACP（桌面端直接唤起本机 Agent 协作创作）<br>• **AI RSS 智能订阅日报**：定时聚合资讯源，AI 自动过滤噪音并生成精炼日报<br>• 开放插件开发 API 自由扩展 |
 | **多端同步与底座** | • 电脑、手机全端秒级无感同步，无设备数量限制<br>• 官方覆盖 Web / macOS / Windows / Linux / iOS / Android 全平台<br>• 离线优先与同步队列：断网流畅写作，联网自动恢复并增量同步<br>• 标准 SQLite 存储，无损 ZIP 档案与 Markdown 导出导入 | • **终身零服务器成本**：100% 运行于 Cloudflare 免费配额（容量约 15 万条短笔记与 5 万张图片）<br>• **灵活 Docker 自托管**：私有 VPS/NAS 一键部署，轻松承载百万级笔记与瞬时同步<br>• 服务端防暴力破解限流保护与安全数据隔离 |
-
-👉 查看全部 18 个实机演示与操作效果：**[完整场景与最佳实践指南](docs/best-practices.zh-CN.md)**
 
 ## 部署
 
@@ -194,7 +192,7 @@ curl -fsSL https://edgeever.org/install.sh | bash
 ### 存储扩展与第三方图床
 
 - **OSS 对象存储**：实例 Owner 可在**设置 → 高级设置 → OSS 对象存储**中配置兼容 S3 API 的对象存储。切换存储不会迁移或影响已有附件。
-- **桌面端 PicGo 图床**：桌面端支持可选接入本机 PicGo 客户端服务，在笔记中插入图片时可直接上传至 GitHub、SM.MS、又拍云、七牛云或自建图床，进一步减少自托管实例的存储开销与流量占用。
+- **桌面端 PicGo 图床**：桌面端可以把新插入的图片交给本机或你信任的远程 PicGo、PicList 服务（例如 NAS），再由它上传到 GitHub、SM.MS、又拍云、七牛云或自建图床。
 
 ### 插件与个性化主题
 
@@ -320,3 +318,26 @@ EdgeEver 名称、Logo 及其他品牌标识用于识别官方项目。Fork 或�
 EdgeEver 是一款完全独立的开源笔记软件，由个人和社区自主开发维护。本项目与 Evernote®（印象笔记）及其关联公司不存在任何商业合作、授权、赞助或隶属关系。
 
 EdgeEver 是自托管软件。除官方演示实例外，项目维护者不托管、控制或审核用户内容。实例中存储或展示的内容由用户或实例运营者负责，不代表项目维护者的立场。
+
+## 贡献者
+
+<!-- readme-contributors:start -->
+<p align="left">
+  <a href="https://github.com/tianma-if"><img src="https://images.weserv.nl/?url=https://avatars.githubusercontent.com/u/5895871?v=4&h=96&w=96&fit=cover&mask=circle&maxage=7d" width="48" height="48" alt="@tianma-if" /></a>
+  <a href="https://github.com/sivdead"><img src="https://images.weserv.nl/?url=https://avatars.githubusercontent.com/u/27731043?v=4&h=96&w=96&fit=cover&mask=circle&maxage=7d" width="48" height="48" alt="@sivdead" /></a>
+  <a href="https://github.com/thorufur"><img src="https://images.weserv.nl/?url=https://avatars.githubusercontent.com/u/55167?v=4&h=96&w=96&fit=cover&mask=circle&maxage=7d" width="48" height="48" alt="@thorufur" /></a>
+  <a href="https://github.com/yulei666"><img src="https://images.weserv.nl/?url=https://avatars.githubusercontent.com/u/7358439?v=4&h=96&w=96&fit=cover&mask=circle&maxage=7d" width="48" height="48" alt="@yulei666" /></a>
+  <a href="https://github.com/arsaboo"><img src="https://images.weserv.nl/?url=https://avatars.githubusercontent.com/u/18319734?v=4&h=96&w=96&fit=cover&mask=circle&maxage=7d" width="48" height="48" alt="@arsaboo" /></a>
+  <a href="https://github.com/alyyasser"><img src="https://images.weserv.nl/?url=https://avatars.githubusercontent.com/u/16476111?v=4&h=96&w=96&fit=cover&mask=circle&maxage=7d" width="48" height="48" alt="@alyyasser" /></a>
+  <a href="https://github.com/MadlyFX"><img src="https://images.weserv.nl/?url=https://avatars.githubusercontent.com/u/4896705?v=4&h=96&w=96&fit=cover&mask=circle&maxage=7d" width="48" height="48" alt="@MadlyFX" /></a>
+  <a href="https://github.com/claude"><img src="https://images.weserv.nl/?url=https://avatars.githubusercontent.com/u/81847?v=4&h=96&w=96&fit=cover&mask=circle&maxage=7d" width="48" height="48" alt="@claude" /></a>
+  <a href="https://github.com/Crowszzz"><img src="https://images.weserv.nl/?url=https://avatars.githubusercontent.com/u/75199133?v=4&h=96&w=96&fit=cover&mask=circle&maxage=7d" width="48" height="48" alt="@Crowszzz" /></a>
+  <a href="https://github.com/Z-DDV"><img src="https://images.weserv.nl/?url=https://avatars.githubusercontent.com/u/122068983?v=4&h=96&w=96&fit=cover&mask=circle&maxage=7d" width="48" height="48" alt="@Z-DDV" /></a>
+  <a href="https://github.com/0xfelixli"><img src="https://images.weserv.nl/?url=https://avatars.githubusercontent.com/u/81979996?v=4&h=96&w=96&fit=cover&mask=circle&maxage=7d" width="48" height="48" alt="@0xfelixli" /></a>
+  <a href="https://github.com/Sergmay911"><img src="https://images.weserv.nl/?url=https://avatars.githubusercontent.com/u/304439776?v=4&h=96&w=96&fit=cover&mask=circle&maxage=7d" width="48" height="48" alt="@Sergmay911" /></a>
+  <a href="https://github.com/X77seven"><img src="https://images.weserv.nl/?url=https://avatars.githubusercontent.com/u/171017641?v=4&h=96&w=96&fit=cover&mask=circle&maxage=7d" width="48" height="48" alt="@X77seven" /></a>
+  <a href="https://github.com/mookim-eth"><img src="https://images.weserv.nl/?url=https://avatars.githubusercontent.com/u/97934198?v=4&h=96&w=96&fit=cover&mask=circle&maxage=7d" width="48" height="48" alt="@mookim-eth" /></a>
+  <a href="https://github.com/nzhdotme"><img src="https://images.weserv.nl/?url=https://avatars.githubusercontent.com/u/9588882?v=4&h=96&w=96&fit=cover&mask=circle&maxage=7d" width="48" height="48" alt="@nzhdotme" /></a>
+  <a href="https://github.com/Shunamxiao"><img src="https://images.weserv.nl/?url=https://avatars.githubusercontent.com/u/92215296?v=4&h=96&w=96&fit=cover&mask=circle&maxage=7d" width="48" height="48" alt="@Shunamxiao" /></a>
+</p>
+<!-- readme-contributors:end -->

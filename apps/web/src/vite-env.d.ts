@@ -49,9 +49,9 @@ interface EdgeEverDesktopBridge {
   readClipboard?(): Promise<{ html: string; text: string; images: Uint8Array[] }>;
   setSessionToken(value: string): Promise<{ stored: boolean }>;
   clearSessionToken(): Promise<{ stored: false }>;
-  testPicGoConnection(endpoint: string): Promise<boolean>;
+  testPicGoConnection(input: { endpoint: string; serverKey?: string }): Promise<boolean>;
   uploadPicGoImage(input: {
-    endpoint: string; bytes: Uint8Array; filename: string; mimeType: string;
+    endpoint: string; serverKey?: string; bytes: Uint8Array; filename: string; mimeType: string;
     copy: import("@/lib/picgo").PicGoFailureCopy;
   }): Promise<{ url: string } | { fallback: true }>;
   publicNetworkFetch(requestId: string, input: import("@edgeever/shared").PluginPublicFetchRequest): Promise<import("@edgeever/shared").PluginPublicFetchResponse>;

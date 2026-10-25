@@ -27,7 +27,7 @@ export type MobileRenderedWebPage = {
   title?: string;
 };
 
-export type MobileWebClipLocale = "zh-CN" | "en-US" | "ja" | "pl";
+export type MobileWebClipLocale = "zh-CN" | "en-US" | "ja" | "pl" | "ru";
 
 const webClipCopy: Record<MobileWebClipLocale, {
   capturedAtLabel: string;
@@ -67,6 +67,14 @@ const webClipCopy: Record<MobileWebClipLocale, {
     unavailableBody: "Nie udało się wyodrębnić treści strony. Link do źródła został zachowany, więc możesz spróbować ponownie później.",
     fallbackTitle: "Wycinek strony",
     imageAlt: "Obraz",
+    separator: ": ",
+  },
+  ru: {
+    sourceLabel: "Источник",
+    capturedAtLabel: "Сохранено",
+    unavailableBody: "Не удалось извлечь текст страницы. Ссылка на источник сохранена, позже можно повторить.",
+    fallbackTitle: "Вырезка страницы",
+    imageAlt: "Изображение",
     separator: ": ",
   },
 };

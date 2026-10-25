@@ -1,9 +1,26 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Power } from "lucide-react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { SETTINGS_ITEM_DESCRIPTION_CLASSNAME, SETTINGS_ITEM_TITLE_CLASSNAME } from "./settings-ui";
+
+// Lucide Power draws an asymmetric arc and a stem that crowds the opening at 16px.
+const StartupPowerIcon = ({ className }: { className?: string }) => (
+  <svg
+    aria-hidden="true"
+    className={className}
+    fill="none"
+    height="24"
+    stroke="currentColor"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    strokeWidth="2"
+    viewBox="0 0 24 24"
+    width="24"
+  >
+    <path d="M12 3v6.2" />
+    <path d="M16.76 6.93a7.4 7.4 0 1 1-9.51 0" />
+  </svg>
+);
 
 type LoginItemLaunchMode = "window" | "tray";
 
@@ -15,9 +32,17 @@ interface LoginItemState {
   error?: string;
 }
 
+// Packaged desktop is the only place this setting can change the OS. Local web
+// dev still shows the row so the layout can be previewed.
+const devPreviewState = (): LoginItemState | null => (
+  import.meta.env.DEV && typeof window !== "undefined" && !window.edgeeverDesktop?.loginItem
+    ? { supported: true, openAtLogin: false, launchMode: "window", status: "disabled" }
+    : null
+);
+
 export const LoginItemSettingsItem = () => {
   const { t } = useTranslation();
-  const [state, setState] = useState<LoginItemState | null>(null);
+  const [state, setState] = useState<LoginItemState | null>(devPreviewState);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -37,9 +62,22 @@ export const LoginItemSettingsItem = () => {
 
   if (!state?.supported) return null;
 
-  const update = async (patch: { openAtLogin?: boolean; launchMode?: LoginItemLaunchMode }) => {
+  const approvalNotice = state.status === "requires-approval" ? t("settings.loginItem.requiresApproval") : "";
+
+  const update = async (patch: { openAtLogin: boolean }) => {
     const bridge = window.edgeeverDesktop;
-    if (!bridge?.setLoginItem) return;
+    if (!bridge?.setLoginItem) {
+      setState((current) => {
+        if (!current || !import.meta.env.DEV) return current;
+        return {
+          ...current,
+          openAtLogin: patch.openAtLogin,
+          launchMode: "window",
+          status: patch.openAtLogin ? "enabled" : "disabled",
+        };
+      });
+      return;
+    }
     setBusy(true);
     setError("");
     try {
@@ -54,52 +92,23 @@ export const LoginItemSettingsItem = () => {
   };
 
   return (
-    <>
-      <div className="flex min-h-16 flex-col items-start gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-        <div className="flex min-w-0 items-center gap-3">
-          <Power className="h-4 w-4 shrink-0 text-slate-500" />
-          <div className="min-w-0">
-            <div className={SETTINGS_ITEM_TITLE_CLASSNAME}>{t("settings.loginItem.title")}</div>
-            <p className={SETTINGS_ITEM_DESCRIPTION_CLASSNAME}>
-              {state.status === "requires-approval"
-                ? t("settings.loginItem.requiresApproval")
-                : t("settings.loginItem.description")}
-            </p>
-            {error ? <p role="status" className={SETTINGS_ITEM_DESCRIPTION_CLASSNAME}>{error}</p> : null}
-          </div>
-        </div>
-        <div className="flex w-full shrink-0 justify-start sm:w-44 sm:justify-end">
-          <Switch
-            checked={state.openAtLogin}
-            disabled={busy}
-            onCheckedChange={(openAtLogin) => { void update({ openAtLogin }); }}
-            aria-label={t("settings.loginItem.aria")}
-          />
+    <div className="flex min-h-16 flex-col items-start gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+      <div className="flex min-w-0 items-center gap-3">
+        <StartupPowerIcon className="h-4 w-4 shrink-0 text-slate-500" />
+        <div className="min-w-0">
+          <div className={SETTINGS_ITEM_TITLE_CLASSNAME}>{t("settings.loginItem.title")}</div>
+          {approvalNotice ? <p className={SETTINGS_ITEM_DESCRIPTION_CLASSNAME}>{approvalNotice}</p> : null}
+          {error ? <p role="status" className={SETTINGS_ITEM_DESCRIPTION_CLASSNAME}>{error}</p> : null}
         </div>
       </div>
-      {state.openAtLogin ? (
-        <div className="flex min-h-16 flex-col items-start gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-          <div className="flex min-w-0 items-center gap-3">
-            <div className="h-4 w-4 shrink-0" />
-            <div className={SETTINGS_ITEM_TITLE_CLASSNAME}>{t("settings.loginItem.launchModeLabel")}</div>
-          </div>
-          <div className="w-full shrink-0 sm:w-80">
-            <Select
-              value={state.launchMode}
-              disabled={busy}
-              onValueChange={(launchMode) => { void update({ launchMode: launchMode as LoginItemLaunchMode }); }}
-            >
-              <SelectTrigger aria-label={t("settings.loginItem.launchModeLabel")} className="h-9 bg-card">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="window">{t("settings.loginItem.launchModeWindow")}</SelectItem>
-                <SelectItem value="tray">{t("settings.loginItem.launchModeTray")}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-      ) : null}
-    </>
+      <div className="flex w-full shrink-0 justify-start sm:w-44 sm:justify-end">
+        <Switch
+          checked={state.openAtLogin}
+          disabled={busy}
+          onCheckedChange={(openAtLogin) => { void update({ openAtLogin }); }}
+          aria-label={t("settings.loginItem.aria")}
+        />
+      </div>
+    </div>
   );
 };

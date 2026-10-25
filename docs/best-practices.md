@@ -15,22 +15,21 @@ A practical guide to core workflows, key features, and real-world usage scenario
 - [6. X (Twitter) Post & Quote Clipping](#6-x-twitter-post--quote-clipping)
 - [7. Zhihu Answer & Column Article Clipping](#7-zhihu-answer--column-article-clipping)
 - [8. Reddit Discussion Post Clipping](#8-reddit-discussion-post-clipping)
-- [9. GitHub Repository Metadata Clipping](#9-github-repository-metadata-clipping)
 
 ### AI-Powered Structuring & Multi-Dimensional Data
-- [10. AI Conversational Generation of Mind Maps, Flowcharts & Architecture Diagrams](#10-ai-conversational-generation-of-mind-maps-flowcharts--architecture-diagrams)
-- [11. AI Generation of Structured Infographics (Timelines, Matrices & Quadrants)](#11-ai-generation-of-structured-infographics-timelines-matrices--quadrants)
-- [12. AI Conversational Database Table Generation](#12-ai-conversational-database-table-generation)
-- [13. Public Online Form Collection from Database Tables](#13-public-online-form-collection-from-database-tables)
-- [14. Connecting Local Agents via ACP for Note Interaction](#14-connecting-local-agents-via-acp-for-note-interaction)
+- [9. AI Conversational Generation of Mind Maps, Flowcharts & Architecture Diagrams](#9-ai-conversational-generation-of-mind-maps-flowcharts--architecture-diagrams)
+- [10. AI Generation of Structured Infographics (Timelines, Matrices & Quadrants)](#10-ai-generation-of-structured-infographics-timelines-matrices--quadrants)
+- [11. AI Conversational Database Table Generation](#11-ai-conversational-database-table-generation)
+- [12. Public Online Form Collection from Database Tables](#12-public-online-form-collection-from-database-tables)
+- [13. Connecting Local Agents via ACP for Note Interaction](#13-connecting-local-agents-via-acp-for-note-interaction)
 
 ### Visual Styling & Omnichannel Publishing
-- [15. Note Export to Long Image & Code Cards](#15-note-export-to-long-image--code-cards)
-- [16. Social Media Poster & Cover Design from Notes](#16-social-media-poster--cover-design-from-notes)
-- [17. Copying Notes to WeChat Official Account & Blogs](#17-copying-notes-to-wechat-official-account--blogs)
+- [14. Note Export to Long Image & Code Cards](#14-note-export-to-long-image--code-cards)
+- [15. Social Media Poster & Cover Design from Notes](#15-social-media-poster--cover-design-from-notes)
+- [16. Copying Notes to WeChat Official Account & Blogs](#16-copying-notes-to-wechat-official-account--blogs)
 
 ### Open Ecosystem & Extensibility
-- [18. Open Plugin API & Custom Plugin Development](#18-open-plugin-api--custom-plugin-development)
+- [17. Open Plugin API & Custom Plugin Development](#17-open-plugin-api--custom-plugin-development)
 
 ---
 
@@ -93,9 +92,13 @@ Right-click any note page and select **"Save Note to EdgeEver"** using the EdgeE
 - Captures title, topic tags, body text, publish timestamp, and source URL.
 - Automatically formats multi-image sets into multi-column gallery layouts.
 
-| 1. Right-Click Clipper Menu | 2. Multi-Column Gallery Note |
-| :---: | :---: |
-| ![Right-click save Xiaohongshu note to EdgeEver](assets/best-practices/original-image/web-clipper/xiaohongshu/xiaohongshu.png) | ![Xiaohongshu note clipped into multi-column gallery](assets/best-practices/original-image/web-clipper/xiaohongshu/xiaohongshu-in-note.png) |
+| 1. Right-Click Clipper Menu |
+| :---: |
+| ![Right-click save Xiaohongshu note to EdgeEver](assets/best-practices/original-image/web-clipper/xiaohongshu/xiaohongshu.png) |
+
+| 2. Multi-Column Gallery Note |
+| :---: |
+| ![Xiaohongshu note clipped into multi-column gallery](assets/best-practices/original-image/web-clipper/xiaohongshu/xiaohongshu-in-note.png) |
 
 ---
 
@@ -106,9 +109,13 @@ Right-click any post and select **"Save Tweet to EdgeEver"** with the EdgeEver W
 - Extracts author info, tweet content, external links, quote tweets, and multi-image attachments.
 - Formats content into a multi-column gallery layout.
 
-| 1. Right-Click Save Tweet | 2. Note with Quotes & Gallery |
-| :---: | :---: |
-| ![Right-click save tweet to EdgeEver](assets/best-practices/original-image/web-clipper/twitter/twitter.png) | ![X tweet clipped into EdgeEver note with quote](assets/best-practices/original-image/web-clipper/twitter/twitter-in-note.png) |
+| 1. Right-Click Save Tweet |
+| :---: |
+| ![Right-click save tweet to EdgeEver](assets/best-practices/original-image/web-clipper/twitter/twitter.png) |
+
+| 2. Note with Quotes & Gallery |
+| :---: |
+| ![X tweet clipped into EdgeEver note with quote](assets/best-practices/original-image/web-clipper/twitter/twitter-in-note.png) |
 
 ---
 
@@ -118,9 +125,13 @@ Right-click any specific answer or article and select **"Save Answer/Article to 
 
 - Parses question title, author, body, timestamp, and permalink into a structured Q&A note.
 
-| 1. Right-Click Save Answer/Article | 2. Structured Q&A Note Preview |
-| :---: | :---: |
-| ![Right-click save Zhihu answer to EdgeEver](assets/best-practices/original-image/web-clipper/zhihu/zhihu.png) | ![Zhihu answer clipped into EdgeEver note](assets/best-practices/original-image/web-clipper/zhihu/zhihu-in-note.png) |
+| 1. Right-Click Save Answer/Article |
+| :---: |
+| ![Right-click save Zhihu answer to EdgeEver](assets/best-practices/original-image/web-clipper/zhihu/zhihu.png) |
+
+| 2. Structured Q&A Note Preview |
+| :---: |
+| ![Zhihu answer clipped into EdgeEver note](assets/best-practices/original-image/web-clipper/zhihu/zhihu-in-note.png) |
 
 ---
 
@@ -130,65 +141,73 @@ Right-click on the post title or body and select **"Save Selection to EdgeEver"*
 
 - Captures thread title, subreddit (e.g. `r/AskReddit`), author handle, timestamp, and permalink to preserve community metadata.
 
-| 1. Right-Click Save Post | 2. Note with Community Metadata |
-| :---: | :---: |
-| ![Right-click save Reddit post to EdgeEver](assets/best-practices/reddit-clip-menu.png) | ![Reddit post clipped into EdgeEver note](assets/best-practices/reddit-clipped-note.png) |
+| 1. Right-Click Save Post |
+| :---: |
+| ![Right-click save Reddit post to EdgeEver](assets/best-practices/original-image/web-clipper/reddit/reddit.png) |
 
----
-
-### 9. GitHub Repository Metadata Clipping
-
-Right-click anywhere on the GitHub repository page and select **"Save Repository Info to EdgeEver"**.
-
-- Extracts repository name (`Owner/Repo`), description, homepage, language, license, and topic tags into a structured technical card.
-
-| 1. Right-Click Save Repo Info | 2. Structured Repository Card |
-| :---: | :---: |
-| ![Right-click save GitHub repo info to EdgeEver](assets/best-practices/github-clip-menu.png) | ![GitHub repo clipped into EdgeEver note card](assets/best-practices/github-clipped-note.png) |
+| 2. Note with Community Metadata |
+| :---: |
+| ![Reddit post clipped into EdgeEver note](assets/best-practices/original-image/web-clipper/reddit/reddit-in-note.png) |
 
 ---
 
 ## AI-Powered Structuring & Multi-Dimensional Data
 
-### 10. AI Conversational Generation of Mind Maps, Flowcharts & Architecture Diagrams
+### 9. AI Conversational Generation of Mind Maps, Flowcharts & Architecture Diagrams
 
 Prompt the AI Co-pilot (or connected local Agent) with natural language (e.g., "Generate a mind map / flowchart / architecture diagram about LLMs") to create editable diagrams directly in notes.
 
 - Supports drag-and-drop node editing, auto-layout, conditional branches, and system topologies.
 
-| 1. Interactive Mind Map | 2. Standard Flowchart | 3. System Architecture Diagram |
-| :---: | :---: | :---: |
-| ![AI chat generates editable mind map](assets/best-practices/ai-diagram-mindmap.png) | ![AI chat generates editable flowchart](assets/best-practices/ai-diagram-flowchart.png) | ![AI chat generates editable architecture diagram](assets/best-practices/ai-diagram-architecture.png) |
+| 1. Interactive Mind Map |
+| :---: |
+| ![AI chat generates editable mind map](assets/best-practices/original-image/ai-diagram/ai-mindmap.png) |
+
+| 2. Standard Flowchart |
+| :---: |
+| ![AI chat generates editable flowchart](assets/best-practices/original-image/ai-diagram/ai-flowchart.png) |
+
+| 3. System Architecture Diagram |
+| :---: |
+| ![AI chat generates editable architecture diagram](assets/best-practices/original-image/ai-diagram/ai-architecture.png) |
 
 ---
 
-### 11. AI Generation of Structured Infographics (Timelines, Matrices & Quadrants)
+### 10. AI Generation of Structured Infographics (Timelines, Matrices & Quadrants)
 
 Use built-in infographic templates (timelines, comparison matrices, quadrants, and hierarchy charts) by prompting the AI Co-pilot with your topic.
 
 - Organizes key facts and milestones into structured visual infographic notes.
 - Refine through conversational follow-ups or export directly to vector graphics.
 
-| 1. Infographic Template Library | 2. Milestone Timeline Preview |
-| :---: | :---: |
-| ![EdgeEver infographic templates library](assets/best-practices/ai-infographic-templates.png) | ![AI generated ByteDance milestone timeline](assets/best-practices/ai-infographic-generated.png) |
+| 1. Technology Roadmap Infographic |
+| :---: |
+| ![AI generated LLM technology roadmap infographic](assets/best-practices/original-image/ai-diagram/ai-infographic-ai-roadmap.png) |
+
+| 2. Milestone Timeline Infographic |
+| :---: |
+| ![AI generated ByteDance milestone timeline](assets/best-practices/original-image/ai-diagram/ai-infographic-bytedance.png) |
 
 ---
 
-### 12. AI Conversational Database Table Generation
+### 11. AI Conversational Database Table Generation
 
 Send a prompt to the AI Co-pilot (e.g., "Create a database table for social media content planning" or "Generate an employee onboarding tracker") to construct complete data tables.
 
 - Infers column types (tags, text, dates, links) with initial sample rows.
 - Supports views, filtering, sorting, and CSV export.
 
-| 1. Content Planning Table | 2. Employee Directory Table |
-| :---: | :---: |
-| ![AI generated media topic tracker table](assets/best-practices/original-image/database-note/database-hot-select.png) | ![AI generated employee directory database table](assets/best-practices/original-image/database-note/database-employee-register.png) |
+| 1. Content Planning Table |
+| :---: |
+| ![AI generated media topic tracker table](assets/best-practices/original-image/database-note/database-hot-select.png) |
+
+| 2. Employee Directory Table |
+| :---: |
+| ![AI generated employee directory database table](assets/best-practices/original-image/database-note/database-employee-register.png) |
 
 ---
 
-### 13. Public Online Form Collection from Database Tables
+### 12. Public Online Form Collection from Database Tables
 
 Click **"Form Collection"** at the top of any database table to generate a public online data entry form.
 
@@ -201,7 +220,7 @@ Click **"Form Collection"** at the top of any database table to generate a publi
 
 ---
 
-### 14. Connecting Local Agents via ACP for Note Interaction
+### 13. Connecting Local Agents via ACP for Note Interaction
 
 EdgeEver natively supports **ACP (Agent Client Protocol)**, allowing desktop clients to connect with local AI agent environments (such as Codex, Claude Code, DeepSeek Harness, Antigravity, etc.).
 
@@ -216,7 +235,7 @@ EdgeEver natively supports **ACP (Agent Client Protocol)**, allowing desktop cli
 
 ## Visual Styling & Omnichannel Publishing
 
-### 15. Note Export to Long Image & Code Cards
+### 14. Note Export to Long Image & Code Cards
 
 Use the "Share as Image" feature to render notes into high-resolution long images or cards.
 
@@ -229,7 +248,7 @@ Use the "Share as Image" feature to render notes into high-resolution long image
 
 ---
 
-### 16. Social Media Poster & Cover Design from Notes
+### 15. Social Media Poster & Cover Design from Notes
 
 Click **"Create Poster"** in any note's action menu (or via "New → Poster") to load key takeaways and titles into the Poster Design Studio.
 
@@ -242,21 +261,25 @@ Click **"Create Poster"** in any note's action menu (or via "New → Poster") to
 
 ---
 
-### 17. Copying Notes to WeChat Official Account & Blogs
+### 16. Copying Notes to WeChat Official Account & Blogs
 
 Select **"Copy to Official Account / Blog"** (复制到公众号 / 博客) from the note menu to convert notes into rich text with inline CSS.
 
 - Paste directly into the WeChat Official Account editor while preserving tables, callouts, code blocks, lists, and typography styles.
 
-| 1. Copy to Official Account / Blog | 2. WeChat Official Account Editor Layout |
-| :---: | :---: |
-| ![EdgeEver note menu copy to WeChat MP](assets/best-practices/original-image/wechat-article-copy-to/right-menu.png) | ![Note pasted into WeChat MP editor layout](assets/best-practices/original-image/wechat-article-copy-to/show-in-wechat-editor.png) |
+| 1. Copy to Official Account / Blog |
+| :---: |
+| ![EdgeEver note menu copy to WeChat MP](assets/best-practices/original-image/wechat-article-copy-to/right-menu.png) |
+
+| 2. WeChat Official Account Editor Layout |
+| :---: |
+| ![Note pasted into WeChat MP editor layout](assets/best-practices/original-image/wechat-article-copy-to/show-in-wechat-editor.png) |
 
 ---
 
 ## Open Ecosystem & Extensibility
 
-### 18. Open Plugin API & Custom Plugin Development
+### 17. Open Plugin API & Custom Plugin Development
 
 EdgeEver features an extension manager supporting one-click installation via GitHub repository URLs or Manifest links, with cross-device workspace synchronization between Web and Desktop.
 
@@ -266,6 +289,10 @@ EdgeEver features an extension manager supporting one-click installation via Git
   - **AI RSS Feed Assistant ([EdgeEver AI RSS](https://github.com/tianma-if/edgeever-ai-rss))**: Automatically captures RSS/Atom feeds and uses AI to generate structured daily digest notes.
 - For complete API documentation and development workflows, refer to the [EdgeEver Plugin Development Guide](plugin-development.md).
 
-| 1. Extension & Plugin Management Center | 2. AI Digest Note Generated by Official AI RSS Plugin |
-| :---: | :---: |
-| ![EdgeEver plugin marketplace and official extension management](assets/best-practices/original-image/plugin/official-in.png) | ![Structured daily digest note generated by EdgeEver AI RSS plugin](assets/best-practices/original-image/plugin/ai-daily.png) |
+| 1. Extension & Plugin Management Center |
+| :---: |
+| ![EdgeEver plugin marketplace and official extension management](assets/best-practices/original-image/plugin/official-in.png) |
+
+| 2. Plugin API Namespaces & Documentation |
+| :---: |
+| ![EdgeEver plugin development API reference and documentation](assets/best-practices/original-image/plugin/plugin-api.png) |

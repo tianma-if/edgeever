@@ -3676,6 +3676,15 @@ export const WorkspaceApp = ({
                           onToggleDesktopFocusMode={toggleDesktopFocusMode}
                           aiAssistantOpenToken={noteAiAssistantOpenToken}
                           shortcutSettings={shortcutSettings}
+                          companionAvailable={authRequired && Boolean(user) && !demoMode}
+                          beforeCompanionApply={async () => {
+                            const { assertCompanionChangesSynced } = await import("@/lib/companion-actions");
+                            await assertCompanionChangesSynced(localDataScope);
+                          }}
+                          onCompanionNotesChanged={async () => {
+                            const result = await refreshWorkspaceFromServer("manual");
+                            if ("skipped" in result && result.skipped) throw new Error("Workspace refresh was skipped.");
+                          }}
                           onOpenCompanionNote={handleOpenPluginNote}
                           onSaved={async (memo) => {
                             await putLocalMemo(localDataScope, memo);

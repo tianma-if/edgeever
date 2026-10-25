@@ -22,6 +22,7 @@ export const plSiteCopy = {
     memosMigration: "Migracja z Memos",
     notionMigration: "Migracja z Notion",
     flomoMigration: "Migracja z Flomo",
+    bestPractices: "Prezentacja",
     advancedPlay: "Praca z agentami AI",
     blog: "Blog",
     backToBlog: "Wróć do bloga",
@@ -54,6 +55,7 @@ export const plSiteCopy = {
     heading: "Zbudowany od nowa z myślą o samodzielnym hostingu wiedzy i pracy z AI",
     subheading:
       "Bez reklam, limitów urządzeń i drogich subskrypcji. Każdy szczegół służy szybkiemu, otwartemu i prywatnemu „drugiemu mózgowi”.",
+    showcaseCta: "Zobacz 17 praktycznych scenariuszy i zrzutów ekranu",
     card1: {
       badge: "Klasyczny interfejs",
       title: "Klasyczny układ trzech paneli – szybszy i lżejszy",
@@ -269,6 +271,12 @@ export const plSiteCopy = {
         summary: "Użyj EdgeEver MCP, evernote-backup i skryptu importu ENEX, aby przenieść starą bibliotekę notatek do własnej instancji.",
         href: "/blog/evernote-migration-guide",
         cta: "Przeczytaj poradnik migracji",
+      },
+      {
+        title: "17 praktycznych scenariuszy",
+        summary: "Wizualny przegląd pisania w trzech panelach, wycinania treści, diagramów i tabel AI, lokalnych agentów ACP i plakatów.",
+        href: "/guides/best-practices",
+        cta: "Zobacz przykłady",
       },
       {
         title: "Zaawansowana praca z agentami AI",

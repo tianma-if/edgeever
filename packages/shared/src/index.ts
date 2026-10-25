@@ -2,6 +2,7 @@ export * from "./content";
 export * from "./document-extensions";
 export * from "./image-alignment";
 export * from "./companion";
+export * from "./companion-focus";
 export * from "./public-demo";
 export * from "./ai-assistant";
 export * from "./ai-generation";

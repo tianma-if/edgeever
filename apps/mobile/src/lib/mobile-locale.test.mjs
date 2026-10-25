@@ -29,7 +29,7 @@ describe("mobile locale translation", () => {
     ];
     // Japanese writes "unsaved" with the same characters as Chinese.
     const sameInJapanese = new Set(["未保存"]);
-    for (const locale of ["en-US", "ja", "pl"]) {
+    for (const locale of ["en-US", "ja", "pl", "ru"]) {
       const untranslated = copy.filter((value) => translateMobileText(value, locale) === value
         && !(locale === "ja" && sameInJapanese.has(value)));
       expect({ locale, untranslated }).toEqual({ locale, untranslated: [] });
@@ -100,6 +100,7 @@ describe("mobile locale translation", () => {
     expect(localizeMissingNotebookName("en-US")).toBe("Uncategorized");
     expect(localizeMissingNotebookName("ja")).toBe("未分類");
     expect(localizeMissingNotebookName("pl")).toBe("Nieprzypisane");
+    expect(localizeMissingNotebookName("ru")).toBe("Без блокнота");
     expect(localizeMissingNotebookName("zh-CN")).toBe("未分类");
   });
 
