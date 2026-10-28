@@ -218,7 +218,7 @@
     "prosemirror-model": "1.25.11",
     "react-native": "0.86.3",
     "prosemirror-view": "1.42.6",
-    "dompurify": "3.4.16",
+    "dompurify": "3.4.17",
     "katex": "0.18.2",
     "sharp": "0.35.5",
     "mermaid": "11.16.1",
