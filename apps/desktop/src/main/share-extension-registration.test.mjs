@@ -24,7 +24,6 @@ describe("macOS share extension registration", () => {
     });
     expect(result).toEqual({ enabled: true });
     expect(calls).toEqual([
-      ["-a", "/Applications/EdgeEver.app/Contents/PlugIns/EdgeEverShare.appex"],
       ["-e", "use", "-i", "org.edgeever.desktop.share"],
     ]);
   });

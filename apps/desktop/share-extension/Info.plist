@@ -18,6 +18,10 @@
 	<string>XPC!</string>
 	<key>CFBundleShortVersionString</key>
 	<string>__MARKETING_VERSION__</string>
+	<key>CFBundleSupportedPlatforms</key>
+	<array>
+		<string>MacOSX</string>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>__BUILD_VERSION__</string>
 	<key>LSMinimumSystemVersion</key>
@@ -33,8 +37,14 @@
 				<key>NSExtensionActivationSupportsFileWithMaxCount</key>
 				<integer>8</integer>
 			</dict>
+			<key>NSExtensionPointName</key>
+			<string>com.apple.share-services</string>
+			<key>NSExtensionPointVersion</key>
+			<string>1.0</string>
 		</dict>
 		<key>NSExtensionPointIdentifier</key>
+		<string>com.apple.share-services</string>
+		<key>NSExtensionPointName</key>
 		<string>com.apple.share-services</string>
 		<key>NSExtensionPrincipalClass</key>
 		<string>ShareViewController</string>

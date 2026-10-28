@@ -7,6 +7,9 @@ export const macShareExtensionPath = (executablePath) =>
 
 // macOS leaves a newly installed share extension disabled. The host app has to
 // elect it, or WeChat's share sheet never lists EdgeEver for that user.
+// Note: Embedded app extensions must not be registered via `pluginkit -a`, which
+// treats them as uncontained plug-ins and causes LaunchServices/pkd to mark them
+// as uninstalled. Only elect the extension via `pluginkit -e use`.
 export const enableMacShareExtension = async ({
   platform,
   packaged,
@@ -17,7 +20,6 @@ export const enableMacShareExtension = async ({
   if (platform !== "darwin" || !packaged) return { enabled: false };
   const appexPath = macShareExtensionPath(executablePath);
   if (!exists(appexPath)) return { enabled: false };
-  await runPluginkit(execFile, ["-a", appexPath]);
   await runPluginkit(execFile, ["-e", "use", "-i", SHARE_EXTENSION_BUNDLE_ID]);
   return { enabled: true };
 };
