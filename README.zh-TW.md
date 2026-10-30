@@ -194,7 +194,8 @@ curl -fsSL https://edgeever.org/install.sh | bash
 ### 儲存擴充與第三方圖床
 
 - **OSS 物件儲存**：實例 Owner 可在**設定 → 進階設定 → OSS 物件儲存**中設定相容 S3 API 的物件儲存。切換儲存不會遷移或影響既有附件。
-- **桌面端 PicGo 圖床**：桌面端可以把新插入的圖片交給本機或你信任的遠端 PicGo、PicList 服務（例如 NAS），再由它上傳到 GitHub、SM.MS、又拍雲、七牛雲或自建圖床。
+- **桌面端 PicGo 圖床**：桌面端可以把新插入的圖片交給本機或你信任的遠端 PicGo、PicList 服務（例如 NAS），再由它上傳到 GitHub、SM.MS、又拍雲、七牛雲或自建圖床。位址只需以 `/upload` 結尾，經過反向代理的 PicList 也能使用。
+- **桌面端 CloudFlare ImgBed 圖床**：桌面端也可以用 API Token 把新插入的圖片直接上傳到你自建的 [CloudFlare ImgBed](https://github.com/MarSeventh/CloudFlare-ImgBed)。上傳目錄支援 `{Y}/{m}/{d}`、`{memoId}` 等 PicList 風格的佔位符。
 
 ### 外掛與個人化主題
 

@@ -61,7 +61,8 @@ import { createUpdateDiagnostic } from "./update-diagnostics.mjs";
 import { createUpdateNetworkDiagnostics } from "./update-network-diagnostics.mjs";
 import { normalizeUpdateProgress } from "./update-progress.mjs";
 import { inspectWindowsTaskbarShortcuts } from "./windows-taskbar-diagnostics.mjs";
-import { testPicGoConnection, createPicGoUploadQueue } from "./picgo.mjs";
+import { testPicGoConnection, createPicGoUploadQueue, uploadPicGoImage } from "./picgo.mjs";
+import { testImgBedConnection, uploadImgBedImage } from "./imgbed.mjs";
 import { createPluginPublicNetworkRuntime } from "./plugin-public-network.mjs";
 import { createAiDirectRuntime } from "./ai-direct.mjs";
 import { createAcpPathStore, validateTrustedAcpPath } from "./acp-path-store.mjs";
@@ -2049,8 +2050,14 @@ const startApplication = async () => {
     const target = input && typeof input === "object" ? input : { endpoint: input, serverKey: "" };
     return testPicGoConnection(target.endpoint, { serverKey: target.serverKey });
   });
-  // Serialize uploads and error dialogs across rapid pastes and multi-image batches.
+  ipcMain.handle("desktop:imgbed-test", (event, input) => {
+    if (!isAppRendererSender(event)) throw new Error("ImgBed requests must come from the main window");
+    return testImgBedConnection(input && typeof input === "object" ? input : {});
+  });
+  // Serialize uploads and error dialogs across rapid pastes and multi-image batches,
+  // shared by PicGo and ImgBed so one failure dialog is shown at a time.
   const queuePicGoUpload = createPicGoUploadQueue({
+    upload: (input) => input.provider === "imgbed" ? uploadImgBedImage(input) : uploadPicGoImage(input),
     isActive: () => Boolean(mainWindow && !mainWindow.webContents.isDestroyed()),
     chooseFailure: async (input) => {
       const copy = input.copy;
@@ -2065,7 +2072,12 @@ const startApplication = async () => {
   ipcMain.handle("desktop:picgo-upload", (event, input) => {
     if (!isAppRendererSender(event)) throw new Error("PicGo requests must come from the main window");
     const sender = event.sender;
-    return queuePicGoUpload(input, () => !sender.isDestroyed() && (sender === mainWindow?.webContents || noteWindows.isNoteWindowContents(sender)));
+    return queuePicGoUpload({ ...input, provider: "picgo" }, () => !sender.isDestroyed() && (sender === mainWindow?.webContents || noteWindows.isNoteWindowContents(sender)));
+  });
+  ipcMain.handle("desktop:imgbed-upload", (event, input) => {
+    if (!isAppRendererSender(event)) throw new Error("ImgBed requests must come from the main window");
+    const sender = event.sender;
+    return queuePicGoUpload({ ...input, provider: "imgbed" }, () => !sender.isDestroyed() && (sender === mainWindow?.webContents || noteWindows.isNoteWindowContents(sender)));
   });
   ipcMain.handle("desktop:public-network-fetch", async (event, requestId, input) => {
     if (event.sender !== mainWindow?.webContents) throw new Error("Public network requests must come from the main window");

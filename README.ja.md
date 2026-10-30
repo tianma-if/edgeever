@@ -195,7 +195,8 @@ curl -fsSL https://edgeever.org/install.sh | bash
 ### ストレージ拡張とサードパーティ画像ホスティング
 
 - **OSS オブジェクトストレージ**：インスタンスのオーナーは **設定 → 詳細 → OSS オブジェクトストレージ** で S3 互換ストレージを設定できます。切り替えは既存添付を移さず、影響しません。
-- **デスクトップ版 PicGo 連携**：デスクトップ版は、このパソコンまたは信頼できる別のマシン（NAS など）の PicGo / PicList に挿入画像を渡し、GitHub、SM.MS、又拍雲、七牛雲や自前ホストへアップロードできます。
+- **デスクトップ版 PicGo 連携**：デスクトップ版は、このパソコンまたは信頼できる別のマシン（NAS など）の PicGo / PicList に挿入画像を渡し、GitHub、SM.MS、又拍雲、七牛雲や自前ホストへアップロードできます。アドレスは `/upload` で終われば良いので、リバースプロキシ配下の PicList も使えます。
+- **デスクトップ版 CloudFlare ImgBed 連携**：デスクトップ版は、API トークンを使って挿入画像を自前の [CloudFlare ImgBed](https://github.com/MarSeventh/CloudFlare-ImgBed) に直接アップロードすることもできます。アップロード先フォルダーには `{Y}/{m}/{d}` や `{memoId}` など PicList 形式のプレースホルダーを使えます。
 
 ### プラグインとカスタムテーマ
 

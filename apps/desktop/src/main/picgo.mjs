@@ -4,7 +4,7 @@
 import { lookup } from "node:dns/promises";
 import { BlockList, isIP } from "node:net";
 
-const ADDRESS_ERROR = "Use a PicGo or PicList upload address such as http://127.0.0.1:36677/upload";
+const ADDRESS_ERROR = "Use a PicGo or PicList upload address ending in /upload, such as http://127.0.0.1:36677/upload";
 const BLOCKED_HOSTNAMES = new Set(["metadata.google.internal", "metadata.goog"]);
 
 const blockedAddresses = new BlockList();
@@ -42,10 +42,10 @@ export const isBlockedPicGoAddress = (address) => {
   return true;
 };
 
-const assertHostShape = (hostname) => {
+export const assertHostShape = (hostname, message = ADDRESS_ERROR) => {
   const host = canonicalHost(hostname);
-  if (!host || BLOCKED_HOSTNAMES.has(host) || /^\d+$/.test(host)) throw new Error(ADDRESS_ERROR);
-  if (isLiteralHost(host) && isBlockedPicGoAddress(host)) throw new Error(ADDRESS_ERROR);
+  if (!host || BLOCKED_HOSTNAMES.has(host) || /^\d+$/.test(host)) throw new Error(message);
+  if (isLiteralHost(host) && isBlockedPicGoAddress(host)) throw new Error(message);
 };
 
 export const normalizePicGoServerKey = (value) => {
@@ -62,51 +62,55 @@ export const normalizePicGoEndpoint = (value) => {
   let url;
   try { url = new URL(value); }
   catch { throw new Error(ADDRESS_ERROR); }
-  if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || url.hash || url.search || url.pathname !== "/upload") {
+  if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || url.hash || url.search || !url.pathname.endsWith("/upload")) {
     throw new Error(ADDRESS_ERROR);
   }
   assertHostShape(url.hostname);
   return url;
 };
 
-const buildPicGoUrl = (endpoint, serverKey, pathname) => {
+// A reverse proxy may mount PicList under a prefix; heartbeat sits beside /upload.
+const buildPicGoUrl = (endpoint, serverKey, action) => {
   const url = normalizePicGoEndpoint(endpoint);
-  url.pathname = pathname;
+  if (action === "heartbeat") url.pathname = `${url.pathname.slice(0, -"/upload".length)}/heartbeat`;
   const key = normalizePicGoServerKey(serverKey);
   if (key) url.searchParams.set("key", key);
   return url;
 };
 
-const assertPicGoHostAllowed = async (hostname, lookupImpl) => {
-  assertHostShape(hostname);
+export const assertImageHostAllowed = async (hostname, lookupImpl, { label = "PicGo", message = ADDRESS_ERROR } = {}) => {
+  assertHostShape(hostname, message);
   const host = canonicalHost(hostname);
   if (isLiteralHost(host)) return;
   let records;
   try {
     records = await lookupImpl(host, { all: true, verbatim: true });
   } catch {
-    throw new Error("PicGo host could not be resolved");
+    throw new Error(`${label} host could not be resolved`);
   }
-  if (!Array.isArray(records) || records.length === 0) throw new Error("PicGo host could not be resolved");
+  if (!Array.isArray(records) || records.length === 0) throw new Error(`${label} host could not be resolved`);
   for (const record of records) {
-    if (!record || typeof record.address !== "string" || isBlockedPicGoAddress(record.address)) throw new Error(ADDRESS_ERROR);
+    if (!record || typeof record.address !== "string" || isBlockedPicGoAddress(record.address)) throw new Error(message);
   }
 };
 
-const request = async (url, body, fetchImpl, timeoutMs) => {
+export const postImageHostJson = async (url, body, fetchImpl, timeoutMs, { label = "PicGo", headers } = {}) => {
   let response;
   try {
     response = await fetchImpl(url, {
-      method: "POST", body, redirect: "error", signal: AbortSignal.timeout(timeoutMs),
+      method: "POST", body, headers, redirect: "error", signal: AbortSignal.timeout(timeoutMs),
     });
   } catch (error) {
     const name = error && typeof error === "object" ? error.name : "";
-    if (name === "TimeoutError" || name === "AbortError") throw new Error("PicGo did not respond in time");
-    throw new Error("PicGo could not be reached");
+    if (name === "TimeoutError" || name === "AbortError") throw new Error(`${label} did not respond in time`);
+    throw new Error(`${label} could not be reached`);
   }
-  if (!response.ok) throw new Error(`PicGo HTTP ${response.status}`);
+  if (!response.ok) {
+    await response.body?.cancel().catch(() => {});
+    throw new Error(`${label} HTTP ${response.status}`);
+  }
   const reader = response.body?.getReader();
-  if (!reader) throw new Error("PicGo returned an empty response");
+  if (!reader) throw new Error(`${label} returned an empty response`);
   const chunks = [];
   let length = 0;
   try {
@@ -114,7 +118,7 @@ const request = async (url, body, fetchImpl, timeoutMs) => {
       const { done, value } = await reader.read();
       if (done) break;
       length += value.byteLength;
-      if (length > 65536) throw new Error("PicGo response is too large");
+      if (length > 65536) throw new Error(`${label} response is too large`);
       chunks.push(value);
     }
   } finally {
@@ -127,21 +131,21 @@ const request = async (url, body, fetchImpl, timeoutMs) => {
   try {
     return JSON.parse(new TextDecoder().decode(bytes));
   } catch {
-    throw new Error("PicGo returned an unreadable response");
+    throw new Error(`${label} returned an unreadable response`);
   }
 };
 
 export const testPicGoConnection = async (endpoint, { fetchImpl = fetch, timeoutMs = 5000, serverKey = "", lookupImpl = lookup } = {}) => {
-  const url = buildPicGoUrl(endpoint, serverKey, "/heartbeat");
-  await assertPicGoHostAllowed(url.hostname, lookupImpl);
-  const data = await request(url, undefined, fetchImpl, timeoutMs);
+  const url = buildPicGoUrl(endpoint, serverKey, "heartbeat");
+  await assertImageHostAllowed(url.hostname, lookupImpl);
+  const data = await postImageHostJson(url, undefined, fetchImpl, timeoutMs);
   if (data?.success !== true || data.result !== "alive") throw new Error("The service did not identify itself as PicGo or PicList");
   return true;
 };
 
 export const uploadPicGoImage = async (input, { fetchImpl = fetch, timeoutMs = 60000, lookupImpl = lookup } = {}) => {
-  const url = buildPicGoUrl(input.endpoint, input.serverKey, "/upload");
-  await assertPicGoHostAllowed(url.hostname, lookupImpl);
+  const url = buildPicGoUrl(input.endpoint, input.serverKey, "upload");
+  await assertImageHostAllowed(url.hostname, lookupImpl);
   const bytes = input.bytes;
   if (!(bytes instanceof Uint8Array) || bytes.byteLength === 0 || bytes.byteLength > 50 * 1024 * 1024
     || typeof input.mimeType !== "string" || !input.mimeType.startsWith("image/")) {
@@ -149,7 +153,7 @@ export const uploadPicGoImage = async (input, { fetchImpl = fetch, timeoutMs = 6
   }
   const form = new FormData();
   form.append("files", new Blob([bytes], { type: input.mimeType }), String(input.filename || "image.png"));
-  const data = await request(url, form, fetchImpl, timeoutMs);
+  const data = await postImageHostJson(url, form, fetchImpl, timeoutMs);
   if (data?.success !== true || !Array.isArray(data.result) || data.result.length !== 1) {
     throw new Error("PicGo did not return an uploaded image URL");
   }

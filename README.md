@@ -196,7 +196,8 @@ The instance administrator can create, disable, or reset member accounts in **Pr
 ### Storage Extension & Third-Party Image Hosting
 
 - **OSS Object Storage**: The instance owner can configure S3-compatible object storage under **Settings → Advanced → OSS object storage**. Changing storage does not migrate or affect existing attachments.
-- **Desktop PicGo integration**: The desktop app can hand inserted images to a PicGo or PicList server on this computer or on another machine you trust, such as a NAS. That server uploads them to GitHub, SM.MS, Upyun, Qiniu, or a custom image host.
+- **Desktop PicGo integration**: The desktop app can hand inserted images to a PicGo or PicList server on this computer or on another machine you trust, such as a NAS. That server uploads them to GitHub, SM.MS, Upyun, Qiniu, or a custom image host. The address only needs to end with `/upload`, so a PicList behind a reverse proxy works too.
+- **Desktop CloudFlare ImgBed**: The desktop app can also upload inserted images straight to your self-hosted [CloudFlare ImgBed](https://github.com/MarSeventh/CloudFlare-ImgBed) with an API token. The upload folder accepts PicList-style placeholders such as `{Y}/{m}/{d}` and `{memoId}`.
 
 ### Plugins and Themes
 
