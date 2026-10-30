@@ -1111,7 +1111,7 @@ export const enUS = {
         folderInvalid: {
           placeholder: "The folder contains an unsupported placeholder or a stray brace.",
           characters: "The folder cannot contain characters such as \\ ? # % < > : * | \".",
-          length: "The folder template cannot exceed 200 characters.",
+          length: "The expanded folder could exceed 200 characters (counting each placeholder at its longest value, {memoId} as 64 characters).",
         },
         nameType: "File naming",
         nameTypes: {

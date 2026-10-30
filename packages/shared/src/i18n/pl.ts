@@ -1100,7 +1100,7 @@ export const pl = {
         folderInvalid: {
           placeholder: "Folder zawiera nieobsługiwany symbol zastępczy lub zbędny nawias klamrowy.",
           characters: "Folder nie może zawierać znaków takich jak \\ ? # % < > : * | \".",
-          length: "Szablon folderu nie może przekraczać 200 znaków.",
+          length: "Rozwinięty folder może przekroczyć 200 znaków (każdy symbol zastępczy liczony jest według najdłuższej wartości, {memoId} jako 64 znaki).",
         },
         nameType: "Nazwa pliku",
         nameTypes: {

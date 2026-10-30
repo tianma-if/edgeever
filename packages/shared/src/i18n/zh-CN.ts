@@ -1111,7 +1111,7 @@ export const zhCN = {
         folderInvalid: {
           placeholder: "目录里有不支持的占位符或多余的花括号。",
           characters: "目录不能包含 \\ ? # % < > : * | \" 等字符。",
-          length: "目录模板不能超过 200 个字符。",
+          length: "目录展开后可能超过 200 个字符（按占位符的最长取值计算，{memoId} 按 64 个字符计）。",
         },
         nameType: "文件命名",
         nameTypes: {

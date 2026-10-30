@@ -11,7 +11,7 @@
 | 编号 | 行为 | 验收 |
 | --- | --- | --- |
 | B01 | 设置项包括 ImgBed 地址（站点根地址或 `…/upload`）、具有 `upload` 权限的 API Token、可选的上传目录、ImgBed 的文件命名方式（`default`、`index`、`origin`、`short`）、上传渠道（`telegram`、`cfr2`、`s3`、`discord`、`huggingface`、`webdav`）以及服务端压缩。渠道和压缩的默认值与 ImgBed 接口一致：`telegram`，压缩开启。与 PicGo 一样，测试连接成功后才能保存。 | 桌面端 `imgbed.test.mjs`：地址与 Token 规范化。 |
-| B02 | 上传目录支持 PicList 占位符 `{Y}` `{y}` `{m}` `{d}` `{h}` `{i}` `{s}` `{ms}` `{timestamp}` `{timestampS}` `{uuid}` `{str-N}`，以及 EdgeEver 的 `{memoId}`（接收图片的笔记）。日期按上传者本地时区计算。不支持的占位符、多余的花括号、非法字符和超过 200 个字符的模板会在保存前被拒绝；设置页显示展开后的预览。 | Web 端 `imgbed.test.mjs`。 |
+| B02 | 上传目录支持 PicList 占位符 `{Y}` `{y}` `{m}` `{d}` `{h}` `{i}` `{s}` `{ms}` `{timestamp}` `{timestampS}` `{uuid}` `{str-N}`，以及 EdgeEver 的 `{memoId}`（接收图片的笔记）。日期按上传者本地时区计算。不支持的占位符、多余的花括号和非法字符会在保存前被拒绝；展开后最长可能超过主进程 200 字符上限的目录也会被拒绝（每个占位符按最长取值计算，`{memoId}` 最多 64 个字符），避免测试连接通过、带真实笔记 ID 上传时才失败；设置页显示展开后的预览。 | Web 端 `imgbed.test.mjs`。 |
 | B03 | 上传时发送 `POST {地址}/upload?uploadChannel=…&serverCompress=…&uploadNameType=…&uploadFolder=…`，带 `Authorization: Bearer <token>`，图片放在 `file` 字段。ImgBed 返回 `publicUrl` 时写入该链接，否则用 ImgBed 地址解析 `src`。只接受单个不含账号密码的 http(s) 链接。 | 桌面端 `imgbed.test.mjs`。 |
 | B04 | ImgBed 没有心跳接口，测试连接会向配置的目录上传一张名为 `edgeever-connection-test.png` 的 1×1 透明 PNG，设置页对此有说明。 | 桌面端 `imgbed.test.mjs`。 |
 | B05 | ImgBed 与 PicGo 共用同一个上传队列和现有的失败对话框（重试 / 改存 EdgeEver / 取消），文案按 ImgBed 区分。Token 被拒（HTTP 401/403）时会给出提示，且不回显 Token。 | 桌面端 `imgbed.test.mjs`、`picgo.test.mjs`。 |
