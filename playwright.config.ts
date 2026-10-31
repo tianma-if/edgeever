@@ -22,6 +22,12 @@ export default defineConfig({
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
     },
+    {
+      name: "webkit",
+      // Keep Safari coverage focused on the appearance interactions for now.
+      testMatch: "notebook-appearance.spec.ts",
+      use: { ...devices["Desktop Safari"] },
+    },
   ],
   webServer: {
     command: "bun run dev",

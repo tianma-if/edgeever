@@ -1,6 +1,6 @@
 name: Test
 
-# Runs the non-E2E regression suite, lint, type checks and the web build for every
+# Runs regression tests, focused browser tests, lint, type checks and the web build for every
 # pull request and every push to main, so failures surface before a release
 # instead of in the release workflow.
 on:
@@ -92,3 +92,36 @@ jobs:
 
       - name: Run regression tests
         run: bun run test
+
+  notebook-appearance:
+    if: github.repository == 'tianma-if/edgeever'
+    name: Notebook appearance (Chromium and WebKit)
+    # Safari's mouse-focus behavior differs from Chromium and from Linux WebKit.
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+
+      - name: Install dependencies
+        run: |
+          for attempt in 1 2 3; do
+            if bun install --frozen-lockfile; then
+              exit 0
+            fi
+            if [[ "$attempt" = "3" ]]; then
+              exit 1
+            fi
+            sleep "$((15 * attempt))"
+          done
+
+      - name: Install Chromium and WebKit
+        run: bun run test:e2e:install
+
+      - name: Test notebook appearance in both browsers
+        run: bun run test:e2e tests/e2e/notebook-appearance.spec.ts

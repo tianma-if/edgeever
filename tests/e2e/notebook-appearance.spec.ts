@@ -1,4 +1,97 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
+
+const createAppearanceNotebook = async (page: Page) => {
+  await page.addInitScript(() => localStorage.setItem("edgeever.locale.preference", "en-US"));
+  await page.goto("/");
+  const name = `Appearance interaction ${Date.now()}`;
+  const created = await page.request.post("/api/v1/notebooks", { data: { name } });
+  expect(created.ok()).toBeTruthy();
+  const { notebook } = await created.json();
+  const row = page.locator(`[data-notebook-id="${notebook.id}"]`);
+  const dialog = page.getByRole("dialog", { name: "Appearance", exact: true });
+  return {
+    row,
+    dialog,
+    read: async () => {
+      const response = await page.request.get("/api/v1/notebooks");
+      expect(response.ok()).toBeTruthy();
+      return (await response.json()).notebooks.find((item: { id: string }) => item.id === notebook.id);
+    },
+    open: async () => {
+      await page.reload();
+      await expect(row).toBeVisible();
+      await row.hover();
+      await row.getByRole("button", { name: `Open actions for ${name}`, exact: true }).click();
+      await page.getByRole("button", { name: "Appearance", exact: true }).click();
+      await expect(dialog).toBeVisible();
+    },
+    remove: async () => {
+      const response = await page.request.delete(`/api/v1/notebooks/${notebook.id}`);
+      expect(response.ok()).toBeTruthy();
+    },
+  };
+};
+
+test("selects a notebook icon with the mouse after searching and persists it across reloads", async ({ page }) => {
+  const { row, dialog, read, open, remove } = await createAppearanceNotebook(page);
+  try {
+    await open();
+    await dialog.getByRole("button", { name: "Icon", exact: true }).click();
+    const search = dialog.getByPlaceholder("Search icons (English or German)");
+    await search.fill("alarm-clock");
+    await expect(search).toBeFocused();
+    // Use a real mouse click: dispatchEvent("click") skips Safari's blur-before-click sequence.
+    await dialog.getByRole("option", { name: "alarm clock", exact: true }).click();
+    await expect(dialog.getByRole("listbox")).toBeHidden();
+    await expect(dialog.locator("[data-notebook-appearance-preview] [data-notebook-icon]")).toHaveAttribute("data-notebook-icon", "alarm-clock");
+    expect(await read()).toMatchObject({ icon: null });
+    await dialog.getByRole("button", { name: "Confirm", exact: true }).click();
+    await expect(dialog).toBeHidden();
+    await expect.poll(read).toMatchObject({ icon: "alarm-clock" });
+    await page.reload();
+    await expect(row.locator("[data-notebook-icon]")).toHaveAttribute("data-notebook-icon", "alarm-clock");
+    await expect(row.locator('[data-notebook-icon] circle[cx="12"][cy="13"]')).toHaveCount(1);
+  } finally {
+    await remove();
+  }
+});
+
+test("keeps icon searches as drafts on Enter and supports keyboard selection and cancellation", async ({ page }) => {
+  const { dialog, read, open, remove } = await createAppearanceNotebook(page);
+  try {
+    await open();
+    await dialog.getByRole("switch", { name: "Bold", exact: true }).check();
+    await dialog.getByRole("button", { name: "Icon", exact: true }).click();
+    const search = dialog.getByPlaceholder("Search icons (English or German)");
+    await search.fill("house");
+    await search.press("Enter");
+    await expect(dialog).toBeVisible();
+    await expect(search).toBeFocused();
+    await expect(dialog.getByRole("listbox")).toBeVisible();
+    expect(await read()).toMatchObject({ icon: null, isBold: false });
+    await search.press("Escape");
+    await expect(dialog.getByRole("listbox")).toBeHidden();
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole("button", { name: "Icon", exact: true })).toBeFocused();
+    await dialog.getByRole("button", { name: "Icon", exact: true }).press("Enter");
+    await search.fill("house");
+    const option = dialog.getByRole("option", { name: "house", exact: true });
+    await option.focus();
+    await option.press("Enter");
+    await expect(dialog.getByRole("listbox")).toBeHidden();
+    await expect(dialog.locator("[data-notebook-appearance-preview] [data-notebook-icon]")).toHaveAttribute("data-notebook-icon", "house");
+    await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+    await expect(dialog).toBeHidden();
+    expect(await read()).toMatchObject({ icon: null, isBold: false });
+    await open();
+    await expect(dialog.getByRole("switch", { name: "Bold", exact: true })).not.toBeChecked();
+    await expect(dialog.locator("[data-notebook-appearance-preview] [data-notebook-icon]")).toHaveAttribute("data-notebook-icon", "notebook");
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+  } finally {
+    await remove();
+  }
+});
 
 test("saves notebook appearance, keeps drafts on cancel, and resets across reloads and themes", async ({ page }) => {
   await page.addInitScript(() => {
@@ -23,7 +116,7 @@ test("saves notebook appearance, keeps drafts on cancel, and resets across reloa
     await expect(dialog).toBeVisible();
   };
   const save = async () => {
-    await dialog.getByRole("button", { name: "Save", exact: true }).click();
+    await dialog.getByRole("button", { name: "Confirm", exact: true }).click();
     await expect(dialog).toBeHidden();
   };
   try {

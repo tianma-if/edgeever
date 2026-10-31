@@ -52,7 +52,7 @@
     "package:extension:firefox": "bun run --cwd apps/extension package:firefox",
     "test:extension": "bun run --cwd apps/extension test",
     "test:e2e": "playwright test",
-    "test:e2e:install": "playwright install chromium",
+    "test:e2e:install": "playwright install chromium webkit",
     "dev:extension": "vite --config apps/extension/vite.config.ts",
     "prepare:poster:thumbnails": "bun scripts/prepare-poster-thumbnails.mjs",
     "check:poster:thumbnails": "bun scripts/prepare-poster-thumbnails.mjs --check",
