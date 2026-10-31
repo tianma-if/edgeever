@@ -105,7 +105,7 @@
     },
     "apps/desktop": {
       "name": "@edgeever/desktop",
-      "version": "2.2.0",
+      "version": "2.3.0",
       "dependencies": {
         "@agentclientprotocol/sdk": "^1.5.1",
         "@edgeever/public-network": "workspace:*",
@@ -292,6 +292,13 @@
     "packages/plugin-api": {
       "name": "@edgeever/plugin-api",
       "version": "0.1.0",
+    },
+    "packages/plugin-sandbox": {
+      "name": "@edgeever/plugin-sandbox",
+      "version": "0.0.0",
+      "dependencies": {
+        "@edgeever/plugin-api": "workspace:*",
+      },
     },
     "packages/public-network": {
       "name": "@edgeever/public-network",
@@ -807,6 +814,8 @@
     "@edgeever/mobile": ["@edgeever/mobile@workspace:apps/mobile"],
 
     "@edgeever/plugin-api": ["@edgeever/plugin-api@workspace:packages/plugin-api"],
+
+    "@edgeever/plugin-sandbox": ["@edgeever/plugin-sandbox@workspace:packages/plugin-sandbox"],
 
     "@edgeever/public-network": ["@edgeever/public-network@workspace:packages/public-network"],
 
