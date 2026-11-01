@@ -881,3 +881,177 @@ describe("custom memo share addresses", () => {
     sqlite.close();
   });
 });
+
+describe("memo share expiry and views", () => {
+  const past = "2020-01-01T00:00:00.000Z";
+  const json = (body) => ({ method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const shareRow = (sqlite, token = sourceToken) =>
+    sqlite.query("SELECT expires_at, view_count, last_viewed_at, updated_at, password_hash FROM memo_shares WHERE token = ?").get(token);
+
+  test("adds the columns to existing shares without changing them", async () => {
+    const sqlite = new Database(":memory:");
+    try {
+      for (const migration of globSync("migrations/*.sql").sort()) {
+        if (migration.endsWith("0087_memo_share_expiry_views.sql")) continue;
+        sqlite.exec(readFileSync(migration, "utf8"));
+      }
+      sqlite.query("INSERT INTO workspaces (id, name, is_personal) VALUES ('ws_old', 'Old', 1)").run();
+      sqlite.query("INSERT INTO notebooks (id, workspace_id, name) VALUES ('nb_old', 'ws_old', 'Inbox')").run();
+      sqlite.query("INSERT INTO memos (id, workspace_id, notebook_id, title) VALUES ('memo_old', 'ws_old', 'nb_old', 'Old')").run();
+      sqlite.query("INSERT INTO memo_shares (id, memo_id, workspace_id, token) VALUES ('share_old', 'memo_old', 'ws_old', ?)").run(sourceToken);
+      const before = sqlite.query("SELECT * FROM memo_shares").all();
+      sqlite.exec(readFileSync("migrations/0087_memo_share_expiry_views.sql", "utf8"));
+      expect(sqlite.prepare("SELECT * FROM memo_shares").all()).toEqual(
+        before.map((row) => ({ ...row, expires_at: null, view_count: 0, last_viewed_at: null })),
+      );
+    } finally {
+      sqlite.close();
+    }
+  });
+
+  test("sets, normalizes, extends and removes the expiry without touching the password", async () => {
+    const { sqlite, environment } = createDatabaseEnvironment();
+    const app = createShareApp(environment);
+    const path = "/api/v1/memos/memo_source/share";
+    try {
+      await app.request(path, json({ passwordProtected: true, password: "keep-this" }), environment);
+      const passwordHash = shareRow(sqlite).password_hash;
+      expect(passwordHash).toBeTruthy();
+
+      const future = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
+      const offset = future.toISOString().replace("Z", "+00:00");
+      const set = await app.request(path, json({ expiresAt: offset }), environment);
+      expect(set.status).toBe(200);
+      expect((await set.json()).share).toMatchObject({ expiresAt: future.toISOString(), expired: false, passwordProtected: true });
+      expect(shareRow(sqlite)).toMatchObject({ expires_at: future.toISOString(), password_hash: passwordHash });
+
+      const later = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+      expect((await (await app.request(path, json({ expiresAt: later }), environment)).json()).share.expiresAt).toBe(later);
+
+      const cleared = await app.request(path, json({ expiresAt: null }), environment);
+      expect((await cleared.json()).share).toMatchObject({ expiresAt: null, expired: false, passwordProtected: true });
+      expect(shareRow(sqlite)).toMatchObject({ expires_at: null, password_hash: passwordHash });
+
+      // Older clients keep sending only the password field.
+      const legacy = await app.request(path, json({ passwordProtected: false }), environment);
+      expect(legacy.status).toBe(200);
+      expect((await legacy.json()).share).toMatchObject({ passwordProtected: false, expiresAt: null });
+    } finally {
+      sqlite.close();
+    }
+  });
+
+  test("rejects past and malformed expiry values", async () => {
+    const { sqlite, environment } = createDatabaseEnvironment();
+    const app = createShareApp(environment);
+    const path = "/api/v1/memos/memo_source/share";
+    try {
+      const pastResponse = await app.request(path, json({ expiresAt: past }), environment);
+      expect(pastResponse.status).toBe(400);
+      expect((await pastResponse.json()).error.code).toBe("share_expiry_invalid");
+      expect((await app.request(path, json({ expiresAt: "tomorrow" }), environment)).status).toBe(400);
+      expect((await app.request(path, json({}), environment)).status).toBe(400);
+      expect(shareRow(sqlite).expires_at).toBeNull();
+    } finally {
+      sqlite.close();
+    }
+  });
+
+  test("an expired link answers 410 on content, unlock and resources and reveals nothing", async () => {
+    const { sqlite, environment } = createDatabaseEnvironment();
+    sqlite.query("UPDATE memo_shares SET expires_at = ?, password_hash = ? WHERE token = ?")
+      .run(past, await hashPassword("secret-pass"), sourceToken);
+    sqlite.query(`INSERT INTO resources (id, memo_id, object_key, kind, mime_type, filename, byte_size)
+      VALUES ('res_expired', 'memo_source', 'expired-key', 'attachment', 'application/pdf', 'a.pdf', 10)`).run();
+    environment.storage.resources = { get: async () => ({ body: new Blob([new Uint8Array(10)]).stream(), size: 10, writeHttpMetadata: () => {} }) };
+    const app = createShareApp(environment);
+    try {
+      const content = await app.request(`/api/public/shares/${sourceToken}`, {}, environment);
+      expect(content.status).toBe(410);
+      const body = await content.json();
+      expect(body.error.code).toBe("share_expired");
+      expect(JSON.stringify(body)).not.toContain("Source");
+
+      const unlock = await app.request(`/api/public/shares/${sourceToken}/unlock`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: "secret-pass" }),
+      }, environment);
+      expect(unlock.status).toBe(410);
+      expect(unlock.headers.get("Set-Cookie")).toBeNull();
+
+      const resource = await app.request(`/api/public/shares/${sourceToken}/resources/res_expired/blob`, {}, environment);
+      expect(resource.status).toBe(410);
+
+      expect((await app.request(`/api/public/shares/${"x".repeat(43)}`, {}, environment)).status).toBe(404);
+      expect(shareRow(sqlite)).toMatchObject({ view_count: 0, last_viewed_at: null });
+    } finally {
+      sqlite.close();
+    }
+  });
+
+  test("an expired linked note is not linked from another shared note", async () => {
+    const { sqlite, environment } = createDatabaseEnvironment();
+    sqlite.query("UPDATE memo_shares SET expires_at = ? WHERE token = ?").run(past, targetToken);
+    const app = createShareApp(environment);
+    try {
+      const response = await app.request(`/api/public/shares/${sourceToken}`, {}, environment);
+      expect(response.status).toBe(200);
+      expect((await response.json()).share.memoShareTokens).toEqual({});
+    } finally {
+      sqlite.close();
+    }
+  });
+
+  test("the owner still sees an expired share and the dialog does not create a new one", async () => {
+    const { sqlite, environment } = createDatabaseEnvironment();
+    sqlite.query("UPDATE memo_shares SET expires_at = ? WHERE token = ?").run(past, sourceToken);
+    const app = createShareApp(environment);
+    try {
+      const read = await (await app.request("/api/v1/memos/memo_source/share", {}, environment)).json();
+      expect(read.share).toMatchObject({ token: sourceToken, expiresAt: past, expired: true });
+      const created = await app.request("/api/v1/memos/memo_source/share", { method: "POST" }, environment);
+      expect(created.status).toBe(200);
+      expect((await created.json()).share).toMatchObject({ token: sourceToken, expired: true });
+      const list = await (await app.request("/api/v1/memo-shares", {}, environment)).json();
+      expect(list.shares.find((share) => share.memoId === "memo_source")).toMatchObject({ expired: true, viewCount: 0 });
+    } finally {
+      sqlite.close();
+    }
+  });
+
+  test("counts served content only, and views do not reorder the share list", async () => {
+    const { sqlite, environment } = createDatabaseEnvironment();
+    const password = "count-pass";
+    sqlite.query("UPDATE memo_shares SET password_hash = ?, updated_at = '2026-01-01T00:00:00.000Z' WHERE token = ?")
+      .run(await hashPassword(password), sourceToken);
+    sqlite.query(`INSERT INTO resources (id, memo_id, object_key, kind, mime_type, filename, byte_size)
+      VALUES ('res_count', 'memo_source', 'count-key', 'attachment', 'application/pdf', 'a.pdf', 10)`).run();
+    environment.storage.resources = { get: async () => ({ body: new Blob([new Uint8Array(10)]).stream(), size: 10, writeHttpMetadata: () => {} }) };
+    const app = createShareApp(environment);
+    const unlock = (value) => app.request(`/api/public/shares/${sourceToken}/unlock`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: value }),
+    }, environment);
+    try {
+      expect((await app.request(`/api/public/shares/${sourceToken}`, {}, environment)).status).toBe(403);
+      expect((await unlock("wrong-password")).status).toBe(403);
+      expect(shareRow(sqlite).view_count).toBe(0);
+
+      const cookie = readCookieValue(await unlock(password), "ee_share");
+      expect(shareRow(sqlite).view_count).toBe(0);
+      const headers = { Cookie: `ee_share=${cookie}` };
+      expect((await app.request(`/api/public/shares/${sourceToken}/resources/res_count/blob`, { headers }, environment)).status).toBe(200);
+      expect(shareRow(sqlite).view_count).toBe(0);
+
+      expect((await app.request(`/api/public/shares/${sourceToken}`, { headers }, environment)).status).toBe(200);
+      expect((await app.request(`/api/public/shares/${sourceToken}`, { headers }, environment)).status).toBe(200);
+      const row = shareRow(sqlite);
+      expect(row.view_count).toBe(2);
+      expect(row.last_viewed_at).toBeTruthy();
+      expect(row.updated_at).toBe("2026-01-01T00:00:00.000Z");
+
+      const read = await (await app.request("/api/v1/memos/memo_source/share", {}, environment)).json();
+      expect(read.share).toMatchObject({ viewCount: 2, lastViewedAt: row.last_viewed_at });
+    } finally {
+      sqlite.close();
+    }
+  });
+});
