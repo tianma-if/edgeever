@@ -268,6 +268,8 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
+      // Its browser export requires document; the default table also works in Workers.
+      "decode-named-character-reference": fileURLToPath(import.meta.resolve("decode-named-character-reference")),
       "@": fileURLToPath(new URL("./src", import.meta.url)),
     },
   },

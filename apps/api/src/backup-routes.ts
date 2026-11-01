@@ -12,6 +12,7 @@ import {
   type TiptapDoc,
 } from "@edgeever/shared";
 import { zValidator } from "@hono/zod-validator";
+import { z } from "zod";
 import type { Hono } from "hono";
 import type { AppEnv } from "./api-context";
 import { AppError } from "./app-error";
@@ -183,19 +184,49 @@ const readBackupRelations = async (database: DatabaseAdapter, memoIds: string[])
   return { resources: resources.results.map(mapResource), revisions: revisions.results.map(mapJsonBackupRevision) };
 };
 
+const exportCursorSchema = z.object({
+  id: z.string().min(1),
+  createdAt: z.string().min(1),
+  offset: z.number().int().nonnegative(),
+});
+type ExportCursor = z.infer<typeof exportCursorSchema>;
+
+const parseExportCursor = (value: string | undefined): ExportCursor | undefined | null => {
+  if (value === undefined) return undefined;
+  try {
+    const parsed = exportCursorSchema.safeParse(JSON.parse(value));
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
+};
+
+const exportContinuation = (page: BackupMemoDetailRow[], offset: number, hasMore: boolean) => {
+  const nextOffset = hasMore ? offset + page.length : null;
+  const last = page.at(-1);
+  return {
+    nextOffset,
+    nextCursor: nextOffset !== null && last
+      ? JSON.stringify({ id: last.id, createdAt: last.created_at, offset: nextOffset } satisfies ExportCursor)
+      : null,
+  };
+};
+
 const listBackupPage = async (
   database: DatabaseAdapter,
   workspaceId: string,
   limit: number,
   offset: number,
   includeTotal = true,
+  cursor?: ExportCursor,
 ) => Promise.all([
   database.prepare(
     `${MEMO_EXPORT_SELECT_SQL}
      WHERE m.workspace_id = ? AND m.is_deleted = 0
+       ${cursor ? "AND (m.created_at, m.id) > (?, ?)" : ""}
      ORDER BY m.created_at ASC, m.id ASC
-     LIMIT ? OFFSET ?`,
-  ).bind(workspaceId, includeTotal ? limit : limit + 1, offset).all<BackupMemoDetailRow>(),
+     LIMIT ?${cursor ? "" : " OFFSET ?"}`,
+  ).bind(workspaceId, ...(cursor ? [cursor.createdAt, cursor.id] : []), includeTotal ? limit : limit + 1, ...(cursor ? [] : [offset])).all<BackupMemoDetailRow>(),
   includeTotal ? database.prepare(
     `SELECT COUNT(*) AS count FROM memos WHERE workspace_id = ? AND is_deleted = 0`,
   ).bind(workspaceId).first<{ count: number }>() : Promise.resolve(null),
@@ -213,13 +244,14 @@ const listMarkdownExportPage = async (
   offset: number,
   memoIds: string[] | null,
   includeTotal = true,
+  cursor?: ExportCursor,
 ) => {
   if (memoIds && memoIds.length === 0) {
     return emptyMarkdownExportPage();
   }
 
   if (!memoIds) {
-    return listBackupPage(database, workspaceId, limit, offset, includeTotal);
+    return listBackupPage(database, workspaceId, limit, offset, includeTotal, cursor);
   }
 
   // json_each keeps the D1 bound-parameter count fixed (workspace + JSON + limit/offset).
@@ -229,9 +261,10 @@ const listMarkdownExportPage = async (
       `${MEMO_EXPORT_SELECT_SQL}
        WHERE m.workspace_id = ? AND m.is_deleted = 0
          AND m.id IN (SELECT value FROM json_each(?))
+         ${cursor ? "AND (m.created_at, m.id) > (?, ?)" : ""}
        ORDER BY m.created_at ASC, m.id ASC
-       LIMIT ? OFFSET ?`,
-    ).bind(workspaceId, memoIdsJson, includeTotal ? limit : limit + 1, offset).all<BackupMemoDetailRow>(),
+       LIMIT ?${cursor ? "" : " OFFSET ?"}`,
+    ).bind(workspaceId, memoIdsJson, ...(cursor ? [cursor.createdAt, cursor.id] : []), includeTotal ? limit : limit + 1, ...(cursor ? [] : [offset])).all<BackupMemoDetailRow>(),
     includeTotal ? database.prepare(
       `SELECT COUNT(*) AS count FROM memos
        WHERE workspace_id = ? AND is_deleted = 0
@@ -322,9 +355,11 @@ export const registerBackupRoutes = (
     if (denied) return denied;
 
     const limit = dependencies.clampNumber(Number(context.req.query("limit") ?? 50), 1, 100);
-    const offset = dependencies.clampNumber(Number(context.req.query("offset") ?? 0), 0, 1_000_000);
+    const cursor = parseExportCursor(context.req.query("cursor"));
+    if (cursor === null) return apiError(context, "invalid_export_cursor", "Invalid export cursor.", 400);
+    const offset = cursor?.offset ?? dependencies.clampNumber(Number(context.req.query("offset") ?? 0), 0, 1_000_000);
     const parsedIds = parseMarkdownExportMemoIds(context.req.query("ids"));
-    const includeTotal = offset === 0 || context.req.query("includeTotal") !== "0";
+    const includeTotal = cursor ? context.req.query("includeTotal") === "1" : offset === 0 || context.req.query("includeTotal") !== "0";
     if (parsedIds.error === "too_many") {
       return badRequest(context, `Export at most ${MAX_MARKDOWN_EXPORT_MEMO_IDS} notes at a time.`);
     }
@@ -336,6 +371,7 @@ export const registerBackupRoutes = (
       offset,
       parsedIds.ids,
       includeTotal,
+      cursor,
     );
     const page = memoRows.results.slice(0, limit);
     const memoIds = page.map((row) => row.id);
@@ -358,9 +394,7 @@ export const registerBackupRoutes = (
       memos: page.map(dependencies.mapMemoDetail),
       resources,
       ...(includeTotal ? { totalCount } : {}),
-      nextOffset: (includeTotal ? offset + page.length < totalCount : memoRows.results.length > limit)
-        ? offset + page.length
-        : null,
+      ...exportContinuation(page, offset, includeTotal ? offset + page.length < totalCount : memoRows.results.length > limit),
     });
   });
 
@@ -369,10 +403,12 @@ export const registerBackupRoutes = (
     if (denied) return denied;
 
     const limit = dependencies.clampNumber(Number(context.req.query("limit") ?? 25), 1, 50);
-    const offset = dependencies.clampNumber(Number(context.req.query("offset") ?? 0), 0, 1_000_000);
+    const cursor = parseExportCursor(context.req.query("cursor"));
+    if (cursor === null) return apiError(context, "invalid_export_cursor", "Invalid export cursor.", 400);
+    const offset = cursor?.offset ?? dependencies.clampNumber(Number(context.req.query("offset") ?? 0), 0, 1_000_000);
     const workspaceId = getWorkspaceId(context);
-    const includeTotal = offset === 0 || context.req.query("includeTotal") !== "0";
-    const [memoRows, totalRow] = await listBackupPage(context.env.storage.db, workspaceId, limit, offset, includeTotal);
+    const includeTotal = cursor ? context.req.query("includeTotal") === "1" : offset === 0 || context.req.query("includeTotal") !== "0";
+    const [memoRows, totalRow] = await listBackupPage(context.env.storage.db, workspaceId, limit, offset, includeTotal, cursor);
     const page = memoRows.results.slice(0, limit);
     const memoIds = page.map((row) => row.id);
     let resources: Resource[] = [];
@@ -406,9 +442,7 @@ export const registerBackupRoutes = (
       resources,
       revisions,
       ...(includeTotal ? { totalCount } : {}),
-      nextOffset: (includeTotal ? offset + page.length < totalCount : memoRows.results.length > limit)
-        ? offset + page.length
-        : null,
+      ...exportContinuation(page, offset, includeTotal ? offset + page.length < totalCount : memoRows.results.length > limit),
     });
   });
 

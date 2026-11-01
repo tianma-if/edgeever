@@ -1,7 +1,9 @@
+import { noteImportRu } from "./note-import";
 import { memoTemplateSeedTranslations } from "../memo-template-seeds";
 
 // Shared by the PWA and native mobile clients.
 export const ru = {
+  noteImport: noteImportRu,
   notebookAppearance: {
     inversion: "Инверсия",
     invertOff: "Выключена",

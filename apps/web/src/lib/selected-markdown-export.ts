@@ -33,7 +33,7 @@ export const exportSelectedMemosAsMarkdownZip = async ({
 }: {
   memoIds: string[];
   listNotebooks: () => Promise<{ notebooks: Notebook[] }>;
-  getPage: (offset: number, limit: number, memoIds: string[]) => Promise<MarkdownExportPage>;
+  getPage: (offset: number, limit: number, memoIds: string[], cursor?: string) => Promise<MarkdownExportPage>;
   getResourceBlob: (resourceUrl: string) => Promise<Blob>;
   onProgress?: (progress: MarkdownExportProgress) => void;
   save?: (blob: Blob) => void;
@@ -55,8 +55,8 @@ export const exportSelectedMemosAsMarkdownZip = async ({
   let exported = 0;
   const blob = await createMarkdownExport({
     listNotebooks,
-    getPage: async (offset, limit) => {
-      const page = await getPage(offset, limit, exportable);
+    getPage: async (offset, limit, cursor) => {
+      const page = await getPage(offset, limit, exportable, cursor);
       exported += page.memos.length;
       return page;
     },

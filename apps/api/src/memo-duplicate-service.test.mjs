@@ -80,6 +80,16 @@ const resourceRows = (sqlite, memoId) => sqlite
   .all(memoId);
 
 describe("duplicate a note", () => {
+  test("validates its destination without recounting the notebook's notes", async () => {
+    const fixture = setup();
+    const { memo } = await createSourceNote(fixture);
+    const queries = [], prepare = fixture.storage.db.prepare.bind(fixture.storage.db);
+    fixture.storage.db.prepare = sql => { queries.push(sql); return prepare(sql); };
+    const copy = await duplicateMemoRecord(fixture.context, memo.id, {}, actor, "admin");
+    expect(copy.notebookId).toBe(memo.notebookId);
+    expect(queries.filter(sql => /COUNT\(m\.id\) AS memo_count/.test(sql))).toHaveLength(0);
+  });
+
   test("copies the title, content, tags and files into an independent note", async () => {
     const fixture = setup();
     const { sqlite, context, storage } = fixture;

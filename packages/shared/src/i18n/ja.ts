@@ -1,7 +1,9 @@
+import { noteImportJa } from "./note-import";
 import { memoTemplateSeedTranslations } from "../memo-template-seeds";
 
 // Shared by the PWA and native mobile clients.
 export const ja = {
+  noteImport: noteImportJa,
   notebookAppearance: {
     inversion: "反転",
     invertOff: "なし",

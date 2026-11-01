@@ -45,7 +45,9 @@
     "./companion-discovery-context": "./src/companion-discovery-context.ts",
     "./provider-event-stream": "./src/provider-event-stream.ts",
     "./backup-archive": "./src/backup-archive.ts",
-    "./backup-markdown": "./src/backup-markdown.ts"
+    "./backup-markdown": "./src/backup-markdown.ts",
+    "./note-import": "./src/note-import/index.ts",
+    "./note-import/types": "./src/note-import/types.ts"
   },
   "types": "./src/index.ts",
   "dependencies": {
@@ -61,9 +63,17 @@
     "@tiptap/pm": "3.31.4",
     "@tiptap/starter-kit": "3.31.4",
     "@zip.js/zip.js": "2.24.0",
+    "it-tar": "6.0.6",
     "js-base64": "3.9.3",
     "katex": "0.18.2",
     "marked": "17.0.6",
+    "mdast-util-to-markdown": "2.1.2",
+    "micromark": "4.0.2",
+    "micromark-extension-gfm": "3.0.0",
+    "micromark-util-decode-string": "2.0.1",
+    "micromark-util-normalize-identifier": "2.0.1",
+    "sax": "1.6.0",
+    "spark-md5": "3.0.2",
     "yaml": "2.8.3",
     "zod": "4.6.6"
   }

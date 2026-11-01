@@ -1,5 +1,6 @@
 import type { AnyExtension } from "@tiptap/core";
 import { EdgeEverImage as Image, ImageAlignmentAttributes } from "./image-alignment";
+import { ImageLinkAttributes } from "./image-link";
 import { TaskList } from "@tiptap/extension-list";
 import { EdgeEverTableKit as TableKit } from "./markdown-table";
 import { Markdown } from "@tiptap/markdown";
@@ -51,6 +52,7 @@ export const createEdgeEverDocumentExtensions = (
   options.table === undefined ? TableKit : TableKit.configure(options.table),
   ...withOptional(options.image, Image),
   ImageAlignmentAttributes,
+  ImageLinkAttributes,
   ...withOptional(options.gallery, ImageGallery),
   ...withOptional(options.pdf, PdfAttachment),
   ...withOptional(options.file, FileAttachment),
