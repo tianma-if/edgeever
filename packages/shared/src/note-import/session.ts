@@ -212,6 +212,8 @@ export class NoteImportSession {
   private async resolveReference(note: ImportNote, ref: ImportReference): Promise<ImportResource | undefined> {
     let href = ref.href;
     if (/^(?:https?:|mailto:|tel:|data:|#|\/\/)/i.test(href)) return;
+    // Keep file/drive forms in local-path validation; other URI targets are not opened.
+    if (!ref.wiki && /^[a-z][a-z0-9+.-]*:/i.test(href) && !/^(?:file:|[a-z]:)/i.test(href)) return;
     if (this.format === "joplin" && /^:\/[0-9a-f]{32}/i.test(href)) {
       const suffixAt = ref.wiki ? href.indexOf("#") : href.search(/[?#]/);
       ref.suffix = suffixAt === -1 ? "" : href.slice(suffixAt);

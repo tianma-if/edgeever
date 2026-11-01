@@ -26,7 +26,7 @@ See the [real-source fixtures](../../../../tests/fixtures/note-import/real-apps/
 - Cloudflare: an earlier candidate merged with upstream 2.16.1 passed an existing-instance upgrade and actual three-source imports. The `0072` → `0084` upgrade retained four existing notes and one resource, while upstream `0078` cleared factory colors on five default notebooks. The current R27–R30 API/Web and `0085` are now deployed; all pre-upgrade business fields in 18 notes, 19 notebooks, 23 resources and the workspace remain identical. The existing authenticated session, health and OpenAPI probes pass. Deployed Settings imports one additional ENEX note with original timestamps/tags and five matching attachment payloads; PNG/SVG load and the PDF is readable.
 - Upgrading the original API against the same database retained existing bodies, tags, timestamps and resource bytes. Driver-level checks do not establish Docker container deployment acceptance.
 
-Earlier native candidates do not cover the latest image/list and R31–R39 repairs. R31–R39 and `0086` are not deployed to Cloudflare. Windows native, physical mobile devices, older-client editing, AppImage installation and cross-version automatic updates remain unverified. Current Cloudflare checks did not repeat password login or complete saving a Web ZIP to the local filesystem; the user can confirm these through the login and export entries.
+Earlier native candidates do not cover the latest image/list and R31–R41 repairs. R31–R41 and `0086` are not deployed to Cloudflare. Windows native, physical mobile devices, older-client editing, AppImage installation and cross-version automatic updates remain unverified. Current Cloudflare checks did not repeat password login or complete saving a Web ZIP to the local filesystem; the user can confirm these through the login and export entries.
 
 ## Large libraries and quotas
 
@@ -119,6 +119,10 @@ Production Web imports a test ENEX with unmatched brackets, line breaks and lite
 Bullet, ordered, task and nested lists retain four images in their list items after Markdown/rich-text editing, saving and reopening, preserving outer links, starting numbers and checked states. Real-source, shared-content, related image/editor and lifecycle checks, both typechecks, the Web build and targeted lint pass. Dependencies retain locked `marked@17`; no parser upgrade is needed.
 
 ENML uses Turndown’s asterisk emphasis delimiter so Chinese italics adjacent to surrounding text remain italic, verified in the real Evernote export’s saved JSON and Web render.
+
+Images inside ENML links remain inline. Real-API checks cover both directly linked images and images nested in inline elements: saved JSON, Markdown round-trips and editing/reopening retain outer URLs/titles, image targets and labels. Production Web imports through actual Worker/IndexedDB, edits text in the editor, waits for saving and reopens the note after switching away. Both images and their outer links remain, with original image bytes unchanged.
+
+FTP and Obsidian app URIs in Obsidian/Joplin pass preflight and real-API import with unchanged source text and zero resource uploads. The production Web Settings entry also completes preflight and import. Traversal, `file:`, Windows drive forms and invalid local encoding remain rejected. The new cases fail before repair; afterwards all 24 affected checks, both typechecks, the Web build and targeted lint pass.
 
 ## Task state and cleanup
 

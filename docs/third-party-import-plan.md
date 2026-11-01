@@ -35,7 +35,7 @@ Use **client-side parsing with shared server-side writes**, rather than separate
 - Accept one or multiple `.enex` files, nested directories containing ENEX, and ZIPs containing them. Preserve the full directory path; each ENEX filename becomes a leaf notebook. Multiple selected files without relative paths become sibling notebooks. Do not infer source hierarchy absent from the export.
 - For `.notes`, explicitly ask users to export `.enex` from Evernote and try again; do not guess that it is XML or ZIP.
 - Scan XML in chunks for titles, tags, `created`, `updated`, ENML, and resource descriptors. Import one note at a time, decoding resource base64 incrementally. A SAX text callback must not rebuild an entire attachment in memory.
-- Use Turndown for ENML conversion, covering tables, tasks, images, and attachments. Incremental MD5 is used only to match ENEX `en-media` identifiers, not as a security check.
+- Use Turndown for ENML conversion, covering tables, tasks, images, and attachments. Keep linked images inline to preserve outer URLs/titles; ordinary media retains existing block layout. Incremental MD5 is used only to match ENEX `en-media` identifiers, not as a security check.
 - Upload resources attached to a note even when its body does not reference them, appending attachment links. Retain encrypted source content as plain text with a notice rather than discarding it behind a placeholder.
 
 ### Obsidian Vault
@@ -57,8 +57,9 @@ Use **client-side parsing with shared server-side writes**, rather than separate
 - Preserve valid source instants as timezone-qualified ISO timestamps. Retain and warn about missing or timezone-ambiguous values rather than presenting invented times as original. Omitted fields retain the existing creation API default of the import time.
 - Whether `_resources`, `assets`, or similar directories become notebooks depends on whether they contain notes or ancestors of notes—not their name alone. Resource-only directories do not become empty notebooks.
 - Repeated references to one attachment in one note create one upload. Across notes, upload separately under existing resource ownership rules. Preflight attachment counts mean planned EdgeEver resources, not unique source files. Resources unrelated to any note are listed as not imported.
-- Rewrite actual image/link targets, not code blocks, inline code, or matching plain text. Preserve external HTTP(S) links without downloading remote images.
-- Normalized paths must stay within the selected root. Do not follow archive symlinks or extract archives to arbitrary user directories. Report multiple entries mapping to one normalized path as ambiguous.
+- Rewrite actual image/link targets, not code blocks, inline code, or matching plain text.
+- Preserve external URIs in standard Markdown, including HTTP(S), FTP and Obsidian app links, without local-attachment lookup, target reads or new preflight warnings. Existing link-opening and rendering-safety policies remain unchanged.
+- Normalized paths must stay within the selected root. Continue rejecting `file:` URIs and Windows drive forms, including drive-relative paths, under existing local-path rules; Wiki targets remain literal filenames. Do not follow archive symlinks or extract archives to arbitrary user directories. Report multiple entries mapping to one normalized path as ambiguous.
 - Convert only static HTML content; do not execute scripts or event handlers. XML processing does not fetch DTDs or resolve external entities, while still accepting ordinary ENEX format declarations.
 - Retain existing limits: notebook names of 80 characters, note titles of 160, images up to 100 MiB, and other attachments up to 1 GiB. Normalize tags in source order, remove empty/duplicate values and keep the first 24. Ignore extras with a non-blocking preflight warning showing the ignored count; ordinary editing retains its existing tag persistence rules. Preflight reports violations; it does not truncate text/titles or compress images to claim success. Errors preventing faithful import must be fixed first; warnings such as absent optional metadata may be acknowledged.
 

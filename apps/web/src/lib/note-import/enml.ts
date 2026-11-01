@@ -50,9 +50,9 @@ const prepareEnml = (source: string, resources: readonly ImportResource[]) => {
     media.setAttribute(image ? "src" : "href", `evernote-resource:${hash}`);
     if (image) media.setAttribute("alt", label);
     else media.textContent = label;
-    const block = document.createElement("div");
-    block.appendChild(media);
-    node.parentNode!.replaceChild(block, node);
+    const replacement = image && node.closest("a") ? media : document.createElement("div");
+    if (replacement !== media) replacement.appendChild(media);
+    node.parentNode!.replaceChild(replacement, node);
   }
   return root;
 };

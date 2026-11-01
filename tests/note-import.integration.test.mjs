@@ -610,6 +610,62 @@ describe("native third-party import through the real API", () => {
     await session.close(); db.close();
   });
 
+  test("ENML linked images retain outer links through saved documents", async () => {
+    const { client, db } = await target();
+    const data = await readFile(new URL("./fixtures/note-import/real-apps/assets/样本 图.png", import.meta.url));
+    const hash = new Bun.CryptoHasher("md5").update(data).digest("hex");
+    const links = [
+      { href: "https://example.com/full", title: "Full image", alt: "Direct image" },
+      { href: "https://example.com/details?view=full#photo", title: "Details", alt: "Nested image" },
+    ];
+    const media = alt => `<en-media type="image/png" hash="${hash}" alt="${alt}"/>`;
+    const enml = `<en-note><a href="${links[0].href}" title="${links[0].title}">${media(links[0].alt)}</a><div>Before <a href="${links[1].href}" title="${links[1].title}"><span>${media(links[1].alt)}</span></a> after</div></en-note>`;
+    const enex = `<en-export><note><title>Linked images</title><content><![CDATA[${enml}]]></content><created>20200102T030405Z</created><updated>20210203T040506Z</updated><resource><data encoding="base64">${data.toString("base64")}</data><mime>image/png</mime><resource-attributes><file-name>linked.png</file-name></resource-attributes></resource></note></en-export>`;
+    const session = new NoteImportSession("evernote", [{ path: "linked.enex", file: new File([enex], "linked.enex") }], new MemoryImportIndex());
+    try {
+      expect(await session.scan()).toMatchObject({ notes: 1, resources: 1, errors: 0, warnings: 0 });
+      expect(await executeNoteImport({ reader: session, index: session.index, client, convertEnml: convertImportEnml })).toMatchObject({ completed: 1, failed: 0, resources: 1 });
+      const [state] = await session.index.page("result");
+      const imageUrl = Object.values(state.urls)[0];
+      const checkImages = doc => {
+        const images = [];
+        const visit = node => { if (node.type === "image") images.push(node.attrs); node.content?.forEach(visit); };
+        visit(doc);
+        expect(images).toHaveLength(links.length);
+        for (const [index, link] of links.entries()) expect(images[index]).toMatchObject({ src: imageUrl, alt: link.alt, link: { href: link.href, title: link.title } });
+      };
+      const { memo } = await client.getMemo(state.memo.id);
+      checkImages(memo.contentJson);
+      checkImages(markdownToDoc(docToMarkdown(memo.contentJson)));
+      expect(memo.contentMarkdown).not.toContain("evernote-resource:");
+      const edited = structuredClone(memo.contentJson);
+      edited.content.push({ type: "paragraph", content: [{ type: "text", text: "Edited after import" }] });
+      const { editSession } = await client.createMemoEditSession(memo.id);
+      await client.updateMemo(memo.id, { contentJson: edited, contentMarkdown: docToMarkdown(edited), expectedRevision: memo.revision, expectedContentHash: memo.contentHash, editSessionId: editSession.id });
+      const reopened = (await client.getMemo(memo.id)).memo;
+      checkImages(reopened.contentJson);
+      expect(reopened.contentMarkdown).toContain("Edited after import");
+      const blob = await client.getResourceBlob(imageUrl);
+      expect(new Uint8Array(await blob.arrayBuffer())).toEqual(new Uint8Array(data));
+    } finally { await session.close(); db.close(); }
+  }, 30_000);
+
+  for (const format of ["obsidian", "joplin"]) test(`${format}: external URIs survive preflight and real import`, async () => {
+    const { client, db } = await target();
+    const body = "---\ncreated: 2020-01-02T03:04:05Z\nupdated: 2021-02-03T04:05:06Z\n---\n\n[FTP](ftp://example.com/file)\n\n[Vault](obsidian://open?vault=Demo&file=Note)";
+    const session = new NoteImportSession(format, [{ path: "external.md", file: new File([body], "external.md") }], new MemoryImportIndex());
+    try {
+      const before = db.query("SELECT COUNT(*) AS n FROM memos").get().n;
+      expect(await session.scan()).toMatchObject({ notes: 1, resources: 0, errors: 0, warnings: 0 });
+      expect(db.query("SELECT COUNT(*) AS n FROM memos").get().n).toBe(before);
+      expect(await executeNoteImport({ reader: session, index: session.index, client, convertEnml: convertImportEnml })).toMatchObject({ completed: 1, failed: 0, resources: 0 });
+      const [state] = await session.index.page("result");
+      expect((await client.getMemo(state.memo.id)).memo.contentMarkdown).toBe(body);
+      expect(state.urls).toEqual({});
+      expect(db.query("SELECT COUNT(*) AS n FROM resources WHERE memo_id=?").get(state.memo.id).n).toBe(0);
+    } finally { await session.close(); db.close(); }
+  }, 30_000);
+
   test("nested links, labels, titles and referenced definitions retain Markdown structure", async () => {
     const { client, db } = await target();
     const body = '[![thumb](assets/image.svg "Preview")](assets/manual.txt "Document")\n\n[section [A]](assets/manual.txt "See manual")\n\n[`code label`](assets/manual.txt)\n\n![reference][image]\n\n[image][]\n\n[image]\n\n[image]: assets/image.svg "Ref title"\n[unused]: missing.png\n\n`![code](missing.png)`';
@@ -998,10 +1054,11 @@ describe("real desktop-app exports", () => {
     await session.close(); db.close();
   });
 
-  test("percent decoding retains traversal and invalid-UTF-8 rejection", async () => {
-    const session = new NoteImportSession("joplin", [{ path: "note.md", file: new File(["[outside](%2e%2e/secret.txt)\n\n[invalid](%FF%20.txt)"], "note.md") }], new MemoryImportIndex());
-    expect(await session.scan()).toMatchObject({ errors: 2 });
-    expect((await session.index.page("issue")).filter(issue => issue.code === "outsideRoot")).toHaveLength(2);
+  test("local paths retain traversal, drive, file-URI and invalid-UTF-8 rejection", async () => {
+    const body = ["[outside](%2e%2e/secret.txt)", "[invalid](%FF%20.txt)", "[file](file:///private/secret.txt)", "[drive](C:/private/secret.txt)", "[drive relative](C:secret.txt)"].join("\n\n");
+    const session = new NoteImportSession("joplin", [{ path: "note.md", file: new File([body], "note.md") }], new MemoryImportIndex());
+    expect(await session.scan()).toMatchObject({ errors: 5 });
+    expect((await session.index.page("issue")).filter(issue => issue.code === "outsideRoot")).toHaveLength(5);
     await session.close();
   });
 });
