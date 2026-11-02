@@ -11,7 +11,11 @@ WorkBuddy and CodeBuddy share accounts and quota, but the desktop WorkBuddy inte
 ## Allowed changes and acceptance
 
 1. Add a single CodeBuddy option with no China / international split; the CLI picks the region from the sign-in method. Clear inherited `CODEBUDDY_INTERNET_ENVIRONMENT` and `CODEBUDDY_INTERNET_ENVIROMENT` at launch so the endpoint cannot disagree with the sign-in.
-2. Use only the standalone official CLI: never WorkBuddy's bundled CLI (paths inside `app.asar` are rejected and the package name is checked), and no `--serve`, credential bridge or gateway sign-in. Launch `node <package>/bin/codebuddy --acp`. On POSIX, find `codebuddy` on the PATH (including nvm, Homebrew and other desktop tool directories) and follow it to the entry. On Windows, find npm's `codebuddy.cmd` and use the entry in the `node_modules` beside it, without running the `.cmd` or using `shell: true`. Prefer the Node beside the CLI, and report `node_missing` when none is found.
+2. Use only the standalone official CLI: never WorkBuddy's bundled CLI (paths inside `app.asar` are rejected and the package name is checked), and no `--serve`, credential bridge or gateway sign-in. Launch `node <package>/bin/codebuddy --acp`. On POSIX, check every `codebuddy` on the PATH and the desktop tool directories in order:
+   - Symbolic links are followed to the official entry.
+   - asdf, mise and Volta shims are resolved through the manager's own `which` (cached per shim for 30 seconds).
+   - An invalid candidate moves on to the next one, so it never hides a later valid install.
+   - nvm's default alias may be a full or partial version (such as `22`), `node` / `stable`, `lts/*` or a named alias. On Windows, find npm's `codebuddy.cmd` and use the entry in the `node_modules` beside it, without running the `.cmd` or using `shell: true`. Prefer the Node in the npm prefix that installed the CLI, then the shim directory, and report `node_missing` when none is found.
 3. Sign in through the standard ACP `authenticate`, reusing the existing 5-minute sign-in timeout. The CLI opens the browser itself, so EdgeEver does not open it again. `_codebuddy.ai/authUrl` is handled only during a CodeBuddy sign-in the user started; a validated link stays in the main process for a manual "Reopen sign-in page" (repeat clicks within 3 seconds are ignored). The allowlist holds only the verified `copilot.tencent.com` (WeChat) and `codebuddy.ai` (Google / GitHub) and their subdomains, and rejects non-https links, user info and non-default ports. Enterprise domains are not included. A rejected link records only a fixed diagnostic code, never the URL or its query.
 4. A `_codebuddy.ai/getUserInfo` response without `userInfo` or a token counts as signed out. Tokens never cross IPC or appear in logs. After `authenticate` returns, a fresh CLI process must restore the sign-in before success is reported.
 5. Cancel works through the UI, IPC and the process lifecycle: it ends the CLI process and removes its temporary workspace. Switching to another agent or leaving the settings page also cancels a sign-in in progress. Results distinguish cancelled, timed out and failed. Closing the browser page is not a cancel.
@@ -25,7 +29,7 @@ WorkBuddy and CodeBuddy share accounts and quota, but the desktop WorkBuddy inte
 
 ## Implementation and acceptance
 
-- Unit tests: command resolution and not installed (POSIX, Windows `.cmd`, nvm Node, other packages, WorkBuddy's bundled copy, missing Node), clearing region variables, the link allowlist, handling `authUrl` only during sign-in, duplicate notifications and reopen throttling, timeout and cancel (including process exit), missing credentials, the fresh-process check after sign-in, and IPC permissions.
+- Unit tests: command resolution and not installed (POSIX, Windows `.cmd`, nvm Node, other packages, WorkBuddy's bundled copy, missing Node; asdf, mise and Volta shims; invalid candidates not hiding later installs; nvm `22`, `lts/*`, `node` and named aliases, plus a real-filesystem regression finding the CLI through `lts/*` with a minimal PATH), clearing region variables, the link allowlist, handling `authUrl` only during sign-in, duplicate notifications and reopen throttling, timeout and cancel (including process exit), missing credentials, the fresh-process check after sign-in, and IPC permissions.
 - Real macOS (CodeBuddy CLI 2.164.0 via Homebrew), using a minimal Finder-like PATH:
   - Resolution found `/opt/homebrew/bin/node` and the official entry.
   - With `CODEBUDDY_INTERNET_ENVIRONMENT=selfhosted` set, the connection check still reported available, and a real chat replied "OK".
@@ -58,4 +62,4 @@ WorkBuddy and CodeBuddy share accounts and quota, but the desktop WorkBuddy inte
     - Logs contained no sign-in link or token.
   - macOS arm64 (DMG, locally ad-hoc signed): opened from Launchpad, the check reported a usable session and a real chat replied "OK".
   - Windows x64 (NSIS installer, CLI installed with npm): manual testing of the connection check, sign-in and chat passed.
-- Not verified: iOA and enterprise-domain sign-in; a full Google / GitHub sign-in; token expiry and refresh.
+- Not verified: iOA and enterprise-domain sign-in; a full Google / GitHub sign-in; token expiry and refresh; real-device regression for other agents (unit tests only); real nvm, asdf, mise and Volta installs (unit tests only).

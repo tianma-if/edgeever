@@ -1,6 +1,6 @@
 import { spawn as nodeSpawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { accessSync, constants as fsConstants, existsSync, readFileSync, realpathSync, statSync } from "node:fs";
+import { accessSync, constants as fsConstants, existsSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import path from "node:path";
@@ -133,6 +133,7 @@ const resolutionDeps = (deps = {}) => ({
   stat: deps.statSync ?? statSync,
   exists: deps.existsSync ?? existsSync,
   readFile: deps.readFileSync ?? ((file) => readFileSync(file, "utf8")),
+  readdir: deps.readdirSync ?? ((dir) => readdirSync(dir)),
   pathEnv: deps.pathEnv ?? process.env.PATH ?? "",
   delimiter: deps.delimiter ?? path.delimiter,
   sep: deps.sep ?? path.sep,
@@ -153,7 +154,7 @@ export function resolveAcpCommand(input, deps = {}) {
     return resolveCodeBuddyCli({
       ...resolved,
       executableMode: fsConstants.X_OK,
-      toolPath: desktopToolPath({ platform: resolved.platform, home: resolved.home, pathEnv: resolved.pathEnv, env: resolved.env, exists: resolved.exists, readFile: resolved.readFile }),
+      toolPath: desktopToolPath({ platform: resolved.platform, home: resolved.home, pathEnv: resolved.pathEnv, env: resolved.env, exists: resolved.exists, readFile: resolved.readFile, readdir: resolved.readdir }),
     });
   }
   if (id === "piAgent") {
@@ -567,14 +568,61 @@ const desktopToolDirectories = (platform, home, env) => {
   ].filter(Boolean);
 };
 
-const nvmDefaultBin = (home, exists, readFile) => {
-  let version = "";
-  try {
-    version = String(readFile(path.posix.join(home, ".nvm", "alias", "default")) ?? "").trim();
-  } catch {
-    return null;
+const NVM_VERSION = /^v?(\d+)(?:\.(\d+))?(?:\.(\d+))?$/;
+const NVM_ALIAS_NAME = /^(?!.*\.\.)[A-Za-z0-9._*-]+(?:\/[A-Za-z0-9._*-]+)?$/;
+
+const compareNodeVersions = (a, b) => {
+  const [, ...x] = /^v(\d+)\.(\d+)\.(\d+)/.exec(a) ?? [];
+  const [, ...y] = /^v(\d+)\.(\d+)\.(\d+)/.exec(b) ?? [];
+  for (let index = 0; index < 3; index += 1) {
+    const diff = Number(x[index] ?? -1) - Number(y[index] ?? -1);
+    if (diff) return diff;
   }
-  if (!/^v\d+\.\d+\.\d+(?:-[A-Za-z0-9.]+)?$/.test(version)) return null;
+  return 0;
+};
+
+// Resolves nvm's default alias like `nvm use default` does for the common
+// forms: an exact or partial version (v22.14.0, 22, v22.14), node/stable,
+// lts/* and named aliases stored under ~/.nvm/alias, followed a few levels deep.
+export function nvmDefaultVersion(home, { readFile, readdir }) {
+  const nvmDir = path.posix.join(home, ".nvm");
+  let installed;
+  const installedVersions = () => {
+    if (installed) return installed;
+    try {
+      installed = readdir(path.posix.join(nvmDir, "versions", "node"))
+        .filter((name) => /^v\d+\.\d+\.\d+$/.test(name))
+        .sort(compareNodeVersions);
+    } catch {
+      installed = [];
+    }
+    return installed;
+  };
+  const resolve = (value, depth) => {
+    const name = String(value ?? "").trim();
+    if (!name || depth > 5 || name === "system" || name.startsWith("iojs")) return null;
+    if (/^v\d+\.\d+\.\d+(?:-[A-Za-z0-9.]+)?$/.test(name)) return name;
+    const version = NVM_VERSION.exec(name);
+    if (version) {
+      const parts = version.slice(1).filter((part) => part !== undefined);
+      return installedVersions().filter((candidate) => (
+        candidate.slice(1).split(".").slice(0, parts.length).join(".") === parts.join(".")
+      )).at(-1) ?? null;
+    }
+    if (name === "node" || name === "stable") return installedVersions().at(-1) ?? null;
+    if (!NVM_ALIAS_NAME.test(name)) return null;
+    try {
+      return resolve(readFile(path.posix.join(nvmDir, "alias", ...name.split("/"))), depth + 1);
+    } catch {
+      return null;
+    }
+  };
+  return resolve("default", 0);
+}
+
+const nvmDefaultBin = (home, exists, readFile, readdir) => {
+  const version = nvmDefaultVersion(home, { readFile, readdir });
+  if (!version) return null;
   const bin = path.posix.join(home, ".nvm", "versions", "node", version, "bin");
   try {
     return exists(bin) ? bin : null;
@@ -590,6 +638,7 @@ export function desktopToolPath({
   env = {},
   exists = existsSync,
   readFile = (file) => readFileSync(file, "utf8"),
+  readdir = (dir) => readdirSync(dir),
 } = {}) {
   const delimiter = platform === "win32" ? ";" : ":";
   const current = String(pathEnv).split(delimiter).filter(Boolean);
@@ -606,7 +655,7 @@ export function desktopToolPath({
     seen.add(key);
   };
   for (const dir of desktopToolDirectories(platform, home, env)) add(dir);
-  if (platform !== "win32") add(nvmDefaultBin(home, exists, readFile));
+  if (platform !== "win32") add(nvmDefaultBin(home, exists, readFile, readdir));
   return [...extras, ...current].join(delimiter);
 }
 
@@ -628,6 +677,7 @@ export function createAcpSpawnPlan(input, cwd, deps = {}) {
     env,
     exists: deps.exists ?? existsSync,
     readFile: deps.readFile ?? ((file) => readFileSync(file, "utf8")),
+    readdir: deps.readdir ?? ((dir) => readdirSync(dir)),
   });
   return {
     command,
