@@ -155,6 +155,7 @@ export const EDITOR_PHONE_PREVIEW_STORAGE_KEY = "edgeever.editor.phonePreviewOpe
 export const EDITOR_PHONE_PREVIEW_FOLLOW_STORAGE_KEY = "edgeever.editor.phonePreviewFollow";
 export const MEMO_LIST_DENSITY_STORAGE_KEY = "edgeever.memoListDensity";
 export const MEMO_LIST_WIDTH_STORAGE_KEY = "edgeever.memoListWidth";
+export const MEMO_SORT_STORAGE_KEY = "edgeever.memoSort";
 export const NOTEBOOK_SORT_STORAGE_KEY = "edgeever.notebookSort";
 export const NOTEBOOK_TREE_COLLAPSED_IDS_STORAGE_KEY = "edgeever.notebookTreeCollapsedIds:v1";
 export const NOTEBOOK_SECTION_COLLAPSED_STORAGE_KEY = "edgeever.notebookSectionCollapsed";
@@ -178,6 +179,7 @@ export const getMemoSortOptions = (t: TFunction): Array<{ value: MemoSortMode; l
   { value: "title-desc", label: t("options.memoSort.titleDesc") },
 ];
 
+const MEMO_SORT_VALUES: MemoSortMode[] = ["updated-desc", "created-desc", "title-asc", "title-desc"];
 const NOTEBOOK_SORT_VALUES: NotebookSortMode[] = ["custom", "name-asc", "memo-count-desc", "updated-desc"];
 
 export const getNotebookSortOptions = (t: TFunction): Array<{ value: NotebookSortMode; label: string }> => [
@@ -510,6 +512,23 @@ export const readMemoListWidthPreference = () => {
 export const writeMemoListWidthPreference = (width: number) => {
   try {
     window.localStorage.setItem(MEMO_LIST_WIDTH_STORAGE_KEY, String(clampMemoListWidth(width)));
+  } catch {
+    // Local storage can be unavailable in private or restricted browser contexts.
+  }
+};
+
+export const readMemoSortPreference = (): MemoSortMode => {
+  try {
+    const sortMode = window.localStorage.getItem(MEMO_SORT_STORAGE_KEY);
+    return MEMO_SORT_VALUES.includes(sortMode as MemoSortMode) ? (sortMode as MemoSortMode) : "updated-desc";
+  } catch {
+    return "updated-desc";
+  }
+};
+
+export const writeMemoSortPreference = (sortMode: MemoSortMode) => {
+  try {
+    window.localStorage.setItem(MEMO_SORT_STORAGE_KEY, sortMode);
   } catch {
     // Local storage can be unavailable in private or restricted browser contexts.
   }
