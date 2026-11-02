@@ -2162,7 +2162,7 @@ export const pl = {
     },
     errors: {
       backup_name_invalid: "Wpisz prawidłową nazwę pliku bez ścieżek, nazw zastrzeżonych i znaków specjalnych.",
-      backup_name_exists: "Plik o tej nazwie już istnieje. Wybierz inną nazwę; istniejący plik nie został zmieniony.",
+      backup_name_exists: "Plik o tej nazwie już istnieje. Spróbuj ponownie za chwilę; istniejący plik nie został zmieniony.",
       backup_file_replaced: "Plik kopii został zastąpiony. Nie wykonano operacji.",
       backup_configuration_unavailable: "Nie można odczytać ustawień kopii lub usunąć plików tymczasowych. Sprawdź uprawnienia folderu danych aplikacji i uruchom ją ponownie.",
       backup_too_large: "Limit szyfrowanego archiwum wynosi 64 GiB minus 32 bajty. Dla większego pliku wybierz kopię bez szyfrowania.",

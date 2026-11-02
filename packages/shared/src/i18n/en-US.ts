@@ -2173,7 +2173,7 @@ export const enUS = {
     },
     errors: {
       backup_name_invalid: "Enter a valid filename without paths, reserved names or special characters.",
-      backup_name_exists: "A file with this name already exists. Choose another name; the existing file is unchanged.",
+      backup_name_exists: "A file with this name already exists. Try again in a moment; the existing file is unchanged.",
       backup_file_replaced: "The backup file was replaced. No action was taken.",
       backup_configuration_unavailable: "Could not read backup settings or clean private staging. Check the app data folder permissions and restart.",
       backup_too_large: "Encrypted backups are limited to 64 GiB minus 32 bytes. Choose an unencrypted backup for a larger archive.",
