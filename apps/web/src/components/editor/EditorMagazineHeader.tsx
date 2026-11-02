@@ -1,0 +1,395 @@
+import { useEffect, useState } from "react";
+import type { Editor } from "@tiptap/react";
+
+type SectionItem = {
+  index: number;
+  num: string;
+  shortTitle: string;
+  subTitle: string;
+};
+
+const cleanHeadingText = (raw: string) =>
+  raw
+    .replace(/^\s*(?:第[一二三四五六七八九十百\d]+[章节部分篇]\s*[：:·.\s]*|\d+\s*[.、·:：]\s*|[一二三四五六七八九十]+\s*[、.．]\s*)/u, "")
+    .trim();
+
+const deriveShortAndSubTitle = (raw: string, index: number) => {
+  const cleaned = cleanHeadingText(raw) || raw.trim() || `章节 ${index + 1}`;
+  const parts = cleaned.split(/[：:，,——·\s]+/).filter(Boolean);
+  if (parts.length >= 2 && parts[0].length <= 8) {
+    return {
+      shortTitle: parts[0],
+      subTitle: parts.slice(1).join(" · ").slice(0, 14),
+    };
+  }
+  if (cleaned.length <= 6) {
+    return {
+      shortTitle: cleaned,
+      subTitle: `PART ${String(index + 1).padStart(2, "0")}`,
+    };
+  }
+  return {
+    shortTitle: cleaned.slice(0, 5),
+    subTitle: cleaned.slice(5, 17) || cleaned.slice(0, 12),
+  };
+};
+
+const splitCoverTitle = (rawTitle: string) => {
+  const trimmed = rawTitle.trim();
+  if (!trimmed) {
+    return { primary: "深度实测与结构化指南", highlight: "" };
+  }
+  const colonMatch = trimmed.match(/^([^：:，,——]+)[：:，,——]\s*(.+)$/);
+  if (colonMatch) {
+    return {
+      primary: `${colonMatch[1]}，`,
+      highlight: colonMatch[2],
+    };
+  }
+  if (trimmed.length > 10) {
+    const mid = Math.ceil(trimmed.length * 0.45);
+    return {
+      primary: trimmed.slice(0, mid),
+      highlight: trimmed.slice(mid),
+    };
+  }
+  return { primary: trimmed, highlight: "" };
+};
+
+const formatYearMonth = (iso?: string) => {
+  const date = iso ? new Date(iso) : new Date();
+  if (Number.isNaN(date.getTime())) return "2026.11";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  return `${year}.${month}`;
+};
+
+export const EditorMagazineHeader = ({
+  editor,
+  title,
+  tags = [],
+  notebookName,
+  updatedAt,
+  palette = "native",
+}: {
+  editor: Editor | null;
+  title?: string;
+  tags?: string[];
+  notebookName?: string;
+  updatedAt?: string;
+  palette?: string;
+}) => {
+  const isNative = !palette || palette === "native";
+  const [sections, setSections] = useState<SectionItem[]>([]);
+  const [leadSummary, setLeadSummary] = useState("");
+
+  useEffect(() => {
+    if (!editor || editor.isDestroyed) {
+      setSections([]);
+      setLeadSummary("");
+      return;
+    }
+
+    const sync = () => {
+      if (editor.isDestroyed) return;
+      const dom = editor.view.dom;
+      const h2Elements = Array.from(dom.querySelectorAll<HTMLElement>("h2"));
+      const nextSections = h2Elements.map((el, index) => {
+        const { shortTitle, subTitle } = deriveShortAndSubTitle(el.textContent || "", index);
+        return {
+          index,
+          num: String(index + 1).padStart(2, "0"),
+          shortTitle,
+          subTitle,
+        };
+      });
+      setSections(nextSections);
+
+      const firstParagraph = dom.querySelector<HTMLElement>("blockquote p, p");
+      const firstText = (firstParagraph?.textContent || "").replace(/\s+/g, " ").trim();
+      setLeadSummary(firstText.slice(0, 42));
+    };
+
+    sync();
+    editor.on("update", sync);
+    editor.on("create", sync);
+    return () => {
+      editor.off("update", sync);
+      editor.off("create", sync);
+    };
+  }, [editor]);
+
+  const { primary, highlight } = splitCoverTitle(title || "");
+  const topTag = tags.length > 0
+    ? tags.slice(0, 2).map((tag) => tag.replace(/^#/, "")).join(" · ").toUpperCase()
+    : "实测 · 深度梳理";
+  const dateLabel = formatYearMonth(updatedAt);
+  const subtitleText = leadSummary
+    || (sections.length > 0
+      ? `${sections.length} 个核心章节，从全局脉络到关键细节完整拆解`
+      : "结构化核心脉络与实战要点梳理");
+
+  const scrollToSection = (index: number) => {
+    if (!editor || editor.isDestroyed) return;
+    const h2Elements = editor.view.dom.querySelectorAll<HTMLElement>("h2");
+    const target = h2Elements[index];
+    target?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  return (
+    <div
+      data-edgeever-magazine-header="true"
+      className="mb-6 select-none"
+      style={{
+        fontFamily: "-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif",
+      }}
+    >
+      {/* Component 2: Magazine cover-breaking card */}
+      <div
+        style={{
+          margin: "0 0 28px",
+          background: "#ffffff",
+          border: isNative
+            ? "1.5px solid #e5e7eb"
+            : "1.5px solid color-mix(in srgb, var(--note-palette-accent, #374151) 18%, transparent)",
+          borderRadius: "20px",
+          overflow: "hidden",
+          boxShadow: "0 4px 20px rgba(0, 0, 0, 0.06)",
+        }}
+      >
+        <div style={{ padding: "28px 28px 24px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "22px" }}>
+            <span
+              style={{
+                width: "6px",
+                height: "6px",
+                borderRadius: "50%",
+                background: "var(--note-palette-accent, #4b5563)",
+                flexShrink: 0,
+              }}
+            />
+            <span
+              style={{
+                fontSize: "11px",
+                fontWeight: 700,
+                letterSpacing: "3px",
+                color: "var(--note-palette-accent, #4b5563)",
+              }}
+            >
+              {topTag}
+            </span>
+            <span
+              style={{
+                flex: 1,
+                height: "1px",
+                background: isNative
+                  ? "linear-gradient(to right, #e5e7eb, transparent)"
+                  : "linear-gradient(to right, color-mix(in srgb, var(--note-palette-accent, #374151) 18%, transparent), transparent)",
+              }}
+            />
+            <span style={{ fontSize: "10px", color: "#d1d5db", fontWeight: 600 }}>
+              {dateLabel}
+            </span>
+          </div>
+
+          <p
+            style={{
+              fontSize: "24px",
+              fontWeight: 900,
+              color: "#111827",
+              margin: "0 0 14px",
+              lineHeight: 1.18,
+              letterSpacing: "-1px",
+            }}
+          >
+            <span>{primary}</span>
+            {highlight ? (
+              <span style={{ color: "var(--note-palette-accent, #374151)" }}>{highlight}</span>
+            ) : null}
+          </p>
+
+          <div
+            style={{
+              width: "48px",
+              height: "3px",
+              background: isNative
+                ? "linear-gradient(to right, #4b5563, #9ca3af)"
+                : "linear-gradient(to right, var(--note-palette-accent, #374151), color-mix(in srgb, var(--note-palette-accent, #374151) 68%, #ffffff))",
+              borderRadius: "2px",
+              marginBottom: "12px",
+            }}
+          />
+
+          <p
+            style={{
+              fontSize: "13px",
+              color: "#9ca3af",
+              margin: 0,
+              lineHeight: 1.7,
+              letterSpacing: "0.5px",
+            }}
+          >
+            {subtitleText}
+          </p>
+        </div>
+
+        <div
+          style={{
+            background: isNative
+              ? "#f3f4f6"
+              : "linear-gradient(135deg, var(--note-palette-accent, #374151), color-mix(in srgb, var(--note-palette-accent, #374151) 80%, #ffffff))",
+            borderTop: isNative ? "1px solid #e5e7eb" : undefined,
+            padding: "11px 28px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "12px",
+          }}
+        >
+          <span
+            style={{
+              fontSize: "12px",
+              color: isNative ? "#374151" : "rgba(255, 255, 255, 0.92)",
+              fontWeight: 600,
+              letterSpacing: "0.5px",
+            }}
+          >
+            {notebookName?.trim() || "EdgeEver 专栏"}
+          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            {sections.length > 0 ? (
+              <span
+                style={{
+                  background: isNative ? "#ffffff" : "rgba(255, 255, 255, 0.2)",
+                  border: isNative ? "1px solid #e5e7eb" : undefined,
+                  padding: "2px 7px",
+                  borderRadius: "4px",
+                  fontSize: "10px",
+                  color: isNative ? "#374151" : "#ffffff",
+                  fontWeight: 600,
+                }}
+              >
+                {sections.length} 个章节
+              </span>
+            ) : null}
+            {tags.slice(0, 2).map((tag) => (
+              <span
+                key={tag}
+                style={{
+                  background: isNative ? "#ffffff" : "rgba(255, 255, 255, 0.2)",
+                  border: isNative ? "1px solid #e5e7eb" : undefined,
+                  padding: "2px 7px",
+                  borderRadius: "4px",
+                  fontSize: "10px",
+                  color: isNative ? "#374151" : "#ffffff",
+                  fontWeight: 600,
+                }}
+              >
+                {tag.replace(/^#/, "")}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Component 3: Horizontal PARTS directory cards (toc-scroll) */}
+      {sections.length >= 2 ? (
+        <div style={{ margin: "0 0 28px" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: "10px",
+            }}
+          >
+            <span
+              style={{
+                fontSize: "10px",
+                color: "#9ca3af",
+                textTransform: "uppercase",
+                letterSpacing: "2px",
+                fontWeight: 600,
+              }}
+            >
+              {sections.length} PARTS · 章节导览
+            </span>
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+            {sections.map((section, idx) => {
+              const isHighlighted = idx < sections.length - 1;
+              const useSolidAccent = isHighlighted && !isNative;
+              return (
+                <button
+                  key={section.num}
+                  type="button"
+                  onClick={() => scrollToSection(section.index)}
+                  style={
+                    useSolidAccent
+                      ? {
+                          width: "146px",
+                          textAlign: "left",
+                          background: "linear-gradient(135deg, var(--note-palette-accent, #374151), color-mix(in srgb, var(--note-palette-accent, #374151) 80%, #ffffff))",
+                          border: "1px solid transparent",
+                          borderRadius: "12px",
+                          padding: "12px",
+                          cursor: "pointer",
+                        }
+                      : {
+                          width: "146px",
+                          textAlign: "left",
+                          background: isHighlighted ? "#f3f4f6" : "#ffffff",
+                          border: "1px solid #e5e7eb",
+                          borderRadius: "12px",
+                          padding: "12px",
+                          boxShadow: "0 2px 6px rgba(0, 0, 0, 0.03)",
+                          cursor: "pointer",
+                        }
+                  }
+                >
+                  <div
+                    style={{
+                      fontSize: "9px",
+                      fontWeight: 700,
+                      color: useSolidAccent ? "rgba(255, 255, 255, 0.72)" : "#6b7280",
+                      letterSpacing: "1px",
+                      marginBottom: "5px",
+                    }}
+                  >
+                    {section.num}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "13px",
+                      fontWeight: 800,
+                      color: useSolidAccent ? "#ffffff" : "#111827",
+                      marginBottom: "3px",
+                      lineHeight: 1.3,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {section.shortTitle}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "10px",
+                      color: useSolidAccent ? "rgba(255, 255, 255, 0.75)" : "#6b7280",
+                      lineHeight: 1.4,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {section.subTitle}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+};

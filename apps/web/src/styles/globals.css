@@ -4,6 +4,7 @@
 @import "./editor-themes/index.css";
 @import "./publish-layout.css";
 @import "./note-prose.css";
+@import "./note-prose-styles.css";
 @import "./code-highlight-dark.css";
 
 @source "../../node_modules/streamdown/dist";
@@ -2771,11 +2772,25 @@ html[data-edgeever-extension-theme] .edgeever-memo-divider {
 
 .ProseMirror th,
 .markdown-content th {
-  background: rgb(var(--slate-100-rgb) / 0.75);
-  color: #0f172a;
+  background: #f3f4f6;
+  color: #111827;
   font-size: 0.84rem;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: -0.01em;
+}
+
+.ProseMirror th strong,
+.ProseMirror th b,
+.markdown-content th strong,
+.markdown-content th b {
+  color: inherit;
+}
+
+.ProseMirror td strong,
+.ProseMirror td b,
+.markdown-content td strong,
+.markdown-content td b {
+  color: #111827;
 }
 
 .ProseMirror th:last-child,
@@ -2792,7 +2807,7 @@ html[data-edgeever-extension-theme] .edgeever-memo-divider {
 
 .ProseMirror tbody tr:nth-child(even) td,
 .markdown-content tbody tr:nth-child(even) td {
-  background: rgb(var(--slate-50-rgb) / 0.5);
+  background: #f9fafb;
 }
 
 .ProseMirror tbody tr:hover td,
@@ -2844,8 +2859,15 @@ html[data-edgeever-extension-theme] .edgeever-memo-divider {
 
 :root.dark .ProseMirror th,
 :root.dark .markdown-content th {
-  background: rgb(255 255 255 / 0.035);
+  background: rgb(255 255 255 / 0.06);
   color: hsl(var(--foreground));
+}
+
+:root.dark .ProseMirror td strong,
+:root.dark .ProseMirror td b,
+:root.dark .markdown-content td strong,
+:root.dark .markdown-content td b {
+  color: #f3f4f6;
 }
 
 :root.dark .ProseMirror .tableWrapper,

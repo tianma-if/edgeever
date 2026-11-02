@@ -101,10 +101,11 @@ describe("preparePublishArticle", () => {
       expect(css(root.querySelector("code"))).toContain("color:#5B4EE0");
       expect(css(root.querySelector("code"))).toContain("background:#F3F1FF");
       const th = root.querySelector("th");
-      expect(css(th)).toContain("background:#F4F4F5");
+      expect(css(th)).toContain("background:#7351CF");
+      expect(css(th)).toContain("color:#ffffff");
       expect(css(th)).toContain("border:1px solid #e5e5e5");
       const rows = root.querySelectorAll("tbody tr");
-      expect(css(rows[1].querySelector("td"))).toContain("background-color:#F4F4F5");
+      expect(css(rows[1].querySelector("td"))).toContain("background-color:#f9fafb");
     } finally {
       globalThis.getComputedStyle = previous;
     }
@@ -159,6 +160,52 @@ describe("preparePublishArticle", () => {
     expect(root.textContent).toContain("#\u200bmemo");
     expect(root.innerHTML).not.toContain("#be123c");
     expect(root.innerHTML).not.toContain("#10b981");
+  });
+
+  test("applies composable emerald, numbered headings, dashed quotes, and marker emphasis for WeChat", () => {
+    const container = document.createElement("div");
+    container.dataset.notePalette = "emerald";
+    container.dataset.noteHeadingStyle = "numbered";
+    container.dataset.noteQuoteStyle = "dashed";
+    container.dataset.noteEmphasisStyle = "marker";
+    const previous = globalThis.getComputedStyle;
+    globalThis.getComputedStyle = () => ({
+      getPropertyValue: (name) => ({
+        "--note-palette-accent": "#059669",
+        "--note-palette-light-accent": "#059669",
+        "--note-palette-text": "#374151",
+        "--note-palette-surface": "#F0FDF4",
+        "--note-palette-divider": "#A7F3D0",
+        "--note-palette-code-bg": "#ECFDF5",
+        "--note-palette-code-text": "#047857",
+      })[name] ?? "",
+    });
+    try {
+      const root = preparePublishArticle([
+        "<h2>章节标题</h2>",
+        "<h3>小节胶囊</h3>",
+        "<blockquote><p><strong>摸鱼绿虚线引用框</strong></p></blockquote>",
+        "<p><strong>翡翠重点</strong> <u>薄荷底线</u> <mark>暖黄高亮</mark> <code>neutralCode</code></p>",
+      ].join(""), container);
+      const h2 = root.querySelector("h2");
+      expect(h2?.textContent).toContain("01");
+      expect(h2?.textContent).toContain("PART");
+      expect(h2?.textContent).toContain("章节标题");
+      expect(h2?.querySelector("[data-ee-heading-number]")?.innerHTML).toContain("#059669");
+      const h3 = root.querySelector("h3");
+      expect(css(h3)).toContain("border-radius:999px");
+      expect(h3?.querySelector("[data-ee-pill-dot]")).not.toBeNull();
+      const quote = root.querySelector("blockquote");
+      expect(css(quote)).toContain("border:1px dashed #d1d5db");
+      expect(css(quote)).toContain("background:#f9fafb");
+      expect(css(quote?.querySelector("strong"))).toContain("border-bottom:3px solid #fde68a");
+      expect(css(root.querySelector("p > strong"))).toContain("color:#059669");
+      expect(css(root.querySelector("u"))).toContain("border-bottom:2px solid #A7F3D0");
+      expect(css(root.querySelector("mark"))).toContain("background-color:#fde68a");
+      expect(css(root.querySelector("code"))).toContain("background:#f3f4f6");
+    } finally {
+      globalThis.getComputedStyle = previous;
+    }
   });
 });
 

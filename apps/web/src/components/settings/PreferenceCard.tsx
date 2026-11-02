@@ -5,11 +5,32 @@ import { FONT_CATALOG, NOTE_BODY_FONT_MENU_GROUPS, isRemoteNoteImageFont, type R
 import { FontLoadFeedback } from "@/components/FontLoadFeedback";
 import { editorFontLoadState, uiFontLoadState, retryEditorCatalogFont, retryUiCatalogFont } from "@/lib/editor-catalog-fonts";
 import { FontLabel } from "@/components/FontLabel";
-import { AlignVerticalSpaceAround, AppWindow, BookOpenText, ChartNoAxesCombined, Code2, Image, Keyboard, Languages, ListTree, MousePointerClick, Palette, Sparkles, SpellCheck, SunMoon, Type } from "lucide-react";
+import { AlignVerticalSpaceAround, AppWindow, BookOpenText, ChartNoAxesCombined, Code2, Heading, Highlighter, Image, Keyboard, Languages, ListTree, MousePointerClick, Palette, Quote, Sparkles, SpellCheck, SunMoon, Type } from "lucide-react";
 import { useState, useEffect, useSyncExternalStore, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import type { NoteProsePatch, NoteProsePaletteChoice, ResolvedNoteProse } from "@edgeever/shared";
-import { DEFAULT_NOTE_PROSE_CSS, MAX_NOTE_PROSE_CSS_BYTES, NOTE_PROSE_FONT_SIZES, NOTE_PROSE_PALETTE_CHOICES, NOTE_PROSE_PALETTES, noteProseCssDropsDeclarations } from "@edgeever/shared";
+import type {
+  NoteProseEmphasisStyle,
+  NoteProseHeadingStyle,
+  NoteProsePatch,
+  NoteProsePaletteChoice,
+  NoteProseQuoteStyle,
+  ResolvedNoteProse,
+} from "@edgeever/shared";
+import {
+  DEFAULT_NOTE_PROSE_CSS,
+  MAX_NOTE_PROSE_CSS_BYTES,
+  NOTE_PROSE_EMPHASIS_STYLES,
+  NOTE_PROSE_FONT_SIZES,
+  NOTE_PROSE_HEADING_STYLES,
+  NOTE_PROSE_PALETTE_CHOICES,
+  NOTE_PROSE_PALETTES,
+  NOTE_PROSE_QUOTE_STYLES,
+  noteProseCssDropsDeclarations,
+} from "@edgeever/shared";
+import {
+  useNoteProseStylePreference,
+  writeNoteProseStylePreference,
+} from "@/lib/note-prose-style-preference";
 import {
   EDITOR_SPELLCHECK_CHANGED_EVENT,
   readEditorSpellcheckPreference,
@@ -242,6 +263,7 @@ export const PreferenceCard = ({
   const [aiSelectionMenuEnabled, setAiSelectionMenuEnabled] = useState(readAiSelectionMenuPreference);
   const [aiSpaceShortcutEnabled, setAiSpaceShortcutEnabled] = useState(readAiSpaceShortcutPreference);
   const [spellcheckEnabled, setSpellcheckEnabled] = useState(readEditorSpellcheckPreference);
+  const noteProseStyle = useNoteProseStylePreference();
   const [editorBodyFont, setEditorBodyFont] = useState(readEditorBodyFontPreference);
   const [uiFont, setUiFont] = useState(readUiFontPreference);
 
@@ -533,6 +555,84 @@ export const PreferenceCard = ({
                       <span>{t(`settings.editorBodyPalettes.${paletteId}`)}</span>
                       <NoteProsePaletteSwatch paletteId={paletteId} />
                     </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="flex min-h-16 flex-col items-start gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <Heading className="h-4 w-4 shrink-0 text-slate-500" />
+            <div className="min-w-0">
+              <div className={SETTINGS_ITEM_TITLE_CLASSNAME}>{t("settings.editorBodyHeadingStyleTitle")}</div>
+            </div>
+          </div>
+          <div className="w-full shrink-0 sm:w-80">
+            <Select
+              value={noteProseStyle.headingStyle}
+              onValueChange={(value) => writeNoteProseStylePreference({ headingStyle: value as NoteProseHeadingStyle })}
+            >
+              <SelectTrigger aria-label={t("settings.editorBodyHeadingStyleTitle")} className="h-9 bg-card">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {NOTE_PROSE_HEADING_STYLES.map((styleId) => (
+                  <SelectItem key={styleId} value={styleId}>
+                    {t(`settings.editorBodyHeadingStyles.${styleId}`)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="flex min-h-16 flex-col items-start gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <Quote className="h-4 w-4 shrink-0 text-slate-500" />
+            <div className="min-w-0">
+              <div className={SETTINGS_ITEM_TITLE_CLASSNAME}>{t("settings.editorBodyQuoteStyleTitle")}</div>
+            </div>
+          </div>
+          <div className="w-full shrink-0 sm:w-80">
+            <Select
+              value={noteProseStyle.quoteStyle}
+              onValueChange={(value) => writeNoteProseStylePreference({ quoteStyle: value as NoteProseQuoteStyle })}
+            >
+              <SelectTrigger aria-label={t("settings.editorBodyQuoteStyleTitle")} className="h-9 bg-card">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {NOTE_PROSE_QUOTE_STYLES.map((styleId) => (
+                  <SelectItem key={styleId} value={styleId}>
+                    {t(`settings.editorBodyQuoteStyles.${styleId}`)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="flex min-h-16 flex-col items-start gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <Highlighter className="h-4 w-4 shrink-0 text-slate-500" />
+            <div className="min-w-0">
+              <div className={SETTINGS_ITEM_TITLE_CLASSNAME}>{t("settings.editorBodyEmphasisStyleTitle")}</div>
+            </div>
+          </div>
+          <div className="w-full shrink-0 sm:w-80">
+            <Select
+              value={noteProseStyle.emphasisStyle}
+              onValueChange={(value) => writeNoteProseStylePreference({ emphasisStyle: value as NoteProseEmphasisStyle })}
+            >
+              <SelectTrigger aria-label={t("settings.editorBodyEmphasisStyleTitle")} className="h-9 bg-card">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {NOTE_PROSE_EMPHASIS_STYLES.map((styleId) => (
+                  <SelectItem key={styleId} value={styleId}>
+                    {t(`settings.editorBodyEmphasisStyles.${styleId}`)}
                   </SelectItem>
                 ))}
               </SelectContent>
