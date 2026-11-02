@@ -1,4 +1,4 @@
-import { app, Notification, BrowserWindow, Menu, Tray, globalShortcut, nativeImage, ipcMain, session, net, protocol, shell, dialog, safeStorage, clipboard, ClipboardItem, powerMonitor, desktopCapturer, screen } from "electron";
+import { app, Notification, BrowserWindow, Menu, Tray, globalShortcut, nativeImage, ipcMain, session, net, protocol, shell, dialog, safeStorage, clipboard, ClipboardItem, powerMonitor, desktopCapturer, screen, utilityProcess } from "electron";
 import { createReadStream, existsSync } from "node:fs";
 import { appendFile, mkdir, open, readdir, readFile, rename, rm, stat, unlink, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
@@ -8,6 +8,7 @@ import { backgroundNodeExecutable } from "./background-node.mjs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { release as operatingSystemRelease } from "node:os";
 import { BackupManager } from "./backup-manager.mjs";
+import { createBackupWorkerFactory } from "./backup-worker.mjs";
 import { registerBackupIpc } from "./backup-ipc.mjs";
 import { SidecarRpcClient } from "./rpc.mjs";
 import { instanceOrigin, encodeSessionCredential, decodeSessionCredential, credentialForUrl } from "./session-credential.mjs";
@@ -1933,6 +1934,7 @@ const startApplication = async () => {
   });
   backupManager = new BackupManager({
     userData: app.getPath("userData"), defaultDirectory: join(app.getPath("documents"), "EdgeEver Backups"), secureStorage: safeStorage,
+    workerFactory: createBackupWorkerFactory({ utilityProcess, session: session.defaultSession }),
     version: { edgeeverVersion: app.getVersion(), buildId: app.getVersion() },
     onChange: (status) => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("desktop:backup-status", status); },
     onDiagnostic: (event, details) => writeDiagnostic(event, details),

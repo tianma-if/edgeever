@@ -1,0 +1,80 @@
+name: Test desktop backup network
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/desktop-backup-network.yml"
+      - "apps/desktop/src/backup/**"
+      - "apps/desktop/src/main/backup*.mjs"
+      - "apps/desktop/src/main/index.mjs"
+      - "apps/desktop/scripts/build-backup-worker.mjs"
+      - "apps/desktop/package.json"
+      - "apps/api/src/backup*"
+      - "apps/api/src/*storage*"
+      - "packages/client/src/**"
+      - "packages/shared/src/backup*"
+      - "migrations/**"
+      - "package.json"
+      - "bun.lock"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/desktop-backup-network.yml"
+      - "apps/desktop/src/backup/**"
+      - "apps/desktop/src/main/backup*.mjs"
+      - "apps/desktop/src/main/index.mjs"
+      - "apps/desktop/scripts/build-backup-worker.mjs"
+      - "apps/desktop/package.json"
+      - "apps/api/src/backup*"
+      - "apps/api/src/*storage*"
+      - "packages/client/src/**"
+      - "packages/shared/src/backup*"
+      - "migrations/**"
+      - "package.json"
+      - "bun.lock"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-backup-network-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backup-network:
+    if: github.repository == 'tianma-if/edgeever'
+    name: Backup network (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    env:
+      EDGE_EVER_BACKUP_REPORT: ${{ runner.temp }}/backup-network
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+      - name: Install Electron display dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2t64 libatk-bridge2.0-0 libdrm2 libgbm1 libgtk-3-0 libnss3 xvfb
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Test proxy and direct backup/restore
+        if: runner.os != 'Linux'
+        run: bun run test:desktop:backup-network
+      - name: Test proxy and direct backup/restore (Xvfb)
+        if: runner.os == 'Linux'
+        run: xvfb-run --auto-servernum bun run test:desktop:backup-network
+      - name: Upload runtime reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backup-network-${{ matrix.os }}
+          path: ${{ runner.temp }}/backup-network-*.json
+          if-no-files-found: ignore
