@@ -18,6 +18,13 @@ export type MemoShare = {
   showBranding: boolean;
   /** Plaintext is returned only immediately after the owner enables or regenerates a password. */
   password?: string;
+  /** UTC instant after which the public link stops working; null never expires. Older servers omit it. */
+  expiresAt?: string | null;
+  /** Decided by the server when it answered; clients never compare expiry themselves. */
+  expired?: boolean;
+  /** Times the note content was served to a visitor, and when that last happened. */
+  viewCount?: number;
+  lastViewedAt?: string | null;
 };
 
 export { isValidMemoShareSlug, MEMO_SHARE_SLUG_MAX_LENGTH, MEMO_SHARE_SLUG_PATTERN, RESERVED_MEMO_SHARE_SLUGS } from "./share-slug";

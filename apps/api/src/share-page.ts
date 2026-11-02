@@ -1,6 +1,7 @@
 import { getMemoDisplayTitle } from "@edgeever/shared/memo-title";
 import { isValidMemoShareSlug } from "@edgeever/shared/share-slug";
 import { PUBLIC_PAGE_HEADERS, PUBLIC_PAGE_ROBOTS } from "@edgeever/shared/public-page-headers";
+import { isMemoShareExpired, recordMemoShareView } from "./memo-share-access";
 import type { DatabaseAdapter } from "./storage-contract";
 
 const SHARE_PAGE_PATH = /^\/share\/([^/]+?)(\.md)?\/?$/;
@@ -10,6 +11,7 @@ type SharePageRow = {
   title: string | null;
   content_markdown: string | null;
   password_hash: string | null;
+  expires_at: string | null;
   updated_at: string;
   show_updated_at: number;
   show_branding: number;
@@ -81,6 +83,7 @@ const describeNote = (markdown: string) => {
 
 export const PUBLIC_SHARE_MARKDOWN_NOT_FOUND = "Shared note not found\n";
 export const PUBLIC_SHARE_MARKDOWN_PASSWORD = "This shared note requires a password.\n";
+export const PUBLIC_SHARE_MARKDOWN_EXPIRED = "This shared link has expired.\n";
 
 /** Markdown body for a public note. A title already used as the first heading is kept once. */
 export const publicShareMarkdown = (title: string | null, body: string) => {
@@ -93,7 +96,7 @@ export const publicShareMarkdown = (title: string | null, body: string) => {
 };
 
 const loadShare = (db: DatabaseAdapter, token: string) => db.prepare(
-  `SELECT m.title, mc.content_markdown, ms.password_hash, m.updated_at, ms.show_updated_at, ms.show_branding
+  `SELECT m.title, mc.content_markdown, ms.password_hash, ms.expires_at, m.updated_at, ms.show_updated_at, ms.show_branding
    FROM memo_shares ms
    INNER JOIN memos m ON m.id = ms.memo_id AND m.workspace_id = ms.workspace_id
    INNER JOIN memo_contents mc ON mc.memo_id = m.id
@@ -140,8 +143,9 @@ export const renderPublicMemoSharePage = async (
 
   const token = await resolveMemoShareToken(db, target.segment);
   const row = token ? await loadShare(db, token) : null;
-  const locked = Boolean(row?.password_hash);
-  const readable = Boolean(row) && !locked;
+  const expired = Boolean(row) && isMemoShareExpired(row?.expires_at);
+  const locked = !expired && Boolean(row?.password_hash);
+  const readable = Boolean(row) && !expired && !locked;
   const body = row?.content_markdown ?? "";
   const markdownUrl = `${url.origin}/share/${encodeURIComponent(target.segment)}.md`;
   const canonical = `${url.origin}/share/${encodeURIComponent(target.segment)}`;
@@ -151,9 +155,14 @@ export const renderPublicMemoSharePage = async (
     if (!row) {
       return new Response(request.method === "HEAD" ? null : PUBLIC_SHARE_MARKDOWN_NOT_FOUND, { status: 404, headers });
     }
+    if (expired) {
+      return new Response(request.method === "HEAD" ? null : PUBLIC_SHARE_MARKDOWN_EXPIRED, { status: 410, headers });
+    }
     if (locked) {
       return new Response(request.method === "HEAD" ? null : PUBLIC_SHARE_MARKDOWN_PASSWORD, { status: 403, headers });
     }
+    // The HTML shell below is not counted: a browser opening it counts once through the share API.
+    if (request.method === "GET" && token) await recordMemoShareView(db, token);
     headers.set("Content-Disposition", "inline");
     return new Response(request.method === "HEAD" ? null : publicShareMarkdown(row.title, body), { status: 200, headers });
   }
@@ -161,9 +170,11 @@ export const renderPublicMemoSharePage = async (
   const title = readable ? (getMemoDisplayTitle(row?.title, "").replace(/[\r\n]+/g, " ").trim() || "Shared note") : "Shared note";
   const description = readable
     ? describeNote(body)
-    : locked
-      ? "This shared note requires a password."
-      : "Read a shared note on EdgeEver.";
+    : expired
+      ? "This shared link has expired."
+      : locked
+        ? "This shared note requires a password."
+        : "Read a shared note on EdgeEver.";
   const updatedTime = readable && row && row.show_updated_at !== 0
     ? `<p style="font-size:.75rem;color:#64748b">Updated <time datetime="${escapeHtml(row.updated_at)}">${escapeHtml(new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }).format(new Date(row.updated_at)))} UTC</time></p>`
     : "";

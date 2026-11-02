@@ -1,5 +1,5 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { FileText, Link2, LoaderCircle, LockKeyhole } from "lucide-react";
+import { Clock3, Eye, FileText, Link2, LoaderCircle, LockKeyhole } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { memoSharePathSegment, type ManagedMemoShare } from "@edgeever/shared";
@@ -90,6 +90,23 @@ export const ShareManagementCard = ({ userId, onOpenMemo }: Props) => {
                       {share.passwordProtected ? (
                         <span className="inline-flex items-center gap-1 text-slate-600">
                           <LockKeyhole className="h-3 w-3" />{t("sharing.passwordProtected")}
+                        </span>
+                      ) : null}
+                      {share.expiresAt ? (
+                        <span className={`inline-flex items-center gap-1 ${share.expired ? "text-rose-600" : "text-slate-600"}`}>
+                          <Clock3 className="h-3 w-3" />
+                          {share.expired ? t("sharing.expiredBadge") : t("sharing.expiresOn", { date: formatDate(share.expiresAt) })}
+                        </span>
+                      ) : null}
+                      {share.viewCount !== undefined ? (
+                        <span className="inline-flex items-center gap-1">
+                          <Eye className="h-3 w-3" />
+                          {share.viewCount > 0
+                            ? [
+                                t("sharing.viewsCount", { count: share.viewCount }),
+                                share.lastViewedAt ? t("sharing.viewsLast", { date: formatDate(share.lastViewedAt) }) : null,
+                              ].filter(Boolean).join(" · ")
+                            : t("sharing.viewsNone")}
                         </span>
                       ) : null}
                     </p>
