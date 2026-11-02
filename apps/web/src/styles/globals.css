@@ -1975,15 +1975,27 @@ html[data-edgeever-extension-theme] .edgeever-memo-divider {
   background: transparent;
 }
 
-.ProseMirror img {
+.ProseMirror img:not(.ProseMirror-separator),
+.markdown-content img {
   display: block;
   max-width: 100%;
   max-height: min(68vh, 720px);
   height: auto;
   object-fit: contain;
   margin: 1rem 0;
-  border: 1px solid hsl(var(--border));
-  border-radius: 8px;
+  box-sizing: border-box;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 6px;
+  box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.08);
+}
+
+:root.dark .ProseMirror img:not(.ProseMirror-separator),
+:root.dark .markdown-content img {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.35);
 }
 
 .ProseMirror img.ProseMirror-selectednode {
@@ -2286,6 +2298,11 @@ html[data-edgeever-extension-theme] .edgeever-memo-divider {
   max-height: 18rem;
   margin: 0;
   object-fit: cover;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  box-shadow: none;
+  background: transparent;
 }
 
 /* Height fit keeps the full source image inside a consistent gallery tile. */

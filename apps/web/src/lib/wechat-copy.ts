@@ -111,9 +111,8 @@ const applyLegacyWeChatStyles = (
     ? `margin: 0 0 20px; padding: 14px 18px; overflow: hidden; border: 0; border-left: 3px solid ${accent}; border-radius: 0 8px 8px 0; background: #f9fafb; color: #0f172a; font-family: ${PUBLISH_MONO}; font-size: ${codeSize}; line-height: 1.75; text-align: left; white-space: pre-wrap;`
     : `margin: 0 0 16px; padding: 14px 16px; overflow: hidden; border: 1px solid #e4e4e4; border-radius: 8px; background: #fafafa; color: #0f172a; font-family: ${PUBLISH_MONO}; font-size: ${codeSize}; line-height: 1.6; text-align: left; white-space: pre-wrap;`;
   const thStyle = `padding: 8px 13px; border: 1px solid #e5e5e5; background: ${thBackground}; color: ${thColor}; font-weight: 700; font-size: 13px; text-align: left;`;
-  const imgStyle = proseStyle.headingStyle === "numbered"
-    ? "display: block; max-width: 100%; height: auto; margin: 16px 0; padding: 6px; box-sizing: border-box; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; box-shadow: 0 4px 12px -2px rgba(0,0,0,0.08);"
-    : "display: block; max-width: 100%; height: auto; margin: 16px 0; border: 1px solid #b8dfd0; border-radius: 8px;";
+  const imgStyle =
+    "display: block; max-width: 100%; height: auto; margin: 16px 0; padding: 6px; box-sizing: border-box; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; box-shadow: 0 4px 12px -2px rgba(0,0,0,0.08);";
   const paragraphBottom = proseStyle.headingStyle === "numbered" ? "16px" : PARAGRAPH_SPACING;
   const styles: Record<string, string> = {
     p: `margin: 0 0 ${paragraphBottom}; padding: 0; ${textStyle}`,

@@ -122,7 +122,14 @@ describe("preparePublishArticle", () => {
       "<ul data-type=\"taskList\"><li data-checked=\"true\"><label><input type=\"checkbox\" checked></label><div><p>已完成</p></div></li></ul>",
       "<span data-type=\"inline-math\" data-latex=\"E = mc^2\"></span>",
       "<p>#memo 话题</p>",
+      "<img src=\"https://example.com/test.png\" alt=\"pic\">",
     ].join(""));
+
+    const img = root.querySelector("img");
+    expect(css(img)).toContain("border-radius:12px");
+    expect(css(img)).toContain("box-shadow:0 4px 12px -2px rgba(0,0,0,0.08)");
+    expect(css(img)).toContain("padding:6px");
+    expect(css(img)).not.toContain("#b8dfd0");
 
     const quote = root.querySelector("blockquote");
     expect(css(quote)).toContain("background:#f3f5f7");

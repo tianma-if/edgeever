@@ -239,15 +239,6 @@
   color: #e5e7eb !important;
 }
 
-/* Image card frame in numbered magazine mode */
-.edgeever-editor[data-note-heading-style="numbered"] .ProseMirror img:not(.ProseMirror-separator),
-.edgeever-editor[data-note-heading-style="numbered"] .markdown-content img {
-  background: #ffffff;
-  border-radius: 12px;
-  padding: 6px;
-  border: 1px solid #e5e7eb;
-  box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.08);
-}
 
 /* 3. Heading style: Bottom rule ("underline") */
 .edgeever-editor[data-note-heading-style="underline"] .ProseMirror h2,
