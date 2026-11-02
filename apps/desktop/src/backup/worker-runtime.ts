@@ -13,10 +13,14 @@ export const backupWorkerRuntime = async (): Promise<{ data: unknown; port: Port
 
   const utilityPort = process.parentPort;
   const { net } = await import("electron");
+  const sessionFetch = net.fetch as typeof fetch;
   const data = await new Promise<unknown>(resolve => utilityPort.once("message", event => resolve(event.data)));
   const listeners = new Set<(event: { data: ControlMessage }) => void>();
   return {
-    data, request: net.fetch as typeof fetch,
+    data,
+    // A resource can change without changing its download URL. Backups must
+    // neither read nor populate the shared session's HTTP cache.
+    request: ((input, init) => sessionFetch(input, { ...init, cache: "no-store" })) as typeof fetch,
     port: {
       on(_event, listener) {
         const receive = (event: { data: ControlMessage }) => listener(event.data);

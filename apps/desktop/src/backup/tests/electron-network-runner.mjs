@@ -60,6 +60,22 @@ app.whenReady().then(async () => {
     assert.equal(manager.status().lastCheck.result, "unchanged");
     assert.equal(manager.status().history.length, 1);
 
+    const replacement = await net.fetch(new URL("./replace-attachment", settings.control).href, {
+      method: "POST", credentials: "omit", cache: "no-store",
+    });
+    assert.equal(replacement.status, 200);
+    const replaced = await replacement.json();
+    assert.equal(replaced.resourceUrl, settings.mutableResourceUrl);
+    assert.notEqual(replaced.hash, replaced.previousHash);
+    assert.ok(replaced.revisionAfter > replaced.revisionBefore);
+    await manager.run(); await manager.waitForIdle(); checked();
+    const second = manager.status();
+    assert.equal(second.lastCheck.result, "success");
+    assert.equal(second.history.length, 1);
+    output.archiveBytes = second.history[0].size;
+    output.archive = join(second.actualDirectory, second.history[0].name);
+    output.repeatedExport = true;
+
     await manager.setContext(context(settings.target));
     const selection = await manager.selectImport(output.archive);
     const ready = new Promise(resolve => { manager.onChange = status => { if (status?.task?.phase === "ready") resolve(); }; });
