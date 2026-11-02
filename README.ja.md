@@ -106,17 +106,17 @@ Cloudflare のオンライン導入は、次のいずれかです。
 GitHub と Cloudflare のオンライン操作だけで EdgeEver を導入してください:
 1. Fork https://github.com/tianma-if/edgeever。
 2. Cloudflare で D1 `edgeever` と R2 `edgeever-resources` を作成します。
-3. Workers & Pages で Fork の `main` ブランチから `edgeever` という名前の Worker を作成します。
-   リポジトリのルートを使い、Cloudflare Workers Builds の既定のデプロイコマンドを維持します。
-   その API トークンに D1 の読み取り・編集権限があることを確認して Save and Deploy を選択します。
-4. Worker の作成後、ユーザーが指定したパスワードを実行時 Secret
-   `EDGE_EVER_AUTH_PASSWORD` に設定します
-   （32 文字以上を推奨）。管理者ユーザー名の既定値は `admin` です。別の名前を指定された場合は、
-   次のビルド前に Workers Builds 変数 `EDGE_EVER_AUTH_USERNAME` を設定します。
-5. 再度ビルドし、`/api/health` と `/api/openapi.json` を確認してから、
-   その管理者ユーザー名とパスワードでログインできることを確認します。
-6. GitHub Actions の `Update deployed EdgeEver` を有効にし、一度手動実行して、
-   Fork が今後の安定版と修正を自動で受け取れるようにします。
+3. Workers & Pages で「Start with Hello World!」を選び、`edgeever` という名前の Worker を作成します。
+4. Worker の Settings → Variables and Secrets で、指定されたログインパスワードを
+   実行時 Secret `EDGE_EVER_AUTH_PASSWORD` として追加し、Deploy を選択します
+   （32 文字以上を推奨）。管理者ユーザー名の既定値は `admin` です。
+5. Secret のデプロイ後、同じ Worker の Settings → Builds → Connect で Fork の
+   `main` ブランチに接続します。
+6. Settings → Builds → API token でデプロイ用の Cloudflare API トークンを選択または作成し、対象アカウントの D1 読み取り・編集権限を確認します。
+7. Fork の GitHub リポジトリで Actions → Update deployed EdgeEver を開き、必要に応じて有効化して、
+   `main` ブランチで Run workflow を選択します。Cloudflare で対応するビルドの成功とデプロイの完了を確認してから、`/api/health` と
+   `/api/openapi.json` を確認し、管理者ユーザー名とパスワードでログインを検証します。
+   以後、このワークフローが安定版と修正を自動で同期します。
 ```
 
 > 詳細な要件: [AI Agent Cloudflare Deployment](docs/agent-deploy-cloudflare.md)。
@@ -124,16 +124,17 @@ GitHub と Cloudflare のオンライン操作だけで EdgeEver を導入して
 ### 方法 B: 手動のオンライン導入
 
 <details>
-<summary>📖 クリックして展開：Web で行う 6 ステップの手動導入手順</summary>
+<summary>📖 クリックして展開：Web で行う 7 ステップの手動導入手順</summary>
 
-ウェブ上の 6 手順で完了します。
+以下の 7 手順を、必ず記載の順番どおりにウェブ上で実行してください。
 
 1. **リポジトリを Fork**：GitHub 右上の **Fork** で、EdgeEver を自分のアカウントへ Fork します。
 2. **Cloudflare リソースを作成**：D1 `edgeever` と R2 `edgeever-resources` を作ります。
-3. **プロジェクトを取り込み、設定**：Cloudflare **Workers & Pages** で Fork の `main` ブランチから `edgeever` という名前の Worker を作成します。リポジトリのルートと、Cloudflare 上で実行される Workers Builds の既定のデプロイコマンドを使い、API トークンの D1 読み取り・編集権限を確認します。binding はデプロイコマンドが作るため、Fork 内のファイルは編集しないでください。
-4. **管理者パスワードを準備**：管理者ログイン用パスワードを用意します。32 文字以上を推奨します。Worker 作成後、実行時 Secret `EDGE_EVER_AUTH_PASSWORD` に保存します。
-5. **ビルドと確認**：Save and Deploy で Worker が作成され、ビルドが始まります。初回のビルドは Worker インスタンスを初期化するためのものであり、管理者 Secret 未設定によるエラーは想定内の動作です。手順 4 の実行時 Secret `EDGE_EVER_AUTH_PASSWORD` を追加した後に再試行ボタンを押せばビルドが通過します。管理者ユーザー名の既定値は `admin` です。別の名前を使う場合は、再試行前に Workers Builds 変数 `EDGE_EVER_AUTH_USERNAME` を設定します。導入後に `/api/health` が `200` を返すことを確認し、設定した管理者ユーザー名とパスワードでログインします。
-6. **自動更新を有効化**：Fork の **Actions** タブで **I understand my workflows, go ahead and enable them** を押し、**Update deployed EdgeEver** を一度手動実行して、今後の安定版と修正を自動で受け取れるようにします。
+3. **Worker を作成**：Cloudflare Workers & Pages で Create application → Start with Hello World! を選び、`edgeever` という名前でデプロイします。これは仮のサービスで、EdgeEver は手順 7 でデプロイします。
+4. **管理者パスワードを設定**：Worker の Settings → Variables and Secrets で Secret 型の `EDGE_EVER_AUTH_PASSWORD` を追加し、Deploy を選択します。値はログインパスワードで、32 文字以上を推奨します。完了後に Fork へ接続します。
+5. **Fork に接続**：既存 Worker の Settings → Builds → Connect で Fork と本番ブランチ `main` を選びます。
+6. **デプロイ権限を設定**：Settings → Builds → API token でデプロイ用の Cloudflare API トークンを選択または作成し、対象アカウントの D1 読み取り・編集権限を確認します。
+7. **ビルドと確認**：Fork の GitHub リポジトリで Actions → Update deployed EdgeEver を開き、必要に応じて有効化して、 `main` ブランチで Run workflow を選択します。Cloudflare で対応するビルドの成功とデプロイの完了を確認してから、 `/api/health` が `200` を返すこととログインを確認します。以後、このワークフローが安定版と修正を自動で同期します。
 
 > 📖 手順と設定の詳細は [Online Deployment Guide](docs/deploy-cloudflare-button.md) を見てください。
 

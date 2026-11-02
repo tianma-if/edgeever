@@ -13,6 +13,8 @@ Deploy EdgeEver through GitHub and Cloudflare in your browser, without installin
 
 ## First Deployment
 
+Complete the following steps strictly in order.
+
 ### Step 1: Fork the Repository
 
 1. Visit the official EdgeEver repository: `https://github.com/tianma-if/edgeever`.
@@ -33,24 +35,15 @@ Log into your [Cloudflare Dashboard](https://dash.cloudflare.com/). If an entry 
 
 ---
 
-### Step 3: Import the Project
+### Step 3: Create the Worker
 
-1. Open **Workers & Pages**, click **Create application**, then **Get started** next to **Import a repository**. If the entry moves, see [Cloudflare's instructions](https://developers.cloudflare.com/workers/ci-cd/builds/#connect-a-new-worker).
-2. Follow the prompts to connect your GitHub account, authorize access to your Fork, and select the Forked `edgeever` repository.
-3. Project settings:
-   - **Worker name**: `edgeever`, matching the `name` in the root `wrangler.toml`
-   - **Git branch** (or **Production branch**): `main`
-   - **Root directory**: Leave blank to use the repository root
-   - Deploy command: npx wrangler deploy (keep Cloudflare's default; Workers Builds runs it online, not on your computer)
-   - **API token**: The automatically generated token may lack D1 permissions. Select or create a User API Token scoped to the target account with D1 read and edit permissions; if permissions are insufficient, correct them based on the build log and retry.
-
-The deployment command creates the `DB` and `RESOURCES` bindings and looks up the D1 UUID. Do not edit `wrangler.toml` or add duplicate bindings in the Dashboard.
+1. Open **Workers & Pages** → **Create application** → **Start with Hello World!**. Name the Worker exactly `edgeever` and click **Deploy**.
 
 ---
 
-### Step 4: Create the Project and Set the Administrator Password
+### Step 4: Set the Administrator Password
 
-Click **Save and Deploy** to create the Worker. The first build fails verification because the administrator Secret is missing; do not use the site URL yet. Under the Worker's **Settings** → **Variables and Secrets**, click **Add**, add this runtime Secret, and click **Deploy**:
+1. Open this Worker's **Settings** → **Variables and Secrets**, click **Add**, add the runtime Secret below, and click **Deploy**:
 
 | Type | Name | Value | Purpose |
 | :--- | :--- | :--- | :--- |
@@ -58,11 +51,33 @@ Click **Save and Deploy** to create the Worker. The first build fails verificati
 
 `EDGE_EVER_AUTH_PASSWORD` is the variable name; its value is the administrator login password. It is a Worker runtime Secret, not a Workers Builds variable.
 
-Return to the build history and retry. Confirm the build and live health check succeed.
+Confirm the Secret name appears in the list before continuing. The Worker currently serves a Hello World placeholder; EdgeEver will replace it after the repository build. Do not enter your password on the placeholder page.
 
 ---
 
-### Step 5: Verify Deployment, Login & Automatic Updates
+### Step 5: Connect the Fork
+
+1. In the **existing** `edgeever` Worker, open **Settings** → **Builds** → **Connect**. Authorize GitHub access to your Fork and select that repository. Follow [Cloudflare's existing-Worker instructions](https://developers.cloudflare.com/workers/ci-cd/builds/#connect-an-existing-worker) if the entry moves.
+2. Configure Workers Builds:
+   - **Production branch**: `main`
+   - **Root directory**: Leave blank to use the repository root
+   - Deploy command: npx wrangler deploy (keep the default; Cloudflare runs it online)
+
+The Worker name must match `edgeever` in the repository's `wrangler.toml`. The deployment command creates the `DB` and `RESOURCES` bindings and looks up the D1 UUID. Do not edit Fork files or add duplicate bindings in the Dashboard.
+
+---
+
+### Step 6: Configure Deployment Permissions
+
+**API token**: Select or create a User API Token scoped to the target account with D1 read and edit permissions; selecting **Create new token** lets Cloudflare generate a deployment token, but its default permissions may lack D1. Edit that token under [My Profile → API Tokens](https://dash.cloudflare.com/profile/api-tokens) to add D1 permission for the target account, then select it in the Worker’s **Settings → Builds → API token**. Keep its existing deployment permissions. Select this token in the Worker’s **Settings → Builds → API token** and save the build settings. Subsequent Cloudflare Workers Builds runs use it for database migrations and Worker deployment.
+
+---
+
+### Step 7: Build and Verify Login
+
+The administrator username defaults to `admin`. If you need a custom username, configure the Workers Builds variable `EDGE_EVER_AUTH_USERNAME` before starting the first build.
+
+In the Fork's GitHub repository, open **Actions → Update deployed EdgeEver**, enable the workflow if prompted, select `main`, and click **Run workflow**. This republishes the selected upstream version even when the Fork is already aligned. Return to Cloudflare **Deployments** to monitor the corresponding build. Confirm that the build succeeded and deployment completed before performing the following checks:
 
 1. After deployment completes, Cloudflare will assign a default domain (e.g., `https://edgeever.your-subdomain.workers.dev`). You can also attach your own custom domain in the Worker settings under **Settings → Domains & Routes**.
 2. Visit the health check endpoint in your browser: `https://<your-domain>/api/health`, and confirm it returns HTTP `200` with:
@@ -70,8 +85,9 @@ Return to the build history and retry. Confirm the build and live health check s
    { "ok": true }
    ```
 3. Open the homepage, log in with your configured administrator username (default: `admin`) and `EDGE_EVER_AUTH_PASSWORD`, and start using EdgeEver!
-4. Go back to your Fork's **Actions** tab on GitHub and click **I understand my workflows, go ahead and enable them**.
-5. Manually run **Update deployed EdgeEver** once to ensure future upstream updates can sync, and confirm Cloudflare receives the resulting build event.
+
+
+This workflow will automatically sync future stable releases and fixes.
 
 ---
 
@@ -100,7 +116,7 @@ To customize an instance, add non-secret values under the Worker's **Settings �
 | `EDGE_EVER_WORKERS_DEV` | Enable or disable the `workers.dev` route |
 | `EDGE_EVER_CUSTOM_DOMAIN` / `EDGE_EVER_ROUTE_PATTERN` | Custom routing |
 
-Set a custom administrator username before retrying the initial build; changing the variable after the account exists does not rename it.
+Set a custom administrator username before starting the first build; changing the variable after the account exists does not rename it.
 
 Older deployments need not migrate a custom R2 bucket; upgrades reuse the live `RESOURCES` binding unless overridden. Existing explicit build commands remain supported; see [Workers Builds configuration](cloudflare-workers-builds.md).
 
@@ -108,6 +124,8 @@ Older deployments need not migrate a custom R2 bucket; upgrades reuse the live `
 
 ## Troubleshooting
 
+- **Missing administrator Secret**: Add and deploy the runtime Secret from Step 4 on the same Worker connected to the Fork, then retry the failed build. Missing configuration is not a required first-deployment step.
+- **Still seeing Hello World**: Creating the Worker or deploying its Secret does not deploy EdgeEver. Complete Step 7 and confirm the successful production build uses the Fork’s `main` commit.
 - **Initial build failed**: Check the Worker **Deployments** log for “routing it through EdgeEver's validated deployment pipeline”. Verify that the standard resources are named exactly `edgeever` and `edgeever-resources`, and that the Workers Builds API token has D1 read/edit permission. For an intentionally different D1 database, set `EDGE_EVER_D1_DATABASE_NAME`; add `EDGE_EVER_D1_DATABASE_ID` only if automatic UUID discovery is unavailable.
 - **Updates not syncing**:
   1. On the Fork **Actions** tab, enable **Update deployed EdgeEver** (scheduled workflows are off by default on public forks).

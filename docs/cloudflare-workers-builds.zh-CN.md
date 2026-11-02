@@ -2,13 +2,13 @@
 
 ## 配置
 
-手动导入仓库时，按[在线部署文档](deploy-cloudflare-button.zh-CN.md)选择仓库根目录和 `main` 分支，保留默认部署命令 `npx wrangler deploy`。已有项目可继续使用原来的显式构建命令和 `bun run deploy:cloudflare-builds`。
+首次部署时，先通过 **Start with Hello World!** 创建 `edgeever` Worker，添加并部署运行时 Secret `EDGE_EVER_AUTH_PASSWORD`，再从已有 Worker 的 **Settings → Builds → Connect** 连接 Fork。按[在线部署文档](deploy-cloudflare-button.zh-CN.md)选择仓库根目录和 `main` 分支，保留默认部署命令 `npx wrangler deploy`。已有项目可继续使用原来的显式构建命令和 `bun run deploy:cloudflare-builds`。
 
 授权：
 
 1. 为部署仓库授权 **Cloudflare Workers & Pages** GitHub App。
 2. 如果 Agent 集成需要 Cloudflare API Token，使用限制到目标账号的 User API Token。
-3. 部署 API Token 在 Cloudflare **Worker -> Settings -> Build -> API token** 中配置。默认自动生成的 token 可能没有 D1 权限；部署前应确认其具备目标账户的 D1 读取与编辑权限。
+3. 部署 API Token 在 Cloudflare **Worker -> Settings -> Build -> API token** 中配置。默认自动生成的 token 可能没有 D1 权限；部署前应确认其具备目标账户的 D1 读取与编辑权限。在该 Worker 的 **Settings → Builds → API token** 中选用该 Token 并保存构建设置。后续 Cloudflare Workers Builds 会使用它执行数据库迁移和 Worker 部署。
 
 在 Worker 的 **Settings → Variables and Secrets** 中设置运行时 Secret `EDGE_EVER_AUTH_PASSWORD`，不要放入 Builds 构建变量。
 

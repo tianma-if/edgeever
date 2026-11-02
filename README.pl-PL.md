@@ -106,18 +106,17 @@ Skopiuj poniższe polecenie do agenta AI, na przykład Codex, Claude, Cursor, Wo
 Wdróż EdgeEver przez GitHub i Cloudflare:
 1. Utwórz Fork repozytorium https://github.com/tianma-if/edgeever.
 2. Utwórz bazę D1 `edgeever` i zasobnik R2 `edgeever-resources` w Cloudflare.
-3. W Workers & Pages utwórz Worker o nazwie `edgeever` z gałęzi `main` Forka.
-   Użyj katalogu głównego repozytorium, zachowaj domyślne polecenie wdrożenia
-   Workers Builds i upewnij się, że token API może odczytywać i modyfikować D1.
-   Wybierz Save and Deploy.
-4. Po utworzeniu Workera zapisz wybrane hasło jako sekret środowiska
-   uruchomieniowego `EDGE_EVER_AUTH_PASSWORD` (najlepiej co najmniej 32 znaki).
-   Domyślna nazwa użytkownika to `admin`. Aby ją zmienić, ustaw zmienną
-   Workers Builds `EDGE_EVER_AUTH_USERNAME` przed kolejnym buildem.
-5. Ponów build, sprawdź `/api/health` i `/api/openapi.json`, a następnie
-   zaloguj się nazwą administratora i hasłem.
-6. Włącz i ręcznie uruchom raz workflow GitHub Actions `Update deployed EdgeEver`,
-   aby Fork automatycznie otrzymywał przyszłe stabilne wersje i poprawki.
+3. W Workers & Pages wybierz „Start with Hello World!” i utwórz Worker o nazwie `edgeever`.
+4. W Settings → Variables and Secrets dodaj wybrane hasło jako sekret środowiska
+   uruchomieniowego `EDGE_EVER_AUTH_PASSWORD` i kliknij Deploy (zalecane co najmniej
+   32 znaki). Domyślna nazwa użytkownika to `admin`.
+5. Po wdrożeniu sekretu otwórz Settings → Builds → Connect tego Workera i podłącz
+   gałąź `main` Forka.
+6. W Settings → Builds → API token wybierz lub utwórz token API Cloudflare do wdrażania, z uprawnieniami do odczytu i edycji D1 na koncie docelowym.
+7. W repozytorium Forka na GitHubie otwórz Actions → Update deployed EdgeEver, włącz workflow, jeśli pojawi się monit,
+   i wybierz Run workflow dla gałęzi `main`. Po potwierdzeniu w Cloudflare, że odpowiedni build zakończył się sukcesem, a wdrożenie zostało ukończone, sprawdź `/api/health` i `/api/openapi.json`, a następnie
+   zweryfikuj logowanie nazwą administratora i hasłem.
+   Ten workflow będzie automatycznie synchronizować kolejne stabilne wersje i poprawki.
 ```
 
 > Szczegółowe wymagania: [wdrożenie Cloudflare z agentem AI](docs/agent-deploy-cloudflare.md).
@@ -125,16 +124,17 @@ Wdróż EdgeEver przez GitHub i Cloudflare:
 ### Opcja B: Ręczne wdrożenie online
 
 <details>
-<summary>📖 Rozwiń: 6 kroków konfiguracji ręcznej w przeglądarce</summary>
+<summary>📖 Rozwiń: 7 kroków konfiguracji ręcznej w przeglądarce</summary>
 
-Konfiguracja obejmuje sześć kroków w interfejsie przeglądarkowym:
+Wykonaj poniższe siedem kroków w przeglądarce ściśle w podanej kolejności:
 
 1. **Utwórz Fork repozytorium**: Kliknij **Fork** w prawym górnym rogu strony GitHub, aby utworzyć kopię EdgeEver na swoim koncie.
 2. **Utwórz zasoby Cloudflare**: Utwórz bazę D1 `edgeever` i zasobnik R2 `edgeever-resources`.
-3. **Zaimportuj i skonfiguruj projekt**: W Cloudflare **Workers & Pages** utwórz Worker `edgeever` z gałęzi `main` swojego Forka. Użyj katalogu głównego repozytorium i zachowaj domyślne polecenie wdrożenia Workers Builds. Token API musi mieć prawo do odczytu i modyfikacji D1. Polecenie wdrożenia utworzy powiązania zasobów; nie edytuj plików Forka.
-4. **Wybierz hasło administratora**: Ustaw hasło, najlepiej o długości co najmniej 32 znaków. Po utworzeniu Workera zapisz je jako sekret środowiska uruchomieniowego `EDGE_EVER_AUTH_PASSWORD`.
-5. **Zbuduj i sprawdź aplikację**: Kliknij **Save and Deploy**, aby utworzyć Workera i uruchomić build (niepowodzenie pierwszego buildu z powodu braku sekretu administratora jest zjawiskiem normalnym; dodaj sekret z kroku 4 i ponów próbę). Domyślna nazwa użytkownika to `admin`; aby ją zmienić, ustaw zmienną Workers Builds `EDGE_EVER_AUTH_USERNAME` przed ponownym buildem. Po wdrożeniu sprawdź, czy `/api/health` zwraca `200`, i zaloguj się.
-6. **Włącz automatyczne aktualizacje**: W zakładce **Actions** Forka kliknij **I understand my workflows, go ahead and enable them**, a następnie ręcznie uruchom raz workflow **Update deployed EdgeEver**.
+3. **Utwórz Workera**: W Cloudflare Workers & Pages wybierz Create application → Start with Hello World!, nazwij Workera `edgeever` i wdróż go. To usługa tymczasowa; EdgeEver zostanie wdrożony w kroku 7.
+4. **Ustaw hasło administratora**: W Settings → Variables and Secrets Workera dodaj `EDGE_EVER_AUTH_PASSWORD` jako typ Secret i kliknij Deploy. Wartością jest wybrane hasło logowania, najlepiej co najmniej 32 znaki. Zrób to przed podłączeniem Forka.
+5. **Podłącz Fork**: W Settings → Builds → Connect istniejącego Workera wybierz Fork i gałąź produkcyjną `main`.
+6. **Skonfiguruj uprawnienia wdrożenia**: W Settings → Builds → API token wybierz lub utwórz token API Cloudflare do wdrażania, z uprawnieniami do odczytu i edycji D1 na koncie docelowym.
+7. **Zbuduj i sprawdź**: W repozytorium Forka na GitHubie otwórz Actions → Update deployed EdgeEver, włącz workflow, jeśli pojawi się monit, i wybierz Run workflow dla gałęzi `main`. Po potwierdzeniu w Cloudflare, że odpowiedni build zakończył się sukcesem, a wdrożenie zostało ukończone, sprawdź, czy `/api/health` zwraca `200`, i zweryfikuj logowanie. Ten workflow będzie automatycznie synchronizować kolejne stabilne wersje i poprawki.
 
 > Pełne instrukcje i konfigurację znajdziesz w [przewodniku wdrożenia online](docs/deploy-cloudflare-button.md).
 

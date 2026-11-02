@@ -106,16 +106,18 @@ Cloudflare 線上部署可以選擇以下兩種方式之一：
 請全程透過 GitHub 和 Cloudflare 線上部署 EdgeEver：
 1. Fork https://github.com/tianma-if/edgeever。
 2. 在 Cloudflare 中建立 D1 `edgeever` 與 R2 `edgeever-resources`。
-3. 在 Workers & Pages 中從 Fork 的 `main` 分支建立名為 `edgeever` 的 Worker。
-   使用儲存庫根目錄，保留 Cloudflare Workers Builds 的預設部署指令，確認其 API Token
-   具備 D1 讀取及編輯權限，然後儲存並部署。
-4. Worker 建立後，設定執行時 Secret `EDGE_EVER_AUTH_PASSWORD`，值為使用者指定的密碼
-   （建議至少 32 個字元）。管理員使用者名稱預設為 `admin`；如需自訂，請在再次建置前
-   設定 Workers Builds 建置變數 `EDGE_EVER_AUTH_USERNAME`。
-5. 再次建置，驗證 `/api/health` 和 `/api/openapi.json`，再用該管理員
-   使用者名稱和密碼驗證登入。
-6. 啟用並手動執行一次名為 `Update deployed EdgeEver` 的 GitHub Actions 工作流程，
-   以便後續自動同步正式版本，持續獲得 EdgeEver 的功能更新與問題修復。
+3. 在 Workers & Pages 中選擇「Start with Hello World!」，建立名為 `edgeever` 的 Worker。
+4. 在該 Worker 的 Settings → Variables and Secrets 中新增執行時 Secret
+   `EDGE_EVER_AUTH_PASSWORD`，值為使用者指定的登入密碼（建議至少 32 個字元），並點選 Deploy。
+   管理員使用者名稱預設為 `admin`。
+5. 確認 Secret 已部署後，在該 Worker 的 Settings → Builds → Connect 中連接 Fork 的
+   `main` 分支。
+6. 在 Settings → Builds → API token 中選擇或建立用於部署的
+   Cloudflare API Token，並確認它具備目標帳戶的 D1 讀取及編輯權限。
+7. 在 Fork 的 GitHub 儲存庫中進入 Actions → Update deployed EdgeEver，依提示啟用工作流程，
+   選擇 `main` 分支並點選 Run workflow。在 Cloudflare 確認對應建置成功、部署完成後，驗證 `/api/health` 和 `/api/openapi.json`，
+   再用管理員使用者名稱和密碼驗證登入。
+   後續由該工作流程自動同步正式版本，持續獲得功能更新與問題修復。
 ```
 
 > 詳細約定與要求請查看：[AI Agent 線上部署約定](docs/agent-deploy-cloudflare.zh-CN.md)。
@@ -123,16 +125,17 @@ Cloudflare 線上部署可以選擇以下兩種方式之一：
 ### 方案二：手動線上部署
 
 <details>
-<summary>📖 展開查看：網頁端 6 步手動部署流程</summary>
+<summary>📖 展開查看：網頁端 7 步手動部署流程</summary>
 
-只需在網頁端完成 6 步設定：
+請嚴格依照以下順序，在網頁端完成 7 步設定：
 
 1. **Fork 儲存庫**：在 GitHub 點選右上角 **Fork**，將專案 Fork 到您的個人帳戶下。
 2. **建立 Cloudflare 資源**：建立 D1 `edgeever` 與 R2 `edgeever-resources`。
-3. **匯入並設定專案**：在 Cloudflare **Workers & Pages** 中從 Fork 的 `main` 分支建立名為 `edgeever` 的 Worker。使用儲存庫根目錄，保留由 Cloudflare 線上執行的 Workers Builds 預設部署指令，並確認其 API Token 具備 D1 讀取及編輯權限。binding 由部署指令產生，不要修改 Fork 中的檔案。
-4. **準備管理員密碼**：準備管理員登入密碼，建議至少 32 個字元。Worker 建立後，將它儲存為執行時 Secret `EDGE_EVER_AUTH_PASSWORD`。
-5. **首次建置與驗證**：儲存並部署會建立 Worker 並啟動建置。首次建置主要用於初始化實例，若因尚未配置管理員 Secret 而報錯屬於預期行為，只需在第 4 步新增執行時 Secret `EDGE_EVER_AUTH_PASSWORD` 後點擊重試建置即可通過。管理員使用者名稱預設為 `admin`；如需使用其他名稱，請在重試建置前設定 Workers Builds 建置變數 `EDGE_EVER_AUTH_USERNAME`。部署完成後造訪 `/api/health`，確認回傳 `200`，再用設定的管理員使用者名稱和密碼登入。
-6. **啟用自動更新**：進入 Fork 的 **Actions** 分頁，點選 **I understand my workflows, go ahead and enable them**，然後手動執行一次 **Update deployed EdgeEver**，確保後續能夠自動獲得正式版本的功能更新與修復。
+3. **建立 Worker**：在 Cloudflare Workers & Pages 中選擇 Create application → Start with Hello World!，命名為 `edgeever` 並部署。此時是預留服務，第 7 步才部署 EdgeEver。
+4. **設定管理員密碼**：在該 Worker 的 Settings → Variables and Secrets 中，選擇 Secret 類型，新增 `EDGE_EVER_AUTH_PASSWORD` 並點選 Deploy。值為您指定的登入密碼，建議至少 32 個字元。完成後再連接 Fork。
+5. **連接 Fork**：在既有 Worker 的 Settings → Builds → Connect 中選擇 Fork 和正式環境分支 `main`。
+6. **設定部署權限**：在 Settings → Builds → API token 中選擇或建立用於部署的 Cloudflare API Token，並確認它具備目標帳戶的 D1 讀取及編輯權限。
+7. **建置並驗證**：在 Fork 的 GitHub 儲存庫中進入 Actions → Update deployed EdgeEver，依提示啟用工作流程， 選擇 `main` 分支並點選 Run workflow。在 Cloudflare 確認對應建置成功、部署完成後，確認 `/api/health` 回傳 `200`，並驗證登入。後續由該工作流程自動同步正式版本，持續獲得功能更新與問題修復。
 
 > 📖 包含具體參數與建置指令的詳細步驟，請查看 [線上部署完整文件](docs/deploy-cloudflare-button.zh-CN.md)。
 
