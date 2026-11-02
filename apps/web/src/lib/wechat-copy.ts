@@ -32,8 +32,6 @@ const PUBLISH_FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang S
 const PUBLISH_MONO = "'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
 const BODY_COLOR = "#27272a";
 const QUOTE_COLOR = "#3d4450";
-const CODE_COLOR = "#3d4450";
-const CODE_BACKGROUND = "#e9edf1";
 const LINK_COLOR = "#404040";
 const CHECKED_TASK_COLOR = "#737373";
 
@@ -71,7 +69,6 @@ const applyLegacyWeChatStyles = (
   const link = colors?.link ?? LINK_COLOR;
   const inlineCodeColor = "#1f2937";
   const inlineCodeBackground = "#f3f4f6";
-  const inlineCodeShadow = "";
   const accent = colors?.accent ?? "#374151";
   const surface = colors?.surface ?? "#f3f4f6";
   const divider = colors?.divider ?? "#d1d5db";
