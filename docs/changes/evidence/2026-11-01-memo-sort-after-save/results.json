@@ -1,0 +1,118 @@
+{
+  "issue": 750,
+  "releaseReproduction": {
+    "version": "2.16.1",
+    "platform": "macOS arm64",
+    "runtime": "official installed application and bundled renderer",
+    "setup": "isolated profile and loopback-only test server",
+    "sort": "title-asc",
+    "titleChanged": false,
+    "action": "edit body, click upper-left Back to list",
+    "before": [
+      "中文笔记",
+      "笔记整理",
+      "阿尔法"
+    ],
+    "after": [
+      "阿尔法",
+      "笔记整理",
+      "中文笔记"
+    ],
+    "screenshots": [
+      "release-before-return-flow.png",
+      "release-after-return.png"
+    ]
+  },
+  "fixedVerification": {
+    "runtime": "same official executable and native sidecar, with locally built desktop renderer through the existing development URL override",
+    "titleAscBodyEdit": [
+      "中文笔记",
+      "笔记整理",
+      "阿尔法"
+    ],
+    "titleRename": [
+      "A renamed note",
+      "中文笔记",
+      "笔记整理"
+    ],
+    "titleDescBodyEdit": [
+      "笔记整理",
+      "中文笔记",
+      "A renamed note"
+    ],
+    "paging": {
+      "totalNotes": 120,
+      "pageSize": 50,
+      "loadedBeforeEdit": 100,
+      "editedTitle": "笔记整理 015",
+      "editedOneBasedIndex": 56,
+      "after": "Edited note remains between 笔记整理 014 and 笔记整理 016; normal pagination can continue to the final page."
+    },
+    "screenshots": [
+      "fixed-after-return.png",
+      "fixed-paging-after-return.png"
+    ]
+  },
+  "automated": {
+    "focusedTests": 27,
+    "failures": 0,
+    "webTypecheck": "passed",
+    "mobileTypecheck": "passed",
+    "desktopWebBuild": "passed",
+    "newDesktopOrderingTestsFailedBeforeFix": 5,
+    "reviewRegressionFailuresBeforeRepairs": {
+      "loadedInsertionAndUnicodeIds": 4,
+      "cursorMovement": 4,
+      "backdatedUpdateTimestamp": 2
+    },
+    "mobileTypecheckEvidence": "passed again on the isolated PR branch"
+  },
+  "completionReview": {
+    "date": "2026-11-02",
+    "productFiles": [
+      "apps/web/src/lib/memo-list-cache.ts",
+      "apps/web/src/components/WorkspaceApp.tsx"
+    ],
+    "fixed": [
+      "SQLite binary non-ASCII ID ties",
+      "insertion order across loaded pages",
+      "display order after a following page arrives",
+      "offset holes after rename, ID remap or backdated update time"
+    ],
+    "cursorRepeatedOutlierEdit": "no repeated rewind",
+    "ordinaryBodySaveAdditionalQueries": 0,
+    "unresolvedSubstantiveFindingsInReviewedScope": 0,
+    "nativeCandidate": {
+      "platform": "macOS arm64",
+      "engine": "Electron 44.7.0",
+      "sidecar": "unchanged installed official sidecar",
+      "profileAndServer": "isolated loopback fixture",
+      "scenario": "rename a prefix note to a late title, then scroll through all pages",
+      "sourceNotes": 123,
+      "loadedUniqueNotes": 123,
+      "screenshot": "fixed-cursor-after-next-page.png"
+    },
+    "performance": "performance.json / cacheAndDisplayProjection",
+    "boundedOverlapRegression": {
+      "sourceNotes": 100,
+      "pageSize": 50,
+      "remainingRowsWithoutEdit": 50,
+      "remainingPagesWithoutEdit": 1,
+      "remainingRowsAfterOutlierEdit": 51,
+      "remainingPagesAfterOutlierEdit": 2,
+      "repeatedOutlierRenameAddsOverlap": false
+    }
+  },
+  "validationLimitations": {
+    "windowsRuntimeVerified": false,
+    "candidateDesktopRenderer": "locally built, not a published release"
+  },
+  "submissionValidation": {
+    "upstreamBase": "feff718afa08d8dfed5c05e85d6287d87f4e0a08",
+    "isolatedFromUnrelatedChanges": true,
+    "focusedTests": 27,
+    "webTypecheck": "passed",
+    "mobileTypecheck": "passed",
+    "desktopWebBuild": "passed"
+  }
+}
