@@ -57,4 +57,5 @@ WorkBuddy and CodeBuddy share accounts and quota, but the desktop WorkBuddy inte
     - A real chat replied "OK".
     - Logs contained no sign-in link or token.
   - macOS arm64 (DMG, locally ad-hoc signed): opened from Launchpad, the check reported a usable session and a real chat replied "OK".
-- Not verified: real Windows; iOA and enterprise-domain sign-in; a full Google / GitHub sign-in; token expiry and refresh.
+  - Windows x64 (NSIS installer, CLI installed with npm): manual testing of the connection check, sign-in and chat passed.
+- Not verified: iOA and enterprise-domain sign-in; a full Google / GitHub sign-in; token expiry and refresh.

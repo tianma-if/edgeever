@@ -32,4 +32,5 @@ WorkBuddy 与 CodeBuddy 共用账号和额度，但桌面端接入 WorkBuddy 依
 - 未签名测试安装包（fork 上的临时工作流编译）：
   - Linux arm64（Ubuntu 24.04，AppImage 解压运行）：Node 22 与 CodeBuddy CLI 2.179.2 装在 `~/.local`，桌面会话 PATH 不含 `~/.local/bin`，系统 Node 为不满足 CLI 要求的 v18.19.1。从应用菜单启动后仍找到 CLI 与同目录 Node 22；检查连接显示需要登录；微信登录时浏览器自动打开登录页；取消正常；扫码登录后重启应用仍保持登录；真实对话回复 “OK”；日志中无登录链接或 token。
   - macOS arm64（DMG，本机临时签名）：从启动台打开，检查连接为会话可用，真实对话回复 “OK”。
-- 未验证：Windows 真机；iOA 与企业域名登录；Google / GitHub 完整登录流程；token 过期与刷新。
+  - Windows x64（NSIS 安装包，npm 安装的 CLI）：人工测试检查连接、登录与对话正常。
+- 未验证：iOA 与企业域名登录；Google / GitHub 完整登录流程；token 过期与刷新。
