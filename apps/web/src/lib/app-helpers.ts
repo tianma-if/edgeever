@@ -238,6 +238,15 @@ export const DEFAULT_SHORTCUT_SETTINGS: ShortcutSettings = {
   focusBody: { key: "b", ctrlOrMeta: true, shift: false, alt: true },
 };
 
+// Linux desktops and ChromeOS open a terminal with Ctrl+Alt+T, so the title
+// shortcut adds Shift there. Other platforms keep Primary+Alt+T.
+const LINUX_FOCUS_TITLE_SHORTCUT: ShortcutBinding = { key: "t", ctrlOrMeta: true, shift: true, alt: true };
+
+export const getDefaultShortcutSettings = (platform = readShortcutPlatform()): ShortcutSettings =>
+  /linux|cros/i.test(platform) && !/android/i.test(platform)
+    ? { ...DEFAULT_SHORTCUT_SETTINGS, focusTitle: LINUX_FOCUS_TITLE_SHORTCUT }
+    : DEFAULT_SHORTCUT_SETTINGS;
+
 const LEGACY_READING_PROTECTION_SHORTCUT: ShortcutBinding = {
   key: "l",
   ctrlOrMeta: true,
@@ -658,10 +667,11 @@ const isShortcutBinding = (value: unknown): value is ShortcutBinding => {
 };
 
 export const readShortcutSettingsPreference = (): ShortcutSettings => {
+  const defaults = getDefaultShortcutSettings();
   try {
     const rawValue = window.localStorage.getItem(SHORTCUT_SETTINGS_STORAGE_KEY);
     if (!rawValue) {
-      return DEFAULT_SHORTCUT_SETTINGS;
+      return defaults;
     }
 
     const parsedValue = JSON.parse(rawValue) as Partial<ShortcutSettings>;
@@ -673,16 +683,16 @@ export const readShortcutSettingsPreference = (): ShortcutSettings => {
             key: normalizeShortcutKey(storedBinding.key),
             ctrlOrMeta: typeof storedBinding.ctrlOrMeta === "boolean" ? storedBinding.ctrlOrMeta : false,
           }
-        : DEFAULT_SHORTCUT_SETTINGS[action];
+        : defaults[action];
       const binding = action === "toggleReadingProtection"
         && shortcutBindingsEqual(normalizedBinding, LEGACY_READING_PROTECTION_SHORTCUT)
-          ? DEFAULT_SHORTCUT_SETTINGS.toggleReadingProtection
+          ? defaults.toggleReadingProtection
           : normalizedBinding;
 
       return { ...settings, [action]: binding };
-    }, { ...DEFAULT_SHORTCUT_SETTINGS });
+    }, { ...defaults });
   } catch {
-    return DEFAULT_SHORTCUT_SETTINGS;
+    return defaults;
   }
 };
 
