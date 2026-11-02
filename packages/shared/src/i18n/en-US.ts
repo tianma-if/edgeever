@@ -1340,6 +1340,8 @@ export const enUS = {
     themeToggleToLight: "Switch to light mode",
     tabs: {
       general: "General",
+      reading: "Reading & Typography",
+      editing: "Editor",
       shortcuts: "Shortcuts",
       ai: "Models and agents",
       speech: "Audio/video transcription",
@@ -3276,7 +3278,7 @@ export const enUS = {
     empty: "No notes found",
     loading: "Searching notes...",
     close: "Close note picker",
-    openHint: "Hold {{modifier}} and click to open the link. To open links with a single click, turn this option off in Profile → General",
+    openHint: "Hold {{modifier}} and click to open the link. To open links with a single click, turn this option off in Profile → Editor",
   },
   mobileNotebookPicker: {
     title: "Switch notebook",
