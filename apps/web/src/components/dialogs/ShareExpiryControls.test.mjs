@@ -35,6 +35,12 @@ describe("share expiry controls", () => {
     expect(html).toContain("This link has expired. Visitors see an expiry message");
   });
 
+  test("the custom date accepts today, whose end is still in the future", () => {
+    const source = readFileSync(new URL("./ShareExpiryControls.tsx", import.meta.url), "utf8");
+    expect(source).toContain("const today = toDateInputValue(new Date());");
+    expect(source).toContain("min={today}");
+  });
+
   test("a rejected date is reported", async () => {
     expect(await render({ invalid: true })).toContain("Choose a date in the future.");
   });

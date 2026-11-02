@@ -45,7 +45,8 @@ export const ShareExpiryControls = ({
   const formatDate = (value: string) =>
     new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
   const formatDay = (value: string) => new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(new Date(value));
-  const tomorrow = toDateInputValue(new Date(Date.now() + 24 * 60 * 60 * 1000));
+  // The end of today is still in the future; the server rejects anything that is not.
+  const today = toDateInputValue(new Date());
   const customExpiresAt = shareExpiryFromDateInput(customDate);
   const selected = customOpen ? "custom" : expiresAt ? "current" : "never";
 
@@ -93,7 +94,7 @@ export const ShareExpiryControls = ({
           <Input
             id={dateInputId}
             type="date"
-            min={tomorrow}
+            min={today}
             value={customDate}
             onChange={(event) => setCustomDate(event.target.value)}
             className="h-8 w-44 text-xs"

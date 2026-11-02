@@ -231,7 +231,8 @@ export const registerPublicShareRoutes = (app: Hono<AppEnv>) => {
       showUpdatedAt: row.show_updated_at !== 0,
       showBranding: row.show_branding !== 0,
     };
-    await recordMemoShareView(c.env.storage.db, token);
+    // Hono answers HEAD through this GET handler; a probe is not a view.
+    if (c.req.method === "GET") await recordMemoShareView(c.env.storage.db, token);
     c.header("Cache-Control", "private, no-store");
     c.header("X-Robots-Tag", "noindex, nofollow, noarchive");
     return c.json({ share });

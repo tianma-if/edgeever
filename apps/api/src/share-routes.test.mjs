@@ -1041,6 +1041,10 @@ describe("memo share expiry and views", () => {
       expect((await app.request(`/api/public/shares/${sourceToken}/resources/res_count/blob`, { headers }, environment)).status).toBe(200);
       expect(shareRow(sqlite).view_count).toBe(0);
 
+      const probe = await app.request(`/api/public/shares/${sourceToken}`, { method: "HEAD", headers }, environment);
+      expect(probe.status).toBe(200);
+      expect(shareRow(sqlite)).toMatchObject({ view_count: 0, last_viewed_at: null });
+
       expect((await app.request(`/api/public/shares/${sourceToken}`, { headers }, environment)).status).toBe(200);
       expect((await app.request(`/api/public/shares/${sourceToken}`, { headers }, environment)).status).toBe(200);
       const row = shareRow(sqlite);
