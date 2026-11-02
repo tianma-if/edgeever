@@ -98,8 +98,9 @@ describe("preparePublishArticle", () => {
         "<table><thead><tr><th>表头</th></tr></thead><tbody><tr><td>第1行</td></tr><tr><td>第2行</td></tr></tbody></table>",
       ].join(""), container);
       expect(css(root.querySelector("strong"))).toContain("color:#7351CF");
-      expect(css(root.querySelector("code"))).toContain("color:#5B4EE0");
-      expect(css(root.querySelector("code"))).toContain("background:#F3F1FF");
+      expect(css(root.querySelector("code"))).toContain("color:#1f2937");
+      expect(css(root.querySelector("code"))).toContain("background:#f3f4f6");
+      expect(css(root.querySelector("code"))).toContain("font-weight:600");
       const th = root.querySelector("th");
       expect(css(th)).toContain("background:#7351CF");
       expect(css(th)).toContain("color:#ffffff");
@@ -142,8 +143,9 @@ describe("preparePublishArticle", () => {
     expect(css(body)).toContain("color:#27272a");
     expect(css(root.querySelector("strong"))).toContain("font-weight:800");
     const inlineCode = body.querySelector("code");
-    expect(css(inlineCode)).toContain("color:#3d4450");
-    expect(css(inlineCode)).toContain("background:#e9edf1");
+    expect(css(inlineCode)).toContain("color:#1f2937");
+    expect(css(inlineCode)).toContain("background:#f3f4f6");
+    expect(css(inlineCode)).toContain("font-weight:600");
     expect(css(root.querySelector("h2"))).toContain("font-weight:600");
     expect(css(root.querySelector("h2"))).toContain("color:#27272a");
     const [rule, merge] = root.querySelectorAll("hr");
@@ -210,6 +212,8 @@ describe("preparePublishArticle", () => {
       expect(css(root.querySelector("u"))).toContain("border-bottom:2px solid #A7F3D0");
       expect(css(root.querySelector("mark"))).toContain("background-color:#fde68a");
       expect(css(root.querySelector("code"))).toContain("background:#f3f4f6");
+      expect(css(root.querySelector("code"))).toContain("color:#1f2937");
+      expect(css(root.querySelector("code"))).toContain("font-weight:600");
       expect(root.querySelector("[data-ee-cover-card]")).toBeNull();
       expect(root.querySelector("[data-ee-toc-cards]")).toBeNull();
     } finally {

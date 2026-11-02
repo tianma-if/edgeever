@@ -67,15 +67,11 @@ const applyLegacyWeChatStyles = (
   const fontSize = `${metrics.fontSize}px`;
   const lineHeight = String(metrics.lineHeight);
   const codeSize = `${noteProseCodeFontSize(metrics.fontSize)}px`;
-  // A named hue recolors links, inline code, and bold, matching the editor.
+  // A named hue recolors links and bold, matching the editor. Inline code stays neutral cool gray.
   const link = colors?.link ?? LINK_COLOR;
-  const inlineCodeColor = proseStyle.headingStyle === "numbered" ? "#1f2937" : (colors?.codeText ?? CODE_COLOR);
-  const inlineCodeBackground = proseStyle.headingStyle === "numbered" ? "#f3f4f6" : (colors?.codeBackground ?? CODE_BACKGROUND);
-  const inlineCodeShadow = proseStyle.headingStyle === "numbered"
-    ? ""
-    : colors
-      ? "box-shadow: inset 0 0 0 1px rgba(0,0,0,0.06);"
-      : "box-shadow: inset 0 0 0 1px rgba(61,68,80,0.08);";
+  const inlineCodeColor = "#1f2937";
+  const inlineCodeBackground = "#f3f4f6";
+  const inlineCodeShadow = "";
   const accent = colors?.accent ?? "#374151";
   const surface = colors?.surface ?? "#f3f4f6";
   const divider = colors?.divider ?? "#d1d5db";
@@ -137,7 +133,7 @@ const applyLegacyWeChatStyles = (
           mark: "background-color: #fde68a; color: #111827; padding: 1px 4px; border-radius: 2px; font-weight: 600;",
         }
       : {}),
-    code: `padding: 2px 6px; border: 0; border-radius: 4px; background: ${inlineCodeBackground}; ${inlineCodeShadow} color: ${inlineCodeColor}; font-family: ${PUBLISH_MONO}; font-size: ${codeSize}; font-weight: ${proseStyle.headingStyle === "numbered" ? 600 : 400};`,
+    code: `padding: 2px 6px; border: 0; border-radius: 4px; background: ${inlineCodeBackground}; color: ${inlineCodeColor}; font-family: ${PUBLISH_MONO}; font-size: ${codeSize}; font-weight: 600;`,
     pre: preStyle,
     hr: proseStyle.headingStyle === "numbered"
       ? "margin: 28px 0; border: 0; border-top: 1px solid #e5e7eb;"

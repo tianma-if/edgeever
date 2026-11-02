@@ -222,23 +222,6 @@
   font-weight: 800;
 }
 
-/* Inline code in numbered magazine mode: neutral cool gray so green strong text stands out */
-.edgeever-editor[data-note-heading-style="numbered"] .ProseMirror :not(pre) > code,
-.edgeever-editor[data-note-heading-style="numbered"] .markdown-content :not(pre) > code {
-  background: #f3f4f6 !important;
-  color: #1f2937 !important;
-  box-shadow: none !important;
-  font-weight: 600;
-  padding: 2px 6px;
-  border-radius: 4px;
-}
-
-:root.dark .edgeever-editor[data-note-heading-style="numbered"] .ProseMirror :not(pre) > code,
-:root.dark .edgeever-editor[data-note-heading-style="numbered"] .markdown-content :not(pre) > code {
-  background: rgba(255, 255, 255, 0.08) !important;
-  color: #e5e7eb !important;
-}
-
 
 /* 3. Heading style: Bottom rule ("underline") */
 .edgeever-editor[data-note-heading-style="underline"] .ProseMirror h2,

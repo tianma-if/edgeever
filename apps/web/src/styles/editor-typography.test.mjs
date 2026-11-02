@@ -84,21 +84,21 @@ describe("editor typography contract", () => {
     expect(prose).not.toContain('data-note-palette="custom"');
   });
 
-  test("named palettes recolor links, bold, inline code, checked task boxes, and table surfaces", () => {
+  test("named palettes recolor links, bold, checked task boxes, and table surfaces while inline code stays neutral", () => {
     const prose = readStyle("./note-prose.css");
 
     expect(prose).toMatch(/color:\s*var\(--note-palette-link\)/);
-    expect(prose).toMatch(/color:\s*var\(--note-palette-code-text\)/);
-    expect(prose).toMatch(/background:\s*var\(--note-palette-code-bg\)/);
     expect(prose).toMatch(/color:\s*var\(--note-palette-accent\)/);
     expect(prose).toMatch(/accent-color:\s*var\(--note-palette-accent\)/);
     expect(prose).toMatch(/ul\[data-type="taskList"\] li\[data-checked\] > label input/);
-    expect(prose).toMatch(/\.ProseMirror code/);
     expect(prose).toMatch(/\.ProseMirror pre code/);
     expect(prose).toMatch(/background:\s*var\(--note-palette-accent\)/);
     expect(prose).toMatch(/background:\s*#f9fafb/);
     const globals = readStyle("./globals.css");
-    expect(declarationsForSelector(globals, ".ProseMirror code")).toContain("color: #3d4450;");
+    expect(declarationsForSelector(globals, ".ProseMirror :not(pre) > code")).toContain("color: #1f2937;");
+    expect(declarationsForSelector(globals, ".ProseMirror :not(pre) > code")).toContain("background: #f3f4f6;");
+    expect(prose).not.toMatch(/--note-palette-code-text/);
+    expect(prose).not.toMatch(/--note-palette-code-bg/);
     expect(prose).not.toMatch(/--note-palette-text/);
     expect(prose).not.toMatch(/--note-palette-muted/);
     expect(prose).not.toMatch(/--note-palette-divider/);
