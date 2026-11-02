@@ -43,4 +43,18 @@ WorkBuddy and CodeBuddy share accounts and quota, but the desktop WorkBuddy inte
   - Cancelling showed "Sign-in cancelled" and left no process.
   - Switching to Codex during sign-in ended the CLI process.
 - `bun run typecheck`, `bun run typecheck:mobile`, `bun run build:web` and `bun run lint` passed. The only failure in the full non-E2E suite, `tests/deployment-entrypoints.test.ts`, also fails on unchanged `main` and is unrelated.
-- Not verified: real Windows and Linux; iOA and enterprise-domain sign-in; a full Google / GitHub sign-in; token expiry and refresh.
+- Unsigned test installers (built by a temporary workflow on the fork):
+  - Linux arm64 (Ubuntu 24.04, AppImage run after extraction). Setup:
+    - Node 22 and CodeBuddy CLI 2.179.2 were installed under `~/.local`.
+    - The desktop session PATH did not include `~/.local/bin`.
+    - The system Node was v18.19.1, below the CLI's requirement.
+
+    Results:
+    - Launched from the app menu, the app still found the CLI and the Node 22 beside it.
+    - The check reported sign-in required.
+    - The WeChat sign-in opened the login page in the browser, and cancel worked.
+    - After a QR sign-in, the sign-in survived an app restart.
+    - A real chat replied "OK".
+    - Logs contained no sign-in link or token.
+  - macOS arm64 (DMG, locally ad-hoc signed): opened from Launchpad, the check reported a usable session and a real chat replied "OK".
+- Not verified: real Windows; iOA and enterprise-domain sign-in; a full Google / GitHub sign-in; token expiry and refresh.

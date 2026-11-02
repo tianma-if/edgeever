@@ -29,4 +29,7 @@ WorkBuddy 与 CodeBuddy 共用账号和额度，但桌面端接入 WorkBuddy 依
 - macOS 真机（CodeBuddy CLI 2.164.0，Homebrew 安装）：在仿 Finder 启动的最小 PATH 下解析到 `/opt/homebrew/bin/node` 与官方入口；设置 `CODEBUDDY_INTERNET_ENVIRONMENT=selfhosted` 后检查连接仍为可用，真实对话回复 “OK”；隔离的空配置目录中检查为需要登录、列出 CLI 的 4 种登录方式；微信登录收到 `copilot.tencent.com` 链接，重新打开节流生效，取消后约 1 秒结束为“已取消”且无残留进程；不完成登录时按超时结束；诊断中不含登录链接参数。此前已用同一 CLI 验证微信登录、重启后保持登录及与 WorkBuddy 账号互不影响（见 #758）。
 - macOS 桌面端界面（开发版 Electron + 官方 v2.16.1 sidecar，隔离的应用配置）：已登录 CLI 检查为“会话可用”，Logo 与登录按钮文案正确（“微信登录（国内）”，其他方式沿用 CLI 名称）；空 CLI 配置下显示“请登录 CodeBuddy”；点击微信登录后显示进行中提示、“重新打开登录页”与“取消登录”；取消后显示“已取消登录”且无残留进程；登录进行中切换到 Codex 会结束 CLI 进程。
 - `bun run typecheck`、`bun run typecheck:mobile`、`bun run build:web`、`bun run lint` 通过；完整非 E2E 测试中唯一失败的 `tests/deployment-entrypoints.test.ts` 在未改动的 `main` 上同样失败，与本次无关。
-- 未验证：Windows、Linux 真机；iOA 与企业域名登录；Google / GitHub 完整登录流程；token 过期与刷新。
+- 未签名测试安装包（fork 上的临时工作流编译）：
+  - Linux arm64（Ubuntu 24.04，AppImage 解压运行）：Node 22 与 CodeBuddy CLI 2.179.2 装在 `~/.local`，桌面会话 PATH 不含 `~/.local/bin`，系统 Node 为不满足 CLI 要求的 v18.19.1。从应用菜单启动后仍找到 CLI 与同目录 Node 22；检查连接显示需要登录；微信登录时浏览器自动打开登录页；取消正常；扫码登录后重启应用仍保持登录；真实对话回复 “OK”；日志中无登录链接或 token。
+  - macOS arm64（DMG，本机临时签名）：从启动台打开，检查连接为会话可用，真实对话回复 “OK”。
+- 未验证：Windows 真机；iOA 与企业域名登录；Google / GitHub 完整登录流程；token 过期与刷新。
