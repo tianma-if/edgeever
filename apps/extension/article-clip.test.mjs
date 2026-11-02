@@ -55,6 +55,103 @@ test("WeChat keeps its account, author, declared cover and lazy image URLs while
   expect(result.clip.publishedAt).toEqual({value:"2025-02-22T23:02:00",precision:"datetime"});
 });
 
+const picturePost = (name = "wechat-pictures") => {
+  const doc=fixture(name), data=JSON.parse(doc.querySelector('#wechat-picture-state').textContent);
+  const url=doc.querySelector('meta[property="og:url"]').getAttribute('content');
+  const state={pageUrl:url,url:data.link,pictures:data.picture_page_info_list.map(p=>p.cdn_url)};
+  return {doc,url,state};
+};
+
+for(const [name,count,account] of [["wechat-pictures",5,"Geo优化局"],["wechat-pictures-ten",10,"七点互动"]]) {
+  test(`WeChat ${name}: clips the complete declared gallery in order, not just the first rendered image`,()=>{
+    const {doc,url,state}=picturePost(name),original=doc.documentElement.outerHTML;
+    expect(doc.querySelectorAll('#img_list img')).toHaveLength(1);
+    const result=readArticle(doc,url,"公众号",state);
+    expect(result.ok).toBe(true);
+    expect(result.clip.title).toBe(doc.querySelector('.rich_media_title').textContent);
+    expect(result.clip.markdown).toContain(`公众号: ${account}`);
+    const images=[...result.clip.markdown.matchAll(/!\[[^\]]*\]\(([^)]+)\)/g)].map(m=>m[1]);
+    expect(images).toHaveLength(count);expect(images).toEqual(state.pictures);
+    expect(result.clip.markdown).toContain(doc.querySelector('#js_image_desc').textContent.slice(0,30));
+    for(const noise of [result.clip.title,"收录于推荐合集","喜欢作者","外围互动提示","不保存的留言","account-avatar.png"]) expect(result.clip.markdown).not.toContain(noise);
+    expect(result.clip.markdown).not.toContain(doc.querySelector('meta[property="og:image"]').getAttribute('content'));
+    expect(isPlatformClip(result.clip,platformTarget(url))).toBe(true);
+    expect(doc.documentElement.outerHTML).toBe(original);
+  });
+}
+
+test("WeChat picture posts can contain only images and omit unavailable metadata or hidden descriptions",()=>{
+  for(const mode of ['empty','missing','hidden']) {
+    const {doc,url,state}=picturePost(),description=doc.querySelector('#js_image_desc');
+    if(mode==='empty') description.textContent='';
+    if(mode==='missing') description.remove();
+    if(mode==='hidden') description.setAttribute('hidden','');
+    doc.querySelector('#js_wx_follow_nickname').remove();doc.querySelector('#publish_time').remove();
+    const result=readArticle(doc,url,"公众号",state);
+    expect(result.ok).toBe(true);expect(result.clip.author).toBeUndefined();expect(result.clip.publishedAt).toBeUndefined();
+    expect(result.clip.markdown.match(/!\[/g)).toHaveLength(5);
+    expect(result.clip.markdown).not.toContain('最近做GEO');expect(result.clip.markdown).not.toContain('公众号:');
+  }
+});
+
+test("WeChat's heading-free six-picture post uses its source title and keeps the authored first line",()=>{
+  const {doc,url,state}=picturePost('wechat-pictures-no-heading'),original=doc.documentElement.outerHTML;
+  expect(doc.querySelector('.rich_media_title')).toBeFalsy();
+  const result=readArticle(doc,url,'公众号',state);expect(result.ok).toBe(true);
+  expect(result.clip.title).toBe('Codex做GEO，真的夯爆了');
+  expect(result.clip.markdown).toContain('Codex做GEO，真的夯爆了');
+  expect(result.clip.markdown).toContain('团队其实早就想做GEO了');
+  expect([...result.clip.markdown.matchAll(/!\[[^\]]*\]\(([^)]+)\)/g)].map(m=>m[1])).toEqual(state.pictures);
+  expect(state.pictures).toHaveLength(6);expect(isPlatformClip(result.clip,platformTarget(url))).toBe(true);
+  expect(doc.documentElement.outerHTML).toBe(original);
+});
+
+test("WeChat picture titles use page metadata when the visual heading is unavailable, without inventing a default",()=>{
+  const {doc,url,state}=picturePost(),heading=doc.querySelector('.rich_media_title');
+  heading.setAttribute('hidden','');
+  expect(readArticle(doc,url,'公众号',state).clip.title).toBe(heading.textContent);
+  heading.remove();doc.querySelector('meta[property="og:title"]').setAttribute('content','  ');
+  const title=doc.createElement('title');title.textContent='Page-provided picture title';doc.head.appendChild(title);
+  expect(readArticle(doc,url,'公众号',state).clip.title).toBe('Page-provided picture title');
+  title.remove();expect(readArticle(doc,url,'公众号',state)).toEqual({ok:false,reason:'unreadable'});
+});
+
+test("WeChat's hydrated carousel replaces its hidden first-image placeholder",()=>{
+  const {doc,url,state}=picturePost(),gallery=doc.querySelector('.img_swiper_area'),initial=doc.querySelector('#img_list');
+  const placeholder=doc.createElement('div');placeholder.id='img_swiper_placeholder';placeholder.setAttribute('aria-hidden','true');
+  gallery.appendChild(placeholder);placeholder.appendChild(initial);
+  const live=doc.createElement('div');live.id='page_top_area';live.innerHTML='<div class="share_media" role="img" aria-label="插图"><img src="https://example.test/rendered-preview.png"></div>';
+  gallery.appendChild(live);
+  const result=readArticle(doc,url,'公众号',state);expect(result.ok).toBe(true);
+  expect(result.clip.markdown.match(/!\[/g)).toHaveLength(5);expect(result.clip.markdown).not.toContain('rendered-preview.png');
+});
+
+test("WeChat picture posts reject incomplete or unsafe galleries and stale source snapshots",()=>{
+  const {doc,url,state}=picturePost();
+  for(const invalid of [undefined,null,{}, {...state,pictures:[]},{...state,pictures:[state.pictures[0],null]},{...state,pictures:[state.pictures[0],'javascript:alert(1)']}]) {
+    expect(readArticle(doc,url,"公众号",invalid)).toEqual({ok:false,reason:"incomplete"});
+  }
+  for(const invalid of [{...state,pageUrl:urls.wechat},{...state,url:urls.wechat}]) expect(readArticle(doc,url,"公众号",invalid)).toEqual({ok:false,reason:"changed"});
+});
+
+test("WeChat picture identity checks compare the page and snapshot even when the source URL is an alias",()=>{
+  const query='https://mp.weixin.qq.com/s?__biz=MzA%3D%3D&mid=123&idx=1&sn=abc';
+  const {doc,url,state}=picturePost(),declared=doc.querySelector('meta[property="og:url"]');
+  const aliased={...state,pageUrl:query};
+  expect(readArticle(doc,query,'公众号',aliased).ok).toBe(true);
+  expect(readArticle(doc,query,'公众号',{...aliased,url:urls.wechat})).toEqual({ok:false,reason:'changed'});
+  declared.setAttribute('content',query);
+  expect(readArticle(doc,url,'公众号',{...state,url:query}).ok).toBe(true);
+  expect(readArticle(doc,url,'公众号',{...state,url:query.replace('mid=123','mid=456')})).toEqual({ok:false,reason:'changed'});
+});
+
+test("WeChat hidden picture-post layouts cannot be restored from page state",()=>{
+  for(const selector of ['#js_content','#js_image_content','.img_swiper_area','#img_list']) {
+    const {doc,url,state}=picturePost();doc.querySelector(selector).setAttribute('hidden','');
+    expect(readArticle(doc,url,"公众号",state)).toEqual({ok:false,reason:"unreadable"});
+  }
+});
+
 test("Sspai retains its update as a quote with displayed time, bold title and complete body after the original article",()=>{
   const doc=fixture("sspai"),original=doc.body.outerHTML,result=read("sspai",doc);
   expect(result.ok).toBe(true);

@@ -1,4 +1,4 @@
-import { markdownText, markdownUrl, platformElementHidden, platformHtmlMarkdown, platformReadableCopy, platformTarget, platformText, publishedTime, safePlatformUrl, type PlatformRead, type PublishedTime } from "./platform-clip";
+import { markdownText, markdownUrl, platformElementHidden, platformHtmlMarkdown, platformReadableCopy, platformTarget, platformText, publishedTime, safePlatformUrl, type PlatformRead, type PlatformTarget, type PublishedTime } from "./platform-clip";
 import { restoreWechatHeadings } from "./wechat-headings";
 
 const readableText = (node: Element | null) => node ? platformText(platformReadableCopy(node)) : "";
@@ -79,23 +79,34 @@ export const articlePublishedTime = (node: Element | null): PublishedTime | unde
   return publishedTime(clean);
 };
 
-export const readArticle = (doc: Document, pageUrl: string, accountLabel: string): PlatformRead => {
+const articleIdentityMatches = (expected: PlatformTarget, candidate: PlatformTarget | null): boolean => {
+  if (!candidate || candidate.platform !== expected.platform) return false;
+  // WeChat short and query identities cannot be compared solely by spelling.
+  return candidate.id === expected.id || (expected.platform === "wechat" && candidate.id.includes("/") !== expected.id.includes("/"));
+};
+
+export const readArticle = (doc: Document, pageUrl: string, accountLabel: string, wechatPictureState?: unknown): PlatformRead => {
   const target = platformTarget(pageUrl);
   if (!target || !["wechat","sspai","juejin"].includes(target.platform)) return {ok:false,reason:"not-target"};
   const declared = doc.querySelector('link[rel="canonical"]')?.getAttribute("href") || doc.querySelector('meta[property="og:url"]')?.getAttribute("content");
-  if (declared) {
-    const identity = platformTarget(safePlatformUrl(declared, target.url));
-    // WeChat short and query links are aliases that cannot be resolved solely
-    // from their spelling. Compare identities only within the same URL form.
-    const alias = target.platform === "wechat" && identity?.platform === "wechat" && identity.id.includes("/") !== target.id.includes("/");
-    if (!alias && (identity?.platform !== target.platform || identity.id !== target.id)) return {ok:false,reason:"changed"};
-  }
+  const declaredTarget = declared ? platformTarget(safePlatformUrl(declared, target.url)) : null;
+  if (declared && !articleIdentityMatches(target,declaredTarget)) return {ok:false,reason:"changed"};
   let titleNode: Element | null, body: Element | null, authorNode: Element | null, timeNode: Element | null;
+  let pictureContent: Element | null = null;
   let account = "";
   if (target.platform === "wechat") {
-    titleNode=doc.querySelector("#activity-name"); body=doc.querySelector("#js_content");
+    pictureContent=doc.querySelector("#js_content #js_image_content");
+    if (pictureContent) {
+      // Hydration hides #img_list and mounts a live carousel beside it.
+      const gallery=Array.from(doc.querySelectorAll("#js_article .img_swiper_area .share_media")).find(node=>!platformElementHidden(node));
+      if (platformElementHidden(pictureContent) || !gallery) return {ok:false,reason:"unreadable"};
+      titleNode=pictureContent.querySelector(".rich_media_title");
+      body=pictureContent.querySelector("#js_image_desc") || doc.createElement("div");
+    } else {
+      titleNode=doc.querySelector("#activity-name"); body=doc.querySelector("#js_content");
+    }
     authorNode=doc.querySelector("#js_author_name"); timeNode=doc.querySelector("#publish_time");
-    account=readableText(doc.querySelector("#js_name"));
+    account=readableText(doc.querySelector(pictureContent ? "#js_wx_follow_nickname .nickNameSpan" : "#js_name"));
   } else if (target.platform === "sspai") {
     const article=doc.querySelector("article.normal-article");
     titleNode=article?.querySelector("#article-title") || null;
@@ -111,14 +122,26 @@ export const readArticle = (doc: Document, pageUrl: string, accountLabel: string
     authorNode=article?.querySelector(".author-name .name") || null;
     timeNode=article?.querySelector('meta[itemprop="datePublished"],time') || null;
   }
-  const title=readableText(titleNode);
+  const title=readableText(titleNode) || (pictureContent
+    ? doc.querySelector('meta[property="og:title"]')?.getAttribute("content")?.trim() || doc.title.trim()
+    : "");
   if (!title || !body) return {ok:false,reason:"unreadable"};
+  let pictures: string[] | undefined;
+  if (pictureContent) {
+    const state=wechatPictureState as {pageUrl?: unknown;url?: unknown;pictures?: unknown} | null;
+    if (!state || typeof state.pageUrl !== "string" || typeof state.url !== "string" || !Array.isArray(state.pictures)) return {ok:false,reason:"incomplete"};
+    if (state.pageUrl !== pageUrl) return {ok:false,reason:"changed"};
+    const identity=platformTarget(state.url);
+    if (!articleIdentityMatches(target,identity) || (declaredTarget && !articleIdentityMatches(declaredTarget,identity))) return {ok:false,reason:"changed"};
+    pictures=state.pictures.map(value=>typeof value === "string" ? safePlatformUrl(value,target.url) : "");
+    if (!pictures.length || pictures.some(url=>!url)) return {ok:false,reason:"incomplete"};
+  }
   const clean=platformReadableCopy(body);
-  if(target.platform === "wechat") cleanWechatContent(clean,target.url);
+  if(target.platform === "wechat" && !pictureContent) cleanWechatContent(clean,target.url);
   // These are article controls, not text/code authored into the article.
   Array.from(clean.querySelectorAll('.code-block-extension-header, .code-block-extension-copyCodeBtn')).forEach(n=>n.remove());
   const markdown=platformHtmlMarkdown(clean,target.url);
-  if (!markdown) return {ok:false,reason:"unreadable"};
+  if (!markdown && !pictures) return {ok:false,reason:"unreadable"};
   let author=readableText(authorNode);
   if (target.platform === "sspai") author=[...new Set(Array.from(body.closest("article.normal-article")?.querySelectorAll(".article__header__author .ss__user__nickname > span") || []).map(readableText).filter(Boolean))].join(", ");
   // Juejin publishes the author in its article-scoped schema metadata, even
@@ -126,11 +149,12 @@ export const readArticle = (doc: Document, pageUrl: string, accountLabel: string
   if (!author && target.platform === "juejin") author=doc.querySelector('article.article [itemprop="author"] meta[itemprop="name"]')?.getAttribute("content")?.trim() || "";
   const parts: string[]=[];
   if (account) parts.push(`${markdownText(accountLabel)}: ${markdownText(account)}`);
-  if (target.platform === "wechat") {
+  if (pictures) parts.push(pictures.map(url=>`![](${markdownUrl(url)})`).join("\n\n"));
+  else if (target.platform === "wechat") {
     const cover=safePlatformUrl(doc.querySelector('meta[property="og:image"]')?.getAttribute("content") || "",target.url);
     if (cover && !Array.from(clean.querySelectorAll("img")).some(img=>["data-src","data-original","src"].some(a=>safePlatformUrl(img.getAttribute(a)||"",target.url)===cover))) parts.push(`![${markdownText(title)}](${markdownUrl(cover)})`);
   }
-  parts.push(markdown);
+  if (markdown) parts.push(markdown);
   if(target.platform === "sspai") parts.push(...sspaiUpdateMarkdown(body,target.url));
   return {ok:true,clip:{...target,title,author:author || undefined,publishedAt:articlePublishedTime(timeNode),markdown:parts.join("\n\n"),tags:["web-clip",target.platform],completeness:"complete"}};
 };
