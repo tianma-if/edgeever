@@ -1,12 +1,11 @@
 import { expect, test } from "bun:test";
 import { Database } from "bun:sqlite";
-import { execFile, spawn } from "node:child_process";
+import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
 import { mkdtemp, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { promisify } from "node:util";
 import { randomBytes } from "node:crypto";
 import { fetchEdgeEverApp } from "../../../../api/src/index.ts";
 import { createSelfHostedStorageAdapter } from "../../../../api/src/self-hosted-storage-adapter.ts";
@@ -15,13 +14,6 @@ import { createEdgeEverClient } from "../../../../../packages/client/src/index.t
 const require = createRequire(new URL("../../../package.json", import.meta.url));
 const electron = require("electron");
 const trace = (...values) => { if (process.env.EDGE_EVER_BACKUP_TRACE === "1") console.error(...values); };
-const removeFixture = async directory => {
-  if (process.platform !== "win32") return rm(directory, { recursive: true, force: true });
-  // Bun ignores fs.rm's Windows retries; use the native Node contract, as in
-  // the existing ACP cleanup integration tests, after all fixture work stops.
-  await promisify(execFile)("node", ["--input-type=module", "-e",
-    "import { rm } from 'node:fs/promises'; await rm(process.argv[1], { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });", directory]);
-};
 for (const proxy of [true, false]) test(`Electron backups export and restore through ${proxy ? "the session proxy" : "a direct connection"}`, async () => {
   const directory = await mkdtemp(join(tmpdir(), "edgeever-electron-backup-"));
   const cleanup = [];
@@ -45,7 +37,12 @@ for (const proxy of [true, false]) test(`Electron backups export and restore thr
           trace(name, request.method, path, response.status); return response;
         });
       } });
-      cleanup.push(async () => { await server.stop(true); database.close(); });
+      cleanup.push(async () => {
+        await server.stop(true);
+        // Bun 1.3.14 can leave uncached SQLite statements alive (oven-sh/bun#36572).
+        // Release them and require a complete close before deleting fixture files.
+        Bun.gc(true); database.close(true);
+      });
       return { server, database, folder, url: `http://127.0.0.1:${server.port}`, client: createEdgeEverClient({ baseUrl: `http://127.0.0.1:${server.port}` }) };
     };
     const source = await instance("source"); const target = await instance("target");
@@ -98,5 +95,5 @@ for (const proxy of [true, false]) test(`Electron backups export and restore thr
     expect(paths.filter(path => path.endsWith(`/resources/${resource.id}/blob`))).toHaveLength(1);
     expect(paths, JSON.stringify(paths)).toHaveLength(47);
     expect(proxyRequests > 0).toBe(proxy);
-  } finally { for (const close of cleanup.reverse()) await close(); await removeFixture(directory); }
+  } finally { for (const close of cleanup.reverse()) await close(); await rm(directory, { recursive: true, force: true }); }
 }, 45000);
