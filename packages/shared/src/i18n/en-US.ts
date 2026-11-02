@@ -2328,6 +2328,8 @@ export const enUS = {
       toggleEditorMode: { label: "Switch editor mode" },
       toggleOutline: { label: "Show/hide document outline" },
       toggleSidebar: { label: "Show/hide sidebar" },
+      focusTitle: { label: "Focus note title" },
+      focusBody: { label: "Focus note body" },
     },
   },
   quickSwitcher: {

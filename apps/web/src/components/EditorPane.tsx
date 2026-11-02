@@ -362,6 +362,8 @@ type EditorPaneProps = {
   readingProtectionToggleToken: number;
   editorModeToggleToken: number;
   outlineToggleToken: number;
+  titleFocusToken?: number;
+  bodyFocusToken?: number;
   shortcutSettings: ShortcutSettings;
   onSyncRequested: () => Promise<void>;
   documentActionRequest?: MemoDocumentActionRequest | null;
@@ -444,6 +446,8 @@ const RichEditorPane = ({
   readingProtectionToggleToken,
   editorModeToggleToken,
   outlineToggleToken,
+  titleFocusToken = 0,
+  bodyFocusToken = 0,
   shortcutSettings,
   onSyncRequested,
   documentActionRequest,
@@ -585,6 +589,9 @@ const RichEditorPane = ({
   const handledReadingProtectionToggleTokenRef = useRef(readingProtectionToggleToken);
   const handledEditorModeToggleTokenRef = useRef(editorModeToggleToken);
   const handledOutlineToggleTokenRef = useRef(outlineToggleToken);
+  const handledTitleFocusTokenRef = useRef(titleFocusToken);
+  const handledBodyFocusTokenRef = useRef(bodyFocusToken);
+  const titleInputRef = useRef<HTMLInputElement>(null);
   const handledAiAssistantOpenTokenRef = useRef(aiAssistantOpenToken);
   const noteLinkModifier = useMemo(
     () => typeof navigator !== "undefined" && /mac|iphone|ipad|ipod/i.test(navigator.platform) ? "⌘" : "Ctrl",
@@ -3298,6 +3305,29 @@ const RichEditorPane = ({
   }, [editorShortcutBlocked, isMobileViewport, outlineToggleToken, toggleEditorOutline, useMarkdownSourceEditor, useMobilePlainTextEditor]);
 
   useEffect(() => {
+    if (handledTitleFocusTokenRef.current === titleFocusToken) return;
+    handledTitleFocusTokenRef.current = titleFocusToken;
+    const input = titleInputRef.current;
+    if (editorShortcutBlocked || effectiveReadOnly || !input) return;
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
+  }, [editorShortcutBlocked, effectiveReadOnly, titleFocusToken]);
+
+  useEffect(() => {
+    if (handledBodyFocusTokenRef.current === bodyFocusToken) return;
+    handledBodyFocusTokenRef.current = bodyFocusToken;
+    if (editorShortcutBlocked || effectiveReadOnly) return;
+    if (useMobilePlainTextEditor) {
+      focusMobileInputTarget();
+    } else if (useMarkdownSourceEditor) {
+      markdownSourceEditorRef.current?.focus();
+    } else if (isEditorReady(editorRef.current) && editorRef.current.isEditable) {
+      // Without a position Tiptap restores the caret from before the body lost focus.
+      editorRef.current.commands.focus();
+    }
+  }, [bodyFocusToken, editorShortcutBlocked, effectiveReadOnly, focusMobileInputTarget, markdownSourceEditorRef, useMarkdownSourceEditor, useMobilePlainTextEditor]);
+
+  useEffect(() => {
     if (handledSaveAndSyncTokenRef.current === saveAndSyncToken || saveMutationPending) {
       return;
     }
@@ -4085,6 +4115,7 @@ const RichEditorPane = ({
             )}
             titleInput={(
               <MemoTitleInput
+                ref={titleInputRef}
                 className="w-full min-w-0 px-2"
                 value={title}
                 readOnly={effectiveReadOnly}

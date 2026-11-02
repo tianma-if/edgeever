@@ -2317,6 +2317,8 @@ export const pl = {
       toggleEditorMode: { label: "Przełącz tryb edytora" },
       toggleOutline: { label: "Pokaż/ukryj konspekt dokumentu" },
       toggleSidebar: { label: "Pokaż/ukryj pasek boczny" },
+      focusTitle: { label: "Przejdź do tytułu notatki" },
+      focusBody: { label: "Przejdź do treści notatki" },
     },
   },
   quickSwitcher: {

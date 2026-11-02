@@ -2328,6 +2328,8 @@ export const zhCN = {
       toggleEditorMode: { label: "切换编辑模式" },
       toggleOutline: { label: "显示/隐藏文档大纲" },
       toggleSidebar: { label: "显示/隐藏侧边栏" },
+      focusTitle: { label: "聚焦笔记标题" },
+      focusBody: { label: "聚焦笔记正文" },
     },
   },
   quickSwitcher: {
