@@ -85,7 +85,7 @@ import {
   resolveSelectionMoveTargetNotebookId,
 } from "@/lib/app-helpers";
 import { useBrowserBackLayer } from "@/lib/app-hooks";
-import { updateMemoSummaryInLists } from "@/lib/memo-list-cache";
+import { sortDesktopTitleMemoSummaries, updateMemoSummaryInLists } from "@/lib/memo-list-cache";
 import {
   cacheMemoDetail,
   evictIdleMemoDetails,
@@ -1152,8 +1152,11 @@ export const WorkspaceApp = ({
       }
     }
 
-    return Array.from(memoMap.values());
-  }, [memosQuery.data?.pages, mobileEditorReturnPreview]);
+    const loadedMemos = Array.from(memoMap.values());
+    return window.edgeeverDesktop?.isAvailable && (memoSortMode === "title-asc" || memoSortMode === "title-desc")
+      ? sortDesktopTitleMemoSummaries(loadedMemos, memoSortMode)
+      : loadedMemos;
+  }, [memosQuery.data?.pages, mobileEditorReturnPreview, memoSortMode]);
   const totalMemoCount = memosQuery.data?.pages[0]?.totalCount ?? memos.length;
   const handleLoadMoreMemos = useCallback(() => {
     if (!memosQuery.hasNextPage || memosQuery.isFetchingNextPage) {
