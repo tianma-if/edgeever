@@ -15,7 +15,17 @@ import { convertImportEnml } from "../apps/web/src/lib/note-import/enml.ts";
 
 const directories = [];
 const servers = [];
-afterEach(async () => { for (const server of servers.splice(0)) server.stop(true); for (const dir of directories.splice(0)) await rm(dir, { recursive: true, force: true }); });
+const databases = [];
+const migrations = new URL("../migrations/", import.meta.url);
+const migrationSql = await Promise.all((await readdir(migrations)).filter(name => name.endsWith(".sql")).sort()
+  .map(name => readFile(new URL(name, migrations), "utf8")));
+afterEach(async () => {
+  for (const server of servers.splice(0)) await server.stop(true);
+  // Release uncached Bun SQLite statements before requiring a complete close.
+  if (databases.length) Bun.gc(true);
+  for (const db of databases.splice(0)) db.close(true);
+  for (const dir of directories.splice(0)) await rm(dir, { recursive: true, force: true });
+});
 const fixtureFiles = async (name) => {
   const root = new URL(`./fixtures/note-import/${name}/`, import.meta.url);
   const walk = async (prefix = "") => {
@@ -45,10 +55,12 @@ const target = async () => {
   const dir = await mkdtemp(join(tmpdir(), "edgeever-note-import-"));
   directories.push(dir);
   const db = new Database(join(dir, "db.sqlite"), { create: true });
+  databases.push(db);
   db.exec("PRAGMA foreign_keys = ON");
-  const migrations = new URL("../migrations/", import.meta.url);
-  for (const name of (await readdir(migrations)).filter(x => x.endsWith(".sql")).sort()) db.exec(await readFile(new URL(name, migrations), "utf8"));
-  db.exec("INSERT OR IGNORE INTO workspaces (id, name, is_personal) VALUES ('ws_default', 'Personal', 1)");
+  db.transaction(() => {
+    for (const sql of migrationSql) db.exec(sql);
+    db.exec("INSERT OR IGNORE INTO workspaces (id, name, is_personal) VALUES ('ws_default', 'Personal', 1)");
+  })();
   const env = { storage: createSelfHostedStorageAdapter(db, join(dir, "resources")), EDGE_EVER_ALLOW_UNAUTHENTICATED: "true", EDGE_EVER_RUNTIME: "self-hosted-bun" };
   const server = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch: request => fetchEdgeEverApp(request, env, { waitUntil() {}, passThroughOnException() {} }) });
   servers.push(server);
