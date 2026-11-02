@@ -1183,7 +1183,6 @@ export const ja = {
       default: "標準",
       bar: "左バー",
       numbered: "番号付きセクション",
-      underline: "下線区切り",
     },
     editorBodyQuoteStyleTitle: "引用スタイル",
     editorBodyQuoteStyles: {

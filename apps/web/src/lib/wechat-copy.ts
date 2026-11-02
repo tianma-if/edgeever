@@ -85,9 +85,7 @@ const applyLegacyWeChatStyles = (
     ? `${h2Base.replace(/padding:\s*0;/, "padding: 0 0 0 10px;")} border-left: 4px solid ${accent};`
     : proseStyle.headingStyle === "numbered"
       ? "margin: 36px 0 24px; padding: 0; font-size: 0; line-height: 1.35;"
-      : proseStyle.headingStyle === "underline"
-        ? `${h2Base.replace(/padding:\s*0;/, "padding: 0 0 6px;")} border-bottom: 1px solid ${colors?.divider ?? "#e5e7eb"};`
-        : h2Base;
+      : h2Base;
   const h3Style = proseStyle.headingStyle === "bar"
     ? `${h3Base.replace(/padding:\s*0;/, "padding: 0 0 0 8px;")} border-left: 3px solid ${accent};`
     : proseStyle.headingStyle === "numbered"

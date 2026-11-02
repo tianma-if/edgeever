@@ -25,7 +25,6 @@ export const NOTE_PROSE_HEADING_STYLES = [
   "default",
   "bar",
   "numbered",
-  "underline",
 ] as const;
 export type NoteProseHeadingStyle = (typeof NOTE_PROSE_HEADING_STYLES)[number];
 export const DEFAULT_NOTE_PROSE_HEADING_STYLE: NoteProseHeadingStyle = "default";

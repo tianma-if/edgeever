@@ -222,19 +222,6 @@
   font-weight: 800;
 }
 
-
-/* 3. Heading style: Bottom rule ("underline") */
-.edgeever-editor[data-note-heading-style="underline"] .ProseMirror h2,
-.edgeever-editor[data-note-heading-style="underline"] .markdown-content h2 {
-  padding-bottom: 6px;
-  border-bottom: 1px solid var(--note-palette-divider, #e5e7eb);
-}
-
-:root.dark .edgeever-editor[data-note-heading-style="underline"] .ProseMirror h2,
-:root.dark .edgeever-editor[data-note-heading-style="underline"] .markdown-content h2 {
-  border-bottom-color: color-mix(in srgb, var(--note-palette-accent, #94a3b8) 32%, transparent);
-}
-
 /* 4. Quote style: Dashed card ("dashed" — Moyu Green quote card & code block accent bar) */
 .edgeever-editor[data-note-quote-style="dashed"] .ProseMirror blockquote,
 .edgeever-editor[data-note-quote-style="dashed"] .markdown-content blockquote {

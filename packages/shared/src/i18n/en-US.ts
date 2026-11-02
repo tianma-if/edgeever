@@ -1194,7 +1194,6 @@ export const enUS = {
       default: "Default",
       bar: "Left bar",
       numbered: "Numbered sections",
-      underline: "Bottom rule",
     },
     editorBodyQuoteStyleTitle: "Quote style",
     editorBodyQuoteStyles: {

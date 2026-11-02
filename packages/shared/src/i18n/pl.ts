@@ -1183,7 +1183,6 @@ export const pl = {
       default: "Domyślny",
       bar: "Pasek z lewej",
       numbered: "Numerowane sekcje",
-      underline: "Linia dolna",
     },
     editorBodyQuoteStyleTitle: "Styl cytatów",
     editorBodyQuoteStyles: {

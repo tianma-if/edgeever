@@ -95,7 +95,7 @@ describe("note prose", () => {
     expect(parseNoteProsePalette("plum")).toBe("native");
     expect(NoteProseUpdateSchema.safeParse({ palette: "plum" }).success).toBe(false);
     expect(resolveNoteProse({ palette: "emerald" }).palette).toBe("emerald");
-    expect(NOTE_PROSE_HEADING_STYLES).toEqual(["default", "bar", "numbered", "underline"]);
+    expect(NOTE_PROSE_HEADING_STYLES).toEqual(["default", "bar", "numbered"]);
     expect(NOTE_PROSE_QUOTE_STYLES).toEqual(["default", "dashed", "accent-bar", "minimal-rule"]);
     expect(NOTE_PROSE_EMPHASIS_STYLES).toEqual(["default", "marker"]);
     expect(parseNoteProseHeadingStyle("numbered")).toBe("numbered");

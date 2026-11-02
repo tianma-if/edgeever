@@ -113,10 +113,6 @@ const proseStyleRules = (
       `.edgeever-print-content h2::before { content: counter(note-prose-h2, decimal-leading-zero) " · "; color: ${accent}; font-weight: 800; letter-spacing: 0.04em; }`,
       `.edgeever-print-content h3 { border-left: 3px solid ${accent}; padding-left: 10px; }`,
     );
-  } else if (proseStyle.headingStyle === "underline") {
-    rules.push(
-      `.edgeever-print-content h2 { padding-bottom: 6px; border-bottom: 1px solid ${divider}; }`,
-    );
   }
   if (proseStyle.quoteStyle === "dashed") {
     rules.push(

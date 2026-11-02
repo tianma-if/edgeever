@@ -1194,7 +1194,6 @@ export const zhCN = {
       default: "默认",
       bar: "左竖条",
       numbered: "编号章节",
-      underline: "底线分割",
     },
     editorBodyQuoteStyleTitle: "引用样式",
     editorBodyQuoteStyles: {

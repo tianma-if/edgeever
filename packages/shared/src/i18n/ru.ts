@@ -1194,7 +1194,6 @@ export const ru = {
       default: "По умолчанию",
       bar: "Полоса слева",
       numbered: "Нумерованные разделы",
-      underline: "Нижняя линия",
     },
     editorBodyQuoteStyleTitle: "Стиль цитат",
     editorBodyQuoteStyles: {
