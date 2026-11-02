@@ -2173,7 +2173,7 @@ export const zhCN = {
     },
     errors: {
       backup_name_invalid: "请输入有效文件名，不要包含路径、保留名称或特殊字符。",
-      backup_name_exists: "已存在同名文件，请修改名称。原文件未改动。",
+      backup_name_exists: "已存在同名文件，请稍后重新备份。原文件未改动。",
       backup_file_replaced: "备份文件已被替换，未执行操作。",
       backup_configuration_unavailable: "无法读取备份设置或清理私有暂存。请检查应用数据目录权限并重启。",
       backup_too_large: "加密归档上限为 64 GiB 减 32 字节。更大的归档请选择不加密备份。",

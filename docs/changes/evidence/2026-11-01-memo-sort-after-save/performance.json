@@ -1,0 +1,38 @@
+{
+  "kind": "Local cache update plus loaded-summary display projection microbenchmark; excludes React/native/database/network work",
+  "runtime": "1.3.14",
+  "additionalQueries": 0,
+  "cacheAndDisplayProjection": {
+    "kind": "Local cache update plus loaded-list Map projection and desktop title sorter; excludes React render, native/DB/network work",
+    "runtime": "1.3.14",
+    "warmups": 10,
+    "samples": 100,
+    "results": [
+      {
+        "loadedSummaries": 50,
+        "pageSize": 50,
+        "duplicateTitleFraction": 0.2,
+        "samples": 100,
+        "baselineCacheAndProjectionMedianMs": 0.076,
+        "fixedCacheAndProjectionMedianMs": 0.022
+      },
+      {
+        "loadedSummaries": 500,
+        "pageSize": 50,
+        "duplicateTitleFraction": 0.2,
+        "samples": 100,
+        "baselineCacheAndProjectionMedianMs": 0.65,
+        "fixedCacheAndProjectionMedianMs": 0.111
+      },
+      {
+        "loadedSummaries": 5000,
+        "pageSize": 50,
+        "duplicateTitleFraction": 0.2,
+        "samples": 100,
+        "baselineCacheAndProjectionMedianMs": 6.704,
+        "fixedCacheAndProjectionMedianMs": 1.101,
+        "newInsertionAndProjectionMedianMs": 2.977
+      }
+    ]
+  }
+}

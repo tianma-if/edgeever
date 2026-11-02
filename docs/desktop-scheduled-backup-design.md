@@ -29,12 +29,12 @@ Desktop Settings → Data and backup uses one “Backup and restore” card inst
 | Setting | Initial behavior |
 | --- | --- |
 | Automatic backups | Initially off; enabling a valid configuration schedules the first run |
-| Frequency | Daily, weekly, every two weeks, or monthly; weekly by default |
+| Frequency | Weekly or monthly; weekly by default. Existing daily and biweekly settings remain valid and are displayed as a disabled option until changed |
 | Destination | `EdgeEver Backups` under the OS Documents directory; change through the native directory picker |
 | Keep recent | 1, 3, or 5 archives; 1 by default. Existing 10- and 20-archive settings remain valid and are displayed as a disabled option until changed |
 | Backup encryption | Optional and initially off; enabling it requires entering and confirming a separate backup password |
 
-The top actions are “Back up now,” “Restore from file,” and “Open folder.” Below them, show the last actual successful archive, latest check result, and next scheduled check or automatic-off state. Running tasks can be cancelled. Manual runs allow an editable filename and one-off plain/encrypted output, using the saved destination and retention without changing automatic settings; they remain available when scheduling is off.
+The top actions are “Back up now,” “Restore from file,” and “Open folder.” Below them, show the last actual successful archive, latest check result, and next scheduled check or automatic-off state. Running tasks can be cancelled. Manual runs start immediately with an automatically generated local timestamp filename and the saved encryption, destination, and retention settings; they remain available when scheduling is off. Prompt for a password only when an encryption password is unavailable or an interrupted encrypted backup needs verification. Keep inline progress, success, and failure feedback.
 
 An encryption password must be nonempty and both entries must match exactly. Do not trim whitespace or normalize Unicode. After saving, show only “Password set,” never the saved value. When changing it, explain that the new password applies only to future archives.
 
@@ -150,7 +150,7 @@ Changing the password affects future archives only; do not re-encrypt old files 
 
 ## 7. File publication and retention
 
-Users select a destination root, and the app creates a `<backupSetId>` subdirectory for the current local backup set. Settings shows the effective destination, and “Open folder” opens it. Automatic filenames use UTC time and a random backup ID, such as `edgeever-backup-20261023T020000Z-<id>.zip`, with `.edgeever.enc` for encrypted files. Manual names default to an editable local timestamp without a random ID; append the selected format’s extension. Name conflicts fail without overwriting existing files.
+Users select a destination root, and the app creates a `<backupSetId>` subdirectory for the current local backup set. Settings shows the effective destination, and “Open folder” opens it. Automatic filenames use UTC time and a random backup ID, such as `edgeever-backup-20261023T020000Z-<id>.zip`, with `.edgeever.enc` for encrypted files. Manual names use an automatically generated local timestamp without a random ID; append the saved format’s extension. Name conflicts fail without overwriting existing files.
 
 A task performs these steps in order:
 

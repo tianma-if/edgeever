@@ -83,9 +83,11 @@ import {
   getMemoIdsNeedingMove,
   getCreateMemoNotebookId,
   resolveSelectionMoveTargetNotebookId,
+  readMemoSortPreference,
+  writeMemoSortPreference,
 } from "@/lib/app-helpers";
 import { useBrowserBackLayer } from "@/lib/app-hooks";
-import { updateMemoSummaryInLists } from "@/lib/memo-list-cache";
+import { sortDesktopTitleMemoSummaries, updateMemoSummaryInLists } from "@/lib/memo-list-cache";
 import {
   cacheMemoDetail,
   evictIdleMemoDetails,
@@ -566,7 +568,7 @@ export const WorkspaceApp = ({
   const [noteOutlineToggleToken, setNoteOutlineToggleToken] = useState(0);
   const [search, setSearch] = useState("");
   const [memoFilterMode, setMemoFilterMode] = useState<MemoFilterMode>("all");
-  const [memoSortMode, setMemoSortMode] = useState<MemoSortMode>("updated-desc");
+  const [memoSortMode, setMemoSortMode] = useState<MemoSortMode>(readMemoSortPreference);
   const [mobileEditorReturnPreview, setMobileEditorReturnPreview] = useState<MobileEditorReturnPreview | null>(() =>
     readMobileEditorReturnPreview(route.mobileEditorReturnMemoId)
   );
@@ -1152,8 +1154,11 @@ export const WorkspaceApp = ({
       }
     }
 
-    return Array.from(memoMap.values());
-  }, [memosQuery.data?.pages, mobileEditorReturnPreview]);
+    const loadedMemos = Array.from(memoMap.values());
+    return window.edgeeverDesktop?.isAvailable && (memoSortMode === "title-asc" || memoSortMode === "title-desc")
+      ? sortDesktopTitleMemoSummaries(loadedMemos, memoSortMode)
+      : loadedMemos;
+  }, [memosQuery.data?.pages, mobileEditorReturnPreview, memoSortMode]);
   const totalMemoCount = memosQuery.data?.pages[0]?.totalCount ?? memos.length;
   const handleLoadMoreMemos = useCallback(() => {
     if (!memosQuery.hasNextPage || memosQuery.isFetchingNextPage) {
@@ -2674,6 +2679,7 @@ export const WorkspaceApp = ({
   const handleSortModeChange = (mode: MemoSortMode) => {
     if (mode !== memoSortMode) clearPendingMemoSelection();
     setMemoSortMode(mode);
+    writeMemoSortPreference(mode);
   };
 
   const clearHiddenMobileSearch = () => {

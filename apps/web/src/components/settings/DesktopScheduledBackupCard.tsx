@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronRight, FolderOpen, HardDriveDownload, Loader2, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import type { DesktopBackupConfig } from "@edgeever/shared";
+import type { DesktopBackupActions, DesktopBackupConfig } from "@edgeever/shared";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,12 @@ import { formatBytes } from "@/lib/format-bytes";
 import { DesktopBackupImport } from "./DesktopBackupImport";
 import { DesktopBackupRunDialog } from "./DesktopBackupRunDialog";
 import { SETTINGS_CARD_DESCRIPTION_CLASSNAME, SETTINGS_CARD_HEADER_CLASSNAME, SETTINGS_CARD_ICON_CLASSNAME, SETTINGS_CARD_TITLE_CLASSNAME } from "./settings-ui";
+
+const defaultBackupName = () => {
+  const date = new Date();
+  const two = (value: number) => String(value).padStart(2, "0");
+  return `EdgeEver-${date.getFullYear()}-${two(date.getMonth() + 1)}-${two(date.getDate())}_${two(date.getHours())}${two(date.getMinutes())}${two(date.getSeconds())}`;
+};
 
 export const DesktopScheduledBackupCard = () => {
   const { t } = useTranslation();
@@ -79,6 +85,15 @@ export const DesktopScheduledBackupCard = () => {
     try { await action(); } catch (failure) { if (scope.current === expected) setError(describeDesktopBackupError(t, failure)); }
     finally { if (scope.current === expected) setSaving(false); }
   };
+  const runBackup = (input: DesktopBackupActions["run"]["input"]) => bridge.backup("run", {
+    ...input,
+    ...(!pending ? { options: { name: defaultBackupName(), encrypted: status.config.encrypted } } : {}),
+  });
+  const startBackup = () => {
+    const needsPassword = pending ? pending.encrypted : status.config.encrypted && (!status.passwordSet || !status.secureStorageAvailable);
+    if (needsPassword) setRunOpen(true);
+    else void attempt(() => runBackup({ backupSetId: status.backupSetId }));
+  };
   const date = (value: string | null) => value ? new Date(value).toLocaleString() : t("desktopBackup.never");
   const remove = async () => {
     if (!deleting || saving) return;
@@ -96,7 +111,7 @@ export const DesktopScheduledBackupCard = () => {
     <CardContent className="grid gap-5 p-4 pt-0 sm:px-5">
       <DesktopBackupImport disabled={saving || runOpen || Boolean(deleting)}>{(restore, restoreDisabled) => <>
         <div className="flex flex-wrap gap-2">
-          {busy ? <Button type="button" size="sm" variant="outline" disabled={saving} onClick={() => void attempt(() => bridge.backup("cancel", { backupSetId: status.backupSetId }))}>{t("common.cancel")}</Button> : <Button type="button" size="sm" className="bg-foreground text-background hover:bg-foreground/90" disabled={saving || (!pending && dirty)} onClick={() => { if (pending && !pending.encrypted) void attempt(() => bridge.backup("run", { backupSetId: status.backupSetId })); else setRunOpen(true); }}>{t(pending ? "desktopBackup.verifyPublication" : "desktopBackup.run")}</Button>}
+          {busy ? <Button type="button" size="sm" variant="outline" disabled={saving} onClick={() => void attempt(() => bridge.backup("cancel", { backupSetId: status.backupSetId }))}>{t("common.cancel")}</Button> : <Button type="button" size="sm" className="bg-foreground text-background hover:bg-foreground/90" disabled={saving || (!pending && dirty)} onClick={startBackup}>{t(pending ? "desktopBackup.verifyPublication" : "desktopBackup.run")}</Button>}
           <Button type="button" size="sm" variant="outline" disabled={restoreDisabled} onClick={() => restore()}><Upload className="h-4 w-4" />{t("desktopBackup.importButton")}</Button>
           <Button type="button" size="sm" variant="ghost" disabled={saving} onClick={() => void attempt(() => bridge.backup("open-folder", { backupSetId: status.backupSetId }))}><FolderOpen className="h-4 w-4" />{t("desktopBackup.openFolder")}</Button>
         </div>
@@ -131,7 +146,8 @@ export const DesktopScheduledBackupCard = () => {
                 <label className="grid gap-1.5 text-xs font-medium text-slate-700">
                   <span>{t("desktopBackup.frequency")}</span>
                   <select className="h-8 rounded-md border border-input bg-card px-2.5 text-xs text-slate-800 outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900" value={config.interval} onChange={(event) => patch({ interval: event.target.value as DesktopBackupConfig["interval"] })}>
-                    {(["daily", "weekly", "biweekly", "monthly"] as const).map((key) => <option key={key} value={key}>{t(`desktopBackup.intervals.${key}`)}</option>)}
+                    {(config.interval === "daily" || config.interval === "biweekly") ? <option value={config.interval} disabled>{t(`desktopBackup.intervals.${config.interval}`)}</option> : null}
+                    {(["weekly", "monthly"] as const).map((key) => <option key={key} value={key}>{t(`desktopBackup.intervals.${key}`)}</option>)}
                   </select>
                 </label>
                 <label className="grid gap-1.5 text-xs font-medium text-slate-700">
@@ -164,7 +180,7 @@ export const DesktopScheduledBackupCard = () => {
         </section>
       </>}</DesktopBackupImport>
     </CardContent>
-    {runOpen ? <DesktopBackupRunDialog key={status.backupSetId} status={status} onRun={(input) => bridge.backup("run", input)} onClose={() => setRunOpen(false)} /> : null}
+    {runOpen ? <DesktopBackupRunDialog key={status.backupSetId} status={status} onRun={runBackup} onClose={() => setRunOpen(false)} /> : null}
     {deleting ? <AppConfirmDialog title={t("desktopBackup.deleteTitle")} description={t("desktopBackup.deleteDescription", { name: deleting })} confirmLabel={t("desktopBackup.deleteConfirm")} error={deleteError} isWorking={saving} onCancel={() => setDeleting(null)} onConfirm={() => void remove()} /> : null}
   </Card>;
 };
