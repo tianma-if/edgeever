@@ -51,8 +51,6 @@ jobs:
         os: [macos-latest, windows-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
-    env:
-      EDGE_EVER_BACKUP_REPORT: ${{ runner.temp }}/backup-network
     steps:
       - uses: actions/checkout@v5
       - uses: oven-sh/setup-bun@v2
@@ -67,9 +65,13 @@ jobs:
         run: bun install --frozen-lockfile
       - name: Test proxy and direct backup/restore
         if: runner.os != 'Linux'
+        env:
+          EDGE_EVER_BACKUP_REPORT: ${{ runner.temp }}/backup-network
         run: bun run test:desktop:backup-network
       - name: Test proxy and direct backup/restore (Xvfb)
         if: runner.os == 'Linux'
+        env:
+          EDGE_EVER_BACKUP_REPORT: ${{ runner.temp }}/backup-network
         run: xvfb-run --auto-servernum bun run test:desktop:backup-network
       - name: Upload runtime reports
         if: always()
