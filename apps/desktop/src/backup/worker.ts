@@ -1,4 +1,4 @@
-import { parentPort, workerData } from "node:worker_threads";
+import { backupWorkerRuntime } from "./worker-runtime";
 import { createHash } from "node:crypto";
 import { createReadStream, createWriteStream } from "node:fs";
 import { open, rm } from "node:fs/promises";
@@ -15,7 +15,8 @@ type Context = { baseUrl: string; accountId: string | null; token: string; local
 type Input = { operation: "export" | "import" | "verify"; context: Context; path: string; password?: string; stagingDirectory?: string; previousState?: SourceState; version?: { edgeeverVersion: string; buildId: string } };
 type State = { protocolVersion: number; userId: string | null; workspaceId: string; identity: string; backupRevision: string; counts: Required<JsonBackupManifest["counts"]> };
 type SourceState = Pick<State, "identity" | "workspaceId" | "backupRevision">;
-const input = workerData as Input;
+const { data, port: parentPort, request: networkFetch } = await backupWorkerRuntime();
+const input = data as Input;
 const abort = new AbortController();
 const signal = abort.signal;
 let confirm: (() => void) | undefined;
@@ -45,7 +46,7 @@ const fetchWithDiagnostics: typeof fetch = async (url, init) => {
   const startedAt = Date.now();
   let response: Response;
   try {
-    response = await fetch(url, init);
+    response = await networkFetch(url, init);
   } catch (error) {
     if (!signal.aborted) send("request-error", {
       method: init?.method ?? "GET",

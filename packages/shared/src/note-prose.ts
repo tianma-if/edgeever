@@ -9,6 +9,7 @@ export const DEFAULT_NOTE_PROSE_LINE_HEIGHT: NoteProseLineHeight = 1.65;
 export const NOTE_PROSE_PALETTE_IDS = [
   "clay",
   "dawn",
+  "emerald",
   "teal",
   "azure",
   "violet",
@@ -19,6 +20,37 @@ export type NoteProsePaletteId = (typeof NOTE_PROSE_PALETTE_IDS)[number];
 
 export const NOTE_PROSE_PALETTE_CHOICES = ["native", ...NOTE_PROSE_PALETTE_IDS] as const;
 export type NoteProsePaletteChoice = (typeof NOTE_PROSE_PALETTE_CHOICES)[number];
+
+export const NOTE_PROSE_HEADING_STYLES = [
+  "default",
+  "bar",
+  "numbered",
+] as const;
+export type NoteProseHeadingStyle = (typeof NOTE_PROSE_HEADING_STYLES)[number];
+export const DEFAULT_NOTE_PROSE_HEADING_STYLE: NoteProseHeadingStyle = "default";
+
+export const NOTE_PROSE_QUOTE_STYLES = [
+  "default",
+  "dashed",
+  "accent-bar",
+  "minimal-rule",
+] as const;
+export type NoteProseQuoteStyle = (typeof NOTE_PROSE_QUOTE_STYLES)[number];
+export const DEFAULT_NOTE_PROSE_QUOTE_STYLE: NoteProseQuoteStyle = "default";
+
+export const NOTE_PROSE_EMPHASIS_STYLES = [
+  "default",
+  "marker",
+] as const;
+export type NoteProseEmphasisStyle = (typeof NOTE_PROSE_EMPHASIS_STYLES)[number];
+export const DEFAULT_NOTE_PROSE_EMPHASIS_STYLE: NoteProseEmphasisStyle = "default";
+
+export type NoteProseStylePreferences = {
+  headingStyle: NoteProseHeadingStyle;
+  quoteStyle: NoteProseQuoteStyle;
+  emphasisStyle: NoteProseEmphasisStyle;
+  showMagazineCover: boolean;
+};
 
 export const MAX_NOTE_PROSE_CSS_BYTES = 8 * 1024;
 export const NOTE_PROSE_PARAGRAPH_SPACING_PX = 8;
@@ -130,6 +162,17 @@ export const NOTE_PROSE_PALETTES: Record<NoteProsePaletteId, NoteProsePaletteCol
     codeText: "#7C5500",
     background: "#FFFFFF",
   }),
+  emerald: palette({
+    accent: "#059669",
+    text: "#374151",
+    muted: "#4B5563",
+    surface: "#F0FDF4",
+    divider: "#A7F3D0",
+    link: "#047857",
+    codeBackground: "#ECFDF5",
+    codeText: "#047857",
+    background: "#FFFFFF",
+  }),
   teal: palette({
     accent: "#20AD9D",
     text: "#3E4C4A",
@@ -191,6 +234,7 @@ export const NOTE_PROSE_PALETTES: Record<NoteProsePaletteId, NoteProsePaletteCol
 export const NOTE_PROSE_DARK_ACCENTS: Record<NoteProsePaletteId, string> = {
   clay: "#FF996E",
   dawn: "#D9B65C",
+  emerald: "#6EE7B7",
   teal: "#70C7B8",
   azure: "#8CB4F0",
   violet: "#B39AE8",
@@ -252,11 +296,26 @@ export const parseNoteProsePalette = (value: unknown): NoteProsePaletteChoice | 
   // Red and orange now share the existing red identifier for older clients.
   if (value === "orange") return "clay";
   // Removed palettes and the custom color editor read as native.
-  if (value === "emerald" || value === "green" || value === "plum" || value === "custom") return "native";
+  if (value === "green" || value === "plum" || value === "custom") return "native";
   return typeof value === "string" && (NOTE_PROSE_PALETTE_CHOICES as readonly string[]).includes(value)
     ? value as NoteProsePaletteChoice
     : null;
 };
+
+export const parseNoteProseHeadingStyle = (value: unknown): NoteProseHeadingStyle | null =>
+  typeof value === "string" && (NOTE_PROSE_HEADING_STYLES as readonly string[]).includes(value)
+    ? value as NoteProseHeadingStyle
+    : null;
+
+export const parseNoteProseQuoteStyle = (value: unknown): NoteProseQuoteStyle | null =>
+  typeof value === "string" && (NOTE_PROSE_QUOTE_STYLES as readonly string[]).includes(value)
+    ? value as NoteProseQuoteStyle
+    : null;
+
+export const parseNoteProseEmphasisStyle = (value: unknown): NoteProseEmphasisStyle | null =>
+  typeof value === "string" && (NOTE_PROSE_EMPHASIS_STYLES as readonly string[]).includes(value)
+    ? value as NoteProseEmphasisStyle
+    : null;
 
 const isColorSet = (value: unknown): value is NoteProseCustomColorSet => {
   if (typeof value !== "object" || value === null) return false;

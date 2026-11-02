@@ -314,6 +314,7 @@ EdgeEver 是免费开源项目。保持跨平台客户端（macOS、Windows、Li
 - 思维导图与可视化图表笔记的产品设计参考了 [XMind](https://xmind.com/) 和 [ProcessOn](https://www.processon.com/) 等图表工具的公开产品体验。相关功能由 EdgeEver 独立设计与实现。
 - EdgeEver 的海报设计工作台借鉴了向阳乔木（joeseesun）的 [Qiaomu Design](https://github.com/joeseesun/qiaomu-cover-design)，并基于其 MIT 开源许可改编了模板与字体排版引擎。
 - EdgeEver 图片分享卡片的主题视觉与排版参考了 [流光卡片](https://fireflycard.shushiai.com/)，感谢其设计带来的启发。
+- EdgeEver 的微信公众号一键排版与精选文章视觉样式参考了 [gzh-design-skill](https://github.com/isjiamu/gzh-design-skill)，感谢其在公众号排版与视觉设计上的启发。
 
 ## 商标与品牌使用
 

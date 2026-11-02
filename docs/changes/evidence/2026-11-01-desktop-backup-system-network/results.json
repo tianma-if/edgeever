@@ -1,0 +1,99 @@
+{
+  "runtime": "macOS arm64 / Electron 44.7.0 / Chromium 152",
+  "regression": {
+    "baselineNodeWorkerProxyOnlyFixture": "failed with backup_failed / fetch failed before the change",
+    "electronProxyAndDirectScenarios": "passed",
+    "focusedBackupContracts": 57,
+    "failures": 0,
+    "webTypecheck": "passed",
+    "mobileTypecheck": "passed",
+    "desktopWebBuild": "passed"
+  },
+  "transport": {
+    "sourceStateRequestsAcrossExportAndUnchangedCheck": 3,
+    "sourceDataPages": 3,
+    "downloadPerAttachment": 1,
+    "restoreBearerPreserved": true,
+    "cookiesOmitted": true,
+    "retryAdded": false,
+    "workersExitedPerScenario": 5,
+    "directAndProxyApiRequestCount": 47,
+    "unchangedDueCheckCreatesArchive": false
+  },
+  "performance": {
+    "metric": "Local Electron app.getAppMetrics working-set peaks in KiB; process peaks are not necessarily simultaneous. Network-service memory is not included. This is not production latency.",
+    "nodeThread32MiB": {
+      "archiveBytes": 33729791,
+      "workersExited": 0,
+      "peakWorkerKiB": 0,
+      "peakMainKiB": 444512,
+      "maxTimerDelayMs": 2.5726250000000164,
+      "proxyRequests": 0
+    },
+    "utilityDirect32MiB": {
+      "archiveBytes": 33729761,
+      "workersExited": 5,
+      "peakWorkerKiB": 301488,
+      "peakMainKiB": 147072,
+      "maxTimerDelayMs": 8.325874999999996,
+      "proxyRequests": 0
+    },
+    "utilityProxy32MiB": {
+      "archiveBytes": 33729790,
+      "workersExited": 5,
+      "peakWorkerKiB": 308592,
+      "peakMainKiB": 147072,
+      "maxTimerDelayMs": 6.260792000000038,
+      "proxyRequests": 54
+    },
+    "utilityProxy128MiB": {
+      "archiveBytes": 134393092,
+      "workersExited": 5,
+      "peakWorkerKiB": 325328,
+      "peakMainKiB": 147248,
+      "maxTimerDelayMs": 4.753042000000278,
+      "proxyRequests": 66
+    }
+  },
+  "cloudflare": {
+    "serverVersion": "2.16.1",
+    "serverMigration": "0084",
+    "officialProfileConfigurationReused": true,
+    "candidateManualBackupSucceeded": true,
+    "archiveBytes": 175373,
+    "archiveEntries": 41,
+    "zipCrcErrors": null,
+    "syncedValidationNoteBodyPresent": true,
+    "automaticBackupEnabled": true,
+    "interval": "weekly",
+    "retention": 1,
+    "realScheduledBackupWithCandidate": "not due; scheduled export and unchanged-source checks exercised in the isolated Electron fixture",
+    "d1ReadRowChart24hApproxBefore": 19080,
+    "d1ReadRowChart24hApproxAfter": 19810,
+    "d1MetricScope": "Cumulative dashboard chart including initialization and ordinary usage; approximate/lagged, not the cost of one backup or a large-library acceptance."
+  },
+  "acceptanceLimitations": {
+    "installedOfficialBundleContainsFix": false,
+    "officialV2161ReadsCandidateBackupHistoryAndExistingSchedule": true,
+    "windowsAndLinuxLocalRuntimeVerified": false,
+    "packagedCandidateAndCrossVersionReleaseVerified": false
+  },
+  "submissionValidation": {
+    "upstreamBase": "feff718afa08d8dfed5c05e85d6287d87f4e0a08",
+    "focusedBackupContracts": 57,
+    "electronNetworkScenarios": 2,
+    "apiRequestsPerScenario": 47,
+    "workersExitedPerScenario": 5,
+    "webTypecheck": "passed",
+    "mobileTypecheck": "passed",
+    "desktopWebBuild": "passed",
+    "fixtureEntryPoint": "bun run test:desktop:backup-network",
+    "continuousIntegrationWorkflow": ".github/workflows/desktop-backup-network.yml",
+    "continuousIntegrationPlatforms": [
+      "macos-latest",
+      "windows-latest",
+      "ubuntu-latest"
+    ],
+    "continuousIntegrationRunnerGate": "github.repository == 'tianma-if/edgeever'"
+  }
+}

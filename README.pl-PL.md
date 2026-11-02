@@ -307,6 +307,7 @@ EdgeEver jest darmowym projektem o otwartym kodzie. Rozwijanie aplikacji na ró�
 - Inspiracją dla notatek z mapami myśli i diagramami były publicznie dostępne funkcje [XMind](https://xmind.com/) i [ProcessOn](https://www.processon.com/). Funkcje te zostały zaprojektowane i zaimplementowane niezależnie przez EdgeEver.
 - Narzędzie do projektowania plakatów w EdgeEver czerpie inspirację z [Qiaomu Design](https://github.com/joeseesun/qiaomu-cover-design) autorstwa 向阳乔木 (joeseesun) i wykorzystuje dostosowane szablony oraz silnik typograficzny udostępnione na licencji MIT.
 - Motywy wizualne i typografia kart do udostępniania notatek jako obrazów w EdgeEver były inspirowane [Firefly Card (流光卡片)](https://fireflycard.shushiai.com/). Dziękujemy za inspirację projektową.
+- Funkcja publikowania jednym kliknięciem dla WeChat oraz typografia wyróżnionych artykułów w EdgeEver czerpią inspirację z projektu [gzh-design-skill](https://github.com/isjiamu/gzh-design-skill) autorstwa isjiamu. Dziękujemy za inspirację w zakresie układu i estetyki artykułów.
 
 ## Znak towarowy i użycie marki
 

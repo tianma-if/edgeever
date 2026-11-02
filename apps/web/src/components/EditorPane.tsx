@@ -56,6 +56,7 @@ import {
 import { EditorToolbar } from "./EditorToolbar";
 import { EditorOutline } from "./EditorOutline";
 import { SelectionAiActions } from "./editor/SelectionAiActions";
+import { EditorMagazineHeader } from "./editor/EditorMagazineHeader";
 import { useAiBubbleMenu } from "./editor/useAiBubbleMenu";
 import {
   createEditorInstanceMemoIdentity,
@@ -172,6 +173,7 @@ import {
   getMemoSaveConflictInfoFromQueueItem,
 } from "@/lib/memo-save-conflict";
 import { copyResourceToClipboard, copyTextToClipboard } from "@/lib/clipboard";
+import { useNoteProseStylePreference } from "@/lib/note-prose-style-preference";
 import { createClientUuid } from "@/lib/client-id";
 import { isLocalMemoId, remapLocalDraftMemoId } from "@/lib/local-mirror";
 import { shouldAcceptRemoteMemoDetail } from "@/lib/memo-detail-freshness";
@@ -360,6 +362,8 @@ type EditorPaneProps = {
   readingProtectionToggleToken: number;
   editorModeToggleToken: number;
   outlineToggleToken: number;
+  titleFocusToken?: number;
+  bodyFocusToken?: number;
   shortcutSettings: ShortcutSettings;
   onSyncRequested: () => Promise<void>;
   documentActionRequest?: MemoDocumentActionRequest | null;
@@ -442,6 +446,8 @@ const RichEditorPane = ({
   readingProtectionToggleToken,
   editorModeToggleToken,
   outlineToggleToken,
+  titleFocusToken = 0,
+  bodyFocusToken = 0,
   shortcutSettings,
   onSyncRequested,
   documentActionRequest,
@@ -583,6 +589,9 @@ const RichEditorPane = ({
   const handledReadingProtectionToggleTokenRef = useRef(readingProtectionToggleToken);
   const handledEditorModeToggleTokenRef = useRef(editorModeToggleToken);
   const handledOutlineToggleTokenRef = useRef(outlineToggleToken);
+  const handledTitleFocusTokenRef = useRef(titleFocusToken);
+  const handledBodyFocusTokenRef = useRef(bodyFocusToken);
+  const titleInputRef = useRef<HTMLInputElement>(null);
   const handledAiAssistantOpenTokenRef = useRef(aiAssistantOpenToken);
   const noteLinkModifier = useMemo(
     () => typeof navigator !== "undefined" && /mac|iphone|ipad|ipod/i.test(navigator.platform) ? "⌘" : "Ctrl",
@@ -701,6 +710,7 @@ const RichEditorPane = ({
   }, [desktopReadingProtection, setAiSidebarOpen]);
 
   const memoRef = useRef<MemoDetail | null>(memo);
+  const noteProseStyle = useNoteProseStylePreference();
   const editSessionRef = useRef<MemoEditSession | null>(null);
   const editorRef = useRef<Editor | null>(null);
   const headingShortcutSurfaceRef = useRef({ markdown: false, plainText: false });
@@ -3295,6 +3305,29 @@ const RichEditorPane = ({
   }, [editorShortcutBlocked, isMobileViewport, outlineToggleToken, toggleEditorOutline, useMarkdownSourceEditor, useMobilePlainTextEditor]);
 
   useEffect(() => {
+    if (handledTitleFocusTokenRef.current === titleFocusToken) return;
+    handledTitleFocusTokenRef.current = titleFocusToken;
+    const input = titleInputRef.current;
+    if (editorShortcutBlocked || effectiveReadOnly || !input) return;
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
+  }, [editorShortcutBlocked, effectiveReadOnly, titleFocusToken]);
+
+  useEffect(() => {
+    if (handledBodyFocusTokenRef.current === bodyFocusToken) return;
+    handledBodyFocusTokenRef.current = bodyFocusToken;
+    if (editorShortcutBlocked || effectiveReadOnly) return;
+    if (useMobilePlainTextEditor) {
+      focusMobileInputTarget();
+    } else if (useMarkdownSourceEditor) {
+      markdownSourceEditorRef.current?.focus();
+    } else if (isEditorReady(editorRef.current) && editorRef.current.isEditable) {
+      // Without a position Tiptap restores the caret from before the body lost focus.
+      editorRef.current.commands.focus();
+    }
+  }, [bodyFocusToken, editorShortcutBlocked, effectiveReadOnly, focusMobileInputTarget, markdownSourceEditorRef, useMarkdownSourceEditor, useMobilePlainTextEditor]);
+
+  useEffect(() => {
     if (handledSaveAndSyncTokenRef.current === saveAndSyncToken || saveMutationPending) {
       return;
     }
@@ -4082,6 +4115,7 @@ const RichEditorPane = ({
             )}
             titleInput={(
               <MemoTitleInput
+                ref={titleInputRef}
                 className="w-full min-w-0 px-2"
                 value={title}
                 readOnly={effectiveReadOnly}
@@ -4508,6 +4542,11 @@ const RichEditorPane = ({
         ref={setEditorScrollContainerRef}
         data-editor-theme="default"
         data-note-palette={noteProse.palette}
+        data-note-heading-style={noteProseStyle.headingStyle}
+        data-note-quote-style={noteProseStyle.quoteStyle}
+        data-note-emphasis-style={noteProseStyle.emphasisStyle}
+        data-note-magazine-cover={noteProseStyle.showMagazineCover ? "true" : "false"}
+        data-note-title={title || getEditableMemoTitle(memo?.title)}
         style={{
           ...noteProseCssVariables(noteProse),
           "--memo-content-divider-spacing": `${MEMO_CONTENT_STYLE.divider.marginVertical}px`,
@@ -4667,6 +4706,15 @@ const RichEditorPane = ({
                     onAsk={() => requestSelectionAi("ask")}
                   />
                 </BubbleMenu>
+                {noteProseStyle.showMagazineCover ? (
+                  <EditorMagazineHeader
+                    editor={editor}
+                    title={title || getEditableMemoTitle(memo?.title)}
+                    tags={memo?.tags}
+                    updatedAt={memo?.updatedAt}
+                    palette={noteProse.palette}
+                  />
+                ) : null}
                 <EditorTableContextMenu editor={editor} readOnly={effectiveReadOnly}>
                   <AttachmentTranscriptContext.Provider value={attachmentTranscriptContext}>
                     <EditorContent editor={editor} />
