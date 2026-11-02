@@ -2308,6 +2308,8 @@ export const ru = {
       toggleEditorMode: { label: "Переключить режим редактора" },
       toggleOutline: { label: "Показать/скрыть структуру документа" },
       toggleSidebar: { label: "Показать или скрыть боковую панель" },
+      focusTitle: { label: "Перейти к заголовку заметки" },
+      focusBody: { label: "Перейти к тексту заметки" },
     },
   },
   quickSwitcher: {

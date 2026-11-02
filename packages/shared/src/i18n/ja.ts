@@ -2297,6 +2297,8 @@ export const ja = {
       toggleEditorMode: { label: "エディタモードを切り替え" },
       toggleOutline: { label: "ドキュメントアウトラインの表示/非表示" },
       toggleSidebar: { label: "サイドバーの表示/非表示" },
+      focusTitle: { label: "ノートのタイトルにフォーカス" },
+      focusBody: { label: "ノートの本文にフォーカス" },
     },
   },
   quickSwitcher: {

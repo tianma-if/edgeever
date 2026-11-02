@@ -26,7 +26,9 @@ export type ShortcutAction =
   | "toggleReadingProtection"
   | "toggleEditorMode"
   | "toggleOutline"
-  | "toggleSidebar";
+  | "toggleSidebar"
+  | "focusTitle"
+  | "focusBody";
 export type ShortcutBinding = {
   key: string;
   // Defaults and shortcuts saved before Control and Command were stored apart.
@@ -213,6 +215,8 @@ export const getShortcutActionOptions = (
   { value: "toggleEditorMode", label: t("shortcuts.actions.toggleEditorMode.label") },
   { value: "toggleOutline", label: t("shortcuts.actions.toggleOutline.label") },
   { value: "toggleSidebar", label: t("shortcuts.actions.toggleSidebar.label") },
+  { value: "focusTitle", label: t("shortcuts.actions.focusTitle.label") },
+  { value: "focusBody", label: t("shortcuts.actions.focusBody.label") },
 ];
 
 export const DEFAULT_SHORTCUT_SETTINGS: ShortcutSettings = {
@@ -230,6 +234,8 @@ export const DEFAULT_SHORTCUT_SETTINGS: ShortcutSettings = {
   toggleEditorMode: { key: "/", ctrlOrMeta: true, shift: false, alt: false },
   toggleOutline: { key: "1", ctrlOrMeta: true, shift: true, alt: false },
   toggleSidebar: { key: "\\", ctrlOrMeta: true, shift: false, alt: false },
+  focusTitle: { key: "t", ctrlOrMeta: true, shift: false, alt: true },
+  focusBody: { key: "b", ctrlOrMeta: true, shift: false, alt: true },
 };
 
 const LEGACY_READING_PROTECTION_SHORTCUT: ShortcutBinding = {
@@ -258,6 +264,8 @@ const SHORTCUT_ACTION_VALUES: ShortcutAction[] = [
   "toggleEditorMode",
   "toggleOutline",
   "toggleSidebar",
+  "focusTitle",
+  "focusBody",
 ];
 
 export const isDefaultMemoTitle = (title: string | null | undefined) => title?.trim() === DEFAULT_MEMO_TITLE;
@@ -714,7 +722,13 @@ export const shortcutBindingFromKeyboardEvent = (
   platform = readShortcutPlatform(),
 ): ShortcutBinding | null => {
   const digitKey = typeof event.code === "string" ? /^Digit([0-9])$/.exec(event.code)?.[1] : undefined;
-  const key = digitKey ?? normalizeShortcutKey(event.key);
+  // On Apple keyboards Option rewrites the key value (⌘⌥T reports "†"), so
+  // read the physical letter there, as the shortcut recorder does. Elsewhere
+  // Ctrl+Alt is AltGr and must keep typing its character.
+  const optionLetterKey = event.altKey && isAppleShortcutPlatform(platform) && !/^[a-z]$/i.test(event.key) && typeof event.code === "string"
+    ? /^Key([A-Z])$/.exec(event.code)?.[1]?.toLowerCase()
+    : undefined;
+  const key = digitKey ?? optionLetterKey ?? normalizeShortcutKey(event.key);
 
   if (["control", "meta", "shift", "alt", "escape"].includes(key)) {
     return null;
