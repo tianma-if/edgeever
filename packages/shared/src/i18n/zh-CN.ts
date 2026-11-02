@@ -1340,6 +1340,8 @@ export const zhCN = {
     themeToggleToLight: "切换到浅色模式",
     tabs: {
       general: "常规设置",
+      reading: "阅读与排版",
+      editing: "编辑器",
       shortcuts: "快捷键",
       ai: "模型与代理",
       speech: "音视频转写",
@@ -3313,7 +3315,7 @@ export const zhCN = {
     empty: "没有找到可引用的笔记",
     loading: "正在搜索笔记...",
     close: "关闭引用笔记",
-    openHint: "按住 {{modifier}} 点击链接即可打开。如需改为单击打开，请前往个人中心 → 常规设置关闭此选项",
+    openHint: "按住 {{modifier}} 点击链接即可打开。如需改为单击打开，请前往个人中心 → 编辑器关闭此选项",
   },
   mobileNotebookPicker: {
     title: "切换笔记本",

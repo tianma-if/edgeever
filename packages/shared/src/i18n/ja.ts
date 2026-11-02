@@ -1329,6 +1329,8 @@ export const ja = {
     themeToggleToLight: "ライトモードに切り替え",
     tabs: {
       general: "一般",
+      reading: "閲覧と組版",
+      editing: "エディター",
       shortcuts: "ショートカット",
       ai: "モデルとエージェント",
       speech: "音声・動画の文字起こし",
@@ -3304,7 +3306,7 @@ export const ja = {
     empty: "ノートが見つかりません",
     loading: "ノートを検索中...",
     close: "ノート選択を閉じる",
-    openHint: "{{modifier}} を押しながらクリックするとリンクを開きます。1 クリックで開く場合は、プロフィール → 一般でこの設定をオフにしてください",
+    openHint: "{{modifier}} を押しながらクリックするとリンクを開きます。1 クリックで開く場合は、プロフィール → エディターでこの設定をオフにしてください",
   },
   mobileNotebookPicker: {
     title: "ノートブックを切り替え",

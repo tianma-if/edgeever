@@ -30,6 +30,7 @@ import {
   formatShortcutBinding,
   getShortcutActionForEvent,
   getShortcutActionOptions,
+  getDefaultShortcutSettings,
   isPrimaryModifierPressed,
   shortcutBindingFromKeyboardEvent,
   shortcutBindingsEqual,
@@ -903,13 +904,40 @@ describe("workspace shortcut preferences", () => {
     )).toBeNull();
   });
 
+  test("adds Shift to the Linux title default because Ctrl+Alt+T opens a terminal there", () => {
+    const keyboardEvent = (key, modifiers = {}) => ({ key, code: `Key${key.toUpperCase()}`, ctrlKey: false, metaKey: false, shiftKey: false, altKey: false, ...modifiers });
+    const linux = getDefaultShortcutSettings("Linux x86_64");
+    expect(linux.focusTitle).toEqual({ key: "t", ctrlOrMeta: true, shift: true, alt: true });
+    expect(linux.focusBody).toEqual(DEFAULT_SHORTCUT_SETTINGS.focusBody);
+    expect(formatShortcutBinding(linux.focusTitle, "Linux x86_64")).toBe("Ctrl + Alt + Shift + T");
+    expect(getShortcutActionForEvent(keyboardEvent("T", { ctrlKey: true, altKey: true, shiftKey: true }), linux, "Linux x86_64")).toBe("focusTitle");
+    expect(getShortcutActionForEvent(keyboardEvent("t", { ctrlKey: true, altKey: true }), linux, "Linux x86_64")).toBeNull();
+    expect(getDefaultShortcutSettings("CrOS x86_64").focusTitle).toEqual(linux.focusTitle);
+    for (const platform of ["Win32", "MacIntel", "Linux armv8l Android"]) {
+      expect(getDefaultShortcutSettings(platform)).toEqual(DEFAULT_SHORTCUT_SETTINGS);
+    }
+  });
+
+  test("reads Linux defaults for actions that were never customized", () => {
+    const values = installLocalStorage();
+    const platform = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+    Object.defineProperty(globalThis, "navigator", { value: { platform: "Linux x86_64" }, configurable: true });
+    try {
+      expect(readShortcutSettingsPreference().focusTitle).toEqual(getDefaultShortcutSettings("Linux x86_64").focusTitle);
+      values.set(SHORTCUT_SETTINGS_STORAGE_KEY, JSON.stringify({ createMemo: { key: "m", ctrlOrMeta: true, shift: false, alt: false } }));
+      expect(readShortcutSettingsPreference().focusTitle).toEqual(getDefaultShortcutSettings("Linux x86_64").focusTitle);
+    } finally {
+      if (platform) Object.defineProperty(globalThis, "navigator", platform); else delete globalThis.navigator;
+    }
+  });
+
   test("adds the focus actions to legacy settings and lists them in Settings", () => {
     const values = installLocalStorage();
     values.set(SHORTCUT_SETTINGS_STORAGE_KEY, JSON.stringify({
       toggleSidebar: { key: "b", ctrlOrMeta: true, shift: false, alt: false },
     }));
     const settings = readShortcutSettingsPreference();
-    expect(settings.focusTitle).toEqual(DEFAULT_SHORTCUT_SETTINGS.focusTitle);
+    expect(settings.focusTitle).toEqual(getDefaultShortcutSettings().focusTitle);
     expect(settings.focusBody).toEqual(DEFAULT_SHORTCUT_SETTINGS.focusBody);
     expect(getShortcutActionOptions((key) => key).map((option) => option.value)).toEqual(Object.keys(DEFAULT_SHORTCUT_SETTINGS));
   });

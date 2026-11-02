@@ -1,23 +1,38 @@
 {
-  "version": "2.16.1",
+  "version": "2.17.0",
   "changes": {
     "en-US": [
-      "Preserve unsaved mind-map, flowchart and architecture edits during synchronization, including new-note creation. Thanks @sivdead (#742); fixes #737.",
-      "Preserve infographic drafts and active input during synchronization, and refresh remote changes when the editor is idle.",
-      "Reduce database reads during backups while preserving consistency checks, and improve desktop backup network diagnostics.",
-      "Reduce repeated database counts during pagination, exports, synchronization and task-history polling. Upgrading the server applies migration 0084 with a one-time task-count backfill."
+      "Import notes from Evernote, Obsidian and Joplin while retaining notebooks, attachments and links; large-library backup and initial sync read fewer database rows. Thanks @sivdead (#747, #657).",
+      "Set an optional expiry for single-note share links and see their open counts. Thanks @dkoryto (#753, #607).",
+      "Customize reading styles with an emerald palette, composable headings and quotes, an independent magazine cover, image cards and neutral inline code; reading and editor settings are organized separately.",
+      "Use configurable shortcuts to focus the note title or body. Thanks @dkoryto (#760, #762).",
+      "Remember note sorting across restarts and keep title-sorted notes in place after editing. Thanks @sivdead (#757, #754, #750).",
+      "Keep authenticated desktop local workspaces available during temporary server failures and clearly diagnose exhausted database daily quotas.",
+      "Desktop backups follow the system network settings and fetch current attachments; start manual backups directly and choose from simpler schedules. Thanks @sivdead (#755).",
+      "Fix concurrent Android local database writes when sharing images into notes.",
+      "Fix notebook icon selection in Safari. Thanks @thorufur (#746)."
     ],
     "zh-CN": [
-      "修复思维导图、流程图及架构图在同步和新建笔记时丢失未保存编辑的问题。感谢 @sivdead（#742）；修复 #737。",
-      "修复信息图同步时的草稿与输入丢失问题，并在空闲时正确显示远端更新。",
-      "减少备份过程中的数据库读取，保留一致性检查，并改善桌面备份网络故障诊断。",
-      "减少分页、导出、同步和任务历史轮询中的重复数据库计数。服务端升级会执行迁移 0084，一次性回填任务计数。"
+      "支持导入印象笔记、Obsidian 和 Joplin，保留笔记本、附件与链接，并减少大笔记库备份和首次同步的数据库读取量。感谢 @sivdead（#747、#657）。",
+      "单篇笔记分享链接支持设置有效期和查看打开次数。感谢 @dkoryto（#753、#607）。",
+      "新增翡翠绿配色及可组合的标题、引用阅读样式，杂志封面可独立设置，统一图片卡片与行内代码样式，并分开整理阅读与编辑设置。",
+      "支持使用可配置快捷键聚焦笔记标题或正文。感谢 @dkoryto（#760、#762）。",
+      "重启后保留笔记排序偏好，并修复按标题排序时编辑笔记后位置变化的问题。感谢 @sivdead（#757、#754、#750）。",
+      "服务器暂时故障时保留已认证桌面本地工作区的可用性，并明确提示数据库每日额度耗尽。",
+      "桌面备份遵循系统网络设置并读取最新附件，手动备份可直接启动，定时备份频率选择更简洁。感谢 @sivdead（#755）。",
+      "修复 Android 分享图片到笔记时本地数据库并发写入的问题。",
+      "修复 Safari 中笔记本图标选择不稳定的问题。感谢 @thorufur（#746）。"
     ],
     "ja": [
-      "同期中や新規ノート作成時に、マインドマップ・フローチャート・構成図の未保存の編集が失われる問題を修正しました。",
-      "インフォグラフィックの同期中に下書きや入力が失われる問題を修正し、編集中でない場合はリモートの変更を正しく反映します。",
-      "バックアップの整合性チェックを維持しながらデータベース読み取りを削減し、デスクトップのネットワーク障害診断を改善しました。",
-      "ページ送り・エクスポート・同期・タスク履歴のポーリング時の重複集計を削減しました。サーバー更新時にマイグレーション0084でタスク件数を一度だけ集計します。"
+      "Evernote・Obsidian・Joplinからノートブック、添付ファイル、リンクを保ってインポートできます。大規模ライブラリのバックアップと初回同期の読み取り量も削減しました。",
+      "単一ノートの共有リンクに有効期限を設定し、閲覧回数を確認できます。",
+      "エメラルド配色や組み合わせ可能な見出し・引用スタイル、独立した雑誌風表紙、画像カードに対応し、読書設定と編集設定を整理しました。",
+      "設定可能なショートカットでノートのタイトルや本文にフォーカスできます。",
+      "再起動後もノートの並び順を保持し、編集後にタイトル順の位置が変わる問題を修正しました。",
+      "サーバーの一時障害中も認証済みデスクトップのローカル作業を継続でき、データベースの日次上限超過を明確に表示します。",
+      "デスクトップのバックアップがシステムのネットワーク設定に従い、最新の添付ファイルを取得します。手動実行とスケジュール選択も簡素化しました。",
+      "Androidで画像をノートに共有する際のローカルデータベース同時書き込みを修正しました。",
+      "Safariでノートブックのアイコン選択が不安定になる問題を修正しました。"
     ]
   }
 }

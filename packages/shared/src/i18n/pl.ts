@@ -1329,6 +1329,8 @@ export const pl = {
     themeToggleToLight: "Przełącz na tryb jasny",
     tabs: {
       general: "Ogólne",
+      reading: "Czytanie i typografia",
+      editing: "Edytor",
       shortcuts: "Skróty",
       ai: "Modele i agenci",
       speech: "Transkrypcja audio i wideo",
@@ -3304,7 +3306,7 @@ export const pl = {
     empty: "Nie znaleziono notatek",
     loading: "Wyszukiwanie notatek...",
     close: "Zamknij wybór notatki",
-    openHint: "Przytrzymaj {{modifier}} i kliknij, aby otworzyć link. Aby otwierać linki jednym kliknięciem, wyłącz tę opcję w Profil → Ogólne",
+    openHint: "Przytrzymaj {{modifier}} i kliknij, aby otworzyć link. Aby otwierać linki jednym kliknięciem, wyłącz tę opcję w Profil → Edytor",
   },
   mobileNotebookPicker: {
     title: "Przełącz notatnik",

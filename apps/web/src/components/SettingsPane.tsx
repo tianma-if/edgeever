@@ -1,5 +1,7 @@
 import {
   AudioLines,
+  BookOpenText,
+  PenLine,
   ChevronLeft,
   ChevronRight,
   Database,
@@ -37,6 +39,7 @@ import type { NoteImportController } from "@/lib/note-import/controller";
 import { FeedbackLink } from "./settings/FeedbackLink";
 import { SystemInfoPanel } from "./settings/SystemInfoPanel";
 import { McpConfigCard } from "./settings/McpConfigCard";
+import { AiSpaceShortcutSettingsItem } from "./settings/AiSpaceShortcutSettingsItem";
 import { PreferenceCard } from "./settings/PreferenceCard";
 import { ShortcutSettingsItem } from "./settings/ShortcutSettingsItem";
 import { PasswordCard } from "./settings/PasswordCard";
@@ -86,7 +89,7 @@ const SettingsGroup = ({ children }: { children: ReactNode }) => (
   </div>
 );
 
-type TabKey = "general" | "shortcuts" | "users" | "data" | "ai" | "mcp" | "speech" | "sharing" | "advanced" | "account" | "system";
+type TabKey = "general" | "reading" | "editing" | "shortcuts" | "users" | "data" | "ai" | "mcp" | "speech" | "sharing" | "advanced" | "account" | "system";
 
 interface TabItem {
   key: TabKey;
@@ -128,6 +131,16 @@ export const SettingsPane = ({
       key: "general",
       label: t("settings.tabs.general"),
       icon: SlidersHorizontal,
+    },
+    {
+      key: "reading",
+      label: t("settings.tabs.reading"),
+      icon: BookOpenText,
+    },
+    {
+      key: "editing",
+      label: t("settings.tabs.editing"),
+      icon: PenLine,
     },
     {
       key: "shortcuts",
@@ -225,25 +238,33 @@ export const SettingsPane = ({
     if (key === "data" && desktopLayout !== desktopViewport) return null;
     switch (key) {
       case "general":
+      case "reading":
+      case "editing":
         return (
           <div className="grid gap-6">
             <PreferenceCard
+              section={key}
               imageCompressionEnabled={imageCompressionEnabled}
               onImageCompressionChange={onImageCompressionChange}
               noteProse={noteProse}
               onNoteProseChange={onNoteProseChange}
             />
-            <div className="hidden overflow-hidden rounded-xl border border-slate-200 bg-card lg:block">
-              <FeedbackLink />
-            </div>
+            {key === "general" ? (
+              <div className="hidden overflow-hidden rounded-xl border border-slate-200 bg-card lg:block">
+                <FeedbackLink />
+              </div>
+            ) : null}
           </div>
         );
       case "shortcuts":
         return (
-          <ShortcutSettingsItem
-            shortcutSettings={shortcutSettings}
-            onShortcutSettingsChange={onShortcutSettingsChange}
-          />
+          <div className="grid gap-6">
+            <AiSpaceShortcutSettingsItem />
+            <ShortcutSettingsItem
+              shortcutSettings={shortcutSettings}
+              onShortcutSettingsChange={onShortcutSettingsChange}
+            />
+          </div>
         );
       case "users":
         return isOwner ? (
