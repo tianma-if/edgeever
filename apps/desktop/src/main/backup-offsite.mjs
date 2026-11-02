@@ -45,6 +45,8 @@ export const normalizeOffsiteConfig = (input) => {
 };
 
 const targetKey = (config) => JSON.stringify([config.url, config.username, config.folder]);
+// The saved password belongs to the server and account it was entered for.
+const credentialKey = (config) => JSON.stringify([config.url, config.username]);
 
 export const offsiteErrorInfo = (error) => {
   if (error?.code?.startsWith?.("offsite_")) return { code: error.code, message: error.message };
@@ -123,13 +125,16 @@ export class OffsiteBackup {
       const file = await open(newSecret, "wx", 0o600);
       try { await file.writeFile(await this.secureStorage.encryptStringAsync(password)); await file.sync(); } finally { await file.close(); }
     }
+    // A new address or username never reuses the saved password, so it cannot be sent to another server.
+    const dropSecret = !newSecret && previous.passwordId && credentialKey(previous.config) !== credentialKey(normalized);
+    if (dropSecret) delete next.passwordId;
     if (normalized.enabled && !next.passwordId) { if (newSecret) await rm(newSecret, { force: true }); throw backupError("offsite_password_required", "Enter the WebDAV password."); }
     if (generation !== this.generation) { if (newSecret) await rm(newSecret, { force: true }); throw backupError("backup_account_changed", "The backup account changed."); }
     if (targetKey(previous.config) !== targetKey(normalized)) this.cancel();
     this.record = next;
     try { await this.persist(); }
     catch (error) { this.record = previous; if (newSecret) await rm(newSecret, { force: true }); throw error; }
-    if (newSecret && previous.passwordId) await rm(this.secretPath(previous.passwordId), { force: true }).catch(() => {});
+    if ((newSecret || dropSecret) && previous.passwordId) await rm(this.secretPath(previous.passwordId), { force: true }).catch(() => {});
     this.emit(); return this.status();
   }
 
@@ -154,6 +159,9 @@ export class OffsiteBackup {
     this.assertReady();
     const normalized = normalizeOffsiteConfig({ ...config, enabled: false });
     if (!normalized.url || !normalized.username) throw backupError("offsite_invalid_configuration", "Enter the WebDAV address and username.");
+    if (!(typeof password === "string" && password.length) && credentialKey(this.record.config) !== credentialKey(normalized)) {
+      throw backupError("offsite_password_required", "Enter the WebDAV password for this address and username.");
+    }
     const secret = typeof password === "string" && password.length ? password : await this.password();
     try {
       const client = await this.client(normalized, secret);

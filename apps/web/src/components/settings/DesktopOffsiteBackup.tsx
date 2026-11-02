@@ -51,7 +51,9 @@ export const DesktopOffsiteSettings = ({ status, disabled }: { status: DesktopBa
   useEffect(() => { scope.current = status.backupSetId; setMessage(null); setWorking(null); }, [status.backupSetId]);
   if (!bridge?.backup || status.offsite === undefined) return null;
   const offsite = status.offsite;
-  const passwordSet = Boolean(offsite?.passwordSet);
+  // The saved password only applies to the address and username it was entered for.
+  const credentialsChanged = config.url.trim().replace(/\/+$/, "") !== saved.url || config.username.trim() !== saved.username;
+  const passwordSet = Boolean(offsite?.passwordSet) && !credentialsChanged;
   const secureUnavailable = offsite ? !offsite.secureStorageAvailable : false;
   const passwordEditable = !passwordSet || changePassword;
   const dirty = JSON.stringify(config) !== savedKey || Boolean(password);

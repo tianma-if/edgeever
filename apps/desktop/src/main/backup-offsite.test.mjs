@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { OffsiteBackup, normalizeOffsiteConfig, offsiteErrorInfo } from "./backup-offsite.mjs";
@@ -69,6 +69,31 @@ describe("off-site settings", () => {
       // Saving again without a password keeps the stored one.
       await f.offsite.save({ ...f.offsite.status().config, folder: "/Other" });
       expect(f.offsite.status().passwordSet).toBe(true);
+    } finally { await f.cleanup(); }
+  });
+
+  test("never sends the saved password to a different address or username", async () => {
+    const f = await setup();
+    try {
+      await f.enable();
+      const saved = f.offsite.status().config;
+      const secrets = async () => (await readdir(join(f.userData, "scheduled-backups"))).filter((name) => name.endsWith(".secret"));
+      expect(await secrets()).toHaveLength(1);
+      // Testing another server without typing a password does not use the saved one.
+      for (const changed of [{ url: "https://attacker.example.com/dav" }, { username: "someone-else" }]) {
+        await expect(f.offsite.test({ ...saved, ...changed })).rejects.toMatchObject({ code: "offsite_password_required" });
+      }
+      expect(f.server.calls.some(([name]) => name === "connect")).toBe(false);
+      // Saving a new address without a password is refused while enabled, and forgets the password when disabled.
+      await expect(f.offsite.save({ ...saved, url: "https://attacker.example.com/dav" })).rejects.toMatchObject({ code: "offsite_password_required" });
+      expect(f.offsite.status()).toMatchObject({ config: saved, passwordSet: true });
+      await f.offsite.save({ ...saved, enabled: false, url: "https://attacker.example.com/dav" });
+      expect(f.offsite.status().passwordSet).toBe(false);
+      expect(await secrets()).toHaveLength(0);
+      // The same address keeps working with its saved password.
+      await f.enable();
+      expect(await f.offsite.test(f.offsite.status().config)).toEqual({ ok: true });
+      expect(f.server.calls.find(([name]) => name === "connect").slice(1)).toEqual(["https://dav.example.com/remote.php/dav/files/me", "me", "app-password"]);
     } finally { await f.cleanup(); }
   });
 
