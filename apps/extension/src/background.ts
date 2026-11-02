@@ -95,6 +95,7 @@ import { t } from "./i18n";
 import { readXiaoyuzhouStateInPage } from "./xiaoyuzhou-clip";
 import { jikeLoginPost } from "./jike-clip";
 import { readJikeWebStateInPage } from "./jike-web-state";
+import { readWechatPictureStateInPage } from "./wechat-picture-state";
 import { bossLoginRequired } from "./boss-clip";
 import {
   isPlatformClip,
@@ -1347,12 +1348,15 @@ const readPlatformFromPage = async (tabId: number, target: PlatformTarget, selec
         ? (await chrome.scripting.executeScript({ target: { tabId, frameIds: [0] }, world: "MAIN", func: readXiaoyuzhouStateInPage }))[0]?.result
         : undefined;
       const jikeState = target.platform === "jike" && usesJikeWebState(sourceUrl) ? await readJikeWebState(tabId,target.id) : undefined;
+      const wechatPictureState = target.platform === "wechat"
+        ? (await chrome.scripting.executeScript({ target: { tabId, frameIds: [0] }, world: "MAIN", func: readWechatPictureStateInPage }))[0]?.result
+        : undefined;
       await chrome.scripting.executeScript({
         target: { tabId, frameIds: [0] },
         func: (payload: unknown) => {
           (globalThis as { __edgeeverPlatformClipPayload?: unknown }).__edgeeverPlatformClipPayload = payload;
         },
-        args: [{ requestId, url: target.url, sourceUrl, selectionFirst, selectionText, xiaoyuzhouState, jikeState }],
+        args: [{ requestId, url: target.url, sourceUrl, selectionFirst, selectionText, xiaoyuzhouState, jikeState, wechatPictureState }],
       });
       await chrome.scripting.executeScript({ target: { tabId, frameIds: [0] }, files: ["assets/capture-platform.js"] });
     };
