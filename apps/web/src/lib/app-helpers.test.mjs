@@ -937,7 +937,7 @@ describe("workspace shortcut preferences", () => {
       toggleSidebar: { key: "b", ctrlOrMeta: true, shift: false, alt: false },
     }));
     const settings = readShortcutSettingsPreference();
-    expect(settings.focusTitle).toEqual(DEFAULT_SHORTCUT_SETTINGS.focusTitle);
+    expect(settings.focusTitle).toEqual(getDefaultShortcutSettings().focusTitle);
     expect(settings.focusBody).toEqual(DEFAULT_SHORTCUT_SETTINGS.focusBody);
     expect(getShortcutActionOptions((key) => key).map((option) => option.value)).toEqual(Object.keys(DEFAULT_SHORTCUT_SETTINGS));
   });
