@@ -15,6 +15,9 @@ struct AuthSession: Codable, Equatable, Sendable {
     var demoMode: Bool
     var user: AuthUser?
     var sessionToken: String?
+    /// `true` only for a restricted session created with a TOTP recovery code:
+    /// the client must force an authenticator rebind before any business API.
+    var mfaRebindRequired: Bool?
 }
 
 struct LoginInput: Encodable, Sendable {
@@ -27,6 +30,9 @@ struct MobileSession: Codable, Equatable, Sendable {
     var baseUrl: String
     var token: String
     var user: AuthUser?
+    /// Persisted so a cold start of a restricted (recovery-code) session still lands
+    /// on the forced rebind screen. Optional for backward-compatible decoding.
+    var mfaRebindRequired: Bool?
 }
 
 struct InstanceStorageDiagnostics: Codable, Equatable, Sendable {

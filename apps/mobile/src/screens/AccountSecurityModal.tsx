@@ -9,6 +9,7 @@ import {
 import { Pressable, Text, TextInput } from "../components/LocalizedText";
 import { resolveMobileThemeStyles, useMobileTheme, type MobileResolvedTheme } from "../lib/mobile-theme";
 import { useSession } from "../lib/session";
+import { TotpSettingsPanel } from "./TotpSettingsPanel";
 
 export const AccountSecurityPanel = ({
   active,
@@ -48,6 +49,7 @@ export const AccountSecurityPanel = ({
   };
 
   return (
+    <View>
     <View style={styles.content}>
       <View style={styles.hero}>
         <KeyRound color="#15803d" size={22} />
@@ -66,6 +68,9 @@ export const AccountSecurityPanel = ({
         label={passwordMutation.isPending ? "修改中..." : "修改密码"}
         onPress={() => passwordMutation.mutate()}
       />
+    </View>
+    <View style={styles.divider} />
+    <TotpSettingsPanel active={active} />
     </View>
   );
 };
@@ -101,7 +106,8 @@ const PrimaryButton = ({ disabled, label, onPress }: { disabled: boolean; label:
 );
 
 const baseAccountSecurityStyles = StyleSheet.create({
-  content: { gap: 14, padding: 16, paddingBottom: 40 },
+  content: { gap: 14, padding: 16, paddingBottom: 24 },
+  divider: { backgroundColor: "#dce7dd", height: StyleSheet.hairlineWidth, marginHorizontal: 16 },
   hero: { alignItems: "flex-start", backgroundColor: "transparent", flexDirection: "row", gap: 10 },
   flex: { flex: 1 },
   cardTitle: { color: "#17211a", fontSize: 16, fontWeight: "800" },

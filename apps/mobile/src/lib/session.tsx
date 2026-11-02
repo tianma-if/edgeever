@@ -1,9 +1,9 @@
 import { createEdgeEverClient } from "@edgeever/client";
-import { resolveInstanceUrlInput, type AuthUser } from "@edgeever/shared";
+import { resolveInstanceUrlInput, type AuthSession, type AuthUser } from "@edgeever/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import { fetch as expoFetch } from "expo/fetch";
 import * as SecureStore from "expo-secure-store";
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { MISSING_MOBILE_SESSION_MESSAGE } from "./login-error";
 
 const SESSION_KEY = "edgeever.mobile.session";
@@ -23,15 +23,45 @@ export type MobileSession = {
   baseUrl: string;
   token: string;
   user: AuthUser | null;
+  /** Signed in with a recovery code: only the forced TOTP rebind screen may show. */
+  mfaRebindRequired?: boolean;
+};
+
+export type MfaSignInInput = {
+  baseUrl: string;
+  challengeToken: string;
+  code?: string;
+  recoveryCode?: string;
+  locale?: string;
 };
 
 type SessionContextValue = {
   isLoading: boolean;
   session: MobileSession | null;
   client: ReturnType<typeof createEdgeEverClient> | null;
+  /** Throws the login error; `getMfaChallenge(error)` tells when a second step is needed. */
   signIn: (input: { baseUrl: string; username: string; password: string; locale?: string }) => Promise<void>;
+  /** Second login step. Uses a client without `onUnauthorized`, so a 401 never drops a session. */
+  completeMfaSignIn: (input: MfaSignInInput) => Promise<void>;
+  /** Replaces the restricted session with the rotated token returned by `confirmTotpSetup`. */
+  finishMfaRebind: (sessionToken?: string) => Promise<void>;
   signOut: () => Promise<void>;
 };
+
+/** Detects a 403 `mfa_rebind_required` without consuming the body the SDK reads. */
+const createRebindAwareFetch = (onRebindRequired: () => void): typeof fetch =>
+  (async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+    const response = await expoFetch(input as string, init as Parameters<typeof expoFetch>[1]);
+    if (response.status === 403) {
+      try {
+        const body = await response.clone().json() as { error?: { code?: string } } | null;
+        if (body?.error?.code === "mfa_rebind_required") onRebindRequired();
+      } catch {
+        // Not JSON: an ordinary 403 for the caller to handle.
+      }
+    }
+    return response;
+  }) as typeof fetch;
 
 const SessionContext = createContext<SessionContextValue | null>(null);
 
@@ -62,6 +92,20 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     };
   }, []);
 
+  const sessionRef = useRef<MobileSession | null>(null);
+  sessionRef.current = session;
+
+  const persistSession = useCallback(async (nextSession: MobileSession) => {
+    await SecureStore.setItemAsync(SESSION_KEY, JSON.stringify(nextSession));
+    setSession(nextSession);
+  }, []);
+
+  const markRebindRequired = useCallback(() => {
+    const current = sessionRef.current;
+    if (!current || current.mfaRebindRequired) return;
+    void persistSession({ ...current, mfaRebindRequired: true });
+  }, [persistSession]);
+
   const client = useMemo(() => {
     if (!session) {
       return null;
@@ -70,7 +114,7 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     return createEdgeEverClient({
       baseUrl: session.baseUrl,
       token: session.token,
-      fetch: expoFetch as typeof fetch,
+      fetch: createRebindAwareFetch(markRebindRequired),
       directAiGeneration: true,
       onUnauthorized: () => {
         queryClient.clear();
@@ -78,7 +122,21 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
         void SecureStore.deleteItemAsync(SESSION_KEY);
       },
     });
-  }, [queryClient, session]);
+  }, [markRebindRequired, queryClient, session]);
+
+  const acceptAuthSession = useCallback(async (baseUrl: string, authSession: AuthSession) => {
+    if (!authSession.authenticated || !authSession.sessionToken) {
+      throw new Error(MISSING_MOBILE_SESSION_MESSAGE);
+    }
+
+    queryClient.clear();
+    await persistSession({
+      baseUrl,
+      token: authSession.sessionToken,
+      user: authSession.user,
+      ...(authSession.mfaRebindRequired ? { mfaRebindRequired: true } : {}),
+    });
+  }, [persistSession, queryClient]);
 
   const signIn = useCallback(async (input: { baseUrl: string; username: string; password: string; locale?: string }) => {
     const baseUrl = normalizeInstanceUrl(resolveInstanceUrlInput(input.baseUrl));
@@ -91,20 +149,37 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       locale: input.locale,
     });
 
-    if (!authSession.authenticated || !authSession.sessionToken) {
-      throw new Error(MISSING_MOBILE_SESSION_MESSAGE);
-    }
+    await acceptAuthSession(baseUrl, authSession);
+  }, [acceptAuthSession]);
 
-    const nextSession: MobileSession = {
-      baseUrl,
-      token: authSession.sessionToken,
-      user: authSession.user,
-    };
+  const completeMfaSignIn = useCallback(async (input: MfaSignInInput) => {
+    const baseUrl = normalizeInstanceUrl(resolveInstanceUrlInput(input.baseUrl));
+    // The challenge is bound to the device id sent with the password step.
+    const deviceId = await getOrCreateDeviceId();
+    const loginClient = createEdgeEverClient({ baseUrl, fetch: expoFetch as typeof fetch });
+    const authSession = await loginClient.completeMfaLogin({
+      challengeToken: input.challengeToken,
+      ...(input.recoveryCode ? { recoveryCode: input.recoveryCode } : { code: input.code }),
+      deviceId,
+      locale: input.locale,
+    });
+    await acceptAuthSession(baseUrl, authSession);
+  }, [acceptAuthSession]);
 
+  const finishMfaRebind = useCallback(async (sessionToken?: string) => {
+    const current = sessionRef.current;
+    if (!current) return;
+    const token = sessionToken || current.token;
+    const refreshClient = createEdgeEverClient({ baseUrl: current.baseUrl, token, fetch: expoFetch as typeof fetch });
+    const authSession = await refreshClient.getSession().catch(() => null);
     queryClient.clear();
-    await SecureStore.setItemAsync(SESSION_KEY, JSON.stringify(nextSession));
-    setSession(nextSession);
-  }, [queryClient]);
+    await persistSession({
+      baseUrl: current.baseUrl,
+      token,
+      user: authSession?.user ?? current.user,
+      ...(authSession?.mfaRebindRequired ? { mfaRebindRequired: true } : {}),
+    });
+  }, [persistSession, queryClient]);
 
   const signOut = useCallback(async () => {
     if (client) {
@@ -122,9 +197,11 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       session,
       client,
       signIn,
+      completeMfaSignIn,
+      finishMfaRebind,
       signOut,
     }),
-    [client, isLoading, session, signIn, signOut]
+    [client, completeMfaSignIn, finishMfaRebind, isLoading, session, signIn, signOut]
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

@@ -316,10 +316,19 @@ app.use("/api/v1/*", async (c, next) => {
     return;
   }
 
-  const auth = await authenticateRequest(c, true);
+  const auth = await authenticateRequest(c, true, { allowMfaRestricted: true });
 
   if (!auth) {
     return unauthorized(c, "Authentication required.");
+  }
+
+  if (auth.mfaRestricted) {
+    return apiError(
+      c,
+      "mfa_rebind_required",
+      "Bind a new authenticator to finish signing in with a recovery code.",
+      403,
+    );
   }
 
   c.set("auth", auth);

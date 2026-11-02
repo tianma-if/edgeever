@@ -99,3 +99,40 @@ const timingSafeEqual = (left: Uint8Array, right: Uint8Array) => {
 
   return diff === 0;
 };
+
+// Recovery codes carry ~60 bits of entropy, so a lighter salted PBKDF2 keeps
+// offline guessing infeasible while checking all ten codes on a sign-in costs
+// about the same CPU as one password verification.
+const RECOVERY_CODE_HASH_ALGORITHM = "pbkdf2-sha256-rc";
+const RECOVERY_CODE_HASH_ITERATIONS = 10_000;
+
+export const hashRecoveryCode = async (code: string) => {
+  const salt = crypto.getRandomValues(new Uint8Array(PASSWORD_SALT_BYTES));
+  const hash = await derivePasswordHash(code, salt, RECOVERY_CODE_HASH_ITERATIONS);
+  return [
+    RECOVERY_CODE_HASH_ALGORITHM,
+    RECOVERY_CODE_HASH_ITERATIONS,
+    base64UrlEncode(salt),
+    base64UrlEncode(hash),
+  ].join("$");
+};
+
+export const verifyRecoveryCodeHash = async (code: string, codeHash: string) => {
+  const [algorithm, iterationsRaw, saltRaw, hashRaw] = codeHash.split("$");
+  const iterations = Number(iterationsRaw);
+  if (
+    algorithm !== RECOVERY_CODE_HASH_ALGORITHM
+    || !Number.isInteger(iterations)
+    || iterations < RECOVERY_CODE_HASH_ITERATIONS
+    || !saltRaw
+    || !hashRaw
+  ) {
+    return false;
+  }
+  try {
+    const actual = await derivePasswordHash(code, base64UrlDecode(saltRaw), iterations);
+    return timingSafeEqual(actual, base64UrlDecode(hashRaw));
+  } catch {
+    return false;
+  }
+};
