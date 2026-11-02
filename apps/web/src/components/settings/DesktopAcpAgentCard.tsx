@@ -464,8 +464,8 @@ const DesktopAcpAgentCardBody = ({ bridge }: { bridge: boolean }) => {
                     <p>{t("aiAssistant.agentSource.codebuddyLoginHint")}</p>
                   ) : null}
                   {codeBuddySigningIn ? (
-                    <div className="space-y-2" role="status">
-                      <p>{t("aiAssistant.agentSource.codebuddyLoginInProgress")}</p>
+                    <div className="space-y-2">
+                      <p role="status">{t("aiAssistant.agentSource.codebuddyLoginInProgress")}</p>
                       <div className="flex flex-wrap gap-2">
                         <Button type="button" variant="outline" size="sm" className="h-8 bg-card text-xs font-normal" onClick={() => void reopenDesktopAcpLoginPage("codebuddy").catch(() => {})}>
                           {t("aiAssistant.agentSource.codebuddyReopenLogin")}

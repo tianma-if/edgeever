@@ -1045,7 +1045,10 @@ export function createAcpHostRuntime(options = {}) {
       connected = null;
       if (attempt.cancel.signal.aborted) throw Object.assign(new Error("authentication_cancelled"), { cancelled: true });
       // Login is useful only if a fresh chat process restores the account.
-      connected = await withHandshakeTimeout((signal) => connect(resolved.command, `auth-check-${id}`, () => {}, signal, undefined, [], false, null, "codebuddy"));
+      connected = await withHandshakeTimeout((signal) => connect(
+        resolved.command, `auth-check-${id}`, () => {}, AbortSignal.any([signal, attempt.cancel.signal]),
+        undefined, [], false, null, "codebuddy",
+      ));
       const adapter = { ...adapterShell(id), state: "available", promptCapabilities: connected.promptCapabilities, authMethods: connected.authMethods };
       latestStatus.set(id, adapter);
       return adapter;

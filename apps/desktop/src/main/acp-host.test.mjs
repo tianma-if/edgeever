@@ -108,6 +108,7 @@ if (${workBuddyUnreadable ? "true" : "false"}) authenticated = true;
 // CodeBuddy keeps its login in its own config directory; a file stands in for it.
 const codeBuddy = ${JSON.stringify(codeBuddy ?? null)};
 if (codeBuddy?.persist && existsSync(reportPath + ".login")) authenticated = true;
+const codeBuddyRestored = authenticated;
 const restoredAccount = authenticated;
 const save = () => writeFileSync(reportPath, JSON.stringify(report));
 // Like WorkBuddy, serve the account API only when started with --serve, which
@@ -186,7 +187,10 @@ acp.agent({ name: "edgeever-fake-agent" })
       authMethods: requireAuth || advertiseAuth ? [{ id: ${JSON.stringify(authMethodId)}, name: "Browser" }] : [],
     };
   })
-  .onRequest("_codebuddy.ai/getUserInfo", (params) => params, () => ({ userInfo: authenticated ? { ${workBuddyUnreadable || codeBuddy?.tokenless ? 'userId: "saved-user"' : 'accessToken: "new-token"'} , ...(${workBuddyUnreadableAfterLogin ? "true" : "false"} && restoredAccount ? { accessToken: undefined, userId: "saved-user" } : {}) } : undefined }))
+  .onRequest("_codebuddy.ai/getUserInfo", (params) => params, async () => {
+    if (codeBuddy?.slowRestore && codeBuddyRestored) await new Promise((resolve) => setTimeout(resolve, 3000));
+    return { userInfo: authenticated ? { ${workBuddyUnreadable || codeBuddy?.tokenless ? 'userId: "saved-user"' : 'accessToken: "new-token"'} , ...(${workBuddyUnreadableAfterLogin ? "true" : "false"} && restoredAccount ? { accessToken: undefined, userId: "saved-user" } : {}) } : undefined };
+  })
   .onRequest("authenticate", async (ctx) => {
     report.authMethod = ctx.params.methodId;
     for (const authUrl of codeBuddy?.authUrls ?? []) await ctx.client.notify("_codebuddy.ai/authUrl", { authUrl, provider: "fixture" });
@@ -1297,6 +1301,21 @@ describe("ACP stdio session", () => {
       expect(logged).not.toContain("private-login-state");
       expect(logged).not.toContain("evil.example");
       expect((await readReport(reportPath)).newSession).toBeNull();
+    } finally { await rm(directory, { recursive: true, force: true }); }
+  }, 15_000);
+
+  sessionTest("CodeBuddy cancel during the post-login check is reported as cancelled", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "edgeever-acp-codebuddy-cancel-check-"));
+    const reportPath = path.join(directory, "report.json");
+    try {
+      const scriptPath = await writeFakeAgent(directory, { reportPath, advertiseAuth: true, authMethodId: "internal", codeBuddy: { persist: true, slowRestore: true } });
+      const { runtime } = codeBuddyRuntime(scriptPath);
+      const pending = runtime.authenticateAdapter({ id: "codebuddy", methodId: "internal" });
+      // The login process has saved the account; the fresh check process is still restoring it.
+      await waitFor(async () => (await readFile(`${reportPath}.sessions`, "utf8").catch(() => "")).trim().split("\n").filter(Boolean).length === 1
+        && (await readFile(`${reportPath}.pid`, "utf8").catch(() => "")) !== (await readFile(`${reportPath}.sessions`, "utf8")).trim());
+      expect(runtime.cancelAuthentication("codebuddy")).toEqual({ cancelled: true });
+      expect(await pending).toMatchObject({ state: "needs_login", detail: "authentication_cancelled" });
     } finally { await rm(directory, { recursive: true, force: true }); }
   }, 15_000);
 
