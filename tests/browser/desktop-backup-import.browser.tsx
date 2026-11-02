@@ -22,6 +22,8 @@ const status: DesktopBackupStatus = {
   ],
 };
 const params = new URLSearchParams(location.search);
+const legacyInterval = params.get("legacy-interval");
+if (legacyInterval === "daily" || legacyInterval === "biweekly") status.config.interval = legacyInterval;
 if (params.has("encrypted")) { status.config.encrypted = true; status.passwordSet = true; }
 if (params.has("no-secure-storage")) status.secureStorageAvailable = false;
 const calls: Array<{ action: string; input?: unknown }> = [];

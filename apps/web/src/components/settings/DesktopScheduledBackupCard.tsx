@@ -146,7 +146,8 @@ export const DesktopScheduledBackupCard = () => {
                 <label className="grid gap-1.5 text-xs font-medium text-slate-700">
                   <span>{t("desktopBackup.frequency")}</span>
                   <select className="h-8 rounded-md border border-input bg-card px-2.5 text-xs text-slate-800 outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900" value={config.interval} onChange={(event) => patch({ interval: event.target.value as DesktopBackupConfig["interval"] })}>
-                    {(["daily", "weekly", "biweekly", "monthly"] as const).map((key) => <option key={key} value={key}>{t(`desktopBackup.intervals.${key}`)}</option>)}
+                    {(config.interval === "daily" || config.interval === "biweekly") ? <option value={config.interval} disabled>{t(`desktopBackup.intervals.${config.interval}`)}</option> : null}
+                    {(["weekly", "monthly"] as const).map((key) => <option key={key} value={key}>{t(`desktopBackup.intervals.${key}`)}</option>)}
                   </select>
                 </label>
                 <label className="grid gap-1.5 text-xs font-medium text-slate-700">

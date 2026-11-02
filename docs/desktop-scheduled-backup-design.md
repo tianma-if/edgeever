@@ -29,7 +29,7 @@ Desktop Settings → Data and backup uses one “Backup and restore” card inst
 | Setting | Initial behavior |
 | --- | --- |
 | Automatic backups | Initially off; enabling a valid configuration schedules the first run |
-| Frequency | Daily, weekly, every two weeks, or monthly; weekly by default |
+| Frequency | Weekly or monthly; weekly by default. Existing daily and biweekly settings remain valid and are displayed as a disabled option until changed |
 | Destination | `EdgeEver Backups` under the OS Documents directory; change through the native directory picker |
 | Keep recent | 1, 3, or 5 archives; 1 by default. Existing 10- and 20-archive settings remain valid and are displayed as a disabled option until changed |
 | Backup encryption | Optional and initially off; enabling it requires entering and confirming a separate backup password |
