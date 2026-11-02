@@ -2,7 +2,6 @@ import { expect, test } from "bun:test";
 import { Database } from "bun:sqlite";
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
-import { createServer, request as httpRequest } from "node:http";
 import { mkdtemp, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -38,7 +37,7 @@ for (const proxy of [true, false]) test(`Electron backups export and restore thr
           trace(name, request.method, path, response.status); return response;
         });
       } });
-      cleanup.push(() => { server.stop(true); database.close(); });
+      cleanup.push(async () => { await server.stop(true); database.close(); });
       return { server, database, folder, url: `http://127.0.0.1:${server.port}`, client: createEdgeEverClient({ baseUrl: `http://127.0.0.1:${server.port}` }) };
     };
     const source = await instance("source"); const target = await instance("target");
@@ -51,25 +50,16 @@ for (const proxy of [true, false]) test(`Electron backups export and restore thr
     source.database.query("UPDATE resources SET byte_size=?, sha256=NULL WHERE id=?").run(bytes.length, resource.id);
 
     let proxyRequests = 0;
-    const forwarder = createServer((request, response) => {
+    const forwarder = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch(request) {
       proxyRequests++;
-      const url = new URL(request.url);
-      trace("proxy start", request.method, url.pathname);
-      const upstream = httpRequest({ hostname: "127.0.0.1", port: url.port, method: request.method, path: url.pathname + url.search, headers: request.headers }, result => {
-        trace("proxy response", request.method, url.pathname, result.statusCode);
-        response.writeHead(result.statusCode, result.headers); result.pipe(response);
-      });
-      upstream.on("finish", () => trace("proxy sent", request.method, url.pathname));
-      response.on("finish", () => trace("proxy finish", request.method, url.pathname));
-      upstream.on("error", () => response.destroy());
-      response.on("close", () => { if (!response.writableFinished) upstream.destroy(); });
-      request.pipe(upstream);
-    });
-    await new Promise(resolve => forwarder.listen(0, "127.0.0.1", resolve));
-    cleanup.push(() => { forwarder.closeAllConnections(); forwarder.close(); });
+      const url = new URL(request.url); url.hostname = "127.0.0.1";
+      trace("proxy", request.method, url.pathname);
+      return fetch(new Request(url, request), { proxy: null });
+    } });
+    cleanup.push(() => forwarder.stop(true));
     const settings = { directory, source: proxy ? source.url.replace("127.0.0.1", "backup-fixture.invalid") : source.url,
       target: proxy ? target.url.replace("127.0.0.1", "backup-fixture.invalid") : target.url,
-      control: `${source.url}/__fixture/status`, proxy: proxy ? `http=127.0.0.1:${forwarder.address().port}` : null,
+      control: `${source.url}/__fixture/status`, proxy: proxy ? `http=127.0.0.1:${forwarder.port}` : null,
       baseline: process.env.EDGE_EVER_BACKUP_BASELINE === "1" };
     const settingsPath = join(directory, "settings.json"); await writeFile(settingsPath, JSON.stringify(settings));
     const env = { ...process.env }; delete env.ELECTRON_RUN_AS_NODE;
@@ -88,6 +78,7 @@ for (const proxy of [true, false]) test(`Electron backups export and restore thr
     const code = await Promise.race([exited, deadline]).finally(() => clearTimeout(timer));
     expect(code, stderr).toBe(0);
     const report = JSON.parse(stdout.trim().split("\n").findLast(line => line.startsWith("{")));
+    if (process.env.EDGE_EVER_BACKUP_REPORT) await writeFile(`${process.env.EDGE_EVER_BACKUP_REPORT}-${proxy ? "proxy" : "direct"}.json`, JSON.stringify({ ...report, archive: undefined, paths, proxyRequests }, null, 2));
     expect(report.archiveBytes).toBeGreaterThan(bytes.length);
     expect(report.workersExited).toBe(settings.baseline ? 0 : 5);
     expect((await target.client.getMemo(memo.id)).memo.contentMarkdown).toBe("Streaming backup and restore");
@@ -97,8 +88,7 @@ for (const proxy of [true, false]) test(`Electron backups export and restore thr
     expect(paths.filter(path => path === "source:GET /api/v1/backups/state")).toHaveLength(3);
     expect(paths.filter(path => path.startsWith("source:GET /api/v1/backups/data"))).toHaveLength(3);
     expect(paths.filter(path => path.endsWith(`/resources/${resource.id}/blob`))).toHaveLength(1);
-    expect(paths).toHaveLength(47);
+    expect(paths, JSON.stringify(paths)).toHaveLength(47);
     expect(proxyRequests > 0).toBe(proxy);
-    if (process.env.EDGE_EVER_BACKUP_REPORT) await writeFile(`${process.env.EDGE_EVER_BACKUP_REPORT}-${proxy ? "proxy" : "direct"}.json`, JSON.stringify({ ...report, archive: undefined, paths, proxyRequests }, null, 2));
-  } finally { for (const close of cleanup.reverse()) await close(); await rm(directory, { recursive: true, force: true }); }
+  } finally { for (const close of cleanup.reverse()) await close(); await rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); }
 }, 45000);

@@ -63,6 +63,14 @@ jobs:
           sudo apt-get install -y libasound2t64 libatk-bridge2.0-0 libdrm2 libgbm1 libgtk-3-0 libnss3 xvfb
       - name: Install dependencies
         run: bun install --frozen-lockfile
+      - name: Configure Electron sandbox on the Linux runner
+        if: runner.os == 'Linux'
+        working-directory: apps/desktop
+        run: |
+          electron="$(bun -e 'console.log(require("electron"))' | tail -n 1)"
+          sandbox="$(dirname "$electron")/chrome-sandbox"
+          sudo chown root:root "$sandbox"
+          sudo chmod 4755 "$sandbox"
       - name: Test proxy and direct backup/restore
         if: runner.os != 'Linux'
         env:
