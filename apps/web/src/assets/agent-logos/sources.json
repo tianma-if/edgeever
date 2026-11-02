@@ -36,5 +36,10 @@
   "workbuddy": {
     "source": "https://download.codebuddy.ai/web/workbuddy/913b2390aae396c66b937bd9143ae5259306d7d7/assets/logo.svg",
     "website": "https://www.workbuddy.ai/"
+  },
+  "codebuddy": {
+    "source": "https://unpkg.com/@tencent-ai/codebuddy-code@2.164.0/dist/web-ui/logo.svg",
+    "package": "@tencent-ai/codebuddy-code@2.164.0 (dist/web-ui/logo.svg)",
+    "website": "https://www.codebuddy.ai/"
   }
 }
