@@ -44,6 +44,13 @@ export const normalizeOffsiteConfig = (input) => {
   return { enabled: input.enabled, url, username, folder: folder === "/" ? DEFAULT_OFFSITE_FOLDER : folder };
 };
 
+const stalled = () => backupError("offsite_stalled", "The WebDAV server stopped responding.");
+// Rejects when the signal aborts, even if a request ignores its signal.
+const whenAborted = (signal) => new Promise((_resolve, reject) => {
+  if (signal.aborted) reject(signal.reason);
+  else signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+});
+
 const targetKey = (config) => JSON.stringify([config.url, config.username, config.folder]);
 // The saved password belongs to the server and account it was entered for.
 const credentialKey = (config) => JSON.stringify([config.url, config.username]);
@@ -73,7 +80,7 @@ export class OffsiteBackup {
   }
   directory() { return join(this.userData, "scheduled-backups"); }
   statePath() { return join(this.directory(), `${this.scope}.offsite.json`); }
-  secretPath(passwordId = this.record?.passwordId) { return join(this.directory(), `${this.scope}.offsite.${passwordId}.secret`); }
+  secretPath(passwordId = this.record?.passwordId, scope = this.scope) { return join(this.directory(), `${scope}.offsite.${passwordId}.secret`); }
   secureAvailable() {
     try { return this.secureStorage.isEncryptionAvailable() && !(this.platform === "linux" && this.secureStorage.getSelectedStorageBackend?.() === "basic_text"); } catch { return false; }
   }
@@ -130,7 +137,8 @@ export class OffsiteBackup {
     if (dropSecret) delete next.passwordId;
     if (normalized.enabled && !next.passwordId) { if (newSecret) await rm(newSecret, { force: true }); throw backupError("offsite_password_required", "Enter the WebDAV password."); }
     if (generation !== this.generation) { if (newSecret) await rm(newSecret, { force: true }); throw backupError("backup_account_changed", "The backup account changed."); }
-    if (targetKey(previous.config) !== targetKey(normalized)) this.cancel();
+    // Turning the copy off or pointing it elsewhere stops the running upload before it can publish.
+    if (!normalized.enabled || targetKey(previous.config) !== targetKey(normalized)) this.cancel();
     this.record = next;
     try { await this.persist(); }
     catch (error) { this.record = previous; if (newSecret) await rm(newSecret, { force: true }); throw error; }
@@ -138,13 +146,14 @@ export class OffsiteBackup {
     this.emit(); return this.status();
   }
 
-  async password() {
-    if (!this.record.passwordId) throw backupError("offsite_password_required", "Enter the WebDAV password.");
+  /** Reads the password saved with `record` in `scope`, captured by the caller before any await. */
+  async password(record = this.record, scope = this.scope) {
+    if (!record?.passwordId) throw backupError("offsite_password_required", "Enter the WebDAV password.");
     if (!this.secureAvailable() || !await this.secureStorage.isAsyncEncryptionAvailable().catch(() => false)) throw backupError("offsite_secure_storage_unavailable", "Unlock secure storage to use the saved WebDAV password.");
     try {
-      const { result, shouldReEncrypt } = await this.secureStorage.decryptStringAsync(await readFile(this.secretPath()));
-      if (shouldReEncrypt) {
-        const path = this.secretPath(); const temporary = `${path}.${randomUUID()}.tmp`;
+      const path = this.secretPath(record.passwordId, scope);
+      const { result, shouldReEncrypt } = await this.secureStorage.decryptStringAsync(await readFile(path));
+      if (shouldReEncrypt) { const temporary = `${path}.${randomUUID()}.tmp`;
         const file = await open(temporary, "wx", 0o600);
         try { await file.writeFile(await this.secureStorage.encryptStringAsync(result)); await file.sync(); await file.close(); await rename(temporary, path); }
         finally { await file.close().catch(() => {}); await rm(temporary, { force: true }); }
@@ -154,21 +163,41 @@ export class OffsiteBackup {
   }
   async client(config, password) { return this.clientFactory(config.url, { username: config.username, password }); }
 
+  /** Bounds one WebDAV request by the stall timeout and by `parent`, so a stuck request cannot block later copies. */
+  async request(run, parent) {
+    const controller = new AbortController();
+    const aborted = whenAborted(controller.signal); aborted.catch(() => {});
+    const timer = setTimeout(() => controller.abort(stalled()), this.stallTimeoutMs); timer.unref?.();
+    const forward = () => controller.abort(parent.reason);
+    if (parent?.aborted) forward(); else parent?.addEventListener("abort", forward, { once: true });
+    try { return await Promise.race([run(controller.signal), aborted]); }
+    finally { clearTimeout(timer); parent?.removeEventListener("abort", forward); }
+  }
+
   /** Checks the address and credentials and that the folder can be created. Does not change saved settings. */
   async test(config, password) {
     this.assertReady();
+    // An account switch during any await must not mix this test with another account's password.
+    const generation = this.generation; const record = this.record; const scope = this.scope;
+    const assertScope = () => { if (generation !== this.generation) throw backupError("backup_account_changed", "The backup account changed."); };
     const normalized = normalizeOffsiteConfig({ ...config, enabled: false });
     if (!normalized.url || !normalized.username) throw backupError("offsite_invalid_configuration", "Enter the WebDAV address and username.");
-    if (!(typeof password === "string" && password.length) && credentialKey(this.record.config) !== credentialKey(normalized)) {
+    if (!(typeof password === "string" && password.length) && credentialKey(record.config) !== credentialKey(normalized)) {
       throw backupError("offsite_password_required", "Enter the WebDAV password for this address and username.");
     }
-    const secret = typeof password === "string" && password.length ? password : await this.password();
+    const secret = typeof password === "string" && password.length ? password : await this.password(record, scope);
+    assertScope();
     try {
       const client = await this.client(normalized, secret);
-      await client.createDirectory(normalized.folder, { recursive: true });
-      await client.stat(normalized.folder);
+      await this.request((signal) => client.createDirectory(normalized.folder, { recursive: true, signal }));
+      assertScope();
+      await this.request((signal) => client.stat(normalized.folder, { signal }));
+      assertScope();
       return { ok: true };
-    } catch (error) { throw Object.assign(new Error(offsiteErrorInfo(error).message), offsiteErrorInfo(error)); }
+    } catch (error) {
+      if (error?.code === "backup_account_changed") throw error;
+      throw Object.assign(new Error(offsiteErrorInfo(error).message), offsiteErrorInfo(error));
+    }
   }
 
   /**
@@ -193,12 +222,12 @@ export class OffsiteBackup {
   async drain() {
     while (this.queued && !this.upload) {
       const { entry, retention } = this.queued; this.queued = null;
-      await this.uploadEntry(entry, retention);
+      if (this.record?.config.enabled) await this.uploadEntry(entry, retention);
     }
   }
 
   async uploadEntry(entry, retention) {
-    const generation = this.generation; const config = this.record.config; const key = targetKey(config);
+    const generation = this.generation; const record = this.record; const scope = this.scope; const config = record.config; const key = targetKey(config);
     const controller = new AbortController();
     const current = () => generation === this.generation && !controller.signal.aborted;
     const remoteFolder = posix.join(config.folder, this.backupSetId);
@@ -218,9 +247,9 @@ export class OffsiteBackup {
       file = await open(localPath, "r");
       const size = (await file.stat()).size;
       if (size !== entry.size) throw backupError("offsite_source_changed", "The local backup file changed. It was not uploaded.");
-      client = await this.client(config, await this.password());
+      client = await this.client(config, await this.password(record, scope));
       if (!current()) return;
-      await client.createDirectory(remoteFolder, { recursive: true, signal: controller.signal });
+      await this.request((signal) => client.createDirectory(remoteFolder, { recursive: true, signal }), controller.signal);
       this.record.activePart = { path: partPath, target: key }; await this.persist();
       const arm = () => { clearTimeout(stall); stall = setTimeout(() => controller.abort(backupError("offsite_stalled", "The WebDAV server stopped responding.")), this.stallTimeoutMs); stall.unref?.(); };
       let emittedAt = 0;
@@ -236,12 +265,12 @@ export class OffsiteBackup {
       source.on("error", (error) => body.destroy(error));
       source.pipe(body);
       // The library leaves streams chunked; many WebDAV servers and proxies need an explicit length.
-      await client.putFileContents(partPath, body, { headers: { "Content-Length": String(size) }, overwrite: true, signal: controller.signal });
+      await Promise.race([whenAborted(controller.signal), client.putFileContents(partPath, body, { headers: { "Content-Length": String(size) }, overwrite: true, signal: controller.signal })]);
       clearTimeout(stall);
       if (!current()) return;
-      await client.moveFile(partPath, finalPath, { overwrite: true, signal: controller.signal });
+      await this.request((signal) => client.moveFile(partPath, finalPath, { overwrite: true, signal }), controller.signal);
       delete this.record.activePart;
-      const remote = await client.stat(finalPath, { signal: controller.signal });
+      const remote = await this.request((signal) => client.stat(finalPath, { signal }), controller.signal);
       if (remote?.size !== undefined && remote.size !== size) throw backupError("offsite_size_mismatch", "The uploaded copy has a different size. It will be uploaded again.");
       if (!current()) return;
       this.record.uploads = [...this.record.uploads.filter((item) => !(item.target === key && item.remotePath === finalPath)), { name: entry.name, remotePath: finalPath, target: key, size, uploadedAt: new Date(this.now()).toISOString() }];
@@ -254,7 +283,7 @@ export class OffsiteBackup {
       // A cancelled upload (settings changed) is not a failure.
       this.record.error = controller.signal.aborted && !stalled ? null : offsiteErrorInfo(stalled ? controller.signal.reason : error);
       if (client && this.record.activePart?.path === partPath) {
-        await client.deleteFile(partPath).then(() => { delete this.record.activePart; }).catch(() => {});
+        await this.request((signal) => client.deleteFile(partPath, { signal })).then(() => { delete this.record.activePart; }).catch(() => {});
       }
       await this.persist().catch(() => {});
     } finally {
@@ -270,7 +299,7 @@ export class OffsiteBackup {
     let failed = false;
     for (const old of owned.slice(Math.max(1, retention))) {
       if (!current()) return;
-      try { await client.deleteFile(old.remotePath); }
+      try { await this.request((signal) => client.deleteFile(old.remotePath, { signal })); }
       catch (error) { if ((error?.status ?? error?.response?.status) !== 404) { failed = true; continue; } }
       this.record.uploads = this.record.uploads.filter((item) => item !== old);
     }
@@ -282,8 +311,10 @@ export class OffsiteBackup {
     const part = this.record?.activePart;
     if (!part || part.target !== targetKey(this.record.config)) { if (this.record) { delete this.record.activePart; await this.persist().catch(() => {}); } return; }
     try {
-      const client = await this.client(this.record.config, await this.password());
-      await client.deleteFile(part.path).catch((error) => { if ((error?.status ?? error?.response?.status) !== 404) throw error; });
+      const record = this.record; const scope = this.scope;
+      const client = await this.client(record.config, await this.password(record, scope));
+      if (generation !== this.generation) return;
+      await this.request((signal) => client.deleteFile(part.path, { signal })).catch((error) => { if ((error?.status ?? error?.response?.status) !== 404) throw error; });
       if (generation === this.generation) { delete this.record.activePart; await this.persist(); }
     } catch { /* Retried on the next start; a leftover .part never replaces a real copy. */ }
   }

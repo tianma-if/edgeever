@@ -271,3 +271,81 @@ describe("off-site upload", () => {
     } finally { await f.cleanup(); }
   });
 });
+
+describe("review regressions", () => {
+  test("a connection test keeps the password of the account it started in", async () => {
+    const f = await setup();
+    try {
+      // Account A saves its password; account B saves a different one.
+      await f.enable();
+      await f.offsite.setScope("scope-b", SET);
+      await f.offsite.save({ enabled: true, url: "https://dav.example.com/remote.php/dav/files/me/", username: "me", folder: "/EdgeEver/backups" }, "password-of-b");
+      await f.offsite.setScope("scope-a", SET);
+      // Hold decryption so the account can switch while the test reads A's password.
+      let release; const storage = f.offsite.secureStorage; const decrypt = storage.decryptStringAsync;
+      storage.decryptStringAsync = async (bytes) => { await new Promise((resolve) => { release = resolve; }); return decrypt(bytes); };
+      const pending = f.offsite.test(f.offsite.status().config);
+      for (let i = 0; i < 50 && !release; i += 1) await new Promise((r) => setTimeout(r, 5));
+      await f.offsite.setScope("scope-b", SET);
+      release();
+      await expect(pending).rejects.toMatchObject({ code: "backup_account_changed" });
+      storage.decryptStringAsync = decrypt;
+      // No request went out, and B's password was never read for A's test.
+      expect(f.server.calls.filter(([name]) => name === "connect")).toEqual([]);
+    } finally { await f.cleanup(); }
+  });
+
+  test("turning the copy off stops a running upload before it publishes", async () => {
+    const f = await setup();
+    try {
+      await f.enable();
+      let started = false;
+      f.server.hooks.putFileContents = (_path, options) => { started = true; return new Promise((_resolve, reject) => options.signal.addEventListener("abort", () => reject(options.signal.reason))); };
+      f.offsite.enqueue(await f.archive("one.zip"), 3);
+      for (let i = 0; i < 50 && !started; i += 1) await new Promise((r) => setTimeout(r, 5));
+      await f.offsite.save({ ...f.offsite.status().config, enabled: false });
+      await f.settle();
+      expect(f.offsite.upload).toBeNull();
+      expect(f.server.calls.some(([name]) => name === "moveFile")).toBe(false);
+      expect([...f.server.files.keys()].filter((path) => path.endsWith("one.zip"))).toEqual([]);
+      expect(f.offsite.status()).toMatchObject({ config: { enabled: false }, error: null, lastUploaded: null });
+      // A copy queued while the option was off never starts.
+      delete f.server.hooks.putFileContents;
+      f.offsite.enqueue(await f.archive("two.zip"), 3); await f.settle();
+      expect(f.server.calls.filter(([name]) => name === "putFileContents")).toHaveLength(1);
+    } finally { await f.cleanup(); }
+  });
+
+  for (const name of ["createDirectory", "moveFile", "stat"]) {
+    test(`a stuck ${name} request is bounded and later copies still run`, async () => {
+      const f = await setup();
+      try {
+        await f.enable();
+        // The request never settles and ignores its signal.
+        f.server.hooks[name] = () => new Promise(() => {});
+        f.offsite.enqueue(await f.archive("one.zip"), 3);
+        for (let i = 0; i < 100 && (f.offsite.upload || f.offsite.queued); i += 1) await new Promise((r) => setTimeout(r, 10));
+        expect(f.offsite.upload).toBeNull();
+        expect(f.offsite.status().error.code).toBe("offsite_stalled");
+        delete f.server.hooks[name];
+        f.offsite.enqueue(await f.archive("two.zip"), 3); await f.settle();
+        expect(f.offsite.status()).toMatchObject({ error: null, lastUploaded: { name: "two.zip" } });
+      } finally { await f.cleanup(); }
+    });
+  }
+
+  test("stuck cleanup and connection-test requests are bounded too", async () => {
+    const f = await setup();
+    try {
+      await f.enable();
+      f.server.hooks.moveFile = async () => { throw f.server.fail(500); };
+      f.server.hooks.deleteFile = () => new Promise(() => {});
+      f.offsite.enqueue(await f.archive("one.zip"), 3);
+      for (let i = 0; i < 100 && f.offsite.upload; i += 1) await new Promise((r) => setTimeout(r, 10));
+      expect(f.offsite.upload).toBeNull();
+      expect(f.offsite.status().error.code).toBe("offsite_upload_failed");
+      f.server.hooks.stat = () => new Promise(() => {});
+      await expect(f.offsite.test(f.offsite.status().config)).rejects.toMatchObject({ code: "offsite_stalled" });
+    } finally { await f.cleanup(); }
+  });
+});
