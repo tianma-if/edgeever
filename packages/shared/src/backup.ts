@@ -212,6 +212,19 @@ export type DesktopBackupConfig = {
   encrypted: boolean;
 };
 export type DesktopBackupError = { code: string; message?: string; status?: number };
+// Optional WebDAV copy of each completed local backup. The password stays in the main process.
+export type DesktopOffsiteConfig = { enabled: boolean; url: string; username: string; folder: string };
+export type DesktopOffsiteStatus = {
+  config: DesktopOffsiteConfig;
+  passwordSet: boolean;
+  secureStorageAvailable: boolean;
+  lastAttemptAt: string | null;
+  lastSuccessAt: string | null;
+  lastUploaded: { name: string; size: number; uploadedAt: string } | null;
+  error: DesktopBackupError | null;
+  warning: DesktopBackupError | null;
+  task: { name: string; sent: number; total: number } | null;
+};
 export type DesktopBackupStatus = {
   blocked: boolean;
   config: DesktopBackupConfig;
@@ -232,6 +245,8 @@ export type DesktopBackupStatus = {
   importWarning: DesktopBackupError | null;
   history: Array<{ name: string; directory: string; completedAt: string; size: number; encrypted: boolean }>;
   task: null | { kind: "export" | "import"; phase: "checking-source" | "exporting" | "decrypting" | "checking" | "ready" | "restoring"; completed: number; total: number; manifest?: JsonBackupManifest };
+  /** Older desktop builds omit it. */
+  offsite?: DesktopOffsiteStatus | null;
 };
 export type DesktopBackupSelection = { id: string; name: string; encrypted: boolean };
 export type DesktopBackupActions = {
@@ -246,4 +261,7 @@ export type DesktopBackupActions = {
   "delete-history": { input: { backupSetId: string; name: string }; output: DesktopBackupStatus };
   "prepare-import": { input: { backupSetId: string; id: string; password?: string }; output: DesktopBackupStatus };
   "confirm-import": { input: { backupSetId: string }; output: DesktopBackupStatus };
+  "offsite-save": { input: { backupSetId: string; config: DesktopOffsiteConfig; password?: string }; output: DesktopBackupStatus };
+  "offsite-test": { input: { backupSetId: string; config: DesktopOffsiteConfig; password?: string }; output: { ok: true } };
+  "offsite-upload": { input: { backupSetId: string }; output: DesktopBackupStatus };
 };
