@@ -45,7 +45,9 @@ const target = async () => {
   const dir = await mkdtemp(join(tmpdir(), "edgeever-note-import-"));
   directories.push(dir);
   const db = new Database(join(dir, "db.sqlite"), { create: true });
-  db.exec("PRAGMA foreign_keys = ON");
+  // Match the real self-hosted server: rollback-journal FULL sync makes this
+  // query-budget regression depend on hundreds of unrelated disk flushes.
+  db.exec("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA busy_timeout = 5000;");
   const migrations = new URL("../migrations/", import.meta.url);
   for (const name of (await readdir(migrations)).filter(x => x.endsWith(".sql")).sort()) db.exec(await readFile(new URL(name, migrations), "utf8"));
   db.exec("INSERT OR IGNORE INTO workspaces (id, name, is_personal) VALUES ('ws_default', 'Personal', 1)");

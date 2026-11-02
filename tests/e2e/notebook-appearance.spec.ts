@@ -93,7 +93,7 @@ test("keeps icon searches as drafts on Enter and supports keyboard selection and
   }
 });
 
-test("saves notebook appearance, keeps drafts on cancel, and resets across reloads and themes", async ({ page }) => {
+const createAppearanceScenario = async (page: Page, styled = false) => {
   await page.addInitScript(() => {
     localStorage.setItem("edgeever.locale.preference", "en-US");
     if (!localStorage.getItem("edgeever.notebook-color-palette")) localStorage.setItem("edgeever.notebook-color-palette", JSON.stringify(["#2563eb", "#16a34a", "#ca8a04", "#dc2626", "#7c3aed"]));
@@ -105,6 +105,7 @@ test("saves notebook appearance, keeps drafts on cancel, and resets across reloa
   expect(created.ok()).toBeTruthy();
   const { notebook } = await created.json();
   const childResponse = await page.request.post("/api/v1/notebooks", { data: { name: "Child", parentId: notebook.id } });
+  expect(childResponse.ok()).toBeTruthy();
   const { notebook: child } = await childResponse.json();
   const readNotebook = async () => (await (await page.request.get("/api/v1/notebooks")).json()).notebooks.find((item: { id: string }) => item.id === notebook.id);
   const row = page.locator(`[data-notebook-id="${notebook.id}"]`);
@@ -119,9 +120,25 @@ test("saves notebook appearance, keeps drafts on cancel, and resets across reloa
     await dialog.getByRole("button", { name: "Confirm", exact: true }).click();
     await expect(dialog).toBeHidden();
   };
+  if (styled) {
+    expect((await page.request.patch(`/api/v1/notebooks/${notebook.id}`, {
+      data: { icon: "alarm-clock", color: "#2563eb", textColor: "#dc2626", isBold: true, iconInverted: true },
+    })).ok()).toBeTruthy();
+  }
+  await page.reload();
+  await expect(row).toBeVisible();
+  return {
+    name, notebook, child, row, dialog, open, save, readNotebook,
+    remove: async () => {
+      expect((await page.request.delete(`/api/v1/notebooks/${child.id}`)).ok()).toBeTruthy();
+      expect((await page.request.delete(`/api/v1/notebooks/${notebook.id}`)).ok()).toBeTruthy();
+    },
+  };
+};
+
+test("saves notebook colors and icon inversion across reloads and themes", async ({ page }) => {
+  const { child, row, dialog, open, save, readNotebook, remove } = await createAppearanceScenario(page);
   try {
-    await page.reload();
-    await expect(row).toBeVisible();
     await row.locator("[data-notebook-tree-button]").click();
     await open();
     await dialog.getByRole("button", { name: "Icon", exact: true }).click();
@@ -173,6 +190,15 @@ test("saves notebook appearance, keeps drafts on cancel, and resets across reloa
     await page.evaluate(() => document.documentElement.classList.add("dark"));
     await expect(row.locator("[data-notebook-name]")).not.toHaveCSS("color", previewColor);
     await page.screenshot({ path: "test-results/notebook-appearance-dark.png" });
+  } finally {
+    await remove();
+  }
+});
+
+test("discards notebook appearance and reset drafts on cancel", async ({ page }) => {
+  const { row, dialog, open, readNotebook, remove } = await createAppearanceScenario(page, true);
+  try {
+    await page.evaluate(() => document.documentElement.classList.add("dark"));
     await open();
     await dialog.getByLabel("Text color", { exact: true }).evaluate((element) => {
       const input = element as HTMLInputElement;
@@ -190,6 +216,14 @@ test("saves notebook appearance, keeps drafts on cancel, and resets across reloa
     await page.keyboard.press("Escape");
     await expect(dialog).toBeHidden();
     expect(await readNotebook()).toMatchObject({ icon: "alarm-clock", color: "#2563eb", textColor: "#dc2626", isBold: true, iconInverted: true });
+  } finally {
+    await remove();
+  }
+});
+
+test("persists inverted notebook rows and resets their appearance", async ({ page }) => {
+  const { name, child, row, dialog, open, save, readNotebook, remove } = await createAppearanceScenario(page, true);
+  try {
     await open();
     await dialog.getByLabel("Invert", { exact: true }).selectOption("row");
     await expect(dialog.locator("[data-notebook-name]")).toHaveCSS("color", "rgb(255, 255, 255)");
@@ -233,7 +267,6 @@ test("saves notebook appearance, keeps drafts on cancel, and resets across reloa
     await expect(row.locator(".notebook-custom-color")).toHaveCount(0);
     await expect(row.locator("[data-notebook-name]")).toHaveCSS("font-weight", "400");
   } finally {
-    await page.request.delete(`/api/v1/notebooks/${child.id}`);
-    await page.request.delete(`/api/v1/notebooks/${notebook.id}`);
+    await remove();
   }
 });
