@@ -1208,6 +1208,8 @@ export const enUS = {
       default: "Default",
       marker: "Marker underline",
     },
+    editorBodyMagazineCoverTitle: "Magazine cover & outline",
+    editorBodyMagazineCoverDescription: "Display a magazine-style breaking cover card and section outline cards at the top",
     editorBodyCssTitle: "Custom CSS",
     editorBodyCssDescription: "One stylesheet. Light rules set spacing and color, and the following :root.dark rules only override color. Size and line height stay on the controls above.",
     editorBodyCssPreviewLabel: "Preview",

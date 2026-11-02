@@ -1208,6 +1208,8 @@ export const ru = {
       default: "По умолчанию",
       marker: "Маркерное подчёркивание",
     },
+    editorBodyMagazineCoverTitle: "Обложка и навигация",
+    editorBodyMagazineCoverDescription: "Отображать вверху статьи карточку-обложку в журнальном стиле и карточки разделов",
     editorBodyCssTitle: "Свой CSS",
     editorBodyCssDescription: "Для светлой и тёмной темы — свои правила. Размер и высота строки задаются элементами управления выше.",
     editorBodyCssPreviewLabel: "Просмотр",

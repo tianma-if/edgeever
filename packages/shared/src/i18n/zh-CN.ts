@@ -1208,6 +1208,8 @@ export const zhCN = {
       default: "默认",
       marker: "荧光底边",
     },
+    editorBodyMagazineCoverTitle: "杂志封面与导览",
+    editorBodyMagazineCoverDescription: "在长文顶部展示杂志风格破框封面卡片与分章节导览卡片",
     editorBodyCssTitle: "自定义 CSS",
     editorBodyCssDescription: "同一份样式。浅色写间距和颜色，紧随的 :root.dark 只覆盖颜色。字号和行高不写在这里。",
     editorBodyCssPreviewLabel: "预览",

@@ -1197,6 +1197,8 @@ export const ja = {
       default: "標準",
       marker: "蛍光アンダーライン",
     },
+    editorBodyMagazineCoverTitle: "マガジンカバーと概要",
+    editorBodyMagazineCoverDescription: "記事の先頭に雑誌風のカバーカードとセクション案内を表示します",
     editorBodyCssTitle: "カスタム CSS",
     editorBodyCssDescription: "スタイルは1つです。ライトで間隔と色を書き、直後の :root.dark は色だけを上書きします。文字サイズと行間はここでは指定しません。",
     editorBodyCssPreviewLabel: "プレビュー",

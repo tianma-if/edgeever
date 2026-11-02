@@ -203,6 +203,42 @@ describe("preparePublishArticle", () => {
       expect(css(root.querySelector("u"))).toContain("border-bottom:2px solid #A7F3D0");
       expect(css(root.querySelector("mark"))).toContain("background-color:#fde68a");
       expect(css(root.querySelector("code"))).toContain("background:#f3f4f6");
+      expect(root.querySelector("[data-ee-cover-card]")).toBeNull();
+      expect(root.querySelector("[data-ee-toc-cards]")).toBeNull();
+    } finally {
+      globalThis.getComputedStyle = previous;
+    }
+  });
+
+  test("renders magazine cover card and toc cards only when showMagazineCover is enabled", () => {
+    const container = document.createElement("div");
+    container.dataset.notePalette = "emerald";
+    container.dataset.noteHeadingStyle = "numbered";
+    container.dataset.noteMagazineCover = "true";
+    container.dataset.noteTitle = "深度评测文章";
+    const previous = globalThis.getComputedStyle;
+    globalThis.getComputedStyle = () => ({
+      getPropertyValue: (name) => ({
+        "--note-palette-accent": "#059669",
+        "--note-palette-light-accent": "#059669",
+        "--note-palette-text": "#374151",
+        "--note-palette-surface": "#F0FDF4",
+        "--note-palette-divider": "#A7F3D0",
+        "--note-palette-code-bg": "#ECFDF5",
+        "--note-palette-code-text": "#047857",
+      })[name] ?? "",
+    });
+    try {
+      const root = preparePublishArticle([
+        "<h2>第一章</h2>",
+        "<p>内容一</p>",
+        "<h2>第二章</h2>",
+        "<p>内容二</p>",
+      ].join(""), container);
+      expect(root.querySelector("[data-ee-cover-card]")).not.toBeNull();
+      expect(root.querySelector("[data-ee-cover-card]")?.textContent).toContain("深度评测文章");
+      expect(root.querySelector("[data-ee-toc-cards]")).not.toBeNull();
+      expect(root.querySelector("[data-ee-toc-cards]")?.textContent).toContain("2 PARTS");
     } finally {
       globalThis.getComputedStyle = previous;
     }

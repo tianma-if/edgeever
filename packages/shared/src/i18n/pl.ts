@@ -1197,6 +1197,8 @@ export const pl = {
       default: "Domyślny",
       marker: "Zakreślacz pod tekstem",
     },
+    editorBodyMagazineCoverTitle: "Okładka i spis magazynu",
+    editorBodyMagazineCoverDescription: "Pokaż u góry notatki kartę tytułową w stylu magazynu oraz kafelki sekcji",
     editorBodyCssTitle: "Własny CSS",
     editorBodyCssDescription: "Jeden arkusz stylów. Reguły jasne ustawiają odstępy i kolory, a następujące po nich reguły :root.dark nadpisują tylko kolory. Rozmiar i interlinia pozostają w ustawieniach powyżej.",
     editorBodyCssPreviewLabel: "Podgląd",

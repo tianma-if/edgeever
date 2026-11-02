@@ -50,6 +50,7 @@ export type NoteProseStylePreferences = {
   headingStyle: NoteProseHeadingStyle;
   quoteStyle: NoteProseQuoteStyle;
   emphasisStyle: NoteProseEmphasisStyle;
+  showMagazineCover: boolean;
 };
 
 export const MAX_NOTE_PROSE_CSS_BYTES = 8 * 1024;

@@ -163,20 +163,20 @@
 
 .edgeever-editor[data-note-heading-style="numbered"] .ProseMirror h2::after,
 .edgeever-editor[data-note-heading-style="numbered"] .markdown-content h2::after {
-  content: "SECTION " counter(note-prose-h2, decimal-leading-zero) " · 章节核心脉络";
+  content: "SECTION " counter(note-prose-h2, decimal-leading-zero);
   display: block;
   margin-top: 3px;
   font-size: 11px;
-  font-weight: 400;
+  font-weight: 600;
   color: #9ca3af;
-  letter-spacing: 0.4px;
+  letter-spacing: 1px;
   line-height: 1.3;
   pointer-events: none;
 }
 
 .edgeever-editor[data-note-heading-style="numbered"] .ProseMirror h2:last-of-type::after,
 .edgeever-editor[data-note-heading-style="numbered"] .markdown-content h2:last-of-type::after {
-  content: "SUMMARY · 核心总结与延伸";
+  content: "SUMMARY";
 }
 
 /* H3: Green pill badge with solid dot */

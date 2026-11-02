@@ -68,7 +68,7 @@ export const EditorPhonePreview = ({ editor, title, noteProse, scrollContainer, 
   const { t } = useTranslation();
   const { mermaidTheme } = useMermaidTheme();
   const noteProseStyle = useNoteProseStylePreference();
-  const proseKey = `${noteProse.palette}:${noteProse.fontSize}:${noteProse.lineHeight}:${noteProse.customCss}:${noteProseStyle.headingStyle}:${noteProseStyle.quoteStyle}:${noteProseStyle.emphasisStyle}`;
+  const proseKey = `${noteProse.palette}:${noteProse.fontSize}:${noteProse.lineHeight}:${noteProse.customCss}:${noteProseStyle.headingStyle}:${noteProseStyle.quoteStyle}:${noteProseStyle.emphasisStyle}:${noteProseStyle.showMagazineCover}`;
   const previewSyncGeneration = useRef(0);
   const [markup, setMarkup] = useState({ html: "", style: "" });
   const [follow, setFollow] = useState(readEditorPhonePreviewFollowPreference);
@@ -211,7 +211,7 @@ export const EditorPhonePreview = ({ editor, title, noteProse, scrollContainer, 
             <span className="edgeever-phone-device__lens" />
           </div>
           <div className="edgeever-phone-preview" ref={previewRef}>
-            {title?.trim() && noteProseStyle.headingStyle !== "numbered" ? (
+            {title?.trim() && !noteProseStyle.showMagazineCover ? (
               <p className="edgeever-phone-shell-title">{title.trim()}</p>
             ) : null}
             {markup.html ? (

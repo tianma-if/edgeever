@@ -178,7 +178,7 @@ const applyLegacyWeChatStyles = (
     });
   }
 
-  if (proseStyle.headingStyle === "numbered") {
+  if (proseStyle.showMagazineCover) {
     root.querySelectorAll<HTMLElement>("h1").forEach((heading) => {
       if (heading.querySelector("[data-ee-cover-card]")) return;
       const titleHtml = heading.innerHTML;
@@ -198,26 +198,20 @@ const applyLegacyWeChatStyles = (
       ].join("");
     });
 
-    const h2List = Array.from(root.querySelectorAll<HTMLElement>("h2"));
-    h2List.forEach((heading) => {
-      const prev = heading.previousElementSibling;
-      if (prev && prev.tagName === "HR") {
-        prev.remove();
-      }
-    });
-    if (h2List.length >= 2 && !root.querySelector("[data-ee-toc-cards]")) {
+    const h2ListForToc = Array.from(root.querySelectorAll<HTMLElement>("h2"));
+    if (h2ListForToc.length >= 2 && !root.querySelector("[data-ee-toc-cards]")) {
       const toc = document.createElement("section");
       toc.setAttribute("data-ee-publish-chrome", "true");
       toc.setAttribute("data-ee-toc-cards", "true");
       toc.style.cssText = "margin: 0 0 28px;";
-      const cardsHtml = h2List.map((heading, index) => {
+      const cardsHtml = h2ListForToc.map((heading, index) => {
         const num = String(index + 1).padStart(2, "0");
         const rawText = (heading.textContent || "")
           .replace(/^\s*(?:第[一二三四五六七八九十百\d]+[章节部分篇]\s*[：:·.\s]*|\d+\s*[.、·:：]\s*|[一二三四五六七八九十]+\s*[、.．]\s*)/u, "")
           .trim();
         const shortTitle = rawText.slice(0, 6) || `章节 ${num}`;
         const subTitle = rawText.length > 6 ? rawText.slice(6, 18) : `PART ${num}`;
-        const isHighlighted = index < h2List.length - 1 || h2List.length === 2 && index === 0;
+        const isHighlighted = index < h2ListForToc.length - 1 || h2ListForToc.length === 2 && index === 0;
         const useSolidAccent = isHighlighted && Boolean(colors);
         if (useSolidAccent) {
           return [
@@ -238,19 +232,29 @@ const applyLegacyWeChatStyles = (
       }).join("");
       toc.innerHTML = [
         `<section data-ee-publish-chrome="true" style="margin-bottom: 10px;">`,
-        `<p data-ee-publish-chrome="true" style="font-size: 10px; color: #9ca3af; margin: 0; text-transform: uppercase; letter-spacing: 2px; font-weight: 600;">${h2List.length} PARTS · 全文导览</p>`,
+        `<p data-ee-publish-chrome="true" style="font-size: 10px; color: #9ca3af; margin: 0; text-transform: uppercase; letter-spacing: 2px; font-weight: 600;">${h2ListForToc.length} PARTS · 全文导览</p>`,
         `</section>`,
         `<section data-ee-publish-chrome="true" style="font-size: 0;">${cardsHtml}</section>`,
       ].join("");
-      h2List[0].parentElement?.insertBefore(toc, h2List[0]);
+      h2ListForToc[0].parentElement?.insertBefore(toc, h2ListForToc[0]);
     }
+  }
+
+  if (proseStyle.headingStyle === "numbered") {
+    const h2List = Array.from(root.querySelectorAll<HTMLElement>("h2"));
+    h2List.forEach((heading) => {
+      const prev = heading.previousElementSibling;
+      if (prev && prev.tagName === "HR") {
+        prev.remove();
+      }
+    });
 
     h2List.forEach((heading, index) => {
       if (heading.querySelector("[data-ee-heading-number]")) return;
       const num = String(index + 1).padStart(2, "0");
       const isLast = h2List.length > 1 && index === h2List.length - 1;
       const partLabel = isLast ? "LAST" : "PART";
-      const subLabel = isLast ? "SUMMARY · 核心总结与延伸" : `SECTION ${num} · 章节核心脉络`;
+      const subLabel = isLast ? "SUMMARY" : `SECTION ${num}`;
       const titleHtml = heading.innerHTML;
       heading.innerHTML = [
         `<section data-ee-publish-chrome="true" data-ee-heading-number="true" style="display: inline-block; vertical-align: middle; text-align: center; width: 52px;">`,
@@ -260,7 +264,7 @@ const applyLegacyWeChatStyles = (
         `<span data-ee-publish-chrome="true" style="display: inline-block; width: 1px; height: 36px; background: #e5e7eb; vertical-align: middle; margin: 0 16px;"><span leaf=""><br></span></span>`,
         `<section data-ee-publish-chrome="true" style="display: inline-block; vertical-align: middle; max-width: calc(100% - 86px);">`,
         `<p data-ee-publish-chrome="true" style="margin: 0; font-size: 17px; font-weight: 900; color: #111827; letter-spacing: 0.3px; line-height: 1.3;">${titleHtml}</p>`,
-        `<p data-ee-publish-chrome="true" style="margin: 3px 0 0; font-size: 11px; font-weight: 400; color: #9ca3af; letter-spacing: 0.4px; line-height: 1.3;">${subLabel}</p>`,
+        `<p data-ee-publish-chrome="true" style="margin: 3px 0 0; font-size: 11px; font-weight: 600; color: #9ca3af; letter-spacing: 1px; line-height: 1.3;">${subLabel}</p>`,
         `</section>`,
       ].join("");
     });
@@ -1257,6 +1261,9 @@ export const readEditorCopyContext = (from?: HTMLElement | null) => {
     headingStyle: parseNoteProseHeadingStyle(container?.dataset.noteHeadingStyle) ?? storedStyle.headingStyle,
     quoteStyle: parseNoteProseQuoteStyle(container?.dataset.noteQuoteStyle) ?? storedStyle.quoteStyle,
     emphasisStyle: parseNoteProseEmphasisStyle(container?.dataset.noteEmphasisStyle) ?? storedStyle.emphasisStyle,
+    showMagazineCover: container?.dataset.noteMagazineCover !== undefined
+      ? container.dataset.noteMagazineCover === "true"
+      : storedStyle.showMagazineCover,
   };
   return {
     fontSize,
@@ -1277,7 +1284,7 @@ export const preparePublishArticle = (
   root.innerHTML = html;
   flattenDetailsForLinearHtml(root);
   const context = readEditorCopyContext(from);
-  if (context.proseStyle.headingStyle === "numbered" && context.noteTitle && !root.querySelector("h1")) {
+  if (context.proseStyle.showMagazineCover && context.noteTitle && !root.querySelector("h1")) {
     const coverH1 = document.createElement("h1");
     coverH1.textContent = context.noteTitle;
     root.insertBefore(coverH1, root.firstChild);

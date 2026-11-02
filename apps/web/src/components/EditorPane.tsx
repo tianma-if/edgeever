@@ -4545,6 +4545,7 @@ const RichEditorPane = ({
         data-note-heading-style={noteProseStyle.headingStyle}
         data-note-quote-style={noteProseStyle.quoteStyle}
         data-note-emphasis-style={noteProseStyle.emphasisStyle}
+        data-note-magazine-cover={noteProseStyle.showMagazineCover ? "true" : "false"}
         data-note-title={title || getEditableMemoTitle(memo?.title)}
         style={{
           ...noteProseCssVariables(noteProse),
@@ -4705,7 +4706,7 @@ const RichEditorPane = ({
                     onAsk={() => requestSelectionAi("ask")}
                   />
                 </BubbleMenu>
-                {noteProseStyle.headingStyle === "numbered" ? (
+                {noteProseStyle.showMagazineCover ? (
                   <EditorMagazineHeader
                     editor={editor}
                     title={title || getEditableMemoTitle(memo?.title)}
