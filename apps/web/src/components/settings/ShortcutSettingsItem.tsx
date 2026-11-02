@@ -3,7 +3,7 @@ import { RotateCcw, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { ShortcutAction, ShortcutBinding, ShortcutSettings } from "@/lib/app-helpers";
 import {
-  DEFAULT_SHORTCUT_SETTINGS,
+  getDefaultShortcutSettings,
   formatShortcutBinding,
   getShortcutActionOptions,
   getShortcutActionForEvent,
@@ -233,7 +233,7 @@ export const ShortcutSettingsItem = ({ shortcutSettings, onShortcutSettingsChang
   }, [globalShortcut, onShortcutSettingsChange, recordingAction, shortcutActionOptions, shortcutSettings, t]);
 
   const handleResetShortcuts = () => {
-    onShortcutSettingsChange(DEFAULT_SHORTCUT_SETTINGS);
+    onShortcutSettingsChange(getDefaultShortcutSettings());
     finishRecording();
     setCaptureMessage("");
   };

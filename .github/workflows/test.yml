@@ -125,5 +125,5 @@ jobs:
       - name: Install Chromium and WebKit
         run: bun run test:e2e:install
 
-      - name: Test notebook appearance and memo sort persistence
-        run: bun run test:e2e tests/e2e/notebook-appearance.spec.ts tests/e2e/memo-sort-preference.spec.ts
+      - name: Test notebook appearance, memo sort persistence and note focus shortcuts
+        run: bun run test:e2e tests/e2e/notebook-appearance.spec.ts tests/e2e/memo-sort-preference.spec.ts tests/e2e/note-focus-shortcuts.spec.ts

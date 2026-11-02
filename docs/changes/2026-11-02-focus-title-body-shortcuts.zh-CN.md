@@ -10,7 +10,7 @@
 
 ## 行为
 
-1. 默认键：标题为 `⌘⌥T` / `Ctrl+Alt+T`，正文为 `⌘⌥B` / `Ctrl+Alt+B`。它们不与现有 EdgeEver 默认快捷键或 Tiptap/CodeMirror 键位冲突（`Mod-Shift-B` 引用块、`Mod-Alt-1…6` 标题、`Mod-Alt-C` 代码块）。
+1. 默认键：标题为 `⌘⌥T`（macOS）、`Ctrl+Alt+T`（Windows）和 `Ctrl+Alt+Shift+T`（Linux 与 ChromeOS，那里 `Ctrl+Alt+T` 会打开终端）；正文为 `⌘⌥B` / `Ctrl+Alt+B`。平台默认值来自 `getDefaultShortcutSettings`，“恢复默认”也使用它。它们不与现有 EdgeEver 默认快捷键或 Tiptap/CodeMirror 键位冲突（`Mod-Shift-B` 引用块、`Mod-Alt-1…6` 标题、`Mod-Alt-C` 代码块）。
 2. 打开文本笔记时，两个操作在工作区任何位置都可用，包括搜索框和笔记列表。标题操作把光标放在标题末尾；正文操作根据当前模式聚焦富文本编辑器（Tiptap 恢复之前的光标位置）或 Markdown 源码编辑器，移动端纯文本编辑器同样处理。
 3. 只读笔记（回收站、阅读保护）、打开会屏蔽编辑器快捷键的对话框或未选中笔记时不执行任何操作。表格、图表、海报和信息图笔记忽略这两个操作。
 4. 桌面端独立笔记窗口支持相同操作。
@@ -20,10 +20,11 @@
 
 本次只改客户端：快捷键设置仍保存在现有本地偏好 `edgeever.shortcutSettings` 中，旧设置通过现有补全逻辑获得新默认值。不涉及服务端、数据库、迁移、同步、安装器或更新。
 
-风险：部分 Linux 桌面把 `Ctrl+Alt+T` 保留给终端，浏览器或系统也可能占用其中某个组合，用户可在设置中改绑。已把这些组合录制给其他操作的用户保持原操作，因为排在前面的操作优先匹配。回滚只需撤销本次改动，旧版本会忽略多出的存储键。
+风险：浏览器或系统仍可能占用其中某个组合，用户可在设置中改绑。已把这些组合录制给其他操作的用户保持原操作，因为排在前面的操作优先匹配。回滚只需撤销本次改动，旧版本会忽略多出的存储键。
 
 ## 验证
 
+- Playwright（`tests/e2e/note-focus-shortcuts.spec.ts`，在现有浏览器 CI 任务中运行）分别使用 Windows、macOS 与 Linux 平台默认键：验证获得焦点的元素及标题光标位于末尾（从搜索框和 Markdown 编辑器内触发）、富文本与 Markdown 正文、阅读保护下及快速切换对话框打开时焦点不变，并确认笔记标题和正文未被修改。去掉只读判断后该用例会失败。
 - 单元测试覆盖默认值、Windows/Linux/macOS 匹配（含 macOS Option 字符）、AltGr 字符不触发、旧设置补全以及设置列表顺序。
 - 在本地自托管构建上用浏览器验证（Chrome、macOS）：从搜索框聚焦标题，富文本与 Markdown 模式聚焦正文，在 Markdown 编辑器内聚焦标题，阅读保护下不执行，两个操作出现在“设置 → 快捷键”中。
 - `bun run typecheck`、`bun run typecheck:mobile`、`bun run lint`、`bun run build:web` 和 `bun run test` 通过。
