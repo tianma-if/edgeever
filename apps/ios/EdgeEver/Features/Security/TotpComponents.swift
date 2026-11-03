@@ -182,6 +182,9 @@ struct TotpCodeField: View {
             .onChange(of: code) { _, next in
                 let sanitized = TotpFormat.sanitizeCode(next)
                 if sanitized != next { code = sanitized }
+                // The number pad has no Done key and can cover the button below;
+                // put it away once the code is complete.
+                if sanitized.count == 6 { focused = false }
             }
             .onAppear {
                 if autoFocus { focused = true }
@@ -316,10 +319,12 @@ struct TotpActionButton: View {
     private var background: Color {
         switch role {
         case .primary:
-            guard isEnabled else { return AppTheme.disabledFill }
-            return tone == .login ? AppTheme.title : AppTheme.accentAction
+            // Login flow: grey fill like the login button. Settings flow: keep the
+            // colour and let the 0.45 opacity dim it, like the change-password button.
+            if tone == .login { return isEnabled ? AppTheme.title : AppTheme.disabledFill }
+            return AppTheme.accentAction
         case .secondary: return AppTheme.card
-        case .danger: return isEnabled ? AppTheme.dangerAction : AppTheme.disabledFill
+        case .danger: return AppTheme.dangerAction
         }
     }
 }

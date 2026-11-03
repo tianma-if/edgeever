@@ -79,6 +79,13 @@ struct ForcedTotpRebindView: View {
             .padding(.bottom, 40)
         }
         .background(AppTheme.background.ignoresSafeArea())
+        // This page has no navigation bar: keep scrolled content from showing
+        // through the status bar.
+        .overlay(alignment: .top) {
+            AppTheme.background
+                .frame(height: 0)
+                .ignoresSafeArea(edges: .top)
+        }
         // Part of the login flow: primary buttons look like the login button.
         .environment(\.totpButtonTone, .login)
         .preferredColorScheme(env.preferences.colorScheme)
