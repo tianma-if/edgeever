@@ -116,6 +116,7 @@
         "electron-updater": "^6.6.2",
         "fflate": "0.8.3",
         "npm": "11.21.0",
+        "webdav": "^5.10.0",
         "zod": "4.6.6",
       },
       "devDependencies": {

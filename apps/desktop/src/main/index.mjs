@@ -8,6 +8,7 @@ import { backgroundNodeExecutable } from "./background-node.mjs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { release as operatingSystemRelease } from "node:os";
 import { BackupManager } from "./backup-manager.mjs";
+import { OffsiteBackup } from "./backup-offsite.mjs";
 import { createBackupWorkerFactory } from "./backup-worker.mjs";
 import { registerBackupIpc } from "./backup-ipc.mjs";
 import { SidecarRpcClient } from "./rpc.mjs";
@@ -1934,6 +1935,7 @@ const startApplication = async () => {
   });
   backupManager = new BackupManager({
     userData: app.getPath("userData"), defaultDirectory: join(app.getPath("documents"), "EdgeEver Backups"), secureStorage: safeStorage,
+    offsite: new OffsiteBackup({ userData: app.getPath("userData"), secureStorage: safeStorage }),
     workerFactory: createBackupWorkerFactory({ utilityProcess, session: session.defaultSession }),
     version: { edgeeverVersion: app.getVersion(), buildId: app.getVersion() },
     onChange: (status) => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("desktop:backup-status", status); },

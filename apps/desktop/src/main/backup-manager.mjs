@@ -31,8 +31,10 @@ const ownedDirectoriesExist = async (paths) => {
 };
 
 export class BackupManager {
-  constructor({ userData, defaultDirectory, secureStorage, platform = process.platform, workerFactory, onChange = () => {}, onSuccess = () => {}, onDiagnostic = () => {}, version = { edgeeverVersion: "unknown", buildId: "unknown" } }) {
-    Object.assign(this, { userData, defaultDirectory, secureStorage, platform, onChange, onSuccess, onDiagnostic, version });
+  constructor({ userData, defaultDirectory, secureStorage, platform = process.platform, workerFactory, offsite = null, onChange = () => {}, onSuccess = () => {}, onDiagnostic = () => {}, version = { edgeeverVersion: "unknown", buildId: "unknown" } }) {
+    Object.assign(this, { userData, defaultDirectory, secureStorage, platform, offsite, onChange, onSuccess, onDiagnostic, version });
+    // Off-site copies report through the same status but never join the local backup queue.
+    if (offsite) offsite.onChange = () => this.emit();
     this.workerFactory = workerFactory ?? ((data) => new Worker(new URL("../../build/backup-worker.mjs", import.meta.url), { workerData: data }));
     this.generation = 0; this.context = null; this.record = null; this.task = null; this.operation = null; this.closed = false; this.transitioning = false;
     this.approvedDirectories = new Set([defaultDirectory]);
@@ -58,7 +60,7 @@ export class BackupManager {
       lastCheck: r.lastCheck ?? null, lastSuccessAt: r.lastSuccessAt ?? null, lastRestoreAt: r.lastRestoreAt ?? null, nextDueAt: r.config.enabled ? nextBackupAt(r.scheduleAnchorAt ?? r.lastSuccessAt, r.config.interval) : null,
       error: r.error ?? null, warning: r.warning ?? null, importError: r.importError ?? null, importWarning: r.importWarning ?? null, history: r.history.filter((item) => item.directory === r.config.directory), task: this.task,
       pendingPublication: r.pending ? { name: r.pending.name, encrypted: r.pending.encrypted } : null,
-      target: { baseUrl: this.context.baseUrl, accountId: this.context.accountId } });
+      target: { baseUrl: this.context.baseUrl, accountId: this.context.accountId }, offsite: this.offsite?.status() ?? null });
   }
   emit() { try { this.onChange(this.status()); } catch { /* A renderer can disappear while background work continues. */ } }
   exclusive(action) {
@@ -78,6 +80,7 @@ export class BackupManager {
         if (generation !== this.generation) return;
         this.approvedDirectories = new Set([this.defaultDirectory]);
         this.context = next; this.record = null; this.selection = null; this.initializationError = null;
+        await this.offsite?.setScope(null);
         if (!next) { this.transitioning = false; this.emit(); return; }
         this.scope = accountScopeKey(next.baseUrl, next.accountId);
         await assertDirectory(join(this.userData, "scheduled-backups"), true);
@@ -93,6 +96,7 @@ export class BackupManager {
         this.approvedDirectories.add(this.record.config.directory);
         await this.cleanStaging();
         await this.persist();
+        if (generation === this.generation) await this.offsite?.setScope(this.scope, this.record.backupSetId);
         if (generation === this.generation) { this.transitioning = false; this.emit(); }
       });
       if (generation === this.generation && this.record?.pending && !this.operation) await this.recoverPublication();
@@ -180,7 +184,9 @@ export class BackupManager {
     }
     catch { this.secureUnavailable = true; this.emit(); throw backupError("backup_secure_storage_unavailable", "Unlock secure storage or set the backup password again."); }
   }
+  latestLocalBackup() { return this.record?.history.filter((item) => item.directory === this.record.config.directory).at(-1); }
   async tick(now = Date.now()) {
+    if (!this.closed && !this.transitioning && this.record && !this.initializationError) this.offsite?.tick(this.latestLocalBackup(), this.record.config.retention);
     if (this.closed || this.transitioning || !this.record?.config.enabled || this.operation || this.checking) return;
     this.checking = true;
     const record = this.record; const generation = this.generation;
@@ -374,7 +380,10 @@ export class BackupManager {
         await rm(path, { force: true }); this.record.history = this.record.history.filter((item) => item !== old);
       } catch { this.record.warning = { code: "backup_cleanup_failed" }; }
     }
-    await this.persist(); return true;
+    await this.persist();
+    // Starts in the background; its result never changes this backup's status.
+    if (isCurrent() && entry.directory === this.record.config.directory) this.offsite?.enqueue(entry, this.record.config.retention);
+    return true;
   }
   async cleanStaging() {
     if (this.record.activePart) {
@@ -499,5 +508,17 @@ export class BackupManager {
     this.assertReady(); if (!this.operation || this.task?.kind !== "import" || this.task.phase !== "ready") throw backupError("backup_import_not_ready", "Wait for the archive check to finish.");
     this.task = { ...this.task, phase: "restoring" }; this.emit(); this.operation.worker.postMessage({ type: "confirm" });
   }
-  async close() { this.closed = true; this.startupController?.abort(); ++this.generation; await this.cancel(); await this.queue; }
+  saveOffsite(config, password, expected) {
+    this.assertReady(); this.assertScope(expected);
+    return this.offsite.save(config, password).then(() => this.status());
+  }
+  testOffsite(config, password, expected) { this.assertReady(); this.assertScope(expected); return this.offsite.test(config, password); }
+  uploadOffsiteNow(expected) {
+    this.assertReady(); this.assertScope(expected);
+    const latest = this.latestLocalBackup();
+    if (!latest) throw backupError("offsite_no_backup", "Run a local backup first.");
+    if (!this.offsite.tick(latest, this.record.config.retention, { force: true }) && !this.offsite.upload) throw backupError("offsite_already_uploaded", "The latest backup is already copied.");
+    return this.status();
+  }
+  async close() { this.closed = true; this.startupController?.abort(); ++this.generation; await this.offsite?.setScope(null); await this.cancel(); await this.queue; }
 }

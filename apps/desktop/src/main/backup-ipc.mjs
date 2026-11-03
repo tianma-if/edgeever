@@ -32,6 +32,9 @@ export const registerBackupIpc = ({ ipcMain, manager, getWindow, dialog, shell }
         case "delete-history": value = await manager.deleteHistory(input?.name, input.backupSetId); break;
         case "prepare-import": value = await manager.prepareImport(input?.id, input?.password); break;
         case "confirm-import": manager.confirmImport(); value = manager.status(); break;
+        case "offsite-save": value = await manager.saveOffsite(input?.config, input?.password, input.backupSetId); void manager.tick(); break;
+        case "offsite-test": value = await manager.testOffsite(input?.config, input?.password, input.backupSetId); break;
+        case "offsite-upload": value = manager.uploadOffsiteNow(input.backupSetId); break;
         default: throw Object.assign(new Error("Unknown backup action"), { code: "backup_invalid_action" });
       }
       if (action !== "status") checkScope();

@@ -11,6 +11,7 @@ import { describeDesktopBackupError, useDesktopBackup } from "@/lib/desktop-back
 import { formatBytes } from "@/lib/format-bytes";
 import { DesktopBackupImport } from "./DesktopBackupImport";
 import { DesktopBackupRunDialog } from "./DesktopBackupRunDialog";
+import { DesktopOffsiteSettings, DesktopOffsiteStatusLines } from "./DesktopOffsiteBackup";
 import { SETTINGS_CARD_DESCRIPTION_CLASSNAME, SETTINGS_CARD_HEADER_CLASSNAME, SETTINGS_CARD_ICON_CLASSNAME, SETTINGS_CARD_TITLE_CLASSNAME } from "./settings-ui";
 
 const defaultBackupName = () => {
@@ -123,6 +124,7 @@ export const DesktopScheduledBackupCard = () => {
           <p className={dirty ? "text-amber-700" : "text-muted-foreground"}>{dirty ? t(saving ? "desktopBackup.savingSettings" : "desktopBackup.completePassword") : status.config.enabled ? t("desktopBackup.nextDue", { time: status.nextDueAt ? date(status.nextDueAt) : t("desktopBackup.whenReady") }) : t("desktopBackup.autoOff")}</p>
           {error || status.error ? <p className="break-words text-destructive" role="alert">{error ?? describeDesktopBackupError(t, status.error)}</p> : null}
           {status.warning ? <p className="text-amber-700">{describeDesktopBackupError(t, status.warning)}</p> : null}
+          <DesktopOffsiteStatusLines status={status} disabled={saving} onUpload={() => void attempt(() => bridge.backup("offsite-upload", { backupSetId: status.backupSetId }))} />
         </div>
         <details className="group border-t pt-3">
           <summary className="flex cursor-pointer items-center gap-1.5 text-xs font-medium text-slate-700 select-none transition-colors hover:text-slate-900 list-none [&::-webkit-details-marker]:hidden">
@@ -171,6 +173,7 @@ export const DesktopScheduledBackupCard = () => {
             {dirty || saving ? <p className="text-xs text-muted-foreground" role="status">{t(saving ? "desktopBackup.savingSettings" : "desktopBackup.completePassword")}</p> : null}
           </div>
         </details>
+        <DesktopOffsiteSettings status={status} disabled={saving} />
         <section className="grid gap-2.5 border-t pt-3" aria-label={t("desktopBackup.history", { count: status.history.length })}>
           <h3 className="text-xs font-medium text-slate-700">{t("desktopBackup.history", { count: status.history.length })}</h3>
           {status.history.length ? <ul className="divide-y divide-slate-100">{[...status.history].reverse().map((item) => <li key={item.name} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 py-2.5 first:pt-0 last:pb-0">
