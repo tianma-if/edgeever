@@ -677,7 +677,7 @@ struct TotpBindAndSaveFlow: View {
             TotpErrorText(message: error)
 
             TotpActionButton(
-                title: env.preferences.t("验证", en: "Verify", ja: "確認", pl: "Zweryfikuj"),
+                title: env.preferences.t("验证并继续", en: "Verify and continue", ja: "確認して続行", pl: "Zweryfikuj i kontynuuj"),
                 busy: busy,
                 enabled: code.count == 6
             ) {
