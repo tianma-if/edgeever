@@ -1,3 +1,4 @@
+import { readNativeUpdateStatus } from "./native-update-status.mjs";
 import { macAppBundle, macAppExecutable } from "./native-update-macos.mjs";
 import { windowsUpdateInstallerRunning, stopWindowsUpdateFixtures } from "./native-update-windows.mjs";
 import { createServer } from "node:http";
@@ -17,6 +18,7 @@ const evidence = join(root, "evidence");
 mkdirSync(evidence, { recursive: true });
 const report = { platform: process.platform, arch: process.arch, sourceSha: process.env.GITHUB_SHA, versions,
   instrumentation: "Full EdgeEver builds with isolated app identity, local feed, command harness and ephemeral Windows trust key; production update controller and native installers are unchanged.",
+  fixtureRun: process.env.FIXTURE_RUN || null,
   scenarios: [] };
 let feedVersion = intermediateVersion;
 let corruptSignature = false;
@@ -105,7 +107,13 @@ const stopFixture = async (events) => {
   // Only PIDs written by the isolated test app are eligible for termination.
   for (const entry of events.filter((value) => value.event === "boot")) {
     if (process.platform === "win32") spawnSync("taskkill", ["/PID", String(entry.pid), "/T", "/F"], { stdio: "ignore" });
-    else { try { process.kill(entry.pid, "SIGTERM"); } catch {} }
+    else {
+      const current = spawnSync("ps", ["-p", String(entry.pid), "-o", "command="], { encoding: "utf8" });
+      if (current.stdout?.trim().startsWith(entry.executable)) {
+        spawnSync("pkill", ["-KILL", "-P", String(entry.pid)], { stdio: "ignore" });
+        try { process.kill(entry.pid, "SIGKILL"); } catch {}
+      }
+    }
   }
 };
 
@@ -131,12 +139,16 @@ try {
       EDGE_EVER_UPDATE_VERIFIER_PUBLIC_KEY: join(root, "public-key.pem"),
     }));
     const executable = await installBaseline(directory);
+    let debuggerEndpoint;
     const launch = () => {
       if (!existsSync(executable)) throw new Error(`Installed fixture executable missing: ${executable}`);
-      const child = spawn(executable, [], { env, stdio: ["ignore", "pipe", "pipe"] });
+      const child = spawn(executable, ["--inspect=127.0.0.1:0"], { env, stdio: ["ignore", "pipe", "pipe"] });
       child.on("error", (error) => appendFileSync(join(directory, "process.log"), `${error.stack}\n`));
       child.stdout.on("data", (data) => appendFileSync(join(directory, "process.log"), data));
-      child.stderr.on("data", (data) => appendFileSync(join(directory, "process.log"), data));
+      child.stderr.on("data", (data) => {
+        appendFileSync(join(directory, "process.log"), data);
+        debuggerEndpoint ||= /Debugger listening on (ws:\/\/[^\s]+)/.exec(String(data))?.[1];
+      });
       children.push(child);
       return child;
     };
@@ -190,7 +202,12 @@ try {
         // Confirm the installed executable itself now contains the new version.
         launch();
       } else {
-        await command("install");
+        const installation = await command("install");
+        if (installation.status?.state === "idle" || installation.event === "command-error") {
+          const status = await readNativeUpdateStatus(debuggerEndpoint).catch((error) => ({ error: error.message }));
+          writeFileSync(join(directory, "native-status.json"), JSON.stringify(status, null, 2));
+          throw new Error(`Native installation failed: ${JSON.stringify(status)}`);
+        }
       }
       await until(() => events().some((entry) => entry.event === "boot" && entry.version === latestVersion), "latest installed application launches", 240_000);
       await until(() => {
@@ -229,7 +246,7 @@ try {
   writeFileSync(join(evidence, "requests.json"), JSON.stringify(requests, null, 2));
   writeFileSync(join(evidence, "result.json"), JSON.stringify(report, null, 2));
   console.log(JSON.stringify(report, null, 2));
-  for (const child of children) { if (child.exitCode === null) child.kill("SIGTERM"); }
+  for (const child of children) { if (child.exitCode === null) child.kill("SIGKILL"); }
   server.closeAllConnections();
   server.close();
   // Keep logs; remove installed fixture apps and anonymous databases from artifacts.

@@ -1,6 +1,5 @@
 import { windowsUpdateInstallerRunning } from "./native-update-windows.mjs";
 import { createServer } from "node:http";
-import { createServer as createTcpServer } from "node:net";
 import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, createReadStream, statSync, renameSync } from "node:fs";
@@ -14,6 +13,8 @@ const evidence = join(root, "evidence");
 const installed = join(root, "installed");
 const profile = join(root, "profile");
 for (const path of [evidence, installed, profile]) mkdirSync(path, { recursive: true });
+// Acknowledge only the isolated installation's first-run confirmation.
+writeFileSync(join(profile, "installation-confirmed"), new Date().toISOString());
 const candidateName = readdirSync(candidate).find((name) => process.platform === "darwin" ? name.endsWith(".zip") : name.endsWith(".exe"));
 const version = /EdgeEver-(\d+\.\d+\.\d+)-/.exec(candidateName)?.[1];
 if (!version) throw new Error("Candidate installer version missing");
@@ -67,29 +68,23 @@ await new Promise((yes) => server.listen(0, "127.0.0.1", yes));
 const feed = `http://127.0.0.1:${server.address().port}/`;
 const children = [];
 const launch = async (update) => {
-  const portServer = createTcpServer();
-  await new Promise((yes) => portServer.listen(0, "127.0.0.1", yes));
-  const port = portServer.address().port;
-  await new Promise((yes) => portServer.close(yes));
-  const child = spawn(executable, [`--inspect-brk=127.0.0.1:${port}`, `--user-data-dir=${profile}`], {
+  let endpoint;
+  const child = spawn(executable, ["--inspect=127.0.0.1:0", `--user-data-dir=${profile}`], {
     env: { ...process.env, EDGE_EVER_DISABLE_AUTO_UPDATE: update ? "0" : "1" }, stdio: ["ignore", "pipe", "pipe"],
   });
   children.push(child);
   for (const stream of [child.stdout, child.stderr]) stream.on("data", (chunk) => {
     const path = join(evidence, update ? "old-process.log" : "new-process.log");
     writeFileSync(path, chunk, { flag: "a" });
+    endpoint ||= /Debugger listening on (ws:\/\/[^\s]+)/.exec(String(chunk))?.[1];
   });
-  const endpoint = await until(async () => {
-    try { return (await (await fetch(`http://127.0.0.1:${port}/json/list`)).json())[0]?.webSocketDebuggerUrl; } catch { return null; }
-  }, "isolated loopback main-process debugger");
+  await until(() => endpoint, "isolated loopback main-process debugger");
   const socket = new WebSocket(endpoint);
   await new Promise((yes, no) => { socket.addEventListener("open", yes, { once: true }); socket.addEventListener("error", no, { once: true }); });
   let serial = 0;
   const pending = new Map();
-  let paused = false;
   socket.addEventListener("message", ({ data }) => {
     const message = JSON.parse(String(data));
-    if (message.method === "Debugger.paused") paused = true;
     if (message.id && pending.has(message.id)) { const callbacks = pending.get(message.id); pending.delete(message.id); if (message.error) callbacks.reject(new Error(JSON.stringify(message.error))); else callbacks.resolve(message.result); }
   });
   const send = (method, params = {}) => new Promise((resolveCall, reject) => {
@@ -102,10 +97,6 @@ const launch = async (update) => {
     socket.send(JSON.stringify({ id, method, params }));
   });
   console.log(`Configuring ${update ? "old" : "updated"} application through its isolated debugger`);
-  await send("Runtime.enable");
-  await send("Debugger.enable");
-  await send("Runtime.runIfWaitingForDebugger");
-  await until(() => paused, "main process pauses before startup");
   const expression = `(() => {
     const req = process.getBuiltinModule('module').createRequire(process.resourcesPath + '/app.asar/package.json');
     const { app, net, dialog } = req('electron');
@@ -117,7 +108,7 @@ const launch = async (update) => {
         req('node:fs').appendFileSync(${JSON.stringify(join(evidence, update ? "old-renderer.jsonl" : "new-renderer.jsonl"))}, JSON.stringify({message}) + '\\n');
       });
     });
-    app.setPath('userData', ${JSON.stringify(profile)});
+    const configure = () => {
     req('node:fs').writeFileSync(${JSON.stringify(join(evidence, update ? "old-version.json" : "new-version.json"))}, JSON.stringify({version: app.getVersion(), executable: process.execPath}));
     if (${JSON.stringify(update)}) {
       const { autoUpdater } = req('electron-updater');
@@ -136,13 +127,14 @@ const launch = async (update) => {
         return {response: options.buttons?.some(button => /restart|重启/i.test(button)) ? 0 : 1, checkboxChecked:false};
       };
     }
+    };
+    if (app.isReady()) configure(); else app.once('ready', configure);
     return true;
   })()`;
   console.log("Applying feed selection and dialog automation; package bytes and trust remain unchanged");
   const evaluated = await send("Runtime.evaluate", { expression, returnByValue: true });
   if (evaluated.exceptionDetails) throw new Error(JSON.stringify(evaluated.exceptionDetails));
-  await send("Debugger.resume");
-  console.log("Application startup resumed");
+  console.log("Application startup continues without a debugger pause");
   socket.close(); // Node must not wait for an attached debugger during quit.
   return child;
 };

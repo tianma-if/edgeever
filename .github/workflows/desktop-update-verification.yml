@@ -26,6 +26,8 @@ jobs:
     name: Native update ${{ matrix.platform }} ${{ matrix.arch }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
+    env:
+      FIXTURE_RUN: ${{ inputs.fixture_run }}
     strategy:
       fail-fast: false
       matrix:
@@ -141,10 +143,12 @@ jobs:
         run: gh run download "$FIXTURE_RUN" --repo "$GITHUB_REPOSITORY" --name "$ARTIFACT_NAME" --dir "$RUNNER_TEMP/edgeever-update-verification"
 
       - name: Exercise real native updates
+        timeout-minutes: 10
         if: runner.os != 'Linux'
         run: node scripts/verify-native-desktop-update.mjs "${{ runner.temp }}/edgeever-update-verification"
 
       - name: Exercise real AppImage updates
+        timeout-minutes: 10
         if: runner.os == 'Linux'
         run: xvfb-run -a node scripts/verify-native-desktop-update.mjs "$RUNNER_TEMP/edgeever-update-verification"
 

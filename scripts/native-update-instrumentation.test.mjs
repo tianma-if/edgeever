@@ -42,7 +42,7 @@ test("the installer workflow is official-only, manual, and never publishes asset
   expect(matrices[2].map((entry) => entry.runner)).toEqual(["macos-15", "macos-15-intel", "windows-latest", "ubuntu-22.04"]);
 });
 
-// This JavaScript is sent to a paused real application, so template escaping
+// This JavaScript is sent to a real application, so template escaping
 // must be checked independently of the outer verifier script's syntax.
 test("official bridge debugger bootstrap compiles for old/new and Windows paths", () => {
   const source = readFileSync(new URL("./verify-native-release-bridge.mjs", import.meta.url), "utf8");
