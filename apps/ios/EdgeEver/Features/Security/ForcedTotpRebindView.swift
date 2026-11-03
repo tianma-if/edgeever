@@ -80,11 +80,12 @@ struct ForcedTotpRebindView: View {
         }
         .background(AppTheme.background.ignoresSafeArea())
         // This page has no navigation bar: keep scrolled content from showing
-        // through the status bar.
-        .overlay(alignment: .top) {
-            AppTheme.background
+        // through the status bar. A zero-height top inset whose background
+        // extends into the safe area paints the status bar region.
+        .safeAreaInset(edge: .top, spacing: 0) {
+            Color.clear
                 .frame(height: 0)
-                .ignoresSafeArea(edges: .top)
+                .background(AppTheme.background)
         }
         // Part of the login flow: primary buttons look like the login button.
         .environment(\.totpButtonTone, .login)
