@@ -1,3 +1,4 @@
+import { macAppBundle } from "./native-update-macos.mjs";
 import { createRequire } from "node:module";
 import { generateKeyPairSync, createHash } from "node:crypto";
 import { readFileSync, writeFileSync, mkdirSync, copyFileSync, rmSync } from "node:fs";
@@ -57,7 +58,7 @@ try {
     const target = process.platform === "darwin" ? ["--mac", "zip"] : process.platform === "win32" ? ["--win", "nsis"] : ["--linux", "AppImage"];
     run(process.execPath, [builderCli, "--projectDir", desktop, "--config", configPath, "--publish", "never", ...target, `--${process.arch}`], desktop);
     const payload = process.platform === "darwin"
-      ? join(directory, process.arch === "arm64" ? "mac-arm64" : "mac", "EdgeEver Update Verification.app/Contents/Resources/app.asar")
+      ? join(macAppBundle(join(directory, process.arch === "arm64" ? "mac-arm64" : "mac")), "Contents/Resources/app.asar")
       : process.platform === "win32" ? join(directory, "win-unpacked/resources/app.asar")
       : join(directory, `EdgeEver-${version}-linux-x64.AppImage`);
     writeFileSync(join(directory, "payload.sha256"), createHash("sha256").update(readFileSync(payload)).digest("hex"));

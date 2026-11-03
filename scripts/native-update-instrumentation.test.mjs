@@ -1,9 +1,10 @@
-import { readFileSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { readFileSync, mkdtempSync, writeFileSync, rmSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { Script, runInNewContext } from "node:vm";
 import { expect, test } from "bun:test";
+import { macAppBundle } from "./native-update-macos.mjs";
 import { instrumentNativeUpdateMain } from "./native-update-instrumentation.mjs";
 
 const main = readFileSync(new URL("../apps/desktop/src/main/index.mjs", import.meta.url), "utf8");
@@ -54,4 +55,15 @@ test("official bridge debugger bootstrap compiles for old/new and Windows paths"
     const expression = runInNewContext(`${source.slice(start, end)}; expression`, context);
     expect(() => new Script(expression)).not.toThrow();
   }
+});
+
+test("macOS fixture bundle discovery honors executableName and rejects ambiguity", () => {
+  const directory = mkdtempSync(join(tmpdir(), "edgeever-bundle-name-"));
+  try {
+    mkdirSync(join(directory, "EdgeEverUpdateVerifier.app"));
+    writeFileSync(join(directory, "not-a-bundle.app"), "not a directory");
+    expect(macAppBundle(directory)).toBe(join(directory, "EdgeEverUpdateVerifier.app"));
+    mkdirSync(join(directory, "Another.app"));
+    expect(() => macAppBundle(directory)).toThrow("exactly one");
+  } finally { rmSync(directory, { recursive: true, force: true }); }
 });

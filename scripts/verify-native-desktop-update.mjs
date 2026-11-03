@@ -1,3 +1,4 @@
+import { macAppBundle, macAppExecutable } from "./native-update-macos.mjs";
 import { windowsUpdateInstallerRunning, stopWindowsUpdateFixtures } from "./native-update-windows.mjs";
 import { createServer } from "node:http";
 import { createReadStream, existsSync, readFileSync, statSync, writeFileSync, mkdirSync, chmodSync, appendFileSync } from "node:fs";
@@ -73,10 +74,7 @@ const installBaseline = async (directory) => {
   if (process.platform === "darwin") {
     const unpack = spawnSync("ditto", ["-x", "-k", join(root, oldVersion, packageName(oldVersion)), installed], { encoding: "utf8" });
     if (unpack.status !== 0) throw new Error(unpack.stderr);
-    const bundle = join(installed, "EdgeEver Update Verification.app");
-    const metadata = spawnSync("/usr/libexec/PlistBuddy", ["-c", "Print :CFBundleExecutable", join(bundle, "Contents/Info.plist")], { encoding: "utf8" });
-    if (metadata.status !== 0) throw new Error("Cannot read the signed fixture's CFBundleExecutable");
-    return join(bundle, "Contents/MacOS", metadata.stdout.trim());
+    return macAppExecutable(macAppBundle(installed));
   }
   if (process.platform === "win32") {
     stopWindowsUpdateFixtures();
@@ -173,14 +171,14 @@ try {
           return log.some((entry) => entry.event === "session.quit");
         }, "normal application shutdown");
         const digest = (path) => createHash("sha256").update(readFileSync(path)).digest("hex");
-        const expected = process.platform === "darwin"
-          ? join(root, latestVersion, process.arch === "arm64" ? "mac-arm64" : "mac", "EdgeEver Update Verification.app/Contents/Resources/app.asar")
+        const expectedPayload = () => process.platform === "darwin"
+          ? join(macAppBundle(join(root, latestVersion, process.arch === "arm64" ? "mac-arm64" : "mac")), "Contents/Resources/app.asar")
           : process.platform === "win32" ? join(root, latestVersion, "win-unpacked/resources/app.asar")
           : join(root, latestVersion, packageName(latestVersion));
         const installedPayload = process.platform === "darwin" ? join(dirname(executable), "../Resources/app.asar")
           : process.platform === "win32" ? join(dirname(executable), "resources/app.asar") : executable;
         const recordedDigest = join(root, latestVersion, "payload.sha256");
-        const expectedDigest = existsSync(recordedDigest) ? readFileSync(recordedDigest, "utf8").trim() : digest(expected);
+        const expectedDigest = existsSync(recordedDigest) ? readFileSync(recordedDigest, "utf8").trim() : digest(expectedPayload());
         await until(() => {
           try { return digest(installedPayload) === expectedDigest; } catch { return false; }
         }, "native installation replaces the actual installed payload", 240_000);
