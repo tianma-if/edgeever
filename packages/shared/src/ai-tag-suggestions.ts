@@ -1,3 +1,5 @@
+import { AI_TAG_SUGGESTION_MAX_OUTPUT_TOKENS } from "./ai-output-budgets";
+
 export const MAX_AI_TAG_SUGGESTIONS = 3;
 
 export const DEFAULT_AI_TAG_SUGGESTION_PROMPT_EN = [
@@ -34,6 +36,7 @@ export const buildAiTagSuggestionRequest = (input: {
   currentTags: string[];
   existingTags: string[];
   locale?: string;
+  maxOutputTokens?: number;
 }) => ({
   system: [
     input.instruction,
@@ -50,7 +53,7 @@ export const buildAiTagSuggestionRequest = (input: {
     `Title: ${input.title || "(untitled)"}`,
     `Note content:\n${input.contentMarkdown}`,
   ].join("\n\n"),
-  maxOutputTokens: 300,
+  maxOutputTokens: input.maxOutputTokens ?? AI_TAG_SUGGESTION_MAX_OUTPUT_TOKENS,
   temperature: 0 as const,
 });
 

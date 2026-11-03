@@ -35,7 +35,7 @@ function fixture(options = {}) {
   });
   registerCompanionRoutes(app, { isDemoMode: () => options.demo ?? false,
     loadModel: options.loadModel ?? (async () => ({ modelId: "test-model" })),
-    loadCredentials: options.loadCredentials ?? options.loadModel, stream: options.stream });
+    loadCredentials: options.loadCredentials ?? options.loadModel, resolveModel: options.resolveModel, stream: options.stream });
   const request = (path, method = "GET", body, headers = {}) => app.request(`/api/v1/companion/${path}`, {
     method, headers: { "Content-Type": "application/json", ...headers }, ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   }, { storage });
@@ -490,6 +490,32 @@ describe("companion client-direct HTTP contracts", () => {
       status: "completed", response: "Found the notes.", inputTokens: 9, outputTokens: 4,
     });
     expect((await getCompanionTurn(setup.db, scope, payload.id)).status).toBe("completed");
+  });
+
+  test("new and resumed turns use the default model's companion output budget (#652)", async () => {
+    const budgets = { generationMaxOutputTokens: 16000, tagSuggestionMaxOutputTokens: null, companionMaxOutputTokens: 9000 };
+    let lookups = 0;
+    const setup = fixture({ resolveModel: async () => { lookups++; return { credentials, outputBudgets: budgets }; } });
+    const payload = input({ message: "翻译这篇笔记", allowNotes: true });
+    const prepared = await setup.request("turns/prepare", "POST", payload);
+    expect(prepared.status).toBe(200);
+    const preparedBody = await prepared.json();
+    expect(preparedBody).toMatchObject({ modelId: "direct-model", maxOutputTokens: 9000 });
+    expect(Object.keys(preparedBody)).not.toContain("outputBudgets");
+    await setup.request(`turns/${payload.id}/tools`, "POST", {
+      name: "ask_user_question",
+      input: { questions: [{ id: "language", prompt: "翻译成哪种语言？", inputType: "single_select", options: [{ id: "en", label: "English" }] }] },
+      response: "", process: "",
+    });
+    await setup.request(`turns/${payload.id}/complete`, "POST", { response: "", status: "interrupted" });
+    const resumed = await setup.request(`turns/${payload.id}/resume/prepare`, "POST", { answers: [{ questionId: "language", optionIds: ["en"] }] });
+    expect(resumed.status).toBe(200);
+    expect(await resumed.json()).toMatchObject({ maxOutputTokens: 9000 });
+    expect(lookups).toBe(2);
+
+    const fallback = fixture({ loadCredentials: async () => credentials });
+    const unset = await fallback.request("turns/prepare", "POST", input({ allowNotes: true }));
+    expect((await unset.json()).maxOutputTokens).toBe(2048);
   });
 
   test("resume clears answered questions so the resumed turn can complete (#637)", async () => {

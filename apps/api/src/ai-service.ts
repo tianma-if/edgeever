@@ -3,6 +3,7 @@ import type {
   AiAttachmentInput,
   AiGenerationResultBoundary,
   AiModelConfig,
+  AiModelOutputBudgets,
   AiPreparedGeneration,
   AiProvider,
   AiProviderConfig,
@@ -47,7 +48,13 @@ export type AiProviderConfigRow = {
   updated_at: string;
 };
 
-export type AiModelConfigRow = {
+type AiModelOutputBudgetColumns = {
+  generation_max_output_tokens: number | null;
+  tag_suggestion_max_output_tokens: number | null;
+  companion_max_output_tokens: number | null;
+};
+
+export type AiModelConfigRow = AiModelOutputBudgetColumns & {
   id: string;
   provider_config_id: string;
   model_id: string;
@@ -56,7 +63,7 @@ export type AiModelConfigRow = {
   updated_at: string;
 };
 
-export type ResolvedAiModelRow = {
+export type ResolvedAiModelRow = AiModelOutputBudgetColumns & {
   model_config_id: string;
   model_id: string;
   provider_config_id: string;
@@ -66,10 +73,17 @@ export type ResolvedAiModelRow = {
   is_enabled: number;
 };
 
+const mapAiModelOutputBudgets = (row: Partial<AiModelOutputBudgetColumns>): AiModelOutputBudgets => ({
+  generationMaxOutputTokens: row.generation_max_output_tokens ?? null,
+  tagSuggestionMaxOutputTokens: row.tag_suggestion_max_output_tokens ?? null,
+  companionMaxOutputTokens: row.companion_max_output_tokens ?? null,
+});
+
 const selectProviderSql = `SELECT id, workspace_id, provider, display_name, base_url,
   api_key_encrypted, is_enabled, created_at, updated_at FROM ai_provider_configs`;
 
 const selectModelSql = `SELECT id, provider_config_id, model_id, display_name,
+  generation_max_output_tokens, tag_suggestion_max_output_tokens, companion_max_output_tokens,
   created_at, updated_at FROM ai_models`;
 
 export const resolveCredentialEncryptionKey = (value: string | undefined) => {
@@ -162,6 +176,7 @@ export const mapAiModelConfig = (row: AiModelConfigRow): AiModelConfig => ({
   providerConfigId: row.provider_config_id,
   modelId: row.model_id,
   displayName: row.display_name,
+  ...mapAiModelOutputBudgets(row),
 });
 
 export const mapAiProviderConfig = (
@@ -418,7 +433,11 @@ export const prepareAiTranscriptionCredentials = async (
   }
 };
 
-export const loadDefaultAiModelCredentials = async (
+/**
+ * Resolve the default model's credentials and output budgets from one row so a
+ * concurrent default-model switch can never pair one model's key with another's budget.
+ */
+export const resolveDefaultAiModel = async (
   db: DatabaseAdapter,
   workspaceId: string,
   environment: AiCredentialEnvironment,
@@ -427,6 +446,9 @@ export const loadDefaultAiModelCredentials = async (
     `SELECT
        models.id AS model_config_id,
        models.model_id,
+       models.generation_max_output_tokens,
+       models.tag_suggestion_max_output_tokens,
+       models.companion_max_output_tokens,
        providers.id AS provider_config_id,
        providers.provider,
        providers.base_url,
@@ -452,12 +474,25 @@ export const loadDefaultAiModelCredentials = async (
     );
   }
   return {
-    provider: row.provider,
-    baseUrl: normalizeAiBaseUrl(row.base_url),
-    apiKey: await decryptAiCredential(row.api_key_encrypted, environment),
-    modelId: row.model_id,
+    credentials: {
+      provider: row.provider,
+      baseUrl: normalizeAiBaseUrl(row.base_url),
+      apiKey: await decryptAiCredential(row.api_key_encrypted, environment),
+      modelId: row.model_id,
+    },
+    outputBudgets: mapAiModelOutputBudgets(row),
   };
 };
+
+export type ResolvedDefaultAiModel = Awaited<ReturnType<typeof resolveDefaultAiModel>>;
+export type AiModelCredentials = ResolvedDefaultAiModel["credentials"];
+
+/** Credentials only: callers spread this into prepare responses, so its shape must stay unchanged. */
+export const loadDefaultAiModelCredentials = async (
+  db: DatabaseAdapter,
+  workspaceId: string,
+  environment: AiCredentialEnvironment,
+): Promise<AiModelCredentials> => (await resolveDefaultAiModel(db, workspaceId, environment)).credentials;
 
 export const getDefaultAiDirectTarget = async (
   db: DatabaseAdapter,
@@ -574,7 +609,8 @@ export const buildAiGenerationMessages = (
 };
 
 export const prepareAiGeneration = (input: {
-  credentials: Awaited<ReturnType<typeof loadDefaultAiModelCredentials>>;
+  credentials: AiModelCredentials;
+  maxOutputTokens?: number;
   action: AiAction;
   contentMarkdown: string;
   targetLanguage?: AiTargetLanguage;
@@ -598,7 +634,7 @@ export const prepareAiGeneration = (input: {
       tone: input.tone,
       instruction: input.instruction,
     }),
-    maxOutputTokens: AI_GENERATION_MAX_OUTPUT_TOKENS,
+    maxOutputTokens: input.maxOutputTokens ?? AI_GENERATION_MAX_OUTPUT_TOKENS,
     resultBoundary,
   };
 };

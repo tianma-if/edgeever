@@ -297,6 +297,9 @@ describe("AI model service", () => {
         providerConfigId: "aip_personal",
         modelId: "model-a",
         displayName: "Model A",
+        generationMaxOutputTokens: null,
+        tagSuggestionMaxOutputTokens: null,
+        companionMaxOutputTokens: null,
       }],
     });
     expect(JSON.stringify(settings)).not.toContain("ciphertext");
