@@ -31,8 +31,8 @@ writeFileSync(join(output, "versions.json"), JSON.stringify(versions));
 const instrumented = instrumentNativeUpdateMain(originalMain, join(output, "runtime.json"));
 const require = createRequire(join(desktop, "package.json"));
 const builderCli = require.resolve("electron-builder/out/cli/cli.js");
-const run = (command, args) => {
-  const result = spawnSync(command, args, { cwd: root, env: process.env, stdio: "inherit" });
+const run = (command, args, cwd = root) => {
+  const result = spawnSync(command, args, { cwd, env: process.env, stdio: "inherit" });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(`${command} exited with ${result.status}`);
 };
@@ -55,7 +55,7 @@ try {
     };
     writeFileSync(configPath, JSON.stringify(config));
     const target = process.platform === "darwin" ? ["--mac", "zip"] : process.platform === "win32" ? ["--win", "nsis"] : ["--linux", "AppImage"];
-    run(process.execPath, [builderCli, "--projectDir", desktop, "--config", configPath, "--publish", "never", ...target, `--${process.arch}`]);
+    run(process.execPath, [builderCli, "--projectDir", desktop, "--config", configPath, "--publish", "never", ...target, `--${process.arch}`], desktop);
     if (process.platform === "win32") {
       await createWindowsUpdateMetadata({ directory, version });
       signWindowsUpdateManifest({
