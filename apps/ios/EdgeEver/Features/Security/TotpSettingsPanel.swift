@@ -66,7 +66,7 @@ struct TotpSettingsPanel: View {
                 Text(env.preferences.t(
                     "二次验证（TOTP）",
                     en: "Two-factor authentication (TOTP)",
-                    ja: "二段階認証（TOTP）",
+                    ja: "二要素認証（TOTP）",
                     pl: "Uwierzytelnianie dwuskładnikowe (TOTP)"
                 ))
                 .font(.system(size: 16, weight: .heavy))
@@ -102,15 +102,15 @@ struct TotpSettingsPanel: View {
             if status.available {
                 VStack(spacing: 10) {
                     TotpActionButton(
-                        title: env.preferences.t("重新绑定验证器", en: "Rebind authenticator", ja: "認証アプリを再登録", pl: "Powiąż ponownie uwierzytelniacz"),
+                        title: env.preferences.totpModeTitle(.rebind),
                         role: .secondary
                     ) { open(.rebind) }
                     TotpActionButton(
-                        title: env.preferences.t("重新生成恢复码", en: "Regenerate recovery codes", ja: "リカバリーコードを再生成", pl: "Wygeneruj nowe kody odzyskiwania"),
+                        title: env.preferences.totpModeTitle(.regenerate),
                         role: .secondary
                     ) { open(.regenerate) }
                     TotpActionButton(
-                        title: env.preferences.t("关闭二次验证", en: "Turn off", ja: "二段階認証をオフにする", pl: "Wyłącz"),
+                        title: env.preferences.totpModeTitle(.disable),
                         role: .danger
                     ) { open(.disable) }
                 }
@@ -119,17 +119,17 @@ struct TotpSettingsPanel: View {
             }
         } else {
             Text(env.preferences.t(
-                "登录时除密码外，还需输入验证器 App 生成的 6 位验证码。开启时会生成 10 个一次性恢复码，并退出其他设备上的登录；已有的 API Token 不受影响。",
-                en: "At sign-in you'll also enter a 6-digit code from an authenticator app. Enabling generates 10 one-time recovery codes and signs out your other devices. Existing API tokens are not affected.",
-                ja: "ログイン時にパスワードに加えて、認証アプリが生成する 6 桁のコードを入力します。有効にすると 1 回限りのリカバリーコードが 10 個生成され、他のデバイスはログアウトされます。既存の API トークンには影響しません。",
-                pl: "Przy logowaniu wpiszesz też 6-cyfrowy kod z aplikacji uwierzytelniającej. Włączenie wygeneruje 10 jednorazowych kodów odzyskiwania i wyloguje pozostałe urządzenia. Istniejące tokeny API nie zostaną zmienione."
+                "登录时除密码外，还需要输入身份验证器 App 生成的 6 位验证码。开启后会生成 10 个一次性恢复码，并退出其他设备上的登录；已有 API Token 不受影响。",
+                en: "At sign-in, enter a 6-digit code from an authenticator app in addition to your password. Turning it on creates 10 one-time recovery codes and signs out your other devices. Existing API tokens are not affected.",
+                ja: "サインイン時に、パスワードに加えて認証アプリの 6 桁のコードを入力します。オンにすると 10 個の使い捨てリカバリーコードが作成され、他のデバイスはサインアウトされます。既存の API トークンには影響しません。",
+                pl: "Przy logowaniu oprócz hasła wpisujesz 6-cyfrowy kod z aplikacji uwierzytelniającej. Włączenie tworzy 10 jednorazowych kodów odzyskiwania i wylogowuje inne urządzenia. Istniejące tokeny API nie są zmieniane."
             ))
             .font(.system(size: 12))
             .foregroundStyle(AppTheme.secondary)
             .fixedSize(horizontal: false, vertical: true)
             if status.available {
                 TotpActionButton(
-                    title: env.preferences.t("开启二次验证", en: "Enable", ja: "二段階認証を有効にする", pl: "Włącz")
+                    title: env.preferences.totpModeTitle(.enable)
                 ) { open(.enable) }
             } else {
                 unavailableNote(status.unavailableReason)
@@ -153,26 +153,22 @@ struct TotpSettingsPanel: View {
     }
 
     private func enabledSummary(_ status: TotpStatus) -> String {
-        let remaining = env.preferences.t(
-            "剩余恢复码 \(status.recoveryCodesRemaining) / 10",
-            en: "Recovery codes left \(status.recoveryCodesRemaining) / 10",
-            ja: "残りのリカバリーコード \(status.recoveryCodesRemaining) / 10",
-            pl: "Pozostałe kody odzyskiwania \(status.recoveryCodesRemaining) / 10"
+        let count = status.recoveryCodesRemaining
+        var date = "—"
+        if let enabledAt = status.enabledAt, let parsed = Self.parseDate(enabledAt) {
+            let formatter = DateFormatter()
+            let code = env.preferences.localeCode
+            formatter.locale = code == "system" ? .current : Locale(identifier: code)
+            formatter.dateStyle = .medium
+            formatter.timeStyle = .none
+            date = formatter.string(from: parsed)
+        }
+        return env.preferences.t(
+            "开启于 \(date) · 剩余恢复码 \(count) / 10。以下操作都需要重新输入密码和当前验证码。",
+            en: "Turned on \(date) · \(count) of 10 recovery codes left. Each action below asks for your password and a current code.",
+            ja: "\(date) に有効化 · リカバリーコード残り \(count) / 10。以下の操作にはパスワードと現在のコードが必要です。",
+            pl: "Włączono \(date) · pozostało \(count) z 10 kodów odzyskiwania. Każda z poniższych czynności wymaga hasła i bieżącego kodu."
         )
-        guard let enabledAt = status.enabledAt, let date = Self.parseDate(enabledAt) else { return remaining }
-        let formatter = DateFormatter()
-        let code = env.preferences.localeCode
-        formatter.locale = code == "system" ? .current : Locale(identifier: code)
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-        let when = formatter.string(from: date)
-        let prefix = env.preferences.t(
-            "开启于 \(when)",
-            en: "Enabled \(when)",
-            ja: "\(when) に有効化",
-            pl: "Włączono \(when)"
-        )
-        return "\(prefix) · \(remaining)"
     }
 
     private static func parseDate(_ iso: String) -> Date? {
@@ -243,33 +239,33 @@ struct TotpManageSheet: View {
                     case let .bind(setup):
                         TotpBindAndSaveFlow(
                             setup: setup,
-                            stepLabels: setupStepLabels,
+                            stepLabels: stepLabels,
                             bindIndex: 1,
                             finishTitle: mode == .enable
-                                ? env.preferences.t("启用二次验证", en: "Enable", ja: "二段階認証を有効にする", pl: "Włącz")
+                                ? env.preferences.t("启用二次验证", en: "Turn on two-factor authentication", ja: "二要素認証をオンにする", pl: "Włącz uwierzytelnianie dwuskładnikowe")
                                 : env.preferences.t("完成重新绑定", en: "Finish rebinding", ja: "再登録を完了", pl: "Zakończ ponowne powiązanie"),
                             finishNote: mode == .enable
                                 ? env.preferences.t(
-                                    "启用后，其他设备上的登录会被退出。",
-                                    en: "Other devices will be signed out after enabling.",
-                                    ja: "有効にすると、他のデバイスはログアウトされます。",
-                                    pl: "Po włączeniu pozostałe urządzenia zostaną wylogowane."
+                                    "点击“启用”后，其他设备上的登录会被退出。",
+                                    en: "Turning it on signs out your other devices.",
+                                    ja: "オンにすると、他のデバイスはサインアウトされます。",
+                                    pl: "Włączenie wyloguje Twoje inne urządzenia."
                                 )
-                                : nil,
+                                : env.preferences.totpDeleteOldEntry,
                             onConfirmed: { response in
                                 if let token = response.sessionToken, !token.isEmpty {
                                     try await env.session.completeMfaRebind(newSessionToken: token)
                                 }
                                 finish(mode == .enable
-                                    ? env.preferences.t("二次验证已开启。", en: "Two-factor authentication is on.", ja: "二段階認証を有効にしました。", pl: "Uwierzytelnianie dwuskładnikowe jest włączone.")
-                                    : env.preferences.t("验证器已重新绑定。", en: "Authenticator rebound.", ja: "認証アプリを再登録しました。", pl: "Uwierzytelniacz został ponownie powiązany."))
+                                    ? env.preferences.t("二次验证已开启。", en: "Two-factor authentication is on.", ja: "二要素認証をオンにしました。", pl: "Uwierzytelnianie dwuskładnikowe jest włączone.")
+                                    : env.preferences.t("验证器已重新绑定。", en: "Authenticator rebound.", ja: "認証アプリを再登録しました。", pl: "Aplikacja została ponownie powiązana."))
                             },
                             onExpired: { message in
                                 restart(with: message)
                             }
                         )
                     case let .recoveryCodes(codes):
-                        TotpStepProgress(labels: regenerateStepLabels, current: 1)
+                        TotpStepProgress(labels: stepLabels, current: 1)
                         TotpRecoveryCodesView(codes: codes, saved: $saved)
                         Text(env.preferences.t(
                             "确认替换后，旧的恢复码将全部失效。",
@@ -281,7 +277,7 @@ struct TotpManageSheet: View {
                         .foregroundStyle(AppTheme.secondary)
                         TotpErrorText(message: error)
                         TotpActionButton(
-                            title: env.preferences.t("确认替换", en: "Replace codes", ja: "コードを置き換える", pl: "Zastąp kody"),
+                            title: env.preferences.t("确认替换", en: "Replace codes", ja: "置き換える", pl: "Zamień kody"),
                             busy: busy,
                             enabled: saved
                         ) {
@@ -304,47 +300,65 @@ struct TotpManageSheet: View {
         .preferredColorScheme(env.preferences.colorScheme)
     }
 
-    private var title: String {
+    private var title: String { env.preferences.totpModeTitle(mode) }
+
+    /// Same step names as Android/Web: enable binds an authenticator, rebind binds a
+    /// new one, regenerate only saves new codes.
+    private var stepLabels: [String] {
+        let verify = env.preferences.t("验证身份", en: "Verify identity", ja: "本人確認", pl: "Potwierdź tożsamość")
         switch mode {
-        case .enable: return env.preferences.t("开启二次验证", en: "Enable two-factor", ja: "二段階認証を有効にする", pl: "Włącz 2FA")
-        case .rebind: return env.preferences.t("重新绑定验证器", en: "Rebind authenticator", ja: "認証アプリを再登録", pl: "Powiąż ponownie")
-        case .regenerate: return env.preferences.t("重新生成恢复码", en: "Regenerate codes", ja: "コードを再生成", pl: "Nowe kody")
-        case .disable: return env.preferences.t("关闭二次验证", en: "Turn off two-factor", ja: "二段階認証をオフ", pl: "Wyłącz 2FA")
+        case .enable:
+            return [
+                verify,
+                env.preferences.t("绑定验证器", en: "Bind authenticator", ja: "認証アプリを登録", pl: "Powiąż aplikację"),
+                env.preferences.t("保存恢复码", en: "Save recovery codes", ja: "リカバリーコードを保存", pl: "Zapisz kody odzyskiwania"),
+            ]
+        case .rebind:
+            return [
+                verify,
+                env.preferences.totpStepBindNew,
+                env.preferences.totpStepNewCodes,
+            ]
+        case .regenerate:
+            return [verify, env.preferences.totpStepNewCodes]
+        case .disable:
+            return []
         }
-    }
-
-    private var identityLabel: String {
-        env.preferences.t("验证身份", en: "Verify identity", ja: "本人確認", pl: "Potwierdź tożsamość")
-    }
-
-    private var setupStepLabels: [String] {
-        [
-            identityLabel,
-            env.preferences.t("绑定验证器", en: "Bind authenticator", ja: "認証アプリを登録", pl: "Powiąż uwierzytelniacz"),
-            env.preferences.t("保存恢复码", en: "Save recovery codes", ja: "リカバリーコードを保存", pl: "Zapisz kody odzyskiwania"),
-        ]
-    }
-
-    private var regenerateStepLabels: [String] {
-        [
-            identityLabel,
-            env.preferences.t("保存新恢复码", en: "Save new codes", ja: "新しいコードを保存", pl: "Zapisz nowe kody"),
-        ]
     }
 
     @ViewBuilder
     private var identityStep: some View {
         switch mode {
-        case .enable, .rebind:
-            TotpStepProgress(labels: setupStepLabels, current: 0)
+        case .enable:
+            TotpStepProgress(labels: stepLabels, current: 0)
+            identityHint(env.preferences.t(
+                "请输入当前密码以继续。",
+                en: "Enter your current password to continue.",
+                ja: "続行するには現在のパスワードを入力してください。",
+                pl: "Wpisz bieżące hasło, aby kontynuować."
+            ))
+        case .rebind:
+            TotpStepProgress(labels: stepLabels, current: 0)
+            identityHint(env.preferences.t(
+                "新验证码通过前，原验证器继续有效。完成后会生成新的恢复码，旧恢复码同时失效。",
+                en: "Your current authenticator keeps working until the new one is verified. Finishing creates new recovery codes, and the old ones stop working.",
+                ja: "新しいコードが確認されるまで、現在の認証アプリは引き続き使えます。完了すると新しいリカバリーコードが作成され、古いコードは無効になります。",
+                pl: "Obecna aplikacja działa, dopóki nowa nie zostanie zweryfikowana. Po zakończeniu powstaną nowe kody odzyskiwania, a stare przestaną działać."
+            ))
         case .regenerate:
-            TotpStepProgress(labels: regenerateStepLabels, current: 0)
+            TotpStepProgress(labels: stepLabels, current: 0)
+            identityHint(env.preferences.t(
+                "点击“确认替换”前，现有恢复码继续有效。",
+                en: "Your current recovery codes keep working until you confirm the replacement.",
+                ja: "置き換えを確定するまで、現在のリカバリーコードは引き続き使えます。",
+                pl: "Obecne kody odzyskiwania działają, dopóki nie potwierdzisz zamiany."
+            ))
         case .disable:
             Text(env.preferences.t(
-                "关闭后，登录时只需输入密码，所有恢复码将失效。",
-                en: "After turning off, sign-in only needs your password and all recovery codes stop working.",
-                ja: "オフにすると、ログインにはパスワードのみが必要になり、すべてのリカバリーコードが無効になります。",
-                pl: "Po wyłączeniu logowanie wymaga tylko hasła, a wszystkie kody odzyskiwania przestaną działać."
+                "请先确认身份。关闭后，登录只需要密码，所有恢复码同时失效。",
+                en: "Confirm it's you. After turning it off, sign-in only needs your password, and every recovery code stops working.",
+                ja: "本人確認を行ってください。オフにすると、サインインはパスワードのみになり、すべてのリカバリーコードが無効になります。",
+                pl: "Potwierdź, że to Ty. Po wyłączeniu logowanie wymaga tylko hasła, a wszystkie kody odzyskiwania przestają działać."
             ))
             .font(.system(size: 13, weight: .semibold))
             .foregroundStyle(AppTheme.dangerStrong)
@@ -358,30 +372,13 @@ struct TotpManageSheet: View {
             )
         }
 
-        Text(requiresSecondFactor
-            ? env.preferences.t(
-                "请输入当前密码和验证器中的 6 位验证码。",
-                en: "Enter your current password and the 6-digit code from your authenticator.",
-                ja: "現在のパスワードと認証アプリの 6 桁のコードを入力してください。",
-                pl: "Wpisz bieżące hasło i 6-cyfrowy kod z uwierzytelniacza."
-            )
-            : env.preferences.t(
-                "请输入当前密码以继续。",
-                en: "Enter your current password to continue.",
-                ja: "続行するには現在のパスワードを入力してください。",
-                pl: "Wpisz bieżące hasło, aby kontynuować."
-            ))
-            .font(.system(size: 13))
-            .foregroundStyle(AppTheme.secondary)
-            .fixedSize(horizontal: false, vertical: true)
-
         TotpIdentityFields(input: $identity, requiresSecondFactor: requiresSecondFactor)
 
         TotpErrorText(message: error)
 
         TotpActionButton(
             title: mode == .disable
-                ? env.preferences.t("关闭二次验证", en: "Turn off", ja: "オフにする", pl: "Wyłącz")
+                ? env.preferences.totpModeTitle(.disable)
                 : env.preferences.t("继续", en: "Continue", ja: "続行", pl: "Dalej"),
             role: mode == .disable ? .danger : .primary,
             busy: busy,
@@ -389,6 +386,13 @@ struct TotpManageSheet: View {
         ) {
             Task { await submitIdentity() }
         }
+    }
+
+    private func identityHint(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 13))
+            .foregroundStyle(AppTheme.secondary)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     private func submitIdentity() async {
@@ -412,7 +416,7 @@ struct TotpManageSheet: View {
                 finish(env.preferences.t(
                     "二次验证已关闭。",
                     en: "Two-factor authentication is off.",
-                    ja: "二段階認証をオフにしました。",
+                    ja: "二要素認証をオフにしました。",
                     pl: "Uwierzytelnianie dwuskładnikowe jest wyłączone."
                 ))
             }
@@ -433,7 +437,7 @@ struct TotpManageSheet: View {
                 "恢复码已替换。",
                 en: "Recovery codes replaced.",
                 ja: "リカバリーコードを置き換えました。",
-                pl: "Kody odzyskiwania zostały zastąpione."
+                pl: "Kody odzyskiwania zostały zamienione."
             ))
         } catch {
             if (error as? APIError)?.code == "recovery_codes_expired" {
@@ -456,5 +460,39 @@ struct TotpManageSheet: View {
     private func finish(_ message: String) {
         onCompleted(message)
         dismiss()
+    }
+}
+
+/// TOTP copy reused across the settings card, the management sheet and the forced
+/// rebind screen. Text matches the shared `twoFactor` i18n keys used by Android/Web.
+extension PreferencesStore {
+    func totpModeTitle(_ mode: TotpManageMode) -> String {
+        switch mode {
+        case .enable:
+            return t("开启二次验证", en: "Turn on two-factor authentication", ja: "二要素認証をオンにする", pl: "Włącz uwierzytelnianie dwuskładnikowe")
+        case .rebind:
+            return t("重新绑定验证器", en: "Rebind authenticator", ja: "認証アプリを再登録", pl: "Powiąż aplikację ponownie")
+        case .regenerate:
+            return t("重新生成恢复码", en: "Regenerate recovery codes", ja: "リカバリーコードを再生成", pl: "Wygeneruj nowe kody odzyskiwania")
+        case .disable:
+            return t("关闭二次验证", en: "Turn off two-factor authentication", ja: "二要素認証をオフにする", pl: "Wyłącz uwierzytelnianie dwuskładnikowe")
+        }
+    }
+
+    var totpStepBindNew: String {
+        t("绑定新验证器", en: "Bind new authenticator", ja: "新しい認証アプリを登録", pl: "Powiąż nową aplikację")
+    }
+
+    var totpStepNewCodes: String {
+        t("保存新恢复码", en: "Save new recovery codes", ja: "新しいリカバリーコードを保存", pl: "Zapisz nowe kody odzyskiwania")
+    }
+
+    var totpDeleteOldEntry: String {
+        t(
+            "请先在旧验证器中删除 EdgeEver 条目（如果还能打开），避免混淆。",
+            en: "If you can still open the old authenticator, delete its EdgeEver entry to avoid confusion.",
+            ja: "古い認証アプリをまだ開ける場合は、混乱を避けるため EdgeEver の項目を削除してください。",
+            pl: "Jeśli nadal możesz otworzyć starą aplikację, usuń z niej wpis EdgeEver, aby uniknąć pomyłek."
+        )
     }
 }

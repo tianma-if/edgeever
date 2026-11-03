@@ -172,7 +172,7 @@ struct LoginView: View {
     private func mfaStep(_ pending: PendingMfaLogin) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             Text(mfaUseRecovery
-                ? env.preferences.t("使用恢复码", en: "Use a recovery code", ja: "リカバリーコードを使う", pl: "Użyj kodu odzyskiwania")
+                ? env.preferences.t("使用恢复码", en: "Use a recovery code", ja: "リカバリーコードを使用", pl: "Użyj kodu odzyskiwania")
                 : env.preferences.t("两步验证", en: "Two-step verification", ja: "2 段階認証", pl: "Weryfikacja dwuetapowa"))
                 .font(.system(size: 18, weight: .heavy))
                 .foregroundStyle(AppTheme.title)
@@ -180,9 +180,9 @@ struct LoginView: View {
             if mfaUseRecovery {
                 Text(env.preferences.t(
                     "输入开启二次验证时保存的任意一个恢复码。登录后需要先重新绑定验证器，才能继续使用笔记。",
-                    en: "Enter any recovery code you saved when enabling two-factor authentication. After signing in you must rebind your authenticator before using your notes.",
-                    ja: "二段階認証を有効にしたときに保存したリカバリーコードのいずれかを入力してください。ログイン後、ノートを使う前に認証アプリを再登録する必要があります。",
-                    pl: "Wpisz dowolny kod odzyskiwania zapisany podczas włączania uwierzytelniania dwuskładnikowego. Po zalogowaniu musisz ponownie powiązać uwierzytelniacz, zanim skorzystasz z notatek."
+                    en: "Enter any recovery code you saved when turning on two-factor authentication. After signing in, bind a new authenticator before using your notes.",
+                    ja: "二要素認証をオンにしたときに保存したリカバリーコードを 1 つ入力してください。サインイン後、ノートを使う前に新しい認証アプリを登録する必要があります。",
+                    pl: "Wpisz dowolny kod odzyskiwania zapisany przy włączaniu uwierzytelniania dwuskładnikowego. Po zalogowaniu musisz powiązać nową aplikację, zanim skorzystasz z notatek."
                 ))
                 .font(.system(size: 13))
                 .foregroundStyle(AppTheme.secondary)
@@ -195,18 +195,18 @@ struct LoginView: View {
                 Text(env.preferences.t(
                     "不区分大小写，短横线可省略。每个恢复码只能使用一次。",
                     en: "Not case-sensitive; dashes are optional. Each recovery code works only once.",
-                    ja: "大文字と小文字は区別されず、ハイフンは省略できます。各リカバリーコードは 1 回のみ使用できます。",
-                    pl: "Wielkość liter nie ma znaczenia, myślniki są opcjonalne. Każdy kod działa tylko raz."
+                    ja: "大文字と小文字は区別されず、ハイフンは省略できます。各リカバリーコードは 1 回だけ使えます。",
+                    pl: "Wielkość liter nie ma znaczenia, myślniki są opcjonalne. Każdy kod odzyskiwania działa tylko raz."
                 ))
                 .font(.system(size: 12))
                 .foregroundStyle(AppTheme.muted)
                 .fixedSize(horizontal: false, vertical: true)
             } else {
                 Text(env.preferences.t(
-                    "密码已验证。请输入 \(pending.username) 在验证器中的 6 位验证码。",
-                    en: "Password verified. Enter the 6-digit code from your authenticator for \(pending.username).",
-                    ja: "パスワードを確認しました。\(pending.username) の認証アプリに表示された 6 桁のコードを入力してください。",
-                    pl: "Hasło zweryfikowane. Wpisz 6-cyfrowy kod z uwierzytelniacza dla \(pending.username)."
+                    "密码已验证。请打开身份验证器 App，输入 \(pending.username) 的 6 位验证码。",
+                    en: "Password verified. Open your authenticator app and enter the 6-digit code for \(pending.username).",
+                    ja: "パスワードを確認しました。認証アプリを開き、\(pending.username) の 6 桁のコードを入力してください。",
+                    pl: "Hasło zweryfikowane. Otwórz aplikację uwierzytelniającą i wpisz 6-cyfrowy kod dla \(pending.username)."
                 ))
                 .font(.system(size: 13))
                 .foregroundStyle(AppTheme.secondary)
@@ -230,14 +230,14 @@ struct LoginView: View {
                         ProgressView().tint(.white)
                     }
                     Text(mfaUseRecovery
-                        ? env.preferences.t("使用恢复码登录", en: "Sign in with recovery code", ja: "リカバリーコードでログイン", pl: "Zaloguj kodem odzyskiwania")
-                        : env.preferences.t("验证并登录", en: "Verify and sign in", ja: "確認してログイン", pl: "Zweryfikuj i zaloguj"))
+                        ? env.preferences.t("使用恢复码登录", en: "Sign in with recovery code", ja: "リカバリーコードでサインイン", pl: "Zaloguj kodem odzyskiwania")
+                        : env.preferences.t("验证并登录", en: "Verify and sign in", ja: "確認してサインイン", pl: "Zweryfikuj i zaloguj"))
                         .font(.system(size: 16, weight: .bold))
                 }
                 .frame(maxWidth: .infinity)
                 .frame(height: 48)
                 .foregroundStyle(.white)
-                .background(canSubmitMfa ? TotpUI.primary : AppTheme.disabledFill)
+                .background(canSubmitMfa ? AppTheme.title : AppTheme.disabledFill)
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
             .buttonStyle(.plain)
@@ -249,8 +249,8 @@ struct LoginView: View {
                     TotpLinkButton(title: env.preferences.t(
                         "改用验证器验证码",
                         en: "Use an authenticator code instead",
-                        ja: "認証アプリのコードを使う",
-                        pl: "Użyj kodu z uwierzytelniacza"
+                        ja: "認証アプリのコードを使用",
+                        pl: "Użyj kodu z aplikacji"
                     )) {
                         mfaError = nil
                         mfaRecoveryCode = ""
@@ -258,10 +258,10 @@ struct LoginView: View {
                     }
                 } else {
                     TotpLinkButton(title: env.preferences.t(
-                        "验证器不可用？使用恢复码",
+                        "验证器不可用？改用恢复码",
                         en: "Authenticator unavailable? Use a recovery code",
-                        ja: "認証アプリが使えない場合はリカバリーコードを使う",
-                        pl: "Uwierzytelniacz niedostępny? Użyj kodu odzyskiwania"
+                        ja: "認証アプリを使えない場合はリカバリーコードを使用",
+                        pl: "Aplikacja niedostępna? Użyj kodu odzyskiwania"
                     )) {
                         mfaError = nil
                         mfaCode = ""
