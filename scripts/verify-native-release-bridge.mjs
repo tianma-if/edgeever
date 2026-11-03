@@ -1,3 +1,4 @@
+import { windowsUpdateInstallerRunning } from "./native-update-windows.mjs";
 import { createServer } from "node:http";
 import { createServer as createTcpServer } from "node:net";
 import { spawn, spawnSync } from "node:child_process";
@@ -145,6 +146,12 @@ try {
     try { return digest(installedAsar) !== originalAsarDigest && (!expectedAsar || digest(installedAsar) === digest(expectedAsar)); } catch { return false; }
   }, "official old release installs the real candidate payload");
   await until(() => children[0].exitCode !== null, "old release exits");
+  if (process.platform === "win32") {
+    // NSIS copies app.asar before renderer resources. Wait for the installer,
+    // not just a changed ASAR, before launching the updated application.
+    await until(() => !windowsUpdateInstallerRunning(candidateName), "Windows installer completes all resource copies");
+    await wait(1_000);
+  }
   if (existsSync(logPath)) renameSync(logPath, join(evidence, "old-desktop.log"));
   await launch(false);
   await until(() => {

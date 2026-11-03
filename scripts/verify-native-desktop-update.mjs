@@ -1,3 +1,4 @@
+import { windowsUpdateInstallerRunning, stopWindowsUpdateFixtures } from "./native-update-windows.mjs";
 import { createServer } from "node:http";
 import { createReadStream, existsSync, readFileSync, statSync, writeFileSync, mkdirSync, chmodSync, appendFileSync } from "node:fs";
 import { cp, rm } from "node:fs/promises";
@@ -75,12 +76,19 @@ const installBaseline = async (directory) => {
     return join(installed, "EdgeEver Update Verification.app/Contents/MacOS/EdgeEverUpdateVerifier");
   }
   if (process.platform === "win32") {
+    stopWindowsUpdateFixtures();
     const installer = join(root, oldVersion, packageName(oldVersion));
-    const result = spawnSync(installer, ["/S", `/D=${installed}`], {
+    let result;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      result = spawnSync(installer, ["/S", `/D=${installed}`], {
       stdio: "ignore", windowsHide: true, timeout: 120_000,
       env: { ...process.env, EDGE_EVER_DISABLE_AUTO_UPDATE: "1" },
     });
-    if (result.status !== 0) throw new Error(`Baseline NSIS install failed: ${result.status} ${result.stderr}`);
+      if (result.status === 0) break;
+      stopWindowsUpdateFixtures();
+      await wait(2_000);
+    }
+    if (result.status !== 0) throw new Error(`Baseline NSIS install failed: ${result.status}`);
     const executable = join(installed, "EdgeEverUpdateVerifier.exe");
     spawnSync("powershell", ["-NoProfile", "-Command", `Get-CimInstance Win32_Process -Filter "Name='EdgeEverUpdateVerifier.exe'" | Where-Object { $_.ExecutablePath -eq $env:VERIFIER_INSTALLED_EXE } | ForEach-Object { taskkill /PID $_.ProcessId /T /F | Out-Null }`], {
       stdio: "ignore", env: { ...process.env, VERIFIER_INSTALLED_EXE: executable }, timeout: 30_000,
@@ -171,6 +179,9 @@ try {
         await until(() => {
           try { return digest(installedPayload) === expectedDigest; } catch { return false; }
         }, "native installation replaces the actual installed payload", 240_000);
+        if (process.platform === "win32") {
+          await until(() => !windowsUpdateInstallerRunning(packageName(latestVersion)), "Windows native installer completes");
+        }
         await wait(1_000);
         if (events().filter((entry) => entry.event === "boot").length !== 1) throw new Error("Normal quit relaunched the application");
         // Confirm the installed executable itself now contains the new version.
@@ -179,6 +190,12 @@ try {
         await command("install");
       }
       await until(() => events().some((entry) => entry.event === "boot" && entry.version === latestVersion), "latest installed application launches", 240_000);
+      await until(() => {
+        const entries = readEvents(join(profile, "logs/desktop.log"));
+        const lastSession = entries.findLastIndex((entry) => entry.event === "session.started");
+        const currentSession = entries.slice(lastSession);
+        return currentSession.some((entry) => entry.event === "renderer.bootstrap-ready") && currentSession.some((entry) => entry.event === "sidecar.ready");
+      }, "latest installed renderer and sidecar are ready");
       const diagnostics = readEvents(join(profile, "logs/desktop.log"));
       const installs = diagnostics.filter((entry) => entry.event === "update.install-confirmed");
       const boots = events().filter((entry) => entry.event === "boot").map((entry) => entry.version);
@@ -193,6 +210,7 @@ try {
       writeFileSync(join(directory, "result.json"), JSON.stringify(report.scenarios.at(-1), null, 2));
     } finally {
       await stopFixture(events());
+      if (process.platform === "win32") stopWindowsUpdateFixtures();
       await wait(1_000);
     }
   }

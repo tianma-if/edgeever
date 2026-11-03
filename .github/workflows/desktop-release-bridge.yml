@@ -3,6 +3,10 @@ name: Verify official old-to-new desktop updates
 on:
   workflow_dispatch:
     inputs:
+      windows_only:
+        description: Rerun only the Windows published-release bridge
+        type: boolean
+        default: false
       candidate_run:
         description: Desktop build run containing the actual candidate installers
         type: string
@@ -47,27 +51,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - platform: macOS
-            runner: macos-15
-            arch: arm64
-            artifact: edgeever-desktop-macOS-arm64-staging
-            pattern: EdgeEver-*-mac-arm64.zip
-          - platform: macOS
-            runner: macos-15-intel
-            arch: x64
-            artifact: edgeever-desktop-macOS-x64-staging
-            pattern: EdgeEver-*-mac-x64.zip
-          - platform: Windows
-            runner: windows-latest
-            arch: x64
-            artifact: edgeever-desktop-Windows-x64-staging
-            pattern: EdgeEver-*-windows-x64.exe
-          - platform: Linux
-            runner: ubuntu-22.04
-            arch: x64
-            artifact: edgeever-desktop-Linux-x64-staging
-            pattern: EdgeEver-*-linux-x64.AppImage
+        include: ${{ fromJSON(inputs.windows_only && '[{"platform":"Windows","runner":"windows-latest","arch":"x64","artifact":"edgeever-desktop-Windows-x64-staging","pattern":"EdgeEver-*-windows-x64.exe"}]' || '[{"platform":"macOS","runner":"macos-15","arch":"arm64","artifact":"edgeever-desktop-macOS-arm64-staging","pattern":"EdgeEver-*-mac-arm64.zip"},{"platform":"macOS","runner":"macos-15-intel","arch":"x64","artifact":"edgeever-desktop-macOS-x64-staging","pattern":"EdgeEver-*-mac-x64.zip"},{"platform":"Windows","runner":"windows-latest","arch":"x64","artifact":"edgeever-desktop-Windows-x64-staging","pattern":"EdgeEver-*-windows-x64.exe"},{"platform":"Linux","runner":"ubuntu-22.04","arch":"x64","artifact":"edgeever-desktop-Linux-x64-staging","pattern":"EdgeEver-*-linux-x64.AppImage"}]') }}
     env:
       GH_TOKEN: ${{ github.token }}
       CANDIDATE_RUN: ${{ inputs.candidate_run }}
