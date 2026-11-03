@@ -2,6 +2,11 @@ name: Verify native desktop updates
 
 on:
   workflow_dispatch:
+    inputs:
+      windows_only:
+        description: Rerun only the Windows installer verification
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -15,23 +20,27 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - platform: macOS
-            runner: macos-15
-            arch: arm64
-          - platform: macOS
-            runner: macos-15-intel
-            arch: x64
-          - platform: Windows
-            runner: windows-latest
-            arch: x64
-          - platform: Linux
-            runner: ubuntu-22.04
-            arch: x64
+        include: ${{ fromJSON(inputs.windows_only && '[{"platform":"Windows","runner":"windows-latest","arch":"x64"}]' || '[{"platform":"macOS","runner":"macos-15","arch":"arm64"},{"platform":"macOS","runner":"macos-15-intel","arch":"x64"},{"platform":"Windows","runner":"windows-latest","arch":"x64"},{"platform":"Linux","runner":"ubuntu-22.04","arch":"x64"}]') }}
     steps:
       - uses: actions/checkout@v5
       - uses: oven-sh/setup-bun@v2
       - uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Windows dependencies
+        if: runner.os == 'Windows'
+        uses: actions/cache@v5
+        with:
+          path: ~\AppData\Local\bun\install\cache
+          key: ${{ runner.os }}-${{ matrix.arch }}-bun-${{ hashFiles('bun.lock') }}
+
+      - name: Cache Windows Electron downloads
+        if: runner.os == 'Windows'
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~\AppData\Local\electron\Cache
+            ~\AppData\Local\electron-builder\Cache
+          key: ${{ runner.os }}-${{ matrix.arch }}-electron-${{ hashFiles('bun.lock', 'apps/desktop/package.json') }}
 
       - name: Cache Rust dependencies
         uses: actions/cache@v5
