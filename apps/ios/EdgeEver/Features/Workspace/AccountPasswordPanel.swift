@@ -51,7 +51,7 @@ struct AccountPasswordPanel: View {
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .frame(minHeight: 48)
-                    .background(AppTheme.accentBright)
+                    .background(AppTheme.accentAction)
                     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                     .opacity(busy ? 0.45 : 1)
             }

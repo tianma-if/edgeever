@@ -7,7 +7,7 @@ import UIKit
 /// settings flows and the forced rebind screen).
 enum TotpUI {
     /// Mobile primary color for the TOTP flows (#10b981).
-    static let primary = AppTheme.accentBright
+    static let primary = AppTheme.accentAction
     static let warningBackground = AppTheme.syncErrorBackground
     static let warningBorder = AppTheme.syncErrorBorder
     static let warningTitle = AppTheme.syncErrorTitle
