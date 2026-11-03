@@ -76,9 +76,16 @@ const installBaseline = async (directory) => {
   }
   if (process.platform === "win32") {
     const installer = join(root, oldVersion, packageName(oldVersion));
-    const result = spawnSync(installer, ["/S", `/D=${installed}`], { encoding: "utf8", windowsHide: true });
+    const result = spawnSync(installer, ["/S", `/D=${installed}`], {
+      stdio: "ignore", windowsHide: true, timeout: 120_000,
+      env: { ...process.env, EDGE_EVER_DISABLE_AUTO_UPDATE: "1" },
+    });
     if (result.status !== 0) throw new Error(`Baseline NSIS install failed: ${result.status} ${result.stderr}`);
-    return join(installed, "EdgeEverUpdateVerifier.exe");
+    const executable = join(installed, "EdgeEverUpdateVerifier.exe");
+    spawnSync("powershell", ["-NoProfile", "-Command", `Get-CimInstance Win32_Process -Filter "Name='EdgeEverUpdateVerifier.exe'" | Where-Object { $_.ExecutablePath -eq $env:VERIFIER_INSTALLED_EXE } | ForEach-Object { taskkill /PID $_.ProcessId /T /F | Out-Null }`], {
+      stdio: "ignore", env: { ...process.env, VERIFIER_INSTALLED_EXE: executable }, timeout: 30_000,
+    });
+    return executable;
   }
   const appImage = join(installed, "EdgeEver.AppImage");
   await cp(join(root, oldVersion, packageName(oldVersion)), appImage);

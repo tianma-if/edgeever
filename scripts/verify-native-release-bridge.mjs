@@ -37,9 +37,17 @@ if (process.platform === "darwin") {
   writeFileSync(join(candidate, "latest-mac.yml"), `version: ${version}\nfiles:\n  - url: ${candidateName}\n    sha512: ${checksum}\n    size: ${statSync(path).size}\npath: ${candidateName}\nsha512: ${checksum}\n`);
 } else {
   const oldExe = readdirSync(previous).find((name) => name.endsWith(".exe"));
-  const result = spawnSync(join(previous, oldExe), ["/S", `/D=${installed}`], { encoding: "utf8" });
+  console.log("Installing published Windows predecessor into the isolated directory");
+  const result = spawnSync(join(previous, oldExe), ["/S", `/D=${installed}`], {
+    stdio: "ignore", timeout: 120_000, windowsHide: true,
+    env: { ...process.env, EDGE_EVER_DISABLE_AUTO_UPDATE: "1" },
+  });
   if (result.status !== 0) throw new Error(`Old release NSIS installation failed: ${result.status}`);
   executable = join(installed, "EdgeEver.exe");
+  spawnSync("powershell", ["-NoProfile", "-Command", `Get-CimInstance Win32_Process -Filter "Name='EdgeEver.exe'" | Where-Object { $_.ExecutablePath -eq $env:BRIDGE_INSTALLED_EXE } | ForEach-Object { taskkill /PID $_.ProcessId /T /F | Out-Null }`], {
+    stdio: "ignore", env: { ...process.env, BRIDGE_INSTALLED_EXE: executable }, timeout: 30_000,
+  });
+  console.log("Published Windows predecessor installed");
   // The updated application's version plus updater-verified signed installer
   // hashes establish provenance. The bridge does not extract/repack NSIS.
 }
@@ -81,11 +89,18 @@ const launch = async (update) => {
   socket.addEventListener("message", ({ data }) => {
     const message = JSON.parse(String(data));
     if (message.method === "Debugger.paused") paused = true;
-    if (message.id) { const callbacks = pending.get(message.id); pending.delete(message.id); if (message.error) callbacks.reject(new Error(JSON.stringify(message.error))); else callbacks.resolve(message.result); }
+    if (message.id && pending.has(message.id)) { const callbacks = pending.get(message.id); pending.delete(message.id); if (message.error) callbacks.reject(new Error(JSON.stringify(message.error))); else callbacks.resolve(message.result); }
   });
   const send = (method, params = {}) => new Promise((resolveCall, reject) => {
-    const id = ++serial; pending.set(id, { resolve: resolveCall, reject }); socket.send(JSON.stringify({ id, method, params }));
+    const id = ++serial;
+    const timer = setTimeout(() => { pending.delete(id); reject(new Error(`Debugger command timed out: ${method}`)); }, 20_000);
+    pending.set(id, {
+      resolve: (value) => { clearTimeout(timer); resolveCall(value); },
+      reject: (error) => { clearTimeout(timer); reject(error); },
+    });
+    socket.send(JSON.stringify({ id, method, params }));
   });
+  console.log(`Configuring ${update ? "old" : "updated"} application through its isolated debugger`);
   await send("Runtime.enable");
   await send("Debugger.enable");
   await send("Runtime.runIfWaitingForDebugger");
@@ -115,9 +130,11 @@ const launch = async (update) => {
     }
     return true;
   })()`;
+  console.log("Applying feed selection and dialog automation; package bytes and trust remain unchanged");
   const evaluated = await send("Runtime.evaluate", { expression, returnByValue: true });
   if (evaluated.exceptionDetails) throw new Error(JSON.stringify(evaluated.exceptionDetails));
   await send("Debugger.resume");
+  console.log("Application startup resumed");
   socket.close(); // Node must not wait for an attached debugger during quit.
   return child;
 };
