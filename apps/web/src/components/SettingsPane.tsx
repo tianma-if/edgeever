@@ -17,7 +17,7 @@ import {
   Users,
   Wrench,
 } from "lucide-react";
-import { useSyncExternalStore, type ReactNode } from "react";
+import { useState, useSyncExternalStore, type ReactNode } from "react";
 import { isDesktopViewport } from "@/lib/workspace-shell";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router";
@@ -125,6 +125,7 @@ export const SettingsPane = ({
   const selectTab = (tab: TabKey | null) => setSearchParams(tab ? { tab } : {}, { replace: true });
   const { unseen: deployedUpdateUnseen } = useDeployedUpdateNotice();
   const canClearLocalData = Boolean(window.edgeeverDesktop?.canClearLocalData);
+  const [devShowWebExport, setDevShowWebExport] = useState(false);
 
   const tabItems: TabItem[] = [
     {
@@ -275,7 +276,23 @@ export const SettingsPane = ({
       case "data":
         return (
           <SettingsGroup>
-            {window.edgeeverDesktop?.backup ? <DesktopScheduledBackupCard /> : <DataExportCard refreshWorkspaceAfterImport={refreshWorkspaceAfterImport} />}
+            {import.meta.env.DEV && (
+              <div className="flex items-center justify-between rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-700 dark:text-amber-300">
+                <span>Dev 预览模式：{devShowWebExport ? "当前为 Web 端原生导出卡片" : "当前为桌面端备份与恢复预览"}</span>
+                <button
+                  type="button"
+                  className="font-medium underline hover:text-amber-900 dark:hover:text-amber-100"
+                  onClick={() => setDevShowWebExport((prev) => !prev)}
+                >
+                  {devShowWebExport ? "切换到桌面端预览" : "切换到 Web 原生导出"}
+                </button>
+              </div>
+            )}
+            {window.edgeeverDesktop?.backup || (import.meta.env.DEV && !devShowWebExport) ? (
+              <DesktopScheduledBackupCard />
+            ) : (
+              <DataExportCard refreshWorkspaceAfterImport={refreshWorkspaceAfterImport} />
+            )}
             <ThirdPartyImportCard controller={noteImport} onOpenMemo={onOpenMemo} />
           </SettingsGroup>
         );

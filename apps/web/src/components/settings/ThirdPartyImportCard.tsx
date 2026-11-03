@@ -14,9 +14,14 @@ export const ThirdPartyImportCard = ({ controller, onOpenMemo }: { controller: N
   return <Card className="w-full min-w-0 shadow-none">
     <CardHeader className={SETTINGS_CARD_HEADER_CLASSNAME}>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="min-w-0 space-y-1">
+        <div className="min-w-0 space-y-1.5">
           <CardTitle className={SETTINGS_CARD_TITLE_CLASSNAME}><Upload className={SETTINGS_CARD_ICON_CLASSNAME} />{t("noteImport.title")}</CardTitle>
           <CardDescription className={SETTINGS_CARD_DESCRIPTION_CLASSNAME}>{t("noteImport.description")}</CardDescription>
+          <div className="flex flex-wrap gap-1.5 pt-0.5 text-[11px] text-muted-foreground">
+            <span className="rounded bg-muted px-2 py-0.5 font-mono">Evernote (.enex)</span>
+            <span className="rounded bg-muted px-2 py-0.5 font-mono">Obsidian</span>
+            <span className="rounded bg-muted px-2 py-0.5 font-mono">Joplin (.jex)</span>
+          </div>
         </div>
         <Button size="sm" variant="outline" onClick={controller.open}>{t(running ? "noteImport.viewProgress" : "noteImport.open")}</Button>
       </div>

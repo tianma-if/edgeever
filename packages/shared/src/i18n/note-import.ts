@@ -1,7 +1,7 @@
 export const noteImportEnUS = {
-  "title": "Import from other apps",
-  "description": "Move notes and attachments from Evernote, Obsidian or Joplin.",
-  "open": "Import notes",
+  "title": "Migrate from other apps",
+  "description": "Move notes and attachments from Evernote, Obsidian, or Joplin, preserving folders and attachments.",
+  "open": "Start migration",
   "viewProgress": "View import progress",
   "source": "Source app",
   "files": "Choose files",
@@ -71,9 +71,9 @@ export const noteImportEnUS = {
 } as const;
 
 export const noteImportZhCN = {
-  "title": "从其他应用导入",
-  "description": "迁移 Evernote、Obsidian 或 Joplin 的笔记与附件。",
-  "open": "导入笔记",
+  "title": "从其他应用迁移",
+  "description": "迁移 Evernote、Obsidian 或 Joplin 的笔记与附件，保留目录结构与媒体资源。",
+  "open": "开始迁移",
   "viewProgress": "查看导入进度",
   "source": "来源应用",
   "files": "选择文件",
@@ -143,9 +143,9 @@ export const noteImportZhCN = {
 } as const;
 
 export const noteImportJa = {
-  "title": "他のアプリからインポート",
+  "title": "他のアプリから移行",
   "description": "Evernote・Obsidian・Joplin のノートと添付ファイルを移行します。",
-  "open": "ノートをインポート",
+  "open": "移行を開始",
   "viewProgress": "進捗を表示",
   "source": "移行元のアプリ",
   "files": "ファイルを選択",
@@ -215,9 +215,9 @@ export const noteImportJa = {
 } as const;
 
 export const noteImportPl = {
-  "title": "Importuj z innych aplikacji",
+  "title": "Migracja z innych aplikacji",
   "description": "Przenieś notatki i załączniki z Evernote, Obsidian lub Joplin.",
-  "open": "Importuj notatki",
+  "open": "Rozpocznij migrację",
   "viewProgress": "Pokaż postęp importu",
   "source": "Aplikacja źródłowa",
   "files": "Wybierz pliki",
@@ -287,9 +287,9 @@ export const noteImportPl = {
 } as const;
 
 export const noteImportRu = {
-  "title": "Импорт из других приложений",
+  "title": "Перенос из других приложений",
   "description": "Перенесите заметки и вложения из Evernote, Obsidian или Joplin.",
-  "open": "Импортировать заметки",
+  "open": "Начать перенос",
   "viewProgress": "Показать ход импорта",
   "source": "Исходное приложение",
   "files": "Выбрать файлы",
