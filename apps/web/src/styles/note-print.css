@@ -111,6 +111,11 @@
   widows: 3;
 }
 
+/* DOMSerializer omits the editor view's helper <br> in empty paragraphs. */
+.edgeever-print-content p:empty::before {
+  content: "\00a0";
+}
+
 .edgeever-print-content strong,
 .edgeever-print-content b {
   font-synthesis: weight style;
