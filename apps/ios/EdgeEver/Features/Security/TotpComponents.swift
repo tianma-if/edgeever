@@ -261,7 +261,7 @@ struct TotpActionButton: View {
                     ProgressView().tint(role == .secondary ? AppTheme.title : .white)
                 }
                 Text(title)
-                    .font(.system(size: 15, weight: .heavy))
+                    .font(.system(size: 14, weight: .heavy))
             }
             .foregroundStyle(foreground)
             .frame(maxWidth: .infinity)
@@ -272,7 +272,7 @@ struct TotpActionButton: View {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .stroke(role == .secondary ? AppTheme.border : .clear, lineWidth: 1)
             )
-            .opacity(isEnabled ? 1 : 0.5)
+            .opacity(isEnabled ? 1 : 0.45)
         }
         .buttonStyle(.plain)
         .disabled(!isEnabled)

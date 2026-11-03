@@ -151,7 +151,7 @@ struct LoginView: View {
                         .frame(maxWidth: .infinity)
                         .frame(height: 48)
                         .foregroundStyle(.white)
-                        .background(canSubmit ? AppTheme.title : AppTheme.disabledFill)
+                        .background(canSubmit ? AppTheme.accentBright : AppTheme.disabledFill)
                         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                     }
                     .buttonStyle(.plain)
