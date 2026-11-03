@@ -3,6 +3,14 @@ name: Verify native desktop updates
 on:
   workflow_dispatch:
     inputs:
+      fixture_run:
+        description: Reuse signed test installers from this verification run (optional)
+        type: string
+        required: false
+      mac_only:
+        description: Rerun only both macOS architectures
+        type: boolean
+        default: false
       windows_only:
         description: Rerun only the Windows installer verification
         type: boolean
@@ -10,6 +18,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   native-update:
@@ -20,21 +29,22 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJSON(inputs.windows_only && '[{"platform":"Windows","runner":"windows-latest","arch":"x64"}]' || '[{"platform":"macOS","runner":"macos-15","arch":"arm64"},{"platform":"macOS","runner":"macos-15-intel","arch":"x64"},{"platform":"Windows","runner":"windows-latest","arch":"x64"},{"platform":"Linux","runner":"ubuntu-22.04","arch":"x64"}]') }}
+        include: ${{ fromJSON(inputs.windows_only && '[{"platform":"Windows","runner":"windows-latest","arch":"x64"}]' || inputs.mac_only && '[{"platform":"macOS","runner":"macos-15","arch":"arm64"},{"platform":"macOS","runner":"macos-15-intel","arch":"x64"}]' || '[{"platform":"macOS","runner":"macos-15","arch":"arm64"},{"platform":"macOS","runner":"macos-15-intel","arch":"x64"},{"platform":"Windows","runner":"windows-latest","arch":"x64"},{"platform":"Linux","runner":"ubuntu-22.04","arch":"x64"}]') }}
     steps:
       - uses: actions/checkout@v5
       - uses: oven-sh/setup-bun@v2
       - uses: dtolnay/rust-toolchain@stable
+        if: inputs.fixture_run == ''
 
       - name: Cache Windows dependencies
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && inputs.fixture_run == ''
         uses: actions/cache@v5
         with:
           path: ~\AppData\Local\bun\install\cache
           key: ${{ runner.os }}-${{ matrix.arch }}-bun-${{ hashFiles('bun.lock') }}
 
       - name: Cache Windows Electron downloads
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && inputs.fixture_run == ''
         uses: actions/cache@v5
         with:
           path: |
@@ -43,6 +53,7 @@ jobs:
           key: ${{ runner.os }}-${{ matrix.arch }}-electron-${{ hashFiles('bun.lock', 'apps/desktop/package.json') }}
 
       - name: Cache Rust dependencies
+        if: inputs.fixture_run == ''
         uses: actions/cache@v5
         with:
           path: |
@@ -60,7 +71,7 @@ jobs:
           sudo apt-get install --yes libfuse2 xvfb
 
       - name: Import macOS signing identity
-        if: runner.os == 'macOS'
+        if: runner.os == 'macOS' && inputs.fixture_run == ''
         env:
           MAC_CERTIFICATE_DER_BASE64: ${{ secrets.EDGEEVER_MAC_CERTIFICATE_DER_BASE64 }}
           MAC_PRIVATE_KEY_BASE64: ${{ secrets.EDGEEVER_MAC_PRIVATE_KEY_BASE64 }}
@@ -86,9 +97,11 @@ jobs:
           echo "CSC_IDENTITY_AUTO_DISCOVERY=true" >> "$GITHUB_ENV"
 
       - name: Install dependencies
+        if: inputs.fixture_run == ''
         run: bun install --frozen-lockfile
 
       - name: Build renderer and sidecar
+        if: inputs.fixture_run == ''
         env:
           EDGE_EVER_DESKTOP_BUILD: '1'
         run: |
@@ -96,9 +109,36 @@ jobs:
           cargo build --manifest-path crates/desktop-sidecar/Cargo.toml --release
 
       - name: Build three isolated instrumented EdgeEver installers
+        if: inputs.fixture_run == ''
         env:
           EDGE_EVER_DESKTOP_ARCH: ${{ matrix.arch }}
         run: node scripts/build-native-update-fixtures.mjs
+
+      - name: Retain signed test installers for verification reruns
+        if: inputs.fixture_run == ''
+        uses: actions/upload-artifact@v6
+        with:
+          name: native-update-installers-${{ matrix.platform }}-${{ matrix.arch }}
+          path: |
+            ${{ runner.temp }}/edgeever-update-verification/versions.json
+            ${{ runner.temp }}/edgeever-update-verification/public-key.pem
+            ${{ runner.temp }}/edgeever-update-verification/*/EdgeEver-*.zip
+            ${{ runner.temp }}/edgeever-update-verification/*/EdgeEver-*.exe
+            ${{ runner.temp }}/edgeever-update-verification/*/EdgeEver-*.AppImage
+            ${{ runner.temp }}/edgeever-update-verification/*/latest*
+            ${{ runner.temp }}/edgeever-update-verification/*/payload.sha256
+          retention-days: 7
+          compression-level: 0
+          if-no-files-found: error
+
+      - name: Download previously signed test installers
+        if: inputs.fixture_run != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FIXTURE_RUN: ${{ inputs.fixture_run }}
+          ARTIFACT_NAME: native-update-installers-${{ matrix.platform }}-${{ matrix.arch }}
+        shell: bash
+        run: gh run download "$FIXTURE_RUN" --repo "$GITHUB_REPOSITORY" --name "$ARTIFACT_NAME" --dir "$RUNNER_TEMP/edgeever-update-verification"
 
       - name: Exercise real native updates
         if: runner.os != 'Linux'

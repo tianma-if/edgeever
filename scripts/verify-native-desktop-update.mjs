@@ -73,7 +73,10 @@ const installBaseline = async (directory) => {
   if (process.platform === "darwin") {
     const unpack = spawnSync("ditto", ["-x", "-k", join(root, oldVersion, packageName(oldVersion)), installed], { encoding: "utf8" });
     if (unpack.status !== 0) throw new Error(unpack.stderr);
-    return join(installed, "EdgeEver Update Verification.app/Contents/MacOS/EdgeEverUpdateVerifier");
+    const bundle = join(installed, "EdgeEver Update Verification.app");
+    const metadata = spawnSync("/usr/libexec/PlistBuddy", ["-c", "Print :CFBundleExecutable", join(bundle, "Contents/Info.plist")], { encoding: "utf8" });
+    if (metadata.status !== 0) throw new Error("Cannot read the signed fixture's CFBundleExecutable");
+    return join(bundle, "Contents/MacOS", metadata.stdout.trim());
   }
   if (process.platform === "win32") {
     stopWindowsUpdateFixtures();
@@ -131,6 +134,7 @@ try {
     }));
     const executable = await installBaseline(directory);
     const launch = () => {
+      if (!existsSync(executable)) throw new Error(`Installed fixture executable missing: ${executable}`);
       const child = spawn(executable, [], { env, stdio: ["ignore", "pipe", "pipe"] });
       child.on("error", (error) => appendFileSync(join(directory, "process.log"), `${error.stack}\n`));
       child.stdout.on("data", (data) => appendFileSync(join(directory, "process.log"), data));
@@ -175,7 +179,8 @@ try {
           : join(root, latestVersion, packageName(latestVersion));
         const installedPayload = process.platform === "darwin" ? join(dirname(executable), "../Resources/app.asar")
           : process.platform === "win32" ? join(dirname(executable), "resources/app.asar") : executable;
-        const expectedDigest = digest(expected);
+        const recordedDigest = join(root, latestVersion, "payload.sha256");
+        const expectedDigest = existsSync(recordedDigest) ? readFileSync(recordedDigest, "utf8").trim() : digest(expected);
         await until(() => {
           try { return digest(installedPayload) === expectedDigest; } catch { return false; }
         }, "native installation replaces the actual installed payload", 240_000);

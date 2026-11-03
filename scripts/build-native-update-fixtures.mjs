@@ -1,5 +1,5 @@
 import { createRequire } from "node:module";
-import { generateKeyPairSync } from "node:crypto";
+import { generateKeyPairSync, createHash } from "node:crypto";
 import { readFileSync, writeFileSync, mkdirSync, copyFileSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -56,6 +56,11 @@ try {
     writeFileSync(configPath, JSON.stringify(config));
     const target = process.platform === "darwin" ? ["--mac", "zip"] : process.platform === "win32" ? ["--win", "nsis"] : ["--linux", "AppImage"];
     run(process.execPath, [builderCli, "--projectDir", desktop, "--config", configPath, "--publish", "never", ...target, `--${process.arch}`], desktop);
+    const payload = process.platform === "darwin"
+      ? join(directory, process.arch === "arm64" ? "mac-arm64" : "mac", "EdgeEver Update Verification.app/Contents/Resources/app.asar")
+      : process.platform === "win32" ? join(directory, "win-unpacked/resources/app.asar")
+      : join(directory, `EdgeEver-${version}-linux-x64.AppImage`);
+    writeFileSync(join(directory, "payload.sha256"), createHash("sha256").update(readFileSync(payload)).digest("hex"));
     if (process.platform === "win32") {
       await createWindowsUpdateMetadata({ directory, version });
       signWindowsUpdateManifest({

@@ -34,7 +34,8 @@ test("the installer workflow is official-only, manual, and never publishes asset
   expect(workflow).not.toContain("contents: write");
   expect(workflow).not.toContain("release_tag");
   const matrices = [...workflow.matchAll(/'(\[\{.*?\}\])'/g)].map((match) => JSON.parse(match[1]));
-  expect(matrices).toHaveLength(2);
+  expect(matrices).toHaveLength(3);
   expect(matrices[0].map((entry) => entry.runner)).toEqual(["windows-latest"]);
-  expect(matrices[1].map((entry) => entry.runner)).toEqual(["macos-15", "macos-15-intel", "windows-latest", "ubuntu-22.04"]);
+  expect(matrices[1].map((entry) => entry.runner)).toEqual(["macos-15", "macos-15-intel"]);
+  expect(matrices[2].map((entry) => entry.runner)).toEqual(["macos-15", "macos-15-intel", "windows-latest", "ubuntu-22.04"]);
 });
