@@ -1253,6 +1253,13 @@ describe("web repository note reads and writes", () => {
       const repository = createWebRepository(SCOPE);
       expect((await repository.getMemo(memo.id, true)).memo.contentMarkdown).toBe("Trashed");
       expect((await repository.getMemo(memo.id)).memo.title).toBe("Server copy");
+      // The server copy is cached in the background; let that write finish so
+      // it cannot land after the mirror is cleared for the next test.
+      const cachedTitle = async () => (await localDb.memos.toArray()).find((item) => item.id === memo.id)?.title;
+      for (let attempt = 0; attempt < 50 && (await cachedTitle()) !== "Server copy"; attempt += 1) {
+        await tick(5);
+      }
+      expect(await cachedTitle()).toBe("Server copy");
     } finally {
       restoreApi();
       restoreNetwork();

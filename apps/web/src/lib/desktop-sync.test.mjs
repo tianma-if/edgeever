@@ -1,4 +1,16 @@
-import { describe, expect, test } from "bun:test";
+import { afterAll, describe, expect, test } from "bun:test";
+
+// Dexie binds indexedDB when local-db is first imported, so install the fake
+// before any test can load it, whatever the test order.
+const { IDBKeyRange: FakeIDBKeyRange, indexedDB: fakeIndexedDB } = await import("fake-indexeddb");
+const previousIndexedDB = globalThis.indexedDB;
+const previousIDBKeyRange = globalThis.IDBKeyRange;
+globalThis.indexedDB = fakeIndexedDB;
+globalThis.IDBKeyRange = FakeIDBKeyRange;
+afterAll(() => {
+  globalThis.indexedDB = previousIndexedDB;
+  globalThis.IDBKeyRange = previousIDBKeyRange;
+});
 
 const {
   classifyDesktopSyncFailure,
@@ -986,9 +998,6 @@ describe("desktop staged resource upload", () => {
   test("uploads a saved staged image, rewrites the queued draft and removes the staged copy", async () => {
     const uploads = [];
     const updates = [];
-    const { IDBKeyRange, indexedDB } = await import("fake-indexeddb");
-    globalThis.indexedDB = indexedDB;
-    globalThis.IDBKeyRange = IDBKeyRange;
     await runWithDesktopSidecar({
       staged: [stagedImage, { id: "stage-unsaved", memoId: "memo-1", name: "draft.png", type: "image/png", size: 3 }],
       queue: [{ id: 1, version: 1, kind: "memo.update", entityId: "memo-1", payload: { memoId: "memo-1", expectedRevision: 2, expectedContentHash: "cloud-2", title: "", tags: [], contentMarkdown: `![shot](${stagedUrl})`, contentJson: { type: "doc", content: [{ type: "image", attrs: { src: stagedUrl } }] } } }],

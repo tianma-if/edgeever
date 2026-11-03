@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
+import { afterAll, beforeEach, describe, expect, test } from "bun:test";
 import { parseHTML } from "linkedom";
 
 // createNoteImage drives html-to-image, the font loader and a canvas. The
@@ -182,12 +182,13 @@ afterAll(() => {
   URL.revokeObjectURL = originalRevokeObjectURL;
 });
 
+// The module caches the canvas size probe and serializes renders, so each test
+// gets a fresh instance and a default probe where only 65,535px fails.
 let mod;
-beforeAll(async () => {
-  mod = await import("./note-image-export.ts");
-});
-
-beforeEach(() => {
+let moduleInstance = 0;
+beforeEach(async () => {
+  mod = await import(`./note-image-export.ts?instance=${++moduleInstance}`);
+  probe = { nullContextHeights: new Set([65_535]), failingHeights: new Set() };
   canvasLog.length = 0;
   toBlobResults = [];
   onToBlob = () => {};
@@ -219,7 +220,6 @@ const expectAbortError = async (promise) => {
   expect(caught?.message).toBe("Image export cancelled");
 };
 
-// Tests run in order; the first one runs before the canvas size probe is cached.
 describe("createNoteImage", () => {
   test("renders a PNG at twice the card width when every canvas size probe fails", async () => {
     probe = { nullContextHeights: new Set(), failingHeights: new Set([65_535, 32_767, 16_384, 8_192, 4_096]) };
@@ -284,7 +284,7 @@ describe("createNoteImage", () => {
     toBlobResults = ["empty", "ok"];
     const result = await mod.createNoteImage(baseOptions);
 
-    // First attempt uses the cached 32,767px probe result, the retry caps at 16,384px and 16 MP.
+    // First attempt uses the 32,767px probe result, the retry caps at 16,384px and 16 MP.
     expect(canvasLog.map(({ result: outcome }) => outcome)).toEqual(["empty", "ok"]);
     expect(canvasLog[0].height).toBeCloseTo(32_767, 6);
     expect(canvasLog[1].height).toBeCloseTo(16_384, 6);
