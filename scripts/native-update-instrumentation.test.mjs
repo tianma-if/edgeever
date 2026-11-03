@@ -2,6 +2,7 @@ import { readFileSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
+import { Script, runInNewContext } from "node:vm";
 import { expect, test } from "bun:test";
 import { instrumentNativeUpdateMain } from "./native-update-instrumentation.mjs";
 
@@ -38,4 +39,19 @@ test("the installer workflow is official-only, manual, and never publishes asset
   expect(matrices[0].map((entry) => entry.runner)).toEqual(["windows-latest"]);
   expect(matrices[1].map((entry) => entry.runner)).toEqual(["macos-15", "macos-15-intel"]);
   expect(matrices[2].map((entry) => entry.runner)).toEqual(["macos-15", "macos-15-intel", "windows-latest", "ubuntu-22.04"]);
+});
+
+// This JavaScript is sent to a paused real application, so template escaping
+// must be checked independently of the outer verifier script's syntax.
+test("official bridge debugger bootstrap compiles for old/new and Windows paths", () => {
+  const source = readFileSync(new URL("./verify-native-release-bridge.mjs", import.meta.url), "utf8");
+  const start = source.indexOf("  const expression = `");
+  const end = source.indexOf('  const evaluated = await send("Runtime.evaluate"', start);
+  expect(start).toBeGreaterThan(0);
+  expect(end).toBeGreaterThan(start);
+  for (const update of [false, true]) {
+    const context = { profile: "D:\\a\\_temp\\profile", evidence: "D:\\a\\_temp\\evidence", update, version: "2.18.0", feed: "http://127.0.0.1:1234/", join, console: { log() {} } };
+    const expression = runInNewContext(`${source.slice(start, end)}; expression`, context);
+    expect(() => new Script(expression)).not.toThrow();
+  }
 });
