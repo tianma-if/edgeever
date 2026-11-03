@@ -317,3 +317,365 @@ describe("desktop Markdown note creation", () => {
     expect(lastRequest.params.contentText).toBe("**literal**");
   });
 });
+
+const { cancelPendingDesktopImportMemo } = await import("./desktop-repository.ts");
+
+// Routes sidecar RPCs to `handlers` and records every call and dispatched event.
+const withSidecar = async (handlers, run, { online = true, bridge = {} } = {}) => {
+  const { api } = await import("./api.ts");
+  const desktop = window.edgeeverDesktop;
+  const original = { ...desktop };
+  const dispatchEvent = window.dispatchEvent;
+  const onLine = Object.getOwnPropertyDescriptor(globalThis.navigator, "onLine");
+  Object.defineProperty(globalThis.navigator, "onLine", { configurable: true, value: online });
+  const calls = [];
+  const events = [];
+  const apiOriginals = {};
+  const stubApi = (overrides) => {
+    for (const [key, value] of Object.entries(overrides)) {
+      if (!(key in apiOriginals)) apiOriginals[key] = api[key];
+      api[key] = value;
+    }
+  };
+  window.dispatchEvent = (event) => { events.push(event.type); return true; };
+  Object.assign(desktop, bridge, {
+    sidecarRequest: async (method, params) => {
+      calls.push({ method, params });
+      const handler = handlers[method];
+      if (!handler) throw new Error(`Unexpected sidecar method: ${method}`);
+      return handler(params);
+    },
+  });
+  try {
+    await run({ calls, events, stubApi });
+  } finally {
+    for (const key of Object.keys(desktop)) if (!(key in original)) delete desktop[key];
+    Object.assign(desktop, original);
+    Object.assign(api, apiOriginals);
+    window.dispatchEvent = dispatchEvent;
+    if (onLine) Object.defineProperty(globalThis.navigator, "onLine", onLine);
+    else delete globalThis.navigator.onLine;
+  }
+};
+
+const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+const emptySummary = { totalCount: 0, totalBytes: 0, imageCount: 0, attachmentCount: 0 };
+const desktopResource = (id, overrides = {}) => ({
+  id, memoId: "memo-1", kind: "attachment", filename: `${id}.txt`, byteSize: 3, url: `/api/v1/resources/${id}/blob`, ...overrides,
+});
+const desktopTemplate = (id, overrides = {}) => ({
+  id, name: id, description: null, title: `${id} title`, contentJson: { type: "doc", content: [] }, contentMarkdown: "**Body**", tags: ["t"],
+  createdAt: "2026-01-01", updatedAt: "2026-01-01", ...overrides,
+});
+
+describe("desktop repository bridge", () => {
+  test("rejects every request when the desktop bridge is unavailable", async () => {
+    window.edgeeverDesktop.isAvailable = false;
+    try {
+      await expect(createDesktopRepository().listNotebooks()).rejects.toThrow("EdgeEver desktop bridge is unavailable");
+    } finally {
+      window.edgeeverDesktop.isAvailable = true;
+    }
+  });
+
+  test("announces queue changes after every local mutation", async () => {
+    const ok = () => ({ ok: true });
+    const handlers = Object.fromEntries([
+      "notebook.create", "notebook.update", "notebook.delete", "notebook.restore", "template.create", "template.update", "template.delete",
+      "tag.rename", "tag.delete", "memo.moveBatch", "memo.deleteBatch", "memo.emptyTrash", "memo.pinBatch", "memo.delete",
+    ].map((method) => [method, ok]));
+    handlers["memo.restore"] = () => ({ memo: { id: "memo-1" } });
+    await withSidecar(handlers, async ({ calls, events }) => {
+      const repository = createDesktopRepository();
+      await repository.createNotebook({ name: "A" });
+      await repository.updateNotebook("nb-1", { name: "B" });
+      await repository.deleteNotebook("nb-1");
+      await repository.restoreNotebook("nb-1");
+      await repository.createTemplate({ name: "T" });
+      await repository.updateTemplate("tpl-1", { name: "U" });
+      await repository.deleteTemplate("tpl-1");
+      await repository.renameTag("a", "b");
+      await repository.deleteTag("b");
+      await repository.moveMemos({ memoIds: ["m"], notebookId: "nb-2" });
+      await repository.deleteMemos({ memoIds: ["m"] });
+      await repository.emptyTrash();
+      await repository.pinMemos({ memoIds: ["m"], isPinned: true });
+      await repository.deleteMemo("memo-1");
+      expect(await repository.restoreMemo("memo-1")).toEqual({ memo: { id: "memo-1" }, queued: true });
+      expect(events).toHaveLength(15);
+      expect(new Set(events)).toEqual(new Set(["edgeever:sync-queue-changed"]));
+      expect(calls.find((call) => call.method === "notebook.update").params).toEqual({ notebookId: "nb-1", name: "B" });
+      expect(calls.find((call) => call.method === "template.update").params).toEqual({ templateId: "tpl-1", name: "U" });
+      expect(calls.find((call) => call.method === "memo.delete").params).toEqual({ memoId: "memo-1", permanent: false });
+    });
+  });
+
+  test("cancels a pending import by permanently deleting its queued create", async () => {
+    await withSidecar({ "memo.delete": () => ({ ok: true }) }, async ({ calls, events }) => {
+      expect(await cancelPendingDesktopImportMemo("memo-import")).toEqual({ ok: true });
+      expect(calls).toEqual([{ method: "memo.delete", params: { memoId: "memo-import", permanent: true, cancelPendingCreate: true } }]);
+      expect(events).toEqual(["edgeever:sync-queue-changed"]);
+    });
+  });
+});
+
+describe("desktop repository templates", () => {
+  test("returns cached templates and refreshes the cache in the background", async () => {
+    const cached = [];
+    await withSidecar({
+      "template.list": () => ({ templates: [desktopTemplate("tpl-local")] }),
+      "template.cache": ({ template }) => { cached.push(template.id); return { ok: true }; },
+    }, async ({ stubApi }) => {
+      stubApi({ listTemplates: async () => ({ templates: [desktopTemplate("tpl-remote")] }) });
+      expect((await createDesktopRepository().listTemplates()).templates.map((template) => template.id)).toEqual(["tpl-local"]);
+      await settle();
+      expect(cached).toEqual(["tpl-remote"]);
+    });
+  });
+
+  test("keeps cached templates when the background refresh fails", async () => {
+    await withSidecar({ "template.list": () => ({ templates: [desktopTemplate("tpl-local")] }) }, async ({ stubApi }) => {
+      stubApi({ listTemplates: async () => { throw new Error("network down"); } });
+      expect((await createDesktopRepository().listTemplates()).templates).toHaveLength(1);
+      await settle();
+    });
+  });
+
+  test("returns the empty cache offline without contacting the server", async () => {
+    await withSidecar({ "template.list": () => ({ templates: [] }) }, async ({ stubApi }) => {
+      stubApi({ listTemplates: async () => { throw new Error("must not call the server"); } });
+      expect(await createDesktopRepository().listTemplates()).toEqual({ templates: [] });
+    }, { online: false });
+  });
+
+  test("fills an empty cache from the server when online", async () => {
+    const cached = [];
+    await withSidecar({
+      "template.list": () => ({ templates: [] }),
+      "template.cache": ({ template }) => { cached.push(template.id); return { ok: true }; },
+    }, async ({ stubApi }) => {
+      stubApi({ listTemplates: async () => ({ templates: [desktopTemplate("tpl-a"), desktopTemplate("tpl-b")] }) });
+      expect((await createDesktopRepository().listTemplates()).templates.map((template) => template.id)).toEqual(["tpl-a", "tpl-b"]);
+      expect(cached).toEqual(["tpl-a", "tpl-b"]);
+    });
+  });
+
+  test("creates a note from a cached template and rejects an unknown template", async () => {
+    await withSidecar({
+      "template.list": () => ({ templates: [desktopTemplate("tpl-1")] }),
+      "memo.create": (params) => ({ memo: { id: "memo-new", ...params } }),
+    }, async ({ calls, stubApi }) => {
+      stubApi({ listTemplates: async () => ({ templates: [] }) });
+      const repository = createDesktopRepository();
+      const { memo } = await repository.useTemplate("tpl-1", "nb-1");
+      expect(memo).toMatchObject({ notebookId: "nb-1", title: "tpl-1 title", contentMarkdown: "**Body**", tags: ["t"], contentText: "Body" });
+      await expect(repository.useTemplate("tpl-missing", "nb-1")).rejects.toThrow("Template not found: tpl-missing");
+      expect(calls.filter((call) => call.method === "memo.create")).toHaveLength(1);
+    });
+  });
+});
+
+describe("desktop repository resources", () => {
+  test("caches uploaded resources in the sidecar and serves them through the desktop protocol", async () => {
+    await withSidecar({ "resource.cache": () => ({ ok: true }) }, async ({ calls, stubApi }) => {
+      stubApi({ uploadMemoResource: async () => ({ resource: desktopResource("res-up") }) });
+      const { resource } = await createDesktopRepository().uploadMemoResource("memo-1", new File(["abc"], "a.txt"));
+      expect(resource.url).toBe("edgeever-resource://resource/res-up");
+      expect(calls).toEqual([{ method: "resource.cache", params: { resource: desktopResource("res-up") } }]);
+    });
+  });
+
+  test("reads resource bytes from the escaped blob endpoint", async () => {
+    await withSidecar({}, async ({ stubApi }) => {
+      const urls = [];
+      stubApi({ getResourceResponse: async (url, init) => { urls.push([url, init]); return new Response("bytes"); } });
+      expect(await (await createDesktopRepository().readResource("res/1")).text()).toBe("bytes");
+      expect(urls).toEqual([["/api/v1/resources/res%2F1/blob", { cache: "no-store" }]]);
+    });
+  });
+
+  test("replaces the cached resource after updating its contents", async () => {
+    await withSidecar({ "resource.delete": () => ({ ok: true }), "resource.cache": () => ({ ok: true }) }, async ({ calls, stubApi }) => {
+      stubApi({ updateResourceContent: async (id) => ({ resource: desktopResource(id, { byteSize: 9 }) }) });
+      const { resource } = await createDesktopRepository().updateResource("res-1", new File(["x"], "a.txt"), "hash");
+      expect(resource.url).toBe("edgeever-resource://resource/res-1");
+      expect(calls.map((call) => call.method)).toEqual(["resource.delete", "resource.cache"]);
+    });
+  });
+
+  test("does not touch the sidecar cache when the server update fails", async () => {
+    await withSidecar({}, async ({ calls, stubApi }) => {
+      stubApi({ updateResourceContent: async () => { throw new Error("hash mismatch"); } });
+      await expect(createDesktopRepository().updateResource("res-1", new File(["x"], "a.txt"), "stale")).rejects.toThrow("hash mismatch");
+      expect(calls).toEqual([]);
+    });
+  });
+
+  test("lists cached resources with staged uploads first and summed totals", async () => {
+    let refreshes = 0;
+    await withSidecar({
+      "resource.list": () => ({ resources: [desktopResource("res-1"), desktopResource("res-abs", { url: "https://cdn.example.com/res-abs" })], summary: { totalCount: 2, totalBytes: 6, imageCount: 0, attachmentCount: 2 } }),
+      "resource.cache": () => ({ ok: true }),
+    }, async ({ stubApi }) => {
+      stubApi({ listResources: async () => { refreshes += 1; return { resources: [desktopResource("res-1")], summary: emptySummary }; } });
+      const result = await createDesktopRepository().listResources();
+      expect(result.resources.map((resource) => resource.url)).toEqual([
+        "edgeever-staged://stage-1",
+        "edgeever-resource://resource/res-1",
+        "https://cdn.example.com/res-abs",
+      ]);
+      expect(result.summary).toEqual({ totalCount: 3, totalBytes: 16, imageCount: 1, attachmentCount: 2 });
+      await settle();
+      expect(refreshes).toBe(1);
+    }, { bridge: { apiBaseUrl: "https://notes.example.com/", listStagedResources: async () => [{ id: "stage-1", memoId: "memo-1", name: "shot.png", type: "image/png", size: 10 }] } });
+  });
+
+  test("returns the empty cache offline and fills it from the server online", async () => {
+    await withSidecar({ "resource.list": () => ({ resources: [], summary: emptySummary }) }, async ({ stubApi }) => {
+      stubApi({ listResources: async () => { throw new Error("must not call the server"); } });
+      expect(await createDesktopRepository().listResources()).toEqual({ resources: [], summary: emptySummary });
+    }, { online: false });
+
+    const cached = [];
+    await withSidecar({
+      "resource.list": () => ({ resources: [], summary: emptySummary }),
+      "resource.cache": ({ resource }) => { cached.push(resource.id); return { ok: true }; },
+    }, async ({ stubApi }) => {
+      stubApi({ listResources: async () => ({ resources: [desktopResource("res-2")], summary: { ...emptySummary, totalCount: 1 } }) });
+      const result = await createDesktopRepository().listResources();
+      expect(result.resources.map((resource) => resource.url)).toEqual(["edgeever-resource://resource/res-2"]);
+      expect(cached).toEqual(["res-2"]);
+    });
+  });
+
+  test("surfaces a server failure on an empty cache unless staged uploads can still be shown", async () => {
+    await withSidecar({ "resource.list": () => ({ resources: [], summary: emptySummary }) }, async ({ stubApi }) => {
+      stubApi({ listResources: async () => { throw new Error("network down"); } });
+      await expect(createDesktopRepository().listResources()).rejects.toThrow("network down");
+    });
+  });
+
+  test("renames and deletes resources on the server before updating the sidecar cache", async () => {
+    await withSidecar({ "resource.cache": () => ({ ok: true }), "resource.delete": () => ({ ok: true }) }, async ({ calls, stubApi }) => {
+      stubApi({
+        renameResource: async (id, filename) => ({ resource: desktopResource(id, { filename }) }),
+        deleteResource: async () => ({ ok: true }),
+      });
+      const repository = createDesktopRepository();
+      const renamed = await repository.renameResource("res-1", "new.txt");
+      expect(renamed.resource).toMatchObject({ filename: "new.txt", url: "edgeever-resource://resource/res-1" });
+      expect(await repository.deleteResource("res-1")).toEqual({ ok: true });
+      expect(calls.map((call) => call.method)).toEqual(["resource.cache", "resource.delete"]);
+    });
+  });
+
+  test("keeps the sidecar cache when the server delete fails", async () => {
+    await withSidecar({}, async ({ calls, stubApi }) => {
+      stubApi({ deleteResource: async () => { throw new Error("forbidden"); } });
+      await expect(createDesktopRepository().deleteResource("res-1")).rejects.toThrow("forbidden");
+      expect(calls).toEqual([]);
+    });
+  });
+});
+
+describe("desktop repository notes", () => {
+  test("lists tags from the sidecar", async () => {
+    await withSidecar({ "tag.list": () => ({ tags: [{ name: "a", memoCount: 1, updatedAt: null }] }) }, async () => {
+      expect((await createDesktopRepository().listTags()).tags[0].name).toBe("a");
+    });
+  });
+
+  test("merges notes in the sidecar and shows resource links through the desktop protocol", async () => {
+    await withSidecar({
+      "memo.merge": () => ({ memo: { id: "memo-merged", contentJson: { type: "doc", content: [{ type: "image", attrs: { src: "/api/v1/resources/res-1/blob" } }] }, contentMarkdown: "![a](/api/v1/resources/res-1/blob)" } }),
+    }, async ({ events }) => {
+      const { memo } = await createDesktopRepository().mergeMemos({ memoIds: ["a", "b"] });
+      expect(memo.contentJson.content[0].attrs.src).toBe("edgeever-resource://resource/res-1");
+      expect(memo.contentMarkdown).toBe("![a](edgeever-resource://resource/res-1)");
+      expect(events).toEqual(["edgeever:sync-queue-changed"]);
+    });
+  });
+
+  test("refuses to duplicate a note offline", async () => {
+    await withSidecar({}, async ({ calls }) => {
+      await expect(createDesktopRepository().duplicateMemo("memo-1")).rejects.toThrow("memo_duplicate_offline");
+      expect(calls).toEqual([]);
+    }, { online: false });
+  });
+
+  test("passes the guarded-save error through when it is neither a conflict nor an old host", async () => {
+    const memo = { id: "guarded", revision: 2, contentHash: "base", title: "Title", tags: [], contentMarkdown: "Original", contentJson: { type: "doc", content: [] } };
+    await withSidecar({ "memo.updateGuarded": () => { throw "disk full"; } }, async () => {
+      const error = await createDesktopRepository().updateMemo(memo, { title: "Title", contentJson: memo.contentJson, tags: [] }, { guardLocalSnapshot: true }).catch((caught) => caught);
+      expect(error).toBe("disk full");
+    });
+  });
+
+  test("adopts the cloud copy by acknowledging the update conflict and discarding other conflicts of the note", async () => {
+    await withSidecar({
+      "sync.apply": () => ({ ok: true }),
+      "sync.outbox.list": () => ({ items: [
+        { id: 1, kind: "memo.update", entityId: "memo-1", status: "conflict", version: 3 },
+        { id: 2, kind: "memo.delete", entityId: "memo-1", status: "conflict", version: 1 },
+        { id: 3, kind: "memo.update", entityId: "memo-1", status: "pending", version: 4 },
+        { id: 4, kind: "memo.update", entityId: "memo-other", status: "conflict", version: 1 },
+      ] }),
+      "sync.outbox.ack": () => ({ ok: true }),
+      "sync.outbox.discard": () => ({ ok: true }),
+    }, async ({ calls, events, stubApi }) => {
+      const cloud = { id: "memo-1", title: "Cloud", contentJson: { type: "doc", content: [] }, contentMarkdown: "Cloud" };
+      stubApi({ getMemo: async () => ({ memo: cloud }) });
+      const { memo } = await createDesktopRepository().adoptCloudMemo("memo-1");
+      expect(memo.title).toBe("Cloud");
+      expect(calls.map((call) => call.method)).toEqual(["sync.apply", "sync.outbox.list", "sync.outbox.ack", "sync.outbox.discard"]);
+      expect(calls[2].params).toEqual({ id: 1, version: 3, remoteMemo: cloud });
+      expect(calls[3].params).toEqual({ id: 2 });
+      expect(events).toEqual(["edgeever:sync-queue-changed"]);
+    });
+  });
+
+  test("returns cached revisions offline and caches server revisions online", async () => {
+    const local = { revisions: [{ id: "rev-local" }] };
+    await withSidecar({ "memo.revisions": () => local }, async ({ stubApi }) => {
+      stubApi({ listMemoRevisions: async () => { throw new Error("must not call the server"); } });
+      expect(await createDesktopRepository().listMemoRevisions("memo-1")).toBe(local);
+    }, { online: false });
+
+    const cached = [];
+    await withSidecar({
+      "memo.revisions": () => local,
+      "memo.revision.cache": ({ revision }) => { cached.push(revision.id); return { ok: true }; },
+    }, async ({ stubApi }) => {
+      stubApi({ listMemoRevisions: async () => ({ revisions: [{ id: "rev-remote" }] }) });
+      expect((await createDesktopRepository().listMemoRevisions("memo-1")).revisions).toEqual([{ id: "rev-remote" }]);
+      expect(cached).toEqual(["rev-remote"]);
+    });
+  });
+
+  test("falls back to cached revisions on a server failure and reports it when none are cached", async () => {
+    const local = { revisions: [{ id: "rev-local" }] };
+    let revisions = local;
+    await withSidecar({ "memo.revisions": () => revisions }, async ({ stubApi }) => {
+      stubApi({ listMemoRevisions: async () => { throw new Error("network down"); } });
+      const repository = createDesktopRepository();
+      expect(await repository.listMemoRevisions("memo-1")).toBe(local);
+      revisions = { revisions: [] };
+      await expect(repository.listMemoRevisions("memo-1")).rejects.toThrow("network down");
+    });
+  });
+
+  test("restores a revision in the sidecar and shows it through the desktop protocol", async () => {
+    await withSidecar({
+      "memo.restoreRevision": () => ({ memo: { id: "memo-1", contentJson: { type: "doc", content: [] }, contentMarkdown: "![x](/api/v1/resources/res-9/blob)" } }),
+    }, async ({ calls, events }) => {
+      const { memo } = await createDesktopRepository().restoreMemoRevision("memo-1", "rev-1");
+      expect(memo.contentMarkdown).toBe("![x](edgeever-resource://resource/res-9)");
+      expect(calls[0].params).toEqual({ memoId: "memo-1", revisionId: "rev-1" });
+      expect(events).toEqual(["edgeever:sync-queue-changed"]);
+    });
+  });
+
+  test("reports a no-op sync because the desktop host synchronizes on its own", async () => {
+    expect(await createDesktopRepository().sync()).toEqual({ bootstrapped: false, changed: 0 });
+  });
+});

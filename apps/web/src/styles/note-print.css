@@ -106,6 +106,7 @@
 }
 
 .edgeever-print-content p {
+  text-align: var(--editor-body-text-align, left);
   margin: 0 0 var(--editor-paragraph-spacing, 8px);
   orphans: 3;
   widows: 3;
@@ -482,4 +483,11 @@
 .edgeever-print-content .edgeever-theme-block__toolbar,
 .edgeever-print-content .edgeever-mermaid-source {
   display: none !important;
+}
+
+.edgeever-print-content {
+  letter-spacing: var(--editor-body-letter-spacing, -0.005em);
+}
+.edgeever-print-content :is(th, td) p {
+  text-align: inherit;
 }

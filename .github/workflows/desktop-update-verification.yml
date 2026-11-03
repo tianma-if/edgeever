@@ -1,0 +1,162 @@
+name: Verify native desktop updates
+
+on:
+  workflow_dispatch:
+    inputs:
+      fixture_run:
+        description: Reuse signed test installers from this verification run (optional)
+        type: string
+        required: false
+      mac_only:
+        description: Rerun only both macOS architectures
+        type: boolean
+        default: false
+      windows_only:
+        description: Rerun only the Windows installer verification
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  native-update:
+    if: github.repository == 'tianma-if/edgeever'
+    name: Native update ${{ matrix.platform }} ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    env:
+      FIXTURE_RUN: ${{ inputs.fixture_run }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(inputs.windows_only && '[{"platform":"Windows","runner":"windows-latest","arch":"x64"}]' || inputs.mac_only && '[{"platform":"macOS","runner":"macos-15","arch":"arm64"},{"platform":"macOS","runner":"macos-15-intel","arch":"x64"}]' || '[{"platform":"macOS","runner":"macos-15","arch":"arm64"},{"platform":"macOS","runner":"macos-15-intel","arch":"x64"},{"platform":"Windows","runner":"windows-latest","arch":"x64"},{"platform":"Linux","runner":"ubuntu-22.04","arch":"x64"}]') }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+      - uses: dtolnay/rust-toolchain@stable
+        if: inputs.fixture_run == ''
+
+      - name: Cache Windows dependencies
+        if: runner.os == 'Windows' && inputs.fixture_run == ''
+        uses: actions/cache@v5
+        with:
+          path: ~\AppData\Local\bun\install\cache
+          key: ${{ runner.os }}-${{ matrix.arch }}-bun-${{ hashFiles('bun.lock') }}
+
+      - name: Cache Windows Electron downloads
+        if: runner.os == 'Windows' && inputs.fixture_run == ''
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~\AppData\Local\electron\Cache
+            ~\AppData\Local\electron-builder\Cache
+          key: ${{ runner.os }}-${{ matrix.arch }}-electron-${{ hashFiles('bun.lock', 'apps/desktop/package.json') }}
+
+      - name: Cache Rust dependencies
+        if: inputs.fixture_run == ''
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            crates/desktop-sidecar/target
+          key: ${{ runner.os }}-${{ matrix.arch }}-rust-${{ hashFiles('crates/desktop-sidecar/Cargo.lock', 'crates/desktop-sidecar/**/*.rs') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.arch }}-rust-
+
+      - name: Install Linux runtime dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes libfuse2 xvfb
+
+      - name: Import macOS signing identity
+        if: runner.os == 'macOS' && inputs.fixture_run == ''
+        env:
+          MAC_CERTIFICATE_DER_BASE64: ${{ secrets.EDGEEVER_MAC_CERTIFICATE_DER_BASE64 }}
+          MAC_PRIVATE_KEY_BASE64: ${{ secrets.EDGEEVER_MAC_PRIVATE_KEY_BASE64 }}
+        run: |
+          test -n "$MAC_CERTIFICATE_DER_BASE64"
+          test -n "$MAC_PRIVATE_KEY_BASE64"
+          keychain_path="$RUNNER_TEMP/edgeever-update-verification.keychain-db"
+          keychain_password="$(openssl rand -hex 32)"
+          certificate_path="$RUNNER_TEMP/update-signing.cer"
+          private_key_path="$RUNNER_TEMP/update-signing.pem"
+          traditional_key_path="$RUNNER_TEMP/update-signing-rsa.pem"
+          printf '%s' "$MAC_CERTIFICATE_DER_BASE64" | base64 -D > "$certificate_path"
+          printf '%s' "$MAC_PRIVATE_KEY_BASE64" | base64 -D > "$private_key_path"
+          openssl rsa -in "$private_key_path" -out "$traditional_key_path"
+          security create-keychain -p "$keychain_password" "$keychain_path"
+          security set-keychain-settings -lut 21600 "$keychain_path"
+          security unlock-keychain -p "$keychain_password" "$keychain_path"
+          security import "$certificate_path" -k "$keychain_path" -f x509 -t cert -T /usr/bin/codesign
+          security import "$traditional_key_path" -k "$keychain_path" -f openssl -t priv -P '' -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$keychain_password" "$keychain_path"
+          security list-keychains -d user -s "$keychain_path" "$HOME/Library/Keychains/login.keychain-db"
+          echo "CSC_KEYCHAIN=$keychain_path" >> "$GITHUB_ENV"
+          echo "CSC_IDENTITY_AUTO_DISCOVERY=true" >> "$GITHUB_ENV"
+
+      - name: Install dependencies
+        if: inputs.fixture_run == ''
+        run: bun install --frozen-lockfile
+
+      - name: Build renderer and sidecar
+        if: inputs.fixture_run == ''
+        env:
+          EDGE_EVER_DESKTOP_BUILD: '1'
+        run: |
+          bun run build:web
+          cargo build --manifest-path crates/desktop-sidecar/Cargo.toml --release
+
+      - name: Build three isolated instrumented EdgeEver installers
+        if: inputs.fixture_run == ''
+        env:
+          EDGE_EVER_DESKTOP_ARCH: ${{ matrix.arch }}
+        run: node scripts/build-native-update-fixtures.mjs
+
+      - name: Retain signed test installers for verification reruns
+        if: inputs.fixture_run == ''
+        uses: actions/upload-artifact@v6
+        with:
+          name: native-update-installers-${{ matrix.platform }}-${{ matrix.arch }}
+          path: |
+            ${{ runner.temp }}/edgeever-update-verification/versions.json
+            ${{ runner.temp }}/edgeever-update-verification/public-key.pem
+            ${{ runner.temp }}/edgeever-update-verification/*/EdgeEver-*.zip
+            ${{ runner.temp }}/edgeever-update-verification/*/EdgeEver-*.exe
+            ${{ runner.temp }}/edgeever-update-verification/*/EdgeEver-*.AppImage
+            ${{ runner.temp }}/edgeever-update-verification/*/latest*
+            ${{ runner.temp }}/edgeever-update-verification/*/payload.sha256
+          retention-days: 7
+          compression-level: 0
+          if-no-files-found: error
+
+      - name: Download previously signed test installers
+        if: inputs.fixture_run != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FIXTURE_RUN: ${{ inputs.fixture_run }}
+          ARTIFACT_NAME: native-update-installers-${{ matrix.platform }}-${{ matrix.arch }}
+        shell: bash
+        run: gh run download "$FIXTURE_RUN" --repo "$GITHUB_REPOSITORY" --name "$ARTIFACT_NAME" --dir "$RUNNER_TEMP/edgeever-update-verification"
+
+      - name: Exercise real native updates
+        timeout-minutes: 10
+        if: runner.os != 'Linux'
+        run: node scripts/verify-native-desktop-update.mjs "${{ runner.temp }}/edgeever-update-verification"
+
+      - name: Exercise real AppImage updates
+        timeout-minutes: 10
+        if: runner.os == 'Linux'
+        run: xvfb-run -a node scripts/verify-native-desktop-update.mjs "$RUNNER_TEMP/edgeever-update-verification"
+
+      - name: Save installation evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: native-update-evidence-${{ matrix.platform }}-${{ matrix.arch }}
+          path: ${{ runner.temp }}/edgeever-update-verification/evidence
+          if-no-files-found: warn
+          retention-days: 14

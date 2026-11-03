@@ -19,11 +19,12 @@ bun run release -- \
   --change-en "Run required release checks in parallel." \
   --change-zh "并行执行发布所需检查。" \
   --change-locale "ja:必要なリリースチェックを並列実行します。" \
-  --change-commit "abcdef1"
+  --change-commit "abcdef1" \
+  --change-issue "123:en"
 ```
 
 多项变化需要按组重复传入 `--change-en`、`--change-zh`、
-`--change-locale ja:` 和 `--change-commit`。App Store 列表含日文，因此必须提供
+`--change-locale ja:`、`--change-commit` 和 `--change-issue`。App Store 列表含日文，因此必须提供
 日文 What’s New。一项变化可以关联多个以逗号分隔的提交：
 
 ```bash
@@ -39,6 +40,30 @@ bun run release -- \
 
 覆盖审计在修改本地或 GitHub 状态之前执行，映射记录在跟踪 Issue 中。
 使用 `--dry-run` 预览提交覆盖、原生端重建计划和 Release 说明。
+
+### 已解决 Issue 的自动收尾
+
+每条变化必须同时传入 `--change-issue "123:en,456:zh"`，声明本次已完整解决的
+同仓库 Issue 及回复语言；英文讨论使用 `en`，中文使用 `zh`，中英混合默认 `en`。
+没有已解决 Issue 时必须显式传入 `--change-issue none`。PR 编号不能用作关闭目标；
+仅相关或部分实现的 Issue 不应列入。脚本不会从任意 `#编号` 推断关闭目标。
+
+`--dry-run` 会核查并显示目标。映射保存在跟踪 Issue 和发布检查点中，Release
+说明自动关联这些 Issue；续跑 Draft 必须使用相同的声明。发布后的桌面、Android
+和 GHCR 阻塞审计全部通过后，脚本先按声明语言回链 Release，再关闭仍处于打开
+状态的目标 Issue。已关闭的 Issue 只补回链，保留原关闭原因。iOS 商店交付、Demo
+及 TCR 等非阻塞任务不影响此收尾条件。
+
+回链失败时不会关闭对应 Issue；其他目标仍会继续处理。部分失败会保留正式
+Release 和未关闭的跟踪 Issue，并输出独立续跑命令：
+
+```bash
+bun run release -- --finish-issues vX.Y.Z
+```
+
+该命令从已保存的计划和成功审计记录恢复，仅处理 Issue，不重新发布或构建资产。
+重复执行不会重复回链；缺少计划、成功审计记录、目标提交不一致或 Release 已恢复
+Draft 时拒绝关闭。可加 `--dry-run` 只查看计划。旧发布没有这些记录时不能使用此入口。
 
 ### 外部贡献者署名
 

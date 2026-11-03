@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, test } from "bun:test";
 
 const mainSource = readFileSync(new URL("./index.mjs", import.meta.url), "utf8");
+const controllerSource = readFileSync(new URL("./desktop-update-controller.mjs", import.meta.url), "utf8");
 const preloadSource = readFileSync(new URL("../preload/index.cjs", import.meta.url), "utf8");
 const noticeSource = readFileSync(new URL("../../../web/src/components/DesktopUpdateNotice.tsx", import.meta.url), "utf8");
 const systemInfoSource = readFileSync(new URL("../../../web/src/components/settings/SystemInfoPanel.tsx", import.meta.url), "utf8");
@@ -17,20 +18,23 @@ describe("desktop update flow", () => {
     expect(systemInfoSource).toContain('t("systemInfo.desktopDownloadLatest")');
   });
 
-  test("downloads updates in the background and relaunches after installation", () => {
-    expect(mainSource).toContain('autoUpdater.autoDownload = process.platform !== "win32"');
-    expect(mainSource).toContain("autoUpdater.autoRunAppAfterInstall = true");
-    expect(mainSource).toContain('autoUpdater.quitAndInstall(process.platform === "win32", true)');
-    expect(mainSource).toContain("result?.downloadPromise");
-    expect(mainSource).toContain("downloadTrustedDesktopUpdate(reason)");
+  test("routes every desktop platform through one update controller", () => {
+    expect(mainSource).toContain("desktopUpdateController = createDesktopUpdateController({");
+    expect(mainSource).toContain("platform: process.platform");
+    expect(mainSource).not.toContain("windowsUpdateController");
+    expect(mainSource).not.toContain('updateState === "downloaded") {');
+    expect(mainSource).toContain("desktopUpdateController.check(reason)");
+    expect(mainSource).toContain("desktopUpdateController?.install(expectedVersion)");
+    expect(mainSource).toContain("desktopUpdateController?.download(reason)");
+    expect(controllerSource).toContain("void download(reason)");
+    expect(controllerSource).toContain("updater.autoRunAppAfterInstall = true");
   });
 
-  test("fails closed around unsigned Windows automatic updates", () => {
-    expect(mainSource).toContain("fetchTrustedWindowsUpdate({");
-    expect(mainSource).toContain("verifyDownloadedWindowsUpdate({");
-    expect(mainSource).toContain('autoUpdater.autoInstallOnAppQuit = process.platform !== "win32"');
-    expect(mainSource).toContain("windowsDownloadedUpdateVerified = true");
-    expect(mainSource).toContain('writeDiagnostic("update.windows-package-blocked"');
+  test("provides Windows trust gates and macOS native installation to the shared controller", () => {
+    expect(mainSource).toContain("fetchTrustedWindowsUpdate({ ...options, fetchImpl: net.fetch })");
+    expect(mainSource).toContain("verifyWindowsPackage: verifyDownloadedWindowsUpdate");
+    expect(mainSource).toContain("nativeUpdater: nativeAutoUpdater");
+    expect(mainSource).toContain("desktopUpdateController?.handleBeforeQuit(event)");
     expect(mainSource).toContain('downloadTrustedDesktopUpdate("manual-download")');
   });
 
@@ -60,8 +64,7 @@ describe("desktop update flow", () => {
     expect(mainSource).toContain('checkForDesktopUpdate("interval", { force: true })');
     expect(mainSource).toContain('powerMonitor.on("resume"');
     expect(mainSource).toContain('checkForDesktopUpdate("activate")');
-    expect(mainSource).toContain("if (updateCheckInFlight) {");
-    expect(mainSource).toContain("return throwOnError ? updateCheckInFlight : updateCheckInFlight.catch(() => null)");
+    expect(controllerSource).toContain("if (checkInFlight) return checkInFlight;");
     expect(mainSource).toContain("clearInterval(updateCheckTimer)");
   });
 
@@ -73,7 +76,7 @@ describe("desktop update flow", () => {
 
   test("pushes update status and shows a native restart prompt after download", () => {
     expect(mainSource).toContain('mainWindow.webContents.send("desktop:update-status-changed"');
-    expect(mainSource).toContain("promptForDownloadedUpdate(downloadedUpdateVersion)");
+    expect(mainSource).toContain("promptForDownloadedUpdate(version)");
     expect(mainSource).toContain("title: copy.updateReadyTitle");
     expect(preloadSource).toContain('ipcRenderer.on("desktop:update-status-changed"');
     expect(noticeSource).toContain("bridge.onUpdateStatus");
@@ -87,7 +90,7 @@ describe("desktop update flow", () => {
     expect(mainSource).not.toContain("holdAutoRestartUpdate");
     expect(mainSource).not.toContain("heldUpdateVersion");
     expect(mainSource).not.toContain("update.held-for-instance");
-    expect(mainSource).toContain("promptForDownloadedUpdate(downloadedUpdateVersion)");
+    expect(mainSource).toContain("promptForDownloadedUpdate(version)");
     expect(systemInfoSource).toContain("clientAheadOfInstanceByPlatform");
     expect(systemInfoSource).toContain("isClientAheadOfInstance");
   });

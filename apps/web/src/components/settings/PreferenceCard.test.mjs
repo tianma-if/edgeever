@@ -108,7 +108,10 @@ describe("settings information architecture", () => {
     const shortcuts = readFileSync(new URL("./ShortcutSettingsItem.tsx", import.meta.url), "utf8");
 
     expect(preferenceCard).toContain('t("settings.groups.interface")');
+    expect(preferenceCard).toContain('t("settings.groups.readingAppearance")');
     expect(preferenceCard).toContain('t("settings.groups.reading")');
+    expect(preferenceCard).toContain('t("settings.groups.readingElements")');
+    expect(preferenceCard.indexOf("editorBodyCssTitle")).toBeLessThan(preferenceCard.indexOf("editorBodyFontTitle"));
     expect(preferenceCard).toContain('t("settings.groups.editing")');
     expect(preferenceCard).not.toContain("ShortcutSettingsItem");
     expect(settingsPane).toContain('t("settings.tabs.shortcuts")');

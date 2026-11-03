@@ -104,7 +104,7 @@ describe("release automation", () => {
     const publication = releaseSource.indexOf('"--draft=false"');
     const iosWait = releaseSource.indexOf('label: "App Store delivery"');
     const restoreDraft = releaseSource.lastIndexOf('"--draft=true"');
-    const issueClose = releaseSource.indexOf('"issue",\n    "close"', publication);
+    const issueClose = releaseSource.indexOf("issues: [{ number: issueNumber", publication);
 
     expect(iosPlan).toBeGreaterThan(0);
     expect(iosDispatch).toBeGreaterThan(iosPlan);
@@ -309,6 +309,7 @@ describe("release automation", () => {
         "ja-JP:チェックを並列実行します。",
         "--change-commit",
         "abc1234",
+        "--change-issue", "none",
       ]),
     ).toMatchObject({
       issueTitle: "Improve release flow",
@@ -330,6 +331,7 @@ describe("release automation", () => {
       "--change-zh", "更新发布流程。",
       "--change-locale", "ja:リリースフローを更新します。",
       "--change-commit", "abc1234",
+      "--change-issue", "none",
     ])).toMatchObject({ installDesktop: false });
     expect(parseReleaseArgs([
       "--issue-title", "Release",
@@ -339,6 +341,7 @@ describe("release automation", () => {
       "--change-zh", "更新发布流程。",
       "--change-locale", "ja:リリースフローを更新します。",
       "--change-commit", "abc1234",
+      "--change-issue", "none",
       "--install-desktop",
     ])).toMatchObject({ installDesktop: true });
   });
@@ -352,6 +355,7 @@ describe("release automation", () => {
       "--change-zh", "更新发布流程。",
       "--change-locale", "ja:リリースフローを更新します。",
       "--change-commit", "abc1234",
+      "--change-issue", "none",
     ];
     expect(parseReleaseArgs(args).contributors).toEqual([]);
     expect(parseReleaseArgs([
@@ -383,6 +387,7 @@ describe("release automation", () => {
         "修复问题。",
         "--change-commit",
         "abc1234",
+        "--change-issue", "none",
       ]),
     ).toThrow("--change-locale ja is required");
   });
@@ -505,6 +510,7 @@ describe("release automation", () => {
         "修复问题。",
         "--change-commit",
         "abc1234",
+        "--change-issue", "none",
       ])
     ).toThrow("--bump must be patch, minor, or major");
   });

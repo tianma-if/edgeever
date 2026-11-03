@@ -1,3 +1,4 @@
+import { autoUpdate } from "@floating-ui/react-dom";
 import { AI_ASSISTANT_LAUNCHER_POSITION } from "@/lib/ai-assistant-launcher";
 import { editorClipboardTextSerializer } from "@/lib/editor-clipboard";
 import { useRef, useState, useEffect, useLayoutEffect, useCallback, useMemo, lazy, Suspense, type CSSProperties, type FocusEvent as ReactFocusEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
@@ -141,6 +142,7 @@ import {
   docToMarkdown,
   MEMO_CONTENT_STYLE,
   noteProseCssVariables,
+  noteProseStyleCssVariables,
   markdownToDoc,
   normalizeImageGalleries,
   PLUGIN_EMBED_NODE_TYPE,
@@ -625,6 +627,23 @@ const RichEditorPane = ({
   });
   const [editorScrollContainer, setEditorScrollContainer] = useState<HTMLDivElement | null>(null);
   const [collapsedOutlineAnchor, setCollapsedOutlineAnchor] = useState<HTMLDivElement | null>(null);
+  const [outlineContent, setOutlineContent] = useState<HTMLElement | null>(null);
+  const [aiLauncher, setAiLauncher] = useState<HTMLButtonElement | null>(null);
+  useLayoutEffect(() => {
+    if (!outlineContent || !aiLauncher) return;
+    const container = aiLauncher.offsetParent;
+    if (!(container instanceof HTMLElement)) return;
+    // Follow the visible content edge, excluding the outline's scrollbar and
+    // inner padding. Frame tracking also covers the reading-gutter transition.
+    return autoUpdate(outlineContent, aiLauncher, () => {
+      const contentRight = outlineContent.getBoundingClientRect().right
+        - Number.parseFloat(getComputedStyle(outlineContent).paddingRight || "0");
+      aiLauncher.style.right = `${container.getBoundingClientRect().right - contentRight}px`;
+    }, { animationFrame: true });
+  }, [outlineContent, aiLauncher]);
+  useLayoutEffect(() => {
+    if (!outlineContent) aiLauncher?.style.removeProperty("right");
+  }, [outlineContent, aiLauncher]);
   const [editorScrollbarGutter, setEditorScrollbarGutter] = useState(0);
   const [headerTitleSlot, setHeaderTitleSlot] = useState<HTMLDivElement | null>(null);
   const [headerStatusCluster, setHeaderStatusCluster] = useState<HTMLDivElement | null>(null);
@@ -4549,6 +4568,7 @@ const RichEditorPane = ({
         data-note-title={title || getEditableMemoTitle(memo?.title)}
         style={{
           ...noteProseCssVariables(noteProse),
+          ...noteProseStyleCssVariables(noteProseStyle),
           "--memo-content-divider-spacing": `${MEMO_CONTENT_STYLE.divider.marginVertical}px`,
         } as CSSProperties}
         className={cn(
@@ -4738,6 +4758,7 @@ const RichEditorPane = ({
               editingMemoIdRef={editingMemoIdRef}
               editor={editor}
               scrollContainer={editorScrollContainer}
+              contentRef={setOutlineContent}
               collapsedAnchor={collapsedOutlineAnchor}
               collapsed={editorOutlineCollapsed}
               shortcutLabel={formatShortcutBinding(shortcutSettings.toggleOutline)}
@@ -4850,6 +4871,7 @@ const RichEditorPane = ({
             type="button"
             variant="outline"
             size="icon"
+            ref={setAiLauncher}
             data-ai-assistant-launcher=""
             className={cn(
               "absolute z-30 size-11 rounded-full border-slate-200 bg-card text-slate-950 shadow-[0_8px_24px_rgba(15,23,42,0.14)] hover:bg-card hover:text-slate-950",

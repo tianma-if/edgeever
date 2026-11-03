@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type Ref, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import type { Transaction } from "@tiptap/pm/state";
 import type { Editor } from "@tiptap/react";
@@ -21,6 +21,7 @@ type EditorOutlineProps = {
   collapsed: boolean;
   shortcutLabel: string;
   onCollapsedChange: (collapsed: boolean) => void;
+  contentRef?: Ref<HTMLElement>;
 };
 
 const OUTLINE_INDENT = 12;
@@ -53,7 +54,7 @@ const sameOutlineItems = (left: OutlineItem[], right: OutlineItem[]) =>
     return other?.level === item.level && other.pos === item.pos && other.text === item.text;
   });
 
-export const EditorOutline = ({ editor, memoId, editingMemoIdRef, scrollContainer, collapsedAnchor, collapsed, shortcutLabel, onCollapsedChange }: EditorOutlineProps) => {
+export const EditorOutline = ({ editor, memoId, editingMemoIdRef, scrollContainer, collapsedAnchor, collapsed, shortcutLabel, onCollapsedChange, contentRef }: EditorOutlineProps) => {
   const { t } = useTranslation();
   const [items, setItems] = useState<OutlineItem[]>([]);
   const [activePos, setActivePos] = useState<number | null>(null);
@@ -377,7 +378,7 @@ export const EditorOutline = ({ editor, memoId, editingMemoIdRef, scrollContaine
         </div>
 
         {!collapsed && (
-          <nav className="pr-2" aria-label={t("editor.outline")}>
+          <nav ref={contentRef} className="pr-2" aria-label={t("editor.outline")}>
             {renderItems(tree)}
           </nav>
         )}

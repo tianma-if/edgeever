@@ -1,0 +1,114 @@
+name: Verify official old-to-new desktop updates
+
+on:
+  workflow_dispatch:
+    inputs:
+      windows_only:
+        description: Rerun only the Windows published-release bridge
+        type: boolean
+        default: false
+      candidate_run:
+        description: Desktop build run containing the actual candidate installers
+        type: string
+        required: true
+      previous_tag:
+        description: Published release to upgrade from
+        type: string
+        required: true
+        default: v2.17.0
+      windows_signature:
+        description: Offline signature envelope; leave empty to export the exact manifest for local signing
+        type: string
+        required: false
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  signing-request:
+    if: github.repository == 'tianma-if/edgeever' && inputs.windows_signature == ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Export exact candidate manifest for offline signing
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_RUN: ${{ inputs.candidate_run }}
+        run: |
+          gh run download "$CANDIDATE_RUN" --repo "$GITHUB_REPOSITORY" --name edgeever-desktop-Windows-x64-staging --dir "$RUNNER_TEMP/candidate"
+      - uses: actions/upload-artifact@v6
+        with:
+          name: candidate-windows-manifest
+          path: ${{ runner.temp }}/candidate/latest-windows.json
+          retention-days: 14
+          if-no-files-found: error
+
+  release-bridge:
+    if: github.repository == 'tianma-if/edgeever' && inputs.windows_signature != ''
+    name: Official release bridge ${{ matrix.platform }} ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(inputs.windows_only && '[{"platform":"Windows","runner":"windows-latest","arch":"x64","artifact":"edgeever-desktop-Windows-x64-staging","pattern":"EdgeEver-*-windows-x64.exe"}]' || '[{"platform":"macOS","runner":"macos-15","arch":"arm64","artifact":"edgeever-desktop-macOS-arm64-staging","pattern":"EdgeEver-*-mac-arm64.zip"},{"platform":"macOS","runner":"macos-15-intel","arch":"x64","artifact":"edgeever-desktop-macOS-x64-staging","pattern":"EdgeEver-*-mac-x64.zip"},{"platform":"Windows","runner":"windows-latest","arch":"x64","artifact":"edgeever-desktop-Windows-x64-staging","pattern":"EdgeEver-*-windows-x64.exe"},{"platform":"Linux","runner":"ubuntu-22.04","arch":"x64","artifact":"edgeever-desktop-Linux-x64-staging","pattern":"EdgeEver-*-linux-x64.AppImage"}]') }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      CANDIDATE_RUN: ${{ inputs.candidate_run }}
+      PREVIOUS_TAG: ${{ inputs.previous_tag }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Download unmodified old release and candidate installers
+        shell: bash
+        env:
+          ARTIFACT_NAME: ${{ matrix.artifact }}
+          OLD_PATTERN: ${{ matrix.pattern }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/release-bridge/previous" "$RUNNER_TEMP/release-bridge/candidate"
+          gh run download "$CANDIDATE_RUN" --repo "$GITHUB_REPOSITORY" --name "$ARTIFACT_NAME" --dir "$RUNNER_TEMP/release-bridge/candidate"
+          gh release download "$PREVIOUS_TAG" --repo "$GITHUB_REPOSITORY" --pattern "$OLD_PATTERN" --dir "$RUNNER_TEMP/release-bridge/previous"
+
+      - name: Restore offline Windows signature without changing the manifest
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          SIGNATURE_ENVELOPE: ${{ inputs.windows_signature }}
+        run: |
+          $path = Join-Path $env:RUNNER_TEMP 'release-bridge/candidate/latest-windows.json.sig'
+          [IO.File]::WriteAllText($path, $env:SIGNATURE_ENVELOPE, [Text.UTF8Encoding]::new($false))
+
+      - name: Verify signed Windows candidate independently
+        if: runner.os == 'Windows'
+        shell: bash
+        run: node scripts/verify-windows-update-release.mjs "$RUNNER_TEMP/release-bridge/candidate"
+
+      - name: Exercise actual macOS or Windows upgrade and profile startup
+        if: runner.os != 'Linux'
+        run: node scripts/verify-native-release-bridge.mjs "${{ runner.temp }}/release-bridge"
+
+      - name: Exercise official old AppImage to actual candidate upgrade
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes libfuse2 xvfb
+          old_image="$(find "$RUNNER_TEMP/release-bridge/previous" -name '*.AppImage' -print -quit)"
+          new_image="$(find "$RUNNER_TEMP/release-bridge/candidate" -name '*.AppImage' -print -quit)"
+          version="$(basename "$new_image" | sed -E 's/^EdgeEver-([0-9]+\.[0-9]+\.[0-9]+)-.*/\1/')"
+          mv "$old_image" "$RUNNER_TEMP/release-bridge/previous/EdgeEver.AppImage"
+          old_image="$RUNNER_TEMP/release-bridge/previous/EdgeEver.AppImage"
+          chmod +x "$old_image"
+          mkdir -p "$RUNNER_TEMP/release-bridge/evidence"
+          set -o pipefail
+          xvfb-run -a bun scripts/verify-linux-appimage-update.mjs "$old_image" "$new_image" "$version" | tee "$RUNNER_TEMP/release-bridge/evidence/result.json"
+
+      - name: Save official release bridge evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: release-bridge-evidence-${{ matrix.platform }}-${{ matrix.arch }}
+          path: ${{ runner.temp }}/release-bridge/evidence
+          retention-days: 14
+          if-no-files-found: warn
