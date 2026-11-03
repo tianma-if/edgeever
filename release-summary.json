@@ -1,38 +1,26 @@
 {
-  "version": "2.17.0",
+  "version": "2.18.0",
   "changes": {
     "en-US": [
-      "Import notes from Evernote, Obsidian and Joplin while retaining notebooks, attachments and links; large-library backup and initial sync read fewer database rows. Thanks @sivdead (#747, #657).",
-      "Set an optional expiry for single-note share links and see their open counts. Thanks @dkoryto (#753, #607).",
-      "Customize reading styles with an emerald palette, composable headings and quotes, an independent magazine cover, image cards and neutral inline code; reading and editor settings are organized separately.",
-      "Use configurable shortcuts to focus the note title or body. Thanks @dkoryto (#760, #762).",
-      "Remember note sorting across restarts and keep title-sorted notes in place after editing. Thanks @sivdead (#757, #754, #750).",
-      "Keep authenticated desktop local workspaces available during temporary server failures and clearly diagnose exhausted database daily quotas.",
-      "Desktop backups follow the system network settings and fetch current attachments; start manual backups directly and choose from simpler schedules. Thanks @sivdead (#755).",
-      "Fix concurrent Android local database writes when sharing images into notes.",
-      "Fix notebook icon selection in Safari. Thanks @thorufur (#746)."
+      "Add CodeBuddy as a desktop local Agent, using your installed official CLI (#758, @yulei666 in #761).",
+      "Optionally copy desktop scheduled backups to WebDAV, with separate upload status and retries (#723, @dkoryto in #763).",
+      "Keep untitled notes in search results after editing or deleting attachments (#751, @sivdead in #769).",
+      "Fix opening desktop attachments in system applications by opening a local copy (#768).",
+      "Preserve all PDF pages and blank paragraphs during export; improve WeChat copy formatting and adaptive directory cards."
     ],
     "zh-CN": [
-      "支持导入印象笔记、Obsidian 和 Joplin，保留笔记本、附件与链接，并减少大笔记库备份和首次同步的数据库读取量。感谢 @sivdead（#747、#657）。",
-      "单篇笔记分享链接支持设置有效期和查看打开次数。感谢 @dkoryto（#753、#607）。",
-      "新增翡翠绿配色及可组合的标题、引用阅读样式，杂志封面可独立设置，统一图片卡片与行内代码样式，并分开整理阅读与编辑设置。",
-      "支持使用可配置快捷键聚焦笔记标题或正文。感谢 @dkoryto（#760、#762）。",
-      "重启后保留笔记排序偏好，并修复按标题排序时编辑笔记后位置变化的问题。感谢 @sivdead（#757、#754、#750）。",
-      "服务器暂时故障时保留已认证桌面本地工作区的可用性，并明确提示数据库每日额度耗尽。",
-      "桌面备份遵循系统网络设置并读取最新附件，手动备份可直接启动，定时备份频率选择更简洁。感谢 @sivdead（#755）。",
-      "修复 Android 分享图片到笔记时本地数据库并发写入的问题。",
-      "修复 Safari 中笔记本图标选择不稳定的问题。感谢 @thorufur（#746）。"
+      "桌面端新增 CodeBuddy 本机 Agent，可使用自行安装的官方 CLI（#758，@yulei666 贡献于 #761）。",
+      "桌面端定时备份支持可选的 WebDAV 异地副本，提供独立上传状态和重试（#723，@dkoryto 贡献于 #763）。",
+      "修复无标题笔记在编辑或删除附件后从搜索结果中消失的问题（#751，@sivdead 贡献于 #769）。",
+      "修复桌面端附件无法在系统应用中打开的问题，通过打开本地副本使用外部应用（#768）。",
+      "修复导出时 PDF 页面和空白段落丢失，改善复制到微信的排版及目录卡片自适应显示。"
     ],
     "ja": [
-      "Evernote・Obsidian・Joplinからノートブック、添付ファイル、リンクを保ってインポートできます。大規模ライブラリのバックアップと初回同期の読み取り量も削減しました。",
-      "単一ノートの共有リンクに有効期限を設定し、閲覧回数を確認できます。",
-      "エメラルド配色や組み合わせ可能な見出し・引用スタイル、独立した雑誌風表紙、画像カードに対応し、読書設定と編集設定を整理しました。",
-      "設定可能なショートカットでノートのタイトルや本文にフォーカスできます。",
-      "再起動後もノートの並び順を保持し、編集後にタイトル順の位置が変わる問題を修正しました。",
-      "サーバーの一時障害中も認証済みデスクトップのローカル作業を継続でき、データベースの日次上限超過を明確に表示します。",
-      "デスクトップのバックアップがシステムのネットワーク設定に従い、最新の添付ファイルを取得します。手動実行とスケジュール選択も簡素化しました。",
-      "Androidで画像をノートに共有する際のローカルデータベース同時書き込みを修正しました。",
-      "Safariでノートブックのアイコン選択が不安定になる問題を修正しました。"
+      "デスクトップのローカル Agent に CodeBuddy を追加。インストール済みの公式 CLI を利用できます。",
+      "デスクトップの定期バックアップに、独立したアップロード状況と再試行を備えた WebDAV コピーを追加。",
+      "無題のノートを編集したり添付ファイルを削除したりした後、検索結果から消える問題を修正。",
+      "デスクトップの添付ファイルをローカルコピーとしてシステムのアプリで開けるよう修正。",
+      "エクスポート時に PDF の全ページと空行を保持し、WeChat へのコピー書式と目次カードの表示を改善。"
     ]
   }
 }
