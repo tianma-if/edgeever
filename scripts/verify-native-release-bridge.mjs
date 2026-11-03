@@ -96,6 +96,15 @@ const launch = async (update) => {
     });
     socket.send(JSON.stringify({ id, method, params }));
   });
+  // The inspector can accept connections before Electron registers its built-in
+  // module. Wait for that registration without pausing native startup.
+  await until(async () => {
+    const ready = await send("Runtime.evaluate", {
+      expression: `(() => { try { return !!process.getBuiltinModule('module').createRequire(process.resourcesPath + '/app.asar/package.json')('electron').app; } catch { return false; } })()`,
+      returnByValue: true,
+    });
+    return ready.result?.value === true;
+  }, "Electron main-process module registration");
   console.log(`Configuring ${update ? "old" : "updated"} application through its isolated debugger`);
   const expression = `(() => {
     const req = process.getBuiltinModule('module').createRequire(process.resourcesPath + '/app.asar/package.json');
