@@ -210,7 +210,10 @@ try {
       writeFileSync(join(directory, "result.json"), JSON.stringify(report.scenarios.at(-1), null, 2));
     } finally {
       await stopFixture(events());
-      if (process.platform === "win32") stopWindowsUpdateFixtures();
+      if (process.platform === "win32") {
+        stopWindowsUpdateFixtures();
+        await until(() => !windowsUpdateInstallerRunning(packageName(latestVersion)), "previous fixture installer releases its process lock");
+      }
       await wait(1_000);
     }
   }
