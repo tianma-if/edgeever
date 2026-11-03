@@ -5,7 +5,7 @@ import { FONT_CATALOG, NOTE_BODY_FONT_MENU_GROUPS, isRemoteNoteImageFont, type R
 import { FontLoadFeedback } from "@/components/FontLoadFeedback";
 import { editorFontLoadState, uiFontLoadState, retryEditorCatalogFont, retryUiCatalogFont } from "@/lib/editor-catalog-fonts";
 import { FontLabel } from "@/components/FontLabel";
-import { AlignVerticalSpaceAround, AppWindow, BookOpenText, ChartNoAxesCombined, Code2, Heading, Highlighter, Image, LayoutTemplate, Languages, ListTree, MousePointerClick, Palette, Quote, Sparkles, SpellCheck, SunMoon, Type } from "lucide-react";
+import { AlignLeft, AlignVerticalSpaceAround, AppWindow, BookOpenText, ChartNoAxesCombined, Code2, Heading, Highlighter, Image, LayoutTemplate, Languages, ListTree, MousePointerClick, MoveHorizontal, Palette, Pilcrow, Quote, Sparkles, SpellCheck, SunMoon, Type } from "lucide-react";
 import { useState, useEffect, useSyncExternalStore, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type {
@@ -581,6 +581,7 @@ export const PreferenceCard = ({
             {
               id: "paragraphSpacing",
               title: t("settings.editorParagraphSpacingTitle"),
+              icon: Pilcrow,
               value: String(noteProseStyle.paragraphSpacing),
               options: NOTE_PROSE_PARAGRAPH_SPACINGS.map((value) => ({ value: String(value), label: `${value}px` })),
               onChange: (value: string) => writeNoteProseStylePreference({ paragraphSpacing: parseNoteProseParagraphSpacing(Number(value)) ?? 8 }),
@@ -588,6 +589,7 @@ export const PreferenceCard = ({
             {
               id: "textAlign",
               title: t("settings.editorTextAlignTitle"),
+              icon: AlignLeft,
               value: noteProseStyle.textAlign,
               options: NOTE_PROSE_TEXT_ALIGNS.map((value) => ({ value, label: t(`settings.editorTextAlignOptions.${value}`) })),
               onChange: (value: string) => writeNoteProseStylePreference({ textAlign: parseNoteProseTextAlign(value) ?? "left" }),
@@ -595,26 +597,30 @@ export const PreferenceCard = ({
             {
               id: "letterSpacing",
               title: t("settings.editorLetterSpacingTitle"),
+              icon: MoveHorizontal,
               value: noteProseStyle.letterSpacing,
               options: NOTE_PROSE_LETTER_SPACINGS.map((value) => ({ value, label: value === "default" ? t("settings.editorLetterSpacingDefault") : value })),
               onChange: (value: string) => writeNoteProseStylePreference({ letterSpacing: parseNoteProseLetterSpacing(value) ?? "default" }),
             },
-          ].map((setting) => (
-            <div key={setting.id} className="flex min-h-16 flex-col items-start gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-              <div className="flex min-w-0 items-center gap-3">
-                <Type className="h-4 w-4 shrink-0 text-slate-500" />
-                <div className={SETTINGS_ITEM_TITLE_CLASSNAME}>{setting.title}</div>
+          ].map((setting) => {
+            const Icon = setting.icon;
+            return (
+              <div key={setting.id} className="flex min-h-16 flex-col items-start gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                <div className="flex min-w-0 items-center gap-3">
+                  <Icon className="h-4 w-4 shrink-0 text-slate-500" />
+                  <div className={SETTINGS_ITEM_TITLE_CLASSNAME}>{setting.title}</div>
+                </div>
+                <div className="w-full shrink-0 sm:w-80">
+                  <Select value={setting.value} onValueChange={setting.onChange}>
+                    <SelectTrigger aria-label={setting.title} className="h-9 bg-card"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {setting.options.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-              <div className="w-full shrink-0 sm:w-80">
-                <Select value={setting.value} onValueChange={setting.onChange}>
-                  <SelectTrigger aria-label={setting.title} className="h-9 bg-card"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {setting.options.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          ))}
+            );
+          })}
 
           <div className="flex min-h-16 flex-col items-start gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
             <div className="flex min-w-0 items-center gap-3">
