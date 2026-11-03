@@ -110,6 +110,13 @@ const launch = async (update) => {
     const req = process.getBuiltinModule('module').createRequire(process.resourcesPath + '/app.asar/package.json');
     const { app, net, dialog } = req('electron');
     app.isInApplicationsFolder = () => true;
+    app.on('web-contents-created', (_event, contents) => {
+      contents.on('console-message', (...args) => {
+        const details = args.find(value => value && typeof value === 'object' && typeof value.message === 'string');
+        const message = details?.message ?? args.filter(value => typeof value === 'string').join(' ');
+        req('node:fs').appendFileSync(${JSON.stringify(join(evidence, update ? "old-renderer.jsonl" : "new-renderer.jsonl"))}, JSON.stringify({message}) + '\\n');
+      });
+    });
     app.setPath('userData', ${JSON.stringify(profile)});
     req('node:fs').writeFileSync(${JSON.stringify(join(evidence, update ? "old-version.json" : "new-version.json"))}, JSON.stringify({version: app.getVersion(), executable: process.execPath}));
     if (${JSON.stringify(update)}) {
