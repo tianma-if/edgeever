@@ -4,7 +4,7 @@ import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, test } from "bun:test";
-import { createWindowsUpdateController } from "./windows-update-controller.mjs";
+import { createDesktopUpdateController } from "./desktop-update-controller.mjs";
 import { WINDOWS_UPDATE_KEY_ID, verifyWindowsUpdateMetadata, verifyDownloadedWindowsUpdate } from "./windows-update-trust.mjs";
 
 // Exercise the installed electron-updater's real check, download promise and
@@ -86,8 +86,8 @@ const harness = async () => {
     return true;
   };
   updater.quitAndInstall = (silent, forceRun) => updater.install(silent, forceRun);
-  const controller = createWindowsUpdateController({
-    updater,
+  const controller = createDesktopUpdateController({
+    updater, platform: "win32",
     fetchWindowsMetadata: async ({ version, updateInfo }) => {
       if (h.metadataGate) await h.metadataGate.promise;
       if (h.metadataError) throw h.metadataError;
@@ -133,6 +133,16 @@ describe("desktop update target lifecycle (#776)", () => {
     expect(await h.controller.install()).toEqual({ started: true });
     expect(h.downloads).toEqual(["2.17.0", "2.18.0"]);
     expect(h.installs.map((entry) => entry.version)).toEqual(["2.18.0"]);
+  });
+
+  test("normal Windows quit refreshes the installer and does not relaunch", async () => {
+    const h = await harness();
+    await h.ready();
+    h.latest = "2.19.0";
+    expect(h.controller.handleBeforeQuit({ preventDefault() {} })).toBe(true);
+    await h.controller.install();
+    expect(h.installs).toEqual([{ version: "2.19.0", path: h.releases.get("2.19.0").path, silent: true, forceRun: false }]);
+    expect(h.notices).toEqual(["2.17.0"]);
   });
 
   test("an unchanged release does not download or prompt again", async () => {

@@ -1,9 +1,11 @@
 import { isDeepStrictEqual } from "node:util";
+import { prepareMacUpdate } from "./mac-update-install.mjs";
 
 // electron-updater owns one mutable download/install target. Keep checks,
 // downloads and package verification serialized around that target.
-export const createWindowsUpdateController = ({
-  updater, fetchWindowsMetadata, verifyWindowsPackage,
+export const createDesktopUpdateController = ({
+  updater, platform, nativeUpdater, fetchWindowsMetadata, verifyWindowsPackage,
+  quitApplication = () => {},
   onStatus, onError, onDownloaded, beforeInstall,
   onStage = () => {}, onCheckStarted = () => {}, onSettled = () => {},
   log = () => {},
@@ -16,13 +18,23 @@ export const createWindowsUpdateController = ({
   let verificationInFlight = null;
   let installInFlight = null;
   let installing = false;
+  let quittingForUpdate = false;
+  let quitRequested = false;
+  let skipQuitInstall = false;
+  let nativePreparationStarted = false;
+  let nativePreparationFailed = false;
+  const windows = platform === "win32";
+  const mac = platform === "darwin";
+  const downloadedPath = () => mac ? updater.downloadedUpdateHelper?.file : updater.installerPath;
   const publish = (next) => { status = { ...status, ...next }; onStatus({ ...status }); };
   const packageMatches = (candidate) => Boolean(candidate && (
-    candidate.manifest?.version === candidate.info.version &&
-    candidate.path && updater.installerPath === candidate.path
+    (!windows || candidate.manifest?.version === candidate.info.version) &&
+    candidate.path && downloadedPath() === candidate.path
   ));
   const refreshQuitInstall = () => {
-    updater.autoInstallOnAppQuit = !checkInFlight && !downloadInFlight &&
+    // Squirrel must not stage an intermediate background download. The shared
+    // before-quit hook refreshes the target before normal quit installation.
+    updater.autoInstallOnAppQuit = !mac && !checkInFlight && !downloadInFlight &&
       !verificationInFlight && ready === target && packageMatches(ready);
     if (updater.autoInstallOnAppQuit) {
       // BaseUpdater normally registers this during update-downloaded, before
@@ -63,19 +75,21 @@ export const createWindowsUpdateController = ({
   updater.on("update-downloaded", (info) => {
     const candidate = target;
     if (!downloadInFlight || verificationInFlight) {
-      fail(new Error("Unexpected update download completion"), "verify-windows-package");
+      fail(new Error("Unexpected update download completion"), windows ? "verify-windows-package" : "download");
       return;
     }
     verificationInFlight = Promise.resolve().then(async () => {
       if (!candidate || candidate.info.version !== info?.version) {
         throw new Error("Downloaded update does not match the selected target");
       }
-      onStage("verify-windows-package");
-      if (!candidate.manifest || candidate.manifest.version !== info.version ||
-          !info.downloadedFile || updater.installerPath !== info.downloadedFile) {
-        throw new Error("Downloaded Windows update has no matching trusted installer");
+      if (windows) {
+        onStage("verify-windows-package");
+        if (!candidate.manifest || candidate.manifest.version !== info.version ||
+            !info.downloadedFile || updater.installerPath !== info.downloadedFile) {
+          throw new Error("Downloaded Windows update has no matching trusted installer");
+        }
+        await verifyWindowsPackage({ path: info.downloadedFile, manifest: candidate.manifest });
       }
-      await verifyWindowsPackage({ path: info.downloadedFile, manifest: candidate.manifest });
       if (target !== candidate) throw new Error("Update target changed during package verification");
       candidate.path = info.downloadedFile;
       candidate.verified = true;
@@ -87,7 +101,7 @@ export const createWindowsUpdateController = ({
   const download = (reason) => {
     if (downloadInFlight) return downloadInFlight;
     const candidate = target;
-    if (!candidate || !candidate.manifest) {
+    if (!candidate || (windows && !candidate.manifest)) {
       return Promise.reject(new Error("Update metadata has not passed the signature gate"));
     }
     if (ready === candidate && packageMatches(ready)) return Promise.resolve();
@@ -103,8 +117,8 @@ export const createWindowsUpdateController = ({
       publish({ state: "downloaded", version: candidate.info.version, progress: null });
       log("update.downloaded", { version: candidate.info.version });
     }).catch((error) => {
-      fail(error, verificationInFlight ? "verify-windows-package" : "download");
-      log(verificationInFlight ? "update.windows-package-blocked" : "update.download-failed", {
+      fail(error, windows && verificationInFlight ? "verify-windows-package" : "download");
+      log(windows && verificationInFlight ? "update.windows-package-blocked" : "update.download-failed", {
         reason, message: error.message,
       });
     }).finally(() => {
@@ -112,12 +126,15 @@ export const createWindowsUpdateController = ({
       verificationInFlight = null;
       refreshQuitInstall();
       if (!checkInFlight) onSettled();
-      if (ready === candidate) onDownloaded(candidate.info.version);
+      if (ready === candidate && !quitRequested) onDownloaded(candidate.info.version);
     });
     return downloadInFlight;
   };
 
   const check = (reason) => {
+    if (nativePreparationFailed) {
+      return Promise.reject(new Error("Restart EdgeEver before retrying native macOS update preparation"));
+    }
     if (installing) return Promise.resolve(null);
     if (checkInFlight) return checkInFlight;
     // In particular, do not change updater.updateInfoAndProvider while a
@@ -145,11 +162,13 @@ export const createWindowsUpdateController = ({
       target = { info, manifest: null, path: null, verified: false };
       publish({ state: "available", version: info.version, progress: null });
       log("update.available", { version: info.version });
-      stage = "verify-windows-metadata";
-      onStage(stage);
-      target.manifest = await fetchWindowsMetadata({ version: info.version, updateInfo: info });
-      if (target.manifest.version !== info.version) throw new Error("Windows manifest target mismatch");
-      log("update.windows-manifest-verified", { version: info.version, keyId: target.manifest.keyId });
+      if (windows) {
+        stage = "verify-windows-metadata";
+        onStage(stage);
+        target.manifest = await fetchWindowsMetadata({ version: info.version, updateInfo: info });
+        if (target.manifest.version !== info.version) throw new Error("Windows manifest target mismatch");
+        log("update.windows-manifest-verified", { version: info.version, keyId: target.manifest.keyId });
+      }
       void download(reason);
       return result;
     }).catch((error) => {
@@ -174,21 +193,59 @@ export const createWindowsUpdateController = ({
       if (downloadInFlight) await downloadInFlight;
       if (!ready || ready !== target || !ready.verified || !packageMatches(ready) ||
           checkInFlight || downloadInFlight || verificationInFlight ||
-          (expectedVersion && expectedVersion !== ready.info.version)) {
+          (expectedVersion && !quitRequested && expectedVersion !== ready.info.version)) {
         return { started: false };
       }
       installing = true;
       log("update.install-confirmed", { version: ready.info.version });
+      if (mac) {
+        onStage("install");
+        nativePreparationStarted = true;
+        await prepareMacUpdate(nativeUpdater);
+        if (ready !== target || !packageMatches(ready)) {
+          throw new Error("macOS installation target changed during native preparation");
+        }
+      }
       beforeInstall();
-      updater.quitAndInstall(true, true);
+      quittingForUpdate = true;
+      updater.autoRunAppAfterInstall = !quitRequested;
+      if (mac) {
+        if (quitRequested) quitApplication(); // Squirrel applies the staged ZIP without relaunching.
+        else nativeUpdater.quitAndInstall();
+      } else {
+        updater.quitAndInstall(windows, !quitRequested);
+      }
       return { started: true };
     }).catch((error) => {
       installing = false;
-      if (status.state !== "idle") fail(error, "install");
+      quittingForUpdate = false;
+      if (mac && nativePreparationStarted) {
+        // Electron exposes no cancellation for Squirrel. A timed-out or failed
+        // operation may still complete later; never let it race a new target.
+        nativePreparationFailed = true;
+        fail(new Error(`macOS native update preparation failed; restart EdgeEver before retrying: ${error.message}`), "install");
+      } else if (status.state !== "idle") {
+        fail(error, "install");
+      }
       return { started: false };
-    }).finally(() => { installInFlight = null; });
+    }).finally(() => {
+      installInFlight = null;
+      if (quitRequested && !quittingForUpdate) {
+        skipQuitInstall = true;
+        quitApplication();
+      }
+    });
     return installInFlight;
   };
 
-  return { check, download, install, snapshot: () => ({ ...status }) };
+  const handleBeforeQuit = (event) => {
+    if (skipQuitInstall || quittingForUpdate || (!ready && !installInFlight)) return false;
+    event.preventDefault();
+    quitRequested = true;
+    // If a check or preparation fails, quit without installing the old package.
+    if (!installInFlight) void install();
+    return true;
+  };
+
+  return { check, download, install, handleBeforeQuit, snapshot: () => ({ ...status }) };
 };
