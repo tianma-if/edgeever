@@ -84,6 +84,9 @@ type MobileSystemInfoGroup = {
 
 type MobileSyncDiagnostics = Awaited<ReturnType<typeof loadMobileSyncQueueSummary>>;
 
+/** Gap kept between the focused input and the top of the keyboard. */
+const KEYBOARD_CLEARANCE = 16;
+
 export const SettingsView = ({
   currentUser,
   imageCompressionEnabled,
@@ -298,10 +301,13 @@ export const SettingsView = ({
         </Pressable>
       </View>
       {/* Android draws edge-to-edge, so the window no longer resizes for the
-          keyboard; shrink the scroll area like the login screen does. The
-          offset is this screen's distance from the top of the window: the
-          avoiding view only knows its position inside this screen. */}
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} keyboardVerticalOffset={keyboardOffset} style={styles.viewBody}>
+          keyboard; pad the scroll area instead. "padding" is used on both
+          platforms because "height" caches the initial height and gets it
+          wrong after the screen size changes (rotation, split screen). The
+          offset is this screen's distance from the top of the window (the
+          avoiding view only knows its position inside this screen) plus a
+          small clearance so the focused field does not touch the keyboard. */}
+      <KeyboardAvoidingView behavior="padding" keyboardVerticalOffset={keyboardOffset + KEYBOARD_CLEARANCE} style={styles.viewBody}>
       <ScrollView contentContainerStyle={styles.settingsScrollContent} keyboardShouldPersistTaps="handled" style={styles.viewBody}>
         {activeTab === null ? (
           <View style={styles.settingsDetailList}>
