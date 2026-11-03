@@ -1048,7 +1048,9 @@ export const ja = {
     subtitle: "設定、システム情報、MCP トークン、サインインセッション",
     groups: {
       interface: "画面",
-      reading: "閲覧",
+      readingAppearance: "外観とカスタムスタイル",
+      reading: "文字・段落",
+      readingElements: "レイアウトと拡張",
       editing: "編集",
     },
     languageTitle: "表示言語",
@@ -1216,6 +1218,7 @@ export const ja = {
     editorBodyCssPreviewAfter: "を含めます。",
     editorBodyCssPreviewQuote: "引用です。",
     editorBodyCssDropped: "適用されない宣言があり、保存時に除かれます。",
+    editorBodyCssConfigured: "設定済み",
     editorBodyCssEdit: "スタイルを編集",
     editorBodyCssReset: "初期値に戻す",
     editorBodyCssPlaceholder: "p { text-indent: 2em; } h1 { letter-spacing: 0.04em; }",

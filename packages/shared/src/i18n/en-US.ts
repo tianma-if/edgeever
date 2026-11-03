@@ -1040,7 +1040,9 @@ export const enUS = {
     subtitle: "Preferences, system info, MCP tokens, and sign-in session",
     groups: {
       interface: "Interface",
-      reading: "Reading",
+      readingAppearance: "Appearance & Custom Styles",
+      reading: "Typography",
+      readingElements: "Layout & Extensions",
       editing: "Editing",
     },
     languageTitle: "Interface language",
@@ -1208,6 +1210,7 @@ export const enUS = {
     editorBodyCssPreviewAfter: ".",
     editorBodyCssPreviewQuote: "A quotation.",
     editorBodyCssDropped: "Some declarations will not apply and are removed on save.",
+    editorBodyCssConfigured: "Configured",
     editorBodyCssEdit: "Edit styles",
     editorBodyCssReset: "Reset",
     editorBodyCssPlaceholder: "p { text-indent: 2em; } h1 { letter-spacing: 0.04em; }",

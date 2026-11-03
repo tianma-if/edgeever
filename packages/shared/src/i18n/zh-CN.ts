@@ -1059,7 +1059,9 @@ export const zhCN = {
     subtitle: "个人偏好、系统信息、MCP Token 与登录会话",
     groups: {
       interface: "界面",
-      reading: "阅读",
+      readingAppearance: "外观与自定义样式",
+      reading: "文字排版",
+      readingElements: "版式与扩展",
       editing: "编辑",
     },
     languageTitle: "界面语言",
@@ -1227,6 +1229,7 @@ export const zhCN = {
     editorBodyCssPreviewAfter: "。",
     editorBodyCssPreviewQuote: "引用一句。",
     editorBodyCssDropped: "有声明不会生效，保存时会去掉。",
+    editorBodyCssConfigured: "已配置",
     editorBodyCssEdit: "编辑样式",
     editorBodyCssReset: "恢复预置",
     editorBodyCssPlaceholder: "例如 p { text-indent: 2em; } h1 { letter-spacing: 0.04em; }",

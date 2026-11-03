@@ -1059,7 +1059,9 @@ export const ru = {
     subtitle: "Настройки, сведения о системе, токены MCP и сеанс входа",
     groups: {
       interface: "Интерфейс",
-      reading: "Чтение",
+      readingAppearance: "Внешний вид и свои стили",
+      reading: "Типографика",
+      readingElements: "Макет и расширения",
       editing: "Редактирование",
     },
     languageTitle: "Язык интерфейса",
@@ -1227,6 +1229,7 @@ export const ru = {
     editorBodyCssPreviewAfter: ".",
     editorBodyCssPreviewQuote: "Цитата.",
     editorBodyCssDropped: "Некоторые объявления не применятся и будут удалены при сохранении.",
+    editorBodyCssConfigured: "Настроено",
     editorBodyCssEdit: "Изменить стили",
     editorBodyCssReset: "Сбросить",
     editorBodyCssPlaceholder: "p { text-indent: 2em; } h1 { letter-spacing: 0.04em; }",

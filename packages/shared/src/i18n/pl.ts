@@ -1048,7 +1048,9 @@ export const pl = {
     subtitle: "Preferencje, informacje o systemie, tokeny MCP i sesja logowania",
     groups: {
       interface: "Interfejs",
-      reading: "Czytanie",
+      readingAppearance: "Wygląd i własne style",
+      reading: "Typografia",
+      readingElements: "Układ i rozszerzenia",
       editing: "Edycja",
     },
     languageTitle: "Język interfejsu",
@@ -1216,6 +1218,7 @@ export const pl = {
     editorBodyCssPreviewAfter: ".",
     editorBodyCssPreviewQuote: "Cytat.",
     editorBodyCssDropped: "Niektóre deklaracje nie zostaną zastosowane i zostaną usunięte przy zapisie.",
+    editorBodyCssConfigured: "Skonfigurowano",
     editorBodyCssEdit: "Edytuj style",
     editorBodyCssReset: "Resetuj",
     editorBodyCssPlaceholder: "p { text-indent: 2em; } h1 { letter-spacing: 0.04em; }",
