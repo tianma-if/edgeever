@@ -24,10 +24,10 @@ import type {
   AuthContext,
   Bindings,
 } from "./api-context";
-import { hashPassword, verifyPassword } from "./auth-crypto";
+import { verifyPassword } from "./auth-crypto";
 import type { InstanceAuthMode } from "./auth-state";
 import { registerTotpRoutes, type FinishLoginOptions } from "./auth-totp-routes";
-import { createLoginChallenge, getUserTotp, isTotpEnabled } from "./auth-totp";
+import { createLoginChallenge, getUserTotp, hashPasswordForUser, isTotpEnabled } from "./auth-totp";
 import { isoNow } from "./entity-utils";
 import {
   apiError,
@@ -399,7 +399,7 @@ export const registerAuthRoutes = (
       }
 
       const now = isoNow();
-      const passwordHash = await hashPassword(input.newPassword);
+      const passwordHash = await hashPasswordForUser(context.env.storage.db, user.id, input.newPassword);
       await context.env.storage.db.batch([
         context.env.storage.db.prepare(
           `UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?`,

@@ -1,4 +1,10 @@
-const PASSWORD_HASH_ALGORITHM = "pbkdf2-sha256";
+export const PASSWORD_HASH_ALGORITHM = "pbkdf2-sha256";
+/**
+ * Same PBKDF2 hash, different algorithm tag. Accounts with TOTP enabled store
+ * their hash under this tag so a backend that predates TOTP (which only accepts
+ * PASSWORD_HASH_ALGORITHM) fails closed instead of accepting the password alone.
+ */
+export const MFA_PASSWORD_HASH_ALGORITHM = "pbkdf2-sha256-mfa";
 const PASSWORD_HASH_ITERATIONS = 100_000;
 const PASSWORD_HASH_BYTES = 32;
 const PASSWORD_SALT_BYTES = 16;
@@ -22,7 +28,7 @@ export const verifyPassword = async (password: string, passwordHash: string) => 
   const iterations = Number(iterationsRaw);
 
   if (
-    algorithm !== PASSWORD_HASH_ALGORITHM ||
+    (algorithm !== PASSWORD_HASH_ALGORITHM && algorithm !== MFA_PASSWORD_HASH_ALGORITHM) ||
     !Number.isInteger(iterations) ||
     iterations < PASSWORD_HASH_ITERATIONS ||
     !saltRaw ||
@@ -41,6 +47,21 @@ export const verifyPassword = async (password: string, passwordHash: string) => 
     return false;
   }
 };
+
+export const isMfaPasswordHash = (passwordHash: string) =>
+  passwordHash.startsWith(`${MFA_PASSWORD_HASH_ALGORITHM}$`);
+
+/** Re-tags a plain hash for an account that has TOTP enabled. No-op if already tagged. */
+export const markPasswordHashMfa = (passwordHash: string) =>
+  passwordHash.startsWith(`${PASSWORD_HASH_ALGORITHM}$`)
+    ? `${MFA_PASSWORD_HASH_ALGORITHM}${passwordHash.slice(PASSWORD_HASH_ALGORITHM.length)}`
+    : passwordHash;
+
+/** Restores the plain tag once TOTP is turned off. No-op if not tagged. */
+export const unmarkPasswordHashMfa = (passwordHash: string) =>
+  isMfaPasswordHash(passwordHash)
+    ? `${PASSWORD_HASH_ALGORITHM}${passwordHash.slice(MFA_PASSWORD_HASH_ALGORITHM.length)}`
+    : passwordHash;
 
 const derivePasswordHash = async (password: string, salt: Uint8Array, iterations: number) => {
   const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, [

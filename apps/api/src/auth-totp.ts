@@ -1,7 +1,15 @@
 import { Secret, TOTP } from "otpauth";
 import type { Bindings } from "./api-context";
 import { AppError } from "./app-error";
-import { hashRecoveryCode, randomToken, verifyRecoveryCodeHash } from "./auth-crypto";
+import {
+  hashPassword,
+  hashRecoveryCode,
+  markPasswordHashMfa,
+  MFA_PASSWORD_HASH_ALGORITHM,
+  PASSWORD_HASH_ALGORITHM,
+  randomToken,
+  verifyRecoveryCodeHash,
+} from "./auth-crypto";
 import { createId, isoNow } from "./entity-utils";
 import { sha256 } from "./hash-utils";
 import { decryptSecret, encryptSecret } from "./secret-encryption";
@@ -264,4 +272,34 @@ export const consumeLoginChallenge = async (db: DatabaseAdapter, challengeId: st
     `UPDATE auth_challenges SET consumed_at = ? WHERE id = ? AND consumed_at IS NULL`,
   ).bind(isoNow(), challengeId).run();
   return Number(result.meta.changes) === 1;
+};
+
+// ---------------------------------------------------------------------------
+// Rollback protection. While TOTP is enabled the account's password hash is
+// stored under MFA_PASSWORD_HASH_ALGORITHM. A backend that predates TOTP only
+// accepts PASSWORD_HASH_ALGORITHM, so after a code rollback such an account
+// cannot sign in with the password alone (it gets password_hash_invalid) instead
+// of silently losing its second factor. The tag is a prefix swap: salt and
+// hash stay the same, so no plaintext password is needed to apply or remove it.
+// Both statements are no-ops when the row is already in the target state.
+
+const PLAIN_HASH_PREFIX = `${PASSWORD_HASH_ALGORITHM}$`;
+const MFA_HASH_PREFIX = `${MFA_PASSWORD_HASH_ALGORITHM}$`;
+
+export const markPasswordHashMfaStatement = (db: DatabaseAdapter, userId: string, now: string) =>
+  db.prepare(
+    `UPDATE users SET password_hash = ? || substr(password_hash, ?), updated_at = ?
+     WHERE id = ? AND substr(password_hash, 1, ?) = ?`,
+  ).bind(MFA_HASH_PREFIX, PLAIN_HASH_PREFIX.length + 1, now, userId, PLAIN_HASH_PREFIX.length, PLAIN_HASH_PREFIX);
+
+export const unmarkPasswordHashMfaStatement = (db: DatabaseAdapter, userId: string, now: string) =>
+  db.prepare(
+    `UPDATE users SET password_hash = ? || substr(password_hash, ?), updated_at = ?
+     WHERE id = ? AND substr(password_hash, 1, ?) = ?`,
+  ).bind(PLAIN_HASH_PREFIX, MFA_HASH_PREFIX.length + 1, now, userId, MFA_HASH_PREFIX.length, MFA_HASH_PREFIX);
+
+/** Hashes a new password for a user, keeping the MFA tag if TOTP is enabled. */
+export const hashPasswordForUser = async (db: DatabaseAdapter, userId: string, password: string) => {
+  const hash = await hashPassword(password);
+  return isTotpEnabled(await getUserTotp(db, userId)) ? markPasswordHashMfa(hash) : hash;
 };

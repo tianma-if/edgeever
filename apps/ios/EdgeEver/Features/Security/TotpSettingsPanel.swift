@@ -119,10 +119,10 @@ struct TotpSettingsPanel: View {
             }
         } else {
             Text(env.preferences.t(
-                "登录时除密码外，还需要输入身份验证器 App 生成的 6 位验证码。开启后会生成 10 个一次性恢复码，并退出其他设备上的登录；已有 API Token 不受影响。",
-                en: "At sign-in, enter a 6-digit code from an authenticator app in addition to your password. Turning it on creates 10 one-time recovery codes and signs out your other devices. Existing API tokens are not affected.",
-                ja: "サインイン時に、パスワードに加えて認証アプリの 6 桁のコードを入力します。オンにすると 10 個の使い捨てリカバリーコードが作成され、他のデバイスはサインアウトされます。既存の API トークンには影響しません。",
-                pl: "Przy logowaniu oprócz hasła wpisujesz 6-cyfrowy kod z aplikacji uwierzytelniającej. Włączenie tworzy 10 jednorazowych kodów odzyskiwania i wylogowuje inne urządzenia. Istniejące tokeny API nie są zmieniane."
+                "登录时除密码外，还需要输入身份验证器 App 生成的 6 位验证码。开启后会生成 10 个一次性恢复码；已登录的设备保持登录，下次登录时才需要验证码。已有 API Token 不受影响。",
+                en: "At sign-in, enter a 6-digit code from an authenticator app in addition to your password. Turning it on creates 10 one-time recovery codes. Devices that are already signed in stay signed in and are asked for a code at their next sign-in. Existing API tokens are not affected.",
+                ja: "サインイン時に、パスワードに加えて認証アプリの 6 桁のコードを入力します。オンにすると 10 個の使い捨てリカバリーコードが作成されます。サインイン済みのデバイスはそのままで、次回のサインイン時からコードが必要になります。既存の API トークンには影響しません。",
+                pl: "Przy logowaniu oprócz hasła wpisujesz 6-cyfrowy kod z aplikacji uwierzytelniającej. Włączenie tworzy 10 jednorazowych kodów odzyskiwania. Zalogowane urządzenia pozostają zalogowane i poproszą o kod przy następnym logowaniu. Istniejące tokeny API nie są zmieniane."
             ))
             .font(.system(size: 12))
             .foregroundStyle(AppTheme.secondary)
@@ -246,10 +246,10 @@ struct TotpManageSheet: View {
                                 : env.preferences.t("完成重新绑定", en: "Finish rebinding", ja: "再登録を完了", pl: "Zakończ ponowne powiązanie"),
                             finishNote: mode == .enable
                                 ? env.preferences.t(
-                                    "点击“启用”后，其他设备上的登录会被退出。",
-                                    en: "Turning it on signs out your other devices.",
-                                    ja: "オンにすると、他のデバイスはサインアウトされます。",
-                                    pl: "Włączenie wyloguje Twoje inne urządzenia."
+                                    "已登录的设备保持登录，下次登录时才需要验证码。",
+                                    en: "Devices that are already signed in stay signed in; they are asked for a code at their next sign-in.",
+                                    ja: "サインイン済みのデバイスはそのままです。次回のサインイン時からコードが必要になります。",
+                                    pl: "Zalogowane urządzenia pozostają zalogowane; kod będzie wymagany przy następnym logowaniu."
                                 )
                                 : env.preferences.totpDeleteOldEntry,
                             onConfirmed: { response in

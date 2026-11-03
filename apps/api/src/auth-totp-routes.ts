@@ -10,6 +10,7 @@ import type { Hono } from "hono";
 import type { AppContext, AppEnv, AuthContext } from "./api-context";
 import { audit, auditStatement } from "./audit";
 import { verifyPassword } from "./auth-crypto";
+import { markPasswordHashMfaStatement, unmarkPasswordHashMfaStatement } from "./auth-totp";
 import {
   checkLoginRateLimit,
   clearLoginAttempts,
@@ -302,9 +303,13 @@ export const registerTotpRoutes = (app: Hono<AppEnv>, dependencies: TotpRouteDep
          WHERE user_id = ? AND pending_secret_encrypted = ? AND pending_verified_step IS NOT NULL`,
       ).bind(now, now, user.id, row.pending_secret_encrypted),
       ...activatePendingRecoveryCodeStatements(db, user.id),
-      // Enabling (or recovering) signs out every other device so none keeps
-      // a password-only session. A voluntary rebind keeps them.
-      ...(!wasEnabled || restricted
+      // First enable: tag the password hash so a pre-TOTP backend fails closed
+      // for this account after a rollback (see auth-totp.ts).
+      ...(!wasEnabled ? [markPasswordHashMfaStatement(db, user.id, now)] : []),
+      // Enabling and a voluntary rebind keep every signed-in device; each one
+      // is asked for a code at its next sign-in. Only an emergency rebind after
+      // a recovery-code sign-in signs the other devices out.
+      ...(restricted
         ? [db.prepare(
           `UPDATE sessions SET revoked_at = ?
            WHERE user_id = ? AND id != ? AND revoked_at IS NULL`,
@@ -371,6 +376,7 @@ export const registerTotpRoutes = (app: Hono<AppEnv>, dependencies: TotpRouteDep
       db.prepare(`DELETE FROM user_recovery_codes WHERE user_id = ?`).bind(auth.actorId),
       db.prepare(`DELETE FROM auth_challenges WHERE user_id = ?`).bind(auth.actorId),
       db.prepare(`DELETE FROM user_totp WHERE user_id = ?`).bind(auth.actorId),
+      unmarkPasswordHashMfaStatement(db, auth.actorId, isoNow()),
       auditStatement(db, "user", auth.actorId, "auth.totp_disable", "user", auth.actorId, {}),
     ]);
     return context.json({ ok: true });

@@ -35,6 +35,10 @@ afterEach(() => {
   for (const sqlite of instances.splice(0)) sqlite.close();
 });
 
+const ownerHash = (sqlite) => sqlite.query("SELECT password_hash FROM users WHERE id = 'usr_owner'").get().password_hash;
+// Hash format accepted by releases that predate TOTP (<= v2.18.0).
+const LEGACY_HASH_PATTERN = /^pbkdf2-sha256\$(\d+)\$([^$]+)\$([^$]+)$/;
+
 const codeAt = (secret, offsetSteps = 0) => new TOTP({ secret: Secret.fromBase32(secret) })
   .generate({ timestamp: Date.now() + offsetSteps * 30_000 });
 
@@ -205,8 +209,10 @@ describe("TOTP routes", () => {
       enabled: true, recoveryCodesRemaining: 10, rebindRequired: false,
     });
 
-    // Enabling signs out every other device, but keeps the current one.
-    expect((await request("/api/v1/auth/totp", { token: otherToken })).status).toBe(401);
+    // Enabling keeps every signed-in device; each is asked for a code at its next sign-in.
+    expect((await request("/api/v1/auth/totp", { token: otherToken })).status).toBe(200);
+    // The password hash is re-tagged so a pre-TOTP backend fails closed for this account.
+    expect(ownerHash(sqlite)).toMatch(/^pbkdf2-sha256-mfa\$/);
 
     const stored = JSON.stringify(sqlite.query("SELECT * FROM user_totp").all())
       + JSON.stringify(sqlite.query("SELECT * FROM user_recovery_codes").all())
@@ -449,3 +455,47 @@ const authenticateRequestFor = async (sqlite, token) => {
   });
   return result;
 };
+
+describe("TOTP rollback protection", () => {
+  test("the stored hash is only accepted by this version while TOTP is on, and restored when it is off", async () => {
+    const { request, passwordLogin, loginToken, enable, sqlite } = await createInstance();
+    const plainBefore = ownerHash(sqlite);
+    expect(LEGACY_HASH_PATTERN.test(plainBefore)).toBe(true);
+
+    const token = await loginToken();
+    const { secret } = await enable(token);
+    const tagged = ownerHash(sqlite);
+    // Same salt and digest, different tag: a pre-TOTP backend cannot verify it.
+    expect(tagged.split("$").slice(1)).toEqual(plainBefore.split("$").slice(1));
+    expect(LEGACY_HASH_PATTERN.test(tagged)).toBe(false);
+    // This version still verifies the password and asks for the second factor.
+    expect((await passwordLogin(OTHER_DEVICE)).body.error.code).toBe("mfa_required");
+
+    const disable = await request("/api/v1/auth/totp/disable", {
+      token, method: "POST", body: { password: "owner-password", code: codeAt(secret, 1) },
+    });
+    expect(disable.status).toBe(200);
+    expect(ownerHash(sqlite)).toBe(plainBefore);
+    expect((await passwordLogin(OTHER_DEVICE)).status).toBe(200);
+  });
+
+  test("changing the password while TOTP is on keeps the tag", async () => {
+    const { request, loginToken, enable, sqlite } = await createInstance();
+    const token = await loginToken();
+    await enable(token);
+
+    const change = await request("/api/v1/auth/change-password", {
+      token, method: "POST",
+      body: { currentPassword: "owner-password", newPassword: "new-owner-password", confirmPassword: "new-owner-password" },
+    });
+    expect(change.status).toBe(200);
+    expect(ownerHash(sqlite)).toMatch(/^pbkdf2-sha256-mfa\$/);
+    expect(LEGACY_HASH_PATTERN.test(ownerHash(sqlite))).toBe(false);
+
+    const login = await request("/api/v1/auth/login", {
+      method: "POST", body: { username: "owner", password: "new-owner-password", deviceId: OTHER_DEVICE },
+    });
+    expect(login.status).toBe(401);
+    expect(login.body.error.code).toBe("mfa_required");
+  });
+});

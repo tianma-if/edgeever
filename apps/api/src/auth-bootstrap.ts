@@ -1,6 +1,7 @@
 type PasswordHashVerifier = (password: string, passwordHash: string) => Promise<boolean>;
 
-const PASSWORD_HASH_PATTERN = /^pbkdf2-sha256\$(\d+)\$([^$]+)\$([^$]+)$/;
+// "-mfa" marks an account with TOTP enabled; see MFA_PASSWORD_HASH_ALGORITHM in auth-crypto.
+const PASSWORD_HASH_PATTERN = /^pbkdf2-sha256(?:-mfa)?\$(\d+)\$([^$]+)\$([^$]+)$/;
 
 export const isSupportedPasswordHash = (passwordHash: string) => {
   const match = passwordHash.match(PASSWORD_HASH_PATTERN);
