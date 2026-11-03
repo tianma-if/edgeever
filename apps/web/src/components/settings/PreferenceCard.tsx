@@ -495,7 +495,7 @@ export const PreferenceCard = ({
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <div className={SETTINGS_ITEM_TITLE_CLASSNAME}>{t("settings.editorBodyCssTitle")}</div>
-                    {Boolean(noteProse.customCss?.trim()) ? (
+                    {noteProse.customCss?.trim() ? (
                       <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
                         {t("settings.editorBodyCssConfigured")}
                       </span>
