@@ -6,6 +6,7 @@ import { ActivityIndicator, AlertTriangle, LogOut, ShieldCheck } from "../compon
 import { Pressable, Text } from "../components/LocalizedText";
 import {
   TotpBindStep,
+  TotpButtonToneProvider,
   TotpPrimaryButton,
   TotpRecoveryCodesStep,
   TotpSecondaryButton,
@@ -99,6 +100,7 @@ export const MfaRebindScreen = () => {
   const errorView = errorKey ? <Text accessibilityLiveRegion="polite" style={styles.error}>{t[errorKey]}</Text> : null;
 
   return (
+    <TotpButtonToneProvider value="login">
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.flex}>
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
@@ -149,7 +151,7 @@ export const MfaRebindScreen = () => {
               ) : setupQuery.isError ? (
                 <View style={styles.stack}>
                   <Text style={styles.error}>{t[getTotpErrorKey(setupQuery.error)]}</Text>
-                  <TotpSecondaryButton label="重试" onPress={restart} />
+                  <TotpSecondaryButton label={t.continue} onPress={restart} />
                 </View>
               ) : (
                 <ActivityIndicator color={TOTP_PRIMARY_COLOR} />
@@ -159,6 +161,7 @@ export const MfaRebindScreen = () => {
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
+    </TotpButtonToneProvider>
   );
 };
 

@@ -1,6 +1,6 @@
 import type { TotpSetupResponse } from "@edgeever/shared";
 import * as Clipboard from "expo-clipboard";
-import { useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { Linking, Share, StyleSheet, View } from "react-native";
 import QRCode from "react-native-qrcode-svg";
 import { getMobileCatalog, formatMobileCopy, useMobileLocale } from "../lib/mobile-locale";
@@ -16,6 +16,17 @@ import { ActivityIndicator, AlertTriangle, Check, CheckSquare, Copy, ExternalLin
 import { Pressable, Text, TextInput } from "./LocalizedText";
 
 export const TOTP_PRIMARY_COLOR = "#10b981";
+
+/**
+ * Primary buttons follow the surrounding flow: the sign-in flow (including the
+ * forced rebind after a recovery-code sign-in) matches the login button, and
+ * the settings flow matches the other buttons on the sign-in settings page.
+ */
+export type TotpButtonTone = "login" | "settings";
+const TotpButtonToneContext = createContext<TotpButtonTone>("settings");
+export const TotpButtonToneProvider = TotpButtonToneContext.Provider;
+const usePrimaryButtonStyle = () =>
+  useContext(TotpButtonToneContext) === "login" ? totpStyles.primaryButtonLogin : totpStyles.primaryButton;
 
 export const useTwoFactorCopy = () => {
   const { resolvedLocale } = useMobileLocale();
@@ -161,6 +172,7 @@ export const TotpBindStep = ({
 }) => {
   const { t } = useTwoFactorCopy();
   const { copied, copy } = useCopiedFlag();
+  const primaryButtonStyle = usePrimaryButtonStyle();
   const [openFailed, setOpenFailed] = useState(false);
   const manualKey = formatTotpManualKey(setup.secret);
 
@@ -182,7 +194,7 @@ export const TotpBindStep = ({
         </View>
         <Text style={[totpStyles.help, totpStyles.flex]}>{t.scanQr}</Text>
       </View>
-      <Pressable accessibilityRole="button" onPress={() => void openInAuthenticator()} style={({ pressed }) => [totpStyles.primaryButton, pressed && totpStyles.pressed]}>
+      <Pressable accessibilityRole="button" onPress={() => void openInAuthenticator()} style={({ pressed }) => [primaryButtonStyle, pressed && totpStyles.pressed]}>
         <ExternalLink color="#ffffff" size={16} />
         <Text style={totpStyles.primaryButtonText}>{t.openInApp}</Text>
       </Pressable>
@@ -273,14 +285,16 @@ export const TotpPrimaryButton = ({
   label: string;
   loading?: boolean;
   onPress: () => void;
-}) => (
+}) => {
+  const primaryButtonStyle = usePrimaryButtonStyle();
+  return (
   <Pressable
     accessibilityRole="button"
     accessibilityState={{ disabled: Boolean(disabled || loading), busy: loading }}
     disabled={disabled || loading}
     onPress={onPress}
     style={({ pressed }) => [
-      danger ? totpStyles.dangerButton : totpStyles.primaryButton,
+      danger ? totpStyles.dangerButton : primaryButtonStyle,
       (disabled || loading) && totpStyles.disabled,
       pressed && !disabled ? totpStyles.pressed : null,
     ]}
@@ -289,7 +303,8 @@ export const TotpPrimaryButton = ({
       <Text style={danger ? totpStyles.dangerButtonText : totpStyles.primaryButtonText}>{label}</Text>
     )}
   </Pressable>
-);
+  );
+};
 
 export const TotpSecondaryButton = ({ danger = false, disabled, label, onPress }: { danger?: boolean; disabled?: boolean; label: string; onPress: () => void }) => (
   <Pressable
@@ -340,7 +355,10 @@ const baseTotpFlowStyles = StyleSheet.create({
   codeCell: { color: "#17211a", fontFamily: "monospace", fontSize: 14, fontWeight: "600", paddingHorizontal: 6, paddingVertical: 7, textAlign: "center", width: "50%" },
   checkboxRow: { alignItems: "center", flexDirection: "row", gap: 10, minHeight: 44 },
   checkboxLabel: { color: "#17211a", fontSize: 13, fontWeight: "600", lineHeight: 19 },
-  primaryButton: { alignItems: "center", backgroundColor: TOTP_PRIMARY_COLOR, borderRadius: 10, flexDirection: "row", gap: 8, justifyContent: "center", minHeight: 48, paddingHorizontal: 16 },
+  // Settings flow: same green as the change-password button on the sign-in settings page.
+  primaryButton: { alignItems: "center", backgroundColor: "#15803d", borderRadius: 10, flexDirection: "row", gap: 8, justifyContent: "center", minHeight: 48, paddingHorizontal: 16 },
+  // Sign-in flow: same green as the login button.
+  primaryButtonLogin: { alignItems: "center", backgroundColor: TOTP_PRIMARY_COLOR, borderRadius: 10, flexDirection: "row", gap: 8, justifyContent: "center", minHeight: 48, paddingHorizontal: 16 },
   primaryButtonText: { color: "#ffffff", fontSize: 14, fontWeight: "800" },
   secondaryButton: { alignItems: "center", backgroundColor: "#ffffff", borderColor: "#cad8cc", borderRadius: 10, borderWidth: 1, flexDirection: "row", gap: 6, justifyContent: "center", minHeight: 44, paddingHorizontal: 14 },
   secondaryButtonSmall: { alignItems: "center", backgroundColor: "#ffffff", borderColor: "#cad8cc", borderRadius: 8, borderWidth: 1, flexDirection: "row", gap: 5, minHeight: 34, paddingHorizontal: 10 },

@@ -121,7 +121,7 @@ const baseAccountSecurityStyles = StyleSheet.create({
   field: { gap: 7 },
   label: { color: "#334155", fontSize: 13, fontWeight: "700" },
   input: { backgroundColor: "#ffffff", borderColor: "#cad8cc", borderRadius: 10, borderWidth: 1, color: "#17211a", minHeight: 48, paddingHorizontal: 13 },
-  primaryButton: { alignItems: "center", backgroundColor: "#10b981", borderRadius: 10, minHeight: 48, justifyContent: "center", paddingHorizontal: 16 },
+  primaryButton: { alignItems: "center", backgroundColor: "#15803d", borderRadius: 10, minHeight: 48, justifyContent: "center", paddingHorizontal: 16 },
   primaryButtonText: { color: "#ffffff", fontSize: 14, fontWeight: "800" },
   disabled: { opacity: 0.45 },
   pressed: { opacity: 0.82 },
