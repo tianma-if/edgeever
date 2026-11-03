@@ -18,7 +18,7 @@
     <a href="README.zh-CN.md">简体中文</a> | <a href="README.zh-TW.md">繁體中文</a> | <b>English</b> | <a href="README.ja.md">日本語</a> | <a href="README.pl-PL.md">Polski</a>
   </p>
   <p>
-    <a href="https://t.me/+f9wjT92yDZhmNjY1"><img src="assets/readme/community/telegram.svg" alt="Telegram" width="16" height="16" align="absmiddle" /> Telegram Group</a> &nbsp;|&nbsp;
+    <a href="https://t.me/+GvKYnL37feUwOTNl"><img src="assets/readme/community/telegram.svg" alt="Telegram" width="16" height="16" align="absmiddle" /> Telegram Group</a> &nbsp;|&nbsp;
     <a href="https://demo.edgeever.org">🌐 Live Demo</a> &nbsp;|&nbsp;
     <a href="#all-platform-clients--browser-extension">📱 Clients & Extension</a> &nbsp;|&nbsp;
     <a href="#features">Feature Matrix & Capabilities</a>
@@ -287,7 +287,7 @@ Community contributions are warmly welcome! Please keep the following guidelines
 
 Welcome to the EdgeEver community, bringing together developers and creators exploring vibe coding and AI. Join us to discuss cutting-edge AI productivity and best practices for personal knowledge bases.
 
-👉 [Join the EdgeEver Telegram group](https://t.me/+f9wjT92yDZhmNjY1)
+👉 [Join the EdgeEver Telegram group](https://t.me/+GvKYnL37feUwOTNl)
 
 ## Friendly Links
 
