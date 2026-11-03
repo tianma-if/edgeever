@@ -130,10 +130,13 @@ export const AiModelOutputBudgetDialog = ({ providerConfigId, model, readOnly, o
                     aria-invalid={fieldInvalid}
                     aria-describedby={hintId}
                   />
-                  <span id={hintId} className={fieldInvalid ? "text-xs leading-4 text-rose-600" : "text-xs leading-4 text-slate-500"}>
-                    {fieldInvalid
-                      ? t("aiModel.outputBudgetInvalid", { min, max })
-                      : [t("aiModel.outputBudgetRange", { min, max }), hintKey ? t(hintKey) : ""].filter(Boolean).join(" ")}
+                  <span id={hintId} className="grid gap-0.5 text-xs leading-4">
+                    {fieldInvalid ? (
+                      <span className="text-rose-600">{t("aiModel.outputBudgetInvalid", { min, max })}</span>
+                    ) : (
+                      <span className="text-slate-500">{t("aiModel.outputBudgetRange", { min, max })}</span>
+                    )}
+                    {hintKey ? <span className="text-slate-500">{t(hintKey)}</span> : null}
                   </span>
                 </div>
               );

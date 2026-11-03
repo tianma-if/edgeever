@@ -1,0 +1,34 @@
+# 模型级输出预算
+
+[English](2026-11-03-ai-model-output-budgets.md)
+
+关联 Issue：#652
+
+## 问题与目标
+
+正文生成（4096）、标签建议（300）和 AI 侧栏内置伴读（2048）的输出上限都写死在代码里。长文改写、翻译容易被截断；部分推理模型会把思考 token 计入输出预算，标签建议这类小预算几乎没有正文空间。目标是让用户按模型调整这三个场景的输出预算：在 Web / 桌面端设置，Web、桌面、Android、iOS 全端生效；留空保持原默认值。
+
+## 允许变更与验收
+
+1. 新增迁移 `0088`，给 `ai_models` 增加三个可空整数列：`generation_max_output_tokens`、`tag_suggestion_max_output_tokens`、`companion_max_output_tokens`。`NULL` 表示使用默认值，不回填数据，不修改旧迁移。
+2. 默认模型的凭据和三个预算由同一条 SQL 一次取出（`resolveDefaultAiModel`），避免两次查询之间切换默认模型导致凭据和预算来自不同模型。`loadDefaultAiModelCredentials` 保留原返回结构，信息图、视频大纲、插件、发现等 prepare 响应不出现新字段。
+3. 正文生成、标签建议、伴读（新轮次和回答提问后的继续）三处 prepare 读取对应预算，响应结构不变，仍是 `maxOutputTokens: number`。标签建议的 `temperature: 0` 不变。
+4. 新增 `PATCH /api/v1/ai/providers/:providerConfigId/models/:modelConfigId`：字段省略表示不修改，`null` 表示恢复默认；拒绝空请求体、未知字段、非整数和超出范围的值。沿用现有的用户会话要求、工作区隔离、Demo / 只读限制，并写入审计 `workspace.ai_model.update`。创建模型接口也接受这三个可选字段。
+5. 输入范围：正文生成和伴读 256–131072，标签建议 64–8192。这只用于拦截明显的误填，不代表模型实际支持的上限。
+6. Web / 桌面设置页在每个模型标签上增加“输出预算”入口（shadcn/ui Tooltip，键盘聚焦同样可见），打开对话框编辑三个数值；占位文字显示默认值，留空即默认，提供“全部恢复默认”。只提交有变化的字段。服务端不返回这些字段（旧版本实例）时不显示入口。说明文字写明：部分模型会将思考 token 计入输出预算，提高预算能缓解问题但不能保证所有推理模型可用；伴读按单次模型调用计算；只作用于实例 AI 模型，不影响桌面端本地 Agent（ACP）。新增文案覆盖 5 种语言。
+
+## 保持不变的边界、风险与恢复
+
+- 不包含思考控制、`contextWindow` 和 ACP 本地 Agent；视频大纲、发现、信息图和插件的输出上限不变。
+- 各客户端本来就按 prepare 返回的 `maxOutputTokens` 发请求（`packages/client` 用于 Web、桌面、Android；iOS 用 `AiDirectStream.swift`），Web 的后端网络兜底（`/api/v1/ai/provider-relay`）原样转发客户端构造的请求体。因此只升级服务端即可对旧客户端生效。
+- 最坏情况：填写的值超过模型或网关支持的上限，该模型对应场景在所有端返回 400。清空该字段即可恢复。预算调大后输出变长，费用和耗时随之增加；伴读一轮可能包含多次调用。
+- 回滚：配置层面清空字段；代码层面回退提交即可，新增的三列对旧代码无影响（旧代码查询 `ai_models` 时显式列出列名），不需要回滚迁移。
+
+## 实现与验收结论
+
+- `ai-output-budgets.ts` 定义默认值、输入范围和回落规则；`ai-service.ts` 新增 `resolveDefaultAiModel`，`ai-routes.ts` 新增 PATCH 并接入正文生成和标签建议，`companion-routes.ts` / `companion-prepare.ts` 接入伴读的两条 prepare 路径；Web 新增 `AiModelOutputBudgetDialog.tsx`，`packages/client` 新增 `updateAiModel`。客户端直连、后端兜底和 iOS 代码未改动。
+- 自动化：新增 API 测试覆盖默认值、PATCH 的省略 / `null` 语义、输入校验、工作区隔离、Demo 与 API Token 拒绝、审计、切换默认模型后凭据与预算一致、其他 prepare 响应结构不变，以及“旧版本数据库写入 → 迁移 → 旧版查询 / 写入”；伴读测试覆盖新轮次和继续两条路径；shared 与 client 单元测试；新增 Playwright 用例 `ai-model-output-budgets.spec.ts`（编辑、校验、键盘聚焦提示、刷新后持久化、恢复默认）并接入现有浏览器 CI 步骤，不增加 Runner。
+- `bun run test`（已变基到最新 `upstream/main`）：5344 个测试中 6 个失败，均与本次改动无关——4 个因工作区路径含非 ASCII 字符（`模型参数`）而失败，在 ASCII 路径的同一提交上全部通过；`publish-layout` 和 `deployment-entrypoints` 在未修改的 `upstream/main` 上同样失败。设置响应新增三个 `null` 字段，已同步更新原有的期望值。`bun run typecheck`、`bun run typecheck:mobile`、`bun run build:web` 和 `bun run lint` 通过。
+- 自托管（Docker 使用的 `self-hosted-server` 入口，同一个 SQLite 数据目录）跨版本端到端：用已发布的 v2.18.0 客户端库（其直连、兜底和 iOS 请求代码与当前 `main` 完全一致）连接本地模拟模型服务，覆盖正文生成、标签建议、AI 侧栏三项，每项分直连和后端兜底两种，共 41 项检查全部通过：旧服务端为 4096 / 300 / 2048；升级到新服务端后旧数据仍为默认值；PATCH 后变为 16000 / 800 / 9000；`null` 恢复默认；回滚到旧服务端后设置可读、可新增和删除模型，请求恢复旧默认值；再次升级后保留回滚前保存的值。
+- Cloudflare 预览实例（独立 Worker、D1、R2、认证密钥和预览域名，与生产环境隔离）：先部署未修改的 `upstream/main` 并迁移到 `0087`，按旧服务端写法写入模型数据，再迁移到 `0088` 并部署本分支。用 v2.18.0 客户端库经 HTTP 验证，正文生成、标签建议、AI 侧栏三项都覆盖直连和 Worker 后端兜底（Worker 把客户端构造的请求体转发到外部回显服务，读回的 `max_tokens` 与预期一致），共 24 项检查通过：旧数据升级后为默认值；PATCH 后为配置值；`null` 恢复默认；非法值返回 400；其他 prepare 响应结构不变。随后把未修改的 `upstream/main` 重新部署到同一 Worker 和已迁移的 D1：设置可读，可新增和删除模型，三项请求恢复旧默认值；再部署本分支后保留回滚前保存的值。浏览器中登录预览实例，设置对话框能读出已保存的值并通过界面保存。
+- 未验证：未使用 Docker 镜像本身（使用相同入口脚本）；Android USB 真机、iOS 真机和桌面安装包的跨版本验证未进行；未调用真实模型服务验证各供应商对较大预算的实际行为。
