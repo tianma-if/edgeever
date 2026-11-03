@@ -4,8 +4,11 @@ import {
   DEFAULT_NOTE_PROSE_LINE_HEIGHT,
   flattenDetailsForLinearHtml,
   NOTE_PROSE_HEADING_SCALE,
-  NOTE_PROSE_PARAGRAPH_SPACING_PX,
   noteProseCodeFontSize,
+  noteProseStyleCssVariables,
+  parseNoteProseParagraphSpacing,
+  parseNoteProseTextAlign,
+  parseNoteProseLetterSpacing,
   parseNoteProseEmphasisStyle,
   parseNoteProseHeadingStyle,
   parseNoteProseLineHeight,
@@ -27,7 +30,6 @@ import {
   readNoteProseStylePreference,
 } from "@/lib/note-prose-style-preference";
 
-const PARAGRAPH_SPACING = `${NOTE_PROSE_PARAGRAPH_SPACING_PX}px`;
 const PUBLISH_FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif";
 const PUBLISH_MONO = "'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
 const BODY_COLOR = "#27272a";
@@ -62,6 +64,7 @@ const applyLegacyWeChatStyles = (
   _accentOnly = false,
   proseStyle: NoteProseStylePreferences = DEFAULT_NOTE_PROSE_STYLE_PREFERENCES,
 ) => {
+  const rhythm = noteProseStyleCssVariables(proseStyle);
   const fontSize = `${metrics.fontSize}px`;
   const lineHeight = String(metrics.lineHeight);
   const codeSize = `${noteProseCodeFontSize(metrics.fontSize)}px`;
@@ -75,7 +78,7 @@ const applyLegacyWeChatStyles = (
   const bold = colors ? `font-weight: 800; color: ${accent};` : "font-weight: 800;";
   const thBackground = colors ? colors.accent : "#f3f4f6";
   const thColor = colors ? "#ffffff" : "#111827";
-  const textStyle = `font-family: ${PUBLISH_FONT}; font-size: ${fontSize}; line-height: ${lineHeight}; letter-spacing: -0.005em; color: ${BODY_COLOR};`;
+  const textStyle = `font-family: ${PUBLISH_FONT}; font-size: ${fontSize}; line-height: ${lineHeight}; letter-spacing: ${rhythm["--editor-body-letter-spacing"]}; color: ${BODY_COLOR};`;
   const h2Base = headingStyle("h2", metrics);
   const h3Base = headingStyle("h3", metrics);
   const h2Style = proseStyle.headingStyle === "bar"
@@ -107,9 +110,9 @@ const applyLegacyWeChatStyles = (
   const thStyle = `padding: 8px 13px; border: 1px solid #e5e5e5; background: ${thBackground}; color: ${thColor}; font-weight: 700; font-size: ${tableHeaderSize}; text-align: left; vertical-align: top;`;
   const imgStyle =
     "display: block; max-width: 100%; height: auto; margin: 16px 0; padding: 6px; box-sizing: border-box; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; box-shadow: 0 4px 12px -2px rgba(0,0,0,0.08);";
-  const paragraphBottom = proseStyle.headingStyle === "numbered" ? "16px" : PARAGRAPH_SPACING;
+  const paragraphBottom = rhythm["--editor-paragraph-spacing"];
   const styles: Record<string, string> = {
-    p: `margin: 0 0 ${paragraphBottom}; padding: 0; ${textStyle}`,
+    p: `margin: 0 0 ${paragraphBottom}; padding: 0; text-align: ${rhythm["--editor-body-text-align"]}; ${textStyle}`,
     h1: headingStyle("h1", metrics),
     h2: h2Style,
     h3: h3Style,
@@ -153,7 +156,7 @@ const applyLegacyWeChatStyles = (
     const quoted = (tagName === "p" || tagName === "li") && element.closest("blockquote");
     const cell = tagName === "p" ? element.closest("th, td") : null;
     const baseStyle = cell
-      ? `margin: 0; padding: 0; font-family: ${PUBLISH_FONT}; font-size: ${cell.tagName.toLowerCase() === "th" ? tableHeaderSize : fontSize}; line-height: 1.45; letter-spacing: inherit; color: ${cell.tagName.toLowerCase() === "th" ? thColor : BODY_COLOR};`
+      ? `margin: 0; padding: 0; font-family: ${PUBLISH_FONT}; font-size: ${cell.tagName.toLowerCase() === "th" ? tableHeaderSize : fontSize}; line-height: 1.45; text-align: inherit; letter-spacing: inherit; color: ${cell.tagName.toLowerCase() === "th" ? thColor : BODY_COLOR};`
       : styles[tagName] || "";
     // One color declaration. A second `color` later in the attribute is easy for WeChat to drop.
     const style = isMergeDivider
@@ -1254,6 +1257,9 @@ export const readEditorCopyContext = (from?: HTMLElement | null) => {
   const customStyleTag = container?.querySelector<HTMLStyleElement>("style[data-theme-custom-css]");
   const storedStyle = readNoteProseStylePreference();
   const proseStyle: NoteProseStylePreferences = {
+    paragraphSpacing: parseNoteProseParagraphSpacing(readCssNumber(style?.getPropertyValue("--editor-paragraph-spacing"), storedStyle.paragraphSpacing)) ?? storedStyle.paragraphSpacing,
+    textAlign: parseNoteProseTextAlign(style?.getPropertyValue("--editor-body-text-align").trim()) ?? storedStyle.textAlign,
+    letterSpacing: parseNoteProseLetterSpacing(style?.getPropertyValue("--editor-body-letter-spacing").trim()) ?? storedStyle.letterSpacing,
     headingStyle: parseNoteProseHeadingStyle(container?.dataset.noteHeadingStyle) ?? storedStyle.headingStyle,
     quoteStyle: parseNoteProseQuoteStyle(container?.dataset.noteQuoteStyle) ?? storedStyle.quoteStyle,
     emphasisStyle: parseNoteProseEmphasisStyle(container?.dataset.noteEmphasisStyle) ?? storedStyle.emphasisStyle,

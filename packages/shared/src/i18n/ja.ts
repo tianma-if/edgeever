@@ -1159,6 +1159,11 @@ export const ja = {
       start: "左揃え",
     },
     editorBodyFontSizeTitle: "本文の文字サイズ",
+    editorParagraphSpacingTitle: "段落間隔",
+    editorTextAlignTitle: "本文の配置",
+    editorLetterSpacingTitle: "文字間隔",
+    editorTextAlignOptions: { left: "左揃え", justify: "両端揃え" },
+    editorLetterSpacingDefault: "デフォルト",
     editorBodyLineHeightTitle: "行間",
     accountSyncDescription: "クラウドに同期します。",
     editorBodyLineHeights: {

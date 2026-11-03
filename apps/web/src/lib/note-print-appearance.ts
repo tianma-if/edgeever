@@ -1,6 +1,7 @@
 import {
   NOTE_PROSE_PALETTES,
   noteProseCssVariables,
+  noteProseStyleCssVariables,
   type NoteProsePaletteChoice,
   type NoteProseStylePreferences,
   type ResolvedNoteProse,
@@ -48,7 +49,7 @@ export const notePrintAppearanceFromProse = (
 ): NotePrintAppearance => ({
   palette: prose.palette,
   proseStyle,
-  cssVariables: noteProseCssVariables(prose),
+  cssVariables: { ...noteProseCssVariables(prose), ...noteProseStyleCssVariables(proseStyle) },
   customCss: sanitizeAndScopeCss(prose.customCss),
   fontFamily: resolveEditorBodyFontStack(font) ?? null,
   fontId: loadableBodyFontId(font.choice),

@@ -281,6 +281,32 @@ describe("preparePublishArticle", () => {
     }
   });
 
+  test("exports body rhythm independently of headings and keeps table cells compact", () => {
+    const container = document.createElement("div");
+    container.dataset.notePalette = "native";
+    const previous = globalThis.getComputedStyle;
+    try {
+      for (const headingStyle of ["default", "bar", "numbered"]) {
+        container.dataset.noteHeadingStyle = headingStyle;
+        globalThis.getComputedStyle = () => ({ getPropertyValue: (name) => ({
+          "--editor-paragraph-spacing": "12px",
+          "--editor-body-text-align": "justify",
+          "--editor-body-letter-spacing": "0.5px",
+        })[name] ?? "" });
+        const root = preparePublishArticle("<h3>标题</h3><p>正文</p><table><tbody><tr><td><p>单元格</p></td></tr></tbody></table>", container);
+        const body = root.querySelector(":scope > p");
+        expect(body.style.margin).toBe("0 0 12px");
+        expect(body.style.textAlign).toBe("justify");
+        expect(body.style.letterSpacing).toBe("0.5px");
+        const cell = root.querySelector("td p");
+        expect(cell.style.margin).toBe("0");
+        expect(cell.style.textAlign).toBe("inherit");
+      }
+    } finally {
+      globalThis.getComputedStyle = previous;
+    }
+  });
+
   test("renders magazine cover card and toc cards only when showMagazineCover is enabled", () => {
     const container = document.createElement("div");
     container.dataset.notePalette = "emerald";

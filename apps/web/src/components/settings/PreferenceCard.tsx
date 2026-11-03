@@ -22,6 +22,12 @@ import {
   NOTE_PROSE_EMPHASIS_STYLES,
   NOTE_PROSE_FONT_SIZES,
   NOTE_PROSE_HEADING_STYLES,
+  NOTE_PROSE_PARAGRAPH_SPACINGS,
+  NOTE_PROSE_TEXT_ALIGNS,
+  NOTE_PROSE_LETTER_SPACINGS,
+  parseNoteProseParagraphSpacing,
+  parseNoteProseTextAlign,
+  parseNoteProseLetterSpacing,
   NOTE_PROSE_PALETTE_CHOICES,
   NOTE_PROSE_PALETTES,
   NOTE_PROSE_QUOTE_STYLES,
@@ -506,6 +512,45 @@ export const PreferenceCard = ({
               </Select>
             </div>
           </div>
+
+          {[
+            {
+              id: "paragraphSpacing",
+              title: t("settings.editorParagraphSpacingTitle"),
+              value: String(noteProseStyle.paragraphSpacing),
+              options: NOTE_PROSE_PARAGRAPH_SPACINGS.map((value) => ({ value: String(value), label: `${value}px` })),
+              onChange: (value: string) => writeNoteProseStylePreference({ paragraphSpacing: parseNoteProseParagraphSpacing(Number(value)) ?? 8 }),
+            },
+            {
+              id: "textAlign",
+              title: t("settings.editorTextAlignTitle"),
+              value: noteProseStyle.textAlign,
+              options: NOTE_PROSE_TEXT_ALIGNS.map((value) => ({ value, label: t(`settings.editorTextAlignOptions.${value}`) })),
+              onChange: (value: string) => writeNoteProseStylePreference({ textAlign: parseNoteProseTextAlign(value) ?? "left" }),
+            },
+            {
+              id: "letterSpacing",
+              title: t("settings.editorLetterSpacingTitle"),
+              value: noteProseStyle.letterSpacing,
+              options: NOTE_PROSE_LETTER_SPACINGS.map((value) => ({ value, label: value === "default" ? t("settings.editorLetterSpacingDefault") : value })),
+              onChange: (value: string) => writeNoteProseStylePreference({ letterSpacing: parseNoteProseLetterSpacing(value) ?? "default" }),
+            },
+          ].map((setting) => (
+            <div key={setting.id} className="flex min-h-16 flex-col items-start gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+              <div className="flex min-w-0 items-center gap-3">
+                <Type className="h-4 w-4 shrink-0 text-slate-500" />
+                <div className={SETTINGS_ITEM_TITLE_CLASSNAME}>{setting.title}</div>
+              </div>
+              <div className="w-full shrink-0 sm:w-80">
+                <Select value={setting.value} onValueChange={setting.onChange}>
+                  <SelectTrigger aria-label={setting.title} className="h-9 bg-card"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {setting.options.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          ))}
 
           <div className="flex min-h-16 flex-col items-start gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
             <div className="flex min-w-0 items-center gap-3">

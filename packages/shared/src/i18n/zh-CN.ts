@@ -1170,6 +1170,11 @@ export const zhCN = {
       start: "靠左显示",
     },
     editorBodyFontSizeTitle: "正文字号",
+    editorParagraphSpacingTitle: "段落间距",
+    editorTextAlignTitle: "正文对齐",
+    editorLetterSpacingTitle: "字间距",
+    editorTextAlignOptions: { left: "左对齐", justify: "两端对齐" },
+    editorLetterSpacingDefault: "默认",
     editorBodyLineHeightTitle: "行高",
     accountSyncDescription: "支持云端同步。",
     editorBodyLineHeights: {

@@ -1151,6 +1151,11 @@ export const enUS = {
       start: "Align left",
     },
     editorBodyFontSizeTitle: "Text size",
+    editorParagraphSpacingTitle: "Paragraph spacing",
+    editorTextAlignTitle: "Body alignment",
+    editorLetterSpacingTitle: "Letter spacing",
+    editorTextAlignOptions: { left: "Left", justify: "Justified" },
+    editorLetterSpacingDefault: "Default",
     editorBodyLineHeightTitle: "Line height",
     accountSyncDescription: "Syncs to the cloud.",
     editorBodyLineHeights: {

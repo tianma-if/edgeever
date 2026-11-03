@@ -1,3 +1,22 @@
+/* Independent body rhythm applies to every heading style. */
+.edgeever-editor .ProseMirror,
+.edgeever-editor .markdown-content {
+  letter-spacing: var(--editor-body-letter-spacing, -0.005em);
+}
+
+.edgeever-editor .ProseMirror p,
+.edgeever-editor .markdown-content p {
+  margin-bottom: var(--editor-paragraph-spacing, 8px);
+  text-align: var(--editor-body-text-align, left);
+}
+
+/* Table cells keep their own compact rhythm and alignment. */
+.edgeever-editor .ProseMirror :is(th, td) p,
+.edgeever-editor .markdown-content :is(th, td) p {
+  margin: 0;
+  text-align: inherit;
+}
+
 /* Composable reading styles for headings, blockquotes, and inline emphasis. */
 
 /* 1. Heading style: Left bar ("bar") */
@@ -17,13 +36,6 @@
 .edgeever-editor[data-note-heading-style="numbered"] .ProseMirror,
 .edgeever-editor[data-note-heading-style="numbered"] .markdown-content {
   counter-reset: note-prose-h2;
-  letter-spacing: 0.5px;
-}
-
-.edgeever-editor[data-note-heading-style="numbered"] .ProseMirror p,
-.edgeever-editor[data-note-heading-style="numbered"] .markdown-content p {
-  margin-bottom: 16px;
-  text-align: justify;
 }
 
 /* H1: Magazine cover-breaking card */
