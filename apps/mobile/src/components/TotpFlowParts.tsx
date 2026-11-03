@@ -2,6 +2,7 @@ import type { TotpSetupResponse } from "@edgeever/shared";
 import * as Clipboard from "expo-clipboard";
 import { useEffect, useRef, useState } from "react";
 import { Linking, Share, StyleSheet, View } from "react-native";
+import QRCode from "react-native-qrcode-svg";
 import { getMobileCatalog, formatMobileCopy, useMobileLocale } from "../lib/mobile-locale";
 import { resolveMobileThemeStyles, useMobileTheme, type MobileResolvedTheme } from "../lib/mobile-theme";
 import {
@@ -175,6 +176,12 @@ export const TotpBindStep = ({
 
   return (
     <View style={totpStyles.stack}>
+      <View style={totpStyles.qrRow}>
+        <View accessibilityLabel={t.scanQr} accessible style={totpStyles.qrCard}>
+          <QRCode backgroundColor="#ffffff" color="#07130b" quietZone={0} size={148} value={setup.otpauthUri} />
+        </View>
+        <Text style={[totpStyles.help, totpStyles.flex]}>{t.scanQr}</Text>
+      </View>
       <Pressable accessibilityRole="button" onPress={() => void openInAuthenticator()} style={({ pressed }) => [totpStyles.primaryButton, pressed && totpStyles.pressed]}>
         <ExternalLink color="#ffffff" size={16} />
         <Text style={totpStyles.primaryButtonText}>{t.openInApp}</Text>
@@ -323,6 +330,8 @@ const baseTotpFlowStyles = StyleSheet.create({
   progressLabel: { color: "#64748b", flex: 1, fontSize: 11, fontWeight: "600" },
   progressLabelActive: { color: "#17211a", fontWeight: "800" },
   keyCard: { backgroundColor: "#f8fafc", borderColor: "#e2e8f0", borderRadius: 10, borderWidth: 1, gap: 8, padding: 12 },
+  qrRow: { alignItems: "center", flexDirection: "row", gap: 14 },
+  qrCard: { backgroundColor: "#ffffff", borderColor: "#e2e8f0", borderRadius: 12, borderWidth: 1, padding: 10 },
   manualKey: { color: "#17211a", fontFamily: "monospace", fontSize: 17, fontWeight: "700", letterSpacing: 1, lineHeight: 26 },
   keyFooter: { alignItems: "center", flexDirection: "row", gap: 10 },
   warning: { alignItems: "flex-start", backgroundColor: "#fffbeb", borderColor: "#fde68a", borderRadius: 10, borderWidth: 1, flexDirection: "row", gap: 8, padding: 12 },
