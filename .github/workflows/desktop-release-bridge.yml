@@ -13,17 +13,34 @@ on:
         required: true
         default: v2.17.0
       windows_signature:
-        description: Offline signature envelope for the candidate Windows manifest (public signature only)
+        description: Offline signature envelope; leave empty to export the exact manifest for local signing
         type: string
-        required: true
+        required: false
 
 permissions:
   contents: read
   actions: read
 
 jobs:
+  signing-request:
+    if: github.repository == 'tianma-if/edgeever' && inputs.windows_signature == ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Export exact candidate manifest for offline signing
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_RUN: ${{ inputs.candidate_run }}
+        run: |
+          gh run download "$CANDIDATE_RUN" --repo "$GITHUB_REPOSITORY" --name edgeever-desktop-Windows-x64-staging --dir "$RUNNER_TEMP/candidate"
+      - uses: actions/upload-artifact@v6
+        with:
+          name: candidate-windows-manifest
+          path: ${{ runner.temp }}/candidate/latest-windows.json
+          retention-days: 14
+          if-no-files-found: error
+
   release-bridge:
-    if: github.repository == 'tianma-if/edgeever'
+    if: github.repository == 'tianma-if/edgeever' && inputs.windows_signature != ''
     name: Official release bridge ${{ matrix.platform }} ${{ matrix.arch }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 25
