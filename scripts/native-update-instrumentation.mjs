@@ -1,4 +1,4 @@
-export const instrumentNativeUpdateMain = (originalMain) => {
+export const instrumentNativeUpdateMain = (originalMain, runtimeConfigPath) => {
   const replace = (source, from, to) => {
     if (source.split(from).length !== 2) throw new Error(`Expected exactly one instrumentation site: ${from}`);
     return source.replace(from, to);
@@ -11,5 +11,10 @@ export const instrumentNativeUpdateMain = (originalMain) => {
   instrumented = replace(instrumented, '  void checkForDesktopUpdate("startup", { force: true });', '  attachVerifier({ app, updater: autoUpdater, controller: desktopUpdateController });\n  void checkForDesktopUpdate("startup", { force: true });');
   instrumented = instrumented.replace('  await confirmMacInstallation();', '  // Verification bundle stays in its isolated runner directory.');
   instrumented = instrumented.replace('  await ejectMountedMacInstallers();', '  // Verification does not eject unrelated volumes.');
+  if (runtimeConfigPath) {
+    instrumented = 'import { readFileSync as readVerifierConfig } from "node:fs";\n' + instrumented;
+    const bootstrap = `for (const [key, value] of Object.entries(JSON.parse(readVerifierConfig(${JSON.stringify(runtimeConfigPath)}, "utf8")))) process.env[key] = value;\n`;
+    instrumented = instrumented.replace('const { autoUpdater } = electronUpdater;', bootstrap + 'const { autoUpdater } = electronUpdater;');
+  }
   return instrumented;
 };

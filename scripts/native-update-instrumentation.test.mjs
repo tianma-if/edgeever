@@ -7,7 +7,7 @@ import { instrumentNativeUpdateMain } from "./native-update-instrumentation.mjs"
 
 const main = readFileSync(new URL("../apps/desktop/src/main/index.mjs", import.meta.url), "utf8");
 test("instruments the actual current EdgeEver entry without changing its update controller", () => {
-  const instrumented = instrumentNativeUpdateMain(main);
+  const instrumented = instrumentNativeUpdateMain(main, "/tmp/native-update-config.json");
   const directory = mkdtempSync(join(tmpdir(), "edgeever-native-update-syntax-"));
   try {
     const path = join(directory, "index.mjs");

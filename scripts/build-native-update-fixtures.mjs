@@ -28,7 +28,7 @@ const keyPath = join(output, "signing-key.pem");
 writeFileSync(keyPath, privateKey.export({ type: "pkcs8", format: "pem" }), { mode: 0o600 });
 writeFileSync(join(output, "public-key.pem"), publicKeyPem);
 writeFileSync(join(output, "versions.json"), JSON.stringify(versions));
-const instrumented = instrumentNativeUpdateMain(originalMain);
+const instrumented = instrumentNativeUpdateMain(originalMain, join(output, "runtime.json"));
 const require = createRequire(join(desktop, "package.json"));
 const builderCli = require.resolve("electron-builder/out/cli/cli.js");
 const run = (command, args) => {

@@ -102,12 +102,19 @@ try {
     const commandPath = join(directory, "command.json");
     const profile = join(directory, "profile");
     mkdirSync(profile, { recursive: true });
-    const executable = await installBaseline(directory);
     const env = { ...process.env,
       EDGE_EVER_UPDATE_VERIFIER_PROFILE: profile, EDGE_EVER_UPDATE_VERIFIER_LOG: eventsPath,
       EDGE_EVER_UPDATE_VERIFIER_COMMAND: commandPath, EDGE_EVER_UPDATE_VERIFIER_FEED: feed,
       EDGE_EVER_UPDATE_VERIFIER_PUBLIC_KEY: join(root, "public-key.pem"),
     };
+    // Squirrel/LaunchServices can relaunch without inheriting environment.
+    // Every signed fixture embeds only this fixed config path, never secrets.
+    writeFileSync(join(root, "runtime.json"), JSON.stringify({
+      EDGE_EVER_UPDATE_VERIFIER_PROFILE: profile, EDGE_EVER_UPDATE_VERIFIER_LOG: eventsPath,
+      EDGE_EVER_UPDATE_VERIFIER_COMMAND: commandPath, EDGE_EVER_UPDATE_VERIFIER_FEED: feed,
+      EDGE_EVER_UPDATE_VERIFIER_PUBLIC_KEY: join(root, "public-key.pem"),
+    }));
+    const executable = await installBaseline(directory);
     const launch = () => {
       const child = spawn(executable, [], { env, stdio: ["ignore", "pipe", "pipe"] });
       child.on("error", (error) => appendFileSync(join(directory, "process.log"), `${error.stack}\n`));
