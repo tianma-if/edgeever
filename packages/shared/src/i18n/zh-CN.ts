@@ -2605,6 +2605,15 @@ export const zhCN = {
     restoreConfirmLabel: "恢复",
     formActor: "表单提交",
   },
+  attachmentOpen: {
+    copyHint: "打开附件副本（外部修改不会同步）",
+    opening: "正在打开附件…",
+    failed: "无法打开附件",
+    blocked: "此文件类型不能直接打开，请下载后自行处理。",
+    unavailable: "无法读取附件。如果当前处于离线状态，请连接实例后重试。",
+    forbidden: "工作区已切换或当前无法执行此操作，请重新打开笔记后重试。",
+    openFailed: "系统无法打开此文件，请检查是否已安装并关联相应应用，或下载后自行打开。",
+  },
   pdfViewer: {
     loading: "正在加载 PDF…",
     unavailable: "无法预览此 PDF，你仍可下载或在外部打开。",

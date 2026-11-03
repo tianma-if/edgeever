@@ -122,6 +122,7 @@ interface EdgeEverDesktopBridge {
   installUpdate(): Promise<unknown>;
   onUpdateStatus(callback: (status: DesktopUpdateStatus) => void): () => void;
   sidecarRequest<T = unknown>(method: string, params?: Record<string, unknown>): Promise<T>;
+  openAttachment(input: { url: string; filename: string }): Promise<{ ok: boolean; code?: "forbidden" | "blocked" | "unavailable" | "open-failed" }>;
   beginStagedResource(input: { memoId: string; name: string; type: string; size: number }): Promise<{ id: string; partSize: number }>;
   appendStagedResource(id: string, bytes: ArrayBuffer): Promise<{ receivedBytes: number }>;
   completeStagedResource(id: string): Promise<{ id: string }>;

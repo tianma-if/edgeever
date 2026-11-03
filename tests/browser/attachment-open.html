@@ -1,0 +1,10 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Attachment external opening check</title></head>
+<body><main class="mx-auto max-w-3xl p-6"><h1 class="mb-4 text-lg font-semibold">附件外部打开交互检查</h1><p>仅使用模拟桌面桥，不访问实例或启动外部应用。</p><div id="fixture"></div></main>
+<script type="module">
+import RefreshRuntime from "/@react-refresh";
+RefreshRuntime.injectIntoGlobalHook(window);
+window.$RefreshReg$ = () => {};
+window.$RefreshSig$ = () => (type) => type;
+window.__vite_plugin_react_preamble_installed__ = true;
+</script><script type="module" src="./attachment-open.browser.tsx"></script></body></html>

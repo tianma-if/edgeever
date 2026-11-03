@@ -2594,6 +2594,15 @@ export const pl = {
     restoreConfirmLabel: "Przywróć",
     formActor: "Przesłanie formularza",
   },
+  attachmentOpen: {
+    copyHint: "Otwórz kopię załącznika (zmiany zewnętrzne nie są synchronizowane)",
+    opening: "Otwieranie załącznika…",
+    failed: "Nie można otworzyć załącznika",
+    blocked: "Tego typu pliku nie można otworzyć bezpośrednio. Pobierz go i otwórz samodzielnie.",
+    unavailable: "Nie udało się pobrać załącznika. Jeśli jesteś offline, połącz się z instancją i spróbuj ponownie.",
+    forbidden: "Obszar roboczy uległ zmianie lub ta czynność jest niedostępna. Otwórz notatkę ponownie i spróbuj jeszcze raz.",
+    openFailed: "System nie mógł otworzyć pliku. Sprawdź powiązanie typu pliku z aplikacją lub pobierz plik i otwórz go samodzielnie.",
+  },
   pdfViewer: {
     loading: "Wczytywanie PDF…",
     unavailable: "Nie można wyświetlić podglądu tego pliku PDF. Nadal możesz go pobrać lub otworzyć w innej aplikacji.",

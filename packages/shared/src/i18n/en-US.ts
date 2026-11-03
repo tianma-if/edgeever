@@ -2605,6 +2605,15 @@ export const enUS = {
     restoreConfirmLabel: "Restore",
     formActor: "Form submission",
   },
+  attachmentOpen: {
+    copyHint: "Open an attachment copy (external edits are not synced)",
+    opening: "Opening attachment…",
+    failed: "Could not open attachment",
+    blocked: "This file type cannot be opened directly. Download it to open it yourself.",
+    unavailable: "The attachment could not be retrieved. If you are offline, connect to your instance and try again.",
+    forbidden: "Your workspace changed or this action is unavailable. Reopen the note and try again.",
+    openFailed: "The system could not open this file. Check that an application is associated with this file type, or download it to open it yourself.",
+  },
   pdfViewer: {
     loading: "Loading PDF…",
     unavailable: "This PDF cannot be previewed. You can still download it or open it externally.",

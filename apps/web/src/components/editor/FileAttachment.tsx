@@ -9,6 +9,7 @@ import { useContext, useState } from "react";
 import { NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from "@tiptap/react";
 import { ChevronDown, ChevronUp, Download, ExternalLink } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { AttachmentExternalLink } from "@/components/attachments/AttachmentExternalLink";
 import { AttachmentFileIcon } from "@/components/attachments/AttachmentFileIcon";
 import { AudioAttachmentPlayer } from "@/components/attachments/AudioAttachmentPlayer";
 import { DocxAttachmentPreview } from "@/components/attachments/DocxAttachmentPreview";
@@ -85,24 +86,23 @@ const FileAttachmentNodeView = ({ node, updateAttributes }: NodeViewProps) => {
               {identity}
             </button>
           ) : (
-            <a
+            <AttachmentExternalLink
               href={resolvedUrl}
-              target="_blank"
-              rel="noreferrer"
+              filename={filename || label}
               className="flex min-w-0 flex-1 items-center gap-2 text-left no-underline"
             >
               {identity}
-            </a>
+            </AttachmentExternalLink>
           )}
           <ButtonTooltip title={t("editor.resourceActions.download")}>
             <a className="pdf-viewer-action" href={downloadUrl} download={filename || label} aria-label={t("editor.resourceActions.download")}>
               <Download aria-hidden="true" />
             </a>
           </ButtonTooltip>
-          <ButtonTooltip title={t("pdfViewer.openExternal")}>
-            <a className="pdf-viewer-action" href={resolvedUrl} target="_blank" rel="noreferrer" aria-label={t("pdfViewer.openExternal")}>
+          <ButtonTooltip title={t(isDesktopResourceRuntime() ? "attachmentOpen.copyHint" : "pdfViewer.openExternal")}>
+            <AttachmentExternalLink className="pdf-viewer-action" href={resolvedUrl} filename={filename || label} iconOnly aria-label={t("pdfViewer.openExternal")}>
               <ExternalLink aria-hidden="true" />
-            </a>
+            </AttachmentExternalLink>
           </ButtonTooltip>
           {expandable ? (
             <ButtonTooltip title={expanded ? t("pdfViewer.collapse") : t("pdfViewer.expand")}>
