@@ -1,0 +1,109 @@
+name: Verify native desktop updates
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-update:
+    if: github.repository == 'tianma-if/edgeever'
+    name: Native update ${{ matrix.platform }} ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macOS
+            runner: macos-15
+            arch: arm64
+          - platform: macOS
+            runner: macos-15-intel
+            arch: x64
+          - platform: Windows
+            runner: windows-latest
+            arch: x64
+          - platform: Linux
+            runner: ubuntu-22.04
+            arch: x64
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            crates/desktop-sidecar/target
+          key: ${{ runner.os }}-${{ matrix.arch }}-rust-${{ hashFiles('crates/desktop-sidecar/Cargo.lock', 'crates/desktop-sidecar/**/*.rs') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.arch }}-rust-
+
+      - name: Install Linux runtime dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes libfuse2 xvfb
+
+      - name: Import macOS signing identity
+        if: runner.os == 'macOS'
+        env:
+          MAC_CERTIFICATE_DER_BASE64: ${{ secrets.EDGEEVER_MAC_CERTIFICATE_DER_BASE64 }}
+          MAC_PRIVATE_KEY_BASE64: ${{ secrets.EDGEEVER_MAC_PRIVATE_KEY_BASE64 }}
+        run: |
+          test -n "$MAC_CERTIFICATE_DER_BASE64"
+          test -n "$MAC_PRIVATE_KEY_BASE64"
+          keychain_path="$RUNNER_TEMP/edgeever-update-verification.keychain-db"
+          keychain_password="$(openssl rand -hex 32)"
+          certificate_path="$RUNNER_TEMP/update-signing.cer"
+          private_key_path="$RUNNER_TEMP/update-signing.pem"
+          traditional_key_path="$RUNNER_TEMP/update-signing-rsa.pem"
+          printf '%s' "$MAC_CERTIFICATE_DER_BASE64" | base64 -D > "$certificate_path"
+          printf '%s' "$MAC_PRIVATE_KEY_BASE64" | base64 -D > "$private_key_path"
+          openssl rsa -in "$private_key_path" -out "$traditional_key_path"
+          security create-keychain -p "$keychain_password" "$keychain_path"
+          security set-keychain-settings -lut 21600 "$keychain_path"
+          security unlock-keychain -p "$keychain_password" "$keychain_path"
+          security import "$certificate_path" -k "$keychain_path" -f x509 -t cert -T /usr/bin/codesign
+          security import "$traditional_key_path" -k "$keychain_path" -f openssl -t priv -P '' -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$keychain_password" "$keychain_path"
+          security list-keychains -d user -s "$keychain_path" "$HOME/Library/Keychains/login.keychain-db"
+          echo "CSC_KEYCHAIN=$keychain_path" >> "$GITHUB_ENV"
+          echo "CSC_IDENTITY_AUTO_DISCOVERY=true" >> "$GITHUB_ENV"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build renderer and sidecar
+        env:
+          EDGE_EVER_DESKTOP_BUILD: '1'
+        run: |
+          bun run build:web
+          cargo build --manifest-path crates/desktop-sidecar/Cargo.toml --release
+
+      - name: Build three isolated instrumented EdgeEver installers
+        env:
+          EDGE_EVER_DESKTOP_ARCH: ${{ matrix.arch }}
+        run: node scripts/build-native-update-fixtures.mjs
+
+      - name: Exercise real native updates
+        if: runner.os != 'Linux'
+        run: node scripts/verify-native-desktop-update.mjs "${{ runner.temp }}/edgeever-update-verification"
+
+      - name: Exercise real AppImage updates
+        if: runner.os == 'Linux'
+        run: xvfb-run -a node scripts/verify-native-desktop-update.mjs "$RUNNER_TEMP/edgeever-update-verification"
+
+      - name: Save installation evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: native-update-evidence-${{ matrix.platform }}-${{ matrix.arch }}
+          path: ${{ runner.temp }}/edgeever-update-verification/evidence
+          if-no-files-found: warn
+          retention-days: 14
