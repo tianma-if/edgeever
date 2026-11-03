@@ -110,6 +110,7 @@ export const infographicLocalAgentErrorKey = (message: string, adapterId: string
       ? "aiAssistant.sidebar.workbuddyLoginRequired"
       : "aiAssistant.sidebar.localLoginRequired";
   }
+  if (message === "node_missing" && adapterId === "codebuddy") return "aiAssistant.agentSource.codebuddyNodeMissingHint";
   if (message === "agent_refused") return "aiAssistant.sidebar.agentRefused";
   const noteAccessErrorKey = desktopAcpNoteAccessErrorKey(message);
   if (noteAccessErrorKey) return noteAccessErrorKey;

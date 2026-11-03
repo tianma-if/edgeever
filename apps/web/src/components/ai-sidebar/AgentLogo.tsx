@@ -9,6 +9,7 @@ import grokBuild from "@/assets/agent-logos/grok.svg?url";
 import deepseekHarness from "@/assets/agent-logos/deepseek-color.svg?url";
 import piAgent from "@/assets/agent-logos/pi.svg?url";
 import workbuddy from "@/assets/agent-logos/workbuddy.svg?url";
+import codebuddy from "@/assets/agent-logos/codebuddy.svg?url";
 
 const logos: Record<DesktopAcpAdapterId, { src: string; monochrome?: boolean }> = {
   codex: { src: codex, monochrome: true },
@@ -21,6 +22,7 @@ const logos: Record<DesktopAcpAdapterId, { src: string; monochrome?: boolean }> 
   piAgent: { src: piAgent, monochrome: true },
   workbuddyCn: { src: workbuddy },
   workbuddyIntl: { src: workbuddy },
+  codebuddy: { src: codebuddy },
 };
 
 export function AgentLogo({ id, className }: { id: DesktopAcpAdapterId; className?: string }) {

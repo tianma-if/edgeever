@@ -83,6 +83,8 @@ contextBridge.exposeInMainWorld("edgeeverDesktop", Object.freeze({
   probeAcpAdapter: (input) => ipcRenderer.invoke("desktop:acp-probe", input),
   installAcpAdapter: (id) => ipcRenderer.invoke("desktop:acp-install", id),
   authenticateAcpAdapter: (input) => ipcRenderer.invoke("desktop:acp-authenticate", input),
+  cancelAcpAuthentication: (id) => ipcRenderer.invoke("desktop:acp-cancel-auth", id),
+  reopenAcpLoginPage: (id) => ipcRenderer.invoke("desktop:acp-reopen-login", id),
   prepareAcp: (input) => ipcRenderer.invoke("desktop:acp-prepare", input),
   promptAcp: (input) => ipcRenderer.invoke("desktop:acp-prompt", input),
   cancelAcp: (requestId) => ipcRenderer.invoke("desktop:acp-cancel", requestId),

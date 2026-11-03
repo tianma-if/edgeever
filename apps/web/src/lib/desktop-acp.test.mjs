@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { desktopAcpUpdateErrorHintKey, desktopAcpLoginRetryAvailable, desktopAcpNoteAccessErrorKey, aiSidebarAdapterFromStorage, aiSidebarSourceFromStorage, displayedDesktopAcpAdapter } from "./desktop-acp.ts";
+import { codeBuddyAuthMethodLabelKey, desktopAcpUpdateErrorHintKey, desktopAcpLoginRetryAvailable, desktopAcpNoteAccessErrorKey, aiSidebarAdapterFromStorage, aiSidebarSourceFromStorage, displayedDesktopAcpAdapter } from "./desktop-acp.ts";
 
 test("a checked custom Antigravity executable takes priority over the managed connector status", () => {
   const managed = { id: "antigravity", label: "Antigravity", state: "failed", version: "1.2.1", managed: true };
@@ -23,6 +23,14 @@ test("the sidebar follows a stored local agent only when the desktop bridge exis
   expect(aiSidebarAdapterFromStorage("codex", "/tmp/ignored")).toEqual({ id: "codex" });
   expect(aiSidebarAdapterFromStorage("antigravity", " /tmp/agy ")).toEqual({ id: "antigravity", path: "/tmp/agy" });
   expect(aiSidebarAdapterFromStorage("missing", "")).toBeNull();
+});
+
+test("CodeBuddy is a selectable local agent with region hints only for verified sign-in methods", () => {
+  expect(aiSidebarAdapterFromStorage("codebuddy", "/tmp/ignored")).toEqual({ id: "codebuddy" });
+  expect(codeBuddyAuthMethodLabelKey("internal")).toBe("aiAssistant.agentSource.codebuddyMethodInternal");
+  for (const methodId of ["external", "iOA", "selfhosted", "unknown"]) expect(codeBuddyAuthMethodLabelKey(methodId)).toBeNull();
+  // CodeBuddy signs in from the needs_login state; WorkBuddy's failed-state retry does not apply.
+  expect(desktopAcpLoginRetryAvailable({ id: "codebuddy", state: "failed", authMethods: [{ id: "internal" }] })).toBe(false);
 });
 
 test("a prompt-time login failure takes priority over an earlier successful session probe", () => {

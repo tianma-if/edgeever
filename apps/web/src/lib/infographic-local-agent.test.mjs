@@ -93,6 +93,7 @@ test("local infographic text follows one ACP request and can be cancelled", asyn
 
 test("infographic requests use the same note access errors without blaming the agent login", () => {
   expect(infographicLocalAgentErrorKey("note_access_network", "workbuddyIntl")).toBe("aiAssistant.sidebar.noteAccessNetwork");
+  expect(infographicLocalAgentErrorKey("node_missing", "codebuddy")).toBe("aiAssistant.agentSource.codebuddyNodeMissingHint");
   expect(infographicLocalAgentErrorKey("note_access_login_required", "workbuddyIntl")).toBe("aiAssistant.sidebar.noteAccessLoginRequired");
   expect(infographicLocalAgentErrorKey("note_access_changed", "codex")).toBe("aiAssistant.sidebar.noteAccessChanged");
 });

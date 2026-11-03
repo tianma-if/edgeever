@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Bot, ChevronDown, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,9 @@ import {
   listDesktopAcpAdapters,
   installDesktopAcpAdapter,
   authenticateDesktopAcpAdapter,
+  cancelDesktopAcpAuthentication,
+  codeBuddyAuthMethodLabelKey,
+  reopenDesktopAcpLoginPage,
   probeDesktopAcpAdapter,
   type AiSidebarSource,
   type DesktopAcpAdapter,
@@ -33,7 +36,7 @@ import {
   SETTINGS_ITEM_TITLE_CLASSNAME,
 } from "./settings-ui";
 
-const adapterIds: DesktopAcpAdapterId[] = ["codex", "claudeCode", "antigravity", "openClaw", "hermesAgent", "grokBuild", "deepseekHarness", "piAgent", "workbuddyCn", "workbuddyIntl"];
+const adapterIds: DesktopAcpAdapterId[] = ["codex", "claudeCode", "antigravity", "openClaw", "hermesAgent", "grokBuild", "deepseekHarness", "piAgent", "workbuddyCn", "workbuddyIntl", "codebuddy"];
 
 const readSource = (): AiSidebarSource => (
   localStorage.getItem(AI_SIDEBAR_SOURCE_KEY) === "local" ? "local" : "builtin"
@@ -48,6 +51,8 @@ const statusKey = (adapter: DesktopAcpAdapter | undefined, probing: boolean) => 
   if (probing) return "aiAssistant.agentSource.probing";
   if (!adapter || adapter.detail === "not_probed") return "aiAssistant.agentSource.notProbed";
   if (adapter.detail === "workbuddy_credentials_unavailable") return "aiAssistant.agentSource.workbuddyCredentialsUnavailable";
+  if (adapter.detail === "authentication_cancelled") return "aiAssistant.agentSource.authenticationCancelled";
+  if (adapter.detail === "node_missing") return "aiAssistant.agentSource.codebuddyNodeMissing";
   if (adapter.detail === "authentication_timeout") return "aiAssistant.agentSource.authenticationTimedOut";
   if (adapter.detail === "identity_status_unavailable") return "aiAssistant.agentSource.identityStatusNotReported";
   if (adapter.id === "claudeCode" && adapter.state === "needs_login") return "aiAssistant.agentSource.claudeCodeCredentialsRequired";
@@ -62,6 +67,8 @@ const statusKey = (adapter: DesktopAcpAdapter | undefined, probing: boolean) => 
   if (adapter.id === "piAgent" && adapter.state === "not_installed") return adapter.detail === "adapter_missing" ? "aiAssistant.agentSource.piAgentAdapterMissing" : "aiAssistant.agentSource.piAgentNotFound";
   if ((adapter.id === "workbuddyCn" || adapter.id === "workbuddyIntl") && adapter.state === "not_installed") return "aiAssistant.agentSource.workbuddyNotFound";
   if ((adapter.id === "workbuddyCn" || adapter.id === "workbuddyIntl") && adapter.state === "needs_login") return "aiAssistant.agentSource.workbuddyLoginRequired";
+  if (adapter.id === "codebuddy" && adapter.state === "not_installed") return "aiAssistant.agentSource.codebuddyNotFound";
+  if (adapter.id === "codebuddy" && adapter.state === "needs_login") return "aiAssistant.agentSource.codebuddyLoginRequired";
   return `aiAssistant.agentSource.states.${adapter.state}`;
 };
 
@@ -83,6 +90,8 @@ const getStatusTone = ({
   return "neutral";
 };
 
+const cliMethodName = (name: string) => name.replace(/^Login with\s+/i, "").replace(/Google\/Github/gi, "Google / GitHub");
+
 const desktopBridgeAvailable = () => (
   typeof window !== "undefined" && typeof window.edgeeverDesktop?.listAcpAdapters === "function"
 );
@@ -100,6 +109,12 @@ const DesktopAcpAgentCardBody = ({ bridge }: { bridge: boolean }) => {
   const [installing, setInstalling] = useState(false);
   const [installError, setInstallError] = useState(false);
   const [authenticating, setAuthenticating] = useState<string | null>(null);
+  const codeBuddyLoginActive = useRef(false);
+
+  // Leaving the settings page ends a CodeBuddy sign-in that no one can finish here.
+  useEffect(() => () => {
+    if (codeBuddyLoginActive.current) void cancelDesktopAcpAuthentication("codebuddy").catch(() => {});
+  }, []);
 
   useEffect(() => {
     const stored = readSource();
@@ -147,6 +162,8 @@ const DesktopAcpAgentCardBody = ({ bridge }: { bridge: boolean }) => {
   const shown = displayedDesktopAcpAdapter({ id: adapterId, path: adapterPath, listed, probed });
   const updateHintKey = shown?.updateError ? desktopAcpUpdateErrorHintKey(shown.updateError) : null;
   const isWorkBuddy = adapterId === "workbuddyCn" || adapterId === "workbuddyIntl";
+  const isCodeBuddy = adapterId === "codebuddy";
+  const codeBuddySigningIn = isCodeBuddy && Boolean(authenticating);
   const status = t(statusKey(shown, probing));
   const tone = getStatusTone({
     probing,
@@ -159,12 +176,14 @@ const DesktopAcpAgentCardBody = ({ bridge }: { bridge: boolean }) => {
   )) ?? [];
   const canRetryLogin = desktopAcpLoginRetryAvailable(shown);
   // Host failure details are sanitized before crossing the desktop bridge.
-  const failureReason = shown?.state === "failed"
+  const failureReason = shown?.state === "failed" && shown.detail !== "node_missing"
     ? shown.detail?.trim().slice(0, 160) || t("aiAssistant.agentSource.connectionFailureUnknown")
     : null;
   const hasDetails = Boolean(
     failureReason ||
     canRetryLogin ||
+    codeBuddySigningIn ||
+    shown?.detail === "node_missing" ||
     shown?.state === "not_installed" ||
     shown?.state === "needs_login" ||
     (shown?.state === "available" && (isWorkBuddy || authMethods.length > 0)) ||
@@ -178,15 +197,28 @@ const DesktopAcpAgentCardBody = ({ bridge }: { bridge: boolean }) => {
     <div className="flex flex-wrap gap-2 pt-0.5">
       {authMethods.map((method) => (
         <Button key={method.id} type="button" variant="outline" size="sm" className="h-8 bg-card text-xs font-normal" disabled={probing || installing || Boolean(authenticating)} onClick={() => void authenticate(method.id)}>
-          {authenticating === method.id ? t("aiAssistant.agentSource.authenticating") : isWorkBuddy
-            ? t("aiAssistant.agentSource.workbuddyAuthenticateWith", { method: method.name.replace(/^Login with\s+/i, "").replace(/Google\/Github/gi, "Google / GitHub") })
+          {authenticating === method.id ? t("aiAssistant.agentSource.authenticating") : isCodeBuddy
+            ? codeBuddyMethodLabel(method)
+            : isWorkBuddy
+            ? t("aiAssistant.agentSource.workbuddyAuthenticateWith", { method: cliMethodName(method.name) })
             : t("aiAssistant.agentSource.authenticateWith", { method: method.name })}
         </Button>
       ))}
     </div>
   );
 
+  function codeBuddyMethodLabel(method: { id: string; name: string }) {
+    const key = codeBuddyAuthMethodLabelKey(method.id);
+    // Other methods keep the CLI's own name, without its "Login with" prefix.
+    return key ? t(key) : t("aiAssistant.agentSource.workbuddyAuthenticateWith", { method: cliMethodName(method.name) });
+  }
+
+  const cancelCodeBuddyLogin = () => {
+    void cancelDesktopAcpAuthentication("codebuddy").catch(() => {});
+  };
+
   const selectAdapter = (id: DesktopAcpAdapterId) => {
+    if (codeBuddySigningIn && id !== "codebuddy") cancelCodeBuddyLogin();
     setAdapterId(id);
     setProbed(null);
     setInstallError(false);
@@ -215,6 +247,7 @@ const DesktopAcpAgentCardBody = ({ bridge }: { bridge: boolean }) => {
   const authenticate = async (methodId: string) => {
     setAuthenticating(methodId);
     setInstallError(false);
+    if (adapterId === "codebuddy") codeBuddyLoginActive.current = true;
     try {
       const result = await authenticateDesktopAcpAdapter({
         id: adapterId,
@@ -225,6 +258,7 @@ const DesktopAcpAgentCardBody = ({ bridge }: { bridge: boolean }) => {
     } catch {
       setProbed({ id: adapterId, label: t(`aiAssistant.agentSource.${adapterId}`), state: "failed" });
     } finally {
+      if (adapterId === "codebuddy") codeBuddyLoginActive.current = false;
       setAuthenticating(null);
     }
   };
@@ -420,8 +454,27 @@ const DesktopAcpAgentCardBody = ({ bridge }: { bridge: boolean }) => {
                   ) : null}
                   {shown?.state === "not_installed" ? (
                     <p>
-                      {t(adapterId === "claudeCode" ? "aiAssistant.agentSource.claudeCodeMissingHint" : adapterId === "openClaw" ? "aiAssistant.agentSource.openClawMissingHint" : adapterId === "hermesAgent" ? "aiAssistant.agentSource.hermesAgentMissingHint" : adapterId === "grokBuild" ? "aiAssistant.agentSource.grokBuildMissingHint" : adapterId === "deepseekHarness" ? "aiAssistant.agentSource.deepseekHarnessMissingHint" : adapterId === "piAgent" ? shown.detail === "adapter_missing" ? "aiAssistant.agentSource.piAgentAdapterMissingHint" : "aiAssistant.agentSource.piAgentMissingHint" : adapterId === "workbuddyCn" || adapterId === "workbuddyIntl" ? "aiAssistant.agentSource.workbuddyMissingHint" : "aiAssistant.agentSource.installHint")}
+                      {t(adapterId === "claudeCode" ? "aiAssistant.agentSource.claudeCodeMissingHint" : adapterId === "openClaw" ? "aiAssistant.agentSource.openClawMissingHint" : adapterId === "hermesAgent" ? "aiAssistant.agentSource.hermesAgentMissingHint" : adapterId === "grokBuild" ? "aiAssistant.agentSource.grokBuildMissingHint" : adapterId === "deepseekHarness" ? "aiAssistant.agentSource.deepseekHarnessMissingHint" : adapterId === "piAgent" ? shown.detail === "adapter_missing" ? "aiAssistant.agentSource.piAgentAdapterMissingHint" : "aiAssistant.agentSource.piAgentMissingHint" : adapterId === "workbuddyCn" || adapterId === "workbuddyIntl" ? "aiAssistant.agentSource.workbuddyMissingHint" : adapterId === "codebuddy" ? "aiAssistant.agentSource.codebuddyMissingHint" : "aiAssistant.agentSource.installHint")}
                     </p>
+                  ) : null}
+                  {shown?.detail === "node_missing" ? (
+                    <p>{t("aiAssistant.agentSource.codebuddyNodeMissingHint")}</p>
+                  ) : null}
+                  {shown?.state === "needs_login" && isCodeBuddy && !codeBuddySigningIn ? (
+                    <p>{t("aiAssistant.agentSource.codebuddyLoginHint")}</p>
+                  ) : null}
+                  {codeBuddySigningIn ? (
+                    <div className="space-y-2">
+                      <p role="status">{t("aiAssistant.agentSource.codebuddyLoginInProgress")}</p>
+                      <div className="flex flex-wrap gap-2">
+                        <Button type="button" variant="outline" size="sm" className="h-8 bg-card text-xs font-normal" onClick={() => void reopenDesktopAcpLoginPage("codebuddy").catch(() => {})}>
+                          {t("aiAssistant.agentSource.codebuddyReopenLogin")}
+                        </Button>
+                        <Button type="button" variant="ghost" size="sm" className="h-8 text-xs font-normal" onClick={cancelCodeBuddyLogin}>
+                          {t("aiAssistant.agentSource.cancelLogin")}
+                        </Button>
+                      </div>
+                    </div>
                   ) : null}
                   {shown?.detail === "identity_status_unavailable" ? (
                     <p>{t("aiAssistant.agentSource.identityStatusUnavailable")}</p>
