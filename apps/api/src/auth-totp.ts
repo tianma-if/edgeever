@@ -24,6 +24,8 @@ export const MFA_CHALLENGE_TTL_SECONDS = 5 * 60;
 export const MFA_CHALLENGE_MAX_ATTEMPTS = 5;
 /** An unconfirmed enrollment or rebind expires so a stale secret is never activated. */
 export const TOTP_PENDING_TTL_SECONDS = 15 * 60;
+/** Wrong codes allowed against one pending secret before the setup is discarded. */
+export const TOTP_SETUP_MAX_ATTEMPTS = 5;
 
 const CHALLENGE_TOKEN_BYTES = 32;
 // Crockford-style alphabet without look-alike characters (no I, L, O, U).
@@ -43,6 +45,12 @@ export type UserTotpRow = {
   pending_secret_encrypted: string | null;
   pending_created_at: string | null;
   pending_verified_step: number | null;
+  /** Session that passed identity verification and owns the pending setup. */
+  pending_session_id: string | null;
+  /** Wrong codes entered against the pending secret; the setup is discarded at the cap. */
+  pending_attempts: number;
+  /** Recovery-code batch created when the pending secret was verified. */
+  pending_batch_id: string | null;
 };
 
 // Same deployment keys as share passwords, bound to a separate purpose and
@@ -126,7 +134,8 @@ export const consumeTotpStep = async (db: DatabaseAdapter, userId: string, step:
 export const getUserTotp = (db: DatabaseAdapter, userId: string) =>
   db.prepare(
     `SELECT user_id, secret_encrypted, enabled_at, last_used_step,
-            pending_secret_encrypted, pending_created_at, pending_verified_step
+            pending_secret_encrypted, pending_created_at, pending_verified_step,
+            pending_session_id, pending_attempts, pending_batch_id
      FROM user_totp WHERE user_id = ?`,
   ).bind(userId).first<UserTotpRow>();
 
@@ -167,39 +176,107 @@ export const generateRecoveryCodes = () => Array.from({ length: RECOVERY_CODE_CO
   return formatRecoveryCode(raw);
 });
 
+export const newRecoveryCodeBatchId = () => createId("rcb");
+
 /**
- * Stores a new pending batch, replacing any earlier pending batch. Active
- * codes stay valid until the batch is confirmed.
+ * Stores a new pending batch for the session that passed identity
+ * verification, replacing any earlier pending batch. Active codes stay valid
+ * until the batch is confirmed. With `onlyIfSetupBatch`, the rows are written
+ * only while user_totp still points at this batch, so a verify request that
+ * lost a race against a newer setup leaves nothing behind.
  */
 export const pendingRecoveryCodeStatements = async (
   db: DatabaseAdapter,
   userId: string,
   codes: string[],
+  options: { batchId: string; sessionId: string; onlyIfSetupBatch?: boolean },
 ): Promise<PreparedStatementAdapter[]> => {
-  const batchId = createId("rcb");
   const now = isoNow();
   const hashes = await Promise.all(codes.map((code) => hashRecoveryCode(normalizeRecoveryCode(code))));
+  const guard = options.onlyIfSetupBatch
+    ? `EXISTS (SELECT 1 FROM user_totp WHERE user_id = ? AND pending_batch_id = ?)`
+    : null;
+  const guardBinds = guard ? [userId, options.batchId] : [];
   return [
-    db.prepare(`DELETE FROM user_recovery_codes WHERE user_id = ? AND status = 'pending'`).bind(userId),
+    db.prepare(
+      `DELETE FROM user_recovery_codes WHERE user_id = ? AND status = 'pending' AND batch_id != ?`
+      + (guard ? ` AND ${guard}` : ""),
+    ).bind(userId, options.batchId, ...guardBinds),
     ...hashes.map((hash) => db.prepare(
-      `INSERT INTO user_recovery_codes (id, user_id, batch_id, status, code_hash, created_at)
-       VALUES (?, ?, ?, 'pending', ?, ?)`,
-    ).bind(createId("rc"), userId, batchId, hash, now)),
+      `INSERT INTO user_recovery_codes (id, user_id, batch_id, status, code_hash, created_at, session_id)
+       SELECT ?, ?, ?, 'pending', ?, ?, ?` + (guard ? ` WHERE ${guard}` : ""),
+    ).bind(createId("rc"), userId, options.batchId, hash, now, options.sessionId, ...guardBinds)),
   ];
 };
 
-export const countPendingRecoveryCodes = async (db: DatabaseAdapter, userId: string) => {
+export const countPendingRecoveryCodes = async (db: DatabaseAdapter, userId: string, batchId: string) => {
   const row = await db.prepare(
-    `SELECT COUNT(*) AS count FROM user_recovery_codes WHERE user_id = ? AND status = 'pending'`,
-  ).bind(userId).first<{ count: number }>();
+    `SELECT COUNT(*) AS count FROM user_recovery_codes
+     WHERE user_id = ? AND status = 'pending' AND batch_id = ?`,
+  ).bind(userId, batchId).first<{ count: number }>();
   return Number(row?.count ?? 0);
 };
 
-/** Activates the pending batch; every older code becomes invalid at once. */
-export const activatePendingRecoveryCodeStatements = (db: DatabaseAdapter, userId: string) => [
-  db.prepare(`DELETE FROM user_recovery_codes WHERE user_id = ? AND status = 'active'`).bind(userId),
-  db.prepare(`UPDATE user_recovery_codes SET status = 'active' WHERE user_id = ? AND status = 'pending'`).bind(userId),
+/** The newest batch created by this session (pending or already active), for regenerate confirm. */
+export const findLatestRecoveryCodeBatchForSession = async (db: DatabaseAdapter, userId: string, sessionId: string) => {
+  const row = await db.prepare(
+    `SELECT batch_id, status, COUNT(*) AS count, MAX(created_at) AS created_at
+     FROM user_recovery_codes
+     WHERE user_id = ? AND session_id = ?
+     GROUP BY batch_id, status ORDER BY created_at DESC LIMIT 1`,
+  ).bind(userId, sessionId).first<{ batch_id: string; status: "pending" | "active"; count: number }>();
+  return row ? { batchId: row.batch_id, status: row.status, count: Number(row.count) } : null;
+};
+
+/**
+ * Activates one pending batch; every older code becomes invalid at once.
+ * Safe to run twice: the old active codes are only cleared while this batch is
+ * still pending, so a second confirm that lost the race changes nothing.
+ */
+export const activatePendingRecoveryCodeStatements = (db: DatabaseAdapter, userId: string, batchId: string) => [
+  db.prepare(
+    `DELETE FROM user_recovery_codes WHERE user_id = ? AND status = 'active'
+       AND EXISTS (SELECT 1 FROM user_recovery_codes
+                   WHERE user_id = ? AND status = 'pending' AND batch_id = ?)`,
+  ).bind(userId, userId, batchId),
+  // Last on purpose: callers read this statement's change count to learn whether
+  // this request was the one that activated the batch.
+  db.prepare(
+    `UPDATE user_recovery_codes SET status = 'active'
+     WHERE user_id = ? AND status = 'pending' AND batch_id = ?`,
+  ).bind(userId, batchId),
 ];
+
+export const countActiveRecoveryCodesInBatch = async (db: DatabaseAdapter, userId: string, batchId: string) => {
+  const row = await db.prepare(
+    `SELECT COUNT(*) AS count FROM user_recovery_codes
+     WHERE user_id = ? AND status = 'active' AND batch_id = ?`,
+  ).bind(userId, batchId).first<{ count: number }>();
+  return Number(row?.count ?? 0);
+};
+
+/**
+ * Counts a wrong enrollment code against the pending secret. Once the cap is
+ * reached the pending setup is discarded, so the user has to start again with
+ * their password. Returns true when the setup was discarded.
+ */
+export const recordPendingSetupFailure = async (db: DatabaseAdapter, row: UserTotpRow) => {
+  const now = isoNow();
+  const results = await db.batch([
+    db.prepare(
+      `UPDATE user_totp SET pending_attempts = pending_attempts + 1, updated_at = ?
+       WHERE user_id = ? AND pending_secret_encrypted = ?`,
+    ).bind(now, row.user_id, row.pending_secret_encrypted),
+    db.prepare(
+      `UPDATE user_totp SET pending_secret_encrypted = NULL, pending_created_at = NULL,
+         pending_verified_step = NULL, pending_session_id = NULL, pending_attempts = 0,
+         pending_batch_id = NULL, updated_at = ?
+       WHERE user_id = ? AND pending_secret_encrypted = ? AND pending_attempts >= ?`,
+    ).bind(now, row.user_id, row.pending_secret_encrypted, TOTP_SETUP_MAX_ATTEMPTS),
+    db.prepare(`DELETE FROM user_recovery_codes WHERE user_id = ? AND status = 'pending'`).bind(row.user_id),
+  ]);
+  return Number(results[1]?.meta.changes) === 1;
+};
 
 export const countActiveRecoveryCodes = async (db: DatabaseAdapter, userId: string) => {
   const row = await db.prepare(

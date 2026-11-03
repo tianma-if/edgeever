@@ -201,6 +201,16 @@ export const getInstanceUser = (db: DatabaseAdapter, userId: string) =>
      WHERE u.id = ?`
   ).bind(userId).first<InstanceUserRow>();
 
+// A restricted (recovery-code) session is stored under a different token hash
+// than a normal one. A backend that predates TOTP looks sessions up by the
+// plain hash only, so after a code rollback a restricted token is simply
+// unknown to it instead of being accepted as a full session.
+const RESTRICTED_SESSION_TOKEN_PREFIX = "mfa-restricted:";
+const sessionTokenHashes = async (token: string) => ({
+  plain: await sha256(token),
+  restricted: await sha256(`${RESTRICTED_SESSION_TOKEN_PREFIX}${token}`),
+});
+
 export const createSession = async (
   c: AppContext,
   user: UserRow,
@@ -230,7 +240,7 @@ export const createSession = async (
       `INSERT INTO sessions (
         id, user_id, token_hash, device_id, user_agent, ip_hash, device_label, ip_address, ip_country, ip_region, expires_at, created_at, last_seen_at, mfa_restricted
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).bind(id, user.id, await sha256(token), deviceId, userAgent, ipHash, null, ip ?? null, ipCountry, ipRegion, expiresAt, now, now, mfaRestricted ? 1 : 0),
+    ).bind(id, user.id, mfaRestricted ? (await sessionTokenHashes(token)).restricted : await sha256(token), deviceId, userAgent, ipHash, null, ip ?? null, ipCountry, ipRegion, expiresAt, now, now, mfaRestricted ? 1 : 0),
   ]);
 
   return { id, token, maxAge };
@@ -248,8 +258,8 @@ export const setSessionCookie = (c: AppContext, token: string, maxAge: number) =
 
 export const revokeSession = async (db: DatabaseAdapter, token: string) => {
   await db
-    .prepare(`UPDATE sessions SET revoked_at = ? WHERE token_hash = ? AND revoked_at IS NULL`)
-    .bind(isoNow(), await sha256(token))
+    .prepare(`UPDATE sessions SET revoked_at = ? WHERE token_hash IN (?, ?) AND revoked_at IS NULL`)
+    .bind(isoNow(), ...Object.values(await sessionTokenHashes(token)))
     .run();
 };
 
@@ -331,21 +341,27 @@ const authenticateBearerToken = async (c: AppContext, touch: boolean): Promise<A
 
 const authenticateSessionToken = async (c: AppContext, token: string, touch: boolean): Promise<AuthContext | null> => {
   const now = isoNow();
+  const hashes = await sessionTokenHashes(token);
   const row = await c.env.storage.db.prepare(
     `SELECT s.id, s.user_id, u.username, u.display_name, s.expires_at, s.last_seen_at,
-            wm.workspace_id, wm.role, s.mfa_restricted
+            wm.workspace_id, wm.role, s.mfa_restricted, s.token_hash
      FROM sessions s
      INNER JOIN users u ON u.id = s.user_id
      LEFT JOIN workspace_members wm ON wm.user_id = s.user_id
-     WHERE s.token_hash = ?
+     WHERE s.token_hash IN (?, ?)
        AND s.revoked_at IS NULL
        AND s.expires_at > ?
        AND u.is_disabled = 0`
   )
-    .bind(await sha256(token), now)
-    .first<SessionRow>();
+    .bind(hashes.plain, hashes.restricted, now)
+    .first<SessionRow & { token_hash: string }>();
 
   if (!row) {
+    return null;
+  }
+  // The hash family must agree with the flag: a restricted row is only ever
+  // reachable through the restricted hash, and vice versa.
+  if ((row.token_hash === hashes.restricted) !== Boolean(row.mfa_restricted)) {
     return null;
   }
 
