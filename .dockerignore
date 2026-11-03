@@ -11,6 +11,7 @@ target
 test-results
 playwright-report
 videos
+marketing/video
 apps/desktop/**
 !apps/desktop/package.json
 apps/extension/**

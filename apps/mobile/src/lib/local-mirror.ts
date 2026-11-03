@@ -9,6 +9,7 @@ import {
   type TagSummary,
 } from "@edgeever/shared";
 import * as SQLite from "expo-sqlite";
+import { serializeMobileDatabaseWrites } from "./mobile-database-access";
 import { filterLocalMemosByExactTag, summarizeMobileTags } from "./mobile-tags";
 
 const DATABASE_NAME = "edgeever-mobile.db";
@@ -16,7 +17,7 @@ const BOOTSTRAP_PAGE_SIZE = 200;
 const BOOTSTRAP_WRITE_BATCH_SIZE = 50;
 const CHANGE_PAGE_SIZE = 200;
 
-let databasePromise: Promise<SQLite.SQLiteDatabase> | null = null;
+let databasePromise: Promise<ReturnType<typeof serializeMobileDatabaseWrites>> | null = null;
 const syncPromises = new Map<string, Promise<number>>();
 
 type StoredMemoRow = { data_json: string };
@@ -390,12 +391,12 @@ const getDatabase = async () => {
         PRIMARY KEY (scope, temporary_id)
       );
     `);
-    return db;
+    return serializeMobileDatabaseWrites(db);
   });
   return databasePromise;
 };
 
-const upsertNotebook = (db: SQLite.SQLiteDatabase, scope: string, notebook: Notebook) =>
+const upsertNotebook = (db: Pick<SQLite.SQLiteDatabase, "runAsync">, scope: string, notebook: Notebook) =>
   db.runAsync(
     `INSERT OR REPLACE INTO mobile_notebooks (scope, id, name, sort_order, data_json) VALUES (?, ?, ?, ?, ?)`,
     scope,
@@ -405,7 +406,7 @@ const upsertNotebook = (db: SQLite.SQLiteDatabase, scope: string, notebook: Note
     JSON.stringify(notebook)
   );
 
-const upsertMemo = (db: SQLite.SQLiteDatabase, scope: string, memo: MemoDetail) =>
+const upsertMemo = (db: Pick<SQLite.SQLiteDatabase, "runAsync">, scope: string, memo: MemoDetail) =>
   db.runAsync(
     `INSERT OR REPLACE INTO mobile_memos
       (scope, id, notebook_id, title, content_text, tags_text, is_pinned, is_deleted, created_at, updated_at, deleted_at, data_json)
@@ -424,14 +425,14 @@ const upsertMemo = (db: SQLite.SQLiteDatabase, scope: string, memo: MemoDetail) 
     JSON.stringify(memo)
   );
 
-const setCursor = (db: SQLite.SQLiteDatabase, scope: string, cursor: number) =>
+const setCursor = (db: Pick<SQLite.SQLiteDatabase, "runAsync">, scope: string, cursor: number) =>
   db.runAsync(
     `INSERT OR REPLACE INTO mobile_sync_meta (scope, key, value) VALUES (?, 'cursor', ?)`,
     scope,
     String(cursor)
   );
 
-const setSyncIdentity = (db: SQLite.SQLiteDatabase, scope: string, identity: string) =>
+const setSyncIdentity = (db: Pick<SQLite.SQLiteDatabase, "runAsync">, scope: string, identity: string) =>
   db.runAsync(
     `INSERT OR REPLACE INTO mobile_sync_meta (scope, key, value) VALUES (?, 'identity', ?)`,
     scope,

@@ -6,7 +6,7 @@ import { createId, isoNow, parseJsonArray } from "./entity-utils";
 import { sha256 } from "./hash-utils";
 import { getMemoDetail, getMemoDetailRow } from "./memo-service";
 import { upsertMemoSearchDocumentStatement } from "./memo-search-index";
-import { getNotebook } from "./notebook-service";
+import { notebookExists } from "./notebook-service";
 import { resolveObjectStorage } from "./object-storage";
 import { inferImageExtension } from "./resource-service";
 import { getWorkspaceId } from "./request-auth";
@@ -88,7 +88,7 @@ export const duplicateMemoRecord = async (
   if (!source) throw new AppError("not_found", "Memo not found", 404);
 
   const notebookId = input.notebookId ?? source.notebook_id;
-  if (!(await getNotebook(db, workspaceId, notebookId))) {
+  if (!(await notebookExists(db, workspaceId, notebookId))) {
     throw new AppError("not_found", "Notebook not found", 404);
   }
 

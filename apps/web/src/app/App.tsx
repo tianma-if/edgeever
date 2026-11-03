@@ -12,12 +12,11 @@ import {
   cacheDesktopSession,
   clearCachedDesktopSession,
   getConfiguredDesktopApiBaseUrl,
-  getCachedDesktopSession,
+  getWorkspaceSession,
   saveDesktopApiBaseUrl,
 } from "@/lib/api";
 import { classifyLoginError, getLoginProblemMessageKey } from "@/lib/login-error";
 import { EVERNOTE_MIGRATION_PATH } from "@/lib/routes";
-import { isBrowserOffline } from "@/lib/network-status";
 import { syncPublishedNoteBodyFont } from "@/lib/published-note-body-font";
 import { getNoteWindowMemoId } from "@/lib/desktop-note-windows";
 import type { AuthSession } from "@edgeever/shared";
@@ -72,17 +71,7 @@ const AuthenticatedWorkspace = ({ siteManagement = false }: { siteManagement?: b
 
   const sessionQuery = useQuery({
     queryKey: ["auth", "session"],
-    queryFn: async () => {
-      try {
-        const session = await api.getSession();
-        await cacheDesktopSession(session);
-        return session;
-      } catch (error) {
-        const cached = getCachedDesktopSession();
-        if (cached?.authenticated && isBrowserOffline()) return cached;
-        throw error;
-      }
-    },
+    queryFn: getWorkspaceSession,
     enabled: !desktopBridge?.isAvailable || Boolean(configuredDesktopApiBaseUrl),
     retry: false,
   });
@@ -150,7 +139,11 @@ const AuthenticatedWorkspace = ({ siteManagement = false }: { siteManagement?: b
     const handleUnauthorized = () => {
       const current = queryClient.getQueryData<AuthSession>(["auth", "session"]);
       clearCachedDesktopSession();
-      queryClient.clear();
+      // Keep the observed session query alive so this transition is delivered
+      // even when a background request discovers that the session was revoked.
+      queryClient.removeQueries({
+        predicate: ({ queryKey }) => queryKey[0] !== "auth" || queryKey[1] !== "session",
+      });
       queryClient.setQueryData<AuthSession>(["auth", "session"], {
         authRequired: current?.authRequired ?? true,
         authenticated: false,

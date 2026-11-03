@@ -39,6 +39,7 @@ type JsonBackupPage = {
   revisions: JsonBackupRevision[];
   totalCount?: number;
   nextOffset: number | null;
+  nextCursor?: string | null;
 };
 
 export type JsonBackupSource = {
@@ -46,7 +47,7 @@ export type JsonBackupSource = {
   onManifest?: (manifest: JsonBackupManifest) => void;
   resourceOrigin?: string;
   signal?: AbortSignal;
-  getPage: (offset: number, limit: number) => Promise<JsonBackupPage>;
+  getPage: (offset: number, limit: number, cursor?: string) => Promise<JsonBackupPage>;
   getResourceResponse?: (resourceUrl: string) => Promise<Response>;
   getResourceBlob?: (resourceUrl: string) => Promise<Blob>;
   listPrompts: () => Promise<{ prompts: JsonBackupAiPrompt[] }>;
@@ -127,13 +128,14 @@ export const createEdgeEverZipStream = async (
       await addJson("notebooks.json", backupNotebooks);
       await addJson("prompts.json", prompts);
       let offset = 0;
+      let cursor: string | undefined;
       let completed = 0;
       let total = 0;
       let revisionCount = 0;
       let resourceCount = 0;
       while (true) {
         abort.signal.throwIfAborted();
-        const page = await source.getPage(offset, 25);
+        const page = await source.getPage(offset, 25, cursor);
         total = page.totalCount ?? Math.max(total, completed + page.memos.length);
         onProgress?.({ completed, total });
         for (const memo of page.memos) {
@@ -171,6 +173,7 @@ export const createEdgeEverZipStream = async (
         }
         if (page.nextOffset === null) break;
         offset = page.nextOffset;
+        cursor = page.nextCursor ?? undefined;
       }
       const manifest: JsonBackupManifest = {
         format: EDGEEVER_ZIP_FORMAT, formatVersion: EDGEEVER_ZIP_FORMAT_VERSION, schemaVersion: 1,

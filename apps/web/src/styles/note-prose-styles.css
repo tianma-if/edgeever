@@ -1,0 +1,334 @@
+/* Composable reading styles for headings, blockquotes, and inline emphasis. */
+
+/* 1. Heading style: Left bar ("bar") */
+.edgeever-editor[data-note-heading-style="bar"] .ProseMirror h2,
+.edgeever-editor[data-note-heading-style="bar"] .markdown-content h2 {
+  border-left: 4px solid var(--note-palette-accent, #374151);
+  padding-left: 10px;
+}
+
+.edgeever-editor[data-note-heading-style="bar"] .ProseMirror h3,
+.edgeever-editor[data-note-heading-style="bar"] .markdown-content h3 {
+  border-left: 3px solid color-mix(in srgb, var(--note-palette-accent, #374151) 55%, transparent);
+  padding-left: 8px;
+}
+
+/* 2. Heading style: Numbered magazine sections ("numbered" — Moyu Green chapter style) */
+.edgeever-editor[data-note-heading-style="numbered"] .ProseMirror,
+.edgeever-editor[data-note-heading-style="numbered"] .markdown-content {
+  counter-reset: note-prose-h2;
+  letter-spacing: 0.5px;
+}
+
+.edgeever-editor[data-note-heading-style="numbered"] .ProseMirror p,
+.edgeever-editor[data-note-heading-style="numbered"] .markdown-content p {
+  margin-bottom: 16px;
+  text-align: justify;
+}
+
+/* H1: Magazine cover-breaking card */
+.edgeever-editor[data-note-heading-style="numbered"] .ProseMirror h1,
+.edgeever-editor[data-note-heading-style="numbered"] .markdown-content h1 {
+  position: relative;
+  margin: 0.5rem 0 2rem;
+  padding: 28px 24px 52px;
+  background: #ffffff;
+  border: 1.5px solid color-mix(in srgb, var(--note-palette-accent, #374151) 18%, transparent);
+  border-radius: 20px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+  font-size: 24px;
+  font-weight: 900;
+  line-height: 1.25;
+  letter-spacing: -0.5px;
+  color: #111827;
+  overflow: hidden;
+}
+
+:root.dark .edgeever-editor[data-note-heading-style="numbered"] .ProseMirror h1,
+:root.dark .edgeever-editor[data-note-heading-style="numbered"] .markdown-content h1 {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: color-mix(in srgb, var(--note-palette-accent, #9ca3af) 28%, transparent);
+  color: #f3f4f6;
+}
+
+.edgeever-editor[data-note-heading-style="numbered"] .ProseMirror h1::before,
+.edgeever-editor[data-note-heading-style="numbered"] .markdown-content h1::before {
+  content: "●  FEATURED · 深度实测";
+  display: block;
+  margin-bottom: 16px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  line-height: 1.2;
+  color: var(--note-palette-accent, #374151);
+  pointer-events: none;
+}
+
+.edgeever-editor[data-note-heading-style="numbered"] .ProseMirror h1::after,
+.edgeever-editor[data-note-heading-style="numbered"] .markdown-content h1::after {
+  content: "EDGEEVER · 精选笔记";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 10px 24px;
+  background: linear-gradient(
+    135deg,
+    var(--note-palette-accent, #374151),
+    color-mix(in srgb, var(--note-palette-accent, #374151) 80%, #ffffff)
+  );
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  line-height: 1.4;
+  pointer-events: none;
+}
+
+.edgeever-editor[data-note-palette="native"][data-note-heading-style="numbered"] .ProseMirror h1::after,
+.edgeever-editor[data-note-palette="native"][data-note-heading-style="numbered"] .markdown-content h1::after {
+  background: #f3f4f6;
+  border-top: 1px solid #e5e7eb;
+  color: #374151;
+}
+
+/* H2: Two-column 01 / PART + 36px vertical divider + two-line right title & subtitle */
+.edgeever-editor[data-note-heading-style="numbered"] .ProseMirror hr:has(+ h2),
+.edgeever-editor[data-note-heading-style="numbered"] .markdown-content hr:has(+ h2) {
+  display: none;
+}
+
+.edgeever-editor[data-note-heading-style="numbered"] .ProseMirror hr,
+.edgeever-editor[data-note-heading-style="numbered"] .markdown-content hr {
+  border-top: 1px solid #e5e7eb !important;
+  margin: 28px 0 !important;
+}
+
+.edgeever-editor[data-note-heading-style="numbered"] .ProseMirror h2,
+.edgeever-editor[data-note-heading-style="numbered"] .markdown-content h2 {
+  counter-increment: note-prose-h2;
+  position: relative;
+  margin-top: 2.75rem;
+  margin-bottom: 1.5rem;
+  padding: 2px 0 2px 82px;
+  min-height: 40px;
+  display: block;
+  border: 0;
+  font-size: 17px;
+  font-weight: 900;
+  color: #111827;
+  letter-spacing: 0.3px;
+  line-height: 1.3;
+}
+
+:root.dark .edgeever-editor[data-note-heading-style="numbered"] .ProseMirror h2,
+:root.dark .edgeever-editor[data-note-heading-style="numbered"] .markdown-content h2 {
+  color: #f3f4f6;
+}
+
+.edgeever-editor[data-note-heading-style="numbered"] .ProseMirror h2::before,
+.edgeever-editor[data-note-heading-style="numbered"] .markdown-content h2::before {
+  content: counter(note-prose-h2, decimal-leading-zero);
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 66px;
+  height: 38px;
+  padding-right: 16px;
+  box-sizing: border-box;
+  text-align: center;
+  font-size: 28px;
+  font-weight: 900;
+  color: var(--note-palette-accent, #374151);
+  line-height: 25px;
+  letter-spacing: -2px;
+  font-variant-numeric: tabular-nums;
+  border-right: 1px solid #e5e7eb;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='50' height='11' viewBox='0 0 50 11'%3E%3Ctext x='25' y='9' text-anchor='middle' font-family='-apple-system,BlinkMacSystemFont,sans-serif' font-size='8' font-weight='700' letter-spacing='2' fill='%23d1d5db'%3EPART%3C/text%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: left 0 bottom 0;
+  pointer-events: none;
+}
+
+.edgeever-editor[data-note-heading-style="numbered"] .ProseMirror h2:last-of-type::before,
+.edgeever-editor[data-note-heading-style="numbered"] .markdown-content h2:last-of-type::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='50' height='11' viewBox='0 0 50 11'%3E%3Ctext x='25' y='9' text-anchor='middle' font-family='-apple-system,BlinkMacSystemFont,sans-serif' font-size='8' font-weight='700' letter-spacing='2' fill='%23d1d5db'%3ELAST%3C/text%3E%3C/svg%3E");
+}
+
+:root.dark .edgeever-editor[data-note-heading-style="numbered"] .ProseMirror h2::before,
+:root.dark .edgeever-editor[data-note-heading-style="numbered"] .markdown-content h2::before {
+  border-right-color: rgba(255, 255, 255, 0.14);
+}
+
+.edgeever-editor[data-note-heading-style="numbered"] .ProseMirror h2::after,
+.edgeever-editor[data-note-heading-style="numbered"] .markdown-content h2::after {
+  content: "SECTION " counter(note-prose-h2, decimal-leading-zero);
+  display: block;
+  margin-top: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #9ca3af;
+  letter-spacing: 1px;
+  line-height: 1.3;
+  pointer-events: none;
+}
+
+.edgeever-editor[data-note-heading-style="numbered"] .ProseMirror h2:last-of-type::after,
+.edgeever-editor[data-note-heading-style="numbered"] .markdown-content h2:last-of-type::after {
+  content: "SUMMARY";
+}
+
+/* H3: Green pill badge with solid dot */
+.edgeever-editor[data-note-heading-style="numbered"] .ProseMirror h3,
+.edgeever-editor[data-note-heading-style="numbered"] .markdown-content h3 {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 1.1rem;
+  margin-bottom: 0.5rem;
+  padding: 4px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--note-palette-accent, #374151) 9%, transparent);
+  color: var(--note-palette-accent, #374151);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.edgeever-editor[data-note-heading-style="numbered"] .ProseMirror h3::before,
+.edgeever-editor[data-note-heading-style="numbered"] .markdown-content h3::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--note-palette-accent, #374151);
+  flex-shrink: 0;
+  pointer-events: none;
+}
+
+/* H4: Warm yellow highlight sub-heading */
+.edgeever-editor[data-note-heading-style="numbered"] .ProseMirror h4,
+.edgeever-editor[data-note-heading-style="numbered"] .markdown-content h4 {
+  display: inline-block;
+  margin-top: 1rem;
+  margin-bottom: 0.45rem;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: #fde68a;
+  color: #111827;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+/* 4. Quote style: Dashed card ("dashed" — Moyu Green quote card & code block accent bar) */
+.edgeever-editor[data-note-quote-style="dashed"] .ProseMirror blockquote,
+.edgeever-editor[data-note-quote-style="dashed"] .markdown-content blockquote {
+  background: #f9fafb;
+  border: 1px dashed #d1d5db;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 20px;
+}
+
+.edgeever-editor[data-note-quote-style="dashed"] .ProseMirror pre,
+.edgeever-editor[data-note-quote-style="dashed"] .ProseMirror .edgeever-code-block,
+.edgeever-editor[data-note-quote-style="dashed"] .markdown-content pre {
+  background: #f9fafb;
+  border: 0;
+  border-left: 3px solid var(--note-palette-accent, #374151);
+  border-radius: 0 8px 8px 0;
+}
+
+:root.dark .edgeever-editor[data-note-quote-style="dashed"] .ProseMirror blockquote,
+:root.dark .edgeever-editor[data-note-quote-style="dashed"] .markdown-content blockquote {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+:root.dark .edgeever-editor[data-note-quote-style="dashed"] .ProseMirror pre,
+:root.dark .edgeever-editor[data-note-quote-style="dashed"] .ProseMirror .edgeever-code-block,
+:root.dark .edgeever-editor[data-note-quote-style="dashed"] .markdown-content pre {
+  background: rgba(255, 255, 255, 0.04);
+  border-left-color: var(--note-palette-accent, #9ca3af);
+}
+
+/* 5. Quote style: Accent left bar ("accent-bar") */
+.edgeever-editor[data-note-quote-style="accent-bar"] .ProseMirror blockquote,
+.edgeever-editor[data-note-quote-style="accent-bar"] .markdown-content blockquote {
+  background: var(--note-palette-surface, #f8fafc);
+  border: 0;
+  border-left: 3px solid var(--note-palette-accent, #374151);
+  border-radius: 0 6px 6px 0;
+  padding: 12px 16px;
+}
+
+:root.dark .edgeever-editor[data-note-quote-style="accent-bar"] .ProseMirror blockquote,
+:root.dark .edgeever-editor[data-note-quote-style="accent-bar"] .markdown-content blockquote {
+  background: color-mix(in srgb, var(--note-palette-accent, #9ca3af) 8%, transparent);
+  border-left-color: var(--note-palette-accent, #9ca3af);
+}
+
+/* 6. Quote style: Minimal rule ("minimal-rule") */
+.edgeever-editor[data-note-quote-style="minimal-rule"] .ProseMirror blockquote,
+.edgeever-editor[data-note-quote-style="minimal-rule"] .markdown-content blockquote {
+  background: transparent;
+  border: 0;
+  border-top: 1px solid #e5e7eb;
+  border-bottom: 1px solid #e5e7eb;
+  border-radius: 0;
+  padding: 12px 4px;
+}
+
+:root.dark .edgeever-editor[data-note-quote-style="minimal-rule"] .ProseMirror blockquote,
+:root.dark .edgeever-editor[data-note-quote-style="minimal-rule"] .markdown-content blockquote {
+  background: transparent;
+  border-top-color: rgba(255, 255, 255, 0.14);
+  border-bottom-color: rgba(255, 255, 255, 0.14);
+}
+
+/* 7. Emphasis style: Marker underline & warm yellow highlight ("marker") */
+.edgeever-editor[data-note-emphasis-style="marker"] .ProseMirror blockquote strong,
+.edgeever-editor[data-note-emphasis-style="marker"] .ProseMirror blockquote b,
+.edgeever-editor[data-note-emphasis-style="marker"] .markdown-content blockquote strong,
+.edgeever-editor[data-note-emphasis-style="marker"] .markdown-content blockquote b {
+  border-bottom: 3px solid #fde68a;
+  padding-bottom: 2px;
+}
+
+.edgeever-editor[data-note-emphasis-style="marker"] .ProseMirror :is(p, li) > :is(strong, b),
+.edgeever-editor[data-note-emphasis-style="marker"] .markdown-content :is(p, li) > :is(strong, b) {
+  border-bottom: 2px solid var(--note-palette-divider, #d1d5db);
+  padding-bottom: 1px;
+}
+
+.edgeever-editor[data-note-emphasis-style="marker"] .ProseMirror blockquote :is(p, li) > :is(strong, b),
+.edgeever-editor[data-note-emphasis-style="marker"] .markdown-content blockquote :is(p, li) > :is(strong, b) {
+  border-bottom: 3px solid #fde68a;
+  padding-bottom: 2px;
+}
+
+.edgeever-editor[data-note-emphasis-style="marker"] .ProseMirror u,
+.edgeever-editor[data-note-emphasis-style="marker"] .markdown-content u {
+  text-decoration: none;
+  border-bottom: 2px solid var(--note-palette-divider, #d1d5db);
+  padding-bottom: 1px;
+  font-weight: 600;
+}
+
+:root.dark .edgeever-editor[data-note-emphasis-style="marker"] .ProseMirror u,
+:root.dark .edgeever-editor[data-note-emphasis-style="marker"] .markdown-content u,
+:root.dark .edgeever-editor[data-note-emphasis-style="marker"] .ProseMirror :is(p, li) > :is(strong, b),
+:root.dark .edgeever-editor[data-note-emphasis-style="marker"] .markdown-content :is(p, li) > :is(strong, b) {
+  border-bottom-color: color-mix(in srgb, var(--note-palette-accent, #9ca3af) 55%, transparent);
+}
+
+.edgeever-editor[data-note-emphasis-style="marker"] .ProseMirror mark,
+.edgeever-editor[data-note-emphasis-style="marker"] .markdown-content mark {
+  background-color: #fde68a;
+  color: #111827;
+  padding: 1px 4px;
+  border-radius: 2px;
+  font-weight: 600;
+}

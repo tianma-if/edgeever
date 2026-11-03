@@ -89,7 +89,7 @@ EdgeEver 是一款現代化的開源筆記與個人知識庫工作區。它延�
 | **組織與檢索** | • 無限層級筆記本與目錄樹導覽<br>• 標籤體系（Tags）與筆記拖放排序、批次合併/移動<br>• 毫秒級即時全文搜尋與歷史記錄篩選 | • **獨立知識庫網站發布**：一鍵將整個筆記本公開發布為帶目錄樹導覽的獨立靜態網站（支援密碼保護）<br>• 多帳號與工作區多空間資料實體隔離 |
 | **擷取與附件** | • 桌面與行動端全格式附件上傳（PDF、Office、影音等）<br>• 瀏覽器選取網頁文字與圖片精準擷取<br>• 手機系統分享一鍵轉存全網圖片與微信文章 | • **全渠道結構化擷取**：深度適配小紅書、X (Twitter)、知乎、Reddit、GitHub 等 20+ 平台<br>• **微信聊天記錄一鍵歸檔**：整段對話轉筆記，保留時間軸、引用、表情與附件<br>• **端側靜默壓縮**：圖片上傳前壓縮 50%–90%；分塊串流上傳安全支援最大 1 GiB 附件 |
 | **資料與視覺化** | • 原生表格編輯與 Markdown 表格繪製<br>• 原生 Mermaid 流程圖、循序圖與架構圖繪製 | • **AI 多維表格**：自然語言一句話產生業務資料庫（含標籤、日期等欄位）<br>• **線上公開收集表單**：多維表格一鍵產生免登入外鏈表單，填報資料即時入庫<br>• **AI 智慧資訊圖與導圖**：一鍵產生時間線、對比圖、象限矩陣及心智圖 |
-| **AI 與生態** | • 側邊伴隨式 AI 助手，選取範圍/全文一鍵摘要、翻譯與修飾潤色<br>• BYOK（自備金鑰）：相容 OpenAI、Anthropic、Gemini 等主流協定 | • **原生 Agent 協定互聯**：內建 MCP（外部 Agent 讀寫筆記）與 ACP（桌面端直接喚起本機 Agent 協同創作）<br>• **AI RSS 智慧訂閱日報**：定時聚合資訊來源，AI 自動過濾雜訊並產生精煉日報<br>• 開放外掛開發文件自由擴充 |
+| **AI 與生態** | • 側邊伴隨式 AI 助手，選取範圍/全文一鍵摘要、翻譯與修飾潤色<br>• BYOK（自備金鑰）：相容 OpenAI、Anthropic、Gemini 等主流協定 | • **原生 Agent 協定互聯**：內建 MCP（外部 Agent 讀寫筆記）與 ACP（桌面端直接喚起 Codex、Claude Code、CodeBuddy 等本機 Agent 協同創作）<br>• **AI RSS 智慧訂閱日報**：定時聚合資訊來源，AI 自動過濾雜訊並產生精煉日報<br>• 開放外掛開發文件自由擴充 |
 | **多端同步與底座** | • 電腦、手機全端秒級無感同步，無裝置數量限制<br>• 官方涵蓋 Web / macOS / Windows / Linux / iOS / Android 全平台<br>• 離線優先與同步佇列：斷網流暢寫作，連網自動復原並增量同步<br>• 標準 SQLite 儲存，無損 ZIP 封存與 Markdown 匯出匯入 | • **終身零伺服器成本**：100% 執行於 Cloudflare 免費配額（容量約 15 萬條短筆記與 5 萬張圖片）<br>• **彈性 Docker 自託管**：私有 VPS/NAS 一鍵部署，輕鬆承載百萬級筆記與瞬時同步<br>• 伺服端防暴力破解限流保護與安全資料隔離 |
 
 ## 部署
@@ -106,16 +106,18 @@ Cloudflare 線上部署可以選擇以下兩種方式之一：
 請全程透過 GitHub 和 Cloudflare 線上部署 EdgeEver：
 1. Fork https://github.com/tianma-if/edgeever。
 2. 在 Cloudflare 中建立 D1 `edgeever` 與 R2 `edgeever-resources`。
-3. 在 Workers & Pages 中從 Fork 的 `main` 分支建立名為 `edgeever` 的 Worker。
-   使用儲存庫根目錄，保留 Cloudflare Workers Builds 的預設部署指令，確認其 API Token
-   具備 D1 讀取及編輯權限，然後儲存並部署。
-4. Worker 建立後，設定執行時 Secret `EDGE_EVER_AUTH_PASSWORD`，值為使用者指定的密碼
-   （建議至少 32 個字元）。管理員使用者名稱預設為 `admin`；如需自訂，請在再次建置前
-   設定 Workers Builds 建置變數 `EDGE_EVER_AUTH_USERNAME`。
-5. 再次建置，驗證 `/api/health` 和 `/api/openapi.json`，再用該管理員
-   使用者名稱和密碼驗證登入。
-6. 啟用並手動執行一次名為 `Update deployed EdgeEver` 的 GitHub Actions 工作流程，
-   以便後續自動同步正式版本，持續獲得 EdgeEver 的功能更新與問題修復。
+3. 在 Workers & Pages 中選擇「Start with Hello World!」，建立名為 `edgeever` 的 Worker。
+4. 在該 Worker 的 Settings → Variables and Secrets 中新增執行時 Secret
+   `EDGE_EVER_AUTH_PASSWORD`，值為使用者指定的登入密碼（建議至少 32 個字元），並點選 Deploy。
+   管理員使用者名稱預設為 `admin`。
+5. 確認 Secret 已部署後，在該 Worker 的 Settings → Builds → Connect 中連接 Fork 的
+   `main` 分支。
+6. 在 Settings → Builds → API token 中選擇或建立用於部署的
+   Cloudflare API Token，並確認它具備目標帳戶的 D1 讀取及編輯權限。
+7. 在 Fork 的 GitHub 儲存庫中進入 Actions → Update deployed EdgeEver，依提示啟用工作流程，
+   選擇 `main` 分支並點選 Run workflow。在 Cloudflare 確認對應建置成功、部署完成後，驗證 `/api/health` 和 `/api/openapi.json`，
+   再用管理員使用者名稱和密碼驗證登入。
+   後續由該工作流程自動同步正式版本，持續獲得功能更新與問題修復。
 ```
 
 > 詳細約定與要求請查看：[AI Agent 線上部署約定](docs/agent-deploy-cloudflare.zh-CN.md)。
@@ -123,16 +125,17 @@ Cloudflare 線上部署可以選擇以下兩種方式之一：
 ### 方案二：手動線上部署
 
 <details>
-<summary>📖 展開查看：網頁端 6 步手動部署流程</summary>
+<summary>📖 展開查看：網頁端 7 步手動部署流程</summary>
 
-只需在網頁端完成 6 步設定：
+請嚴格依照以下順序，在網頁端完成 7 步設定：
 
 1. **Fork 儲存庫**：在 GitHub 點選右上角 **Fork**，將專案 Fork 到您的個人帳戶下。
 2. **建立 Cloudflare 資源**：建立 D1 `edgeever` 與 R2 `edgeever-resources`。
-3. **匯入並設定專案**：在 Cloudflare **Workers & Pages** 中從 Fork 的 `main` 分支建立名為 `edgeever` 的 Worker。使用儲存庫根目錄，保留由 Cloudflare 線上執行的 Workers Builds 預設部署指令，並確認其 API Token 具備 D1 讀取及編輯權限。binding 由部署指令產生，不要修改 Fork 中的檔案。
-4. **準備管理員密碼**：準備管理員登入密碼，建議至少 32 個字元。Worker 建立後，將它儲存為執行時 Secret `EDGE_EVER_AUTH_PASSWORD`。
-5. **首次建置與驗證**：儲存並部署會建立 Worker 並啟動建置。首次建置主要用於初始化實例，若因尚未配置管理員 Secret 而報錯屬於預期行為，只需在第 4 步新增執行時 Secret `EDGE_EVER_AUTH_PASSWORD` 後點擊重試建置即可通過。管理員使用者名稱預設為 `admin`；如需使用其他名稱，請在重試建置前設定 Workers Builds 建置變數 `EDGE_EVER_AUTH_USERNAME`。部署完成後造訪 `/api/health`，確認回傳 `200`，再用設定的管理員使用者名稱和密碼登入。
-6. **啟用自動更新**：進入 Fork 的 **Actions** 分頁，點選 **I understand my workflows, go ahead and enable them**，然後手動執行一次 **Update deployed EdgeEver**，確保後續能夠自動獲得正式版本的功能更新與修復。
+3. **建立 Worker**：在 Cloudflare Workers & Pages 中選擇 Create application → Start with Hello World!，命名為 `edgeever` 並部署。此時是預留服務，第 7 步才部署 EdgeEver。
+4. **設定管理員密碼**：在該 Worker 的 Settings → Variables and Secrets 中，選擇 Secret 類型，新增 `EDGE_EVER_AUTH_PASSWORD` 並點選 Deploy。值為您指定的登入密碼，建議至少 32 個字元。完成後再連接 Fork。
+5. **連接 Fork**：在既有 Worker 的 Settings → Builds → Connect 中選擇 Fork 和正式環境分支 `main`。
+6. **設定部署權限**：在 Settings → Builds → API token 中選擇或建立用於部署的 Cloudflare API Token，並確認它具備目標帳戶的 D1 讀取及編輯權限。
+7. **建置並驗證**：在 Fork 的 GitHub 儲存庫中進入 Actions → Update deployed EdgeEver，依提示啟用工作流程， 選擇 `main` 分支並點選 Run workflow。在 Cloudflare 確認對應建置成功、部署完成後，確認 `/api/health` 回傳 `200`，並驗證登入。後續由該工作流程自動同步正式版本，持續獲得功能更新與問題修復。
 
 > 📖 包含具體參數與建置指令的詳細步驟，請查看 [線上部署完整文件](docs/deploy-cloudflare-button.zh-CN.md)。
 
@@ -311,6 +314,7 @@ EdgeEver 是免費開源專案。保持跨平台用戶端（macOS、Windows、Li
 - 心智圖與視覺化圖表筆記的產品設計參考了 [XMind](https://xmind.com/) 和 [ProcessOn](https://www.processon.com/) 等圖表工具的公開產品體驗。相關功能由 EdgeEver 獨立設計與實作。
 - EdgeEver 的海報設計工作台借鑑了向阳乔木（joeseesun）的 [Qiaomu Design](https://github.com/joeseesun/qiaomu-cover-design)，並基於其 MIT 開源授權改編了範本與字型排版引擎。
 - EdgeEver 圖片分享卡片的主題視覺與排版參考了 [流光卡片](https://fireflycard.shushiai.com/)，感謝其設計帶來的啟發。
+- EdgeEver 的微信公眾號一鍵排版與精選文章視覺樣式參考了 [gzh-design-skill](https://github.com/isjiamu/gzh-design-skill)，感謝其在公眾號排版與視覺設計上的啟發。
 
 ## 商標與品牌使用
 

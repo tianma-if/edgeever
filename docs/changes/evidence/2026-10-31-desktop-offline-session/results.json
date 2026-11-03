@@ -1,0 +1,79 @@
+{
+  "runtimes": {
+    "old": {
+      "version": "2.16.1",
+      "electron": "44.7.0",
+      "node": "24.21.0",
+      "platform": "darwin"
+    },
+    "fixed": {
+      "version": "2.16.1",
+      "electron": "44.7.0",
+      "node": "24.21.0",
+      "platform": "darwin"
+    }
+  },
+  "observations": {
+    "outageQueue": {
+      "conflict": 0,
+      "cursor": 31,
+      "error": 0,
+      "lastSyncedAt": "1793439413",
+      "pending": 1,
+      "syncIdentity": "2026-10-31T09:36:47.688Z",
+      "syncing": 0
+    },
+    "recoveredContent": "Old version original body old-version-edit fixed-offline-500-edit fixed-offline-503-edit failed-confirmation-edit",
+    "credentialPreserved": true,
+    "recoveredQueue": {
+      "conflict": 0,
+      "cursor": 32,
+      "error": 0,
+      "lastSyncedAt": "1793439428",
+      "pending": 0,
+      "syncIdentity": "2026-10-31T09:36:47.688Z",
+      "syncing": 0
+    },
+    "localDataPreservedAfterReauthentication": true
+  },
+  "results": [
+    {
+      "name": "released old app signs in and persists real local data",
+      "ok": true
+    },
+    {
+      "name": "old version reproduces login-screen failure on HTTP 500 without deleting its local identity",
+      "ok": true
+    },
+    {
+      "name": "fixed app upgrades the same old profile during HTTP 500 and reads/writes offline",
+      "ok": true
+    },
+    {
+      "name": "offline edits survive a full native restart with D1 quota HTTP 503",
+      "ok": true
+    },
+    {
+      "name": "route 401 plus failed session confirmation cannot sign out the local account",
+      "ok": true
+    },
+    {
+      "name": "restoring service uploads all queued edits with the original credential",
+      "ok": true
+    },
+    {
+      "name": "actual session revocation requires login while running and after restart",
+      "ok": true
+    }
+  ],
+  "candidate": {
+    "baseRelease": "v2.16.1",
+    "nativeHostAndSidecar": "unchanged from released macOS arm64 application",
+    "notarizationSubmission": "efe438f6-5cfd-4872-961a-816ac79870ad",
+    "notarizationStatus": "Accepted",
+    "productionServicesAccessed": false,
+    "ownerProfileModified": false,
+    "hostSha256": "15392f5114806a97b115c3a024cf8717ea74bdf14bf95a8a1a7f0fb2d37a20f1",
+    "sidecarSha256": "8b7812e6e9b35f422c51d72f1ac0c9cf52f4836f21f5f7cc6caa9c320f5cad70"
+  }
+}

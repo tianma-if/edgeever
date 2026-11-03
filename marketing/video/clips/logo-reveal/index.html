@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <title>EdgeEver — Logo Reveal</title>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.15.0/dist/gsap.min.js"></script>
+    <style>
+      * { box-sizing: border-box; }
+      html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; }
+      #stage { position: relative; width: 1920px; height: 1080px; overflow: hidden; }
+      .clip { position: absolute; inset: 0; }
+    </style>
+  </head>
+  <body>
+    <div data-hf-id="hf-ohdm" id="stage" data-composition-id="main" data-start="0" data-duration="6"
+      data-width="1920" data-height="1080" data-fps="30">
+      <div data-hf-id="hf-18bd" id="logo-reveal-scene" class="clip" data-composition-id="logo-outro"
+        data-composition-src="compositions/logo-outro.html" data-start="0"
+        data-duration="6" data-track-index="0" data-track-kind="graphics"
+        data-width="1920" data-height="1080"></div>
+    </div>
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+      window.__timelines["main"] = tl;
+      tl.seek(0);
+    </script>
+  </body>
+</html>

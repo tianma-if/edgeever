@@ -201,6 +201,7 @@ describe("backup route contracts", () => {
       resources: [],
       totalCount: 0,
       nextOffset: null,
+      nextCursor: null,
     });
   });
 

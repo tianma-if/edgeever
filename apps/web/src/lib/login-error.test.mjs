@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { ApiRequestError, DesktopInstanceUrlError } from "./api.ts";
-import { classifyLoginError } from "./login-error.ts";
+import { classifyLoginError, getLoginProblemMessageKey } from "./login-error.ts";
 
 describe("login error classification", () => {
   test("distinguishes invalid URLs and unreachable instances", () => {
@@ -77,4 +77,13 @@ describe("login error classification", () => {
       diagnosticCode: "invalid_instance_response",
     });
   });
+});
+
+test("daily database quota has its own actionable login message in both phases", () => {
+  for (const phase of ["session", "login"]) {
+    const problem = classifyLoginError(new ApiRequestError("Quota exhausted", 503, "database_daily_quota_exceeded"), phase);
+    expect(problem.kind).toBe("databaseDailyQuotaExceeded");
+    expect(problem.diagnosticCode).toBe("database_daily_quota_exceeded");
+    expect(getLoginProblemMessageKey(problem)).toBe("login.databaseDailyQuotaExceeded");
+  }
 });

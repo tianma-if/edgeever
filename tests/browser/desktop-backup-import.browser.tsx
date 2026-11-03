@@ -21,12 +21,17 @@ const status: DesktopBackupStatus = {
     { name: "EdgeEver-2026-10-25_110000.edgeever.enc", directory: "/test/Backups", completedAt: "2026-10-25T03:00:00.000Z", size: 4910204, encrypted: true },
   ],
 };
+const params = new URLSearchParams(location.search);
+const legacyInterval = params.get("legacy-interval");
+if (legacyInterval === "daily" || legacyInterval === "biweekly") status.config.interval = legacyInterval;
+if (params.has("encrypted")) { status.config.encrypted = true; status.passwordSet = true; }
+if (params.has("no-secure-storage")) status.secureStorageAvailable = false;
 const calls: Array<{ action: string; input?: unknown }> = [];
 const listeners = new Set<(status: DesktopBackupStatus) => void>();
 const emit = () => { for (const listener of listeners) listener(structuredClone(status)); };
 let encrypted = true;
 let holdHandshake = false;
-let runError = false;
+let runError = params.has("run-error");
 let deleteError = false;
 const saveError = new URLSearchParams(location.search).has("save-error");
 let finish: (() => void) | undefined;
@@ -38,6 +43,10 @@ Object.defineProperty(window, "edgeeverDesktop", {
       const value = input as { name?: string; config?: DesktopBackupStatus["config"]; password?: string; options?: { name: string; encrypted: boolean } } | undefined;
       if (action === "run") {
         if (runError) throw Object.assign(new Error("File exists"), { code: "backup_name_exists" });
+        if (params.has("running")) {
+          status.task = { kind: "export", phase: "exporting", completed: 2, total: 5 }; emit();
+          return structuredClone(status);
+        }
         const option = value!.options!; const at = new Date().toISOString();
         status.history.push({ name: option.name.replace(/(?:\.edgeever\.enc|\.zip)$/i, "") + (option.encrypted ? ".edgeever.enc" : ".zip"), directory: status.config.directory, completedAt: at, size: 149755, encrypted: option.encrypted });
         status.lastSuccessAt = at; status.lastCheck = { at, result: "success" }; emit();

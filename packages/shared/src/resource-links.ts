@@ -1,4 +1,17 @@
+import { toMarkdown } from "mdast-util-to-markdown";
+
 const RESOURCE_PATH_PATTERN = /\/api\/v1\/resources\/([^/]+)\/blob(?:$|[?#])/;
+
+// Resource nodes serialize without a surrounding paragraph/phrasing context.
+// Escape entity-like label text there without changing destinations or titles.
+export const resourceNodeToMarkdown = (node: Parameters<typeof toMarkdown>[0]): string => toMarkdown(node, {
+  unsafe: [{ character: "&", after: "[#A-Za-z]", inConstruct: "label",
+    notInConstruct: ["destinationRaw", "destinationLiteral", "titleQuote", "titleApostrophe"] }],
+}).trimEnd();
+
+export const resourceLinkToMarkdown = (label: string, url: string): string => resourceNodeToMarkdown({
+  type: "link", url, children: [{ type: "text", value: label }],
+});
 
 export const getResourceIdFromUrl = (href: string): string | null => {
   if (href.startsWith("edgeever-resource://")) {

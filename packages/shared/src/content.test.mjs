@@ -136,6 +136,25 @@ describe("PDF attachment Markdown compatibility", () => {
 });
 
 describe("file attachment Markdown compatibility", () => {
+  test("keeps literal entities and escapes in attachment labels without changing resource URL suffixes", () => {
+    const url = "/api/v1/resources/res_label/blob?download=1&copy=2#page=3";
+    for (const [extension, type] of [["pdf", PDF_ATTACHMENT_NODE_TYPE], ["zip", FILE_ATTACHMENT_NODE_TYPE]]) {
+      const label = `literal &copy; &#91; \\[.${extension}`;
+      const doc = { type: "doc", content: [{ type: "paragraph", content: [{ type, attrs: { url, label } }] }] };
+      const reopened = markdownToDoc(docToMarkdown(doc)).content[0].content[0];
+      expect(reopened).toMatchObject({ type, attrs: { label, url } });
+    }
+  });
+
+  test("retains inline attachment labels containing an escaped opening bracket", () => {
+    for (const [extension, type] of [["pdf", PDF_ATTACHMENT_NODE_TYPE], ["zip", FILE_ATTACHMENT_NODE_TYPE]]) {
+      const markdown = `See [report\\[2026.${extension}](/api/v1/resources/res_bracket/blob)`;
+      const parsed = markdownToDoc(markdown);
+      expect(parsed.content[0].content.some(node => node.type === type)).toBe(true);
+      expect(markdownToDoc(docToMarkdown(parsed)).content[0].content.some(node => node.type === type)).toBe(true);
+    }
+  });
+
   test("parses a stored non-PDF resource link as an attachment card", () => {
     const markdown = "[Attachment: budget.xlsx](/api/v1/resources/res_sheet/blob)";
     const doc = markdownToDoc(markdown);

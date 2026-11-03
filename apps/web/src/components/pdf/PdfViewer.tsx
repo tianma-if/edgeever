@@ -17,6 +17,7 @@ import type { PDFDocumentProxy, PDFPageProxy } from "pdfjs-dist";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
+import { AttachmentExternalLink } from "@/components/attachments/AttachmentExternalLink";
 import { AttachmentFileIcon } from "@/components/attachments/AttachmentFileIcon";
 import { COMPACT_ATTACHMENT_WIDTH_CLASS } from "@/components/attachments/attachment-layout";
 import { ButtonTooltip } from "@/components/ui/button-tooltip";
@@ -312,8 +313,8 @@ export const PdfViewer = ({
           <ButtonTooltip title={t("pdfViewer.download")}>
             <a className="pdf-viewer-action" href={toDesktopResourceDownloadUrl(resolvedUrl, filename || label)} download={filename || label} aria-label={t("pdfViewer.download")}><Download aria-hidden="true" /></a>
           </ButtonTooltip>
-          <ButtonTooltip title={t("pdfViewer.openExternal")}>
-            <a className="pdf-viewer-action" href={resolvedUrl} target="_blank" rel="noreferrer" aria-label={t("pdfViewer.openExternal")}><ExternalLink aria-hidden="true" /></a>
+          <ButtonTooltip title={t(isDesktopResourceRuntime() ? "attachmentOpen.copyHint" : "pdfViewer.openExternal")}>
+            <AttachmentExternalLink className="pdf-viewer-action" href={resolvedUrl} filename={filename || label} iconOnly aria-label={t("pdfViewer.openExternal")}><ExternalLink aria-hidden="true" /></AttachmentExternalLink>
           </ButtonTooltip>
           {isFullscreen || (expanded && !failed) ? (
             <ButtonTooltip title={isFullscreen ? t("pdfViewer.exitFullscreen") : t("pdfViewer.fullscreen")}>

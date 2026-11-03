@@ -1,0 +1,12 @@
+name: edgeever-webdav-test
+services:
+  webdav:
+    image: rclone/rclone:1.69
+    command: ["serve", "webdav", "/data", "--addr", ":8080", "--user", "tester", "--pass", "test-pass-123"]
+    tmpfs: ["/data"]
+    ports: ["127.0.0.1:18080:8080"]
+  limited:
+    image: nginx:1.27-alpine
+    volumes: ["./nginx-size-limit.conf:/etc/nginx/conf.d/default.conf:ro"]
+    ports: ["127.0.0.1:18081:80"]
+    depends_on: [webdav]

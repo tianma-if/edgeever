@@ -1,7 +1,7 @@
 import i18n, { type i18n as I18n } from "i18next";
-import { enUS } from "@edgeever/shared/i18n/en-US";
+import { errorScreensEnUS } from "@edgeever/shared/i18n/error-screens-en-US";
 
-export type ErrorScreenKey = keyof typeof enUS.errorScreens;
+export type ErrorScreenKey = keyof typeof errorScreensEnUS;
 
 /**
  * Text for screens shown after a render failure. They can appear before
@@ -11,5 +11,5 @@ export type ErrorScreenKey = keyof typeof enUS.errorScreens;
 export const errorScreenText = (key: ErrorScreenKey, instance: I18n = i18n): string => {
   const path = `errorScreens.${key}`;
   const text = instance.isInitialized ? instance.t(path) : "";
-  return text && text !== path ? text : enUS.errorScreens[key];
+  return text && text !== path ? text : errorScreensEnUS[key];
 };

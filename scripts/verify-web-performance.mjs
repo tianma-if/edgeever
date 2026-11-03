@@ -30,7 +30,7 @@ assert.doesNotMatch(serviceWorker, /edgeever-offline-shell/, "PWA must not retai
 const modulePreloads = indexHtml.match(/<link rel="modulepreload"[^>]+>/g)?.join("\n") ?? "";
 const initialOptionalPattern = /vendor-code-highlight|vendor-D3|beautiful-mermaid|vendor-(?:mermaid|tiptap|prosemirror|floating|codemirror|x6|infographic|streamdown)|vendor~(?:wasm|emacs-lisp)-|ui-primitives|mermaid\.core|[^"']*Diagram(?:EditorPane)?-/;
 assert.doesNotMatch(modulePreloads, initialOptionalPattern, "Optional editor and diagram chunks must remain out of the initial HTML modulepreload list");
-assert.doesNotMatch(modulePreloads, /mathlive-loader|i18n-ja-/, "MathLive and the Japanese catalog must remain deferred");
+assert.doesNotMatch(modulePreloads, /mathlive-loader|i18n-(?:en-US|ja)-/, "MathLive and optional locale catalogs must remain deferred");
 assert.doesNotMatch(modulePreloads, /ui-button-tooltip/, "Button tooltips must load only when a titled button is rendered");
 assert.doesNotMatch(modulePreloads, /vendor-radix(?!-slot)/, "Radix overlays must remain out of the initial HTML modulepreload list");
 const initialModulePreloadBytes = [...indexHtml.matchAll(/<link rel="modulepreload"[^>]+href="([^"]+)"[^>]*>/g)]
@@ -43,7 +43,7 @@ assert.ok(initialModulePreloadBytes <= INITIAL_MODULE_PRELOAD_BUDGET, `Initial m
 
 const startupGraph = readWebStartupGraph(distDirectory);
 assert.ok(startupGraph.initialJavaScriptBytes <= 1024 * 1024, `Eager JavaScript exceeds 1 MiB: ${startupGraph.initialJavaScriptBytes}`);
-const eagerOptionalPattern = /(?:^|\/)(?:vendor-(?:code-highlight|beautiful-mermaid|mermaid|tiptap|prosemirror|codemirror|x6|infographic|streamdown)|i18n-(?:ja|pl|ru)-|(?:WorkspaceApp|EditorPane|DiagramEditorPane|PosterEditorPane|TableEditorPane|InfographicEditorPane)-)/;
+const eagerOptionalPattern = /(?:^|\/)(?:vendor-(?:code-highlight|beautiful-mermaid|mermaid|tiptap|prosemirror|codemirror|x6|infographic|streamdown)|i18n-(?:en-US|ja|pl|ru)-|(?:WorkspaceApp|EditorPane|DiagramEditorPane|PosterEditorPane|TableEditorPane|InfographicEditorPane)-)/;
 assert.ok(!startupGraph.initialJavaScriptFiles.some(file => eagerOptionalPattern.test(file)), "Optional editors and locales must remain outside the actual startup module graph");
 
 // Optional fonts must remain downloads, even when the desktop installer packages all Web files.

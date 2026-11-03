@@ -15,7 +15,7 @@ import { platformHtmlMarkdown, platformTarget, type PlatformLabels, type Platfor
 // Built as a standalone IIFE and injected only after a user action.
 (() => {
   const root = globalThis as typeof globalThis & {
-    __edgeeverPlatformClipPayload?: { requestId?: string; url?: string; selectionFirst?: boolean; selectionText?: string; sourceUrl?: string; xiaoyuzhouState?: unknown; jikeState?: unknown };
+    __edgeeverPlatformClipPayload?: { requestId?: string; url?: string; selectionFirst?: boolean; selectionText?: string; sourceUrl?: string; xiaoyuzhouState?: unknown; jikeState?: unknown; wechatPictureState?: unknown };
   };
   const payload = root.__edgeeverPlatformClipPayload;
   delete root.__edgeeverPlatformClipPayload;
@@ -43,7 +43,7 @@ import { platformHtmlMarkdown, platformTarget, type PlatformLabels, type Platfor
       case "xiaoyuzhou": return readXiaoyuzhou(document, location.href, labels, payload.xiaoyuzhouState);
       case "boss": return readBoss(document, location.href);
       case "xueqiu": return readXueqiu(document, expected, location.href);
-      case "wechat": case "sspai": case "juejin": return readArticle(document, location.href, t("platformOfficialAccountLabel"));
+      case "wechat": case "sspai": case "juejin": return readArticle(document, location.href, t("platformOfficialAccountLabel"), payload.wechatPictureState);
       case "jike": return readJike(document, location.href, expected, payload.jikeState);
       case "douban": return readDouban(document, expected, location.href, t("platformListSourceLabel"));
       default: return readSocial(document, expected);

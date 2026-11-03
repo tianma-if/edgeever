@@ -60,6 +60,23 @@ const resource: Resource = {
 };
 
 describe("selected Markdown ZIP export", () => {
+  test("retains selection IDs while forwarding continuation cursors", async () => {
+    const notes = [memo({ id: "memo_cursor_a", title: "A" }), memo({ id: "memo_cursor_b", title: "B" })];
+    const calls: { ids: string[]; cursor?: string }[] = [];
+    const result = await exportSelectedMemosAsMarkdownZip({
+      memoIds: notes.map(note => note.id),
+      listNotebooks: async () => ({ notebooks: [notebook({ id: "nb_root", name: "Root" })] }),
+      getPage: async (offset, _limit, ids, cursor) => {
+        calls.push({ ids, cursor });
+        return { memos: [notes[offset]], resources: [], ...(offset === 0 ? { totalCount: 2 } : {}),
+          nextOffset: offset === 0 ? 1 : null, nextCursor: offset === 0 ? "selected-next" : null };
+      },
+      getResourceBlob: async () => new Blob(), save: () => {},
+    });
+    expect(result).toEqual({ status: "ok", exported: 2, skippedLocal: 0 });
+    expect(calls).toEqual([{ ids: notes.map(note => note.id), cursor: undefined }, { ids: notes.map(note => note.id), cursor: "selected-next" }]);
+  });
+
   test("reports the actual selected export count when continuation totals are omitted", async () => {
     const notes = [memo({ id: "memo_first", title: "First" }), memo({ id: "memo_second", title: "Second" })];
     const result = await exportSelectedMemosAsMarkdownZip({

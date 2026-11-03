@@ -157,16 +157,29 @@ export const getOrCreateClientDeviceId = () => {
 
 let desktopSessionRejected = false;
 let unauthorizedConfirmPromise: Promise<boolean> | null = null;
+let unauthorizedConfirmContext: string | null = null;
 
 const isDesktopPublicRequest = (path: string) =>
   path === "/api/release" || path === "/api/v1/auth/login" || path === "/api/v1/auth/session";
 
-/** Confirm the current browser or desktop session is lost before signing out. */
+const isAuthSession = (value: unknown): value is AuthSession => {
+  if (!value || typeof value !== "object") return false;
+  const session = value as AuthSession;
+  return typeof session.authRequired === "boolean"
+    && typeof session.authenticated === "boolean"
+    && typeof session.demoMode === "boolean"
+    && (session.authenticated
+      ? Boolean(session.user && typeof session.user.id === "string" && session.user.id.trim())
+      : session.authRequired && session.user === null);
+};
+
+/** Only an explicit authentication rejection confirms that a session is lost. */
 const confirmSessionLost = async (): Promise<boolean> => {
   if (typeof window === "undefined") return true;
-  if (unauthorizedConfirmPromise) return unauthorizedConfirmPromise;
+  const context = JSON.stringify([getConfiguredDesktopApiBaseUrl(), getDesktopSessionToken()]);
+  if (unauthorizedConfirmPromise && unauthorizedConfirmContext === context) return unauthorizedConfirmPromise;
 
-  unauthorizedConfirmPromise = (async () => {
+  const promise = (async () => {
     try {
       const headers = new Headers();
       const isDesktop = Boolean(window.edgeeverDesktop?.isAvailable);
@@ -177,28 +190,35 @@ const confirmSessionLost = async (): Promise<boolean> => {
         credentials: "include",
         headers,
       });
-      if (!response.ok) return true;
-      const session = await response.json().catch(() => null) as AuthSession | null;
-      return !session?.authenticated;
+      if (!response.ok) return response.status === 401;
+      const session: unknown = await response.json().catch(() => null);
+      return isAuthSession(session) && session.authenticated === false;
     } catch {
-      return true;
+      return false;
     } finally {
       queueMicrotask(() => {
-        unauthorizedConfirmPromise = null;
+        if (unauthorizedConfirmPromise === promise) {
+          unauthorizedConfirmPromise = null;
+          unauthorizedConfirmContext = null;
+        }
       });
     }
   })();
 
-  return unauthorizedConfirmPromise;
+  unauthorizedConfirmPromise = promise;
+  unauthorizedConfirmContext = context;
+  return promise;
 };
 
 const notifyUnauthorized = async (isDesktop: boolean, rejectedDesktopSessionToken?: string) => {
+  const baseUrl = getConfiguredDesktopApiBaseUrl();
   if (isDesktop && desktopSessionRejected) return;
 
   if (isDesktop && rejectedDesktopSessionToken) {
     if (getDesktopSessionToken() !== rejectedDesktopSessionToken) return;
     const sessionLost = await confirmSessionLost();
-    if (!sessionLost || getDesktopSessionToken() !== rejectedDesktopSessionToken) return;
+    if (!sessionLost || getConfiguredDesktopApiBaseUrl() !== baseUrl
+      || getDesktopSessionToken() !== rejectedDesktopSessionToken) return;
     clearCachedDesktopSession();
     desktopSessionRejected = true;
     window.dispatchEvent(new CustomEvent("edgeever:unauthorized"));
@@ -206,7 +226,7 @@ const notifyUnauthorized = async (isDesktop: boolean, rejectedDesktopSessionToke
   }
 
   const sessionLost = await confirmSessionLost();
-  if (!sessionLost) return;
+  if (!sessionLost || getConfiguredDesktopApiBaseUrl() !== baseUrl) return;
 
   if (isDesktop) {
     clearCachedDesktopSession();
@@ -224,6 +244,9 @@ const beforeRequest = ({ path }: EdgeEverClientRequestContext) => {
 
 const handleUnauthorized = ({ path, token }: EdgeEverClientRequestContext) => {
   if (path === "/api/v1/auth/login" || path.startsWith("/api/public/") || typeof window === "undefined") return;
+  // getSession handles its own response. A failed probe is not evidence of
+  // rejection and must not launch a second probe that can race a new login.
+  if (path === "/api/v1/auth/session") return;
   const isDesktop = Boolean(window.edgeeverDesktop?.isAvailable);
   void notifyUnauthorized(isDesktop, token);
 };
@@ -342,7 +365,27 @@ export const api = {
   ...client,
 
   getSession: async () => {
-    const session = await client.getSession();
+    const baseUrl = getConfiguredDesktopApiBaseUrl();
+    const token = getDesktopSessionToken();
+    let session: AuthSession;
+    try {
+      session = await client.getSession();
+    } catch (error) {
+      if (error instanceof ApiRequestError && error.status === 401
+        && getConfiguredDesktopApiBaseUrl() === baseUrl && getDesktopSessionToken() === token) {
+        if (typeof window !== "undefined") {
+          if (window.edgeeverDesktop?.isAvailable) {
+            clearCachedDesktopSession();
+            desktopSessionRejected = true;
+          }
+        }
+      }
+      throw error;
+    }
+    if (!isAuthSession(session)) throw new SyntaxError("Invalid authentication session response");
+    if (getConfiguredDesktopApiBaseUrl() !== baseUrl || getDesktopSessionToken() !== token) {
+      throw new Error("Authentication context changed while checking the session");
+    }
     if (
       typeof window !== "undefined"
       && window.edgeeverDesktop?.isAvailable
@@ -351,7 +394,6 @@ export const api = {
     ) {
       clearCachedDesktopSession();
       desktopSessionRejected = true;
-      window.dispatchEvent(new CustomEvent("edgeever:unauthorized"));
     }
     return session;
   },
@@ -361,4 +403,56 @@ export const api = {
     desktopSessionRejected = false;
     return session;
   },
+};
+
+/** Freeze destination/authentication for this foreground import, not other callers. */
+export const createNoteImportClient = (signal: AbortSignal, accountId: string | null, isCurrent: () => boolean) => {
+  const baseUrl = getConfiguredDesktopApiBaseUrl();
+  const token = getDesktopSessionToken();
+  let importContext: string | undefined;
+  return createEdgeEverClient({
+    baseUrl,
+    token,
+    fetch: async (url, init) => {
+      if (!isCurrent() || getConfiguredDesktopApiBaseUrl() !== baseUrl || getDesktopSessionToken() !== token) {
+        throw new DOMException("importIdentityChanged", "AbortError");
+      }
+      const headers = new Headers(init?.headers);
+      if (importContext) headers.set("x-edgeever-import-context", importContext);
+      const response = await fetch(url, { ...init, headers, signal: init?.method === "DELETE" ? undefined : signal });
+      if (String(url).split("?")[0].endsWith("/api/v1/imports/capabilities") && response.ok) {
+        const capability = await response.clone().json() as { importContext?: string; accountId?: string | null };
+        if (capability.accountId !== accountId || !capability.importContext) throw new Error("importIdentityChanged");
+        importContext = capability.importContext;
+      }
+      return response;
+    },
+  });
+};
+
+/** Keep an established desktop account usable when its server is unavailable. */
+export const getWorkspaceSession = async (): Promise<AuthSession> => {
+  const baseUrl = getConfiguredDesktopApiBaseUrl();
+  const token = getDesktopSessionToken();
+  try {
+    const session = await api.getSession();
+    if (session.authenticated) await cacheDesktopSession(session);
+    else clearCachedDesktopSession();
+    return session;
+  } catch (error) {
+    const cached = getCachedDesktopSession();
+    // Let the session query finish normally on an explicit rejection instead
+    // of clearing the very query that is resolving it.
+    if (error instanceof ApiRequestError && error.status === 401
+      && baseUrl === getConfiguredDesktopApiBaseUrl() && !getDesktopSessionToken()) {
+      return { authRequired: true, authenticated: false, demoMode: false, user: null };
+    }
+    const unavailable = error instanceof TypeError || error instanceof SyntaxError
+      || (error instanceof ApiRequestError && (error.status >= 500 || error.status === 408 || error.status === 429));
+    if (unavailable && cached?.authenticated && isAuthSession(cached)
+      && baseUrl === getConfiguredDesktopApiBaseUrl() && token === getDesktopSessionToken()) {
+      return cached;
+    }
+    throw error;
+  }
 };

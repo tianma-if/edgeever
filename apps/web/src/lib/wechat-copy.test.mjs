@@ -98,13 +98,50 @@ describe("preparePublishArticle", () => {
         "<table><thead><tr><th>表头</th></tr></thead><tbody><tr><td>第1行</td></tr><tr><td>第2行</td></tr></tbody></table>",
       ].join(""), container);
       expect(css(root.querySelector("strong"))).toContain("color:#7351CF");
-      expect(css(root.querySelector("code"))).toContain("color:#5B4EE0");
-      expect(css(root.querySelector("code"))).toContain("background:#F3F1FF");
+      expect(css(root.querySelector("code"))).toContain("color:#1f2937");
+      expect(css(root.querySelector("code"))).toContain("background:#f3f4f6");
+      expect(css(root.querySelector("code"))).toContain("font-weight:600");
       const th = root.querySelector("th");
-      expect(css(th)).toContain("background:#F4F4F5");
+      expect(css(th)).toContain("background:#7351CF");
+      expect(css(th)).toContain("color:#ffffff");
       expect(css(th)).toContain("border:1px solid #e5e5e5");
       const rows = root.querySelectorAll("tbody tr");
-      expect(css(rows[1].querySelector("td"))).toContain("background-color:#F4F4F5");
+      expect(css(rows[1].querySelector("td"))).toContain("background-color:#f9fafb");
+    } finally {
+      globalThis.getComputedStyle = previous;
+    }
+  });
+
+  test("keeps nested editor table paragraphs compact and header text readable", () => {
+    const container = document.createElement("div");
+    container.dataset.notePalette = "violet";
+    const previous = globalThis.getComputedStyle;
+    globalThis.getComputedStyle = () => ({
+      getPropertyValue: (name) => ({
+        "--note-palette-light-accent": "#7351CF",
+        "--note-palette-text": "#27272a",
+      })[name] ?? "",
+    });
+    try {
+      for (const palette of ["violet", "native"]) {
+        container.dataset.notePalette = palette;
+        const root = preparePublishArticle(
+          '<p>正文</p><table><tbody><tr><th><p>表头 <strong>重点</strong></p></th></tr>' +
+          '<tr><td><p>内容 <strong>重点</strong></p><p>第二段</p></td></tr></tbody></table>', container,
+        );
+        const header = root.querySelector("th p");
+        expect(css(header)).toContain(`color:${palette === "violet" ? "#ffffff" : "#111827"}`);
+        expect(css(header)).toContain("font-size:13.44px");
+        expect(css(header.querySelector("strong"))).toContain(`color:${palette === "violet" ? "#ffffff" : "#111827"}`);
+        for (const paragraph of root.querySelectorAll("th p, td p")) {
+          expect(css(paragraph)).toContain("margin:0");
+          expect(css(paragraph)).toContain("line-height:1.45");
+        }
+        expect(css(root.querySelector("td p"))).toContain("font-size:16px");
+        expect(css(root.querySelector("td strong"))).toContain("color:#111827");
+        expect(css(root.firstElementChild)).toContain("color:#27272a");
+        expect(css(root.firstElementChild)).not.toContain("margin:0;");
+      }
     } finally {
       globalThis.getComputedStyle = previous;
     }
@@ -121,7 +158,14 @@ describe("preparePublishArticle", () => {
       "<ul data-type=\"taskList\"><li data-checked=\"true\"><label><input type=\"checkbox\" checked></label><div><p>已完成</p></div></li></ul>",
       "<span data-type=\"inline-math\" data-latex=\"E = mc^2\"></span>",
       "<p>#memo 话题</p>",
+      "<img src=\"https://example.com/test.png\" alt=\"pic\">",
     ].join(""));
+
+    const img = root.querySelector("img");
+    expect(css(img)).toContain("border-radius:12px");
+    expect(css(img)).toContain("box-shadow:0 4px 12px -2px rgba(0,0,0,0.08)");
+    expect(css(img)).toContain("padding:6px");
+    expect(css(img)).not.toContain("#b8dfd0");
 
     const quote = root.querySelector("blockquote");
     expect(css(quote)).toContain("background:#f3f5f7");
@@ -134,8 +178,9 @@ describe("preparePublishArticle", () => {
     expect(css(body)).toContain("color:#27272a");
     expect(css(root.querySelector("strong"))).toContain("font-weight:800");
     const inlineCode = body.querySelector("code");
-    expect(css(inlineCode)).toContain("color:#3d4450");
-    expect(css(inlineCode)).toContain("background:#e9edf1");
+    expect(css(inlineCode)).toContain("color:#1f2937");
+    expect(css(inlineCode)).toContain("background:#f3f4f6");
+    expect(css(inlineCode)).toContain("font-weight:600");
     expect(css(root.querySelector("h2"))).toContain("font-weight:600");
     expect(css(root.querySelector("h2"))).toContain("color:#27272a");
     const [rule, merge] = root.querySelectorAll("hr");
@@ -159,6 +204,104 @@ describe("preparePublishArticle", () => {
     expect(root.textContent).toContain("#\u200bmemo");
     expect(root.innerHTML).not.toContain("#be123c");
     expect(root.innerHTML).not.toContain("#10b981");
+  });
+
+  test("applies composable emerald, numbered headings, dashed quotes, and marker emphasis for WeChat", () => {
+    const container = document.createElement("div");
+    container.dataset.notePalette = "emerald";
+    container.dataset.noteHeadingStyle = "numbered";
+    container.dataset.noteQuoteStyle = "dashed";
+    container.dataset.noteEmphasisStyle = "marker";
+    const previous = globalThis.getComputedStyle;
+    globalThis.getComputedStyle = () => ({
+      getPropertyValue: (name) => ({
+        "--note-palette-accent": "#059669",
+        "--note-palette-light-accent": "#059669",
+        "--note-palette-text": "#374151",
+        "--note-palette-surface": "#F0FDF4",
+        "--note-palette-divider": "#A7F3D0",
+        "--note-palette-code-bg": "#ECFDF5",
+        "--note-palette-code-text": "#047857",
+      })[name] ?? "",
+    });
+    try {
+      const root = preparePublishArticle([
+        "<h2>章节标题</h2>",
+        "<h3>小节胶囊</h3>",
+        "<blockquote><p><strong>摸鱼绿虚线引用框</strong></p></blockquote>",
+        "<p><strong>翡翠重点</strong> <u>薄荷底线</u> <mark>暖黄高亮</mark> <code>neutralCode</code></p>",
+      ].join(""), container);
+      const h2 = root.querySelector("h2");
+      expect(h2?.textContent).toContain("01");
+      expect(h2?.textContent).toContain("PART");
+      expect(h2?.textContent).toContain("章节标题");
+      expect(h2?.querySelector("[data-ee-heading-number]")?.innerHTML).toContain("#059669");
+      const h3 = root.querySelector("h3");
+      expect(css(h3)).toContain("border-radius:999px");
+      expect(h3?.querySelector("[data-ee-pill-dot]")).not.toBeNull();
+      const quote = root.querySelector("blockquote");
+      expect(css(quote)).toContain("border:1px dashed #d1d5db");
+      expect(css(quote)).toContain("background:#f9fafb");
+      expect(css(quote?.querySelector("strong"))).toContain("border-bottom:3px solid #fde68a");
+      expect(css(root.querySelector("p > strong"))).toContain("color:#059669");
+      expect(css(root.querySelector("u"))).toContain("border-bottom:2px solid #A7F3D0");
+      expect(css(root.querySelector("mark"))).toContain("background-color:#fde68a");
+      expect(css(root.querySelector("code"))).toContain("background:#f3f4f6");
+      expect(css(root.querySelector("code"))).toContain("color:#1f2937");
+      expect(css(root.querySelector("code"))).toContain("font-weight:600");
+      expect(root.querySelector("[data-ee-cover-card]")).toBeNull();
+      expect(root.querySelector("[data-ee-toc-cards]")).toBeNull();
+    } finally {
+      globalThis.getComputedStyle = previous;
+    }
+  });
+
+  test("renders magazine cover card and toc cards only when showMagazineCover is enabled", () => {
+    const container = document.createElement("div");
+    container.dataset.notePalette = "emerald";
+    container.dataset.noteHeadingStyle = "numbered";
+    container.dataset.noteMagazineCover = "true";
+    container.dataset.noteTitle = "深度评测文章";
+    const previous = globalThis.getComputedStyle;
+    globalThis.getComputedStyle = () => ({
+      getPropertyValue: (name) => ({
+        "--note-palette-accent": "#059669",
+        "--note-palette-light-accent": "#059669",
+        "--note-palette-text": "#374151",
+        "--note-palette-surface": "#F0FDF4",
+        "--note-palette-divider": "#A7F3D0",
+        "--note-palette-code-bg": "#ECFDF5",
+        "--note-palette-code-text": "#047857",
+      })[name] ?? "",
+    });
+    try {
+      const root = preparePublishArticle([
+        "<h2>效率工具箱：斜杠指令、双链与数学公式</h2>",
+        "<p>内容一</p>",
+        "<h2>多媒体管理、无损备份与零成本自建</h2>",
+        "<p>内容二</p>",
+      ].join(""), container);
+      expect(root.querySelector("[data-ee-cover-card]")).not.toBeNull();
+      expect(root.querySelector("[data-ee-cover-card]")?.textContent).toContain("深度评测文章");
+      expect(root.querySelector("[data-ee-toc-cards]")).not.toBeNull();
+      expect(root.querySelector("[data-ee-toc-cards]")?.textContent).toContain("2 PARTS");
+      const card = root.querySelector('[data-ee-toc-cards] section[style*="width: 136px"]');
+      expect(css(card)).toContain("background-color:#059669");
+      expect(css(card)).toContain("linear-gradient(135deg,");
+      expect(css(card)).not.toContain("color-mix");
+      const cards = root.querySelectorAll('[data-ee-toc-cards] section[style*="width: 136px"]');
+      expect(cards.length).toBe(2);
+      for (const item of cards) {
+        expect(css(item)).not.toContain("height:");
+        expect(css(item.parentElement)).toContain("display:flex");
+        expect(css(item.parentElement)).toContain("align-items:stretch");
+        expect(css(item)).toContain("box-sizing:border-box");
+        expect(css(item)).toContain("border:1px solid");
+        expect(css(item.querySelector("p"))).toContain("line-height:1.4");
+      }
+    } finally {
+      globalThis.getComputedStyle = previous;
+    }
   });
 });
 

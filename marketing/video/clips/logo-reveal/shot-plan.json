@@ -1,0 +1,28 @@
+{
+  "category": "logo-reveal",
+  "duration_s": 6,
+  "fps": 30,
+  "canvas": { "w": 1920, "h": 1080, "aspect": "16:9" },
+  "style": "Quiet white frame, original dark logo, centered horizontal lockup, no ornament or audio.",
+  "palette": ["#FFFFFF", "#07130B"],
+  "font": "Inter",
+  "export": "mp4",
+  "asset_needs": [
+    { "role": "brand-mark", "kind": "svg", "source": "assets/edgeever-mark.svg", "treatment": "none" }
+  ],
+  "block": "logo-outro",
+  "customize": {
+    "logo_size_px": 240,
+    "wordmark_size_px": 100,
+    "gap_px": 48,
+    "initial_handle_s": [0, 1],
+    "logo_reveal_s": [1, 1.8],
+    "wordmark_reveal_s": [1.45, 2.25],
+    "readable_hold_s": [2.25, 6],
+    "final_handle_s": [5, 6],
+    "exit": "none"
+  },
+  "content": { "logo": "assets/edgeever-mark.svg", "wordmark": "EdgeEver", "tagline": "", "url": "" },
+  "proof_times_s": [0.5, 1.4, 1.9, 2.5, 5.5],
+  "shot_brief": "One second of clean white precedes a restrained logo settle and delayed name reveal. The completed lockup holds through the final frame for use in an editing application. Silent, opaque white MP4 intent; no transparent-output claim."
+}

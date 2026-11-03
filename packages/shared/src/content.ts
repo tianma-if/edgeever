@@ -15,7 +15,7 @@ import {
 import { projectNativeUnknownContentForMarkdown } from "./mobile-content-compatibility";
 import { PLUGIN_EMBED_NODE_TYPE } from "./plugin-embed";
 import { NEW_IMAGE_WIDTH_PERCENT, parseImageWidth } from "./image-display";
-import { IMAGE_GALLERY_NODE_TYPE, groupConsecutiveImagesIntoGalleries, normalizeImageGalleries } from "./image-gallery";
+import { IMAGE_GALLERY_NODE_TYPE, groupConsecutiveImagesIntoGalleries, normalizeImageGalleries, prepareImageListsForMarkdown } from "./image-gallery";
 import { EMPTY_EXTERNAL_LINK_NODE_TYPE } from "./empty-external-link";
 import { FRONT_MATTER_LANGUAGE, createFrontMatterNode, getFrontMatterSource, splitMarkdownFrontMatter } from "./front-matter";
 import { splitMarkdownParseChunks } from "./markdown-block-start";
@@ -405,9 +405,9 @@ export const docToMarkdown = (doc: unknown): string => {
 
   const properties = getFrontMatterSource(doc as TiptapDoc);
   const body = properties === null ? doc : { ...doc, content: root.content.slice(1) };
-  const serializableDoc = protectLiteralDollarPairs(projectNativeUnknownContentForMarkdown(
+  const serializableDoc = protectLiteralDollarPairs(prepareImageListsForMarkdown(projectNativeUnknownContentForMarkdown(
     stripEditorOnlyNodes(body) as TiptapDoc
-  ));
+  )));
   const markdown = markdownManager
     .serialize(serializableDoc as Parameters<typeof markdownManager.serialize>[0])
     .replaceAll(LITERAL_DOLLAR_PLACEHOLDER, "\\$");

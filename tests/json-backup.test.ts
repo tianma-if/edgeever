@@ -84,6 +84,22 @@ const prompt: AiPromptTemplate = {
 };
 
 describe("EdgeEver ZIP", () => {
+  test("passes server-provided continuation cursors to later ZIP pages", async () => {
+    const cursors: (string | undefined)[] = [];
+    const blob = await createEdgeEverZip({
+      listNotebooks: async () => ({ notebooks: [notebook("nb_child", "Child")] }),
+      listPrompts: async () => ({ prompts: [] }),
+      getPage: async (offset, _limit, cursor) => {
+        cursors.push(cursor);
+        return { memos: [{ ...memo, id: `memo_cursor_${offset}`, contentMarkdown: "body" }], resources: [], revisions: [],
+          ...(offset === 0 ? { totalCount: 2 } : {}), nextOffset: offset === 0 ? 1 : null, nextCursor: offset === 0 ? "next-page" : null };
+      },
+      getResourceResponse: async () => new Response(),
+    }, { edgeeverVersion: "2.16.1", buildId: "cursor" });
+    expect(cursors).toEqual([undefined, "next-page"]);
+    expect((await parseEdgeEverZip(blob)).manifest.counts.memos).toBe(2);
+  });
+
   test("reports actionable archive validation errors", async () => {
     await expect(parseEdgeEverZip(new Blob(["not a zip"]))).rejects.toEqual(
       expect.objectContaining({ code: "invalidZip" })

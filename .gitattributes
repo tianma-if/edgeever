@@ -2,3 +2,6 @@
 
 # GitHub Linguist overrides: exclude built bundles from language statistics
 apps/ios/**/EditorBundle/** linguist-vendored
+
+# Preserve the original PDF fixture bytes.
+tests/fixtures/note-import/real-apps/assets/*.pdf binary

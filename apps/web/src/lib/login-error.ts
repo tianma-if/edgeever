@@ -15,6 +15,7 @@ export type LoginProblem = LoginProblemDetails & (
   | { kind: "sessionExpired"; diagnosticCode: "session_expired" }
   | { kind: "loginRateLimited"; diagnosticCode: "login_rate_limited" }
   | { kind: "authNotConfigured"; diagnosticCode: "auth_not_configured" }
+  | { kind: "databaseDailyQuotaExceeded"; diagnosticCode: "database_daily_quota_exceeded" }
   | { kind: "databaseNotReady"; diagnosticCode: "database_not_ready" }
   | { kind: "passwordHashInvalid"; diagnosticCode: "password_hash_invalid" }
   | { kind: "cloudflareChallenge"; diagnosticCode: "cloudflare_challenge" }
@@ -34,6 +35,7 @@ export type LoginProblemMessageKey =
   | "login.sessionExpired"
   | "login.loginRateLimited"
   | "login.authNotConfigured"
+  | "login.databaseDailyQuotaExceeded"
   | "login.databaseNotReady"
   | "login.passwordHashInvalid"
   | "login.cloudflareChallenge"
@@ -58,6 +60,7 @@ export const getLoginProblemMessageKey = (problem: LoginProblem): LoginProblemMe
     case "sessionExpired": return "login.sessionExpired";
     case "loginRateLimited": return "login.loginRateLimited";
     case "authNotConfigured": return "login.authNotConfigured";
+    case "databaseDailyQuotaExceeded": return "login.databaseDailyQuotaExceeded";
     case "databaseNotReady": return "login.databaseNotReady";
     case "passwordHashInvalid": return "login.passwordHashInvalid";
     case "cloudflareChallenge": return "login.cloudflareChallenge";
@@ -81,6 +84,9 @@ export const classifyLoginError = (error: unknown, phase: LoginErrorPhase): Logi
     }
     if (error.code === "auth_not_configured") {
       return withRayId({ kind: "authNotConfigured", diagnosticCode: "auth_not_configured" }, error);
+    }
+    if (error.code === "database_daily_quota_exceeded") {
+      return withRayId({ kind: "databaseDailyQuotaExceeded", diagnosticCode: "database_daily_quota_exceeded" }, error);
     }
     if (error.code === "database_not_ready") {
       return withRayId({ kind: "databaseNotReady", diagnosticCode: "database_not_ready" }, error);

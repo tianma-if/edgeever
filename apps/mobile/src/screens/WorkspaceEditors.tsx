@@ -205,6 +205,7 @@ export const CreateMemoModal = ({
   const sharedImagesHandledRef = useRef(false);
   const [importingSharedImages, setImportingSharedImages] = useState(initialSharedImages.length > 0);
   const [sharedImageImportFailed, setSharedImageImportFailed] = useState(false);
+  const failedSharedImageUrisRef = useRef(new Set<string>());
   const shareHandoffStartedRef = useRef(false);
   const createPendingRef = useRef(false);
   const submitStartedRef = useRef(false);
@@ -540,10 +541,21 @@ export const CreateMemoModal = ({
       if (resource.kind === "image" && !keepBusy) {
         safeDomCall(() => editorRef.current?.finishImageBatch([resource.url]));
       }
+      failedSharedImageUrisRef.current.delete(asset.uri);
+      setSharedImageImportFailed(failedSharedImageUrisRef.current.size > 0);
       return resource.kind === "image" ? resource.url : null;
     } catch (error) {
       cancelMobileEditorUpload(editorRef, uploadId);
-      Alert.alert("附件上传失败", error instanceof Error ? error.message : "请检查网络连接后重试");
+      if (asset && initialSharedImages.some((image) => image.uri === asset.uri)) {
+        failedSharedImageUrisRef.current.add(asset.uri);
+        setSharedImageImportFailed(true);
+      }
+      Alert.alert("附件上传失败", error instanceof Error ? error.message : "请检查网络连接后重试", [
+        { text: "取消", style: "cancel" },
+        // Keep the source asset in this editor so retrying does not require
+        // sharing again or creating another remote memo.
+        { text: "重试", onPress: () => { void uploadImageAsset(asset); } },
+      ]);
     } finally {
       if (!keepBusy) setImageOperation("idle");
     }

@@ -42,9 +42,13 @@ export const EdgeEverLink = Link.extend({
         attrs: { href: token.href, title: token.title || null },
       };
     }
-    return helpers.applyMark("link", helpers.parseInline(token.tokens || []), {
+    const link = {
       href: token.href,
       title: token.title || null,
-    });
+    };
+    const content = helpers.parseInline(token.tokens || []).map(node =>
+      node.type === "image" ? { ...node, attrs: { ...node.attrs, link } } : node,
+    );
+    return helpers.applyMark("link", content, link);
   },
 });

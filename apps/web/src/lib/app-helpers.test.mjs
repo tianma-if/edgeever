@@ -29,6 +29,8 @@ import {
   getCreateMemoNotebookId,
   formatShortcutBinding,
   getShortcutActionForEvent,
+  getShortcutActionOptions,
+  getDefaultShortcutSettings,
   isPrimaryModifierPressed,
   shortcutBindingFromKeyboardEvent,
   shortcutBindingsEqual,
@@ -849,6 +851,107 @@ describe("workspace shortcut preferences", () => {
     // The workspace checks the same flag that hides the sidebar in its layout.
     const workspaceSource = readFileSync(new URL("../components/WorkspaceApp.tsx", import.meta.url), "utf8");
     expect(workspaceSource).toContain("canToggleNotebookSidebar({ isDesktop, focusModeActive: desktopFocusModeActive })");
+  });
+
+  test("focuses the note title and body with Primary+Alt+T and Primary+Alt+B", () => {
+    const keyboardEvent = (key, code, modifiers = {}) => ({
+      key,
+      code,
+      ctrlKey: false,
+      metaKey: false,
+      shiftKey: false,
+      altKey: false,
+      ...modifiers,
+    });
+
+    expect(DEFAULT_SHORTCUT_SETTINGS.focusTitle).toEqual({ key: "t", ctrlOrMeta: true, shift: false, alt: true });
+    expect(DEFAULT_SHORTCUT_SETTINGS.focusBody).toEqual({ key: "b", ctrlOrMeta: true, shift: false, alt: true });
+    expect(formatShortcutBinding(DEFAULT_SHORTCUT_SETTINGS.focusTitle, "Win32")).toBe("Ctrl + Alt + T");
+    expect(formatShortcutBinding(DEFAULT_SHORTCUT_SETTINGS.focusBody, "MacIntel")).toBe("⌘⌥B");
+
+    expect(getShortcutActionForEvent(
+      keyboardEvent("t", "KeyT", { ctrlKey: true, altKey: true }),
+      DEFAULT_SHORTCUT_SETTINGS,
+      "Win32",
+    )).toBe("focusTitle");
+    expect(getShortcutActionForEvent(
+      keyboardEvent("b", "KeyB", { ctrlKey: true, altKey: true }),
+      DEFAULT_SHORTCUT_SETTINGS,
+      "Linux",
+    )).toBe("focusBody");
+    // macOS reports the Option character, not the letter, for ⌘⌥T and ⌘⌥B.
+    expect(getShortcutActionForEvent(
+      keyboardEvent("†", "KeyT", { metaKey: true, altKey: true }),
+      DEFAULT_SHORTCUT_SETTINGS,
+      "MacIntel",
+    )).toBe("focusTitle");
+    expect(getShortcutActionForEvent(
+      keyboardEvent("∫", "KeyB", { metaKey: true, altKey: true }),
+      DEFAULT_SHORTCUT_SETTINGS,
+      "MacIntel",
+    )).toBe("focusBody");
+    // On Windows Ctrl+Alt is AltGr: a layout that types "{" there keeps typing it.
+    expect(getShortcutActionForEvent(
+      keyboardEvent("{", "KeyB", { ctrlKey: true, altKey: true }),
+      DEFAULT_SHORTCUT_SETTINGS,
+      "Win32",
+    )).toBeNull();
+    // Tiptap keeps Mod-Shift-B for blockquotes.
+    expect(getShortcutActionForEvent(
+      keyboardEvent("b", "KeyB", { ctrlKey: true, shiftKey: true }),
+      DEFAULT_SHORTCUT_SETTINGS,
+      "Win32",
+    )).toBeNull();
+  });
+
+  test("adds Shift to the Linux title default because Ctrl+Alt+T opens a terminal there", () => {
+    const keyboardEvent = (key, modifiers = {}) => ({ key, code: `Key${key.toUpperCase()}`, ctrlKey: false, metaKey: false, shiftKey: false, altKey: false, ...modifiers });
+    const linux = getDefaultShortcutSettings("Linux x86_64");
+    expect(linux.focusTitle).toEqual({ key: "t", ctrlOrMeta: true, shift: true, alt: true });
+    expect(linux.focusBody).toEqual(DEFAULT_SHORTCUT_SETTINGS.focusBody);
+    expect(formatShortcutBinding(linux.focusTitle, "Linux x86_64")).toBe("Ctrl + Alt + Shift + T");
+    expect(getShortcutActionForEvent(keyboardEvent("T", { ctrlKey: true, altKey: true, shiftKey: true }), linux, "Linux x86_64")).toBe("focusTitle");
+    expect(getShortcutActionForEvent(keyboardEvent("t", { ctrlKey: true, altKey: true }), linux, "Linux x86_64")).toBeNull();
+    expect(getDefaultShortcutSettings("CrOS x86_64").focusTitle).toEqual(linux.focusTitle);
+    for (const platform of ["Win32", "MacIntel", "Linux armv8l Android"]) {
+      expect(getDefaultShortcutSettings(platform)).toEqual(DEFAULT_SHORTCUT_SETTINGS);
+    }
+  });
+
+  test("reads Linux defaults for actions that were never customized", () => {
+    const values = installLocalStorage();
+    const platform = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+    Object.defineProperty(globalThis, "navigator", { value: { platform: "Linux x86_64" }, configurable: true });
+    try {
+      expect(readShortcutSettingsPreference().focusTitle).toEqual(getDefaultShortcutSettings("Linux x86_64").focusTitle);
+      values.set(SHORTCUT_SETTINGS_STORAGE_KEY, JSON.stringify({ createMemo: { key: "m", ctrlOrMeta: true, shift: false, alt: false } }));
+      expect(readShortcutSettingsPreference().focusTitle).toEqual(getDefaultShortcutSettings("Linux x86_64").focusTitle);
+    } finally {
+      if (platform) Object.defineProperty(globalThis, "navigator", platform); else delete globalThis.navigator;
+    }
+  });
+
+  test("adds the focus actions to legacy settings and lists them in Settings", () => {
+    const values = installLocalStorage();
+    values.set(SHORTCUT_SETTINGS_STORAGE_KEY, JSON.stringify({
+      toggleSidebar: { key: "b", ctrlOrMeta: true, shift: false, alt: false },
+    }));
+    const settings = readShortcutSettingsPreference();
+    expect(settings.focusTitle).toEqual(getDefaultShortcutSettings().focusTitle);
+    expect(settings.focusBody).toEqual(DEFAULT_SHORTCUT_SETTINGS.focusBody);
+    expect(getShortcutActionOptions((key) => key).map((option) => option.value)).toEqual(Object.keys(DEFAULT_SHORTCUT_SETTINGS));
+  });
+
+  test("routes the focus shortcuts to the note editor in both windows", () => {
+    const workspaceSource = readFileSync(new URL("../components/WorkspaceApp.tsx", import.meta.url), "utf8");
+    const noteWindowSource = readFileSync(new URL("../components/NoteWindowApp.tsx", import.meta.url), "utf8");
+    const editorSource = readFileSync(new URL("../components/EditorPane.tsx", import.meta.url), "utf8");
+    expect(workspaceSource).toContain("titleFocusToken={noteTitleFocusToken}");
+    expect(workspaceSource).toContain("bodyFocusToken={noteBodyFocusToken}");
+    expect(noteWindowSource).toContain("titleFocusToken={tokens.title}");
+    expect(noteWindowSource).toContain("bodyFocusToken={tokens.body}");
+    expect(editorSource).toContain("ref={titleInputRef}");
+    expect(editorSource).toContain("markdownSourceEditorRef.current?.focus()");
   });
 });
 

@@ -26,7 +26,7 @@ import { auditStatement } from "./audit";
 import type { AppContext, AuditActor, AuthContext, Bindings } from "./api-context";
 import { AppError } from "./app-error";
 import { clampNumber, createId, isoNow, parseJsonArray } from "./entity-utils";
-import { workspaceInboxId } from "./notebook-service";
+import { notebookExists, workspaceInboxId } from "./notebook-service";
 import { sha256 } from "./hash-utils";
 import { getRequiredString } from "./mcp-json-rpc";
 import {
@@ -43,7 +43,6 @@ import {
   createMemoRevisionStatement as createMemoRevisionStatementService,
   shouldSnapshotMemoRevision as shouldSnapshotMemoRevisionService,
 } from "./memo-revision-service";
-import { getNotebook } from "./notebook-service";
 import { deleteStoredObjects } from "./object-storage";
 import { getAuditActor, getWorkspaceId } from "./request-auth";
 import type { DatabaseAdapter, PreparedStatementAdapter } from "./storage-contract";
@@ -795,7 +794,7 @@ export const moveMemosRecord = async (
   actor: AuditActor,
   actorLabel: string,
 ) => {
-  if (!(await getNotebook(db, workspaceId, notebookId))) {
+  if (!(await notebookExists(db, workspaceId, notebookId))) {
     throw new AppError("not_found", "Target notebook not found", 404);
   }
   return moveMemosToNotebook(db, workspaceId, memoIds, notebookId, actor, actorLabel);
@@ -860,7 +859,7 @@ export const mergeMemosRecord = async (
     throw new AppError("missing_memos", "One or more memos cannot be merged.", 400);
   }
 
-  if (input.notebookId && !(await getNotebook(db, workspaceId, input.notebookId))) {
+  if (input.notebookId && !(await notebookExists(db, workspaceId, input.notebookId))) {
     throw new AppError("not_found", "Target notebook not found", 404);
   }
 
@@ -960,7 +959,7 @@ export const createMemoRecord = async (
   // Reject a missing notebook before the batch. The memo insert is a SELECT
   // from notebooks, so a bad id used to write orphan content and then fail
   // the read-back as a generic 500.
-  if (!(await getNotebook(db, workspaceId, input.notebookId))) {
+  if (!(await notebookExists(db, workspaceId, input.notebookId))) {
     throw new AppError("not_found", "Notebook not found", 404);
   }
   const tags = normalizeTags(input.tags);
@@ -1097,8 +1096,7 @@ export const importMemosRecord = async (
   if (!Array.isArray(input.items) || input.items.length === 0 || input.items.length > 25) {
     throw new AppError("invalid_import_items", "items must contain between 1 and 25 memos", 400);
   }
-  const notebook = await getNotebook(db, workspaceId, input.notebookId);
-  if (!notebook) {
+  if (!(await notebookExists(db, workspaceId, input.notebookId))) {
     throw new AppError("not_found", "Import destination notebook not found in the authenticated user's workspace.", 404);
   }
 
@@ -1130,7 +1128,7 @@ export const importMemosRecord = async (
       }
 
       const memo = await createMemoRecord(db, workspaceId, {
-        notebookId: notebook.id,
+        notebookId: input.notebookId,
         title: item.title,
         contentMarkdown: item.contentMarkdown,
         tags: item.tags,
@@ -1148,7 +1146,7 @@ export const importMemosRecord = async (
         auditStatement(db, input.actor.actorType, input.actor.actorId, "memo.import", "memo", memo.id, {
           source,
           externalId,
-          notebookId: notebook.id,
+          notebookId: input.notebookId,
         }),
       ]);
       results.push({ index, externalId, status: "created", memo });
@@ -1182,7 +1180,7 @@ export const importMemosRecord = async (
   return {
     dryRun: input.dryRun,
     source,
-    notebookId: notebook.id,
+    notebookId: input.notebookId,
     total: results.length,
     created: count("created"),
     skipped: count("skipped"),

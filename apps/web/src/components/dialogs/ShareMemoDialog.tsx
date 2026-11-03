@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Copy, ExternalLink, FileCode2, Globe, LoaderCircle, Share2, Trash2 } from "lucide-react";
+import { Check, Copy, ExternalLink, Eye, FileCode2, Globe, LoaderCircle, Share2, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useLocation } from "react-router";
@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { memoSharePathSegment } from "@edgeever/shared";
+import { ShareExpiryControls } from "./ShareExpiryControls";
 import { SharePasswordControls } from "./SharePasswordControls";
 import { ShareSlugControls } from "./ShareSlugControls";
 import { ShareQrCode } from "./ShareQrCode";
@@ -32,7 +33,7 @@ export const ShareMemoDialog = ({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const location = useLocation();
   const queryClient = useQueryClient();
   const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
@@ -77,6 +78,13 @@ export const ShareMemoDialog = ({
       void queryClient.invalidateQueries({ queryKey: ["memo-shares"] });
     },
   });
+  const expiryMutation = useMutation({
+    mutationFn: (expiresAt: string | null) => api.updateMemoShare(memoId, { expiresAt }),
+    onSuccess: (data) => {
+      queryClient.setQueryData(queryKey, data);
+      void queryClient.invalidateQueries({ queryKey: ["memo-shares"] });
+    },
+  });
   const revokeMutation = useMutation({
     mutationFn: (targetMemoId: string) => api.revokeMemoShare(targetMemoId),
     onSuccess: (_, targetMemoId) => {
@@ -89,6 +97,7 @@ export const ShareMemoDialog = ({
     passwordMutation.reset();
     presentationMutation.reset();
     slugMutation.reset();
+    expiryMutation.reset();
     revokeMutation.reset();
     setCopyState("idle");
     setCopyTarget("link");
@@ -102,9 +111,12 @@ export const ShareMemoDialog = ({
 
   const shareUrl = share ? getPublicShareUrl(memoSharePathSegment(share)) : "";
   const markdownUrl = shareUrl ? `${shareUrl}.md` : "";
-  const isWorking = shareQuery.isLoading || createMutation.isPending || passwordMutation.isPending || presentationMutation.isPending || slugMutation.isPending || revokeMutation.isPending;
+  const isWorking = shareQuery.isLoading || createMutation.isPending || passwordMutation.isPending || presentationMutation.isPending || slugMutation.isPending || expiryMutation.isPending || revokeMutation.isPending;
   const slugTaken = slugMutation.error instanceof ApiRequestError && slugMutation.error.code === "share_slug_taken";
-  const error = shareQuery.error || createMutation.error || passwordMutation.error || presentationMutation.error || (slugTaken ? null : slugMutation.error) || revokeMutation.error;
+  const expiryInvalid = expiryMutation.error instanceof ApiRequestError && expiryMutation.error.code === "share_expiry_invalid";
+  const error = shareQuery.error || createMutation.error || passwordMutation.error || presentationMutation.error || (slugTaken ? null : slugMutation.error) || (expiryInvalid ? null : expiryMutation.error) || revokeMutation.error;
+  const formatViewedAt = (value: string) =>
+    new Intl.DateTimeFormat(i18n.resolvedLanguage || i18n.language, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 
   const markCopied = (target: "link" | "password" | "both" | "markdown", copied: boolean) => {
     setCopyTarget(target);
@@ -226,6 +238,26 @@ export const ShareMemoDialog = ({
                 passwordMutation.mutate(payload);
               }}
             />
+
+            <ShareExpiryControls
+              expiresAt={share.expiresAt ?? null}
+              expired={share.expired === true}
+              busy={isWorking}
+              invalid={expiryInvalid}
+              onChange={(expiresAt) => expiryMutation.mutate(expiresAt)}
+            />
+
+            {share.viewCount !== undefined ? (
+              <p className="flex items-center gap-1.5 text-xs leading-5 text-slate-500">
+                <Eye className="h-3.5 w-3.5 shrink-0" />
+                {share.viewCount > 0
+                  ? [
+                      t("sharing.viewsCount", { count: share.viewCount }),
+                      share.lastViewedAt ? t("sharing.viewsLast", { date: formatViewedAt(share.lastViewedAt) }) : null,
+                    ].filter(Boolean).join(" · ")
+                  : t("sharing.viewsNone")}
+              </p>
+            ) : null}
 
             <div className="space-y-3 border-t border-slate-100 pt-3">
               <div className="flex items-center justify-between gap-3">

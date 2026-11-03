@@ -162,6 +162,12 @@ export const getNotebook = async (db: DatabaseAdapter, workspaceId: string, id: 
   return row ? mapNotebook(row) : null;
 };
 
+/** Existence checks do not need the notebook's potentially large memo aggregate. */
+export const notebookExists = async (db: DatabaseAdapter, workspaceId: string, id: string): Promise<boolean> =>
+  Boolean(await db.prepare(
+    "SELECT id FROM notebooks WHERE id = ? AND workspace_id = ? AND is_deleted = 0",
+  ).bind(id, workspaceId).first<{ id: string }>());
+
 export const createNotebookRecord = async (
   db: DatabaseAdapter,
   workspaceId: string,
@@ -170,7 +176,7 @@ export const createNotebookRecord = async (
 ) => {
   const parentId = input.parentId ?? null;
 
-  if (parentId && !(await getNotebook(db, workspaceId, parentId))) {
+  if (parentId && !(await notebookExists(db, workspaceId, parentId))) {
     throw new AppError("not_found", "Parent notebook not found", 404);
   }
 
@@ -225,9 +231,7 @@ export const updateNotebookRecord = async (
   }
 
   if (nextParentId) {
-    const parent = await getNotebook(db, workspaceId, nextParentId);
-
-    if (!parent) {
+    if (!(await notebookExists(db, workspaceId, nextParentId))) {
       throw new AppError("not_found", "Parent notebook not found", 404);
     }
 

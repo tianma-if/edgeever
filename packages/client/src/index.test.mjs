@@ -8,6 +8,17 @@ const jsonResponse = (body, init = {}) => new Response(JSON.stringify(body), {
 });
 
 describe("EdgeEver client HTTP contract", () => {
+  test("sends optional export cursors without changing legacy offset requests", async () => {
+    const calls = [];
+    const client = createEdgeEverClient({ baseUrl: "https://notes.example", fetch: async input => { calls.push(new URL(input)); return jsonResponse({}); } });
+    const cursor = JSON.stringify({ id: "memo_续页", createdAt: "2020-01-01T00:00:00.000Z", offset: 25 });
+    await client.getJsonBackupPage(25, 25, cursor);
+    await client.getMarkdownExportPage(25, 25, ["memo_1"], cursor);
+    expect(calls.map(url => url.searchParams.get("cursor"))).toEqual([cursor, cursor]);
+    expect(calls.map(url => url.searchParams.get("includeTotal"))).toEqual(["0", "0"]);
+    expect(calls[1].searchParams.get("ids")).toBe("memo_1");
+  });
+
   test("requests full metadata initially and opts out only for later sync and export pages", async () => {
     const calls = [];
     const client = createEdgeEverClient({ baseUrl: "https://notes.example", fetch: async (input) => { calls.push(new URL(input)); return jsonResponse({}); } });

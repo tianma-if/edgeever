@@ -24,6 +24,40 @@ export const resolveImageGalleryLayout = (value: unknown): ImageGalleryLayout =>
     ? (value as ImageGalleryLayout)
     : "auto";
 
+/** The shared schema uses block images, including inside lists and quotes. */
+const normalizeImageParagraphs = (nodes: TiptapNode[]): TiptapNode[] => nodes.flatMap(node => {
+  const content = node.content ? normalizeImageParagraphs(node.content) : undefined;
+  if (!content) return [node];
+  if (node.type === "paragraph" && content.some(child => child.type === "image")) {
+    const blocks: TiptapNode[] = [];
+    let inline: TiptapNode[] = [];
+    const flush = () => { if (inline.length) blocks.push({ ...node, content: inline }); inline = []; };
+    for (const child of content) {
+      if (child.type === "image") { flush(); blocks.push(child); }
+      else inline.push(child);
+    }
+    flush();
+    return blocks;
+  }
+  if ((node.type === "listItem" || node.type === "taskItem") && node.content?.[0]?.type === "paragraph" && content[0]?.type !== "paragraph") content.unshift({ type: "paragraph" });
+  return [{ ...node, content }];
+});
+
+/** A list's required empty first paragraph must not separate its marker from an image. */
+export const prepareImageListsForMarkdown = (doc: TiptapDoc): TiptapDoc => {
+  const visit = (node: TiptapNode): TiptapNode => {
+    if (!node.content) return node;
+    let content = node.content.map(child => child.type === "text" ? child : visit(child));
+    if ((node.type === "listItem" || node.type === "taskItem")
+      && content[0]?.type === "paragraph" && !content[0].content?.length
+      && content[1]?.type === "image") {
+      content = content.slice(1);
+    }
+    return { ...node, content };
+  };
+  return { ...doc, content: doc.content.map(visit) };
+};
+
 /**
  * Width-fit galleries retain the ordinary sequential-image Markdown projection.
  * Height-fit galleries use invisible comments to keep their presentation when
@@ -86,7 +120,7 @@ export const ImageGallery = Node.create({
   },
 
   parseMarkdown(token, helpers) {
-    const content = helpers.parseChildren(token.tokens ?? []);
+    const content = normalizeImageParagraphs(helpers.parseChildren(token.tokens ?? []) as TiptapNode[]);
     // A source edit can split a gallery with text. Keep all edited content,
     // rather than forcing non-images into an image-only schema.
     if (content.length < 2 || content.some((child) => child.type !== "image")) return content;
@@ -136,7 +170,7 @@ export const groupConsecutiveImagesIntoGalleries = (nodes: TiptapNode[]): Tiptap
     images = [];
   };
 
-  for (const node of nodes) {
+  for (const node of normalizeImageParagraphs(nodes)) {
     // Explicitly positioned images remain standalone during Markdown import.
     if (node.type === "image" && parseImageAlignment(node.attrs?.alignment)) {
       flushImages();

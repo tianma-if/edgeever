@@ -1,0 +1,65 @@
+<!-- Adapted from HyperFrames registry logo-outro; original logo and local Inter. -->
+<!doctype html>
+<html lang="en" data-composition-variables='[
+  {"id":"brandName","type":"string","label":"Brand name","default":"EdgeEver"},
+  {"id":"brandMark","type":"string","label":"Brand mark","default":"assets/edgeever-mark.svg"},
+  {"id":"paper","type":"color","label":"Background","default":"#FFFFFF"},
+  {"id":"ink","type":"color","label":"Text color","default":"#07130B"}
+]'>
+  <head><meta charset="UTF-8" /><title>EdgeEver Brand Lockup</title></head>
+  <body>
+    <template>
+      <style>
+        @font-face {
+          font-family: "EdgeEver Inter";
+          src: url("assets/fonts/inter.woff2") format("woff2");
+          font-style: normal;
+          font-weight: 100 900;
+          font-display: block;
+        }
+        #root { position: absolute; inset: 0; width: 1920px; height: 1080px; }
+        #logo-outro-paper {
+          position: absolute; inset: 0;
+          background: var(--paper, #FFFFFF);
+        }
+        #logo-outro-lockup {
+          position: relative; width: 1920px; height: 1080px;
+          display: flex; align-items: center; justify-content: center; gap: 48px;
+          font-family: "EdgeEver Inter", sans-serif;
+        }
+        #logo-outro-mark { display: block; width: 240px; height: 240px; opacity: 0; }
+        #logo-outro-name {
+          margin: 0; display: block; color: var(--ink, #07130B);
+          font-size: 100px; font-weight: 600; line-height: 1.1;
+          letter-spacing: -3px; white-space: nowrap; opacity: 0;
+        }
+      </style>
+      <div data-hf-id="hf-8yri" id="root" data-composition-id="logo-outro" data-width="1920"
+        data-height="1080" data-duration="6">
+        <div data-hf-id="hf-40to" id="logo-outro-paper" aria-hidden="true"></div>
+        <div data-hf-id="hf-n3ww" id="logo-outro-content" class="clip" data-start="0" data-duration="6"
+          data-track-index="0" data-track-kind="graphics">
+          <div data-hf-id="hf-s9xp" id="logo-outro-lockup">
+            <img data-hf-id="hf-smxt" id="logo-outro-mark" src="assets/edgeever-mark.svg" data-var-src="brandMark"
+              alt="EdgeEver mark" width="240" height="240" />
+            <h1 data-hf-id="hf-ntxq" id="logo-outro-name" data-var-text="brandName">EdgeEver</h1>
+          </div>
+        </div>
+      </div>
+      <script>
+        (() => {
+          const tl = gsap.timeline({ paused: true });
+          tl.fromTo("#logo-outro-mark",
+            { opacity: 0, y: 20, scale: 0.96 },
+            { opacity: 1, y: 0, scale: 1, duration: 0.8, ease: "power3.out" }, 1);
+          tl.fromTo("#logo-outro-name",
+            { opacity: 0, y: 14 },
+            { opacity: 1, y: 0, duration: 0.8, ease: "power3.out" }, 1.45);
+          window.__timelines = window.__timelines || {};
+          window.__timelines["logo-outro"] = tl;
+          tl.seek(0);
+        })();
+      </script>
+    </template>
+  </body>
+</html>

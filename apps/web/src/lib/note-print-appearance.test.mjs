@@ -39,7 +39,8 @@ describe("note print appearance", () => {
     expect(css).toContain("color: #14796E");
     expect(css).toContain("color: #20AD9D");
     expect(css).toContain("accent-color: #20AD9D");
-    expect(css).toContain("background: #F2FBFA;");
+    expect(css).toContain("background: #20AD9D;");
+    expect(css).toContain("background: #f9fafb;");
     expect(css).not.toContain("border-color: #CDEFEA;");
     expect(css).toContain(".edgeever-editor .ProseMirror strong { color: #112233; }");
     expect(css).not.toContain("not-a-theme");

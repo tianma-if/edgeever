@@ -13,6 +13,8 @@
 
 ## 首次部署
 
+请严格按以下步骤顺序操作。
+
 ### 步骤 1：Fork 仓库
 
 1. 访问 EdgeEver 官方仓库：`https://github.com/tianma-if/edgeever`。
@@ -33,24 +35,15 @@
 
 ---
 
-### 步骤 3：导入项目
+### 步骤 3：创建 Worker
 
-1. 打开 **Workers & Pages**，点击 **Create application** → **Import a repository** 旁的 **Get started**。入口变化时参考 [Cloudflare 官方步骤](https://developers.cloudflare.com/workers/ci-cd/builds/#connect-a-new-worker)。
-2. 按提示连接 GitHub 账户，授权 Cloudflare 访问该 Fork，并选中您刚才 Fork 的 `edgeever` 仓库。
-3. 在项目设置中：
-   - **Worker 名称**：`edgeever`，与根目录 `wrangler.toml` 中的 `name` 一致
-   - **Git branch**（或 **Production branch**）：选择 `main`
-   - **Root directory**：保持留空，使用仓库根目录
-   - Deploy command: npx wrangler deploy（保留 Cloudflare 默认值，由 Workers Builds 在线执行，无需在本机运行）
-   - **API token**：自动生成的 token 可能没有 D1 权限。选择或创建限定到目标账户、具备 D1 读取与编辑权限的 User API Token；权限不足时按构建日志调整后重试。
-
-部署命令会自动生成 `DB` 与 `RESOURCES` binding，并查询 D1 UUID。不要修改 `wrangler.toml` 或在控制台重复添加 binding。
+1. 打开 **Workers & Pages** → **Create application** → **Start with Hello World!**，将 Worker 名称严格设为 `edgeever` 并点击 **Deploy**。
 
 ---
 
-### 步骤 4：创建项目并设置管理员密码
+### 步骤 4：设置管理员密码
 
-点击 **Save and Deploy** 创建 Worker。首次构建会因缺少管理员 Secret 而校验失败；先不要使用站点地址。在 Worker 的 **Settings** → **Variables and Secrets** 中点击 **Add**，添加运行时 Secret 并点击 **Deploy**：
+1. 进入该 Worker 的 **Settings** → **Variables and Secrets**，点击 **Add**，添加下列运行时 Secret，再点击 **Deploy**：
 
 | 类型 (Type) | 名称 (Name) | 值 (Value) | 说明 |
 | :--- | :--- | :--- | :--- |
@@ -58,20 +51,43 @@
 
 `EDGE_EVER_AUTH_PASSWORD` 是变量名，值是管理员登录密码。它属于 Worker 运行时 Secret，不是 Workers Builds 构建变量。
 
-返回构建记录并重试，确认构建及线上健康检查成功。
+确认 Secret 名称已出现在列表中，再继续下一步。此时 Worker 显示 Hello World 占位页面，仓库构建完成后才会替换为 EdgeEver；不要在占位页面输入密码。
 
 ---
 
-### 步骤 5：验证部署、登录与自动更新
+### 步骤 5：连接 Fork
 
-1. 构建完成后，Cloudflare 会为您生成一个二级域名（如 `https://edgeever.your-subdomain.workers.dev`）。您也可以在 Worker 的 **Settings → Domains & Routes** 中绑定自己的自定义域名（强烈建议绑定自定义域名以保障国内直连稳定性并提升访问速度）。
+1. 在**已有的** `edgeever` Worker 中打开 **Settings** → **Builds** → **Connect**，授权 GitHub 访问您的 Fork，并选中该仓库。入口变化时参考 [Cloudflare 连接已有 Worker 的步骤](https://developers.cloudflare.com/workers/ci-cd/builds/#connect-an-existing-worker)。
+2. 配置 Workers Builds：
+   - **Production branch**：`main`
+   - **Root directory**：保持留空，使用仓库根目录
+   - Deploy command: npx wrangler deploy（保留默认值，由 Cloudflare 在线执行）
+
+Worker 名称必须与仓库 `wrangler.toml` 中的 `edgeever` 一致。部署命令会自动生成 `DB` 与 `RESOURCES` binding，并查询 D1 UUID。不要修改 Fork 中的文件，也不要在控制台重复添加 binding。
+
+---
+
+### 步骤 6：配置部署权限
+
+**API token**：选择或创建限定到目标账户、具备 D1 读取与编辑权限的 User API Token；选择 **Create new token** 时，Cloudflare 会自动生成部署 Token，但默认权限可能不含 D1。可到[个人资料 → API Tokens](https://dash.cloudflare.com/profile/api-tokens) 编辑该 Token，为目标账户补充 D1 权限，再在 Worker 的 **Settings → Builds → API token** 中选用；保留其原有部署权限。在该 Worker 的 **Settings → Builds → API token** 中选用该 Token 并保存构建设置。后续 Cloudflare Workers Builds 会使用它执行数据库迁移和 Worker 部署。
+
+---
+
+### 步骤 7：构建并验证登录
+
+管理员用户名默认为 `admin`。如需自定义，请在启动首次构建前设置 Workers Builds 构建变量 `EDGE_EVER_AUTH_USERNAME`。
+
+在 Fork 的 GitHub 仓库中进入 **Actions → Update deployed EdgeEver**，按提示启用工作流，选择 `main` 分支并点击 **Run workflow**。该工作流会重新发布所选上游版本，即使 Fork 已对齐也会触发新的部署事件。返回 Cloudflare 的 **Deployments** 查看对应构建。确认构建成功、部署完成后，再进行以下验证：
+
+1. 打开 Cloudflare 为该 Worker 分配的二级域名（如 `https://edgeever.your-subdomain.workers.dev`）。您也可以在 Worker 的 **Settings → Domains & Routes** 中绑定自己的自定义域名（强烈建议绑定自定义域名以保障国内直连稳定性并提升访问速度）。
 2. 在浏览器打开该域名下的健康检查接口：`https://你的域名/api/health`，确认返回 `200` 及 JSON：
    ```json
    { "ok": true }
    ```
 3. 打开主站首页，输入您配置的管理员用户名（默认是 `admin`）和密码（`EDGE_EVER_AUTH_PASSWORD`）测试登录并开始使用。
-4. 返回 Fork 的 GitHub 仓库 **Actions** 页面，点击 **I understand my workflows, go ahead and enable them** 启用工作流。
-5. 手动运行一次 **Update deployed EdgeEver**，确保未来可自动跟进上游更新，并确认 Cloudflare 收到这次构建事件。
+
+
+后续由该工作流自动同步正式版本，持续获得功能更新和问题修复。
 
 ---
 
@@ -100,7 +116,7 @@ EDGE_EVER_UPDATE_CHANNEL=edge
 | `EDGE_EVER_WORKERS_DEV` | 启用或禁用 `workers.dev` 路由 |
 | `EDGE_EVER_CUSTOM_DOMAIN` / `EDGE_EVER_ROUTE_PATTERN` | 自定义路由 |
 
-自定义管理员用户名须在重试首次构建前设置；账号创建后修改该变量不会重命名账号。
+自定义管理员用户名须在启动首次构建前设置；账号创建后修改该变量不会重命名账号。
 
 旧部署的自定义 R2 存储桶无需迁移；不设置覆盖变量时，升级会沿用线上 `RESOURCES` binding。已有项目的显式构建命令也可继续使用，详见 [Workers Builds 配置](cloudflare-workers-builds.zh-CN.md)。
 
@@ -108,6 +124,8 @@ EDGE_EVER_UPDATE_CHANNEL=edge
 
 ## 常见问题与排错
 
+- **缺少管理员 Secret**：在连接 Fork 的同一个 Worker 中，按步骤 4 添加并部署运行时 Secret，再重试失败的构建；缺少配置不是首次部署的必经步骤。
+- **仍显示 Hello World**：创建 Worker、部署 Secret 都不代表 EdgeEver 已部署。请完成步骤 7，并确认成功的生产构建对应 Fork 的 `main` commit。
 - **首次构建失败**：请检查 Cloudflare 控制台中 Worker 的 **Deployments** 构建日志，确认日志包含“routing it through EdgeEver's validated deployment pipeline”，标准资源名称严格为 `edgeever` 与 `edgeever-resources`，并确认 Workers Builds API Token 具有 D1 读取和编辑权限。如有意使用其他 D1 数据库，请设置 `EDGE_EVER_D1_DATABASE_NAME`；仅在自动查询 UUID 不可用时再添加 `EDGE_EVER_D1_DATABASE_ID`。
 - **无法同步上游更新**：
   1. 打开 Fork 的 **Actions**，启用 **Update deployed EdgeEver**（公共 Fork 上定时任务默认关闭）。

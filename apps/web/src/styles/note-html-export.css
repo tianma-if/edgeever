@@ -218,7 +218,21 @@ body {
   padding: 0;
 }
 
-.edgeever-html-content img,
+.edgeever-html-content img {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: 80vh;
+  object-fit: contain;
+  box-sizing: border-box;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 6px;
+  box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.08);
+}
+
 .edgeever-html-mermaid svg {
   display: block;
   width: auto;

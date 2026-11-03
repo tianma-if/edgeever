@@ -161,6 +161,22 @@ describe("production authentication guard", () => {
     }
   });
 
+  test("reports exhausted D1 daily quotas without exposing the underlying database error", async () => {
+    for (const operation of ["read", "write"]) {
+      const response = await fetchApi("/api/health", {
+        DB: createDatabase({ error: new Error("Query failed", {
+          cause: new Error(`D1_ERROR: Your account has exceeded D1's free tier daily row ${operation} limit. private-query-details`),
+        }) }),
+        EDGE_EVER_AUTH_PASSWORD: "configured-secret",
+      });
+      expect(response.status).toBe(503);
+      const body = await response.json();
+      expect(body.error.code).toBe("database_daily_quota_exceeded");
+      expect(body.error.message).toContain("00:00 UTC");
+      expect(JSON.stringify(body)).not.toContain("private-query-details");
+    }
+  });
+
   test("does not misreport transient D1 failures as unapplied migrations", async () => {
     const response = await fetchApi("/api/health", {
       DB: createDatabase({ error: new Error("D1_ERROR: Network connection lost.") }),

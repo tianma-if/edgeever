@@ -26,7 +26,9 @@ export type ShortcutAction =
   | "toggleReadingProtection"
   | "toggleEditorMode"
   | "toggleOutline"
-  | "toggleSidebar";
+  | "toggleSidebar"
+  | "focusTitle"
+  | "focusBody";
 export type ShortcutBinding = {
   key: string;
   // Defaults and shortcuts saved before Control and Command were stored apart.
@@ -155,6 +157,7 @@ export const EDITOR_PHONE_PREVIEW_STORAGE_KEY = "edgeever.editor.phonePreviewOpe
 export const EDITOR_PHONE_PREVIEW_FOLLOW_STORAGE_KEY = "edgeever.editor.phonePreviewFollow";
 export const MEMO_LIST_DENSITY_STORAGE_KEY = "edgeever.memoListDensity";
 export const MEMO_LIST_WIDTH_STORAGE_KEY = "edgeever.memoListWidth";
+export const MEMO_SORT_STORAGE_KEY = "edgeever.memoSort";
 export const NOTEBOOK_SORT_STORAGE_KEY = "edgeever.notebookSort";
 export const NOTEBOOK_TREE_COLLAPSED_IDS_STORAGE_KEY = "edgeever.notebookTreeCollapsedIds:v1";
 export const NOTEBOOK_SECTION_COLLAPSED_STORAGE_KEY = "edgeever.notebookSectionCollapsed";
@@ -178,6 +181,7 @@ export const getMemoSortOptions = (t: TFunction): Array<{ value: MemoSortMode; l
   { value: "title-desc", label: t("options.memoSort.titleDesc") },
 ];
 
+const MEMO_SORT_VALUES: MemoSortMode[] = ["updated-desc", "created-desc", "title-asc", "title-desc"];
 const NOTEBOOK_SORT_VALUES: NotebookSortMode[] = ["custom", "name-asc", "memo-count-desc", "updated-desc"];
 
 export const getNotebookSortOptions = (t: TFunction): Array<{ value: NotebookSortMode; label: string }> => [
@@ -211,6 +215,8 @@ export const getShortcutActionOptions = (
   { value: "toggleEditorMode", label: t("shortcuts.actions.toggleEditorMode.label") },
   { value: "toggleOutline", label: t("shortcuts.actions.toggleOutline.label") },
   { value: "toggleSidebar", label: t("shortcuts.actions.toggleSidebar.label") },
+  { value: "focusTitle", label: t("shortcuts.actions.focusTitle.label") },
+  { value: "focusBody", label: t("shortcuts.actions.focusBody.label") },
 ];
 
 export const DEFAULT_SHORTCUT_SETTINGS: ShortcutSettings = {
@@ -228,7 +234,18 @@ export const DEFAULT_SHORTCUT_SETTINGS: ShortcutSettings = {
   toggleEditorMode: { key: "/", ctrlOrMeta: true, shift: false, alt: false },
   toggleOutline: { key: "1", ctrlOrMeta: true, shift: true, alt: false },
   toggleSidebar: { key: "\\", ctrlOrMeta: true, shift: false, alt: false },
+  focusTitle: { key: "t", ctrlOrMeta: true, shift: false, alt: true },
+  focusBody: { key: "b", ctrlOrMeta: true, shift: false, alt: true },
 };
+
+// Linux desktops and ChromeOS open a terminal with Ctrl+Alt+T, so the title
+// shortcut adds Shift there. Other platforms keep Primary+Alt+T.
+const LINUX_FOCUS_TITLE_SHORTCUT: ShortcutBinding = { key: "t", ctrlOrMeta: true, shift: true, alt: true };
+
+export const getDefaultShortcutSettings = (platform = readShortcutPlatform()): ShortcutSettings =>
+  /linux|cros/i.test(platform) && !/android/i.test(platform)
+    ? { ...DEFAULT_SHORTCUT_SETTINGS, focusTitle: LINUX_FOCUS_TITLE_SHORTCUT }
+    : DEFAULT_SHORTCUT_SETTINGS;
 
 const LEGACY_READING_PROTECTION_SHORTCUT: ShortcutBinding = {
   key: "l",
@@ -256,6 +273,8 @@ const SHORTCUT_ACTION_VALUES: ShortcutAction[] = [
   "toggleEditorMode",
   "toggleOutline",
   "toggleSidebar",
+  "focusTitle",
+  "focusBody",
 ];
 
 export const isDefaultMemoTitle = (title: string | null | undefined) => title?.trim() === DEFAULT_MEMO_TITLE;
@@ -515,6 +534,23 @@ export const writeMemoListWidthPreference = (width: number) => {
   }
 };
 
+export const readMemoSortPreference = (): MemoSortMode => {
+  try {
+    const sortMode = window.localStorage.getItem(MEMO_SORT_STORAGE_KEY);
+    return MEMO_SORT_VALUES.includes(sortMode as MemoSortMode) ? (sortMode as MemoSortMode) : "updated-desc";
+  } catch {
+    return "updated-desc";
+  }
+};
+
+export const writeMemoSortPreference = (sortMode: MemoSortMode) => {
+  try {
+    window.localStorage.setItem(MEMO_SORT_STORAGE_KEY, sortMode);
+  } catch {
+    // Local storage can be unavailable in private or restricted browser contexts.
+  }
+};
+
 export const readNotebookSortPreference = (): NotebookSortMode => {
   try {
     const sortMode = window.localStorage.getItem(NOTEBOOK_SORT_STORAGE_KEY);
@@ -631,10 +667,11 @@ const isShortcutBinding = (value: unknown): value is ShortcutBinding => {
 };
 
 export const readShortcutSettingsPreference = (): ShortcutSettings => {
+  const defaults = getDefaultShortcutSettings();
   try {
     const rawValue = window.localStorage.getItem(SHORTCUT_SETTINGS_STORAGE_KEY);
     if (!rawValue) {
-      return DEFAULT_SHORTCUT_SETTINGS;
+      return defaults;
     }
 
     const parsedValue = JSON.parse(rawValue) as Partial<ShortcutSettings>;
@@ -646,16 +683,16 @@ export const readShortcutSettingsPreference = (): ShortcutSettings => {
             key: normalizeShortcutKey(storedBinding.key),
             ctrlOrMeta: typeof storedBinding.ctrlOrMeta === "boolean" ? storedBinding.ctrlOrMeta : false,
           }
-        : DEFAULT_SHORTCUT_SETTINGS[action];
+        : defaults[action];
       const binding = action === "toggleReadingProtection"
         && shortcutBindingsEqual(normalizedBinding, LEGACY_READING_PROTECTION_SHORTCUT)
-          ? DEFAULT_SHORTCUT_SETTINGS.toggleReadingProtection
+          ? defaults.toggleReadingProtection
           : normalizedBinding;
 
       return { ...settings, [action]: binding };
-    }, { ...DEFAULT_SHORTCUT_SETTINGS });
+    }, { ...defaults });
   } catch {
-    return DEFAULT_SHORTCUT_SETTINGS;
+    return defaults;
   }
 };
 
@@ -695,7 +732,13 @@ export const shortcutBindingFromKeyboardEvent = (
   platform = readShortcutPlatform(),
 ): ShortcutBinding | null => {
   const digitKey = typeof event.code === "string" ? /^Digit([0-9])$/.exec(event.code)?.[1] : undefined;
-  const key = digitKey ?? normalizeShortcutKey(event.key);
+  // On Apple keyboards Option rewrites the key value (⌘⌥T reports "†"), so
+  // read the physical letter there, as the shortcut recorder does. Elsewhere
+  // Ctrl+Alt is AltGr and must keep typing its character.
+  const optionLetterKey = event.altKey && isAppleShortcutPlatform(platform) && !/^[a-z]$/i.test(event.key) && typeof event.code === "string"
+    ? /^Key([A-Z])$/.exec(event.code)?.[1]?.toLowerCase()
+    : undefined;
+  const key = digitKey ?? optionLetterKey ?? normalizeShortcutKey(event.key);
 
   if (["control", "meta", "shift", "alt", "escape"].includes(key)) {
     return null;

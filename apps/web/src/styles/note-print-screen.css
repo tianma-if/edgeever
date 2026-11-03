@@ -8,6 +8,14 @@
   box-sizing: border-box;
 }
 
+/* Shared production CSS can include the app shell's fixed, clipped viewport.
+   This standalone document must grow in both screen and print media. */
+html.edgeever-note-print,
+html.edgeever-note-print body {
+  height: auto;
+  overflow: visible;
+}
+
 body {
   min-width: 320px;
   margin: 0;

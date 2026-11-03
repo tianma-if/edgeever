@@ -1,0 +1,17 @@
+# Generated media, local tool state and editing-software projects.
+**/renders/
+**/snapshots/
+**/.hyperframes/
+**/.thumbnails/
+**/.waveform-cache/
+**/node_modules/
+**/raw/
+*.mp4
+*.mov
+*.webm
+*.mkv
+*.prproj
+*.drp
+*.dra
+*.fcpxml
+*.log

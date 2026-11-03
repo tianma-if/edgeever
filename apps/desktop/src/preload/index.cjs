@@ -83,6 +83,8 @@ contextBridge.exposeInMainWorld("edgeeverDesktop", Object.freeze({
   probeAcpAdapter: (input) => ipcRenderer.invoke("desktop:acp-probe", input),
   installAcpAdapter: (id) => ipcRenderer.invoke("desktop:acp-install", id),
   authenticateAcpAdapter: (input) => ipcRenderer.invoke("desktop:acp-authenticate", input),
+  cancelAcpAuthentication: (id) => ipcRenderer.invoke("desktop:acp-cancel-auth", id),
+  reopenAcpLoginPage: (id) => ipcRenderer.invoke("desktop:acp-reopen-login", id),
   prepareAcp: (input) => ipcRenderer.invoke("desktop:acp-prepare", input),
   promptAcp: (input) => ipcRenderer.invoke("desktop:acp-prompt", input),
   cancelAcp: (requestId) => ipcRenderer.invoke("desktop:acp-cancel", requestId),
@@ -105,6 +107,10 @@ contextBridge.exposeInMainWorld("edgeeverDesktop", Object.freeze({
     return () => ipcRenderer.removeListener("desktop:update-status-changed", listener);
   },
   sidecarRequest: (method, params = {}) => ipcRenderer.invoke("desktop:sidecar-request", method, params),
+  openAttachment: (input) => {
+    if (!navigator.userActivation?.isActive) return Promise.resolve({ ok: false, code: "forbidden" });
+    return ipcRenderer.invoke("desktop:open-attachment", input);
+  },
   beginStagedResource: (input) => ipcRenderer.invoke("desktop:stage-resource-begin", input),
   appendStagedResource: (id, bytes) => ipcRenderer.invoke("desktop:stage-resource-append", id, bytes),
   completeStagedResource: (id) => ipcRenderer.invoke("desktop:stage-resource-complete", id),

@@ -1,6 +1,99 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
-test("saves notebook appearance, keeps drafts on cancel, and resets across reloads and themes", async ({ page }) => {
+const createAppearanceNotebook = async (page: Page) => {
+  await page.addInitScript(() => localStorage.setItem("edgeever.locale.preference", "en-US"));
+  await page.goto("/");
+  const name = `Appearance interaction ${Date.now()}`;
+  const created = await page.request.post("/api/v1/notebooks", { data: { name } });
+  expect(created.ok()).toBeTruthy();
+  const { notebook } = await created.json();
+  const row = page.locator(`[data-notebook-id="${notebook.id}"]`);
+  const dialog = page.getByRole("dialog", { name: "Appearance", exact: true });
+  return {
+    row,
+    dialog,
+    read: async () => {
+      const response = await page.request.get("/api/v1/notebooks");
+      expect(response.ok()).toBeTruthy();
+      return (await response.json()).notebooks.find((item: { id: string }) => item.id === notebook.id);
+    },
+    open: async () => {
+      await page.reload();
+      await expect(row).toBeVisible();
+      await row.hover();
+      await row.getByRole("button", { name: `Open actions for ${name}`, exact: true }).click();
+      await page.getByRole("button", { name: "Appearance", exact: true }).click();
+      await expect(dialog).toBeVisible();
+    },
+    remove: async () => {
+      const response = await page.request.delete(`/api/v1/notebooks/${notebook.id}`);
+      expect(response.ok()).toBeTruthy();
+    },
+  };
+};
+
+test("selects a notebook icon with the mouse after searching and persists it across reloads", async ({ page }) => {
+  const { row, dialog, read, open, remove } = await createAppearanceNotebook(page);
+  try {
+    await open();
+    await dialog.getByRole("button", { name: "Icon", exact: true }).click();
+    const search = dialog.getByPlaceholder("Search icons (English or German)");
+    await search.fill("alarm-clock");
+    await expect(search).toBeFocused();
+    // Use a real mouse click: dispatchEvent("click") skips Safari's blur-before-click sequence.
+    await dialog.getByRole("option", { name: "alarm clock", exact: true }).click();
+    await expect(dialog.getByRole("listbox")).toBeHidden();
+    await expect(dialog.locator("[data-notebook-appearance-preview] [data-notebook-icon]")).toHaveAttribute("data-notebook-icon", "alarm-clock");
+    expect(await read()).toMatchObject({ icon: null });
+    await dialog.getByRole("button", { name: "Confirm", exact: true }).click();
+    await expect(dialog).toBeHidden();
+    await expect.poll(read).toMatchObject({ icon: "alarm-clock" });
+    await page.reload();
+    await expect(row.locator("[data-notebook-icon]")).toHaveAttribute("data-notebook-icon", "alarm-clock");
+    await expect(row.locator('[data-notebook-icon] circle[cx="12"][cy="13"]')).toHaveCount(1);
+  } finally {
+    await remove();
+  }
+});
+
+test("keeps icon searches as drafts on Enter and supports keyboard selection and cancellation", async ({ page }) => {
+  const { dialog, read, open, remove } = await createAppearanceNotebook(page);
+  try {
+    await open();
+    await dialog.getByRole("switch", { name: "Bold", exact: true }).check();
+    await dialog.getByRole("button", { name: "Icon", exact: true }).click();
+    const search = dialog.getByPlaceholder("Search icons (English or German)");
+    await search.fill("house");
+    await search.press("Enter");
+    await expect(dialog).toBeVisible();
+    await expect(search).toBeFocused();
+    await expect(dialog.getByRole("listbox")).toBeVisible();
+    expect(await read()).toMatchObject({ icon: null, isBold: false });
+    await search.press("Escape");
+    await expect(dialog.getByRole("listbox")).toBeHidden();
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole("button", { name: "Icon", exact: true })).toBeFocused();
+    await dialog.getByRole("button", { name: "Icon", exact: true }).press("Enter");
+    await search.fill("house");
+    const option = dialog.getByRole("option", { name: "house", exact: true });
+    await option.focus();
+    await option.press("Enter");
+    await expect(dialog.getByRole("listbox")).toBeHidden();
+    await expect(dialog.locator("[data-notebook-appearance-preview] [data-notebook-icon]")).toHaveAttribute("data-notebook-icon", "house");
+    await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+    await expect(dialog).toBeHidden();
+    expect(await read()).toMatchObject({ icon: null, isBold: false });
+    await open();
+    await expect(dialog.getByRole("switch", { name: "Bold", exact: true })).not.toBeChecked();
+    await expect(dialog.locator("[data-notebook-appearance-preview] [data-notebook-icon]")).toHaveAttribute("data-notebook-icon", "notebook");
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+  } finally {
+    await remove();
+  }
+});
+
+const createAppearanceScenario = async (page: Page, styled = false) => {
   await page.addInitScript(() => {
     localStorage.setItem("edgeever.locale.preference", "en-US");
     if (!localStorage.getItem("edgeever.notebook-color-palette")) localStorage.setItem("edgeever.notebook-color-palette", JSON.stringify(["#2563eb", "#16a34a", "#ca8a04", "#dc2626", "#7c3aed"]));
@@ -12,6 +105,7 @@ test("saves notebook appearance, keeps drafts on cancel, and resets across reloa
   expect(created.ok()).toBeTruthy();
   const { notebook } = await created.json();
   const childResponse = await page.request.post("/api/v1/notebooks", { data: { name: "Child", parentId: notebook.id } });
+  expect(childResponse.ok()).toBeTruthy();
   const { notebook: child } = await childResponse.json();
   const readNotebook = async () => (await (await page.request.get("/api/v1/notebooks")).json()).notebooks.find((item: { id: string }) => item.id === notebook.id);
   const row = page.locator(`[data-notebook-id="${notebook.id}"]`);
@@ -23,12 +117,28 @@ test("saves notebook appearance, keeps drafts on cancel, and resets across reloa
     await expect(dialog).toBeVisible();
   };
   const save = async () => {
-    await dialog.getByRole("button", { name: "Save", exact: true }).click();
+    await dialog.getByRole("button", { name: "Confirm", exact: true }).click();
     await expect(dialog).toBeHidden();
   };
+  if (styled) {
+    expect((await page.request.patch(`/api/v1/notebooks/${notebook.id}`, {
+      data: { icon: "alarm-clock", color: "#2563eb", textColor: "#dc2626", isBold: true, iconInverted: true },
+    })).ok()).toBeTruthy();
+  }
+  await page.reload();
+  await expect(row).toBeVisible();
+  return {
+    name, notebook, child, row, dialog, open, save, readNotebook,
+    remove: async () => {
+      expect((await page.request.delete(`/api/v1/notebooks/${child.id}`)).ok()).toBeTruthy();
+      expect((await page.request.delete(`/api/v1/notebooks/${notebook.id}`)).ok()).toBeTruthy();
+    },
+  };
+};
+
+test("saves notebook colors and icon inversion across reloads and themes", async ({ page }) => {
+  const { child, row, dialog, open, save, readNotebook, remove } = await createAppearanceScenario(page);
   try {
-    await page.reload();
-    await expect(row).toBeVisible();
     await row.locator("[data-notebook-tree-button]").click();
     await open();
     await dialog.getByRole("button", { name: "Icon", exact: true }).click();
@@ -80,6 +190,15 @@ test("saves notebook appearance, keeps drafts on cancel, and resets across reloa
     await page.evaluate(() => document.documentElement.classList.add("dark"));
     await expect(row.locator("[data-notebook-name]")).not.toHaveCSS("color", previewColor);
     await page.screenshot({ path: "test-results/notebook-appearance-dark.png" });
+  } finally {
+    await remove();
+  }
+});
+
+test("discards notebook appearance and reset drafts on cancel", async ({ page }) => {
+  const { row, dialog, open, readNotebook, remove } = await createAppearanceScenario(page, true);
+  try {
+    await page.evaluate(() => document.documentElement.classList.add("dark"));
     await open();
     await dialog.getByLabel("Text color", { exact: true }).evaluate((element) => {
       const input = element as HTMLInputElement;
@@ -97,6 +216,14 @@ test("saves notebook appearance, keeps drafts on cancel, and resets across reloa
     await page.keyboard.press("Escape");
     await expect(dialog).toBeHidden();
     expect(await readNotebook()).toMatchObject({ icon: "alarm-clock", color: "#2563eb", textColor: "#dc2626", isBold: true, iconInverted: true });
+  } finally {
+    await remove();
+  }
+});
+
+test("persists inverted notebook rows and resets their appearance", async ({ page }) => {
+  const { name, child, row, dialog, open, save, readNotebook, remove } = await createAppearanceScenario(page, true);
+  try {
     await open();
     await dialog.getByLabel("Invert", { exact: true }).selectOption("row");
     await expect(dialog.locator("[data-notebook-name]")).toHaveCSS("color", "rgb(255, 255, 255)");
@@ -140,7 +267,6 @@ test("saves notebook appearance, keeps drafts on cancel, and resets across reloa
     await expect(row.locator(".notebook-custom-color")).toHaveCount(0);
     await expect(row.locator("[data-notebook-name]")).toHaveCSS("font-weight", "400");
   } finally {
-    await page.request.delete(`/api/v1/notebooks/${child.id}`);
-    await page.request.delete(`/api/v1/notebooks/${notebook.id}`);
+    await remove();
   }
 });

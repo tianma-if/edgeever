@@ -20,7 +20,7 @@ This delivery excludes:
 
 The coverage description in Settings should say “Backs up synchronized notes and attachments.” A backup does not push pending local changes or substitute local caches when the network is unavailable. A network failure preserves the last successful result until a retry can run.
 
-Existing SQLite snapshots remain a separate local recovery mechanism. WebDAV and S3 transfers, OS-level scheduling after the app exits, browser-based password export and decryption, and native mobile entry points remain outside this delivery. Existing ordinary ZIP import and export on the Web remain available.
+Existing SQLite snapshots remain a separate local recovery mechanism. S3 transfers (the optional WebDAV copy is described in section 12), OS-level scheduling after the app exits, browser-based password export and decryption, and native mobile entry points remain outside this delivery. Existing ordinary ZIP import and export on the Web remain available.
 
 ## 2. Defaults and settings
 
@@ -29,12 +29,12 @@ Desktop Settings → Data and backup uses one “Backup and restore” card inst
 | Setting | Initial behavior |
 | --- | --- |
 | Automatic backups | Initially off; enabling a valid configuration schedules the first run |
-| Frequency | Daily, weekly, every two weeks, or monthly; weekly by default |
+| Frequency | Weekly or monthly; weekly by default. Existing daily and biweekly settings remain valid and are displayed as a disabled option until changed |
 | Destination | `EdgeEver Backups` under the OS Documents directory; change through the native directory picker |
 | Keep recent | 1, 3, or 5 archives; 1 by default. Existing 10- and 20-archive settings remain valid and are displayed as a disabled option until changed |
 | Backup encryption | Optional and initially off; enabling it requires entering and confirming a separate backup password |
 
-The top actions are “Back up now,” “Restore from file,” and “Open folder.” Below them, show the last actual successful archive, latest check result, and next scheduled check or automatic-off state. Running tasks can be cancelled. Manual runs allow an editable filename and one-off plain/encrypted output, using the saved destination and retention without changing automatic settings; they remain available when scheduling is off.
+The top actions are “Back up now,” “Restore from file,” and “Open folder.” Below them, show the last actual successful archive, latest check result, and next scheduled check or automatic-off state. Running tasks can be cancelled. Manual runs start immediately with an automatically generated local timestamp filename and the saved encryption, destination, and retention settings; they remain available when scheduling is off. Prompt for a password only when an encryption password is unavailable or an interrupted encrypted backup needs verification. Keep inline progress, success, and failure feedback.
 
 An encryption password must be nonempty and both entries must match exactly. Do not trim whitespace or normalize Unicode. After saving, show only “Password set,” never the saved value. When changing it, explain that the new password applies only to future archives.
 
@@ -150,7 +150,7 @@ Changing the password affects future archives only; do not re-encrypt old files 
 
 ## 7. File publication and retention
 
-Users select a destination root, and the app creates a `<backupSetId>` subdirectory for the current local backup set. Settings shows the effective destination, and “Open folder” opens it. Automatic filenames use UTC time and a random backup ID, such as `edgeever-backup-20261023T020000Z-<id>.zip`, with `.edgeever.enc` for encrypted files. Manual names default to an editable local timestamp without a random ID; append the selected format’s extension. Name conflicts fail without overwriting existing files.
+Users select a destination root, and the app creates a `<backupSetId>` subdirectory for the current local backup set. Settings shows the effective destination, and “Open folder” opens it. Automatic filenames use UTC time and a random backup ID, such as `edgeever-backup-20261023T020000Z-<id>.zip`, with `.edgeever.enc` for encrypted files. Manual names use an automatically generated local timestamp without a random ID; append the saved format’s extension. Name conflicts fail without overwriting existing files.
 
 A task performs these steps in order:
 
@@ -232,3 +232,17 @@ Record platform, cross-version, and large-archive evidence separately. A small-f
 - [Import/export card](../apps/web/src/components/settings/DataExportCard.tsx), [renderer hibernation](../apps/desktop/src/main/renderer-hibernate.mjs), and [account isolation](../apps/desktop/src/main/account-scope.mjs): retain existing entry points while keeping background work independent of the renderer.
 - [Cross-runtime storage contracts](../apps/api/src/storage-contract.ts) and [self-hosting architecture](self-hosting-architecture.md): do not implement consistency logic only in the Cloudflare entry point.
 - [Original backup and disaster-recovery proposal](https://github.com/tianma-if/edgeever/blob/main/docs/backup-and-disaster-recovery-plan.zh-CN.md): retain the local-directory approach while specifying Issue #650's delivery boundaries and recovery requirements.
+
+## 12. Off-site WebDAV copy (P2, Issue #723)
+
+The optional off-site copy runs after a local backup is published. The local archive stays the source of truth; the archive format, server, database and synchronization are unchanged.
+
+- **Independent state.** `backup-offsite.mjs` keeps its own state file (`<scope>.offsite.json`) next to the backup state and never joins the local backup queue. An upload failure, a slow server or a cancelled upload never changes the local backup result, its success time or its retention.
+- **Settings.** Off by default. Address, username, remote folder (default `/EdgeEver/backups`) and password, saved explicitly with a **Test connection** action. `https://` is required; `http://` is accepted only for local-network hosts because Basic authentication sends the password with every request. Addresses with embedded credentials, query or fragment are rejected.
+- **Password.** Stored with Electron `safeStorage` in a separate `.secret` file bound to the instance and account scope, like the backup password. It never appears in the state file, renderer status, logs or the archive, and is never sent to the EdgeEver server. It is tied to the address and username it was entered for: changing either requires entering the password again, and testing another address never uses the saved one. When secure storage is unavailable, or Linux reports `basic_text`, uploads pause with a message; there is no plaintext fallback.
+- **Upload.** The published file is streamed as-is (encrypted archives stay encrypted) to `<folder>/<backupSetId>/<name>.<uuid>.part` with an explicit `Content-Length`, then moved to the final name and its remote size is checked. The local file is held open during the upload so local retention can proceed. A request that stops moving data for two minutes is aborted, and every other request (folder creation, `MOVE`, size check, cleanup, retention and the connection test) has the same two-minute bound, even if the server ignores cancellation, so one stuck request cannot block later copies. A leftover `.part` file is deleted on failure, and on the next start if the app quit mid-upload.
+- **Scheduling and retry.** Each completed local backup queues one upload; only the newest pending archive is kept. The hourly check retries the latest local archive when its copy failed or never ran (at most once an hour); **Upload now** retries immediately. Switching account or signing out cancels the upload, and so does turning the option off or changing the target. A connection test or upload reads the password of the account it started in and stops if the account changes while it waits.
+- **Remote retention.** Uses the local retention count. Only files this backup set recorded as uploaded to the same address, user and folder are deleted, and only after a newer copy succeeded. Files placed manually or by other devices or accounts are never touched. A failed delete is reported as a warning and retried later.
+- **Limits.** Plain WebDAV uploads a file in one request. A server request-size limit (HTTP 413) is reported as “file too large for this server”; provider-specific chunking is a possible follow-up.
+- **Rollback.** Turning the option off stops uploads and keeps both local and remote files. Older versions ignore the extra state and secret files.
+

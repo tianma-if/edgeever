@@ -4,10 +4,11 @@ import type { TiptapDoc, TiptapNode } from "./content";
 // An existing schema node keeps properties readable in older clients.
 export const FRONT_MATTER_LANGUAGE = "edgeever-frontmatter";
 const MAX_PROPERTY_SOURCE_LENGTH = 64 * 1024;
+type NotePropertiesParseOptions = { maxSourceLength?: number };
 
-export const parseNoteProperties = (source: string) => {
+export const parseNoteProperties = (source: string, options: NotePropertiesParseOptions = {}) => {
   try {
-    if (source.length > MAX_PROPERTY_SOURCE_LENGTH) throw new Error("Properties exceed 64 KiB.");
+    if (source.length > (options.maxSourceLength ?? MAX_PROPERTY_SOURCE_LENGTH)) throw new Error("Properties exceed 64 KiB.");
     const document = parseDocument(source, { stringKeys: true, prettyErrors: false });
     if (document.errors.length || document.warnings.length) {
       throw new Error([...document.errors, ...document.warnings].map((error) => error.message).join("\n"));
@@ -23,16 +24,16 @@ export const parseNoteProperties = (source: string) => {
 };
 
 /** Only a leading, closed property header is special; ordinary rules stay Markdown. */
-export const splitMarkdownFrontMatter = (markdown: string) => {
+export const splitMarkdownFrontMatter = (markdown: string, options: NotePropertiesParseOptions = {}) => {
   const legacy = /^(`{3,}|~{3,})edgeever-frontmatter[ \t]*\r?\n([\s\S]*?)^\1[ \t]*(?:\r?\n|$)/m.exec(markdown);
   if (legacy?.index === 0) {
     const source = legacy[2]!.replace(/\r?\n$/, "").replace(/\r\n?/g, "\n");
-    return { source, body: markdown.slice(legacy[0].length), ...parseNoteProperties(source) };
+    return { source, body: markdown.slice(legacy[0].length), ...parseNoteProperties(source, options) };
   }
   const match = /^(?:\uFEFF)?---[ \t]*\r?\n([\s\S]*?)^(?:---|\.\.\.)[ \t]*(?:\r?\n|$)/m.exec(markdown);
   if (!match || match.index !== 0) return null;
   const source = match[1]!.replace(/\r?\n$/, "").replace(/\r\n?/g, "\n");
-  const parsed = parseNoteProperties(source);
+  const parsed = parseNoteProperties(source, options);
   // Don't turn `---\nA paragraph\n---` into a properties panel.
   if (parsed.error && !source.includes(":")) return null;
   return { source, body: markdown.slice(match[0].length), ...parsed };

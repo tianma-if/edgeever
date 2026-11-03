@@ -1,0 +1,3 @@
+EdgeEver Import QA
+中文、空格、100% 与 emoji 🌿
+This file is self-authored test data.

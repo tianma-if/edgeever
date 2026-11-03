@@ -1,4 +1,4 @@
-import { app, Notification, BrowserWindow, Menu, Tray, globalShortcut, nativeImage, ipcMain, session, net, protocol, shell, dialog, safeStorage, clipboard, ClipboardItem, powerMonitor, desktopCapturer, screen } from "electron";
+import { app, Notification, BrowserWindow, Menu, Tray, globalShortcut, nativeImage, ipcMain, session, net, protocol, shell, dialog, safeStorage, clipboard, ClipboardItem, powerMonitor, desktopCapturer, screen, utilityProcess } from "electron";
 import { createReadStream, existsSync } from "node:fs";
 import { appendFile, mkdir, open, readdir, readFile, rename, rm, stat, unlink, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
@@ -8,6 +8,8 @@ import { backgroundNodeExecutable } from "./background-node.mjs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { release as operatingSystemRelease } from "node:os";
 import { BackupManager } from "./backup-manager.mjs";
+import { OffsiteBackup } from "./backup-offsite.mjs";
+import { createBackupWorkerFactory } from "./backup-worker.mjs";
 import { registerBackupIpc } from "./backup-ipc.mjs";
 import { SidecarRpcClient } from "./rpc.mjs";
 import { instanceOrigin, encodeSessionCredential, decodeSessionCredential, credentialForUrl } from "./session-credential.mjs";
@@ -40,6 +42,7 @@ import { formatGlobalShortcutForHumans, globalShortcutAccelerator, globalShortcu
 import { trayIconPath } from "./tray-icon.mjs";
 import { writeFileClipboard, writeImageClipboard, writeRichClipboard, writeTextClipboard } from "./clipboard-write.mjs";
 import { registerClipboardReadIpc } from "./clipboard-read.mjs";
+import { registerAttachmentOpenIpc } from "./attachment-open.mjs";
 import { captureRegionScreenToNote, captureScreenToNote, createScreenshotCaptureGuard, screenshotImportIpcPayload, writeScreenshotTempPath } from "./screenshot-capture.mjs";
 import { cancelScreenshotRegionSelection, openScreenshotRegionSelector } from "./screenshot-region.mjs";
 import { LocalDataResetError, scheduleMacLocalDataReset } from "./local-data-reset.mjs";
@@ -1019,7 +1022,8 @@ const createTray = () => {
   tray.on("double-click", () => showWindow(mainWindow));
 };
 
-const handleResourceProtocolRequest = async (request) => {
+const handleResourceProtocolRequest = async (request, assertCurrent = () => {}) => {
+  assertCurrent();
   const resourceId = resourceIdFromRequest(request.url);
   if (!resourceId) return new Response("Invalid resource", { status: 400 });
   const downloadDisposition = downloadContentDispositionFromRequest(request.url);
@@ -1063,12 +1067,14 @@ const handleResourceProtocolRequest = async (request) => {
   if (!configuredApiBaseUrl) return new Response("Resource is not cached", { status: 504 });
   const sourceUrl = `${configuredApiBaseUrl}/api/v1/resources/${encodeURIComponent(resourceId)}/blob`;
   try {
+    assertCurrent();
     const sessionToken = credentialForUrl(desktopSessionToken, desktopSessionTokenOrigin, sourceUrl);
     const cookies = await session.defaultSession.cookies.get({ url: sourceUrl });
+    assertCurrent();
     const headers = resourceRequestHeaders({ cookies, sessionToken });
     const rangeHeader = request.headers.get("range");
     if (rangeHeader) headers.set("range", rangeHeader);
-    const response = await net.fetch(sourceUrl, { headers, redirect: "error" });
+    const response = await net.fetch(sourceUrl, { headers, redirect: "error", signal: request.signal });
     if (!response.ok) return new Response("Resource request failed", { status: response.status });
     if (response.status === 206) {
       const responseHeaders = resourceResponseHeaders(response.headers.get("content-type"), downloadDisposition);
@@ -1130,35 +1136,38 @@ const handleResourceProtocolRequest = async (request) => {
   }
 };
 
-const registerResourceProtocol = () => {
-  protocol.handle("edgeever-resource", handleResourceProtocolRequest);
+const handleStagedResourceProtocolRequest = async (request, assertCurrent = () => {}) => {
+  assertCurrent();
+  const stagedId = resourceIdFromRequest(request.url);
+  if (!stagedId) return new Response("Invalid staged resource", { status: 400 });
 
-  protocol.handle("edgeever-staged", async (request) => {
-    const stagedId = resourceIdFromRequest(request.url);
-    if (!stagedId) return new Response("Invalid staged resource", { status: 400 });
-
-    const directory = stagedResourceDirectory();
-    try {
-      const metadata = await readStagedResourceMetadata(directory, stagedId);
-      const path = join(directory, `${stagedId}.bin`);
-      const size = await stat(path).then((details) => details.size).catch(() => null);
-      if (size === null && isSafeResourceId(metadata.resourceId)) {
-        const target = new URL(`edgeever-resource://resource/${encodeURIComponent(metadata.resourceId)}`);
-        target.search = new URL(request.url).search;
-        return handleResourceProtocolRequest(new Request(target, { headers: request.headers }));
-      }
-      if (size === null) throw new Error("Staged bytes are missing");
-      const stream = createReadStream(path);
-      const headers = resourceResponseHeaders(metadata.type, downloadContentDispositionFromRequest(request.url));
-      headers.set("Content-Length", String(size));
-      return new Response(Readable.toWeb(stream), {
-        headers,
-      });
-    } catch (error) {
-      void writeDiagnostic("resource.staged-read-failed", { stagedId, message: error.message });
-      return new Response("Staged resource unavailable", { status: 404 });
+  const directory = stagedResourceDirectory();
+  try {
+    const metadata = await readStagedResourceMetadata(directory, stagedId);
+    const path = join(directory, `${stagedId}.bin`);
+    const size = await stat(path).then((details) => details.size).catch(() => null);
+    if (size === null && isSafeResourceId(metadata.resourceId)) {
+      const target = new URL(`edgeever-resource://resource/${encodeURIComponent(metadata.resourceId)}`);
+      target.search = new URL(request.url).search;
+      assertCurrent();
+      return handleResourceProtocolRequest(new Request(target, { headers: request.headers, signal: request.signal }), assertCurrent);
     }
-  });
+    if (size === null) throw new Error("Staged bytes are missing");
+    const stream = createReadStream(path);
+    const headers = resourceResponseHeaders(metadata.type, downloadContentDispositionFromRequest(request.url));
+    headers.set("Content-Length", String(size));
+    return new Response(Readable.toWeb(stream), {
+      headers,
+    });
+  } catch (error) {
+    void writeDiagnostic("resource.staged-read-failed", { stagedId, message: error.message });
+    return new Response("Staged resource unavailable", { status: 404 });
+  }
+};
+
+const registerResourceProtocol = () => {
+  protocol.handle("edgeever-resource", (request) => handleResourceProtocolRequest(request));
+  protocol.handle("edgeever-staged", (request) => handleStagedResourceProtocolRequest(request));
 };
 
 const registerDesktopAppProtocol = () => {
@@ -1933,6 +1942,8 @@ const startApplication = async () => {
   });
   backupManager = new BackupManager({
     userData: app.getPath("userData"), defaultDirectory: join(app.getPath("documents"), "EdgeEver Backups"), secureStorage: safeStorage,
+    offsite: new OffsiteBackup({ userData: app.getPath("userData"), secureStorage: safeStorage }),
+    workerFactory: createBackupWorkerFactory({ utilityProcess, session: session.defaultSession }),
     version: { edgeeverVersion: app.getVersion(), buildId: app.getVersion() },
     onChange: (status) => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("desktop:backup-status", status); },
     onDiagnostic: (event, details) => writeDiagnostic(event, details),
@@ -2118,6 +2129,8 @@ const startApplication = async () => {
     onUpdateDiagnostic: (details) => { void writeDiagnostic("acp.adapter-update-failed", details); },
     onDiagnostic: (details) => { void writeDiagnostic("acp.adapter-stderr", details); },
     onProcessDiagnostic: ({ event, ...details }) => { void writeDiagnostic(`acp.adapter-${event}`, details); },
+    // Used only to reopen a validated CodeBuddy login page on explicit request.
+    openExternal: (url) => shell.openExternal(url),
     mcpScriptPath: app.isPackaged
       ? join(process.resourcesPath, "mcp-bridge", "edgeever-mcp-stdio.mjs")
       : join(projectRoot, "scripts", "edgeever-mcp-stdio.mjs"),
@@ -2335,6 +2348,20 @@ const startApplication = async () => {
   });
   ipcMain.handle("desktop:download-update", () => downloadTrustedDesktopUpdate("manual-download"));
   ipcMain.handle("desktop:install-update", () => installDownloadedUpdate());
+  registerAttachmentOpenIpc(ipcMain, {
+    authorize: (event) => {
+      if (!isAppRendererSender(event) || instanceChangePending
+        || !isAllowedAppNavigation(event.senderFrame.url, desktopRendererEntryUrl())) {
+        throw new Error("Attachment open forbidden");
+      }
+    },
+    getScope: () => JSON.stringify([configuredApiBaseUrl, activeAccountId, desktopSessionToken]),
+    getDirectory: () => join(sidecarDataDirectory(activeAccountId), "opened-attachments"),
+    readResource: (url, signal, assertCurrent) => url.startsWith("edgeever-staged:")
+      ? handleStagedResourceProtocolRequest(new Request(url, { signal }), assertCurrent)
+      : handleResourceProtocolRequest(new Request(url, { signal }), assertCurrent),
+    openPath: (path) => shell.openPath(path),
+  });
   ipcMain.handle("desktop:stage-resource-begin", async (_event, input) => {
     const { memoId, name, type, size } = normalizeStagedResourceMetadataInput(input);
     const id = `stage_${Date.now()}_${Math.random().toString(36).slice(2)}`;

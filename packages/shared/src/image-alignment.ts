@@ -1,7 +1,10 @@
 import { Extension, type JSONContent } from "@tiptap/core";
 import Image from "@tiptap/extension-image";
+import { isAllowedUri } from "@tiptap/extension-link";
+import { resourceNodeToMarkdown } from "./resource-links";
 import { parseImageWidth } from "./image-display";
 import { openBlockSource } from "./markdown-block-start";
+import { getImageLink } from "./image-link";
 
 export const IMAGE_ALIGNMENTS = ["left", "center", "right"] as const;
 export type ImageAlignment = (typeof IMAGE_ALIGNMENTS)[number];
@@ -75,6 +78,7 @@ const supportedImageSource = (source: string) => {
   if (!source || /[\u0000-\u0020]/.test(source)) return false;
   return /^(?:https?:\/\/|edgeever-resource:\/\/|edgeever-staged:\/\/|\/(?!\/))/i.test(source);
 };
+const LINKED_IMAGE_HTML = /<a\b((?:[^"'>]|"[^"]*"|'[^']*')*)>\s*(<img\b(?:[^"'>]|"[^"]*"|'[^']*')*\/?>)\s*<\/a>[ \t]*(?:\n|$)/i;
 
 /** HTML keeps the alignment useful in exports outside EdgeEver, too. */
 export const alignedImageToHtml = (node: JSONContent): string => {
@@ -83,38 +87,64 @@ export const alignedImageToHtml = (node: JSONContent): string => {
   const width = parseImageWidth(attrs.width);
   const attribute = (key: string, value: unknown) => `${key}="${escapeAttribute(String(value ?? ""))}"`;
   const values = [attribute("src", attrs.src), attribute("alt", attrs.alt)];
+  const link = getImageLink(attrs.link);
+  if (link) {
+    values.push(attribute("data-image-link-href", link.href));
+    if (link.title) values.push(attribute("data-image-link-title", link.title));
+  }
   if (attrs.title) values.push(attribute("title", attrs.title));
   values.push(attribute("data-image-align", alignment));
   if (width !== null) values.push(attribute("width", `${width}%`));
   const style = imageAlignmentStyle(alignment, width);
   values.push(attribute("style", style));
-  return `<img ${values.join(" ")} />`;
+  const image = `<img ${values.join(" ")} />`;
+  return link && isAllowedUri(link.href)
+    ? `<a ${attribute("href", link.href)}${link.title ? ` ${attribute("title", link.title)}` : ""}>${image}</a>`
+    : image;
 };
 
 export const EdgeEverImage = Image.extend({
-  renderMarkdown(node, helpers, context) {
-    return parseImageAlignment(node.attrs?.alignment)
-      ? alignedImageToHtml(node)
-      : this.parent?.(node, helpers, context) ?? "";
+  renderMarkdown(node) {
+    if (parseImageAlignment(node.attrs?.alignment)) return alignedImageToHtml(node);
+    const link = getImageLink(node.attrs?.link);
+    const image = { type: "image" as const, url: String(node.attrs?.src ?? ""), alt: String(node.attrs?.alt ?? ""), title: typeof node.attrs?.title === "string" ? node.attrs.title : null };
+    return resourceNodeToMarkdown(link ? { type: "link", url: link.href, title: link.title, children: [image] } : image);
   },
   parseMarkdown(token, helpers) {
-    return token.imageAttributes
-      ? helpers.createNode("image", token.imageAttributes)
-      : this.parent?.(token, helpers) ?? [];
+    if (token.imageAttributes) return helpers.createNode("image", token.imageAttributes);
+    // Marked already unescapes brackets, but leaves backslash escapes in text.
+    // Read literal lexer tokens; parsing alt as rich content would consume math.
+    const alt = token.tokens?.map(part => part.type === "escape" ? part.text : part.raw ?? part.text ?? "").join("") ?? token.text;
+    return helpers.createNode("image", {
+      src: token.href, title: token.title,
+      alt,
+    });
   },
   markdownTokenizer: {
     name: "image",
     level: "block",
-    start: (source) => openBlockSource(source).search(/<img\b/i),
+    start: (source) => {
+      const open = openBlockSource(source);
+      const image = open.search(/<img\b/i);
+      const linked = LINKED_IMAGE_HTML.exec(open)?.index ?? -1;
+      return image === -1 ? linked : linked === -1 ? image : Math.min(image, linked);
+    },
     tokenize(source) {
-      const match = /^<img\b(?:[^"'>]|"[^"]*"|'[^']*')*\/?>[ \t]*(?:\n|$)/i.exec(source);
+      const candidate = LINKED_IMAGE_HTML.exec(source);
+      const wrapped = candidate?.index === 0 ? candidate : null;
+      const match = wrapped ?? /^<img\b(?:[^"'>]|"[^"]*"|'[^']*')*\/?>[ \t]*(?:\n|$)/i.exec(source);
       if (!match) return undefined;
-      const tag = match[0];
+      const tag = wrapped?.[2] ?? match[0];
       const alignment = parseImageAlignment(readImageHtmlAttribute(tag, "data-image-align"));
       const src = readImageHtmlAttribute(tag, "src");
-      if (!alignment || !supportedImageSource(src)) return undefined;
-      return { type: "image", raw: tag, imageAttributes: {
+      const link = getImageLink({
+        href: readImageHtmlAttribute(tag, "data-image-link-href") || (wrapped ? readImageHtmlAttribute(wrapped[1]!, "href") : ""),
+        title: readImageHtmlAttribute(tag, "data-image-link-title") || (wrapped ? readImageHtmlAttribute(wrapped[1]!, "title") : "") || null,
+      });
+      if ((!alignment && !link) || !supportedImageSource(src)) return undefined;
+      return { type: "image", raw: match[0], imageAttributes: {
         src, alignment,
+        ...(link ? { link } : {}),
         alt: readImageHtmlAttribute(tag, "alt") || null,
         title: readImageHtmlAttribute(tag, "title") || null,
         width: parseImageWidth(readImageHtmlAttribute(tag, "width")),

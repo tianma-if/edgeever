@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE en-export SYSTEM "http://xml.evernote.com/pub/evernote-export4.dtd">
+<en-export export-date="20261031T034130Z" application="Evernote" version="11.40.2">
+  <note>
+    <title>EdgeEver QA · 正文与附件 🌿</title>
+    <created>20261031T033838Z</created>
+    <updated>20261031T034105Z</updated>
+    <tag>edgeever-import-qa</tag>
+    <tag>迁移验收</tag>
+    <note-attributes>
+    </note-attributes>
+    <content>
+      <![CDATA[<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE en-note SYSTEM "http://xml.evernote.com/pub/enml2.dtd"><en-note><div style="display:none;--en-chs:&quot;eyJpc0VtcHR5IjpmYWxzZSwiaDEiOnsiZm9udEZhbWlseSI6ImluaGVyaXQiLCJmb250U2l6ZSI6IjMwcHgiLCJjb2xvciI6ImluaGVyaXQiLCJmb250V2VpZ2h0IjoiNjAwIiwiZm9udFN0eWxlIjoiaW5oZXJpdCIsInRleHREZWNvcmF0aW9uIjoiaW5oZXJpdCJ9LCJoMiI6eyJmb250RmFtaWx5IjoiaW5oZXJpdCIsImZvbnRTaXplIjoiMjRweCIsImNvbG9yIjoiaW5oZXJpdCIsImZvbnRXZWlnaHQiOiI2MDAiLCJmb250U3R5bGUiOiJpbmhlcml0IiwidGV4dERlY29yYXRpb24iOiJpbmhlcml0In0sImgzIjp7ImZvbnRGYW1pbHkiOiJpbmhlcml0IiwiZm9udFNpemUiOiIxOHB4IiwiY29sb3IiOiJpbmhlcml0IiwiZm9udFdlaWdodCI6IjYwMCIsImZvbnRTdHlsZSI6ImluaGVyaXQiLCJ0ZXh0RGVjb3JhdGlvbiI6ImluaGVyaXQifSwiaDQiOnsiZm9udEZhbWlseSI6ImluaGVyaXQiLCJmb250U2l6ZSI6IjE2cHgiLCJjb2xvciI6ImluaGVyaXQiLCJmb250V2VpZ2h0IjoiNjAwIiwiZm9udFN0eWxlIjoiaW5oZXJpdCIsInRleHREZWNvcmF0aW9uIjoiaW5oZXJpdCJ9LCJwIjp7ImZvbnRGYW1pbHkiOiJpbmhlcml0IiwiZm9udFNpemUiOiJpbmhlcml0IiwiY29sb3IiOiJpbmhlcml0IiwiZm9udFdlaWdodCI6ImluaGVyaXQiLCJmb250U3R5bGUiOiJpbmhlcml0IiwidGV4dERlY29yYXRpb24iOiJpbmhlcml0In19&quot;"> </div><h2 style="--en-nodeId:dc67db22-23a0-4484-8673-1bf146d104b7;">真实 ENEX 导出验收</h2><div>这是一篇独立测试笔记，包含中文、空格与 100% 字面百分号。</div><div><b>粗体</b>、<i>斜体</i>以及<a href="https://example.com/edgeever?q=100%25#section" rev="en_rl_none">公开示例链接</a>。</div><table width="376px" style="border-collapse:collapse;width:376px;"><colgroup><col style="width: 188px;" /><col style="width: 188px;" /></colgroup><tbody><tr><th style="border-color:#d4d4d4;border-width:1.5px;border-style:solid;padding:10px;"><div>项目</div></th><th style="border-color:#d4d4d4;border-width:1.5px;border-style:solid;padding:10px;"><div>结果</div></th></tr><tr><td style="border-color:#d4d4d4;border-width:1.5px;border-style:solid;padding:10px;"><div>图片和附件</div></td><td style="border-color:#d4d4d4;border-width:1.5px;border-style:solid;padding:10px;"><div>保留原字节</div></td></tr></tbody></table><div><br/></div><div style="--en-codeblock:true; --en-lineWrapping:false;box-sizing: border-box; padding: 8px; font-family: &quot;Fira Code&quot;,&quot;Consolas&quot;,&quot;Monaco&quot;,&quot;Andale Mono&quot;,&quot;Ubuntu Mono&quot;,&quot;Courier New&quot;,monospace font-size: 12px; color: rgb(51, 51, 51); border-top-left-radius: 4px; border-top-right-radius: 4px; border-bottom-right-radius: 4px; border-bottom-left-radius: 4px; background-color: rgb(251, 250, 248); border: 1px solid rgba(0, 0, 0, 0.14902); background-position: initial initial; background-repeat: initial initial;"><div>const message = 'ENEX &amp; EdgeEver';</div></div><div>待办清单：</div><ul style="--en-todo:true;"><li><div>尚未完成的导入检查</div></li><li style="--en-checked:true;"><div>已经完成的格式准备</div></li></ul><en-media style="--en-viewAs:pdf-pageByPage;" hash="6af3b32b4cff4bbbcf517d86454f874b" type="application/pdf" /><en-media hash="829bacd0ace0acadae7c16efcbf094bf" type="text/plain" /><en-media hash="9d9fd983063603f3ac9a010e724a806a" type="image/svg+xml" style="--en-naturalWidth:480; --en-naturalHeight:240;" /><en-media hash="4476ac7f4ed91566d6c5bf7de69eec18" type="image/png" style="--en-naturalWidth:480; --en-naturalHeight:240;" /><en-media hash="9b88dbbdbffbf80811cec32d0036fc71" type="application/zip" /><div><br/></div></en-note>      ]]>
+    </content>
+    <resource>
+      <data encoding="base64">
+UEsDBBQAAAgIADoIXV3R6QRsTgAAAEkAAAAKAAAA6K+05piOLnR4dAFJALb/6L+Z5piv56yU6K6w6YeM55qE5Y6L57yp6ZmE5Lu277yM5LiN5bqU5L2c5Li65paw55qE5p2l5rqQ5b2S5qGj5bGV5byA44CCClBLAQIUAxQAAAgIADoIXV3R6QRsTgAAAEkAAAAKAAAAAAAAAAAAAACAAQAAAADor7TmmI4udHh0UEsFBgAAAAABAAEAOAAAAHYA
+AAAAAA==
+      </data>
+      <mime>application/zip</mime>
+      <resource-attributes>
+        <file-name>原样保留.zip</file-name>
+        <source-url>en-cache://tokenKey%3D%22AuthToken%3AUser%3A317941790%22+3355ffb2-b4cd-136e-5dc5-3c6275eac41b+9b88dbbdbffbf80811cec32d0036fc71+https%3A%2F%2Fpublic.www.evernote.com%2Fresources%2Fs524%2Ffeb0de11-dd75-74a1-ec83-f6c1d0cc7e1e</source-url>
+      </resource-attributes>
+    </resource>
+    <resource>
+      <data encoding="base64">
+PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0ODAiIGhlaWdodD0iMjQwIj48cmVjdCB3aWR0aD0iNDgwIiBoZWlnaHQ9IjI0MCIgZmlsbD0iIzA3MTMwYiIvPjxjaXJjbGUgY3g9IjI0MCIgY3k9IjEyMCIgcj0iNzAiIGZpbGw9IiM1Yzk5NmYiLz48dGV4dCB4PSIyNDAiIHk9IjEzMCIgdGV4dC1hbmNo
+b3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9InNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMjQiIGZpbGw9IndoaXRlIj5JbXBvcnQgUUE8L3RleHQ+PC9zdmc+
+      </data>
+      <mime>image/svg+xml</mime>
+      <resource-attributes>
+        <file-name>矢量 图.svg</file-name>
+        <source-url>en-cache://tokenKey%3D%22AuthToken%3AUser%3A317941790%22+3355ffb2-b4cd-136e-5dc5-3c6275eac41b+9d9fd983063603f3ac9a010e724a806a+https%3A%2F%2Fpublic.www.evernote.com%2Fresources%2Fs524%2Fcffad490-46dd-80ef-cb58-aebe4879bc62</source-url>
+      </resource-attributes>
+    </resource>
+    <resource>
+      <data encoding="base64">
+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
+      </data>
+      <mime>image/png</mime>
+      <width>480</width>
+      <height>240</height>
+      <resource-attributes>
+        <file-name>样本 图.png</file-name>
+        <source-url>en-cache://tokenKey%3D%22AuthToken%3AUser%3A317941790%22+3355ffb2-b4cd-136e-5dc5-3c6275eac41b+4476ac7f4ed91566d6c5bf7de69eec18+https%3A%2F%2Fpublic.www.evernote.com%2Fresources%2Fs524%2Fce8f0121-3d2c-9500-9b96-18fe45f807a3</source-url>
+        <application-data key="evernote.captionState">AVAILABLE</application-data>
+        <application-data key="evernote.captionUpdatedAt">1793418078442</application-data>
+        <application-data key="evernote.caption">The image displays a horizontal tripartite composition with a black square on the left, a solid green rectangle in the center, and a white square on the right, all set against a light green background.</application-data>
+        <application-data key="evernote.captionSource">AI</application-data>
+      </resource-attributes>
+    </resource>
+    <resource>
+      <data encoding="base64">
+JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2JqCjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9Db3VudCAxIC9LaWRzIFszIDAgUl0gPj4KZW5kb2JqCjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA1OTUgODQyXSAvUmVzb3VyY2VzIDw8IC9G
+b250IDw8IC9GMSA0IDAgUiA+PiA+PiAvQ29udGVudHMgNSAwIFIgPj4KZW5kb2JqCjQgMCBvYmoKPDwgL1R5cGUgL0ZvbnQgL1N1YnR5cGUgL1R5cGUxIC9CYXNlRm9udCAvSGVsdmV0aWNhID4+CmVuZG9iago1IDAgb2JqCjw8IC9MZW5ndGggMTExID4+CnN0cmVhbQpCVCAvRjEgMjQgVGYgNjAgNzQwIFRkIChFZGdlRXZlciBJbXBvcnQg
+UUEpIFRqIDAgLTQwIFRkIC9GMSAxMiBUZiAoMjAyNi0xMC0yOSAtIG9yaWdpbmFsIHRlc3QgYXR0YWNobWVudCkgVGogRVQKZW5kc3RyZWFtCmVuZG9iagp4cmVmCjAgNgowMDAwMDAwMDAwIDY1NTM1IGYgCjAwMDAwMDAwMDkgMDAwMDAgbiAKMDAwMDAwMDA1OCAwMDAwMCBuIAowMDAwMDAwMTE1IDAwMDAwIG4gCjAwMDAwMDAyNDEgMDAw
+MDAgbiAKMDAwMDAwMDMxMSAwMDAwMCBuIAp0cmFpbGVyCjw8IC9Sb290IDEgMCBSIC9TaXplIDYgPj4Kc3RhcnR4cmVmCjQ3MwolJUVPRgo=
+      </data>
+      <mime>application/pdf</mime>
+      <resource-attributes>
+        <file-name>迁移说明.pdf</file-name>
+        <source-url>en-cache://tokenKey%3D%22AuthToken%3AUser%3A317941790%22+3355ffb2-b4cd-136e-5dc5-3c6275eac41b+6af3b32b4cff4bbbcf517d86454f874b+https%3A%2F%2Fpublic.www.evernote.com%2Fresources%2Fs524%2Fbccf0f9d-98ca-2176-2406-3b0cdaba3f90</source-url>
+      </resource-attributes>
+    </resource>
+    <resource>
+      <data encoding="base64">
+RWRnZUV2ZXIgSW1wb3J0IFFBCuS4reaWh+OAgeepuuagvOOAgTEwMCUg5LiOIGVtb2ppIPCfjL8KVGhpcyBmaWxlIGlzIHNlbGYtYXV0aG9yZWQgdGVzdCBkYXRhLgo=
+      </data>
+      <mime>text/plain</mime>
+      <resource-attributes>
+        <file-name>说明 100%.txt</file-name>
+        <source-url>en-cache://tokenKey%3D%22AuthToken%3AUser%3A317941790%22+3355ffb2-b4cd-136e-5dc5-3c6275eac41b+829bacd0ace0acadae7c16efcbf094bf+https%3A%2F%2Fpublic.www.evernote.com%2Fresources%2Fs524%2Fe287483a-f3ee-4292-3381-532437b845fc</source-url>
+      </resource-attributes>
+    </resource>
+  </note>
+</en-export>

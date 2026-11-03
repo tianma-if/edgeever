@@ -18,7 +18,7 @@
     <a href="README.zh-CN.md">简体中文</a> | <a href="README.zh-TW.md">繁體中文</a> | <b>English</b> | <a href="README.ja.md">日本語</a> | <a href="README.pl-PL.md">Polski</a>
   </p>
   <p>
-    <a href="https://t.me/+wwUx1BYLrIdiZjY1"><img src="assets/readme/community/telegram.svg" alt="Telegram" width="16" height="16" align="absmiddle" /> Telegram Group</a> &nbsp;|&nbsp;
+    <a href="https://t.me/+GvKYnL37feUwOTNl"><img src="assets/readme/community/telegram.svg" alt="Telegram" width="16" height="16" align="absmiddle" /> Telegram Group</a> &nbsp;|&nbsp;
     <a href="https://demo.edgeever.org">🌐 Live Demo</a> &nbsp;|&nbsp;
     <a href="#all-platform-clients--browser-extension">📱 Clients & Extension</a> &nbsp;|&nbsp;
     <a href="#features">Feature Matrix & Capabilities</a>
@@ -89,7 +89,7 @@ An all-in-one workspace connecting inspiration capture, deep creation, and knowl
 | **Organization & Search** | • Infinite-depth notebooks & folder tree navigation<br>• Tagging system, drag-and-drop sorting, batch note merging/moving<br>• Millisecond-level full-text search with historical filtering | • **Standalone Knowledge Base Publishing**: One-click publish entire notebooks as static documentation sites with tree navigation & password protection<br>• Multi-user spaces & physical tenant data isolation |
 | **Capture & Media** | • Universal attachment uploads (PDF, Office, audio/video, archives)<br>• Browser extension precision clipping for web text & images<br>• Mobile system share sheet to save photos & articles | • **Deep Multi-Platform Structured Clipping**: Deeply adapted for Xiaohongshu, X (Twitter), Zhihu, Reddit, GitHub, YouTube, Bilibili, and 20+ sources<br>• **WeChat Chat History Archiving**: One-click full transcript import on macOS with timestamps, quotes, emojis, and media<br>• **Client-Side Image Compression**: Automatic 50%–90% silent size reduction; chunked streaming safely supports up to 1 GiB files |
 | **Data & Visuals** | • Native table editing & Markdown table rendering<br>• Native Mermaid diagrams (flowcharts, sequence diagrams, architecture) | • **AI Multi-Dimensional Tables**: Prompt-to-database with automatic field typing (tags, dates, selects)<br>• **Public Online Collection Forms**: One-click shareable forms without login, syncing responses into tables in real time<br>• **AI Diagram & Infographic Generation**: In-place creation of timelines, comparison charts, quadrant matrices & mind maps |
-| **AI & Ecosystem** | • Companion sidebar AI assistant for summaries, proofreading & translations<br>• BYOK (Bring Your Own Key): compatible with OpenAI, Claude, Gemini & custom endpoints | • **Native Agent Protocols (MCP & ACP)**: Built-in MCP for external agent read/write; ACP in desktop app to drive local coding agents directly<br>• **AI RSS Daily Digest**: Automated feed aggregation, AI noise filtering, and structured digest generation<br>• Extensible Plugin Development API |
+| **AI & Ecosystem** | • Companion sidebar AI assistant for summaries, proofreading & translations<br>• BYOK (Bring Your Own Key): compatible with OpenAI, Claude, Gemini & custom endpoints | • **Native Agent Protocols (MCP & ACP)**: Built-in MCP for external agent read/write; ACP in desktop app to drive local agents such as Codex, Claude Code and CodeBuddy directly<br>• **AI RSS Daily Digest**: Automated feed aggregation, AI noise filtering, and structured digest generation<br>• Extensible Plugin Development API |
 | **Multi-Device Sync & Foundation** | • Seamless, low-latency sync across desktop, mobile, and web with zero device limits<br>• Official client support across Web, macOS, Windows, Linux, iOS, and Android<br>• Offline-first with auto-sync queue: write smoothly offline, automatically resume and sync when reconnected<br>• Standard SQLite database, lossless ZIP backup & Markdown export/import | • **Zero Server Cost for Life**: 100% runnable on Cloudflare Free tier (~150k short notes & ~50k images)<br>• **Flexible Docker Self-Hosting**: One-click deployment for VPS, NAS, or home server with millions of notes & instant sync<br>• Server-side brute-force protection and tenant security |
 
 ## Deployment
@@ -106,18 +106,16 @@ Copy the prompt below directly into an AI Agent (such as Codex, Claude, Cursor, 
 Deploy EdgeEver entirely through GitHub and Cloudflare:
 1. Fork https://github.com/tianma-if/edgeever.
 2. Create D1 `edgeever` and R2 `edgeever-resources` in Cloudflare.
-3. In Workers & Pages, create a Worker named `edgeever` from the Fork's `main` branch.
-   Use the repository root, keep Cloudflare's default Workers Builds deploy command,
-   and ensure its API token can read and edit D1. Select Save and Deploy.
-4. After the Worker is created, add the user's chosen password as the runtime Secret
-   `EDGE_EVER_AUTH_PASSWORD` (preferably at least 32 characters).
-   The username defaults to `admin`.
-   If the user specifies another, set `EDGE_EVER_AUTH_USERNAME` as a Workers Builds
-   variable before the next build.
-5. Run the build again, verify `/api/health` and `/api/openapi.json`, then log in
-   with that administrator username and password.
-6. Enable and manually run the GitHub Actions workflow named `Update deployed EdgeEver`
-   once so the Fork can automatically receive future stable releases and fixes.
+3. In Workers & Pages, select "Start with Hello World!" and create a Worker named `edgeever`.
+4. Add the user's chosen password as the runtime Secret `EDGE_EVER_AUTH_PASSWORD`
+   under Settings → Variables and Secrets, and deploy the Secret (preferably at least
+   32 characters). The username defaults to `admin`.
+5. Only after the Secret is deployed, open this Worker's Settings → Builds → Connect
+   and connect the Fork's `main` branch.
+6. In Settings → Builds → API token, select or create the Cloudflare API token used for deployment, with D1 read/edit permission for the target account.
+7. In the Fork's GitHub repository, open Actions → Update deployed EdgeEver, enable the workflow if prompted, and select Run workflow on `main`. After confirming in Cloudflare that the corresponding build succeeded and deployment completed, verify `/api/health` and `/api/openapi.json`, then log in with the administrator
+   username and password.
+   This workflow will automatically sync future stable releases and fixes.
 ```
 
 > Detailed requirements: [AI Agent Cloudflare Deployment](docs/agent-deploy-cloudflare.md).
@@ -125,16 +123,17 @@ Deploy EdgeEver entirely through GitHub and Cloudflare:
 ### Option B: Manual Online Deployment
 
 <details>
-<summary>📖 Click to expand: 6-Step Web Manual Deployment Guide</summary>
+<summary>📖 Click to expand: 7-Step Web Manual Deployment Guide</summary>
 
-Complete setup in 6 web steps:
+Complete the following 7 web steps strictly in order:
 
 1. **Fork the Repository**: Click **Fork** at the top right of GitHub to fork EdgeEver into your personal account.
 2. **Create Cloudflare Resources**: Create D1 `edgeever` and R2 `edgeever-resources`.
-3. **Import & Configure the Project**: Create a Worker named `edgeever` from the Fork's `main` branch in Cloudflare **Workers & Pages**. Use the repository root and keep Cloudflare's default Workers Builds deploy command, which runs in Cloudflare. Ensure its API token can read and edit D1. The deploy command creates the bindings; do not edit Fork files.
-4. **Choose the Administrator Password**: Choose an administrator password, preferably at least 32 characters. Once the Worker is created, save it as the runtime Secret `EDGE_EVER_AUTH_PASSWORD`.
-5. **Build & Verify**: Save and Deploy creates the Worker and starts a build. The initial build primarily initializes the Worker instance; if it fails due to missing administrator Secret, this is expected behavior. Simply add the runtime Secret `EDGE_EVER_AUTH_PASSWORD` from Step 4 and click retry. The username defaults to `admin`; to use another, set `EDGE_EVER_AUTH_USERNAME` as a Workers Builds variable before retrying. Once deployed, confirm `/api/health` returns `200`, then log in with the configured username and password.
-6. **Enable Automatic Updates**: Open the Fork's **Actions** tab, click **I understand my workflows, go ahead and enable them**, then manually run **Update deployed EdgeEver** once so the Fork can automatically receive future stable releases and fixes.
+3. **Create the Worker**: In Cloudflare Workers & Pages, select Create application → Start with Hello World!, name the Worker `edgeever`, and deploy it. This creates a placeholder; EdgeEver is deployed in Step 7.
+4. **Set the Administrator Password**: Under the Worker’s Settings → Variables and Secrets, add `EDGE_EVER_AUTH_PASSWORD` as type Secret and click Deploy. Its value is your chosen login password, preferably at least 32 characters. Complete this before connecting the Fork.
+5. **Connect the Fork**: In the existing Worker’s Settings → Builds → Connect, select the Fork and production branch `main`.
+6. **Configure Deployment Permissions**: In Settings → Builds → API token, select or create the Cloudflare API token used for deployment, with D1 read/edit permission for the target account.
+7. **Build & Verify**: In the Fork's GitHub repository, open Actions → Update deployed EdgeEver, enable the workflow if prompted, and select Run workflow on `main`. After confirming in Cloudflare that the corresponding build succeeded and deployment completed, confirm `/api/health` returns `200` and verify login. This workflow will automatically sync future stable releases and fixes.
 
 > 📖 For full step-by-step instructions and configuration details, see the [Online Deployment Guide](docs/deploy-cloudflare-button.md).
 
@@ -288,7 +287,7 @@ Community contributions are warmly welcome! Please keep the following guidelines
 
 Welcome to the EdgeEver community, bringing together developers and creators exploring vibe coding and AI. Join us to discuss cutting-edge AI productivity and best practices for personal knowledge bases.
 
-👉 [Join the EdgeEver Telegram group](https://t.me/+wwUx1BYLrIdiZjY1)
+👉 [Join the EdgeEver Telegram group](https://t.me/+GvKYnL37feUwOTNl)
 
 ## Friendly Links
 
@@ -307,6 +306,7 @@ EdgeEver is a free and open-source project. Sustaining cross-platform client dev
 - The product design of mind-map and visual-diagram notes was informed by the publicly available product experiences of [XMind](https://xmind.com/) and [ProcessOn](https://www.processon.com/). These features were independently designed and implemented by EdgeEver.
 - EdgeEver's poster design workspace draws inspiration from [Qiaomu Design](https://github.com/joeseesun/qiaomu-cover-design) by 向阳乔木 (joeseesun), and adapts its templates and typography engine under the MIT license.
 - The visual themes and typography of EdgeEver's image-sharing cards were inspired by [Firefly Card (流光卡片)](https://fireflycard.shushiai.com/). Thank you for the design inspiration.
+- EdgeEver's one-click WeChat publishing and featured article typography draw inspiration from [gzh-design-skill](https://github.com/isjiamu/gzh-design-skill) by isjiamu. Thank you for the layout and design inspiration.
 
 ## Trademark and Brand Use
 
