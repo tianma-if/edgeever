@@ -18,6 +18,7 @@
     "./image-gallery-editing": "./src/image-gallery-editing.ts",
     "./native-image-gallery": "./src/native-image-gallery.ts",
     "./i18n": "./src/i18n/index.ts",
+    "./i18n/error-screens-en-US": "./src/i18n/error-screens-en-US.ts",
     "./i18n/en-US": "./src/i18n/en-US.ts",
     "./i18n/zh-CN": "./src/i18n/zh-CN.ts",
     "./i18n/ja": "./src/i18n/ja.ts",

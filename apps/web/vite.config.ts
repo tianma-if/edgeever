@@ -226,7 +226,7 @@ export default defineConfig({
             },
           },
           {
-            urlPattern: ({ url }) => /\/assets\/i18n-(?:ja|pl|ru)-/.test(url.pathname),
+            urlPattern: ({ url }) => /\/assets\/i18n-(?:en-US|ja|pl|ru)-/.test(url.pathname),
             handler: "CacheFirst",
             options: {
               cacheName: "edgeever-optional-locales",
@@ -297,7 +297,7 @@ export default defineConfig({
       ? false
       : {
           resolveDependencies: (_filename, dependencies) => dependencies.filter((dependency) =>
-            !/(?:vendor-code-highlight|vendor-(?:mermaid|D3|tiptap|prosemirror|floating|codemirror|x6|infographic|zod|streamdown)|vendor~(?:wasm|emacs-lisp)-|vendor-radix(?!-slot)|ui-primitives|ui-button-tooltip|i18n-(?:ja|pl|ru)-)/.test(dependency),
+            !/(?:vendor-code-highlight|vendor-(?:mermaid|D3|tiptap|prosemirror|floating|codemirror|x6|infographic|zod|streamdown)|vendor~(?:wasm|emacs-lisp)-|vendor-radix(?!-slot)|ui-primitives|ui-button-tooltip|i18n-(?:en-US|ja|pl|ru)-)/.test(dependency),
           ),
         },
     rolldownOptions: {
@@ -341,6 +341,11 @@ export default defineConfig({
               // that graph atomic, but leave TipTap's lightweight adapter in
               // the regular extension group so plain mobile code blocks do not
               // inherit the highlighter as a startup dependency.
+            },
+            {
+              name: "i18n-en-US",
+              test: /[\\/]i18n[\\/](?:resources[\\/])?en-US\.ts$/,
+              priority: 41,
             },
             {
               name: "i18n-ja",
@@ -436,6 +441,7 @@ export default defineConfig({
               name: "vendor-floating",
               test: /node_modules[\\/](@floating-ui|tippy\.js)[\\/]/,
               priority: 28,
+              entriesAware: true,
             },
             {
               name: "vendor-query",
@@ -474,6 +480,7 @@ export default defineConfig({
               name: "vendor-radix",
               test: /node_modules[\\/](@radix-ui|cmdk|vaul)[\\/]/,
               priority: 15,
+              entriesAware: true,
             },
             {
               name: "vendor-ui-utils",
@@ -514,9 +521,11 @@ export default defineConfig({
               priority: 12,
             },
             {
+              // Shell tooltips must not pull every lazy screen's UI into startup.
               name: "ui-primitives",
               test: /src[\\/]components[\\/]ui[\\/]/,
               priority: 10,
+              entriesAware: true,
             },
             {
               name: "vendor",
