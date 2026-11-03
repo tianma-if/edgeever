@@ -4,7 +4,7 @@ import Constants from "expo-constants";
 import type { InstanceHealth } from "@edgeever/client";
 import { buildGitHubFeedbackUrl, formatClientDisplaySize, isClientAheadOfInstance, toDevicePixelScreenSize, type AuthUser } from "@edgeever/shared";
 import { useQuery } from "@tanstack/react-query";
-import { BackHandler, Dimensions, Linking, Modal, PixelRatio, Platform, ScrollView, Switch, View } from "react-native";
+import { BackHandler, Dimensions, KeyboardAvoidingView, Linking, Modal, PixelRatio, Platform, ScrollView, Switch, View } from "react-native";
 import { Activity, ActivityIndicator, Check, ChevronDown, ChevronLeft, ChevronRight, Cloud, Copy, ExternalLink, Image as ImageIcon, Info, LogOut, MessageSquare, MonitorSmartphone, Moon, RefreshCw, ShieldCheck, SlidersHorizontal, Sun, UserRound } from "../components/icons";
 import { Pressable, Text } from "../components/LocalizedText";
 import { useMobileLocale, getMobileCatalog, type MobileLocale } from "../lib/mobile-locale";
@@ -290,6 +290,9 @@ export const SettingsView = ({
           <Text numberOfLines={1} style={styles.settingsThemeText}>{resolvedTheme === "dark" ? "切换到浅色模式" : "切换到深色模式"}</Text>
         </Pressable>
       </View>
+      {/* Android draws edge-to-edge, so the window no longer resizes for the
+          keyboard; shrink the scroll area like the login screen does. */}
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.viewBody}>
       <ScrollView contentContainerStyle={styles.settingsScrollContent} keyboardShouldPersistTaps="handled" style={styles.viewBody}>
         {activeTab === null ? (
           <View style={styles.settingsDetailList}>
@@ -340,6 +343,7 @@ export const SettingsView = ({
           </View>
         ) : renderContent()}
       </ScrollView>
+      </KeyboardAvoidingView>
       <Modal animationType="fade" onRequestClose={() => setLocalePickerOpen(false)} statusBarTranslucent transparent visible={localePickerOpen && Boolean(localePickerAnchor)}>
         <Pressable onPress={() => setLocalePickerOpen(false)} style={styles.localePickerBackdrop}>
           {localePickerAnchor ? (
