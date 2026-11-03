@@ -19,10 +19,11 @@ bun run release -- \
   --change-en "Run required release checks in parallel." \
   --change-zh "并行执行发布所需检查。" \
   --change-locale "ja:必要なリリースチェックを並列実行します。" \
-  --change-commit "abcdef1"
+  --change-commit "abcdef1" \
+  --change-issue "123:en"
 ```
 
-Repeat `--change-en`, `--change-zh`, `--change-locale ja:`, and `--change-commit` as matching groups.
+Repeat `--change-en`, `--change-zh`, `--change-locale ja:`, `--change-commit`, and `--change-issue` as matching groups.
 Japanese What's New is required because the App Store listing includes Japanese.
 One change may cover multiple comma-separated commits:
 
@@ -40,6 +41,37 @@ non-user-facing commit with a concrete reason:
 The coverage audit runs before any local or GitHub mutation; its mapping is
 stored in the tracking Issue. Use `--dry-run` to preview commit coverage, the
 native rebuild plan, and Release notes.
+
+### Automatic Follow-up for Resolved Issues
+
+Each change requires `--change-issue "123:en,456:zh"` to declare fully resolved
+Issues in the release repository and the discussion language: `en` for English,
+`zh` for Chinese, and `en` for mixed discussions. Use `--change-issue none` when
+there is no resolved Issue. PR numbers are rejected. Do not list merely related
+or partially implemented Issues; the script never infers closure from arbitrary
+`#number` mentions.
+
+`--dry-run` validates and displays the targets. The tracking Issue and release
+checkpoint retain the mapping, and Release notes automatically link these Issues.
+Resume a Draft with the same declarations. After all blocking post-publication
+desktop, Android, and GHCR audits pass, the script backlinks the Release in the
+selected language, then closes each still-open target. Already-closed Issues get
+a backlink while retaining their closure reason. Non-blocking iOS delivery,
+Demo deployment, and TCR jobs do not gate this follow-up.
+
+A failed backlink prevents that Issue from closing; other targets still proceed.
+Partial failures retain the published Release and leave the tracking Issue open,
+with an independent retry command:
+
+```bash
+bun run release -- --finish-issues vX.Y.Z
+```
+
+This command restores the saved plan and successful-audit receipt and only handles
+Issues; it does not republish or rebuild assets. Repeated runs do not duplicate
+backlinks. Missing plans or audit receipts, a different target commit, or a Release
+restored to Draft prevent closure. Add `--dry-run` to inspect the plan. Older
+releases without these records cannot use this entry point.
 
 ### External Contributor Credits
 
