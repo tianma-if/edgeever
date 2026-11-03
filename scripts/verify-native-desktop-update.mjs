@@ -160,7 +160,11 @@ try {
     };
     try {
       launch();
-      await until(() => events().some((entry) => entry.event === "ready" && entry.version === intermediateVersion), "intermediate package downloaded");
+      await until(() => {
+        const failure = readEvents(join(profile, "logs/desktop.log")).find((entry) => entry.event === "main.startup-failed");
+        if (failure) throw new Error(`Fixture startup failed: ${failure.message}`);
+        return events().some((entry) => entry.event === "ready" && entry.version === intermediateVersion);
+      }, "intermediate package downloaded");
       feedVersion = latestVersion;
       if (scenario === "reject-corrupt-update") {
         if (process.platform === "win32") corruptSignature = true;

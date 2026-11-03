@@ -1,4 +1,4 @@
-import { macAppBundle } from "./native-update-macos.mjs";
+import { macAppBundle, assertMacFixtureRuntime, MAC_UPDATE_FIXTURE_NAME } from "./native-update-macos.mjs";
 import { createRequire } from "node:module";
 import { generateKeyPairSync, createHash } from "node:crypto";
 import { readFileSync, writeFileSync, mkdirSync, copyFileSync, rmSync } from "node:fs";
@@ -48,7 +48,9 @@ try {
     const directory = join(output, version);
     const config = {
       extends: "./electron-builder.yml", appId: "org.edgeever.update-verifier",
-      productName: "EdgeEver Update Verification", executableName: "EdgeEverUpdateVerifier",
+      // The product resolves its background Helper from the executable name.
+      productName: process.platform === "darwin" ? MAC_UPDATE_FIXTURE_NAME : "EdgeEver Update Verification",
+      executableName: MAC_UPDATE_FIXTURE_NAME,
       directories: { output: directory },
       mac: { notarize: false },
       // Keep the test installer isolated from production protocol associations.
@@ -57,6 +59,9 @@ try {
     writeFileSync(configPath, JSON.stringify(config));
     const target = process.platform === "darwin" ? ["--mac", "zip"] : process.platform === "win32" ? ["--win", "nsis"] : ["--linux", "AppImage"];
     run(process.execPath, [builderCli, "--projectDir", desktop, "--config", configPath, "--publish", "never", ...target, `--${process.arch}`], desktop);
+    if (process.platform === "darwin") {
+      assertMacFixtureRuntime(macAppBundle(join(directory, process.arch === "arm64" ? "mac-arm64" : "mac")));
+    }
     const payload = process.platform === "darwin"
       ? join(macAppBundle(join(directory, process.arch === "arm64" ? "mac-arm64" : "mac")), "Contents/Resources/app.asar")
       : process.platform === "win32" ? join(directory, "win-unpacked/resources/app.asar")
