@@ -86,10 +86,10 @@ const applyLegacyWeChatStyles = (
   const h3Style = proseStyle.headingStyle === "bar"
     ? `${h3Base.replace(/padding:\s*0;/, "padding: 0 0 0 8px;")} border-left: 3px solid ${accent};`
     : proseStyle.headingStyle === "numbered"
-      ? `display: inline-block; margin: 18px 0 8px; padding: 4px 12px; border-radius: 999px; background: ${surface}; color: ${accent}; font-family: ${PUBLISH_FONT}; font-size: 13px; font-weight: 700; line-height: 1.5;`
+      ? `display: block; width: fit-content; max-width: 100%; box-sizing: border-box; margin: 1.5em 0 0.6em; padding: 0.25em 0.75em 0.25em 1.5em; text-indent: -0.75em; overflow-wrap: anywhere; border-radius: 1em; background: ${surface}; color: ${accent}; font-family: ${PUBLISH_FONT}; font-size: ${fontSize}; font-weight: 700; line-height: 1.5;`
       : h3Base;
   const h4Style = proseStyle.headingStyle === "numbered"
-    ? `display: inline-block; margin: 16px 0 8px; padding: 1px 6px; border-radius: 3px; background: #fde68a; color: #111827; font-family: ${PUBLISH_FONT}; font-size: 14px; font-weight: 800; line-height: 1.5;`
+    ? `display: inline-block; margin: 16px 0 8px; padding: 1px 6px; border-radius: 3px; background: #fde68a; color: #111827; font-family: ${PUBLISH_FONT}; font-size: ${fontSize}; font-weight: 800; line-height: 1.5;`
     : headingStyle("h4", metrics);
   const blockquoteStyle = proseStyle.quoteStyle === "dashed"
     ? `margin: 0 0 20px; padding: 12px 16px; border: 1px dashed #d1d5db; border-radius: 8px; background: #f9fafb; color: ${QUOTE_COLOR}; font-family: ${PUBLISH_FONT}; line-height: ${lineHeight};`
@@ -185,7 +185,7 @@ const applyLegacyWeChatStyles = (
         `<span data-ee-publish-chrome="true" style="display: inline-block; width: 6px; height: 6px; background: ${accent}; border-radius: 50%; vertical-align: middle;"><span leaf=""><br></span></span>`,
         `<span data-ee-publish-chrome="true" style="display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: 3px; color: ${accent}; vertical-align: middle; margin-left: 8px;">FEATURED · 深度实测</span>`,
         `</section>`,
-        `<p data-ee-publish-chrome="true" style="font-size: 23px; font-weight: 900; color: #111827; margin: 0 0 14px; line-height: 1.2; letter-spacing: -0.5px;">${titleHtml}</p>`,
+        `<p data-ee-publish-chrome="true" style="font-size: ${metrics.fontSize * 1.75}px; font-weight: 900; color: #111827; margin: 0 0 14px; line-height: 1.2; letter-spacing: -0.5px;">${titleHtml}</p>`,
         `<section data-ee-publish-chrome="true" style="width: 48px; height: 3px; background: ${accent}; border-radius: 2px;"><span leaf=""><br></span></section>`,
         `</section>`,
         `<section data-ee-publish-chrome="true" style="${colors ? accentGradient : "background: #f3f4f6;"} padding: 10px 24px; font-size: 0;">`,
@@ -259,7 +259,7 @@ const applyLegacyWeChatStyles = (
         `</section>`,
         `<span data-ee-publish-chrome="true" style="display: inline-block; width: 1px; height: 36px; background: #e5e7eb; vertical-align: middle; margin: 0 16px;"><span leaf=""><br></span></span>`,
         `<section data-ee-publish-chrome="true" style="display: inline-block; vertical-align: middle; max-width: calc(100% - 86px);">`,
-        `<p data-ee-publish-chrome="true" style="margin: 0; font-size: 17px; font-weight: 900; color: #111827; letter-spacing: 0.3px; line-height: 1.3;">${titleHtml}</p>`,
+        `<p data-ee-publish-chrome="true" style="margin: 0; font-size: ${metrics.fontSize * 1.4}px; font-weight: 900; color: #111827; letter-spacing: 0.3px; line-height: 1.3;">${titleHtml}</p>`,
         `<p data-ee-publish-chrome="true" style="margin: 3px 0 0; font-size: 11px; font-weight: 600; color: #9ca3af; letter-spacing: 1px; line-height: 1.3;">${subLabel}</p>`,
         `</section>`,
       ].join("");
@@ -270,7 +270,7 @@ const applyLegacyWeChatStyles = (
       const dot = document.createElement("span");
       dot.setAttribute("data-ee-publish-chrome", "true");
       dot.setAttribute("data-ee-pill-dot", "true");
-      dot.style.cssText = `display: inline-block; width: 6px; height: 6px; background: ${accent}; border-radius: 50%; margin-right: 6px; vertical-align: middle;`;
+      dot.style.cssText = `display: inline-block; width: 0.375em; height: 0.375em; background: ${accent}; border-radius: 50%; margin-right: 0.375em; text-indent: 0; vertical-align: middle;`;
       dot.innerHTML = "<span leaf=\"\"><br></span>";
       heading.insertBefore(dot, heading.firstChild);
     });
