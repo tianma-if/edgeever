@@ -1,4 +1,5 @@
 import {
+  DEFAULT_MEMO_TITLE,
   createExcerpt,
   docToMarkdown,
   docToText,
@@ -260,7 +261,7 @@ export const listLocalMemos = async (scope: string, params: LocalMemoListParams)
     if (params.filter === "tagged" && memo.tags.length === 0) return false;
     if (params.filter === "untagged" && memo.tags.length > 0) return false;
     if (params.filter === "pinned" && !memo.isPinned) return false;
-    if (q && ![memo.title, memo.excerpt, memo.contentText, memo.tags.join(" ")].some((value) => value?.toLocaleLowerCase().includes(q))) return false;
+    if (q && ![memo.title || DEFAULT_MEMO_TITLE, memo.excerpt, memo.contentText, memo.tags.join(" ")].some((value) => value?.toLocaleLowerCase().includes(q))) return false;
     return true;
   });
 

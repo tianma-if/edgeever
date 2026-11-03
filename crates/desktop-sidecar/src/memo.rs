@@ -453,7 +453,7 @@ pub(crate) fn list_memos(database: &Connection, params: &Value) -> Result<Value,
         .unwrap_or(0)
         .max(0);
     let where_clause = format!(
-        "m.is_deleted = ?1 AND (?2 = '' OR lower(COALESCE(m.title, '') || ' ' || m.excerpt || ' ' || c.content_text || ' ' || m.tags_json) LIKE '%' || lower(?2) || '%')
+        "m.is_deleted = ?1 AND (?2 = '' OR lower(COALESCE(NULLIF(m.title, ''), '无标题笔记') || ' ' || m.excerpt || ' ' || c.content_text || ' ' || m.tags_json) LIKE '%' || lower(?2) || '%')
             AND (?3 IS NULL OR m.notebook_id = ?3)
             AND (?4 = '[]' OR m.notebook_id IN (SELECT value FROM json_each(?4)))
             AND (?5 = '' OR EXISTS (
