@@ -290,7 +290,7 @@ export const SettingsView = ({
           <Text numberOfLines={1} style={styles.settingsThemeText}>{resolvedTheme === "dark" ? "切换到浅色模式" : "切换到深色模式"}</Text>
         </Pressable>
       </View>
-      <ScrollView contentContainerStyle={styles.settingsScrollContent} style={styles.viewBody}>
+      <ScrollView contentContainerStyle={styles.settingsScrollContent} keyboardShouldPersistTaps="handled" style={styles.viewBody}>
         {activeTab === null ? (
           <View style={styles.settingsDetailList}>
             <View style={styles.settingsMenu}>

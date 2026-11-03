@@ -1,7 +1,7 @@
 import type { TotpSetupResponse } from "@edgeever/shared";
 import * as Clipboard from "expo-clipboard";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
-import { Linking, Share, StyleSheet, View } from "react-native";
+import { Keyboard, Linking, Share, StyleSheet, View } from "react-native";
 import QRCode from "react-native-qrcode-svg";
 import { getMobileCatalog, formatMobileCopy, useMobileLocale } from "../lib/mobile-locale";
 import { resolveMobileThemeStyles, useMobileTheme, type MobileResolvedTheme } from "../lib/mobile-theme";
@@ -93,7 +93,12 @@ export const TotpCodeInput = ({
       importantForAutofill="yes"
       keyboardType="number-pad"
       maxLength={TOTP_CODE_LENGTH}
-      onChangeText={(next) => onChangeText(normalizeTotpCodeInput(next))}
+      onChangeText={(next) => {
+        const normalized = normalizeTotpCodeInput(next);
+        onChangeText(normalized);
+        // The number pad can cover the button below; put it away once the code is complete.
+        if (normalized.length === TOTP_CODE_LENGTH) Keyboard.dismiss();
+      }}
       onSubmitEditing={onSubmit}
       placeholder="000000"
       placeholderTextColor="#94a3b8"
