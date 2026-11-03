@@ -115,6 +115,8 @@ export const SettingsView = ({
   const [localePickerOpen, setLocalePickerOpen] = useState(false);
   const [localePickerAnchor, setLocalePickerAnchor] = useState<{ left: number; top: number; width: number } | null>(null);
   const localeSelectRef = useRef<ComponentRef<typeof Pressable>>(null);
+  const settingsRootRef = useRef<View>(null);
+  const [keyboardOffset, setKeyboardOffset] = useState(0);
   const syncQueueScope = session?.baseUrl ?? "";
   const instanceDiagnosticsQuery = useQuery({
     queryKey: ["mobile", "system-info", "instance", session?.baseUrl],
@@ -271,7 +273,12 @@ export const SettingsView = ({
   };
 
   return (
-    <View style={styles.settingsScreen}>
+    <View
+      collapsable={false}
+      onLayout={() => settingsRootRef.current?.measureInWindow((_x, y) => setKeyboardOffset(y))}
+      ref={settingsRootRef}
+      style={styles.settingsScreen}
+    >
       <View style={styles.settingsHeader}>
         <Pressable accessibilityLabel="返回" onPress={() => activeTab ? setActiveTab(null) : onClose()} style={styles.settingsBackButton}>
           <ChevronLeft color="#64748b" size={21} />
@@ -291,8 +298,10 @@ export const SettingsView = ({
         </Pressable>
       </View>
       {/* Android draws edge-to-edge, so the window no longer resizes for the
-          keyboard; shrink the scroll area like the login screen does. */}
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.viewBody}>
+          keyboard; shrink the scroll area like the login screen does. The
+          offset is this screen's distance from the top of the window: the
+          avoiding view only knows its position inside this screen. */}
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} keyboardVerticalOffset={keyboardOffset} style={styles.viewBody}>
       <ScrollView contentContainerStyle={styles.settingsScrollContent} keyboardShouldPersistTaps="handled" style={styles.viewBody}>
         {activeTab === null ? (
           <View style={styles.settingsDetailList}>
