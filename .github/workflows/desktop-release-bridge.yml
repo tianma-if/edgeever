@@ -113,6 +113,8 @@ jobs:
           old_image="$(find "$RUNNER_TEMP/release-bridge/previous" -name '*.AppImage' -print -quit)"
           new_image="$(find "$RUNNER_TEMP/release-bridge/candidate" -name '*.AppImage' -print -quit)"
           version="$(basename "$new_image" | sed -E 's/^EdgeEver-([0-9]+\.[0-9]+\.[0-9]+)-.*/\1/')"
+          mv "$old_image" "$RUNNER_TEMP/release-bridge/previous/EdgeEver.AppImage"
+          old_image="$RUNNER_TEMP/release-bridge/previous/EdgeEver.AppImage"
           chmod +x "$old_image"
           mkdir -p "$RUNNER_TEMP/release-bridge/evidence"
           set -o pipefail
