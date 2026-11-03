@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, test } from "bun:test";
 
 const mainSource = readFileSync(new URL("./index.mjs", import.meta.url), "utf8");
+const windowsUpdateSource = readFileSync(new URL("./windows-update-controller.mjs", import.meta.url), "utf8");
 const preloadSource = readFileSync(new URL("../preload/index.cjs", import.meta.url), "utf8");
 const noticeSource = readFileSync(new URL("../../../web/src/components/DesktopUpdateNotice.tsx", import.meta.url), "utf8");
 const systemInfoSource = readFileSync(new URL("../../../web/src/components/settings/SystemInfoPanel.tsx", import.meta.url), "utf8");
@@ -18,19 +19,20 @@ describe("desktop update flow", () => {
   });
 
   test("downloads updates in the background and relaunches after installation", () => {
-    expect(mainSource).toContain('autoUpdater.autoDownload = process.platform !== "win32"');
+    expect(mainSource).toContain("autoUpdater.autoDownload = true");
+    expect(windowsUpdateSource).toContain("void download(reason)");
     expect(mainSource).toContain("autoUpdater.autoRunAppAfterInstall = true");
     expect(mainSource).toContain('autoUpdater.quitAndInstall(process.platform === "win32", true)');
     expect(mainSource).toContain("result?.downloadPromise");
-    expect(mainSource).toContain("downloadTrustedDesktopUpdate(reason)");
+    expect(mainSource).toContain("windowsUpdateController.download(reason)");
   });
 
-  test("fails closed around unsigned Windows automatic updates", () => {
-    expect(mainSource).toContain("fetchTrustedWindowsUpdate({");
-    expect(mainSource).toContain("verifyDownloadedWindowsUpdate({");
-    expect(mainSource).toContain('autoUpdater.autoInstallOnAppQuit = process.platform !== "win32"');
-    expect(mainSource).toContain("windowsDownloadedUpdateVerified = true");
-    expect(mainSource).toContain('writeDiagnostic("update.windows-package-blocked"');
+  test("routes Windows through the serialized, signed update controller", () => {
+    expect(mainSource).toContain('if (process.platform === "win32") {\n    windowsUpdateController = createWindowsUpdateController({');
+    expect(mainSource).toContain("fetchTrustedWindowsUpdate({ ...options, fetchImpl: net.fetch })");
+    expect(mainSource).toContain("verifyWindowsPackage: verifyDownloadedWindowsUpdate");
+    expect(mainSource).toContain("windowsUpdateController.check(reason)");
+    expect(mainSource).toContain("windowsUpdateController.install(expectedVersion)");
     expect(mainSource).toContain('downloadTrustedDesktopUpdate("manual-download")');
   });
 
