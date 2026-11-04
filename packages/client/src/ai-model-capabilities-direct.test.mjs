@@ -39,6 +39,17 @@ describe("model limit detection (#652)", () => {
     expect(paths).toEqual(["/api/v1/models", "/v1/models", "/v1/model/info", "/v1/models", "/v1/model/info"]);
   });
 
+  test("a gateway answering unsupported metadata paths with 400 counts as 'no limits'", async () => {
+    const gateway = async () => json({ error: "不支持的请求路径" }, 400);
+    expect(await detectAiModelCapabilities({ provider: "anthropic", baseUrl: "https://gw.example/v1", apiKey: "k", modelId: "claude-x" }, gateway))
+      .toEqual({ maxOutputTokens: null, maxInputTokens: null, contextWindowTokens: null, source: "none" });
+    expect(await detectAiModelCapabilities({ provider: "google", baseUrl: "https://gw.example/v1beta", apiKey: "k", modelId: "gemini-x" }, gateway))
+      .toMatchObject({ source: "none" });
+    // Authentication and rate limits are not answers about the model.
+    expect(await detectAiModelCapabilities({ provider: "anthropic", baseUrl: "https://gw.example/v1", apiKey: "k", modelId: "claude-x" }, async () => json({}, 401))).toBeNull();
+    expect(await detectAiModelCapabilities({ provider: "anthropic", baseUrl: "https://gw.example/v1", apiKey: "k", modelId: "claude-x" }, async () => json({}, 429))).toBeNull();
+  });
+
   test("authentication, server and network errors mean 'unknown', not 'no limits'", async () => {
     const target = { provider: "openai-compatible", baseUrl: "https://g.example/v1", apiKey: "k", modelId: "m" };
     expect(await detectAiModelCapabilities(target, async () => json({ error: "bad key" }, 401))).toBeNull();

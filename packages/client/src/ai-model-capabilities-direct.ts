@@ -23,8 +23,9 @@ class DetectionUnavailable extends Error {}
  * Read a model's output and context limits from the provider's own metadata (#652).
  * - Returns the limits found, or `AI_MODEL_CAPABILITY_NONE` when the provider answered without
  *   any (common for OpenAI and many gateways), so the client does not ask again for a while.
- * - Returns `null` when the metadata could not be read (network, authentication or server
- *   errors); nothing should be reported then.
+ * - Returns `null` when the metadata could not be read (network, authentication, rate-limit or
+ *   server errors); nothing should be reported then. A gateway answering an unsupported metadata
+ *   path with 400 or 404 counts as "no limits".
  * These are read-only GET requests; they never generate text.
  */
 export const detectAiModelCapabilities = async (
@@ -36,7 +37,11 @@ export const detectAiModelCapabilities = async (
   const headers = providerHeaders(target);
   const read = async (url: string, endpoint: AiModelMetadataEndpoint, missingIsEmpty: boolean) => {
     const response = await fetchImpl(url, { method: "GET", headers, signal });
-    if (response.status === 404 && missingIsEmpty) return null;
+    // Gateways answer unsupported metadata paths with 404 or, often, 400. Treat any client
+    // error other than authentication or rate limiting as "this endpoint has no metadata".
+    const unsupported = response.status >= 400 && response.status < 500
+      && response.status !== 401 && response.status !== 403 && response.status !== 429;
+    if (unsupported && missingIsEmpty) return null;
     if (!response.ok) throw new DetectionUnavailable(`HTTP ${response.status}`);
     const body: unknown = await response.json().catch(() => null);
     return parseAiModelCapabilityLimits({ provider: target.provider, modelId: target.modelId, endpoint, body });
@@ -50,6 +55,7 @@ export const detectAiModelCapabilities = async (
       return await read(`${base}/models/${encodeURIComponent(modelId)}`, "model", true) ?? AI_MODEL_CAPABILITY_NONE;
     }
     // OpenRouter and DeepSeek put limits on the model list; LiteLLM serves them on /model/info.
+    // The list itself must answer: it is the same endpoint "Discover models" uses.
     return await read(`${base}/models`, "models", false)
       ?? await read(`${base}/model/info`, "litellm-model-info", true).catch(() => null)
       ?? AI_MODEL_CAPABILITY_NONE;
