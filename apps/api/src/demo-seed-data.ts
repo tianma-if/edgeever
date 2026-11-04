@@ -1000,16 +1000,35 @@ export const DEMO_SEED_MEMOS_ZH = [
 
 \`\`\`mermaid
 flowchart TD
-    Clients["全端客户端<br/>Web / PWA · 桌面端<br/>Android / iOS · 浏览器剪藏插件"]
-    Agents["外部 AI 智能体<br/>Claude Code · Cursor · Antigravity"]
+    subgraph ClientLayer["全端客户端"]
+        Clients["全端客户端矩阵<br/>Web · PWA · 桌面客户端<br/>iOS · Android · 浏览器剪藏"]
+    end
 
-    Clients -->|BYOK 直连| AI["行内 AI 助手<br/>OpenAI · Gemini · DeepSeek"]
-    Clients <-->|REST / 增量同步| API["Hono API<br/>Workers / Docker"]
-    Agents <-->|MCP Tools / SSE| MCP["MCP 服务<br/>/mcp"]
-    Agents <-->|数据同步| Integrations["外部集成<br/>Notion · 飞书"]
+    subgraph Ecosystem["AI 与外部生态"]
+        direction LR
+        LLMs["主流大语言模型<br/>OpenAI · Gemini · DeepSeek"]
+        Agents["外部 AI 智能体<br/>Claude Code · Cursor · Antigravity"]
+    end
 
-    API <--> Storage[("数据与附件存储<br/>D1 / SQLite · R2 / S3")]
-    MCP <--> Storage
+    subgraph Platform["EdgeEver 平台核心 (Cloudflare Workers / Docker)"]
+        API["统一 REST API 入口<br/>认证鉴权 · 限流 · 增量同步游标"]
+        MCP["原生 MCP 服务端点 (/mcp)<br/>上下文感知 · 工具读写协议"]
+    end
+
+    subgraph Storage["数据与对象存储"]
+        direction LR
+        DB[("关系数据库<br/>Cloudflare D1 / SQLite")]
+        OSS[("对象存储<br/>Cloudflare R2 / S3 兼容")]
+    end
+
+    Clients -->|BYOK 客户端直连 · 隐私安全| LLMs
+    Clients <-->|HTTPS 增量同步| API
+    Agents <-->|MCP Tools / SSE 协议| MCP
+
+    API <--> DB
+    API <--> OSS
+    MCP <--> DB
+    MCP <--> OSS
 \`\`\`
 
 ---
@@ -1335,16 +1354,35 @@ The Mermaid diagram below demonstrates how EdgeEver connects cross-platform clie
 
 \`\`\`mermaid
 flowchart TD
-    Clients["Cross-platform clients<br/>Web / PWA · Desktop<br/>Android / iOS · Web clipper"]
-    Agents["External AI agents<br/>Claude Code · Cursor · Antigravity"]
+    subgraph ClientLayer["Cross-platform clients"]
+        Clients["Cross-Platform Clients<br/>Web · PWA · Desktop Apps<br/>iOS · Android · Web Clipper"]
+    end
 
-    Clients -->|Direct BYOK| AI["Inline AI assistant<br/>OpenAI · Gemini · DeepSeek"]
-    Clients <-->|REST / incremental sync| API["Hono API<br/>Workers / Docker"]
-    Agents <-->|MCP Tools / SSE| MCP["MCP server<br/>/mcp"]
-    Agents <-->|Data sync| Integrations["Integrations<br/>Notion · Feishu"]
+    subgraph Ecosystem["AI & External Ecosystem"]
+        direction LR
+        LLMs["LLM Providers<br/>OpenAI · Gemini · DeepSeek"]
+        Agents["External AI Agents<br/>Claude Code · Cursor · Antigravity"]
+    end
 
-    API <--> Storage[("Data and attachments<br/>D1 / SQLite · R2 / S3")]
-    MCP <--> Storage
+    subgraph Platform["EdgeEver Platform Core (Cloudflare Workers / Docker)"]
+        API["Unified REST API Entry<br/>Auth · Rate Limiting · Sync Cursor"]
+        MCP["Native MCP Endpoint (/mcp)<br/>Context Retrieval · Read/Write Tools"]
+    end
+
+    subgraph Storage["Data & Object Storage"]
+        direction LR
+        DB[("Relational Database<br/>Cloudflare D1 / SQLite")]
+        OSS[("Object Storage<br/>Cloudflare R2 / S3 Compatible")]
+    end
+
+    Clients -->|Direct BYOK · Privacy First| LLMs
+    Clients <-->|HTTPS Incremental Sync| API
+    Agents <-->|MCP Tools / SSE Protocol| MCP
+
+    API <--> DB
+    API <--> OSS
+    MCP <--> DB
+    MCP <--> OSS
 \`\`\`
 
 ---
