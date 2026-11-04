@@ -8,6 +8,7 @@ import {
   AiTagSuggestionsRequestSchema,
 } from "@edgeever/shared";
 import { registerAiRoutes } from "./ai-routes.ts";
+import { encryptSecret } from "./secret-encryption.ts";
 
 const auth = {
   kind: "user",
@@ -1355,6 +1356,212 @@ describe("AI settings storage failures", () => {
     );
     expect(response.status).toBe(503);
     expect(await response.json()).toMatchObject({ error: { code: "ai_credentials_unavailable" } });
+    sqlite.close();
+  });
+});
+
+describe("model output budgets (#652)", () => {
+  const json = (body, method = "POST") => ({
+    method,
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const setup = async (app = createApp()) => {
+    const database = createDatabaseEnvironment();
+    const created = await app.request("/api/v1/ai/providers", json(validSettings), database.environment);
+    expect(created.status).toBe(201);
+    const provider = (await created.json()).providers[0];
+    return { ...database, provider, model: provider.models[0] };
+  };
+  const prepareGeneration = async (app, env) => {
+    const response = await app.request(
+      "/api/v1/ai/generate/prepare",
+      json({ action: "summarize", title: "Note", contentMarkdown: "Body" }),
+      env,
+    );
+    expect(response.status).toBe(200);
+    return response.json();
+  };
+  const prepareTags = async (app, env) => {
+    const response = await app.request(
+      "/api/v1/ai/tag-suggestions/prepare",
+      json({ title: "Note", contentMarkdown: "Body", currentTags: [] }),
+      env,
+    );
+    expect(response.status).toBe(200);
+    return response.json();
+  };
+  const patchPath = (provider, model) => `/api/v1/ai/providers/${provider.id}/models/${model.id}`;
+
+  test("existing models keep the built-in defaults", async () => {
+    const app = createApp();
+    const { sqlite, environment: env, model } = await setup(app);
+    expect(model).toMatchObject({
+      generationMaxOutputTokens: null,
+      tagSuggestionMaxOutputTokens: null,
+      companionMaxOutputTokens: null,
+    });
+    expect((await prepareGeneration(app, env)).maxOutputTokens).toBe(4096);
+    const tags = await prepareTags(app, env);
+    expect(tags.maxOutputTokens).toBe(300);
+    expect(tags.temperature).toBe(0);
+    sqlite.close();
+  });
+
+  test("PATCH treats omitted fields as unchanged and null as restore-default", async () => {
+    const app = createApp();
+    const { sqlite, environment: env, provider, model } = await setup(app);
+
+    const first = await app.request(
+      patchPath(provider, model),
+      json({ generationMaxOutputTokens: 16000, tagSuggestionMaxOutputTokens: 800 }, "PATCH"),
+      env,
+    );
+    expect(first.status).toBe(200);
+    expect((await first.json()).providers[0].models[0]).toMatchObject({
+      generationMaxOutputTokens: 16000,
+      tagSuggestionMaxOutputTokens: 800,
+      companionMaxOutputTokens: null,
+    });
+    expect((await prepareGeneration(app, env)).maxOutputTokens).toBe(16000);
+    expect((await prepareTags(app, env)).maxOutputTokens).toBe(800);
+
+    const second = await app.request(
+      patchPath(provider, model),
+      json({ generationMaxOutputTokens: null }, "PATCH"),
+      env,
+    );
+    expect(second.status).toBe(200);
+    expect((await second.json()).providers[0].models[0]).toMatchObject({
+      generationMaxOutputTokens: null,
+      tagSuggestionMaxOutputTokens: 800,
+    });
+    expect((await prepareGeneration(app, env)).maxOutputTokens).toBe(4096);
+    expect((await prepareTags(app, env)).maxOutputTokens).toBe(800);
+
+    const audits = sqlite.query(
+      "SELECT action, entity_id, metadata_json FROM audit_events WHERE action = 'workspace.ai_model.update' ORDER BY rowid",
+    ).all();
+    expect(audits.map((row) => row.entity_id)).toEqual([model.id, model.id]);
+    expect(JSON.parse(audits[1].metadata_json)).toEqual({
+      providerConfigId: provider.id,
+      modelId: "model-a",
+      generationMaxOutputTokens: null,
+    });
+    sqlite.close();
+  });
+
+  test("PATCH rejects empty, unknown, non-integer and out-of-range input", async () => {
+    const app = createApp();
+    const { sqlite, environment: env, provider, model } = await setup(app);
+    for (const body of [
+      {},
+      { maxOutputTokens: 1000 },
+      { generationMaxOutputTokens: 1000.5 },
+      { generationMaxOutputTokens: "1000" },
+      { generationMaxOutputTokens: 255 },
+      { generationMaxOutputTokens: 131_073 },
+      { tagSuggestionMaxOutputTokens: 63 },
+      { tagSuggestionMaxOutputTokens: 8193 },
+      { companionMaxOutputTokens: 0 },
+    ]) {
+      const response = await app.request(patchPath(provider, model), json(body, "PATCH"), env);
+      expect({ body, status: response.status }).toEqual({ body, status: 400 });
+    }
+    const stored = sqlite.query("SELECT generation_max_output_tokens, tag_suggestion_max_output_tokens, companion_max_output_tokens FROM ai_models").get();
+    expect(stored).toEqual({ generation_max_output_tokens: null, tag_suggestion_max_output_tokens: null, companion_max_output_tokens: null });
+    sqlite.close();
+  });
+
+  test("PATCH is workspace-scoped, user-only and blocked in demo mode", async () => {
+    const app = createApp();
+    const { sqlite, environment: env, provider, model } = await setup(app);
+    sqlite.query("INSERT INTO workspaces (id, name, is_personal) VALUES (?, ?, 1)").run("ws_other", "Other workspace");
+    const body = json({ generationMaxOutputTokens: 9000 }, "PATCH");
+
+    const otherWorkspace = createApp({ currentAuth: { ...auth, actorId: "usr_other", workspaceId: "ws_other" } });
+    expect((await otherWorkspace.request(patchPath(provider, model), body, env)).status).toBe(404);
+    expect((await app.request(`/api/v1/ai/providers/other/models/${model.id}`, body, env)).status).toBe(404);
+    expect((await createApp({ demoMode: true }).request(patchPath(provider, model), body, env)).status).toBe(403);
+    const token = createApp({ currentAuth: { ...auth, kind: "agent", actorType: "agent", scopes: ["ai:generate"] } });
+    expect((await token.request(patchPath(provider, model), body, env)).status).toBe(403);
+
+    expect(sqlite.query("SELECT generation_max_output_tokens AS value FROM ai_models").get()).toEqual({ value: null });
+    expect(sqlite.query("SELECT COUNT(*) AS count FROM audit_events WHERE action = 'workspace.ai_model.update'").get()).toEqual({ count: 0 });
+    sqlite.close();
+  });
+
+  test("credentials and budget always come from the current default model", async () => {
+    const app = createApp();
+    const { sqlite, environment: env, provider } = await setup(app);
+    const added = await app.request(
+      `/api/v1/ai/providers/${provider.id}/models`,
+      json({ modelId: "model-b", generationMaxOutputTokens: 20000 }),
+      env,
+    );
+    expect(added.status).toBe(201);
+    const modelB = (await added.json()).providers[0].models.find((model) => model.modelId === "model-b");
+    expect(modelB.generationMaxOutputTokens).toBe(20000);
+
+    expect(await prepareGeneration(app, env)).toMatchObject({ modelId: "model-a", maxOutputTokens: 4096 });
+    expect((await app.request("/api/v1/ai/default-model", json({ modelConfigId: modelB.id }, "PUT"), env)).status).toBe(200);
+    expect(await prepareGeneration(app, env)).toMatchObject({ modelId: "model-b", maxOutputTokens: 20000 });
+    sqlite.close();
+  });
+
+  test("other prepare responses keep their existing shape", async () => {
+    const app = createApp();
+    const { sqlite, environment: env, provider, model } = await setup(app);
+    await app.request(patchPath(provider, model), json({ generationMaxOutputTokens: 16000, companionMaxOutputTokens: 9000 }, "PATCH"), env);
+    const infographic = await app.request(
+      "/api/v1/ai/infographic-agent/prepare",
+      json({ prompt: "列表", currentContent: "", candidates: ["list-grid-simple"], history: [] }),
+      env,
+    );
+    expect(infographic.status).toBe(200);
+    expect(Object.keys(await infographic.json()).sort()).toEqual(["apiKey", "baseUrl", "modelId", "provider"]);
+    const outline = await app.request("/api/v1/ai/video-outline/prepare", json(videoOutlineBody()), env);
+    expect(outline.status).toBe(200);
+    expect(await outline.json()).toMatchObject({ maxOutputTokens: 1200 });
+    sqlite.close();
+  });
+
+  test("an upgraded database keeps old rows on defaults and stays readable by the previous server query", async () => {
+    const sqlite = new Database(":memory:");
+    for (const migration of globSync("migrations/*.sql").sort()) {
+      if (migration.endsWith("0091_ai_model_output_budgets.sql")) continue;
+      sqlite.exec(readFileSync(migration, "utf8"));
+    }
+    sqlite.query("INSERT INTO workspaces (id, name, is_personal) VALUES (?, ?, 1)").run("ws_member", "Member workspace");
+    const env = { storage: { db: new SqliteD1Database(sqlite), resources: {} }, EDGE_EVER_AUTH_PASSWORD: "x".repeat(32) };
+    // Rows written by the previous release, before the upgrade.
+    const now = "2026-11-01T00:00:00.000Z";
+    const apiKey = await encryptSecret("secret", `edgeever:ai-credentials:v1:${"x".repeat(32)}`);
+    sqlite.query(
+      `INSERT INTO ai_provider_configs (id, workspace_id, provider, display_name, base_url, api_key_encrypted, is_enabled, created_at, updated_at)
+       VALUES ('aip_old', 'ws_member', 'openai-compatible', 'Old', 'https://models.example.com/v1', ?, 1, ?, ?)`,
+    ).run(apiKey, now, now);
+    sqlite.query(
+      `INSERT INTO ai_models (id, provider_config_id, model_id, display_name, created_at, updated_at)
+       VALUES ('aim_old', 'aip_old', 'old-model', 'old-model', ?, ?)`,
+    ).run(now, now);
+    sqlite.query(
+      `INSERT INTO ai_workspace_settings (workspace_id, default_model_id, created_at, updated_at) VALUES ('ws_member', 'aim_old', ?, ?)`,
+    ).run(now, now);
+    sqlite.exec(readFileSync("migrations/0091_ai_model_output_budgets.sql", "utf8"));
+
+    const app = createApp();
+    const settings = await (await app.request("/api/v1/ai/settings", {}, env)).json();
+    expect(settings.providers[0].models[0]).toMatchObject({ id: "aim_old", generationMaxOutputTokens: null });
+    expect(await prepareGeneration(app, env)).toMatchObject({ modelId: "old-model", apiKey: "secret" });
+    expect((await prepareGeneration(app, env)).maxOutputTokens).toBe(4096);
+    // The previous release selected explicit columns, so a rollback keeps reading and writing.
+    expect((await app.request("/api/v1/ai/providers/aip_old/models/aim_old", json({ generationMaxOutputTokens: 9000 }, "PATCH"), env)).status).toBe(200);
+    expect(sqlite.query(`SELECT id, provider_config_id, model_id, display_name, created_at, updated_at FROM ai_models`).all()).toHaveLength(1);
+    sqlite.query(
+      `INSERT INTO ai_models (id, provider_config_id, model_id, display_name, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
+    ).run("aim_legacy", "aip_old", "legacy-model", "legacy-model", now, now);
+    expect(sqlite.query("SELECT generation_max_output_tokens AS value FROM ai_models WHERE id = 'aim_legacy'").get()).toEqual({ value: null });
     sqlite.close();
   });
 });

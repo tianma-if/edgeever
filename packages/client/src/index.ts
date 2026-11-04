@@ -75,6 +75,7 @@ import type {
   AiTranscriptionStandard,
   AiPromptTemplate,
   AiPromptTemplateCreateInput,
+  AiModelConfigUpdateInput,
   AiPromptTemplateUpdateInput,
   AiStreamEvent,
   AiGenerateInput,
@@ -1044,6 +1045,13 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
     addAiModel: (providerConfigId: string, payload: { modelId: string; displayName?: string }) =>
       request<AiSettings>(`/api/v1/ai/providers/${encodeURIComponent(providerConfigId)}/models`, {
         method: "POST",
+        body: JSON.stringify(payload),
+      }),
+
+    /** Omitted fields keep their value; `null` restores the default budget. */
+    updateAiModel: (providerConfigId: string, modelConfigId: string, payload: AiModelConfigUpdateInput) =>
+      request<AiSettings>(`/api/v1/ai/providers/${encodeURIComponent(providerConfigId)}/models/${encodeURIComponent(modelConfigId)}`, {
+        method: "PATCH",
         body: JSON.stringify(payload),
       }),
 

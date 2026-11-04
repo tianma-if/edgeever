@@ -8,12 +8,14 @@ import {
   AiTranscriptionProviderUpdateSchema,
   InfographicAgentRequestSchema,
   AiModelConfigCreateSchema,
+  AiModelConfigUpdateSchema,
   AiProviderConfigCreateSchema,
   AiProviderConfigUpdateSchema,
   AiProviderConnectionTestSchema,
   AiTagSuggestionsRequestSchema,
   buildAiTagSuggestionRequest,
   getDefaultAiTagSuggestionPrompt,
+  resolveAiModelOutputBudget,
   promptNeedsTargetLanguage,
   promptNeedsTone,
   type AiAction,
@@ -36,6 +38,7 @@ import {
   getDefaultAiDirectTarget,
   loadDefaultAiModelCredentials,
   normalizeAiBaseUrl,
+  resolveDefaultAiModel,
   prepareAiGeneration,
   aiTranscriptionDefaultStatement,
   getAiTranscriptionModel,
@@ -709,13 +712,18 @@ export const registerAiRoutes = (app: Hono<AppEnv>, dependencies: AiRouteDepende
       const statements = [
         context.env.storage.db.prepare(
           `INSERT INTO ai_models (
-             id, provider_config_id, model_id, display_name, created_at, updated_at
-           ) VALUES (?, ?, ?, ?, ?, ?)`,
+             id, provider_config_id, model_id, display_name,
+             generation_max_output_tokens, tag_suggestion_max_output_tokens, companion_max_output_tokens,
+             created_at, updated_at
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         ).bind(
           modelConfigId,
           providerConfigId,
           input.modelId,
           input.displayName ?? input.modelId,
+          input.generationMaxOutputTokens ?? null,
+          input.tagSuggestionMaxOutputTokens ?? null,
+          input.companionMaxOutputTokens ?? null,
           now,
           now,
         ),
@@ -744,6 +752,57 @@ export const registerAiRoutes = (app: Hono<AppEnv>, dependencies: AiRouteDepende
         return context.json(await readSettings(context, dependencies), 201);
       } catch (error) {
         return withAiError(context, error, "ai_model_create_failed");
+      }
+    },
+  );
+
+  app.patch(
+    "/api/v1/ai/providers/:providerConfigId/models/:modelConfigId",
+    zValidator("json", AiModelConfigUpdateSchema, (result, context) => {
+      if (result.success) return;
+      return apiError(context, "ai_model_update_invalid", "The AI model settings are invalid.", 400);
+    }),
+    async (context) => {
+      const denied = denyMutation(context, dependencies);
+      if (denied) return denied;
+      const workspaceId = getWorkspaceId(context);
+      const providerConfigId = context.req.param("providerConfigId");
+      const modelConfigId = context.req.param("modelConfigId");
+      const model = await getAiModelConfig(context.env.storage.db, workspaceId, modelConfigId);
+      if (!model || model.provider_config_id !== providerConfigId) {
+        return notFound(context, "AI model not found.");
+      }
+      const input = context.req.valid("json");
+      // Only fields present in the request change; omitted fields keep their stored value.
+      const columns = [
+        ["generation_max_output_tokens", input.generationMaxOutputTokens],
+        ["tag_suggestion_max_output_tokens", input.tagSuggestionMaxOutputTokens],
+        ["companion_max_output_tokens", input.companionMaxOutputTokens],
+      ] as const;
+      const changed = columns.filter(([, value]) => value !== undefined);
+      const now = isoNow();
+      try {
+        await context.env.storage.db.batch([
+          context.env.storage.db.prepare(
+            `UPDATE ai_models
+             SET ${changed.map(([column]) => `${column} = ?`).join(", ")}, updated_at = ?
+             WHERE id = ? AND provider_config_id IN (
+               SELECT id FROM ai_provider_configs WHERE id = ? AND workspace_id = ?
+             )`,
+          ).bind(...changed.map(([, value]) => value ?? null), now, modelConfigId, providerConfigId, workspaceId),
+          auditStatement(
+            context.env.storage.db,
+            "user",
+            context.get("auth").actorId,
+            "workspace.ai_model.update",
+            "ai_model",
+            modelConfigId,
+            { providerConfigId, modelId: model.model_id, ...Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined)) },
+          ),
+        ]);
+        return context.json(await readSettings(context, dependencies));
+      } catch (error) {
+        return withAiError(context, error, "ai_model_update_failed");
       }
     },
   );
@@ -848,7 +907,7 @@ export const registerAiRoutes = (app: Hono<AppEnv>, dependencies: AiRouteDepende
           ...input.currentTags.map((tag) => allCanonicalTags.get(tag.toLocaleLowerCase()) ?? tag),
           ...popularTags,
         ]));
-        const credentials = await loadDefaultAiModelCredentials(
+        const { credentials, outputBudgets } = await resolveDefaultAiModel(
           context.env.storage.db,
           workspaceId,
           context.env,
@@ -857,6 +916,7 @@ export const registerAiRoutes = (app: Hono<AppEnv>, dependencies: AiRouteDepende
           ...input,
           existingTags,
           instruction: getDefaultAiTagSuggestionPrompt(input.locale),
+          maxOutputTokens: resolveAiModelOutputBudget(outputBudgets, "tagSuggestionMaxOutputTokens"),
         });
         return context.json({
           ...credentials,
@@ -896,12 +956,16 @@ export const registerAiRoutes = (app: Hono<AppEnv>, dependencies: AiRouteDepende
       try {
         const input = context.req.valid("json");
         const fields = await resolveAiGenerateFields(context, input);
-        const credentials = await loadDefaultAiModelCredentials(
+        const { credentials, outputBudgets } = await resolveDefaultAiModel(
           context.env.storage.db,
           getWorkspaceId(context),
           context.env,
         );
-        return context.json(prepareAiGeneration({ ...fields, credentials }));
+        return context.json(prepareAiGeneration({
+          ...fields,
+          credentials,
+          maxOutputTokens: resolveAiModelOutputBudget(outputBudgets, "generationMaxOutputTokens"),
+        }));
       } catch (error) {
         return withAiError(context, error, "ai_generation_failed");
       }

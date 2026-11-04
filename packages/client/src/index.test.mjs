@@ -1275,3 +1275,22 @@ describe("EdgeEver client direct AI runs", () => {
     expect(providerCalls[0].headers.get("Authorization")).toBe("Bearer model-key");
   });
 });
+
+describe("AI model output budgets (#652)", () => {
+  test("updateAiModel sends only the provided budget fields with PATCH", async () => {
+    const calls = [];
+    const client = createEdgeEverClient({
+      baseUrl: "https://notes.example",
+      fetch: async (input, init) => {
+        calls.push({ url: String(input), method: init?.method, body: init?.body });
+        return Response.json({ providers: [], defaultModelId: null, encryptionConfigured: true, readOnly: false });
+      },
+    });
+    await client.updateAiModel("aip 1", "aim/1", { generationMaxOutputTokens: null, companionMaxOutputTokens: 9000 });
+    expect(calls).toEqual([{
+      url: "https://notes.example/api/v1/ai/providers/aip%201/models/aim%2F1",
+      method: "PATCH",
+      body: JSON.stringify({ generationMaxOutputTokens: null, companionMaxOutputTokens: 9000 }),
+    }]);
+  });
+});

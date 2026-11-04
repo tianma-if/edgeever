@@ -196,6 +196,10 @@ export type AiModelConfig = {
   providerConfigId: string;
   modelId: string;
   displayName: string;
+  /** Model-level output budgets; `null` uses the EdgeEver default. Older servers omit these fields. */
+  generationMaxOutputTokens?: number | null;
+  tagSuggestionMaxOutputTokens?: number | null;
+  companionMaxOutputTokens?: number | null;
 };
 
 export type AiProviderConfig = {

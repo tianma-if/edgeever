@@ -11,7 +11,14 @@ import type {
   CompanionTurnCompleteInput,
 } from "@edgeever/shared";
 import type { ModelMessage } from "ai";
-import { companionFailureDiagnostics, sealCompanionProcess } from "@edgeever/shared";
+import {
+  COMPANION_RESPONSE_MAX_CHARS,
+  clipCompanionProcess,
+  clipToCharLimit,
+  companionFailureDiagnostics,
+  fitCompanionTurnBody,
+  sealCompanionProcess,
+} from "@edgeever/shared";
 import { throwIfAborted } from "./abort-signal";
 import { createClientAiModel } from "./ai-model";
 
@@ -102,7 +109,8 @@ export const companionDirectFailureCode = (error: unknown): string => {
   const status = typeof record?.statusCode === "number" ? record.statusCode
     : typeof record?.status === "number" ? record.status : undefined;
   const code = asString(record?.code);
-  if (code === "companion_context_changed" || code === "ai_not_configured" || code === "ai_credentials_rejected") return code;
+  if (code === "companion_context_changed" || code === "ai_not_configured" || code === "ai_credentials_rejected"
+    || code === "companion_response_too_long") return code;
   if (status === 401 || status === 403) return "ai_credentials_rejected";
   if (status === 402) return "ai_provider_payment_required";
   if (status === 429) return "ai_provider_rate_limited";
@@ -151,21 +159,31 @@ export const streamDirectCompanion = async (
   const sealProcess = () => {
     if (!response.trim()) return;
     ({ process, response } = sealCompanionProcess(process, response));
+    process = clipCompanionProcess(process);
     persisted = 0;
     options.onEvent({ type: "process", text: process });
   };
 
   const finish = async (status: CompanionTurnCompleteInput["status"], usage?: { inputTokens?: number; outputTokens?: number }, error?: unknown) => {
     try {
-      const completed = await options.complete({
+      // Character limits alone are not enough: CJK text can exceed the request byte limit.
+      const completed = await options.complete(fitCompanionTurnBody({
         response, process, status, inputTokens: usage?.inputTokens, outputTokens: usage?.outputTokens,
-      });
+      }));
       if (status === "failed" && error) options.onEvent({ type: "error", code: companionDirectFailureCode(error), diagnostics: companionFailureDiagnostics(error) });
       else options.onEvent({ type: "done", turn: completed.turn });
     } catch (completeError) {
       options.onEvent({ type: "error", code: companionDirectFailureCode(completeError), diagnostics: companionFailureDiagnostics(completeError) });
     }
   };
+
+  // Stops the provider request once the reply reaches the per-turn limit, without
+  // treating it as a user cancellation.
+  const modelStop = new AbortController();
+  const forwardAbort = () => modelStop.abort(options.signal?.reason);
+  if (options.signal?.aborted) forwardAbort();
+  else options.signal?.addEventListener("abort", forwardAbort, { once: true });
+  let responseLimitReached = false;
 
   try {
     const agentTools = Object.fromEntries(prepared.tools.map((definition) => [
@@ -180,12 +198,12 @@ export const streamDirectCompanion = async (
           };
           tools = [...tools, pending];
           options.onEvent({ type: "tools", tools, todos, questions });
-          const result = await options.executeTool({
+          const result = await options.executeTool(fitCompanionTurnBody({
             name: definition.name,
             input: (input && typeof input === "object" ? input : {}) as Record<string, unknown>,
             response,
             process,
-          });
+          }));
           tools = result.tools;
           todos = result.todos;
           questions = result.questions;
@@ -230,7 +248,7 @@ export const streamDirectCompanion = async (
     const result = streamText({
       ...generation,
       messages,
-      abortSignal: options.signal,
+      abortSignal: modelStop.signal,
     });
     for await (const part of result.fullStream) {
       throwIfAborted(options.signal);
@@ -238,13 +256,26 @@ export const streamDirectCompanion = async (
       if (part.type !== "text-delta") continue;
       const delta = typeof part.text === "string" ? part.text : "";
       if (!delta) continue;
-      response += delta;
-      if (response.length > 16000) throw new Error("Response limit exceeded.");
-      options.onEvent({ type: "text-delta", text: delta });
+      const accepted = clipToCharLimit(delta, COMPANION_RESPONSE_MAX_CHARS - response.length);
+      response += accepted;
+      if (accepted) options.onEvent({ type: "text-delta", text: accepted });
+      if (accepted.length < delta.length) {
+        // Keep what fits, stop the model, and close the turn with a saveable reply.
+        responseLimitReached = true;
+        modelStop.abort();
+        break;
+      }
       if (response.length - persisted >= 300) {
-        await options.checkpoint({ response, process });
+        await options.checkpoint(fitCompanionTurnBody({ response, process }));
         persisted = response.length;
       }
+    }
+    if (responseLimitReached) {
+      Promise.resolve(result.totalUsage).catch(() => undefined);
+      await finish("failed", undefined, Object.assign(new Error("The reply reached the per-turn length limit."), {
+        code: "companion_response_too_long",
+      }));
+      return;
     }
     if (!response.trim() && !tools.some(item => item.status === "done") && !todos.length && !questions.length) {
       throw new Error("No text returned.");
@@ -258,5 +289,7 @@ export const streamDirectCompanion = async (
       return;
     }
     await finish("failed", undefined, error);
+  } finally {
+    options.signal?.removeEventListener("abort", forwardAbort);
   }
 };
