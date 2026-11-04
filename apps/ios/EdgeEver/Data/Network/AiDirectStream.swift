@@ -175,11 +175,17 @@ final class AiGenerationStreamNormalizer: @unchecked Sendable {
         return output
     }
 
+    /// The result opened with the start marker but never reached the end marker, so it was cut
+    /// off even if the provider or gateway reported a normal stop (#652).
+    var isUnterminated: Bool { boundaryStarted && !boundaryFinished }
+
     func finish() -> String {
         if boundaryFinished { return "" }
         if !boundaryStarted {
             return normalizeFull(pending)
         }
+        // The end marker can still be in the retained tail when the stream ends.
+        if pending.contains(resultBoundary.end) { boundaryFinished = true }
         _ = removeOpeningLine()
         _ = resolveMarkdownWrapper(finishing: true)
         return stripClosingWrapper(pending.replacingOccurrences(of: resultBoundary.end, with: "")).trimmingCharacters(in: .whitespacesAndNewlines)

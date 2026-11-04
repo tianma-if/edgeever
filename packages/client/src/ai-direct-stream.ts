@@ -84,7 +84,10 @@ export const streamDirectAiGeneration = async (
     });
     return;
   }
-  options.onEvent({ type: "finish", finishReason, truncated: isAiTruncatedFinishReason(finishReason), inputTokens, outputTokens });
+  // Some gateways cut the output at their own default and still report "stop"; a missing
+  // end marker catches that case as well.
+  const truncated = isAiTruncatedFinishReason(finishReason) || normalizer.isUnterminated();
+  options.onEvent({ type: "finish", finishReason, truncated, inputTokens, outputTokens });
 };
 
 export const isAiCorsFailure = (error: unknown) => {

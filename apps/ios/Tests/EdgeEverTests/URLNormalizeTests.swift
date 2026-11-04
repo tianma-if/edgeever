@@ -56,6 +56,28 @@ final class URLNormalizeTests: XCTestCase {
         XCTAssertFalse(AiDirectStream.isTruncatedFinishReason(nil))
     }
 
+    func testMissingEndMarkerMeansTheResultWasCutOff() {
+        let cutOff = AiGenerationStreamNormalizer(resultBoundary: .init(start: "<r>", end: "</r>"))
+        _ = cutOff.push("<r>\n## 1. Part one\nText that stops mid-sen")
+        _ = cutOff.finish()
+        XCTAssertTrue(cutOff.isUnterminated)
+
+        let complete = AiGenerationStreamNormalizer(resultBoundary: .init(start: "<r>", end: "</r>"))
+        _ = complete.push("<r>\nDone</r>")
+        XCTAssertFalse(complete.isUnterminated)
+
+        // End marker arriving in the same chunk without a newline is only seen at finish().
+        let sameChunk = AiGenerationStreamNormalizer(resultBoundary: .init(start: "<r>", end: "</r>"))
+        _ = sameChunk.push("<r>Hello</r>")
+        XCTAssertEqual(sameChunk.finish(), "Hello")
+        XCTAssertFalse(sameChunk.isUnterminated)
+
+        let unmarked = AiGenerationStreamNormalizer(resultBoundary: .init(start: "<r>", end: "</r>"))
+        _ = unmarked.push("A model that ignored the markers")
+        _ = unmarked.finish()
+        XCTAssertFalse(unmarked.isUnterminated)
+    }
+
     func testGenerateRequestDeclaresUnboundedOutputSupport() throws {
         let input = AiGenerateInput(action: .translate, title: "t", contentMarkdown: "Body", targetLanguage: "en")
         let encoded = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(input)) as? [String: Any])

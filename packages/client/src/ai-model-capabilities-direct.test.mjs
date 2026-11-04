@@ -127,6 +127,23 @@ describe("generation with automatic budgets (#652)", () => {
     expect(events.at(-1)).toMatchObject({ type: "finish", finishReason: "length", truncated: true });
   });
 
+  test("a gateway that cuts the output but reports 'stop' is still flagged as truncated", async () => {
+    const client = createEdgeEverClient({
+      baseUrl: "https://notes.example",
+      fetch: async () => json(preparedBody()),
+      // Start marker, partial text, no end marker, finish_reason "stop" (as seen from a real gateway).
+      providerFetch: async () => new Response([
+        `data: {"choices":[{"delta":{"content":"<r>\\n## 1. Part one\\nText that stops mid-sen"},"finish_reason":"stop"}]}`,
+        "data: [DONE]",
+        "",
+      ].join("\n\n"), { headers: { "content-type": "text/event-stream" } }),
+    });
+    const events = [];
+    await client.streamAiGeneration({ action: "improve-writing", title: "Note", contentMarkdown: "Body" }, { onEvent: (event) => events.push(event) });
+    expect(events.filter((event) => event.type === "text-delta").map((event) => event.text).join("")).toContain("stops mid-sen");
+    expect(events.at(-1)).toMatchObject({ type: "finish", finishReason: "stop", truncated: true });
+  });
+
   test("a recognised 'output too large' error is reported and retried once with the accepted limit", async () => {
     const instance = [];
     const sent = [];

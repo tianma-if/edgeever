@@ -153,9 +153,18 @@ export const createAiGenerationStreamNormalizer = (resultBoundary: AiGenerationR
     finish() {
       if (boundaryFinished) return "";
       if (!boundaryStarted) return normalizeAiGenerationText(pending, resultBoundary);
+      // The end marker can still be in the retained tail when the stream ends.
+      if (pending.includes(resultBoundary.end)) boundaryFinished = true;
       removeOpeningLine();
       resolveMarkdownWrapper(true);
       return stripClosingWrapper(pending.replaceAll(resultBoundary.end, "")).trimEnd();
+    },
+    /**
+     * The result opened with the request's start marker but never reached the end marker,
+     * so it was cut off even if the provider or gateway reported a normal stop (#652).
+     */
+    isUnterminated() {
+      return boundaryStarted && !boundaryFinished;
     },
   };
 };
