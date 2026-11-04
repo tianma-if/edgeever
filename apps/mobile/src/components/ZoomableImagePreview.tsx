@@ -19,11 +19,12 @@ type Props = {
   accessibilityLabel: string;
   currentIndex?: number;
   images?: PreviewImageItem[];
-  nextImageLabel: string;
+  nextImageLabel?: string;
   onIndexChange?: (index: number) => void;
-  previousImageLabel: string;
+  previousImageLabel?: string;
   onLongPress: () => void;
   renderImage: (onDimensions: (size: ImageSize) => void, resizeMultiplier: number) => ReactNode;
+  showNavigationArrows?: boolean;
 };
 
 export const ZoomableImagePreview = ({
@@ -36,6 +37,7 @@ export const ZoomableImagePreview = ({
   onLongPress,
   previousImageLabel,
   renderImage,
+  showNavigationArrows = false,
 }: Props) => {
   const [viewport, setViewport] = useState<ImageSize>({ width: 0, height: 0 });
   const [image, setImage] = useState<ImageSize>({ width: 0, height: 0 });
@@ -217,9 +219,9 @@ export const ZoomableImagePreview = ({
         </View>
       ) : null}
 
-      {total > 1 && onIndexChange ? (
+      {showNavigationArrows && total > 1 && onIndexChange ? (
         <>
-          {activeIndex > 0 ? (
+          {activeIndex > 0 && previousImageLabel ? (
             <Pressable
               accessibilityLabel={previousImageLabel}
               accessibilityRole="button"
@@ -229,7 +231,7 @@ export const ZoomableImagePreview = ({
               <ChevronLeft color="#ffffff" size={24} />
             </Pressable>
           ) : null}
-          {activeIndex < total - 1 ? (
+          {activeIndex < total - 1 && nextImageLabel ? (
             <Pressable
               accessibilityLabel={nextImageLabel}
               accessibilityRole="button"
