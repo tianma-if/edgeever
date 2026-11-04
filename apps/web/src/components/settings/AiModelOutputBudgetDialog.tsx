@@ -22,31 +22,14 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
+import {
+  aiModelOutputBudgetChanges,
+  aiModelOutputBudgetDrafts,
+  aiModelOutputBudgetSnapshot,
+  type AiModelOutputBudgetDrafts,
+} from "@/lib/ai-model-output-budget-form";
 
-type BudgetDrafts = Record<AiModelOutputBudgetField, string>;
-
-/** Servers older than #652 omit the budget fields, and cannot accept updates. */
-export const supportsAiModelOutputBudgets = (model: AiModelConfig) =>
-  AI_MODEL_OUTPUT_BUDGET_FIELDS.every((field) => model[field] !== undefined);
-
-export const hasCustomAiModelOutputBudgets = (model: AiModelConfig) =>
-  AI_MODEL_OUTPUT_BUDGET_FIELDS.some((field) => typeof model[field] === "number");
-
-const draftsFrom = (model: AiModelConfig): BudgetDrafts => ({
-  generationMaxOutputTokens: model.generationMaxOutputTokens?.toString() ?? "",
-  tagSuggestionMaxOutputTokens: model.tagSuggestionMaxOutputTokens?.toString() ?? "",
-  companionMaxOutputTokens: model.companionMaxOutputTokens?.toString() ?? "",
-});
-
-/** Empty input means "use the default" (`null`); anything else must be an in-range integer. */
-const parseDraft = (field: AiModelOutputBudgetField, draft: string): number | null | "invalid" => {
-  const trimmed = draft.trim();
-  if (!trimmed) return null;
-  if (!/^\d+$/.test(trimmed)) return "invalid";
-  const value = Number(trimmed);
-  const { min, max } = AI_MODEL_OUTPUT_BUDGET_LIMITS[field];
-  return value >= min && value <= max ? value : "invalid";
-};
+export { hasCustomAiModelOutputBudgets, supportsAiModelOutputBudgets } from "@/lib/ai-model-output-budget-form";
 
 const FIELD_LABEL_KEYS: Record<AiModelOutputBudgetField, string> = {
   generationMaxOutputTokens: "aiModel.outputBudgetGeneration",
@@ -67,7 +50,11 @@ export const AiModelOutputBudgetDialog = ({ providerConfigId, model, readOnly, o
   onChanged: () => Promise<unknown>;
 }) => {
   const { t } = useTranslation();
-  const [drafts, setDrafts] = useState<BudgetDrafts>(() => draftsFrom(model));
+  // Freeze the values seen when the dialog opened. A settings refresh while it is open
+  // (for example another device saving a different field) must not turn untouched
+  // fields into edits.
+  const [opening] = useState(() => aiModelOutputBudgetSnapshot(model));
+  const [drafts, setDrafts] = useState<AiModelOutputBudgetDrafts>(() => aiModelOutputBudgetDrafts(opening));
   const mutation = useMutation({
     mutationFn: (payload: AiModelConfigUpdateInput) => api.updateAiModel(providerConfigId, model.id, payload),
     onSuccess: async () => {
@@ -76,16 +63,8 @@ export const AiModelOutputBudgetDialog = ({ providerConfigId, model, readOnly, o
     },
   });
 
-  const parsed = Object.fromEntries(
-    AI_MODEL_OUTPUT_BUDGET_FIELDS.map((field) => [field, parseDraft(field, drafts[field])]),
-  ) as Record<AiModelOutputBudgetField, number | null | "invalid">;
-  const invalid = AI_MODEL_OUTPUT_BUDGET_FIELDS.some((field) => parsed[field] === "invalid");
-  // Send only the fields that changed, so a concurrent edit to another field is not overwritten.
-  const changes: AiModelConfigUpdateInput = {};
-  for (const field of AI_MODEL_OUTPUT_BUDGET_FIELDS) {
-    const next = parsed[field];
-    if (next !== "invalid" && next !== (model[field] ?? null)) changes[field] = next;
-  }
+  const { changes, invalid: invalidFields } = aiModelOutputBudgetChanges(opening, drafts);
+  const invalid = invalidFields.length > 0;
   const dirty = Object.keys(changes).length > 0;
 
   // The parent mounts this dialog per open, so drafts always start from the saved model.
@@ -109,7 +88,7 @@ export const AiModelOutputBudgetDialog = ({ providerConfigId, model, readOnly, o
           <div className="grid gap-4">
             {AI_MODEL_OUTPUT_BUDGET_FIELDS.map((field) => {
               const { min, max } = AI_MODEL_OUTPUT_BUDGET_LIMITS[field];
-              const fieldInvalid = parsed[field] === "invalid";
+              const fieldInvalid = invalidFields.includes(field);
               const hintKey = FIELD_HINT_KEYS[field];
               const inputId = `ai-model-${model.id}-${field}`;
               const hintId = `${inputId}-hint`;

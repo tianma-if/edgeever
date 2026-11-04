@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 test("edits, validates and resets a model's output budgets (#652)", async ({ page }) => {
+  test.setTimeout(90_000);
   const suffix = crypto.randomUUID().slice(0, 8);
   const modelId = `e2e-budget-${suffix}`;
   const created = await page.request.post("/api/v1/ai/providers", {
@@ -69,6 +70,34 @@ test("edits, validates and resets a model's output budgets (#652)", async ({ pag
     await expect(dialog).toBeHidden();
     await expect(page.getByRole("button", { name: `输出预算: ${modelId}`, exact: true })).toBeVisible();
     expect(patches.at(-1)).toEqual({ generationMaxOutputTokens: null, companionMaxOutputTokens: null });
+
+    // Another device saves the tag budget while the dialog is open and settings refresh.
+    await page.getByRole("button", { name: `输出预算: ${modelId}`, exact: true }).click();
+    await expect(dialog).toBeVisible();
+    const modelConfigId = (await (await page.request.get("/api/v1/ai/settings")).json() as {
+      providers: Array<{ id: string; models: Array<{ id: string; modelId: string }> }>;
+    }).providers.find((provider) => provider.id === providerId)!.models.find((model) => model.modelId === modelId)!.id;
+    const remote = await page.request.patch(`/api/v1/ai/providers/${providerId}/models/${modelConfigId}`, {
+      data: { tagSuggestionMaxOutputTokens: 800 },
+    });
+    expect(remote.status()).toBe(200);
+    // The app refetches stale settings (15 s stale time) when the network reconnects.
+    await page.waitForTimeout(16_000);
+    const refreshed = page.waitForResponse((response) => response.url().includes("/api/v1/ai/settings") && response.request().method() === "GET");
+    await page.context().setOffline(true);
+    await page.context().setOffline(false);
+    const refreshedModel = (await (await refreshed).json() as {
+      providers: Array<{ id: string; models: Array<{ modelId: string; tagSuggestionMaxOutputTokens: number | null }> }>;
+    }).providers.find((provider) => provider.id === providerId)!.models.find((model) => model.modelId === modelId)!;
+    expect(refreshedModel.tagSuggestionMaxOutputTokens).toBe(800);
+    await generation.fill("12000");
+    await save.click();
+    await expect(dialog).toBeHidden();
+    expect(patches.at(-1)).toEqual({ generationMaxOutputTokens: 12000 });
+    const saved = (await (await page.request.get("/api/v1/ai/settings")).json() as {
+      providers: Array<{ id: string; models: Array<{ modelId: string; generationMaxOutputTokens: number | null; tagSuggestionMaxOutputTokens: number | null }> }>;
+    }).providers.find((provider) => provider.id === providerId)!.models.find((model) => model.modelId === modelId)!;
+    expect([saved.generationMaxOutputTokens, saved.tagSuggestionMaxOutputTokens]).toEqual([12000, 800]);
   } finally {
     await page.request.delete(`/api/v1/ai/providers/${providerId}`);
   }
