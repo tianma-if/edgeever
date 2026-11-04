@@ -62,7 +62,7 @@ describe("Mermaid SVG presentation", () => {
 
   test("uses the selected Mermaid palette for official SVGs without a root background", () => {
     const lightAppBackground = "#ffffff";
-    const darkMermaidBackground = MERMAID_THEME_PALETTES["github-dark"].bg;
+    const darkMermaidBackground = MERMAID_THEME_PALETTES["zinc-dark"].bg;
     const presentation = getMermaidSvgPresentation(
       '<svg width="100%" viewBox="0 0 640 360" class="flowchart" aria-roledescription="flowchart-v2"></svg>'
     );

@@ -375,7 +375,17 @@ describe("code block preparation", () => {
       '<pre><code class="language-mermaid">   </code></pre>',
     ].join(""));
 
-    await mod.renderMermaidBlocksForHtmlExport(root);
+    // Official Mermaid measures SVG text in a real browser. Exercise the
+    // export's replacement and fallback behavior in this DOM-only test.
+    const sources = [];
+    await mod.renderMermaidBlocksForHtmlExport(root, async (source) => {
+      sources.push(source);
+      if (source === "graph TD\n  Start --> Finish") {
+        return "<svg><text>Start</text></svg>";
+      }
+      throw new Error("Invalid Mermaid diagram");
+    });
+    expect(sources).toEqual(["graph TD\n  Start --> Finish", "%%% not a diagram (("]);
 
     const figures = root.querySelectorAll("figure.edgeever-html-mermaid");
     expect(figures).toHaveLength(1);

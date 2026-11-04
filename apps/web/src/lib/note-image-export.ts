@@ -269,6 +269,7 @@ export const createNoteImage = async ({
   });
   // The HTML clone becomes SVG XML. Pasted controls and lone surrogates
   // can make the whole snapshot undecodable, even if the editor displays it.
+  // oxlint-disable-next-line no-control-regex -- removes characters that SVG XML cannot encode
   renderRoot.insertAdjacentHTML("beforeend", markup.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\uD800-\uDFFF\uFFFE\uFFFF]/gu, "\uFFFD"));
 
   const source = renderRoot.lastElementChild as HTMLElement;
