@@ -62,8 +62,10 @@ final class URLNormalizeTests: XCTestCase {
         _ = cutOff.finish()
         XCTAssertTrue(cutOff.isUnterminated)
 
+        // As in APIClient, the state is read after finish().
         let complete = AiGenerationStreamNormalizer(resultBoundary: .init(start: "<r>", end: "</r>"))
         _ = complete.push("<r>\nDone</r>")
+        _ = complete.finish()
         XCTAssertFalse(complete.isUnterminated)
 
         // End marker arriving in the same chunk without a newline is only seen at finish().
