@@ -57,6 +57,42 @@ const expectAtFragment = async (page: Page, path: string, id: string, text: stri
 };
 
 for (const layout of ["standalone", "site"] as const) {
+  test(`${layout}: keeps a short final-section jump active until the reader scrolls`, async ({ page, request }) => {
+    const article = await createArticle(request, false, [
+      heading(1, "Long introduction"), ...filler(), ...filler(), ...filler(),
+      heading(2, "Before last"), paragraph("A short section."),
+      heading(2, "Last section"), paragraph("The end."),
+    ]);
+    try {
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await page.goto(article.paths[layout]);
+      const outline = page.locator(".edgeever-public-share aside");
+      await outline.getByRole("link", { name: "Before last", exact: true }).click();
+      const atBottom = () => page.evaluate(() => window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 4);
+      await expect.poll(atBottom).toBe(true);
+      await expect(page).toHaveURL(/#article-before-last-1$/);
+      await expect(outline.locator('[aria-current="location"]')).toHaveText("Before last");
+
+      // A real wheel gesture releases the chosen target even at the page end.
+      await page.mouse.move(600, 500);
+      await page.mouse.wheel(0, 240);
+      await expect(outline.locator('[aria-current="location"]')).toHaveText("Last section");
+      await expect(page).toHaveURL(/#article-before-last-1$/);
+
+      await outline.getByRole("link", { name: "Before last", exact: true }).click();
+      await expect(outline.locator('[aria-current="location"]')).toHaveText("Before last");
+      // Keyboard scrolling must also work while the clicked outline link retains focus.
+      await page.keyboard.press("Home");
+      await expect.poll(() => page.evaluate(() => window.scrollY)).toBeLessThanOrEqual(4);
+      await expect(outline.locator('[aria-current="location"]')).toHaveText("Long introduction");
+
+      await expectAtFragment(page, article.paths[layout], "article-before-last-1", "Before last");
+      await expect(outline.locator('[aria-current="location"]')).toHaveText("Before last");
+    } finally {
+      await article.cleanup();
+    }
+  });
+
   test(`${layout}: includes H5/H6, folds the tree, and retains old fragments`, async ({ page, request }) => {
     const article = await createArticle(request);
     try {

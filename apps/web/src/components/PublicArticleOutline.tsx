@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode, type RefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -59,6 +59,7 @@ export const PublicArticleOutline = ({
   const [active, setActive] = useState("");
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const [open, setOpen] = useState(false);
+  const jumpTargetRef = useRef<string | null>(null);
   const tree = useMemo(() => buildPublicOutlineTree(headings), [headings]);
   const parentIds = useMemo(() => collectPublicOutlineParentIds(tree), [tree]);
 
@@ -92,6 +93,12 @@ export const PublicArticleOutline = ({
   useEffect(() => {
     if (headings.length === 0) return;
     const update = () => {
+      const jumpTarget = jumpTargetRef.current;
+      if (jumpTarget && headings.some((heading) => heading.id === jumpTarget)) {
+        setActive(jumpTarget);
+        return;
+      }
+      jumpTargetRef.current = null;
       let id = "";
       let lastVisible = "";
       for (const heading of headings) {
@@ -111,7 +118,24 @@ export const PublicArticleOutline = ({
     let restoring = true;
     let target: HTMLElement | null = null;
     try { target = document.getElementById(decodeURIComponent(window.location.hash.slice(1))); } catch { /* Ignore malformed fragments. */ }
+    if (target && containerRef.current?.contains(target)) jumpTargetRef.current = target.id;
     const stopRestoring = () => { restoring = false; };
+    const resumeTracking = (event: Event) => {
+      const element = event.target instanceof Element ? event.target : null;
+      // Wheel/touch scrolling stays inside the outline. Scroll keys can move the
+      // document while an outline link still has focus after a jump.
+      if (element?.closest('[role="dialog"]')) return;
+      if (!(event instanceof KeyboardEvent) && element?.closest("aside")) return;
+      if (event instanceof WheelEvent && event.deltaY === 0) return;
+      if (event instanceof KeyboardEvent) {
+        if (!["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " "].includes(event.key)) return;
+        if (event.defaultPrevented || element?.closest('input, textarea, select, [contenteditable="true"]')) return;
+        if (event.key === " " && element?.closest('button, [role="button"]')) return;
+      }
+      jumpTargetRef.current = null;
+      stopRestoring();
+      onScroll();
+    };
     const relayout = () => {
       if (restoring && target && containerRef.current?.contains(target)) scrollToHeading(target, "instant");
       onScroll();
@@ -119,6 +143,7 @@ export const PublicArticleOutline = ({
     const observer = new ResizeObserver(relayout);
     if (containerRef.current) observer.observe(containerRef.current);
     for (const event of ["wheel", "touchstart", "pointerdown", "keydown"]) window.addEventListener(event, stopRestoring, { passive: true });
+    for (const event of ["wheel", "touchmove", "keydown"]) window.addEventListener(event, resumeTracking, { passive: true });
     relayout();
 
     return () => {
@@ -126,12 +151,14 @@ export const PublicArticleOutline = ({
       cancelAnimationFrame(frame);
       observer.disconnect();
       for (const event of ["wheel", "touchstart", "pointerdown", "keydown"]) window.removeEventListener(event, stopRestoring);
+      for (const event of ["wheel", "touchmove", "keydown"]) window.removeEventListener(event, resumeTracking);
     };
   }, [containerRef, headings]);
 
   if (headings.length === 0) return null;
 
   const jumpToHeading = (heading: PublicOutlineFlatHeading) => {
+    jumpTargetRef.current = heading.id;
     history.replaceState(history.state, "", `#${heading.id}`);
     setOpen(false);
     const element = document.getElementById(heading.id);
