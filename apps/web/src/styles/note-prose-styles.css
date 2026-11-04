@@ -191,38 +191,22 @@
   content: "SUMMARY";
 }
 
-/* H3: Body-relative pill heading; bounded corners also suit wrapped titles. */
+/* H3: Clean editorial section heading without pill background */
 .edgeever-editor[data-note-heading-style="numbered"] .ProseMirror h3,
 .edgeever-editor[data-note-heading-style="numbered"] .markdown-content h3 {
-  position: relative;
   display: block;
-  width: fit-content;
-  max-width: 100%;
-  box-sizing: border-box;
-  margin-top: 1.5em;
+  margin-top: 1.6em;
   margin-bottom: 0.6em;
-  padding: 0.25em 0.75em 0.25em 1.5em;
-  overflow-wrap: anywhere;
-  border: 0;
-  border-radius: 1em;
-  background: color-mix(in srgb, var(--note-palette-accent, #374151) 9%, transparent);
-  color: var(--note-palette-accent, #374151);
-  font-size: var(--editor-body-font-size, 16px);
+  font-size: calc(var(--editor-body-font-size, 16px) * 1.15);
   font-weight: 700;
-  line-height: 1.5;
+  line-height: 1.4;
+  letter-spacing: -0.01em;
+  color: #111827;
 }
 
-.edgeever-editor[data-note-heading-style="numbered"] .ProseMirror h3::before,
-.edgeever-editor[data-note-heading-style="numbered"] .markdown-content h3::before {
-  content: "";
-  position: absolute;
-  left: 0.75em;
-  top: 0.8125em;
-  width: 0.375em;
-  height: 0.375em;
-  border-radius: 50%;
-  background: var(--note-palette-accent, #374151);
-  pointer-events: none;
+:root.dark .edgeever-editor[data-note-heading-style="numbered"] .ProseMirror h3,
+:root.dark .edgeever-editor[data-note-heading-style="numbered"] .markdown-content h3 {
+  color: #f3f4f6;
 }
 
 /* H4: Warm yellow highlight sub-heading */

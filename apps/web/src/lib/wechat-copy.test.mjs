@@ -237,8 +237,9 @@ describe("preparePublishArticle", () => {
       expect(h2?.textContent).toContain("章节标题");
       expect(h2?.querySelector("[data-ee-heading-number]")?.innerHTML).toContain("#059669");
       const h3 = root.querySelector("h3");
-      expect(css(h3)).toContain("border-radius:1em");
-      expect(h3?.querySelector("[data-ee-pill-dot]")).not.toBeNull();
+      expect(css(h3)).not.toContain("border-radius:1em");
+      expect(h3?.querySelector("[data-ee-pill-dot]")).toBeNull();
+      expect(css(h3)).toContain("font-weight:700");
       const quote = root.querySelector("blockquote");
       expect(css(quote)).toContain("border:1px dashed #d1d5db");
       expect(css(quote)).toContain("background:#f9fafb");
@@ -256,7 +257,7 @@ describe("preparePublishArticle", () => {
     }
   });
 
-  test("numbered headings follow body size while preserving the wrapping pill", () => {
+  test("numbered headings follow body size in clean editorial hierarchy", () => {
     const container = document.createElement("div");
     container.dataset.notePalette = "native";
     container.dataset.noteHeadingStyle = "numbered";
@@ -267,14 +268,13 @@ describe("preparePublishArticle", () => {
           getPropertyValue: (name) => name === "--editor-body-font-size" ? `${size}px` : "",
         });
         const root = preparePublishArticle("<h2>章节</h2><h3>包含 <strong>强调</strong> 的长标题</h3><h4>子标题</h4><p>正文</p>", container);
-        expect(root.querySelector("h3").style.fontSize).toBe(`${size}px`);
+        expect(root.querySelector("h3").style.fontSize).toBe(`${Math.round(size * 1.15)}px`);
         expect(root.querySelector("h4").style.fontSize).toBe(`${size}px`);
         expect(root.querySelector("p:not([data-ee-publish-chrome])").style.fontSize).toBe(`${size}px`);
         const h2Title = Array.from(root.querySelectorAll("h2 p")).find((p) => p.textContent === "章节");
         expect(h2Title.style.fontSize).toBe(`${size * 1.4}px`);
-        expect(css(root.querySelector("h3"))).toContain("max-width:100%");
         expect(root.querySelector("h3 strong").textContent).toBe("强调");
-        expect(root.querySelectorAll("[data-ee-pill-dot]").length).toBe(1);
+        expect(root.querySelectorAll("[data-ee-pill-dot]").length).toBe(0);
       }
     } finally {
       globalThis.getComputedStyle = previous;

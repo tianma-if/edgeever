@@ -24,6 +24,19 @@ let compactModule: Promise<typeof import("beautiful-mermaid")> | undefined;
 let officialQueue: Promise<unknown> = Promise.resolve();
 let renderSequence = 0;
 
+const withDefaultFlowchartDirection = (source: string) => {
+  const lines = source.split("\n");
+  const declarationIndex = lines.findIndex((line) => {
+    const trimmed = line.trim();
+    return trimmed.length > 0 && !trimmed.startsWith("%%");
+  });
+  if (lines[declarationIndex]?.trim().toLowerCase() !== "flowchart") return source;
+
+  // Beautiful Mermaid requires an explicit direction even when Mermaid defaults to TD.
+  lines[declarationIndex] = lines[declarationIndex].replace(/flowchart/i, "$& TD");
+  return lines.join("\n");
+};
+
 export const renderThemedMermaidSvg = (
   source: string,
   { theme, palette, font, padding }: {
@@ -38,7 +51,7 @@ export const renderThemedMermaidSvg = (
     // Repository dependency patches preserve CJK group IDs and ELK edge offsets
     // (upstream PRs #132 and #152). Keep supported subgraphs on this renderer.
     const { renderMermaidSVG, THEMES } = await (compactModule ??= import("beautiful-mermaid"));
-    return scaleMermaidSvg(renderMermaidSVG(source, {
+    return scaleMermaidSvg(renderMermaidSVG(withDefaultFlowchartDirection(source), {
       ...THEMES[theme], ...palette, transparent: true, font, padding,
     }));
   },

@@ -10,6 +10,39 @@ const GANTT_SOURCE = `gantt
   Compatibility fallback :fallback, 2026-07-30, 1d`;
 
 describe("Mermaid renderer fallback", () => {
+  test("preserves the reported cross-subgraph links when flowchart omits its direction", () => {
+    const body = `
+      App[应用层] --> Proxy[数据库中间件<br>读写分离 / 分库分表]
+      subgraph DB_Cluster[数据库集群]
+        direction LR
+        Master1[(主库 1)]
+        Master2[(主库 2)]
+        Slave1[(从库 1)]
+        Slave2[(从库 2)]
+        Master1 <-->|双主同步| Master2
+        Master1 -->|主从同步| Slave1
+        Master2 -->|主从同步| Slave2
+      end
+      Proxy -->|写请求| Master1 & Master2
+      Proxy -->|读请求| Slave1 & Slave2`;
+
+    // Isolate ELK from the partial browser globals installed by other suites.
+    const result = spawnSync(process.execPath, ["--eval", `
+      import assert from "node:assert/strict";
+      import { renderThemedMermaidSvg } from "./mermaid-renderer";
+      const body = ${JSON.stringify(body)};
+      const options = { theme: "default", palette: { bg: "#fff", fg: "#000" }, font: "Inter", padding: 24 };
+      const explicit = await renderThemedMermaidSvg("flowchart TD" + body, options);
+      const implicit = await renderThemedMermaidSvg("\\r\\n%% diagram\\r\\nflowchart" + body, options);
+      assert.equal(implicit, explicit);
+      for (const target of ["Master1", "Master2", "Slave1", "Slave2"]) {
+        assert(implicit.includes('data-from="Proxy" data-to="' + target + '"'));
+      }
+    `], { cwd: import.meta.dir, encoding: "utf8", timeout: 30_000 });
+    expect(result.stderr).toBe("");
+    expect(result.status).toBe(0);
+  });
+
   test("keeps the reported Chinese subgraph on the compact renderer", async () => {
     const source = `flowchart LR
       subgraph 日志开启建议
