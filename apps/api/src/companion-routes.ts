@@ -6,7 +6,7 @@ import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import type { AppContext, AppEnv, Bindings } from "./api-context";
 import { AppError } from "./app-error";
-import { EMPTY_AI_MODEL_OUTPUT_BUDGETS, resolveAiModelOutputBudget } from "@edgeever/shared";
+import { COMPANION_REQUEST_MAX_BYTES, EMPTY_AI_MODEL_OUTPUT_BUDGETS, resolveAiModelOutputBudget } from "@edgeever/shared";
 import { loadDefaultAiModelCredentials, resolveDefaultAiModel } from "./ai-service";
 import { apiError, forbidden, httpExceptionError, notFound } from "./http-errors";
 import { requireUser, getWorkspaceId } from "./request-auth";
@@ -60,7 +60,7 @@ export const registerCompanionRoutes = (parent: Hono<AppEnv>, dependencies: {
   };
   app.onError((error, c) => fail(c, error));
   // Upload bodies exceed the JSON limit used by the rest of the companion API.
-  const limitCompanionBody = bodyLimit({ maxSize: 128 * 1024 });
+  const limitCompanionBody = bodyLimit({ maxSize: COMPANION_REQUEST_MAX_BYTES });
   app.use("/api/v1/companion/*", (c, next) => {
     if (c.req.path.endsWith("/companion/attachments") && c.req.method === "POST") return next();
     return limitCompanionBody(c, next);

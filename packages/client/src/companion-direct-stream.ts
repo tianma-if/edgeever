@@ -16,6 +16,7 @@ import {
   clipCompanionProcess,
   clipToCharLimit,
   companionFailureDiagnostics,
+  fitCompanionTurnBody,
   sealCompanionProcess,
 } from "@edgeever/shared";
 import { throwIfAborted } from "./abort-signal";
@@ -165,9 +166,10 @@ export const streamDirectCompanion = async (
 
   const finish = async (status: CompanionTurnCompleteInput["status"], usage?: { inputTokens?: number; outputTokens?: number }, error?: unknown) => {
     try {
-      const completed = await options.complete({
+      // Character limits alone are not enough: CJK text can exceed the request byte limit.
+      const completed = await options.complete(fitCompanionTurnBody({
         response, process, status, inputTokens: usage?.inputTokens, outputTokens: usage?.outputTokens,
-      });
+      }));
       if (status === "failed" && error) options.onEvent({ type: "error", code: companionDirectFailureCode(error), diagnostics: companionFailureDiagnostics(error) });
       else options.onEvent({ type: "done", turn: completed.turn });
     } catch (completeError) {
@@ -196,12 +198,12 @@ export const streamDirectCompanion = async (
           };
           tools = [...tools, pending];
           options.onEvent({ type: "tools", tools, todos, questions });
-          const result = await options.executeTool({
+          const result = await options.executeTool(fitCompanionTurnBody({
             name: definition.name,
             input: (input && typeof input === "object" ? input : {}) as Record<string, unknown>,
             response,
             process,
-          });
+          }));
           tools = result.tools;
           todos = result.todos;
           questions = result.questions;
@@ -264,7 +266,7 @@ export const streamDirectCompanion = async (
         break;
       }
       if (response.length - persisted >= 300) {
-        await options.checkpoint({ response, process });
+        await options.checkpoint(fitCompanionTurnBody({ response, process }));
         persisted = response.length;
       }
     }
