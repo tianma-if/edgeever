@@ -1000,34 +1000,16 @@ export const DEMO_SEED_MEMOS_ZH = [
 
 \`\`\`mermaid
 flowchart TD
-    subgraph MultiClients["全端客户端矩阵"]
-        C1["Web / PWA (离线草稿 & 增量同步)"]
-        C2["macOS 桌面端 (Electron + Rust Sidecar)"]
-        C3["Windows / Linux 桌面端 (ACP 智能体集成)"]
-        C4["Android 原生 App (Expo + SQLite)"]
-        C5["iOS 原生 App (SwiftUI + GRDB)"]
-        C6["浏览器剪藏插件 (Chrome / Edge / Firefox)"]
-    end
+    Clients["全端客户端<br/>Web / PWA · 桌面端<br/>Android / iOS · 浏览器剪藏插件"]
+    Agents["外部 AI 智能体<br/>Claude Code · Cursor · Antigravity"]
 
-    subgraph CoreEngine["业务与数据服务层"]
-        API["Hono API 引擎 (Cloudflare Workers / Docker)"]
-        MCP["原生 MCP Endpoint (/mcp 2026-07-28 & 2025)"]
-        D1[("D1 / SQLite 数据库 (双向同步 & 修订版本)")]
-        R2[("R2 / S3 资源存储 (图片与多媒体附件)")]
-    end
+    Clients -->|BYOK 直连| AI["行内 AI 助手<br/>OpenAI · Gemini · DeepSeek"]
+    Clients <-->|REST / 增量同步| API["Hono API<br/>Workers / Docker"]
+    Agents <-->|MCP Tools / SSE| MCP["MCP 服务<br/>/mcp"]
+    Agents <-->|数据同步| Integrations["外部集成<br/>Notion · 飞书"]
 
-    subgraph AIAgents["AI 智能体与外部生态"]
-        A1["Claude Code / Cursor / Antigravity"]
-        A2["行内 AI 助手 (OpenAI / Gemini / DeepSeek)"]
-        A3["Notion 数据库 / 飞书多维表格联动"]
-    end
-
-    MultiClients <==>|REST API & 同步游标| API
-    API <==> D1 & R2
-    MCP <==> D1 & R2
-    A1 <==>|MCP Tools / SSE| MCP
-    A2 -.->|BYOK 密钥直连| MultiClients
-    A1 -.->|双向数据同步| A3
+    API <--> Storage[("数据与附件存储<br/>D1 / SQLite · R2 / S3")]
+    MCP <--> Storage
 \`\`\`
 
 ---
@@ -1353,34 +1335,16 @@ The Mermaid diagram below demonstrates how EdgeEver connects cross-platform clie
 
 \`\`\`mermaid
 flowchart TD
-    subgraph MultiClients["Client Matrix"]
-        C1["Web / PWA (Offline Drafts & Sync Queue)"]
-        C2["macOS Desktop (Electron + Rust Sidecar)"]
-        C3["Windows / Linux Desktop (ACP Agent Integration)"]
-        C4["Android Native App (Expo + SQLite)"]
-        C5["iOS Native App (SwiftUI + GRDB)"]
-        C6["Web Clipper (Chrome / Edge / Firefox)"]
-    end
+    Clients["Cross-platform clients<br/>Web / PWA · Desktop<br/>Android / iOS · Web clipper"]
+    Agents["External AI agents<br/>Claude Code · Cursor · Antigravity"]
 
-    subgraph CoreEngine["Service & Storage Core"]
-        API["Hono API Engine (Cloudflare Workers / Docker)"]
-        MCP["Native MCP Endpoint (/mcp 2026-07-28 & 2025)"]
-        D1[("D1 / SQLite Database (Sync Cursor & Revisions)")]
-        R2[("R2 / S3 Storage (Images & Media Attachments)")]
-    end
+    Clients -->|Direct BYOK| AI["Inline AI assistant<br/>OpenAI · Gemini · DeepSeek"]
+    Clients <-->|REST / incremental sync| API["Hono API<br/>Workers / Docker"]
+    Agents <-->|MCP Tools / SSE| MCP["MCP server<br/>/mcp"]
+    Agents <-->|Data sync| Integrations["Integrations<br/>Notion · Feishu"]
 
-    subgraph AIAgents["AI Agents & Integrations"]
-        A1["Claude Code / Cursor / Antigravity"]
-        A2["Inline AI Assistant (OpenAI / Gemini / DeepSeek)"]
-        A3["Notion DB / Feishu Bitable Sync"]
-    end
-
-    MultiClients <==>|REST API & Sync Cursor| API
-    API <==> D1 & R2
-    MCP <==> D1 & R2
-    A1 <==>|MCP Tools / SSE| MCP
-    A2 -.->|BYOK Direct Key| MultiClients
-    A1 -.->|Bi-directional Sync| A3
+    API <--> Storage[("Data and attachments<br/>D1 / SQLite · R2 / S3")]
+    MCP <--> Storage
 \`\`\`
 
 ---

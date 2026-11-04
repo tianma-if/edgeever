@@ -6,8 +6,10 @@ import { normalizeMermaidSvgForViewer } from "/src/lib/mermaid-svg.ts";
 import { MERMAID_THEME_PALETTES } from "/src/components/ThemeProvider.tsx";
 import demoSeed from "../../../apps/api/src/demo-seed-data.ts?raw";
 
-const demoStart = demoSeed.indexOf("flowchart TD", demoSeed.indexOf("## 2. 全景架构与生态联动"));
-const demoSource = demoSeed.slice(demoStart).split("\\`\\`\\`")[0].trim();
+const readDemoSource = (heading) => {
+  const start = demoSeed.indexOf("flowchart TD", demoSeed.indexOf(heading));
+  return demoSeed.slice(start).split("\\`\\`\\`")[0].trim();
+};
 
 const reportedSource = `---
 config:
@@ -36,12 +38,13 @@ flowchart LR
 const assert = (condition, message) => { if (!condition) throw new Error(message); };
 const parser = new DOMParser();
 const cases = [
-  { name: "Reported diagram, light", source: reportedSource, theme: "github-light", label: "临时、单次操作" },
-  { name: "Reported diagram, dark", source: reportedSource, theme: "github-dark", label: "临时、单次操作" },
-  { name: "Self-closing breaks", source: reportedSource.replaceAll("<br>", "<br/>"), theme: "github-light", label: "临时、单次操作" },
-  { name: "Compact renderer", source: "flowchart LR\nA[开始] --> B[结束]", theme: "github-light", label: "开始" },
-  { name: "Demo architecture with compact subgraphs", source: demoSource, theme: "github-light", label: "全端客户端矩阵" },
-  { name: "Chinese subgraph edge alignment", source: "flowchart LR\nsubgraph 日志开启建议\nA[生产环境] -->|不开启| B[查询日志]\nC[开发测试] -->|按需开启| B\nE[审计场景] -->|按需开启| B\nend", theme: "github-light", label: "日志开启建议" },
+  { name: "Reported diagram, light", source: reportedSource, theme: "zinc-light", label: "临时、单次操作" },
+  { name: "Reported diagram, dark", source: reportedSource, theme: "zinc-dark", label: "临时、单次操作" },
+  { name: "Self-closing breaks", source: reportedSource.replaceAll("<br>", "<br/>"), theme: "zinc-light", label: "临时、单次操作" },
+  { name: "Basic flowchart", source: "flowchart LR\nA[开始] --> B[结束]", theme: "zinc-light", label: "开始" },
+  { name: "Demo architecture (Chinese)", source: readDemoSource("## 2. 全景架构与生态联动"), theme: "zinc-light", label: "全端客户端" },
+  { name: "Demo architecture (English)", source: readDemoSource("## 2. Architectural Overview & Ecosystem"), theme: "zinc-dark", label: "Cross-platform clients" },
+  { name: "Chinese subgraph edge alignment", source: "flowchart LR\nsubgraph 日志开启建议\nA[生产环境] -->|不开启| B[查询日志]\nC[开发测试] -->|按需开启| B\nE[审计场景] -->|按需开启| B\nend", theme: "zinc-light", label: "日志开启建议" },
   { name: "HTML entities and formatting", svg: '<svg xmlns="http://www.w3.org/2000/svg" width="100%" viewBox="0 0 240 80"><foreignObject width="240" height="80"><div xmlns="http://www.w3.org/1999/xhtml" style="color:rgb(20, 30, 40)"><b>中文 &amp; English</b><br>第二行&nbsp;标签</div></foreignObject></svg>', label: "第二行\u00a0标签" },
 ];
 

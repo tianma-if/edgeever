@@ -7,7 +7,7 @@ test("Mermaid viewer loads HTML labels and preserves valid SVGs", async ({ page 
   const fixturePath = fileURLToPath(new URL("./fixtures/mermaid-viewer.html", import.meta.url));
   await page.goto(`/@fs${fixturePath}`);
   await expect(page.locator("#result")).toHaveAttribute("data-state", "passed");
-  await expect(page.locator("#cases img")).toHaveCount(7);
+  await expect(page.locator("#cases img")).toHaveCount(8);
   await page.getByRole("button", { name: "Open reported diagram", exact: true }).click();
   const image = page.locator(".yarl__slide_image");
   await expect(image).toBeVisible();
