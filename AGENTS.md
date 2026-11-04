@@ -27,6 +27,7 @@
 - **基于 Issue 的提交**：当前功能若基于某个 Issue 开发，提交并推送时必须关联这个 Issue。
 - **PR 合并时的 CI 失败归属**：经核实已存在于 `main`、且非当前 PR 引入的 CI 失败，由仓库维护者负责修复，不得要求 PR 作者承担无关修复，也不得仅因此阻塞 PR 合并；合并前仍须完成与当前改动相关的必要验证。当前 PR 引入的失败由 PR 作者修复。
 - **合并后同步本地**：代理把 PR 合并进 `main` 后，若本地就在 `main` 且工作区干净，必须 `git fetch` 并快进到 `origin/main`，再结束本次任务。工作区不干净或不能快进时停下来说明，禁止 reset、rebase 或覆盖本地改动。同步代码不包括执行数据库迁移。
+  - **含迁移的本地 DEV 同步**：`git fetch` 后、快进前，用 `git diff --name-only --diff-filter=A HEAD..origin/main -- migrations/` 检查是否有新增 SQL 迁移。如果有且本仓库的本地 DEV 正在运行，先停止 Web 和 API，再快进本地 `main`。同步后使用 `bun run dev` 重启，由启动流程先应用本地 D1 迁移。确认 `/api/health` 报告预期迁移版本，并通过 Web 端口验证 `/api/v1/auth/session` 正常。启动或迁移失败时，明确报告本地 DEV 尚未恢复。
 
 ## GitHub Actions 与 Release 约束及流程
 
