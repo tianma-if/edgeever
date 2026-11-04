@@ -103,15 +103,19 @@ final class TotpDecodingTests: XCTestCase {
 
     func testSetupRecoveryCodesAndConfirmResponsesDecode() throws {
         let setup = try EdgeEverJSON.decoder.decode(TotpSetupResponse.self, from: Data("""
-        {"secret":"JBSWY3DPEHPK3PXP","otpauthUri":"otpauth://totp/EdgeEver:admin?secret=JBSWY3DPEHPK3PXP&issuer=EdgeEver","issuer":"EdgeEver","accountName":"admin","expiresAt":"2026-11-02T10:15:00.000Z"}
+        {"setupId":"setup_abc","secret":"JBSWY3DPEHPK3PXP","otpauthUri":"otpauth://totp/EdgeEver:admin?secret=JBSWY3DPEHPK3PXP&issuer=EdgeEver","issuer":"EdgeEver","accountName":"admin","expiresAt":"2026-11-02T10:15:00.000Z"}
         """.utf8))
+        XCTAssertEqual(setup.setupId, "setup_abc")
         XCTAssertEqual(setup.issuer, "EdgeEver")
         XCTAssertTrue(setup.otpauthUri.hasPrefix("otpauth://"))
 
         let codes = try EdgeEverJSON.decoder.decode(TotpRecoveryCodesResponse.self, from: Data("""
-        {"recoveryCodes":["AAAA-BBBB-CCCC","DDDD-EEEE-FFFF"]}
+        {"batchId":"rcb_abc","recoveryCodes":["AAAA-BBBB-CCCC","DDDD-EEEE-FFFF"]}
         """.utf8))
+        XCTAssertEqual(codes.batchId, "rcb_abc")
         XCTAssertEqual(codes.recoveryCodes.count, 2)
+        // The ids are part of the contract: a response without them is not something confirm can act on.
+        XCTAssertThrowsError(try EdgeEverJSON.decoder.decode(TotpRecoveryCodesResponse.self, from: Data(#"{"recoveryCodes":[]}"#.utf8)))
 
         let rotated = try EdgeEverJSON.decoder.decode(TotpConfirmResponse.self, from: Data(#"{"ok":true,"sessionToken":"new_tok"}"#.utf8))
         XCTAssertEqual(rotated.sessionToken, "new_tok")

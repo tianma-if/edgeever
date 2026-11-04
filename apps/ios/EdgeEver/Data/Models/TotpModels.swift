@@ -27,6 +27,8 @@ struct TotpStatus: Codable, Equatable, Sendable {
 }
 
 struct TotpSetupResponse: Codable, Equatable, Sendable {
+    /// Identifies this setup; `setup/verify` sends it back so a setup replaced by a newer one is refused.
+    var setupId: String
     var secret: String
     var otpauthUri: String
     var issuer: String
@@ -35,6 +37,8 @@ struct TotpSetupResponse: Codable, Equatable, Sendable {
 }
 
 struct TotpRecoveryCodesResponse: Codable, Equatable, Sendable {
+    /// Identifies this batch; the confirm step sends it back so only the codes the user saw are activated.
+    var batchId: String
     var recoveryCodes: [String]
 }
 

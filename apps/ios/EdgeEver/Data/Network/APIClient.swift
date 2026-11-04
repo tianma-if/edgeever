@@ -73,24 +73,28 @@ actor APIClient {
         try await request(path: "/api/v1/auth/totp/setup", method: "POST", body: input)
     }
 
-    func verifyTotpSetup(code: String) async throws -> TotpRecoveryCodesResponse {
-        struct Body: Encodable { var code: String }
-        return try await request(path: "/api/v1/auth/totp/setup/verify", method: "POST", body: Body(code: code))
+    /// Step 2: the code for the setup this client was shown. A setup replaced by a
+    /// newer one (another tab or device of the same session) answers 409 `totp_setup_expired`.
+    func verifyTotpSetup(setupId: String, code: String) async throws -> TotpRecoveryCodesResponse {
+        struct Body: Encodable { var setupId: String; var code: String }
+        return try await request(path: "/api/v1/auth/totp/setup/verify", method: "POST", body: Body(setupId: setupId, code: code))
     }
 
-    func confirmTotpSetup() async throws -> TotpConfirmResponse {
-        try await request(path: "/api/v1/auth/totp/setup/confirm", method: "POST", body: EmptyBody())
+    /// Last step: activates exactly the batch of recovery codes the user saved.
+    func confirmTotpSetup(batchId: String) async throws -> TotpConfirmResponse {
+        try await request(path: "/api/v1/auth/totp/setup/confirm", method: "POST", body: TotpBatchBody(batchId: batchId))
     }
 
     func regenerateRecoveryCodes(_ input: TotpReauthInput) async throws -> TotpRecoveryCodesResponse {
         try await request(path: "/api/v1/auth/totp/recovery-codes", method: "POST", body: input)
     }
 
-    func confirmRecoveryCodes() async throws {
+    /// Activates exactly the batch from `regenerateRecoveryCodes`; a replaced batch answers 409.
+    func confirmRecoveryCodes(batchId: String) async throws {
         let _: OkResponse = try await request(
             path: "/api/v1/auth/totp/recovery-codes/confirm",
             method: "POST",
-            body: EmptyBody()
+            body: TotpBatchBody(batchId: batchId)
         )
     }
 
@@ -720,6 +724,7 @@ actor APIClient {
     // MARK: - Core request
 
     private struct EmptyBody: Encodable {}
+    private struct TotpBatchBody: Encodable { var batchId: String }
 
     private func request<T: Decodable>(
         path: String,

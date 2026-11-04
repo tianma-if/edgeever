@@ -23,10 +23,12 @@ import type {
   LoginInput,
   LoginMfaInput,
   MfaChallenge,
+  TotpBatchConfirmInput,
   TotpConfirmResponse,
   TotpReauthInput,
   TotpRecoveryCodesResponse,
   TotpSetupResponse,
+  TotpSetupVerifyInput,
   TotpStatus,
   LoginDeviceSession,
   InstanceUser,
@@ -883,14 +885,19 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
         body: JSON.stringify(payload),
       }),
 
-    verifyTotpSetup: (payload: { code: string }) =>
+    /** Step 2: the code for the setup this client was shown (`setupId` from `startTotpSetup`). */
+    verifyTotpSetup: (payload: TotpSetupVerifyInput) =>
       request<TotpRecoveryCodesResponse>("/api/v1/auth/totp/setup/verify", {
         method: "POST",
         body: JSON.stringify(payload),
       }),
 
-    confirmTotpSetup: () =>
-      request<TotpConfirmResponse>("/api/v1/auth/totp/setup/confirm", { method: "POST" }),
+    /** Last step: activates exactly the batch the user saved (`batchId` from `verifyTotpSetup`). */
+    confirmTotpSetup: (payload: TotpBatchConfirmInput) =>
+      request<TotpConfirmResponse>("/api/v1/auth/totp/setup/confirm", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
 
     regenerateRecoveryCodes: (payload: TotpReauthInput) =>
       request<TotpRecoveryCodesResponse>("/api/v1/auth/totp/recovery-codes", {
@@ -898,8 +905,12 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
         body: JSON.stringify(payload),
       }),
 
-    confirmRecoveryCodes: () =>
-      request<{ ok: true }>("/api/v1/auth/totp/recovery-codes/confirm", { method: "POST" }),
+    /** Activates exactly the batch from `regenerateRecoveryCodes`; a replaced batch answers 409. */
+    confirmRecoveryCodes: (payload: TotpBatchConfirmInput) =>
+      request<{ ok: true }>("/api/v1/auth/totp/recovery-codes/confirm", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
 
     disableTotp: (payload: TotpReauthInput) =>
       request<{ ok: true }>("/api/v1/auth/totp/disable", {

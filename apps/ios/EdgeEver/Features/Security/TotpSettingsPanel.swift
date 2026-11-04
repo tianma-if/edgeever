@@ -218,7 +218,8 @@ struct TotpManageSheet: View {
     private enum Phase: Equatable {
         case identity
         case bind(TotpSetupResponse)
-        case recoveryCodes([String])
+        /// Codes and the batch id the server issued for them; confirm names that batch.
+        case recoveryCodes(TotpRecoveryCodesResponse)
     }
 
     @State private var phase: Phase = .identity
@@ -264,9 +265,9 @@ struct TotpManageSheet: View {
                                 restart(with: message)
                             }
                         )
-                    case let .recoveryCodes(codes):
+                    case let .recoveryCodes(batch):
                         TotpStepProgress(labels: stepLabels, current: 1)
-                        TotpRecoveryCodesView(codes: codes, saved: $saved)
+                        TotpRecoveryCodesView(codes: batch.recoveryCodes, saved: $saved)
                         Text(env.preferences.t(
                             "确认替换后，旧的恢复码将全部失效。",
                             en: "Once replaced, all previous recovery codes stop working.",
@@ -281,7 +282,7 @@ struct TotpManageSheet: View {
                             busy: busy,
                             enabled: saved
                         ) {
-                            Task { await confirmRecoveryCodes() }
+                            Task { await confirmRecoveryCodes(batchId: batch.batchId) }
                         }
                     }
                 }
@@ -410,7 +411,7 @@ struct TotpManageSheet: View {
             case .regenerate:
                 let response = try await client.regenerateRecoveryCodes(input)
                 saved = false
-                withAnimation(Motion.chip) { phase = .recoveryCodes(response.recoveryCodes) }
+                withAnimation(Motion.chip) { phase = .recoveryCodes(response) }
             case .disable:
                 try await client.disableTotp(input)
                 finish(env.preferences.t(
@@ -426,13 +427,13 @@ struct TotpManageSheet: View {
         }
     }
 
-    private func confirmRecoveryCodes() async {
+    private func confirmRecoveryCodes(batchId: String) async {
         guard saved, !busy else { return }
         error = nil
         busy = true
         defer { busy = false }
         do {
-            try await env.session.client.confirmRecoveryCodes()
+            try await env.session.client.confirmRecoveryCodes(batchId: batchId)
             finish(env.preferences.t(
                 "恢复码已替换。",
                 en: "Recovery codes replaced.",

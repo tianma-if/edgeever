@@ -30,6 +30,8 @@ export const MfaRebindScreen = () => {
   const { client, finishMfaRebind, session, signOut } = useSession();
   const [bindCode, setBindCode] = useState("");
   const [recoveryCodes, setRecoveryCodes] = useState<string[] | null>(null);
+  // Batch of the codes on screen; confirm names it so a flow replaced elsewhere is refused.
+  const [batchId, setBatchId] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [errorKey, setErrorKey] = useState<TwoFactorCopyKey | null>(null);
   const [signingOut, setSigningOut] = useState(false);
@@ -57,6 +59,7 @@ export const MfaRebindScreen = () => {
   const restart = () => {
     setBindCode("");
     setRecoveryCodes(null);
+    setBatchId(null);
     setSaved(false);
     void setupQuery.refetch();
   };
@@ -68,10 +71,15 @@ export const MfaRebindScreen = () => {
   };
 
   const verifyMutation = useMutation({
-    mutationFn: () => client!.verifyTotpSetup({ code: bindCode }),
+    mutationFn: () => {
+      const setup = setupQuery.data;
+      if (!setup) throw new Error("Setup is not ready");
+      return client!.verifyTotpSetup({ setupId: setup.setupId, code: bindCode });
+    },
     onMutate: () => setErrorKey(null),
     onSuccess: (result) => {
       setRecoveryCodes(result.recoveryCodes);
+      setBatchId(result.batchId);
       setSaved(false);
     },
     onError: fail,
@@ -79,7 +87,8 @@ export const MfaRebindScreen = () => {
 
   const confirmMutation = useMutation({
     mutationFn: async () => {
-      const result = await client!.confirmTotpSetup();
+      if (!batchId) throw new Error("Recovery codes are not ready");
+      const result = await client!.confirmTotpSetup({ batchId });
       await finishMfaRebind(result.sessionToken);
     },
     onMutate: () => setErrorKey(null),

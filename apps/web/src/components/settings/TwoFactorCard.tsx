@@ -109,6 +109,8 @@ const TwoFactorFlowDialog = ({
   const [setup, setSetup] = useState<TotpSetupResponse | null>(null);
   const [bindCode, setBindCode] = useState("");
   const [codes, setCodes] = useState<string[]>([]);
+  // Batch of the codes on screen; confirm names it so a flow replaced in another tab is refused.
+  const [batchId, setBatchId] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -163,7 +165,9 @@ const TwoFactorFlowDialog = ({
           return;
         }
         if (mode === "regenerate") {
-          setCodes((await api.regenerateRecoveryCodes(reauth())).recoveryCodes);
+          const generated = await api.regenerateRecoveryCodes(reauth());
+          setCodes(generated.recoveryCodes);
+          setBatchId(generated.batchId);
           setStage("codes");
           return;
         }
@@ -173,21 +177,23 @@ const TwoFactorFlowDialog = ({
       return;
     }
     if (stage === "bind") {
-      if (bindCode.length !== 6) return;
+      if (bindCode.length !== 6 || !setup) return;
       void run(async () => {
-        setCodes((await api.verifyTotpSetup({ code: bindCode })).recoveryCodes);
+        const verified = await api.verifyTotpSetup({ setupId: setup.setupId, code: bindCode });
+        setCodes(verified.recoveryCodes);
+        setBatchId(verified.batchId);
         setStage("codes");
       });
       return;
     }
-    if (!saved) return;
+    if (!saved || !batchId) return;
     void run(async () => {
       if (mode === "regenerate") {
-        await api.confirmRecoveryCodes();
+        await api.confirmRecoveryCodes({ batchId });
         onDone(t("twoFactor.codesReplacedToast"));
         return;
       }
-      await api.confirmTotpSetup();
+      await api.confirmTotpSetup({ batchId });
       onDone(mode === "rebind" ? t("twoFactor.reboundToast") : t("twoFactor.enabledToast"));
     });
   };

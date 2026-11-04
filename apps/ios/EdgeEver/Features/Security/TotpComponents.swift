@@ -658,7 +658,8 @@ struct TotpBindAndSaveFlow: View {
     var onExpired: ((String) -> Void)?
 
     @State private var code = ""
-    @State private var recoveryCodes: [String]?
+    /// Codes and the batch id the server issued for them; confirm names that batch.
+    @State private var recoveryCodes: TotpRecoveryCodesResponse?
     @State private var saved = false
     @State private var busy = false
     @State private var error: String?
@@ -667,7 +668,7 @@ struct TotpBindAndSaveFlow: View {
         VStack(alignment: .leading, spacing: 16) {
             TotpStepProgress(labels: stepLabels, current: recoveryCodes == nil ? bindIndex : bindIndex + 1)
             if let recoveryCodes {
-                saveStep(recoveryCodes)
+                saveStep(recoveryCodes.recoveryCodes)
             } else {
                 bindStep
             }
@@ -771,8 +772,8 @@ struct TotpBindAndSaveFlow: View {
         busy = true
         defer { busy = false }
         do {
-            let response = try await env.session.client.verifyTotpSetup(code: code)
-            withAnimation(Motion.chip) { recoveryCodes = response.recoveryCodes }
+            let response = try await env.session.client.verifyTotpSetup(setupId: setup.setupId, code: code)
+            withAnimation(Motion.chip) { recoveryCodes = response }
         } catch {
             handle(error)
             code = ""
@@ -780,12 +781,12 @@ struct TotpBindAndSaveFlow: View {
     }
 
     private func confirm() async {
-        guard saved, !busy else { return }
+        guard saved, !busy, let batchId = recoveryCodes?.batchId else { return }
         error = nil
         busy = true
         defer { busy = false }
         do {
-            let response = try await env.session.client.confirmTotpSetup()
+            let response = try await env.session.client.confirmTotpSetup(batchId: batchId)
             try await onConfirmed(response)
         } catch {
             handle(error)

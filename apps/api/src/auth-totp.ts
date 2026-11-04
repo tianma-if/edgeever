@@ -51,6 +51,8 @@ export type UserTotpRow = {
   pending_attempts: number;
   /** Recovery-code batch created when the pending secret was verified. */
   pending_batch_id: string | null;
+  /** Id handed to the client at setup; verify must name it so a setup replaced by a newer one is refused. */
+  pending_setup_id: string | null;
 };
 
 // Same deployment keys as share passwords, bound to a separate purpose and
@@ -135,7 +137,7 @@ export const getUserTotp = (db: DatabaseAdapter, userId: string) =>
   db.prepare(
     `SELECT user_id, secret_encrypted, enabled_at, last_used_step,
             pending_secret_encrypted, pending_created_at, pending_verified_step,
-            pending_session_id, pending_attempts, pending_batch_id
+            pending_session_id, pending_attempts, pending_batch_id, pending_setup_id
      FROM user_totp WHERE user_id = ?`,
   ).bind(userId).first<UserTotpRow>();
 
@@ -178,6 +180,9 @@ export const generateRecoveryCodes = () => Array.from({ length: RECOVERY_CODE_CO
 
 export const newRecoveryCodeBatchId = () => createId("rcb");
 
+/** Identifies one enrollment or rebind flow from setup through confirm. */
+export const newTotpSetupId = () => createId("setup");
+
 /**
  * Stores a new pending batch for the session that passed identity
  * verification, replacing any earlier pending batch. Active codes stay valid
@@ -217,15 +222,17 @@ export const countPendingRecoveryCodes = async (db: DatabaseAdapter, userId: str
   return Number(row?.count ?? 0);
 };
 
-/** The newest batch created by this session (pending or already active), for regenerate confirm. */
-export const findLatestRecoveryCodeBatchForSession = async (db: DatabaseAdapter, userId: string, sessionId: string) => {
+/**
+ * One batch of codes, as created by this session, for regenerate confirm.
+ * Null once a newer batch replaced it (pending) or superseded it (active).
+ */
+export const findRecoveryCodeBatch = async (db: DatabaseAdapter, userId: string, batchId: string, sessionId: string) => {
   const row = await db.prepare(
-    `SELECT batch_id, status, COUNT(*) AS count, MAX(created_at) AS created_at
-     FROM user_recovery_codes
-     WHERE user_id = ? AND session_id = ?
-     GROUP BY batch_id, status ORDER BY created_at DESC LIMIT 1`,
-  ).bind(userId, sessionId).first<{ batch_id: string; status: "pending" | "active"; count: number }>();
-  return row ? { batchId: row.batch_id, status: row.status, count: Number(row.count) } : null;
+    `SELECT status, COUNT(*) AS count FROM user_recovery_codes
+     WHERE user_id = ? AND batch_id = ? AND session_id = ?
+     GROUP BY status LIMIT 1`,
+  ).bind(userId, batchId, sessionId).first<{ status: "pending" | "active"; count: number }>();
+  return row ? { status: row.status, count: Number(row.count) } : null;
 };
 
 /**
@@ -269,8 +276,8 @@ export const recordPendingSetupFailure = async (db: DatabaseAdapter, row: UserTo
     ).bind(now, row.user_id, row.pending_secret_encrypted),
     db.prepare(
       `UPDATE user_totp SET pending_secret_encrypted = NULL, pending_created_at = NULL,
-         pending_verified_step = NULL, pending_session_id = NULL, pending_attempts = 0,
-         pending_batch_id = NULL, updated_at = ?
+         pending_verified_step = NULL, pending_session_id = NULL, pending_setup_id = NULL,
+         pending_attempts = 0, pending_batch_id = NULL, updated_at = ?
        WHERE user_id = ? AND pending_secret_encrypted = ? AND pending_attempts >= ?`,
     ).bind(now, row.user_id, row.pending_secret_encrypted, TOTP_SETUP_MAX_ATTEMPTS),
     db.prepare(`DELETE FROM user_recovery_codes WHERE user_id = ? AND status = 'pending'`).bind(row.user_id),

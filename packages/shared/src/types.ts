@@ -345,6 +345,8 @@ export type TotpStatus = {
 };
 
 export type TotpSetupResponse = {
+  /** Identifies this setup; `setup/verify` sends it back so a setup replaced by a newer one is refused. */
+  setupId: string;
   secret: string;
   otpauthUri: string;
   issuer: string;
@@ -353,6 +355,8 @@ export type TotpSetupResponse = {
 };
 
 export type TotpRecoveryCodesResponse = {
+  /** Identifies this batch; the confirm step sends it back so only the codes the user saw are activated. */
+  batchId: string;
   recoveryCodes: string[];
 };
 

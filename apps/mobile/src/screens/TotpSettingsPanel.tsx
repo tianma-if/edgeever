@@ -37,6 +37,8 @@ type Flow = {
   step: FlowStep;
   setup?: TotpSetupResponse;
   recoveryCodes?: string[];
+  /** Batch of the codes on screen; confirm names it so a flow replaced elsewhere is refused. */
+  batchId?: string;
 };
 
 const stepIndex = (flow: Flow) => (flow.step === "identity" ? 0 : flow.step === "bind" ? 1 : flow.kind === "regenerate" ? 1 : 2);
@@ -94,7 +96,10 @@ export const TotpSettingsPanel = ({ active }: { active: boolean }) => {
       if (!client) throw new Error("Client is not ready");
       if (current.kind === "enable") return { setup: await client.startTotpSetup({ password }) };
       if (current.kind === "rebind") return { setup: await client.startTotpSetup(reauth()) };
-      if (current.kind === "regenerate") return { codes: (await client.regenerateRecoveryCodes(reauth())).recoveryCodes };
+      if (current.kind === "regenerate") {
+        const generated = await client.regenerateRecoveryCodes(reauth());
+        return { codes: generated.recoveryCodes, batchId: generated.batchId };
+      }
       await client.disableTotp(reauth());
       return {};
     },
@@ -110,7 +115,7 @@ export const TotpSettingsPanel = ({ active }: { active: boolean }) => {
       setCode("");
       setRecoveryCode("");
       if (result.setup) setFlow({ ...current, step: "bind", setup: result.setup });
-      else setFlow({ ...current, step: "codes", recoveryCodes: result.codes });
+      else setFlow({ ...current, step: "codes", recoveryCodes: result.codes, batchId: result.batchId });
     },
     onError: fail,
   });
@@ -118,11 +123,14 @@ export const TotpSettingsPanel = ({ active }: { active: boolean }) => {
   const verifyMutation = useMutation({
     mutationFn: async () => {
       if (!client) throw new Error("Client is not ready");
-      return client.verifyTotpSetup({ code: bindCode });
+      if (!flow?.setup) throw new Error("Setup is not ready");
+      return client.verifyTotpSetup({ setupId: flow.setup.setupId, code: bindCode });
     },
     onMutate: () => setErrorKey(null),
     onSuccess: (result) => {
-      setFlow((current) => (current ? { ...current, step: "codes", recoveryCodes: result.recoveryCodes } : current));
+      setFlow((current) => (
+        current ? { ...current, step: "codes", recoveryCodes: result.recoveryCodes, batchId: result.batchId } : current
+      ));
       setSaved(false);
     },
     onError: fail,
@@ -131,11 +139,12 @@ export const TotpSettingsPanel = ({ active }: { active: boolean }) => {
   const confirmMutation = useMutation({
     mutationFn: async (current: Flow) => {
       if (!client) throw new Error("Client is not ready");
+      if (!current.batchId) throw new Error("Recovery codes are not ready");
       if (current.kind === "regenerate") {
-        await client.confirmRecoveryCodes();
+        await client.confirmRecoveryCodes({ batchId: current.batchId });
         return;
       }
-      const result = await client.confirmTotpSetup();
+      const result = await client.confirmTotpSetup({ batchId: current.batchId });
       // Only a restricted session rotates; keep the token logic in one place anyway.
       if (result.sessionToken) await finishMfaRebind(result.sessionToken);
     },

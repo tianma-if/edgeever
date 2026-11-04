@@ -29,6 +29,8 @@ export const TotpRebindScreen = ({
   const [stage, setStage] = useState<"bind" | "codes">("bind");
   const [code, setCode] = useState("");
   const [codes, setCodes] = useState<string[]>([]);
+  // Batch of the codes on screen; confirm names it so a flow replaced in another tab is refused.
+  const [batchId, setBatchId] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -64,17 +66,20 @@ export const TotpRebindScreen = ({
     setError(null);
     try {
       if (stage === "bind") {
-        if (code.length !== 6) return;
-        setCodes((await api.verifyTotpSetup({ code })).recoveryCodes);
+        if (code.length !== 6 || !setup) return;
+        const verified = await api.verifyTotpSetup({ setupId: setup.setupId, code });
+        setCodes(verified.recoveryCodes);
+        setBatchId(verified.batchId);
         setStage("codes");
-      } else if (saved) {
-        const result = await api.confirmTotpSetup();
+      } else if (saved && batchId) {
+        const result = await api.confirmTotpSetup({ batchId });
         await onComplete(result.sessionToken);
       }
     } catch (failure) {
       if (failure && typeof failure === "object" && "code" in failure && failure.code === "totp_setup_expired") {
         setStage("bind");
         setCode("");
+        setBatchId(null);
         setSaved(false);
         await startSetup();
       }

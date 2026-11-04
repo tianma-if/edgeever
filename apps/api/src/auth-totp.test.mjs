@@ -96,10 +96,12 @@ const createInstance = async (envOverrides = {}) => {
     });
     expect(setup.status).toBe(200);
     const verify = await request("/api/v1/auth/totp/setup/verify", {
-      token, method: "POST", body: { code: codeAt(setup.body.secret) },
+      token, method: "POST", body: { setupId: setup.body.setupId, code: codeAt(setup.body.secret) },
     });
     expect(verify.status).toBe(200);
-    const confirm = await request("/api/v1/auth/totp/setup/confirm", { token, method: "POST" });
+    const confirm = await request("/api/v1/auth/totp/setup/confirm", {
+      token, method: "POST", body: { batchId: verify.body.batchId },
+    });
     expect(confirm.status).toBe(200);
     return { secret: setup.body.secret, recoveryCodes: verify.body.recoveryCodes };
   };
@@ -142,7 +144,7 @@ describe("TOTP routes", () => {
     const sqlite = new Database(":memory:");
     instances.push(sqlite);
     const files = globSync("migrations/*.sql").sort();
-    // 0088 introduced TOTP; later migrations in this feature (0089) build on it.
+    // 0088 introduced TOTP; later migrations in this feature (0089, 0090) build on it.
     const migrationNumber = (file) => Number(file.match(/(\d{4})_[^/]*\.sql$/)[1]);
     for (const path of files.filter((file) => migrationNumber(file) < 88)) sqlite.exec(readFileSync(path, "utf8"));
     sqlite.query("INSERT INTO users (id, username, password_hash) VALUES ('usr_owner', 'owner', 'unused')").run();
@@ -192,21 +194,29 @@ describe("TOTP routes", () => {
       token, method: "POST", body: { password: "owner-password" },
     });
     expect(setup.body.otpauthUri).toStartWith("otpauth://totp/EdgeEver:owner?");
+    expect(setup.body.setupId).toStartWith("setup_");
     expect((await request("/api/v1/auth/totp", { token })).body.enabled).toBe(false);
-    expect((await request("/api/v1/auth/totp/setup/confirm", { token, method: "POST" })).status).toBe(409);
+    // Nothing to confirm yet; and a confirm must always name the batch it saw.
+    expect((await request("/api/v1/auth/totp/setup/confirm", {
+      token, method: "POST", body: { batchId: "rcb_00000000000000000000000000000000" },
+    })).status).toBe(409);
+    expect((await request("/api/v1/auth/totp/setup/confirm", { token, method: "POST", body: {} })).status).toBe(400);
 
     const badCode = await request("/api/v1/auth/totp/setup/verify", {
-      token, method: "POST", body: { code: "000000" === codeAt(setup.body.secret) ? "111111" : "000000" },
+      token, method: "POST", body: { setupId: setup.body.setupId, code: "000000" === codeAt(setup.body.secret) ? "111111" : "000000" },
     });
     expect(badCode.body.error.code).toBe("invalid_totp_code");
 
     const verify = await request("/api/v1/auth/totp/setup/verify", {
-      token, method: "POST", body: { code: codeAt(setup.body.secret) },
+      token, method: "POST", body: { setupId: setup.body.setupId, code: codeAt(setup.body.secret) },
     });
     expect(verify.body.recoveryCodes).toHaveLength(10);
+    expect(verify.body.batchId).toStartWith("rcb_");
     expect((await request("/api/v1/auth/totp", { token })).body.enabled).toBe(false);
 
-    expect((await request("/api/v1/auth/totp/setup/confirm", { token, method: "POST" })).status).toBe(200);
+    expect((await request("/api/v1/auth/totp/setup/confirm", {
+      token, method: "POST", body: { batchId: verify.body.batchId },
+    })).status).toBe(200);
     expect((await request("/api/v1/auth/totp", { token })).body).toMatchObject({
       enabled: true, recoveryCodesRemaining: 10, rebindRequired: false,
     });
@@ -322,9 +332,11 @@ describe("TOTP routes", () => {
     const setup = await request("/api/v1/auth/totp/setup", { token: restricted, method: "POST", body: {} });
     expect(setup.status).toBe(200);
     const verify = await request("/api/v1/auth/totp/setup/verify", {
-      token: restricted, method: "POST", body: { code: codeAt(setup.body.secret) },
+      token: restricted, method: "POST", body: { setupId: setup.body.setupId, code: codeAt(setup.body.secret) },
     });
-    const confirm = await request("/api/v1/auth/totp/setup/confirm", { token: restricted, method: "POST" });
+    const confirm = await request("/api/v1/auth/totp/setup/confirm", {
+      token: restricted, method: "POST", body: { batchId: verify.body.batchId },
+    });
     expect(confirm.status).toBe(200);
     const fresh = confirm.body.sessionToken;
     expect(fresh).toBeString();
@@ -366,7 +378,10 @@ describe("TOTP routes", () => {
     expect(generated.body.recoveryCodes).toHaveLength(10);
     expect(generated.body.recoveryCodes).not.toEqual(recoveryCodes);
 
-    const confirm = await request("/api/v1/auth/totp/recovery-codes/confirm", { token, method: "POST" });
+    expect(generated.body.batchId).toStartWith("rcb_");
+    const confirm = await request("/api/v1/auth/totp/recovery-codes/confirm", {
+      token, method: "POST", body: { batchId: generated.body.batchId },
+    });
     expect(confirm.status).toBe(200);
     expect((await request("/api/v1/auth/totp", { token })).body.recoveryCodesRemaining).toBe(10);
   });
@@ -391,10 +406,12 @@ describe("TOTP routes", () => {
     const before = sqlite.query("SELECT secret_encrypted, pending_secret_encrypted FROM user_totp").get();
     expect(before.pending_secret_encrypted).not.toBe(before.secret_encrypted);
 
-    await request("/api/v1/auth/totp/setup/verify", {
-      token, method: "POST", body: { code: codeAt(setup.body.secret) },
+    const verify = await request("/api/v1/auth/totp/setup/verify", {
+      token, method: "POST", body: { setupId: setup.body.setupId, code: codeAt(setup.body.secret) },
     });
-    expect((await request("/api/v1/auth/totp/setup/confirm", { token, method: "POST" })).status).toBe(200);
+    expect((await request("/api/v1/auth/totp/setup/confirm", {
+      token, method: "POST", body: { batchId: verify.body.batchId },
+    })).status).toBe(200);
     expect((await request("/api/v1/auth/totp", { token: otherToken })).status).toBe(200);
 
     const { challengeToken } = (await passwordLogin()).body.error.details;
@@ -513,11 +530,14 @@ describe("TOTP concurrency and flow binding", () => {
     const { request, loginToken, sqlite, audits } = await createInstance();
     const token = await loginToken();
     const setup = await request("/api/v1/auth/totp/setup", { token, method: "POST", body: { password: "owner-password" } });
-    expect((await request("/api/v1/auth/totp/setup/verify", {
-      token, method: "POST", body: { code: codeAt(setup.body.secret) },
-    })).status).toBe(200);
+    const verify = await request("/api/v1/auth/totp/setup/verify", {
+      token, method: "POST", body: { setupId: setup.body.setupId, code: codeAt(setup.body.secret) },
+    });
+    expect(verify.status).toBe(200);
 
-    const confirm = () => request("/api/v1/auth/totp/setup/confirm", { token, method: "POST" });
+    const confirm = () => request("/api/v1/auth/totp/setup/confirm", {
+      token, method: "POST", body: { batchId: verify.body.batchId },
+    });
     const results = await Promise.all([confirm(), confirm(), confirm()]);
     expect(results.some((result) => result.status === 200)).toBe(true);
     expect(results.every((result) => result.status === 200 || result.status === 409)).toBe(true);
@@ -538,7 +558,9 @@ describe("TOTP concurrency and flow binding", () => {
     expect(regenerate.status).toBe(200);
     expect(regenerate.body.recoveryCodes).toHaveLength(10);
 
-    const confirm = () => request("/api/v1/auth/totp/recovery-codes/confirm", { token, method: "POST" });
+    const confirm = () => request("/api/v1/auth/totp/recovery-codes/confirm", {
+      token, method: "POST", body: { batchId: regenerate.body.batchId },
+    });
     const results = await Promise.all([confirm(), confirm(), confirm()]);
     expect(results.some((result) => result.status === 200)).toBe(true);
     expect(results.every((result) => result.status === 200 || result.status === 409)).toBe(true);
@@ -559,52 +581,57 @@ describe("TOTP concurrency and flow binding", () => {
   test("a verification only counts for the secret it checked", async () => {
     const { request, loginToken, sqlite, environment } = await createInstance();
     const token = await loginToken();
-    const setup = () => request("/api/v1/auth/totp/setup", { token, method: "POST", body: { password: "owner-password" } });
-    const verify = (code) => request("/api/v1/auth/totp/setup/verify", { token, method: "POST", body: { code } });
-    const confirm = () => request("/api/v1/auth/totp/setup/confirm", { token, method: "POST" });
+    const setup = async () => (await request("/api/v1/auth/totp/setup", { token, method: "POST", body: { password: "owner-password" } })).body;
+    const verify = (flow, code) => request("/api/v1/auth/totp/setup/verify", {
+      token, method: "POST", body: { setupId: flow.setupId, code },
+    });
+    const confirm = (batchId) => request("/api/v1/auth/totp/setup/confirm", { token, method: "POST", body: { batchId } });
 
-    // Secret A is replaced by B before A's code arrives: A's code is just a
-    // wrong code for B, and nothing is recorded.
-    const a = (await setup()).body.secret;
+    // Secret A is replaced by B before A's code arrives: the request names
+    // setup A, which no longer exists, so it is refused without touching B.
+    const a = await setup();
     await setup();
-    const stale = await verify(codeAt(a));
-    expect(stale.status).toBe(400);
-    expect(stale.body.error.code).toBe("invalid_totp_code");
+    const stale = await verify(a, codeAt(a.secret));
+    expect(stale.status).toBe(409);
+    expect(stale.body.error.code).toBe("totp_setup_expired");
     expect(pendingCount(sqlite)).toBe(0);
-    expect(sqlite.query("SELECT pending_verified_step FROM user_totp").get().pending_verified_step).toBeNull();
-    expect((await confirm()).status).toBe(409);
+    const row = sqlite.query("SELECT pending_verified_step, pending_attempts FROM user_totp").get();
+    expect(row.pending_verified_step).toBeNull();
+    expect(row.pending_attempts).toBe(0);
+    expect((await confirm("rcb_00000000000000000000000000000000")).status).toBe(409);
 
     // Racing a verification of X against a new setup (Y), whatever the
     // interleaving, never leaves a confirmable state: either the setup ran last
-    // and cleared the verification, or the verification saw Y and X's code was
-    // wrong, or it read X, lost to Y and its write was refused.
+    // and cleared the verification, or the verification saw Y and was refused,
+    // or it read X, lost to Y and its write was refused.
     for (let round = 0; round < 8; round += 1) {
-      const x = (await setup()).body.secret;
-      const [raced] = await Promise.all([verify(codeAt(x)), setup()]);
-      expect([200, 400, 409]).toContain(raced.status);
+      const x = await setup();
+      const [raced] = await Promise.all([verify(x, codeAt(x.secret)), setup()]);
+      expect([200, 409]).toContain(raced.status);
       const pending = sqlite.query("SELECT pending_verified_step, pending_batch_id FROM user_totp").get();
       expect(pending.pending_verified_step).toBeNull();
       expect(pending.pending_batch_id).toBeNull();
       expect(pendingCount(sqlite)).toBe(0);
-      expect((await confirm()).status).toBe(409);
+      expect((await confirm(raced.body.batchId ?? "rcb_00000000000000000000000000000000")).status).toBe(409);
     }
     expect((await request("/api/v1/auth/totp", { token })).body.enabled).toBe(false);
 
     // The honest path: verify the current secret, then confirm enables exactly it.
-    const c = (await setup()).body.secret;
-    expect((await verify(codeAt(c))).status).toBe(200);
-    expect((await confirm()).status).toBe(200);
+    const c = await setup();
+    const verified = await verify(c, codeAt(c.secret));
+    expect(verified.status).toBe(200);
+    expect((await confirm(verified.body.batchId)).status).toBe(200);
     const stored = sqlite.query("SELECT secret_encrypted FROM user_totp").get().secret_encrypted;
-    expect(await decryptTotpSecret(stored, "usr_owner", environment)).toBe(c);
+    expect(await decryptTotpSecret(stored, "usr_owner", environment)).toBe(c.secret);
   });
 
   test("wrong enrollment codes are capped and discard the setup", async () => {
     const { request, loginToken, sqlite, audits } = await createInstance();
     const token = await loginToken();
-    const { secret } = (await request("/api/v1/auth/totp/setup", {
+    const { secret, setupId } = (await request("/api/v1/auth/totp/setup", {
       token, method: "POST", body: { password: "owner-password" },
     })).body;
-    const verify = (code) => request("/api/v1/auth/totp/setup/verify", { token, method: "POST", body: { code } });
+    const verify = (code) => request("/api/v1/auth/totp/setup/verify", { token, method: "POST", body: { setupId, code } });
 
     for (let attempt = 1; attempt <= 4; attempt += 1) {
       expect((await verify(wrongCode(secret))).body.error.code).toBe("invalid_totp_code");
@@ -623,20 +650,22 @@ describe("TOTP concurrency and flow binding", () => {
     const { request, loginToken, sqlite } = await createInstance();
     const owner = await loginToken();
     const other = await loginToken(OTHER_DEVICE);
-    const { secret } = (await request("/api/v1/auth/totp/setup", {
+    const { secret, setupId } = (await request("/api/v1/auth/totp/setup", {
       token: owner, method: "POST", body: { password: "owner-password" },
     })).body;
 
-    const verifyAs = (token, code) => request("/api/v1/auth/totp/setup/verify", { token, method: "POST", body: { code } });
-    const confirmAs = (token) => request("/api/v1/auth/totp/setup/confirm", { token, method: "POST" });
+    const verifyAs = (token, code) => request("/api/v1/auth/totp/setup/verify", { token, method: "POST", body: { setupId, code } });
+    const confirmAs = (token, batchId) => request("/api/v1/auth/totp/setup/confirm", { token, method: "POST", body: { batchId } });
     expect((await verifyAs(other, codeAt(secret))).body.error.code).toBe("totp_setup_expired");
-    expect((await confirmAs(other)).body.error.code).toBe("totp_setup_expired");
+    expect((await confirmAs(other, "rcb_00000000000000000000000000000000")).body.error.code).toBe("totp_setup_expired");
     expect(pendingCount(sqlite)).toBe(0);
 
-    expect((await verifyAs(owner, codeAt(secret))).status).toBe(200);
-    expect((await confirmAs(other)).body.error.code).toBe("totp_setup_expired");
+    const verified = await verifyAs(owner, codeAt(secret));
+    expect(verified.status).toBe(200);
+    // Even with the right batch id, another session cannot finish the owner's flow.
+    expect((await confirmAs(other, verified.body.batchId)).body.error.code).toBe("totp_setup_expired");
     expect((await request("/api/v1/auth/totp", { token: owner })).body.enabled).toBe(false);
-    expect((await confirmAs(owner)).status).toBe(200);
+    expect((await confirmAs(owner, verified.body.batchId)).status).toBe(200);
     // Enabling kept the other device signed in; it still cannot act on the owner's flows.
     expect((await request("/api/v1/auth/totp", { token: other })).status).toBe(200);
 
@@ -644,10 +673,96 @@ describe("TOTP concurrency and flow binding", () => {
       token: owner, method: "POST", body: { password: "owner-password", code: codeAt(secret, 1) },
     });
     expect(regenerate.status).toBe(200);
-    const regenConfirm = (token) => request("/api/v1/auth/totp/recovery-codes/confirm", { token, method: "POST" });
+    const regenConfirm = (token) => request("/api/v1/auth/totp/recovery-codes/confirm", {
+      token, method: "POST", body: { batchId: regenerate.body.batchId },
+    });
     expect((await regenConfirm(other)).body.error.code).toBe("recovery_codes_expired");
     expect(unusedActive(sqlite)).toBe(10);
     expect((await regenConfirm(owner)).status).toBe(200);
+  });
+
+  test("a confirm only activates the batch of codes this tab was shown", async () => {
+    const { request, passwordLogin, loginToken, enable, sqlite } = await createInstance();
+    const token = await loginToken();
+    const { secret, recoveryCodes } = await enable(token);
+    const regenerate = (second) => request("/api/v1/auth/totp/recovery-codes", {
+      token, method: "POST", body: { password: "owner-password", ...second },
+    });
+    const confirm = (batchId) => request("/api/v1/auth/totp/recovery-codes/confirm", { token, method: "POST", body: { batchId } });
+    const loginWith = async (recoveryCode) => {
+      const { challengeToken } = (await passwordLogin(OTHER_DEVICE)).body.error.details;
+      return request("/api/v1/auth/login/mfa", { method: "POST", body: { challengeToken, recoveryCode, deviceId: OTHER_DEVICE } });
+    };
+
+    // Two tabs of one session: A generates a batch, then B generates another
+    // (B re-verifies with a recovery code, so one of the original ten is spent).
+    const a = await regenerate({ code: codeAt(secret, 1) });
+    const b = await regenerate({ recoveryCode: recoveryCodes[0] });
+    expect(a.status).toBe(200);
+    expect(b.status).toBe(200);
+    expect(a.body.batchId).not.toBe(b.body.batchId);
+
+    // Confirming from tab A must not activate B's codes behind the user's back.
+    const stale = await confirm(a.body.batchId);
+    expect(stale.status).toBe(409);
+    expect(stale.body.error.code).toBe("recovery_codes_expired");
+    expect(unusedActive(sqlite)).toBe(9);
+    expect(pendingCount(sqlite)).toBe(10);
+    expect((await request("/api/v1/auth/totp", { token })).body.recoveryCodesRemaining).toBe(9);
+
+    // Tab B confirms what it displayed; A's codes were never valid.
+    expect((await confirm(b.body.batchId)).status).toBe(200);
+    expect(unusedActive(sqlite)).toBe(10);
+    expect((await loginWith(a.body.recoveryCodes[0])).body.error.code).toBe("invalid_recovery_code");
+    expect((await loginWith(recoveryCodes[1])).body.error.code).toBe("invalid_recovery_code");
+    expect((await loginWith(b.body.recoveryCodes[0])).status).toBe(200);
+    // A confirm that names no batch is rejected before anything is read.
+    expect((await request("/api/v1/auth/totp/recovery-codes/confirm", { token, method: "POST", body: {} })).status).toBe(400);
+  });
+
+  test("a confirm only enables the setup this tab verified", async () => {
+    const { request, passwordLogin, loginToken, sqlite, environment } = await createInstance();
+    const token = await loginToken();
+    const setup = async () => (await request("/api/v1/auth/totp/setup", { token, method: "POST", body: { password: "owner-password" } })).body;
+    const verify = (flow, code) => request("/api/v1/auth/totp/setup/verify", {
+      token, method: "POST", body: { setupId: flow.setupId, code },
+    });
+    const confirm = (batchId) => request("/api/v1/auth/totp/setup/confirm", { token, method: "POST", body: { batchId } });
+    const loginWith = async (recoveryCode) => {
+      const { challengeToken } = (await passwordLogin(OTHER_DEVICE)).body.error.details;
+      return request("/api/v1/auth/login/mfa", { method: "POST", body: { challengeToken, recoveryCode, deviceId: OTHER_DEVICE } });
+    };
+
+    // Tab A scans secret A and verifies it; tab B (same session) starts over and verifies secret B.
+    const a = await setup();
+    const verifiedA = await verify(a, codeAt(a.secret));
+    expect(verifiedA.status).toBe(200);
+    const b = await setup();
+    // A's setup is gone: its code is refused as an expired setup, not counted as a wrong code for B.
+    const staleVerify = await verify(a, codeAt(a.secret));
+    expect(staleVerify.status).toBe(409);
+    expect(staleVerify.body.error.code).toBe("totp_setup_expired");
+    expect(sqlite.query("SELECT pending_attempts FROM user_totp").get().pending_attempts).toBe(0);
+    const verifiedB = await verify(b, codeAt(b.secret));
+    expect(verifiedB.status).toBe(200);
+    expect(verifiedB.body.batchId).not.toBe(verifiedA.body.batchId);
+
+    // Tab A confirms the codes it displayed: refused, and nothing is enabled.
+    const staleConfirm = await confirm(verifiedA.body.batchId);
+    expect(staleConfirm.status).toBe(409);
+    expect(staleConfirm.body.error.code).toBe("totp_setup_expired");
+    expect((await request("/api/v1/auth/totp", { token })).body.enabled).toBe(false);
+    expect(unusedActive(sqlite)).toBe(0);
+
+    // Tab B confirms its own batch: exactly secret B and B's codes become active.
+    expect((await confirm(verifiedB.body.batchId)).status).toBe(200);
+    const stored = sqlite.query("SELECT secret_encrypted FROM user_totp").get().secret_encrypted;
+    expect(await decryptTotpSecret(stored, "usr_owner", environment)).toBe(b.secret);
+    expect((await loginWith(verifiedA.body.recoveryCodes[0])).body.error.code).toBe("invalid_recovery_code");
+    expect((await loginWith(verifiedB.body.recoveryCodes[0])).status).toBe(200);
+    // Requests without the flow ids are rejected before anything is read.
+    expect((await request("/api/v1/auth/totp/setup/verify", { token, method: "POST", body: { code: "123456" } })).status).toBe(400);
+    expect((await request("/api/v1/auth/totp/setup/confirm", { token, method: "POST", body: {} })).status).toBe(400);
   });
 
   test("restricted sessions live under a token hash a pre-TOTP backend never looks up", async () => {
@@ -673,10 +788,13 @@ describe("TOTP concurrency and flow binding", () => {
 
     // After the rebind the fresh session is a normal one under the plain hash.
     const setup = await request("/api/v1/auth/totp/setup", { token: restricted, method: "POST", body: {} });
-    expect((await request("/api/v1/auth/totp/setup/verify", {
-      token: restricted, method: "POST", body: { code: codeAt(setup.body.secret) },
-    })).status).toBe(200);
-    const confirm = await request("/api/v1/auth/totp/setup/confirm", { token: restricted, method: "POST" });
+    const verify = await request("/api/v1/auth/totp/setup/verify", {
+      token: restricted, method: "POST", body: { setupId: setup.body.setupId, code: codeAt(setup.body.secret) },
+    });
+    expect(verify.status).toBe(200);
+    const confirm = await request("/api/v1/auth/totp/setup/confirm", {
+      token: restricted, method: "POST", body: { batchId: verify.body.batchId },
+    });
     expect(confirm.status).toBe(200);
     const fresh = confirm.body.sessionToken;
     expect(sqlite.query("SELECT mfa_restricted FROM sessions WHERE token_hash = ?").get(await sha256(fresh)).mfa_restricted).toBe(0);

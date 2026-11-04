@@ -1,7 +1,8 @@
 import {
   LoginMfaSchema,
-  TotpCodeSchema,
+  TotpBatchConfirmSchema,
   TotpReauthSchema,
+  TotpSetupVerifySchema,
   type LoginMfaInput,
   type TotpReauthInput,
 } from "@edgeever/shared";
@@ -28,7 +29,7 @@ import {
   countPendingRecoveryCodes,
   decryptTotpSecret,
   encryptTotpSecret,
-  findLatestRecoveryCodeBatchForSession,
+  findRecoveryCodeBatch,
   findLoginChallenge,
   generateRecoveryCodes,
   generateTotpSecret,
@@ -39,6 +40,7 @@ import {
   markPasswordHashMfaStatement,
   matchTotpStep,
   newRecoveryCodeBatchId,
+  newTotpSetupId,
   pendingRecoveryCodeStatements,
   recordPendingSetupFailure,
   RECOVERY_CODE_COUNT,
@@ -228,29 +230,34 @@ export const registerTotpRoutes = (app: Hono<AppEnv>, dependencies: TotpRouteDep
     }
 
     const secret = generateTotpSecret();
+    const setupId = newTotpSetupId();
     const now = isoNow();
     const db = context.env.storage.db;
     await db.batch([
-      // The setup belongs to the session that just passed identity verification;
-      // verify and confirm only accept that session.
+      // The setup belongs to the session that just passed identity verification
+      // and carries an id the client sends back: verify and confirm accept only
+      // that session, and only the setup it was shown, so two tabs of one
+      // session cannot finish each other's flow.
       db.prepare(
         `INSERT INTO user_totp (
            user_id, pending_secret_encrypted, pending_created_at, pending_session_id,
-           pending_attempts, pending_batch_id, created_at, updated_at
-         ) VALUES (?, ?, ?, ?, 0, NULL, ?, ?)
+           pending_setup_id, pending_attempts, pending_batch_id, created_at, updated_at
+         ) VALUES (?, ?, ?, ?, ?, 0, NULL, ?, ?)
          ON CONFLICT(user_id) DO UPDATE SET
            pending_secret_encrypted = excluded.pending_secret_encrypted,
            pending_created_at = excluded.pending_created_at,
            pending_verified_step = NULL,
            pending_session_id = excluded.pending_session_id,
+           pending_setup_id = excluded.pending_setup_id,
            pending_attempts = 0,
            pending_batch_id = NULL,
            updated_at = excluded.updated_at`,
-      ).bind(user.id, await encryptTotpSecret(secret, user.id, context.env), now, auth.sessionId, now, now),
+      ).bind(user.id, await encryptTotpSecret(secret, user.id, context.env), now, auth.sessionId, setupId, now, now),
       db.prepare(`DELETE FROM user_recovery_codes WHERE user_id = ? AND status = 'pending'`).bind(user.id),
     ]);
 
     return context.json({
+      setupId,
       secret,
       otpauthUri: buildOtpauthUri(secret, user.username),
       issuer: TOTP_ISSUER,
@@ -260,19 +267,25 @@ export const registerTotpRoutes = (app: Hono<AppEnv>, dependencies: TotpRouteDep
   });
 
   // Step 2: prove the authenticator works, then show recovery codes once.
-  app.post("/api/v1/auth/totp/setup/verify", zValidator("json", TotpCodeSchema), async (context) => {
+  app.post("/api/v1/auth/totp/setup/verify", zValidator("json", TotpSetupVerifySchema), async (context) => {
     const auth = await requireSession(context, dependencies, true);
     if (!auth) return sessionRequired(context);
 
+    const input = context.req.valid("json");
     const db = context.env.storage.db;
     const row = await getUserTotp(db, auth.actorId);
     if (!row || !isPendingFresh(row)) return setupExpired(context);
-    // Only the session that passed identity verification may continue this setup.
-    if (row.pending_session_id !== auth.sessionId) return setupExpired(context);
+    // Only the session that passed identity verification may continue this
+    // setup, and only for the setup it was shown. A newer setup from another
+    // tab of the same session replaced this one: refuse it instead of counting
+    // the code as a wrong attempt against the newer secret.
+    if (row.pending_session_id !== auth.sessionId || row.pending_setup_id !== input.setupId) {
+      return setupExpired(context);
+    }
 
     const secret = await decryptTotpSecret(row.pending_secret_encrypted, auth.actorId, context.env);
     if (!secret) return setupExpired(context);
-    const step = matchTotpStep(secret, context.req.valid("json").code);
+    const step = matchTotpStep(secret, input.code);
     if (step === null) {
       // Wrong codes are capped per pending secret; at the cap the setup is
       // discarded and has to be started again with the password.
@@ -291,30 +304,34 @@ export const registerTotpRoutes = (app: Hono<AppEnv>, dependencies: TotpRouteDep
     const results = await db.batch([
       db.prepare(
         `UPDATE user_totp SET pending_verified_step = ?, pending_batch_id = ?, updated_at = ?
-         WHERE user_id = ? AND pending_secret_encrypted = ? AND pending_session_id = ?`,
-      ).bind(step, batchId, isoNow(), auth.actorId, row.pending_secret_encrypted, auth.sessionId),
+         WHERE user_id = ? AND pending_secret_encrypted = ? AND pending_session_id = ? AND pending_setup_id = ?`,
+      ).bind(step, batchId, isoNow(), auth.actorId, row.pending_secret_encrypted, auth.sessionId, input.setupId),
       ...(await pendingRecoveryCodeStatements(db, auth.actorId, recoveryCodes, {
         batchId, sessionId: auth.sessionId, onlyIfSetupBatch: true,
       })),
     ]);
     // A newer setup replaced the secret while this code was being checked.
     if (Number(results[0]?.meta.changes) !== 1) return setupExpired(context);
-    return context.json({ recoveryCodes });
+    // Confirm must name this batch, so only the codes shown here can be activated.
+    return context.json({ recoveryCodes, batchId });
   });
 
   // Step 3: the user confirmed the codes are saved. Activate atomically.
-  app.post("/api/v1/auth/totp/setup/confirm", async (context) => {
+  app.post("/api/v1/auth/totp/setup/confirm", zValidator("json", TotpBatchConfirmSchema), async (context) => {
     const auth = await requireSession(context, dependencies, true);
     if (!auth) return sessionRequired(context);
 
+    const { batchId } = context.req.valid("json");
     const db = context.env.storage.db;
     const row = await getUserTotp(db, auth.actorId);
     if (!row || !isPendingFresh(row) || row.pending_verified_step === null || !row.pending_batch_id) {
       return setupExpired(context);
     }
-    // Only the session that passed identity verification may finish this setup.
-    if (row.pending_session_id !== auth.sessionId) return setupExpired(context);
-    const batchId = row.pending_batch_id;
+    // Only the session that passed identity verification may finish this
+    // setup, and only with the batch of codes it was shown. A newer verified
+    // setup from another tab of the same session owns a different batch:
+    // refuse rather than enable a secret and codes this tab never displayed.
+    if (row.pending_session_id !== auth.sessionId || row.pending_batch_id !== batchId) return setupExpired(context);
     if (await countPendingRecoveryCodes(db, auth.actorId, batchId) !== RECOVERY_CODE_COUNT) return setupExpired(context);
 
     const user = await getActiveUser(context, auth.actorId);
@@ -400,23 +417,29 @@ export const registerTotpRoutes = (app: Hono<AppEnv>, dependencies: TotpRouteDep
 
     const db = context.env.storage.db;
     const recoveryCodes = generateRecoveryCodes();
+    const batchId = newRecoveryCodeBatchId();
     await db.batch(await pendingRecoveryCodeStatements(db, auth.actorId, recoveryCodes, {
-      batchId: newRecoveryCodeBatchId(), sessionId: auth.sessionId,
+      batchId, sessionId: auth.sessionId,
     }));
-    return context.json({ recoveryCodes });
+    // Confirm must name this batch, so only the codes shown here can be activated.
+    return context.json({ recoveryCodes, batchId });
   });
 
-  app.post("/api/v1/auth/totp/recovery-codes/confirm", async (context) => {
+  app.post("/api/v1/auth/totp/recovery-codes/confirm", zValidator("json", TotpBatchConfirmSchema), async (context) => {
     const auth = await requireSession(context, dependencies);
     if (!auth) return sessionRequired(context);
 
+    const { batchId } = context.req.valid("json");
     const db = context.env.storage.db;
     const row = await getUserTotp(db, auth.actorId);
     if (!isTotpEnabled(row)) {
       return apiError(context, "totp_not_enabled", "Two-factor authentication is not enabled.", 409);
     }
-    // Only the session that generated the batch may confirm it.
-    const batch = await findLatestRecoveryCodeBatchForSession(db, auth.actorId, auth.sessionId);
+    // Only the session that generated the batch may confirm it, and only the
+    // batch it was shown. A batch replaced by a newer one (another tab of the
+    // same session) no longer exists, so the stale tab gets 409 instead of
+    // activating codes the user never saw.
+    const batch = await findRecoveryCodeBatch(db, auth.actorId, batchId, auth.sessionId);
     const expired = () => apiError(context, "recovery_codes_expired", "Generate new recovery codes again.", 409);
     if (!batch || batch.count !== RECOVERY_CODE_COUNT) return expired();
     // A duplicate confirm of a batch this session already activated is a success.
@@ -428,12 +451,12 @@ export const registerTotpRoutes = (app: Hono<AppEnv>, dependencies: TotpRouteDep
       db.prepare(
         `INSERT INTO audit_events (id, actor_type, actor_id, action, entity_type, entity_id, metadata_json, created_at)
          SELECT ?, 'user', ?, 'auth.recovery_codes_regenerate', 'user', ?, '{}', ? WHERE ${stillPending}`,
-      ).bind(createId("audit"), auth.actorId, auth.actorId, isoNow(), auth.actorId, batch.batchId),
-      ...activatePendingRecoveryCodeStatements(db, auth.actorId, batch.batchId),
+      ).bind(createId("audit"), auth.actorId, auth.actorId, isoNow(), auth.actorId, batchId),
+      ...activatePendingRecoveryCodeStatements(db, auth.actorId, batchId),
     ]);
     if (Number(results[results.length - 1]?.meta.changes) !== RECOVERY_CODE_COUNT) {
       // Lost the race against a concurrent confirm: nothing above changed anything.
-      return await countActiveRecoveryCodesInBatch(db, auth.actorId, batch.batchId) === RECOVERY_CODE_COUNT
+      return await countActiveRecoveryCodesInBatch(db, auth.actorId, batchId) === RECOVERY_CODE_COUNT
         ? context.json({ ok: true })
         : expired();
     }

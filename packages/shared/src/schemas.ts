@@ -216,8 +216,18 @@ export const TotpReauthSchema = z.object({
   recoveryCode: RecoveryCodeField.optional(),
 });
 
-export const TotpCodeSchema = z.object({
+/** Opaque id the server issued for one enrollment flow or one batch of recovery codes. */
+const TotpFlowIdField = z.string().trim().min(8).max(80);
+
+/** Step 2 of enrollment: the authenticator code, for the setup the client was shown. */
+export const TotpSetupVerifySchema = z.object({
+  setupId: TotpFlowIdField,
   code: TotpCodeField,
+});
+
+/** Last step of enrollment or of regenerating codes: the batch the user saved. */
+export const TotpBatchConfirmSchema = z.object({
+  batchId: TotpFlowIdField,
 });
 
 export const LoginDeviceSessionUpdateSchema = z.object({
@@ -585,6 +595,8 @@ export type MergeMemosInput = z.infer<typeof MergeMemosSchema>;
 export type LoginInput = z.infer<typeof LoginSchema>;
 export type LoginMfaInput = z.infer<typeof LoginMfaSchema>;
 export type TotpReauthInput = z.infer<typeof TotpReauthSchema>;
+export type TotpSetupVerifyInput = z.infer<typeof TotpSetupVerifySchema>;
+export type TotpBatchConfirmInput = z.infer<typeof TotpBatchConfirmSchema>;
 export type LoginDeviceSessionUpdateInput = z.infer<typeof LoginDeviceSessionUpdateSchema>;
 export type ChangePasswordInput = z.infer<typeof ChangePasswordSchema>;
 export type UserCreateInput = z.infer<typeof UserCreateSchema>;
