@@ -24,8 +24,10 @@ import type {
   AuthContext,
   Bindings,
 } from "./api-context";
-import { hashPassword, verifyPassword } from "./auth-crypto";
+import { verifyPassword } from "./auth-crypto";
 import type { InstanceAuthMode } from "./auth-state";
+import { registerTotpRoutes, type FinishLoginOptions } from "./auth-totp-routes";
+import { createLoginChallenge, getUserTotp, hashPasswordForUser, isTotpEnabled } from "./auth-totp";
 import { isoNow } from "./entity-utils";
 import {
   apiError,
@@ -55,10 +57,25 @@ type UserWorkspace = {
   role: "owner" | "member";
 };
 
+type AuthenticateOptions = { allowMfaRestricted?: boolean };
+
 type AuthRouteDependencies = {
-  authenticateRequest: (context: AppContext, touch: boolean) => Promise<AuthContext | null>;
-  authenticateSession: (context: AppContext, touch: boolean) => Promise<AuthContext | null>;
-  createSession: (context: AppContext, user: UserRow, requestedDeviceId?: string) => Promise<LoginSession>;
+  authenticateRequest: (
+    context: AppContext,
+    touch: boolean,
+    options?: AuthenticateOptions,
+  ) => Promise<AuthContext | null>;
+  authenticateSession: (
+    context: AppContext,
+    touch: boolean,
+    options?: AuthenticateOptions,
+  ) => Promise<AuthContext | null>;
+  createSession: (
+    context: AppContext,
+    user: UserRow,
+    requestedDeviceId?: string,
+    options?: { mfaRestricted?: boolean },
+  ) => Promise<LoginSession>;
   ensureUserWorkspace: (
     database: DatabaseAdapter,
     userId: string,
@@ -94,6 +111,61 @@ export const registerAuthRoutes = (
   app: Hono<AppEnv>,
   dependencies: AuthRouteDependencies,
 ) => {
+  const finishLogin = async (context: AppContext, user: UserRow, options: FinishLoginOptions) => {
+    if (dependencies.isDemoEnvironment(context.env)) {
+      // The demo keeps its own bilingual seed; a visitor's sign-in must not
+      // localize the shared notebooks into that visitor's language.
+      await context.env.storage.db.prepare(`DELETE FROM workspace_seed_localizations`).run();
+    }
+    const workspace = await dependencies.ensureUserWorkspace(
+      context.env.storage.db,
+      user.id,
+      user.username,
+      options.locale ?? context.req.header("accept-language"),
+    );
+    const session = await dependencies.createSession(
+      context,
+      user,
+      options.deviceId,
+      options.mfaRestricted ? { mfaRestricted: true } : undefined,
+    );
+    dependencies.setSessionCookie(context, session.token, session.maxAge);
+
+    const now = isoNow();
+    await context.env.storage.db.batch([
+      context.env.storage.db.prepare(
+        `UPDATE users SET last_login_at = ?, updated_at = ? WHERE id = ?`,
+      ).bind(now, now, user.id),
+      auditStatement(context.env.storage.db, "user", user.id, options.auditAction, "session", session.id, {
+        username: user.username,
+      }),
+    ]);
+
+    return context.json({
+      authRequired: true,
+      authenticated: true,
+      demoMode: dependencies.isDemoEnvironment(context.env),
+      sessionToken: session.token,
+      user: {
+        id: user.id,
+        username: user.username,
+        displayName: user.display_name,
+        role: workspace.role,
+      },
+      ...(options.mfaRestricted ? { mfaRebindRequired: true } : {}),
+    });
+  };
+
+  registerTotpRoutes(app, {
+    authenticateRequest: dependencies.authenticateRequest,
+    createSession: dependencies.createSession,
+    finishLogin,
+    getLoginAttemptKeys: dependencies.getLoginAttemptKeys,
+    isDemoEnvironment: dependencies.isDemoEnvironment,
+    setSessionCookie: dependencies.setSessionCookie,
+    tooManyLoginAttempts: dependencies.tooManyLoginAttempts,
+  });
+
   app.get("/api/v1/auth/session", async (context) => {
     const authMode = await dependencies.getInstanceAuthMode(context.env);
 
@@ -112,7 +184,7 @@ export const registerAuthRoutes = (
       });
     }
 
-    const auth = await dependencies.authenticateRequest(context, false);
+    const auth = await dependencies.authenticateRequest(context, false, { allowMfaRestricted: true });
     return context.json({
       authRequired: true,
       authenticated: Boolean(auth && auth.kind === "user"),
@@ -123,6 +195,7 @@ export const registerAuthRoutes = (
         displayName: auth.displayName,
         role: auth.role,
       } : null,
+      ...(auth?.kind === "user" && auth.mfaRestricted ? { mfaRebindRequired: true } : {}),
     });
   });
 
@@ -273,42 +346,35 @@ export const registerAuthRoutes = (
       return unauthorized(context, "Username or password is incorrect.");
     }
 
-    await clearLoginAttempts(context.env.storage.db, loginAttemptKeys);
-    if (dependencies.isDemoEnvironment(context.env)) {
-      // The demo keeps its own bilingual seed; a visitor's sign-in must not
-      // localize the shared notebooks into that visitor's language.
-      await context.env.storage.db.prepare(`DELETE FROM workspace_seed_localizations`).run();
+    const totp = await getUserTotp(context.env.storage.db, user.id);
+    if (isTotpEnabled(totp)) {
+      // Never issue a session yet. Login attempts are only cleared after the
+      // second factor, so a known password cannot reset the code limiter.
+      // A 401 (not 200) keeps clients that predate TOTP from treating this
+      // as a successful sign-in.
+      const challenge = await createLoginChallenge(
+        context.env.storage.db,
+        user.id,
+        input.deviceId ?? null,
+      );
+      return context.json({
+        error: {
+          code: "mfa_required",
+          message: "This account uses two-factor authentication. Update EdgeEver to sign in.",
+          details: {
+            challengeToken: challenge.token,
+            expiresAt: challenge.expiresAt,
+            methods: ["totp", "recovery_code"],
+          },
+        },
+      }, 401);
     }
-    const workspace = await dependencies.ensureUserWorkspace(
-      context.env.storage.db,
-      user.id,
-      user.username,
-      input.locale ?? context.req.header("accept-language"),
-    );
-    const session = await dependencies.createSession(context, user, input.deviceId);
-    dependencies.setSessionCookie(context, session.token, session.maxAge);
 
-    const now = isoNow();
-    await context.env.storage.db.batch([
-      context.env.storage.db.prepare(
-        `UPDATE users SET last_login_at = ?, updated_at = ? WHERE id = ?`,
-      ).bind(now, now, user.id),
-      auditStatement(context.env.storage.db, "user", user.id, "auth.login", "session", session.id, {
-        username: user.username,
-      }),
-    ]);
-
-    return context.json({
-      authRequired: true,
-      authenticated: true,
-      demoMode: dependencies.isDemoEnvironment(context.env),
-      sessionToken: session.token,
-      user: {
-        id: user.id,
-        username: user.username,
-        displayName: user.display_name,
-        role: workspace.role,
-      },
+    await clearLoginAttempts(context.env.storage.db, loginAttemptKeys);
+    return finishLogin(context, user, {
+      deviceId: input.deviceId,
+      locale: input.locale,
+      auditAction: "auth.login",
     });
   });
 
@@ -333,7 +399,7 @@ export const registerAuthRoutes = (
       }
 
       const now = isoNow();
-      const passwordHash = await hashPassword(input.newPassword);
+      const passwordHash = await hashPasswordForUser(context.env.storage.db, user.id, input.newPassword);
       await context.env.storage.db.batch([
         context.env.storage.db.prepare(
           `UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?`,

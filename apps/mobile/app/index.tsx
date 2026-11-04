@@ -5,6 +5,7 @@ import { lazy, Suspense, useCallback, useEffect } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { Text } from "../src/components/LocalizedText";
 import { LoginScreen } from "../src/screens/LoginScreen";
+import { MfaRebindScreen } from "../src/screens/MfaRebindScreen";
 import { clearAndRefreshIncomingShare } from "../src/lib/incoming-share-lifecycle";
 import { useSession } from "../src/lib/session";
 import { markStartup } from "../src/lib/startup-performance";
@@ -44,6 +45,11 @@ export default function IndexScreen() {
 
   if (isLoading || isRestoringCache) {
     return <StartupPlaceholder />;
+  }
+
+  // A recovery-code session may only rebind TOTP; business APIs answer 403.
+  if (session?.mfaRebindRequired) {
+    return <MfaRebindScreen />;
   }
 
   return session ? (

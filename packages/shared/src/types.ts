@@ -320,6 +320,50 @@ export type AuthSession = {
   demoMode: boolean;
   user: AuthUser | null;
   sessionToken?: string;
+  /** Signed in with a recovery code: only TOTP rebinding is allowed until done. */
+  mfaRebindRequired?: boolean;
+};
+
+export type MfaMethod = "totp" | "recovery_code";
+
+/** `error.details` of a 401 `mfa_required` login response. */
+export type MfaChallenge = {
+  challengeToken: string;
+  expiresAt: string;
+  methods: MfaMethod[];
+};
+
+export type TotpStatus = {
+  enabled: boolean;
+  enabledAt: string | null;
+  recoveryCodesRemaining: number;
+  /** False when the deployment cannot encrypt secrets or runs as the demo. */
+  available: boolean;
+  unavailableReason: "encryption_unavailable" | "demo" | null;
+  /** The current session came from a recovery code and must rebind. */
+  rebindRequired: boolean;
+};
+
+export type TotpSetupResponse = {
+  /** Identifies this setup; `setup/verify` sends it back so a setup replaced by a newer one is refused. */
+  setupId: string;
+  secret: string;
+  otpauthUri: string;
+  issuer: string;
+  accountName: string;
+  expiresAt: string;
+};
+
+export type TotpRecoveryCodesResponse = {
+  /** Identifies this batch; the confirm step sends it back so only the codes the user saw are activated. */
+  batchId: string;
+  recoveryCodes: string[];
+};
+
+export type TotpConfirmResponse = {
+  ok: true;
+  /** Rotated session token after a restricted session finishes rebinding. */
+  sessionToken?: string;
 };
 
 export type LoginDeviceSession = {

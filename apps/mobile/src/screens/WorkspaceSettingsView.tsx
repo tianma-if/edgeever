@@ -4,7 +4,7 @@ import Constants from "expo-constants";
 import type { InstanceHealth } from "@edgeever/client";
 import { buildGitHubFeedbackUrl, formatClientDisplaySize, isClientAheadOfInstance, toDevicePixelScreenSize, type AuthUser } from "@edgeever/shared";
 import { useQuery } from "@tanstack/react-query";
-import { BackHandler, Dimensions, Linking, Modal, PixelRatio, Platform, ScrollView, Switch, View } from "react-native";
+import { BackHandler, Dimensions, KeyboardAvoidingView, Linking, Modal, PixelRatio, Platform, ScrollView, Switch, View } from "react-native";
 import { Activity, ActivityIndicator, Check, ChevronDown, ChevronLeft, ChevronRight, Cloud, Copy, ExternalLink, Image as ImageIcon, Info, LogOut, MessageSquare, MonitorSmartphone, Moon, RefreshCw, ShieldCheck, SlidersHorizontal, Sun, UserRound } from "../components/icons";
 import { Pressable, Text } from "../components/LocalizedText";
 import { useMobileLocale, getMobileCatalog, type MobileLocale } from "../lib/mobile-locale";
@@ -84,6 +84,9 @@ type MobileSystemInfoGroup = {
 
 type MobileSyncDiagnostics = Awaited<ReturnType<typeof loadMobileSyncQueueSummary>>;
 
+/** Gap kept between the focused input and the top of the keyboard. */
+const KEYBOARD_CLEARANCE = 16;
+
 export const SettingsView = ({
   currentUser,
   imageCompressionEnabled,
@@ -115,6 +118,8 @@ export const SettingsView = ({
   const [localePickerOpen, setLocalePickerOpen] = useState(false);
   const [localePickerAnchor, setLocalePickerAnchor] = useState<{ left: number; top: number; width: number } | null>(null);
   const localeSelectRef = useRef<ComponentRef<typeof Pressable>>(null);
+  const settingsRootRef = useRef<View>(null);
+  const [keyboardOffset, setKeyboardOffset] = useState(0);
   const syncQueueScope = session?.baseUrl ?? "";
   const instanceDiagnosticsQuery = useQuery({
     queryKey: ["mobile", "system-info", "instance", session?.baseUrl],
@@ -271,7 +276,12 @@ export const SettingsView = ({
   };
 
   return (
-    <View style={styles.settingsScreen}>
+    <View
+      collapsable={false}
+      onLayout={() => settingsRootRef.current?.measureInWindow((_x, y) => setKeyboardOffset(y))}
+      ref={settingsRootRef}
+      style={styles.settingsScreen}
+    >
       <View style={styles.settingsHeader}>
         <Pressable accessibilityLabel="返回" onPress={() => activeTab ? setActiveTab(null) : onClose()} style={styles.settingsBackButton}>
           <ChevronLeft color="#64748b" size={21} />
@@ -290,7 +300,15 @@ export const SettingsView = ({
           <Text numberOfLines={1} style={styles.settingsThemeText}>{resolvedTheme === "dark" ? "切换到浅色模式" : "切换到深色模式"}</Text>
         </Pressable>
       </View>
-      <ScrollView contentContainerStyle={styles.settingsScrollContent} style={styles.viewBody}>
+      {/* Android draws edge-to-edge, so the window no longer resizes for the
+          keyboard; pad the scroll area instead. "padding" is used on both
+          platforms because "height" caches the initial height and gets it
+          wrong after the screen size changes (rotation, split screen). The
+          offset is this screen's distance from the top of the window (the
+          avoiding view only knows its position inside this screen) plus a
+          small clearance so the focused field does not touch the keyboard. */}
+      <KeyboardAvoidingView behavior="padding" keyboardVerticalOffset={keyboardOffset + KEYBOARD_CLEARANCE} style={styles.viewBody}>
+      <ScrollView contentContainerStyle={styles.settingsScrollContent} keyboardShouldPersistTaps="handled" style={styles.viewBody}>
         {activeTab === null ? (
           <View style={styles.settingsDetailList}>
             <View style={styles.settingsMenu}>
@@ -340,6 +358,7 @@ export const SettingsView = ({
           </View>
         ) : renderContent()}
       </ScrollView>
+      </KeyboardAvoidingView>
       <Modal animationType="fade" onRequestClose={() => setLocalePickerOpen(false)} statusBarTranslucent transparent visible={localePickerOpen && Boolean(localePickerAnchor)}>
         <Pressable onPress={() => setLocalePickerOpen(false)} style={styles.localePickerBackdrop}>
           {localePickerAnchor ? (

@@ -21,6 +21,15 @@ import type {
   ApiToken,
   AuthSession,
   LoginInput,
+  LoginMfaInput,
+  MfaChallenge,
+  TotpBatchConfirmInput,
+  TotpConfirmResponse,
+  TotpReauthInput,
+  TotpRecoveryCodesResponse,
+  TotpSetupResponse,
+  TotpSetupVerifyInput,
+  TotpStatus,
   LoginDeviceSession,
   InstanceUser,
   CreatedApiToken,
@@ -353,6 +362,22 @@ export class ApiRequestError extends Error {
     this.responseDiagnostics = responseDiagnostics;
   }
 }
+
+/** The second-step challenge carried by a 401 `mfa_required` login error. */
+export const getMfaChallenge = (error: unknown): MfaChallenge | null => {
+  if (!(error instanceof ApiRequestError) || error.status !== 401 || error.code !== "mfa_required") return null;
+  const details = error.details as Partial<MfaChallenge> | undefined;
+  if (!details || typeof details.challengeToken !== "string" || !details.challengeToken) return null;
+  return {
+    challengeToken: details.challengeToken,
+    expiresAt: typeof details.expiresAt === "string" ? details.expiresAt : "",
+    methods: Array.isArray(details.methods) ? details.methods : ["totp", "recovery_code"],
+  };
+};
+
+/** A recovery-code session hit a business route before rebinding TOTP. */
+export const isMfaRebindRequiredError = (error: unknown) =>
+  error instanceof ApiRequestError && error.status === 403 && error.code === "mfa_rebind_required";
 
 export type ApiResponseDiagnostics = {
   cloudflareMitigated: boolean;
@@ -840,6 +865,55 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
 
     login: (payload: LoginInput) =>
       request<AuthSession>("/api/v1/auth/login", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+
+    /** Second login step after `login` rejected with `getMfaChallenge(error)`. */
+    completeMfaLogin: (payload: LoginMfaInput) =>
+      request<AuthSession>("/api/v1/auth/login/mfa", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+
+    getTotpStatus: () => request<TotpStatus>("/api/v1/auth/totp"),
+
+    /** Starts enabling (password) or rebinding (password + code; none when restricted). */
+    startTotpSetup: (payload: TotpReauthInput) =>
+      request<TotpSetupResponse>("/api/v1/auth/totp/setup", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+
+    /** Step 2: the code for the setup this client was shown (`setupId` from `startTotpSetup`). */
+    verifyTotpSetup: (payload: TotpSetupVerifyInput) =>
+      request<TotpRecoveryCodesResponse>("/api/v1/auth/totp/setup/verify", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+
+    /** Last step: activates exactly the batch the user saved (`batchId` from `verifyTotpSetup`). */
+    confirmTotpSetup: (payload: TotpBatchConfirmInput) =>
+      request<TotpConfirmResponse>("/api/v1/auth/totp/setup/confirm", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+
+    regenerateRecoveryCodes: (payload: TotpReauthInput) =>
+      request<TotpRecoveryCodesResponse>("/api/v1/auth/totp/recovery-codes", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+
+    /** Activates exactly the batch from `regenerateRecoveryCodes`; a replaced batch answers 409. */
+    confirmRecoveryCodes: (payload: TotpBatchConfirmInput) =>
+      request<{ ok: true }>("/api/v1/auth/totp/recovery-codes/confirm", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+
+    disableTotp: (payload: TotpReauthInput) =>
+      request<{ ok: true }>("/api/v1/auth/totp/disable", {
         method: "POST",
         body: JSON.stringify(payload),
       }),

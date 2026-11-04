@@ -194,6 +194,42 @@ export const LoginSchema = z.object({
   locale: z.string().trim().min(1).max(35).optional(),
 });
 
+const TotpCodeField = z.string().trim().min(6).max(12);
+const RecoveryCodeField = z.string().trim().min(10).max(32);
+
+export const LoginMfaSchema = z.object({
+  challengeToken: z.string().trim().min(16).max(128),
+  code: TotpCodeField.optional(),
+  recoveryCode: RecoveryCodeField.optional(),
+  deviceId: z.string().trim().min(16).max(160).optional(),
+  locale: z.string().trim().min(1).max(35).optional(),
+}).refine((input) => Boolean(input.code) !== Boolean(input.recoveryCode), {
+  message: "Provide either an authenticator code or a recovery code.",
+  path: ["code"],
+});
+
+/** Identity check before enabling (password) or changing TOTP (password + code). */
+export const TotpReauthSchema = z.object({
+  password: z.string().min(1).max(512).optional(),
+  code: TotpCodeField.optional(),
+  /** Alternative to `code` when the authenticator is unavailable; it is consumed. */
+  recoveryCode: RecoveryCodeField.optional(),
+});
+
+/** Opaque id the server issued for one enrollment flow or one batch of recovery codes. */
+const TotpFlowIdField = z.string().trim().min(8).max(80);
+
+/** Step 2 of enrollment: the authenticator code, for the setup the client was shown. */
+export const TotpSetupVerifySchema = z.object({
+  setupId: TotpFlowIdField,
+  code: TotpCodeField,
+});
+
+/** Last step of enrollment or of regenerating codes: the batch the user saved. */
+export const TotpBatchConfirmSchema = z.object({
+  batchId: TotpFlowIdField,
+});
+
 export const LoginDeviceSessionUpdateSchema = z.object({
   label: z.string().trim().max(80).nullable(),
 });
@@ -557,6 +593,10 @@ export type MoveMemosInput = z.infer<typeof MoveMemosSchema>;
 export type DeleteMemosInput = z.infer<typeof DeleteMemosSchema>;
 export type MergeMemosInput = z.infer<typeof MergeMemosSchema>;
 export type LoginInput = z.infer<typeof LoginSchema>;
+export type LoginMfaInput = z.infer<typeof LoginMfaSchema>;
+export type TotpReauthInput = z.infer<typeof TotpReauthSchema>;
+export type TotpSetupVerifyInput = z.infer<typeof TotpSetupVerifySchema>;
+export type TotpBatchConfirmInput = z.infer<typeof TotpBatchConfirmSchema>;
 export type LoginDeviceSessionUpdateInput = z.infer<typeof LoginDeviceSessionUpdateSchema>;
 export type ChangePasswordInput = z.infer<typeof ChangePasswordSchema>;
 export type UserCreateInput = z.infer<typeof UserCreateSchema>;

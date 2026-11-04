@@ -159,8 +159,11 @@ let desktopSessionRejected = false;
 let unauthorizedConfirmPromise: Promise<boolean> | null = null;
 let unauthorizedConfirmContext: string | null = null;
 
+const isLoginRequest = (path: string) =>
+  path === "/api/v1/auth/login" || path === "/api/v1/auth/login/mfa";
+
 const isDesktopPublicRequest = (path: string) =>
-  path === "/api/release" || path === "/api/v1/auth/login" || path === "/api/v1/auth/session";
+  path === "/api/release" || isLoginRequest(path) || path === "/api/v1/auth/session";
 
 const isAuthSession = (value: unknown): value is AuthSession => {
   if (!value || typeof value !== "object") return false;
@@ -243,7 +246,7 @@ const beforeRequest = ({ path }: EdgeEverClientRequestContext) => {
 };
 
 const handleUnauthorized = ({ path, token }: EdgeEverClientRequestContext) => {
-  if (path === "/api/v1/auth/login" || path.startsWith("/api/public/") || typeof window === "undefined") return;
+  if (isLoginRequest(path) || path.startsWith("/api/public/") || typeof window === "undefined") return;
   // getSession handles its own response. A failed probe is not evidence of
   // rejection and must not launch a second probe that can race a new login.
   if (path === "/api/v1/auth/session") return;
@@ -354,7 +357,7 @@ const client = createEdgeEverClient({
   baseUrl: getConfiguredDesktopApiBaseUrl,
   token: getDesktopSessionToken,
   beforeRequest,
-  shouldAttachToken: (path) => path !== "/api/v1/auth/login",
+  shouldAttachToken: (path) => !isLoginRequest(path),
   onUnauthorized: handleUnauthorized,
   directAiGeneration: desktopAiDirectEnabled,
   allowAiServerFallback: !desktopAiDirectEnabled,
@@ -399,11 +402,26 @@ export const api = {
   },
 
   login: async (payload: { username: string; password: string; locale?: string }) => {
-    const session = await client.login({ ...payload, deviceId: getOrCreateClientDeviceId() });
+    // The second factor must present the same device id as the password step,
+    // even when storage is unavailable and each call would mint a new one.
+    const deviceId = getOrCreateClientDeviceId();
+    mfaLoginDeviceId = deviceId;
+    const session = await client.login({ ...payload, deviceId });
+    desktopSessionRejected = false;
+    return session;
+  },
+
+  completeMfaLogin: async (payload: { challengeToken: string; code?: string; recoveryCode?: string; locale?: string }) => {
+    const session = await client.completeMfaLogin({
+      ...payload,
+      deviceId: mfaLoginDeviceId ?? getOrCreateClientDeviceId(),
+    });
     desktopSessionRejected = false;
     return session;
   },
 };
+
+let mfaLoginDeviceId: string | null = null;
 
 /** Freeze destination/authentication for this foreground import, not other callers. */
 export const createNoteImportClient = (signal: AbortSignal, accountId: string | null, isCurrent: () => boolean) => {

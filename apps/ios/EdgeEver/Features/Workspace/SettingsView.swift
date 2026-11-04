@@ -401,6 +401,9 @@ struct SettingsView: View {
             // Change password panel (Android AccountSecurityPanel)
             AccountPasswordPanel()
 
+            // Two-factor authentication (TOTP) — issue #671
+            TotpSettingsPanel()
+
             // Extended links (tokens/devices/users/tags) — compact rows, not on Android root Me
             settingsMenuCard {
                 menuRow(icon: "iphone", iconTint: AppTheme.accent, iconBg: AppTheme.accentSoft,
