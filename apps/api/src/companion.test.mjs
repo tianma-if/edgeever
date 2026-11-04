@@ -518,6 +518,17 @@ describe("companion client-direct HTTP contracts", () => {
     expect((await unset.json()).maxOutputTokens).toBe(2048);
   });
 
+  test("a failed turn saves a reply clipped to the per-turn limit and rejects anything longer (#652)", async () => {
+    const setup = fixture({ loadCredentials: async () => credentials });
+    const payload = input({ allowNotes: false });
+    expect((await setup.request("turns/prepare", "POST", payload)).status).toBe(200);
+    expect((await setup.request(`turns/${payload.id}/checkpoint`, "POST", { response: "x".repeat(16001) })).status).toBe(400);
+    const completed = await setup.request(`turns/${payload.id}/complete`, "POST", { response: "x".repeat(16000), status: "failed" });
+    expect(completed.status).toBe(200);
+    expect((await completed.json()).turn).toMatchObject({ status: "failed" });
+    expect((await getCompanionTurn(setup.db, scope, payload.id)).response).toHaveLength(16000);
+  });
+
   test("resume clears answered questions so the resumed turn can complete (#637)", async () => {
     const setup = fixture({ loadCredentials: async () => credentials });
     const payload = input({ message: "翻译这篇笔记", allowNotes: true });

@@ -392,6 +392,7 @@ export const pl = {
     "providerPaymentRequired": "Dostawca modelu zgłosił brak wystarczających środków. Sprawdź saldo konta i spróbuj ponownie.",
     "providerRateLimited": "Dostawca modelu ograniczył liczbę żądań. Odczekaj chwilę i spróbuj ponownie.",
     "providerRequestRejected": "Domyślny model odrzucił to żądanie. Upewnij się, że obsługuje wywoływanie narzędzi, lub wybierz inny model domyślny.",
+    "responseTooLong": "Odpowiedź osiągnęła limit 16 000 znaków na jedną turę. Dotychczasowy tekst został zapisany. Poproś o resztę w osobnych częściach.",
     "failureDetails": {
       "timeout": "Upłynął limit czasu żądania modelu. Spróbuj ponownie później; jeśli problem się powtarza, sprawdź usługę modelu i serwer proxy.",
       "server": "Usługa modelu zwróciła błąd serwera. Spróbuj ponownie później; jeśli problem się powtarza, sprawdź status dostawcy.",

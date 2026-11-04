@@ -404,6 +404,7 @@ export const enUS = {
     "providerPaymentRequired": "The model provider reported insufficient credit. Check the account balance and try again.",
     "providerRateLimited": "The model provider rate-limited this request. Wait a moment and try again.",
     "providerRequestRejected": "The default model rejected this request. Confirm it supports tool calling, or choose a different default model.",
+    "responseTooLong": "The reply reached the 16,000-character limit for one turn. The text so far has been saved. Ask for the rest in separate parts.",
     "failureDetails": {
       "timeout": "The model request timed out. Try again later; if it persists, check the model service and network proxy.",
       "server": "The model service returned a server error. Try again later; if it persists, check the provider status.",

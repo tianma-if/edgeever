@@ -207,3 +207,47 @@ test("a resumed turn with answered questions completes after the reply (#637)", 
   expect(completed).toHaveLength(1);
   expect(completed[0]).toMatchObject({ status: "completed", response: "Translated note." });
 });
+
+test("a reply longer than the per-turn limit is saved up to the limit and the turn closes (#652)", async () => {
+  const { streamDirectCompanion } = await import("./companion-direct-stream.ts");
+  const { CompanionTurnCheckpointSchema, CompanionTurnCompleteSchema, COMPANION_RESPONSE_MAX_CHARS } = await import("@edgeever/shared");
+  // 170 chunks x 100 chars = 17,000 characters with a 9,000-token budget.
+  const chunks = Array.from({ length: 170 }, (_, index) => `${String(index).padStart(3, "0")}${"x".repeat(97)}`);
+  let providerSignal;
+  const sse = new ReadableStream({
+    start(controller) {
+      const encoder = new TextEncoder();
+      for (const text of chunks) controller.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\n`));
+      controller.enqueue(encoder.encode('data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n'));
+      controller.close();
+    },
+  });
+  const events = [];
+  const checkpoints = [];
+  const completed = [];
+  await streamDirectCompanion({ ...preparedTurn, maxOutputTokens: 9000 }, {
+    fetch: async (_url, init) => { providerSignal = init.signal; return new Response(sse, { headers: { "content-type": "text/event-stream" } }); },
+    onEvent: event => events.push(event),
+    executeTool: async () => { throw new Error("must not execute tools"); },
+    // The instance validates these bodies with the shared schemas; mirror that here.
+    checkpoint: async body => { checkpoints.push(CompanionTurnCheckpointSchema.parse(body)); },
+    complete: async body => { completed.push(CompanionTurnCompleteSchema.parse(body)); return { turn: { ...preparedTurn.turn, ...body } }; },
+  });
+  expect(COMPANION_RESPONSE_MAX_CHARS).toBe(16000);
+  expect(completed).toHaveLength(1);
+  expect(completed[0].status).toBe("failed");
+  expect(completed[0].response).toBe(chunks.join("").slice(0, 16000));
+  expect(checkpoints.every(body => body.response.length <= 16000)).toBe(true);
+  expect(events.filter(event => event.type === "text-delta").map(event => event.text).join("")).toBe(completed[0].response);
+  expect(events.at(-1)).toMatchObject({ type: "error", code: "companion_response_too_long" });
+  expect(providerSignal?.aborted).toBe(true);
+});
+
+test("process text sealed before tool calls stays within the instance limit (#652)", async () => {
+  const { clipCompanionProcess, COMPANION_PROCESS_MAX_CHARS, sealCompanionProcess } = await import("@edgeever/shared");
+  const sealed = sealCompanionProcess("p".repeat(30000), "r".repeat(9000));
+  const clipped = clipCompanionProcess(sealed.process);
+  expect(clipped.length).toBeLessThanOrEqual(COMPANION_PROCESS_MAX_CHARS);
+  expect(clipped.endsWith("r".repeat(9000))).toBe(true);
+  expect(clipCompanionProcess("short")).toBe("short");
+});

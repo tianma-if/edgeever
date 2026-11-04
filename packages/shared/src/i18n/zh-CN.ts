@@ -403,6 +403,7 @@ export const zhCN = {
     "providerPaymentRequired": "模型服务商返回额度不足，请检查账户余额后重试。",
     "providerRateLimited": "模型服务商限流，请稍后再试。",
     "providerRequestRejected": "默认模型拒绝了这次请求。请确认该模型支持工具调用，或更换默认模型。",
+    "responseTooLong": "回复已达到单轮 16,000 字的上限，已保存前面的内容。可以让它分几部分继续回复。",
     "failureDetails": {
       "timeout": "模型请求超时，请稍后重试；若持续失败，请检查模型服务及网络代理。",
       "server": "模型服务返回了服务端错误，请稍后重试；若持续失败，请检查服务商状态。",

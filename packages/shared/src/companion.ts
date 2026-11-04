@@ -155,22 +155,25 @@ export const CompanionTurnResumeSchema = z.object({
   answers: z.array(CompanionAnswerSchema).max(3).optional(),
 }).strict();
 export type CompanionTurnResume = z.infer<typeof CompanionTurnResumeSchema>;
+/** Per-turn storage limits enforced by the instance; clients must clip before saving. */
+export const COMPANION_RESPONSE_MAX_CHARS = 16000;
+export const COMPANION_PROCESS_MAX_CHARS = 32000;
 export const CompanionToolExecuteSchema = z.object({
   name: z.string().trim().min(1).max(80),
   input: z.record(z.string(), z.unknown()).default({}),
   callId: z.string().trim().min(1).max(100).optional(),
-  response: z.string().max(16000).optional(),
-  process: z.string().max(32000).optional(),
+  response: z.string().max(COMPANION_RESPONSE_MAX_CHARS).optional(),
+  process: z.string().max(COMPANION_PROCESS_MAX_CHARS).optional(),
 }).strict();
 export type CompanionToolExecuteInput = z.infer<typeof CompanionToolExecuteSchema>;
 export const CompanionTurnCheckpointSchema = z.object({
-  response: z.string().max(16000),
-  process: z.string().max(32000).optional(),
+  response: z.string().max(COMPANION_RESPONSE_MAX_CHARS),
+  process: z.string().max(COMPANION_PROCESS_MAX_CHARS).optional(),
 }).strict();
 export type CompanionTurnCheckpointInput = z.infer<typeof CompanionTurnCheckpointSchema>;
 export const CompanionTurnCompleteSchema = z.object({
-  response: z.string().max(16000),
-  process: z.string().max(32000).optional(),
+  response: z.string().max(COMPANION_RESPONSE_MAX_CHARS),
+  process: z.string().max(COMPANION_PROCESS_MAX_CHARS).optional(),
   status: z.enum(["completed", "interrupted", "failed"]),
   inputTokens: z.number().int().nonnegative().optional(),
   outputTokens: z.number().int().nonnegative().optional(),
@@ -364,6 +367,24 @@ export const sealCompanionProcess = (process: string, response: string) => ({
   process: [process.trim(), response.trim()].filter(Boolean).join("\n\n"),
   response: "",
 });
+
+/** Keep the most recent process text within the instance limit; older steps are dropped first. */
+export const clipCompanionProcess = (process: string) => {
+  if (process.length <= COMPANION_PROCESS_MAX_CHARS) return process;
+  const marker = "…\n\n";
+  let start = process.length - (COMPANION_PROCESS_MAX_CHARS - marker.length);
+  // Do not start inside a surrogate pair.
+  if (/[\uDC00-\uDFFF]/.test(process[start] ?? "")) start += 1;
+  return `${marker}${process.slice(start)}`;
+};
+
+/** Longest prefix of `text` that fits in `limit` UTF-16 units without splitting a surrogate pair. */
+export const clipToCharLimit = (text: string, limit: number) => {
+  if (text.length <= limit) return text;
+  let end = limit;
+  if (/[\uD800-\uDBFF]/.test(text[end - 1] ?? "")) end -= 1;
+  return text.slice(0, end);
+};
 
 export const parseCompanionMentionQuery = (text: string, cursor: number) => {
   const prefix = text.slice(0, Math.max(0, Math.min(cursor, text.length)));
