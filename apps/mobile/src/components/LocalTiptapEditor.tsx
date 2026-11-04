@@ -376,30 +376,6 @@ const handleMobileResourceEvent = (
   return false;
 };
 
-let beautifulMermaidRuntime: Promise<typeof import("beautiful-mermaid")> | null = null;
-
-const loadBeautifulMermaid = () => {
-  beautifulMermaidRuntime ??= import("beautiful-mermaid");
-  return beautifulMermaidRuntime;
-};
-
-const renderWithBeautifulMermaid = async (source: string, theme: "light" | "dark") => {
-  try {
-    const { renderMermaidSVG, THEMES } = await loadBeautifulMermaid();
-    return renderMermaidSVG(source, {
-      ...THEMES[theme === "dark" ? "zinc-dark" : "zinc-light"],
-      transparent: true,
-      font: "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
-      padding: 12,
-      nodeSpacing: 16,
-      layerSpacing: 28,
-      componentSpacing: 16,
-    });
-  } catch {
-    return null;
-  }
-};
-
 export default function LocalTiptapEditor(props: LocalTiptapEditorProps | MermaidRendererProps) {
   return props.mode === "mermaid-renderer"
     ? <MermaidRenderRuntime {...props} />
@@ -421,30 +397,11 @@ const MermaidRenderRuntime = (props: MermaidRendererProps) => {
         sources = [];
       }
 
-      const mermaid = await loadMermaid();
-      mermaid.initialize({
-        startOnLoad: false,
-        securityLevel: "strict",
-        suppressErrorRendering: true,
-        theme: "base",
-        themeVariables: getMobileMermaidThemeVariables(props.theme),
-        flowchart: { htmlLabels: false },
-      });
-
       const results: Array<{ source: string; svg: string | null }> = [];
       for (const source of sources) {
+        if (cancelled) return;
         try {
-          const beautifulSvg = await renderWithBeautifulMermaid(source, props.theme);
-          if (beautifulSvg) {
-            results.push({ source, svg: inlineMermaidSvgStyles(beautifulSvg) });
-            continue;
-          }
-          const valid = await mermaid.parse(source, { suppressErrors: true });
-          if (!valid) {
-            throw new Error("Invalid Mermaid diagram");
-          }
-          mermaidRenderSequence += 1;
-          const { svg } = await mermaid.render(`edgeever-mobile-mermaid-${mermaidRenderSequence}`, source);
+          const { svg } = await renderMobileMermaid(source, props.theme, false);
           results.push({ source, svg: inlineMermaidSvgStyles(svg) });
         } catch {
           results.push({ source, svg: null });
@@ -2331,6 +2288,27 @@ const loadMermaid = () => {
   return mermaidRuntime;
 };
 
+let mermaidRenderQueue: Promise<unknown> = Promise.resolve();
+
+const renderMobileMermaid = (source: string, theme: "light" | "dark", htmlLabels = true) => {
+  // Mermaid shares its configuration across renders, including different themes.
+  const result = mermaidRenderQueue.then(async () => {
+    const mermaid = await loadMermaid();
+    mermaid.initialize({
+      startOnLoad: false,
+      securityLevel: "strict",
+      suppressErrorRendering: true,
+      theme: "base",
+      themeVariables: getMobileMermaidThemeVariables(theme),
+      htmlLabels,
+      flowchart: { nodeSpacing: 25, rankSpacing: 30, subGraphTitleMargin: { bottom: 12 } },
+    });
+    return mermaid.render(`edgeever-mobile-mermaid-${++mermaidRenderSequence}`, source);
+  });
+  mermaidRenderQueue = result.catch(() => undefined);
+  return result;
+};
+
 const createMobileCodeBlockExtension = (
   locale: "zh-CN" | "en-US" | "ja" | "pl" | "ru",
   theme: "light" | "dark",
@@ -2438,27 +2416,7 @@ const createMobileCodeBlockExtension = (
           message.className = "edgeever-mermaid-message";
           message.textContent = getMobileEditorCopy(locale).codeBlock.rendering;
           preview.replaceChildren(message);
-          void loadMermaid()
-            .then(async (mermaid) => {
-              const beautifulSvg = await renderWithBeautifulMermaid(source, theme);
-              if (beautifulSvg) {
-                return { svg: beautifulSvg };
-              }
-              mermaid.initialize({
-                startOnLoad: false,
-                securityLevel: "strict",
-                suppressErrorRendering: true,
-                theme: "base",
-                themeVariables: getMobileMermaidThemeVariables(theme),
-                flowchart: { nodeSpacing: 25, rankSpacing: 30 },
-              });
-              const valid = await mermaid.parse(source, { suppressErrors: true });
-              if (!valid) {
-                throw new Error("Invalid Mermaid diagram");
-              }
-              mermaidRenderSequence += 1;
-              return mermaid.render(`edgeever-mobile-editor-mermaid-${mermaidRenderSequence}`, source);
-            })
+          void renderMobileMermaid(source, theme)
             .then(({ svg }) => {
               if (activeRequest !== renderRequest) {
                 return;
