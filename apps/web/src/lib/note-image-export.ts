@@ -249,27 +249,27 @@ export const createNoteImage = async ({
   style.textContent = `${assets.css}\n${styles}\n${generateCardCss({ theme: resolvedTheme, fontStyle, fontSize, cardWidth })}`;
   renderRoot.appendChild(style);
 
-  renderRoot.insertAdjacentHTML(
-    "beforeend",
-    buildNoteImageCardMarkup({
-      title,
-      notebook,
-      tags,
-      updatedAt,
-      bodyHtml: exportContent.innerHTML,
-      theme: resolvedTheme,
-      fontStyle,
-      showTitle,
-      showNotebook,
-      showTags,
-      showUpdatedAt,
-      showBranding: branding,
-      author,
-      showAuthor,
-      showReadingTime,
-      readingTimeText,
-    }),
-  );
+  const markup = buildNoteImageCardMarkup({
+    title,
+    notebook,
+    tags,
+    updatedAt,
+    bodyHtml: exportContent.innerHTML,
+    theme: resolvedTheme,
+    fontStyle,
+    showTitle,
+    showNotebook,
+    showTags,
+    showUpdatedAt,
+    showBranding: branding,
+    author,
+    showAuthor,
+    showReadingTime,
+    readingTimeText,
+  });
+  // The HTML clone becomes SVG XML. Pasted controls and lone surrogates
+  // can make the whole snapshot undecodable, even if the editor displays it.
+  renderRoot.insertAdjacentHTML("beforeend", markup.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\uD800-\uDFFF\uFFFE\uFFFF]/gu, "\uFFFD"));
 
   const source = renderRoot.lastElementChild as HTMLElement;
   source.style.width = `${targetWidth}px`;
