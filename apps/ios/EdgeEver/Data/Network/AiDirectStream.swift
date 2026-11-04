@@ -106,7 +106,8 @@ enum AiDirectStream {
             let usage = payload["usage"] as? [String: Any]
             return (
                 delta?["text"] as? String ?? "",
-                payload["stop_reason"] as? String,
+                // Streaming sends the stop reason in message_delta's `delta.stop_reason`.
+                (delta?["stop_reason"] as? String) ?? (payload["stop_reason"] as? String),
                 usage?["input_tokens"] as? Int,
                 usage?["output_tokens"] as? Int
             )

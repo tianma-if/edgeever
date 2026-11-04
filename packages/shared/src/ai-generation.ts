@@ -304,7 +304,10 @@ export const extractAiDirectStreamDelta = (provider: AiProvider, payload: unknow
     const usage = record.usage && typeof record.usage === "object" ? record.usage as Record<string, unknown> : null;
     return {
       text: typeof delta?.text === "string" ? delta.text : "",
-      finishReason: typeof record.stop_reason === "string" ? record.stop_reason : undefined,
+      // Streaming sends the stop reason in message_delta's `delta.stop_reason`.
+      finishReason: typeof delta?.stop_reason === "string"
+        ? delta.stop_reason
+        : typeof record.stop_reason === "string" ? record.stop_reason : undefined,
       inputTokens: typeof usage?.input_tokens === "number" ? usage.input_tokens : undefined,
       outputTokens: typeof usage?.output_tokens === "number" ? usage.output_tokens : undefined,
     };

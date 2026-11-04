@@ -80,6 +80,13 @@ final class URLNormalizeTests: XCTestCase {
         XCTAssertFalse(unmarked.isUnterminated)
     }
 
+    func testAnthropicStreamedStopReasonIsReadFromMessageDelta() {
+        let delta = AiDirectStream.extractDelta(provider: "anthropic", payload: ["type": "message_delta", "delta": ["stop_reason": "max_tokens"], "usage": ["output_tokens": 7]])
+        XCTAssertEqual(delta.finishReason, "max_tokens")
+        XCTAssertEqual(delta.outputTokens, 7)
+        XCTAssertTrue(AiDirectStream.isTruncatedFinishReason(delta.finishReason))
+    }
+
     func testGenerateRequestDeclaresUnboundedOutputSupport() throws {
         let input = AiGenerateInput(action: .translate, title: "t", contentMarkdown: "Body", targetLanguage: "en")
         let encoded = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(input)) as? [String: Any])

@@ -174,6 +174,25 @@ describe("generation with automatic budgets (#652)", () => {
     expect(events.at(-1)).toMatchObject({ type: "finish", truncated: false });
   });
 
+  test("Anthropic's streamed stop reason is read from message_delta", async () => {
+    const stream = (stopReason) => new Response([
+      'event: content_block_delta\ndata: {"type":"content_block_delta","delta":{"type":"text_delta","text":"<r>partial"}}',
+      `event: message_delta\ndata: {"type":"message_delta","delta":{"stop_reason":"${stopReason}"},"usage":{"output_tokens":7}}`,
+      "",
+    ].join("\n\n"), { headers: { "content-type": "text/event-stream" } });
+    const run = async (stopReason) => {
+      const events = [];
+      const client = createEdgeEverClient({
+        baseUrl: "https://notes.example",
+        fetch: async () => json(preparedBody({ provider: "anthropic", maxOutputTokens: 4096 })),
+        providerFetch: async () => stream(stopReason),
+      });
+      await client.streamAiGeneration({ action: "summarize", title: "Note", contentMarkdown: "Body" }, { onEvent: (event) => events.push(event) });
+      return events.at(-1);
+    };
+    expect(await run("max_tokens")).toMatchObject({ type: "finish", finishReason: "max_tokens", truncated: true, outputTokens: 7 });
+  });
+
   test("an unrecognised 400 is not retried", async () => {
     let calls = 0;
     const client = createEdgeEverClient({
