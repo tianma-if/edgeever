@@ -113,15 +113,70 @@ export const DesktopScheduledBackupCard = () => {
       <DesktopBackupImport disabled={saving || runOpen || Boolean(deleting)}>{(restore, restoreDisabled) => <>
         <div className="flex flex-wrap gap-2">
           {busy ? <Button type="button" size="sm" variant="outline" disabled={saving} onClick={() => void attempt(() => bridge.backup("cancel", { backupSetId: status.backupSetId }))}>{t("common.cancel")}</Button> : <Button type="button" size="sm" className="bg-foreground text-background hover:bg-foreground/90" disabled={saving || (!pending && dirty)} onClick={startBackup}>{t(pending ? "desktopBackup.verifyPublication" : "desktopBackup.run")}</Button>}
-          <Button type="button" size="sm" variant="outline" disabled={restoreDisabled} onClick={() => restore()}><Upload className="h-4 w-4" />{t("desktopBackup.importButton")}</Button>
-          <Button type="button" size="sm" variant="ghost" disabled={saving} onClick={() => void attempt(() => bridge.backup("open-folder", { backupSetId: status.backupSetId }))}><FolderOpen className="h-4 w-4" />{t("desktopBackup.openFolder")}</Button>
+          <Button type="button" size="sm" variant="outline" disabled={restoreDisabled} onClick={() => restore()}><Upload className="mr-1.5 h-4 w-4" />{t("desktopBackup.importButton")}</Button>
+          <Button type="button" size="sm" variant="outline" disabled={saving} onClick={() => void attempt(() => bridge.backup("open-folder", { backupSetId: status.backupSetId }))}><FolderOpen className="mr-1.5 h-4 w-4" />{t("desktopBackup.openFolder")}</Button>
         </div>
-        <div className="grid gap-1.5 rounded-md bg-muted/40 p-3 text-xs" aria-live="polite" data-backup-status>
-          <p className="font-medium text-slate-800">{t("desktopBackup.lastSuccess", { time: date(status.lastSuccessAt) })}</p>
-          {lastBackup ? <p className="text-slate-700">{t("desktopBackup.lastBackupSize", { size: formatBytes(lastBackup.size) })}</p> : null}
-          {status.task ? <p className="flex items-center gap-2"><Loader2 className="h-3.5 w-3.5 animate-spin" />{t(`desktopBackup.phases.${status.task.phase}`)}{status.task.total > 0 ? ` ${status.task.completed} / ${status.task.total}` : ""}</p> : status.lastCheck ? <p className="text-slate-700">{t(`desktopBackup.checkResults.${status.lastCheck.result}`)}</p> : null}
-          <p className="text-muted-foreground">{t("desktopBackup.lastCheck", { time: status.lastCheck ? date(status.lastCheck.at) : t("desktopBackup.notChecked") })}</p>
-          <p className={dirty ? "text-amber-700" : "text-muted-foreground"}>{dirty ? t(saving ? "desktopBackup.savingSettings" : "desktopBackup.completePassword") : status.config.enabled ? t("desktopBackup.nextDue", { time: status.nextDueAt ? date(status.nextDueAt) : t("desktopBackup.whenReady") }) : t("desktopBackup.autoOff")}</p>
+        <div className="grid gap-2 rounded-lg border border-border/60 bg-muted/30 p-3.5 text-xs" aria-live="polite" data-backup-status>
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 pb-2">
+            <div className="flex items-center gap-2 font-medium text-slate-800 dark:text-slate-200">
+              {status.task ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                  <span>{t(`desktopBackup.phases.${status.task.phase}`)}{status.task.total > 0 ? ` (${status.task.completed} / ${status.task.total})` : ""}</span>
+                </>
+              ) : status.config.enabled ? (
+                <>
+                  <span className="relative flex h-2 w-2">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-600" />
+                  </span>
+                  <span>{t("desktopBackup.autoRunning")}</span>
+                  <span className="font-normal text-muted-foreground">({t(`desktopBackup.intervals.${config.interval}`)} · {t("desktopBackup.copies", { count: config.retention })})</span>
+                </>
+              ) : (
+                <>
+                  <span className="inline-flex h-2 w-2 rounded-full bg-slate-400" />
+                  <span>{t("desktopBackup.autoOff")}</span>
+                </>
+              )}
+            </div>
+            {status.lastCheck?.result === "success" ? (
+              <span className="rounded bg-emerald-100/80 px-1.5 py-0.5 text-[11px] font-normal text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+                {t("desktopBackup.statusNormal")}
+              </span>
+            ) : null}
+          </div>
+
+          <div className="grid gap-1">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-slate-700 dark:text-slate-300">
+              <span>{t("desktopBackup.lastSuccess", { time: date(status.lastSuccessAt) })}</span>
+              {lastBackup ? (
+                <>
+                  <span className="text-muted-foreground">·</span>
+                  <span className="tabular-nums font-medium">{formatBytes(lastBackup.size)}</span>
+                  <span className="text-muted-foreground">·</span>
+                  <span className="text-muted-foreground">{t(lastBackup.encrypted ? "desktopBackup.encrypted" : "desktopBackup.plain")}</span>
+                </>
+              ) : status.lastSuccessAt ? (
+                <span className="text-muted-foreground">（{t("desktopBackup.historyCleanedOrMoved")}）</span>
+              ) : null}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-muted-foreground">
+              {status.config.enabled ? (
+                <span>{t("desktopBackup.nextDue", { time: status.nextDueAt ? date(status.nextDueAt) : t("desktopBackup.whenReady") })}</span>
+              ) : null}
+              {status.lastCheck && status.lastCheck.result !== "success" ? (
+                <span className="text-amber-700">{t(`desktopBackup.checkResults.${status.lastCheck.result}`)}</span>
+              ) : null}
+            </div>
+
+            <p className="truncate font-mono text-[11px] text-muted-foreground">
+              {config.directory}/{status.backupSetId}
+            </p>
+          </div>
+
+          {dirty ? <p className="text-amber-700">{t(saving ? "desktopBackup.savingSettings" : "desktopBackup.completePassword")}</p> : null}
           {error || status.error ? <p className="break-words text-destructive" role="alert">{error ?? describeDesktopBackupError(t, status.error)}</p> : null}
           {status.warning ? <p className="text-amber-700">{describeDesktopBackupError(t, status.warning)}</p> : null}
           <DesktopOffsiteStatusLines status={status} disabled={saving} onUpload={() => void attempt(() => bridge.backup("offsite-upload", { backupSetId: status.backupSetId }))} />
@@ -175,11 +230,19 @@ export const DesktopScheduledBackupCard = () => {
         </details>
         <DesktopOffsiteSettings status={status} disabled={saving} />
         <section className="grid gap-2.5 border-t pt-3" aria-label={t("desktopBackup.history", { count: status.history.length })}>
-          <h3 className="text-xs font-medium text-slate-700">{t("desktopBackup.history", { count: status.history.length })}</h3>
-          {status.history.length ? <ul className="divide-y divide-slate-100">{[...status.history].reverse().map((item) => <li key={item.name} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 py-2.5 first:pt-0 last:pb-0">
-            <div className="min-w-0 flex-1 basis-60 space-y-0.5"><p className="break-all font-mono text-xs text-slate-800">{item.name}</p><p className="text-xs text-muted-foreground">{date(item.completedAt)} · <span className="whitespace-nowrap tabular-nums">{formatBytes(item.size)}</span> · {t(item.encrypted ? "desktopBackup.encrypted" : "desktopBackup.plain")}</p></div>
-            <div className="flex shrink-0 gap-1"><Button size="sm" variant="outline" className="h-7 text-xs font-normal" disabled={restoreDisabled} onClick={() => restore(item.name)}>{t("desktopBackup.restore")}</Button><Button size="sm" variant="ghost" className="h-7 text-xs font-normal text-destructive hover:text-destructive" disabled={busy || saving} onClick={() => { setDeleteError(null); setDeleting(item.name); }}>{t("common.delete")}</Button></div>
-          </li>)}</ul> : <p className="text-xs text-muted-foreground">{t("desktopBackup.emptyHistory")}</p>}
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-medium text-slate-700 dark:text-slate-300">{t("desktopBackup.history", { count: status.history.length })}</h3>
+          </div>
+          {status.history.length ? <ul className="divide-y divide-border/40 rounded-md border border-border/40 bg-muted/10 px-3">{[...status.history].reverse().map((item) => <li key={item.name} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 py-2.5">
+            <div className="min-w-0 flex-1 basis-60 space-y-1">
+              <p className="break-all font-mono text-xs font-medium text-slate-800 dark:text-slate-200">{item.name}</p>
+              <p className="text-xs text-muted-foreground">{date(item.completedAt)} · <span className="whitespace-nowrap tabular-nums font-mono font-medium">{formatBytes(item.size)}</span> · {t(item.encrypted ? "desktopBackup.encrypted" : "desktopBackup.plain")}</p>
+            </div>
+            <div className="flex shrink-0 gap-1.5">
+              <Button size="sm" variant="outline" className="h-7 text-xs font-normal" disabled={restoreDisabled} onClick={() => restore(item.name)}>{t("desktopBackup.restore")}</Button>
+              <Button size="sm" variant="ghost" className="h-7 text-xs font-normal text-destructive hover:text-destructive" disabled={busy || saving} onClick={() => { setDeleteError(null); setDeleting(item.name); }}>{t("common.delete")}</Button>
+            </div>
+          </li>)}</ul> : <div className="rounded-md border border-dashed border-border/60 py-4 text-center"><p className="text-xs text-muted-foreground">{t("desktopBackup.emptyHistory")}</p></div>}
         </section>
       </>}</DesktopBackupImport>
     </CardContent>

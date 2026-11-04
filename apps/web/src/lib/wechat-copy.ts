@@ -4,8 +4,11 @@ import {
   DEFAULT_NOTE_PROSE_LINE_HEIGHT,
   flattenDetailsForLinearHtml,
   NOTE_PROSE_HEADING_SCALE,
-  NOTE_PROSE_PARAGRAPH_SPACING_PX,
   noteProseCodeFontSize,
+  noteProseStyleCssVariables,
+  parseNoteProseParagraphSpacing,
+  parseNoteProseTextAlign,
+  parseNoteProseLetterSpacing,
   parseNoteProseEmphasisStyle,
   parseNoteProseHeadingStyle,
   parseNoteProseLineHeight,
@@ -27,7 +30,6 @@ import {
   readNoteProseStylePreference,
 } from "@/lib/note-prose-style-preference";
 
-const PARAGRAPH_SPACING = `${NOTE_PROSE_PARAGRAPH_SPACING_PX}px`;
 const PUBLISH_FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif";
 const PUBLISH_MONO = "'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
 const BODY_COLOR = "#27272a";
@@ -62,6 +64,7 @@ const applyLegacyWeChatStyles = (
   _accentOnly = false,
   proseStyle: NoteProseStylePreferences = DEFAULT_NOTE_PROSE_STYLE_PREFERENCES,
 ) => {
+  const rhythm = noteProseStyleCssVariables(proseStyle);
   const fontSize = `${metrics.fontSize}px`;
   const lineHeight = String(metrics.lineHeight);
   const codeSize = `${noteProseCodeFontSize(metrics.fontSize)}px`;
@@ -75,7 +78,7 @@ const applyLegacyWeChatStyles = (
   const bold = colors ? `font-weight: 800; color: ${accent};` : "font-weight: 800;";
   const thBackground = colors ? colors.accent : "#f3f4f6";
   const thColor = colors ? "#ffffff" : "#111827";
-  const textStyle = `font-family: ${PUBLISH_FONT}; font-size: ${fontSize}; line-height: ${lineHeight}; letter-spacing: -0.005em; color: ${BODY_COLOR};`;
+  const textStyle = `font-family: ${PUBLISH_FONT}; font-size: ${fontSize}; line-height: ${lineHeight}; letter-spacing: ${rhythm["--editor-body-letter-spacing"]}; color: ${BODY_COLOR};`;
   const h2Base = headingStyle("h2", metrics);
   const h3Base = headingStyle("h3", metrics);
   const h2Style = proseStyle.headingStyle === "bar"
@@ -86,10 +89,10 @@ const applyLegacyWeChatStyles = (
   const h3Style = proseStyle.headingStyle === "bar"
     ? `${h3Base.replace(/padding:\s*0;/, "padding: 0 0 0 8px;")} border-left: 3px solid ${accent};`
     : proseStyle.headingStyle === "numbered"
-      ? `display: inline-block; margin: 18px 0 8px; padding: 4px 12px; border-radius: 999px; background: ${surface}; color: ${accent}; font-family: ${PUBLISH_FONT}; font-size: 13px; font-weight: 700; line-height: 1.5;`
+      ? `display: block; width: fit-content; max-width: 100%; box-sizing: border-box; margin: 1.5em 0 0.6em; padding: 0.25em 0.75em 0.25em 1.5em; text-indent: -0.75em; overflow-wrap: anywhere; border-radius: 1em; background: ${surface}; color: ${accent}; font-family: ${PUBLISH_FONT}; font-size: ${fontSize}; font-weight: 700; line-height: 1.5;`
       : h3Base;
   const h4Style = proseStyle.headingStyle === "numbered"
-    ? `display: inline-block; margin: 16px 0 8px; padding: 1px 6px; border-radius: 3px; background: #fde68a; color: #111827; font-family: ${PUBLISH_FONT}; font-size: 14px; font-weight: 800; line-height: 1.5;`
+    ? `display: inline-block; margin: 16px 0 8px; padding: 1px 6px; border-radius: 3px; background: #fde68a; color: #111827; font-family: ${PUBLISH_FONT}; font-size: ${fontSize}; font-weight: 800; line-height: 1.5;`
     : headingStyle("h4", metrics);
   const blockquoteStyle = proseStyle.quoteStyle === "dashed"
     ? `margin: 0 0 20px; padding: 12px 16px; border: 1px dashed #d1d5db; border-radius: 8px; background: #f9fafb; color: ${QUOTE_COLOR}; font-family: ${PUBLISH_FONT}; line-height: ${lineHeight};`
@@ -107,9 +110,9 @@ const applyLegacyWeChatStyles = (
   const thStyle = `padding: 8px 13px; border: 1px solid #e5e5e5; background: ${thBackground}; color: ${thColor}; font-weight: 700; font-size: ${tableHeaderSize}; text-align: left; vertical-align: top;`;
   const imgStyle =
     "display: block; max-width: 100%; height: auto; margin: 16px 0; padding: 6px; box-sizing: border-box; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; box-shadow: 0 4px 12px -2px rgba(0,0,0,0.08);";
-  const paragraphBottom = proseStyle.headingStyle === "numbered" ? "16px" : PARAGRAPH_SPACING;
+  const paragraphBottom = rhythm["--editor-paragraph-spacing"];
   const styles: Record<string, string> = {
-    p: `margin: 0 0 ${paragraphBottom}; padding: 0; ${textStyle}`,
+    p: `margin: 0 0 ${paragraphBottom}; padding: 0; text-align: ${rhythm["--editor-body-text-align"]}; ${textStyle}`,
     h1: headingStyle("h1", metrics),
     h2: h2Style,
     h3: h3Style,
@@ -153,7 +156,7 @@ const applyLegacyWeChatStyles = (
     const quoted = (tagName === "p" || tagName === "li") && element.closest("blockquote");
     const cell = tagName === "p" ? element.closest("th, td") : null;
     const baseStyle = cell
-      ? `margin: 0; padding: 0; font-family: ${PUBLISH_FONT}; font-size: ${cell.tagName.toLowerCase() === "th" ? tableHeaderSize : fontSize}; line-height: 1.45; letter-spacing: inherit; color: ${cell.tagName.toLowerCase() === "th" ? thColor : BODY_COLOR};`
+      ? `margin: 0; padding: 0; font-family: ${PUBLISH_FONT}; font-size: ${cell.tagName.toLowerCase() === "th" ? tableHeaderSize : fontSize}; line-height: 1.45; text-align: inherit; letter-spacing: inherit; color: ${cell.tagName.toLowerCase() === "th" ? thColor : BODY_COLOR};`
       : styles[tagName] || "";
     // One color declaration. A second `color` later in the attribute is easy for WeChat to drop.
     const style = isMergeDivider
@@ -185,7 +188,7 @@ const applyLegacyWeChatStyles = (
         `<span data-ee-publish-chrome="true" style="display: inline-block; width: 6px; height: 6px; background: ${accent}; border-radius: 50%; vertical-align: middle;"><span leaf=""><br></span></span>`,
         `<span data-ee-publish-chrome="true" style="display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: 3px; color: ${accent}; vertical-align: middle; margin-left: 8px;">FEATURED · 深度实测</span>`,
         `</section>`,
-        `<p data-ee-publish-chrome="true" style="font-size: 23px; font-weight: 900; color: #111827; margin: 0 0 14px; line-height: 1.2; letter-spacing: -0.5px;">${titleHtml}</p>`,
+        `<p data-ee-publish-chrome="true" style="font-size: ${metrics.fontSize * 1.75}px; font-weight: 900; color: #111827; margin: 0 0 14px; line-height: 1.2; letter-spacing: -0.5px;">${titleHtml}</p>`,
         `<section data-ee-publish-chrome="true" style="width: 48px; height: 3px; background: ${accent}; border-radius: 2px;"><span leaf=""><br></span></section>`,
         `</section>`,
         `<section data-ee-publish-chrome="true" style="${colors ? accentGradient : "background: #f3f4f6;"} padding: 10px 24px; font-size: 0;">`,
@@ -259,7 +262,7 @@ const applyLegacyWeChatStyles = (
         `</section>`,
         `<span data-ee-publish-chrome="true" style="display: inline-block; width: 1px; height: 36px; background: #e5e7eb; vertical-align: middle; margin: 0 16px;"><span leaf=""><br></span></span>`,
         `<section data-ee-publish-chrome="true" style="display: inline-block; vertical-align: middle; max-width: calc(100% - 86px);">`,
-        `<p data-ee-publish-chrome="true" style="margin: 0; font-size: 17px; font-weight: 900; color: #111827; letter-spacing: 0.3px; line-height: 1.3;">${titleHtml}</p>`,
+        `<p data-ee-publish-chrome="true" style="margin: 0; font-size: ${metrics.fontSize * 1.4}px; font-weight: 900; color: #111827; letter-spacing: 0.3px; line-height: 1.3;">${titleHtml}</p>`,
         `<p data-ee-publish-chrome="true" style="margin: 3px 0 0; font-size: 11px; font-weight: 600; color: #9ca3af; letter-spacing: 1px; line-height: 1.3;">${subLabel}</p>`,
         `</section>`,
       ].join("");
@@ -270,7 +273,7 @@ const applyLegacyWeChatStyles = (
       const dot = document.createElement("span");
       dot.setAttribute("data-ee-publish-chrome", "true");
       dot.setAttribute("data-ee-pill-dot", "true");
-      dot.style.cssText = `display: inline-block; width: 6px; height: 6px; background: ${accent}; border-radius: 50%; margin-right: 6px; vertical-align: middle;`;
+      dot.style.cssText = `display: inline-block; width: 0.375em; height: 0.375em; background: ${accent}; border-radius: 50%; margin-right: 0.375em; text-indent: 0; vertical-align: middle;`;
       dot.innerHTML = "<span leaf=\"\"><br></span>";
       heading.insertBefore(dot, heading.firstChild);
     });
@@ -1254,6 +1257,9 @@ export const readEditorCopyContext = (from?: HTMLElement | null) => {
   const customStyleTag = container?.querySelector<HTMLStyleElement>("style[data-theme-custom-css]");
   const storedStyle = readNoteProseStylePreference();
   const proseStyle: NoteProseStylePreferences = {
+    paragraphSpacing: parseNoteProseParagraphSpacing(readCssNumber(style?.getPropertyValue("--editor-paragraph-spacing"), storedStyle.paragraphSpacing)) ?? storedStyle.paragraphSpacing,
+    textAlign: parseNoteProseTextAlign(style?.getPropertyValue("--editor-body-text-align").trim()) ?? storedStyle.textAlign,
+    letterSpacing: parseNoteProseLetterSpacing(style?.getPropertyValue("--editor-body-letter-spacing").trim()) ?? storedStyle.letterSpacing,
     headingStyle: parseNoteProseHeadingStyle(container?.dataset.noteHeadingStyle) ?? storedStyle.headingStyle,
     quoteStyle: parseNoteProseQuoteStyle(container?.dataset.noteQuoteStyle) ?? storedStyle.quoteStyle,
     emphasisStyle: parseNoteProseEmphasisStyle(container?.dataset.noteEmphasisStyle) ?? storedStyle.emphasisStyle,

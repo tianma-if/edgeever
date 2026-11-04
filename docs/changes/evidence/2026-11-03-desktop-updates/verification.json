@@ -1,0 +1,357 @@
+{
+  "schemaVersion": 1,
+  "issue": "https://github.com/tianma-if/edgeever/issues/776",
+  "candidate": {
+    "version": "2.18.0",
+    "sourceSha": "7e9630dd829126638d9b2a8670b0810dbfe97c7d",
+    "buildRun": "https://github.com/tianma-if/edgeever/actions/runs/41619572551",
+    "windowsManifestSha256": "b77c41c3a52b8734c53f3476004b20f197397e672391d70f8a77fc9709564551",
+    "windowsManifest": {
+      "schemaVersion": 1,
+      "keyId": "edgeever-windows-update-2026-01",
+      "version": "2.18.0",
+      "platform": "win32",
+      "arch": "x64",
+      "releaseDate": "2026-11-03T10:36:15.210Z",
+      "file": {
+        "name": "EdgeEver-2.18.0-windows-x64.exe",
+        "size": 132538751,
+        "sha512": "c6YJ6ipPYuOvlh7oogHWILIqV86osm2z8fKZ3p0O3retqm8ARvhFu5bIf0DZjWwuxVLWv7ZeeIFDnHT1eQKG5A==",
+        "sha256": "26144d402c376455d5def32f19c8ed336fdd756a13fbca00bbd1fa83f1a447ce"
+      }
+    },
+    "windowsManifestSignature": {
+      "schemaVersion": 1,
+      "keyId": "edgeever-windows-update-2026-01",
+      "signature": "xBtzxZ1ZxGKlLhtGkb4goLa/rOGoNFSFc1c7zqjm350IEFDBYO5ctrFiL54sLJ192UALZ0NocPaN19yqOBnJCw=="
+    }
+  },
+  "testedProductFiles": {
+    "apps/desktop/src/main/index.mjs": "5eb6baea52c7fc8a12599ab37496368f1156bd03",
+    "apps/desktop/src/main/desktop-update-controller.mjs": "42efdd0e9add90df760b8a6a949a64cb06492815",
+    "apps/desktop/src/main/mac-update-install.mjs": "649064fdc79d543776b7553f1378d3da99fa3573",
+    "apps/desktop/src/main/windows-update-trust.mjs": "ea1108e73ec17334a7a732a2d55e3b7a353455fa"
+  },
+  "officialReleaseUpgrades": {
+    "macOS-arm64": {
+      "platform": "darwin",
+      "arch": "arm64",
+      "candidateVersion": "2.18.0",
+      "candidateRun": "41619572551",
+      "ok": true,
+      "old": {
+        "version": "2.17.0"
+      },
+      "new": {
+        "version": "2.18.0"
+      },
+      "installedAsarSha256": "f91db6064a15f87a3d090475a53ffe9f409a0e762a85f0d957730d533718ff9f",
+      "jobUrl": "https://github.com/tianma-if/edgeever/actions/runs/41630352692/job/125898030546"
+    },
+    "macOS-x64": {
+      "platform": "darwin",
+      "arch": "x64",
+      "candidateVersion": "2.18.0",
+      "candidateRun": "41619572551",
+      "ok": true,
+      "old": {
+        "version": "2.17.0"
+      },
+      "new": {
+        "version": "2.18.0"
+      },
+      "installedAsarSha256": "f91db6064a15f87a3d090475a53ffe9f409a0e762a85f0d957730d533718ff9f",
+      "jobUrl": "https://github.com/tianma-if/edgeever/actions/runs/41630352692/job/125898030085"
+    },
+    "Windows-x64": {
+      "platform": "win32",
+      "arch": "x64",
+      "candidateVersion": "2.18.0",
+      "candidateRun": "41619572551",
+      "ok": true,
+      "old": {
+        "version": "2.17.0"
+      },
+      "new": {
+        "version": "2.18.0"
+      },
+      "installedAsarSha256": "636736a4ad44b7570112c863acdc47ce82daa9b1ead20935d59be239f8c9ca9e",
+      "jobUrl": "https://github.com/tianma-if/edgeever/actions/runs/41630352692/job/125898030442"
+    },
+    "Linux-x64": {
+      "ok": true,
+      "startedVersions": [
+        "2.17.0",
+        "2.18.0"
+      ],
+      "installedPath": "/home/runner/work/_temp/release-bridge/previous/EdgeEver.AppImage",
+      "jobUrl": "https://github.com/tianma-if/edgeever/actions/runs/41630352692/job/125898030507"
+    }
+  },
+  "cachedIntermediateScenarios": {
+    "Linux-x64": {
+      "platform": "linux",
+      "arch": "x64",
+      "sourceSha": "f711914fa73918147a21be07fc67971224126ffd",
+      "versions": [
+        "2.18.1",
+        "2.18.2",
+        "2.18.3"
+      ],
+      "instrumentation": "Full EdgeEver test builds with isolated app identity, loopback feed and command harness; macOS uses Developer ID signing and Windows an ephemeral test trust key. The production update controller, macOS native preparation and package digest verification are unchanged; real native installer mechanisms are exercised.",
+      "scenarios": [
+        {
+          "scenario": "install-latest",
+          "ok": true,
+          "boots": [
+            "2.18.1",
+            "2.18.3"
+          ],
+          "installs": [
+            {
+              "at": "2026-11-03T10:39:20.988Z",
+              "event": "update.install-confirmed",
+              "version": "2.18.3"
+            }
+          ]
+        },
+        {
+          "scenario": "quit-latest",
+          "ok": true,
+          "boots": [
+            "2.18.1",
+            "2.18.3"
+          ],
+          "installs": [
+            {
+              "at": "2026-11-03T10:39:28.384Z",
+              "event": "update.install-confirmed",
+              "version": "2.18.3"
+            }
+          ]
+        },
+        {
+          "scenario": "reject-corrupt-update",
+          "ok": true,
+          "boots": [
+            "2.18.1",
+            "2.18.3"
+          ],
+          "installs": [
+            {
+              "at": "2026-11-03T10:39:38.190Z",
+              "event": "update.install-confirmed",
+              "version": "2.18.3"
+            }
+          ]
+        }
+      ],
+      "ok": true,
+      "jobUrl": "https://github.com/tianma-if/edgeever/actions/runs/41620747878/job/125865522129"
+    },
+    "Windows-x64": {
+      "platform": "win32",
+      "arch": "x64",
+      "sourceSha": "3b791a050e16c8b78bd6b68bcb20155a659d94c7",
+      "versions": [
+        "2.18.1",
+        "2.18.2",
+        "2.18.3"
+      ],
+      "instrumentation": "Full EdgeEver test builds with isolated app identity, loopback feed and command harness; macOS uses Developer ID signing and Windows an ephemeral test trust key. The production update controller, macOS native preparation and package digest verification are unchanged; real native installer mechanisms are exercised.",
+      "scenarios": [
+        {
+          "scenario": "install-latest",
+          "ok": true,
+          "boots": [
+            "2.18.1",
+            "2.18.3"
+          ],
+          "installs": [
+            {
+              "at": "2026-11-03T11:06:46.373Z",
+              "event": "update.install-confirmed",
+              "version": "2.18.3"
+            }
+          ]
+        },
+        {
+          "scenario": "quit-latest",
+          "ok": true,
+          "boots": [
+            "2.18.1",
+            "2.18.3"
+          ],
+          "installs": [
+            {
+              "at": "2026-11-03T11:07:32.211Z",
+              "event": "update.install-confirmed",
+              "version": "2.18.3"
+            }
+          ]
+        },
+        {
+          "scenario": "reject-corrupt-update",
+          "ok": true,
+          "boots": [
+            "2.18.1",
+            "2.18.3"
+          ],
+          "installs": [
+            {
+              "at": "2026-11-03T11:08:21.723Z",
+              "event": "update.install-confirmed",
+              "version": "2.18.3"
+            }
+          ]
+        }
+      ],
+      "ok": true,
+      "jobUrl": "https://github.com/tianma-if/edgeever/actions/runs/41623166464/job/125873761695"
+    },
+    "macOS-arm64": {
+      "platform": "darwin",
+      "arch": "arm64",
+      "sourceSha": "f2eec174c8a94db11db8213b3c636c7739a754ef",
+      "versions": [
+        "2.18.1",
+        "2.18.2",
+        "2.18.3"
+      ],
+      "instrumentation": "Full EdgeEver test builds with isolated app identity, loopback feed and command harness; macOS uses Developer ID signing and Windows an ephemeral test trust key. The production update controller, macOS native preparation and package digest verification are unchanged; real native installer mechanisms are exercised.",
+      "fixtureRun": null,
+      "scenarios": [
+        {
+          "scenario": "install-latest",
+          "ok": true,
+          "boots": [
+            "2.18.1",
+            "2.18.3"
+          ],
+          "installs": [
+            {
+              "at": "2026-11-03T11:54:45.801Z",
+              "event": "update.install-confirmed",
+              "version": "2.18.3"
+            }
+          ],
+          "installedExecutablePathConfirmed": true
+        },
+        {
+          "scenario": "quit-latest",
+          "ok": true,
+          "boots": [
+            "2.18.1",
+            "2.18.3"
+          ],
+          "installs": [
+            {
+              "at": "2026-11-03T11:55:20.107Z",
+              "event": "update.install-confirmed",
+              "version": "2.18.3"
+            }
+          ],
+          "installedExecutablePathConfirmed": true
+        },
+        {
+          "scenario": "reject-corrupt-update",
+          "ok": true,
+          "boots": [
+            "2.18.1",
+            "2.18.3"
+          ],
+          "installs": [
+            {
+              "at": "2026-11-03T11:55:51.027Z",
+              "event": "update.install-confirmed",
+              "version": "2.18.3"
+            }
+          ],
+          "installedExecutablePathConfirmed": true
+        }
+      ],
+      "ok": true,
+      "jobUrl": "https://github.com/tianma-if/edgeever/actions/runs/41629741746/job/125895975456"
+    },
+    "macOS-x64": {
+      "platform": "darwin",
+      "arch": "x64",
+      "sourceSha": "f2eec174c8a94db11db8213b3c636c7739a754ef",
+      "versions": [
+        "2.18.1",
+        "2.18.2",
+        "2.18.3"
+      ],
+      "instrumentation": "Full EdgeEver test builds with isolated app identity, loopback feed and command harness; macOS uses Developer ID signing and Windows an ephemeral test trust key. The production update controller, macOS native preparation and package digest verification are unchanged; real native installer mechanisms are exercised.",
+      "fixtureRun": null,
+      "scenarios": [
+        {
+          "scenario": "install-latest",
+          "ok": true,
+          "boots": [
+            "2.18.1",
+            "2.18.3"
+          ],
+          "installs": [
+            {
+              "at": "2026-11-03T11:56:26.590Z",
+              "event": "update.install-confirmed",
+              "version": "2.18.3"
+            }
+          ],
+          "installedExecutablePathConfirmed": true
+        },
+        {
+          "scenario": "quit-latest",
+          "ok": true,
+          "boots": [
+            "2.18.1",
+            "2.18.3"
+          ],
+          "installs": [
+            {
+              "at": "2026-11-03T11:57:15.974Z",
+              "event": "update.install-confirmed",
+              "version": "2.18.3"
+            }
+          ],
+          "installedExecutablePathConfirmed": true
+        },
+        {
+          "scenario": "reject-corrupt-update",
+          "ok": true,
+          "boots": [
+            "2.18.1",
+            "2.18.3"
+          ],
+          "installs": [
+            {
+              "at": "2026-11-03T11:58:02.677Z",
+              "event": "update.install-confirmed",
+              "version": "2.18.3"
+            }
+          ],
+          "installedExecutablePathConfirmed": true
+        }
+      ],
+      "ok": true,
+      "jobUrl": "https://github.com/tianma-if/edgeever/actions/runs/41629741746/job/125895976046"
+    }
+  },
+  "scope": {
+    "officialReleaseUpgrades": "Unmodified published v2.17.0 installers upgrade to production candidate v2.18.0 on isolated GitHub-hosted runners. Loopback feed and dialog automation use the main-process inspector; installed package bytes and native update verification are unchanged. The updated application must open its existing isolated profile with renderer and sidecar ready.",
+    "cachedIntermediateScenarios": "Three full EdgeEver test builds use an isolated application identity, loopback feed and command harness. macOS installers retain Developer ID signing; Windows uses an ephemeral test trust key. The shared production update controller, macOS native preparation and package digest verification are unchanged. Each scenario must install the latest version once and never boot the cached intermediate version.",
+    "releaseStatus": "CI verification only; no public Release was created or published and no locally installed EdgeEver application was replaced."
+  },
+  "localChecks": {
+    "regressionTests": {
+      "command": "bun test scripts/native-update-instrumentation.test.mjs apps/desktop/src/main/desktop-update-controller.test.mjs apps/desktop/src/main/desktop-update-flow.test.mjs apps/desktop/src/main/windows-update-controller.test.mjs apps/desktop/src/main/windows-update-trust.test.mjs apps/desktop/src/main/update-network-diagnostics.test.mjs apps/desktop/src/main/update-progress.test.mjs apps/desktop/src/main/update-diagnostics.test.mjs scripts/windows-update-metadata.test.mjs scripts/create-mac-update-metadata.test.mjs scripts/linux-update-release.test.mjs",
+      "passed": 88,
+      "failed": 0
+    },
+    "typecheck": "passed",
+    "typecheck:mobile": "passed",
+    "build:web": "passed"
+  },
+  "verifiedAt": "2026-11-03"
+}

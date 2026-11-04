@@ -167,7 +167,7 @@ describe("copy pipeline wiring", () => {
     expect(source).not.toContain("applyPublishLayout");
     expect(source).toContain("noteProseCodeFontSize");
     expect(source).toContain("NOTE_PROSE_HEADING_SCALE");
-    expect(source).toContain("NOTE_PROSE_PARAGRAPH_SPACING_PX");
+    expect(source).toContain('rhythm["--editor-paragraph-spacing"]');
     expect(source).toContain("[data-note-palette]");
     expect(source).toContain("preparePublishArticle");
     expect(source).not.toContain("editorThemeOverride");

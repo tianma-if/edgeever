@@ -1,3 +1,22 @@
+/* Independent body rhythm applies to every heading style. */
+.edgeever-editor .ProseMirror,
+.edgeever-editor .markdown-content {
+  letter-spacing: var(--editor-body-letter-spacing, -0.005em);
+}
+
+.edgeever-editor .ProseMirror p,
+.edgeever-editor .markdown-content p {
+  margin-bottom: var(--editor-paragraph-spacing, 8px);
+  text-align: var(--editor-body-text-align, left);
+}
+
+/* Table cells keep their own compact rhythm and alignment. */
+.edgeever-editor .ProseMirror :is(th, td) p,
+.edgeever-editor .markdown-content :is(th, td) p {
+  margin: 0;
+  text-align: inherit;
+}
+
 /* Composable reading styles for headings, blockquotes, and inline emphasis. */
 
 /* 1. Heading style: Left bar ("bar") */
@@ -17,13 +36,6 @@
 .edgeever-editor[data-note-heading-style="numbered"] .ProseMirror,
 .edgeever-editor[data-note-heading-style="numbered"] .markdown-content {
   counter-reset: note-prose-h2;
-  letter-spacing: 0.5px;
-}
-
-.edgeever-editor[data-note-heading-style="numbered"] .ProseMirror p,
-.edgeever-editor[data-note-heading-style="numbered"] .markdown-content p {
-  margin-bottom: 16px;
-  text-align: justify;
 }
 
 /* H1: Magazine cover-breaking card */
@@ -36,7 +48,7 @@
   border: 1.5px solid color-mix(in srgb, var(--note-palette-accent, #374151) 18%, transparent);
   border-radius: 20px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
-  font-size: 24px;
+  font-size: calc(var(--editor-body-font-size, 16px) * 1.75);
   font-weight: 900;
   line-height: 1.25;
   letter-spacing: -0.5px;
@@ -114,7 +126,7 @@
   min-height: 40px;
   display: block;
   border: 0;
-  font-size: 17px;
+  font-size: calc(var(--editor-body-font-size, 16px) * 1.4);
   font-weight: 900;
   color: #111827;
   letter-spacing: 0.3px;
@@ -179,20 +191,23 @@
   content: "SUMMARY";
 }
 
-/* H3: Green pill badge with solid dot */
+/* H3: Body-relative pill heading; bounded corners also suit wrapped titles. */
 .edgeever-editor[data-note-heading-style="numbered"] .ProseMirror h3,
 .edgeever-editor[data-note-heading-style="numbered"] .markdown-content h3 {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 1.1rem;
-  margin-bottom: 0.5rem;
-  padding: 4px 12px;
+  position: relative;
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin-top: 1.5em;
+  margin-bottom: 0.6em;
+  padding: 0.25em 0.75em 0.25em 1.5em;
+  overflow-wrap: anywhere;
   border: 0;
-  border-radius: 999px;
+  border-radius: 1em;
   background: color-mix(in srgb, var(--note-palette-accent, #374151) 9%, transparent);
   color: var(--note-palette-accent, #374151);
-  font-size: 13px;
+  font-size: var(--editor-body-font-size, 16px);
   font-weight: 700;
   line-height: 1.5;
 }
@@ -200,11 +215,13 @@
 .edgeever-editor[data-note-heading-style="numbered"] .ProseMirror h3::before,
 .edgeever-editor[data-note-heading-style="numbered"] .markdown-content h3::before {
   content: "";
-  width: 6px;
-  height: 6px;
+  position: absolute;
+  left: 0.75em;
+  top: 0.8125em;
+  width: 0.375em;
+  height: 0.375em;
   border-radius: 50%;
   background: var(--note-palette-accent, #374151);
-  flex-shrink: 0;
   pointer-events: none;
 }
 
@@ -218,7 +235,7 @@
   border-radius: 3px;
   background: #fde68a;
   color: #111827;
-  font-size: 14px;
+  font-size: var(--editor-body-font-size, 16px);
   font-weight: 800;
 }
 

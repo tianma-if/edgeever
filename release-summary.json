@@ -1,26 +1,23 @@
 {
-  "version": "2.18.0",
+  "version": "2.19.0",
   "changes": {
     "en-US": [
-      "Add CodeBuddy as a desktop local Agent, using your installed official CLI (#758, @yulei666 in #761).",
-      "Optionally copy desktop scheduled backups to WebDAV, with separate upload status and retries (#723, @dkoryto in #763).",
-      "Keep untitled notes in search results after editing or deleting attachments (#751, @sivdead in #769).",
-      "Fix opening desktop attachments in system applications by opening a local copy (#768).",
-      "Preserve all PDF pages and blank paragraphs during export; improve WeChat copy formatting and adaptive directory cards."
+      "Set note body spacing and alignment independently, and find custom CSS directly in the reorganized reading preferences. Numbered pill headings now match the body text size.",
+      "Desktop apps recheck for newer versions before installing a pending update, reducing repeated upgrades through intermediate versions (#776).",
+      "Editor focus mode enters browser fullscreen, and the AI assistant button aligns with the note outline.",
+      "Backup and migration settings make scheduled backup status and import options easier to find."
     ],
     "zh-CN": [
-      "桌面端新增 CodeBuddy 本机 Agent，可使用自行安装的官方 CLI（#758，@yulei666 贡献于 #761）。",
-      "桌面端定时备份支持可选的 WebDAV 异地副本，提供独立上传状态和重试（#723，@dkoryto 贡献于 #763）。",
-      "修复无标题笔记在编辑或删除附件后从搜索结果中消失的问题（#751，@sivdead 贡献于 #769）。",
-      "修复桌面端附件无法在系统应用中打开的问题，通过打开本地副本使用外部应用（#768）。",
-      "修复导出时 PDF 页面和空白段落丢失，改善复制到微信的排版及目录卡片自适应显示。"
+      "独立设置笔记正文的间距和对齐方式，在重新分组的阅读偏好中直接找到自定义 CSS。数字胶囊标题现在与正文文字大小一致。",
+      "桌面端安装待处理更新前会重新检查是否有更新版本，减少经过中间版本的重复升级（#776）。",
+      "编辑器专注模式会进入浏览器全屏，AI 助手入口与笔记大纲内容对齐。",
+      "调整备份和迁移设置的布局，更容易找到定时备份状态和导入选项。"
     ],
     "ja": [
-      "デスクトップのローカル Agent に CodeBuddy を追加。インストール済みの公式 CLI を利用できます。",
-      "デスクトップの定期バックアップに、独立したアップロード状況と再試行を備えた WebDAV コピーを追加。",
-      "無題のノートを編集したり添付ファイルを削除したりした後、検索結果から消える問題を修正。",
-      "デスクトップの添付ファイルをローカルコピーとしてシステムのアプリで開けるよう修正。",
-      "エクスポート時に PDF の全ページと空行を保持し、WeChat へのコピー書式と目次カードの表示を改善。"
+      "ノート本文の間隔と配置を個別に設定でき、整理された閲覧設定からカスタムCSSを直接開けます。番号付き見出しの文字サイズも本文と揃えました。",
+      "デスクトップアプリは更新のインストール前に最新版を確認し、中間バージョンを経由する更新を減らします。",
+      "エディターの集中モードでブラウザーが全画面表示になり、AIアシスタントボタンの位置が目次に揃います。",
+      "バックアップと移行の設定を整理し、定期バックアップの状態とインポート項目を見つけやすくしました。"
     ]
   }
 }

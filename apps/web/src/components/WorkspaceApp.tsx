@@ -87,6 +87,7 @@ import {
   writeMemoSortPreference,
 } from "@/lib/app-helpers";
 import { useBrowserBackLayer } from "@/lib/app-hooks";
+import { createFocusFullscreen } from "@/lib/focus-fullscreen";
 import { sortDesktopTitleMemoSummaries, updateMemoSummaryInLists } from "@/lib/memo-list-cache";
 import {
   cacheMemoDetail,
@@ -2792,11 +2793,29 @@ export const WorkspaceApp = ({
     }
   };
 
+  const focusFullscreenRef = useRef<ReturnType<typeof createFocusFullscreen> | null>(null);
+  useEffect(() => {
+    if (window.edgeeverDesktop?.isAvailable) return;
+    const fullscreen = createFocusFullscreen(document, () => {
+      runWorkspaceViewTransition(() => setDesktopFocusMode(false));
+    });
+    focusFullscreenRef.current = fullscreen;
+    return () => {
+      focusFullscreenRef.current = null;
+      fullscreen.dispose();
+    };
+  }, [setDesktopFocusMode]);
+
+  useEffect(() => {
+    if (!desktopFocusModeActive) focusFullscreenRef.current?.setEnabled(false);
+  }, [desktopFocusModeActive]);
+
   const updateDesktopFocusMode = useCallback((enabled: boolean) => {
+    focusFullscreenRef.current?.setEnabled(enabled);
     runWorkspaceViewTransition(() => {
       setDesktopFocusMode(enabled);
     });
-  }, []);
+  }, [setDesktopFocusMode]);
 
   const toggleDesktopFocusMode = useCallback(() => {
     updateDesktopFocusMode(!desktopFocusModeActive);
