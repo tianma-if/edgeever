@@ -34,6 +34,7 @@ import { PdfAttachment } from "@/components/editor/PdfAttachment";
 import { FileAttachment } from "@/components/editor/FileAttachment";
 import { NotebookSiteCodeBlock } from "./NotebookSiteCodeBlock";
 import { NotebookSiteArticleTools } from "./NotebookSiteArticleTools";
+import { PublicArticleOutline } from "./PublicArticleOutline";
 import { NotebookSiteSearchContext } from "./NotebookSiteSearch";
 import { useAppearanceTheme } from "./ThemeProvider";
 
@@ -331,6 +332,7 @@ export const PublicShareArticle = ({
 }) => {
   const { t, i18n } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
+  const [outlineAvailable, setOutlineAvailable] = useState(false);
   const openSearch = useContext(NotebookSiteSearchContext);
   const publishedBodyFont = parsePublishedNoteBodyFont(share.bodyFont);
   const showUpdatedAt = layout === "site" || share.showUpdatedAt !== false;
@@ -356,8 +358,10 @@ export const PublicShareArticle = ({
     <div
       ref={containerRef}
       className={cn(
-        "edgeever-public-share",
-        layout === "site" ? "py-6 sm:py-8 xl:pr-56" : "px-4 py-6 sm:px-8 sm:py-10",
+        "edgeever-public-share relative",
+        layout === "site"
+          ? "py-6 sm:py-8 xl:pr-56"
+          : cn("px-4 py-6 sm:px-8 sm:py-10", outlineAvailable && "xl:pr-56"),
       )}
     >
       <article
@@ -457,6 +461,7 @@ export const PublicShareArticle = ({
           </footer>
         ) : null}
       </article>
+      <PublicArticleOutline containerRef={containerRef} onAvailableChange={setOutlineAvailable} />
       {layout === "site" && <NotebookSiteArticleTools containerRef={containerRef} token={token} memoUrls={access?.memoUrls ?? {}} />}
     </div>
   );

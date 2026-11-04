@@ -24,8 +24,8 @@ export default defineConfig({
     },
     {
       name: "webkit",
-      // Keep Safari coverage focused on the appearance interactions for now.
-      testMatch: "notebook-appearance.spec.ts",
+      // Focus Safari coverage on appearance and read-only share interactions.
+      testMatch: ["notebook-appearance.spec.ts", "public-share-outline.spec.ts"],
       use: { ...devices["Desktop Safari"] },
     },
   ],

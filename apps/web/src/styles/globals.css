@@ -521,6 +521,16 @@ html:has([data-site-theme]) #root {
   overflow: auto;
 }
 
+/* The document scrolls; non-scrolling wrappers must not capture sticky rails. */
+html:has(.edgeever-public-share) body,
+html:has(.edgeever-public-share) #root {
+  overflow: visible;
+}
+
+html:has(.edgeever-public-share) body.yarl__no_scroll {
+  overflow: hidden;
+}
+
 html.edgeever-mobile-native-editing,
 html.edgeever-mobile-native-editing body,
 html.edgeever-mobile-native-editing #root {
