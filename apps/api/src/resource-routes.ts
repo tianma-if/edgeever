@@ -69,6 +69,7 @@ type ResourceRouteDependencies = {
     resourceId: string;
     expectedContentHash: string;
     filename: string;
+    preserveFilename?: boolean;
     mimeType: string;
     bytes: Uint8Array;
     actor: AuditActor;
@@ -338,6 +339,7 @@ export const registerResourceRoutes = (
         resourceId: context.req.param("id"),
         expectedContentHash,
         filename: typeof declaredFilename === "string" && declaredFilename.trim() ? declaredFilename : file.name,
+        preserveFilename: form.get("preserveFilename") === "true",
         mimeType: typeof declaredMimeType === "string" && declaredMimeType.trim()
           ? declaredMimeType
           : file.type || "application/octet-stream",

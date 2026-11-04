@@ -1,0 +1,13 @@
+{
+  "platform": "darwin",
+  "baseline": "6be20cfc",
+  "results": [
+    "renderer open action → watched copy → real API replacement → refreshed desktop bytes → fresh reopening → reveal action",
+    "offline pending snapshot survives an actual Electron restart and resumes in the original account, including displayed file metadata",
+    "competing device causes a visible conflict; local edits survive and Retry never forces an overwrite"
+  ],
+  "limitations": [
+    "OS launching/revealing and network outage are simulated",
+    "No Windows Excel/WPS or old-release upgrade acceptance"
+  ]
+}
