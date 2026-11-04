@@ -28,7 +28,7 @@
    - 只有供应商给出输入输出共用窗口时（Anthropic、DeepSeek、OpenRouter）才从窗口中扣除本次输入估算和余量；独立的输入上限（Gemini、LiteLLM）只用于判断输入能否放下，不扣减输出预算。
    - 上限未知时：声明支持的新客户端（请求里带 `allowUnboundedOutput: true`）不发送输出上限，由上游按默认值输出；Anthropic 必须带 `max_tokens`，仍为 4096；旧客户端仍为 4096。
    - prepare 响应的 `maxOutputTokens` 对新客户端可以为 `null`，另返回 `outputBudget`（模式、可用上限、输入是否放得下）；检测结果缺失或超过 7 天时返回 `capabilityTarget`，提示客户端读取并上报。
-4. **客户端流程（Web、桌面、Android 共用 `packages/client`）**：prepare 返回 `capabilityTarget` 时先读取上限、上报，再重新 prepare 一次，让本次请求就使用新上限。上游返回可识别的“输出上限过大”400 时（例如 Anthropic 的 `max_tokens: X > Y`），上报该上限并只重试一次；错误文案无法识别时不重试。完成事件带 `truncated`，统一识别 `length`、`max_tokens`、`model_context_window_exceeded`、`MAX_TOKENS`。Web 网络兜底的转发白名单只额外放行读取单个模型元数据和 LiteLLM `/model/info` 的 GET 请求。
+4. **客户端流程（Web、桌面、Android 共用 `packages/client`）**：prepare 返回 `capabilityTarget` 时先读取上限、上报，再重新 prepare 一次，让本次请求就使用新上限。上游返回可识别的“输出上限过大”400 时（例如 Anthropic 的 `max_tokens: X > Y`），上报该上限并只重试一次；错误文案无法识别时不重试。完成事件带 `truncated`，统一识别 `length`、`max_tokens`、`model_context_window_exceeded`、`MAX_TOKENS`。同时修正了 Anthropic 结束原因的读取：流式响应把它放在 `message_delta` 的 `delta.stop_reason` 里，此前各端都读顶层字段，始终拿不到。Web 网络兜底的转发白名单只额外放行读取单个模型元数据和 LiteLLM `/model/info` 的 GET 请求。
 5. **截断保护**：判断结果不完整有两个信号：上游报告达到上限，或者结果有本次请求的开始标记却没有结束标记（实测有网关在截断后仍报告 `stop`）。Android 的 AI 助手和编辑器选区面板、iOS 的 AI 助手在结果不完整或被用户停止时显示提示，并禁用“替换”和“替换选中内容”；复制和追加 / 插入仍可用。iOS 解码 `null` 预算，未知上限时不发送 `max_tokens` / `maxOutputTokens`（Anthropic 仍发送）。文案覆盖 5 种语言。
 6. **设置界面（Web / 桌面）**：正文生成预算的占位文字改为“自动”；预算对话框显示检测到的上限、来源和时间，以及“检测上限 / 重新检测”。
 
@@ -45,10 +45,12 @@
 ## 实现与验收结论
 
 - 自动化：shared（上限解析、截断原因、预算规划，含 Gemini 长输入不扣输出预算的用例）、API（上报接口的校验、权限和合并规则；prepare 在新 / 旧客户端、手动 / 自动、共用 / 独立窗口、过期检测下的结果；服务类型或 Base URL 变化时清空；0091 → 0092 升级）、client（各供应商读取、400 视为无上限、重新 prepare、400 重试、缺结束标记判定截断）、Web 中继白名单、Playwright（预算对话框显示“自动”和检测状态）、iOS 单元测试（解码 `null`、未知上限不发送、截断识别、结束标记）。`bun run typecheck`、`bun run typecheck:mobile`、`bun run build:web` 通过；`bun run test` 中只有在 `main` 上同样失败的 `deployment-entrypoints`；`bun run lint` 的唯一错误来自 `main` 上的 `note-image-export.ts`。
-- 真实服务验收（预览实例，本分支客户端直连）：
-  - 能读到上限：DeepSeek 官方接口（`deepseek-flash`，读到输出上限 393,216、共用窗口 1,048,576）。40 节中文长文的翻译和全文润色都请求了 `max_tokens=45166`，输出分别为 11,415 和 10,694 token，正常结束、未截断，40 节完整，标题、代码块、链接和表格全部保留，无需手填预算。
-  - 读不到上限：OpenAI 兼容网关（模型列表无上限字段，记为 `none`），请求不发送 `max_tokens`。DeepSeek V4 Flash 的全文润色输出 8,574 token 并完整保留结构；DeepSeek 和 Claude Haiku 4.5 的翻译也完整。Claude Haiku 4.5 的全文润色被网关在约 8192 token 处截断（即使手动传 `max_tokens=32000` 也一样），但网关仍报告 `stop`；客户端依据缺失的结束标记判定为截断。这类网关自身的硬性上限需要 PR B 的分段来完整交付。
+- 真实服务验收（预览实例，本分支客户端直连；测试长文为 40 节中文 Markdown，约 17,700 字，含 41 个标题、8 个代码块、40 个链接和 1 张表格）：
+  - 能读到上限（Anthropic）：通过一个原样转发 Anthropic 官方 Models API 和 Messages API 的 Claude 网关测试，未直接调用 `api.anthropic.com`。按 Anthropic 类型配置，`claude-haiku-4-5-20251001` 读到输出上限 64,000、共用窗口 200,000（来源 `anthropic-models`）。翻译和全文润色都请求了 `max_tokens=45166`，输出分别为 10,560 和 16,780 token，40 节完整、结构全部保留，无需手填预算；结束原因可读到 `end_turn`。
+  - 能读到上限（DeepSeek）：DeepSeek 官方接口（`deepseek-flash`，读到输出上限 393,216、共用窗口 1,048,576）。40 节中文长文的翻译和全文润色都请求了 `max_tokens=45166`，输出分别为 11,415 和 10,694 token，正常结束、未截断，40 节完整，标题、代码块、链接和表格全部保留，无需手填预算。
+  - 读不到上限（Gemini 格式）：一个 OpenAI 兼容网关同时提供 Gemini 原生生成接口，但模型元数据接口返回 404（记为 `none`）。按 Gemini 类型配置，`gemini-3-flash-preview` 的请求不发送 `maxOutputTokens`；翻译和全文润色输出分别为 12,244 和 14,698 token，结束原因 `STOP`，40 节完整、结构全部保留。修改前这里会固定发送 4096。
+  - 读不到上限（OpenAI 兼容）：同一网关的 OpenAI 兼容接口（模型列表无上限字段，记为 `none`），请求不发送 `max_tokens`；网关对不支持的元数据路径返回 400，同样记为 `none`，不会每次生成都重复读取。DeepSeek V4 Flash 的全文润色输出 8,574 token 并完整保留结构；DeepSeek 和 Claude Haiku 4.5 的翻译也完整。Claude Haiku 4.5 的全文润色被该网关在约 8192 token 处截断：网关不理会客户端传的 `max_tokens`（请求 4096 和 32000 时都输出 8,195 token），Anthropic 原生接口和 OpenAI 兼容接口都一样，且仍报告 `stop` 或不报告结束原因；客户端依据缺失的结束标记判定为截断，界面提示并禁止替换。同一模型经上面的 Claude 网关可完整输出 16,780 token，说明这是该网关自身的硬性上限，需要 PR B 的分段来完整交付。
 - 跨版本（自托管 SQLite，同一数据目录）：旧服务端（`main`，0091）→ 本分支（0092）→ 回滚到旧服务端，共 29 项检查通过。覆盖本分支客户端、已发布的 v2.19.0 客户端和 Web 网络兜底，以及能读到上限的网关、没有上限的网关、Anthropic 风格 400 后按 2048 重试并记住。
 - Cloudflare D1（隔离预览实例）：从 0091 加已有用户、模型和已保存预算升级到 0092，配置和预算不变；旧客户端仍为 4096 并被提示检测；新客户端不发送上限；上报后自动预算生效（独立输入上限不扣减输出）；手动预算优先。回滚到 `main` 后读写正常。
 - iOS：Fork 的 Actions 上 Xcode 构建和单元测试通过。
-- 未验证：Android USB 真机（等待预览 APK 真机测试）、iOS 真机和界面交互、Gemini / Anthropic / OpenRouter 官方接口的真实请求（解析逻辑有单元测试）。
+- 未验证：Android USB 真机（等待预览 APK 真机测试）、iOS 真机和界面交互；Anthropic 官方接口仅通过转发它的网关测试；Gemini 官方接口（`generativelanguage.googleapis.com` 的模型元数据）和 OpenRouter 未做真实请求（解析逻辑有单元测试）。
