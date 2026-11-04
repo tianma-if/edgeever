@@ -22,7 +22,8 @@ import { common, createLowlight } from "lowlight";
 import { toCanvas } from "html-to-image";
 import { marked } from "marked";
 import { MERMAID_THEME_PALETTES } from "@/components/ThemeProvider";
-import { scaleMermaidSvg } from "@/lib/mermaid-svg";
+import { renderThemedMermaidSvg } from "@/lib/mermaid-renderer";
+import { normalizeMermaidSvgForViewer } from "@/lib/mermaid-svg";
 import { copyHtmlToClipboard } from "@/lib/clipboard";
 import { parseCustomCssToStyles } from "@/lib/css-sandbox";
 import {
@@ -415,12 +416,6 @@ const getSvgSize = (svg: string) => {
 
 const WECHAT_MERMAID_MAX_EDGE = 1280;
 
-const prepareSvgMarkup = (svg: string) => {
-  const markup = svg.trim();
-  if (/<svg\b[^>]*\sxmlns=/.test(markup)) return markup;
-  return markup.replace(/<svg\b/, '<svg xmlns="http://www.w3.org/2000/svg"');
-};
-
 const canvasToJpeg = (canvas: HTMLCanvasElement, quality = 0.86) =>
   new Promise<Blob>((resolve, reject) => {
     canvas.toBlob(
@@ -479,48 +474,39 @@ const rasterizePublishOrnamentsForWeChat = async (root: HTMLElement) => {
 };
 
 const svgToWeChatImage = async (svg: string) => {
-  const markup = prepareSvgMarkup(svg);
+  const markup = normalizeMermaidSvgForViewer(svg);
   const size = getSvgSize(markup);
-  const objectUrl = URL.createObjectURL(new Blob([markup], { type: "image/svg+xml;charset=utf-8" }));
-  try {
-    const image = new Image();
-    image.src = objectUrl;
-    await image.decode();
-    const naturalWidth = image.naturalWidth || size.width;
-    const naturalHeight = image.naturalHeight || size.height;
-    const scale = Math.min(2, WECHAT_MERMAID_MAX_EDGE / Math.max(naturalWidth, naturalHeight, 1));
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.max(1, Math.round(naturalWidth * scale));
-    canvas.height = Math.max(1, Math.round(naturalHeight * scale));
-    const context = canvas.getContext("2d");
-    if (!context) {
-      throw new Error("Could not create image canvas");
-    }
-    context.fillStyle = "#ffffff";
-    context.fillRect(0, 0, canvas.width, canvas.height);
-    context.drawImage(image, 0, 0, canvas.width, canvas.height);
-    const displayWidth = Math.min(size.width || naturalWidth, 677);
-    const displayHeight = displayWidth * (naturalHeight / Math.max(naturalWidth, 1));
-    return {
-      blob: await canvasToJpeg(canvas),
-      width: displayWidth,
-      height: displayHeight,
-    };
-  } finally {
-    URL.revokeObjectURL(objectUrl);
+  const image = new Image();
+  // A Blob URL can taint the canvas when Mermaid uses HTML labels.
+  image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(markup)}`;
+  await image.decode();
+  const naturalWidth = image.naturalWidth || size.width;
+  const naturalHeight = image.naturalHeight || size.height;
+  const scale = Math.min(2, WECHAT_MERMAID_MAX_EDGE / Math.max(naturalWidth, naturalHeight, 1));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(naturalWidth * scale));
+  canvas.height = Math.max(1, Math.round(naturalHeight * scale));
+  const context = canvas.getContext("2d");
+  if (!context) {
+    throw new Error("Could not create image canvas");
   }
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+  const displayWidth = Math.min(size.width || naturalWidth, 677);
+  const displayHeight = displayWidth * (naturalHeight / Math.max(naturalWidth, 1));
+  return {
+    blob: await canvasToJpeg(canvas),
+    width: displayWidth,
+    height: displayHeight,
+  };
 };
 
-const renderMermaidSvg = async (source: string) => {
-  const { renderMermaidSVG, THEMES } = await import("beautiful-mermaid");
-  return scaleMermaidSvg(renderMermaidSVG(source, {
-    ...THEMES["zinc-light"],
-    ...MERMAID_THEME_PALETTES["zinc-light"],
-    transparent: true,
-    font: "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
-    padding: 24,
-  }));
-};
+const renderMermaidSvg = (source: string) => renderThemedMermaidSvg(source, {
+  palette: MERMAID_THEME_PALETTES["zinc-light"],
+  font: "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+  padding: 24,
+});
 
 const embedMermaidForWeChat = async (root: HTMLElement, editor?: Editor) => {
   const codeBlocks = Array.from(root.querySelectorAll<HTMLElement>("pre > code.language-mermaid"));

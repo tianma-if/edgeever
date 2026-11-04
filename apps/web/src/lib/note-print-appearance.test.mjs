@@ -24,7 +24,7 @@ describe("note print appearance", () => {
     }), "github-light", { choice: "system", customFamily: "" });
     const css = notePrintAppearanceCss(appearance);
 
-    expect(appearance.mermaidTheme).toBe("github-light");
+    expect(appearance.mermaidTheme).toBe("zinc-light");
     expect(appearance.fontFamily).toBeNull();
     expect(css).toContain("--editor-body-font-size: 18px");
     expect(css).toContain("--editor-body-line-height: 1.5");

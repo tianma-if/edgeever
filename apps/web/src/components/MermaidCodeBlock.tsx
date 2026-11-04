@@ -73,7 +73,6 @@ export const MermaidCodeBlock = ({ editor, node }: NodeViewProps) => {
       const palette = MERMAID_THEME_PALETTES[mermaidTheme];
 
       const renderPromise = renderThemedMermaidSvg(source, {
-        theme: mermaidTheme,
         palette,
         font: "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
         padding: 24,

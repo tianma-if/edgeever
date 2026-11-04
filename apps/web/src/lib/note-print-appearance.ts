@@ -10,7 +10,7 @@ import { catalogCodeFontStack, isRemoteNoteImageFont } from "@edgeever/shared/fo
 import { LEGACY_BODY_FONTS } from "@edgeever/shared/font-defaults";
 import type { BodyFontId } from "@edgeever/shared/font-loader";
 import type { MermaidThemeName } from "@/components/ThemeProvider";
-import { MERMAID_THEME_NAMES } from "@/components/ThemeProvider";
+import { normalizeMermaidThemePreference, resolveMermaidTheme } from "@/components/ThemeProvider";
 import { sanitizeAndScopeCss } from "@/lib/css-sandbox";
 import {
   readEditorBodyFontPreference,
@@ -53,9 +53,7 @@ export const notePrintAppearanceFromProse = (
   customCss: sanitizeAndScopeCss(prose.customCss),
   fontFamily: resolveEditorBodyFontStack(font) ?? null,
   fontId: loadableBodyFontId(font.choice),
-  mermaidTheme: (MERMAID_THEME_NAMES as readonly string[]).includes(mermaidTheme)
-    ? mermaidTheme as MermaidThemeName
-    : "zinc-light",
+  mermaidTheme: resolveMermaidTheme(normalizeMermaidThemePreference(mermaidTheme), "light"),
 });
 
 const paletteRules = (palette: NoteProsePaletteChoice) => {

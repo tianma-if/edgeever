@@ -49,7 +49,6 @@ const renderMermaidBlocks = async (root: HTMLElement, theme: MermaidThemeName, f
 
     try {
       const svg = await renderThemedMermaidSvg(source, {
-        theme,
         palette,
         font,
         padding: 24,

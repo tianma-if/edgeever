@@ -188,7 +188,6 @@ export const renderMermaidBlocksForHtmlExport = async (root: HTMLElement) => {
 
     try {
       const svg = await renderThemedMermaidSvg(source, {
-        theme: "zinc-light",
         palette: MERMAID_THEME_PALETTES["zinc-light"],
         font: EXPORT_FONT_FAMILY,
         padding: 24,

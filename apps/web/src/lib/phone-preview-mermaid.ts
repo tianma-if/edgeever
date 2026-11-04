@@ -33,7 +33,6 @@ const remapSvgIds = (svg: SVGElement, prefix: string) => {
 const renderMermaidSvg = async (source: string, theme: MermaidThemeName) => {
   const palette = MERMAID_THEME_PALETTES[theme] ?? MERMAID_THEME_PALETTES["zinc-light"];
   return renderThemedMermaidSvg(source, {
-    theme,
     palette,
     font: "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
     padding: 16,
