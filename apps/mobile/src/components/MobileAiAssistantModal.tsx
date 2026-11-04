@@ -60,6 +60,8 @@ export const MobileAiAssistantModal = ({
   const [refineInstruction, setRefineInstruction] = useState("");
   const [output, setOutput] = useState("");
   const [error, setError] = useState<string | null>(null);
+  // Why the current draft is incomplete; an incomplete draft must not replace the note (#652).
+  const [incomplete, setIncomplete] = useState<"truncated" | "stopped" | null>(null);
   const [generating, setGenerating] = useState(false);
   const [applying, setApplying] = useState(false);
   const [picker, setPicker] = useState<"action" | "language" | "tone" | null>(null);
@@ -171,6 +173,7 @@ export const MobileAiAssistantModal = ({
     controllerRef.current = controller;
     setOutput("");
     setError(null);
+    setIncomplete(null);
     setGenerating(true);
     try {
       await client.streamAiGeneration(buildRequest(source, refinement), {
@@ -178,10 +181,14 @@ export const MobileAiAssistantModal = ({
         onEvent: (event) => {
           if (event.type === "text-delta") setOutput((current) => current + event.text);
           if (event.type === "error") setError(event.message);
+          if (event.type === "finish" && event.truncated) setIncomplete("truncated");
         },
       });
     } catch (caught) {
-      if (controller.signal.aborted) return;
+      if (controller.signal.aborted) {
+        setIncomplete((current) => current ?? "stopped");
+        return;
+      }
       setError(
         caught instanceof ApiRequestError && caught.code === "ai_not_configured"
           ? getMobileCatalog(resolvedLocale).mobile.ai.modelNotConfigured
@@ -205,6 +212,7 @@ export const MobileAiAssistantModal = ({
 
   const apply = async (mode: "append" | "replace") => {
     if (!output || applying) return;
+    if (mode === "replace" && incomplete) return;
     setApplying(true);
     setError(null);
     try {
@@ -336,6 +344,13 @@ export const MobileAiAssistantModal = ({
               </View>
             </View>
           ) : null}
+          {incomplete && output ? (
+            <Text accessibilityRole="alert" style={styles.warning}>
+              {incomplete === "truncated"
+                ? getMobileCatalog(resolvedLocale).mobile.ai.incompleteTruncated
+                : getMobileCatalog(resolvedLocale).mobile.ai.incompleteStopped}
+            </Text>
+          ) : null}
           {error ? <Text style={styles.error}>{error}</Text> : null}
         </ScrollView>
         <View style={[styles.footer, { borderTopColor: border, backgroundColor: surface }]}>
@@ -350,7 +365,7 @@ export const MobileAiAssistantModal = ({
               </Pressable>
             ) : null}
             {promptAllowsReplace(resultMode) ? (
-              <Pressable disabled={!output || generating || applying} onPress={() => void apply("replace")} style={[styles.secondaryButton, { borderColor: border }, (!output || generating || applying) && styles.disabled]}>
+              <Pressable disabled={!output || generating || applying || Boolean(incomplete)} onPress={() => void apply("replace")} style={[styles.secondaryButton, { borderColor: border }, (!output || generating || applying || Boolean(incomplete)) && styles.disabled]}>
                 <Text style={[styles.secondaryText, { color: foreground }]}>{getMobileCatalog(resolvedLocale).mobile.ai.replace}</Text>
               </Pressable>
             ) : null}
@@ -411,6 +426,7 @@ const styles = StyleSheet.create({
   refineButton: { height: 44, paddingHorizontal: 14, borderRadius: 9, backgroundColor: "#16A06E", alignItems: "center", justifyContent: "center" },
   refineButtonText: { color: "#ffffff", fontSize: 14, fontWeight: "700" },
   error: { color: "#be123c", fontSize: 13, lineHeight: 19 },
+  warning: { color: "#b45309", fontSize: 13, lineHeight: 19 },
   footer: { padding: 12, gap: 10, borderTopWidth: StyleSheet.hairlineWidth },
   footerRow: { flexDirection: "row", gap: 8 },
   secondaryButton: { minHeight: 40, flex: 1, flexDirection: "row", gap: 6, borderWidth: 1, borderRadius: 9, alignItems: "center", justifyContent: "center" },

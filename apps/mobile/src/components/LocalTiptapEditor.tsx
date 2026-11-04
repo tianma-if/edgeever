@@ -233,6 +233,8 @@ type MobileAiPanelState = {
   error: string | null;
   generating: boolean;
   requestId: string | null;
+  /** Why the draft is incomplete; an incomplete draft must not replace the selection (#652). */
+  incomplete?: "truncated" | "stopped" | null;
 };
 
 type MobileAiBridgePayload = {
@@ -681,6 +683,7 @@ function LocalTiptapEditorImpl(props: LocalTiptapEditorProps) {
             parameterKind: "none",
             resultMode: "both",
             output: "",
+            incomplete: null,
             error: getMobileEditorCopy(props.locale).ai.promptMissing,
           };
         }
@@ -1085,6 +1088,7 @@ function LocalTiptapEditorImpl(props: LocalTiptapEditorProps) {
       customInstruction: "",
       refineInstruction: "",
       output: "",
+      incomplete: null,
       error: null,
       generating: false,
       requestId: null,
@@ -1118,6 +1122,7 @@ function LocalTiptapEditorImpl(props: LocalTiptapEditorProps) {
     setAiPanel((current) => current ? {
       ...current,
       output: "",
+      incomplete: null,
       error: null,
       generating: true,
       requestId,
@@ -1156,7 +1161,7 @@ function LocalTiptapEditorImpl(props: LocalTiptapEditorProps) {
           return { ...current, generating: false, requestId: null, error: payload.event.message };
         }
         if (payload.event.type === "finish") {
-          return { ...current, generating: false, requestId: null };
+          return { ...current, generating: false, requestId: null, incomplete: payload.event.truncated ? "truncated" : null };
         }
         return current;
       });
@@ -1168,7 +1173,12 @@ function LocalTiptapEditorImpl(props: LocalTiptapEditorProps) {
   const stopAiSelectionRequest = useCallback(() => {
     if (!aiPanel?.requestId) return;
     void (onAiCancelRef.current ?? ignoreAiRequest)(aiPanel.requestId);
-    setAiPanel((current) => current ? { ...current, generating: false, requestId: null } : current);
+    setAiPanel((current) => current ? {
+      ...current,
+      generating: false,
+      requestId: null,
+      incomplete: current.output ? "stopped" : null,
+    } : current);
   }, [aiPanel?.requestId]);
 
   const applyAiSelectionDraft = useCallback((mode: "append" | "replace") => {
@@ -1183,6 +1193,7 @@ function LocalTiptapEditorImpl(props: LocalTiptapEditorProps) {
     }
     if (mode === "append" && aiPanel.resultMode === "replace") return;
     if (mode === "replace" && aiPanel.resultMode === "append") return;
+    if (mode === "replace" && aiPanel.incomplete) return;
     const replacementDraft = mode === "replace"
       ? normalizeAiSelectionReplacement(aiPanel.output)
       : aiPanel.output;
@@ -1824,7 +1835,7 @@ const MobileSelectionAiPanel = ({
   const update = (next: Partial<MobileAiPanelState>) => onChange((current) => current ? { ...current, ...next } : current);
   const generateDisabled = panel.generating || (!panel.promptId && panel.action === "custom" && !panel.customInstruction.trim());
   const appendDisabled = panel.generating || !panel.output || panel.resultMode === "replace";
-  const replaceDisabled = panel.generating || !panel.output || panel.resultMode === "append";
+  const replaceDisabled = panel.generating || !panel.output || panel.resultMode === "append" || Boolean(panel.incomplete);
   const selectedPrompt = panel.promptId ? prompts.find((prompt) => prompt.id === panel.promptId) ?? null : null;
 
   const persistLastAction = (
@@ -1858,6 +1869,7 @@ const MobileSelectionAiPanel = ({
         parameterKind: prompt.parameterKind,
         resultMode: prompt.resultMode,
         output: "",
+        incomplete: null,
         error: null,
       });
       return;
@@ -1870,6 +1882,7 @@ const MobileSelectionAiPanel = ({
       parameterKind: fallbackPromptParameterKind(action),
       resultMode: fallbackPromptResultMode(action),
       output: "",
+      incomplete: null,
       error: null,
     });
   };
@@ -1914,12 +1927,12 @@ const MobileSelectionAiPanel = ({
     if (picker === "language") {
       const targetLanguage = value as AiTargetLanguage;
       persistLastAction(panel.action, panel.promptId, targetLanguage);
-      update({ targetLanguage, output: "", error: null });
+      update({ targetLanguage, output: "", error: null, incomplete: null });
     }
     if (picker === "tone") {
       const tone = value as AiTone;
       persistLastAction(panel.action, panel.promptId, panel.targetLanguage, tone);
-      update({ tone, output: "", error: null });
+      update({ tone, output: "", error: null, incomplete: null });
     }
     setPicker(null);
   };
@@ -2020,6 +2033,11 @@ const MobileSelectionAiPanel = ({
               </button>
             </div>
           </label>
+        ) : null}
+        {panel.incomplete && panel.output ? (
+          <p className="edgeever-ai-error" role="alert">
+            {panel.incomplete === "truncated" ? getMobileEditorCopy(locale).ai.incompleteTruncated : getMobileEditorCopy(locale).ai.incompleteStopped}
+          </p>
         ) : null}
         {panel.error ? <p className="edgeever-ai-error" role="alert">{panel.error}</p> : null}
       </div>

@@ -15,7 +15,8 @@ enum AiDirectStream {
             request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
             body = [
                 "model": prepared.modelId,
-                "max_tokens": prepared.maxOutputTokens,
+                // Anthropic requires max_tokens; instances never send nil for it.
+                "max_tokens": prepared.maxOutputTokens ?? 4096,
                 "stream": true,
                 "system": prepared.system,
                 "messages": [["role": "user", "content": prepared.prompt]],
@@ -30,8 +31,10 @@ enum AiDirectStream {
             body = [
                 "system_instruction": ["parts": [["text": prepared.system]]],
                 "contents": [["role": "user", "parts": [["text": prepared.prompt]]]],
-                "generationConfig": ["maxOutputTokens": prepared.maxOutputTokens],
             ]
+            if let maxOutputTokens = prepared.maxOutputTokens {
+                body["generationConfig"] = ["maxOutputTokens": maxOutputTokens]
+            }
         default:
             guard let url = URL(string: "\(base)/chat/completions") else {
                 throw APIError(status: 502, code: "ai_generation_failed", message: "Invalid AI provider URL.")
@@ -40,13 +43,15 @@ enum AiDirectStream {
             request.setValue("Bearer \(prepared.apiKey)", forHTTPHeaderField: "Authorization")
             body = [
                 "model": prepared.modelId,
-                "max_tokens": prepared.maxOutputTokens,
                 "stream": true,
                 "messages": [
                     ["role": "system", "content": prepared.system],
                     ["role": "user", "content": prepared.prompt],
                 ],
             ]
+            if let maxOutputTokens = prepared.maxOutputTokens {
+                body["max_tokens"] = maxOutputTokens
+            }
         }
         request.httpShouldHandleCookies = false
         request.httpMethod = "POST"
@@ -54,6 +59,12 @@ enum AiDirectStream {
         request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         return request
+    }
+
+    /// True when the provider stopped because it ran out of output or context space (#652).
+    static func isTruncatedFinishReason(_ reason: String?) -> Bool {
+        guard let reason else { return false }
+        return ["length", "max_tokens", "model_context_window_exceeded", "MAX_TOKENS", "max_output_tokens"].contains(reason)
     }
 
     static func tagSuggestions(_ text: String, currentTags: [String], canonicalTags: [String: String]) -> [AiTagSuggestion] {

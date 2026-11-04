@@ -6,6 +6,12 @@ enum AiDraftApplyMode: Sendable {
     case replace
 }
 
+/// Why an AI draft is incomplete (#652).
+enum AiDraftIncompleteReason: Sendable {
+    case truncated
+    case stopped
+}
+
 private enum AssistantTone: String, CaseIterable, Identifiable {
     case professional
     case friendly
@@ -66,6 +72,8 @@ struct AiAssistantSheet: View {
     @State private var refineInstruction = ""
     @State private var output = ""
     @State private var error: String?
+    /// Why the current draft is incomplete; an incomplete draft must not replace the source (#652).
+    @State private var incomplete: AiDraftIncompleteReason?
     @State private var isGenerating = false
     @State private var isApplying = false
     @State private var didSetLanguageDefault = false
@@ -175,6 +183,13 @@ struct AiAssistantSheet: View {
                                     .disabled(refineInstruction.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                             }
                         }
+                    }
+
+                    if let incomplete, !output.isEmpty {
+                        Text(incompleteMessage(incomplete))
+                            .font(.system(size: 13))
+                            .foregroundStyle(AppTheme.dangerStrong)
+                            .accessibilityAddTraits(.isStaticText)
                     }
 
                     if let error, !error.isEmpty {
@@ -345,7 +360,8 @@ struct AiAssistantSheet: View {
                         isSelection
                             ? env.preferences.t("替换选中内容", en: "Replace selection", pl: "Zastąp zaznaczenie")
                             : env.preferences.t("替换", en: "Replace", pl: "Zastąp"),
-                        systemImage: "arrow.triangle.2.circlepath"
+                        systemImage: "arrow.triangle.2.circlepath",
+                        disabled: incomplete != nil
                     ) {
                         apply(.replace)
                     }
@@ -353,6 +369,7 @@ struct AiAssistantSheet: View {
             }
             if isGenerating {
                 Button {
+                    if !output.isEmpty { incomplete = incomplete ?? .stopped }
                     streamTask?.cancel()
                 } label: {
                     Label(env.preferences.t("停止", en: "Stop", pl: "Zatrzymaj"), systemImage: "stop.fill")
@@ -622,6 +639,7 @@ struct AiAssistantSheet: View {
         streamTask?.cancel()
         output = ""
         error = nil
+        incomplete = nil
         isGenerating = true
         let requestID = UUID()
         generationID = requestID
@@ -633,6 +651,8 @@ struct AiAssistantSheet: View {
                     try Task.checkCancellation()
                     switch event.type {
                     case "text-delta": output += event.text ?? ""
+                    case "finish" where event.truncated == true || AiDirectStream.isTruncatedFinishReason(event.finishReason):
+                        if generationID == requestID { incomplete = .truncated }
                     case "error": error = event.message ?? env.preferences.t("AI 生成失败。", en: "AI generation failed.", pl: "Generowanie AI nie powiodło się.")
                     default: break
                     }
@@ -663,8 +683,28 @@ struct AiAssistantSheet: View {
         generate(source: source, refinement: instruction)
     }
 
+    private func incompleteMessage(_ reason: AiDraftIncompleteReason) -> String {
+        switch reason {
+        case .truncated:
+            env.preferences.t(
+                "结果不完整：模型达到了输出上限。可以复制或追加，但不能用它替换原文。",
+                en: "This result is incomplete: the model reached its output limit. You can copy or append it, but it can't replace the original.",
+                ja: "結果は不完全です：モデルが出力上限に達しました。コピーや追加はできますが、元の文章を置き換えることはできません。",
+                pl: "Wynik jest niepełny: model osiągnął limit odpowiedzi. Możesz go skopiować lub dołączyć, ale nie może zastąpić oryginału."
+            )
+        case .stopped:
+            env.preferences.t(
+                "生成已停止，结果不完整。可以复制或追加，但不能用它替换原文。",
+                en: "Generation was stopped, so this result is incomplete. You can copy or append it, but it can't replace the original.",
+                ja: "生成を停止したため、結果は不完全です。コピーや追加はできますが、元の文章を置き換えることはできません。",
+                pl: "Generowanie zatrzymano, więc wynik jest niepełny. Możesz go skopiować lub dołączyć, ale nie może zastąpić oryginału."
+            )
+        }
+    }
+
     private func apply(_ mode: AiDraftApplyMode) {
         guard !output.isEmpty, !isApplying else { return }
+        if mode == .replace, incomplete != nil { return }
         isApplying = true
         error = nil
         Task {

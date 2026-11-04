@@ -182,6 +182,8 @@ struct AiGenerateInput: Encodable, Sendable {
     var targetLanguage: String?
     var tone: String? = nil
     var instruction: String? = nil
+    /// This client can send a request without an output limit when none is known (#652).
+    var allowUnboundedOutput: Bool? = true
 }
 
 struct AiGenerationResultBoundary: Decodable, Sendable {
@@ -196,7 +198,8 @@ struct AiPreparedGeneration: Decodable, Sendable {
     var modelId: String
     var system: String
     var prompt: String
-    var maxOutputTokens: Int
+    /// `nil` asks the client to send no output limit (#652).
+    var maxOutputTokens: Int?
     var resultBoundary: AiGenerationResultBoundary
 }
 
@@ -280,6 +283,8 @@ struct AiStreamEvent: Decodable, Sendable {
     var finishReason: String?
     var inputTokens: Int?
     var outputTokens: Int?
+    /// The provider stopped at its output or context limit, so the result is incomplete (#652).
+    var truncated: Bool? = nil
 }
 
 struct Resource: Codable, Equatable, Sendable, Identifiable {
