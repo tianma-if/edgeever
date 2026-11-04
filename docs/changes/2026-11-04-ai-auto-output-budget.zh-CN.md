@@ -48,9 +48,10 @@
 - 真实服务验收（预览实例，本分支客户端直连；测试长文为 40 节中文 Markdown，约 17,700 字，含 41 个标题、8 个代码块、40 个链接和 1 张表格）：
   - 能读到上限（Anthropic）：通过一个原样转发 Anthropic 官方 Models API 和 Messages API 的 Claude 网关测试，未直接调用 `api.anthropic.com`。按 Anthropic 类型配置，`claude-haiku-4-5-20251001` 读到输出上限 64,000、共用窗口 200,000（来源 `anthropic-models`）。翻译和全文润色都请求了 `max_tokens=45166`，输出分别为 10,560 和 16,780 token，40 节完整、结构全部保留，无需手填预算；结束原因可读到 `end_turn`。
   - 能读到上限（DeepSeek）：DeepSeek 官方接口（`deepseek-flash`，读到输出上限 393,216、共用窗口 1,048,576）。40 节中文长文的翻译和全文润色都请求了 `max_tokens=45166`，输出分别为 11,415 和 10,694 token，正常结束、未截断，40 节完整，标题、代码块、链接和表格全部保留，无需手填预算。
+  - 能读到上限（Gemini 官方）：Gemini 官方接口 `generativelanguage.googleapis.com/v1beta`，`gemini-3-flash-preview` 读到输出上限 65,536、独立输入上限 1,048,576（来源 `gemini-models`），输入上限不扣减输出预算。翻译和全文润色都请求了 `maxOutputTokens=45166`，输出分别为 11,014 和 11,312 token，结束原因 `STOP`、未截断，40 节完整、结构全部保留，无需手填预算。
   - 读不到上限（Gemini 格式）：一个 OpenAI 兼容网关同时提供 Gemini 原生生成接口，但模型元数据接口返回 404（记为 `none`）。按 Gemini 类型配置，`gemini-3-flash-preview` 的请求不发送 `maxOutputTokens`；翻译和全文润色输出分别为 12,244 和 14,698 token，结束原因 `STOP`，40 节完整、结构全部保留。修改前这里会固定发送 4096。
   - 读不到上限（OpenAI 兼容）：同一网关的 OpenAI 兼容接口（模型列表无上限字段，记为 `none`），请求不发送 `max_tokens`；网关对不支持的元数据路径返回 400，同样记为 `none`，不会每次生成都重复读取。DeepSeek V4 Flash 的全文润色输出 8,574 token 并完整保留结构；DeepSeek 和 Claude Haiku 4.5 的翻译也完整。Claude Haiku 4.5 的全文润色被该网关在约 8192 token 处截断：网关不理会客户端传的 `max_tokens`（请求 4096 和 32000 时都输出 8,195 token），Anthropic 原生接口和 OpenAI 兼容接口都一样，且仍报告 `stop` 或不报告结束原因；客户端依据缺失的结束标记判定为截断，界面提示并禁止替换。同一模型经上面的 Claude 网关可完整输出 16,780 token，说明这是该网关自身的硬性上限，需要 PR B 的分段来完整交付。
 - 跨版本（自托管 SQLite，同一数据目录）：旧服务端（`main`，0091）→ 本分支（0092）→ 回滚到旧服务端，共 29 项检查通过。覆盖本分支客户端、已发布的 v2.19.0 客户端和 Web 网络兜底，以及能读到上限的网关、没有上限的网关、Anthropic 风格 400 后按 2048 重试并记住。
 - Cloudflare D1（隔离预览实例）：从 0091 加已有用户、模型和已保存预算升级到 0092，配置和预算不变；旧客户端仍为 4096 并被提示检测；新客户端不发送上限；上报后自动预算生效（独立输入上限不扣减输出）；手动预算优先。回滚到 `main` 后读写正常。
 - iOS：Fork 的 Actions 上 Xcode 构建和单元测试通过。
-- 未验证：Android USB 真机（等待预览 APK 真机测试）、iOS 真机和界面交互；Anthropic 官方接口仅通过转发它的网关测试；Gemini 官方接口（`generativelanguage.googleapis.com` 的模型元数据）和 OpenRouter 未做真实请求（解析逻辑有单元测试）。
+- 未验证：Android USB 真机（等待预览 APK 真机测试）、iOS 真机和界面交互；Anthropic 官方接口仅通过转发它的网关测试；OpenRouter 未做真实请求（解析逻辑有单元测试）。
