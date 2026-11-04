@@ -58,3 +58,20 @@ test("relay never follows an upstream redirect to an unconfigured destination",a
 test("Gemini model names cannot escape the configured model endpoint",()=>{
  expect(isConfiguredAiEndpoint(new URL('https://google.example/v1beta/models/%2f..%2fadmin:generateContent'),'POST',{provider:'google',base_url:'https://google.example/v1beta'})).toBe(false);
 });
+
+test("model metadata reads used for limit detection are allowed only on the configured endpoint (#652)",()=>{
+ const anthropic={provider:'anthropic',base_url:'https://anthropic.example/v1'};
+ const google={provider:'google',base_url:'https://google.example/v1beta'};
+ const openai={provider:'openai-compatible',base_url:'https://models.example/v1'};
+ expect(isConfiguredAiEndpoint(new URL('https://anthropic.example/v1/models/claude-x'),'GET',anthropic)).toBe(true);
+ expect(isConfiguredAiEndpoint(new URL('https://google.example/v1beta/models/gemini-x?key=test'),'GET',google)).toBe(true);
+ expect(isConfiguredAiEndpoint(new URL('https://models.example/v1/model/info'),'GET',openai)).toBe(true);
+ // Not for writes, other paths, queries, other hosts or nested paths.
+ expect(isConfiguredAiEndpoint(new URL('https://anthropic.example/v1/models/claude-x'),'POST',anthropic)).toBe(false);
+ expect(isConfiguredAiEndpoint(new URL('https://anthropic.example/v1/models/claude-x/extra'),'GET',anthropic)).toBe(false);
+ expect(isConfiguredAiEndpoint(new URL('https://anthropic.example/v1/models/claude-x?after_id=1'),'GET',anthropic)).toBe(false);
+ expect(isConfiguredAiEndpoint(new URL('https://other.example/v1/models/claude-x'),'GET',anthropic)).toBe(false);
+ expect(isConfiguredAiEndpoint(new URL('https://anthropic.example/v1/model/info'),'GET',anthropic)).toBe(false);
+ expect(isConfiguredAiEndpoint(new URL('https://models.example/v1/model/info'),'POST',openai)).toBe(false);
+ expect(isConfiguredAiEndpoint(new URL('https://models.example/v1/models/gpt-x'),'GET',openai)).toBe(false);
+});

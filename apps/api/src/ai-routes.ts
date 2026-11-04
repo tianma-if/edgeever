@@ -9,12 +9,15 @@ import {
   InfographicAgentRequestSchema,
   AiModelConfigCreateSchema,
   AiModelConfigUpdateSchema,
+  AiModelCapabilitiesReportSchema,
   AiProviderConfigCreateSchema,
   AiProviderConfigUpdateSchema,
   AiProviderConnectionTestSchema,
   AiTagSuggestionsRequestSchema,
   buildAiTagSuggestionRequest,
   getDefaultAiTagSuggestionPrompt,
+  isAiModelCapabilityStale,
+  planAiGenerationOutputBudget,
   resolveAiModelOutputBudget,
   promptNeedsTargetLanguage,
   promptNeedsTone,
@@ -33,6 +36,7 @@ import {
   decryptAiCredential,
   getAiModelConfig,
   getAiProviderConfig,
+  mapAiModelConfig,
   getAiSettings,
   getDefaultAiModelId,
   getDefaultAiDirectTarget,
@@ -40,6 +44,7 @@ import {
   normalizeAiBaseUrl,
   resolveDefaultAiModel,
   prepareAiGeneration,
+  aiTextAttachmentContents,
   aiTranscriptionDefaultStatement,
   getAiTranscriptionModel,
   getAiTranscriptionProvider,
@@ -631,7 +636,15 @@ export const registerAiRoutes = (app: Hono<AppEnv>, dependencies: AiRouteDepende
         const apiKeyEncrypted = input.apiKey
           ? await encryptSecret(input.apiKey, requireEncryptionKey(context))
           : existing.api_key_encrypted;
+        // Detected limits describe one endpoint; a different service or URL must detect again.
+        const endpointChanged = existing.provider !== input.provider
+          || normalizeAiBaseUrl(existing.base_url) !== normalizeAiBaseUrl(input.baseUrl);
         await context.env.storage.db.batch([
+          ...(endpointChanged ? [context.env.storage.db.prepare(
+            `UPDATE ai_models SET detected_max_output_tokens = NULL, detected_max_input_tokens = NULL,
+               detected_context_window_tokens = NULL, detected_capability_source = NULL, detected_at = NULL
+             WHERE provider_config_id = ?`,
+          ).bind(providerConfigId)] : []),
           context.env.storage.db.prepare(
             `UPDATE ai_provider_configs SET
                provider = ?, display_name = ?, base_url = ?, api_key_encrypted = ?,
@@ -807,6 +820,65 @@ export const registerAiRoutes = (app: Hono<AppEnv>, dependencies: AiRouteDepende
     },
   );
 
+  app.put(
+    "/api/v1/ai/providers/:providerConfigId/models/:modelConfigId/capabilities",
+    zValidator("json", AiModelCapabilitiesReportSchema, (result, context) => {
+      if (result.success) return;
+      return apiError(context, "ai_model_capabilities_invalid", "The detected model limits are invalid.", 400);
+    }),
+    async (context) => {
+      const denied = denyMutation(context, dependencies);
+      if (denied) return denied;
+      const workspaceId = getWorkspaceId(context);
+      const providerConfigId = context.req.param("providerConfigId");
+      const modelConfigId = context.req.param("modelConfigId");
+      const [model, provider] = await Promise.all([
+        getAiModelConfig(context.env.storage.db, workspaceId, modelConfigId),
+        getAiProviderConfig(context.env.storage.db, workspaceId, providerConfigId),
+      ]);
+      if (!model || !provider || model.provider_config_id !== providerConfigId) {
+        return notFound(context, "AI model not found.");
+      }
+      const input = context.req.valid("json");
+      // Only accept limits read from the model and endpoint that are saved now.
+      if (model.model_id !== input.modelId || normalizeAiBaseUrl(provider.base_url) !== normalizeAiBaseUrl(input.baseUrl)) {
+        return apiError(context, "ai_model_changed", "The model or service changed while its limits were being detected.", 409);
+      }
+      const detectedAt = isoNow();
+      const db = context.env.storage.db;
+      if (input.source === "provider-error") {
+        // A provider error only reveals the output limit; keep any window detected earlier.
+        if (!input.maxOutputTokens) {
+          return apiError(context, "ai_model_capabilities_invalid", "The detected model limits are invalid.", 400);
+        }
+        await db.prepare(
+          `UPDATE ai_models SET detected_max_output_tokens = ?,
+             detected_capability_source = CASE
+               WHEN detected_capability_source IS NULL OR detected_capability_source = 'none' THEN 'provider-error'
+               ELSE detected_capability_source END,
+             detected_at = ?
+           WHERE id = ? AND provider_config_id = ?`,
+        ).bind(input.maxOutputTokens, detectedAt, modelConfigId, providerConfigId).run();
+      } else {
+        await db.prepare(
+          `UPDATE ai_models SET detected_max_output_tokens = ?, detected_max_input_tokens = ?,
+             detected_context_window_tokens = ?, detected_capability_source = ?, detected_at = ?
+           WHERE id = ? AND provider_config_id = ?`,
+        ).bind(
+          input.maxOutputTokens,
+          input.maxInputTokens,
+          input.contextWindowTokens,
+          input.source,
+          detectedAt,
+          modelConfigId,
+          providerConfigId,
+        ).run();
+      }
+      const saved = await getAiModelConfig(db, workspaceId, modelConfigId);
+      return context.json({ detectedCapabilities: saved ? mapAiModelConfig(saved).detectedCapabilities : null });
+    },
+  );
+
   app.delete(
     "/api/v1/ai/providers/:providerConfigId/models/:modelConfigId",
     async (context) => {
@@ -956,16 +1028,30 @@ export const registerAiRoutes = (app: Hono<AppEnv>, dependencies: AiRouteDepende
       try {
         const input = context.req.valid("json");
         const fields = await resolveAiGenerateFields(context, input);
-        const { credentials, outputBudgets } = await resolveDefaultAiModel(
+        const model = await resolveDefaultAiModel(
           context.env.storage.db,
           getWorkspaceId(context),
           context.env,
         );
-        return context.json(prepareAiGeneration({
-          ...fields,
-          credentials,
-          maxOutputTokens: resolveAiModelOutputBudget(outputBudgets, "generationMaxOutputTokens"),
-        }));
+        const prepared = prepareAiGeneration({ ...fields, credentials: model.credentials });
+        // Credentials, manual budget and detected limits all come from the same default-model row.
+        const plan = planAiGenerationOutputBudget({
+          provider: model.credentials.provider,
+          action: fields.action,
+          manualMaxOutputTokens: model.outputBudgets.generationMaxOutputTokens,
+          capabilities: model.capabilities,
+          inputText: [prepared.system, prepared.prompt, ...aiTextAttachmentContents(fields.attachments)].join("\n\n"),
+          sourceText: fields.contentMarkdown,
+          allowUnbounded: input.allowUnboundedOutput === true,
+        });
+        return context.json({
+          ...prepared,
+          maxOutputTokens: plan.maxOutputTokens,
+          outputBudget: { mode: plan.mode, outputLimit: plan.outputLimit, inputFits: plan.inputFits },
+          ...(isAiModelCapabilityStale(model.capabilities)
+            ? { capabilityTarget: { providerConfigId: model.providerConfigId, modelConfigId: model.modelConfigId } }
+            : {}),
+        });
       } catch (error) {
         return withAiError(context, error, "ai_generation_failed");
       }

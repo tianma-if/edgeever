@@ -1,3 +1,4 @@
+import type { AiOutputBudgetMode } from "./ai-model-capabilities";
 import type { AiAttachmentInput } from "./schemas";
 import type { AiProvider } from "./types";
 
@@ -16,8 +17,13 @@ export type AiPreparedGeneration = AiDirectTarget & {
   apiKey: string;
   system: string;
   prompt: string;
-  maxOutputTokens: number;
+  /** `null` asks the client to send no output limit (only for clients that opted in). */
+  maxOutputTokens: number | null;
   resultBoundary: AiGenerationResultBoundary;
+  /** How the budget was chosen (#652); absent from older instances. */
+  outputBudget?: { mode: AiOutputBudgetMode; outputLimit: number | null; inputFits: boolean | null };
+  /** Set when the instance has no fresh limits for this model; the client may detect and report them. */
+  capabilityTarget?: { providerConfigId: string; modelConfigId: string };
 };
 
 export type AiPreparedTextGeneration = AiDirectTarget & {
@@ -213,7 +219,8 @@ export const buildAiDirectProviderRequest = (
       },
       body: JSON.stringify({
         model: prepared.modelId,
-        max_tokens: prepared.maxOutputTokens,
+        // Anthropic requires max_tokens; instances never send null for it, keep a safe default.
+        max_tokens: prepared.maxOutputTokens ?? AI_GENERATION_MAX_OUTPUT_TOKENS,
         stream: true,
         system: prepared.system,
         messages: [{ role: "user", content }],
@@ -237,7 +244,7 @@ export const buildAiDirectProviderRequest = (
       body: JSON.stringify({
         system_instruction: { parts: [{ text: prepared.system }] },
         contents: [{ role: "user", parts }],
-        generationConfig: { maxOutputTokens: prepared.maxOutputTokens },
+        ...(prepared.maxOutputTokens === null ? {} : { generationConfig: { maxOutputTokens: prepared.maxOutputTokens } }),
       }),
     };
   }
@@ -269,7 +276,7 @@ export const buildAiDirectProviderRequest = (
     },
     body: JSON.stringify({
       model: prepared.modelId,
-      max_tokens: prepared.maxOutputTokens,
+      ...(prepared.maxOutputTokens === null ? {} : { max_tokens: prepared.maxOutputTokens }),
       stream: true,
       messages: [
         { role: "system", content: prepared.system },

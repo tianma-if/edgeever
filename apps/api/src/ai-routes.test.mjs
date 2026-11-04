@@ -1565,3 +1565,152 @@ describe("model output budgets (#652)", () => {
     sqlite.close();
   });
 });
+
+describe("automatic output budget (#652 PR A)", () => {
+  const send = (body, method = "POST") => ({ method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  const setup = async (settings = validSettings, app = createApp()) => {
+    const database = createDatabaseEnvironment();
+    const created = await app.request("/api/v1/ai/providers", send(settings), database.environment);
+    expect(created.status).toBe(201);
+    const provider = (await created.json()).providers[0];
+    return { ...database, app, provider, model: provider.models[0] };
+  };
+  const capabilitiesPath = (provider, model) => `/api/v1/ai/providers/${provider.id}/models/${model.id}/capabilities`;
+  const prepare = async (app, env, body = {}) => {
+    const response = await app.request("/api/v1/ai/generate/prepare", send({ action: "continue-writing", title: "Note", contentMarkdown: "Body", ...body }), env);
+    expect(response.status).toBe(200);
+    return response.json();
+  };
+  const report = (app, env, provider, model, body) => app.request(capabilitiesPath(provider, model), send({
+    modelId: model.modelId, baseUrl: provider.baseUrl, maxOutputTokens: null, maxInputTokens: null, contextWindowTokens: null, source: "none", ...body,
+  }, "PUT"), env);
+
+  test("without detected limits, new clients send no limit, old clients keep 4096, and both are asked to detect", async () => {
+    const { sqlite, app, environment: env, provider, model } = await setup();
+    const unbounded = await prepare(app, env, { allowUnboundedOutput: true });
+    expect(unbounded).toMatchObject({ maxOutputTokens: null, outputBudget: { mode: "auto-unbounded", outputLimit: null } });
+    expect(unbounded.capabilityTarget).toEqual({ providerConfigId: provider.id, modelConfigId: model.id });
+    const legacy = await prepare(app, env);
+    expect(legacy).toMatchObject({ maxOutputTokens: 4096, outputBudget: { mode: "fallback" } });
+    sqlite.close();
+  });
+
+  test("Anthropic always gets a numeric max_tokens", async () => {
+    const { sqlite, app, environment: env } = await setup({ ...validSettings, provider: "anthropic", baseUrl: "https://api.anthropic.example/v1" });
+    expect(await prepare(app, env, { allowUnboundedOutput: true })).toMatchObject({ maxOutputTokens: 4096, outputBudget: { mode: "fallback" } });
+    sqlite.close();
+  });
+
+  test("reported limits are stored, shown in settings and used by prepare", async () => {
+    const { sqlite, app, environment: env, provider, model } = await setup({ ...validSettings, provider: "google", baseUrl: "https://gemini.example/v1beta" });
+    const saved = await report(app, env, provider, model, { maxOutputTokens: 65536, maxInputTokens: 1_048_576, source: "gemini-models" });
+    expect(saved.status).toBe(200);
+    expect((await saved.json()).detectedCapabilities).toMatchObject({ maxOutputTokens: 65536, maxInputTokens: 1_048_576, contextWindowTokens: null, source: "gemini-models" });
+    const settings = await (await app.request("/api/v1/ai/settings", {}, env)).json();
+    expect(settings.providers[0].models[0].detectedCapabilities).toMatchObject({ maxOutputTokens: 65536, source: "gemini-models" });
+    // Fresh limits: no detection request, and a long input within the input limit keeps the whole output limit.
+    const longNote = "a".repeat(200_000);
+    const prepared = await prepare(app, env, { allowUnboundedOutput: true, contentMarkdown: longNote });
+    expect(prepared).toMatchObject({ maxOutputTokens: 65536, outputBudget: { mode: "auto", outputLimit: 65536, inputFits: true } });
+    expect(prepared.capabilityTarget).toBeUndefined();
+    // Old clients get the automatic budget too.
+    expect((await prepare(app, env, { contentMarkdown: longNote })).maxOutputTokens).toBe(65536);
+    sqlite.close();
+  });
+
+  test("a shared window leaves room for the input; a manual budget still wins", async () => {
+    const { sqlite, app, environment: env, provider, model } = await setup({ ...validSettings, provider: "anthropic", baseUrl: "https://api.anthropic.example/v1" });
+    await report(app, env, provider, model, { maxOutputTokens: 64000, contextWindowTokens: 150_000, source: "anthropic-models" });
+    const longNote = "a".repeat(290_000); // ~106k tokens of a 150k shared window
+    const prepared = await prepare(app, env, { allowUnboundedOutput: true, contentMarkdown: longNote });
+    expect(prepared.outputBudget.mode).toBe("auto");
+    expect(prepared.maxOutputTokens).toBeLessThan(64000);
+    expect(prepared.maxOutputTokens).toBeGreaterThan(1000);
+    await app.request(`/api/v1/ai/providers/${provider.id}/models/${model.id}`, send({ generationMaxOutputTokens: 9000 }, "PATCH"), env);
+    expect(await prepare(app, env, { allowUnboundedOutput: true, contentMarkdown: longNote })).toMatchObject({ maxOutputTokens: 9000, outputBudget: { mode: "manual" } });
+    sqlite.close();
+  });
+
+  test("source-sized tasks ask for what they need, open-ended tasks may use the whole limit", async () => {
+    const { sqlite, app, environment: env, provider, model } = await setup();
+    await report(app, env, provider, model, { maxOutputTokens: 32768, contextWindowTokens: 1_000_000, source: "openrouter-models" });
+    expect((await prepare(app, env, { action: "continue-writing" })).maxOutputTokens).toBe(32768);
+    const shortTranslate = await prepare(app, env, { action: "translate", targetLanguage: "en" });
+    expect(shortTranslate.maxOutputTokens).toBeGreaterThanOrEqual(4096);
+    expect(shortTranslate.maxOutputTokens).toBeLessThan(8192);
+    const longTranslate = await prepare(app, env, { action: "translate", targetLanguage: "en", contentMarkdown: "字".repeat(9000) });
+    expect(longTranslate.maxOutputTokens).toBeGreaterThan(8192);
+    expect(longTranslate.maxOutputTokens).toBeLessThanOrEqual(32768);
+    sqlite.close();
+  });
+
+  test("an empty detection is remembered, and stale limits ask for detection again", async () => {
+    const { sqlite, app, environment: env, provider, model } = await setup();
+    expect((await report(app, env, provider, model, { source: "none" })).status).toBe(200);
+    const afterNone = await prepare(app, env, { allowUnboundedOutput: true });
+    expect(afterNone).toMatchObject({ maxOutputTokens: null, outputBudget: { mode: "auto-unbounded" } });
+    expect(afterNone.capabilityTarget).toBeUndefined();
+    sqlite.query("UPDATE ai_models SET detected_at = '2026-01-01T00:00:00.000Z'").run();
+    expect((await prepare(app, env, { allowUnboundedOutput: true })).capabilityTarget).toEqual({ providerConfigId: provider.id, modelConfigId: model.id });
+    sqlite.close();
+  });
+
+  test("a provider error updates only the output limit and keeps the detected window", async () => {
+    const { sqlite, app, environment: env, provider, model } = await setup();
+    await report(app, env, provider, model, { maxOutputTokens: 128000, contextWindowTokens: 400000, source: "openrouter-models" });
+    const updated = await report(app, env, provider, model, { maxOutputTokens: 16384, source: "provider-error" });
+    expect((await updated.json()).detectedCapabilities).toMatchObject({ maxOutputTokens: 16384, contextWindowTokens: 400000, source: "openrouter-models" });
+    expect((await report(app, env, provider, model, { maxOutputTokens: null, source: "provider-error" })).status).toBe(400);
+    sqlite.close();
+  });
+
+  test("reports must match the saved model and endpoint, and follow the usual permissions", async () => {
+    const { sqlite, app, environment: env, provider, model } = await setup();
+    expect((await report(app, env, provider, model, { modelId: "other-model" })).status).toBe(409);
+    expect((await report(app, env, provider, model, { baseUrl: "https://elsewhere.example/v1" })).status).toBe(409);
+    expect((await report(app, env, provider, model, { maxOutputTokens: -1, source: "openrouter-models" })).status).toBe(400);
+    expect((await report(app, env, provider, model, { source: "made-up" })).status).toBe(400);
+    sqlite.query("INSERT INTO workspaces (id, name, is_personal) VALUES (?, ?, 1)").run("ws_other", "Other workspace");
+    expect((await report(createApp({ currentAuth: { ...auth, actorId: "usr_other", workspaceId: "ws_other" } }), env, provider, model, {})).status).toBe(404);
+    expect((await report(createApp({ demoMode: true }), env, provider, model, {})).status).toBe(403);
+    expect((await report(createApp({ currentAuth: { ...auth, kind: "agent", actorType: "agent", scopes: ["ai:generate"] } }), env, provider, model, {})).status).toBe(403);
+    expect(sqlite.query("SELECT detected_at FROM ai_models").get()).toEqual({ detected_at: null });
+    sqlite.close();
+  });
+
+  test("changing the service type or Base URL clears detected limits; other edits keep them", async () => {
+    const { sqlite, app, environment: env, provider, model } = await setup();
+    await report(app, env, provider, model, { maxOutputTokens: 32768, source: "openrouter-models" });
+    const update = (body) => app.request(`/api/v1/ai/providers/${provider.id}`, send({ provider: "openai-compatible", displayName: "Renamed", baseUrl: provider.baseUrl, isEnabled: true, ...body }, "PUT"), env);
+    expect((await update({})).status).toBe(200);
+    expect(sqlite.query("SELECT detected_max_output_tokens AS value FROM ai_models").get()).toEqual({ value: 32768 });
+    expect((await update({ baseUrl: "https://new-gateway.example/v1" })).status).toBe(200);
+    expect(sqlite.query("SELECT detected_max_output_tokens AS value, detected_at FROM ai_models").get()).toEqual({ value: null, detected_at: null });
+    sqlite.close();
+  });
+
+  test("a 0091 database upgrades with no detected limits and keeps the previous budget behaviour", async () => {
+    const sqlite = new Database(":memory:");
+    for (const migration of globSync("migrations/*.sql").sort()) {
+      if (migration.endsWith("0092_ai_model_detected_capabilities.sql")) continue;
+      sqlite.exec(readFileSync(migration, "utf8"));
+    }
+    sqlite.query("INSERT INTO workspaces (id, name, is_personal) VALUES (?, ?, 1)").run("ws_member", "Member workspace");
+    const now = "2026-11-04T00:00:00.000Z";
+    const apiKey = await encryptSecret("secret", `edgeever:ai-credentials:v1:${"x".repeat(32)}`);
+    sqlite.query(`INSERT INTO ai_provider_configs (id, workspace_id, provider, display_name, base_url, api_key_encrypted, is_enabled, created_at, updated_at)
+      VALUES ('aip_old', 'ws_member', 'openai-compatible', 'Old', 'https://models.example.com/v1', ?, 1, ?, ?)`).run(apiKey, now, now);
+    sqlite.query(`INSERT INTO ai_models (id, provider_config_id, model_id, display_name, generation_max_output_tokens, created_at, updated_at)
+      VALUES ('aim_old', 'aip_old', 'old-model', 'old-model', 12000, ?, ?)`).run(now, now);
+    sqlite.query(`INSERT INTO ai_workspace_settings (workspace_id, default_model_id, created_at, updated_at) VALUES ('ws_member', 'aim_old', ?, ?)`).run(now, now);
+    sqlite.exec(readFileSync("migrations/0092_ai_model_detected_capabilities.sql", "utf8"));
+    const env = { storage: { db: new SqliteD1Database(sqlite), resources: {} }, EDGE_EVER_AUTH_PASSWORD: "x".repeat(32) };
+    const app = createApp();
+    const settings = await (await app.request("/api/v1/ai/settings", {}, env)).json();
+    expect(settings.providers[0].models[0]).toMatchObject({ id: "aim_old", generationMaxOutputTokens: 12000, detectedCapabilities: null });
+    expect(await prepare(app, env)).toMatchObject({ maxOutputTokens: 12000, outputBudget: { mode: "manual" } });
+    // The previous release selected explicit columns, so it keeps working after the upgrade.
+    expect(sqlite.query("SELECT id, provider_config_id, model_id, display_name, generation_max_output_tokens, tag_suggestion_max_output_tokens, companion_max_output_tokens, created_at, updated_at FROM ai_models").all()).toHaveLength(1);
+    sqlite.close();
+  });
+});

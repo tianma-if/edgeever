@@ -54,7 +54,13 @@ export const registerCompanionRoutes = (parent: Hono<AppEnv>, dependencies: {
   const resolveModel: typeof resolveDefaultAiModel = async (db, workspaceId, env) => {
     if (dependencies.resolveModel) return dependencies.resolveModel(db, workspaceId, env);
     if (dependencies.loadCredentials) {
-      return { credentials: await dependencies.loadCredentials(db, workspaceId, env), outputBudgets: EMPTY_AI_MODEL_OUTPUT_BUDGETS };
+      return {
+        credentials: await dependencies.loadCredentials(db, workspaceId, env),
+        outputBudgets: EMPTY_AI_MODEL_OUTPUT_BUDGETS,
+        capabilities: null,
+        modelConfigId: "",
+        providerConfigId: "",
+      };
     }
     return resolveDefaultAiModel(db, workspaceId, env);
   };
