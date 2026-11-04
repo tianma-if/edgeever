@@ -1529,7 +1529,7 @@ describe("model output budgets (#652)", () => {
   test("an upgraded database keeps old rows on defaults and stays readable by the previous server query", async () => {
     const sqlite = new Database(":memory:");
     for (const migration of globSync("migrations/*.sql").sort()) {
-      if (migration.endsWith("0088_ai_model_output_budgets.sql")) continue;
+      if (migration.endsWith("0091_ai_model_output_budgets.sql")) continue;
       sqlite.exec(readFileSync(migration, "utf8"));
     }
     sqlite.query("INSERT INTO workspaces (id, name, is_personal) VALUES (?, ?, 1)").run("ws_member", "Member workspace");
@@ -1548,7 +1548,7 @@ describe("model output budgets (#652)", () => {
     sqlite.query(
       `INSERT INTO ai_workspace_settings (workspace_id, default_model_id, created_at, updated_at) VALUES ('ws_member', 'aim_old', ?, ?)`,
     ).run(now, now);
-    sqlite.exec(readFileSync("migrations/0088_ai_model_output_budgets.sql", "utf8"));
+    sqlite.exec(readFileSync("migrations/0091_ai_model_output_budgets.sql", "utf8"));
 
     const app = createApp();
     const settings = await (await app.request("/api/v1/ai/settings", {}, env)).json();
