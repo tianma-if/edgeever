@@ -1,23 +1,32 @@
 {
-  "version": "2.19.0",
+  "version": "2.20.0",
   "changes": {
     "en-US": [
-      "Set note body spacing and alignment independently, and find custom CSS directly in the reorganized reading preferences. Numbered pill headings now match the body text size.",
-      "Desktop apps recheck for newer versions before installing a pending update, reducing repeated upgrades through intermediate versions (#776).",
-      "Editor focus mode enters browser fullscreen, and the AI assistant button aligns with the note outline.",
-      "Backup and migration settings make scheduled backup status and import options easier to find."
+      "Add optional authenticator-app two-factor authentication and one-time recovery codes on Web, desktop, Android, and iOS. Save the recovery codes when enabling this feature. (#671; @yulei666, #779)",
+      "Set per-model output limits for text generation, tag suggestions, and the built-in AI sidebar. (#652; @yulei666, #780)",
+      "Navigate shared notes and public notebooks with a collapsible outline. (@sivdead, #785)",
+      "Improve Mermaid rendering on Web, desktop, and Android, including links between subgraphs, and update the example diagrams.",
+      "Keep the editor focused when clicking below an empty note and simplify numbered level-three headings.",
+      "Fix note image exports that contain invalid characters and isolate the desktop backup preview.",
+      "Self-hosted instances: back up your database before upgrading and apply migrations through 0091."
     ],
     "zh-CN": [
-      "独立设置笔记正文的间距和对齐方式，在重新分组的阅读偏好中直接找到自定义 CSS。数字胶囊标题现在与正文文字大小一致。",
-      "桌面端安装待处理更新前会重新检查是否有更新版本，减少经过中间版本的重复升级（#776）。",
-      "编辑器专注模式会进入浏览器全屏，AI 助手入口与笔记大纲内容对齐。",
-      "调整备份和迁移设置的布局，更容易找到定时备份状态和导入选项。"
+      "Web、桌面、Android 和 iOS 支持自愿开启验证器二次验证，提供一次性恢复码。启用时请妥善保存恢复码。（#671；@yulei666，#779）",
+      "可按模型分别设置正文生成、标签建议和内置 AI 侧栏的输出上限。（#652；@yulei666，#780）",
+      "分享笔记和公开笔记本站点新增可折叠大纲，方便跳转到各章节。（@sivdead，#785）",
+      "改善 Web、桌面和 Android 的 Mermaid 图表渲染，修复跨子图连线等问题，并更新示例图表。",
+      "点击空白笔记下方时保留编辑焦点，并简化三级标题的编号样式。",
+      "修复笔记含有无效字符时的图片导出问题，并隔离桌面备份预览。",
+      "自托管实例升级前请备份数据库，并应用截至 0091 的迁移。"
     ],
     "ja": [
-      "ノート本文の間隔と配置を個別に設定でき、整理された閲覧設定からカスタムCSSを直接開けます。番号付き見出しの文字サイズも本文と揃えました。",
-      "デスクトップアプリは更新のインストール前に最新版を確認し、中間バージョンを経由する更新を減らします。",
-      "エディターの集中モードでブラウザーが全画面表示になり、AIアシスタントボタンの位置が目次に揃います。",
-      "バックアップと移行の設定を整理し、定期バックアップの状態とインポート項目を見つけやすくしました。"
+      "認証アプリによる二段階認証と使い捨ての復旧コードに対応しました。",
+      "本文生成、タグ候補、AI サイドバーの出力上限をモデルごとに設定できます。",
+      "共有ノートと公開ノートブックに折りたたみ可能な目次を追加しました。",
+      "Mermaid 図の表示、サブグラフ間の接続、サンプル図を改善しました。",
+      "空のノートの下をクリックしたときに編集フォーカスを維持し、レベル3見出しの番号表示を簡素化しました。",
+      "無効な文字を含むノートの画像書き出しを修正し、デスクトップのバックアッププレビューを分離しました。",
+      "セルフホスト環境では、アップグレード前にデータベースをバックアップし、0091 までのマイグレーションを適用してください。"
     ]
   }
 }
