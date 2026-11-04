@@ -89,7 +89,7 @@ const applyLegacyWeChatStyles = (
   const h3Style = proseStyle.headingStyle === "bar"
     ? `${h3Base.replace(/padding:\s*0;/, "padding: 0 0 0 8px;")} border-left: 3px solid ${accent};`
     : proseStyle.headingStyle === "numbered"
-      ? `display: block; width: fit-content; max-width: 100%; box-sizing: border-box; margin: 1.5em 0 0.6em; padding: 0.25em 0.75em 0.25em 1.5em; text-indent: -0.75em; overflow-wrap: anywhere; border-radius: 1em; background: ${surface}; color: ${accent}; font-family: ${PUBLISH_FONT}; font-size: ${fontSize}; font-weight: 700; line-height: 1.5;`
+      ? `margin: 1.6em 0 0.6em; padding: 0; font-family: ${PUBLISH_FONT}; font-size: ${Math.round(metrics.fontSize * 1.15)}px; font-weight: 700; line-height: 1.4; letter-spacing: -0.01em; color: #111827; text-align: left;`
       : h3Base;
   const h4Style = proseStyle.headingStyle === "numbered"
     ? `display: inline-block; margin: 16px 0 8px; padding: 1px 6px; border-radius: 3px; background: #fde68a; color: #111827; font-family: ${PUBLISH_FONT}; font-size: ${fontSize}; font-weight: 800; line-height: 1.5;`
@@ -266,16 +266,6 @@ const applyLegacyWeChatStyles = (
         `<p data-ee-publish-chrome="true" style="margin: 3px 0 0; font-size: 11px; font-weight: 600; color: #9ca3af; letter-spacing: 1px; line-height: 1.3;">${subLabel}</p>`,
         `</section>`,
       ].join("");
-    });
-
-    root.querySelectorAll<HTMLElement>("h3").forEach((heading) => {
-      if (heading.querySelector("[data-ee-pill-dot]")) return;
-      const dot = document.createElement("span");
-      dot.setAttribute("data-ee-publish-chrome", "true");
-      dot.setAttribute("data-ee-pill-dot", "true");
-      dot.style.cssText = `display: inline-block; width: 0.375em; height: 0.375em; background: ${accent}; border-radius: 50%; margin-right: 0.375em; text-indent: 0; vertical-align: middle;`;
-      dot.innerHTML = "<span leaf=\"\"><br></span>";
-      heading.insertBefore(dot, heading.firstChild);
     });
   }
 
