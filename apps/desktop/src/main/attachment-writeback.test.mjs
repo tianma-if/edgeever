@@ -165,7 +165,8 @@ test("manual retry preserves the pending snapshot and does not force conflicting
 test("a lost success response is reconciled by content before accepting a no-op conditional replacement", async () => {
   let cloud = "original"; let loseResponse = true;
   const calls = [];
-  const request = async (_id, init) => {
+  const request = async (path, init) => {
+    if (path === "/resources/writeback-capabilities") { calls.push("CAP"); return Response.json({ preserveFilename: true }); }
     calls.push(init.method);
     if (init.method === "GET") return new Response(cloud);
     const expected = init.body.get("expectedContentHash");
@@ -177,7 +178,43 @@ test("a lost success response is reconciled by content before accepting a no-op 
   const input = { resourceId: "res_1", bytes: Buffer.from("edited"), expectedContentHash: hash("original"), filename: "a.txt", mimeType: "text/plain", assertCurrent() {} };
   await expect(replaceAttachmentResource(request, input)).rejects.toThrow("Response lost");
   expect(await replaceAttachmentResource(request, input)).toMatchObject({ id: "res_1", sha256: hash("edited") });
-  expect(calls).toEqual(["PUT", "PUT", "GET", "PUT"]);
+  expect(calls).toEqual(["CAP", "PUT", "CAP", "PUT", "GET", "PUT"]);
+});
+
+test("unsupported servers retain pending edits without automatic probes, and manual retry resumes after upgrading", async () => {
+  let supported = false, probes = 0;
+  const writes = [];
+  const f = await fixture({ replace: input => replaceAttachmentResource(async (path, init) => {
+    if (path === "/resources/writeback-capabilities") { probes++; return Response.json({ preserveFilename: supported }); }
+    expect(path).toBe("/resources/res_1/blob/writeback");
+    const bytes = await init.body.get("file").text(); writes.push(bytes);
+    return Response.json({ resource: { id: "res_1", sha256: hash(bytes), byteSize: bytes.length } });
+  }, input) });
+  await writeFile(f.path, "pending edit"); await f.settle();
+  expect((await f.manager.list())[0]).toMatchObject({ status: "error", errorCode: "writeback_unsupported" });
+  expect(await readFile(join(f.folder, ".edgeever-writeback.pending"), "utf8")).toBe("pending edit");
+  await writeFile(f.path, "later edit"); f.advance(60_000); await f.settle();
+  expect(probes).toBe(1); expect(writes).toEqual([]);
+  supported = true; await f.manager.retry("open-fixture"); await f.manager.tick(); await f.settle();
+  expect(writes).toEqual(["pending edit", "later edit"]);
+  expect((await f.manager.list())[0].status).toBe("saved");
+});
+
+test("temporary capability failures remain retryable without sending attachment bytes", async () => {
+  const calls = [];
+  const input = { resourceId: "res_1", bytes: Buffer.from("edit"), expectedContentHash: hash("original"), filename: "a.txt", mimeType: "text/plain", assertCurrent() {} };
+  await expect(replaceAttachmentResource(async (path, init) => {
+    calls.push([path, init.method]); return Response.json({ error: { code: "temporarily_unavailable" } }, { status: 503 });
+  }, input)).rejects.toMatchObject({ code: "temporarily_unavailable", retryable: true });
+  expect(calls).toEqual([["/resources/writeback-capabilities", "GET"]]);
+});
+
+test("missing resources on a supported server remain deletion errors, not unsupported-server errors", async () => {
+  await expect(replaceAttachmentResource(async path => path === "/resources/writeback-capabilities"
+    ? Response.json({ preserveFilename: true })
+    : Response.json({ error: { code: "not_found" } }, { status: 404, headers: { "X-EdgeEver-Writeback": "preserve-filename" } }), {
+    resourceId: "res_1", bytes: Buffer.from("edit"), expectedContentHash: hash("original"), filename: "a.txt", mimeType: "text/plain", assertCurrent() {},
+  })).rejects.toMatchObject({ code: "not_found", retryable: false });
 });
 
 

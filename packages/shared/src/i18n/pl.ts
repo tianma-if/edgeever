@@ -2625,9 +2625,11 @@ export const pl = {
     error: "Nie zsynchronizowano. Zmiany zachowano na tym urządzeniu.",
     deleted: "Oryginalny załącznik jest niedostępny. Zachowano lokalne zmiany.",
     tooLarge: "Nie zsynchronizowano: limit zastępowania wynosi 100 MiB. Zachowano lokalne zmiany.",
+    serverUpdateRequired: "Nie zsynchronizowano: zaktualizuj serwer, aby bezpiecznie zapisywać zmiany załączników. Zmiany lokalne zostały zachowane.",
     unavailable: "Nie można odczytać stanu synchronizacji załączników",
     needsAttention: "Niezsynchronizowane załączniki: {{count}}",
     pendingCount: "Załączniki oczekujące na synchronizację: {{count}}",
+    retry: "Ponów zapis",
     reveal: "Pokaż plik lokalny",
   },
   pdfViewer: {

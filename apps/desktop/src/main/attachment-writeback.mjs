@@ -85,6 +85,23 @@ export const canRemoveOpenedAttachment = async folder => {
 
 /** The request callback supplies the already-authorized, scope-bound transport. */
 export const replaceAttachmentResource = async (request, input) => {
+  input.assertCurrent();
+  const capability = await request("/resources/writeback-capabilities", { method: "GET", cache: "no-store", signal: input.signal }, input.assertCurrent);
+  input.assertCurrent();
+  if (!capability.ok) {
+    if ([404, 405].includes(capability.status)) {
+      await capability.body?.cancel();
+      throw failure("writeback_unsupported");
+    }
+    const body = await capability.json().catch(() => null);
+    throw failure(body?.error?.code ?? `http_${capability.status}`, capability.status === 429 || capability.status >= 500);
+  }
+  let supported;
+  try { supported = await capability.json(); }
+  catch (error) { if (error.name !== "SyntaxError") throw error; }
+  input.assertCurrent();
+  if (supported?.preserveFilename !== true) throw failure("writeback_unsupported");
+  const blobPath = `/resources/${encodeURIComponent(input.resourceId)}/blob`;
   const put = async expectedContentHash => {
     input.assertCurrent();
     const form = new FormData();
@@ -93,14 +110,22 @@ export const replaceAttachmentResource = async (request, input) => {
     form.append("preserveFilename", "true");
     form.append("mimeType", input.mimeType);
     form.append("expectedContentHash", expectedContentHash);
-    return request(input.resourceId, { method: "PUT", body: form, signal: input.signal }, input.assertCurrent);
+    const response = await request(`${blobPath}/writeback`, { method: "PUT", body: form, signal: input.signal }, input.assertCurrent);
+    input.assertCurrent();
+    // An older server must reject this dedicated route, even if it replaced a
+    // supported server between the capability read and the write.
+    if (response.status === 404 && response.headers.get("X-EdgeEver-Writeback") !== "preserve-filename") {
+      await response.body?.cancel();
+      throw failure("writeback_unsupported");
+    }
+    return response;
   };
   let response = await put(input.expectedContentHash);
   if (response.status === 409) {
     // A successful upload can lose its response. Confirm exactly this pending
     // snapshot, then use a conditional no-op PUT to obtain its resource metadata.
     await response.body?.cancel();
-    const current = await request(input.resourceId, { method: "GET", cache: "no-store", signal: input.signal }, input.assertCurrent);
+    const current = await request(blobPath, { method: "GET", cache: "no-store", signal: input.signal }, input.assertCurrent);
     if (current.ok) {
       const hash = createHash("sha256");
       for await (const chunk of current.body) hash.update(chunk);

@@ -2617,9 +2617,11 @@ export const enUS = {
     error: "Not synced. Your edits are kept on this device.",
     deleted: "The original attachment is no longer available. Your local edits are kept.",
     tooLarge: "Not synced: replacement is limited to 100 MiB. Your local edits are kept.",
+    serverUpdateRequired: "Not synced: update the server to enable safe attachment writeback. Your local edits are kept.",
     unavailable: "Could not read attachment writeback status",
     needsAttention: "Unsynced attachments · {{count}}",
     pendingCount: "Pending attachments · {{count}}",
+    retry: "Retry writeback",
     reveal: "Show local file",
   },
 

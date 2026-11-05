@@ -33,10 +33,10 @@ test("opening, external saves, restart recovery and competing-device edits use t
       getContext: () => ({ key: "isolated-account", directory: join(directory, "opened-attachments") }),
       now: () => now,
       resolveResourceId: async () => resource.id,
-      replace: input => replaceAttachmentResource(async (id, init, assertCurrent) => {
+      replace: input => replaceAttachmentResource(async (path, init, assertCurrent) => {
         assertCurrent();
         if (offline) throw new TypeError("Network unavailable");
-        const response = await api(`/resources/${id}/blob`, init);
+        const response = await api(path, init);
         if (loseResponse && response.ok && init.method === "PUT") { loseResponse = false; throw new TypeError("Response lost"); }
         return response;
       }, input),
@@ -79,6 +79,48 @@ test("opening, external saves, restart recovery and competing-device edits use t
   } finally { database.close(); await rm(directory, { recursive: true, force: true }); }
 }, 30_000);
 
+test("older servers cannot receive automatic writebacks, including a downgrade after capability detection", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "edgeever-writeback-legacy-"));
+  const database = new Database(join(directory, "database.sqlite"));
+  try {
+    for (const name of (await readdir("migrations")).filter(name => name.endsWith(".sql")).sort()) database.exec(await readFile(join("migrations", name), "utf8"));
+    const environment = { storage: createSelfHostedStorageAdapter(database, join(directory, "resources")), EDGE_EVER_ALLOW_UNAUTHENTICATED: "true", EDGE_EVER_RUNTIME: "self-hosted-bun" };
+    const api = (path, init = {}) => fetchEdgeEverApp(new Request(`http://local.test/api/v1${path}`, init), environment, { waitUntil() {}, passThroughOnException() {} });
+    const json = async (path, value, method = "POST") => {
+      const response = await api(path, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(value) });
+      expect(response.ok).toBe(true); return response.json();
+    };
+    const { notebook } = await json("/notebooks", { name: "Older server" });
+    const { memo } = await json("/memos", { notebookId: notebook.id, title: "Legacy", contentMarkdown: "" });
+    const form = new FormData(); form.append("file", new File(["original"], "original.xlsx", { type: "application/test" }));
+    const response = await api(`/memos/${memo.id}/resources`, { method: "POST", body: form });
+    expect(response.status).toBe(201); const { resource } = await response.json();
+    await json(`/resources/${resource.id}`, { filename: "renamed-on-other-device.xlsx" }, "PATCH");
+    for (const downgrade of [false, true]) {
+      const calls = [];
+      const transport = async (pathOrId, init) => {
+        // The legacy transport ignores the optional field on its old PUT.
+        const path = pathOrId.startsWith("/") ? pathOrId : `/resources/${pathOrId}/blob`;
+        calls.push([path, init.method]);
+        if (path === "/resources/writeback-capabilities") {
+          return downgrade ? Response.json({ preserveFilename: true }) : new Response("Old server", { status: 404 });
+        }
+        if (path.endsWith("/blob/writeback")) return new Response("Old server", { status: 404 });
+        if (init.method === "PUT") init.body.delete("preserveFilename");
+        return api(path, init);
+      };
+      await expect(replaceAttachmentResource(transport, {
+        resourceId: resource.id, bytes: Buffer.from("local edit"), expectedContentHash: resource.sha256,
+        filename: "original.xlsx", mimeType: resource.mimeType, assertCurrent() {},
+      })).rejects.toMatchObject({ code: "writeback_unsupported", retryable: false });
+      expect(calls.some(([path, method]) => method === "PUT" && path.endsWith("/blob"))).toBe(false);
+      if (!downgrade) expect(calls.filter(([, method]) => method === "PUT")).toHaveLength(0);
+      expect(database.query("SELECT filename FROM resources WHERE id = ?").get(resource.id).filename).toBe("renamed-on-other-device.xlsx");
+      expect(await (await api(`/resources/${resource.id}/blob`)).text()).toBe("original");
+    }
+  } finally { database.close(); await rm(directory, { recursive: true, force: true }); }
+}, 30_000);
+
 test("desktop saves preserve filenames and bounded object keys across renames, retries and failures", async () => {
   const directory = await mkdtemp(join(tmpdir(), "edgeever-writeback-names-"));
   const database = new Database(join(directory, "database.sqlite"));
@@ -98,7 +140,7 @@ test("desktop saves preserve filenames and bounded object keys across renames, r
     expect(response.status).toBe(201); let { resource } = await response.json();
     const rename = filename => json(`/resources/${resource.id}`, { filename }, "PATCH");
     const request = (id, init) => api(`/resources/${id}/blob`, init);
-    const save = (bytes, baseline = resource.sha256, transport = request) => replaceAttachmentResource(transport, {
+    const save = (bytes, baseline = resource.sha256, transport = (path, init) => api(path, init)) => replaceAttachmentResource(transport, {
       resourceId: resource.id, expectedContentHash: baseline, bytes: Buffer.from(bytes),
       filename: "note label (2).xlsx", mimeType: resource.mimeType, assertCurrent() {},
     });
@@ -121,8 +163,9 @@ test("desktop saves preserve filenames and bounded object keys across renames, r
     expect(await (await request(resource.id)).text()).toBe("third edit");
 
     const baseline = resource.sha256;
-    await expect(save("response lost edit", baseline, async (id, init) => {
-      const result = await request(id, init);
+    await expect(save("response lost edit", baseline, async (path, init) => {
+      const result = await api(path, init);
+      if (init.method !== "PUT") return result;
       expect(result.ok).toBe(true); await result.body?.cancel();
       await rename("renamed-after-save.xlsx");
       throw new TypeError("Success response lost");

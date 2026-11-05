@@ -2625,9 +2625,11 @@ export const ja = {
     error: "未同期です。変更はこの端末に保持されています。",
     deleted: "元の添付ファイルにアクセスできません。ローカルの変更は保持されています。",
     tooLarge: "未同期：置き換えの上限は 100 MiB です。ローカルの変更は保持されています。",
+    serverUpdateRequired: "未同期です。安全に添付ファイルを書き戻すにはサーバーを更新してください。ローカルの変更は保持されています。",
     unavailable: "添付ファイルの同期状態を取得できません",
     needsAttention: "未同期の添付ファイル：{{count}} 件",
     pendingCount: "同期待ちの添付ファイル：{{count}} 件",
+    retry: "書き戻しを再試行",
     reveal: "ローカルファイルを表示",
   },
   pdfViewer: {

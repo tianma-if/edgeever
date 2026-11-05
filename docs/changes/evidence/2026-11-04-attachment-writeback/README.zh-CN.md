@@ -17,7 +17,7 @@
 在仓库根目录执行，使用现有依赖，不接触生产实例或安装在 Applications 中的 EdgeEver：
 
 ```sh
-bun test apps/desktop/src/main/attachment-open.test.mjs apps/desktop/src/main/attachment-writeback.test.mjs apps/desktop/src/main/attachment-writeback-ipc.test.mjs tests/attachment-writeback.integration.test.mjs apps/api/src/resource-routes.test.mjs apps/api/src/resource-service.test.mjs apps/api/src/resource-upload-integration.test.mjs
+bun test apps/desktop/src/main/attachment-open.test.mjs apps/desktop/src/main/attachment-writeback.test.mjs apps/desktop/src/main/attachment-writeback-ipc.test.mjs apps/desktop/src/main/resource-protocol.test.mjs tests/attachment-writeback.integration.test.mjs apps/api/src/resource-routes.test.mjs apps/api/src/resource-service.test.mjs apps/api/src/resource-upload-integration.test.mjs
 EDGE_EVER_DESKTOP_BUILD=1 bun run build:web
 bun run build:desktop:sidecar
 bun apps/desktop/scripts/build-backup-worker.mjs
@@ -30,11 +30,15 @@ node tests/desktop-attachment-writeback.integration.mjs
 
 ## 服务端名称与存储验证
 
-38 项核心回归加上既有资源路由、服务和上传集成，共 59 项通过。真实 API 验证 `preserveFilename=true` 能保留显示名称不同、预先改名、上传中并发改名，以及成功响应丢失后重试时的云端名称；省略或关闭参数仍按既有调用替换名称。
+附件打开、回存、IPC、缓存协议、真实 API 加上既有资源路由、服务和上传集成，共 72 项通过；资源请求、URL、语言加载和共享翻译键另有 15 项通过。真实 API 验证 `preserveFilename=true` 能保留显示名称不同、预先改名、上传中并发改名，以及成功响应丢失后重试时的云端名称；省略或关闭参数仍按既有调用替换名称。
 
 连续 12 次保存的对象键长度保持不变，最新内容可读、旧对象已清理；竞争更新失败和对象写入后报错时，未采用的候选被清理，当前成功版本保留。另覆盖数据库切换已提交但响应丢失、后续确认不可用的场景：保留可能已生效的对象，原资源仍可读取，回存重试可重新确认。另在同一 SQLite/文件存储中执行基线 `6be20cfc` 的原版资源 API/服务，验证旧写→新写→旧读写→新写，详见[存储兼容记录](storage-compatibility.json)。这不包含原生安装包升级、线上 Cloudflare 或 S3 验收。
 
-名称保留需要桌面与新版服务端配套；旧服务端忽略可选参数，不能保证保留云端改名。
+桌面在实际回存前探测服务端能力，写入及丢响应重试使用强制保留名称的专用入口。旧服务端忽略可选参数的缺陷由回归复现：修复后旧服务端/探测后降级均不进入普通替换路由，云端改名及内容保持不变。能力缺失时保留快照、不自动反复探测；服务端升级后手动“重试回存”恢复。
+
+隔离的真实 Electron、Rust sidecar 与本地 API 实测：将能力入口模拟为旧版 404 时，只有 1 次能力请求、0 次写请求，云端仍为原内容，界面提示升级且保留本地修改。切换到新版后点击“重试回存”，累计 2 次能力请求、1 次写请求，云端读到本地修改，界面显示“已回存原附件”。见[能力与界面记录](server-capability-ui.json)。这不是原生安装包升级验收。
+
+缓存回归验证已有当前账户缓存时，502/503 打开缓存且取消错误响应体；401/403/404 不回退。缓存缺失保留 503，不读取其他账户目录；请求中或创建缓存响应后账户切换均拒绝，放弃的文件流被关闭。已有 Range、本地缓存更新和网络异常回退继续通过。
 
 ## 真实 macOS WPS 验收
 

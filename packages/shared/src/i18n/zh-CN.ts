@@ -2636,9 +2636,11 @@ export const zhCN = {
     error: "尚未回存，修改已保留在本机。",
     deleted: "原附件已不存在或无法访问，本地修改已保留。",
     tooLarge: "尚未回存：内容替换限 100 MiB，本地修改已保留。",
+    serverUpdateRequired: "尚未回存：请升级服务端以启用安全回存，本地修改已保留。",
     unavailable: "无法读取附件回存状态",
     needsAttention: "{{count}} 个附件未回存",
     pendingCount: "{{count}} 个附件等待回存",
+    retry: "重试回存",
     reveal: "显示本地文件",
   },
 

@@ -1,0 +1,23 @@
+{
+  "environment": "macOS Electron development app with isolated profile, real Rust sidecar and local self-hosted API/SQLite",
+  "syntheticAttachment": "review.txt",
+  "oldServer": {
+    "capabilityStatus": 404,
+    "capabilityRequests": 1,
+    "writeRequests": 0,
+    "cloudBytes": "original",
+    "ui": "Server update required; local edits retained; Retry writeback button"
+  },
+  "afterUpgrade": {
+    "action": "Clicked Retry writeback in the native app",
+    "caps": 2,
+    "writes": 1,
+    "cloudStatus": 200,
+    "cloudBytes": "local edit while server is old",
+    "ui": "Saved to original attachment"
+  },
+  "limits": [
+    "Old server simulated by returning 404 for capability discovery; API and desktop otherwise use current product code",
+    "Does not establish packaged app upgrades, Microsoft Excel, Windows/Linux or live Cloudflare acceptance"
+  ]
+}

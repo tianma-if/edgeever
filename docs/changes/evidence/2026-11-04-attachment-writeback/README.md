@@ -17,7 +17,7 @@ The test uses an isolated macOS Electron profile, the real Rust sidecar, shared 
 Run from the repository root using existing dependencies, without production instances or the installed Applications copy of EdgeEver:
 
 ```sh
-bun test apps/desktop/src/main/attachment-open.test.mjs apps/desktop/src/main/attachment-writeback.test.mjs apps/desktop/src/main/attachment-writeback-ipc.test.mjs tests/attachment-writeback.integration.test.mjs apps/api/src/resource-routes.test.mjs apps/api/src/resource-service.test.mjs apps/api/src/resource-upload-integration.test.mjs
+bun test apps/desktop/src/main/attachment-open.test.mjs apps/desktop/src/main/attachment-writeback.test.mjs apps/desktop/src/main/attachment-writeback-ipc.test.mjs apps/desktop/src/main/resource-protocol.test.mjs tests/attachment-writeback.integration.test.mjs apps/api/src/resource-routes.test.mjs apps/api/src/resource-service.test.mjs apps/api/src/resource-upload-integration.test.mjs
 EDGE_EVER_DESKTOP_BUILD=1 bun run build:web
 bun run build:desktop:sidecar
 bun apps/desktop/scripts/build-backup-worker.mjs
@@ -30,11 +30,15 @@ Failure-recovery regressions inject faults into real filesystem calls in isolate
 
 ## Server filename and storage acceptance
 
-38 core regressions plus existing resource route/service/upload integration checks total 59 passing tests. The real API verifies that `preserveFilename=true` retains the cloud name across differing display labels, prior renames, concurrent renames during upload and retries after lost successful responses. Omitted/disabled flags retain existing submitted-filename replacement behavior.
+Attachment opening, writeback, IPC, cache protocol, real API and existing resource route/service/upload integration checks total 72 passing tests. Another 15 resource request/URL, locale-loading and shared translation-key tests pass. The real API verifies that `preserveFilename=true` retains the cloud name across differing display labels, prior renames, concurrent renames during upload and retries after lost successful responses. Omitted/disabled flags retain existing submitted-filename replacement behavior.
 
 Object keys retain constant length across 12 consecutive saves; latest content remains readable and old objects are removed. Failed competing candidates and objects written before a put throws are cleaned up without losing the acknowledged version. Lost database commit responses with unavailable confirmation also retain potentially live objects: the original resource remains readable and writeback retries reconcile success. The original resource API/service from baseline `6be20cfc` was also executed against the same SQLite/filesystem storage for old write → new write → old read/write → new write; see the [storage compatibility record](storage-compatibility.json). This does not establish native package upgrades, live Cloudflare or S3 acceptance.
 
-Filename preservation requires the desktop and matching updated server; older servers ignore the optional field and cannot guarantee preservation of cloud renames.
+Desktop probes capabilities before actual writes, using the dedicated name-preserving route for writes and lost-response retries. A regression reproduced older servers ignoring the optional field: after the fix, older servers and post-probe downgrades never reach ordinary replacement, retaining cloud names/content. Missing capabilities retain snapshots without repeated automatic probing; manual Retry writeback resumes after upgrading.
+
+Real isolated Electron, Rust sidecar and local API acceptance simulated the older capability route with 404: one capability request, zero writes, unchanged cloud bytes and a UI warning retaining local edits. After switching to the updated server, clicking Retry writeback produced two total capability requests and one write, with local edits readable from the cloud and Saved to original attachment in the UI. See the [capability/UI record](server-capability-ui.json). This does not establish packaged app upgrade acceptance.
+
+Cache regressions verify current-account cached opening on 502/503 with error-body cancellation, but no fallback on 401/403/404. Cache misses preserve 503 without reading another account’s directory. Account changes during the request or after creating a cached response reject the operation and close abandoned file streams. Existing Range reads, cache refresh and network-error fallback still pass.
 
 ## Real macOS WPS acceptance
 

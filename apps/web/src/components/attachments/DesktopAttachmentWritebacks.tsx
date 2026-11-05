@@ -76,13 +76,13 @@ export const DesktopAttachmentWritebacks = ({ scope }: { scope: string }) => {
                   <p className="break-all text-sm font-medium">{item.filename}</p>
                   <p className={`mt-1 text-sm ${item.status === "conflict" || item.status === "error" ? "text-amber-700" : "text-slate-500"}`}>
                     {t(item.status === "conflict" ? "attachmentWriteback.conflict"
-                      : item.status === "error" ? item.errorCode === "upload_too_large" ? "attachmentWriteback.tooLarge" : item.errorCode === "not_found" ? "attachmentWriteback.deleted" : "attachmentWriteback.error"
+                      : item.status === "error" ? item.errorCode === "upload_too_large" ? "attachmentWriteback.tooLarge" : item.errorCode === "not_found" ? "attachmentWriteback.deleted" : item.errorCode === "writeback_unsupported" ? "attachmentWriteback.serverUpdateRequired" : "attachmentWriteback.error"
                         : `attachmentWriteback.${item.status}`)}
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
                   {item.status === "error" || item.status === "conflict" ? (
-                    <Button variant="ghost" size="sm" disabled={working === item.id} onClick={() => void action(item.id, "retry")}>{t("memoList.retry")}</Button>
+                    <Button variant="ghost" size="sm" disabled={working === item.id} onClick={() => void action(item.id, "retry")}>{t("attachmentWriteback.retry")}</Button>
                   ) : null}
                   <Tooltip>
                     <TooltipTrigger asChild>
