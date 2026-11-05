@@ -54,6 +54,7 @@ const MOBILE_LOCALE_OPTIONS: Array<{ label: string; value: MobileLocalePreferenc
   { label: "English", value: "en-US" },
   { label: "Español", value: "es" },
   { label: "Deutsch", value: "de" },
+  { label: "Français", value: "fr" },
   { label: "日本語", value: "ja" },
   { label: "Polski", value: "pl" },
   { label: "Русский", value: "ru" },

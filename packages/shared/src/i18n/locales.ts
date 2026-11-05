@@ -1,4 +1,4 @@
-export const supportedLocales = ["zh-CN", "zh-TW", "en-US", "ja", "pl", "ru", "es", "de"] as const;
+export const supportedLocales = ["zh-CN", "zh-TW", "en-US", "ja", "pl", "ru", "es", "de", "fr"] as const;
 
 export type SupportedLocale = (typeof supportedLocales)[number];
 
@@ -12,6 +12,7 @@ export const localeEnglishNames: Record<SupportedLocale, string> = {
   ru: "Russian",
   es: "Spanish",
   de: "German",
+  fr: "French",
 };
 
 /** Used when there is no locale evidence (legacy callers, missing headers). */
@@ -66,6 +67,10 @@ export const matchSupportedLocale = (locale: string | null | undefined): Support
 
   if (normalized === "de" || normalized.startsWith("de-")) {
     return "de";
+  }
+
+  if (normalized === "fr" || normalized.startsWith("fr-")) {
+    return "fr";
   }
 
   return null;

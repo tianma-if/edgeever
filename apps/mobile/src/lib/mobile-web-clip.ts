@@ -27,7 +27,7 @@ export type MobileRenderedWebPage = {
   title?: string;
 };
 
-export type MobileWebClipLocale = "zh-CN" | "zh-TW" | "en-US" | "es" | "de" | "ja" | "pl" | "ru";
+export type MobileWebClipLocale = "zh-CN" | "zh-TW" | "en-US" | "es" | "de" | "fr" | "ja" | "pl" | "ru";
 
 const webClipCopy: Record<MobileWebClipLocale, {
   capturedAtLabel: string;
@@ -76,6 +76,14 @@ const webClipCopy: Record<MobileWebClipLocale, {
     fallbackTitle: "Web-Clip",
     imageAlt: "Bild",
     separator: ": ",
+  },
+  fr: {
+    sourceLabel: "Source",
+    capturedAtLabel: "Date de capture",
+    unavailableBody: "Impossible d'extraire le texte de la page. Le lien source est conservé pour vous permettre de réessayer ultérieurement.",
+    fallbackTitle: "Capture web",
+    imageAlt: "Image",
+    separator: " : ",
   },
   ja: {
     sourceLabel: "出典",

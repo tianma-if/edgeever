@@ -83,6 +83,7 @@ const UNSUPPORTED_CONTENT_PREFIX: Record<SupportedLocale, string> = {
   ru: "Неподдерживаемое содержимое: ",
   es: "Contenido no admitido: ",
   de: "Nicht unterstützter Inhalt: ",
+  fr: "Contenu non pris en charge : ",
 };
 
 const getFallbackLabel = (type: string, locale?: SupportedLocale) =>

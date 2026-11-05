@@ -6,6 +6,7 @@ export { pl } from "./pl";
 export { ru } from "./ru";
 export { es } from "./es";
 export { de } from "./de";
+export { fr } from "./fr";
 export {
   defaultLocale,
   localeEnglishNames,

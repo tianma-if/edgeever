@@ -29,6 +29,7 @@
     "./i18n/ru": "./src/i18n/ru.ts",
     "./i18n/es": "./src/i18n/es.ts",
     "./i18n/de": "./src/i18n/de.ts",
+    "./i18n/fr": "./src/i18n/fr.ts",
     "./i18n/locales": "./src/i18n/locales.ts",
     "./memo-template-seeds": "./src/memo-template-seeds.ts",
     "./memo-template-gallery": "./src/memo-template-gallery.ts",

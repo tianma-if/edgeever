@@ -3,7 +3,7 @@
 // packages/shared/src/i18n. Every locale must provide every key; the tests
 // compare them with English and the resolver with the shared one.
 
-export const desktopLocales = ["zh-CN", "zh-TW", "en-US", "ja", "pl", "ru", "es", "de"];
+export const desktopLocales = ["zh-CN", "zh-TW", "en-US", "ja", "pl", "ru", "es", "de", "fr"];
 
 /** Same matching as `matchSupportedLocale` in @edgeever/shared; English otherwise. */
 export const resolveDesktopLocale = (locale) => {
@@ -11,7 +11,7 @@ export const resolveDesktopLocale = (locale) => {
   if (/^zh-(?:tw|hk|mo|hant)/.test(normalized)) return "zh-TW";
   const language = normalized.split("-")[0];
   if (language === "zh") return "zh-CN";
-  if (language === "ja" || language === "pl" || language === "ru" || language === "es" || language === "de") return language;
+  if (language === "ja" || language === "pl" || language === "ru" || language === "es" || language === "de" || language === "fr") return language;
   return "en-US";
 };
 
@@ -302,6 +302,47 @@ const dialogCopy = {
     switchInstance: "Instanz wechseln",
     shareMenuLabel: "An EdgeEver senden",
     screenshotTitle: "Bildschirmfoto {stamp}",
+  },
+  fr: {
+    rendererGoneTitle: "La page EdgeEver s'est arrêtée de manière inattendue",
+    rendererGoneMessage: "Le problème a été enregistré. Vous pouvez recharger la page pour continuer.",
+    rendererGoneDetail: "Pour le signaler, vérifiez le problème GitHub public anonymisé généré par EdgeEver avant de le soumettre.",
+    reportToGithub: "Signaler sur GitHub",
+    reload: "Recharger",
+    close: "Fermer",
+    startupFailedTitle: "Échec du démarrage d'EdgeEver",
+    startupFailedMessage: "La page n'a pas pu démarrer. L'erreur a été enregistrée dans le journal de diagnostic.",
+    showLog: "Afficher le journal",
+    unresponsiveTitle: "La page EdgeEver ne répond pas",
+    unresponsiveMessage: "La page ne répond plus. Vous pouvez la recharger ou consulter d'abord les diagnostics.",
+    keepWaiting: "Continuer d'attendre",
+    cannotStartTitle: "Impossible de démarrer EdgeEver",
+    cannotStartMessage: "L'application de bureau n'a pas pu démarrer. L'erreur a été consignée dans le journal de diagnostic.",
+    updateReadyTitle: "Mise à jour d'EdgeEver prête",
+    updateReadyMessage: "EdgeEver v{version} a été téléchargé.",
+    updateReadyLatestMessage: "La dernière version d'EdgeEver a été téléchargée.",
+    updateReadyDetail: "Redémarrez maintenant pour terminer l'installation. Vous pouvez aussi choisir Plus tard ; EdgeEver l'installera automatiquement lorsque vous quitterez l'application.",
+    restartToUpdate: "Redémarrer pour mettre à jour",
+    later: "Plus tard",
+    installedTitle: "EdgeEver a été installé avec succès",
+    installedMessage: "EdgeEver a été installé avec succès et est en cours d'exécution.",
+    installedDetail: "Vous pourrez lancer EdgeEver ultérieurement depuis le dossier Applications ou le Launchpad. Cette fenêtre correspond à l'application installée, et non au disque d'installation.",
+    done: "Terminé",
+    installTitle: "Installer EdgeEver",
+    installMessage: "Installer EdgeEver dans le dossier Applications et le lancer.",
+    installDetail: "Après l'installation, EdgeEver relance la copie installée et éjecte le disque d'installation afin que macOS ne conserve pas deux entrées EdgeEver.",
+    installAndLaunch: "Installer et lancer",
+    cancel: "Annuler",
+    installFailedTitle: "Impossible d'installer",
+    installFailedMessage: "Quittez l'instance d'EdgeEver en cours d'exécution, rouvrez le disque d'installation et réessayez.",
+    ok: "OK",
+    backupComplete: "Sauvegarde locale terminée",
+    chooseAcpExecutable: "Sélectionnez un exécutable Antigravity ACP de confiance",
+    switchInstanceTitle: "Changer d'instance EdgeEver",
+    switchInstanceMessage: "Vous devrez vous reconnecter après avoir changé d'instance.",
+    switchInstance: "Changer d'instance",
+    shareMenuLabel: "Envoyer à EdgeEver",
+    screenshotTitle: "Capture d'écran {stamp}",
   },
   ru: {
     rendererGoneTitle: "Страница EdgeEver неожиданно остановилась",

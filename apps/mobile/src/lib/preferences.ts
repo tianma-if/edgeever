@@ -14,7 +14,7 @@ const LOCALE_PREFERENCE_KEY = "edgeever.mobile.localePreference";
 const THEME_PREFERENCE_KEY = "edgeever.mobile.themePreference";
 
 export type MobileMemoListDensity = "preview" | "compact";
-export type MobileLocalePreference = "system" | "zh-CN" | "zh-TW" | "en-US" | "ja" | "pl" | "ru" | "es" | "de";
+export type MobileLocalePreference = "system" | "zh-CN" | "zh-TW" | "en-US" | "ja" | "pl" | "ru" | "es" | "de" | "fr";
 export type MobileThemePreference = "system" | "light" | "dark";
 
 export const readMobileMemoListDensity = async (): Promise<MobileMemoListDensity> => {

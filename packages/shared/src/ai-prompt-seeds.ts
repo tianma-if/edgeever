@@ -6,7 +6,7 @@ import type {
 import { resolveSupportedLocale } from "./i18n/locales";
 
 export type AiPromptSeedKey = Exclude<AiAction, "custom">;
-export type AiPromptSeedLocale = "zh-CN" | "zh-TW" | "en-US" | "ja" | "pl" | "ru" | "es" | "de";
+export type AiPromptSeedLocale = "zh-CN" | "zh-TW" | "en-US" | "ja" | "pl" | "ru" | "es" | "de" | "fr";
 
 export type AiPromptSeedTranslation = {
   name: string;
@@ -33,10 +33,11 @@ const seed = (
   ru: AiPromptSeedTranslation,
   es: AiPromptSeedTranslation,
   de: AiPromptSeedTranslation,
+  fr: AiPromptSeedTranslation,
 ): AiPromptSeed => ({
   ...metadata,
   ...zhCN,
-  translations: { "zh-CN": zhCN, "zh-TW": zhTW, "en-US": enUS, ja, pl, ru, es, de },
+  translations: { "zh-CN": zhCN, "zh-TW": zhTW, "en-US": enUS, ja, pl, ru, es, de, fr },
 });
 
 export const normalizeAiPromptSeedLocale = (locale: string | null | undefined): AiPromptSeedLocale =>
@@ -161,6 +162,18 @@ export const DEFAULT_AI_PROMPT_SEEDS: readonly AiPromptSeed[] = [
         "Behalten Sie die Sprache der Notiz bei und geben Sie nur die Zusammenfassung in Markdown zurück.",
       ].join(""),
     },
+    {
+      name: "Résumer",
+      description: "Condenser la note en dégageant son thème, ses conclusions et ses résultats concrets",
+      instruction: [
+        "Rédigez un résumé véritablement condensé de la note plutôt que de la réécrire ou de la paraphraser ligne par ligne. ",
+        "Identifiez le thème central, les affirmations clés, les conclusions essentielles et les actions concrètes. ",
+        "Omettez les répétitions, les effets rhétoriques, les exemples, les citations et les détails secondaires, sauf s'ils sont indispensables à la compréhension d'une conclusion clé. ",
+        "Pour une note volumineuse, visez environ 20 à 30 % de la longueur d'origine avec 3 à 7 puces Markdown concises ; pour une note courte, 1 à 3 phrases suffisent. ",
+        "Ne reproduisez pas de longs passages mot à mot et n'ajoutez aucun fait absent de la source. ",
+        "Conservez la langue de la note et renvoyez uniquement le résumé au format Markdown.",
+      ].join(""),
+    },
   ),
   seed(
     { key: "translate", action: "translate", parameterKind: "target-language", resultMode: "both" },
@@ -203,6 +216,11 @@ export const DEFAULT_AI_PROMPT_SEEDS: readonly AiPromptSeed[] = [
       name: "Übersetzen",
       description: "In die Zielsprache übersetzen unter Beibehaltung von Struktur und Formatierung",
       instruction: "Übersetzen Sie die gesamte Notiz in die vom Benutzer angegebene Zielsprache. Behalten Sie Bedeutung, Markdown-Struktur, Links und Codeblöcke bei. Geben Sie nur die übersetzte Notiz ohne Kommentare zurück.",
+    },
+    {
+      name: "Traduire",
+      description: "Traduire dans la langue cible tout en préservant la structure et la mise en forme",
+      instruction: "Traduisez l'intégralité de la note dans la langue cible spécifiée par l'utilisateur. Conservez son sens, sa structure Markdown, ses liens et ses blocs de code. Renvoyez uniquement la note traduite sans commentaires.",
     },
   ),
   seed(
@@ -247,6 +265,11 @@ export const DEFAULT_AI_PROMPT_SEEDS: readonly AiPromptSeed[] = [
       description: "Rechtschreibung und Grammatik korrigieren, Wortwahl und Fluss verfeinern",
       instruction: "Überarbeiten Sie den Inhalt, indem Sie Rechtschreibung, Grammatik und Zeichensetzung korrigieren und Wortwahl, Satzstruktur, Klarheit sowie Lesefluss verbessern. Ändern Sie weder den Sinn noch kürzen Sie den Text absichtlich. Behalten Sie die Sprache und nützliche Markdown-Formatierungen bei. Geben Sie nur den verbesserten Inhalt zurück.",
     },
+    {
+      name: "Améliorer le style",
+      description: "Corriger l'orthographe, la grammaire, la fluidité et le vocabulaire",
+      instruction: "Peaufinez le contenu en corrigeant l'orthographe, la grammaire et la ponctuation, et en améliorant le choix des mots, la syntaxe, la clarté et la fluidité. Ne modifiez pas le sens et ne cherchez pas à raccourcir le texte délibérément. Conservez sa langue et le formatage Markdown utile. Renvoyez uniquement le texte amélioré.",
+    },
   ),
   seed(
     { key: "make-shorter", action: "make-shorter", parameterKind: "none", resultMode: "both" },
@@ -289,6 +312,11 @@ export const DEFAULT_AI_PROMPT_SEEDS: readonly AiPromptSeed[] = [
       name: "Kürzen",
       description: "Überflüssiges streichen und den Text prägnant, klar und direkt gestalten",
       instruction: "Straffen Sie den Text, indem Sie Wiederholungen, Füllwörter und unnötige Zusätze entfernen und Sätze sinnvoll zusammenfassen. Formulieren Sie prägnant, klar und direkt, während alle wesentlichen Fakten und die ursprüngliche Bedeutung erhalten bleiben. Fügen Sie keine neuen Informationen hinzu. Behalten Sie die Sprache und das Markdown bei. Geben Sie nur den gekürzten Text zurück.",
+    },
+    {
+      name: "Raccourcir",
+      description: "Supprimer le superflu pour un texte concis, clair et direct",
+      instruction: "Allégez le texte en supprimant les répétitions, le remplissage et les modificateurs inutiles, et en combinant les phrases lorsque cela est judicieux. Rendez-le concis, clair et direct tout en préservant chaque fait clé, affirmation et sens d'origine. N'ajoutez aucune nouvelle information. Conservez sa langue et le formatage Markdown. Renvoyez uniquement le contenu épuré.",
     },
   ),
   seed(
@@ -333,6 +361,11 @@ export const DEFAULT_AI_PROMPT_SEEDS: readonly AiPromptSeed[] = [
       description: "Aufgaben, Handlungsschritte und To-do-Listen aus der Notiz erfassen",
       instruction: "Extrahieren Sie explizite oder implizite Aufgaben aus der Notiz als Markdown-Aufgabenliste mit '- [ ]'. Behalten Sie die Sprache bei und erfinden Sie keine Aufgaben hinzu. Gibt es keine Aufgaben, teilen Sie dies kurz in der Sprache der Notiz mit.",
     },
+    {
+      name: "Extraire les tâches",
+      description: "Identifier les tâches, prochaines étapes et éléments de liste de contrôle",
+      instruction: "Extrayez les tâches concrètes, explicites ou implicites, sous forme de liste de tâches Markdown avec '- [ ]'. Conservez la langue de la note et n'inventez pas de tâches. S'il n'y a aucune tâche exploitable, indiquez-le brièvement dans la langue de la note.",
+    },
   ),
   seed(
     { key: "continue-writing", action: "continue-writing", parameterKind: "none", resultMode: "append" },
@@ -375,6 +408,11 @@ export const DEFAULT_AI_PROMPT_SEEDS: readonly AiPromptSeed[] = [
       name: "Weiterschreiben",
       description: "Den Text nahtlos im gleichen Stil fortsetzen",
       instruction: "Setzen Sie den Text nahtlos an der Stelle fort, an der die Notiz endet. Geben Sie nur die neue Fortsetzung zurück, nicht den Ausgangstext. Behalten Sie Sprache und Markdown-Stil bei.",
+    },
+    {
+      name: "Poursuivre la rédaction",
+      description: "Continuer naturellement dans la lignée du contenu existant",
+      instruction: "Poursuivez la rédaction naturellement à partir de la fin de la note. Renvoyez uniquement la nouvelle suite, sans répéter le contenu original. Conservez sa langue et son style Markdown.",
     },
   ),
 ];

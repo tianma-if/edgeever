@@ -117,6 +117,7 @@ const DEFAULT_AI_TARGET_LANGUAGE_BY_UI_LOCALE: Record<SupportedLocale, AiTargetL
   ru: "en",
   es: "en",
   de: "en",
+  fr: "en",
 };
 
 export const getDefaultAiTargetLanguage = (locale: string | undefined): AiTargetLanguage => {

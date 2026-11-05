@@ -185,6 +185,26 @@ const copy = {
     save: "Speichern",
     syncedOnly: "Umbenennen und Löschen sind nach der Synchronisierung der Ressource verfügbar.",
   },
+  fr: {
+    attachmentActions: "Actions sur la pièce jointe",
+    imageActions: "Actions sur l'image",
+    cancel: "Annuler",
+    delete: "Supprimer",
+    attachmentDeleteConfirm: "La pièce jointe sera définitivement supprimée de l'espace de stockage et de cette note. Cette action est irréversible.",
+    attachmentDeleteTitle: "Supprimer la pièce jointe",
+    share: "Partager",
+    download: "Télécharger",
+    downloadFailed: "Impossible de télécharger",
+    failed: "L'action sur la ressource a échoué. Veuillez réessayer.",
+    filename: "Nom du fichier",
+    rename: "Renommer",
+    attachmentRenameTitle: "Renommer la pièce jointe",
+    imageDeleteConfirm: "L'image sera définitivement supprimée de l'espace de stockage et de cette note. Cette action est irréversible.",
+    imageDeleteTitle: "Supprimer l'image",
+    imageRenameTitle: "Renommer l'image",
+    save: "Enregistrer",
+    syncedOnly: "Le renommage et la suppression ne sont disponibles qu'après la synchronisation de la ressource.",
+  },
 } as const;
 
 export const MobileAttachmentCard = ({

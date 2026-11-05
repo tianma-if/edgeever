@@ -1,5 +1,5 @@
 import { DEFAULT_MEMO_TITLE, getMemoSaveErrorReasonKey } from "@edgeever/shared";
-import { de, enUS, es, ja, pl, ru, zhCN, zhTW } from "@edgeever/shared/i18n";
+import { de, enUS, es, fr, ja, pl, ru, zhCN, zhTW } from "@edgeever/shared/i18n";
 import { resolveSupportedLocale } from "@edgeever/shared/i18n/locales";
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
@@ -8,7 +8,7 @@ import {
   type MobileLocalePreference,
 } from "./preferences";
 
-type SupportedMobileLocale = "zh-CN" | "zh-TW" | "en-US" | "es" | "de" | "ja" | "pl" | "ru";
+type SupportedMobileLocale = "zh-CN" | "zh-TW" | "en-US" | "es" | "de" | "fr" | "ja" | "pl" | "ru";
 export type MobileLocale = SupportedMobileLocale;
 type MobileLocaleContextValue = {
   preference: MobileLocalePreference;
@@ -1013,6 +1013,7 @@ const plStrings = flattenStrings(pl);
 const ruStrings = flattenStrings(ru);
 const esStrings = flattenStrings(es);
 const deStrings = flattenStrings(de);
+const frStrings = flattenStrings(fr);
 
 const buildTranslationPairs = (targets: Map<string, string>) =>
   Array.from(zhStrings.entries()).flatMap(([key, source]) => {
@@ -1030,6 +1031,7 @@ const plTranslationPairs = buildTranslationPairs(plStrings);
 const ruTranslationPairs = buildTranslationPairs(ruStrings);
 const esTranslationPairs = buildTranslationPairs(esStrings);
 const deTranslationPairs = buildTranslationPairs(deStrings);
+const frTranslationPairs = buildTranslationPairs(frStrings);
 
 const exactZhTWTranslations = new Map(
   zhTWTranslationPairs.filter((pair) => !pair.pattern).map((pair) => [pair.source, pair.target]),
@@ -1051,6 +1053,9 @@ const exactSpanishTranslations = new Map(
 );
 const exactGermanTranslations = new Map(
   deTranslationPairs.filter((pair) => !pair.pattern).map((pair) => [pair.source, pair.target]),
+);
+const exactFrenchTranslations = new Map(
+  frTranslationPairs.filter((pair) => !pair.pattern).map((pair) => [pair.source, pair.target]),
 );
 
 const mobileZhTWTemplateTranslations: TranslationPair[] = Array.from(mobileOnlyZhTW.entries())
@@ -1091,6 +1096,9 @@ const spanishTemplateTranslations = esTranslationPairs
 const germanTemplateTranslations = deTranslationPairs
   .filter((pair) => pair.pattern)
   .sort((left, right) => right.source.length - left.source.length);
+const frenchTemplateTranslations = frTranslationPairs
+  .filter((pair) => pair.pattern)
+  .sort((left, right) => right.source.length - left.source.length);
 
 type LocalizedCatalog<T> = { readonly [K in keyof T]: T[K] extends string ? string : LocalizedCatalog<T[K]> };
 export type MobileCatalog = LocalizedCatalog<typeof enUS>;
@@ -1102,6 +1110,7 @@ const mobileCatalogs: Record<SupportedMobileLocale, MobileCatalog> = {
   "en-US": enUS,
   es,
   de,
+  fr,
   ja,
   pl,
   ru,
@@ -1175,6 +1184,15 @@ export const translateMobileText = (value: string, locale: SupportedMobileLocale
     if (english) return english;
     return applyTemplateTranslations(value, englishTemplateTranslations) ?? value;
   }
+  if (locale === "fr") {
+    const exact = exactFrenchTranslations.get(value);
+    if (exact) return exact;
+    const fromCatalog = applyTemplateTranslations(value, frenchTemplateTranslations);
+    if (fromCatalog) return fromCatalog;
+    const english = mobileOnlyTranslations.get(value) ?? exactEnglishTranslations.get(value);
+    if (english) return english;
+    return applyTemplateTranslations(value, englishTemplateTranslations) ?? value;
+  }
   const exact = mobileOnlyTranslations.get(value) ?? exactEnglishTranslations.get(value);
   if (exact) {
     return exact;
@@ -1210,6 +1228,7 @@ export const localizeMissingNotebookName = (locale: SupportedMobileLocale) => {
   if (locale === "ru") return "Без блокнота";
   if (locale === "es") return "Sin clasificar";
   if (locale === "de") return "Ohne Kategorie";
+  if (locale === "fr") return "Non classé";
   return "未分类";
 };
 

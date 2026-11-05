@@ -39,14 +39,14 @@ describe("desktop dialog copy", () => {
 
 describe("resolveDesktopLocale", () => {
   test("agrees with the shared matchSupportedLocale", () => {
-    const tags = ["zh-CN", "zh-TW", "zh_Hant", "en", "en-GB", "ja-JP", "pl", "pl-PL", "ru-RU", "RU", "de-DE", "", undefined, "plx"];
+    const tags = ["zh-CN", "zh-TW", "zh_Hant", "en", "en-GB", "ja-JP", "pl", "pl-PL", "ru-RU", "RU", "es-ES", "de-DE", "fr-FR", "", undefined, "plx"];
     for (const tag of tags) {
       expect({ tag, locale: resolveDesktopLocale(tag) }).toEqual({ tag, locale: matchSupportedLocale(tag) ?? "en-US" });
     }
   });
 
   test("falls back to English for unsupported tags", () => {
-    for (const tag of ["fr-FR", "", undefined, "plx"]) expect(resolveDesktopLocale(tag)).toBe("en-US");
+    for (const tag of ["it-IT", "", undefined, "plx"]) expect(resolveDesktopLocale(tag)).toBe("en-US");
     expect(desktopDialogCopy("plx")).toBe(english);
   });
 
@@ -56,7 +56,9 @@ describe("resolveDesktopLocale", () => {
     expect(resolveDesktopLocale("RU")).toBe("ru");
     expect(resolveDesktopLocale("es-ES")).toBe("es");
     expect(resolveDesktopLocale("de-DE")).toBe("de");
+    expect(resolveDesktopLocale("fr-FR")).toBe("fr");
     expect(desktopDialogCopy("ja-JP").reload).toBe("再読み込み");
+    expect(desktopDialogCopy("fr-FR").reload).toBe("Recharger");
   });
 });
 

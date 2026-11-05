@@ -24,7 +24,7 @@ describe("lazy Japanese catalog", () => {
     expect(viteConfig).toContain("globPatterns: []");
     expect(viteConfig).toContain("name: \"i18n-ja\"");
     expect(viteConfig).toContain("edgeever-optional-locales");
-    expect(viteConfig).toContain("i18n-(?:en-US|ja|pl|ru|zh-TW|es|de)-");
+    expect(viteConfig).toContain("i18n-(?:en-US|ja|pl|ru|zh-TW|es|de|fr)-");
   });
 
   test("loads Polish on demand like Japanese", () => {
@@ -55,6 +55,12 @@ describe("lazy Japanese catalog", () => {
     expect(source).not.toContain('import { de } from "./resources/de"');
     expect(source).toContain('await import("./resources/de")');
     expect(viteConfig).toContain("name: \"i18n-de\"");
+  });
+
+  test("loads French on demand like Polish", () => {
+    expect(source).not.toContain('import { fr } from "./resources/fr"');
+    expect(source).toContain('await import("./resources/fr")');
+    expect(viteConfig).toContain("name: \"i18n-fr\"");
   });
 });
 

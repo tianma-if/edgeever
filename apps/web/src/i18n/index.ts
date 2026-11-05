@@ -49,7 +49,10 @@ const loadOptionalCatalog = async (locale: OptionalLocale) => {
   if (locale === "es") {
     return (await import("./resources/es")).es;
   }
-  return (await import("./resources/de")).de;
+  if (locale === "de") {
+    return (await import("./resources/de")).de;
+  }
+  return (await import("./resources/fr")).fr;
 };
 
 const ensureLocaleCatalog = async (locale: SupportedLocale) => {

@@ -21,6 +21,12 @@
             "value" : "EdgeEver"
           }
         },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EdgeEver"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -73,6 +79,12 @@
             "value" : "Shell nativo de iOS (SwiftUI)"
           }
         },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shell iOS natif (SwiftUI)"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -123,6 +135,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ruta RN de iOS abandonada — consulte docs/ios-swift-rewrite.md"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chemin RN iOS abandonné — voir docs/ios-swift-rewrite.md"
           }
         },
         "ja" : {

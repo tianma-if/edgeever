@@ -34,6 +34,7 @@ const item = (
   zhTW?: MemoTemplateSeedTranslation,
   es?: MemoTemplateSeedTranslation,
   de?: MemoTemplateSeedTranslation,
+  fr?: MemoTemplateSeedTranslation,
 ): MemoTemplateGalleryItem => ({
   key,
   tag: key,
@@ -43,6 +44,7 @@ const item = (
     "en-US": enUS,
     es: es ?? enUS,
     de: de ?? enUS,
+    fr: fr ?? enUS,
     ja,
     pl,
     ru,

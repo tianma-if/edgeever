@@ -281,10 +281,45 @@ const menuCopy = {
     zoomIn: "Увеличить",
     zoomOut: "Уменьшить",
   },
+  fr: {
+    about: "À propos d'EdgeEver",
+    addToDictionary: "Ajouter au dictionnaire",
+    close: "Fermer la fenêtre",
+    copy: "Copier",
+    copyLinkAddress: "Copier l'adresse du lien",
+    cut: "Couper",
+    edit: "Édition",
+    file: "Fichier",
+    focusSearch: "Accéder à la recherche",
+    front: "Tout ramener au premier plan",
+    hide: "Masquer EdgeEver",
+    minimize: "Réduire",
+    newMemo: "Nouvelle note",
+    newNotebook: "Nouveau carnet",
+    openNoteWindow: "Ouvrir la note dans une nouvelle fenêtre",
+    paste: "Coller",
+    pasteAsPlainText: "Coller comme texte brut",
+    quit: "Quitter EdgeEver",
+    resetZoom: "Réinitialiser le zoom",
+    restartToUpdate: "Redémarrer pour mettre à jour",
+    screenshotFailed: "Impossible de faire une capture d'écran. Si c'est la première fois, autorisez l'enregistrement de l'écran pour EdgeEver dans les Réglages Système.",
+    screenshotToNote: "Capturer l'écran dans une note",
+    selectAll: "Tout sélectionner",
+    show: "Afficher EdgeEver",
+    toggleFocusMode: "Basculer le mode concentration",
+    toggleFullScreen: "Activer le plein écran",
+    undo: "Annuler",
+    redo: "Rétablir",
+    view: "Présentation",
+    window: "Fenêtre",
+    zoom: "Agrandir/Réduire",
+    zoomIn: "Zoom avant",
+    zoomOut: "Zoom arrière",
+  },
 };
 
 // Same locale resolution as the dialogs; keys stay short so other branches merge cleanly.
-const copyKeyByLocale = { "zh-CN": "zh", "zh-TW": "zh-TW", "en-US": "en", ja: "ja", pl: "pl", ru: "ru", es: "es", de: "de" };
+const copyKeyByLocale = { "zh-CN": "zh", "zh-TW": "zh-TW", "en-US": "en", ja: "ja", pl: "pl", ru: "ru", es: "es", de: "de", fr: "fr" };
 
 export const desktopMenuCopy = (locale) => menuCopy[copyKeyByLocale[resolveDesktopLocale(locale)]];
 
@@ -328,6 +363,11 @@ const regionCopy = {
     hint: "Перетащите, чтобы выбрать область. Отпустите, чтобы сохранить в заметку",
     cancel: "Esc — отмена",
     full: "Двойной щелчок — весь экран",
+  },
+  fr: {
+    hint: "Faites glisser pour sélectionner une zone. Relâchez pour l'enregistrer sous forme de note",
+    cancel: "Échap pour annuler",
+    full: "Double-cliquez pour capturer tout l'écran",
   },
 };
 

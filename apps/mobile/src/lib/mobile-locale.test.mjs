@@ -30,7 +30,7 @@ describe("mobile locale translation", () => {
     // Japanese and Traditional Chinese write some terms with the same characters as Simplified Chinese.
     const sameInJapanese = new Set(["未保存"]);
     const sameInTraditionalChinese = new Set(["好的", "本地草稿"]);
-    for (const locale of ["en-US", "ja", "pl", "ru", "zh-TW", "es", "de"]) {
+    for (const locale of ["en-US", "ja", "pl", "ru", "zh-TW", "es", "de", "fr"]) {
       const untranslated = copy.filter((value) => translateMobileText(value, locale) === value
         && !(locale === "ja" && sameInJapanese.has(value))
         && !(locale === "zh-TW" && sameInTraditionalChinese.has(value)));
@@ -107,6 +107,7 @@ describe("mobile locale translation", () => {
     expect(localizeMissingNotebookName("zh-TW")).toBe("未分類");
     expect(localizeMissingNotebookName("es")).toBe("Sin clasificar");
     expect(localizeMissingNotebookName("de")).toBe("Ohne Kategorie");
+    expect(localizeMissingNotebookName("fr")).toBe("Non classé");
     expect(localizeMissingNotebookName("zh-CN")).toBe("未分类");
   });
 
@@ -126,6 +127,7 @@ describe("mobile locale translation", () => {
     expect(getMobileCatalog("zh-TW").mobile.update.title).toBe("應用更新");
     expect(getMobileCatalog("es").mobile.update.title).toBe("Actualizaciones de la app");
     expect(getMobileCatalog("de").mobile.update.title).toBe("App-Updates");
+    expect(getMobileCatalog("fr").mobile.update.title).toBe("Mises à jour de l'application");
     expect(formatMobileCopy(getMobileCatalog("pl").mobile.login.serverError, { status: 503 }))
       .toBe("Instancja zwróciła błąd serwera (HTTP 503).");
     expect(formatMobileCopy("{{known}} {{missing}}", { known: "a" })).toBe("a {{missing}}");

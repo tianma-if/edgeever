@@ -24,6 +24,7 @@ export const DEFAULT_NOTEBOOK_SEEDS: readonly DefaultNotebookSeed[] = [
       "en-US": "Inbox",
       es: "Bandeja de entrada",
       de: "Eingang",
+      fr: "Boîte de réception",
       ja: "受信トレイ",
       pl: "Skrzynka",
       ru: "Входящие",
@@ -40,6 +41,7 @@ export const DEFAULT_NOTEBOOK_SEEDS: readonly DefaultNotebookSeed[] = [
       "en-US": "Work Projects",
       es: "Proyectos de trabajo",
       de: "Arbeitsprojekte",
+      fr: "Projets professionnels",
       ja: "仕事のプロジェクト",
       pl: "Projekty zawodowe",
       ru: "Рабочие проекты",
@@ -56,6 +58,7 @@ export const DEFAULT_NOTEBOOK_SEEDS: readonly DefaultNotebookSeed[] = [
       "en-US": "Learning Resources",
       es: "Material de aprendizaje",
       de: "Lernmaterialien",
+      fr: "Ressources d'apprentissage",
       ja: "学習資料",
       pl: "Materiały do nauki",
       ru: "Учебные материалы",
@@ -72,6 +75,7 @@ export const DEFAULT_NOTEBOOK_SEEDS: readonly DefaultNotebookSeed[] = [
       "en-US": "Creative Ideas",
       es: "Ideas creativas",
       de: "Kreative Ideen",
+      fr: "Idées créatives",
       ja: "アイデアと創作",
       pl: "Pomysły i twórczość",
       ru: "Творческие идеи",
@@ -88,6 +92,7 @@ export const DEFAULT_NOTEBOOK_SEEDS: readonly DefaultNotebookSeed[] = [
       "en-US": "Personal Life",
       es: "Vida personal",
       de: "Persönliches",
+      fr: "Vie personnelle",
       ja: "暮らしと個人",
       pl: "Życie prywatne",
       ru: "Личная жизнь",
@@ -174,6 +179,13 @@ export const WELCOME_MEMO_TRANSLATIONS: Record<SupportedLocale, WelcomeMemoTrans
     paragraphs: [
       "Dies ist Ihre erste EdgeEver-Notiz: drei Bereiche, auf dem Edge ausgeführt und bereit für KI-Agenten.",
       "Erstellen Sie als Nächstes Notizbücher, schreiben Sie Notizen, durchsuchen Sie Inhalte und führen Sie mehrere Notizen zu einer neuen Notiz zusammen.",
+    ],
+  },
+  fr: {
+    title: "Bienvenue sur EdgeEver",
+    paragraphs: [
+      "Voici votre première note EdgeEver : trois panneaux, déployée sur l'Edge et prête pour les agents IA.",
+      "Vous pouvez maintenant créer des carnets, rédiger des notes, effectuer des recherches et fusionner plusieurs notes en une nouvelle note durable.",
     ],
   },
 };

@@ -1,6 +1,6 @@
 import { resolveSupportedLocale } from "./i18n/locales";
 
-export type MemoTemplateSeedLocale = "zh-CN" | "zh-TW" | "en-US" | "ja" | "pl" | "ru" | "es" | "de";
+export type MemoTemplateSeedLocale = "zh-CN" | "zh-TW" | "en-US" | "ja" | "pl" | "ru" | "es" | "de" | "fr";
 
 export type MemoTemplateSeedTranslation = {
   title: string;
@@ -25,9 +25,10 @@ const seed = (
   ru: MemoTemplateSeedTranslation,
   es: MemoTemplateSeedTranslation,
   de: MemoTemplateSeedTranslation,
+  fr: MemoTemplateSeedTranslation,
 ): MemoTemplateSeed => ({
   ...metadata,
-  translations: { "zh-CN": zhCN, "zh-TW": zhTW, "en-US": enUS, ja, pl, ru, es, de },
+  translations: { "zh-CN": zhCN, "zh-TW": zhTW, "en-US": enUS, ja, pl, ru, es, de, fr },
 });
 
 export const DEFAULT_MEMO_TEMPLATE_SEEDS: readonly MemoTemplateSeed[] = [
@@ -73,6 +74,11 @@ export const DEFAULT_MEMO_TEMPLATE_SEEDS: readonly MemoTemplateSeed[] = [
       description: "Halten Sie flüchtige Gedanken, Ideen, Links und sofortige Aufgaben fest.",
       contentMarkdown: "## 💡 Flüchtige Gedanken\n\n- \n\n## 📌 Kontext & Notizen\n\n\n\n## 🚀 Nächste Aktionen\n\n- [ ] ",
     },
+    {
+      title: "Note rapide",
+      description: "Capturez des pensées éphémères, des idées, des liens et des actions immédiates.",
+      contentMarkdown: "## 💡 Pensées éphémères\n\n- \n\n## 📌 Contexte et remarques\n\n\n\n## 🚀 Prochaines actions\n\n- [ ] ",
+    },
   ),
   seed(
     { key: "meeting", translationKey: "meeting", tag: "meeting" },
@@ -115,6 +121,11 @@ export const DEFAULT_MEMO_TEMPLATE_SEEDS: readonly MemoTemplateSeed[] = [
       title: "Besprechungsprotokoll",
       description: "Strukturierte Erfassung von Tagesordnung, wichtigen Beschlüssen und Aufgaben mit Verantwortlichen.",
       contentMarkdown: "# 📝 Besprechungsprotokoll\n\n- **Uhrzeit**:\n- **Leitung/Protokoll**:\n- **Teilnehmer**:\n\n---\n\n## 🎯 Ziel\n\n- \n\n## 💬 Diskussion & Entscheidungen\n\n1. **[Thema 1]**\n   - Wichtige Punkte:\n   - ✅ **Entscheidung**:\n\n2. **[Thema 2]**\n   - Wichtige Punkte:\n   - ✅ **Entscheidung**:\n\n## 📋 Aufgaben\n\n- [ ] **[Verantwortlich]** Aufgabenbeschreibung (Fällig: MM-DD)\n- [ ] **[Verantwortlich]** Aufgabenbeschreibung (Fällig: MM-DD)\n",
+    },
+    {
+      title: "Compte-rendu de réunion",
+      description: "Compte-rendu structuré de l'ordre du jour, des décisions clés et des tâches à accomplir.",
+      contentMarkdown: "# 📝 Compte-rendu de réunion\n\n- **Horaire** :\n- **Animateur/Secrétaire** :\n- **Participants** :\n\n---\n\n## 🎯 Objectif\n\n- \n\n## 💬 Échanges et décisions\n\n1. **[Sujet 1]**\n   - Points clés :\n   - ✅ **Décision** :\n\n2. **[Sujet 2]**\n   - Points clés :\n   - ✅ **Décision** :\n\n## 📋 Actions à mener\n\n- [ ] **[Responsable]** Description de la tâche (Échéance : MM-JJ)\n- [ ] **[Responsable]** Description de la tâche (Échéance : MM-JJ)\n",
     },
   ),
   seed(
@@ -159,6 +170,11 @@ export const DEFAULT_MEMO_TEMPLATE_SEEDS: readonly MemoTemplateSeed[] = [
       description: "Fassen Sie wöchentliche Meilensteine, Hindernisse und Prioritäten für die nächste Woche zusammen.",
       contentMarkdown: "# 🗓️ Wöchentlicher Statusbericht\n\n## 🌟 Highlights\n\n- [x] **[Projekt/Feature]** Einzelheiten zum Fortschritt\n- [x] **[Projekt/Feature]** Einzelheiten zum Fortschritt\n\n## 🚧 Hindernisse & Risiken\n\n- ⚠️ **Blocker**: Ursache und benötigte Unterstützung\n\n## 🎯 Prioritäten für nächste Woche\n\n- [ ] \n- [ ] \n- [ ] \n\n## 💡 Reflexion & Erkenntnisse\n\n- \n",
     },
+    {
+      title: "Revue hebdomadaire et bilan",
+      description: "Faites le point sur les réussites de la semaine, les blocages et les priorités clés pour la semaine suivante.",
+      contentMarkdown: "# 🗓️ Rapport d'activité hebdomadaire\n\n## 🌟 Points marquants\n\n- [x] **[Projet/Fonctionnalité]** Détails des réalisations\n- [x] **[Projet/Fonctionnalité]** Détails des réalisations\n\n## 🚧 Blocages et risques\n\n- ⚠️ **Blocage** : Cause et assistance requise\n\n## 🎯 Priorités de la semaine prochaine\n\n- [ ] \n- [ ] \n- [ ] \n\n## 💡 Bilan et réflexions\n\n- \n",
+    },
   ),
   seed(
     { key: "reading", translationKey: "reading", tag: "reading" },
@@ -202,6 +218,11 @@ export const DEFAULT_MEMO_TEMPLATE_SEEDS: readonly MemoTemplateSeed[] = [
       description: "Halten Sie Kernaussagen, Zitate, eigene Gedanken und verknüpfte Ideen fest.",
       contentMarkdown: "# 📖 Lese-Notizkarte\n\n- **Buch/Artikel**:\n- **Autor/Quelle**:\n- **Bewertung**: ⭐⭐⭐⭐⭐\n\n---\n\n## 💡 Kernaussage\n\n> \n\n## ✍️ Zitate & Höhepunkte\n\n> [Zitat]\n> —— *Originalquelle*\n\n## 🧠 Eigene Gedanken\n\n- \n\n## 🔗 Praxis & Umsetzung\n\n- [ ] **Aktionsplan**:\n",
     },
+    {
+      title: "Fiche de lecture approfondie",
+      description: "Extrayez les idées clés, citations, réflexions personnelles et concepts associés.",
+      contentMarkdown: "# 📖 Fiche de lecture\n\n- **Livre/Article** :\n- **Auteur/Source** :\n- **Évaluation** : ⭐⭐⭐⭐⭐\n\n---\n\n## 💡 Enseignement clé\n\n> \n\n## ✍️ Extraits et citations clés\n\n> [Extrait de citation]\n> —— *Source originale*\n\n## 🧠 Réflexions personnelles\n\n- \n\n## 🔗 Actions et mise en pratique\n\n- [ ] **Plan d'action** :\n",
+    },
   ),
   seed(
     { key: "okr", translationKey: "okr", tag: "okr" },
@@ -244,6 +265,11 @@ export const DEFAULT_MEMO_TEMPLATE_SEEDS: readonly MemoTemplateSeed[] = [
       title: "Ziele- & Aufgabenaufschlüsselung",
       description: "Definieren Sie OKR-Ziele, Schlüsselergebnisse, Meilensteine und Aufgabenlisten.",
       contentMarkdown: "# 🎯 Zielaufteilung\n\n- **Zeitraum**:\n- **Verantwortlich**:\n\n---\n\n## 📌 Ziel (Objective)\n\n> \n\n## 📈 Schlüsselergebnisse (Key Results)\n\n- **KR 1**: Zielwert -> Aktueller Fortschritt\n- **KR 2**: Zielwert -> Aktueller Fortschritt\n\n## 🗓️ Meilensteine\n\n- [ ] **Phase 1 (Datum)**: Ziel\n- [ ] **Phase 2 (Datum)**: Ziel\n\n## 📋 Aufgabenliste\n\n- [ ] \n- [ ] \n",
+    },
+    {
+      title: "Décomposition des objectifs et tâches",
+      description: "Définissez les objectifs OKR, résultats clés, jalons et listes de contrôle.",
+      contentMarkdown: "# 🎯 Décomposition des objectifs\n\n- **Période** :\n- **Responsable** :\n\n---\n\n## 📌 Objectif (Objective)\n\n> \n\n## 📈 Résultats clés (Key Results)\n\n- **KR 1** : Indicateur cible -> Progression actuelle\n- **KR 2** : Indicateur cible -> Progression actuelle\n\n## 🗓️ Jalons (Milestones)\n\n- [ ] **Étape 1 (Date)** : Objectif de l'étape\n- [ ] **Étape 2 (Date)** : Objectif de l'étape\n\n## 📋 Liste des tâches\n\n- [ ] \n- [ ] \n",
     },
   ),
 ];
