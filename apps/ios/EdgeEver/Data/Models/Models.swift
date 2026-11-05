@@ -184,6 +184,36 @@ struct AiGenerateInput: Encodable, Sendable {
     var instruction: String? = nil
     /// This client can send a request without an output limit when none is known (#652).
     var allowUnboundedOutput: Bool? = true
+    /// Long runs (#652 PR B): ask for parts, run one part, or continue a cut-off result.
+    var segmentation: AiSegmentationRequest? = nil
+    var segment: AiSegmentContext? = nil
+    var continuation: AiContinuationRequest? = nil
+}
+
+struct AiSegmentationRequest: Encodable, Equatable, Sendable {
+    /// Above 0 splits a part that was cut off into smaller ones.
+    var depth: Int = 0
+}
+
+struct AiSegmentContext: Encodable, Equatable, Sendable {
+    var index: Int
+    var count: Int
+    var headingPath: [String]
+    var previousSourceTail: String? = nil
+    var previousOutputTail: String? = nil
+}
+
+struct AiContinuationRequest: Encodable, Equatable, Sendable {
+    var round: Int
+    var previousOutput: String
+}
+
+/// One part of a long note, planned by the server (#652 PR B).
+struct AiGenerationSegment: Decodable, Equatable, Sendable {
+    var markdown: String
+    var headingPath: [String]
+    /// Code-only or front matter: kept as is without a request.
+    var passthrough: Bool
 }
 
 struct AiGenerationResultBoundary: Decodable, Sendable {
@@ -201,6 +231,10 @@ struct AiPreparedGeneration: Decodable, Sendable {
     /// `nil` asks the client to send no output limit (#652).
     var maxOutputTokens: Int?
     var resultBoundary: AiGenerationResultBoundary
+    /// Set when the task runs in parts (#652 PR B).
+    var segments: [AiGenerationSegment]? = nil
+    /// The server understands parts and continuations; an older one would start over.
+    var longGeneration: Bool? = nil
 }
 
 struct AiPreparedTagSuggestions: Decodable, Sendable {
@@ -285,6 +319,11 @@ struct AiStreamEvent: Decodable, Sendable {
     var outputTokens: Int?
     /// The provider stopped at its output or context limit, so the result is incomplete (#652).
     var truncated: Bool? = nil
+    /// `progress`: the part (1-based) a long run is working on, of `parts` (#652 PR B).
+    var part: Int? = nil
+    var parts: Int? = nil
+    /// `finish` of a long run: parts (1-based) that kept their source text.
+    var incompleteParts: [Int]? = nil
 }
 
 struct Resource: Codable, Equatable, Sendable, Identifiable {

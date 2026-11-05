@@ -123,5 +123,9 @@ describe("native mobile AI note assistant", () => {
     expect(androidEditorSource).toContain('if (payload.event.type === "text-reset") {');
     expect(androidEditorSource).toContain("incomplete: payload.event.truncated || incompleteParts.length ? \"truncated\" : null,");
     expect(androidEditorSource).toContain("ai.incompleteParts.replace(\"{{parts}}\", formatAiPartList(panel.incompleteParts, locale))");
+    // iOS assistant: the same events, through the Swift runner.
+    expect(iosAssistantSource).toContain('case "text-reset": output = event.text ?? ""');
+    expect(iosAssistantSource).toContain("progress = AiRunProgress(part: part, parts: parts)");
+    expect(iosAssistantSource).toContain("if reason == .truncated, !completion.incompleteParts.isEmpty {");
   });
 });
