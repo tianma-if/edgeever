@@ -1,0 +1,21 @@
+---
+import { getCollection, render } from "astro:content";
+import AgentInstallTabs from "@/components/agent-install-tabs.astro";
+import BlogLayout from "@/layouts/BlogLayout.astro";
+
+export async function getStaticPaths() {
+  const entries = await getCollection("blog", ({ data }) => !data.draft);
+  return entries.map((entry) => ({
+    params: { slug: entry.id },
+    props: { entry },
+  }));
+}
+
+const { entry } = Astro.props;
+const { Content } = await render(entry);
+---
+
+<BlogLayout frontmatter={entry.data}>
+  {entry.id === "ai-agent-deploy-cloudflare" && <AgentInstallTabs locale="zh-TW" />}
+  <Content />
+</BlogLayout>

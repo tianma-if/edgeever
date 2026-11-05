@@ -4,38 +4,12 @@ import { deploymentPrompts, manualDeploymentCopy } from "@/deployment-prompts";
 import { getLocalizedPath } from "@/i18n";
 
 const { locale = "zh-CN" } = Astro.props;
-const isEnglish = locale !== "zh-CN";
+const isChinese = locale === "zh-CN";
+const isTraditionalChinese = locale === "zh-TW";
+const isEnglish = !isChinese && !isTraditionalChinese;
 
-const copy = isEnglish
+const copy = isChinese
   ? {
-      oneClick: "Option B: Manual Online Deployment",
-      agent: "Option A: Deploy with an AI Agent",
-      docker: "Option C: Docker Deployment",
-      recommended: "Recommended",
-      agentIntro:
-        "Copy the prompt below directly into an AI Agent (such as Codex, Claude, Cursor, WorkBuddy, Antigravity, OpenClaw, Hermes Agent, etc.). During execution, if access to GitHub or Cloudflare is required, review the requested permissions and follow the prompts to authorize access.",
-      agentGuide: "Detailed requirements: AI Agent Cloudflare Deployment",
-      agentGuideHref:
-        "https://github.com/tianma-if/edgeever/blob/main/docs/agent-deploy-cloudflare.md",
-      oneClickIntro: manualDeploymentCopy["en-US"].intro,
-      manualSteps: manualDeploymentCopy["en-US"].steps,
-      oneClickGuide: "Open the online deployment guide",
-      oneClickGuideHref:
-        "https://github.com/tianma-if/edgeever/blob/main/docs/deploy-cloudflare-button.md",
-      dockerTitle: "One-command Docker self-hosting",
-      dockerPrerequisite: "Install Docker with Docker Compose v2 before running the command.",
-      dockerGuide: "Open the complete Docker deployment guide",
-      dockerGuideHref: getLocalizedPath(locale, "/docker-deploy"),
-      dockerCommandLabel: "COMMAND",
-      copyCommand: "Copy command",
-      promptLabel: "PROMPT",
-      copyPrompt: "Copy prompt",
-      copying: "Copying...",
-      copied: "Copied",
-      copyFailed: "Copy failed",
-      promptText: deploymentPrompts["en-US"],
-    }
-  : {
       oneClick: "方案二：手动在线部署",
       agent: "方案一：交给 AI Agent 部署",
       docker: "方案三：Docker 部署",
@@ -62,7 +36,64 @@ const copy = isEnglish
       copied: "已复制",
       copyFailed: "复制失败",
       promptText: deploymentPrompts["zh-CN"],
-    };
+    }
+  : isTraditionalChinese
+    ? {
+        oneClick: "方案二：手動線上部署",
+        agent: "方案一：交給 AI Agent 部署",
+        docker: "方案三：Docker 部署",
+        recommended: "推薦",
+        agentIntro:
+          "將下方提示詞直接複製傳送給 AI Agent（如 Codex、Claude、Cursor、WorkBuddy、Antigravity、OpenClaw、Hermes Agent 等）。執行過程中，如需存取 GitHub 或 Cloudflare，請確認權限範圍並按提示完成授權。",
+        agentGuide: "詳細約定與要求：AI Agent 線上部署約定",
+        agentGuideHref:
+          "https://github.com/tianma-if/edgeever/blob/main/docs/agent-deploy-cloudflare.zh-CN.md",
+        oneClickIntro: "請嚴格按順序完成以下 7 步線上操作：",
+        manualSteps: manualDeploymentCopy["zh-CN"].steps,
+        oneClickGuide: "查看線上部署文件",
+        oneClickGuideHref:
+          "https://github.com/tianma-if/edgeever/blob/main/docs/deploy-cloudflare-button.zh-CN.md",
+        dockerTitle: "一條指令完成 Docker 自託管",
+        dockerPrerequisite: "運行指令前，請先安裝 Docker 環境（含 Docker Compose v2）。",
+        dockerGuide: "查看完整 Docker 部署指南",
+        dockerGuideHref: getLocalizedPath(locale, "/docker-deploy"),
+        dockerCommandLabel: "COMMAND",
+        copyCommand: "複製指令",
+        promptLabel: "PROMPT",
+        copyPrompt: "複製提示詞",
+        copying: "複製中...",
+        copied: "已複製",
+        copyFailed: "複製失敗",
+        promptText: deploymentPrompts["zh-CN"],
+      }
+    : {
+        oneClick: "Option B: Manual Online Deployment",
+        agent: "Option A: Deploy with an AI Agent",
+        docker: "Option C: Docker Deployment",
+        recommended: "Recommended",
+        agentIntro:
+          "Copy the prompt below directly into an AI Agent (such as Codex, Claude, Cursor, WorkBuddy, Antigravity, OpenClaw, Hermes Agent, etc.). During execution, if access to GitHub or Cloudflare is required, review the requested permissions and follow the prompts to authorize access.",
+        agentGuide: "Detailed requirements: AI Agent Cloudflare Deployment",
+        agentGuideHref:
+          "https://github.com/tianma-if/edgeever/blob/main/docs/agent-deploy-cloudflare.md",
+        oneClickIntro: manualDeploymentCopy["en-US"].intro,
+        manualSteps: manualDeploymentCopy["en-US"].steps,
+        oneClickGuide: "Open the online deployment guide",
+        oneClickGuideHref:
+          "https://github.com/tianma-if/edgeever/blob/main/docs/deploy-cloudflare-button.md",
+        dockerTitle: "One-command Docker self-hosting",
+        dockerPrerequisite: "Install Docker with Docker Compose v2 before running the command.",
+        dockerGuide: "Open the complete Docker deployment guide",
+        dockerGuideHref: getLocalizedPath(locale, "/docker-deploy"),
+        dockerCommandLabel: "COMMAND",
+        copyCommand: "Copy command",
+        promptLabel: "PROMPT",
+        copyPrompt: "Copy prompt",
+        copying: "Copying...",
+        copied: "Copied",
+        copyFailed: "Copy failed",
+        promptText: deploymentPrompts["en-US"],
+      };
 ---
 
 <section class="not-prose relative left-1/2 my-10 w-[min(92vw,960px)] -translate-x-1/2" data-agent-install-tabs>

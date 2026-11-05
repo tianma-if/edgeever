@@ -1,0 +1,32 @@
+---
+import Container from "@/components/container.astro";
+import Layout from "@/layouts/Layout.astro";
+---
+
+<Layout title="EdgeEver 資料刪除" description="如何在 EdgeEver 中刪除筆記、附件、本機資料與自建帳號。">
+  <Container>
+    <main class="mx-auto max-w-3xl py-12 text-slate-700 md:py-20">
+      <article class="rounded-lg border border-slate-200 bg-white p-8 shadow-sm md:p-10">
+        <h1 class="text-3xl font-bold text-slate-950">EdgeEver 資料刪除</h1>
+        <div class="mt-8 space-y-8 leading-7">
+          <section>
+            <h2 class="text-xl font-bold text-slate-900">筆記與附件刪除</h2>
+            <p class="mt-3">在 EdgeEver 應用中將筆記移入垃圾桶，進入垃圾桶徹底刪除或清空垃圾桶。徹底刪除筆記會同步刪除已連接自託管實例上的關聯附件。</p>
+          </section>
+          <section>
+            <h2 class="text-xl font-bold text-slate-900">本機客戶端資料清除</h2>
+            <p class="mt-3">在應用內登出帳號，隨後在 iOS 或 Android 系統設定中刪除 EdgeEver 及其應用資料。這將清除本機工作階段、SQLite 鏡像、本機草稿、同步佇列及偏好設定，不會刪除已同步到自託管實例上的資料。</p>
+          </section>
+          <section>
+            <h2 class="text-xl font-bold text-slate-900">帳號與雲端資料註銷</h2>
+            <p class="mt-3">EdgeEver 的帳號由您自建實例的管理員建立和維護，而非行動應用開發者集中託管。如需註銷帳號，請聯絡您的實例管理員；如為個人自建，可在管理後台刪除使用者，或直接在 Cloudflare 控制台清理 D1 和 R2 儲存。</p>
+          </section>
+          <section>
+            <h2 class="text-xl font-bold text-slate-900">支援與回饋</h2>
+            <p class="mt-3">如有資料刪除相關疑問，可前往 EdgeEver GitHub 倉庫提交 Issue。請勿在公開 Issue 中包含密碼、API Token 或私密筆記內容。 <a class="text-teal-700 underline" href="https://github.com/tianma-if/edgeever/issues" target="_blank" rel="noopener noreferrer">GitHub Issues</a>.</p>
+          </section>
+        </div>
+      </article>
+    </main>
+  </Container>
+</Layout>

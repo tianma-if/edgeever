@@ -1,0 +1,32 @@
+---
+import Container from "@/components/container.astro";
+import Layout from "@/layouts/Layout.astro";
+---
+
+<Layout title="Удаление данных EdgeEver" description="Как удалить заметки, вложения, локальные данные и аккаунты в EdgeEver.">
+  <Container>
+    <main class="mx-auto max-w-3xl py-12 text-slate-700 md:py-20">
+      <article class="rounded-lg border border-slate-200 bg-white p-8 shadow-sm md:p-10">
+        <h1 class="text-3xl font-bold text-slate-950">Удаление данных EdgeEver</h1>
+        <div class="mt-8 space-y-8 leading-7">
+          <section>
+            <h2 class="text-xl font-bold text-slate-900">Удаление заметок и вложений</h2>
+            <p class="mt-3">В приложении EdgeEver переместите заметку в корзину, затем откройте корзину и удалите ее окончательно или очистите корзину. Окончательное удаление заметки стирает связанные файлы на вашем self-hosted инстансе.</p>
+          </section>
+          <section>
+            <h2 class="text-xl font-bold text-slate-900">Удаление локальных данных приложения</h2>
+            <p class="mt-3">Выйдите из аккаунта в приложении, затем в настройках iOS или Android удалите EdgeEver вместе с данными. Это сотрет локальную сессию, копию SQLite, черновики и настройки с устройства. Данные на сервере останутся нетронутыми.</p>
+          </section>
+          <section>
+            <h2 class="text-xl font-bold text-slate-900">Удаление учетной записи</h2>
+            <p class="mt-3">Аккаунты создаются и обслуживаются администратором вашей self-hosted копии, а не разработчиками приложений. Обратитесь к администратору для закрытия учетной записи. Если инстанс развернут вами лично, удалите пользователя в админке или очистите Cloudflare D1 и R2.</p>
+          </section>
+          <section>
+            <h2 class="text-xl font-bold text-slate-900">Поддержка и обратная связь</h2>
+            <p class="mt-3">По вопросам удаления данных создайте обращение в репозитории EdgeEver на GitHub. Никогда не указывайте пароли, токены API или личные заметки в открытых обсуждениях. <a class="text-teal-700 underline" href="https://github.com/tianma-if/edgeever/issues" target="_blank" rel="noopener noreferrer">GitHub Issues</a>.</p>
+          </section>
+        </div>
+      </article>
+    </main>
+  </Container>
+</Layout>

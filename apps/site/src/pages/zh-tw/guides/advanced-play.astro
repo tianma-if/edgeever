@@ -1,0 +1,99 @@
+---
+import Container from "@/components/container.astro";
+import Layout from "@/layouts/Layout.astro";
+
+const title = "EdgeEver AI Agent 進階玩法";
+const description = "透過 EdgeEver MCP 讀取真實筆記，讓 AI Agent 輔助整理人物畫像、知識圖譜和標籤體系。";
+
+const prompts = [
+  {
+    title: "人物畫像",
+    summary: "從長期筆記中提煉關注主題、做事偏好、能力線索、反覆出現的問題和近期動向。",
+    prompt: "請透過 EdgeEver MCP 讀取我的筆記，基於真實筆記內容為我整理一份人物畫像。請只根據筆記中的證據判斷，不要做心理診斷，不要誇張定性。輸出包括：長期關注的主題、做事偏好、能力線索、反覆出現的問題、近期動向，並在每條結論後列出相關筆記標題或 memo id。",
+  },
+  {
+    title: "知識圖譜",
+    summary: "把筆記拆成主要知識領域、關鍵概念、相關材料、已掌握部分和待補齊問題。",
+    prompt: "請透過 EdgeEver MCP 讀取我的筆記，為我整理一份知識地圖。請找出主要知識領域、每個領域下的關鍵概念、相關筆記、我已經掌握的部分和還需要補齊的問題。輸出結構要適合後續繼續學習和寫作。",
+  },
+  {
+    title: "標籤建議",
+    summary: "基於已有筆記和標籤，發現重複、過細、過寬或命名不一致的問題。",
+    prompt: "請透過 EdgeEver MCP 讀取我的筆記和現有標籤，幫我設計一套更清晰的標籤體系。請指出重複、過細、過寬或命名不一致的標籤，並給出合併、重新命名和新增標籤建議。先不要修改筆記，等我確認後再執行。",
+  },
+];
+
+const pageUrl = new URL(Astro.url.pathname, Astro.site).toString();
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "Article",
+  headline: title,
+  description,
+  url: pageUrl,
+  inLanguage: "zh-TW",
+  publisher: {
+    "@type": "Organization",
+    name: "EdgeEver",
+  },
+};
+---
+
+<Layout title={title} description={description} jsonLd={jsonLd}>
+  <Container>
+    <main class="mx-auto max-w-4xl py-16 md:py-24">
+      <p class="text-sm font-semibold text-brand-text">AI Agent Workflow</p>
+      <h1 class="mt-3 text-4xl font-bold tracking-tight text-slate-900 md:text-5xl">{title}</h1>
+      <p class="mt-5 text-lg leading-8 text-slate-600">{description}</p>
+      
+
+      <div class="mt-12 space-y-8">
+        {
+          prompts.map((item, index) => (
+            <section class="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm md:p-8">
+              <div class="flex items-center gap-3">
+                <span class="flex h-8 w-8 items-center justify-center rounded-full bg-brand/10 text-sm font-bold text-brand">
+                  0{index + 1}
+                </span>
+                <h2 class="text-xl font-bold text-slate-900">{item.title}</h2>
+              </div>
+              <p class="mt-3 text-base leading-7 text-slate-600">{item.summary}</p>
+              <div class="relative mt-4">
+                <pre class="overflow-x-auto rounded-xl bg-slate-900 p-4 text-sm leading-6 text-slate-200 whitespace-pre-wrap"><code>{item.prompt}</code></pre>
+                <button
+                  data-copy-prompt
+                  data-prompt-text={item.prompt}
+                  class="absolute right-3 top-3 rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-300 transition hover:bg-slate-700 hover:text-white"
+                >
+                  Copy
+                </button>
+              </div>
+            </section>
+          ))
+        }
+      </div>
+    </main>
+  </Container>
+</Layout>
+
+<script>
+  function setupCopyButtons() {
+    document.querySelectorAll<HTMLButtonElement>("[data-copy-prompt]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const text = btn.getAttribute("data-prompt-text") || "";
+        try {
+          await navigator.clipboard.writeText(text);
+          const original = btn.textContent;
+          btn.textContent = "Copied!";
+          setTimeout(() => {
+            btn.textContent = original;
+          }, 2000);
+        } catch {
+          // Fallback or ignore
+        }
+      });
+    });
+  }
+
+  setupCopyButtons();
+  document.addEventListener("astro:page-load", setupCopyButtons);
+</script>

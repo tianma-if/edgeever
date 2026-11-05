@@ -1,0 +1,47 @@
+---
+import Container from "@/components/container.astro";
+import Features from "@/components/features.astro";
+import Guides from "@/components/guides.astro";
+import Hero from "@/components/hero.astro";
+import Logos from "@/components/logos.astro";
+import MarqueeShowcase from "@/components/marquee-showcase.astro";
+import Layout from "@/layouts/Layout.astro";
+
+const siteUrl = new URL(Astro.url.pathname, Astro.site).toString();
+
+const homeJsonLd = [
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: "EdgeEver",
+    alternateName: "EdgeEver Evernote Alternative",
+    url: siteUrl,
+    inLanguage: "de",
+    description: "EdgeEver ist eine quelloffene, KI-native Evernote-Alternative, die sich auf Cloudflare und Docker selbst hosten lässt. Kompatibel mit macOS, Windows, Linux, iOS, Android und Web Clipper.",
+    keywords: ["Evernote Alternative","Open Source Notizen","Self-hosted Notizen","KI Notizen"],
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    name: "EdgeEver",
+    alternateName: "EdgeEver Evernote Alternative",
+    url: siteUrl,
+    codeRepository: "https://github.com/tianma-if/edgeever",
+    applicationCategory: "ProductivityApplication",
+    operatingSystem: "macOS, Windows, Linux, iOS, Android, Web, Chrome, Edge, Firefox",
+    isAccessibleForFree: true,
+    description: "EdgeEver ist ein quelloffener, KI-nativer und selbst gehosteter Notiz- und Wissensarbeitsbereich. Erleben Sie den klassischen Drei-Spalten-Workflow (Notizbuchbaum · Notizliste · Editor), plattformübergreifende Clients, Diagramm-Notizen, REST-API sowie native MCP- und ACP-Agentensynergie.",
+    keywords: ["Evernote Alternative","Open Source Notizen","Self-hosted Notizen","KI Notizen"],
+  },
+];
+---
+
+<Layout title="" jsonLd={homeJsonLd}>
+  <Container>
+    <Hero />
+    <MarqueeShowcase />
+    <Features />
+    <Guides />
+    <Logos />
+  </Container>
+</Layout>

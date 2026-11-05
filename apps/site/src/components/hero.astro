@@ -113,7 +113,23 @@ const copy = siteCopy[locale].hero;
           <span>{copy.linux}</span>
         </a>
         <a
-          href={locale === "ja" ? "https://apps.apple.com/jp/app/edgeever/id6792625631" : locale === "pl" ? "https://apps.apple.com/pl/app/edgeever/id6792625631" : "https://apps.apple.com/us/app/edgeever/id6792625631"}
+          href={
+            locale === "ja"
+              ? "https://apps.apple.com/jp/app/edgeever/id6792625631"
+              : locale === "pl"
+                ? "https://apps.apple.com/pl/app/edgeever/id6792625631"
+                : locale === "es"
+                  ? "https://apps.apple.com/es/app/edgeever/id6792625631"
+                  : locale === "de"
+                    ? "https://apps.apple.com/de/app/edgeever/id6792625631"
+                    : locale === "fr"
+                      ? "https://apps.apple.com/fr/app/edgeever/id6792625631"
+                      : locale === "ru"
+                        ? "https://apps.apple.com/ru/app/edgeever/id6792625631"
+                        : locale === "zh-TW"
+                          ? "https://apps.apple.com/tw/app/edgeever/id6792625631"
+                          : "https://apps.apple.com/us/app/edgeever/id6792625631"
+          }
           target="_blank"
           rel="noopener"
           class="inline-flex min-h-11 sm:min-h-0 items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/80 hover:bg-slate-100/90 hover:text-slate-900 hover:border-slate-300 border border-slate-200/80 text-[11px] font-medium text-slate-600 transition-all shadow-2xs"
@@ -122,7 +138,25 @@ const copy = siteCopy[locale].hero;
           <span>iOS</span>
         </a>
         <a
-          href={locale === "ja" ? "https://play.google.com/store/apps/details?id=org.edgeever.mobile&hl=ja" : locale === "pl" ? "https://play.google.com/store/apps/details?id=org.edgeever.mobile&hl=pl" : "https://play.google.com/store/apps/details?id=org.edgeever.mobile"}
+          href={
+            locale === "zh-CN"
+              ? "https://play.google.com/store/apps/details?id=org.edgeever.mobile&hl=zh-CN"
+              : locale === "zh-TW"
+                ? "https://play.google.com/store/apps/details?id=org.edgeever.mobile&hl=zh-TW"
+                : locale === "ja"
+                  ? "https://play.google.com/store/apps/details?id=org.edgeever.mobile&hl=ja"
+                  : locale === "pl"
+                    ? "https://play.google.com/store/apps/details?id=org.edgeever.mobile&hl=pl"
+                    : locale === "es"
+                      ? "https://play.google.com/store/apps/details?id=org.edgeever.mobile&hl=es"
+                      : locale === "de"
+                        ? "https://play.google.com/store/apps/details?id=org.edgeever.mobile&hl=de"
+                        : locale === "fr"
+                          ? "https://play.google.com/store/apps/details?id=org.edgeever.mobile&hl=fr"
+                          : locale === "ru"
+                            ? "https://play.google.com/store/apps/details?id=org.edgeever.mobile&hl=ru"
+                            : "https://play.google.com/store/apps/details?id=org.edgeever.mobile"
+          }
           target="_blank"
           rel="noopener"
           class="inline-flex min-h-11 sm:min-h-0 items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/80 hover:bg-slate-100/90 hover:text-slate-900 hover:border-slate-300 border border-slate-200/80 text-[11px] font-medium text-slate-600 transition-all shadow-2xs"

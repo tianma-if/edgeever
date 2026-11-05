@@ -1,0 +1,61 @@
+---
+import Container from "@/components/container.astro";
+import Layout from "@/layouts/Layout.astro";
+---
+
+<Layout
+  title="隱私權政策"
+  description="EdgeEver 行動應用與 Web Clipper 的隱私權政策。"
+>
+  <Container>
+    <main class="mx-auto max-w-3xl py-12 text-slate-700 md:py-20">
+      <article class="rounded-lg border border-slate-200 bg-white p-8 shadow-sm md:p-10">
+        <h1 class="text-3xl font-bold text-slate-950">隱私權政策</h1>
+        <p class="mt-3 text-sm text-slate-500">生效日期：2026年7月18日</p>
+
+        <div class="mt-8 space-y-8 leading-7">
+          <section>
+            <h2 class="text-xl font-bold text-slate-900">適用範圍</h2>
+            <p class="mt-3">本政策適用於 EdgeEver iOS / Android 行動客戶端及 EdgeEver Web Clipper 剪藏外掛。EdgeEver 是開源、自託管的筆記軟體，使用者自主選擇並連線到私有部署的 EdgeEver 實例。</p>
+          </section>
+
+          <section>
+            <h2 class="text-xl font-bold text-slate-900">我們處理的資料</h2>
+            <ul class="mt-3 list-disc space-y-2 pl-6">
+              <li>行動應用處理使用者登入時主動填寫的實例位址、使用者名稱和密碼。驗證成功後的 Token 安全儲存於本機裝置金鑰鏈或加密儲存中。</li>
+              <li>筆記本、筆記、標籤和附件在使用者裝置與自建實例之間直接同步傳輸。行動端建立本機 SQLite 鏡像並保留必要的同步佇列，以支援離線編輯與即時快顯。</li>
+              <li>Web Clipper 僅在使用者主動觸發剪藏時，讀取當前分頁的標題、網址、選取文字或正文內容。實例位址、API Token 及預設筆記本設定儲存在瀏覽器本機儲存中。</li>
+            </ul>
+          </section>
+
+          <section>
+            <h2 class="text-xl font-bold text-slate-900">資料用途與傳輸邊界</h2>
+            <p class="mt-3">行動客戶端與剪藏外掛僅與使用者指定的 EdgeEver 實例通訊。專案維護者不維護任何收集、中轉或監控使用者筆記、帳號密碼或剪藏內容的中心化伺服器。</p>
+            <p class="mt-3">應用內無第三方廣告 SDK、無使用者追蹤、無未經聲明的資料收集行為，絕不出售或向任何第三方商業機構共用資料。</p>
+          </section>
+
+          <section>
+            <h2 class="text-xl font-bold text-slate-900">系統權限宣告</h2>
+            <ul class="mt-3 list-disc space-y-2 pl-6">
+              <li>網路權限：用於連線使用者指定的 EdgeEver 實例進行登入、同步與資料交換。</li>
+              <li>檔案與相簿存取：僅在使用者主動選擇上傳圖片、插入附件或匯出資料時透過系統選擇器呼叫。</li>
+              <li>activeTab：僅在使用者點擊剪藏外掛按鈕時取得當前標籤頁資訊以進行內文擷取。</li>
+              <li>scripting：用於在剪藏目標網頁執行提取腳本。</li>
+              <li>storage：用於在擴充功能本機保存登入設定與預設筆記本。</li>
+            </ul>
+          </section>
+
+          <section>
+            <h2 class="text-xl font-bold text-slate-900">安全防護與儲存期限</h2>
+            <p class="mt-3">所有網路請求建議在 HTTPS 下進行。本機快取與敏感設定隨應用移除或登出而完全銷毀。自建服務端的資料備份、保存期限由使用者自身伺服器策略全權掌控。</p>
+          </section>
+
+          <section>
+            <h2 class="text-xl font-bold text-slate-900">聯絡我們</h2>
+            <p class="mt-3">關於隱私權政策有任何疑問，請透過 EdgeEver GitHub 倉庫提交 Issue 聯絡開發團隊。</p>
+          </section>
+        </div>
+      </article>
+    </main>
+  </Container>
+</Layout>

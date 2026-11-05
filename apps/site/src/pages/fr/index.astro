@@ -1,0 +1,47 @@
+---
+import Container from "@/components/container.astro";
+import Features from "@/components/features.astro";
+import Guides from "@/components/guides.astro";
+import Hero from "@/components/hero.astro";
+import Logos from "@/components/logos.astro";
+import MarqueeShowcase from "@/components/marquee-showcase.astro";
+import Layout from "@/layouts/Layout.astro";
+
+const siteUrl = new URL(Astro.url.pathname, Astro.site).toString();
+
+const homeJsonLd = [
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: "EdgeEver",
+    alternateName: "EdgeEver Evernote Alternative",
+    url: siteUrl,
+    inLanguage: "fr",
+    description: "EdgeEver est une alternative open source et native IA à Evernote, auto-hébergeable sur Cloudflare et Docker. Compatible avec macOS, Windows, Linux, iOS, Android et Web Clipper.",
+    keywords: ["Alternative à Evernote","Notes open source","Notes auto-hébergées","Notes IA"],
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    name: "EdgeEver",
+    alternateName: "EdgeEver Evernote Alternative",
+    url: siteUrl,
+    codeRepository: "https://github.com/tianma-if/edgeever",
+    applicationCategory: "ProductivityApplication",
+    operatingSystem: "macOS, Windows, Linux, iOS, Android, Web, Chrome, Edge, Firefox",
+    isAccessibleForFree: true,
+    description: "EdgeEver est un espace de travail de notes et une base de connaissances open source, auto-hébergé et natif pour l'IA. Profitez du workflow classique à trois volets (Arborescence · Liste de notes · Éditeur), des applications multiplateformes, des notes avec diagrammes, de l'API REST et de la synergie native MCP et ACP.",
+    keywords: ["Alternative à Evernote","Notes open source","Notes auto-hébergées","Notes IA"],
+  },
+];
+---
+
+<Layout title="" jsonLd={homeJsonLd}>
+  <Container>
+    <Hero />
+    <MarqueeShowcase />
+    <Features />
+    <Guides />
+    <Logos />
+  </Container>
+</Layout>

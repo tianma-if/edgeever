@@ -1,0 +1,47 @@
+---
+import Container from "@/components/container.astro";
+import Features from "@/components/features.astro";
+import Guides from "@/components/guides.astro";
+import Hero from "@/components/hero.astro";
+import Logos from "@/components/logos.astro";
+import MarqueeShowcase from "@/components/marquee-showcase.astro";
+import Layout from "@/layouts/Layout.astro";
+
+const siteUrl = new URL(Astro.url.pathname, Astro.site).toString();
+
+const homeJsonLd = [
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: "EdgeEver",
+    alternateName: "EdgeEver Evernote Alternative",
+    url: siteUrl,
+    inLanguage: "ru",
+    description: "EdgeEver — это open source альтернатива Evernote с нативной поддержкой ИИ и возможностью self-hosting на Cloudflare и в Docker. Доступно для macOS, Windows, Linux, iOS, Android и Web Clipper.",
+    keywords: ["Альтернатива Evernote","Заметки с открытым кодом","Self-hosted заметки","Заметки с ИИ"],
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    name: "EdgeEver",
+    alternateName: "EdgeEver Evernote Alternative",
+    url: siteUrl,
+    codeRepository: "https://github.com/tianma-if/edgeever",
+    applicationCategory: "ProductivityApplication",
+    operatingSystem: "macOS, Windows, Linux, iOS, Android, Web, Chrome, Edge, Firefox",
+    isAccessibleForFree: true,
+    description: "EdgeEver — это self-hosted рабочее пространство для заметок и база знаний с открытым исходным кодом и нативной поддержкой ИИ. Классический трехпанельный интерфейс (дерево блокнотов · список заметок · редактор), приложения для всех платформ, визуальные диаграммы, REST API и нативная синергия с MCP и ACP.",
+    keywords: ["Альтернатива Evernote","Заметки с открытым кодом","Self-hosted заметки","Заметки с ИИ"],
+  },
+];
+---
+
+<Layout title="" jsonLd={homeJsonLd}>
+  <Container>
+    <Hero />
+    <MarqueeShowcase />
+    <Features />
+    <Guides />
+    <Logos />
+  </Container>
+</Layout>

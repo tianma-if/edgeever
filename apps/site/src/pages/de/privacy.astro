@@ -1,0 +1,61 @@
+---
+import Container from "@/components/container.astro";
+import Layout from "@/layouts/Layout.astro";
+---
+
+<Layout
+  title="Datenschutzerklärung"
+  description="Datenschutzerklärung für die mobilen Apps und den Web Clipper von EdgeEver."
+>
+  <Container>
+    <main class="mx-auto max-w-3xl py-12 text-slate-700 md:py-20">
+      <article class="rounded-lg border border-slate-200 bg-white p-8 shadow-sm md:p-10">
+        <h1 class="text-3xl font-bold text-slate-950">Datenschutzerklärung</h1>
+        <p class="mt-3 text-sm text-slate-500">Gültig ab: 18. Juli 2026</p>
+
+        <div class="mt-8 space-y-8 leading-7">
+          <section>
+            <h2 class="text-xl font-bold text-slate-900">Geltungsbereich</h2>
+            <p class="mt-3">Diese Richtlinie gilt für die mobilen Apps von EdgeEver für iOS und Android sowie für die EdgeEver Web Clipper Erweiterung. EdgeEver ist eine quelloffene, selbst gehostete Software. Nutzer verbinden sich mit selbst gewählten und betriebenen Instanzen.</p>
+          </section>
+
+          <section>
+            <h2 class="text-xl font-bold text-slate-900">Verarbeitete Daten</h2>
+            <ul class="mt-3 list-disc space-y-2 pl-6">
+              <li>Die mobile App verarbeitet Instanz-URL, Benutzername und Passwort zur Anmeldung. Die Sitzungsdaten werden verschlüsselt im sicheren Speicher des Endgeräts abgelegt.</li>
+              <li>Notizbücher, Notizen, Tags und Anhänge werden direkt zwischen Gerät und eigener Instanz synchronisiert. Die App speichert einen lokalen SQLite-Spiegel und Warteschlangen, um schnellen Zugriff und Offline-Bearbeitung zu ermöglichen.</li>
+              <li>Der Web Clipper verarbeitet URL, Titel und ausgewählte Inhalte der aktuellen Webseite nur, wenn der Nutzer die Notiz aktiv speichert. Einstellungen und Tokens verbleiben im lokalen Speicher des Browsers.</li>
+            </ul>
+          </section>
+
+          <section>
+            <h2 class="text-xl font-bold text-slate-900">Nutzung und Weitergabe</h2>
+            <p class="mt-3">Die Apps kommunizieren ausschließlich direkt mit der vom Nutzer angegebenen Instanz. Die Projektbetreiber betreiben keine zentralen Vermittlungsserver für Notizen, Zugangsdaten oder Clippings.</p>
+            <p class="mt-3">Die Anwendungen enthalten keine Werbung, keine Analysetools und kein Nutzertracking. Daten werden nicht verkauft oder an kommerzielle Dritte weitergegeben.</p>
+          </section>
+
+          <section>
+            <h2 class="text-xl font-bold text-slate-900">Berechtigungen</h2>
+            <ul class="mt-3 list-disc space-y-2 pl-6">
+              <li>Netzwerkzugriff: Für die Verbindung und Synchronisierung mit der angegebenen Instanz.</li>
+              <li>Dateizugriff: Nur bei aktiver Auswahl von Anhängen, Importen oder Exporten über den Systemdialog.</li>
+              <li>activeTab: Zugriff auf den aktuellen Tab nur bei Klick auf den Clipper.</li>
+              <li>scripting: Zur Inhaltsextraktion auf der gespeicherten Seite.</li>
+              <li>storage: Lokales Speichern von Zugangsdaten im Browser.</li>
+            </ul>
+          </section>
+
+          <section>
+            <h2 class="text-xl font-bold text-slate-900">Sicherheit und Speicherdauer</h2>
+            <p class="mt-3">Wir empfehlen verschlüsselte HTTPS-Verbindungen. Lokale Daten werden beim Abmelden oder Deinstallieren der App vollständig entfernt. Die serverseitige Speicherdauer unterliegt den Richtlinien Ihrer eigenen Serverinfrastruktur.</p>
+          </section>
+
+          <section>
+            <h2 class="text-xl font-bold text-slate-900">Kontakt</h2>
+            <p class="mt-3">Bei Fragen zum Datenschutz öffnen Sie bitte ein Issue im offiziellen GitHub-Repository von EdgeEver.</p>
+          </section>
+        </div>
+      </article>
+    </main>
+  </Container>
+</Layout>

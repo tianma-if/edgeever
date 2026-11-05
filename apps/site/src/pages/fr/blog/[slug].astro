@@ -1,0 +1,24 @@
+---
+import { getCollection, render } from "astro:content";
+import AgentInstallTabs from "@/components/agent-install-tabs.astro";
+import BlogLayout from "@/layouts/BlogLayout.astro";
+
+export async function getStaticPaths() {
+  const entries = await getCollection("blog_en", ({ data }) => !data.draft);
+  return entries.map((entry) => ({
+    params: { slug: entry.id },
+    props: { entry },
+  }));
+}
+
+const { entry } = Astro.props;
+const { Content } = await render(entry);
+---
+
+<BlogLayout frontmatter={entry.data}>
+  <p class="not-prose mb-8 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+    Le contenu technique de cet article est en anglais. La navigation est en français.
+  </p>
+  {entry.id === "ai-agent-deploy-cloudflare" && <AgentInstallTabs locale="fr" />}
+  <Content />
+</BlogLayout>

@@ -19,15 +19,43 @@ const copy = siteCopy[locale].nav;
         aria-label={
           locale === "zh-CN"
             ? "感谢独立博主缙哥哥在项目成长中提出的宝贵建议与教程分享"
-            : locale === "ja"
-              ? "独立ブロガー Dujin さんへの謝辞。製品への助言とチュートリアルに感謝します"
-              : locale === "pl"
-                ? "Podziękowania dla niezależnego blogera Dujina za uwagi do produktu i poradniki"
-                : "Thanks to independent blogger Dujin for product feedback and tutorials"
+            : locale === "zh-TW"
+              ? "感謝獨立部落客縉哥哥在專案成長中提出的寶貴建議與教學分享"
+              : locale === "ja"
+                ? "独立ブロガー Dujin さんへの謝辞。製品への助言とチュートリアルに感謝します"
+                : locale === "pl"
+                  ? "Podziękowania dla niezależnego blogera Dujina za uwagi do produktu i poradniki"
+                  : locale === "es"
+                    ? "Agradecimientos al blogger independiente Dujin por sus valiosos comentarios y tutoriales"
+                    : locale === "de"
+                      ? "Dank an den unabhängigen Blogger Dujin für wertvolles Feedback und Anleitungen"
+                      : locale === "fr"
+                        ? "Remerciements au blogueur indépendant Dujin pour ses retours précieux et ses tutoriels"
+                        : locale === "ru"
+                          ? "Благодарность независимому блогеру Dujin за ценные отзывы и обучающие материалы"
+                          : "Thanks to independent blogger Dujin for product feedback and tutorials"
         }
         class="inline-flex min-h-11 sm:min-h-0 items-center hover:text-emerald-700 transition-colors"
       >
-        {locale === "zh-CN" ? "特别致谢" : locale === "ja" ? "謝辞" : locale === "pl" ? "Podziękowania" : "Thanks"}
+        {
+          locale === "zh-CN"
+            ? "特别致谢"
+            : locale === "zh-TW"
+              ? "特別致謝"
+              : locale === "ja"
+                ? "謝辞"
+                : locale === "pl"
+                  ? "Podziękowania"
+                  : locale === "es"
+                    ? "Agradecimientos"
+                    : locale === "de"
+                      ? "Danksagung"
+                      : locale === "fr"
+                        ? "Remerciements"
+                        : locale === "ru"
+                          ? "Благодарности"
+                          : "Thanks"
+        }
       </a>
       <span class="text-slate-300">•</span>
       <a href={getLocalizedPath(locale, "/guides/best-practices")} class="inline-flex min-h-11 sm:min-h-0 items-center hover:text-emerald-700 transition-colors">

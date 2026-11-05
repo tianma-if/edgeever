@@ -1,0 +1,47 @@
+---
+import Container from "@/components/container.astro";
+import Features from "@/components/features.astro";
+import Guides from "@/components/guides.astro";
+import Hero from "@/components/hero.astro";
+import Logos from "@/components/logos.astro";
+import MarqueeShowcase from "@/components/marquee-showcase.astro";
+import Layout from "@/layouts/Layout.astro";
+
+const siteUrl = new URL(Astro.url.pathname, Astro.site).toString();
+
+const homeJsonLd = [
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: "EdgeEver",
+    alternateName: "EdgeEver Evernote Alternative",
+    url: siteUrl,
+    inLanguage: "zh-TW",
+    description: "EdgeEver 是開源、原生支援 AI 的自託管筆記與知識庫工作區。保留經典三欄高效體驗，支援 ACP 本機 Agent 深度協同、AI 伴侶側邊欄、視覺化圖表筆記與多端同步，覆蓋 macOS、Windows、Linux、iOS、Android 與瀏覽器剪藏，支援在 Cloudflare 免費額度內運行或使用 Docker 一鍵自託管。",
+    keywords: ["Evernote 替代","開源筆記","自託管筆記","AI 筆記"],
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    name: "EdgeEver",
+    alternateName: "EdgeEver Evernote Alternative",
+    url: siteUrl,
+    codeRepository: "https://github.com/tianma-if/edgeever",
+    applicationCategory: "ProductivityApplication",
+    operatingSystem: "macOS, Windows, Linux, iOS, Android, Web, Chrome, Edge, Firefox",
+    isAccessibleForFree: true,
+    description: "EdgeEver 是開源、原生支援 AI 的自託管筆記與知識庫工作區。保留經典三欄工作區（目錄樹 · 筆記列表 · 編輯寫作）、全平台客戶端、視覺化圖表筆記、REST API、MCP 與 ACP 本機協同。",
+    keywords: ["Evernote 替代","開源筆記","自託管筆記","AI 筆記"],
+  },
+];
+---
+
+<Layout title="" jsonLd={homeJsonLd}>
+  <Container>
+    <Hero />
+    <MarqueeShowcase />
+    <Features />
+    <Guides />
+    <Logos />
+  </Container>
+</Layout>

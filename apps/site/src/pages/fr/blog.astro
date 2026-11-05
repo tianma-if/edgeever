@@ -1,0 +1,159 @@
+---
+import { getCollection } from "astro:content";
+import Layout from "@/layouts/Layout.astro";
+import Container from "@/components/container.astro";
+import { getFormattedDate } from "@/utils/all";
+import { getLocalizedPath, getSiteLocale, siteCopy } from "@/i18n";
+
+const entries = (await getCollection("blog_en", ({ data }) => !data.draft)).sort(
+  (a, b) => Number(b.id === "note-migration-guide") - Number(a.id === "note-migration-guide")
+    || b.data.publishDate.getTime() - a.data.publishDate.getTime(),
+);
+
+const locale = getSiteLocale(Astro.url.pathname);
+const copy = siteCopy[locale].nav;
+
+const blogDescription = "Articles sur le déploiement, la migration depuis Evernote, les nouveautés du produit et les workflows d'IA. Le contenu technique des articles est en anglais.";
+
+const blogUrl = new URL(Astro.url.pathname, Astro.site).toString();
+const blogJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "CollectionPage",
+  name: "EdgeEver Blog",
+  url: blogUrl,
+  inLanguage: "fr",
+  description: blogDescription,
+};
+---
+
+<Layout title="Blog" description={blogDescription} jsonLd={blogJsonLd}>
+  <Container>
+    <section class="py-16 md:py-24">
+      <p class="text-sm font-semibold text-brand-text">{copy.blog}</p>
+      <h1 class="mt-3 text-4xl font-bold tracking-tight text-slate-900 md:text-5xl">Blog</h1>
+      <p class="mt-5 max-w-2xl text-lg leading-8 text-slate-600">{blogDescription}</p>
+
+      <div class="mt-8 flex flex-wrap gap-3">
+        <a
+          href={getLocalizedPath(locale, "/blog")}
+          data-tag-btn="all"
+          class="rounded-full border border-brand-border/40 bg-brand/5 px-4 py-2 text-sm font-semibold text-brand shadow-sm"
+        >
+          {copy.tagAll}
+        </a>
+        <a
+          href={`${getLocalizedPath(locale, "/blog")}?tag=migration`}
+          data-tag-btn="migration"
+          class="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+        >
+          {copy.tagMigration}
+        </a>
+        <a
+          href={`${getLocalizedPath(locale, "/blog")}?tag=mcp`}
+          data-tag-btn="mcp"
+          class="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+        >
+          {copy.tagMcp}
+        </a>
+        <a
+          href={`${getLocalizedPath(locale, "/blog")}?tag=self-hosted`}
+          data-tag-btn="self-hosted"
+          class="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+        >
+          {copy.tagSelfHosted}
+        </a>
+      </div>
+
+      <div class="mt-12 grid gap-8 md:grid-cols-2 lg:grid-cols-3">
+        {
+          entries.map((entry) => (
+            <article
+              data-tags={entry.data.tags.join(",")}
+              class="group flex flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white transition hover:-translate-y-1 hover:border-slate-300 hover:shadow-lg"
+            >
+              <a href={getLocalizedPath(locale, `/blog/${entry.id}`)} class="block overflow-hidden">
+                <img
+                  src={entry.data.image.src}
+                  alt={entry.data.image.alt}
+                  class="h-48 w-full object-cover transition duration-300 group-hover:scale-105"
+                  loading="lazy"
+                />
+              </a>
+              <div class="flex flex-1 flex-col p-6">
+                <div class="flex items-center gap-3 text-xs text-slate-500">
+                  <span class="rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600">
+                    {entry.data.category}
+                  </span>
+                  <time datetime={entry.data.publishDate.toISOString()}>
+                    {getFormattedDate(entry.data.publishDate)}
+                  </time>
+                </div>
+                <h2 class="mt-3 text-xl font-bold tracking-tight text-slate-900 group-hover:text-brand-text">
+                  <a href={getLocalizedPath(locale, `/blog/${entry.id}`)}>{entry.data.title}</a>
+                </h2>
+                <p class="mt-3 flex-1 text-sm leading-6 text-slate-600">{entry.data.snippet}</p>
+                <div class="mt-4 flex flex-wrap gap-1.5">
+                  {entry.data.tags.map((tag) => (
+                    <span class="text-xs text-slate-400">#{tag}</span>
+                  ))}
+                </div>
+              </div>
+            </article>
+          ))
+        }
+      </div>
+    </section>
+  </Container>
+</Layout>
+
+<script>
+  function setupTagFilter() {
+    const buttons = document.querySelectorAll<HTMLAnchorElement>("[data-tag-btn]");
+    const articles = document.querySelectorAll<HTMLElement>("article[data-tags]");
+
+    function applyFilter(activeTag: string) {
+      buttons.forEach((btn) => {
+        const btnTag = btn.getAttribute("data-tag-btn");
+        const isActive = (activeTag === "" && btnTag === "all") || btnTag === activeTag;
+        if (isActive) {
+          btn.className =
+            "rounded-full border border-brand-border/40 bg-brand/5 px-4 py-2 text-sm font-semibold text-brand shadow-sm";
+        } else {
+          btn.className =
+            "rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-slate-900";
+        }
+      });
+
+      articles.forEach((article) => {
+        const tags = (article.getAttribute("data-tags") || "").split(",");
+        if (!activeTag || activeTag === "all" || tags.includes(activeTag)) {
+          article.style.display = "";
+        } else {
+          article.style.display = "none";
+        }
+      });
+    }
+
+    const initialTag = new URLSearchParams(window.location.search).get("tag") || "";
+    applyFilter(initialTag);
+
+    buttons.forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        const btnTag = btn.getAttribute("data-tag-btn") || "";
+        const nextTag = btnTag === "all" ? "" : btnTag;
+        const url = new URL(window.location.href);
+        if (nextTag) {
+          url.searchParams.set("tag", nextTag);
+        } else {
+          url.searchParams.delete("tag");
+        }
+        window.history.pushState({}, "", url.toString());
+        applyFilter(nextTag);
+      });
+    });
+  }
+
+  setupTagFilter();
+  document.addEventListener("astro:page-load", setupTagFilter);
+</script>

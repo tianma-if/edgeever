@@ -8,11 +8,21 @@ const locale = getSiteLocale(Astro.url.pathname);
 const heading =
   locale === "zh-CN"
     ? "基于现代且高效的技术栈构建"
-    : locale === "ja"
-      ? "モダンで効率的な技術スタックで構築"
-      : locale === "pl"
-        ? "Zbudowany na nowoczesnym, wydajnym stosie technologicznym"
-        : "Built with a modern, efficient technology stack";
+    : locale === "zh-TW"
+      ? "基於現代且高效的技術棧構建"
+      : locale === "ja"
+        ? "モダンで効率的な技術スタックで構築"
+        : locale === "pl"
+          ? "Zbudowany na nowoczesnym, wydajnym stosie technologicznym"
+          : locale === "es"
+            ? "Construido con una pila tecnológica moderna y eficiente"
+            : locale === "de"
+              ? "Entwickelt mit einem modernen und effizienten Technologie-Stack"
+              : locale === "fr"
+                ? "Conçu avec une pile technologique moderne et performante"
+                : locale === "ru"
+                  ? "Создан на основе современного и производительного технологического стека"
+                  : "Built with a modern, efficient technology stack";
 
 const technologies = [
   { name: "React", icon: "simple-icons:react", hoverClass: "group-hover:text-indigo-600" },

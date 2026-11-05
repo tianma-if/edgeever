@@ -1,7 +1,22 @@
+import { deSiteCopy, deSiteTagline } from "./i18n-de";
+import { esSiteCopy, esSiteTagline } from "./i18n-es";
+import { frSiteCopy, frSiteTagline } from "./i18n-fr";
 import { jaSiteCopy, jaSiteTagline } from "./i18n-ja";
 import { plSiteCopy, plSiteTagline } from "./i18n-pl";
+import { ruSiteCopy, ruSiteTagline } from "./i18n-ru";
+import { zhTwSiteCopy, zhTwSiteTagline } from "./i18n-zh-tw";
 
-export const siteLocales = ["zh-CN", "en-US", "ja", "pl"] as const;
+export const siteLocales = [
+  "zh-CN",
+  "zh-TW",
+  "en-US",
+  "es",
+  "de",
+  "fr",
+  "ja",
+  "pl",
+  "ru",
+] as const;
 export type SiteLocale = (typeof siteLocales)[number];
 
 export const defaultSiteLocale: SiteLocale = "zh-CN";
@@ -11,26 +26,41 @@ export const siteLocaleDataAttribute = "data-edgeever-site-locale";
 
 export const siteLocalePrefixes: Record<SiteLocale, string> = {
   "zh-CN": "",
+  "zh-TW": "/zh-tw",
   "en-US": "/en",
+  es: "/es",
+  de: "/de",
+  fr: "/fr",
   ja: "/ja",
   pl: "/pl",
+  ru: "/ru",
 };
 
 export const siteLocaleLabels: Record<SiteLocale, string> = {
   "zh-CN": "简体中文",
+  "zh-TW": "繁體中文",
   "en-US": "English",
+  es: "Español",
+  de: "Deutsch",
+  fr: "Français",
   ja: "日本語",
   pl: "Polski",
+  ru: "Русский",
 };
 
 export const siteTaglines = {
   "zh-CN": "AI 原生知识库与印象笔记 / Obsidian 替代方案，支持多端瞬时同步与原生 MCP。Cloudflare 免费托管或 Docker 自托管",
+  "zh-TW": zhTwSiteTagline,
   "en-US": "AI-native knowledge base & Evernote/Obsidian alternative with instant sync & native MCP. Free on Cloudflare or self-hosted via Docker.",
+  es: esSiteTagline,
+  de: deSiteTagline,
+  fr: frSiteTagline,
   ja: jaSiteTagline,
   pl: plSiteTagline,
+  ru: ruSiteTagline,
 } as const satisfies Record<SiteLocale, string>;
 
-const localePrefixPattern = /^\/(en|ja|pl)(?=\/|$)/;
+const localePrefixPattern = /^\/(zh-tw|en|es|de|fr|ja|pl|ru)(?=\/|$)/;
 
 export const stripSiteLocalePrefix = (path: string) => {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
@@ -44,12 +74,37 @@ export const matchSiteLocale = (locale: string | null | undefined): SiteLocale |
 
   const normalized = locale.trim().replaceAll("_", "-").toLowerCase();
 
+  if (
+    normalized === "zh-tw" ||
+    normalized === "zh-hant" ||
+    normalized.startsWith("zh-tw-") ||
+    normalized.startsWith("zh-hant-") ||
+    normalized === "zh-hk" ||
+    normalized.startsWith("zh-hk-") ||
+    normalized === "zh-mo" ||
+    normalized.startsWith("zh-mo-")
+  ) {
+    return "zh-TW";
+  }
+
   if (normalized === "zh" || normalized.startsWith("zh-")) {
     return "zh-CN";
   }
 
   if (normalized === "en" || normalized.startsWith("en-")) {
     return "en-US";
+  }
+
+  if (normalized === "es" || normalized.startsWith("es-")) {
+    return "es";
+  }
+
+  if (normalized === "de" || normalized.startsWith("de-")) {
+    return "de";
+  }
+
+  if (normalized === "fr" || normalized.startsWith("fr-")) {
+    return "fr";
   }
 
   if (normalized === "ja" || normalized.startsWith("ja-")) {
@@ -60,12 +115,32 @@ export const matchSiteLocale = (locale: string | null | undefined): SiteLocale |
     return "pl";
   }
 
+  if (normalized === "ru" || normalized.startsWith("ru-")) {
+    return "ru";
+  }
+
   return null;
 };
 
 export const getSiteLocale = (pathname: string): SiteLocale => {
+  if (pathname === "/zh-tw" || pathname.startsWith("/zh-tw/")) {
+    return "zh-TW";
+  }
+
   if (pathname === "/en" || pathname.startsWith("/en/")) {
     return "en-US";
+  }
+
+  if (pathname === "/es" || pathname.startsWith("/es/")) {
+    return "es";
+  }
+
+  if (pathname === "/de" || pathname.startsWith("/de/")) {
+    return "de";
+  }
+
+  if (pathname === "/fr" || pathname.startsWith("/fr/")) {
+    return "fr";
   }
 
   if (pathname === "/ja" || pathname.startsWith("/ja/")) {
@@ -74,6 +149,10 @@ export const getSiteLocale = (pathname: string): SiteLocale => {
 
   if (pathname === "/pl" || pathname.startsWith("/pl/")) {
     return "pl";
+  }
+
+  if (pathname === "/ru" || pathname.startsWith("/ru/")) {
+    return "ru";
   }
 
   return "zh-CN";
@@ -667,4 +746,9 @@ export const siteCopy = {
   },
   ja: jaSiteCopy,
   pl: plSiteCopy,
+  "zh-TW": zhTwSiteCopy,
+  es: esSiteCopy,
+  de: deSiteCopy,
+  fr: frSiteCopy,
+  ru: ruSiteCopy,
 } as const;

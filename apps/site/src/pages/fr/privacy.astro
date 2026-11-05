@@ -1,0 +1,61 @@
+---
+import Container from "@/components/container.astro";
+import Layout from "@/layouts/Layout.astro";
+---
+
+<Layout
+  title="Politique de confidentialité"
+  description="Politique de confidentialité des applications mobiles et de l'extension Web Clipper EdgeEver."
+>
+  <Container>
+    <main class="mx-auto max-w-3xl py-12 text-slate-700 md:py-20">
+      <article class="rounded-lg border border-slate-200 bg-white p-8 shadow-sm md:p-10">
+        <h1 class="text-3xl font-bold text-slate-950">Politique de confidentialité</h1>
+        <p class="mt-3 text-sm text-slate-500">Date d'entrée en vigueur : 18 juillet 2026</p>
+
+        <div class="mt-8 space-y-8 leading-7">
+          <section>
+            <h2 class="text-xl font-bold text-slate-900">Portée</h2>
+            <p class="mt-3">La présente politique s'applique aux applications mobiles EdgeEver pour iOS et Android ainsi qu'à l'extension EdgeEver Web Clipper. EdgeEver est une solution de prise de notes open source et auto-hébergée. Les utilisateurs choisissent et gèrent eux-mêmes l'instance à laquelle ils se connectent.</p>
+          </section>
+
+          <section>
+            <h2 class="text-xl font-bold text-slate-900">Données traitées</h2>
+            <ul class="mt-3 list-disc space-y-2 pl-6">
+              <li>L'application mobile traite l'adresse de l'instance, le nom d'utilisateur et le mot de passe saisis lors de la connexion. Les identifiants de session sont conservés dans le trousseau sécurisé du terminal.</li>
+              <li>Les carnets, notes, tags et pièces jointes sont échangés directement entre l'appareil et votre instance auto-hébergée. L'application conserve un miroir local SQLite et des files de synchronisation pour assurer une consultation rapide et l'édition hors ligne.</li>
+              <li>Web Clipper traite l'URL, le titre et les contenus sélectionnés de la page active uniquement lorsque l'utilisateur choisit d'enregistrer. Les configurations sont stockées localement dans le navigateur.</li>
+            </ul>
+          </section>
+
+          <section>
+            <h2 class="text-xl font-bold text-slate-900">Utilisation et transmission</h2>
+            <p class="mt-3">Les applications communiquent exclusivement avec l'instance EdgeEver spécifiée par l'utilisateur. Les responsables du projet n'exploitent aucun serveur centralisé pour capter, relayer ou stocker vos notes et identifiants.</p>
+            <p class="mt-3">Les applications ne comportent aucune publicité, aucun outil analytique et aucun suivi comportemental. Vos données ne sont ni vendues ni cédées à des tiers.</p>
+          </section>
+
+          <section>
+            <h2 class="text-xl font-bold text-slate-900">Autorisations requises</h2>
+            <ul class="mt-3 list-disc space-y-2 pl-6">
+              <li>Accès réseau : pour se connecter et synchroniser avec l'instance définie par l'utilisateur.</li>
+              <li>Accès aux fichiers : uniquement lorsque l'utilisateur sélectionne des documents à joindre, importer ou exporter via le sélecteur du système.</li>
+              <li>activeTab : pour lire l'onglet actif uniquement lors de l'activation du clipper.</li>
+              <li>scripting : pour extraire le contenu de la page enregistrée.</li>
+              <li>storage : pour stocker localement les paramètres dans le navigateur.</li>
+            </ul>
+          </section>
+
+          <section>
+            <h2 class="text-xl font-bold text-slate-900">Sécurité et conservation</h2>
+            <p class="mt-3">L'utilisation de connexions HTTPS est vivement conseillée. Les données locales sont effacées lors de la déconnexion ou de la désinstallation de l'application. La politique de rétention sur le serveur dépend entièrement de votre propre configuration d'hébergement.</p>
+          </section>
+
+          <section>
+            <h2 class="text-xl font-bold text-slate-900">Nous contacter</h2>
+            <p class="mt-3">Pour toute question relative à la protection de la vie privée, veuillez ouvrir un ticket sur le dépôt GitHub officiel d'EdgeEver.</p>
+          </section>
+        </div>
+      </article>
+    </main>
+  </Container>
+</Layout>
