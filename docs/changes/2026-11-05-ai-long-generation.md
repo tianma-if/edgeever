@@ -10,7 +10,7 @@ After PR A (#791), models with known limits are no longer cut at 4096. Gateways 
 
 - Source-sized tasks (translate, proofread, polish, simplify, change tone) that one request cannot finish run in parts split along the Markdown structure.
 - Tasks that depend on the whole note (continue writing, make longer, custom instructions) continue automatically after being cut off.
-- In the Web and desktop sidebar, `/translate`, `/improve` and the selection menu's Translate use the note-generation flow. The result is previewed in the sidebar with copy, insert and replace, and the latest unapplied draft is restored on this device after a reload.
+- In the Web and desktop sidebar, `/translate`, `/improve` and the selection menu's Translate use the note-generation flow. The result appears as one turn of the sidebar conversation, like an Agent reply, with copy, insert and replace, and the latest unapplied draft is restored on this device after a reload.
 - The Android and iOS AI assistants and the Android editor selection panel run parts and continuations the same way, and show progress and the parts that could not finish.
 
 ## Allowed changes and acceptance
@@ -29,7 +29,7 @@ After PR A (#791), models with known limits are no longer cut at 4096. Gateways 
    - An error, a dropped connection or a stop in any part ends the run. The text so far stays as an incomplete draft, and requests that already returned are never repeated.
 3. **Sidebar body commands (Web / desktop)**:
    - When the default model is available, `/translate [language]`, `/improve`, the skill buttons and the selection menu's Translate use note generation. Other words after a command become the user's instruction. `/summarize`, Explain and chat stay with the Agent, which can still edit notes.
-   - The draft panel shows progress, incomplete notices and target-language choices. It offers copy, insert (after the selection or at the end of the note), replace (the note or the selection), regenerate and discard.
+   - The result is placed in the conversation by time: the command (or the quoted selection for selection Translate) is the user's message and the draft is the reply. Under it are progress, incomplete notices and the actions: copy, insert (after the selection or at the end of the note), replace (the note or the selection), switch target language, regenerate and discard. The draft is not written to the Agent's conversation history.
    - Replace is only offered for a finished, complete draft. Replacing the note after it changed since generation asks for confirmation. When the selected text changed, the panel offers to replace the text selected now, or asks the user to select the text again.
 4. **Draft recovery (Web / desktop)**: each note keeps only its latest generated, unapplied draft on this device, isolated by instance and account (the account determines the workspace). It is cleared when applied or discarded, and when signing out clears local data. A request still generating ends with the page and does not resume after a reload. Drafts live in their own IndexedDB database `edgeever-ai-drafts`; the main local database `edgeever-local` keeps its schema version.
 5. **Mobile UI**: the Android AI assistant, the editor selection panel and the iOS AI assistant show "Working on part i of n". When parts could not finish, they say which parts kept the original text and disable replace. Strings cover five languages.

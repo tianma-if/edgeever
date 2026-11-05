@@ -3,17 +3,25 @@ import { readFileSync } from "node:fs";
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
 const sidebar = read("./AiSidebar.tsx");
-const panel = read("./AiBodyDraftPanel.tsx");
+const panel = read("./AiBodyDraftTurn.tsx");
 const hook = read("./useAiBodyDraft.ts");
 const editor = read("../EditorPane.tsx");
 const store = read("../../lib/ai-body-draft-store.ts");
 const mirror = read("../../lib/local-mirror.ts");
 
 describe("sidebar body drafts (#652 PR B)", () => {
+  test("a draft is one turn of the conversation, in time order, with the request and its result", () => {
+    expect(panel).toContain('<Message from="user">');
+    expect(panel).toContain('<Message from="assistant">');
+    expect(sidebar).toContain("const draftSlot = currentDraft ? visibleTurns.filter((turn) => turn.createdAt <= currentDraft.createdAt).length : -1;");
+    expect(sidebar).toContain("{index === draftSlot ? draftTurn : null}");
+    expect(sidebar).not.toContain("<AiBodyDraftPanel");
+  });
+
   test("/translate, /improve and selection Translate run on the instance model; other turns stay with the Agent", () => {
-    expect(sidebar).toContain("if (skill && onBodySkill?.(skill.id, skill.rest)) return;");
-    expect(sidebar).toContain('if (request.kind === "translate" && selectionPin && runBodySkill("translate", "")) {');
-    expect(sidebar).toContain("if (runBodySkill(skill.id, \"\")) return;");
+    expect(sidebar).toContain("if (skill && onBodySkill?.(skill.id, skill.rest, raw)) return;");
+    expect(sidebar).toContain('if (request.kind === "translate" && selectionPin && runBodySkill("translate", "", selectionAiUserMessage({');
+    expect(sidebar).toContain("if (runBodySkill(skill.id, \"\", t(`aiAssistant.sidebar.skills.${skill.id}`))) return;");
     expect(sidebar).toContain("const bodyDraftEnabled = Boolean(aiDraftEditor && memoId && companionAvailable);");
     // Explain and free-form chat still launch Agent turns.
     expect(sidebar).toContain("void launch(message, { readOnly: true })");

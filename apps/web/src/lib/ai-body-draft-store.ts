@@ -30,6 +30,8 @@ export type AiBodyDraftRecord = {
   scope: string;
   memoId: string;
   action: AiBodyDraftAction;
+  /** What the user asked, shown as the request in the sidebar conversation. */
+  message: string;
   targetLanguage?: AiTargetLanguage;
   instruction?: string;
   source: string;

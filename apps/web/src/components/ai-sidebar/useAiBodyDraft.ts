@@ -70,7 +70,7 @@ export const useAiBodyDraft = (options: {
     void loadAiBodyDraft(scope, memoId).then((record) => {
       if (cancelled || !record || draftRef.current) return;
       const { scope: _scope, ...rest } = record;
-      setDraft({ ...rest, generating: false, progress: null, error: null, recovered: true });
+      setDraft({ ...rest, message: rest.message || rest.source.slice(0, 80), generating: false, progress: null, error: null, recovered: true });
     });
     return () => {
       cancelled = true;
@@ -91,7 +91,7 @@ export const useAiBodyDraft = (options: {
     await saveAiBodyDraft({ ...record, scope });
   }, [scope]);
 
-  const start = useCallback(async (command: AiBodyCommand, target: AiBodyDraftTargetRequest, sourceOverride?: string) => {
+  const start = useCallback(async (command: AiBodyCommand, target: AiBodyDraftTargetRequest, message: string, sourceOverride?: string) => {
     if (!memoId || !editor) return;
     controllerRef.current?.abort();
     const source = sourceOverride ?? (target.kind === "note" ? editor.noteMarkdown() : target.snapshot.text);
@@ -105,6 +105,7 @@ export const useAiBodyDraft = (options: {
     const initial: AiBodyDraft = {
       memoId,
       action: command.action,
+      message,
       ...(command.targetLanguage ? { targetLanguage: command.targetLanguage } : {}),
       ...(command.instruction ? { instruction: command.instruction } : {}),
       source,
@@ -195,7 +196,7 @@ export const useAiBodyDraft = (options: {
       action: previous.action,
       ...(targetLanguage ?? previous.targetLanguage ? { targetLanguage: targetLanguage ?? previous.targetLanguage } : {}),
       ...(previous.instruction ? { instruction: previous.instruction } : {}),
-    }, target, previous.target.kind === "selection" ? previous.source : undefined);
+    }, target, previous.message, previous.target.kind === "selection" ? previous.source : undefined);
   }, [start]);
 
   const applied = useCallback(async () => {

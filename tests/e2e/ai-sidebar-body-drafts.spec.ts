@@ -30,12 +30,14 @@ const mockProvider = async (page: Page, mode: ProviderMode, seen: Array<{ part: 
     const token = /<edgeever-result-([0-9a-f]+)>/.exec(system)?.[1];
     const part = /part (\d+) of (\d+)/.exec(system)?.[1] ?? null;
     seen.push({ part });
-    const heading = /## 第 \d+ 节/.exec(prompt)?.[0] ?? "## Part";
     const start = `<edgeever-result-${token}>\n`;
     const end = `\n</edgeever-result-${token}>`;
-    const text = part
-      ? `${heading.replace("第", "Section").replace(" 节", "")}\n\nTranslated part ${part}.`
-      : "Translated selection.";
+    // A translation as long as its source: headings become "## Section N", text becomes English words.
+    const source = prompt.split("ignore it when unrelated to the user instruction):\n")[1]?.split("\n\nTarget language:")[0] ?? "";
+    const english = source
+      .replace(/## 第 (\d+) 节/g, "## Section $1")
+      .replace(/[\u4e00-\u9fff，。]+/g, (run) => "text ".repeat(Math.ceil(run.length / 2)).trim());
+    const text = part ? `Translated part ${part}.\n\n${english}` : "Translated selection.";
     const cut = mode === "cut-part-2" && part === "2";
     return route.fulfill({
       status: 200,
@@ -106,12 +108,14 @@ test("a long note is translated in parts, kept after a reload and replaces the n
     await page.keyboard.press("Enter");
     const draft = page.locator("[data-ai-body-draft=translate]");
     await expect(draft).toBeVisible();
+    await expect(draft.locator(".is-user")).toHaveText("/translate en");
     await expect(draft.getByRole("button", { name: "替换整篇笔记" })).toBeEnabled({ timeout: 60_000 });
     const parts = new Set(seen.map((item) => item.part));
     expect(parts.size).toBeGreaterThan(1);
     expect(parts.has(null)).toBe(false);
     await expect(draft).toContainText("Translated part 1.");
     await expect(draft).not.toContainText("不完整");
+    if (process.env.E2E_SCREENSHOT) await page.screenshot({ path: "test-results/body-draft-turn.png" });
 
     // The unapplied draft survives a reload on this device.
     await page.reload();
@@ -161,7 +165,9 @@ test("selection Translate drafts only the selection and replaces only it (#652 P
     await paragraph.click({ clickCount: 3 });
     await page.locator("[data-selection-ai-action=translate]").first().click();
     const draft = page.locator("[data-ai-body-draft=translate]");
-    await expect(draft).toContainText("选中内容");
+    // The request shows as the user's message, with the selected text quoted.
+    await expect(draft.locator(".is-user")).toContainText("翻译");
+    await expect(draft.locator(".is-user")).toContainText("这是一段用于测试侧栏分段翻译的中文正文");
     await expect(draft.getByRole("button", { name: "替换选中内容" })).toBeEnabled({ timeout: 30_000 });
     await expect(draft).toContainText("Translated selection.");
     expect(seen.every((item) => item.part === null)).toBe(true);
