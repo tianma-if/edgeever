@@ -60,23 +60,13 @@ const copy = siteCopy[locale].hero;
         target="_blank"
         rel="noopener"
         aria-label="EdgeEver on GitHub"
-        class="group inline-flex h-11 gap-2.5 items-center justify-center px-5 border border-slate-200 hover:border-slate-300 bg-white/90 hover:bg-slate-50/90 backdrop-blur-sm text-slate-800 transition-all duration-300 rounded-full font-semibold text-sm hover:-translate-y-0.5 shadow-2xs hover:shadow-xs w-full sm:w-auto text-center"
+        class="group inline-flex h-11 gap-2 items-center justify-center px-5 border border-slate-200 hover:border-slate-300 bg-white/90 hover:bg-slate-50/90 backdrop-blur-sm text-slate-800 transition-all duration-300 rounded-full font-semibold text-sm hover:-translate-y-0.5 shadow-2xs hover:shadow-xs w-full sm:w-auto text-center"
       >
-        <span class="inline-flex items-center gap-1.5">
-          <Icon class="text-slate-800 w-4 h-4 shrink-0 transition-transform duration-200 group-hover:scale-110" name="bx:bxl-github" />
-          <span>GitHub</span>
-        </span>
-        <span class="h-3.5 w-px bg-slate-200 group-hover:bg-slate-300 transition-colors" aria-hidden="true"></span>
-        <span class="inline-flex items-center gap-2 text-xs font-medium text-slate-600 tabular-nums">
-          <span class="inline-flex items-center gap-1 group-hover:text-slate-900 transition-colors">
-            <Icon name="bx:bxs-star" class="w-3.5 h-3.5 text-slate-400 group-hover:text-amber-500 transition-colors" />
-            <span data-github-stars>--</span>
-          </span>
-          <span class="text-slate-300 select-none" aria-hidden="true">·</span>
-          <span class="inline-flex items-center gap-1 group-hover:text-slate-900 transition-colors">
-            <Icon name="bx:git-repo-forked" class="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-600 transition-colors" />
-            <span data-github-forks>--</span>
-          </span>
+        <Icon class="text-slate-800 w-4 h-4 shrink-0 transition-transform duration-200 group-hover:scale-110" name="bx:bxl-github" />
+        <span>GitHub</span>
+        <span class="inline-flex items-center gap-1 text-xs font-medium text-slate-500 group-hover:text-slate-700 transition-colors tabular-nums ml-0.5">
+          <Icon name="bx:bxs-star" class="w-3.5 h-3.5 text-amber-500" />
+          <span data-github-stars>--</span>
         </span>
       </a>
       <a
