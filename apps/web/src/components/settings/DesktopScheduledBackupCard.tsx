@@ -117,34 +117,24 @@ export const DesktopScheduledBackupCard = () => {
           <Button type="button" size="sm" variant="outline" disabled={saving} onClick={() => void attempt(() => bridge.backup("open-folder", { backupSetId: status.backupSetId }))}><FolderOpen className="mr-1.5 h-4 w-4" />{t("desktopBackup.openFolder")}</Button>
         </div>
         <div className="grid gap-2 rounded-lg border border-border/60 bg-muted/30 p-3.5 text-xs" aria-live="polite" data-backup-status>
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 pb-2">
-            <div className="flex items-center gap-2 font-medium text-slate-800 dark:text-slate-200">
-              {status.task ? (
-                <>
-                  <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-                  <span>{t(`desktopBackup.phases.${status.task.phase}`)}{status.task.total > 0 ? ` (${status.task.completed} / ${status.task.total})` : ""}</span>
-                </>
-              ) : status.config.enabled ? (
-                <>
-                  <span className="relative flex h-2 w-2">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                    <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-600" />
-                  </span>
-                  <span>{t("desktopBackup.autoRunning")}</span>
-                  <span className="font-normal text-muted-foreground">({t(`desktopBackup.intervals.${config.interval}`)} · {t("desktopBackup.copies", { count: config.retention })})</span>
-                </>
-              ) : (
-                <>
-                  <span className="inline-flex h-2 w-2 rounded-full bg-slate-400" />
-                  <span>{t("desktopBackup.autoOff")}</span>
-                </>
-              )}
-            </div>
-            {status.lastCheck?.result === "success" ? (
-              <span className="rounded bg-emerald-100/80 px-1.5 py-0.5 text-[11px] font-normal text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
-                {t("desktopBackup.statusNormal")}
-              </span>
-            ) : null}
+          <div className="flex flex-wrap items-center gap-2 border-b border-border/40 pb-2 font-medium text-slate-800 dark:text-slate-200">
+            {status.task ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                <span>{t(`desktopBackup.phases.${status.task.phase}`)}{status.task.total > 0 ? ` (${status.task.completed} / ${status.task.total})` : ""}</span>
+              </>
+            ) : status.config.enabled ? (
+              <>
+                <span aria-hidden="true" className="size-2 shrink-0 rounded-full bg-emerald-600" />
+                <span>{t("desktopBackup.autoRunning")}</span>
+                <span className="font-normal text-muted-foreground">({t(`desktopBackup.intervals.${config.interval}`)} · {t("desktopBackup.copies", { count: config.retention })})</span>
+              </>
+            ) : (
+              <>
+                <span className="inline-flex h-2 w-2 rounded-full bg-slate-400" />
+                <span>{t("desktopBackup.autoOff")}</span>
+              </>
+            )}
           </div>
 
           <div className="grid gap-1">

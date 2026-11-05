@@ -2215,7 +2215,6 @@ export const zhCN = {
     emptyHistory: "暂无本地备份快照。",
     historyCleanedOrMoved: "历史快照已按保留策略清理，或文件已被移出备份目录。",
     autoRunning: "自动备份运行中",
-    statusNormal: "状态正常",
     settings: "备份与加密设置",
     lastCheck: "最近检查：{{time}}",
     notChecked: "尚未检查",

@@ -2196,7 +2196,6 @@ export const enUS = {
     emptyHistory: "No local backup snapshots yet.",
     historyCleanedOrMoved: "Historical snapshots have been pruned by retention policy or moved.",
     autoRunning: "Scheduled backup running",
-    statusNormal: "Healthy",
     settings: "Backup & encryption settings",
     lastCheck: "Latest check: {{time}}",
     notChecked: "Not checked yet",

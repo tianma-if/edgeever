@@ -2204,7 +2204,6 @@ export const pl = {
     emptyHistory: "Brak lokalnych kopii zapasowych.",
     historyCleanedOrMoved: "Wcześniejsze migawki zostały usunięte zgodnie z zasadami przechowywania lub przeniesione.",
     autoRunning: "Automatyczne kopie zapasowe w toku",
-    statusNormal: "W normie",
     settings: "Ustawienia kopii zapasowych",
     lastCheck: "Ostatnie sprawdzenie: {{time}}",
     notChecked: "Jeszcze nie sprawdzono",

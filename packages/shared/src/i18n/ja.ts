@@ -2204,7 +2204,6 @@ export const ja = {
     emptyHistory: "ローカルバックアップはまだありません。",
     historyCleanedOrMoved: "保持ポリシーにより古いスナップショットが整理されたか、ファイルが移動されました。",
     autoRunning: "自動バックアップが有効です",
-    statusNormal: "正常",
     settings: "バックアップ設定",
     lastCheck: "最終確認：{{time}}",
     notChecked: "未確認",
