@@ -1,13 +1,23 @@
 import { useRef } from "react";
 import { CheckCircle2, ExternalLink, FileUp, Folder, LoaderCircle, TriangleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import evernoteLogo from "@/assets/import-logos/evernote.svg?url";
+import joplinLogo from "@/assets/import-logos/joplin.svg?url";
+import obsidianLogo from "@/assets/import-logos/obsidian.svg?url";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import type { Notebook } from "@edgeever/shared";
 import type { ImportFormat, ImportIssue } from "@edgeever/shared/note-import/types";
 import type { NoteImportController, NoteImportSnapshot } from "@/lib/note-import/controller";
 import { EVERNOTE_MIGRATION_BLOG_URL } from "@/lib/routes";
+
+const importSources = {
+  evernote: { label: "Evernote / 印象笔记", logo: evernoteLogo },
+  obsidian: { label: "Obsidian", logo: obsidianLogo },
+  joplin: { label: "Joplin", logo: joplinLogo },
+} satisfies Record<ImportFormat, { label: string; logo: string }>;
 
 export const ThirdPartyImportDialog = ({ controller, state, onOpenMemo }: { controller: NoteImportController; state: NoteImportSnapshot; onOpenMemo: (memoId: string, notebookId: string) => void }) => {
   const { t } = useTranslation();
@@ -41,12 +51,28 @@ export const ThirdPartyImportDialog = ({ controller, state, onOpenMemo }: { cont
       </DialogHeader>
       <div className="min-h-0 space-y-5 overflow-y-auto pr-1">
         {state.phase === "idle" ? <div className="space-y-4">
-          <label className="grid gap-2 text-sm"><span>{t("noteImport.source")}</span>
-            <Select value={state.format} onValueChange={value => controller.setFormat(value as ImportFormat)}>
-              <SelectTrigger aria-label={t("noteImport.source")}><SelectValue /></SelectTrigger>
-              <SelectContent><SelectItem value="evernote">Evernote / 印象笔记</SelectItem><SelectItem value="obsidian">Obsidian</SelectItem><SelectItem value="joplin">Joplin</SelectItem></SelectContent>
-            </Select>
-          </label>
+          <div className="grid gap-2 text-sm">
+            <span id="note-import-source">{t("noteImport.source")}</span>
+            <ToggleGroup
+              type="single"
+              aria-labelledby="note-import-source"
+              className="flex-wrap gap-2"
+              value={state.format}
+              onValueChange={value => { if (value) controller.setFormat(value as ImportFormat); }}
+            >
+              {Object.entries(importSources).map(([format, { label, logo }]) => (
+                <ToggleGroupItem
+                  key={format}
+                  value={format}
+                  variant="outline"
+                  className="h-8 cursor-pointer gap-2 whitespace-nowrap px-2.5 text-xs font-normal data-[state=on]:border-foreground data-[state=on]:bg-card"
+                >
+                  <img src={logo} alt="" className="size-4 shrink-0 object-contain" />
+                  {label}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
+          </div>
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => files.current?.click()}><FileUp className="h-4 w-4" />{t("noteImport.files")}</Button>
             <Button variant="outline" onClick={() => directory.current?.click()}><Folder className="h-4 w-4" />{t("noteImport.folder")}</Button>
