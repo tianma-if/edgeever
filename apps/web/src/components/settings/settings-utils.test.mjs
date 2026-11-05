@@ -1,6 +1,10 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
 import {
   ALL_TOKEN_SCOPES,
+  buildMcpRemoteConfig,
+  EDGE_EVER_SERVER_URL_PLACEHOLDER,
+  getEdgeEverBaseUrl,
+  getMcpRemoteServerUrl,
   createDefaultTokenName,
   DEFAULT_TOKEN_ACCESS_LEVEL,
   getStoredTokenAccessLevel,
@@ -45,5 +49,61 @@ describe("API token access levels", () => {
       "read:tags",
       "write:tags",
     ])).toBe("full");
+  });
+});
+
+describe("MCP server address", () => {
+  const previousWindow = globalThis.window;
+  afterEach(() => {
+    if (previousWindow === undefined) delete globalThis.window;
+    else globalThis.window = previousWindow;
+  });
+
+  const installWindow = ({ origin, desktop, savedUrl = "" }) => {
+    const storage = new Map(savedUrl ? [["edgeever.desktop.api-base-url", savedUrl]] : []);
+    globalThis.window = {
+      location: { origin },
+      localStorage: { getItem: (key) => storage.get(key) ?? null },
+      edgeeverDesktop: desktop,
+    };
+  };
+
+  test("uses the page origin in the browser", () => {
+    installWindow({ origin: "https://notes.example" });
+    expect(getEdgeEverBaseUrl()).toBe("https://notes.example");
+    expect(getMcpRemoteServerUrl()).toBe("https://notes.example/mcp");
+  });
+
+  test("uses the configured instance on desktop instead of the app origin", () => {
+    installWindow({
+      origin: "edgeever-app://app",
+      desktop: { isAvailable: true, apiBaseUrl: "https://bridge.example" },
+      savedUrl: "https://ever.example//",
+    });
+    expect(getMcpRemoteServerUrl()).toBe("https://ever.example/mcp");
+    expect(JSON.parse(buildMcpRemoteConfig("eev_token"))).toEqual({
+      mcpServers: {
+        edgeever: {
+          url: "https://ever.example/mcp",
+          headers: { Authorization: "Bearer eev_token" },
+        },
+      },
+    });
+  });
+
+  test("falls back to the desktop bridge URL when nothing is saved", () => {
+    installWindow({ origin: "edgeever-app://app", desktop: { isAvailable: true, apiBaseUrl: "https://bridge.example/" } });
+    expect(getMcpRemoteServerUrl()).toBe("https://bridge.example/mcp");
+  });
+
+  test("shows a placeholder on desktop without a configured server", () => {
+    installWindow({ origin: "edgeever-app://app", desktop: { isAvailable: true, apiBaseUrl: "" } });
+    expect(getMcpRemoteServerUrl()).toBe(`${EDGE_EVER_SERVER_URL_PLACEHOLDER}/mcp`);
+    expect(getMcpRemoteServerUrl()).not.toContain("edgeever-app:");
+  });
+
+  test("shows a placeholder outside a browser", () => {
+    delete globalThis.window;
+    expect(getMcpRemoteServerUrl()).toBe(`${EDGE_EVER_SERVER_URL_PLACEHOLDER}/mcp`);
   });
 });
