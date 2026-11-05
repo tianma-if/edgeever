@@ -113,6 +113,8 @@ export const runAiLongGeneration = async (options: {
         joined = true;
         const merged = joinAiContinuation(before, held);
         const added = merged.slice(before.length);
+        // A continuation that is only whitespace adds nothing to the draft.
+        if (final && !added.trim()) return;
         draft = merged;
         if (added) onEvent({ type: "text-delta", text: added });
       };
@@ -127,6 +129,9 @@ export const runAiLongGeneration = async (options: {
       });
       release(true);
       if (result.error) return onEvent(result.error);
+      // Only a continuation that added text can end the cut-off state; an empty one (or one that
+      // only repeated what was there) leaves the draft incomplete and stops continuing.
+      if (!draft.slice(before.length).trim()) break;
       truncated = result.truncated;
       finishReason = result.finishReason;
     }

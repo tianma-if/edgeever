@@ -459,6 +459,8 @@ private final class Runner: @unchecked Sendable {
                 guard let held = seam.release(final: final) else { return }
                 let merged = AiLongGeneration.joinContinuation(before, held)
                 let added = String(merged.dropFirst(before.count))
+                // A continuation that is only whitespace adds nothing to the draft.
+                if final, added.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return }
                 draft.set(merged)
                 if !added.isEmpty { emit(AiLongGeneration.event("text-delta", text: added)) }
             }
@@ -473,6 +475,12 @@ private final class Runner: @unchecked Sendable {
             }
             release(true)
             if let error = result.error { return emit(error) }
+            // Only a continuation that added text can end the cut-off state; an empty one leaves
+            // the draft incomplete and stops continuing (#652 PR B review).
+            if String(draft.text.dropFirst(before.count)).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                result.truncated = true
+                break
+            }
             round += 1
         }
         var finish = AiLongGeneration.event("finish")

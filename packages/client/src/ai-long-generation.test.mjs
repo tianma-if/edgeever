@@ -179,6 +179,24 @@ describe("continuing a cut-off result (#652 PR B)", () => {
     expect(aiDraftIncompleteReason(sink.completion())).toBeNull();
   });
 
+  test("an empty continuation that ends normally keeps the draft incomplete (#652 PR B review)", async () => {
+    for (const second of [{ chunks: [] }, { chunks: ["   \n"] }, { chunks: ["Paragraph two is cut"] }]) {
+      const sink = collect();
+      const replies = [{ chunks: ["Paragraph one.\n\nParagraph two is cut"], truncated: true }, second];
+      let prepares = 0;
+      await runAiLongGeneration({
+        first: prepared(),
+        prepare: async () => { prepares += 1; return prepared(); },
+        stream: streamWith(() => replies.shift() ?? { chunks: ["more"] }),
+        onEvent: sink.onEvent,
+      });
+      expect(prepares).toBe(1);
+      expect(sink.text()).toBe("Paragraph one.\n\nParagraph two is cut");
+      expect(sink.events.at(-1)).toMatchObject({ type: "finish", truncated: true });
+      expect(aiDraftIncompleteReason(sink.completion())).toBe("truncated");
+    }
+  });
+
   test("stays incomplete after three rounds, when the window is full, or on an older server", async () => {
     const always = () => ({ chunks: ["more "], truncated: true });
     const rounds = collect();

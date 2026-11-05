@@ -312,6 +312,28 @@ final class AiLongGenerationTests: XCTestCase {
         XCTAssertEqual(older.events.last?.truncated, true)
     }
 
+    func testAnEmptyContinuationKeepsTheDraftIncomplete() async throws {
+        final class Replies: @unchecked Sendable {
+            var items: [(String, Bool)] = [("Paragraph one.\n\nParagraph two is cut", true), ("   \n", false)]
+        }
+        let replies = Replies()
+        let sink = Sink()
+        let writing = AiGenerateInput(action: .continueWriting, title: "t", contentMarkdown: "x", targetLanguage: nil)
+        try await AiLongGeneration.run(input: writing, first: prepared(), prepare: { [self] request in
+            sink.record(request)
+            return prepared()
+        }, stream: { _, emit in
+            let (text, cut) = replies.items.isEmpty ? ("more", true) : replies.items.removeFirst()
+            emit(AiLongGeneration.event("text-delta", text: text)); emit(self.finish(cut))
+        }, emit: sink.add)
+        XCTAssertEqual(sink.requests.count, 1)
+        XCTAssertEqual(sink.text, "Paragraph one.\n\nParagraph two is cut")
+        XCTAssertEqual(sink.events.last?.truncated, true)
+        var completion = AiDraftCompletion()
+        sink.events.forEach { completion.track($0) }
+        XCTAssertEqual(completion.incompleteReason, .truncated)
+    }
+
     func testAnErrorInAPartEndsTheRunWithTheTextSoFar() async throws {
         final class Count: @unchecked Sendable { var value = 0 }
         let count = Count()
