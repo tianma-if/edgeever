@@ -161,6 +161,7 @@ struct TotpQRCodeView: View {
 struct TotpCodeField: View {
     @Binding var code: String
     var autoFocus = true
+    var focusColor = TotpUI.primary
     @FocusState private var focused: Bool
 
     var body: some View {
@@ -176,7 +177,7 @@ struct TotpCodeField: View {
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(focused ? TotpUI.primary : AppTheme.border, lineWidth: focused ? 1.5 : 1)
+                    .stroke(focused ? focusColor : AppTheme.border, lineWidth: focused ? 1.5 : 1)
             )
             .focused($focused)
             .onChange(of: code) { _, next in
@@ -331,13 +332,14 @@ struct TotpActionButton: View {
 
 struct TotpLinkButton: View {
     let title: String
+    var color = AppTheme.accentStrong
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             Text(title)
                 .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(AppTheme.accentStrong)
+                .foregroundStyle(color)
                 .frame(minHeight: 36)
         }
         .buttonStyle(.plain)

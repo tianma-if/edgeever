@@ -130,7 +130,7 @@ export const LoginScreen = () => {
           <View style={styles.form}>
             <View style={styles.header}>
               <View style={styles.logo}>
-                <LockKeyhole color="#ffffff" size={22} />
+                <LockKeyhole color={styles.logoIcon.color} size={22} />
               </View>
               <View style={styles.headerText}>
                 <Text style={styles.title}>EdgeEver</Text>
@@ -151,6 +151,7 @@ export const LoginScreen = () => {
                 </View>
                 {mfa.method === "totp" ? (
                   <TotpCodeInput
+                    inputStyle={styles.verificationInput}
                     autoFocus
                     label={twoFactor.loginCode}
                     onChangeText={setMfaCode}
@@ -159,6 +160,7 @@ export const LoginScreen = () => {
                   />
                 ) : (
                   <TotpRecoveryCodeInput
+                    inputStyle={styles.verificationInput}
                     autoFocus
                     hint={twoFactor.recoveryCodeHint}
                     label={twoFactor.recoveryCode}
@@ -188,11 +190,11 @@ export const LoginScreen = () => {
                 </Pressable>
                 <View style={styles.links}>
                   {mfa.method === "totp" ? (
-                    <TotpLinkButton label={twoFactor.useRecoveryCode} onPress={() => switchMfaMethod("recovery")} />
+                    <TotpLinkButton textStyle={styles.linkText} label={twoFactor.useRecoveryCode} onPress={() => switchMfaMethod("recovery")} />
                   ) : (
-                    <TotpLinkButton label={twoFactor.useCode} onPress={() => switchMfaMethod("totp")} />
+                    <TotpLinkButton textStyle={styles.linkText} label={twoFactor.useCode} onPress={() => switchMfaMethod("totp")} />
                   )}
-                  <TotpLinkButton label={twoFactor.loginBackToPassword} onPress={() => backToPassword(null)} />
+                  <TotpLinkButton textStyle={styles.linkText} label={twoFactor.loginBackToPassword} onPress={() => backToPassword(null)} />
                 </View>
               </>
             ) : (
@@ -259,7 +261,7 @@ export const LoginScreen = () => {
 
 const baseLoginStyles = StyleSheet.create({
   safeArea: {
-    backgroundColor: "#ecfdf5",
+    backgroundColor: "#f8fafc",
     flex: 1,
   },
   githubButton: {
@@ -295,12 +297,13 @@ const baseLoginStyles = StyleSheet.create({
   },
   logo: {
     alignItems: "center",
-    backgroundColor: "#10b981",
+    backgroundColor: "#f1f5f9",
     borderRadius: 12,
     height: 48,
     justifyContent: "center",
     width: 48,
   },
+  logoIcon: { color: "#475569" },
   title: {
     color: "#0f172a",
     fontSize: 22,
@@ -314,7 +317,7 @@ const baseLoginStyles = StyleSheet.create({
   form: {
     alignSelf: "center",
     backgroundColor: "#ffffff",
-    borderColor: "#a7f3d0",
+    borderColor: "#e2e8f0",
     borderRadius: 18,
     borderWidth: 1,
     gap: 16,
@@ -340,6 +343,7 @@ const baseLoginStyles = StyleSheet.create({
     minHeight: 48,
     paddingHorizontal: 14,
   },
+  verificationInput: { borderColor: "#e2e8f0" },
   stepTitle: {
     color: "#0f172a",
     fontSize: 17,
@@ -350,6 +354,7 @@ const baseLoginStyles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 19,
   },
+  linkText: { color: "#475569" },
   links: {
     gap: 4,
   },
@@ -360,16 +365,16 @@ const baseLoginStyles = StyleSheet.create({
   },
   button: {
     alignItems: "center",
-    backgroundColor: "#10b981",
+    backgroundColor: "#047857",
     borderRadius: 10,
     justifyContent: "center",
     minHeight: 50,
   },
   buttonDisabled: {
-    opacity: 0.45,
+    backgroundColor: "#475569",
   },
   buttonPressed: {
-    opacity: 0.82,
+    backgroundColor: "#065f46",
   },
   buttonText: {
     color: "#ffffff",

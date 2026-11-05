@@ -19,6 +19,8 @@ struct LoginView: View {
     @State private var mfaError: String?
     @State private var mfaSubmitting = false
 
+    private let submitFill = Color(hex: 0x047857)
+
     private var canSubmit: Bool {
         !baseUrl.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && !username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -28,8 +30,7 @@ struct LoginView: View {
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            // Android login uses mint background #ecfdf5
-            AppTheme.accentSoft
+            AppTheme.background
                 .ignoresSafeArea()
 
             Link(destination: URL(string: "https://github.com/tianma-if/edgeever")!) {
@@ -54,11 +55,11 @@ struct LoginView: View {
                     HStack(spacing: 14) {
                         ZStack {
                             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .fill(AppTheme.accent)
+                                .fill(AppTheme.searchFill)
                                 .frame(width: 48, height: 48)
                             Image(systemName: "lock.fill")
                                 .font(.system(size: 20, weight: .semibold))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(AppTheme.slate)
                         }
                         VStack(alignment: .leading, spacing: 4) {
                             Text("EdgeEver")
@@ -151,7 +152,7 @@ struct LoginView: View {
                         .frame(maxWidth: .infinity)
                         .frame(height: 48)
                         .foregroundStyle(.white)
-                        .background(canSubmit ? AppTheme.title : AppTheme.disabledFill)
+                        .background(canSubmit ? submitFill : AppTheme.disabledFill)
                         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                     }
                     .buttonStyle(.plain)
@@ -212,7 +213,7 @@ struct LoginView: View {
                 .foregroundStyle(AppTheme.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-                TotpCodeField(code: $mfaCode)
+                TotpCodeField(code: $mfaCode, focusColor: AppTheme.slate)
                     .onChange(of: mfaCode) { _, next in
                         if next.count == 6, !mfaSubmitting {
                             Task { await submitMfa(pending) }
@@ -237,7 +238,7 @@ struct LoginView: View {
                 .frame(maxWidth: .infinity)
                 .frame(height: 48)
                 .foregroundStyle(.white)
-                .background(canSubmitMfa ? AppTheme.title : AppTheme.disabledFill)
+                .background(canSubmitMfa ? submitFill : AppTheme.disabledFill)
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
             .buttonStyle(.plain)
@@ -251,7 +252,7 @@ struct LoginView: View {
                         en: "Use an authenticator code instead",
                         ja: "認証アプリのコードを使用",
                         pl: "Użyj kodu z aplikacji"
-                    )) {
+                    ), color: AppTheme.slate) {
                         mfaError = nil
                         mfaRecoveryCode = ""
                         mfaUseRecovery = false
@@ -262,7 +263,7 @@ struct LoginView: View {
                         en: "Authenticator unavailable? Use a recovery code",
                         ja: "認証アプリを使えない場合はリカバリーコードを使用",
                         pl: "Aplikacja niedostępna? Użyj kodu odzyskiwania"
-                    )) {
+                    ), color: AppTheme.slate) {
                         mfaError = nil
                         mfaCode = ""
                         mfaUseRecovery = true
@@ -273,7 +274,7 @@ struct LoginView: View {
                     en: "Back to password",
                     ja: "パスワード入力に戻る",
                     pl: "Wróć do hasła"
-                )) {
+                ), color: AppTheme.slate) {
                     leaveMfaStep(message: nil)
                 }
             }

@@ -24,7 +24,7 @@ interface LoginScreenProps {
 }
 
 const LOGIN_INPUT_CLASSNAME = "h-11 rounded-lg bg-slate-50/50 px-3.5 focus-visible:bg-card focus-visible:ring-2 focus-visible:ring-slate-900/10";
-const LOGIN_SUBMIT_CLASSNAME = "h-11 w-full justify-center rounded-lg bg-emerald-500 font-semibold text-white shadow-[0_8px_20px_-8px_rgb(var(--brand-green-rgb)/0.35)] transition-colors duration-200 hover:bg-emerald-600";
+const LOGIN_SUBMIT_CLASSNAME = "h-11 w-full justify-center rounded-lg bg-[#047857] font-semibold text-white hover:bg-[#065f46] disabled:bg-[#475569] disabled:opacity-100";
 const LOGIN_LINK_CLASSNAME = "text-xs text-slate-600 underline-offset-2 hover:text-slate-900 hover:underline";
 
 const MfaLoginForm = ({ username, isSubmitting, error, onSubmit, onBack }: MfaLoginStepProps) => {
@@ -95,7 +95,6 @@ const MfaLoginForm = ({ username, isSubmitting, error, onSubmit, onBack }: MfaLo
         variant="solid"
         disabled={isSubmitting || (useRecovery ? recoveryCode.trim().length < 10 : code.length !== 6)}
       >
-        <LockKeyhole className="h-4 w-4 mr-1" />
         {isSubmitting
           ? t("twoFactor.loginVerifying")
           : useRecovery ? t("twoFactor.loginRecoverySubmit") : t("twoFactor.loginVerify")}
@@ -146,12 +145,11 @@ export const LoginScreen = ({ error, instanceUrl: initialInstanceUrl, isSubmitti
 
   return (
     <main className="flex h-[100dvh] items-center justify-center bg-[var(--workspace-canvas)] px-4 py-8 text-slate-950">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_15%,rgb(var(--brand-green-rgb)/0.045),transparent_42%)]" />
       <GitHubRepositoryLink className="absolute right-4 top-[max(1rem,env(safe-area-inset-top))] z-10 h-10 w-10 justify-center rounded-full border border-slate-200 bg-card/85 text-slate-600 backdrop-blur transition hover:border-slate-300 hover:bg-card hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20" iconClassName="h-5 w-5" />
 
       <section className="relative w-full max-w-[400px] rounded-2xl border border-slate-200 bg-card/95 p-8 shadow-[0_20px_50px_rgb(0_0_0/0.08)] backdrop-blur-md">
         <div className="mb-8 flex items-center gap-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500 text-white shadow-[0_8px_18px_-8px_rgb(var(--brand-green-rgb)/0.45)]">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-slate-600">
             <LockKeyhole className="h-5.5 w-5.5" />
           </div>
           <div className="min-w-0">
@@ -221,13 +219,12 @@ export const LoginScreen = ({ error, instanceUrl: initialInstanceUrl, isSubmitti
           </label>
 
           <Button
-            className="h-11 w-full justify-center rounded-lg bg-emerald-500 font-semibold text-white shadow-[0_8px_20px_-8px_rgb(var(--brand-green-rgb)/0.35)] transition-colors duration-200 hover:bg-emerald-600"
+            className={LOGIN_SUBMIT_CLASSNAME}
             size="md"
             type="submit"
             variant="solid"
             disabled={isSubmitting}
           >
-            <LockKeyhole className="h-4 w-4 mr-1" />
             {isSubmitting ? t("login.submitting") : t("login.submit")}
           </Button>
         </form>

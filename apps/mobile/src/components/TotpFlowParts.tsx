@@ -1,7 +1,7 @@
 import type { TotpSetupResponse } from "@edgeever/shared";
 import * as Clipboard from "expo-clipboard";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
-import { Keyboard, Linking, Share, StyleSheet, View } from "react-native";
+import { Keyboard, Linking, Share, StyleSheet, View, type StyleProp, type TextStyle } from "react-native";
 import QRCode from "react-native-qrcode-svg";
 import { getMobileCatalog, formatMobileCopy, useMobileLocale } from "../lib/mobile-locale";
 import { resolveMobileThemeStyles, useMobileTheme, type MobileResolvedTheme } from "../lib/mobile-theme";
@@ -73,12 +73,14 @@ export const TotpStepProgress = ({ current, steps }: { current: number; steps: r
 
 export const TotpCodeInput = ({
   autoFocus,
+  inputStyle,
   label,
   onChangeText,
   onSubmit,
   value,
 }: {
   autoFocus?: boolean;
+  inputStyle?: StyleProp<TextStyle>;
   label: string;
   onChangeText: (value: string) => void;
   onSubmit?: () => void;
@@ -103,7 +105,7 @@ export const TotpCodeInput = ({
       placeholder="000000"
       placeholderTextColor="#94a3b8"
       returnKeyType="done"
-      style={[totpStyles.input, totpStyles.codeInput]}
+      style={[totpStyles.input, totpStyles.codeInput, inputStyle]}
       textContentType="oneTimeCode"
       value={value}
     />
@@ -112,6 +114,7 @@ export const TotpCodeInput = ({
 
 export const TotpRecoveryCodeInput = ({
   autoFocus,
+  inputStyle,
   hint,
   label,
   onChangeText,
@@ -119,6 +122,7 @@ export const TotpRecoveryCodeInput = ({
   value,
 }: {
   autoFocus?: boolean;
+  inputStyle?: StyleProp<TextStyle>;
   hint?: string;
   label: string;
   onChangeText: (value: string) => void;
@@ -138,7 +142,7 @@ export const TotpRecoveryCodeInput = ({
       placeholder="XXXX-XXXX-XXXX"
       placeholderTextColor="#94a3b8"
       returnKeyType="done"
-      style={[totpStyles.input, totpStyles.monoInput]}
+      style={[totpStyles.input, totpStyles.monoInput, inputStyle]}
       value={value}
     />
     {hint ? <Text style={totpStyles.help}>{hint}</Text> : null}
@@ -322,9 +326,9 @@ export const TotpSecondaryButton = ({ danger = false, disabled, label, onPress }
   </Pressable>
 );
 
-export const TotpLinkButton = ({ label, onPress }: { label: string; onPress: () => void }) => (
+export const TotpLinkButton = ({ label, onPress, textStyle }: { label: string; onPress: () => void; textStyle?: StyleProp<TextStyle> }) => (
   <Pressable accessibilityRole="button" hitSlop={8} onPress={onPress} style={({ pressed }) => [totpStyles.linkButton, pressed && totpStyles.pressed]}>
-    <Text style={totpStyles.linkText}>{label}</Text>
+    <Text style={[totpStyles.linkText, textStyle]}>{label}</Text>
   </Pressable>
 );
 
