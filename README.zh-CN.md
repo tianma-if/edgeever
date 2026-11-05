@@ -20,6 +20,7 @@
   <p>
     <a href="#wechat-group"><img src="assets/readme/community/wechat.svg" alt="WeChat" width="16" height="16" align="absmiddle" /> 微信交流群</a> &nbsp;|&nbsp;
     <a href="https://demo.edgeever.org">🌐 在线演示</a> &nbsp;|&nbsp;
+    <a href="docs/note-migration-guide.md">📥 第三方笔记迁入</a> &nbsp;|&nbsp;
     <a href="#全平台客户端与浏览器插件">📱 客户端与插件下载</a> &nbsp;|&nbsp;
     <a href="#features">核心功能与场景矩阵</a>
   </p>
