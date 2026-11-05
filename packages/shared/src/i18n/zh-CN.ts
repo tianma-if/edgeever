@@ -2191,7 +2191,7 @@ export const zhCN = {
     whenReady: "应用就绪后",
     stagingWarning: "私有临时文件清理失败。请检查应用数据目录权限并重启。",
     cleanupWarning: "本地备份已完成，但部分旧备份清理失败。",
-    history: "本地快照（{{count}}）",
+    history: "备份记录（{{count}}）",
     encrypted: "已加密 (ENC)",
     oncePassword: "密码仅用于本次备份，不会保存。",
     importButton: "从文件还原…",

@@ -2172,7 +2172,7 @@ export const enUS = {
     whenReady: "When the app is ready",
     stagingWarning: "Private temporary files could not be removed. Check the app data folder permissions and restart.",
     cleanupWarning: "Local backup completed, but some older backups could not be removed.",
-    history: "Local snapshots ({{count}})",
+    history: "Backup history ({{count}})",
     encrypted: "Encrypted (ENC)",
     oncePassword: "This password is used for one backup and is not saved.",
     importButton: "Restore from file…",

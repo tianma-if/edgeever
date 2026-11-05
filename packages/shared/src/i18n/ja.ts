@@ -2180,7 +2180,7 @@ export const ja = {
     whenReady: "アプリの準備ができ次第",
     stagingWarning: "非公開の一時ファイルを削除できません。データフォルダーの権限を確認し、再起動してください。",
     cleanupWarning: "バックアップは完了しましたが、古いファイルの一部を削除できませんでした。",
-    history: "ローカルバックアップ（{{count}}）",
+    history: "バックアップ履歴（{{count}}）",
     encrypted: "暗号化済み",
     oncePassword: "このパスワードは今回のみ使用し、保存しません。",
     importButton: "ファイルから復元",

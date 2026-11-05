@@ -229,21 +229,24 @@ export const DesktopScheduledBackupCard = () => {
           </div>
         </details>
         <DesktopOffsiteSettings status={status} disabled={saving} />
-        <section className="grid gap-2.5 border-t pt-3" aria-label={t("desktopBackup.history", { count: status.history.length })}>
-          <div className="flex items-center justify-between">
-            <h3 className="text-xs font-medium text-slate-700 dark:text-slate-300">{t("desktopBackup.history", { count: status.history.length })}</h3>
+        <details className="group border-t pt-3">
+          <summary className="flex cursor-pointer items-center gap-1.5 text-xs font-medium text-slate-700 select-none transition-colors hover:text-slate-900 list-none [&::-webkit-details-marker]:hidden">
+            <ChevronRight aria-hidden="true" className="h-3.5 w-3.5 text-slate-400 transition-transform duration-200 group-open:rotate-90" />
+            <span>{t("desktopBackup.history", { count: status.history.length })}</span>
+          </summary>
+          <div className="mt-2.5">
+            {status.history.length ? <ul className="divide-y divide-border/40 rounded-md border border-border/40 bg-muted/10 px-3">{[...status.history].reverse().map((item) => <li key={item.name} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 py-2.5">
+              <div className="min-w-0 flex-1 basis-60 space-y-1">
+                <p className="break-all font-mono text-xs font-medium text-slate-800 dark:text-slate-200">{item.name}</p>
+                <p className="text-xs text-muted-foreground">{date(item.completedAt)} · <span className="whitespace-nowrap tabular-nums font-mono font-medium">{formatBytes(item.size)}</span> · {t(item.encrypted ? "desktopBackup.encrypted" : "desktopBackup.plain")}</p>
+              </div>
+              <div className="flex shrink-0 gap-1.5">
+                <Button size="sm" variant="outline" className="h-7 text-xs font-normal" disabled={restoreDisabled} onClick={() => restore(item.name)}>{t("desktopBackup.restore")}</Button>
+                <Button size="sm" variant="ghost" className="h-7 text-xs font-normal text-destructive hover:text-destructive" disabled={busy || saving} onClick={() => { setDeleteError(null); setDeleting(item.name); }}>{t("common.delete")}</Button>
+              </div>
+            </li>)}</ul> : <div className="rounded-md border border-dashed border-border/60 py-4 text-center"><p className="text-xs text-muted-foreground">{t("desktopBackup.emptyHistory")}</p></div>}
           </div>
-          {status.history.length ? <ul className="divide-y divide-border/40 rounded-md border border-border/40 bg-muted/10 px-3">{[...status.history].reverse().map((item) => <li key={item.name} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 py-2.5">
-            <div className="min-w-0 flex-1 basis-60 space-y-1">
-              <p className="break-all font-mono text-xs font-medium text-slate-800 dark:text-slate-200">{item.name}</p>
-              <p className="text-xs text-muted-foreground">{date(item.completedAt)} · <span className="whitespace-nowrap tabular-nums font-mono font-medium">{formatBytes(item.size)}</span> · {t(item.encrypted ? "desktopBackup.encrypted" : "desktopBackup.plain")}</p>
-            </div>
-            <div className="flex shrink-0 gap-1.5">
-              <Button size="sm" variant="outline" className="h-7 text-xs font-normal" disabled={restoreDisabled} onClick={() => restore(item.name)}>{t("desktopBackup.restore")}</Button>
-              <Button size="sm" variant="ghost" className="h-7 text-xs font-normal text-destructive hover:text-destructive" disabled={busy || saving} onClick={() => { setDeleteError(null); setDeleting(item.name); }}>{t("common.delete")}</Button>
-            </div>
-          </li>)}</ul> : <div className="rounded-md border border-dashed border-border/60 py-4 text-center"><p className="text-xs text-muted-foreground">{t("desktopBackup.emptyHistory")}</p></div>}
-        </section>
+        </details>
       </>}</DesktopBackupImport>
     </CardContent>
     {runOpen ? <DesktopBackupRunDialog key={status.backupSetId} status={status} onRun={runBackup} onClose={() => setRunOpen(false)} /> : null}
