@@ -79,6 +79,10 @@ import { cn } from "@/lib/utils";
 import { CompanionQuestionForm } from "../CompanionQuestionForm";
 import { CompanionCreatedNoteLinks } from "../CompanionCreatedNoteLinks";
 import { AiSidebarMessage } from "./AiSidebarMessage";
+import { AiBodyDraftPanel } from "./AiBodyDraftPanel";
+import { useAiBodyDraft } from "./useAiBodyDraft";
+import { resolveAiBodyCommand } from "@/lib/ai-body-commands";
+import { hashAiDraftSource, type AiDraftEditorApi, type AiDraftSelectionSnapshot } from "@/lib/ai-body-draft-store";
 import { AiSidebarLocalProcess } from "./AiSidebarLocalProcess";
 import { AiAgentSelector } from "./AiAgentSelector";
 import { AiSidebarThreadMenu } from "./AiSidebarThreadMenu";
@@ -174,6 +178,9 @@ type AiSidebarProps = AiSidebarFocus & {
   selectionRequest?: SelectionAiRequest | null;
   onDismissSelectionPin?: () => void;
   onReplaceSelection?: (replacement: string) => boolean;
+  /** Lets body commands apply drafts to the open note (#652 PR B); absent in other editors. */
+  aiDraftEditor?: AiDraftEditorApi | null;
+  localDataScope?: string;
   beforeCompanionApply?: () => Promise<void>;
   onCompanionNotesChanged?: () => Promise<void>;
   onOpenCompanionNote?: (id: string, notebookId: string) => void;
@@ -284,6 +291,16 @@ const uploadCompanionAttachment = (attachment: { filename: string; mediaType: st
   };
   return client.uploadCompanionAttachment(attachment);
 };
+
+/** The selection a pinned quote was taken from, as a body draft target (#652 PR B). */
+const selectionPinSnapshot = (pin: SelectionAiPin): AiDraftSelectionSnapshot => ({
+  text: pin.text,
+  from: pin.from,
+  to: pin.to,
+  isInline: pin.isInline,
+  mode: pin.mode,
+  documentHash: pin.mode === "rich" ? hashAiDraftSource(pin.documentFingerprint) : "",
+});
 
 const matchSkill = (text: string) => {
   const trimmed = text.trim();
@@ -458,6 +475,7 @@ function SidebarComposer({
   onIncludeCurrentNoteChange,
   onStop,
   skillPrompt,
+  onBodySkill,
   focusToken,
   aiSelector,
 }: {
@@ -474,6 +492,8 @@ function SidebarComposer({
   onIncludeCurrentNoteChange: (include: boolean) => void;
   onStop: () => void;
   skillPrompt: (id: SkillId, rest?: string) => string;
+  /** Runs `/translate` and `/improve` as body drafts (#652 PR B); `false` leaves them to the Agent. */
+  onBodySkill?: (id: SkillId, rest: string) => boolean;
   focusToken: number;
   aiSelector: ReactNode;
 }) {
@@ -520,7 +540,13 @@ function SidebarComposer({
               <button
                 type="button"
                 className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left hover:bg-slate-50"
-                onClick={() => void launch(skillPrompt(skill.id), draft, true).catch(() => undefined)}
+                onClick={() => {
+                  if (onBodySkill?.(skill.id, draft.trim().slice(skill.command.length).trim())) {
+                    textInput.clear();
+                    return;
+                  }
+                  void launch(skillPrompt(skill.id), draft, true).catch(() => undefined);
+                }}
               >
                 <span className="font-medium text-slate-800">{t(`aiAssistant.sidebar.skills.${skill.id}`)}</span>
                 <span className="truncate text-xs text-slate-400">{skill.command}</span>
@@ -537,6 +563,7 @@ function SidebarComposer({
           const raw = text.trim();
           if (!raw) throw new Error("empty");
           const skill = matchSkill(raw);
+          if (skill && onBodySkill?.(skill.id, skill.rest)) return;
           await launch(skill ? skillPrompt(skill.id, skill.rest) : raw, undefined, Boolean(skill));
         }}
       >
@@ -642,6 +669,8 @@ function AiSidebarSession({
   selectionRequest,
   onDismissSelectionPin,
   onReplaceSelection,
+  aiDraftEditor,
+  localDataScope,
   contentMarkdown,
   memoId,
   notebookId,
@@ -685,6 +714,18 @@ function AiSidebarSession({
   const [acting, setActing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // `/translate`, `/improve` and selection Translate run as body drafts on the instance model (#652 PR B).
+  const bodyDraft = useAiBodyDraft({ scope: localDataScope, memoId, noteTitle, editor: aiDraftEditor });
+  const bodyDraftEnabled = Boolean(aiDraftEditor && memoId && companionAvailable);
+  const startBodyDraft = bodyDraft.start;
+  const runBodySkill = useCallback((id: SkillId, rest: string) => {
+    if (!bodyDraftEnabled) return false;
+    const command = resolveAiBodyCommand(id, rest, i18n.language);
+    if (!command) return false;
+    const pin = selectionPin && selectionPin.memoId === memoId ? selectionPin : null;
+    void startBodyDraft(command, pin ? { kind: "selection", snapshot: selectionPinSnapshot(pin) } : { kind: "note" });
+    return true;
+  }, [bodyDraftEnabled, i18n.language, memoId, selectionPin, startBodyDraft]);
   const [turnFailures, setTurnFailures] = useState<Record<string, string>>({});
   const [useMemory, setUseMemory] = useState(false);
   const [includeCurrentNote, setIncludeCurrentNote] = useState(false);
@@ -1295,6 +1336,10 @@ function AiSidebarSession({
       setComposerFocusToken((current) => current + 1);
       return;
     }
+    if (request.kind === "translate" && selectionPin && runBodySkill("translate", "")) {
+      handledSelectionRequestId.current = request.id;
+      return;
+    }
     if (!selectionPin || locked.current || loading) return;
     const message = selectionMessage(request.kind);
     if (!message) return;
@@ -1302,7 +1347,7 @@ function AiSidebarSession({
     void launch(message, { readOnly: true }).then((id) => {
       rememberSelectionTurn(id, request.kind === "explain" ? "explain" : "translate");
     }).catch(() => undefined);
-  }, [busy, launch, loading, rememberSelectionTurn, selectionMessage, selectionPin, selectionRequest]);
+  }, [busy, launch, loading, rememberSelectionTurn, runBodySkill, selectionMessage, selectionPin, selectionRequest]);
 
   const addFiles = useCallback(async (files: File[]) => {
     if (!files.length) return;
@@ -1672,6 +1717,15 @@ function AiSidebarSession({
             </TooltipProvider>
           </div>
         ) : null}
+        {bodyDraft.draft ? (
+          <AiBodyDraftPanel
+            draft={bodyDraft.draft}
+            onStop={bodyDraft.stop}
+            onDiscard={() => void bodyDraft.discard()}
+            onRegenerate={bodyDraft.regenerate}
+            onApply={bodyDraft.apply}
+          />
+        ) : null}
         {!companionAvailable && source !== "local" ? (
           <p className="text-xs leading-5 text-slate-500">{t("aiAssistant.sidebar.unavailable")}</p>
         ) : null}
@@ -1683,7 +1737,10 @@ function AiSidebarSession({
               size="sm"
               variant="outline"
               disabled={running || acting}
-              onClick={() => void launch(skillPrompt(skill.id), { includeCurrentNote: true }).catch(() => undefined)}
+              onClick={() => {
+                if (runBodySkill(skill.id, "")) return;
+                void launch(skillPrompt(skill.id), { includeCurrentNote: true }).catch(() => undefined);
+              }}
             >
               {t(`aiAssistant.sidebar.skills.${skill.id}`)}
             </Button>
@@ -1704,6 +1761,7 @@ function AiSidebarSession({
             onLaunch={launch}
             onStop={() => { void stop(); }}
             skillPrompt={skillPrompt}
+            onBodySkill={runBodySkill}
             aiSelector={
               <AiAgentSelector
                 source={source}
