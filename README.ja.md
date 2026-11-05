@@ -174,8 +174,10 @@ curl -fsSL https://edgeever.org/install.sh | bash
 日常のバックアップ、インスタンス間のスムーズな移行、既存のノートアプリからの乗り換えなど、EdgeEver は信頼性の高い完全なデータ流通を提供します：
 
 - **EdgeEver ネイティブのバックアップと復元**：アプリ内の **プロフィール** -> **インポートとエクスポート** から、いつでも EdgeEver ZIP アーカイブを書き出し、または取り込めます。解凍後の `notes/` ディレクトリには Markdown ファイルと添付がそのまま保持され、ローカル保管や直接閲覧に利用できます。内部の構造化メタデータにより、異なる EdgeEver インスタンス間でも無劣化で完全復元が可能です。取り込み時は無関係な既存データを残し、同一 ID のノートを自動で上書き更新します。
-- **サードパーティ製ノートからのスムーズな移行**：
+- **サードパーティ製ノートからのスムーズな移行**：Web 版および Electron デスクトップ版には「他のアプリからインポート」機能が標準搭載されています。コマンドラインや MCP 設定不要で、Evernote、Obsidian、Joplin のノートと添付ファイルをドラッグ＆ドロップで直接取り込めます。また、MCP を利用した他のプラットフォームからの移行にも対応しています：
   - **Evernote からの移行**: [docs/evernote-migration-guide.md](docs/evernote-migration-guide.md)
+  - **Obsidian からの移行**: [docs/obsidian-migration-guide.md](docs/obsidian-migration-guide.md)
+  - **Joplin からの移行**: [docs/joplin-migration-guide.md](docs/joplin-migration-guide.md)
   - **flomo からの移行**: [docs/flomo-migration-guide.md](docs/flomo-migration-guide.md)
   - **Memos からの移行**: [docs/memos-migration-guide.md](docs/memos-migration-guide.md)
   - **Notion からの移行**: [docs/notion-migration-guide.md](docs/notion-migration-guide.md)

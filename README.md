@@ -173,8 +173,10 @@ After installation, updates run automatically each day by default. To update man
 Whether for routine data backups, seamless cross-instance migration, or switching from existing note platforms, EdgeEver provides reliable, complete data mobility:
 
 - **EdgeEver Native Backup & Restore**: In the app, go to **Profile** -> **Import and export** to export or import an EdgeEver ZIP archive at any time. The extracted `notes/` directory keeps clean plaintext Markdown files and attachments for local archival or direct reading, while internal structured metadata enables lossless full restoration across different EdgeEver instances. Importing preserves existing unrelated data on the target instance and automatically overwrites records with matching IDs.
-- **Smooth Migration from Third-Party Apps**:
+- **Smooth Migration from Third-Party Apps**: Both the Web app and Electron desktop client provide an out-of-the-box "Import from other apps" dialog. You can directly drag and import complete notes and attachments from Evernote, Obsidian, and Joplin without terminal commands or MCP configuration; migrating from other platforms via MCP is also supported:
   - **Evernote Migration**: Please refer to [docs/evernote-migration-guide.md](docs/evernote-migration-guide.md)
+  - **Obsidian Migration**: Please refer to [docs/obsidian-migration-guide.md](docs/obsidian-migration-guide.md)
+  - **Joplin Migration**: Please refer to [docs/joplin-migration-guide.md](docs/joplin-migration-guide.md)
   - **flomo Migration**: Please refer to [docs/flomo-migration-guide.md](docs/flomo-migration-guide.md)
   - **Memos Migration**: Please refer to [docs/memos-migration-guide.md](docs/memos-migration-guide.md)
   - **Notion Migration**: Please refer to [docs/notion-migration-guide.md](docs/notion-migration-guide.md)

@@ -1,7 +1,7 @@
 ---
 draft: false
 title: "从印象笔记迁移到自托管笔记应用：EdgeEver ENEX 完整指南"
-snippet: "通过 ENEX、evernote-backup 与 EdgeEver MCP，完整迁移笔记、附件、时间信息和嵌套笔记本。"
+snippet: "通过 EdgeEver 原生导入功能，一键平滑迁移印象笔记 / Evernote 的全部笔记、附件图片、时间信息和多级笔记本层级。"
 image: {
     src: "/images/evernote-migration.jpg",
     alt: "从印象笔记迁移到 EdgeEver"
@@ -9,60 +9,63 @@ image: {
 publishDate: "2026-07-02 01:00"
 category: "Migration"
 author: "EdgeEver Team"
-tags: [evernote, migration, self-hosted, mcp]
+tags: [evernote, migration, self-hosted, import]
 ---
 
 > EdgeEver 与印象笔记、Evernote 无关联。本指南仅用于说明用户如何将自己拥有的数据迁移到 EdgeEver。印象笔记和 Evernote 是其各自权利人的商标。
 
-我们推荐使用 AI 编程助手（如 Antigravity、Claude Code、Cursor 等）自动执行迁移。核心仓库迁移指南说明：该方案已完成内存流式优化与空文本预处理，能应对数 GB 级别超大笔记库，并保留创建/修改时间与嵌套笔记本目录层级。
+EdgeEver 内置了开箱即用的原生第三方导入功能。在 Web 网页端或 Electron 桌面端中，**无需安装任何额外依赖、无需运行命令行、也无需配置 MCP 授权**，即可直接在图形界面中拖拽或选取印象笔记 / Evernote 导出的文件，将笔记完整搬迁至 EdgeEver。
 
 如果还在比较「自托管印象笔记替代方案」，可先看 [EdgeEver 品类说明](/self-hosted-evernote-alternative)，再按下面步骤搬家。
 
 ### 常见问题
 
-- **会保留笔记本、附件和时间吗？** 文档化流程会保留创建/修改时间与嵌套笔记本层级。导入后请抽查带图片的笔记。
-- **必须用 AI 助手吗？** 推荐，但不是唯一路径。也可以下载 `scripts/import-evernote-enex-via-mcp.mjs`，按脚本注释手动执行。
+- **会保留笔记本、附件和时间吗？** 会。原生导入完整保留笔记标题、富文本排版、表格、待办清单，并精确保留创建/修改时间与多级笔记本层级，附件图片自动上传至 EdgeEver 资源库。
+- **需要懂技术或配置命令行吗？** 不需要。直接在 EdgeEver 界面点击“设置 → 导入与导出 → 从其他应用导入”，拖入 `.enex` 文件或 ZIP 压缩包即可一键导入。
 - **和印象笔记官方有关系吗？** 没有。本指南只处理你自己拥有的数据。
 
 ---
 
-### 步骤 1：配置并安装 EdgeEver MCP 服务
+### 步骤 1：从印象笔记 / Evernote 导出笔记
 
-1. 点击网页端左下角的 **设置（Settings）** 图标。
-2. 在 **API & MCP 授权** 卡片生成 Token 后，点击 **复制完整 MCP 配置** 按钮。
-3. 把复制的 JSON 配置直接发送给你的 AI 编程助手，让它帮你配置到当前 AI 客户端中：
-
-```text
-你是 AI 编程助手。这是我的 EdgeEver MCP 服务配置 JSON。请帮我把这个 MCP 服务直接配置到我当前使用的 AI 编辑器/客户端（如 Claude Code, Cursor, Cline 等）的 MCP 服务器配置文件中：
-
-<在此处粘贴刚才复制的 JSON 配置内容>
-```
+1. 打开印象笔记或 Evernote 桌面客户端。
+2. 在左侧笔记本列表中，右键点击需要导出的笔记本，选择 **导出笔记本...**（或选中多篇笔记右键选择 **导出笔记...**）。
+3. 导出格式务必选择 **ENEX 格式（.enex）**：
+   - 勾选包含标签、创建时间、修改时间等元数据选项。
+   - 部分 Mac 客户端默认会导出为 `.notes` 格式，请在导出对话框中切换为 `.enex`。
+4. **批量导出**：若有多个笔记本需要迁移，可分别导出为多个 `.enex` 文件，并将它们整理在同一个文件夹中，或者打包为一个 `.zip` 压缩包。
 
 ---
 
-### 步骤 2：使用 AI 助手拉取并导入笔记
+### 步骤 2：在 EdgeEver 中打开导入入口
 
-当 AI 助手配置好 MCP 后，复制以下 Prompt 发送给它，让它自动拉取印象笔记数据并导入：
-
-```text
-你是 AI 编程助手。请帮我把本地的印象笔记全量迁移到我当前部署的 EdgeEver 实例中：
-1. 检查并使用 `pipx install evernote-backup` 自动安装备份工具。
-2. 提示我输入印象笔记的用户名和密码并初始化数据库（指定 china 后端），随后同步数据并导出到 `./evernote-export` 目录。
-3. 从 GitHub 下载最新版迁移脚本：`https://raw.githubusercontent.com/tianma-if/edgeever/main/scripts/import-evernote-enex-via-mcp.mjs` 到本地。
-4. 安装脚本所需的本地图片压缩库 `sharp` 和 `fast-xml-parser` 依赖。
-5. 使用先前配置的 URL 和 Token 运行该脚本完成迁移（脚本会自动进行 WebP 图片转换）：
-   - 全量迁移：`bun import-evernote-enex-via-mcp.mjs --input "./evernote-export" --yes`
-   - 指定迁移某些笔记本：追加 `--include "笔记本A,笔记本B"` 参数。
-
-请告诉我你需要什么信息（如账号密码），收到后直接并发自动执行上述步骤。
-```
-
-> 手动模式备用：如果不使用 AI 助手，也可以前往 GitHub 仓库 [EdgeEver GitHub](https://github.com/tianma-if/edgeever) 下载 `scripts/import-evernote-enex-via-mcp.mjs` 脚本，并按脚本头部注释执行。
+1. 打开 EdgeEver 网页端或桌面端并登录。
+2. 点击左侧导航栏底部的 **设置（Settings）** 图标。
+3. 在设置页面的 **导入与导出** 区域中，找到 **从其他应用导入** 卡片，点击 **开始导入**。
 
 ---
 
-### 步骤 3：在网页端验证导入结果
+### 步骤 3：选择来源并载入文件
 
-1. 导入完成后，回到 EdgeEver 网页端并刷新页面。
-2. 检查左侧栏，确认印象笔记原有的「笔记本组（堆叠）」层级结构已还原。
-3. 打开几篇包含多张图片的笔记，验证其中的图片是否已成功在编辑器中加载并能清晰显示。
+1. 在弹出的导入对话框中，来源应用点击选中 **Evernote / 印象笔记**。
+2. 添加你的导出文件：
+   - **直接拖拽**：将单个/多个 `.enex` 文件、文件夹或 `.zip` 压缩包拖入弹窗中心的虚线区域。
+   - **浏览选择**：点击 **选择文件** 选取 `.enex` / `.zip`，或点击 **选择文件夹** 选取包含多个 ENEX 的目录。
+
+---
+
+### 步骤 4：本地安全预检与确认导入
+
+1. 系统在本地后台快速扫描并进行预检，展示即将新建的笔记本数量、笔记篇数与附件数量，以及目录结构预览。
+2. 在「导入位置」中，选择将数据 **创建为顶层笔记本**（默认），或导入至已有的某个父笔记本下。
+3. 点击右下角的 **确认导入**，EdgeEver 将在本地对数据进行分块流式解析，逐篇创建笔记并安全上传附件。
+4. 导入完成后，在结果列表中点击 **打开笔记** 即可快速核验正文排版、图片资源及时间信息。若遇网络波动导致个别步骤未完成，可直接点击 **重试未完成步骤**。
+
+---
+
+### 进阶备用方案：大库自动化脚本与 MCP
+
+如果你拥有数万篇笔记的超大海量知识库，或者希望在服务器/无图形界面环境中直接对接印象笔记官方服务导出备份，也可以使用命令行与 MCP 方案：
+
+1. **自动化拉取备份**：使用开源工具 `pipx install evernote-backup`，运行 `evernote-backup init --backend china` 并 `sync`，即可直接将印象笔记数据导出到本地目录。
+2. **MCP / 脚本导入**：可参考仓库内的开源导入脚本 [`scripts/import-evernote-enex-via-mcp.mjs`](https://github.com/tianma-if/edgeever/blob/main/scripts/import-evernote-enex-via-mcp.mjs)，搭配 EdgeEver 的 Remote MCP 服务实现后台大库流式导入。

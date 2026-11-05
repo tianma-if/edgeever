@@ -174,8 +174,10 @@ Po instalacji aktualizacje domyślnie uruchamiają się codziennie. Aby zaktuali
 Zarówno przy codziennych kopiach zapasowych, bezproblemowej migracji między instancjami, jak i przenoszeniu notatek z innych platform, EdgeEver zapewnia niezawodny i pełny transfer danych:
 
 - **Natywne kopie zapasowe i przywracanie EdgeEver**: W aplikacji w **Profil → Import i eksport** można w każdej chwili wyeksportować lub zaimportować archiwum ZIP EdgeEver. Rozpakowany katalog `notes/` zawiera bezpośrednio czytelne pliki Markdown oraz załączniki do lokalnego archiwizowania, a wewnętrzne dane strukturalne pozwalają na bezstratne i pełne odtworzenie bazy na innej instancji EdgeEver. Podczas importu zachowywane są istniejące, niezwiązane dane na instancji docelowej, a rekordy o tych samych identyfikatorach są automatycznie aktualizowane.
-- **Płynna migracja z innych platform**:
+- **Płynna migracja z innych platform**: Zarówno aplikacja internetowa, jak i klient desktopowy Electron oferują wbudowaną funkcję „Importuj z innych aplikacji”. Możesz bezpośrednio przeciągać i importować kompletne notatki i załączniki z Evernote, Obsidian i Joplin bez poleceń terminala ani konfiguracji MCP. Obsługiwana jest również migracja z innych platform za pośrednictwem MCP:
   - **Evernote**: [docs/evernote-migration-guide.md](docs/evernote-migration-guide.md)
+  - **Obsidian**: [docs/obsidian-migration-guide.md](docs/obsidian-migration-guide.md)
+  - **Joplin**: [docs/joplin-migration-guide.md](docs/joplin-migration-guide.md)
   - **flomo**: [docs/flomo-migration-guide.md](docs/flomo-migration-guide.md)
   - **Memos**: [docs/memos-migration-guide.md](docs/memos-migration-guide.md)
   - **Notion**: [docs/notion-migration-guide.md](docs/notion-migration-guide.md)

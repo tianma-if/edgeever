@@ -1,48 +1,72 @@
-# Minimal Evernote Migration Guide
+# Evernote Migration Guide
 
 [简体中文](evernote-migration-guide.md) | [English](evernote-migration-guide.en-US.md)
 
-We strongly recommend using an AI coding assistant, such as Codex, Antigravity, Claude Code, Cursor, WorkBuddy, OpenClaw, or Hermes Agent, to run the migration automatically. The current migration flow is optimized for streaming large archives and preprocessing empty text, and can handle multi-GB note libraries while preserving created/updated timestamps and nested notebook hierarchy.
+EdgeEver provides native, out-of-the-box support for importing third-party notes. In either the Web app or the Electron desktop client, **no extra dependencies, command-line operations, or MCP configurations are required**. You can directly drag or select files exported from Evernote to migrate your notes into EdgeEver seamlessly.
 
 ---
 
-### Step 1: Configure and install the EdgeEver MCP service
+### Native Import Features
 
-1. Open EdgeEver and click **Profile / Settings** in the lower-left corner.
-2. In the **API & MCP authorization** card, generate a token and click **Copy full MCP config**.
-3. Paste the copied JSON into your AI coding assistant and ask it to install the MCP service in your current AI client:
-
-```sh
-You are an AI coding assistant. This is my EdgeEver MCP service configuration JSON. Please configure this MCP service directly in the MCP server configuration file for my current AI editor/client, such as Codex, Claude Code, Cursor, WorkBuddy, or Cline:
-
-<paste the copied JSON configuration here>
-```
+- **Lossless Content Preservation**: Full support for titles, rich-text styling, tables, task lists, colors, and blockquotes.
+- **Timestamp & Metadata Restoration**: Accurately preserves original creation (`Created`) and update (`Updated`) timestamps, with note tags fully migrated.
+- **Notebook Hierarchy**: Supports single or multiple `.enex` files, folders containing multiple ENEX files, or `.zip` archives, restoring the notebook structure as intended.
+- **Media & Resource Attachments**: Embedded images, audio clips, PDFs, and other attachments are safely decoded locally in the client and streamed to the EdgeEver resource store.
+- **Client-Side Preflight Inspection**: Parses files locally in your browser or desktop environment before import. Inspect counts of notebooks, notes, attachments, and potential warnings without uploading unverified raw archives to the server.
 
 ---
 
-### Step 2: Let the AI assistant import and migrate your notes
+### Migration Steps (Recommended: Native One-Click Import)
 
-After the assistant has configured MCP, send it this prompt:
+#### Step 1: Export Notes from Evernote
 
-```sh
-You are an AI coding assistant. Please migrate my local Evernote data into my deployed EdgeEver instance:
-1. Check for and install the backup tool with `pipx install evernote-backup`.
-2. Ask me for my Evernote username and password, initialize the database with the China backend if needed, sync the data, and export it to `./evernote-export`.
-3. Download the latest migration script from GitHub: `https://raw.githubusercontent.com/tianma-if/edgeever/main/scripts/import-evernote-enex-via-mcp.mjs`.
-4. Install the local dependencies required by the script: `sharp` and `fast-xml-parser`.
-5. Run the script with the previously configured URL and token to complete the migration. The script performs WebP image conversion automatically:
-   - Full migration: `bun import-evernote-enex-via-mcp.mjs --input "./evernote-export" --yes`
-   - Selected notebooks only: add `--include "NotebookA,NotebookB"`.
+1. Open the Evernote desktop client.
+2. In the left notebook sidebar, right-click the notebook you wish to export and choose **Export Notebook...** (or select multiple notes, right-click, and choose **Export Notes...**).
+3. Ensure the export format is set to **ENEX format (.enex)**:
+   - Check all metadata options, including tags, created date, and updated date.
+   - > ⚠️ **Notice**: Certain Mac clients default to `.notes` format; make sure to select `.enex` in the export dialog.
+4. **Batch Export Tip**: If you have multiple notebooks, export each one as an individual `.enex` file and place them in a single folder, or bundle them into a `.zip` archive.
 
-Tell me what information you need, such as account credentials, then run the steps automatically and in parallel where possible.
-```
+#### Step 2: Open the Import Dialog in EdgeEver
 
-> Manual fallback: If you do not use an AI assistant, download `scripts/import-evernote-enex-via-mcp.mjs` from the [EdgeEver GitHub repository](https://github.com/tianma-if/edgeever) and follow the comments at the top of the script.
+1. Open EdgeEver in your web browser or desktop client and sign in.
+2. Click the **Settings** gear icon at the bottom of the left sidebar.
+3. In the **Import and export** section, locate the **Import from other apps** card and click **Start import**.
+
+#### Step 3: Choose Source and Add Files
+
+1. In the import dialog, select **Evernote / 印象笔记** under Source app.
+2. Add your exported files using either convenient option:
+   - **Drag and Drop**: Drag one or more `.enex` files, a folder, or a `.zip` archive directly into the dashed dropzone area.
+   - **Browse**: Click **Choose files** to pick `.enex` or `.zip` files, or click **Choose folder** to select a directory containing ENEX files.
+
+#### Step 4: Local Preflight & Target Selection
+
+1. Once selected, EdgeEver will quickly inspect the data locally in the background.
+2. Review the preflight summary:
+   - The projected number of **Notebooks**, **Notes**, and **Attachments**.
+   - A tree preview of the detected notebook structure.
+   - Any non-blocking warnings (such as oversized attachments or formatting notes).
+3. Under "Import into", choose whether to **Create top-level notebooks** (default) or import them under an existing parent notebook.
+
+#### Step 5: Confirm and Stream Import
+
+1. After reviewing the preflight summary, click **Confirm import** in the bottom-right corner.
+2. EdgeEver parses the data locally in chunks, creating notes and streaming attachments one by one:
+   - Real-time progress indicators show current processing files and completion status.
+   - On the desktop client, background sync is paused safely and resumed automatically upon completion, refreshing the workspace cleanly.
+
+#### Step 6: Verify Imported Notes
+
+1. Once the import finishes, the dialog displays a list of results.
+2. Click **Open note** next to any item in the list to inspect formatting, images, and timestamps.
+3. If any step was interrupted by temporary network instability, click **Retry unfinished steps** to resume without duplicating notes that have already been created.
 
 ---
 
-### Step 3: Verify the result in the Web app
+### Advanced Alternative: Automation Scripts & MCP for Huge Archives
 
-1. After import completes, refresh the EdgeEver Web app.
-2. Check the left sidebar and confirm the original Evernote notebook stack hierarchy is restored.
-3. Open several notes with images and verify that images load and display clearly in the editor.
+If your knowledge base spans tens of thousands of notes or tens of gigabytes, or if you prefer running automated sync on a headless server, you can also use command-line tooling and MCP:
+
+1. **Automated Export**: Use the open-source tool `pipx install evernote-backup`, run `evernote-backup init` and `evernote-backup sync` to dump all notebooks to local disk.
+2. **MCP / Script Import**: Refer to the script [`scripts/import-evernote-enex-via-mcp.mjs`](https://github.com/tianma-if/edgeever/blob/main/scripts/import-evernote-enex-via-mcp.mjs) in this repository and connect it via EdgeEver's Remote MCP service for automated batch migration.

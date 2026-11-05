@@ -175,8 +175,10 @@ curl -fsSL https://edgeever.org/install.sh | bash
 無論是日常資料備份、跨實例無縫遷移，還是從既有筆記平台遷入，EdgeEver 均提供完整可靠的資料流轉方案：
 
 - **EdgeEver 原生備份與還原**：在應用程式內進入 **個人中心** -> **匯入與匯出**，可隨時匯出或匯入 EdgeEver ZIP 封存檔。解壓縮後的 `notes/` 目錄保留清晰的純文字 Markdown 檔案與附件，可直接用於本機封存或獨立閱讀；內部結構化中繼資料則支援在不同 EdgeEver 實例間無損完整還原。匯入時保留目標實例的既有資料，同 ID 內容自動覆蓋更新。
-- **第三方筆記平滑遷入**：
+- **第三方筆記平滑遷入**：Web 端與 Electron 桌面端原生提供開箱即用的「從其他應用匯入」功能，無需命令列或設定 MCP，即可直接拖曳匯入 Evernote、Obsidian 及 Joplin 的完整筆記與資源附件；同時也支援透過 MCP 協同遷入其他平台：
   - **Evernote（印象筆記）遷入**：請參考 [docs/evernote-migration-guide.md](docs/evernote-migration-guide.md)
+  - **Obsidian 筆記遷入**：請參考 [docs/obsidian-migration-guide.md](docs/obsidian-migration-guide.md)
+  - **Joplin 筆記遷入**：請參考 [docs/joplin-migration-guide.md](docs/joplin-migration-guide.md)
   - **flomo 筆記遷入**：請参考 [docs/flomo-migration-guide.md](docs/flomo-migration-guide.md)
   - **Memos 筆記遷入**：請參考 [docs/memos-migration-guide.md](docs/memos-migration-guide.md)
   - **Notion 筆記遷入**：請參考 [docs/notion-migration-guide.md](docs/notion-migration-guide.md)
