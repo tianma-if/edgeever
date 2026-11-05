@@ -49,4 +49,23 @@ After PR A (#791), models with known limits are no longer cut at 4096. Gateways 
 
 ## Implementation and acceptance
 
-(Acceptance results follow as testing completes.)
+- Automated:
+  - shared: the splitting rules (exact round trip; headings stay with their content; code, tables and math are never cut; front matter and code-only parts pass through; long lists and paragraphs are split; short code blocks stay with the text before them; parts prefer to start at a heading), when to split, joining continuations without repeats, too-short results, and draft completion with incomplete parts.
+  - API: `segments` when parts are needed; no parts for short notes or open-ended tasks; older clients unaffected; parts instead of 413 without limits or window; one part's position and context; re-splitting a cut-off part; continuations counted against the window; invalid field combinations.
+  - client: parts in order with context; no request for code-only parts; a cut-off part split again, and its source kept with replace blocked when it still fails; too-short results handled as incomplete; errors and stops end the run; up to three continuations without repeats; no continuation on an older server; parts end to end through prepare.
+  - iOS unit tests: the same cases as the client.
+  - Web: command parsing, source-change detection, and source assertions for the sidebar wiring and replace conditions.
+  - Playwright (real browser, local dev, model provider mocked in the browser):
+    - `/translate en` translates a 24-section note in several parts, the draft is restored after a reload, and it replaces the note;
+    - a part that is always cut off keeps its source, reports part 2 as incomplete and blocks replace;
+    - selection Translate replaces only the selection and leaves the rest of the note unchanged.
+  - `bun run typecheck`, `bun run typecheck:mobile`, `bun run build:web` and `bun run lint` pass.
+- Real providers (the preview instance runs this branch; the branch client calls models directly; the same long note as PR A: 40 Chinese Markdown sections with 41 headings, 8 code blocks, 40 links and a table):
+  - An OpenAI-compatible gateway without published limits: the gateway ignores the client's `max_tokens` and cuts Claude Haiku 4.5 at about 8,192 tokens. In PR A, a full polish with this model was cut at 8,195 tokens. With this PR, translation and full polish each finished in 13 parts with a normal finish and no incomplete parts. All 40 sections, 41 headings, 16 code fences, 40 links and 5 table rows were kept, with no manual budget.
+  - The first acceptance run found two problems, both fixed and retested:
+    - when a part opened with a code block, the model treated it as context from the previous part and left it out;
+    - a part that started mid-section came back as a fragment, losing four sections, while the model reported a normal finish.
+    - Fixes: short code blocks stay with the text before them; parts prefer to start at a heading; the part instruction asks for every block; a result far shorter than its part counts as incomplete.
+  - Known limits (DeepSeek official, output limit 393,216): the 40-section translation stays a single request (`max_tokens=45166`) with the structure intact.
+  - Continuation: on DeepSeek official with a temporary manual budget of 4,096, making a 12-section note longer was cut at the limit, continued once, and finished normally. All 12 sections, links and code blocks were kept, with no repeat at the seam. The gateway above ignores `max_tokens`, so it cannot produce a cut for this test.
+- Not verified: iOS device; Android device (pending); the desktop app reuses the Web pages and was not packaged and tested separately.
