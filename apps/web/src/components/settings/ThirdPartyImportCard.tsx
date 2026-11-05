@@ -5,9 +5,9 @@ import evernoteLogo from "@/assets/import-logos/evernote.svg?url";
 import joplinLogo from "@/assets/import-logos/joplin.svg?url";
 import obsidianLogo from "@/assets/import-logos/obsidian.svg?url";
 import { Button } from "@/components/ui/button";
-import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import type { NoteImportController } from "@/lib/note-import/controller";
-import { SETTINGS_CARD_DESCRIPTION_CLASSNAME, SETTINGS_CARD_HEADER_CLASSNAME, SETTINGS_CARD_ICON_CLASSNAME, SETTINGS_CARD_TITLE_CLASSNAME } from "./settings-ui";
+import { SETTINGS_CARD_HEADER_CLASSNAME, SETTINGS_CARD_ICON_CLASSNAME, SETTINGS_CARD_TITLE_CLASSNAME } from "./settings-ui";
 import { ThirdPartyImportDialog } from "./ThirdPartyImportDialog";
 
 const importSources = [
@@ -25,7 +25,6 @@ export const ThirdPartyImportCard = ({ controller, onOpenMemo }: { controller: N
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0 space-y-1.5">
           <CardTitle className={SETTINGS_CARD_TITLE_CLASSNAME}><Upload className={SETTINGS_CARD_ICON_CLASSNAME} />{t("noteImport.title")}</CardTitle>
-          <CardDescription className={SETTINGS_CARD_DESCRIPTION_CLASSNAME}>{t("noteImport.description")}</CardDescription>
           <div className="flex flex-wrap gap-1.5 pt-0.5 text-[11px] text-muted-foreground">
             {importSources.map(({ label, logo }) => (
               <span key={label} className="inline-flex items-center gap-1.5 rounded bg-muted px-2 py-0.5 font-mono">
