@@ -300,6 +300,7 @@ describe("AI model service", () => {
         generationMaxOutputTokens: null,
         tagSuggestionMaxOutputTokens: null,
         companionMaxOutputTokens: null,
+        detectedCapabilities: null,
       }],
     });
     expect(JSON.stringify(settings)).not.toContain("ciphertext");

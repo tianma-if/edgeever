@@ -100,4 +100,18 @@ describe("native mobile AI note assistant", () => {
     expect(iosEditorSource).toContain("currentTags: currentTags");
     expect(iosEditorSource).toContain("tagsText = (currentTags + additions).joined(separator: \", \")");
   });
+
+  test("only a cleanly finished draft can replace; text before a dropped stream stays append-only (#652)", () => {
+    // Android assistant: the shared completion rule decides, and a thrown request marks the draft.
+    expect(androidAssistantSource).toContain("setCompletion((current) => trackAiDraftEvent(current, event))");
+    expect(androidAssistantSource).toContain("setCompletion(failAiDraftCompletion)");
+    expect(androidAssistantSource).toContain("Boolean(incomplete)");
+    // Android selection panel: a request starts as interrupted until a clean finish, and an error keeps it.
+    expect(androidEditorSource).toContain('incomplete: "interrupted",');
+    expect(androidEditorSource).toContain('error: payload.event.code === "ai_stream_interrupted" ? null : payload.event.message');
+    expect(androidEditorSource).toContain("Boolean(panel.incomplete)");
+    // iOS assistant: thrown requests fail the draft, and replace stays disabled for any incomplete reason.
+    expect(iosAssistantSource).toContain("if generationID == requestID { completion.fail() }");
+    expect(iosAssistantSource).toContain("disabled: incomplete != nil");
+  });
 });

@@ -1,3 +1,4 @@
+import type { AiOutputBudgetMode } from "./ai-model-capabilities";
 import type { AiAttachmentInput } from "./schemas";
 import type { AiProvider } from "./types";
 
@@ -16,9 +17,21 @@ export type AiPreparedGeneration = AiDirectTarget & {
   apiKey: string;
   system: string;
   prompt: string;
-  maxOutputTokens: number;
+  /** `null` asks the client to send no output limit (only for clients that opted in). */
+  maxOutputTokens: number | null;
   resultBoundary: AiGenerationResultBoundary;
+  /** How the budget was chosen (#652); absent from older instances. */
+  outputBudget?: { mode: AiOutputBudgetMode; outputLimit: number | null; inputFits: boolean | null };
+  /**
+   * Where the client reports limits for this model. `configVersion` is the provider configuration
+   * the limits were read for; a report for any other version is rejected.
+   */
+  capabilityTarget?: AiModelCapabilityTarget;
+  /** True when the instance has no fresh limits, so the client should read them from the provider. */
+  detectCapabilities?: boolean;
 };
+
+export type AiModelCapabilityTarget = { providerConfigId: string; modelConfigId: string; configVersion: string };
 
 export type AiPreparedTextGeneration = AiDirectTarget & {
   apiKey: string;
@@ -147,9 +160,22 @@ export const createAiGenerationStreamNormalizer = (resultBoundary: AiGenerationR
     finish() {
       if (boundaryFinished) return "";
       if (!boundaryStarted) return normalizeAiGenerationText(pending, resultBoundary);
+      // The end marker can still be in the retained tail when the stream ends.
+      if (pending.includes(resultBoundary.end)) boundaryFinished = true;
       removeOpeningLine();
       resolveMarkdownWrapper(true);
       return stripClosingWrapper(pending.replaceAll(resultBoundary.end, "")).trimEnd();
+    },
+    /**
+     * The result opened with the request's start marker but never reached the end marker,
+     * so it was cut off even if the provider or gateway reported a normal stop (#652).
+     */
+    isUnterminated() {
+      return boundaryStarted && !boundaryFinished;
+    },
+    /** The end marker arrived, so the result is known to be whole (#652). */
+    isComplete() {
+      return boundaryFinished;
     },
   };
 };
@@ -213,7 +239,8 @@ export const buildAiDirectProviderRequest = (
       },
       body: JSON.stringify({
         model: prepared.modelId,
-        max_tokens: prepared.maxOutputTokens,
+        // Anthropic requires max_tokens; instances never send null for it, keep a safe default.
+        max_tokens: prepared.maxOutputTokens ?? AI_GENERATION_MAX_OUTPUT_TOKENS,
         stream: true,
         system: prepared.system,
         messages: [{ role: "user", content }],
@@ -237,7 +264,7 @@ export const buildAiDirectProviderRequest = (
       body: JSON.stringify({
         system_instruction: { parts: [{ text: prepared.system }] },
         contents: [{ role: "user", parts }],
-        generationConfig: { maxOutputTokens: prepared.maxOutputTokens },
+        ...(prepared.maxOutputTokens === null ? {} : { generationConfig: { maxOutputTokens: prepared.maxOutputTokens } }),
       }),
     };
   }
@@ -269,7 +296,7 @@ export const buildAiDirectProviderRequest = (
     },
     body: JSON.stringify({
       model: prepared.modelId,
-      max_tokens: prepared.maxOutputTokens,
+      ...(prepared.maxOutputTokens === null ? {} : { max_tokens: prepared.maxOutputTokens }),
       stream: true,
       messages: [
         { role: "system", content: prepared.system },
@@ -288,7 +315,10 @@ export const extractAiDirectStreamDelta = (provider: AiProvider, payload: unknow
     const usage = record.usage && typeof record.usage === "object" ? record.usage as Record<string, unknown> : null;
     return {
       text: typeof delta?.text === "string" ? delta.text : "",
-      finishReason: typeof record.stop_reason === "string" ? record.stop_reason : undefined,
+      // Streaming sends the stop reason in message_delta's `delta.stop_reason`.
+      finishReason: typeof delta?.stop_reason === "string"
+        ? delta.stop_reason
+        : typeof record.stop_reason === "string" ? record.stop_reason : undefined,
       inputTokens: typeof usage?.input_tokens === "number" ? usage.input_tokens : undefined,
       outputTokens: typeof usage?.output_tokens === "number" ? usage.output_tokens : undefined,
     };
@@ -331,4 +361,35 @@ export const extractAiDirectStreamDelta = (provider: AiProvider, payload: unknow
     inputTokens: typeof usage?.prompt_tokens === "number" ? usage.prompt_tokens : undefined,
     outputTokens: typeof usage?.completion_tokens === "number" ? usage.completion_tokens : undefined,
   };
+};
+
+/** Why a streamed AI draft must not replace the original text (#652). */
+export type AiDraftIncompleteReason = "truncated" | "stopped" | "interrupted";
+
+/**
+ * The state of one streamed draft. The draft may replace the original only after the stream
+ * reported a finish that was not truncated and no error. Text that arrived before an error, a
+ * dropped connection or a stop stays usable for copy and append, but never for replace.
+ */
+export type AiDraftCompletion = Readonly<{ finished: boolean; truncated: boolean; failed: boolean; stopped: boolean }>;
+
+export const startAiDraftCompletion = (): AiDraftCompletion => ({ finished: false, truncated: false, failed: false, stopped: false });
+
+export const trackAiDraftEvent = (state: AiDraftCompletion, event: { type: string; truncated?: boolean }): AiDraftCompletion => {
+  if (event.type === "finish") return { ...state, finished: true, truncated: state.truncated || event.truncated === true };
+  if (event.type === "error") return { ...state, failed: true };
+  return state;
+};
+
+/** The request threw or the stream ended without finishing. */
+export const failAiDraftCompletion = (state: AiDraftCompletion): AiDraftCompletion => ({ ...state, failed: true });
+
+export const stopAiDraftCompletion = (state: AiDraftCompletion): AiDraftCompletion => ({ ...state, stopped: true });
+
+/** `null` only for a draft that finished cleanly; while streaming it reads as interrupted. */
+export const aiDraftIncompleteReason = (state: AiDraftCompletion): AiDraftIncompleteReason | null => {
+  if (state.stopped) return "stopped";
+  if (state.truncated) return "truncated";
+  if (state.failed || !state.finished) return "interrupted";
+  return null;
 };

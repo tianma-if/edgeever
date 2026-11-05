@@ -18,6 +18,14 @@ import {
   type AiTone,
   type MemoDetail,
 } from "@edgeever/shared";
+import {
+  aiDraftIncompleteReason,
+  failAiDraftCompletion,
+  startAiDraftCompletion,
+  stopAiDraftCompletion,
+  trackAiDraftEvent,
+  type AiDraftCompletion,
+} from "@edgeever/shared/ai-generation";
 import * as Clipboard from "expo-clipboard";
 import { Modal, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -60,6 +68,9 @@ export const MobileAiAssistantModal = ({
   const [refineInstruction, setRefineInstruction] = useState("");
   const [output, setOutput] = useState("");
   const [error, setError] = useState<string | null>(null);
+  // Whether the current draft finished cleanly; any other draft must not replace the note (#652).
+  const [completion, setCompletion] = useState<AiDraftCompletion>(startAiDraftCompletion);
+  const incomplete = aiDraftIncompleteReason(completion);
   const [generating, setGenerating] = useState(false);
   const [applying, setApplying] = useState(false);
   const [picker, setPicker] = useState<"action" | "language" | "tone" | null>(null);
@@ -171,21 +182,34 @@ export const MobileAiAssistantModal = ({
     controllerRef.current = controller;
     setOutput("");
     setError(null);
+    setCompletion(startAiDraftCompletion());
     setGenerating(true);
     try {
       await client.streamAiGeneration(buildRequest(source, refinement), {
         signal: controller.signal,
         onEvent: (event) => {
           if (event.type === "text-delta") setOutput((current) => current + event.text);
-          if (event.type === "error") setError(event.message);
+          // An interrupted stream is explained by the incomplete notice instead.
+          if (event.type === "error" && event.code !== "ai_stream_interrupted") setError(event.message);
+          if (controllerRef.current === controller) setCompletion((current) => trackAiDraftEvent(current, event));
         },
       });
+      if (controller.signal.aborted && controllerRef.current === controller) setCompletion(stopAiDraftCompletion);
     } catch (caught) {
-      if (controller.signal.aborted) return;
+      // A request replaced by a newer one must not mark the newer draft.
+      if (controllerRef.current !== controller) return;
+      if (controller.signal.aborted) {
+        setCompletion(stopAiDraftCompletion);
+        return;
+      }
+      // A connection that drops after some text keeps that text as an incomplete draft.
+      setCompletion(failAiDraftCompletion);
       setError(
-        caught instanceof ApiRequestError && caught.code === "ai_not_configured"
-          ? getMobileCatalog(resolvedLocale).mobile.ai.modelNotConfigured
-          : caught instanceof Error ? caught.message : getMobileCatalog(resolvedLocale).mobile.ai.generationFailed
+        caught instanceof ApiRequestError && caught.code === "ai_input_too_long"
+          ? getMobileCatalog(resolvedLocale).mobile.ai.inputTooLong
+          : caught instanceof ApiRequestError && caught.code === "ai_not_configured"
+            ? getMobileCatalog(resolvedLocale).mobile.ai.modelNotConfigured
+            : caught instanceof Error ? caught.message : getMobileCatalog(resolvedLocale).mobile.ai.generationFailed
       );
     } finally {
       if (controllerRef.current === controller) {
@@ -205,6 +229,7 @@ export const MobileAiAssistantModal = ({
 
   const apply = async (mode: "append" | "replace") => {
     if (!output || applying) return;
+    if (mode === "replace" && incomplete) return;
     setApplying(true);
     setError(null);
     try {
@@ -336,6 +361,15 @@ export const MobileAiAssistantModal = ({
               </View>
             </View>
           ) : null}
+          {incomplete && output && !generating ? (
+            <Text accessibilityRole="alert" style={styles.warning}>
+              {incomplete === "truncated"
+                ? getMobileCatalog(resolvedLocale).mobile.ai.incompleteTruncated
+                : incomplete === "stopped"
+                  ? getMobileCatalog(resolvedLocale).mobile.ai.incompleteStopped
+                  : getMobileCatalog(resolvedLocale).mobile.ai.incompleteInterrupted}
+            </Text>
+          ) : null}
           {error ? <Text style={styles.error}>{error}</Text> : null}
         </ScrollView>
         <View style={[styles.footer, { borderTopColor: border, backgroundColor: surface }]}>
@@ -350,7 +384,7 @@ export const MobileAiAssistantModal = ({
               </Pressable>
             ) : null}
             {promptAllowsReplace(resultMode) ? (
-              <Pressable disabled={!output || generating || applying} onPress={() => void apply("replace")} style={[styles.secondaryButton, { borderColor: border }, (!output || generating || applying) && styles.disabled]}>
+              <Pressable disabled={!output || generating || applying || Boolean(incomplete)} onPress={() => void apply("replace")} style={[styles.secondaryButton, { borderColor: border }, (!output || generating || applying || Boolean(incomplete)) && styles.disabled]}>
                 <Text style={[styles.secondaryText, { color: foreground }]}>{getMobileCatalog(resolvedLocale).mobile.ai.replace}</Text>
               </Pressable>
             ) : null}
@@ -411,6 +445,7 @@ const styles = StyleSheet.create({
   refineButton: { height: 44, paddingHorizontal: 14, borderRadius: 9, backgroundColor: "#16A06E", alignItems: "center", justifyContent: "center" },
   refineButtonText: { color: "#ffffff", fontSize: 14, fontWeight: "700" },
   error: { color: "#be123c", fontSize: 13, lineHeight: 19 },
+  warning: { color: "#b45309", fontSize: 13, lineHeight: 19 },
   footer: { padding: 12, gap: 10, borderTopWidth: StyleSheet.hairlineWidth },
   footerRow: { flexDirection: "row", gap: 8 },
   secondaryButton: { minHeight: 40, flex: 1, flexDirection: "row", gap: 6, borderWidth: 1, borderRadius: 9, alignItems: "center", justifyContent: "center" },

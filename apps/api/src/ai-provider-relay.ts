@@ -17,15 +17,24 @@ export const isConfiguredAiEndpoint = (target: URL, method: string, config: Prov
   try { base = new URL(config.base_url); } catch { return false; }
   if (target.origin !== base.origin) return false;
   const root = base.pathname.replace(/\/+$/, "");
+  // Read-only model metadata used to detect output limits (#652): one model by id.
+  const isModelMetadata = method === "GET" && target.pathname.startsWith(`${root}/models/`)
+    && /^[A-Za-z0-9._:@%-]+$/.test(target.pathname.slice(`${root}/models/`.length));
   if (config.provider === "google") {
     if ([...target.searchParams.keys()].some(key => key !== "key" && key !== "alt")) return false;
     if (method === "GET" && target.pathname === `${root}/models`) return true;
+    if (isModelMetadata) return true;
     const suffix = target.pathname.slice(`${root}/models/`.length);
     return method === "POST" && target.pathname.startsWith(`${root}/models/`)
       && /^[A-Za-z0-9._-]+:(?:streamGenerateContent|generateContent)$/.test(suffix);
   }
   if (target.search) return false;
-  if (method === "GET") return target.pathname === `${root}/models`;
+  if (method === "GET") {
+    return target.pathname === `${root}/models`
+      || (config.provider === "anthropic" && isModelMetadata)
+      // LiteLLM proxy reports limits on /model/info.
+      || (config.provider === "openai-compatible" && target.pathname === `${root}/model/info`);
+  }
   if (method !== "POST") return false;
   if (config.provider === "anthropic") return target.pathname === `${root}/messages`;
   return config.provider === "openai-compatible"

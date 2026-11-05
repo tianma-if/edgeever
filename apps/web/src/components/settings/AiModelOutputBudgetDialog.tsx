@@ -8,7 +8,7 @@ import {
   type AiModelConfigUpdateInput,
   type AiModelOutputBudgetField,
 } from "@edgeever/shared";
-import { Loader2, RotateCcw } from "lucide-react";
+import { Loader2, RefreshCw, RotateCcw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { aiErrorMessage } from "@/components/settings/ai-provider-options";
 import { Button } from "@/components/ui/button";
@@ -38,7 +38,67 @@ const FIELD_LABEL_KEYS: Record<AiModelOutputBudgetField, string> = {
 };
 
 const FIELD_HINT_KEYS: Partial<Record<AiModelOutputBudgetField, string>> = {
+  generationMaxOutputTokens: "aiModel.outputBudgetGenerationHint",
   companionMaxOutputTokens: "aiModel.outputBudgetCompanionHint",
+};
+
+/** Limits read from the provider (#652); text generation uses them when its budget is empty. */
+const DetectedLimits = ({ providerConfigId, model, readOnly, onChanged }: {
+  providerConfigId: string;
+  model: AiModelConfig;
+  readOnly: boolean;
+  onChanged: () => Promise<unknown>;
+}) => {
+  const { t, i18n } = useTranslation();
+  const detect = useMutation({
+    mutationFn: async () => {
+      const result = await api.detectAiModelCapabilities(providerConfigId, model.id, model.modelId);
+      if (!result) throw new Error("detection_unavailable");
+      return result;
+    },
+    onSuccess: onChanged,
+  });
+  const detected = model.detectedCapabilities ?? null;
+  const number = (value: number) => value.toLocaleString(i18n.resolvedLanguage ?? i18n.language);
+  const lines = detected ? [
+    detected.maxOutputTokens ? t("aiModel.detectedOutput", { value: number(detected.maxOutputTokens) }) : null,
+    detected.maxInputTokens ? t("aiModel.detectedInput", { value: number(detected.maxInputTokens) }) : null,
+    detected.contextWindowTokens ? t("aiModel.detectedWindow", { value: number(detected.contextWindowTokens) }) : null,
+  ].filter((line): line is string => Boolean(line)) : [];
+  return (
+    <section className="grid gap-2 rounded-lg border border-slate-200 p-3 text-xs leading-5 text-slate-700" aria-labelledby={`ai-model-${model.id}-limits`}>
+      <div className="flex items-center justify-between gap-3">
+        <h3 id={`ai-model-${model.id}-limits`} className="font-normal text-slate-900">{t("aiModel.detectedLimitsTitle")}</h3>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-7 gap-1.5 text-xs font-normal"
+          disabled={readOnly || detect.isPending}
+          onClick={() => detect.mutate()}
+        >
+          {detect.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+          {t(detected ? "aiModel.detectLimitsAgain" : "aiModel.detectLimits")}
+        </Button>
+      </div>
+      {!detected ? (
+        <p className="text-slate-500">{t("aiModel.detectedLimitsNotYet")}</p>
+      ) : lines.length === 0 ? (
+        <p className="text-slate-500">{t("aiModel.detectedLimitsNone")}</p>
+      ) : (
+        <ul className="grid gap-0.5">{lines.map((line) => <li key={line}>{line}</li>)}</ul>
+      )}
+      {detected ? (
+        <p className="text-slate-500">
+          {t("aiModel.detectedSource", {
+            source: t(`aiModel.detectedSources.${detected.source}`),
+            date: new Date(detected.detectedAt).toLocaleString(i18n.resolvedLanguage ?? i18n.language),
+          })}
+        </p>
+      ) : null}
+      {detect.isError ? <p className="text-rose-600" role="alert">{t("aiModel.detectLimitsFailed")}</p> : null}
+    </section>
+  );
 };
 
 export const AiModelOutputBudgetDialog = ({ providerConfigId, model, readOnly, open, onOpenChange, onChanged }: {
@@ -103,7 +163,9 @@ export const AiModelOutputBudgetDialog = ({ providerConfigId, model, readOnly, o
                     max={max}
                     step={1}
                     value={drafts[field]}
-                    placeholder={t("aiModel.outputBudgetDefault", { value: AI_MODEL_OUTPUT_BUDGET_DEFAULTS[field] })}
+                    placeholder={field === "generationMaxOutputTokens"
+                      ? t("aiModel.outputBudgetAuto")
+                      : t("aiModel.outputBudgetDefault", { value: AI_MODEL_OUTPUT_BUDGET_DEFAULTS[field] })}
                     onChange={(event) => setDrafts((current) => ({ ...current, [field]: event.target.value }))}
                     disabled={readOnly || mutation.isPending}
                     aria-invalid={fieldInvalid}
@@ -121,6 +183,7 @@ export const AiModelOutputBudgetDialog = ({ providerConfigId, model, readOnly, o
               );
             })}
           </div>
+          <DetectedLimits providerConfigId={providerConfigId} model={model} readOnly={readOnly} onChanged={onChanged} />
           <div className="grid gap-1 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-600">
             <p>{t("aiModel.outputBudgetReasoningHint")}</p>
             <p>{t("aiModel.outputBudgetScope")}</p>

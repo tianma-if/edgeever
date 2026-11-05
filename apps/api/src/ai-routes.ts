@@ -9,12 +9,15 @@ import {
   InfographicAgentRequestSchema,
   AiModelConfigCreateSchema,
   AiModelConfigUpdateSchema,
+  AiModelCapabilitiesReportSchema,
   AiProviderConfigCreateSchema,
   AiProviderConfigUpdateSchema,
   AiProviderConnectionTestSchema,
   AiTagSuggestionsRequestSchema,
   buildAiTagSuggestionRequest,
   getDefaultAiTagSuggestionPrompt,
+  isAiModelCapabilityStale,
+  planAiGenerationOutputBudget,
   resolveAiModelOutputBudget,
   promptNeedsTargetLanguage,
   promptNeedsTone,
@@ -33,6 +36,7 @@ import {
   decryptAiCredential,
   getAiModelConfig,
   getAiProviderConfig,
+  mapAiModelConfig,
   getAiSettings,
   getDefaultAiModelId,
   getDefaultAiDirectTarget,
@@ -40,6 +44,7 @@ import {
   normalizeAiBaseUrl,
   resolveDefaultAiModel,
   prepareAiGeneration,
+  aiTextAttachmentContents,
   aiTranscriptionDefaultStatement,
   getAiTranscriptionModel,
   getAiTranscriptionProvider,
@@ -631,7 +636,15 @@ export const registerAiRoutes = (app: Hono<AppEnv>, dependencies: AiRouteDepende
         const apiKeyEncrypted = input.apiKey
           ? await encryptSecret(input.apiKey, requireEncryptionKey(context))
           : existing.api_key_encrypted;
+        // Detected limits describe one endpoint; a different service or URL must detect again.
+        const endpointChanged = existing.provider !== input.provider
+          || normalizeAiBaseUrl(existing.base_url) !== normalizeAiBaseUrl(input.baseUrl);
         await context.env.storage.db.batch([
+          ...(endpointChanged ? [context.env.storage.db.prepare(
+            `UPDATE ai_models SET detected_max_output_tokens = NULL, detected_max_input_tokens = NULL,
+               detected_context_window_tokens = NULL, detected_capability_source = NULL, detected_at = NULL
+             WHERE provider_config_id = ?`,
+          ).bind(providerConfigId)] : []),
           context.env.storage.db.prepare(
             `UPDATE ai_provider_configs SET
                provider = ?, display_name = ?, base_url = ?, api_key_encrypted = ?,
@@ -807,6 +820,79 @@ export const registerAiRoutes = (app: Hono<AppEnv>, dependencies: AiRouteDepende
     },
   );
 
+  app.put(
+    "/api/v1/ai/providers/:providerConfigId/models/:modelConfigId/capabilities",
+    zValidator("json", AiModelCapabilitiesReportSchema, (result, context) => {
+      if (result.success) return;
+      return apiError(context, "ai_model_capabilities_invalid", "The detected model limits are invalid.", 400);
+    }),
+    async (context) => {
+      const denied = denyMutation(context, dependencies);
+      if (denied) return denied;
+      const workspaceId = getWorkspaceId(context);
+      const providerConfigId = context.req.param("providerConfigId");
+      const modelConfigId = context.req.param("modelConfigId");
+      const [model, provider] = await Promise.all([
+        getAiModelConfig(context.env.storage.db, workspaceId, modelConfigId),
+        getAiProviderConfig(context.env.storage.db, workspaceId, providerConfigId),
+      ]);
+      if (!model || !provider || model.provider_config_id !== providerConfigId) {
+        return notFound(context, "AI model not found.");
+      }
+      const input = context.req.valid("json");
+      const changed = () => apiError(context, "ai_model_changed", "The model or service changed while its limits were being detected.", 409);
+      if (input.source === "provider-error" && !input.maxOutputTokens) {
+        return apiError(context, "ai_model_capabilities_invalid", "The detected model limits are invalid.", 400);
+      }
+      // Only accept limits read from the model and provider configuration that are saved now. The
+      // write re-checks them in the same statement, so a configuration change that lands between
+      // this read and the write (and clears the detected limits) is never overwritten by a late report.
+      if (
+        model.model_id !== input.modelId
+        || provider.provider !== input.provider
+        || normalizeAiBaseUrl(provider.base_url) !== normalizeAiBaseUrl(input.baseUrl)
+        || provider.updated_at !== input.configVersion
+      ) {
+        return changed();
+      }
+      const detectedAt = isoNow();
+      const db = context.env.storage.db;
+      const unchangedConfig = `id = ? AND provider_config_id = ? AND model_id = ? AND EXISTS (
+             SELECT 1 FROM ai_provider_configs
+             WHERE id = ? AND workspace_id = ? AND provider = ? AND base_url = ? AND updated_at = ?
+           )`;
+      const unchangedBindings = [
+        modelConfigId, providerConfigId, input.modelId,
+        providerConfigId, workspaceId, input.provider, provider.base_url, input.configVersion,
+      ];
+      const result = input.source === "provider-error"
+        // A provider error only reveals the output limit; keep any window detected earlier.
+        ? await db.prepare(
+          `UPDATE ai_models SET detected_max_output_tokens = ?,
+             detected_capability_source = CASE
+               WHEN detected_capability_source IS NULL OR detected_capability_source = 'none' THEN 'provider-error'
+               ELSE detected_capability_source END,
+             detected_at = ?
+           WHERE ${unchangedConfig}`,
+        ).bind(input.maxOutputTokens, detectedAt, ...unchangedBindings).run()
+        : await db.prepare(
+          `UPDATE ai_models SET detected_max_output_tokens = ?, detected_max_input_tokens = ?,
+             detected_context_window_tokens = ?, detected_capability_source = ?, detected_at = ?
+           WHERE ${unchangedConfig}`,
+        ).bind(
+          input.maxOutputTokens,
+          input.maxInputTokens,
+          input.contextWindowTokens,
+          input.source,
+          detectedAt,
+          ...unchangedBindings,
+        ).run();
+      if (Number(result.meta.changes) !== 1) return changed();
+      const saved = await getAiModelConfig(db, workspaceId, modelConfigId);
+      return context.json({ detectedCapabilities: saved ? mapAiModelConfig(saved).detectedCapabilities : null });
+    },
+  );
+
   app.delete(
     "/api/v1/ai/providers/:providerConfigId/models/:modelConfigId",
     async (context) => {
@@ -956,16 +1042,46 @@ export const registerAiRoutes = (app: Hono<AppEnv>, dependencies: AiRouteDepende
       try {
         const input = context.req.valid("json");
         const fields = await resolveAiGenerateFields(context, input);
-        const { credentials, outputBudgets } = await resolveDefaultAiModel(
+        const model = await resolveDefaultAiModel(
           context.env.storage.db,
           getWorkspaceId(context),
           context.env,
         );
-        return context.json(prepareAiGeneration({
-          ...fields,
-          credentials,
-          maxOutputTokens: resolveAiModelOutputBudget(outputBudgets, "generationMaxOutputTokens"),
-        }));
+        const prepared = prepareAiGeneration({ ...fields, credentials: model.credentials });
+        // Credentials, manual budget and detected limits all come from the same default-model row.
+        const plan = planAiGenerationOutputBudget({
+          provider: model.credentials.provider,
+          action: fields.action,
+          manualMaxOutputTokens: model.outputBudgets.generationMaxOutputTokens,
+          capabilities: model.capabilities,
+          inputText: [prepared.system, prepared.prompt, ...aiTextAttachmentContents(fields.attachments)].join("\n\n"),
+          sourceText: fields.contentMarkdown,
+          allowUnbounded: input.allowUnboundedOutput === true,
+        });
+        if (plan.mode === "auto" && plan.inputFits === false) {
+          // The note does not fit the model's input limit or leaves no room in its window, so the
+          // provider would reject the request; say so instead of sending it. A manual budget skips
+          // this estimate-based check.
+          return apiError(
+            context,
+            "ai_input_too_long",
+            "This note is too long for the selected model's context window. Shorten the note or choose a model with a larger window.",
+            413,
+          );
+        }
+        return context.json({
+          ...prepared,
+          maxOutputTokens: plan.maxOutputTokens,
+          outputBudget: { mode: plan.mode, outputLimit: plan.outputLimit, inputFits: plan.inputFits },
+          // Always say where to report, so a limit learned from a provider error can correct a
+          // cached value; only ask the client to read the provider when the cache is missing or stale.
+          capabilityTarget: {
+            providerConfigId: model.providerConfigId,
+            modelConfigId: model.modelConfigId,
+            configVersion: model.providerConfigVersion,
+          },
+          detectCapabilities: isAiModelCapabilityStale(model.capabilities),
+        });
       } catch (error) {
         return withAiError(context, error, "ai_generation_failed");
       }
@@ -982,7 +1098,9 @@ export const registerAiRoutes = (app: Hono<AppEnv>, dependencies: AiRouteDepende
       if (!row) return notFound(context, "AI provider not found.");
       return context.json({ provider: input.provider ?? row.provider,
         baseUrl: input.baseUrl ? normalizeAiBaseUrl(input.baseUrl) : row.base_url,
-        apiKey: input.apiKey ?? await decryptAiCredential(row.api_key_encrypted, context.env), modelId: input.modelId ?? "" });
+        apiKey: input.apiKey ?? await decryptAiCredential(row.api_key_encrypted, context.env), modelId: input.modelId ?? "",
+        // Lets a client report detected limits against the configuration it read them for (#652).
+        configVersion: row.updated_at });
     } catch (error) { return withAiError(context, error, "ai_credential_failed"); }
   });
   app.post("/api/v1/ai/infographic-agent/prepare", zValidator("json", InfographicAgentRequestSchema), async context => {

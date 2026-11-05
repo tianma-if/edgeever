@@ -40,7 +40,9 @@ test("edits, validates and resets a model's output budgets (#652)", async ({ pag
     const generation = dialog.getByLabel("正文生成（总结、改写、翻译等）");
     const tags = dialog.getByLabel("标签建议");
     const companion = dialog.getByLabel("AI 侧栏（内置）单步");
-    await expect(generation).toHaveAttribute("placeholder", "默认 4096");
+    // Text generation is automatic by default (#652); the dialog shows the detection state.
+    await expect(generation).toHaveAttribute("placeholder", "自动");
+    await expect(dialog.getByRole("region", { name: "模型上限" })).toContainText("尚未检测");
     await expect(tags).toHaveAttribute("placeholder", "默认 300");
     await expect(companion).toHaveAttribute("placeholder", "默认 2048");
     await expect(dialog).toContainText("部分模型会将思考 token 计入输出预算");

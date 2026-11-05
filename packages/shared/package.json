@@ -10,6 +10,7 @@
     "./memo-title": "./src/memo-title.ts",
     "./share-slug": "./src/share-slug.ts",
     "./ai-generation": "./src/ai-generation.ts",
+    "./ai-model-capabilities": "./src/ai-model-capabilities.ts",
     "./diagram-layout": "./src/diagram-layout.ts",
     "./ai-prompt-seeds": "./src/ai-prompt-seeds.ts",
     "./deployment-metadata": "./src/deployment-metadata.ts",

@@ -76,6 +76,8 @@ import type {
   AiPromptTemplate,
   AiPromptTemplateCreateInput,
   AiModelConfigUpdateInput,
+  AiModelCapabilities,
+  AiModelCapabilityLimits,
   AiPromptTemplateUpdateInput,
   AiStreamEvent,
   AiGenerateInput,
@@ -1196,14 +1198,68 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
 
     streamAiGeneration: async (payload: AiGenerateInput, streamOptions: { signal?: AbortSignal; onEvent: (event: AiStreamEvent) => void }) => {
       throwIfAborted(streamOptions.signal);
-      const { context, response } = await send("/api/v1/ai/generate/prepare", {
-        method: "POST", body: JSON.stringify(payload), signal: streamOptions.signal,
+      const prepare = async () => {
+        const { context, response } = await send("/api/v1/ai/generate/prepare", {
+          // This client can send a request without an output limit when none is known (#652).
+          method: "POST", body: JSON.stringify({ ...payload, allowUnboundedOutput: true }), signal: streamOptions.signal,
+        });
+        if (response.status === 404 || response.status === 410) throw directAiUnavailable();
+        if (!response.ok) await throwRequestError(context, response);
+        const parsed = parsePreparedAiGeneration(await response.json());
+        if (!parsed) throw new ApiRequestError("The AI prepare response is invalid", 502, "ai_generation_failed");
+        return parsed;
+      };
+      let prepared = await prepare();
+      // Reporting and detecting are separate: a fresh cache is not read again, but a limit learned
+      // from a provider error is still reported so a cached value that is too high gets corrected.
+      const target = prepared.capabilityTarget;
+      const report = (limits: AiModelCapabilityLimits) => target
+        ? request(`/api/v1/ai/providers/${encodeURIComponent(target.providerConfigId)}/models/${encodeURIComponent(target.modelConfigId)}/capabilities`, {
+          method: "PUT",
+          body: JSON.stringify({
+            provider: prepared.provider,
+            modelId: prepared.modelId,
+            baseUrl: prepared.baseUrl,
+            configVersion: target.configVersion,
+            ...limits,
+          }),
+        }).then(() => true, () => false)
+        : Promise.resolve(false);
+      if (target && prepared.detectCapabilities) {
+        // The instance has no fresh limits for this model: read them from the provider once,
+        // save them for every client, and prepare again so this request already uses them.
+        const { detectAiModelCapabilities } = await import("./ai-model-capabilities-direct");
+        const limits = await detectAiModelCapabilities(prepared, providerFetch(), streamOptions.signal);
+        const hasLimits = Boolean(limits && (limits.maxOutputTokens || limits.maxInputTokens || limits.contextWindowTokens));
+        if (limits && await report(limits) && hasLimits) prepared = await prepare();
+      }
+      await streamDirectAiGeneration(prepared, payload.attachments, {
+        fetch: providerFetch(),
+        ...streamOptions,
+        onOutputLimit: async (maxOutputTokens) => {
+          if (!target) return;
+          await report({ maxOutputTokens, maxInputTokens: null, contextWindowTokens: null, source: "provider-error" });
+        },
       });
-      if (response.status === 404 || response.status === 410) throw directAiUnavailable();
-      if (!response.ok) await throwRequestError(context, response);
-      const prepared = parsePreparedAiGeneration(await response.json());
-      if (!prepared) throw new ApiRequestError("The AI prepare response is invalid", 502, "ai_generation_failed");
-      await streamDirectAiGeneration(prepared, payload.attachments, { fetch: providerFetch(), ...streamOptions });
+    },
+
+    /** Read a saved model's limits from its provider and store them on the instance (#652). */
+    detectAiModelCapabilities: async (providerConfigId: string, modelConfigId: string, modelId: string, signal?: AbortSignal) => {
+      const credential = await request<{ provider: AiProvider; baseUrl: string; apiKey: string; configVersion: string }>(
+        `/api/v1/ai/providers/${encodeURIComponent(providerConfigId)}/direct-credential`,
+        { method: "POST", body: JSON.stringify({ modelId }), signal },
+      );
+      const { detectAiModelCapabilities } = await import("./ai-model-capabilities-direct");
+      const limits = await detectAiModelCapabilities({ ...credential, modelId }, providerFetch(), signal);
+      if (!limits) return null;
+      return request<{ detectedCapabilities: AiModelCapabilities | null }>(
+        `/api/v1/ai/providers/${encodeURIComponent(providerConfigId)}/models/${encodeURIComponent(modelConfigId)}/capabilities`,
+        {
+          method: "PUT",
+          body: JSON.stringify({ provider: credential.provider, modelId, baseUrl: credential.baseUrl, configVersion: credential.configVersion, ...limits }),
+          signal,
+        },
+      );
     },
 
     listUsers: () => request<ListUsersResponse>("/api/v1/users"),
