@@ -1,32 +1,32 @@
 {
-  "version": "2.20.0",
+  "version": "2.21.0",
   "changes": {
     "en-US": [
-      "Add optional authenticator-app two-factor authentication and one-time recovery codes on Web, desktop, Android, and iOS. Save the recovery codes when enabling this feature. (#671; @yulei666, #779)",
-      "Set per-model output limits for text generation, tag suggestions, and the built-in AI sidebar. (#652; @yulei666, #780)",
-      "Navigate shared notes and public notebooks with a collapsible outline. (@sivdead, #785)",
-      "Improve Mermaid rendering on Web, desktop, and Android, including links between subgraphs, and update the example diagrams.",
-      "Keep the editor focused when clicking below an empty note and simplify numbered level-three headings.",
-      "Fix note image exports that contain invalid characters and isolate the desktop backup preview.",
-      "Self-hosted instances: back up your database before upgrading and apply migrations through 0091."
+      "On desktop, save changes made in external apps back to the original attachment. This requires an updated server. Thanks @LuoQianhong (#789).",
+      "AI automatically adjusts the output budget using detected model limits and warns when a response is cut short. Update your server to enable automatic budgets. Thanks @yulei666 (#791).",
+      "Drag and drop files into the redesigned third-party note import dialog for Evernote, Obsidian, and Joplin.",
+      "Fixed Mermaid toolbars overlapping diagrams and labels being clipped at some zoom levels.",
+      "Signing out of the desktop app now removes saved login credentials.",
+      "Change your password in a dedicated dialog. The sign-in, two-factor authentication, custom CSS, and connection status screens have clearer styling.",
+      "The demo welcome note now shows the architecture diagram horizontally."
     ],
     "zh-CN": [
-      "Web、桌面、Android 和 iOS 支持自愿开启验证器二次验证，提供一次性恢复码。启用时请妥善保存恢复码。（#671；@yulei666，#779）",
-      "可按模型分别设置正文生成、标签建议和内置 AI 侧栏的输出上限。（#652；@yulei666，#780）",
-      "分享笔记和公开笔记本站点新增可折叠大纲，方便跳转到各章节。（@sivdead，#785）",
-      "改善 Web、桌面和 Android 的 Mermaid 图表渲染，修复跨子图连线等问题，并更新示例图表。",
-      "点击空白笔记下方时保留编辑焦点，并简化三级标题的编号样式。",
-      "修复笔记含有无效字符时的图片导出问题，并隔离桌面备份预览。",
-      "自托管实例升级前请备份数据库，并应用截至 0091 的迁移。"
+      "桌面端可将外部应用中保存的修改回存到原附件，需要先升级服务端。感谢 @LuoQianhong（#789）。",
+      "AI 根据探测到的模型限制自动调整输出预算，并在回复截断时提示。升级服务端后可使用自动预算。感谢 @yulei666（#791）。",
+      "更新了第三方笔记导入窗口，可拖放文件导入印象笔记、Obsidian 和 Joplin 导出内容。",
+      "修复 Mermaid 工具栏遮住图表，以及部分缩放比例下文字被裁切的问题。",
+      "桌面端退出登录时会移除已保存的登录凭据。",
+      "可在独立弹窗中修改密码，并优化了登录、双重验证、自定义 CSS 和连接状态的显示。",
+      "Demo 欢迎笔记中的架构图改为横向布局。"
     ],
     "ja": [
-      "認証アプリによる二段階認証と使い捨ての復旧コードに対応しました。",
-      "本文生成、タグ候補、AI サイドバーの出力上限をモデルごとに設定できます。",
-      "共有ノートと公開ノートブックに折りたたみ可能な目次を追加しました。",
-      "Mermaid 図の表示、サブグラフ間の接続、サンプル図を改善しました。",
-      "空のノートの下をクリックしたときに編集フォーカスを維持し、レベル3見出しの番号表示を簡素化しました。",
-      "無効な文字を含むノートの画像書き出しを修正し、デスクトップのバックアッププレビューを分離しました。",
-      "セルフホスト環境では、アップグレード前にデータベースをバックアップし、0091 までのマイグレーションを適用してください。"
+      "デスクトップでは、外部アプリで保存した変更を元の添付ファイルに反映できます。サーバーの更新が必要です。",
+      "検出したモデルの上限に応じてAIの出力枠を自動調整し、回答が途中で切れた場合は通知します。自動調整にはサーバーの更新が必要です。",
+      "新しいインポート画面では、Evernote、Obsidian、Joplinのファイルをドラッグ＆ドロップできます。",
+      "Mermaidのツールバーが図に重なり、一部の拡大率でラベルが切れる問題を修正しました。",
+      "デスクトップアプリからログアウトすると、保存済みのログイン情報が削除されます。",
+      "専用ダイアログでパスワードを変更できます。ログイン、二要素認証、カスタムCSS、接続状態の表示も改善しました。",
+      "デモのウェルカムノートでは、構成図を横向きに表示します。"
     ]
   }
 }
