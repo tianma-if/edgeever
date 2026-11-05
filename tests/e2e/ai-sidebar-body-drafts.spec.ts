@@ -49,7 +49,7 @@ const mockProvider = async (page: Page, mode: ProviderMode, seen: Array<{ part: 
   });
 };
 
-const setup = async (page: Page) => {
+const setup = async (page: Page, contentMarkdown = sections) => {
   const suffix = crypto.randomUUID().slice(0, 8);
   const created = await page.request.post("/api/v1/ai/providers", {
     data: { provider: "openai-compatible", displayName: `E2E drafts ${suffix}`, baseUrl: PROVIDER, apiKey: "e2e-placeholder-key", isEnabled: true, initialModelId: "e2e-model" },
@@ -61,7 +61,7 @@ const setup = async (page: Page) => {
   expect((await page.request.put("/api/v1/ai/default-model", { data: { modelConfigId: provider.models[0]!.id } })).ok()).toBe(true);
   const notebooks = (await (await page.request.get("/api/v1/notebooks")).json() as { notebooks: Array<{ id: string }> }).notebooks;
   const title = `E2E body draft ${suffix}`;
-  const memo = await page.request.post("/api/v1/memos", { data: { notebookId: notebooks[0]!.id, title, contentMarkdown: sections } });
+  const memo = await page.request.post("/api/v1/memos", { data: { notebookId: notebooks[0]!.id, title, contentMarkdown } });
   expect(memo.status(), await memo.text()).toBe(201);
   const memoId = (await memo.json() as { memo: { id: string } }).memo.id;
   return {
@@ -195,3 +195,39 @@ test("selection Translate drafts only the selection and replaces only it (#652 P
     await cleanup();
   }
 });
+
+test("in Markdown source mode, a selection that moved under identical text asks again before replacing (#652 PR B review)", async ({ page }) => {
+  test.setTimeout(120_000);
+  const seen: Array<{ part: string | null }> = [];
+  await mockProvider(page, "complete", seen);
+  const { title, cleanup } = await setup(page, "## 第 1 节\n\nAAA\n\n目标\n\n目标\n");
+  try {
+    await openSidebar(page, title);
+    await page.getByRole("button", { name: "切换到 Markdown 源码" }).first().click();
+    const source = page.locator(".cm-content");
+    await expect(source).toContainText("目标");
+    // Select the first "目标" and translate it.
+    const firstTarget = page.locator(".cm-line", { hasText: /^目标$/ }).first();
+    await firstTarget.click({ clickCount: 2 });
+    await page.locator("[data-selection-ai-action=translate]").first().click();
+    const draft = page.locator("[data-ai-body-draft=translate]");
+    await draft.getByRole("radio", { name: "英语" }).check();
+    await draft.getByRole("button", { name: "继续", exact: true }).click();
+    await expect(draft.getByRole("button", { name: "替换选中内容" })).toBeEnabled({ timeout: 30_000 });
+    // Delete the first "目标" line: the second one moves to exactly the old offsets.
+    await firstTarget.click();
+    await page.keyboard.press("Home");
+    await page.keyboard.press("Shift+ArrowDown");
+    await page.keyboard.press("Shift+ArrowDown");
+    await page.keyboard.press("Delete");
+    await expect(page.locator(".cm-line", { hasText: /^目标$/ })).toHaveCount(1);
+    await draft.getByRole("button", { name: "替换选中内容" }).click();
+    await expect(draft).toContainText("选中的内容已变化");
+    // Nothing was replaced.
+    await expect(page.locator(".cm-line", { hasText: /^目标$/ })).toHaveCount(1);
+    await expect(source).not.toContainText("Translated selection.");
+  } finally {
+    await cleanup();
+  }
+});
+

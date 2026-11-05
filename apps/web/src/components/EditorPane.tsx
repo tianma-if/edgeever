@@ -2258,7 +2258,8 @@ const RichEditorPane = ({
         from: selection.from,
         to: selection.to,
         isInline: true,
-        documentFingerprint: "",
+        // The whole source, so a later replace can tell that the document moved under the selection.
+        documentFingerprint: sourceEditor.sliceText(0, sourceEditor.getDocumentLength()),
         mode: "markdown",
       };
     } else if (isEditorReady(editor)) {
@@ -2339,6 +2340,8 @@ const RichEditorPane = ({
         const sourceEditor = markdownSourceEditorRef.current;
         if (!useMarkdownSourceEditor || !sourceEditor) return false;
         if (sourceEditor.sliceText(snapshot.from, snapshot.to) !== snapshot.text) return false;
+        // The same text can move to the old offsets after other edits; any change asks again.
+        if (hashAiDraftSource(sourceEditor.sliceText(0, sourceEditor.getDocumentLength())) !== snapshot.documentHash) return false;
         const insertion = placement === "replace" ? body : `${snapshot.text.includes("\n") ? "\n\n" : " "}${body}`;
         const [from, to] = placement === "replace" ? [snapshot.from, snapshot.to] : [snapshot.to, snapshot.to];
         const next = `${sourceEditor.sliceText(0, from)}${insertion}${sourceEditor.sliceText(to, sourceEditor.getDocumentLength())}`;
@@ -2386,7 +2389,10 @@ const RichEditorPane = ({
           const selection = sourceEditor.getSelection();
           const text = sourceEditor.sliceText(selection.from, selection.to);
           if (!text.trim() || selection.to <= selection.from) return null;
-          return { text, from: selection.from, to: selection.to, isInline: true, mode: "markdown", documentHash: "" };
+          return {
+            text, from: selection.from, to: selection.to, isInline: true, mode: "markdown",
+            documentHash: hashAiDraftSource(sourceEditor.sliceText(0, sourceEditor.getDocumentLength())),
+          };
         }
         const currentEditor = editorRef.current;
         if (!isEditorReady(currentEditor)) return null;
