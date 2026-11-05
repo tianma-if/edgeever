@@ -695,11 +695,9 @@ html.dark .edgeever-mobile-tiptap-content a:hover {
 }
 
 .edgeever-mobile-tiptap-content .edgeever-mermaid-toolbar {
-  position: absolute;
-  top: 0.5rem;
-  right: 0.5rem;
-  z-index: 2;
   display: flex;
+  width: fit-content;
+  margin: 0 0 0.25rem auto;
   gap: 0.25rem;
   padding: 0.25rem;
   border: 1px solid #e3ece7;

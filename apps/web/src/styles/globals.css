@@ -1843,11 +1843,9 @@ html[data-edgeever-extension-theme] .edgeever-memo-divider {
 }
 
 .ProseMirror .edgeever-mermaid-toolbar {
-  position: absolute;
-  top: 0.5rem;
-  right: 0.5rem;
-  z-index: 2;
   display: flex;
+  width: fit-content;
+  margin: 0 0 0.25rem auto;
   gap: 0.25rem;
   padding: 0.25rem;
   border: 1px solid #e3ece7;
@@ -1855,6 +1853,13 @@ html[data-edgeever-extension-theme] .edgeever-memo-divider {
   background: rgb(255 255 255 / 0.94);
   box-shadow: 0 1px 3px rgb(15 23 42 / 0.08);
   backdrop-filter: blur(6px);
+}
+
+@media (hover: hover) and (pointer: fine) and (not (any-pointer: coarse)) {
+  .ProseMirror .edgeever-mermaid-code-block:not(:hover):not(:focus-within) .edgeever-mermaid-toolbar {
+    opacity: 0;
+    pointer-events: none;
+  }
 }
 
 .ProseMirror .edgeever-mermaid-tool-button {
