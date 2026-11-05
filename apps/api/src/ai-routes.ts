@@ -1075,6 +1075,9 @@ export const registerAiRoutes = (app: Hono<AppEnv>, dependencies: AiRouteDepende
             configVersion: model.providerConfigVersion,
           },
           detectCapabilities: isAiModelCapabilityStale(model.capabilities),
+          // This server understands `segmentation`, `segment` and `continuation`; an older one
+          // ignores them, so clients only run parts or continue when they see this (#652).
+          longGeneration: true,
         };
         if (input.segmentation && !input.segment) {
           // A client that can run parts gets them when one request cannot finish this task (#652).

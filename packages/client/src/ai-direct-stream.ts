@@ -6,6 +6,7 @@ import {
   redactAiProviderError,
 } from "@edgeever/shared/ai-generation";
 import { isAiTruncatedFinishReason, parseAiOutputLimitFromError } from "@edgeever/shared/ai-model-capabilities";
+import type { AiGenerationSegment } from "@edgeever/shared/ai-generation-segments";
 
 const asRecord = (value: unknown): Record<string, unknown> | null =>
   value && typeof value === "object" ? value as Record<string, unknown> : null;
@@ -155,7 +156,7 @@ export const parseAiDirectTarget = (value: unknown): AiDirectTarget | null => {
   };
 };
 
-export const parsePreparedAiGeneration = (value: unknown): AiPreparedGeneration | null => {
+export const parsePreparedAiGeneration = (value: unknown): (AiPreparedGeneration & { segments?: AiGenerationSegment[]; longGeneration?: boolean }) | null => {
   const record = asRecord(value);
   const boundary = asRecord(record?.resultBoundary);
   if (
@@ -173,6 +174,16 @@ export const parsePreparedAiGeneration = (value: unknown): AiPreparedGeneration 
     return null;
   }
   const target = asRecord(record.capabilityTarget);
+  const segments = Array.isArray(record.segments) ? record.segments.flatMap((value) => {
+    const segment = asRecord(value);
+    return segment && typeof segment.markdown === "string" && typeof segment.passthrough === "boolean"
+      ? [{
+        markdown: segment.markdown,
+        passthrough: segment.passthrough,
+        headingPath: Array.isArray(segment.headingPath) ? segment.headingPath.filter((item): item is string => typeof item === "string") : [],
+      }]
+      : [];
+  }) : [];
   const budget = asRecord(record.outputBudget);
   return {
     provider: record.provider,
@@ -197,5 +208,8 @@ export const parsePreparedAiGeneration = (value: unknown): AiPreparedGeneration 
         detectCapabilities: record.detectCapabilities === true,
       }
       : {}),
+    ...(record.longGeneration === true ? { longGeneration: true } : {}),
+    // Parts planned by prepare (#652); a malformed entry drops the plan rather than losing text.
+    ...(Array.isArray(record.segments) && segments.length === record.segments.length && segments.length > 1 ? { segments } : {}),
   };
 };

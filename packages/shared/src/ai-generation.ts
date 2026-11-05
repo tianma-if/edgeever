@@ -371,12 +371,30 @@ export type AiDraftIncompleteReason = "truncated" | "stopped" | "interrupted";
  * reported a finish that was not truncated and no error. Text that arrived before an error, a
  * dropped connection or a stop stays usable for copy and append, but never for replace.
  */
-export type AiDraftCompletion = Readonly<{ finished: boolean; truncated: boolean; failed: boolean; stopped: boolean }>;
+export type AiDraftCompletion = Readonly<{
+  finished: boolean;
+  truncated: boolean;
+  failed: boolean;
+  stopped: boolean;
+  /** Parts (1-based) of a long run that kept their source text; any part makes the draft incomplete. */
+  incompleteParts: readonly number[];
+}>;
 
-export const startAiDraftCompletion = (): AiDraftCompletion => ({ finished: false, truncated: false, failed: false, stopped: false });
+export const startAiDraftCompletion = (): AiDraftCompletion => ({ finished: false, truncated: false, failed: false, stopped: false, incompleteParts: [] });
 
-export const trackAiDraftEvent = (state: AiDraftCompletion, event: { type: string; truncated?: boolean }): AiDraftCompletion => {
-  if (event.type === "finish") return { ...state, finished: true, truncated: state.truncated || event.truncated === true };
+export const trackAiDraftEvent = (
+  state: AiDraftCompletion,
+  event: { type: string; truncated?: boolean; incompleteParts?: readonly number[] },
+): AiDraftCompletion => {
+  if (event.type === "finish") {
+    const incompleteParts = event.incompleteParts ?? [];
+    return {
+      ...state,
+      finished: true,
+      truncated: state.truncated || event.truncated === true || incompleteParts.length > 0,
+      incompleteParts,
+    };
+  }
   if (event.type === "error") return { ...state, failed: true };
   return state;
 };
