@@ -147,6 +147,33 @@ const headingText = (token: Tokens.Heading) => token.text.replace(/\s+/g, " ").t
  * back exactly.
  */
 export const splitAiGenerationSegments = (markdown: string, maxSourceTokens: number): AiGenerationSegment[] => {
+  if (!markdown.includes("\r")) return splitNormalizedSegments(markdown, maxSourceTokens);
+  // The lexer reads CRLF (and lone CR) as LF. Split the LF text, then cut the original at the same
+  // places so every part keeps its own line endings and the parts still join to the exact source.
+  const offsets: number[] = [];
+  let normalized = "";
+  for (let index = 0; index < markdown.length; index += 1) {
+    const char = markdown[index];
+    if (char === "\r") {
+      offsets.push(index);
+      normalized += "\n";
+      if (markdown[index + 1] === "\n") index += 1;
+      continue;
+    }
+    offsets.push(index);
+    normalized += char;
+  }
+  offsets.push(markdown.length);
+  let start = 0;
+  return splitNormalizedSegments(normalized, maxSourceTokens).map((segment) => {
+    const end = start + segment.markdown.length;
+    const part = { ...segment, markdown: markdown.slice(offsets[start], offsets[end]) };
+    start = end;
+    return part;
+  });
+};
+
+const splitNormalizedSegments = (markdown: string, maxSourceTokens: number): AiGenerationSegment[] => {
   const maxTokens = Math.max(1, maxSourceTokens);
   const segments: AiGenerationSegment[] = [];
   let body = markdown;

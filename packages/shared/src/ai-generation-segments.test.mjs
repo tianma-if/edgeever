@@ -173,3 +173,31 @@ describe("a part result that is far too short (#652 PR B)", () => {
     expect(isAiSegmentResultPlausible("短。", "x")).toBe(true);
   });
 });
+
+describe("line endings (#652 PR B review)", () => {
+  const lf = Array.from({ length: 16 }, (_, index) => `## ${index + 1}. 节\n\n${"正文内容。".repeat(80)}\n\n- 要点\n- 要点\n`).join("\n");
+
+  test("a CRLF note splits like the LF note and joins back to the exact source", () => {
+    const crlf = lf.replaceAll("\n", "\r\n");
+    const lfParts = splitAiGenerationSegments(lf, 500);
+    const crlfParts = splitAiGenerationSegments(crlf, 500);
+    expect(lfParts.length).toBe(16);
+    expect(crlfParts.length).toBe(lfParts.length);
+    expect(crlfParts.map((part) => part.markdown).join("")).toBe(crlf);
+    expect(crlfParts.map((part) => part.markdown.replaceAll("\r\n", "\n"))).toEqual(lfParts.map((part) => part.markdown));
+    expect(crlfParts.map((part) => part.headingPath)).toEqual(lfParts.map((part) => part.headingPath));
+  });
+
+  test("mixed and lone CR line endings still join back exactly", () => {
+    const mixed = lf.split("\n").map((line, index) => line + (index % 3 === 0 ? "\r\n" : index % 3 === 1 ? "\n" : "\r")).join("");
+    const parts = splitAiGenerationSegments(mixed, 500);
+    expect(parts.length).toBeGreaterThan(1);
+    expect(parts.map((part) => part.markdown).join("")).toBe(mixed);
+  });
+
+  test("front matter with CRLF is kept as is", () => {
+    const source = "---\r\ntitle: x\r\n---\r\n\r\n" + lf.replaceAll("\n", "\r\n");
+    const [first] = splitAiGenerationSegments(source, 500);
+    expect(first).toEqual({ markdown: "---\r\ntitle: x\r\n---\r\n\r\n", headingPath: [], passthrough: true });
+  });
+});
