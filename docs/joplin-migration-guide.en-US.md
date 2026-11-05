@@ -1,6 +1,9 @@
 # Joplin Migration Guide
 
-[简体中文](joplin-migration-guide.md) | [English](joplin-migration-guide.en-US.md)
+[简体中文](note-migration-guide.md) | [English](note-migration-guide.en-US.md)
+
+> 💡 **Notice**: All third-party note migration guides have been merged and updated into a unified guide:
+> 👉 **[Migrate from Third-Party Notes to EdgeEver: The Complete Guide](note-migration-guide.en-US.md)** (covering native GUI one-click import and AI Agent / MCP migration).
 
 EdgeEver natively supports importing your entire Joplin knowledge base. In either the Web app or the Electron desktop client, **no converter plugins or custom scripts are needed**. You can migrate Joplin JEX archives, RAW export folders, or Markdown directories directly into EdgeEver via an intuitive graphical interface.
 

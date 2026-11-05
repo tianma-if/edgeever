@@ -1,6 +1,9 @@
 # Memos 笔记极简迁移指引
 
-[简体中文](memos-migration-guide.md) | [English](memos-migration-guide.en-US.md)
+[简体中文](note-migration-guide.md) | [English](note-migration-guide.en-US.md)
+
+> 💡 **提示**：第三方笔记迁入教程现已全面升级并合并至统一指引：
+> 👉 **[第三方笔记平滑迁入 EdgeEver 完整指南](note-migration-guide.md)**（全面覆盖原生一键导入与 AI Agent / MCP 迁入）。
 
 由于 EdgeEver 原生支持 AI Agent (Model Context Protocol, MCP) 接入，你甚至不需要导出任何数据文件，可以直接利用 AI 助手作为桥梁，同时挂载 **Memos MCP** 和 **EdgeEver MCP** 两个服务，实现全自动的云对云笔记搬家。
 

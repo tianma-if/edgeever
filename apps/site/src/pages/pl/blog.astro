@@ -6,7 +6,7 @@ import { getFormattedDate } from "@/utils/all";
 import { getLocalizedPath, getSiteLocale, siteCopy } from "@/i18n";
 
 const entries = (await getCollection("blog_en", ({ data }) => !data.draft)).sort(
-  (a, b) => Number(b.id === "evernote-migration-guide") - Number(a.id === "evernote-migration-guide")
+  (a, b) => Number(b.id === "note-migration-guide") - Number(a.id === "note-migration-guide")
     || b.data.publishDate.getTime() - a.data.publishDate.getTime(),
 );
 

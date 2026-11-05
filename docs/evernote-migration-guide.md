@@ -2,6 +2,9 @@
 
 [简体中文](evernote-migration-guide.md) | [English](evernote-migration-guide.en-US.md)
 
+> 💡 **提示**：第三方笔记迁入教程现已全面升级并合并至统一指引：
+> 👉 **[第三方笔记平滑迁入 EdgeEver 完整指南](note-migration-guide.md)**（全面覆盖原生一键导入与 AI Agent / MCP 迁入）。
+
 EdgeEver 内置了开箱即用的原生第三方导入功能。在 Web 网页端或 Electron 桌面端中，**无需安装任何额外依赖、无需运行命令行、也无需配置 MCP 授权**，即可直接在图形界面中拖拽或选取印象笔记 / Evernote 导出的文件，将笔记完整搬迁至 EdgeEver。
 
 ---

@@ -1,6 +1,9 @@
 # Obsidian Migration Guide
 
-[简体中文](obsidian-migration-guide.md) | [English](obsidian-migration-guide.en-US.md)
+[简体中文](note-migration-guide.md) | [English](note-migration-guide.en-US.md)
+
+> 💡 **Notice**: All third-party note migration guides have been merged and updated into a unified guide:
+> 👉 **[Migrate from Third-Party Notes to EdgeEver: The Complete Guide](note-migration-guide.en-US.md)** (covering native GUI one-click import and AI Agent / MCP migration).
 
 EdgeEver natively supports importing your entire Obsidian knowledge base (Vault). In either the Web app or the Electron desktop client, **no manual format conversion, command-line tools, or custom scripts are needed**. You can migrate an Obsidian Vault folder or ZIP archive into EdgeEver seamlessly through a graphical interface.
 

@@ -110,6 +110,7 @@ export const siteCopy = {
       dockerDeploy: "Docker 部署",
       selfHostedAlternative: "印象笔记替代",
       migration: "从印象笔记迁移",
+      noteMigration: "第三方笔记迁移",
       evernoteMigration: "从印象笔记迁移",
       memosMigration: "从 Memos 迁移",
       notionMigration: "从 Notion 迁移",
@@ -356,9 +357,9 @@ export const siteCopy = {
           cta: "查看部署指南",
         },
         {
-          title: "从印象笔记迁移",
-          summary: "通过 EdgeEver MCP、evernote-backup 和 ENEX 导入脚本，把旧笔记库迁移到自托管实例。",
-          href: "/blog/evernote-migration-guide",
+          title: "第三方笔记平滑迁入",
+          summary: "原生一键导入印象笔记、Obsidian、Joplin，或通过 AI Agent (MCP) 极简无缝迁移 Notion、flomo、Memos。",
+          href: "/blog/note-migration-guide",
           cta: "查看迁移指南",
         },
         {
@@ -393,6 +394,7 @@ export const siteCopy = {
       dockerDeploy: "Docker",
       selfHostedAlternative: "Evernote alternative",
       migration: "Migrate from Evernote",
+      noteMigration: "Note Migration Guide",
       evernoteMigration: "Migrate from Evernote",
       memosMigration: "Migrate from Memos",
       notionMigration: "Migrate from Notion",
@@ -639,9 +641,9 @@ export const siteCopy = {
           cta: "Read deployment guide",
         },
         {
-          title: "Migrate from Evernote",
-          summary: "Use EdgeEver MCP, evernote-backup, and the ENEX import script to migrate an old notes library into your self-hosted instance.",
-          href: "/blog/evernote-migration-guide",
+          title: "Migrate from Third-Party Notes",
+          summary: "Native one-click import for Evernote, Obsidian, and Joplin, or leverage AI Agent & MCP for Notion, flomo, and Memos.",
+          href: "/blog/note-migration-guide",
           cta: "Read migration guide",
         },
         {

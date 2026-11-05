@@ -18,6 +18,7 @@ export const jaSiteCopy = {
     dockerDeploy: "Docker",
     selfHostedAlternative: "Evernote 代替",
     migration: "Evernote から移行",
+    noteMigration: "ノート移行ガイド",
     evernoteMigration: "Evernote から移行",
     memosMigration: "Memos から移行",
     notionMigration: "Notion から移行",
@@ -267,9 +268,9 @@ export const jaSiteCopy = {
         cta: "導入ガイドを読む",
       },
       {
-        title: "Evernote から移行する",
-        summary: "EdgeEver MCP、evernote-backup、ENEX 取り込みで、古いライブラリを自前インスタンスへ。",
-        href: "/blog/evernote-migration-guide",
+        title: "サードパーティ製ノートの移行",
+        summary: "Evernote、Obsidian、Joplin のネイティブインポート、または AI Agent (MCP) を使用した Notion、flomo、Memos の移行。",
+        href: "/blog/note-migration-guide",
         cta: "移行ガイドを読む",
       },
       {

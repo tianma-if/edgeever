@@ -1,1 +1,33 @@
 https://www.edgeever.org/* https://edgeever.org/:splat 301
+
+/blog/evernote-migration-guide /blog/note-migration-guide 301
+/blog/memos-migration-guide /blog/note-migration-guide 301
+/blog/notion-migration-guide /blog/note-migration-guide 301
+/blog/flomo-migration-guide /blog/note-migration-guide 301
+/guides/evernote-migration /blog/note-migration-guide 301
+/guides/memos-migration /blog/note-migration-guide 301
+/guides/notion-migration /blog/note-migration-guide 301
+
+/en/blog/evernote-migration-guide /en/blog/note-migration-guide 301
+/en/blog/memos-migration-guide /en/blog/note-migration-guide 301
+/en/blog/notion-migration-guide /en/blog/note-migration-guide 301
+/en/blog/flomo-migration-guide /en/blog/note-migration-guide 301
+/en/guides/evernote-migration /en/blog/note-migration-guide 301
+/en/guides/memos-migration /en/blog/note-migration-guide 301
+/en/guides/notion-migration /en/blog/note-migration-guide 301
+
+/ja/blog/evernote-migration-guide /ja/blog/note-migration-guide 301
+/ja/blog/memos-migration-guide /ja/blog/note-migration-guide 301
+/ja/blog/notion-migration-guide /ja/blog/note-migration-guide 301
+/ja/blog/flomo-migration-guide /ja/blog/note-migration-guide 301
+/ja/guides/evernote-migration /ja/blog/note-migration-guide 301
+/ja/guides/memos-migration /ja/blog/note-migration-guide 301
+/ja/guides/notion-migration /ja/blog/note-migration-guide 301
+
+/pl/blog/evernote-migration-guide /pl/blog/note-migration-guide 301
+/pl/blog/memos-migration-guide /pl/blog/note-migration-guide 301
+/pl/blog/notion-migration-guide /pl/blog/note-migration-guide 301
+/pl/blog/flomo-migration-guide /pl/blog/note-migration-guide 301
+/pl/guides/evernote-migration /pl/blog/note-migration-guide 301
+/pl/guides/memos-migration /pl/blog/note-migration-guide 301
+/pl/guides/notion-migration /pl/blog/note-migration-guide 301

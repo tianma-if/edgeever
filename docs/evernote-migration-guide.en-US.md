@@ -1,6 +1,9 @@
 # Evernote Migration Guide
 
-[简体中文](evernote-migration-guide.md) | [English](evernote-migration-guide.en-US.md)
+[简体中文](note-migration-guide.md) | [English](note-migration-guide.en-US.md)
+
+> 💡 **Notice**: All third-party note migration guides have been merged and updated into a unified guide:
+> 👉 **[Migrate from Third-Party Notes to EdgeEver: The Complete Guide](note-migration-guide.en-US.md)** (covering native GUI one-click import and AI Agent / MCP migration).
 
 EdgeEver provides native, out-of-the-box support for importing third-party notes. In either the Web app or the Electron desktop client, **no extra dependencies, command-line operations, or MCP configurations are required**. You can directly drag or select files exported from Evernote to migrate your notes into EdgeEver seamlessly.
 

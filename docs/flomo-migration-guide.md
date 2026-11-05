@@ -1,6 +1,9 @@
 # flomo 笔记迁移指引
 
-[简体中文](flomo-migration-guide.md) | [English](flomo-migration-guide.en-US.md)
+[简体中文](note-migration-guide.md) | [English](note-migration-guide.en-US.md)
+
+> 💡 **提示**：第三方笔记迁入教程现已全面升级并合并至统一指引：
+> 👉 **[第三方笔记平滑迁入 EdgeEver 完整指南](note-migration-guide.md)**（全面覆盖原生一键导入与 AI Agent / MCP 迁入）。
 
 ### 步骤 1：导出 flomo
 

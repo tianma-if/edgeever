@@ -1,6 +1,9 @@
 # Obsidian 笔记迁入指引
 
-[简体中文](obsidian-migration-guide.md) | [English](obsidian-migration-guide.en-US.md)
+[简体中文](note-migration-guide.md) | [English](note-migration-guide.en-US.md)
+
+> 💡 **提示**：第三方笔记迁入教程现已全面升级并合并至统一指引：
+> 👉 **[第三方笔记平滑迁入 EdgeEver 完整指南](note-migration-guide.md)**（全面覆盖原生一键导入与 AI Agent / MCP 迁入）。
 
 EdgeEver 原生支持将你的整个 Obsidian 知识库（Vault）直接导入。在 Web 网页端或 Electron 桌面端中，**无需手动转换格式、无需命令行工具，也无需编写脚本**，即可通过图形界面将 Obsidian Vault 目录或 ZIP 压缩包一键平滑迁入。
 
