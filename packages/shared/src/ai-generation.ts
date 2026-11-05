@@ -173,6 +173,10 @@ export const createAiGenerationStreamNormalizer = (resultBoundary: AiGenerationR
     isUnterminated() {
       return boundaryStarted && !boundaryFinished;
     },
+    /** The end marker arrived, so the result is known to be whole (#652). */
+    isComplete() {
+      return boundaryFinished;
+    },
   };
 };
 

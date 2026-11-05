@@ -310,6 +310,50 @@ describe("generation with automatic budgets (#652)", () => {
     expect(events.some((event) => event.type === "finish")).toBe(false);
   });
 
+  test("unmarked text that closes without a finish reason is an interrupted draft", async () => {
+    const encoder = new TextEncoder();
+    const respond = (chunks) => async () => new Response(new ReadableStream({
+      start(controller) {
+        for (const chunk of chunks) controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`));
+        controller.close();
+      },
+    }), { headers: { "content-type": "text/event-stream" } });
+    const run = async (providerFetch) => {
+      const client = createEdgeEverClient({
+        baseUrl: "https://notes.example",
+        fetch: async () => json(preparedBody({ maxOutputTokens: 4096 })),
+        providerFetch,
+      });
+      const events = [];
+      let completion = startAiDraftCompletion();
+      await client.streamAiGeneration({ action: "improve-writing", title: "Note", contentMarkdown: "Body" }, {
+        onEvent: (event) => {
+          events.push(event);
+          completion = trackAiDraftEvent(completion, event);
+        },
+      });
+      const text = events.filter((event) => event.type === "text-delta").map((event) => event.text).join("");
+      return { events, text, reason: aiDraftIncompleteReason(completion) };
+    };
+    // Neither marker nor finish reason: the gateway sent a fragment and closed the stream.
+    const cut = await run(respond([{ choices: [{ delta: { content: "First paragraph.\n\nSecond" } }] }]));
+    expect(cut.text).toContain("First paragraph.");
+    expect(cut.events.at(-1)).toMatchObject({ type: "error", code: "ai_stream_interrupted" });
+    expect(cut.events.some((event) => event.type === "finish")).toBe(false);
+    expect(cut.reason).toBe("interrupted");
+    // The same unmarked text with a provider finish reason is still a complete draft.
+    const stopped = await run(respond([
+      { choices: [{ delta: { content: "First paragraph.\n\nSecond." } }] },
+      { choices: [{ delta: {}, finish_reason: "stop" }] },
+    ]));
+    expect(stopped.events.at(-1)).toMatchObject({ type: "finish", truncated: false });
+    expect(stopped.reason).toBeNull();
+    // Both markers but no finish reason: the end marker proves the result is whole.
+    const marked = await run(respond([{ choices: [{ delta: { content: "<r>\nWhole result.\n</r>" } }] }]));
+    expect(marked.events.at(-1)).toMatchObject({ type: "finish", truncated: false });
+    expect(marked.reason).toBeNull();
+  });
+
   test("an unrecognised 400 is not retried", async () => {
     let calls = 0;
     const client = createEdgeEverClient({

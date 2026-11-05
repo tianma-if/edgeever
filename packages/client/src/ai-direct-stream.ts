@@ -84,9 +84,10 @@ export const streamDirectAiGeneration = async (
     });
     return;
   }
-  // The connection closed before the provider said it finished and before the end marker:
-  // the stream was interrupted, not cut at a limit. The text so far stays an incomplete draft.
-  if (!finishReason && normalizer.isUnterminated()) {
+  // The connection closed before the provider said it finished and before the end marker,
+  // whether or not the start marker arrived: the stream was interrupted, not cut at a limit.
+  // The text so far stays an incomplete draft.
+  if (!finishReason && !normalizer.isComplete()) {
     options.onEvent({
       type: "error",
       code: "ai_stream_interrupted",

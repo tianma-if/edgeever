@@ -80,6 +80,34 @@ final class URLNormalizeTests: XCTestCase {
         XCTAssertFalse(unmarked.isUnterminated)
     }
 
+    func testStreamEndWithoutFinishReasonNeedsTheEndMarker() {
+        let boundary = AiGenerationResultBoundary(start: "<r>", end: "</r>")
+        // A gateway sends a fragment with neither marker and closes the stream.
+        let unmarked = AiGenerationStreamNormalizer(resultBoundary: boundary)
+        _ = unmarked.push("First paragraph.\n\nSecond")
+        XCTAssertTrue(unmarked.finish().contains("First paragraph."))
+        XCTAssertEqual(AiDirectStream.streamEnd(finishReason: nil, normalizer: unmarked), .interrupted)
+        // The same text with a provider stop is a complete result.
+        XCTAssertEqual(AiDirectStream.streamEnd(finishReason: "stop", normalizer: unmarked), .finished(truncated: false))
+
+        let started = AiGenerationStreamNormalizer(resultBoundary: boundary)
+        _ = started.push("<r>\nFirst paragraph.\n")
+        _ = started.finish()
+        XCTAssertEqual(AiDirectStream.streamEnd(finishReason: nil, normalizer: started), .interrupted)
+        XCTAssertEqual(AiDirectStream.streamEnd(finishReason: "end_turn", normalizer: started), .finished(truncated: true))
+
+        let whole = AiGenerationStreamNormalizer(resultBoundary: boundary)
+        _ = whole.push("<r>\nWhole result.\n</r>")
+        _ = whole.finish()
+        XCTAssertEqual(AiDirectStream.streamEnd(finishReason: nil, normalizer: whole), .finished(truncated: false))
+
+        // As the sheet folds it: the interruption blocks Replace and keeps the text.
+        var completion = AiDraftCompletion()
+        completion.track(event("text-delta", text: "First paragraph."))
+        completion.track(AiStreamEvent(type: "error", text: nil, code: "ai_stream_interrupted", message: "The connection ended before the AI finished.", finishReason: nil, inputTokens: nil, outputTokens: nil))
+        XCTAssertEqual(completion.incompleteReason, .interrupted)
+    }
+
     func testAnthropicStreamedStopReasonIsReadFromMessageDelta() {
         let delta = AiDirectStream.extractDelta(provider: "anthropic", payload: ["type": "message_delta", "delta": ["stop_reason": "max_tokens"], "usage": ["output_tokens": 7]])
         XCTAssertEqual(delta.finishReason, "max_tokens")

@@ -67,6 +67,19 @@ enum AiDirectStream {
         return ["length", "max_tokens", "model_context_window_exceeded", "MAX_TOKENS", "max_output_tokens"].contains(reason)
     }
 
+    enum StreamEnd: Equatable {
+        /// The connection closed before the provider finished and before the end marker (#652).
+        case interrupted
+        case finished(truncated: Bool)
+    }
+
+    /// How a stream that delivered text ended. Without a provider finish reason only the end
+    /// marker proves the result is whole, with or without the start marker (#652).
+    static func streamEnd(finishReason: String?, normalizer: AiGenerationStreamNormalizer) -> StreamEnd {
+        if finishReason == nil, !normalizer.isComplete { return .interrupted }
+        return .finished(truncated: isTruncatedFinishReason(finishReason) || normalizer.isUnterminated)
+    }
+
     static func tagSuggestions(_ text: String, currentTags: [String], canonicalTags: [String: String]) -> [AiTagSuggestion] {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         var names: [String] = []
@@ -179,6 +192,9 @@ final class AiGenerationStreamNormalizer: @unchecked Sendable {
     /// The result opened with the start marker but never reached the end marker, so it was cut
     /// off even if the provider or gateway reported a normal stop (#652).
     var isUnterminated: Bool { boundaryStarted && !boundaryFinished }
+
+    /// The end marker arrived, so the result is known to be whole (#652).
+    var isComplete: Bool { boundaryFinished }
 
     func finish() -> String {
         if boundaryFinished { return "" }
