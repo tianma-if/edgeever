@@ -772,7 +772,7 @@ struct AiAssistantSheet: View {
                 pl: "Wynik jest niepełny: części \(parts) nie udało się ukończyć i zawierają tekst oryginalny. Możesz go skopiować lub dołączyć, ale nie może zastąpić oryginału."
             )
         }
-        switch reason {
+        return switch reason {
         case .truncated:
             env.preferences.t(
                 "结果不完整：模型达到了输出上限。可以复制或追加，但不能用它替换原文。",
