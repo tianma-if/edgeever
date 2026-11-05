@@ -23,12 +23,12 @@ const doubleItems = [...copy.items, ...copy.items];
   <div class="group relative mt-4 md:mt-6 w-full">
     <div class="flex w-max gap-3 sm:gap-4 animate-site-marquee group-hover:[animation-play-state:paused]">
       {doubleItems.map((item, index) => (
-        <div aria-hidden={index >= copy.items.length ? "true" : undefined} class={`relative w-64 sm:w-72 shrink-0 rounded-2xl border border-slate-200/80 bg-gradient-to-br ${item.color} p-4 sm:p-5 shadow-xs transition-all duration-300 hover:shadow-md hover:border-emerald-400 bg-white`}>
+        <div aria-hidden={index >= copy.items.length ? "true" : undefined} class="relative w-64 sm:w-72 shrink-0 rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-2xs hover:shadow-sm hover:border-slate-300 transition-all duration-300">
           <div class="flex items-center justify-between mb-2.5 sm:mb-3">
-            <span class="px-2 py-0.5 text-[9.5px] sm:text-[10px] font-bold text-emerald-700 bg-emerald-100/80 rounded-md">
+            <span class="px-2 py-0.5 text-[9.5px] sm:text-[10px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200/60 rounded-md">
               {item.tag}
             </span>
-            <Icon name={item.icon} class="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600" />
+            <Icon name={item.icon} class="w-4 h-4 sm:w-5 sm:h-5 text-slate-700" />
           </div>
           <h4 class="font-bold text-slate-900 text-xs sm:text-sm">{item.title}</h4>
           <p class="text-slate-500 text-[10.5px] sm:text-[11.5px] mt-1 leading-snug">{item.desc}</p>
