@@ -4,7 +4,7 @@ import {
   PenLine,
   ChevronLeft,
   ChevronRight,
-  Database,
+  DatabaseBackup,
   Info,
   Keyboard,
   KeyRound,
@@ -167,7 +167,7 @@ export const SettingsPane = ({
     {
       key: "data",
       label: t("settings.tabs.data"),
-      icon: Database,
+      icon: DatabaseBackup,
     },
     {
       key: "sharing",

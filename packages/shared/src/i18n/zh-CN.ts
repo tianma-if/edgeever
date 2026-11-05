@@ -1342,7 +1342,7 @@ export const zhCN = {
       ai: "模型与代理",
       speech: "音视频转写",
       mcp: "API / MCP",
-      data: "备份与迁移",
+      data: "备份与导入",
       advanced: "高级设置",
       account: "登录设置",
     },

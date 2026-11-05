@@ -1331,7 +1331,7 @@ export const ja = {
       ai: "モデルとエージェント",
       speech: "音声・動画の文字起こし",
       mcp: "API / MCP",
-      data: "バックアップと移行",
+      data: "バックアップとインポート",
       advanced: "詳細",
       account: "ログイン設定",
     },

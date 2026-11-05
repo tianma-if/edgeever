@@ -1323,7 +1323,7 @@ export const enUS = {
       ai: "Models and agents",
       speech: "Audio/video transcription",
       mcp: "API / MCP",
-      data: "Backup & Migration",
+      data: "Backup & Import",
       advanced: "Advanced",
       account: "Login Settings",
     },

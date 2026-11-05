@@ -1331,7 +1331,7 @@ export const pl = {
       ai: "Modele i agenci",
       speech: "Transkrypcja audio i wideo",
       mcp: "API / MCP",
-      data: "Kopia zapasowa i migracja",
+      data: "Kopia zapasowa i import",
       advanced: "Zaawansowane",
       account: "Ustawienia logowania",
     },

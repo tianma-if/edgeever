@@ -172,7 +172,7 @@ test("imports a 600 MiB attachment from an EdgeEver ZIP through streaming multip
     await page.goto("/");
     await page.getByRole("button", { name: "个人中心", exact: true }).click();
     await expect(page.getByRole("heading", { name: "我的", exact: true })).toBeVisible();
-    await page.getByRole("button", { name: "备份与迁移", exact: true }).click();
+    await page.getByRole("button", { name: "备份与导入", exact: true }).click();
     await expect(page.getByText("导入与导出", { exact: true })).toBeVisible();
 
     const chooserPromise = page.waitForEvent("filechooser");
