@@ -999,14 +999,9 @@ export const DEMO_SEED_MEMOS_ZH = [
 通过下面的 Mermaid 架构图，你可以清晰了解 EdgeEver 如何将多端客户端、零成本云基础设施与 AI Agent 紧密串联：
 
 \`\`\`mermaid
-flowchart TD
-    subgraph ClientLayer["全端客户端"]
+flowchart LR
+    subgraph ClientsBox["全端客户端与智能体"]
         Clients["全端客户端矩阵<br/>Web · PWA · 桌面客户端<br/>iOS · Android · 浏览器剪藏"]
-    end
-
-    subgraph Ecosystem["AI 与外部生态"]
-        direction LR
-        LLMs["主流大语言模型<br/>OpenAI · Gemini · DeepSeek"]
         Agents["外部 AI 智能体<br/>Claude Code · Cursor · Antigravity"]
     end
 
@@ -1015,20 +1010,16 @@ flowchart TD
         MCP["原生 MCP 服务端点 (/mcp)<br/>上下文感知 · 工具读写协议"]
     end
 
-    subgraph Storage["数据与对象存储"]
-        direction LR
-        DB[("关系数据库<br/>Cloudflare D1 / SQLite")]
-        OSS[("对象存储<br/>Cloudflare R2 / S3 兼容")]
+    subgraph BackendBox["AI 模型与数据存储"]
+        LLMs["主流大语言模型 (BYOK 直连)<br/>OpenAI · Gemini · DeepSeek"]
+        Storage[("数据与对象存储<br/>Cloudflare D1 / SQLite · R2 / S3 兼容")]
     end
 
-    Clients -->|BYOK 客户端直连 · 隐私安全| LLMs
     Clients <-->|HTTPS 增量同步| API
+    Clients -->|BYOK 客户端直连 · 隐私安全| LLMs
     Agents <-->|MCP Tools / SSE 协议| MCP
-
-    API <--> DB
-    API <--> OSS
-    MCP <--> DB
-    MCP <--> OSS
+    API <--> Storage
+    MCP <--> Storage
 \`\`\`
 
 ---
@@ -1353,14 +1344,9 @@ export const DEMO_MEMO_ENGLISH = {
 The Mermaid diagram below demonstrates how EdgeEver connects cross-platform clients, zero-cost cloud infrastructure, and AI Agents into a cohesive workflow:
 
 \`\`\`mermaid
-flowchart TD
-    subgraph ClientLayer["Cross-platform clients"]
+flowchart LR
+    subgraph ClientsBox["Cross-platform clients & agents"]
         Clients["Cross-Platform Clients<br/>Web · PWA · Desktop Apps<br/>iOS · Android · Web Clipper"]
-    end
-
-    subgraph Ecosystem["AI & External Ecosystem"]
-        direction LR
-        LLMs["LLM Providers<br/>OpenAI · Gemini · DeepSeek"]
         Agents["External AI Agents<br/>Claude Code · Cursor · Antigravity"]
     end
 
@@ -1369,20 +1355,16 @@ flowchart TD
         MCP["Native MCP Endpoint (/mcp)<br/>Context Retrieval · Read/Write Tools"]
     end
 
-    subgraph Storage["Data & Object Storage"]
-        direction LR
-        DB[("Relational Database<br/>Cloudflare D1 / SQLite")]
-        OSS[("Object Storage<br/>Cloudflare R2 / S3 Compatible")]
+    subgraph BackendBox["AI Models & Data Storage"]
+        LLMs["LLM Providers (Direct BYOK)<br/>OpenAI · Gemini · DeepSeek"]
+        Storage[("Data & Object Storage<br/>Cloudflare D1 / SQLite · R2 / S3 Compatible")]
     end
 
-    Clients -->|Direct BYOK · Privacy First| LLMs
     Clients <-->|HTTPS Incremental Sync| API
+    Clients -->|Direct BYOK · Privacy First| LLMs
     Agents <-->|MCP Tools / SSE Protocol| MCP
-
-    API <--> DB
-    API <--> OSS
-    MCP <--> DB
-    MCP <--> OSS
+    API <--> Storage
+    MCP <--> Storage
 \`\`\`
 
 ---

@@ -7,7 +7,7 @@ import { MERMAID_THEME_PALETTES } from "/src/components/ThemeProvider.tsx";
 import demoSeed from "../../../apps/api/src/demo-seed-data.ts?raw";
 
 const readDemoSource = (heading) => {
-  const start = demoSeed.indexOf("flowchart TD", demoSeed.indexOf(heading));
+  const start = demoSeed.indexOf("flowchart", demoSeed.indexOf(heading));
   return demoSeed.slice(start).split("\\`\\`\\`")[0].trim();
 };
 
