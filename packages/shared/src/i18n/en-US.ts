@@ -3479,6 +3479,8 @@ export const enUS = {
   },
   password: {
     title: "Change password",
+    description: "Regularly updating your password helps keep your account secure.",
+    dialogDescription: "Enter your current password and a new password to update your login credentials. The new password must be at least 8 characters.",
     currentPassword: "Current password",
     newPassword: "New password",
     confirmPassword: "Confirm new password",

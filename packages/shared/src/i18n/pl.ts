@@ -3487,6 +3487,8 @@ export const pl = {
   },
   password: {
     title: "Zmień hasło",
+    description: "Regularna aktualizacja hasła pomaga zabezpieczyć konto.",
+    dialogDescription: "Wprowadź bieżące hasło i nowe hasło, aby zaktualizować dane logowania. Nowe hasło musi mieć co najmniej 8 znaków.",
     currentPassword: "Bieżące hasło",
     newPassword: "Nowe hasło",
     confirmPassword: "Potwierdź nowe hasło",

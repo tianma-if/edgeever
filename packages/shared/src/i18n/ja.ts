@@ -3487,6 +3487,8 @@ export const ja = {
   },
   password: {
     title: "パスワードを変更",
+    description: "定期的にパスワードを更新することで、アカウントのセキュリティが向上します。",
+    dialogDescription: "現在のパスワードと新しいパスワードを入力してログイン情報を更新します。新しいパスワードは 8 文字以上にしてください。",
     currentPassword: "現在のパスワード",
     newPassword: "新しいパスワード",
     confirmPassword: "新しいパスワードの確認",

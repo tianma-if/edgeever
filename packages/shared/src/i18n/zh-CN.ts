@@ -3496,6 +3496,8 @@ export const zhCN = {
   },
   password: {
     title: "修改密码",
+    description: "定期更新密码有助于保护账号安全。",
+    dialogDescription: "输入当前密码和新密码以更新登录凭据。新密码至少需要 8 个字符。",
     currentPassword: "当前密码",
     newPassword: "新密码",
     confirmPassword: "确认新密码",
