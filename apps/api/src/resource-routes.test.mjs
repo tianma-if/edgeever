@@ -173,6 +173,25 @@ describe("resource route contracts", () => {
     expect(await response.json()).toMatchObject({ resource: { id: "res_1", sha256: "next-checksum" } });
   });
 
+  test("only authorized writers can discover safe writeback support", async () => {
+    expect((await createApp().request("/api/v1/resources/writeback-capabilities", {}, createEnvironment())).status).toBe(403);
+    const response = await createApp({ ...agentAuth, scopes: ["write:resources"] })
+      .request("/api/v1/resources/writeback-capabilities", {}, createEnvironment());
+    expect(response.status).toBe(200); expect(await response.json()).toEqual({ preserveFilename: true });
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+  });
+
+  test("the dedicated writeback route always preserves filenames even if the optional field is disabled", async () => {
+    let replacement;
+    const form = new FormData(); form.append("file", new File(["edit"], "local-copy.xlsx"));
+    form.append("expectedContentHash", "checksum"); form.append("preserveFilename", "false");
+    const response = await createApp({ ...agentAuth, scopes: ["write:resources"] }, async () => resourceRow, {
+      replaceResourceContent: async (_context, input) => { replacement = input; return resourceRow; },
+    }).request("/api/v1/resources/res_1/blob/writeback", { method: "PUT", body: form }, createEnvironment());
+    expect(response.status).toBe(200); expect(replacement.preserveFilename).toBe(true);
+    expect(response.headers.get("X-EdgeEver-Writeback")).toBe("preserve-filename");
+  });
+
   test("initializes a bounded multipart upload after memo authorization", async () => {
     let input;
     const response = await createApp(

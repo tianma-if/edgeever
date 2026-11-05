@@ -1,9 +1,10 @@
 import { createWriteStream } from "node:fs";
-import { mkdir, mkdtemp, readdir, rm, stat } from "node:fs/promises";
-import { extname, join } from "node:path";
+import { mkdir, mkdtemp, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { basename, extname, join } from "node:path";
 import { pipeline } from "node:stream/promises";
 import { isSafeResourceId } from "./resource-url.mjs";
 import { restrictDirectory, restrictFile } from "./file-permissions.mjs";
+import { canRemoveOpenedAttachment } from "./attachment-writeback.mjs";
 
 // Only document/media formats: never hand scripts, shortcuts, executables or
 // unknown file types to an OS handler. Those remain available via Download.
@@ -43,7 +44,7 @@ export const attachmentOpenInput = (input) => {
   } catch { return null; }
 };
 
-const cleanupOpenedAttachments = async (directory) => {
+const cleanupOpenedAttachments = async (directory, onRemove) => {
   const entries = await readdir(directory, { withFileTypes: true });
   for (const entry of entries) {
     if (!entry.isDirectory() || !entry.name.startsWith("open-")) continue;
@@ -53,12 +54,16 @@ const cleanupOpenedAttachments = async (directory) => {
     const children = await readdir(path).catch(() => []);
     const times = await Promise.all([path, ...children.map((name) => join(path, name))]
       .map((item) => stat(item).then((info) => info.mtimeMs).catch(() => Date.now())));
-    if (Math.max(...times) < Date.now() - RETENTION_MS) await rm(path, { recursive: true, force: true });
+    if (Math.max(...times) < Date.now() - RETENTION_MS && await canRemoveOpenedAttachment(path)) {
+      await rm(path, { recursive: true, force: true });
+      onRemove?.(entry.name);
+    }
   }
 };
 
 export const registerAttachmentOpenIpc = (ipcMain, options) => {
   const pending = new Map();
+  let nameQueue = Promise.resolve();
   ipcMain.handle("desktop:open-attachment", async (event, input) => {
     try { options.authorize(event); } catch { return { ok: false, code: "forbidden" }; }
     const parsed = attachmentOpenInput(input);
@@ -79,7 +84,6 @@ export const registerAttachmentOpenIpc = (ipcMain, options) => {
       try {
         await mkdir(directory, { recursive: true, mode: 0o700 });
         await restrictDirectory(directory);
-        await cleanupOpenedAttachments(directory).catch(() => {});
         assertCurrent();
         const signal = AbortSignal.timeout(120_000);
         response = await options.readResource(parsed.url, signal, assertCurrent);
@@ -88,12 +92,37 @@ export const registerAttachmentOpenIpc = (ipcMain, options) => {
           await response.body?.cancel();
           return { ok: false, code: "unavailable" };
         }
-        // Unique copies avoid overwriting a file being edited in another app.
-        folder = await mkdtemp(join(directory, "open-"));
-        await restrictDirectory(folder);
-        const path = join(folder, parsed.filename);
-        await pipeline(response.body, createWriteStream(path, { flags: "wx", mode: 0o600 }), { signal });
+        // WPS rejects equal basenames even in different folders. Reserve a
+        // distinct local name before releasing this short allocation queue;
+        // downloads and OS opening do not need to be serialized.
+        const allocation = nameQueue.then(async () => {
+          assertCurrent();
+          await cleanupOpenedAttachments(directory, options.writeback?.forget).catch(() => {});
+          const names = new Set();
+          for (const entry of await readdir(directory, { withFileTypes: true })) {
+            if (!entry.isDirectory() || !entry.name.startsWith("open-")) continue;
+            for (const child of await readdir(join(directory, entry.name), { withFileTypes: true })) {
+              if (child.isFile()) names.add(child.name.normalize("NFC").toLowerCase());
+            }
+          }
+          const extension = extname(parsed.filename);
+          const stem = parsed.filename.slice(0, -extension.length);
+          let localFilename = parsed.filename;
+          for (let number = 2; names.has(localFilename.normalize("NFC").toLowerCase()); number++) {
+            localFilename = `${stem} (${number})${extension}`;
+          }
+          folder = await mkdtemp(join(directory, "open-"));
+          await restrictDirectory(folder);
+          const path = join(folder, localFilename);
+          await writeFile(path, "", { flag: "wx", mode: 0o600 });
+          return { path, localFilename };
+        });
+        nameQueue = allocation.catch(() => {});
+        const { path, localFilename } = await allocation;
+        await pipeline(response.body, createWriteStream(path, { flags: "w", mode: 0o600 }), { signal });
         await restrictFile(path);
+        assertCurrent();
+        await options.writeback?.track({ folder, url: parsed.url, filename: input.filename, localFilename, mimeType: response.headers.get("content-type") });
         assertCurrent();
         failureCode = "open-failed";
         const error = await options.openPath(path);
@@ -102,7 +131,10 @@ export const registerAttachmentOpenIpc = (ipcMain, options) => {
         return { ok: true };
       } catch (error) {
         await response?.body?.cancel().catch(() => {});
-        if (folder) await rm(folder, { recursive: true, force: true }).catch(() => {});
+        if (folder) {
+          options.writeback?.forget(basename(folder));
+          await rm(folder, { recursive: true, force: true }).catch(() => {});
+        }
         return { ok: false, code: error?.code === "forbidden" ? "forbidden" : failureCode };
       }
     })();

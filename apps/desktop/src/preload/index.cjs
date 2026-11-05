@@ -111,6 +111,17 @@ contextBridge.exposeInMainWorld("edgeeverDesktop", Object.freeze({
     if (!navigator.userActivation?.isActive) return Promise.resolve({ ok: false, code: "forbidden" });
     return ipcRenderer.invoke("desktop:open-attachment", input);
   },
+  attachmentWritebacks: () => ipcRenderer.invoke("desktop:attachment-writebacks"),
+  retryAttachmentWriteback: (id) => ipcRenderer.invoke("desktop:retry-attachment-writeback", id),
+  revealAttachmentWriteback: (id) => {
+    if (!navigator.userActivation?.isActive) return Promise.resolve();
+    return ipcRenderer.invoke("desktop:reveal-attachment-writeback", id);
+  },
+  onAttachmentResourceSaved: (callback) => {
+    const listener = (_event, resource) => callback(resource);
+    ipcRenderer.on("desktop:attachment-resource-saved", listener);
+    return () => ipcRenderer.removeListener("desktop:attachment-resource-saved", listener);
+  },
   beginStagedResource: (input) => ipcRenderer.invoke("desktop:stage-resource-begin", input),
   appendStagedResource: (id, bytes) => ipcRenderer.invoke("desktop:stage-resource-append", id, bytes),
   completeStagedResource: (id) => ipcRenderer.invoke("desktop:stage-resource-complete", id),
