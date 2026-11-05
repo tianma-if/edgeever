@@ -720,12 +720,12 @@ function AiSidebarSession({
   const startBodyDraft = bodyDraft.start;
   const runBodySkill = useCallback((id: SkillId, rest: string, message: string) => {
     if (!bodyDraftEnabled) return false;
-    const command = resolveAiBodyCommand(id, rest, i18n.language);
+    const command = resolveAiBodyCommand(id, rest);
     if (!command) return false;
     const pin = selectionPin && selectionPin.memoId === memoId ? selectionPin : null;
     void startBodyDraft(command, pin ? { kind: "selection", snapshot: selectionPinSnapshot(pin) } : { kind: "note" }, message);
     return true;
-  }, [bodyDraftEnabled, i18n.language, memoId, selectionPin, startBodyDraft]);
+  }, [bodyDraftEnabled, memoId, selectionPin, startBodyDraft]);
   const [turnFailures, setTurnFailures] = useState<Record<string, string>>({});
   const [useMemory, setUseMemory] = useState(false);
   const [includeCurrentNote, setIncludeCurrentNote] = useState(false);

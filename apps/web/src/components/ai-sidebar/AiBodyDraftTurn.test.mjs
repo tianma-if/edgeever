@@ -28,6 +28,17 @@ describe("sidebar body drafts (#652 PR B)", () => {
     expect(hook).toContain("await api.streamAiGeneration({");
   });
 
+  test("a translation without a language asks which one before generating", () => {
+    expect(hook).toContain('if (command.action === "translate" && !command.targetLanguage) {');
+    expect(hook).toContain("awaitingLanguage: true");
+    // The same target-language select as the former AI assistant dialog, then Translate.
+    expect(panel).toContain('<SelectTrigger aria-label={t("aiAssistant.targetLanguage")}');
+    expect(panel).toContain("getDefaultAiTargetLanguage(i18n.language)");
+    expect(panel).toContain("onClick={() => onRegenerate(language)}");
+    // No language switch once a result is there.
+    expect(panel.match(/AI_TARGET_LANGUAGES\.map/g)).toHaveLength(1);
+  });
+
   test("only a finished, complete draft on an unchanged target can replace", () => {
     expect(panel).toContain("const replaceDisabled = draft.generating || !hasText || draft.incomplete !== null;");
     expect(hook).toContain("if (replaceBlocked(current.incomplete, current.generating)) return \"failed\";");

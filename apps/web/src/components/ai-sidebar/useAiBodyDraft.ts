@@ -31,6 +31,8 @@ export type AiBodyDraft = Omit<AiBodyDraftRecord, "scope"> & {
   error: string | null;
   /** Restored from this device after a reload, not generated in this session. */
   recovered: boolean;
+  /** A translation without a target language waits for the user to choose one. */
+  awaitingLanguage?: boolean;
 };
 
 export type AiBodyDraftTargetRequest =
@@ -99,6 +101,17 @@ export const useAiBodyDraft = (options: {
     const recordTarget: AiBodyDraftTarget = target.kind === "note"
       ? { kind: "note", sourceHash: hashAiDraftSource(source) }
       : { kind: "selection", ...target.snapshot };
+    if (command.action === "translate" && !command.targetLanguage) {
+      // Ask which language first; choosing one starts the translation of the same source.
+      controllerRef.current = null;
+      setDraft({
+        memoId, action: command.action, message, source, text: "", incomplete: null, incompleteParts: [],
+        ...(command.instruction ? { instruction: command.instruction } : {}),
+        target: recordTarget, createdAt: new Date().toISOString(),
+        generating: false, progress: null, error: null, recovered: false, awaitingLanguage: true,
+      });
+      return;
+    }
     const controller = new AbortController();
     controllerRef.current = controller;
     completionRef.current = startAiDraftCompletion();

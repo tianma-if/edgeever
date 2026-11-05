@@ -3,17 +3,18 @@ import { parseAiTargetLanguage, resolveAiBodyCommand } from "./ai-body-commands.
 import { hashAiDraftSource } from "./ai-body-draft-store.ts";
 
 describe("sidebar body commands (#652 PR B)", () => {
-  test("/translate picks a named language, else the UI language's default; the rest is the instruction", () => {
-    expect(resolveAiBodyCommand("translate", "ja", "en-US")).toEqual({ action: "translate", targetLanguage: "ja" });
-    expect(resolveAiBodyCommand("translate", "英文 保留术语", "zh-CN")).toEqual({ action: "translate", targetLanguage: "en", instruction: "保留术语" });
-    expect(resolveAiBodyCommand("translate", "", "zh-CN").targetLanguage).toBeTruthy();
-    expect(resolveAiBodyCommand("translate", "formally", "en-US")).toMatchObject({ action: "translate", instruction: "formally" });
+  test("/translate picks a named language, else leaves it to the user; the rest is the instruction", () => {
+    expect(resolveAiBodyCommand("translate", "ja")).toEqual({ action: "translate", targetLanguage: "ja" });
+    expect(resolveAiBodyCommand("translate", "英文 保留术语")).toEqual({ action: "translate", targetLanguage: "en", instruction: "保留术语" });
+    // Without a language the sidebar asks which one, as the Agent did.
+    expect(resolveAiBodyCommand("translate", "")).toEqual({ action: "translate" });
+    expect(resolveAiBodyCommand("translate", "formally")).toEqual({ action: "translate", instruction: "formally" });
   });
 
   test("/improve becomes improve-writing; /summarize stays with the Agent", () => {
-    expect(resolveAiBodyCommand("improve", "", "en-US")).toEqual({ action: "improve-writing" });
-    expect(resolveAiBodyCommand("improve", "more formal", "en-US")).toEqual({ action: "improve-writing", instruction: "more formal" });
-    expect(resolveAiBodyCommand("summarize", "", "en-US")).toBeNull();
+    expect(resolveAiBodyCommand("improve", "")).toEqual({ action: "improve-writing" });
+    expect(resolveAiBodyCommand("improve", "more formal")).toEqual({ action: "improve-writing", instruction: "more formal" });
+    expect(resolveAiBodyCommand("summarize", "")).toBeNull();
   });
 
   test("languages are recognised by code or common name", () => {

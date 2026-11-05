@@ -1,4 +1,4 @@
-import { AI_TARGET_LANGUAGES, getDefaultAiTargetLanguage, type AiTargetLanguage } from "@edgeever/shared";
+import { AI_TARGET_LANGUAGES, type AiTargetLanguage } from "@edgeever/shared";
 import type { AiBodyDraftAction } from "./ai-body-draft-store";
 
 /**
@@ -35,9 +35,10 @@ export const parseAiTargetLanguage = (value: string): AiTargetLanguage | null =>
 
 /**
  * The body command for a sidebar skill, or `null` when the skill stays an Agent turn.
- * `/translate ja` picks the language; other words after a command become the instruction.
+ * `/translate ja` picks the language; without one the sidebar asks which language to use, as the
+ * Agent did. Other words after a command become the instruction.
  */
-export const resolveAiBodyCommand = (skill: string, rest: string, locale: string): AiBodyCommand | null => {
+export const resolveAiBodyCommand = (skill: string, rest: string): AiBodyCommand | null => {
   const words = rest.trim();
   if (skill === "improve") return { action: "improve-writing", ...(words ? { instruction: words } : {}) };
   if (skill !== "translate") return null;
@@ -46,7 +47,7 @@ export const resolveAiBodyCommand = (skill: string, rest: string, locale: string
   const instruction = (named ? others.join(" ") : words).trim();
   return {
     action: "translate",
-    targetLanguage: named ?? getDefaultAiTargetLanguage(locale),
+    ...(named ? { targetLanguage: named } : {}),
     ...(instruction ? { instruction } : {}),
   };
 };

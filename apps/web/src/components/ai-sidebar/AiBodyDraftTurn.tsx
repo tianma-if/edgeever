@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Loader2 } from "lucide-react";
-import type { AiTargetLanguage } from "@edgeever/shared";
+import { AI_TARGET_LANGUAGES, getDefaultAiTargetLanguage, type AiTargetLanguage } from "@edgeever/shared";
 import { formatAiPartList } from "@edgeever/shared/ai-generation";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Message, MessageContent } from "@/components/ai-elements/message";
 import { copyTextToClipboard } from "@/lib/clipboard";
-import { SELECTION_AI_LANGUAGES } from "@/lib/selection-ai";
 import type { AiDraftSelectionSnapshot } from "@/lib/ai-body-draft-store";
 import { AiSidebarMessage } from "./AiSidebarMessage";
 import type { AiBodyDraft, AiBodyDraftApplyResult, AiBodyDraftConfirm } from "./useAiBodyDraft";
@@ -39,6 +39,8 @@ export function AiBodyDraftTurn({
   const [copied, setCopied] = useState(false);
   const [confirm, setConfirm] = useState<AiBodyDraftConfirm | null>(null);
   const [applyFailed, setApplyFailed] = useState(false);
+  // Like the former AI assistant dialog: a target-language select, defaulting by the UI language.
+  const [language, setLanguage] = useState<AiTargetLanguage>(() => getDefaultAiTargetLanguage(i18n.language));
   const selection = draft.target.kind === "selection";
   const hasText = Boolean(draft.text.trim());
   const replaceDisabled = draft.generating || !hasText || draft.incomplete !== null;
@@ -70,6 +72,23 @@ export function AiBodyDraftTurn({
       </Message>
       <Message from="assistant">
         {draft.recovered ? <p className="text-xs text-slate-500">{t("aiAssistant.sidebar.draft.recovered")}</p> : null}
+        {draft.awaitingLanguage ? (
+          <div className="flex flex-wrap items-center gap-1.5" data-ai-body-draft-language="">
+            <span className="text-xs text-slate-600">{t("aiAssistant.targetLanguage")}</span>
+            <Select value={language} onValueChange={(value) => setLanguage(value as AiTargetLanguage)}>
+              <SelectTrigger aria-label={t("aiAssistant.targetLanguage")} className="h-8 w-36 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="max-h-[min(20rem,var(--radix-select-content-available-height))]">
+                {AI_TARGET_LANGUAGES.map((item) => (
+                  <SelectItem key={item} value={item}>{t(`aiAssistant.targetLanguages.${item}`)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button type="button" size="sm" onClick={() => onRegenerate(language)}>{t("aiAssistant.sidebar.skills.translate")}</Button>
+            <Button type="button" size="sm" variant="ghost" onClick={onDiscard}>{t("aiAssistant.sidebar.draft.cancel")}</Button>
+          </div>
+        ) : null}
         {hasText ? (
           <AiSidebarMessage isAnimating={draft.generating}>{draft.text}</AiSidebarMessage>
         ) : draft.generating ? (
@@ -115,7 +134,7 @@ export function AiBodyDraftTurn({
           </div>
         ) : null}
         {applyFailed ? <p role="alert" className="text-xs text-rose-700">{t("aiAssistant.sidebar.draft.applyFailed")}</p> : null}
-        <div className="flex flex-wrap items-center gap-1.5">
+        {draft.awaitingLanguage ? null : <div className="flex flex-wrap items-center gap-1.5">
           {draft.generating ? (
             <Button type="button" size="sm" variant="outline" onClick={onStop}>{t("aiAssistant.sidebar.draft.stop")}</Button>
           ) : (
@@ -141,25 +160,11 @@ export function AiBodyDraftTurn({
               <Button type="button" size="sm" variant="outline" disabled={replaceDisabled} onClick={() => void run("replace")} data-ai-body-draft-replace="">
                 {t(selection ? "aiAssistant.sidebar.draft.replaceSelection" : "aiAssistant.sidebar.draft.replaceNote")}
               </Button>
-              {draft.action === "translate" ? SELECTION_AI_LANGUAGES.map((language) => (
-                <Button
-                  key={language}
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  aria-pressed={draft.targetLanguage === language}
-                  className={draft.targetLanguage === language ? "font-semibold text-slate-900" : undefined}
-                  onClick={() => onRegenerate(language)}
-                >
-                  {t(`aiAssistant.sidebar.selection.chips.${language}`)}
-                </Button>
-              )) : (
-                <Button type="button" size="sm" variant="ghost" onClick={() => onRegenerate()}>{t("aiAssistant.sidebar.draft.regenerate")}</Button>
-              )}
+              <Button type="button" size="sm" variant="ghost" onClick={() => onRegenerate()}>{t("aiAssistant.sidebar.draft.regenerate")}</Button>
               <Button type="button" size="sm" variant="ghost" onClick={onDiscard}>{t("aiAssistant.sidebar.draft.discard")}</Button>
             </>
           )}
-        </div>
+        </div>}
       </Message>
     </div>
   );
