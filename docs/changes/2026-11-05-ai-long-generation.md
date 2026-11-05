@@ -68,4 +68,10 @@ After PR A (#791), models with known limits are no longer cut at 4096. Gateways 
     - Fixes: short code blocks stay with the text before them; parts prefer to start at a heading; the part instruction asks for every block; a result far shorter than its part counts as incomplete.
   - Known limits (DeepSeek official, output limit 393,216): the 40-section translation stays a single request (`max_tokens=45166`) with the structure intact.
   - Continuation: on DeepSeek official with a temporary manual budget of 4,096, making a 12-section note longer was cut at the limit, continued once, and finished normally. All 12 sections, links and code blocks were kept, with no repeat at the seam. The gateway above ignores `max_tokens`, so it cannot produce a cut for this test.
-- Not verified: iOS device; Android device (pending); the desktop app reuses the Web pages and was not packaged and tested separately.
+- Android device (preview APK, against the preview instance running this branch):
+  - On the gateway without limits, Claude Haiku 4.5 on the 40-section note: the AI assistant showed part progress and finished completely, with replace available.
+  - Continuation on DeepSeek official with the custom instruction "make every section three times longer":
+    - with a manual budget of 4,096, three continuations were not enough, so the result was reported as reaching the output limit and replace was disabled;
+    - with 8,192, the cut-off result continued automatically, finished normally, and could replace the note.
+- iOS: build and unit tests pass on the fork's Actions, including the six part and continuation cases. The new simulator UI case "a cut-off result is continued and can replace" passed in one run; in another run it and "a complete result can replace" timed out while the app was launching and signing in, before the AI assistant opened. The other six cases passed in both runs.
+- Not verified: iOS device; the desktop app reuses the Web pages and was not packaged and tested separately.
