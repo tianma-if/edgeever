@@ -22,7 +22,7 @@ export type AiBodyDraftTarget =
     to: number;
     isInline: boolean;
     mode: "rich" | "markdown";
-    /** Hash of the rich-text document when the selection was made; empty in Markdown mode. */
+    /** Hash of the whole document (rich-text JSON or Markdown source) when the selection was made. */
     documentHash: string;
   };
 
@@ -101,4 +101,23 @@ export type AiDraftEditorApi = {
   insertAfterSelection(snapshot: AiDraftSelectionSnapshot, markdown: string): boolean;
   /** The selection in the editor right now, to confirm a new target. */
   currentSelection(): AiDraftSelectionSnapshot | null;
+};
+
+/** Body drafts being generated in this window; signing out cancels them so none is saved after. */
+const activeRuns = new Set<AbortController>();
+
+export const trackAiBodyDraftRun = (controller: AbortController) => {
+  activeRuns.add(controller);
+  return () => { activeRuns.delete(controller); };
+};
+
+export const cancelAiBodyDraftRuns = () => {
+  for (const controller of activeRuns) controller.abort();
+  activeRuns.clear();
+};
+
+/** On sign-out: stop drafts being generated, then remove this account's drafts on this instance. */
+export const discardAiBodyDraftsForSignOut = async (scope: string) => {
+  cancelAiBodyDraftRuns();
+  await clearAiBodyDraftScope(scope);
 };

@@ -41,3 +41,19 @@ describe("sidebar body commands (#652 PR B)", () => {
     expect(hashAiDraftSource("a".repeat(10_000))).not.toBe(hashAiDraftSource(`${"a".repeat(9_999)}b`));
   });
 });
+
+describe("signing out (#652 PR B review)", () => {
+  test("cancels every draft being generated in this window", async () => {
+    const { cancelAiBodyDraftRuns, trackAiBodyDraftRun } = await import("./ai-body-draft-store.ts");
+    const first = new AbortController();
+    const second = new AbortController();
+    const finished = new AbortController();
+    trackAiBodyDraftRun(first);
+    trackAiBodyDraftRun(second);
+    trackAiBodyDraftRun(finished)();
+    cancelAiBodyDraftRuns();
+    expect(first.signal.aborted).toBe(true);
+    expect(second.signal.aborted).toBe(true);
+    expect(finished.signal.aborted).toBe(false);
+  });
+});

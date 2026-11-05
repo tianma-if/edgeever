@@ -299,7 +299,8 @@ const selectionPinSnapshot = (pin: SelectionAiPin): AiDraftSelectionSnapshot => 
   to: pin.to,
   isInline: pin.isInline,
   mode: pin.mode,
-  documentHash: pin.mode === "rich" ? hashAiDraftSource(pin.documentFingerprint) : "",
+  // Rich text: the document JSON; Markdown source: the whole source text.
+  documentHash: hashAiDraftSource(pin.documentFingerprint),
 });
 
 const matchSkill = (text: string) => {

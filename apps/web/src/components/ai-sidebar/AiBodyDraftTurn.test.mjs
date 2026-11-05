@@ -50,8 +50,20 @@ describe("sidebar body drafts (#652 PR B)", () => {
     expect(hook).toContain('return { kind: "note-changed" };');
     expect(hook).toContain('return { kind: "selection-changed", current: editor.currentSelection() };');
     expect(editor).toContain("if (sourceEditor.sliceText(snapshot.from, snapshot.to) !== snapshot.text) return false;");
+    // Markdown source mode also needs the whole document unchanged (#652 PR B review).
+    expect(editor).toContain("if (hashAiDraftSource(sourceEditor.sliceText(0, sourceEditor.getDocumentLength())) !== snapshot.documentHash) return false;");
+    expect(editor).toContain("documentFingerprint: sourceEditor.sliceText(0, sourceEditor.getDocumentLength()),");
+    expect(sidebar).toContain("documentHash: hashAiDraftSource(pin.documentFingerprint),");
     expect(editor).toContain("hashAiDraftSource(getAiDocumentFingerprint(currentEditor.state.doc.toJSON())) === snapshot.documentHash");
     expect(editor).toContain("aiDraftEditor={aiDraftEditor}");
+  });
+
+  test("signing out cancels drafts being generated and removes this account's drafts (#652 PR B review)", () => {
+    const app = read("../../app/App.tsx");
+    expect(app).toContain("drafts.cancelAiBodyDraftRuns();");
+    expect(app).toContain("await drafts.discardAiBodyDraftsForSignOut(");
+    expect(hook).toContain("const untrack = trackAiBodyDraftRun(controller);");
+    expect(hook).toContain("if (controller.signal.aborted && !stoppedByUser.current) return;");
   });
 
   test("the last unapplied draft is kept per instance, user and note, outside the main local database", () => {

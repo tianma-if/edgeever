@@ -22,6 +22,7 @@ import {
   type AiBodyDraftTarget,
   type AiDraftEditorApi,
   type AiDraftSelectionSnapshot,
+  trackAiBodyDraftRun,
 } from "@/lib/ai-body-draft-store";
 
 /** A body draft in the sidebar (#652 PR B). */
@@ -59,6 +60,7 @@ export const useAiBodyDraft = (options: {
   const [draft, setDraft] = useState<AiBodyDraft | null>(null);
   const controllerRef = useRef<AbortController | null>(null);
   const completionRef = useRef<AiDraftCompletion>(startAiDraftCompletion());
+  const stoppedByUser = useRef(false);
   const draftRef = useRef<AiBodyDraft | null>(null);
   draftRef.current = draft;
 
@@ -79,7 +81,12 @@ export const useAiBodyDraft = (options: {
     };
   }, [memoId, scope]);
 
-  useEffect(() => () => controllerRef.current?.abort(), []);
+  useEffect(() => () => {
+    // Leaving (or signing out) ends the run without saving it.
+    const controller = controllerRef.current;
+    controllerRef.current = null;
+    controller?.abort();
+  }, []);
 
   const explain = useCallback((cause: unknown) => {
     if (cause instanceof ApiRequestError && cause.code === "ai_input_too_long") return t("aiAssistant.sidebar.draft.inputTooLong");
@@ -114,6 +121,8 @@ export const useAiBodyDraft = (options: {
     }
     const controller = new AbortController();
     controllerRef.current = controller;
+    stoppedByUser.current = false;
+    const untrack = trackAiBodyDraftRun(controller);
     completionRef.current = startAiDraftCompletion();
     const initial: AiBodyDraft = {
       memoId,
@@ -171,6 +180,7 @@ export const useAiBodyDraft = (options: {
         error = explain(cause);
       }
     }
+    untrack();
     if (!current()) return;
     controllerRef.current = null;
     const finished: AiBodyDraft = {
@@ -183,12 +193,15 @@ export const useAiBodyDraft = (options: {
       incompleteParts: [...completionRef.current.incompleteParts],
     };
     setDraft(finished);
+    // A run cancelled by signing out is not saved.
+    if (controller.signal.aborted && !stoppedByUser.current) return;
     // Only a draft with text is kept, complete or not; it is cleared once applied or discarded.
     if (text.trim()) await persist(finished);
     else if (scope) await clearAiBodyDraft(scope, memoId);
   }, [editor, explain, i18n.language, memoId, noteTitle, persist, scope]);
 
   const stop = useCallback(() => {
+    stoppedByUser.current = true;
     controllerRef.current?.abort();
   }, []);
 
