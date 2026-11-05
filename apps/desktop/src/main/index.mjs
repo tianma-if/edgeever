@@ -12,7 +12,7 @@ import { OffsiteBackup } from "./backup-offsite.mjs";
 import { createBackupWorkerFactory } from "./backup-worker.mjs";
 import { registerBackupIpc } from "./backup-ipc.mjs";
 import { SidecarRpcClient } from "./rpc.mjs";
-import { instanceOrigin, encodeSessionCredential, decodeSessionCredential, credentialForUrl } from "./session-credential.mjs";
+import { instanceOrigin, decodeSessionCredential, credentialForUrl, writeSessionCredential } from "./session-credential.mjs";
 import { resourceRequestHeaders } from "./resource-request.mjs";
 import { createResourceProtocolHandler } from "./resource-protocol.mjs";
 import { downloadContentDispositionFromRequest, isSafeResourceId, resourceIdFromRequest, resourceResponseHeaders } from "./resource-url.mjs";
@@ -676,12 +676,7 @@ const persistDesktopSessionToken = async (value) => {
   // renderer already retains its existing fallback until storage recovers.
   desktopSessionToken = normalized;
   desktopSessionTokenOrigin = origin;
-  const encrypted = safeStorage.encryptString(encodeSessionCredential(normalized, configuredApiBaseUrl));
-  const temporaryPath = `${sessionTokenPath()}.tmp`;
-  await writeFile(temporaryPath, encrypted, { mode: 0o600 });
-  await restrictFile(temporaryPath);
-  await rename(temporaryPath, sessionTokenPath());
-  await restrictFile(sessionTokenPath());
+  await writeSessionCredential(sessionTokenPath(), normalized, configuredApiBaseUrl, safeStorage);
 };
 
 const pendingDesktopCommands = [];
