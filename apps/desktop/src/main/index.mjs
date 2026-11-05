@@ -672,14 +672,16 @@ const persistDesktopSessionToken = async (value) => {
   const normalized = typeof value === "string" ? value.trim() : "";
   if (normalized.length > 4096) throw new Error("Desktop session token is too long");
   const origin = instanceOrigin(configuredApiBaseUrl);
+  // Keep the signed-in session usable when secure persistence rejects; the
+  // renderer already retains its existing fallback until storage recovers.
+  desktopSessionToken = normalized;
+  desktopSessionTokenOrigin = origin;
   const encrypted = safeStorage.encryptString(encodeSessionCredential(normalized, configuredApiBaseUrl));
   const temporaryPath = `${sessionTokenPath()}.tmp`;
   await writeFile(temporaryPath, encrypted, { mode: 0o600 });
   await restrictFile(temporaryPath);
   await rename(temporaryPath, sessionTokenPath());
   await restrictFile(sessionTokenPath());
-  desktopSessionToken = normalized;
-  desktopSessionTokenOrigin = origin;
 };
 
 const pendingDesktopCommands = [];

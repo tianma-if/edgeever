@@ -1,0 +1,72 @@
+{
+  "source": {
+    "commit": "887515a383b492762a11a28b01ddc4eaf16c4680",
+    "additionalProductChange": "S8 main-process in-memory session assignment before encrypted persistence"
+  },
+  "clients": {
+    "macOS": "Isolated development Electron client with real Rust sidecar; actual OS-launched TextEdit",
+    "Linux": "Private 2.21.1 AppImage on Ubuntu 25.10 x86_64 jingwen-mini-frp; actual OS-launched Mousepad"
+  },
+  "server": {
+    "instance": "https://edgeever.sivd.dev",
+    "candidate": "Deployed baseline 0fe509f8b701 plus PR resource-routes.ts/resource-service.ts",
+    "build": "771-887515a3",
+    "migration": "0087",
+    "storage": "real D1/R2",
+    "migrationsApplied": false
+  },
+  "sharedBaseline": "linux consecutive save two\n",
+  "macOSStaleCopy": {
+    "linuxSavedFirst": "linux wins before mac\n",
+    "macOSLocalBytes": "mac stale edit retained\n",
+    "status": "conflict",
+    "errorCode": "resource_conflict",
+    "pendingRetained": true,
+    "retryStatus": "conflict",
+    "cloudAfterRetry": "linux wins before mac\n",
+    "ui": "原附件已更新，本地修改已保留，两份内容均未被覆盖。"
+  },
+  "macOSFreshCopy": {
+    "localFilename": "771-acceptance (2).txt",
+    "editorRead": "linux wins before mac\n",
+    "savedBytes": "mac fresh save after linux\n",
+    "status": "saved",
+    "pendingCleared": true,
+    "cloudDownloadStatus": 200,
+    "cloudDownloadBytes": "mac fresh save after linux\n",
+    "cloudFilename": "771-cloud-renamed.txt",
+    "ui": "已回存原附件"
+  },
+  "linuxStaleCopy": {
+    "localFilename": "771-acceptance (2).txt",
+    "localBytes": "linux stale edit retained\n",
+    "status": "conflict",
+    "errorCode": "resource_conflict",
+    "pendingRetained": true,
+    "retryStatus": "conflict",
+    "cloudAfterRetry": "mac fresh save after linux\n",
+    "ui": "The original attachment changed. Your local edits are kept; neither version was overwritten."
+  },
+  "linuxFreshCopy": {
+    "localFilename": "771-acceptance (3).txt",
+    "editorRead": "mac fresh save after linux\n",
+    "status": "watching"
+  },
+  "resourceIdUnchanged": true,
+  "verification": "Native editor and application UI actions on two physical machines; actual UI/bytes/state inspected. Independent authenticated network downloads bypass existing Web Service Worker, with bypass reset afterward.",
+  "restoration": {
+    "workerVersion": "16290c02-445a-45fc-8764-f86d01742f9f",
+    "build": "0fe509f8b701",
+    "migration": "0087",
+    "healthOk": true,
+    "authenticatedSessionStatus": 200,
+    "capabilityStatus": 404,
+    "blobStatus": 200,
+    "oldWorkerReadsNewBytes": "mac fresh save after linux\n"
+  },
+  "limits": [
+    "Text editor acceptance does not establish Microsoft Excel or Windows Office behavior",
+    "macOS uses an isolated development client, not native macOS package upgrade acceptance",
+    "Existing Web CacheFirst resource policy is unchanged; fresh desktop opening and network bytes are verified separately"
+  ]
+}

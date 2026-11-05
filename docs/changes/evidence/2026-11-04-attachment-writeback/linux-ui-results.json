@@ -1,0 +1,80 @@
+{
+  "source": {
+    "commit": "887515a383b492762a11a28b01ddc4eaf16c4680",
+    "additionalProductChange": "S8: assign validated instance-bound session to main-process memory before encrypted persistence"
+  },
+  "environment": {
+    "host": "jingwen-mini-frp",
+    "os": "Ubuntu 25.10 x86_64",
+    "package": "private AppImage 2.21.1",
+    "editor": "real Mousepad via OS external-open association",
+    "instance": "https://edgeever.sivd.dev",
+    "data": "new synthetic TXT attachment only"
+  },
+  "beforeFix": {
+    "packages": [
+      "official 2.20.0",
+      "private PR 2.21.0"
+    ],
+    "encryption": "safeStorage.encryptString rejects: Encryption is not available",
+    "mainCredentialFileCreated": false,
+    "attachmentGetStatus": 401,
+    "attachmentAuthenticationHeadersPresent": false,
+    "rendererNoteSyncSucceeded": true
+  },
+  "afterFix": {
+    "encryptionStillRejects": true,
+    "mainCredentialFileCreated": false,
+    "authenticatedExternalOpen": true,
+    "initialEditorBytes": "CF writeback save two\n",
+    "oldServerSave": {
+      "localBytes": "linux pending before cf upgrade\n",
+      "status": "error",
+      "errorCode": "writeback_unsupported",
+      "pendingSnapshotRetained": true,
+      "cloudBytesUnchanged": "CF writeback save two\n",
+      "ui": "Not synced: update the server to enable safe attachment writeback. Your local edits are kept."
+    },
+    "afterServerUpgrade": {
+      "action": "Click Retry writeback in packaged Linux UI",
+      "status": "saved",
+      "pendingCleared": true,
+      "cloudDownloadStatus": 200,
+      "cloudBytes": "linux pending before cf upgrade\n",
+      "ui": "Synced to the original attachment"
+    },
+    "consecutiveSave": {
+      "editorShortcut": "Ctrl+S",
+      "status": "saved",
+      "pendingCleared": true,
+      "displayedBytes": 27,
+      "cloudDownloadStatus": 200,
+      "cloudBytes": "linux consecutive save two\n"
+    },
+    "restart": {
+      "method": "Terminate own test process and relaunch the same AppImage/profile",
+      "loginPromptRequired": false,
+      "encryptionStillRejects": true,
+      "freshExternalOpen": true,
+      "localFilename": "771-acceptance (2).txt",
+      "editorBytes": "linux consecutive save two\n",
+      "existingManagedCopyRetained": true
+    }
+  },
+  "serverRestore": {
+    "workerVersion": "16290c02-445a-45fc-8764-f86d01742f9f",
+    "build": "0fe509f8b701",
+    "migration": "0087",
+    "healthOk": true,
+    "authenticatedSessionStatus": 200,
+    "capabilityStatus": 404,
+    "blobStatus": 200,
+    "oldWorkerReadsNewBytes": "linux consecutive save two\n"
+  },
+  "verification": "Actual packaged Linux UI and editor actions; inspect managed local bytes/state and independently download authenticated network bytes with Service Worker bypass, reset afterward",
+  "remaining": [
+    "Legacy opened-copy and attachment-cache survival from official old package: old package cannot authenticate attachment opens with unavailable keyring",
+    "Microsoft Excel and Windows Office acceptance"
+  ],
+  "twoDeviceAcceptance": "two-device-results.json"
+}

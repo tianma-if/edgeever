@@ -50,8 +50,44 @@ WPS Office **12.1.29182**, using synthetic workbooks, isolated Electron profiles
 
 WPS screenshots contained unrelated user document tabs and were not retained in the repository; the record contains only synthetic workbook data and acceptance findings.
 
+## Linux native package, saving and recovery
+
+`jingwen-mini-frp` (Ubuntu 25.10 x86_64) uses an isolated X11 session/profile and PR-built AppImage without replacing installed applications. Initial package 2.21.0 passes package/startup checks. After S8, private test version **2.21.1** is rebuilt; an independent official **v2.20.0** copy actually downloads, replaces and restarts into 2.21.1 through the existing loopback upgrade entry point. The original baseline is checked against its published checksum list and preserved. Test versions are unpublished and repository product versions are unchanged. See the [package record](linux-package-results.json).
+
+The actual OS association launches Mousepad; UI edits are saved with `Ctrl+S`:
+
+- Against old CF, cloud bytes stay unchanged, the snapshot remains local and the UI requests a server upgrade.
+- After temporarily deploying the verified CF candidate, clicking Retry writeback shows success; an independent authenticated network download returns `linux pending before cf upgrade`.
+- A consecutive save produces `linux consecutive save two` in the cloud, a 27 B attachment card and cleared pending state.
+- Terminating the owned test process and relaunching the same profile requires no new login. External opening creates a `(2)` copy showing the second save in the real editor, retaining the original managed copy.
+
+Secure storage explicitly rejects throughout, and no encrypted main credential file is created. The same environment returned attachment 401 before S8; the fix passes authenticated opening, saving and restart recovery. All 113 existing session-boundary/resource-request/Web API regressions pass. See the [Linux UI record](linux-ui-results.json).
+
+The native updater automation uses an empty profile; a separate same-business-profile version transition confirms note/session retention. The official old package cannot authenticate attachment opening with unavailable secure storage, so legacy opened-copy/cache survival across versions remains unverified; new-package restart evidence does not replace it.
+
+## Real macOS / Linux two-device acceptance
+
+Two physical machines connect to the same CF instance and synthetic TXT resource. macOS uses an isolated development client and actual TextEdit; Linux uses the 2.21.1 AppImage and actual Mousepad.
+
+- Both open identical content. Linux saves `linux wins before mac` first; a stale Mac save conflicts, retaining local `mac stale edit retained` and the Linux cloud version. Retry writeback remains conflicted without forcing replacement.
+- Mac reopens a `(2)` copy showing the Linux content in TextEdit, then saves `mac fresh save after linux`. UI and authenticated network bytes confirm success; the cloud filename remains `771-cloud-renamed.txt`.
+- Saving Linux's already-open stale copy also conflicts, with Retry preserving both versions. Reopening a `(3)` copy shows the Mac update in actual Mousepad.
+
+Both real conflict UIs were inspected. The original resource ID remains unchanged, with independent network downloads confirming cloud bytes. See the [two-device record](two-device-results.json).
+
+## Real Cloudflare writeback
+
+The temporary `edgeever.sivd.dev` build uses deployed baseline `0fe509f8b701` plus only the two resource business files from PR `887515a3`, excluding TOTP and applying no migrations. This build passes typechecking, Web/Worker builds and 23 resource API regressions. Real D1/R2 checks return 200 for two conditional writes and 409 for a stale baseline while retaining current content. The dedicated route preserves a cloud rename even with `preserveFilename=false`; resource IDs remain unchanged and network downloads return the expected bytes.
+
+The original Worker `16290c02-445a-45fc-8764-f86d01742f9f` was restored afterward: build `0fe509f8b701`, healthy and authenticated, migration still `0087`, capability route back to 404. The old Worker can still read the newly written R2 bytes. See the [Cloudflare record](cloudflare-results.json).
+
+### Platform findings
+
+- **Linux session repair (S8):** official v2.20.0 and the original PR package retain the existing renderer fallback when `safeStorage.encryptString` explicitly rejects, but leave main without a session, causing unauthenticated attachment GETs and 401. The fix updates validated instance-bound memory before serialized encrypted persistence; errors still reject, with no new credential store or keyring policy. Actual Linux saves/restarts pass above. A locked keyring on the normal GNOME bus may instead wait for authorization; this fix covers explicit failure and does not change OS authorization waits.
+- **Web cache observation:** the existing `CacheFirst` Service Worker serves old resource bytes even for explicit `no-store` requests. Server acceptance therefore uses authenticated network reads with the Service Worker bypassed to inspect current D1/R2 bytes. The Web cache policy is unchanged, and this does not establish fresh-content Web UI acceptance.
+
 ## Platform acceptance still needed
 
-Microsoft Excel is not installed here and requires separate acceptance in an installed, licensed environment. On Windows 11, exercise real Excel/WPS with test attachments: ordinary and consecutive saves, close/reopen, offline save/restart, and conflict after another device saves first. Old-to-new upgrade acceptance must check existing notes/attachments and old opened copies remain accessible, without automatically adopting old copies. Linux, actual two-device UI behavior and a live Cloudflare instance have not been exercised.
+Microsoft Excel is not installed here and requires separate acceptance in an installed, licensed environment. Windows 11 requires real Excel/WPS ordinary/consecutive saves, close/reopen, offline save/restart and stale concurrent saves. Old-to-new upgrades still need legacy attachment-cache/opened-copy survival without automatic adoption; the macOS development client does not establish native macOS package upgrades. Linux generic saves/recovery, actual macOS/Linux two-device conflicts and CF writeback pass above.
 
 The existing server replacement limit is 100 MiB; larger attachments still open, but oversized edits stay local with an error. Save As to another path is not tracked. Reverting code does not restore server attachment content already replaced; copy unsynced local files elsewhere before downgrading to avoid older temporary-file cleanup.

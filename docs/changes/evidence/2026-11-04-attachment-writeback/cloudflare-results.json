@@ -1,0 +1,54 @@
+{
+  "source": {
+    "deployedBase": "0fe509f8b701d3ff5ec8da6b3204c8fa1bed2c63",
+    "resourceImplementation": "887515a383b492762a11a28b01ddc4eaf16c4680",
+    "changedProductFiles": [
+      "apps/api/src/resource-routes.ts",
+      "apps/api/src/resource-service.ts"
+    ],
+    "workerVersion": "1ce5d4e3-8eaf-49c6-9fd6-8f72df7d98e8"
+  },
+  "health": {
+    "ok": true,
+    "runtime": "cloudflare-workers",
+    "build": "771-887515a3",
+    "migration": "0087",
+    "storage": {
+      "database": "d1",
+      "resources": "r2"
+    },
+    "authMode": "required"
+  },
+  "capabilityStatus": 200,
+  "saves": [
+    200,
+    200
+  ],
+  "conflictStatus": 409,
+  "dedicatedRouteMarker": "preserve-filename",
+  "filenamePreserved": "771-cloud-renamed.txt",
+  "resourceIdPreserved": true,
+  "conflictRetainedCloud": "CF writeback save one\n",
+  "downloadedBytes": "CF writeback save two\n",
+  "successfulWrites": 2,
+  "conflictingWrites": 1,
+  "readMethod": "Authenticated browser network requests with Service Worker bypass and cache:no-store",
+  "browserObservation": {
+    "normalAndNoStoreFetch": "Both reused the original cached baseline through the existing CacheFirst Service Worker",
+    "networkRead": "Returned current bytes; the cache observation is separate from server writeback acceptance"
+  },
+  "restoration": {
+    "workerVersion": "16290c02-445a-45fc-8764-f86d01742f9f",
+    "build": "0fe509f8b701",
+    "migration": "0087",
+    "healthOk": true,
+    "authenticated": true,
+    "capabilityStatus": 404,
+    "oldWorkerReadsNewR2Bytes": "mac fresh save after linux\n"
+  },
+  "limits": [
+    "Core API, packaged Linux editor and actual macOS/Linux two-device acceptance passed; Office/native-package upgrade limits are recorded separately"
+  ],
+  "desktopAcceptance": "linux-ui-results.json",
+  "twoDeviceAcceptance": "two-device-results.json"
+}
