@@ -112,7 +112,7 @@ Cloudflare 在线部署可以选择以下两种方式之一：
    管理员用户名默认为 `admin`。
 5. 确认 Secret 已部署后，在该 Worker 的 Settings → Builds → Connect 中连接 Fork 的
    `main` 分支。
-6. 在 Settings → Builds → API token 中选择或创建用于部署的
+6. 在该 Worker 的 Settings → Builds → API token 中选择或创建用于部署的
    Cloudflare API Token，并确保它具备目标账户的 D1 读取和编辑权限。
 7. 在 Fork 的 GitHub 仓库中进入 Actions → Update deployed EdgeEver，按提示启用工作流，
    选择 `main` 分支并点击 Run workflow。在 Cloudflare 确认对应构建成功、部署完成后，验证 `/api/health` 和 `/api/openapi.json`，
@@ -134,7 +134,7 @@ Cloudflare 在线部署可以选择以下两种方式之一：
 3. **创建 Worker**：在 Cloudflare Workers & Pages 中选择 Create application → Start with Hello World!，命名为 `edgeever` 并部署。此时是占位服务，第 7 步才部署 EdgeEver。
 4. **设置管理员密码**：在该 Worker 的 Settings → Variables and Secrets 中，选择 Secret 类型，添加 `EDGE_EVER_AUTH_PASSWORD` 并点击 Deploy。值为您指定的登录密码，建议至少 32 个字符。完成后再连接 Fork。
 5. **连接 Fork**：在已有 Worker 的 Settings → Builds → Connect 中选择 Fork 和生产分支 `main`。
-6. **配置部署权限**：在 Settings → Builds → API token 中选择或创建用于部署的 Cloudflare API Token，并确保它具备目标账户的 D1 读取和编辑权限。
+6. **配置部署权限**：在该 Worker 的 Settings → Builds → API token 中选择或创建用于部署的 Cloudflare API Token，并确保它具备目标账户的 D1 读取和编辑权限。
 7. **构建并验证**：在 Fork 的 GitHub 仓库中进入 Actions → Update deployed EdgeEver，按提示启用工作流， 选择 `main` 分支并点击 Run workflow。在 Cloudflare 确认对应构建成功、部署完成后，确认 `/api/health` 返回 `200`，并验证登录。后续由该工作流自动同步正式版本，持续获得功能更新和问题修复。
 
 > 📖 包含具体参数与构建命令的详细步骤，请查看 [在线部署完整文档](docs/deploy-cloudflare-button.zh-CN.md)。
