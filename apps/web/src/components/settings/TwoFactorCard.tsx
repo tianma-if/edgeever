@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { ShieldCheck, ShieldOff } from "lucide-react";
+import { Shield, ShieldCheck } from "lucide-react";
 import type { TotpReauthInput, TotpSetupResponse } from "@edgeever/shared";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -292,12 +292,12 @@ export const TwoFactorCard = ({ authRequired }: { authRequired: boolean }) => {
 
   return (
     <Card className="w-full min-w-0 overflow-hidden shadow-none">
-      <CardHeader className={cn(SETTINGS_CARD_HEADER_CLASSNAME, "flex-row flex-wrap items-start justify-between gap-3")}>
+      <CardHeader className={cn(SETTINGS_CARD_HEADER_CLASSNAME, "flex-row flex-wrap items-center justify-between gap-3")}>
         <div className="min-w-0 flex-1 basis-80">
           <CardTitle className={SETTINGS_CARD_TITLE_CLASSNAME}>
             {enabled
               ? <ShieldCheck className={SETTINGS_CARD_ICON_CLASSNAME} />
-              : <ShieldOff className={SETTINGS_CARD_ICON_CLASSNAME} />}
+              : <Shield className={SETTINGS_CARD_ICON_CLASSNAME} />}
             {t("twoFactor.title")}
             {status ? (
               <span
@@ -320,7 +320,7 @@ export const TwoFactorCard = ({ authRequired }: { authRequired: boolean }) => {
           </p>
         </div>
         {status && !enabled && status.available ? (
-          <Button size="sm" variant="solid" onClick={() => { setNotice(null); setMode("enable"); }}>
+          <Button size="sm" variant="outline" onClick={() => { setNotice(null); setMode("enable"); }}>
             {t("twoFactor.enable")}
           </Button>
         ) : null}
