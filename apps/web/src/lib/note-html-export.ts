@@ -177,7 +177,10 @@ const resolveResourceUrl = (src: string) => {
   }
 };
 
-export const renderMermaidBlocksForHtmlExport = async (root: HTMLElement) => {
+export const renderMermaidBlocksForHtmlExport = async (
+  root: HTMLElement,
+  renderSvg = renderThemedMermaidSvg,
+) => {
   const blocks = Array.from(root.querySelectorAll<HTMLElement>("pre > code.language-mermaid"));
   await Promise.all(blocks.map(async (code) => {
     const source = code.textContent?.trim();
@@ -187,8 +190,7 @@ export const renderMermaidBlocksForHtmlExport = async (root: HTMLElement) => {
     }
 
     try {
-      const svg = await renderThemedMermaidSvg(source, {
-        theme: "zinc-light",
+      const svg = await renderSvg(source, {
         palette: MERMAID_THEME_PALETTES["zinc-light"],
         font: EXPORT_FONT_FAMILY,
         padding: 24,

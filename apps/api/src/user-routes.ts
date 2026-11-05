@@ -4,6 +4,7 @@ import type { Hono } from "hono";
 import { auditStatement } from "./audit";
 import type { AppContext, AppEnv, AuthContext } from "./api-context";
 import { hashPassword } from "./auth-crypto";
+import { hashPasswordForUser } from "./auth-totp";
 import { isProtectedDemoAccount } from "./demo-mode";
 import { createId, isoNow } from "./entity-utils";
 import { badRequest, conflict, forbidden, notFound, unauthorized } from "./http-errors";
@@ -180,7 +181,7 @@ export const registerUserRoutes = (
     }
     if (input.password !== undefined) {
       updates.push("password_hash = ?");
-      binds.push(await hashPassword(input.password));
+      binds.push(await hashPasswordForUser(context.env.storage.db, userId, input.password));
     }
     if (input.isDisabled !== undefined) {
       updates.push("is_disabled = ?");

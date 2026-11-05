@@ -1,6 +1,6 @@
 import { app, autoUpdater as nativeAutoUpdater, Notification, BrowserWindow, Menu, Tray, globalShortcut, nativeImage, ipcMain, session, net, protocol, shell, dialog, safeStorage, clipboard, ClipboardItem, powerMonitor, desktopCapturer, screen, utilityProcess } from "electron";
 import { createReadStream, existsSync } from "node:fs";
-import { appendFile, mkdir, open, readdir, readFile, rename, rm, stat, unlink, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, open, readdir, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { Readable } from "node:stream";
 import { execFile, spawn } from "node:child_process";
@@ -12,9 +12,10 @@ import { OffsiteBackup } from "./backup-offsite.mjs";
 import { createBackupWorkerFactory } from "./backup-worker.mjs";
 import { registerBackupIpc } from "./backup-ipc.mjs";
 import { SidecarRpcClient } from "./rpc.mjs";
-import { instanceOrigin, encodeSessionCredential, decodeSessionCredential, credentialForUrl } from "./session-credential.mjs";
+import { instanceOrigin, decodeSessionCredential, credentialForUrl, writeSessionCredential } from "./session-credential.mjs";
 import { resourceRequestHeaders } from "./resource-request.mjs";
-import { downloadContentDispositionFromRequest, isSafeResourceId, parseByteRangeHeader, resourceIdFromRequest, resourceResponseHeaders } from "./resource-url.mjs";
+import { createResourceProtocolHandler } from "./resource-protocol.mjs";
+import { downloadContentDispositionFromRequest, isSafeResourceId, resourceIdFromRequest, resourceResponseHeaders } from "./resource-url.mjs";
 import { isSupportedAssociatedFile } from "./file-association.mjs";
 import { createWeChatShareController } from "./wechat-share-import.mjs";
 import { enableMacShareExtension } from "./share-extension-registration.mjs";
@@ -43,6 +44,8 @@ import { trayIconPath } from "./tray-icon.mjs";
 import { writeFileClipboard, writeImageClipboard, writeRichClipboard, writeTextClipboard } from "./clipboard-write.mjs";
 import { registerClipboardReadIpc } from "./clipboard-read.mjs";
 import { registerAttachmentOpenIpc } from "./attachment-open.mjs";
+import { createAttachmentWritebackManager, replaceAttachmentResource, writeAttachmentFile } from "./attachment-writeback.mjs";
+import { registerAttachmentWritebackIpc } from "./attachment-writeback-ipc.mjs";
 import { captureRegionScreenToNote, captureScreenToNote, createScreenshotCaptureGuard, screenshotImportIpcPayload, writeScreenshotTempPath } from "./screenshot-capture.mjs";
 import { cancelScreenshotRegionSelection, openScreenshotRegionSelector } from "./screenshot-region.mjs";
 import { LocalDataResetError, scheduleMacLocalDataReset } from "./local-data-reset.mjs";
@@ -210,6 +213,9 @@ let desktopSessionToken = "";
 let desktopSessionTokenOrigin = null;
 let backupManager = null;
 let backupCheckTimer = null;
+let attachmentWriteback = null;
+let attachmentWritebackTimer = null;
+let attachmentSessionActive = false;
 const backupSession = () => ({ baseUrl: configuredApiBaseUrl, token: credentialForUrl(desktopSessionToken, desktopSessionTokenOrigin, configuredApiBaseUrl), locale: app.getLocale() });
 const refreshBackupContext = () => {
   const seed = backupSession();
@@ -666,14 +672,11 @@ const persistDesktopSessionToken = async (value) => {
   const normalized = typeof value === "string" ? value.trim() : "";
   if (normalized.length > 4096) throw new Error("Desktop session token is too long");
   const origin = instanceOrigin(configuredApiBaseUrl);
-  const encrypted = safeStorage.encryptString(encodeSessionCredential(normalized, configuredApiBaseUrl));
-  const temporaryPath = `${sessionTokenPath()}.tmp`;
-  await writeFile(temporaryPath, encrypted, { mode: 0o600 });
-  await restrictFile(temporaryPath);
-  await rename(temporaryPath, sessionTokenPath());
-  await restrictFile(sessionTokenPath());
+  // Keep the signed-in session usable when secure persistence rejects; the
+  // renderer already retains its existing fallback until storage recovers.
   desktopSessionToken = normalized;
   desktopSessionTokenOrigin = origin;
+  await writeSessionCredential(sessionTokenPath(), normalized, configuredApiBaseUrl, safeStorage);
 };
 
 const pendingDesktopCommands = [];
@@ -1020,119 +1023,17 @@ const createTray = () => {
   tray.on("double-click", () => showWindow(mainWindow));
 };
 
-const handleResourceProtocolRequest = async (request, assertCurrent = () => {}) => {
-  assertCurrent();
-  const resourceId = resourceIdFromRequest(request.url);
-  if (!resourceId) return new Response("Invalid resource", { status: 400 });
-  const downloadDisposition = downloadContentDispositionFromRequest(request.url);
-
-  const directory = resourceCacheDirectory();
-  const bytesPath = join(directory, `${resourceId}.bin`);
-  const metadataPath = join(directory, `${resourceId}.json`);
-
-  const fileResponse = async (path, contentType, rangeHeader) => {
-    const { size } = await stat(path);
-    const range = parseByteRangeHeader(rangeHeader, size);
-    const headers = resourceResponseHeaders(contentType, downloadDisposition);
-    headers.set("Accept-Ranges", "bytes");
-    if (range.kind === "invalid") {
-      headers.set("Content-Range", `bytes */${size}`);
-      return new Response(null, { status: 416, headers });
-    }
-    const selected = range.kind === "range" ? range : { offset: 0, length: size };
-    headers.set("Content-Length", String(selected.length));
-    if (range.kind === "range") {
-      headers.set("Content-Range", `bytes ${selected.offset}-${selected.offset + selected.length - 1}/${size}`);
-    }
-    const stream = createReadStream(path, {
-      start: selected.offset,
-      end: selected.offset + selected.length - 1,
-    });
-    return new Response(Readable.toWeb(stream), {
-      status: range.kind === "range" ? 206 : 200,
-      headers,
-    });
-  };
-
-  try {
-    let metadata = {};
-    try { metadata = JSON.parse(await readFile(metadataPath, "utf8")); } catch {}
-    return await fileResponse(bytesPath, metadata.contentType, request.headers.get("range"));
-  } catch {
-    // Fall through to the instance while online, then persist the response.
-  }
-
-  if (!configuredApiBaseUrl) return new Response("Resource is not cached", { status: 504 });
-  const sourceUrl = `${configuredApiBaseUrl}/api/v1/resources/${encodeURIComponent(resourceId)}/blob`;
-  try {
-    assertCurrent();
+const handleResourceProtocolRequest = createResourceProtocolHandler({
+  getDirectory: resourceCacheDirectory,
+  getApiBaseUrl: () => configuredApiBaseUrl,
+  getRequestHeaders: async sourceUrl => {
     const sessionToken = credentialForUrl(desktopSessionToken, desktopSessionTokenOrigin, sourceUrl);
     const cookies = await session.defaultSession.cookies.get({ url: sourceUrl });
-    assertCurrent();
-    const headers = resourceRequestHeaders({ cookies, sessionToken });
-    const rangeHeader = request.headers.get("range");
-    if (rangeHeader) headers.set("range", rangeHeader);
-    const response = await net.fetch(sourceUrl, { headers, redirect: "error", signal: request.signal });
-    if (!response.ok) return new Response("Resource request failed", { status: response.status });
-    if (response.status === 206) {
-      const responseHeaders = resourceResponseHeaders(response.headers.get("content-type"), downloadDisposition);
-      responseHeaders.set("Accept-Ranges", response.headers.get("accept-ranges") || "bytes");
-      for (const name of ["content-length", "content-range", "etag", "last-modified"]) {
-        const value = response.headers.get(name);
-        if (value) responseHeaders.set(name, value);
-      }
-      if (downloadDisposition) responseHeaders.set("Content-Disposition", downloadDisposition);
-      return new Response(response.body, { status: 206, headers: responseHeaders });
-    }
-    if (!response.body) return new Response("Resource response body is empty", { status: 502 });
-    await mkdir(directory, { recursive: true });
-    await restrictDirectory(directory);
-    const temporaryPath = `${bytesPath}.download-${crypto.randomUUID()}`;
-    const output = await open(temporaryPath, "w", 0o600);
-    const reader = response.body.getReader();
-    let finished = false;
-    const cleanup = async () => {
-      if (!finished) {
-        finished = true;
-        await output.close().catch(() => {});
-        await rm(temporaryPath, { force: true }).catch(() => {});
-      }
-    };
-    const streamedBody = new ReadableStream({
-      async pull(controller) {
-        try {
-          const next = await reader.read();
-          if (next.done) {
-            await output.close();
-            await rename(temporaryPath, bytesPath);
-            await writeFile(metadataPath, JSON.stringify({ contentType: response.headers.get("content-type") || "application/octet-stream" }), { mode: 0o600 });
-            await restrictFile(bytesPath);
-            await restrictFile(metadataPath);
-            finished = true;
-            controller.close();
-            return;
-          }
-          await output.write(next.value);
-          controller.enqueue(next.value);
-        } catch (error) {
-          await cleanup();
-          controller.error(error);
-        }
-      },
-      async cancel(reason) {
-        await reader.cancel(reason).catch(() => {});
-        await cleanup();
-      },
-    });
-    const responseHeaders = new Headers(response.headers);
-    responseHeaders.set("Cache-Control", "no-store");
-    if (downloadDisposition) responseHeaders.set("Content-Disposition", downloadDisposition);
-    return new Response(streamedBody, { status: 200, headers: responseHeaders });
-  } catch (error) {
-    void writeDiagnostic("resource.cache-failed", { resourceId, message: error.message });
-    return new Response("Resource unavailable", { status: 504 });
-  }
-};
+    return resourceRequestHeaders({ cookies, sessionToken });
+  },
+  fetch: (url, init) => net.fetch(url, init),
+  onError: (resourceId, error) => writeDiagnostic("resource.cache-failed", { resourceId, message: error.message }),
+});
 
 const handleStagedResourceProtocolRequest = async (request, assertCurrent = () => {}) => {
   assertCurrent();
@@ -1857,10 +1758,13 @@ const startApplication = async () => {
     if (event.sender !== mainWindow?.webContents || event.senderFrame !== event.sender.mainFrame) throw new Error("Account changes must come from the main frame");
     const normalizedAccountId = typeof accountId === "string" && accountId.trim() ? accountId.trim() : null;
     const nextScopeKey = accountScopeKey(configuredApiBaseUrl, normalizedAccountId);
+    attachmentSessionActive = false;
+    attachmentWriteback?.suspend();
     scheduledTaskScheduler.clear();
     if (sidecar && sidecarScopeKey === nextScopeKey) {
       await sidecar.waitUntilReady();
       await refreshBackupContext(); void backupManager.tick();
+      attachmentSessionActive = Boolean(normalizedAccountId);
       return { ready: true, scope: nextScopeKey };
     }
     // Let open note windows save into the current account before it changes.
@@ -1871,6 +1775,7 @@ const startApplication = async () => {
     if (!nextSidecar) throw new Error("EdgeEver sidecar is unavailable");
     await nextSidecar.waitUntilReady();
     await refreshBackupContext(); void backupManager.tick();
+    attachmentSessionActive = Boolean(normalizedAccountId);
     return { ready: true, scope: nextScopeKey };
   });
   ipcMain.on("desktop:rich-text-heading-shortcut", (event, active) => {
@@ -1921,6 +1826,8 @@ const startApplication = async () => {
   });
   ipcMain.handle("desktop:clear-session-token", async (event) => {
     if (event.sender !== mainWindow?.webContents || event.senderFrame !== event.sender.mainFrame || instanceChangePending) throw new Error("Session update forbidden");
+    attachmentSessionActive = false;
+    attachmentWriteback?.suspend();
     await noteWindows.closeAll();
     scheduledTaskScheduler.clear();
     await backupManager.setContext(null);
@@ -2173,7 +2080,11 @@ const startApplication = async () => {
       if (!instanceOrigin(parsed.href) || parsed.hash || parsed.search) throw new Error("Desktop API URL must use HTTP(S) without credentials, query, or fragment");
     }
     if (normalized === configuredApiBaseUrl) return configuredApiBaseUrl;
+    const previousAttachmentSession = attachmentSessionActive;
+    const previousInstanceUrl = configuredApiBaseUrl;
     instanceChangePending = true;
+    attachmentSessionActive = false;
+    attachmentWriteback?.suspend();
     try {
       if (configuredApiBaseUrl && instanceOrigin(normalized) !== instanceOrigin(configuredApiBaseUrl)) {
         const copy = desktopDialogCopy(app.getLocale());
@@ -2205,7 +2116,10 @@ const startApplication = async () => {
       }
       await refreshBackupContext(); void backupManager.tick();
       return configuredApiBaseUrl;
-    } finally { instanceChangePending = false; }
+    } finally {
+      instanceChangePending = false;
+      if (configuredApiBaseUrl === previousInstanceUrl) attachmentSessionActive = previousAttachmentSession;
+    }
   });
   ipcMain.handle("desktop:update-status", () => desktopUpdateStatus());
   ipcMain.handle("desktop:check-update", async () => {
@@ -2219,18 +2133,67 @@ const startApplication = async () => {
   });
   ipcMain.handle("desktop:download-update", () => downloadTrustedDesktopUpdate("manual-download"));
   ipcMain.handle("desktop:install-update", () => installDownloadedUpdate());
-  registerAttachmentOpenIpc(ipcMain, {
-    authorize: (event) => {
-      if (!isAppRendererSender(event) || instanceChangePending
-        || !isAllowedAppNavigation(event.senderFrame.url, desktopRendererEntryUrl())) {
-        throw new Error("Attachment open forbidden");
+  const authorizeAttachment = (event) => {
+    if (!isAppRendererSender(event) || instanceChangePending
+      || !isAllowedAppNavigation(event.senderFrame.url, desktopRendererEntryUrl())) {
+      throw new Error("Attachment request forbidden");
+    }
+  };
+  const attachmentScope = () => JSON.stringify([configuredApiBaseUrl, activeAccountId, desktopSessionToken]);
+  const requestAttachment = async (path, init, assertCurrent) => {
+    assertCurrent();
+    const url = `${configuredApiBaseUrl}/api/v1${path}`;
+    const token = credentialForUrl(desktopSessionToken, desktopSessionTokenOrigin, url);
+    const cookies = await session.defaultSession.cookies.get({ url });
+    assertCurrent();
+    const response = await net.fetch(url, { ...init, headers: resourceRequestHeaders({ cookies, sessionToken: token }), redirect: "error" });
+    try { assertCurrent(); } catch (error) { await response.body?.cancel(); throw error; }
+    return response;
+  };
+  attachmentWriteback = createAttachmentWritebackManager({
+    getContext: () => attachmentSessionActive && !instanceChangePending && activeAccountId
+      ? { key: attachmentScope(), directory: join(sidecarDataDirectory(activeAccountId), "opened-attachments") } : null,
+    resolveResourceId: async (url, assertCurrent) => {
+      if (url.startsWith("edgeever-resource:")) return resourceIdFromRequest(url);
+      const directory = stagedResourceDirectory();
+      const metadata = await readStagedResourceMetadata(directory, resourceIdFromRequest(url));
+      assertCurrent();
+      return isSafeResourceId(metadata.resourceId) ? metadata.resourceId : null;
+    },
+    replace: input => replaceAttachmentResource(requestAttachment, input),
+    onSaved: async ({ resource, bytes, assertCurrent }) => {
+      assertCurrent();
+      const directory = resourceCacheDirectory();
+      const currentSidecar = sidecar;
+      await mkdir(directory, { recursive: true, mode: 0o700 });
+      await restrictDirectory(directory);
+      assertCurrent();
+      await writeAttachmentFile(join(directory, `${resource.id}.bin`), bytes);
+      await writeAttachmentFile(join(directory, `${resource.id}.json`), JSON.stringify({ contentType: resource.mimeType }));
+      assertCurrent();
+      if (!currentSidecar) throw new Error("Sidecar unavailable");
+      await currentSidecar.request("resource.cache", { resource });
+      assertCurrent();
+      for (const window of BrowserWindow.getAllWindows()) {
+        if (isAllowedAppNavigation(window.webContents.getURL(), desktopRendererEntryUrl())) {
+          window.webContents.send("desktop:attachment-resource-saved", resource);
+        }
       }
     },
-    getScope: () => JSON.stringify([configuredApiBaseUrl, activeAccountId, desktopSessionToken]),
+  });
+  registerAttachmentWritebackIpc(ipcMain, { manager: attachmentWriteback, authorize: authorizeAttachment, getScope: attachmentScope, reveal: path => shell.showItemInFolder(path) });
+  attachmentWritebackTimer = setInterval(() => {
+    void attachmentWriteback.tick().catch(error => writeDiagnostic("attachment.writeback-failed", { message: error.message }));
+  }, 2000);
+  registerAttachmentOpenIpc(ipcMain, {
+    writeback: attachmentWriteback,
+    authorize: authorizeAttachment,
+    getScope: attachmentScope,
     getDirectory: () => join(sidecarDataDirectory(activeAccountId), "opened-attachments"),
-    readResource: (url, signal, assertCurrent) => url.startsWith("edgeever-staged:")
-      ? handleStagedResourceProtocolRequest(new Request(url, { signal }), assertCurrent)
-      : handleResourceProtocolRequest(new Request(url, { signal }), assertCurrent),
+    readResource: async (url, signal, assertCurrent) => {
+      if (url.startsWith("edgeever-staged:")) return handleStagedResourceProtocolRequest(new Request(url, { signal }), assertCurrent);
+      return handleResourceProtocolRequest(new Request(url, { signal, cache: "reload" }), assertCurrent);
+    },
     openPath: (path) => shell.openPath(path),
   });
   ipcMain.handle("desktop:stage-resource-begin", async (_event, input) => {
@@ -2489,6 +2452,9 @@ app.on("before-quit", (event) => {
   }
   tray?.destroy();
   if (backupCheckTimer) clearInterval(backupCheckTimer);
+  if (attachmentWritebackTimer) clearInterval(attachmentWritebackTimer);
+  attachmentSessionActive = false;
+  attachmentWriteback?.suspend();
   void (async () => {
     await noteWindows.closeAll();
     await backupManager?.close();

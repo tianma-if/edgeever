@@ -31,6 +31,17 @@ type SessionRow = {
   last_seen_at: string | null;
   workspace_id: string | null;
   role: "owner" | "member" | null;
+  mfa_restricted: number | null;
+};
+
+export type AuthenticateOptions = {
+  /** Only rebind-related auth routes may see a recovery-code restricted session. */
+  allowMfaRestricted?: boolean;
+};
+
+export type CreateSessionOptions = {
+  /** Recovery-code sign-ins get a short session that can only rebind TOTP. */
+  mfaRestricted?: boolean;
 };
 
 const SESSION_COOKIE = "edgeever_session";
@@ -38,6 +49,7 @@ const DEFAULT_SESSION_TTL_DAYS = 400;
 const MAX_SESSION_TTL_DAYS = 400;
 const SESSION_LAST_SEEN_UPDATE_INTERVAL_MS = 60 * 60 * 1000;
 const API_TOKEN_LAST_USED_UPDATE_INTERVAL_MS = 60 * 60 * 1000;
+export const MFA_RESTRICTED_SESSION_MAX_AGE_SECONDS = 30 * 60;
 const clampNumber = (value: number, min: number, max: number) =>
   Number.isNaN(value) ? min : Math.min(Math.max(value, min), max);
 
@@ -189,11 +201,27 @@ export const getInstanceUser = (db: DatabaseAdapter, userId: string) =>
      WHERE u.id = ?`
   ).bind(userId).first<InstanceUserRow>();
 
-export const createSession = async (c: AppContext, user: UserRow, requestedDeviceId?: string) => {
+// A restricted (recovery-code) session is stored under a different token hash
+// than a normal one. A backend that predates TOTP looks sessions up by the
+// plain hash only, so after a code rollback a restricted token is simply
+// unknown to it instead of being accepted as a full session.
+const RESTRICTED_SESSION_TOKEN_PREFIX = "mfa-restricted:";
+const sessionTokenHashes = async (token: string) => ({
+  plain: await sha256(token),
+  restricted: await sha256(`${RESTRICTED_SESSION_TOKEN_PREFIX}${token}`),
+});
+
+export const createSession = async (
+  c: AppContext,
+  user: UserRow,
+  requestedDeviceId?: string,
+  options: CreateSessionOptions = {},
+) => {
   const token = randomToken(SESSION_TOKEN_BYTES);
   const id = createId("sess");
   const now = isoNow();
-  const maxAge = getSessionMaxAge(c.env);
+  const mfaRestricted = options.mfaRestricted === true;
+  const maxAge = mfaRestricted ? MFA_RESTRICTED_SESSION_MAX_AGE_SECONDS : getSessionMaxAge(c.env);
   const expiresAt = new Date(Date.now() + maxAge * 1000).toISOString();
   const userAgent = c.req.header("User-Agent") ?? null;
   const deviceId = resolveSessionDeviceId(requestedDeviceId, userAgent, id);
@@ -210,9 +238,9 @@ export const createSession = async (c: AppContext, user: UserRow, requestedDevic
     ).bind(now, user.id, deviceId),
     c.env.storage.db.prepare(
       `INSERT INTO sessions (
-        id, user_id, token_hash, device_id, user_agent, ip_hash, device_label, ip_address, ip_country, ip_region, expires_at, created_at, last_seen_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).bind(id, user.id, await sha256(token), deviceId, userAgent, ipHash, null, ip ?? null, ipCountry, ipRegion, expiresAt, now, now),
+        id, user_id, token_hash, device_id, user_agent, ip_hash, device_label, ip_address, ip_country, ip_region, expires_at, created_at, last_seen_at, mfa_restricted
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(id, user.id, mfaRestricted ? (await sessionTokenHashes(token)).restricted : await sha256(token), deviceId, userAgent, ipHash, null, ip ?? null, ipCountry, ipRegion, expiresAt, now, now, mfaRestricted ? 1 : 0),
   ]);
 
   return { id, token, maxAge };
@@ -230,19 +258,27 @@ export const setSessionCookie = (c: AppContext, token: string, maxAge: number) =
 
 export const revokeSession = async (db: DatabaseAdapter, token: string) => {
   await db
-    .prepare(`UPDATE sessions SET revoked_at = ? WHERE token_hash = ? AND revoked_at IS NULL`)
-    .bind(isoNow(), await sha256(token))
+    .prepare(`UPDATE sessions SET revoked_at = ? WHERE token_hash IN (?, ?) AND revoked_at IS NULL`)
+    .bind(isoNow(), ...Object.values(await sessionTokenHashes(token)))
     .run();
 };
 
-export const authenticateRequest = async (c: AppContext, touch: boolean): Promise<AuthContext | null> => {
+// Fail closed: callers that did not opt in never see a restricted session.
+const applyMfaRestriction = (auth: AuthContext | null, options: AuthenticateOptions) =>
+  auth?.mfaRestricted && !options.allowMfaRestricted ? null : auth;
+
+export const authenticateRequest = async (
+  c: AppContext,
+  touch: boolean,
+  options: AuthenticateOptions = {},
+): Promise<AuthContext | null> => {
   const bearerAuth = await authenticateBearerToken(c, touch);
 
   if (bearerAuth) {
-    return bearerAuth;
+    return applyMfaRestriction(bearerAuth, options);
   }
 
-  return authenticateSession(c, touch);
+  return authenticateSession(c, touch, options);
 };
 
 const authenticateBearerToken = async (c: AppContext, touch: boolean): Promise<AuthContext | null> => {
@@ -305,21 +341,27 @@ const authenticateBearerToken = async (c: AppContext, touch: boolean): Promise<A
 
 const authenticateSessionToken = async (c: AppContext, token: string, touch: boolean): Promise<AuthContext | null> => {
   const now = isoNow();
+  const hashes = await sessionTokenHashes(token);
   const row = await c.env.storage.db.prepare(
     `SELECT s.id, s.user_id, u.username, u.display_name, s.expires_at, s.last_seen_at,
-            wm.workspace_id, wm.role
+            wm.workspace_id, wm.role, s.mfa_restricted, s.token_hash
      FROM sessions s
      INNER JOIN users u ON u.id = s.user_id
      LEFT JOIN workspace_members wm ON wm.user_id = s.user_id
-     WHERE s.token_hash = ?
+     WHERE s.token_hash IN (?, ?)
        AND s.revoked_at IS NULL
        AND s.expires_at > ?
        AND u.is_disabled = 0`
   )
-    .bind(await sha256(token), now)
-    .first<SessionRow>();
+    .bind(hashes.plain, hashes.restricted, now)
+    .first<SessionRow & { token_hash: string }>();
 
   if (!row) {
+    return null;
+  }
+  // The hash family must agree with the flag: a restricted row is only ever
+  // reachable through the restricted hash, and vice versa.
+  if ((row.token_hash === hashes.restricted) !== Boolean(row.mfa_restricted)) {
     return null;
   }
 
@@ -354,17 +396,22 @@ const authenticateSessionToken = async (c: AppContext, token: string, touch: boo
     workspaceId: workspace.workspaceId,
     role: workspace.role,
     sessionId: row.id,
+    ...(row.mfa_restricted ? { mfaRestricted: true } : {}),
   };
 };
 
-export const authenticateSession = async (c: AppContext, touch: boolean): Promise<AuthContext | null> => {
+export const authenticateSession = async (
+  c: AppContext,
+  touch: boolean,
+  options: AuthenticateOptions = {},
+): Promise<AuthContext | null> => {
   const token = getCookie(c, SESSION_COOKIE);
 
   if (!token) {
     return null;
   }
 
-  return authenticateSessionToken(c, token, touch);
+  return applyMfaRestriction(await authenticateSessionToken(c, token, touch), options);
 };
 
 export const getBearerToken = (c: AppContext) => {

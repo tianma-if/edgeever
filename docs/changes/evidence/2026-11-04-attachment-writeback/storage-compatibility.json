@@ -1,0 +1,21 @@
+{
+  "baseline": "6be20cfc",
+  "environment": "Executed original resource-service/resource-routes modules and updated shared API against the same isolated SQLite/filesystem storage",
+  "passed": [
+    "original API writes compounded-version objects",
+    "updated writeback reads/replaces the original-version object",
+    "original API reads the updated bounded-key object",
+    "original API writes against the updated pointer",
+    "updated writeback reads/replaces the rollback write"
+  ],
+  "keyLengths": {
+    "originalAfterTwoSaves": 194,
+    "updated": 148,
+    "updatedAfterRollback": 148
+  },
+  "limits": [
+    "Not a packaged desktop old-to-new upgrade test",
+    "Not a live Cloudflare or external S3 test",
+    "Filename preservation requires the updated server"
+  ]
+}

@@ -35,7 +35,7 @@ function fixture(options = {}) {
   });
   registerCompanionRoutes(app, { isDemoMode: () => options.demo ?? false,
     loadModel: options.loadModel ?? (async () => ({ modelId: "test-model" })),
-    loadCredentials: options.loadCredentials ?? options.loadModel, stream: options.stream });
+    loadCredentials: options.loadCredentials ?? options.loadModel, resolveModel: options.resolveModel, stream: options.stream });
   const request = (path, method = "GET", body, headers = {}) => app.request(`/api/v1/companion/${path}`, {
     method, headers: { "Content-Type": "application/json", ...headers }, ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   }, { storage });
@@ -490,6 +490,92 @@ describe("companion client-direct HTTP contracts", () => {
       status: "completed", response: "Found the notes.", inputTokens: 9, outputTokens: 4,
     });
     expect((await getCompanionTurn(setup.db, scope, payload.id)).status).toBe("completed");
+  });
+
+  test("new and resumed turns use the default model's companion output budget (#652)", async () => {
+    const budgets = { generationMaxOutputTokens: 16000, tagSuggestionMaxOutputTokens: null, companionMaxOutputTokens: 9000 };
+    let lookups = 0;
+    const setup = fixture({ resolveModel: async () => { lookups++; return { credentials, outputBudgets: budgets }; } });
+    const payload = input({ message: "翻译这篇笔记", allowNotes: true });
+    const prepared = await setup.request("turns/prepare", "POST", payload);
+    expect(prepared.status).toBe(200);
+    const preparedBody = await prepared.json();
+    expect(preparedBody).toMatchObject({ modelId: "direct-model", maxOutputTokens: 9000 });
+    expect(Object.keys(preparedBody)).not.toContain("outputBudgets");
+    await setup.request(`turns/${payload.id}/tools`, "POST", {
+      name: "ask_user_question",
+      input: { questions: [{ id: "language", prompt: "翻译成哪种语言？", inputType: "single_select", options: [{ id: "en", label: "English" }] }] },
+      response: "", process: "",
+    });
+    await setup.request(`turns/${payload.id}/complete`, "POST", { response: "", status: "interrupted" });
+    const resumed = await setup.request(`turns/${payload.id}/resume/prepare`, "POST", { answers: [{ questionId: "language", optionIds: ["en"] }] });
+    expect(resumed.status).toBe(200);
+    expect(await resumed.json()).toMatchObject({ maxOutputTokens: 9000 });
+    expect(lookups).toBe(2);
+
+    const fallback = fixture({ loadCredentials: async () => credentials });
+    const unset = await fallback.request("turns/prepare", "POST", input({ allowNotes: true }));
+    expect((await unset.json()).maxOutputTokens).toBe(2048);
+  });
+
+  test("a failed turn saves a reply clipped to the per-turn limit and rejects anything longer (#652)", async () => {
+    const setup = fixture({ loadCredentials: async () => credentials });
+    const payload = input({ allowNotes: false });
+    expect((await setup.request("turns/prepare", "POST", payload)).status).toBe(200);
+    expect((await setup.request(`turns/${payload.id}/checkpoint`, "POST", { response: "x".repeat(16001) })).status).toBe(400);
+    const completed = await setup.request(`turns/${payload.id}/complete`, "POST", { response: "x".repeat(16000), status: "failed" });
+    expect(completed.status).toBe(200);
+    expect((await completed.json()).turn).toMatchObject({ status: "failed" });
+    expect((await getCompanionTurn(setup.db, scope, payload.id)).response).toHaveLength(16000);
+  });
+
+  test("Chinese reply and process at their character limits still save and close the turn over HTTP (#652)", async () => {
+    const { streamDirectCompanion } = await import("../../../packages/client/src/companion-direct-stream.ts");
+    const setup = fixture({ loadCredentials: async () => credentials });
+    const payload = input({ allowNotes: false, message: "写一篇很长的中文回复" });
+
+    // The over-long body the maintainer measured is rejected by the request size limit.
+    const probe = input({ allowNotes: false });
+    expect((await setup.request("turns/prepare", "POST", probe)).status).toBe(200);
+    expect((await setup.request(`turns/${probe.id}/complete`, "POST", {
+      response: "答".repeat(16000), process: "过".repeat(32000), status: "failed",
+    })).status).toBe(413);
+    expect((await setup.request(`turns/${probe.id}/complete`, "POST", { response: "", status: "failed" })).status).toBe(200);
+
+    const preparedResponse = await setup.request("turns/prepare", "POST", payload);
+    expect(preparedResponse.status).toBe(200);
+    const prepared = await preparedResponse.json();
+    // A turn that already accumulated 32,000 characters of Chinese process text.
+    prepared.turn.process = `${"旧".repeat(16000)}${"新".repeat(16000)}`;
+    const chunks = Array.from({ length: 170 }, () => "答".repeat(100));
+    const statuses = [];
+    const events = [];
+    const post = async (path, body) => {
+      const response = await setup.request(path, "POST", body);
+      statuses.push(`${path.split("/").at(-1)} ${response.status}`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response.json();
+    };
+    await streamDirectCompanion(prepared, {
+      fetch: async () => new Response(
+        `${chunks.map((text) => `data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\n`).join("")}data: [DONE]\n\n`,
+        { headers: { "content-type": "text/event-stream" } },
+      ),
+      onEvent: (event) => events.push(event),
+      executeTool: async () => { throw new Error("must not execute tools"); },
+      checkpoint: async (body) => { await post(`turns/${payload.id}/checkpoint`, body); },
+      complete: (body) => post(`turns/${payload.id}/complete`, body),
+    });
+
+    expect(statuses.length).toBeGreaterThan(1);
+    expect(statuses.every((status) => status.endsWith(" 200"))).toBe(true);
+    expect(statuses.at(-1)).toBe("complete 200");
+    expect(events.at(-1)).toMatchObject({ type: "error", code: "companion_response_too_long" });
+    const stored = await getCompanionTurn(setup.db, scope, payload.id);
+    expect(stored.status).toBe("failed");
+    expect(stored.response).toBe("答".repeat(16000));
+    expect(stored.process_text.endsWith("新".repeat(16000))).toBe(true);
+    expect(stored.process_text.startsWith("…")).toBe(true);
   });
 
   test("resume clears answered questions so the resumed turn can complete (#637)", async () => {

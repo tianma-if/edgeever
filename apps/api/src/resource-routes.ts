@@ -1,6 +1,6 @@
 import { resolveResourceUploadMimeType, ResourceUpdateSchema, type MemoDetail, type Resource } from "@edgeever/shared";
 import { zValidator } from "@hono/zod-validator";
-import type { Hono } from "hono";
+import type { Context, Hono } from "hono";
 import { auditStatement } from "./audit";
 import type { AppContext, AppEnv, AuditActor } from "./api-context";
 import { AppError } from "./app-error";
@@ -69,6 +69,7 @@ type ResourceRouteDependencies = {
     resourceId: string;
     expectedContentHash: string;
     filename: string;
+    preserveFilename?: boolean;
     mimeType: string;
     bytes: Uint8Array;
     actor: AuditActor;
@@ -309,7 +310,15 @@ export const registerResourceRoutes = (
     return new Response(object.body, { headers, status: byteRange.kind === "range" ? 206 : 200 });
   });
 
-  app.put("/api/v1/resources/:id/blob", async (context) => {
+  app.get("/api/v1/resources/writeback-capabilities", context => {
+    const denied = requireScopes(context, "write:resources");
+    if (denied) return denied;
+    context.header("Cache-Control", "no-store");
+    return context.json({ preserveFilename: true });
+  });
+
+  const replaceBlob = (preserveFilename = false) => async (context: Context<AppEnv, "/api/v1/resources/:id/blob" | "/api/v1/resources/:id/blob/writeback">) => {
+    if (preserveFilename) context.header("X-EdgeEver-Writeback", "preserve-filename");
     const denied = requireScopes(context, "write:resources");
     if (denied) return denied;
 
@@ -338,6 +347,7 @@ export const registerResourceRoutes = (
         resourceId: context.req.param("id"),
         expectedContentHash,
         filename: typeof declaredFilename === "string" && declaredFilename.trim() ? declaredFilename : file.name,
+        preserveFilename: preserveFilename || form.get("preserveFilename") === "true",
         mimeType: typeof declaredMimeType === "string" && declaredMimeType.trim()
           ? declaredMimeType
           : file.type || "application/octet-stream",
@@ -348,7 +358,9 @@ export const registerResourceRoutes = (
     } catch (error) {
       return appErrorResponse(context, error);
     }
-  });
+  };
+  app.put("/api/v1/resources/:id/blob", replaceBlob());
+  app.put("/api/v1/resources/:id/blob/writeback", replaceBlob(true));
 
   app.patch(
     "/api/v1/resources/:id",

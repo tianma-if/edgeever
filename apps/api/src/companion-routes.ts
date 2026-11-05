@@ -6,7 +6,8 @@ import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import type { AppContext, AppEnv, Bindings } from "./api-context";
 import { AppError } from "./app-error";
-import { loadDefaultAiModelCredentials } from "./ai-service";
+import { COMPANION_REQUEST_MAX_BYTES, EMPTY_AI_MODEL_OUTPUT_BUDGETS, resolveAiModelOutputBudget } from "@edgeever/shared";
+import { loadDefaultAiModelCredentials, resolveDefaultAiModel } from "./ai-service";
 import { apiError, forbidden, httpExceptionError, notFound } from "./http-errors";
 import { requireUser, getWorkspaceId } from "./request-auth";
 import { beginCompanionTurn, checkpointCompanionTurn, clearCompanionHistory, companionRevision,
@@ -46,11 +47,27 @@ export const companionGenerationFailure = (error: unknown): { code: string } => 
 export const registerCompanionRoutes = (parent: Hono<AppEnv>, dependencies: {
   isDemoMode: (env: Bindings) => boolean;
   loadCredentials?: typeof loadDefaultAiModelCredentials;
+  resolveModel?: typeof resolveDefaultAiModel;
 }) => {
   const app = new Hono<AppEnv>();
+  // Credentials and budget come from one default-model lookup (#652).
+  const resolveModel: typeof resolveDefaultAiModel = async (db, workspaceId, env) => {
+    if (dependencies.resolveModel) return dependencies.resolveModel(db, workspaceId, env);
+    if (dependencies.loadCredentials) {
+      return {
+        credentials: await dependencies.loadCredentials(db, workspaceId, env),
+        outputBudgets: EMPTY_AI_MODEL_OUTPUT_BUDGETS,
+        capabilities: null,
+        modelConfigId: "",
+        providerConfigId: "",
+        providerConfigVersion: "",
+      };
+    }
+    return resolveDefaultAiModel(db, workspaceId, env);
+  };
   app.onError((error, c) => fail(c, error));
   // Upload bodies exceed the JSON limit used by the rest of the companion API.
-  const limitCompanionBody = bodyLimit({ maxSize: 128 * 1024 });
+  const limitCompanionBody = bodyLimit({ maxSize: COMPANION_REQUEST_MAX_BYTES });
   app.use("/api/v1/companion/*", (c, next) => {
     if (c.req.path.endsWith("/companion/attachments") && c.req.method === "POST") return next();
     return limitCompanionBody(c, next);
@@ -169,11 +186,12 @@ export const registerCompanionRoutes = (parent: Hono<AppEnv>, dependencies: {
     if (parseJsonArray(previous.questions_json).length && !answers?.length) {
       return apiError(c, "companion_answers_required", "Answer the questions before continuing.", 400);
     }
-    const credentials = await (dependencies.loadCredentials ?? loadDefaultAiModelCredentials)(db, scope.workspaceId, c.env);
+    const { credentials, outputBudgets } = await resolveModel(db, scope.workspaceId, c.env);
     const row = await resumeCompanionTurn(db, scope, previous.id, answers);
     const input = turnInputFromRow(row);
     return c.json(await prepareCompanionTurn({
       db, scope, input, row, credentials,
+      maxOutputTokens: resolveAiModelOutputBudget(outputBudgets, "companionMaxOutputTokens"),
       resume: { response: row.response, answers: answers ?? turnAnswers(row) },
     }));
   });
@@ -289,7 +307,7 @@ export const registerCompanionRoutes = (parent: Hono<AppEnv>, dependencies: {
     const scope = scopeFor(c);
     const duplicate = await getCompanionTurn(db, scope, input.id);
     if (duplicate) return apiError(c, "companion_request_exists", "This request already exists. Recover it by its ID; it will not be billed again.", 409);
-    const credentials = await (dependencies.loadCredentials ?? loadDefaultAiModelCredentials)(db, scope.workspaceId, c.env);
+    const { credentials, outputBudgets } = await resolveModel(db, scope.workspaceId, c.env);
     if (input.attachmentIds?.length) {
       await assertCompanionAttachmentsSupported(db, scope, credentials.provider, input.attachmentIds);
     }
@@ -303,7 +321,10 @@ export const registerCompanionRoutes = (parent: Hono<AppEnv>, dependencies: {
       throw new AppError("companion_context_changed", "Memory settings changed. Retry with current settings.", 409);
     }
     await bindTurnAttachments(db, scope, row.id, input.attachmentIds);
-    return c.json(await prepareCompanionTurn({ db, scope, input, row, credentials }));
+    return c.json(await prepareCompanionTurn({
+      db, scope, input, row, credentials,
+      maxOutputTokens: resolveAiModelOutputBudget(outputBudgets, "companionMaxOutputTokens"),
+    }));
   });
   for (const path of ["/api/v1/companion/discovery/check", "/api/v1/companion/discovery/check/proxy", "/api/v1/companion/turns", "/api/v1/companion/turns/:id/proxy", "/api/v1/companion/turns/:id/resume"]) app.post(path, c => apiError(c, "ai_client_required", "Update the client to call the model directly.", 410));
   parent.route("/", app);

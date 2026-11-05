@@ -18,6 +18,8 @@ import {
   getBase64DecodedByteLength,
   isAiTextAttachment,
 } from "./ai-assistant";
+import { AI_MODEL_OUTPUT_BUDGET_LIMITS, type AiModelOutputBudgetField } from "./ai-output-budgets";
+import { AI_MODEL_CAPABILITY_MAX_TOKENS, AI_MODEL_CAPABILITY_SOURCES } from "./ai-model-capabilities";
 
 export const NotebookCreateSchema = z.object({
   name: z.string().trim().min(1).max(80),
@@ -194,6 +196,42 @@ export const LoginSchema = z.object({
   locale: z.string().trim().min(1).max(35).optional(),
 });
 
+const TotpCodeField = z.string().trim().min(6).max(12);
+const RecoveryCodeField = z.string().trim().min(10).max(32);
+
+export const LoginMfaSchema = z.object({
+  challengeToken: z.string().trim().min(16).max(128),
+  code: TotpCodeField.optional(),
+  recoveryCode: RecoveryCodeField.optional(),
+  deviceId: z.string().trim().min(16).max(160).optional(),
+  locale: z.string().trim().min(1).max(35).optional(),
+}).refine((input) => Boolean(input.code) !== Boolean(input.recoveryCode), {
+  message: "Provide either an authenticator code or a recovery code.",
+  path: ["code"],
+});
+
+/** Identity check before enabling (password) or changing TOTP (password + code). */
+export const TotpReauthSchema = z.object({
+  password: z.string().min(1).max(512).optional(),
+  code: TotpCodeField.optional(),
+  /** Alternative to `code` when the authenticator is unavailable; it is consumed. */
+  recoveryCode: RecoveryCodeField.optional(),
+});
+
+/** Opaque id the server issued for one enrollment flow or one batch of recovery codes. */
+const TotpFlowIdField = z.string().trim().min(8).max(80);
+
+/** Step 2 of enrollment: the authenticator code, for the setup the client was shown. */
+export const TotpSetupVerifySchema = z.object({
+  setupId: TotpFlowIdField,
+  code: TotpCodeField,
+});
+
+/** Last step of enrollment or of regenerating codes: the batch the user saved. */
+export const TotpBatchConfirmSchema = z.object({
+  batchId: TotpFlowIdField,
+});
+
 export const LoginDeviceSessionUpdateSchema = z.object({
   label: z.string().trim().max(80).nullable(),
 });
@@ -346,10 +384,46 @@ export const AiProviderConnectionTestSchema = z.object({
   apiKey: z.string().min(1).max(4096).optional(),
 });
 
+const aiModelOutputBudget = (field: AiModelOutputBudgetField) => z.number()
+  .int()
+  .min(AI_MODEL_OUTPUT_BUDGET_LIMITS[field].min)
+  .max(AI_MODEL_OUTPUT_BUDGET_LIMITS[field].max)
+  .nullable()
+  .optional();
+
+const aiModelOutputBudgetShape = {
+  generationMaxOutputTokens: aiModelOutputBudget("generationMaxOutputTokens"),
+  tagSuggestionMaxOutputTokens: aiModelOutputBudget("tagSuggestionMaxOutputTokens"),
+  companionMaxOutputTokens: aiModelOutputBudget("companionMaxOutputTokens"),
+};
+
 export const AiModelConfigCreateSchema = z.object({
   modelId: z.string().trim().min(1).max(200),
   displayName: z.string().trim().min(1).max(200).optional(),
+  ...aiModelOutputBudgetShape,
 });
+
+const aiCapabilityTokens = z.number().int().positive().max(AI_MODEL_CAPABILITY_MAX_TOKENS).nullable();
+
+/** Limits a client read from the provider for one model; checked against the saved model and endpoint. */
+export const AiModelCapabilitiesReportSchema = z.object({
+  provider: AiProviderSchema,
+  modelId: z.string().trim().min(1).max(200),
+  baseUrl: z.string().trim().min(1).max(2048),
+  /** The provider configuration the limits were read for (its `updated_at`). */
+  configVersion: z.string().trim().min(1).max(64),
+  maxOutputTokens: aiCapabilityTokens,
+  maxInputTokens: aiCapabilityTokens,
+  contextWindowTokens: aiCapabilityTokens,
+  source: z.enum(AI_MODEL_CAPABILITY_SOURCES),
+}).strict();
+
+/** An omitted field keeps its current value; `null` restores the EdgeEver default. */
+export const AiModelConfigUpdateSchema = z.object(aiModelOutputBudgetShape)
+  .strict()
+  .refine((value) => Object.values(value).some((field) => field !== undefined), {
+    message: "At least one model setting is required.",
+  });
 
 export const AiDefaultModelUpdateSchema = z.object({
   modelConfigId: z.string().trim().min(1).nullable(),
@@ -385,6 +459,8 @@ export const AiGenerateSchema = z.object({
   tone: z.enum(AI_TONES).optional(),
   instruction: z.string().trim().min(1).max(2_000).optional(),
   attachments: z.array(AiAttachmentSchema).max(MAX_AI_ATTACHMENTS).default([]),
+  /** The client can send a request without an output limit when none is known (#652). */
+  allowUnboundedOutput: z.boolean().optional(),
 }).superRefine((input, context) => {
   if (!input.promptId && input.action === "translate" && !input.targetLanguage) {
     context.addIssue({ code: "custom", path: ["targetLanguage"], message: "A target language is required for translation." });
@@ -557,6 +633,10 @@ export type MoveMemosInput = z.infer<typeof MoveMemosSchema>;
 export type DeleteMemosInput = z.infer<typeof DeleteMemosSchema>;
 export type MergeMemosInput = z.infer<typeof MergeMemosSchema>;
 export type LoginInput = z.infer<typeof LoginSchema>;
+export type LoginMfaInput = z.infer<typeof LoginMfaSchema>;
+export type TotpReauthInput = z.infer<typeof TotpReauthSchema>;
+export type TotpSetupVerifyInput = z.infer<typeof TotpSetupVerifySchema>;
+export type TotpBatchConfirmInput = z.infer<typeof TotpBatchConfirmSchema>;
 export type LoginDeviceSessionUpdateInput = z.infer<typeof LoginDeviceSessionUpdateSchema>;
 export type ChangePasswordInput = z.infer<typeof ChangePasswordSchema>;
 export type UserCreateInput = z.infer<typeof UserCreateSchema>;
@@ -570,6 +650,8 @@ export type AiProviderConfigCreateInput = z.infer<typeof AiProviderConfigCreateS
 export type AiProviderConfigUpdateInput = z.infer<typeof AiProviderConfigUpdateSchema>;
 export type AiProviderConnectionTestInput = z.infer<typeof AiProviderConnectionTestSchema>;
 export type AiModelConfigCreateInput = z.infer<typeof AiModelConfigCreateSchema>;
+export type AiModelConfigUpdateInput = z.infer<typeof AiModelConfigUpdateSchema>;
+export type AiModelCapabilitiesReportInput = z.infer<typeof AiModelCapabilitiesReportSchema>;
 export type AiDefaultModelUpdateInput = z.infer<typeof AiDefaultModelUpdateSchema>;
 export type AiGenerateInput = z.input<typeof AiGenerateSchema>;
 export type AiAttachmentInput = z.infer<typeof AiAttachmentSchema>;

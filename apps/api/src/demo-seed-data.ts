@@ -999,35 +999,27 @@ export const DEMO_SEED_MEMOS_ZH = [
 通过下面的 Mermaid 架构图，你可以清晰了解 EdgeEver 如何将多端客户端、零成本云基础设施与 AI Agent 紧密串联：
 
 \`\`\`mermaid
-flowchart TD
-    subgraph MultiClients["全端客户端矩阵"]
-        C1["Web / PWA (离线草稿 & 增量同步)"]
-        C2["macOS 桌面端 (Electron + Rust Sidecar)"]
-        C3["Windows / Linux 桌面端 (ACP 智能体集成)"]
-        C4["Android 原生 App (Expo + SQLite)"]
-        C5["iOS 原生 App (SwiftUI + GRDB)"]
-        C6["浏览器剪藏插件 (Chrome / Edge / Firefox)"]
+flowchart LR
+    subgraph ClientsBox["全端客户端与智能体"]
+        Clients["全端客户端矩阵<br/>Web · PWA · 桌面客户端<br/>iOS · Android · 浏览器剪藏"]
+        Agents["外部 AI 智能体<br/>Claude Code · Cursor · Antigravity"]
     end
 
-    subgraph CoreEngine["业务与数据服务层"]
-        API["Hono API 引擎 (Cloudflare Workers / Docker)"]
-        MCP["原生 MCP Endpoint (/mcp 2026-07-28 & 2025)"]
-        D1[("D1 / SQLite 数据库 (双向同步 & 修订版本)")]
-        R2[("R2 / S3 资源存储 (图片与多媒体附件)")]
+    subgraph Platform["EdgeEver 平台核心 (Cloudflare Workers / Docker)"]
+        API["统一 REST API 入口<br/>认证鉴权 · 限流 · 增量同步游标"]
+        MCP["原生 MCP 服务端点 (/mcp)<br/>上下文感知 · 工具读写协议"]
     end
 
-    subgraph AIAgents["AI 智能体与外部生态"]
-        A1["Claude Code / Cursor / Antigravity"]
-        A2["行内 AI 助手 (OpenAI / Gemini / DeepSeek)"]
-        A3["Notion 数据库 / 飞书多维表格联动"]
+    subgraph BackendBox["AI 模型与数据存储"]
+        LLMs["主流大语言模型 (BYOK 直连)<br/>OpenAI · Gemini · DeepSeek"]
+        Storage[("数据与对象存储<br/>Cloudflare D1 / SQLite · R2 / S3 兼容")]
     end
 
-    MultiClients <==>|REST API & 同步游标| API
-    API <==> D1 & R2
-    MCP <==> D1 & R2
-    A1 <==>|MCP Tools / SSE| MCP
-    A2 -.->|BYOK 密钥直连| MultiClients
-    A1 -.->|双向数据同步| A3
+    Clients <-->|HTTPS 增量同步| API
+    Clients -->|BYOK 客户端直连 · 隐私安全| LLMs
+    Agents <-->|MCP Tools / SSE 协议| MCP
+    API <--> Storage
+    MCP <--> Storage
 \`\`\`
 
 ---
@@ -1352,35 +1344,27 @@ export const DEMO_MEMO_ENGLISH = {
 The Mermaid diagram below demonstrates how EdgeEver connects cross-platform clients, zero-cost cloud infrastructure, and AI Agents into a cohesive workflow:
 
 \`\`\`mermaid
-flowchart TD
-    subgraph MultiClients["Client Matrix"]
-        C1["Web / PWA (Offline Drafts & Sync Queue)"]
-        C2["macOS Desktop (Electron + Rust Sidecar)"]
-        C3["Windows / Linux Desktop (ACP Agent Integration)"]
-        C4["Android Native App (Expo + SQLite)"]
-        C5["iOS Native App (SwiftUI + GRDB)"]
-        C6["Web Clipper (Chrome / Edge / Firefox)"]
+flowchart LR
+    subgraph ClientsBox["Cross-platform clients & agents"]
+        Clients["Cross-Platform Clients<br/>Web · PWA · Desktop Apps<br/>iOS · Android · Web Clipper"]
+        Agents["External AI Agents<br/>Claude Code · Cursor · Antigravity"]
     end
 
-    subgraph CoreEngine["Service & Storage Core"]
-        API["Hono API Engine (Cloudflare Workers / Docker)"]
-        MCP["Native MCP Endpoint (/mcp 2026-07-28 & 2025)"]
-        D1[("D1 / SQLite Database (Sync Cursor & Revisions)")]
-        R2[("R2 / S3 Storage (Images & Media Attachments)")]
+    subgraph Platform["EdgeEver Platform Core (Cloudflare Workers / Docker)"]
+        API["Unified REST API Entry<br/>Auth · Rate Limiting · Sync Cursor"]
+        MCP["Native MCP Endpoint (/mcp)<br/>Context Retrieval · Read/Write Tools"]
     end
 
-    subgraph AIAgents["AI Agents & Integrations"]
-        A1["Claude Code / Cursor / Antigravity"]
-        A2["Inline AI Assistant (OpenAI / Gemini / DeepSeek)"]
-        A3["Notion DB / Feishu Bitable Sync"]
+    subgraph BackendBox["AI Models & Data Storage"]
+        LLMs["LLM Providers (Direct BYOK)<br/>OpenAI · Gemini · DeepSeek"]
+        Storage[("Data & Object Storage<br/>Cloudflare D1 / SQLite · R2 / S3 Compatible")]
     end
 
-    MultiClients <==>|REST API & Sync Cursor| API
-    API <==> D1 & R2
-    MCP <==> D1 & R2
-    A1 <==>|MCP Tools / SSE| MCP
-    A2 -.->|BYOK Direct Key| MultiClients
-    A1 -.->|Bi-directional Sync| A3
+    Clients <-->|HTTPS Incremental Sync| API
+    Clients -->|Direct BYOK · Privacy First| LLMs
+    Agents <-->|MCP Tools / SSE Protocol| MCP
+    API <--> Storage
+    MCP <--> Storage
 \`\`\`
 
 ---

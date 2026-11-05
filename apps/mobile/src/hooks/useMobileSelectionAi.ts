@@ -64,7 +64,9 @@ export const useMobileSelectionAi = ({
       },
     }).catch((requestError) => {
       if (controller.signal.aborted) return;
-      const message = requestError instanceof ApiRequestError && requestError.code === "ai_not_configured"
+      const message = requestError instanceof ApiRequestError && requestError.code === "ai_input_too_long"
+        ? getMobileCatalog(resolvedLocale).mobile.ai.inputTooLong
+        : requestError instanceof ApiRequestError && requestError.code === "ai_not_configured"
         ? getMobileCatalog(resolvedLocale).mobile.ai.modelNotConfigured
         : requestError instanceof Error
           ? requestError.message

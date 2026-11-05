@@ -7,6 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		77C3F06708AC36BF9F6F16EA /* TotpModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9886D42194377CACC82BD6C8 /* TotpModels.swift */; };
+		EFA3767F26DCBD697A3BF043 /* TotpComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = D06B7336658C91A9585AB714 /* TotpComponents.swift */; };
+		77939EA96FFA56BAEDB4EF99 /* TotpSettingsPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77ED83C9DF4F7556BA0343C3 /* TotpSettingsPanel.swift */; };
+		936D15E0433CE757E5ED8C51 /* ForcedTotpRebindView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A570FFBC9DDACAACD3AE7DF8 /* ForcedTotpRebindView.swift */; };
+		3E20F8406FE46B5DEDB63E47 /* TotpDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29F5EEA12B7E6AE281C377BB /* TotpDecodingTests.swift */; };
 		039594C5BEE4844FBB131C7F /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6F510BF90B418266F363EBD /* APIClient.swift */; };
 		0614453E8E9EC13B212B5A2F /* NotebookPickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3328D871910187ED827B6CE /* NotebookPickerSheet.swift */; };
 		06D2661CAB0ADED27F322649 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = D87A8CED8498AE654EF8CD1F /* Localizable.xcstrings */; };
@@ -123,6 +128,11 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		9886D42194377CACC82BD6C8 /* TotpModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TotpModels.swift; sourceTree = "<group>"; };
+		D06B7336658C91A9585AB714 /* TotpComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TotpComponents.swift; sourceTree = "<group>"; };
+		77ED83C9DF4F7556BA0343C3 /* TotpSettingsPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TotpSettingsPanel.swift; sourceTree = "<group>"; };
+		A570FFBC9DDACAACD3AE7DF8 /* ForcedTotpRebindView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForcedTotpRebindView.swift; sourceTree = "<group>"; };
+		29F5EEA12B7E6AE281C377BB /* TotpDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TotpDecodingTests.swift; sourceTree = "<group>"; };
 		01D34117A78B1F5C367ACDBB /* assets */ = {isa = PBXFileReference; lastKnownFileType = folder; name = assets; path = EdgeEver/Resources/EditorBundle/assets; sourceTree = SOURCE_ROOT; };
 		033565CE2E96EC2D23105188 /* ListActionsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListActionsSheet.swift; sourceTree = "<group>"; };
 		04B6BCA279F8E8A4774A7C0A /* NoteImageFontPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteImageFontPickerView.swift; sourceTree = "<group>"; };
@@ -224,6 +234,16 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		F5FD408D8668FC264CD6E46D /* Security */ = {
+			isa = PBXGroup;
+			children = (
+				A570FFBC9DDACAACD3AE7DF8 /* ForcedTotpRebindView.swift */,
+				D06B7336658C91A9585AB714 /* TotpComponents.swift */,
+				77ED83C9DF4F7556BA0343C3 /* TotpSettingsPanel.swift */,
+			);
+			path = Security;
+			sourceTree = "<group>";
+		};
 		0C073569B955CD568840A35D /* Config */ = {
 			isa = PBXGroup;
 			children = (
@@ -318,6 +338,7 @@
 			children = (
 				D1C1EF697B501DEE7E568338 /* Auth */,
 				1C9B7294934FF01F82DDBEB1 /* Share */,
+				F5FD408D8668FC264CD6E46D /* Security */,
 				AE31B21B9B3513CC73436E46 /* Workspace */,
 			);
 			path = Features;
@@ -453,6 +474,7 @@
 			children = (
 				F1F36ACF8073C8A61AE397CD /* MemoTemplates.swift */,
 				C5126510AFB9AFBF7ABADB45 /* Models.swift */,
+				9886D42194377CACC82BD6C8 /* TotpModels.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -502,6 +524,7 @@
 				1606EF8ADEA4921421EB0690 /* MobileUIParityTests.swift */,
 				E6159DBF27CC86920005E25D /* SyncProtocolTests.swift */,
 				8A536119D29812EF11DAEAA8 /* TipTapContentSourceTests.swift */,
+				29F5EEA12B7E6AE281C377BB /* TotpDecodingTests.swift */,
 				41B15501968A29C372E7B3BB /* URLNormalizeTests.swift */,
 				5D7D3262D1E3E40E38361E84 /* WebClipperTests.swift */,
 			);
@@ -648,6 +671,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3E20F8406FE46B5DEDB63E47 /* TotpDecodingTests.swift in Sources */,
 				100A3242D8AA714261236773 /* ChromeParityTests.swift in Sources */,
 				E51CD822863D3494E35ADB27 /* EditorBundleTests.swift in Sources */,
 				F51F6C5ED7C2B0E68DF5A55D /* LiveLocalAPITests.swift in Sources */,
@@ -667,6 +691,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				77C3F06708AC36BF9F6F16EA /* TotpModels.swift in Sources */,
+				EFA3767F26DCBD697A3BF043 /* TotpComponents.swift in Sources */,
+				77939EA96FFA56BAEDB4EF99 /* TotpSettingsPanel.swift in Sources */,
+				936D15E0433CE757E5ED8C51 /* ForcedTotpRebindView.swift in Sources */,
 				039594C5BEE4844FBB131C7F /* APIClient.swift in Sources */,
 				564B7A4D6CD3C8140286F881 /* AccountPasswordPanel.swift in Sources */,
 				F6AACA31885AB69C1CCCCB46 /* AiAssistantSheet.swift in Sources */,
@@ -812,7 +840,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MARKETING_VERSION = 2.19.0;
+				MARKETING_VERSION = 2.21.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -902,7 +930,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MARKETING_VERSION = 2.19.0;
+				MARKETING_VERSION = 2.21.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;

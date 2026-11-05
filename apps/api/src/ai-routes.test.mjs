@@ -8,6 +8,7 @@ import {
   AiTagSuggestionsRequestSchema,
 } from "@edgeever/shared";
 import { registerAiRoutes } from "./ai-routes.ts";
+import { encryptSecret } from "./secret-encryption.ts";
 
 const auth = {
   kind: "user",
@@ -51,8 +52,8 @@ class SqliteD1PreparedStatement {
   }
 
   async run() {
-    this.db.query(this.sql).run(...this.bindings);
-    return { success: true, meta: {} };
+    const result = this.db.query(this.sql).run(...this.bindings);
+    return { success: true, meta: { changes: result.changes } };
   }
 }
 
@@ -587,6 +588,7 @@ describe("AI route contracts", () => {
       provider: "google",
       baseUrl: "https://draft.example.com/v1",
       apiKey: "draft-key",
+      configVersion: expect.any(String),
     });
     expect((await app.request("/api/v1/ai/settings", {}, databaseEnvironment).then((response) => response.json())).providers[0])
       .toMatchObject({
@@ -953,6 +955,7 @@ describe("AI model provider settings routes", () => {
       provider: "openai-compatible",
       baseUrl: "https://models.example.com/v1",
       apiKey: "secret",
+      configVersion: expect.any(String),
       modelId: "",
     });
 
@@ -1355,6 +1358,442 @@ describe("AI settings storage failures", () => {
     );
     expect(response.status).toBe(503);
     expect(await response.json()).toMatchObject({ error: { code: "ai_credentials_unavailable" } });
+    sqlite.close();
+  });
+});
+
+describe("model output budgets (#652)", () => {
+  const json = (body, method = "POST") => ({
+    method,
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const setup = async (app = createApp()) => {
+    const database = createDatabaseEnvironment();
+    const created = await app.request("/api/v1/ai/providers", json(validSettings), database.environment);
+    expect(created.status).toBe(201);
+    const provider = (await created.json()).providers[0];
+    return { ...database, provider, model: provider.models[0] };
+  };
+  const prepareGeneration = async (app, env) => {
+    const response = await app.request(
+      "/api/v1/ai/generate/prepare",
+      json({ action: "summarize", title: "Note", contentMarkdown: "Body" }),
+      env,
+    );
+    expect(response.status).toBe(200);
+    return response.json();
+  };
+  const prepareTags = async (app, env) => {
+    const response = await app.request(
+      "/api/v1/ai/tag-suggestions/prepare",
+      json({ title: "Note", contentMarkdown: "Body", currentTags: [] }),
+      env,
+    );
+    expect(response.status).toBe(200);
+    return response.json();
+  };
+  const patchPath = (provider, model) => `/api/v1/ai/providers/${provider.id}/models/${model.id}`;
+
+  test("existing models keep the built-in defaults", async () => {
+    const app = createApp();
+    const { sqlite, environment: env, model } = await setup(app);
+    expect(model).toMatchObject({
+      generationMaxOutputTokens: null,
+      tagSuggestionMaxOutputTokens: null,
+      companionMaxOutputTokens: null,
+    });
+    expect((await prepareGeneration(app, env)).maxOutputTokens).toBe(4096);
+    const tags = await prepareTags(app, env);
+    expect(tags.maxOutputTokens).toBe(300);
+    expect(tags.temperature).toBe(0);
+    sqlite.close();
+  });
+
+  test("PATCH treats omitted fields as unchanged and null as restore-default", async () => {
+    const app = createApp();
+    const { sqlite, environment: env, provider, model } = await setup(app);
+
+    const first = await app.request(
+      patchPath(provider, model),
+      json({ generationMaxOutputTokens: 16000, tagSuggestionMaxOutputTokens: 800 }, "PATCH"),
+      env,
+    );
+    expect(first.status).toBe(200);
+    expect((await first.json()).providers[0].models[0]).toMatchObject({
+      generationMaxOutputTokens: 16000,
+      tagSuggestionMaxOutputTokens: 800,
+      companionMaxOutputTokens: null,
+    });
+    expect((await prepareGeneration(app, env)).maxOutputTokens).toBe(16000);
+    expect((await prepareTags(app, env)).maxOutputTokens).toBe(800);
+
+    const second = await app.request(
+      patchPath(provider, model),
+      json({ generationMaxOutputTokens: null }, "PATCH"),
+      env,
+    );
+    expect(second.status).toBe(200);
+    expect((await second.json()).providers[0].models[0]).toMatchObject({
+      generationMaxOutputTokens: null,
+      tagSuggestionMaxOutputTokens: 800,
+    });
+    expect((await prepareGeneration(app, env)).maxOutputTokens).toBe(4096);
+    expect((await prepareTags(app, env)).maxOutputTokens).toBe(800);
+
+    const audits = sqlite.query(
+      "SELECT action, entity_id, metadata_json FROM audit_events WHERE action = 'workspace.ai_model.update' ORDER BY rowid",
+    ).all();
+    expect(audits.map((row) => row.entity_id)).toEqual([model.id, model.id]);
+    expect(JSON.parse(audits[1].metadata_json)).toEqual({
+      providerConfigId: provider.id,
+      modelId: "model-a",
+      generationMaxOutputTokens: null,
+    });
+    sqlite.close();
+  });
+
+  test("PATCH rejects empty, unknown, non-integer and out-of-range input", async () => {
+    const app = createApp();
+    const { sqlite, environment: env, provider, model } = await setup(app);
+    for (const body of [
+      {},
+      { maxOutputTokens: 1000 },
+      { generationMaxOutputTokens: 1000.5 },
+      { generationMaxOutputTokens: "1000" },
+      { generationMaxOutputTokens: 255 },
+      { generationMaxOutputTokens: 131_073 },
+      { tagSuggestionMaxOutputTokens: 63 },
+      { tagSuggestionMaxOutputTokens: 8193 },
+      { companionMaxOutputTokens: 0 },
+    ]) {
+      const response = await app.request(patchPath(provider, model), json(body, "PATCH"), env);
+      expect({ body, status: response.status }).toEqual({ body, status: 400 });
+    }
+    const stored = sqlite.query("SELECT generation_max_output_tokens, tag_suggestion_max_output_tokens, companion_max_output_tokens FROM ai_models").get();
+    expect(stored).toEqual({ generation_max_output_tokens: null, tag_suggestion_max_output_tokens: null, companion_max_output_tokens: null });
+    sqlite.close();
+  });
+
+  test("PATCH is workspace-scoped, user-only and blocked in demo mode", async () => {
+    const app = createApp();
+    const { sqlite, environment: env, provider, model } = await setup(app);
+    sqlite.query("INSERT INTO workspaces (id, name, is_personal) VALUES (?, ?, 1)").run("ws_other", "Other workspace");
+    const body = json({ generationMaxOutputTokens: 9000 }, "PATCH");
+
+    const otherWorkspace = createApp({ currentAuth: { ...auth, actorId: "usr_other", workspaceId: "ws_other" } });
+    expect((await otherWorkspace.request(patchPath(provider, model), body, env)).status).toBe(404);
+    expect((await app.request(`/api/v1/ai/providers/other/models/${model.id}`, body, env)).status).toBe(404);
+    expect((await createApp({ demoMode: true }).request(patchPath(provider, model), body, env)).status).toBe(403);
+    const token = createApp({ currentAuth: { ...auth, kind: "agent", actorType: "agent", scopes: ["ai:generate"] } });
+    expect((await token.request(patchPath(provider, model), body, env)).status).toBe(403);
+
+    expect(sqlite.query("SELECT generation_max_output_tokens AS value FROM ai_models").get()).toEqual({ value: null });
+    expect(sqlite.query("SELECT COUNT(*) AS count FROM audit_events WHERE action = 'workspace.ai_model.update'").get()).toEqual({ count: 0 });
+    sqlite.close();
+  });
+
+  test("credentials and budget always come from the current default model", async () => {
+    const app = createApp();
+    const { sqlite, environment: env, provider } = await setup(app);
+    const added = await app.request(
+      `/api/v1/ai/providers/${provider.id}/models`,
+      json({ modelId: "model-b", generationMaxOutputTokens: 20000 }),
+      env,
+    );
+    expect(added.status).toBe(201);
+    const modelB = (await added.json()).providers[0].models.find((model) => model.modelId === "model-b");
+    expect(modelB.generationMaxOutputTokens).toBe(20000);
+
+    expect(await prepareGeneration(app, env)).toMatchObject({ modelId: "model-a", maxOutputTokens: 4096 });
+    expect((await app.request("/api/v1/ai/default-model", json({ modelConfigId: modelB.id }, "PUT"), env)).status).toBe(200);
+    expect(await prepareGeneration(app, env)).toMatchObject({ modelId: "model-b", maxOutputTokens: 20000 });
+    sqlite.close();
+  });
+
+  test("other prepare responses keep their existing shape", async () => {
+    const app = createApp();
+    const { sqlite, environment: env, provider, model } = await setup(app);
+    await app.request(patchPath(provider, model), json({ generationMaxOutputTokens: 16000, companionMaxOutputTokens: 9000 }, "PATCH"), env);
+    const infographic = await app.request(
+      "/api/v1/ai/infographic-agent/prepare",
+      json({ prompt: "列表", currentContent: "", candidates: ["list-grid-simple"], history: [] }),
+      env,
+    );
+    expect(infographic.status).toBe(200);
+    expect(Object.keys(await infographic.json()).sort()).toEqual(["apiKey", "baseUrl", "modelId", "provider"]);
+    const outline = await app.request("/api/v1/ai/video-outline/prepare", json(videoOutlineBody()), env);
+    expect(outline.status).toBe(200);
+    expect(await outline.json()).toMatchObject({ maxOutputTokens: 1200 });
+    sqlite.close();
+  });
+
+  test("an upgraded database keeps old rows on defaults and stays readable by the previous server query", async () => {
+    const sqlite = new Database(":memory:");
+    for (const migration of globSync("migrations/*.sql").sort()) {
+      if (migration.endsWith("0091_ai_model_output_budgets.sql")) continue;
+      sqlite.exec(readFileSync(migration, "utf8"));
+    }
+    sqlite.query("INSERT INTO workspaces (id, name, is_personal) VALUES (?, ?, 1)").run("ws_member", "Member workspace");
+    const env = { storage: { db: new SqliteD1Database(sqlite), resources: {} }, EDGE_EVER_AUTH_PASSWORD: "x".repeat(32) };
+    // Rows written by the previous release, before the upgrade.
+    const now = "2026-11-01T00:00:00.000Z";
+    const apiKey = await encryptSecret("secret", `edgeever:ai-credentials:v1:${"x".repeat(32)}`);
+    sqlite.query(
+      `INSERT INTO ai_provider_configs (id, workspace_id, provider, display_name, base_url, api_key_encrypted, is_enabled, created_at, updated_at)
+       VALUES ('aip_old', 'ws_member', 'openai-compatible', 'Old', 'https://models.example.com/v1', ?, 1, ?, ?)`,
+    ).run(apiKey, now, now);
+    sqlite.query(
+      `INSERT INTO ai_models (id, provider_config_id, model_id, display_name, created_at, updated_at)
+       VALUES ('aim_old', 'aip_old', 'old-model', 'old-model', ?, ?)`,
+    ).run(now, now);
+    sqlite.query(
+      `INSERT INTO ai_workspace_settings (workspace_id, default_model_id, created_at, updated_at) VALUES ('ws_member', 'aim_old', ?, ?)`,
+    ).run(now, now);
+    sqlite.exec(readFileSync("migrations/0091_ai_model_output_budgets.sql", "utf8"));
+
+    const app = createApp();
+    const settings = await (await app.request("/api/v1/ai/settings", {}, env)).json();
+    expect(settings.providers[0].models[0]).toMatchObject({ id: "aim_old", generationMaxOutputTokens: null });
+    expect(await prepareGeneration(app, env)).toMatchObject({ modelId: "old-model", apiKey: "secret" });
+    expect((await prepareGeneration(app, env)).maxOutputTokens).toBe(4096);
+    // The previous release selected explicit columns, so a rollback keeps reading and writing.
+    expect((await app.request("/api/v1/ai/providers/aip_old/models/aim_old", json({ generationMaxOutputTokens: 9000 }, "PATCH"), env)).status).toBe(200);
+    expect(sqlite.query(`SELECT id, provider_config_id, model_id, display_name, created_at, updated_at FROM ai_models`).all()).toHaveLength(1);
+    sqlite.query(
+      `INSERT INTO ai_models (id, provider_config_id, model_id, display_name, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
+    ).run("aim_legacy", "aip_old", "legacy-model", "legacy-model", now, now);
+    expect(sqlite.query("SELECT generation_max_output_tokens AS value FROM ai_models WHERE id = 'aim_legacy'").get()).toEqual({ value: null });
+    sqlite.close();
+  });
+});
+
+describe("automatic output budget (#652 PR A)", () => {
+  const send = (body, method = "POST") => ({ method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  const setup = async (settings = validSettings, app = createApp()) => {
+    const database = createDatabaseEnvironment();
+    const created = await app.request("/api/v1/ai/providers", send(settings), database.environment);
+    expect(created.status).toBe(201);
+    const provider = (await created.json()).providers[0];
+    return { ...database, app, provider, model: provider.models[0] };
+  };
+  const capabilitiesPath = (provider, model) => `/api/v1/ai/providers/${provider.id}/models/${model.id}/capabilities`;
+  const prepare = async (app, env, body = {}) => {
+    const response = await app.request("/api/v1/ai/generate/prepare", send({ action: "continue-writing", title: "Note", contentMarkdown: "Body", ...body }), env);
+    expect(response.status).toBe(200);
+    return response.json();
+  };
+  const configVersion = async (env, provider) => (await env.storage.db
+    .prepare("SELECT updated_at FROM ai_provider_configs WHERE id = ?").bind(provider.id).first()).updated_at;
+  const report = async (app, env, provider, model, body) => app.request(capabilitiesPath(provider, model), send({
+    provider: provider.provider, modelId: model.modelId, baseUrl: provider.baseUrl, configVersion: await configVersion(env, provider),
+    maxOutputTokens: null, maxInputTokens: null, contextWindowTokens: null, source: "none", ...body,
+  }, "PUT"), env);
+  const detectedAt = (sqlite) => sqlite.query("SELECT detected_at FROM ai_models").get().detected_at;
+
+  test("without detected limits, new clients send no limit, old clients keep 4096, and both are asked to detect", async () => {
+    const { sqlite, app, environment: env, provider, model } = await setup();
+    const unbounded = await prepare(app, env, { allowUnboundedOutput: true });
+    expect(unbounded).toMatchObject({ maxOutputTokens: null, outputBudget: { mode: "auto-unbounded", outputLimit: null } });
+    expect(unbounded.capabilityTarget).toEqual({ providerConfigId: provider.id, modelConfigId: model.id, configVersion: await configVersion(env, provider) });
+    expect(unbounded.detectCapabilities).toBe(true);
+    const legacy = await prepare(app, env);
+    expect(legacy).toMatchObject({ maxOutputTokens: 4096, outputBudget: { mode: "fallback" } });
+    sqlite.close();
+  });
+
+  test("Anthropic always gets a numeric max_tokens", async () => {
+    const { sqlite, app, environment: env } = await setup({ ...validSettings, provider: "anthropic", baseUrl: "https://api.anthropic.example/v1" });
+    expect(await prepare(app, env, { allowUnboundedOutput: true })).toMatchObject({ maxOutputTokens: 4096, outputBudget: { mode: "fallback" } });
+    sqlite.close();
+  });
+
+  test("reported limits are stored, shown in settings and used by prepare", async () => {
+    const { sqlite, app, environment: env, provider, model } = await setup({ ...validSettings, provider: "google", baseUrl: "https://gemini.example/v1beta" });
+    const saved = await report(app, env, provider, model, { maxOutputTokens: 65536, maxInputTokens: 1_048_576, source: "gemini-models" });
+    expect(saved.status).toBe(200);
+    expect((await saved.json()).detectedCapabilities).toMatchObject({ maxOutputTokens: 65536, maxInputTokens: 1_048_576, contextWindowTokens: null, source: "gemini-models" });
+    const settings = await (await app.request("/api/v1/ai/settings", {}, env)).json();
+    expect(settings.providers[0].models[0].detectedCapabilities).toMatchObject({ maxOutputTokens: 65536, source: "gemini-models" });
+    // Fresh limits: no detection request, and a long input within the input limit keeps the whole output limit.
+    const longNote = "a".repeat(200_000);
+    const prepared = await prepare(app, env, { allowUnboundedOutput: true, contentMarkdown: longNote });
+    expect(prepared).toMatchObject({ maxOutputTokens: 65536, outputBudget: { mode: "auto", outputLimit: 65536, inputFits: true } });
+    expect(prepared.detectCapabilities).toBe(false);
+    // The client can still report a corrected limit learned from a provider error.
+    expect(prepared.capabilityTarget).toMatchObject({ providerConfigId: provider.id, modelConfigId: model.id });
+    // Old clients get the automatic budget too.
+    expect((await prepare(app, env, { contentMarkdown: longNote })).maxOutputTokens).toBe(65536);
+    sqlite.close();
+  });
+
+  test("a shared window leaves room for the input; a manual budget still wins", async () => {
+    const { sqlite, app, environment: env, provider, model } = await setup({ ...validSettings, provider: "anthropic", baseUrl: "https://api.anthropic.example/v1" });
+    await report(app, env, provider, model, { maxOutputTokens: 64000, contextWindowTokens: 150_000, source: "anthropic-models" });
+    const longNote = "a".repeat(290_000); // ~106k tokens of a 150k shared window
+    const prepared = await prepare(app, env, { allowUnboundedOutput: true, contentMarkdown: longNote });
+    expect(prepared.outputBudget.mode).toBe("auto");
+    expect(prepared.maxOutputTokens).toBeLessThan(64000);
+    expect(prepared.maxOutputTokens).toBeGreaterThan(1000);
+    await app.request(`/api/v1/ai/providers/${provider.id}/models/${model.id}`, send({ generationMaxOutputTokens: 9000 }, "PATCH"), env);
+    expect(await prepare(app, env, { allowUnboundedOutput: true, contentMarkdown: longNote })).toMatchObject({ maxOutputTokens: 9000, outputBudget: { mode: "manual" } });
+    sqlite.close();
+  });
+
+  test("source-sized tasks ask for what they need, open-ended tasks may use the whole limit", async () => {
+    const { sqlite, app, environment: env, provider, model } = await setup();
+    await report(app, env, provider, model, { maxOutputTokens: 32768, contextWindowTokens: 1_000_000, source: "openrouter-models" });
+    expect((await prepare(app, env, { action: "continue-writing" })).maxOutputTokens).toBe(32768);
+    const shortTranslate = await prepare(app, env, { action: "translate", targetLanguage: "en" });
+    expect(shortTranslate.maxOutputTokens).toBeGreaterThanOrEqual(4096);
+    expect(shortTranslate.maxOutputTokens).toBeLessThan(8192);
+    const longTranslate = await prepare(app, env, { action: "translate", targetLanguage: "en", contentMarkdown: "字".repeat(9000) });
+    expect(longTranslate.maxOutputTokens).toBeGreaterThan(8192);
+    expect(longTranslate.maxOutputTokens).toBeLessThanOrEqual(32768);
+    sqlite.close();
+  });
+
+  test("an empty detection is remembered, and stale limits ask for detection again", async () => {
+    const { sqlite, app, environment: env, provider, model } = await setup();
+    expect((await report(app, env, provider, model, { source: "none" })).status).toBe(200);
+    const afterNone = await prepare(app, env, { allowUnboundedOutput: true });
+    expect(afterNone).toMatchObject({ maxOutputTokens: null, outputBudget: { mode: "auto-unbounded" } });
+    expect(afterNone.detectCapabilities).toBe(false);
+    sqlite.query("UPDATE ai_models SET detected_at = '2026-01-01T00:00:00.000Z'").run();
+    expect((await prepare(app, env, { allowUnboundedOutput: true })).detectCapabilities).toBe(true);
+    sqlite.close();
+  });
+
+  test("a provider error updates only the output limit and keeps the detected window", async () => {
+    const { sqlite, app, environment: env, provider, model } = await setup();
+    await report(app, env, provider, model, { maxOutputTokens: 128000, contextWindowTokens: 400000, source: "openrouter-models" });
+    const updated = await report(app, env, provider, model, { maxOutputTokens: 16384, source: "provider-error" });
+    expect((await updated.json()).detectedCapabilities).toMatchObject({ maxOutputTokens: 16384, contextWindowTokens: 400000, source: "openrouter-models" });
+    expect((await report(app, env, provider, model, { maxOutputTokens: null, source: "provider-error" })).status).toBe(400);
+    sqlite.close();
+  });
+
+  test("reports must match the saved model and endpoint, and follow the usual permissions", async () => {
+    const { sqlite, app, environment: env, provider, model } = await setup();
+    expect((await report(app, env, provider, model, { modelId: "other-model" })).status).toBe(409);
+    expect((await report(app, env, provider, model, { baseUrl: "https://elsewhere.example/v1" })).status).toBe(409);
+    expect((await report(app, env, provider, model, { maxOutputTokens: -1, source: "openrouter-models" })).status).toBe(400);
+    expect((await report(app, env, provider, model, { source: "made-up" })).status).toBe(400);
+    sqlite.query("INSERT INTO workspaces (id, name, is_personal) VALUES (?, ?, 1)").run("ws_other", "Other workspace");
+    expect((await report(createApp({ currentAuth: { ...auth, actorId: "usr_other", workspaceId: "ws_other" } }), env, provider, model, {})).status).toBe(404);
+    expect((await report(createApp({ demoMode: true }), env, provider, model, {})).status).toBe(403);
+    expect((await report(createApp({ currentAuth: { ...auth, kind: "agent", actorType: "agent", scopes: ["ai:generate"] } }), env, provider, model, {})).status).toBe(403);
+    expect(sqlite.query("SELECT detected_at FROM ai_models").get()).toEqual({ detected_at: null });
+    sqlite.close();
+  });
+
+  test("a late report cannot overwrite limits cleared by an endpoint change that lands before its write", async () => {
+    const { sqlite, app, environment: env, provider, model } = await setup();
+    const version = await configVersion(env, provider);
+    // Another request changes the endpoint (and clears detected limits, as the provider route does)
+    // after this report has passed its checks but before its write runs.
+    const realDb = env.storage.db;
+    let interleaved = false;
+    const db = Object.create(realDb);
+    db.prepare = (sql) => {
+      if (!interleaved && /^\s*UPDATE ai_models SET detected_max_output_tokens/.test(sql)) {
+        interleaved = true;
+        sqlite.query("UPDATE ai_models SET detected_max_output_tokens = NULL, detected_max_input_tokens = NULL, detected_context_window_tokens = NULL, detected_capability_source = NULL, detected_at = NULL WHERE provider_config_id = ?").run(provider.id);
+        sqlite.query("UPDATE ai_provider_configs SET base_url = ?, updated_at = ? WHERE id = ?").run("https://new-gateway.example/v1", "2099-01-01T00:00:00.000Z", provider.id);
+      }
+      return realDb.prepare(sql);
+    };
+    const racing = { ...env, storage: { ...env.storage, db } };
+    for (const body of [
+      { maxOutputTokens: 128000, contextWindowTokens: 400000, source: "openrouter-models" },
+      { maxOutputTokens: 128000, source: "provider-error" },
+    ]) {
+      interleaved = false;
+      sqlite.query("UPDATE ai_provider_configs SET base_url = ?, updated_at = ? WHERE id = ?").run(provider.baseUrl, version, provider.id);
+      const response = await app.request(capabilitiesPath(provider, model), send({
+        provider: provider.provider, modelId: model.modelId, baseUrl: provider.baseUrl, configVersion: version,
+        maxOutputTokens: null, maxInputTokens: null, contextWindowTokens: null, ...body,
+      }, "PUT"), racing);
+      expect(interleaved).toBe(true);
+      expect(response.status).toBe(409);
+      expect((await response.json()).error.code).toBe("ai_model_changed");
+      expect(detectedAt(sqlite)).toBeNull();
+    }
+    sqlite.close();
+  });
+
+  test("a report read before switching the service type on the same URL is rejected", async () => {
+    const { sqlite, app, environment: env, provider, model } = await setup();
+    // Keep the saved version distinct from the update below even when both land in one millisecond.
+    sqlite.query("UPDATE ai_provider_configs SET updated_at = '2026-01-01T00:00:00.000Z'").run();
+    const before = await prepare(app, env, { allowUnboundedOutput: true });
+    const switched = await app.request(`/api/v1/ai/providers/${provider.id}`, send({ provider: "anthropic", displayName: provider.displayName, baseUrl: provider.baseUrl, isEnabled: true }, "PUT"), env);
+    expect(switched.status).toBe(200);
+    const late = (body) => app.request(capabilitiesPath(provider, model), send({
+      modelId: model.modelId, baseUrl: provider.baseUrl, configVersion: before.capabilityTarget.configVersion,
+      maxOutputTokens: 128000, maxInputTokens: null, contextWindowTokens: null, source: "openrouter-models", ...body,
+    }, "PUT"), env);
+    // The old service type, and the new type with the old configuration version, are both rejected.
+    expect((await late({ provider: "openai-compatible" })).status).toBe(409);
+    expect((await late({ provider: "anthropic" })).status).toBe(409);
+    expect(detectedAt(sqlite)).toBeNull();
+    // The new configuration still asks for detection and accepts a report for itself.
+    const after = await prepare(app, env, { allowUnboundedOutput: true });
+    expect(after.detectCapabilities).toBe(true);
+    expect(after.capabilityTarget.configVersion).not.toBe(before.capabilityTarget.configVersion);
+    expect((await late({ provider: "anthropic", configVersion: after.capabilityTarget.configVersion, source: "anthropic-models" })).status).toBe(200);
+    sqlite.close();
+  });
+
+  test("a note that leaves no room in the window is refused before reaching the provider", async () => {
+    const { sqlite, app, environment: env, provider, model } = await setup({ ...validSettings, provider: "anthropic", baseUrl: "https://api.anthropic.example/v1" });
+    await report(app, env, provider, model, { maxOutputTokens: 64000, contextWindowTokens: 100_000, source: "anthropic-models" });
+    const request = (contentMarkdown) => app.request("/api/v1/ai/generate/prepare", send({ action: "continue-writing", title: "Note", contentMarkdown, allowUnboundedOutput: true }), env);
+    const refused = await request("字".repeat(100_000));
+    expect(refused.status).toBe(413);
+    expect((await refused.json()).error.code).toBe("ai_input_too_long");
+    // A note that leaves only a little room gets at most that room.
+    const tight = await (await request("字".repeat(88_000))).json();
+    expect(tight.outputBudget).toMatchObject({ mode: "auto", inputFits: true });
+    expect(tight.maxOutputTokens).toBeGreaterThan(0);
+    expect(tight.maxOutputTokens).toBeLessThan(1024);
+    expect(tight.maxOutputTokens).toBe(tight.outputBudget.outputLimit);
+    sqlite.close();
+  });
+
+  test("changing the service type or Base URL clears detected limits; other edits keep them", async () => {
+    const { sqlite, app, environment: env, provider, model } = await setup();
+    await report(app, env, provider, model, { maxOutputTokens: 32768, source: "openrouter-models" });
+    const update = (body) => app.request(`/api/v1/ai/providers/${provider.id}`, send({ provider: "openai-compatible", displayName: "Renamed", baseUrl: provider.baseUrl, isEnabled: true, ...body }, "PUT"), env);
+    expect((await update({})).status).toBe(200);
+    expect(sqlite.query("SELECT detected_max_output_tokens AS value FROM ai_models").get()).toEqual({ value: 32768 });
+    expect((await update({ baseUrl: "https://new-gateway.example/v1" })).status).toBe(200);
+    expect(sqlite.query("SELECT detected_max_output_tokens AS value, detected_at FROM ai_models").get()).toEqual({ value: null, detected_at: null });
+    sqlite.close();
+  });
+
+  test("a 0091 database upgrades with no detected limits and keeps the previous budget behaviour", async () => {
+    const sqlite = new Database(":memory:");
+    for (const migration of globSync("migrations/*.sql").sort()) {
+      if (migration.endsWith("0092_ai_model_detected_capabilities.sql")) continue;
+      sqlite.exec(readFileSync(migration, "utf8"));
+    }
+    sqlite.query("INSERT INTO workspaces (id, name, is_personal) VALUES (?, ?, 1)").run("ws_member", "Member workspace");
+    const now = "2026-11-04T00:00:00.000Z";
+    const apiKey = await encryptSecret("secret", `edgeever:ai-credentials:v1:${"x".repeat(32)}`);
+    sqlite.query(`INSERT INTO ai_provider_configs (id, workspace_id, provider, display_name, base_url, api_key_encrypted, is_enabled, created_at, updated_at)
+      VALUES ('aip_old', 'ws_member', 'openai-compatible', 'Old', 'https://models.example.com/v1', ?, 1, ?, ?)`).run(apiKey, now, now);
+    sqlite.query(`INSERT INTO ai_models (id, provider_config_id, model_id, display_name, generation_max_output_tokens, created_at, updated_at)
+      VALUES ('aim_old', 'aip_old', 'old-model', 'old-model', 12000, ?, ?)`).run(now, now);
+    sqlite.query(`INSERT INTO ai_workspace_settings (workspace_id, default_model_id, created_at, updated_at) VALUES ('ws_member', 'aim_old', ?, ?)`).run(now, now);
+    sqlite.exec(readFileSync("migrations/0092_ai_model_detected_capabilities.sql", "utf8"));
+    const env = { storage: { db: new SqliteD1Database(sqlite), resources: {} }, EDGE_EVER_AUTH_PASSWORD: "x".repeat(32) };
+    const app = createApp();
+    const settings = await (await app.request("/api/v1/ai/settings", {}, env)).json();
+    expect(settings.providers[0].models[0]).toMatchObject({ id: "aim_old", generationMaxOutputTokens: 12000, detectedCapabilities: null });
+    expect(await prepare(app, env)).toMatchObject({ maxOutputTokens: 12000, outputBudget: { mode: "manual" } });
+    // The previous release selected explicit columns, so it keeps working after the upgrade.
+    expect(sqlite.query("SELECT id, provider_config_id, model_id, display_name, generation_max_output_tokens, tag_suggestion_max_output_tokens, companion_max_output_tokens, created_at, updated_at FROM ai_models").all()).toHaveLength(1);
     sqlite.close();
   });
 });

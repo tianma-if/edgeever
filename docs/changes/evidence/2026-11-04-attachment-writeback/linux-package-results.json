@@ -1,0 +1,79 @@
+{
+  "sourceCommit": "887515a383b492762a11a28b01ddc4eaf16c4680",
+  "environment": {
+    "host": "jingwen-mini-frp",
+    "os": "Ubuntu 25.10",
+    "architecture": "x86_64",
+    "display": "isolated X11 session; user desktop unchanged"
+  },
+  "candidate": {
+    "format": "AppImage",
+    "version": "2.21.1",
+    "versionPurpose": "Private acceptance-only metadata, not a published release; repository product version unchanged",
+    "builtOn": "jingwen-mini-frp",
+    "electron": "44.7.0",
+    "additionalProductChange": "S8: assign validated instance-bound session to main-process memory before encrypted persistence"
+  },
+  "checks": {
+    "package": {
+      "ok": true,
+      "packagedDependencies": true,
+      "offlineNpmInstallAndUpgrade": true,
+      "checkedVersion": "2.21.0; S8 only changes session assignment order, no package/dependency changes"
+    },
+    "nativeAppImageStartup": {
+      "ok": true,
+      "events": [
+        "renderer.origin-ready",
+        "sidecar.ready",
+        "renderer.bootstrap-ready"
+      ],
+      "rendererUrl": "edgeever-app://app/index.html"
+    },
+    "automaticUpdate": {
+      "ok": true,
+      "startedVersions": [
+        "2.20.0",
+        "2.21.1"
+      ],
+      "baseline": "Official v2.20.0 Linux x64 AppImage; checked against published SHA256SUMS-linux.txt",
+      "feed": "Loopback-only test feed through the existing Linux updater acceptance entry point",
+      "replacementVerified": true
+    },
+    "sameProfileTransition": {
+      "from": "official 2.20.0",
+      "to": "private PR 2.21.1 with S8",
+      "notesAndTestNotebookVisible": true,
+      "loginPromptRequired": false,
+      "attachmentOpenStatus": "Failed with 401 before S8; authenticated external open succeeded after S8",
+      "attachmentCacheAndLegacyCopyAcceptance": "Legacy baseline copy unavailable because official 2.20.0 attachment opening fails with unavailable keyring"
+    },
+    "nativeBusinessFlow": "linux-ui-results.json"
+  },
+  "remaining": [
+    "Legacy opened-copy and attachment-cache survival from official old package: old package cannot authenticate attachment opens with unavailable keyring",
+    "Microsoft Excel and Windows Office acceptance"
+  ],
+  "findings": [
+    {
+      "code": "main_session_missing_when_secure_storage_unavailable",
+      "versions": [
+        "official 2.20.0",
+        "private PR 2.21.0"
+      ],
+      "evidence": [
+        "safeStorage.encryptString rejected: Encryption is not available",
+        "No main-process credential file was created",
+        "Attachment GET requests had neither Authorization nor Cookie and received 401",
+        "Renderer session fallback still allowed note sync"
+      ],
+      "repairState": "S8 retains the validated instance-bound session in memory before secure persistence; errors still reject. Actual open/save/restart succeeds while encryption remains unavailable.",
+      "environmentEvidence": [
+        "The normal GNOME Secret Service is present on the user session bus",
+        "Login keyring Locked property is true",
+        "Attaching the test process to that bus waits for secure-storage access"
+      ]
+    }
+  ],
+  "twoDeviceAcceptance": "two-device-results.json"
+}

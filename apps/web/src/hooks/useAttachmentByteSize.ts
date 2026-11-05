@@ -1,4 +1,4 @@
-import { normalizeAttachmentByteSize } from "@edgeever/shared";
+import { getResourceIdFromUrl, normalizeAttachmentByteSize } from "@edgeever/shared";
 import { useEffect, useState } from "react";
 import { fetchAttachmentByteSize } from "@/lib/attachment-byte-size";
 
@@ -30,6 +30,33 @@ export const useAttachmentByteSize = (url: string, storedByteSize: unknown) => {
     byteSize: normalizedStoredByteSize === null ? byteSizeCache.get(url) ?? null : null,
   }));
 
+  const [updated, setUpdated] = useState<{ url: string; byteSize: number } | null>(null);
+  useEffect(() => {
+    setUpdated(null);
+    const resourceId = getResourceIdFromUrl(url);
+    if (!resourceId) return;
+    let active = true;
+    let receivedUpdate = false;
+    const apply = (byteSize: number) => {
+      byteSizeCache.set(url, byteSize);
+      setUpdated({ url, byteSize });
+    };
+    const unsubscribe = window.edgeeverDesktop?.onAttachmentResourceSaved?.(resource => {
+      if (resourceId !== resource.id) return;
+      receivedUpdate = true;
+      apply(resource.byteSize);
+    });
+    // A note may mount after the save event, including after a restart. Read
+    // acknowledged local metadata rather than refetching the remote catalog.
+    void window.edgeeverDesktop?.attachmentWritebacks?.().then(items => {
+      if (!active || receivedUpdate) return;
+      const latest = items.filter(item => item.resourceId === resourceId && item.byteSize !== null)
+        .sort((left, right) => right.metadataAt - left.metadataAt)[0];
+      if (latest?.byteSize !== null && latest?.byteSize !== undefined) apply(latest.byteSize);
+    }).catch(() => {});
+    return () => { active = false; unsubscribe?.(); };
+  }, [normalizedStoredByteSize, url]);
+
   useEffect(() => {
     if (normalizedStoredByteSize !== null || !url) {
       setDiscovered({ url, byteSize: null });
@@ -45,5 +72,6 @@ export const useAttachmentByteSize = (url: string, storedByteSize: unknown) => {
     };
   }, [normalizedStoredByteSize, url]);
 
+  if (updated?.url === url) return updated.byteSize;
   return normalizedStoredByteSize ?? (discovered.url === url ? discovered.byteSize : null);
 };

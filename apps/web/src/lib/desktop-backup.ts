@@ -61,14 +61,14 @@ const createDevMockBackupState = (): DesktopBackupStatus => {
   };
 };
 
-if (import.meta.env.DEV && typeof window !== "undefined" && !window.edgeeverDesktop?.backup) {
+const createDevBackupBridge = () => {
   let devStatus = createDevMockBackupState();
   const listeners = new Set<(status: DesktopBackupStatus) => void>();
   const broadcast = () => {
     listeners.forEach((listener) => listener(devStatus));
   };
 
-  const devBridge: Pick<EdgeEverDesktopBridge, "backup" | "onBackupStatus"> = {
+  const bridge: Pick<EdgeEverDesktopBridge, "backup" | "onBackupStatus"> = {
     onBackupStatus(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);
@@ -146,15 +146,15 @@ if (import.meta.env.DEV && typeof window !== "undefined" && !window.edgeeverDesk
     },
   };
 
-  window.edgeeverDesktop = {
-    ...(window.edgeeverDesktop ?? ({} as any)),
-    ...devBridge,
-  };
-}
+  return bridge;
+};
+
+const devBackupBridge = import.meta.env.DEV ? createDevBackupBridge() : undefined;
 
 export const useDesktopBackup = () => {
   const [status, setStatus] = useState<DesktopBackupStatus | null>(null);
-  const bridge = window.edgeeverDesktop;
+  const desktopBridge = window.edgeeverDesktop;
+  const bridge = desktopBridge?.backup ? desktopBridge : devBackupBridge;
   useEffect(() => {
     if (!bridge?.backup) return;
     let active = true;

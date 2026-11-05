@@ -10,7 +10,7 @@ import { catalogCodeFontStack, isRemoteNoteImageFont } from "@edgeever/shared/fo
 import { LEGACY_BODY_FONTS } from "@edgeever/shared/font-defaults";
 import type { BodyFontId } from "@edgeever/shared/font-loader";
 import type { MermaidThemeName } from "@/components/ThemeProvider";
-import { MERMAID_THEME_NAMES } from "@/components/ThemeProvider";
+import { normalizeMermaidThemePreference, resolveMermaidTheme } from "@/components/ThemeProvider";
 import { sanitizeAndScopeCss } from "@/lib/css-sandbox";
 import {
   readEditorBodyFontPreference,
@@ -53,9 +53,7 @@ export const notePrintAppearanceFromProse = (
   customCss: sanitizeAndScopeCss(prose.customCss),
   fontFamily: resolveEditorBodyFontStack(font) ?? null,
   fontId: loadableBodyFontId(font.choice),
-  mermaidTheme: (MERMAID_THEME_NAMES as readonly string[]).includes(mermaidTheme)
-    ? mermaidTheme as MermaidThemeName
-    : "zinc-light",
+  mermaidTheme: resolveMermaidTheme(normalizeMermaidThemePreference(mermaidTheme), "light"),
 });
 
 const paletteRules = (palette: NoteProsePaletteChoice) => {
@@ -114,8 +112,7 @@ const proseStyleRules = (
       ".edgeever-print-content h4 { font-size: var(--editor-body-font-size, 16px); }",
       `.edgeever-print-content h2 { font-size: calc(var(--editor-body-font-size, 16px) * 1.4); counter-increment: note-prose-h2; padding-bottom: 6px; border-bottom: 2px solid ${divider}; }`,
       `.edgeever-print-content h2::before { content: counter(note-prose-h2, decimal-leading-zero) " · "; color: ${accent}; font-weight: 800; letter-spacing: 0.04em; }`,
-      `.edgeever-print-content h3 { position: relative; display: block; width: fit-content; max-width: 100%; box-sizing: border-box; font-size: var(--editor-body-font-size, 16px); font-weight: 700; line-height: 1.5; margin: 1.5em 0 0.6em; padding: 0.25em 0.75em 0.25em 1.5em; border: 0; border-radius: 1em; background: color-mix(in srgb, ${accent} 9%, transparent); color: ${accent}; overflow-wrap: anywhere; }`,
-      `.edgeever-print-content h3::before { content: ""; position: absolute; left: 0.75em; top: 0.8125em; width: 0.375em; height: 0.375em; border-radius: 50%; background: ${accent}; }`,
+      `.edgeever-print-content h3 { display: block; font-size: calc(var(--editor-body-font-size, 16px) * 1.15); font-weight: 700; line-height: 1.4; letter-spacing: -0.01em; margin: 1.6em 0 0.6em; color: #111827; }`,
     );
   }
   if (proseStyle.quoteStyle === "dashed") {

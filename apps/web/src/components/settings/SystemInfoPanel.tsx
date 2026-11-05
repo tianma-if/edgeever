@@ -639,7 +639,7 @@ export const SystemInfoPanel = ({ active = true }: { active?: boolean }) => {
                     <dt className="truncate text-xs font-normal text-slate-400">{item.label}</dt>
                     <dd className="mt-0.5 flex min-w-0 items-center gap-1.5">
                       {item.status === "connected" ? (
-                        <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-slate-950" />
+                        <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
                       ) : item.status === "connecting" ? (
                         <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500 animate-pulse" />
                       ) : item.status === "failed" ? (

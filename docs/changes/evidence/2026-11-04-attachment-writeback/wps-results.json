@@ -1,0 +1,136 @@
+{
+  "date": "2026-11-04",
+  "platform": "macOS",
+  "application": {
+    "name": "WPS Office",
+    "version": "12.1.29182"
+  },
+  "environment": "Isolated Electron profile, real sidecar/shared API/SQLite/local object storage; actual OS file association and WPS UI saves, no OS-opening mocks",
+  "fixture": {
+    "sheet": "SaveTest",
+    "initialCells": {
+      "B4": 100,
+      "B5": 20,
+      "B6": {
+        "formula": "SUM(B4:B5)",
+        "cachedValue": 120
+      },
+      "B8": "Baseline"
+    }
+  },
+  "xlsx": {
+    "consecutiveOriginalPathSaves": [
+      {
+        "serverDownload": "wps-first-server.xlsx",
+        "byteSize": 9265,
+        "cells": {
+          "B4": {
+            "value": "200"
+          },
+          "B5": {
+            "value": "20"
+          },
+          "B6": {
+            "value": "220",
+            "formula": "SUM(B4:B5)"
+          },
+          "B8": {
+            "value": "WPS first save"
+          }
+        }
+      },
+      {
+        "serverDownload": "wps-second-server.xlsx",
+        "byteSize": 9258,
+        "cells": {
+          "B4": {
+            "value": "300"
+          },
+          "B5": {
+            "value": "20"
+          },
+          "B6": {
+            "value": "320",
+            "formula": "SUM(B4:B5)"
+          },
+          "B8": {
+            "value": "WPS second save"
+          }
+        }
+      }
+    ],
+    "resourceIdPreserved": true,
+    "closeAndReopen": {
+      "observedInWps": {
+        "B4": 300,
+        "B6": 320,
+        "B8": "WPS second save"
+      },
+      "formula": "SUM(B4:B5)"
+    }
+  },
+  "xls": {
+    "format": "Excel 97-2003 OLE Compound Document",
+    "serverDownload": "wps-legacy-server.xls",
+    "byteSize": 19968,
+    "serverBytesEqualWpsSavedManagedFile": true,
+    "resourceIdPreserved": true,
+    "observedInWpsAfterSaveAndReopen": {
+      "B4": 400,
+      "B5": 20,
+      "B6": 420,
+      "B8": "WPS XLS save"
+    },
+    "formulaObservedInWps": "SUM(B4:B5)"
+  },
+  "duplicateLocalNames": {
+    "originalDefect": "WPS rejects two equal basenames even in different directories",
+    "simultaneousNames": [
+      "WPS-771.xlsx",
+      "WPS-771 (2).xlsx"
+    ],
+    "numberedCopyServerCells": {
+      "B4": {
+        "value": "500"
+      },
+      "B5": {
+        "value": "20"
+      },
+      "B6": {
+        "value": "520",
+        "formula": "SUM(B4:B5)"
+      },
+      "B8": {
+        "value": "WPS numbered copy save"
+      }
+    },
+    "cloudFilename": "WPS-771.xlsx",
+    "resourceIdPreserved": true,
+    "downloadContentDispositionFilename": "WPS-771.xlsx",
+    "reopenedLocalFilename": "WPS-771 (3).xlsx",
+    "reopenedB4ObservedInWps": 500,
+    "managedCopies": [
+      {
+        "localFilename": "WPS-771 (2).xlsx",
+        "cloudFilename": "WPS-771.xlsx",
+        "status": "saved"
+      },
+      {
+        "localFilename": "WPS-771 (3).xlsx",
+        "cloudFilename": "WPS-771.xlsx",
+        "status": "watching"
+      },
+      {
+        "localFilename": "WPS-771.xlsx",
+        "cloudFilename": "WPS-771.xlsx",
+        "status": "watching"
+      }
+    ]
+  },
+  "limitations": [
+    "Microsoft Excel is not installed in this environment; separate installed/licensed environment required",
+    "Windows Excel/WPS, Linux, live Cloudflare, real two-device UI and old-release upgrades remain unverified",
+    "XLS values/formula were inspected in WPS; downloaded OLE bytes matched the saved managed file exactly, not an independent XLS parser",
+    "WPS screenshots showing unrelated user document tabs were not retained in repository evidence"
+  ]
+}

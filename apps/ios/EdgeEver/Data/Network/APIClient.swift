@@ -4,6 +4,7 @@ actor APIClient {
     private(set) var baseURL: URL
     private(set) var token: String?
     private var onUnauthorized: (@Sendable () -> Void)?
+    private var onMfaRebindRequired: (@Sendable () -> Void)?
 
     private let session: URLSession
 
@@ -31,6 +32,12 @@ actor APIClient {
         onUnauthorized = handler
     }
 
+    /// Called when a business API answers 403 `mfa_rebind_required` (restricted
+    /// recovery-code session). The UI must switch to the forced rebind screen.
+    func setOnMfaRebindRequired(_ handler: (@Sendable () -> Void)?) {
+        onMfaRebindRequired = handler
+    }
+
     // MARK: - Instance diagnostics
 
     func getInstanceHealth() async throws -> InstanceHealth {
@@ -43,8 +50,56 @@ actor APIClient {
 
     // MARK: - Auth
 
+    /// Password step. When TOTP is enabled the server answers 401 `mfa_required`;
+    /// that surfaces as `APIError.mfaChallenge` and is never treated as session loss.
     func login(_ input: LoginInput) async throws -> AuthSession {
-        try await request(path: "/api/v1/auth/login", method: "POST", body: input)
+        try await request(path: "/api/v1/auth/login", method: "POST", body: input, notifyUnauthorized: false)
+    }
+
+    /// Second login step (TOTP code or recovery code). 401s here are inline errors.
+    func completeMfaLogin(_ input: LoginMfaInput) async throws -> AuthSession {
+        try await request(path: "/api/v1/auth/login/mfa", method: "POST", body: input, notifyUnauthorized: false)
+    }
+
+    // MARK: - TOTP
+
+    func getTotpStatus() async throws -> TotpStatus {
+        try await request(path: "/api/v1/auth/totp")
+    }
+
+    /// Body: `{password}` (enable), `{password, code|recoveryCode}` (voluntary rebind)
+    /// or `{}` (restricted session).
+    func startTotpSetup(_ input: TotpReauthInput) async throws -> TotpSetupResponse {
+        try await request(path: "/api/v1/auth/totp/setup", method: "POST", body: input)
+    }
+
+    /// Step 2: the code for the setup this client was shown. A setup replaced by a
+    /// newer one (another tab or device of the same session) answers 409 `totp_setup_expired`.
+    func verifyTotpSetup(setupId: String, code: String) async throws -> TotpRecoveryCodesResponse {
+        struct Body: Encodable { var setupId: String; var code: String }
+        return try await request(path: "/api/v1/auth/totp/setup/verify", method: "POST", body: Body(setupId: setupId, code: code))
+    }
+
+    /// Last step: activates exactly the batch of recovery codes the user saved.
+    func confirmTotpSetup(batchId: String) async throws -> TotpConfirmResponse {
+        try await request(path: "/api/v1/auth/totp/setup/confirm", method: "POST", body: TotpBatchBody(batchId: batchId))
+    }
+
+    func regenerateRecoveryCodes(_ input: TotpReauthInput) async throws -> TotpRecoveryCodesResponse {
+        try await request(path: "/api/v1/auth/totp/recovery-codes", method: "POST", body: input)
+    }
+
+    /// Activates exactly the batch from `regenerateRecoveryCodes`; a replaced batch answers 409.
+    func confirmRecoveryCodes(batchId: String) async throws {
+        let _: OkResponse = try await request(
+            path: "/api/v1/auth/totp/recovery-codes/confirm",
+            method: "POST",
+            body: TotpBatchBody(batchId: batchId)
+        )
+    }
+
+    func disableTotp(_ input: TotpReauthInput) async throws {
+        let _: OkResponse = try await request(path: "/api/v1/auth/totp/disable", method: "POST", body: input)
     }
 
     func logout() async throws {
@@ -304,7 +359,12 @@ actor APIClient {
             continuation.yield(AiStreamEvent(type: "error", text: nil, code: "ai_generation_failed", message: "The AI did not return a note result.", finishReason: nil, inputTokens: nil, outputTokens: nil))
             return
         }
-        continuation.yield(AiStreamEvent(type: "finish", text: nil, code: nil, message: nil, finishReason: finishReason, inputTokens: inputTokens, outputTokens: outputTokens))
+        switch AiDirectStream.streamEnd(finishReason: finishReason, normalizer: normalizer) {
+        case .interrupted:
+            continuation.yield(AiStreamEvent(type: "error", text: nil, code: "ai_stream_interrupted", message: "The connection ended before the AI finished.", finishReason: nil, inputTokens: nil, outputTokens: nil))
+        case .finished(let truncated):
+            continuation.yield(AiStreamEvent(type: "finish", text: nil, code: nil, message: nil, finishReason: finishReason, inputTokens: inputTokens, outputTokens: outputTokens, truncated: truncated))
+        }
     }
 
     // MARK: - Templates
@@ -669,12 +729,14 @@ actor APIClient {
     // MARK: - Core request
 
     private struct EmptyBody: Encodable {}
+    private struct TotpBatchBody: Encodable { var batchId: String }
 
     private func request<T: Decodable>(
         path: String,
         method: String = "GET",
         query: [URLQueryItem] = [],
-        body: (any Encodable)? = nil
+        body: (any Encodable)? = nil,
+        notifyUnauthorized: Bool = true
     ) async throws -> T {
         var request = URLRequest(url: makeURL(path: path, query: query))
         request.httpMethod = method
@@ -686,7 +748,7 @@ actor APIClient {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.httpBody = try EdgeEverJSON.encoder.encode(AnyEncodable(body))
         }
-        let data = try await performRaw(request)
+        let data = try await performRaw(request, notifyUnauthorized: notifyUnauthorized)
         return try EdgeEverJSON.decoder.decode(T.self, from: data)
     }
 
@@ -695,20 +757,50 @@ actor APIClient {
         return try EdgeEverJSON.decoder.decode(ResourceResponse.self, from: data)
     }
 
-    private func performRaw(_ request: URLRequest) async throws -> Data {
+    private func performRaw(_ request: URLRequest, notifyUnauthorized: Bool = true) async throws -> Data {
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else {
             throw APIError(status: -1, code: nil, message: "Invalid response")
         }
-        if http.statusCode == 401 {
+        if http.statusCode == 401, notifyUnauthorized {
             onUnauthorized?()
         }
         guard (200 ..< 300).contains(http.statusCode) else {
-            let message = Self.parseErrorMessage(data: data) ?? HTTPURLResponse.localizedString(forStatusCode: http.statusCode)
-            let code = Self.parseErrorCode(data: data)
-            throw APIError(status: http.statusCode, code: code, message: message)
+            let error = Self.decodeAPIError(
+                status: http.statusCode,
+                data: data,
+                retryAfter: http.value(forHTTPHeaderField: "Retry-After")
+            )
+            if error.isMfaRebindRequired {
+                onMfaRebindRequired?()
+            }
+            throw error
         }
         return data
+    }
+
+    /// Build an `APIError` from an `{ "error": { code, message, details? } }` body.
+    static func decodeAPIError(status: Int, data: Data, retryAfter: String? = nil) -> APIError {
+        let message = parseErrorMessage(data: data) ?? HTTPURLResponse.localizedString(forStatusCode: status)
+        let code = parseErrorCode(data: data)
+        var challenge: MfaChallenge?
+        if code == "mfa_required" {
+            struct Envelope: Decodable {
+                struct Body: Decodable { var details: MfaChallenge? }
+                var error: Body
+            }
+            challenge = (try? EdgeEverJSON.decoder.decode(Envelope.self, from: data))?.error.details
+        }
+        let retrySeconds = retryAfter
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .flatMap { Int($0) }
+        return APIError(
+            status: status,
+            code: code,
+            message: message,
+            mfaChallenge: challenge,
+            retryAfterSeconds: retrySeconds
+        )
     }
 
     private func makeURL(path: String, query: [URLQueryItem] = []) -> URL {
@@ -749,9 +841,14 @@ struct APIError: Error, LocalizedError, Equatable, Sendable {
     let status: Int
     let code: String?
     let message: String
+    /// Present when the login password step answered 401 `mfa_required`.
+    var mfaChallenge: MfaChallenge? = nil
+    /// Parsed `Retry-After` header (seconds) for 429 responses.
+    var retryAfterSeconds: Int? = nil
 
     var errorDescription: String? { message }
     var isUnauthorized: Bool { status == 401 }
+    var isMfaRebindRequired: Bool { status == 403 && code == "mfa_rebind_required" }
     var isRevisionConflict: Bool { code == "revision_conflict" || status == 409 }
     /// Server has no **memo** row for this id (update / edit-session).
     /// Tight match only — never treat notebook/resource/workspace "not found" as memo 404.

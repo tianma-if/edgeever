@@ -1,23 +1,32 @@
 {
-  "version": "2.19.0",
+  "version": "2.21.0",
   "changes": {
     "en-US": [
-      "Set note body spacing and alignment independently, and find custom CSS directly in the reorganized reading preferences. Numbered pill headings now match the body text size.",
-      "Desktop apps recheck for newer versions before installing a pending update, reducing repeated upgrades through intermediate versions (#776).",
-      "Editor focus mode enters browser fullscreen, and the AI assistant button aligns with the note outline.",
-      "Backup and migration settings make scheduled backup status and import options easier to find."
+      "On desktop, save changes made in external apps back to the original attachment. This requires an updated server. Thanks @LuoQianhong (#789).",
+      "AI automatically adjusts the output budget using detected model limits and warns when a response is cut short. Update your server to enable automatic budgets. Thanks @yulei666 (#791).",
+      "Drag and drop files into the redesigned third-party note import dialog for Evernote, Obsidian, and Joplin.",
+      "Fixed Mermaid toolbars overlapping diagrams and labels being clipped at some zoom levels.",
+      "Signing out of the desktop app now removes saved login credentials.",
+      "Change your password in a dedicated dialog. The sign-in, two-factor authentication, custom CSS, and connection status screens have clearer styling.",
+      "The demo welcome note now shows the architecture diagram horizontally."
     ],
     "zh-CN": [
-      "独立设置笔记正文的间距和对齐方式，在重新分组的阅读偏好中直接找到自定义 CSS。数字胶囊标题现在与正文文字大小一致。",
-      "桌面端安装待处理更新前会重新检查是否有更新版本，减少经过中间版本的重复升级（#776）。",
-      "编辑器专注模式会进入浏览器全屏，AI 助手入口与笔记大纲内容对齐。",
-      "调整备份和迁移设置的布局，更容易找到定时备份状态和导入选项。"
+      "桌面端可将外部应用中保存的修改回存到原附件，需要先升级服务端。感谢 @LuoQianhong（#789）。",
+      "AI 根据探测到的模型限制自动调整输出预算，并在回复截断时提示。升级服务端后可使用自动预算。感谢 @yulei666（#791）。",
+      "更新了第三方笔记导入窗口，可拖放文件导入印象笔记、Obsidian 和 Joplin 导出内容。",
+      "修复 Mermaid 工具栏遮住图表，以及部分缩放比例下文字被裁切的问题。",
+      "桌面端退出登录时会移除已保存的登录凭据。",
+      "可在独立弹窗中修改密码，并优化了登录、双重验证、自定义 CSS 和连接状态的显示。",
+      "Demo 欢迎笔记中的架构图改为横向布局。"
     ],
     "ja": [
-      "ノート本文の間隔と配置を個別に設定でき、整理された閲覧設定からカスタムCSSを直接開けます。番号付き見出しの文字サイズも本文と揃えました。",
-      "デスクトップアプリは更新のインストール前に最新版を確認し、中間バージョンを経由する更新を減らします。",
-      "エディターの集中モードでブラウザーが全画面表示になり、AIアシスタントボタンの位置が目次に揃います。",
-      "バックアップと移行の設定を整理し、定期バックアップの状態とインポート項目を見つけやすくしました。"
+      "デスクトップでは、外部アプリで保存した変更を元の添付ファイルに反映できます。サーバーの更新が必要です。",
+      "検出したモデルの上限に応じてAIの出力枠を自動調整し、回答が途中で切れた場合は通知します。自動調整にはサーバーの更新が必要です。",
+      "新しいインポート画面では、Evernote、Obsidian、Joplinのファイルをドラッグ＆ドロップできます。",
+      "Mermaidのツールバーが図に重なり、一部の拡大率でラベルが切れる問題を修正しました。",
+      "デスクトップアプリからログアウトすると、保存済みのログイン情報が削除されます。",
+      "専用ダイアログでパスワードを変更できます。ログイン、二要素認証、カスタムCSS、接続状態の表示も改善しました。",
+      "デモのウェルカムノートでは、構成図を横向きに表示します。"
     ]
   }
 }

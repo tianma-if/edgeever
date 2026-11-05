@@ -5,6 +5,7 @@ import {
   extractAiDirectStreamDelta,
   redactAiProviderError,
 } from "@edgeever/shared/ai-generation";
+import { isAiTruncatedFinishReason, parseAiOutputLimitFromError } from "@edgeever/shared/ai-model-capabilities";
 
 const asRecord = (value: unknown): Record<string, unknown> | null =>
   value && typeof value === "object" ? value as Record<string, unknown> : null;
@@ -19,10 +20,14 @@ export const streamDirectAiGeneration = async (
     fetch: typeof fetch;
     signal?: AbortSignal;
     onEvent: (event: AiStreamEvent) => void;
+    /** Called with the limit read from a provider's "output too large" error before the single retry. */
+    onOutputLimit?: (maxOutputTokens: number) => Promise<void> | void;
+    /** Internal: set on the retry so it happens at most once and `start` is not repeated. */
+    retried?: boolean;
   },
-) => {
+): Promise<void> => {
   const request = buildAiDirectProviderRequest(prepared, attachments ?? []);
-  options.onEvent({ type: "start" });
+  if (!options.retried) options.onEvent({ type: "start" });
   const response = await options.fetch(request.url, {
     method: "POST",
     headers: request.headers,
@@ -31,6 +36,13 @@ export const streamDirectAiGeneration = async (
   });
   if (!response.ok) {
     const raw = await response.text().catch(() => "");
+    // The provider rejected the requested output limit and said what it accepts. Nothing was
+    // generated or streamed yet, so retry once with that limit (#652).
+    const acceptedLimit = response.status === 400 && !options.retried ? parseAiOutputLimitFromError(raw) : null;
+    if (acceptedLimit && (prepared.maxOutputTokens === null || acceptedLimit < prepared.maxOutputTokens)) {
+      await Promise.resolve(options.onOutputLimit?.(acceptedLimit)).catch(() => undefined);
+      return streamDirectAiGeneration({ ...prepared, maxOutputTokens: acceptedLimit }, attachments, { ...options, retried: true });
+    }
     const message = redactAiProviderError(raw || `The AI provider responded with HTTP ${response.status}.`);
     options.onEvent({ type: "error", code: "ai_generation_failed", message });
     return;
@@ -72,7 +84,21 @@ export const streamDirectAiGeneration = async (
     });
     return;
   }
-  options.onEvent({ type: "finish", finishReason, inputTokens, outputTokens });
+  // The connection closed before the provider said it finished and before the end marker,
+  // whether or not the start marker arrived: the stream was interrupted, not cut at a limit.
+  // The text so far stays an incomplete draft.
+  if (!finishReason && !normalizer.isComplete()) {
+    options.onEvent({
+      type: "error",
+      code: "ai_stream_interrupted",
+      message: "The connection ended before the AI finished.",
+    });
+    return;
+  }
+  // Some gateways cut the output at their own default and still report "stop"; a missing
+  // end marker catches that case as well.
+  const truncated = isAiTruncatedFinishReason(finishReason) || normalizer.isUnterminated();
+  options.onEvent({ type: "finish", finishReason, truncated, inputTokens, outputTokens });
 };
 
 export const isAiCorsFailure = (error: unknown) => {
@@ -140,12 +166,14 @@ export const parsePreparedAiGeneration = (value: unknown): AiPreparedGeneration 
     || typeof record.modelId !== "string"
     || typeof record.system !== "string"
     || typeof record.prompt !== "string"
-    || typeof record.maxOutputTokens !== "number"
+    || (typeof record.maxOutputTokens !== "number" && record.maxOutputTokens !== null)
     || typeof boundary?.start !== "string"
     || typeof boundary?.end !== "string"
   ) {
     return null;
   }
+  const target = asRecord(record.capabilityTarget);
+  const budget = asRecord(record.outputBudget);
   return {
     provider: record.provider,
     baseUrl: record.baseUrl,
@@ -155,5 +183,19 @@ export const parsePreparedAiGeneration = (value: unknown): AiPreparedGeneration 
     prompt: record.prompt,
     maxOutputTokens: record.maxOutputTokens,
     resultBoundary: { start: boundary.start, end: boundary.end },
+    ...(budget && typeof budget.mode === "string" ? {
+      outputBudget: {
+        mode: budget.mode as NonNullable<AiPreparedGeneration["outputBudget"]>["mode"],
+        outputLimit: typeof budget.outputLimit === "number" ? budget.outputLimit : null,
+        inputFits: typeof budget.inputFits === "boolean" ? budget.inputFits : null,
+      },
+    } : {}),
+    ...(target && typeof target.providerConfigId === "string" && typeof target.modelConfigId === "string"
+      && typeof target.configVersion === "string"
+      ? {
+        capabilityTarget: { providerConfigId: target.providerConfigId, modelConfigId: target.modelConfigId, configVersion: target.configVersion },
+        detectCapabilities: record.detectCapabilities === true,
+      }
+      : {}),
   };
 };

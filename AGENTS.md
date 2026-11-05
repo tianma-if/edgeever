@@ -27,11 +27,12 @@
 - **基于 Issue 的提交**：当前功能若基于某个 Issue 开发，提交并推送时必须关联这个 Issue。
 - **PR 合并时的 CI 失败归属**：经核实已存在于 `main`、且非当前 PR 引入的 CI 失败，由仓库维护者负责修复，不得要求 PR 作者承担无关修复，也不得仅因此阻塞 PR 合并；合并前仍须完成与当前改动相关的必要验证。当前 PR 引入的失败由 PR 作者修复。
 - **合并后同步本地**：代理把 PR 合并进 `main` 后，若本地就在 `main` 且工作区干净，必须 `git fetch` 并快进到 `origin/main`，再结束本次任务。工作区不干净或不能快进时停下来说明，禁止 reset、rebase 或覆盖本地改动。同步代码不包括执行数据库迁移。
+  - **含迁移的本地 DEV 同步**：`git fetch` 后、快进前，用 `git diff --name-only --diff-filter=A HEAD..origin/main -- migrations/` 检查是否有新增 SQL 迁移。如果有且本仓库的本地 DEV 正在运行，先停止 Web 和 API，再快进本地 `main`。同步后使用 `bun run dev` 重启，由启动流程先应用本地 D1 迁移。确认 `/api/health` 报告预期迁移版本，并通过 Web 端口验证 `/api/v1/auth/session` 正常。启动或迁移失败时，明确报告本地 DEV 尚未恢复。
 
 ## GitHub Actions 与 Release 约束及流程
 
 1. **Fork 工作流边界**：配置 GitHub Actions 时必须考虑大量用户会 Fork 仓库进行自部署；仅官方仓库需要的 Job 必须使用 `github.repository == 'tianma-if/edgeever'` 门禁，严禁在下游 Fork 中分配 Runner 或执行。
-2. **版本号与基线**：`vX.Y.Z`（非 Draft/Prerelease）。发布须显式 `--bump patch|minor|major`（脚本不自动选级）；按 SemVer 选择，**禁止因发版节奏把用户可感知的新能力或新平台压成 patch**。递增根目录 `package.json`；含移动端修改时同步 `apps/mobile/app.json` 的 `expo.version` 并递增 `android.versionCode`。上一个正式 Release 为审计基线。
+2. **版本号与基线**：正式 Release 使用 `v2.Y.Z`（非 Draft/Prerelease），**主版本号固定为 `2`**。发布须显式选择 `--bump patch` 或 `--bump minor`（脚本不自动选级），禁止使用 `--bump major` 或发布其他主版本。按 SemVer 选择次版本或补丁版本，**禁止因发版节奏把用户可感知的新能力或新平台压成 patch**。递增根目录 `package.json`；含移动端修改时同步 `apps/mobile/app.json` 的 `expo.version` 并递增 `android.versionCode`。上一个正式 Release 为审计基线。
 3. **跨平台 Release 资产**：每个正式 Release 页面必须同时包含 macOS arm64 DMG、macOS x64 DMG、Windows x64 Preview 安装包、Linux x64 AppImage Preview 和 Android arm64 APK。Windows Preview 未使用 Authenticode 签名时必须同时提供经仓库外 Ed25519 私钥签名的更新清单；Linux Preview 必须包含 `latest-linux.yml` 更新元数据和独立 SHA-256 清单；两者均须在发布前通过独立下载与摘要审计。若本次未修改对应原生运行时代码、依赖、配置或构建工具，直接复用上一个正式 Release 中已验证的原始资产，保留原文件名与校验和，禁止仅为匹配新版本号而重命名。官方仓库正式 Release 中的 Android APK 必须使用固定的 Google Play 应用签名证书；本地上传证书签名的 APK 只能作为 Draft 临时资产，未经 Play 签名替换和发布前门禁核验不得公开。
 4. **验证命令**：必须通过 `bun run typecheck`、`bun run typecheck:mobile` 和 `bun run build:web`。
 5. **测试职责边界**：正式 Release 必须先在官方仓库及与下游一致的 Ubuntu 环境通过完整非 E2E 测试，严禁将上游自身的测试失败转嫁给下游 Fork 发现。只读部署 Fork 仅同步产品快照且不运行测试；只有显式保留定制改动的 Fork 才验证合并结果，失败时必须保持 `main` 与生产环境不变。

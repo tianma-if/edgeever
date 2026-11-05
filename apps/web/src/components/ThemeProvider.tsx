@@ -18,23 +18,7 @@ export type { CustomEditorTheme, ThemeColors } from "@/lib/custom-editor-theme";
 
 export type ThemePreference = "system" | "light" | "dark";
 export type ResolvedTheme = "light" | "dark";
-export const MERMAID_THEME_NAMES = [
-  "zinc-light",
-  "zinc-dark",
-  "tokyo-night",
-  "tokyo-night-storm",
-  "tokyo-night-light",
-  "catppuccin-mocha",
-  "catppuccin-latte",
-  "nord",
-  "nord-light",
-  "dracula",
-  "github-light",
-  "github-dark",
-  "solarized-light",
-  "solarized-dark",
-  "one-dark",
-] as const;
+export const MERMAID_THEME_NAMES = ["zinc-light", "zinc-dark"] as const;
 export type MermaidThemeName = (typeof MERMAID_THEME_NAMES)[number];
 export const MERMAID_THEME_PREFERENCES = ["auto", ...MERMAID_THEME_NAMES] as const;
 export type MermaidThemePreference = (typeof MERMAID_THEME_PREFERENCES)[number];
@@ -68,19 +52,6 @@ export const MERMAID_THEME_PALETTES: Record<MermaidThemeName, MermaidThemePalett
     surface: "#2d2f32",
     border: "#46494e",
   },
-  "tokyo-night": { bg: "#1a1b26", fg: "#a9b1d6", line: "#3d59a1", accent: "#7aa2f7", muted: "#7c85ac" },
-  "tokyo-night-storm": { bg: "#24283b", fg: "#a9b1d6", line: "#3d59a1", accent: "#7aa2f7", muted: "#8991b8" },
-  "tokyo-night-light": { bg: "#d5d6db", fg: "#343b58", line: "#34548a", accent: "#34548a", muted: "#545a71" },
-  "catppuccin-mocha": { bg: "#1e1e2e", fg: "#cdd6f4", line: "#585b70", accent: "#cba6f7", muted: "#9399b2" },
-  "catppuccin-latte": { bg: "#eff1f5", fg: "#4c4f69", line: "#9ca0b0", accent: "#8839ef", muted: "#666a80" },
-  nord: { bg: "#2e3440", fg: "#d8dee9", line: "#4c566a", accent: "#88c0d0", muted: "#97a0b4" },
-  "nord-light": { bg: "#eceff4", fg: "#2e3440", line: "#aab1c0", accent: "#5e81ac", muted: "#5f6a7e" },
-  dracula: { bg: "#282a36", fg: "#f8f8f2", line: "#6272a4", accent: "#bd93f9", muted: "#8894b8" },
-  "github-light": { bg: "#ffffff", fg: "#1f2328", line: "#d1d9e0", accent: "#0969da", muted: "#59636e" },
-  "github-dark": { bg: "#0d1117", fg: "#e6edf3", line: "#3d444d", accent: "#4493f8", muted: "#9198a1" },
-  "solarized-light": { bg: "#fdf6e3", fg: "#586e75", line: "#93a1a1", accent: "#268bd2", muted: "#5f747b" },
-  "solarized-dark": { bg: "#002b36", fg: "#839496", line: "#586e75", accent: "#268bd2", muted: "#93a1a1" },
-  "one-dark": { bg: "#282c34", fg: "#abb2bf", line: "#4b5263", accent: "#c678dd", muted: "#8f96a3" },
 };
 
 export const MARKDOWN_THEME_NAMES = [
@@ -202,12 +173,31 @@ export const getStoredThemePreference = (): ThemePreference => {
   return stored === "light" || stored === "dark" || stored === "system" ? stored : "system";
 };
 
-export const getStoredMermaidTheme = (): MermaidThemePreference => {
-  const stored = readLocalStorageItem(MERMAID_THEME_STORAGE_KEY);
-  return MERMAID_THEME_PREFERENCES.includes(stored as MermaidThemePreference)
-    ? stored as MermaidThemePreference
+const LEGACY_MERMAID_THEMES: Record<string, MermaidThemeName> = {
+  "tokyo-night": "zinc-dark",
+  "tokyo-night-storm": "zinc-dark",
+  "tokyo-night-light": "zinc-light",
+  "catppuccin-mocha": "zinc-dark",
+  "catppuccin-latte": "zinc-light",
+  nord: "zinc-dark",
+  "nord-light": "zinc-light",
+  dracula: "zinc-dark",
+  "github-light": "zinc-light",
+  "github-dark": "zinc-dark",
+  "solarized-light": "zinc-light",
+  "solarized-dark": "zinc-dark",
+  "one-dark": "zinc-dark",
+};
+
+export const normalizeMermaidThemePreference = (value: string | null): MermaidThemePreference => {
+  if (value === "zinc-light" || value === "zinc-dark") return value;
+  return value && Object.hasOwn(LEGACY_MERMAID_THEMES, value)
+    ? LEGACY_MERMAID_THEMES[value]
     : "auto";
 };
+
+export const getStoredMermaidTheme = (): MermaidThemePreference =>
+  normalizeMermaidThemePreference(readLocalStorageItem(MERMAID_THEME_STORAGE_KEY));
 
 export const resolveMermaidTheme = (
   preference: MermaidThemePreference,

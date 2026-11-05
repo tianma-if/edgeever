@@ -123,6 +123,10 @@ interface EdgeEverDesktopBridge {
   onUpdateStatus(callback: (status: DesktopUpdateStatus) => void): () => void;
   sidecarRequest<T = unknown>(method: string, params?: Record<string, unknown>): Promise<T>;
   openAttachment(input: { url: string; filename: string }): Promise<{ ok: boolean; code?: "forbidden" | "blocked" | "unavailable" | "open-failed" }>;
+  attachmentWritebacks?(): Promise<DesktopAttachmentWriteback[]>;
+  retryAttachmentWriteback?(id: string): Promise<void>;
+  revealAttachmentWriteback?(id: string): Promise<void>;
+  onAttachmentResourceSaved?(callback: (resource: import("@edgeever/shared").Resource) => void): () => void;
   beginStagedResource(input: { memoId: string; name: string; type: string; size: number }): Promise<{ id: string; partSize: number }>;
   appendStagedResource(id: string, bytes: ArrayBuffer): Promise<{ receivedBytes: number }>;
   completeStagedResource(id: string): Promise<{ id: string }>;
@@ -310,4 +314,15 @@ interface EdgeEverPrintBridge {
 interface Window {
   edgeeverDesktop?: EdgeEverDesktopBridge;
   edgeeverPrint?: EdgeEverPrintBridge;
+}
+
+interface DesktopAttachmentWriteback {
+  id: string;
+  resourceId: string | null;
+  byteSize: number | null;
+  metadataAt: number;
+  filename: string;
+  status: "watching" | "pending" | "saving" | "saved" | "conflict" | "error";
+  errorCode: string | null;
+  savedAt: number | null;
 }

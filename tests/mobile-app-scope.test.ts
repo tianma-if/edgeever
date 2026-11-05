@@ -213,7 +213,6 @@ describe("mobile app scope", () => {
     expect(workspaceEditorsSource).toContain("key={editorStartup.attempt}");
     expect(localTiptapEditorSource).toContain("autofocus: false");
     expect(localTiptapEditorSource).toContain('import("mermaid/dist/mermaid.min.js")');
-    expect(localTiptapEditorSource).toContain('import("beautiful-mermaid")');
     expect(localTiptapEditorSource).toContain('import { toCanvas } from "html-to-image"');
     expect(localTiptapEditorSource).not.toContain('import "mermaid/dist/mermaid.min.js"');
   });

@@ -1,0 +1,13 @@
+{
+  "icons": {
+    "evernote.svg": {
+      "source": "https://evernote.com/images/evernote-logo-icon.svg"
+    },
+    "obsidian.svg": {
+      "source": "https://obsidian.md/images/obsidian-logo-gradient.svg"
+    },
+    "joplin.svg": {
+      "source": "https://raw.githubusercontent.com/laurent22/joplin/dev/Assets/JoplinIcon.svg"
+    }
+  }
+}

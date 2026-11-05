@@ -15,6 +15,9 @@ struct AuthSession: Codable, Equatable, Sendable {
     var demoMode: Bool
     var user: AuthUser?
     var sessionToken: String?
+    /// `true` only for a restricted session created with a TOTP recovery code:
+    /// the client must force an authenticator rebind before any business API.
+    var mfaRebindRequired: Bool?
 }
 
 struct LoginInput: Encodable, Sendable {
@@ -27,6 +30,9 @@ struct MobileSession: Codable, Equatable, Sendable {
     var baseUrl: String
     var token: String
     var user: AuthUser?
+    /// Persisted so a cold start of a restricted (recovery-code) session still lands
+    /// on the forced rebind screen. Optional for backward-compatible decoding.
+    var mfaRebindRequired: Bool?
 }
 
 struct InstanceStorageDiagnostics: Codable, Equatable, Sendable {
@@ -176,6 +182,8 @@ struct AiGenerateInput: Encodable, Sendable {
     var targetLanguage: String?
     var tone: String? = nil
     var instruction: String? = nil
+    /// This client can send a request without an output limit when none is known (#652).
+    var allowUnboundedOutput: Bool? = true
 }
 
 struct AiGenerationResultBoundary: Decodable, Sendable {
@@ -190,7 +198,8 @@ struct AiPreparedGeneration: Decodable, Sendable {
     var modelId: String
     var system: String
     var prompt: String
-    var maxOutputTokens: Int
+    /// `nil` asks the client to send no output limit (#652).
+    var maxOutputTokens: Int?
     var resultBoundary: AiGenerationResultBoundary
 }
 
@@ -274,6 +283,8 @@ struct AiStreamEvent: Decodable, Sendable {
     var finishReason: String?
     var inputTokens: Int?
     var outputTokens: Int?
+    /// The provider stopped at its output or context limit, so the result is incomplete (#652).
+    var truncated: Bool? = nil
 }
 
 struct Resource: Codable, Equatable, Sendable, Identifiable {

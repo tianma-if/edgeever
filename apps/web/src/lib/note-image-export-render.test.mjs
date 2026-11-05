@@ -77,9 +77,11 @@ globalThis.requestAnimationFrame = (callback) => {
   callback(0);
   return 0;
 };
+let serializedSnapshot;
 globalThis.XMLSerializer = class {
   serializeToString(node) {
-    return node.outerHTML;
+    serializedSnapshot = node.outerHTML;
+    return serializedSnapshot;
   }
 };
 // Every font and texture request fails fast, so fonts fall back to defaults.
@@ -221,6 +223,19 @@ const expectAbortError = async (promise) => {
 };
 
 describe("createNoteImage", () => {
+  test("replaces characters that would invalidate the SVG while preserving Unicode text", async () => {
+    await mod.createNoteImage({
+      ...baseOptions,
+      bodyHtml: "<p data-label=\"a\u000Cb\">中文\u000B😀\uD800 end</p>",
+      title: "Title\u001F with emoji 😀",
+      showTitle: true,
+    });
+
+    expect(serializedSnapshot).toContain('data-label="a�b"');
+    expect(serializedSnapshot).toContain("中文�😀� end");
+    expect(serializedSnapshot).toContain("Title� with emoji 😀");
+  });
+
   test("renders a PNG at twice the card width when every canvas size probe fails", async () => {
     probe = { nullContextHeights: new Set(), failingHeights: new Set([65_535, 32_767, 16_384, 8_192, 4_096]) };
     const statuses = [];

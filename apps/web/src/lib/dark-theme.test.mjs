@@ -4,6 +4,8 @@ import { contrastRatio } from "./color-contrast";
 import {
   DEFAULT_CUSTOM_DARK_COLORS,
   DEFAULT_CUSTOM_LIGHT_COLORS,
+  MERMAID_THEME_PREFERENCES,
+  normalizeMermaidThemePreference,
   resolveMermaidTheme,
 } from "../components/ThemeProvider";
 
@@ -111,7 +113,20 @@ describe("dark theme contracts", () => {
   test("automatic Mermaid themes follow the resolved appearance", () => {
     expect(resolveMermaidTheme("auto", "light")).toBe("zinc-light");
     expect(resolveMermaidTheme("auto", "dark")).toBe("zinc-dark");
-    expect(resolveMermaidTheme("dracula", "light")).toBe("dracula");
+    expect(resolveMermaidTheme("zinc-dark", "light")).toBe("zinc-dark");
+  });
+
+  test("maps retired Mermaid preferences to the original brightness", () => {
+    expect(MERMAID_THEME_PREFERENCES).toEqual(["auto", "zinc-light", "zinc-dark"]);
+    for (const name of ["tokyo-night-light", "catppuccin-latte", "nord-light", "github-light", "solarized-light"]) {
+      expect(normalizeMermaidThemePreference(name)).toBe("zinc-light");
+    }
+    for (const name of ["tokyo-night", "tokyo-night-storm", "catppuccin-mocha", "nord", "dracula", "github-dark", "solarized-dark", "one-dark"]) {
+      expect(normalizeMermaidThemePreference(name)).toBe("zinc-dark");
+    }
+    for (const name of [null, "auto", "unknown", "constructor"]) {
+      expect(normalizeMermaidThemePreference(name)).toBe("auto");
+    }
   });
 
   test("appearance changes stay out of the editor React render path", () => {

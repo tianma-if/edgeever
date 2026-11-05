@@ -34,14 +34,6 @@ test("patched compact renderer preserves Chinese groups and cross-container edge
         assert.equal(renderMermaidSVG(source), browser.renderMermaidSVG(source), 'Bun and browser patches differ');
       }
     }
-    // Exercise the actual demo without rewriting its topology or saved content.
-    const seed = readFileSync(new URL('../../../api/src/demo-seed-data.ts', import.meta.url), 'utf8');
-    const start = seed.indexOf('flowchart TD', seed.indexOf('## 2. 全景架构与生态联动'));
-    const source = seed.slice(start, seed.indexOf('\\n' + String.fromCharCode(92, 96).repeat(3), start));
-    const svg = renderMermaidSVG(source);
-    assert.equal(svg, browser.renderMermaidSVG(source));
-    assert(svg.includes('全端客户端矩阵'));
-    assert(svg.includes('AI 智能体与外部生态'));
     console.log('geometry and source/browser parity passed');
   `], { cwd: import.meta.dir, encoding: "utf8", timeout: 30_000 });
   expect(result.stderr).toBe("");

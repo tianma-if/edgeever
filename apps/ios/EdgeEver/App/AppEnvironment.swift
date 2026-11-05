@@ -59,7 +59,7 @@ final class AppEnvironment {
 
     func bootstrap() async {
         await session.bootstrap()
-        if session.isSignedIn {
+        if session.isSignedIn, !session.isMfaRebindRequired {
             // Surface first-sync progress before TipTap warm / network so the workspace
             // never flashes an empty-notebook state on cold start.
             if let scope = session.dataScope,
@@ -76,6 +76,8 @@ final class AppEnvironment {
     /// - Parameter force: when true, clear outbox backoff and retry error/conflict items immediately
     ///   (Android pull-to-refresh / "Sync now" parity).
     func runSyncCycle(force: Bool = false) async {
+        // A restricted recovery-code session gets 403 on every business API.
+        guard !session.isMfaRebindRequired else { return }
         guard let scope = session.dataScope else { return }
         isSyncing = true
         lastSyncError = nil

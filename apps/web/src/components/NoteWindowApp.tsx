@@ -1,3 +1,4 @@
+import { DesktopAttachmentWritebacks } from "./attachments/DesktopAttachmentWritebacks";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -190,6 +191,7 @@ export const NoteWindowApp = ({ memoId }: { memoId: string }) => {
 
   return (
     <main className="flex h-[100dvh] min-h-0 flex-col bg-background">
+      <DesktopAttachmentWritebacks scope={localDataScope} />
       {closeError && (
         <div role="alert" className="border-b border-rose-200 bg-rose-50 px-4 py-2 text-xs leading-5 text-rose-800">
           {t("editor.noteWindowCloseSaveFailed")}

@@ -65,6 +65,25 @@ test("staged attachments use the same path without requiring an HTTP URL", async
   expect(basename(context.opened[0])).toBe("offline.docx");
 });
 
+test("numbers repeated local copies while preserving the original cloud filename", async () => {
+  const tracked = [];
+  const context = await fixture({ writeback: { track: async (value) => tracked.push(value) } });
+  for (let index = 0; index < 3; index++) expect(await context.open()).toEqual({ ok: true });
+  expect(context.opened.map((path) => basename(path))).toEqual(["训练.xlsx", "训练 (2).xlsx", "训练 (3).xlsx"]);
+  expect(tracked.map(({ filename }) => filename)).toEqual([input.filename, input.filename, input.filename]);
+  expect(tracked.map(({ localFilename }) => localFilename)).toEqual(context.opened.map((path) => basename(path)));
+});
+
+test("reserves distinct normalized names for concurrently opened different resources", async () => {
+  const context = await fixture();
+  expect(await Promise.all([
+    context.open({ url: "edgeever-resource://resource/res_1", filename: "Café.xlsx" }),
+    context.open({ url: "edgeever-resource://resource/res_2", filename: "CAFE\u0301.XLSX" }),
+  ])).toEqual([{ ok: true }, { ok: true }]);
+  const names = context.opened.map((path) => basename(path).normalize("NFC").toLowerCase()).sort();
+  expect(names).toEqual(["café (2).xlsx", "café.xlsx"]);
+});
+
 test("failed retrieval/offline cache misses and missing OS associations return visible error codes", async () => {
   for (const status of [401, 404, 504]) {
     const context = await fixture({ readResource: async () => new Response("missing", { status }) });

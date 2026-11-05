@@ -1,3 +1,6 @@
+import { rename, rm, writeFile } from "node:fs/promises";
+import { restrictFile } from "./file-permissions.mjs";
+
 export const instanceOrigin = (value) => {
   try {
     const url = new URL(value);
@@ -20,3 +23,17 @@ export const decodeSessionCredential = (plaintext, baseUrl) => {
 };
 
 export const credentialForUrl = (token, origin, url) => origin && origin === instanceOrigin(url) ? token : "";
+
+
+export const writeSessionCredential = async (path, token, baseUrl, secureStorage) => {
+  if (!token) {
+    await rm(path, { force: true });
+    return;
+  }
+  const encrypted = secureStorage.encryptString(encodeSessionCredential(token, baseUrl));
+  const temporaryPath = `${path}.tmp`;
+  await writeFile(temporaryPath, encrypted, { mode: 0o600 });
+  await restrictFile(temporaryPath);
+  await rename(temporaryPath, path);
+  await restrictFile(path);
+};

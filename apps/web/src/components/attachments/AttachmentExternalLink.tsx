@@ -11,7 +11,7 @@ type Props = Omit<ComponentPropsWithoutRef<"a">, "href"> & {
   iconOnly?: boolean;
 };
 
-/** Browsers keep normal link behavior; desktop attachments open a local copy. */
+/** Browsers keep normal link behavior; desktop attachments open a local copy tracked for writeback. */
 export const AttachmentExternalLink = forwardRef<HTMLAnchorElement, Props>(
   ({ href, filename, iconOnly, children, onClick, ...props }, ref) => {
     const { t } = useTranslation();

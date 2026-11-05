@@ -19,11 +19,14 @@ import { classifyLoginError, getLoginProblemMessageKey } from "@/lib/login-error
 import { EVERNOTE_MIGRATION_PATH } from "@/lib/routes";
 import { syncPublishedNoteBodyFont } from "@/lib/published-note-body-font";
 import { getNoteWindowMemoId } from "@/lib/desktop-note-windows";
-import type { AuthSession } from "@edgeever/shared";
+import { ApiRequestError, getMfaChallenge } from "@edgeever/client";
+import type { AuthSession, MfaChallenge } from "@edgeever/shared";
+import { twoFactorErrorKey } from "@/components/two-factor/TwoFactorSteps";
 
 const EvernoteImportGuidePane = lazy(() =>
   import("@/components/EvernoteImportGuidePane").then((module) => ({ default: module.EvernoteImportGuidePane }))
 );
+const TotpRebindScreen = lazy(() => import("@/components/TotpRebindScreen").then((module) => ({ default: module.TotpRebindScreen })));
 const LoginScreen = lazy(() => import("@/components/LoginScreen").then((module) => ({ default: module.LoginScreen })));
 const WorkspaceApp = lazy(() => import("@/components/WorkspaceApp").then((module) => ({ default: module.WorkspaceApp })));
 const PublicNotebookSharePage = lazy(() => import("@/components/PublicNotebookSharePage").then(module => ({ default: module.PublicNotebookSharePage })));
@@ -102,8 +105,12 @@ const AuthenticatedWorkspace = ({ siteManagement = false }: { siteManagement?: b
     };
   }, [desktopAccountId, desktopBridge, desktopScopeAttempt, sessionQuery.isLoading]);
 
+  const [mfaLogin, setMfaLogin] = useState<{ challenge: MfaChallenge; username: string } | null>(null);
+  const [mfaExpired, setMfaExpired] = useState(false);
+
   const loginMutation = useMutation({
     mutationFn: async (payload: { instanceUrl?: string; username: string; password: string }) => {
+      setMfaExpired(false);
       if (desktopBridge?.isAvailable && payload.instanceUrl !== undefined) {
         await saveDesktopApiBaseUrl(payload.instanceUrl);
       }
@@ -119,7 +126,53 @@ const AuthenticatedWorkspace = ({ siteManagement = false }: { siteManagement?: b
       queryClient.clear();
       queryClient.setQueryData(["auth", "session"], session);
     },
+    onError: (error, payload) => {
+      const challenge = getMfaChallenge(error);
+      if (challenge) setMfaLogin({ challenge, username: payload.username });
+    },
   });
+
+  const mfaMutation = useMutation({
+    mutationFn: async (payload: { code: string } | { recoveryCode: string }) => {
+      if (!mfaLogin) throw new Error("No pending sign-in challenge");
+      const session = await api.completeMfaLogin({
+        challengeToken: mfaLogin.challenge.challengeToken,
+        ...payload,
+        locale: i18n.resolvedLanguage,
+      });
+      await cacheDesktopSession(session);
+      return session;
+    },
+    onSuccess: (session) => {
+      setMfaLogin(null);
+      loginMutation.reset();
+      queryClient.clear();
+      queryClient.setQueryData(["auth", "session"], session);
+    },
+    onError: (error) => {
+      // A spent or expired challenge cannot be retried: ask for the password again.
+      if (error instanceof ApiRequestError && error.code === "mfa_challenge_expired") {
+        setMfaLogin(null);
+        loginMutation.reset();
+        mfaMutation.reset();
+        setMfaExpired(true);
+      }
+    },
+  });
+
+  const completeRebind = async (sessionToken: string | undefined) => {
+    const current = queryClient.getQueryData<AuthSession>(["auth", "session"]);
+    if (sessionToken && current) {
+      await cacheDesktopSession({ ...current, mfaRebindRequired: undefined, sessionToken });
+    }
+    const session = await getWorkspaceSession();
+    // Keep the observed session query (clearing it would detach the observer)
+    // and drop everything cached under the restricted session.
+    queryClient.removeQueries({
+      predicate: ({ queryKey }) => queryKey[0] !== "auth" || queryKey[1] !== "session",
+    });
+    queryClient.setQueryData(["auth", "session"], session);
+  };
 
   const logoutMutation = useMutation({
     mutationFn: api.logout,
@@ -163,7 +216,7 @@ const AuthenticatedWorkspace = ({ siteManagement = false }: { siteManagement?: b
   }
 
   const session = sessionQuery.data;
-  const problem = loginMutation.error
+  const problem = loginMutation.error && !getMfaChallenge(loginMutation.error)
     ? classifyLoginError(loginMutation.error, "login")
     : sessionQuery.error
       ? classifyLoginError(sessionQuery.error, "session")
@@ -174,7 +227,9 @@ const AuthenticatedWorkspace = ({ siteManagement = false }: { siteManagement?: b
         diagnosticCode: problem.diagnosticCode,
         rayId: problem.rayId,
       }
-    : null;
+    : mfaExpired
+      ? { message: t("twoFactor.loginExpired"), diagnosticCode: "mfa_challenge_expired" }
+      : null;
 
   if (desktopBridge?.isAvailable && !desktopScopeReady) {
     if (desktopScopeError) {
@@ -200,6 +255,33 @@ const AuthenticatedWorkspace = ({ siteManagement = false }: { siteManagement?: b
           instanceUrl={desktopBridge?.isAvailable ? configuredDesktopApiBaseUrl : undefined}
           isSubmitting={loginMutation.isPending}
           onSubmit={(payload) => loginMutation.mutate(payload)}
+          mfa={mfaLogin ? {
+            username: mfaLogin.username,
+            isSubmitting: mfaMutation.isPending,
+            error: mfaMutation.error && !(mfaMutation.error instanceof ApiRequestError && mfaMutation.error.code === "mfa_challenge_expired")
+              ? (mfaMutation.error instanceof ApiRequestError && mfaMutation.error.status === 401
+                ? t(mfaMutation.error.code === "invalid_recovery_code" ? "twoFactor.errorInvalidRecoveryCode" : "twoFactor.errorInvalidCode")
+                : t(twoFactorErrorKey(mfaMutation.error)))
+              : null,
+            onSubmit: (payload) => mfaMutation.mutate(payload),
+            onBack: () => {
+              setMfaLogin(null);
+              loginMutation.reset();
+              mfaMutation.reset();
+            },
+          } : null}
+        />
+      </Suspense>
+    );
+  }
+
+  if (session.mfaRebindRequired) {
+    return (
+      <Suspense fallback={<AuthLoadingScreen />}>
+        <TotpRebindScreen
+          isLoggingOut={logoutMutation.isPending}
+          onLogout={() => logoutMutation.mutate()}
+          onComplete={completeRebind}
         />
       </Suspense>
     );
