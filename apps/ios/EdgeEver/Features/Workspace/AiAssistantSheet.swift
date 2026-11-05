@@ -6,6 +6,12 @@ enum AiDraftApplyMode: Sendable {
     case replace
 }
 
+/// The part (1-based) of `parts` a long run is working on (#652 PR B).
+struct AiRunProgress: Equatable, Sendable {
+    var part: Int
+    var parts: Int
+}
+
 /// Why an AI draft is incomplete (#652).
 enum AiDraftIncompleteReason: Sendable {
     case truncated
@@ -21,12 +27,18 @@ struct AiDraftCompletion: Equatable, Sendable {
     private(set) var truncated = false
     private(set) var failed = false
     private(set) var stopped = false
+    /// Parts (1-based) of a long run that kept their source text (#652 PR B).
+    private(set) var incompleteParts: [Int] = []
 
     mutating func track(_ event: AiStreamEvent) {
         switch event.type {
         case "finish":
             finished = true
             if event.truncated == true || AiDirectStream.isTruncatedFinishReason(event.finishReason) { truncated = true }
+            if let parts = event.incompleteParts, !parts.isEmpty {
+                incompleteParts = parts
+                truncated = true
+            }
         case "error":
             failed = true
         default:
@@ -110,6 +122,8 @@ struct AiAssistantSheet: View {
     /// Whether the current draft finished cleanly; any other draft must not replace the source (#652).
     @State private var completion = AiDraftCompletion()
     private var incomplete: AiDraftIncompleteReason? { completion.incompleteReason }
+    /// The part a long run is working on (#652 PR B); `nil` for a single request.
+    @State private var progress: AiRunProgress?
     @State private var isGenerating = false
     @State private var isApplying = false
     @State private var didSetLanguageDefault = false
@@ -219,6 +233,17 @@ struct AiAssistantSheet: View {
                                     .disabled(refineInstruction.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                             }
                         }
+                    }
+
+                    if let progress, isGenerating {
+                        Text(env.preferences.t(
+                            "正在生成第 \(progress.part)/\(progress.parts) 段…",
+                            en: "Working on part \(progress.part) of \(progress.parts)…",
+                            ja: "\(progress.parts) 件中 \(progress.part) 件目を生成中…",
+                            pl: "Przetwarzanie części \(progress.part) z \(progress.parts)…"
+                        ))
+                        .font(.system(size: 13))
+                        .foregroundStyle(.secondary)
                     }
 
                     if let incomplete, !output.isEmpty, !isGenerating {
@@ -676,6 +701,7 @@ struct AiAssistantSheet: View {
         output = ""
         error = nil
         completion = AiDraftCompletion()
+        progress = nil
         isGenerating = true
         let requestID = UUID()
         generationID = requestID
@@ -685,9 +711,13 @@ struct AiAssistantSheet: View {
                 let stream = await env.session.client.streamAiGeneration(input)
                 for try await event in stream {
                     try Task.checkCancellation()
-                    if generationID == requestID { completion.track(event) }
+                    guard generationID == requestID else { continue }
+                    completion.track(event)
                     switch event.type {
                     case "text-delta": output += event.text ?? ""
+                    case "text-reset": output = event.text ?? ""
+                    case "progress":
+                        if let part = event.part, let parts = event.parts { progress = AiRunProgress(part: part, parts: parts) }
                     // An interrupted stream is explained by the incomplete notice instead.
                     case "error" where event.code != "ai_stream_interrupted":
                         error = event.message ?? env.preferences.t("AI 生成失败。", en: "AI generation failed.", pl: "Generowanie AI nie powiodło się.")
@@ -732,7 +762,17 @@ struct AiAssistantSheet: View {
     }
 
     private func incompleteMessage(_ reason: AiDraftIncompleteReason) -> String {
-        switch reason {
+        if reason == .truncated, !completion.incompleteParts.isEmpty {
+            let zhParts = completion.incompleteParts.map(String.init).joined(separator: "、")
+            let parts = completion.incompleteParts.map(String.init).joined(separator: ", ")
+            return env.preferences.t(
+                "结果不完整：第 \(zhParts) 段未能完成，保留了原文。可以复制或追加，但不能用它替换原文。",
+                en: "This result is incomplete: part \(parts) could not be finished and keeps the original text. You can copy or append it, but it can't replace the original.",
+                ja: "結果は不完全です：\(zhParts) 番目の部分を完了できなかったため、原文のままです。コピーや追加はできますが、元の文章を置き換えることはできません。",
+                pl: "Wynik jest niepełny: części \(parts) nie udało się ukończyć i zawierają tekst oryginalny. Możesz go skopiować lub dołączyć, ale nie może zastąpić oryginału."
+            )
+        }
+        return switch reason {
         case .truncated:
             env.preferences.t(
                 "结果不完整：模型达到了输出上限。可以复制或追加，但不能用它替换原文。",

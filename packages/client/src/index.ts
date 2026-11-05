@@ -4,6 +4,7 @@ import {
   parsePreparedAiGeneration,
   streamDirectAiGeneration,
 } from "./ai-direct-stream";
+import type { AiRunRequest } from "./ai-long-generation";
 import { throwIfAborted } from "./abort-signal";
 
 import { createPluginCapabilities } from './plugin-capabilities';
@@ -1198,10 +1199,11 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
 
     streamAiGeneration: async (payload: AiGenerateInput, streamOptions: { signal?: AbortSignal; onEvent: (event: AiStreamEvent) => void }) => {
       throwIfAborted(streamOptions.signal);
-      const prepare = async () => {
+      const prepare = async (run: AiRunRequest = { segmentation: {} }) => {
         const { context, response } = await send("/api/v1/ai/generate/prepare", {
-          // This client can send a request without an output limit when none is known (#652).
-          method: "POST", body: JSON.stringify({ ...payload, allowUnboundedOutput: true }), signal: streamOptions.signal,
+          // This client can send a request without an output limit when none is known, and can run
+          // a long task in parts or continue a cut-off result (#652).
+          method: "POST", body: JSON.stringify({ ...payload, ...run, allowUnboundedOutput: true }), signal: streamOptions.signal,
         });
         if (response.status === 404 || response.status === 410) throw directAiUnavailable();
         if (!response.ok) await throwRequestError(context, response);
@@ -1233,13 +1235,22 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
         const hasLimits = Boolean(limits && (limits.maxOutputTokens || limits.maxInputTokens || limits.contextWindowTokens));
         if (limits && await report(limits) && hasLimits) prepared = await prepare();
       }
-      await streamDirectAiGeneration(prepared, payload.attachments, {
-        fetch: providerFetch(),
-        ...streamOptions,
-        onOutputLimit: async (maxOutputTokens) => {
-          if (!target) return;
-          await report({ maxOutputTokens, maxInputTokens: null, contextWindowTokens: null, source: "provider-error" });
-        },
+      const { runAiLongGeneration } = await import("./ai-long-generation");
+      await runAiLongGeneration({
+        first: prepared,
+        prepare,
+        signal: streamOptions.signal,
+        onEvent: streamOptions.onEvent,
+        stream: (next, onEvent) => streamDirectAiGeneration(next, payload.attachments, {
+          fetch: providerFetch(),
+          signal: streamOptions.signal,
+          // The run reports one start for all of its requests.
+          onEvent: (event) => { if (event.type !== "start") onEvent(event); },
+          onOutputLimit: async (maxOutputTokens) => {
+            if (!target) return;
+            await report({ maxOutputTokens, maxInputTokens: null, contextWindowTokens: null, source: "provider-error" });
+          },
+        }),
       });
     },
 

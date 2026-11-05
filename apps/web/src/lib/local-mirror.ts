@@ -1,3 +1,4 @@
+import { clearAiBodyDraftScope } from "./ai-body-draft-store";
 import {
   DEFAULT_MEMO_TITLE,
   createExcerpt,
@@ -859,6 +860,8 @@ export const clearLocalScope = async (scope: string) => {
   await Promise.all(scopedResources
     .filter((resource) => resource.id.startsWith("local_resource_"))
     .map((resource) => removeCachedLocalResourceBytes(resource.url)));
+  // Unapplied AI body drafts live in their own database (#652 PR B).
+  await clearAiBodyDraftScope(scope);
 };
 
 export type { LocalMemo, LocalNotebook };

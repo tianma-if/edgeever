@@ -66,6 +66,7 @@ import { encryptSecret } from "./secret-encryption";
 import { listTagSummaries } from "./tag-service";
 import { prepareNoteResourceTranscription } from "./resource-transcription";
 import { registerAiProviderRelay } from "./ai-provider-relay";
+import { resolveAiSegmentSourceTokens, splitAiGenerationSegments } from "@edgeever/shared/ai-generation-segments";
 
 type AiRouteDependencies = {
   isDemoMode: (environment: Bindings) => boolean;
@@ -1047,7 +1048,12 @@ export const registerAiRoutes = (app: Hono<AppEnv>, dependencies: AiRouteDepende
           getWorkspaceId(context),
           context.env,
         );
-        const prepared = prepareAiGeneration({ ...fields, credentials: model.credentials });
+        const prepared = prepareAiGeneration({
+          ...fields,
+          segment: input.segment,
+          continuation: input.continuation,
+          credentials: model.credentials,
+        });
         // Credentials, manual budget and detected limits all come from the same default-model row.
         const plan = planAiGenerationOutputBudget({
           provider: model.credentials.provider,
@@ -1058,6 +1064,38 @@ export const registerAiRoutes = (app: Hono<AppEnv>, dependencies: AiRouteDepende
           sourceText: fields.contentMarkdown,
           allowUnbounded: input.allowUnboundedOutput === true,
         });
+        const budgetFields = {
+          maxOutputTokens: plan.maxOutputTokens,
+          outputBudget: { mode: plan.mode, outputLimit: plan.outputLimit, inputFits: plan.inputFits },
+          // Always say where to report, so a limit learned from a provider error can correct a
+          // cached value; only ask the client to read the provider when the cache is missing or stale.
+          capabilityTarget: {
+            providerConfigId: model.providerConfigId,
+            modelConfigId: model.modelConfigId,
+            configVersion: model.providerConfigVersion,
+          },
+          detectCapabilities: isAiModelCapabilityStale(model.capabilities),
+          // This server understands `segmentation`, `segment` and `continuation`; an older one
+          // ignores them, so clients only run parts or continue when they see this (#652).
+          longGeneration: true,
+        };
+        if (input.segmentation && !input.segment) {
+          // A client that can run parts gets them when one request cannot finish this task (#652).
+          const caps = model.capabilities && model.capabilities.source !== "none" ? model.capabilities : null;
+          const inputLimits = [caps?.maxInputTokens, caps?.contextWindowTokens]
+            .filter((value): value is number => typeof value === "number" && value > 0);
+          const partTokens = resolveAiSegmentSourceTokens({
+            action: fields.action,
+            sourceText: fields.contentMarkdown,
+            plan,
+            inputLimitTokens: inputLimits.length ? Math.min(...inputLimits) : null,
+            depth: input.segmentation.depth,
+          });
+          const segments = partTokens ? splitAiGenerationSegments(fields.contentMarkdown, partTokens) : [];
+          if (segments.length > 1) {
+            return context.json({ ...prepared, ...budgetFields, segments });
+          }
+        }
         if (plan.mode === "auto" && plan.inputFits === false) {
           // The note does not fit the model's input limit or leaves no room in its window, so the
           // provider would reject the request; say so instead of sending it. A manual budget skips
@@ -1069,19 +1107,7 @@ export const registerAiRoutes = (app: Hono<AppEnv>, dependencies: AiRouteDepende
             413,
           );
         }
-        return context.json({
-          ...prepared,
-          maxOutputTokens: plan.maxOutputTokens,
-          outputBudget: { mode: plan.mode, outputLimit: plan.outputLimit, inputFits: plan.inputFits },
-          // Always say where to report, so a limit learned from a provider error can correct a
-          // cached value; only ask the client to read the provider when the cache is missing or stale.
-          capabilityTarget: {
-            providerConfigId: model.providerConfigId,
-            modelConfigId: model.modelConfigId,
-            configVersion: model.providerConfigVersion,
-          },
-          detectCapabilities: isAiModelCapabilityStale(model.capabilities),
-        });
+        return context.json({ ...prepared, ...budgetFields });
       } catch (error) {
         return withAiError(context, error, "ai_generation_failed");
       }

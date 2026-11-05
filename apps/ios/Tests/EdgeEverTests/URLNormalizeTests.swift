@@ -197,3 +197,183 @@ final class URLNormalizeTests: XCTestCase {
         )
     }
 }
+
+/// Long runs in parts and continuations (#652 PR B), the same cases as `packages/client`.
+final class AiLongGenerationTests: XCTestCase {
+    private final class Sink: @unchecked Sendable {
+        private let lock = NSLock()
+        private(set) var events: [AiStreamEvent] = []
+        private(set) var text = ""
+        private(set) var requests: [AiGenerateInput] = []
+        func add(_ event: AiStreamEvent) {
+            lock.withLock {
+                events.append(event)
+                if event.type == "text-delta" { text += event.text ?? "" }
+                if event.type == "text-reset" { text = event.text ?? "" }
+            }
+        }
+        func record(_ request: AiGenerateInput) { lock.withLock { requests.append(request) } }
+    }
+
+    private func prepared(_ prompt: String = "p", segments: [AiGenerationSegment]? = nil, long: Bool? = true) -> AiPreparedGeneration {
+        AiPreparedGeneration(provider: "openai-compatible", baseUrl: "https://g.example/v1", apiKey: "k", modelId: "m", system: "s", prompt: prompt, maxOutputTokens: nil, resultBoundary: .init(start: "<r>", end: "</r>"), segments: segments, longGeneration: long)
+    }
+
+    private func finish(_ truncated: Bool) -> AiStreamEvent {
+        var event = AiLongGeneration.event("finish")
+        event.truncated = truncated
+        return event
+    }
+
+    private let input = AiGenerateInput(action: .translate, title: "t", contentMarkdown: "full", targetLanguage: "zh-CN")
+    private let parts = [
+        AiGenerationSegment(markdown: "# Title\n\nFirst part.\n\n", headingPath: [], passthrough: false),
+        AiGenerationSegment(markdown: "```js\ncode();\n```\n\n", headingPath: ["Title"], passthrough: true),
+        AiGenerationSegment(markdown: "## Two\n\nSecond part.\n", headingPath: ["Title"], passthrough: false),
+    ]
+
+    func testPartsRunInOrderWithContextAndCodePassesThrough() async throws {
+        let sink = Sink()
+        let first = prepared(segments: parts)
+        try await AiLongGeneration.run(input: input, first: first, prepare: { [self] request in
+            sink.record(request)
+            return prepared(request.contentMarkdown)
+        }, stream: { request, emit in
+            emit(AiLongGeneration.event("start"))
+            emit(AiLongGeneration.event("text-delta", text: request.prompt.contains("First") ? "# 标题\n\n第一部分。" : "## 二\n\n第二部分。"))
+            emit(self.finish(false))
+        }, emit: sink.add)
+        XCTAssertEqual(sink.text, "# 标题\n\n第一部分。\n\n```js\ncode();\n```\n\n## 二\n\n第二部分。")
+        XCTAssertEqual(sink.requests.map { $0.segment?.index }, [0, 2])
+        XCTAssertEqual(sink.requests[1].segment?.headingPath, ["Title"])
+        XCTAssertEqual(sink.requests[1].segment?.previousOutputTail, "# 标题\n\n第一部分。")
+        XCTAssertEqual(sink.events.filter { $0.type == "start" }.count, 1)
+        XCTAssertEqual(sink.events.filter { $0.type == "progress" }.compactMap(\.part), [1, 2, 3])
+        var completion = AiDraftCompletion()
+        sink.events.forEach { completion.track($0) }
+        XCTAssertNil(completion.incompleteReason)
+    }
+
+    func testCutOffPartIsSplitAndKeepsItsSourceWhenItStillCannotFinish() async throws {
+        let sink = Sink()
+        let first = prepared(segments: [parts[0], parts[2]])
+        try await AiLongGeneration.run(input: input, first: first, prepare: { [self] request in
+            if request.segmentation?.depth == 2 { return prepared(request.contentMarkdown) }
+            if request.segmentation != nil {
+                return prepared(segments: [
+                    AiGenerationSegment(markdown: "## Two\n\n", headingPath: [], passthrough: false),
+                    AiGenerationSegment(markdown: "Second part.\n", headingPath: ["Two"], passthrough: false),
+                ])
+            }
+            return prepared(request.contentMarkdown)
+        }, stream: { request, emit in
+            if request.prompt.contains("First") {
+                emit(AiLongGeneration.event("text-delta", text: "第一部分。")); emit(self.finish(false)); return
+            }
+            if request.prompt == "## Two\n\n" {
+                emit(AiLongGeneration.event("text-delta", text: "## 二")); emit(self.finish(false)); return
+            }
+            emit(AiLongGeneration.event("text-delta", text: "第二部")); emit(self.finish(true))
+        }, emit: sink.add)
+        XCTAssertEqual(sink.text, "第一部分。\n\n## 二\n\nSecond part.")
+        XCTAssertEqual(sink.events.last?.incompleteParts, [2])
+        var completion = AiDraftCompletion()
+        sink.events.forEach { completion.track($0) }
+        XCTAssertEqual(completion.incompleteReason, .truncated, "a draft with a part that kept its source cannot replace")
+        XCTAssertEqual(completion.incompleteParts, [2])
+    }
+
+    func testContinuationDropsTheRepeatedSeamAndOlderServersAreNotAsked() async throws {
+        final class Replies: @unchecked Sendable {
+            var items: [(String, Bool)] = [("Paragraph one.\n\nParagraph two is cut", true), ("Paragraph two is cut short here.\n\nThe end.", false)]
+        }
+        let replies = Replies()
+        let sink = Sink()
+        let writing = AiGenerateInput(action: .continueWriting, title: "t", contentMarkdown: "x", targetLanguage: nil)
+        try await AiLongGeneration.run(input: writing, first: prepared(), prepare: { [self] request in
+            sink.record(request)
+            return prepared()
+        }, stream: { _, emit in
+            let (text, cut) = replies.items.removeFirst()
+            emit(AiLongGeneration.event("text-delta", text: text)); emit(self.finish(cut))
+        }, emit: sink.add)
+        XCTAssertEqual(sink.text, "Paragraph one.\n\nParagraph two is cut short here.\n\nThe end.")
+        XCTAssertEqual(sink.requests.first?.continuation, AiContinuationRequest(round: 1, previousOutput: "Paragraph one.\n\nParagraph two is cut"))
+        XCTAssertEqual(sink.events.last?.truncated, false)
+
+        let older = Sink()
+        try await AiLongGeneration.run(input: writing, first: prepared(long: nil), prepare: { [self] request in
+            older.record(request)
+            return prepared()
+        }, stream: { _, emit in
+            emit(AiLongGeneration.event("text-delta", text: "more")); emit(self.finish(true))
+        }, emit: older.add)
+        XCTAssertTrue(older.requests.isEmpty, "an older server would start over instead of continuing")
+        XCTAssertEqual(older.events.last?.truncated, true)
+    }
+
+    func testAnEmptyContinuationKeepsTheDraftIncomplete() async throws {
+        final class Replies: @unchecked Sendable {
+            var items: [(String, Bool)] = [("Paragraph one.\n\nParagraph two is cut", true), ("   \n", false)]
+        }
+        let replies = Replies()
+        let sink = Sink()
+        let writing = AiGenerateInput(action: .continueWriting, title: "t", contentMarkdown: "x", targetLanguage: nil)
+        try await AiLongGeneration.run(input: writing, first: prepared(), prepare: { [self] request in
+            sink.record(request)
+            return prepared()
+        }, stream: { _, emit in
+            let (text, cut) = replies.items.isEmpty ? ("more", true) : replies.items.removeFirst()
+            emit(AiLongGeneration.event("text-delta", text: text)); emit(self.finish(cut))
+        }, emit: sink.add)
+        XCTAssertEqual(sink.requests.count, 1)
+        XCTAssertEqual(sink.text, "Paragraph one.\n\nParagraph two is cut")
+        XCTAssertEqual(sink.events.last?.truncated, true)
+        var completion = AiDraftCompletion()
+        sink.events.forEach { completion.track($0) }
+        XCTAssertEqual(completion.incompleteReason, .truncated)
+    }
+
+    func testAnErrorInAPartEndsTheRunWithTheTextSoFar() async throws {
+        final class Count: @unchecked Sendable { var value = 0 }
+        let count = Count()
+        let sink = Sink()
+        try await AiLongGeneration.run(input: input, first: prepared(segments: [parts[0], parts[2]]), prepare: { [self] request in
+            prepared(request.contentMarkdown)
+        }, stream: { _, emit in
+            count.value += 1
+            if count.value == 1 { emit(AiLongGeneration.event("text-delta", text: "第一部分。")); emit(self.finish(false)); return }
+            emit(AiLongGeneration.event("text-delta", text: "第二"))
+            emit(AiStreamEvent(type: "error", text: nil, code: "ai_stream_interrupted", message: "x", finishReason: nil, inputTokens: nil, outputTokens: nil))
+        }, emit: sink.add)
+        XCTAssertEqual(sink.text, "第一部分。\n\n第二")
+        XCTAssertEqual(sink.events.last?.code, "ai_stream_interrupted")
+        var completion = AiDraftCompletion()
+        sink.events.forEach { completion.track($0) }
+        XCTAssertEqual(completion.incompleteReason, .interrupted)
+    }
+
+    func testAPartResultFarTooShortIsNotTakenAsTheResult() async throws {
+        let long = AiGenerationSegment(markdown: "## 30. 节\n\n" + String(repeating: "这一段需要被完整处理。", count: 40) + "\n\n", headingPath: [], passthrough: false)
+        let sink = Sink()
+        try await AiLongGeneration.run(input: input, first: prepared(segments: [parts[0], long]), prepare: { [self] request in
+            sink.record(request)
+            return prepared(request.contentMarkdown)
+        }, stream: { request, emit in
+            emit(AiLongGeneration.event("text-delta", text: request.prompt.contains("First") ? "第一部分。" : "只返回了一句话。"))
+            emit(self.finish(false))
+        }, emit: sink.add)
+        XCTAssertTrue(sink.requests.contains { $0.segmentation?.depth == 1 })
+        XCTAssertTrue(sink.text.contains("这一段需要被完整处理。"))
+        XCTAssertFalse(sink.text.contains("只返回了一句话。"))
+        XCTAssertEqual(sink.events.last?.incompleteParts, [2])
+        XCTAssertFalse(AiLongGeneration.isSegmentResultPlausible(source: long.markdown, result: "只返回了一句话。"))
+        XCTAssertTrue(AiLongGeneration.isSegmentResultPlausible(source: "短。", result: "x"))
+    }
+
+    func testJoiningHelpers() {
+        XCTAssertEqual(AiLongGeneration.joinContinuation("第一段。\n\n第二段写到一半", "，后半句。"), "第一段。\n\n第二段写到一半，后半句。")
+        XCTAssertEqual(AiLongGeneration.segmentTail(String(repeating: "x", count: 1000)).count, 600)
+        XCTAssertEqual(AiLongGeneration.joinSegmentResult(AiGenerationSegment(markdown: "A\n\n", headingPath: [], passthrough: false), " 甲 "), "甲\n\n")
+    }
+}

@@ -274,8 +274,15 @@ export type AiDiscoveredModel = {
 export type AiStreamEvent =
   | { type: "start" }
   | { type: "text-delta"; text: string }
-  /** `truncated`: the provider stopped at its output or context limit, so the result is incomplete. */
-  | { type: "finish"; finishReason?: string; truncated?: boolean; inputTokens?: number; outputTokens?: number }
+  /** The whole draft so far; replaces what earlier deltas built (a long run fixes up its parts). */
+  | { type: "text-reset"; text: string }
+  /** A long run moved on to part `part` (1-based) of `parts` (#652). */
+  | { type: "progress"; part: number; parts: number }
+  /**
+   * `truncated`: the provider stopped at its output or context limit, so the result is incomplete.
+   * `incompleteParts`: parts (1-based) of a long run that kept their source text.
+   */
+  | { type: "finish"; finishReason?: string; truncated?: boolean; incompleteParts?: number[]; inputTokens?: number; outputTokens?: number }
   | { type: "error"; code: string; message: string };
 
 export type AiTagSuggestion = {

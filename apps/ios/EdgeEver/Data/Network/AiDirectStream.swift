@@ -262,3 +262,345 @@ final class AiGenerationStreamNormalizer: @unchecked Sendable {
         return result
     }
 }
+
+// MARK: - Long runs (#652 PR B)
+
+/// Runs one body generation to completion (#652 PR B), the same way as `packages/client`.
+///
+/// - When prepare returns parts, each part is prepared and streamed in order with the context of
+///   the part before it. A part that is cut off is split again (up to two levels); a part that still
+///   cannot finish keeps its source text and is reported in `incompleteParts`.
+/// - Otherwise one request runs; when it is cut off, up to three continuations append the rest,
+///   only when the server says it understands them.
+/// - An error, a dropped connection or a stop ends the run; the text so far stays an incomplete draft.
+///
+/// Events: one `start`, `text-delta` while text arrives, `text-reset` when the draft is fixed up,
+/// `progress` per part, then `finish` or `error`.
+enum AiLongGeneration {
+    typealias Prepare = @Sendable (AiGenerateInput) async throws -> AiPreparedGeneration
+    typealias Stream = @Sendable (AiPreparedGeneration, @escaping @Sendable (AiStreamEvent) -> Void) async throws -> Void
+
+    static let continuationMaxRounds = 3
+    static let maxSplitDepth = 2
+    static let continuationTailChars = 20_000
+    static let continuationHoldChars = 800
+    static let segmentTailChars = 600
+
+    static func run(
+        input: AiGenerateInput,
+        first: AiPreparedGeneration,
+        prepare: @escaping Prepare,
+        stream: @escaping Stream,
+        emit: @escaping @Sendable (AiStreamEvent) -> Void
+    ) async throws {
+        let runner = Runner(input: input, prepare: prepare, stream: stream, emit: emit)
+        emit(event("start"))
+        if let segments = first.segments, !segments.isEmpty {
+            try await runner.runParts(segments)
+        } else {
+            try await runner.runSingle(first)
+        }
+    }
+
+    static func event(_ type: String, text: String? = nil) -> AiStreamEvent {
+        AiStreamEvent(type: type, text: text, code: nil, message: nil, finishReason: nil, inputTokens: nil, outputTokens: nil)
+    }
+
+    // MARK: - Joining text
+
+    /// The same rough estimate as `estimateAiTokens` in `packages/shared`.
+    static func estimateTokens(_ text: String) -> Int {
+        var cjk = 0
+        var other = 0
+        for scalar in text.unicodeScalars {
+            switch scalar.value {
+            case 0x3040...0x30FF, 0x3400...0x4DBF, 0x4E00...0x9FFF, 0xAC00...0xD7AF, 0xF900...0xFAFF, 0xFF00...0xFFEF:
+                cjk += 1
+            default:
+                other += scalar.value > 0xFFFF ? 2 : 1
+            }
+        }
+        return Int(((Double(cjk) + Double(other) / 3) * 1.1).rounded(.up))
+    }
+
+    /// A part result far shorter than its source lost text even if the model said it finished.
+    static func isSegmentResultPlausible(source: String, result: String) -> Bool {
+        let sourceTokens = estimateTokens(source)
+        if sourceTokens < 200 { return true }
+        return Double(estimateTokens(result)) >= Double(sourceTokens) * 0.25
+    }
+
+    /// The last characters of a text, for the next part's context.
+    static func segmentTail(_ text: String) -> String {
+        let trimmed = text.replacingOccurrences(of: #"\s+$"#, with: "", options: .regularExpression)
+        return trimmed.count <= segmentTailChars ? trimmed : String(trimmed.suffix(segmentTailChars))
+    }
+
+    /// A part's result in place of its source, keeping the blank lines after the source.
+    static func joinSegmentResult(_ segment: AiGenerationSegment, _ result: String) -> String {
+        let separator = segment.markdown.range(of: #"\s*$"#, options: .regularExpression).map { String(segment.markdown[$0]) } ?? ""
+        return result.trimmingCharacters(in: .whitespacesAndNewlines) + (separator.isEmpty ? "\n\n" : separator)
+    }
+
+    static func joinSegments(_ parts: [String]) -> String {
+        parts.joined().replacingOccurrences(of: #"\s+$"#, with: "", options: .regularExpression)
+    }
+
+    /// Append a continuation, dropping text the model repeated from the end of what it had written.
+    static func joinContinuation(_ previous: String, _ next: String) -> String {
+        let head = String(next.drop(while: { $0.isWhitespace }))
+        let limit = min(800, previous.count, head.count)
+        if limit >= 12 {
+            for length in stride(from: limit, through: 12, by: -1) where previous.hasSuffix(String(head.prefix(length))) {
+                return previous + head.dropFirst(length)
+            }
+        }
+        let endsWithSpace = previous.last?.isWhitespace ?? true
+        let startsWithSpace = next.first?.isWhitespace ?? false
+        if endsWithSpace || !startsWithSpace {
+            return previous + String(next.drop(while: { $0 == " " || $0 == "\t" }))
+        }
+        return previous + next
+    }
+}
+
+private struct StreamResult {
+    var text = ""
+    var truncated = false
+    var finishReason: String?
+    var error: AiStreamEvent?
+}
+
+/// Collects one request's events; the stream callback may run on another task.
+private final class StreamCollector: @unchecked Sendable {
+    private let lock = NSLock()
+    private var result = StreamResult()
+    private let onText: @Sendable (String) -> Void
+
+    init(onText: @escaping @Sendable (String) -> Void) { self.onText = onText }
+
+    func take(_ event: AiStreamEvent) {
+        lock.lock()
+        switch event.type {
+        case "text-delta":
+            result.text += event.text ?? ""
+        case "finish":
+            result.truncated = event.truncated == true
+            result.finishReason = event.finishReason
+        case "error":
+            result.error = event
+        default:
+            break
+        }
+        lock.unlock()
+        if event.type == "text-delta", let text = event.text { onText(text) }
+    }
+
+    var value: StreamResult {
+        lock.lock(); defer { lock.unlock() }
+        return result
+    }
+}
+
+private final class Runner: @unchecked Sendable {
+    let input: AiGenerateInput
+    let prepare: AiLongGeneration.Prepare
+    let stream: AiLongGeneration.Stream
+    let emit: @Sendable (AiStreamEvent) -> Void
+
+    init(input: AiGenerateInput, prepare: @escaping AiLongGeneration.Prepare, stream: @escaping AiLongGeneration.Stream, emit: @escaping @Sendable (AiStreamEvent) -> Void) {
+        self.input = input
+        self.prepare = prepare
+        self.stream = stream
+        self.emit = emit
+    }
+
+    private func streamOne(_ prepared: AiPreparedGeneration, onText: @escaping @Sendable (String) -> Void) async throws -> StreamResult {
+        let collector = StreamCollector(onText: onText)
+        // The run reports one start for all of its requests.
+        try await stream(prepared) { event in if event.type != "start" { collector.take(event) } }
+        return collector.value
+    }
+
+    private func request(_ change: (inout AiGenerateInput) -> Void) -> AiGenerateInput {
+        var next = input
+        next.segmentation = nil
+        next.segment = nil
+        next.continuation = nil
+        change(&next)
+        return next
+    }
+
+    func runSingle(_ first: AiPreparedGeneration) async throws {
+        let draft = Draft()
+        let emit = self.emit
+        var result = try await streamOne(first) { text in
+            draft.append(text)
+            emit(AiLongGeneration.event("text-delta", text: text))
+        }
+        if let error = result.error { return emit(error) }
+        let canContinue = first.longGeneration == true
+        var round = 1
+        while canContinue, result.truncated, round <= AiLongGeneration.continuationMaxRounds {
+            try Task.checkCancellation()
+            let previous = String(draft.text.suffix(AiLongGeneration.continuationTailChars))
+            let next: AiPreparedGeneration
+            do {
+                next = try await prepare(request { $0.continuation = AiContinuationRequest(round: round, previousOutput: previous) })
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                // No room left in the window: the draft stays incomplete.
+                break
+            }
+            let before = draft.text
+            let seam = Seam()
+            let release: @Sendable (Bool) -> Void = { final in
+                guard let held = seam.release(final: final) else { return }
+                let merged = AiLongGeneration.joinContinuation(before, held)
+                let added = String(merged.dropFirst(before.count))
+                // A continuation that is only whitespace adds nothing to the draft.
+                if final, added.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return }
+                draft.set(merged)
+                if !added.isEmpty { emit(AiLongGeneration.event("text-delta", text: added)) }
+            }
+            result = try await streamOne(next) { text in
+                if seam.joined {
+                    draft.append(text)
+                    emit(AiLongGeneration.event("text-delta", text: text))
+                } else {
+                    seam.hold(text)
+                    release(false)
+                }
+            }
+            release(true)
+            if let error = result.error { return emit(error) }
+            // Only a continuation that added text can end the cut-off state; an empty one leaves
+            // the draft incomplete and stops continuing (#652 PR B review).
+            if String(draft.text.dropFirst(before.count)).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                result.truncated = true
+                break
+            }
+            round += 1
+        }
+        var finish = AiLongGeneration.event("finish")
+        finish.finishReason = result.finishReason
+        finish.truncated = result.truncated
+        emit(finish)
+    }
+
+    func runParts(_ segments: [AiGenerationSegment]) async throws {
+        var done: [String] = []
+        var incomplete = Set<Int>()
+        var previousSource = ""
+        var previousOutput = ""
+        let emit = self.emit
+
+        func runPart(_ segment: AiGenerationSegment, part: Int, index: Int, count: Int, depth: Int) async throws -> Bool {
+            if segment.passthrough {
+                done.append(AiLongGeneration.joinSegmentResult(segment, segment.markdown))
+                return true
+            }
+            try Task.checkCancellation()
+            let prefix = done.joined()
+            var prepared: AiPreparedGeneration?
+            do {
+                prepared = try await prepare(request {
+                    $0.contentMarkdown = segment.markdown
+                    $0.segment = AiSegmentContext(
+                        index: index,
+                        count: count,
+                        headingPath: Array(segment.headingPath.suffix(6)),
+                        previousSourceTail: previousSource.isEmpty ? nil : AiLongGeneration.segmentTail(previousSource),
+                        previousOutputTail: previousOutput.isEmpty ? nil : AiLongGeneration.segmentTail(previousOutput)
+                    )
+                })
+            } catch let error as APIError where error.code == "ai_input_too_long" {
+                // A part that does not fit is split again like a part that was cut off.
+                prepared = nil
+            }
+            var result: StreamResult?
+            if let prepared {
+                emit(AiLongGeneration.event("text-reset", text: prefix))
+                let streamed = try await streamOne(prepared) { text in emit(AiLongGeneration.event("text-delta", text: text)) }
+                if let error = streamed.error {
+                    emit(AiLongGeneration.event("text-reset", text: prefix + streamed.text))
+                    emit(error)
+                    return false
+                }
+                result = streamed
+            }
+            if let result, !result.truncated, !result.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+               AiLongGeneration.isSegmentResultPlausible(source: segment.markdown, result: result.text) {
+                done.append(AiLongGeneration.joinSegmentResult(segment, result.text))
+                previousSource = segment.markdown
+                previousOutput = result.text
+                emit(AiLongGeneration.event("text-reset", text: AiLongGeneration.joinSegments(done)))
+                return true
+            }
+            // Cut off (or too long to send): split this part into smaller ones and run those.
+            if depth < AiLongGeneration.maxSplitDepth {
+                var smaller: AiPreparedGeneration?
+                do {
+                    smaller = try await prepare(request {
+                        $0.contentMarkdown = segment.markdown
+                        $0.segmentation = AiSegmentationRequest(depth: depth + 1)
+                    })
+                } catch let error as APIError where error.code == "ai_input_too_long" {
+                    smaller = nil
+                }
+                if let children = smaller?.segments, children.count > 1 {
+                    for child in children {
+                        var nested = child
+                        nested.headingPath = segment.headingPath + child.headingPath
+                        if !(try await runPart(nested, part: part, index: index, count: count, depth: depth + 1)) { return false }
+                    }
+                    return true
+                }
+            }
+            // It still cannot finish: keep the source text so nothing is lost, and say which part.
+            incomplete.insert(part)
+            done.append(AiLongGeneration.joinSegmentResult(segment, segment.markdown))
+            emit(AiLongGeneration.event("text-reset", text: AiLongGeneration.joinSegments(done)))
+            return true
+        }
+
+        for (index, segment) in segments.enumerated() {
+            var progress = AiLongGeneration.event("progress")
+            progress.part = index + 1
+            progress.parts = segments.count
+            emit(progress)
+            if !(try await runPart(segment, part: index + 1, index: index, count: segments.count, depth: 0)) { return }
+        }
+        let parts = incomplete.sorted()
+        emit(AiLongGeneration.event("text-reset", text: AiLongGeneration.joinSegments(done)))
+        var finish = AiLongGeneration.event("finish")
+        finish.truncated = !parts.isEmpty
+        finish.incompleteParts = parts.isEmpty ? nil : parts
+        emit(finish)
+    }
+}
+
+private final class Draft: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = ""
+    var text: String { lock.lock(); defer { lock.unlock() }; return value }
+    func append(_ text: String) { lock.lock(); value += text; lock.unlock() }
+    func set(_ text: String) { lock.lock(); value = text; lock.unlock() }
+}
+
+/// Holds the start of a continuation until a repeated seam can be recognised.
+private final class Seam: @unchecked Sendable {
+    private let lock = NSLock()
+    private var held = ""
+    private var done = false
+    var joined: Bool { lock.lock(); defer { lock.unlock() }; return done }
+    func hold(_ text: String) { lock.lock(); held += text; lock.unlock() }
+    /// The held text once it is long enough (or the stream ended); `nil` when not yet or already released.
+    func release(final: Bool) -> String? {
+        lock.lock(); defer { lock.unlock() }
+        guard !done, final || held.count >= AiLongGeneration.continuationHoldChars else { return nil }
+        done = true
+        return held
+    }
+}

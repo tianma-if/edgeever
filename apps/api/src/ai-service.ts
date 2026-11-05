@@ -27,6 +27,7 @@ import {
   normalizeAiGenerationText,
 } from "@edgeever/shared";
 
+import type { AiGenerationSegmentContext } from "@edgeever/shared/ai-generation-segments";
 import type { ModelMessage, UserContent } from "ai";
 import { AppError } from "./app-error";
 import { decryptSecret } from "./secret-encryption";
@@ -605,6 +606,21 @@ export const resolveAiGenerationSystemInstruction = (input: {
   return `${actionInstruction}${attachmentInstruction} ${AI_PROMPT_OUTPUT_INSTRUCTION}${boundaryInstruction}`;
 };
 
+const aiSegmentInstruction = (segment: AiGenerationSegmentContext) =>
+  ` This request covers part ${segment.index + 1} of ${segment.count} of a longer note. Process only this part and return its complete result: every heading, paragraph, list, table and code block in it, including any at its very start or end. Do not add a title, introduction, summary or closing remarks that are not in this part, and keep terminology and style consistent with the earlier parts.`;
+
+const AI_CONTINUATION_INSTRUCTION = " Your previous response to this request was cut off before it was complete. Continue it from exactly where it stopped. Do not repeat text that was already written and do not start over.";
+
+/** Context for one part of a long note; the model must not copy it into the result. */
+const buildAiSegmentContext = (segment: AiGenerationSegmentContext) => {
+  const lines = [
+    segment.headingPath.length ? `Section: ${segment.headingPath.join(" > ")}` : undefined,
+    segment.previousSourceTail ? `End of the previous part:\n${segment.previousSourceTail}` : undefined,
+    segment.previousOutputTail ? `End of the previous part's result:\n${segment.previousOutputTail}` : undefined,
+  ].filter(Boolean);
+  return lines.length ? ["Context for this part (do not include it in the result):", ...lines].join("\n") : undefined;
+};
+
 export const buildAiGenerationPrompt = (input: {
   contentMarkdown: string;
   targetLanguage?: AiTargetLanguage;
@@ -660,6 +676,8 @@ export const prepareAiGeneration = (input: {
   tone?: AiTone;
   instruction?: string;
   attachments?: AiAttachmentInput[];
+  segment?: AiGenerationSegmentContext;
+  continuation?: { round: number; previousOutput: string };
 }): AiPreparedGeneration => {
   const resultBoundary = createAiGenerationResultBoundary();
   return {
@@ -670,13 +688,20 @@ export const prepareAiGeneration = (input: {
       instruction: input.instruction,
       attachments: input.attachments,
       resultBoundary,
-    }),
-    prompt: buildAiGenerationPrompt({
-      contentMarkdown: input.contentMarkdown,
-      targetLanguage: input.targetLanguage,
-      tone: input.tone,
-      instruction: input.instruction,
-    }),
+    }) + (input.segment ? aiSegmentInstruction(input.segment) : "")
+      + (input.continuation ? AI_CONTINUATION_INSTRUCTION : ""),
+    prompt: [
+      buildAiGenerationPrompt({
+        contentMarkdown: input.contentMarkdown,
+        targetLanguage: input.targetLanguage,
+        tone: input.tone,
+        instruction: input.instruction,
+      }),
+      input.segment ? buildAiSegmentContext(input.segment) : undefined,
+      input.continuation
+        ? `Response so far (it was cut off; continue from its last character):\n${input.continuation.previousOutput}`
+        : undefined,
+    ].filter(Boolean).join("\n\n"),
     maxOutputTokens: input.maxOutputTokens ?? AI_GENERATION_MAX_OUTPUT_TOKENS,
     resultBoundary,
   };
