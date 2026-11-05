@@ -150,6 +150,22 @@ const copy = siteCopy[locale].hero;
           <span>{copy.clipper}</span>
         </a>
       </div>
+
+      <!-- Third-Party Note Migration Entry -->
+      <div class="mt-3.5 flex flex-wrap items-center">
+        <a
+          href={getLocalizedPath(locale, "/blog/note-migration-guide")}
+          class="group/mig inline-flex max-w-full items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-50/70 hover:bg-emerald-100/80 border border-emerald-200/70 hover:border-emerald-300 text-xs text-emerald-900 transition-all duration-200 shadow-2xs hover:shadow-xs"
+        >
+          <span class="flex items-center gap-1.5 font-semibold text-emerald-800 shrink-0">
+            <Icon name="bx:bx-import" class="w-4 h-4 text-emerald-600 group-hover/mig:scale-110 transition-transform" />
+            <span>{copy.migrationTitle}</span>
+          </span>
+          <span class="text-emerald-300 select-none hidden sm:inline" aria-hidden="true">·</span>
+          <span class="text-emerald-700/80 text-[11px] sm:text-xs truncate min-w-0">{copy.migrationSubtitle}</span>
+          <Icon name="bx:bx-right-arrow-alt" class="w-3.5 h-3.5 text-emerald-600 group-hover/mig:translate-x-0.5 transition-transform shrink-0 ml-auto sm:ml-0" />
+        </a>
+      </div>
     </div>
   </div>
 

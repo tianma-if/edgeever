@@ -47,6 +47,8 @@ export const plSiteCopy = {
     clipper: "Web Clipper",
     windows: "Windows",
     linux: "Linux",
+    migrationTitle: "Migracja notatek",
+    migrationSubtitle: "Natywny import z Evernote, Obsidian, Joplin oraz migracja z Notion i flomo",
     imageAlt: "Podgląd EdgeEver",
     badgeText:
       "💡 Wszystkie platformy: macOS, Windows, Linux, iOS, Android, Web Clipper · Natywna współpraca z MCP i ACP · Darmowy plan Cloudflare i Docker",

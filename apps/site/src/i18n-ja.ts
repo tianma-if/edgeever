@@ -47,6 +47,8 @@ export const jaSiteCopy = {
     clipper: "Web Clipper",
     windows: "Windows",
     linux: "Linux",
+    migrationTitle: "他社ノートからの移行",
+    migrationSubtitle: "Evernote、Obsidian、Joplinの直接取り込みやNotion、flomoの移行に対応",
     imageAlt: "EdgeEver のプレビュー",
     badgeText:
       "💡 対応: macOS、Windows、Linux、iOS、Android、Web Clipper · ネイティブ MCP & ACP 連携 · Cloudflare 無料枠と Docker",
