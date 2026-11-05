@@ -79,6 +79,7 @@ export type ResolvedAiModelRow = AiModelOutputBudgetColumns & {
   base_url: string;
   api_key_encrypted: string;
   is_enabled: number;
+  provider_updated_at: string;
 };
 
 const mapAiModelOutputBudgets = (row: Partial<AiModelOutputBudgetColumns>): AiModelOutputBudgets => ({
@@ -484,7 +485,8 @@ export const resolveDefaultAiModel = async (
        providers.provider,
        providers.base_url,
        providers.api_key_encrypted,
-       providers.is_enabled
+       providers.is_enabled,
+       providers.updated_at AS provider_updated_at
      FROM ai_workspace_settings AS settings
      JOIN ai_models AS models ON models.id = settings.default_model_id
      JOIN ai_provider_configs AS providers ON providers.id = models.provider_config_id
@@ -515,6 +517,8 @@ export const resolveDefaultAiModel = async (
     capabilities: mapAiModelCapabilities(row),
     modelConfigId: row.model_config_id,
     providerConfigId: row.provider_config_id,
+    /** Identifies the provider configuration that detected limits are reported against. */
+    providerConfigVersion: row.provider_updated_at,
   };
 };
 

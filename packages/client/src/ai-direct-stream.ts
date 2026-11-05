@@ -180,7 +180,11 @@ export const parsePreparedAiGeneration = (value: unknown): AiPreparedGeneration 
       },
     } : {}),
     ...(target && typeof target.providerConfigId === "string" && typeof target.modelConfigId === "string"
-      ? { capabilityTarget: { providerConfigId: target.providerConfigId, modelConfigId: target.modelConfigId } }
+      && typeof target.configVersion === "string"
+      ? {
+        capabilityTarget: { providerConfigId: target.providerConfigId, modelConfigId: target.modelConfigId, configVersion: target.configVersion },
+        detectCapabilities: record.detectCapabilities === true,
+      }
       : {}),
   };
 };

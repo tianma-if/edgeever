@@ -18,6 +18,14 @@ import {
   type AiTone,
   type MemoDetail,
 } from "@edgeever/shared";
+import {
+  aiDraftIncompleteReason,
+  failAiDraftCompletion,
+  startAiDraftCompletion,
+  stopAiDraftCompletion,
+  trackAiDraftEvent,
+  type AiDraftCompletion,
+} from "@edgeever/shared/ai-generation";
 import * as Clipboard from "expo-clipboard";
 import { Modal, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -60,8 +68,9 @@ export const MobileAiAssistantModal = ({
   const [refineInstruction, setRefineInstruction] = useState("");
   const [output, setOutput] = useState("");
   const [error, setError] = useState<string | null>(null);
-  // Why the current draft is incomplete; an incomplete draft must not replace the note (#652).
-  const [incomplete, setIncomplete] = useState<"truncated" | "stopped" | null>(null);
+  // Whether the current draft finished cleanly; any other draft must not replace the note (#652).
+  const [completion, setCompletion] = useState<AiDraftCompletion>(startAiDraftCompletion);
+  const incomplete = aiDraftIncompleteReason(completion);
   const [generating, setGenerating] = useState(false);
   const [applying, setApplying] = useState(false);
   const [picker, setPicker] = useState<"action" | "language" | "tone" | null>(null);
@@ -173,7 +182,7 @@ export const MobileAiAssistantModal = ({
     controllerRef.current = controller;
     setOutput("");
     setError(null);
-    setIncomplete(null);
+    setCompletion(startAiDraftCompletion());
     setGenerating(true);
     try {
       await client.streamAiGeneration(buildRequest(source, refinement), {
@@ -181,18 +190,25 @@ export const MobileAiAssistantModal = ({
         onEvent: (event) => {
           if (event.type === "text-delta") setOutput((current) => current + event.text);
           if (event.type === "error") setError(event.message);
-          if (event.type === "finish" && event.truncated) setIncomplete("truncated");
+          if (controllerRef.current === controller) setCompletion((current) => trackAiDraftEvent(current, event));
         },
       });
+      if (controller.signal.aborted && controllerRef.current === controller) setCompletion(stopAiDraftCompletion);
     } catch (caught) {
+      // A request replaced by a newer one must not mark the newer draft.
+      if (controllerRef.current !== controller) return;
       if (controller.signal.aborted) {
-        setIncomplete((current) => current ?? "stopped");
+        setCompletion(stopAiDraftCompletion);
         return;
       }
+      // A connection that drops after some text keeps that text as an incomplete draft.
+      setCompletion(failAiDraftCompletion);
       setError(
-        caught instanceof ApiRequestError && caught.code === "ai_not_configured"
-          ? getMobileCatalog(resolvedLocale).mobile.ai.modelNotConfigured
-          : caught instanceof Error ? caught.message : getMobileCatalog(resolvedLocale).mobile.ai.generationFailed
+        caught instanceof ApiRequestError && caught.code === "ai_input_too_long"
+          ? getMobileCatalog(resolvedLocale).mobile.ai.inputTooLong
+          : caught instanceof ApiRequestError && caught.code === "ai_not_configured"
+            ? getMobileCatalog(resolvedLocale).mobile.ai.modelNotConfigured
+            : caught instanceof Error ? caught.message : getMobileCatalog(resolvedLocale).mobile.ai.generationFailed
       );
     } finally {
       if (controllerRef.current === controller) {
@@ -344,11 +360,13 @@ export const MobileAiAssistantModal = ({
               </View>
             </View>
           ) : null}
-          {incomplete && output ? (
+          {incomplete && output && !generating ? (
             <Text accessibilityRole="alert" style={styles.warning}>
               {incomplete === "truncated"
                 ? getMobileCatalog(resolvedLocale).mobile.ai.incompleteTruncated
-                : getMobileCatalog(resolvedLocale).mobile.ai.incompleteStopped}
+                : incomplete === "stopped"
+                  ? getMobileCatalog(resolvedLocale).mobile.ai.incompleteStopped
+                  : getMobileCatalog(resolvedLocale).mobile.ai.incompleteInterrupted}
             </Text>
           ) : null}
           {error ? <Text style={styles.error}>{error}</Text> : null}

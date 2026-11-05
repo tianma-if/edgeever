@@ -3802,6 +3802,8 @@ export const pl = {
       noteUpdateFailed: "Nie udało się zaktualizować notatki.",
       incompleteTruncated: "Wynik jest niepełny: model osiągnął limit odpowiedzi. Możesz go skopiować lub dołączyć, ale nie może zastąpić oryginału.",
       incompleteStopped: "Generowanie zatrzymano, więc wynik jest niepełny. Możesz go skopiować lub dołączyć, ale nie może zastąpić oryginału.",
+      incompleteInterrupted: "Wynik jest niepełny: generowanie zostało przerwane. Możesz go skopiować lub dołączyć, ale nie może zastąpić oryginału.",
+      inputTooLong: "Notatka jest za długa dla okna kontekstu wybranego modelu. Skróć notatkę lub wybierz model z większym oknem.",
       noteUpdated: "Zaktualizowano notatkę",
       refinePlaceholder: "Na przykład: bardziej zwięźle",
       refineResult: "Dopracuj wynik",

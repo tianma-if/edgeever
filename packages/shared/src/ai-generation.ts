@@ -22,9 +22,16 @@ export type AiPreparedGeneration = AiDirectTarget & {
   resultBoundary: AiGenerationResultBoundary;
   /** How the budget was chosen (#652); absent from older instances. */
   outputBudget?: { mode: AiOutputBudgetMode; outputLimit: number | null; inputFits: boolean | null };
-  /** Set when the instance has no fresh limits for this model; the client may detect and report them. */
-  capabilityTarget?: { providerConfigId: string; modelConfigId: string };
+  /**
+   * Where the client reports limits for this model. `configVersion` is the provider configuration
+   * the limits were read for; a report for any other version is rejected.
+   */
+  capabilityTarget?: AiModelCapabilityTarget;
+  /** True when the instance has no fresh limits, so the client should read them from the provider. */
+  detectCapabilities?: boolean;
 };
+
+export type AiModelCapabilityTarget = { providerConfigId: string; modelConfigId: string; configVersion: string };
 
 export type AiPreparedTextGeneration = AiDirectTarget & {
   apiKey: string;
@@ -350,4 +357,35 @@ export const extractAiDirectStreamDelta = (provider: AiProvider, payload: unknow
     inputTokens: typeof usage?.prompt_tokens === "number" ? usage.prompt_tokens : undefined,
     outputTokens: typeof usage?.completion_tokens === "number" ? usage.completion_tokens : undefined,
   };
+};
+
+/** Why a streamed AI draft must not replace the original text (#652). */
+export type AiDraftIncompleteReason = "truncated" | "stopped" | "interrupted";
+
+/**
+ * The state of one streamed draft. The draft may replace the original only after the stream
+ * reported a finish that was not truncated and no error. Text that arrived before an error, a
+ * dropped connection or a stop stays usable for copy and append, but never for replace.
+ */
+export type AiDraftCompletion = Readonly<{ finished: boolean; truncated: boolean; failed: boolean; stopped: boolean }>;
+
+export const startAiDraftCompletion = (): AiDraftCompletion => ({ finished: false, truncated: false, failed: false, stopped: false });
+
+export const trackAiDraftEvent = (state: AiDraftCompletion, event: { type: string; truncated?: boolean }): AiDraftCompletion => {
+  if (event.type === "finish") return { ...state, finished: true, truncated: state.truncated || event.truncated === true };
+  if (event.type === "error") return { ...state, failed: true };
+  return state;
+};
+
+/** The request threw or the stream ended without finishing. */
+export const failAiDraftCompletion = (state: AiDraftCompletion): AiDraftCompletion => ({ ...state, failed: true });
+
+export const stopAiDraftCompletion = (state: AiDraftCompletion): AiDraftCompletion => ({ ...state, stopped: true });
+
+/** `null` only for a draft that finished cleanly; while streaming it reads as interrupted. */
+export const aiDraftIncompleteReason = (state: AiDraftCompletion): AiDraftIncompleteReason | null => {
+  if (state.stopped) return "stopped";
+  if (state.truncated) return "truncated";
+  if (state.failed || !state.finished) return "interrupted";
+  return null;
 };

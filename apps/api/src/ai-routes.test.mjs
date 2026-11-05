@@ -52,8 +52,8 @@ class SqliteD1PreparedStatement {
   }
 
   async run() {
-    this.db.query(this.sql).run(...this.bindings);
-    return { success: true, meta: {} };
+    const result = this.db.query(this.sql).run(...this.bindings);
+    return { success: true, meta: { changes: result.changes } };
   }
 }
 
@@ -588,6 +588,7 @@ describe("AI route contracts", () => {
       provider: "google",
       baseUrl: "https://draft.example.com/v1",
       apiKey: "draft-key",
+      configVersion: expect.any(String),
     });
     expect((await app.request("/api/v1/ai/settings", {}, databaseEnvironment).then((response) => response.json())).providers[0])
       .toMatchObject({
@@ -954,6 +955,7 @@ describe("AI model provider settings routes", () => {
       provider: "openai-compatible",
       baseUrl: "https://models.example.com/v1",
       apiKey: "secret",
+      configVersion: expect.any(String),
       modelId: "",
     });
 
@@ -1581,15 +1583,20 @@ describe("automatic output budget (#652 PR A)", () => {
     expect(response.status).toBe(200);
     return response.json();
   };
-  const report = (app, env, provider, model, body) => app.request(capabilitiesPath(provider, model), send({
-    modelId: model.modelId, baseUrl: provider.baseUrl, maxOutputTokens: null, maxInputTokens: null, contextWindowTokens: null, source: "none", ...body,
+  const configVersion = async (env, provider) => (await env.storage.db
+    .prepare("SELECT updated_at FROM ai_provider_configs WHERE id = ?").bind(provider.id).first()).updated_at;
+  const report = async (app, env, provider, model, body) => app.request(capabilitiesPath(provider, model), send({
+    provider: provider.provider, modelId: model.modelId, baseUrl: provider.baseUrl, configVersion: await configVersion(env, provider),
+    maxOutputTokens: null, maxInputTokens: null, contextWindowTokens: null, source: "none", ...body,
   }, "PUT"), env);
+  const detectedAt = (sqlite) => sqlite.query("SELECT detected_at FROM ai_models").get().detected_at;
 
   test("without detected limits, new clients send no limit, old clients keep 4096, and both are asked to detect", async () => {
     const { sqlite, app, environment: env, provider, model } = await setup();
     const unbounded = await prepare(app, env, { allowUnboundedOutput: true });
     expect(unbounded).toMatchObject({ maxOutputTokens: null, outputBudget: { mode: "auto-unbounded", outputLimit: null } });
-    expect(unbounded.capabilityTarget).toEqual({ providerConfigId: provider.id, modelConfigId: model.id });
+    expect(unbounded.capabilityTarget).toEqual({ providerConfigId: provider.id, modelConfigId: model.id, configVersion: await configVersion(env, provider) });
+    expect(unbounded.detectCapabilities).toBe(true);
     const legacy = await prepare(app, env);
     expect(legacy).toMatchObject({ maxOutputTokens: 4096, outputBudget: { mode: "fallback" } });
     sqlite.close();
@@ -1612,7 +1619,9 @@ describe("automatic output budget (#652 PR A)", () => {
     const longNote = "a".repeat(200_000);
     const prepared = await prepare(app, env, { allowUnboundedOutput: true, contentMarkdown: longNote });
     expect(prepared).toMatchObject({ maxOutputTokens: 65536, outputBudget: { mode: "auto", outputLimit: 65536, inputFits: true } });
-    expect(prepared.capabilityTarget).toBeUndefined();
+    expect(prepared.detectCapabilities).toBe(false);
+    // The client can still report a corrected limit learned from a provider error.
+    expect(prepared.capabilityTarget).toMatchObject({ providerConfigId: provider.id, modelConfigId: model.id });
     // Old clients get the automatic budget too.
     expect((await prepare(app, env, { contentMarkdown: longNote })).maxOutputTokens).toBe(65536);
     sqlite.close();
@@ -1649,9 +1658,9 @@ describe("automatic output budget (#652 PR A)", () => {
     expect((await report(app, env, provider, model, { source: "none" })).status).toBe(200);
     const afterNone = await prepare(app, env, { allowUnboundedOutput: true });
     expect(afterNone).toMatchObject({ maxOutputTokens: null, outputBudget: { mode: "auto-unbounded" } });
-    expect(afterNone.capabilityTarget).toBeUndefined();
+    expect(afterNone.detectCapabilities).toBe(false);
     sqlite.query("UPDATE ai_models SET detected_at = '2026-01-01T00:00:00.000Z'").run();
-    expect((await prepare(app, env, { allowUnboundedOutput: true })).capabilityTarget).toEqual({ providerConfigId: provider.id, modelConfigId: model.id });
+    expect((await prepare(app, env, { allowUnboundedOutput: true })).detectCapabilities).toBe(true);
     sqlite.close();
   });
 
@@ -1675,6 +1684,80 @@ describe("automatic output budget (#652 PR A)", () => {
     expect((await report(createApp({ demoMode: true }), env, provider, model, {})).status).toBe(403);
     expect((await report(createApp({ currentAuth: { ...auth, kind: "agent", actorType: "agent", scopes: ["ai:generate"] } }), env, provider, model, {})).status).toBe(403);
     expect(sqlite.query("SELECT detected_at FROM ai_models").get()).toEqual({ detected_at: null });
+    sqlite.close();
+  });
+
+  test("a late report cannot overwrite limits cleared by an endpoint change that lands before its write", async () => {
+    const { sqlite, app, environment: env, provider, model } = await setup();
+    const version = await configVersion(env, provider);
+    // Another request changes the endpoint (and clears detected limits, as the provider route does)
+    // after this report has passed its checks but before its write runs.
+    const realDb = env.storage.db;
+    let interleaved = false;
+    const db = Object.create(realDb);
+    db.prepare = (sql) => {
+      if (!interleaved && /^\s*UPDATE ai_models SET detected_max_output_tokens/.test(sql)) {
+        interleaved = true;
+        sqlite.query("UPDATE ai_models SET detected_max_output_tokens = NULL, detected_max_input_tokens = NULL, detected_context_window_tokens = NULL, detected_capability_source = NULL, detected_at = NULL WHERE provider_config_id = ?").run(provider.id);
+        sqlite.query("UPDATE ai_provider_configs SET base_url = ?, updated_at = ? WHERE id = ?").run("https://new-gateway.example/v1", "2099-01-01T00:00:00.000Z", provider.id);
+      }
+      return realDb.prepare(sql);
+    };
+    const racing = { ...env, storage: { ...env.storage, db } };
+    for (const body of [
+      { maxOutputTokens: 128000, contextWindowTokens: 400000, source: "openrouter-models" },
+      { maxOutputTokens: 128000, source: "provider-error" },
+    ]) {
+      interleaved = false;
+      sqlite.query("UPDATE ai_provider_configs SET base_url = ?, updated_at = ? WHERE id = ?").run(provider.baseUrl, version, provider.id);
+      const response = await app.request(capabilitiesPath(provider, model), send({
+        provider: provider.provider, modelId: model.modelId, baseUrl: provider.baseUrl, configVersion: version,
+        maxOutputTokens: null, maxInputTokens: null, contextWindowTokens: null, ...body,
+      }, "PUT"), racing);
+      expect(interleaved).toBe(true);
+      expect(response.status).toBe(409);
+      expect((await response.json()).error.code).toBe("ai_model_changed");
+      expect(detectedAt(sqlite)).toBeNull();
+    }
+    sqlite.close();
+  });
+
+  test("a report read before switching the service type on the same URL is rejected", async () => {
+    const { sqlite, app, environment: env, provider, model } = await setup();
+    // Keep the saved version distinct from the update below even when both land in one millisecond.
+    sqlite.query("UPDATE ai_provider_configs SET updated_at = '2026-01-01T00:00:00.000Z'").run();
+    const before = await prepare(app, env, { allowUnboundedOutput: true });
+    const switched = await app.request(`/api/v1/ai/providers/${provider.id}`, send({ provider: "anthropic", displayName: provider.displayName, baseUrl: provider.baseUrl, isEnabled: true }, "PUT"), env);
+    expect(switched.status).toBe(200);
+    const late = (body) => app.request(capabilitiesPath(provider, model), send({
+      modelId: model.modelId, baseUrl: provider.baseUrl, configVersion: before.capabilityTarget.configVersion,
+      maxOutputTokens: 128000, maxInputTokens: null, contextWindowTokens: null, source: "openrouter-models", ...body,
+    }, "PUT"), env);
+    // The old service type, and the new type with the old configuration version, are both rejected.
+    expect((await late({ provider: "openai-compatible" })).status).toBe(409);
+    expect((await late({ provider: "anthropic" })).status).toBe(409);
+    expect(detectedAt(sqlite)).toBeNull();
+    // The new configuration still asks for detection and accepts a report for itself.
+    const after = await prepare(app, env, { allowUnboundedOutput: true });
+    expect(after.detectCapabilities).toBe(true);
+    expect(after.capabilityTarget.configVersion).not.toBe(before.capabilityTarget.configVersion);
+    expect((await late({ provider: "anthropic", configVersion: after.capabilityTarget.configVersion, source: "anthropic-models" })).status).toBe(200);
+    sqlite.close();
+  });
+
+  test("a note that leaves no room in the window is refused before reaching the provider", async () => {
+    const { sqlite, app, environment: env, provider, model } = await setup({ ...validSettings, provider: "anthropic", baseUrl: "https://api.anthropic.example/v1" });
+    await report(app, env, provider, model, { maxOutputTokens: 64000, contextWindowTokens: 100_000, source: "anthropic-models" });
+    const request = (contentMarkdown) => app.request("/api/v1/ai/generate/prepare", send({ action: "continue-writing", title: "Note", contentMarkdown, allowUnboundedOutput: true }), env);
+    const refused = await request("字".repeat(100_000));
+    expect(refused.status).toBe(413);
+    expect((await refused.json()).error.code).toBe("ai_input_too_long");
+    // A note that leaves only a little room gets at most that room.
+    const tight = await (await request("字".repeat(88_000))).json();
+    expect(tight.outputBudget).toMatchObject({ mode: "auto", inputFits: true });
+    expect(tight.maxOutputTokens).toBeGreaterThan(0);
+    expect(tight.maxOutputTokens).toBeLessThan(1024);
+    expect(tight.maxOutputTokens).toBe(tight.outputBudget.outputLimit);
     sqlite.close();
   });
 

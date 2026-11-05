@@ -212,14 +212,14 @@ export type AiOutputBudgetPlan = {
 };
 
 const CONTEXT_SAFETY_MIN_TOKENS = 1024;
-const MIN_AUTO_OUTPUT_TOKENS = 1024;
 const REASONING_HEADROOM_TOKENS = 4096;
 
 /**
  * Plan the output budget for one body-generation request.
  * - A manual budget always wins.
  * - With known limits, use what the task needs, capped by the output limit and, only for a
- *   shared window, by the space left after the input.
+ *   shared window, by the space left after the input. The cap is never raised above that space;
+ *   when nothing is left, `inputFits` is `false` and the request must not be sent.
  * - Without limits, clients that can omit the limit send none; others keep the old default.
  */
 export const planAiGenerationOutputBudget = (input: {
@@ -236,11 +236,13 @@ export const planAiGenerationOutputBudget = (input: {
   const windowRoom = caps?.contextWindowTokens
     ? caps.contextWindowTokens - inputTokens - Math.max(CONTEXT_SAFETY_MIN_TOKENS, Math.ceil(caps.contextWindowTokens * 0.02))
     : null;
-  const inputFits = caps?.maxInputTokens
-    ? inputTokens <= caps.maxInputTokens
-    : windowRoom !== null ? windowRoom > 0 : null;
+  const fitsInputLimit = caps?.maxInputTokens ? inputTokens <= caps.maxInputTokens : null;
+  const fitsWindow = windowRoom !== null ? windowRoom > 0 : null;
+  const inputFits = fitsInputLimit === false || fitsWindow === false
+    ? false
+    : fitsInputLimit ?? fitsWindow;
   const limits = [caps?.maxOutputTokens ?? null, windowRoom].filter((value): value is number => value !== null);
-  const outputLimit = limits.length ? Math.max(Math.min(...limits), Math.min(MIN_AUTO_OUTPUT_TOKENS, caps?.maxOutputTokens ?? MIN_AUTO_OUTPUT_TOKENS)) : null;
+  const outputLimit = limits.length ? Math.max(0, Math.min(...limits)) : null;
 
   if (typeof input.manualMaxOutputTokens === "number") {
     return { maxOutputTokens: input.manualMaxOutputTokens, mode: "manual", outputLimit, inputTokens, inputFits };

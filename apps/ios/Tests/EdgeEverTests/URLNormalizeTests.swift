@@ -87,6 +87,53 @@ final class URLNormalizeTests: XCTestCase {
         XCTAssertTrue(AiDirectStream.isTruncatedFinishReason(delta.finishReason))
     }
 
+    private func event(_ type: String, text: String? = nil, finishReason: String? = nil, truncated: Bool? = nil) -> AiStreamEvent {
+        AiStreamEvent(type: type, text: text, code: nil, message: nil, finishReason: finishReason, inputTokens: nil, outputTokens: nil, truncated: truncated)
+    }
+
+    func testOnlyACleanFinishLetsADraftReplaceTheOriginal() {
+        var complete = AiDraftCompletion()
+        complete.track(event("start"))
+        complete.track(event("text-delta", text: "Polished"))
+        XCTAssertEqual(complete.incompleteReason, .interrupted, "a draft still streaming cannot replace")
+        complete.track(event("finish", finishReason: "stop", truncated: false))
+        XCTAssertNil(complete.incompleteReason)
+
+        var truncated = AiDraftCompletion()
+        truncated.track(event("text-delta", text: "Part"))
+        truncated.track(event("finish", finishReason: "length"))
+        XCTAssertEqual(truncated.incompleteReason, .truncated)
+
+        var unterminated = AiDraftCompletion()
+        unterminated.track(event("finish", finishReason: "stop", truncated: true))
+        XCTAssertEqual(unterminated.incompleteReason, .truncated)
+
+        var stopped = AiDraftCompletion()
+        stopped.track(event("text-delta", text: "Part"))
+        stopped.stop()
+        XCTAssertEqual(stopped.incompleteReason, .stopped)
+    }
+
+    func testPartialTextBeforeADroppedConnectionOrStreamErrorCannotReplace() {
+        // The provider sent text, then the connection dropped and the stream threw.
+        var dropped = AiDraftCompletion()
+        dropped.track(event("start"))
+        dropped.track(event("text-delta", text: "First paragraph"))
+        dropped.fail()
+        XCTAssertEqual(dropped.incompleteReason, .interrupted)
+
+        // The provider sent text, then an error event.
+        var streamError = AiDraftCompletion()
+        streamError.track(event("text-delta", text: "First paragraph"))
+        streamError.track(event("error"))
+        XCTAssertEqual(streamError.incompleteReason, .interrupted)
+
+        // A stream that ends with neither finish nor error is not complete either.
+        var ended = AiDraftCompletion()
+        ended.track(event("text-delta", text: "First paragraph"))
+        XCTAssertEqual(ended.incompleteReason, .interrupted)
+    }
+
     func testGenerateRequestDeclaresUnboundedOutputSupport() throws {
         let input = AiGenerateInput(action: .translate, title: "t", contentMarkdown: "Body", targetLanguage: "en")
         let encoded = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(input)) as? [String: Any])

@@ -1210,14 +1210,22 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
         return parsed;
       };
       let prepared = await prepare();
+      // Reporting and detecting are separate: a fresh cache is not read again, but a limit learned
+      // from a provider error is still reported so a cached value that is too high gets corrected.
       const target = prepared.capabilityTarget;
       const report = (limits: AiModelCapabilityLimits) => target
         ? request(`/api/v1/ai/providers/${encodeURIComponent(target.providerConfigId)}/models/${encodeURIComponent(target.modelConfigId)}/capabilities`, {
           method: "PUT",
-          body: JSON.stringify({ modelId: prepared.modelId, baseUrl: prepared.baseUrl, ...limits }),
+          body: JSON.stringify({
+            provider: prepared.provider,
+            modelId: prepared.modelId,
+            baseUrl: prepared.baseUrl,
+            configVersion: target.configVersion,
+            ...limits,
+          }),
         }).then(() => true, () => false)
         : Promise.resolve(false);
-      if (target) {
+      if (target && prepared.detectCapabilities) {
         // The instance has no fresh limits for this model: read them from the provider once,
         // save them for every client, and prepare again so this request already uses them.
         const { detectAiModelCapabilities } = await import("./ai-model-capabilities-direct");
@@ -1237,7 +1245,7 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
 
     /** Read a saved model's limits from its provider and store them on the instance (#652). */
     detectAiModelCapabilities: async (providerConfigId: string, modelConfigId: string, modelId: string, signal?: AbortSignal) => {
-      const credential = await request<{ provider: AiProvider; baseUrl: string; apiKey: string }>(
+      const credential = await request<{ provider: AiProvider; baseUrl: string; apiKey: string; configVersion: string }>(
         `/api/v1/ai/providers/${encodeURIComponent(providerConfigId)}/direct-credential`,
         { method: "POST", body: JSON.stringify({ modelId }), signal },
       );
@@ -1246,7 +1254,11 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
       if (!limits) return null;
       return request<{ detectedCapabilities: AiModelCapabilities | null }>(
         `/api/v1/ai/providers/${encodeURIComponent(providerConfigId)}/models/${encodeURIComponent(modelConfigId)}/capabilities`,
-        { method: "PUT", body: JSON.stringify({ modelId, baseUrl: credential.baseUrl, ...limits }), signal },
+        {
+          method: "PUT",
+          body: JSON.stringify({ provider: credential.provider, modelId, baseUrl: credential.baseUrl, configVersion: credential.configVersion, ...limits }),
+          signal,
+        },
       );
     },
 

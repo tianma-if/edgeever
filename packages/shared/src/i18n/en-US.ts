@@ -3794,6 +3794,8 @@ export const enUS = {
       noteUpdateFailed: "Could not update the note.",
       incompleteTruncated: "This result is incomplete: the model reached its output limit. You can copy or append it, but it can't replace the original.",
       incompleteStopped: "Generation was stopped, so this result is incomplete. You can copy or append it, but it can't replace the original.",
+      incompleteInterrupted: "This result is incomplete: generation was interrupted. You can copy or append it, but it can't replace the original.",
+      inputTooLong: "This note is too long for the selected model's context window. Shorten the note or choose a model with a larger window.",
       noteUpdated: "Note updated",
       refinePlaceholder: "For example: Make it more concise",
       refineResult: "Refine result",

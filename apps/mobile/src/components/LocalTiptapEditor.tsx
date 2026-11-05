@@ -78,6 +78,7 @@ import {
   getMobileEditorToolbarLabel,
   type MobileEditorToolbarActionId,
 } from "@edgeever/shared/mobile-editor";
+import type { AiDraftIncompleteReason } from "@edgeever/shared/ai-generation";
 import {
   type NoteImageTheme,
   type NoteImageFontStyle,
@@ -233,8 +234,11 @@ type MobileAiPanelState = {
   error: string | null;
   generating: boolean;
   requestId: string | null;
-  /** Why the draft is incomplete; an incomplete draft must not replace the selection (#652). */
-  incomplete?: "truncated" | "stopped" | null;
+  /**
+   * Why the draft is incomplete; an incomplete draft must not replace the selection (#652).
+   * A new request starts as "interrupted" and only a clean finish clears it.
+   */
+  incomplete?: AiDraftIncompleteReason | null;
 };
 
 type MobileAiBridgePayload = {
@@ -1122,7 +1126,7 @@ function LocalTiptapEditorImpl(props: LocalTiptapEditorProps) {
     setAiPanel((current) => current ? {
       ...current,
       output: "",
-      incomplete: null,
+      incomplete: "interrupted",
       error: null,
       generating: true,
       requestId,
@@ -1142,6 +1146,7 @@ function LocalTiptapEditorImpl(props: LocalTiptapEditorProps) {
         ...current,
         generating: false,
         requestId: null,
+        incomplete: current.incomplete === "stopped" ? "stopped" : "interrupted",
         error: requestError instanceof Error ? requestError.message : getMobileEditorCopy(props.locale).ai.generationFailed,
       } : current);
     });
@@ -1158,7 +1163,8 @@ function LocalTiptapEditorImpl(props: LocalTiptapEditorProps) {
           return { ...current, output: current.output + payload.event.text };
         }
         if (payload.event.type === "error") {
-          return { ...current, generating: false, requestId: null, error: payload.event.message };
+          // Text that arrived before the error stays an incomplete draft.
+          return { ...current, generating: false, requestId: null, incomplete: "interrupted", error: payload.event.message };
         }
         if (payload.event.type === "finish") {
           return { ...current, generating: false, requestId: null, incomplete: payload.event.truncated ? "truncated" : null };
@@ -2034,9 +2040,13 @@ const MobileSelectionAiPanel = ({
             </div>
           </label>
         ) : null}
-        {panel.incomplete && panel.output ? (
+        {panel.incomplete && panel.output && !panel.generating ? (
           <p className="edgeever-ai-error" role="alert">
-            {panel.incomplete === "truncated" ? getMobileEditorCopy(locale).ai.incompleteTruncated : getMobileEditorCopy(locale).ai.incompleteStopped}
+            {panel.incomplete === "truncated"
+              ? getMobileEditorCopy(locale).ai.incompleteTruncated
+              : panel.incomplete === "stopped"
+                ? getMobileEditorCopy(locale).ai.incompleteStopped
+                : getMobileEditorCopy(locale).ai.incompleteInterrupted}
           </p>
         ) : null}
         {panel.error ? <p className="edgeever-ai-error" role="alert">{panel.error}</p> : null}

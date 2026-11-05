@@ -407,8 +407,11 @@ const aiCapabilityTokens = z.number().int().positive().max(AI_MODEL_CAPABILITY_M
 
 /** Limits a client read from the provider for one model; checked against the saved model and endpoint. */
 export const AiModelCapabilitiesReportSchema = z.object({
+  provider: AiProviderSchema,
   modelId: z.string().trim().min(1).max(200),
   baseUrl: z.string().trim().min(1).max(2048),
+  /** The provider configuration the limits were read for (its `updated_at`). */
+  configVersion: z.string().trim().min(1).max(64),
   maxOutputTokens: aiCapabilityTokens,
   maxInputTokens: aiCapabilityTokens,
   contextWindowTokens: aiCapabilityTokens,

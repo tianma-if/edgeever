@@ -3811,6 +3811,8 @@ export const zhCN = {
       noteUpdateFailed: "更新笔记失败。",
       incompleteTruncated: "结果不完整：模型达到了输出上限。可以复制或追加，但不能用它替换原文。",
       incompleteStopped: "生成已停止，结果不完整。可以复制或追加，但不能用它替换原文。",
+      incompleteInterrupted: "结果不完整：生成中途中断。可以复制或追加，但不能用它替换原文。",
+      inputTooLong: "笔记太长，超出了所选模型的上下文窗口。请缩短笔记，或换用窗口更大的模型。",
       noteUpdated: "已更新笔记",
       refinePlaceholder: "例如：再简洁一点",
       refineResult: "继续调整",

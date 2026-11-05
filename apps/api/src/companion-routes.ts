@@ -60,6 +60,7 @@ export const registerCompanionRoutes = (parent: Hono<AppEnv>, dependencies: {
         capabilities: null,
         modelConfigId: "",
         providerConfigId: "",
+        providerConfigVersion: "",
       };
     }
     return resolveDefaultAiModel(db, workspaceId, env);

@@ -1,6 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import { createEdgeEverClient } from "./index.ts";
 import { detectAiModelCapabilities } from "./ai-model-capabilities-direct.ts";
+import {
+  aiDraftIncompleteReason,
+  failAiDraftCompletion,
+  startAiDraftCompletion,
+  trackAiDraftEvent,
+} from "../../shared/src/ai-generation.ts";
 
 const json = (body, status = 200) => Response.json(body, { status });
 
@@ -75,6 +81,8 @@ const sse = (finishReason) => new Response([
   "",
 ].join("\n\n"), { headers: { "content-type": "text/event-stream" } });
 
+const target = { providerConfigId: "aip_1", modelConfigId: "aim_1", configVersion: "v1" };
+
 describe("generation with automatic budgets (#652)", () => {
   test("stale limits: detect, report, prepare again, then stream with the new budget", async () => {
     const instance = [];
@@ -88,7 +96,7 @@ describe("generation with automatic budgets (#652)", () => {
         if (path.endsWith("/generate/prepare")) {
           prepares++;
           return json(prepares === 1
-            ? preparedBody({ capabilityTarget: { providerConfigId: "aip_1", modelConfigId: "aim_1" }, outputBudget: { mode: "auto-unbounded", outputLimit: null, inputFits: null } })
+            ? preparedBody({ capabilityTarget: target, detectCapabilities: true, outputBudget: { mode: "auto-unbounded", outputLimit: null, inputFits: null } })
             : preparedBody({ maxOutputTokens: 32000, outputBudget: { mode: "auto", outputLimit: 32000, inputFits: true } }));
         }
         if (path.endsWith("/capabilities")) return json({ detectedCapabilities: {} });
@@ -108,7 +116,10 @@ describe("generation with automatic budgets (#652)", () => {
       "POST /api/v1/ai/generate/prepare",
     ]);
     expect(instance[0].body.allowUnboundedOutput).toBe(true);
-    expect(instance[1].body).toEqual({ modelId: "model-x", baseUrl: "https://gateway.example/v1", maxOutputTokens: 32000, maxInputTokens: null, contextWindowTokens: 200000, source: "openrouter-models" });
+    expect(instance[1].body).toEqual({
+      provider: "openai-compatible", modelId: "model-x", baseUrl: "https://gateway.example/v1", configVersion: "v1",
+      maxOutputTokens: 32000, maxInputTokens: null, contextWindowTokens: 200000, source: "openrouter-models",
+    });
     expect(provider.map((call) => `${call.method} ${call.path}`)).toEqual(["GET /v1/models", "POST /v1/chat/completions"]);
     expect(provider[1].body.max_tokens).toBe(32000);
     expect(events.at(-1)).toMatchObject({ type: "finish", finishReason: "stop", truncated: false });
@@ -153,7 +164,7 @@ describe("generation with automatic budgets (#652)", () => {
         const path = new URL(String(url)).pathname;
         instance.push({ path, body: init.body ? JSON.parse(String(init.body)) : undefined });
         if (path.endsWith("/capabilities")) return json({ detectedCapabilities: {} });
-        return json(preparedBody({ provider: "anthropic", maxOutputTokens: 128000, capabilityTarget: { providerConfigId: "aip_1", modelConfigId: "aim_1" } }));
+        return json(preparedBody({ provider: "anthropic", maxOutputTokens: 128000, capabilityTarget: target, detectCapabilities: true }));
       },
       providerFetch: async (url, init) => {
         if (init.method === "GET") return json({ id: "model-x", max_tokens: null, max_input_tokens: null });
@@ -191,6 +202,95 @@ describe("generation with automatic budgets (#652)", () => {
       return events.at(-1);
     };
     expect(await run("max_tokens")).toMatchObject({ type: "finish", finishReason: "max_tokens", truncated: true, outputTokens: 7 });
+  });
+
+  test("a fresh cached limit that is too high is corrected by a 400 and used next time", async () => {
+    // The instance keeps a fresh but stale-in-practice limit: the gateway now accepts only 64000.
+    let cached = 128000;
+    const reports = [];
+    const sent = [];
+    const detects = [];
+    const client = createEdgeEverClient({
+      baseUrl: "https://notes.example",
+      fetch: async (url, init) => {
+        const path = new URL(String(url)).pathname;
+        if (path.endsWith("/capabilities")) {
+          const body = JSON.parse(String(init.body));
+          reports.push(body);
+          if (body.source === "provider-error") cached = body.maxOutputTokens;
+          return json({ detectedCapabilities: { maxOutputTokens: cached } });
+        }
+        return json(preparedBody({ provider: "anthropic", maxOutputTokens: cached, capabilityTarget: target, detectCapabilities: false }));
+      },
+      providerFetch: async (url, init) => {
+        if (init.method === "GET") { detects.push(String(url)); return json({}); }
+        const body = JSON.parse(String(init.body));
+        sent.push(body.max_tokens);
+        if (body.max_tokens > 64000) {
+          return json({ type: "error", error: { type: "invalid_request_error", message: "max_tokens: 128000 > 64000, which is the maximum allowed number of output tokens for model-x" } }, 400);
+        }
+        return new Response('event: content_block_delta\ndata: {"type":"content_block_delta","delta":{"type":"text_delta","text":"<r>ok</r>"}}\n\nevent: message_delta\ndata: {"type":"message_delta","delta":{"stop_reason":"end_turn"}}\n\n', { headers: { "content-type": "text/event-stream" } });
+      },
+    });
+    const run = async () => {
+      const events = [];
+      await client.streamAiGeneration({ action: "continue-writing", title: "Note", contentMarkdown: "Body" }, { onEvent: (event) => events.push(event) });
+      return events.at(-1);
+    };
+    expect(await run()).toMatchObject({ type: "finish", truncated: false });
+    // One retry, and the correction is saved even though the cache was fresh.
+    expect(sent).toEqual([128000, 64000]);
+    expect(reports).toEqual([{
+      provider: "anthropic", modelId: "model-x", baseUrl: "https://gateway.example/v1", configVersion: "v1",
+      maxOutputTokens: 64000, maxInputTokens: null, contextWindowTokens: null, source: "provider-error",
+    }]);
+    expect(detects).toEqual([]);
+    // The next generation starts with the corrected limit and needs no retry.
+    expect(await run()).toMatchObject({ type: "finish", truncated: false });
+    expect(sent).toEqual([128000, 64000, 64000]);
+    expect(reports).toHaveLength(1);
+  });
+
+  test("text followed by a dropped connection or a stream error is an incomplete draft", async () => {
+    const encoder = new TextEncoder();
+    const dropAfterText = () => new Response(new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoder.encode('data: {"choices":[{"delta":{"content":"<r>\\nFirst paragraph.\\n\\nSecond"}}]}\n\n'));
+        setTimeout(() => controller.error(new TypeError("network connection was lost")), 10);
+      },
+    }), { headers: { "content-type": "text/event-stream" } });
+    const errorAfterText = () => new Response([
+      'data: {"choices":[{"delta":{"content":"<r>\\nFirst paragraph.\\n\\nSecond"}}]}',
+      'data: {"error":{"message":"upstream overloaded"}}',
+      "",
+    ].join("\n\n"), { headers: { "content-type": "text/event-stream" } });
+    // Folds the events the way the Android assistant and selection panel do.
+    const run = async (providerResponse) => {
+      const client = createEdgeEverClient({
+        baseUrl: "https://notes.example",
+        fetch: async () => json(preparedBody({ maxOutputTokens: 4096 })),
+        providerFetch: async () => providerResponse(),
+      });
+      let completion = startAiDraftCompletion();
+      let text = "";
+      try {
+        await client.streamAiGeneration({ action: "improve-writing", title: "Note", contentMarkdown: "Body" }, {
+          onEvent: (event) => {
+            if (event.type === "text-delta") text += event.text;
+            completion = trackAiDraftEvent(completion, event);
+          },
+        });
+      } catch {
+        completion = failAiDraftCompletion(completion);
+      }
+      return { text, reason: aiDraftIncompleteReason(completion) };
+    };
+    const dropped = await run(dropAfterText);
+    expect(dropped.text).toContain("First paragraph.");
+    expect(dropped.reason).toBe("interrupted");
+    const errored = await run(errorAfterText);
+    expect(errored.text).toContain("First paragraph.");
+    expect(errored.reason).not.toBeNull();
   });
 
   test("an unrecognised 400 is not retried", async () => {

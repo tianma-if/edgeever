@@ -6,6 +6,11 @@ import {
   parseAiModelCapabilityLimits,
   parseAiOutputLimitFromError,
   planAiGenerationOutputBudget,
+  aiDraftIncompleteReason,
+  failAiDraftCompletion,
+  startAiDraftCompletion,
+  stopAiDraftCompletion,
+  trackAiDraftEvent,
 } from "./index.ts";
 
 describe("model capability parsing (#652)", () => {
@@ -112,6 +117,29 @@ describe("output budget planning (#652)", () => {
     expect(result.inputFits).toBe(true);
   });
 
+  test("a nearly full shared window caps the budget at the room left, never above it", () => {
+    const caps = { maxOutputTokens: 64000, maxInputTokens: null, contextWindowTokens: 100_000, source: "anthropic-models" };
+    const input = "字".repeat(88_818); // 97,700 estimated tokens: 100,000 - 97,700 - 2,000 safety = 300 left
+    for (const action of ["continue-writing", "translate"]) {
+      const result = plan({ provider: "anthropic", action, capabilities: caps, inputText: input, sourceText: input });
+      expect(result.inputTokens).toBe(97_700);
+      expect(result).toMatchObject({ mode: "auto", outputLimit: 300, maxOutputTokens: 300, inputFits: true });
+    }
+  });
+
+  test("an exhausted window or input limit reports that the input does not fit", () => {
+    const window = { maxOutputTokens: 64000, maxInputTokens: null, contextWindowTokens: 100_000, source: "anthropic-models" };
+    const tooLong = "字".repeat(100_000); // 110,000 estimated tokens
+    const exhausted = plan({ provider: "anthropic", capabilities: window, inputText: tooLong, sourceText: tooLong });
+    expect(exhausted).toMatchObject({ mode: "auto", inputFits: false, outputLimit: 0 });
+    expect(exhausted.maxOutputTokens).toBeLessThanOrEqual(0);
+    // An independent input limit (Gemini) is checked too, and a known window still applies.
+    const inputLimit = { maxOutputTokens: 65536, maxInputTokens: 100_000, contextWindowTokens: null, source: "gemini-models" };
+    expect(plan({ provider: "google", capabilities: inputLimit, inputText: tooLong, sourceText: tooLong }).inputFits).toBe(false);
+    const both = { maxOutputTokens: 65536, maxInputTokens: 1_000_000, contextWindowTokens: 100_000, source: "litellm-model-info" };
+    expect(plan({ capabilities: both, inputText: tooLong, sourceText: tooLong }).inputFits).toBe(false);
+  });
+
   test("open-ended tasks may use the whole output limit; source-sized tasks use what they need", () => {
     const caps = { maxOutputTokens: 32768, maxInputTokens: null, contextWindowTokens: null, source: "litellm-model-info" };
     expect(plan({ capabilities: caps, action: "continue-writing" }).maxOutputTokens).toBe(32768);
@@ -141,5 +169,30 @@ describe("output budget planning (#652)", () => {
     expect(estimateAiTokens("")).toBe(0);
     expect(estimateAiTokens("中文测试")).toBe(5);
     expect(estimateAiTokens("a".repeat(300))).toBe(110);
+  });
+});
+
+describe("draft completion (#652)", () => {
+  const run = (events, end) => {
+    let state = startAiDraftCompletion();
+    for (const event of events) state = trackAiDraftEvent(state, event);
+    if (end === "fail") state = failAiDraftCompletion(state);
+    if (end === "stop") state = stopAiDraftCompletion(state);
+    return aiDraftIncompleteReason(state);
+  };
+  const text = { type: "text-delta", text: "Partial" };
+
+  test("only a clean finish lets a draft replace the original", () => {
+    expect(run([{ type: "start" }, text])).toBe("interrupted");
+    expect(run([{ type: "start" }, text, { type: "finish", truncated: false }])).toBeNull();
+    expect(run([text, { type: "finish", truncated: true }])).toBe("truncated");
+    expect(run([text], "stop")).toBe("stopped");
+  });
+
+  test("text followed by a dropped connection or a stream error stays incomplete", () => {
+    expect(run([{ type: "start" }, text], "fail")).toBe("interrupted");
+    expect(run([text, { type: "error", code: "ai_generation_failed", message: "x" }])).toBe("interrupted");
+    // A later finish does not clear an earlier error.
+    expect(run([text, { type: "error" }, { type: "finish", truncated: false }])).toBe("interrupted");
   });
 });
