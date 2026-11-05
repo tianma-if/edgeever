@@ -746,6 +746,39 @@ describe("EdgeEver client endpoint contract", () => {
     }
   });
 
+  test("encodes reserved characters in every id path segment", async () => {
+    const id = "a/b?c#d";
+    const encoded = "a%2Fb%3Fc%23d";
+    const cases = [
+      ["revokeLoginDeviceSession", [id], `/api/v1/auth/sessions/${encoded}`],
+      ["updateLoginDeviceSession", [id, { label: null }], `/api/v1/auth/sessions/${encoded}`],
+      ["updateUser", [id, { displayName: "x" }], `/api/v1/users/${encoded}`],
+      ["updateNotebook", [id, { name: "x" }], `/api/v1/notebooks/${encoded}`],
+      ["deleteNotebook", [id], `/api/v1/notebooks/${encoded}`],
+      ["restoreNotebook", [id], `/api/v1/notebooks/${encoded}/restore`],
+      ["revokeApiToken", [id], `/api/v1/api-tokens/${encoded}`],
+      ["updateTemplate", [id, { name: "x" }], `/api/v1/templates/${encoded}`],
+      ["useTemplate", [id, "nb"], `/api/v1/templates/${encoded}/use`],
+      ["deleteTemplate", [id], `/api/v1/templates/${encoded}`],
+      ["getMemo", [id], `/api/v1/memos/${encoded}`],
+      ["getMemoShare", [id], `/api/v1/memos/${encoded}/share`],
+      ["createMemoShare", [id], `/api/v1/memos/${encoded}/share`],
+      ["updateMemoShare", [id, { showBranding: true }], `/api/v1/memos/${encoded}/share`],
+      ["revokeMemoShare", [id], `/api/v1/memos/${encoded}/share`],
+      ["createMemoEditSession", [id], `/api/v1/memos/${encoded}/edit-sessions`],
+      ["listMemoRevisions", [id], `/api/v1/memos/${encoded}/revisions`],
+      ["restoreMemoRevision", [id, id], `/api/v1/memos/${encoded}/revisions/${encoded}/restore`],
+      ["updateMemo", [id, { expectedRevision: 1, contentMarkdown: "x" }], `/api/v1/memos/${encoded}`],
+      ["deleteMemo", [id], `/api/v1/memos/${encoded}`],
+      ["restoreMemo", [id], `/api/v1/memos/${encoded}/restore`],
+    ];
+    for (const [name, args, path] of cases) {
+      const { client, calls } = createRecordingClient(() => jsonResponse({}));
+      await resolveMethod(client, name)(...args);
+      expect([name, calls[0].path]).toEqual([name, path]);
+    }
+  });
+
   test("lists memos with every supported filter and omits defaults", async () => {
     const { client, calls } = createRecordingClient(() => jsonResponse({ memos: [] }));
 
