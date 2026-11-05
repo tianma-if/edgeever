@@ -46,14 +46,16 @@ describe("resolveDesktopLocale", () => {
   });
 
   test("falls back to English for unsupported tags", () => {
-    for (const tag of ["de-DE", "", undefined, "plx"]) expect(resolveDesktopLocale(tag)).toBe("en-US");
+    for (const tag of ["fr-FR", "", undefined, "plx"]) expect(resolveDesktopLocale(tag)).toBe("en-US");
     expect(desktopDialogCopy("plx")).toBe(english);
   });
 
   test("maps regional variants onto the catalog locale", () => {
-    expect(resolveDesktopLocale("zh_Hant")).toBe("zh-CN");
+    expect(resolveDesktopLocale("zh_Hant")).toBe("zh-TW");
     expect(resolveDesktopLocale("pl-PL")).toBe("pl");
     expect(resolveDesktopLocale("RU")).toBe("ru");
+    expect(resolveDesktopLocale("es-ES")).toBe("es");
+    expect(resolveDesktopLocale("de-DE")).toBe("de");
     expect(desktopDialogCopy("ja-JP").reload).toBe("再読み込み");
   });
 });

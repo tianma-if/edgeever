@@ -15,7 +15,9 @@ const exePath = "C:\\Users\\Example\\AppData\\Local\\Programs\\EdgeEver\\EdgeEve
 describe("Windows share menu", () => {
   test("names the verb in the desktop locale", () => {
     expect(windowsShareMenuLabel("zh-CN")).toBe("发送到 EdgeEver");
-    expect(windowsShareMenuLabel("zh-TW")).toBe("发送到 EdgeEver");
+    expect(windowsShareMenuLabel("zh-TW")).toBe("傳送至 EdgeEver");
+    expect(windowsShareMenuLabel("es-ES")).toBe("Enviar a EdgeEver");
+    expect(windowsShareMenuLabel("de-DE")).toBe("An EdgeEver senden");
     expect(windowsShareMenuLabel("ja-JP")).toBe("EdgeEver に送る");
     expect(windowsShareMenuLabel("en-US")).toBe("Send to EdgeEver");
     expect(windowsShareMenuLabel("pl-PL")).toBe("Wyślij do EdgeEver");

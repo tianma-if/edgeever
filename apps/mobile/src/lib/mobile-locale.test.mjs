@@ -27,14 +27,17 @@ describe("mobile locale translation", () => {
       "请等待笔记同步完成。", "资源读取失败", "已取消下载", "当前设备无法打开系统分享面板",
       "登录成功但服务端没有返回移动端会话。请确认服务端已更新到支持 App 登录的版本。",
     ];
-    // Japanese writes "unsaved" with the same characters as Chinese.
+    // Japanese and Traditional Chinese write some terms with the same characters as Simplified Chinese.
     const sameInJapanese = new Set(["未保存"]);
-    for (const locale of ["en-US", "ja", "pl", "ru"]) {
+    const sameInTraditionalChinese = new Set(["好的", "本地草稿"]);
+    for (const locale of ["en-US", "ja", "pl", "ru", "zh-TW", "es", "de"]) {
       const untranslated = copy.filter((value) => translateMobileText(value, locale) === value
-        && !(locale === "ja" && sameInJapanese.has(value)));
+        && !(locale === "ja" && sameInJapanese.has(value))
+        && !(locale === "zh-TW" && sameInTraditionalChinese.has(value)));
       expect({ locale, untranslated }).toEqual({ locale, untranslated: [] });
     }
     expect(translateMobileText("登录", "pl")).toBe("Zaloguj się");
+    expect(translateMobileText("登录", "zh-TW")).toBe("登入");
     expect(translateMobileText("确定", "zh-CN")).toBe("确定");
   });
 
@@ -101,6 +104,9 @@ describe("mobile locale translation", () => {
     expect(localizeMissingNotebookName("ja")).toBe("未分類");
     expect(localizeMissingNotebookName("pl")).toBe("Nieprzypisane");
     expect(localizeMissingNotebookName("ru")).toBe("Без блокнота");
+    expect(localizeMissingNotebookName("zh-TW")).toBe("未分類");
+    expect(localizeMissingNotebookName("es")).toBe("Sin clasificar");
+    expect(localizeMissingNotebookName("de")).toBe("Ohne Kategorie");
     expect(localizeMissingNotebookName("zh-CN")).toBe("未分类");
   });
 
@@ -117,6 +123,9 @@ describe("mobile locale translation", () => {
     expect(getMobileCatalog("ja").mobile.update.title).toBe("アプリのアップデート");
     expect(getMobileCatalog("en-US").mobile.update.title).toBe("App updates");
     expect(getMobileCatalog("zh-CN").mobile.update.title).toBe("应用更新");
+    expect(getMobileCatalog("zh-TW").mobile.update.title).toBe("應用更新");
+    expect(getMobileCatalog("es").mobile.update.title).toBe("Actualizaciones de la app");
+    expect(getMobileCatalog("de").mobile.update.title).toBe("App-Updates");
     expect(formatMobileCopy(getMobileCatalog("pl").mobile.login.serverError, { status: 503 }))
       .toBe("Instancja zwróciła błąd serwera (HTTP 503).");
     expect(formatMobileCopy("{{known}} {{missing}}", { known: "a" })).toBe("a {{missing}}");

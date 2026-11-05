@@ -6,10 +6,13 @@ import {
   estimateReadingStats, generateCardCss,
 } from "./note-image-card";
 import { zhCN } from "./i18n/zh-CN";
+import { zhTW } from "./i18n/zh-TW";
 import { enUS } from "./i18n/en-US";
 import { ja } from "./i18n/ja";
 import { pl } from "./i18n/pl";
 import { ru } from "./i18n/ru";
+import { es } from "./i18n/es";
+import { de } from "./i18n/de";
 import { NOTE_IMAGE_FONT_SUBSETS } from "./note-image-font-manifest";
 
 describe("note image templates", () => {
@@ -45,7 +48,7 @@ describe("note image templates", () => {
     for (const theme of NOTE_IMAGE_THEME_OPTIONS) {
       expect(NOTE_IMAGE_THEMES[theme]).toBeDefined();
       expect(NOTE_IMAGE_BACKGROUND_COLORS[theme]).toMatch(/^#[\da-f]{6}$/i);
-      for (const locale of [zhCN, enUS, ja, pl, ru]) expect(locale.editor.imageShare.themes[theme]).toBeTruthy();
+      for (const locale of [zhCN, zhTW, enUS, ja, pl, ru, es, de]) expect(locale.editor.imageShare.themes[theme]).toBeTruthy();
     }
     for (const retired of ["paper", "press", "highlight", "slate", "mint", "aurora", "sunset", "terminal"]) {
       expect(NOTE_IMAGE_THEME_OPTIONS).not.toContain(retired);

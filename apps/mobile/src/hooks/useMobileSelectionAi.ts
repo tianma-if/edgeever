@@ -5,7 +5,7 @@ import type { LocalTiptapEditorRef } from "../components/LocalTiptapEditor";
 import { buildMobileAiStreamBridgePayload, parseMobileSelectionAiRequest } from "../lib/mobile-ai-selection";
 import { safeDomCall } from "../lib/safe-dom-call";
 import type { useSession } from "../lib/session";
-import { getMobileCatalog } from "../lib/mobile-locale";
+import { getMobileCatalog, type MobileLocale } from "../lib/mobile-locale";
 
 type MobileAiClient = NonNullable<ReturnType<typeof useSession>["client"]>;
 
@@ -17,7 +17,7 @@ export const useMobileSelectionAi = ({
 }: {
   client: MobileAiClient | null | undefined;
   editorRef: RefObject<LocalTiptapEditorRef | null>;
-  resolvedLocale: "zh-CN" | "en-US" | "ja" | "pl" | "ru";
+  resolvedLocale: MobileLocale;
   titleRef: RefObject<string>;
 }) => {
   const activeRequestRef = useRef<{ requestId: string; controller: AbortController } | null>(null);

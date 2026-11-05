@@ -38,7 +38,7 @@ import {
   saveMobileResourceAs,
   type MobileResourceTarget,
 } from "../lib/mobile-attachments";
-import { localizeUntitledMemoTitle, useMobileLocale, getMobileCatalog, formatMobileCopy } from "../lib/mobile-locale";
+import { localizeUntitledMemoTitle, useMobileLocale, getMobileCatalog, formatMobileCopy, type MobileLocale } from "../lib/mobile-locale";
 import {
   createOnceProtectedResourceFailureNotifier,
   isProtectedResourceSource,
@@ -165,7 +165,7 @@ const loadAuthenticatedImageDataUrl = (
 };
 
 const alertProtectedImageLoadFailure = (
-  locale: "zh-CN" | "en-US" | "ja" | "pl" | "ru",
+  locale: MobileLocale,
   failure: ProtectedResourceLoadFailure
 ) => {
   const statusLabel = failure.status != null ? String(failure.status) : getMobileCatalog(locale).mobile.common.networkError;

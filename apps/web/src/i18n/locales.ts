@@ -18,10 +18,13 @@ const legacyLocaleStorageKey = "edgeever.locale";
 
 export const localeLabels: Record<SupportedLocale, string> = {
   "zh-CN": "简体中文",
+  "zh-TW": "繁體中文",
   "en-US": "English",
   ja: "日本語",
   pl: "Polski",
   ru: "Русский",
+  es: "Español",
+  de: "Deutsch",
 };
 
 export const normalizeLocale = (locale: string | null | undefined): SupportedLocale | null =>

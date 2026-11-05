@@ -50,7 +50,10 @@ const formatExecutionEnvironment = (environment: string | null | undefined, loca
 const MOBILE_LOCALE_OPTIONS: Array<{ label: string; value: MobileLocalePreference }> = [
   { label: "跟随系统", value: "system" },
   { label: "简体中文", value: "zh-CN" },
+  { label: "繁體中文", value: "zh-TW" },
   { label: "English", value: "en-US" },
+  { label: "Español", value: "es" },
+  { label: "Deutsch", value: "de" },
   { label: "日本語", value: "ja" },
   { label: "Polski", value: "pl" },
   { label: "Русский", value: "ru" },

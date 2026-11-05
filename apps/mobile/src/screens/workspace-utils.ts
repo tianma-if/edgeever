@@ -145,6 +145,8 @@ export const formatMemoPreviewDate = (value: string, localePreference: MobileLoc
     if (locale === "ja") return "昨日";
     if (locale === "pl") return "Wczoraj";
     if (locale === "ru") return "Вчера";
+    if (locale === "es") return "Ayer";
+    if (locale === "de") return "Gestern";
     if (locale === "en-US") return "Yesterday";
     return "昨天";
   }

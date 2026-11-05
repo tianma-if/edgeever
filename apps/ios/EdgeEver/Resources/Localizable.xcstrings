@@ -3,7 +3,25 @@
   "strings" : {
     "EdgeEver" : {
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EdgeEver"
+          }
+        },
         "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EdgeEver"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EdgeEver"
+          }
+        },
+        "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "EdgeEver"
@@ -15,7 +33,19 @@
             "value" : "EdgeEver"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EdgeEver"
+          }
+        },
         "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EdgeEver"
+          }
+        },
+        "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "EdgeEver"
@@ -25,10 +55,28 @@
     },
     "Native iOS shell (SwiftUI)" : {
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Natives iOS-Shell (SwiftUI)"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Native iOS shell (SwiftUI)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shell nativo de iOS (SwiftUI)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ネイティブ iOS シェル（SwiftUI）"
           }
         },
         "pl" : {
@@ -37,20 +85,50 @@
             "value" : "Natywna powłoka iOS (SwiftUI)"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нативная оболочка iOS (SwiftUI)"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "原生 iOS 壳（SwiftUI）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "原生 iOS 殼（SwiftUI）"
           }
         }
       }
     },
     "RN iOS path abandoned — see docs/ios-swift-rewrite.md" : {
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "RN-iOS-Pfad aufgegeben — siehe docs/ios-swift-rewrite.md"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "RN iOS path abandoned — see docs/ios-swift-rewrite.md"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ruta RN de iOS abandonada — consulte docs/ios-swift-rewrite.md"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "RN iOS パスは廃止されました — docs/ios-swift-rewrite.md を参照"
           }
         },
         "pl" : {
@@ -59,10 +137,22 @@
             "value" : "Porzucono ścieżkę RN dla iOS — zobacz docs/ios-swift-rewrite.md"
           }
         },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Путь RN iOS заброшен — см. docs/ios-swift-rewrite.md"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "已放弃 RN iOS 路径 — 见 docs/ios-swift-rewrite.md"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已放棄 RN iOS 路徑 — 見 docs/ios-swift-rewrite.md"
           }
         }
       }

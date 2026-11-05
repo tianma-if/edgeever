@@ -24,7 +24,7 @@ describe("lazy Japanese catalog", () => {
     expect(viteConfig).toContain("globPatterns: []");
     expect(viteConfig).toContain("name: \"i18n-ja\"");
     expect(viteConfig).toContain("edgeever-optional-locales");
-    expect(viteConfig).toContain("i18n-(?:en-US|ja|pl|ru)-");
+    expect(viteConfig).toContain("i18n-(?:en-US|ja|pl|ru|zh-TW|es|de)-");
   });
 
   test("loads Polish on demand like Japanese", () => {
@@ -38,12 +38,30 @@ describe("lazy Japanese catalog", () => {
     expect(source).toContain('await import("./resources/ru")');
     expect(viteConfig).toContain("name: \"i18n-ru\"");
   });
+
+  test("loads Traditional Chinese on demand like Polish", () => {
+    expect(source).not.toContain('import { zhTW } from "./resources/zh-TW"');
+    expect(source).toContain('await import("./resources/zh-TW")');
+    expect(viteConfig).toContain("name: \"i18n-zh-TW\"");
+  });
+
+  test("loads Spanish on demand like Polish", () => {
+    expect(source).not.toContain('import { es } from "./resources/es"');
+    expect(source).toContain('await import("./resources/es")');
+    expect(viteConfig).toContain("name: \"i18n-es\"");
+  });
+
+  test("loads German on demand like Polish", () => {
+    expect(source).not.toContain('import { de } from "./resources/de"');
+    expect(source).toContain('await import("./resources/de")');
+    expect(viteConfig).toContain("name: \"i18n-de\"");
+  });
 });
 
 
 describe("optional English catalog", () => {
   test("loads the selected locale and English fallback before rendering", () => {
-    for (const locale of ["en-US", "ja", "pl", "ru", "zh-CN"]) {
+    for (const locale of ["en-US", "ja", "pl", "ru", "zh-TW", "es", "de", "zh-CN"]) {
       const result = spawnSync(process.execPath, ["-e", `
         import assert from "node:assert/strict";
         globalThis.document = { documentElement: { lang: "" } };

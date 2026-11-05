@@ -8,7 +8,7 @@ import { matchSupportedLocale } from "@edgeever/shared/i18n/locales";
 export type BilingualContentLocale = "zh-CN" | "en-US";
 
 export const bilingualContentLocale = (locale: string | null | undefined): BilingualContentLocale =>
-  matchSupportedLocale(locale) === "zh-CN" ? "zh-CN" : "en-US";
+  matchSupportedLocale(locale) === "zh-CN" || matchSupportedLocale(locale) === "zh-TW" ? "zh-CN" : "en-US";
 
 export const prefersChineseContent = (locale: string | null | undefined) =>
   bilingualContentLocale(locale) === "zh-CN";

@@ -30,10 +30,13 @@ afterEach(() => {
 describe("web locale resolution", () => {
   test("keeps Chinese and English browser languages on their shipped locales", () => {
     setNavigatorLanguages(["zh-TW", "en-US"]);
+    expect(getBrowserLocale()).toBe("zh-TW");
+    setNavigatorLanguages(["zh-CN", "en-US"]);
     expect(getBrowserLocale()).toBe("zh-CN");
     setNavigatorLanguages(["en-GB"]);
     expect(getBrowserLocale()).toBe("en-US");
     expect(normalizeLocale("zh-Hans")).toBe("zh-CN");
+    expect(normalizeLocale("zh-Hant")).toBe("zh-TW");
   });
 
   test("keeps Japanese browser languages on the shipped ja locale", () => {
@@ -52,7 +55,7 @@ describe("web locale resolution", () => {
   });
 
   test("falls unmatched browser languages back to English instead of Chinese", () => {
-    setNavigatorLanguages(["fr-FR", "de-DE"]);
+    setNavigatorLanguages(["fr-FR", "it-IT"]);
     expect(getBrowserLocale()).toBe("en-US");
     setNavigatorLanguages(["ko-KR"]);
     expect(getInitialLocale()).toBe("en-US");

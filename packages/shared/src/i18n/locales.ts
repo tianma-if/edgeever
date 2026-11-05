@@ -1,14 +1,17 @@
-export const supportedLocales = ["zh-CN", "en-US", "ja", "pl", "ru"] as const;
+export const supportedLocales = ["zh-CN", "zh-TW", "en-US", "ja", "pl", "ru", "es", "de"] as const;
 
 export type SupportedLocale = (typeof supportedLocales)[number];
 
 /** English names for instructions to AI models, such as "Reply in Polish". */
 export const localeEnglishNames: Record<SupportedLocale, string> = {
   "zh-CN": "Simplified Chinese",
+  "zh-TW": "Traditional Chinese",
   "en-US": "English",
   ja: "Japanese",
   pl: "Polish",
   ru: "Russian",
+  es: "Spanish",
+  de: "German",
 };
 
 /** Used when there is no locale evidence (legacy callers, missing headers). */
@@ -23,6 +26,19 @@ export const matchSupportedLocale = (locale: string | null | undefined): Support
   }
 
   const normalized = locale.trim().replaceAll("_", "-").toLowerCase();
+
+  if (
+    normalized === "zh-tw" ||
+    normalized === "zh-hk" ||
+    normalized === "zh-mo" ||
+    normalized === "zh-hant" ||
+    normalized.startsWith("zh-tw-") ||
+    normalized.startsWith("zh-hk-") ||
+    normalized.startsWith("zh-mo-") ||
+    normalized.startsWith("zh-hant-")
+  ) {
+    return "zh-TW";
+  }
 
   if (normalized === "zh" || normalized.startsWith("zh-")) {
     return "zh-CN";
@@ -42,6 +58,14 @@ export const matchSupportedLocale = (locale: string | null | undefined): Support
 
   if (normalized === "ru" || normalized.startsWith("ru-")) {
     return "ru";
+  }
+
+  if (normalized === "es" || normalized.startsWith("es-")) {
+    return "es";
+  }
+
+  if (normalized === "de" || normalized.startsWith("de-")) {
+    return "de";
   }
 
   return null;

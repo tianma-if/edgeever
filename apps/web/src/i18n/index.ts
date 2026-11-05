@@ -28,9 +28,12 @@ export const resources = {
 type OptionalLocale = Exclude<SupportedLocale, keyof typeof resources>;
 
 const isOptionalLocale = (locale: SupportedLocale): locale is OptionalLocale =>
-  locale === "en-US" || locale === "ja" || locale === "pl" || locale === "ru";
+  locale !== "zh-CN";
 
 const loadOptionalCatalog = async (locale: OptionalLocale) => {
+  if (locale === "zh-TW") {
+    return (await import("./resources/zh-TW")).zhTW;
+  }
   if (locale === "en-US") {
     return (await import("./resources/en-US")).enUS;
   }
@@ -40,7 +43,13 @@ const loadOptionalCatalog = async (locale: OptionalLocale) => {
   if (locale === "pl") {
     return (await import("./resources/pl")).pl;
   }
-  return (await import("./resources/ru")).ru;
+  if (locale === "ru") {
+    return (await import("./resources/ru")).ru;
+  }
+  if (locale === "es") {
+    return (await import("./resources/es")).es;
+  }
+  return (await import("./resources/de")).de;
 };
 
 const ensureLocaleCatalog = async (locale: SupportedLocale) => {
@@ -58,9 +67,12 @@ void i18n.use(initReactI18next).init({
   resources,
   lng: isOptionalLocale(getInitialLocale()) ? defaultLocale : getInitialLocale(),
   fallbackLng: {
+    "zh-TW": ["zh-CN"],
     ja: ["en-US"],
     pl: ["en-US"],
     ru: ["en-US"],
+    es: ["en-US"],
+    de: ["en-US"],
     default: [defaultLocale],
   },
   supportedLngs: supportedLocales,

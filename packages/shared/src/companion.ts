@@ -37,7 +37,7 @@ export const CompanionTurnInputSchema = z.object({
   useMemory: z.boolean().default(true),
   allowNotes: z.boolean().default(false),
   allowWrites: z.boolean().optional(),
-  locale: z.enum(["zh-CN", "en-US", "ja", "pl", "ru"]).default("en-US"),
+  locale: z.enum(["zh-CN", "zh-TW", "en-US", "ja", "pl", "ru", "es", "de"]).default("en-US"),
   focus: CompanionTurnFocusSchema.optional(),
   mentions: z.array(CompanionMentionSchema).max(8).optional(),
   attachmentIds: z.array(z.string().uuid()).max(4).optional(),

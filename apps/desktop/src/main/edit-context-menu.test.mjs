@@ -111,17 +111,23 @@ describe("desktop edit context menu", () => {
     expect(desktopMenuCopy("ja").pasteAsPlainText).toBe("プレーンテキストとしてペースト");
     expect(desktopMenuCopy("ru").file).toBe("Файл");
     expect(desktopMenuCopy("ru-RU").edit).toBe("Правка");
+    expect(desktopMenuCopy("es").file).toBe("Archivo");
+    expect(desktopMenuCopy("de").file).toBe("Datei");
+    expect(desktopMenuCopy("zh-TW").file).toBe("檔案");
   });
 
   test("every locale defines the same menu keys", () => {
     const keys = Object.keys(desktopMenuCopy("en")).sort();
     expect(Object.keys(desktopMenuCopy("zh")).sort()).toEqual(keys);
-    for (const locale of ["zh", "pl", "ja", "ru"]) {
+    for (const locale of ["zh", "zh-TW", "pl", "ja", "ru", "es", "de"]) {
       const copy = desktopMenuCopy(locale);
       expect(Object.keys(copy).sort()).toEqual(keys);
       expect(Object.values(copy).every((value) => typeof value === "string" && value.trim() !== "")).toBe(true);
     }
     expect(desktopMenuCopy("ja")).not.toBe(desktopMenuCopy("en"));
     expect(desktopMenuCopy("ru")).not.toBe(desktopMenuCopy("en"));
+    expect(desktopMenuCopy("es")).not.toBe(desktopMenuCopy("en"));
+    expect(desktopMenuCopy("de")).not.toBe(desktopMenuCopy("en"));
+    expect(desktopMenuCopy("zh-TW")).not.toBe(desktopMenuCopy("en"));
   });
 });

@@ -20,7 +20,7 @@ import {
 } from "../lib/mobile-editor-controller";
 import { clearMobileMemoDraft, writeMobileMemoDraft, type MobileMemoDraft } from "../lib/mobile-drafts";
 import { prepareUploadAsset } from "../lib/mobile-image-upload";
-import { localizeMissingNotebookName, useMobileLocale, getMobileCatalog, formatMobileCopy } from "../lib/mobile-locale";
+import { localizeMissingNotebookName, useMobileLocale, getMobileCatalog, formatMobileCopy, type MobileLocale } from "../lib/mobile-locale";
 import { useSession } from "../lib/session";
 import { recordEditorStartup } from "../lib/startup-performance";
 import { safeDomCall } from "../lib/safe-dom-call";
@@ -64,7 +64,7 @@ const createLocalImagePreviewDataUrl = async (asset: { mimeType?: string | null;
 };
 
 const alertProtectedImageLoadFailure = (
-  locale: "zh-CN" | "en-US" | "ja" | "pl" | "ru",
+  locale: MobileLocale,
   failure: ProtectedResourceLoadFailure
 ) => {
   const statusLabel = failure.status != null

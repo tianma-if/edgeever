@@ -1,5 +1,5 @@
 import { DEFAULT_MEMO_TITLE, getMemoSaveErrorReasonKey } from "@edgeever/shared";
-import { enUS, ja, pl, ru, zhCN } from "@edgeever/shared/i18n";
+import { de, enUS, es, ja, pl, ru, zhCN, zhTW } from "@edgeever/shared/i18n";
 import { resolveSupportedLocale } from "@edgeever/shared/i18n/locales";
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
@@ -8,7 +8,7 @@ import {
   type MobileLocalePreference,
 } from "./preferences";
 
-type SupportedMobileLocale = "zh-CN" | "en-US" | "ja" | "pl" | "ru";
+type SupportedMobileLocale = "zh-CN" | "zh-TW" | "en-US" | "es" | "de" | "ja" | "pl" | "ru";
 export type MobileLocale = SupportedMobileLocale;
 type MobileLocaleContextValue = {
   preference: MobileLocalePreference;
@@ -257,6 +257,246 @@ const mobileOnlyTranslations = new Map<string, string>([
   ["标签 {{name}}", "Tag {{name}}"],
   ["{{label}}，发现新版本", "{{label}}, update available"],
   ["附件读取不完整，请重新选择文件", "The attachment could not be read completely. Choose the file again."],
+]);
+
+const mobileOnlyZhTW = new Map<string, string>([
+  ["确定", "確定"],
+  ["好的", "好的"],
+  ["登录", "登入"],
+  ["删除失败", "刪除失敗"],
+  ["删除中", "刪除中"],
+  ["恢复中", "恢復中"],
+  ["恢复失败", "恢復失敗"],
+  ["创建失败", "建立失敗"],
+  ["请重试", "請重試"],
+  ["请检查网络后重试", "請檢查網路後重試"],
+  ["当前无法连接实例，请稍后重试", "當前無法連線例項，請稍後重試"],
+  ["换个关键词再试", "換個關鍵詞再試"],
+  ["没有找到匹配笔记", "沒有找到匹配筆記"],
+  ["重试加载", "重試載入"],
+  ["请先创建一个笔记本", "請先建立一個筆記本"],
+  ["附件上传失败", "附件上傳失敗"],
+  ["保存中", "儲存中"],
+  ["准备中", "準備中"],
+  ["本地草稿", "本地草稿"],
+  ["未保存", "未儲存"],
+  ["缺少笔记数据，无法打开富文本编辑器", "缺少筆記資料，無法開啟富文字編輯器"],
+  ["笔记加载失败", "筆記載入失敗"],
+  ["进入编辑并聚焦标题", "進入編輯並聚焦標題"],
+  ["编辑笔记标题", "編輯筆記標題"],
+  ["更改笔记所属笔记本", "更改筆記所屬筆記本"],
+  ["选择历史记录后可预览并恢复。", "選擇歷史記錄後可預覽並恢復。"],
+  ["当前无法读取附件。", "當前無法讀取附件。"],
+  ["当前无法读取资源。", "當前無法讀取資源。"],
+  ["请等待笔记同步完成。", "請等待筆記同步完成。"],
+  ["资源读取失败", "資源讀取失敗"],
+  ["已取消下载", "已取消下載"],
+  ["当前设备无法打开系统分享面板", "當前裝置無法開啟系統分享面板"],
+  ["登录成功但服务端没有返回移动端会话。请确认服务端已更新到支持 App 登录的版本。", "登入成功但服務端沒有返回移動端會話。請確認服務端已更新到支援 App 登入的版本。"],
+  ["新建笔记本", "新建筆記本"],
+  ["创建笔记本", "建立筆記本"],
+  ["笔记本名称", "筆記本名稱"],
+  ["顶层笔记本", "頂層筆記本"],
+  ["位于「{{name}}」下", "位於「{{name}}」下"],
+  ["暂无笔记本", "暫無筆記本"],
+  ["先创建一个笔记本，再开始记录。", "先建立一個筆記本，再開始記錄。"],
+  ["创建笔记本失败，请重试", "建立筆記本失敗，請重試"],
+  ["连接尚未就绪", "連線尚未就緒"],
+  ["笔记本已创建", "筆記本已建立"],
+  ["本机缓存更新失败，正在重新同步。", "本機快取更新失敗，正在重新同步。"],
+  ["本级暂无笔记", "本級暫無筆記"],
+  ["无法保存“父笔记本中显示子笔记本笔记”设置，请稍后重试", "無法儲存“父筆記本中顯示子筆記本筆記”設定，請稍後重試"],
+  ["子笔记本中还有 {{count}} 条笔记。可以打开子笔记本查看，或在设置中开启“父笔记本中显示子笔记本笔记”。", "子筆記本中還有 {{count}} 條筆記。可以開啟子筆記本檢視，或在設定中開啟“父筆記本中顯示子筆記本筆記”。"],
+  ["返回", "返回"],
+  ["关闭对话框", "關閉對話方塊"],
+  ["切换到深色模式", "切換到深色模式"],
+  ["切换到浅色模式", "切換到淺色模式"],
+  ["完成编辑", "完成編輯"],
+  ["完成新建笔记", "完成新建筆記"],
+  ["Markdown 源代码编辑", "Markdown 原始碼編輯"],
+  ["资源", "資源"],
+  ["笔记列表操作", "筆記列表操作"],
+  ["搜索", "搜尋"],
+  ["搜索标题、正文或标签", "搜尋標題、正文或標籤"],
+  ["输入关键词开始搜索", "輸入關鍵詞開始搜尋"],
+  ["搜索本机同步缓存，结果会即时显示", "搜尋本機同步快取，結果會即時顯示"],
+  ["笔记操作", "筆記操作"],
+  ["AI 笔记助手", "AI 筆記助手"],
+  ["版本历史", "版本歷史"],
+  ["分享笔记", "分享筆記"],
+  ["分享为图片", "分享為圖片"],
+  ["选择笔记", "選擇筆記"],
+  ["复制笔记 ID", "複製筆記 ID"],
+  ["同步后可复制笔记 ID", "同步後可複製筆記 ID"],
+  ["笔记 ID 已复制", "筆記 ID 已複製"],
+  ["复制笔记 ID 失败", "複製筆記 ID 失敗"],
+  ["分享失败", "分享失敗"],
+  ["无法创建分享链接，请检查网络后重试。", "無法建立分享連結，請檢查網路後重試。"],
+  ["同步冲突", "同步衝突"],
+  ["同步失败", "同步失敗"],
+  ["待同步", "待同步"],
+  ["已同步", "已同步"],
+  ["立即同步", "立即同步"],
+  ["查看同步状态并立即重试", "檢視同步狀態並立即重試"],
+  ["本地改动还在等待上传到云端。可立即重试同步。", "本地改動還在等待上傳到雲端。可立即重試同步。"],
+  ["本地改动未能上传到云端。可立即重试同步。", "本地改動未能上傳到雲端。可立即重試同步。"],
+  ["本地改动未能上传到云端。内容仍保存在本机，可立即重试。", "本地改動未能上傳到雲端。內容仍儲存在本機，可立即重試。"],
+  ["本地改动待上传。下拉刷新或点此可立即同步。", "本地改動待上傳。下拉重新整理或點此可立即同步。"],
+  ["查看并处理同步冲突", "檢視並處理同步衝突"],
+  ["云端笔记已在其他标签页、设备，或离线期间被更新，本地草稿无法直接覆盖。可先复制本地草稿，再采用云端版本后继续编辑。", "雲端筆記已在其他標籤頁、裝置，或離線期間被更新，本地草稿無法直接覆蓋。可先複製本地草稿，再採用雲端版本後繼續編輯。"],
+  ["云端笔记已在其他标签页、设备，或离线期间被更新。可先复制本地草稿，再采用云端版本后继续编辑。", "雲端筆記已在其他標籤頁、裝置，或離線期間被更新。可先複製本地草稿，再採用雲端版本後繼續編輯。"],
+  ["查看历史", "檢視歷史"],
+  ["使用云端版本", "使用雲端版本"],
+  ["采用云端并重新加载", "採用雲端並重新載入"],
+  ["采用云端版本失败", "採用雲端版本失敗"],
+  ["复制本地草稿", "複製本地草稿"],
+  ["本地草稿已复制到剪贴板。", "本地草稿已複製到剪貼簿。"],
+  ["没有可复制的本地草稿。", "沒有可複製的本地草稿。"],
+  ["已复制", "已複製"],
+  ["更多", "更多"],
+  ["加载失败", "載入失敗"],
+  ["请稍后重试", "請稍後重試"],
+  ["重试", "重試"],
+  ["图片上传失败", "圖片上傳失敗"],
+  ["请检查网络连接后重试", "請檢查網路連線後重試"],
+  ["添加图片或附件", "新增圖片或附件"],
+  ["选择拍照、相册或设备文件", "選擇拍照、相簿或裝置檔案"],
+  ["关闭图片来源选择", "關閉圖片來源選擇"],
+  ["拍照", "拍照"],
+  ["从相册选择", "從相簿選擇"],
+  ["选择文件", "選擇檔案"],
+  ["需要相机权限", "需要相機許可權"],
+  ["允许 EdgeEver 使用相机后，才能直接拍照插入笔记。", "允許 EdgeEver 使用相機後，才能直接拍照插入筆記。"],
+  ["相机权限已被关闭。请前往系统设置允许 EdgeEver 使用相机。", "相機許可權已被關閉。請前往系統設定允許 EdgeEver 使用相機。"],
+  ["前往设置", "前往設定"],
+  ["系统未能恢复上次选择的图片，请重试", "系統未能恢復上次選擇的圖片，請重試"],
+  ["退出新建笔记？", "退出新建筆記？"],
+  ["内容已自动保存为本地草稿，下次新建时会继续恢复。", "內容已自動儲存為本地草稿，下次新建時會繼續恢復。"],
+  ["继续编辑", "繼續編輯"],
+  ["放弃草稿", "放棄草稿"],
+  ["保留并退出", "保留並退出"],
+  ["丢弃本地变更？", "丟棄本地變更？"],
+  ["此操作会移除这条待同步记录，不会修改服务端笔记。", "此操作會移除這條待同步記錄，不會修改服務端筆記。"],
+  ["丢弃", "丟棄"],
+  ["正在同步新笔记", "正在同步新筆記"],
+  ["首次同步完成后即可上传本地图片；图片链接现在就可以直接粘贴到正文。", "首次同步完成後即可上傳本地圖片；圖片連結現在就可以直接貼上到正文。"],
+  ["保存更改？", "儲存更改？"],
+  ["当前笔记有未保存修改。", "當前筆記有未儲存修改。"],
+  ["放弃修改", "放棄修改"],
+  ["无法打开资源", "無法開啟資源"],
+  ["系统没有可用应用打开此链接。", "系統沒有可用應用開啟此連結。"],
+  ["已删除笔记不能上传附件，请先恢复笔记", "已刪除筆記不能上傳附件，請先恢復筆記"],
+  ["图片预览", "圖片預覽"],
+  ["放大", "放大"],
+  ["缩小", "縮小"],
+  ["上一张", "上一張"],
+  ["下一张", "下一張"],
+  ["打开原文件", "開啟原檔案"],
+  ["密码已更新", "密碼已更新"],
+  ["下次登录请使用新密码。", "下次登入請使用新密碼。"],
+  ["编辑笔记", "編輯筆記"],
+  ["所在笔记本", "所在筆記本"],
+  ["笔记标题", "筆記標題"],
+  ["笔记标签", "筆記標籤"],
+  ["选择笔记本", "選擇筆記本"],
+  ["点选已有标签，或输入名称创建新标签", "點選已有標籤，或輸入名稱建立新標籤"],
+  ["按标签筛选", "按標籤篩選"],
+  ["选择一个标签，只查看带有该标签的笔记", "選擇一個標籤，只檢視帶有該標籤的筆記"],
+  ["搜索标签", "搜尋標籤"],
+  ["没有匹配的标签", "沒有匹配的標籤"],
+  ["搜索或输入新标签", "搜尋或輸入新標籤"],
+  ["没有匹配的现有标签，可直接新建", "沒有匹配的現有標籤，可直接新建"],
+  ["新建", "新建"],
+  ["{{count}} 条笔记", "{{count}} 條筆記"],
+  ["刷新 Token", "重新整理 Token"],
+  ["Token 名称", "Token 名稱"],
+  ["没有正文预览", "沒有正文預覽"],
+  ["原生运行时启动", "原生執行時啟動"],
+  ["启动至 JS 执行", "啟動至 JS 執行"],
+  ["启动至会话/缓存就绪", "啟動至會話/快取就緒"],
+  ["启动至工作区首帧", "啟動至工作區首幀"],
+  ["启动至列表数据就绪", "啟動至列表資料就緒"],
+  ["启动至交互空闲", "啟動至互動空閒"],
+  ["最近一次本地编辑器启动", "最近一次本地編輯器啟動"],
+  ["正在启动编辑器", "正在啟動編輯器"],
+  ["编辑器启动时间过长", "編輯器啟動時間過長"],
+  ["正在准备本地编辑器，笔记内容是安全的。", "正在準備本地編輯器，筆記內容是安全的。"],
+  ["本地编辑器未能及时启动，可以重试或返回，当前草稿不会丢失。", "本地編輯器未能及時啟動，可以重試或返回，當前草稿不會丟失。"],
+  ["暂不可用", "暫不可用"],
+  ["尚未记录", "尚未記錄"],
+  ["正在搜索", "正在搜尋"],
+  ["退出搜索", "退出搜尋"],
+  ["重置", "重置"],
+  ["置顶", "置頂"],
+  ["有标签", "有標籤"],
+  ["无标签", "無標籤"],
+  ["正在同步笔记", "正在同步筆記"],
+  ["正在准备首次同步…", "正在準備首次同步…"],
+  ["正在加载笔记", "正在載入筆記"],
+  ["正在加载笔记本和笔记…", "正在載入筆記本和筆記…"],
+  ["同步已暂停", "同步已暫停"],
+  ["已加载的笔记仍可使用，请检查网络后重试。", "已載入的筆記仍可使用，請檢查網路後重試。"],
+  ["已选择 {{count}} 条", "已選擇 {{count}} 條"],
+  ["{{count}} 条结果", "{{count}} 條結果"],
+  ["筛选：{{filter}} · {{count}} 条", "篩選：{{filter}} · {{count}} 條"],
+  ["已加载 {{loaded}} / {{total}} 条笔记", "已載入 {{loaded}} / {{total}} 條筆記"],
+  ["从模板新建", "從模板新建"],
+  ["模板", "模板"],
+  ["选择一个模板快速开始。所有模板都可以在网页端修改或删除。", "選擇一個模板快速開始。所有模板都可以在網頁端修改或刪除。"],
+  ["模板暂时无法加载，请稍后重试。", "模板暫時無法載入，請稍後重試。"],
+  ["暂无模板。可在网页端新建模板，或将常用笔记另存为模板。", "暫無模板。可在網頁端新建模板，或將常用筆記另存為模板。"],
+  ["正在加载模板", "正在載入模板"],
+  ["新建笔记", "新建筆記"],
+  ["选择创建方式", "選擇建立方式"],
+  ["空白笔记", "空白筆記"],
+  ["从空白页开始记录", "從空白頁開始記錄"],
+  ["使用会议纪要、周报等预设结构", "使用會議紀要、週報等預設結構"],
+  ["模板", "模板"],
+  ["应用模板？", "應用模板？"],
+  ["当前内容将被模板内容替换。", "當前內容將被模板內容替換。"],
+  ["替换", "替換"],
+  ["关闭", "關閉"],
+  ["修改后会保留当前设备登录，并退出其他设备上的登录会话。", "修改後會保留當前裝置登入，並退出其他裝置上的登入會話。"],
+  ["添加标签", "新增標籤"],
+  ["正在生成智能标签", "正在生成智慧標籤"],
+  ["智能标签生成失败", "智慧標籤生成失敗"],
+  ["智能标签已添加", "智慧標籤已新增"],
+  ["没有找到适合这篇笔记的新标签。", "沒有找到適合這篇筆記的新標籤。"],
+  ["没有匹配的笔记本", "沒有匹配的筆記本"],
+  ["偏好设置", "偏好設定"],
+  ["切换产品界面的显示语言。", "切換產品介面的顯示語言。"],
+  ["上传大图时在本地压缩，节省资源占用。", "上傳大圖時在本地壓縮，節省資源佔用。"],
+  ["已恢复上次未完成的本地草稿", "已恢復上次未完成的本地草稿"],
+  ["连接你的自托管笔记空间", "連線你的自託管筆記空間"],
+  ["首次登录密码", "首次登入密碼"],
+  ["GitHub 仓库", "GitHub 倉庫"],
+  ["操作失败，请稍后再试", "操作失敗，請稍後再試"],
+  ["正在剪藏文章", "正在剪藏文章"],
+  ["正在提取标题、正文和图片链接…", "正在提取標題、正文和圖片連結…"],
+  ["正文剪藏失败", "正文剪藏失敗"],
+  ["已保留文章链接，你可以稍后重新分享重试。", "已保留文章連結，你可以稍後重新分享重試。"],
+  ["页面加载完成，但没有找到可剪藏的正文。", "頁面載入完成，但沒有找到可剪藏的正文。"],
+  ["微信文章加载超时。", "微信文章載入超時。"],
+  ["没有找到可剪藏的正文。", "沒有找到可剪藏的正文。"],
+  ["无法解析微信文章正文。", "無法解析微信文章正文。"],
+  ["微信文章加载失败。", "微信文章載入失敗。"],
+  ["微信文章请求失败（HTTP {{status}}）。", "微信文章請求失敗（HTTP {{status}}）。"],
+  ["无法读取分享图片", "無法讀取分享圖片"],
+  ["请重新分享后再试。", "請重新分享後再試。"],
+  ["无法保存图片", "無法儲存圖片"],
+  ["请先在 EdgeEver 中创建一个笔记本。", "請先在 EdgeEver 中建立一個筆記本。"],
+  ["分享的图片", "分享的圖片"],
+  ["分享的图片（{{count}} 张）", "分享的圖片（{{count}} 張）"],
+  ["无法读取分享内容", "無法讀取分享內容"],
+  ["分享内容里没有可识别的网页链接或图片。", "分享內容裡沒有可識別的網頁連結或圖片。"],
+  ["无法保存剪藏", "無法儲存剪藏"],
+  ["剪藏失败", "剪藏失敗"],
+  ["无法读取分享的网页，请稍后重试。", "無法讀取分享的網頁，請稍後重試。"],
+  ["编辑笔记标题：{{title}}", "編輯筆記標題：{{title}}"],
+  ["新建标签 {{name}}", "新建標籤 {{name}}"],
+  ["标签 {{name}}", "標籤 {{name}}"],
+  ["{{label}}，发现新版本", "{{label}}，發現新版本"],
+  ["附件读取不完整，请重新选择文件", "附件讀取不完整，請重新選擇檔案"],
 ]);
 
 const mobileOnlyJapanese = new Map<string, string>([
@@ -766,10 +1006,13 @@ const createTranslationPair = (source: string, target: string): TranslationPair 
   };
 };
 const zhStrings = flattenStrings(zhCN);
+const zhTWStrings = flattenStrings(zhTW);
 const enStrings = flattenStrings(enUS);
 const jaStrings = flattenStrings(ja);
 const plStrings = flattenStrings(pl);
 const ruStrings = flattenStrings(ru);
+const esStrings = flattenStrings(es);
+const deStrings = flattenStrings(de);
 
 const buildTranslationPairs = (targets: Map<string, string>) =>
   Array.from(zhStrings.entries()).flatMap(([key, source]) => {
@@ -780,10 +1023,17 @@ const buildTranslationPairs = (targets: Map<string, string>) =>
     return [createTranslationPair(source, target)];
   });
 
+const zhTWTranslationPairs = buildTranslationPairs(zhTWStrings);
 const enTranslationPairs = buildTranslationPairs(enStrings);
 const jaTranslationPairs = buildTranslationPairs(jaStrings);
 const plTranslationPairs = buildTranslationPairs(plStrings);
 const ruTranslationPairs = buildTranslationPairs(ruStrings);
+const esTranslationPairs = buildTranslationPairs(esStrings);
+const deTranslationPairs = buildTranslationPairs(deStrings);
+
+const exactZhTWTranslations = new Map(
+  zhTWTranslationPairs.filter((pair) => !pair.pattern).map((pair) => [pair.source, pair.target]),
+);
 const exactEnglishTranslations = new Map(
   enTranslationPairs.filter((pair) => !pair.pattern).map((pair) => [pair.source, pair.target]),
 );
@@ -796,6 +1046,16 @@ const exactPolishTranslations = new Map(
 const exactRussianTranslations = new Map(
   ruTranslationPairs.filter((pair) => !pair.pattern).map((pair) => [pair.source, pair.target]),
 );
+const exactSpanishTranslations = new Map(
+  esTranslationPairs.filter((pair) => !pair.pattern).map((pair) => [pair.source, pair.target]),
+);
+const exactGermanTranslations = new Map(
+  deTranslationPairs.filter((pair) => !pair.pattern).map((pair) => [pair.source, pair.target]),
+);
+
+const mobileZhTWTemplateTranslations: TranslationPair[] = Array.from(mobileOnlyZhTW.entries())
+  .filter(([source]) => source.includes("{{"))
+  .map(([source, target]) => createTranslationPair(source, target));
 const mobileTemplateTranslations: TranslationPair[] = Array.from(mobileOnlyTranslations.entries())
   .filter(([source]) => source.includes("{{"))
   .map(([source, target]) => createTranslationPair(source, target));
@@ -805,6 +1065,11 @@ const mobileJapaneseTemplateTranslations: TranslationPair[] = Array.from(mobileO
 const mobilePolishTemplateTranslations: TranslationPair[] = Array.from(mobileOnlyPolish.entries())
   .filter(([source]) => source.includes("{{"))
   .map(([source, target]) => createTranslationPair(source, target));
+
+const zhTWTemplateTranslations = [
+  ...mobileZhTWTemplateTranslations,
+  ...zhTWTranslationPairs.filter((pair) => pair.pattern),
+].sort((left, right) => right.source.length - left.source.length);
 const englishTemplateTranslations = [
   ...mobileTemplateTranslations,
   ...enTranslationPairs.filter((pair) => pair.pattern),
@@ -820,12 +1085,27 @@ const polishTemplateTranslations = [
 const russianTemplateTranslations = ruTranslationPairs
   .filter((pair) => pair.pattern)
   .sort((left, right) => right.source.length - left.source.length);
+const spanishTemplateTranslations = esTranslationPairs
+  .filter((pair) => pair.pattern)
+  .sort((left, right) => right.source.length - left.source.length);
+const germanTemplateTranslations = deTranslationPairs
+  .filter((pair) => pair.pattern)
+  .sort((left, right) => right.source.length - left.source.length);
 
 type LocalizedCatalog<T> = { readonly [K in keyof T]: T[K] extends string ? string : LocalizedCatalog<T[K]> };
 export type MobileCatalog = LocalizedCatalog<typeof enUS>;
 
 // Typing every locale against the English shape makes a missing key a compile error.
-const mobileCatalogs: Record<SupportedMobileLocale, MobileCatalog> = { "zh-CN": zhCN, "en-US": enUS, ja, pl, ru };
+const mobileCatalogs: Record<SupportedMobileLocale, MobileCatalog> = {
+  "zh-CN": zhCN,
+  "zh-TW": zhTW,
+  "en-US": enUS,
+  es,
+  de,
+  ja,
+  pl,
+  ru,
+};
 
 export const getMobileCatalog = (locale: SupportedMobileLocale): MobileCatalog => mobileCatalogs[locale];
 
@@ -853,6 +1133,11 @@ export const translateMobileText = (value: string, locale: SupportedMobileLocale
   if (locale === "zh-CN" || !/[\u3400-\u9fff]/.test(value)) {
     return value;
   }
+  if (locale === "zh-TW") {
+    const exact = mobileOnlyZhTW.get(value) ?? exactZhTWTranslations.get(value);
+    if (exact) return exact;
+    return applyTemplateTranslations(value, zhTWTemplateTranslations) ?? value;
+  }
   if (locale === "ja") {
     const exact = mobileOnlyJapanese.get(value) ?? exactJapaneseTranslations.get(value);
     if (exact) return exact;
@@ -867,6 +1152,24 @@ export const translateMobileText = (value: string, locale: SupportedMobileLocale
     const exact = exactRussianTranslations.get(value);
     if (exact) return exact;
     const fromCatalog = applyTemplateTranslations(value, russianTemplateTranslations);
+    if (fromCatalog) return fromCatalog;
+    const english = mobileOnlyTranslations.get(value) ?? exactEnglishTranslations.get(value);
+    if (english) return english;
+    return applyTemplateTranslations(value, englishTemplateTranslations) ?? value;
+  }
+  if (locale === "es") {
+    const exact = exactSpanishTranslations.get(value);
+    if (exact) return exact;
+    const fromCatalog = applyTemplateTranslations(value, spanishTemplateTranslations);
+    if (fromCatalog) return fromCatalog;
+    const english = mobileOnlyTranslations.get(value) ?? exactEnglishTranslations.get(value);
+    if (english) return english;
+    return applyTemplateTranslations(value, englishTemplateTranslations) ?? value;
+  }
+  if (locale === "de") {
+    const exact = exactGermanTranslations.get(value);
+    if (exact) return exact;
+    const fromCatalog = applyTemplateTranslations(value, germanTemplateTranslations);
     if (fromCatalog) return fromCatalog;
     const english = mobileOnlyTranslations.get(value) ?? exactEnglishTranslations.get(value);
     if (english) return english;
@@ -900,10 +1203,13 @@ export const localizeUntitledMemoTitle = (
 };
 
 export const localizeMissingNotebookName = (locale: SupportedMobileLocale) => {
+  if (locale === "zh-TW") return "未分類";
   if (locale === "en-US") return "Uncategorized";
   if (locale === "ja") return "未分類";
   if (locale === "pl") return "Nieprzypisane";
   if (locale === "ru") return "Без блокнота";
+  if (locale === "es") return "Sin clasificar";
+  if (locale === "de") return "Ohne Kategorie";
   return "未分类";
 };
 

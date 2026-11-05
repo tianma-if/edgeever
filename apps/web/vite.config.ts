@@ -226,7 +226,7 @@ export default defineConfig({
             },
           },
           {
-            urlPattern: ({ url }) => /\/assets\/i18n-(?:en-US|ja|pl|ru)-/.test(url.pathname),
+            urlPattern: ({ url }) => /\/assets\/i18n-(?:en-US|ja|pl|ru|zh-TW|es|de)-/.test(url.pathname),
             handler: "CacheFirst",
             options: {
               cacheName: "edgeever-optional-locales",
@@ -297,7 +297,7 @@ export default defineConfig({
       ? false
       : {
           resolveDependencies: (_filename, dependencies) => dependencies.filter((dependency) =>
-            !/(?:vendor-code-highlight|vendor-(?:mermaid|D3|tiptap|prosemirror|floating|codemirror|x6|infographic|zod|streamdown)|vendor~(?:wasm|emacs-lisp)-|vendor-radix(?!-slot)|ui-primitives|ui-button-tooltip|i18n-(?:en-US|ja|pl|ru)-)/.test(dependency),
+            !/(?:vendor-code-highlight|vendor-(?:mermaid|D3|tiptap|prosemirror|floating|codemirror|x6|infographic|zod|streamdown)|vendor~(?:wasm|emacs-lisp)-|vendor-radix(?!-slot)|ui-primitives|ui-button-tooltip|i18n-(?:en-US|ja|pl|ru|zh-TW|es|de)-)/.test(dependency),
           ),
         },
     rolldownOptions: {
@@ -348,6 +348,11 @@ export default defineConfig({
               priority: 41,
             },
             {
+              name: "i18n-zh-TW",
+              test: /[\\/]i18n[\\/](?:resources[\\/])?zh-TW\.ts$/,
+              priority: 41,
+            },
+            {
               name: "i18n-ja",
               test: /[\\/]i18n[\\/](?:resources[\\/])?ja\.ts$/,
               priority: 41,
@@ -360,6 +365,16 @@ export default defineConfig({
             {
               name: "i18n-ru",
               test: /[\\/]i18n[\\/](?:resources[\\/])?ru\.ts$/,
+              priority: 41,
+            },
+            {
+              name: "i18n-es",
+              test: /[\\/]i18n[\\/](?:resources[\\/])?es\.ts$/,
+              priority: 41,
+            },
+            {
+              name: "i18n-de",
+              test: /[\\/]i18n[\\/](?:resources[\\/])?de\.ts$/,
               priority: 41,
             },
             {

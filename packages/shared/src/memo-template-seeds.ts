@@ -1,6 +1,6 @@
 import { resolveSupportedLocale } from "./i18n/locales";
 
-export type MemoTemplateSeedLocale = "zh-CN" | "en-US" | "ja" | "pl" | "ru";
+export type MemoTemplateSeedLocale = "zh-CN" | "zh-TW" | "en-US" | "ja" | "pl" | "ru" | "es" | "de";
 
 export type MemoTemplateSeedTranslation = {
   title: string;
@@ -18,13 +18,16 @@ export type MemoTemplateSeed = {
 const seed = (
   metadata: Omit<MemoTemplateSeed, "translations">,
   zhCN: MemoTemplateSeedTranslation,
+  zhTW: MemoTemplateSeedTranslation,
   enUS: MemoTemplateSeedTranslation,
   ja: MemoTemplateSeedTranslation,
   pl: MemoTemplateSeedTranslation,
   ru: MemoTemplateSeedTranslation,
+  es: MemoTemplateSeedTranslation,
+  de: MemoTemplateSeedTranslation,
 ): MemoTemplateSeed => ({
   ...metadata,
-  translations: { "zh-CN": zhCN, "en-US": enUS, ja, pl, ru },
+  translations: { "zh-CN": zhCN, "zh-TW": zhTW, "en-US": enUS, ja, pl, ru, es, de },
 });
 
 export const DEFAULT_MEMO_TEMPLATE_SEEDS: readonly MemoTemplateSeed[] = [
@@ -34,6 +37,11 @@ export const DEFAULT_MEMO_TEMPLATE_SEEDS: readonly MemoTemplateSeed[] = [
       title: "灵感速记",
       description: "快速捕捉闪念、临时灵感、资料链接与即刻行动。",
       contentMarkdown: "## 💡 闪念记录\n\n- \n\n## 📌 背景与补充说明\n\n\n\n## 🚀 下一步动作\n\n- [ ] ",
+    },
+    {
+      title: "靈感速記",
+      description: "快速捕捉閃念、臨時靈感、資料連結與即刻行動。",
+      contentMarkdown: "## 💡 閃念記錄\n\n- \n\n## 📌 背景與補充說明\n\n\n\n## 🚀 下一步動作\n\n- [ ] ",
     },
     {
       title: "Quick Spark",
@@ -55,6 +63,16 @@ export const DEFAULT_MEMO_TEMPLATE_SEEDS: readonly MemoTemplateSeed[] = [
       description: "Записывайте мимолётные мысли, идеи, ссылки и ближайшие действия.",
       contentMarkdown: "## 💡 Мимолётные мысли\n\n- \n\n## 📌 Контекст и заметки\n\n\n\n## 🚀 Дальше\n\n- [ ] ",
     },
+    {
+      title: "Nota rápida",
+      description: "Capture pensamientos fugaces, ideas, enlaces y acciones inmediatas.",
+      contentMarkdown: "## 💡 Pensamientos fugaces\n\n- \n\n## 📌 Contexto y notas\n\n\n\n## 🚀 Próximas acciones\n\n- [ ] ",
+    },
+    {
+      title: "Kurznotiz",
+      description: "Halten Sie flüchtige Gedanken, Ideen, Links und sofortige Aufgaben fest.",
+      contentMarkdown: "## 💡 Flüchtige Gedanken\n\n- \n\n## 📌 Kontext & Notizen\n\n\n\n## 🚀 Nächste Aktionen\n\n- [ ] ",
+    },
   ),
   seed(
     { key: "meeting", translationKey: "meeting", tag: "meeting" },
@@ -62,6 +80,11 @@ export const DEFAULT_MEMO_TEMPLATE_SEEDS: readonly MemoTemplateSeed[] = [
       title: "会议纪要",
       description: "结构化记录议题背景、核心结论与带负责人的待办事项。",
       contentMarkdown: "# 📝 会议纪要\n\n- **时间**：\n- **主持人/记录人**：\n- **参会人**：\n\n---\n\n## 🎯 会议目标\n\n- \n\n## 💬 核心讨论与决策\n\n1. **[议题 1]**\n   - 讨论要点：\n   - ✅ **决议**：\n\n2. **[议题 2]**\n   - 讨论要点：\n   - ✅ **决议**：\n\n## 📋 待办事项 (Action Items)\n\n- [ ] **[负责人]** 任务描述 (截止日期：MM-DD)\n- [ ] **[负责人]** 任务描述 (截止日期：MM-DD)\n",
+    },
+    {
+      title: "會議記錄",
+      description: "結構化記錄議題背景、核心結論與帶負責人的待辦事項。",
+      contentMarkdown: "# 📝 會議記錄\n\n- **時間**：\n- **主持人/記錄人**：\n- **出席者**：\n\n---\n\n## 🎯 會議目標\n\n- \n\n## 💬 核心討論與決策\n\n1. **[議題 1]**\n   - 討論要點：\n   - ✅ **決議**：\n\n2. **[議題 2]**\n   - 討論要點：\n   - ✅ **決議**：\n\n## 📋 待辦事項 (Action Items)\n\n- [ ] **[負責人]** 任務描述 (截止日期：MM-DD)\n- [ ] **[負責人]** 任務描述 (截止日期：MM-DD)\n",
     },
     {
       title: "Meeting Minutes",
@@ -83,6 +106,16 @@ export const DEFAULT_MEMO_TEMPLATE_SEEDS: readonly MemoTemplateSeed[] = [
       description: "Структурированная запись повестки, решений и задач с ответственными.",
       contentMarkdown: "# 📝 Протокол встречи\n\n- **Время**:\n- **Ведущий/запись**:\n- **Участники**:\n\n---\n\n## 🎯 Цель\n\n- \n\n## 💬 Обсуждение и решения\n\n1. **[Тема 1]**\n   - Главное:\n   - ✅ **Решение**:\n\n2. **[Тема 2]**\n   - Главное:\n   - ✅ **Решение**:\n\n## 📋 Задачи\n\n- [ ] **[Ответственный]** Описание задачи (срок: ММ-ДД)\n- [ ] **[Ответственный]** Описание задачи (срок: ММ-ДД)\n",
     },
+    {
+      title: "Acta de reunión",
+      description: "Registro estructurado del orden del día, decisiones clave y tareas pendientes con responsables.",
+      contentMarkdown: "# 📝 Acta de reunión\n\n- **Hora**:\n- **Organizador/Secretario**:\n- **Asistentes**:\n\n---\n\n## 🎯 Objetivo\n\n- \n\n## 💬 Discusión y decisiones\n\n1. **[Tema 1]**\n   - Puntos clave:\n   - ✅ **Decisión**:\n\n2. **[Tema 2]**\n   - Puntos clave:\n   - ✅ **Decisión**:\n\n## 📋 Tareas pendientes\n\n- [ ] **[Responsable]** Descripción de la tarea (Fecha límite: MM-DD)\n- [ ] **[Responsable]** Descripción de la tarea (Fecha límite: MM-DD)\n",
+    },
+    {
+      title: "Besprechungsprotokoll",
+      description: "Strukturierte Erfassung von Tagesordnung, wichtigen Beschlüssen und Aufgaben mit Verantwortlichen.",
+      contentMarkdown: "# 📝 Besprechungsprotokoll\n\n- **Uhrzeit**:\n- **Leitung/Protokoll**:\n- **Teilnehmer**:\n\n---\n\n## 🎯 Ziel\n\n- \n\n## 💬 Diskussion & Entscheidungen\n\n1. **[Thema 1]**\n   - Wichtige Punkte:\n   - ✅ **Entscheidung**:\n\n2. **[Thema 2]**\n   - Wichtige Punkte:\n   - ✅ **Entscheidung**:\n\n## 📋 Aufgaben\n\n- [ ] **[Verantwortlich]** Aufgabenbeschreibung (Fällig: MM-DD)\n- [ ] **[Verantwortlich]** Aufgabenbeschreibung (Fällig: MM-DD)\n",
+    },
   ),
   seed(
     { key: "weekly-review", translationKey: "weeklyReview", tag: "weekly-review" },
@@ -92,8 +125,13 @@ export const DEFAULT_MEMO_TEMPLATE_SEEDS: readonly MemoTemplateSeed[] = [
       contentMarkdown: "# 🗓️ 工作周报\n\n## 🌟 本周核心进展 (Highlights)\n\n- [x] **[项目/功能]** 完成情况与成果说明\n- [x] **[项目/功能]** 完成情况与成果说明\n\n## 🚧 卡点与风险 (Blockers & Risks)\n\n- ⚠️ **阻塞项**：原因及所需支持\n\n## 🎯 下周优先级 (Next Week Priorities)\n\n- [ ] \n- [ ] \n- [ ] \n\n## 💡 总结与思考\n\n- \n",
     },
     {
+      title: "週報與進展覆盤",
+      description: "梳理本週核心產出、風險障礙與下週關鍵優先事項。",
+      contentMarkdown: "# 🗓️ 工作週報\n\n## 🌟 本週核心進展 (Highlights)\n\n- [x] **[專案/功能]** 完成情況與成果說明\n- [x] **[專案/功能]** 完成情況與成果說明\n\n## 🚧 障礙與風險 (Blockers & Risks)\n\n- ⚠️ **阻塞項**：原因及所需支援\n\n## 🎯 下週優先事項 (Next Week Priorities)\n\n- [ ] \n- [ ] \n- [ ] \n\n## 💡 總結與思考\n\n- \n",
+    },
+    {
       title: "Weekly Review & Status",
-      description: "Summarize weekly highlights, blockers, and next week's key priorities.",
+      description: "Summarize weekly highlights, blockers, and next week\x27s key priorities.",
       contentMarkdown: "# 🗓️ Weekly Status Report\n\n## 🌟 Highlights\n\n- [x] **[Project/Feature]** Accomplishment details\n- [x] **[Project/Feature]** Accomplishment details\n\n## 🚧 Blockers & Risks\n\n- ⚠️ **Blocker**: Reason and required support\n\n## 🎯 Next Week Priorities\n\n- [ ] \n- [ ] \n- [ ] \n\n## 💡 Reflection & Insights\n\n- \n",
     },
     {
@@ -111,6 +149,16 @@ export const DEFAULT_MEMO_TEMPLATE_SEEDS: readonly MemoTemplateSeed[] = [
       description: "Главное за неделю, препятствия и приоритеты на следующую.",
       contentMarkdown: "# 🗓️ Отчёт за неделю\n\n## 🌟 Главное\n\n- [x] **[Проект/функция]** Что сделано\n- [x] **[Проект/функция]** Что сделано\n\n## 🚧 Препятствия и риски\n\n- ⚠️ **Препятствие**: причина и какая помощь нужна\n\n## 🎯 Приоритеты на следующую неделю\n\n- [ ] \n- [ ] \n- [ ] \n\n## 💡 Выводы\n\n- \n",
     },
+    {
+      title: "Revisión semanal y progreso",
+      description: "Resuma los logros semanales, obstáculos y prioridades clave para la próxima semana.",
+      contentMarkdown: "# 🗓️ Informe de estado semanal\n\n## 🌟 Logros destacados\n\n- [x] **[Proyecto/Función]** Detalles del logro\n- [x] **[Proyecto/Función]** Detalles del logro\n\n## 🚧 Obstáculos y riesgos\n\n- ⚠️ **Bloqueo**: Causa y apoyo necesario\n\n## 🎯 Prioridades para la próxima semana\n\n- [ ] \n- [ ] \n- [ ] \n\n## 💡 Reflexiones e ideas\n\n- \n",
+    },
+    {
+      title: "Wochenrückblick & Status",
+      description: "Fassen Sie wöchentliche Meilensteine, Hindernisse und Prioritäten für die nächste Woche zusammen.",
+      contentMarkdown: "# 🗓️ Wöchentlicher Statusbericht\n\n## 🌟 Highlights\n\n- [x] **[Projekt/Feature]** Einzelheiten zum Fortschritt\n- [x] **[Projekt/Feature]** Einzelheiten zum Fortschritt\n\n## 🚧 Hindernisse & Risiken\n\n- ⚠️ **Blocker**: Ursache und benötigte Unterstützung\n\n## 🎯 Prioritäten für nächste Woche\n\n- [ ] \n- [ ] \n- [ ] \n\n## 💡 Reflexion & Erkenntnisse\n\n- \n",
+    },
   ),
   seed(
     { key: "reading", translationKey: "reading", tag: "reading" },
@@ -118,6 +166,11 @@ export const DEFAULT_MEMO_TEMPLATE_SEEDS: readonly MemoTemplateSeed[] = [
       title: "深度阅读卡片",
       description: "提炼核心观点、精妙摘录、个人理解与关联知识卡片。",
       contentMarkdown: "# 📖 深度阅读卡片\n\n- **书名/文章**：\n- **作者/来源**：\n- **推荐指数**：⭐⭐⭐⭐⭐\n\n---\n\n## 💡 一句话总结 (Key Takeaway)\n\n> \n\n## ✍️ 核心观点与金句摘录\n\n> [摘录内容]\n> —— *原书/原文*\n\n## 🧠 我的理解与延伸思考\n\n- \n\n## 🔗 关联知识与行动\n\n- [ ] **落地实践**：\n",
+    },
+    {
+      title: "深度閱讀卡片",
+      description: "提煉核心觀點、精妙摘錄、個人理解與關聯知識卡片。",
+      contentMarkdown: "# 📖 深度閱讀卡片\n\n- **書名/文章**：\n- **作者/來源**：\n- **推薦指數**：⭐⭐⭐⭐⭐\n\n---\n\n## 💡 一句話總結 (Key Takeaway)\n\n> \n\n## ✍️ 核心觀點與金句摘錄\n\n> [摘錄內容]\n> —— *原書/原文*\n\n## 🧠 我的理解與延伸思考\n\n- \n\n## 🔗 關聯知識與行動\n\n- [ ] **落地實踐**：\n",
     },
     {
       title: "Reading Note Card",
@@ -139,6 +192,16 @@ export const DEFAULT_MEMO_TEMPLATE_SEEDS: readonly MemoTemplateSeed[] = [
       description: "Главные выводы, цитаты, собственные мысли и связанные идеи.",
       contentMarkdown: "# 📖 Карточка чтения\n\n- **Книга/статья**:\n- **Автор/источник**:\n- **Оценка**: ⭐⭐⭐⭐⭐\n\n---\n\n## 💡 Главный вывод\n\n> \n\n## ✍️ Цитаты\n\n> [Текст цитаты]\n> —— *Источник*\n\n## 🧠 Свои мысли\n\n- \n\n## 🔗 Что сделать\n\n- [ ] **План**:\n",
     },
+    {
+      title: "Ficha de lectura profunda",
+      description: "Extraiga conclusiones clave, citas, reflexiones personales y conceptos relacionados.",
+      contentMarkdown: "# 📖 Ficha de lectura\n\n- **Libro/Artículo**:\n- **Autor/Fuente**:\n- **Calificación**: ⭐⭐⭐⭐⭐\n\n---\n\n## 💡 Conclusión clave\n\n> \n\n## ✍️ Citas destacadas\n\n> [Cita]\n> —— *Fuente original*\n\n## 🧠 Reflexiones personales\n\n- \n\n## 🔗 Acción y práctica\n\n- [ ] **Plan de acción**:\n",
+    },
+    {
+      title: "Lese-Notizkarte",
+      description: "Halten Sie Kernaussagen, Zitate, eigene Gedanken und verknüpfte Ideen fest.",
+      contentMarkdown: "# 📖 Lese-Notizkarte\n\n- **Buch/Artikel**:\n- **Autor/Quelle**:\n- **Bewertung**: ⭐⭐⭐⭐⭐\n\n---\n\n## 💡 Kernaussage\n\n> \n\n## ✍️ Zitate & Höhepunkte\n\n> [Zitat]\n> —— *Originalquelle*\n\n## 🧠 Eigene Gedanken\n\n- \n\n## 🔗 Praxis & Umsetzung\n\n- [ ] **Aktionsplan**:\n",
+    },
   ),
   seed(
     { key: "okr", translationKey: "okr", tag: "okr" },
@@ -146,6 +209,11 @@ export const DEFAULT_MEMO_TEMPLATE_SEEDS: readonly MemoTemplateSeed[] = [
       title: "目标与任务拆解",
       description: "明确 OKR 目标、关键结果、里程碑与具体执行清单。",
       contentMarkdown: "# 🎯 目标拆解\n\n- **周期**：\n- **负责人**：\n\n---\n\n## 📌 目标 (Objective)\n\n> \n\n## 📈 关键结果 (Key Results)\n\n- **KR 1**：期望指标 -> 当前进度\n- **KR 2**：期望指标 -> 当前进度\n\n## 🗓️ 里程碑节点 (Milestones)\n\n- [ ] **阶段一 (日期)**：完成标的\n- [ ] **阶段二 (日期)**：完成标的\n\n## 📋 执行任务清单\n\n- [ ] \n- [ ] \n",
+    },
+    {
+      title: "目標與任務拆解",
+      description: "明確 OKR 目標、關鍵結果、里程碑與具體執行清單。",
+      contentMarkdown: "# 🎯 目標拆解\n\n- **週期**：\n- **負責人**：\n\n---\n\n## 📌 目標 (Objective)\n\n> \n\n## 📈 關鍵結果 (Key Results)\n\n- **KR 1**：期望指標 -> 目前進度\n- **KR 2**：期望指標 -> 目前進度\n\n## 🗓️ 里程碑節點 (Milestones)\n\n- [ ] **階段一 (日期)**：完成標的\n- [ ] **階段二 (日期)**：完成標的\n\n## 📋 執行任務清單\n\n- [ ] \n- [ ] \n",
     },
     {
       title: "Goal & Task Breakdown",
@@ -166,6 +234,16 @@ export const DEFAULT_MEMO_TEMPLATE_SEEDS: readonly MemoTemplateSeed[] = [
       title: "Цели и разбиение задач",
       description: "Цели OKR, ключевые результаты, вехи и список дел.",
       contentMarkdown: "# 🎯 Разбор цели\n\n- **Период**:\n- **Ответственный**:\n\n---\n\n## 📌 Цель (Objective)\n\n> \n\n## 📈 Ключевые результаты (Key Results)\n\n- **KR 1**: целевой показатель -> текущий прогресс\n- **KR 2**: целевой показатель -> текущий прогресс\n\n## 🗓️ Вехи\n\n- [ ] **Этап 1 (дата)**: результат этапа\n- [ ] **Этап 2 (дата)**: результат этапа\n\n## 📋 Список дел\n\n- [ ] \n- [ ] \n",
+    },
+    {
+      title: "Desglose de objetivos y tareas",
+      description: "Defina objetivos OKR, resultados clave, hitos y listas de tareas.",
+      contentMarkdown: "# 🎯 Desglose de objetivos\n\n- **Período**:\n- **Responsable**:\n\n---\n\n## 📌 Objetivo (Objective)\n\n> \n\n## 📈 Resultados clave (Key Results)\n\n- **KR 1**: Métrica objetivo -> Progreso actual\n- **KR 2**: Métrica objetivo -> Progreso actual\n\n## 🗓️ Hitos (Milestones)\n\n- [ ] **Fase 1 (Fecha)**: Meta\n- [ ] **Fase 2 (Fecha)**: Meta\n\n## 📋 Lista de tareas\n\n- [ ] \n- [ ] \n",
+    },
+    {
+      title: "Ziele- & Aufgabenaufschlüsselung",
+      description: "Definieren Sie OKR-Ziele, Schlüsselergebnisse, Meilensteine und Aufgabenlisten.",
+      contentMarkdown: "# 🎯 Zielaufteilung\n\n- **Zeitraum**:\n- **Verantwortlich**:\n\n---\n\n## 📌 Ziel (Objective)\n\n> \n\n## 📈 Schlüsselergebnisse (Key Results)\n\n- **KR 1**: Zielwert -> Aktueller Fortschritt\n- **KR 2**: Zielwert -> Aktueller Fortschritt\n\n## 🗓️ Meilensteine\n\n- [ ] **Phase 1 (Datum)**: Ziel\n- [ ] **Phase 2 (Datum)**: Ziel\n\n## 📋 Aufgabenliste\n\n- [ ] \n- [ ] \n",
     },
   ),
 ];
@@ -216,7 +294,7 @@ const findUntouchedSeedTranslation = (
 };
 
 /**
- * Shows a default template in the viewer's UI language while it still equals
+ * Shows a default template in the viewer\x27s UI language while it still equals
  * one of its seeded translations, including its seeded tags. Templates the
  * user created or edited in any field are returned unchanged.
  */

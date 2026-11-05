@@ -110,10 +110,13 @@ export const resolveAiAssistantOpenAction = ({
 
 const DEFAULT_AI_TARGET_LANGUAGE_BY_UI_LOCALE: Record<SupportedLocale, AiTargetLanguage> = {
   "zh-CN": "en",
+  "zh-TW": "en",
   "en-US": "zh-CN",
   ja: "ja",
   pl: "en",
   ru: "en",
+  es: "en",
+  de: "en",
 };
 
 export const getDefaultAiTargetLanguage = (locale: string | undefined): AiTargetLanguage => {

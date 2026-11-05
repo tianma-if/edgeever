@@ -6,7 +6,7 @@ import type {
 import { resolveSupportedLocale } from "./i18n/locales";
 
 export type AiPromptSeedKey = Exclude<AiAction, "custom">;
-export type AiPromptSeedLocale = "zh-CN" | "en-US" | "ja" | "pl" | "ru";
+export type AiPromptSeedLocale = "zh-CN" | "zh-TW" | "en-US" | "ja" | "pl" | "ru" | "es" | "de";
 
 export type AiPromptSeedTranslation = {
   name: string;
@@ -26,14 +26,17 @@ export type AiPromptSeed = AiPromptSeedTranslation & {
 const seed = (
   metadata: Omit<AiPromptSeed, keyof AiPromptSeedTranslation | "translations">,
   zhCN: AiPromptSeedTranslation,
+  zhTW: AiPromptSeedTranslation,
   enUS: AiPromptSeedTranslation,
   ja: AiPromptSeedTranslation,
   pl: AiPromptSeedTranslation,
   ru: AiPromptSeedTranslation,
+  es: AiPromptSeedTranslation,
+  de: AiPromptSeedTranslation,
 ): AiPromptSeed => ({
   ...metadata,
   ...zhCN,
-  translations: { "zh-CN": zhCN, "en-US": enUS, ja, pl, ru },
+  translations: { "zh-CN": zhCN, "zh-TW": zhTW, "en-US": enUS, ja, pl, ru, es, de },
 });
 
 export const normalizeAiPromptSeedLocale = (locale: string | null | undefined): AiPromptSeedLocale =>
@@ -44,7 +47,6 @@ export const localizeAiPromptSeed = (
   locale: string | null | undefined,
 ): AiPromptSeedTranslation => promptSeed.translations[normalizeAiPromptSeedLocale(locale)];
 
-/** Deterministic id for a seeded default prompt in a workspace. */
 export const defaultAiPromptId = (workspaceId: string, seedKey: string) =>
   `${workspaceId}_aiprompt_${seedKey}`;
 
@@ -76,6 +78,18 @@ export const DEFAULT_AI_PROMPT_SEEDS: readonly AiPromptSeed[] = [
       ].join(""),
     },
     {
+      name: "精簡總結",
+      description: "壓縮全文，提煉主題、結論與可執行結果",
+      instruction: [
+        "對筆記做真正的精簡總結，不要逐句改寫、同義複述或回聲式重寫。",
+        "識別中心主題、主要主張、關鍵結論與可執行結果。",
+        "省略重複、修辭、舉例、引語和次要細節，除非它們對理解關鍵結論必不可少。",
+        "較長筆記目標約為原文 20–30% 篇幅，用 3–7 條簡潔 Markdown 要點；短筆記用 1–3 句即可。",
+        "不要大段照搬原文，也不要新增原文沒有的資訊。",
+        "保持筆記原語言，只返回 Markdown 總結。",
+      ].join(""),
+    },
+    {
       name: "Summarize",
       description: "Condense the note into its topic, conclusions, and actionable outcomes",
       instruction: [
@@ -101,170 +115,269 @@ export const DEFAULT_AI_PROMPT_SEEDS: readonly AiPromptSeed[] = [
     },
     {
       name: "Podsumuj",
-      description: "Streść notatkę do tematu, wniosków i działań do podjęcia",
+      description: "Streść notatkę do jej tematu, wniosków i konkretnych rezultatów",
       instruction: [
-        "Utwórz faktycznie skondensowane podsumowanie notatki, zamiast ją przepisywać, parafrazować zdanie po zdaniu lub powtarzać. ",
-        "Wskaż główny temat, najważniejsze tezy, kluczowe wnioski i działania do podjęcia. ",
-        "Pomiń powtórzenia, ozdobniki retoryczne, przykłady, cytaty i drobne szczegóły, chyba że są niezbędne do zrozumienia kluczowego wniosku. ",
-        "W przypadku obszernej notatki celuj w około 20–30% długości oryginału i użyj 3–7 zwięzłych punktów listy Markdown; w przypadku krótkiej notatki wystarczą 1–3 zwięzłe zdania. ",
-        "Nie przytaczaj dosłownie długich fragmentów i nie dodawaj faktów, których nie ma w oryginale. ",
+        "Stwórz autentycznie skondensowane podsumowanie notatki zamiast jej przepisywania, parafrazowania linijka po linijce czy powtarzania jak echo. ",
+        "Zidentyfikuj główny temat, najważniejsze tezy, istotne wnioski i rezultaty wymagające działania. ",
+        "Pomiń powtórzenia, figury retoryczne, przykłady, cytaty i drugorzędne szczegóły, chyba że są niezbędne do zrozumienia kluczowego wniosku. ",
+        "W przypadku obszernej notatki dąż do objętości rzędu 20–30% tekstu źródłowego i użyj 3–7 zwięzłych punktów Markdown; w przypadku krótkiej notatki wystarczą 1–3 zwięzłe zdania. ",
+        "Nie przepisuj długich fragmentów dosłownie ani nie dodawaj faktów, których nie ma w tekście źródłowym. ",
         "Zachowaj język notatki i zwróć wyłącznie podsumowanie w formacie Markdown.",
       ].join(""),
     },
     {
-      name: "Кратко",
-      description: "Сжать заметку до темы, выводов и действий",
+      name: "Краткий пересказ",
+      description: "Сжать текст до темы, выводов и действий",
       instruction: [
-        "Сделайте настоящее краткое изложение заметки, а не пересказ предложения за предложением и не повтор текста. ",
-        "Выделите главную тему, основные мысли, ключевые выводы и действия. ",
-        "Опустите повторы, риторику, примеры, цитаты и второстепенные детали, если без них вывод всё равно понятен. ",
-        "Для длинной заметки ориентируйтесь примерно на 20–30% исходного объёма и 3–7 коротких пунктов Markdown; для короткой хватит 1–3 предложений. ",
-        "Не копируйте длинные фрагменты дословно и не добавляйте факты, которых нет в тексте. ",
-        "Сохраните язык заметки и верните только краткое изложение в Markdown.",
+        "Сделайте действительно сжатый пересказ заметки, а не построчный пересказ, парафраз или эхо. ",
+        "Выделите главную тему, ключевые утверждения, важные выводы и практические шаги. ",
+        "Опустите повторы, риторику, примеры, цитаты и мелкие детали, кроме тех, без которых вывод непонятен. ",
+        "Для большой заметки ориентируйтесь на 20–30% исходного объёма и 3–7 коротких пунктов Markdown; для короткой заметки хватит 1–3 предложений. ",
+        "Не переписывайте длинные куски слово в слово и не добавляйте фактов, которых нет в источнике. ",
+        "Сохраните язык заметки и верните только пересказ в Markdown.",
+      ].join(""),
+    },
+    {
+      name: "Resumir",
+      description: "Condensar la nota en su tema, conclusiones y resultados accionables",
+      instruction: [
+        "Cree un resumen verdaderamente condensado de la nota en lugar de reescribirla o parafrasearla línea por línea. ",
+        "Identifique el tema central, afirmaciones principales, conclusiones esenciales y resultados accionables. ",
+        "Omita repeticiones, recursos retóricos, ejemplos, citas y detalles menores a menos que sean imprescindibles para entender una conclusión clave. ",
+        "Para una nota extensa, procure un 20–30% de la longitud original con 3–7 viñetas Markdown concisas; para una nota breve, bastan 1–3 frases. ",
+        "No reproduzca pasajes largos textualmente ni agregue hechos inexistentes en la fuente. ",
+        "Conserve el idioma de la nota y devuelva únicamente el resumen en Markdown.",
+      ].join(""),
+    },
+    {
+      name: "Zusammenfassen",
+      description: "Komprimieren Sie die Notiz auf Thema, Kernaussagen und konkrete Ergebnisse",
+      instruction: [
+        "Erstellen Sie eine prägnante Zusammenfassung der Notiz, anstatt sie zeilenweise umzuschreiben oder zu wiederholen. ",
+        "Identifizieren Sie das Hauptthema, wesentliche Thesen, wichtige Schlussfolgerungen und Handlungsergebnisse. ",
+        "Lassen Sie Wiederholungen, rhetorische Wendungen, Beispiele, Zitate und Nebensächlichkeiten weg, sofern sie nicht zwingend für das Verständnis erforderlich sind. ",
+        "Zielen Sie bei längeren Notizen auf etwa 20–30 % der Originallänge und 3–7 prägnante Markdown-Aufzählungspunkte ab; bei kurzen Notizen reichen 1–3 Sätze. ",
+        "Übernehmen Sie keine langen Passagen wortwörtlich und erfinden Sie keine Fakten hinzu. ",
+        "Behalten Sie die Sprache der Notiz bei und geben Sie nur die Zusammenfassung in Markdown zurück.",
       ].join(""),
     },
   ),
   seed(
     { key: "translate", action: "translate", parameterKind: "target-language", resultMode: "both" },
     {
-      name: "全文翻译",
-      description: "翻译为指定目标语言，保留结构与格式",
+      name: "翻译",
+      description: "翻译为目标语言，保留结构与格式",
       instruction: "将完整笔记翻译成用户指定的目标语言。保留原意、Markdown 结构、链接与代码块。只返回译文，不要评论。",
     },
     {
+      name: "翻譯",
+      description: "翻譯為目標語言，保留結構與格式",
+      instruction: "將完整筆記翻譯成使用者指定的目標語言。保留原意、Markdown 結構、連結與程式碼區塊。只返回譯文，不要評論。",
+    },
+    {
       name: "Translate",
-      description: "Translate into a selected language while preserving formatting",
+      description: "Translate into target language while preserving structure and formatting",
       instruction: "Translate the complete note into the target language specified by the user. Preserve its meaning, Markdown structure, links, and code blocks. Return only the translated note without commentary.",
     },
     {
       name: "翻訳する",
-      description: "指定した言語へ翻訳し、構造と書式を残す",
+      description: "構成と書式を保ち、指定の言語へ翻訳する",
       instruction: "ノート全体を、ユーザーが指定した目標言語へ翻訳してください。意味、Markdown の構造、リンク、コードブロックは残してください。解説は付けず、訳文だけを返してください。",
     },
     {
       name: "Przetłumacz",
-      description: "Przetłumacz na wybrany język, zachowując formatowanie",
+      description: "Przetłumacz na język docelowy z zachowaniem struktury i formatowania",
       instruction: "Przetłumacz całą notatkę na język docelowy wskazany przez użytkownika. Zachowaj jej znaczenie, strukturę Markdown, linki i bloki kodu. Zwróć wyłącznie przetłumaczoną notatkę, bez komentarzy.",
     },
     {
       name: "Перевести",
-      description: "Перевести на выбранный язык, сохранив оформление",
+      description: "Перевести на выбранный язык с сохранением структуры и разметки",
       instruction: "Переведите заметку целиком на язык, который указал пользователь. Сохраните смысл, структуру Markdown, ссылки и блоки кода. Верните только перевод, без комментариев.",
+    },
+    {
+      name: "Traducir",
+      description: "Traducir al idioma de destino conservando estructura y formato",
+      instruction: "Traduzca la nota completa al idioma de destino especificado por el usuario. Conserve su significado, estructura de Markdown, enlaces y bloques de código. Devuelva solo la nota traducida sin comentarios.",
+    },
+    {
+      name: "Übersetzen",
+      description: "In die Zielsprache übersetzen unter Beibehaltung von Struktur und Formatierung",
+      instruction: "Übersetzen Sie die gesamte Notiz in die vom Benutzer angegebene Zielsprache. Behalten Sie Bedeutung, Markdown-Struktur, Links und Codeblöcke bei. Geben Sie nur die übersetzte Notiz ohne Kommentare zurück.",
     },
   ),
   seed(
     { key: "improve-writing", action: "improve-writing", parameterKind: "none", resultMode: "both" },
     {
-      name: "润色表达",
-      description: "校正语言并提升文字的清晰度与流畅度",
+      name: "润色改写",
+      description: "修正错别字、语法，改善用词、语句流畅度与表达",
       instruction: "润色内容，修正错别字、语法与标点，改善用词、句式、清晰度和流畅度，但不要改变原意或刻意缩短内容。保持原语言与有用的 Markdown 格式。只返回润色后的内容。",
     },
     {
-      name: "Polish",
-      description: "Correct the language and improve clarity and flow",
+      name: "潤色改寫",
+      description: "修正錯別字、語法，改善用詞、語句流暢度與表達",
+      instruction: "潤色內容，修正錯別字、語法與標點，改善用詞、句式、清晰度和流暢度，但不要改變原意或刻意縮短內容。保持原語言與有用的 Markdown 格式。只返回潤色後的內容。",
+    },
+    {
+      name: "Improve Writing",
+      description: "Fix spelling, grammar, flow, and vocabulary",
       instruction: "Polish the content by correcting spelling, grammar, and punctuation and improving word choice, sentence structure, clarity, and flow. Do not change its meaning or deliberately shorten it. Preserve its language and useful Markdown formatting. Return only the polished content.",
     },
     {
       name: "文章を整える",
-      description: "誤字と文法を直し、わかりやすさと流れを上げる",
+      description: "誤字、文法、語彙、読みやすさを改善する",
       instruction: "内容を整えてください。誤字、文法、句読点を直し、語彙、文の形、明瞭さ、流れを改善します。意味を変えたり、意図的に短くしたりしないでください。元の言語と有用な Markdown 書式は残してください。整えた本文だけを返してください。",
     },
     {
-      name: "Popraw styl",
-      description: "Popraw język oraz zwiększ przejrzystość i płynność tekstu",
+      name: "Dopracuj tekst",
+      description: "Popraw pisownię, gramatykę, płynność i dobór słów",
       instruction: "Dopracuj treść: popraw pisownię, gramatykę i interpunkcję oraz ulepsz dobór słów, budowę zdań, przejrzystość i płynność. Nie zmieniaj jej znaczenia ani celowo jej nie skracaj. Zachowaj jej język i przydatne formatowanie Markdown. Zwróć wyłącznie dopracowaną treść.",
     },
     {
       name: "Улучшить текст",
-      description: "Исправить язык и сделать текст яснее и плавнее",
+      description: "Исправить орфографию и грамматику, подобрать слова и улучшить связность",
       instruction: "Улучшите текст: исправьте орфографию, грамматику и пунктуацию, подберите слова, структуру фраз, ясность и плавность. Не меняйте смысл и не сокращайте текст нарочно. Сохраните язык и полезное оформление Markdown. Верните только улучшенный текст.",
+    },
+    {
+      name: "Mejorar redacción",
+      description: "Corregir ortografía y gramática, y mejorar fluidez y vocabulario",
+      instruction: "Mejore el contenido corrigiendo ortografía, gramática y puntuación, optimizando el vocabulario, la estructura de las frases, la claridad y la fluidez. No altere el significado original ni lo acorte deliberadamente. Conserve el idioma y el formato Markdown útil. Devuelva únicamente el contenido mejorado.",
+    },
+    {
+      name: "Ausdruck verbessern",
+      description: "Rechtschreibung und Grammatik korrigieren, Wortwahl und Fluss verfeinern",
+      instruction: "Überarbeiten Sie den Inhalt, indem Sie Rechtschreibung, Grammatik und Zeichensetzung korrigieren und Wortwahl, Satzstruktur, Klarheit sowie Lesefluss verbessern. Ändern Sie weder den Sinn noch kürzen Sie den Text absichtlich. Behalten Sie die Sprache und nützliche Markdown-Formatierungen bei. Geben Sie nur den verbesserten Inhalt zurück.",
     },
   ),
   seed(
     { key: "make-shorter", action: "make-shorter", parameterKind: "none", resultMode: "both" },
     {
-      name: "精炼表达",
-      description: "删去重复与冗余，让表达更简洁有力",
+      name: "精炼缩短",
+      description: "删除冗余空话，使表达简洁、清晰、有力",
       instruction: "精炼内容，删除重复、空话和不必要的修饰，合并可以合并的句子，使表达简洁、清晰、有力。保留所有关键事实、观点与原意，不要添加新信息。保持原语言与有用的 Markdown 格式。只返回精炼后的内容。",
     },
     {
-      name: "Make concise",
-      description: "Remove repetition and make the writing concise and direct",
+      name: "精煉縮短",
+      description: "刪除冗餘空話，使表達簡潔、清晰、有力",
+      instruction: "精煉內容，刪除重複、空話和不必要的修飾，合併可以合併的句子，使表達簡潔、清晰、有力。保留所有關鍵事實、觀點與原意，不要新增新資訊。保持原語言與有用的 Markdown 格式。只返回精煉後的內容。",
+    },
+    {
+      name: "Make Shorter",
+      description: "Trim filler and make the text concise, clear, and direct",
       instruction: "Refine the content by removing repetition, filler, and unnecessary modifiers and by combining sentences where useful. Make it concise, clear, and direct while preserving every key fact, claim, and the original meaning. Do not add new information. Preserve its language and useful Markdown formatting. Return only the refined content.",
     },
     {
-      name: "簡潔にする",
-      description: "重複と冗長さを削り、短くはっきり書く",
+      name: "短くする",
+      description: "冗長さを省き、簡潔で力強い表現にする",
       instruction: "内容を簡潔にしてください。繰り返し、空疎な言い回し、不要な修飾を削り、まとめられる文はまとめて、短く、はっきり、力強くしてください。重要な事実、主張、元の意味はすべて残し、新しい情報は足さないでください。元の言語と有用な Markdown 書式は残してください。簡潔にした本文だけを返してください。",
     },
     {
-      name: "Skróć i uprość",
-      description: "Usuń powtórzenia i napisz tekst zwięźle i konkretnie",
+      name: "Skróć",
+      description: "Usuń zbędne słowa i spraw, by tekst był zwięzły, jasny i konkretny",
       instruction: "Dopracuj treść, usuwając powtórzenia, puste frazy i zbędne określenia oraz łącząc zdania tam, gdzie to pomaga. Spraw, by tekst był zwięzły, jasny i konkretny, zachowując każdy kluczowy fakt, tezę i pierwotne znaczenie. Nie dodawaj nowych informacji. Zachowaj jej język i przydatne formatowanie Markdown. Zwróć wyłącznie dopracowaną treść.",
     },
     {
-      name: "Короче и яснее",
-      description: "Убрать повторы и написать короче и прямее",
+      name: "Сделать короче",
+      description: "Убрать воду и сделать текст ёмким, ясным и прямым",
       instruction: "Сократите текст: уберите повторы, пустые фразы и лишние определения, объедините предложения, где это уместно. Сделайте его коротким, ясным и прямым, сохранив каждый важный факт, мысль и исходный смысл. Не добавляйте новой информации. Сохраните язык и полезное оформление Markdown. Верните только сокращённый текст.",
+    },
+    {
+      name: "Acortar",
+      description: "Eliminar redundancias y hacer el texto conciso, claro y directo",
+      instruction: "Depure el contenido eliminando repeticiones, frases vacías y modificadores innecesarios, combinando oraciones cuando sea útil. Hágalo conciso, claro y directo, preservando todos los hechos clave y el sentido original. No agregue información nueva. Conserve el idioma y el formato Markdown útil. Devuelva solo el contenido sintetizado.",
+    },
+    {
+      name: "Kürzen",
+      description: "Überflüssiges streichen und den Text prägnant, klar und direkt gestalten",
+      instruction: "Straffen Sie den Text, indem Sie Wiederholungen, Füllwörter und unnötige Zusätze entfernen und Sätze sinnvoll zusammenfassen. Formulieren Sie prägnant, klar und direkt, während alle wesentlichen Fakten und die ursprüngliche Bedeutung erhalten bleiben. Fügen Sie keine neuen Informationen hinzu. Behalten Sie die Sprache und das Markdown bei. Geben Sie nur den gekürzten Text zurück.",
     },
   ),
   seed(
     { key: "extract-todos", action: "extract-todos", parameterKind: "none", resultMode: "append" },
     {
-      name: "提取待办",
-      description: "识别可执行任务，生成任务清单",
+      name: "提取待办事项",
+      description: "梳理笔记中的任务、行动项与责任清单",
       instruction: "从笔记中提取明确或隐含的可执行任务，用 Markdown 任务列表（- [ ]）输出。保持原语言，不要编造任务。若没有可执行事项，用原文语言简短说明。",
     },
     {
-      name: "Extract tasks",
-      description: "Identify actionable work and produce a task list",
+      name: "提取待辦事項",
+      description: "梳理筆記中的任務、行動項與責任清單",
+      instruction: "從筆記中提取明確或隱含的可執行任務，用 Markdown 任務清單（- [ ]）輸出。保持原語言，不要編造任務。若沒有可執行事項，用原文語言簡短說明。",
+    },
+    {
+      name: "Extract Action Items",
+      description: "Identify todos, next steps, and checklist items",
       instruction: "Extract explicit or implied actionable tasks from the note as a Markdown task list using '- [ ]'. Preserve its language and do not invent tasks. If there are no actionable tasks, say so briefly in the note's language.",
     },
     {
-      name: "タスクを抜き出す",
-      description: "実行できる作業を見つけ、チェックリストにする",
+      name: "ToDo を抽出する",
+      description: "タスク、次のアクション、チェックリストを整理する",
       instruction: "ノートから明示または含意された実行可能なタスクを抜き出し、Markdown のタスクリスト（- [ ]）で出力してください。ノートの言語を保ち、タスクを捏造しないでください。実行できることがなければ、ノートの言語で短くそう書いてください。",
     },
     {
       name: "Wyodrębnij zadania",
-      description: "Znajdź działania do wykonania i utwórz listę zadań",
+      description: "Zidentyfikuj zadania do wykonania, kolejne kroki i elementy listy kontrolnej",
       instruction: "Wyodrębnij z notatki jawne lub domniemane zadania do wykonania jako listę zadań Markdown z użyciem '- [ ]'. Zachowaj jej język i nie wymyślaj zadań. Jeśli nie ma zadań do wykonania, napisz to krótko w języku notatki.",
     },
     {
-      name: "Выделить задачи",
-      description: "Найти дела и составить список задач",
+      name: "Найти задачи",
+      description: "Собрать дела, шаги и чек-лист из текста",
       instruction: "Выделите из заметки явные и подразумеваемые дела и оформите их списком задач Markdown через '- [ ]'. Сохраните язык заметки и не придумывайте задачи. Если дел нет, коротко напишите об этом на языке заметки.",
+    },
+    {
+      name: "Extraer tareas",
+      description: "Organizar tareas pendientes, acciones y listas de verificación",
+      instruction: "Extraiga las tareas pendientes explícitas o implícitas de la nota como una lista de tareas de Markdown con '- [ ]'. Conserve su idioma y no invente tareas. Si no hay elementos accionables, indíquelo brevemente en el idioma de la nota.",
+    },
+    {
+      name: "Aufgaben extrahieren",
+      description: "Aufgaben, Handlungsschritte und To-do-Listen aus der Notiz erfassen",
+      instruction: "Extrahieren Sie explizite oder implizite Aufgaben aus der Notiz als Markdown-Aufgabenliste mit '- [ ]'. Behalten Sie die Sprache bei und erfinden Sie keine Aufgaben hinzu. Gibt es keine Aufgaben, teilen Sie dies kurz in der Sprache der Notiz mit.",
     },
   ),
   seed(
     { key: "continue-writing", action: "continue-writing", parameterKind: "none", resultMode: "append" },
     {
-      name: "继续写作",
-      description: "从笔记末尾自然续写",
+      name: "接续撰写",
+      description: "沿着现有脉络自然续写后续内容",
       instruction: "从笔记结束处自然续写。只返回新增续写内容，不要重复原文。保持原语言与 Markdown 风格。",
     },
     {
-      name: "Continue writing",
-      description: "Continue naturally from the end of the note",
+      name: "接續撰寫",
+      description: "沿著現有脈絡自然續寫後續內容",
+      instruction: "從筆記結束處自然續寫。只返回新增續寫內容，不要重複原文。保持原語言與 Markdown 風格。",
+    },
+    {
+      name: "Continue Writing",
+      description: "Pick up naturally from where the note leaves off",
       instruction: "Continue writing naturally from where the note ends. Return only the new continuation, not the original content. Preserve its language and Markdown style.",
     },
     {
       name: "続きを書く",
-      description: "ノートの末尾から自然に書き継ぐ",
+      description: "ノートの文脈を引き継いで自然に書き継ぐ",
       instruction: "ノートの終わりから自然に書き継いでください。原文は繰り返さず、新しい続きだけを返してください。元の言語と Markdown の調子を保ってください。",
     },
     {
-      name: "Pisz dalej",
-      description: "Kontynuuj naturalnie od końca notatki",
+      name: "Kontynuuj pisanie",
+      description: "Podejmij wątek naturalnie w miejscu, w którym kończy się notatka",
       instruction: "Kontynuuj pisanie naturalnie od miejsca, w którym kończy się notatka. Zwróć wyłącznie nową kontynuację, bez oryginalnej treści. Zachowaj jej język i styl Markdown.",
     },
     {
       name: "Продолжить текст",
-      description: "Продолжить естественно с конца заметки",
+      description: "Естественно продолжить мысль с места, где заметка обрывается",
       instruction: "Продолжите текст естественно с того места, где заметка заканчивается. Верните только продолжение, без исходного текста. Сохраните язык и стиль Markdown.",
+    },
+    {
+      name: "Continuar escribiendo",
+      description: "Continuar de forma natural siguiendo el hilo existente",
+      instruction: "Continúe escribiendo de forma natural desde donde termina la nota. Devuelva únicamente la continuación, sin repetir el texto original. Conserve su idioma y estilo Markdown.",
+    },
+    {
+      name: "Weiterschreiben",
+      description: "Den Text nahtlos im gleichen Stil fortsetzen",
+      instruction: "Setzen Sie den Text nahtlos an der Stelle fort, an der die Notiz endet. Geben Sie nur die neue Fortsetzung zurück, nicht den Ausgangstext. Behalten Sie Sprache und Markdown-Stil bei.",
     },
   ),
 ];
 
 export const getDefaultAiPromptSeed = (key: string) =>
-  DEFAULT_AI_PROMPT_SEEDS.find((item) => item.key === key) ?? null;
+  DEFAULT_AI_PROMPT_SEEDS.find((item) => item.key === key);

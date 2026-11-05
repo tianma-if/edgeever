@@ -22,7 +22,7 @@ import {
   writeMobileMemoDraft,
   type MobileMemoDraft,
 } from "../lib/mobile-drafts";
-import { localizeMissingNotebookName, useMobileLocale, getMobileCatalog, formatMobileCopy } from "../lib/mobile-locale";
+import { localizeMissingNotebookName, useMobileLocale, getMobileCatalog, formatMobileCopy, type MobileLocale } from "../lib/mobile-locale";
 import { useSession } from "../lib/session";
 import { queueMobileMemoCreate, queueMobileMemoUpdate } from "../lib/sync-queue";
 import { createMobileDataScope, upsertLocalMemo } from "../lib/local-mirror";
@@ -128,7 +128,7 @@ const resolveEditableMemoTitle = (title?: string | null) => {
 };
 
 const alertProtectedImageLoadFailure = (
-  locale: "zh-CN" | "en-US" | "ja" | "pl" | "ru",
+  locale: MobileLocale,
   failure: ProtectedResourceLoadFailure
 ) => {
   const statusLabel = failure.status != null

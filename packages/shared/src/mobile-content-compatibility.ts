@@ -76,10 +76,13 @@ const getOriginalType = (attrs: Record<string, unknown> | undefined) =>
 // lazily bundled web catalogs here, so the prefixes are keyed by locale code instead.
 const UNSUPPORTED_CONTENT_PREFIX: Record<SupportedLocale, string> = {
   "zh-CN": "暂不支持的内容：",
+  "zh-TW": "暫不支援的內容：",
   "en-US": "Unsupported content: ",
   ja: "未対応のコンテンツ: ",
   pl: "Nieobsługiwana zawartość: ",
   ru: "Неподдерживаемое содержимое: ",
+  es: "Contenido no admitido: ",
+  de: "Nicht unterstützter Inhalt: ",
 };
 
 const getFallbackLabel = (type: string, locale?: SupportedLocale) =>

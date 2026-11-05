@@ -18,35 +18,80 @@ export const DEFAULT_NOTEBOOK_SEEDS: readonly DefaultNotebookSeed[] = [
     slug: "inbox",
     color: null,
     sortOrder: 10,
-    names: { "zh-CN": "等待分类", "en-US": "Inbox", ja: "受信トレイ", pl: "Skrzynka", ru: "Входящие" },
+    names: {
+      "zh-CN": "等待分类",
+      "zh-TW": "等待分類",
+      "en-US": "Inbox",
+      es: "Bandeja de entrada",
+      de: "Eingang",
+      ja: "受信トレイ",
+      pl: "Skrzynka",
+      ru: "Входящие",
+    },
   },
   {
     key: "projects",
     slug: "work-projects",
     color: null,
     sortOrder: 20,
-    names: { "zh-CN": "工作项目", "en-US": "Work Projects", ja: "仕事のプロジェクト", pl: "Projekty zawodowe", ru: "Рабочие проекты" },
+    names: {
+      "zh-CN": "工作项目",
+      "zh-TW": "工作專案",
+      "en-US": "Work Projects",
+      es: "Proyectos de trabajo",
+      de: "Arbeitsprojekte",
+      ja: "仕事のプロジェクト",
+      pl: "Projekty zawodowe",
+      ru: "Рабочие проекты",
+    },
   },
   {
     key: "learning",
     slug: "learning-resources",
     color: null,
     sortOrder: 30,
-    names: { "zh-CN": "学习资料", "en-US": "Learning Resources", ja: "学習資料", pl: "Materiały do nauki", ru: "Учебные материалы" },
+    names: {
+      "zh-CN": "学习资料",
+      "zh-TW": "學習資料",
+      "en-US": "Learning Resources",
+      es: "Material de aprendizaje",
+      de: "Lernmaterialien",
+      ja: "学習資料",
+      pl: "Materiały do nauki",
+      ru: "Учебные материалы",
+    },
   },
   {
     key: "creative",
     slug: "creative-ideas",
     color: null,
     sortOrder: 40,
-    names: { "zh-CN": "灵感创作", "en-US": "Creative Ideas", ja: "アイデアと創作", pl: "Pomysły i twórczość", ru: "Творческие идеи" },
+    names: {
+      "zh-CN": "灵感创作",
+      "zh-TW": "靈感創作",
+      "en-US": "Creative Ideas",
+      es: "Ideas creativas",
+      de: "Kreative Ideen",
+      ja: "アイデアと創作",
+      pl: "Pomysły i twórczość",
+      ru: "Творческие идеи",
+    },
   },
   {
     key: "personal",
     slug: "personal-life",
     color: null,
     sortOrder: 50,
-    names: { "zh-CN": "生活个人", "en-US": "Personal Life", ja: "暮らしと個人", pl: "Życie prywatne", ru: "Личная жизнь" },
+    names: {
+      "zh-CN": "生活个人",
+      "zh-TW": "生活個人",
+      "en-US": "Personal Life",
+      es: "Vida personal",
+      de: "Persönliches",
+      ja: "暮らしと個人",
+      pl: "Życie prywatne",
+      ru: "Личная жизнь",
+    },
   },
 ];
 
@@ -82,6 +127,13 @@ export const WELCOME_MEMO_TRANSLATIONS: Record<SupportedLocale, WelcomeMemoTrans
       "接下来可以创建笔记本、写笔记、搜索内容，并把多条笔记合并成一条新的长期笔记。",
     ],
   },
+  "zh-TW": {
+    title: "歡迎來到 EdgeEver",
+    paragraphs: [
+      "這是第一篇 EdgeEver 筆記，三欄、邊緣運算、Agent-ready。",
+      "接下來可以建立筆記本、撰寫筆記、搜尋內容，並將多篇筆記合併為一篇新的長期筆記。",
+    ],
+  },
   "en-US": {
     title: "Welcome to EdgeEver",
     paragraphs: [
@@ -108,6 +160,20 @@ export const WELCOME_MEMO_TRANSLATIONS: Record<SupportedLocale, WelcomeMemoTrans
     paragraphs: [
       "Это первая заметка в EdgeEver: три панели, работа на краю сети и готовность к агентам ИИ.",
       "Дальше можно создавать блокноты, писать заметки, искать по содержимому и объединять несколько заметок в одну новую долгосрочную.",
+    ],
+  },
+  es: {
+    title: "Bienvenido a EdgeEver",
+    paragraphs: [
+      "Esta es su primera nota en EdgeEver: tres paneles, en el edge y lista para agentes de IA.",
+      "A continuación, cree libretas, escriba notas, busque contenido y fusione varias notas en una nueva nota a largo plazo.",
+    ],
+  },
+  de: {
+    title: "Willkommen bei EdgeEver",
+    paragraphs: [
+      "Dies ist Ihre erste EdgeEver-Notiz: drei Bereiche, auf dem Edge ausgeführt und bereit für KI-Agenten.",
+      "Erstellen Sie als Nächstes Notizbücher, schreiben Sie Notizen, durchsuchen Sie Inhalte und führen Sie mehrere Notizen zu einer neuen Notiz zusammen.",
     ],
   },
 };
