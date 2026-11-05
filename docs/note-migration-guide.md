@@ -14,13 +14,13 @@ EdgeEver 支持从其他笔记产品直接导入数据。目前提供**原生一
 
 进入 **设置 → 备份与导入 → 从其他应用导入**，点击 **开始导入**。
 
-![从其他应用导入入口](assets/best-practices/import-from-other-note/import-in-setting.png)
+![从其他应用导入入口](assets/best-practices/original-image/import-from-other-note/import-in-setting.png)
 
 ### 步骤 2：选择来源并载入文件
 
 在弹出的对话框中选择对应来源，直接拖拽或点选文件：
 
-![导入对话框与来源选择](assets/best-practices/import-from-other-note/import-dialog.png)
+![导入对话框与来源选择](assets/best-practices/original-image/import-from-other-note/import-dialog.png)
 
 - **印象笔记 / Evernote**：
   - 在客户端右键笔记本选择 **导出笔记本...**，导出为 `.enex` 格式（勾选包含标签与时间）。

@@ -14,13 +14,13 @@ Operate directly in EdgeEver Web or Desktop without CLI commands or MCP setup.
 
 Go to **Settings → Backup & Import → Import from Other Apps**, then click **Start Import**.
 
-![Import from other apps entrance](assets/best-practices/import-from-other-note/import-in-setting.png)
+![Import from other apps entrance](assets/best-practices/original-image/import-from-other-note/import-in-setting.png)
 
 ### Step 2: Select Source and Load Files
 
 Select your source platform in the dialog, then drag and drop or browse files:
 
-![Import dialog and source selection](assets/best-practices/import-from-other-note/import-dialog.png)
+![Import dialog and source selection](assets/best-practices/original-image/import-from-other-note/import-dialog.png)
 
 - **Evernote**:
   - Right-click a notebook in the desktop client and choose **Export Notebook...** to export as `.enex` (ensure tags and timestamps are checked).
