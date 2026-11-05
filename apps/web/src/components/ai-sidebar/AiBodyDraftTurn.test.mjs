@@ -31,12 +31,13 @@ describe("sidebar body drafts (#652 PR B)", () => {
   test("a translation without a language asks which one before generating", () => {
     expect(hook).toContain('if (command.action === "translate" && !command.targetLanguage) {');
     expect(hook).toContain("awaitingLanguage: true");
-    // The same target-language select as the former AI assistant dialog, then Translate.
-    expect(panel).toContain('<SelectTrigger aria-label={t("aiAssistant.targetLanguage")}');
-    expect(panel).toContain("getDefaultAiTargetLanguage(i18n.language)");
-    expect(panel).toContain("onClick={() => onRegenerate(language)}");
+    // The same question form the Agent uses: three likely languages, or type another one.
+    expect(panel).toContain("<CompanionQuestionForm");
+    expect(panel).toContain('inputType: "single_select"');
+    expect(panel).toContain("suggestAiTargetLanguages(draft.source, i18n.language, getDefaultAiTargetLanguage(i18n.language))");
+    expect(panel).toContain('onRegenerate(languageChoices[0], t("aiAssistant.sidebar.draft.translateInto", { language: typed }))');
     // No language switch once a result is there.
-    expect(panel.match(/AI_TARGET_LANGUAGES\.map/g)).toHaveLength(1);
+    expect(panel).not.toContain("AI_TARGET_LANGUAGES.map");
   });
 
   test("only a finished, complete draft on an unchanged target can replace", () => {

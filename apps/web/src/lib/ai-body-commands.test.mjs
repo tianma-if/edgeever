@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { parseAiTargetLanguage, resolveAiBodyCommand } from "./ai-body-commands.ts";
+import { guessAiSourceLanguage, parseAiTargetLanguage, resolveAiBodyCommand, suggestAiTargetLanguages } from "./ai-body-commands.ts";
 import { hashAiDraftSource } from "./ai-body-draft-store.ts";
 
 describe("sidebar body commands (#652 PR B)", () => {
@@ -22,6 +22,17 @@ describe("sidebar body commands (#652 PR B)", () => {
     expect(parseAiTargetLanguage("Polski")).toBe("pl");
     expect(parseAiTargetLanguage("日本語")).toBe("ja");
     expect(parseAiTargetLanguage("klingon")).toBeNull();
+  });
+
+  test("three language choices leave out the language the source is written in", () => {
+    expect(guessAiSourceLanguage("这是一段中文笔记。")).toBe("zh-CN");
+    expect(guessAiSourceLanguage("これは日本語のメモです。")).toBe("ja");
+    expect(guessAiSourceLanguage("이것은 한국어 메모입니다")).toBe("ko");
+    expect(guessAiSourceLanguage("An English note.")).toBe("en");
+    expect(suggestAiTargetLanguages("这是一段中文笔记。", "zh-CN", "en")).toEqual(["en", "ja", "ko"]);
+    expect(suggestAiTargetLanguages("An English note.", "zh-CN", "en")).toEqual(["zh-CN", "ja", "ko"]);
+    expect(suggestAiTargetLanguages("An English note.", "en-US", "zh-CN")).toEqual(["zh-CN", "ja", "ko"]);
+    expect(suggestAiTargetLanguages("Notatka po polsku.", "pl", "en")).toHaveLength(3);
   });
 
   test("the source hash notices any change", () => {

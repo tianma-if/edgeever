@@ -1880,6 +1880,8 @@ export const ru = {
         translate: "Перевести текущий текст",
       },
       draft: {
+        chooseLanguage: "На какой язык перевести?",
+        translateInto: "Переведи на {{language}}.",
         title: { translate: "Перевод", "improve-writing": "Улучшенный текст" },
         scopeNote: "Вся заметка",
         scopeSelection: "Выделенный текст",

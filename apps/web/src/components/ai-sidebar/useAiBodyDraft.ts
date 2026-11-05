@@ -199,7 +199,7 @@ export const useAiBodyDraft = (options: {
     if (scope && memoId) await clearAiBodyDraft(scope, memoId);
   }, [memoId, scope]);
 
-  const regenerate = useCallback((targetLanguage?: AiTargetLanguage) => {
+  const regenerate = useCallback((targetLanguage?: AiTargetLanguage, instruction?: string) => {
     const previous = draftRef.current;
     if (!previous) return;
     const target: AiBodyDraftTargetRequest = previous.target.kind === "note"
@@ -208,7 +208,7 @@ export const useAiBodyDraft = (options: {
     void start({
       action: previous.action,
       ...(targetLanguage ?? previous.targetLanguage ? { targetLanguage: targetLanguage ?? previous.targetLanguage } : {}),
-      ...(previous.instruction ? { instruction: previous.instruction } : {}),
+      ...(instruction ?? previous.instruction ? { instruction: instruction ?? previous.instruction } : {}),
     }, target, previous.message, previous.target.kind === "selection" ? previous.source : undefined);
   }, [start]);
 

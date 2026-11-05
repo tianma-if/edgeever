@@ -1869,6 +1869,8 @@ export const ja = {
         translate: "今の内容を翻訳",
       },
       draft: {
+        chooseLanguage: "どの言語に翻訳しますか？",
+        translateInto: "{{language}}に翻訳してください。",
         title: { translate: "翻訳", "improve-writing": "文章の改善" },
         scopeNote: "ノート全体",
         scopeSelection: "選択したテキスト",

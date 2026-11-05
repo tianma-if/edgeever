@@ -166,13 +166,13 @@ test("selection Translate drafts only the selection and replaces only it (#652 P
     await page.locator("[data-selection-ai-action=translate]").first().click();
     const draft = page.locator("[data-ai-body-draft=translate]");
     // Without a language the sidebar asks which one first, and nothing is sent yet.
-    const language = draft.getByRole("combobox", { name: "目标语言" });
-    await expect(language).toBeVisible();
+    // Without a language the sidebar asks which one, with the Agent's question form; nothing is sent yet.
+    await expect(draft).toContainText("要把它翻译成哪种语言？");
+    await expect(draft.getByRole("radio")).toHaveCount(3);
     expect(seen).toHaveLength(0);
     if (process.env.E2E_SCREENSHOT) await page.screenshot({ path: "test-results/body-draft-language.png" });
-    await language.click();
-    await page.getByRole("option", { name: "日语", exact: true }).click();
-    await draft.getByRole("button", { name: "翻译", exact: true }).click();
+    await draft.getByRole("radio", { name: "日语" }).check();
+    await draft.getByRole("button", { name: "继续", exact: true }).click();
     // The request shows as the user's message, with the selected text quoted.
     await expect(draft.locator(".is-user")).toContainText("翻译");
     await expect(draft.locator(".is-user")).toContainText("这是一段用于测试侧栏分段翻译的中文正文");

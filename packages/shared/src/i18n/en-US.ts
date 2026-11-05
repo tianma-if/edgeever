@@ -1861,6 +1861,8 @@ export const enUS = {
         translate: "Translate the current text",
       },
       draft: {
+        chooseLanguage: "Which language should it be translated into?",
+        translateInto: "Translate it into {{language}}.",
         title: { translate: "Translation", "improve-writing": "Improved writing" },
         scopeNote: "Whole note",
         scopeSelection: "Selected text",

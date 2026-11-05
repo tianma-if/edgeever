@@ -1880,6 +1880,8 @@ export const zhCN = {
         translate: "翻译当前内容",
       },
       draft: {
+        chooseLanguage: "要把它翻译成哪种语言？",
+        translateInto: "请翻译成{{language}}。",
         title: { translate: "翻译", "improve-writing": "润色" },
         scopeNote: "整篇笔记",
         scopeSelection: "选中内容",

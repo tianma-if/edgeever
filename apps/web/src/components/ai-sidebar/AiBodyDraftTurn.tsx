@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Loader2 } from "lucide-react";
-import { AI_TARGET_LANGUAGES, getDefaultAiTargetLanguage, type AiTargetLanguage } from "@edgeever/shared";
+import { getDefaultAiTargetLanguage, type AiTargetLanguage } from "@edgeever/shared";
 import { formatAiPartList } from "@edgeever/shared/ai-generation";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CompanionQuestionForm } from "@/components/CompanionQuestionForm";
+import { parseAiTargetLanguage, suggestAiTargetLanguages } from "@/lib/ai-body-commands";
 import { Message, MessageContent } from "@/components/ai-elements/message";
 import { copyTextToClipboard } from "@/lib/clipboard";
 import type { AiDraftSelectionSnapshot } from "@/lib/ai-body-draft-store";
@@ -29,7 +30,7 @@ export function AiBodyDraftTurn({
   userMessageClassName?: string;
   onStop: () => void;
   onDiscard: () => void;
-  onRegenerate: (targetLanguage?: AiTargetLanguage) => void;
+  onRegenerate: (targetLanguage?: AiTargetLanguage, instruction?: string) => void;
   onApply: (
     mode: "insert" | "replace",
     confirmed?: { noteChanged?: boolean; selection?: AiDraftSelectionSnapshot },
@@ -39,8 +40,11 @@ export function AiBodyDraftTurn({
   const [copied, setCopied] = useState(false);
   const [confirm, setConfirm] = useState<AiBodyDraftConfirm | null>(null);
   const [applyFailed, setApplyFailed] = useState(false);
-  // Like the former AI assistant dialog: a target-language select, defaulting by the UI language.
-  const [language, setLanguage] = useState<AiTargetLanguage>(() => getDefaultAiTargetLanguage(i18n.language));
+  // Ask like the Agent does: three likely languages, or type another one.
+  const languageChoices = useMemo(
+    () => suggestAiTargetLanguages(draft.source, i18n.language, getDefaultAiTargetLanguage(i18n.language)),
+    [draft.source, i18n.language],
+  );
   const selection = draft.target.kind === "selection";
   const hasText = Boolean(draft.text.trim());
   const replaceDisabled = draft.generating || !hasText || draft.incomplete !== null;
@@ -73,20 +77,27 @@ export function AiBodyDraftTurn({
       <Message from="assistant">
         {draft.recovered ? <p className="text-xs text-slate-500">{t("aiAssistant.sidebar.draft.recovered")}</p> : null}
         {draft.awaitingLanguage ? (
-          <div className="flex flex-wrap items-center gap-1.5" data-ai-body-draft-language="">
-            <span className="text-xs text-slate-600">{t("aiAssistant.targetLanguage")}</span>
-            <Select value={language} onValueChange={(value) => setLanguage(value as AiTargetLanguage)}>
-              <SelectTrigger aria-label={t("aiAssistant.targetLanguage")} className="h-8 w-36 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="max-h-[min(20rem,var(--radix-select-content-available-height))]">
-                {AI_TARGET_LANGUAGES.map((item) => (
-                  <SelectItem key={item} value={item}>{t(`aiAssistant.targetLanguages.${item}`)}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button type="button" size="sm" onClick={() => onRegenerate(language)}>{t("aiAssistant.sidebar.skills.translate")}</Button>
-            <Button type="button" size="sm" variant="ghost" onClick={onDiscard}>{t("aiAssistant.sidebar.draft.cancel")}</Button>
+          <div data-ai-body-draft-language="">
+            <CompanionQuestionForm
+              questions={[{
+                id: "language",
+                prompt: t("aiAssistant.sidebar.draft.chooseLanguage"),
+                inputType: "single_select",
+                options: languageChoices.map((item) => ({ id: item, label: t(`aiAssistant.targetLanguages.${item}`) })),
+              }]}
+              busy={false}
+              onSubmit={(answers) => {
+                const answer = answers[0];
+                const typed = answer?.text?.trim() ?? "";
+                // A typed language wins; one the app does not know becomes the instruction.
+                const named = typed ? parseAiTargetLanguage(typed) : (answer?.optionIds?.[0] as AiTargetLanguage | undefined) ?? null;
+                if (named) onRegenerate(named);
+                else if (typed) onRegenerate(languageChoices[0], t("aiAssistant.sidebar.draft.translateInto", { language: typed }));
+              }}
+            />
+            <div className="mt-1.5 flex justify-end">
+              <Button type="button" size="sm" variant="ghost" onClick={onDiscard}>{t("aiAssistant.sidebar.draft.cancel")}</Button>
+            </div>
           </div>
         ) : null}
         {hasText ? (

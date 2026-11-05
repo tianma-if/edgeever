@@ -51,3 +51,33 @@ export const resolveAiBodyCommand = (skill: string, rest: string): AiBodyCommand
     ...(instruction ? { instruction } : {}),
   };
 };
+
+/** A rough guess at the language a text is written in, to leave it out of the choices. */
+export const guessAiSourceLanguage = (text: string): AiTargetLanguage | null => {
+  const sample = text.slice(0, 4000);
+  const count = (pattern: RegExp) => sample.match(pattern)?.length ?? 0;
+  const kana = count(/[぀-ヿ]/g);
+  const hangul = count(/[가-힯]/g);
+  const han = count(/[一-鿿]/g);
+  const latin = count(/[A-Za-z]/g);
+  const total = kana + hangul + han + latin;
+  if (!total) return null;
+  if (kana > total * 0.05) return "ja";
+  if (hangul > total * 0.3) return "ko";
+  if (han > total * 0.3) return "zh-CN";
+  if (latin > total * 0.5) return "en";
+  return null;
+};
+
+const UI_LANGUAGE_TARGETS: Record<string, AiTargetLanguage> = { zh: "zh-CN", en: "en", ja: "ja", pl: "pl" };
+
+/**
+ * Three target languages to offer for a translation (#652 PR B): the default for the UI
+ * language first, then the UI language and common choices, leaving out the source's language.
+ */
+export const suggestAiTargetLanguages = (source: string, locale: string, fallback: AiTargetLanguage): AiTargetLanguage[] => {
+  const sourceLanguage = guessAiSourceLanguage(source);
+  const ui = UI_LANGUAGE_TARGETS[locale.toLowerCase().split("-")[0] ?? ""];
+  const ordered = [fallback, ui, "en", "zh-CN", "ja", "ko"].filter((item): item is AiTargetLanguage => Boolean(item));
+  return [...new Set(ordered)].filter((item) => item !== sourceLanguage).slice(0, 3);
+};

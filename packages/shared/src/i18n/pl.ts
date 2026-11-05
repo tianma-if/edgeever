@@ -1869,6 +1869,8 @@ export const pl = {
         translate: "Przetłumacz bieżący tekst",
       },
       draft: {
+        chooseLanguage: "Na jaki język przetłumaczyć?",
+        translateInto: "Przetłumacz na: {{language}}.",
         title: { translate: "Tłumaczenie", "improve-writing": "Poprawiony tekst" },
         scopeNote: "Cała notatka",
         scopeSelection: "Zaznaczony tekst",
