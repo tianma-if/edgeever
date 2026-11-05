@@ -20,9 +20,9 @@
   <p>
     <a href="https://t.me/+GvKYnL37feUwOTNl"><img src="assets/readme/community/telegram.svg" alt="Telegram" width="16" height="16" align="absmiddle" /> Telegram グループ</a> &nbsp;|&nbsp;
     <a href="https://demo.edgeever.org">🌐 オンラインデモ</a> &nbsp;|&nbsp;
-    <a href="docs/note-migration-guide.md">📥 ノート移行ガイド</a> &nbsp;|&nbsp;
     <a href="#全プラットフォームクライアントと拡張機能">📱 クライアントと拡張機能</a> &nbsp;|&nbsp;
-    <a href="#features">機能とワークフローマトリクス</a>
+    <a href="#features">機能とワークフローマトリクス</a> &nbsp;|&nbsp;
+    <a href="docs/note-migration-guide.md">📥 ノート移行ガイド</a>
   </p>
   <p align="center">
     <img src="assets/readme/edgeever-hero-v6.png" alt="EdgeEver ワークスペースプレビュー" width="800" />

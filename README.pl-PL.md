@@ -20,9 +20,9 @@
   <p>
     <a href="https://t.me/+GvKYnL37feUwOTNl"><img src="assets/readme/community/telegram.svg" alt="Telegram" width="16" height="16" align="absmiddle" /> Grupa na Telegramie</a> &nbsp;|&nbsp;
     <a href="https://demo.edgeever.org">🌐 Demo na żywo</a> &nbsp;|&nbsp;
-    <a href="docs/note-migration-guide.en-US.md">📥 Migracja notatek</a> &nbsp;|&nbsp;
     <a href="#aplikacje-i-rozszerzenia">📱 Aplikacje i rozszerzenia</a> &nbsp;|&nbsp;
-    <a href="#features">Macierz funkcji i zastosowań</a>
+    <a href="#features">Macierz funkcji i zastosowań</a> &nbsp;|&nbsp;
+    <a href="docs/note-migration-guide.en-US.md">📥 Migracja notatek</a>
   </p>
   <p align="center">
     <img src="assets/readme/edgeever-hero-v6.png" alt="Podgląd przestrzeni roboczej EdgeEver" width="800" />
