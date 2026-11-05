@@ -4,6 +4,7 @@ import { dirname, extname, join, normalize, relative, resolve } from "node:path"
 import { fileURLToPath } from "node:url";
 import { hasBootstrapCredential } from "../apps/api/src/auth-bootstrap.ts";
 import { isUnauthenticatedAccessEnabled } from "../apps/api/src/auth-state.ts";
+import { isEdgeEverAppPath } from "../apps/api/src/app-paths.ts";
 import { fetchEdgeEverApp } from "../apps/api/src/index.ts";
 import { isNotebookSitePagePath, renderNotebookSitePage } from "../apps/api/src/notebook-site-page.ts";
 import { isPublicMemoSharePagePath, renderPublicMemoSharePage } from "../apps/api/src/share-page.ts";
@@ -172,7 +173,7 @@ const server = Bun.serve({
       const page = await renderPublicMemoSharePage(request, storage.db, loadAppShell);
       if (page) return page;
     }
-    if (pathname.startsWith("/api/") || pathname === "/mcp" || pathname.startsWith("/mcp/")) {
+    if (isEdgeEverAppPath(pathname)) {
       return fetchEdgeEverApp(request, env, executionContext);
     }
     return serveStatic(request);

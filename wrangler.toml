@@ -19,7 +19,7 @@ watch_dir = ["apps/api/src", "packages/shared/src"]
 directory = "apps/web/dist"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
-run_worker_first = ["/api/*", "/mcp", "/__scheduled", "/s/*", "/share/*"]
+run_worker_first = ["/api/*", "/mcp", "/mcp/*", "/.well-known/oauth-protected-resource*", "/.well-known/oauth-authorization-server*", "/.well-known/openid-configuration*", "/__scheduled", "/s/*", "/share/*"]
 
 [[d1_databases]]
 binding = "DB"
