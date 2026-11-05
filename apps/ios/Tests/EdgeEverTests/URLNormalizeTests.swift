@@ -331,6 +331,24 @@ final class AiLongGenerationTests: XCTestCase {
         XCTAssertEqual(completion.incompleteReason, .interrupted)
     }
 
+    func testAPartResultFarTooShortIsNotTakenAsTheResult() async throws {
+        let long = AiGenerationSegment(markdown: "## 30. 节\n\n" + String(repeating: "这一段需要被完整处理。", count: 40) + "\n\n", headingPath: [], passthrough: false)
+        let sink = Sink()
+        try await AiLongGeneration.run(input: input, first: prepared(segments: [parts[0], long]), prepare: { [self] request in
+            sink.record(request)
+            return prepared(request.contentMarkdown)
+        }, stream: { request, emit in
+            emit(AiLongGeneration.event("text-delta", text: request.prompt.contains("First") ? "第一部分。" : "只返回了一句话。"))
+            emit(self.finish(false))
+        }, emit: sink.add)
+        XCTAssertTrue(sink.requests.contains { $0.segmentation?.depth == 1 })
+        XCTAssertTrue(sink.text.contains("这一段需要被完整处理。"))
+        XCTAssertFalse(sink.text.contains("只返回了一句话。"))
+        XCTAssertEqual(sink.events.last?.incompleteParts, [2])
+        XCTAssertFalse(AiLongGeneration.isSegmentResultPlausible(source: long.markdown, result: "只返回了一句话。"))
+        XCTAssertTrue(AiLongGeneration.isSegmentResultPlausible(source: "短。", result: "x"))
+    }
+
     func testJoiningHelpers() {
         XCTAssertEqual(AiLongGeneration.joinContinuation("第一段。\n\n第二段写到一半", "，后半句。"), "第一段。\n\n第二段写到一半，后半句。")
         XCTAssertEqual(AiLongGeneration.segmentTail(String(repeating: "x", count: 1000)).count, 600)

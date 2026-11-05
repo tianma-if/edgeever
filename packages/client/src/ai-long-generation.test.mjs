@@ -135,6 +135,26 @@ describe("running a long task in parts (#652 PR B)", () => {
   });
 });
 
+test("a part whose result is far too short is split again instead of losing text (#652 PR B)", async () => {
+  const long = { markdown: `## 30. 节\n\n${"这一段需要被完整处理。".repeat(40)}\n\n`, headingPath: [], passthrough: false };
+  const sink = collect();
+  const requests = [];
+  await runAiLongGeneration({
+    first: prepared({ segments: [parts[0], long] }),
+    prepare: async (request) => {
+      requests.push(request);
+      if (request.segmentation) return prepared({ prompt: request.contentMarkdown });
+      return prepared({ prompt: request.contentMarkdown });
+    },
+    stream: streamWith((request) => ({ chunks: [request.prompt.includes("First") ? "第一部分。" : "只返回了一句话。"] })),
+    onEvent: sink.onEvent,
+  });
+  expect(requests.some((request) => request.segmentation?.depth === 1)).toBe(true);
+  expect(sink.text()).toContain("这一段需要被完整处理。");
+  expect(sink.text()).not.toContain("只返回了一句话。");
+  expect(sink.events.at(-1)).toMatchObject({ type: "finish", truncated: true, incompleteParts: [2] });
+});
+
 describe("continuing a cut-off result (#652 PR B)", () => {
   test("continues up to three rounds and drops text repeated at the seam", async () => {
     const sink = collect();

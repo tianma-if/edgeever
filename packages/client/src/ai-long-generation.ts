@@ -3,6 +3,7 @@ import {
   AI_CONTINUATION_MAX_ROUNDS,
   AI_SEGMENT_MAX_SPLIT_DEPTH,
   aiSegmentTail,
+  isAiSegmentResultPlausible,
   joinAiContinuation,
   joinAiGenerationSegments,
   joinAiSegmentResult,
@@ -174,7 +175,8 @@ export const runAiLongGeneration = async (options: {
           return false;
         }
       }
-      if (result && !result.truncated && result.text.trim()) {
+      // A result far shorter than its part lost text even if the model said it finished.
+      if (result && !result.truncated && result.text.trim() && isAiSegmentResultPlausible(segment.markdown, result.text)) {
         done.push(joinAiSegmentResult(segment, result.text));
         previousSource = segment.markdown;
         previousOutput = result.text;

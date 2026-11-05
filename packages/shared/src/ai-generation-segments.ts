@@ -190,6 +190,14 @@ export const splitAiGenerationSegments = (markdown: string, maxSourceTokens: num
       : unit;
     if (unit.heading) { pending = merged; continue; }
     pending = null;
+    // A short code block stays with the text before it: a part that opens with code reads as the
+    // previous part's context to the model, which may leave it out.
+    const previous = blocks.at(-1);
+    if (merged.code && previous && !previous.code && previous.tokens + merged.tokens <= maxTokens) {
+      previous.raw += merged.raw;
+      previous.tokens += merged.tokens;
+      continue;
+    }
     blocks.push(merged);
   }
   if (pending) blocks.push(pending);
@@ -201,7 +209,10 @@ export const splitAiGenerationSegments = (markdown: string, maxSourceTokens: num
     current = null;
   };
   for (const block of blocks) {
-    if (current && current.tokens + block.tokens > maxTokens) flush();
+    // Prefer to start a part at a heading once the current part is well filled, so parts begin
+    // with whole sections rather than in the middle of one.
+    const opensSection = block.headings.length > 0 && block.raw.trimStart().startsWith("#");
+    if (current && (current.tokens + block.tokens > maxTokens || (opensSection && current.tokens >= maxTokens * 0.6))) flush();
     if (!current) {
       // A part that opens with a heading sits beside, not under, earlier headings of its level.
       const opening = block.raw.trimStart().startsWith("#") ? block.headings[0] : undefined;
@@ -270,4 +281,18 @@ export const joinAiContinuation = (previous: string, next: string) => {
   }
   // The cut happened mid-line; keep the model's own leading whitespace only after a line end.
   return previous + (/\s$/.test(previous) || !/^\s/.test(next) ? next.replace(/^[ \t]+/, "") : next);
+};
+
+const AI_SEGMENT_MIN_RESULT_RATIO = 0.25;
+const AI_SEGMENT_JUDGED_SOURCE_TOKENS = 200;
+
+/**
+ * Whether a part's result is long enough to be the whole part. A model sometimes treats the start
+ * of a part as context and returns only a fragment while reporting a normal finish; such a result
+ * is handled like a cut-off part (split again, or the source kept) instead of silently losing text.
+ */
+export const isAiSegmentResultPlausible = (source: string, result: string) => {
+  const sourceTokens = estimateAiTokens(source);
+  if (sourceTokens < AI_SEGMENT_JUDGED_SOURCE_TOKENS) return true;
+  return estimateAiTokens(result) >= sourceTokens * AI_SEGMENT_MIN_RESULT_RATIO;
 };

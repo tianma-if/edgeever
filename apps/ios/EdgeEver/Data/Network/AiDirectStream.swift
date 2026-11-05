@@ -308,6 +308,28 @@ enum AiLongGeneration {
 
     // MARK: - Joining text
 
+    /// The same rough estimate as `estimateAiTokens` in `packages/shared`.
+    static func estimateTokens(_ text: String) -> Int {
+        var cjk = 0
+        var other = 0
+        for scalar in text.unicodeScalars {
+            switch scalar.value {
+            case 0x3040...0x30FF, 0x3400...0x4DBF, 0x4E00...0x9FFF, 0xAC00...0xD7AF, 0xF900...0xFAFF, 0xFF00...0xFFEF:
+                cjk += 1
+            default:
+                other += scalar.value > 0xFFFF ? 2 : 1
+            }
+        }
+        return Int(((Double(cjk) + Double(other) / 3) * 1.1).rounded(.up))
+    }
+
+    /// A part result far shorter than its source lost text even if the model said it finished.
+    static func isSegmentResultPlausible(source: String, result: String) -> Bool {
+        let sourceTokens = estimateTokens(source)
+        if sourceTokens < 200 { return true }
+        return Double(estimateTokens(result)) >= Double(sourceTokens) * 0.25
+    }
+
     /// The last characters of a text, for the next part's context.
     static func segmentTail(_ text: String) -> String {
         let trimmed = text.replacingOccurrences(of: #"\s+$"#, with: "", options: .regularExpression)
@@ -500,7 +522,8 @@ private final class Runner: @unchecked Sendable {
                 }
                 result = streamed
             }
-            if let result, !result.truncated, !result.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            if let result, !result.truncated, !result.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+               AiLongGeneration.isSegmentResultPlausible(source: segment.markdown, result: result.text) {
                 done.append(AiLongGeneration.joinSegmentResult(segment, result.text))
                 previousSource = segment.markdown
                 previousOutput = result.text

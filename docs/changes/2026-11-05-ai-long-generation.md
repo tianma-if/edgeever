@@ -1,0 +1,52 @@
+# Long generation in parts and continuations, sidebar body commands (#652 PR B)
+
+[简体中文](2026-11-05-ai-long-generation.zh-CN.md)
+
+Related Issue: #652
+
+## Problem and outcome
+
+After PR A (#791), models with known limits are no longer cut at 4096. Gateways without published limits, models with small limits, and notes larger than the context window still could not finish in one request: an incomplete result was flagged and could not replace the original, but the task itself was not done. In the Web and desktop sidebar, `/translate`, `/improve` and selection Translate were Agent turns, outside the automatic budget and truncation protection. This PR implements PR B as agreed in #652:
+
+- Source-sized tasks (translate, proofread, polish, simplify, change tone) that one request cannot finish run in parts split along the Markdown structure.
+- Tasks that depend on the whole note (continue writing, make longer, custom instructions) continue automatically after being cut off.
+- In the Web and desktop sidebar, `/translate`, `/improve` and the selection menu's Translate use the note-generation flow. The result is previewed in the sidebar with copy, insert and replace, and the latest unapplied draft is restored on this device after a reload.
+- The Android and iOS AI assistants and the Android editor selection panel run parts and continuations the same way, and show progress and the parts that could not finish.
+
+## Allowed changes and acceptance
+
+1. **Part planning (server prepare, shared pure functions)**:
+   - The rules live in `packages/shared/src/ai-generation-segments.ts`. Using the `marked` lexer, a note is split only between top-level blocks. A heading stays with what follows it, and blank lines stay with the block before them. Code blocks, tables, HTML blocks and math are never cut. A block that alone is too long is split between list items, then between sentences. Joining the parts gives the source back character for character.
+   - Front matter and code-only parts are kept as is without a request.
+   - A note is split when the estimated output passes 80% of the available output limit, when the input does not fit, or, without known limits, when the source is long (about 2,000 source tokens per part). A manual budget is used as the limit.
+   - New clients send `segmentation` to prepare. When parts are needed, prepare returns `segments` instead of answering 413 for a long input. Each part is prepared with `segment`: its position, heading path, and the end of the previous part's source and result. The server tells the model that this is part i of n and to process only this part, and adds the context.
+   - Unlike the original design in #652, the server plans the parts and returns them to every client (the reason is noted in #652). The server only splits text and never calls a model.
+2. **Client orchestration (`packages/client` for Web, desktop and Android; iOS implements the same rules in Swift)**:
+   - Each part is prepared and streamed directly from the model, in order. A `progress` event starts each part and `text-reset` fixes up the whole draft when a part ends.
+   - A part that is cut off or does not fit is split again by the server through `segmentation.depth`, at most two levels. A part that still cannot finish keeps its source text and is listed in the finish event's `incompleteParts`. Any incomplete part blocks replace.
+   - Other tasks that are cut off continue with the end of the text so far (up to 20,000 characters), at most three rounds, dropping text the model repeated at the seam. When the window has no room for a continuation, the run stops and the draft is incomplete.
+   - Continuations run only when prepare says `longGeneration: true`. An older server ignores the continuation fields and would start over, so a new client on an older server does not continue and behaves as in PR A.
+   - An error, a dropped connection or a stop in any part ends the run. The text so far stays as an incomplete draft, and requests that already returned are never repeated.
+3. **Sidebar body commands (Web / desktop)**:
+   - When the default model is available, `/translate [language]`, `/improve`, the skill buttons and the selection menu's Translate use note generation. Other words after a command become the user's instruction. `/summarize`, Explain and chat stay with the Agent, which can still edit notes.
+   - The draft panel shows progress, incomplete notices and target-language choices. It offers copy, insert (after the selection or at the end of the note), replace (the note or the selection), regenerate and discard.
+   - Replace is only offered for a finished, complete draft. Replacing the note after it changed since generation asks for confirmation. When the selected text changed, the panel offers to replace the text selected now, or asks the user to select the text again.
+4. **Draft recovery (Web / desktop)**: each note keeps only its latest generated, unapplied draft on this device, isolated by instance and account (the account determines the workspace). It is cleared when applied or discarded, and when signing out clears local data. A request still generating ends with the page and does not resume after a reload. Drafts live in their own IndexedDB database `edgeever-ai-drafts`; the main local database `edgeever-local` keeps its schema version.
+5. **Mobile UI**: the Android AI assistant, the editor selection panel and the iOS AI assistant show "Working on part i of n". When parts could not finish, they say which parts kept the original text and disable replace. Strings cover five languages.
+
+## Unchanged boundaries, risks and recovery
+
+- Across versions:
+  - A new client on an older server gets no parts and does not continue. It runs PR A's single request, and truncation protection still applies.
+  - An older client on a new server sends none of the new fields and behaves as in PR A.
+  - There is no database migration.
+- Worst cases:
+  - Terms and style may vary between translated parts. Each part carries its heading path and the end of the previous part's source and result to reduce this.
+  - Parts and continuations add requests, cost and time. The UI shows progress, and the user can stop at any time.
+  - A part that never finishes keeps its original text. The UI says so and blocks replace.
+  - A model may not resume exactly at the cut. The client only drops repeated text at the start, and cannot correct reworded text.
+- Rollback: revert the code. The draft database is separate; older versions neither read it nor are affected by it.
+
+## Implementation and acceptance
+
+(Acceptance results follow as testing completes.)

@@ -607,7 +607,7 @@ export const resolveAiGenerationSystemInstruction = (input: {
 };
 
 const aiSegmentInstruction = (segment: AiGenerationSegmentContext) =>
-  ` This request covers part ${segment.index + 1} of ${segment.count} of a longer note. Process only this part and return only its result. Do not add a title, introduction, summary or closing remarks that are not in this part, and keep terminology and style consistent with the earlier parts.`;
+  ` This request covers part ${segment.index + 1} of ${segment.count} of a longer note. Process only this part and return its complete result: every heading, paragraph, list, table and code block in it, including any at its very start or end. Do not add a title, introduction, summary or closing remarks that are not in this part, and keep terminology and style consistent with the earlier parts.`;
 
 const AI_CONTINUATION_INSTRUCTION = " Your previous response to this request was cut off before it was complete. Continue it from exactly where it stopped. Do not repeat text that was already written and do not start over.";
 

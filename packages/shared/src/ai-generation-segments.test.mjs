@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   aiSegmentTail,
+  isAiSegmentResultPlausible,
   isAiSegmentableAction,
   joinAiContinuation,
   joinAiGenerationSegments,
@@ -141,5 +142,34 @@ describe("continuing a cut-off result (#652)", () => {
   test("a continuation without overlap is appended as is", () => {
     expect(joinAiContinuation("第一段。\n\n第二段写到一半", "，后半句。")).toBe("第一段。\n\n第二段写到一半，后半句。");
     expect(joinAiContinuation("Line one.\n", "Line two.")).toBe("Line one.\nLine two.");
+  });
+});
+
+describe("part boundaries a model reads well (#652 PR B)", () => {
+  test("a short code block stays with the text before it instead of opening the next part", () => {
+    const code = "```js\nconst notes = all.filter((note) => note.tags.includes(\"review\"));\n```\n\n";
+    const source = Array.from({ length: 8 }, (_, index) => `## ${index + 1}. 节\n\n${"正文内容。".repeat(40)}\n\n${code}`).join("");
+    const parts = splitAiGenerationSegments(source, 400);
+    expect(parts.map((part) => part.markdown).join("")).toBe(source);
+    for (const part of parts) expect(part.markdown.startsWith("```")).toBe(false);
+  });
+
+  test("parts prefer to start at a heading once they are well filled", () => {
+    const source = Array.from({ length: 10 }, (_, index) => `## ${index + 1}. 节\n\n${"第一段。".repeat(30)}\n\n${"第二段。".repeat(30)}\n\n`).join("");
+    const parts = splitAiGenerationSegments(source, 500);
+    expect(parts.length).toBeGreaterThan(2);
+    for (const part of parts) expect(part.markdown.startsWith("## ")).toBe(true);
+  });
+});
+
+describe("a part result that is far too short (#652 PR B)", () => {
+  test("is not taken as the part's result", () => {
+    const source = `## 30. 节\n\n${"这一段需要被完整处理。".repeat(40)}\n\n## 31. 节\n\n${"这一段也需要。".repeat(40)}`;
+    expect(isAiSegmentResultPlausible(source, "只返回了一句话。")).toBe(false);
+    expect(isAiSegmentResultPlausible(source, source.replaceAll("需要", "要"))).toBe(true);
+    // An English translation of Chinese text has fewer estimated tokens but is still plausible.
+    expect(isAiSegmentResultPlausible(source, "This paragraph needs to be processed in full. ".repeat(40) + "This one too. ".repeat(40))).toBe(true);
+    // Tiny parts are not judged.
+    expect(isAiSegmentResultPlausible("短。", "x")).toBe(true);
   });
 });
