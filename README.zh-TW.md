@@ -182,6 +182,8 @@ curl -fsSL https://edgeever.org/install.sh | bash
 
 在 **個人中心** -> **API / MCP** 中建立 API Token 並一鍵複製 Remote MCP 設定，即可讓 Claude Code、Cursor、Antigravity、OpenClaw 等 AI Agent 在帳號授權範圍內安全管理你的知識庫。系統支援文字筆記、圖表筆記（心智圖、流程圖與架構圖）、多維表格筆記與原生海報筆記的完整增刪改查，Agent 還可管理筆記本目錄、標籤、附件、歷史版本、筆記範本與 AI 指令。
 
+用戶端設定、Token 權限、問題排查與 Agent 工作規則範例，請參閱 [在 MCP 用戶端與 AI Agent 中使用 EdgeEver](docs/mcp-guide.zh-CN.md)（簡體中文）。
+
 > 💡 **情境啟發：**
 > 讓 AI 真正成為你的知識管家與創作外腦——不僅能將方案秒級產生為可互動的心智圖、流程圖、架構圖與多維表格，還能為 AI Agent 提供私有脈絡。憑藉 EdgeEver 強大的富文字編輯與精美排版能力，AI 協同沉澱的不再是冰冷文字，而是結構工整、排版優雅、隨時可一鍵分發的高品質知識資產。
 
