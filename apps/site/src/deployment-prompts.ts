@@ -8,7 +8,7 @@ export const deploymentPrompts = {
    32 characters). The username defaults to \`admin\`.
 5. Only after the Secret is deployed, open this Worker's Settings → Builds → Connect
    and connect the Fork's \`main\` branch.
-6. In Settings → Builds → API token, select or create the Cloudflare API token used for deployment, with D1 read/edit permission for the target account.
+6. In this Worker's Settings → Builds → API token, select or create the Cloudflare API token used for deployment, with D1 read/edit permission for the target account.
 7. In the Fork's GitHub repository, open Actions → Update deployed EdgeEver, enable the workflow if prompted, and select Run workflow on \`main\`. After confirming in Cloudflare that the corresponding build succeeded and deployment completed, verify \`/api/health\` and \`/api/openapi.json\`, then log in with the administrator
    username and password.
    This workflow will automatically sync future stable releases and fixes.`,
@@ -21,7 +21,7 @@ export const deploymentPrompts = {
    管理员用户名默认为 \`admin\`。
 5. 确认 Secret 已部署后，在该 Worker 的 Settings → Builds → Connect 中连接 Fork 的
    \`main\` 分支。
-6. 在 Settings → Builds → API token 中选择或创建用于部署的
+6. 在该 Worker 的 Settings → Builds → API token 中选择或创建用于部署的
    Cloudflare API Token，并确保它具备目标账户的 D1 读取和编辑权限。
 7. 在 Fork 的 GitHub 仓库中进入 Actions → Update deployed EdgeEver，按提示启用工作流，
    选择 \`main\` 分支并点击 Run workflow。在 Cloudflare 确认对应构建成功、部署完成后，验证 \`/api/health\` 和 \`/api/openapi.json\`，
@@ -55,7 +55,7 @@ export const manualDeploymentCopy = {
       },
       {
         "title": "Configure Deployment Permissions",
-        "body": "In Settings → Builds → API token, select or create the Cloudflare API token used for deployment, with D1 read/edit permission for the target account."
+        "body": "In this Worker's Settings → Builds → API token, select or create the Cloudflare API token used for deployment, with D1 read/edit permission for the target account."
       },
       {
         "title": "Build & Verify",
@@ -88,7 +88,7 @@ export const manualDeploymentCopy = {
       },
       {
         "title": "配置部署权限",
-        "body": "在 Settings → Builds → API token 中选择或创建用于部署的 Cloudflare API Token，并确保它具备目标账户的 D1 读取和编辑权限。"
+        "body": "在该 Worker 的 Settings → Builds → API token 中选择或创建用于部署的 Cloudflare API Token，并确保它具备目标账户的 D1 读取和编辑权限。"
       },
       {
         "title": "构建并验证",
