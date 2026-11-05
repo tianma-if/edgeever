@@ -291,6 +291,23 @@ describe("generation with automatic budgets (#652)", () => {
     const errored = await run(errorAfterText);
     expect(errored.text).toContain("First paragraph.");
     expect(errored.reason).not.toBeNull();
+    // The connection closes cleanly with neither a finish reason nor the end marker.
+    const closedEarly = () => new Response('data: {"choices":[{"delta":{"content":"<r>\\nFirst paragraph.\\n\\nSecond"}}]}\n\n', { headers: { "content-type": "text/event-stream" } });
+    const closed = await run(closedEarly);
+    expect(closed.text).toContain("First paragraph.");
+    expect(closed.reason).toBe("interrupted");
+  });
+
+  test("a stream that closes without a finish reason or end marker reports an interruption", async () => {
+    const client = createEdgeEverClient({
+      baseUrl: "https://notes.example",
+      fetch: async () => json(preparedBody({ maxOutputTokens: 4096 })),
+      providerFetch: async () => new Response('data: {"choices":[{"delta":{"content":"<r>\\nFirst paragraph.\\n"}}]}\n\n', { headers: { "content-type": "text/event-stream" } }),
+    });
+    const events = [];
+    await client.streamAiGeneration({ action: "improve-writing", title: "Note", contentMarkdown: "Body" }, { onEvent: (event) => events.push(event) });
+    expect(events.at(-1)).toMatchObject({ type: "error", code: "ai_stream_interrupted" });
+    expect(events.some((event) => event.type === "finish")).toBe(false);
   });
 
   test("an unrecognised 400 is not retried", async () => {

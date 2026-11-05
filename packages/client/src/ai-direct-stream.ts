@@ -84,6 +84,16 @@ export const streamDirectAiGeneration = async (
     });
     return;
   }
+  // The connection closed before the provider said it finished and before the end marker:
+  // the stream was interrupted, not cut at a limit. The text so far stays an incomplete draft.
+  if (!finishReason && normalizer.isUnterminated()) {
+    options.onEvent({
+      type: "error",
+      code: "ai_stream_interrupted",
+      message: "The connection ended before the AI finished.",
+    });
+    return;
+  }
   // Some gateways cut the output at their own default and still report "stop"; a missing
   // end marker catches that case as well.
   const truncated = isAiTruncatedFinishReason(finishReason) || normalizer.isUnterminated();

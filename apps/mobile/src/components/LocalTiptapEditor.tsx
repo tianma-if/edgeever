@@ -1164,7 +1164,14 @@ function LocalTiptapEditorImpl(props: LocalTiptapEditorProps) {
         }
         if (payload.event.type === "error") {
           // Text that arrived before the error stays an incomplete draft.
-          return { ...current, generating: false, requestId: null, incomplete: "interrupted", error: payload.event.message };
+          return {
+            ...current,
+            generating: false,
+            requestId: null,
+            incomplete: "interrupted",
+            // An interrupted stream is explained by the incomplete notice instead.
+            error: payload.event.code === "ai_stream_interrupted" ? null : payload.event.message,
+          };
         }
         if (payload.event.type === "finish") {
           return { ...current, generating: false, requestId: null, incomplete: payload.event.truncated ? "truncated" : null };

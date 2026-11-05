@@ -688,7 +688,9 @@ struct AiAssistantSheet: View {
                     if generationID == requestID { completion.track(event) }
                     switch event.type {
                     case "text-delta": output += event.text ?? ""
-                    case "error": error = event.message ?? env.preferences.t("AI 生成失败。", en: "AI generation failed.", pl: "Generowanie AI nie powiodło się.")
+                    // An interrupted stream is explained by the incomplete notice instead.
+                    case "error" where event.code != "ai_stream_interrupted":
+                        error = event.message ?? env.preferences.t("AI 生成失败。", en: "AI generation failed.", pl: "Generowanie AI nie powiodło się.")
                     default: break
                     }
                 }

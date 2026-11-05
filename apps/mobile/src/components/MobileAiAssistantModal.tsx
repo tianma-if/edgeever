@@ -189,7 +189,8 @@ export const MobileAiAssistantModal = ({
         signal: controller.signal,
         onEvent: (event) => {
           if (event.type === "text-delta") setOutput((current) => current + event.text);
-          if (event.type === "error") setError(event.message);
+          // An interrupted stream is explained by the incomplete notice instead.
+          if (event.type === "error" && event.code !== "ai_stream_interrupted") setError(event.message);
           if (controllerRef.current === controller) setCompletion((current) => trackAiDraftEvent(current, event));
         },
       });

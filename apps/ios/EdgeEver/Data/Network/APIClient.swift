@@ -359,6 +359,12 @@ actor APIClient {
             continuation.yield(AiStreamEvent(type: "error", text: nil, code: "ai_generation_failed", message: "The AI did not return a note result.", finishReason: nil, inputTokens: nil, outputTokens: nil))
             return
         }
+        // The connection closed before the provider said it finished and before the end marker:
+        // the stream was interrupted, not cut at a limit (#652).
+        if finishReason == nil, normalizer.isUnterminated {
+            continuation.yield(AiStreamEvent(type: "error", text: nil, code: "ai_stream_interrupted", message: "The connection ended before the AI finished.", finishReason: nil, inputTokens: nil, outputTokens: nil))
+            return
+        }
         continuation.yield(AiStreamEvent(type: "finish", text: nil, code: nil, message: nil, finishReason: finishReason, inputTokens: inputTokens, outputTokens: outputTokens, truncated: AiDirectStream.isTruncatedFinishReason(finishReason) || normalizer.isUnterminated))
     }
 
