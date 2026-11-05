@@ -21,6 +21,7 @@ import {
 import {
   aiDraftIncompleteReason,
   failAiDraftCompletion,
+  formatAiPartList,
   startAiDraftCompletion,
   stopAiDraftCompletion,
   trackAiDraftEvent,
@@ -71,6 +72,8 @@ export const MobileAiAssistantModal = ({
   // Whether the current draft finished cleanly; any other draft must not replace the note (#652).
   const [completion, setCompletion] = useState<AiDraftCompletion>(startAiDraftCompletion);
   const incomplete = aiDraftIncompleteReason(completion);
+  // The part a long run is working on (#652); `null` for a single request.
+  const [progress, setProgress] = useState<{ part: number; parts: number } | null>(null);
   const [generating, setGenerating] = useState(false);
   const [applying, setApplying] = useState(false);
   const [picker, setPicker] = useState<"action" | "language" | "tone" | null>(null);
@@ -183,15 +186,19 @@ export const MobileAiAssistantModal = ({
     setOutput("");
     setError(null);
     setCompletion(startAiDraftCompletion());
+    setProgress(null);
     setGenerating(true);
     try {
       await client.streamAiGeneration(buildRequest(source, refinement), {
         signal: controller.signal,
         onEvent: (event) => {
+          if (controllerRef.current !== controller) return;
           if (event.type === "text-delta") setOutput((current) => current + event.text);
+          if (event.type === "text-reset") setOutput(event.text);
+          if (event.type === "progress") setProgress({ part: event.part, parts: event.parts });
           // An interrupted stream is explained by the incomplete notice instead.
           if (event.type === "error" && event.code !== "ai_stream_interrupted") setError(event.message);
-          if (controllerRef.current === controller) setCompletion((current) => trackAiDraftEvent(current, event));
+          setCompletion((current) => trackAiDraftEvent(current, event));
         },
       });
       if (controller.signal.aborted && controllerRef.current === controller) setCompletion(stopAiDraftCompletion);
@@ -361,9 +368,19 @@ export const MobileAiAssistantModal = ({
               </View>
             </View>
           ) : null}
+          {generating && progress ? (
+            <Text accessibilityLiveRegion="polite" style={[styles.fieldLabel, { color: muted }]}>
+              {getMobileCatalog(resolvedLocale).mobile.ai.progressPart
+                .replace("{{part}}", String(progress.part))
+                .replace("{{parts}}", String(progress.parts))}
+            </Text>
+          ) : null}
           {incomplete && output && !generating ? (
             <Text accessibilityRole="alert" style={styles.warning}>
-              {incomplete === "truncated"
+              {incomplete === "truncated" && completion.incompleteParts.length
+                ? getMobileCatalog(resolvedLocale).mobile.ai.incompleteParts
+                  .replace("{{parts}}", formatAiPartList(completion.incompleteParts, resolvedLocale))
+                : incomplete === "truncated"
                 ? getMobileCatalog(resolvedLocale).mobile.ai.incompleteTruncated
                 : incomplete === "stopped"
                   ? getMobileCatalog(resolvedLocale).mobile.ai.incompleteStopped

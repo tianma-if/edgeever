@@ -3824,6 +3824,8 @@ export const pl = {
       incompleteStopped: "Generowanie zatrzymano, więc wynik jest niepełny. Możesz go skopiować lub dołączyć, ale nie może zastąpić oryginału.",
       incompleteInterrupted: "Wynik jest niepełny: generowanie zostało przerwane. Możesz go skopiować lub dołączyć, ale nie może zastąpić oryginału.",
       inputTooLong: "Notatka jest za długa dla okna kontekstu wybranego modelu. Skróć notatkę lub wybierz model z większym oknem.",
+      progressPart: "Przetwarzanie części {{part}} z {{parts}}…",
+      incompleteParts: "Wynik jest niepełny: części {{parts}} nie udało się ukończyć i zawierają tekst oryginalny. Możesz go skopiować lub dołączyć, ale nie może zastąpić oryginału.",
       noteUpdated: "Zaktualizowano notatkę",
       refinePlaceholder: "Na przykład: bardziej zwięźle",
       refineResult: "Dopracuj wynik",

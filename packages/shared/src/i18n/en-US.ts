@@ -3817,6 +3817,8 @@ export const enUS = {
       incompleteStopped: "Generation was stopped, so this result is incomplete. You can copy or append it, but it can't replace the original.",
       incompleteInterrupted: "This result is incomplete: generation was interrupted. You can copy or append it, but it can't replace the original.",
       inputTooLong: "This note is too long for the selected model's context window. Shorten the note or choose a model with a larger window.",
+      progressPart: "Working on part {{part}} of {{parts}}…",
+      incompleteParts: "This result is incomplete: part {{parts}} could not be finished and keeps the original text. You can copy or append it, but it can't replace the original.",
       noteUpdated: "Note updated",
       refinePlaceholder: "For example: Make it more concise",
       refineResult: "Refine result",

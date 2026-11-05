@@ -411,3 +411,7 @@ export const aiDraftIncompleteReason = (state: AiDraftCompletion): AiDraftIncomp
   if (state.failed || !state.finished) return "interrupted";
   return null;
 };
+
+/** "3、7" or "3, 7": the parts of a long run that kept their source text, for a notice (#652). */
+export const formatAiPartList = (parts: readonly number[], locale: string) =>
+  parts.join(/^(zh|ja)/i.test(locale) ? "、" : ", ");

@@ -3834,6 +3834,8 @@ export const zhCN = {
       incompleteStopped: "生成已停止，结果不完整。可以复制或追加，但不能用它替换原文。",
       incompleteInterrupted: "结果不完整：生成中途中断。可以复制或追加，但不能用它替换原文。",
       inputTooLong: "笔记太长，超出了所选模型的上下文窗口。请缩短笔记，或换用窗口更大的模型。",
+      progressPart: "正在生成第 {{part}}/{{parts}} 段…",
+      incompleteParts: "结果不完整：第 {{parts}} 段未能完成，保留了原文。可以复制或追加，但不能用它替换原文。",
       noteUpdated: "已更新笔记",
       refinePlaceholder: "例如：再简洁一点",
       refineResult: "继续调整",
