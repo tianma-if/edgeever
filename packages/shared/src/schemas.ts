@@ -461,7 +461,28 @@ export const AiGenerateSchema = z.object({
   attachments: z.array(AiAttachmentSchema).max(MAX_AI_ATTACHMENTS).default([]),
   /** The client can send a request without an output limit when none is known (#652). */
   allowUnboundedOutput: z.boolean().optional(),
+  /**
+   * The client can run a long source-sized task in parts (#652). When one request cannot finish
+   * it, prepare returns `segments` instead of a request. `depth` > 0 re-splits a part that was cut off.
+   */
+  segmentation: z.object({ depth: z.number().int().min(0).max(2).default(0) }).strict().optional(),
+  /** This request is one part of a long note, with context from the parts before it. */
+  segment: z.object({
+    index: z.number().int().min(0).max(199),
+    count: z.number().int().min(1).max(200),
+    headingPath: z.array(z.string().max(200)).max(6).default([]),
+    previousSourceTail: z.string().max(1_000).optional(),
+    previousOutputTail: z.string().max(1_000).optional(),
+  }).strict().refine((segment) => segment.index < segment.count, { message: "The part index is out of range." }).optional(),
+  /** Continue a result that was cut off: the end of what was written so far. */
+  continuation: z.object({
+    round: z.number().int().min(1).max(3),
+    previousOutput: z.string().min(1).max(20_000),
+  }).strict().optional(),
 }).superRefine((input, context) => {
+  if (input.continuation && (input.segment || input.segmentation)) {
+    context.addIssue({ code: "custom", path: ["continuation"], message: "A continuation cannot be split into parts." });
+  }
   if (!input.promptId && input.action === "translate" && !input.targetLanguage) {
     context.addIssue({ code: "custom", path: ["targetLanguage"], message: "A target language is required for translation." });
   }

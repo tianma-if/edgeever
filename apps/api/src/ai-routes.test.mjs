@@ -1797,3 +1797,105 @@ describe("automatic output budget (#652 PR A)", () => {
     sqlite.close();
   });
 });
+
+describe("long generation in parts and continuation (#652 PR B)", () => {
+  const send = (body, method = "POST") => ({ method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  const setup = async (settings = validSettings) => {
+    const app = createApp();
+    const database = createDatabaseEnvironment();
+    const created = await app.request("/api/v1/ai/providers", send(settings), database.environment);
+    const provider = (await created.json()).providers[0];
+    return { ...database, app, provider, model: provider.models[0] };
+  };
+  const report = async (app, env, provider, model, body) => {
+    const { updated_at: configVersion } = await env.storage.db
+      .prepare("SELECT updated_at FROM ai_provider_configs WHERE id = ?").bind(provider.id).first();
+    return app.request(`/api/v1/ai/providers/${provider.id}/models/${model.id}/capabilities`, send({
+      provider: provider.provider, modelId: model.modelId, baseUrl: provider.baseUrl, configVersion,
+      maxOutputTokens: null, maxInputTokens: null, contextWindowTokens: null, source: "none", ...body,
+    }, "PUT"), env);
+  };
+  const prepare = (app, env, body) => app.request("/api/v1/ai/generate/prepare", send({
+    action: "translate", targetLanguage: "en", title: "Note", allowUnboundedOutput: true, ...body,
+  }), env);
+  const longNote = Array.from({ length: 40 }, (_, index) => `## 第 ${index + 1} 节\n\n${"这是一段用于测试分段翻译的中文正文。".repeat(30)}\n`).join("\n");
+
+  test("a long source-sized task returns parts that rebuild the note; a short one returns a request", async () => {
+    const { sqlite, app, environment: env, provider, model } = await setup();
+    await report(app, env, provider, model, { maxOutputTokens: 8192, contextWindowTokens: 128_000, source: "openrouter-models" });
+    const response = await prepare(app, env, { contentMarkdown: longNote, segmentation: {} });
+    expect(response.status).toBe(200);
+    const planned = await response.json();
+    expect(planned.segments.length).toBeGreaterThan(1);
+    expect(planned.segments.map((segment) => segment.markdown).join("")).toBe(longNote);
+    expect(planned.segments[1].markdown.startsWith("## ")).toBe(true);
+    expect(planned.capabilityTarget).toMatchObject({ providerConfigId: provider.id, modelConfigId: model.id });
+    const short = await (await prepare(app, env, { contentMarkdown: "短文。", segmentation: {} })).json();
+    expect(short.segments).toBeUndefined();
+    expect(short.system).toContain(short.resultBoundary.start);
+    // Clients that do not run parts keep the single request.
+    expect((await (await prepare(app, env, { contentMarkdown: longNote })).json()).segments).toBeUndefined();
+    sqlite.close();
+  });
+
+  test("open-ended tasks are never split", async () => {
+    const { sqlite, app, environment: env, provider, model } = await setup();
+    await report(app, env, provider, model, { maxOutputTokens: 8192, source: "openrouter-models" });
+    const prepared = await (await prepare(app, env, { action: "continue-writing", contentMarkdown: longNote, segmentation: {} })).json();
+    expect(prepared.segments).toBeUndefined();
+    sqlite.close();
+  });
+
+  test("without known limits a long note is still split, and a note too long for the window is split instead of refused", async () => {
+    const unknown = await setup();
+    const unbounded = await (await prepare(unknown.app, unknown.environment, { contentMarkdown: longNote, segmentation: {} })).json();
+    expect(unbounded.outputBudget.mode).toBe("auto-unbounded");
+    expect(unbounded.segments.length).toBeGreaterThan(1);
+    unknown.sqlite.close();
+
+    const small = await setup({ ...validSettings, provider: "anthropic", baseUrl: "https://api.anthropic.example/v1" });
+    await report(small.app, small.environment, small.provider, small.model, { maxOutputTokens: 64000, contextWindowTokens: 20_000, source: "anthropic-models" });
+    const refused = await prepare(small.app, small.environment, { contentMarkdown: longNote });
+    expect(refused.status).toBe(413);
+    const split = await prepare(small.app, small.environment, { contentMarkdown: longNote, segmentation: {} });
+    expect(split.status).toBe(200);
+    expect((await split.json()).segments.length).toBeGreaterThan(1);
+    small.sqlite.close();
+  });
+
+  test("one part carries its position and context, and a cut-off part can be split again", async () => {
+    const { sqlite, app, environment: env } = await setup();
+    const part = await (await prepare(app, env, {
+      contentMarkdown: "## 第 2 节\n\n正文。\n",
+      segment: { index: 1, count: 5, headingPath: ["书名"], previousSourceTail: "上一节结尾。", previousOutputTail: "End of the previous part." },
+    })).json();
+    expect(part.segments).toBeUndefined();
+    expect(part.system).toContain("part 2 of 5");
+    expect(part.prompt).toContain("Section: 书名");
+    expect(part.prompt).toContain("上一节结尾。");
+    expect(part.prompt).toContain("End of the previous part.");
+    const resplit = await (await prepare(app, env, { contentMarkdown: longNote.slice(0, 3000), segmentation: { depth: 1 } })).json();
+    expect(resplit.segments.length).toBeGreaterThan(1);
+    expect(resplit.segments.map((segment) => segment.markdown).join("")).toBe(longNote.slice(0, 3000));
+    sqlite.close();
+  });
+
+  test("a continuation sends what was written so far and counts it against the window", async () => {
+    const { sqlite, app, environment: env, provider, model } = await setup({ ...validSettings, provider: "anthropic", baseUrl: "https://api.anthropic.example/v1" });
+    const continued = await (await prepare(app, env, {
+      action: "continue-writing", contentMarkdown: "开头。", continuation: { round: 1, previousOutput: "已经写好的部分" },
+    })).json();
+    expect(continued.system).toContain("cut off");
+    expect(continued.prompt).toContain("已经写好的部分");
+    await report(app, env, provider, model, { maxOutputTokens: 64000, contextWindowTokens: 30_000, source: "anthropic-models" });
+    const full = await prepare(app, env, {
+      action: "continue-writing", contentMarkdown: "字".repeat(12_000), continuation: { round: 2, previousOutput: "字".repeat(20_000) },
+    });
+    expect(full.status).toBe(413);
+    const invalid = await prepare(app, env, {
+      action: "continue-writing", contentMarkdown: "开头。", segmentation: {}, continuation: { round: 1, previousOutput: "x" },
+    });
+    expect(invalid.status).toBe(400);
+    sqlite.close();
+  });
+});
