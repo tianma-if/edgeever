@@ -37,8 +37,20 @@ export const renderThemedMermaidSvg = (
         .edgeLabel rect { opacity: 1; rx: 3px; ry: 3px; }
       `,
     });
-    const { svg } = await mermaid.render(`edgeever-mermaid-${++renderSequence}`, source);
-    return svg;
+    const host = document.createElement("div");
+    host.style.cssText = "position:fixed;left:0;top:0;visibility:hidden";
+    // Mermaid measures HTML labels in viewport pixels but sizes them in SVG
+    // units. Keep the temporary measurement host at 1×, including when the
+    // document is scaled. The returned SVG still follows the user's zoom.
+    const documentZoom = document.body.currentCSSZoom || 1;
+    host.style.zoom = documentZoom === 1 ? "reset" : String(1 / documentZoom);
+    document.body.appendChild(host);
+    try {
+      const { svg } = await mermaid.render(`edgeever-mermaid-${++renderSequence}`, source, host);
+      return svg;
+    } finally {
+      host.remove();
+    }
   });
   officialQueue = result.catch(() => undefined);
   return result;

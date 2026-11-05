@@ -35,6 +35,12 @@ flowchart LR
   ADHOC --> Module_Test
   PLAYBOOK --> WP_Deploy`;
 
+const esbSource = `flowchart LR
+  A[上游应用] -->|统一请求| B[ESB 企业服务总线]
+  B -->|协议转换| C[微服务 A]
+  B -->|协议转换| D[微服务 B]
+  B -->|协议转换| E[微服务 C]`;
+
 const assert = (condition, message) => { if (!condition) throw new Error(message); };
 const parser = new DOMParser();
 const cases = [
@@ -101,9 +107,35 @@ try {
       URL.revokeObjectURL(url);
     }
   }
+  for (const zoom of [1, 0.9, 1.1, 1.25]) {
+    const previousZoom = document.body.style.zoom;
+    const preview = document.createElement("div");
+    document.body.style.zoom = String(zoom);
+    try {
+      preview.innerHTML = await renderThemedMermaidSvg(esbSource, {
+        palette: MERMAID_THEME_PALETTES["zinc-light"],
+        font: "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+        padding: 24,
+      });
+      document.querySelector("#cases").append(preview);
+      const labels = [...preview.querySelectorAll("foreignObject")];
+      assert(labels.some((box) => box.textContent === "ESB 企业服务总线"), `Missing ESB label at zoom ${zoom}`);
+      for (const box of labels) {
+        const range = document.createRange();
+        range.selectNodeContents(box.firstElementChild);
+        const textBounds = range.getBoundingClientRect();
+        const labelBounds = box.getBoundingClientRect();
+        assert(textBounds.width > 0 && textBounds.right <= labelBounds.right + 0.5,
+          `Clipped label "${box.textContent}" at zoom ${zoom}`);
+      }
+    } finally {
+      preview.remove();
+      document.body.style.zoom = previousZoom;
+    }
+  }
   const invalid = "<p>Not an SVG</p>";
   assert(normalizeMermaidSvgForViewer(invalid) === invalid, "Non-SVG input changed");
-  document.querySelector("#result").textContent = `${cases.length} cases passed: XML, namespaces, labels, dimensions and Blob image loading`;
+  document.querySelector("#result").textContent = `${cases.length} cases passed: XML, namespaces, labels, dimensions, Blob image loading and scaled label bounds`;
   document.querySelector("#result").dataset.state = "passed";
 } catch (error) {
   document.querySelector("#result").textContent = String(error);
