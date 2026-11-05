@@ -28,6 +28,10 @@ describe("sidebar body drafts (#652 PR B)", () => {
     expect(hook).toContain("await api.streamAiGeneration({");
   });
 
+  test("a selection draft closes the pinned quote above the composer", () => {
+    expect(sidebar).toContain("if (pin) onDismissSelectionPin?.();");
+  });
+
   test("a translation without a language asks which one before generating", () => {
     expect(hook).toContain('if (command.action === "translate" && !command.targetLanguage) {');
     expect(hook).toContain("awaitingLanguage: true");

@@ -176,6 +176,8 @@ test("selection Translate drafts only the selection and replaces only it (#652 P
     // The request shows as the user's message, with the selected text quoted.
     await expect(draft.locator(".is-user")).toContainText("翻译");
     await expect(draft.locator(".is-user")).toContainText("这是一段用于测试侧栏分段翻译的中文正文");
+    // The draft quotes the selection itself, so the pinned quote above the composer is gone.
+    await expect(page.locator("[data-selection-pin]")).toHaveCount(0);
     await expect(draft.getByRole("button", { name: "替换选中内容" })).toBeEnabled({ timeout: 30_000 });
     await expect(draft).toContainText("Translated selection.");
     expect(seen.every((item) => item.part === null)).toBe(true);

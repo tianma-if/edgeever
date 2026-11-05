@@ -724,8 +724,10 @@ function AiSidebarSession({
     if (!command) return false;
     const pin = selectionPin && selectionPin.memoId === memoId ? selectionPin : null;
     void startBodyDraft(command, pin ? { kind: "selection", snapshot: selectionPinSnapshot(pin) } : { kind: "note" }, message);
+    // The draft quotes the selection and keeps its own target, so the pinned quote is no longer needed.
+    if (pin) onDismissSelectionPin?.();
     return true;
-  }, [bodyDraftEnabled, memoId, selectionPin, startBodyDraft]);
+  }, [bodyDraftEnabled, memoId, onDismissSelectionPin, selectionPin, startBodyDraft]);
   const [turnFailures, setTurnFailures] = useState<Record<string, string>>({});
   const [useMemory, setUseMemory] = useState(false);
   const [includeCurrentNote, setIncludeCurrentNote] = useState(false);
