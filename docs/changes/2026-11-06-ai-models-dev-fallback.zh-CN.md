@@ -40,4 +40,6 @@
 
 - 自动化：shared（目录解析、字段映射、匹配规则、`independent input` 长输入不扣输出预算；匹配用例放在 `packages/shared/test-fixtures/models-dev/`，供 iOS 复用）、client（缓存复用、ETag 304、失败退避、过期副本兜底、中止不影响共享下载；仅在 `none` 时兜底、供应商上限优先、读不到供应商时不兜底；生成流程中上报 `models-dev` 并用于同一次请求）、API（`models-dev` 上报的存储与使用，以及之后的 `provider-error` 纠正）。
 - 用真实目录（2026-11-06 下载，约 8,800 条）抽查 `gpt-5`、`gpt-4o`、`claude-sonnet-4-5-20250929`、`gemini-2.5-flash`、`deepseek-chat`、`qwen3-max`、`glm-4.6`、`hy3`、`xxxyyy/claude-opus-5-5` 等常见 ID，结果均来自原厂条目或合理的中转中位数。
-- 未验证：真实网关上的命中率与端到端生成、国内网络对 models.dev 的可达性、Android 真机耗时、桌面安装包。
+- 真实服务（隔离预览实例）：Android 客户端（instabox Android 14 容器，x86_64 预览 APK）在模型上限为空时检测并上报。模拟网关（模型列表不带上限）下，`gpt-5` 和 `xxxyyy/claude-opus-5-5` 分别记为 `models-dev` 并请求 `max_tokens=128000`，`my-team-model` 未匹配，请求不带上限；一个只返回 `none` 的真实第三方网关，OpenAI 兼容、Anthropic、Gemini 三种协议都由目录补上上限并正常完成，其文字模型命中率为 39/56。
+- 中国大陆网络可访问 models.dev。
+- 未验证：USB 真机（instabox 为容器环境，不替代真机验证）、Web / 桌面界面上的来源文案展示、桌面安装包。
