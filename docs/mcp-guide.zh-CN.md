@@ -70,7 +70,7 @@ VS Code 会在服务器首次启动时提示输入 Token 并安全保存。也�
 
 ### Cursor 等 HTTP 客户端
 
-将上面的 JSON 配置粘贴到客户端的 MCP 设置中。支持 `url` 和 `headers` 的客户端通常无需额外修改。不要把 Token 写入会提交到仓库的文件。
+将第 2 节开头的 `mcpServers` JSON 示例粘贴到客户端的 MCP 设置中。支持 `url` 和 `headers` 的客户端通常无需额外修改。不要把 Token 写入会提交到仓库的文件。
 
 ### 只能启动本地（stdio）服务器的客户端
 

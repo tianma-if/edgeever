@@ -70,7 +70,7 @@ VS Code asks for the token when the server first starts and stores it securely. 
 
 ### Cursor and other HTTP clients
 
-Paste the JSON configuration above into the client's MCP settings. Most clients that accept `url` and `headers` work without changes. Keep the token out of files that are committed to a repository.
+Paste the `mcpServers` JSON example from the start of section 2 into the client's MCP settings. Most clients that accept `url` and `headers` work without changes. Keep the token out of files that are committed to a repository.
 
 ### Clients that only start local (stdio) servers
 
