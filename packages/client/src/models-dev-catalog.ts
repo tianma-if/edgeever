@@ -5,9 +5,10 @@ import { throwIfAborted } from "./abort-signal";
  * In-memory cache of the models.dev catalogue (#652).
  * - The instance already stores each model's limits for every client, so the catalogue is only
  *   needed when a model's limits are missing or stale; it is kept in memory, not on disk.
- * - A fresh copy is reused for a day. After that the copy is revalidated with its ETag, so an
- *   unchanged catalogue costs a 304 instead of a download. Web and desktop also get the browser's
- *   own ETag revalidation for the first download of a session.
+ * - A fresh copy is reused for a day. After that it is requested again. Where the response's ETag
+ *   is readable (Android), the request carries `If-None-Match`, so an unchanged catalogue costs a
+ *   304. models.dev does not expose ETag to browsers, so Web and desktop send a plain GET and rely
+ *   on the browser's own HTTP cache revalidation.
  * - Concurrent lookups share one download. A failure is remembered briefly, so a blocked or slow
  *   network does not delay every generation in a row.
  */

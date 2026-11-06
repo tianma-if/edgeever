@@ -26,7 +26,7 @@ export type ModelsDevIndex = {
   providers: Map<string, Map<string, ModelsDevEntry>>;
   /** Lower-case API host -> provider keys, from each provider's `api` field. */
   hosts: Map<string, string[]>;
-  /** Lower-case model key, canonical ID or canonical model part -> entries. */
+  /** Lower-case model key, canonical ID, or canonical model part without a `/` -> entries. */
   ids: Map<string, ModelsDevEntry[]>;
   size: number;
 };
@@ -104,7 +104,9 @@ export const buildModelsDevIndex = (body: unknown): ModelsDevIndex | null => {
       push(index.ids, entry.modelKey, entry);
       if (canonical) {
         push(index.ids, canonical, entry);
-        push(index.ids, canonical.slice(canonical.indexOf("/") + 1), entry);
+        // A bare ID (no `/`) may match the canonical model part; a prefixed ID must match in full.
+        const modelPart = canonical.slice(canonical.indexOf("/") + 1);
+        if (!modelPart.includes("/")) push(index.ids, modelPart, entry);
       }
       index.size++;
     }
@@ -146,10 +148,13 @@ const endpointProviders = (index: ModelsDevIndex, provider: AiProvider, baseUrl:
 /**
  * Find the limits for a model in the catalogue. Matching is exact (case-insensitive), never fuzzy:
  * 1. The catalogue provider that runs this endpoint, by API host (or the official provider).
- * 2. Every listing whose model key or `canonical_model_id` equals the ID, or whose canonical model
- *    part equals the ID without a `vendor/` prefix. The original vendor's own listing wins (the
- *    vendor named by the ID or by those canonical IDs); otherwise the listings are combined
- *    conservatively (see `combineListings`).
+ * 2. Every listing whose model key or `canonical_model_id` equals the ID, or, for an ID without a
+ *    `vendor/` prefix, whose canonical model part equals it. A prefix is never removed to find a
+ *    match: `my-team/gpt-5` matches only when the catalogue records that full ID (as a key or a
+ *    canonical ID), because the gateway's model behind an unknown prefix is not known, and the
+ *    result is shared by every client of the instance.
+ * 3. Among those listings, the original vendor's own listing wins, looked up through the canonical
+ *    IDs they record; otherwise the listings are combined conservatively (see `combineListings`).
  * Returns `null` when nothing matches.
  */
 export const matchModelsDevLimits = (
@@ -162,17 +167,13 @@ export const matchModelsDevLimits = (
     const entry = index.providers.get(key)?.get(id);
     if (entry) return entry.limits;
   }
-  const slash = id.indexOf("/");
-  const vendorHint = slash > 0 ? id.slice(0, slash) : null;
-  const bare = slash > 0 ? id.slice(slash + 1) : id;
-  const candidates = index.ids.get(id) ?? (vendorHint ? index.ids.get(bare) : undefined) ?? [];
+  const candidates = index.ids.get(id) ?? [];
   if (!candidates.length) return null;
   const canonicals = new Set(candidates.map((entry) => entry.canonical).filter((value): value is string => Boolean(value)));
-  if (vendorHint) canonicals.add(`${vendorHint}/${bare}`);
-  // The original vendor's listing, looked up under the IDs the candidates point to.
+  // The original vendor's listing, looked up under the canonical IDs the candidates record.
   for (const canonical of canonicals) {
     const own = index.providers.get(vendorOf(canonical));
-    const entry = own?.get(modelPartOf(canonical)) ?? own?.get(bare);
+    const entry = own?.get(modelPartOf(canonical)) ?? (id.includes("/") ? undefined : own?.get(id));
     if (entry) return entry.limits;
   }
   return combineListings(candidates);

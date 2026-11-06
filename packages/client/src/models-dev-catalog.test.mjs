@@ -137,6 +137,8 @@ describe("models.dev as the detection fallback (#652)", () => {
     const none = { maxOutputTokens: null, maxInputTokens: null, contextWindowTokens: null, source: "none" };
     const target = { provider: "openai-compatible", baseUrl: "https://newapi.example/v1", apiKey: "k", modelId: "my-alias" };
     expect(await detectAiModelCapabilities(target, newApiGateway, undefined, { catalogFetch: catalogServer().fetchImpl })).toEqual(none);
+    // An unknown prefix is never removed: my-team/gpt-5 must not save OpenAI gpt-5's limits for every client.
+    expect(await detectAiModelCapabilities({ ...target, modelId: "my-team/gpt-5" }, newApiGateway, undefined, { catalogFetch: catalogServer().fetchImpl })).toEqual(none);
     resetModelsDevCatalogCache();
     expect(await detectAiModelCapabilities({ ...target, modelId: "gpt-5" }, newApiGateway, undefined, {
       catalogFetch: async () => { throw new TypeError("Failed to fetch"); },
