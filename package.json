@@ -234,12 +234,16 @@
     "tar": "7.5.22",
     "http-cache-semantics": "4.3.0",
     "compression": "1.8.2",
-    "node-forge": "1.4.3"
+    "node-forge": "1.4.3",
+    "baseline-browser-mapping": "2.11.35",
+    "browserslist": "4.29.5",
+    "fast-uri": "3.1.9",
+    "ip-address": "10.7.6",
+    "serialize-javascript": "7.1.4"
   },
   "patchedDependencies": {
     "mermaid@11.16.1": "patches/mermaid@11.16.1.patch",
     "expo-sharing@57.0.22": "patches/expo-sharing@57.0.22.patch",
-    "npm@11.21.0": "patches/npm@11.21.0.patch",
     "@joplin/turndown-plugin-gfm@1.0.68": "patches/@joplin%2Fturndown-plugin-gfm@1.0.68.patch",
     "wrangler@4.112.0": "patches/wrangler@4.112.0.patch",
     "miniflare@4.20260714.0": "patches/miniflare@4.20260714.0.patch",
