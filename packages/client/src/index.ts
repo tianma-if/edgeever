@@ -856,10 +856,10 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
       request<ListLoginDeviceSessionsResponse>("/api/v1/auth/sessions"),
 
     revokeLoginDeviceSession: (sessionId: string) =>
-      request<{ ok: true }>(`/api/v1/auth/sessions/${sessionId}`, { method: "DELETE" }),
+      request<{ ok: true }>(`/api/v1/auth/sessions/${encodeURIComponent(sessionId)}`, { method: "DELETE" }),
 
     updateLoginDeviceSession: (sessionId: string, payload: { label: string | null }) =>
-      request<{ ok: true }>(`/api/v1/auth/sessions/${sessionId}`, {
+      request<{ ok: true }>(`/api/v1/auth/sessions/${encodeURIComponent(sessionId)}`, {
         method: "PATCH",
         body: JSON.stringify(payload),
       }),
@@ -1284,7 +1284,7 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
       }),
 
     updateUser: (userId: string, payload: { displayName?: string | null; password?: string; isDisabled?: boolean }) =>
-      request<UserResponse>(`/api/v1/users/${userId}`, {
+      request<UserResponse>(`/api/v1/users/${encodeURIComponent(userId)}`, {
         method: "PATCH",
         body: JSON.stringify(payload),
       }),
@@ -1333,18 +1333,18 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
       }),
 
     updateNotebook: (notebookId: string, payload: NotebookUpdateInput) =>
-      request<NotebookResponse>(`/api/v1/notebooks/${notebookId}`, {
+      request<NotebookResponse>(`/api/v1/notebooks/${encodeURIComponent(notebookId)}`, {
         method: "PATCH",
         body: JSON.stringify(payload),
       }),
 
     deleteNotebook: (notebookId: string) =>
-      request<{ ok: true }>(`/api/v1/notebooks/${notebookId}`, {
+      request<{ ok: true }>(`/api/v1/notebooks/${encodeURIComponent(notebookId)}`, {
         method: "DELETE",
       }),
 
     restoreNotebook: (notebookId: string) =>
-      request<NotebookResponse>(`/api/v1/notebooks/${notebookId}/restore`, {
+      request<NotebookResponse>(`/api/v1/notebooks/${encodeURIComponent(notebookId)}/restore`, {
         method: "POST",
       }),
 
@@ -1370,7 +1370,7 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
       }),
 
     revokeApiToken: (tokenId: string) =>
-      request<{ ok: true }>(`/api/v1/api-tokens/${tokenId}`, {
+      request<{ ok: true }>(`/api/v1/api-tokens/${encodeURIComponent(tokenId)}`, {
         method: "DELETE",
       }),
 
@@ -1466,19 +1466,19 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
       title?: string | null;
       contentMarkdown?: string;
       tags?: string[];
-    }) => request<TemplateResponse>(`/api/v1/templates/${templateId}`, {
+    }) => request<TemplateResponse>(`/api/v1/templates/${encodeURIComponent(templateId)}`, {
       method: "PATCH",
       body: JSON.stringify(payload),
     }),
 
     useTemplate: (templateId: string, notebookId: string, locale?: string) =>
-      request<MemoResponse>(`/api/v1/templates/${templateId}/use`, {
+      request<MemoResponse>(`/api/v1/templates/${encodeURIComponent(templateId)}/use`, {
         method: "POST",
         body: JSON.stringify(locale ? { notebookId, locale } : { notebookId }),
       }),
 
     deleteTemplate: (templateId: string) =>
-      request<{ ok: true }>(`/api/v1/templates/${templateId}`, { method: "DELETE" }),
+      request<{ ok: true }>(`/api/v1/templates/${encodeURIComponent(templateId)}`, { method: "DELETE" }),
 
     listScheduledTasks: (executorDeviceId?: string) => {
       const search = new URLSearchParams();
@@ -1611,23 +1611,23 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
       }
 
       const suffix = search.toString() ? `?${search.toString()}` : "";
-      return request<MemoResponse>(`/api/v1/memos/${memoId}${suffix}`);
+      return request<MemoResponse>(`/api/v1/memos/${encodeURIComponent(memoId)}${suffix}`);
     },
 
     getMemoShare: (memoId: string) =>
-      request<MemoShareResponse>(`/api/v1/memos/${memoId}/share`),
+      request<MemoShareResponse>(`/api/v1/memos/${encodeURIComponent(memoId)}/share`),
 
     listMemoShares: (offset = 0, limit = 50) =>
       request<ListMemoSharesResponse>(`/api/v1/memo-shares?offset=${offset}&limit=${limit}`),
 
     createMemoShare: (memoId: string) =>
-      request<{ share: MemoShare }>(`/api/v1/memos/${memoId}/share`, {
+      request<{ share: MemoShare }>(`/api/v1/memos/${encodeURIComponent(memoId)}/share`, {
         method: "POST",
         body: JSON.stringify({}),
       }),
 
     updateMemoShare: (memoId: string, payload: { passwordProtected?: boolean; password?: string; slug?: string | null; showUpdatedAt?: boolean; showBranding?: boolean; expiresAt?: string | null }) =>
-      request<{ share: MemoShare }>(`/api/v1/memos/${memoId}/share`, {
+      request<{ share: MemoShare }>(`/api/v1/memos/${encodeURIComponent(memoId)}/share`, {
         method: "PATCH",
         body: JSON.stringify(payload),
       }),
@@ -1666,18 +1666,18 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
     },
 
     revokeMemoShare: (memoId: string) =>
-      request<{ ok: true }>(`/api/v1/memos/${memoId}/share`, { method: "DELETE" }),
+      request<{ ok: true }>(`/api/v1/memos/${encodeURIComponent(memoId)}/share`, { method: "DELETE" }),
 
     createMemoEditSession: (memoId: string) =>
-      request<{ editSession: MemoEditSession }>(`/api/v1/memos/${memoId}/edit-sessions`, {
+      request<{ editSession: MemoEditSession }>(`/api/v1/memos/${encodeURIComponent(memoId)}/edit-sessions`, {
         method: "POST",
         body: JSON.stringify({}),
       }),
 
-    listMemoRevisions: (memoId: string) => request<ListMemoRevisionsResponse>(`/api/v1/memos/${memoId}/revisions`),
+    listMemoRevisions: (memoId: string) => request<ListMemoRevisionsResponse>(`/api/v1/memos/${encodeURIComponent(memoId)}/revisions`),
 
     restoreMemoRevision: (memoId: string, revisionId: string) =>
-      request<MemoResponse>(`/api/v1/memos/${memoId}/revisions/${revisionId}/restore`, {
+      request<MemoResponse>(`/api/v1/memos/${encodeURIComponent(memoId)}/revisions/${encodeURIComponent(revisionId)}/restore`, {
         method: "POST",
         body: JSON.stringify({}),
       }),
@@ -1872,7 +1872,7 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
         allowDestructiveOverwrite?: boolean;
       }
     ) =>
-      request<MemoResponse>(`/api/v1/memos/${memoId}`, {
+      request<MemoResponse>(`/api/v1/memos/${encodeURIComponent(memoId)}`, {
         method: "PATCH",
         body: JSON.stringify(payload),
       }),
@@ -1885,13 +1885,13 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
       }
 
       const suffix = search.toString() ? `?${search.toString()}` : "";
-      return request<{ ok: true }>(`/api/v1/memos/${memoId}${suffix}`, {
+      return request<{ ok: true }>(`/api/v1/memos/${encodeURIComponent(memoId)}${suffix}`, {
         method: "DELETE",
       });
     },
 
     restoreMemo: (memoId: string) =>
-      request<MemoResponse>(`/api/v1/memos/${memoId}/restore`, {
+      request<MemoResponse>(`/api/v1/memos/${encodeURIComponent(memoId)}/restore`, {
         method: "POST",
         body: JSON.stringify({}),
       }),
