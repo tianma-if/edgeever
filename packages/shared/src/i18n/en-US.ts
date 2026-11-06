@@ -471,6 +471,7 @@ export const enUS = {
     back: "Go back",
     language: "Language",
     untitledMemo: "Untitled note",
+    untitledMemoWithDate: "Untitled note · {{date}}",
     processing: "Processing",
     saving: "Saving",
     copied: "Copied",
@@ -1129,6 +1130,15 @@ export const enUS = {
     imageCompressionAria: "Compress note images",
     showDescendantNotesTitle: "Show notes from sub-notebooks",
     showDescendantNotesAria: "Show notes from sub-notebooks in parent notebooks",
+    untitledMemoDateTitle: "Date for untitled notes",
+    untitledMemoDateFormats: {
+      medium: "Default",
+      short: "Short",
+      long: "Long",
+      iso: "ISO 8601",
+      date: "Date only",
+      off: "Off",
+    },
     loginItem: {
       title: "Launch at startup",
       aria: "Launch EdgeEver at startup",

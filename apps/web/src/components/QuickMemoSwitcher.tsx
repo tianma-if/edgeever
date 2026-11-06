@@ -4,6 +4,7 @@ import { FileText, LoaderCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { MemoSummary } from "@edgeever/shared";
 import type { EdgeEverRepository } from "@/lib/repository";
+import { useMemoDisplayLabel } from "@/lib/untitled-memo-label";
 import {
   Command,
   CommandEmpty,
@@ -40,6 +41,7 @@ export const QuickMemoSwitcher = ({
   onOpenMemo,
 }: QuickMemoSwitcherProps) => {
   const { t } = useTranslation();
+  const getMemoDisplayLabel = useMemoDisplayLabel();
   const [selectedMemoId, setSelectedMemoId] = useState("");
   const deferredQuery = useDeferredValue(query.trim());
   const memoQuery = useQuery({
@@ -97,7 +99,7 @@ export const QuickMemoSwitcher = ({
                     >
                       <FileText className="h-4 w-4 shrink-0 text-slate-500" />
                       <div className="min-w-0 flex-1 py-0.5">
-                        <div className="truncate font-medium text-slate-900">{memo.title}</div>
+                        <div className="truncate font-medium text-slate-900">{getMemoDisplayLabel(memo)}</div>
                         {memo.excerpt ? (
                           <div className="mt-0.5 truncate text-xs text-slate-500">{memo.excerpt}</div>
                         ) : null}

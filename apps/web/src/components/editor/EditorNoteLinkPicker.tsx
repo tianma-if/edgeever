@@ -1,7 +1,7 @@
 import { Link2, X } from "lucide-react";
-import { getMemoDisplayTitle } from "@edgeever/shared";
 import { useTranslation } from "react-i18next";
 import type { MemoSummary } from "@edgeever/shared";
+import { useMemoDisplayLabel } from "@/lib/untitled-memo-label";
 import {
   Command,
   CommandEmpty,
@@ -29,6 +29,7 @@ export const EditorNoteLinkPicker = ({
   onInsert: (memo: MemoSummary) => void;
 }) => {
   const { t } = useTranslation();
+  const getMemoDisplayLabel = useMemoDisplayLabel();
   const candidates = memos.filter((candidate) => candidate.id !== currentMemoId && !candidate.isDeleted);
 
   return (
@@ -67,7 +68,7 @@ export const EditorNoteLinkPicker = ({
                 {candidates.map((candidate) => (
                   <CommandItem key={candidate.id} value={candidate.id} onSelect={() => onInsert(candidate)}>
                     <Link2 className="h-4 w-4 shrink-0 text-slate-600" />
-                    <span className="min-w-0 flex-1 truncate">{getMemoDisplayTitle(candidate.title, t("common.untitledMemo"))}</span>
+                    <span className="min-w-0 flex-1 truncate">{getMemoDisplayLabel(candidate)}</span>
                     <span className="max-w-40 truncate text-xs text-slate-400">{candidate.excerpt}</span>
                   </CommandItem>
                 ))}

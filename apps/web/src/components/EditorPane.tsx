@@ -241,6 +241,7 @@ import {
   readAiSelectionMenuPreference,
 } from "@/lib/ai-selection-menu-preference";
 import { useEditorSpellcheckPreference } from "@/lib/editor-spellcheck-preference";
+import { useMemoDisplayLabel } from "@/lib/untitled-memo-label";
 import {
   clipSelectionForSend,
   translationReplacement,
@@ -513,6 +514,7 @@ const RichEditorPane = ({
   }, []);
   const aiBubbleMenu = useAiBubbleMenu();
   const spellcheckEnabled = useEditorSpellcheckPreference();
+  const getMemoDisplayLabel = useMemoDisplayLabel();
   const [selectionPin, setSelectionPin] = useState<SelectionAiPin | null>(null);
   const [selectionRequest, setSelectionRequest] = useState<SelectionAiRequest | null>(null);
   const selectionPinRef = useRef<SelectionAiPin | null>(null);
@@ -850,6 +852,7 @@ const RichEditorPane = ({
     empty: t("noteLinkPicker.empty"),
     close: t("noteLinkPicker.close"),
     untitled: t("common.untitledMemo"),
+    displayTitle: getMemoDisplayLabel,
   };
   const noteLinkSuggestionExtensionRef = useRef<ReturnType<typeof createNoteLinkSuggestionExtension> | null>(null);
   if (!noteLinkSuggestionExtensionRef.current) {

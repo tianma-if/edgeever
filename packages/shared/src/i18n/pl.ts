@@ -479,6 +479,7 @@ export const pl = {
     back: "Wstecz",
     language: "Język",
     untitledMemo: "Notatka bez tytułu",
+    untitledMemoWithDate: "Notatka bez tytułu · {{date}}",
     processing: "Przetwarzanie",
     saving: "Zapisywanie",
     copied: "Skopiowano",
@@ -1137,6 +1138,15 @@ export const pl = {
     imageCompressionAria: "Kompresuj obrazy w notatkach",
     showDescendantNotesTitle: "Pokazuj notatki z podnotatników",
     showDescendantNotesAria: "Pokazuj notatki z podnotatników w notatnikach nadrzędnych",
+    untitledMemoDateTitle: "Data przy notatkach bez tytułu",
+    untitledMemoDateFormats: {
+      medium: "Domyślny",
+      short: "Krótki",
+      long: "Długi",
+      iso: "ISO 8601",
+      date: "Tylko data",
+      off: "Nie pokazuj",
+    },
     loginItem: {
       title: "Uruchamiaj po włączeniu komputera",
       aria: "Uruchamiaj EdgeEver po włączeniu komputera",

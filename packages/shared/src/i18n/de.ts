@@ -629,6 +629,7 @@ export const de = {
     "back": "Zurückgehen",
     "language": "Sprache",
     "untitledMemo": "Unbenannte Notiz",
+    "untitledMemoWithDate": "Unbenannte Notiz · {{date}}",
     "processing": "Wird verarbeitet",
     "saving": "Wird gespeichert",
     "copied": "Kopiert",
@@ -1287,6 +1288,15 @@ export const de = {
     "imageCompressionAria": "Notizbilder komprimieren",
     "showDescendantNotesTitle": "Notizen aus Unter-Notizbüchern anzeigen",
     "showDescendantNotesAria": "Notizen aus Unter-Notizbüchern in übergeordneten Notizbüchern anzeigen",
+    "untitledMemoDateTitle": "Datum bei unbenannten Notizen",
+    "untitledMemoDateFormats": {
+      "medium": "Standard",
+      "short": "Kurz",
+      "long": "Lang",
+      "iso": "ISO 8601",
+      "date": "Nur Datum",
+      "off": "Nicht anzeigen",
+    },
     "loginItem": {
       "title": "Beim Systemstart ausführen",
       "aria": "EdgeEver beim Systemstart ausführen",

@@ -490,6 +490,7 @@ export const zhTW = {
     back: "返回上一頁",
     language: "語言",
     untitledMemo: "無標題筆記",
+    untitledMemoWithDate: "無標題筆記 · {{date}}",
     processing: "處理中",
     saving: "儲存中",
     copied: "已複製",
@@ -1148,6 +1149,15 @@ export const zhTW = {
     imageCompressionAria: "是否壓縮筆記內圖片",
     showDescendantNotesTitle: "父筆記本中顯示子筆記本筆記",
     showDescendantNotesAria: "是否在父筆記本中顯示子筆記本中的筆記",
+    untitledMemoDateTitle: "無標題筆記顯示日期",
+    untitledMemoDateFormats: {
+      medium: "預設",
+      short: "簡短",
+      long: "完整",
+      iso: "ISO 8601",
+      date: "僅日期",
+      off: "不顯示",
+    },
     loginItem: {
       title: "開機後啟動",
       aria: "開機後啟動 EdgeEver",

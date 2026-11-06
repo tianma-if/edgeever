@@ -479,6 +479,7 @@ export const ja = {
     back: "戻る",
     language: "言語",
     untitledMemo: "無題のノート",
+    untitledMemoWithDate: "無題のノート · {{date}}",
     processing: "処理中",
     saving: "保存中",
     copied: "コピーしました",
@@ -1137,6 +1138,15 @@ export const ja = {
     imageCompressionAria: "ノート内の画像を圧縮する",
     showDescendantNotesTitle: "サブノートブックのノートを表示",
     showDescendantNotesAria: "親ノートブックにサブノートブックのノートを表示する",
+    untitledMemoDateTitle: "無題のノートの日付",
+    untitledMemoDateFormats: {
+      medium: "標準",
+      short: "短い",
+      long: "長い",
+      iso: "ISO 8601",
+      date: "日付のみ",
+      off: "表示しない",
+    },
     loginItem: {
       title: "起動後に開く",
       aria: "パソコンの起動後に EdgeEver を開く",

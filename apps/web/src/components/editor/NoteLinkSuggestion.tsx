@@ -19,6 +19,8 @@ export type NoteLinkSuggestionLabels = {
   empty: string;
   close: string;
   untitled: string;
+  /** Label shown in the menu only; the inserted link text keeps the stored title. */
+  displayTitle?: (memo: MemoSummary) => string;
 };
 
 type NoteLinkSuggestionProps = SuggestionProps<MemoSummary, MemoSummary> & {
@@ -83,7 +85,7 @@ export const NoteLinkSuggestion = forwardRef<NoteLinkSuggestionHandle, NoteLinkS
                 onSelect={() => command(item)}
               >
                 <Link2 className="h-4 w-4 shrink-0 text-slate-600" />
-                <span className="min-w-0 flex-1 truncate">{item.title || labels.untitled}</span>
+                <span className="min-w-0 flex-1 truncate">{labels.displayTitle?.(item) ?? (item.title || labels.untitled)}</span>
                 <span className="max-w-40 truncate text-xs text-slate-400">{item.excerpt}</span>
               </CommandItem>
             ))}

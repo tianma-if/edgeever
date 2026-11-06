@@ -144,4 +144,25 @@ describe("note link suggestion", () => {
     expect(editor.getText()).toBe("无标题笔记");
     editor.destroy();
   });
+
+  test("keeps the creation date of an untitled note out of the inserted link text", () => {
+    ensureTestWindowDom();
+    const editor = new Editor({
+      extensions: [StarterKit],
+      content: {
+        type: "doc",
+        content: [{ type: "paragraph", content: [{ type: "text", text: "@" }] }],
+      },
+    });
+
+    insertSuggestedNoteLink({
+      editor,
+      item: memo({ id: "untitled", title: "" }),
+      labels: { ...labels, displayTitle: () => "无标题笔记 · 2026年11月6日 14:32" },
+      range: { from: 1, to: 2 },
+    });
+
+    expect(editor.getText()).toBe("无标题笔记");
+    editor.destroy();
+  });
 });

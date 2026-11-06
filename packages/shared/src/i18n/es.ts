@@ -629,6 +629,7 @@ export const es = {
     "back": "Volver",
     "language": "Idioma",
     "untitledMemo": "Nota sin título",
+    "untitledMemoWithDate": "Nota sin título · {{date}}",
     "processing": "Procesando",
     "saving": "Guardando",
     "copied": "Copiado",
@@ -1287,6 +1288,15 @@ export const es = {
     "imageCompressionAria": "Comprimir imágenes de notas",
     "showDescendantNotesTitle": "Mostrar notas de subcuadernos",
     "showDescendantNotesAria": "Mostrar notas de subcuadernos en los cuadernos superiores",
+    "untitledMemoDateTitle": "Fecha en notas sin título",
+    "untitledMemoDateFormats": {
+      "medium": "Predeterminado",
+      "short": "Corto",
+      "long": "Largo",
+      "iso": "ISO 8601",
+      "date": "Solo fecha",
+      "off": "No mostrar",
+    },
     "loginItem": {
       "title": "Abrir al iniciar sesión",
       "aria": "Iniciar EdgeEver al arrancar el sistema",

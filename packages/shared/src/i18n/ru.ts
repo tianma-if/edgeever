@@ -490,6 +490,7 @@ export const ru = {
     back: "Назад",
     language: "Язык",
     untitledMemo: "Без названия",
+    untitledMemoWithDate: "Без названия · {{date}}",
     processing: "Обработка",
     saving: "Сохранение",
     copied: "Скопировано",
@@ -1148,6 +1149,15 @@ export const ru = {
     imageCompressionAria: "Сжимать изображения в заметках",
     showDescendantNotesTitle: "Показывать заметки из вложенных блокнотов",
     showDescendantNotesAria: "Показывать в родительском блокноте заметки из вложенных блокнотов",
+    untitledMemoDateTitle: "Дата у заметок без названия",
+    untitledMemoDateFormats: {
+      medium: "По умолчанию",
+      short: "Краткий",
+      long: "Полный",
+      iso: "ISO 8601",
+      date: "Только дата",
+      off: "Не показывать",
+    },
     loginItem: {
       title: "Запускать при включении",
       aria: "Запускать EdgeEver при включении компьютера",

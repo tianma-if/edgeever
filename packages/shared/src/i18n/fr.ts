@@ -629,6 +629,7 @@ export const fr = {
     back: "Retour",
     language: "Langue",
     untitledMemo: "Note sans titre",
+    untitledMemoWithDate: "Note sans titre · {{date}}",
     processing: "Traitement en cours",
     saving: "Enregistrement",
     copied: "Copié",
@@ -1287,6 +1288,15 @@ export const fr = {
     imageCompressionAria: "Compresser les images des notes",
     showDescendantNotesTitle: "Afficher les notes des sous-carnets",
     showDescendantNotesAria: "Afficher les notes des sous-carnets dans les carnets parents",
+    untitledMemoDateTitle: "Date des notes sans titre",
+    untitledMemoDateFormats: {
+      medium: "Par défaut",
+      short: "Court",
+      long: "Long",
+      iso: "ISO 8601",
+      date: "Date seule",
+      off: "Ne pas afficher",
+    },
     loginItem: {
       title: "Lancer au démarrage",
       aria: "Lancer EdgeEver au démarrage",

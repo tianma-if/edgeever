@@ -490,6 +490,7 @@ export const zhCN = {
     back: "返回上一页",
     language: "语言",
     untitledMemo: "无标题笔记",
+    untitledMemoWithDate: "无标题笔记 · {{date}}",
     processing: "处理中",
     saving: "保存中",
     copied: "已复制",
@@ -1148,6 +1149,15 @@ export const zhCN = {
     imageCompressionAria: "是否压缩笔记内图片",
     showDescendantNotesTitle: "父笔记本中显示子笔记本笔记",
     showDescendantNotesAria: "是否在父笔记本中显示子笔记本中的笔记",
+    untitledMemoDateTitle: "无标题笔记显示日期",
+    untitledMemoDateFormats: {
+      medium: "默认",
+      short: "简短",
+      long: "完整",
+      iso: "ISO 8601",
+      date: "仅日期",
+      off: "不显示",
+    },
     loginItem: {
       title: "开机后启动",
       aria: "开机后启动 EdgeEver",

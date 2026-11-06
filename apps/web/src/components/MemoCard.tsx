@@ -5,7 +5,8 @@ import { getMemoListTimestamp, type MemoSummary } from "@edgeever/shared";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { MemoListDensity, MemoSortMode } from "@/lib/app-helpers";
-import { isDefaultMemoTitle, MEMO_DRAG_MIME, setMemoDragPreview } from "@/lib/app-helpers";
+import { MEMO_DRAG_MIME, setMemoDragPreview } from "@/lib/app-helpers";
+import { useMemoDisplayLabel } from "@/lib/untitled-memo-label";
 
 const MEMO_LONG_PRESS_DELAY_MS = 520;
 const MEMO_LONG_PRESS_MOVE_TOLERANCE_PX = 14;
@@ -80,11 +81,12 @@ export const MemoCard = ({
   onToggle: (event?: MouseEvent<HTMLElement>) => void;
 }) => {
   const { t, i18n } = useTranslation();
+  const getMemoDisplayLabel = useMemoDisplayLabel();
   const handledModifierPointerRef = useRef(false);
   const longPressTimerRef = useRef<number | null>(null);
   const longPressPointRef = useRef<{ x: number; y: number } | null>(null);
   const [modifierHoverActive, setModifierHoverActive] = useState(false);
-  const memoTitle = memo.title?.trim() && !isDefaultMemoTitle(memo.title) ? memo.title.trim() : t("common.untitledMemo");
+  const memoTitle = getMemoDisplayLabel(memo);
   const memoExcerpt = memo.excerpt.trim() || t("memoCard.emptyMemo");
   const diagramLabel = memo.diagramKind
     ? t(`diagram.${memo.diagramKind === "mind-map" ? "mindMap" : memo.diagramKind}`)

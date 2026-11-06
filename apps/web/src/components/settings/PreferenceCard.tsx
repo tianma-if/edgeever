@@ -5,7 +5,7 @@ import { FONT_CATALOG, NOTE_BODY_FONT_MENU_GROUPS, isRemoteNoteImageFont, type R
 import { FontLoadFeedback } from "@/components/FontLoadFeedback";
 import { editorFontLoadState, uiFontLoadState, retryEditorCatalogFont, retryUiCatalogFont } from "@/lib/editor-catalog-fonts";
 import { FontLabel } from "@/components/FontLabel";
-import { AlignLeft, AlignVerticalSpaceAround, AppWindow, BookOpenText, ChartNoAxesCombined, Code2, Heading, Highlighter, Image, LayoutTemplate, Languages, ListTree, MousePointerClick, MoveHorizontal, Palette, Pilcrow, Quote, Sparkles, SpellCheck, SunMoon, Type } from "lucide-react";
+import { AlignLeft, AlignVerticalSpaceAround, AppWindow, BookOpenText, CalendarClock, ChartNoAxesCombined, Code2, Heading, Highlighter, Image, LayoutTemplate, Languages, ListTree, MousePointerClick, MoveHorizontal, Palette, Pilcrow, Quote, Sparkles, SpellCheck, SunMoon, Type } from "lucide-react";
 import { useState, useEffect, useSyncExternalStore, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type {
@@ -78,6 +78,13 @@ import {
 import { applyUiFontPreference, readUiFontPreference, writeUiFontPreference } from "@/lib/ui-font";
 import { syncPublishedNoteBodyFont } from "@/lib/published-note-body-font";
 import { useShowDescendantNotesPreference, writeShowDescendantNotesPreference } from "@/lib/descendant-notes-preference";
+import {
+  formatUntitledMemoDate,
+  UNTITLED_MEMO_DATE_FORMATS,
+  useUntitledMemoDateFormatPreference,
+  writeUntitledMemoDateFormatPreference,
+  type UntitledMemoDateFormat,
+} from "@/lib/untitled-memo-label";
 import { LoginItemSettingsItem } from "./LoginItemSettingsItem";
 import { PicGoSettingsItem } from "./PicGoSettingsItem";
 import { NoteProseCssEditor } from "./NoteProseCssEditor";
@@ -256,8 +263,11 @@ export const PreferenceCard = ({
   noteProse,
   onNoteProseChange,
 }: PreferenceCardProps) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const locale = i18n.resolvedLanguage ?? i18n.language;
   const showDescendantNotes = useShowDescendantNotesPreference();
+  const untitledMemoDateFormat = useUntitledMemoDateFormatPreference();
+  const [untitledMemoDateExampleTime] = useState(() => new Date().toISOString());
   const { preference: appearancePreference, resolvedTheme, setPreference: setAppearancePreference } = useAppearanceTheme();
   const { mermaidThemePreference, setMermaidTheme } = useMermaidTheme();
   const [cssDialogOpen, setCssDialogOpen] = useState(false);
@@ -443,6 +453,36 @@ export const PreferenceCard = ({
                 onCheckedChange={writeShowDescendantNotesPreference}
                 aria-label={t("settings.showDescendantNotesAria")}
               />
+            </div>
+          </div>
+
+          <div className="flex min-h-16 flex-col items-start gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+            <div className="flex min-w-0 items-center gap-3">
+              <CalendarClock className={SETTINGS_ITEM_ICON_CLASSNAME} />
+              <div className="min-w-0">
+                <div className={SETTINGS_ITEM_TITLE_CLASSNAME}>{t("settings.untitledMemoDateTitle")}</div>
+              </div>
+            </div>
+            <div className="w-full shrink-0 sm:w-80">
+              <Select
+                value={untitledMemoDateFormat}
+                onValueChange={(value) => writeUntitledMemoDateFormatPreference(value as UntitledMemoDateFormat)}
+              >
+                <SelectTrigger aria-label={t("settings.untitledMemoDateTitle")} className="h-9 bg-card">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {UNTITLED_MEMO_DATE_FORMATS.map((format) => {
+                    const example = formatUntitledMemoDate(untitledMemoDateExampleTime, locale, format);
+                    return (
+                      <SelectItem key={format} value={format}>
+                        {t(`settings.untitledMemoDateFormats.${format}`)}
+                        {example ? <span className="ml-2 text-slate-400">{example}</span> : null}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </PreferenceSection>
