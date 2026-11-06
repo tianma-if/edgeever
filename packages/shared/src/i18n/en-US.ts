@@ -1574,6 +1574,7 @@ export const enUS = {
       "openrouter-models": "OpenRouter model list",
       "deepseek-models": "DeepSeek model list",
       "litellm-model-info": "LiteLLM model info",
+      "models-dev": "the public models.dev catalogue (reference values)",
       "provider-error": "the service's error message",
       "none": "none",
     },

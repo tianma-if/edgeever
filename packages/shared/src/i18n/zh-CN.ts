@@ -1593,6 +1593,7 @@ export const zhCN = {
       "openrouter-models": "OpenRouter 模型列表",
       "deepseek-models": "DeepSeek 模型列表",
       "litellm-model-info": "LiteLLM 模型信息",
+      "models-dev": "models.dev 公共目录（参考值）",
       "provider-error": "服务返回的错误信息",
       "none": "无",
     },

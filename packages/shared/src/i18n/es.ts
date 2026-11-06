@@ -1741,6 +1741,7 @@ export const es = {
       "openrouter-models": "Lista de modelos de OpenRouter",
       "deepseek-models": "Lista de modelos de DeepSeek",
       "litellm-model-info": "Información de modelos de LiteLLM",
+      "models-dev": "el catálogo público de models.dev (valores de referencia)",
       "provider-error": "mensaje de error del servicio",
       "none": "ninguno"
     },
