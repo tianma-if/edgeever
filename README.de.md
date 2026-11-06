@@ -180,6 +180,8 @@ Ob für regelmäßige Datensicherungen, die nahtlose Migration zwischen Instanze
 
 Erstelle ein API-Token unter **Profil** -> **API / MCP** und kopiere die Remote-MCP-Konfiguration mit einem Klick, damit KI-Agenten wie Claude Code, Cursor, Antigravity und OpenClaw deine Wissensbasis innerhalb der Kontoberechtigungen sicher verwalten können. EdgeEver unterstützt vollständige CRUD-Operationen für Textnotizen, visuelle Diagramm-Notizen (Mindmaps, Flussdiagramme und Architekturdiagramme), strukturierte Tabellennotizen und native Plakat-Notizen. Agenten können zudem Notizbuch-Hierarchien, Tags, Anhänge, die Versionshistorie, Notizvorlagen und KI-Instruktionen verwalten.
 
+Einrichtung der Clients, Zugriffsstufen der Tokens, Fehlerbehebung und empfohlene Regeln für Agenten beschreibt [Using EdgeEver with MCP clients](docs/mcp-guide.md) (auf Englisch).
+
 > 💡 **Inspiration:**
 > Mache KI zu deinem echten Wissensorchestrator und kreativen Co-Piloten – verwandle Konzepte augenblicklich in interaktive Mindmaps, Flussdiagramme, Architekturdiagramme und strukturierte Tabellen, während du deinen KI-Agenten privaten Kontext bereitstellst. In Kombination mit den leistungsstarken Rich-Text-Bearbeitungsfunktionen und der eleganten Typografie von EdgeEver werden KI-unterstützte Inhalte zu ansprechend strukturierten, verfeinerten und publikationsreifen Wissenswerten.
 
