@@ -2,7 +2,7 @@ import { AI_ASSISTANT_LAUNCHER_POSITION } from "@/lib/ai-assistant-launcher";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from "@tanstack/react-table";
-import { Check, ChevronLeft, Copy, Download, Form, Paperclip, Plus, RefreshCw, Sparkles, Table2, Trash2, X } from "lucide-react";
+import { CalendarDays, Check, ChevronLeft, Copy, Download, Form, Hash, Link2, List, Paperclip, Plus, RefreshCw, Sparkles, SquareCheck, Table2, Trash2, Type, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   addTableField,
@@ -13,14 +13,14 @@ import {
   parseTableDocument,
   removeTableField,
   removeTableRecord,
-  replaceTableView,
+  getTableViews,
+  saveTableViews,
   listTableAttachmentResourceIds,
   serializeTableDocument,
-  TABLE_ATTACHMENT_FILTER_OPERATORS,
   TABLE_ATTACHMENT_LIMIT,
   TABLE_FIELD_LIMIT,
   TABLE_FIELD_TYPES,
-  TABLE_FILTER_OPERATORS,
+  TABLE_VIEW_SCHEMA_VERSION,
   TABLE_RECORD_LIMIT,
   tableAttachmentUrl,
   tableDocumentToCsv,
@@ -34,8 +34,7 @@ import {
   type TableDocument,
   type TableField,
   type TableFieldType,
-  type TableFilter,
-  type TableFilterOperator,
+  type NamedTableView,
   type TableRecord,
 } from "@edgeever/shared";
 import { AiSidebar, readAiSidebarOpen, writeAiSidebarOpen } from "@/components/ai-sidebar/AiSidebar";
@@ -43,6 +42,7 @@ import { AiSidebarErrorBoundary } from "@/components/ai-sidebar/AiSidebarErrorBo
 import { IconTooltip } from "@/components/editor/EditorPaneChrome";
 import { MemoTitleInput } from "@/components/MemoTitleInput";
 import { TableFormDialog } from "@/components/dialogs/TableFormDialog";
+import { TableViewControls } from "@/components/TableViewControls";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -53,7 +53,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { api } from "@/lib/api";
+import { api, getConfiguredDesktopApiBaseUrl } from "@/lib/api";
 import { copyImageUrlToClipboard } from "@/lib/clipboard";
 import { toDesktopResourceDownloadUrl, toDesktopResourceUrl } from "@/lib/desktop-resources";
 import { EDITOR_LOCAL_SAVE_DELAY_MS, formatShortcutBinding, getNotebookMoveOptions, type ShortcutSettings } from "@/lib/app-helpers";
@@ -84,6 +84,13 @@ const controlClassName = "h-8 rounded-md border border-slate-200 bg-card px-2 te
 
 const snapshotOf = (title: string, document: TableDocument) => JSON.stringify({ title, document });
 
+const viewSelectionKey = (id: string) => `edgeever.table-view.v1:${id}`;
+const readTableViewSelection = (id: string) => {
+  try { return window.localStorage.getItem(viewSelectionKey(id)); } catch { return null; }
+};
+
+const FIELD_ICONS = { text: Type, number: Hash, checkbox: SquareCheck, date: CalendarDays, select: List, url: Link2, attachment: Paperclip };
+
 const optionText = (field: TableField) => (field.options ?? []).join(", ");
 
 const parseOptionText = (value: string) => value.split(/[,，]/).map((item) => item.trim()).filter(Boolean);
@@ -109,6 +116,7 @@ const FieldHeader = ({
   const { t } = useTranslation();
   const [name, setName] = useState(field.name);
   const [options, setOptions] = useState(optionText(field));
+  const Icon = FIELD_ICONS[field.type];
   useEffect(() => setName(field.name), [field.name]);
   useEffect(() => setOptions(optionText(field)), [field.id, field.options]);
   const commitName = () => {
@@ -123,10 +131,11 @@ const FieldHeader = ({
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="flex w-full min-w-36 items-center rounded-md px-2 py-1 text-left text-xs font-medium text-slate-600 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20"
+          className="flex w-full min-w-36 items-center gap-1.5 rounded-md px-2 py-1 text-left text-xs font-medium text-slate-600 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20"
           aria-label={t("structuredTable.editField", { name: field.name })}
           disabled={readOnly}
         >
+          <Icon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
           <span className="truncate">{field.name}</span>
         </button>
       </DropdownMenuTrigger>
@@ -429,7 +438,9 @@ const RecordCell = ({
         disabled={readOnly}
         onClick={() => onEdit({ recordId: record.id, fieldId: field.id })}
       >
-        {text || <span className="text-slate-300">—</span>}
+        {text && field.type === "select" ? (
+          <span className="inline-block max-w-full truncate rounded-md bg-muted px-2 py-0.5 align-middle text-xs font-medium text-foreground">{text}</span>
+        ) : text || <span className="text-slate-300">—</span>}
       </button>
     );
   }
@@ -494,6 +505,7 @@ export const TableEditorPane = ({
   const parsed = useMemo(() => parseTableDocument(memo.contentMarkdown), [memo.contentMarkdown]);
   const [title, setTitle] = useState(memo.title ?? "");
   const [document, setDocument] = useState<TableDocument | null>(parsed);
+  const [selectedViewId, setSelectedViewId] = useState(() => readTableViewSelection(memo.id));
   const [editing, setEditing] = useState<EditingCell | null>(null);
   const draftRef = useRef("");
   const [dirty, setDirty] = useState(false);
@@ -650,7 +662,40 @@ export const TableEditorPane = ({
     return () => window.clearTimeout(timer);
   }, [dirty, editSessionReady, editing, readOnly, saveFailed, saving]);
 
-  const visibleRecords = useMemo(() => (document ? applyTableView(document) : []), [document]);
+  const views = useMemo(() => document ? getTableViews(document) : [], [document]);
+  const activeView = views.find((view) => view.id === selectedViewId) ?? views[0];
+  const [weekRevision, refreshWeek] = useState(0);
+  const relativeWeek = activeView?.filters.some((filter) => filter.operator === "thisWeek") ?? false;
+  useEffect(() => {
+    if (!relativeWeek) return;
+    const now = new Date();
+    const next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + (7 - (now.getDay() + 6) % 7));
+    const timer = window.setTimeout(() => refreshWeek((value) => value + 1), next.getTime() - now.getTime());
+    return () => window.clearTimeout(timer);
+  }, [weekRevision, relativeWeek]);
+  const visibleRecords = useMemo(() => document && activeView
+    ? applyTableView(document, document.records, activeView) : [], [activeView, document, weekRevision]);
+  const selectView = (id: string) => {
+    setSelectedViewId(id);
+    try { window.localStorage.setItem(viewSelectionKey(memo.id), id); } catch { /* device preference only */ }
+  };
+  const commitViews = async (nextViews: NamedTableView[], selected: string) => {
+    const current = documentRef.current;
+    if (!current || readOnly) return false;
+    const next = saveTableViews(current, nextViews);
+    if (current.schemaVersion !== next.schemaVersion
+      && (!window.edgeeverDesktop?.isAvailable || getConfiguredDesktopApiBaseUrl())) {
+      const health = await api.getInstanceHealth().catch(() => null);
+      if (!health) throw new Error(t("structuredTable.views.connectToUpgrade"));
+      if ((health.tableSchemaVersion ?? 0) < TABLE_VIEW_SCHEMA_VERSION) {
+        throw new Error(t("structuredTable.views.upgradeServer"));
+      }
+      if (documentRef.current !== current) throw new Error(t("structuredTable.views.changed"));
+    }
+    changeDocument(next);
+    selectView(selected);
+    return true;
+  };
   const columns = useMemo<ColumnDef<TableRecord>[]>(() => {
     if (!document) return [];
     return [
@@ -765,7 +810,7 @@ export const TableEditorPane = ({
     </AiSidebarErrorBoundary>
   );
 
-  if (!document) {
+  if (!document || !activeView) {
     return (
       <div className="relative flex h-full min-h-0 min-w-0 bg-card">
         <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col">
@@ -783,7 +828,7 @@ export const TableEditorPane = ({
     );
   }
 
-  const filtered = document.view.filters.length > 0;
+  const filtered = activeView.filters.length > 0;
   const countLabel = filtered
     ? t("structuredTable.recordCountFiltered", { count: visibleRecords.length, total: document.records.length })
     : t("structuredTable.recordCount", { count: document.records.length });
@@ -834,11 +879,6 @@ export const TableEditorPane = ({
     link.download = `${fileName}.csv`;
     link.click();
     URL.revokeObjectURL(url);
-  };
-
-  const setFilter = (index: number, filter: TableFilter) => {
-    const filters = document.view.filters.map((item, itemIndex) => itemIndex === index ? filter : item);
-    changeDocument(replaceTableView(document, { ...document.view, filters }));
   };
 
   return (
@@ -944,106 +984,8 @@ export const TableEditorPane = ({
           <TooltipContent>{recordLimitReached ? t("structuredTable.recordLimit") : t("structuredTable.addRecord")}</TooltipContent>
         </Tooltip>
       </div>
-      <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-3 py-2">
-        <span className="text-xs text-slate-500">{t("structuredTable.filter")}</span>
-        {document.view.filters.map((filter, index) => {
-          const operatorNeedsValue = filter.operator === "contains" || filter.operator === "eq";
-          return (
-            <div key={`${filter.fieldId}-${index}`} className="flex items-center gap-1">
-              <select
-                className={controlClassName}
-                value={filter.fieldId}
-                aria-label={t("structuredTable.filter")}
-                disabled={readOnly}
-                onChange={(event) => {
-                  const fieldId = event.target.value;
-                  const attachmentField = document.fields.find((field) => field.id === fieldId)?.type === "attachment";
-                  const operator = attachmentField && (filter.operator === "contains" || filter.operator === "eq") ? "notEmpty" : filter.operator;
-                  setFilter(index, { ...filter, fieldId, operator });
-                }}
-              >
-                {document.fields.map((field) => <option key={field.id} value={field.id}>{field.name}</option>)}
-              </select>
-              <select
-                className={controlClassName}
-                value={filter.operator}
-                aria-label={t("structuredTable.filter")}
-                disabled={readOnly}
-                onChange={(event) => setFilter(index, { ...filter, operator: event.target.value as TableFilterOperator })}
-              >
-                {(document.fields.find((field) => field.id === filter.fieldId)?.type === "attachment" ? TABLE_ATTACHMENT_FILTER_OPERATORS : TABLE_FILTER_OPERATORS).map((operator) => <option key={operator} value={operator}>{t(`structuredTable.operators.${operator}`)}</option>)}
-              </select>
-              {operatorNeedsValue ? (
-                <Input
-                  className="h-8 w-36 text-xs"
-                  value={filter.value ?? ""}
-                  placeholder={t("structuredTable.filterValue")}
-                  aria-label={t("structuredTable.filterValue")}
-                  disabled={readOnly}
-                  onChange={(event) => setFilter(index, { ...filter, value: event.target.value })}
-                />
-              ) : null}
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label={t("structuredTable.clearFilters")}
-                disabled={readOnly}
-                onClick={() => changeDocument(replaceTableView(document, {
-                  ...document.view,
-                  filters: document.view.filters.filter((_, itemIndex) => itemIndex !== index),
-                }))}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </div>
-          );
-        })}
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          disabled={readOnly || document.view.filters.length >= 8}
-          onClick={() => changeDocument(replaceTableView(document, {
-            ...document.view,
-            filters: [...document.view.filters, { fieldId: document.fields[0]?.id ?? "", operator: "contains", value: "" }],
-          }))}
-        >
-          {t("structuredTable.addFilter")}
-        </Button>
-        <label className="ml-auto flex items-center gap-1 text-xs text-slate-500">
-          <span>{t("structuredTable.sort")}</span>
-          <select
-            className={controlClassName}
-            value={document.view.sort?.fieldId ?? ""}
-            aria-label={t("structuredTable.sort")}
-            disabled={readOnly}
-            onChange={(event) => changeDocument(replaceTableView(document, {
-              ...document.view,
-              sort: event.target.value ? { fieldId: event.target.value, direction: document.view.sort?.direction ?? "asc" } : null,
-            }))}
-          >
-            <option value="">{t("structuredTable.noSort")}</option>
-            {document.fields.map((field) => <option key={field.id} value={field.id}>{field.name}</option>)}
-          </select>
-          <select
-            className={controlClassName}
-            value={document.view.sort?.direction ?? "asc"}
-            aria-label={t("structuredTable.sort")}
-            disabled={readOnly || !document.view.sort}
-            onChange={(event) => {
-              if (!document.view.sort) return;
-              changeDocument(replaceTableView(document, {
-                ...document.view,
-                sort: { ...document.view.sort, direction: event.target.value === "desc" ? "desc" : "asc" },
-              }));
-            }}
-          >
-            <option value="asc">{t("structuredTable.ascending")}</option>
-            <option value="desc">{t("structuredTable.descending")}</option>
-          </select>
-        </label>
-      </div>
+      <TableViewControls fields={document.fields} views={views} active={activeView} readOnly={readOnly}
+        onSelect={selectView} onCommit={commitViews} />
       <TableFormDialog
         memoId={memo.id}
         memoTitle={title}
@@ -1057,7 +999,7 @@ export const TableEditorPane = ({
             {table.getHeaderGroups().map((headerGroup) => (
               <tr key={headerGroup.id} className="border-b border-slate-200">
                 {headerGroup.headers.map((header) => (
-                  <th key={header.id} className="px-2 py-1 text-left font-medium">
+                  <th key={header.id} className="bg-muted/40 px-2 py-1 text-left font-medium">
                     {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
                   </th>
                 ))}
@@ -1066,7 +1008,7 @@ export const TableEditorPane = ({
           </thead>
           <tbody>
             {table.getRowModel().rows.map((row) => (
-              <tr key={row.id} className="border-b border-slate-100">
+              <tr key={row.id} className="border-b border-border/70 hover:bg-muted/25">
                 {row.getVisibleCells().map((cell) => (
                   <td key={cell.id} className="px-2 py-1 align-top">
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}

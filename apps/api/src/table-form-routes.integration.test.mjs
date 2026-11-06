@@ -4,10 +4,10 @@ import { globSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:f
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Hono } from "hono";
-import { parseTableDocument, serializeTableDocument } from "@edgeever/shared";
+import { applyTableView, getTableViews, saveTableViews, parseTableDocument, serializeTableDocument } from "@edgeever/shared";
 import { AppError } from "./app-error.ts";
 import { apiError } from "./http-errors.ts";
-import { createMemoRecord, getMemoDetail } from "./memo-service.ts";
+import { createMemoEditSession, createMemoRecord, getMemoDetail, updateMemoRecord } from "./memo-service.ts";
 import { createAttachmentResource } from "./resource-service.ts";
 import { createSelfHostedStorageAdapter } from "./self-hosted-storage-adapter.ts";
 import { registerPublicTableFormRoutes, registerTableFormRoutes } from "./table-form-routes.ts";
@@ -659,4 +659,42 @@ describe("public table form submissions", () => {
     expect(rejected.body.error.code).toBe("table_record_limit");
     expect((await env.document(full)).records).toHaveLength(2000);
   });
+});
+
+
+test("an existing public form appends to a v2 table without changing its views; replayed v1 content is rejected", async () => {
+  const env = installation();
+  const db = env.storage.db;
+  const memoId = await env.createTable();
+  const { token } = await env.configure(memoId);
+  const original = await getMemoDetail(db, WORKSPACE_ID, memoId);
+  const legacy = parseTableDocument(original.contentMarkdown);
+  const views = [...getTableViews(legacy), { id: "quantity", name: "At least five", match: "all",
+    filters: [{ fieldId: "fld_qty", operator: "gte", value: 5 }],
+    sorts: [{ fieldId: "fld_qty", direction: "desc" }, { fieldId: "fld_name", direction: "asc" }],
+  }];
+  const v2 = saveTableViews(legacy, views);
+  const saved = await updateMemoRecord(db, WORKSPACE_ID, memoId, {
+    expectedRevision: original.revision, contentMarkdown: serializeTableDocument(v2),
+  }, actor, "owner");
+  expect(saved.memo).toBeDefined();
+
+  expect((await env.request(`/api/public/forms/${token}`)).status).toBe(200);
+  expect((await env.submit(token, { fld_name: "Matching", fld_qty: 9 })).status).toBe(201);
+  expect((await env.submit(token, { fld_name: "Not matching", fld_qty: 2 })).status).toBe(201);
+  const after = await env.document(memoId);
+  expect(after.views).toEqual(v2.views);
+  expect(after.records).toHaveLength(3);
+  expect(applyTableView(after, after.records, after.views[1]).map((row) => row.cells.fld_name))
+    .toEqual(["Matching", "Existing private row"]);
+
+  // Even a replay bound to the latest revision and valid edit session cannot downgrade the document.
+  const current = await getMemoDetail(db, WORKSPACE_ID, memoId);
+  const editSession = await createMemoEditSession({ env: { storage: env.storage }, get: () => ownerAuth }, memoId);
+  const replay = await updateMemoRecord(db, WORKSPACE_ID, memoId, {
+    expectedRevision: current.revision, expectedContentHash: current.contentHash, editSessionId: editSession.id,
+    contentMarkdown: original.contentMarkdown,
+  }, actor, "owner", true);
+  expect(replay).toMatchObject({ error: "content_conflict", status: 409 });
+  expect(await env.document(memoId)).toEqual(after);
 });
