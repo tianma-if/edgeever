@@ -22,6 +22,8 @@ export const renderThemedMermaidSvg = (
       securityLevel: "strict",
       suppressErrorRendering: true,
       theme: "base",
+      // Keep the existing layout for notes that do not specify one.
+      layout: "dagre",
       fontFamily: font,
       themeVariables: getOfficialMermaidThemeVariables(palette),
       flowchart: {
