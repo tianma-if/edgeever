@@ -33,18 +33,21 @@
     }
   },
   {
-    "name": "An unknown gateway prefix is dropped and the original vendor's listing is used",
+    "name": "Regression (#809 review): my-team/gpt-5 does not take OpenAI gpt-5's limits when the catalogue does not record that ID",
+    "provider": "openai-compatible",
+    "baseUrl": "https://newapi.example/v1",
+    "modelId": "my-team/gpt-5",
+    "expected": null
+  },
+  {
+    "name": "An unknown gateway prefix is never removed to find a match",
     "provider": "openai-compatible",
     "baseUrl": "https://gw.example/v1",
     "modelId": "xxxyyy/claude-sonnet-4-5",
-    "expected": {
-      "maxOutputTokens": 64000,
-      "maxInputTokens": null,
-      "contextWindowTokens": 200000
-    }
+    "expected": null
   },
   {
-    "name": "A suffixed variant is not matched (no fuzzy matching)",
+    "name": "A prefixed, suffixed variant is not matched",
     "provider": "openai-compatible",
     "baseUrl": "https://gw.example/v1",
     "modelId": "xxxyyy/claude-sonnet-4-5-thinking",
