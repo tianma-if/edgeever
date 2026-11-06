@@ -1593,6 +1593,7 @@ export const zhTW = {
       "openrouter-models": "OpenRouter 模型列表",
       "deepseek-models": "DeepSeek 模型列表",
       "litellm-model-info": "LiteLLM 模型資訊",
+      "models-dev": "models.dev 公開目錄（參考值）",
       "provider-error": "服務返回的錯誤資訊",
       "none": "無",
     },

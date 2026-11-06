@@ -1582,6 +1582,7 @@ export const ja = {
       "openrouter-models": "OpenRouter モデル一覧",
       "deepseek-models": "DeepSeek モデル一覧",
       "litellm-model-info": "LiteLLM モデル情報",
+      "models-dev": "models.dev 公開カタログ（参考値）",
       "provider-error": "サービスのエラーメッセージ",
       "none": "なし",
     },

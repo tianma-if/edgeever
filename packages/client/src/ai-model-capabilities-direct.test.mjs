@@ -166,6 +166,7 @@ describe("generation with automatic budgets (#652)", () => {
         if (path.endsWith("/capabilities")) return json({ detectedCapabilities: {} });
         return json(preparedBody({ provider: "anthropic", maxOutputTokens: 128000, capabilityTarget: target, detectCapabilities: true }));
       },
+      modelCatalogFetch: null,
       providerFetch: async (url, init) => {
         if (init.method === "GET") return json({ id: "model-x", max_tokens: null, max_input_tokens: null });
         const body = JSON.parse(String(init.body));
