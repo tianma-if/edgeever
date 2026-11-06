@@ -178,10 +178,24 @@ try {
       const labels = [...prose.querySelectorAll("foreignObject")].filter((box) => box.textContent.trim());
       assert(labels.length > 0, "Missing HTML labels in #786 diagram");
       if (source === containerSources[1]) {
-        const edges = [...prose.querySelectorAll("path[data-edge][marker-end]")];
-        assert(edges.length === 3 && ["L_L_C_", "L_U_C_", "L_C_NewImage_"].every((id) =>
-          edges.some((edge) => edge.getAttribute("data-id")?.startsWith(id))),
-        "Missing or misdirected edge in #786 container diagram");
+        const lowerNode = prose.querySelector('.node[id*="flowchart-L-"] rect');
+        const upperNode = prose.querySelector('.node[id*="flowchart-U-"] rect');
+        assert(lowerNode && upperNode, "Missing lowerdir or upperdir node in #786 container diagram");
+        const lower = lowerNode.getBoundingClientRect();
+        const upper = upperNode.getBoundingClientRect();
+        assert(lower.right < upper.left && Math.abs(lower.top - upper.top) < 1,
+          "#786 subgraph nodes should be side by side");
+
+        const edges = prose.querySelectorAll("path[data-edge][marker-end]");
+        assert(edges.length === 3 && prose.querySelector('path[data-id^="L_C_NewImage_"][marker-end]'),
+          "Missing or misdirected edge in #786 container diagram");
+        for (const [id, node] of [["L", lower], ["U", upper]]) {
+          const edge = prose.querySelector(`path[data-id^="L_${id}_C_"][marker-end]`);
+          assert(edge, `Missing merge edge for ${id}`);
+          const start = edge.getPointAtLength(0).matrixTransform(edge.getScreenCTM());
+          assert(start.x >= node.left && start.x <= node.right && Math.abs(start.y - node.bottom) < 2,
+            `Merge edge for ${id} should start at its node, inside the subgraph`);
+        }
       }
       for (const spacing of ["0.5px", "1px"]) {
         editor.style.setProperty("--editor-body-letter-spacing", spacing);

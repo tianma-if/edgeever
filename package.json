@@ -228,7 +228,6 @@
     "dompurify": "3.4.17",
     "katex": "0.18.2",
     "sharp": "0.35.5",
-    "mermaid": "11.16.1",
     "fast-xml-parser": "5.11.2",
     "js-yaml": "4.3.2",
     "shell-quote": "1.12.0",
