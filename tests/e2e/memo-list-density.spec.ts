@@ -19,10 +19,13 @@ const createMemo = async (page: Page, title: string) => {
 const openRow = async (page: Page, density: "preview" | "compact", title: string, memoId: string) => {
   await page.addInitScript(({ key, value }) => localStorage.setItem(key, value), { key: storageKey, value: density });
   await page.goto("/");
-  await page.getByRole("button", { name: "全部笔记", exact: true }).click();
-  await page.getByPlaceholder("搜索笔记").fill(title);
   const row = page.locator(`article[data-memo-id="${memoId}"]`);
-  await expect(row).toBeVisible();
+  // Startup can auto-select the demo notebook after the first click, so retry until the note is listed.
+  await expect(async () => {
+    await page.getByRole("button", { name: "全部笔记", exact: true }).click();
+    await page.getByPlaceholder("搜索笔记").fill(title);
+    await expect(row).toBeVisible({ timeout: 3_000 });
+  }).toPass({ timeout: 30_000 });
   await expect(row.locator(`[data-memo-density="${density}"]`)).toHaveCount(1);
   return row;
 };
