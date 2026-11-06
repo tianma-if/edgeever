@@ -167,7 +167,8 @@ export const renderPublicMemoSharePage = async (
     return new Response(request.method === "HEAD" ? null : publicShareMarkdown(row.title, body), { status: 200, headers });
   }
 
-  const title = readable ? (getMemoDisplayTitle(row?.title, "").replace(/[\r\n]+/g, " ").trim() || "Shared note") : "Shared note";
+  const noteTitle = readable ? getMemoDisplayTitle(row?.title, "").replace(/[\r\n]+/g, " ").trim() : "";
+  const title = noteTitle || "Shared note";
   const description = readable
     ? describeNote(body)
     : expired
@@ -176,13 +177,15 @@ export const renderPublicMemoSharePage = async (
         ? "This shared note requires a password."
         : "Read a shared note on EdgeEver.";
   const updatedTime = readable && row && row.show_updated_at !== 0
-    ? `<p style="font-size:.75rem;color:#64748b">Updated <time datetime="${escapeHtml(row.updated_at)}">${escapeHtml(new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }).format(new Date(row.updated_at)))} UTC</time></p>`
+    ? `<p lang="en" style="font-size:.75rem;color:#64748b">Updated <time datetime="${escapeHtml(row.updated_at)}">${escapeHtml(new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }).format(new Date(row.updated_at)))} UTC</time></p>`
     : "";
   const branding = readable && row && row.show_branding !== 0
-    ? `<footer style="margin-top:2rem;font-size:.75rem;text-align:center;color:#64748b"><a href="https://edgeever.org/" style="color:inherit">Published with EdgeEver</a></footer>`
+    ? `<footer lang="en" style="margin-top:2rem;font-size:.75rem;text-align:center;color:#64748b"><a href="https://edgeever.org/" style="color:inherit">Published with EdgeEver</a></footer>`
     : "";
+  // The page inherits the app shell's language, which says nothing about the note.
+  // The note's own title and body are marked as unknown; text generated here is English.
   const article = readable
-    ? `<article id="edgeever-shared-note" style="max-width:44rem;margin:1.5rem auto;padding:0 1rem"><h1>${escapeHtml(title)}</h1>${updatedTime}<pre style="white-space:pre-wrap;font:inherit">${escapeHtml(body)}</pre>${branding}</article>`
+    ? `<article id="edgeever-shared-note" style="max-width:44rem;margin:1.5rem auto;padding:0 1rem"><h1 lang="${noteTitle ? "" : "en"}">${escapeHtml(title)}</h1>${updatedTime}<pre lang="" style="white-space:pre-wrap;font:inherit">${escapeHtml(body)}</pre>${branding}</article>`
     : "";
   const metadata = `<title>${escapeHtml(`${title} · EdgeEver`)}</title>
 <meta name="description" content="${escapeHtml(description)}">
