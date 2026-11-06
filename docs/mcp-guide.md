@@ -42,9 +42,35 @@ claude mcp get edgeever   # should report "Connected"
 
 `--scope user` makes the server available in every project. Leave it out to register it for the current project only.
 
-### Cursor, VS Code and other HTTP clients
+### VS Code
 
-Paste the JSON configuration above into the client's MCP settings. Most clients that accept `url` and `headers` work without changes.
+VS Code reads `.vscode/mcp.json` (or the user-level `mcp.json`). It uses a top-level `servers` object and needs `"type": "http"`. Reference the token through an input so it is not stored in a tracked file:
+
+```json
+{
+  "inputs": [
+    {
+      "type": "promptString",
+      "id": "edgeever-token",
+      "description": "EdgeEver API token",
+      "password": true
+    }
+  ],
+  "servers": {
+    "edgeever": {
+      "type": "http",
+      "url": "https://notes.example.com/mcp",
+      "headers": { "Authorization": "Bearer ${input:edgeever-token}" }
+    }
+  }
+}
+```
+
+VS Code asks for the token when the server first starts and stores it securely. You can also use `${env:EDGEEVER_TOKEN}` to read it from an environment variable.
+
+### Cursor and other HTTP clients
+
+Paste the JSON configuration above into the client's MCP settings. Most clients that accept `url` and `headers` work without changes. Keep the token out of files that are committed to a repository.
 
 ### Clients that only start local (stdio) servers
 
@@ -72,11 +98,13 @@ If it fails:
 
 | Symptom | Cause and fix |
 |---|---|
-| `401` with "Authentication required" | The client did not send the `Authorization` header. Check the header name and the `Bearer ` prefix. |
-| `401` after the token worked before | The token was deleted or replaced. Create a new token and update the client. |
+| `401` with "Authentication required" | The client sent no credentials. Check that the `Authorization` header is set, including the header name and the `Bearer ` prefix. |
+| `401` with `error="invalid_token"` in the `WWW-Authenticate` header | The token was sent but rejected. Check that it belongs to this instance; if it was deleted or replaced, create a new token and update the client. |
 | `403` "Origin is not allowed" | A browser-based client sent a foreign `Origin`. Run the client outside the browser or through the stdio bridge. |
 | The client reports invalid JSON or an HTML page | The URL does not point at `/mcp` on the server (for example a typo, `//mcp`, or the desktop app address). |
 | Tools that change data are refused | The token is read-only. Create a token with **Full access** for that client. |
+
+Older instances may return the same generic `401` in both cases, so a `401` alone does not prove that the token was revoked.
 
 ## 4. What the agent can do
 

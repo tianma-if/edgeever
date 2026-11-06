@@ -42,9 +42,35 @@ claude mcp get edgeever   # 应显示 "Connected"
 
 `--scope user` 让该服务器在所有项目中可用；省略则只在当前项目中注册。
 
-### Cursor、VS Code 等 HTTP 客户端
+### VS Code
 
-将上面的 JSON 配置粘贴到客户端的 MCP 设置中。支持 `url` 和 `headers` 的客户端通常无需额外修改。
+VS Code 读取 `.vscode/mcp.json`（或用户级 `mcp.json`）。它使用顶层 `servers` 对象，并需要 `"type": "http"`。通过 input 引用 Token，避免把它写入受版本控制的文件：
+
+```json
+{
+  "inputs": [
+    {
+      "type": "promptString",
+      "id": "edgeever-token",
+      "description": "EdgeEver API Token",
+      "password": true
+    }
+  ],
+  "servers": {
+    "edgeever": {
+      "type": "http",
+      "url": "https://notes.example.com/mcp",
+      "headers": { "Authorization": "Bearer ${input:edgeever-token}" }
+    }
+  }
+}
+```
+
+VS Code 会在服务器首次启动时提示输入 Token 并安全保存。也可以使用 `${env:EDGEEVER_TOKEN}` 从环境变量读取。
+
+### Cursor 等 HTTP 客户端
+
+将上面的 JSON 配置粘贴到客户端的 MCP 设置中。支持 `url` 和 `headers` 的客户端通常无需额外修改。不要把 Token 写入会提交到仓库的文件。
 
 ### 只能启动本地（stdio）服务器的客户端
 
@@ -72,11 +98,13 @@ EdgeEver 使用 API Token 认证 MCP，不提供 OAuth 登录。只接受 OAuth 
 
 | 现象 | 原因与处理 |
 |---|---|
-| `401`，提示 "Authentication required" | 客户端没有发送 `Authorization` 请求头。检查请求头名称和 `Bearer ` 前缀。 |
-| 之前可用，现在返回 `401` | Token 已被删除或替换。创建新 Token 并更新客户端。 |
+| `401`，提示 "Authentication required" | 客户端没有发送凭据。检查是否设置了 `Authorization` 请求头，包括请求头名称和 `Bearer ` 前缀。 |
+| `401`，且 `WWW-Authenticate` 响应头包含 `error="invalid_token"` | Token 已发送但被拒绝。确认它属于当前实例；如果已被删除或替换，创建新 Token 并更新客户端。 |
 | `403` "Origin is not allowed" | 基于浏览器的客户端发送了外部 `Origin`。请在浏览器外运行客户端，或使用 stdio 桥接。 |
 | 客户端报告 JSON 无效或收到 HTML 页面 | URL 没有指向服务器上的 `/mcp`（例如拼写错误、`//mcp` 或桌面应用地址）。 |
 | 修改数据的工具被拒绝 | Token 为只读。为该客户端创建 **完全访问** Token。 |
+
+较旧的实例在两种情况下可能返回相同的通用 `401`，因此仅凭 `401` 不能证明 Token 已被撤销。
 
 ## 4. Agent 可以做什么
 

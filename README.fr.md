@@ -181,6 +181,8 @@ Que ce soit pour des sauvegardes régulières, une migration sans heurts entre i
 
 Générez un jeton d'API dans **Profil** -> **API / MCP** et copiez la configuration Remote MCP en un clic pour permettre à des agents IA comme Claude Code, Cursor, Antigravity et OpenClaw de gérer votre base de connaissances en toute sécurité selon les autorisations de votre compte. EdgeEver prend en charge le cycle complet CRUD pour les notes textuelles, les notes de diagrammes visuels (cartes mentales, organigrammes et schémas d'architecture), les notes de tableaux structurés et les notes poster natives. Les agents peuvent également organiser l'arborescence des carnets, les étiquettes, les pièces jointes, l'historique des versions, les modèles de notes et les instructions IA.
 
+Pour la configuration des clients, les niveaux d'accès des jetons, le dépannage et des règles suggérées pour les agents, consultez [Using EdgeEver with MCP clients](docs/mcp-guide.md) (en anglais).
+
 > 💡 **Inspiration :**
 > Faites de l'IA votre véritable chef d'orchestre des connaissances et votre copilote créatif : transformez instantanément des concepts en cartes mentales interactives, organigrammes, diagrammes d'architecture et tableaux structurés, tout en fournissant un contexte privé à vos agents IA. Associé à l'éditeur de texte enrichi performant et à la typographie soignée d'EdgeEver, le contenu assisté par IA devient un ensemble de connaissances élégamment structuré, soigné et prêt pour la publication.
 
