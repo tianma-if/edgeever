@@ -370,9 +370,10 @@ export const MemoCard = ({
         {listTime}
       </div>
       <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs leading-5 text-slate-500">
-        <span className="min-w-0 flex-1 truncate">{compactSummary}</span>
+        {/* The summary keeps at least half the line; long tags truncate instead. */}
+        <span className="min-w-[50%] flex-1 truncate">{compactSummary}</span>
         {memo.tags.slice(0, 2).map((tag) => (
-          <span key={tag} className="max-w-[8rem] shrink-0 truncate tracking-tight text-slate-400">
+          <span key={tag} className="min-w-0 max-w-[8rem] truncate tracking-tight text-slate-400">
             #{tag}
           </span>
         ))}

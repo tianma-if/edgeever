@@ -2,14 +2,14 @@ import { expect, test, type Page } from "@playwright/test";
 
 const storageKey = "edgeever.memoListDensity";
 
-const createMemo = async (page: Page, title: string) => {
+const createMemo = async (page: Page, title: string, tags = ["density", "layout", "third"]) => {
   const notebooks = await (await page.request.get("/api/v1/notebooks")).json() as { notebooks: Array<{ id: string }> };
   const response = await page.request.post("/api/v1/memos", {
     data: {
       notebookId: notebooks.notebooks[0]?.id,
       title,
       contentMarkdown: "First line of the note body that is long enough to need more than one line in the preview list. ".repeat(3),
-      tags: ["density", "layout", "third"],
+      tags,
     },
   });
   expect(response.status(), await response.text()).toBe(201);
@@ -62,6 +62,31 @@ test("compact rows show title, date, summary and tags in two short lines", async
     expect((await row.boundingBox())!.height).toBeCloseTo(box.height, 0);
   } finally {
     // Permanent deletion only applies to notes already in the trash.
+    await page.request.delete(`/api/v1/memos/${memoId}`);
+    await page.request.delete(`/api/v1/memos/${memoId}?permanent=1`);
+  }
+});
+
+test("compact summary keeps its space next to two long tags in a narrow list", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.addInitScript(() => localStorage.setItem("edgeever.memoListWidth", "300"));
+  const title = `Narrow density ${Date.now()}`;
+  const tags = ["an-unusually-long-project-tag-name", "another-very-long-tag-for-layout"];
+  const memoId = await createMemo(page, title, tags);
+  try {
+    const row = await openRow(page, "compact", title, memoId);
+    const summary = row.getByText(/^First line of the note body/);
+    await expect(summary).toBeVisible();
+    expect((await summary.boundingBox())!.width).toBeGreaterThan(80);
+
+    for (const tag of tags) {
+      const chip = row.getByText(`#${tag}`, { exact: true });
+      await expect(chip).toBeVisible();
+      // Long tags end in an ellipsis instead of pushing the summary out.
+      expect(await chip.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true);
+    }
+    expect(await row.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+  } finally {
     await page.request.delete(`/api/v1/memos/${memoId}`);
     await page.request.delete(`/api/v1/memos/${memoId}?permanent=1`);
   }
