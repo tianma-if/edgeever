@@ -185,37 +185,45 @@ describe("managed ACP adapters", () => {
     }
   });
 
-  test("extracts only expected Antigravity files and rejects archive traversal", async () => {
+  test.each([
+    ["darwin", "arm64", "darwin-aarch64", "agy_acp_server.par", "localharness_external"],
+    ["win32", "x64", "windows-x86_64", "agy_acp_server.exe", "localharness_external.exe"],
+  ])("extracts only expected Antigravity files and rejects archive traversal on %s", async (platform, arch, target, executable, helper) => {
     const root = await mkdtemp(path.join(tmpdir(), "edgeever-managed-agy-"));
     let malicious = false;
     const entry = {
       id: "antigravity-acp",
       version: "1.2.1",
-      distribution: { binary: { "darwin-aarch64": {
-        archive: "https://dl.google.com/agy-extensions/releases/macos/test.zip",
-        cmd: "./agy_acp_server.par",
+      distribution: { binary: { [target]: {
+        archive: "https://dl.google.com/agy-extensions/releases/test.zip",
+        cmd: `./${executable}`,
       } } },
     };
     const manager = createAcpAdapterManager({
       root,
-      platform: "darwin",
-      arch: "arm64",
+      platform,
+      arch,
       fetchImpl: async () => new Response(JSON.stringify({ agents: [entry] }), { status: 200 }),
       downloadImpl: async (_url, destination) => {
         const files = malicious
-          ? { "../outside": [new Uint8Array([1]), { level: 1 }] }
-          : { "agy_acp_server.par": [new Uint8Array([1]), { level: 1 }], localharness_external: [new Uint8Array([2]), { level: 1 }] };
+          ? { [`../${helper}`]: [new Uint8Array([1]), { level: 1 }] }
+          : { [executable]: [new Uint8Array([1]), { level: 1 }], [helper]: [new Uint8Array([2]), { level: 1 }] };
         await writeFile(destination, zipSync(files));
       },
     });
     try {
       malicious = true;
       await expect(manager.install("antigravity", async () => ({ state: "available" }))).rejects.toThrow("invalid_adapter_archive");
-      expect(existsSync(path.join(root, "outside"))).toBe(false);
+      expect(existsSync(path.join(root, "antigravity", helper))).toBe(false);
       malicious = false;
       expect((await manager.install("antigravity", async () => ({ state: "available" }))).updated).toBe(true);
       expect(manager.get("antigravity")?.version).toBe("1.2.1");
-      expect(managedAdapterCommand(root, "antigravity", "1.2.1", { platform: "linux" })?.args).toEqual(["--uid="]);
+      const command = manager.get("antigravity").command.command;
+      expect(path.basename(command)).toBe(executable);
+      expect(await readFile(path.join(path.dirname(command), helper))).toEqual(Buffer.from([2]));
+      if (platform === "darwin") {
+        expect(managedAdapterCommand(root, "antigravity", "1.2.1", { platform: "linux" })?.args).toEqual(["--uid="]);
+      }
     } finally {
       await rm(root, { recursive: true, force: true });
     }

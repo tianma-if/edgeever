@@ -148,6 +148,7 @@ const downloadArchive = async (url, destination, expectedHash, fetchImpl) => {
 const extractAntigravity = async (archive, destination, platform) => {
   const required = platform === "win32" ? "agy_acp_server.exe" : "agy_acp_server.par";
   const allowed = new Set([required, "localharness_external"]);
+  if (platform === "win32") allowed.add("localharness_external.exe");
   const extracted = new Set();
   let total = 0;
   let failure = null;
