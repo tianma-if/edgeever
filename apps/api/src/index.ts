@@ -4,6 +4,7 @@ import {
   docToText,
   markdownToDoc,
   normalizeTags,
+  TABLE_VIEW_SCHEMA_VERSION,
 } from "@edgeever/shared";
 import { Hono } from "hono";
 import { registerImportContextGuard, registerImportRoutes } from "./import-routes";
@@ -239,6 +240,7 @@ app.get("/api/health", async (c) => {
   return c.json({
     ok: true,
     name: "edgeever",
+    tableSchemaVersion: TABLE_VIEW_SCHEMA_VERSION,
     runtime,
     ...(runtime === "self-hosted-bun"
       ? {

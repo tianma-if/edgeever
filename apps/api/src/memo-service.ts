@@ -16,6 +16,7 @@ import {
   listTableAttachmentResourceIds,
   normalizeTags,
   parseTableDocument,
+  TABLE_VIEW_SCHEMA_VERSION,
   type MemoDetail,
   type MemoEditSession,
   type MemoSummary,
@@ -1367,6 +1368,13 @@ export const updateMemoRecord = async (
     return {
       error: "table_update_required",
       message: "Structured table content must stay a structured table.",
+      status: 409,
+    };
+  }
+  if (currentTable?.schemaVersion === TABLE_VIEW_SCHEMA_VERSION && nextTable && nextTable.schemaVersion !== TABLE_VIEW_SCHEMA_VERSION) {
+    return {
+      error: "content_conflict",
+      message: "This table uses named views. Update your client and reload the table before saving.",
       status: 409,
     };
   }

@@ -1,0 +1,22 @@
+# #787: Named structured table views
+
+## Goal
+
+[#787](https://github.com/tianma-if/edgeever/issues/787#issuecomment-6648458457) needs independent filters and sort orders over the same records. A note currently stores one filter set and one sort field. Old readers discard unknown keys, so attaching views to a v1 document is unsafe.
+
+## Scope and acceptance
+
+- Web and desktop can switch, create, duplicate, rename, and delete named views, keeping at least one view. Names cannot be blank. New views start unconfigured; duplicates keep their rules. Selection is local to the device and note and does not edit the note. The toolbar shows applied filter and sort counts; changes are persisted only after applying. Keep autosave, record and field editing, forms, and export.
+- Match text/URLs, compare numbers, compare and range-filter dates (including “this week”, Monday through Sunday in the device calendar), match select options and checkbox state, and test attachment presence. Support all/any without nesting. Keep the existing eight-filter cap per view; incomplete rules cannot be applied. Evaluate sorts in priority order, put blanks last, and preserve source order for ties. New select sorts use option order; old sorts retain their meaning. Sort by a field at most once per view. Field removal prunes its rules across views; type changes clear incompatible new rules while retaining legacy semantics.
+- Keep the Markdown marker, one set of fields and records, and the full Markdown fallback. Shared code reads v1 and v2. Read v1 as a default view with unchanged results and order; opening, switching, or editing representable v1 settings does not upgrade the note. Persist v2 only for a configuration v1 cannot express. Confirm v2 support on the connected instance before upgrading a table; standalone desktop workspaces may save locally. Reject old v1 writes over v2 even with the current revision; surface the conflict without discarding the draft. Explicit history restore still restores the chosen snapshot. Deploy a dual-reader server first and retain a v2-capable server during rollback.
+- Compare results and order for a v2.19.0-format fixture; exercise view switching and reopening on Web/the shared desktop renderer. Use the SQLite-backed API to submit matching and non-matching records using the original public link and replay an old-format update carrying the current revision. Check that form, record, field, and regular editor writes preserve the views.
+
+## Unchanged
+
+Public forms append source records with the same link and field mapping. CSV exports visible records; public sharing, mobile fallback, and MCP record reads still use the source table. Views do not change access. The plugin API retains the v1 shape: it returns source records and a default view only when v1 can represent it fully; plugin writes still operate on the full document. Reuse revision checks, edit sessions, and outboxes without SQL storage changes, new record limits, server-side filtering, retries, or automatic merges. Kanban, Gantt, view permissions, and native mobile editing are out of scope. The main risks are overwrites by legacy writers and unreadable notes on older servers; report Windows package, Docker upgrade, and Cloudflare acceptance only where exercised.
+
+## Acceptance evidence
+
+- Replaced the official v2.19.0 Docker image with the candidate using the same SQLite data directory (0087 → 0092). The candidate image packages the Web and self-hosted build outputs in the repository Dockerfile’s runtime stage. The legacy view retained its visible records and order, and the new views survived a container restart. Browser checks also covered switching, duplicating, renaming, and deleting views; reordering a duplicate did not change the original.
+- After the container returned to the original address, the original public form accepted both matching and non-matching rows. Only the matching row appeared in the weekly view, and the source records and saved rules remained intact. The offline draft created by the v2.19.0 browser was retained as a conflict on replay. Replaying that v1 draft with the current revision and a valid edit session still returned HTTP 409 without overwriting records or views. Focused regressions covered desktop sync, plugin record writes, and mobile Markdown fallback.
+- Web and self-hosted server builds and root and mobile type checks passed. Verify the installed Windows client and Cloudflare D1 upgrade paths before release.
