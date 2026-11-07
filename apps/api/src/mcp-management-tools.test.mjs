@@ -75,6 +75,84 @@ const createFixture = (scopes = ["read:memos", "write:memos"]) => {
 };
 
 describe("MCP template and AI instruction management", () => {
+  test("search snippets expose bounded body matches and preserve summary and access rules", async () => {
+    const { sqlite, auth, context } = createFixture();
+    sqlite.query("INSERT INTO notebooks (id, workspace_id, name) VALUES ('nb_search', 'ws_mcp', 'Search')").run();
+    const call = (tool, args) => callMcpTool(context, auth, tool, args);
+    const create = args => call("create_memo", { notebookId: "nb_search", ...args });
+    const body = "行程安排😀。".repeat(200) + "退款将在七个工作日内到账。" + "其他事项😀。".repeat(100);
+    const { memo } = await create({ title: "Travel", contentMarkdown: body });
+    const summary = (await call("list_memos", {})).memos[0];
+    const found = await call("search_memos", { query: "退款" });
+    expect(found.memos).toHaveLength(1);
+    const { snippet, ...foundSummary } = found.memos[0];
+    expect(foundSummary).toEqual(summary);
+    expect(snippet).toContain("退款将在七个工作日内到账");
+    expect(Array.from(found.memos[0].snippet).length).toBeLessThanOrEqual(200);
+    expect(Buffer.from(found.memos[0].snippet).toString()).toBe(found.memos[0].snippet);
+    expect(found.memos[0].snippet).toStartWith("…");
+    expect(found.memos[0].snippet).toEndWith("…");
+    expect(found.memos[0]).not.toHaveProperty("contentText");
+
+    await create({ title: "English", contentMarkdown: "A long introduction. ".repeat(100) + "Refund POLICY applies." });
+    const english = (await call("search_memos", { query: "refund policy" })).memos[0];
+    expect(english.snippet).toContain("Refund POLICY");
+    const tokenMatch = (await call("search_memos", { query: "policy refund" })).memos[0];
+    expect(tokenMatch.snippet).toContain("Refund POLICY");
+    await create({ title: "Escaping", contentMarkdown: "Ask about refund (policy) here." });
+    expect((await call("search_memos", { query: "refund (policy) here" })).memos[0].snippet).toBe("Ask about refund (policy) here.");
+
+    await create({ title: "标题命中", tags: ["标签命中"], contentMarkdown: "Ordinary body." });
+    for (const query of ["标题命中", "标签命中"]) {
+      const result = (await call("search_memos", { query })).memos;
+      expect(result).toHaveLength(1);
+      expect(result[0]).not.toHaveProperty("snippet");
+      expect(result[0].excerpt).toBeTruthy();
+    }
+    expect((await call("search_memos", {})).memos.every(item => !("snippet" in item))).toBe(true);
+    expect((await call("list_memos", {})).memos.every(item => !("snippet" in item))).toBe(true);
+    expect((await callMcpTool(context, { ...auth, workspaceId: "ws_other" }, "search_memos", { query: "退款" })).memos).toEqual([]);
+    sqlite.query("UPDATE memos SET is_deleted = 1 WHERE id = ?").run(memo.id);
+    expect((await call("search_memos", { query: "退款" })).memos).toEqual([]);
+  });
+
+  test("snippet generation uses one bounded search read as result and dataset sizes grow", async () => {
+    const { sqlite, auth, context } = createFixture();
+    sqlite.query("INSERT INTO notebooks (id, workspace_id, name) VALUES ('nb_budget', 'ws_mcp', 'Budget')").run();
+    const contentMarkdown = "Budget preamble. ".repeat(300) + "budgetneedle refund rules.";
+    const db = context.env.storage.db;
+    for (const size of [12, 36]) {
+      for (let index = sqlite.query("SELECT count(*) AS total FROM memos").get().total; index < size; index++) {
+        await callMcpTool(context, auth, "create_memo", { notebookId: "nb_budget", title: String(index), contentMarkdown });
+      }
+      for (const limit of [1, 5, 10]) {
+        const reads = [];
+        context.env.storage.db = {
+          prepare(sql) {
+            const statement = db.prepare(sql);
+            return {
+              bind(...bindings) {
+                const bound = statement.bind(...bindings);
+                return { async all() {
+                  const result = await bound.all();
+                  reads.push({ sql, rows: result.results.length, bodyBytes: result.results.reduce((total, row) => total + Buffer.byteLength(row.content_text ?? ""), 0) });
+                  return result;
+                } };
+              },
+            };
+          },
+        };
+        const result = await callMcpTool(context, auth, "search_memos", { query: "budgetneedle", limit });
+        expect(reads).toHaveLength(1);
+        expect(reads[0].rows).toBe(limit);
+        expect(reads[0].bodyBytes).toBe(Buffer.byteLength(contentMarkdown) * limit);
+        expect(result.memos).toHaveLength(limit);
+        expect(result.memos.every(item => item.snippet.includes("budgetneedle") && Array.from(item.snippet).length <= 200)).toBe(true);
+        context.env.storage.db = db;
+      }
+    }
+  });
+
   test("reads prose bodies as Markdown by default with an opt-in for legacy fields", async () => {
     const { sqlite, auth, context } = createFixture();
     sqlite.query("INSERT INTO notebooks (id, workspace_id, name) VALUES ('nb_read', 'ws_mcp', 'Reading')").run();

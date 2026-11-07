@@ -741,6 +741,9 @@ describe("shared companion MCP adapter", () => {
     const page = await tools.search_memos.execute({ createdAfter: "2000-01-01", limit: 1 });
     expect(page.memos).toHaveLength(1);
     expect(page.hasMore).toBe(true);
+    const matched = await tools.search_memos.execute({ query: "original" });
+    expect(matched.memos.length).toBeGreaterThan(0);
+    expect(matched.memos.every(memo => memo.snippet.includes("original"))).toBe(true);
     expect(await tools.list_memos.execute({})).toMatchObject({
       memos: expect.arrayContaining([expect.objectContaining({
         id: f.notes[1].id, createdAt: f.notes[1].createdAt, updatedAt: f.notes[1].updatedAt,

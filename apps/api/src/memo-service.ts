@@ -156,6 +156,26 @@ export const normalizeSearchTimeBound = (value: string | null | undefined, bound
   return expanded;
 };
 
+export type MemoSearchSummary = MemoSummary & { snippet?: string };
+
+const memoSearchSnippet = (text: string, query: string) => {
+  const escapePattern = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const phraseMatch = new RegExp(escapePattern(query), "iu").exec(text);
+  const terms = (query.match(/[\p{L}\p{N}_]+/gu) ?? []).slice(0, 8);
+  const match = phraseMatch ?? (terms.length
+    ? new RegExp(terms.map(escapePattern).join("|"), "iu").exec(text)
+    : null);
+  if (!match) return undefined;
+
+  // Keep surrogate pairs intact and reserve space for truncation markers.
+  let start = Math.max(0, match.index - 80);
+  if (start > 0 && /[\uDC00-\uDFFF]/.test(text[start])) start--;
+  const prefix = start > 0 ? "…" : "";
+  const passage = Array.from(text.slice(start, start + 400)).slice(0, 198).join("");
+  const suffix = start + passage.length < text.length ? "…" : "";
+  return prefix + passage + suffix;
+};
+
 export const searchMemoSummaries = async (
   db: DatabaseAdapter,
   options: {
@@ -172,7 +192,7 @@ export const searchMemoSummaries = async (
     poster?: boolean | null;
     limit: number;
   }
-): Promise<MemoSummary[]> => {
+): Promise<MemoSearchSummary[]> => {
   const q = options.query?.trim();
   const notebookId = options.notebookId?.trim() || null;
   const tags = normalizeTags(options.tags ?? []);
@@ -271,7 +291,11 @@ export const searchMemoSummaries = async (
         .bind(ftsQuery, likeQuery, likeQuery, likeQuery, ...binds, limit)
         .all<MemoSummaryRow>();
 
-      return rows.results.map(mapMemoSummary);
+      return rows.results.map(row => {
+        const memo = mapMemoSummary(row);
+        const snippet = memoSearchSnippet(row.content_text ?? "", q);
+        return snippet ? { ...memo, snippet } : memo;
+      });
     }
   }
 

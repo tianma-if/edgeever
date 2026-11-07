@@ -79,6 +79,8 @@ Add a rule in your client's custom instructions, `AGENTS.md` or `CLAUDE.md`. For
 
 When reading a prose memo with `get_memo` or listing full bodies with `list_memos` and `includeContent: true`, the response includes `contentMarkdown` as the only full body, alongside memo metadata. If an existing integration reads `contentJson` or `contentText`, pass `format: "all"` to retain the previous response.
 
+Keyword searches with `search_memos` also return a `snippet` of up to 200 characters when the query or its terms can be located in the body. The original `excerpt` is retained. Results without a located body match, including title-only or tag-only matches, use the existing summary. Read the memo when the answer depends on context outside the snippet.
+
 ## 3. Troubleshoot
 
 | Symptom | Cause and fix |

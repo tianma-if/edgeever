@@ -183,23 +183,7 @@ export type McpToolDependencies = {
     memoIds: string[],
     actor: AuditActor,
   ) => Promise<number>;
-  searchMemoSummaries: (
-    database: DatabaseAdapter,
-    options: {
-      workspaceId: string;
-      query?: string | null;
-      notebookId?: string | null;
-      tags?: string[];
-      createdAfter?: string | null;
-      createdBefore?: string | null;
-      updatedAfter?: string | null;
-      updatedBefore?: string | null;
-      isPinned?: boolean | null;
-      hasResources?: boolean | null;
-      poster?: boolean | null;
-      limit: number;
-    },
-  ) => Promise<MemoSummary[]>;
+  searchMemoSummaries: typeof import("./memo-service").searchMemoSummaries;
   updateMemoRecord: (
     database: DatabaseAdapter,
     workspaceId: string,
