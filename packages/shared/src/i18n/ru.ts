@@ -1593,6 +1593,7 @@ export const ru = {
       "openrouter-models": "список моделей OpenRouter",
       "deepseek-models": "список моделей DeepSeek",
       "litellm-model-info": "сведения о модели LiteLLM",
+      "models-dev": "открытый каталог models.dev (справочные значения)",
       "provider-error": "сообщение об ошибке сервиса",
       "none": "нет",
     },

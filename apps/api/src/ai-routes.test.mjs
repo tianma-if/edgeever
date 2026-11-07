@@ -1630,6 +1630,21 @@ describe("automatic output budget (#652 PR A)", () => {
     sqlite.close();
   });
 
+  test("limits from the models.dev catalogue are stored and used like the service's own", async () => {
+    const { sqlite, app, environment: env, provider, model } = await setup();
+    const saved = await report(app, env, provider, model, { maxOutputTokens: 128000, maxInputTokens: 272000, source: "models-dev" });
+    expect(saved.status).toBe(200);
+    expect((await saved.json()).detectedCapabilities).toMatchObject({ maxOutputTokens: 128000, maxInputTokens: 272000, contextWindowTokens: null, source: "models-dev" });
+    const prepared = await prepare(app, env, { allowUnboundedOutput: true });
+    expect(prepared).toMatchObject({ maxOutputTokens: 128000, outputBudget: { mode: "auto", outputLimit: 128000 } });
+    expect(prepared.detectCapabilities).toBe(false);
+    // A limit learned later from a provider error lowers the output limit and keeps the source.
+    await report(app, env, provider, model, { maxOutputTokens: 64000, source: "provider-error" });
+    expect(sqlite.query("SELECT detected_max_output_tokens, detected_max_input_tokens, detected_capability_source FROM ai_models").get())
+      .toEqual({ detected_max_output_tokens: 64000, detected_max_input_tokens: 272000, detected_capability_source: "models-dev" });
+    sqlite.close();
+  });
+
   test("a shared window leaves room for the input; a manual budget still wins", async () => {
     const { sqlite, app, environment: env, provider, model } = await setup({ ...validSettings, provider: "anthropic", baseUrl: "https://api.anthropic.example/v1" });
     await report(app, env, provider, model, { maxOutputTokens: 64000, contextWindowTokens: 150_000, source: "anthropic-models" });
