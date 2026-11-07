@@ -99,6 +99,17 @@ describe("public memo share pages", () => {
     expect(html).not.toContain("old description");
   });
 
+  test("marks the note's language as unknown and the generated text as English", async () => {
+    const html = await (await render(createDatabase(), `/share/${token}`)).text();
+    // The app shell still declares its own language; the note must not inherit it.
+    expect(html).toContain('<html lang="zh-CN">');
+    expect(html).toContain('<h1 lang="">A $&amp; $&#39; $$ &lt;script&gt;</h1>');
+    expect(html).toContain('<pre lang="" style="white-space:pre-wrap;font:inherit"># A $&amp; $&#39; $$ &lt;script&gt;');
+    expect(html).toContain('<p lang="en" style="font-size:.75rem;color:#64748b">Updated <time ');
+    expect(html).toContain('<footer lang="en" style="');
+    expect(html).not.toContain("old description");
+  });
+
   test.each([[true, true], [true, false], [false, true], [false, false]])(
     "independently renders update time (%s) and footer branding (%s) in the first HTML response",
     async (showUpdatedAt, showBranding) => {
@@ -110,7 +121,7 @@ describe("public memo share pages", () => {
         expect(html.includes("<time ")).toBe(showUpdatedAt);
         expect(html.includes("Published with EdgeEver</a>")).toBe(showBranding);
         if (showBranding) {
-          expect(html).toContain('<footer style="');
+          expect(html).toContain('<footer lang="en" style="');
           expect(html).toContain('href="https://edgeever.org/"');
           expect(html.indexOf("<footer ")).toBeGreaterThan(html.indexOf("</pre>"));
         }
@@ -206,6 +217,7 @@ describe("public memo share pages", () => {
     const html = await (await render(sqlite, `/share/${token}`)).text();
     expect(html).not.toContain("无标题笔记");
     expect(html).toContain("<title>Shared note · EdgeEver</title>");
+    expect(html).toContain('<h1 lang="en">Shared note</h1>');
     expect(html).toContain('<meta property="og:title" content="Shared note">');
     expect(html).toContain('<meta name="twitter:title" content="Shared note">');
     expect(html).toContain("Body text");
