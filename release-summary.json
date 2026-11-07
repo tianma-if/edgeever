@@ -1,38 +1,20 @@
 {
-  "version": "2.22.0",
+  "version": "2.23.0",
   "changes": {
     "en-US": [
-      "Generate long AI edits in parts and resume cut-off text. On web and desktop, review, restore, and apply the latest sidebar draft.",
-      "Use EdgeEver in Traditional Chinese, Spanish, German, French, or Russian on supported clients.",
-      "See more notes in the two-line compact list and keep an explicit All notes selection when reopening the app.",
-      "Fix desktop MCP endpoint and discovery responses, and add setup guides for connecting MCP clients.",
-      "Fix Antigravity ACP helper startup on Windows.",
-      "Fix clipped Mermaid labels and edge routing across subgraphs.",
-      "Update bundled npm and dependencies to address security vulnerabilities.",
-      "Clarify backup status and import options in settings, with updated note migration guides.",
-      "Add five languages to the project website and make the note migration guide easier to find."
+      "MCP now returns only Markdown for prose note bodies by default in get_memo and full-content list_memos. If your integration uses contentJson or contentText, pass format=\"all\" to keep the previous fields.",
+      "MCP keyword search includes a snippet of up to 200 characters around a body match when available.",
+      "The initial HTML for publicly shared notes leaves the note language unspecified and labels the built-in English text correctly. Thanks to @dkoryto in #816."
     ],
     "zh-CN": [
-      "AI 长文可分段生成并自动续接截断的结果。Web 和桌面可在侧栏查看、恢复和应用最近的草稿。",
-      "受支持的客户端新增繁体中文、西班牙语、德语、法语和俄语。",
-      "双行紧凑列表可显示更多笔记，重新打开应用时会保留主动选择的「全部笔记」。",
-      "修复桌面端 MCP 端点与发现响应，并新增 MCP 客户端接入指南。",
-      "修复 Windows 上 Antigravity ACP 辅助进程无法启动的问题。",
-      "修复 Mermaid 标签裁切和跨子图连线布局问题。",
-      "更新随应用分发的 npm 和相关依赖，修复安全漏洞。",
-      "优化设置中的备份状态和导入选项，并更新笔记迁移指南。",
-      "项目网站新增五种语言，笔记迁移指南更容易找到。"
+      "MCP 的 get_memo 和返回完整正文的 list_memos 现在默认只提供 Markdown 正文。依赖 contentJson 或 contentText 的集成可传入 format=\"all\"，继续获取原有字段。",
+      "MCP 关键词搜索命中笔记正文时，会附带最多 200 字的匹配片段。",
+      "公开分享页的初始 HTML 现在将笔记标题和正文的语言标记为未知，并正确标注页面自带的英文文案。感谢 @dkoryto 的 #816。"
     ],
     "ja": [
-      "AIで長文を分割生成し、途中で切れた文章を続けて生成できます。Webとデスクトップではサイドバーで下書きを確認、復元、適用できます。",
-      "対応クライアントで繁体字中国語、スペイン語、ドイツ語、フランス語、ロシア語を選べます。",
-      "2行のコンパクト表示でより多くのノートが見え、再起動時に「すべてのノート」の選択が維持されます。",
-      "デスクトップのMCPエンドポイントと検出応答を修正し、MCPクライアントの接続ガイドを追加しました。",
-      "WindowsでAntigravity ACPヘルパーが起動しない問題を修正しました。",
-      "Mermaidのラベルの切れとサブグラフ間の接続線の配置を修正しました。",
-      "同梱のnpmと関連する依存関係を更新し、脆弱性に対処しました。",
-      "設定のバックアップ状態とインポート項目を分かりやすくし、ノート移行ガイドを更新しました。",
-      "プロジェクトサイトに5言語を追加し、ノート移行ガイドを見つけやすくしました。"
+      "MCP の get_memo と本文を含む list_memos は、標準のノート本文を既定で Markdown のみ返します。contentJson や contentText が必要な場合は format=\"all\" を指定してください。",
+      "MCP のキーワード検索では、本文に一致箇所がある場合に最大 200 文字の抜粋を返します。",
+      "公開共有ページの初期 HTML で、ノートの言語は未指定とし、組み込みの英語テキストには正しい言語を設定します。"
     ]
   }
 }
