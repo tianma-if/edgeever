@@ -77,6 +77,8 @@ bun /path/to/edgeever/scripts/edgeever-mcp-stdio.mjs --profile personal
 
 可以在客户端自定义指令、`AGENTS.md` 或 `CLAUDE.md` 中加一条规则。例如「新笔记放进『Agent 笔记』，先搜索同主题笔记。删除或合并前先征得我的同意。」
 
+使用 `get_memo` 读取普通笔记，或在 `list_memos` 中设置 `includeContent: true` 获取全文时，响应会提供笔记元数据和一份 `contentMarkdown` 正文。已有集成如果读取 `contentJson` 或 `contentText`，请传入 `format: "all"` 以保留原有响应。
+
 ## 3. 排障
 
 | 现象 | 原因与处理 |

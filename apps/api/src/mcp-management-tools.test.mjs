@@ -75,6 +75,44 @@ const createFixture = (scopes = ["read:memos", "write:memos"]) => {
 };
 
 describe("MCP template and AI instruction management", () => {
+  test("reads prose bodies as Markdown by default with an opt-in for legacy fields", async () => {
+    const { sqlite, auth, context } = createFixture();
+    sqlite.query("INSERT INTO notebooks (id, workspace_id, name) VALUES ('nb_read', 'ws_mcp', 'Reading')").run();
+    const call = (tool, args) => callMcpTool(context, auth, tool, args);
+    const contentMarkdown = "A **distinctive** prose body.";
+    const { memo } = await call("create_memo", { notebookId: "nb_read", title: "Prose", contentMarkdown });
+    const { memo: poster } = await call("create_poster_memo", { notebookId: "nb_read", title: "Poster", heading: "Heading" });
+
+    const read = await call("get_memo", { memoId: memo.id });
+    const legacy = await call("get_memo", { memoId: memo.id, format: "all" });
+    expect(legacy.memo).toMatchObject({ contentJson: expect.any(Object), contentText: "A distinctive prose body.", contentMarkdown });
+    const { contentJson, contentText, ...markdownMemo } = legacy.memo;
+    expect(read.memo).toEqual(markdownMemo);
+    expect(read.memo).toMatchObject({ id: memo.id, revision: memo.revision });
+
+    const page = await call("list_memos", { includeContent: true });
+    const legacyPage = await call("list_memos", { includeContent: true, format: "all" });
+    expect(page).toEqual({ ...legacyPage, memos: legacyPage.memos.map(item => item.id === memo.id ? markdownMemo : item) });
+    expect(page.memos.find(item => item.id === poster.id)).toHaveProperty("contentJson");
+    const first = await call("list_memos", { includeContent: true, limit: 1 });
+    expect(first).toMatchObject({ hasMore: true, nextOffset: 1 });
+    const second = await call("list_memos", { includeContent: true, limit: 1, offset: first.nextOffset });
+    expect(second).toMatchObject({ hasMore: false, nextOffset: null });
+    expect([...first.memos, ...second.memos]).toEqual(page.memos);
+
+    const summary = await call("list_memos", { format: "all" });
+    const search = await call("search_memos", { query: "distinctive" });
+    expect(summary).toEqual(await call("list_memos", {}));
+    expect(search.memos).toHaveLength(1);
+    for (const item of [...summary.memos, ...search.memos]) {
+      expect(item).not.toHaveProperty("contentMarkdown");
+      expect(item).not.toHaveProperty("contentJson");
+      expect(item).not.toHaveProperty("contentText");
+    }
+    await expect(call("get_memo", { memoId: memo.id, format: "json" })).rejects.toMatchObject({ code: "invalid_params" });
+    await expect(call("list_memos", { includeContent: true, format: "json" })).rejects.toMatchObject({ code: "invalid_params" });
+  });
+
   test("client render queue claims once, saves atomically, isolates workspaces and checks source revision", async () => {
     const { sqlite, auth, context } = createFixture(["read:memos", "write:memos", "write:resources"]);
     sqlite.query("INSERT INTO notebooks(id, workspace_id, name) VALUES ('nb_p', 'ws_mcp', 'Posters')").run();

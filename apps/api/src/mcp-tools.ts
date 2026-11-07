@@ -178,7 +178,7 @@ const MCP_TOOL_DEFINITIONS = [
   },
   {
     name: "list_memos",
-    description: "List EdgeEver memos with pagination. Use poster=true to list only editable poster notes (海报笔记), false to exclude them. Use includeContent when full Markdown is needed.",
+    description: 'List EdgeEver memo summaries with pagination. Use poster=true to list only editable poster notes (海报笔记), false to exclude them. With includeContent=true, prose bodies are Markdown only by default. Use format="all" for legacy body fields.',
     inputSchema: {
       type: "object",
       additionalProperties: false,
@@ -187,6 +187,7 @@ const MCP_TOOL_DEFINITIONS = [
         limit: { type: "integer", minimum: 1, maximum: 100 },
         offset: { type: "integer", minimum: 0 },
         includeContent: { type: "boolean" },
+        format: { type: "string", enum: ["all"], description: "Return Markdown, plain text, and editor JSON for prose when includeContent is true." },
         includeDeleted: { type: "boolean" },
         poster: { type: "boolean", description: "Filter by editable poster type before pagination." },
       },
@@ -194,13 +195,14 @@ const MCP_TOOL_DEFINITIONS = [
   },
   {
     name: "get_memo",
-    description: "Read a memo with Markdown content.",
+    description: 'Read a memo. Prose bodies are Markdown only by default. Use format="all" for legacy body fields. Specialized memos retain their existing responses.',
     inputSchema: {
       type: "object",
       required: ["memoId"],
       additionalProperties: false,
       properties: {
         memoId: { type: "string" },
+        format: { type: "string", enum: ["all"], description: "Return Markdown, plain text, and editor JSON for prose." },
         includeDeleted: { type: "boolean" },
       },
     },

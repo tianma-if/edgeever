@@ -77,6 +77,8 @@ Ask the agent to call `get_current_user` and check the account, workspace and to
 
 Add a rule in your client's custom instructions, `AGENTS.md` or `CLAUDE.md`. For example, “Put new notes in Agent notes and search for an existing note on the topic first. Ask me before deleting or merging notes.”
 
+When reading a prose memo with `get_memo` or listing full bodies with `list_memos` and `includeContent: true`, the response includes `contentMarkdown` as the only full body, alongside memo metadata. If an existing integration reads `contentJson` or `contentText`, pass `format: "all"` to retain the previous response.
+
 ## 3. Troubleshoot
 
 | Symptom | Cause and fix |
