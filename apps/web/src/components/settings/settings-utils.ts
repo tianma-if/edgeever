@@ -1,5 +1,5 @@
 import type { TFunction } from "i18next";
-import type { Notebook, TokenNotebookAccess } from "@edgeever/shared";
+import type { Notebook, TokenNotebookAccess, TokenNotebookDefaultAccess } from "@edgeever/shared";
 import { getConfiguredDesktopApiBaseUrl } from "@/lib/api";
 export { copyTextToClipboard } from "@/lib/clipboard";
 
@@ -100,12 +100,15 @@ export type NotebookGrantDraft = {
   mode: "all" | "selected";
   /** notebookId → grant. Only notebooks with a grant are sent to the server. */
   grants: Record<string, { read: boolean; write: boolean }>;
+  /** Access for notebooks without an explicit grant (notably new ones). */
+  defaultAccess: TokenNotebookDefaultAccess;
 };
 
-export const emptyNotebookGrantDraft = (): NotebookGrantDraft => ({ mode: "all", grants: {} });
+export const emptyNotebookGrantDraft = (): NotebookGrantDraft => ({ mode: "all", grants: {}, defaultAccess: "none" });
 
 export const notebookAccessToDraft = (
   notebookAccess: TokenNotebookAccess[] | null | undefined,
+  notebookDefaultAccess: TokenNotebookDefaultAccess | undefined,
 ): NotebookGrantDraft => {
   if (!notebookAccess || notebookAccess.length === 0) {
     return emptyNotebookGrantDraft();
@@ -114,7 +117,7 @@ export const notebookAccessToDraft = (
   for (const entry of notebookAccess) {
     grants[entry.notebookId] = { read: entry.read, write: entry.write };
   }
-  return { mode: "selected", grants };
+  return { mode: "selected", grants, defaultAccess: notebookDefaultAccess ?? "none" };
 };
 
 export const draftToNotebookAccess = (draft: NotebookGrantDraft): TokenNotebookAccess[] | undefined => {

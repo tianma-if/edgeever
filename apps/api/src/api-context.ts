@@ -1,5 +1,5 @@
 import type { Context } from "hono";
-import type { TokenNotebookAccess } from "@edgeever/shared";
+import type { TokenNotebookAccess, TokenNotebookDefaultAccess } from "@edgeever/shared";
 import type { CloudflareStorageBindings } from "./cloudflare-storage-adapter";
 import type { StorageAdapter } from "./storage-contract";
 
@@ -61,6 +61,11 @@ export type AuthContext = {
    * through `resolveNotebookAccess`.
    */
   notebookAccess?: TokenNotebookAccess[] | null;
+  /**
+   * Default access for notebooks without an explicit grant (notably newly
+   * created ones). `"none"` keeps the plain allow-list behaviour.
+   */
+  notebookDefaultAccess?: TokenNotebookDefaultAccess;
   /** Recovery-code session that must rebind TOTP before any other access. */
   mfaRestricted?: boolean;
 };

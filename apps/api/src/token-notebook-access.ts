@@ -1,4 +1,4 @@
-import type { TokenNotebookAccess } from "@edgeever/shared";
+import type { TokenNotebookAccess, TokenNotebookDefaultAccess } from "@edgeever/shared";
 import { AppError } from "./app-error";
 import type { AppContext } from "./api-context";
 import type { DatabaseAdapter } from "./storage-contract";
@@ -49,6 +49,10 @@ export const parseNotebookAccessJson = (value: string | null | undefined): Token
   }
 };
 
+/** Parses the stored `notebook_default_access` column. Unknown/null means "none". */
+export const parseNotebookDefaultAccess = (value: string | null | undefined): TokenNotebookDefaultAccess =>
+  value === "read" || value === "write" ? value : "none";
+
 /** Expands granted notebook ids to include every live descendant notebook. */
 const expandWithDescendants = async (
   db: DatabaseAdapter,
@@ -79,11 +83,17 @@ const expandWithDescendants = async (
  * Resolves the effective notebook access for a request. `null` entries (every
  * token created before this feature, and interactive user sessions) stay
  * unrestricted. A `write` grant always implies `read`.
+ *
+ * `defaultAccess` covers notebooks with no explicit grant — notably notebooks
+ * created after the token: "read" grants the whole workspace read access on
+ * top of the explicit grants, "write" additionally grants write access, and
+ * "none" (the default) keeps the original allow-list behaviour.
  */
 export const resolveNotebookAccess = async (
   db: DatabaseAdapter,
   workspaceId: string,
   entries: TokenNotebookAccess[] | null | undefined,
+  defaultAccess: TokenNotebookDefaultAccess = "none",
 ): Promise<NotebookAccess> => {
   if (!entries || entries.length === 0) {
     return UNRESTRICTED_NOTEBOOK_ACCESS;
@@ -91,16 +101,39 @@ export const resolveNotebookAccess = async (
 
   const readGrants = entries.filter((entry) => entry.read || entry.write).map((entry) => entry.notebookId);
   const writeGrants = entries.filter((entry) => entry.write).map((entry) => entry.notebookId);
-  const [readableNotebookIds, writableNotebookIds] = await Promise.all([
+  const [grantedReadable, grantedWritable] = await Promise.all([
     expandWithDescendants(db, workspaceId, readGrants),
     expandWithDescendants(db, workspaceId, writeGrants),
   ]);
 
+  if (defaultAccess === "none") {
+    return {
+      restricted: true,
+      readableNotebookIds: grantedReadable,
+      writableNotebookIds: grantedWritable,
+    };
+  }
+
+  const allNotebookIds = await expandWithDescendants(db, workspaceId, await liveNotebookIds(db, workspaceId));
+  const readable = new Set(grantedReadable);
+  for (const id of allNotebookIds) readable.add(id);
+  const writable = new Set(grantedWritable);
+  if (defaultAccess === "write") {
+    for (const id of allNotebookIds) writable.add(id);
+  }
+
   return {
     restricted: true,
-    readableNotebookIds,
-    writableNotebookIds,
+    readableNotebookIds: [...readable],
+    writableNotebookIds: [...writable],
   };
+};
+
+const liveNotebookIds = async (db: DatabaseAdapter, workspaceId: string): Promise<string[]> => {
+  const rows = await db.prepare(
+    `SELECT id FROM notebooks WHERE workspace_id = ? AND is_deleted = 0`,
+  ).bind(workspaceId).all<{ id: string }>();
+  return rows.results.map((row) => row.id);
 };
 
 /** SQL fragment: true when the column holds one of the listed notebook ids. */
@@ -167,5 +200,5 @@ export const resolveRequestNotebookAccess = async (c: AppContext): Promise<Noteb
   if (!auth || auth.kind !== "agent" || !auth.notebookAccess?.length) {
     return UNRESTRICTED_NOTEBOOK_ACCESS;
   }
-  return resolveNotebookAccess(c.env.storage.db, auth.workspaceId, auth.notebookAccess);
+  return resolveNotebookAccess(c.env.storage.db, auth.workspaceId, auth.notebookAccess, auth.notebookDefaultAccess);
 };

@@ -3893,6 +3893,29 @@ export const es = {
     "notebookAccessSummary": "Cuadernos: {{notebooks}}",
     "notebookRead": "Lectura",
     "notebookWrite": "Escritura",
+    "notebookDefaultAccessTitle": "Acceso predeterminado para cuadernos nuevos",
+    "notebookDefaultAccessDescription": "Se aplica a los cuadernos sin concesión explícita, especialmente los creados después.",
+    "notebookDefaultAccessSummary": "Cuadernos nuevos por defecto: {{access}}",
+    "notebookBulkRead": "Todo lectura",
+    "notebookBulkReadDescription": "Conceder lectura a todos los cuadernos con un clic.",
+    "notebookBulkWrite": "Todo escritura",
+    "notebookBulkWriteDescription": "Conceder lectura/escritura a todos los cuadernos con un clic.",
+    "notebookBulkClear": "Borrar",
+    "notebookBulkClearDescription": "Borrar todas las concesiones individuales.",
+    "notebookDefaultAccess": {
+      "none": {
+        "label": "Sin acceso",
+        "description": "Los cuadernos sin concesión (incluidos los nuevos) no son visibles ni editables."
+      },
+      "read": {
+        "label": "Solo lectura",
+        "description": "Los cuadernos sin concesión (incluidos los nuevos) solo se pueden leer."
+      },
+      "write": {
+        "label": "Lectura/escritura",
+        "description": "Los cuadernos sin concesión (incluidos los nuevos) se pueden leer y escribir."
+      }
+    },
     "description": "Autoriza al Web Clipper, servicios de MCP y agentes de IA a acceder a tus notas.",
     "namePlaceholder": "Nombre del token (p. ej., Chrome Clipper o Claude Desktop)",
     "createToken": "Crear token",

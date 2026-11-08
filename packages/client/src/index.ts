@@ -21,6 +21,7 @@ import type {
   CompanionToolExecuteResult,
   ApiToken,
   TokenNotebookAccess,
+  TokenNotebookDefaultAccess,
   AuthSession,
   LoginInput,
   LoginMfaInput,
@@ -1368,13 +1369,13 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
 
     listApiTokens: () => request<ListApiTokensResponse>("/api/v1/api-tokens"),
 
-    createApiToken: (payload: { name: string; scopes: string[]; expiresAt?: string | null; notebookAccess?: TokenNotebookAccess[] }) =>
+    createApiToken: (payload: { name: string; scopes: string[]; expiresAt?: string | null; notebookAccess?: TokenNotebookAccess[]; notebookDefaultAccess?: TokenNotebookDefaultAccess }) =>
       request<CreatedApiToken>("/api/v1/api-tokens", {
         method: "POST",
         body: JSON.stringify(payload),
       }),
 
-    updateApiToken: (tokenId: string, payload: { name?: string; scopes?: string[]; expiresAt?: string | null; notebookAccess?: TokenNotebookAccess[] }) =>
+    updateApiToken: (tokenId: string, payload: { name?: string; scopes?: string[]; expiresAt?: string | null; notebookAccess?: TokenNotebookAccess[]; notebookDefaultAccess?: TokenNotebookDefaultAccess }) =>
       request<ApiTokenUpdateResponse>(`/api/v1/api-tokens/${encodeURIComponent(tokenId)}`, {
         method: "PATCH",
         body: JSON.stringify(payload),

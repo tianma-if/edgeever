@@ -64,6 +64,7 @@ describe("API token route contracts", () => {
       token_value: null,
       scopes_json: '["read:memos"]',
       notebook_access_json: null,
+      notebook_default_access: null,
       last_used_at: null,
       expires_at: null,
       is_revoked: 0,
@@ -75,6 +76,7 @@ describe("API token route contracts", () => {
       token: null,
       scopes: ["read:memos"],
       notebookAccess: null,
+      notebookDefaultAccess: "none",
       lastUsedAt: null,
       expiresAt: null,
       isRevoked: false,
@@ -89,6 +91,7 @@ describe("API token route contracts", () => {
       token_value: "eev_x",
       scopes_json: '["read:memos","write:memos"]',
       notebook_access_json: '[{"notebookId":"nb_a","read":true,"write":true},{"notebookId":"nb_b","read":true,"write":false}]',
+      notebook_default_access: "read",
       last_used_at: null,
       expires_at: null,
       is_revoked: 0,
@@ -98,5 +101,18 @@ describe("API token route contracts", () => {
       { notebookId: "nb_a", read: true, write: true },
       { notebookId: "nb_b", read: true, write: false },
     ]);
+    expect(mapApiToken({
+      id: "tok_2",
+      name: "Scoped",
+      token_value: "eev_x",
+      scopes_json: '["read:memos"]',
+      notebook_access_json: null,
+      notebook_default_access: "bogus",
+      last_used_at: null,
+      expires_at: null,
+      is_revoked: 0,
+      created_at: "2026-08-08T00:00:00.000Z",
+      workspace_id: "ws_owner",
+    }).notebookDefaultAccess).toBe("none");
   });
 });

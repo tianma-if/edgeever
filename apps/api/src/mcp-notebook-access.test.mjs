@@ -66,7 +66,7 @@ const createFixture = () => {
     get: () => undefined,
   };
 
-  const makeAuth = (notebookAccess) => ({
+  const makeAuth = (notebookAccess, notebookDefaultAccess) => ({
     kind: "agent",
     actorType: "agent",
     actorId: "tok_test",
@@ -76,6 +76,7 @@ const createFixture = () => {
     workspaceId: "ws_mcp",
     role: "member",
     notebookAccess: notebookAccess ?? null,
+    notebookDefaultAccess: notebookDefaultAccess ?? "none",
   });
 
   return { sqlite, context, makeAuth };
@@ -188,10 +189,42 @@ describe("MCP notebook access enforcement", () => {
 
   test("get_current_user exposes the token's notebook grants", async () => {
     const { context, makeAuth } = createFixture();
-    const restricted = makeAuth([{ notebookId: "nb_allowed", read: true, write: false }]);
+    const restricted = makeAuth([{ notebookId: "nb_allowed", read: true, write: false }], "read");
     const identity = await callMcpTool(context, restricted, "get_current_user", {});
     expect(identity.authorization.notebookAccess).toEqual([
       { notebookId: "nb_allowed", read: true, write: false },
     ]);
+    expect(identity.authorization.notebookDefaultAccess).toBe("read");
+  });
+
+  test("default access covers notebooks created after the token", async () => {
+    const { context, makeAuth } = createFixture();
+    const admin = makeAuth(null);
+    const reader = makeAuth([{ notebookId: "nb_allowed", read: true, write: true }], "read");
+    const writer = makeAuth([{ notebookId: "nb_allowed", read: true, write: true }], "write");
+    const call = (auth, tool, args) => callMcpTool(context, auth, tool, args);
+
+    // A notebook created after the token was issued.
+    const fresh = (await call(admin, "create_notebook", { name: "Fresh" })).notebook;
+    const freshMemo = (await call(admin, "create_memo", {
+      notebookId: fresh.id, title: "Fresh memo", contentMarkdown: "fresh body",
+    })).memo;
+
+    // Default read: the fresh notebook is readable but not writable.
+    expect((await call(reader, "get_memo", { memoId: freshMemo.id })).memo.id).toBe(freshMemo.id);
+    expect((await call(reader, "list_notebooks", {})).notebooks.map((nb) => nb.id)).toContain(fresh.id);
+    await expect(call(reader, "update_memo", { memoId: freshMemo.id, title: "No" }))
+      .rejects.toMatchObject({ code: "notebook_access_denied", status: 403 });
+
+    // Default write: the fresh notebook is fully writable.
+    const updated = await call(writer, "update_memo", { memoId: freshMemo.id, title: "Yes" });
+    expect(updated.memo.title).toBe("Yes");
+    const created = await call(writer, "create_memo", { notebookId: fresh.id, title: "New", contentMarkdown: "n" });
+    expect(created.memo.notebookId).toBe(fresh.id);
+
+    // Default none (the original behaviour): the fresh notebook stays invisible.
+    const none = makeAuth([{ notebookId: "nb_allowed", read: true, write: true }], "none");
+    await expect(call(none, "get_memo", { memoId: freshMemo.id }))
+      .rejects.toMatchObject({ code: "notebook_access_denied", status: 403 });
   });
 });

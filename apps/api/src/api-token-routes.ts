@@ -12,7 +12,7 @@ import type { AppContext, AppEnv } from "./api-context";
 import { randomToken } from "./auth-crypto";
 import { createId, isoNow, parseJsonArray } from "./entity-utils";
 import { apiError, badRequest, notFound } from "./http-errors";
-import { parseNotebookAccessJson } from "./token-notebook-access";
+import { parseNotebookAccessJson, parseNotebookDefaultAccess } from "./token-notebook-access";
 import {
   ALL_TOKEN_SCOPES,
   getAuditActor,
@@ -31,6 +31,7 @@ export type ApiTokenRow = {
   token_value: string | null;
   scopes_json: string;
   notebook_access_json: string | null;
+  notebook_default_access: string | null;
   last_used_at: string | null;
   expires_at: string | null;
   is_revoked: number;
@@ -48,6 +49,7 @@ export const mapApiToken = (row: ApiTokenRow): ApiToken => ({
   token: row.token_value,
   scopes: parseJsonArray(row.scopes_json),
   notebookAccess: parseNotebookAccessJson(row.notebook_access_json),
+  notebookDefaultAccess: parseNotebookDefaultAccess(row.notebook_default_access),
   lastUsedAt: row.last_used_at,
   expiresAt: row.expires_at,
   isRevoked: Boolean(row.is_revoked),
@@ -59,7 +61,7 @@ const getApiTokenRow = (
   id: string,
   workspaceId: string,
 ) => database.prepare(
-  `SELECT id, name, token_value, scopes_json, notebook_access_json, last_used_at, expires_at, is_revoked, created_at, workspace_id
+  `SELECT id, name, token_value, scopes_json, notebook_access_json, notebook_default_access, last_used_at, expires_at, is_revoked, created_at, workspace_id
    FROM api_tokens
    WHERE id = ? AND workspace_id = ?`,
 ).bind(id, workspaceId).first<ApiTokenRow>();
@@ -102,7 +104,7 @@ export const registerApiTokenRoutes = (
     if (userOnly) return userOnly;
 
     const rows = await context.env.storage.db.prepare(
-      `SELECT id, name, token_value, scopes_json, notebook_access_json, last_used_at, expires_at, is_revoked, created_at, workspace_id
+      `SELECT id, name, token_value, scopes_json, notebook_access_json, notebook_default_access, last_used_at, expires_at, is_revoked, created_at, workspace_id
        FROM api_tokens
        WHERE workspace_id = ?
        ORDER BY is_revoked ASC, created_at DESC
@@ -140,8 +142,8 @@ export const registerApiTokenRoutes = (
       const workspaceId = getWorkspaceId(context);
       await context.env.storage.db.batch([
         context.env.storage.db.prepare(
-          `INSERT INTO api_tokens (id, workspace_id, name, token_hash, token_value, scopes_json, notebook_access_json, expires_at, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO api_tokens (id, workspace_id, name, token_hash, token_value, scopes_json, notebook_access_json, notebook_default_access, expires_at, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         ).bind(
           id,
           workspaceId,
@@ -150,6 +152,7 @@ export const registerApiTokenRoutes = (
           token,
           JSON.stringify(scopes),
           input.notebookAccess ? JSON.stringify(input.notebookAccess) : null,
+          input.notebookDefaultAccess ?? null,
           input.expiresAt ?? null,
           now,
         ),
@@ -160,7 +163,7 @@ export const registerApiTokenRoutes = (
           "api_token.create",
           "api_token",
           id,
-          { name: input.name, scopes, expiresAt: input.expiresAt ?? null, notebookAccess: input.notebookAccess ?? null },
+          { name: input.name, scopes, expiresAt: input.expiresAt ?? null, notebookAccess: input.notebookAccess ?? null, notebookDefaultAccess: input.notebookDefaultAccess ?? null },
         ),
       ]);
 
@@ -197,16 +200,20 @@ export const registerApiTokenRoutes = (
 
       const name = input.name ?? current.name;
       const expiresAt = input.expiresAt !== undefined ? input.expiresAt : current.expires_at;
+      const notebookDefaultAccess = input.notebookDefaultAccess !== undefined
+        ? input.notebookDefaultAccess
+        : parseNotebookDefaultAccess(current.notebook_default_access);
       const actor = getAuditActor(context);
       await context.env.storage.db.batch([
         context.env.storage.db.prepare(
           `UPDATE api_tokens
-           SET name = ?, scopes_json = ?, notebook_access_json = ?, expires_at = ?
+           SET name = ?, scopes_json = ?, notebook_access_json = ?, notebook_default_access = ?, expires_at = ?
            WHERE id = ? AND workspace_id = ?`,
         ).bind(
           name,
           JSON.stringify(scopes),
           notebookAccess ? JSON.stringify(notebookAccess) : null,
+          notebookDefaultAccess,
           expiresAt,
           id,
           workspaceId,
@@ -223,11 +230,13 @@ export const registerApiTokenRoutes = (
             scopes,
             expiresAt,
             notebookAccess: notebookAccess ?? null,
+            notebookDefaultAccess,
             previous: {
               name: current.name,
               scopes: parseJsonArray(current.scopes_json),
               expiresAt: current.expires_at,
               notebookAccess: parseNotebookAccessJson(current.notebook_access_json),
+              notebookDefaultAccess: parseNotebookDefaultAccess(current.notebook_default_access),
             },
           },
         ),

@@ -96,12 +96,14 @@ describe("API token notebook access management", () => {
       name: "Scoped",
       scopes: ["read:memos", "write:memos"],
       notebookAccess: [{ notebookId: "nb_a", read: true, write: false }],
+      notebookDefaultAccess: "read",
     });
     expect(created.status).toBe(201);
     const createdBody = await created.json();
     expect(createdBody.apiToken.notebookAccess).toEqual([
       { notebookId: "nb_a", read: true, write: false },
     ]);
+    expect(createdBody.apiToken.notebookDefaultAccess).toBe("read");
     const tokenValue = createdBody.token;
     expect(tokenValue).toStartWith("eev_");
 
@@ -109,6 +111,7 @@ describe("API token notebook access management", () => {
     const updated = await patch(app, environment, createdBody.apiToken.id, {
       scopes: ["read:memos", "write:memos", "read:notebooks"],
       notebookAccess: [{ notebookId: "nb_b", read: true, write: true }],
+      notebookDefaultAccess: "write",
     });
     expect(updated.status).toBe(200);
     const updatedBody = await updated.json();
@@ -116,12 +119,31 @@ describe("API token notebook access management", () => {
     expect(updatedBody.apiToken.notebookAccess).toEqual([
       { notebookId: "nb_b", read: true, write: true },
     ]);
+    expect(updatedBody.apiToken.notebookDefaultAccess).toBe("write");
     expect(updatedBody.apiToken.token).toBe(tokenValue);
 
     // Clearing the grants (empty array) un-restricts the token.
     const cleared = await patch(app, environment, createdBody.apiToken.id, { notebookAccess: [] });
     expect(cleared.status).toBe(200);
     expect((await cleared.json()).apiToken.notebookAccess).toBeNull();
+  });
+
+  test("defaults tokens without an explicit default to none", async () => {
+    const { app, environment } = createFixture();
+    const created = await post(app, environment, {
+      name: "Plain",
+      scopes: ["read:memos"],
+      notebookAccess: [{ notebookId: "nb_a", read: true, write: false }],
+    });
+    expect((await created.json()).apiToken.notebookDefaultAccess).toBe("none");
+
+    const invalid = await post(app, environment, {
+      name: "Bad",
+      scopes: ["read:memos"],
+      notebookAccess: [{ notebookId: "nb_a", read: true, write: false }],
+      notebookDefaultAccess: "everything",
+    });
+    expect(invalid.status).toBe(400);
   });
 
   test("rejects grants for unknown notebooks", async () => {

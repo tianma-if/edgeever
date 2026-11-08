@@ -120,6 +120,34 @@ describe("resolveNotebookAccess", () => {
     ]);
     expect(access).toEqual({ restricted: true, readableNotebookIds: [], writableNotebookIds: [] });
   });
+
+  test("default read covers notebooks without a grant, including future ones", async () => {
+    const db = createFixture();
+    const access = await resolveNotebookAccess(db, "ws_t", [
+      { notebookId: "nb_root", read: false, write: true },
+    ], "read");
+    // Explicit write grant stays writable; every other live notebook is readable.
+    expect(access.readableNotebookIds.sort()).toEqual(["nb_child", "nb_grandchild", "nb_other", "nb_root"]);
+    expect(access.writableNotebookIds.sort()).toEqual(["nb_child", "nb_grandchild", "nb_root"]);
+  });
+
+  test("default write covers notebooks without a grant", async () => {
+    const db = createFixture();
+    const access = await resolveNotebookAccess(db, "ws_t", [
+      { notebookId: "nb_other", read: true, write: false },
+    ], "write");
+    expect(access.readableNotebookIds.sort()).toEqual(["nb_child", "nb_grandchild", "nb_other", "nb_root"]);
+    expect(access.writableNotebookIds.sort()).toEqual(["nb_child", "nb_grandchild", "nb_other", "nb_root"]);
+  });
+
+  test("explicit none keeps the allow-list behaviour", async () => {
+    const db = createFixture();
+    const access = await resolveNotebookAccess(db, "ws_t", [
+      { notebookId: "nb_root", read: true, write: false },
+    ], "none");
+    expect(access.readableNotebookIds.sort()).toEqual(["nb_child", "nb_grandchild", "nb_root"]);
+    expect(access.writableNotebookIds).toEqual([]);
+  });
 });
 
 describe("notebook access assertions", () => {

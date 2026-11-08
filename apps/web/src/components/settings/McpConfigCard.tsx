@@ -2,7 +2,7 @@ import { useMemo, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Copy, KeyRound, Pencil, Plus, ShieldCheck, Trash2 } from "lucide-react";
-import type { ApiToken, Notebook, TokenNotebookAccess } from "@edgeever/shared";
+import type { ApiToken, Notebook, TokenNotebookAccess, TokenNotebookDefaultAccess } from "@edgeever/shared";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -176,7 +176,19 @@ const NotebookGrantEditor = ({ notebooks, draft, onChange, idPrefix }: NotebookG
     } else {
       delete grants[notebookId];
     }
-    onChange({ mode: "selected", grants });
+    onChange({ mode: "selected", grants, defaultAccess: draft.defaultAccess });
+  };
+
+  const setAllGrants = (grant: { read: boolean; write: boolean } | null) => {
+    if (!grant) {
+      onChange({ mode: "selected", grants: {}, defaultAccess: draft.defaultAccess });
+      return;
+    }
+    const grants: NotebookGrantDraft["grants"] = {};
+    for (const { notebook } of treeRows) {
+      grants[notebook.id] = grant;
+    }
+    onChange({ mode: "selected", grants, defaultAccess: draft.defaultAccess });
   };
 
   return (
@@ -206,7 +218,7 @@ const NotebookGrantEditor = ({ notebooks, draft, onChange, idPrefix }: NotebookG
                   name={`${idPrefix}-notebook-mode`}
                   value={mode}
                   checked={checked}
-                  onChange={() => onChange(mode === "all" ? emptyNotebookGrantDraft() : { mode: "selected", grants: draft.grants })}
+                  onChange={() => onChange(mode === "all" ? emptyNotebookGrantDraft() : { mode: "selected", grants: draft.grants, defaultAccess: draft.defaultAccess })}
                 />
                 <span
                   aria-hidden="true"
@@ -221,7 +233,36 @@ const NotebookGrantEditor = ({ notebooks, draft, onChange, idPrefix }: NotebookG
 
       {draft.mode === "selected" ? (
         <>
-          <p className="text-xs text-slate-500">{t("mcp.notebookAccessHint", { count: grantedCount })}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-xs text-slate-500">{t("mcp.notebookAccessHint", { count: grantedCount })}</p>
+            <span className="flex-1" />
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button size="sm" variant="outline" className="h-7 px-2 text-xs" type="button" onClick={() => setAllGrants({ read: true, write: false })}>
+                    {t("mcp.notebookBulkRead")}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-72 leading-4 text-xs">{t("mcp.notebookBulkReadDescription")}</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button size="sm" variant="outline" className="h-7 px-2 text-xs" type="button" onClick={() => setAllGrants({ read: true, write: true })}>
+                    {t("mcp.notebookBulkWrite")}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-72 leading-4 text-xs">{t("mcp.notebookBulkWriteDescription")}</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button size="sm" variant="outline" className="h-7 px-2 text-xs" type="button" onClick={() => setAllGrants(null)}>
+                    {t("mcp.notebookBulkClear")}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-72 leading-4 text-xs">{t("mcp.notebookBulkClearDescription")}</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
           <div className="max-h-64 overflow-auto rounded-lg border border-slate-200 divide-y divide-slate-100 bg-card">
             {treeRows.map(({ notebook, depth }) => {
               const grant = draft.grants[notebook.id] ?? { read: false, write: false };
@@ -259,6 +300,53 @@ const NotebookGrantEditor = ({ notebooks, draft, onChange, idPrefix }: NotebookG
             {treeRows.length === 0 ? (
               <p className="p-4 text-center text-xs text-slate-400">{t("mcp.notebookAccessEmpty")}</p>
             ) : null}
+          </div>
+          <div className="grid gap-1.5">
+            <span className="text-xs font-normal text-slate-600">{t("mcp.notebookDefaultAccessTitle")}</span>
+            <TooltipProvider>
+              <div
+                role="radiogroup"
+                aria-label={t("mcp.notebookDefaultAccessTitle")}
+                className="inline-flex h-9 shrink-0 items-center rounded-md bg-slate-200/70 p-0.5 self-start"
+              >
+                {(["none", "read", "write"] as const).map((option) => {
+                  const checked = draft.defaultAccess === option;
+                  const inputId = `${idPrefix}-notebook-default-${option}`;
+                  return (
+                    <Tooltip key={option}>
+                      <TooltipTrigger asChild>
+                        <label
+                          htmlFor={inputId}
+                          className={cn(
+                            "flex h-8 cursor-pointer select-none items-center gap-1.5 rounded-[5px] px-2.5 text-xs font-normal transition-all focus-within:ring-2 focus-within:ring-slate-900/15",
+                            checked ? "bg-card text-slate-950 shadow-sm" : "text-slate-600 hover:text-slate-900",
+                          )}
+                        >
+                          <input
+                            id={inputId}
+                            className="sr-only"
+                            type="radio"
+                            name={`${idPrefix}-notebook-default`}
+                            value={option}
+                            checked={checked}
+                            onChange={() => onChange({ ...draft, defaultAccess: option })}
+                          />
+                          <span
+                            aria-hidden="true"
+                            className={cn("h-1.5 w-1.5 rounded-full", checked ? "bg-slate-950" : "bg-slate-400")}
+                          />
+                          {t(`mcp.notebookDefaultAccess.${option}.label`)}
+                        </label>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" className="max-w-72 leading-4 text-xs">
+                        {t(`mcp.notebookDefaultAccess.${option}.description`)}
+                      </TooltipContent>
+                    </Tooltip>
+                  );
+                })}
+              </div>
+            </TooltipProvider>
+            <p className="text-xs text-slate-500">{t("mcp.notebookDefaultAccessDescription")}</p>
           </div>
         </>
       ) : (
@@ -370,6 +458,9 @@ const TokenList = ({ tokens, availableScopes, notebooksById, newlyCreatedTokenId
                 {grantSummary.length > 0 ? (
                   <span className="text-slate-500">· {t("mcp.notebookAccessSummary", { notebooks: grantSummary.join("、") })}</span>
                 ) : null}
+                {token.notebookDefaultAccess && token.notebookDefaultAccess !== "none" ? (
+                  <span className="text-slate-500">· {t("mcp.notebookDefaultAccessSummary", { access: t(`mcp.notebookDefaultAccess.${token.notebookDefaultAccess}.label`) })}</span>
+                ) : null}
                 {!token.token ? (
                   <span className="text-amber-600">· {t("mcp.legacyTokenHint")}</span>
                 ) : null}
@@ -476,7 +567,7 @@ interface TokenEditDialogProps {
   notebooks: Notebook[];
   isSaving: boolean;
   onCancel: () => void;
-  onSave: (tokenId: string, payload: { name: string; scopes: string[]; notebookAccess?: TokenNotebookAccess[] }) => void;
+  onSave: (tokenId: string, payload: { name: string; scopes: string[]; notebookAccess?: TokenNotebookAccess[]; notebookDefaultAccess?: TokenNotebookDefaultAccess }) => void;
 }
 
 const TokenEditDialog = ({ token, availableScopes, notebooks, isSaving, onCancel, onSave }: TokenEditDialogProps) => {
@@ -486,7 +577,7 @@ const TokenEditDialog = ({ token, availableScopes, notebooks, isSaving, onCancel
     const stored = getStoredTokenAccessLevel(token.scopes, availableScopes, token.notebookAccess);
     return stored === "legacy-custom" ? "custom" : stored;
   });
-  const [draft, setDraft] = useState<NotebookGrantDraft>(() => notebookAccessToDraft(token.notebookAccess));
+  const [draft, setDraft] = useState<NotebookGrantDraft>(() => notebookAccessToDraft(token.notebookAccess, token.notebookDefaultAccess));
   const notebookAccess = accessLevel === "custom" ? draftToNotebookAccess(draft) : undefined;
   const notebookValid = accessLevel !== "custom" || (notebookAccess !== undefined && notebookAccess.length > 0);
 
@@ -497,6 +588,7 @@ const TokenEditDialog = ({ token, availableScopes, notebooks, isSaving, onCancel
       name: name.trim(),
       scopes: getTokenScopesForAccessLevel(accessLevel, availableScopes),
       notebookAccess,
+      notebookDefaultAccess: accessLevel === "custom" ? draft.defaultAccess : undefined,
     });
   };
 
@@ -579,7 +671,7 @@ export const McpConfigCard = () => {
   });
 
   const updateMutation = useMutation({
-    mutationFn: (input: { tokenId: string; payload: { name: string; scopes: string[]; notebookAccess?: TokenNotebookAccess[] } }) =>
+    mutationFn: (input: { tokenId: string; payload: { name: string; scopes: string[]; notebookAccess?: TokenNotebookAccess[]; notebookDefaultAccess?: TokenNotebookDefaultAccess } }) =>
       api.updateApiToken(input.tokenId, input.payload),
     onSuccess: async () => {
       setTokenToEdit(null);
@@ -605,7 +697,12 @@ export const McpConfigCard = () => {
       return;
     }
 
-    createMutation.mutate({ name: name.trim(), scopes, notebookAccess: createNotebookAccess });
+    createMutation.mutate({
+      name: name.trim(),
+      scopes,
+      notebookAccess: createNotebookAccess,
+      notebookDefaultAccess: accessLevel === "custom" ? grantDraft.defaultAccess : undefined,
+    });
   };
 
   return (

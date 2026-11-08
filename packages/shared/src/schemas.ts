@@ -280,11 +280,19 @@ export const TokenNotebookAccessListSchema = z
     "notebookId must be unique within notebookAccess.",
   );
 
+// What a notebook-restricted token gets for notebooks it has no explicit
+// grant for — in particular notebooks created after the token. "none" keeps
+// the original allow-list behaviour.
+export const TokenNotebookDefaultAccessSchema = z.enum(["none", "read", "write"]);
+
+export type TokenNotebookDefaultAccess = z.infer<typeof TokenNotebookDefaultAccessSchema>;
+
 export const ApiTokenCreateSchema = z.object({
   name: z.string().trim().min(1).max(80),
   scopes: z.array(z.string().trim().min(1).max(80)).min(1).max(32),
   expiresAt: z.string().datetime().nullable().optional(),
   notebookAccess: TokenNotebookAccessListSchema.optional(),
+  notebookDefaultAccess: TokenNotebookDefaultAccessSchema.optional(),
 });
 
 export const ApiTokenUpdateSchema = z
@@ -293,6 +301,7 @@ export const ApiTokenUpdateSchema = z
     scopes: z.array(z.string().trim().min(1).max(80)).min(1).max(32).optional(),
     expiresAt: z.string().datetime().nullable().optional(),
     notebookAccess: TokenNotebookAccessListSchema.optional(),
+    notebookDefaultAccess: TokenNotebookDefaultAccessSchema.optional(),
   })
   .refine((input) => Object.keys(input).length > 0, "At least one field is required.");
 

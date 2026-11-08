@@ -3893,6 +3893,29 @@ export const de = {
     "notebookAccessSummary": "Notizbücher: {{notebooks}}",
     "notebookRead": "Lesen",
     "notebookWrite": "Schreiben",
+    "notebookDefaultAccessTitle": "Standardzugriff für neue Notizbücher",
+    "notebookDefaultAccessDescription": "Gilt für Notizbücher ohne explizite Freigabe, insbesondere später erstellte.",
+    "notebookDefaultAccessSummary": "Neue Notizbücher standardmäßig: {{access}}",
+    "notebookBulkRead": "Alle lesen",
+    "notebookBulkReadDescription": "Lesezugriff für alle Notizbücher mit einem Klick erteilen.",
+    "notebookBulkWrite": "Alle schreiben",
+    "notebookBulkWriteDescription": "Lese-/Schreibzugriff für alle Notizbücher mit einem Klick erteilen.",
+    "notebookBulkClear": "Leeren",
+    "notebookBulkClearDescription": "Alle einzelnen Freigaben entfernen.",
+    "notebookDefaultAccess": {
+      "none": {
+        "label": "Kein Zugriff",
+        "description": "Notizbücher ohne Freigabe (inkl. neuer) sind unsichtbar und nicht bearbeitbar."
+      },
+      "read": {
+        "label": "Nur lesen",
+        "description": "Notizbücher ohne Freigabe (inkl. neuer) sind nur lesbar."
+      },
+      "write": {
+        "label": "Lesen/Schreiben",
+        "description": "Notizbücher ohne Freigabe (inkl. neuer) sind les- und schreibbar."
+      }
+    },
     "description": "Autorisieren Sie Web Clipper, MCP-Dienste und KI-Agenten für den Zugriff auf Ihre Notizen.",
     "namePlaceholder": "Token-Name (z. B. Chrome Clipper oder Claude Desktop)",
     "createToken": "Token erstellen",

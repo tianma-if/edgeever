@@ -10,6 +10,8 @@ Open **Profile** → **API / MCP**, create a separate token for each client, the
 
 Choose **Custom access** to keep full global scopes but narrow the token to selected notebooks (including their sub-notebooks), with an independent read/write grant per notebook. A token with **Custom access** only sees and modifies notes in the granted notebooks; everything else behaves like it does not exist. You can change an existing token's access level and notebook grants at any time with **Edit token** — the token value itself does not change, and new permissions apply to the next request.
 
+New notebooks (for example, created after the token was issued) follow the token's **default access for new notebooks**: **No access** keeps the original allow-list behaviour, **Read-only** lets the token read every other notebook, and **Read/write** lets it read and write them. Explicit per-notebook grants always win over the default. The grant editor also offers one-click **All read** / **All write** / **Clear** actions.
+
 Tokens created before notebook grants existed are unrestricted and keep working unchanged. Two operations are workspace-wide and are refused for notebook-restricted tokens: emptying the trash and full-workspace sync/backup export.
 
 Remote clients connect over Streamable HTTP. Use your instance URL followed by `/mcp`, such as `https://notes.example.com/mcp`, and send `Authorization: Bearer <token>`. Check that the copied URL points to your EdgeEver instance.

@@ -138,7 +138,12 @@ export const getCurrentWorkspaceIdentity = async (db: DatabaseAdapter, auth: Aut
     authorization: {
       kind: auth.kind === "agent" ? "api_token" : "user_session",
       ...(auth.kind === "agent"
-        ? { tokenName: auth.username, scopes: auth.scopes, notebookAccess: auth.notebookAccess ?? null }
+        ? {
+            tokenName: auth.username,
+            scopes: auth.scopes,
+            notebookAccess: auth.notebookAccess ?? null,
+            notebookDefaultAccess: auth.notebookDefaultAccess ?? "none",
+          }
         : {}),
     },
     dataIsolation: {
