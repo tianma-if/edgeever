@@ -1,13 +1,14 @@
 import { AI_ASSISTANT_LAUNCHER_POSITION } from "@/lib/ai-assistant-launcher";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from "@tanstack/react-table";
+import { defaultRangeExtractor, useVirtualizer, type Range } from "@tanstack/react-virtual";
 import { CalendarDays, Check, ChevronLeft, Copy, Download, Form, Hash, Link2, List, Paperclip, Plus, RefreshCw, Sparkles, SquareCheck, Table2, Trash2, Type, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   addTableField,
   addTableRecord,
   applyTableView,
+  buildTableDocumentMarkdown,
   createTableId,
   markdownToDoc,
   parseTableDocument,
@@ -16,7 +17,6 @@ import {
   getTableViews,
   saveTableViews,
   listTableAttachmentResourceIds,
-  serializeTableDocument,
   TABLE_ATTACHMENT_LIMIT,
   TABLE_FIELD_LIMIT,
   TABLE_FIELD_TYPES,
@@ -24,7 +24,6 @@ import {
   TABLE_RECORD_LIMIT,
   tableAttachmentUrl,
   tableDocumentToCsv,
-  tableFallbackMarkdown,
   updateTableCell,
   updateTableField,
   type MemoDetail,
@@ -54,6 +53,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { api, getConfiguredDesktopApiBaseUrl } from "@/lib/api";
+import { acknowledgeTableUploads } from "@/lib/table-upload-lifecycle";
 import { copyImageUrlToClipboard } from "@/lib/clipboard";
 import { toDesktopResourceDownloadUrl, toDesktopResourceUrl } from "@/lib/desktop-resources";
 import { EDITOR_LOCAL_SAVE_DELAY_MS, formatShortcutBinding, getNotebookMoveOptions, type ShortcutSettings } from "@/lib/app-helpers";
@@ -79,10 +79,33 @@ type TableEditorPaneProps = {
 };
 
 type EditingCell = { recordId: string; fieldId: string };
+type AttachmentUploadState = "uploading" | { error: string };
+const attachmentUploadKey = (recordId: string, fieldId: string) => JSON.stringify([recordId, fieldId]);
 
 const controlClassName = "h-8 rounded-md border border-slate-200 bg-card px-2 text-xs text-slate-700 outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20 disabled:cursor-not-allowed disabled:opacity-50";
 
-const snapshotOf = (title: string, document: TableDocument) => JSON.stringify({ title, document });
+type TableDraft = { title: string; document: TableDocument };
+
+const markdownCache = new WeakMap<TableDocument, ReturnType<typeof buildTableDocumentMarkdown>>();
+const markdownFor = (document: TableDocument) => {
+  const cached = markdownCache.get(document);
+  if (cached) return cached;
+  const rendered = buildTableDocumentMarkdown(document);
+  markdownCache.set(document, rendered);
+  return rendered;
+};
+const isSameDraft = (left: TableDraft | null, right: TableDraft) =>
+  left?.title === right.title && (left.document === right.document
+    || markdownFor(left.document).markdown === markdownFor(right.document).markdown);
+
+const TABLE_ROW_ESTIMATE = 41;
+const TABLE_ROW_OVERSCAN = 6;
+const TABLE_FIELD_WIDTH = 160;
+const TABLE_ATTACHMENT_WIDTH = 240;
+const TABLE_ACTION_WIDTH = 48;
+
+const VirtualRowGap = ({ height, columns }: { height: number; columns: number }) =>
+  height > 0 ? <tr aria-hidden="true"><td colSpan={columns} style={{ height }} /></tr> : null;
 
 const viewSelectionKey = (id: string) => `edgeever.table-view.v1:${id}`;
 const readTableViewSelection = (id: string) => {
@@ -200,6 +223,8 @@ const AttachmentCell = ({
   onAdd,
   onRemove,
   onUploaded,
+  uploadState,
+  onUploadState,
 }: {
   field: TableField;
   record: TableRecord;
@@ -209,12 +234,14 @@ const AttachmentCell = ({
   onAdd: (attachment: TableAttachment) => boolean;
   onRemove: (resourceId: string) => void;
   onUploaded: (resourceId: string) => void;
+  uploadState: AttachmentUploadState | undefined;
+  onUploadState: (state: AttachmentUploadState | undefined) => void;
 }) => {
   const { t } = useTranslation();
   const inputRef = useRef<HTMLInputElement>(null);
   const copyTimer = useRef<number | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
+  const uploading = uploadState === "uploading";
+  const uploadError = typeof uploadState === "object" ? uploadState.error : null;
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [copyError, setCopyError] = useState<string | null>(null);
   const items = attachmentItems(record.cells[field.id] ?? null);
@@ -240,9 +267,8 @@ const AttachmentCell = ({
   };
 
   const uploadFiles = async (files: FileList | null) => {
-    if (!files?.length || readOnly) return;
-    setUploading(true);
-    setUploadError(null);
+    if (!files?.length || readOnly || uploading) return;
+    onUploadState("uploading");
     try {
       for (const file of files) {
         const { resource } = await repository.uploadMemoResource(memoId, file);
@@ -258,10 +284,10 @@ const AttachmentCell = ({
         }
         onUploaded(resource.id);
       }
+      onUploadState(undefined);
     } catch (error) {
-      setUploadError(error instanceof Error ? error.message : t("structuredTable.saveError"));
+      onUploadState({ error: error instanceof Error ? error.message : t("structuredTable.saveError") });
     } finally {
-      setUploading(false);
       if (inputRef.current) inputRef.current.value = "";
     }
   };
@@ -386,6 +412,8 @@ const RecordCell = ({
   onAdd,
   onRemove,
   onUploaded,
+  uploadState,
+  onUploadState,
 }: {
   document: TableDocument;
   field: TableField;
@@ -401,6 +429,8 @@ const RecordCell = ({
   onAdd: (attachment: TableAttachment) => boolean;
   onRemove: (resourceId: string) => void;
   onUploaded: (resourceId: string) => void;
+  uploadState: AttachmentUploadState | undefined;
+  onUploadState: (state: AttachmentUploadState | undefined) => void;
 }) => {
   const value = record.cells[field.id] ?? null;
   const text = displayCell(field, value);
@@ -417,6 +447,8 @@ const RecordCell = ({
         onAdd={onAdd}
         onRemove={onRemove}
         onUploaded={onUploaded}
+        uploadState={uploadState}
+        onUploadState={onUploadState}
       />
     );
   }
@@ -537,7 +569,9 @@ export const TableEditorPane = ({
   const editingRef = useRef(editing);
   const editSessionRef = useRef<MemoEditSession | null>(null);
   const pendingUploadIdsRef = useRef(new Set<string>());
-  const savedSnapshotRef = useRef(parsed ? snapshotOf(memo.title ?? "", parsed) : "");
+  const [attachmentUploads, setAttachmentUploads] = useState<Map<string, AttachmentUploadState>>(() => new Map());
+  const savingRef = useRef(false);
+  const savedDraftRef = useRef<TableDraft | null>(parsed ? { title: memo.title ?? "", document: parsed } : null);
   const saveRef = useRef<() => void>(() => undefined);
   titleRef.current = title;
   documentRef.current = document;
@@ -547,15 +581,14 @@ export const TableEditorPane = ({
     // Keep the displayed table and its save base in sync after AI/server edits.
     // An active local edit must retain its original revision for conflict checks.
     if (!parsed || dirty || saving || editing || memo.revision < memoRef.current.revision) return;
-    const nextTitle = memo.title ?? "";
-    const nextSnapshot = snapshotOf(nextTitle, parsed);
+    const next = { title: memo.title ?? "", document: parsed };
     memoRef.current = memo;
-    if (nextSnapshot === savedSnapshotRef.current) return;
-    setTitle(nextTitle);
-    titleRef.current = nextTitle;
+    if (isSameDraft(savedDraftRef.current, next)) return;
+    setTitle(next.title);
+    titleRef.current = next.title;
     setDocument(parsed);
     documentRef.current = parsed;
-    savedSnapshotRef.current = nextSnapshot;
+    savedDraftRef.current = next;
     setSaveError(null);
     setSaveFailed(false);
   }, [dirty, editing, memo, parsed, saving]);
@@ -594,7 +627,7 @@ export const TableEditorPane = ({
   const changeDocument = (next: TableDocument) => {
     setDocument(next);
     documentRef.current = next;
-    setDirty(snapshotOf(titleRef.current, next) !== savedSnapshotRef.current);
+    setDirty(next !== savedDraftRef.current?.document || titleRef.current !== savedDraftRef.current?.title);
     setSaveFailed(false);
   };
 
@@ -607,42 +640,50 @@ export const TableEditorPane = ({
     editingRef.current = null;
   };
 
+  const acknowledgeUploads = (saved: TableDocument) => {
+    const pending = pendingUploadIdsRef.current;
+    if (!pending.size) return;
+    const savedIds = listTableAttachmentResourceIds(saved);
+    const current = documentRef.current;
+    const currentIds = current && current !== saved ? listTableAttachmentResourceIds(current) : savedIds;
+    for (const id of acknowledgeTableUploads(pending, savedIds, currentIds)) {
+      void repository.deleteResource(id).catch(() => undefined);
+    }
+  };
+
   const save = async () => {
     const currentMemo = memoRef.current;
     const currentDocument = documentRef.current;
     const editSession = editSessionRef.current;
-    if (!currentDocument || !editSession || readOnly || saving) return false;
+    if (!currentDocument || !editSession || readOnly || savingRef.current) return false;
     if (editingRef.current) commitEditing(draftRef.current);
     const nextDocument = documentRef.current;
     if (!nextDocument) return false;
-    const nextSnapshot = snapshotOf(titleRef.current, nextDocument);
-    if (savedSnapshotRef.current === nextSnapshot) {
+    const next = { title: titleRef.current, document: nextDocument };
+    if (isSameDraft(savedDraftRef.current, next)) {
+      acknowledgeUploads(nextDocument);
       setDirty(false);
       return true;
     }
+    savingRef.current = true;
     setSaving(true);
     setSaveError(null);
     setSaveFailed(false);
     try {
+      const { fallback, markdown } = markdownFor(nextDocument);
       const result = await repository.updateMemo(currentMemo, {
         expectedRevision: currentMemo.revision,
         expectedContentHash: currentMemo.contentHash,
         editSessionId: editSession.id,
-        title: titleRef.current,
-        contentJson: markdownToDoc(tableFallbackMarkdown(nextDocument)),
-        contentMarkdown: serializeTableDocument(nextDocument),
+        title: next.title,
+        contentJson: markdownToDoc(fallback),
+        contentMarkdown: markdown,
         tags: currentMemo.tags,
       });
       memoRef.current = result.memo;
-      savedSnapshotRef.current = nextSnapshot;
-      const keptAttachmentIds = listTableAttachmentResourceIds(nextDocument);
-      for (const resourceId of pendingUploadIdsRef.current) {
-        if (keptAttachmentIds.has(resourceId)) continue;
-        pendingUploadIdsRef.current.delete(resourceId);
-        void repository.deleteResource(resourceId).catch(() => undefined);
-      }
-      pendingUploadIdsRef.current.clear();
-      const hasNewChanges = snapshotOf(titleRef.current, documentRef.current ?? nextDocument) !== nextSnapshot;
+      savedDraftRef.current = next;
+      acknowledgeUploads(nextDocument);
+      const hasNewChanges = titleRef.current !== next.title || documentRef.current !== next.document;
       setDirty(hasNewChanges);
       if (!hasNewChanges) await onSaved(result.memo);
       return true;
@@ -651,6 +692,7 @@ export const TableEditorPane = ({
       setSaveError(error instanceof Error ? error.message : t("structuredTable.saveError"));
       return false;
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
@@ -696,78 +738,34 @@ export const TableEditorPane = ({
     selectView(selected);
     return true;
   };
-  const columns = useMemo<ColumnDef<TableRecord>[]>(() => {
-    if (!document) return [];
-    return [
-      ...document.fields.map((field): ColumnDef<TableRecord> => ({
-        id: field.id,
-        header: () => <FieldHeader document={document} field={field} readOnly={readOnly} onChange={changeDocument} />,
-        cell: ({ row }) => (
-          <RecordCell
-            document={document}
-            field={field}
-            record={row.original}
-            active={editing?.recordId === row.original.id && editing.fieldId === field.id}
-            readOnly={readOnly}
-            memoId={memo.id}
-            repository={repository}
-            onAdd={(attachment) => {
-              const current = documentRef.current;
-              const rowRecord = current?.records.find((item) => item.id === row.original.id);
-              const existing = attachmentItems(rowRecord?.cells[field.id] ?? null);
-              if (!current || existing.length >= TABLE_ATTACHMENT_LIMIT || existing.some((item) => item.resourceId === attachment.resourceId)) return false;
-              changeDocument(updateTableCell(current, row.original.id, field.id, [...existing, attachment]));
-              return true;
-            }}
-            onRemove={(resourceId) => {
-              const current = documentRef.current;
-              const rowRecord = current?.records.find((item) => item.id === row.original.id);
-              if (!current || !rowRecord) return;
-              if (pendingUploadIdsRef.current.has(resourceId)) {
-                pendingUploadIdsRef.current.delete(resourceId);
-                void repository.deleteResource(resourceId).catch(() => undefined);
-              }
-              changeDocument(updateTableCell(current, row.original.id, field.id, attachmentItems(rowRecord.cells[field.id] ?? null).filter((item) => item.resourceId !== resourceId)));
-            }}
-            onUploaded={(resourceId) => pendingUploadIdsRef.current.add(resourceId)}
-            onEdit={(cell) => {
-              editingRef.current = cell;
-              if (cell) draftRef.current = displayCell(field, row.original.cells[field.id] ?? null);
-              setEditing(cell);
-            }}
-            onCommit={commitEditing}
-            onDraft={(value) => { draftRef.current = value; }}
-            onChange={changeDocument}
-          />
-        ),
-      })),
-      {
-        id: "record-actions",
-        header: () => null,
-        cell: ({ row }) => (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label={t("structuredTable.deleteRecord")}
-                disabled={readOnly}
-                onClick={() => changeDocument(removeTableRecord(document, row.original.id))}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{t("structuredTable.deleteRecord")}</TooltipContent>
-          </Tooltip>
-        ),
-      },
-    ];
-  }, [document, editing, memo.id, readOnly, repository, t]);
-
-  const table = useReactTable({ data: visibleRecords, columns, getCoreRowModel: getCoreRowModel(), getRowId: (row) => row.id });
-
-  const assistantMarkdown = document ? serializeTableDocument(document) : memo.contentMarkdown;
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [focusedRecordId, setFocusedRecordId] = useState<string | null>(null);
+  const rows = visibleRecords;
+  const rowIndices = useMemo(() => new Map(rows.map((row, index) => [row.id, index])), [rows]);
+  const editingIndex = editing ? rowIndices.get(editing.recordId) : undefined;
+  const focusedIndex = focusedRecordId ? rowIndices.get(focusedRecordId) : undefined;
+  // Unmounting a focused row can silently discard its input or break keyboard navigation.
+  const rangeExtractor = useCallback((range: Range) => {
+    const indices = new Set(defaultRangeExtractor(range));
+    if (editingIndex !== undefined) indices.add(editingIndex);
+    if (focusedIndex !== undefined) indices.add(focusedIndex);
+    return [...indices].sort((left, right) => left - right);
+  }, [editingIndex, focusedIndex]);
+  const rowKey = useCallback((index: number) => rows[index]!.id, [rows]);
+  const rowVirtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => TABLE_ROW_ESTIMATE,
+    overscan: TABLE_ROW_OVERSCAN,
+    getItemKey: rowKey,
+    rangeExtractor,
+    useAnimationFrameWithResizeObserver: true,
+  });
+  const virtualRows = rowVirtualizer.getVirtualItems();
+  const fieldWidths = useMemo(() => (document?.fields ?? []).map(
+    (field) => field.type === "attachment" ? TABLE_ATTACHMENT_WIDTH : TABLE_FIELD_WIDTH,
+  ), [document?.fields]);
+  const assistantMarkdown = aiAssistantOpen && document ? markdownFor(document).markdown : memo.contentMarkdown;
   const assistantLauncher = !readOnly && !aiAssistantOpen ? (
     <IconTooltip
       side="left"
@@ -855,7 +853,7 @@ export const TableEditorPane = ({
       titleRef.current = nextTitle;
       setDocument(next);
       documentRef.current = next;
-      savedSnapshotRef.current = snapshotOf(nextTitle, next);
+      savedDraftRef.current = { title: nextTitle, document: next };
       setDirty(false);
       setSaveFailed(false);
       setEditing(null);
@@ -870,6 +868,79 @@ export const TableEditorPane = ({
     }
   };
 
+  const renderRecordCell = (field: TableField, record: TableRecord) => (
+    <RecordCell
+      document={document}
+      field={field}
+      record={record}
+      active={editing?.recordId === record.id && editing.fieldId === field.id}
+      readOnly={readOnly}
+      memoId={memo.id}
+      repository={repository}
+      onAdd={(attachment) => {
+        const current = documentRef.current;
+        const rowRecord = current?.records.find((item) => item.id === record.id);
+        const existing = attachmentItems(rowRecord?.cells[field.id] ?? null);
+        if (!current || !rowRecord || !current.fields.some((candidate) => candidate.id === field.id && candidate.type === "attachment")
+          || existing.length >= TABLE_ATTACHMENT_LIMIT || existing.some((item) => item.resourceId === attachment.resourceId)) return false;
+        changeDocument(updateTableCell(current, record.id, field.id, [...existing, attachment]));
+        return true;
+      }}
+      onRemove={(resourceId) => {
+        const current = documentRef.current;
+        const rowRecord = current?.records.find((item) => item.id === record.id);
+        if (!current || !rowRecord) return;
+        const next = updateTableCell(current, record.id, field.id,
+          attachmentItems(rowRecord.cells[field.id] ?? null).filter((item) => item.resourceId !== resourceId));
+        changeDocument(next);
+        // The active snapshot may still need this file. Its acknowledgement
+        // will either transfer ownership or retire the abandoned upload.
+        if (!savingRef.current && pendingUploadIdsRef.current.has(resourceId)
+          && !listTableAttachmentResourceIds(next).has(resourceId)) {
+          pendingUploadIdsRef.current.delete(resourceId);
+          void repository.deleteResource(resourceId).catch(() => undefined);
+        }
+      }}
+      onUploaded={(resourceId) => pendingUploadIdsRef.current.add(resourceId)}
+      uploadState={field.type === "attachment" ? attachmentUploads.get(attachmentUploadKey(record.id, field.id)) : undefined}
+      onUploadState={(state) => {
+        const key = attachmentUploadKey(record.id, field.id);
+        setAttachmentUploads((current) => {
+          const next = new Map(current);
+          if (state === undefined) next.delete(key);
+          else next.set(key, state);
+          return next;
+        });
+      }}
+      onEdit={(cell) => {
+        editingRef.current = cell;
+        if (cell) draftRef.current = displayCell(field, record.cells[field.id] ?? null);
+        setEditing(cell);
+      }}
+      onCommit={commitEditing}
+      onDraft={(value) => { draftRef.current = value; }}
+      onChange={changeDocument}
+    />
+  );
+
+  const renderRecordActions = (recordId: string) => (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label={t("structuredTable.deleteRecord")}
+          disabled={readOnly}
+          onClick={() => changeDocument(removeTableRecord(document, recordId))}
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{t("structuredTable.deleteRecord")}</TooltipContent>
+    </Tooltip>
+  );
+
   const exportCsv = () => {
     const blob = new Blob([tableDocumentToCsv(document, visibleRecords)], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -882,7 +953,7 @@ export const TableEditorPane = ({
   };
 
   return (
-    <div className="relative flex h-full min-h-0 min-w-0 bg-card">
+    <div className="relative flex h-full min-h-0 min-w-0 overflow-clip bg-card">
     <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col">
       <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 px-3 py-2">
         <Tooltip>
@@ -903,7 +974,7 @@ export const TableEditorPane = ({
             onValueChange={(value) => {
               setTitle(value);
               titleRef.current = value;
-              if (documentRef.current) setDirty(snapshotOf(value, documentRef.current) !== savedSnapshotRef.current);
+              if (documentRef.current) setDirty(value !== savedDraftRef.current?.title || documentRef.current !== savedDraftRef.current?.document);
             }}
           />
         </div>
@@ -993,29 +1064,60 @@ export const TableEditorPane = ({
         open={formOpen}
         onOpenChange={setFormOpen}
       />
-      <div className="min-h-0 flex-1 overflow-auto">
-        <table className="w-max min-w-full border-collapse">
+      <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto">
+        <table
+          className="min-w-full table-fixed border-separate border-spacing-0"
+          style={{ width: fieldWidths.reduce((sum, width) => sum + width, TABLE_ACTION_WIDTH) }}
+          aria-rowcount={rows.length + 1}
+        >
+          <colgroup>
+            {document.fields.map((field, index) => <col key={field.id} style={{ width: fieldWidths[index] }} />)}
+            <col style={{ width: TABLE_ACTION_WIDTH }} />
+          </colgroup>
           <thead className="sticky top-0 z-10 bg-card">
-            {table.getHeaderGroups().map((headerGroup) => (
-              <tr key={headerGroup.id} className="border-b border-slate-200">
-                {headerGroup.headers.map((header) => (
-                  <th key={header.id} className="bg-muted/40 px-2 py-1 text-left font-medium">
-                    {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
-                  </th>
-                ))}
-              </tr>
-            ))}
+            <tr>
+              {document.fields.map((field) => (
+                <th key={field.id} scope="col" className="border-b border-slate-200 bg-muted/40 px-2 py-1 text-left font-medium">
+                  <FieldHeader document={document} field={field} readOnly={readOnly} onChange={changeDocument} />
+                </th>
+              ))}
+              <th scope="col" className="border-b border-slate-200 bg-muted/40" />
+            </tr>
           </thead>
-          <tbody>
-            {table.getRowModel().rows.map((row) => (
-              <tr key={row.id} className="border-b border-border/70 hover:bg-muted/25">
-                {row.getVisibleCells().map((cell) => (
-                  <td key={cell.id} className="px-2 py-1 align-top">
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </td>
-                ))}
-              </tr>
-            ))}
+          <tbody
+            onFocus={(event) => {
+              setFocusedRecordId(event.target.closest<HTMLTableRowElement>("tr[data-record-id]")?.dataset.recordId ?? null);
+            }}
+            onBlur={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget)) setFocusedRecordId(null);
+            }}
+          >
+            {virtualRows.map((item, index) => {
+              const row = rows[item.index]!;
+              return (
+                <Fragment key={item.key}>
+                  <VirtualRowGap height={item.start - (virtualRows[index - 1]?.end ?? 0)} columns={fieldWidths.length + 1} />
+                  <tr
+                    ref={rowVirtualizer.measureElement}
+                    data-index={item.index}
+                    data-record-id={row.id}
+                    aria-rowindex={item.index + 2}
+                    className="hover:bg-muted/25"
+                  >
+                    {document.fields.map((field) => (
+                      <td key={field.id} className="border-b border-border/70 px-2 py-1 align-top">
+                        {renderRecordCell(field, row)}
+                      </td>
+                    ))}
+                    <td className="border-b border-border/70 px-2 py-1 align-top">{renderRecordActions(row.id)}</td>
+                  </tr>
+                </Fragment>
+              );
+            })}
+            <VirtualRowGap
+              height={rowVirtualizer.getTotalSize() - (virtualRows.at(-1)?.end ?? 0)}
+              columns={fieldWidths.length + 1}
+            />
           </tbody>
         </table>
         {visibleRecords.length === 0 ? (

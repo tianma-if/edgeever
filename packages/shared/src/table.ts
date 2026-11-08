@@ -353,8 +353,15 @@ export const tableFallbackMarkdown = (document: TableDocument) => {
   return [header, divider, ...rows].map((row) => `| ${row.join(" | ")} |`).join("\n");
 };
 
-export const serializeTableDocument = (document: TableDocument) =>
-  `${tableFallbackMarkdown(document)}\n\n<!-- ${TABLE_MARKER}:${encodeBase64Url(JSON.stringify(document))} -->`;
+export const buildTableDocumentMarkdown = (document: TableDocument) => {
+  const fallback = tableFallbackMarkdown(document);
+  return {
+    fallback,
+    markdown: `${fallback}\n\n<!-- ${TABLE_MARKER}:${encodeBase64Url(JSON.stringify(document))} -->`,
+  };
+};
+
+export const serializeTableDocument = (document: TableDocument) => buildTableDocumentMarkdown(document).markdown;
 
 export const createDefaultTableDocument = (labels: TableSeedLabels = {}): LegacyTableDocument => {
   const nameId = "fld_name";
