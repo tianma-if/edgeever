@@ -118,7 +118,7 @@ describe("resolveNotebookAccess", () => {
     const access = await resolveNotebookAccess(db, "ws_t", [
       { notebookId: "nb_nope", read: true, write: true },
     ]);
-    expect(access).toEqual({ restricted: true, readableNotebookIds: [], writableNotebookIds: [] });
+    expect(access).toEqual({ restricted: true, readableNotebookIds: [], writableNotebookIds: [], defaultWrite: false });
   });
 
   test("default read covers notebooks without a grant, including future ones", async () => {
@@ -174,6 +174,6 @@ describe("notebook access assertions", () => {
     expect(notebookAccessBinds(UNRESTRICTED_NOTEBOOK_ACCESS, "read")).toEqual([]);
     expect(memoNotebookAccessSql("m.notebook_id", restricted, "write")).toBe("m.notebook_id IN (?)");
     expect(notebookAccessBinds(restricted, "write")).toEqual(["nb_a"]);
-    expect(memoNotebookAccessSql("m.notebook_id", { restricted: true, readableNotebookIds: [], writableNotebookIds: [] }, "read")).toBe("0 = 1");
+    expect(memoNotebookAccessSql("m.notebook_id", { restricted: true, readableNotebookIds: [], writableNotebookIds: [], defaultWrite: false }, "read")).toBe("0 = 1");
   });
 });

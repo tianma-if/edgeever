@@ -274,7 +274,7 @@ export const callMcpTool = async (
   // immediately without extra database reads.
   const notebookAccess: NotebookAccess = auth.kind === "agent"
     ? await resolveNotebookAccess(c.env.storage.db, auth.workspaceId, auth.notebookAccess, auth.notebookDefaultAccess)
-    : { restricted: false, readableNotebookIds: [], writableNotebookIds: [] };
+    : { restricted: false, readableNotebookIds: [], writableNotebookIds: [], defaultWrite: true };
 
   const assertMemoAccess = (memo: { notebookId: string }, kind: "read" | "write", action: string) => {
     assertNotebookAccess(notebookAccess, kind, memo.notebookId, action);
@@ -1055,7 +1055,10 @@ export const callMcpTool = async (
 
       if (args.parentId) {
         assertNotebookAccess(notebookAccess, "write", getRequiredString(args.parentId, "parentId"), "create a notebook under this parent");
-      } else if (notebookAccess.restricted) {
+      } else if (notebookAccess.restricted && !notebookAccess.defaultWrite) {
+        // A token whose default policy is "write" may create top-level
+        // notebooks (it can immediately write to them); everyone else gets a
+        // clear 403 instead of a silent success.
         assertNotebookAccess(notebookAccess, "write", "", "create a top-level notebook");
       }
 

@@ -222,9 +222,17 @@ describe("MCP notebook access enforcement", () => {
     const created = await call(writer, "create_memo", { notebookId: fresh.id, title: "New", contentMarkdown: "n" });
     expect(created.memo.notebookId).toBe(fresh.id);
 
-    // Default none (the original behaviour): the fresh notebook stays invisible.
+    // Default write also allows creating top-level notebooks outright.
+    const selfMade = (await call(writer, "create_notebook", { name: "Self Made" })).notebook;
+    expect(selfMade.name).toBe("Self Made");
+
+    // Default read/none cannot create notebooks: a clear 403, never a silent success.
+    await expect(call(reader, "create_notebook", { name: "Nope" }))
+      .rejects.toMatchObject({ code: "notebook_access_denied", status: 403 });
     const none = makeAuth([{ notebookId: "nb_allowed", read: true, write: true }], "none");
     await expect(call(none, "get_memo", { memoId: freshMemo.id }))
+      .rejects.toMatchObject({ code: "notebook_access_denied", status: 403 });
+    await expect(call(none, "create_notebook", { name: "Nope" }))
       .rejects.toMatchObject({ code: "notebook_access_denied", status: 403 });
   });
 });

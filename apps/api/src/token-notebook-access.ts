@@ -18,12 +18,19 @@ export type NotebookAccess = {
   restricted: boolean;
   readableNotebookIds: string[];
   writableNotebookIds: string[];
+  /**
+   * True when the token's default policy grants write access to notebooks
+   * without an explicit grant. Such a token may also create top-level
+   * notebooks, which it can then immediately write to.
+   */
+  defaultWrite: boolean;
 };
 
 export const UNRESTRICTED_NOTEBOOK_ACCESS: NotebookAccess = {
   restricted: false,
   readableNotebookIds: [],
   writableNotebookIds: [],
+  defaultWrite: true,
 };
 
 /** Parses the stored `notebook_access_json` column. Null keeps legacy tokens unrestricted. */
@@ -111,6 +118,7 @@ export const resolveNotebookAccess = async (
       restricted: true,
       readableNotebookIds: grantedReadable,
       writableNotebookIds: grantedWritable,
+      defaultWrite: false,
     };
   }
 
@@ -126,6 +134,7 @@ export const resolveNotebookAccess = async (
     restricted: true,
     readableNotebookIds: [...readable],
     writableNotebookIds: [...writable],
+    defaultWrite: defaultAccess === "write",
   };
 };
 
