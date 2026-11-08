@@ -1,8 +1,10 @@
 import type { MemoDetail } from "@edgeever/shared";
 import type { Hono } from "hono";
-import type { AppEnv } from "./api-context";
+import type { AppContext, AppEnv } from "./api-context";
+import { apiError } from "./http-errors";
 import { inboxNotebookIdentitySql, mapNotebook, type NotebookRow } from "./notebook-service";
 import { getWorkspaceId, requireScopes } from "./request-auth";
+import { resolveRequestNotebookAccess } from "./token-notebook-access";
 
 type MobileSyncChangeRow = {
   id: number | null;
@@ -96,9 +98,25 @@ export const registerSyncRoutes = (
   app: Hono<AppEnv>,
   dependencies: SyncRouteDependencies,
 ) => {
+  // Full-sync protocols assume a complete workspace snapshot; a
+  // notebook-restricted token would silently produce a partial one.
+  const denyRestricted = async (context: AppContext) => {
+    const notebookAccess = await resolveRequestNotebookAccess(context);
+    return notebookAccess.restricted
+      ? apiError(
+          context,
+          "notebook_access_denied",
+          "This API token is restricted to specific notebooks and cannot sync the whole workspace. Update the token's notebook access in EdgeEver settings.",
+          403,
+        )
+      : null;
+  };
+
   app.get("/api/v1/sync/bootstrap", async (context) => {
     const denied = requireScopes(context, "read:notebooks", "read:memos");
     if (denied) return denied;
+    const restricted = await denyRestricted(context);
+    if (restricted) return restricted;
 
     const workspaceId = getWorkspaceId(context);
     const limit = dependencies.clampNumber(Number(context.req.query("limit") ?? 100), 1, 200);
@@ -155,6 +173,8 @@ export const registerSyncRoutes = (
   app.get("/api/v1/sync/changes", async (context) => {
     const denied = requireScopes(context, "read:notebooks", "read:memos");
     if (denied) return denied;
+    const restricted = await denyRestricted(context);
+    if (restricted) return restricted;
 
     const workspaceId = getWorkspaceId(context);
     const cursor = dependencies.clampNumber(

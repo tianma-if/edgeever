@@ -261,11 +261,40 @@ export const UserUpdateSchema = z
   })
   .refine((input) => Object.keys(input).length > 0, "At least one field is required.");
 
+// A per-notebook grant. `notebookId` names a notebook subtree; `read` and
+// `write` are independent so a token can, for example, read one notebook and
+// write another.
+export const TokenNotebookAccessSchema = z.object({
+  notebookId: z.string().trim().min(1).max(120),
+  read: z.boolean(),
+  write: z.boolean(),
+});
+
+export type TokenNotebookAccess = z.infer<typeof TokenNotebookAccessSchema>;
+
+export const TokenNotebookAccessListSchema = z
+  .array(TokenNotebookAccessSchema)
+  .max(200)
+  .refine(
+    (entries) => new Set(entries.map((entry) => entry.notebookId)).size === entries.length,
+    "notebookId must be unique within notebookAccess.",
+  );
+
 export const ApiTokenCreateSchema = z.object({
   name: z.string().trim().min(1).max(80),
   scopes: z.array(z.string().trim().min(1).max(80)).min(1).max(32),
   expiresAt: z.string().datetime().nullable().optional(),
+  notebookAccess: TokenNotebookAccessListSchema.optional(),
 });
+
+export const ApiTokenUpdateSchema = z
+  .object({
+    name: z.string().trim().min(1).max(80).optional(),
+    scopes: z.array(z.string().trim().min(1).max(80)).min(1).max(32).optional(),
+    expiresAt: z.string().datetime().nullable().optional(),
+    notebookAccess: TokenNotebookAccessListSchema.optional(),
+  })
+  .refine((input) => Object.keys(input).length > 0, "At least one field is required.");
 
 export const TagRenameSchema = z.object({
   name: z.string().trim().min(1).max(80),
@@ -663,6 +692,7 @@ export type ChangePasswordInput = z.infer<typeof ChangePasswordSchema>;
 export type UserCreateInput = z.infer<typeof UserCreateSchema>;
 export type UserUpdateInput = z.infer<typeof UserUpdateSchema>;
 export type ApiTokenCreateInput = z.infer<typeof ApiTokenCreateSchema>;
+export type ApiTokenUpdateInput = z.infer<typeof ApiTokenUpdateSchema>;
 export type TagRenameInput = z.infer<typeof TagRenameSchema>;
 export type ResourceUpdateInput = z.infer<typeof ResourceUpdateSchema>;
 export type ObjectStorageSettingsUpdateInput = z.infer<typeof ObjectStorageSettingsUpdateSchema>;

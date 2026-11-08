@@ -1,4 +1,5 @@
 import type { Context } from "hono";
+import type { TokenNotebookAccess } from "@edgeever/shared";
 import type { CloudflareStorageBindings } from "./cloudflare-storage-adapter";
 import type { StorageAdapter } from "./storage-contract";
 
@@ -54,6 +55,12 @@ export type AuthContext = {
   role: "owner" | "member";
   sessionId?: string;
   tokenId?: string;
+  /**
+   * Per-notebook grants from the API token. `null` for interactive sessions
+   * and unrestricted tokens; resolved to effective notebook ids per request
+   * through `resolveNotebookAccess`.
+   */
+  notebookAccess?: TokenNotebookAccess[] | null;
   /** Recovery-code session that must rebind TOTP before any other access. */
   mfaRestricted?: boolean;
 };

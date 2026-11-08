@@ -45,6 +45,11 @@ import {
 } from "./memo-revision-service";
 import { deleteStoredObjects } from "./object-storage";
 import { getAuditActor, getWorkspaceId } from "./request-auth";
+import {
+  memoNotebookAccessSql,
+  notebookAccessBinds,
+  type NotebookAccess,
+} from "./token-notebook-access";
 import type { DatabaseAdapter, PreparedStatementAdapter } from "./storage-contract";
 
 // Internal callers can bind a reviewed operation and its receipt to the same
@@ -132,7 +137,9 @@ export const getCurrentWorkspaceIdentity = async (db: DatabaseAdapter, auth: Aut
     },
     authorization: {
       kind: auth.kind === "agent" ? "api_token" : "user_session",
-      ...(auth.kind === "agent" ? { tokenName: auth.username, scopes: auth.scopes } : {}),
+      ...(auth.kind === "agent"
+        ? { tokenName: auth.username, scopes: auth.scopes, notebookAccess: auth.notebookAccess ?? null }
+        : {}),
     },
     dataIsolation: {
       workspaceScoped: true,
@@ -191,6 +198,7 @@ export const searchMemoSummaries = async (
     hasResources?: boolean | null;
     poster?: boolean | null;
     limit: number;
+    notebookAccess?: NotebookAccess;
   }
 ): Promise<MemoSearchSummary[]> => {
   const q = options.query?.trim();
@@ -207,6 +215,11 @@ export const searchMemoSummaries = async (
   if (notebookId) {
     filters.push("m.notebook_id = ?");
     binds.push(notebookId);
+  }
+
+  if (options.notebookAccess?.restricted) {
+    filters.push(memoNotebookAccessSql("m.notebook_id", options.notebookAccess, "read"));
+    binds.push(...notebookAccessBinds(options.notebookAccess, "read"));
   }
 
   for (const tag of tags) {
@@ -318,7 +331,7 @@ export const searchMemoSummaries = async (
 
 export const listMemosForMcp = async (
   db: DatabaseAdapter,
-  options: { workspaceId: string; notebookId?: string | null; limit: number; offset: number; includeContent: boolean; includeDeleted: boolean; poster?: boolean | null }
+  options: { workspaceId: string; notebookId?: string | null; limit: number; offset: number; includeContent: boolean; includeDeleted: boolean; poster?: boolean | null; notebookAccess?: NotebookAccess }
 ) => {
   const notebookId = options.notebookId?.trim() || null;
   const limit = clampNumber(options.limit, 1, 100);
@@ -328,6 +341,12 @@ export const listMemosForMcp = async (
     ? `(instr(c.content_markdown, '<!-- edgeever-poster-v1:') > 0) = ${options.poster ? 1 : 0}`
     : "1 = 1";
   const deletedFilter = options.includeDeleted ? "1 = 1" : "m.is_deleted = 0";
+  const accessFilter = options.notebookAccess?.restricted
+    ? `AND ${memoNotebookAccessSql("m.notebook_id", options.notebookAccess, "read")}`
+    : "";
+  const accessBinds = options.notebookAccess?.restricted
+    ? notebookAccessBinds(options.notebookAccess, "read")
+    : [];
 
   if (options.includeContent) {
     const rows = await db
@@ -338,12 +357,12 @@ export const listMemosForMcp = async (
                 m.source_memo_ids, m.merge_source_count, m.merged_into_memo_id
          FROM memos m
          INNER JOIN memo_contents c ON c.memo_id = m.id
-         WHERE m.workspace_id = ? AND ${deletedFilter} AND ${posterFilter}
+         WHERE m.workspace_id = ? AND ${deletedFilter} AND ${posterFilter} ${accessFilter}
            AND (? IS NULL OR m.notebook_id = ?)
          ORDER BY m.updated_at DESC, m.id ASC
          LIMIT ? OFFSET ?`
       )
-      .bind(options.workspaceId, notebookId, notebookId, pageSize, offset)
+      .bind(options.workspaceId, ...accessBinds, notebookId, notebookId, pageSize, offset)
       .all<MemoDetailRow>();
     const page = rows.results.slice(0, limit).map(mapMemoDetail);
 
@@ -363,12 +382,12 @@ export const listMemosForMcp = async (
               c.content_text, (instr(c.content_markdown, '<!-- edgeever-poster-v1:') > 0) AS is_poster
        FROM memos m
        INNER JOIN memo_contents c ON c.memo_id = m.id
-       WHERE m.workspace_id = ? AND ${deletedFilter} AND ${posterFilter}
+       WHERE m.workspace_id = ? AND ${deletedFilter} AND ${posterFilter} ${accessFilter}
          AND (? IS NULL OR m.notebook_id = ?)
        ORDER BY m.updated_at DESC, m.id ASC
        LIMIT ? OFFSET ?`
     )
-    .bind(options.workspaceId, notebookId, notebookId, pageSize, offset)
+    .bind(options.workspaceId, ...accessBinds, notebookId, notebookId, pageSize, offset)
     .all<MemoSummaryRow>();
   const page = rows.results.slice(0, limit).map(mapMemoSummary);
 

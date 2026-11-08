@@ -3867,6 +3867,11 @@ export const es = {
       "legacy-custom": {
         "label": "Acceso personalizado heredado"
       }
+,
+      "custom": {
+        "label": "Acceso personalizado",
+        "description": "Acceso global completo, restringido a los cuadernos seleccionados abajo con permisos de lectura/escritura individuales."
+      }
     },
     "loadingTokens": "Cargando tokens...",
     "emptyTokens": "No hay tokens de API",
@@ -3877,6 +3882,17 @@ export const es = {
     "legacyTokenCannotCopy": "No se puede copiar el token antiguo",
     "legacyConfigCannotCopy": "No se puede copiar la configuración de MCP para tokens antiguos",
     "deleteToken": "Eliminar token",
+    "editToken": "Editar token",
+    "editTokenTitle": "Editar token «{{name}}»",
+    "notebookAccessTitle": "Acceso a cuadernos",
+    "notebookAccessAll": "Todos los cuadernos",
+    "notebookAccessSelected": "Cuadernos seleccionados",
+    "notebookAccessHint": "{{count}} cuadernos autorizados (incluidos subcuadernos)",
+    "notebookAccessEmpty": "Aún no hay cuadernos en este espacio de trabajo.",
+    "notebookAccessAllDescription": "Este token puede acceder a todos los cuadernos del espacio de trabajo.",
+    "notebookAccessSummary": "Cuadernos: {{notebooks}}",
+    "notebookRead": "Lectura",
+    "notebookWrite": "Escritura",
     "description": "Autoriza al Web Clipper, servicios de MCP y agentes de IA a acceder a tus notas.",
     "namePlaceholder": "Nombre del token (p. ej., Chrome Clipper o Claude Desktop)",
     "createToken": "Crear token",

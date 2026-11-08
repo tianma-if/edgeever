@@ -3867,6 +3867,11 @@ export const de = {
       "legacy-custom": {
         "label": "Benutzerdefinierter Alt-Zugriff"
       }
+,
+      "custom": {
+        "label": "Benutzerdefinierter Zugriff",
+        "description": "Vollzugriff global, beschränkt auf die unten ausgewählten Notizbücher mit individuellen Lese-/Schreibberechtigungen pro Notizbuch."
+      }
     },
     "loadingTokens": "Tokens werden geladen...",
     "emptyTokens": "Keine API-Tokens",
@@ -3877,6 +3882,17 @@ export const de = {
     "legacyTokenCannotCopy": "Altes Token kann nicht kopiert werden",
     "legacyConfigCannotCopy": "MCP-Konfiguration kann für alte Tokens nicht kopiert werden",
     "deleteToken": "Token löschen",
+    "editToken": "Token bearbeiten",
+    "editTokenTitle": "Token „{{name}}“ bearbeiten",
+    "notebookAccessTitle": "Notizbuchzugriff",
+    "notebookAccessAll": "Alle Notizbücher",
+    "notebookAccessSelected": "Ausgewählte Notizbücher",
+    "notebookAccessHint": "{{count}} Notizbücher freigegeben (inkl. Unternotizbücher)",
+    "notebookAccessEmpty": "Noch keine Notizbücher in diesem Arbeitsbereich.",
+    "notebookAccessAllDescription": "Dieser Token kann auf alle Notizbücher im Arbeitsbereich zugreifen.",
+    "notebookAccessSummary": "Notizbücher: {{notebooks}}",
+    "notebookRead": "Lesen",
+    "notebookWrite": "Schreiben",
     "description": "Autorisieren Sie Web Clipper, MCP-Dienste und KI-Agenten für den Zugriff auf Ihre Notizen.",
     "namePlaceholder": "Token-Name (z. B. Chrome Clipper oder Claude Desktop)",
     "createToken": "Token erstellen",

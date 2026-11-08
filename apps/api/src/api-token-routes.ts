@@ -1,15 +1,18 @@
 import {
   ApiTokenCreateSchema,
+  ApiTokenUpdateSchema,
   type ApiToken,
   type CreatedApiToken,
+  type TokenNotebookAccess,
 } from "@edgeever/shared";
 import { zValidator } from "@hono/zod-validator";
 import type { Hono } from "hono";
 import { auditStatement } from "./audit";
-import type { AppEnv } from "./api-context";
+import type { AppContext, AppEnv } from "./api-context";
 import { randomToken } from "./auth-crypto";
 import { createId, isoNow, parseJsonArray } from "./entity-utils";
-import { badRequest, notFound } from "./http-errors";
+import { apiError, badRequest, notFound } from "./http-errors";
+import { parseNotebookAccessJson } from "./token-notebook-access";
 import {
   ALL_TOKEN_SCOPES,
   getAuditActor,
@@ -27,6 +30,7 @@ export type ApiTokenRow = {
   name: string;
   token_value: string | null;
   scopes_json: string;
+  notebook_access_json: string | null;
   last_used_at: string | null;
   expires_at: string | null;
   is_revoked: number;
@@ -43,6 +47,7 @@ export const mapApiToken = (row: ApiTokenRow): ApiToken => ({
   name: row.name,
   token: row.token_value,
   scopes: parseJsonArray(row.scopes_json),
+  notebookAccess: parseNotebookAccessJson(row.notebook_access_json),
   lastUsedAt: row.last_used_at,
   expiresAt: row.expires_at,
   isRevoked: Boolean(row.is_revoked),
@@ -54,10 +59,39 @@ const getApiTokenRow = (
   id: string,
   workspaceId: string,
 ) => database.prepare(
-  `SELECT id, name, token_value, scopes_json, last_used_at, expires_at, is_revoked, created_at, workspace_id
+  `SELECT id, name, token_value, scopes_json, notebook_access_json, last_used_at, expires_at, is_revoked, created_at, workspace_id
    FROM api_tokens
    WHERE id = ? AND workspace_id = ?`,
 ).bind(id, workspaceId).first<ApiTokenRow>();
+
+/**
+ * Validates per-notebook grants against the workspace's live notebooks.
+ * Unknown notebook ids are rejected so a typo cannot silently grant nothing;
+ * deleting a granted notebook later simply narrows the token at read time.
+ * Returns an error response, or null when the grants are valid.
+ */
+const validateNotebookAccess = async (
+  context: AppContext,
+  workspaceId: string,
+  entries: TokenNotebookAccess[],
+): Promise<Response | null> => {
+  if (entries.length === 0) return null;
+  const ids = Array.from(new Set(entries.map((entry) => entry.notebookId)));
+  const placeholders = ids.map(() => "?").join(", ");
+  const rows = await context.env.storage.db.prepare(
+    `SELECT id FROM notebooks WHERE workspace_id = ? AND is_deleted = 0 AND id IN (${placeholders})`,
+  ).bind(workspaceId, ...ids).all<{ id: string }>();
+
+  const known = new Set(rows.results.map((row) => row.id));
+  const unknown = ids.filter((id) => !known.has(id));
+  if (unknown.length === 0) return null;
+  return apiError(
+    context,
+    "unknown_notebook",
+    `notebookAccess references unknown notebooks: ${unknown.join(", ")}`,
+    400,
+  );
+};
 
 export const registerApiTokenRoutes = (
   app: Hono<AppEnv>,
@@ -68,7 +102,7 @@ export const registerApiTokenRoutes = (
     if (userOnly) return userOnly;
 
     const rows = await context.env.storage.db.prepare(
-      `SELECT id, name, token_value, scopes_json, last_used_at, expires_at, is_revoked, created_at, workspace_id
+      `SELECT id, name, token_value, scopes_json, notebook_access_json, last_used_at, expires_at, is_revoked, created_at, workspace_id
        FROM api_tokens
        WHERE workspace_id = ?
        ORDER BY is_revoked ASC, created_at DESC
@@ -92,6 +126,13 @@ export const registerApiTokenRoutes = (
       const scopes = normalizeTokenScopes(input.scopes);
       if (!scopes) return badRequest(context, "Token scope is not supported.");
 
+      const notebookDenied = await validateNotebookAccess(
+        context,
+        getWorkspaceId(context),
+        input.notebookAccess ?? [],
+      );
+      if (notebookDenied) return notebookDenied;
+
       const id = createId("tok");
       const token = `${API_TOKEN_PREFIX}_${randomToken(API_TOKEN_BYTES)}`;
       const now = isoNow();
@@ -99,8 +140,8 @@ export const registerApiTokenRoutes = (
       const workspaceId = getWorkspaceId(context);
       await context.env.storage.db.batch([
         context.env.storage.db.prepare(
-          `INSERT INTO api_tokens (id, workspace_id, name, token_hash, token_value, scopes_json, expires_at, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO api_tokens (id, workspace_id, name, token_hash, token_value, scopes_json, notebook_access_json, expires_at, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         ).bind(
           id,
           workspaceId,
@@ -108,6 +149,7 @@ export const registerApiTokenRoutes = (
           await dependencies.sha256(token),
           token,
           JSON.stringify(scopes),
+          input.notebookAccess ? JSON.stringify(input.notebookAccess) : null,
           input.expiresAt ?? null,
           now,
         ),
@@ -118,13 +160,82 @@ export const registerApiTokenRoutes = (
           "api_token.create",
           "api_token",
           id,
-          { name: input.name, scopes, expiresAt: input.expiresAt ?? null },
+          { name: input.name, scopes, expiresAt: input.expiresAt ?? null, notebookAccess: input.notebookAccess ?? null },
         ),
       ]);
 
       const row = await getApiTokenRow(context.env.storage.db, id, workspaceId);
       if (!row) return notFound(context, "API token not found");
       return context.json({ token, apiToken: mapApiToken(row) } satisfies CreatedApiToken, 201);
+    },
+  );
+
+  app.patch(
+    "/api/v1/api-tokens/:id",
+    zValidator("json", ApiTokenUpdateSchema),
+    async (context) => {
+      const userOnly = requireUser(context);
+      if (userOnly) return userOnly;
+
+      const id = context.req.param("id");
+      const workspaceId = getWorkspaceId(context);
+      const current = await getApiTokenRow(context.env.storage.db, id, workspaceId);
+      if (!current) return notFound(context, "API token not found");
+
+      const input = context.req.valid("json");
+      const scopes = input.scopes !== undefined
+        ? normalizeTokenScopes(input.scopes)
+        : parseJsonArray(current.scopes_json) as string[];
+      if (!scopes) return badRequest(context, "Token scope is not supported.");
+
+      const notebookAccess = input.notebookAccess !== undefined
+        ? input.notebookAccess
+        : parseNotebookAccessJson(current.notebook_access_json);
+
+      const notebookDenied = await validateNotebookAccess(context, workspaceId, notebookAccess ?? []);
+      if (notebookDenied) return notebookDenied;
+
+      const name = input.name ?? current.name;
+      const expiresAt = input.expiresAt !== undefined ? input.expiresAt : current.expires_at;
+      const actor = getAuditActor(context);
+      await context.env.storage.db.batch([
+        context.env.storage.db.prepare(
+          `UPDATE api_tokens
+           SET name = ?, scopes_json = ?, notebook_access_json = ?, expires_at = ?
+           WHERE id = ? AND workspace_id = ?`,
+        ).bind(
+          name,
+          JSON.stringify(scopes),
+          notebookAccess ? JSON.stringify(notebookAccess) : null,
+          expiresAt,
+          id,
+          workspaceId,
+        ),
+        auditStatement(
+          context.env.storage.db,
+          actor.actorType,
+          actor.actorId,
+          "api_token.update",
+          "api_token",
+          id,
+          {
+            name,
+            scopes,
+            expiresAt,
+            notebookAccess: notebookAccess ?? null,
+            previous: {
+              name: current.name,
+              scopes: parseJsonArray(current.scopes_json),
+              expiresAt: current.expires_at,
+              notebookAccess: parseNotebookAccessJson(current.notebook_access_json),
+            },
+          },
+        ),
+      ]);
+
+      const row = await getApiTokenRow(context.env.storage.db, id, workspaceId);
+      if (!row) return notFound(context, "API token not found");
+      return context.json({ apiToken: mapApiToken(row) });
     },
   );
 

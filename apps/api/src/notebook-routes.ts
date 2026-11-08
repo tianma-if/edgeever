@@ -12,6 +12,10 @@ import {
   updateNotebookRecord,
 } from "./notebook-service";
 import { getAuditActor, getWorkspaceId, requireScopes } from "./request-auth";
+import {
+  assertNotebookAccess,
+  resolveRequestNotebookAccess,
+} from "./token-notebook-access";
 
 const respondWithAppError = (c: Parameters<typeof apiError>[0], error: unknown) => {
   if (error instanceof AppError) return apiError(c, error.code, error.message, error.status);
@@ -27,7 +31,13 @@ export const registerNotebookRoutes = (
     if (denied) return denied;
 
     await prepareDemoData(c.env);
-    return c.json({ notebooks: await listNotebooks(c.env.storage.db, getWorkspaceId(c)) });
+    return c.json({
+      notebooks: await listNotebooks(
+        c.env.storage.db,
+        getWorkspaceId(c),
+        await resolveRequestNotebookAccess(c),
+      ),
+    });
   });
 
   app.post("/api/v1/notebooks", zValidator("json", NotebookCreateSchema), async (c) => {
@@ -35,10 +45,19 @@ export const registerNotebookRoutes = (
     if (denied) return denied;
 
     try {
+      const input = c.req.valid("json");
+      const notebookAccess = await resolveRequestNotebookAccess(c);
+      if (notebookAccess.restricted) {
+        if (input.parentId) {
+          assertNotebookAccess(notebookAccess, "write", input.parentId, "create a notebook under this parent");
+        } else {
+          assertNotebookAccess(notebookAccess, "write", "", "create a top-level notebook");
+        }
+      }
       const notebook = await createNotebookRecord(
         c.env.storage.db,
         getWorkspaceId(c),
-        c.req.valid("json"),
+        input,
         getAuditActor(c)
       );
       return c.json({ notebook }, 201);
@@ -52,11 +71,17 @@ export const registerNotebookRoutes = (
     if (denied) return denied;
 
     try {
+      const input = c.req.valid("json");
+      const notebookAccess = await resolveRequestNotebookAccess(c);
+      assertNotebookAccess(notebookAccess, "write", c.req.param("id"), "update this notebook");
+      if (input.parentId) {
+        assertNotebookAccess(notebookAccess, "write", input.parentId, "move a notebook under this parent");
+      }
       const notebook = await updateNotebookRecord(
         c.env.storage.db,
         getWorkspaceId(c),
         c.req.param("id"),
-        c.req.valid("json"),
+        input,
         getAuditActor(c)
       );
       return c.json({ notebook });
@@ -70,6 +95,12 @@ export const registerNotebookRoutes = (
     if (denied) return denied;
 
     try {
+      assertNotebookAccess(
+        await resolveRequestNotebookAccess(c),
+        "write",
+        c.req.param("id"),
+        "delete this notebook",
+      );
       await deleteNotebookRecord(c.env.storage.db, getWorkspaceId(c), c.req.param("id"), getAuditActor(c));
       return c.json({ ok: true });
     } catch (error) {
@@ -82,6 +113,12 @@ export const registerNotebookRoutes = (
     if (denied) return denied;
 
     try {
+      assertNotebookAccess(
+        await resolveRequestNotebookAccess(c),
+        "write",
+        c.req.param("id"),
+        "restore this notebook",
+      );
       const notebook = await restoreNotebookRecord(
         c.env.storage.db,
         getWorkspaceId(c),

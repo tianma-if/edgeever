@@ -1,4 +1,5 @@
 import type { TFunction } from "i18next";
+import type { Notebook, TokenNotebookAccess } from "@edgeever/shared";
 import { getConfiguredDesktopApiBaseUrl } from "@/lib/api";
 export { copyTextToClipboard } from "@/lib/clipboard";
 
@@ -27,7 +28,7 @@ export const PREVIOUS_FULL_TOKEN_SCOPES = [
   "write:tags",
 ];
 
-export type TokenAccessLevel = "full" | "read-only";
+export type TokenAccessLevel = "full" | "read-only" | "custom";
 export type StoredTokenAccessLevel = TokenAccessLevel | "legacy-custom";
 export const DEFAULT_TOKEN_ACCESS_LEVEL: TokenAccessLevel = "full";
 
@@ -64,14 +65,20 @@ const sameScopes = (left: string[], right: string[]) => {
 export const getTokenScopesForAccessLevel = (
   accessLevel: TokenAccessLevel,
   availableScopes: string[] = ALL_TOKEN_SCOPES,
-) => accessLevel === "full"
-  ? [...availableScopes]
-  : availableScopes.filter((scope) => scope.startsWith("read:"));
+) => accessLevel === "read-only"
+  ? availableScopes.filter((scope) => scope.startsWith("read:"))
+  : [...availableScopes];
 
 export const getStoredTokenAccessLevel = (
   scopes: string[],
   availableScopes: string[] = ALL_TOKEN_SCOPES,
+  notebookAccess?: TokenNotebookAccess[] | null,
 ): StoredTokenAccessLevel => {
+  // A notebook-scoped token is always "custom", whatever its global scopes.
+  if (notebookAccess && notebookAccess.length > 0) {
+    return "custom";
+  }
+
   if (
     sameScopes(scopes, getTokenScopesForAccessLevel("full", availableScopes))
     || sameScopes(scopes, PREVIOUS_FULL_TOKEN_SCOPES)
@@ -84,6 +91,81 @@ export const getStoredTokenAccessLevel = (
   }
 
   return "legacy-custom";
+};
+
+// --- Per-notebook grant editor draft ---------------------------------------
+
+export type NotebookGrantDraft = {
+  /** "all" = unrestricted (notebookAccess omitted); "selected" = per-notebook grants. */
+  mode: "all" | "selected";
+  /** notebookId → grant. Only notebooks with a grant are sent to the server. */
+  grants: Record<string, { read: boolean; write: boolean }>;
+};
+
+export const emptyNotebookGrantDraft = (): NotebookGrantDraft => ({ mode: "all", grants: {} });
+
+export const notebookAccessToDraft = (
+  notebookAccess: TokenNotebookAccess[] | null | undefined,
+): NotebookGrantDraft => {
+  if (!notebookAccess || notebookAccess.length === 0) {
+    return emptyNotebookGrantDraft();
+  }
+  const grants: NotebookGrantDraft["grants"] = {};
+  for (const entry of notebookAccess) {
+    grants[entry.notebookId] = { read: entry.read, write: entry.write };
+  }
+  return { mode: "selected", grants };
+};
+
+export const draftToNotebookAccess = (draft: NotebookGrantDraft): TokenNotebookAccess[] | undefined => {
+  if (draft.mode !== "selected") {
+    return undefined;
+  }
+  return Object.entries(draft.grants)
+    .filter(([, grant]) => grant.read || grant.write)
+    .map(([notebookId, grant]) => ({ notebookId, read: grant.read, write: grant.write }));
+};
+
+/** Flattened notebook tree rows (parent before children) for the grant picker. */
+export type NotebookTreeRow = {
+  notebook: Notebook;
+  depth: number;
+};
+
+export const buildNotebookTreeRows = (notebooks: Notebook[]): NotebookTreeRow[] => {
+  const byId = new Map(notebooks.map((notebook) => [notebook.id, notebook]));
+  const childrenByParent = new Map<string | null, Notebook[]>();
+  for (const notebook of notebooks) {
+    const parentId = notebook.parentId && byId.has(notebook.parentId) ? notebook.parentId : null;
+    const siblings = childrenByParent.get(parentId) ?? [];
+    siblings.push(notebook);
+    childrenByParent.set(parentId, siblings);
+  }
+
+  const rows: NotebookTreeRow[] = [];
+  const visit = (parentId: string | null, depth: number) => {
+    for (const notebook of childrenByParent.get(parentId) ?? []) {
+      rows.push({ notebook, depth });
+      visit(notebook.id, depth + 1);
+    }
+  };
+  visit(null, 0);
+  return rows;
+};
+
+/** Human summary of a stored token's notebook grants, e.g. "2 notebooks · read". */
+export const describeNotebookAccess = (
+  notebookAccess: TokenNotebookAccess[] | null | undefined,
+  notebooksById: ReadonlyMap<string, Notebook>,
+): string[] => {
+  if (!notebookAccess || notebookAccess.length === 0) {
+    return [];
+  }
+  return notebookAccess.map((entry) => {
+    const name = notebooksById.get(entry.notebookId)?.name ?? entry.notebookId;
+    const mode = entry.write ? "read/write" : entry.read ? "read" : "none";
+    return `${name} (${mode})`;
+  });
 };
 
 export const getTokenScopeLabel = (scope: string, t: TFunction) => t(`mcp.scopes.${scope}`, { defaultValue: scope });

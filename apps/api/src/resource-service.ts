@@ -15,6 +15,11 @@ import { createId, isoNow } from "./entity-utils";
 import { sha256Bytes } from "./hash-utils";
 import { resolveObjectStorage } from "./object-storage";
 import { getWorkspaceId } from "./request-auth";
+import {
+  memoNotebookAccessSql,
+  notebookAccessBinds,
+  type NotebookAccess,
+} from "./token-notebook-access";
 import type { DatabaseAdapter } from "./storage-contract";
 
 export const MAX_IMAGE_UPLOAD_BYTES = 100 * 1024 * 1024;
@@ -233,7 +238,14 @@ export const listResourcesForMcp = async (
   database: DatabaseAdapter,
   workspaceId: string,
   limit: number,
+  notebookAccess?: NotebookAccess,
 ) => {
+  const accessFilter = notebookAccess?.restricted
+    ? `AND ${memoNotebookAccessSql("m.notebook_id", notebookAccess, "read")}`
+    : "";
+  const accessBinds = notebookAccess?.restricted
+    ? notebookAccessBinds(notebookAccess, "read")
+    : [];
   const [rows, stats] = await Promise.all([
     database.prepare(
       `SELECT r.id, r.memo_id, r.original_memo_id, r.bucket_name, r.object_key, r.storage_config_id, r.kind,
@@ -242,10 +254,10 @@ export const listResourcesForMcp = async (
               m.is_deleted AS memo_is_deleted
        FROM resources r
        INNER JOIN memos m ON m.id = r.memo_id
-       WHERE m.workspace_id = ? AND r.is_deleted = 0
+       WHERE m.workspace_id = ? AND r.is_deleted = 0 ${accessFilter}
        ORDER BY r.created_at DESC
        LIMIT ?`,
-    ).bind(workspaceId, limit).all<ResourceListRow>(),
+    ).bind(workspaceId, ...accessBinds, limit).all<ResourceListRow>(),
     database.prepare(
       `SELECT COUNT(*) AS total_count,
               COALESCE(SUM(byte_size), 0) AS total_bytes,
@@ -253,8 +265,8 @@ export const listResourcesForMcp = async (
               COALESCE(SUM(CASE WHEN kind = 'attachment' THEN 1 ELSE 0 END), 0) AS attachment_count
        FROM resources r
        INNER JOIN memos m ON m.id = r.memo_id
-       WHERE m.workspace_id = ? AND r.is_deleted = 0`,
-    ).bind(workspaceId).first<ResourceStatsRow>(),
+       WHERE m.workspace_id = ? AND r.is_deleted = 0 ${accessFilter}`,
+    ).bind(workspaceId, ...accessBinds).first<ResourceStatsRow>(),
   ]);
 
   return {

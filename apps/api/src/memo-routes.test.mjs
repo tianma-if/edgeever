@@ -131,6 +131,7 @@ describe("memo route contracts", () => {
       filter: "pinned",
       limit: 25,
       cursor: "opaque",
+      notebookAccess: { restricted: false, readableNotebookIds: [], writableNotebookIds: [] },
     });
   });
 
