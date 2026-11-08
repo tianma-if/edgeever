@@ -2,17 +2,13 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { setAndroidIntentFilters, SHARE_RECEIVER_ACTIVITY } from "../../node_modules/expo-sharing/plugin/build/android/withAndroidIntentFilters.js";
 
+import { parseIntentFilters } from "../../node_modules/expo-sharing/plugin/build/android/parseIntentFilters.js";
+
+const appConfig = JSON.parse(readFileSync(new URL("../../app.json", import.meta.url), "utf8"));
+const [, { android }] = appConfig.expo.plugins.find((plugin) => plugin[0] === "expo-sharing");
 const sendFilters = [
-  {
-    action: "android.intent.action.SEND",
-    category: "android.intent.category.DEFAULT",
-    data: [{ mimeType: "text/plain" }, { mimeType: "image/*" }],
-  },
-  {
-    action: "android.intent.action.SEND_MULTIPLE",
-    category: "android.intent.category.DEFAULT",
-    data: [{ mimeType: "text/plain" }, { mimeType: "image/*" }],
-  },
+  parseIntentFilters(android.singleShareMimeTypes, "single"),
+  parseIntentFilters(android.multipleShareMimeTypes, "multiple"),
 ];
 
 function manifestConfig() {
@@ -59,6 +55,11 @@ describe("Android share receiver manifest", () => {
     expect(receiver["intent-filter"].map((filter) => filter.action[0].$["android:name"])).toEqual([
       "android.intent.action.SEND",
       "android.intent.action.SEND_MULTIPLE",
+    ]);
+    const mimeTypes = receiver["intent-filter"].map((filter) => filter.data.map((data) => data.$["android:mimeType"]));
+    expect(mimeTypes).toEqual([
+      ["text/plain", "image/*", "application/zip", "application/x-zip-compressed", "application/octet-stream"],
+      ["text/plain", "image/*"],
     ]);
   });
 

@@ -24,6 +24,7 @@ describe("native release planning", () => {
       "packages/shared/src/index.ts",
       "bun.lock",
       "scripts/build-android-local.sh",
+      "apps/desktop/src/main/wechat-chat-transcript.cjs",
       "scripts/verify-android-apk-signature.mjs",
       ".github/workflows/mobile-build.yml",
       ".github/workflows/android-play-signature-audit.yml",
@@ -98,6 +99,11 @@ describe("native release planning", () => {
     expect(
       planNativeRelease("desktop", ["package.json", "release-summary.json", "AGENTS.md"]),
     ).toEqual({ rebuild: false, relevantChanges: [] });
+  });
+
+  test("rebuilds iOS when the bundled WeChat formatter changes", () => {
+    const file = "apps/desktop/src/main/wechat-chat-transcript.cjs";
+    expect(planNativeRelease("ios", [file])).toEqual({ rebuild: true, relevantChanges: [file] });
   });
 
   test("rebuilds iOS for the native client or shared editor runtime", () => {

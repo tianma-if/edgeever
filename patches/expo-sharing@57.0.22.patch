@@ -1,7 +1,7 @@
 diff --git a/android/src/main/java/expo/modules/sharing/ShareIntoUtils.kt b/android/src/main/java/expo/modules/sharing/ShareIntoUtils.kt
 --- a/android/src/main/java/expo/modules/sharing/ShareIntoUtils.kt
 +++ b/android/src/main/java/expo/modules/sharing/ShareIntoUtils.kt
-@@ -1,14 +1,21 @@
+@@ -1,14 +1,26 @@
  package expo.modules.sharing
  
 +import android.app.Activity
@@ -11,19 +11,24 @@ diff --git a/android/src/main/java/expo/modules/sharing/ShareIntoUtils.kt b/andr
  import android.os.Build
 +import android.os.Bundle
  import android.os.Parcelable
++import android.provider.OpenableColumns
++import android.system.ErrnoException
++import android.system.OsConstants
 +import androidx.core.content.FileProvider
  import androidx.core.net.toUri
  import com.facebook.react.ReactActivity
 +import com.facebook.react.ReactApplication
  import com.facebook.react.modules.core.DeviceEventManagerModule
++import expo.modules.kotlin.exception.CodedException
 +import java.io.File
 +import java.io.FileNotFoundException
  import java.net.URL
 +import java.util.UUID
++import java.util.concurrent.Executors
  
  // Emits intent received event to JS. This is because the `SEND` and `SEND_MULTIPLE` intents
  // have no uri and do not inform the navigation libraries of a native intent.
-@@ -32,24 +39,102 @@
+@@ -32,22 +44,179 @@ internal fun getShareIntentUri(context: Context): Uri? {
  // Emits intent received event to JS. This is because the `SEND` and `SEND_MULTIPLE` intents
  // do not navigation libraries of a native intent. This aligns the behaviour with ios.
  internal fun emitShareIntentReceived(reactActivity: ReactActivity, originalIntent: Intent) {
@@ -45,9 +50,7 @@ diff --git a/android/src/main/java/expo/modules/sharing/ShareIntoUtils.kt b/andr
 +    deviceEventManagerModule.emitNewIntentReceived(uri)
 +  }
 +}
- 
--  getShareIntentUri(reactActivity)?.let { uri ->
--    deviceEventManagerModule?.emitNewIntentReceived(uri)
++
 +internal fun materializeShareIntent(context: Context, source: Intent): Intent {
 +  val uris = getShareIntentUris(source)
 +  if (uris.isEmpty()) {
@@ -56,7 +59,11 @@ diff --git a/android/src/main/java/expo/modules/sharing/ShareIntoUtils.kt b/andr
 +        source.clipData?.let { clipData = it }
 +      }
 +    }
-   }
++  }
++
++  if (source.action == Intent.ACTION_SEND && isArchiveShareMimeType(source.type)) {
++    return stageArchiveShare(context, source, uris.first())
++  }
 +
 +  val copied = mutableListOf<File>()
 +  try {
@@ -77,8 +84,79 @@ diff --git a/android/src/main/java/expo/modules/sharing/ShareIntoUtils.kt b/andr
 +    copied.forEach { it.delete() }
 +    throw error
 +  }
++}
++
++private const val ARCHIVE_CACHE_PREFIX = "shared-wechat-"
++internal val INSUFFICIENT_SHARE_STORAGE_URI = Uri.parse("content://expo.modules.sharing/insufficient-storage")
+
+-  getShareIntentUri(reactActivity)?.let { uri ->
+-    deviceEventManagerModule?.emitNewIntentReceived(uri)
++internal class ShareStorageException(cause: Throwable? = null) :
++  CodedException("ERR_WECHAT_ARCHIVE_STORAGE", "Not enough space for the shared archive", cause)
++
++internal fun isArchiveShareMimeType(type: String?): Boolean =
++  type == "application/zip" || type == "application/x-zip-compressed" || type == "application/octet-stream"
++
++private fun stageArchiveShare(context: Context, source: Intent, uri: Uri): Intent {
++  val authority = "${context.packageName}.SharingFileProvider"
++  // Archives come from a sender's content provider with a temporary read grant.
++  require(uri.scheme == "content" && uri.authority != authority)
++  val resolver = context.contentResolver
++  val (displayName, size) = try {
++    resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)
++      ?.use { cursor ->
++        if (!cursor.moveToFirst()) return@use null
++        val name = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
++        val size = cursor.getColumnIndex(OpenableColumns.SIZE)
++        (if (name >= 0) cursor.getString(name) else null) to
++          (if (size >= 0 && !cursor.isNull(size)) cursor.getLong(size) else null)
++      }
++  } catch (_: UnsupportedOperationException) {
++    null
++  } ?: (null to null)
++  val name = displayName?.takeIf { it.isNotBlank() }
++    ?: uri.lastPathSegment?.substringAfterLast('/')?.takeIf { it.endsWith(".zip", ignoreCase = true) }
++    ?: "聊天记录.zip"
++  val now = System.currentTimeMillis()
++  context.cacheDir.listFiles { file ->
++    file.name.startsWith(ARCHIVE_CACHE_PREFIX) && now - file.lastModified() > 24L * 60 * 60 * 1000
++  }?.forEach { it.delete() }
++
++  val file = File(context.cacheDir, "$ARCHIVE_CACHE_PREFIX${UUID.randomUUID()}.zip")
++  try {
++    if (size != null && size > context.cacheDir.usableSpace) throw ShareStorageException()
++    val input = resolver.openInputStream(uri) ?: throw FileNotFoundException("No shared stream")
++    input.use {
++      file.outputStream().use { output ->
++        val buffer = ByteArray(256 * 1024)
++        while (true) {
++          val read = input.read(buffer)
++          if (read < 0) break
++          if (read.toLong() > context.cacheDir.usableSpace) throw ShareStorageException()
++          output.write(buffer, 0, read)
++        }
++      }
++    }
++    require(file.length() > 0)
++    val localUri = FileProvider.getUriForFile(context, authority, file, name)
++    return baseShareIntent(source).apply { putExtra(Intent.EXTRA_STREAM, localUri) }
++  } catch (error: Exception) {
++    file.delete()
++    val errno = (error.cause as? ErrnoException)?.errno
++    if (errno == OsConstants.ENOSPC || errno == OsConstants.EDQUOT) throw ShareStorageException(error)
++    throw error
+   }
  }
  
++internal fun getStagedArchive(context: Context, uri: Uri): File? {
++  if (uri.authority != "${context.packageName}.SharingFileProvider") return null
++  val segments = uri.pathSegments
++  if (segments.size != 2 || segments[0] != "cached_expo_files") return null
++  val name = segments[1]
++  if (!name.matches(Regex("shared-wechat-[0-9a-f-]{36}\\.zip"))) return null
++  return File(context.cacheDir, name).takeIf { it.isFile }
++}
++
 +private fun baseShareIntent(source: Intent): Intent {
 +  return Intent(source.action).apply {
 +    type = source.type
@@ -113,8 +191,8 @@ diff --git a/android/src/main/java/expo/modules/sharing/ShareIntoUtils.kt b/andr
 +  // history launch, not a new share, even after the JS process has been killed.
 +  return intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY == 0 &&
 +    intent.type != null && allowedShareActions.contains(intent.action)
- }
- 
++}
++
 +internal fun getShareIntentUris(intent: Intent): List<Uri> {
 +  val streams = when (intent.action) {
 +    Intent.ACTION_SEND -> listOfNotNull(intent.getParcelableExtraCompat<Uri>(Intent.EXTRA_STREAM))
@@ -125,14 +203,18 @@ diff --git a/android/src/main/java/expo/modules/sharing/ShareIntoUtils.kt b/andr
 +    return streams
 +  }
 +
-+  val clipData = intent.clipData ?: return emptyList()
-+  return (0 until clipData.itemCount).mapNotNull { index -> clipData.getItemAt(index).uri }
-+}
-+
++  val clipUris = intent.clipData?.let { clipData ->
++    (0 until clipData.itemCount).mapNotNull { index -> clipData.getItemAt(index).uri }
++  }.orEmpty()
++  if (clipUris.isNotEmpty()) return clipUris
++  if (intent.action == Intent.ACTION_SEND && isArchiveShareMimeType(intent.type)) {
++    return listOfNotNull(intent.data?.takeIf { it.scheme == "content" })
++  }
++  return emptyList()
+ }
+
  internal inline fun <reified T : Parcelable> Intent.getParcelableExtraCompat(name: String): T? {
-   return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-     getParcelableExtra(name, T::class.java)
-@@ -70,3 +155,48 @@
+@@ -70,3 +239,72 @@ internal inline fun <reified T : Parcelable> Intent.getParcelableArrayListExtraC
  
  internal val URL.lastPathComponent: String
    get() = path.removeSuffix("/").substringAfterLast('/')
@@ -148,27 +230,51 @@ diff --git a/android/src/main/java/expo/modules/sharing/ShareIntoUtils.kt b/andr
 +class ShareReceiverActivity : Activity() {
 +  override fun onCreate(savedInstanceState: Bundle?) {
 +    super.onCreate(savedInstanceState)
-+    try {
-+      val incoming = intent
-+      if (incoming != null && isShareIntent(incoming)) {
-+        val prepared = try {
-+          materializeShareIntent(this, incoming)
-+        } catch (_: Exception) {
-+          unreadableShareIntent(incoming)
-+        }
-+        publishSharedIntent(this, prepared)
-+        openShareHost(this)
++    val incoming = intent
++    if (incoming == null || !isShareIntent(incoming)) {
++      finish()
++      return
++    }
++    if (isArchiveShareMimeType(incoming.type)) {
++      archiveExecutor.execute {
++        val prepared = prepare(incoming)
++        runOnUiThread { deliver(prepared) }
 +      }
++    } else {
++      deliver(prepare(incoming))
++    }
++  }
++
++  private fun prepare(incoming: Intent): Intent =
++    try {
++      materializeShareIntent(this, incoming)
++    } catch (_: ShareStorageException) {
++      unreadableShareIntent(incoming, INSUFFICIENT_SHARE_STORAGE_URI)
++    } catch (_: Exception) {
++      unreadableShareIntent(incoming)
++    }
++
++  private fun deliver(prepared: Intent) {
++    try {
++      publishSharedIntent(this, prepared)
++      openShareHost(this)
 +    } finally {
 +      finish()
 +    }
 +  }
++
++  companion object {
++    private val archiveExecutor = Executors.newSingleThreadExecutor()
++  }
 +}
 +
-+internal fun unreadableShareIntent(source: Intent): Intent {
++internal fun unreadableShareIntent(
++  source: Intent,
++  uri: Uri = Uri.parse("content://expo.modules.sharing/unreadable-share")
++): Intent {
 +  return Intent(source.action ?: Intent.ACTION_SEND).apply {
 +    type = source.type ?: "image/*"
-+    putExtra(Intent.EXTRA_STREAM, Uri.parse("content://expo.modules.sharing/unreadable-share"))
++    putExtra(Intent.EXTRA_STREAM, uri)
 +  }
 +}
 +
@@ -205,7 +311,7 @@ diff --git a/android/src/main/java/expo/modules/sharing/SharingModule.kt b/andro
 diff --git a/android/src/main/java/expo/modules/sharing/dataParsers/ResolvingShareIntentDataParser.kt b/android/src/main/java/expo/modules/sharing/dataParsers/ResolvingShareIntentDataParser.kt
 --- a/android/src/main/java/expo/modules/sharing/dataParsers/ResolvingShareIntentDataParser.kt
 +++ b/android/src/main/java/expo/modules/sharing/dataParsers/ResolvingShareIntentDataParser.kt
-@@ -6,9 +6,11 @@
+@@ -6,9 +6,11 @@ import android.content.Context
  import android.net.Uri
  import android.provider.OpenableColumns
  import java.io.File
@@ -217,7 +323,7 @@ diff --git a/android/src/main/java/expo/modules/sharing/dataParsers/ResolvingSha
  import kotlin.text.indexOf
  import kotlin.text.substring
  
-@@ -25,21 +27,22 @@
+@@ -25,21 +27,22 @@ class ResolvingShareIntentDataParser {
      }
  
      private fun handleSendAction(context: Context, intent: Intent, type: String): List<ResolvedSharePayload> {
@@ -248,7 +354,11 @@ diff --git a/android/src/main/java/expo/modules/sharing/dataParsers/ResolvingSha
  
        if (android.util.Patterns.WEB_URL.matcher(text).matches()) {
          return listOf(resolveUrlContext(text))
-@@ -58,19 +61,27 @@
+@@ -55,22 +58,46 @@ class ResolvingShareIntentDataParser {
+     }
+
+     private fun resolveUri(context: Context, uri: Uri, mimeType: String): ResolvedSharePayload {
++      if (uri == INSUFFICIENT_SHARE_STORAGE_URI) throw ShareStorageException()
        val contentResolver = context.contentResolver
        val fileName = getFileName(contentResolver, uri) ?: "unknown"
        val fileSize = getFileSize(contentResolver, uri)
@@ -258,6 +368,21 @@ diff --git a/android/src/main/java/expo/modules/sharing/dataParsers/ResolvingSha
 +        ?: "image/*"
        val type = ShareType.fromMimeType(specificMimeType)
  
++      // The receiver already copied this archive while it held the sender's grant.
++      val stagedArchive = getStagedArchive(context, uri)
++      if (stagedArchive != null) {
++        return ResolvedSharePayload().apply {
++          value = uri.toString()
++          shareType = ShareType.File
++          this.mimeType = specificMimeType
++          contentUri = stagedArchive.toURI().toString()
++          contentType = ContentType.File
++          contentSize = stagedArchive.length()
++          contentMimeType = specificMimeType
++          originalName = fileName
++        }
++      }
++
        // Copy to cache dir to ensure access
 -      val file = File(context.cacheDir, fileName)
 +      val file = File(context.cacheDir, "shared-${UUID.randomUUID()}-${File(fileName).name}")
@@ -410,7 +535,7 @@ diff --git a/build/useIncomingShare.js b/build/useIncomingShare.js
 diff --git a/plugin/build/android/withAndroidIntentFilters.js b/plugin/build/android/withAndroidIntentFilters.js
 --- a/plugin/build/android/withAndroidIntentFilters.js
 +++ b/plugin/build/android/withAndroidIntentFilters.js
-@@ -5,6 +5,8 @@
+@@ -5,6 +5,8 @@ exports.setAndroidIntentFilters = setAndroidIntentFilters;
  exports.default = renderIntentFilters;
  const config_plugins_1 = require("@expo/config-plugins");
  const SHARING_GENERATED_TAG = 'expo-sharing-intent-filters';
@@ -419,7 +544,7 @@ diff --git a/plugin/build/android/withAndroidIntentFilters.js b/plugin/build/and
  const withAndroidIntentFilters = (config, { intentFilters }) => {
      return (0, config_plugins_1.withAndroidManifest)(config, (config) => {
          setAndroidIntentFilters(config, intentFilters);
-@@ -13,17 +15,31 @@
+@@ -13,17 +15,31 @@ const withAndroidIntentFilters = (config, { intentFilters }) => {
  };
  exports.withAndroidIntentFilters = withAndroidIntentFilters;
  function setAndroidIntentFilters(config, intentFilters) {
@@ -451,7 +576,7 @@ diff --git a/plugin/build/android/withAndroidIntentFilters.js b/plugin/build/and
 +            'android:launchMode': 'standard',
 +            'android:noHistory': 'true',
 +            'android:taskAffinity': '',
-+            'android:theme': '@android:style/Theme.NoDisplay',
++            'android:theme': '@android:style/Theme.Translucent.NoTitleBar',
 +        },
 +        'intent-filter': renderIntentFilters(intentFilters),
 +    });
@@ -461,7 +586,7 @@ diff --git a/plugin/build/android/withAndroidIntentFilters.js b/plugin/build/and
 diff --git a/plugin/src/android/withAndroidIntentFilters.ts b/plugin/src/android/withAndroidIntentFilters.ts
 --- a/plugin/src/android/withAndroidIntentFilters.ts
 +++ b/plugin/src/android/withAndroidIntentFilters.ts
-@@ -10,6 +10,7 @@
+@@ -10,6 +10,7 @@ import { AndroidIntentFiltersData } from '@expo/config-types';
  import { SingleIntentFilter, MultiIntentFilter, IntentFilter } from '../sharingPlugin.types';
  
  const SHARING_GENERATED_TAG = 'expo-sharing-intent-filters';
@@ -469,7 +594,7 @@ diff --git a/plugin/src/android/withAndroidIntentFilters.ts b/plugin/src/android
  type WithAndroidIntentFiltersOptions = {
    intentFilters: IntentFilter[];
  };
-@@ -28,22 +29,37 @@
+@@ -28,22 +29,37 @@ export function setAndroidIntentFilters(
    config: ExportedConfigWithProps<AndroidManifest>,
    intentFilters: IntentFilter[]
  ): ExportedConfigWithProps<AndroidManifest> {
@@ -510,7 +635,7 @@ diff --git a/plugin/src/android/withAndroidIntentFilters.ts b/plugin/src/android
 +      'android:launchMode': 'standard',
 +      'android:noHistory': 'true',
 +      'android:taskAffinity': '',
-+      'android:theme': '@android:style/Theme.NoDisplay',
++      'android:theme': '@android:style/Theme.Translucent.NoTitleBar',
 +    },
 +    'intent-filter': renderIntentFilters(intentFilters),
 +  });

@@ -85,7 +85,10 @@
             ],
             "singleShareMimeTypes": [
               "text/plain",
-              "image/*"
+              "image/*",
+              "application/zip",
+              "application/x-zip-compressed",
+              "application/octet-stream"
             ]
           }
         }

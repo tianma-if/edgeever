@@ -1,15 +1,19 @@
 import UIKit
 import UniformTypeIdentifiers
 
-/// Lightweight share extension: text, web URLs, and images → App Group → open main app.
+/// Copies shared files into the App Group while the item provider still grants access.
 class ShareViewController: UIViewController {
     private let appGroupId = "group.org.edgeever.mobile"
     private let hostScheme = "edgeever"
     private let payloadKey = "edgeever.share.payload"
     private let imageDirectoryName = "incoming-share-images"
 
-    override func viewDidLoad() {
-        super.viewDidLoad()
+    private var started = false
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        guard !started else { return }
+        started = true
         view.backgroundColor = .systemBackground
         Task { await handleShare() }
     }
@@ -17,6 +21,17 @@ class ShareViewController: UIViewController {
     private func handleShare() async {
         guard let items = extensionContext?.inputItems as? [NSExtensionItem] else {
             extensionContext?.completeRequest(returningItems: nil)
+            return
+        }
+        do {
+            for provider in items.flatMap({ $0.attachments ?? [] }) {
+                if try await stageArchive(from: provider) {
+                    finishArchiveShare()
+                    return
+                }
+            }
+        } catch {
+            finishArchiveShare(error: error)
             return
         }
         var payload: [[String: Any]] = []
@@ -58,6 +73,85 @@ class ShareViewController: UIViewController {
             return
         }
         extensionContext?.completeRequest(returningItems: nil)
+    }
+
+    private func stageArchive(from provider: NSItemProvider) async throws -> Bool {
+        let identifier = provider.registeredTypeIdentifiers.first { UTType($0)?.conforms(to: .zip) == true }
+        let suggestedName = provider.suggestedName
+        let suggestedZIP = (suggestedName as NSString?)?.pathExtension.lowercased() == "zip"
+        let hasFileURL = provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier)
+        let genericData = provider.registeredTypeIdentifiers == [UTType.data.identifier]
+        let expectsArchive = identifier != nil || suggestedZIP || genericData
+        guard expectsArchive ||
+            (hasFileURL && !provider.hasItemConformingToTypeIdentifier(UTType.image.identifier)) else { return false }
+
+        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Bool, Error>) in
+            let stage: (URL?, Error?) -> Void = { source, error in
+                guard let source else {
+                    if expectsArchive {
+                        continuation.resume(throwing: error ?? WeChatArchiveError.invalidArchive)
+                    } else {
+                        continuation.resume(returning: false)
+                    }
+                    return
+                }
+                guard expectsArchive || source.pathExtension.lowercased() == "zip" else {
+                    continuation.resume(returning: false)
+                    return
+                }
+                do {
+                    guard let directory = WeChatShareInbox.sharedDirectory else { throw CocoaError(.fileNoSuchFile) }
+                    try WeChatShareInbox.stage(source, suggestedName: suggestedName, in: directory)
+                    continuation.resume(returning: true)
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+            let loadFileURL = {
+                provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, error in
+                    let url = (item as? URL) ?? (item as? Data)
+                        .flatMap { String(data: $0, encoding: .utf8) }
+                        .flatMap { URL(string: $0) }
+                    stage(url, error)
+                }
+            }
+            if let identifier {
+                provider.loadInPlaceFileRepresentation(forTypeIdentifier: identifier) { source, _, error in
+                    if source == nil && hasFileURL { loadFileURL() } else { stage(source, error) }
+                }
+            } else if hasFileURL {
+                loadFileURL()
+            } else {
+                provider.loadInPlaceFileRepresentation(forTypeIdentifier: UTType.data.identifier) { source, _, error in
+                    stage(source, error)
+                }
+            }
+        }
+    }
+
+    private func finishArchiveShare(error: Error? = nil) {
+        let chinese = Locale.preferredLanguages.first?.hasPrefix("zh") == true
+        let title: String
+        let message: String
+        if let error {
+            title = chinese ? "无法接收聊天记录" : "Could not receive the chat"
+            if case WeChatArchiveError.insufficientSpace = error {
+                message = chinese ? "手机存储空间不足。请释放一些空间后重新分享。" :
+                    "Free up some space on your iPhone, then share the chat again."
+            } else {
+                message = chinese ? "无法复制聊天压缩包，请从微信重新分享。" :
+                    "The archive could not be copied. Share the chat from WeChat again."
+            }
+        } else {
+            title = chinese ? "聊天记录已接收" : "Chat received"
+            message = chinese ? "打开 EdgeEver 后会自动导入为笔记。" :
+                "Open EdgeEver to import the chat as a note."
+        }
+        let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: chinese ? "完成" : "Done", style: .default) { [weak self] _ in
+            self?.extensionContext?.completeRequest(returningItems: nil)
+        })
+        present(alert, animated: true)
     }
 
     private func persistImage(from provider: NSItemProvider) async throws -> (

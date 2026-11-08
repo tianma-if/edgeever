@@ -46,12 +46,13 @@ export const planNativeRelease = (platform, changedFiles) => {
           ".github/workflows/store-delivery.yml",
           "bun.lock",
           "scripts/build-android-local.sh",
+          "apps/desktop/src/main/wechat-chat-transcript.cjs",
           "scripts/download-play-universal-apk.mjs",
           "scripts/verify-android-apk-signature.mjs",
           ...mobileOnlyDependencyPatches,
         ])
       : platform === "ios"
-        ? new Set()
+        ? new Set(["apps/desktop/src/main/wechat-chat-transcript.cjs"])
       : new Set([
           ".cargo/config.toml",
           ".github/workflows/desktop-build.yml",

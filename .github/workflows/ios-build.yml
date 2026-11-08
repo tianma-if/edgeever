@@ -6,10 +6,12 @@ on:
       - main
     paths:
       - "apps/ios/**"
+      - "apps/desktop/src/main/wechat-chat-transcript.cjs"
       - ".github/workflows/ios-build.yml"
   pull_request:
     paths:
       - "apps/ios/**"
+      - "apps/desktop/src/main/wechat-chat-transcript.cjs"
       - ".github/workflows/ios-build.yml"
   workflow_dispatch:
 

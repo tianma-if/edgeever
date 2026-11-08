@@ -13,6 +13,7 @@
 		936D15E0433CE757E5ED8C51 /* ForcedTotpRebindView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A570FFBC9DDACAACD3AE7DF8 /* ForcedTotpRebindView.swift */; };
 		3E20F8406FE46B5DEDB63E47 /* TotpDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29F5EEA12B7E6AE281C377BB /* TotpDecodingTests.swift */; };
 		039594C5BEE4844FBB131C7F /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6F510BF90B418266F363EBD /* APIClient.swift */; };
+		05EA11750506709B302155CB /* WeChatChatArchive.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34FA27B76133746E7DAE1F16 /* WeChatChatArchive.swift */; };
 		0614453E8E9EC13B212B5A2F /* NotebookPickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3328D871910187ED827B6CE /* NotebookPickerSheet.swift */; };
 		06D2661CAB0ADED27F322649 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = D87A8CED8498AE654EF8CD1F /* Localizable.xcstrings */; };
 		08A3D4F0E80ACE44E36AD87D /* MemoCreateCommit.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBC0AD00435CCEFD7934201C /* MemoCreateCommit.swift */; };
@@ -23,7 +24,9 @@
 		12F0F0D1E937AA88C33222FF /* ApiTokensView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73FA569C71080B6F9989AA03 /* ApiTokensView.swift */; };
 		132BA05FF9673B95D3E3959A /* JSONCoding.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD904708FC1AD8971439BD90 /* JSONCoding.swift */; };
 		1510CEE8BDDBD1710C0CE88C /* SessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 574912976CB43DD9821678EE /* SessionStore.swift */; };
+		1CCB4AB03D56A86A489AE2E8 /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = 4CB53FB89DAB2CD86F48972A /* ZIPFoundation */; };
 		1F8E6268C9DA330CA236B36F /* SyncProtocolTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6159DBF27CC86920005E25D /* SyncProtocolTests.swift */; };
+		204D8C81A858CEEAB3097DAC /* WeChatShareInbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39372CB1A1422DC84E4B0AE6 /* WeChatShareInbox.swift */; };
 		2581F6050C02A4A36340CC0D /* ShareHandoffStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D045B340A984E17B3B0047BF /* ShareHandoffStore.swift */; };
 		265DB48114144779A7C807F7 /* TipTapContentSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE1D4EB4B51C66E9CD72FF7F /* TipTapContentSource.swift */; };
 		2A07555B54946A177E1ECFF2 /* Typography.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CB54673617E14F28B7608BD /* Typography.swift */; };
@@ -55,9 +58,11 @@
 		5F5EC9565A02FAFDD5D7B54C /* SyncProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12236E3A2F318CDEB17B80CB /* SyncProtocol.swift */; };
 		63D4B562B4EF6ED7291155F6 /* TemplatePickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BA3D6859C4C6D9F65435671 /* TemplatePickerSheet.swift */; };
 		67DBD3C7748DE7F8BAD8E752 /* font-picker.html in Resources */ = {isa = PBXBuildFile; fileRef = 2D78B33F7B6D7E017F63E455 /* font-picker.html */; };
+		6A2938AFA62D676BF8EFCDD0 /* WeChatZipDirectory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AB6D26705F0E846E88BC592 /* WeChatZipDirectory.swift */; };
 		6A671BB702DA77A0548E6E29 /* URL+Normalize.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A8662720DE42695E29F5741 /* URL+Normalize.swift */; };
 		6B2D55E0EA4D28EB7171A565 /* SystemImagePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17A2092411EFC3765B97DF88 /* SystemImagePicker.swift */; };
 		6E1459D0AA2E0217C517F973 /* WebClipperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D7D3262D1E3E40E38361E84 /* WebClipperTests.swift */; };
+		71EACEF502F7697F89164B72 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = EFF10CDC8FB8C97DA0103AA0 /* PrivacyInfo.xcprivacy */; };
 		7BDAD91E69B7B62D7D390CB5 /* MemoEditView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3674473015F8EB6863B69B0F /* MemoEditView.swift */; };
 		8430B1EDE6CA87A0C922E484 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1D94BB61519CA2A345D99C1 /* SettingsView.swift */; };
 		8785D0133655387F399C3C58 /* LocalMirrorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2035E878FD92B74D889D6047 /* LocalMirrorTests.swift */; };
@@ -69,10 +74,12 @@
 		93556FDCB87BB93990221E01 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8691859094F8C08AE49FE27D /* Assets.xcassets */; };
 		94456E5BCAB7496FAD4685A6 /* Pow in Frameworks */ = {isa = PBXBuildFile; productRef = E37BD605D826474D3E842F31 /* Pow */; };
 		98010B5978B98C1F8D073C02 /* ShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = BF956A8F1A951AA5547675AD /* ShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		98AD355434C120CD051B8B2E /* WeChatShareInbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39372CB1A1422DC84E4B0AE6 /* WeChatShareInbox.swift */; };
 		9CBE3E1196B24C4DDFC7CD0A /* DraftRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA3D6EDCC2D76EEC0E51DD26 /* DraftRepository.swift */; };
 		9E5B44C7F70B5896D27A00E3 /* Colors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4341E86DEF60272AE37A8704 /* Colors.swift */; };
 		A63E64622A06DF3842908A66 /* MobileUIParityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1606EF8ADEA4921421EB0690 /* MobileUIParityTests.swift */; };
 		AA7C45A51254081D6035E20F /* ChromeParity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 410470CB94CB0505A3EF5801 /* ChromeParity.swift */; };
+		B050B73E4A5DA72E8786A53D /* WeChatChatImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BD449D0AEE56628BBC6A2AF /* WeChatChatImport.swift */; };
 		B08E58823845817F84C52A52 /* NotesListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30C95F4EABCD08555D97C6B /* NotesListView.swift */; };
 		B13CF9D8320DF366EA58601F /* ImageCompressor.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6B15550738F6080C23DE15F /* ImageCompressor.swift */; };
 		B79E88A198C6635419CAE9E5 /* WKWebView+ProgrammaticKeyboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9128735A19D0D834D5CD4947 /* WKWebView+ProgrammaticKeyboard.swift */; };
@@ -83,6 +90,7 @@
 		CA033464E43E9CF7C86585E6 /* MemoDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 387980E9CCA7C1C52EAAB6A0 /* MemoDetailView.swift */; };
 		D57261115E6F7ABB665DDBCC /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F080AD98FDF3AADDD90B9931 /* ShareViewController.swift */; };
 		D6FD6B00023FC1A830684385 /* PreferencesStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CB16CA1499554463E1927E7 /* PreferencesStore.swift */; };
+		D88A1CF450A9B51DB933F152 /* wechat-chat-transcript.cjs in Resources */ = {isa = PBXBuildFile; fileRef = 2C60D2E8D916F446D933753E /* wechat-chat-transcript.cjs */; };
 		DE9649944BC9CD8775003203 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38B2C459C9903FC6EBA4E478 /* RootView.swift */; };
 		E51CD822863D3494E35ADB27 /* EditorBundleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BEF7AFA15A0972ED3475F23 /* EditorBundleTests.swift */; };
 		E7B888711C3A5403083864B3 /* UsersManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CEB614A969DF595620789B7 /* UsersManagementView.swift */; };
@@ -91,6 +99,7 @@
 		F1C912D8726DCB215E709E30 /* MemoEditViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2080FD276D6ED7161B7DB973 /* MemoEditViewModelTests.swift */; };
 		F51F6C5ED7C2B0E68DF5A55D /* LiveLocalAPITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57312B99FFBD9A2186A8C0D0 /* LiveLocalAPITests.swift */; };
 		F6AACA31885AB69C1CCCCB46 /* AiAssistantSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80D96968C0AFEA9A7C19C38F /* AiAssistantSheet.swift */; };
+		F73A1823608D4E14E6A1C06C /* WeChatChatArchiveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20D307664D7B29C6E7DA4F6 /* WeChatChatArchiveTests.swift */; };
 		FBB21A0292D846789C0F6E42 /* MemoEditViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59C38DBB41BA706C678AB9BD /* MemoEditViewModel.swift */; };
 		FC6501567FDC2F9900E973A4 /* AppEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = D06F83AE844C342D3F6EAD7F /* AppEnvironment.swift */; };
 		FDF0A8FA27796FB9500F97D4 /* ResourceCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34A3C0399C910B150A02D06E /* ResourceCache.swift */; };
@@ -137,6 +146,7 @@
 		033565CE2E96EC2D23105188 /* ListActionsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListActionsSheet.swift; sourceTree = "<group>"; };
 		04B6BCA279F8E8A4774A7C0A /* NoteImageFontPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteImageFontPickerView.swift; sourceTree = "<group>"; };
 		0531FC6AA81DAF0A55B42362 /* AppDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDatabase.swift; sourceTree = "<group>"; };
+		0BD449D0AEE56628BBC6A2AF /* WeChatChatImport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeChatChatImport.swift; sourceTree = "<group>"; };
 		0EF7E97C950002FA22EFB7C8 /* AiDirectStream.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AiDirectStream.swift; sourceTree = "<group>"; };
 		12236E3A2F318CDEB17B80CB /* SyncProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncProtocol.swift; sourceTree = "<group>"; };
 		12DCA98C14CC6F28C22C41A1 /* TipTapWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TipTapWebView.swift; sourceTree = "<group>"; };
@@ -151,13 +161,16 @@
 		243811C4B4CBF13982976A56 /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
 		2829CE5DF5C15ACF41CC17DA /* EditFabButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditFabButton.swift; sourceTree = "<group>"; };
 		2A8662720DE42695E29F5741 /* URL+Normalize.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "URL+Normalize.swift"; sourceTree = "<group>"; };
+		2C60D2E8D916F446D933753E /* wechat-chat-transcript.cjs */ = {isa = PBXFileReference; path = "wechat-chat-transcript.cjs"; sourceTree = "<group>"; };
 		2D78B33F7B6D7E017F63E455 /* font-picker.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = "font-picker.html"; sourceTree = "<group>"; };
 		328A2DAC7E7DC89F4782B5FB /* RevisionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RevisionsView.swift; sourceTree = "<group>"; };
 		34A3C0399C910B150A02D06E /* ResourceCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResourceCache.swift; sourceTree = "<group>"; };
+		34FA27B76133746E7DAE1F16 /* WeChatChatArchive.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeChatChatArchive.swift; sourceTree = "<group>"; };
 		3674473015F8EB6863B69B0F /* MemoEditView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoEditView.swift; sourceTree = "<group>"; };
 		36831A94478123A1EE9BB538 /* TipTapWarmPool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TipTapWarmPool.swift; sourceTree = "<group>"; };
 		387980E9CCA7C1C52EAAB6A0 /* MemoDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoDetailView.swift; sourceTree = "<group>"; };
 		38B2C459C9903FC6EBA4E478 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		39372CB1A1422DC84E4B0AE6 /* WeChatShareInbox.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeChatShareInbox.swift; sourceTree = "<group>"; };
 		3CEB614A969DF595620789B7 /* UsersManagementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsersManagementView.swift; sourceTree = "<group>"; };
 		40C1F4BC7DB150AE8F85AA13 /* SyncEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncEngine.swift; sourceTree = "<group>"; };
 		410470CB94CB0505A3EF5801 /* ChromeParity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChromeParity.swift; sourceTree = "<group>"; };
@@ -169,6 +182,7 @@
 		574912976CB43DD9821678EE /* SessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStore.swift; sourceTree = "<group>"; };
 		58C065FED3C78404D4D8DD19 /* Motion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Motion.swift; sourceTree = "<group>"; };
 		59C38DBB41BA706C678AB9BD /* MemoEditViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoEditViewModel.swift; sourceTree = "<group>"; };
+		5AB6D26705F0E846E88BC592 /* WeChatZipDirectory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeChatZipDirectory.swift; sourceTree = "<group>"; };
 		5CB54673617E14F28B7608BD /* Typography.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Typography.swift; sourceTree = "<group>"; };
 		5D7D3262D1E3E40E38361E84 /* WebClipperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebClipperTests.swift; sourceTree = "<group>"; };
 		62B460B6BFE4CFB23073C7E1 /* SyncOutboxRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncOutboxRepository.swift; sourceTree = "<group>"; };
@@ -204,6 +218,7 @@
 		C8D1DC59EC9FA65240DCBC19 /* MemoTemplatesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoTemplatesTests.swift; sourceTree = "<group>"; };
 		D045B340A984E17B3B0047BF /* ShareHandoffStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareHandoffStore.swift; sourceTree = "<group>"; };
 		D06F83AE844C342D3F6EAD7F /* AppEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEnvironment.swift; sourceTree = "<group>"; };
+		D20D307664D7B29C6E7DA4F6 /* WeChatChatArchiveTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeChatChatArchiveTests.swift; sourceTree = "<group>"; };
 		D2C2945A52C2957CCFC09FCF /* KeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStore.swift; sourceTree = "<group>"; };
 		D6F510BF90B418266F363EBD /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
 		D87A8CED8498AE654EF8CD1F /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
@@ -228,6 +243,7 @@
 			files = (
 				88C20914237162E295798B54 /* GRDB in Frameworks */,
 				94456E5BCAB7496FAD4685A6 /* Pow in Frameworks */,
+				1CCB4AB03D56A86A489AE2E8 /* ZIPFoundation in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -278,6 +294,9 @@
 			children = (
 				D045B340A984E17B3B0047BF /* ShareHandoffStore.swift */,
 				13105CFE9131425A1C7E4BF0 /* WebClipper.swift */,
+				34FA27B76133746E7DAE1F16 /* WeChatChatArchive.swift */,
+				0BD449D0AEE56628BBC6A2AF /* WeChatChatImport.swift */,
+				5AB6D26705F0E846E88BC592 /* WeChatZipDirectory.swift */,
 			);
 			path = Share;
 			sourceTree = "<group>";
@@ -325,6 +344,14 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		4238AD11EBCB4E4BC78A027E /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				39372CB1A1422DC84E4B0AE6 /* WeChatShareInbox.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
 		47F79BD2D97384A3B7EB9A7D /* Tests */ = {
 			isa = PBXGroup;
 			children = (
@@ -344,6 +371,14 @@
 			path = Features;
 			sourceTree = "<group>";
 		};
+		60285DF4B5907EEE460ABFF0 /* main */ = {
+			isa = PBXGroup;
+			children = (
+				2C60D2E8D916F446D933753E /* wechat-chat-transcript.cjs */,
+			);
+			path = main;
+			sourceTree = "<group>";
+		};
 		7404AFC10807CAA326C34580 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
@@ -354,6 +389,14 @@
 				EFF10CDC8FB8C97DA0103AA0 /* PrivacyInfo.xcprivacy */,
 			);
 			path = Resources;
+			sourceTree = "<group>";
+		};
+		776B8E4F3904D2DC06D5CCA2 /* src */ = {
+			isa = PBXGroup;
+			children = (
+				60285DF4B5907EEE460ABFF0 /* main */,
+			);
+			path = src;
 			sourceTree = "<group>";
 		};
 		802936642DF4142908AF3184 /* Sync */ = {
@@ -390,6 +433,14 @@
 			path = DesignSystem;
 			sourceTree = "<group>";
 		};
+		8A490E739A6E960988F275F4 /* desktop */ = {
+			isa = PBXGroup;
+			children = (
+				776B8E4F3904D2DC06D5CCA2 /* src */,
+			);
+			path = desktop;
+			sourceTree = "<group>";
+		};
 		8BCFBC0CDC794B02EAD907EC /* Data */ = {
 			isa = PBXGroup;
 			children = (
@@ -415,8 +466,10 @@
 		A22DC90C50256855231B9F51 = {
 			isa = PBXGroup;
 			children = (
+				CBCE50C9F1F17F5834768779 /* apps */,
 				0C073569B955CD568840A35D /* Config */,
 				2377E3F57CD40951D1F3AA40 /* EdgeEver */,
+				4238AD11EBCB4E4BC78A027E /* Shared */,
 				15C520F3EAEBE355CFFF9C41 /* ShareExtension */,
 				47F79BD2D97384A3B7EB9A7D /* Tests */,
 				2EE88A37487842A849874933 /* Products */,
@@ -503,6 +556,15 @@
 			path = Editor;
 			sourceTree = "<group>";
 		};
+		CBCE50C9F1F17F5834768779 /* apps */ = {
+			isa = PBXGroup;
+			children = (
+				8A490E739A6E960988F275F4 /* desktop */,
+			);
+			name = apps;
+			path = ..;
+			sourceTree = "<group>";
+		};
 		D1C1EF697B501DEE7E568338 /* Auth */ = {
 			isa = PBXGroup;
 			children = (
@@ -527,6 +589,7 @@
 				29F5EEA12B7E6AE281C377BB /* TotpDecodingTests.swift */,
 				41B15501968A29C372E7B3BB /* URLNormalizeTests.swift */,
 				5D7D3262D1E3E40E38361E84 /* WebClipperTests.swift */,
+				D20D307664D7B29C6E7DA4F6 /* WeChatChatArchiveTests.swift */,
 			);
 			path = EdgeEverTests;
 			sourceTree = "<group>";
@@ -557,6 +620,7 @@
 			buildConfigurationList = 00D9D7AC59D511B80CC7CCF9 /* Build configuration list for PBXNativeTarget "ShareExtension" */;
 			buildPhases = (
 				34803173963F1A76B23320AB /* Sources */,
+				5F8097389F909F42B231D685 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -587,6 +651,7 @@
 			packageProductDependencies = (
 				1B167394120674FECA86D42F /* GRDB */,
 				E37BD605D826474D3E842F31 /* Pow */,
+				4CB53FB89DAB2CD86F48972A /* ZIPFoundation */,
 			);
 			productName = EdgeEver;
 			productReference = 1CD75D20D94A27E982103AB3 /* EdgeEver.app */;
@@ -629,6 +694,7 @@
 			packageReferences = (
 				883036D8C6E7A1AEB7094AC7 /* XCRemoteSwiftPackageReference "GRDB.swift" */,
 				98D6A9C2B6DE22F3B5AFEB19 /* XCRemoteSwiftPackageReference "Pow" */,
+				4A9CF34B9D9F5B1A6E549B76 /* XCRemoteSwiftPackageReference "ZIPFoundation" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 2EE88A37487842A849874933 /* Products */;
@@ -653,6 +719,15 @@
 				8E1CB597E6534EBFAD4B43FE /* assets in Resources */,
 				67DBD3C7748DE7F8BAD8E752 /* font-picker.html in Resources */,
 				08D0159B8F194E04C02B69BF /* index.html in Resources */,
+				D88A1CF450A9B51DB933F152 /* wechat-chat-transcript.cjs in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5F8097389F909F42B231D685 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				71EACEF502F7697F89164B72 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -664,6 +739,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				D57261115E6F7ABB665DDBCC /* ShareViewController.swift in Sources */,
+				204D8C81A858CEEAB3097DAC /* WeChatShareInbox.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -683,6 +759,7 @@
 				1F8E6268C9DA330CA236B36F /* SyncProtocolTests.swift in Sources */,
 				4EC901852EDA4BC001717747 /* TipTapContentSourceTests.swift in Sources */,
 				0D67F968CAFCC17F28A5555C /* URLNormalizeTests.swift in Sources */,
+				F73A1823608D4E14E6A1C06C /* WeChatChatArchiveTests.swift in Sources */,
 				6E1459D0AA2E0217C517F973 /* WebClipperTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -752,6 +829,10 @@
 				6A671BB702DA77A0548E6E29 /* URL+Normalize.swift in Sources */,
 				E7B888711C3A5403083864B3 /* UsersManagementView.swift in Sources */,
 				B79E88A198C6635419CAE9E5 /* WKWebView+ProgrammaticKeyboard.swift in Sources */,
+				05EA11750506709B302155CB /* WeChatChatArchive.swift in Sources */,
+				B050B73E4A5DA72E8786A53D /* WeChatChatImport.swift in Sources */,
+				98AD355434C120CD051B8B2E /* WeChatShareInbox.swift in Sources */,
+				6A2938AFA62D676BF8EFCDD0 /* WeChatZipDirectory.swift in Sources */,
 				4F49C2894D3842B4DEAFAD5E /* WebClipper.swift in Sources */,
 				38640D9CE35D118F325AABC5 /* WorkspaceStore.swift in Sources */,
 				487717BFBCCF86B783B33B44 /* WorkspaceView.swift in Sources */,
@@ -1059,6 +1140,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		4A9CF34B9D9F5B1A6E549B76 /* XCRemoteSwiftPackageReference "ZIPFoundation" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/weichsel/ZIPFoundation";
+			requirement = {
+				kind = exactVersion;
+				version = 0.9.20;
+			};
+		};
 		883036D8C6E7A1AEB7094AC7 /* XCRemoteSwiftPackageReference "GRDB.swift" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/groue/GRDB.swift";
@@ -1082,6 +1171,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 883036D8C6E7A1AEB7094AC7 /* XCRemoteSwiftPackageReference "GRDB.swift" */;
 			productName = GRDB;
+		};
+		4CB53FB89DAB2CD86F48972A /* ZIPFoundation */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4A9CF34B9D9F5B1A6E549B76 /* XCRemoteSwiftPackageReference "ZIPFoundation" */;
+			productName = ZIPFoundation;
 		};
 		E37BD605D826474D3E842F31 /* Pow */ = {
 			isa = XCSwiftPackageProductDependency;
