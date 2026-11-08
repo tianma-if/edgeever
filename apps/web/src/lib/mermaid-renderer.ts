@@ -22,6 +22,8 @@ export const renderThemedMermaidSvg = (
       securityLevel: "strict",
       suppressErrorRendering: true,
       theme: "base",
+      // Keep the existing layout for notes that do not specify one.
+      layout: "dagre",
       fontFamily: font,
       themeVariables: getOfficialMermaidThemeVariables(palette),
       flowchart: {
@@ -30,7 +32,9 @@ export const renderThemedMermaidSvg = (
         rankSpacing: 40,
         padding: 12,
       },
+      // Keep label metrics the same in the measurement host and inside note prose.
       themeCSS: `
+        foreignObject, text { letter-spacing: normal; }
         .node > rect.basic.label-container { rx: 5px; ry: 5px; }
         .cluster > rect { rx: 6px; ry: 6px; }
         .edgeLabel .labelBkg { border-radius: 3px; }

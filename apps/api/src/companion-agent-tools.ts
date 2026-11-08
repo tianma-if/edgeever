@@ -7,7 +7,7 @@ import { COMPANION_MCP_TOOLS, validateCompanionTool } from "./companion-tool-cat
 import { companionWorkspaceCursor, proposeCompanionToolAction } from "./companion-tool-actions";
 import { describeCompanionTool } from "./companion-tool-receipts";
 import { executeWorkspaceTool } from "./mcp-tool-executor";
-import { getMemoDetail } from "./memo-service";
+import { getMemoDetail, type MemoSearchSummary } from "./memo-service";
 import { inboxNotebookIdentitySql } from "./notebook-service";
 import { workspaceInboxId } from "./workspace-provisioning";
 import { AppError } from "./app-error";
@@ -509,7 +509,7 @@ export function createCompanionTools(args: { db: DatabaseAdapter; scope: Compani
           });
         }
         if (definition.name === "search_memos" || definition.name === "list_memos") {
-          const listed = result as { memos: MemoSummary[]; hasMore?: boolean };
+          const listed = result as { memos: MemoSearchSummary[]; hasMore?: boolean };
           const memos = searchLimit === undefined ? listed.memos : listed.memos.slice(0, searchLimit);
           return done({
             ...listed,
@@ -523,6 +523,7 @@ export function createCompanionTools(args: { db: DatabaseAdapter; scope: Compani
               createdAt: memo.createdAt,
               updatedAt: memo.updatedAt,
               excerpt: takeNoteText(memo.excerpt, 180),
+              ...(memo.snippet ? { snippet: memo.snippet } : {}),
             }))),
           });
         }

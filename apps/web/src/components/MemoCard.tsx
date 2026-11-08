@@ -327,6 +327,60 @@ export const MemoCard = ({
     onOpenKeyboardContextMenu(event.currentTarget);
   };
 
+  const compact = listDensity === "compact";
+  const listTime = (
+    <time
+      className={cn("text-xs font-normal text-slate-500", compact && "shrink-0 tabular-nums")}
+      dateTime={listTimestamp.value}
+    >
+      {listTimestamp.field === "createdAt"
+        ? t("memoCard.createdAt", { time: listTimestampLabel })
+        : listTimestampLabel}
+    </time>
+  );
+  // Compact rows use two lines: title and date, then a one-line summary with tags.
+  const CompactTypeIcon = diagramLabel
+    ? DiagramIcon
+    : tableLabel
+      ? Table2
+      : memo.poster
+        ? FileText
+        : memo.infographic
+          ? PieChart
+          : null;
+  const compactSummary = diagramLabel
+    ? memo.diagramPreview
+      ? t("diagram.listCounts", { nodes: memo.diagramPreview.nodeCount, edges: memo.diagramPreview.edgeCount })
+      : diagramLabel
+    : tableLabel
+      ? memo.tablePreview
+        ? t("structuredTable.listCounts", { records: memo.tablePreview.recordCount, fields: memo.tablePreview.fieldCount })
+        : tableLabel
+      : memo.poster
+        ? t("poster.name")
+        : memo.infographic
+          ? t("infographic.name")
+          : memoExcerpt;
+  const compactBody = (
+    <>
+      <div className="flex min-w-0 items-center gap-1.5 text-[13.5px] font-semibold leading-5 tracking-[-0.012em] text-slate-950">
+        {memo.isPinned && <Star className="h-3.5 w-3.5 shrink-0 fill-amber-400 text-amber-500" />}
+        {CompactTypeIcon && <CompactTypeIcon className="h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden="true" />}
+        <span className="min-w-0 flex-1 truncate">{memoTitle}</span>
+        {listTime}
+      </div>
+      <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs leading-5 text-slate-500">
+        {/* The summary keeps at least half the line; long tags truncate instead. */}
+        <span className="min-w-[50%] flex-1 truncate">{compactSummary}</span>
+        {memo.tags.slice(0, 2).map((tag) => (
+          <span key={tag} className="min-w-0 max-w-[8rem] truncate tracking-tight text-slate-400">
+            #{tag}
+          </span>
+        ))}
+      </div>
+    </>
+  );
+
   return (
     <article
       data-memo-id={memo.id}
@@ -343,7 +397,7 @@ export const MemoCard = ({
             : "active:bg-slate-50 lg:hover:bg-workspace-hover"
       )}
     >
-      <div className={cn("flex min-h-[132px] items-center", listDensity === "compact" && "min-h-[84px] lg:min-h-[76px]")}>
+      <div className={cn("flex items-center", compact ? "min-h-[52px]" : "min-h-[132px]")} data-memo-density={listDensity}>
         {showSelectionControl && (
           <Tooltip><TooltipTrigger asChild><button
             className="ml-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/70 focus-visible:ring-offset-2 lg:ml-3 lg:h-6 lg:w-6"
@@ -371,7 +425,7 @@ export const MemoCard = ({
         <button
           className={cn(
             "min-w-0 flex-1 px-4 py-3.5 text-left touch-pan-y focus-visible:bg-slate-50 focus-visible:shadow-[inset_3px_0_0_rgb(148,163,184)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-slate-400/60 [-webkit-touch-callout:none] lg:py-3.5 transition-all duration-200",
-            listDensity === "compact" && "py-2.5",
+            compact && "py-2 lg:py-1.5",
             showSelectionControl && "pl-3 lg:pl-3",
             !isTrashView && !multiSelectKeyDown && "lg:cursor-grab lg:active:cursor-grabbing",
             multiSelectKeyDown && "cursor-copy"
@@ -389,7 +443,8 @@ export const MemoCard = ({
           onContextMenu={handleContextMenu}
           onKeyDown={handleKeyDown}
         >
-          <div className={cn("mb-1.5 flex min-w-0 items-center gap-1.5 text-[14px] font-semibold tracking-[-0.012em] leading-snug text-slate-950", listDensity === "compact" && "mb-0.5")}>
+          {compact ? compactBody : <>
+          <div className="mb-1.5 flex min-w-0 items-center gap-1.5 text-[14px] font-semibold tracking-[-0.012em] leading-snug text-slate-950">
             {memo.isPinned && <Star className="h-4 w-4 shrink-0 fill-amber-400 text-amber-500" />}
             <span className="min-w-0 truncate">{memoTitle}</span>
           </div>
@@ -410,7 +465,7 @@ export const MemoCard = ({
                   <span>{diagramLabel}</span>
                 )}
               </div>
-              {listDensity !== "compact" && memo.diagramPreview?.labels.length ? (
+              {memo.diagramPreview?.labels.length ? (
                 <div className="line-clamp-2 text-xs leading-relaxed text-slate-600">{memo.diagramPreview.labels.join(" · ")}</div>
               ) : null}
             </div>
@@ -438,26 +493,17 @@ export const MemoCard = ({
                   <span>{tableLabel}</span>
                 )}
               </div>
-              {listDensity !== "compact" && memo.tablePreview?.fieldNames.length ? (
+              {memo.tablePreview?.fieldNames.length ? (
                 <div className="line-clamp-2 text-xs leading-relaxed text-slate-600">{memo.tablePreview.fieldNames.join(" · ")}</div>
               ) : null}
             </div>
           ) : (
-            <div
-              className={cn(
-                "line-clamp-2 min-h-10 text-xs leading-relaxed text-slate-500",
-                listDensity === "compact" && "line-clamp-1 min-h-0"
-              )}
-            >
+            <div className="line-clamp-2 min-h-10 text-xs leading-relaxed text-slate-500">
               {memoExcerpt}
             </div>
           )}
-          <div className={cn("mt-3.5 flex flex-wrap items-center gap-2", listDensity === "compact" && "mt-1.5")}>
-            <time className="text-xs font-normal text-slate-500 " dateTime={listTimestamp.value}>
-              {listTimestamp.field === "createdAt"
-                ? t("memoCard.createdAt", { time: listTimestampLabel })
-                : listTimestampLabel}
-            </time>
+          <div className="mt-3.5 flex flex-wrap items-center gap-2">
+            {listTime}
             {memo.tags.slice(0, 3).map((tag) => (
               <span
                 key={tag}
@@ -467,16 +513,20 @@ export const MemoCard = ({
               </span>
             ))}
           </div>
+          </>}
         </button>
         {!selectionMode && (
           <div
             className={cn(
-              "mr-2 mt-3 hidden shrink-0 flex-col gap-1 opacity-0 transition-opacity duration-200 focus-within:opacity-100 group-hover:opacity-100 lg:flex",
-              listDensity === "compact" && "lg:mt-2"
+              "hidden shrink-0 gap-1 opacity-0 transition-opacity duration-200 focus-within:opacity-100 group-hover:opacity-100 lg:flex",
+              // Compact rows are too short for stacked buttons; float them over the date instead.
+              compact
+                ? "absolute right-1.5 top-1.5 flex-row rounded-md bg-card p-0.5 shadow-sm ring-1 ring-slate-200/70"
+                : "mr-2 mt-3 flex-col"
             )}
           >
             <Tooltip><TooltipTrigger asChild><button
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/70 focus-visible:ring-offset-2"
+              className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/70 focus-visible:ring-offset-2", compact && "h-7 w-7")}
               type="button"
               aria-label={t("memoCard.moreActions")}
               aria-haspopup="menu"
@@ -490,7 +540,7 @@ export const MemoCard = ({
             </button></TooltipTrigger><TooltipContent>{t("memoCard.moreActions")}</TooltipContent></Tooltip>
             {isTrashView && (
               <Tooltip><TooltipTrigger asChild><button
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/70 focus-visible:ring-offset-2"
+                className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/70 focus-visible:ring-offset-2", compact && "h-7 w-7")}
                 type="button"
                 aria-label={t("memoCard.restoreMemo")}
                 onClick={(event) => {
@@ -502,7 +552,7 @@ export const MemoCard = ({
               </button></TooltipTrigger><TooltipContent>{t("memoCard.restoreMemo")}</TooltipContent></Tooltip>
             )}
             <Tooltip><TooltipTrigger asChild><button
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-400 transition hover:bg-rose-50 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/70 focus-visible:ring-offset-2"
+              className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-400 transition hover:bg-rose-50 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/70 focus-visible:ring-offset-2", compact && "h-7 w-7")}
               type="button"
               aria-label={isTrashView ? t("memoCard.permanentDelete") : t("memoCard.deleteMemo")}
               onClick={(event) => {

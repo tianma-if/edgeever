@@ -157,7 +157,7 @@ const MCP_TOOL_DEFINITIONS = [
   },
   {
     name: "search_memos",
-    description: "Search active EdgeEver memos by text, tag, notebook, time range, pin state, resource presence, or poster type. Use poster=true to find editable poster notes (海报笔记); do not search for the word 海报 to identify the type. query is optional. For recently created or added notes, pass createdAfter and omit query; do not put this week/最近/新增 in query. Time bounds accept YYYY-MM-DD or ISO date-time.",
+    description: "Search active EdgeEver memos by text, tag, notebook, time range, pin state, resource presence, or poster type. Results retain their excerpt and add a snippet of up to 200 characters when the query or its terms can be located in the body. Snippets may omit surrounding conditions; read the memo when more context is needed. Use poster=true to find editable poster notes (海报笔记); do not search for the word 海报 to identify the type. query is optional. For recently created or added notes, pass createdAfter and omit query; do not put this week/最近/新增 in query. Time bounds accept YYYY-MM-DD or ISO date-time.",
     inputSchema: {
       type: "object",
       additionalProperties: false,
@@ -178,7 +178,7 @@ const MCP_TOOL_DEFINITIONS = [
   },
   {
     name: "list_memos",
-    description: "List EdgeEver memos with pagination. Use poster=true to list only editable poster notes (海报笔记), false to exclude them. Use includeContent when full Markdown is needed.",
+    description: 'List EdgeEver memo summaries with pagination. Use poster=true to list only editable poster notes (海报笔记), false to exclude them. With includeContent=true, prose bodies are Markdown only by default. Use format="all" for legacy body fields.',
     inputSchema: {
       type: "object",
       additionalProperties: false,
@@ -187,6 +187,7 @@ const MCP_TOOL_DEFINITIONS = [
         limit: { type: "integer", minimum: 1, maximum: 100 },
         offset: { type: "integer", minimum: 0 },
         includeContent: { type: "boolean" },
+        format: { type: "string", enum: ["all"], description: "Return Markdown, plain text, and editor JSON for prose when includeContent is true." },
         includeDeleted: { type: "boolean" },
         poster: { type: "boolean", description: "Filter by editable poster type before pagination." },
       },
@@ -194,13 +195,14 @@ const MCP_TOOL_DEFINITIONS = [
   },
   {
     name: "get_memo",
-    description: "Read a memo with Markdown content.",
+    description: 'Read a memo. Prose bodies are Markdown only by default. Use format="all" for legacy body fields. Specialized memos retain their existing responses.',
     inputSchema: {
       type: "object",
       required: ["memoId"],
       additionalProperties: false,
       properties: {
         memoId: { type: "string" },
+        format: { type: "string", enum: ["all"], description: "Return Markdown, plain text, and editor JSON for prose." },
         includeDeleted: { type: "boolean" },
       },
     },

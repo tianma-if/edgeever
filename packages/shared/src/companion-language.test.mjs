@@ -54,8 +54,9 @@ describe("companion conversation language", () => {
 
   test("maps any UI locale to a companion turn locale", () => {
     expect(companionTurnLocale("ru-RU")).toBe("ru");
-    expect(companionTurnLocale("zh-TW")).toBe("zh-CN");
-    expect(companionTurnLocale("de-DE")).toBe("en-US");
+    expect(companionTurnLocale("zh-TW")).toBe("zh-TW");
+    expect(companionTurnLocale("de-DE")).toBe("de");
+    expect(companionTurnLocale("it-IT")).toBe("en-US");
     expect(companionTurnLocale(null)).toBe("en-US");
     expect(CompanionTurnInputSchema.shape.locale.parse("ru")).toBe("ru");
   });

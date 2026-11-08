@@ -126,4 +126,4 @@ jobs:
         run: bun run test:e2e:install
 
       - name: Test notebook appearance, memo sort persistence and note focus shortcuts
-        run: bun run test:e2e tests/e2e/notebook-appearance.spec.ts tests/e2e/memo-sort-preference.spec.ts tests/e2e/note-focus-shortcuts.spec.ts tests/e2e/ai-model-output-budgets.spec.ts
+        run: bun run test:e2e tests/e2e/notebook-appearance.spec.ts tests/e2e/memo-sort-preference.spec.ts tests/e2e/note-focus-shortcuts.spec.ts tests/e2e/ai-model-output-budgets.spec.ts tests/e2e/memo-list-density.spec.ts tests/e2e/memo-startup-selection.spec.ts

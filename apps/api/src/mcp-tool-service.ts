@@ -18,6 +18,7 @@ import {
   addTableRecord,
   createTableId,
   getTableSummary,
+  hasDiagramDocumentMarker,
   TABLE_FIELD_LIMIT,
   TABLE_RECORD_LIMIT,
   TABLE_SCHEMA_VERSION,
@@ -160,18 +161,7 @@ export type McpToolDependencies = {
       actorLabel: string;
     },
   ) => Promise<unknown>;
-  listMemosForMcp: (
-    database: DatabaseAdapter,
-    options: {
-      workspaceId: string;
-      notebookId?: string | null;
-      limit: number;
-      offset: number;
-      includeContent: boolean;
-      includeDeleted: boolean;
-      poster?: boolean | null;
-    },
-  ) => Promise<unknown>;
+  listMemosForMcp: typeof import("./memo-service").listMemosForMcp;
   mergeMemosRecord: (
     database: DatabaseAdapter,
     workspaceId: string,
@@ -193,23 +183,7 @@ export type McpToolDependencies = {
     memoIds: string[],
     actor: AuditActor,
   ) => Promise<number>;
-  searchMemoSummaries: (
-    database: DatabaseAdapter,
-    options: {
-      workspaceId: string;
-      query?: string | null;
-      notebookId?: string | null;
-      tags?: string[];
-      createdAfter?: string | null;
-      createdBefore?: string | null;
-      updatedAfter?: string | null;
-      updatedBefore?: string | null;
-      isPinned?: boolean | null;
-      hasResources?: boolean | null;
-      poster?: boolean | null;
-      limit: number;
-    },
-  ) => Promise<MemoSummary[]>;
+  searchMemoSummaries: typeof import("./memo-service").searchMemoSummaries;
   updateMemoRecord: (
     database: DatabaseAdapter,
     workspaceId: string,
@@ -240,6 +214,24 @@ const assertMcpMutationAllowed = (environment: Bindings) => {
   if (isDemoModeEnabled(environment.EDGE_EVER_DEMO_MODE)) {
     throw new AppError("forbidden", "Templates and AI instructions cannot be changed in demo mode.", 403);
   }
+};
+
+const includeAllMemoFormats = (format: unknown) => {
+  if (format !== undefined && format !== "all") {
+    throw new AppError("invalid_params", 'format must be "all" when provided.', 400);
+  }
+  return format === "all";
+};
+
+const projectMcpMemo = (memo: MemoSummary | MemoDetail) => {
+  if (!("contentMarkdown" in memo) || memo.poster
+    || hasDiagramDocumentMarker(memo.contentMarkdown)
+    || hasTableDocumentMarker(memo.contentMarkdown)
+    || hasInfographicDocumentMarker(memo.contentMarkdown)) {
+    return memo;
+  }
+  const { contentJson, contentText, ...markdownMemo } = memo;
+  return markdownMemo;
 };
 
 const memoWithoutInfographicPayload = (memo: MemoDetail) => {
@@ -297,18 +289,24 @@ export const callMcpTool = async (
     }
     case "list_memos": {
       assertScope(auth, "read:memos");
-      return await listMemosForMcp(c.env.storage.db, {
+      const includeAllFormats = includeAllMemoFormats(args.format);
+      const includeContent = args.includeContent === true;
+      const page = await listMemosForMcp(c.env.storage.db, {
         workspaceId: auth.workspaceId,
         notebookId: getOptionalString(args.notebookId),
         limit: clampNumber(Number(args.limit ?? 50), 1, 100),
         offset: clampNumber(Number(args.offset ?? 0), 0, 100_000),
-        includeContent: args.includeContent === true,
+        includeContent,
         includeDeleted: args.includeDeleted === true,
         poster: typeof args.poster === "boolean" ? args.poster : null,
       });
+      return includeContent && !includeAllFormats
+        ? { ...page, memos: page.memos.map(projectMcpMemo) }
+        : page;
     }
     case "get_memo": {
       assertScope(auth, "read:memos");
+      const includeAllFormats = includeAllMemoFormats(args.format);
       const memoId = getRequiredString(args.memoId, "memoId");
       const memo = await getMemoDetail(c.env.storage.db, auth.workspaceId, memoId, args.includeDeleted === true);
 
@@ -327,7 +325,7 @@ export const callMcpTool = async (
           infographic: { template: infographicSyntaxTemplate(infographic.syntax) },
         };
       }
-      return { memo };
+      return { memo: includeAllFormats ? memo : projectMcpMemo(memo) };
     }
     case "get_table_records": {
       assertScope(auth, "read:memos");

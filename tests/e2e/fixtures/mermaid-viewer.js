@@ -4,6 +4,7 @@ import { MermaidViewer } from "/src/components/MermaidViewer.tsx";
 import { renderThemedMermaidSvg } from "/src/lib/mermaid-renderer.ts";
 import { normalizeMermaidSvgForViewer } from "/src/lib/mermaid-svg.ts";
 import { MERMAID_THEME_PALETTES } from "/src/components/ThemeProvider.tsx";
+import "/src/styles/note-prose-styles.css";
 import demoSeed from "../../../apps/api/src/demo-seed-data.ts?raw";
 
 const readDemoSource = (heading) => {
@@ -40,6 +41,37 @@ const esbSource = `flowchart LR
   B -->|协议转换| C[微服务 A]
   B -->|协议转换| D[微服务 B]
   B -->|协议转换| E[微服务 C]`;
+
+const containerSources = [
+  `---
+config:
+  layout: dagre
+---
+flowchart TD
+    subgraph Merged[merged 展现层 - 容器内视角]
+        M[最终合并的文件视图]
+    end
+    subgraph Top[upperdir 容器层 - 读写]
+        U[新增文件 / 修改记录]
+    end
+    subgraph Bottom[lowerdir 镜像层 - 只读]
+        L1[应用层 /app]
+        L2[基础依赖层 /lib]
+        L3[OS 基础层 /bin]
+    end
+    L1 --> L2 --> L3
+    L1 -.-> M
+    U -.-> M`,
+  `flowchart TD
+    subgraph ContainerFS[容器文件系统]
+        direction LR
+        L[lowerdir<br>只读镜像层]
+        U[upperdir<br>可写容器层]
+    end
+    L -->|合并| C[容器当前状态]
+    U -->|合并| C
+    C -->|docker commit| NewImage[新生成的镜像]`,
+];
 
 const assert = (condition, message) => { if (!condition) throw new Error(message); };
 const parser = new DOMParser();
@@ -133,9 +165,60 @@ try {
       document.body.style.zoom = previousZoom;
     }
   }
+  for (const source of containerSources) {
+    const editor = document.createElement("div");
+    editor.className = "edgeever-editor";
+    editor.innerHTML = '<div class="ProseMirror"><p>正文排版</p></div>';
+    const prose = editor.firstElementChild;
+    prose.insertAdjacentHTML("beforeend", await renderThemedMermaidSvg(source, {
+      palette: MERMAID_THEME_PALETTES["zinc-light"], font: "sans-serif", padding: 24,
+    }));
+    document.querySelector("#cases").append(editor);
+    try {
+      const labels = [...prose.querySelectorAll("foreignObject")].filter((box) => box.textContent.trim());
+      assert(labels.length > 0, "Missing HTML labels in #786 diagram");
+      if (source === containerSources[1]) {
+        const lowerNode = prose.querySelector('.node[id*="flowchart-L-"] rect');
+        const upperNode = prose.querySelector('.node[id*="flowchart-U-"] rect');
+        assert(lowerNode && upperNode, "Missing lowerdir or upperdir node in #786 container diagram");
+        const lower = lowerNode.getBoundingClientRect();
+        const upper = upperNode.getBoundingClientRect();
+        assert(lower.right < upper.left && Math.abs(lower.top - upper.top) < 1,
+          "#786 subgraph nodes should be side by side");
+
+        const edges = prose.querySelectorAll("path[data-edge][marker-end]");
+        assert(edges.length === 3 && prose.querySelector('path[data-id^="L_C_NewImage_"][marker-end]'),
+          "Missing or misdirected edge in #786 container diagram");
+        for (const [id, node] of [["L", lower], ["U", upper]]) {
+          const edge = prose.querySelector(`path[data-id^="L_${id}_C_"][marker-end]`);
+          assert(edge, `Missing merge edge for ${id}`);
+          const start = edge.getPointAtLength(0).matrixTransform(edge.getScreenCTM());
+          assert(start.x >= node.left && start.x <= node.right && Math.abs(start.y - node.bottom) < 2,
+            `Merge edge for ${id} should start at its node, inside the subgraph`);
+        }
+      }
+      for (const spacing of ["0.5px", "1px"]) {
+        editor.style.setProperty("--editor-body-letter-spacing", spacing);
+        assert(getComputedStyle(prose.querySelector("p")).letterSpacing === spacing,
+          "Note prose lost its letter spacing");
+        for (const box of labels) {
+          assert(getComputedStyle(box.firstElementChild).letterSpacing === "normal",
+            `Label "${box.textContent}" inherited note letter spacing ${spacing}`);
+          const range = document.createRange();
+          range.selectNodeContents(box.firstElementChild);
+          const text = range.getBoundingClientRect();
+          const bounds = box.getBoundingClientRect();
+          assert(text.width > 0 && text.right <= bounds.right + 0.5,
+            `Clipped label "${box.textContent}" at letter spacing ${spacing}`);
+        }
+      }
+    } finally {
+      editor.remove();
+    }
+  }
   const invalid = "<p>Not an SVG</p>";
   assert(normalizeMermaidSvgForViewer(invalid) === invalid, "Non-SVG input changed");
-  document.querySelector("#result").textContent = `${cases.length} cases passed: XML, namespaces, labels, dimensions, Blob image loading and scaled label bounds`;
+  document.querySelector("#result").textContent = `${cases.length} viewer cases passed, plus zoom and #786 label and edge checks`;
   document.querySelector("#result").dataset.state = "passed";
 } catch (error) {
   document.querySelector("#result").textContent = String(error);

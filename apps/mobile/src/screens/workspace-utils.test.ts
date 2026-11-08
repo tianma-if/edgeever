@@ -70,7 +70,7 @@ describe("mobile workspace utilities", () => {
     expect(isEnglishMobileLocale("en-US")).toBe(true);
   });
 
-  test("resolves Japanese and Polish system languages to themselves and unmatched languages to English", () => {
+  test("resolves supported system languages and falls back to English for unmatched languages", () => {
     const original = Intl.DateTimeFormat.prototype.resolvedOptions;
     const withLocale = (locale: string) => {
       Intl.DateTimeFormat.prototype.resolvedOptions = function resolvedOptions() {
@@ -90,6 +90,8 @@ describe("mobile workspace utilities", () => {
       expect(getResolvedMobileLocale("system")).toBe("ru");
       expect(isEnglishMobileLocale("system")).toBe(true);
       withLocale("fr-FR");
+      expect(getResolvedMobileLocale("system")).toBe("fr");
+      withLocale("it-IT");
       expect(getResolvedMobileLocale("system")).toBe("en-US");
       expect(isEnglishMobileLocale("system")).toBe(true);
     } finally {

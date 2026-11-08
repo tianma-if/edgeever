@@ -157,6 +157,9 @@ export const validateMcpHttpRequest = (payload: unknown, headers: Headers): McpH
   return { era: "modern", protocolVersion: MODERN_MCP_PROTOCOL_VERSION };
 };
 
+const hasBearerCredential = (context: AppContext) =>
+  /^Bearer\s+\S/i.test(context.req.header("Authorization") ?? "");
+
 export const handleMcpMessage = async (
   context: AppContext,
   payload: unknown,
@@ -179,7 +182,13 @@ export const handleMcpMessage = async (
   const auth = await dependencies.authenticateRequest(context, true);
   if (!auth) {
     return {
-      body: jsonRpcError(request.id ?? null, -32001, "Authentication required"),
+      body: jsonRpcError(
+        request.id ?? null,
+        -32001,
+        hasBearerCredential(context)
+          ? "Invalid or revoked API token. Create a new token in EdgeEver settings."
+          : "Authentication required. Send an EdgeEver API token as \"Authorization: Bearer <token>\".",
+      ),
       status: 401,
     };
   }
@@ -331,7 +340,11 @@ export const registerMcpRoutes = (
     const result = await handleMcpMessage(context, payload, dependencies, validation.era);
     if (!result) return new Response(null, { status: 202 });
     if (result.status === 401) {
-      context.header("WWW-Authenticate", 'Bearer realm="EdgeEver MCP"');
+      // RFC 6750: tell clients whether to ask for a token or replace a rejected one.
+      context.header(
+        "WWW-Authenticate",
+        hasBearerCredential(context) ? 'Bearer realm="EdgeEver MCP", error="invalid_token"' : 'Bearer realm="EdgeEver MCP"',
+      );
     }
     return context.json(result.body, result.status as 200);
   });

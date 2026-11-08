@@ -1,4 +1,4 @@
-use rusqlite::{backup::Backup, Connection, DatabaseName};
+use rusqlite::{backup::Backup, Connection};
 use serde_json::{json, Value};
 use std::env;
 use std::fs;
@@ -293,8 +293,7 @@ pub(crate) fn restore_database(
     // five retained files, the protective backup may remove its directory
     // entry while this read-only connection keeps the snapshot available.
     let protective_backup = backup_database(&*database, root).map_err(|error| error.to_string())?;
-    let backup = Backup::new_with_names(&source, DatabaseName::Main, database, DatabaseName::Main)
-        .map_err(|error| error.to_string())?;
+    let backup = Backup::new(&source, database).map_err(|error| error.to_string())?;
     backup
         .run_to_completion(100, Duration::from_millis(5), None)
         .map_err(|error| error.to_string())?;

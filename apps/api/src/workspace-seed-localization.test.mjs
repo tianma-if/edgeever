@@ -255,7 +255,7 @@ describe("fresh installation", () => {
     const { sqlite, db } = freshInstallation();
     addUser(sqlite, "usr_owner", "admin");
 
-    await ensureUserWorkspace(db, "usr_owner", "admin", "fr-FR,fr;q=0.9");
+    await ensureUserWorkspace(db, "usr_owner", "admin", "it-IT,it;q=0.9");
 
     expect(notebookNames(sqlite).inbox).toBe("Inbox");
     expect(welcome(sqlite).title).toBe("Welcome to EdgeEver");

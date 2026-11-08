@@ -506,6 +506,9 @@ describe("AI route contracts", () => {
     expect(provider.models.map((model) => model.modelId)).toEqual(["openai/gpt-4.1"]);
     expect(created.defaultModelId).toBe(provider.models[0].id);
 
+    // Models are listed by created_at, then by random id. Two models created in
+    // the same millisecond would come back in random order.
+    await new Promise((resolve) => setTimeout(resolve, 5));
     const addResponse = await app.request(
       `/api/v1/ai/providers/${provider.id}/models`,
       {
