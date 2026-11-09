@@ -100,7 +100,8 @@ export const AiProviderCard = ({ provider: saved, defaultDisplayName, defaultMod
     refetchInterval: (query) => nextModelDiscoveryRefresh(query.state.dataUpdatedAt, query.state.errorUpdatedAt),
   });
   const discoveredModels = discoveryQuery.data?.models ?? [];
-  const discoveredModelOptions = useMemo(() => discoveredModels.map((model) => ({ value: model.modelId, label: model.displayName })), [discoveredModels]);
+  const discoveredModelOptions = useMemo(() => (discoveryQuery.data?.models ?? []).map((model) => ({ value: model.modelId, label: model.displayName })),
+    [discoveryQuery.data?.models]);
   const discoveryLoading = discoveryQuery.isFetching && (!discoveryQuery.data || manualDiscovery);
   const discoveryError = (discoveryQuery.error && !discoveryQuery.data) || manualDiscoveryFailed;
   useEffect(() => {

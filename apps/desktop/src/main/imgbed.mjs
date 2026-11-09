@@ -154,10 +154,11 @@ export const listImgBedChannels = async (input, { fetchImpl = fetch, timeoutMs =
   const channels = {};
   const skipped = {};
   for (const channel of IMGBED_UPLOAD_CHANNELS) {
-    const names = Array.isArray(data?.[channel]) ? data[channel].map((item) => item?.name) : [];
-    const usable = names.filter((name) => typeof name === "string" && name !== "" && name === name.trim() && isImgBedChannelNameValid(name));
+    const names = (Array.isArray(data?.[channel]) ? data[channel] : []).map((item) => item?.name)
+      .filter((name) => typeof name === "string" && name !== "");
+    const usable = names.filter((name) => name === name.trim() && isImgBedChannelNameValid(name));
     channels[channel] = [...new Set(usable)];
-    skipped[channel] = names.filter((name) => typeof name === "string" && name !== "").length - usable.length;
+    skipped[channel] = names.length - usable.length;
   }
   return { channels, skipped };
 };

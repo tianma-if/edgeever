@@ -14,16 +14,21 @@ export type ComboboxOption = {
 // or pick one. A typed value missing from the list is offered as the last item.
 // The list is positioned inside the field's own scroll container, so scrolling
 // moves it with the field instead of leaving it behind.
-export function ComboboxInput({ value, onValueChange, options, placeholder, id, disabled, invalid, maxLength, className }: {
+export function ComboboxInput({ value, onValueChange, options, placeholder, labelledBy, disabled, invalid, maxLength, className, onOpenChange }: {
   value: string;
   onValueChange: (value: string) => void;
   options: ComboboxOption[];
   placeholder: string;
-  id?: string;
+  // The id of a visible label for the field. cmdk otherwise names it by its own
+  // hidden label, which reads the placeholder. There is deliberately no `id` prop:
+  // cmdk refocuses the input by its generated id whenever the highlight changes,
+  // so overriding it moves focus to the list and drops the next keystrokes.
+  labelledBy?: string;
   disabled?: boolean;
   invalid?: boolean;
   maxLength?: number;
   className?: string;
+  onOpenChange?: (open: boolean) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const commandRef = useRef<HTMLDivElement>(null);
@@ -31,9 +36,16 @@ export function ComboboxInput({ value, onValueChange, options, placeholder, id, 
   // Opening shows every option, even when the field already holds a value;
   // filtering starts once the user types.
   const [filtering, setFiltering] = useState(false);
+  // The highlighted item is set explicitly when the list opens: the current value,
+  // or the first option when the field is empty. cmdk would otherwise pick the
+  // first item, and Enter would silently replace the value.
+  const [active, setActive] = useState("");
   const openList = () => {
     if (disabled) return;
-    if (!open) setFiltering(false);
+    if (!open) {
+      setFiltering(false);
+      setActive(value.trim() || options[0]?.value || "");
+    }
     setOpen(true);
   };
   useEffect(() => {
@@ -51,6 +63,7 @@ export function ComboboxInput({ value, onValueChange, options, placeholder, id, 
   const showCustom = Boolean(customValue) && !options.some((option) => option.value === customValue);
   // An empty list would still draw its border, so keep it closed instead.
   const listOpen = open && !disabled && (options.length > 0 || showCustom);
+  useEffect(() => { onOpenChange?.(listOpen); }, [listOpen, onOpenChange]);
   const select = (nextValue: string) => {
     onValueChange(nextValue);
     setOpen(false);
@@ -61,6 +74,8 @@ export function ComboboxInput({ value, onValueChange, options, placeholder, id, 
       ref={commandRef}
       label={placeholder}
       shouldFilter={filtering}
+      value={active}
+      onValueChange={setActive}
       data-state={listOpen ? "open" : "closed"}
       className={cn("relative overflow-visible", className)}
       onBlur={(event) => {
@@ -95,7 +110,7 @@ export function ComboboxInput({ value, onValueChange, options, placeholder, id, 
           disabled={disabled}
           className="pr-9"
         >
-          <input id={id} aria-expanded={listOpen} aria-invalid={invalid || undefined} maxLength={maxLength} />
+          <input aria-labelledby={labelledBy} aria-expanded={listOpen} aria-invalid={invalid || undefined} maxLength={maxLength} />
         </CommandInput>
         <Button
           type="button"

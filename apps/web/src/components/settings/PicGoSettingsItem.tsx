@@ -22,7 +22,8 @@ const channelListSource = (imgbed: ImgBedPreference) => `${imgBedSiteKey(imgbed.
 // Both buttons share this mapping, so the same failure reads the same way.
 const imgBedFailureKey = (error: unknown, unsupportedKey: string, fallbackKey: string) => {
   const message = String(error);
-  if (message.includes("IMGBED_TOKEN_REJECTED:")) return "settings.picgo.imgbed.tokenRejected";
+  // Desktop hosts from #823 send the token rejection without a marker.
+  if (message.includes("IMGBED_TOKEN_REJECTED:") || message.includes("ImgBed rejected the API token")) return "settings.picgo.imgbed.tokenRejected";
   // Desktop hosts from before IMGBED_CHANNELS_UNSUPPORTED report an old ImgBed with
   // only IMGBED_CHANNEL_NAME and this fixed text, which a newer page may receive.
   if (message.includes("IMGBED_CHANNELS_UNSUPPORTED:") || message.includes("IMGBED_CHANNEL_NAME: this ImgBed version does not support channel names")) {
@@ -55,10 +56,14 @@ export const PicGoSettingsItem = () => {
   const loadedChannels = channelList?.source === source ? channelList.channels[draft.imgbed.uploadChannel] : null;
   const channelOptions = useMemo(() => (loadedChannels ?? []).map((name) => ({ value: name })), [loadedChannels]);
   const skippedChannels = loadedChannels ? channelList!.skipped[draft.imgbed.uploadChannel] : 0;
-  const savedNameMissing = Boolean(loadedChannels && draft.imgbed.channelName.trim() && !loadedChannels.includes(draft.imgbed.channelName.trim()));
+  // Judged only while the list is closed, so typing toward a listed name does not flash a warning.
+  const [channelListOpen, setChannelListOpen] = useState(false);
+  const savedNameMissing = Boolean(loadedChannels && !channelListOpen && draft.imgbed.channelName.trim()
+    && !loadedChannels.includes(draft.imgbed.channelName.trim()));
   const canLoadChannels = hasImgBedChannelsBridge() && Boolean(draft.imgbed.endpoint.trim() && draft.imgbed.token.trim()) && !busy && !loadingChannels;
-  // While the list loads, testing, saving and the address and token are locked, so
-  // the source of a pending request cannot change and needs no staleness check.
+  // While the list loads, testing, saving and every setting except the channel name are
+  // locked, so the source of a pending request cannot change and needs no staleness
+  // check. The channel name stays editable so a focused field keeps its focus.
   const locked = busy || loadingChannels;
   const canTest = desktopAvailable && (draft.provider !== "imgbed" || imgBedReady);
   const canSave = dirty && (draft.provider === "edgeever" || (desktopAvailable && testedTarget === picGoTargetId(draft)));
@@ -122,7 +127,7 @@ export const PicGoSettingsItem = () => {
           <Image className="h-4 w-4 shrink-0 text-slate-500" />
           <div className={SETTINGS_ITEM_TITLE_CLASSNAME}>{t("settings.picgo.title")}</div>
         </div>
-        <Select value={draft.provider} disabled={busy} onValueChange={(provider) => {
+        <Select value={draft.provider} disabled={locked} onValueChange={(provider) => {
           setDraft({ ...draft, provider: provider as PicGoPreference["provider"] });
           setStatus("");
         }}>
@@ -139,14 +144,14 @@ export const PicGoSettingsItem = () => {
           {!desktopAvailable ? <p className={SETTINGS_ITEM_DESCRIPTION_CLASSNAME}>{t("settings.picgo.webPreview")}</p> : null}
           <p className={SETTINGS_ITEM_DESCRIPTION_CLASSNAME}>{t("settings.picgo.description")}</p>
           <label htmlFor="picgo-endpoint" className={SETTINGS_ITEM_TITLE_CLASSNAME}>{t("settings.picgo.endpoint")}</label>
-          <Input id="picgo-endpoint" value={draft.endpoint} disabled={busy} onChange={(event) => {
+          <Input id="picgo-endpoint" value={draft.endpoint} disabled={locked} onChange={(event) => {
             const next = takePicGoServerKey(event.target.value);
             setDraft({ ...draft, endpoint: next.endpoint, serverKey: next.serverKey ?? draft.serverKey });
             setTestedTarget(null);
             setStatus("");
           }} spellCheck={false} inputMode="url" autoComplete="off" />
           <label htmlFor="picgo-server-key" className={SETTINGS_ITEM_TITLE_CLASSNAME}>{t("settings.picgo.serverKey")}</label>
-          <Input id="picgo-server-key" name="picgo-server-key" type="password" value={draft.serverKey} disabled={busy} onChange={(event) => {
+          <Input id="picgo-server-key" name="picgo-server-key" type="password" value={draft.serverKey} disabled={locked} onChange={(event) => {
             setDraft({ ...draft, serverKey: event.target.value.trim() });
             setTestedTarget(null);
             setStatus("");
@@ -168,7 +173,7 @@ export const PicGoSettingsItem = () => {
             onChange={(event) => updateImgBed({ token: event.target.value.trim() })} spellCheck={false} autoComplete="new-password" maxLength={1024} />
           <p className={SETTINGS_ITEM_DESCRIPTION_CLASSNAME}>{t("settings.picgo.imgbed.tokenDescription")}</p>
           <label htmlFor="imgbed-folder" className={SETTINGS_ITEM_TITLE_CLASSNAME}>{t("settings.picgo.imgbed.folder")}</label>
-          <Input id="imgbed-folder" value={draft.imgbed.uploadFolder} disabled={busy} placeholder="notes/{Y}/{m}" aria-invalid={folderError ? true : undefined}
+          <Input id="imgbed-folder" value={draft.imgbed.uploadFolder} disabled={locked} placeholder="notes/{Y}/{m}" aria-invalid={folderError ? true : undefined}
             onChange={(event) => updateImgBed({ uploadFolder: event.target.value })} spellCheck={false} autoComplete="off" maxLength={200} />
           <p className={SETTINGS_ITEM_DESCRIPTION_CLASSNAME}>{t("settings.picgo.imgbed.folderDescription")}</p>
           <dl className="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-1 text-xs text-slate-500">
@@ -185,7 +190,7 @@ export const PicGoSettingsItem = () => {
               : t("settings.picgo.imgbed.folderPreview", { folder: expandImgBedFolder(draft.imgbed.uploadFolder, new Date(), { memoId: IMGBED_SAMPLE_MEMO_ID }) || "/" })}
           </p>
           <label htmlFor="imgbed-name-type" className={SETTINGS_ITEM_TITLE_CLASSNAME}>{t("settings.picgo.imgbed.nameType")}</label>
-          <Select value={draft.imgbed.nameType} disabled={busy} onValueChange={(nameType) => updateImgBed({ nameType: nameType as ImgBedNameType })}>
+          <Select value={draft.imgbed.nameType} disabled={locked} onValueChange={(nameType) => updateImgBed({ nameType: nameType as ImgBedNameType })}>
             <SelectTrigger id="imgbed-name-type" className="h-9 w-full sm:w-80"><SelectValue /></SelectTrigger>
             <SelectContent>
               {IMGBED_NAME_TYPES.map((nameType) => (
@@ -194,7 +199,7 @@ export const PicGoSettingsItem = () => {
             </SelectContent>
           </Select>
           <label htmlFor="imgbed-channel" className={SETTINGS_ITEM_TITLE_CLASSNAME}>{t("settings.picgo.imgbed.channel")}</label>
-          <Select value={draft.imgbed.uploadChannel} disabled={busy} onValueChange={(uploadChannel) => updateImgBed({ uploadChannel: uploadChannel as ImgBedUploadChannel })}>
+          <Select value={draft.imgbed.uploadChannel} disabled={locked} onValueChange={(uploadChannel) => updateImgBed({ uploadChannel: uploadChannel as ImgBedUploadChannel })}>
             <SelectTrigger id="imgbed-channel" className="h-9 w-full sm:w-80"><SelectValue /></SelectTrigger>
             <SelectContent>
               {IMGBED_UPLOAD_CHANNELS.map((channel) => (
@@ -202,12 +207,13 @@ export const PicGoSettingsItem = () => {
               ))}
             </SelectContent>
           </Select>
-          <label htmlFor="imgbed-channel-name" className={SETTINGS_ITEM_TITLE_CLASSNAME}>{t("settings.picgo.imgbed.channelName")}</label>
+          {/* Names the combobox through aria-labelledby; it cannot take an id for htmlFor. */}
+          <span id="imgbed-channel-name-label" className={SETTINGS_ITEM_TITLE_CLASSNAME}>{t("settings.picgo.imgbed.channelName")}</span>
           <div className="flex items-stretch gap-2">
             {/* Type any name, or pick from the list once "Load channels" has read it from ImgBed. */}
-            <ComboboxInput id="imgbed-channel-name" className="min-w-0 flex-1" value={draft.imgbed.channelName} options={channelOptions}
-              onValueChange={(channelName) => updateImgBed({ channelName })} placeholder={t("settings.picgo.imgbed.channelNamePlaceholder")}
-              disabled={locked} invalid={!channelNameValid} maxLength={IMGBED_MAX_CHANNEL_NAME_LENGTH} />
+            <ComboboxInput labelledBy="imgbed-channel-name-label" className="min-w-0 flex-1" value={draft.imgbed.channelName}
+              options={channelOptions} onValueChange={(channelName) => updateImgBed({ channelName })} onOpenChange={setChannelListOpen}
+              placeholder={t("settings.picgo.imgbed.channelNamePlaceholder")} disabled={busy} invalid={!channelNameValid} maxLength={IMGBED_MAX_CHANNEL_NAME_LENGTH} />
             {hasImgBedChannelsBridge() ? (
               <Button variant="outline" size="sm" className="h-auto shrink-0" disabled={!canLoadChannels} onClick={() => void loadChannels()}>
                 {t(loadingChannels ? "settings.picgo.imgbed.channelListLoading" : "settings.picgo.imgbed.channelListLoad")}
@@ -229,13 +235,13 @@ export const PicGoSettingsItem = () => {
           </p>
           <div className="flex items-center justify-between gap-3">
             <label htmlFor="imgbed-compress" className={SETTINGS_ITEM_TITLE_CLASSNAME}>{t("settings.picgo.imgbed.serverCompress")}</label>
-            <Switch id="imgbed-compress" checked={draft.imgbed.serverCompress} disabled={busy}
+            <Switch id="imgbed-compress" checked={draft.imgbed.serverCompress} disabled={locked}
               onCheckedChange={(serverCompress) => updateImgBed({ serverCompress })} />
           </div>
           <p className={SETTINGS_ITEM_DESCRIPTION_CLASSNAME}>{t("settings.picgo.imgbed.serverCompressDescription")}</p>
           <div className="flex items-center justify-between gap-3">
             <label htmlFor="imgbed-auto-retry" className={SETTINGS_ITEM_TITLE_CLASSNAME}>{t("settings.picgo.imgbed.autoRetry")}</label>
-            <Switch id="imgbed-auto-retry" checked={imgBedAutoRetry(draft.imgbed.autoRetry, draft.imgbed.channelName)} disabled={busy}
+            <Switch id="imgbed-auto-retry" checked={imgBedAutoRetry(draft.imgbed.autoRetry, draft.imgbed.channelName)} disabled={locked}
               onCheckedChange={(autoRetry) => updateImgBed({ autoRetry })} />
           </div>
           <p className={SETTINGS_ITEM_DESCRIPTION_CLASSNAME}>{t("settings.picgo.imgbed.autoRetryDescription")}</p>
