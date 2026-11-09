@@ -65,6 +65,14 @@ export function ComboboxInput({ value, onValueChange, options, placeholder, labe
   // An empty list would still draw its border, so keep it closed instead.
   const listOpen = open && !disabled && (options.length > 0 || showCustom);
   useEffect(() => { onOpenChange?.(listOpen); }, [listOpen, onOpenChange]);
+  // A highlighted value further down a long list is scrolled into view when the list opens.
+  useEffect(() => {
+    if (!listOpen) return;
+    const frame = requestAnimationFrame(() => {
+      commandRef.current?.querySelector('[cmdk-item][aria-selected="true"]')?.scrollIntoView({ block: "nearest" });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [listOpen]);
   const select = (nextValue: string) => {
     onValueChange(nextValue);
     setOpen(false);
@@ -90,6 +98,12 @@ export function ComboboxInput({ value, onValueChange, options, placeholder, labe
         } else if (event.key === "Enter") {
           if (!listOpen) event.stopPropagation();
         } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+          // The first arrow only opens the list on the current value; letting cmdk
+          // handle it too would move the highlight from a stale item.
+          if (!open) {
+            event.preventDefault();
+            event.stopPropagation();
+          }
           openList();
         }
       }}

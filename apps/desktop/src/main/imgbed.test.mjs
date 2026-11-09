@@ -177,6 +177,17 @@ test("lists channel names per upload channel with the API token", async () => {
   expect(requests).toEqual(["GET /api/channels Bearer imgbed-token"]);
 });
 
+test("an unexpected channel list shape is a failure, not an empty list", async () => {
+  for (const body of [[], { error: "proxy says no" }, { telegram: "x" }]) {
+    const failure = await listImgBedChannels({ endpoint: serve(() => Response.json(body)), token: "imgbed-token" }).catch(String);
+    expect(failure).toContain("unexpected channel list");
+    expect(failure).not.toMatch(/IMGBED_CHANNEL(S_UNSUPPORTED|_NAME):/);
+  }
+  // A site with no channels of any type still lists empty arrays.
+  const empty = await listImgBedChannels({ endpoint: serve(() => Response.json({ telegram: [], cfr2: [] })), token: "imgbed-token" });
+  expect(empty.channels.telegram).toEqual([]);
+});
+
 test("listing channels explains old ImgBed versions, rejected tokens and unsafe input", async () => {
   const list = (endpoint) => listImgBedChannels({ endpoint, token: "imgbed-token" }).catch(String);
   expect(await list(serve(() => new Response("missing", { status: 404 })))).toContain("IMGBED_CHANNELS_UNSUPPORTED:");

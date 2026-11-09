@@ -149,6 +149,10 @@ export const listImgBedChannels = async (input, { fetchImpl = fetch, timeoutMs =
     }
     throw error;
   }
+  // JSON of another shape (an error object, a proxy page) is a failure, not "no channels".
+  if (!data || typeof data !== "object" || Array.isArray(data) || !IMGBED_UPLOAD_CHANNELS.some((channel) => Array.isArray(data[channel]))) {
+    throw new Error("ImgBed returned an unexpected channel list");
+  }
   // Keep only names EdgeEver can send back unchanged, once each, in ImgBed's order,
   // and count the rest so the settings page can say why a channel is missing.
   const channels = {};
