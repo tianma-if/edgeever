@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { Modal, StyleSheet, View } from "react-native";
+import { Modal, ScrollView, StyleSheet, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AlertTriangle, GitHub, GooglePlay, ShieldCheck, X } from "./icons";
 import { Pressable, Text } from "./LocalizedText";
@@ -10,6 +10,7 @@ import { resolveMobileThemeStyles, useMobileTheme } from "../lib/mobile-theme";
 export const AppDialogProvider = ({ children }: { children: ReactNode }) => {
   const { resolvedTheme } = useMobileTheme();
   const insets = useSafeAreaInsets();
+  const { height } = useWindowDimensions();
   const styles = useMemo(() => resolveMobileThemeStyles(baseStyles, resolvedTheme), [resolvedTheme]);
   const [request, setRequest] = useState<AppDialogRequest | null>(null);
 
@@ -81,7 +82,11 @@ export const AppDialogProvider = ({ children }: { children: ReactNode }) => {
               </View>
               <View style={styles.copy}>
                 <Text accessibilityRole="header" style={styles.title}>{request?.title ?? ""}</Text>
-                {request?.message ? <Text style={styles.description}>{request.message}</Text> : null}
+                {request?.message && (request.scrollMessage ? (
+                  <ScrollView key={request.title} style={{ maxHeight: height * 0.35 }}>
+                    <Text style={styles.description}>{request.message}</Text>
+                  </ScrollView>
+                ) : <Text style={styles.description}>{request.message}</Text>)}
               </View>
             </View>
             <View style={styles.footer}>

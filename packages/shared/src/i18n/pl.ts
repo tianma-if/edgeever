@@ -4030,6 +4030,7 @@ export const pl = {
       unsupported: "Aktualizacje niedostępne",
       unsupportedHint: "Sprawdzanie aktualizacji działa w zainstalowanych wersjach wydania, nie w Expo Go ani wersjach deweloperskich.",
       updateWithGooglePlay: "Zaktualizuj przez Google Play",
+      whatsNewInVersion: "Co nowego w EdgeEver {{version}}",
     },
     workspace: {
       diagramReadOnly: "Diagram tylko do odczytu",

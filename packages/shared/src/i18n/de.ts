@@ -4226,7 +4226,8 @@ export const de = {
       "title": "App-Updates",
       "unsupported": "Updates nicht verfügbar",
       "unsupportedHint": "Update-Prüfungen sind in installierten Release-Builds verfügbar, nicht in Expo Go oder Entwicklungs-Builds.",
-      "updateWithGooglePlay": "Mit Google Play aktualisieren"
+      "updateWithGooglePlay": "Mit Google Play aktualisieren",
+      "whatsNewInVersion": "Neu in EdgeEver {{version}}",
     },
     "workspace": {
       "diagramReadOnly": "Schreibgeschütztes Diagramm",

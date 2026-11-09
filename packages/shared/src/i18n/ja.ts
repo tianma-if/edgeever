@@ -4030,6 +4030,7 @@ export const ja = {
       unsupported: "アップデートを確認できません",
       unsupportedHint: "アップデートの確認はインストール済みのリリース版でのみ利用でき、Expo Go や開発版では利用できません。",
       updateWithGooglePlay: "Google Play でアップデート",
+      whatsNewInVersion: "EdgeEver {{version}} の新機能",
     },
     workspace: {
       diagramReadOnly: "閲覧専用の図",

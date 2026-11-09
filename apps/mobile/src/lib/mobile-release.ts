@@ -1,6 +1,8 @@
 import { clean, gt, valid } from "semver";
 
-const LATEST_RELEASE_API_URL = "https://api.github.com/repos/tianma-if/edgeever/releases/latest";
+const RELEASES_API_URL = "https://api.github.com/repos/tianma-if/edgeever/releases";
+const MOBILE_CONFIG_URL = "https://raw.githubusercontent.com/tianma-if/edgeever";
+const PLAY_NOTES_TIMEOUT_MS = 2_500;
 
 export const GITHUB_LATEST_RELEASE_URL = "https://github.com/tianma-if/edgeever/releases/latest";
 export const ANDROID_APPLICATION_ID = "org.edgeever.mobile";
@@ -35,8 +37,9 @@ export const ANDROID_INSTALL_UPDATE_SOURCES: readonly MobileInstallUpdateSource[
   },
 ];
 
-type LatestReleaseResponse = {
+type GitHubRelease = {
   assets?: unknown;
+  body?: unknown;
   tag_name?: unknown;
 };
 
@@ -97,6 +100,70 @@ const findAndroidReleaseAsset = (assets: unknown): MobileRelease | null => {
 
 export const findAndroidReleaseVersion = (assets: unknown) => findAndroidReleaseAsset(assets)?.version ?? null;
 
+const fetchGitHubRelease = async (path: string, fetchRelease: typeof fetch, signal?: AbortSignal) => {
+  const response = await fetchRelease(`${RELEASES_API_URL}/${path}`, {
+    headers: {
+      Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+    },
+    signal,
+  });
+  if (!response.ok) {
+    throw new Error(`GitHub release check failed with status ${response.status}`);
+  }
+  return await response.json() as GitHubRelease;
+};
+
+const selectReleaseNotes = (body: unknown, locale: string) => {
+  if (typeof body !== "string") return null;
+  const sections = new Map<string, string>();
+  for (const section of body.split(/^##\s+/m).slice(1)) {
+    const [heading, ...lines] = section.split(/\r?\n/);
+    const notes = lines
+      .filter((line) => !/^(?:关联 Issue|Related Issue|贡献者 \/ Contributors)[:：]/i.test(line.trim()))
+      .join("\n")
+      .replace(/^\s*[-*] /gm, "• ")
+      .trim();
+    if (notes) sections.set(heading.trim(), notes);
+  }
+  return (locale.startsWith("zh") ? sections.get("主要更新") : null)
+    || sections.get("Key Changes")
+    || sections.get("主要更新")
+    || null;
+};
+
+/** Display notes only when the APK's original release matches Play's offered version code. */
+export const findPlayReleaseNotes = async (
+  versionCode: number,
+  locale: string,
+  fetchRelease: typeof fetch = fetch,
+): Promise<{ version: string; notes: string } | null> => {
+  if (!Number.isSafeInteger(versionCode) || versionCode <= 0) return null;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), PLAY_NOTES_TIMEOUT_MS);
+  try {
+    const { signal } = controller;
+    const latest = await fetchGitHubRelease("latest", fetchRelease, signal);
+    const version = findAndroidReleaseVersion(latest.assets);
+    if (!version) return null;
+    const tag = `v${version}`;
+    const response = await fetchRelease(`${MOBILE_CONFIG_URL}/${tag}/apps/mobile/app.json`, { signal });
+    if (!response.ok) return null;
+    const config = await response.json();
+    if (config?.expo?.version !== version || config.expo.android?.versionCode !== versionCode) return null;
+
+    // Desktop-only releases can reuse the Android APK and have unrelated notes.
+    const release = latest.tag_name === tag ? latest : await fetchGitHubRelease(`tags/${tag}`, fetchRelease, signal);
+    if (release.tag_name !== tag) return null;
+    const notes = selectReleaseNotes(release.body, locale);
+    return notes ? { version, notes } : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
 export const findNewerMobileRelease = async (
   currentVersion: string,
   fetchRelease: typeof fetch = fetch
@@ -106,17 +173,7 @@ export const findNewerMobileRelease = async (
     throw new Error(`Invalid installed app version: ${currentVersion}`);
   }
 
-  const response = await fetchRelease(LATEST_RELEASE_API_URL, {
-    headers: {
-      Accept: "application/vnd.github+json",
-      "X-GitHub-Api-Version": "2022-11-28",
-    },
-  });
-  if (!response.ok) {
-    throw new Error(`GitHub release check failed with status ${response.status}`);
-  }
-
-  const release = await response.json() as LatestReleaseResponse;
+  const release = await fetchGitHubRelease("latest", fetchRelease);
   if (typeof release.tag_name !== "string") {
     throw new Error("GitHub release response does not contain a version tag");
   }

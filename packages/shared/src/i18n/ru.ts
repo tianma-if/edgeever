@@ -4041,6 +4041,7 @@ export const ru = {
       unsupported: "Обновления недоступны",
       unsupportedHint: "Проверка обновлений доступна в установленных релизных сборках, а не в Expo Go или сборках для разработки.",
       updateWithGooglePlay: "Обновить через Google Play",
+      whatsNewInVersion: "Что нового в EdgeEver {{version}}",
     },
     workspace: {
       diagramReadOnly: "Диаграмма только для просмотра",

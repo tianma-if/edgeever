@@ -4023,6 +4023,7 @@ export const enUS = {
       unsupported: "Updates unavailable",
       unsupportedHint: "Update checks are available in installed release builds, not Expo Go or development builds.",
       updateWithGooglePlay: "Update with Google Play",
+      whatsNewInVersion: "What’s new in EdgeEver {{version}}",
     },
     workspace: {
       diagramReadOnly: "View-only diagram",

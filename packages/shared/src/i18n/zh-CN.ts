@@ -4040,6 +4040,7 @@ export const zhCN = {
       unsupported: "暂无法检查更新",
       unsupportedHint: "检查更新仅适用于已安装的正式版，Expo Go 和开发版暂不支持。",
       updateWithGooglePlay: "通过 Google Play 更新",
+      whatsNewInVersion: "EdgeEver {{version}} 更新内容",
     },
     workspace: {
       diagramReadOnly: "图表暂为只读",
