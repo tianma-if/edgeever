@@ -1,0 +1,187 @@
+[
+  {
+    "name": "OpenAI official: the /models list has no limits; independent input and output limits",
+    "provider": "openai-compatible",
+    "baseUrl": "https://api.openai.com/v1",
+    "modelId": "gpt-5",
+    "expected": {
+      "maxOutputTokens": 128000,
+      "maxInputTokens": 272000,
+      "contextWindowTokens": null
+    }
+  },
+  {
+    "name": "A gateway with a bare ID uses the original vendor's listing, not a lower relay listing",
+    "provider": "openai-compatible",
+    "baseUrl": "https://newapi.example/v1",
+    "modelId": "gpt-4o-mini",
+    "expected": {
+      "maxOutputTokens": 16384,
+      "maxInputTokens": null,
+      "contextWindowTokens": 128000
+    }
+  },
+  {
+    "name": "A gateway with a vendor-prefixed ID uses the original vendor's listing",
+    "provider": "openai-compatible",
+    "baseUrl": "https://newapi.example/v1",
+    "modelId": "openai/gpt-4o-mini",
+    "expected": {
+      "maxOutputTokens": 16384,
+      "maxInputTokens": null,
+      "contextWindowTokens": 128000
+    }
+  },
+  {
+    "name": "Regression (#809 review): my-team/gpt-5 does not take OpenAI gpt-5's limits when the catalogue does not record that ID",
+    "provider": "openai-compatible",
+    "baseUrl": "https://newapi.example/v1",
+    "modelId": "my-team/gpt-5",
+    "expected": null
+  },
+  {
+    "name": "An unknown gateway prefix is never removed to find a match",
+    "provider": "openai-compatible",
+    "baseUrl": "https://gw.example/v1",
+    "modelId": "xxxyyy/claude-sonnet-4-5",
+    "expected": null
+  },
+  {
+    "name": "A prefixed, suffixed variant is not matched",
+    "provider": "openai-compatible",
+    "baseUrl": "https://gw.example/v1",
+    "modelId": "xxxyyy/claude-sonnet-4-5-thinking",
+    "expected": null
+  },
+  {
+    "name": "A relay's ID follows canonical_model_id to the original vendor's listing",
+    "provider": "openai-compatible",
+    "baseUrl": "https://newapi.example/v1",
+    "modelId": "anthropic/claude-sonnet-4.5",
+    "expected": {
+      "maxOutputTokens": 64000,
+      "maxInputTokens": null,
+      "contextWindowTokens": 200000
+    }
+  },
+  {
+    "name": "The relay's own host still uses the relay's listing",
+    "provider": "openai-compatible",
+    "baseUrl": "https://openrouter.ai/api/v1",
+    "modelId": "anthropic/claude-sonnet-4.5",
+    "expected": {
+      "maxOutputTokens": 64000,
+      "maxInputTokens": null,
+      "contextWindowTokens": 1000000
+    }
+  },
+  {
+    "name": "A catalogued endpoint host uses that provider's own listing",
+    "provider": "openai-compatible",
+    "baseUrl": "https://api.poe.com/v1/",
+    "modelId": "openai/gpt-4o-mini",
+    "expected": {
+      "maxOutputTokens": 4096,
+      "maxInputTokens": null,
+      "contextWindowTokens": 124096
+    }
+  },
+  {
+    "name": "Matching ignores case",
+    "provider": "openai-compatible",
+    "baseUrl": "https://newapi.example/v1",
+    "modelId": "GPT-4o-Mini",
+    "expected": {
+      "maxOutputTokens": 16384,
+      "maxInputTokens": null,
+      "contextWindowTokens": 128000
+    }
+  },
+  {
+    "name": "Anthropic type through a gateway: the dated ID resolves to Anthropic's listing",
+    "provider": "anthropic",
+    "baseUrl": "https://claude-gateway.example/v1",
+    "modelId": "claude-sonnet-4-5-20250929",
+    "expected": {
+      "maxOutputTokens": 64000,
+      "maxInputTokens": null,
+      "contextWindowTokens": 200000
+    }
+  },
+  {
+    "name": "Gemini type with a models/ prefix",
+    "provider": "google",
+    "baseUrl": "https://gemini-gateway.example/v1beta",
+    "modelId": "models/gemini-2.5-pro",
+    "expected": {
+      "maxOutputTokens": 65536,
+      "maxInputTokens": null,
+      "contextWindowTokens": 1048576
+    }
+  },
+  {
+    "name": "DeepSeek's own host",
+    "provider": "openai-compatible",
+    "baseUrl": "https://api.deepseek.com",
+    "modelId": "deepseek-chat",
+    "expected": {
+      "maxOutputTokens": 8192,
+      "maxInputTokens": null,
+      "contextWindowTokens": 131072
+    }
+  },
+  {
+    "name": "Listings without a vendor: each number takes its lower median",
+    "provider": "openai-compatible",
+    "baseUrl": "https://newapi.example/v1",
+    "modelId": "relay-only-model",
+    "expected": {
+      "maxOutputTokens": 2000,
+      "maxInputTokens": null,
+      "contextWindowTokens": 32000
+    }
+  },
+  {
+    "name": "Many relay listings: one outlier does not decide; input + output above the context keeps the shared window",
+    "provider": "openai-compatible",
+    "baseUrl": "https://newapi.example/v1",
+    "modelId": "tencent/hy3",
+    "expected": {
+      "maxOutputTokens": 128000,
+      "maxInputTokens": 192000,
+      "contextWindowTokens": 256000
+    }
+  },
+  {
+    "name": "Zero limits mean unknown",
+    "provider": "openai-compatible",
+    "baseUrl": "https://newapi.example/v1",
+    "modelId": "voxtral-mini-latest",
+    "expected": null
+  },
+  {
+    "name": "No fuzzy matching: a different version is not matched",
+    "provider": "openai-compatible",
+    "baseUrl": "https://newapi.example/v1",
+    "modelId": "gpt-5.1",
+    "expected": null
+  },
+  {
+    "name": "A bare ID matches the model part of canonical_model_id",
+    "provider": "openai-compatible",
+    "baseUrl": "https://newapi.example/v1",
+    "modelId": "hy3",
+    "expected": {
+      "maxOutputTokens": 128000,
+      "maxInputTokens": 192000,
+      "contextWindowTokens": 256000
+    }
+  },
+  {
+    "name": "An unknown alias is not matched",
+    "provider": "openai-compatible",
+    "baseUrl": "https://newapi.example/v1",
+    "modelId": "my-team-model",
+    "expected": null
+  }
+]

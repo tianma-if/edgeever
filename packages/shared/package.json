@@ -12,6 +12,7 @@
     "./ai-generation": "./src/ai-generation.ts",
     "./ai-generation-segments": "./src/ai-generation-segments.ts",
     "./ai-model-capabilities": "./src/ai-model-capabilities.ts",
+    "./ai-models-dev": "./src/ai-models-dev.ts",
     "./diagram-layout": "./src/diagram-layout.ts",
     "./ai-prompt-seeds": "./src/ai-prompt-seeds.ts",
     "./deployment-metadata": "./src/deployment-metadata.ts",
