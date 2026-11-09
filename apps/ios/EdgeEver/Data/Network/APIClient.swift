@@ -9,18 +9,22 @@ actor APIClient {
     private let session: URLSession
     /// The models.dev fallback for model limits (#652); `nil` turns it off.
     private let modelCatalog: ModelsDevCatalog?
+    /// The longest a generation waits for model limit detection before going on without it (#652).
+    private let capabilityDetectionTimeout: TimeInterval
 
     init(
         baseURL: URL,
         token: String? = nil,
         session: URLSession = .shared,
         modelCatalog: ModelsDevCatalog? = .shared,
+        capabilityDetectionTimeout: TimeInterval = AiModelCapabilityDetector.defaultTimeout,
         onUnauthorized: (@Sendable () -> Void)? = nil
     ) {
         self.baseURL = baseURL.edgeEverNormalizedBase
         self.token = token
         self.session = session
         self.modelCatalog = modelCatalog
+        self.capabilityDetectionTimeout = capabilityDetectionTimeout
         self.onUnauthorized = onUnauthorized
     }
 
@@ -305,6 +309,7 @@ actor APIClient {
     func streamAiGeneration(_ input: AiGenerateInput) -> AsyncThrowingStream<AiStreamEvent, Error> {
         let session = self.session
         let modelCatalog = self.modelCatalog
+        let detectionTimeout = self.capabilityDetectionTimeout
         return AsyncThrowingStream { continuation in
             let task = Task {
                 do {
@@ -319,10 +324,12 @@ actor APIClient {
                     if let target, prepared.detectCapabilities == true {
                         // The instance has no fresh limits for this model: read them from the provider once,
                         // save them for every client, and prepare again so this request already uses them.
+                        // Unknown or slow metadata (nil) changes nothing: this request uses the first prepare.
                         let limits = try await AiModelCapabilityDetector.detect(
                             .init(provider: prepared.provider, baseUrl: prepared.baseUrl, apiKey: prepared.apiKey, modelId: prepared.modelId),
                             session: session,
-                            catalog: modelCatalog
+                            catalog: modelCatalog,
+                            timeout: detectionTimeout
                         )
                         if let limits, await self.reportCapabilities(limits, for: prepared, target: target), limits.hasLimits {
                             prepared = try await self.request(path: "/api/v1/ai/generate/prepare", method: "POST", body: first)

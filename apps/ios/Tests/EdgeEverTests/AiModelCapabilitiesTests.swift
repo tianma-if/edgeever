@@ -166,6 +166,73 @@ final class AiModelCapabilitiesTests: XCTestCase {
         XCTAssertEqual(CapabilityStub.requests().first?.value(forHTTPHeaderField: "x-goog-api-key"), "k")
     }
 
+    // MARK: - Review fixes (#826)
+
+    /// Requests carry the model key, so a redirect must not be followed and its target must get nothing.
+    func testRedirectsAreNotFollowedAndTheTargetReceivesNothing() async throws {
+        CapabilityStub.respond { request in
+            request.url?.host == "gateway.example"
+                ? (302, "", ["Location": "https://elsewhere.example/v1/models/claude-x"])
+                : (200, #"{"id":"claude-x","max_tokens":64000,"max_input_tokens":200000}"#, [:])
+        }
+        let result = try await AiModelCapabilityDetector.detect(
+            target("anthropic", baseUrl: "https://gateway.example/v1", modelId: "claude-x"),
+            session: CapabilityStub.session(),
+            catalog: nil
+        )
+        XCTAssertNil(result, "a redirect is unreadable metadata, not limits")
+        XCTAssertEqual(CapabilityStub.requests().compactMap { $0.url?.host }, ["gateway.example"], "the redirect target must not be requested")
+    }
+
+    func testDetectionHasAnOverallTimeLimit() async throws {
+        CapabilityStub.respond { _ in (0, "", [:]) }
+        let started = Date()
+        let result = try await AiModelCapabilityDetector.detect(target(), session: CapabilityStub.session(), catalog: nil, timeout: 0.5)
+        XCTAssertNil(result, "no answer in time means unknown")
+        XCTAssertLessThan(Date().timeIntervalSince(started), 5)
+    }
+
+    func testTemporaryLiteLlmFailuresAreUnknownNotNoLimits() async throws {
+        for status in [401, 403, 429, 500, 503] {
+            CapabilityStub.reset()
+            CapabilityStub.respond { request in
+                switch request.url?.path {
+                case "/v1/models": return (200, #"{"data":[{"id":"gpt-5"}]}"#, [:])
+                case "/v1/model/info": return (status, "{}", [:])
+                default: return (200, Self.catalogJSON, [:])
+                }
+            }
+            let session = CapabilityStub.session()
+            let result = try await AiModelCapabilityDetector.detect(target(), session: session, catalog: ModelsDevCatalog(session: session))
+            XCTAssertNil(result, "/model/info \(status) must not become 'no limits'")
+            XCTAssertFalse(CapabilityStub.paths().contains("/api.json"), "/model/info \(status): the catalogue must not replace an unknown answer")
+        }
+    }
+
+    func testGenerationGoesOnWithoutReportingWhenDetectionTimesOut() async throws {
+        CapabilityStub.respond { request in
+            switch request.url?.path {
+            case "/api/v1/ai/generate/prepare":
+                return (200, #"{"provider":"openai-compatible","baseUrl":"https://g.example/v1","apiKey":"k","modelId":"gpt-5","system":"s","prompt":"p","maxOutputTokens":null,"resultBoundary":{"start":"<r>","end":"</r>"},"capabilityTarget":{"providerConfigId":"aip_1","modelConfigId":"aim_1","configVersion":"v1"},"detectCapabilities":true}"#, [:])
+            case "/v1/models":
+                return (0, "", [:])
+            case "/v1/chat/completions":
+                return (200, "data: {\"choices\":[{\"delta\":{\"content\":\"<r>ok</r>\"},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n", ["Content-Type": "text/event-stream"])
+            default:
+                return (404, "{}", [:])
+            }
+        }
+        let session = CapabilityStub.session()
+        let client = APIClient(baseURL: URL(string: "https://notes.example")!, token: "t", session: session, modelCatalog: ModelsDevCatalog(session: session), capabilityDetectionTimeout: 0.5)
+        var types: [String] = []
+        for try await event in await client.streamAiGeneration(AiGenerateInput(action: .continueWriting, title: "Note", contentMarkdown: "Body", targetLanguage: nil)) {
+            types.append(event.type)
+        }
+        XCTAssertEqual(types.last, "finish", "generation goes on with the first prepare")
+        let instance = CapabilityStub.requests().filter { $0.url?.host == "notes.example" }.map { "\($0.httpMethod ?? "") \($0.url?.path ?? "")" }
+        XCTAssertEqual(instance, ["POST /api/v1/ai/generate/prepare"], "nothing is reported and prepare is not repeated")
+    }
+
     // MARK: - Catalogue cache
 
     func testCatalogueIsSharedReusedAndRevalidatedWithItsETag() async throws {
@@ -384,7 +451,15 @@ private final class CapabilityStub: URLProtocol {
             return Self.handler
         }
         let (status, body, headers) = handler?(recorded) ?? (500, "", [:])
+        // Status 0: never answer, like a hung gateway (the request ends only when cancelled or timed out).
+        if status == 0 { return }
         let response = HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: "HTTP/1.1", headerFields: headers)!
+        if (300 ..< 400).contains(status), let location = headers["Location"], let target = URL(string: location) {
+            // Let the loading system decide whether to follow, as a real redirect would.
+            var redirect = request
+            redirect.url = target
+            client?.urlProtocol(self, wasRedirectedTo: redirect, redirectResponse: response)
+        }
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
         client?.urlProtocol(self, didLoad: Data(body.utf8))
         client?.urlProtocolDidFinishLoading(self)

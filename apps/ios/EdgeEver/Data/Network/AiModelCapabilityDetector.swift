@@ -13,13 +13,63 @@ enum AiModelCapabilityDetector {
 
     private struct Unavailable: Error {}
 
+    /// The whole detection (provider metadata plus models.dev) must finish within this time;
+    /// otherwise generation goes on with the first prepare, as if the limits were unknown.
+    static let defaultTimeout: TimeInterval = 8
+
+    /// Requests carry the model key, so they never follow a redirect (as `redirect: "error"` in the
+    /// shared client): the 3xx answer itself comes back and counts as unreadable.
+    private final class RejectRedirects: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+        static let shared = RejectRedirects()
+        func urlSession(
+            _ session: URLSession,
+            task: URLSessionTask,
+            willPerformHTTPRedirection response: HTTPURLResponse,
+            newRequest request: URLRequest,
+            completionHandler: @escaping @Sendable (URLRequest?) -> Void
+        ) {
+            completionHandler(nil)
+        }
+    }
+
+    private enum Outcome: Sendable {
+        case finished(AiModelCapabilityLimits?)
+        case timedOut
+    }
+
     /// - Returns the limits found, or `.noLimits` when the provider answered without any (and models.dev
     ///   has no match), so the instance does not ask again for a while.
     /// - Returns `nil` when the metadata could not be read (network, authentication, rate-limit or
-    ///   server errors); nothing should be reported then.
+    ///   server errors, a redirect, or no answer within `timeout`); nothing should be reported then.
     /// - Throws only `CancellationError` when the task is cancelled.
-    static func detect(_ target: Target, session: URLSession, catalog: ModelsDevCatalog?) async throws -> AiModelCapabilityLimits? {
-        let fromService = try await detectFromService(target, session: session)
+    static func detect(
+        _ target: Target,
+        session: URLSession,
+        catalog: ModelsDevCatalog?,
+        timeout: TimeInterval = defaultTimeout
+    ) async throws -> AiModelCapabilityLimits? {
+        try await withThrowingTaskGroup(of: Outcome.self) { group in
+            group.addTask { .finished(try await detectWithoutTimeLimit(target, session: session, catalog: catalog, timeout: timeout)) }
+            group.addTask {
+                try await Task.sleep(nanoseconds: UInt64(max(timeout, 0) * 1_000_000_000))
+                return .timedOut
+            }
+            defer { group.cancelAll() }
+            guard let first = try await group.next() else { return nil }
+            switch first {
+            case let .finished(limits): return limits
+            case .timedOut: return nil
+            }
+        }
+    }
+
+    private static func detectWithoutTimeLimit(
+        _ target: Target,
+        session: URLSession,
+        catalog: ModelsDevCatalog?,
+        timeout: TimeInterval
+    ) async throws -> AiModelCapabilityLimits? {
+        let fromService = try await detectFromService(target, session: session, timeout: timeout)
         guard let fromService, fromService.source == "none", let catalog else { return fromService }
         guard let index = await catalog.index() else { return fromService }
         try Task.checkCancellation()
@@ -47,20 +97,21 @@ enum AiModelCapabilityDetector {
         return value.addingPercentEncoding(withAllowedCharacters: allowed) ?? value
     }
 
-    private static func detectFromService(_ target: Target, session: URLSession) async throws -> AiModelCapabilityLimits? {
+    private static func detectFromService(_ target: Target, session: URLSession, timeout: TimeInterval) async throws -> AiModelCapabilityLimits? {
         var base = target.baseUrl.trimmingCharacters(in: .whitespaces)
         while base.hasSuffix("/") { base.removeLast() }
         let headers = headers(for: target)
 
         func read(_ url: String, endpoint: String, missingIsEmpty: Bool) async throws -> AiModelCapabilityLimits? {
             guard let requestURL = URL(string: url) else { throw Unavailable() }
-            var request = URLRequest(url: requestURL)
+            var request = URLRequest(url: requestURL, timeoutInterval: max(timeout, 1))
             request.httpMethod = "GET"
             for (name, value) in headers { request.setValue(value, forHTTPHeaderField: name) }
-            let (data, response) = try await session.data(for: request)
+            let (data, response) = try await session.data(for: request, delegate: RejectRedirects.shared)
             guard let http = response as? HTTPURLResponse else { throw Unavailable() }
             // Gateways answer unsupported metadata paths with 404 or, often, 400. Any client error
             // other than authentication or rate limiting means "this endpoint has no metadata".
+            // Authentication, rate limiting, server errors and redirects mean "unknown" (thrown).
             let status = http.statusCode
             let unsupported = (400 ..< 500).contains(status) && status != 401 && status != 403 && status != 429
             if unsupported && missingIsEmpty { return nil }
@@ -80,15 +131,9 @@ enum AiModelCapabilityDetector {
             // OpenRouter and DeepSeek put limits on the model list; LiteLLM serves them on /model/info.
             // The list itself must answer: it is the same endpoint model discovery uses.
             if let limits = try await read("\(base)/models", endpoint: "models", missingIsEmpty: false) { return limits }
-            let liteLlm: AiModelCapabilityLimits?
-            do {
-                liteLlm = try await read("\(base)/model/info", endpoint: "litellm-model-info", missingIsEmpty: true)
-            } catch is CancellationError {
-                throw CancellationError()
-            } catch {
-                liteLlm = nil
-            }
-            return liteLlm ?? AiModelCapabilityLimits.noLimits
+            // Only an unsupported path means "no limits"; a temporary failure here stays "unknown", so a
+            // limit saved earlier is kept and detection is tried again next time.
+            return try await read("\(base)/model/info", endpoint: "litellm-model-info", missingIsEmpty: true) ?? AiModelCapabilityLimits.noLimits
         } catch {
             if Task.isCancelled || error is CancellationError || (error as? URLError)?.code == .cancelled {
                 throw CancellationError()
