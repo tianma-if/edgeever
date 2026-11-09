@@ -61,7 +61,19 @@ export const normalizeImgBedChannelName = (value) => {
   return name;
 };
 
-const buildUploadUrl = (input) => {
+// ImgBed retries a failed write on the same type and then on other channel
+// types unless autoRetry=false. Unset follows the renderer default: retry
+// without a channel name (ImgBed's own default), no retry with one, so a named
+// channel never silently hands the image to other storage.
+export const resolveImgBedAutoRetry = (value, channelName) => {
+  if (value == null) return !channelName;
+  if (typeof value !== "boolean") throw new Error("ImgBed retry setting is invalid");
+  return value;
+};
+
+// `forceNoRetry` is set by the connection test: with a channel name it must
+// prove that this channel accepts the write, whatever the upload setting is.
+const buildUploadUrl = (input, { forceNoRetry = false } = {}) => {
   const url = normalizeImgBedEndpoint(input.endpoint);
   const folder = normalizeImgBedFolder(input.uploadFolder);
   const nameType = input.nameType ?? "default";
@@ -70,13 +82,10 @@ const buildUploadUrl = (input) => {
   if (!IMGBED_UPLOAD_CHANNELS.includes(channel)) throw new Error("ImgBed upload channel is invalid");
   const channelName = normalizeImgBedChannelName(input.channelName);
   if (input.serverCompress != null && typeof input.serverCompress !== "boolean") throw new Error("ImgBed server compression is invalid");
+  const autoRetry = forceNoRetry && channelName ? false : resolveImgBedAutoRetry(input.autoRetry, channelName);
   url.searchParams.set("uploadChannel", channel);
-  if (channelName) {
-    url.searchParams.set("channelName", channelName);
-    // Without this ImgBed retries a failed write on other channels and returns
-    // their link, so a broken target channel would still look like a success.
-    url.searchParams.set("autoRetry", "false");
-  }
+  if (channelName) url.searchParams.set("channelName", channelName);
+  url.searchParams.set("autoRetry", String(autoRetry));
   url.searchParams.set("serverCompress", String(input.serverCompress ?? true));
   url.searchParams.set("uploadNameType", nameType);
   if (folder) url.searchParams.set("uploadFolder", folder);
@@ -97,8 +106,8 @@ const resultUrl = (data, uploadUrl) => {
   return url.href;
 };
 
-const post = async (input, file, filename, { fetchImpl, timeoutMs, lookupImpl }) => {
-  const url = buildUploadUrl(input);
+const post = async (input, file, filename, { fetchImpl, timeoutMs, lookupImpl, forceNoRetry = false }) => {
+  const url = buildUploadUrl(input, { forceNoRetry });
   const token = normalizeImgBedToken(input.token);
   await assertImageHostAllowed(url.hostname, lookupImpl, { label: LABEL, message: ADDRESS_ERROR });
   const form = new FormData();
@@ -147,7 +156,7 @@ const assertImgBedChannelExists = async (input, { fetchImpl, timeoutMs, lookupIm
 // ImgBed has no heartbeat, so the test uploads a 1×1 PNG to the configured folder.
 export const testImgBedConnection = async (input, { fetchImpl = fetch, timeoutMs = 15000, lookupImpl = lookup } = {}) => {
   await assertImgBedChannelExists(input, { fetchImpl, timeoutMs, lookupImpl });
-  await post(input, new Blob([TEST_IMAGE], { type: "image/png" }), "edgeever-connection-test.png", { fetchImpl, timeoutMs, lookupImpl });
+  await post(input, new Blob([TEST_IMAGE], { type: "image/png" }), "edgeever-connection-test.png", { fetchImpl, timeoutMs, lookupImpl, forceNoRetry: true });
   return true;
 };
 

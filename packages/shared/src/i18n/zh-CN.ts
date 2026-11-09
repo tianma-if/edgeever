@@ -1141,6 +1141,8 @@ export const zhCN = {
         channelNameInvalid: "渠道名称不能包含制表符、换行等控制字符。",
         serverCompress: "服务端压缩",
         serverCompressDescription: "由 ImgBed 在服务端压缩图片，仅对 Telegram 渠道生效。默认开启，与 ImgBed 接口一致。",
+        autoRetry: "上传失败时自动重试",
+        autoRetryDescription: "上传失败时，由 ImgBed 先在同类型渠道重试，再换到其他类型的渠道，图片可能存到别处。未填写渠道名称时默认开启（与 ImgBed 一致），填写后默认关闭。填写了渠道名称时，测试连接始终不重试，以确认该渠道本身可用。",
         testDescription: "测试连接会向该目录上传一张 1×1 的透明图片，测试后可在 ImgBed 中删除。",
         connected: "已连接 ImgBed，可以保存设置。",
         connectionFailed: "连接失败。请检查地址、API Token 及其 upload 权限。",

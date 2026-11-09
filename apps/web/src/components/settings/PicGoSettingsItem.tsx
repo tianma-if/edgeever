@@ -5,14 +5,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { expandImgBedFolder, imgBedFolderError, IMGBED_FOLDER_PLACEHOLDERS, IMGBED_MAX_CHANNEL_NAME_LENGTH, IMGBED_NAME_TYPES, isImgBedChannelNameValid, IMGBED_SAMPLE_MEMO_ID, IMGBED_UPLOAD_CHANNELS, type ImgBedNameType, type ImgBedUploadChannel } from "@/lib/imgbed";
+import { expandImgBedFolder, imgBedAutoRetry, imgBedFolderError, IMGBED_FOLDER_PLACEHOLDERS, IMGBED_MAX_CHANNEL_NAME_LENGTH, IMGBED_NAME_TYPES, isImgBedChannelNameValid, IMGBED_SAMPLE_MEMO_ID, IMGBED_UPLOAD_CHANNELS, type ImgBedNameType, type ImgBedUploadChannel } from "@/lib/imgbed";
 import { hasImgBedBridge, hasPicGoBridge, readPicGoPreference, takePicGoServerKey, writePicGoPreference, type ImgBedPreference, type PicGoPreference } from "@/lib/picgo";
 import { SETTINGS_ITEM_DESCRIPTION_CLASSNAME, SETTINGS_ITEM_TITLE_CLASSNAME } from "./settings-ui";
 
 const picGoTargetId = (value: PicGoPreference) => value.provider === "imgbed"
   ? ["imgbed", value.imgbed.endpoint, value.imgbed.token, value.imgbed.uploadFolder, value.imgbed.nameType,
     // Saving trims the channel name, so edge spaces do not change the target.
-    value.imgbed.uploadChannel, value.imgbed.channelName.trim(), String(value.imgbed.serverCompress)].join("\0")
+    value.imgbed.uploadChannel, value.imgbed.channelName.trim(), String(value.imgbed.serverCompress),
+    String(imgBedAutoRetry(value.imgbed.autoRetry, value.imgbed.channelName))].join("\0")
   : `${value.endpoint}\0${value.serverKey}`;
 const sameImgBed = (left: ImgBedPreference, right: ImgBedPreference) => picGoTargetId({ provider: "imgbed", endpoint: "", serverKey: "", imgbed: left })
   === picGoTargetId({ provider: "imgbed", endpoint: "", serverKey: "", imgbed: right });
@@ -48,6 +49,8 @@ export const PicGoSettingsItem = () => {
         await window.edgeeverDesktop!.testImgBedConnection!({
           endpoint: draft.imgbed.endpoint, token: draft.imgbed.token, nameType: draft.imgbed.nameType,
           uploadChannel: draft.imgbed.uploadChannel, channelName: draft.imgbed.channelName, serverCompress: draft.imgbed.serverCompress,
+          // With a channel name the main process tests without retry regardless.
+          autoRetry: imgBedAutoRetry(draft.imgbed.autoRetry, draft.imgbed.channelName),
           uploadFolder: expandImgBedFolder(draft.imgbed.uploadFolder),
         });
       } else {
@@ -168,6 +171,12 @@ export const PicGoSettingsItem = () => {
               onCheckedChange={(serverCompress) => updateImgBed({ serverCompress })} />
           </div>
           <p className={SETTINGS_ITEM_DESCRIPTION_CLASSNAME}>{t("settings.picgo.imgbed.serverCompressDescription")}</p>
+          <div className="flex items-center justify-between gap-3">
+            <label htmlFor="imgbed-auto-retry" className={SETTINGS_ITEM_TITLE_CLASSNAME}>{t("settings.picgo.imgbed.autoRetry")}</label>
+            <Switch id="imgbed-auto-retry" checked={imgBedAutoRetry(draft.imgbed.autoRetry, draft.imgbed.channelName)} disabled={busy}
+              onCheckedChange={(autoRetry) => updateImgBed({ autoRetry })} />
+          </div>
+          <p className={SETTINGS_ITEM_DESCRIPTION_CLASSNAME}>{t("settings.picgo.imgbed.autoRetryDescription")}</p>
           <p className={SETTINGS_ITEM_DESCRIPTION_CLASSNAME}>{t("settings.picgo.imgbed.testDescription")}</p>
           <p className={SETTINGS_ITEM_DESCRIPTION_CLASSNAME}>{t("settings.picgo.externalImages")}</p>
         </div>

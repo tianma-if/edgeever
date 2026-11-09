@@ -1122,6 +1122,8 @@ export const enUS = {
         channelNameInvalid: "The channel name cannot contain tabs, line breaks or other control characters.",
         serverCompress: "Server-side compression",
         serverCompressDescription: "ImgBed compresses images on the server. Only applies to the Telegram channel. On by default, matching the ImgBed API.",
+        autoRetry: "Retry failed uploads",
+        autoRetryDescription: "When an upload fails, ImgBed retries on the same channel type and then on other channel types, so the image may be stored elsewhere. On by default without a channel name (as in ImgBed), off by default with one. With a channel name, the connection test never retries, so it confirms that channel itself works.",
         testDescription: "Testing uploads a 1×1 transparent image to this folder. You can delete it in ImgBed afterwards.",
         connected: "Connected to ImgBed. You can now save this setting.",
         connectionFailed: "Could not connect. Check the address, the API token, and its upload permission.",

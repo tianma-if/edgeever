@@ -1130,6 +1130,8 @@ export const pl = {
         channelNameInvalid: "Nazwa kanału nie może zawierać tabulatorów, podziałów wierszy ani innych znaków sterujących.",
         serverCompress: "Kompresja po stronie serwera",
         serverCompressDescription: "ImgBed kompresuje obrazy na serwerze. Działa tylko dla kanału Telegram. Domyślnie włączona, zgodnie z API ImgBed.",
+        autoRetry: "Ponawiaj nieudane przesyłanie",
+        autoRetryDescription: "Gdy przesyłanie się nie powiedzie, ImgBed ponawia próbę w kanale tego samego typu, a potem w kanałach innych typów, więc obraz może trafić gdzie indziej. Bez nazwy kanału domyślnie włączone (jak w ImgBed), z nazwą domyślnie wyłączone. Przy podanej nazwie kanału test połączenia nigdy nie ponawia próby, aby potwierdzić, że ten kanał działa.",
         testDescription: "Test przesyła do tego folderu przezroczysty obraz 1×1. Po teście możesz go usunąć w ImgBed.",
         connected: "Połączono z ImgBed. Możesz zapisać ustawienie.",
         connectionFailed: "Nie udało się połączyć. Sprawdź adres, token API i jego uprawnienie upload.",

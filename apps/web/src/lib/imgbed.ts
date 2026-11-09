@@ -8,6 +8,10 @@ export const IMGBED_UPLOAD_CHANNELS = ["telegram", "cfr2", "s3", "discord", "hug
 export type ImgBedUploadChannel = typeof IMGBED_UPLOAD_CHANNELS[number];
 // Matches the main process limit on the optional channel name.
 export const IMGBED_MAX_CHANNEL_NAME_LENGTH = 100;
+// null means the user never changed the retry switch. It then follows the
+// channel name: retry like ImgBed without one, no retry with one so the image
+// cannot silently land in other storage. Matches resolveImgBedAutoRetry in main.
+export const imgBedAutoRetry = (autoRetry: boolean | null, channelName: string) => autoRetry ?? !channelName.trim();
 // Same rule as the main process: control characters anywhere (a pasted tab, for
 // example) are rejected before trimming, and the limit applies to the trimmed name.
 // oxlint-disable-next-line no-control-regex -- rejects control characters in the ImgBed channel name

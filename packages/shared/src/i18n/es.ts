@@ -1280,6 +1280,8 @@ export const es = {
         "channelNameInvalid": "El nombre del canal no puede contener tabulaciones, saltos de línea ni otros caracteres de control.",
         "serverCompress": "Compresión en el servidor",
         "serverCompressDescription": "ImgBed comprime las imágenes en el servidor. Solo se aplica al canal de Telegram. Activado por defecto, según la API de ImgBed.",
+        "autoRetry": "Reintentar subidas fallidas",
+        "autoRetryDescription": "Si una subida falla, ImgBed reintenta en el mismo tipo de canal y luego en otros tipos, por lo que la imagen puede guardarse en otro sitio. Activado por defecto sin nombre de canal (como en ImgBed) y desactivado con uno. Con nombre de canal, la prueba de conexión nunca reintenta, para confirmar que ese canal funciona.",
         "testDescription": "La prueba sube una imagen transparente de 1×1 a esta carpeta. Puedes eliminarla en ImgBed después.",
         "connected": "Conectado a ImgBed. Ya puedes guardar esta configuración.",
         "connectionFailed": "No se pudo conectar. Comprueba la dirección, el token de API y sus permisos de subida.",

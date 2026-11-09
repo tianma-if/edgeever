@@ -1,7 +1,7 @@
 import { afterEach, expect, test } from "bun:test";
 import { PICGO_STORAGE_KEY, DEFAULT_PICGO_ENDPOINT, activeExternalImageHost, readPicGoPreference, shouldUploadWithPicGo, takePicGoServerKey, uploadImageWithPicGo, writePicGoPreference } from "./picgo.ts";
 
-const noImgBed = { endpoint: "", token: "", uploadFolder: "", nameType: "default", uploadChannel: "telegram", channelName: "", serverCompress: true };
+const noImgBed = { endpoint: "", token: "", uploadFolder: "", nameType: "default", uploadChannel: "telegram", channelName: "", serverCompress: true, autoRetry: null };
 
 const previousWindow = globalThis.window;
 afterEach(() => {
@@ -79,8 +79,8 @@ test("keeps an older saved address and lifts a pasted PicList key out of the add
 
 test("ImgBed expands the folder for the target note and needs its own desktop bridge", async () => {
   const storage = setup();
-  const imgbed = { endpoint: "https://img.example.com", token: "imgbed-token", uploadFolder: "notes/{Y}/{memoId}", nameType: "origin", uploadChannel: "cfr2", channelName: "Main R2", serverCompress: false };
-  storage.set(PICGO_STORAGE_KEY, JSON.stringify({ provider: "imgbed", endpoint: DEFAULT_PICGO_ENDPOINT, imgbed: { ...imgbed, nameType: "bogus", uploadChannel: "ftp", serverCompress: "no" } }));
+  const imgbed = { endpoint: "https://img.example.com", token: "imgbed-token", uploadFolder: "notes/{Y}/{memoId}", nameType: "origin", uploadChannel: "cfr2", channelName: "Main R2", serverCompress: false, autoRetry: null };
+  storage.set(PICGO_STORAGE_KEY, JSON.stringify({ provider: "imgbed", endpoint: DEFAULT_PICGO_ENDPOINT, imgbed: { ...imgbed, nameType: "bogus", uploadChannel: "ftp", serverCompress: "no", autoRetry: "no" } }));
   expect(readPicGoPreference().imgbed).toEqual({ ...imgbed, nameType: "default", uploadChannel: "telegram", serverCompress: true });
   expect(activeExternalImageHost()).toBeNull();
 
@@ -89,7 +89,7 @@ test("ImgBed expands the folder for the target note and needs its own desktop br
     testPicGoConnection: async () => true,
     testImgBedConnection: async () => true,
     uploadImgBedImage: async (input) => {
-      expect(input).toMatchObject({ endpoint: imgbed.endpoint, token: "imgbed-token", nameType: "origin", uploadChannel: "cfr2", channelName: "Main R2", serverCompress: false, filename: "image.png", mimeType: "image/png", copy });
+      expect(input).toMatchObject({ endpoint: imgbed.endpoint, token: "imgbed-token", nameType: "origin", uploadChannel: "cfr2", channelName: "Main R2", serverCompress: false, autoRetry: false, filename: "image.png", mimeType: "image/png", copy });
       expect(input.uploadFolder).toBe(`notes/${new Date().getFullYear()}/memo_123`);
       return { url: "https://img.example.com/file/notes/image.png" };
     },

@@ -1141,6 +1141,8 @@ export const zhTW = {
         channelNameInvalid: "渠道名稱不能包含定位字元、換行等控制字元。",
         serverCompress: "服務端壓縮",
         serverCompressDescription: "由 ImgBed 在服務端壓縮圖片，僅對 Telegram 渠道生效。預設開啟，與 ImgBed 介面一致。",
+        autoRetry: "上傳失敗時自動重試",
+        autoRetryDescription: "上傳失敗時，由 ImgBed 先在同類型渠道重試，再換到其他類型的渠道，圖片可能存到別處。未填寫渠道名稱時預設開啟（與 ImgBed 一致），填寫後預設關閉。填寫了渠道名稱時，測試連線一律不重試，以確認該渠道本身可用。",
         testDescription: "測試連線會向該目錄上傳一張 1×1 的透明圖片，測試後可在 ImgBed 中刪除。",
         connected: "已連線 ImgBed，可以儲存設定。",
         connectionFailed: "連線失敗。請檢查地址、API Token 及其 upload 許可權。",

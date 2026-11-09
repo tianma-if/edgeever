@@ -1280,6 +1280,8 @@ export const fr = {
         channelNameInvalid: "Le nom du canal ne peut pas contenir de tabulations, de sauts de ligne ni d'autres caractères de contrôle.",
         serverCompress: "Compression côté serveur",
         serverCompressDescription: "ImgBed compresse les images sur le serveur. S'applique uniquement au canal Telegram. Activé par défaut, conformément à l'API ImgBed.",
+        autoRetry: "Réessayer les envois échoués",
+        autoRetryDescription: "Si un envoi échoue, ImgBed réessaie sur le même type de canal puis sur d'autres types, et l'image peut donc être stockée ailleurs. Activé par défaut sans nom de canal (comme dans ImgBed), désactivé avec un nom. Avec un nom de canal, le test de connexion ne réessaie jamais, afin de confirmer que ce canal fonctionne.",
         testDescription: "Le test téléverse une image transparente 1×1 dans ce dossier. Vous pourrez la supprimer ensuite dans ImgBed.",
         connected: "Connecté à ImgBed. Vous pouvez maintenant enregistrer ce paramètre.",
         connectionFailed: "Impossible de se connecter. Vérifiez l'adresse, le jeton d'API et sa permission de téléversement.",

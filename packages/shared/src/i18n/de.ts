@@ -1280,6 +1280,8 @@ export const de = {
         "channelNameInvalid": "Der Kanalname darf keine Tabulatoren, Zeilenumbrüche oder anderen Steuerzeichen enthalten.",
         "serverCompress": "Serverseitige Komprimierung",
         "serverCompressDescription": "ImgBed komprimiert Bilder auf dem Server. Gilt nur für den Telegram-Kanal. Standardmäßig aktiviert, entsprechend der ImgBed-API.",
+        "autoRetry": "Fehlgeschlagene Uploads wiederholen",
+        "autoRetryDescription": "Schlägt ein Upload fehl, versucht ImgBed es erneut auf demselben Kanaltyp und danach auf anderen Kanaltypen, sodass das Bild woanders gespeichert werden kann. Ohne Kanalnamen standardmäßig an (wie in ImgBed), mit Kanalnamen standardmäßig aus. Mit Kanalnamen wiederholt der Verbindungstest nie, damit er prüft, dass genau dieser Kanal funktioniert.",
         "testDescription": "Beim Test wird ein transparentes 1×1-Bild in diesen Ordner hochgeladen. Sie können es anschließend in ImgBed löschen.",
         "connected": "Mit ImgBed verbunden. Sie können diese Einstellung jetzt speichern.",
         "connectionFailed": "Verbindung fehlgeschlagen. Überprüfen Sie Adresse, API-Token und dessen Upload-Berechtigung.",

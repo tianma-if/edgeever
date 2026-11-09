@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { normalizeImgBedChannelName, normalizeImgBedEndpoint, normalizeImgBedFolder, normalizeImgBedToken, testImgBedConnection, uploadImgBedImage } from "./imgbed.mjs";
+import { normalizeImgBedChannelName, resolveImgBedAutoRetry, normalizeImgBedEndpoint, normalizeImgBedFolder, normalizeImgBedToken, testImgBedConnection, uploadImgBedImage } from "./imgbed.mjs";
 
 const servers = [];
 afterEach(() => { for (const server of servers.splice(0)) server.stop(true); });
@@ -40,8 +40,8 @@ test("resolves src against the ImgBed site and omits an empty folder", async () 
     // Unset options follow the ImgBed API defaults.
     expect(params.get("uploadChannel")).toBe("telegram");
     expect(params.has("channelName")).toBe(false);
-    // Without a channel name ImgBed keeps its own retry across channels.
-    expect(params.has("autoRetry")).toBe(false);
+    // Without a channel name the default keeps ImgBed's own retry.
+    expect(params.get("autoRetry")).toBe("true");
     expect(params.get("serverCompress")).toBe("true");
     return Response.json([{ src: "/file/notes/abc.png" }]);
   });
@@ -109,6 +109,26 @@ test("a named channel that fails to write is reported instead of retried elsewhe
   expect(uploads).toBe(2);
 });
 
+test("uploads follow the retry setting, but a named connection test never retries", async () => {
+  const seen = [];
+  const endpoint = serve((request) => {
+    const url = new URL(request.url);
+    if (url.pathname === "/api/channels") return Response.json({ s3: [{ name: "Main S3" }] });
+    seen.push(`${url.searchParams.get("channelName") ?? "-"} ${url.searchParams.get("autoRetry")}`);
+    return Response.json([{ src: "/file/a.png" }]);
+  });
+  const upload = (extra) => uploadImgBedImage(image(endpoint, { uploadChannel: "s3", ...extra }));
+  await upload({ channelName: "Main S3", autoRetry: true });
+  await upload({ channelName: "Main S3", autoRetry: false });
+  await upload({ autoRetry: false });
+  await upload({});
+  const test = (extra) => testImgBedConnection({ endpoint, token: "imgbed-token", uploadFolder: "", nameType: "default", uploadChannel: "s3", ...extra });
+  await test({ channelName: "Main S3", autoRetry: true });
+  await test({ autoRetry: false });
+  expect(seen).toEqual(["Main S3 true", "Main S3 false", "- false", "- true", "Main S3 false", "- false"]);
+  await expect(upload({ autoRetry: "yes" })).rejects.toThrow("retry setting is invalid");
+});
+
 test("connection test explains old ImgBed versions and rejected tokens on the channel check", async () => {
   const input = (endpoint) => ({ endpoint, token: "imgbed-token", uploadFolder: "", nameType: "default", channelName: "Main" });
   // Older sites answer unknown routes with 404 or with their HTML app shell.
@@ -155,6 +175,10 @@ test("normalizes the address, folder and token and rejects unsafe values", () =>
   for (const folder of ["../etc", "a/./b", "a\\b", "a?b", "a#b", "a%2e", "{Y}", "x".repeat(201)]) {
     expect(() => normalizeImgBedFolder(folder)).toThrow();
   }
+  expect(resolveImgBedAutoRetry(undefined, "")).toBe(true);
+  expect(resolveImgBedAutoRetry(null, "Main")).toBe(false);
+  expect(resolveImgBedAutoRetry(true, "Main")).toBe(true);
+  expect(resolveImgBedAutoRetry(false, "")).toBe(false);
   expect(normalizeImgBedChannelName(undefined)).toBe("");
   expect(normalizeImgBedChannelName("   ")).toBe("");
   expect(normalizeImgBedChannelName(" Main R2 ")).toBe("Main R2");

@@ -1130,6 +1130,8 @@ export const ja = {
         channelNameInvalid: "チャネル名にタブや改行などの制御文字は使えません。",
         serverCompress: "サーバー側で圧縮",
         serverCompressDescription: "ImgBed がサーバー側で画像を圧縮します。Telegram チャネルにのみ適用されます。ImgBed API と同じく既定でオンです。",
+        autoRetry: "失敗したアップロードを再試行",
+        autoRetryDescription: "アップロードに失敗すると、ImgBed は同じ種類のチャネルで再試行し、その後ほかの種類のチャネルを試すため、画像が別の場所に保存されることがあります。チャネル名が空のときは既定でオン（ImgBed と同じ）、入力したときは既定でオフです。チャネル名を入力した場合、接続テストは再試行せず、そのチャネル自体が使えることを確認します。",
         testDescription: "接続テストではこのフォルダーに 1×1 の透明画像をアップロードします。テスト後に ImgBed で削除できます。",
         connected: "ImgBed に接続しました。設定を保存できます。",
         connectionFailed: "接続できません。アドレス、API トークンとその upload 権限を確認してください。",
