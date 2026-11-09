@@ -58,7 +58,7 @@ export const PicGoSettingsItem = () => {
   const skippedChannels = loadedChannels ? channelList!.skipped[draft.imgbed.uploadChannel] : 0;
   // Judged only while the list is closed, so typing toward a listed name does not flash a warning.
   const [channelListOpen, setChannelListOpen] = useState(false);
-  const savedNameMissing = Boolean(loadedChannels && !channelListOpen && draft.imgbed.channelName.trim()
+  const savedNameMissing = Boolean(loadedChannels && !channelListOpen && channelNameValid && draft.imgbed.channelName.trim()
     && !loadedChannels.includes(draft.imgbed.channelName.trim()));
   const canLoadChannels = hasImgBedChannelsBridge() && Boolean(draft.imgbed.endpoint.trim() && draft.imgbed.token.trim()) && !busy && !loadingChannels;
   // While the list loads, testing, saving and every setting except the channel name are

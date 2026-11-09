@@ -158,7 +158,8 @@ export const listImgBedChannels = async (input, { fetchImpl = fetch, timeoutMs =
       .filter((name) => typeof name === "string" && name !== "");
     const usable = names.filter((name) => name === name.trim() && isImgBedChannelNameValid(name));
     channels[channel] = [...new Set(usable)];
-    skipped[channel] = names.length - usable.length;
+    // Counted once per distinct name, like the usable ones.
+    skipped[channel] = new Set(names).size - channels[channel].length;
   }
   return { channels, skipped };
 };

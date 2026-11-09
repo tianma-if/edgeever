@@ -164,7 +164,7 @@ test("lists channel names per upload channel with the API token", async () => {
       telegram: [{ name: "TG Main", type: "TelegramNew" }],
       cfr2: [{ name: "Main R2" }, { name: "Backup R2" }, { name: "Main R2" }],
       // Names EdgeEver could not send back unchanged are left out.
-      s3: [{ name: " padded " }, { name: "tab\tname" }, { name: "x".repeat(101) }, { name: 42 }, {}, null, { name: "S3 OK" }],
+      s3: [{ name: " padded " }, { name: " padded " }, { name: "tab\tname" }, { name: "x".repeat(101) }, { name: 42 }, {}, null, { name: "S3 OK" }],
       discord: "not a list",
       unknown: [{ name: "Ignored" }],
     });

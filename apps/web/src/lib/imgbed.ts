@@ -17,7 +17,9 @@ export const imgBedSiteKey = (endpoint: string) => {
     const url = new URL(value);
     // Search and hash stay in the key: the main process rejects them, so such an
     // address must never reuse a list loaded for the plain one.
-    return `${url.origin}${url.pathname.replace(/\/+$/, "").replace(/\/upload$/, "")}${url.search}${url.hash}`;
+    // Credentials stay in the key for the same reason (url.origin drops them).
+    const credentials = url.username || url.password ? `${url.username}:${url.password}@` : "";
+    return `${url.protocol}//${credentials}${url.host}${url.pathname.replace(/\/+$/, "").replace(/\/upload$/, "")}${url.search}${url.hash}`;
   } catch { return value; }
 };
 // null means the user never changed the retry switch. It then follows the

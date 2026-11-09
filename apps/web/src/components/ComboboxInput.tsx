@@ -60,7 +60,8 @@ export function ComboboxInput({ value, onValueChange, options, placeholder, labe
     if (disabled) setOpen(false);
   }, [disabled]);
   const customValue = value.trim();
-  const showCustom = Boolean(customValue) && !options.some((option) => option.value === customValue);
+  // With nothing to pick from, echoing the typed text as the only item adds noise.
+  const showCustom = options.length > 0 && Boolean(customValue) && !options.some((option) => option.value === customValue);
   // An empty list would still draw its border, so keep it closed instead.
   const listOpen = open && !disabled && (options.length > 0 || showCustom);
   useEffect(() => { onOpenChange?.(listOpen); }, [listOpen, onOpenChange]);
@@ -110,7 +111,8 @@ export function ComboboxInput({ value, onValueChange, options, placeholder, labe
           disabled={disabled}
           className="pr-9"
         >
-          <input aria-labelledby={labelledBy} aria-expanded={listOpen} aria-invalid={invalid || undefined} maxLength={maxLength} />
+          {/* Spread only when set: an undefined value would still override cmdk's own label reference. */}
+          <input {...(labelledBy ? { "aria-labelledby": labelledBy } : {})} aria-expanded={listOpen} aria-invalid={invalid || undefined} maxLength={maxLength} />
         </CommandInput>
         <Button
           type="button"

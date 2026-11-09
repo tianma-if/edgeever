@@ -90,6 +90,11 @@ test("the settings page's site key agrees with the main process address rule", (
   // Two addresses share a loaded channel list exactly when main posts to the same URL.
   const addresses = ["https://img.example.com", "https://img.example.com/", "https://img.example.com/upload", "https://IMG.example.com:443/upload/",
     "https://img.example.com/imgbed", "https://img.example.com/imgbed/upload", "http://img.example.com", "https://img.example.org/upload"];
+  // Addresses main rejects (credentials, search) never share a key with an accepted one.
+  for (const rejected of ["https://u:p@img.example.com", "https://img.example.com/?x"]) {
+    expect(() => normalizeImgBedEndpoint(rejected)).toThrow();
+    for (const accepted of addresses) expect(imgBedSiteKey(rejected)).not.toBe(imgBedSiteKey(accepted));
+  }
   for (const left of addresses) {
     for (const right of addresses) {
       expect(imgBedSiteKey(left) === imgBedSiteKey(right)).toBe(normalizeImgBedEndpoint(left).href === normalizeImgBedEndpoint(right).href);
