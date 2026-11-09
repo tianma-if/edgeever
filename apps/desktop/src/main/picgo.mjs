@@ -94,11 +94,11 @@ export const assertImageHostAllowed = async (hostname, lookupImpl, { label = "Pi
   }
 };
 
-export const postImageHostJson = async (url, body, fetchImpl, timeoutMs, { label = "PicGo", headers } = {}) => {
+export const postImageHostJson = async (url, body, fetchImpl, timeoutMs, { label = "PicGo", headers, method = "POST" } = {}) => {
   let response;
   try {
     response = await fetchImpl(url, {
-      method: "POST", body, headers, redirect: "error", signal: AbortSignal.timeout(timeoutMs),
+      method, body, headers, redirect: "error", signal: AbortSignal.timeout(timeoutMs),
     });
   } catch (error) {
     const name = error && typeof error === "object" ? error.name : "";

@@ -5,13 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { expandImgBedFolder, imgBedFolderError, IMGBED_FOLDER_PLACEHOLDERS, IMGBED_NAME_TYPES, IMGBED_SAMPLE_MEMO_ID, IMGBED_UPLOAD_CHANNELS, type ImgBedNameType, type ImgBedUploadChannel } from "@/lib/imgbed";
+import { expandImgBedFolder, imgBedFolderError, IMGBED_FOLDER_PLACEHOLDERS, IMGBED_MAX_CHANNEL_NAME_LENGTH, IMGBED_NAME_TYPES, IMGBED_SAMPLE_MEMO_ID, IMGBED_UPLOAD_CHANNELS, type ImgBedNameType, type ImgBedUploadChannel } from "@/lib/imgbed";
 import { hasImgBedBridge, hasPicGoBridge, readPicGoPreference, takePicGoServerKey, writePicGoPreference, type ImgBedPreference, type PicGoPreference } from "@/lib/picgo";
 import { SETTINGS_ITEM_DESCRIPTION_CLASSNAME, SETTINGS_ITEM_TITLE_CLASSNAME } from "./settings-ui";
 
 const picGoTargetId = (value: PicGoPreference) => value.provider === "imgbed"
   ? ["imgbed", value.imgbed.endpoint, value.imgbed.token, value.imgbed.uploadFolder, value.imgbed.nameType,
-    value.imgbed.uploadChannel, String(value.imgbed.serverCompress)].join("\0")
+    value.imgbed.uploadChannel, value.imgbed.channelName, String(value.imgbed.serverCompress)].join("\0")
   : `${value.endpoint}\0${value.serverKey}`;
 const sameImgBed = (left: ImgBedPreference, right: ImgBedPreference) => picGoTargetId({ provider: "imgbed", endpoint: "", serverKey: "", imgbed: left })
   === picGoTargetId({ provider: "imgbed", endpoint: "", serverKey: "", imgbed: right });
@@ -45,7 +45,7 @@ export const PicGoSettingsItem = () => {
       if (draft.provider === "imgbed") {
         await window.edgeeverDesktop!.testImgBedConnection!({
           endpoint: draft.imgbed.endpoint, token: draft.imgbed.token, nameType: draft.imgbed.nameType,
-          uploadChannel: draft.imgbed.uploadChannel, serverCompress: draft.imgbed.serverCompress,
+          uploadChannel: draft.imgbed.uploadChannel, channelName: draft.imgbed.channelName, serverCompress: draft.imgbed.serverCompress,
           uploadFolder: expandImgBedFolder(draft.imgbed.uploadFolder),
         });
       } else {
@@ -53,8 +53,9 @@ export const PicGoSettingsItem = () => {
       }
       setTestedTarget(picGoTargetId(draft));
       setStatus(t(`${prefix}.connected`));
-    } catch {
-      setStatus(t(`${prefix}.connectionFailed`));
+    } catch (error) {
+      // Electron wraps main-process errors, so match the marker anywhere in the message.
+      setStatus(t(draft.provider === "imgbed" && String(error).includes("IMGBED_CHANNEL_NAME:") ? "settings.picgo.imgbed.channelNameNotFound" : `${prefix}.connectionFailed`));
     } finally { setBusy(false); }
   };
   const save = () => {
@@ -152,6 +153,10 @@ export const PicGoSettingsItem = () => {
               ))}
             </SelectContent>
           </Select>
+          <label htmlFor="imgbed-channel-name" className={SETTINGS_ITEM_TITLE_CLASSNAME}>{t("settings.picgo.imgbed.channelName")}</label>
+          <Input id="imgbed-channel-name" value={draft.imgbed.channelName} disabled={busy}
+            onChange={(event) => updateImgBed({ channelName: event.target.value })} spellCheck={false} autoComplete="off" maxLength={IMGBED_MAX_CHANNEL_NAME_LENGTH} />
+          <p className={SETTINGS_ITEM_DESCRIPTION_CLASSNAME}>{t("settings.picgo.imgbed.channelNameDescription")}</p>
           <div className="flex items-center justify-between gap-3">
             <label htmlFor="imgbed-compress" className={SETTINGS_ITEM_TITLE_CLASSNAME}>{t("settings.picgo.imgbed.serverCompress")}</label>
             <Switch id="imgbed-compress" checked={draft.imgbed.serverCompress} disabled={busy}

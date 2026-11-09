@@ -1274,6 +1274,9 @@ export const fr = {
           huggingface: "Hugging Face",
           webdav: "WebDAV"
         },
+        channelName: "Nom du canal (facultatif)",
+        channelNameDescription: "Si le canal d'envoi comporte plusieurs canaux du même type, saisissez le nom de l'un d'eux tel qu'affiché dans l'administration d'ImgBed pour y envoyer les images. Le nom doit correspondre exactement ; s'il est vide ou introuvable, ImgBed choisit lui-même un canal (généralement le premier).",
+        channelNameNotFound: "Nom de canal introuvable : ImgBed n'a aucun canal activé portant ce nom pour le canal d'envoi choisi, ou cette version d'ImgBed ne prend pas en charge les noms de canal.",
         serverCompress: "Compression côté serveur",
         serverCompressDescription: "ImgBed compresse les images sur le serveur. S'applique uniquement au canal Telegram. Activé par défaut, conformément à l'API ImgBed.",
         testDescription: "Le test téléverse une image transparente 1×1 dans ce dossier. Vous pourrez la supprimer ensuite dans ImgBed.",

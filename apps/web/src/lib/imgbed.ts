@@ -6,6 +6,8 @@ export type ImgBedNameType = typeof IMGBED_NAME_TYPES[number];
 // Defaults follow the ImgBed upload API: telegram channel with server compression on.
 export const IMGBED_UPLOAD_CHANNELS = ["telegram", "cfr2", "s3", "discord", "huggingface", "webdav"] as const;
 export type ImgBedUploadChannel = typeof IMGBED_UPLOAD_CHANNELS[number];
+// Matches the main process limit on the optional channel name.
+export const IMGBED_MAX_CHANNEL_NAME_LENGTH = 100;
 // `key` names the description in settings.picgo.imgbed.placeholders.
 export const IMGBED_FOLDER_PLACEHOLDERS = [
   { token: "{Y}", key: "Y" }, { token: "{y}", key: "y" }, { token: "{m}", key: "m" }, { token: "{d}", key: "d" },

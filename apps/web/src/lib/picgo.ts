@@ -4,13 +4,13 @@ export const PICGO_STORAGE_KEY = "edgeever.desktop.picgo.v1";
 export const DEFAULT_PICGO_ENDPOINT = "http://127.0.0.1:36677/upload";
 export type ImgBedPreference = {
   endpoint: string; token: string; uploadFolder: string; nameType: ImgBedNameType;
-  uploadChannel: ImgBedUploadChannel; serverCompress: boolean;
+  uploadChannel: ImgBedUploadChannel; channelName: string; serverCompress: boolean;
 };
 export type PicGoPreference = { provider: "edgeever" | "picgo" | "imgbed"; endpoint: string; serverKey: string; imgbed: ImgBedPreference };
 export type ExternalImageHost = Exclude<PicGoPreference["provider"], "edgeever">;
 
 const emptyImgBedPreference = (): ImgBedPreference => ({
-  endpoint: "", token: "", uploadFolder: "", nameType: "default", uploadChannel: "telegram", serverCompress: true,
+  endpoint: "", token: "", uploadFolder: "", nameType: "default", uploadChannel: "telegram", channelName: "", serverCompress: true,
 });
 const emptyPicGoPreference = (): PicGoPreference => ({ provider: "edgeever", endpoint: DEFAULT_PICGO_ENDPOINT, serverKey: "", imgbed: emptyImgBedPreference() });
 
@@ -23,6 +23,8 @@ const readImgBedPreference = (value: unknown): ImgBedPreference => {
     uploadFolder: text("uploadFolder"),
     nameType: IMGBED_NAME_TYPES.includes(record.nameType as ImgBedNameType) ? record.nameType as ImgBedNameType : "default",
     uploadChannel: IMGBED_UPLOAD_CHANNELS.includes(record.uploadChannel as ImgBedUploadChannel) ? record.uploadChannel as ImgBedUploadChannel : "telegram",
+    // Saved before channel names existed: empty keeps ImgBed's own channel choice.
+    channelName: text("channelName"),
     serverCompress: typeof record.serverCompress === "boolean" ? record.serverCompress : true,
   };
 };
@@ -83,7 +85,7 @@ export const uploadImageWithPicGo = async (file: File, copy: PicGoFailureCopy, c
   const result = preference.provider === "imgbed"
     ? await window.edgeeverDesktop!.uploadImgBedImage!({
       endpoint: preference.imgbed.endpoint, token: preference.imgbed.token, nameType: preference.imgbed.nameType,
-      uploadChannel: preference.imgbed.uploadChannel, serverCompress: preference.imgbed.serverCompress,
+      uploadChannel: preference.imgbed.uploadChannel, channelName: preference.imgbed.channelName, serverCompress: preference.imgbed.serverCompress,
       uploadFolder: expandImgBedFolder(preference.imgbed.uploadFolder, new Date(), { memoId: context.memoId }), bytes, filename: file.name, mimeType: file.type, copy,
     })
     : await window.edgeeverDesktop!.uploadPicGoImage({
