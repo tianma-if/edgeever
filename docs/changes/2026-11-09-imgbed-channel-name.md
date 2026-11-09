@@ -10,7 +10,7 @@ Fixes [Issue #822](https://github.com/tianma-if/edgeever/issues/822). CloudFlare
 
 | ID | Behavior | Acceptance |
 | --- | --- | --- |
-| B01 | "Channel name" is optional text of up to 100 characters. When set, uploads and the connection test send `channelName=<name>` (trimmed); when empty the parameter is omitted and requests are unchanged. | Desktop `imgbed.test.mjs`. |
+| B01 | "Channel name" is optional text of up to 100 characters; leading and trailing spaces are removed when saving (inner spaces are kept). When set, uploads and the connection test send `channelName=<name>`; when empty the parameter is omitted and requests are unchanged. | Desktop `imgbed.test.mjs`. |
 | B02 | The main process validates again: a non-string name, one with control characters or one longer than 100 characters is rejected before any request. | Desktop `imgbed.test.mjs`. |
 | B03 | The channel name is part of the connection target: changing it requires a new connection test before saving. Settings saved by older versions have no such field and read as empty. | Web `picgo.test.mjs`. |
 | B04 | The settings page explains that the name must match the channel name in the ImgBed admin panel exactly, and that ImgBed chooses the channel itself when it is empty or not found. | Manual check. |

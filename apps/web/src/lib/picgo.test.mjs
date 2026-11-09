@@ -94,7 +94,10 @@ test("ImgBed expands the folder for the target note and needs its own desktop br
       return { url: "https://img.example.com/file/notes/image.png" };
     },
   };
-  writePicGoPreference({ provider: "imgbed", endpoint: DEFAULT_PICGO_ENDPOINT, serverKey: "", imgbed });
+  // Edge spaces in the channel name are dropped when saving; inner spaces stay.
+  const stored = writePicGoPreference({ provider: "imgbed", endpoint: DEFAULT_PICGO_ENDPOINT, serverKey: "", imgbed: { ...imgbed, channelName: "  Main R2 " } });
+  expect(stored.imgbed).toEqual(imgbed);
+  expect(JSON.parse(storage.get(PICGO_STORAGE_KEY)).imgbed.channelName).toBe("Main R2");
   expect(activeExternalImageHost()).toBe("imgbed");
   expect(await uploadImageWithPicGo(file(), copy, { memoId: "memo_123" })).toEqual({
     kind: "image", url: "https://img.example.com/file/notes/image.png", filename: "image.png", mimeType: "image/png", byteSize: 4,

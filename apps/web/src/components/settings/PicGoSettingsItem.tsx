@@ -60,8 +60,9 @@ export const PicGoSettingsItem = () => {
   };
   const save = () => {
     try {
-      writePicGoPreference(draft);
-      setSaved(draft);
+      const stored = writePicGoPreference(draft);
+      setSaved(stored);
+      setDraft(stored);
       setStatus(t("settings.picgo.saved"));
     } catch { setStatus(t("settings.picgo.saveFailed")); }
   };
