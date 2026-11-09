@@ -1,0 +1,92 @@
+[
+  {
+    "name": "Anthropic single model: max_tokens and a shared max_input_tokens window",
+    "provider": "anthropic", "modelId": "claude-x", "endpoint": "model",
+    "body": { "id": "claude-x", "type": "model", "max_tokens": 64000, "max_input_tokens": 200000 },
+    "expected": { "maxOutputTokens": 64000, "maxInputTokens": null, "contextWindowTokens": 200000, "source": "anthropic-models" }
+  },
+  {
+    "name": "Anthropic model list: the matching entry",
+    "provider": "anthropic", "modelId": "claude-x", "endpoint": "models",
+    "body": { "data": [{ "id": "other", "max_tokens": 1 }, { "id": "claude-x", "max_tokens": 64000, "max_input_tokens": 200000 }] },
+    "expected": { "maxOutputTokens": 64000, "maxInputTokens": null, "contextWindowTokens": 200000, "source": "anthropic-models" }
+  },
+  {
+    "name": "Anthropic without limits",
+    "provider": "anthropic", "modelId": "claude-x", "endpoint": "model",
+    "body": { "id": "claude-x", "max_tokens": null, "max_input_tokens": null },
+    "expected": null
+  },
+  {
+    "name": "Gemini single model: independent input and output limits",
+    "provider": "google", "modelId": "gemini-x", "endpoint": "model",
+    "body": { "name": "models/gemini-x", "inputTokenLimit": 1048576, "outputTokenLimit": 65536 },
+    "expected": { "maxOutputTokens": 65536, "maxInputTokens": 1048576, "contextWindowTokens": null, "source": "gemini-models" }
+  },
+  {
+    "name": "Gemini model list with a models/ prefixed ID",
+    "provider": "google", "modelId": "models/gemini-x", "endpoint": "models",
+    "body": { "models": [{ "name": "models/gemini-x", "inputTokenLimit": 1048576, "outputTokenLimit": 65536 }] },
+    "expected": { "maxOutputTokens": 65536, "maxInputTokens": 1048576, "contextWindowTokens": null, "source": "gemini-models" }
+  },
+  {
+    "name": "Gemini model list matched by baseModelId",
+    "provider": "google", "modelId": "gemini-y", "endpoint": "models",
+    "body": { "models": [{ "name": "models/gemini-y-001", "baseModelId": "gemini-y", "inputTokenLimit": 32768, "outputTokenLimit": 8192 }] },
+    "expected": { "maxOutputTokens": 8192, "maxInputTokens": 32768, "contextWindowTokens": null, "source": "gemini-models" }
+  },
+  {
+    "name": "OpenRouter model list: top_provider limits, shared window",
+    "provider": "openai-compatible", "modelId": "openai/gpt-x", "endpoint": "models",
+    "body": { "data": [{ "id": "openai/gpt-x", "context_length": 400000, "top_provider": { "context_length": 400000, "max_completion_tokens": 128000 } }] },
+    "expected": { "maxOutputTokens": 128000, "maxInputTokens": null, "contextWindowTokens": 400000, "source": "openrouter-models" }
+  },
+  {
+    "name": "OpenRouter without an output limit keeps the window",
+    "provider": "openai-compatible", "modelId": "m", "endpoint": "models",
+    "body": { "data": [{ "id": "m", "context_length": 131072, "top_provider": { "max_completion_tokens": null } }] },
+    "expected": { "maxOutputTokens": null, "maxInputTokens": null, "contextWindowTokens": 131072, "source": "openrouter-models" }
+  },
+  {
+    "name": "DeepSeek model list: max_output_tokens and a shared context_window",
+    "provider": "openai-compatible", "modelId": "deepseek-flash", "endpoint": "models",
+    "body": { "data": [{ "id": "deepseek-flash", "context_window": 1048576, "max_output_tokens": 393216 }] },
+    "expected": { "maxOutputTokens": 393216, "maxInputTokens": null, "contextWindowTokens": 1048576, "source": "deepseek-models" }
+  },
+  {
+    "name": "A plain OpenAI-compatible list has no limits",
+    "provider": "openai-compatible", "modelId": "gpt-x", "endpoint": "models",
+    "body": { "data": [{ "id": "gpt-x", "object": "model", "owned_by": "openai" }] },
+    "expected": null
+  },
+  {
+    "name": "A list without the requested model has no limits",
+    "provider": "openai-compatible", "modelId": "gpt-y", "endpoint": "models",
+    "body": { "data": [{ "id": "gpt-x", "context_length": 128000 }] },
+    "expected": null
+  },
+  {
+    "name": "LiteLLM /model/info: independent input and output limits",
+    "provider": "openai-compatible", "modelId": "my-model", "endpoint": "litellm-model-info",
+    "body": { "data": [{ "model_name": "my-model", "model_info": { "max_input_tokens": 128000, "max_output_tokens": 16384, "max_tokens": 16384 } }] },
+    "expected": { "maxOutputTokens": 16384, "maxInputTokens": 128000, "contextWindowTokens": null, "source": "litellm-model-info" }
+  },
+  {
+    "name": "Fractional, boolean, zero, negative and oversized values are unknown",
+    "provider": "openai-compatible", "modelId": "m", "endpoint": "models",
+    "body": { "data": [{ "id": "m", "context_window": 1.5, "max_output_tokens": true, "context_length": 0 }] },
+    "expected": null
+  },
+  {
+    "name": "Values above the accepted maximum are ignored, valid ones kept",
+    "provider": "google", "modelId": "gemini-z", "endpoint": "model",
+    "body": { "name": "models/gemini-z", "inputTokenLimit": 1000000000000, "outputTokenLimit": 8192 },
+    "expected": { "maxOutputTokens": 8192, "maxInputTokens": null, "contextWindowTokens": null, "source": "gemini-models" }
+  },
+  {
+    "name": "A body that is not an object has no limits",
+    "provider": "anthropic", "modelId": "claude-x", "endpoint": "model",
+    "body": ["not", "an", "object"],
+    "expected": null
+  }
+]

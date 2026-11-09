@@ -7,16 +7,24 @@ actor APIClient {
     private var onMfaRebindRequired: (@Sendable () -> Void)?
 
     private let session: URLSession
+    /// The models.dev fallback for model limits (#652); `nil` turns it off.
+    private let modelCatalog: ModelsDevCatalog?
+    /// The longest a generation waits for model limit detection before going on without it (#652).
+    private let capabilityDetectionTimeout: TimeInterval
 
     init(
         baseURL: URL,
         token: String? = nil,
         session: URLSession = .shared,
+        modelCatalog: ModelsDevCatalog? = .shared,
+        capabilityDetectionTimeout: TimeInterval = AiModelCapabilityDetector.defaultTimeout,
         onUnauthorized: (@Sendable () -> Void)? = nil
     ) {
         self.baseURL = baseURL.edgeEverNormalizedBase
         self.token = token
         self.session = session
+        self.modelCatalog = modelCatalog
+        self.capabilityDetectionTimeout = capabilityDetectionTimeout
         self.onUnauthorized = onUnauthorized
     }
 
@@ -284,7 +292,7 @@ actor APIClient {
             modelId: prepared.modelId, system: prepared.system, prompt: prepared.prompt, maxOutputTokens: prepared.maxOutputTokens,
             resultBoundary: AiGenerationResultBoundary(start: "", end: ""))
         let providerRequest = try AiDirectStream.providerRequest(for: generation)
-        let (bytes, response) = try await session.bytes(for: providerRequest)
+        let (bytes, response) = try await session.bytes(for: providerRequest, delegate: AiProviderRedirects.reject)
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
             throw APIError(status: (response as? HTTPURLResponse)?.statusCode ?? 502, code: "ai_tag_suggestions_failed", message: "The model request failed.")
         }
@@ -300,18 +308,46 @@ actor APIClient {
 
     func streamAiGeneration(_ input: AiGenerateInput) -> AsyncThrowingStream<AiStreamEvent, Error> {
         let session = self.session
+        let modelCatalog = self.modelCatalog
+        let detectionTimeout = self.capabilityDetectionTimeout
         return AsyncThrowingStream { continuation in
             let task = Task {
                 do {
                     // This client can run a long task in parts or continue a cut-off result (#652 PR B).
                     var first = input
                     first.segmentation = AiSegmentationRequest()
-                    let prepared: AiPreparedGeneration = try await self.request(path: "/api/v1/ai/generate/prepare", method: "POST", body: first)
+                    var prepared: AiPreparedGeneration = try await self.request(path: "/api/v1/ai/generate/prepare", method: "POST", body: first)
+                    // Reporting and detecting are separate: a fresh cache is not read again, but a limit
+                    // learned from a provider error is still reported so a cached value that is too high
+                    // gets corrected (#652).
+                    let target = prepared.capabilityTarget
+                    if let target, prepared.detectCapabilities == true {
+                        // The instance has no fresh limits for this model: read them from the provider once,
+                        // save them for every client, and prepare again so this request already uses them.
+                        // Unknown or slow metadata (nil) changes nothing: this request uses the first prepare.
+                        let limits = try await AiModelCapabilityDetector.detect(
+                            .init(provider: prepared.provider, baseUrl: prepared.baseUrl, apiKey: prepared.apiKey, modelId: prepared.modelId),
+                            session: session,
+                            catalog: modelCatalog,
+                            timeout: detectionTimeout
+                        )
+                        if let limits, await self.reportCapabilities(limits, for: prepared, target: target), limits.hasLimits {
+                            prepared = try await self.request(path: "/api/v1/ai/generate/prepare", method: "POST", body: first)
+                        }
+                    }
+                    let reportOutputLimit: (@Sendable (AiPreparedGeneration, Int) async -> Void)? = target.map { target in
+                        { @Sendable next, maxOutputTokens in
+                            let limits = AiModelCapabilityLimits(maxOutputTokens: maxOutputTokens, maxInputTokens: nil, contextWindowTokens: nil, source: "provider-error")
+                            _ = await self.reportCapabilities(limits, for: next, target: target)
+                        }
+                    }
                     try await AiLongGeneration.run(
                         input: input,
                         first: prepared,
                         prepare: { next in try await self.request(path: "/api/v1/ai/generate/prepare", method: "POST", body: next) },
-                        stream: { next, emit in try await Self.streamDirectProvider(next, session: session, emit: emit) },
+                        stream: { next, emit in
+                            try await Self.streamDirectProvider(next, session: session, emit: emit, onOutputLimit: reportOutputLimit)
+                        },
                         emit: { event in continuation.yield(event) }
                     )
                     continuation.finish()
@@ -321,20 +357,72 @@ actor APIClient {
         }
     }
 
-    private static func streamDirectProvider(
+    /// Save limits read for the model a prepare used (#652). Returns whether the instance accepted them;
+    /// an older instance, or a model or service that changed meanwhile, rejects them, which is harmless.
+    func reportCapabilities(_ limits: AiModelCapabilityLimits, for prepared: AiPreparedGeneration, target: AiModelCapabilityTarget) async -> Bool {
+        struct Report: Encodable {
+            var provider: String
+            var modelId: String
+            var baseUrl: String
+            var configVersion: String
+            var limits: AiModelCapabilityLimits
+            private enum CodingKeys: String, CodingKey { case provider, modelId, baseUrl, configVersion }
+            func encode(to encoder: Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(provider, forKey: .provider)
+                try container.encode(modelId, forKey: .modelId)
+                try container.encode(baseUrl, forKey: .baseUrl)
+                try container.encode(configVersion, forKey: .configVersion)
+                try limits.encode(to: encoder)
+            }
+        }
+        struct Accepted: Decodable {}
+        let segment = AiModelCapabilityDetector.pathSegment
+        let path = "/api/v1/ai/providers/\(segment(target.providerConfigId))/models/\(segment(target.modelConfigId))/capabilities"
+        let report = Report(provider: prepared.provider, modelId: prepared.modelId, baseUrl: prepared.baseUrl, configVersion: target.configVersion, limits: limits)
+        do {
+            let _: Accepted = try await request(path: path, method: "PUT", body: report)
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    static func streamDirectProvider(
         _ prepared: AiPreparedGeneration,
         session: URLSession,
-        emit: @Sendable (AiStreamEvent) -> Void
+        emit: @Sendable (AiStreamEvent) -> Void,
+        onOutputLimit: (@Sendable (AiPreparedGeneration, Int) async -> Void)? = nil,
+        retried: Bool = false
     ) async throws {
         let request = try AiDirectStream.providerRequest(for: prepared)
-        let (bytes, response) = try await session.bytes(for: request)
+        // The request carries the model key: never follow a redirect (#652).
+        let (bytes, response) = try await session.bytes(for: request, delegate: AiProviderRedirects.reject)
         guard let http = response as? HTTPURLResponse else {
             throw APIError(status: -1, code: nil, message: "Invalid response")
+        }
+        if (300 ..< 400).contains(http.statusCode) {
+            // Redirects are refused because the request carries the model key (#652).
+            throw APIError(
+                status: http.statusCode,
+                code: "ai_generation_failed",
+                message: "The model service redirected this request (HTTP \(http.statusCode)). Set the service's Base URL to its final address."
+            )
         }
         guard (200 ..< 300).contains(http.statusCode) else {
             var data = Data()
             for try await byte in bytes { data.append(byte) }
             let raw = String(data: data, encoding: .utf8) ?? HTTPURLResponse.localizedString(forStatusCode: http.statusCode)
+            // The provider rejected the requested output limit and said what it accepts. Nothing was
+            // generated or streamed yet, so retry once with that limit and report it (#652).
+            if http.statusCode == 400, !retried, let accepted = AiModelCapabilityParser.outputLimit(fromError: raw),
+               prepared.maxOutputTokens.map({ accepted < $0 }) ?? true {
+                await onOutputLimit?(prepared, accepted)
+                var next = prepared
+                next.maxOutputTokens = accepted
+                try await streamDirectProvider(next, session: session, emit: emit, onOutputLimit: onOutputLimit, retried: true)
+                return
+            }
             throw APIError(status: http.statusCode, code: "ai_generation_failed", message: String(raw.prefix(1000)))
         }
         emit(AiStreamEvent(type: "start", text: nil, code: nil, message: nil, finishReason: nil, inputTokens: nil, outputTokens: nil))
