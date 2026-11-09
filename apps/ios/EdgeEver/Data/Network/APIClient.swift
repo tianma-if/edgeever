@@ -401,6 +401,14 @@ actor APIClient {
         guard let http = response as? HTTPURLResponse else {
             throw APIError(status: -1, code: nil, message: "Invalid response")
         }
+        if (300 ..< 400).contains(http.statusCode) {
+            // Redirects are refused because the request carries the model key (#652).
+            throw APIError(
+                status: http.statusCode,
+                code: "ai_generation_failed",
+                message: "The model service redirected this request (HTTP \(http.statusCode)). Set the service's Base URL to its final address."
+            )
+        }
         guard (200 ..< 300).contains(http.statusCode) else {
             var data = Data()
             for try await byte in bytes { data.append(byte) }

@@ -202,6 +202,7 @@ final class AiModelCapabilitiesTests: XCTestCase {
             XCTFail("a redirected generation must fail")
         } catch let error as APIError {
             XCTAssertEqual(error.status, 307)
+            XCTAssertTrue(error.message.contains("Base URL"), "the message should say how to fix it")
         }
         let client = APIClient(baseURL: URL(string: "https://notes.example")!, token: "t", session: CapabilityStub.session(), modelCatalog: nil)
         do {
@@ -219,6 +220,52 @@ final class AiModelCapabilitiesTests: XCTestCase {
         let result = try await AiModelCapabilityDetector.detect(target(), session: CapabilityStub.session(), catalog: nil, timeout: 0.5)
         XCTAssertNil(result, "no answer in time means unknown")
         XCTAssertLessThan(Date().timeIntervalSince(started), 5)
+    }
+
+    /// The time limit also covers the wait for models.dev, which is shared and not cancelled itself.
+    func testTimeLimitAlsoCoversTheCatalogueDownload() async throws {
+        CapabilityStub.respond { request in
+            switch request.url?.path {
+            case "/v1/models": return (200, #"{"data":[{"id":"gpt-5"}]}"#, [:])
+            case "/v1/model/info": return (404, "{}", [:])
+            default: return (0, "", [:]) // the catalogue never answers
+            }
+        }
+        let session = CapabilityStub.session()
+        let started = Date()
+        let result = try await AiModelCapabilityDetector.detect(target(), session: session, catalog: ModelsDevCatalog(session: session), timeout: 0.5)
+        XCTAssertNil(result)
+        XCTAssertTrue(CapabilityStub.paths().contains("/api.json"), "the catalogue was being read when the time ran out")
+        XCTAssertLessThan(Date().timeIntervalSince(started), 3, "the caller must not wait for the shared download")
+    }
+
+    /// Stop is a cancellation, never "continue without limits".
+    func testStoppingDuringDetectionThrowsCancellation() async throws {
+        for hangCatalogue in [false, true] {
+            CapabilityStub.reset()
+            CapabilityStub.respond { request in
+                switch request.url?.path {
+                case "/v1/models": return hangCatalogue ? (200, #"{"data":[{"id":"gpt-5"}]}"#, [:]) : (0, "", [:])
+                case "/v1/model/info": return (404, "{}", [:])
+                default: return (0, "", [:])
+                }
+            }
+            let session = CapabilityStub.session()
+            let catalog = ModelsDevCatalog(session: session)
+            let target = target()
+            let started = Date()
+            let task = Task { try await AiModelCapabilityDetector.detect(target, session: session, catalog: catalog, timeout: 30) }
+            try await Task.sleep(nanoseconds: 300_000_000)
+            task.cancel()
+            do {
+                _ = try await task.value
+                XCTFail("stopping must throw (catalogue hung: \(hangCatalogue))")
+            } catch is CancellationError {
+            } catch {
+                XCTFail("expected CancellationError, got \(error)")
+            }
+            XCTAssertLessThan(Date().timeIntervalSince(started), 3, "stopping must not wait for a hung request (catalogue hung: \(hangCatalogue))")
+        }
     }
 
     func testTemporaryLiteLlmFailuresAreUnknownNotNoLimits() async throws {

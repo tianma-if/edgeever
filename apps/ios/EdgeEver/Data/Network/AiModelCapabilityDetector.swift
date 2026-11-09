@@ -58,6 +58,8 @@ enum AiModelCapabilityDetector {
             }
             defer { group.cancelAll() }
             guard let first = try await group.next() else { return nil }
+            // A Stop that lands together with the timeout is still a Stop.
+            try Task.checkCancellation()
             switch first {
             case let .finished(limits): return limits
             case .timedOut: return nil
@@ -169,8 +171,9 @@ actor ModelsDevCatalog {
         self.now = now
     }
 
-    /// The lookup, or `nil` when the catalogue cannot be read now. Never throws. The shared download
-    /// is never cancelled by one caller; it ends within `timeout`.
+    /// The lookup, or `nil` when the catalogue cannot be read now. Never throws. A cancelled caller
+    /// (a detection that timed out, or a user who stopped) stops waiting at once and gets `nil`; the
+    /// shared download carries on for others and ends within `timeout`.
     func index() async -> ModelsDevIndex? {
         let time = now()
         if let cached, time.timeIntervalSince(cached.checkedAt) < Self.freshInterval { return cached.index }
@@ -184,7 +187,15 @@ actor ModelsDevCatalog {
             task = Task { await self.finish(Self.download(session: session, etag: etag)) }
             pending = task
         }
-        return await task.value
+        let first = ResumeOnce<ModelsDevIndex?>()
+        return await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                first.attach(continuation)
+                Task { first.resume(await task.value) }
+            }
+        } onCancel: {
+            first.resume(nil)
+        }
     }
 
     private enum DownloadResult: Sendable {
@@ -229,5 +240,35 @@ actor ModelsDevCatalog {
         } catch {
             return .failed
         }
+    }
+}
+
+/// Resumes a continuation once, with whichever value arrives first (#652).
+private final class ResumeOnce<Value: Sendable>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<Value, Never>?
+    private var resolved = false
+    private var value: Value?
+
+    func attach(_ continuation: CheckedContinuation<Value, Never>) {
+        lock.lock()
+        if resolved, let value {
+            lock.unlock()
+            continuation.resume(returning: value)
+            return
+        }
+        self.continuation = continuation
+        lock.unlock()
+    }
+
+    func resume(_ result: Value) {
+        lock.lock()
+        guard !resolved else { lock.unlock(); return }
+        resolved = true
+        let waiting = continuation
+        continuation = nil
+        if waiting == nil { value = result }
+        lock.unlock()
+        waiting?.resume(returning: result)
     }
 }
