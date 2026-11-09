@@ -133,7 +133,10 @@ test("connection test explains old ImgBed versions and rejected tokens on the ch
   const input = (endpoint) => ({ endpoint, token: "imgbed-token", uploadFolder: "", nameType: "default", channelName: "Main" });
   // Older sites answer unknown routes with 404 or with their HTML app shell.
   for (const response of [() => new Response("missing", { status: 404 }), () => new Response("<!doctype html><title>ImgBed</title>", { headers: { "content-type": "text/html" } })]) {
-    await expect(testImgBedConnection(input(serve(response)))).rejects.toThrow("IMGBED_CHANNELS_UNSUPPORTED:");
+    // Older settings pages only know IMGBED_CHANNEL_NAME, so both markers are sent.
+    const failure = await testImgBedConnection(input(serve(response))).catch(String);
+    expect(failure).toContain("IMGBED_CHANNELS_UNSUPPORTED:");
+    expect(failure).toContain("IMGBED_CHANNEL_NAME:");
   }
   // Server errors, rate limits and oversized replies are not blamed on the channel name.
   for (const [response, expected] of [
@@ -167,7 +170,9 @@ test("lists channel names per upload channel with the API token", async () => {
     });
   });
   expect(await listImgBedChannels({ endpoint: `${endpoint}/upload`, token: " imgbed-token " })).toEqual({
-    telegram: ["TG Main"], cfr2: ["Main R2", "Backup R2"], s3: ["S3 OK"], discord: [], huggingface: [], webdav: [],
+    channels: { telegram: ["TG Main"], cfr2: ["Main R2", "Backup R2"], s3: ["S3 OK"], discord: [], huggingface: [], webdav: [] },
+    // Non-string and empty entries are not channels; unusable names are counted.
+    skipped: { telegram: 0, cfr2: 0, s3: 3, discord: 0, huggingface: 0, webdav: 0 },
   });
   expect(requests).toEqual(["GET /api/channels Bearer imgbed-token"]);
 });
@@ -177,7 +182,7 @@ test("listing channels explains old ImgBed versions, rejected tokens and unsafe 
   expect(await list(serve(() => new Response("missing", { status: 404 })))).toContain("IMGBED_CHANNELS_UNSUPPORTED:");
   expect(await list(serve(() => new Response("<!doctype html>", { headers: { "content-type": "text/html" } })))).toContain("IMGBED_CHANNELS_UNSUPPORTED:");
   const rejected = await list(serve(() => new Response("nope", { status: 403 })));
-  expect(rejected).toContain("rejected the API token");
+  expect(rejected).toContain("IMGBED_TOKEN_REJECTED:");
   expect(rejected).not.toContain("imgbed-token");
   expect(await list(serve(() => new Response("boom", { status: 502 })))).toContain("HTTP 502");
   let fetched = false;

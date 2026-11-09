@@ -3,6 +3,11 @@
 import { lookup } from "node:dns/promises";
 import { assertHostShape, assertImageHostAllowed, postImageHostJson } from "./picgo.mjs";
 
+// Stable markers for the settings page; the readable text after each is for logs.
+const TOKEN_REJECTED = "IMGBED_TOKEN_REJECTED: ImgBed rejected the API token";
+// Settings pages from before IMGBED_CHANNELS_UNSUPPORTED only know IMGBED_CHANNEL_NAME,
+// and a desktop app may load a web build of another version, so send both.
+const CHANNELS_UNSUPPORTED = "IMGBED_CHANNELS_UNSUPPORTED: IMGBED_CHANNEL_NAME: this ImgBed version does not support channel names";
 const ADDRESS_ERROR = "Use a CloudFlare ImgBed address such as https://img.example.com";
 const LABEL = "ImgBed";
 export const IMGBED_NAME_TYPES = ["default", "index", "origin", "short"];
@@ -51,14 +56,13 @@ export const normalizeImgBedFolder = (value) => {
 // (or load-balanced) channel when nothing matches, so only trim the edges.
 // Same rule as isImgBedChannelNameValid in the renderer: control characters
 // anywhere are rejected before trimming, and the limit applies to the trimmed name.
+// oxlint-disable-next-line no-control-regex -- rejects control characters in the ImgBed channel name
+const isImgBedChannelNameValid = (value) => typeof value === "string" && !/[\u0000-\u001f\u007f]/.test(value)
+  && value.trim().length <= IMGBED_MAX_CHANNEL_NAME_LENGTH;
 export const normalizeImgBedChannelName = (value) => {
   if (value == null || value === "") return "";
-  if (typeof value !== "string") throw new Error("ImgBed channel name is invalid");
-  // oxlint-disable-next-line no-control-regex -- rejects control characters in the ImgBed channel name
-  if (/[\u0000-\u001f\u007f]/.test(value)) throw new Error("ImgBed channel name is invalid");
-  const name = value.trim();
-  if (name.length > IMGBED_MAX_CHANNEL_NAME_LENGTH) throw new Error("ImgBed channel name is invalid");
-  return name;
+  if (!isImgBedChannelNameValid(value)) throw new Error("ImgBed channel name is invalid");
+  return value.trim();
 };
 
 // ImgBed retries a failed write on the same type and then on other channel
@@ -116,7 +120,7 @@ const post = async (input, file, filename, { fetchImpl, timeoutMs, lookupImpl, f
   try {
     data = await postImageHostJson(url, form, fetchImpl, timeoutMs, { label: LABEL, headers: { Authorization: `Bearer ${token}` } });
   } catch (error) {
-    if (/HTTP (401|403)$/.test(String(error?.message))) throw new Error("ImgBed rejected the API token");
+    if (/HTTP (401|403)$/.test(String(error?.message))) throw new Error(TOKEN_REJECTED);
     throw error;
   }
   return { url: resultUrl(data, url) };
@@ -137,22 +141,25 @@ export const listImgBedChannels = async (input, { fetchImpl = fetch, timeoutMs =
     data = await postImageHostJson(url, undefined, fetchImpl, timeoutMs, { label: LABEL, method: "GET", headers: { Authorization: `Bearer ${token}` } });
   } catch (error) {
     const message = String(error?.message);
-    if (/HTTP (401|403)$/.test(message)) throw new Error("ImgBed rejected the API token");
+    if (/HTTP (401|403)$/.test(message)) throw new Error(TOKEN_REJECTED);
     // Sites older than channel names answer the unknown route with 404 or with
     // their small HTML app shell. Every other failure keeps its own message.
     if (message.endsWith("HTTP 404") || message.endsWith("returned an unreadable response")) {
-      throw new Error("IMGBED_CHANNELS_UNSUPPORTED: this ImgBed version does not support channel names");
+      throw new Error(CHANNELS_UNSUPPORTED);
     }
     throw error;
   }
-  // Keep only names EdgeEver can send back unchanged, once each, in ImgBed's order.
-  return Object.fromEntries(IMGBED_UPLOAD_CHANNELS.map((channel) => {
+  // Keep only names EdgeEver can send back unchanged, once each, in ImgBed's order,
+  // and count the rest so the settings page can say why a channel is missing.
+  const channels = {};
+  const skipped = {};
+  for (const channel of IMGBED_UPLOAD_CHANNELS) {
     const names = Array.isArray(data?.[channel]) ? data[channel].map((item) => item?.name) : [];
-    // Normalizing trims, so an equal result also rules out edge spaces.
-    return [channel, [...new Set(names.filter((name) => {
-      try { return typeof name === "string" && name !== "" && normalizeImgBedChannelName(name) === name; } catch { return false; }
-    }))]];
-  }));
+    const usable = names.filter((name) => typeof name === "string" && name !== "" && name === name.trim() && isImgBedChannelNameValid(name));
+    channels[channel] = [...new Set(usable)];
+    skipped[channel] = names.filter((name) => typeof name === "string" && name !== "").length - usable.length;
+  }
+  return { channels, skipped };
 };
 
 // ImgBed silently uses its default channel when channelName matches nothing,
@@ -161,7 +168,7 @@ const assertImgBedChannelExists = async (input, options) => {
   const channelName = normalizeImgBedChannelName(input.channelName);
   if (!channelName) return;
   buildUploadUrl(input); // Validates every field before any request.
-  const channels = await listImgBedChannels(input, options);
+  const { channels } = await listImgBedChannels(input, options);
   if (!channels[input.uploadChannel ?? "telegram"].includes(channelName)) {
     throw new Error("IMGBED_CHANNEL_NAME: ImgBed has no enabled channel with this name for the selected upload channel");
   }

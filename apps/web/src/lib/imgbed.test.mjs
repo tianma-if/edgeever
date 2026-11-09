@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { expandImgBedFolder, imgBedAutoRetry, imgBedFolderError, isImgBedChannelNameValid, IMGBED_MAX_FOLDER_LENGTH, IMGBED_MAX_MEMO_ID_LENGTH } from "./imgbed.ts";
+import { expandImgBedFolder, imgBedAutoRetry, imgBedFolderError, imgBedSiteKey, isImgBedChannelNameValid, IMGBED_MAX_FOLDER_LENGTH, IMGBED_MAX_MEMO_ID_LENGTH } from "./imgbed.ts";
 import { normalizeImgBedChannelName, normalizeImgBedFolder, resolveImgBedAutoRetry } from "../../../desktop/src/main/imgbed.mjs";
 
 const now = new Date(2026, 0, 5, 7, 8, 9, 42);
@@ -73,4 +73,15 @@ test("the settings page and the main process share the retry default", () => {
   }
   expect(imgBedAutoRetry(null, "")).toBe(true);
   expect(imgBedAutoRetry(null, " Main ")).toBe(false);
+});
+
+test("channel lists survive cosmetic address edits but not a different site", () => {
+  const key = imgBedSiteKey("https://img.example.com/upload");
+  for (const same of ["https://img.example.com", " https://img.example.com/ ", "https://IMG.example.com/upload/", "https://img.example.com:443"]) {
+    expect(imgBedSiteKey(same)).toBe(key);
+  }
+  for (const other of ["https://img.example.org", "http://img.example.com", "https://img.example.com/imgbed", "https://img.example.com:8443"]) {
+    expect(imgBedSiteKey(other)).not.toBe(key);
+  }
+  expect(imgBedSiteKey(" not a url ")).toBe("not a url");
 });
