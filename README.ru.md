@@ -3,7 +3,7 @@
     <img src="assets/brand/edgeever-icon.svg" alt="Логотип EdgeEver" width="48" align="absmiddle" /> EdgeEver
   </h1>
   <p>
-    <b>AI-native база знаний и альтернатива Evernote/Obsidian с мгновенной синхронизацией и нативной поддержкой MCP. Бесплатно на Cloudflare или с самостоятельным хостингом (self-hosted) через Docker.</b>
+    <b>AI-native база знаний и альтернатива Evernote/Obsidian. Мгновенная синхронизация на всех платформах, мультиформатные заметки (таблицы, ментальные карты, диаграммы, постеры), веб-клиппер и MCP. 100% бесплатно на Cloudflare или через Docker.</b>
   </p>
   <p>
     <a href="https://github.com/tianma-if/edgeever/stargazers"><img src="https://img.shields.io/github/stars/tianma-if/edgeever?style=social" alt="Звёзды на GitHub" /></a>

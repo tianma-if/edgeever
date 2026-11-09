@@ -3,7 +3,7 @@
     <img src="assets/brand/edgeever-icon.svg" alt="EdgeEver Logo" width="48" align="absmiddle" /> EdgeEver
   </h1>
   <p>
-    <b>AI 原生知识库与印象笔记 / Obsidian 替代方案，支持多端瞬时同步与原生 MCP。Cloudflare 免费托管或 Docker 自托管</b>
+    <b>AI 原生知识库与印象笔记 / Obsidian 替代方案。支持全平台瞬时同步、多形态富笔记（多维表格、思维导图、图表、海报）、网页剪藏与原生 MCP。Cloudflare 100% 免费托管或 Docker 自托管。</b>
   </p>
   <p>
     <a href="https://github.com/tianma-if/edgeever/stargazers"><img src="https://img.shields.io/github/stars/tianma-if/edgeever?style=social" alt="GitHub Stars" /></a>
