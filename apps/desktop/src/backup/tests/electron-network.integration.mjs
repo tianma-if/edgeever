@@ -72,14 +72,16 @@ const withElectron = async (stage, proxy, run) => {
       expect(proxyRequests > 0).toBe(proxy);
       return report;
     };
-    await run({ directory, cleanup, address, baseline, runElectron });
+    await run({ stage, directory, cleanup, address, baseline, runElectron });
   } finally {
     for (const close of cleanup.reverse()) await close();
     await rm(directory, { recursive: true, force: true });
   }
 };
 
-const roundTrip = async ({ directory, cleanup, address, baseline, runElectron }) => {
+const roundTrip = async ({ stage, directory, cleanup, address, baseline, runElectron }) => {
+  const repeatedExport = stage === "freshness";
+  const exportCount = repeatedExport ? 2 : 1;
   const paths = [];
   const auth = [];
   const attachmentCacheHeaders = [];
@@ -110,7 +112,10 @@ const roundTrip = async ({ directory, cleanup, address, baseline, runElectron })
   const source = await instance("source"); const target = await instance("target");
   const { notebook } = await source.client.createNotebook({ name: "Network backup" });
   const { memo } = await source.client.createMemo({ notebookId: notebook.id, title: "Proxy round trip", contentMarkdown: "Streaming backup and restore" });
-  const bytes = randomBytes(Number(process.env.EDGE_EVER_BACKUP_ATTACHMENT_MIB ?? 32) * 1024 * 1024 + 11);
+  // Only the streaming case needs a large attachment. Cache freshness still
+  // performs two exports and restores the updated bytes with a small fixture.
+  const attachmentSize = repeatedExport ? 64 * 1024 : Number(process.env.EDGE_EVER_BACKUP_ATTACHMENT_MIB ?? 32) * 1024 * 1024;
+  const bytes = randomBytes(attachmentSize + 11);
   const { resource } = await source.client.uploadMemoResource(memo.id, new File([new Uint8Array([1])], "stream.bin", { type: "application/octet-stream" }));
   const row = source.database.query("SELECT object_key FROM resources WHERE id=?").get(resource.id);
   await writeFile(join(source.folder, "resources", row.object_key), bytes);
@@ -138,24 +143,24 @@ const roundTrip = async ({ directory, cleanup, address, baseline, runElectron })
     control: `${source.url}/__fixture/status`, mutableResourceUrl: mutableResource.url,
   });
   expect(report.archiveBytes).toBeGreaterThan(bytes.length);
-  expect(report.workersExited).toBe(baseline ? 0 : 4);
-  expect(report.repeatedExport).toBe(true);
+  expect(report.workersExited).toBe(baseline ? 0 : repeatedExport ? 4 : 2);
+  expect(report.repeatedExport).toBe(repeatedExport);
   expect((await target.client.getMemo(memo.id)).memo.contentMarkdown).toBe("Streaming backup and restore");
   const restored = await target.client.getResourceResponse(`/api/v1/resources/${resource.id}/blob`);
-  expect(new Uint8Array(await restored.arrayBuffer())).toEqual(new Uint8Array(bytes));
+  expect(Buffer.from(await restored.arrayBuffer()).equals(bytes)).toBe(true);
   const restoredMutable = await target.client.getResourceResponse(mutableResource.url);
-  expect(new Uint8Array(await restoredMutable.arrayBuffer())).toEqual(new Uint8Array(mutableBytes));
+  expect(Buffer.from(await restoredMutable.arrayBuffer()).equals(mutableBytes)).toBe(true);
   expect(auth.every(value => value.authorization === "Bearer fixture-bearer" && value.cookie === null)).toBe(true);
-  expect(paths.filter(path => path === "source:GET /api/v1/backups/state")).toHaveLength(5);
-  expect(paths.filter(path => path.startsWith("source:GET /api/v1/backups/data"))).toHaveLength(6);
-  expect(paths.filter(path => path === `source:GET /api/v1/resources/${resource.id}/blob`)).toHaveLength(2);
-  expect(paths.filter(path => path === `source:GET /api/v1/resources/${mutableResource.id}/blob`)).toHaveLength(2);
+  expect(paths.filter(path => path === "source:GET /api/v1/backups/state")).toHaveLength(repeatedExport ? 5 : 2);
+  expect(paths.filter(path => path.startsWith("source:GET /api/v1/backups/data"))).toHaveLength(3 * exportCount);
+  expect(paths.filter(path => path === `source:GET /api/v1/resources/${resource.id}/blob`)).toHaveLength(exportCount);
+  expect(paths.filter(path => path === `source:GET /api/v1/resources/${mutableResource.id}/blob`)).toHaveLength(exportCount);
   const mutableCacheHeaders = attachmentCacheHeaders.filter(value => value.path === `/api/v1/resources/${mutableResource.id}/blob`);
-  expect(mutableCacheHeaders).toHaveLength(2);
+  expect(mutableCacheHeaders).toHaveLength(exportCount);
   expect(mutableCacheHeaders.every(({ cacheControl }) => cacheControl?.includes("private") && cacheControl.includes("max-age=3600"))).toBe(true);
-  // Two exports, one unchanged-source check and one restore. Only the large
-  // restore's part count grows with EDGE_EVER_BACKUP_ATTACHMENT_MIB.
-  expect(paths, JSON.stringify(paths)).toHaveLength(61 + Math.ceil(bytes.length / RESOURCE_UPLOAD_PART_BYTES));
+  // Only the streaming restore's part count grows with the fixture size.
+  const fixedRequests = repeatedExport ? 61 : 44;
+  expect(paths, JSON.stringify(paths)).toHaveLength(fixedRequests + Math.ceil(bytes.length / RESOURCE_UPLOAD_PART_BYTES));
 };
 
 const fault = (stage) => async ({ cleanup, address, baseline, runElectron }) => {
@@ -194,6 +199,7 @@ const fault = (stage) => async ({ cleanup, address, baseline, runElectron }) => 
 for (const proxy of [true, false]) {
   const transport = proxy ? "the session proxy" : "a direct connection";
   test(`Electron backups round trip through ${transport}`, () => withElectron("round-trip", proxy, roundTrip), 45000);
+  test(`Electron backup re-exports uncached attachment bytes through ${transport}`, () => withElectron("freshness", proxy, roundTrip), 45000);
   test(`Electron backups report HTTP 503 through ${transport}`, () => withElectron("http-503", proxy, fault("http-503")), 45000);
   test(`Electron backups cancel an in-flight request through ${transport}`, () => withElectron("cancellation", proxy, fault("cancellation")), 45000);
 }

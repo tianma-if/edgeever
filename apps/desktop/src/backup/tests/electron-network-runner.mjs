@@ -52,24 +52,28 @@ app.whenReady().then(async () => {
     assert.equal(first.config.interval, "weekly");
     assert.equal(first.config.retention, 1);
 
-    // The due check must stay a single state request, not another archive export.
-    await manager.tick(Date.parse(first.nextDueAt) + 1); await manager.waitForIdle(); checked();
-    assert.equal(manager.status().lastCheck.result, "unchanged");
-    assert.equal(manager.status().history.length, 1);
+    const repeatedExport = settings.stage === "freshness";
+    let latest = first;
+    if (repeatedExport) {
+      // The due check must stay a single state request, not another archive export.
+      await manager.tick(Date.parse(first.nextDueAt) + 1); await manager.waitForIdle(); checked();
+      assert.equal(manager.status().lastCheck.result, "unchanged");
+      assert.equal(manager.status().history.length, 1);
 
-    const replacement = await net.fetch(new URL("./replace-attachment", settings.control).href, {
-      method: "POST", credentials: "omit", cache: "no-store",
-    });
-    assert.equal(replacement.status, 200);
-    const replaced = await replacement.json();
-    assert.equal(replaced.resourceUrl, settings.mutableResourceUrl);
-    assert.notEqual(replaced.hash, replaced.previousHash);
-    assert.ok(replaced.revisionAfter > replaced.revisionBefore);
-    await manager.run(); await manager.waitForIdle(); checked();
-    const second = manager.status();
-    assert.equal(second.lastCheck.result, "success");
-    assert.equal(second.history.length, 1);
-    const archive = join(second.actualDirectory, second.history[0].name);
+      const replacement = await net.fetch(new URL("./replace-attachment", settings.control).href, {
+        method: "POST", credentials: "omit", cache: "no-store",
+      });
+      assert.equal(replacement.status, 200);
+      const replaced = await replacement.json();
+      assert.equal(replaced.resourceUrl, settings.mutableResourceUrl);
+      assert.notEqual(replaced.hash, replaced.previousHash);
+      assert.ok(replaced.revisionAfter > replaced.revisionBefore);
+      await manager.run(); await manager.waitForIdle(); checked();
+      latest = manager.status();
+      assert.equal(latest.lastCheck.result, "success");
+      assert.equal(latest.history.length, 1);
+    }
+    const archive = join(latest.actualDirectory, latest.history[0].name);
 
     await manager.setContext(context(settings.target));
     const selection = await manager.selectImport(archive);
@@ -80,7 +84,7 @@ app.whenReady().then(async () => {
     manager.confirmImport(); await manager.waitForIdle();
     assert.equal(manager.status().importError, null);
 
-    return { archiveBytes: second.history[0].size, repeatedExport: true };
+    return { archiveBytes: latest.history[0].size, repeatedExport };
   };
 
   const httpFailure = async () => {
@@ -105,7 +109,7 @@ app.whenReady().then(async () => {
 
   try {
     console.error(`Electron backup stage: ${settings.stage}`);
-    const scenarios = { "round-trip": roundTrip, "http-503": httpFailure, cancellation };
+    const scenarios = { "round-trip": roundTrip, freshness: roundTrip, "http-503": httpFailure, cancellation };
     const output = await scenarios[settings.stage]();
     await manager.close();
     await Promise.all(workers.map(worker => worker.exited));
