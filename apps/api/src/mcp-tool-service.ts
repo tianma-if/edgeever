@@ -281,17 +281,19 @@ export const callMcpTool = async (
     assertNotebookAccess(notebookAccess, kind, memo.notebookId, action);
   };
 
-  // Note templates are workspace-level resources with no notebook owner, so a
-  // notebook-restricted token must not read or manage them at all.
-  const assertTemplatesAllowed = () => {
+  // Note templates and AI instructions are workspace-level resources with no
+  // notebook owner, so a notebook-restricted token must not read or manage
+  // them at all.
+  const assertWorkspaceResourcesAllowed = (resource: string) => {
     if (notebookAccess.restricted) {
       throw new AppError(
         "notebook_access_denied",
-        "This API token is restricted to specific notebooks and cannot access note templates. Update the token's notebook access in EdgeEver settings.",
+        `This API token is restricted to specific notebooks and cannot access ${resource}. Update the token's notebook access in EdgeEver settings.`,
         403,
       );
     }
   };
+  const assertTemplatesAllowed = () => assertWorkspaceResourcesAllowed("note templates");
 
   const assertBulkMemoAccess = async (
     memoIds: string[],
@@ -1277,6 +1279,7 @@ export const callMcpTool = async (
     }
     case "list_ai_instructions": {
       assertScope(auth, "read:memos");
+      assertWorkspaceResourcesAllowed("AI instructions");
       return {
         instructions: await listAiPromptTemplates(
           c.env.storage.db,
@@ -1287,6 +1290,7 @@ export const callMcpTool = async (
     }
     case "get_ai_instruction": {
       assertScope(auth, "read:memos");
+      assertWorkspaceResourcesAllowed("AI instructions");
       const row = await getAiPromptTemplateRow(
         c.env.storage.db,
         auth.workspaceId,
@@ -1297,6 +1301,7 @@ export const callMcpTool = async (
     }
     case "create_ai_instruction": {
       assertScope(auth, "write:memos");
+      assertWorkspaceResourcesAllowed("AI instructions");
       assertMcpMutationAllowed(c.env);
       const input = parseMcpInput(AiPromptTemplateCreateSchema, args);
       const id = createId("aiprompt");
@@ -1328,6 +1333,7 @@ export const callMcpTool = async (
     }
     case "update_ai_instruction": {
       assertScope(auth, "write:memos");
+      assertWorkspaceResourcesAllowed("AI instructions");
       assertMcpMutationAllowed(c.env);
       const instructionId = getRequiredString(args.instructionId, "instructionId");
       const input = parseMcpInput(AiPromptTemplateUpdateSchema, args);
@@ -1364,6 +1370,7 @@ export const callMcpTool = async (
     }
     case "delete_ai_instruction": {
       assertScope(auth, "write:memos");
+      assertWorkspaceResourcesAllowed("AI instructions");
       assertMcpMutationAllowed(c.env);
       const instructionId = getRequiredString(args.instructionId, "instructionId");
       const current = await getAiPromptTemplateRow(c.env.storage.db, auth.workspaceId, instructionId);
@@ -1379,6 +1386,7 @@ export const callMcpTool = async (
     }
     case "restore_default_ai_instructions": {
       assertScope(auth, "write:memos");
+      assertWorkspaceResourcesAllowed("AI instructions");
       assertMcpMutationAllowed(c.env);
       const result = await restoreMissingDefaultAiPrompts(c.env.storage.db, auth.workspaceId);
       if (result.restoredCount > 0) {

@@ -263,6 +263,23 @@ describe("MCP notebook access enforcement", () => {
     expect((await call(admin, "get_note_template", { templateId: template.id })).template.id).toBe(template.id);
   });
 
+  test("restricted tokens cannot read or manage AI instructions", async () => {
+    const { context, makeAuth } = createFixture();
+    const admin = makeAuth(null);
+    const restricted = makeAuth([{ notebookId: "nb_allowed", read: true, write: true }]);
+    const call = (auth, tool, args) => callMcpTool(context, auth, tool, args);
+
+    await expect(call(restricted, "list_ai_instructions", {}))
+      .rejects.toMatchObject({ code: "notebook_access_denied", status: 403 });
+    await expect(call(restricted, "create_ai_instruction", { name: "X", instruction: "y" }))
+      .rejects.toMatchObject({ code: "notebook_access_denied", status: 403 });
+
+    // Unrestricted tokens keep working.
+    const created = await call(admin, "create_ai_instruction", { name: "Helper", instruction: "Help politely." });
+    expect((await call(admin, "get_ai_instruction", { instructionId: created.instruction.id })).instruction.id)
+      .toBe(created.instruction.id);
+  });
+
   test("import dedup does not leak memo bodies outside the grant", async () => {
     const { context, makeAuth } = createFixture();
     const admin = makeAuth(null);
