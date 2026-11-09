@@ -1,20 +1,23 @@
 {
-  "version": "2.23.0",
+  "version": "2.24.0",
   "changes": {
     "en-US": [
-      "MCP now returns only Markdown for prose note bodies by default in get_memo and full-content list_memos. If your integration uses contentJson or contentText, pass format=\"all\" to keep the previous fields.",
-      "MCP keyword search includes a snippet of up to 200 characters around a body match when available.",
-      "The initial HTML for publicly shared notes leaves the note language unspecified and labels the built-in English text correctly. Thanks to @dkoryto in #816."
+      "Import exported WeChat chat archives directly from the iOS or Android share menu to save the conversation and its attachments as a note.",
+      "In an editable code block, press Cmd+C on macOS or Ctrl+C on other platforms to copy the current line when no text is selected.",
+      "On Web, desktop, and Android, model detection can look up reference token limits in the public models.dev catalog when the provider reports none. Thanks to @yulei666 in #809.",
+      "Desktop ImgBed uploads can target a channel by name. The connection test checks that channel directly, and you can choose whether failed uploads retry on another channel. Thanks to @yulei666 in #823."
     ],
     "zh-CN": [
-      "MCP 的 get_memo 和返回完整正文的 list_memos 现在默认只提供 Markdown 正文。依赖 contentJson 或 contentText 的集成可传入 format=\"all\"，继续获取原有字段。",
-      "MCP 关键词搜索命中笔记正文时，会附带最多 200 字的匹配片段。",
-      "公开分享页的初始 HTML 现在将笔记标题和正文的语言标记为未知，并正确标注页面自带的英文文案。感谢 @dkoryto 的 #816。"
+      "在 iOS 或 Android 的分享菜单中导入微信聊天记录压缩包，将对话和附件保存为笔记。",
+      "编辑代码块时，如果没有选中文字，按 Cmd+C（macOS）或 Ctrl+C（其他平台）即可复制当前行。",
+      "Web、桌面端和 Android 检测 AI 模型时，如果供应商未提供令牌上限，可从 models.dev 公共目录查找参考值。感谢 @yulei666 的 #809。",
+      "桌面端的 ImgBed 图床可以按名称指定上传渠道。连接测试会直接验证该渠道，上传失败后是否改用其他渠道重试也可以设置。感谢 @yulei666 的 #823。"
     ],
     "ja": [
-      "MCP の get_memo と本文を含む list_memos は、標準のノート本文を既定で Markdown のみ返します。contentJson や contentText が必要な場合は format=\"all\" を指定してください。",
-      "MCP のキーワード検索では、本文に一致箇所がある場合に最大 200 文字の抜粋を返します。",
-      "公開共有ページの初期 HTML で、ノートの言語は未指定とし、組み込みの英語テキストには正しい言語を設定します。"
+      "iOS または Android の共有メニューから WeChat のチャット履歴アーカイブを読み込み、会話と添付ファイルをノートに保存できます。",
+      "コードブロックの編集中にテキストを選択していない場合、macOS では Cmd+C、それ以外では Ctrl+C で現在の行をコピーできます。",
+      "Web、デスクトップ、Android では、提供元がトークン上限を返さないときに、models.dev の公開カタログから参考値を取得できます。",
+      "デスクトップ版の ImgBed では、アップロード先のチャンネルを名前で指定できます。接続テストは指定先を直接確認し、失敗時に別のチャンネルで再試行するかも選べます。"
     ]
   }
 }
