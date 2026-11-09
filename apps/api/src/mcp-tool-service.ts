@@ -165,6 +165,7 @@ export type McpToolDependencies = {
       dryRun: boolean;
       actor: AuditActor;
       actorLabel: string;
+      notebookAccess?: NotebookAccess;
     },
   ) => Promise<unknown>;
   listMemosForMcp: typeof import("./memo-service").listMemosForMcp;
@@ -278,6 +279,18 @@ export const callMcpTool = async (
 
   const assertMemoAccess = (memo: { notebookId: string }, kind: "read" | "write", action: string) => {
     assertNotebookAccess(notebookAccess, kind, memo.notebookId, action);
+  };
+
+  // Note templates are workspace-level resources with no notebook owner, so a
+  // notebook-restricted token must not read or manage them at all.
+  const assertTemplatesAllowed = () => {
+    if (notebookAccess.restricted) {
+      throw new AppError(
+        "notebook_access_denied",
+        "This API token is restricted to specific notebooks and cannot access note templates. Update the token's notebook access in EdgeEver settings.",
+        403,
+      );
+    }
   };
 
   const assertBulkMemoAccess = async (
@@ -714,6 +727,7 @@ export const callMcpTool = async (
         dryRun: args.dryRun === true,
         actor: getAuditActor(c),
         actorLabel: getActorLabel(c),
+        notebookAccess,
       });
     }
     case "update_memo": {
@@ -1140,10 +1154,12 @@ export const callMcpTool = async (
     }
     case "list_note_templates": {
       assertScope(auth, "read:memos");
+      assertTemplatesAllowed();
       return { templates: await listMemoTemplates(c.env.storage.db, auth.workspaceId) };
     }
     case "get_note_template": {
       assertScope(auth, "read:memos");
+      assertTemplatesAllowed();
       const template = await getMemoTemplate(
         c.env.storage.db,
         auth.workspaceId,
@@ -1154,6 +1170,7 @@ export const callMcpTool = async (
     }
     case "create_note_template": {
       assertScope(auth, "write:memos");
+      assertTemplatesAllowed();
       assertMcpMutationAllowed(c.env);
       const input = parseMcpInput(TemplateCreateSchema, args);
       const memo = input.memoId
@@ -1192,6 +1209,7 @@ export const callMcpTool = async (
     }
     case "update_note_template": {
       assertScope(auth, "write:memos");
+      assertTemplatesAllowed();
       assertMcpMutationAllowed(c.env);
       const templateId = getRequiredString(args.templateId, "templateId");
       const input = parseMcpInput(TemplateUpdateSchema, args);
@@ -1227,6 +1245,7 @@ export const callMcpTool = async (
     }
     case "delete_note_template": {
       assertScope(auth, "write:memos");
+      assertTemplatesAllowed();
       assertMcpMutationAllowed(c.env);
       const templateId = getRequiredString(args.templateId, "templateId");
       const current = await getMemoTemplate(c.env.storage.db, auth.workspaceId, templateId);
@@ -1240,6 +1259,7 @@ export const callMcpTool = async (
     }
     case "use_note_template": {
       assertScope(auth, "write:memos");
+      assertTemplatesAllowed();
       assertMcpMutationAllowed(c.env);
       assertNotebookAccess(notebookAccess, "write", getRequiredString(args.notebookId, "notebookId"), "create a memo from this template");
       const templateId = getRequiredString(args.templateId, "templateId");

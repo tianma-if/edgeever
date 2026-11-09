@@ -235,4 +235,64 @@ describe("MCP notebook access enforcement", () => {
     await expect(call(none, "create_notebook", { name: "Nope" }))
       .rejects.toMatchObject({ code: "notebook_access_denied", status: 403 });
   });
+
+  test("restricted tokens cannot read or manage workspace templates", async () => {
+    const { context, makeAuth } = createFixture();
+    const admin = makeAuth(null);
+    const restricted = makeAuth([{ notebookId: "nb_allowed", read: true, write: true }]);
+    const call = (auth, tool, args) => callMcpTool(context, auth, tool, args);
+
+    const template = (await call(admin, "create_note_template", {
+      name: "Weekly", contentMarkdown: "template body",
+    })).template;
+
+    await expect(call(restricted, "list_note_templates", {}))
+      .rejects.toMatchObject({ code: "notebook_access_denied", status: 403 });
+    await expect(call(restricted, "get_note_template", { templateId: template.id }))
+      .rejects.toMatchObject({ code: "notebook_access_denied", status: 403 });
+    await expect(call(restricted, "update_note_template", { templateId: template.id, name: "Changed" }))
+      .rejects.toMatchObject({ code: "notebook_access_denied", status: 403 });
+    await expect(call(restricted, "delete_note_template", { templateId: template.id }))
+      .rejects.toMatchObject({ code: "notebook_access_denied", status: 403 });
+    await expect(call(restricted, "use_note_template", { templateId: template.id, notebookId: "nb_allowed" }))
+      .rejects.toMatchObject({ code: "notebook_access_denied", status: 403 });
+    await expect(call(restricted, "create_note_template", { name: "X", contentMarkdown: "y" }))
+      .rejects.toMatchObject({ code: "notebook_access_denied", status: 403 });
+
+    // Unrestricted tokens keep working.
+    expect((await call(admin, "get_note_template", { templateId: template.id })).template.id).toBe(template.id);
+  });
+
+  test("import dedup does not leak memo bodies outside the grant", async () => {
+    const { context, makeAuth } = createFixture();
+    const admin = makeAuth(null);
+    const restricted = makeAuth([{ notebookId: "nb_allowed", read: true, write: true }]);
+    const call = (auth, tool, args) => callMcpTool(context, auth, tool, args);
+
+    // Import one memo into the secret notebook first (admin), then re-import the
+    // same external id into the allowed notebook with the restricted token.
+    const first = await call(admin, "import_memos", {
+      source: "flomo",
+      notebookId: "nb_secret",
+      items: [{ externalId: "ext-1", title: "Secret import", contentMarkdown: "secret-body-needle" }],
+    });
+    expect(first.results[0].status).toBe("created");
+
+    const second = await call(restricted, "import_memos", {
+      source: "flomo",
+      notebookId: "nb_allowed",
+      items: [{ externalId: "ext-1", title: "Secret import", contentMarkdown: "secret-body-needle" }],
+    });
+    expect(second.results[0].status).toBe("skipped");
+    expect(second.results[0].reason).toBe("notebook_access_denied");
+    expect(second.results[0]).not.toHaveProperty("memo");
+    expect(JSON.stringify(second)).not.toContain("secret-body-needle");
+
+    // Importing into a non-writable destination is refused outright.
+    await expect(call(restricted, "import_memos", {
+      source: "flomo",
+      notebookId: "nb_secret",
+      items: [{ externalId: "ext-2", title: "No", contentMarkdown: "x" }],
+    })).rejects.toMatchObject({ code: "notebook_access_denied", status: 403 });
+  });
 });

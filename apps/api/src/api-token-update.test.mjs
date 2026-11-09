@@ -122,10 +122,14 @@ describe("API token notebook access management", () => {
     expect(updatedBody.apiToken.notebookDefaultAccess).toBe("write");
     expect(updatedBody.apiToken.token).toBe(tokenValue);
 
-    // Clearing the grants (empty array) un-restricts the token.
+    // An empty grant list means restricted-to-nothing (fail closed), while
+    // omitting notebookAccess entirely keeps the token unrestricted.
     const cleared = await patch(app, environment, createdBody.apiToken.id, { notebookAccess: [] });
     expect(cleared.status).toBe(200);
-    expect((await cleared.json()).apiToken.notebookAccess).toBeNull();
+    expect((await cleared.json()).apiToken.notebookAccess).toEqual([]);
+
+    const untouched = await patch(app, environment, createdBody.apiToken.id, { name: "Renamed" });
+    expect((await untouched.json()).apiToken.notebookAccess).toEqual([]);
   });
 
   test("defaults tokens without an explicit default to none", async () => {

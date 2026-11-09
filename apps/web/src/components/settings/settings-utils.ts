@@ -75,7 +75,8 @@ export const getStoredTokenAccessLevel = (
   notebookAccess?: TokenNotebookAccess[] | null,
 ): StoredTokenAccessLevel => {
   // A notebook-scoped token is always "custom", whatever its global scopes.
-  if (notebookAccess && notebookAccess.length > 0) {
+  // An empty grant list still means restricted (to nothing), so it counts too.
+  if (notebookAccess != null) {
     return "custom";
   }
 
@@ -110,7 +111,9 @@ export const notebookAccessToDraft = (
   notebookAccess: TokenNotebookAccess[] | null | undefined,
   notebookDefaultAccess: TokenNotebookDefaultAccess | undefined,
 ): NotebookGrantDraft => {
-  if (!notebookAccess || notebookAccess.length === 0) {
+  // null = unrestricted ("all" mode); an empty array is a restricted token
+  // with no grants, which the editor shows as selected-with-nothing.
+  if (notebookAccess == null) {
     return emptyNotebookGrantDraft();
   }
   const grants: NotebookGrantDraft["grants"] = {};

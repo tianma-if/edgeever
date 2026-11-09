@@ -33,12 +33,22 @@ export const UNRESTRICTED_NOTEBOOK_ACCESS: NotebookAccess = {
   defaultWrite: true,
 };
 
-/** Parses the stored `notebook_access_json` column. Null keeps legacy tokens unrestricted. */
+/**
+ * Parses the stored `notebook_access_json` column.
+ *
+ * - NULL/undefined → `null` (legacy token, unrestricted).
+ * - A JSON array → its valid entries, possibly empty. An empty array is a
+ *   restricted token with no grants (fail closed), never a fallback to
+ *   unrestricted access.
+ * - Unparseable or non-array values → `[]`: a corrupted grant column must
+ *   narrow access instead of widening it. Valid entries among malformed
+ *   ones are kept; the rest are dropped.
+ */
 export const parseNotebookAccessJson = (value: string | null | undefined): TokenNotebookAccess[] | null => {
-  if (!value) return null;
+  if (value == null) return null;
   try {
     const parsed: unknown = JSON.parse(value);
-    if (!Array.isArray(parsed)) return null;
+    if (!Array.isArray(parsed)) return [];
     const entries: TokenNotebookAccess[] = [];
     for (const item of parsed) {
       if (!item || typeof item !== "object") continue;
@@ -50,9 +60,9 @@ export const parseNotebookAccessJson = (value: string | null | undefined): Token
         write: entry.write === true,
       });
     }
-    return entries.length > 0 ? entries : null;
+    return entries;
   } catch {
-    return null;
+    return [];
   }
 };
 
@@ -60,41 +70,60 @@ export const parseNotebookAccessJson = (value: string | null | undefined): Token
 export const parseNotebookDefaultAccess = (value: string | null | undefined): TokenNotebookDefaultAccess =>
   value === "read" || value === "write" ? value : "none";
 
+/**
+ * Cloudflare D1 caps bound parameters per query well below SQLite's own
+ * ceiling, and a token may grant up to 200 notebooks (plus their subtrees).
+ * Keep every generated query at or below this many bound values.
+ */
+export const NOTEBOOK_ACCESS_BIND_LIMIT = 50;
+
+/** Splits ids into chunks small enough for D1's bound-parameter limit. */
+export const chunkNotebookIds = (notebookIds: string[], chunkSize = NOTEBOOK_ACCESS_BIND_LIMIT): string[][] => {
+  const chunks: string[][] = [];
+  for (let index = 0; index < notebookIds.length; index += chunkSize) {
+    chunks.push(notebookIds.slice(index, index + chunkSize));
+  }
+  return chunks;
+};
+
 /** Expands granted notebook ids to include every live descendant notebook. */
 const expandWithDescendants = async (
   db: DatabaseAdapter,
   workspaceId: string,
   notebookIds: string[],
 ): Promise<string[]> => {
-  if (notebookIds.length === 0) return [];
-  const placeholders = notebookIds.map(() => "?").join(", ");
-  const rows = await db.prepare(
-    `WITH RECURSIVE granted(id) AS (
-       SELECT id FROM notebooks
-       WHERE workspace_id = ? AND is_deleted = 0 AND id IN (${placeholders})
+  const expanded = new Set<string>();
+  for (const chunk of chunkNotebookIds(notebookIds)) {
+    const placeholders = chunk.map(() => "?").join(", ");
+    const rows = await db.prepare(
+      `WITH RECURSIVE granted(id) AS (
+         SELECT id FROM notebooks
+         WHERE workspace_id = ? AND is_deleted = 0 AND id IN (${placeholders})
 
-       UNION ALL
+         UNION ALL
 
-       SELECT n.id
-       FROM notebooks n
-       INNER JOIN granted g ON n.parent_id = g.id
-       WHERE n.workspace_id = ? AND n.is_deleted = 0
-     )
-     SELECT DISTINCT id FROM granted`,
-  ).bind(workspaceId, ...notebookIds, workspaceId).all<{ id: string }>();
+         SELECT n.id
+         FROM notebooks n
+         INNER JOIN granted g ON n.parent_id = g.id
+         WHERE n.workspace_id = ? AND n.is_deleted = 0
+       )
+       SELECT DISTINCT id FROM granted`,
+    ).bind(workspaceId, ...chunk, workspaceId).all<{ id: string }>();
 
-  return rows.results.map((row) => row.id);
+    for (const row of rows.results) expanded.add(row.id);
+  }
+  return [...expanded];
 };
 
 /**
  * Resolves the effective notebook access for a request. `null` entries (every
  * token created before this feature, and interactive user sessions) stay
- * unrestricted. A `write` grant always implies `read`.
+ * unrestricted. An empty array is a restricted token with no grants at all
+ * (fail closed). A `write` grant always implies `read`.
  *
- * `defaultAccess` covers notebooks with no explicit grant — notably notebooks
- * created after the token: "read" grants the whole workspace read access on
- * top of the explicit grants, "write" additionally grants write access, and
- * "none" (the default) keeps the original allow-list behaviour.
+ * `defaultAccess` covers only notebooks with NO explicit grant — notably
+ * notebooks created after the token. Explicit grants always win: a notebook
+ * granted read-only stays read-only even when the default is "write".
  */
 export const resolveNotebookAccess = async (
   db: DatabaseAdapter,
@@ -102,7 +131,7 @@ export const resolveNotebookAccess = async (
   entries: TokenNotebookAccess[] | null | undefined,
   defaultAccess: TokenNotebookDefaultAccess = "none",
 ): Promise<NotebookAccess> => {
-  if (!entries || entries.length === 0) {
+  if (entries == null) {
     return UNRESTRICTED_NOTEBOOK_ACCESS;
   }
 
@@ -122,12 +151,19 @@ export const resolveNotebookAccess = async (
     };
   }
 
-  const allNotebookIds = await expandWithDescendants(db, workspaceId, await liveNotebookIds(db, workspaceId));
+  // The default only applies where no explicit grant covers the notebook.
+  // Even an explicit empty grant (read=false, write=false) counts: it means
+  // "explicitly denied" and must not be overridden by the default.
+  const explicitlyGranted = new Set(grantedReadable);
+  for (const id of grantedWritable) explicitlyGranted.add(id);
+  for (const entry of entries) explicitlyGranted.add(entry.notebookId);
+  const ungrantedIds = (await liveNotebookIds(db, workspaceId)).filter((id) => !explicitlyGranted.has(id));
+
   const readable = new Set(grantedReadable);
-  for (const id of allNotebookIds) readable.add(id);
   const writable = new Set(grantedWritable);
-  if (defaultAccess === "write") {
-    for (const id of allNotebookIds) writable.add(id);
+  for (const id of ungrantedIds) {
+    readable.add(id);
+    if (defaultAccess === "write") writable.add(id);
   }
 
   return {
@@ -145,11 +181,17 @@ const liveNotebookIds = async (db: DatabaseAdapter, workspaceId: string): Promis
   return rows.results.map((row) => row.id);
 };
 
-/** SQL fragment: true when the column holds one of the listed notebook ids. */
+/**
+ * SQL fragment: true when the column holds one of the listed notebook ids.
+ * Long lists are split into OR-ed IN clauses so each clause stays within
+ * D1's bound-parameter limit.
+ */
 export const notebookInListSql = (notebookIdColumn: string, notebookIds: string[]) => {
   if (notebookIds.length === 0) return "0 = 1";
-  const placeholders = notebookIds.map(() => "?").join(", ");
-  return `${notebookIdColumn} IN (${placeholders})`;
+  const clauses = chunkNotebookIds(notebookIds).map(
+    (chunk) => `${notebookIdColumn} IN (${chunk.map(() => "?").join(", ")})`,
+  );
+  return clauses.length === 1 ? clauses[0] : `(${clauses.join(" OR ")})`;
 };
 
 /** SQL fragment for memo rows: true when the memo's notebook is accessible. */
@@ -206,7 +248,7 @@ export const hasAllNotebookAccess = (
  */
 export const resolveRequestNotebookAccess = async (c: AppContext): Promise<NotebookAccess> => {
   const auth = c.get("auth");
-  if (!auth || auth.kind !== "agent" || !auth.notebookAccess?.length) {
+  if (!auth || auth.kind !== "agent" || auth.notebookAccess == null) {
     return UNRESTRICTED_NOTEBOOK_ACCESS;
   }
   return resolveNotebookAccess(c.env.storage.db, auth.workspaceId, auth.notebookAccess, auth.notebookDefaultAccess);

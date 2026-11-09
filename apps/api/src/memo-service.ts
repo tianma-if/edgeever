@@ -46,6 +46,7 @@ import {
 import { deleteStoredObjects } from "./object-storage";
 import { getAuditActor, getWorkspaceId } from "./request-auth";
 import {
+  assertNotebookAccess,
   memoNotebookAccessSql,
   notebookAccessBinds,
   type NotebookAccess,
@@ -1138,6 +1139,7 @@ export const importMemosRecord = async (
     dryRun: boolean;
     actor: { actorType: "user" | "agent"; actorId: string | null };
     actorLabel: string;
+    notebookAccess?: NotebookAccess;
   },
 ) => {
   const source = normalizeImportSource(input.source);
@@ -1147,6 +1149,34 @@ export const importMemosRecord = async (
   if (!(await notebookExists(db, workspaceId, input.notebookId))) {
     throw new AppError("not_found", "Import destination notebook not found in the authenticated user's workspace.", 404);
   }
+  if (input.notebookAccess?.restricted) {
+    assertNotebookAccess(input.notebookAccess, "write", input.notebookId, "import memos");
+  }
+
+  // A deduplicated memo outside the token's readable notebooks must not leak
+  // its body (or even its existence) through the skip result.
+  const dedupResult = async (
+    index: number,
+    externalId: string | null,
+    memoId: string,
+    sourceUpdatedAt: string | null,
+  ): Promise<Record<string, unknown>> => {
+    const memo = await getMemoDetail(db, workspaceId, memoId, true);
+    if (memo && input.notebookAccess?.restricted) {
+      const denied = !input.notebookAccess.readableNotebookIds.includes(memo.notebookId);
+      if (denied) {
+        return { index, externalId, status: "skipped", reason: "notebook_access_denied" };
+      }
+    }
+    return {
+      index,
+      externalId,
+      status: "skipped",
+      reason: "already_imported",
+      memo,
+      sourceUpdatedAt,
+    };
+  };
 
   const results: Array<Record<string, unknown>> = [];
 
@@ -1159,14 +1189,7 @@ export const importMemosRecord = async (
       externalId = item.externalId;
       const existing = await getMemoImportSource(db, workspaceId, source, externalId);
       if (existing) {
-        results.push({
-          index,
-          externalId,
-          status: "skipped",
-          reason: "already_imported",
-          memo: await getMemoDetail(db, workspaceId, existing.memo_id, true),
-          sourceUpdatedAt: existing.source_updated_at,
-        });
+        results.push(await dedupResult(index, externalId, existing.memo_id, existing.source_updated_at));
         continue;
       }
 
@@ -1203,14 +1226,7 @@ export const importMemosRecord = async (
         await discardUnlinkedImportedMemo(db, workspaceId, createdMemoId);
         const winner = externalId ? await getMemoImportSource(db, workspaceId, source, externalId) : null;
         if (winner) {
-          results.push({
-            index,
-            externalId,
-            status: "skipped",
-            reason: "already_imported",
-            memo: await getMemoDetail(db, workspaceId, winner.memo_id, true),
-            sourceUpdatedAt: winner.source_updated_at,
-          });
+          results.push(await dedupResult(index, externalId, winner.memo_id, winner.source_updated_at));
           continue;
         }
       }

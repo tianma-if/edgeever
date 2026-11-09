@@ -61,6 +61,7 @@ export const registerImportRoutes = (app: Hono<AppEnv>) => {
         dryRun: input.dryRun,
         actor: getAuditActor(context),
         actorLabel: getActorLabel(context),
+        notebookAccess: await resolveRequestNotebookAccess(context),
       }));
     } catch (error) {
       if (error instanceof AppError) return apiError(context, error.code, error.message, error.status);

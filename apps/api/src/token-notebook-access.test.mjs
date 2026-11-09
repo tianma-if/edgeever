@@ -68,13 +68,14 @@ const createFixture = () => {
 };
 
 describe("parseNotebookAccessJson", () => {
-  test("null and malformed values stay unrestricted", () => {
+  test("null stays unrestricted; empty and malformed values fail closed", () => {
     expect(parseNotebookAccessJson(null)).toBeNull();
     expect(parseNotebookAccessJson(undefined)).toBeNull();
-    expect(parseNotebookAccessJson("")).toBeNull();
-    expect(parseNotebookAccessJson("not json")).toBeNull();
-    expect(parseNotebookAccessJson('{"notebookId":"nb_a"}')).toBeNull();
-    expect(parseNotebookAccessJson("[]")).toBeNull();
+    expect(parseNotebookAccessJson("")).toEqual([]);
+    expect(parseNotebookAccessJson("not json")).toEqual([]);
+    expect(parseNotebookAccessJson('{"notebookId":"nb_a"}')).toEqual([]);
+    expect(parseNotebookAccessJson("[]")).toEqual([]);
+    expect(parseNotebookAccessJson('[{"notebookId":""}]')).toEqual([]);
   });
 
   test("keeps valid entries and drops malformed ones", () => {
@@ -89,7 +90,6 @@ describe("resolveNotebookAccess", () => {
     const db = createFixture();
     expect(await resolveNotebookAccess(db, "ws_t", null)).toEqual(UNRESTRICTED_NOTEBOOK_ACCESS);
     expect(await resolveNotebookAccess(db, "ws_t", undefined)).toEqual(UNRESTRICTED_NOTEBOOK_ACCESS);
-    expect(await resolveNotebookAccess(db, "ws_t", [])).toEqual(UNRESTRICTED_NOTEBOOK_ACCESS);
   });
 
   test("expands grants to live subtrees and drops deleted notebooks", async () => {
@@ -137,7 +137,51 @@ describe("resolveNotebookAccess", () => {
       { notebookId: "nb_other", read: true, write: false },
     ], "write");
     expect(access.readableNotebookIds.sort()).toEqual(["nb_child", "nb_grandchild", "nb_other", "nb_root"]);
-    expect(access.writableNotebookIds.sort()).toEqual(["nb_child", "nb_grandchild", "nb_other", "nb_root"]);
+    // Explicit read-only grant wins over the write default.
+    expect(access.writableNotebookIds.sort()).toEqual(["nb_child", "nb_grandchild", "nb_root"]);
+  });
+
+  test("explicit grants always win over the default", async () => {
+    const db = createFixture();
+    const access = await resolveNotebookAccess(db, "ws_t", [
+      { notebookId: "nb_root", read: true, write: false },
+      { notebookId: "nb_other", read: false, write: false },
+    ], "write");
+    // nb_root subtree stays read-only; nb_other (explicit but empty) stays closed.
+    expect(access.readableNotebookIds.sort()).toEqual(["nb_child", "nb_grandchild", "nb_root"]);
+    expect(access.writableNotebookIds).toEqual([]);
+  });
+
+  test("empty grants fail closed and null stays unrestricted", async () => {
+    const db = createFixture();
+    expect(await resolveNotebookAccess(db, "ws_t", [])).toEqual({
+      restricted: true, readableNotebookIds: [], writableNotebookIds: [], defaultWrite: false,
+    });
+    const withWriteDefault = await resolveNotebookAccess(db, "ws_t", [], "write");
+    expect(withWriteDefault.restricted).toBe(true);
+    expect(withWriteDefault.defaultWrite).toBe(true);
+    expect(withWriteDefault.readableNotebookIds.sort()).toEqual(["nb_child", "nb_grandchild", "nb_other", "nb_root"]);
+    expect(withWriteDefault.writableNotebookIds.sort()).toEqual(["nb_child", "nb_grandchild", "nb_other", "nb_root"]);
+    expect(await resolveNotebookAccess(db, "ws_t", null)).toEqual(UNRESTRICTED_NOTEBOOK_ACCESS);
+    expect(await resolveNotebookAccess(db, "ws_t", undefined)).toEqual(UNRESTRICTED_NOTEBOOK_ACCESS);
+  });
+
+  test("large grant lists stay within the D1 bind limit by chunking", async () => {
+    const db = createFixture();
+    // 200 grants on one notebook: expansion must still resolve (chunked queries).
+    const access = await resolveNotebookAccess(db, "ws_t", [
+      { notebookId: "nb_root", read: true, write: false },
+    ]);
+    const sql = (await import("./token-notebook-access.ts")).notebookInListSql;
+    const ids = Array.from({ length: 200 }, (_, i) => `nb_${i}`);
+    const fragment = sql("m.notebook_id", ids);
+    const placeholders = (fragment.match(/\?/g) ?? []).length;
+    expect(placeholders).toBe(200);
+    // Each IN clause stays under the bind limit.
+    for (const clause of fragment.split(" OR ")) {
+      expect((clause.match(/\?/g) ?? []).length).toBeLessThanOrEqual(50);
+    }
+    expect(access.readableNotebookIds.sort()).toEqual(["nb_child", "nb_grandchild", "nb_root"]);
   });
 
   test("explicit none keeps the allow-list behaviour", async () => {

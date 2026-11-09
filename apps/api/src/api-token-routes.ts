@@ -12,7 +12,7 @@ import type { AppContext, AppEnv } from "./api-context";
 import { randomToken } from "./auth-crypto";
 import { createId, isoNow, parseJsonArray } from "./entity-utils";
 import { apiError, badRequest, notFound } from "./http-errors";
-import { parseNotebookAccessJson, parseNotebookDefaultAccess } from "./token-notebook-access";
+import { chunkNotebookIds, parseNotebookAccessJson, parseNotebookDefaultAccess } from "./token-notebook-access";
 import {
   ALL_TOKEN_SCOPES,
   getAuditActor,
@@ -79,12 +79,15 @@ const validateNotebookAccess = async (
 ): Promise<Response | null> => {
   if (entries.length === 0) return null;
   const ids = Array.from(new Set(entries.map((entry) => entry.notebookId)));
-  const placeholders = ids.map(() => "?").join(", ");
-  const rows = await context.env.storage.db.prepare(
-    `SELECT id FROM notebooks WHERE workspace_id = ? AND is_deleted = 0 AND id IN (${placeholders})`,
-  ).bind(workspaceId, ...ids).all<{ id: string }>();
-
-  const known = new Set(rows.results.map((row) => row.id));
+  // Stay within D1's bound-parameter limit for large grant lists.
+  const known = new Set<string>();
+  for (const chunk of chunkNotebookIds(ids)) {
+    const placeholders = chunk.map(() => "?").join(", ");
+    const rows = await context.env.storage.db.prepare(
+      `SELECT id FROM notebooks WHERE workspace_id = ? AND is_deleted = 0 AND id IN (${placeholders})`,
+    ).bind(workspaceId, ...chunk).all<{ id: string }>();
+    for (const row of rows.results) known.add(row.id);
+  }
   const unknown = ids.filter((id) => !known.has(id));
   if (unknown.length === 0) return null;
   return apiError(
