@@ -1,5 +1,6 @@
 import { expect, test as base, type Page } from "@playwright/test";
 import type { Notebook } from "@edgeever/shared";
+import { fileURLToPath } from "node:url";
 
 type CreateNotebook = (data: { name: string; parentId?: string }) => Promise<Notebook>;
 
@@ -19,7 +20,21 @@ const test = base.extend<{ createNotebook: CreateNotebook }>({
   },
 });
 
+// The appearance suite exercises real navigations and API calls without a PWA
+// worker, including when the built UI is served over the development origin.
+test.use({ serviceWorkers: "block" });
+
 test.beforeEach(async ({ page }) => {
+  if (process.env.EDGE_EVER_E2E_BUILT_WEB === "1") {
+    // Serve the built UI while keeping the same origin, real API and local
+    // authentication. Chromium otherwise transforms hundreds of Vite modules
+    // per navigation when Playwright request routing disables the HTTP cache.
+    await page.route((url) => url.pathname === "/" || /^\/assets\/[\w.~\-]+$/.test(url.pathname), (route) => {
+      const path = new URL(route.request().url()).pathname;
+      const file = path === "/" ? "index.html" : path.slice(1);
+      return route.fulfill({ path: fileURLToPath(new URL(`../../apps/web/dist/${file}`, import.meta.url)) });
+    });
+  }
   // Plugin discovery is unrelated to notebook appearance and can contact GitHub.
   await page.route("**/extensions/registry.json", (route) => route.fulfill({
     json: { registryVersion: "1", updatedAt: "2026-01-01T00:00:00.000Z", entries: [] },
@@ -31,7 +46,7 @@ test("refreshes the rendered notebook when its cached appearance is stale", asyn
   const notebook = await createNotebook({ name: "Appearance refresh" });
   const notebookUrl = `/api/v1/notebooks/${notebook.id}`;
   const icon = page.locator(`[data-notebook-id="${notebook.id}"] [data-notebook-icon]`);
-  await page.goto("/");
+  await page.goto("/", { waitUntil: "domcontentloaded" });
   await expect(icon).toHaveAttribute("data-notebook-icon", "notebook");
 
   // Isolate the list refresh from workspace-wide sync, as when that endpoint
@@ -122,7 +137,7 @@ test("keeps icon searches as drafts on Enter and supports keyboard selection and
   await expect(dialog).toBeHidden();
 });
 
-const createAppearanceScenario = async (page: Page, createNotebook: CreateNotebook, appearance?: { rowInverted?: boolean }) => {
+const createAppearanceScenario = async (page: Page, createNotebook: CreateNotebook, appearance?: { rowInverted?: boolean; invertChild?: boolean }) => {
   await page.addInitScript(() => {
     localStorage.setItem("edgeever.locale.preference", "en-US");
     if (!localStorage.getItem("edgeever.notebook-color-palette")) localStorage.setItem("edgeever.notebook-color-palette", JSON.stringify(["#2563eb", "#16a34a", "#ca8a04", "#dc2626", "#7c3aed"]));
@@ -146,7 +161,12 @@ const createAppearanceScenario = async (page: Page, createNotebook: CreateNotebo
   };
   if (appearance) {
     expect((await page.request.patch(`/api/v1/notebooks/${notebook.id}`, {
-      data: { icon: "alarm-clock", color: "#2563eb", textColor: "#dc2626", isBold: true, iconInverted: !appearance.rowInverted, ...appearance },
+      data: { icon: "alarm-clock", color: "#2563eb", textColor: "#dc2626", isBold: true, iconInverted: !appearance.rowInverted, rowInverted: appearance.rowInverted },
+    })).ok()).toBeTruthy();
+  }
+  if (appearance?.invertChild) {
+    expect((await page.request.patch(`/api/v1/notebooks/${child.id}`, {
+      data: { rowInverted: true, color: "#2563eb" },
     })).ok()).toBeTruthy();
   }
   await page.goto("/", { waitUntil: "domcontentloaded" });
@@ -232,7 +252,7 @@ test("discards notebook appearance and reset drafts on cancel", async ({ page, c
 });
 
 test("persists inverted notebook rows across reloads and themes", async ({ page, createNotebook }) => {
-  const { name, child, row, dialog, open, save, readNotebook } = await createAppearanceScenario(page, createNotebook, {});
+  const { row, dialog, open, save, readNotebook } = await createAppearanceScenario(page, createNotebook, {});
   await open();
   await dialog.getByLabel("Invert", { exact: true }).selectOption("row");
   await expect(dialog.locator("[data-notebook-name]")).toHaveCSS("color", "rgb(255, 255, 255)");
@@ -250,9 +270,11 @@ test("persists inverted notebook rows across reloads and themes", async ({ page,
   await expect(row).toHaveClass(/notebook-inverted-row-selected/);
   await page.evaluate(() => document.documentElement.classList.add("dark"));
   await expect(row).toHaveCSS("background-color", rowBackground);
-  // A nested row spans the same width, with its content still indented.
-  expect((await page.request.patch(`/api/v1/notebooks/${child.id}`, { data: { rowInverted: true, color: "#2563eb" } })).ok()).toBeTruthy();
-  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.screenshot({ path: "test-results/notebook-row-inverted.png" });
+});
+
+test("draws an inverted child row at the full width with indented content", async ({ page, createNotebook }) => {
+  const { name, child, row } = await createAppearanceScenario(page, createNotebook, { rowInverted: true, invertChild: true });
   const childRow = page.locator(`[data-notebook-id="${child.id}"]`);
   await expect(row).toHaveAttribute("data-notebook-row-inverted", "true");
   const expand = row.getByRole("button", { name: `Expand ${name}`, exact: true });
@@ -261,11 +283,12 @@ test("persists inverted notebook rows across reloads and themes", async ({ page,
   await expect(childRow).toHaveAttribute("data-notebook-row-inverted", "true");
   const parentBox = await row.boundingBox();
   const childBox = await childRow.boundingBox();
+  expect(parentBox).not.toBeNull();
+  expect(childBox).not.toBeNull();
   expect(childBox?.x).toBe(parentBox?.x);
   expect(childBox?.width).toBe(parentBox?.width);
   await expect(childRow).toHaveCSS("padding-left", "22px");
   await expect(childRow.locator("[data-notebook-name]")).toHaveCSS("color", "rgb(255, 255, 255)");
-  await page.screenshot({ path: "test-results/notebook-row-inverted.png" });
 });
 
 test("resets inverted notebook appearance and persists the default", async ({ page, createNotebook }) => {
