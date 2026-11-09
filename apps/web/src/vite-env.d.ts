@@ -69,6 +69,7 @@ interface EdgeEverDesktopBridge {
   }): Promise<{ url: string } | { fallback: true }>;
   testImgBedConnection?(input: { endpoint: string; token: string; uploadFolder: string; nameType: import("@/lib/imgbed").ImgBedNameType;
     uploadChannel: import("@/lib/imgbed").ImgBedUploadChannel; channelName: string; serverCompress: boolean; autoRetry: boolean }): Promise<boolean>;
+  listImgBedChannels?(input: { endpoint: string; token: string }): Promise<Record<import("@/lib/imgbed").ImgBedUploadChannel, string[]>>;
   uploadImgBedImage?(input: {
     endpoint: string; token: string; uploadFolder: string; nameType: import("@/lib/imgbed").ImgBedNameType;
     uploadChannel: import("@/lib/imgbed").ImgBedUploadChannel; channelName: string; serverCompress: boolean; autoRetry: boolean;
