@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { AiModelConfig, AiProvider, AiProviderConfig, AuthSession } from "@edgeever/shared";
+import type { AiDiscoveredModel, AiModelConfig, AiProvider, AiProviderConfig, AuthSession } from "@edgeever/shared";
 import { CheckCircle2, Loader2, MoreHorizontal, Pencil, Plus, RefreshCw, SlidersHorizontal, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { aiErrorMessage, isLegacyProviderDisplayName, providerDefaults, trimAiText } from "@/components/settings/ai-provider-options";
@@ -40,6 +40,9 @@ import {
 } from "@/lib/ai-model-discovery-cache";
 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+
+// A stable empty list, so memos keyed on the discovered models do not rerun every render.
+const EMPTY_DISCOVERED_MODELS: AiDiscoveredModel[] = [];
 
 export const AiProviderCard = ({ provider: saved, defaultDisplayName, defaultModelId, readOnly, onChanged }: {
   provider: AiProviderConfig;
@@ -99,10 +102,8 @@ export const AiProviderCard = ({ provider: saved, defaultDisplayName, defaultMod
     refetchOnReconnect: true,
     refetchInterval: (query) => nextModelDiscoveryRefresh(query.state.dataUpdatedAt, query.state.errorUpdatedAt),
   });
-  const discoveredModels = discoveryQuery.data?.models ?? [];
-  // Keyed on the query data: discoveredModels is a new [] on every render while it is empty.
-  // oxlint-disable-next-line react-hooks/exhaustive-deps
-  const discoveredModelOptions = useMemo(() => discoveredModels.map((model) => ({ value: model.modelId, label: model.displayName })), [discoveryQuery.data]);
+  const discoveredModels = discoveryQuery.data?.models ?? EMPTY_DISCOVERED_MODELS;
+  const discoveredModelOptions = useMemo(() => discoveredModels.map((model) => ({ value: model.modelId, label: model.displayName })), [discoveredModels]);
   const discoveryLoading = discoveryQuery.isFetching && (!discoveryQuery.data || manualDiscovery);
   const discoveryError = (discoveryQuery.error && !discoveryQuery.data) || manualDiscoveryFailed;
   useEffect(() => {
