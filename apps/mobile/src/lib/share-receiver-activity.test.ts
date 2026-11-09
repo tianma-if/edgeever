@@ -59,7 +59,7 @@ describe("Android share receiver manifest", () => {
     const mimeTypes = receiver["intent-filter"].map((filter) => filter.data.map((data) => data.$["android:mimeType"]));
     expect(mimeTypes).toEqual([
       ["text/plain", "image/*", "application/zip", "application/x-zip-compressed", "application/octet-stream"],
-      ["text/plain", "image/*"],
+      ["text/plain", "image/*", "application/zip", "application/x-zip-compressed", "application/octet-stream"],
     ]);
   });
 

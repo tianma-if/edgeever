@@ -28,7 +28,7 @@ diff --git a/android/src/main/java/expo/modules/sharing/ShareIntoUtils.kt b/andr
  
  // Emits intent received event to JS. This is because the `SEND` and `SEND_MULTIPLE` intents
  // have no uri and do not inform the navigation libraries of a native intent.
-@@ -32,22 +44,179 @@ internal fun getShareIntentUri(context: Context): Uri? {
+@@ -32,22 +44,189 @@ internal fun getShareIntentUri(context: Context): Uri? {
  // Emits intent received event to JS. This is because the `SEND` and `SEND_MULTIPLE` intents
  // do not navigation libraries of a native intent. This aligns the behaviour with ios.
  internal fun emitShareIntentReceived(reactActivity: ReactActivity, originalIntent: Intent) {
@@ -61,10 +61,14 @@ diff --git a/android/src/main/java/expo/modules/sharing/ShareIntoUtils.kt b/andr
 +    }
 +  }
 +
-+  if (source.action == Intent.ACTION_SEND && isArchiveShareMimeType(source.type)) {
-+    return stageArchiveShare(context, source, uris.first())
++  if (isArchiveShareMimeType(source.type)) {
++    // WeChat uses SEND_MULTIPLE even when merged forwarding supplies one ZIP.
++    val archive = uris.distinct().singleOrNull() ?: throw ShareArchiveCountException()
++    return stageArchiveShare(context, source, archive)
 +  }
-+
+
+-  getShareIntentUri(reactActivity)?.let { uri ->
+-    deviceEventManagerModule?.emitNewIntentReceived(uri)
 +  val copied = mutableListOf<File>()
 +  try {
 +    val localUris = uris.map { uri ->
@@ -83,14 +87,17 @@ diff --git a/android/src/main/java/expo/modules/sharing/ShareIntoUtils.kt b/andr
 +  } catch (error: Exception) {
 +    copied.forEach { it.delete() }
 +    throw error
-+  }
-+}
-+
+   }
+ }
+
 +private const val ARCHIVE_CACHE_PREFIX = "shared-wechat-"
 +internal val INSUFFICIENT_SHARE_STORAGE_URI = Uri.parse("content://expo.modules.sharing/insufficient-storage")
-
--  getShareIntentUri(reactActivity)?.let { uri ->
--    deviceEventManagerModule?.emitNewIntentReceived(uri)
++
++internal val UNSUPPORTED_ARCHIVE_COUNT_URI = Uri.parse("content://expo.modules.sharing/archive-count")
++
++internal class ShareArchiveCountException :
++  CodedException("ERR_WECHAT_ARCHIVE_COUNT", "Share one WeChat chat archive at a time", null)
++
 +internal class ShareStorageException(cause: Throwable? = null) :
 +  CodedException("ERR_WECHAT_ARCHIVE_STORAGE", "Not enough space for the shared archive", cause)
 +
@@ -139,15 +146,18 @@ diff --git a/android/src/main/java/expo/modules/sharing/ShareIntoUtils.kt b/andr
 +    }
 +    require(file.length() > 0)
 +    val localUri = FileProvider.getUriForFile(context, authority, file, name)
-+    return baseShareIntent(source).apply { putExtra(Intent.EXTRA_STREAM, localUri) }
++    return baseShareIntent(source).apply {
++      action = Intent.ACTION_SEND
++      putExtra(Intent.EXTRA_STREAM, localUri)
++    }
 +  } catch (error: Exception) {
 +    file.delete()
 +    val errno = (error.cause as? ErrnoException)?.errno
 +    if (errno == OsConstants.ENOSPC || errno == OsConstants.EDQUOT) throw ShareStorageException(error)
 +    throw error
-   }
- }
- 
++  }
++}
++
 +internal fun getStagedArchive(context: Context, uri: Uri): File? {
 +  if (uri.authority != "${context.packageName}.SharingFileProvider") return null
 +  val segments = uri.pathSegments
@@ -207,14 +217,14 @@ diff --git a/android/src/main/java/expo/modules/sharing/ShareIntoUtils.kt b/andr
 +    (0 until clipData.itemCount).mapNotNull { index -> clipData.getItemAt(index).uri }
 +  }.orEmpty()
 +  if (clipUris.isNotEmpty()) return clipUris
-+  if (intent.action == Intent.ACTION_SEND && isArchiveShareMimeType(intent.type)) {
++  if (isArchiveShareMimeType(intent.type)) {
 +    return listOfNotNull(intent.data?.takeIf { it.scheme == "content" })
 +  }
 +  return emptyList()
  }
 
  internal inline fun <reified T : Parcelable> Intent.getParcelableExtraCompat(name: String): T? {
-@@ -70,3 +239,72 @@ internal inline fun <reified T : Parcelable> Intent.getParcelableArrayListExtraC
+@@ -70,3 +249,79 @@ internal inline fun <reified T : Parcelable> Intent.getParcelableArrayListExtraC
  
  internal val URL.lastPathComponent: String
    get() = path.removeSuffix("/").substringAfterLast('/')
@@ -250,6 +260,8 @@ diff --git a/android/src/main/java/expo/modules/sharing/ShareIntoUtils.kt b/andr
 +      materializeShareIntent(this, incoming)
 +    } catch (_: ShareStorageException) {
 +      unreadableShareIntent(incoming, INSUFFICIENT_SHARE_STORAGE_URI)
++    } catch (_: ShareArchiveCountException) {
++      unreadableShareIntent(incoming, UNSUPPORTED_ARCHIVE_COUNT_URI)
 +    } catch (_: Exception) {
 +      unreadableShareIntent(incoming)
 +    }
@@ -272,9 +284,14 @@ diff --git a/android/src/main/java/expo/modules/sharing/ShareIntoUtils.kt b/andr
 +  source: Intent,
 +  uri: Uri = Uri.parse("content://expo.modules.sharing/unreadable-share")
 +): Intent {
-+  return Intent(source.action ?: Intent.ACTION_SEND).apply {
++  val action = source.action ?: Intent.ACTION_SEND
++  return Intent(action).apply {
 +    type = source.type ?: "image/*"
-+    putExtra(Intent.EXTRA_STREAM, uri)
++    if (action == Intent.ACTION_SEND_MULTIPLE) {
++      putParcelableArrayListExtra(Intent.EXTRA_STREAM, arrayListOf(uri))
++    } else {
++      putExtra(Intent.EXTRA_STREAM, uri)
++    }
 +  }
 +}
 +
@@ -354,11 +371,12 @@ diff --git a/android/src/main/java/expo/modules/sharing/dataParsers/ResolvingSha
  
        if (android.util.Patterns.WEB_URL.matcher(text).matches()) {
          return listOf(resolveUrlContext(text))
-@@ -55,22 +58,46 @@ class ResolvingShareIntentDataParser {
+@@ -55,22 +58,47 @@ class ResolvingShareIntentDataParser {
      }
 
      private fun resolveUri(context: Context, uri: Uri, mimeType: String): ResolvedSharePayload {
 +      if (uri == INSUFFICIENT_SHARE_STORAGE_URI) throw ShareStorageException()
++      if (uri == UNSUPPORTED_ARCHIVE_COUNT_URI) throw ShareArchiveCountException()
        val contentResolver = context.contentResolver
        val fileName = getFileName(contentResolver, uri) ?: "unknown"
        val fileSize = getFileSize(contentResolver, uri)

@@ -236,6 +236,7 @@ const mobileOnlyTranslations = new Map<string, string>([
   ["正在保存消息和附件…", "Saving messages and attachments…"],
   ["微信聊天记录已保存", "WeChat chat saved"],
   ["无法导入微信聊天记录", "Could not import the WeChat chat"],
+  ["请每次分享一份微信聊天记录压缩包。", "Share one WeChat chat archive at a time."],
   ["导入中断，可能留下了一条未完成的笔记。", "The import was interrupted and may have left an incomplete note."],
   ["请检查网络连接，然后从微信重新分享。", "Check your connection and share the chat from WeChat again."],
   ["手机存储空间不足。请释放一些空间，然后从微信重新分享。", "Your phone is low on storage. Free up some space, then share the chat from WeChat again."],

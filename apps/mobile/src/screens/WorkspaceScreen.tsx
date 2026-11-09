@@ -611,10 +611,13 @@ export const WorkspaceScreen = ({
       return;
     }
 
-    if (incomingShareError && getWeChatArchiveErrorCode(incomingShareError) === "ERR_WECHAT_ARCHIVE_STORAGE") {
-      if (processedShareUrlRef.current !== "wechat-insufficient-storage") {
-        processedShareUrlRef.current = "wechat-insufficient-storage";
-        Alert.alert("无法导入微信聊天记录", WECHAT_ARCHIVE_STORAGE_HINT);
+    const archiveErrorCode = incomingShareError && getWeChatArchiveErrorCode(incomingShareError);
+    if (archiveErrorCode === "ERR_WECHAT_ARCHIVE_STORAGE" || archiveErrorCode === "ERR_WECHAT_ARCHIVE_COUNT") {
+      if (processedShareUrlRef.current !== archiveErrorCode) {
+        processedShareUrlRef.current = archiveErrorCode;
+        Alert.alert("无法导入微信聊天记录", archiveErrorCode === "ERR_WECHAT_ARCHIVE_STORAGE"
+          ? WECHAT_ARCHIVE_STORAGE_HINT
+          : "请每次分享一份微信聊天记录压缩包。");
         onIncomingShareHandledRef.current?.();
       }
       return;
