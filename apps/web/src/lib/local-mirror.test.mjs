@@ -406,6 +406,7 @@ describe("local mirror", () => {
       [notebook("exam", null, "注册考试"), notebook("law", "exam", "法律法规"), notebook("games", null, "游戏")],
       new Set(["exam", "law"]),
       new Set(["local_new"]),
+      new Set(),
     );
 
     expect(await getLocalNotebook(scope, "exam")).toBeNull();

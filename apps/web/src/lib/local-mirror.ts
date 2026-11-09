@@ -595,7 +595,9 @@ export const readNotebookSyncGuards = async (scope: string) => {
     .filter((item) => item.scope === scope);
   const pendingDeleteIds = new Set<string>();
   const pendingCreateIds = new Set<string>();
+  const pendingUpdateIds = new Set<string>();
   for (const item of items) {
+    if (item.kind === "notebook.update") pendingUpdateIds.add(item.memoId);
     if (item.kind === "notebook.create") {
       pendingCreateIds.add(item.memoId);
       const temporaryId = (item.payload as { temporaryId?: unknown }).temporaryId;
@@ -611,7 +613,7 @@ export const readNotebookSyncGuards = async (scope: string) => {
     }
     if (item.memoId) pendingDeleteIds.add(item.memoId);
   }
-  return { pendingDeleteIds, pendingCreateIds };
+  return { pendingDeleteIds, pendingCreateIds, pendingUpdateIds };
 };
 
 export const reconcileLocalNotebooks = async (
@@ -619,6 +621,7 @@ export const reconcileLocalNotebooks = async (
   remoteNotebooks: Notebook[],
   pendingDeleteIds: ReadonlySet<string>,
   pendingCreateIds: ReadonlySet<string>,
+  pendingUpdateIds: ReadonlySet<string>,
 ) => {
   const blocked = notebooksBlockedByPendingDeletes(remoteNotebooks, pendingDeleteIds);
   const remoteIds = new Set(remoteNotebooks.map((notebook) => notebook.id));
@@ -628,14 +631,25 @@ export const reconcileLocalNotebooks = async (
     return pendingCreateIds.has(notebook.id) || notebook.id.startsWith("local_");
   };
 
-  await localDb.transaction("rw", localDb.notebooks, async () => {
+  return localDb.transaction("rw", localDb.notebooks, async () => {
     const local = await localDb.notebooks.where("scope").equals(scope).toArray();
+    const localById = new Map(local.map((notebook) => [notebook.id, notebook]));
+    let changed = false;
     for (const notebook of local) {
-      if (!keep(notebook)) await localDb.notebooks.delete([scope, notebook.id]);
+      if (keep(notebook)) continue;
+      await localDb.notebooks.delete([scope, notebook.id]);
+      changed = true;
     }
     for (const notebook of remoteNotebooks) {
-      if (keep(notebook)) await localDb.notebooks.put({ ...notebook, scope });
+      if (!keep(notebook)) continue;
+      const current = localById.get(notebook.id);
+      const incoming = { ...notebook, scope };
+      if (current && (pendingUpdateIds.has(notebook.id)
+        || (Object.keys({ ...current, ...incoming }) as (keyof LocalNotebook)[]).every((key) => current[key] === incoming[key]))) continue;
+      await localDb.notebooks.put(incoming);
+      changed = true;
     }
+    return changed;
   });
 };
 

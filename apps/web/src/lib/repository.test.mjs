@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, mock, test } from "bun:test";
 import { IDBKeyRange, indexedDB } from "fake-indexeddb";
 
 globalThis.indexedDB = indexedDB;
@@ -8,6 +8,7 @@ const { localDb } = await import("./local-db.ts");
 const { api } = await import("./api.ts");
 const { createWebRepository } = await import("./repository.ts");
 const { createLocalMemo, putLocalMemo } = await import("./local-mirror.ts");
+const { NOTEBOOK_LIST_REFRESHED_EVENT } = await import("./sync-events.ts");
 
 const installTestWindow = ({ hostname = "localhost" } = {}) => {
   const previousWindow = globalThis.window;
@@ -689,6 +690,33 @@ const queuedAction = (kind, entityId) => localDb.syncQueue.get(`action:${SCOPE}:
 const tick = (ms = 0) => new Promise((resolve) => setTimeout(resolve, ms));
 
 describe("web repository notebooks", () => {
+  test("publishes a reconciled notebook list without overwriting a queued local appearance", async () => {
+    const restoreNetwork = installNetwork({ online: true });
+    const cached = notebookFixture("nb-cached");
+    const edited = notebookFixture("nb-edited");
+    await localDb.notebooks.bulkPut([{ ...cached, scope: SCOPE }, { ...edited, scope: SCOPE }]);
+    const repository = createWebRepository(SCOPE);
+    await repository.updateNotebook(edited.id, { icon: "house" });
+    const remote = [{ ...cached, icon: "alarm-clock" }, edited];
+    const listNotebooks = mock(async () => ({ notebooks: remote }));
+    const restoreApi = stubApi({ listNotebooks });
+    try {
+      const published = new Promise((resolve) => {
+        window.addEventListener(NOTEBOOK_LIST_REFRESHED_EVENT, (event) => resolve(event.detail), { once: true });
+      });
+      const initial = await repository.listNotebooks();
+      expect(initial.notebooks.find(({ id }) => id === cached.id)?.icon).toBeNull();
+      const result = await published;
+      expect(result.scope).toBe(SCOPE);
+      expect(result.notebooks.find(({ id }) => id === cached.id)?.icon).toBe("alarm-clock");
+      expect(result.notebooks.find(({ id }) => id === edited.id)?.icon).toBe("house");
+      expect(listNotebooks).toHaveBeenCalledTimes(1);
+    } finally {
+      restoreApi();
+      restoreNetwork();
+    }
+  });
+
   test("loads notebooks from the server on a cold mirror without resurrecting a pending delete", async () => {
     const restoreNetwork = installNetwork({ online: true });
     await localDb.syncQueue.put({
