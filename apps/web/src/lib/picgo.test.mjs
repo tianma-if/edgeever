@@ -24,14 +24,14 @@ test("default, corrupt settings and ordinary Web runtime retain attachment uploa
   expect(readPicGoPreference()).toEqual({ provider: "edgeever", endpoint: DEFAULT_PICGO_ENDPOINT, serverKey: "", imgbed: noImgBed });
   storage.set(PICGO_STORAGE_KEY, "corrupt");
   expect(shouldUploadWithPicGo()).toBe(false);
-  writePicGoPreference({ provider: "picgo", endpoint: DEFAULT_PICGO_ENDPOINT, serverKey: "" });
+  writePicGoPreference({ provider: "picgo", endpoint: DEFAULT_PICGO_ENDPOINT, serverKey: "", imgbed: noImgBed });
   expect(shouldUploadWithPicGo()).toBe(false);
   expect(await uploadImageWithPicGo(file(), copy)).toBeNull();
 });
 
 test("configured but disabled PicGo never sends an image", async () => {
   setup(() => { throw new Error("Should not upload"); });
-  writePicGoPreference({ provider: "edgeever", endpoint: DEFAULT_PICGO_ENDPOINT, serverKey: "" });
+  writePicGoPreference({ provider: "edgeever", endpoint: DEFAULT_PICGO_ENDPOINT, serverKey: "", imgbed: noImgBed });
   expect(shouldUploadWithPicGo()).toBe(false);
   expect(await uploadImageWithPicGo(file(), copy)).toBeNull();
 });
@@ -44,7 +44,7 @@ test("enabled PicGo passes actual bytes and returns an external image for either
     expect(input.copy).toEqual(copy);
     return { url: "https://images.example.com/image.png" };
   });
-  writePicGoPreference({ provider: "picgo", endpoint: DEFAULT_PICGO_ENDPOINT, serverKey: "" });
+  writePicGoPreference({ provider: "picgo", endpoint: DEFAULT_PICGO_ENDPOINT, serverKey: "", imgbed: noImgBed });
   expect(shouldUploadWithPicGo()).toBe(true);
   expect(await uploadImageWithPicGo(file(), copy)).toEqual({
     kind: "image", url: "https://images.example.com/image.png", filename: "image.png", mimeType: "image/png", byteSize: 4,
@@ -53,7 +53,7 @@ test("enabled PicGo passes actual bytes and returns an external image for either
 
 test("only explicit fallback returns to attachment storage; cancellation stays a failure", async () => {
   setup(async () => ({ fallback: true }));
-  writePicGoPreference({ provider: "picgo", endpoint: DEFAULT_PICGO_ENDPOINT, serverKey: "" });
+  writePicGoPreference({ provider: "picgo", endpoint: DEFAULT_PICGO_ENDPOINT, serverKey: "", imgbed: noImgBed });
   expect(await uploadImageWithPicGo(file(), copy)).toBeNull();
   window.edgeeverDesktop.uploadPicGoImage = async () => { throw new Error("Cancelled"); };
   await expect(uploadImageWithPicGo(file(), copy)).rejects.toThrow("Cancelled");
@@ -73,7 +73,7 @@ test("keeps an older saved address and lifts a pasted PicList key out of the add
     expect(input.serverKey).toBe("nas-key");
     return { url: "https://images.example.com/image.png" };
   });
-  writePicGoPreference({ provider: "picgo", endpoint: "https://piclist.example.com/upload", serverKey: "nas-key" });
+  writePicGoPreference({ provider: "picgo", endpoint: "https://piclist.example.com/upload", serverKey: "nas-key", imgbed: noImgBed });
   return uploadImageWithPicGo(file(), copy);
 });
 

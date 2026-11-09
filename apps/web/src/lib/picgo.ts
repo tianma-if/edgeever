@@ -61,7 +61,7 @@ export const takePicGoServerKey = (value: string): { endpoint: string; serverKey
 // Returns the value as stored. The channel name is typed freely (it may contain
 // inner spaces), so its edges are trimmed only here.
 export const writePicGoPreference = (value: PicGoPreference): PicGoPreference => {
-  const stored = value.imgbed ? { ...value, imgbed: { ...value.imgbed, channelName: String(value.imgbed.channelName ?? "").trim() } } : value;
+  const stored = { ...value, imgbed: { ...value.imgbed, channelName: value.imgbed.channelName.trim() } };
   // Fail visibly when persistence is unavailable; never claim a provider changed.
   window.localStorage.setItem(PICGO_STORAGE_KEY, JSON.stringify(stored));
   return stored;
