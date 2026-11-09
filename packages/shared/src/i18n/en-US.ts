@@ -1120,6 +1120,8 @@ export const enUS = {
         channelNameDescription: "If the upload channel has several channels of the same type, click Load channels to pick one from ImgBed, or type its name exactly as shown in the ImgBed admin panel. When empty or not found, ImgBed picks a channel itself (usually the first).",
         channelListLoad: "Load channels",
         channelListLoading: "Loading…",
+        channelManual: "Type a name…",
+        channelNameUnsupported: "This ImgBed version does not support channel names. Update ImgBed or clear the channel name.",
         channelDefault: "Not specified (ImgBed decides)",
         channelMissing: "{{name}} (not found)",
         channelMissingDescription: "ImgBed has no enabled channel with this name under the selected upload channel. Pick another one.",

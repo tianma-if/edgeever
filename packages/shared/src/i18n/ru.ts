@@ -1139,6 +1139,8 @@ export const ru = {
         channelNameDescription: "Если у канала загрузки настроено несколько каналов одного типа, нажмите «Загрузить каналы», чтобы выбрать нужный из ImgBed, или введите его имя точно так, как в панели администратора ImgBed. Если поле пустое или имя не найдено, ImgBed выбирает канал сам (обычно первый).",
         channelListLoad: "Загрузить каналы",
         channelListLoading: "Загрузка…",
+        channelManual: "Ввести имя…",
+        channelNameUnsupported: "Эта версия ImgBed не поддерживает имена каналов. Обновите ImgBed или очистите имя канала.",
         channelDefault: "Не указан (решает ImgBed)",
         channelMissing: "{{name}} (не найден)",
         channelMissingDescription: "В выбранном канале загрузки ImgBed нет включённого канала с таким именем. Выберите другой.",

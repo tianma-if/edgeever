@@ -126,7 +126,8 @@ const post = async (input, file, filename, { fetchImpl, timeoutMs, lookupImpl, f
 // sites older than channel names, IMGBED_CHANNEL_NAME: for a name ImgBed lacks.
 // /api/channels shipped with channelName (ImgBed 2026-01), accepts any valid API
 // token and lists only enabled channels within quota, keyed by upload channel.
-const fetchImgBedChannels = async (input, { fetchImpl, timeoutMs, lookupImpl }) => {
+// The settings page lists these names so the channel is picked, not typed.
+export const listImgBedChannels = async (input, { fetchImpl = fetch, timeoutMs = 15000, lookupImpl = lookup } = {}) => {
   const url = normalizeImgBedEndpoint(input.endpoint);
   url.pathname = url.pathname.replace(/\/upload$/, "/api/channels");
   const token = normalizeImgBedToken(input.token);
@@ -147,16 +148,12 @@ const fetchImgBedChannels = async (input, { fetchImpl, timeoutMs, lookupImpl }) 
   // Keep only names EdgeEver can send back unchanged, once each, in ImgBed's order.
   return Object.fromEntries(IMGBED_UPLOAD_CHANNELS.map((channel) => {
     const names = Array.isArray(data?.[channel]) ? data[channel].map((item) => item?.name) : [];
+    // Normalizing trims, so an equal result also rules out edge spaces.
     return [channel, [...new Set(names.filter((name) => {
-      if (typeof name !== "string" || !name || name !== name.trim()) return false;
-      try { return normalizeImgBedChannelName(name) === name; } catch { return false; }
+      try { return typeof name === "string" && name !== "" && normalizeImgBedChannelName(name) === name; } catch { return false; }
     }))]];
   }));
 };
-
-// The settings page lists these names so the channel is picked, not typed.
-export const listImgBedChannels = async (input, { fetchImpl = fetch, timeoutMs = 15000, lookupImpl = lookup } = {}) =>
-  fetchImgBedChannels(input, { fetchImpl, timeoutMs, lookupImpl });
 
 // ImgBed silently uses its default channel when channelName matches nothing,
 // so the connection test checks the name before uploading.
@@ -164,7 +161,7 @@ const assertImgBedChannelExists = async (input, options) => {
   const channelName = normalizeImgBedChannelName(input.channelName);
   if (!channelName) return;
   buildUploadUrl(input); // Validates every field before any request.
-  const channels = await fetchImgBedChannels(input, options);
+  const channels = await listImgBedChannels(input, options);
   if (!channels[input.uploadChannel ?? "telegram"].includes(channelName)) {
     throw new Error("IMGBED_CHANNEL_NAME: ImgBed has no enabled channel with this name for the selected upload channel");
   }

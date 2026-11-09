@@ -1139,6 +1139,8 @@ export const zhTW = {
         channelNameDescription: "上傳渠道下設定了多個同類型渠道時，可點擊「載入渠道」從 ImgBed 讀取後選擇，也可以手動填寫管理後台中的渠道名稱（需完全一致）。留空或名稱不存在時，ImgBed 會依自身規則選擇（通常是第一個渠道）。",
         channelListLoad: "載入渠道",
         channelListLoading: "載入中…",
+        channelManual: "手動輸入…",
+        channelNameUnsupported: "目前的 ImgBed 版本不支援指定渠道名稱。請升級 ImgBed，或清空渠道名稱。",
         channelDefault: "不指定（由 ImgBed 選擇）",
         channelMissing: "{{name}}（找不到）",
         channelMissingDescription: "ImgBed 的所選上傳渠道下沒有這個已啟用的渠道，請重新選擇。",

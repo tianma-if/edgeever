@@ -1139,6 +1139,8 @@ export const zhCN = {
         channelNameDescription: "上传渠道下配置了多个同类型渠道时，可点击「加载渠道」从 ImgBed 读取后选择，也可以手动填写管理后台中的渠道名称（需完全一致）。留空或名称不存在时，ImgBed 会按自身规则选择（通常是第一个渠道）。",
         channelListLoad: "加载渠道",
         channelListLoading: "加载中…",
+        channelManual: "手动输入…",
+        channelNameUnsupported: "当前 ImgBed 版本不支持指定渠道名称。请升级 ImgBed，或清空渠道名称。",
         channelDefault: "不指定（由 ImgBed 选择）",
         channelMissing: "{{name}}（未找到）",
         channelMissingDescription: "ImgBed 的所选上传渠道下没有这个已启用的渠道，请重新选择。",

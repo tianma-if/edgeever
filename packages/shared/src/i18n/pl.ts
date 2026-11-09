@@ -1128,6 +1128,8 @@ export const pl = {
         channelNameDescription: "Jeśli kanał przesyłania ma kilka kanałów tego samego typu, kliknij „Wczytaj kanały”, aby wybrać jeden z ImgBed, albo wpisz jego nazwę dokładnie tak, jak w panelu administracyjnym ImgBed. Gdy pole jest puste lub nazwa nie istnieje, ImgBed sam wybiera kanał (zwykle pierwszy).",
         channelListLoad: "Wczytaj kanały",
         channelListLoading: "Wczytywanie…",
+        channelManual: "Wpisz nazwę…",
+        channelNameUnsupported: "Ta wersja ImgBed nie obsługuje nazw kanałów. Zaktualizuj ImgBed albo wyczyść nazwę kanału.",
         channelDefault: "Nie określono (decyduje ImgBed)",
         channelMissing: "{{name}} (nie znaleziono)",
         channelMissingDescription: "ImgBed nie ma włączonego kanału o tej nazwie w wybranym kanale przesyłania. Wybierz inny.",

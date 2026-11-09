@@ -1278,6 +1278,8 @@ export const de = {
         "channelNameDescription": "Wenn für den Upload-Kanal mehrere Kanäle desselben Typs eingerichtet sind, klicke auf „Kanäle laden“, um einen aus ImgBed auszuwählen, oder gib den Namen genau wie im ImgBed-Adminbereich ein. Ist das Feld leer oder der Name unbekannt, wählt ImgBed selbst einen Kanal (meist den ersten).",
         "channelListLoad": "Kanäle laden",
         "channelListLoading": "Wird geladen…",
+        "channelManual": "Namen eingeben…",
+        "channelNameUnsupported": "Diese ImgBed-Version unterstützt keine Kanalnamen. Aktualisiere ImgBed oder leere den Kanalnamen.",
         "channelDefault": "Nicht festgelegt (ImgBed entscheidet)",
         "channelMissing": "{{name}} (nicht gefunden)",
         "channelMissingDescription": "ImgBed hat unter dem gewählten Upload-Kanal keinen aktivierten Kanal mit diesem Namen. Wähle einen anderen.",

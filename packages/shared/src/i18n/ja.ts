@@ -1128,6 +1128,8 @@ export const ja = {
         channelNameDescription: "アップロードチャネルに同じ種類のチャネルが複数ある場合は、「チャネルを読み込む」で ImgBed から選ぶか、ImgBed 管理画面に表示されるチャネル名をそのまま入力します。空欄または見つからない場合は、ImgBed が自動で選びます（通常は最初のチャネル）。",
         channelListLoad: "チャネルを読み込む",
         channelListLoading: "読み込み中…",
+        channelManual: "名前を入力…",
+        channelNameUnsupported: "この ImgBed のバージョンはチャネル名に対応していません。ImgBed を更新するか、チャネル名を空にしてください。",
         channelDefault: "指定しない（ImgBed が選択）",
         channelMissing: "{{name}}（見つかりません）",
         channelMissingDescription: "選択したアップロードチャネルに、この名前の有効なチャネルはありません。選び直してください。",

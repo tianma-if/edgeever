@@ -1278,6 +1278,8 @@ export const fr = {
         channelNameDescription: "Si le canal d'envoi comporte plusieurs canaux du même type, cliquez sur « Charger les canaux » pour en choisir un depuis ImgBed, ou saisissez son nom tel qu'affiché dans l'administration d'ImgBed. S'il est vide ou introuvable, ImgBed choisit lui-même un canal (généralement le premier).",
         channelListLoad: "Charger les canaux",
         channelListLoading: "Chargement…",
+        channelManual: "Saisir un nom…",
+        channelNameUnsupported: "Cette version d'ImgBed ne prend pas en charge les noms de canal. Mettez ImgBed à jour ou videz le nom du canal.",
         channelDefault: "Non précisé (ImgBed choisit)",
         channelMissing: "{{name}} (introuvable)",
         channelMissingDescription: "ImgBed n'a aucun canal activé portant ce nom pour le canal d'envoi choisi. Choisissez-en un autre.",

@@ -1278,6 +1278,8 @@ export const es = {
         "channelNameDescription": "Si el canal de subida tiene varios canales del mismo tipo, pulsa «Cargar canales» para elegir uno de ImgBed, o escribe su nombre tal como aparece en el panel de administración de ImgBed. Si está vacío o no existe, ImgBed elige un canal por su cuenta (normalmente el primero).",
         "channelListLoad": "Cargar canales",
         "channelListLoading": "Cargando…",
+        "channelManual": "Escribir un nombre…",
+        "channelNameUnsupported": "Esta versión de ImgBed no admite nombres de canal. Actualiza ImgBed o vacía el nombre del canal.",
         "channelDefault": "Sin especificar (decide ImgBed)",
         "channelMissing": "{{name}} (no encontrado)",
         "channelMissingDescription": "ImgBed no tiene ningún canal activado con este nombre en el canal de subida elegido. Elige otro.",
