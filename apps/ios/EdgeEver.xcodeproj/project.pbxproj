@@ -7,12 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		77C3F06708AC36BF9F6F16EA /* TotpModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9886D42194377CACC82BD6C8 /* TotpModels.swift */; };
-		EFA3767F26DCBD697A3BF043 /* TotpComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = D06B7336658C91A9585AB714 /* TotpComponents.swift */; };
-		77939EA96FFA56BAEDB4EF99 /* TotpSettingsPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77ED83C9DF4F7556BA0343C3 /* TotpSettingsPanel.swift */; };
-		936D15E0433CE757E5ED8C51 /* ForcedTotpRebindView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A570FFBC9DDACAACD3AE7DF8 /* ForcedTotpRebindView.swift */; };
-		3E20F8406FE46B5DEDB63E47 /* TotpDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29F5EEA12B7E6AE281C377BB /* TotpDecodingTests.swift */; };
 		039594C5BEE4844FBB131C7F /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6F510BF90B418266F363EBD /* APIClient.swift */; };
+		03BBE4F5CA3A9A11364274F8 /* AiModelCapabilityDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BFA3F0F11B9B7770A0848DB /* AiModelCapabilityDetector.swift */; };
+		04790ABC8C0EAE9E14F8C660 /* TotpDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16830440EB74571AB5981EF2 /* TotpDecodingTests.swift */; };
 		05EA11750506709B302155CB /* WeChatChatArchive.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34FA27B76133746E7DAE1F16 /* WeChatChatArchive.swift */; };
 		0614453E8E9EC13B212B5A2F /* NotebookPickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3328D871910187ED827B6CE /* NotebookPickerSheet.swift */; };
 		06D2661CAB0ADED27F322649 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = D87A8CED8498AE654EF8CD1F /* Localizable.xcstrings */; };
@@ -56,6 +53,7 @@
 		588019CB46131EDF8DCB2F53 /* MemoTemplatesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8D1DC59EC9FA65240DCBC19 /* MemoTemplatesTests.swift */; };
 		5EEFDEEDC372725C7C7F22ED /* EdgeEverApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9CEA2902CDE0D7C4137D173 /* EdgeEverApp.swift */; };
 		5F5EC9565A02FAFDD5D7B54C /* SyncProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12236E3A2F318CDEB17B80CB /* SyncProtocol.swift */; };
+		5FE5D8D4333052DAE7C6807B /* TotpSettingsPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD9E79AE6EBFC561C39D154D /* TotpSettingsPanel.swift */; };
 		63D4B562B4EF6ED7291155F6 /* TemplatePickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BA3D6859C4C6D9F65435671 /* TemplatePickerSheet.swift */; };
 		67DBD3C7748DE7F8BAD8E752 /* font-picker.html in Resources */ = {isa = PBXBuildFile; fileRef = 2D78B33F7B6D7E017F63E455 /* font-picker.html */; };
 		6A2938AFA62D676BF8EFCDD0 /* WeChatZipDirectory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AB6D26705F0E846E88BC592 /* WeChatZipDirectory.swift */; };
@@ -70,20 +68,25 @@
 		88C20914237162E295798B54 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 1B167394120674FECA86D42F /* GRDB */; };
 		8C761DABADB93F2F15E21E80 /* EditFabButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2829CE5DF5C15ACF41CC17DA /* EditFabButton.swift */; };
 		8E1CB597E6534EBFAD4B43FE /* assets in Resources */ = {isa = PBXBuildFile; fileRef = 01D34117A78B1F5C367ACDBB /* assets */; };
+		90496692F4878AF670D20BDC /* TotpComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DA59F9E38F51B53F3A7EF13 /* TotpComponents.swift */; };
 		90FFFFD00B2D19F96EA299C8 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5126510AFB9AFBF7ABADB45 /* Models.swift */; };
 		93556FDCB87BB93990221E01 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8691859094F8C08AE49FE27D /* Assets.xcassets */; };
 		94456E5BCAB7496FAD4685A6 /* Pow in Frameworks */ = {isa = PBXBuildFile; productRef = E37BD605D826474D3E842F31 /* Pow */; };
 		98010B5978B98C1F8D073C02 /* ShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = BF956A8F1A951AA5547675AD /* ShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		98AD355434C120CD051B8B2E /* WeChatShareInbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39372CB1A1422DC84E4B0AE6 /* WeChatShareInbox.swift */; };
 		9CBE3E1196B24C4DDFC7CD0A /* DraftRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA3D6EDCC2D76EEC0E51DD26 /* DraftRepository.swift */; };
+		9E4FDBABD9E888630FA98159 /* AiModelCapabilities.swift in Sources */ = {isa = PBXBuildFile; fileRef = 083BB6298DAB1730A6D0AAB6 /* AiModelCapabilities.swift */; };
 		9E5B44C7F70B5896D27A00E3 /* Colors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4341E86DEF60272AE37A8704 /* Colors.swift */; };
+		A57B31D0785F1AA5ADA4B31B /* ForcedTotpRebindView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02807F2903E0863CE39A3E35 /* ForcedTotpRebindView.swift */; };
 		A63E64622A06DF3842908A66 /* MobileUIParityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1606EF8ADEA4921421EB0690 /* MobileUIParityTests.swift */; };
 		AA7C45A51254081D6035E20F /* ChromeParity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 410470CB94CB0505A3EF5801 /* ChromeParity.swift */; };
 		B050B73E4A5DA72E8786A53D /* WeChatChatImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BD449D0AEE56628BBC6A2AF /* WeChatChatImport.swift */; };
 		B08E58823845817F84C52A52 /* NotesListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30C95F4EABCD08555D97C6B /* NotesListView.swift */; };
 		B13CF9D8320DF366EA58601F /* ImageCompressor.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6B15550738F6080C23DE15F /* ImageCompressor.swift */; };
 		B79E88A198C6635419CAE9E5 /* WKWebView+ProgrammaticKeyboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9128735A19D0D834D5CD4947 /* WKWebView+ProgrammaticKeyboard.swift */; };
+		B94904748E0D559AADB27C52 /* AiModelCapabilitiesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 701F9048DCED820ADDFD1A86 /* AiModelCapabilitiesTests.swift */; };
 		BBFC2539859878814E2F7197 /* KeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2C2945A52C2957CCFC09FCF /* KeychainStore.swift */; };
+		C2196E01733BC58D5242C897 /* TotpModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C5FAA35597F311BA8BB926D /* TotpModels.swift */; };
 		C37DA99E090A783562506CDA /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = EFF10CDC8FB8C97DA0103AA0 /* PrivacyInfo.xcprivacy */; };
 		C8A4FA6119134F68F5DC7415 /* LocalMirrorRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDEF3A661FA08F338EC96C74 /* LocalMirrorRepository.swift */; };
 		C8ED8D6620BC657699331527 /* ResourceActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9182F742B06FB1713E27C2A /* ResourceActions.swift */; };
@@ -137,21 +140,19 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		9886D42194377CACC82BD6C8 /* TotpModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TotpModels.swift; sourceTree = "<group>"; };
-		D06B7336658C91A9585AB714 /* TotpComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TotpComponents.swift; sourceTree = "<group>"; };
-		77ED83C9DF4F7556BA0343C3 /* TotpSettingsPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TotpSettingsPanel.swift; sourceTree = "<group>"; };
-		A570FFBC9DDACAACD3AE7DF8 /* ForcedTotpRebindView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForcedTotpRebindView.swift; sourceTree = "<group>"; };
-		29F5EEA12B7E6AE281C377BB /* TotpDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TotpDecodingTests.swift; sourceTree = "<group>"; };
 		01D34117A78B1F5C367ACDBB /* assets */ = {isa = PBXFileReference; lastKnownFileType = folder; name = assets; path = EdgeEver/Resources/EditorBundle/assets; sourceTree = SOURCE_ROOT; };
+		02807F2903E0863CE39A3E35 /* ForcedTotpRebindView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForcedTotpRebindView.swift; sourceTree = "<group>"; };
 		033565CE2E96EC2D23105188 /* ListActionsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListActionsSheet.swift; sourceTree = "<group>"; };
 		04B6BCA279F8E8A4774A7C0A /* NoteImageFontPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteImageFontPickerView.swift; sourceTree = "<group>"; };
 		0531FC6AA81DAF0A55B42362 /* AppDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDatabase.swift; sourceTree = "<group>"; };
+		083BB6298DAB1730A6D0AAB6 /* AiModelCapabilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AiModelCapabilities.swift; sourceTree = "<group>"; };
 		0BD449D0AEE56628BBC6A2AF /* WeChatChatImport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeChatChatImport.swift; sourceTree = "<group>"; };
 		0EF7E97C950002FA22EFB7C8 /* AiDirectStream.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AiDirectStream.swift; sourceTree = "<group>"; };
 		12236E3A2F318CDEB17B80CB /* SyncProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncProtocol.swift; sourceTree = "<group>"; };
 		12DCA98C14CC6F28C22C41A1 /* TipTapWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TipTapWebView.swift; sourceTree = "<group>"; };
 		13105CFE9131425A1C7E4BF0 /* WebClipper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebClipper.swift; sourceTree = "<group>"; };
 		1606EF8ADEA4921421EB0690 /* MobileUIParityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MobileUIParityTests.swift; sourceTree = "<group>"; };
+		16830440EB74571AB5981EF2 /* TotpDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TotpDecodingTests.swift; sourceTree = "<group>"; };
 		17A2092411EFC3765B97DF88 /* SystemImagePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemImagePicker.swift; sourceTree = "<group>"; };
 		1CD75D20D94A27E982103AB3 /* EdgeEver.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = EdgeEver.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		2035E878FD92B74D889D6047 /* LocalMirrorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalMirrorTests.swift; sourceTree = "<group>"; };
@@ -171,12 +172,14 @@
 		387980E9CCA7C1C52EAAB6A0 /* MemoDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoDetailView.swift; sourceTree = "<group>"; };
 		38B2C459C9903FC6EBA4E478 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		39372CB1A1422DC84E4B0AE6 /* WeChatShareInbox.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeChatShareInbox.swift; sourceTree = "<group>"; };
+		3BFA3F0F11B9B7770A0848DB /* AiModelCapabilityDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AiModelCapabilityDetector.swift; sourceTree = "<group>"; };
 		3CEB614A969DF595620789B7 /* UsersManagementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsersManagementView.swift; sourceTree = "<group>"; };
 		40C1F4BC7DB150AE8F85AA13 /* SyncEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncEngine.swift; sourceTree = "<group>"; };
 		410470CB94CB0505A3EF5801 /* ChromeParity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChromeParity.swift; sourceTree = "<group>"; };
 		41B15501968A29C372E7B3BB /* URLNormalizeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLNormalizeTests.swift; sourceTree = "<group>"; };
 		4341E86DEF60272AE37A8704 /* Colors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Colors.swift; sourceTree = "<group>"; };
 		4BEF7AFA15A0972ED3475F23 /* EditorBundleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorBundleTests.swift; sourceTree = "<group>"; };
+		4DA59F9E38F51B53F3A7EF13 /* TotpComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TotpComponents.swift; sourceTree = "<group>"; };
 		501296D671EE3A384E13BE62 /* TagsManagementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagsManagementView.swift; sourceTree = "<group>"; };
 		57312B99FFBD9A2186A8C0D0 /* LiveLocalAPITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveLocalAPITests.swift; sourceTree = "<group>"; };
 		574912976CB43DD9821678EE /* SessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStore.swift; sourceTree = "<group>"; };
@@ -186,7 +189,9 @@
 		5CB54673617E14F28B7608BD /* Typography.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Typography.swift; sourceTree = "<group>"; };
 		5D7D3262D1E3E40E38361E84 /* WebClipperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebClipperTests.swift; sourceTree = "<group>"; };
 		62B460B6BFE4CFB23073C7E1 /* SyncOutboxRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncOutboxRepository.swift; sourceTree = "<group>"; };
+		6C5FAA35597F311BA8BB926D /* TotpModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TotpModels.swift; sourceTree = "<group>"; };
 		6CB16CA1499554463E1927E7 /* PreferencesStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesStore.swift; sourceTree = "<group>"; };
+		701F9048DCED820ADDFD1A86 /* AiModelCapabilitiesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AiModelCapabilitiesTests.swift; sourceTree = "<group>"; };
 		73FA569C71080B6F9989AA03 /* ApiTokensView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApiTokensView.swift; sourceTree = "<group>"; };
 		776B0012B526A65B99921B4B /* ConflictResolutionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConflictResolutionView.swift; sourceTree = "<group>"; };
 		80D96968C0AFEA9A7C19C38F /* AiAssistantSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AiAssistantSheet.swift; sourceTree = "<group>"; };
@@ -205,6 +210,7 @@
 		A375D81573943A98C5732F81 /* MobileUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MobileUI.swift; sourceTree = "<group>"; };
 		AB02424D0412FE36C4BCD116 /* index.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = index.html; sourceTree = "<group>"; };
 		AD904708FC1AD8971439BD90 /* JSONCoding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONCoding.swift; sourceTree = "<group>"; };
+		AD9E79AE6EBFC561C39D154D /* TotpSettingsPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TotpSettingsPanel.swift; sourceTree = "<group>"; };
 		AE1D4EB4B51C66E9CD72FF7F /* TipTapContentSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TipTapContentSource.swift; sourceTree = "<group>"; };
 		B1D94BB61519CA2A345D99C1 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		B30C95F4EABCD08555D97C6B /* NotesListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotesListView.swift; sourceTree = "<group>"; };
@@ -250,16 +256,6 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		F5FD408D8668FC264CD6E46D /* Security */ = {
-			isa = PBXGroup;
-			children = (
-				A570FFBC9DDACAACD3AE7DF8 /* ForcedTotpRebindView.swift */,
-				D06B7336658C91A9585AB714 /* TotpComponents.swift */,
-				77ED83C9DF4F7556BA0343C3 /* TotpSettingsPanel.swift */,
-			);
-			path = Security;
-			sourceTree = "<group>";
-		};
 		0C073569B955CD568840A35D /* Config */ = {
 			isa = PBXGroup;
 			children = (
@@ -325,6 +321,16 @@
 			path = Session;
 			sourceTree = "<group>";
 		};
+		2ACB111275C21235F30AC0E7 /* Security */ = {
+			isa = PBXGroup;
+			children = (
+				02807F2903E0863CE39A3E35 /* ForcedTotpRebindView.swift */,
+				4DA59F9E38F51B53F3A7EF13 /* TotpComponents.swift */,
+				AD9E79AE6EBFC561C39D154D /* TotpSettingsPanel.swift */,
+			);
+			path = Security;
+			sourceTree = "<group>";
+		};
 		2E86C2538BFD6FD31BF84916 /* Cache */ = {
 			isa = PBXGroup;
 			children = (
@@ -364,8 +370,8 @@
 			isa = PBXGroup;
 			children = (
 				D1C1EF697B501DEE7E568338 /* Auth */,
+				2ACB111275C21235F30AC0E7 /* Security */,
 				1C9B7294934FF01F82DDBEB1 /* Share */,
-				F5FD408D8668FC264CD6E46D /* Security */,
 				AE31B21B9B3513CC73436E46 /* Workspace */,
 			);
 			path = Features;
@@ -527,7 +533,7 @@
 			children = (
 				F1F36ACF8073C8A61AE397CD /* MemoTemplates.swift */,
 				C5126510AFB9AFBF7ABADB45 /* Models.swift */,
-				9886D42194377CACC82BD6C8 /* TotpModels.swift */,
+				6C5FAA35597F311BA8BB926D /* TotpModels.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -536,6 +542,8 @@
 			isa = PBXGroup;
 			children = (
 				0EF7E97C950002FA22EFB7C8 /* AiDirectStream.swift */,
+				083BB6298DAB1730A6D0AAB6 /* AiModelCapabilities.swift */,
+				3BFA3F0F11B9B7770A0848DB /* AiModelCapabilityDetector.swift */,
 				D6F510BF90B418266F363EBD /* APIClient.swift */,
 			);
 			path = Network;
@@ -576,6 +584,7 @@
 		F82E0DDA9B1E6FCB6CB7E083 /* EdgeEverTests */ = {
 			isa = PBXGroup;
 			children = (
+				701F9048DCED820ADDFD1A86 /* AiModelCapabilitiesTests.swift */,
 				213837D2B2F025307A5EBB69 /* ChromeParityTests.swift */,
 				4BEF7AFA15A0972ED3475F23 /* EditorBundleTests.swift */,
 				57312B99FFBD9A2186A8C0D0 /* LiveLocalAPITests.swift */,
@@ -586,7 +595,7 @@
 				1606EF8ADEA4921421EB0690 /* MobileUIParityTests.swift */,
 				E6159DBF27CC86920005E25D /* SyncProtocolTests.swift */,
 				8A536119D29812EF11DAEAA8 /* TipTapContentSourceTests.swift */,
-				29F5EEA12B7E6AE281C377BB /* TotpDecodingTests.swift */,
+				16830440EB74571AB5981EF2 /* TotpDecodingTests.swift */,
 				41B15501968A29C372E7B3BB /* URLNormalizeTests.swift */,
 				5D7D3262D1E3E40E38361E84 /* WebClipperTests.swift */,
 				D20D307664D7B29C6E7DA4F6 /* WeChatChatArchiveTests.swift */,
@@ -685,9 +694,15 @@
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				Base,
+				de,
 				en,
+				es,
+				fr,
+				ja,
 				pl,
+				ru,
 				"zh-Hans",
+				"zh-Hant",
 			);
 			mainGroup = A22DC90C50256855231B9F51;
 			minimizedProjectReferenceProxies = 1;
@@ -747,7 +762,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				3E20F8406FE46B5DEDB63E47 /* TotpDecodingTests.swift in Sources */,
+				B94904748E0D559AADB27C52 /* AiModelCapabilitiesTests.swift in Sources */,
 				100A3242D8AA714261236773 /* ChromeParityTests.swift in Sources */,
 				E51CD822863D3494E35ADB27 /* EditorBundleTests.swift in Sources */,
 				F51F6C5ED7C2B0E68DF5A55D /* LiveLocalAPITests.swift in Sources */,
@@ -758,6 +773,7 @@
 				A63E64622A06DF3842908A66 /* MobileUIParityTests.swift in Sources */,
 				1F8E6268C9DA330CA236B36F /* SyncProtocolTests.swift in Sources */,
 				4EC901852EDA4BC001717747 /* TipTapContentSourceTests.swift in Sources */,
+				04790ABC8C0EAE9E14F8C660 /* TotpDecodingTests.swift in Sources */,
 				0D67F968CAFCC17F28A5555C /* URLNormalizeTests.swift in Sources */,
 				F73A1823608D4E14E6A1C06C /* WeChatChatArchiveTests.swift in Sources */,
 				6E1459D0AA2E0217C517F973 /* WebClipperTests.swift in Sources */,
@@ -768,14 +784,12 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				77C3F06708AC36BF9F6F16EA /* TotpModels.swift in Sources */,
-				EFA3767F26DCBD697A3BF043 /* TotpComponents.swift in Sources */,
-				77939EA96FFA56BAEDB4EF99 /* TotpSettingsPanel.swift in Sources */,
-				936D15E0433CE757E5ED8C51 /* ForcedTotpRebindView.swift in Sources */,
 				039594C5BEE4844FBB131C7F /* APIClient.swift in Sources */,
 				564B7A4D6CD3C8140286F881 /* AccountPasswordPanel.swift in Sources */,
 				F6AACA31885AB69C1CCCCB46 /* AiAssistantSheet.swift in Sources */,
 				3224E63C6FD054554E82B8B6 /* AiDirectStream.swift in Sources */,
+				9E4FDBABD9E888630FA98159 /* AiModelCapabilities.swift in Sources */,
+				03BBE4F5CA3A9A11364274F8 /* AiModelCapabilityDetector.swift in Sources */,
 				12F0F0D1E937AA88C33222FF /* ApiTokensView.swift in Sources */,
 				35DF4BD1617191AB0B95CC4A /* AppDatabase.swift in Sources */,
 				FC6501567FDC2F9900E973A4 /* AppEnvironment.swift in Sources */,
@@ -788,6 +802,7 @@
 				5EEFDEEDC372725C7C7F22ED /* EdgeEverApp.swift in Sources */,
 				8C761DABADB93F2F15E21E80 /* EditFabButton.swift in Sources */,
 				5724B9A66EC1AE14D4C48F8B /* EditorContentCodec.swift in Sources */,
+				A57B31D0785F1AA5ADA4B31B /* ForcedTotpRebindView.swift in Sources */,
 				B13CF9D8320DF366EA58601F /* ImageCompressor.swift in Sources */,
 				132BA05FF9673B95D3E3959A /* JSONCoding.swift in Sources */,
 				BBFC2539859878814E2F7197 /* KeychainStore.swift in Sources */,
@@ -825,6 +840,9 @@
 				265DB48114144779A7C807F7 /* TipTapContentSource.swift in Sources */,
 				1186BE3109942FCBAB59E6B4 /* TipTapWarmPool.swift in Sources */,
 				4BA97CD264D0929B20ED19DB /* TipTapWebView.swift in Sources */,
+				90496692F4878AF670D20BDC /* TotpComponents.swift in Sources */,
+				C2196E01733BC58D5242C897 /* TotpModels.swift in Sources */,
+				5FE5D8D4333052DAE7C6807B /* TotpSettingsPanel.swift in Sources */,
 				2A07555B54946A177E1ECFF2 /* Typography.swift in Sources */,
 				6A671BB702DA77A0548E6E29 /* URL+Normalize.swift in Sources */,
 				E7B888711C3A5403083864B3 /* UsersManagementView.swift in Sources */,
@@ -908,7 +926,6 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 49;
 				DEVELOPMENT_TEAM = 9KA3NM38B6;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -992,7 +1009,6 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 49;
 				DEVELOPMENT_TEAM = 9KA3NM38B6;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
