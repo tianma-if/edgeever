@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { defaultFilter } from "cmdk";
 import { ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Command, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
@@ -83,6 +84,9 @@ export function ComboboxInput({ value, onValueChange, options, placeholder, labe
       ref={commandRef}
       label={placeholder}
       shouldFilter={filtering}
+      // Match on the trimmed text, like the value that is kept, so edge spaces
+      // cannot hide every item while the list stays open.
+      filter={(itemValue, search, keywords) => defaultFilter(itemValue, search.trim(), keywords)}
       value={active}
       onValueChange={setActive}
       data-state={listOpen ? "open" : "closed"}

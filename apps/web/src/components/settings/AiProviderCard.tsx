@@ -100,8 +100,9 @@ export const AiProviderCard = ({ provider: saved, defaultDisplayName, defaultMod
     refetchInterval: (query) => nextModelDiscoveryRefresh(query.state.dataUpdatedAt, query.state.errorUpdatedAt),
   });
   const discoveredModels = discoveryQuery.data?.models ?? [];
-  const discoveredModelOptions = useMemo(() => (discoveryQuery.data?.models ?? []).map((model) => ({ value: model.modelId, label: model.displayName })),
-    [discoveryQuery.data?.models]);
+  // Keyed on the query data: discoveredModels is a new [] on every render while it is empty.
+  // oxlint-disable-next-line react-hooks/exhaustive-deps
+  const discoveredModelOptions = useMemo(() => discoveredModels.map((model) => ({ value: model.modelId, label: model.displayName })), [discoveryQuery.data]);
   const discoveryLoading = discoveryQuery.isFetching && (!discoveryQuery.data || manualDiscovery);
   const discoveryError = (discoveryQuery.error && !discoveryQuery.data) || manualDiscoveryFailed;
   useEffect(() => {
