@@ -184,6 +184,35 @@ final class AiModelCapabilitiesTests: XCTestCase {
         XCTAssertEqual(CapabilityStub.requests().compactMap { $0.url?.host }, ["gateway.example"], "the redirect target must not be requested")
     }
 
+    /// Generation and tag suggestion requests carry the model key too.
+    func testGenerationAndTagRequestsDoNotFollowRedirects() async throws {
+        CapabilityStub.respond { request in
+            switch (request.url?.host, request.url?.path) {
+            case ("notes.example", "/api/v1/ai/tag-suggestions/prepare"):
+                return (200, #"{"provider":"openai-compatible","baseUrl":"https://g.example/v1","apiKey":"k","modelId":"m","system":"s","prompt":"p","maxOutputTokens":300,"currentTags":[],"canonicalTags":{}}"#, [:])
+            case ("g.example", _):
+                return (307, "", ["Location": "https://elsewhere.example/v1/chat/completions"])
+            default:
+                return (200, "data: [DONE]\n\n", ["Content-Type": "text/event-stream"])
+            }
+        }
+        let prepared = AiPreparedGeneration(provider: "openai-compatible", baseUrl: "https://g.example/v1", apiKey: "k", modelId: "m", system: "s", prompt: "p", maxOutputTokens: 4096, resultBoundary: .init(start: "<r>", end: "</r>"))
+        do {
+            try await APIClient.streamDirectProvider(prepared, session: CapabilityStub.session(), emit: { _ in })
+            XCTFail("a redirected generation must fail")
+        } catch let error as APIError {
+            XCTAssertEqual(error.status, 307)
+        }
+        let client = APIClient(baseURL: URL(string: "https://notes.example")!, token: "t", session: CapabilityStub.session(), modelCatalog: nil)
+        do {
+            _ = try await client.suggestAiTags(AiTagSuggestionsInput(title: "Note", contentMarkdown: "Body", currentTags: [], locale: "en"))
+            XCTFail("a redirected tag suggestion request must fail")
+        } catch let error as APIError {
+            XCTAssertEqual(error.status, 307)
+        }
+        XCTAssertFalse(CapabilityStub.requests().contains { $0.url?.host == "elsewhere.example" }, "the redirect target must not be requested")
+    }
+
     func testDetectionHasAnOverallTimeLimit() async throws {
         CapabilityStub.respond { _ in (0, "", [:]) }
         let started = Date()

@@ -1,5 +1,22 @@
 import Foundation
 
+/// Requests to a model service carry its API key, so they never follow a redirect (as
+/// `redirect: "error"` in the shared client): the 3xx answer itself comes back and is handled as a
+/// failed request, and the redirect target receives nothing (#652).
+final class AiProviderRedirects: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+    static let reject = AiProviderRedirects()
+
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        willPerformHTTPRedirection response: HTTPURLResponse,
+        newRequest request: URLRequest,
+        completionHandler: @escaping @Sendable (URLRequest?) -> Void
+    ) {
+        completionHandler(nil)
+    }
+}
+
 /// Reads a model's limits from the provider's own metadata, falling back to models.dev (#652).
 /// Same flow as `packages/client/src/ai-model-capabilities-direct.ts`. Read-only GET requests;
 /// they never generate text.
@@ -16,21 +33,6 @@ enum AiModelCapabilityDetector {
     /// The whole detection (provider metadata plus models.dev) must finish within this time;
     /// otherwise generation goes on with the first prepare, as if the limits were unknown.
     static let defaultTimeout: TimeInterval = 8
-
-    /// Requests carry the model key, so they never follow a redirect (as `redirect: "error"` in the
-    /// shared client): the 3xx answer itself comes back and counts as unreadable.
-    private final class RejectRedirects: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
-        static let shared = RejectRedirects()
-        func urlSession(
-            _ session: URLSession,
-            task: URLSessionTask,
-            willPerformHTTPRedirection response: HTTPURLResponse,
-            newRequest request: URLRequest,
-            completionHandler: @escaping @Sendable (URLRequest?) -> Void
-        ) {
-            completionHandler(nil)
-        }
-    }
 
     private enum Outcome: Sendable {
         case finished(AiModelCapabilityLimits?)
@@ -107,7 +109,7 @@ enum AiModelCapabilityDetector {
             var request = URLRequest(url: requestURL, timeoutInterval: max(timeout, 1))
             request.httpMethod = "GET"
             for (name, value) in headers { request.setValue(value, forHTTPHeaderField: name) }
-            let (data, response) = try await session.data(for: request, delegate: RejectRedirects.shared)
+            let (data, response) = try await session.data(for: request, delegate: AiProviderRedirects.reject)
             guard let http = response as? HTTPURLResponse else { throw Unavailable() }
             // Gateways answer unsupported metadata paths with 404 or, often, 400. Any client error
             // other than authentication or rate limiting means "this endpoint has no metadata".

@@ -292,7 +292,7 @@ actor APIClient {
             modelId: prepared.modelId, system: prepared.system, prompt: prepared.prompt, maxOutputTokens: prepared.maxOutputTokens,
             resultBoundary: AiGenerationResultBoundary(start: "", end: ""))
         let providerRequest = try AiDirectStream.providerRequest(for: generation)
-        let (bytes, response) = try await session.bytes(for: providerRequest)
+        let (bytes, response) = try await session.bytes(for: providerRequest, delegate: AiProviderRedirects.reject)
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
             throw APIError(status: (response as? HTTPURLResponse)?.statusCode ?? 502, code: "ai_tag_suggestions_failed", message: "The model request failed.")
         }
@@ -396,7 +396,8 @@ actor APIClient {
         retried: Bool = false
     ) async throws {
         let request = try AiDirectStream.providerRequest(for: prepared)
-        let (bytes, response) = try await session.bytes(for: request)
+        // The request carries the model key: never follow a redirect (#652).
+        let (bytes, response) = try await session.bytes(for: request, delegate: AiProviderRedirects.reject)
         guard let http = response as? HTTPURLResponse else {
             throw APIError(status: -1, code: nil, message: "Invalid response")
         }
