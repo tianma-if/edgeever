@@ -58,7 +58,7 @@ test("an accepted folder always fits the main-process limit at its longest expan
 });
 
 test("the settings page and the main process agree on channel names", () => {
-  for (const name of ["", "Main R2", " 备用 ", "a\tb", "a\nb", "a\u007fb"]) {
+  for (const name of ["", "Main R2", " 备用 ", "a\tb", "a\nb", "a\u007fb", "R2\t", "\tR2", "x".repeat(100), ` ${"x".repeat(100)} `, "x".repeat(101)]) {
     let accepted = true;
     try { normalizeImgBedChannelName(name); } catch { accepted = false; }
     expect(isImgBedChannelNameValid(name)).toBe(accepted);

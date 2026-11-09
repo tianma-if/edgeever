@@ -49,12 +49,15 @@ export const normalizeImgBedFolder = (value) => {
 
 // ImgBed matches the name exactly and silently falls back to the type's first
 // (or load-balanced) channel when nothing matches, so only trim the edges.
+// Same rule as isImgBedChannelNameValid in the renderer: control characters
+// anywhere are rejected before trimming, and the limit applies to the trimmed name.
 export const normalizeImgBedChannelName = (value) => {
   if (value == null || value === "") return "";
   if (typeof value !== "string") throw new Error("ImgBed channel name is invalid");
-  const name = value.trim();
   // oxlint-disable-next-line no-control-regex -- rejects control characters in the ImgBed channel name
-  if (name.length > IMGBED_MAX_CHANNEL_NAME_LENGTH || /[\u0000-\u001f\u007f]/.test(name)) throw new Error("ImgBed channel name is invalid");
+  if (/[\u0000-\u001f\u007f]/.test(value)) throw new Error("ImgBed channel name is invalid");
+  const name = value.trim();
+  if (name.length > IMGBED_MAX_CHANNEL_NAME_LENGTH) throw new Error("ImgBed channel name is invalid");
   return name;
 };
 
@@ -68,7 +71,12 @@ const buildUploadUrl = (input) => {
   const channelName = normalizeImgBedChannelName(input.channelName);
   if (input.serverCompress != null && typeof input.serverCompress !== "boolean") throw new Error("ImgBed server compression is invalid");
   url.searchParams.set("uploadChannel", channel);
-  if (channelName) url.searchParams.set("channelName", channelName);
+  if (channelName) {
+    url.searchParams.set("channelName", channelName);
+    // Without this ImgBed retries a failed write on other channels and returns
+    // their link, so a broken target channel would still look like a success.
+    url.searchParams.set("autoRetry", "false");
+  }
   url.searchParams.set("serverCompress", String(input.serverCompress ?? true));
   url.searchParams.set("uploadNameType", nameType);
   if (folder) url.searchParams.set("uploadFolder", folder);

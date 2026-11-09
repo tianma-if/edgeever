@@ -21,6 +21,7 @@ test("posts the image with bearer token, folder and naming, and prefers publicUr
     expect(url.searchParams.get("uploadNameType")).toBe("short");
     expect(url.searchParams.get("uploadChannel")).toBe("cfr2");
     expect(url.searchParams.get("channelName")).toBe("R2 备用");
+    expect(url.searchParams.get("autoRetry")).toBe("false");
     expect(url.searchParams.get("serverCompress")).toBe("false");
     expect(request.headers.get("authorization")).toBe("Bearer imgbed-token");
     const file = (await request.formData()).get("file");
@@ -39,6 +40,8 @@ test("resolves src against the ImgBed site and omits an empty folder", async () 
     // Unset options follow the ImgBed API defaults.
     expect(params.get("uploadChannel")).toBe("telegram");
     expect(params.has("channelName")).toBe(false);
+    // Without a channel name ImgBed keeps its own retry across channels.
+    expect(params.has("autoRetry")).toBe(false);
     expect(params.get("serverCompress")).toBe("true");
     return Response.json([{ src: "/file/notes/abc.png" }]);
   });
@@ -87,6 +90,23 @@ test("connection test checks the channel name against /api/channels before uploa
   expectedName = null;
   expect(await testImgBedConnection(input)).toBe(true);
   expect(requests).toEqual(["POST /imgbed/upload"]);
+});
+
+test("a named channel that fails to write is reported instead of retried elsewhere", async () => {
+  let uploads = 0;
+  // Mimics ImgBed: with autoRetry on, a failed write on the named channel falls
+  // through to another channel and still returns that channel's link.
+  const endpoint = serve((request) => {
+    const url = new URL(request.url);
+    if (url.pathname === "/api/channels") return Response.json({ s3: [{ name: "Broken S3" }] });
+    uploads += 1;
+    if (url.searchParams.get("autoRetry") === "false") return new Response("Error: S3 upload failed", { status: 500 });
+    return Response.json([{ src: "/file/from-telegram.png" }]);
+  });
+  const input = { endpoint, token: "imgbed-token", uploadFolder: "", nameType: "default", uploadChannel: "s3", channelName: "Broken S3" };
+  await expect(testImgBedConnection(input)).rejects.toThrow("HTTP 500");
+  await expect(uploadImgBedImage(image(endpoint, { uploadChannel: "s3", channelName: "Broken S3" }))).rejects.toThrow("HTTP 500");
+  expect(uploads).toBe(2);
 });
 
 test("connection test explains old ImgBed versions and rejected tokens on the channel check", async () => {
@@ -138,7 +158,7 @@ test("normalizes the address, folder and token and rejects unsafe values", () =>
   expect(normalizeImgBedChannelName(undefined)).toBe("");
   expect(normalizeImgBedChannelName("   ")).toBe("");
   expect(normalizeImgBedChannelName(" Main R2 ")).toBe("Main R2");
-  for (const name of [42, "a\nb", "x".repeat(101)]) expect(() => normalizeImgBedChannelName(name)).toThrow();
+  for (const name of [42, "a\nb", "R2\t", "\tR2", "x".repeat(101)]) expect(() => normalizeImgBedChannelName(name)).toThrow();
   expect(normalizeImgBedToken("  token ")).toBe("token");
   for (const token of ["", "two words", 42]) expect(() => normalizeImgBedToken(token)).toThrow();
 });
