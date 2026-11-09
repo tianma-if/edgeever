@@ -235,6 +235,10 @@ struct AiPreparedGeneration: Decodable, Sendable {
     var segments: [AiGenerationSegment]? = nil
     /// The server understands parts and continuations; an older one would start over.
     var longGeneration: Bool? = nil
+    /// Where to report this model's limits (#652); an older server sends none.
+    var capabilityTarget: AiModelCapabilityTarget? = nil
+    /// The instance has no fresh limits for this model: read them before generating (#652).
+    var detectCapabilities: Bool? = nil
 }
 
 struct AiPreparedTagSuggestions: Decodable, Sendable {
