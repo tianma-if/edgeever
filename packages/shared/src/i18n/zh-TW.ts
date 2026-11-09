@@ -3314,6 +3314,7 @@ export const zhTW = {
     fold: "摺疊塊",
     codeBlock: "程式碼塊",
     copyCode: "複製程式碼",
+    copyCodeLineHint: "{{shortcut}} 複製游標所在行",
     codeCopied: "已複製",
     codeCopyFailed: "複製失敗",
     codeLanguage: "程式碼語言",

@@ -3304,6 +3304,7 @@ export const ja = {
     fold: "折りたたみ",
     codeBlock: "コードブロック",
     copyCode: "コードをコピー",
+    copyCodeLineHint: "{{shortcut}} でカーソル行をコピー",
     codeCopied: "コピーしました",
     codeCopyFailed: "コピーに失敗",
     codeLanguage: "コード言語",

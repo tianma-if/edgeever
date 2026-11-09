@@ -3314,6 +3314,7 @@ export const zhCN = {
     fold: "折叠块",
     codeBlock: "代码块",
     copyCode: "复制代码",
+    copyCodeLineHint: "{{shortcut}} 复制光标所在行",
     codeCopied: "已复制",
     codeCopyFailed: "复制失败",
     codeLanguage: "代码语言",

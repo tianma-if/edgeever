@@ -5,6 +5,7 @@ import { Check, CircleAlert, Code2, Copy, Maximize2 } from "lucide-react";
 import { MERMAID_THEME_PALETTES, useMermaidTheme } from "./ThemeProvider";
 import { MermaidViewer } from "./MermaidViewer";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { isAppleShortcutPlatform } from "@/lib/app-helpers";
 import { copyTextToClipboard } from "@/lib/clipboard";
 import { renderThemedMermaidSvg } from "@/lib/mermaid-renderer";
 import { mermaidDisplayScale } from "@/lib/mermaid-svg";
@@ -20,6 +21,8 @@ export const MermaidCodeBlock = ({ editor, node }: NodeViewProps) => {
   const [viewerOpen, setViewerOpen] = useState(false);
   const [renderState, setRenderState] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
+  const [copyTooltipOpen, setCopyTooltipOpen] = useState(false);
+  const copyLabel = t(copyState === "copied" ? "editorToolbar.codeCopied" : copyState === "error" ? "editorToolbar.codeCopyFailed" : "editorToolbar.copyCode");
   const previewRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -181,13 +184,13 @@ export const MermaidCodeBlock = ({ editor, node }: NodeViewProps) => {
         </TooltipProvider>
       ) : (
         <TooltipProvider delayDuration={0} skipDelayDuration={0}>
-          <Tooltip>
+          <Tooltip open={copyTooltipOpen} onOpenChange={setCopyTooltipOpen}>
             <TooltipTrigger asChild>
               <button
                 type="button"
                 className="edgeever-code-copy-button"
                 contentEditable={false}
-                aria-label={t(copyState === "copied" ? "editorToolbar.codeCopied" : copyState === "error" ? "editorToolbar.codeCopyFailed" : "editorToolbar.copyCode")}
+                aria-label={copyLabel}
                 onClick={(event) => {
                   event.preventDefault();
                   event.stopPropagation();
@@ -195,15 +198,13 @@ export const MermaidCodeBlock = ({ editor, node }: NodeViewProps) => {
                 }}
                 onMouseDown={(event) => event.preventDefault()}
               >
-                {copyState === "copied"
-                  ? t("editorToolbar.codeCopied")
-                  : copyState === "error"
-                    ? t("editorToolbar.codeCopyFailed")
-                    : t("editorToolbar.copyCode")}
+                {copyLabel}
               </button>
             </TooltipTrigger>
             <TooltipContent side="bottom">
-              {t(copyState === "copied" ? "editorToolbar.codeCopied" : copyState === "error" ? "editorToolbar.codeCopyFailed" : "editorToolbar.copyCode")}
+              {copyState === "idle" && editor.isEditable
+                ? t("editorToolbar.copyCodeLineHint", { shortcut: isAppleShortcutPlatform() ? "⌘C" : "Ctrl+C" })
+                : copyLabel}
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>

@@ -3297,6 +3297,7 @@ export const enUS = {
     fold: "Fold",
     codeBlock: "Code block",
     copyCode: "Copy code",
+    copyCodeLineHint: "{{shortcut}} copies the current line",
     codeCopied: "Copied",
     codeCopyFailed: "Copy failed",
     codeLanguage: "Code language",

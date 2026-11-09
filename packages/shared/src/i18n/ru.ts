@@ -3315,6 +3315,7 @@ export const ru = {
     fold: "Свернуть",
     codeBlock: "Блок кода",
     copyCode: "Копировать код",
+    copyCodeLineHint: "{{shortcut}} копирует текущую строку",
     codeCopied: "Скопировано",
     codeCopyFailed: "Не удалось скопировать",
     codeLanguage: "Язык кода",

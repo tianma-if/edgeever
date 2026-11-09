@@ -3304,6 +3304,7 @@ export const pl = {
     fold: "Blok zwijany",
     codeBlock: "Blok kodu",
     copyCode: "Kopiuj kod",
+    copyCodeLineHint: "{{shortcut}} kopiuje bieżący wiersz",
     codeCopied: "Skopiowano",
     codeCopyFailed: "Nie udało się skopiować",
     codeLanguage: "Język kodu",

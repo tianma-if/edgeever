@@ -3500,6 +3500,7 @@ export const de = {
     "fold": "Einklappen",
     "codeBlock": "Codeblock",
     "copyCode": "Code kopieren",
+    "copyCodeLineHint": "{{shortcut}} kopiert die aktuelle Zeile",
     "codeCopied": "Kopiert",
     "codeCopyFailed": "Kopieren fehlgeschlagen",
     "codeLanguage": "Codesprache",

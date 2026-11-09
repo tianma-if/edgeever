@@ -3500,6 +3500,7 @@ export const fr = {
     fold: "Replier",
     codeBlock: "Bloc de code",
     copyCode: "Copier le code",
+    copyCodeLineHint: "{{shortcut}} copie la ligne active",
     codeCopied: "Copié",
     codeCopyFailed: "Échec de la copie",
     codeLanguage: "Langage du code",
