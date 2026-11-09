@@ -80,7 +80,7 @@ test("channel lists survive cosmetic address edits but not a different site", ()
   for (const same of ["https://img.example.com", " https://img.example.com/ ", "https://IMG.example.com/upload/", "https://img.example.com:443"]) {
     expect(imgBedSiteKey(same)).toBe(key);
   }
-  for (const other of ["https://img.example.org", "http://img.example.com", "https://img.example.com/imgbed", "https://img.example.com:8443"]) {
+  for (const other of ["https://img.example.org", "http://img.example.com", "https://img.example.com/imgbed", "https://img.example.com:8443", "https://img.example.com/?x", "https://img.example.com/#x"]) {
     expect(imgBedSiteKey(other)).not.toBe(key);
   }
   expect(imgBedSiteKey(" not a url ")).toBe("not a url");

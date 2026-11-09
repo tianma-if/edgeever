@@ -15,7 +15,9 @@ export const imgBedSiteKey = (endpoint: string) => {
   const value = endpoint.trim();
   try {
     const url = new URL(value);
-    return `${url.origin}${url.pathname.replace(/\/+$/, "").replace(/\/upload$/, "")}`;
+    // Search and hash stay in the key: the main process rejects them, so such an
+    // address must never reuse a list loaded for the plain one.
+    return `${url.origin}${url.pathname.replace(/\/+$/, "").replace(/\/upload$/, "")}${url.search}${url.hash}`;
   } catch { return value; }
 };
 // null means the user never changed the retry switch. It then follows the

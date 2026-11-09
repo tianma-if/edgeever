@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Image } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -15,10 +15,12 @@ const picGoTargetId = (value: PicGoPreference) => value.provider === "imgbed"
     value.imgbed.uploadChannel, value.imgbed.channelName.trim(), String(value.imgbed.serverCompress),
     String(imgBedAutoRetry(value.imgbed.autoRetry, value.imgbed.channelName))].join("\0")
   : `${value.endpoint}\0${value.serverKey}`;
-// Radix Select items cannot use an empty value, so "no channel name" and
-// "type a name instead" get sentinels.
-const DEFAULT_CHANNEL_VALUE = "__imgbed_default__";
-const MANUAL_CHANNEL_VALUE = "__imgbed_manual__";
+// Radix Select items cannot use an empty value, so "no channel name" and "type a
+// name instead" get sentinels. Listed and selected names never have edge spaces
+// (they are filtered and trimmed), so a leading space cannot match a real channel.
+// Radix ignores selections whose value contains a NUL, so that is not an option.
+const DEFAULT_CHANNEL_VALUE = " default";
+const MANUAL_CHANNEL_VALUE = " manual";
 type ImgBedChannelList = { source: string; channels: Record<ImgBedUploadChannel, string[]>; skipped: Record<ImgBedUploadChannel, number> };
 const channelListSource = (imgbed: ImgBedPreference) => `${imgBedSiteKey(imgbed.endpoint)}\0${imgbed.token.trim()}`;
 // Electron wraps main-process errors, so markers are matched anywhere in the text.
@@ -26,7 +28,11 @@ const channelListSource = (imgbed: ImgBedPreference) => `${imgBedSiteKey(imgbed.
 const imgBedFailureKey = (error: unknown, unsupportedKey: string, fallbackKey: string) => {
   const message = String(error);
   if (message.includes("IMGBED_TOKEN_REJECTED:")) return "settings.picgo.imgbed.tokenRejected";
-  if (message.includes("IMGBED_CHANNELS_UNSUPPORTED:")) return unsupportedKey;
+  // Desktop hosts from before IMGBED_CHANNELS_UNSUPPORTED report an old ImgBed with
+  // only IMGBED_CHANNEL_NAME and this fixed text, which a newer page may receive.
+  if (message.includes("IMGBED_CHANNELS_UNSUPPORTED:") || message.includes("IMGBED_CHANNEL_NAME: this ImgBed version does not support channel names")) {
+    return unsupportedKey;
+  }
   if (message.includes("IMGBED_CHANNEL_NAME:")) return "settings.picgo.imgbed.channelNameNotFound";
   return fallbackKey;
 };
@@ -43,8 +49,8 @@ export const PicGoSettingsItem = () => {
   const [channelList, setChannelList] = useState<ImgBedChannelList | null>(null);
   const [channelListError, setChannelListError] = useState("");
   const [loadingChannels, setLoadingChannels] = useState(false);
-  // A load that finishes after the address or token changed must not report on the new ones.
-  const currentSource = useRef("");
+  // "Type a name" switches views without dropping the loaded list.
+  const [manualEntry, setManualEntry] = useState(false);
   const desktopAvailable = draft.provider === "imgbed" ? hasImgBedBridge() : hasPicGoBridge();
   const dirty = draft.provider !== saved.provider || draft.endpoint !== saved.endpoint || draft.serverKey !== saved.serverKey
     || !sameImgBed(draft.imgbed, saved.imgbed);
@@ -53,12 +59,13 @@ export const PicGoSettingsItem = () => {
   const imgBedReady = Boolean(draft.imgbed.endpoint.trim() && draft.imgbed.token.trim()) && !folderError && channelNameValid;
   // A list loaded for another address or token no longer applies.
   const source = channelListSource(draft.imgbed);
-  useEffect(() => { currentSource.current = source; }, [source]);
   const loadedChannels = channelList?.source === source ? channelList.channels[draft.imgbed.uploadChannel] : null;
+  const showChannelSelect = Boolean(loadedChannels) && !manualEntry;
   const skippedChannels = loadedChannels ? channelList!.skipped[draft.imgbed.uploadChannel] : 0;
   const savedNameMissing = Boolean(loadedChannels && draft.imgbed.channelName.trim() && !loadedChannels.includes(draft.imgbed.channelName.trim()));
   const canLoadChannels = hasImgBedChannelsBridge() && Boolean(draft.imgbed.endpoint.trim() && draft.imgbed.token.trim()) && !busy && !loadingChannels;
-  // While the list loads, testing, saving and the fields it depends on are locked.
+  // While the list loads, testing, saving and the address and token are locked, so
+  // the source of a pending request cannot change and needs no staleness check.
   const locked = busy || loadingChannels;
   const canTest = desktopAvailable && (draft.provider !== "imgbed" || imgBedReady);
   const canSave = dirty && (draft.provider === "edgeever" || (desktopAvailable && testedTarget === picGoTargetId(draft)));
@@ -100,11 +107,10 @@ export const PicGoSettingsItem = () => {
     setChannelListError("");
     try {
       const list = await window.edgeeverDesktop!.listImgBedChannels!({ endpoint: draft.imgbed.endpoint, token: draft.imgbed.token });
-      // Results for an address or token the user has since left are dropped.
-      if (requested === currentSource.current) setChannelList({ source: requested, ...list });
+      setChannelList({ source: requested, ...list });
+      setManualEntry(false);
     } catch (error) {
-      if (requested !== currentSource.current) return;
-      setChannelList(null);
+      // A failed reload keeps a list that is still valid for this address and token.
       setChannelListError(imgBedFailureKey(error, "settings.picgo.imgbed.channelListUnsupported", "settings.picgo.imgbed.channelListFailed"));
     } finally { setLoadingChannels(false); }
   };
@@ -206,11 +212,11 @@ export const PicGoSettingsItem = () => {
           </Select>
           <label htmlFor="imgbed-channel-name" className={SETTINGS_ITEM_TITLE_CLASSNAME}>{t("settings.picgo.imgbed.channelName")}</label>
           <div className="flex items-center gap-2">
-            {loadedChannels ? (
+            {showChannelSelect && loadedChannels ? (
               <Select value={draft.imgbed.channelName.trim() || DEFAULT_CHANNEL_VALUE} disabled={locked}
                 onValueChange={(value) => {
-                  // "Type a name" drops the list and keeps the current name in the text field.
-                  if (value === MANUAL_CHANNEL_VALUE) setChannelList(null);
+                  // "Type a name" keeps the current name in the text field.
+                  if (value === MANUAL_CHANNEL_VALUE) setManualEntry(true);
                   else updateImgBed({ channelName: value === DEFAULT_CHANNEL_VALUE ? "" : value });
                 }}>
                 <SelectTrigger id="imgbed-channel-name" className="h-10 min-w-0 flex-1"><SelectValue /></SelectTrigger>
@@ -227,19 +233,25 @@ export const PicGoSettingsItem = () => {
               <Input id="imgbed-channel-name" className="min-w-0 flex-1" value={draft.imgbed.channelName} disabled={locked} aria-invalid={channelNameValid ? undefined : true}
                 onChange={(event) => updateImgBed({ channelName: event.target.value })} spellCheck={false} autoComplete="off" maxLength={IMGBED_MAX_CHANNEL_NAME_LENGTH} />
             )}
-            {hasImgBedChannelsBridge() ? (
+            {loadedChannels && manualEntry ? (
+              // The list is still loaded, so going back needs no request.
+              <Button variant="outline" size="sm" className="h-10 shrink-0" disabled={locked} onClick={() => setManualEntry(false)}>
+                {t("settings.picgo.imgbed.channelListPick")}
+              </Button>
+            ) : hasImgBedChannelsBridge() ? (
               <Button variant="outline" size="sm" className="h-10 shrink-0" disabled={!canLoadChannels} onClick={() => void loadChannels()}>
                 {t(loadingChannels ? "settings.picgo.imgbed.channelListLoading" : "settings.picgo.imgbed.channelListLoad")}
               </Button>
             ) : null}
           </div>
-          {channelListError ? (
-            <p role="status" className="text-xs text-rose-700">{t(channelListError)}</p>
-          ) : savedNameMissing ? (
+          {channelListError ? <p role="status" className="text-xs text-rose-700">{t(channelListError)}</p> : null}
+          {showChannelSelect && savedNameMissing ? (
             <p role="status" className="text-xs text-rose-700">{t("settings.picgo.imgbed.channelMissingDescription")}</p>
-          ) : skippedChannels > 0 ? (
+          ) : null}
+          {/* Unusable names may be why a saved name is missing, so this stays visible with it. */}
+          {showChannelSelect && skippedChannels > 0 ? (
             <p role="status" className={SETTINGS_ITEM_DESCRIPTION_CLASSNAME}>{t("settings.picgo.imgbed.channelListSkipped", { count: skippedChannels })}</p>
-          ) : loadedChannels && loadedChannels.length === 0 ? (
+          ) : showChannelSelect && loadedChannels?.length === 0 ? (
             <p role="status" className={SETTINGS_ITEM_DESCRIPTION_CLASSNAME}>{t("settings.picgo.imgbed.channelListEmpty")}</p>
           ) : null}
           <p className={channelNameValid ? SETTINGS_ITEM_DESCRIPTION_CLASSNAME : "text-xs text-rose-700"}>
