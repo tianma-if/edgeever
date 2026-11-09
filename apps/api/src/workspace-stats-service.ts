@@ -2,6 +2,7 @@ import { mapResourceStorageSummary, type ResourceStatsRow } from "./resource-ser
 import {
   memoNotebookAccessSql,
   notebookAccessBinds,
+  notebookIdsBind,
   notebookInListSql,
   type NotebookAccess,
 } from "./token-notebook-access";
@@ -22,7 +23,7 @@ export const getWorkspaceStats = async (
   const notebookFilter = notebookAccess?.restricted
     ? `AND ${notebookInListSql("id", notebookAccess.readableNotebookIds)}`
     : "";
-  const notebookBinds = notebookAccess?.restricted ? notebookAccess.readableNotebookIds : [];
+  const notebookBinds = notebookAccess?.restricted ? [notebookIdsBind(notebookAccess.readableNotebookIds)] : [];
   const [memoCounts, notebookCount, tagCount, resourceStats] = await Promise.all([
     database.prepare(
       `SELECT

@@ -71,20 +71,33 @@ export const parseNotebookDefaultAccess = (value: string | null | undefined): To
   value === "read" || value === "write" ? value : "none";
 
 /**
- * Cloudflare D1 caps bound parameters per query well below SQLite's own
- * ceiling, and a token may grant up to 200 notebooks (plus their subtrees).
- * Keep every generated query at or below this many bound values.
+ * True when a stored grant column is present but unusable (unparseable JSON
+ * or not an array). Such a record must deny access entirely — including the
+ * default policy — instead of falling back to the default grant.
  */
-export const NOTEBOOK_ACCESS_BIND_LIMIT = 50;
-
-/** Splits ids into chunks small enough for D1's bound-parameter limit. */
-export const chunkNotebookIds = (notebookIds: string[], chunkSize = NOTEBOOK_ACCESS_BIND_LIMIT): string[][] => {
-  const chunks: string[][] = [];
-  for (let index = 0; index < notebookIds.length; index += chunkSize) {
-    chunks.push(notebookIds.slice(index, index + chunkSize));
+export const isCorruptedNotebookAccess = (value: string | null | undefined): boolean => {
+  if (value == null) return false;
+  try {
+    return !Array.isArray(JSON.parse(value));
+  } catch {
+    return true;
   }
-  return chunks;
 };
+
+/**
+ * Cloudflare D1 counts bound parameters per whole statement, so passing
+ * hundreds of ids as individual binds fails there even when each IN clause
+ * is small. Notebook id lists are therefore passed as one JSON array bound
+ * through json_each: every generated statement binds only a handful of
+ * values, regardless of how many notebooks are granted.
+ */
+export const notebookIdsBind = (notebookIds: string[]): string => JSON.stringify(notebookIds);
+
+/** SQL fragment: true when the column holds one of the listed notebook ids. */
+export const notebookInListSql = (notebookIdColumn: string, notebookIds: string[]) =>
+  notebookIds.length === 0
+    ? "0 = 1"
+    : `${notebookIdColumn} IN (SELECT value FROM json_each(?))`;
 
 /** Expands granted notebook ids to include every live descendant notebook. */
 const expandWithDescendants = async (
@@ -92,27 +105,24 @@ const expandWithDescendants = async (
   workspaceId: string,
   notebookIds: string[],
 ): Promise<string[]> => {
-  const expanded = new Set<string>();
-  for (const chunk of chunkNotebookIds(notebookIds)) {
-    const placeholders = chunk.map(() => "?").join(", ");
-    const rows = await db.prepare(
-      `WITH RECURSIVE granted(id) AS (
-         SELECT id FROM notebooks
-         WHERE workspace_id = ? AND is_deleted = 0 AND id IN (${placeholders})
+  if (notebookIds.length === 0) return [];
+  const rows = await db.prepare(
+    `WITH RECURSIVE granted(id) AS (
+       SELECT id FROM notebooks
+       WHERE workspace_id = ? AND is_deleted = 0
+         AND id IN (SELECT value FROM json_each(?))
 
-         UNION ALL
+       UNION ALL
 
-         SELECT n.id
-         FROM notebooks n
-         INNER JOIN granted g ON n.parent_id = g.id
-         WHERE n.workspace_id = ? AND n.is_deleted = 0
-       )
-       SELECT DISTINCT id FROM granted`,
-    ).bind(workspaceId, ...chunk, workspaceId).all<{ id: string }>();
+       SELECT n.id
+       FROM notebooks n
+       INNER JOIN granted g ON n.parent_id = g.id
+       WHERE n.workspace_id = ? AND n.is_deleted = 0
+     )
+     SELECT DISTINCT id FROM granted`,
+  ).bind(workspaceId, notebookIdsBind(notebookIds), workspaceId).all<{ id: string }>();
 
-    for (const row of rows.results) expanded.add(row.id);
-  }
-  return [...expanded];
+  return rows.results.map((row) => row.id);
 };
 
 /**
@@ -181,19 +191,6 @@ const liveNotebookIds = async (db: DatabaseAdapter, workspaceId: string): Promis
   return rows.results.map((row) => row.id);
 };
 
-/**
- * SQL fragment: true when the column holds one of the listed notebook ids.
- * Long lists are split into OR-ed IN clauses so each clause stays within
- * D1's bound-parameter limit.
- */
-export const notebookInListSql = (notebookIdColumn: string, notebookIds: string[]) => {
-  if (notebookIds.length === 0) return "0 = 1";
-  const clauses = chunkNotebookIds(notebookIds).map(
-    (chunk) => `${notebookIdColumn} IN (${chunk.map(() => "?").join(", ")})`,
-  );
-  return clauses.length === 1 ? clauses[0] : `(${clauses.join(" OR ")})`;
-};
-
 /** SQL fragment for memo rows: true when the memo's notebook is accessible. */
 export const memoNotebookAccessSql = (
   memoNotebookColumn: string,
@@ -206,8 +203,11 @@ export const memoNotebookAccessSql = (
 };
 
 /** Bind values for the readable/writable SQL fragments, in fragment order. */
-export const notebookAccessBinds = (access: NotebookAccess, kind: "read" | "write"): string[] =>
-  !access.restricted ? [] : kind === "read" ? access.readableNotebookIds : access.writableNotebookIds;
+export const notebookAccessBinds = (access: NotebookAccess, kind: "read" | "write"): string[] => {
+  if (!access.restricted) return [];
+  const notebookIds = kind === "read" ? access.readableNotebookIds : access.writableNotebookIds;
+  return notebookIds.length === 0 ? [] : [notebookIdsBind(notebookIds)];
+};
 
 const hasNotebook = (access: NotebookAccess, kind: "read" | "write", notebookId: string) => {
   if (!access.restricted) return true;

@@ -166,22 +166,30 @@ describe("resolveNotebookAccess", () => {
     expect(await resolveNotebookAccess(db, "ws_t", undefined)).toEqual(UNRESTRICTED_NOTEBOOK_ACCESS);
   });
 
-  test("large grant lists stay within the D1 bind limit by chunking", async () => {
+  test("large grant lists stay within the D1 bind limit by json_each", async () => {
     const db = createFixture();
-    // 200 grants on one notebook: expansion must still resolve (chunked queries).
     const access = await resolveNotebookAccess(db, "ws_t", [
       { notebookId: "nb_root", read: true, write: false },
     ]);
-    const sql = (await import("./token-notebook-access.ts")).notebookInListSql;
+    // The IN fragment must bind exactly one value (the JSON array) for the
+    // whole statement, no matter how many notebooks are granted: D1 counts
+    // bound parameters per statement.
+    const { notebookInListSql, notebookAccessBinds } = await import("./token-notebook-access.ts");
     const ids = Array.from({ length: 200 }, (_, i) => `nb_${i}`);
-    const fragment = sql("m.notebook_id", ids);
-    const placeholders = (fragment.match(/\?/g) ?? []).length;
-    expect(placeholders).toBe(200);
-    // Each IN clause stays under the bind limit.
-    for (const clause of fragment.split(" OR ")) {
-      expect((clause.match(/\?/g) ?? []).length).toBeLessThanOrEqual(50);
-    }
+    const fragment = notebookInListSql("m.notebook_id", ids);
+    expect((fragment.match(/\?/g) ?? []).length).toBe(1);
+    expect(fragment).toContain("json_each(?)");
+    expect(notebookAccessBinds(access, "read")).toEqual([JSON.stringify(access.readableNotebookIds)]);
     expect(access.readableNotebookIds.sort()).toEqual(["nb_child", "nb_grandchild", "nb_root"]);
+  });
+
+  test("a corrupted grant record denies access including the default", async () => {
+    const { isCorruptedNotebookAccess } = await import("./token-notebook-access.ts");
+    expect(isCorruptedNotebookAccess(null)).toBe(false);
+    expect(isCorruptedNotebookAccess('[{"notebookId":"nb_a","read":true,"write":false}]')).toBe(false);
+    expect(isCorruptedNotebookAccess("[]")).toBe(false);
+    expect(isCorruptedNotebookAccess("not json")).toBe(true);
+    expect(isCorruptedNotebookAccess('{"notebookId":"nb_a"}')).toBe(true);
   });
 
   test("explicit none keeps the allow-list behaviour", async () => {
@@ -216,8 +224,8 @@ describe("notebook access assertions", () => {
   test("sql fragments stay neutral when unrestricted", () => {
     expect(memoNotebookAccessSql("m.notebook_id", UNRESTRICTED_NOTEBOOK_ACCESS, "read")).toBe("1 = 1");
     expect(notebookAccessBinds(UNRESTRICTED_NOTEBOOK_ACCESS, "read")).toEqual([]);
-    expect(memoNotebookAccessSql("m.notebook_id", restricted, "write")).toBe("m.notebook_id IN (?)");
-    expect(notebookAccessBinds(restricted, "write")).toEqual(["nb_a"]);
+    expect(memoNotebookAccessSql("m.notebook_id", restricted, "write")).toBe("m.notebook_id IN (SELECT value FROM json_each(?))");
+    expect(notebookAccessBinds(restricted, "write")).toEqual([JSON.stringify(["nb_a"])]);
     expect(memoNotebookAccessSql("m.notebook_id", { restricted: true, readableNotebookIds: [], writableNotebookIds: [], defaultWrite: false }, "read")).toBe("0 = 1");
   });
 });

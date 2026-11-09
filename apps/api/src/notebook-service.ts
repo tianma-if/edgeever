@@ -3,7 +3,7 @@ import type { AuditActor } from "./api-context";
 import { AppError } from "./app-error";
 import { auditStatement } from "./audit";
 import { createId, isoNow, slugify } from "./entity-utils";
-import { notebookInListSql, type NotebookAccess } from "./token-notebook-access";
+import { notebookIdsBind, notebookInListSql, type NotebookAccess } from "./token-notebook-access";
 import type { DatabaseAdapter } from "./storage-contract";
 import { isInboxNotebook, workspaceInboxId } from "./workspace-provisioning";
 
@@ -81,7 +81,7 @@ export const listNotebooks = async (
   const accessFilter = notebookAccess?.restricted
     ? `AND ${notebookInListSql("n.id", notebookAccess.readableNotebookIds)}`
     : "";
-  const accessBinds = notebookAccess?.restricted ? notebookAccess.readableNotebookIds : [];
+  const accessBinds = notebookAccess?.restricted ? [notebookIdsBind(notebookAccess.readableNotebookIds)] : [];
   const rows = await db
     .prepare(
       notebookSelectSql(

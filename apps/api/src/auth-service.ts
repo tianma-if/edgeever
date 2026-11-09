@@ -17,7 +17,7 @@ import type { UserRow } from "./auth-routes";
 import { createId, isoNow, parseJsonArray } from "./entity-utils";
 import { sha256 } from "./hash-utils";
 import { apiError } from "./http-errors";
-import { parseNotebookAccessJson, parseNotebookDefaultAccess } from "./token-notebook-access";
+import { isCorruptedNotebookAccess, parseNotebookAccessJson, parseNotebookDefaultAccess } from "./token-notebook-access";
 import type { DatabaseAdapter } from "./storage-contract";
 import type { InstanceUserRow } from "./user-routes";
 import { ensureUserWorkspace } from "./workspace-provisioning";
@@ -338,7 +338,11 @@ const authenticateBearerToken = async (c: AppContext, touch: boolean): Promise<A
     role: "member",
     tokenId: row.id,
     notebookAccess: parseNotebookAccessJson(row.notebook_access_json),
-    notebookDefaultAccess: parseNotebookDefaultAccess(row.notebook_default_access),
+    // A corrupted grant record denies everything, including the default
+    // policy: otherwise a stored "write" default would reopen access.
+    notebookDefaultAccess: isCorruptedNotebookAccess(row.notebook_access_json)
+      ? "none"
+      : parseNotebookDefaultAccess(row.notebook_default_access),
   };
 };
 
