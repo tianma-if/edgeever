@@ -41,11 +41,15 @@ export function ComboboxInput({ value, onValueChange, options, placeholder, labe
   // or the first option when the field is empty. cmdk would otherwise pick the
   // first item, and Enter would silently replace the value.
   const [active, setActive] = useState("");
+  // cmdk reorders item nodes by score while filtering and never restores them, so
+  // the items are remounted on each open to show the options in their given order.
+  const [listKey, setListKey] = useState(0);
   const openList = () => {
     if (disabled) return;
     if (!open) {
       setFiltering(false);
       setActive(value.trim() || options[0]?.value || "");
+      setListKey((key) => key + 1);
     }
     setOpen(true);
   };
@@ -95,6 +99,13 @@ export function ComboboxInput({ value, onValueChange, options, placeholder, labe
         if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
       }}
       onKeyDownCapture={(event) => {
+        // Only the input drives cmdk. A key on the toggle button (Enter or Space
+        // activates it) must not reach cmdk, which would confirm the highlighted
+        // item and overwrite the field.
+        if (event.target !== inputRef.current && event.key !== "Escape" && event.key !== "Tab") {
+          event.stopPropagation();
+          return;
+        }
         if (event.key === "Escape" && listOpen) {
           event.preventDefault();
           event.stopPropagation();
@@ -152,7 +163,7 @@ export function ComboboxInput({ value, onValueChange, options, placeholder, labe
         className="absolute top-full z-50 mt-1 max-h-60 w-full overscroll-contain rounded-md border border-slate-200 bg-card shadow-md"
         onMouseDown={(event) => event.preventDefault()}
       >
-        <CommandGroup>
+        <CommandGroup key={listKey}>
           {options.map((option) => (
             <CommandItem className="text-xs" key={option.value} value={option.value} keywords={option.label ? [option.label] : undefined} onSelect={select}>
               <span className="min-w-0 break-all">{option.label ?? option.value}</span>
