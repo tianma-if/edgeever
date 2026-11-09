@@ -95,10 +95,16 @@ test("connection test explains old ImgBed versions and rejected tokens on the ch
   for (const response of [() => new Response("missing", { status: 404 }), () => new Response("<!doctype html><title>ImgBed</title>", { headers: { "content-type": "text/html" } })]) {
     await expect(testImgBedConnection(input(serve(response)))).rejects.toThrow("IMGBED_CHANNEL_NAME:");
   }
-  // Server errors are not blamed on the channel name.
-  const serverError = await testImgBedConnection(input(serve(() => new Response("boom", { status: 502 })))).catch(String);
-  expect(serverError).toContain("HTTP 502");
-  expect(serverError).not.toContain("IMGBED_CHANNEL_NAME:");
+  // Server errors, rate limits and oversized replies are not blamed on the channel name.
+  for (const [response, expected] of [
+    [() => new Response("boom", { status: 502 }), "HTTP 502"],
+    [() => new Response("slow down", { status: 429 }), "HTTP 429"],
+    [() => Response.json({ telegram: [{ name: "x".repeat(70000) }] }), "response is too large"],
+  ]) {
+    const failure = await testImgBedConnection(input(serve(response))).catch(String);
+    expect(failure).toContain(expected);
+    expect(failure).not.toContain("IMGBED_CHANNEL_NAME:");
+  }
   let failure = "";
   try { await testImgBedConnection(input(serve(() => new Response("nope", { status: 401 })))); }
   catch (error) { failure = String(error); }

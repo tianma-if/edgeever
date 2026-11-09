@@ -1127,6 +1127,7 @@ export const ja = {
         channelName: "チャネル名（任意）",
         channelNameDescription: "アップロードチャネルに同じ種類のチャネルが複数ある場合、ImgBed 管理画面に表示されるチャネル名を入力すると、そのチャネルにアップロードします。名前は完全一致が必要です。空欄または見つからない場合は、ImgBed が自動で選びます（通常は最初のチャネル）。",
         channelNameNotFound: "チャネル名が見つかりません。選択したアップロードチャネルにこの名前の有効なチャネルがないか、この ImgBed のバージョンはチャネル名に対応していません。",
+        channelNameInvalid: "チャネル名にタブや改行などの制御文字は使えません。",
         serverCompress: "サーバー側で圧縮",
         serverCompressDescription: "ImgBed がサーバー側で画像を圧縮します。Telegram チャネルにのみ適用されます。ImgBed API と同じく既定でオンです。",
         testDescription: "接続テストではこのフォルダーに 1×1 の透明画像をアップロードします。テスト後に ImgBed で削除できます。",

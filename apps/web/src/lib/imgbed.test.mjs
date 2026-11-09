@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import { expandImgBedFolder, imgBedFolderError, IMGBED_MAX_FOLDER_LENGTH, IMGBED_MAX_MEMO_ID_LENGTH } from "./imgbed.ts";
-import { normalizeImgBedFolder } from "../../../desktop/src/main/imgbed.mjs";
+import { expandImgBedFolder, imgBedFolderError, isImgBedChannelNameValid, IMGBED_MAX_FOLDER_LENGTH, IMGBED_MAX_MEMO_ID_LENGTH } from "./imgbed.ts";
+import { normalizeImgBedChannelName, normalizeImgBedFolder } from "../../../desktop/src/main/imgbed.mjs";
 
 const now = new Date(2026, 0, 5, 7, 8, 9, 42);
 
@@ -55,4 +55,12 @@ test("an accepted folder always fits the main-process limit at its longest expan
   const busy = "{Y}/{m}/{d}/{uuid}/{timestamp}/{timestampS}/{str-32}/{memoId}";
   expect(imgBedFolderError(busy)).toBeNull();
   expect(normalizeImgBedFolder(expandImgBedFolder(busy, now, { memoId: "m".repeat(200) }))).toBeTruthy();
+});
+
+test("the settings page and the main process agree on channel names", () => {
+  for (const name of ["", "Main R2", " 备用 ", "a\tb", "a\nb", "a\u007fb"]) {
+    let accepted = true;
+    try { normalizeImgBedChannelName(name); } catch { accepted = false; }
+    expect(isImgBedChannelNameValid(name)).toBe(accepted);
+  }
 });

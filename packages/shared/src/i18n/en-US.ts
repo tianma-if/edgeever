@@ -1119,6 +1119,7 @@ export const enUS = {
         channelName: "Channel name (optional)",
         channelNameDescription: "If the upload channel has several channels of the same type, enter the name of one as shown in the ImgBed admin panel to upload there. The name must match exactly; when empty or not found, ImgBed picks a channel itself (usually the first).",
         channelNameNotFound: "Channel name not found: ImgBed has no enabled channel with this name under the selected upload channel, or this ImgBed version does not support channel names.",
+        channelNameInvalid: "The channel name cannot contain tabs, line breaks or other control characters.",
         serverCompress: "Server-side compression",
         serverCompressDescription: "ImgBed compresses images on the server. Only applies to the Telegram channel. On by default, matching the ImgBed API.",
         testDescription: "Testing uploads a 1×1 transparent image to this folder. You can delete it in ImgBed afterwards.",

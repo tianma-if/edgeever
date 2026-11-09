@@ -1277,6 +1277,7 @@ export const de = {
         "channelName": "Kanalname (optional)",
         "channelNameDescription": "Wenn für den Upload-Kanal mehrere Kanäle desselben Typs eingerichtet sind, gib den Namen eines Kanals wie im ImgBed-Adminbereich an, um dorthin hochzuladen. Der Name muss exakt übereinstimmen; ist er leer oder unbekannt, wählt ImgBed selbst einen Kanal (meist den ersten).",
         "channelNameNotFound": "Kanalname nicht gefunden: ImgBed hat unter dem gewählten Upload-Kanal keinen aktivierten Kanal mit diesem Namen, oder diese ImgBed-Version unterstützt keine Kanalnamen.",
+        "channelNameInvalid": "Der Kanalname darf keine Tabulatoren, Zeilenumbrüche oder anderen Steuerzeichen enthalten.",
         "serverCompress": "Serverseitige Komprimierung",
         "serverCompressDescription": "ImgBed komprimiert Bilder auf dem Server. Gilt nur für den Telegram-Kanal. Standardmäßig aktiviert, entsprechend der ImgBed-API.",
         "testDescription": "Beim Test wird ein transparentes 1×1-Bild in diesen Ordner hochgeladen. Sie können es anschließend in ImgBed löschen.",

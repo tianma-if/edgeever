@@ -1127,6 +1127,7 @@ export const pl = {
         channelName: "Nazwa kanału (opcjonalnie)",
         channelNameDescription: "Jeśli kanał przesyłania ma kilka kanałów tego samego typu, wpisz nazwę jednego z nich z panelu administracyjnego ImgBed, aby przesyłać właśnie tam. Nazwa musi być identyczna; gdy pole jest puste lub nazwa nie istnieje, ImgBed sam wybiera kanał (zwykle pierwszy).",
         channelNameNotFound: "Nie znaleziono nazwy kanału: ImgBed nie ma włączonego kanału o tej nazwie w wybranym kanale przesyłania albo ta wersja ImgBed nie obsługuje nazw kanałów.",
+        channelNameInvalid: "Nazwa kanału nie może zawierać tabulatorów, podziałów wierszy ani innych znaków sterujących.",
         serverCompress: "Kompresja po stronie serwera",
         serverCompressDescription: "ImgBed kompresuje obrazy na serwerze. Działa tylko dla kanału Telegram. Domyślnie włączona, zgodnie z API ImgBed.",
         testDescription: "Test przesyła do tego folderu przezroczysty obraz 1×1. Po teście możesz go usunąć w ImgBed.",

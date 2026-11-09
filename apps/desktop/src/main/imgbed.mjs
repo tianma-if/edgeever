@@ -112,10 +112,9 @@ const post = async (input, file, filename, { fetchImpl, timeoutMs, lookupImpl })
 const assertImgBedChannelExists = async (input, { fetchImpl, timeoutMs, lookupImpl }) => {
   const channelName = normalizeImgBedChannelName(input.channelName);
   if (!channelName) return;
-  const uploadUrl = buildUploadUrl(input);
-  const url = new URL(uploadUrl);
+  buildUploadUrl(input); // Validates every field before any request.
+  const url = normalizeImgBedEndpoint(input.endpoint);
   url.pathname = url.pathname.replace(/\/upload$/, "/api/channels");
-  url.search = "";
   const token = normalizeImgBedToken(input.token);
   await assertImageHostAllowed(url.hostname, lookupImpl, { label: LABEL, message: ADDRESS_ERROR });
   let data;
@@ -124,13 +123,14 @@ const assertImgBedChannelExists = async (input, { fetchImpl, timeoutMs, lookupIm
   } catch (error) {
     const message = String(error?.message);
     if (/HTTP (401|403)$/.test(message)) throw new Error("ImgBed rejected the API token");
-    // Network failures and server errors keep their generic message. Anything else
-    // (404, or the HTML page older ImgBed sites serve for unknown routes) means the
-    // site predates channel names.
-    if (/could not be reached|did not respond in time|HTTP 5\d\d$/.test(message)) throw error;
-    throw new Error("IMGBED_CHANNEL_NAME: this ImgBed version does not support channel names");
+    // Sites older than channel names answer the unknown route with 404 or with
+    // their small HTML app shell. Every other failure keeps its own message.
+    if (message.endsWith("HTTP 404") || message.endsWith("returned an unreadable response")) {
+      throw new Error("IMGBED_CHANNEL_NAME: this ImgBed version does not support channel names");
+    }
+    throw error;
   }
-  const channels = data?.[uploadUrl.searchParams.get("uploadChannel")];
+  const channels = data?.[input.uploadChannel ?? "telegram"];
   if (!Array.isArray(channels) || !channels.some((channel) => channel?.name === channelName)) {
     throw new Error("IMGBED_CHANNEL_NAME: ImgBed has no enabled channel with this name for the selected upload channel");
   }

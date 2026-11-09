@@ -1277,6 +1277,7 @@ export const es = {
         "channelName": "Nombre del canal (opcional)",
         "channelNameDescription": "Si el canal de subida tiene varios canales del mismo tipo, escribe el nombre de uno tal como aparece en el panel de administración de ImgBed para subir ahí. El nombre debe coincidir exactamente; si está vacío o no existe, ImgBed elige un canal por su cuenta (normalmente el primero).",
         "channelNameNotFound": "Nombre de canal no encontrado: ImgBed no tiene ningún canal activado con este nombre en el canal de subida elegido, o esta versión de ImgBed no admite nombres de canal.",
+        "channelNameInvalid": "El nombre del canal no puede contener tabulaciones, saltos de línea ni otros caracteres de control.",
         "serverCompress": "Compresión en el servidor",
         "serverCompressDescription": "ImgBed comprime las imágenes en el servidor. Solo se aplica al canal de Telegram. Activado por defecto, según la API de ImgBed.",
         "testDescription": "La prueba sube una imagen transparente de 1×1 a esta carpeta. Puedes eliminarla en ImgBed después.",

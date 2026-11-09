@@ -1138,6 +1138,7 @@ export const zhTW = {
         channelName: "渠道名稱（選填）",
         channelNameDescription: "上傳渠道下設定了多個同類型渠道時，填寫 ImgBed 管理後台中該渠道的名稱，圖片會上傳到這個渠道。名稱需完全一致；留空或名稱不存在時，ImgBed 會依自身規則選擇（通常是第一個渠道）。",
         channelNameNotFound: "渠道名稱無效：ImgBed 在所選上傳渠道下沒有這個名稱的已啟用渠道，或目前的 ImgBed 版本不支援指定渠道名稱。",
+        channelNameInvalid: "渠道名稱不能包含定位字元、換行等控制字元。",
         serverCompress: "服務端壓縮",
         serverCompressDescription: "由 ImgBed 在服務端壓縮圖片，僅對 Telegram 渠道生效。預設開啟，與 ImgBed 介面一致。",
         testDescription: "測試連線會向該目錄上傳一張 1×1 的透明圖片，測試後可在 ImgBed 中刪除。",
