@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import { expandImgBedFolder, imgBedFolderError, IMGBED_MAX_FOLDER_LENGTH, IMGBED_MAX_MEMO_ID_LENGTH } from "./imgbed.ts";
-import { normalizeImgBedFolder } from "../../../desktop/src/main/imgbed.mjs";
+import { expandImgBedFolder, imgBedAutoRetry, imgBedFolderError, isImgBedChannelNameValid, IMGBED_MAX_FOLDER_LENGTH, IMGBED_MAX_MEMO_ID_LENGTH } from "./imgbed.ts";
+import { normalizeImgBedChannelName, normalizeImgBedFolder, resolveImgBedAutoRetry } from "../../../desktop/src/main/imgbed.mjs";
 
 const now = new Date(2026, 0, 5, 7, 8, 9, 42);
 
@@ -55,4 +55,22 @@ test("an accepted folder always fits the main-process limit at its longest expan
   const busy = "{Y}/{m}/{d}/{uuid}/{timestamp}/{timestampS}/{str-32}/{memoId}";
   expect(imgBedFolderError(busy)).toBeNull();
   expect(normalizeImgBedFolder(expandImgBedFolder(busy, now, { memoId: "m".repeat(200) }))).toBeTruthy();
+});
+
+test("the settings page and the main process agree on channel names", () => {
+  for (const name of ["", "Main R2", " 备用 ", "a\tb", "a\nb", "a\u007fb", "R2\t", "\tR2", "x".repeat(100), ` ${"x".repeat(100)} `, "x".repeat(101)]) {
+    let accepted = true;
+    try { normalizeImgBedChannelName(name); } catch { accepted = false; }
+    expect(isImgBedChannelNameValid(name)).toBe(accepted);
+  }
+});
+
+test("the settings page and the main process share the retry default", () => {
+  for (const autoRetry of [null, true, false]) {
+    for (const channelName of ["", "  ", "Main"]) {
+      expect(imgBedAutoRetry(autoRetry, channelName)).toBe(resolveImgBedAutoRetry(autoRetry, channelName.trim()));
+    }
+  }
+  expect(imgBedAutoRetry(null, "")).toBe(true);
+  expect(imgBedAutoRetry(null, " Main ")).toBe(false);
 });

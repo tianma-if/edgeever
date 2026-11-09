@@ -8,6 +8,8 @@ const LABEL = "ImgBed";
 export const IMGBED_NAME_TYPES = ["default", "index", "origin", "short"];
 // Defaults follow the ImgBed upload API: telegram channel with server compression on.
 export const IMGBED_UPLOAD_CHANNELS = ["telegram", "cfr2", "s3", "discord", "huggingface", "webdav"];
+// Optional name of one channel inside the selected type (ImgBed's channelName).
+export const IMGBED_MAX_CHANNEL_NAME_LENGTH = 100;
 export const IMGBED_MAX_IMAGE_BYTES = 50 * 1024 * 1024;
 // 1×1 transparent PNG used by the connection test.
 const TEST_IMAGE = Uint8Array.from(atob("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="), (c) => c.charCodeAt(0));
@@ -45,15 +47,45 @@ export const normalizeImgBedFolder = (value) => {
   return segments.join("/");
 };
 
-const buildUploadUrl = (input) => {
+// ImgBed matches the name exactly and silently falls back to the type's first
+// (or load-balanced) channel when nothing matches, so only trim the edges.
+// Same rule as isImgBedChannelNameValid in the renderer: control characters
+// anywhere are rejected before trimming, and the limit applies to the trimmed name.
+export const normalizeImgBedChannelName = (value) => {
+  if (value == null || value === "") return "";
+  if (typeof value !== "string") throw new Error("ImgBed channel name is invalid");
+  // oxlint-disable-next-line no-control-regex -- rejects control characters in the ImgBed channel name
+  if (/[\u0000-\u001f\u007f]/.test(value)) throw new Error("ImgBed channel name is invalid");
+  const name = value.trim();
+  if (name.length > IMGBED_MAX_CHANNEL_NAME_LENGTH) throw new Error("ImgBed channel name is invalid");
+  return name;
+};
+
+// ImgBed retries a failed write on the same type and then on other channel
+// types unless autoRetry=false. Unset follows the renderer default: retry
+// without a channel name (ImgBed's own default), no retry with one, so a named
+// channel never silently hands the image to other storage.
+export const resolveImgBedAutoRetry = (value, channelName) => {
+  if (value == null) return !channelName;
+  if (typeof value !== "boolean") throw new Error("ImgBed retry setting is invalid");
+  return value;
+};
+
+// `forceNoRetry` is set by the connection test: with a channel name it must
+// prove that this channel accepts the write, whatever the upload setting is.
+const buildUploadUrl = (input, { forceNoRetry = false } = {}) => {
   const url = normalizeImgBedEndpoint(input.endpoint);
   const folder = normalizeImgBedFolder(input.uploadFolder);
   const nameType = input.nameType ?? "default";
   if (!IMGBED_NAME_TYPES.includes(nameType)) throw new Error("ImgBed file naming is invalid");
   const channel = input.uploadChannel ?? "telegram";
   if (!IMGBED_UPLOAD_CHANNELS.includes(channel)) throw new Error("ImgBed upload channel is invalid");
+  const channelName = normalizeImgBedChannelName(input.channelName);
   if (input.serverCompress != null && typeof input.serverCompress !== "boolean") throw new Error("ImgBed server compression is invalid");
+  const autoRetry = forceNoRetry && channelName ? false : resolveImgBedAutoRetry(input.autoRetry, channelName);
   url.searchParams.set("uploadChannel", channel);
+  if (channelName) url.searchParams.set("channelName", channelName);
+  url.searchParams.set("autoRetry", String(autoRetry));
   url.searchParams.set("serverCompress", String(input.serverCompress ?? true));
   url.searchParams.set("uploadNameType", nameType);
   if (folder) url.searchParams.set("uploadFolder", folder);
@@ -74,8 +106,8 @@ const resultUrl = (data, uploadUrl) => {
   return url.href;
 };
 
-const post = async (input, file, filename, { fetchImpl, timeoutMs, lookupImpl }) => {
-  const url = buildUploadUrl(input);
+const post = async (input, file, filename, { fetchImpl, timeoutMs, lookupImpl, forceNoRetry = false }) => {
+  const url = buildUploadUrl(input, { forceNoRetry });
   const token = normalizeImgBedToken(input.token);
   await assertImageHostAllowed(url.hostname, lookupImpl, { label: LABEL, message: ADDRESS_ERROR });
   const form = new FormData();
@@ -90,9 +122,41 @@ const post = async (input, file, filename, { fetchImpl, timeoutMs, lookupImpl })
   return { url: resultUrl(data, url) };
 };
 
+// The IMGBED_CHANNEL_NAME: prefix lets the settings page name the cause.
+// ImgBed silently uses its default channel when channelName matches nothing, so
+// the test checks the name against /api/channels, which shipped with channelName
+// (ImgBed 2026-01) and accepts any valid API token.
+const assertImgBedChannelExists = async (input, { fetchImpl, timeoutMs, lookupImpl }) => {
+  const channelName = normalizeImgBedChannelName(input.channelName);
+  if (!channelName) return;
+  buildUploadUrl(input); // Validates every field before any request.
+  const url = normalizeImgBedEndpoint(input.endpoint);
+  url.pathname = url.pathname.replace(/\/upload$/, "/api/channels");
+  const token = normalizeImgBedToken(input.token);
+  await assertImageHostAllowed(url.hostname, lookupImpl, { label: LABEL, message: ADDRESS_ERROR });
+  let data;
+  try {
+    data = await postImageHostJson(url, undefined, fetchImpl, timeoutMs, { label: LABEL, method: "GET", headers: { Authorization: `Bearer ${token}` } });
+  } catch (error) {
+    const message = String(error?.message);
+    if (/HTTP (401|403)$/.test(message)) throw new Error("ImgBed rejected the API token");
+    // Sites older than channel names answer the unknown route with 404 or with
+    // their small HTML app shell. Every other failure keeps its own message.
+    if (message.endsWith("HTTP 404") || message.endsWith("returned an unreadable response")) {
+      throw new Error("IMGBED_CHANNEL_NAME: this ImgBed version does not support channel names");
+    }
+    throw error;
+  }
+  const channels = data?.[input.uploadChannel ?? "telegram"];
+  if (!Array.isArray(channels) || !channels.some((channel) => channel?.name === channelName)) {
+    throw new Error("IMGBED_CHANNEL_NAME: ImgBed has no enabled channel with this name for the selected upload channel");
+  }
+};
+
 // ImgBed has no heartbeat, so the test uploads a 1×1 PNG to the configured folder.
 export const testImgBedConnection = async (input, { fetchImpl = fetch, timeoutMs = 15000, lookupImpl = lookup } = {}) => {
-  await post(input, new Blob([TEST_IMAGE], { type: "image/png" }), "edgeever-connection-test.png", { fetchImpl, timeoutMs, lookupImpl });
+  await assertImgBedChannelExists(input, { fetchImpl, timeoutMs, lookupImpl });
+  await post(input, new Blob([TEST_IMAGE], { type: "image/png" }), "edgeever-connection-test.png", { fetchImpl, timeoutMs, lookupImpl, forceNoRetry: true });
   return true;
 };
 

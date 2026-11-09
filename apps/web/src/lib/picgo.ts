@@ -1,16 +1,18 @@
-import { expandImgBedFolder, IMGBED_NAME_TYPES, IMGBED_UPLOAD_CHANNELS, type ImgBedNameType, type ImgBedUploadChannel } from "./imgbed";
+import { expandImgBedFolder, imgBedAutoRetry, IMGBED_NAME_TYPES, IMGBED_UPLOAD_CHANNELS, type ImgBedNameType, type ImgBedUploadChannel } from "./imgbed";
 
 export const PICGO_STORAGE_KEY = "edgeever.desktop.picgo.v1";
 export const DEFAULT_PICGO_ENDPOINT = "http://127.0.0.1:36677/upload";
 export type ImgBedPreference = {
   endpoint: string; token: string; uploadFolder: string; nameType: ImgBedNameType;
-  uploadChannel: ImgBedUploadChannel; serverCompress: boolean;
+  uploadChannel: ImgBedUploadChannel; channelName: string; serverCompress: boolean;
+  // null follows imgBedAutoRetry's default; a boolean is the user's explicit choice.
+  autoRetry: boolean | null;
 };
 export type PicGoPreference = { provider: "edgeever" | "picgo" | "imgbed"; endpoint: string; serverKey: string; imgbed: ImgBedPreference };
 export type ExternalImageHost = Exclude<PicGoPreference["provider"], "edgeever">;
 
 const emptyImgBedPreference = (): ImgBedPreference => ({
-  endpoint: "", token: "", uploadFolder: "", nameType: "default", uploadChannel: "telegram", serverCompress: true,
+  endpoint: "", token: "", uploadFolder: "", nameType: "default", uploadChannel: "telegram", channelName: "", serverCompress: true, autoRetry: null,
 });
 const emptyPicGoPreference = (): PicGoPreference => ({ provider: "edgeever", endpoint: DEFAULT_PICGO_ENDPOINT, serverKey: "", imgbed: emptyImgBedPreference() });
 
@@ -23,7 +25,10 @@ const readImgBedPreference = (value: unknown): ImgBedPreference => {
     uploadFolder: text("uploadFolder"),
     nameType: IMGBED_NAME_TYPES.includes(record.nameType as ImgBedNameType) ? record.nameType as ImgBedNameType : "default",
     uploadChannel: IMGBED_UPLOAD_CHANNELS.includes(record.uploadChannel as ImgBedUploadChannel) ? record.uploadChannel as ImgBedUploadChannel : "telegram",
+    // Saved before channel names existed: empty keeps ImgBed's own channel choice.
+    channelName: text("channelName"),
     serverCompress: typeof record.serverCompress === "boolean" ? record.serverCompress : true,
+    autoRetry: typeof record.autoRetry === "boolean" ? record.autoRetry : null,
   };
 };
 
@@ -56,9 +61,13 @@ export const takePicGoServerKey = (value: string): { endpoint: string; serverKey
   return { endpoint };
 };
 
-export const writePicGoPreference = (value: PicGoPreference) => {
+// Returns the value as stored. The channel name is typed freely (it may contain
+// inner spaces), so its edges are trimmed only here.
+export const writePicGoPreference = (value: PicGoPreference): PicGoPreference => {
+  const stored = { ...value, imgbed: { ...value.imgbed, channelName: value.imgbed.channelName.trim() } };
   // Fail visibly when persistence is unavailable; never claim a provider changed.
-  window.localStorage.setItem(PICGO_STORAGE_KEY, JSON.stringify(value));
+  window.localStorage.setItem(PICGO_STORAGE_KEY, JSON.stringify(stored));
+  return stored;
 };
 
 export const hasPicGoBridge = () => Boolean(window.edgeeverDesktop?.uploadPicGoImage && window.edgeeverDesktop?.testPicGoConnection);
@@ -83,7 +92,8 @@ export const uploadImageWithPicGo = async (file: File, copy: PicGoFailureCopy, c
   const result = preference.provider === "imgbed"
     ? await window.edgeeverDesktop!.uploadImgBedImage!({
       endpoint: preference.imgbed.endpoint, token: preference.imgbed.token, nameType: preference.imgbed.nameType,
-      uploadChannel: preference.imgbed.uploadChannel, serverCompress: preference.imgbed.serverCompress,
+      uploadChannel: preference.imgbed.uploadChannel, channelName: preference.imgbed.channelName, serverCompress: preference.imgbed.serverCompress,
+      autoRetry: imgBedAutoRetry(preference.imgbed.autoRetry, preference.imgbed.channelName),
       uploadFolder: expandImgBedFolder(preference.imgbed.uploadFolder, new Date(), { memoId: context.memoId }), bytes, filename: file.name, mimeType: file.type, copy,
     })
     : await window.edgeeverDesktop!.uploadPicGoImage({
