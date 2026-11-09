@@ -4,7 +4,7 @@ import type { AiModelConfig, AiProvider, AiProviderConfig, AuthSession } from "@
 import { CheckCircle2, Loader2, MoreHorizontal, Pencil, Plus, RefreshCw, SlidersHorizontal, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { aiErrorMessage, isLegacyProviderDisplayName, providerDefaults, trimAiText } from "@/components/settings/ai-provider-options";
-import { AiModelIdInput } from "@/components/settings/AiModelIdInput";
+import { ComboboxInput } from "@/components/ComboboxInput";
 import {
   AiModelOutputBudgetDialog,
   hasCustomAiModelOutputBudgets,
@@ -100,6 +100,7 @@ export const AiProviderCard = ({ provider: saved, defaultDisplayName, defaultMod
     refetchInterval: (query) => nextModelDiscoveryRefresh(query.state.dataUpdatedAt, query.state.errorUpdatedAt),
   });
   const discoveredModels = discoveryQuery.data?.models ?? [];
+  const discoveredModelOptions = useMemo(() => discoveredModels.map((model) => ({ value: model.modelId, label: model.displayName })), [discoveredModels]);
   const discoveryLoading = discoveryQuery.isFetching && (!discoveryQuery.data || manualDiscovery);
   const discoveryError = (discoveryQuery.error && !discoveryQuery.data) || manualDiscoveryFailed;
   useEffect(() => {
@@ -472,10 +473,10 @@ export const AiProviderCard = ({ provider: saved, defaultDisplayName, defaultMod
             <Field as="div" label={t("aiModel.modelId")} hint={discoveryLoading
               ? t("aiModel.discoveryLoading")
               : discoveryQuery.data ? t("aiModel.discoveryComplete", { count: discoveredModels.length }) : undefined}>
-              <AiModelIdInput
+              <ComboboxInput
                 value={modelId}
                 onValueChange={setModelId}
-                models={discoveredModels}
+                options={discoveredModelOptions}
                 placeholder={t("aiModel.modelIdPlaceholder")}
               />
             </Field>
