@@ -1363,8 +1363,6 @@ export const fr = {
       default: "Par défaut",
       marker: "Soulignement au marqueur"
     },
-    editorBodyMagazineCoverTitle: "Couverture de magazine et plan",
-    editorBodyMagazineCoverDescription: "Afficher une carte de couverture percutante style magazine et des cartes de plan de section en haut",
     editorBodyCssTitle: "CSS personnalisé",
     editorBodyCssDescription: "Feuille de style unique. Les règles du mode clair définissent l'espacement et la couleur, et les règles :root.dark suivantes redéfinissent uniquement la couleur. La taille et la hauteur de ligne se règlent avec les contrôles ci-dessus.",
     editorBodyCssPreviewLabel: "Aperçu",
@@ -3050,6 +3048,9 @@ export const fr = {
     focusMode: "Mode concentration",
     enterFocusMode: "Activer le mode concentration",
     exitFocusMode: "Quitter le mode concentration",
+    magazineCover: "Couverture de magazine et plan",
+    magazineCoverShort: "Couverture",
+    magazineCoverSaveFailed: "Impossible d’enregistrer le réglage de la couverture. Réessayez.",
     enableReadingProtection: "Activer la protection en lecture",
     disableReadingProtection: "Désactiver la protection en lecture et modifier",
     updatedAt: "Modifiée {{time}}",

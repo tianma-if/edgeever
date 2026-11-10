@@ -26,10 +26,7 @@ import { renderThemedMermaidSvg } from "@/lib/mermaid-renderer";
 import { normalizeMermaidSvgForViewer } from "@/lib/mermaid-svg";
 import { copyHtmlToClipboard } from "@/lib/clipboard";
 import { parseCustomCssToStyles } from "@/lib/css-sandbox";
-import {
-  DEFAULT_NOTE_PROSE_STYLE_PREFERENCES,
-  readNoteProseStylePreference,
-} from "@/lib/note-prose-style-preference";
+import { readNoteProseStylePreference } from "@/lib/note-prose-style-preference";
 
 const PUBLISH_FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif";
 const PUBLISH_MONO = "'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
@@ -52,6 +49,8 @@ type WeChatMetrics = {
   lineHeight: number;
 };
 
+type PublishProseStyle = NoteProseStylePreferences & { showMagazineCover: boolean };
+
 const headingStyle = (tag: keyof typeof HEADING_LAYOUT, metrics: WeChatMetrics) => {
   const layout = HEADING_LAYOUT[tag];
   const size = Math.round(metrics.fontSize * NOTE_PROSE_HEADING_SCALE[tag]);
@@ -62,8 +61,8 @@ const applyLegacyWeChatStyles = (
   root: HTMLElement,
   metrics: WeChatMetrics,
   colors: NoteProsePaletteColors | null,
-  _accentOnly = false,
-  proseStyle: NoteProseStylePreferences = DEFAULT_NOTE_PROSE_STYLE_PREFERENCES,
+  _accentOnly: boolean,
+  proseStyle: PublishProseStyle,
 ) => {
   const rhythm = noteProseStyleCssVariables(proseStyle);
   const fontSize = `${metrics.fontSize}px`;
@@ -295,9 +294,9 @@ const applyInlineStyles = (
   root: HTMLElement,
   metrics: WeChatMetrics,
   colors: NoteProsePaletteColors | null,
-  customCss?: string,
-  accentOnly = false,
-  proseStyle: NoteProseStylePreferences = DEFAULT_NOTE_PROSE_STYLE_PREFERENCES,
+  customCss: string,
+  accentOnly: boolean,
+  proseStyle: PublishProseStyle,
 ) => {
   applyLegacyWeChatStyles(root, metrics, colors, accentOnly, proseStyle);
 
@@ -1232,16 +1231,14 @@ export const readEditorCopyContext = (from?: HTMLElement | null) => {
   }
   const customStyleTag = container?.querySelector<HTMLStyleElement>("style[data-theme-custom-css]");
   const storedStyle = readNoteProseStylePreference();
-  const proseStyle: NoteProseStylePreferences = {
+  const proseStyle: PublishProseStyle = {
     paragraphSpacing: parseNoteProseParagraphSpacing(readCssNumber(style?.getPropertyValue("--editor-paragraph-spacing"), storedStyle.paragraphSpacing)) ?? storedStyle.paragraphSpacing,
     textAlign: parseNoteProseTextAlign(style?.getPropertyValue("--editor-body-text-align").trim()) ?? storedStyle.textAlign,
     letterSpacing: parseNoteProseLetterSpacing(style?.getPropertyValue("--editor-body-letter-spacing").trim()) ?? storedStyle.letterSpacing,
     headingStyle: parseNoteProseHeadingStyle(container?.dataset.noteHeadingStyle) ?? storedStyle.headingStyle,
     quoteStyle: parseNoteProseQuoteStyle(container?.dataset.noteQuoteStyle) ?? storedStyle.quoteStyle,
     emphasisStyle: parseNoteProseEmphasisStyle(container?.dataset.noteEmphasisStyle) ?? storedStyle.emphasisStyle,
-    showMagazineCover: container?.dataset.noteMagazineCover !== undefined
-      ? container.dataset.noteMagazineCover === "true"
-      : storedStyle.showMagazineCover,
+    showMagazineCover: container?.dataset.noteMagazineCover === "true",
   };
   return {
     fontSize,

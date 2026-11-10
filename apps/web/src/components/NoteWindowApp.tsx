@@ -203,6 +203,7 @@ export const NoteWindowApp = ({ memoId }: { memoId: string }) => {
             key={memoId}
             memo={memo}
             repository={repository}
+            localDataScope={localDataScope}
             pluginHost={pluginHost}
             desktopFocusMode={focusMode}
             onToggleDesktopFocusMode={() => setFocusMode((value) => !value)}

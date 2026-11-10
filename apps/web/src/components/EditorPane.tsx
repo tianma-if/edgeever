@@ -31,6 +31,7 @@ import {
   Copy,
   AppWindow,
   CopyPlus,
+  LayoutTemplate,
   Lock,
   LockOpen,
 } from "lucide-react";
@@ -176,6 +177,7 @@ import {
 } from "@/lib/memo-save-conflict";
 import { copyResourceToClipboard, copyTextToClipboard } from "@/lib/clipboard";
 import { useNoteProseStylePreference } from "@/lib/note-prose-style-preference";
+import { useMemoMagazineCover, writeMemoMagazineCover } from "@/lib/memo-magazine-cover";
 import { createClientUuid } from "@/lib/client-id";
 import { isLocalMemoId, remapLocalDraftMemoId } from "@/lib/local-mirror";
 import { shouldAcceptRemoteMemoDetail } from "@/lib/memo-detail-freshness";
@@ -334,7 +336,7 @@ type EditorPaneProps = {
   memo: MemoDetail | null;
   repository: EdgeEverRepository;
   /** `instance|user` scope of this device's local data; keeps unapplied AI drafts (#652 PR B). */
-  localDataScope?: string;
+  localDataScope: string;
   desktopFocusMode: boolean;
   onToggleDesktopFocusMode: () => void;
   noteProse: ResolvedNoteProse;
@@ -735,6 +737,8 @@ const RichEditorPane = ({
 
   const memoRef = useRef<MemoDetail | null>(memo);
   const noteProseStyle = useNoteProseStylePreference();
+  const showMagazineCover = useMemoMagazineCover(localDataScope, memo?.id);
+  const [magazineCoverSaveError, setMagazineCoverSaveError] = useState<string | null>(null);
   const editSessionRef = useRef<MemoEditSession | null>(null);
   const editorRef = useRef<Editor | null>(null);
   const headingShortcutSurfaceRef = useRef({ markdown: false, plainText: false });
@@ -4371,6 +4375,28 @@ const RichEditorPane = ({
             </div>
             <MemoEditorToolbarDivider className="mx-0.5 hidden h-4 sm:block" />
             <div className="flex items-center gap-0.5">
+            {!readOnly && !useMarkdownSourceEditor && !useMobilePlainTextEditor && (
+              <IconTooltip label={t("editor.magazineCover")}>
+                <Button
+                  className={cn(
+                    "gap-1.5 text-slate-500",
+                    showMagazineCover && "bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-300 hover:bg-slate-200",
+                  )}
+                  size={editorPaneTight ? "icon" : "sm"}
+                  variant="ghost"
+                  type="button"
+                  aria-label={t("editor.magazineCover")}
+                  aria-pressed={showMagazineCover}
+                  onClick={() => {
+                    const saved = writeMemoMagazineCover(localDataScope, memo.id, !showMagazineCover);
+                    setMagazineCoverSaveError(saved ? null : memo.id);
+                  }}
+                >
+                  <LayoutTemplate className="h-4 w-4" aria-hidden="true" />
+                  {!editorPaneTight && <span className="hidden sm:inline">{t("editor.magazineCoverShort")}</span>}
+                </Button>
+              </IconTooltip>
+            )}
             <MemoEditorFocusModeButton
               desktopFocusMode={desktopFocusMode}
               onToggleDesktopFocusMode={onToggleDesktopFocusMode}
@@ -4653,6 +4679,11 @@ const RichEditorPane = ({
             onPickMathFormula={() => openMathFormula()}
           />
         )}
+        {magazineCoverSaveError === memo.id && (
+          <p role="alert" className="px-4 py-2 text-xs text-rose-700 dark:text-rose-300">
+            {t("editor.magazineCoverSaveFailed")}
+          </p>
+        )}
         <EditorSaveRecoveryBanner
           saveState={saveState}
           conflictReason={saveConflictReason}
@@ -4674,7 +4705,7 @@ const RichEditorPane = ({
         data-note-heading-style={noteProseStyle.headingStyle}
         data-note-quote-style={noteProseStyle.quoteStyle}
         data-note-emphasis-style={noteProseStyle.emphasisStyle}
-        data-note-magazine-cover={noteProseStyle.showMagazineCover ? "true" : "false"}
+        data-note-magazine-cover={showMagazineCover ? "true" : "false"}
         data-note-title={title || getEditableMemoTitle(memo?.title)}
         style={{
           ...noteProseCssVariables(noteProse),
@@ -4836,7 +4867,7 @@ const RichEditorPane = ({
                     onAsk={() => requestSelectionAi("ask")}
                   />
                 </BubbleMenu>
-                {noteProseStyle.showMagazineCover ? (
+                {showMagazineCover ? (
                   <EditorMagazineHeader
                     editor={editor}
                     title={title || getEditableMemoTitle(memo?.title)}
@@ -4858,6 +4889,7 @@ const RichEditorPane = ({
             <EditorPhonePreview
               editor={editor}
               title={getEditableMemoTitle(memo?.title)}
+              showMagazineCover={showMagazineCover}
               scrollContainer={editorScrollContainer}
               noteProse={noteProse}
             />

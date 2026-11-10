@@ -1363,8 +1363,6 @@ export const de = {
       "default": "Standard",
       "marker": "Textmarker-Unterstreichung"
     },
-    "editorBodyMagazineCoverTitle": "Magazin-Titelbild & Gliederung",
-    "editorBodyMagazineCoverDescription": "Eine Titelkarte im Magazinstil und Gliederungskarten für Abschnitte oben anzeigen",
     "editorBodyCssTitle": "Benutzerdefiniertes CSS",
     "editorBodyCssDescription": "Ein einziges Stylesheet. Helle Regeln legen Abstände und Farben fest, und die nachfolgenden :root.dark-Regeln überschreiben lediglich Farben. Größe und Zeilenhöhe bleiben bei den obigen Steuerelementen.",
     "editorBodyCssPreviewLabel": "Vorschau",
@@ -3050,6 +3048,9 @@ export const de = {
     "focusMode": "Fokusmodus",
     "enterFocusMode": "Fokusmodus aktivieren",
     "exitFocusMode": "Fokusmodus beenden",
+    "magazineCover": "Magazin-Titelbild & Gliederung",
+    "magazineCoverShort": "Titelbild",
+    "magazineCoverSaveFailed": "Die Titelbildeinstellung konnte nicht gespeichert werden. Versuche es erneut.",
     "enableReadingProtection": "Leseschutz aktivieren",
     "disableReadingProtection": "Leseschutz deaktivieren und bearbeiten",
     "updatedAt": "Aktualisiert {{time}}",

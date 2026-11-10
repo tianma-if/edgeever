@@ -5,7 +5,7 @@ import { FONT_CATALOG, NOTE_BODY_FONT_MENU_GROUPS, isRemoteNoteImageFont, type R
 import { FontLoadFeedback } from "@/components/FontLoadFeedback";
 import { editorFontLoadState, uiFontLoadState, retryEditorCatalogFont, retryUiCatalogFont } from "@/lib/editor-catalog-fonts";
 import { FontLabel } from "@/components/FontLabel";
-import { AlignLeft, AlignVerticalSpaceAround, AppWindow, BookOpenText, ChartNoAxesCombined, Code2, Heading, Highlighter, Image, LayoutTemplate, Languages, ListTree, MousePointerClick, MoveHorizontal, Palette, Pilcrow, Quote, Sparkles, SpellCheck, SunMoon, Type } from "lucide-react";
+import { AlignLeft, AlignVerticalSpaceAround, AppWindow, BookOpenText, ChartNoAxesCombined, Code2, Heading, Highlighter, Image, Languages, ListTree, MousePointerClick, MoveHorizontal, Palette, Pilcrow, Quote, Sparkles, SpellCheck, SunMoon, Type } from "lucide-react";
 import { useState, useEffect, useSyncExternalStore, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type {
@@ -698,23 +698,6 @@ export const PreferenceCard = ({
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-            </div>
-
-            <div className="flex min-h-16 flex-col items-start gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-              <div className="flex min-w-0 items-center gap-3">
-                <LayoutTemplate className="h-4 w-4 shrink-0 text-slate-500" />
-                <div className="min-w-0">
-                  <div className={SETTINGS_ITEM_TITLE_CLASSNAME}>{t("settings.editorBodyMagazineCoverTitle")}</div>
-                  <p className="text-xs leading-5 text-slate-500">{t("settings.editorBodyMagazineCoverDescription")}</p>
-                </div>
-              </div>
-              <div className="w-full shrink-0 sm:w-auto">
-                <Switch
-                  checked={noteProseStyle.showMagazineCover}
-                  aria-label={t("settings.editorBodyMagazineCoverTitle")}
-                  onCheckedChange={(checked) => writeNoteProseStylePreference({ showMagazineCover: checked })}
-                />
               </div>
             </div>
 

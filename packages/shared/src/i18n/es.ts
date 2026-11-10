@@ -1363,8 +1363,6 @@ export const es = {
       "default": "Predeterminado",
       "marker": "Subrayado de rotulador"
     },
-    "editorBodyMagazineCoverTitle": "Portada y esquema estilo revista",
-    "editorBodyMagazineCoverDescription": "Muestra una tarjeta de portada destacada y tarjetas con el esquema de secciones en la parte superior",
     "editorBodyCssTitle": "CSS personalizado",
     "editorBodyCssDescription": "Una única hoja de estilos. Las reglas claras establecen espaciado y color, y las reglas siguientes :root.dark solo anulan el color. El tamaño y el interlineado se mantienen en los controles anteriores.",
     "editorBodyCssPreviewLabel": "Vista previa",
@@ -3050,6 +3048,9 @@ export const es = {
     "focusMode": "Modo de enfoque",
     "enterFocusMode": "Entrar en modo de enfoque",
     "exitFocusMode": "Salir del modo de enfoque",
+    "magazineCover": "Portada y esquema estilo revista",
+    "magazineCoverShort": "Portada",
+    "magazineCoverSaveFailed": "No se pudo guardar la configuración de la portada. Inténtalo de nuevo.",
     "enableReadingProtection": "Activar protección de lectura",
     "disableReadingProtection": "Desactivar protección de lectura y editar",
     "updatedAt": "Actualizada {{time}}",
