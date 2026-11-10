@@ -102,6 +102,7 @@ interface EdgeEverDesktopBridge {
     autoUpdateSupported: boolean;
     platform: string;
     architecture: string;
+    runningUnderRosetta?: boolean;
     deviceModel: string;
     osVersion: string;
     osRelease: string;

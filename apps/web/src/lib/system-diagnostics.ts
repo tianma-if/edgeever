@@ -7,9 +7,11 @@ export type ClientRuntimeDiagnostics = {
   appVersion: string | null;
   architecture: string | null;
   autoUpdateSupported: boolean | null;
+  desktopPlatform: string | null;
   deviceModel: string | null;
   engine: string | null;
   operatingSystem: string | null;
+  runningUnderRosetta: boolean;
 };
 
 export type ClientSyncDiagnostics = {
@@ -92,12 +94,14 @@ export const getClientRuntimeDiagnostics = async (): Promise<ClientRuntimeDiagno
       appVersion: info.appVersion,
       architecture: info.architecture === "unknown" ? null : info.architecture,
       autoUpdateSupported: info.autoUpdateSupported,
+      desktopPlatform: info.platform,
       deviceModel: info.deviceModel === "unknown" ? null : info.deviceModel,
       engine: [
         info.electron === "unknown" ? null : `Electron ${info.electron}`,
         info.chrome === "unknown" ? null : `Chromium ${info.chrome}`,
       ].filter(Boolean).join(" · ") || null,
       operatingSystem: desktopOperatingSystem(info.platform, info.osVersion),
+      runningUnderRosetta: info.runningUnderRosetta === true,
     };
   }
 
@@ -121,6 +125,7 @@ export const getClientRuntimeDiagnostics = async (): Promise<ClientRuntimeDiagno
     appVersion: null,
     architecture: architecture || null,
     autoUpdateSupported: null,
+    desktopPlatform: null,
     deviceModel: deviceModel?.trim() || null,
     engine: browserEngine(navigator.userAgent),
     operatingSystem: browserOperatingSystem(
@@ -128,6 +133,7 @@ export const getClientRuntimeDiagnostics = async (): Promise<ClientRuntimeDiagno
       userAgentData?.platform || navigator.platform,
       platformVersion,
     ),
+    runningUnderRosetta: false,
   };
 };
 

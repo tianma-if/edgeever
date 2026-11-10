@@ -393,6 +393,7 @@ const desktopRuntimeSystemInfo = () => ({
   autoUpdateSupported: true,
   platform: process.platform,
   architecture: process.arch,
+  runningUnderRosetta: process.platform === "darwin" && process.arch === "x64" && app.runningUnderARM64Translation === true,
   deviceModel: desktopDeviceModel(),
   osVersion: process.getSystemVersion?.() || "unknown",
   osRelease: operatingSystemRelease(),

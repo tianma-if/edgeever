@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getClientDisplaySizeParts } from "@edgeever/shared";
 import type { DeploymentMetadata } from "@edgeever/shared/deployment-metadata";
-import { Activity, CircleCheck, CircleX, Cloud, Copy, ExternalLink, Info, LoaderCircle, MonitorSmartphone, RefreshCw, RotateCcw } from "lucide-react";
+import { Activity, CircleCheck, CircleX, Cloud, Copy, ExternalLink, Info, LoaderCircle, MonitorSmartphone, RefreshCw, RotateCcw, TriangleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ClipboardCopyNotice } from "@/components/ClipboardCopyNotice";
 import { Button } from "@/components/ui/button";
@@ -144,6 +144,12 @@ const getWebSystemInfoGroups = (
   const instanceUrl = clientKind === "desktopApp"
     ? (diagnostics.instanceUrl ?? getConfiguredDesktopApiBaseUrl()).trim()
     : "";
+  const clientRuntime = diagnostics.clientRuntime;
+  const architecture = clientRuntime?.architecture;
+  const hasMacArchitectureName = clientRuntime?.desktopPlatform === "darwin" && (architecture === "arm64" || architecture === "x64");
+  const architectureName = hasMacArchitectureName
+    ? t(`systemInfo.macArchitecture.${architecture}`)
+    : architecture ?? t("systemInfo.unknown");
 
   return [
     {
@@ -246,9 +252,11 @@ const getWebSystemInfoGroups = (
           value: diagnostics.clientRuntime?.deviceModel ?? t("systemInfo.unknown"),
         },
         {
-          label: t("systemInfo.architecture"),
-          value: diagnostics.clientRuntime?.architecture ?? t("systemInfo.unknown"),
-          mono: true,
+          label: t("systemInfo.clientArchitecture"),
+          value: clientRuntime?.runningUnderRosetta
+            ? t("systemInfo.architectureUnderRosetta", { architecture: architectureName })
+            : architectureName,
+          mono: !hasMacArchitectureName,
         },
         {
           label: t("systemInfo.runtimeEngine"),
@@ -630,6 +638,12 @@ export const SystemInfoPanel = ({ active = true }: { active?: boolean }) => {
               </div>
             ) : null}
             <div className="rounded-lg border border-slate-200/80 bg-card p-3 sm:p-3.5">
+              {isClient && clientRuntimeQuery.data?.runningUnderRosetta ? (
+                <p className="mb-3 flex items-start gap-2 rounded-md bg-amber-50 px-2.5 py-2 text-xs leading-5 text-amber-900" role="status">
+                  <TriangleAlert aria-hidden="true" className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  <span>{t("systemInfo.macArchitectureMismatch")}</span>
+                </p>
+              ) : null}
               <dl className="grid grid-cols-2 gap-x-4 gap-y-2.5 sm:grid-cols-3 sm:gap-x-5">
                 {group.items.map((item) => (
                   <div
