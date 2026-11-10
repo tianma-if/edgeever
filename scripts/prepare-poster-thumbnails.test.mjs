@@ -41,6 +41,11 @@ test("fresh builds skip the browser; editing one template renders only its two l
   expect((await ensurePosterThumbnails(f.options)).generated).toBe(4);
   f.rendered.length = 0;
   expect(await ensurePosterThumbnails(f.options)).toMatchObject({ generated: 0, skipped: true });
+  const testFile = path.join(f.root, "apps/web/src/lib/poster-design/templates.test.mjs");
+  await writeFile(testFile, "test-only input");
+  expect((await ensurePosterThumbnails(f.options)).skipped).toBe(true);
+  await rm(testFile);
+  expect((await ensurePosterThumbnails(f.options)).skipped).toBe(true);
   expect(f.opened()).toBe(1);
   const before = await readFile(path.join(f.output, "two.zh.webp"));
   f.documents.set("one", "new layout");
