@@ -40,6 +40,7 @@ export async function* readFlomo(
       if (!content) throw new Error("invalidFlomo");
       for (const node of Array.from(memo.querySelectorAll("script,style,iframe,object,embed"))) node.remove();
       for (const link of Array.from(memo.querySelectorAll("a[href]"))) {
+        // oxlint-disable-next-line no-control-regex -- normalize control characters before checking executable URL schemes
         const href = (link.getAttribute("href") ?? "").replace(/[\u0000-\u0020]/g, "");
         if (/^(?:javascript|vbscript|data|file):/i.test(href)) link.removeAttribute("href");
       }
