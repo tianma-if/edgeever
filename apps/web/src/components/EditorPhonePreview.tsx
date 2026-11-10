@@ -26,6 +26,7 @@ type EditorPhonePreviewProps = {
   editor: Editor | null;
   title?: string;
   showMagazineCover: boolean;
+  showChapterNavigation: boolean;
   noteProse: ResolvedNoteProse;
   scrollContainer?: HTMLDivElement | null;
   className?: string;
@@ -65,11 +66,11 @@ const alignElement = (scroller: HTMLElement, target: HTMLElement, viewportTop: n
   scroller.scrollTop += delta;
 };
 
-export const EditorPhonePreview = ({ editor, title, showMagazineCover, noteProse, scrollContainer, className }: EditorPhonePreviewProps) => {
+export const EditorPhonePreview = ({ editor, title, showMagazineCover, showChapterNavigation, noteProse, scrollContainer, className }: EditorPhonePreviewProps) => {
   const { t } = useTranslation();
   const { mermaidTheme } = useMermaidTheme();
   const noteProseStyle = useNoteProseStylePreference();
-  const proseKey = `${noteProse.palette}:${noteProse.fontSize}:${noteProse.lineHeight}:${noteProse.customCss}:${noteProseStyle.headingStyle}:${noteProseStyle.quoteStyle}:${noteProseStyle.emphasisStyle}:${showMagazineCover}:${noteProseStyle.paragraphSpacing}:${noteProseStyle.textAlign}:${noteProseStyle.letterSpacing}`;
+  const proseKey = `${noteProse.palette}:${noteProse.fontSize}:${noteProse.lineHeight}:${noteProse.customCss}:${noteProseStyle.headingStyle}:${noteProseStyle.quoteStyle}:${noteProseStyle.emphasisStyle}:${showMagazineCover}:${showChapterNavigation}:${noteProseStyle.paragraphSpacing}:${noteProseStyle.textAlign}:${noteProseStyle.letterSpacing}`;
   const previewSyncGeneration = useRef(0);
   const [markup, setMarkup] = useState({ html: "", style: "" });
   const [follow, setFollow] = useState(readEditorPhonePreviewFollowPreference);
@@ -106,7 +107,7 @@ export const EditorPhonePreview = ({ editor, title, showMagazineCover, noteProse
       editor.off("update", sync);
       editor.off("create", sync);
     };
-  }, [editor, mermaidTheme, noteProse, noteProseStyle, showMagazineCover, title]);
+  }, [editor, mermaidTheme, noteProse, noteProseStyle, showMagazineCover, showChapterNavigation, title]);
 
   useEffect(() => {
     previewRef.current?.setAttribute("style", markup.style);

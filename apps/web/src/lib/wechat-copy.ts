@@ -49,7 +49,10 @@ type WeChatMetrics = {
   lineHeight: number;
 };
 
-type PublishProseStyle = NoteProseStylePreferences & { showMagazineCover: boolean };
+type PublishProseStyle = NoteProseStylePreferences & {
+  showMagazineCover: boolean;
+  showChapterNavigation: boolean;
+};
 
 const headingStyle = (tag: keyof typeof HEADING_LAYOUT, metrics: WeChatMetrics) => {
   const layout = HEADING_LAYOUT[tag];
@@ -196,7 +199,9 @@ const applyLegacyWeChatStyles = (
         `</section>`,
       ].join("");
     });
+  }
 
+  if (proseStyle.showChapterNavigation) {
     const h2ListForToc = Array.from(root.querySelectorAll<HTMLElement>("h2"));
     if (h2ListForToc.length >= 2 && !root.querySelector("[data-ee-toc-cards]")) {
       const toc = document.createElement("section");
@@ -208,8 +213,8 @@ const applyLegacyWeChatStyles = (
         const rawText = (heading.textContent || "")
           .replace(/^\s*(?:第[一二三四五六七八九十百\d]+[章节部分篇]\s*[：:·.\s]*|\d+\s*[.、·:：]\s*|[一二三四五六七八九十]+\s*[、.．]\s*)/u, "")
           .trim();
-        const shortTitle = rawText.slice(0, 6) || `章节 ${num}`;
-        const subTitle = rawText.length > 6 ? rawText.slice(6, 18) : `PART ${num}`;
+        const shortTitle = escapeHtmlAttribute(rawText.slice(0, 6) || `章节 ${num}`);
+        const subTitle = escapeHtmlAttribute(rawText.length > 6 ? rawText.slice(6, 18) : `PART ${num}`);
         const isHighlighted = index < h2ListForToc.length - 1 || h2ListForToc.length === 2 && index === 0;
         const useAccentGradient = isHighlighted && Boolean(colors);
         if (useAccentGradient) {
@@ -1239,6 +1244,7 @@ export const readEditorCopyContext = (from?: HTMLElement | null) => {
     quoteStyle: parseNoteProseQuoteStyle(container?.dataset.noteQuoteStyle) ?? storedStyle.quoteStyle,
     emphasisStyle: parseNoteProseEmphasisStyle(container?.dataset.noteEmphasisStyle) ?? storedStyle.emphasisStyle,
     showMagazineCover: container?.dataset.noteMagazineCover === "true",
+    showChapterNavigation: container?.dataset.noteChapterNavigation === "true",
   };
   return {
     fontSize,

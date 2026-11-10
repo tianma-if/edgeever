@@ -1,8 +1,19 @@
 import { useCallback, useSyncExternalStore } from "react";
 
-const changedEvent = "edgeever:memo-magazine-cover-changed";
+const changedEvent = "edgeever:memo-reading-style-changed";
+// Keep the original key so the old combined choice is available on upgrade.
 const storageKey = (scope: string, memoId: string) =>
   `edgeever.memo-magazine-cover.${encodeURIComponent(scope)}:${encodeURIComponent(memoId)}`;
+
+type MemoReadingStyle = {
+  showMagazineCover: boolean;
+  showChapterNavigation: boolean;
+};
+
+const readReadingStyle = (value: string | null): MemoReadingStyle => ({
+  showMagazineCover: value === "true" || value === "cover",
+  showChapterNavigation: value === "true" || value === "navigation",
+});
 
 const readStoredValue = (key: string) => {
   try {
@@ -12,10 +23,9 @@ const readStoredValue = (key: string) => {
   }
 };
 
-export const writeMemoMagazineCover = (scope: string, memoId: string, enabled: boolean) => {
-  const key = storageKey(scope, memoId);
+const writeStoredValue = (key: string, value: string) => {
   try {
-    window.localStorage.setItem(key, String(enabled));
+    window.localStorage.setItem(key, value);
   } catch {
     return false;
   }
@@ -23,14 +33,21 @@ export const writeMemoMagazineCover = (scope: string, memoId: string, enabled: b
   return true;
 };
 
-export const remapMemoMagazineCover = (scope: string, temporaryId: string, remoteId: string) => {
+export const updateMemoReadingStyle = (scope: string, memoId: string, patch: Partial<MemoReadingStyle>) => {
+  const key = storageKey(scope, memoId);
+  const { showMagazineCover, showChapterNavigation } = { ...readReadingStyle(readStoredValue(key)), ...patch };
+  if (showMagazineCover === showChapterNavigation) return writeStoredValue(key, String(showMagazineCover));
+  return writeStoredValue(key, showMagazineCover ? "cover" : "navigation");
+};
+
+export const remapMemoReadingStyle = (scope: string, temporaryId: string, remoteId: string) => {
   if (temporaryId === remoteId) return;
   const previousKey = storageKey(scope, temporaryId);
   const previous = readStoredValue(previousKey);
   if (previous === null) return;
 
   const nextKey = storageKey(scope, remoteId);
-  if (readStoredValue(nextKey) === null && !writeMemoMagazineCover(scope, remoteId, previous === "true")) return;
+  if (readStoredValue(nextKey) === null && !writeStoredValue(nextKey, previous)) return;
   try {
     window.localStorage.removeItem(previousKey);
   } catch {
@@ -38,7 +55,7 @@ export const remapMemoMagazineCover = (scope: string, temporaryId: string, remot
   }
 };
 
-export const useMemoMagazineCover = (scope: string, memoId: string | undefined) => {
+export const useMemoReadingStyle = (scope: string, memoId: string | undefined) => {
   const key = memoId ? storageKey(scope, memoId) : null;
   const subscribe = useCallback((onChange: () => void) => {
     if (!key) return () => {};
@@ -55,5 +72,6 @@ export const useMemoMagazineCover = (scope: string, memoId: string | undefined) 
       window.removeEventListener("storage", onStorage);
     };
   }, [key]);
-  return useSyncExternalStore(subscribe, () => key !== null && readStoredValue(key) === "true", () => false);
+  const value = useSyncExternalStore(subscribe, () => key === null ? null : readStoredValue(key), () => null);
+  return readReadingStyle(value);
 };

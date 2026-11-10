@@ -307,11 +307,12 @@ describe("preparePublishArticle", () => {
     }
   });
 
-  test("renders magazine cover card and toc cards only when showMagazineCover is enabled", () => {
+  test("renders magazine cover and chapter navigation independently", () => {
     const container = document.createElement("div");
     container.dataset.notePalette = "emerald";
     container.dataset.noteHeadingStyle = "numbered";
     container.dataset.noteMagazineCover = "true";
+    container.dataset.noteChapterNavigation = "true";
     container.dataset.noteTitle = "深度评测文章";
     const previous = globalThis.getComputedStyle;
     globalThis.getComputedStyle = () => ({
@@ -326,12 +327,13 @@ describe("preparePublishArticle", () => {
       })[name] ?? "",
     });
     try {
-      const root = preparePublishArticle([
+      const html = [
         "<h2>效率工具箱：斜杠指令、双链与数学公式</h2>",
         "<p>内容一</p>",
         "<h2>多媒体管理、无损备份与零成本自建</h2>",
         "<p>内容二</p>",
-      ].join(""), container);
+      ].join("");
+      const root = preparePublishArticle(html, container);
       expect(root.querySelector("[data-ee-cover-card]")).not.toBeNull();
       expect(root.querySelector("[data-ee-cover-card]")?.textContent).toContain("深度评测文章");
       expect(root.querySelector("[data-ee-toc-cards]")).not.toBeNull();
@@ -350,6 +352,20 @@ describe("preparePublishArticle", () => {
         expect(css(item)).toContain("border:1px solid");
         expect(css(item.querySelector("p"))).toContain("line-height:1.4");
       }
+
+      container.dataset.noteChapterNavigation = "false";
+      const coverOnly = preparePublishArticle(html, container);
+      expect(coverOnly.querySelector("[data-ee-cover-card]")).not.toBeNull();
+      expect(coverOnly.querySelector("[data-ee-toc-cards]")).toBeNull();
+
+      container.dataset.noteMagazineCover = "false";
+      const neither = preparePublishArticle(html, container);
+      expect(neither.querySelector("[data-ee-cover-card], [data-ee-toc-cards]")).toBeNull();
+
+      container.dataset.noteChapterNavigation = "true";
+      const navigationOnly = preparePublishArticle(html, container);
+      expect(navigationOnly.querySelector("h1")).toBeNull();
+      expect(navigationOnly.querySelector("[data-ee-toc-cards]")).not.toBeNull();
     } finally {
       globalThis.getComputedStyle = previous;
     }

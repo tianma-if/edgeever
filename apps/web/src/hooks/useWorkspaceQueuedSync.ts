@@ -6,7 +6,7 @@ import { emptySyncQueueSummary, type SyncQueueSummary } from "@/lib/sync-queue";
 import { MEMO_ID_REMAPPED_EVENT, NOTEBOOK_ID_REMAPPED_EVENT, notifyMemoIdRemapped, notifyMemoSyncAcknowledged, notifyNotebookIdRemapped } from "@/lib/sync-events";
 import { observeLocalMemoIdMappings, putLocalMemo, replaceLocalMemoId } from "@/lib/local-mirror";
 import { remapMemoIdsInLists } from "@/lib/memo-list-cache";
-import { remapMemoMagazineCover } from "@/lib/memo-magazine-cover";
+import { remapMemoReadingStyle } from "@/lib/memo-reading-style";
 import { preserveRemappedMemoDetailQueries, resolveSyncedMemoId } from "@/lib/workspace-refresh";
 
 type UseWorkspaceQueuedSyncOptions = {
@@ -39,7 +39,7 @@ export const useWorkspaceQueuedSync = ({
     if (memoIdMappings.size === 0) return;
 
     for (const [temporaryId, remoteId] of memoIdMappings) {
-      remapMemoMagazineCover(localDataScope, temporaryId, remoteId);
+      remapMemoReadingStyle(localDataScope, temporaryId, remoteId);
     }
 
     // Seed the durable-id query before changing the selection. The desktop

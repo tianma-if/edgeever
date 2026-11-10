@@ -52,8 +52,12 @@ import {
 } from "@/components/MemoEditorChromeDensity";
 import { MemoTitleInput } from "@/components/MemoTitleInput";
 import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { EditorToolbar } from "./EditorToolbar";
 import { EditorOutline } from "./EditorOutline";
@@ -177,7 +181,7 @@ import {
 } from "@/lib/memo-save-conflict";
 import { copyResourceToClipboard, copyTextToClipboard } from "@/lib/clipboard";
 import { useNoteProseStylePreference } from "@/lib/note-prose-style-preference";
-import { useMemoMagazineCover, writeMemoMagazineCover } from "@/lib/memo-magazine-cover";
+import { updateMemoReadingStyle, useMemoReadingStyle } from "@/lib/memo-reading-style";
 import { createClientUuid } from "@/lib/client-id";
 import { isLocalMemoId, remapLocalDraftMemoId } from "@/lib/local-mirror";
 import { shouldAcceptRemoteMemoDetail } from "@/lib/memo-detail-freshness";
@@ -737,8 +741,8 @@ const RichEditorPane = ({
 
   const memoRef = useRef<MemoDetail | null>(memo);
   const noteProseStyle = useNoteProseStylePreference();
-  const showMagazineCover = useMemoMagazineCover(localDataScope, memo?.id);
-  const [magazineCoverSaveError, setMagazineCoverSaveError] = useState<string | null>(null);
+  const { showMagazineCover, showChapterNavigation } = useMemoReadingStyle(localDataScope, memo?.id);
+  const [readingStyleSaveError, setReadingStyleSaveError] = useState<string | null>(null);
   const editSessionRef = useRef<MemoEditSession | null>(null);
   const editorRef = useRef<Editor | null>(null);
   const headingShortcutSurfaceRef = useRef({ markdown: false, plainText: false });
@@ -4376,26 +4380,47 @@ const RichEditorPane = ({
             <MemoEditorToolbarDivider className="mx-0.5 hidden h-4 sm:block" />
             <div className="flex items-center gap-0.5">
             {!readOnly && !useMarkdownSourceEditor && !useMobilePlainTextEditor && (
-              <IconTooltip label={t("editor.magazineCover")}>
-                <Button
-                  className={cn(
-                    "gap-1.5 text-slate-500",
-                    showMagazineCover && "bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-300 hover:bg-slate-200",
-                  )}
-                  size={editorPaneTight ? "icon" : "sm"}
-                  variant="ghost"
-                  type="button"
-                  aria-label={t("editor.magazineCover")}
-                  aria-pressed={showMagazineCover}
-                  onClick={() => {
-                    const saved = writeMemoMagazineCover(localDataScope, memo.id, !showMagazineCover);
-                    setMagazineCoverSaveError(saved ? null : memo.id);
-                  }}
-                >
-                  <LayoutTemplate className="h-4 w-4" aria-hidden="true" />
-                  {!editorPaneTight && <span className="hidden sm:inline">{t("editor.magazineCoverShort")}</span>}
-                </Button>
-              </IconTooltip>
+              <DropdownMenu>
+                <IconTooltip label={t("editor.readingStyle")}>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      className={cn(
+                        "gap-1.5 text-slate-500",
+                        (showMagazineCover || showChapterNavigation) && "bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-300 hover:bg-slate-200",
+                      )}
+                      size={editorPaneTight ? "icon" : "sm"}
+                      variant="ghost"
+                      type="button"
+                      aria-label={t("editor.readingStyle")}
+                    >
+                      <LayoutTemplate className="h-4 w-4" aria-hidden="true" />
+                      {!editorPaneTight && <span className="hidden sm:inline">{t("editor.readingStyle")}</span>}
+                    </Button>
+                  </DropdownMenuTrigger>
+                </IconTooltip>
+                <DropdownMenuContent align="end" className="min-w-36">
+                  <DropdownMenuCheckboxItem
+                    checked={showMagazineCover}
+                    onSelect={(event) => event.preventDefault()}
+                    onCheckedChange={(checked) => {
+                      const saved = updateMemoReadingStyle(localDataScope, memo.id, { showMagazineCover: checked });
+                      setReadingStyleSaveError(saved ? null : memo.id);
+                    }}
+                  >
+                    {t("editor.magazineCover")}
+                  </DropdownMenuCheckboxItem>
+                  <DropdownMenuCheckboxItem
+                    checked={showChapterNavigation}
+                    onSelect={(event) => event.preventDefault()}
+                    onCheckedChange={(checked) => {
+                      const saved = updateMemoReadingStyle(localDataScope, memo.id, { showChapterNavigation: checked });
+                      setReadingStyleSaveError(saved ? null : memo.id);
+                    }}
+                  >
+                    {t("editor.chapterNavigation")}
+                  </DropdownMenuCheckboxItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
             <MemoEditorFocusModeButton
               desktopFocusMode={desktopFocusMode}
@@ -4679,9 +4704,9 @@ const RichEditorPane = ({
             onPickMathFormula={() => openMathFormula()}
           />
         )}
-        {magazineCoverSaveError === memo.id && (
+        {readingStyleSaveError === memo.id && (
           <p role="alert" className="px-4 py-2 text-xs text-rose-700 dark:text-rose-300">
-            {t("editor.magazineCoverSaveFailed")}
+            {t("editor.readingStyleSaveFailed")}
           </p>
         )}
         <EditorSaveRecoveryBanner
@@ -4706,6 +4731,7 @@ const RichEditorPane = ({
         data-note-quote-style={noteProseStyle.quoteStyle}
         data-note-emphasis-style={noteProseStyle.emphasisStyle}
         data-note-magazine-cover={showMagazineCover ? "true" : "false"}
+        data-note-chapter-navigation={showChapterNavigation ? "true" : "false"}
         data-note-title={title || getEditableMemoTitle(memo?.title)}
         style={{
           ...noteProseCssVariables(noteProse),
@@ -4867,9 +4893,11 @@ const RichEditorPane = ({
                     onAsk={() => requestSelectionAi("ask")}
                   />
                 </BubbleMenu>
-                {showMagazineCover ? (
+                {showMagazineCover || showChapterNavigation ? (
                   <EditorMagazineHeader
                     editor={editor}
+                    showMagazineCover={showMagazineCover}
+                    showChapterNavigation={showChapterNavigation}
                     title={title || getEditableMemoTitle(memo?.title)}
                     tags={memo?.tags}
                     notebookName={notebookName}
@@ -4890,6 +4918,7 @@ const RichEditorPane = ({
               editor={editor}
               title={getEditableMemoTitle(memo?.title)}
               showMagazineCover={showMagazineCover}
+              showChapterNavigation={showChapterNavigation}
               scrollContainer={editorScrollContainer}
               noteProse={noteProse}
             />
