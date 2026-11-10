@@ -41,15 +41,11 @@ export function ComboboxInput({ value, onValueChange, options, placeholder, labe
   // or the first option when the field is empty. cmdk would otherwise pick the
   // first item, and Enter would silently replace the value.
   const [active, setActive] = useState("");
-  // cmdk reorders item nodes by score while filtering and never restores them, so
-  // the items are remounted on each open to show the options in their given order.
-  const [listKey, setListKey] = useState(0);
   const openList = () => {
     if (disabled) return;
     if (!open) {
       setFiltering(false);
       setActive(value.trim() || options[0]?.value || "");
-      setListKey((key) => key + 1);
     }
     setOpen(true);
   };
@@ -163,7 +159,9 @@ export function ComboboxInput({ value, onValueChange, options, placeholder, labe
         className="absolute top-full z-50 mt-1 max-h-60 w-full overscroll-contain rounded-md border border-slate-200 bg-card shadow-md"
         onMouseDown={(event) => event.preventDefault()}
       >
-        <CommandGroup key={listKey}>
+        {/* Remove the scored items while closed so cmdk resets its selection
+            before reopening, when the current value becomes the highlight. */}
+        {listOpen && <CommandGroup>
           {options.map((option) => (
             <CommandItem className="text-xs" key={option.value} value={option.value} keywords={option.label ? [option.label] : undefined} onSelect={select}>
               <span className="min-w-0 break-all">{option.label ?? option.value}</span>
@@ -172,7 +170,7 @@ export function ComboboxInput({ value, onValueChange, options, placeholder, labe
           {showCustom ? (
             <CommandItem className="text-xs" value={customValue} onSelect={select}><span className="break-all">{customValue}</span></CommandItem>
           ) : null}
-        </CommandGroup>
+        </CommandGroup>}
       </CommandList>
     </Command>
   );
