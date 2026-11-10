@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { Base64 } from "js-base64";
 import { markdownToDoc } from "./content.ts";
 import {
   addTableField,
@@ -9,6 +10,7 @@ import {
   tableAttachmentUrl,
   hasTableDocumentMarker,
   parseTableDocument,
+  parseTableDocumentMetadata,
   removeTableField,
   replaceTableView,
   serializeTableDocument,
@@ -179,4 +181,33 @@ describe("named table views", () => {
     expect(changed.views[1].filters.map((rule) => rule.fieldId)).toEqual(["fld_date", "fld_done"]);
     expect(removeTableField(changed, "fld_date").views[1].sorts.map((rule) => rule.fieldId)).toEqual(["fld_priority"]);
   });
+});
+
+test("legacy and named table metadata matches full parsing without changing marker bytes", () => {
+  const legacy = updateTableCell(createDefaultTableDocument(), "rec_sample", "fld_name", "旧表 🧭\r text");
+  const named = saveTableViews(legacy, [getTableViews(legacy)[0], { id: "other", name: "Other", match: "all", filters: [], sorts: [] }]);
+  for (const table of [legacy, named]) {
+    const raw = JSON.stringify(table);
+    const encoded = Base64.encodeURI(raw);
+    const markdown = serializeTableDocument(table);
+    expect(markdown.endsWith("<!-- edgeever-table-v1:" + encoded + " -->")).toBe(true);
+    const wrapped = markdown.replace(encoded, encoded.slice(0, 35) + "\n  " + encoded.slice(35));
+    expect(parseTableDocument(wrapped)).toEqual(table);
+    expect(parseTableDocumentMetadata(wrapped)).toEqual({ fields: table.fields, recordCount: table.records.length });
+  }
+});
+
+test("metadata rejects markers the full parser cannot read", () => {
+  const legacy = createDefaultTableDocument();
+  const marker = (raw) => "<!-- edgeever-table-v1:" + Base64.encodeURI(raw) + " -->";
+  const bad = [
+    JSON.stringify({ ...legacy, records: [legacy.records[0], legacy.records[0]] }),
+    JSON.stringify({ ...legacy, records: [{ id: "bad", cells: { fld_name: { toString: 42 } } }] }).replace('"toString"', '"toStr\\u0069ng"'),
+    JSON.stringify({ ...legacy, schemaVersion: 2, views: [] }),
+    "\uFEFF" + JSON.stringify(legacy),
+  ];
+  for (const raw of bad) {
+    expect(parseTableDocument(marker(raw))).toBeNull();
+    expect(parseTableDocumentMetadata(marker(raw))).toBeNull();
+  }
 });

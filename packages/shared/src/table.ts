@@ -82,8 +82,27 @@ const CELL_TEXT_LIMIT = 2000;
 const ATTACHMENT_ID_PATTERN = /^[A-Za-z0-9_-]{1,80}$/;
 const ATTACHMENT_BYTE_LIMIT = 1024 * 1024 * 1024;
 
-const encodeBase64Url = (value: string) => Base64.encodeURI(value);
-const decodeBase64Url = (value: string) => Base64.decode(value);
+const BASE64URL_CHARS = /^[A-Za-z0-9_-]+$/;
+type NativeBase64Bytes = Uint8Array<ArrayBuffer> & { toBase64?: (options: { alphabet: "base64url"; omitPadding: true }) => string };
+const nativeBase64 = Uint8Array as typeof Uint8Array & { fromBase64?: (value: string, options: { alphabet: "base64url" }) => Uint8Array<ArrayBuffer> };
+const tableEncoder = typeof TextEncoder === "function" ? new TextEncoder() : null;
+const tableDecoder = typeof TextDecoder === "function" ? new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }) : null;
+const base64Url = { alphabet: "base64url" } as const;
+const encodeBase64Url = (value: string) =>
+  tableEncoder && typeof (Uint8Array.prototype as NativeBase64Bytes).toBase64 === "function"
+    ? (tableEncoder.encode(value) as NativeBase64Bytes).toBase64!({ ...base64Url, omitPadding: true })
+    : Base64.encodeURI(value);
+const decodeBase64Url = (value: string) => {
+  if (tableDecoder && typeof nativeBase64.fromBase64 === "function" && value.length % 4 !== 1) {
+    try {
+      const text = tableDecoder.decode(nativeBase64.fromBase64(value, base64Url));
+      if (text.charCodeAt(0) !== 0xfeff) return text;
+    } catch {
+      // Preserve the existing runtime-specific handling of malformed UTF-8.
+    }
+  }
+  return Base64.decode(value);
+};
 
 export const createTableId = (prefix: "fld" | "rec" | "view") => {
   const uuid = globalThis.crypto?.randomUUID?.();
@@ -161,9 +180,10 @@ const emptyCell = (field: TableField): TableCellValue => coerceTableCell(field, 
 export const listTableAttachmentResourceIds = (document: TableDocument | null | undefined) => {
   const ids = new Set<string>();
   if (!document) return ids;
+  const fields = document.fields.filter((field) => field.type === "attachment");
+  if (!fields.length) return ids;
   for (const record of document.records) {
-    for (const field of document.fields) {
-      if (field.type !== "attachment") continue;
+    for (const field of fields) {
       const value = record.cells[field.id];
       if (!Array.isArray(value)) continue;
       for (const attachment of value) ids.add(attachment.resourceId);
@@ -291,11 +311,29 @@ export const saveTableViews = (document: TableDocument, views: NamedTableView[])
   return { schemaVersion: TABLE_VIEW_SCHEMA_VERSION, fields: document.fields, records: document.records, views: validated };
 };
 
-export const parseTableDocument = (markdown: string | null | undefined): TableDocument | null => {
-  const encoded = markdown?.match(TABLE_COMMENT)?.[1]?.replace(/\s+/g, "");
-  if (!encoded || !/^[A-Za-z0-9_-]+$/.test(encoded)) return null;
+type TableDocumentMetadata = { fields: TableField[]; recordCount: number };
+
+const decodeTableDocumentMarker = (markdown: string | null | undefined): string | null => {
+  const raw = markdown?.match(TABLE_COMMENT)?.[1];
+  if (!raw) return null;
+  let encoded = raw;
+  if (!BASE64URL_CHARS.test(raw)) {
+    encoded = raw.replace(/\s+/g, "");
+    if (!BASE64URL_CHARS.test(encoded)) return null;
+  }
   try {
-    const value = JSON.parse(decodeBase64Url(encoded)) as Record<string, unknown>;
+    return decodeBase64Url(encoded);
+  } catch {
+    return null;
+  }
+};
+
+function readTableDocumentJson(json: string | null, includeRecords: true): TableDocument | null;
+function readTableDocumentJson(json: string | null, includeRecords: false): TableDocumentMetadata | null;
+function readTableDocumentJson(json: string | null, includeRecords: boolean): TableDocument | TableDocumentMetadata | null {
+  if (json === null) return null;
+  try {
+    const value = JSON.parse(json) as Record<string, unknown>;
     if ((value.schemaVersion !== TABLE_SCHEMA_VERSION && value.schemaVersion !== TABLE_VIEW_SCHEMA_VERSION)
       || !Array.isArray(value.fields) || value.fields.length < 1) return null;
     const fields: TableField[] = [];
@@ -305,26 +343,38 @@ export const parseTableDocument = (markdown: string | null | undefined): TableDo
       fields.push(field);
     }
     if (!Array.isArray(value.records)) return null;
-    const fieldIds = new Set(fields.map((field) => field.id));
-    const records: TableRecord[] = [];
+    const records: TableRecord[] | null = includeRecords ? [] : null;
+    // A malformed JSON cell can shadow toString (including an escaped key)
+    // and fail coercion. Keep the old validation for those unusual markers.
+    const validateCells = includeRecords || /"toString"|\\u/.test(json);
     const recordIds = new Set<string>();
     for (const item of value.records) {
       if (!isRecord(item) || typeof item.id !== "string" || !item.id || item.id.length > 80 || recordIds.has(item.id)) return null;
       recordIds.add(item.id);
+      if (!validateCells) continue;
       const rawCells = isRecord(item.cells) ? item.cells : {};
+      if (!records) {
+        for (const field of fields) coerceTableCell(field, rawCells[field.id]);
+        continue;
+      }
       const cells: Record<string, TableCellValue> = {};
       for (const field of fields) cells[field.id] = coerceTableCell(field, rawCells[field.id]);
       records.push({ id: item.id, cells });
     }
+    const metadata = { fields, recordCount: value.records.length };
     if (value.schemaVersion === TABLE_SCHEMA_VERSION) {
-      return { schemaVersion: TABLE_SCHEMA_VERSION, fields, records, view: parseView(value.view, fieldIds) };
+      return records ? { schemaVersion: TABLE_SCHEMA_VERSION, fields, records, view: parseView(value.view, new Set(fields.map((field) => field.id))) } : metadata;
     }
     const views = parseNamedTableViews(value.views, fields);
-    return views ? { schemaVersion: TABLE_VIEW_SCHEMA_VERSION, fields, records, views } : null;
+    if (!views) return null;
+    return records ? { schemaVersion: TABLE_VIEW_SCHEMA_VERSION, fields, records, views } : metadata;
   } catch {
     return null;
   }
-};
+}
+
+export const parseTableDocument = (markdown: string | null | undefined) => readTableDocumentJson(decodeTableDocumentMarker(markdown), true);
+export const parseTableDocumentMetadata = (markdown: string | null | undefined) => readTableDocumentJson(decodeTableDocumentMarker(markdown), false);
 
 export const hasTableDocumentMarker = (markdown: string | null | undefined) =>
   Boolean(markdown?.match(TABLE_COMMENT));
@@ -571,13 +621,13 @@ export const getTableSummary = (markdown: string | null | undefined): {
   structuredTable: boolean;
   tablePreview?: TableSummaryPreview;
 } => {
-  const document = parseTableDocument(markdown);
+  const document = parseTableDocumentMetadata(markdown);
   if (!document) return { structuredTable: false };
   return {
     structuredTable: true,
     tablePreview: {
       fieldCount: document.fields.length,
-      recordCount: document.records.length,
+      recordCount: document.recordCount,
       fieldNames: document.fields.map((field) => field.name).filter(Boolean).slice(0, 4),
     },
   };

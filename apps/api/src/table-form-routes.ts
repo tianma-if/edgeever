@@ -1,12 +1,14 @@
 import {
   resolveResourceUploadMimeType,
-  parseTableDocument,
+  parseTableDocumentMetadata,
+  TABLE_RECORD_LIMIT,
   PublicShareUnlockSchema,
   PublicTableFormSubmissionSchema,
   TableFormUpdateSchema,
   type PublicTableForm,
   type PublicTableFormField,
   type TableAttachment,
+  type TableDocument,
   type TableFormFieldSetting,
   type TableFormSettings,
 } from "@edgeever/shared";
@@ -20,7 +22,7 @@ import { authenticateRequest } from "./auth-service";
 import { hashPassword, randomToken, verifyPassword } from "./auth-crypto";
 import { createId, isoNow } from "./entity-utils";
 import { apiError, notFound } from "./http-errors";
-import { getMemoDetail } from "./memo-service";
+import { getTableMemoSource } from "./memo-service";
 import { getAuditActor, getWorkspaceId, requireUser } from "./request-auth";
 import {
   createAttachmentResource,
@@ -79,8 +81,7 @@ const allowForm = async (c: AppContext, form: TableFormRow) => {
   return auth?.workspaceId === form.workspace_id;
 };
 
-const publicFields = (form: TableFormRow, markdown: string): PublicTableFormField[] => {
-  const document = parseTableDocument(markdown);
+const publicFields = (form: TableFormRow, document: Pick<TableDocument, "fields"> | null): PublicTableFormField[] => {
   if (!document) return [];
   const fields = new Map(document.fields.map((field) => [field.id, field]));
   return parseTableFormFields(form.fields_json).flatMap((setting) => {
@@ -108,9 +109,8 @@ const mapOwnerForm = (row: TableFormRow, password?: string): TableFormSettings =
   fields: parseTableFormFields(row.fields_json),
 });
 
-const activeFieldSettings = (markdown: string, fields: TableFormFieldSetting[]) => {
-  const document = parseTableDocument(markdown);
-  const ids = new Set(document?.fields.map((field) => field.id) ?? []);
+const activeFieldSettings = (document: Pick<TableDocument, "fields">, fields: TableFormFieldSetting[]) => {
+  const ids = new Set(document.fields.map((field) => field.id));
   const seen = new Set<string>();
   return fields.filter((field) => {
     if (!ids.has(field.fieldId) || seen.has(field.fieldId)) return false;
@@ -227,15 +227,15 @@ export const registerPublicTableFormRoutes = (app: Hono<AppEnv>) => {
       };
       return c.json({ form: locked });
     }
-    const memo = await getMemoDetail(c.env.storage.db, form.workspace_id, form.memo_id);
-    const document = parseTableDocument(memo?.contentMarkdown);
+    const memo = await getTableMemoSource(c.env.storage.db, form.workspace_id, form.memo_id);
+    const document = parseTableDocumentMetadata(memo?.contentMarkdown);
     const view: PublicTableForm = {
       passwordRequired: false,
       title: form.title || memo?.title || "",
       description: form.description,
       submitLabel: form.submit_label,
-      full: (document?.records.length ?? 0) >= 2000,
-      fields: memo ? publicFields(form, memo.contentMarkdown) : [],
+      full: (document?.recordCount ?? 0) >= TABLE_RECORD_LIMIT,
+      fields: publicFields(form, document),
     };
     return c.json({ form: view });
   });
@@ -288,8 +288,8 @@ export const registerPublicTableFormRoutes = (app: Hono<AppEnv>) => {
     if (file.size <= 0 || file.size > TABLE_FORM_ATTACHMENT_BYTES) {
       return apiError(c, "upload_too_large", "Each form attachment must be between 1 byte and 20 MiB.", 413);
     }
-    const memo = await getMemoDetail(c.env.storage.db, form.workspace_id, form.memo_id);
-    if (!memo || !publicFields(form, memo.contentMarkdown).some((field) => field.type === "attachment")) {
+    const memo = await getTableMemoSource(c.env.storage.db, form.workspace_id, form.memo_id);
+    if (!memo || !publicFields(form, parseTableDocumentMetadata(memo.contentMarkdown)).some((field) => field.type === "attachment")) {
       return apiError(c, "table_form_invalid", "This form does not accept files.", 400);
     }
     if (await countPendingAttachments(c, form) >= PENDING_ATTACHMENT_LIMIT) {
@@ -380,10 +380,11 @@ export const registerTableFormRoutes = (app: Hono<AppEnv>) => {
     if (denied) return denied;
     const memoId = c.req.param("id");
     const workspaceId = getWorkspaceId(c);
-    const memo = await getMemoDetail(c.env.storage.db, workspaceId, memoId);
-    if (!memo || !parseTableDocument(memo.contentMarkdown)) return notFound(c, "Table not found");
+    const memo = await getTableMemoSource(c.env.storage.db, workspaceId, memoId);
+    const document = parseTableDocumentMetadata(memo?.contentMarkdown);
+    if (!document) return notFound(c, "Table not found");
     const input = c.req.valid("json");
-    const fields = activeFieldSettings(memo.contentMarkdown, input.fields);
+    const fields = activeFieldSettings(document, input.fields);
     if (input.enabled && fields.length === 0) {
       return apiError(c, "table_form_invalid", "Choose at least one field for the form.", 400);
     }

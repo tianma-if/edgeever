@@ -401,6 +401,14 @@ export const getMemoDetailRow = async (
     .bind(id, workspaceId, includeDeleted ? 1 : 0)
     .first<MemoDetailRow>();
 
+// Form and structured record tools only need the source, not the editor projection.
+export const getTableMemoSource = (db: DatabaseAdapter, workspaceId: string, memoId: string) =>
+  db.prepare(
+    `SELECT m.title, m.tags_json, c.content_markdown AS contentMarkdown, c.revision
+     FROM memos m INNER JOIN memo_contents c ON c.memo_id = m.id
+     WHERE m.id = ? AND m.workspace_id = ? AND m.is_deleted = 0`,
+  ).bind(memoId, workspaceId).first<{ title: string | null; tags_json: string; contentMarkdown: string; revision: number }>();
+
 export const getMemoDetail = async (db: DatabaseAdapter, workspaceId: string, id: string, includeDeleted = false): Promise<MemoDetail | null> => {
   const row = await getMemoDetailRow(db, workspaceId, id, includeDeleted);
   return row ? mapMemoDetail(row) : null;
