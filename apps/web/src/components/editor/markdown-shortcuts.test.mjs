@@ -208,6 +208,87 @@ describe("checklist typing", () => {
   });
 });
 
+const placeCaretBetweenLastBacktickPair = (editor) => {
+  const text = editor.state.doc.textContent;
+  const index = text.lastIndexOf("``");
+  // A single paragraph or code block starts its text at position 1.
+  editor.commands.setTextSelection(index + 2);
+};
+
+describe("inline code typing", () => {
+  test("renders text typed between an existing pair of backticks as inline code", () => {
+    const editor = createEditor();
+    typeText(editor, "``");
+    placeCaretBetweenLastBacktickPair(editor);
+    typeText(editor, "你好");
+
+    expect(editor.getJSON().content[0].content).toEqual([
+      { type: "text", text: "你好", marks: [{ type: "code" }] },
+    ]);
+    expect(docToMarkdown(editor.getJSON())).toBe("`你好`");
+    editor.destroy();
+  });
+
+  test("keeps later letters inside the same code span and leaves the following space outside", () => {
+    const editor = createEditor();
+    typeText(editor, "see ``");
+    placeCaretBetweenLastBacktickPair(editor);
+    typeText(editor, "file.txt next");
+
+    expect(editor.getJSON().content[0].content).toEqual([
+      { type: "text", text: "see " },
+      { type: "text", text: "file.txt", marks: [{ type: "code" }] },
+      { type: "text", text: " next" },
+    ]);
+    editor.destroy();
+  });
+
+  test("still renders inline code when the closing backtick is typed last", () => {
+    const editor = createEditor();
+    typeText(editor, "`你好` ");
+
+    expect(editor.getJSON().content[0].content).toEqual([
+      { type: "text", text: "你好", marks: [{ type: "code" }] },
+      { type: "text", text: " " },
+    ]);
+    editor.destroy();
+  });
+
+  test("undoes the character typed between backticks and restores the pair", () => {
+    const editor = createEditor();
+    typeText(editor, "``");
+    placeCaretBetweenLastBacktickPair(editor);
+    typeText(editor, "你");
+    expect(editor.getText()).toBe("你");
+    expect(editor.commands.undo()).toBe(true);
+    expect(editor.getText()).toBe("``");
+    editor.destroy();
+  });
+
+  test("does not turn a double-backtick span or code-block text into an inline code mark", () => {
+    const doubled = createEditor();
+    typeText(doubled, "````");
+    // Two backticks on each side: ``|``
+    doubled.commands.setTextSelection(3);
+    typeText(doubled, "code");
+    expect(doubled.getText()).toBe("``code``");
+    expect(doubled.getJSON().content[0].content.some((child) => child.marks?.some((mark) => mark.type === "code"))).toBe(false);
+    doubled.destroy();
+
+    const block = createEditor({
+      type: "doc",
+      content: [{ type: "codeBlock", content: [{ type: "text", text: "``" }] }],
+    });
+    placeCaretBetweenLastBacktickPair(block);
+    typeText(block, "x");
+    expect(block.getJSON().content[0]).toMatchObject({
+      type: "codeBlock",
+      content: [{ type: "text", text: "`x`" }],
+    });
+    block.destroy();
+  });
+});
+
 describe("formula typing and pasting", () => {
   test("turns $latex$ into inline math and leaves currency as text", () => {
     const editor = createEditor();
