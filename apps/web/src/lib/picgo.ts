@@ -71,6 +71,8 @@ export const writePicGoPreference = (value: PicGoPreference): PicGoPreference =>
 };
 
 export const hasPicGoBridge = () => Boolean(window.edgeeverDesktop?.uploadPicGoImage && window.edgeeverDesktop?.testPicGoConnection);
+// Older desktop hosts lack the channel list; the settings page then keeps manual entry.
+export const hasImgBedChannelsBridge = () => Boolean(window.edgeeverDesktop?.listImgBedChannels);
 export const hasImgBedBridge = () => Boolean(window.edgeeverDesktop?.uploadImgBedImage && window.edgeeverDesktop?.testImgBedConnection);
 
 const hasBridge = (provider: ExternalImageHost) => provider === "imgbed" ? hasImgBedBridge() : hasPicGoBridge();

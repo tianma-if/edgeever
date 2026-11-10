@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { normalizeImgBedChannelName, resolveImgBedAutoRetry, normalizeImgBedEndpoint, normalizeImgBedFolder, normalizeImgBedToken, testImgBedConnection, uploadImgBedImage } from "./imgbed.mjs";
+import { listImgBedChannels, normalizeImgBedChannelName, resolveImgBedAutoRetry, normalizeImgBedEndpoint, normalizeImgBedFolder, normalizeImgBedToken, testImgBedConnection, uploadImgBedImage } from "./imgbed.mjs";
 
 const servers = [];
 afterEach(() => { for (const server of servers.splice(0)) server.stop(true); });
@@ -133,7 +133,10 @@ test("connection test explains old ImgBed versions and rejected tokens on the ch
   const input = (endpoint) => ({ endpoint, token: "imgbed-token", uploadFolder: "", nameType: "default", channelName: "Main" });
   // Older sites answer unknown routes with 404 or with their HTML app shell.
   for (const response of [() => new Response("missing", { status: 404 }), () => new Response("<!doctype html><title>ImgBed</title>", { headers: { "content-type": "text/html" } })]) {
-    await expect(testImgBedConnection(input(serve(response)))).rejects.toThrow("IMGBED_CHANNEL_NAME:");
+    // Older settings pages only know IMGBED_CHANNEL_NAME, so both markers are sent.
+    const failure = await testImgBedConnection(input(serve(response))).catch(String);
+    expect(failure).toContain("IMGBED_CHANNELS_UNSUPPORTED:");
+    expect(failure).toContain("IMGBED_CHANNEL_NAME:");
   }
   // Server errors, rate limits and oversized replies are not blamed on the channel name.
   for (const [response, expected] of [
@@ -143,13 +146,63 @@ test("connection test explains old ImgBed versions and rejected tokens on the ch
   ]) {
     const failure = await testImgBedConnection(input(serve(response))).catch(String);
     expect(failure).toContain(expected);
-    expect(failure).not.toContain("IMGBED_CHANNEL_NAME:");
+    expect(failure).not.toMatch(/IMGBED_CHANNEL(S_UNSUPPORTED|_NAME):/);
   }
   let failure = "";
   try { await testImgBedConnection(input(serve(() => new Response("nope", { status: 401 })))); }
   catch (error) { failure = String(error); }
   expect(failure).toContain("rejected the API token");
-  expect(failure).not.toContain("IMGBED_CHANNEL_NAME:");
+  expect(failure).not.toMatch(/IMGBED_CHANNEL(S_UNSUPPORTED|_NAME):/);
+});
+
+test("lists channel names per upload channel with the API token", async () => {
+  const requests = [];
+  const endpoint = serve((request) => {
+    const url = new URL(request.url);
+    requests.push(`${request.method} ${url.pathname}${url.search} ${request.headers.get("authorization")}`);
+    return Response.json({
+      telegram: [{ name: "TG Main", type: "TelegramNew" }],
+      cfr2: [{ name: "Main R2" }, { name: "Backup R2" }, { name: "Main R2" }],
+      // Names EdgeEver could not send back unchanged are left out.
+      s3: [{ name: " padded " }, { name: " padded " }, { name: "tab\tname" }, { name: "x".repeat(101) }, { name: 42 }, {}, null, { name: "S3 OK" }],
+      discord: "not a list",
+      unknown: [{ name: "Ignored" }],
+    });
+  });
+  expect(await listImgBedChannels({ endpoint: `${endpoint}/upload`, token: " imgbed-token " })).toEqual({
+    channels: { telegram: ["TG Main"], cfr2: ["Main R2", "Backup R2"], s3: ["S3 OK"], discord: [], huggingface: [], webdav: [] },
+    // Non-string and empty entries are not channels; unusable names are counted.
+    skipped: { telegram: 0, cfr2: 0, s3: 3, discord: 0, huggingface: 0, webdav: 0 },
+  });
+  expect(requests).toEqual(["GET /api/channels Bearer imgbed-token"]);
+});
+
+test("an unexpected channel list shape is a failure, not an empty list", async () => {
+  for (const body of [[], { error: "proxy says no" }, { telegram: "x" }]) {
+    const failure = await listImgBedChannels({ endpoint: serve(() => Response.json(body)), token: "imgbed-token" }).catch(String);
+    expect(failure).toContain("unexpected channel list");
+    expect(failure).not.toMatch(/IMGBED_CHANNEL(S_UNSUPPORTED|_NAME):/);
+  }
+  // A site with no channels of any type still lists empty arrays.
+  const empty = await listImgBedChannels({ endpoint: serve(() => Response.json({ telegram: [], cfr2: [] })), token: "imgbed-token" });
+  expect(empty.channels.telegram).toEqual([]);
+});
+
+test("listing channels explains old ImgBed versions, rejected tokens and unsafe input", async () => {
+  const list = (endpoint) => listImgBedChannels({ endpoint, token: "imgbed-token" }).catch(String);
+  expect(await list(serve(() => new Response("missing", { status: 404 })))).toContain("IMGBED_CHANNELS_UNSUPPORTED:");
+  expect(await list(serve(() => new Response("<!doctype html>", { headers: { "content-type": "text/html" } })))).toContain("IMGBED_CHANNELS_UNSUPPORTED:");
+  const rejected = await list(serve(() => new Response("nope", { status: 403 })));
+  expect(rejected).toContain("IMGBED_TOKEN_REJECTED:");
+  expect(rejected).not.toContain("imgbed-token");
+  expect(await list(serve(() => new Response("boom", { status: 502 })))).toContain("HTTP 502");
+  let fetched = false;
+  await expect(listImgBedChannels({ endpoint: "https://img.example.com", token: "imgbed-token" }, {
+    lookupImpl: async () => [{ address: "169.254.169.254", family: 4 }],
+    fetchImpl: () => { fetched = true; throw new Error("must not fetch"); },
+  })).rejects.toThrow();
+  await expect(listImgBedChannels({ endpoint: "https://img.example.com", token: "two words" })).rejects.toThrow();
+  expect(fetched).toBe(false);
 });
 
 test("reports rejected tokens and malformed responses without echoing the token", async () => {

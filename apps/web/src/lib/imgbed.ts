@@ -8,6 +8,20 @@ export const IMGBED_UPLOAD_CHANNELS = ["telegram", "cfr2", "s3", "discord", "hug
 export type ImgBedUploadChannel = typeof IMGBED_UPLOAD_CHANNELS[number];
 // Matches the main process limit on the optional channel name.
 export const IMGBED_MAX_CHANNEL_NAME_LENGTH = 100;
+// Compares ImgBed addresses the way the main process parses them: URL parsing
+// lowercases the host and drops a default port, and the site root and its
+// /upload address are the same site. Unparsable text is compared as typed.
+export const imgBedSiteKey = (endpoint: string) => {
+  const value = endpoint.trim();
+  try {
+    const url = new URL(value);
+    // Search and hash stay in the key: the main process rejects them, so such an
+    // address must never reuse a list loaded for the plain one.
+    // Credentials stay in the key for the same reason (url.origin drops them).
+    const credentials = url.username || url.password ? `${url.username}:${url.password}@` : "";
+    return `${url.protocol}//${credentials}${url.host}${url.pathname.replace(/\/+$/, "").replace(/\/upload$/, "")}${url.search}${url.hash}`;
+  } catch { return value; }
+};
 // null means the user never changed the retry switch. It then follows the
 // channel name: retry like ImgBed without one, no retry with one so the image
 // cannot silently land in other storage. Matches resolveImgBedAutoRetry in main.

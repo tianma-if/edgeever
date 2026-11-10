@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import { expandImgBedFolder, imgBedAutoRetry, imgBedFolderError, isImgBedChannelNameValid, IMGBED_MAX_FOLDER_LENGTH, IMGBED_MAX_MEMO_ID_LENGTH } from "./imgbed.ts";
-import { normalizeImgBedChannelName, normalizeImgBedFolder, resolveImgBedAutoRetry } from "../../../desktop/src/main/imgbed.mjs";
+import { expandImgBedFolder, imgBedAutoRetry, imgBedFolderError, imgBedSiteKey, isImgBedChannelNameValid, IMGBED_MAX_FOLDER_LENGTH, IMGBED_MAX_MEMO_ID_LENGTH } from "./imgbed.ts";
+import { normalizeImgBedChannelName, normalizeImgBedEndpoint, normalizeImgBedFolder, resolveImgBedAutoRetry } from "../../../desktop/src/main/imgbed.mjs";
 
 const now = new Date(2026, 0, 5, 7, 8, 9, 42);
 
@@ -73,4 +73,31 @@ test("the settings page and the main process share the retry default", () => {
   }
   expect(imgBedAutoRetry(null, "")).toBe(true);
   expect(imgBedAutoRetry(null, " Main ")).toBe(false);
+});
+
+test("channel lists survive cosmetic address edits but not a different site", () => {
+  const key = imgBedSiteKey("https://img.example.com/upload");
+  for (const same of ["https://img.example.com", " https://img.example.com/ ", "https://IMG.example.com/upload/", "https://img.example.com:443"]) {
+    expect(imgBedSiteKey(same)).toBe(key);
+  }
+  for (const other of ["https://img.example.org", "http://img.example.com", "https://img.example.com/imgbed", "https://img.example.com:8443", "https://img.example.com/?x", "https://img.example.com/#x"]) {
+    expect(imgBedSiteKey(other)).not.toBe(key);
+  }
+  expect(imgBedSiteKey(" not a url ")).toBe("not a url");
+});
+
+test("the settings page's site key agrees with the main process address rule", () => {
+  // Two addresses share a loaded channel list exactly when main posts to the same URL.
+  const addresses = ["https://img.example.com", "https://img.example.com/", "https://img.example.com/upload", "https://IMG.example.com:443/upload/",
+    "https://img.example.com/imgbed", "https://img.example.com/imgbed/upload", "http://img.example.com", "https://img.example.org/upload"];
+  // Addresses main rejects (credentials, search) never share a key with an accepted one.
+  for (const rejected of ["https://u:p@img.example.com", "https://img.example.com/?x"]) {
+    expect(() => normalizeImgBedEndpoint(rejected)).toThrow();
+    for (const accepted of addresses) expect(imgBedSiteKey(rejected)).not.toBe(imgBedSiteKey(accepted));
+  }
+  for (const left of addresses) {
+    for (const right of addresses) {
+      expect(imgBedSiteKey(left) === imgBedSiteKey(right)).toBe(normalizeImgBedEndpoint(left).href === normalizeImgBedEndpoint(right).href);
+    }
+  }
 });

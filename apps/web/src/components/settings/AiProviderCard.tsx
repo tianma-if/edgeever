@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { AiModelConfig, AiProvider, AiProviderConfig, AuthSession } from "@edgeever/shared";
+import type { AiDiscoveredModel, AiModelConfig, AiProvider, AiProviderConfig, AuthSession } from "@edgeever/shared";
 import { CheckCircle2, Loader2, MoreHorizontal, Pencil, Plus, RefreshCw, SlidersHorizontal, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { aiErrorMessage, isLegacyProviderDisplayName, providerDefaults, trimAiText } from "@/components/settings/ai-provider-options";
-import { AiModelIdInput } from "@/components/settings/AiModelIdInput";
+import { ComboboxInput } from "@/components/ComboboxInput";
 import {
   AiModelOutputBudgetDialog,
   hasCustomAiModelOutputBudgets,
@@ -40,6 +40,9 @@ import {
 } from "@/lib/ai-model-discovery-cache";
 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+
+// A stable empty list, so memos keyed on the discovered models do not rerun every render.
+const EMPTY_DISCOVERED_MODELS: AiDiscoveredModel[] = [];
 
 export const AiProviderCard = ({ provider: saved, defaultDisplayName, defaultModelId, readOnly, onChanged }: {
   provider: AiProviderConfig;
@@ -99,7 +102,8 @@ export const AiProviderCard = ({ provider: saved, defaultDisplayName, defaultMod
     refetchOnReconnect: true,
     refetchInterval: (query) => nextModelDiscoveryRefresh(query.state.dataUpdatedAt, query.state.errorUpdatedAt),
   });
-  const discoveredModels = discoveryQuery.data?.models ?? [];
+  const discoveredModels = discoveryQuery.data?.models ?? EMPTY_DISCOVERED_MODELS;
+  const discoveredModelOptions = useMemo(() => discoveredModels.map((model) => ({ value: model.modelId, label: model.displayName })), [discoveredModels]);
   const discoveryLoading = discoveryQuery.isFetching && (!discoveryQuery.data || manualDiscovery);
   const discoveryError = (discoveryQuery.error && !discoveryQuery.data) || manualDiscoveryFailed;
   useEffect(() => {
@@ -472,10 +476,10 @@ export const AiProviderCard = ({ provider: saved, defaultDisplayName, defaultMod
             <Field as="div" label={t("aiModel.modelId")} hint={discoveryLoading
               ? t("aiModel.discoveryLoading")
               : discoveryQuery.data ? t("aiModel.discoveryComplete", { count: discoveredModels.length }) : undefined}>
-              <AiModelIdInput
+              <ComboboxInput
                 value={modelId}
                 onValueChange={setModelId}
-                models={discoveredModels}
+                options={discoveredModelOptions}
                 placeholder={t("aiModel.modelIdPlaceholder")}
               />
             </Field>
