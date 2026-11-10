@@ -33,7 +33,11 @@ test.beforeEach(async ({ page }) => {
   });
   await page.getByRole("button", { name: "Editor", exact: true }).click();
   await page.getByRole("button", { name: "Load channels" }).click();
-  await channelInput(page).click();
+  // Focus (which opens the list) instead of clicking: these tests drive the list
+  // with the keyboard only. A pointer left over the list would also move the
+  // highlight, because cmdk highlights the option under the pointer and WebKit
+  // sends a pointermove without movement after the list scrolls.
+  await channelInput(page).focus();
   await expect(page.getByRole("option", { name: "Main", exact: true })).toBeVisible();
 });
 
