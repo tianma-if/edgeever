@@ -49,7 +49,13 @@ export const serveSelfHostedStatic = async (request, webDirectory) => {
   }
 
   const file = Bun.file(candidate);
-  if (path && await file.exists()) {
+  const compressible = isCompressibleAsset(path);
+  const compressed = compressible ? Bun.file(`${candidate}.gz`) : null;
+  const hasGzip = compressed !== null && await compressed.exists();
+  const { gzip, identity } = compressible ? gzipQuality(request) : {};
+  const sendGzip = hasGzip && gzip > 0 && gzip >= (identity ?? 0);
+  const hasIdentity = !sendGzip && path && await file.exists();
+  if (hasGzip || hasIdentity) {
     const extension = extname(path);
     const headers = new Headers({ "Content-Type": contentTypes[extension] ?? "application/octet-stream" });
     if (isPublicPagePath(pathname)) {
@@ -60,18 +66,23 @@ export const serveSelfHostedStatic = async (request, webDirectory) => {
       headers.set("Cache-Control", fresh);
     }
 
-    if (isCompressibleAsset(path)) {
+    if (compressible) {
       headers.set("Vary", "Accept-Encoding");
-      const { gzip, identity } = gzipQuality(request);
-      if (gzip > 0 && gzip >= (identity ?? 0)) {
-        const compressed = Bun.file(`${candidate}.gz`);
-        if (await compressed.exists()) {
-          headers.set("Content-Encoding", "gzip");
-          return sendFile(request, compressed, headers);
-        }
+      if (sendGzip) {
+        headers.set("Content-Encoding", "gzip");
+        return sendFile(request, compressed, headers);
       }
       if (identity === 0) {
         return new Response(null, { status: 406, headers: { Vary: "Accept-Encoding" } });
+      }
+      if (!hasIdentity) {
+        if (request.method === "HEAD") {
+          // The gzip trailer records the original size of the build's single member.
+          const trailer = await compressed.slice(-4).arrayBuffer();
+          headers.set("Content-Length", String(new DataView(trailer).getUint32(0, true)));
+          return new Response(null, { headers });
+        }
+        return new Response(compressed.stream().pipeThrough(new DecompressionStream("gzip")), { headers });
       }
     }
     return sendFile(request, file, headers);

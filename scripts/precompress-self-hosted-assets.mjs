@@ -1,4 +1,4 @@
-import { readdir, readFile, writeFile } from "node:fs/promises";
+import { readdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
 import { isCompressibleAsset } from "./self-hosted-static.mjs";
@@ -11,5 +11,6 @@ for (const entry of await readdir(directory, { withFileTypes: true })) {
   const compressed = gzipSync(original);
   if (compressed.length < original.length) {
     await writeFile(`${path}.gz`, compressed);
+    await unlink(path);
   }
 }

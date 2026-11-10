@@ -1,7 +1,7 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -58,6 +58,9 @@ test("preserves MIME types without treating fixed asset names as immutable", asy
 });
 
 test("serves precompressed JS with the original MIME type and a separate cache variant", async () => {
+  const files = await readdir(join(webDirectory, "assets"));
+  assert.ok(files.includes("app-abCD12_E.js.gz"));
+  assert.ok(!files.includes("app-abCD12_E.js"));
   const response = await request(asset, "br, gzip");
   assert.equal(response.status, 200);
   assert.equal(response.headers.get("Content-Encoding"), "gzip");
@@ -82,6 +85,10 @@ test("respects encoding exclusions and keeps the identity representation cacheab
     assert.equal(response.headers.get("Vary"), "Accept-Encoding");
     assert.equal(await response.text(), source);
   }
+  const head = await request(asset, "identity", "HEAD");
+  assert.equal(head.headers.get("Content-Encoding"), null);
+  assert.equal(Number(head.headers.get("Content-Length")), Buffer.byteLength(source));
+  assert.equal(await head.text(), "");
   assert.equal((await request(asset, "*;q=1")).headers.get("Content-Encoding"), "gzip");
   assert.equal((await request(asset, "*;q=0")).status, 406);
   const tiny = await request("/assets/tiny-12345678.css", "gzip");
