@@ -79,7 +79,7 @@ describe("Docker release contract", () => {
     expect(packageMetadata.scripts["build:self-hosted"]).toBe(
       "bun build scripts/self-hosted-server.mjs --target=bun --format=esm --outdir=dist/self-hosted --sourcemap=none",
     );
-    expect(dockerfile).toContain("RUN bun run build:web && bun run build:self-hosted");
+    expect(dockerfile).toContain("RUN bun run build:web && bun scripts/precompress-self-hosted-assets.mjs && bun run build:self-hosted");
     expect(dockerfile).toContain("scripts/prepare-poster-thumbnails.mjs scripts/prepare-poster-thumbnails.d.mts scripts/");
     expect(dockerfile).toContain("RUN apk add --no-cache chromium nodejs");
     expect(dockerfile).toContain("EDGE_EVER_POSTER_CHROME_EXECUTABLE=/usr/bin/chromium");
