@@ -20,6 +20,7 @@
   <p>
     <a href="https://t.me/+GvKYnL37feUwOTNl"><img src="assets/readme/community/telegram.svg" alt="Telegram" width="16" height="16" align="absmiddle" /> Grupo de Telegram</a> &nbsp;|&nbsp;
     <a href="https://demo.edgeever.org">🌐 Demostración en vivo</a> &nbsp;|&nbsp;
+    <a href="https://github.com/users/tianma-if/projects/1">🗺️ Hoja de ruta</a> &nbsp;|&nbsp;
     <a href="#clientes-y-extensiones">📱 Clientes y extensiones</a> &nbsp;|&nbsp;
     <a href="#features">Matriz de funciones y capacidades</a> &nbsp;|&nbsp;
     <a href="docs/note-migration-guide.en-US.md">📥 Migración de notas</a>
