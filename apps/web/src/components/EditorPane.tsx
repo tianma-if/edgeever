@@ -669,6 +669,7 @@ const RichEditorPane = ({
     setEditorScrollContainer(element);
   }, []);
   const notebookOptions = useMemo(() => getNotebookMoveOptions(notebooks), [notebooks]);
+  const notebookName = notebookOptions.find((notebook) => notebook.id === memo?.notebookId)?.name;
   const readOnly = isTrashView || Boolean(memo?.isDeleted);
   const shareMemoId = memo && !readOnly && !isLocalMemoId(memo.id) ? memo.id : null;
   const shareStatusQuery = useQuery({
@@ -3071,7 +3072,7 @@ const RichEditorPane = ({
     markdownSource,
     memo,
     noteProse,
-    notebookName: notebookOptions.find((notebook) => notebook.id === memo?.notebookId)?.name ?? "",
+    notebookName: notebookName ?? "",
     onDocumentActionConsumed,
     onSaveAsTemplate,
     tagsText,
@@ -4840,6 +4841,7 @@ const RichEditorPane = ({
                     editor={editor}
                     title={title || getEditableMemoTitle(memo?.title)}
                     tags={memo?.tags}
+                    notebookName={notebookName}
                     updatedAt={memo?.updatedAt}
                     palette={noteProse.palette}
                   />
@@ -5063,7 +5065,7 @@ const RichEditorPane = ({
           contentMarkdown={currentMarkdownForAi}
           memoId={memo.id}
           notebookId={memo.notebookId}
-          notebookTitle={notebookOptions.find((notebook) => notebook.id === memo.notebookId)?.name}
+          notebookTitle={notebookName}
           noteTitle={title}
           beforeCompanionApply={beforeCompanionApply}
           onCompanionNotesChanged={onCompanionNotesChanged}

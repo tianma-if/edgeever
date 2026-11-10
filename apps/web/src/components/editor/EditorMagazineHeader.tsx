@@ -248,6 +248,8 @@ export const EditorMagazineHeader = ({
         >
           <span
             style={{
+              minWidth: 0,
+              overflowWrap: "anywhere",
               fontSize: "12px",
               color: isNative ? "#374151" : "rgba(255, 255, 255, 0.92)",
               fontWeight: 600,
