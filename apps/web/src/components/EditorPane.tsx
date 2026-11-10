@@ -31,7 +31,6 @@ import {
   Copy,
   AppWindow,
   CopyPlus,
-  LayoutTemplate,
   Lock,
   LockOpen,
 } from "lucide-react";
@@ -4385,16 +4384,53 @@ const RichEditorPane = ({
                   <DropdownMenuTrigger asChild>
                     <Button
                       className={cn(
-                        "gap-1.5 text-slate-500",
+                        "h-8 w-8 text-slate-500",
                         (showMagazineCover || showChapterNavigation) && "bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-300 hover:bg-slate-200",
                       )}
-                      size={editorPaneTight ? "icon" : "sm"}
+                      size="icon"
                       variant="ghost"
                       type="button"
                       aria-label={t("editor.readingStyle")}
                     >
-                      <LayoutTemplate className="h-4 w-4" aria-hidden="true" />
-                      {!editorPaneTight && <span className="hidden sm:inline">{t("editor.readingStyle")}</span>}
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.85"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="h-4 w-4"
+                        aria-hidden="true"
+                      >
+                        <rect
+                          x="3"
+                          y="3"
+                          width="18"
+                          height="9.5"
+                          rx="2"
+                          fill={showMagazineCover ? "currentColor" : "none"}
+                          fillOpacity={showMagazineCover ? "0.16" : undefined}
+                        />
+                        <path d="M7 7.75h6" />
+                        <rect
+                          x="3"
+                          y="15.5"
+                          width="7.5"
+                          height="5.5"
+                          rx="1.5"
+                          fill={showChapterNavigation ? "currentColor" : "none"}
+                          fillOpacity={showChapterNavigation ? "0.16" : undefined}
+                        />
+                        <rect
+                          x="13.5"
+                          y="15.5"
+                          width="7.5"
+                          height="5.5"
+                          rx="1.5"
+                          fill={showChapterNavigation ? "currentColor" : "none"}
+                          fillOpacity={showChapterNavigation ? "0.16" : undefined}
+                        />
+                      </svg>
                     </Button>
                   </DropdownMenuTrigger>
                 </IconTooltip>
