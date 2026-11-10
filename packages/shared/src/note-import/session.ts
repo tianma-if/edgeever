@@ -75,7 +75,20 @@ export class NoteImportSession {
       await this.sources.scan(signal, progress);
       for await (const entry of indexItems<SourceEntry>(this.index, "entry")) {
         signal?.throwIfAborted(); progress?.(entry.path);
-        if (this.format === "evernote") {
+        if (this.format === "flomo") {
+          if (!/\.html?$/i.test(entry.path)) continue;
+          await this.notebook("flomo");
+          await this.index.put("alias", `used:${entry.key}`, true);
+          try {
+            const { readFlomo } = await import("./flomo");
+            for await (const doc of readFlomo(await this.sources.text(entry, signal), entry, path => this.index.get<SourceEntry>("entry", path), signal)) {
+              if (doc.error) { await addIssue(this.index, doc.error.split(":")[0]!, doc.note.path, "error", doc.error); continue; }
+              await this.saveNote(doc.note);
+              await this.index.put("raw", `flomo:${doc.note.key}`, doc.contentMarkdown);
+              for (const resource of doc.note.resources) await this.index.put("alias", `used:${resource.entryKey}`, true);
+            }
+          } catch (error) { signal?.throwIfAborted(); await addIssue(this.index, "invalidFlomo", entry.path, "error", String(error)); }
+        } else if (this.format === "evernote") {
           if (/\.notes$/i.test(entry.path)) { await addIssue(this.index, "notesFormat", entry.path); continue; }
           if (!/\.enex$/i.test(entry.path)) continue;
           const notebookKey = await this.notebook(entry.path.replace(/\.enex$/i, ""));
@@ -115,7 +128,7 @@ export class NoteImportSession {
           await this.saveNote({ key: "", path: entry.path, entryKey: entry.key, notebookKey: await this.notebook(dirname(entry.path)), resources: [], ...meta });
         }
       }
-      if (this.format !== "evernote") {
+      if (this.format !== "evernote" && this.format !== "flomo") {
         for await (const note of indexItems<ImportNote>(this.index, "note")) {
           signal?.throwIfAborted();
           const doc = await this.readNote(note.key, signal);
@@ -279,6 +292,11 @@ export class NoteImportSession {
       }
       this.prepared = { note: { ...note, resources: note.resources.map(res => ({ ...res, chunks: raw!.resources.find(item => item.key === res.key)?.chunks ?? 0 })) }, contentMarkdown: "", enml: raw.content };
       return this.prepared;
+    }
+    if (this.format === "flomo") {
+      const contentMarkdown = await this.index.get<string>("raw", `flomo:${key}`);
+      if (contentMarkdown === undefined) throw new Error("missingNote");
+      return { note, contentMarkdown };
     }
     const text = await this.sources.text(entry, signal);
     return { note, contentMarkdown: note.raw ? readRaw(text)!.body : text };

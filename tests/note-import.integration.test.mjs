@@ -62,6 +62,76 @@ const target = async () => {
 };
 
 describe("native third-party import through the real API", () => {
+
+  test("flomo ZIP uses unified retries, new-task duplicates and local timestamps", async () => {
+    const { client, db, intercept } = await target();
+    const memo = `<div class="memo"><div class="time">2024-02-29 12:34:56</div><div class="content"><p><strong>flomo body</strong></p><p>正文#旅行#工作 #项目/ #️⃣ https://example.com/#fragment</p></div><div class="files"><img src="file/a.png"><img src="file/v.mp4" alt="memo image"></div></div>`;
+    const files = await archive([
+      { path: "export/notes.html", file: new File([`<div class="memos">${memo}${memo}</div>`], "notes.html") },
+      { path: "export/file/a.png", file: new File(["image bytes"], "a.png") },
+      { path: "export/file/v.mp4", file: new File(["video bytes"], "v.mp4") },
+    ], "zip");
+    const session = new NoteImportSession("flomo", files, new MemoryImportIndex());
+    expect(await session.scan()).toMatchObject({ notes: 2, resources: 4, notebooks: 1, errors: 0 });
+    const notes = await session.index.page("note");
+    expect(notes[0].tags).toEqual(["旅行", "工作", "项目"]);
+    expect(notes[0].createdAt).toBe(new Date(2024, 1, 29, 12, 34, 56).toISOString());
+    let uploads = 0;
+    intercept((url, init) => {
+      if (init?.method === "POST" && new URL(url).pathname.endsWith("/resource-uploads") && ++uploads === 2) return new Response(JSON.stringify({ error: { code: "failure", message: "Controlled failure" } }), { status: 503, headers: { "Content-Type": "application/json" } });
+    });
+    const options = { reader: session, index: session.index, client, convertEnml: convertImportEnml };
+    expect(await executeNoteImport(options)).toMatchObject({ completed: 0, failed: 1 });
+    const [partial] = await session.index.page("result");
+    const countBeforeRetry = db.query("SELECT COUNT(*) AS n FROM memos").get().n;
+    expect(await executeNoteImport(options)).toMatchObject({ completed: 2, failed: 0, resources: 4 });
+    expect(db.query("SELECT COUNT(*) AS n FROM memos").get().n).toBe(countBeforeRetry + 1);
+    const saved = (await client.getMemo(partial.memo.id)).memo;
+    expect(saved.contentMarkdown).toContain("**flomo body**");
+    expect(saved.contentMarkdown).not.toContain("flomo-resource:");
+    expect(saved.contentMarkdown).toContain("[v.mp4]");
+    expect(saved.createdAt).toBe(notes[0].createdAt);
+    const fresh = new NoteImportSession("flomo", files, new MemoryImportIndex());
+    await fresh.scan();
+    expect(await executeNoteImport({ ...options, reader: fresh, index: fresh.index })).toMatchObject({ completed: 2, failed: 0 });
+    expect(db.query("SELECT COUNT(*) AS n FROM memos").get().n).toBe(countBeforeRetry + 3);
+    await fresh.close(); await session.close(); db.close();
+  });
+
+  test("flomo capability rejection happens before creating destination notebooks", async () => {
+    const { client, db, intercept } = await target();
+    const html = '<div class="memos"><div class="memo"><div class="time">2024-01-01 00:00:00</div><div class="content">one</div></div></div>';
+    const session = new NoteImportSession("flomo", [{ path: "notes.html", file: new File([html], "notes.html") }], new MemoryImportIndex());
+    await session.scan();
+    const before = db.query("SELECT COUNT(*) AS n FROM notebooks").get().n;
+    intercept(url => new URL(url).pathname.endsWith("/imports/capabilities") ? new Response(JSON.stringify({ protocolVersion: 1, formats: ["evernote", "obsidian", "joplin"] }), { headers: { "Content-Type": "application/json" } }) : undefined);
+    await expect(executeNoteImport({ reader: session, index: session.index, client, convertEnml: convertImportEnml })).rejects.toThrow("unsupportedImportServer");
+    expect(db.query("SELECT COUNT(*) AS n FROM notebooks").get().n).toBe(before);
+    await session.close(); db.close();
+  });
+
+  test("flomo inert conversion drops executable markup and unsafe link schemes", async () => {
+    const html = `<div class="memos"><div class="memo"><div class="time">2024-01-01 00:00:00</div><div class="content"><p>safe</p><script>attack()</script><iframe srcdoc="bad"></iframe><a href="data:text/html,attack">label</a><a href="java&#10;script:attack()">other</a></div></div></div>`;
+    const session = new NoteImportSession("flomo", [{ path: "notes.html", file: new File([html], "notes.html") }], new MemoryImportIndex());
+    expect((await session.scan()).errors).toBe(0);
+    const [note] = await session.index.page("note");
+    const doc = await session.readNote(note.key);
+    expect(doc.contentMarkdown).toContain("label");
+    expect(doc.contentMarkdown).not.toMatch(/attack|data:|script:|iframe/);
+    await session.close();
+  });
+
+  test("flomo preflight blocks all writes for missing resources or invalid dates", async () => {
+    const { client, db } = await target();
+    const before = db.query("SELECT COUNT(*) AS n FROM memos").get().n;
+    const html = `<div class="memos"><div class="memo"><div class="time">2024-02-30 12:00:00</div><div class="content">bad date</div></div><div class="memo"><div class="time">2024-02-29 12:00:00</div><div class="content">missing</div><div class="files"><img src="lost.png"></div></div></div>`;
+    const session = new NoteImportSession("flomo", [{ path: "notes.html", file: new File([html], "notes.html") }], new MemoryImportIndex());
+    expect((await session.scan()).errors).toBeGreaterThanOrEqual(2);
+    await expect(executeNoteImport({ reader: session, index: session.index, client, convertEnml: convertImportEnml })).rejects.toThrow("preflightErrors");
+    expect(db.query("SELECT COUNT(*) AS n FROM memos").get().n).toBe(before);
+    await session.close(); db.close();
+  });
+
   test("imports growing notebooks without recounting previously imported notes", async () => {
     for (const count of [64, 256]) {
       const { client, env } = await target();

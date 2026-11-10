@@ -1,6 +1,6 @@
 export const noteImportEnUS = {
   "title": "Import from other apps",
-  "description": "Import notes and attachments from Evernote, Obsidian, or Joplin, preserving folders and attachments.",
+  "description": "Import notes and attachments from Evernote, Obsidian, Joplin, or flomo, preserving folders and attachments.",
   "open": "Start import",
   "viewProgress": "View import progress",
   "source": "Source app",
@@ -29,7 +29,10 @@ export const noteImportEnUS = {
   "incomplete": "Imported {{completed}} of {{total}} notes",
   "cancelled": "Cancelled · {{completed}} of {{total}} notes imported",
   "syncPending": "Imported data is saved on the server. Refresh the workspace to retry synchronization.",
+  "flomoHint": "Each new import creates new notes, even for the same ZIP. Times use your system timezone.",
   "issues": {
+    "invalidFlomo": "This is not a readable flomo HTML export.",
+    "invalidFlomoTime": "The flomo timestamp is invalid.",
     "notesFormat": "Export .enex from Evernote instead of selecting .notes.",
     "outsideRoot": "The file path leaves the selected folder.",
     "duplicatePath": "The archive contains duplicate paths.",
@@ -75,7 +78,7 @@ export const noteImportEnUS = {
 
 export const noteImportZhCN = {
   "title": "从其他应用导入",
-  "description": "导入 Evernote、Obsidian 或 Joplin 的笔记与附件，保留目录结构与媒体资源。",
+  "description": "导入 Evernote、Obsidian、Joplin 或 flomo 的笔记与附件，保留目录结构与媒体资源。",
   "open": "开始导入",
   "viewProgress": "查看导入进度",
   "source": "来源应用",
@@ -104,7 +107,10 @@ export const noteImportZhCN = {
   "incomplete": "已导入 {{completed}} / {{total}} 篇笔记",
   "cancelled": "已取消 · 已导入 {{completed}} / {{total}} 篇笔记",
   "syncPending": "导入数据已保存在服务端，刷新工作区可重试同步。",
+  "flomoHint": "每次新导入都会新增笔记，同一 ZIP 也保留多份。时间按系统时区解释。",
   "issues": {
+    "invalidFlomo": "这不是可读取的 flomo HTML 导出。",
+    "invalidFlomoTime": "flomo 时间无效。",
     "notesFormat": "请从印象笔记导出为 .enex，不能直接导入 .notes。",
     "outsideRoot": "文件路径超出所选文件夹。",
     "duplicatePath": "归档包含重复路径，无法确定应使用哪个文件。",
@@ -150,7 +156,7 @@ export const noteImportZhCN = {
 
 export const noteImportJa = {
   "title": "他のアプリからインポート",
-  "description": "Evernote・Obsidian・Joplin のノートと添付ファイルをインポートします。",
+  "description": "Evernote・Obsidian・Joplin・flomo のノートと添付ファイルをインポートします。",
   "open": "インポートを開始",
   "viewProgress": "進捗を表示",
   "source": "移行元のアプリ",
@@ -179,7 +185,10 @@ export const noteImportJa = {
   "incomplete": "{{total}} 件中 {{completed}} 件をインポート",
   "cancelled": "中止しました・{{total}} 件中 {{completed}} 件をインポート",
   "syncPending": "データはサーバーに保存済みです。ワークスペースを更新して同期してください。",
+  "flomoHint": "同じ ZIP でも、新しいインポートでは新しいノートを作成します。日時はシステムのタイムゾーンで解釈します。",
   "issues": {
+    "invalidFlomo": "読み取れる flomo HTML エクスポートではありません。",
+    "invalidFlomoTime": "flomo の日時が無効です。",
     "notesFormat": "Evernote から .enex を書き出してください。.notes は読み込めません。",
     "outsideRoot": "パスが選択したフォルダーの外を参照しています。",
     "duplicatePath": "アーカイブに重複するパスがあります。",
@@ -225,7 +234,7 @@ export const noteImportJa = {
 
 export const noteImportPl = {
   "title": "Import z innych aplikacji",
-  "description": "Importuj notatki i załączniki z Evernote, Obsidian lub Joplin.",
+  "description": "Importuj notatki i załączniki z Evernote, Obsidian, Joplin lub flomo.",
   "open": "Rozpocznij import",
   "viewProgress": "Pokaż postęp importu",
   "source": "Aplikacja źródłowa",
@@ -254,7 +263,10 @@ export const noteImportPl = {
   "incomplete": "Zaimportowano {{completed}} z {{total}} notatek",
   "cancelled": "Anulowano · Zaimportowano {{completed}} z {{total}} notatek",
   "syncPending": "Dane zapisano na serwerze. Odśwież obszar roboczy, aby ponowić synchronizację.",
+  "flomoHint": "Każdy nowy import tworzy nowe notatki, także z tego samego ZIP. Czas używa strefy systemowej.",
   "issues": {
+    "invalidFlomo": "To nie jest prawidłowy eksport HTML flomo.",
+    "invalidFlomoTime": "Nieprawidłowy czas flomo.",
     "notesFormat": "Wyeksportuj .enex z Evernote zamiast wybierać .notes.",
     "outsideRoot": "Ścieżka wychodzi poza wybrany folder.",
     "duplicatePath": "Archiwum zawiera powtórzone ścieżki.",
@@ -300,7 +312,7 @@ export const noteImportPl = {
 
 export const noteImportRu = {
   "title": "Импорт из других приложений",
-  "description": "Импортируйте заметки и вложения из Evernote, Obsidian или Joplin.",
+  "description": "Импортируйте заметки и вложения из Evernote, Obsidian, Joplin или flomo.",
   "open": "Начать импорт",
   "viewProgress": "Показать ход импорта",
   "source": "Исходное приложение",
@@ -329,7 +341,10 @@ export const noteImportRu = {
   "incomplete": "Импортировано {{completed}} из {{total}} заметок",
   "cancelled": "Отменено · Импортировано {{completed}} из {{total}} заметок",
   "syncPending": "Данные сохранены на сервере. Обновите рабочее пространство для повторной синхронизации.",
+  "flomoHint": "Каждый новый импорт создаёт новые заметки, даже из того же ZIP. Используется системный часовой пояс.",
   "issues": {
+    "invalidFlomo": "Это не читаемый HTML-экспорт flomo.",
+    "invalidFlomoTime": "Недопустимое время flomo.",
     "notesFormat": "Экспортируйте .enex из Evernote вместо выбора .notes.",
     "outsideRoot": "Путь выходит за пределы выбранной папки.",
     "duplicatePath": "Архив содержит повторяющиеся пути.",
@@ -376,7 +391,7 @@ export const noteImportRu = {
 
 export const noteImportZhTW = {
   "title": "從其他應用匯入",
-  "description": "匯入 Evernote、Obsidian 或 Joplin 的筆記與附件，保留目錄結構與媒體資源。",
+  "description": "匯入 Evernote、Obsidian、Joplin 或 flomo 的筆記與附件，保留目錄結構與媒體資源。",
   "open": "開始匯入",
   "viewProgress": "檢視匯入進度",
   "source": "來源應用",
@@ -405,7 +420,10 @@ export const noteImportZhTW = {
   "incomplete": "已匯入 {{completed}} / {{total}} 篇筆記",
   "cancelled": "已取消 · 已匯入 {{completed}} / {{total}} 篇筆記",
   "syncPending": "匯入資料已儲存在服務端，重新整理工作區可重試同步。",
+  "flomoHint": "每次新匯入都會新增筆記，同一 ZIP 也保留多份。時間按系統時區解釋。",
   "issues": {
+    "invalidFlomo": "這不是可讀取的 flomo HTML 匯出。",
+    "invalidFlomoTime": "flomo 時間無效。",
     "notesFormat": "請從印象筆記匯出為 .enex，不能直接匯入 .notes。",
     "outsideRoot": "檔案路徑超出所選資料夾。",
     "duplicatePath": "歸檔包含重複路徑，無法確定應使用哪個檔案。",
@@ -451,7 +469,7 @@ export const noteImportZhTW = {
 
 export const noteImportEs = {
   "title": "Importar desde otras aplicaciones",
-  "description": "Importa notas y archivos adjuntos desde Evernote, Obsidian o Joplin, conservando las carpetas y los adjuntos.",
+  "description": "Importa notas y archivos adjuntos desde Evernote, Obsidian, Joplin o flomo, conservando las carpetas y los adjuntos.",
   "open": "Iniciar importación",
   "viewProgress": "Ver progreso de la importación",
   "source": "Aplicación de origen",
@@ -480,7 +498,10 @@ export const noteImportEs = {
   "incomplete": "Se importaron {{completed}} de {{total}} notas",
   "cancelled": "Cancelado · {{completed}} de {{total}} notas importadas",
   "syncPending": "Los datos importados están guardados en el servidor. Actualiza el espacio de trabajo para reintentar la sincronización.",
+  "flomoHint": "Cada nueva importación crea notas nuevas, incluso con el mismo ZIP. Se usa la zona horaria del sistema.",
   "issues": {
+    "invalidFlomo": "No es una exportación HTML de flomo válida.",
+    "invalidFlomoTime": "La fecha de flomo no es válida.",
     "notesFormat": "Exporta en formato .enex desde Evernote en lugar de seleccionar .notes.",
     "outsideRoot": "La ruta del archivo queda fuera de la carpeta seleccionada.",
     "duplicatePath": "El archivo contiene rutas duplicadas.",
@@ -526,7 +547,7 @@ export const noteImportEs = {
 
 export const noteImportDe = {
   "title": "Aus anderen Apps importieren",
-  "description": "Notizen und Anhänge aus Evernote, Obsidian oder Joplin importieren, inklusive Beibehaltung von Ordnern und Anhängen.",
+  "description": "Notizen und Anhänge aus Evernote, Obsidian, Joplin oder flomo importieren, inklusive Beibehaltung von Ordnern und Anhängen.",
   "open": "Import starten",
   "viewProgress": "Importfortschritt anzeigen",
   "source": "Quell-App",
@@ -555,7 +576,10 @@ export const noteImportDe = {
   "incomplete": "{{completed}} von {{total}} Notizen importiert",
   "cancelled": "Abgebrochen · {{completed}} von {{total}} Notizen importiert",
   "syncPending": "Importierte Daten sind auf dem Server gespeichert. Aktualisiere den Arbeitsbereich, um die Synchronisierung zu wiederholen.",
+  "flomoHint": "Jeder neue Import erstellt neue Notizen, auch aus derselben ZIP. Zeiten verwenden die Systemzeitzone.",
   "issues": {
+    "invalidFlomo": "Dies ist kein lesbarer flomo-HTML-Export.",
+    "invalidFlomoTime": "Der flomo-Zeitstempel ist ungültig.",
     "notesFormat": "Exportiere .enex aus Evernote anstelle von .notes.",
     "outsideRoot": "Der Dateipfad verlässt den ausgewählten Ordner.",
     "duplicatePath": "Das Archiv enthält doppelte Pfade.",
@@ -601,7 +625,7 @@ export const noteImportDe = {
 
 export const noteImportFr = {
   "title": "Importer depuis d'autres applications",
-  "description": "Importez vos notes et pièces jointes depuis Evernote, Obsidian ou Joplin, en conservant les dossiers et les pièces jointes.",
+  "description": "Importez vos notes et pièces jointes depuis Evernote, Obsidian, Joplin ou flomo, en conservant les dossiers et les pièces jointes.",
   "open": "Démarrer l'importation",
   "viewProgress": "Afficher la progression de l'importation",
   "source": "Application source",
@@ -630,7 +654,10 @@ export const noteImportFr = {
   "incomplete": "{{completed}} sur {{total}} notes importées",
   "cancelled": "Annulé · {{completed}} sur {{total}} notes importées",
   "syncPending": "Les données importées sont enregistrées sur le serveur. Actualisez l'espace de travail pour relancer la synchronisation.",
+  "flomoHint": "Chaque nouvel import crée de nouvelles notes, même avec le même ZIP. Les dates utilisent le fuseau du système.",
   "issues": {
+    "invalidFlomo": "Ce fichier n’est pas un export HTML flomo lisible.",
+    "invalidFlomoTime": "La date flomo est invalide.",
     "notesFormat": "Exportez au format .enex depuis Evernote plutôt que de sélectionner .notes.",
     "outsideRoot": "Le chemin du fichier sort du dossier sélectionné.",
     "duplicatePath": "L'archive contient des chemins en double.",
