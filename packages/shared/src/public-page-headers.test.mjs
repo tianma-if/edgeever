@@ -34,9 +34,4 @@ describe("public page headers", () => {
       expect(Object.fromEntries(rules.get(route) ?? [])).toEqual(PUBLIC_PAGE_HEADERS);
     }
   });
-
-  test("the Docker static server applies the policy to public app routes", () => {
-    const server = readFileSync(new URL("../../../scripts/self-hosted-server.mjs", import.meta.url), "utf8");
-    expect(server).toContain("...(isPublicPagePath(url.pathname) ? PUBLIC_PAGE_HEADERS : {})");
-  });
 });

@@ -103,16 +103,20 @@ test("does not cache the entry points or serve the app shell for an obsolete ass
     assert.equal(response.headers.get("Cache-Control"), "no-cache, no-store, must-revalidate");
     assert.equal(response.headers.get("Content-Encoding"), null);
   }
-  for (const path of ["/share/token", "/form/token"]) {
-    const response = await request(path, "gzip");
-    assert.equal(response.headers.get("Cache-Control"), "private, no-store");
-    assert.equal(response.headers.get("Referrer-Policy"), "no-referrer");
-    assert.match(response.headers.get("X-Robots-Tag"), /noindex/);
-    assert.equal(await response.text(), html);
-  }
   for (const path of [`${asset}.gz`, "/assets/app-previous.js"]) {
     const response = await request(path, "gzip");
     assert.equal(response.status, 404);
     assert.doesNotMatch(response.headers.get("Cache-Control") ?? "", /immutable/);
+  }
+});
+
+test("serves the app shell with privacy headers on public share and form routes", async () => {
+  for (const path of ["/share/token", "/form/token"]) {
+    const response = await request(path, "gzip");
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("Cache-Control"), "private, no-store");
+    assert.equal(response.headers.get("Referrer-Policy"), "no-referrer");
+    assert.equal(response.headers.get("X-Robots-Tag"), "noindex, nofollow, noarchive, nosnippet, noimageindex");
+    assert.equal(await response.text(), html);
   }
 });
