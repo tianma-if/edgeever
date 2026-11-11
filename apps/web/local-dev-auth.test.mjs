@@ -53,6 +53,54 @@ describe("local browser auto-login boundary", () => {
     expect(provision).not.toHaveBeenCalled();
   });
 
+  test("reports an unavailable API without a Vite overlay and recovers on the next request", async () => {
+    const { handler, provision } = setup();
+    spyOn(globalThis, "fetch")
+      .mockRejectedValueOnce(new TypeError("fetch failed"))
+      .mockResolvedValueOnce(Response.json({ authRequired: true, authenticated: false }))
+      .mockResolvedValueOnce(Response.json({ authRequired: true, authenticated: true }));
+    const unavailable = response();
+    const next = mock();
+    await handler(request(), unavailable, next);
+    expect(next).not.toHaveBeenCalled();
+    expect(unavailable.statusCode).toBe(503);
+    expect(unavailable.setHeader).toHaveBeenCalledWith("Retry-After", "1");
+    expect(unavailable.setHeader.mock.calls.some(([name]) => name === "Set-Cookie")).toBe(false);
+    expect(JSON.parse(unavailable.end.mock.calls[0][0]).error.code).toBe("local_api_unavailable");
+    expect(provision).not.toHaveBeenCalled();
+
+    const recovered = response();
+    await handler(request(), recovered, next);
+    expect(JSON.parse(recovered.end.mock.calls[0][0]).authenticated).toBe(true);
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  test("does not set session or logout cookies when an upstream request fails", async () => {
+    const { handler } = setup();
+    spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(Response.json({ authRequired: true, authenticated: false }))
+      .mockRejectedValueOnce(new DOMException("Timed out", "TimeoutError"))
+      .mockRejectedValueOnce(new TypeError("fetch failed"));
+    for (const req of [request(), { ...request(), url: "/api/v1/auth/logout", method: "POST" }]) {
+      const res = response();
+      const next = mock();
+      await handler(req, res, next);
+      expect(res.statusCode).toBe(503);
+      expect(res.setHeader.mock.calls.some(([name]) => name === "Set-Cookie")).toBe(false);
+      expect(next).not.toHaveBeenCalled();
+    }
+  });
+
+  test("still surfaces unexpected provisioning failures", async () => {
+    const { handler, provision } = setup();
+    spyOn(globalThis, "fetch").mockResolvedValue(Response.json({ authRequired: true, authenticated: false }));
+    const failure = new Error("Session provisioning failed");
+    provision.mockRejectedValueOnce(failure);
+    const next = mock();
+    await handler(request(), response(), next);
+    expect(next).toHaveBeenCalledWith(failure);
+  });
+
   test("does not create sessions for foreign hosts or cross-site requests", async () => {
     const { handler, provision } = setup();
     const fetchMock = spyOn(globalThis, "fetch");
