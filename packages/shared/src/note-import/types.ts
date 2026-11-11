@@ -1,6 +1,6 @@
 import type { MemoDetail } from "../types";
 
-export type ImportFormat = "evernote" | "obsidian" | "joplin" | "flomo";
+export type ImportFormat = "evernote" | "obsidian" | "joplin" | "flomo" | "notion" | "siyuan";
 export type ImportOptions = { includeUnreferencedAttachments?: boolean };
 export type ImportFile = { path: string; file: File; expandArchive?: boolean };
 export type ImportIssue = { key: string; severity: "error" | "warning"; code: string; path: string; detail?: string };

@@ -16,6 +16,8 @@ import type { NoteImportController, NoteImportSnapshot } from "@/lib/note-import
 import { EVERNOTE_MIGRATION_BLOG_URL } from "@/lib/routes";
 
 const importSources = {
+  notion: { label: "Notion", logo: undefined, formatHint: "Markdown & CSV · .zip" },
+  siyuan: { label: "SiYuan / 思源", logo: undefined, formatHint: "Markdown · .zip" },
   flomo: { label: "flomo", logo: flomoLogo, formatHint: "HTML · .zip" },
   evernote: {
     label: "Evernote / 印象笔记",
@@ -203,6 +205,7 @@ export const ThirdPartyImportDialog = ({ controller, state, onOpenMemo }: { cont
               <Switch id="import-unreferenced-attachments" checked={state.includeUnreferencedAttachments} disabled={busy} onCheckedChange={controller.setIncludeUnreferencedAttachments} />
             </div>
           ) : null}
+          {(state.format === "notion" || state.format === "siyuan") && <p className="text-xs text-muted-foreground">{t(`noteImport.${state.format}Hint`)}</p>}
           {state.format === "flomo" && <p className="text-xs text-muted-foreground">{t("noteImport.flomoHint")}</p>}
           {state.phase === "idle" ? (
             <div className="space-y-4">
@@ -294,11 +297,7 @@ export const ThirdPartyImportDialog = ({ controller, state, onOpenMemo }: { cont
                 <div className="mt-3.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
                   <span>{t("noteImport.supportedFormats")}</span>
                   <span className="font-mono rounded border border-border/50 bg-background/80 px-1.5 py-0.5 text-foreground/80">
-                    {state.format === "evernote"
-                      ? ".enex · .zip"
-                      : state.format === "flomo" ? "HTML · .zip" : state.format === "obsidian"
-                        ? "Vault · .zip"
-                        : ".jex · RAW · .zip"}
+                    {importSources[state.format].formatHint}
                   </span>
                 </div>
               </div>
@@ -311,7 +310,7 @@ export const ThirdPartyImportDialog = ({ controller, state, onOpenMemo }: { cont
             multiple
             className="hidden"
             data-testid="note-import-files"
-            accept={state.format === "flomo" ? ".html,.htm,.zip" : state.format === "evernote" ? ".enex,.zip,.notes" : state.format === "joplin" ? ".zip,.jex" : ".zip"}
+            accept={state.format === "notion" ? ".md,.markdown,.csv,.zip" : state.format === "siyuan" ? ".md,.markdown,.zip" : state.format === "flomo" ? ".html,.htm,.zip" : state.format === "evernote" ? ".enex,.zip,.notes" : state.format === "joplin" ? ".zip,.jex" : ".zip"}
             onChange={event => selectFiles(event.currentTarget, false)}
           />
           <input
