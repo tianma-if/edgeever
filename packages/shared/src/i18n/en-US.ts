@@ -2184,8 +2184,8 @@ export const enUS = {
     desktopUpdateFailed: "Update failed. Please try again later.",
   },
   feedback: {
-    title: "Feedback",
-    description: "Report a problem or suggest a feature",
+    title: "Submit an Issue",
+    description: "Report a problem or suggest a feature on GitHub",
     issueTitlePrefix: "[Feedback] ",
     issueContentHeading: "Feedback",
     issueContentPrompt: "Describe the problem, steps to reproduce it, or the feature you would like to see.",
