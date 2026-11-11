@@ -10,6 +10,7 @@ import {
 import { dirname, resolve } from "node:path";
 import {
   buildLocalDevEnvironmentFile,
+  configureDemoAssetRouting,
   deployedWorkerSettings,
   DEPLOYMENT_TARGETS_PATH,
   findD1DatabaseIdByName,
@@ -361,6 +362,8 @@ const localDemoSeed = envValue("LOCAL_DEMO_SEED")?.toLowerCase();
 if (localDemoSeed && !["true", "false"].includes(localDemoSeed)) {
   throw new Error("EDGE_EVER_LOCAL_DEMO_SEED must be true or false.");
 }
+
+config = configureDemoAssetRouting(config, demoMode === "true");
 
 if (demoMode === "true") {
   // Default: daily 19:00 UTC = 03:00 China Standard Time (UTC+8).

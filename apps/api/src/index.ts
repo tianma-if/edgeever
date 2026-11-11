@@ -1,3 +1,5 @@
+import { servePublicDemoRequest } from "./public-demo-page";
+import { isEdgeEverAppPath } from "./app-paths";
 import { isDatabaseDailyQuotaError } from "./database-errors";
 import {
   createExcerpt,
@@ -474,27 +476,32 @@ export const fetchEdgeEverApp = async (
 
 const worker = {
   async fetch(request: Request, env: WorkerBindings, ctx: ExecutionContext) {
-    const { pathname } = new URL(request.url);
-    const loadAppShell = () => env.ASSETS.fetch(new Request(new URL("/", request.url), { method: "GET" }));
-    if (isNotebookSitePagePath(pathname)) {
-      return (await renderNotebookSitePage(request, createCloudflareStorageAdapter(env).db, loadAppShell))!;
-    }
-    // `/share/*` runs the worker first. Unknown share paths still fall through
-    // to the asset shell so a typo does not become a JSON 404.
-    if (pathname.startsWith("/share/")) {
-      if (isPublicMemoSharePagePath(pathname)) {
-        const page = await renderPublicMemoSharePage(request, createCloudflareStorageAdapter(env).db, loadAppShell);
-        if (page) return page;
+    return servePublicDemoRequest(request, async () => {
+      const { pathname } = new URL(request.url);
+      const loadAppShell = () => env.ASSETS.fetch(new Request(new URL("/", request.url), { method: "GET" }));
+      if (isNotebookSitePagePath(pathname)) {
+        return (await renderNotebookSitePage(request, createCloudflareStorageAdapter(env).db, loadAppShell))!;
       }
-      return env.ASSETS.fetch(request);
-    }
-    return fetchEdgeEverApp(request, {
-      ...env,
-      storage: createCloudflareStorageAdapter(env),
-      deploymentVersionCreatedAt: env.CF_VERSION_METADATA?.timestamp,
-      // workerd's default Internet egress checks resolved addresses against its public-only network policy.
-      publicNetworkFetch: (url, init) => fetch(url, init),
-    }, ctx);
+      // `/share/*` runs the worker first. Unknown share paths still fall through
+      // to the asset shell so a typo does not become a JSON 404.
+      if (pathname.startsWith("/share/")) {
+        if (isPublicMemoSharePagePath(pathname)) {
+          const page = await renderPublicMemoSharePage(request, createCloudflareStorageAdapter(env).db, loadAppShell);
+          if (page) return page;
+        }
+        return env.ASSETS.fetch(request);
+      }
+      if (!isEdgeEverAppPath(pathname) && pathname !== "/__scheduled") {
+        return env.ASSETS.fetch(request);
+      }
+      return fetchEdgeEverApp(request, {
+        ...env,
+        storage: createCloudflareStorageAdapter(env),
+        deploymentVersionCreatedAt: env.CF_VERSION_METADATA?.timestamp,
+        // workerd's default Internet egress checks resolved addresses against its public-only network policy.
+        publicNetworkFetch: (url, init) => fetch(url, init),
+      }, ctx);
+    });
   },
   async scheduled(controller: ScheduledController, env: WorkerBindings, ctx: ExecutionContext) {
     const runtimeEnv = {
