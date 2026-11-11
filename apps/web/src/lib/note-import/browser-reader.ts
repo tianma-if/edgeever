@@ -1,4 +1,4 @@
-import type { ImportDocument, ImportFile, ImportFormat, ImportIndex, ImportNote, ImportReader, ImportResource, ImportSummary } from "@edgeever/shared/note-import/types";
+import type { ImportDocument, ImportFile, ImportFormat, ImportIndex, ImportNote, ImportOptions, ImportReader, ImportResource, ImportSummary } from "@edgeever/shared/note-import/types";
 
 export class BrowserImportReader implements ImportReader {
   private worker = new Worker(new URL("./worker.ts", import.meta.url), { type: "module" });
@@ -32,7 +32,7 @@ export class BrowserImportReader implements ImportReader {
       this.worker.postMessage({ requestId, method, args });
     });
   }
-  scan(files: ImportFile[]) { return this.request<ImportSummary>("scan", { id: this.id, format: this.format, files }); }
+  scan(files: ImportFile[], options: ImportOptions = {}) { return this.request<ImportSummary>("scan", { id: this.id, format: this.format, files, options }); }
   reset() { return this.request<void>("reset"); }
   abort() { if (!this.closed) this.worker.postMessage({ method: "abort" }); }
   readNote(key: string) { return this.request<ImportDocument>("note", key); }

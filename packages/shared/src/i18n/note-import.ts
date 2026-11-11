@@ -1,4 +1,6 @@
 export const noteImportEnUS = {
+  "unreferencedAttachments": "Create a note for each unreferenced attachment",
+  "unreferencedAttachmentsHint": "Keep standalone documents and media in their original folders. Hidden files, configuration, and caches are excluded.",
   "title": "Import from other apps",
   "description": "Import notes and attachments from Evernote, Obsidian, or Joplin, preserving folders and attachments.",
   "open": "Start import",
@@ -74,6 +76,8 @@ export const noteImportEnUS = {
 } as const;
 
 export const noteImportZhCN = {
+  "unreferencedAttachments": "将未引用附件创建为独立笔记",
+  "unreferencedAttachmentsHint": "保留独立文档与媒体及其原目录；不包含隐藏文件、配置和缓存。",
   "title": "从其他应用导入",
   "description": "导入 Evernote、Obsidian 或 Joplin 的笔记与附件，保留目录结构与媒体资源。",
   "open": "开始导入",
@@ -149,6 +153,8 @@ export const noteImportZhCN = {
 } as const;
 
 export const noteImportJa = {
+  "unreferencedAttachments": "参照されていない添付ファイルごとにノートを作成",
+  "unreferencedAttachmentsHint": "単独の文書やメディアを元のフォルダーに保持します。隠しファイル、設定、キャッシュは除外します。",
   "title": "他のアプリからインポート",
   "description": "Evernote・Obsidian・Joplin のノートと添付ファイルをインポートします。",
   "open": "インポートを開始",
@@ -224,6 +230,8 @@ export const noteImportJa = {
 } as const;
 
 export const noteImportPl = {
+  "unreferencedAttachments": "Utwórz notatkę dla każdego niepowiązanego załącznika",
+  "unreferencedAttachmentsHint": "Zachowaj samodzielne dokumenty i multimedia w oryginalnych folderach. Ukryte pliki, konfiguracja i pamięć podręczna są pomijane.",
   "title": "Import z innych aplikacji",
   "description": "Importuj notatki i załączniki z Evernote, Obsidian lub Joplin.",
   "open": "Rozpocznij import",
@@ -299,6 +307,8 @@ export const noteImportPl = {
 } as const;
 
 export const noteImportRu = {
+  "unreferencedAttachments": "Создавать заметку для каждого вложения без ссылок",
+  "unreferencedAttachmentsHint": "Сохранять отдельные документы и медиа в исходных папках. Скрытые файлы, настройки и кеш исключаются.",
   "title": "Импорт из других приложений",
   "description": "Импортируйте заметки и вложения из Evernote, Obsidian или Joplin.",
   "open": "Начать импорт",
@@ -375,6 +385,8 @@ export const noteImportRu = {
 
 
 export const noteImportZhTW = {
+  "unreferencedAttachments": "將未引用附件建立為獨立筆記",
+  "unreferencedAttachmentsHint": "保留獨立文件與媒體及其原目錄；不包含隱藏檔案、設定和快取。",
   "title": "從其他應用匯入",
   "description": "匯入 Evernote、Obsidian 或 Joplin 的筆記與附件，保留目錄結構與媒體資源。",
   "open": "開始匯入",
@@ -450,6 +462,8 @@ export const noteImportZhTW = {
 } as const;
 
 export const noteImportEs = {
+  "unreferencedAttachments": "Crear una nota por cada adjunto sin referencias",
+  "unreferencedAttachmentsHint": "Conserva documentos y medios independientes en sus carpetas originales. Se excluyen archivos ocultos, configuración y cachés.",
   "title": "Importar desde otras aplicaciones",
   "description": "Importa notas y archivos adjuntos desde Evernote, Obsidian o Joplin, conservando las carpetas y los adjuntos.",
   "open": "Iniciar importación",
@@ -525,6 +539,8 @@ export const noteImportEs = {
 } as const;
 
 export const noteImportDe = {
+  "unreferencedAttachments": "Für jeden nicht verknüpften Anhang eine Notiz erstellen",
+  "unreferencedAttachmentsHint": "Einzelne Dokumente und Medien in ihren ursprünglichen Ordnern behalten. Versteckte Dateien, Konfiguration und Caches werden ausgeschlossen.",
   "title": "Aus anderen Apps importieren",
   "description": "Notizen und Anhänge aus Evernote, Obsidian oder Joplin importieren, inklusive Beibehaltung von Ordnern und Anhängen.",
   "open": "Import starten",
@@ -600,6 +616,8 @@ export const noteImportDe = {
 } as const;
 
 export const noteImportFr = {
+  "unreferencedAttachments": "Créer une note par pièce jointe non référencée",
+  "unreferencedAttachmentsHint": "Conserver les documents et médias indépendants dans leurs dossiers d’origine. Les fichiers cachés, configurations et caches sont exclus.",
   "title": "Importer depuis d'autres applications",
   "description": "Importez vos notes et pièces jointes depuis Evernote, Obsidian ou Joplin, en conservant les dossiers et les pièces jointes.",
   "open": "Démarrer l'importation",

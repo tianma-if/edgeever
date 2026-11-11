@@ -5,6 +5,7 @@ import evernoteLogo from "@/assets/import-logos/evernote.svg?url";
 import joplinLogo from "@/assets/import-logos/joplin.svg?url";
 import obsidianLogo from "@/assets/import-logos/obsidian.svg?url";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -191,6 +192,15 @@ export const ThirdPartyImportDialog = ({ controller, state, onOpenMemo }: { cont
         </DialogHeader>
 
         <div className="min-h-0 space-y-5 overflow-y-auto pr-1">
+          {state.format === "obsidian" && ["idle", "scanning", "ready"].includes(state.phase) ? (
+            <div className="flex items-center justify-between gap-4 rounded-lg border p-3">
+              <div className="space-y-1">
+                <label htmlFor="import-unreferenced-attachments" className="text-xs font-medium">{t("noteImport.unreferencedAttachments")}</label>
+                <p className="text-xs text-muted-foreground">{t("noteImport.unreferencedAttachmentsHint")}</p>
+              </div>
+              <Switch id="import-unreferenced-attachments" checked={state.includeUnreferencedAttachments} disabled={busy} onCheckedChange={controller.setIncludeUnreferencedAttachments} />
+            </div>
+          ) : null}
           {state.phase === "idle" ? (
             <div className="space-y-4">
               <div className="space-y-2">

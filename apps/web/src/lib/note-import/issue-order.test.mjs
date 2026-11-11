@@ -11,7 +11,7 @@ test("missing timestamps and unreferenced attachments do not produce import issu
     { path: "unused.png", file: new File(["unused"], "unused.png") },
   ], index);
   try {
-    expect(await session.scan()).toMatchObject({ notes: 1, resources: 0, errors: 0, warnings: 0 });
+    expect(await session.scan()).toMatchObject({ notes: 2, resources: 1, errors: 0, warnings: 0 });
     expect(await index.page("issue")).toEqual([]);
   } finally {
     await session.close();
@@ -33,7 +33,7 @@ for (const [name, createIndex] of [
   ], index);
   try {
     const summary = await session.scan();
-    expect(summary).toMatchObject({ notes: 31, errors: 2, warnings: 30 });
+    expect(summary).toMatchObject({ notes: 32, errors: 2, warnings: 30 });
     const first = await index.page("issue", 0, 20);
     expect(first).toHaveLength(20);
     expect(first.slice(0, 2).map(issue => issue.code)).toEqual(["missingResource", "missingResource"]);

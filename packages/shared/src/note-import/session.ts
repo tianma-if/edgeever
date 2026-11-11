@@ -1,4 +1,4 @@
-import type { ImportDocument, ImportFile, ImportFormat, ImportIndex, ImportIssue, ImportNote, ImportNotebook, ImportReference, ImportResource, ImportSummary, SourceEntry } from "./types";
+import type { ImportDocument, ImportFile, ImportFormat, ImportIndex, ImportIssue, ImportNote, ImportNotebook, ImportOptions, ImportReference, ImportResource, ImportSummary, SourceEntry } from "./types";
 import { IMPORT_CHUNK_BYTES } from "./types";
 import { indexItems } from "./index-store";
 import { addIssue, basename, dirname, ImportSources, normalPath, stem } from "./sources";
@@ -31,7 +31,7 @@ export class NoteImportSession {
   private prepared?: ImportDocument;
   private staged = new Set<string>();
   private nextNote = 0;
-  constructor(readonly format: ImportFormat, files: ImportFile[], readonly index: ImportIndex, id: string = crypto.randomUUID()) {
+  constructor(readonly format: ImportFormat, files: ImportFile[], readonly index: ImportIndex, id: string = crypto.randomUUID(), private options: ImportOptions = {}) {
     this.id = id;
     this.sources = new ImportSources(files, index);
   }
@@ -136,8 +136,24 @@ export class NoteImportSession {
           for (const resource of note.resources) {
             const max = resource.mimeType.startsWith("image/") ? 100 * 1024 * 1024 : 1024 * 1024 * 1024;
             if (resource.byteSize <= 0 || resource.byteSize > max) await addIssue(this.index, "resourceSize", note.path, "error", resource.filename);
+            await this.index.put("alias", `used:${resource.entryKey}`, true);
           }
           await this.index.put("note", note.key, note);
+        }
+      }
+      if (this.format === "obsidian" && this.options.includeUnreferencedAttachments !== false) {
+        for await (const entry of indexItems<SourceEntry>(this.index, "entry")) {
+          signal?.throwIfAborted();
+          // Import recognizable user documents/media, never hidden/config/cache files.
+          if (entry.path.split("/").some(part => part.startsWith(".") || /^(?:node_modules|cache|caches|__pycache__)$/i.test(part))) continue;
+          if (!/\.(?:png|jpe?g|gif|webp|svg|avif|bmp|pdf|txt|csv|mp3|mp4|wav|m4a|ogg|webm|mov|docx?|xlsx?|pptx?|epub|zip)$/i.test(entry.path)) continue;
+          if (await this.index.get("alias", `used:${entry.key}`)) continue;
+          const resource: ImportResource = { key: entry.key, entryKey: entry.key, filename: basename(entry.path), mimeType: mimeFromName(entry.path), byteSize: entry.size };
+          const label = resource.filename.replace(/[\\`*_[\]<>!]/g, "\\$&");
+          const href = encodeURIComponent(resource.filename).replace(/[!'()*]/g, char => `%${char.charCodeAt(0).toString(16)}`);
+          const attachmentMarkdown = `${resource.mimeType.startsWith("image/") ? "!" : ""}[${label}](${href})`;
+          const references = findImportReferences(attachmentMarkdown).map(ref => ({ ...ref, resourceKey: resource.key }));
+          await this.saveNote({ key: "", path: entry.path, entryKey: entry.key, notebookKey: await this.notebook(dirname(entry.path)), title: resource.filename, tags: [], resources: [resource], references, attachmentMarkdown });
         }
       }
       if (!await this.index.count("note")) await addIssue(this.index, "noNotes", "");
@@ -253,6 +269,7 @@ export class NoteImportSession {
     if (this.prepared?.note.key === key) return this.prepared;
     const note = await this.index.get<ImportNote>("note", key);
     if (!note) throw new Error("missingNote");
+    if (note.attachmentMarkdown !== undefined) return { note, contentMarkdown: note.attachmentMarkdown };
     const entry = await this.index.get<SourceEntry>("entry", note.entryKey);
     if (!entry) throw new Error("missingNote");
     if (this.format === "evernote") {

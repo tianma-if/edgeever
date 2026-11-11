@@ -1,6 +1,48 @@
 import { expect, test } from "bun:test";
 import { NoteImportController } from "./controller";
 
+test("standalone attachments default on and changing the option rescans while preserving destination", async () => {
+  await import("fake-indexeddb/auto");
+  const previousWorker = globalThis.Worker;
+  const scans = [];
+  class ScanWorker {
+    postMessage(message) {
+      if (message.method === "abort") return;
+      if (message.method === "scan") scans.push(message.args);
+      queueMicrotask(() => this.onmessage({ data: {
+        requestId: message.requestId,
+        result: message.method === "scan" ? { notes: message.args.options.includeUnreferencedAttachments ? 2 : 1, notebooks: 1, resources: 1, errors: 0, warnings: 0 } : undefined,
+      } }));
+    }
+    terminate() {}
+  }
+  globalThis.Worker = ScanWorker;
+  const controller = new NoteImportController(null, "http://import.test", () => "Owner", async () => {});
+  try {
+    expect(controller.getSnapshot().includeUnreferencedAttachments).toBe(true);
+    controller.setFormat("obsidian");
+    controller.select([{ path: "note.md", file: new File(["body"], "note.md") }]);
+    await controller.work;
+    expect(controller.getSnapshot()).toMatchObject({ phase: "ready", summary: { notes: 2 } });
+    controller.setParent("destination");
+    controller.setIncludeUnreferencedAttachments(false);
+    expect(controller.getSnapshot()).toMatchObject({ phase: "scanning", parentId: "destination" });
+    controller.setIncludeUnreferencedAttachments(true);
+    expect(controller.getSnapshot().includeUnreferencedAttachments).toBe(false);
+    await controller.work;
+    expect(controller.getSnapshot()).toMatchObject({ phase: "ready", parentId: "destination", summary: { notes: 1 } });
+    expect(scans.map(scan => scan.options.includeUnreferencedAttachments)).toEqual([true, false]);
+    controller.update({ phase: "running" });
+    controller.setIncludeUnreferencedAttachments(true);
+    expect(controller.getSnapshot().includeUnreferencedAttachments).toBe(false);
+  } finally {
+    controller.dispose();
+    await controller.work;
+    await controller.reader?.close();
+    globalThis.Worker = previousWorker;
+  }
+});
+
 test("viewing a finished result preserves task mappings until explicit dismissal", async () => {
   await import("fake-indexeddb/auto");
   const { BrowserImportIndex } = await import("./browser-index");

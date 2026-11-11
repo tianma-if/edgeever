@@ -62,6 +62,56 @@ const target = async () => {
 };
 
 describe("native third-party import through the real API", () => {
+  for (const kind of [null, "zip"]) test(`Obsidian ${kind ?? "directory"}: standalone attachments default on, keep folders and retry without duplicates`, async () => {
+    const { client, db } = await target();
+    const beforeNotes = db.query("SELECT COUNT(*) AS n FROM memos").get().n;
+    const beforeResources = db.query("SELECT COUNT(*) AS n FROM resources WHERE is_deleted = 0").get().n;
+    const files = [
+      { path: "Vault/note.md", file: new File(["![used](used.svg)"], "note.md") },
+      { path: "Vault/used.svg", file: new File(["<svg>used</svg>"], "used.svg") },
+      { path: "Vault/media/独立 [图](1).svg", file: new File(["<svg>standalone</svg>"], "独立 [图](1).svg") },
+      { path: "Vault/docs/paper.pdf", file: new File(["%PDF-1.4 test"], "paper.pdf") },
+      ...["Vault/.env.local", "Vault/.tools/secret.txt", "Vault/cache/old.pdf", "Vault/data.json", "Vault/config.yaml"].map(path => ({ path, file: new File(["excluded"], path.split("/").at(-1)) })),
+    ];
+    const session = new NoteImportSession("obsidian", kind ? await archive(files, kind) : files, new MemoryImportIndex());
+    try {
+      expect(await session.scan()).toMatchObject({ notes: 3, resources: 3, errors: 0, warnings: 0 });
+      for (let attempt = 0; attempt < 2; attempt++) {
+        expect(await executeNoteImport({ reader: session, index: session.index, client, convertEnml: convertImportEnml })).toMatchObject({ completed: 3, failed: 0 });
+      }
+      expect(db.query("SELECT COUNT(*) AS n FROM memos").get().n).toBe(beforeNotes + 3);
+      const results = await session.index.page("result");
+      for (const [path, image, content] of [["Vault/media/独立 [图](1).svg", true, "<svg>standalone</svg>"], ["Vault/docs/paper.pdf", false, "%PDF-1.4 test"]]) {
+        const result = results.find(item => item.path === path);
+        const { memo } = await client.getMemo(result.memo.id);
+        expect(memo.title).toBe(path.split("/").at(-1));
+        expect(memo.contentMarkdown.startsWith(image ? "![" : "[")).toBe(true);
+        expect(memo.contentMarkdown).toContain(result.urls[path]);
+        expect(await (await client.getResourceBlob(result.urls[path])).text()).toBe(content);
+        const { notebooks } = await client.listNotebooks();
+        const folder = notebooks.find(item => item.id === memo.notebookId);
+        expect(folder.name).toBe(path.split("/").at(-2));
+        expect(notebooks.find(item => item.id === folder.parentId).name).toBe("Vault");
+      }
+      expect(db.query("SELECT COUNT(*) AS n FROM resources WHERE is_deleted = 0").get().n).toBe(beforeResources + 3);
+    } finally { await session.close(); db.close(); }
+  });
+
+  test("Obsidian attachment-only exports import by default and can be excluded", async () => {
+    const [bundle] = await archive([{ path: "inside.txt", file: new File(["archive content"], "inside.txt") }], "zip");
+    const files = [
+      { path: "docs/paper.pdf", file: new File(["%PDF-1.4 test"], "paper.pdf") },
+      { path: "docs/bundle.zip", file: bundle.file, expandArchive: false },
+    ];
+    for (const enabled of [true, false]) {
+      const session = new NoteImportSession("obsidian", files, new MemoryImportIndex(), crypto.randomUUID(), { includeUnreferencedAttachments: enabled });
+      try {
+        expect(await session.scan()).toMatchObject({ notes: enabled ? 2 : 0, resources: enabled ? 2 : 0, errors: enabled ? 0 : 1 });
+        if (!enabled) expect(await session.index.page("issue")).toMatchObject([{ code: "noNotes" }]);
+      } finally { await session.close(); }
+    }
+  });
+
   test("imports growing notebooks without recounting previously imported notes", async () => {
     for (const count of [64, 256]) {
       const { client, env } = await target();
@@ -728,7 +778,7 @@ describe("native third-party import through the real API", () => {
       { path: "assets/diagram.svg", file: new File(['<svg xmlns="http://www.w3.org/2000/svg"><text>ROOT</text></svg>'], "diagram.svg") },
       { path: "notes/assets/diagram.svg", file: new File(['<svg xmlns="http://www.w3.org/2000/svg"><text>LOCAL</text></svg>'], "diagram.svg") },
       { path: "100% ready.svg", file: new File(['<svg xmlns="http://www.w3.org/2000/svg"><text>Percent</text></svg>'], "100% ready.svg") },
-    ], new MemoryImportIndex());
+    ], new MemoryImportIndex(), crypto.randomUUID(), { includeUnreferencedAttachments: false });
     expect(await session.scan()).toMatchObject({ errors: 0, notes: 1, resources: 2 });
     expect(await executeNoteImport({ reader: session, index: session.index, client, convertEnml: convertImportEnml })).toMatchObject({ completed: 1, resources: 2 });
     const [state] = await session.index.page("result");
