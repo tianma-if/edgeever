@@ -6,7 +6,7 @@ EdgeEver supports importing notes from other products directly. Two methods are 
 
 ---
 
-## 1. Native One-Click Import (Evernote / Obsidian / Joplin)
+## 1. Native One-Click Import (Evernote / Obsidian / Joplin / flomo)
 
 Operate directly in EdgeEver Web or Desktop without CLI commands or MCP setup.
 
@@ -28,6 +28,7 @@ Select your source platform in the dialog, then drag and drop or browse files:
 - **Obsidian**:
   - Drag and drop your local Vault folder directly, or compress the Vault into a `.zip`.
   - Automatically parses Front Matter, tags, and Wiki-link images (`![[image.png]]`), while ignoring `.obsidian` and `.git`.
+- **flomo**: Choose flomo and import the HTML ZIP. Each new task creates new notes; same-task retries resume unfinished steps. Times use the system timezone. See the [flomo guide](flomo-migration-guide.en-US.md).
 - **Joplin**:
   - In the desktop client, go to **File → Export all** and export as a **.jex** file (or RAW / Markdown directory).
   - Drag and drop the `.jex` file or a directory zipped as `.zip`. Embedded resource attachments are resolved automatically.
@@ -40,7 +41,7 @@ Select your source platform in the dialog, then drag and drop or browse files:
 
 ---
 
-## 2. AI Agent Import (Notion / flomo / Memos, etc.)
+## 2. AI Agent Import (Notion / Memos, etc.)
 
 For platforms without a built-in GUI parser, use EdgeEver's Remote MCP with your AI assistant (Claude Code, Cursor, Codex, WorkBuddy, etc.) via a single prompt.
 
@@ -64,7 +65,7 @@ Please migrate all specified pages and databases from Notion to EdgeEver:
 
 #### Scenario 2: flomo Migration (HTML Export Archive)
 
-1. In flomo web or desktop, go to **Settings → Account Details**, scroll to the bottom, and download the full HTML export ZIP.
+1. In flomo web or desktop, go to **Settings → Account details**, scroll to the bottom, and click the global export button, download the HTML export ZIP.
 2. Replace the path below and send it to your AI assistant connected to EdgeEver MCP:
 
 ```text

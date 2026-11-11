@@ -6,7 +6,7 @@ EdgeEver 支持从其他笔记产品直接导入数据。目前提供**原生一
 
 ---
 
-## 一、原生一键导入（Evernote / Obsidian / Joplin）
+## 一、原生一键导入（Evernote / Obsidian / Joplin / flomo）
 
 无需配置命令行或 MCP，在 Web 网页端或桌面端直接操作。
 
@@ -28,6 +28,7 @@ EdgeEver 支持从其他笔记产品直接导入数据。目前提供**原生一
 - **Obsidian**：
   - 直接拖入本地 Vault 文件夹，或将 Vault 打包为 `.zip` 拖入。
   - 自动保留 Front Matter、标签与 Wiki 双链图片（`![[image.png]]`），自动忽略 `.obsidian` 与 `.git` 等配置目录。
+- **flomo**：在来源中选择 flomo 并导入 HTML ZIP。每次新任务都新增，同任务重试仅补未完成步骤；时间按系统时区解释。见 [flomo 指引](flomo-migration-guide.md)。
 - **Joplin**：
   - 在客户端点击 **文件 → 导出全部**，导出为 **.jex** 文件（或 RAW / Markdown 目录）。
   - 将 `.jex` 文件或目录打包的 `.zip` 拖入，自动关联并转存正文中的资源附件。
@@ -40,7 +41,7 @@ EdgeEver 支持从其他笔记产品直接导入数据。目前提供**原生一
 
 ---
 
-## 二、通过 AI Agent 导入（Notion / flomo / Memos 等）
+## 二、通过 AI Agent 导入（Notion / Memos 等）
 
 对于暂未内置原生解析器的平台，借助 EdgeEver 的 Remote MCP 接口，通过 AI 助手（Claude Code、Cursor、Codex、WorkBuddy 等）一条 Prompt 即可完成迁移。
 
@@ -64,7 +65,7 @@ EdgeEver 支持从其他笔记产品直接导入数据。目前提供**原生一
 
 #### 场景 2：flomo 迁移（HTML 导出包快速入库）
 
-1. 在 flomo 网页版或客户端中，进入 **设置 → 账号详情**，滑动至底部下载全局 HTML 导出 ZIP；
+1. 在 flomo 网页版或客户端中，进入 **设置 → 账号详情**，滚动至页面下方点击全局导出按钮，下载 HTML 导出 ZIP；
 2. 替换下方路径后发送给已连接 EdgeEver MCP 的 AI 助手：
 
 ```text

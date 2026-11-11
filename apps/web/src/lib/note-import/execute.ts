@@ -28,7 +28,7 @@ export const executeNoteImport = async (input: {
   const total = await index.count("note");
   signal?.throwIfAborted();
   const capabilities = await client.getImportCapabilities();
-  if (capabilities.protocolVersion !== 1) throw new Error("unsupportedImportServer");
+  if (capabilities.protocolVersion !== 1 || !capabilities.formats.includes(reader.format)) throw new Error("unsupportedImportServer");
   if (input.parentId && !(await client.listNotebooks()).notebooks.some(nb => nb.id === input.parentId)) throw new Error("missingParent");
   const createdParent = await index.get<{ id: string | null }>("folderResult", "__destination");
   if (createdParent && createdParent.id !== (input.parentId ?? null)) throw new Error("destinationChanged");
