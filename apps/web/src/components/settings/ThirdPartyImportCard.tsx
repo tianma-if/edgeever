@@ -11,6 +11,7 @@ import { SETTINGS_CARD_HEADER_CLASSNAME, SETTINGS_CARD_ICON_CLASSNAME, SETTINGS_
 import { ThirdPartyImportDialog } from "./ThirdPartyImportDialog";
 
 const importSources = [
+  { label: "flomo (.zip)", logo: undefined },
   { label: "Evernote (.enex)", logo: evernoteLogo },
   { label: "Obsidian", logo: obsidianLogo },
   { label: "Joplin (.jex)", logo: joplinLogo },
@@ -28,7 +29,7 @@ export const ThirdPartyImportCard = ({ controller, onOpenMemo }: { controller: N
           <div className="flex flex-wrap gap-1.5 pt-0.5 text-[11px] text-muted-foreground">
             {importSources.map(({ label, logo }) => (
               <span key={label} className="inline-flex items-center gap-1.5 rounded bg-muted px-2 py-0.5 font-mono">
-                <img src={logo} alt="" className="size-3 shrink-0 object-contain" />
+                {logo && <img src={logo} alt="" className="size-3 shrink-0 object-contain" />}
                 {label}
               </span>
             ))}
