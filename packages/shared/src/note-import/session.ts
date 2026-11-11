@@ -136,15 +136,11 @@ export class NoteImportSession {
           for (const resource of note.resources) {
             const max = resource.mimeType.startsWith("image/") ? 100 * 1024 * 1024 : 1024 * 1024 * 1024;
             if (resource.byteSize <= 0 || resource.byteSize > max) await addIssue(this.index, "resourceSize", note.path, "error", resource.filename);
-            await this.index.put("alias", `used:${resource.entryKey}`, true);
           }
           await this.index.put("note", note.key, note);
         }
       }
       if (!await this.index.count("note")) await addIssue(this.index, "noNotes", "");
-      if (this.format !== "evernote") for await (const entry of indexItems<SourceEntry>(this.index, "entry")) {
-        if (!/\.(?:md|markdown)$/i.test(entry.path) && !await this.index.get("alias", `used:${entry.key}`)) await addIssue(this.index, "unusedResource", entry.path, "warning");
-      }
     } catch (error) {
       signal?.throwIfAborted();
       await addIssue(this.index, "invalidArchive", "", "error", error instanceof Error ? error.message : String(error));

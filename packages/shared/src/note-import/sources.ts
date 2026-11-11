@@ -18,7 +18,8 @@ export const normalPath = (path: string) => {
 };
 const ignored = (path: string) => path.split("/").some(part => [".obsidian", ".git", ".trash", "__MACOSX", ".DS_Store", "Thumbs.db"].includes(part));
 export const addIssue = async (index: ImportIndex, code: string, path: string, severity: ImportIssue["severity"] = "error", detail?: string) => {
-  const key = crypto.randomUUID();
+  // Index pages are key-ordered: show blocking errors before paginating warnings.
+  const key = `${severity === "error" ? "0" : "1"}-${crypto.randomUUID()}`;
   await index.put("issue", key, { key, code, path, severity, ...(detail ? { detail } : {}) });
 };
 

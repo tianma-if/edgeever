@@ -39,7 +39,6 @@ export const prepareImportNote = async (index: ImportIndex, note: ImportNote) =>
   note.tags = tags.slice(0, 24);
   if (tags.length > 24) await addIssue(index, "ignoredTags", note.path, "warning", String(tags.length - 24));
   if (note.title.length > 160) await addIssue(index, "titleTooLong", note.path);
-  if (!note.createdAt || !note.updatedAt) await addIssue(index, "missingTimes", note.path, "warning");
   for (const resource of note.resources) {
     const maximum = resource.mimeType.startsWith("image/") ? 100 * 1024 * 1024 : 1024 * 1024 * 1024;
     if (resource.byteSize <= 0 || resource.byteSize > maximum) await addIssue(index, "resourceSize", note.path, "error", resource.filename);
