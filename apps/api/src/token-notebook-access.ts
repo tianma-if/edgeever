@@ -51,13 +51,17 @@ export const parseNotebookAccessJson = (value: string | null | undefined): Token
     if (!Array.isArray(parsed)) return [];
     const entries: TokenNotebookAccess[] = [];
     for (const item of parsed) {
-      if (!item || typeof item !== "object") continue;
+      // Any invalid entry marks the whole record unusable: dropping it would
+      // turn "malformed grant" into "no explicit grant", which the default
+      // policy could then widen. Fail closed instead.
+      if (!item || typeof item !== "object") return [];
       const entry = item as Record<string, unknown>;
-      if (typeof entry.notebookId !== "string" || !entry.notebookId.trim()) continue;
+      if (typeof entry.notebookId !== "string" || !entry.notebookId.trim()) return [];
+      if (typeof entry.read !== "boolean" || typeof entry.write !== "boolean") return [];
       entries.push({
         notebookId: entry.notebookId,
-        read: entry.read === true,
-        write: entry.write === true,
+        read: entry.read,
+        write: entry.write,
       });
     }
     return entries;
@@ -77,8 +81,21 @@ export const parseNotebookDefaultAccess = (value: string | null | undefined): To
  */
 export const isCorruptedNotebookAccess = (value: string | null | undefined): boolean => {
   if (value == null) return false;
+  const entries = parseNotebookAccessJson(value);
+  if (entries === null) return false;
+  // Re-parse strictly: parseNotebookAccessJson returns [] for both a valid
+  // empty array and an unusable record; distinguish them by re-checking the
+  // raw structure.
   try {
-    return !Array.isArray(JSON.parse(value));
+    const parsed: unknown = JSON.parse(value);
+    if (!Array.isArray(parsed)) return true;
+    for (const item of parsed) {
+      if (!item || typeof item !== "object") return true;
+      const entry = item as Record<string, unknown>;
+      if (typeof entry.notebookId !== "string" || !entry.notebookId.trim()) return true;
+      if (typeof entry.read !== "boolean" || typeof entry.write !== "boolean") return true;
+    }
+    return false;
   } catch {
     return true;
   }
@@ -145,43 +162,58 @@ export const resolveNotebookAccess = async (
     return UNRESTRICTED_NOTEBOOK_ACCESS;
   }
 
-  const readGrants = entries.filter((entry) => entry.read || entry.write).map((entry) => entry.notebookId);
-  const writeGrants = entries.filter((entry) => entry.write).map((entry) => entry.notebookId);
-  const [grantedReadable, grantedWritable] = await Promise.all([
-    expandWithDescendants(db, workspaceId, readGrants),
-    expandWithDescendants(db, workspaceId, writeGrants),
-  ]);
+  // Resolve per-notebook grants with nearest-entry-wins semantics: the grant
+  // (or explicit deny) on the closest ancestor — including the notebook
+  // itself — decides, so a read-only child overrides a read/write parent and
+  // an explicit deny on a parent closes its whole subtree.
+  const allNotebookIds = await liveNotebookIds(db, workspaceId);
+  const parentByNotebook = await notebookParentsById(db, workspaceId);
+  const grantByNotebook = new Map(entries.map((entry) => [entry.notebookId, entry]));
 
-  if (defaultAccess === "none") {
-    return {
-      restricted: true,
-      readableNotebookIds: grantedReadable,
-      writableNotebookIds: grantedWritable,
-      defaultWrite: false,
-    };
-  }
+  const effectiveGrant = (notebookId: string): { read: boolean; write: boolean } | null => {
+    let current: string | null = notebookId;
+    let seen = 0;
+    while (current && seen <= allNotebookIds.length + 1) {
+      const grant = grantByNotebook.get(current);
+      if (grant) return { read: grant.read || grant.write, write: grant.write };
+      current = parentByNotebook.get(current) ?? null;
+      seen += 1;
+    }
+    return null;
+  };
 
-  // The default only applies where no explicit grant covers the notebook.
-  // Even an explicit empty grant (read=false, write=false) counts: it means
-  // "explicitly denied" and must not be overridden by the default.
-  const explicitlyGranted = new Set(grantedReadable);
-  for (const id of grantedWritable) explicitlyGranted.add(id);
-  for (const entry of entries) explicitlyGranted.add(entry.notebookId);
-  const ungrantedIds = (await liveNotebookIds(db, workspaceId)).filter((id) => !explicitlyGranted.has(id));
-
-  const readable = new Set(grantedReadable);
-  const writable = new Set(grantedWritable);
-  for (const id of ungrantedIds) {
-    readable.add(id);
-    if (defaultAccess === "write") writable.add(id);
+  const readable: string[] = [];
+  const writable: string[] = [];
+  for (const id of allNotebookIds) {
+    const grant = effectiveGrant(id);
+    if (grant) {
+      if (grant.read) readable.push(id);
+      if (grant.write) writable.push(id);
+      continue;
+    }
+    if (defaultAccess !== "none") {
+      readable.push(id);
+      if (defaultAccess === "write") writable.push(id);
+    }
   }
 
   return {
     restricted: true,
-    readableNotebookIds: [...readable],
-    writableNotebookIds: [...writable],
+    readableNotebookIds: readable,
+    writableNotebookIds: writable,
     defaultWrite: defaultAccess === "write",
   };
+};
+
+/** Loads the live parent id of every notebook in the workspace. */
+const notebookParentsById = async (
+  db: DatabaseAdapter,
+  workspaceId: string,
+): Promise<Map<string, string | null>> => {
+  const rows = await db.prepare(
+    `SELECT id, parent_id FROM notebooks WHERE workspace_id = ? AND is_deleted = 0`,
+  ).bind(workspaceId).all<{ id: string; parent_id: string | null }>();
+  return new Map(rows.results.map((row) => [row.id, row.parent_id]));
 };
 
 const liveNotebookIds = async (db: DatabaseAdapter, workspaceId: string): Promise<string[]> => {

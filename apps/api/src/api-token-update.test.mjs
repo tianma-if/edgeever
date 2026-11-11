@@ -221,3 +221,63 @@ describe("PATCH preserves stored grants on metadata-only edits", () => {
     expect(stored.notebook_access_json).toBeNull();
   });
 });
+
+describe("PATCH field scoping", () => {
+  test("a metadata-only PATCH does not overwrite a concurrent restriction", async () => {
+    const { app, environment, sqlite } = createFixture();
+    const created = await post(app, environment, {
+      name: "Full", scopes: ["read:memos", "write:memos"],
+    });
+    const body = await created.json();
+
+    // Simulate the race: after this PATCH read the token, another request
+    // restricts it; the metadata PATCH must not restore the old grants.
+    sqlite.query("UPDATE api_tokens SET notebook_access_json = ? WHERE id = ?")
+      .run(JSON.stringify([{ notebookId: "nb_a", read: true, write: false }]), body.apiToken.id);
+
+    const renamed = await patch(app, environment, body.apiToken.id, { name: "Renamed" });
+    expect(renamed.status).toBe(200);
+    const stored = sqlite.query("SELECT notebook_access_json FROM api_tokens WHERE id = ?").get(body.apiToken.id);
+    expect(JSON.parse(stored.notebook_access_json)).toEqual([{ notebookId: "nb_a", read: true, write: false }]);
+  });
+
+  test("a metadata-only PATCH is not blocked by grants on deleted notebooks", async () => {
+    const { app, environment, sqlite } = createFixture();
+    const created = await post(app, environment, {
+      name: "Scoped", scopes: ["read:memos"],
+      notebookAccess: [{ notebookId: "nb_a", read: true, write: false }],
+    });
+    const body = await created.json();
+
+    // The granted notebook disappears (soft delete).
+    sqlite.query("UPDATE notebooks SET is_deleted = 1 WHERE id = 'nb_a'").run();
+
+    const renamed = await patch(app, environment, body.apiToken.id, { name: "Renamed" });
+    expect(renamed.status).toBe(200);
+    const reduced = await patch(app, environment, body.apiToken.id, { scopes: ["read:memos"] });
+    expect(reduced.status).toBe(200);
+
+    // Setting grants that still reference the deleted notebook is rejected.
+    const invalid = await patch(app, environment, body.apiToken.id, {
+      notebookAccess: [{ notebookId: "nb_a", read: true, write: false }],
+    });
+    expect(invalid.status).toBe(400);
+  });
+
+  test("null notebookAccess removes the restriction entirely", async () => {
+    const { app, environment, sqlite } = createFixture();
+    const created = await post(app, environment, {
+      name: "Scoped", scopes: ["read:memos"],
+      notebookAccess: [{ notebookId: "nb_a", read: true, write: false }],
+      notebookDefaultAccess: "read",
+    });
+    const body = await created.json();
+
+    const unrestricted = await patch(app, environment, body.apiToken.id, { notebookAccess: null });
+    expect(unrestricted.status).toBe(200);
+    const stored = sqlite.query("SELECT notebook_access_json, notebook_default_access FROM api_tokens WHERE id = ?").get(body.apiToken.id);
+    expect(stored.notebook_access_json).toBeNull();
+    expect(stored.notebook_default_access).toBe("none");
+    expect((await unrestricted.json()).apiToken.notebookAccess).toBeNull();
+  });
+});

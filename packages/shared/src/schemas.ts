@@ -300,7 +300,11 @@ export const ApiTokenUpdateSchema = z
     name: z.string().trim().min(1).max(80).optional(),
     scopes: z.array(z.string().trim().min(1).max(80)).min(1).max(32).optional(),
     expiresAt: z.string().datetime().nullable().optional(),
-    notebookAccess: TokenNotebookAccessListSchema.optional(),
+    /**
+     * Omitted = keep the stored grants; an array (possibly empty) = set them;
+     * null = remove the notebook restriction entirely (back to unrestricted).
+     */
+    notebookAccess: TokenNotebookAccessListSchema.nullable().optional(),
     notebookDefaultAccess: TokenNotebookDefaultAccessSchema.optional(),
   })
   .refine((input) => Object.keys(input).length > 0, "At least one field is required.");

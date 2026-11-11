@@ -166,9 +166,22 @@ export const registerMemoRoutes = (
     notebookAccess: NotebookAccess,
     action: string,
   ) => {
-    if (!notebookAccess.restricted) return;
-    for (const memoId of memoIds) {
-      await assertMemoAccess(context, memoId, "write", notebookAccess, action);
+    if (!notebookAccess.restricted || memoIds.length === 0) return;
+    // One batched query for the whole list: per-memo detail loads would blow
+    // D1's per-request query budget on large batches.
+    const uniqueIds = Array.from(new Set(memoIds));
+    const placeholders = uniqueIds.map(() => "?").join(", ");
+    const rows = await context.env.storage.db.prepare(
+      `SELECT id, notebook_id, is_deleted FROM memos
+       WHERE workspace_id = ? AND id IN (${placeholders})`,
+    ).bind(getWorkspaceId(context), ...uniqueIds)
+      .all<{ id: string; notebook_id: string; is_deleted: number }>();
+
+    const found = new Map(rows.results.map((row) => [row.id, row]));
+    for (const memoId of uniqueIds) {
+      const row = found.get(memoId);
+      if (!row) continue; // Missing ids fail later in the service with its own error.
+      assertNotebookAccess(notebookAccess, "write", row.notebook_id, action);
     }
   };
 

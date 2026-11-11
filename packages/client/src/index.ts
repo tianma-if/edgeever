@@ -1375,7 +1375,7 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
         body: JSON.stringify(payload),
       }),
 
-    updateApiToken: (tokenId: string, payload: { name?: string; scopes?: string[]; expiresAt?: string | null; notebookAccess?: TokenNotebookAccess[]; notebookDefaultAccess?: TokenNotebookDefaultAccess }) =>
+    updateApiToken: (tokenId: string, payload: { name?: string; scopes?: string[]; expiresAt?: string | null; notebookAccess?: TokenNotebookAccess[] | null; notebookDefaultAccess?: TokenNotebookDefaultAccess }) =>
       request<ApiTokenUpdateResponse>(`/api/v1/api-tokens/${encodeURIComponent(tokenId)}`, {
         method: "PATCH",
         body: JSON.stringify(payload),

@@ -97,7 +97,6 @@ import {
 import { assertScope, getActorLabel, getAuditActor } from "./request-auth";
 import {
   assertNotebookAccess,
-  hasAllNotebookAccess,
   resolveNotebookAccess,
   type NotebookAccess,
 } from "./token-notebook-access";
@@ -301,9 +300,20 @@ export const callMcpTool = async (
     action: string,
   ) => {
     if (!notebookAccess.restricted || memoIds.length === 0) return;
-    const memos = await getMemosForBulkAction(c.env.storage.db, auth.workspaceId, memoIds, deletedState) as Array<{ notebookId: string }>;
-    if (!hasAllNotebookAccess(notebookAccess, "write", memos.map((memo) => memo.notebookId))) {
-      assertNotebookAccess(notebookAccess, "write", "", action);
+    // One targeted query for the whole list: loading full memo details per
+    // memo would blow D1's per-request query budget on large batches.
+    const uniqueIds = Array.from(new Set(memoIds));
+    const placeholders = uniqueIds.map(() => "?").join(", ");
+    const rows = await c.env.storage.db.prepare(
+      `SELECT id, notebook_id FROM memos
+       WHERE workspace_id = ? AND is_deleted = ? AND id IN (${placeholders})`,
+    ).bind(auth.workspaceId, deletedState, ...uniqueIds)
+      .all<{ id: string; notebook_id: string }>();
+
+    // Missing ids are not authorized here: the bulk service validates
+    // existence itself and throws its own error for them.
+    for (const row of rows.results) {
+      assertNotebookAccess(notebookAccess, "write", row.notebook_id, action);
     }
   };
 
@@ -991,7 +1001,9 @@ export const callMcpTool = async (
     case "list_memo_revisions": {
       assertScope(auth, "read:memos");
       const revisionMemoId = getRequiredString(args.memoId, "memoId");
-      const revisionMemo = await getMemoDetail(c.env.storage.db, auth.workspaceId, revisionMemoId);
+      // Include trashed memos: the revision service reads them, so the guard
+      // must authorize the same deleted state it will actually serve.
+      const revisionMemo = await getMemoDetail(c.env.storage.db, auth.workspaceId, revisionMemoId, true);
       if (revisionMemo) assertMemoAccess(revisionMemo, "read", "list revisions of this memo");
       return {
         revisions: await listMemoRevisionsService(
@@ -1006,8 +1018,11 @@ export const callMcpTool = async (
     case "restore_memo_revision": {
       assertScope(auth, "write:memos");
       const memoId = getRequiredString(args.memoId, "memoId");
-      const revisionMemo = await getMemoDetail(c.env.storage.db, auth.workspaceId, memoId);
-      if (revisionMemo) assertMemoAccess(revisionMemo, "write", "restore this memo's revision");
+      // Include trashed memos: restoring a trashed memo's revision is a write
+      // to that memo, so the guard must authorize the trashed state too.
+      const revisionMemo = await getMemoDetail(c.env.storage.db, auth.workspaceId, memoId, true);
+      if (!revisionMemo) throw new AppError("not_found", "Memo not found", 404);
+      assertMemoAccess(revisionMemo, "write", "restore this memo's revision");
       const revisionId = getRequiredString(args.revisionId, "revisionId");
       const revision = await getMemoRevisionRowService(c.env.storage.db, auth.workspaceId, memoId, revisionId);
 

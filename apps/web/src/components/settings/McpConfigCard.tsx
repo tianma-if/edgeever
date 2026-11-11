@@ -567,7 +567,13 @@ interface TokenEditDialogProps {
   notebooks: Notebook[];
   isSaving: boolean;
   onCancel: () => void;
-  onSave: (tokenId: string, payload: { name: string; scopes: string[]; notebookAccess?: TokenNotebookAccess[]; notebookDefaultAccess?: TokenNotebookDefaultAccess }) => void;
+  onSave: (tokenId: string, payload: {
+    name: string;
+    scopes?: string[];
+    /** Omitted = keep stored grants; [] = restrict to nothing; null = remove the restriction. */
+    notebookAccess?: TokenNotebookAccess[] | null;
+    notebookDefaultAccess?: TokenNotebookDefaultAccess;
+  }) => void;
 }
 
 const TokenEditDialog = ({ token, availableScopes, notebooks, isSaving, onCancel, onSave }: TokenEditDialogProps) => {
@@ -584,15 +590,31 @@ const TokenEditDialog = ({ token, availableScopes, notebooks, isSaving, onCancel
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!name.trim() || !notebookValid) return;
-    // Only send grant fields when the stored token was notebook-restricted;
-    // a name-only edit must not rewrite grants (a corrupted stored record
-    // would be silently normalized to "[]" and reopen access).
     const wasRestricted = token.notebookAccess != null;
+
+    // Grant fields follow the access level:
+    // - custom: set the drafted grants and default policy (restrict or edit);
+    // - full/read-only on a previously restricted token: null removes the
+    //   restriction entirely (an omitted field would keep it);
+    // - same non-custom level on an unrestricted token: omit grants (keep).
+    const grantPayload = accessLevel === "custom"
+      ? { notebookAccess, notebookDefaultAccess: draft.defaultAccess }
+      : wasRestricted
+        ? { notebookAccess: null, notebookDefaultAccess: "none" as const }
+        : {};
+
+    // Scopes are only sent when the level actually changes them; a name-only
+    // edit must not rewrite a token's custom global scopes.
+    const currentLevel = getStoredTokenAccessLevel(token.scopes, availableScopes, token.notebookAccess);
+    const levelChanged = accessLevel !== currentLevel && accessLevel !== "custom";
+    const scopePayload = levelChanged
+      ? { scopes: getTokenScopesForAccessLevel(accessLevel, availableScopes) }
+      : {};
+
     onSave(token.id, {
       name: name.trim(),
-      scopes: getTokenScopesForAccessLevel(accessLevel, availableScopes),
-      ...(wasRestricted ? { notebookAccess } : {}),
-      ...(wasRestricted ? { notebookDefaultAccess: accessLevel === "custom" ? draft.defaultAccess : undefined } : {}),
+      ...scopePayload,
+      ...grantPayload,
     });
   };
 
@@ -675,7 +697,7 @@ export const McpConfigCard = () => {
   });
 
   const updateMutation = useMutation({
-    mutationFn: (input: { tokenId: string; payload: { name: string; scopes: string[]; notebookAccess?: TokenNotebookAccess[]; notebookDefaultAccess?: TokenNotebookDefaultAccess } }) =>
+    mutationFn: (input: { tokenId: string; payload: { name: string; scopes?: string[]; notebookAccess?: TokenNotebookAccess[] | null; notebookDefaultAccess?: TokenNotebookDefaultAccess } }) =>
       api.updateApiToken(input.tokenId, input.payload),
     onSuccess: async () => {
       setTokenToEdit(null);

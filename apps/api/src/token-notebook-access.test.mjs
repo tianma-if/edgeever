@@ -78,9 +78,18 @@ describe("parseNotebookAccessJson", () => {
     expect(parseNotebookAccessJson('[{"notebookId":""}]')).toEqual([]);
   });
 
-  test("keeps valid entries and drops malformed ones", () => {
+  test("any malformed entry fails the whole record closed", () => {
     expect(parseNotebookAccessJson(
-      '[{"notebookId":"nb_a","read":true,"write":false},{"notebookId":""},{"nope":1}]',
+      '[{"notebookId":"nb_a","read":true,"write":false},{"notebookId":""}]',
+    )).toEqual([]);
+    expect(parseNotebookAccessJson(
+      '[{"notebookId":"nb_a","read":true,"write":false},{"nope":1}]',
+    )).toEqual([]);
+    expect(parseNotebookAccessJson(
+      '[{"notebookId":"nb_a","read":true}]',
+    )).toEqual([]);
+    expect(parseNotebookAccessJson(
+      '[{"notebookId":"nb_a","read":true,"write":false}]',
     )).toEqual([{ notebookId: "nb_a", read: true, write: false }]);
   });
 });
@@ -227,5 +236,51 @@ describe("notebook access assertions", () => {
     expect(memoNotebookAccessSql("m.notebook_id", restricted, "write")).toBe("m.notebook_id IN (SELECT value FROM json_each(?))");
     expect(notebookAccessBinds(restricted, "write")).toEqual([JSON.stringify(["nb_a"])]);
     expect(memoNotebookAccessSql("m.notebook_id", { restricted: true, readableNotebookIds: [], writableNotebookIds: [], defaultWrite: false }, "read")).toBe("0 = 1");
+  });
+});
+
+describe("nearest-entry-wins grant resolution", () => {
+  test("a read-only child overrides a read/write parent", async () => {
+    const db = createFixture();
+    const access = await resolveNotebookAccess(db, "ws_t", [
+      { notebookId: "nb_root", read: true, write: true },
+      { notebookId: "nb_child", read: true, write: false },
+    ]);
+    expect(access.readableNotebookIds.sort()).toEqual(["nb_child", "nb_grandchild", "nb_root"]);
+    // The child subtree stays read-only even though the parent grants write.
+    expect(access.writableNotebookIds).toEqual(["nb_root"]);
+  });
+
+  test("an explicit deny on a parent closes its whole subtree", async () => {
+    const db = createFixture();
+    const access = await resolveNotebookAccess(db, "ws_t", [
+      { notebookId: "nb_root", read: false, write: false },
+      { notebookId: "nb_other", read: true, write: true },
+    ], "write");
+    // nb_root and all descendants are closed; the write default does not
+    // reopen them; nb_other keeps its grant.
+    expect(access.readableNotebookIds).toEqual(["nb_other"]);
+    expect(access.writableNotebookIds).toEqual(["nb_other"]);
+  });
+
+  test("a grandchild grant overrides its parent deny", async () => {
+    const db = createFixture();
+    const access = await resolveNotebookAccess(db, "ws_t", [
+      { notebookId: "nb_root", read: false, write: false },
+      { notebookId: "nb_grandchild", read: true, write: true },
+    ]);
+    expect(access.readableNotebookIds).toEqual(["nb_grandchild"]);
+    expect(access.writableNotebookIds).toEqual(["nb_grandchild"]);
+  });
+
+  test("three-level tree with mixed grants resolves per nearest entry", async () => {
+    const db = createFixture();
+    const access = await resolveNotebookAccess(db, "ws_t", [
+      { notebookId: "nb_root", read: true, write: true },
+      { notebookId: "nb_child", read: false, write: false },
+      { notebookId: "nb_grandchild", read: true, write: false },
+    ], "none");
+    expect(access.readableNotebookIds.sort()).toEqual(["nb_grandchild", "nb_root"]);
+    expect(access.writableNotebookIds).toEqual(["nb_root"]);
   });
 });

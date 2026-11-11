@@ -186,41 +186,60 @@ export const registerApiTokenRoutes = (
       if (!current) return notFound(context, "API token not found");
 
       const input = context.req.valid("json");
+      // Only the fields the request explicitly changes are updated, so a
+      // metadata-only PATCH can never overwrite a concurrent permission
+      // change, and unchanged grants referencing deleted notebooks are not
+      // re-validated (only newly set grants are).
       const scopes = input.scopes !== undefined
         ? normalizeTokenScopes(input.scopes)
-        : parseJsonArray(current.scopes_json) as string[];
-      if (!scopes) return badRequest(context, "Token scope is not supported.");
+        : null;
+      if (input.scopes !== undefined && !scopes) {
+        return badRequest(context, "Token scope is not supported.");
+      }
 
-      // When the request does not change grants, keep the stored JSON verbatim:
-      // re-serializing a corrupted record would silently rewrite it to "[]"
-      // (and keep the default policy), reopening access for the same token.
-      const notebookAccessJson = input.notebookAccess !== undefined
-        ? JSON.stringify(input.notebookAccess)
-        : current.notebook_access_json;
+      // Grant field semantics: omitted = keep the stored JSON verbatim
+      // (re-serializing a corrupted record would silently rewrite it to "[]"
+      // and reopen access); an array = set it; null = remove the restriction.
+      const notebookAccessJson = Object.hasOwn(input, "notebookAccess")
+        ? (input.notebookAccess === null ? "__UNRESTRICT__" : JSON.stringify(input.notebookAccess))
+        : null;
 
-      const notebookDenied = await validateNotebookAccess(
-        context,
-        workspaceId,
-        input.notebookAccess !== undefined
-          ? input.notebookAccess
-          : parseNotebookAccessJson(current.notebook_access_json) ?? [],
-      );
-      if (notebookDenied) return notebookDenied;
+      if (notebookAccessJson !== null && notebookAccessJson !== "__UNRESTRICT__") {
+        const notebookDenied = await validateNotebookAccess(context, workspaceId, input.notebookAccess ?? []);
+        if (notebookDenied) return notebookDenied;
+      }
 
       const name = input.name ?? current.name;
       const expiresAt = input.expiresAt !== undefined ? input.expiresAt : current.expires_at;
       const notebookDefaultAccess = input.notebookDefaultAccess !== undefined
         ? input.notebookDefaultAccess
-        : parseNotebookDefaultAccess(current.notebook_default_access);
+        : null;
       const actor = getAuditActor(context);
       await context.env.storage.db.batch([
         context.env.storage.db.prepare(
           `UPDATE api_tokens
-           SET name = ?, scopes_json = ?, notebook_access_json = ?, notebook_default_access = ?, expires_at = ?
+           SET name = ?,
+               scopes_json = CASE WHEN ? IS NULL THEN scopes_json ELSE ? END,
+               notebook_access_json = CASE
+                 WHEN ? = '__UNRESTRICT__' THEN NULL
+                 WHEN ? IS NULL THEN notebook_access_json
+                 ELSE ?
+               END,
+               notebook_default_access = CASE
+                 WHEN ? = '__UNRESTRICT__' THEN 'none'
+                 WHEN ? IS NULL THEN notebook_default_access
+                 ELSE ?
+               END,
+               expires_at = ?
            WHERE id = ? AND workspace_id = ?`,
         ).bind(
           name,
-          JSON.stringify(scopes),
+          scopes ? JSON.stringify(scopes) : null,
+          scopes ? JSON.stringify(scopes) : null,
+          notebookAccessJson,
+          notebookAccessJson,
+          notebookAccessJson,
+          notebookAccessJson,
           notebookAccessJson,
           notebookDefaultAccess,
           expiresAt,
@@ -236,10 +255,15 @@ export const registerApiTokenRoutes = (
           id,
           {
             name,
-            scopes,
+            scopes: scopes ?? parseJsonArray(current.scopes_json),
             expiresAt,
-            notebookAccess: parseNotebookAccessJson(notebookAccessJson),
-            notebookDefaultAccess,
+            notebookAccess: parseNotebookAccessJson(
+              notebookAccessJson === "__UNRESTRICT__"
+                ? null
+                : notebookAccessJson ?? current.notebook_access_json,
+            ),
+            notebookDefaultAccess: notebookDefaultAccess
+              ?? parseNotebookDefaultAccess(current.notebook_default_access),
             previous: {
               name: current.name,
               scopes: parseJsonArray(current.scopes_json),

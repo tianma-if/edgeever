@@ -330,3 +330,101 @@ describe("empty readable lists bind no parameters", () => {
     expect(stats.memos.active).toBe(0);
   });
 });
+
+describe("trashed memo revision access", () => {
+  test("revisions of trashed memos outside the grant are refused", async () => {
+    const { context, makeAuth } = createFixture();
+    const admin = makeAuth(null);
+    const restricted = makeAuth([{ notebookId: "nb_allowed", read: true, write: true }]);
+    const call = (auth, tool, args) => callMcpTool(context, auth, tool, args);
+
+    // Create and edit a memo in the secret notebook, then trash it.
+    const memo = (await call(admin, "create_memo", {
+      notebookId: "nb_secret", title: "Secret", contentMarkdown: "v1 body",
+    })).memo;
+    await call(admin, "update_memo", { memoId: memo.id, contentMarkdown: "v2 secret needle" });
+    await call(admin, "trash_memos", { memoIds: [memo.id] });
+
+    // Reading the trashed memo directly is refused (invisible)...
+    await expect(call(restricted, "get_memo", { memoId: memo.id }))
+      .rejects.toThrow("Memo not found");
+    // ...and so are its revisions and revision previews.
+    await expect(call(restricted, "list_memo_revisions", { memoId: memo.id }))
+      .rejects.toMatchObject({ code: "notebook_access_denied", status: 403 });
+    const revisions = (await call(admin, "list_memo_revisions", { memoId: memo.id })).revisions;
+    await expect(call(restricted, "restore_memo_revision", {
+      memoId: memo.id, revisionId: revisions[0].id, dryRun: true,
+    })).rejects.toMatchObject({ code: "notebook_access_denied", status: 403 });
+    await expect(call(restricted, "restore_memo_revision", {
+      memoId: memo.id, revisionId: revisions[0].id,
+    })).rejects.toMatchObject({ code: "notebook_access_denied", status: 403 });
+
+    // In-grant trashed memos keep working for both paths.
+    const allowed = (await call(admin, "create_memo", {
+      notebookId: "nb_allowed", title: "Allowed", contentMarkdown: "a1",
+    })).memo;
+    await call(admin, "update_memo", { memoId: allowed.id, contentMarkdown: "a2" });
+    await call(admin, "trash_memos", { memoIds: [allowed.id] });
+    const allowedRevisions = (await call(restricted, "list_memo_revisions", { memoId: allowed.id })).revisions;
+    expect(allowedRevisions.length).toBeGreaterThan(0);
+    const preview = await call(restricted, "restore_memo_revision", {
+      memoId: allowed.id, revisionId: allowedRevisions[0].id, dryRun: true,
+    });
+    expect(preview.dryRun).toBe(true);
+  });
+});
+
+describe("batch access checks stay within the query budget", () => {
+  test("moving 48 memos authorizes with a single batched query", async () => {
+    const { context, makeAuth } = createFixture();
+    const admin = makeAuth(null);
+    const restricted = makeAuth([{ notebookId: "nb_allowed", read: true, write: true }]);
+    const call = (auth, tool, args) => callMcpTool(context, auth, tool, args);
+
+    const memoIds = [];
+    for (let index = 0; index < 48; index++) {
+      memoIds.push((await call(admin, "create_memo", {
+        notebookId: "nb_allowed", title: `m${index}`, contentMarkdown: "x",
+      })).memo.id);
+    }
+
+    // Count database statements during the restricted move.
+    const realDb = context.env.storage.db;
+    let statements = 0;
+    // Count executed queries the way D1 bills them: each all/first/run is a
+    // query; a batch is one operation regardless of its statement count.
+    const countingDb = {
+      prepare(sql) {
+        const statement = realDb.prepare(sql);
+        return {
+          bind(...bindings) {
+            const bound = statement.bind(...bindings);
+            return {
+              sql,
+              bindings,
+              async all() { statements += 1; return bound.all(); },
+              async first() { statements += 1; return bound.first(); },
+              async run() { statements += 1; return bound.run(); },
+            };
+          },
+        };
+      },
+      async batch(statementList) {
+        statements += 1;
+        return realDb.batch(statementList.map(
+          (entry) => realDb.prepare(entry.sql).bind(...(entry.bindings ?? [])),
+        ));
+      },
+    };
+    context.env.storage.db = countingDb;
+    try {
+      const moved = await call(restricted, "move_memos", { memoIds, notebookId: "nb_allowed_child" });
+      expect(moved.moved).toBe(48);
+      // Auth resolution + one batched guard + the service's own queries:
+      // far below D1's 50-query budget, and no per-memo detail loads.
+      expect(statements).toBeLessThan(20);
+    } finally {
+      context.env.storage.db = realDb;
+    }
+  });
+});

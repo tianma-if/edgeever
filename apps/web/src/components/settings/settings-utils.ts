@@ -127,8 +127,9 @@ export const draftToNotebookAccess = (draft: NotebookGrantDraft): TokenNotebookA
   if (draft.mode !== "selected") {
     return undefined;
   }
+  // Explicit denies (read=false, write=false) are kept: dropping them would
+  // silently reopen those notebooks under the default policy.
   return Object.entries(draft.grants)
-    .filter(([, grant]) => grant.read || grant.write)
     .map(([notebookId, grant]) => ({ notebookId, read: grant.read, write: grant.write }));
 };
 
