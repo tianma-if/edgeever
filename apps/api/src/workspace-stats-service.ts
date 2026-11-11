@@ -23,7 +23,9 @@ export const getWorkspaceStats = async (
   const notebookFilter = notebookAccess?.restricted
     ? `AND ${notebookInListSql("id", notebookAccess.readableNotebookIds)}`
     : "";
-  const notebookBinds = notebookAccess?.restricted ? [notebookIdsBind(notebookAccess.readableNotebookIds)] : [];
+  const notebookBinds = notebookAccess?.restricted && notebookAccess.readableNotebookIds.length > 0
+    ? [notebookIdsBind(notebookAccess.readableNotebookIds)]
+    : [];
   const [memoCounts, notebookCount, tagCount, resourceStats] = await Promise.all([
     database.prepare(
       `SELECT

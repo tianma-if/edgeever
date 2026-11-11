@@ -184,3 +184,40 @@ describe("API token notebook access management", () => {
     expect(response.status).toBe(403);
   });
 });
+
+describe("PATCH preserves stored grants on metadata-only edits", () => {
+  test("renaming a token with a corrupted grant record keeps the record verbatim", async () => {
+    const { app, environment, sqlite } = createFixture();
+    const created = await post(app, environment, {
+      name: "Scoped",
+      scopes: ["read:memos", "write:memos"],
+      notebookAccess: [{ notebookId: "nb_a", read: true, write: false }],
+    });
+    const body = await created.json();
+
+    // Corrupt the stored grant record directly, as a failed write would.
+    sqlite.query("UPDATE api_tokens SET notebook_access_json = 'corrupted{json' WHERE id = ?").run(body.apiToken.id);
+    sqlite.query("UPDATE api_tokens SET notebook_default_access = 'write' WHERE id = ?").run(body.apiToken.id);
+
+    // A metadata-only PATCH must not normalize the corrupted record to "[]".
+    const renamed = await patch(app, environment, body.apiToken.id, { name: "Renamed" });
+    expect(renamed.status).toBe(200);
+    const stored = sqlite.query("SELECT notebook_access_json, notebook_default_access FROM api_tokens WHERE id = ?").get(body.apiToken.id);
+    expect(stored.notebook_access_json).toBe("corrupted{json");
+    expect(stored.notebook_default_access).toBe("write");
+  });
+
+  test("renaming an unrestricted token keeps notebook_access_json NULL", async () => {
+    const { app, environment, sqlite } = createFixture();
+    const created = await post(app, environment, {
+      name: "Plain",
+      scopes: ["read:memos"],
+    });
+    const body = await created.json();
+
+    const renamed = await patch(app, environment, body.apiToken.id, { name: "Renamed" });
+    expect(renamed.status).toBe(200);
+    const stored = sqlite.query("SELECT notebook_access_json FROM api_tokens WHERE id = ?").get(body.apiToken.id);
+    expect(stored.notebook_access_json).toBeNull();
+  });
+});

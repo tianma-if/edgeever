@@ -313,3 +313,20 @@ describe("MCP notebook access enforcement", () => {
     })).rejects.toMatchObject({ code: "notebook_access_denied", status: 403 });
   });
 });
+
+describe("empty readable lists bind no parameters", () => {
+  test("list_notebooks and get_workspace_stats work with zero granted notebooks", async () => {
+    const { context, makeAuth } = createFixture();
+    const noneGranted = makeAuth([{ notebookId: "nb_missing", read: true, write: true }]);
+
+    // The grant references a notebook that does not exist, so the resolved
+    // readable list is empty; both entry points must not bind a json_each
+    // parameter for an empty list ("0 = 1" needs no binds).
+    const notebooks = await callMcpTool(context, noneGranted, "list_notebooks", {});
+    expect(notebooks.notebooks).toEqual([]);
+
+    const stats = await callMcpTool(context, noneGranted, "get_workspace_stats", {});
+    expect(stats.notebooks.active).toBe(0);
+    expect(stats.memos.active).toBe(0);
+  });
+});

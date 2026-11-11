@@ -191,11 +191,20 @@ export const registerApiTokenRoutes = (
         : parseJsonArray(current.scopes_json) as string[];
       if (!scopes) return badRequest(context, "Token scope is not supported.");
 
-      const notebookAccess = input.notebookAccess !== undefined
-        ? input.notebookAccess
-        : parseNotebookAccessJson(current.notebook_access_json);
+      // When the request does not change grants, keep the stored JSON verbatim:
+      // re-serializing a corrupted record would silently rewrite it to "[]"
+      // (and keep the default policy), reopening access for the same token.
+      const notebookAccessJson = input.notebookAccess !== undefined
+        ? JSON.stringify(input.notebookAccess)
+        : current.notebook_access_json;
 
-      const notebookDenied = await validateNotebookAccess(context, workspaceId, notebookAccess ?? []);
+      const notebookDenied = await validateNotebookAccess(
+        context,
+        workspaceId,
+        input.notebookAccess !== undefined
+          ? input.notebookAccess
+          : parseNotebookAccessJson(current.notebook_access_json) ?? [],
+      );
       if (notebookDenied) return notebookDenied;
 
       const name = input.name ?? current.name;
@@ -212,7 +221,7 @@ export const registerApiTokenRoutes = (
         ).bind(
           name,
           JSON.stringify(scopes),
-          notebookAccess ? JSON.stringify(notebookAccess) : null,
+          notebookAccessJson,
           notebookDefaultAccess,
           expiresAt,
           id,
@@ -229,7 +238,7 @@ export const registerApiTokenRoutes = (
             name,
             scopes,
             expiresAt,
-            notebookAccess: notebookAccess ?? null,
+            notebookAccess: parseNotebookAccessJson(notebookAccessJson),
             notebookDefaultAccess,
             previous: {
               name: current.name,

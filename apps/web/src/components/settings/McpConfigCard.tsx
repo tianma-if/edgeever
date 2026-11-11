@@ -584,11 +584,15 @@ const TokenEditDialog = ({ token, availableScopes, notebooks, isSaving, onCancel
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!name.trim() || !notebookValid) return;
+    // Only send grant fields when the stored token was notebook-restricted;
+    // a name-only edit must not rewrite grants (a corrupted stored record
+    // would be silently normalized to "[]" and reopen access).
+    const wasRestricted = token.notebookAccess != null;
     onSave(token.id, {
       name: name.trim(),
       scopes: getTokenScopesForAccessLevel(accessLevel, availableScopes),
-      notebookAccess,
-      notebookDefaultAccess: accessLevel === "custom" ? draft.defaultAccess : undefined,
+      ...(wasRestricted ? { notebookAccess } : {}),
+      ...(wasRestricted ? { notebookDefaultAccess: accessLevel === "custom" ? draft.defaultAccess : undefined } : {}),
     });
   };
 

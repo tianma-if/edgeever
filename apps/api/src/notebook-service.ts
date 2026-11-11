@@ -81,7 +81,9 @@ export const listNotebooks = async (
   const accessFilter = notebookAccess?.restricted
     ? `AND ${notebookInListSql("n.id", notebookAccess.readableNotebookIds)}`
     : "";
-  const accessBinds = notebookAccess?.restricted ? [notebookIdsBind(notebookAccess.readableNotebookIds)] : [];
+  const accessBinds = notebookAccess?.restricted && notebookAccess.readableNotebookIds.length > 0
+    ? [notebookIdsBind(notebookAccess.readableNotebookIds)]
+    : [];
   const rows = await db
     .prepare(
       notebookSelectSql(
