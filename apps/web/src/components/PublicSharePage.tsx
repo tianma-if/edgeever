@@ -39,6 +39,7 @@ import { NotebookSiteSearchContext } from "./NotebookSiteSearch";
 import { useAppearanceTheme } from "./ThemeProvider";
 
 const ReadOnlyX6Diagram = lazy(() => import("@/components/ReadOnlyX6Diagram"));
+const ReadOnlyInfographic = lazy(() => import("@/components/ReadOnlyInfographic"));
 const ImageViewer = lazy(() => import("@/components/editor/ImageViewer").then((module) => ({ default: module.ImageViewer })));
 
 const SharedImage = Image.extend({
@@ -177,6 +178,13 @@ const SharedDocument = ({
 }) => {
   const { resolvedTheme } = useAppearanceTheme();
   const body = useMemo(() => resolvePublicShareBody(share, token, access), [share, token, access]);
+  if (body.type === "infographic") {
+    return (
+      <Suspense fallback={<div className="flex min-h-[360px] items-center justify-center text-slate-400"><LoaderCircle className="h-6 w-6 animate-spin" /></div>}>
+        <ReadOnlyInfographic syntax={body.infographic.syntax} />
+      </Suspense>
+    );
+  }
   if (body.type === "diagram") {
     return (
       <Suspense

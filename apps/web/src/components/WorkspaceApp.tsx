@@ -1,6 +1,7 @@
 import { DesktopAttachmentWritebacks } from "./attachments/DesktopAttachmentWritebacks";
 import { useNoteImport } from "@/lib/note-import/use-note-import";
 import { NotebookAppearanceDialog } from "./dialogs/NotebookAppearanceDialog";
+import { ShareMemoDialog } from "./dialogs/ShareMemoDialog";
 import type { NotebookUpdateInput } from "@edgeever/shared";
 import { startPosterClientRenderer } from "@/lib/poster-client-render";
 import {
@@ -263,6 +264,7 @@ export const WorkspaceApp = ({
   const createMemoInFlightRef = useRef(false);
   const memoDocumentActionIdRef = useRef(0);
   const [memoDocumentActionRequest, setMemoDocumentActionRequest] = useState<MemoDocumentActionRequest | null>(null);
+  const [listShareMemoId, setListShareMemoId] = useState<string | null>(null);
   const [memoDeleteConfirmation, setMemoDeleteConfirmation] = useState<MemoDeleteConfirmation | null>(null);
   const [emptyTrashConfirmationOpen, setEmptyTrashConfirmationOpen] = useState(false);
   const [appearanceNotebook, setAppearanceNotebook] = useState<Notebook | null>(null);
@@ -3634,6 +3636,11 @@ export const WorkspaceApp = ({
               onRestoreMemo={handleRestoreMemoFromList}
               onMoveMemo={handleMoveMemoFromList}
               onRequestDocumentAction={(memoId: string, action: MemoDocumentAction, printWindow?: Window | null) => {
+                // Link sharing only needs the note ID, regardless of its editor type.
+                if (action === "share") {
+                  setListShareMemoId(memoId);
+                  return;
+                }
                 clearPendingMemoSelection();
                 if (shouldNavigateHomeWhenOpeningMemo(memoView)) {
                   navigateWorkspaceHome();
@@ -4169,6 +4176,13 @@ export const WorkspaceApp = ({
           tone="primary"
           onCancel={() => setDemoResetConfirmationOpen(false)}
           onConfirm={() => resetDemoMutation.mutate()}
+        />
+      )}
+      {listShareMemoId && (
+        <ShareMemoDialog
+          memoId={listShareMemoId}
+          open
+          onOpenChange={(open) => { if (!open) setListShareMemoId(null); }}
         />
       )}
       <PluginPanelDialog
