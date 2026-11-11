@@ -1,6 +1,7 @@
 import { useRef, useState, type DragEvent } from "react";
 import { CheckCircle2, ExternalLink, FileUp, Folder, LoaderCircle, TriangleAlert, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import flomoLogo from "@/assets/import-logos/flomo.png?url";
 import evernoteLogo from "@/assets/import-logos/evernote.svg?url";
 import joplinLogo from "@/assets/import-logos/joplin.svg?url";
 import obsidianLogo from "@/assets/import-logos/obsidian.svg?url";
@@ -15,7 +16,7 @@ import type { NoteImportController, NoteImportSnapshot } from "@/lib/note-import
 import { EVERNOTE_MIGRATION_BLOG_URL } from "@/lib/routes";
 
 const importSources = {
-  flomo: { label: "flomo", logo: undefined, formatHint: "HTML · .zip" },
+  flomo: { label: "flomo", logo: flomoLogo, formatHint: "HTML · .zip" },
   evernote: {
     label: "Evernote / 印象笔记",
     logo: evernoteLogo,

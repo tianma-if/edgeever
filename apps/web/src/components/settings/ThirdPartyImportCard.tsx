@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import flomoLogo from "@/assets/import-logos/flomo.png?url";
 import evernoteLogo from "@/assets/import-logos/evernote.svg?url";
 import joplinLogo from "@/assets/import-logos/joplin.svg?url";
 import obsidianLogo from "@/assets/import-logos/obsidian.svg?url";
@@ -11,7 +12,7 @@ import { SETTINGS_CARD_HEADER_CLASSNAME, SETTINGS_CARD_ICON_CLASSNAME, SETTINGS_
 import { ThirdPartyImportDialog } from "./ThirdPartyImportDialog";
 
 const importSources = [
-  { label: "flomo (.zip)", logo: undefined },
+  { label: "flomo (.zip)", logo: flomoLogo },
   { label: "Evernote (.enex)", logo: evernoteLogo },
   { label: "Obsidian", logo: obsidianLogo },
   { label: "Joplin (.jex)", logo: joplinLogo },

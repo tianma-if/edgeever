@@ -1,5 +1,8 @@
 {
   "icons": {
+    "flomo.png": {
+      "source": "https://flomoapp.com/images/logo-192x192.png"
+    },
     "evernote.svg": {
       "source": "https://evernote.com/images/evernote-logo-icon.svg"
     },
