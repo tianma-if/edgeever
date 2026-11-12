@@ -166,17 +166,16 @@ export const resolveNotebookAccess = async (
   // (or explicit deny) on the closest ancestor — including the notebook
   // itself — decides, so a read-only child overrides a read/write parent and
   // an explicit deny on a parent closes its whole subtree.
-  const allNotebookIds = await liveNotebookIds(db, workspaceId);
-  const parentByNotebook = await notebookParentsById(db, workspaceId);
+  const tree = await notebookTree(db, workspaceId);
   const grantByNotebook = new Map(entries.map((entry) => [entry.notebookId, entry]));
 
   const effectiveGrant = (notebookId: string): { read: boolean; write: boolean } | null => {
     let current: string | null = notebookId;
     let seen = 0;
-    while (current && seen <= allNotebookIds.length + 1) {
+    while (current && seen <= tree.ids.length + 1) {
       const grant = grantByNotebook.get(current);
       if (grant) return { read: grant.read || grant.write, write: grant.write };
-      current = parentByNotebook.get(current) ?? null;
+      current = tree.parentByNotebook.get(current) ?? null;
       seen += 1;
     }
     return null;
@@ -184,7 +183,7 @@ export const resolveNotebookAccess = async (
 
   const readable: string[] = [];
   const writable: string[] = [];
-  for (const id of allNotebookIds) {
+  for (const id of tree.ids) {
     const grant = effectiveGrant(id);
     if (grant) {
       if (grant.read) readable.push(id);
@@ -205,22 +204,24 @@ export const resolveNotebookAccess = async (
   };
 };
 
-/** Loads the live parent id of every notebook in the workspace. */
-const notebookParentsById = async (
+/**
+ * Loads the live notebook tree (ids + parent links) in a single query, so a
+ * restricted request pays one constant read for authorization instead of two
+ * full-table scans.
+ */
+type NotebookTree = { ids: string[]; parentByNotebook: Map<string, string | null> };
+
+const notebookTree = async (
   db: DatabaseAdapter,
   workspaceId: string,
-): Promise<Map<string, string | null>> => {
+): Promise<NotebookTree> => {
   const rows = await db.prepare(
     `SELECT id, parent_id FROM notebooks WHERE workspace_id = ? AND is_deleted = 0`,
   ).bind(workspaceId).all<{ id: string; parent_id: string | null }>();
-  return new Map(rows.results.map((row) => [row.id, row.parent_id]));
-};
-
-const liveNotebookIds = async (db: DatabaseAdapter, workspaceId: string): Promise<string[]> => {
-  const rows = await db.prepare(
-    `SELECT id FROM notebooks WHERE workspace_id = ? AND is_deleted = 0`,
-  ).bind(workspaceId).all<{ id: string }>();
-  return rows.results.map((row) => row.id);
+  return {
+    ids: rows.results.map((row) => row.id),
+    parentByNotebook: new Map(rows.results.map((row) => [row.id, row.parent_id])),
+  };
 };
 
 /** SQL fragment for memo rows: true when the memo's notebook is accessible. */

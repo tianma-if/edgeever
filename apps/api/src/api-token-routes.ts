@@ -210,7 +210,13 @@ export const registerApiTokenRoutes = (
       }
 
       const name = input.name ?? current.name;
-      const expiresAt = input.expiresAt !== undefined ? input.expiresAt : current.expires_at;
+      // expires_at only changes when the request carries the field; a
+      // metadata-only PATCH must not null out a concurrently set expiry.
+      const expiresAt = input.expiresAt !== undefined ? input.expiresAt : null;
+      const expiresAtChanged = input.expiresAt !== undefined;
+      // The default policy follows the grant field: it changes when the
+      // request carries it, when grants are set, or when the restriction is
+      // removed. A grant-only PATCH keeps the stored default.
       const notebookDefaultAccess = input.notebookDefaultAccess !== undefined
         ? input.notebookDefaultAccess
         : null;
@@ -227,10 +233,10 @@ export const registerApiTokenRoutes = (
                END,
                notebook_default_access = CASE
                  WHEN ? = '__UNRESTRICT__' THEN 'none'
-                 WHEN ? IS NULL THEN notebook_default_access
-                 ELSE ?
+                 WHEN ? IS NOT NULL THEN ?
+                 ELSE notebook_default_access
                END,
-               expires_at = ?
+               expires_at = CASE WHEN ? THEN ? ELSE expires_at END
            WHERE id = ? AND workspace_id = ?`,
         ).bind(
           name,
@@ -240,8 +246,9 @@ export const registerApiTokenRoutes = (
           notebookAccessJson,
           notebookAccessJson,
           notebookAccessJson,
-          notebookAccessJson,
           notebookDefaultAccess,
+          notebookDefaultAccess,
+          expiresAtChanged ? 1 : 0,
           expiresAt,
           id,
           workspaceId,
@@ -256,14 +263,16 @@ export const registerApiTokenRoutes = (
           {
             name,
             scopes: scopes ?? parseJsonArray(current.scopes_json),
-            expiresAt,
+            expiresAt: expiresAtChanged ? expiresAt : current.expires_at,
             notebookAccess: parseNotebookAccessJson(
               notebookAccessJson === "__UNRESTRICT__"
                 ? null
                 : notebookAccessJson ?? current.notebook_access_json,
             ),
             notebookDefaultAccess: notebookDefaultAccess
-              ?? parseNotebookDefaultAccess(current.notebook_default_access),
+              ?? (notebookAccessJson === "__UNRESTRICT__"
+                ? "none"
+                : parseNotebookDefaultAccess(current.notebook_default_access)),
             previous: {
               name: current.name,
               scopes: parseJsonArray(current.scopes_json),

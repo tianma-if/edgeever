@@ -171,17 +171,22 @@ const NotebookGrantEditor = ({ notebooks, draft, onChange, idPrefix }: NotebookG
     // Write always implies read, both in the UI and on the server.
     if (next.write) next.read = true;
     const grants = { ...draft.grants };
-    if (next.read || next.write) {
-      grants[notebookId] = next;
-    } else {
-      delete grants[notebookId];
-    }
+    // A notebook that had any grant keeps an explicit deny when fully
+    // unchecked: deleting the entry would silently fall back to the default
+    // policy (e.g. read/write) for this notebook.
+    grants[notebookId] = next;
     onChange({ mode: "selected", grants, defaultAccess: draft.defaultAccess });
   };
 
   const setAllGrants = (grant: { read: boolean; write: boolean } | null) => {
     if (!grant) {
-      onChange({ mode: "selected", grants: {}, defaultAccess: draft.defaultAccess });
+      // Clear turns every previously granted notebook into an explicit deny
+      // instead of removing it, so the default policy cannot reopen them.
+      const grants: NotebookGrantDraft["grants"] = {};
+      for (const [notebookId, current] of Object.entries(draft.grants)) {
+        if (current.read || current.write) grants[notebookId] = { read: false, write: false };
+      }
+      onChange({ mode: "selected", grants, defaultAccess: draft.defaultAccess });
       return;
     }
     const grants: NotebookGrantDraft["grants"] = {};
@@ -590,32 +595,54 @@ const TokenEditDialog = ({ token, availableScopes, notebooks, isSaving, onCancel
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!name.trim() || !notebookValid) return;
+
+    // Only send what the user actually changed in this dialog, compared
+    // against the token snapshot it was opened with. A stale draft must
+    // never overwrite a concurrent permission change made elsewhere.
+    const payload: {
+      name: string;
+      scopes?: string[];
+      notebookAccess?: TokenNotebookAccess[] | null;
+      notebookDefaultAccess?: TokenNotebookDefaultAccess;
+    } = { name: name.trim() };
+
+    if (name.trim() !== token.name) payload.name = name.trim();
+
+    const currentLevel = getStoredTokenAccessLevel(token.scopes, availableScopes, token.notebookAccess);
     const wasRestricted = token.notebookAccess != null;
 
-    // Grant fields follow the access level:
-    // - custom: set the drafted grants and default policy (restrict or edit);
-    // - full/read-only on a previously restricted token: null removes the
-    //   restriction entirely (an omitted field would keep it);
-    // - same non-custom level on an unrestricted token: omit grants (keep).
-    const grantPayload = accessLevel === "custom"
-      ? { notebookAccess, notebookDefaultAccess: draft.defaultAccess }
-      : wasRestricted
-        ? { notebookAccess: null, notebookDefaultAccess: "none" as const }
-        : {};
+    if (accessLevel === "custom") {
+      // Setting or editing grants: send them only when they differ from the
+      // snapshot (a name-only visit keeps the stored grants untouched).
+      const storedAccess = token.notebookAccess ?? [];
+      const nextAccess = notebookAccess ?? [];
+      const grantsChanged = wasRestricted
+        ? JSON.stringify(nextAccess) !== JSON.stringify(storedAccess)
+          || draft.defaultAccess !== (token.notebookDefaultAccess ?? "none")
+        : true; // restricting an unrestricted token is always a change
+      if (grantsChanged) {
+        payload.notebookAccess = nextAccess;
+        payload.notebookDefaultAccess = draft.defaultAccess;
+      }
+      // Switching a read-only token to custom read/write must also widen
+      // the global scopes, or every write still 403s.
+      if (currentLevel === "read-only") {
+        payload.scopes = getTokenScopesForAccessLevel("full", availableScopes);
+      }
+    } else if (wasRestricted) {
+      // Removing the restriction entirely (full/read-only on a restricted
+      // token); null is the explicit unrestrict marker.
+      payload.notebookAccess = null;
+      payload.notebookDefaultAccess = "none";
+      if (accessLevel !== currentLevel) {
+        payload.scopes = getTokenScopesForAccessLevel(accessLevel, availableScopes);
+      }
+    } else if (accessLevel !== currentLevel) {
+      // Same-family level change on an unrestricted token: only scopes.
+      payload.scopes = getTokenScopesForAccessLevel(accessLevel, availableScopes);
+    }
 
-    // Scopes are only sent when the level actually changes them; a name-only
-    // edit must not rewrite a token's custom global scopes.
-    const currentLevel = getStoredTokenAccessLevel(token.scopes, availableScopes, token.notebookAccess);
-    const levelChanged = accessLevel !== currentLevel && accessLevel !== "custom";
-    const scopePayload = levelChanged
-      ? { scopes: getTokenScopesForAccessLevel(accessLevel, availableScopes) }
-      : {};
-
-    onSave(token.id, {
-      name: name.trim(),
-      ...scopePayload,
-      ...grantPayload,
-    });
+    onSave(token.id, payload);
   };
 
   return (

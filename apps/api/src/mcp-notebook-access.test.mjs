@@ -23,8 +23,8 @@ class SqliteD1PreparedStatement {
   }
 
   async run() {
-    this.db.query(this.sql).run(...this.bindings);
-    return { success: true, meta: {} };
+    const result = this.db.query(this.sql).run(...this.bindings);
+    return { success: true, meta: { changes: result.changes } };
   }
 }
 
@@ -38,8 +38,10 @@ class SqliteD1Database {
   }
 
   async batch(statements) {
-    return this.db.transaction(() => statements.map((statement) =>
-      this.db.query(statement.sql).run(...statement.bindings)))();
+    return this.db.transaction(() => statements.map((statement) => {
+      const result = this.db.query(statement.sql).run(...statement.bindings);
+      return { success: true, meta: { changes: result.changes } };
+    }))();
   }
 }
 
@@ -426,5 +428,53 @@ describe("batch access checks stay within the query budget", () => {
     } finally {
       context.env.storage.db = realDb;
     }
+  });
+});
+
+describe("notebook deletion and restore with token grants", () => {
+  test("deleting a parent keeps children that tokens reference explicitly", async () => {
+    const { context, makeAuth, sqlite } = createFixture();
+    const admin = makeAuth(null);
+    const call = (auth, tool, args) => callMcpTool(context, auth, tool, args);
+
+    // Parent with an empty child; a token denies the child explicitly.
+    const parent = (await call(admin, "create_notebook", { name: "Parent" })).notebook;
+    const child = (await call(admin, "create_notebook", { name: "Child", parentId: parent.id })).notebook;
+    sqlite.query("INSERT INTO api_tokens (id, workspace_id, name, token_hash, scopes_json, notebook_access_json, created_at) VALUES (?, 'ws_mcp', 'deny-child', 'x', '[\"read:memos\"]', ?, strftime('%Y-%m-%dT%H:%M:%fZ','now'))")
+      .run("tok_deny", JSON.stringify([{ notebookId: child.id, read: false, write: false }]));
+
+    const deleted = await call(admin, "delete_notebook", { notebookId: parent.id });
+    expect(deleted.deleted).toBe(true);
+    // The child survived and was detached to the root.
+    const childRow = sqlite.query("SELECT is_deleted, parent_id FROM notebooks WHERE id = ?").get(child.id);
+    expect(childRow.is_deleted).toBe(0);
+    expect(childRow.parent_id).toBeNull();
+    // The parent itself is gone.
+    const parentRow = sqlite.query("SELECT is_deleted FROM notebooks WHERE id = ?").get(parent.id);
+    expect(parentRow.is_deleted).toBe(1);
+  });
+
+  test("restoring a child of a still-deleted parent detaches it to the root", async () => {
+    const { context, makeAuth, sqlite } = createFixture();
+    const admin = makeAuth(null);
+    const call = (auth, tool, args) => callMcpTool(context, auth, tool, args);
+
+    const parent = (await call(admin, "create_notebook", { name: "P2" })).notebook;
+    const child = (await call(admin, "create_notebook", { name: "C2", parentId: parent.id })).notebook;
+    await call(admin, "delete_notebook", { notebookId: parent.id });
+    // Both are deleted together (no token references the child here).
+    expect(sqlite.query("SELECT is_deleted FROM notebooks WHERE id = ?").get(child.id).is_deleted).toBe(1);
+
+    // Restore only the child (REST route semantics via the service).
+    const { restoreNotebookRecord } = await import("./notebook-service.ts");
+    const restored = await restoreNotebookRecord(
+      context.env.storage.db, "ws_mcp", child.id,
+      { actorType: "user", actorId: "usr_1" },
+    );
+    expect(restored.id).toBe(child.id);
+    const childRow = sqlite.query("SELECT is_deleted, parent_id FROM notebooks WHERE id = ?").get(child.id);
+    expect(childRow.is_deleted).toBe(0);
+    // Detached from the still-deleted parent instead of inheriting its fate.
+    expect(childRow.parent_id).toBeNull();
   });
 });

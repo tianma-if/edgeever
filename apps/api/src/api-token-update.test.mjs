@@ -281,3 +281,65 @@ describe("PATCH field scoping", () => {
     expect((await unrestricted.json()).apiToken.notebookAccess).toBeNull();
   });
 });
+
+describe("PATCH per-field independence", () => {
+  test("changing only the default policy keeps the grants", async () => {
+    const { app, environment, sqlite } = createFixture();
+    const created = await post(app, environment, {
+      name: "T", scopes: ["read:memos"],
+      notebookAccess: [{ notebookId: "nb_a", read: true, write: false }],
+      notebookDefaultAccess: "none",
+    });
+    const body = await created.json();
+
+    const updated = await patch(app, environment, body.apiToken.id, { notebookDefaultAccess: "read" });
+    expect(updated.status).toBe(200);
+    const stored = sqlite.query("SELECT notebook_access_json, notebook_default_access FROM api_tokens WHERE id = ?").get(body.apiToken.id);
+    expect(JSON.parse(stored.notebook_access_json)).toEqual([{ notebookId: "nb_a", read: true, write: false }]);
+    expect(stored.notebook_default_access).toBe("read");
+  });
+
+  test("changing only the grants keeps the stored default policy", async () => {
+    const { app, environment, sqlite } = createFixture();
+    const created = await post(app, environment, {
+      name: "T", scopes: ["read:memos"],
+      notebookAccess: [{ notebookId: "nb_a", read: true, write: false }],
+      notebookDefaultAccess: "read",
+    });
+    const body = await created.json();
+
+    const updated = await patch(app, environment, body.apiToken.id, {
+      notebookAccess: [{ notebookId: "nb_b", read: true, write: true }],
+    });
+    expect(updated.status).toBe(200);
+    const stored = sqlite.query("SELECT notebook_default_access FROM api_tokens WHERE id = ?").get(body.apiToken.id);
+    expect(stored.notebook_default_access).toBe("read");
+  });
+
+  test("a name-only PATCH keeps a concurrently set expiry", async () => {
+    const { app, environment, sqlite } = createFixture();
+    const created = await post(app, environment, { name: "T", scopes: ["read:memos"] });
+    const body = await created.json();
+
+    // Another request sets an expiry after this PATCH read the token.
+    sqlite.query("UPDATE api_tokens SET expires_at = '2099-01-01T00:00:00.000Z' WHERE id = ?").run(body.apiToken.id);
+
+    const renamed = await patch(app, environment, body.apiToken.id, { name: "Renamed" });
+    expect(renamed.status).toBe(200);
+    const stored = sqlite.query("SELECT expires_at FROM api_tokens WHERE id = ?").get(body.apiToken.id);
+    expect(stored.expires_at).toBe("2099-01-01T00:00:00.000Z");
+  });
+
+  test("an explicit expiresAt null clears the expiry", async () => {
+    const { app, environment, sqlite } = createFixture();
+    const created = await post(app, environment, {
+      name: "T", scopes: ["read:memos"], expiresAt: "2099-01-01T00:00:00.000Z",
+    });
+    const body = await created.json();
+
+    const cleared = await patch(app, environment, body.apiToken.id, { expiresAt: null });
+    expect(cleared.status).toBe(200);
+    const stored = sqlite.query("SELECT expires_at FROM api_tokens WHERE id = ?").get(body.apiToken.id);
+    expect(stored.expires_at).toBeNull();
+  });
+});

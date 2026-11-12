@@ -284,3 +284,33 @@ describe("nearest-entry-wins grant resolution", () => {
     expect(access.writableNotebookIds).toEqual(["nb_root"]);
   });
 });
+
+describe("single tree load per resolution", () => {
+  test("resolveNotebookAccess issues exactly one notebook query", async () => {
+    const db = createFixture();
+    // Wrap the adapter to count executed queries.
+    const realPrepare = db.prepare.bind(db);
+    let queries = 0;
+    const counting = {
+      prepare: (sql) => {
+        const statement = realPrepare(sql);
+        return {
+          bind: (...bindings) => {
+            const bound = statement.bind(...bindings);
+            return {
+              async all() { queries += 1; return bound.all(); },
+              async first() { queries += 1; return bound.first(); },
+              async run() { queries += 1; return bound.run(); },
+            };
+          },
+        };
+      },
+    };
+
+    const access = await resolveNotebookAccess(counting, "ws_t", [
+      { notebookId: "nb_root", read: true, write: true },
+    ], "write");
+    expect(queries).toBe(1);
+    expect(access.readableNotebookIds.length).toBeGreaterThan(0);
+  });
+});
