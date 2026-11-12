@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { Database } from "bun:sqlite";
+import { createHash, randomBytes } from "node:crypto";
 import { readdir, readFile, mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -45,7 +46,75 @@ const target = async () => {
   return { client, db, env, intercept: (fn) => { intercept = fn; } };
 };
 
+const notionPartName = number => `Export-3f15dd29-7f7c-4388-812c-6bcf999914dd-Part-${number}.zip`;
+const input = (path, data) => ({ path, file: new File([data], path) });
+const notionPart = async (number, files) => ({ ...(await archive(files, "zip"))[0], path: notionPartName(number) });
+
 describe("Notion and SiYuan through the unified import API", () => {
+  test("Notion: imports a multipart export and preserves a missing CSV link with a warning", async () => {
+    const { client, db, intercept } = await target();
+    const missingHref = "Missing%20view.csv";
+    const csv = "Title,Count\r\nExample,1\r\n";
+    const zipBytes = randomBytes(1024 * 1024 + 128);
+    const files = await archive([
+      await notionPart(1, [input("Book/Home.md", `# Home\n\n[Missing view](${missingHref})\n\n[Data](Data.csv)\n\n[Archive](attachment.zip)`)]),
+      await notionPart(2, [input("Book/Data.csv", csv), input("Book/attachment.zip", zipBytes)]),
+    ], "zip");
+    const session = new NoteImportSession("notion", files, new MemoryImportIndex());
+    try {
+      expect(await session.scan()).toMatchObject({ notes: 1, notebooks: 1, resources: 2, errors: 0, warnings: 2 });
+      const staged = await session.index.count("archiveChunk");
+      expect(staged).toBe(3);
+      await session.finishReading();
+      expect(await session.index.count("archiveChunk")).toBe(staged);
+      expect(await session.index.page("issue")).toContainEqual(expect.objectContaining({
+        severity: "warning", code: "notionMissingCsv", path: "Book/Home.md", detail: missingHref,
+      }));
+      const before = db.query("SELECT COUNT(*) AS n FROM memos").get().n;
+      intercept((url, init) => String(url).includes("/parts/") && init?.method === "PUT" ? Response.json({ error: { message: "fixture failure" } }, { status: 503 }) : null);
+      expect(await executeNoteImport({ reader: session, index: session.index, client })).toMatchObject({ completed: 0, failed: 1 });
+      expect(await session.index.count("archiveChunk")).toBe(staged);
+      intercept(null);
+      expect(await executeNoteImport({ reader: session, index: session.index, client })).toMatchObject({ completed: 1, failed: 0 });
+      expect(db.query("SELECT COUNT(*) AS n FROM memos").get().n - before).toBe(1);
+      const [result] = await session.index.page("result");
+      const { memo } = await client.getMemo(result.memo.id);
+      expect(memo.contentMarkdown).toContain(`[Missing view](${missingHref})`);
+      expect(await (await client.getResourceBlob(result.urls["Book/Data.csv"])).text()).toBe(csv);
+      const attachment = await (await client.getResourceBlob(result.urls["Book/attachment.zip"])).arrayBuffer();
+      const sha256 = bytes => createHash("sha256").update(bytes).digest("hex");
+      expect(sha256(new Uint8Array(attachment))).toBe(sha256(zipBytes));
+    } finally { await session.close(); db.close(); }
+    expect(await session.index.count("archiveChunk")).toBe(0);
+  });
+
+  test("Notion: root entries and a real same-name folder keep separate destinations", async () => {
+    const { client, db } = await target();
+    const files = await archive([input("Root.md", "# Root"), input("Notion/Child.md", "# Child")], "zip");
+    const session = new NoteImportSession("notion", files, new MemoryImportIndex());
+    try {
+      expect(await session.scan()).toMatchObject({ notes: 2, notebooks: 2, errors: 0 });
+      expect(await executeNoteImport({ reader: session, index: session.index, client })).toMatchObject({ completed: 2, failed: 0 });
+      const notebooks = (await client.listNotebooks()).notebooks.filter(notebook => notebook.name === "Notion");
+      const results = await session.index.page("result");
+      expect(new Set(results.map(result => result.memo.notebookId))).toEqual(new Set(notebooks.map(notebook => notebook.id)));
+      expect(notebooks).toHaveLength(2);
+    } finally { await session.close(); db.close(); }
+  });
+
+  test("Notion: corrupt parts and duplicate paths across parts block preflight", async () => {
+    const first = await notionPart(1, [input("Book/Page.md", "# One")]);
+    const second = await notionPart(2, [input("Book/Page.md", "# Two")]);
+    for (const [part, issue] of [[second, "duplicatePath"], [input(notionPartName(2), "invalid zip"), "invalidArchive"]]) {
+      const files = await archive([first, part], "zip");
+      const session = new NoteImportSession("notion", files, new MemoryImportIndex());
+      try {
+        expect((await session.scan()).errors).toBeGreaterThan(0);
+        expect(await session.index.page("issue")).toContainEqual(expect.objectContaining({ severity: "error", code: issue }));
+      } finally { await session.close(); }
+    }
+  });
+
   for (const format of ["notion", "siyuan"]) test(`${format}: Markdown ZIP, byte-preserving attachments, retry and new task`, async () => {
     const { client, db, intercept } = await target();
     const id = "a".repeat(32);
@@ -93,8 +162,8 @@ describe("Notion and SiYuan through the unified import API", () => {
 
   for (const format of ["notion", "siyuan"]) test(`${format}: missing attachments block writes and old servers reject the format`, async () => {
     const { client, db } = await target();
-    const session = new NoteImportSession(format, [{ path: "page.md", file: new File(["# Page\n![missing](missing.png)"], "page.md") }], new MemoryImportIndex());
-    expect((await session.scan()).errors).toBe(1);
+    const session = new NoteImportSession(format, [{ path: "page.md", file: new File(["# Page\n![missing](missing.png)\n[bad CSV](../outside.csv)"], "page.md") }], new MemoryImportIndex());
+    expect((await session.scan()).errors).toBe(2);
     const before = db.query("SELECT COUNT(*) AS n FROM memos").get().n;
     await expect(executeNoteImport({ reader: session, index: session.index, convertEnml: convertImportEnml, client })).rejects.toThrow("preflightErrors");
     expect(db.query("SELECT COUNT(*) AS n FROM memos").get().n).toBe(before);

@@ -8,8 +8,24 @@ Related #794. Extends the unified importer used by flomo in #834: the same sourc
 
 - Notion: official Markdown & CSV ZIP or extracted directory. Opening headings supply titles; front matter retains precedence. Strip trailing Notion IDs from display names only, preserving path identity for distinct same-name folders. Keep CSV bytes as attachments; unreferenced CSV files receive attachment notes. Do not rebuild database relations, formulas or views.
 - SiYuan: official Markdown ZIP or extracted directory, including assets. Resolve `assets/` against the nearest ancestor export directory. Markdown files inside assets remain attachments. Normalize HTML images/audio/video with the shared inert HTML converter, excluding code examples and front matter.
-- Original inter-note and SiYuan block links remain unchanged with warnings. Missing attachments and unreferenced nested ZIP/.sy sources block preflight. Other unused files are reported as warnings. Exported timestamps are used only when present as supported metadata; absent timestamps use existing import-time behavior.
+- Original inter-note and SiYuan block links remain unchanged with warnings. Missing ordinary attachments, unreferenced ZIP files other than export parts, and .sy sources block preflight. Other unused files are reported as warnings. Exported timestamps are used only when present as supported metadata; absent timestamps use existing import-time behavior.
 - New tasks create new notes; retries within one task retain identity and recover unfinished uploads. CSV remains downloadable with original bytes. No server-side export fetching or source account integration.
+
+## Notion archive imports
+
+Both ZIP layers in the same public Notion export pass their CRC checks. The outer ZIP contains one `Export-…-Part-1.zip` with 278 Markdown files, two CSV files and an HTML index. Four local CSV targets referenced by `Home.md` are absent. The original preflight rejected the nested ZIP and blocked the unpacked export on the missing CSV targets.
+
+- Expand one level of root-level Notion `Export-<UUID>-Part-N.zip` or `ExportBlock-<UUID>-Part-N.zip` in the import Worker. Index original relative paths together so exact references can span parts. Reuse ZIP reading, path validation, duplicate detection and cancellation. Corrupt parts block confirmation. Stage part ZIPs in chunks in the task index and read requested ranges for the ZIP central directory and entries. Retain staged parts across same-task retries and clear them with the index on close. A staging failure blocks preflight. Read notes and resources entry by entry.
+- Warn for a local Notion CSV link whose validated path has no matching entry. Show the source path and target, allow confirmation and preserve the original link. Existing CSV files keep their original bytes. Missing ordinary attachments, out-of-root paths and ambiguous references still block confirmation.
+- Upload the same original ZIP in a macOS browser and in Linux Chrome on `jingwen-mini`. Expect four notebooks, 280 notes, two attachments, zero errors and four missing-CSV warnings. Verify zero preflight writes, actual SQLite counts, downloaded CSV bytes and the original links in `Home`. Cover multiple parts, cross-part references, invalid parts, duplicate paths and ordinary ZIP attachments in regression tests.
+
+## Import fidelity and preflight
+
+- Give root entries a source-named notebook with an identity separate from a real folder of the same name. Verify destination notebook IDs and membership.
+- Prefer an explicit front matter title for Notion and SiYuan; otherwise read the opening level-one heading in the body. Ignore indented code and exclude ATX closing hashes. Omit the Notion ID from standalone `_all.csv` note titles while preserving the `_all` marker, original attachment filenames and bytes.
+- Convert actual HTML media in Markdown and handle paired audio and video tags. Preserve adjacent Markdown, quote/list structure, code and front matter. Use the existing HTML converter for wrapped media markup.
+- Treat Markdown under SiYuan `assets` as attachments and skip note scanning for those entries. A missing referenced Markdown asset blocks confirmation just like a missing image. Ordinary page links are preserved with warnings.
+- Publish supported formats from the server's input schema and remove the redundant used-entry marker for standalone attachment notes. Preserve the existing sources, blocking preflight behavior, cancellation and same-task retry contracts.
 
 ## Risk and rollback
 
@@ -17,12 +33,10 @@ Import can lose unsupported source semantics; warnings and documentation must re
 
 ## Validation
 
-Based on upstream `94813fe7e7685eae94b662414248f72be8a307fa` text snapshots, SHA-verified through the GitHub connector because local Git networking was unavailable.
-
-- `bun test packages/shared/src/note-import apps/web/src/lib/note-import tests/markdown-export-import.integration.test.mjs`: 49 passing tests. Includes real API handlers, temporary SQLite and filesystem attachments; verifies ZIP scanning, CSV bytes, HTML media, missing-attachment preflight, unsupported servers, failed upload recovery, same-task deduplication and new-task duplication.
-- Existing `tests/note-import.integration.test.mjs`: 78 passing cases using a temporary harness replacing only the listening HTTP server with direct API dispatch and transport Content-Length handling. Covers existing sources and bundled real-export fixtures. The unchanged HTTP suite could not run because localhost listen is unavailable; do not treat the harness as browser or network validation.
-- `bun run typecheck` and `bun run typecheck:mobile`: passed.
-- `bun run build:web`: blocked by missing upstream `apps/web/src/assets/import-logos/flomo.png` in the local snapshot. The connector cannot retrieve this binary and local network access is unavailable. The PR does not change or delete this asset.
-- Not verified: browser UI/production Worker build, real Notion and SiYuan account exports, remote throughput and arbitrary large exports. Keep the PR in draft until those gaps are addressed.
+- Web and desktop renderers share `ThirdPartyImportDialog`, `NoteImportController`, `BrowserImportReader`, `NoteImportSession`, and the task-scoped `BrowserImportIndex`. Format-specific behavior stays in source reading, title and attachment parsing, and preflight messages. `executeNoteImport` handles writes, uploads and retry with the existing instance and account guard. The desktop renderer keeps the existing sync pause and refresh sequence.
+- macOS ARM64 and Ubuntu 25.10 x86_64 on `jingwen-mini` each passed 133 import-related tests, web and mobile type checks, and the production web build. Regression coverage includes reading multipart ZIPs across staged chunks, attachment retry and index cleanup, root folder identity, titles and HTML media fidelity, and missing SiYuan Markdown attachments.
+- The original public multipart Notion ZIP, an actual Notion database ZIP, and an official SiYuan 3.8.10 ZIP imported 280, 1,032 and two notes, respectively, through Settings on both environments. Linux browser requests showed zero import writes during preflight and the same memo import, chunked upload, edit session and version-guarded update APIs after confirmation. All 1,030 Markdown bodies in the actual database ZIP, the public sample's `Home` Markdown, and six attachments across the three archives matched the source bytes in both environments.
+- The packaged macOS ARM64 app and the Linux x64 AppImage on `jingwen-mini` imported all three original archives from desktop Settings. Preflight performed no import writes, the added counts matched the browser runs, all notes synced to the local sidecar, and all six attachment SHA-256 hashes matched the originals.
+- Both desktop packages also passed with the same reproducible 1.25 GiB Notion-format fixture containing two inner ZIP files and cross-part attachment references. Preflight performed no import writes. Confirmation added one notebook, two notes and four attachments. Both notes synced to the sidecar, all four attachment SHA-256 hashes matched, and closing the import dialog removed all 1,282 staged chunks. Local Chrome against an isolated self-hosted instance produced the same preflight, write, attachment and staged-chunk cleanup results with the same fixture.
 
 Official format references: [Notion exports](https://www.notion.com/help/export-your-content), [SiYuan workspace assets](https://github.com/siyuan-note/siyuan/blob/master/docs/WORKSPACE.md), [SiYuan API](https://github.com/siyuan-note/siyuan/blob/master/docs/API.md).

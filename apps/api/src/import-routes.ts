@@ -37,7 +37,7 @@ export const registerImportRoutes = (app: Hono<AppEnv>) => {
     const denied = requireScopes(context, "read:memos");
     if (denied) return denied;
     context.header("Cache-Control", "no-store");
-    return context.json({ protocolVersion: 1, maxBatchSize: 25, formats: ["evernote", "obsidian", "joplin", "flomo", "notion", "siyuan"], importContext: importContext(context), accountId: context.get("auth").actorId });
+    return context.json({ protocolVersion: 1, maxBatchSize: 25, formats: importSchema.shape.format.options, importContext: importContext(context), accountId: context.get("auth").actorId });
   });
   app.post("/api/v1/imports/memos", zValidator("json", importSchema), async (context) => {
     const denied = requireScopes(context, "write:memos");

@@ -22,6 +22,15 @@ test("Notion preserves distinct same-name folders and original page paths", asyn
   await session.close();
 });
 
+test("Notion strips database IDs from standalone CSV titles and keeps the all-rows marker", async () => {
+  const id = "a".repeat(32);
+  const { session } = await scan("notion", { [`Database ${id}.csv`]: "Name\nOne", [`Database ${id}_all.csv`]: "Name\nOne" });
+  const notes = await session.index.page("note");
+  expect(notes.map(note => note.title)).toEqual(["Database", "Database_all"]);
+  expect(notes[1].resources[0].filename).toBe(`Database ${id}_all.csv`);
+  await session.close();
+});
+
 test("CSV-only exports produce a downloadable attachment without parsing away cells", async () => {
   const { session, summary } = await scan("notion", { "Data.csv": 'Title,Text\n"a","line 1\nline 2"' });
   expect(summary).toMatchObject({ notes: 1, resources: 1, errors: 0 });
@@ -53,6 +62,18 @@ test("HTML media conversion leaves code samples intact and removes executable HT
   expect(media).not.toContain("script");
 });
 
+test("HTML media preserves adjacent Markdown in quotes and lists", () => {
+  expect(normalizeExportMedia('> <img src="assets/p.png" alt="Picture">\n> **Keep me**')).toBe('> ![Picture](assets/p.png)\n> **Keep me**');
+  expect(normalizeExportMedia('- <video><source src="assets/clip.mp4"></video>\n  **Keep me**')).toBe('- [clip.mp4](assets/clip.mp4)\n  **Keep me**');
+});
+
+test("Missing SiYuan Markdown assets block import while missing pages only warn", async () => {
+  const { session, summary } = await scan("siyuan", { "Book/Child/Page.md": "[file](assets/missing.md)\n\n[page](missing.md)" });
+  expect(summary).toMatchObject({ notes: 1, errors: 1, warnings: 1 });
+  expect((await session.index.page("issue")).map(issue => issue.code)).toEqual(["missingResource", "noteLink"]);
+  await session.close();
+});
+
 test("SiYuan assets that contain Markdown stay attachments", async () => {
   const { session, summary } = await scan("siyuan", { "Page.md": "[file](assets/file.md)", "assets/file.md": "# attachment" });
   expect(summary).toMatchObject({ notes: 1, resources: 1, errors: 0 });
@@ -70,9 +91,11 @@ for (const format of ["notion", "siyuan"]) {
     const { session } = await scan(format, {
       "Front.md": '---\ntitle: Explicit\ntags: [one]\n---\n# Heading',
       "Code.md": '```md\n# Example\n```',
+      "Indented.md": '    # Example',
+      "Tagged.md": '---\ntags: [one]\n---\n\n# Real heading ###',
     });
     const notes = await session.index.page("note");
-    expect(notes.map(n => n.title).sort()).toEqual(["Code", "Explicit"]);
+    expect(notes.map(n => n.title).sort()).toEqual(["Code", "Explicit", "Indented", "Real heading"]);
     expect(notes.find(n => n.title === "Explicit").tags).toEqual(["one"]);
     await session.close();
   });

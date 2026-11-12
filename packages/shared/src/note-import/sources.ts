@@ -1,7 +1,8 @@
-import { BlobReader, ZipReader, type Entry } from "@zip.js/zip.js/index-native.js";
+import { BlobReader, Reader, ZipReader, type Entry, type FileEntry } from "@zip.js/zip.js/index-native.js";
 import { extract } from "it-tar";
 import type { ImportFile, ImportIndex, ImportIssue, SourceEntry } from "./types";
 import { IMPORT_CHUNK_BYTES } from "./types";
+import { ImportByteStore } from "./byte-store";
 
 export const basename = (path: string) => path.split("/").at(-1) ?? path;
 export const dirname = (path: string) => path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
@@ -17,14 +18,52 @@ export const normalPath = (path: string) => {
   return parts.join("/");
 };
 const ignored = (path: string) => path.split("/").some(part => [".obsidian", ".git", ".trash", "__MACOSX", ".DS_Store", "Thumbs.db"].includes(part));
+const notionPartZip = /^Export(?:Block)?-[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}-Part-[1-9]\d*\.zip$/i;
 export const addIssue = async (index: ImportIndex, code: string, path: string, severity: ImportIssue["severity"] = "error", detail?: string) => {
   // Index pages are key-ordered: show blocking errors before paginating warnings.
   const key = `${severity === "error" ? "0" : "1"}-${crypto.randomUUID()}`;
   await index.put("issue", key, { key, code, path, severity, ...(detail ? { detail } : {}) });
 };
 
+async function* zipEntryBytes(entry: FileEntry, signal?: AbortSignal, checkSignature = false): AsyncGenerator<Uint8Array<ArrayBuffer>> {
+  signal?.throwIfAborted();
+  let output!: TransformStreamDefaultController<Uint8Array>;
+  const stream = new TransformStream<Uint8Array, Uint8Array>({ start(controller) { output = controller; } });
+  const abort = () => output.error(signal!.reason);
+  signal?.addEventListener("abort", abort, { once: true });
+  const writing = entry.getData(stream.writable, { signal, checkSignature })
+    .then(() => ({ error: null as unknown }))
+    .catch(error => { output.error(error); return { error }; });
+  const reader = stream.readable.getReader();
+  try {
+    while (true) {
+      signal?.throwIfAborted();
+      const next = await reader.read();
+      if (next.done) break;
+      yield new Uint8Array(next.value);
+    }
+    const result = await writing;
+    if (result.error) throw result.error;
+  } finally {
+    signal?.removeEventListener("abort", abort);
+    await reader.cancel().catch(() => {});
+    reader.releaseLock();
+    await writing;
+  }
+}
+
+class StagedZipReader extends Reader<null> {
+  constructor(private bytes: ImportByteStore, size: number) {
+    super(null);
+    this.size = size;
+  }
+  override readUint8Array(offset: number, length: number) {
+    return this.bytes.read(offset, Math.max(offset, Math.min(offset + length, this.size)));
+  }
+}
+
 export class ImportSources {
-  private zips = new Map<number, { reader: ZipReader<Blob>; entries: Map<string, Entry> }>();
+  private zips = new Map<number, { reader: ZipReader<unknown>; entries: Map<string, Entry> }>();
   private zipRoots = new Map<number, string>();
   constructor(private files: ImportFile[], private index: ImportIndex) {}
   private async add(entry: SourceEntry) {
@@ -44,27 +83,49 @@ export class ImportSources {
     return path;
   }
   archiveRoot(entry: SourceEntry) { return this.zipRoots.get(entry.fileIndex) ?? ""; }
-  async scan(signal?: AbortSignal, progress?: (path: string) => void) {
+  private async scanZip(input: Reader<unknown>, fileIndex: number, signal?: AbortSignal, expandNotionParts = false) {
+    const reader = new ZipReader(input, { useWebWorkers: false });
+    const entries = new Map<string, Entry>();
+    this.zips.set(fileIndex, { reader, entries });
+    const partNames = new Set<string>();
+    let root: string | undefined;
+    for await (const entry of reader.getEntriesGenerator()) {
+      signal?.throwIfAborted();
+      if (entry.directory) continue;
+      if (entry.unixMode && (entry.unixMode & 0xf000) === 0xa000) { await addIssue(this.index, "symlink", entry.filename); continue; }
+      if (expandNotionParts && notionPartZip.test(entry.filename)) {
+        if (partNames.has(entry.filename)) {
+          await addIssue(this.index, "duplicatePath", entry.filename);
+          continue;
+        }
+        partNames.add(entry.filename);
+        try {
+          const partIndex = this.files.length + this.zips.size;
+          const bytes = new ImportByteStore(this.index, "archiveChunk", String(partIndex), 1024 * 1024);
+          const size = await bytes.stage(zipEntryBytes(entry, signal, true));
+          // Read each part by range, while sharing the original path index.
+          await this.scanZip(new StagedZipReader(bytes, size), partIndex, signal);
+        } catch (error) {
+          signal?.throwIfAborted();
+          await addIssue(this.index, "invalidArchive", entry.filename, "error", error instanceof Error ? error.message : String(error));
+        }
+        continue;
+      }
+      entries.set(entry.filename, entry);
+      const path = await this.add({ key: entry.filename, path: entry.filename, size: entry.uncompressedSize, fileIndex, archivePath: entry.filename });
+      if (path) {
+        const top = path.includes("/") ? path.split("/")[0]! : "";
+        root = root === undefined ? top : root === top ? root : "";
+      }
+    }
+    this.zipRoots.set(fileIndex, root ?? "");
+  }
+  async scan(signal?: AbortSignal, progress?: (path: string) => void, expandNotionParts = false) {
     for (const [fileIndex, input] of this.files.entries()) {
       signal?.throwIfAborted();
       progress?.(input.path);
       if (input.expandArchive !== false && /\.zip$/i.test(input.path)) {
-        const reader = new ZipReader(new BlobReader(input.file), { useWebWorkers: false });
-        const entries = new Map<string, Entry>();
-        this.zips.set(fileIndex, { reader, entries });
-        let root: string | undefined;
-        for await (const entry of reader.getEntriesGenerator()) {
-          signal?.throwIfAborted();
-          if (entry.directory) continue;
-          if (entry.unixMode && (entry.unixMode & 0xf000) === 0xa000) { await addIssue(this.index, "symlink", entry.filename); continue; }
-          entries.set(entry.filename, entry);
-          const path = await this.add({ key: entry.filename, path: entry.filename, size: entry.uncompressedSize, fileIndex, archivePath: entry.filename });
-          if (path) {
-            const top = path.includes("/") ? path.split("/")[0]! : "";
-            root = root === undefined ? top : root === top ? root : "";
-          }
-        }
-        this.zipRoots.set(fileIndex, root ?? "");
+        await this.scanZip(new BlobReader(input.file), fileIndex, signal, expandNotionParts);
       } else if (input.expandArchive !== false && /\.jex$/i.test(input.path)) {
         // Feed 512-byte records until it-tar has decoded the header and
         // prefetched its first 512 payload bytes. Then drain the body in large,
@@ -105,23 +166,7 @@ export class ImportSources {
     if (entry.archivePath !== undefined) {
       const found = this.zips.get(entry.fileIndex)?.entries.get(entry.archivePath);
       if (!found || found.directory) throw new Error("missingResource");
-      let output!: TransformStreamDefaultController<Uint8Array>;
-      const stream = new TransformStream<Uint8Array, Uint8Array>({ start(controller) { output = controller; } });
-      const abort = () => output.error(signal!.reason);
-      signal?.addEventListener("abort", abort, { once: true });
-      const writing = found.getData(stream.writable, { signal }).then(() => ({ error: null as unknown })).catch(error => { output.error(error); return { error }; });
-      const reader = stream.readable.getReader();
-      try {
-        while (true) {
-          signal?.throwIfAborted();
-          const next = await reader.read();
-          if (next.done) break;
-          // Normalize buffers at the worker/Blob boundary.
-          yield new Uint8Array(next.value);
-        }
-        const result = await writing;
-        if (result.error) throw result.error;
-      } finally { signal?.removeEventListener("abort", abort); await reader.cancel().catch(() => {}); reader.releaseLock(); await writing; }
+      yield* zipEntryBytes(found, signal);
     } else {
       const file = this.files[entry.fileIndex]!.file;
       for (let start = 0; start < entry.size; start += IMPORT_CHUNK_BYTES) {

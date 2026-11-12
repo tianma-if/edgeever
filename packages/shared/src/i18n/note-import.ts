@@ -37,6 +37,7 @@ export const noteImportEnUS = {
   "issues": {
     "markdownExportRequired": "Choose a Markdown export. Extract nested ZIP archives before selecting the directory.",
     "notionCsv": "CSV is preserved as an attachment; database relations, formulas and views are not recreated.",
+    "notionMissingCsv": "The export is missing this CSV. The original link will be kept.",
     "invalidFlomo": "This is not a readable flomo HTML export.",
     "invalidFlomoTime": "The flomo timestamp is invalid.",
     "notesFormat": "Export .enex from Evernote instead of selecting .notes.",
@@ -121,6 +122,7 @@ export const noteImportZhCN = {
   "issues": {
     "markdownExportRequired": "请选择 Markdown 导出。如有嵌套 ZIP，请先解压后选择目录。",
     "notionCsv": "CSV 保留为附件，不重建数据库关系、公式和视图。",
+    "notionMissingCsv": "导出包缺少此 CSV，原链接将保留。",
     "invalidFlomo": "这不是可读取的 flomo HTML 导出。",
     "invalidFlomoTime": "flomo 时间无效。",
     "notesFormat": "请从印象笔记导出为 .enex，不能直接导入 .notes。",
@@ -205,6 +207,7 @@ export const noteImportJa = {
   "issues": {
     "markdownExportRequired": "Markdown エクスポートを選択してください。入れ子の ZIP は展開してからフォルダーを選択してください。",
     "notionCsv": "CSV は添付として保存されます。データベースのリレーション、数式、ビューは再作成されません。",
+    "notionMissingCsv": "エクスポートにこの CSV がありません。元のリンクは保持されます。",
     "invalidFlomo": "読み取れる flomo HTML エクスポートではありません。",
     "invalidFlomoTime": "flomo の日時が無効です。",
     "notesFormat": "Evernote から .enex を書き出してください。.notes は読み込めません。",
@@ -289,6 +292,7 @@ export const noteImportPl = {
   "issues": {
     "markdownExportRequired": "Wybierz eksport Markdown. Rozpakuj zagnieżdżone ZIP przed wybraniem folderu.",
     "notionCsv": "CSV jest zachowany jako załącznik; relacje, formuły i widoki bazy nie są odtwarzane.",
+    "notionMissingCsv": "W eksporcie brakuje tego pliku CSV. Oryginalny link zostanie zachowany.",
     "invalidFlomo": "To nie jest prawidłowy eksport HTML flomo.",
     "invalidFlomoTime": "Nieprawidłowy czas flomo.",
     "notesFormat": "Wyeksportuj .enex z Evernote zamiast wybierać .notes.",
@@ -373,6 +377,7 @@ export const noteImportRu = {
   "issues": {
     "markdownExportRequired": "Выберите экспорт Markdown. Распакуйте вложенные ZIP перед выбором папки.",
     "notionCsv": "CSV сохраняется как вложение; связи, формулы и представления базы не воссоздаются.",
+    "notionMissingCsv": "В экспорте нет этого файла CSV. Исходная ссылка будет сохранена.",
     "invalidFlomo": "Это не читаемый HTML-экспорт flomo.",
     "invalidFlomoTime": "Недопустимое время flomo.",
     "notesFormat": "Экспортируйте .enex из Evernote вместо выбора .notes.",
@@ -458,6 +463,7 @@ export const noteImportZhTW = {
   "issues": {
     "markdownExportRequired": "請選擇 Markdown 匯出。如有巢狀 ZIP，請先解壓後選擇目錄。",
     "notionCsv": "CSV 保留為附件，不重建資料庫關聯、公式和檢視。",
+    "notionMissingCsv": "匯出包缺少此 CSV，原連結將保留。",
     "invalidFlomo": "這不是可讀取的 flomo HTML 匯出。",
     "invalidFlomoTime": "flomo 時間無效。",
     "notesFormat": "請從印象筆記匯出為 .enex，不能直接匯入 .notes。",
@@ -542,6 +548,7 @@ export const noteImportEs = {
   "issues": {
     "markdownExportRequired": "Elige una exportación Markdown. Descomprime los ZIP anidados antes de seleccionar la carpeta.",
     "notionCsv": "CSV se conserva como adjunto; no se recrean relaciones, fórmulas ni vistas de base de datos.",
+    "notionMissingCsv": "Este CSV no está incluido en la exportación. Se conservará el enlace original.",
     "invalidFlomo": "No es una exportación HTML de flomo válida.",
     "invalidFlomoTime": "La fecha de flomo no es válida.",
     "notesFormat": "Exporta en formato .enex desde Evernote en lugar de seleccionar .notes.",
@@ -626,6 +633,7 @@ export const noteImportDe = {
   "issues": {
     "markdownExportRequired": "Markdown-Export wählen. Verschachtelte ZIP-Dateien vor der Ordnerauswahl entpacken.",
     "notionCsv": "CSV bleibt als Anhang erhalten; Datenbankbeziehungen, Formeln und Ansichten werden nicht wiederhergestellt.",
+    "notionMissingCsv": "Diese CSV-Datei fehlt im Export. Der ursprüngliche Link bleibt erhalten.",
     "invalidFlomo": "Dies ist kein lesbarer flomo-HTML-Export.",
     "invalidFlomoTime": "Der flomo-Zeitstempel ist ungültig.",
     "notesFormat": "Exportiere .enex aus Evernote anstelle von .notes.",
@@ -710,6 +718,7 @@ export const noteImportFr = {
   "issues": {
     "markdownExportRequired": "Choisissez un export Markdown. Décompressez les ZIP imbriqués avant de sélectionner le dossier.",
     "notionCsv": "Le CSV est conservé en pièce jointe ; les relations, formules et vues de base de données ne sont pas recréées.",
+    "notionMissingCsv": "Ce fichier CSV est absent de l’export. Le lien d’origine sera conservé.",
     "invalidFlomo": "Ce fichier n’est pas un export HTML flomo lisible.",
     "invalidFlomoTime": "La date flomo est invalide.",
     "notesFormat": "Exportez au format .enex depuis Evernote plutôt que de sélectionner .notes.",

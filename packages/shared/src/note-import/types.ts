@@ -15,7 +15,7 @@ export type ImportNote = {
 };
 export type ImportDocument = { note: ImportNote; contentMarkdown: string; enml?: string };
 export type ImportSummary = { id: string; format: ImportFormat; notebooks: number; notes: number; resources: number; errors: number; warnings: number };
-export type ImportKind = "entry" | "alias" | "note" | "notebook" | "issue" | "raw" | "rawTag" | "rawBinary" | "chunk" | "result" | "folderResult";
+export type ImportKind = "entry" | "alias" | "note" | "notebook" | "issue" | "raw" | "rawTag" | "rawBinary" | "chunk" | "archiveChunk" | "result" | "folderResult";
 export interface ImportIndex {
   put<T>(kind: ImportKind, key: string, value: T): Promise<void>;
   get<T>(kind: ImportKind, key: string): Promise<T | undefined>;
