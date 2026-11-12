@@ -35,6 +35,7 @@
 
 - Web 和桌面渲染器共用 `ThirdPartyImportDialog`、`NoteImportController`、`BrowserImportReader`、`NoteImportSession` 和任务级 `BrowserImportIndex`。格式差异集中在来源读取、标题与附件解析、预检提示。确认后由 `executeNoteImport` 统一写入、上传和续跑，经过现有实例及账号上下文检查，桌面沿用同步暂停与刷新。
 - macOS ARM64 与 `jingwen-mini` Ubuntu 25.10 x86_64 均通过导入相关 133 项测试、Web 与移动端类型检查及 Web 生产构建。新增回归覆盖跨暂存块的多分卷读取、附件失败重试和索引清理、根目录身份、标题及 HTML 媒体保真、缺失思源 Markdown 附件。
+- 思源 `assets/` 前缀使用区分大小写的字符串判断，沿祖先目录查找最近的精确匹配。`bun run lint` 和统一导入的 7 项集成测试通过。
 - 同一公开原始 Notion 分卷 ZIP、实际 Notion 数据库 ZIP 和思源官方 3.8.10 ZIP，均在两端从设置入口完成导入，分别新增 280、1,032 和 2 篇。Linux 浏览器网络记录确认预检无导入写入，确认后经相同笔记导入、分片上传、编辑会话与受保护的正文更新接口。两端共用的样本核对中，实际数据库 ZIP 的 1,030 篇 Markdown、公开样本的 `Home` 正文及三个包的 6 个附件均与原件逐字节一致。
 - macOS ARM64 打包版和 `jingwen-mini` 的 Linux x64 AppImage 均从桌面设置入口导入上述三个原包。预检无导入写入，新增数量与浏览器一致，全部笔记同步到本地 sidecar，六个附件的 SHA-256 与原件一致。
 - 两端桌面包还通过同一份可复现的 1.25 GiB Notion 格式样本，包含两个内层 ZIP 和跨分卷附件引用。预检无导入写入，确认后新增 1 个笔记本、2 篇笔记和 4 个附件，2 篇笔记同步到 sidecar，4 个附件的 SHA-256 与原件一致，关闭导入窗口后 1,282 个暂存块全部清空。 本机 Chrome 连接隔离自托管实例，用同一大包得到相同的预检、写入、附件和暂存清理结果。

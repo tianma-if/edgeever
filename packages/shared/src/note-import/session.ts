@@ -295,7 +295,7 @@ export class NoteImportSession {
       const rootFirst = this.format === "obsidian" && !explicitRelative && href.includes("/");
       let entry = await this.index.get<SourceEntry>("entry", rootFirst ? root! : relative);
       if (!entry && root) entry = await this.index.get<SourceEntry>("entry", rootFirst ? relative : root);
-      if (!entry && this.format === "siyuan" && /^assets\//.test(href)) {
+      if (!entry && this.format === "siyuan" && href.startsWith("assets/")) {
         // SiYuan exports use an assets directory at the export root. Find the
         // nearest ancestor's exact path, never a global basename match.
         let parent = dirname(note.entryKey);
