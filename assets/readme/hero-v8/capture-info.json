@@ -21,5 +21,6 @@
     "pixelHeight": 2160,
     "file": "../edgeever-hero-v8.png"
   },
-  "imageGenerationUsed": false
+  "imageGenerationUsed": false,
+  "brandLogo": "../../brand/edgeever-mark.svg"
 }
