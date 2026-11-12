@@ -26,7 +26,7 @@
     <a href="docs/note-migration-guide.md">📥 ノート移行ガイド</a>
   </p>
   <p align="center">
-    <img src="assets/readme/edgeever-hero-v6.png" alt="EdgeEver ワークスペースプレビュー" width="800" />
+    <img src="assets/readme/edgeever-hero-v8.png" alt="EdgeEver ワークスペースプレビュー" width="800" />
   </p>
 </div>
 

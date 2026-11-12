@@ -26,7 +26,7 @@
     <a href="docs/note-migration-guide.md">📥 第三方笔记迁入</a>
   </p>
   <p align="center">
-    <img src="assets/readme/edgeever-hero-v6.png" alt="EdgeEver 产品工作区预览" width="800" />
+    <img src="assets/readme/edgeever-hero-v8.png" alt="EdgeEver 产品工作区预览" width="800" />
   </p>
 </div>
 

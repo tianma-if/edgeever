@@ -1,0 +1,25 @@
+{
+  "layoutSource": "hero.html",
+  "desktopCapture": {
+    "viewportWidth": 1728,
+    "viewportHeight": 768,
+    "deviceScaleFactor": 3,
+    "pixelWidth": 5184,
+    "pixelHeight": 2304
+  },
+  "phoneCapture": {
+    "source": "phone-source.png",
+    "pixelWidth": 1080,
+    "pixelHeight": 2340,
+    "reusedOriginalNativeScreenshot": true
+  },
+  "export": {
+    "viewportWidth": 1920,
+    "viewportHeight": 1080,
+    "deviceScaleFactor": 2,
+    "pixelWidth": 3840,
+    "pixelHeight": 2160,
+    "file": "../edgeever-hero-v8.png"
+  },
+  "imageGenerationUsed": false
+}
