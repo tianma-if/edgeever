@@ -14,7 +14,7 @@ import {
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import type { Hono } from "hono";
-import type { AppEnv } from "./api-context";
+import type { AppContext, AppEnv } from "./api-context";
 import { AppError } from "./app-error";
 import { isoNow, parseJsonArray } from "./entity-utils";
 import { apiError, badRequest, conflict, notFound } from "./http-errors";
@@ -30,6 +30,7 @@ import {
   type ResourceRow,
 } from "./resource-service";
 import { getWorkspaceId, requireScopes, requireUser } from "./request-auth";
+import { resolveRequestNotebookAccess } from "./token-notebook-access";
 import type { DatabaseAdapter } from "./storage-contract";
 import type { initiateResourceRestoreUpload as initiateResourceRestoreUploadService } from "./resource-upload-service";
 
@@ -277,6 +278,20 @@ export const registerBackupRoutes = (
   app: Hono<AppEnv>,
   dependencies: BackupRouteDependencies,
 ) => {
+  // Backup/export protocols are workspace-wide; a notebook-restricted token
+  // would silently produce a partial backup, so it is refused instead.
+  const denyRestricted = async (context: AppContext) => {
+    const notebookAccess = await resolveRequestNotebookAccess(context);
+    return notebookAccess.restricted
+      ? apiError(
+          context,
+          "notebook_access_denied",
+          "This API token is restricted to specific notebooks and cannot export the whole workspace. Update the token's notebook access in EdgeEver settings.",
+          403,
+        )
+      : null;
+  };
+
   app.get("/api/v1/backups/state", async (context) => {
     const denied = requireScopes(context, "read:memos", "read:resources");
     if (denied) return denied;
@@ -300,6 +315,8 @@ export const registerBackupRoutes = (
   app.get("/api/v1/backups/data", async (context) => {
     const denied = requireScopes(context, "read:memos", "read:resources");
     if (denied) return denied;
+    const restricted = await denyRestricted(context);
+    if (restricted) return restricted;
     context.header("Cache-Control", "private, no-store");
     const kind = context.req.query("kind");
     if (!["memos", "notebooks", "prompts"].includes(kind ?? "")) return badRequest(context, "Unknown backup data kind.");
@@ -353,6 +370,8 @@ export const registerBackupRoutes = (
   app.get("/api/v1/exports/markdown", async (context) => {
     const denied = requireScopes(context, "read:memos", "read:resources");
     if (denied) return denied;
+    const restricted = await denyRestricted(context);
+    if (restricted) return restricted;
 
     const limit = dependencies.clampNumber(Number(context.req.query("limit") ?? 50), 1, 100);
     const cursor = parseExportCursor(context.req.query("cursor"));
@@ -401,6 +420,8 @@ export const registerBackupRoutes = (
   app.get("/api/v1/backups/json", async (context) => {
     const denied = requireScopes(context, "read:memos", "read:resources");
     if (denied) return denied;
+    const restricted = await denyRestricted(context);
+    if (restricted) return restricted;
 
     const limit = dependencies.clampNumber(Number(context.req.query("limit") ?? 25), 1, 50);
     const cursor = parseExportCursor(context.req.query("cursor"));

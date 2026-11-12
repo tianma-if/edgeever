@@ -1,8 +1,8 @@
-import { useState, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { Copy, KeyRound, Plus, ShieldCheck, Trash2 } from "lucide-react";
-import type { ApiToken } from "@edgeever/shared";
+import { Copy, KeyRound, Pencil, Plus, ShieldCheck, Trash2 } from "lucide-react";
+import type { ApiToken, Notebook, TokenNotebookAccess, TokenNotebookAccessLevel } from "@edgeever/shared";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -20,13 +20,19 @@ import { AppConfirmDialog } from "@/components/dialogs/ConfirmDialogs";
 import {
   ALL_TOKEN_SCOPES,
   buildMcpRemoteConfig,
+  buildNotebookTreeRows,
   copyTextToClipboard,
   createDefaultTokenName,
   DEFAULT_TOKEN_ACCESS_LEVEL,
+  describeNotebookAccess,
+  draftToNotebookAccess,
+  emptyNotebookGrantDraft,
   getMcpRemoteServerUrl,
   getStoredTokenAccessLevel,
   getTokenScopesForAccessLevel,
   getTokenScopeLabel,
+  notebookAccessToDraft,
+  type NotebookGrantDraft,
   type TokenAccessLevel,
 } from "./settings-utils";
 
@@ -93,9 +99,9 @@ interface AccessLevelPickerProps {
   onChange: (accessLevel: TokenAccessLevel) => void;
 }
 
-const AccessLevelPicker = ({ value, onChange }: AccessLevelPickerProps) => {
+const AccessLevelPicker = ({ value, onChange, name = "token-access-level" }: AccessLevelPickerProps & { name?: string }) => {
   const { t } = useTranslation();
-  const options: TokenAccessLevel[] = ["full", "read-only"];
+  const options: TokenAccessLevel[] = ["full", "read-only", "custom"];
 
   return (
     <TooltipProvider>
@@ -106,7 +112,7 @@ const AccessLevelPicker = ({ value, onChange }: AccessLevelPickerProps) => {
       >
         {options.map((option) => {
           const checked = value === option;
-          const inputId = `token-access-${option}`;
+          const inputId = `${name}-${option}`;
 
           return (
             <Tooltip key={option}>
@@ -124,7 +130,7 @@ const AccessLevelPicker = ({ value, onChange }: AccessLevelPickerProps) => {
                     id={inputId}
                     className="sr-only"
                     type="radio"
-                    name="token-access-level"
+                    name={name}
                     value={option}
                     checked={checked}
                     onChange={() => onChange(option)}
@@ -147,16 +153,163 @@ const AccessLevelPicker = ({ value, onChange }: AccessLevelPickerProps) => {
   );
 };
 
+interface NotebookGrantEditorProps {
+  notebooks: Notebook[];
+  draft: NotebookGrantDraft;
+  onChange: (draft: NotebookGrantDraft) => void;
+  idPrefix: string;
+}
+
+const NotebookGrantEditor = ({ notebooks, draft, onChange, idPrefix }: NotebookGrantEditorProps) => {
+  const { t } = useTranslation();
+  const treeRows = useMemo(() => buildNotebookTreeRows(notebooks), [notebooks]);
+  const granted = new Set(draft.grantedIds);
+
+  const toggleNotebook = (notebookId: string, checked: boolean) => {
+    const next = new Set(granted);
+    if (checked) {
+      next.add(notebookId);
+    } else {
+      next.delete(notebookId);
+    }
+    onChange({ ...draft, grantedIds: [...next] });
+  };
+
+  const setAll = (checked: boolean) => {
+    onChange({
+      ...draft,
+      grantedIds: checked ? treeRows.map(({ notebook }) => notebook.id) : [],
+    });
+  };
+
+  return (
+    <div className="grid gap-2.5">
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="text-xs text-slate-500">
+          {t("mcp.notebookAccessHint", { count: draft.grantedIds.length })}
+        </p>
+        <span className="flex-1" />
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button size="sm" variant="outline" className="h-7 px-2 text-xs" type="button" onClick={() => setAll(true)}>
+                {t("mcp.notebookBulkSelect")}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-72 leading-4 text-xs">{t("mcp.notebookBulkSelectDescription")}</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button size="sm" variant="outline" className="h-7 px-2 text-xs" type="button" onClick={() => setAll(false)}>
+                {t("mcp.notebookBulkClear")}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-72 leading-4 text-xs">{t("mcp.notebookBulkClearDescription")}</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      </div>
+
+      <div className="max-h-64 overflow-auto rounded-lg border border-slate-200 divide-y divide-slate-100 bg-card">
+        {treeRows.map(({ notebook, depth }) => {
+          const checked = granted.has(notebook.id);
+          // A child is covered when an ancestor is on the whitelist.
+          let inherited = false;
+          let cursor = notebook.parentId;
+          while (cursor) {
+            if (granted.has(cursor)) { inherited = true; break; }
+            const parent = notebooks.find((candidate) => candidate.id === cursor);
+            cursor = parent?.parentId ?? null;
+          }
+          return (
+            <div
+              key={notebook.id}
+              className="flex items-center justify-between gap-3 px-3 py-2"
+              style={{ paddingLeft: `${0.75 + depth * 1.25}rem` }}
+            >
+              <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2">
+                <input
+                  type="checkbox"
+                  className="h-3.5 w-3.5 rounded border-slate-300 accent-slate-900"
+                  checked={checked || inherited}
+                  disabled={inherited}
+                  onChange={(event) => toggleNotebook(notebook.id, event.target.checked)}
+                />
+                <span className="min-w-0 flex-1 truncate text-xs text-slate-800">{notebook.name}</span>
+                {inherited ? (
+                  <span className="shrink-0 text-xs text-slate-400">{t("mcp.notebookInherited")}</span>
+                ) : null}
+              </label>
+            </div>
+          );
+        })}
+        {treeRows.length === 0 ? (
+          <p className="p-4 text-center text-xs text-slate-400">{t("mcp.notebookAccessEmpty")}</p>
+        ) : null}
+      </div>
+
+      <div className="grid gap-1.5">
+        <span className="text-xs font-normal text-slate-600">{t("mcp.notebookAccessLevelTitle")}</span>
+        <TooltipProvider>
+          <div
+            role="radiogroup"
+            aria-label={t("mcp.notebookAccessLevelTitle")}
+            className="inline-flex h-9 shrink-0 items-center rounded-md bg-slate-200/70 p-0.5 self-start"
+          >
+            {(["read", "write"] as const).map((option) => {
+              const checked = draft.level === option;
+              const inputId = `${idPrefix}-notebook-level-${option}`;
+              return (
+                <Tooltip key={option}>
+                  <TooltipTrigger asChild>
+                    <label
+                      htmlFor={inputId}
+                      className={cn(
+                        "flex h-8 cursor-pointer select-none items-center gap-1.5 rounded-[5px] px-2.5 text-xs font-normal transition-all focus-within:ring-2 focus-within:ring-slate-900/15",
+                        checked ? "bg-card text-slate-950 shadow-sm" : "text-slate-600 hover:text-slate-900",
+                      )}
+                    >
+                      <input
+                        id={inputId}
+                        className="sr-only"
+                        type="radio"
+                        name={`${idPrefix}-notebook-level`}
+                        value={option}
+                        checked={checked}
+                        onChange={() => onChange({ ...draft, level: option })}
+                      />
+                      <span
+                        aria-hidden="true"
+                        className={cn("h-1.5 w-1.5 rounded-full", checked ? "bg-slate-950" : "bg-slate-400")}
+                      />
+                      {t(`mcp.notebookAccessLevel.${option}.label`)}
+                    </label>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-72 leading-4 text-xs">
+                    {t(`mcp.notebookAccessLevel.${option}.description`)}
+                  </TooltipContent>
+                </Tooltip>
+              );
+            })}
+          </div>
+        </TooltipProvider>
+        <p className="text-xs text-slate-500">{t("mcp.notebookAccessLevelDescription")}</p>
+      </div>
+    </div>
+  );
+};
+
 interface TokenListProps {
   tokens: ApiToken[];
   availableScopes: string[];
+  notebooksById: ReadonlyMap<string, Notebook>;
   newlyCreatedTokenId: string | null;
   isLoading: boolean;
   isDeleting: boolean;
   onDelete: (token: ApiToken) => void;
+  onEdit: (token: ApiToken) => void;
 }
 
-const TokenList = ({ tokens, availableScopes, newlyCreatedTokenId, isLoading, isDeleting, onDelete }: TokenListProps) => {
+const TokenList = ({ tokens, availableScopes, notebooksById, newlyCreatedTokenId, isLoading, isDeleting, onDelete, onEdit }: TokenListProps) => {
   const { t } = useTranslation();
   const [copiedAction, setCopiedAction] = useState<{ tokenId: string; action: "token" | "config" } | null>(null);
 
@@ -193,10 +346,11 @@ const TokenList = ({ tokens, availableScopes, newlyCreatedTokenId, isLoading, is
   return (
     <div className="overflow-hidden rounded-lg border border-slate-200 divide-y divide-slate-100 bg-card">
       {tokens.map((token) => {
-        const accessLevel = getStoredTokenAccessLevel(token.scopes, availableScopes);
+        const accessLevel = getStoredTokenAccessLevel(token.scopes, availableScopes, token.notebookAccess);
         const accessLabel = accessLevel === "legacy-custom"
           ? t("mcp.accessLevels.legacy-custom.label")
           : t(`mcp.accessLevels.${accessLevel}.label`);
+        const grantSummary = describeNotebookAccess(token.notebookAccess, notebooksById);
 
         return (
           <div
@@ -243,6 +397,12 @@ const TokenList = ({ tokens, availableScopes, newlyCreatedTokenId, isLoading, is
                 <span>
                   {token.lastUsedAt ? t("mcp.lastUsedAt", { time: formatDateTime(token.lastUsedAt) }) : t("mcp.neverUsed")}
                 </span>
+                {grantSummary.length > 0 ? (
+                  <span className="text-slate-500">· {t("mcp.notebookAccessSummary", { notebooks: grantSummary.join("、") })}</span>
+                ) : null}
+                {token.notebookAccess && token.notebookAccess.length > 0 ? (
+                  <span className="text-slate-500">· {t("mcp.notebookAccessLevelSummary", { access: t(`mcp.notebookAccessLevel.${token.notebookAccessLevel}.label`) })}</span>
+                ) : null}
                 {!token.token ? (
                   <span className="text-amber-600">· {t("mcp.legacyTokenHint")}</span>
                 ) : null}
@@ -308,6 +468,22 @@ const TokenList = ({ tokens, availableScopes, newlyCreatedTokenId, isLoading, is
                     <Button
                       size="icon"
                       variant="ghost"
+                      className="h-8 w-8 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                      aria-label={t("mcp.editToken")}
+                      disabled={token.isRevoked}
+                      onClick={() => onEdit(token)}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">{t("mcp.editToken")}</TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="icon"
+                      variant="ghost"
                       className="h-8 w-8 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
                       aria-label={t("mcp.deleteToken")}
                       disabled={isDeleting}
@@ -327,18 +503,148 @@ const TokenList = ({ tokens, availableScopes, newlyCreatedTokenId, isLoading, is
   );
 };
 
+interface TokenEditDialogProps {
+  token: ApiToken;
+  availableScopes: string[];
+  notebooks: Notebook[];
+  isSaving: boolean;
+  onCancel: () => void;
+  onSave: (tokenId: string, payload: {
+    name: string;
+    scopes?: string[];
+    /** Omitted = keep stored grants; [] = restrict to nothing; null = remove the restriction. */
+    notebookAccess?: TokenNotebookAccess[] | null;
+    notebookAccessLevel?: TokenNotebookAccessLevel;
+  }) => void;
+}
+
+const TokenEditDialog = ({ token, availableScopes, notebooks, isSaving, onCancel, onSave }: TokenEditDialogProps) => {
+  const { t } = useTranslation();
+  const [name, setName] = useState(token.name);
+  const [accessLevel, setAccessLevel] = useState<TokenAccessLevel>(() => {
+    const stored = getStoredTokenAccessLevel(token.scopes, availableScopes, token.notebookAccess);
+    return stored === "legacy-custom" ? "custom" : stored;
+  });
+  const [draft, setDraft] = useState<NotebookGrantDraft>(() => notebookAccessToDraft(token.notebookAccess, token.notebookAccessLevel));
+  const notebookAccess = accessLevel === "custom" ? draftToNotebookAccess(draft) : undefined;
+  const notebookValid = accessLevel !== "custom" || (notebookAccess !== undefined && notebookAccess.length > 0);
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!name.trim() || !notebookValid) return;
+
+    // Only send what the user actually changed in this dialog, compared
+    // against the token snapshot it was opened with. A stale draft must
+    // never overwrite a concurrent permission change made elsewhere.
+    const payload: {
+      name: string;
+      scopes?: string[];
+      notebookAccess?: TokenNotebookAccess[] | null;
+      notebookAccessLevel?: TokenNotebookAccessLevel;
+    } = { name: name.trim() };
+
+    if (name.trim() !== token.name) payload.name = name.trim();
+
+    const currentLevel = getStoredTokenAccessLevel(token.scopes, availableScopes, token.notebookAccess);
+    const wasRestricted = token.notebookAccess != null;
+
+    if (accessLevel === "custom") {
+      // Setting or editing grants: send them only when they differ from the
+      // snapshot (a name-only visit keeps the stored grants untouched).
+      const storedAccess = token.notebookAccess ?? [];
+      const nextAccess = notebookAccess ?? [];
+      const grantsChanged = wasRestricted
+        ? JSON.stringify(nextAccess) !== JSON.stringify(storedAccess)
+          || draft.level !== (token.notebookAccessLevel ?? "read")
+        : true; // restricting an unrestricted token is always a change
+      if (grantsChanged) {
+        payload.notebookAccess = nextAccess;
+        payload.notebookAccessLevel = draft.level;
+      }
+      // Switching a read-only token to custom read/write must also widen
+      // the global scopes, or every write still 403s.
+      if (currentLevel === "read-only") {
+        payload.scopes = getTokenScopesForAccessLevel("full", availableScopes);
+      }
+    } else if (wasRestricted) {
+      // Removing the restriction entirely (full/read-only on a restricted
+      // token); null is the explicit unrestrict marker.
+      payload.notebookAccess = null;
+      payload.notebookAccessLevel = undefined;
+      if (accessLevel !== currentLevel) {
+        payload.scopes = getTokenScopesForAccessLevel(accessLevel, availableScopes);
+      }
+    } else if (accessLevel !== currentLevel) {
+      // Same-family level change on an unrestricted token: only scopes.
+      payload.scopes = getTokenScopesForAccessLevel(accessLevel, availableScopes);
+    }
+
+    onSave(token.id, payload);
+  };
+
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open) onCancel(); }}>
+      <DialogContent className="max-w-lg gap-3 p-4 sm:p-5">
+        <DialogHeader>
+          <DialogTitle>{t("mcp.editTokenTitle", { name: token.name })}</DialogTitle>
+        </DialogHeader>
+        <form className="grid gap-4" onSubmit={handleSubmit}>
+          <Input
+            className="h-9 bg-card text-xs"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            placeholder={t("mcp.namePlaceholder")}
+            aria-label={t("mcp.namePlaceholder")}
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-slate-500">{t("mcp.accessLevelTitle")}</span>
+            <AccessLevelPicker value={accessLevel} onChange={setAccessLevel} name="token-edit-access-level" />
+          </div>
+          <p className="text-xs text-slate-500">{t(`mcp.accessLevels.${accessLevel}.description`)}</p>
+          {accessLevel === "custom" ? (
+            <NotebookGrantEditor notebooks={notebooks} draft={draft} onChange={setDraft} idPrefix="token-edit" />
+          ) : null}
+          <div className="flex justify-end gap-2">
+            <Button size="sm" variant="outline" type="button" onClick={onCancel}>
+              {t("common.cancel")}
+            </Button>
+            <Button
+              size="sm"
+              variant="solid"
+              type="submit"
+              disabled={isSaving || !name.trim() || !notebookValid}
+            >
+              {t("common.save")}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
 export const McpConfigCard = () => {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [name, setName] = useState(() => createDefaultTokenName());
   const [accessLevel, setAccessLevel] = useState<TokenAccessLevel>(DEFAULT_TOKEN_ACCESS_LEVEL);
+  const [grantDraft, setGrantDraft] = useState<NotebookGrantDraft>(() => emptyNotebookGrantDraft());
   const [newlyCreatedTokenId, setNewlyCreatedTokenId] = useState<string | null>(null);
   const [tokenDeleteConfirmation, setTokenDeleteConfirmation] = useState<ApiToken | null>(null);
+  const [tokenToEdit, setTokenToEdit] = useState<ApiToken | null>(null);
 
   const tokensQuery = useQuery({
     queryKey: ["api-tokens"],
     queryFn: () => api.listApiTokens(),
   });
+
+  const notebooksQuery = useQuery({
+    queryKey: ["notebooks"],
+    queryFn: () => api.listNotebooks(),
+  });
+
+  const notebooks = notebooksQuery.data?.notebooks ?? [];
+  const notebooksById = useMemo(() => new Map(notebooks.map((notebook) => [notebook.id, notebook])), [notebooks]);
 
   const availableScopes = tokensQuery.data?.availableScopes ?? ALL_TOKEN_SCOPES;
   const tokens = tokensQuery.data?.apiTokens ?? [];
@@ -349,6 +655,16 @@ export const McpConfigCard = () => {
       setNewlyCreatedTokenId(data.apiToken.id);
       setName(createDefaultTokenName());
       setAccessLevel(DEFAULT_TOKEN_ACCESS_LEVEL);
+      setGrantDraft(emptyNotebookGrantDraft());
+      await queryClient.invalidateQueries({ queryKey: ["api-tokens"] });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: (input: { tokenId: string; payload: { name: string; scopes?: string[]; notebookAccess?: TokenNotebookAccess[] | null; notebookAccessLevel?: TokenNotebookAccessLevel } }) =>
+      api.updateApiToken(input.tokenId, input.payload),
+    onSuccess: async () => {
+      setTokenToEdit(null);
       await queryClient.invalidateQueries({ queryKey: ["api-tokens"] });
     },
   });
@@ -360,15 +676,23 @@ export const McpConfigCard = () => {
     },
   });
 
+  const createNotebookAccess = accessLevel === "custom" ? draftToNotebookAccess(grantDraft) : undefined;
+  const createNotebookValid = accessLevel !== "custom" || (createNotebookAccess !== undefined && createNotebookAccess.length > 0);
+
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const scopes = getTokenScopesForAccessLevel(accessLevel, availableScopes);
 
-    if (!name.trim()) {
+    if (!name.trim() || !createNotebookValid) {
       return;
     }
 
-    createMutation.mutate({ name: name.trim(), scopes });
+    createMutation.mutate({
+      name: name.trim(),
+      scopes,
+      notebookAccess: createNotebookAccess,
+      notebookAccessLevel: accessLevel === "custom" ? grantDraft.level : undefined,
+    });
   };
 
   return (
@@ -405,13 +729,18 @@ export const McpConfigCard = () => {
                   variant="solid"
                   className="h-9 shrink-0 gap-1 px-3.5 text-xs font-normal"
                   type="submit"
-                  disabled={createMutation.isPending || !name.trim()}
+                  disabled={createMutation.isPending || !name.trim() || !createNotebookValid}
                 >
                   <Plus className="h-3.5 w-3.5" />
                   {t("mcp.createToken")}
                 </Button>
               </div>
             </form>
+            {accessLevel === "custom" ? (
+              <div className="mt-3 border-t border-slate-200/70 pt-3">
+                <NotebookGrantEditor notebooks={notebooks} draft={grantDraft} onChange={setGrantDraft} idPrefix="token-create" />
+              </div>
+            ) : null}
           </div>
 
           <section className="grid gap-3">
@@ -428,10 +757,12 @@ export const McpConfigCard = () => {
             <TokenList
               tokens={tokens}
               availableScopes={availableScopes}
+              notebooksById={notebooksById}
               newlyCreatedTokenId={newlyCreatedTokenId}
               isLoading={tokensQuery.isLoading}
               isDeleting={deleteTokenMutation.isPending}
               onDelete={setTokenDeleteConfirmation}
+              onEdit={setTokenToEdit}
             />
           </section>
         </CardContent>
@@ -450,6 +781,17 @@ export const McpConfigCard = () => {
               onSuccess: () => setTokenDeleteConfirmation(null),
             });
           }}
+        />
+      )}
+
+      {tokenToEdit && (
+        <TokenEditDialog
+          token={tokenToEdit}
+          availableScopes={availableScopes}
+          notebooks={notebooks}
+          isSaving={updateMutation.isPending}
+          onCancel={() => setTokenToEdit(null)}
+          onSave={(tokenId, payload) => updateMutation.mutate({ tokenId, payload })}
         />
       )}
     </>

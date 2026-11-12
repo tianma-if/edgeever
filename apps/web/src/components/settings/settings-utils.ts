@@ -1,4 +1,5 @@
 import type { TFunction } from "i18next";
+import type { Notebook, TokenNotebookAccess, TokenNotebookAccessLevel } from "@edgeever/shared";
 import { getConfiguredDesktopApiBaseUrl } from "@/lib/api";
 export { copyTextToClipboard } from "@/lib/clipboard";
 
@@ -27,7 +28,7 @@ export const PREVIOUS_FULL_TOKEN_SCOPES = [
   "write:tags",
 ];
 
-export type TokenAccessLevel = "full" | "read-only";
+export type TokenAccessLevel = "full" | "read-only" | "custom";
 export type StoredTokenAccessLevel = TokenAccessLevel | "legacy-custom";
 export const DEFAULT_TOKEN_ACCESS_LEVEL: TokenAccessLevel = "full";
 
@@ -64,14 +65,21 @@ const sameScopes = (left: string[], right: string[]) => {
 export const getTokenScopesForAccessLevel = (
   accessLevel: TokenAccessLevel,
   availableScopes: string[] = ALL_TOKEN_SCOPES,
-) => accessLevel === "full"
-  ? [...availableScopes]
-  : availableScopes.filter((scope) => scope.startsWith("read:"));
+) => accessLevel === "read-only"
+  ? availableScopes.filter((scope) => scope.startsWith("read:"))
+  : [...availableScopes];
 
 export const getStoredTokenAccessLevel = (
   scopes: string[],
   availableScopes: string[] = ALL_TOKEN_SCOPES,
+  notebookAccess?: TokenNotebookAccess[] | null,
 ): StoredTokenAccessLevel => {
+  // A notebook-scoped token is always "custom", whatever its global scopes.
+  // An empty grant list still means restricted (to nothing), so it counts too.
+  if (notebookAccess != null) {
+    return "custom";
+  }
+
   if (
     sameScopes(scopes, getTokenScopesForAccessLevel("full", availableScopes))
     || sameScopes(scopes, PREVIOUS_FULL_TOKEN_SCOPES)
@@ -84,6 +92,91 @@ export const getStoredTokenAccessLevel = (
   }
 
   return "legacy-custom";
+};
+
+// --- Per-notebook grant editor draft ---------------------------------------
+
+export type NotebookGrantDraft = {
+  /** "all" = unrestricted (notebookAccess omitted); "selected" = whitelist. */
+  mode: "all" | "selected";
+  /** The whitelisted notebook ids. */
+  grantedIds: string[];
+  /** The single access level applied to the whole whitelist. */
+  level: TokenNotebookAccessLevel;
+};
+
+export const emptyNotebookGrantDraft = (): NotebookGrantDraft => ({ mode: "all", grantedIds: [], level: "read" });
+
+export const notebookAccessToDraft = (
+  notebookAccess: TokenNotebookAccess[] | null | undefined,
+  notebookAccessLevel: TokenNotebookAccessLevel | undefined,
+): NotebookGrantDraft => {
+  // null = unrestricted ("all" mode); an empty array is a restricted token
+  // with an empty whitelist, which the editor shows as selected-with-nothing.
+  if (notebookAccess == null) {
+    return emptyNotebookGrantDraft();
+  }
+  return {
+    mode: "selected",
+    grantedIds: notebookAccess.map((entry) => entry.notebookId),
+    level: notebookAccessLevel ?? "read",
+  };
+};
+
+export const draftToNotebookAccess = (
+  draft: NotebookGrantDraft,
+): TokenNotebookAccess[] | undefined => {
+  if (draft.mode !== "selected") {
+    return undefined;
+  }
+  // One level for the whole whitelist: read is always true, write follows
+  // the level.
+  return draft.grantedIds.map((notebookId) => ({
+    notebookId,
+    read: true,
+    write: draft.level === "write",
+  }));
+};
+
+/** Flattened notebook tree rows (parent before children) for the grant picker. */
+export type NotebookTreeRow = {
+  notebook: Notebook;
+  depth: number;
+};
+
+export const buildNotebookTreeRows = (notebooks: Notebook[]): NotebookTreeRow[] => {
+  const byId = new Map(notebooks.map((notebook) => [notebook.id, notebook]));
+  const childrenByParent = new Map<string | null, Notebook[]>();
+  for (const notebook of notebooks) {
+    const parentId = notebook.parentId && byId.has(notebook.parentId) ? notebook.parentId : null;
+    const siblings = childrenByParent.get(parentId) ?? [];
+    siblings.push(notebook);
+    childrenByParent.set(parentId, siblings);
+  }
+
+  const rows: NotebookTreeRow[] = [];
+  const visit = (parentId: string | null, depth: number) => {
+    for (const notebook of childrenByParent.get(parentId) ?? []) {
+      rows.push({ notebook, depth });
+      visit(notebook.id, depth + 1);
+    }
+  };
+  visit(null, 0);
+  return rows;
+};
+
+/** Human summary of a stored token's whitelist, e.g. "2 notebooks · read". */
+export const describeNotebookAccess = (
+  notebookAccess: TokenNotebookAccess[] | null | undefined,
+  notebooksById: ReadonlyMap<string, Notebook>,
+): string[] => {
+  if (!notebookAccess || notebookAccess.length === 0) {
+    return [];
+  }
+  return notebookAccess.map((entry) => {
+    const name = notebooksById.get(entry.notebookId)?.name ?? entry.notebookId;
+    return name;
+  });
 };
 
 export const getTokenScopeLabel = (scope: string, t: TFunction) => t(`mcp.scopes.${scope}`, { defaultValue: scope });

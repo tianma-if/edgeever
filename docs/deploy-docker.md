@@ -169,6 +169,14 @@ before it starts accepting traffic. Take a backup first. Application rollback
 does not reverse a database migration; restore the pre-upgrade volume backup
 when a data rollback is required.
 
+**Notebook-restricted tokens and rollback.** Older releases ignore the
+`notebook_access_json` / `notebook_default_access` columns, so rolling back
+past the per-notebook access feature silently widens every restricted token
+back to full workspace access. Before such a rollback, list the restricted
+tokens (`notebook_access_json IS NOT NULL`), revoke them, and re-issue
+equivalent tokens after upgrading again. Unrestricted tokens are unaffected.
+The restriction columns are additive and harmless to older releases.
+
 The image default command is `bun scripts/self-hosted-server.js`. It also keeps
 `scripts/self-hosted-server.mjs` as an alias, because NAS and GUI panels often
 reuse the command saved from v1.62 and earlier. If logs show

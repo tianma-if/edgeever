@@ -13,10 +13,11 @@ import { localizeDefaultMemoTemplate } from "@edgeever/shared/memo-template-seed
 import { zValidator } from "@hono/zod-validator";
 import type { Hono } from "hono";
 import { audit } from "./audit";
-import type { AppEnv, AuditActor } from "./api-context";
+import type { AppContext, AppEnv, AuditActor } from "./api-context";
 import { createId, parseJsonArray } from "./entity-utils";
-import { notFound } from "./http-errors";
-import { getActorLabel, getAuditActor, getWorkspaceId } from "./request-auth";
+import { apiError, notFound } from "./http-errors";
+import { getActorLabel, getAuditActor, getWorkspaceId, requireScopes } from "./request-auth";
+import { resolveRequestNotebookAccess } from "./token-notebook-access";
 import type { DatabaseAdapter } from "./storage-contract";
 
 export type MemoTemplateRow = {
@@ -115,17 +116,41 @@ export const registerTemplateRoutes = (
   dependencies: TemplateRouteDependencies
 ) => {
   const { createMemoRecord, getMemoDetail } = dependencies;
+
+  // Note templates are workspace-level resources with no notebook owner, so
+  // notebook-restricted tokens must not read or manage them at all.
+  const denyRestricted = async (c: AppContext) => {
+    const notebookAccess = await resolveRequestNotebookAccess(c);
+    return notebookAccess.restricted
+      ? apiError(
+          c,
+          "notebook_access_denied",
+          "This API token is restricted to specific notebooks and cannot access note templates. Update the token's notebook access in EdgeEver settings.",
+          403,
+        )
+      : null;
+  };
+
   app.get("/api/v1/templates", async (c) => {
+    const denied = requireScopes(c, "read:memos");
+    if (denied) return denied;
+    const restricted = await denyRestricted(c);
+    if (restricted) return restricted;
     return c.json({ templates: await listMemoTemplates(c.env.storage.db, getWorkspaceId(c)) });
   });
 
   // Optional templates clients offer next to the workspace's own; reading the
-  // gallery never writes to the workspace.
+  // gallery never writes to the workspace or touches notebook data, so it
+  // stays readable without notebook grants.
   app.get("/api/v1/templates/gallery", (c) => {
     return c.json({ templates: listMemoTemplateGallery(c.req.query("locale")) });
   });
 
   app.post("/api/v1/templates", zValidator("json", TemplateCreateSchema), async (c) => {
+    const denied = requireScopes(c, "write:memos");
+    if (denied) return denied;
+    const restricted = await denyRestricted(c);
+    if (restricted) return restricted;
     const input = c.req.valid("json");
     const workspaceId = getWorkspaceId(c);
     const memo = input.memoId ? await getMemoDetail(c.env.storage.db, workspaceId, input.memoId) : null;
@@ -163,6 +188,10 @@ export const registerTemplateRoutes = (
   });
 
   app.patch("/api/v1/templates/:id", zValidator("json", TemplateUpdateSchema), async (c) => {
+    const denied = requireScopes(c, "write:memos");
+    if (denied) return denied;
+    const restricted = await denyRestricted(c);
+    if (restricted) return restricted;
     const id = c.req.param("id");
     const input = c.req.valid("json");
     const workspaceId = getWorkspaceId(c);
@@ -200,6 +229,10 @@ export const registerTemplateRoutes = (
   });
 
   app.post("/api/v1/templates/:id/use", zValidator("json", TemplateUseSchema), async (c) => {
+    const denied = requireScopes(c, "write:memos");
+    if (denied) return denied;
+    const restricted = await denyRestricted(c);
+    if (restricted) return restricted;
     const id = c.req.param("id");
     const input = c.req.valid("json");
     const workspaceId = getWorkspaceId(c);
@@ -221,6 +254,10 @@ export const registerTemplateRoutes = (
   });
 
   app.delete("/api/v1/templates/:id", async (c) => {
+    const denied = requireScopes(c, "write:memos");
+    if (denied) return denied;
+    const restricted = await denyRestricted(c);
+    if (restricted) return restricted;
     const id = c.req.param("id");
     const workspaceId = getWorkspaceId(c);
     const current = await getMemoTemplateRow(c.env.storage.db, workspaceId, id);

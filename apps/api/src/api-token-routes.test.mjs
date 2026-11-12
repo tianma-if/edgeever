@@ -63,6 +63,8 @@ describe("API token route contracts", () => {
       name: "Reader",
       token_value: null,
       scopes_json: '["read:memos"]',
+      notebook_access_json: null,
+      notebook_access_level: null,
       last_used_at: null,
       expires_at: null,
       is_revoked: 0,
@@ -73,10 +75,44 @@ describe("API token route contracts", () => {
       name: "Reader",
       token: null,
       scopes: ["read:memos"],
+      notebookAccess: null,
+      notebookAccessLevel: "read",
       lastUsedAt: null,
       expiresAt: null,
       isRevoked: false,
       createdAt: "2026-08-08T00:00:00.000Z",
     });
+  });
+
+  test("maps stored notebook grants", () => {
+    expect(mapApiToken({
+      id: "tok_2",
+      name: "Scoped",
+      token_value: "eev_x",
+      scopes_json: '["read:memos","write:memos"]',
+      notebook_access_json: '[{"notebookId":"nb_a","read":true,"write":true},{"notebookId":"nb_b","read":true,"write":false}]',
+      notebook_access_level: "write",
+      last_used_at: null,
+      expires_at: null,
+      is_revoked: 0,
+      created_at: "2026-08-08T00:00:00.000Z",
+      workspace_id: "ws_owner",
+    }).notebookAccess).toEqual([
+      { notebookId: "nb_a", read: true, write: true },
+      { notebookId: "nb_b", read: true, write: false },
+    ]);
+    expect(mapApiToken({
+      id: "tok_2",
+      name: "Scoped",
+      token_value: "eev_x",
+      scopes_json: '["read:memos"]',
+      notebook_access_json: null,
+      notebook_access_level: "bogus",
+      last_used_at: null,
+      expires_at: null,
+      is_revoked: 0,
+      created_at: "2026-08-08T00:00:00.000Z",
+      workspace_id: "ws_owner",
+    }).notebookAccessLevel).toBe("read");
   });
 });

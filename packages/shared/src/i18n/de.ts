@@ -3893,6 +3893,11 @@ export const de = {
       "legacy-custom": {
         "label": "Benutzerdefinierter Alt-Zugriff"
       }
+,
+      "custom": {
+        "label": "Benutzerdefinierter Zugriff",
+        "description": "Vollzugriff global, beschränkt auf die unten ausgewählten Notizbücher mit individuellen Lese-/Schreibberechtigungen pro Notizbuch."
+      }
     },
     "loadingTokens": "Tokens werden geladen...",
     "emptyTokens": "Keine API-Tokens",
@@ -3903,6 +3908,51 @@ export const de = {
     "legacyTokenCannotCopy": "Altes Token kann nicht kopiert werden",
     "legacyConfigCannotCopy": "MCP-Konfiguration kann für alte Tokens nicht kopiert werden",
     "deleteToken": "Token löschen",
+    "editToken": "Token bearbeiten",
+    "editTokenTitle": "Token „{{name}}“ bearbeiten",
+    "notebookAccessTitle": "Notizbuchzugriff",
+    "notebookAccessAll": "Alle Notizbücher",
+    "notebookAccessSelected": "Ausgewählte Notizbücher",
+    "notebookAccessHint": "{{count}} Notizbücher freigegeben (inkl. Unternotizbücher)",
+    "notebookAccessEmpty": "Noch keine Notizbücher in diesem Arbeitsbereich.",
+    "notebookAccessAllDescription": "Dieser Token kann auf alle Notizbücher im Arbeitsbereich zugreifen.",
+    "notebookAccessSummary": "Notizbücher: {{notebooks}}",
+    "notebookRead": "Lesen",
+    "notebookWrite": "Schreiben",
+    "notebookBulkSelect": "Alle auswählen",
+    "notebookBulkSelectDescription": "Alle Notizbücher auf die Whitelist setzen.",
+    "notebookBulkClear": "Leeren",
+    "notebookBulkClearDescription": "Whitelist leeren (kein Zugriff).",
+    "notebookInherited": "geerbt",
+    "notebookAccessLevelTitle": "Whitelist-Zugriff",
+    "notebookAccessLevelDescription": "Ein Level gilt für die gesamte Whitelist; nicht angehakte Notizbücher (auch neue) sind unsichtbar.",
+    "notebookAccessLevelSummary": "Level: {{access}}",
+    "notebookAccessLevel": {
+      "read": {
+        "label": "Nur lesen",
+        "description": "Whitelist-Notizbücher sind nur lesbar."
+      },
+
+      "write": {
+        "label": "Lesen/Schreiben",
+        "description": "Whitelist-Notizbücher sind les- und schreibbar."
+      }
+
+    },
+    "notebookDefaultAccess": {
+      "none": {
+        "label": "Kein Zugriff",
+        "description": "Notizbücher ohne Freigabe (inkl. neuer) sind unsichtbar und nicht bearbeitbar."
+      },
+      "read": {
+        "label": "Nur lesen",
+        "description": "Notizbücher ohne Freigabe (inkl. neuer) sind nur lesbar."
+      },
+      "write": {
+        "label": "Lesen/Schreiben",
+        "description": "Notizbücher ohne Freigabe (inkl. neuer) sind les- und schreibbar."
+      }
+    },
     "description": "Autorisieren Sie Web Clipper, MCP-Dienste und KI-Agenten für den Zugriff auf Ihre Notizen.",
     "namePlaceholder": "Token-Name (z. B. Chrome Clipper oder Claude Desktop)",
     "createToken": "Token erstellen",

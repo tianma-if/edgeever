@@ -1,10 +1,31 @@
 import { mapResourceStorageSummary, type ResourceStatsRow } from "./resource-service";
+import {
+  memoNotebookAccessSql,
+  notebookAccessBinds,
+  notebookIdsBind,
+  notebookInListSql,
+  type NotebookAccess,
+} from "./token-notebook-access";
 import type { DatabaseAdapter } from "./storage-contract";
 
 export const getWorkspaceStats = async (
   database: DatabaseAdapter,
   workspaceId: string,
+  notebookAccess?: NotebookAccess,
 ) => {
+  const memoAccessFilter = notebookAccess?.restricted
+    ? `AND ${memoNotebookAccessSql("notebook_id", notebookAccess, "read")}`
+    : "";
+  const memoAccessBinds = notebookAccess?.restricted
+    ? notebookAccessBinds(notebookAccess, "read")
+    : [];
+  const joinedMemoFilter = memoAccessFilter.replace("notebook_id", "m.notebook_id");
+  const notebookFilter = notebookAccess?.restricted
+    ? `AND ${notebookInListSql("id", notebookAccess.readableNotebookIds)}`
+    : "";
+  const notebookBinds = notebookAccess?.restricted && notebookAccess.readableNotebookIds.length > 0
+    ? [notebookIdsBind(notebookAccess.readableNotebookIds)]
+    : [];
   const [memoCounts, notebookCount, tagCount, resourceStats] = await Promise.all([
     database.prepare(
       `SELECT
@@ -13,17 +34,17 @@ export const getWorkspaceStats = async (
          COALESCE(SUM(CASE WHEN is_deleted = 1 THEN 1 ELSE 0 END), 0) AS trashed,
          COALESCE(SUM(CASE WHEN is_deleted = 0 AND is_pinned = 1 THEN 1 ELSE 0 END), 0) AS pinned,
          COALESCE(SUM(CASE WHEN is_deleted = 0 AND tags_json = '[]' THEN 1 ELSE 0 END), 0) AS untagged
-       FROM memos WHERE workspace_id = ?`,
-    ).bind(workspaceId).first<{ total: number; active: number; trashed: number; pinned: number; untagged: number }>(),
+       FROM memos WHERE workspace_id = ? ${memoAccessFilter}`,
+    ).bind(workspaceId, ...memoAccessBinds).first<{ total: number; active: number; trashed: number; pinned: number; untagged: number }>(),
     database.prepare(
-      `SELECT COUNT(*) AS count FROM notebooks WHERE workspace_id = ? AND is_deleted = 0`,
-    ).bind(workspaceId).first<{ count: number }>(),
+      `SELECT COUNT(*) AS count FROM notebooks WHERE workspace_id = ? AND is_deleted = 0 ${notebookFilter}`,
+    ).bind(workspaceId, ...notebookBinds).first<{ count: number }>(),
     database.prepare(
       `SELECT COUNT(DISTINCT mt.name) AS count
        FROM memo_tags mt
        INNER JOIN memos m ON m.id = mt.memo_id AND m.workspace_id = mt.workspace_id
-       WHERE mt.workspace_id = ? AND m.is_deleted = 0`,
-    ).bind(workspaceId).first<{ count: number }>(),
+       WHERE mt.workspace_id = ? AND m.is_deleted = 0 ${joinedMemoFilter}`,
+    ).bind(workspaceId, ...memoAccessBinds).first<{ count: number }>(),
     database.prepare(
       `SELECT COUNT(*) AS total_count,
               COALESCE(SUM(byte_size), 0) AS total_bytes,
@@ -31,8 +52,8 @@ export const getWorkspaceStats = async (
               COALESCE(SUM(CASE WHEN kind = 'attachment' THEN 1 ELSE 0 END), 0) AS attachment_count
        FROM resources r
        INNER JOIN memos m ON m.id = r.memo_id
-       WHERE m.workspace_id = ? AND r.is_deleted = 0`,
-    ).bind(workspaceId).first<ResourceStatsRow>(),
+       WHERE m.workspace_id = ? AND r.is_deleted = 0 ${joinedMemoFilter}`,
+    ).bind(workspaceId, ...memoAccessBinds).first<ResourceStatsRow>(),
   ]);
 
   return {

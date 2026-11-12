@@ -3892,6 +3892,10 @@ export const fr = {
       },
       "legacy-custom": {
         label: "Accès personnalisé hérité"
+      },
+      custom: {
+        label: "Accès personnalisé",
+        description: "Accès global complet, restreint aux carnets sélectionnés ci-dessous avec des droits de lecture/écriture par carnet.",
       }
     },
     loadingTokens: "Chargement des jetons...",
@@ -3903,6 +3907,49 @@ export const fr = {
     legacyTokenCannotCopy: "Impossible de copier l'ancien jeton",
     legacyConfigCannotCopy: "Impossible de copier la configuration MCP pour les anciens jetons",
     deleteToken: "Supprimer le jeton",
+    editToken: "Modifier le token",
+    editTokenTitle: "Modifier le token « {{name}} »",
+    notebookAccessTitle: "Accès aux carnets",
+    notebookAccessAll: "Tous les carnets",
+    notebookAccessSelected: "Carnets sélectionnés",
+    notebookAccessHint: "{{count}} carnets autorisés (sous-carnets inclus)",
+    notebookAccessEmpty: "Aucun carnet dans cet espace de travail pour le moment.",
+    notebookAccessAllDescription: "Ce token peut accéder à tous les carnets de l'espace de travail.",
+    notebookAccessSummary: "Carnets : {{notebooks}}",
+    notebookRead: "Lecture",
+    notebookWrite: "Écriture",
+    notebookBulkSelect: "Tout sélectionner",
+    notebookBulkSelectDescription: "Ajouter tous les carnets à la liste blanche.",
+    notebookBulkClear: "Effacer",
+    notebookBulkClearDescription: "Vider la liste blanche (aucun accès).",
+    notebookInherited: "hérité",
+    notebookAccessLevelTitle: "Accès de la liste blanche",
+    notebookAccessLevelDescription: "Un seul niveau s'applique à toute la liste blanche ; les carnets non cochés (y compris nouveaux) sont invisibles.",
+    notebookAccessLevelSummary: "Niveau : {{access}}",
+    notebookAccessLevel: {
+      read: {
+        label: "Lecture seule",
+        description: "Les carnets de la liste blanche sont en lecture seule.",
+      },
+      write: {
+        label: "Lecture/écriture",
+        description: "Les carnets de la liste blanche sont en lecture/écriture.",
+      },
+    },
+    notebookDefaultAccess: {
+      none: {
+        label: "Aucun accès",
+        description: "Les carnets sans autorisation (y compris les nouveaux) sont invisibles et non modifiables.",
+      },
+      read: {
+        label: "Lecture seule",
+        description: "Les carnets sans autorisation (y compris les nouveaux) sont en lecture seule.",
+      },
+      write: {
+        label: "Lecture/écriture",
+        description: "Les carnets sans autorisation (y compris les nouveaux) sont en lecture/écriture.",
+      },
+    },
     description: "Autorisez le Web Clipper, les services MCP et les agents IA à accéder à vos notes.",
     namePlaceholder: "Nom du jeton (par ex. Chrome Clipper ou Claude Desktop)",
     createToken: "Créer un jeton",

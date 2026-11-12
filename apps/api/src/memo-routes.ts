@@ -19,6 +19,11 @@ import { apiError, badRequest, notFound } from "./http-errors";
 import type { ListMemosInput, ListMemosResult } from "./memo-list-service";
 import { getActorLabel, getAuditActor, getWorkspaceId, requireScopes } from "./request-auth";
 import { deleteReleasedResourceObjects } from "./resource-service";
+import {
+  assertNotebookAccess,
+  resolveRequestNotebookAccess,
+  type NotebookAccess,
+} from "./token-notebook-access";
 import type { DatabaseAdapter } from "./storage-contract";
 type MemoRouteDependencies = {
   clampNumber: (value: number, min: number, max: number) => number;
@@ -135,6 +140,51 @@ export const registerMemoRoutes = (
   app: Hono<AppEnv>,
   dependencies: MemoRouteDependencies,
 ) => {
+  // Per-notebook grants for API tokens. Unrestricted requests resolve without
+  // extra database reads; restricted ones fail closed with a clear 403.
+  const assertMemoAccess = async (
+    context: AppContext,
+    memoId: string,
+    kind: "read" | "write",
+    notebookAccess: NotebookAccess,
+    action: string,
+    includeDeleted = true,
+  ) => {
+    if (!notebookAccess.restricted) return;
+    const memo = await dependencies.getMemoDetail(
+      context.env.storage.db,
+      getWorkspaceId(context),
+      memoId,
+      includeDeleted,
+    );
+    if (memo) assertNotebookAccess(notebookAccess, kind, memo.notebookId, action);
+  };
+
+  const assertMemoIdsAccess = async (
+    context: AppContext,
+    memoIds: string[],
+    notebookAccess: NotebookAccess,
+    action: string,
+  ) => {
+    if (!notebookAccess.restricted || memoIds.length === 0) return;
+    // One batched query for the whole list: per-memo detail loads would blow
+    // D1's per-request query budget on large batches.
+    const uniqueIds = Array.from(new Set(memoIds));
+    const placeholders = uniqueIds.map(() => "?").join(", ");
+    const rows = await context.env.storage.db.prepare(
+      `SELECT id, notebook_id, is_deleted FROM memos
+       WHERE workspace_id = ? AND id IN (${placeholders})`,
+    ).bind(getWorkspaceId(context), ...uniqueIds)
+      .all<{ id: string; notebook_id: string; is_deleted: number }>();
+
+    const found = new Map(rows.results.map((row) => [row.id, row]));
+    for (const memoId of uniqueIds) {
+      const row = found.get(memoId);
+      if (!row) continue; // Missing ids fail later in the service with its own error.
+      assertNotebookAccess(notebookAccess, "write", row.notebook_id, action);
+    }
+  };
+
   app.get("/api/v1/memos", async (context) => {
     const denied = requireScopes(context, "read:memos");
     if (denied) return denied;
@@ -151,6 +201,7 @@ export const registerMemoRoutes = (
       filter: context.req.query("filter"),
       limit: Number(context.req.query("limit") ?? 100),
       cursor: context.req.query("cursor"),
+      notebookAccess: await resolveRequestNotebookAccess(context),
     }));
   });
 
@@ -160,6 +211,12 @@ export const registerMemoRoutes = (
 
     try {
       const input = context.req.valid("json");
+      assertNotebookAccess(
+        await resolveRequestNotebookAccess(context),
+        "write",
+        input.notebookId,
+        "create a memo",
+      );
       const memo = await dependencies.createMemo(
         context.env.storage.db,
         getWorkspaceId(context),
@@ -202,6 +259,12 @@ export const registerMemoRoutes = (
     if (!(file instanceof File) || !notebookId || !contentMarkdown.includes("EDGEVERRESOURCEID")) {
       return badRequest(context, "notebookId, contentMarkdown, and an image file are required.");
     }
+    assertNotebookAccess(
+      await resolveRequestNotebookAccess(context),
+      "write",
+      notebookId,
+      "create a memo with an image",
+    );
     const resourceId = createId("res");
     const markdown = contentMarkdown.replaceAll("EDGEVERRESOURCEID", resourceId);
     const actor = getAuditActor(context);
@@ -243,6 +306,18 @@ export const registerMemoRoutes = (
       context.req.param("id"),
       context.req.query("includeDeleted") === "1",
     );
+    if (memo) {
+      try {
+        assertNotebookAccess(
+          await resolveRequestNotebookAccess(context),
+          "read",
+          memo.notebookId,
+          "read this memo",
+        );
+      } catch (error) {
+        return handleAppError(context, error);
+      }
+    }
     return memo ? context.json({ memo }) : notFound(context, "Memo not found");
   });
 
@@ -250,6 +325,17 @@ export const registerMemoRoutes = (
     const denied = requireScopes(context, "write:memos");
     if (denied) return denied;
 
+    try {
+      await assertMemoAccess(
+        context,
+        context.req.param("id"),
+        "write",
+        await resolveRequestNotebookAccess(context),
+        "edit this memo",
+      );
+    } catch (error) {
+      return handleAppError(context, error);
+    }
     const editSession = await dependencies.createMemoEditSession(context, context.req.param("id"));
     return editSession
       ? context.json({ editSession })
@@ -262,6 +348,9 @@ export const registerMemoRoutes = (
 
     const input = context.req.valid("json");
     try {
+      const notebookAccess = await resolveRequestNotebookAccess(context);
+      assertNotebookAccess(notebookAccess, "write", input.notebookId, "move memos into this notebook");
+      await assertMemoIdsAccess(context, input.memoIds, notebookAccess, "move these memos");
       const moved = await dependencies.moveMemos(
         context.env.storage.db,
         getWorkspaceId(context),
@@ -282,6 +371,12 @@ export const registerMemoRoutes = (
 
     const input = context.req.valid("json");
     try {
+      await assertMemoIdsAccess(
+        context,
+        input.memoIds,
+        await resolveRequestNotebookAccess(context),
+        "delete these memos",
+      );
       const deleted = await dependencies.deleteMemos(
         context.env,
         getWorkspaceId(context),
@@ -299,6 +394,18 @@ export const registerMemoRoutes = (
     const denied = requireScopes(context, "write:memos");
     if (denied) return denied;
 
+    // Emptying trash is workspace-wide and destructive; a notebook-restricted
+    // token must never be able to do it.
+    const notebookAccess = await resolveRequestNotebookAccess(context);
+    if (notebookAccess.restricted) {
+      return apiError(
+        context,
+        "notebook_access_denied",
+        "This API token does not have access to every notebook, so it cannot empty the trash. Update the token's notebook access in EdgeEver settings.",
+        403,
+      );
+    }
+
     const deleted = await dependencies.emptyTrash(
       context.env,
       getWorkspaceId(context),
@@ -312,6 +419,13 @@ export const registerMemoRoutes = (
     if (denied) return denied;
 
     try {
+      await assertMemoAccess(
+        context,
+        context.req.param("id"),
+        "read",
+        await resolveRequestNotebookAccess(context),
+        "list revisions of this memo",
+      );
       const revisions = await dependencies.listMemoRevisions(
         context.env.storage.db,
         getWorkspaceId(context),
@@ -329,6 +443,13 @@ export const registerMemoRoutes = (
     if (denied) return denied;
 
     try {
+      await assertMemoAccess(
+        context,
+        context.req.param("id"),
+        "write",
+        await resolveRequestNotebookAccess(context),
+        "restore this memo's revision",
+      );
       const memo = await dependencies.restoreMemoRevision(
         context.env.storage.db,
         getWorkspaceId(context),
@@ -344,6 +465,15 @@ export const registerMemoRoutes = (
   });
 
   const updateMemo = async (context: AppContext, memoId: string, input: MemoUpdateInput) => {
+    try {
+      const notebookAccess = await resolveRequestNotebookAccess(context);
+      await assertMemoAccess(context, memoId, "write", notebookAccess, "update this memo");
+      if (input.notebookId) {
+        assertNotebookAccess(notebookAccess, "write", input.notebookId, "move this memo");
+      }
+    } catch (error) {
+      return handleAppError(context, error);
+    }
     const result = await dependencies.updateMemo(
       context.env.storage.db,
       getWorkspaceId(context),
@@ -388,6 +518,13 @@ export const registerMemoRoutes = (
     if (denied) return denied;
 
     try {
+      await assertMemoAccess(
+        context,
+        context.req.param("id"),
+        "write",
+        await resolveRequestNotebookAccess(context),
+        "delete this memo",
+      );
       await dependencies.deleteMemo(
         context.env,
         getWorkspaceId(context),
@@ -406,6 +543,13 @@ export const registerMemoRoutes = (
     if (denied) return denied;
 
     try {
+      await assertMemoAccess(
+        context,
+        context.req.param("id"),
+        "write",
+        await resolveRequestNotebookAccess(context),
+        "restore this memo",
+      );
       const memo = await dependencies.restoreMemo(
         context.env.storage.db,
         getWorkspaceId(context),
@@ -423,10 +567,22 @@ export const registerMemoRoutes = (
     if (denied) return denied;
 
     try {
+      const input = context.req.valid("json");
+      const notebookAccess = await resolveRequestNotebookAccess(context);
+      await assertMemoAccess(
+        context,
+        context.req.param("id"),
+        "write",
+        notebookAccess,
+        "duplicate this memo",
+      );
+      if (input.notebookId) {
+        assertNotebookAccess(notebookAccess, "write", input.notebookId, "duplicate a memo into this notebook");
+      }
       const memo = await dependencies.duplicateMemo(
         context,
         context.req.param("id"),
-        context.req.valid("json"),
+        input,
         getAuditActor(context),
         getActorLabel(context),
       );
@@ -441,10 +597,16 @@ export const registerMemoRoutes = (
     if (denied) return denied;
 
     try {
+      const input = context.req.valid("json");
+      const notebookAccess = await resolveRequestNotebookAccess(context);
+      await assertMemoIdsAccess(context, input.memoIds, notebookAccess, "merge these memos");
+      if (input.notebookId) {
+        assertNotebookAccess(notebookAccess, "write", input.notebookId, "merge memos into this notebook");
+      }
       const memo = await dependencies.mergeMemos(
         context.env.storage.db,
         getWorkspaceId(context),
-        context.req.valid("json"),
+        input,
         getAuditActor(context),
         getActorLabel(context),
       );

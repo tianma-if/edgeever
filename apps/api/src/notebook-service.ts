@@ -3,6 +3,7 @@ import type { AuditActor } from "./api-context";
 import { AppError } from "./app-error";
 import { auditStatement } from "./audit";
 import { createId, isoNow, slugify } from "./entity-utils";
+import { notebookIdsBind, notebookInListSql, type NotebookAccess } from "./token-notebook-access";
 import type { DatabaseAdapter } from "./storage-contract";
 import { isInboxNotebook, workspaceInboxId } from "./workspace-provisioning";
 
@@ -72,16 +73,26 @@ export const notebookSelectSql = (tail: string) => `
   ${tail}
 `;
 
-export const listNotebooks = async (db: DatabaseAdapter, workspaceId: string): Promise<Notebook[]> => {
+export const listNotebooks = async (
+  db: DatabaseAdapter,
+  workspaceId: string,
+  notebookAccess?: NotebookAccess,
+): Promise<Notebook[]> => {
+  const accessFilter = notebookAccess?.restricted
+    ? `AND ${notebookInListSql("n.id", notebookAccess.readableNotebookIds)}`
+    : "";
+  const accessBinds = notebookAccess?.restricted && notebookAccess.readableNotebookIds.length > 0
+    ? [notebookIdsBind(notebookAccess.readableNotebookIds)]
+    : [];
   const rows = await db
     .prepare(
       notebookSelectSql(
-        `WHERE n.workspace_id = ? AND n.is_deleted = 0
+        `WHERE n.workspace_id = ? AND n.is_deleted = 0 ${accessFilter}
          GROUP BY n.id, n.parent_id, n.name, n.slug, n.icon, n.color, n.text_color, n.color_target, n.is_bold, n.icon_inverted, n.row_inverted, n.sort_order, n.created_at, n.updated_at
          ORDER BY n.parent_id IS NOT NULL, n.sort_order ASC, n.name ASC`
       )
     )
-    .bind(workspaceId).all<NotebookRow>();
+    .bind(workspaceId, ...accessBinds).all<NotebookRow>();
 
   return rows.results.map(mapNotebook);
 };
@@ -91,10 +102,10 @@ const normalizeNotebookLookupName = (value: string) => value.trim().toLocaleLowe
 export const findNotebooks = async (
   db: DatabaseAdapter,
   workspaceId: string,
-  options: { name: string; parentId?: string | null; exact: boolean; limit: number },
+  options: { name: string; parentId?: string | null; exact: boolean; limit: number; notebookAccess?: NotebookAccess },
 ) => {
   const query = normalizeNotebookLookupName(options.name);
-  const notebooks = await listNotebooks(db, workspaceId);
+  const notebooks = await listNotebooks(db, workspaceId, options.notebookAccess);
   return notebooks
     .filter((notebook) => {
       if (options.parentId !== undefined && notebook.parentId !== options.parentId) {
@@ -106,13 +117,18 @@ export const findNotebooks = async (
     .slice(0, options.limit);
 };
 
-export const resolveNotebookPath = async (db: DatabaseAdapter, workspaceId: string, path: string) => {
+export const resolveNotebookPath = async (
+  db: DatabaseAdapter,
+  workspaceId: string,
+  path: string,
+  notebookAccess?: NotebookAccess,
+) => {
   const segments = path.split("/").map((segment) => segment.trim()).filter(Boolean);
   if (segments.length === 0) {
     throw new AppError("invalid_params", "path must contain at least one notebook name", 400);
   }
 
-  const notebooks = await listNotebooks(db, workspaceId);
+  const notebooks = await listNotebooks(db, workspaceId, notebookAccess);
   const matched: Notebook[] = [];
   let parentId: string | null = null;
 
@@ -148,7 +164,15 @@ export const resolveNotebookPath = async (db: DatabaseAdapter, workspaceId: stri
   };
 };
 
-export const getNotebook = async (db: DatabaseAdapter, workspaceId: string, id: string): Promise<Notebook | null> => {
+export const getNotebook = async (
+  db: DatabaseAdapter,
+  workspaceId: string,
+  id: string,
+  notebookAccess?: NotebookAccess,
+): Promise<Notebook | null> => {
+  if (notebookAccess?.restricted && !notebookAccess.readableNotebookIds.includes(id)) {
+    return null;
+  }
   const row = await db
     .prepare(
       notebookSelectSql(
@@ -343,15 +367,65 @@ export const deleteNotebookTree = async (
     );
   }
 
-  if (options.dryRun) return result(notebookIds);
+  // Child notebooks that any API token grants reference explicitly are kept:
+  // they carry independent permission meaning (e.g. an explicit deny) that
+  // must survive the parent's deletion instead of vanishing with it. The
+  // lookup degrades to "nothing kept" when the token table is absent (older
+  // embedded schemas), so deletion keeps its previous behaviour there.
+  const grantedNotebookIds = new Set<string>();
+  try {
+    const grantedRows = await db.prepare(
+      `SELECT notebook_access_json FROM api_tokens WHERE workspace_id = ? AND notebook_access_json IS NOT NULL`,
+    ).bind(workspaceId).all<{ notebook_access_json: string }>();
+    for (const row of grantedRows.results) {
+      try {
+        const parsed = JSON.parse(row.notebook_access_json) as unknown;
+        if (!Array.isArray(parsed)) continue;
+        for (const entry of parsed) {
+          if (entry && typeof entry === "object" && typeof (entry as { notebookId?: unknown }).notebookId === "string") {
+            grantedNotebookIds.add((entry as { notebookId: string }).notebookId);
+          }
+        }
+      } catch {
+        // Corrupted grant rows keep nothing.
+      }
+    }
+  } catch {
+    // No api_tokens table: nothing is referenced, keep prior behaviour.
+  }
+  const kept = tree
+    .filter((notebook) => notebook.id !== id && grantedNotebookIds.has(notebook.id))
+    .map((notebook) => notebook.id);
+  const deletableIds = notebookIds.filter((notebookId) => !kept.includes(notebookId));
+  if (kept.length > 0 && options.dryRun !== true) {
+    // Detach kept children to the workspace root so they do not sit under a
+    // deleted parent.
+    const now0 = isoNow();
+    await db.batch(
+      kept.map((keptId) =>
+        db.prepare(
+          `UPDATE notebooks SET parent_id = NULL, updated_at = ? WHERE id = ? AND workspace_id = ?`,
+        ).bind(now0, keptId, workspaceId),
+      ),
+    );
+  }
+
+  if (options.dryRun) return result(deletableIds);
 
   const now = isoNow();
   const inboxId = workspaceInboxId(workspaceId);
+  const targetIds = deletableIds;
   if (options.guardConcurrentChanges) {
     // One guarded UPDATE prevents a note inserted after the emptiness check
     // from being hidden. Require the same active subtree, including parent
     // links, so concurrent moves/creates/deletes require a fresh attempt.
-    const serializedSnapshot = JSON.stringify(tree.map(({ id, parent_id }) => ({ id, parent_id })));
+    // Kept children were detached above, so the snapshot covers only the
+    // ids that are actually being deleted.
+    const serializedSnapshot = JSON.stringify(
+      tree
+        .filter((notebook) => targetIds.includes(notebook.id))
+        .map(({ id, parent_id }) => ({ id, parent_id })),
+    );
     const update = db.prepare(`
       WITH RECURSIVE tree(id) AS (
         SELECT id FROM notebooks WHERE workspace_id = ? AND id = ?
@@ -377,20 +451,20 @@ export const deleteNotebookTree = async (
           AND notebook_id IN (SELECT id FROM active_tree)
         )
     `).bind(workspaceId, id, workspaceId, workspaceId, serializedSnapshot,
-      now, now, workspaceId, notebookIds.length, inboxId, workspaceId);
+      now, now, workspaceId, targetIds.length, inboxId, workspaceId);
     const auditDelete = db.prepare(`
       INSERT INTO audit_events (id, actor_type, actor_id, action, entity_type, entity_id, metadata_json, created_at)
       SELECT ?, ?, ?, 'notebook.delete', 'notebook', ?, ?, ? WHERE changes() = ?
-    `).bind(createId("audit"), actor.actorType, actor.actorId, id, JSON.stringify({ notebookIds }), now, notebookIds.length);
+    `).bind(createId("audit"), actor.actorType, actor.actorId, id, JSON.stringify({ notebookIds: targetIds }), now, targetIds.length);
     const [, audited] = await db.batch([update, auditDelete]);
     // Adapter UPDATE metadata may include sync-trigger writes. The conditional
     // audit uses SQLite changes(), which counts only the notebook rows.
     if (!(Number(audited?.meta.changes) > 0)) {
       throw new AppError("notebook_changed", "Notebook contents or hierarchy changed. Preview again before retrying deletion.", 409);
     }
-    return result(notebookIds);
+    return result(targetIds);
   }
-  const statements = chunkValues(notebookIds, NOTEBOOK_DELETE_ID_CHUNK).map((chunk) => {
+  const statements = chunkValues(targetIds, NOTEBOOK_DELETE_ID_CHUNK).map((chunk) => {
     const placeholders = chunk.map(() => "?").join(", ");
     return db.prepare(
       `UPDATE notebooks
@@ -400,10 +474,10 @@ export const deleteNotebookTree = async (
     ).bind(now, now, workspaceId, ...chunk, inboxId);
   });
   statements.push(auditStatement(db, actor.actorType, actor.actorId, "notebook.delete", "notebook", id, {
-    notebookIds,
+    notebookIds: targetIds,
   }));
   await db.batch(statements);
-  return result(notebookIds);
+  return result(targetIds);
 };
 
 // Preserve the existing REST deletion contract and mechanism.
@@ -420,15 +494,27 @@ export const restoreNotebookRecord = async (
   actor: AuditActor
 ) => {
   const current = await db.prepare(
-    `SELECT id FROM notebooks WHERE id = ? AND workspace_id = ? AND is_deleted = 1`
-  ).bind(id, workspaceId).first<{ id: string }>();
+    `SELECT id, parent_id FROM notebooks WHERE id = ? AND workspace_id = ? AND is_deleted = 1`
+  ).bind(id, workspaceId).first<{ id: string; parent_id: string | null }>();
   if (!current) throw new AppError("not_found", "Deleted notebook not found", 404);
+
+  // A restored child must not sit under a still-deleted parent: it would be
+  // unreachable in the tree and would silently inherit the parent's grants
+  // once that parent is restored later. Detach to the workspace root when
+  // the parent is not live.
+  let parentId = current.parent_id;
+  if (parentId) {
+    const parentLive = await db.prepare(
+      `SELECT id FROM notebooks WHERE id = ? AND workspace_id = ? AND is_deleted = 0`,
+    ).bind(parentId, workspaceId).first<{ id: string }>();
+    if (!parentLive) parentId = null;
+  }
 
   const now = isoNow();
   await db.batch([
     db.prepare(
-      `UPDATE notebooks SET is_deleted = 0, deleted_at = NULL, updated_at = ? WHERE id = ? AND workspace_id = ?`
-    ).bind(now, id, workspaceId),
+      `UPDATE notebooks SET is_deleted = 0, deleted_at = NULL, parent_id = ?, updated_at = ? WHERE id = ? AND workspace_id = ?`
+    ).bind(parentId, now, id, workspaceId),
     auditStatement(db, actor.actorType, actor.actorId, "notebook.restore", "notebook", id, {}),
   ]);
 

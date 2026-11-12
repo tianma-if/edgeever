@@ -21,6 +21,13 @@ import {
 } from "./resource-service";
 import type { initiateResourceUpload as initiateResourceUploadService } from "./resource-upload-service";
 import { getAuditActor, getWorkspaceId, requireAnyScopes, requireScopes } from "./request-auth";
+import {
+  assertNotebookAccess,
+  memoNotebookAccessSql,
+  notebookAccessBinds,
+  resolveRequestNotebookAccess,
+  type NotebookAccess,
+} from "./token-notebook-access";
 import type { DatabaseAdapter } from "./storage-contract";
 
 type ResourceRouteDependencies = {
@@ -89,12 +96,69 @@ export const registerResourceRoutes = (
   app: Hono<AppEnv>,
   dependencies: ResourceRouteDependencies,
 ) => {
+  // Resolves the memo guard for resource endpoints: the owning memo's
+  // notebook must be accessible with the requested mode.
+  const assertResourceMemoAccess = async (
+    context: AppContext,
+    memoId: string,
+    kind: "read" | "write",
+    notebookAccess: NotebookAccess,
+    action: string,
+  ) => {
+    if (!notebookAccess.restricted) return;
+    const memo = await context.env.storage.db.prepare(
+      `SELECT notebook_id FROM memos WHERE id = ? AND workspace_id = ?`,
+    ).bind(memoId, getWorkspaceId(context)).first<{ notebook_id: string }>();
+    if (memo) assertNotebookAccess(notebookAccess, kind, memo.notebook_id, action);
+  };
+
+  const assertResourceRowAccess = async (
+    context: AppContext,
+    resourceId: string,
+    kind: "read" | "write",
+    notebookAccess: NotebookAccess,
+    action: string,
+    includeDeleted = false,
+  ) => {
+    const resource = await dependencies.getResourceRow(
+      context.env.storage.db,
+      getWorkspaceId(context),
+      resourceId,
+      includeDeleted,
+    );
+    if (resource) {
+      await assertResourceMemoAccess(context, resource.memo_id, kind, notebookAccess, action);
+    }
+  };
+
+  const assertUploadMemoAccess = async (
+    context: AppContext,
+    uploadId: string,
+    notebookAccess: NotebookAccess,
+    action: string,
+  ) => {
+    if (!notebookAccess.restricted) return;
+    const upload = await context.env.storage.db.prepare(
+      `SELECT memo_id FROM resource_uploads WHERE id = ? AND workspace_id = ?`,
+    ).bind(uploadId, getWorkspaceId(context)).first<{ memo_id: string }>();
+    if (upload) {
+      await assertResourceMemoAccess(context, upload.memo_id, "write", notebookAccess, action);
+    }
+  };
+
   app.get("/api/v1/resources", async (context) => {
     const denied = requireScopes(context, "read:resources");
     if (denied) return denied;
 
     const limit = dependencies.clampNumber(Number(context.req.query("limit") ?? 500), 1, 500);
     const workspaceId = getWorkspaceId(context);
+    const notebookAccess = await resolveRequestNotebookAccess(context);
+    const accessFilter = notebookAccess.restricted
+      ? `AND ${memoNotebookAccessSql("m.notebook_id", notebookAccess, "read")}`
+      : "";
+    const accessBinds = notebookAccess.restricted
+      ? notebookAccessBinds(notebookAccess, "read")
+      : [];
     const [rows, stats] = await Promise.all([
       context.env.storage.db.prepare(
         `SELECT r.id, r.memo_id, r.original_memo_id, r.bucket_name, r.object_key, r.storage_config_id, r.kind,
@@ -103,10 +167,10 @@ export const registerResourceRoutes = (
                 m.is_deleted AS memo_is_deleted
          FROM resources r
          INNER JOIN memos m ON m.id = r.memo_id
-         WHERE m.workspace_id = ? AND r.is_deleted = 0
+         WHERE m.workspace_id = ? AND r.is_deleted = 0 ${accessFilter}
          ORDER BY r.created_at DESC
          LIMIT ?`,
-      ).bind(workspaceId, limit).all<ResourceListRow>(),
+      ).bind(workspaceId, ...accessBinds, limit).all<ResourceListRow>(),
       context.env.storage.db.prepare(
         `SELECT COUNT(*) AS total_count,
                 COALESCE(SUM(byte_size), 0) AS total_bytes,
@@ -114,8 +178,8 @@ export const registerResourceRoutes = (
                 COALESCE(SUM(CASE WHEN kind = 'attachment' THEN 1 ELSE 0 END), 0) AS attachment_count
          FROM resources r
          INNER JOIN memos m ON m.id = r.memo_id
-         WHERE m.workspace_id = ? AND r.is_deleted = 0`,
-      ).bind(workspaceId).first<ResourceStatsRow>(),
+         WHERE m.workspace_id = ? AND r.is_deleted = 0 ${accessFilter}`,
+      ).bind(workspaceId, ...accessBinds).first<ResourceStatsRow>(),
     ]);
 
     return context.json({
@@ -148,6 +212,17 @@ export const registerResourceRoutes = (
       memoId,
     );
     if (!memo) return notFound(context, "Memo not found");
+    try {
+      await assertResourceMemoAccess(
+        context,
+        memoId,
+        "write",
+        await resolveRequestNotebookAccess(context),
+        "upload a resource to this memo",
+      );
+    } catch (error) {
+      return appErrorResponse(context, error);
+    }
 
     const form = await context.req.raw.formData();
     const file = form.get("file");
@@ -193,6 +268,17 @@ export const registerResourceRoutes = (
       memoId,
     );
     if (!memo) return notFound(context, "Memo not found");
+    try {
+      await assertResourceMemoAccess(
+        context,
+        memoId,
+        "write",
+        await resolveRequestNotebookAccess(context),
+        "start a resource upload for this memo",
+      );
+    } catch (error) {
+      return appErrorResponse(context, error);
+    }
 
     const payload = await context.req.json().catch(() => null) as Record<string, unknown> | null;
     const filename = typeof payload?.filename === "string" ? payload.filename : "";
@@ -220,6 +306,17 @@ export const registerResourceRoutes = (
   app.put("/api/v1/resource-uploads/:id/parts/:partNumber", async (context) => {
     const denied = requireAnyScopes(context, ["write:memos"], ["write:resources"]);
     if (denied) return denied;
+
+    try {
+      await assertUploadMemoAccess(
+        context,
+        context.req.param("id"),
+        await resolveRequestNotebookAccess(context),
+        "upload a resource part for this memo",
+      );
+    } catch (error) {
+      return appErrorResponse(context, error);
+    }
 
     const body = context.req.raw.body;
     const byteSize = Number(context.req.header("Content-Length"));
@@ -249,6 +346,12 @@ export const registerResourceRoutes = (
     const denied = requireAnyScopes(context, ["write:memos"], ["write:resources"]);
     if (denied) return denied;
     try {
+      await assertUploadMemoAccess(
+        context,
+        context.req.param("id"),
+        await resolveRequestNotebookAccess(context),
+        "complete a resource upload for this memo",
+      );
       const resource = await dependencies.completeResourceUpload(
         context,
         context.req.param("id"),
@@ -264,6 +367,12 @@ export const registerResourceRoutes = (
     const denied = requireAnyScopes(context, ["write:memos"], ["write:resources"]);
     if (denied) return denied;
     try {
+      await assertUploadMemoAccess(
+        context,
+        context.req.param("id"),
+        await resolveRequestNotebookAccess(context),
+        "abort a resource upload for this memo",
+      );
       await dependencies.abortResourceUpload(context, context.req.param("id"));
       return context.json({ ok: true });
     } catch (error) {
@@ -281,6 +390,17 @@ export const registerResourceRoutes = (
       context.req.param("id"),
     );
     if (!resource) return notFound(context, "Resource not found");
+    try {
+      await assertResourceRowAccess(
+        context,
+        resource.id,
+        "read",
+        await resolveRequestNotebookAccess(context),
+        "read this resource",
+      );
+    } catch (error) {
+      return appErrorResponse(context, error);
+    }
 
     const byteRange = parseByteRange(context.req.header("Range"), resource.byte_size);
     if (byteRange.kind === "invalid") return rangeNotSatisfiable(resource.byte_size);
@@ -338,6 +458,17 @@ export const registerResourceRoutes = (
     if (!(file instanceof File) || typeof expectedContentHash !== "string" || !expectedContentHash.trim()) {
       return badRequest(context, "file and expectedContentHash are required.");
     }
+    try {
+      await assertResourceRowAccess(
+        context,
+        context.req.param("id"),
+        "write",
+        await resolveRequestNotebookAccess(context),
+        "replace this resource",
+      );
+    } catch (error) {
+      return appErrorResponse(context, error);
+    }
     if (file.size > MAX_LEGACY_RESOURCE_UPLOAD_BYTES) {
       return apiError(context, "upload_too_large", "Resource replacements must be at most 100 MiB.", 413);
     }
@@ -377,6 +508,17 @@ export const registerResourceRoutes = (
         resourceId,
       );
       if (!resource) return notFound(context, "Resource not found");
+      try {
+        await assertResourceRowAccess(
+          context,
+          resourceId,
+          "write",
+          await resolveRequestNotebookAccess(context),
+          "rename this resource",
+        );
+      } catch (error) {
+        return appErrorResponse(context, error);
+      }
 
       const filename = normalizeFilename(context.req.valid("json").filename);
       if (!filename) return badRequest(context, "Resource filename is required.");
@@ -416,6 +558,18 @@ export const registerResourceRoutes = (
       true,
     );
     if (!resource) return notFound(context, "Resource not found");
+    try {
+      await assertResourceRowAccess(
+        context,
+        resourceId,
+        "write",
+        await resolveRequestNotebookAccess(context),
+        "delete this resource",
+        true,
+      );
+    } catch (error) {
+      return appErrorResponse(context, error);
+    }
 
     const source = await resolveObjectStorage(context.env, resource.storage_config_id);
     await source.store.delete(resource.object_key);
