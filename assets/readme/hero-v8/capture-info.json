@@ -2,10 +2,10 @@
   "layoutSource": "hero.html",
   "desktopCapture": {
     "viewportWidth": 1728,
-    "viewportHeight": 768,
+    "viewportHeight": 928,
     "deviceScaleFactor": 3,
     "pixelWidth": 5184,
-    "pixelHeight": 2304
+    "pixelHeight": 2784
   },
   "phoneCapture": {
     "source": "phone-source.png",
