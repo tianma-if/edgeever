@@ -118,8 +118,8 @@ export const zhTwSiteCopy = {
     },
   },
   marquee: {
-    title: "全平台客戶端覆蓋、自由部署與 AI 智腦生態",
-    subtitle: "從 macOS、原生 iOS、Android 客戶端，到 Docker 一鍵自託管、精美排版與 Remote MCP 協同",
+    title: "原生技術架構、自由部署與 AI 智腦生態",
+    subtitle: "從本地 SQLite 離線架構、ACP / Remote MCP 智慧體協同，到 Cloudflare / Docker 自託管與創作者排版",
     items: [
       {
         tag: "macOS 桌面端",

@@ -118,8 +118,8 @@ export const jaSiteCopy = {
     },
   },
   marquee: {
-    title: "全プラットフォーム、柔軟な導入、AI 連携",
-    subtitle: "macOS、ネイティブ iOS / Android から Docker 自前運用、発信向けコピー、Remote MCP まで。",
+    title: "ネイティブ設計、柔軟な導入、AI 連携エコシステム",
+    subtitle: "ローカル SQLite 同期や ACP / Remote MCP 連携から Docker 自前運用、発信向け整形まで。",
     items: [
       {
         tag: "macOS Desktop",
