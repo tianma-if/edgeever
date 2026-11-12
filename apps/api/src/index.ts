@@ -128,6 +128,7 @@ import { isNotebookSitePagePath, renderNotebookSitePage } from "./notebook-site-
 import { isPublicMemoSharePagePath, renderPublicMemoSharePage } from "./share-page";
 import { registerMemoShareRoutes, registerPublicShareRoutes } from "./share-routes";
 import { registerPublicTableFormRoutes, registerTableFormRoutes } from "./table-form-routes";
+import { registerPublicResourceUploadTicketRoutes } from "./resource-upload-ticket-routes";
 import {
   deleteStoredObjects,
   getActiveObjectStorageConfig,
@@ -267,6 +268,7 @@ app.get("/api/openapi.json", (c) => c.json(apiProbe));
 registerPublicShareRoutes(app);
 registerPublicNotebookShareRoutes(app);
 registerPublicTableFormRoutes(app);
+registerPublicResourceUploadTicketRoutes(app);
 
 registerAuthRoutes(app, {
   authenticateRequest: (...args) => authenticateRequest(...args),

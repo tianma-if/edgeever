@@ -81,7 +81,17 @@ When reading a prose memo with `get_memo` or listing full bodies with `list_memo
 
 Keyword searches with `search_memos` also return a `snippet` of up to 200 characters when the query or its terms can be located in the body. The original `excerpt` is retained. Results without a located body match, including title-only or tag-only matches, use the existing summary. Read the memo when the answer depends on context outside the snippet.
 
-## 3. Troubleshoot
+## 3. Attach local files
+
+`upload_memo_image` and `upload_memo_attachment` take the file as base64 inside the tool call, which is impractical for anything but very small files. When the agent can run shell commands, use `create_memo_upload_url` instead:
+
+1. Call `create_memo_upload_url` with `memoId`, `kind` (`image` or `attachment`), `mimeType`, the exact `byteSize`, and optionally `filename` and `label` (alt text or link label).
+2. Run the returned `curl` command after replacing `<path-to-file>`. It sends the file with `PUT` to `/api/public/resource-uploads` and carries a dedicated upload token in the `Authorization` header. The MCP token is never part of the command.
+3. Insert the `markdownImage` or `markdownLink` from the response into the memo with `update_memo`.
+
+Each URL accepts one file of exactly the declared size and type, up to 100 MiB, for 15 minutes. A request with the wrong size or type is rejected without using up the URL. The URL also stops working when the token that created it is revoked or loses `write:resources`. A workspace can hold up to 20 unused URLs at a time.
+
+## 4. Troubleshoot
 
 | Symptom | Cause and fix |
 |---|---|
@@ -90,5 +100,7 @@ Keyword searches with `search_memos` also return a `snippet` of up to 200 charac
 | `403` "Origin is not allowed" | A browser-based client sent a foreign `Origin`. Run the client outside the browser or through the stdio bridge. |
 | The client reports invalid JSON or an HTML page | The URL does not point at `/mcp` on the server (for example a typo, `//mcp`, or the desktop app address). |
 | Tools that change data are refused | The token is read-only. Use **Full access** only if the client needs to write. |
+| An upload URL returns `410` | It was already used or has expired. Call `create_memo_upload_url` again. |
+| An upload URL returns `400` or `415` | The file does not match the declared `byteSize` or `mimeType`. Check the size with `wc -c` and send the same file again. |
 
 Older instances may return the same generic `401` for missing and rejected credentials. Check the instance URL, header and token first.

@@ -680,7 +680,7 @@ const MCP_TOOL_DEFINITIONS = [
   {
     name: "upload_memo_image",
     description:
-      "Upload a base64-encoded image resource to a memo and return Markdown that can be inserted into memo content. Images are stored as provided; server-side compression is disabled to avoid Cloudflare Images quota usage.",
+      "Upload a base64-encoded image resource to a memo and return Markdown that can be inserted into memo content. Images are stored as provided; server-side compression is disabled to avoid Cloudflare Images quota usage. For a file on disk, prefer create_memo_upload_url.",
     inputSchema: {
       type: "object",
       required: ["memoId", "mimeType", "dataBase64"],
@@ -696,7 +696,7 @@ const MCP_TOOL_DEFINITIONS = [
   },
   {
     name: "upload_memo_attachment",
-    description: "Upload a base64-encoded attachment resource to a memo and return Markdown link text that can be inserted into memo content.",
+    description: "Upload a base64-encoded attachment resource to a memo and return Markdown link text that can be inserted into memo content. For a file on disk, prefer create_memo_upload_url.",
     inputSchema: {
       type: "object",
       required: ["memoId", "filename", "mimeType", "dataBase64"],
@@ -707,6 +707,24 @@ const MCP_TOOL_DEFINITIONS = [
         mimeType: { type: "string" },
         dataBase64: { type: "string" },
         label: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "create_memo_upload_url",
+    description:
+      "Create a single-use URL to upload a local image or attachment (up to 100 MiB) to a memo without sending its bytes through this tool call. Prefer this over upload_memo_image and upload_memo_attachment when the file is on disk. Run the returned curl command from a shell that can read the file, replacing <path-to-file>; the request must send exactly byteSize bytes of mimeType content. The URL expires after 15 minutes and works once. The PUT response contains the resource and Markdown to insert into the memo with update_memo.",
+    inputSchema: {
+      type: "object",
+      required: ["memoId", "kind", "mimeType", "byteSize"],
+      additionalProperties: false,
+      properties: {
+        memoId: { type: "string" },
+        kind: { type: "string", enum: ["image", "attachment"] },
+        mimeType: { type: "string" },
+        filename: { type: "string" },
+        byteSize: { type: "integer", minimum: 1, maximum: 104857600 },
+        label: { type: "string", description: "Image alt text or attachment link label." },
       },
     },
   },
@@ -1087,6 +1105,7 @@ const NON_DESTRUCTIVE_MCP_TOOLS = new Set([
   "add_tags_to_memos",
   "upload_memo_image",
   "upload_memo_attachment",
+  "create_memo_upload_url",
   "move_notebook",
   "create_notebook",
   "rename_notebook",

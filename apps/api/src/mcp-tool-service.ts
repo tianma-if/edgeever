@@ -84,6 +84,7 @@ import {
   resolveNotebookPath,
   updateNotebookRecord,
 } from "./notebook-service";
+import { createResourceUploadTicket } from "./resource-upload-ticket-service";
 import {
     createAttachmentResource,
     createImageResource,
@@ -880,6 +881,21 @@ export const callMcpTool = async (
         resource,
         markdownLink: `[${escapeMarkdownLinkLabel(label)}](${resource.url})`,
       };
+    }
+    case "create_memo_upload_url": {
+      assertScope(auth, "write:resources");
+      const kind = getRequiredString(args.kind, "kind");
+      if (kind !== "image" && kind !== "attachment") {
+        throw new AppError("invalid_params", 'kind must be "image" or "attachment".', 400);
+      }
+      return await createResourceUploadTicket(c, auth, {
+        memoId: getRequiredString(args.memoId, "memoId"),
+        kind,
+        mimeType: getRequiredString(args.mimeType, "mimeType"),
+        filename: getOptionalString(args.filename),
+        byteSize: typeof args.byteSize === "number" ? args.byteSize : Number.NaN,
+        label: getOptionalString(args.label),
+      });
     }
     case "list_memo_resources": {
       assertScope(auth, "read:resources");
