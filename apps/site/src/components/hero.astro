@@ -1,11 +1,12 @@
 ---
 import { Picture } from "astro:assets";
-import heroProductImage from "../../../../assets/readme/edgeever-hero-v8.png";
+import { getHeroImage } from "@/assets/hero";
 import { Icon } from "astro-icon/components";
 import { Meteors } from "@/components/magicui/meteors";
 import { getLocalizedPath, getSiteLocale, siteCopy } from "@/i18n";
 
 const locale = getSiteLocale(Astro.url.pathname);
+const heroProductImage = getHeroImage(locale);
 const copy = siteCopy[locale].hero;
 ---
 

@@ -16,4 +16,10 @@
 .phone-key{position:absolute;right:-3px;width:3px;border:1px solid #424b55;border-radius:0 2px 2px 0;background:linear-gradient(90deg,#303842,#a9b2bc 55%,#5a6571);box-shadow:1px 0 2px #090f1826}
 .phone-key-volume{top:16%;height:42px}
 .phone-key-power{top:26%;height:28px}
-</style></head><body><main><div class="desktop"><div class="bar"><i></i><i></i><i></i></div><img src="desktop-source.png" alt="Clean local Demo in EdgeEver Web"></div><div class="phone"><span class="phone-key phone-key-volume" aria-hidden="true"></span><span class="phone-key phone-key-power" aria-hidden="true"></span><div class="phone-screen"><img src="phone-source.png" alt="Actual Android native screenshot of the same overview note"></div></div></main></body></html>
+</style></head><body><main><div class="desktop"><div class="bar"><i></i><i></i><i></i></div><img src="desktop-source.png" alt="Clean local Demo in EdgeEver Web"></div><div class="phone"><span class="phone-key phone-key-volume" aria-hidden="true"></span><span class="phone-key phone-key-power" aria-hidden="true"></span><div class="phone-screen"><img src="phone-source.png" alt="Actual Android native screenshot of the same overview note"></div></div></main><script>
+if (new URLSearchParams(location.search).get("lang") === "en") {
+  document.documentElement.lang = "en";
+  document.querySelector(".desktop img").src = "desktop-source-en.png";
+  document.querySelector(".phone img").src = "phone-source-en.png";
+}
+</script></body></html>

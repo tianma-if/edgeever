@@ -26,7 +26,7 @@
     <a href="docs/note-migration-guide.en-US.md">📥 Notiz-Migration</a>
   </p>
   <p align="center">
-    <img src="assets/readme/edgeever-hero-v8.png" alt="EdgeEver Arbeitsbereich-Vorschau" width="800" />
+    <img src="assets/readme/edgeever-hero-v8-en.png" alt="EdgeEver Arbeitsbereich-Vorschau" width="800" />
   </p>
 </div>
 
