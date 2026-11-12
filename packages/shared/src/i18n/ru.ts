@@ -3705,15 +3705,24 @@ export const ru = {
     notebookAccessSummary: "Блокноты: {{notebooks}}",
     notebookRead: "Чтение",
     notebookWrite: "Запись",
-    notebookDefaultAccessTitle: "Доступ по умолчанию для новых блокнотов",
-    notebookDefaultAccessDescription: "Применяется к блокнотам без явного разрешения, особенно созданным позже.",
-    notebookDefaultAccessSummary: "Новые блокноты по умолчанию: {{access}}",
-    notebookBulkRead: "Все только чтение",
-    notebookBulkReadDescription: "Выдать чтение для всех блокнотов одним нажатием.",
-    notebookBulkWrite: "Все чтение/запись",
-    notebookBulkWriteDescription: "Выдать чтение/запись для всех блокнотов одним нажатием.",
+    notebookBulkSelect: "Выбрать все",
+    notebookBulkSelectDescription: "Добавить все блокноты в белый список.",
     notebookBulkClear: "Очистить",
-    notebookBulkClearDescription: "Снять все индивидуальные разрешения.",
+    notebookBulkClearDescription: "Очистить белый список (доступа нет).",
+    notebookInherited: "унаследовано",
+    notebookAccessLevelTitle: "Доступ белого списка",
+    notebookAccessLevelDescription: "Один уровень действует на весь белый список; невыбранные блокноты (включая новые) невидимы.",
+    notebookAccessLevelSummary: "Уровень: {{access}}",
+    notebookAccessLevel: {
+      read: {
+        label: "Только чтение",
+        description: "Блокноты из белого списка доступны только для чтения.",
+      },
+      write: {
+        label: "Чтение/запись",
+        description: "Блокноты из белего списка доступны для чтения и записи.",
+      },
+    },
     notebookDefaultAccess: {
       none: {
         label: "Без доступа",

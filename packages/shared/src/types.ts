@@ -3,7 +3,7 @@ import type { TiptapDoc } from "./content";
 import type { AiAction, AiPromptParameterKind, AiPromptResultMode } from "./ai-assistant";
 import type { DiagramKind, DiagramSummaryPreview } from "./diagram";
 import type { TableSummaryPreview } from "./table";
-import type { TokenNotebookAccess, TokenNotebookDefaultAccess } from "./schemas";
+import type { TokenNotebookAccess, TokenNotebookAccessLevel } from "./schemas";
 
 export type NoteCreateKind = DiagramKind | "infographic" | "table" | "poster";
 
@@ -306,12 +306,8 @@ export type ApiToken = {
    * specific notebooks and keeps reaching the whole workspace.
    */
   notebookAccess: TokenNotebookAccess[] | null;
-  /**
-   * Access for notebooks without an explicit grant — notably notebooks
-   * created after the token. `"none"` (the default) keeps the plain
-   * allow-list behaviour; `"read"`/`"write"` cover every other notebook.
-   */
-  notebookDefaultAccess: TokenNotebookDefaultAccess;
+  /** The single access level applied to the whole whitelist. */
+  notebookAccessLevel: TokenNotebookAccessLevel;
   lastUsedAt: string | null;
   expiresAt: string | null;
   isRevoked: boolean;

@@ -12,7 +12,7 @@ import type { AppContext, AppEnv } from "./api-context";
 import { randomToken } from "./auth-crypto";
 import { createId, isoNow, parseJsonArray } from "./entity-utils";
 import { apiError, badRequest, notFound } from "./http-errors";
-import { notebookIdsBind, parseNotebookAccessJson, parseNotebookDefaultAccess } from "./token-notebook-access";
+import { notebookIdsBind, parseNotebookAccessJson, parseNotebookAccessLevel } from "./token-notebook-access";
 import {
   ALL_TOKEN_SCOPES,
   getAuditActor,
@@ -31,7 +31,7 @@ export type ApiTokenRow = {
   token_value: string | null;
   scopes_json: string;
   notebook_access_json: string | null;
-  notebook_default_access: string | null;
+  notebook_access_level: string | null;
   last_used_at: string | null;
   expires_at: string | null;
   is_revoked: number;
@@ -49,7 +49,7 @@ export const mapApiToken = (row: ApiTokenRow): ApiToken => ({
   token: row.token_value,
   scopes: parseJsonArray(row.scopes_json),
   notebookAccess: parseNotebookAccessJson(row.notebook_access_json),
-  notebookDefaultAccess: parseNotebookDefaultAccess(row.notebook_default_access),
+  notebookAccessLevel: parseNotebookAccessLevel(row.notebook_access_level),
   lastUsedAt: row.last_used_at,
   expiresAt: row.expires_at,
   isRevoked: Boolean(row.is_revoked),
@@ -61,7 +61,7 @@ const getApiTokenRow = (
   id: string,
   workspaceId: string,
 ) => database.prepare(
-  `SELECT id, name, token_value, scopes_json, notebook_access_json, notebook_default_access, last_used_at, expires_at, is_revoked, created_at, workspace_id
+  `SELECT id, name, token_value, scopes_json, notebook_access_json, notebook_access_level, last_used_at, expires_at, is_revoked, created_at, workspace_id
    FROM api_tokens
    WHERE id = ? AND workspace_id = ?`,
 ).bind(id, workspaceId).first<ApiTokenRow>();
@@ -104,7 +104,7 @@ export const registerApiTokenRoutes = (
     if (userOnly) return userOnly;
 
     const rows = await context.env.storage.db.prepare(
-      `SELECT id, name, token_value, scopes_json, notebook_access_json, notebook_default_access, last_used_at, expires_at, is_revoked, created_at, workspace_id
+      `SELECT id, name, token_value, scopes_json, notebook_access_json, notebook_access_level, last_used_at, expires_at, is_revoked, created_at, workspace_id
        FROM api_tokens
        WHERE workspace_id = ?
        ORDER BY is_revoked ASC, created_at DESC
@@ -142,7 +142,7 @@ export const registerApiTokenRoutes = (
       const workspaceId = getWorkspaceId(context);
       await context.env.storage.db.batch([
         context.env.storage.db.prepare(
-          `INSERT INTO api_tokens (id, workspace_id, name, token_hash, token_value, scopes_json, notebook_access_json, notebook_default_access, expires_at, created_at)
+          `INSERT INTO api_tokens (id, workspace_id, name, token_hash, token_value, scopes_json, notebook_access_json, notebook_access_level, expires_at, created_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         ).bind(
           id,
@@ -152,7 +152,7 @@ export const registerApiTokenRoutes = (
           token,
           JSON.stringify(scopes),
           input.notebookAccess ? JSON.stringify(input.notebookAccess) : null,
-          input.notebookDefaultAccess ?? null,
+          input.notebookAccessLevel ?? null,
           input.expiresAt ?? null,
           now,
         ),
@@ -163,7 +163,7 @@ export const registerApiTokenRoutes = (
           "api_token.create",
           "api_token",
           id,
-          { name: input.name, scopes, expiresAt: input.expiresAt ?? null, notebookAccess: input.notebookAccess ?? null, notebookDefaultAccess: input.notebookDefaultAccess ?? null },
+          { name: input.name, scopes, expiresAt: input.expiresAt ?? null, notebookAccess: input.notebookAccess ?? null, notebookAccessLevel: input.notebookAccessLevel ?? null },
         ),
       ]);
 
@@ -217,8 +217,8 @@ export const registerApiTokenRoutes = (
       // The default policy follows the grant field: it changes when the
       // request carries it, when grants are set, or when the restriction is
       // removed. A grant-only PATCH keeps the stored default.
-      const notebookDefaultAccess = input.notebookDefaultAccess !== undefined
-        ? input.notebookDefaultAccess
+      const notebookAccessLevel = input.notebookAccessLevel !== undefined
+        ? input.notebookAccessLevel
         : null;
       const actor = getAuditActor(context);
       await context.env.storage.db.batch([
@@ -231,10 +231,10 @@ export const registerApiTokenRoutes = (
                  WHEN ? IS NULL THEN notebook_access_json
                  ELSE ?
                END,
-               notebook_default_access = CASE
-                 WHEN ? = '__UNRESTRICT__' THEN 'none'
+               notebook_access_level = CASE
+                 WHEN ? = '__UNRESTRICT__' THEN NULL
                  WHEN ? IS NOT NULL THEN ?
-                 ELSE notebook_default_access
+                 ELSE notebook_access_level
                END,
                expires_at = CASE WHEN ? THEN ? ELSE expires_at END
            WHERE id = ? AND workspace_id = ?`,
@@ -246,8 +246,8 @@ export const registerApiTokenRoutes = (
           notebookAccessJson,
           notebookAccessJson,
           notebookAccessJson,
-          notebookDefaultAccess,
-          notebookDefaultAccess,
+          notebookAccessLevel,
+          notebookAccessLevel,
           expiresAtChanged ? 1 : 0,
           expiresAt,
           id,
@@ -269,16 +269,16 @@ export const registerApiTokenRoutes = (
                 ? null
                 : notebookAccessJson ?? current.notebook_access_json,
             ),
-            notebookDefaultAccess: notebookDefaultAccess
+            notebookAccessLevel: notebookAccessLevel
               ?? (notebookAccessJson === "__UNRESTRICT__"
-                ? "none"
-                : parseNotebookDefaultAccess(current.notebook_default_access)),
+                ? null
+                : parseNotebookAccessLevel(current.notebook_access_level)),
             previous: {
               name: current.name,
               scopes: parseJsonArray(current.scopes_json),
               expiresAt: current.expires_at,
               notebookAccess: parseNotebookAccessJson(current.notebook_access_json),
-              notebookDefaultAccess: parseNotebookDefaultAccess(current.notebook_default_access),
+              notebookAccessLevel: parseNotebookAccessLevel(current.notebook_access_level),
             },
           },
         ),

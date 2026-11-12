@@ -3892,15 +3892,24 @@ export const fr = {
     notebookAccessSummary: "Carnets : {{notebooks}}",
     notebookRead: "Lecture",
     notebookWrite: "Écriture",
-    notebookDefaultAccessTitle: "Accès par défaut pour les nouveaux carnets",
-    notebookDefaultAccessDescription: "S'applique aux carnets sans autorisation explicite, en particulier ceux créés plus tard.",
-    notebookDefaultAccessSummary: "Nouveaux carnets par défaut : {{access}}",
-    notebookBulkRead: "Tout en lecture",
-    notebookBulkReadDescription: "Accorder la lecture à tous les carnets en un clic.",
-    notebookBulkWrite: "Tout en lecture/écriture",
-    notebookBulkWriteDescription: "Accorder lecture/écriture à tous les carnets en un clic.",
+    notebookBulkSelect: "Tout sélectionner",
+    notebookBulkSelectDescription: "Ajouter tous les carnets à la liste blanche.",
     notebookBulkClear: "Effacer",
-    notebookBulkClearDescription: "Effacer toutes les autorisations individuelles.",
+    notebookBulkClearDescription: "Vider la liste blanche (aucun accès).",
+    notebookInherited: "hérité",
+    notebookAccessLevelTitle: "Accès de la liste blanche",
+    notebookAccessLevelDescription: "Un seul niveau s'applique à toute la liste blanche ; les carnets non cochés (y compris nouveaux) sont invisibles.",
+    notebookAccessLevelSummary: "Niveau : {{access}}",
+    notebookAccessLevel: {
+      read: {
+        label: "Lecture seule",
+        description: "Les carnets de la liste blanche sont en lecture seule.",
+      },
+      write: {
+        label: "Lecture/écriture",
+        description: "Les carnets de la liste blanche sont en lecture/écriture.",
+      },
+    },
     notebookDefaultAccess: {
       none: {
         label: "Aucun accès",

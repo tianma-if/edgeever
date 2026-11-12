@@ -1,5 +1,5 @@
 import type { TFunction } from "i18next";
-import type { Notebook, TokenNotebookAccess, TokenNotebookDefaultAccess } from "@edgeever/shared";
+import type { Notebook, TokenNotebookAccess, TokenNotebookAccessLevel } from "@edgeever/shared";
 import { getConfiguredDesktopApiBaseUrl } from "@/lib/api";
 export { copyTextToClipboard } from "@/lib/clipboard";
 
@@ -97,40 +97,45 @@ export const getStoredTokenAccessLevel = (
 // --- Per-notebook grant editor draft ---------------------------------------
 
 export type NotebookGrantDraft = {
-  /** "all" = unrestricted (notebookAccess omitted); "selected" = per-notebook grants. */
+  /** "all" = unrestricted (notebookAccess omitted); "selected" = whitelist. */
   mode: "all" | "selected";
-  /** notebookId → grant. Only notebooks with a grant are sent to the server. */
-  grants: Record<string, { read: boolean; write: boolean }>;
-  /** Access for notebooks without an explicit grant (notably new ones). */
-  defaultAccess: TokenNotebookDefaultAccess;
+  /** The whitelisted notebook ids. */
+  grantedIds: string[];
+  /** The single access level applied to the whole whitelist. */
+  level: TokenNotebookAccessLevel;
 };
 
-export const emptyNotebookGrantDraft = (): NotebookGrantDraft => ({ mode: "all", grants: {}, defaultAccess: "none" });
+export const emptyNotebookGrantDraft = (): NotebookGrantDraft => ({ mode: "all", grantedIds: [], level: "read" });
 
 export const notebookAccessToDraft = (
   notebookAccess: TokenNotebookAccess[] | null | undefined,
-  notebookDefaultAccess: TokenNotebookDefaultAccess | undefined,
+  notebookAccessLevel: TokenNotebookAccessLevel | undefined,
 ): NotebookGrantDraft => {
   // null = unrestricted ("all" mode); an empty array is a restricted token
-  // with no grants, which the editor shows as selected-with-nothing.
+  // with an empty whitelist, which the editor shows as selected-with-nothing.
   if (notebookAccess == null) {
     return emptyNotebookGrantDraft();
   }
-  const grants: NotebookGrantDraft["grants"] = {};
-  for (const entry of notebookAccess) {
-    grants[entry.notebookId] = { read: entry.read, write: entry.write };
-  }
-  return { mode: "selected", grants, defaultAccess: notebookDefaultAccess ?? "none" };
+  return {
+    mode: "selected",
+    grantedIds: notebookAccess.map((entry) => entry.notebookId),
+    level: notebookAccessLevel ?? "read",
+  };
 };
 
-export const draftToNotebookAccess = (draft: NotebookGrantDraft): TokenNotebookAccess[] | undefined => {
+export const draftToNotebookAccess = (
+  draft: NotebookGrantDraft,
+): TokenNotebookAccess[] | undefined => {
   if (draft.mode !== "selected") {
     return undefined;
   }
-  // Explicit denies (read=false, write=false) are kept: dropping them would
-  // silently reopen those notebooks under the default policy.
-  return Object.entries(draft.grants)
-    .map(([notebookId, grant]) => ({ notebookId, read: grant.read, write: grant.write }));
+  // One level for the whole whitelist: read is always true, write follows
+  // the level.
+  return draft.grantedIds.map((notebookId) => ({
+    notebookId,
+    read: true,
+    write: draft.level === "write",
+  }));
 };
 
 /** Flattened notebook tree rows (parent before children) for the grant picker. */
@@ -160,7 +165,7 @@ export const buildNotebookTreeRows = (notebooks: Notebook[]): NotebookTreeRow[] 
   return rows;
 };
 
-/** Human summary of a stored token's notebook grants, e.g. "2 notebooks · read". */
+/** Human summary of a stored token's whitelist, e.g. "2 notebooks · read". */
 export const describeNotebookAccess = (
   notebookAccess: TokenNotebookAccess[] | null | undefined,
   notebooksById: ReadonlyMap<string, Notebook>,
@@ -170,8 +175,7 @@ export const describeNotebookAccess = (
   }
   return notebookAccess.map((entry) => {
     const name = notebooksById.get(entry.notebookId)?.name ?? entry.notebookId;
-    const mode = entry.write ? "read/write" : entry.read ? "read" : "none";
-    return `${name} (${mode})`;
+    return name;
   });
 };
 

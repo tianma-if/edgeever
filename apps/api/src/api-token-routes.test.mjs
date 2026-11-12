@@ -64,7 +64,7 @@ describe("API token route contracts", () => {
       token_value: null,
       scopes_json: '["read:memos"]',
       notebook_access_json: null,
-      notebook_default_access: null,
+      notebook_access_level: null,
       last_used_at: null,
       expires_at: null,
       is_revoked: 0,
@@ -76,7 +76,7 @@ describe("API token route contracts", () => {
       token: null,
       scopes: ["read:memos"],
       notebookAccess: null,
-      notebookDefaultAccess: "none",
+      notebookAccessLevel: "read",
       lastUsedAt: null,
       expiresAt: null,
       isRevoked: false,
@@ -91,7 +91,7 @@ describe("API token route contracts", () => {
       token_value: "eev_x",
       scopes_json: '["read:memos","write:memos"]',
       notebook_access_json: '[{"notebookId":"nb_a","read":true,"write":true},{"notebookId":"nb_b","read":true,"write":false}]',
-      notebook_default_access: "read",
+      notebook_access_level: "write",
       last_used_at: null,
       expires_at: null,
       is_revoked: 0,
@@ -107,12 +107,12 @@ describe("API token route contracts", () => {
       token_value: "eev_x",
       scopes_json: '["read:memos"]',
       notebook_access_json: null,
-      notebook_default_access: "bogus",
+      notebook_access_level: "bogus",
       last_used_at: null,
       expires_at: null,
       is_revoked: 0,
       created_at: "2026-08-08T00:00:00.000Z",
       workspace_id: "ws_owner",
-    }).notebookDefaultAccess).toBe("none");
+    }).notebookAccessLevel).toBe("read");
   });
 });

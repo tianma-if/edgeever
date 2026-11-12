@@ -3694,15 +3694,24 @@ export const pl = {
     notebookAccessSummary: "Notatniki: {{notebooks}}",
     notebookRead: "Odczyt",
     notebookWrite: "Zapis",
-    notebookDefaultAccessTitle: "Domyślny dostęp dla nowych notatników",
-    notebookDefaultAccessDescription: "Dotyczy notatników bez jawnego przyznania, zwłaszcza tworzonych później.",
-    notebookDefaultAccessSummary: "Domyślnie dla nowych notatników: {{access}}",
-    notebookBulkRead: "Wszystkie tylko do odczytu",
-    notebookBulkReadDescription: "Przyznaj odczyt dla wszystkich notatników jednym kliknięciem.",
-    notebookBulkWrite: "Wszystkie do zapisu",
-    notebookBulkWriteDescription: "Przyznaj odczyt/zapis dla wszystkich notatników jednym kliknięciem.",
+    notebookBulkSelect: "Zaznacz wszystkie",
+    notebookBulkSelectDescription: "Dodaj wszystkie notatniki do białej listy.",
     notebookBulkClear: "Wyczyść",
-    notebookBulkClearDescription: "Wyczyść wszystkie indywidualne przyznania.",
+    notebookBulkClearDescription: "Opróżnij białą listę (brak dostępu).",
+    notebookInherited: "odziedziczone",
+    notebookAccessLevelTitle: "Dostęp białej listy",
+    notebookAccessLevelDescription: "Jeden poziom obowiązuje całą białą listę; niezaznaczone notatniki (w tym nowe) są niewidoczne.",
+    notebookAccessLevelSummary: "Poziom: {{access}}",
+    notebookAccessLevel: {
+      read: {
+        label: "Tylko odczyt",
+        description: "Notatniki z białej listy są tylko do odczytu.",
+      },
+      write: {
+        label: "Odczyt/zapis",
+        description: "Notatniki z białej listy można czytać i zapisywać.",
+      },
+    },
     notebookDefaultAccess: {
       none: {
         label: "Brak dostępu",

@@ -3893,15 +3893,26 @@ export const de = {
     "notebookAccessSummary": "Notizbücher: {{notebooks}}",
     "notebookRead": "Lesen",
     "notebookWrite": "Schreiben",
-    "notebookDefaultAccessTitle": "Standardzugriff für neue Notizbücher",
-    "notebookDefaultAccessDescription": "Gilt für Notizbücher ohne explizite Freigabe, insbesondere später erstellte.",
-    "notebookDefaultAccessSummary": "Neue Notizbücher standardmäßig: {{access}}",
-    "notebookBulkRead": "Alle lesen",
-    "notebookBulkReadDescription": "Lesezugriff für alle Notizbücher mit einem Klick erteilen.",
-    "notebookBulkWrite": "Alle schreiben",
-    "notebookBulkWriteDescription": "Lese-/Schreibzugriff für alle Notizbücher mit einem Klick erteilen.",
+    "notebookBulkSelect": "Alle auswählen",
+    "notebookBulkSelectDescription": "Alle Notizbücher auf die Whitelist setzen.",
     "notebookBulkClear": "Leeren",
-    "notebookBulkClearDescription": "Alle einzelnen Freigaben entfernen.",
+    "notebookBulkClearDescription": "Whitelist leeren (kein Zugriff).",
+    "notebookInherited": "geerbt",
+    "notebookAccessLevelTitle": "Whitelist-Zugriff",
+    "notebookAccessLevelDescription": "Ein Level gilt für die gesamte Whitelist; nicht angehakte Notizbücher (auch neue) sind unsichtbar.",
+    "notebookAccessLevelSummary": "Level: {{access}}",
+    "notebookAccessLevel": {
+      "read": {
+        "label": "Nur lesen",
+        "description": "Whitelist-Notizbücher sind nur lesbar."
+      },
+
+      "write": {
+        "label": "Lesen/Schreiben",
+        "description": "Whitelist-Notizbücher sind les- und schreibbar."
+      }
+
+    },
     "notebookDefaultAccess": {
       "none": {
         "label": "Kein Zugriff",

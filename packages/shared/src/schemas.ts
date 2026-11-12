@@ -261,9 +261,11 @@ export const UserUpdateSchema = z
   })
   .refine((input) => Object.keys(input).length > 0, "At least one field is required.");
 
-// A per-notebook grant. `notebookId` names a notebook subtree; `read` and
-// `write` are independent so a token can, for example, read one notebook and
-// write another.
+/**
+ * Notebook whitelist model: a token either reaches the whole workspace
+ * (unrestricted) or exactly the whitelisted notebook subtrees. One access
+ * level — read-only or read/write — applies to the whole whitelist.
+ */
 export const TokenNotebookAccessSchema = z.object({
   notebookId: z.string().trim().min(1).max(120),
   read: z.boolean(),
@@ -280,19 +282,17 @@ export const TokenNotebookAccessListSchema = z
     "notebookId must be unique within notebookAccess.",
   );
 
-// What a notebook-restricted token gets for notebooks it has no explicit
-// grant for — in particular notebooks created after the token. "none" keeps
-// the original allow-list behaviour.
-export const TokenNotebookDefaultAccessSchema = z.enum(["none", "read", "write"]);
+/** The single access level applied to a token's whole notebook whitelist. */
+export const TokenNotebookAccessLevelSchema = z.enum(["read", "write"]);
 
-export type TokenNotebookDefaultAccess = z.infer<typeof TokenNotebookDefaultAccessSchema>;
+export type TokenNotebookAccessLevel = z.infer<typeof TokenNotebookAccessLevelSchema>;
 
 export const ApiTokenCreateSchema = z.object({
   name: z.string().trim().min(1).max(80),
   scopes: z.array(z.string().trim().min(1).max(80)).min(1).max(32),
   expiresAt: z.string().datetime().nullable().optional(),
   notebookAccess: TokenNotebookAccessListSchema.optional(),
-  notebookDefaultAccess: TokenNotebookDefaultAccessSchema.optional(),
+  notebookAccessLevel: TokenNotebookAccessLevelSchema.optional(),
 });
 
 export const ApiTokenUpdateSchema = z
@@ -301,11 +301,11 @@ export const ApiTokenUpdateSchema = z
     scopes: z.array(z.string().trim().min(1).max(80)).min(1).max(32).optional(),
     expiresAt: z.string().datetime().nullable().optional(),
     /**
-     * Omitted = keep the stored grants; an array (possibly empty) = set them;
-     * null = remove the notebook restriction entirely (back to unrestricted).
+     * Omitted = keep the stored whitelist; an array (possibly empty) = set
+     * it; null = remove the notebook restriction entirely.
      */
     notebookAccess: TokenNotebookAccessListSchema.nullable().optional(),
-    notebookDefaultAccess: TokenNotebookDefaultAccessSchema.optional(),
+    notebookAccessLevel: TokenNotebookAccessLevelSchema.optional(),
   })
   .refine((input) => Object.keys(input).length > 0, "At least one field is required.");
 

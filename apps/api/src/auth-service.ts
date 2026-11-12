@@ -17,7 +17,7 @@ import type { UserRow } from "./auth-routes";
 import { createId, isoNow, parseJsonArray } from "./entity-utils";
 import { sha256 } from "./hash-utils";
 import { apiError } from "./http-errors";
-import { isCorruptedNotebookAccess, parseNotebookAccessJson, parseNotebookDefaultAccess } from "./token-notebook-access";
+import { isCorruptedNotebookAccess, parseNotebookAccessJson, parseNotebookAccessLevel } from "./token-notebook-access";
 import type { DatabaseAdapter } from "./storage-contract";
 import type { InstanceUserRow } from "./user-routes";
 import { ensureUserWorkspace } from "./workspace-provisioning";
@@ -296,7 +296,7 @@ const authenticateBearerToken = async (c: AppContext, touch: boolean): Promise<A
   }
 
   const row = await c.env.storage.db.prepare(
-    `SELECT id, name, token_value, scopes_json, notebook_access_json, notebook_default_access, last_used_at, expires_at, is_revoked, created_at, workspace_id
+    `SELECT id, name, token_value, scopes_json, notebook_access_json, notebook_access_level, last_used_at, expires_at, is_revoked, created_at, workspace_id
      FROM api_tokens
      WHERE token_hash = ?
        AND is_revoked = 0
@@ -338,11 +338,11 @@ const authenticateBearerToken = async (c: AppContext, touch: boolean): Promise<A
     role: "member",
     tokenId: row.id,
     notebookAccess: parseNotebookAccessJson(row.notebook_access_json),
-    // A corrupted grant record denies everything, including the default
-    // policy: otherwise a stored "write" default would reopen access.
-    notebookDefaultAccess: isCorruptedNotebookAccess(row.notebook_access_json)
-      ? "none"
-      : parseNotebookDefaultAccess(row.notebook_default_access),
+    // A corrupted grant record denies everything: the level cannot widen a
+    // record the parser already failed on.
+    notebookAccessLevel: isCorruptedNotebookAccess(row.notebook_access_json)
+      ? "read"
+      : parseNotebookAccessLevel(row.notebook_access_level),
   };
 };
 

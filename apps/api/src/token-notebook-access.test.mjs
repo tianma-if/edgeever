@@ -3,10 +3,13 @@ import { globSync, readFileSync } from "node:fs";
 import { Database } from "bun:sqlite";
 import {
   assertNotebookAccess,
-  hasAllNotebookAccess,
+  isCorruptedNotebookAccess,
   memoNotebookAccessSql,
   notebookAccessBinds,
+  notebookInListSql,
+  notebookIdsBind,
   parseNotebookAccessJson,
+  parseNotebookAccessLevel,
   resolveNotebookAccess,
   UNRESTRICTED_NOTEBOOK_ACCESS,
 } from "./token-notebook-access.ts";
@@ -31,8 +34,8 @@ class SqliteD1PreparedStatement {
   }
 
   async run() {
-    this.db.query(this.sql).run(...this.bindings);
-    return { success: true, meta: {} };
+    const result = this.db.query(this.sql).run(...this.bindings);
+    return { success: true, meta: { changes: result.changes } };
   }
 }
 
@@ -46,8 +49,10 @@ class SqliteD1Database {
   }
 
   async batch(statements) {
-    return this.db.transaction(() => statements.map((statement) =>
-      this.db.query(statement.sql).run(...statement.bindings)))();
+    return this.db.transaction(() => statements.map((statement) => {
+      const result = this.db.query(statement.sql).run(...statement.bindings);
+      return { success: true, meta: { changes: result.changes } };
+    }))();
   }
 }
 
@@ -66,6 +71,8 @@ const createFixture = () => {
   sqlite.query("INSERT INTO notebooks (id, workspace_id, name, parent_id, is_deleted) VALUES ('nb_gone', 'ws_t', 'Gone', NULL, 1)").run();
   return new SqliteD1Database(sqlite);
 };
+
+const grant = (notebookId, level) => ({ notebookId, read: true, write: level === "write" });
 
 describe("parseNotebookAccessJson", () => {
   test("null stays unrestricted; empty and malformed values fail closed", () => {
@@ -92,203 +99,87 @@ describe("parseNotebookAccessJson", () => {
       '[{"notebookId":"nb_a","read":true,"write":false}]',
     )).toEqual([{ notebookId: "nb_a", read: true, write: false }]);
   });
-});
 
-describe("resolveNotebookAccess", () => {
-  test("null entries resolve unrestricted without database reads", async () => {
-    const db = createFixture();
-    expect(await resolveNotebookAccess(db, "ws_t", null)).toEqual(UNRESTRICTED_NOTEBOOK_ACCESS);
-    expect(await resolveNotebookAccess(db, "ws_t", undefined)).toEqual(UNRESTRICTED_NOTEBOOK_ACCESS);
+  test("level parsing", () => {
+    expect(parseNotebookAccessLevel("write")).toBe("write");
+    expect(parseNotebookAccessLevel("read")).toBe("read");
+    expect(parseNotebookAccessLevel(null)).toBe("read");
+    expect(parseNotebookAccessLevel("bogus")).toBe("read");
   });
 
-  test("expands grants to live subtrees and drops deleted notebooks", async () => {
-    const db = createFixture();
-    const access = await resolveNotebookAccess(db, "ws_t", [
-      { notebookId: "nb_root", read: true, write: true },
-      { notebookId: "nb_gone", read: true, write: true },
-    ]);
-    expect(access.restricted).toBe(true);
-    expect(access.readableNotebookIds.sort()).toEqual(["nb_child", "nb_grandchild", "nb_root"]);
-    expect(access.writableNotebookIds.sort()).toEqual(["nb_child", "nb_grandchild", "nb_root"]);
-  });
-
-  test("write implies read; read-only grants do not imply write", async () => {
-    const db = createFixture();
-    const access = await resolveNotebookAccess(db, "ws_t", [
-      { notebookId: "nb_root", read: false, write: true },
-      { notebookId: "nb_other", read: true, write: false },
-    ]);
-    expect(access.readableNotebookIds.sort()).toEqual(["nb_child", "nb_grandchild", "nb_other", "nb_root"]);
-    expect(access.writableNotebookIds.sort()).toEqual(["nb_child", "nb_grandchild", "nb_root"]);
-  });
-
-  test("a grant for a missing notebook restricts to nothing", async () => {
-    const db = createFixture();
-    const access = await resolveNotebookAccess(db, "ws_t", [
-      { notebookId: "nb_nope", read: true, write: true },
-    ]);
-    expect(access).toEqual({ restricted: true, readableNotebookIds: [], writableNotebookIds: [], defaultWrite: false });
-  });
-
-  test("default read covers notebooks without a grant, including future ones", async () => {
-    const db = createFixture();
-    const access = await resolveNotebookAccess(db, "ws_t", [
-      { notebookId: "nb_root", read: false, write: true },
-    ], "read");
-    // Explicit write grant stays writable; every other live notebook is readable.
-    expect(access.readableNotebookIds.sort()).toEqual(["nb_child", "nb_grandchild", "nb_other", "nb_root"]);
-    expect(access.writableNotebookIds.sort()).toEqual(["nb_child", "nb_grandchild", "nb_root"]);
-  });
-
-  test("default write covers notebooks without a grant", async () => {
-    const db = createFixture();
-    const access = await resolveNotebookAccess(db, "ws_t", [
-      { notebookId: "nb_other", read: true, write: false },
-    ], "write");
-    expect(access.readableNotebookIds.sort()).toEqual(["nb_child", "nb_grandchild", "nb_other", "nb_root"]);
-    // Explicit read-only grant wins over the write default.
-    expect(access.writableNotebookIds.sort()).toEqual(["nb_child", "nb_grandchild", "nb_root"]);
-  });
-
-  test("explicit grants always win over the default", async () => {
-    const db = createFixture();
-    const access = await resolveNotebookAccess(db, "ws_t", [
-      { notebookId: "nb_root", read: true, write: false },
-      { notebookId: "nb_other", read: false, write: false },
-    ], "write");
-    // nb_root subtree stays read-only; nb_other (explicit but empty) stays closed.
-    expect(access.readableNotebookIds.sort()).toEqual(["nb_child", "nb_grandchild", "nb_root"]);
-    expect(access.writableNotebookIds).toEqual([]);
-  });
-
-  test("empty grants fail closed and null stays unrestricted", async () => {
-    const db = createFixture();
-    expect(await resolveNotebookAccess(db, "ws_t", [])).toEqual({
-      restricted: true, readableNotebookIds: [], writableNotebookIds: [], defaultWrite: false,
-    });
-    const withWriteDefault = await resolveNotebookAccess(db, "ws_t", [], "write");
-    expect(withWriteDefault.restricted).toBe(true);
-    expect(withWriteDefault.defaultWrite).toBe(true);
-    expect(withWriteDefault.readableNotebookIds.sort()).toEqual(["nb_child", "nb_grandchild", "nb_other", "nb_root"]);
-    expect(withWriteDefault.writableNotebookIds.sort()).toEqual(["nb_child", "nb_grandchild", "nb_other", "nb_root"]);
-    expect(await resolveNotebookAccess(db, "ws_t", null)).toEqual(UNRESTRICTED_NOTEBOOK_ACCESS);
-    expect(await resolveNotebookAccess(db, "ws_t", undefined)).toEqual(UNRESTRICTED_NOTEBOOK_ACCESS);
-  });
-
-  test("large grant lists stay within the D1 bind limit by json_each", async () => {
-    const db = createFixture();
-    const access = await resolveNotebookAccess(db, "ws_t", [
-      { notebookId: "nb_root", read: true, write: false },
-    ]);
-    // The IN fragment must bind exactly one value (the JSON array) for the
-    // whole statement, no matter how many notebooks are granted: D1 counts
-    // bound parameters per statement.
-    const { notebookInListSql, notebookAccessBinds } = await import("./token-notebook-access.ts");
-    const ids = Array.from({ length: 200 }, (_, i) => `nb_${i}`);
-    const fragment = notebookInListSql("m.notebook_id", ids);
-    expect((fragment.match(/\?/g) ?? []).length).toBe(1);
-    expect(fragment).toContain("json_each(?)");
-    expect(notebookAccessBinds(access, "read")).toEqual([JSON.stringify(access.readableNotebookIds)]);
-    expect(access.readableNotebookIds.sort()).toEqual(["nb_child", "nb_grandchild", "nb_root"]);
-  });
-
-  test("a corrupted grant record denies access including the default", async () => {
-    const { isCorruptedNotebookAccess } = await import("./token-notebook-access.ts");
+  test("corruption detection", () => {
     expect(isCorruptedNotebookAccess(null)).toBe(false);
     expect(isCorruptedNotebookAccess('[{"notebookId":"nb_a","read":true,"write":false}]')).toBe(false);
     expect(isCorruptedNotebookAccess("[]")).toBe(false);
     expect(isCorruptedNotebookAccess("not json")).toBe(true);
     expect(isCorruptedNotebookAccess('{"notebookId":"nb_a"}')).toBe(true);
+    expect(isCorruptedNotebookAccess('[{"notebookId":"nb_a","read":true}]')).toBe(true);
+  });
+});
+
+describe("resolveNotebookAccess (whitelist)", () => {
+  test("null entries resolve unrestricted", async () => {
+    const db = createFixture();
+    expect(await resolveNotebookAccess(db, "ws_t", null)).toEqual(UNRESTRICTED_NOTEBOOK_ACCESS);
+    expect(await resolveNotebookAccess(db, "ws_t", undefined)).toEqual(UNRESTRICTED_NOTEBOOK_ACCESS);
   });
 
-  test("explicit none keeps the allow-list behaviour", async () => {
+  test("a whitelisted notebook opens its whole live subtree", async () => {
     const db = createFixture();
-    const access = await resolveNotebookAccess(db, "ws_t", [
-      { notebookId: "nb_root", read: true, write: false },
-    ], "none");
+    const access = await resolveNotebookAccess(db, "ws_t", [grant("nb_root", "read")], "read");
+    expect(access.restricted).toBe(true);
     expect(access.readableNotebookIds.sort()).toEqual(["nb_child", "nb_grandchild", "nb_root"]);
     expect(access.writableNotebookIds).toEqual([]);
-  });
-});
-
-describe("notebook access assertions", () => {
-  const restricted = {
-    restricted: true,
-    readableNotebookIds: ["nb_a", "nb_a_child"],
-    writableNotebookIds: ["nb_a"],
-  };
-
-  test("unrestricted access always passes", () => {
-    expect(() => assertNotebookAccess(UNRESTRICTED_NOTEBOOK_ACCESS, "write", "anything", "test")).not.toThrow();
-    expect(hasAllNotebookAccess(UNRESTRICTED_NOTEBOOK_ACCESS, "write", ["a", "b"])).toBe(true);
+    expect(access.defaultWrite).toBe(false);
   });
 
-  test("denies notebooks outside the grant with a typed error", () => {
-    expect(hasAllNotebookAccess(restricted, "read", ["nb_a", "nb_a_child"])).toBe(true);
-    expect(hasAllNotebookAccess(restricted, "write", ["nb_a_child"])).toBe(false);
-    expect(() => assertNotebookAccess(restricted, "write", "nb_other", "create a memo"))
-      .toThrow(expect.objectContaining({ code: "notebook_access_denied", status: 403 }));
-  });
-
-  test("sql fragments stay neutral when unrestricted", () => {
-    expect(memoNotebookAccessSql("m.notebook_id", UNRESTRICTED_NOTEBOOK_ACCESS, "read")).toBe("1 = 1");
-    expect(notebookAccessBinds(UNRESTRICTED_NOTEBOOK_ACCESS, "read")).toEqual([]);
-    expect(memoNotebookAccessSql("m.notebook_id", restricted, "write")).toBe("m.notebook_id IN (SELECT value FROM json_each(?))");
-    expect(notebookAccessBinds(restricted, "write")).toEqual([JSON.stringify(["nb_a"])]);
-    expect(memoNotebookAccessSql("m.notebook_id", { restricted: true, readableNotebookIds: [], writableNotebookIds: [], defaultWrite: false }, "read")).toBe("0 = 1");
-  });
-});
-
-describe("nearest-entry-wins grant resolution", () => {
-  test("a read-only child overrides a read/write parent", async () => {
+  test("the write level grants read and write on the whole whitelist", async () => {
     const db = createFixture();
-    const access = await resolveNotebookAccess(db, "ws_t", [
-      { notebookId: "nb_root", read: true, write: true },
-      { notebookId: "nb_child", read: true, write: false },
-    ]);
+    const access = await resolveNotebookAccess(db, "ws_t", [grant("nb_root", "write")], "write");
     expect(access.readableNotebookIds.sort()).toEqual(["nb_child", "nb_grandchild", "nb_root"]);
-    // The child subtree stays read-only even though the parent grants write.
-    expect(access.writableNotebookIds).toEqual(["nb_root"]);
+    expect(access.writableNotebookIds.sort()).toEqual(["nb_child", "nb_grandchild", "nb_root"]);
+    expect(access.defaultWrite).toBe(true);
   });
 
-  test("an explicit deny on a parent closes its whole subtree", async () => {
+  test("listing a child alongside its parent adds nothing", async () => {
     const db = createFixture();
-    const access = await resolveNotebookAccess(db, "ws_t", [
-      { notebookId: "nb_root", read: false, write: false },
-      { notebookId: "nb_other", read: true, write: true },
-    ], "write");
-    // nb_root and all descendants are closed; the write default does not
-    // reopen them; nb_other keeps its grant.
-    expect(access.readableNotebookIds).toEqual(["nb_other"]);
-    expect(access.writableNotebookIds).toEqual(["nb_other"]);
+    const parentOnly = await resolveNotebookAccess(db, "ws_t", [grant("nb_root", "write")], "write");
+    const withChild = await resolveNotebookAccess(db, "ws_t", [grant("nb_root", "write"), grant("nb_child", "write")], "write");
+    expect(withChild).toEqual(parentOnly);
   });
 
-  test("a grandchild grant overrides its parent deny", async () => {
+  test("unwhitelisted notebooks — including new ones — stay invisible", async () => {
     const db = createFixture();
-    const access = await resolveNotebookAccess(db, "ws_t", [
-      { notebookId: "nb_root", read: false, write: false },
-      { notebookId: "nb_grandchild", read: true, write: true },
-    ]);
-    expect(access.readableNotebookIds).toEqual(["nb_grandchild"]);
-    expect(access.writableNotebookIds).toEqual(["nb_grandchild"]);
+    const access = await resolveNotebookAccess(db, "ws_t", [grant("nb_child", "write")], "write");
+    expect(access.readableNotebookIds).toEqual(["nb_child", "nb_grandchild"]);
+    expect(access.readableNotebookIds).not.toContain("nb_other");
+    expect(access.readableNotebookIds).not.toContain("nb_root");
+
+    // A notebook created after the token stays invisible.
+    db.db.query("INSERT INTO notebooks (id, workspace_id, name, parent_id) VALUES ('nb_fresh', 'ws_t', 'Fresh', NULL)").run();
+    const after = await resolveNotebookAccess(db, "ws_t", [grant("nb_child", "write")], "write");
+    expect(after.readableNotebookIds).not.toContain("nb_fresh");
+
+    // ...unless it is created under a whitelisted parent.
+    db.db.query("INSERT INTO notebooks (id, workspace_id, name, parent_id) VALUES ('nb_fresh_child', 'ws_t', 'FreshChild', 'nb_child')").run();
+    const inherited = await resolveNotebookAccess(db, "ws_t", [grant("nb_child", "write")], "write");
+    expect(inherited.readableNotebookIds).toContain("nb_fresh_child");
   });
 
-  test("three-level tree with mixed grants resolves per nearest entry", async () => {
+  test("an empty whitelist grants nothing", async () => {
     const db = createFixture();
-    const access = await resolveNotebookAccess(db, "ws_t", [
-      { notebookId: "nb_root", read: true, write: true },
-      { notebookId: "nb_child", read: false, write: false },
-      { notebookId: "nb_grandchild", read: true, write: false },
-    ], "none");
-    expect(access.readableNotebookIds.sort()).toEqual(["nb_grandchild", "nb_root"]);
-    expect(access.writableNotebookIds).toEqual(["nb_root"]);
+    const access = await resolveNotebookAccess(db, "ws_t", [], "write");
+    expect(access).toEqual({ restricted: true, readableNotebookIds: [], writableNotebookIds: [], defaultWrite: true });
   });
-});
 
-describe("single tree load per resolution", () => {
+  test("a whitelist entry for a deleted notebook resolves to nothing", async () => {
+    const db = createFixture();
+    const access = await resolveNotebookAccess(db, "ws_t", [grant("nb_gone", "write")], "write");
+    expect(access.readableNotebookIds).toEqual([]);
+  });
+
   test("resolveNotebookAccess issues exactly one notebook query", async () => {
     const db = createFixture();
-    // Wrap the adapter to count executed queries.
     const realPrepare = db.prepare.bind(db);
     let queries = 0;
     const counting = {
@@ -307,10 +198,42 @@ describe("single tree load per resolution", () => {
       },
     };
 
-    const access = await resolveNotebookAccess(counting, "ws_t", [
-      { notebookId: "nb_root", read: true, write: true },
-    ], "write");
+    const access = await resolveNotebookAccess(counting, "ws_t", [grant("nb_root", "write")], "write");
     expect(queries).toBe(1);
     expect(access.readableNotebookIds.length).toBeGreaterThan(0);
+  });
+});
+
+describe("notebook access assertions", () => {
+  const restricted = {
+    restricted: true,
+    readableNotebookIds: ["nb_a", "nb_a_child"],
+    writableNotebookIds: ["nb_a"],
+    defaultWrite: false,
+  };
+
+  test("unrestricted access always passes", () => {
+    expect(() => assertNotebookAccess(UNRESTRICTED_NOTEBOOK_ACCESS, "write", "anything", "test")).not.toThrow();
+  });
+
+  test("denies notebooks outside the whitelist with a typed error", () => {
+    expect(() => assertNotebookAccess(restricted, "write", "nb_other", "create a memo"))
+      .toThrow(expect.objectContaining({ code: "notebook_access_denied", status: 403 }));
+    expect(() => assertNotebookAccess(restricted, "write", "nb_a_child", "edit this memo"))
+      .toThrow(expect.objectContaining({ code: "notebook_access_denied", status: 403 }));
+    expect(() => assertNotebookAccess(restricted, "read", "nb_a_child", "read this memo")).not.toThrow();
+  });
+
+  test("sql fragments stay neutral when unrestricted", () => {
+    expect(memoNotebookAccessSql("m.notebook_id", UNRESTRICTED_NOTEBOOK_ACCESS, "read")).toBe("1 = 1");
+    expect(notebookAccessBinds(UNRESTRICTED_NOTEBOOK_ACCESS, "read")).toEqual([]);
+    expect(memoNotebookAccessSql("m.notebook_id", restricted, "write")).toBe("m.notebook_id IN (SELECT value FROM json_each(?))");
+    expect(notebookAccessBinds(restricted, "write")).toEqual([JSON.stringify(["nb_a"])]);
+    expect(memoNotebookAccessSql("m.notebook_id", { restricted: true, readableNotebookIds: [], writableNotebookIds: [], defaultWrite: false }, "read")).toBe("0 = 1");
+    expect(notebookAccessBinds({ restricted: true, readableNotebookIds: [], writableNotebookIds: [], defaultWrite: false }, "read")).toEqual([]);
+    // 200 ids still bind exactly one value.
+    const ids = Array.from({ length: 200 }, (_, i) => `nb_${i}`);
+    expect((notebookInListSql("m.notebook_id", ids).match(/\?/g) ?? []).length).toBe(1);
+    expect(notebookIdsBind(ids)).toBe(JSON.stringify(ids));
   });
 });

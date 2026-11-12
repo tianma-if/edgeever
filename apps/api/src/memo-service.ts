@@ -143,7 +143,7 @@ export const getCurrentWorkspaceIdentity = async (db: DatabaseAdapter, auth: Aut
             tokenName: auth.username,
             scopes: auth.scopes,
             notebookAccess: auth.notebookAccess ?? null,
-            notebookDefaultAccess: auth.notebookDefaultAccess ?? "none",
+            notebookAccessLevel: auth.notebookAccessLevel ?? "read",
           }
         : {}),
     },

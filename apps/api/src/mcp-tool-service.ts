@@ -273,7 +273,7 @@ export const callMcpTool = async (
   // Per-notebook grants resolve once per request; unrestricted requests return
   // immediately without extra database reads.
   const notebookAccess: NotebookAccess = auth.kind === "agent"
-    ? await resolveNotebookAccess(c.env.storage.db, auth.workspaceId, auth.notebookAccess, auth.notebookDefaultAccess)
+    ? await resolveNotebookAccess(c.env.storage.db, auth.workspaceId, auth.notebookAccess, auth.notebookAccessLevel)
     : { restricted: false, readableNotebookIds: [], writableNotebookIds: [], defaultWrite: true };
 
   const assertMemoAccess = (memo: { notebookId: string }, kind: "read" | "write", action: string) => {

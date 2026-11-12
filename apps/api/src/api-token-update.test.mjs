@@ -96,14 +96,14 @@ describe("API token notebook access management", () => {
       name: "Scoped",
       scopes: ["read:memos", "write:memos"],
       notebookAccess: [{ notebookId: "nb_a", read: true, write: false }],
-      notebookDefaultAccess: "read",
+      notebookAccessLevel: "read",
     });
     expect(created.status).toBe(201);
     const createdBody = await created.json();
     expect(createdBody.apiToken.notebookAccess).toEqual([
       { notebookId: "nb_a", read: true, write: false },
     ]);
-    expect(createdBody.apiToken.notebookDefaultAccess).toBe("read");
+    expect(createdBody.apiToken.notebookAccessLevel).toBe("read");
     const tokenValue = createdBody.token;
     expect(tokenValue).toStartWith("eev_");
 
@@ -111,7 +111,7 @@ describe("API token notebook access management", () => {
     const updated = await patch(app, environment, createdBody.apiToken.id, {
       scopes: ["read:memos", "write:memos", "read:notebooks"],
       notebookAccess: [{ notebookId: "nb_b", read: true, write: true }],
-      notebookDefaultAccess: "write",
+      notebookAccessLevel: "write",
     });
     expect(updated.status).toBe(200);
     const updatedBody = await updated.json();
@@ -119,11 +119,11 @@ describe("API token notebook access management", () => {
     expect(updatedBody.apiToken.notebookAccess).toEqual([
       { notebookId: "nb_b", read: true, write: true },
     ]);
-    expect(updatedBody.apiToken.notebookDefaultAccess).toBe("write");
+    expect(updatedBody.apiToken.notebookAccessLevel).toBe("write");
     expect(updatedBody.apiToken.token).toBe(tokenValue);
 
-    // An empty grant list means restricted-to-nothing (fail closed), while
-    // omitting notebookAccess entirely keeps the token unrestricted.
+    // An empty whitelist means restricted-to-nothing (fail closed), while
+    // omitting notebookAccess entirely keeps the stored whitelist.
     const cleared = await patch(app, environment, createdBody.apiToken.id, { notebookAccess: [] });
     expect(cleared.status).toBe(200);
     expect((await cleared.json()).apiToken.notebookAccess).toEqual([]);
@@ -132,20 +132,20 @@ describe("API token notebook access management", () => {
     expect((await untouched.json()).apiToken.notebookAccess).toEqual([]);
   });
 
-  test("defaults tokens without an explicit default to none", async () => {
+  test("defaults tokens without an explicit level to read", async () => {
     const { app, environment } = createFixture();
     const created = await post(app, environment, {
       name: "Plain",
       scopes: ["read:memos"],
       notebookAccess: [{ notebookId: "nb_a", read: true, write: false }],
     });
-    expect((await created.json()).apiToken.notebookDefaultAccess).toBe("none");
+    expect((await created.json()).apiToken.notebookAccessLevel).toBe("read");
 
     const invalid = await post(app, environment, {
       name: "Bad",
       scopes: ["read:memos"],
       notebookAccess: [{ notebookId: "nb_a", read: true, write: false }],
-      notebookDefaultAccess: "everything",
+      notebookAccessLevel: "everything",
     });
     expect(invalid.status).toBe(400);
   });
@@ -275,36 +275,36 @@ describe("PATCH field scoping", () => {
 
     const unrestricted = await patch(app, environment, body.apiToken.id, { notebookAccess: null });
     expect(unrestricted.status).toBe(200);
-    const stored = sqlite.query("SELECT notebook_access_json, notebook_default_access FROM api_tokens WHERE id = ?").get(body.apiToken.id);
+    const stored = sqlite.query("SELECT notebook_access_json, notebook_access_level FROM api_tokens WHERE id = ?").get(body.apiToken.id);
     expect(stored.notebook_access_json).toBeNull();
-    expect(stored.notebook_default_access).toBe("none");
+    expect(stored.notebook_access_level).toBeNull();
     expect((await unrestricted.json()).apiToken.notebookAccess).toBeNull();
   });
 });
 
 describe("PATCH per-field independence", () => {
-  test("changing only the default policy keeps the grants", async () => {
+  test("changing only the level keeps the whitelist", async () => {
     const { app, environment, sqlite } = createFixture();
     const created = await post(app, environment, {
       name: "T", scopes: ["read:memos"],
       notebookAccess: [{ notebookId: "nb_a", read: true, write: false }],
-      notebookDefaultAccess: "none",
+      notebookAccessLevel: "read",
     });
     const body = await created.json();
 
-    const updated = await patch(app, environment, body.apiToken.id, { notebookDefaultAccess: "read" });
+    const updated = await patch(app, environment, body.apiToken.id, { notebookAccessLevel: "write" });
     expect(updated.status).toBe(200);
-    const stored = sqlite.query("SELECT notebook_access_json, notebook_default_access FROM api_tokens WHERE id = ?").get(body.apiToken.id);
+    const stored = sqlite.query("SELECT notebook_access_json, notebook_access_level FROM api_tokens WHERE id = ?").get(body.apiToken.id);
     expect(JSON.parse(stored.notebook_access_json)).toEqual([{ notebookId: "nb_a", read: true, write: false }]);
-    expect(stored.notebook_default_access).toBe("read");
+    expect(stored.notebook_access_level).toBe("write");
   });
 
-  test("changing only the grants keeps the stored default policy", async () => {
+  test("changing only the whitelist keeps the stored level", async () => {
     const { app, environment, sqlite } = createFixture();
     const created = await post(app, environment, {
       name: "T", scopes: ["read:memos"],
       notebookAccess: [{ notebookId: "nb_a", read: true, write: false }],
-      notebookDefaultAccess: "read",
+      notebookAccessLevel: "write",
     });
     const body = await created.json();
 
@@ -312,8 +312,8 @@ describe("PATCH per-field independence", () => {
       notebookAccess: [{ notebookId: "nb_b", read: true, write: true }],
     });
     expect(updated.status).toBe(200);
-    const stored = sqlite.query("SELECT notebook_default_access FROM api_tokens WHERE id = ?").get(body.apiToken.id);
-    expect(stored.notebook_default_access).toBe("read");
+    const stored = sqlite.query("SELECT notebook_access_level FROM api_tokens WHERE id = ?").get(body.apiToken.id);
+    expect(stored.notebook_access_level).toBe("write");
   });
 
   test("a name-only PATCH keeps a concurrently set expiry", async () => {

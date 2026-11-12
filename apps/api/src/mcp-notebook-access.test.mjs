@@ -68,7 +68,7 @@ const createFixture = () => {
     get: () => undefined,
   };
 
-  const makeAuth = (notebookAccess, notebookDefaultAccess) => ({
+  const makeAuth = (notebookAccess, level) => ({
     kind: "agent",
     actorType: "agent",
     actorId: "tok_test",
@@ -78,7 +78,7 @@ const createFixture = () => {
     workspaceId: "ws_mcp",
     role: "member",
     notebookAccess: notebookAccess ?? null,
-    notebookDefaultAccess: notebookDefaultAccess ?? "none",
+    notebookAccessLevel: level ?? "read",
   });
 
   return { sqlite, context, makeAuth };
@@ -90,7 +90,7 @@ describe("MCP notebook access enforcement", () => {
     const admin = makeAuth(null);
     const restricted = makeAuth([
       { notebookId: "nb_allowed", read: true, write: true },
-    ]);
+    ], "write");
     const call = (auth, tool, args) => callMcpTool(context, auth, tool, args);
 
     const allowedMemo = (await call(admin, "create_memo", {
@@ -120,8 +120,8 @@ describe("MCP notebook access enforcement", () => {
     // Writing outside the grant is refused; creating notebooks is refused.
     await expect(call(restricted, "create_memo", { notebookId: "nb_secret", title: "No", contentMarkdown: "x" }))
       .rejects.toMatchObject({ code: "notebook_access_denied", status: 403 });
-    await expect(call(restricted, "create_notebook", { name: "Nope" }))
-      .rejects.toMatchObject({ code: "notebook_access_denied", status: 403 });
+    // Renaming a non-whitelisted notebook is refused (creating top-level
+    // notebooks is allowed for write-level tokens by design).
     await expect(call(restricted, "rename_notebook", { notebookId: "nb_secret", name: "Nope" }))
       .rejects.toMatchObject({ code: "notebook_access_denied", status: 403 });
 
@@ -178,7 +178,7 @@ describe("MCP notebook access enforcement", () => {
   test("workspace stats are filtered for restricted tokens", async () => {
     const { context, makeAuth } = createFixture();
     const admin = makeAuth(null);
-    const restricted = makeAuth([{ notebookId: "nb_allowed", read: true, write: true }]);
+    const restricted = makeAuth([{ notebookId: "nb_allowed", read: true, write: true }], "write");
     const call = (auth, tool, args) => callMcpTool(context, auth, tool, args);
 
     await call(admin, "create_memo", { notebookId: "nb_allowed", title: "A", contentMarkdown: "a" });
@@ -196,52 +196,52 @@ describe("MCP notebook access enforcement", () => {
     expect(identity.authorization.notebookAccess).toEqual([
       { notebookId: "nb_allowed", read: true, write: false },
     ]);
-    expect(identity.authorization.notebookDefaultAccess).toBe("read");
+    expect(identity.authorization.notebookAccessLevel).toBe("read");
   });
 
-  test("default access covers notebooks created after the token", async () => {
+  test("notebooks created after the token follow the whitelist", async () => {
     const { context, makeAuth } = createFixture();
     const admin = makeAuth(null);
     const reader = makeAuth([{ notebookId: "nb_allowed", read: true, write: true }], "read");
     const writer = makeAuth([{ notebookId: "nb_allowed", read: true, write: true }], "write");
     const call = (auth, tool, args) => callMcpTool(context, auth, tool, args);
 
-    // A notebook created after the token was issued.
+    // A top-level notebook created after the token stays invisible.
     const fresh = (await call(admin, "create_notebook", { name: "Fresh" })).notebook;
     const freshMemo = (await call(admin, "create_memo", {
       notebookId: fresh.id, title: "Fresh memo", contentMarkdown: "fresh body",
     })).memo;
 
-    // Default read: the fresh notebook is readable but not writable.
-    expect((await call(reader, "get_memo", { memoId: freshMemo.id })).memo.id).toBe(freshMemo.id);
-    expect((await call(reader, "list_notebooks", {})).notebooks.map((nb) => nb.id)).toContain(fresh.id);
-    await expect(call(reader, "update_memo", { memoId: freshMemo.id, title: "No" }))
+    await expect(call(reader, "get_memo", { memoId: freshMemo.id }))
+      .rejects.toMatchObject({ code: "notebook_access_denied", status: 403 });
+    await expect(call(writer, "get_memo", { memoId: freshMemo.id }))
       .rejects.toMatchObject({ code: "notebook_access_denied", status: 403 });
 
-    // Default write: the fresh notebook is fully writable.
-    const updated = await call(writer, "update_memo", { memoId: freshMemo.id, title: "Yes" });
-    expect(updated.memo.title).toBe("Yes");
-    const created = await call(writer, "create_memo", { notebookId: fresh.id, title: "New", contentMarkdown: "n" });
-    expect(created.memo.notebookId).toBe(fresh.id);
+    // A child created under the whitelisted parent inherits access.
+    const freshChild = (await call(admin, "create_notebook", { name: "FreshChild", parentId: "nb_allowed" })).notebook;
+    const childMemo = (await call(admin, "create_memo", {
+      notebookId: freshChild.id, title: "Child memo", contentMarkdown: "child body",
+    })).memo;
 
-    // Default write also allows creating top-level notebooks outright.
+    expect((await call(reader, "get_memo", { memoId: childMemo.id })).memo.id).toBe(childMemo.id);
+    await expect(call(reader, "update_memo", { memoId: childMemo.id, title: "No" }))
+      .rejects.toMatchObject({ code: "notebook_access_denied", status: 403 });
+    const updated = await call(writer, "update_memo", { memoId: childMemo.id, title: "Yes" });
+    expect(updated.memo.title).toBe("Yes");
+
+    // The write level also allows creating top-level notebooks outright.
     const selfMade = (await call(writer, "create_notebook", { name: "Self Made" })).notebook;
     expect(selfMade.name).toBe("Self Made");
 
-    // Default read/none cannot create notebooks: a clear 403, never a silent success.
+    // The read level cannot create notebooks: a clear 403.
     await expect(call(reader, "create_notebook", { name: "Nope" }))
-      .rejects.toMatchObject({ code: "notebook_access_denied", status: 403 });
-    const none = makeAuth([{ notebookId: "nb_allowed", read: true, write: true }], "none");
-    await expect(call(none, "get_memo", { memoId: freshMemo.id }))
-      .rejects.toMatchObject({ code: "notebook_access_denied", status: 403 });
-    await expect(call(none, "create_notebook", { name: "Nope" }))
       .rejects.toMatchObject({ code: "notebook_access_denied", status: 403 });
   });
 
   test("restricted tokens cannot read or manage workspace templates", async () => {
     const { context, makeAuth } = createFixture();
     const admin = makeAuth(null);
-    const restricted = makeAuth([{ notebookId: "nb_allowed", read: true, write: true }]);
+    const restricted = makeAuth([{ notebookId: "nb_allowed", read: true, write: true }], "write");
     const call = (auth, tool, args) => callMcpTool(context, auth, tool, args);
 
     const template = (await call(admin, "create_note_template", {
@@ -268,7 +268,7 @@ describe("MCP notebook access enforcement", () => {
   test("restricted tokens cannot read or manage AI instructions", async () => {
     const { context, makeAuth } = createFixture();
     const admin = makeAuth(null);
-    const restricted = makeAuth([{ notebookId: "nb_allowed", read: true, write: true }]);
+    const restricted = makeAuth([{ notebookId: "nb_allowed", read: true, write: true }], "write");
     const call = (auth, tool, args) => callMcpTool(context, auth, tool, args);
 
     await expect(call(restricted, "list_ai_instructions", {}))
@@ -285,7 +285,7 @@ describe("MCP notebook access enforcement", () => {
   test("import dedup does not leak memo bodies outside the grant", async () => {
     const { context, makeAuth } = createFixture();
     const admin = makeAuth(null);
-    const restricted = makeAuth([{ notebookId: "nb_allowed", read: true, write: true }]);
+    const restricted = makeAuth([{ notebookId: "nb_allowed", read: true, write: true }], "write");
     const call = (auth, tool, args) => callMcpTool(context, auth, tool, args);
 
     // Import one memo into the secret notebook first (admin), then re-import the
@@ -337,7 +337,7 @@ describe("trashed memo revision access", () => {
   test("revisions of trashed memos outside the grant are refused", async () => {
     const { context, makeAuth } = createFixture();
     const admin = makeAuth(null);
-    const restricted = makeAuth([{ notebookId: "nb_allowed", read: true, write: true }]);
+    const restricted = makeAuth([{ notebookId: "nb_allowed", read: true, write: true }], "write");
     const call = (auth, tool, args) => callMcpTool(context, auth, tool, args);
 
     // Create and edit a memo in the secret notebook, then trash it.
@@ -380,7 +380,7 @@ describe("batch access checks stay within the query budget", () => {
   test("moving 48 memos authorizes with a single batched query", async () => {
     const { context, makeAuth } = createFixture();
     const admin = makeAuth(null);
-    const restricted = makeAuth([{ notebookId: "nb_allowed", read: true, write: true }]);
+    const restricted = makeAuth([{ notebookId: "nb_allowed", read: true, write: true }], "write");
     const call = (auth, tool, args) => callMcpTool(context, auth, tool, args);
 
     const memoIds = [];

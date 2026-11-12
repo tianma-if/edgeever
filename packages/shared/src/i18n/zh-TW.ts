@@ -3704,15 +3704,24 @@ export const zhTW = {
     notebookAccessSummary: "筆記本：{{notebooks}}",
     notebookRead: "讀",
     notebookWrite: "寫",
-    notebookDefaultAccessTitle: "新增筆記本的預設權限",
-    notebookDefaultAccessDescription: "對未單獨授權的筆記本（尤其是之後新增的）生效。",
-    notebookDefaultAccessSummary: "新增筆記本預設：{{access}}",
-    notebookBulkRead: "全部讀",
-    notebookBulkReadDescription: "一鍵給所有筆記本讀取權限。",
-    notebookBulkWrite: "全部寫",
-    notebookBulkWriteDescription: "一鍵給所有筆記本讀寫權限。",
-    notebookBulkClear: "清除",
-    notebookBulkClearDescription: "清除所有筆記本的單本授權。",
+    notebookBulkSelect: "全選",
+    notebookBulkSelectDescription: "勾選全部筆記本。",
+    notebookBulkClear: "清空",
+    notebookBulkClearDescription: "清空白名單（無任何存取權限）。",
+    notebookInherited: "繼承",
+    notebookAccessLevelTitle: "白名單權限",
+    notebookAccessLevelDescription: "同一級別作用於整個白名單；未勾選的筆記本（包括新增的）不可見。",
+    notebookAccessLevelSummary: "級別：{{access}}",
+    notebookAccessLevel: {
+      read: {
+        label: "唯讀",
+        description: "白名單內筆記本僅可讀取。",
+      },
+      write: {
+        label: "讀寫",
+        description: "白名單內筆記本可讀可寫。",
+      },
+    },
     notebookDefaultAccess: {
       none: {
         label: "無權限",

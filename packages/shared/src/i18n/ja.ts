@@ -3694,15 +3694,24 @@ export const ja = {
     notebookAccessSummary: "ノートブック：{{notebooks}}",
     notebookRead: "読み取り",
     notebookWrite: "書き込み",
-    notebookDefaultAccessTitle: "新しいノートブックのデフォルトアクセス",
-    notebookDefaultAccessDescription: "明示的に許可していないノートブック（特に後から作成するもの）に適用されます。",
-    notebookDefaultAccessSummary: "新しいノートブックのデフォルト：{{access}}",
-    notebookBulkRead: "すべて読み取り",
-    notebookBulkReadDescription: "すべてのノートブックに読み取りを一括で許可します。",
-    notebookBulkWrite: "すべて書き込み",
-    notebookBulkWriteDescription: "すべてのノートブックに読み書きを一括で許可します。",
+    notebookBulkSelect: "すべて選択",
+    notebookBulkSelectDescription: "すべてのノートブックを許可します。",
     notebookBulkClear: "クリア",
-    notebookBulkClearDescription: "すべてのノートブック個別許可をクリアします。",
+    notebookBulkClearDescription: "ホワイトリストを空にします（アクセス権なし）。",
+    notebookInherited: "継承",
+    notebookAccessLevelTitle: "ホワイトリストのアクセス",
+    notebookAccessLevelDescription: "1つのレベルがホワイトリスト全体に適用されます。未選択のノートブック（新しいものを含む）は表示されません。",
+    notebookAccessLevelSummary: "レベル：{{access}}",
+    notebookAccessLevel: {
+      read: {
+        label: "読み取りのみ",
+        description: "許可したノートブックは読み取りのみ可能です。",
+      },
+      write: {
+        label: "読み書き",
+        description: "許可したノートブックは読み書きできます。",
+      },
+    },
     notebookDefaultAccess: {
       none: {
         label: "アクセスなし",

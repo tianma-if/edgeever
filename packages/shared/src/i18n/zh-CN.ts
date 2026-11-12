@@ -3704,15 +3704,24 @@ export const zhCN = {
     notebookAccessSummary: "笔记本：{{notebooks}}",
     notebookRead: "读",
     notebookWrite: "写",
-    notebookDefaultAccessTitle: "新增笔记本的默认权限",
-    notebookDefaultAccessDescription: "对未单独授权的笔记本（尤其是之后新建的）生效。",
-    notebookDefaultAccessSummary: "新增笔记本默认：{{access}}",
-    notebookBulkRead: "全部读",
-    notebookBulkReadDescription: "一键给所有笔记本读权限。",
-    notebookBulkWrite: "全部写",
-    notebookBulkWriteDescription: "一键给所有笔记本读写权限。",
-    notebookBulkClear: "清除",
-    notebookBulkClearDescription: "清除所有笔记本的单本授权。",
+    notebookBulkSelect: "全选",
+    notebookBulkSelectDescription: "勾选全部笔记本。",
+    notebookBulkClear: "清空",
+    notebookBulkClearDescription: "清空白名单（无任何访问权限）。",
+    notebookInherited: "继承",
+    notebookAccessLevelTitle: "白名单权限",
+    notebookAccessLevelDescription: "同一级别作用于整个白名单；未勾选的笔记本（包括新建的）不可见。",
+    notebookAccessLevelSummary: "级别：{{access}}",
+    notebookAccessLevel: {
+      read: {
+        label: "只读",
+        description: "白名单内笔记本仅可读取。",
+      },
+      write: {
+        label: "读写",
+        description: "白名单内笔记本可读可写。",
+      },
+    },
     notebookDefaultAccess: {
       none: {
         label: "无权限",

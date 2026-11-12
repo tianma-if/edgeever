@@ -3687,15 +3687,24 @@ export const enUS = {
     notebookAccessSummary: "Notebooks: {{notebooks}}",
     notebookRead: "Read",
     notebookWrite: "Write",
-    notebookDefaultAccessTitle: "Default access for new notebooks",
-    notebookDefaultAccessDescription: "Applies to notebooks without an explicit grant, especially ones created later.",
-    notebookDefaultAccessSummary: "New notebooks default: {{access}}",
-    notebookBulkRead: "All read",
-    notebookBulkReadDescription: "Grant read access to every notebook in one click.",
-    notebookBulkWrite: "All write",
-    notebookBulkWriteDescription: "Grant read/write access to every notebook in one click.",
+    notebookBulkSelect: "Select all",
+    notebookBulkSelectDescription: "Whitelist every notebook.",
     notebookBulkClear: "Clear",
-    notebookBulkClearDescription: "Clear every per-notebook grant.",
+    notebookBulkClearDescription: "Empty the whitelist (no access at all).",
+    notebookInherited: "inherited",
+    notebookAccessLevelTitle: "Whitelist access",
+    notebookAccessLevelDescription: "One level applies to the whole whitelist; notebooks not checked (including new ones) are invisible.",
+    notebookAccessLevelSummary: "Level: {{access}}",
+    notebookAccessLevel: {
+      read: {
+        label: "Read-only",
+        description: "Whitelisted notebooks are readable only.",
+      },
+      write: {
+        label: "Read/write",
+        description: "Whitelisted notebooks can be read and written.",
+      },
+    },
     notebookDefaultAccess: {
       none: {
         label: "No access",

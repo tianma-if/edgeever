@@ -3893,15 +3893,26 @@ export const es = {
     "notebookAccessSummary": "Cuadernos: {{notebooks}}",
     "notebookRead": "Lectura",
     "notebookWrite": "Escritura",
-    "notebookDefaultAccessTitle": "Acceso predeterminado para cuadernos nuevos",
-    "notebookDefaultAccessDescription": "Se aplica a los cuadernos sin concesión explícita, especialmente los creados después.",
-    "notebookDefaultAccessSummary": "Cuadernos nuevos por defecto: {{access}}",
-    "notebookBulkRead": "Todo lectura",
-    "notebookBulkReadDescription": "Conceder lectura a todos los cuadernos con un clic.",
-    "notebookBulkWrite": "Todo escritura",
-    "notebookBulkWriteDescription": "Conceder lectura/escritura a todos los cuadernos con un clic.",
+    "notebookBulkSelect": "Seleccionar todo",
+    "notebookBulkSelectDescription": "Añadir todos los cuadernos a la lista blanca.",
     "notebookBulkClear": "Borrar",
-    "notebookBulkClearDescription": "Borrar todas las concesiones individuales.",
+    "notebookBulkClearDescription": "Vaciar la lista blanca (sin acceso).",
+    "notebookInherited": "heredado",
+    "notebookAccessLevelTitle": "Acceso de la lista blanca",
+    "notebookAccessLevelDescription": "Un nivel se aplica a toda la lista blanca; los cuadernos no marcados (incluidos los nuevos) son invisibles.",
+    "notebookAccessLevelSummary": "Nivel: {{access}}",
+    "notebookAccessLevel": {
+      "read": {
+        "label": "Solo lectura",
+        "description": "Los cuadernos de la lista blanca son de solo lectura."
+      },
+
+      "write": {
+        "label": "Lectura/escritura",
+        "description": "Los cuadernos de la lista blanca se pueden leer y escribir."
+      }
+
+    },
     "notebookDefaultAccess": {
       "none": {
         "label": "Sin acceso",
