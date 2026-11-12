@@ -1,7 +1,7 @@
 ---
 import { SEO } from "astro-seo";
 import { getImage } from "astro:assets";
-import heroProductImage from "@/assets/edgeever-hero-product.png";
+import heroProductImage from "../../../../assets/readme/edgeever-hero-v8.png";
 import Footer from "@/components/footer.astro";
 import Navbar from "@/components/navbar/navbar.astro";
 import {
@@ -51,6 +51,7 @@ const defaultShareImage = await getImage({
   height: 630,
   fit: "contain",
   format: "jpg",
+  background: "#ffffff",
 });
 
 const {
