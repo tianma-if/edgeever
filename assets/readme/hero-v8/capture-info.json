@@ -19,8 +19,8 @@
     "deviceScaleFactor": 2,
     "pixelWidth": 3840,
     "pixelHeight": 2160,
-    "file": "../edgeever-hero-v8.png"
+    "file": "../edgeever-hero-v8.png",
+    "transparentBackground": true
   },
-  "imageGenerationUsed": false,
-  "brandLogo": "../../brand/edgeever-mark.svg"
+  "imageGenerationUsed": false
 }
