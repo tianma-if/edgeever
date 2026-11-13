@@ -1,115 +1,132 @@
 ---
-import { Picture } from "astro:assets";
-import heroProductImage from "@/assets/edgeever-hero-product.png";
+import { getHeroImage } from "@/assets/hero";
 import { Icon } from "astro-icon/components";
 import { Meteors } from "@/components/magicui/meteors";
 import { getLocalizedPath, getSiteLocale, siteCopy } from "@/i18n";
 
 const locale = getSiteLocale(Astro.url.pathname);
+const heroProductImage = getHeroImage(locale);
 const copy = siteCopy[locale].hero;
+const firefoxClipperHref =
+  locale === "zh-CN"
+    ? "https://addons.mozilla.org/zh-CN/firefox/addon/edgeever-web-clipper/"
+    : "https://addons.mozilla.org/firefox/addon/edgeever-web-clipper/";
+const iosRegionNotice =
+  locale === "zh-CN"
+    ? "注：iOS 客户端需使用非中国大陆区 Apple ID 从 App Store 下载。"
+    : locale === "zh-TW"
+      ? "註：iOS 用戶端需使用非中國大陸區 Apple ID 從 App Store 下載。"
+      : null;
+const focusRingClass =
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 focus-visible:ring-offset-2";
 ---
 
-<main class="relative grid gap-8 lg:gap-10 lg:grid-cols-2 place-items-center pt-4 pb-10 md:pt-10 md:pb-16 overflow-hidden max-w-full">
-  <!-- Background Glow Orbs & Meteors Container (strictly overflow-hidden) -->
+<main class="relative flex flex-col items-center pt-1 pb-8 md:pt-2 md:pb-12 overflow-hidden max-w-full">
+  <!-- Unified Ambient Stage Aura -->
   <div class="absolute inset-0 overflow-hidden pointer-events-none z-0">
-    <div class="absolute top-0 left-1/4 w-[280px] sm:w-[450px] h-[280px] sm:h-[450px] bg-emerald-500/[0.04] rounded-full blur-3xl animate-slow-spin"></div>
-    <div class="absolute bottom-0 right-1/4 w-[240px] sm:w-[380px] h-[240px] sm:h-[380px] bg-emerald-500/[0.04] rounded-full blur-3xl animate-float"></div>
+    <div class="absolute -top-24 left-1/2 -translate-x-1/2 w-[560px] sm:w-[920px] h-[440px] sm:h-[560px] bg-[radial-gradient(ellipse_at_center,rgba(16,185,129,0.09),transparent_68%)] rounded-full blur-2xl"></div>
+    <div class="absolute top-12 left-1/4 w-[280px] sm:w-[450px] h-[280px] sm:h-[450px] bg-emerald-500/[0.04] rounded-full blur-3xl animate-slow-spin"></div>
+    <div class="absolute bottom-8 right-1/4 w-[240px] sm:w-[380px] h-[240px] sm:h-[380px] bg-emerald-500/[0.04] rounded-full blur-3xl animate-float"></div>
     <Meteors number={12} client:load />
   </div>
 
-  <div class="relative z-20 w-full max-w-full flex flex-col items-start min-w-0">
-    {copy.badgeText && (
-      <a
-        href={`${getLocalizedPath(locale, "/")}#platforms`}
-        class="animate-rise flex min-h-11 sm:min-h-0 items-center gap-2 max-w-full min-w-0 px-3 py-1.5 mb-5 md:mb-6 text-xs text-slate-600 bg-white/80 border border-slate-200/90 hover:border-slate-300 hover:bg-white rounded-full backdrop-blur-sm select-none hover:-translate-y-0.5 transition-all duration-300 group/badge cursor-pointer shadow-2xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 focus-visible:ring-offset-2"
-        style="animation-delay: 0ms;"
-      >
-        <span class="relative flex h-2 w-2 shrink-0">
-          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75"></span>
-          <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-        </span>
-        <span class="text-slate-600 font-medium group-hover/badge:text-slate-900 transition-colors text-[11px] sm:text-xs truncate min-w-0 flex-1">{copy.badgeText}</span>
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3 h-3 text-slate-400 group-hover/badge:text-slate-600 transition-all duration-300 transform group-hover/badge:translate-x-0.5 shrink-0">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-        </svg>
-      </a>
-    )}
-
-    <h1 class="animate-rise text-3xl sm:text-4xl md:text-5xl xl:text-6xl font-extrabold text-slate-900 leading-[1.18] tracking-tight max-w-full" style="animation-delay: 80ms;">
-      <span class="text-gradient">EdgeEver</span>
-      <div class="mt-2.5 sm:mt-3 flex flex-wrap items-center gap-2 max-w-full">
-        <span class="inline-block px-2.5 py-1 bg-emerald-600 text-white rounded-lg text-base sm:text-lg md:text-xl font-bold -rotate-1 shadow-md animate-pop">
+  <!-- 1. Compact Unified Header Band (Left Title & Slogan + Right Primary CTAs) -->
+  <div class="animate-rise relative z-20 w-full flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 lg:gap-6 min-w-0" style="animation-delay: 0ms;">
+    <div class="flex flex-col items-center lg:items-start text-center lg:text-left min-w-0 lg:max-w-2xl">
+      <div class="flex flex-wrap items-center justify-center lg:justify-start gap-2.5 max-w-full">
+        <h1 class="text-3xl sm:text-4xl font-extrabold text-slate-900 leading-none tracking-tight shrink-0">
+          <span class="text-gradient">EdgeEver</span>
+        </h1>
+        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full bg-emerald-50/90 border border-emerald-200/80 text-emerald-800 text-xs font-semibold leading-snug text-balance">
           {copy.popHighlight}
         </span>
       </div>
-      <span class="hero-slogan block mt-3 sm:mt-4 max-w-xl text-base sm:text-lg md:text-xl font-normal leading-relaxed text-slate-600">{copy.slogan}</span>
-    </h1>
+      <p class="hero-slogan text-balance mt-1.5 text-sm sm:text-[15px] font-normal leading-relaxed text-slate-600 max-w-2xl">
+        {copy.slogan}
+      </p>
+    </div>
 
     <!-- Primary Action Buttons -->
-    <div class="animate-rise mt-6 sm:mt-8 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto max-w-full z-20" style="animation-delay: 160ms;">
+    <div class="flex flex-col sm:flex-row sm:flex-wrap lg:flex-nowrap items-stretch sm:items-center justify-center lg:justify-end gap-2.5 shrink-0 max-w-full z-20">
       <a
         href="https://demo.edgeever.org"
         target="_blank"
-        class="group inline-flex h-11 gap-2 items-center justify-center px-6 text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm hover:shadow-[0_8px_20px_-6px_rgba(5,150,105,0.4)] transition-all duration-300 hover:-translate-y-0.5 rounded-full font-semibold text-sm w-full sm:w-auto text-center"
-        rel="noopener">
-        <Icon class="w-4 h-4 shrink-0 transition-transform duration-200 group-hover:scale-110" name="bx:bx-show" />
+        class={`group inline-flex h-11 sm:h-10 gap-2 items-center justify-center px-5 text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm hover:shadow-[0_8px_20px_-6px_rgba(5,150,105,0.4)] transition-all duration-300 hover:-translate-y-0.5 rounded-full font-semibold text-sm whitespace-nowrap ${focusRingClass}`}
+        rel="noopener noreferrer">
+        <Icon class="w-4 h-4 shrink-0 transition-transform duration-200 group-hover:scale-110" name="bx:bx-show" aria-hidden="true" />
         <span>{copy.demo}</span>
       </a>
       <a
         href="https://github.com/tianma-if/edgeever"
         target="_blank"
-        rel="noopener"
+        rel="noopener noreferrer"
         aria-label="EdgeEver on GitHub"
-        class="group inline-flex h-11 gap-2 items-center justify-center px-5 border border-slate-200 hover:border-slate-300 bg-white/90 hover:bg-slate-50/90 backdrop-blur-sm text-slate-800 transition-all duration-300 rounded-full font-semibold text-sm hover:-translate-y-0.5 shadow-2xs hover:shadow-xs w-full sm:w-auto text-center"
+        class={`group inline-flex h-11 sm:h-10 gap-2 items-center justify-center px-4 border border-slate-200 hover:border-slate-300 bg-white/90 hover:bg-slate-50/90 backdrop-blur-sm text-slate-800 transition-all duration-300 rounded-full font-semibold text-sm hover:-translate-y-0.5 shadow-2xs hover:shadow-xs whitespace-nowrap ${focusRingClass}`}
       >
-        <Icon class="text-slate-800 w-4 h-4 shrink-0 transition-transform duration-200 group-hover:scale-110" name="bx:bxl-github" />
+        <Icon class="text-slate-800 w-4 h-4 shrink-0 transition-transform duration-200 group-hover:scale-110" name="bx:bxl-github" aria-hidden="true" />
         <span>GitHub</span>
         <span class="inline-flex items-center gap-1 text-xs font-medium text-slate-500 group-hover:text-slate-700 transition-colors tabular-nums ml-0.5">
-          <Icon name="bx:bxs-star" class="w-3.5 h-3.5 text-amber-500" />
+          <Icon name="bx:bxs-star" class="w-3.5 h-3.5 text-amber-500" aria-hidden="true" />
           <span data-github-stars>--</span>
         </span>
       </a>
       <a
-        rel="noopener"
         href={getLocalizedPath(locale, "/blog/ai-agent-deploy-cloudflare")}
-        class="inline-flex h-11 gap-2 items-center justify-center px-5 bg-white/90 border border-slate-200 hover:border-slate-300 hover:bg-slate-50/90 text-slate-700 hover:text-slate-900 transition-all duration-300 rounded-full font-semibold text-sm hover:-translate-y-0.5 shadow-2xs hover:shadow-xs w-full sm:w-auto text-center"
+        class={`inline-flex h-11 sm:h-10 gap-2 items-center justify-center px-4 bg-white/90 border border-slate-200 hover:border-slate-300 hover:bg-slate-50/90 text-slate-700 hover:text-slate-900 transition-all duration-300 rounded-full font-semibold text-sm hover:-translate-y-0.5 shadow-2xs hover:shadow-xs whitespace-nowrap ${focusRingClass}`}
       >
-        <Icon class="w-4 h-4 shrink-0 text-slate-500" name="simple-icons:cloudflare" />
+        <Icon class="w-4 h-4 shrink-0 text-slate-500" name="simple-icons:cloudflare" aria-hidden="true" />
         <span>{copy.agentInstall}</span>
       </a>
     </div>
+  </div>
 
-    <!-- Multi-Platform Client Badges -->
-    <div class="animate-rise mt-6 w-full max-w-full z-30 relative" style="animation-delay: 240ms;">
-      <div class="pt-4 border-t border-slate-200/60 flex flex-wrap items-center gap-2">
+  <!-- 2. Full-Sight Uncompressed 4K Product Showcase -->
+  <div class="mt-2 sm:mt-3 w-full max-w-full relative z-10 flex justify-center">
+    <div class="relative w-full max-w-full pointer-events-none select-none flex justify-center">
+      <img
+        src={heroProductImage.src}
+        width={heroProductImage.width}
+        height={heroProductImage.height}
+        alt={copy.imageAlt}
+        loading="eager"
+        fetchpriority="high"
+        decoding="async"
+        class="block w-auto max-w-full lg:max-h-[calc(100svh-11rem)] h-auto object-contain pointer-events-none select-none"
+      />
+    </div>
+  </div>
+
+  <!-- 3. Multi-Platform Client Badges & Migration Dock -->
+  <div class="animate-rise mt-1 sm:mt-2 w-full max-w-5xl z-30 relative text-center" style="animation-delay: 180ms;">
+    <div class="pt-4 border-t border-slate-200/70 flex flex-wrap items-center justify-center gap-2">
         <span class="text-[11px] font-semibold text-slate-500 mr-1 select-none">
           {copy.getApps}
         </span>
         <a
-          href="https://github.com/tianma-if/edgeever/releases"
+          href="https://github.com/tianma-if/edgeever/releases/latest"
           target="_blank"
-          rel="noopener"
-          class="inline-flex min-h-11 sm:min-h-0 items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/80 hover:bg-slate-100/90 hover:text-slate-900 hover:border-slate-300 border border-slate-200/80 text-[11px] font-medium text-slate-600 transition-all shadow-2xs"
+          rel="noopener noreferrer"
+          class={`inline-flex min-h-11 sm:min-h-0 items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/80 hover:bg-slate-100/90 hover:text-slate-900 hover:border-slate-300 border border-slate-200/80 text-[11px] font-medium text-slate-600 transition-all shadow-2xs ${focusRingClass}`}
         >
-          <Icon name="bx:bxl-apple" class="w-3.5 h-3.5 text-slate-700" />
+          <Icon name="bx:bxl-apple" class="w-3.5 h-3.5 text-slate-700" aria-hidden="true" />
           <span>macOS</span>
         </a>
         <a
           href="https://github.com/tianma-if/edgeever/releases/latest"
           target="_blank"
-          rel="noopener"
-          class="inline-flex min-h-11 sm:min-h-0 items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/80 hover:bg-slate-100/90 hover:text-slate-900 hover:border-slate-300 border border-slate-200/80 text-[11px] font-medium text-slate-600 transition-all shadow-2xs"
+          rel="noopener noreferrer"
+          class={`inline-flex min-h-11 sm:min-h-0 items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/80 hover:bg-slate-100/90 hover:text-slate-900 hover:border-slate-300 border border-slate-200/80 text-[11px] font-medium text-slate-600 transition-all shadow-2xs ${focusRingClass}`}
         >
-          <Icon name="bx:bxl-windows" class="w-3.5 h-3.5 text-slate-700" />
+          <Icon name="bx:bxl-windows" class="w-3.5 h-3.5 text-slate-700" aria-hidden="true" />
           <span>{copy.windows}</span>
         </a>
         <a
           href="https://github.com/tianma-if/edgeever/releases/latest"
           target="_blank"
-          rel="noopener"
-          class="inline-flex min-h-11 sm:min-h-0 items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/80 hover:bg-slate-100/90 hover:text-slate-900 hover:border-slate-300 border border-slate-200/80 text-[11px] font-medium text-slate-600 transition-all shadow-2xs"
+          rel="noopener noreferrer"
+          class={`inline-flex min-h-11 sm:min-h-0 items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/80 hover:bg-slate-100/90 hover:text-slate-900 hover:border-slate-300 border border-slate-200/80 text-[11px] font-medium text-slate-600 transition-all shadow-2xs ${focusRingClass}`}
         >
-          <Icon name="simple-icons:linux" class="w-3.5 h-3.5 text-slate-700" />
+          <Icon name="simple-icons:linux" class="w-3.5 h-3.5 text-slate-700" aria-hidden="true" />
           <span>{copy.linux}</span>
         </a>
         <a
@@ -131,10 +148,10 @@ const copy = siteCopy[locale].hero;
                           : "https://apps.apple.com/us/app/edgeever/id6792625631"
           }
           target="_blank"
-          rel="noopener"
-          class="inline-flex min-h-11 sm:min-h-0 items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/80 hover:bg-slate-100/90 hover:text-slate-900 hover:border-slate-300 border border-slate-200/80 text-[11px] font-medium text-slate-600 transition-all shadow-2xs"
+          rel="noopener noreferrer"
+          class={`inline-flex min-h-11 sm:min-h-0 items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/80 hover:bg-slate-100/90 hover:text-slate-900 hover:border-slate-300 border border-slate-200/80 text-[11px] font-medium text-slate-600 transition-all shadow-2xs ${focusRingClass}`}
         >
-          <Icon name="bx:bx-mobile" class="w-3.5 h-3.5 text-slate-700" />
+          <Icon name="bx:bx-mobile" class="w-3.5 h-3.5 text-slate-700" aria-hidden="true" />
           <span>iOS</span>
         </a>
         <a
@@ -158,77 +175,53 @@ const copy = siteCopy[locale].hero;
                             : "https://play.google.com/store/apps/details?id=org.edgeever.mobile"
           }
           target="_blank"
-          rel="noopener"
-          class="inline-flex min-h-11 sm:min-h-0 items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/80 hover:bg-slate-100/90 hover:text-slate-900 hover:border-slate-300 border border-slate-200/80 text-[11px] font-medium text-slate-600 transition-all shadow-2xs"
+          rel="noopener noreferrer"
+          class={`inline-flex min-h-11 sm:min-h-0 items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/80 hover:bg-slate-100/90 hover:text-slate-900 hover:border-slate-300 border border-slate-200/80 text-[11px] font-medium text-slate-600 transition-all shadow-2xs ${focusRingClass}`}
         >
-          <Icon name="bx:bxl-android" class="w-3.5 h-3.5 text-slate-700" />
+          <Icon name="bx:bxl-android" class="w-3.5 h-3.5 text-slate-700" aria-hidden="true" />
           <span>Android</span>
         </a>
         <a
           href="https://chromewebstore.google.com/detail/edgeever-web-clipper/gjadpfmanienmlofajibkfkkpfdkclgo"
           target="_blank"
-          rel="noopener"
-          class="inline-flex min-h-11 sm:min-h-0 items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/80 hover:bg-slate-100/90 hover:text-slate-900 hover:border-slate-300 border border-slate-200/80 text-[11px] font-medium text-slate-600 transition-all shadow-2xs"
+          rel="noopener noreferrer"
+          class={`inline-flex min-h-11 sm:min-h-0 items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/80 hover:bg-slate-100/90 hover:text-slate-900 hover:border-slate-300 border border-slate-200/80 text-[11px] font-medium text-slate-600 transition-all shadow-2xs ${focusRingClass}`}
         >
-          <Icon name="bx:bx-extension" class="w-3.5 h-3.5 text-slate-700" />
-          <span>{copy.clipper}</span>
+          <Icon name="simple-icons:googlechrome" class="w-3.5 h-3.5 text-slate-700" aria-hidden="true" />
+          <span>Chrome / Edge · {copy.clipper}</span>
+        </a>
+        <a
+          href={firefoxClipperHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          class={`inline-flex min-h-11 sm:min-h-0 items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/80 hover:bg-slate-100/90 hover:text-slate-900 hover:border-slate-300 border border-slate-200/80 text-[11px] font-medium text-slate-600 transition-all shadow-2xs ${focusRingClass}`}
+        >
+          <Icon name="simple-icons:firefox" class="w-3.5 h-3.5 text-slate-700" aria-hidden="true" />
+          <span>Firefox · {copy.clipper}</span>
         </a>
       </div>
 
+      {iosRegionNotice && (
+        <p class="mt-2 text-[11px] text-slate-500">
+          {iosRegionNotice}
+        </p>
+      )}
+
       <!-- Third-Party Note Migration Entry -->
-      <div class="mt-3.5 flex flex-wrap items-center">
+      <div class="mt-3.5 flex flex-wrap items-center justify-center">
         <a
           href={getLocalizedPath(locale, "/blog/note-migration-guide")}
-          class="group/mig inline-flex max-w-full items-center gap-2 px-3 py-1.5 rounded-lg bg-white/80 hover:bg-slate-50 border border-slate-200/80 hover:border-slate-300 text-xs text-slate-700 transition-all duration-200 shadow-2xs hover:shadow-xs"
+          class={`group/mig inline-flex max-w-full items-center gap-2 px-3 py-1.5 rounded-lg bg-white/80 hover:bg-slate-50 border border-slate-200/80 hover:border-slate-300 text-xs text-slate-700 transition-all duration-200 shadow-2xs hover:shadow-xs ${focusRingClass}`}
         >
           <span class="flex items-center gap-1.5 font-semibold text-slate-800 shrink-0">
-            <Icon name="bx:bx-transfer-alt" class="w-4 h-4 text-emerald-600 group-hover/mig:scale-110 transition-transform" />
+            <Icon name="bx:bx-transfer-alt" class="w-4 h-4 text-emerald-600 group-hover/mig:scale-110 transition-transform" aria-hidden="true" />
             <span>{copy.migrationTitle}</span>
           </span>
           <span class="text-slate-300 select-none hidden sm:inline" aria-hidden="true">·</span>
           <span class="text-slate-500 text-[11px] sm:text-xs truncate min-w-0">{copy.migrationSubtitle}</span>
-          <Icon name="bx:bx-right-arrow-alt" class="w-3.5 h-3.5 text-slate-400 group-hover/mig:text-slate-700 group-hover/mig:translate-x-0.5 transition-transform shrink-0 ml-auto sm:ml-0" />
+          <Icon name="bx:bx-right-arrow-alt" class="w-3.5 h-3.5 text-slate-400 group-hover/mig:text-slate-700 group-hover/mig:translate-x-0.5 transition-transform shrink-0 ml-auto sm:ml-0" aria-hidden="true" />
         </a>
       </div>
-    </div>
-  </div>
-
-  <!-- macOS Browser Window Mockup (Pireel style) -->
-  <div class="animate-rise w-full max-w-full relative z-10 flex justify-center lg:justify-end mt-4 lg:mt-0" style="animation-delay: 320ms;">
-    <div class="relative w-full max-w-full sm:max-w-xl animate-float pointer-events-none select-none">
-      <!-- Glow Underlay -->
-      <div class="absolute -inset-1 bg-gradient-to-r from-emerald-500/15 via-emerald-400/10 to-emerald-500/15 rounded-2xl blur-xl opacity-60"></div>
-      
-      <!-- macOS Window Container -->
-      <div class="relative rounded-2xl border border-slate-200/80 bg-white shadow-xl sm:shadow-2xl overflow-hidden max-w-full">
-        <!-- macOS Top Header Bar -->
-        <div class="flex items-center justify-between border-b border-slate-100 bg-slate-50/90 px-3.5 py-2 backdrop-blur-sm">
-          <div class="flex items-center gap-1.5">
-            <span class="h-2.5 w-2.5 sm:h-3 sm:w-3 rounded-full bg-[#ff5f57] inline-block"></span>
-            <span class="h-2.5 w-2.5 sm:h-3 sm:w-3 rounded-full bg-[#febc2e] inline-block"></span>
-            <span class="h-2.5 w-2.5 sm:h-3 sm:w-3 rounded-full bg-[#28c840] inline-block"></span>
-          </div>
-          <div class="flex items-center gap-1 rounded-full bg-slate-200/60 px-2.5 py-0.5 text-center font-mono text-[10px] sm:text-[11px] text-slate-500 font-medium">
-            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-slate-400 mr-1"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-            demo.edgeever.org
-          </div>
-          <div class="w-8 sm:w-10"></div>
-        </div>
-
-        <!-- Product Image Preview -->
-        <div class="relative bg-slate-900/5 overflow-hidden">
-          <Picture
-            src={heroProductImage}
-            alt={copy.imageAlt}
-            widths={[480, 720, 960, 1200]}
-            sizes="(max-width: 1024px) 100vw, 640px"
-            loading="eager"
-            format="avif"
-            class="w-full object-cover rounded-b-xl pointer-events-none select-none"
-          />
-        </div>
-      </div>
-    </div>
   </div>
 </main>
 

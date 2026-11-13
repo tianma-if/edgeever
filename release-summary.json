@@ -1,29 +1,26 @@
 {
-  "version": "2.25.0",
+  "version": "2.26.0",
   "changes": {
     "en-US": [
-      "Toggle magazine covers per note and open chapter navigation separately. Covers show the note’s notebook name and refresh when notebook changes sync.",
-      "In desktop ImgBed settings, load and pick an upload channel or type its name. Reopening a channel or model list preserves the value you typed. Thanks to @yulei666 in #827.",
-      "On iOS, model detection can look up token limits in the public models.dev catalog when the provider reports none. Thanks to @yulei666 in #826.",
-      "Android accepts WeChat ZIP archives shared alongside other files and shows release notes before opening the Google Play update prompt.",
-      "Docker serves compressed, cacheable Web assets, reducing repeat downloads in self-hosted installations.",
-      "Desktop System Info identifies when the Intel app is running through Rosetta on Apple silicon."
+      "Import official flomo HTML ZIP exports with content, tags, timestamps and attachments through the unified import flow. Thanks @sivdead (#834; related to #794).",
+      "Create notes for standalone Obsidian attachments by default, simplify import notices and prioritize errors that block import.",
+      "Restore sharing for visual notes and display shared infographics correctly.",
+      "Unify interface and note font selectors, and simplify the feedback entry across clients.",
+      "Refresh product previews, improve website navigation and image previews, and update contact pages. The public Demo now redirects HTTP to HTTPS."
     ],
     "zh-CN": [
-      "可以按笔记开关杂志封面，并单独打开章节导航。封面会显示所属笔记本名称，并在笔记本变更同步后刷新。",
-      "桌面端 ImgBed 设置支持加载并选择上传渠道，也可手动输入名称。重新打开渠道或模型列表时会保留已输入的值。感谢 @yulei666 的 #827。",
-      "iOS 检测 AI 模型时，若供应商未提供令牌上限，可从 models.dev 公共目录查找参考值。感谢 @yulei666 的 #826。",
-      "Android 支持从多文件分享中导入微信 ZIP 压缩包，并会在打开 Google Play 更新提示前显示更新说明。",
-      "Docker 自托管版提供压缩且可缓存的 Web 资源，减少重复下载。",
-      "在 Apple 芯片的 Mac 上通过 Rosetta 运行 Intel 版时，桌面端系统信息会明确标注。"
+      "支持通过统一导入流程导入 flomo 官方 HTML ZIP 导出，保留正文、标签、时间和附件。感谢 @sivdead（#834，关联 #794）。",
+      "默认将 Obsidian 独立附件导入为笔记，精简常规导入提示并优先显示阻断错误。",
+      "恢复可视化笔记的分享入口，并正确展示分享的信息图。",
+      "统一界面与笔记的字体选择体验，并精简各客户端的问题反馈入口。",
+      "更新产品预览，改进官网导航、图片预览与联系页面；公开 Demo 的 HTTP 访问自动跳转到 HTTPS。"
     ],
     "ja": [
-      "ノートごとにマガジン表紙を切り替え、章ナビゲーションを個別に開けます。表紙には所属ノートブック名が表示され、変更が同期されると更新されます。",
-      "デスクトップ版の ImgBed 設定でアップロード先のチャンネルを一覧から選ぶか、名前を直接入力できます。チャンネルやモデルの一覧を開き直しても入力値が保持されます。",
-      "iOS で AI モデルを検出するとき、プロバイダーがトークン上限を返さない場合は、公開カタログ models.dev から参考値を取得できます。",
-      "Android では複数ファイルと一緒に共有された WeChat の ZIP を取り込めるようになり、Google Play の更新画面を開く前に更新内容を表示します。",
-      "Docker のセルフホスト版では Web アセットの圧縮とキャッシュにより、繰り返しのダウンロードを減らします。",
-      "Apple シリコンの Mac で Intel 版を Rosetta 経由で実行している場合、システム情報に表示されます。"
+      "flomo の公式 HTML ZIP エクスポートから本文、タグ、日時、添付ファイルを統合インポートできます。",
+      "Obsidian の独立した添付ファイルを既定でノートに取り込み、インポートの通知とエラー表示を改善しました。",
+      "ビジュアルノートの共有を復元し、共有されたインフォグラフィックを正しく表示します。",
+      "画面とノートのフォント選択を統一し、各クライアントのフィードバック導線を簡素化しました。",
+      "製品プレビュー、公式サイトのナビゲーション、画像プレビュー、お問い合わせページを改善し、公開デモを HTTPS にリダイレクトします。"
     ]
   }
 }

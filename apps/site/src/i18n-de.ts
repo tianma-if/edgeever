@@ -118,8 +118,8 @@ export const deSiteCopy = {
     },
   },
   marquee: {
-    title: "Plattformübergreifende Apps, flexible Bereitstellung & KI-Ökosystem",
-    subtitle: "Von Desktop- und Mobil-Apps bis hin zu Docker-Selbsthosting, Gestaltungsoptionen für Autoren und Remote-MCP-Kollaboration.",
+    title: "Native Architektur, flexibles Hosting & KI-Ökosystem",
+    subtitle: "Von lokalem SQLite-Sync und ACP-/Remote-MCP-Workflows bis zu Docker-Selbsthosting und Autoren-Layouts.",
     items: [
       {
         tag: "macOS Desktop",

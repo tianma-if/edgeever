@@ -84,7 +84,6 @@ import {
   resolveNotebookPath,
   updateNotebookRecord,
 } from "./notebook-service";
-import { createResourceUploadTicket } from "./resource-upload-ticket-service";
 import {
     createAttachmentResource,
     createImageResource,
@@ -96,6 +95,11 @@ import {
     normalizeFilename,
   } from "./resource-service";
 import { assertScope, getActorLabel, getAuditActor } from "./request-auth";
+import {
+  createPendingResourceUpload,
+  parseResourceIds,
+  preparePendingResourceBinding,
+} from "./pending-resource-service";
 import { restoreMissingDefaultAiPrompts } from "./ai-prompt-seed";
 import {
   getAiPromptTemplateRow,
@@ -239,6 +243,24 @@ const memoWithoutInfographicPayload = (memo: MemoDetail) => {
   const contentMarkdown = stripInfographicDocumentMarker(memo.contentMarkdown);
   const contentJson = markdownToDoc(contentMarkdown);
   return { ...memo, contentMarkdown, contentJson, contentText: docToText(contentJson) };
+};
+
+/**
+ * The memo batch rolls back when a pending resource was bound or cleaned up by
+ * another call after it was checked. Report that instead of a storage error.
+ */
+const withBindingConflict = async <T>(binding: boolean, run: () => Promise<T>): Promise<T> => {
+  try {
+    return await run();
+  } catch (error) {
+    if (!binding || error instanceof AppError) throw error;
+    console.error("EdgeEver pending resource binding failed", error);
+    throw new AppError(
+      "pending_resource_conflict",
+      "No changes were made: a resource could not be bound because another call bound it or it expired. Check the resource ids and try again.",
+      409,
+    );
+  }
 };
 
 export const callMcpTool = async (
@@ -459,16 +481,32 @@ export const callMcpTool = async (
       const notebookId = getRequiredString(args.notebookId, "notebookId");
       const actor = getAuditActor(c);
       const actorLabel = getActorLabel(c);
-      const memo = await createMemoRecord(c.env.storage.db, auth.workspaceId, {
+      const resourceIds = parseResourceIds(args.resourceIds) ?? [];
+      const bind = await preparePendingResourceBinding(c.env.storage.db, auth, resourceIds, actor);
+      const memo = await withBindingConflict(Boolean(bind), () => createMemoRecord(c.env.storage.db, auth.workspaceId, {
         notebookId,
         title: getOptionalString(args.title) ?? undefined,
         contentMarkdown: getOptionalString(args.contentMarkdown) ?? "",
         tags: getOptionalStringArray(args.tags),
         createdAt: getOptionalString(args.createdAt) ?? undefined,
         updatedAt: getOptionalString(args.updatedAt) ?? undefined,
-      }, actor, actorLabel);
+      }, actor, actorLabel, bind ?? undefined));
 
-      return { memo };
+      return { memo, ...(resourceIds.length ? { resources: await listResourcesForMemo(c.env.storage.db, auth.workspaceId, memo.id) } : {}) };
+    }
+    case "create_resource_upload_url": {
+      assertScope(auth, "write:resources");
+      const kind = getRequiredString(args.kind, "kind");
+      if (kind !== "image" && kind !== "attachment") {
+        throw new AppError("invalid_params", 'kind must be "image" or "attachment".', 400);
+      }
+      return await createPendingResourceUpload(c, auth, {
+        kind,
+        mimeType: getRequiredString(args.mimeType, "mimeType"),
+        filename: getOptionalString(args.filename),
+        byteSize: typeof args.byteSize === "number" ? args.byteSize : Number.NaN,
+        label: getOptionalString(args.label),
+      });
     }
     case "create_infographic_memo": {
       assertScope(auth, "write:memos");
@@ -696,7 +734,9 @@ export const callMcpTool = async (
       }
       const actor = getAuditActor(c);
       const actorLabel = getActorLabel(c);
-      const result = await updateMemoRecord(
+      const resourceIds = parseResourceIds(args.resourceIds) ?? [];
+      const bind = await preparePendingResourceBinding(c.env.storage.db, auth, resourceIds, actor);
+      const result = await withBindingConflict(Boolean(bind), () => updateMemoRecord(
         c.env.storage.db,
         auth.workspaceId,
         memoId,
@@ -714,14 +754,19 @@ export const callMcpTool = async (
           updatedAt: getOptionalString(args.updatedAt) ?? undefined,
         },
         actor,
-        actorLabel
-      );
+        actorLabel,
+        false,
+        bind ? { before: [], after: bind } : undefined,
+      ));
 
       if ("error" in result) {
         throw new Error(result.message);
       }
 
-      return { memo: result.memo };
+      return {
+        memo: result.memo,
+        ...(resourceIds.length ? { resources: await listResourcesForMemo(c.env.storage.db, auth.workspaceId, memoId) } : {}),
+      };
     }
     case "trash_memos": {
       assertScope(auth, "write:memos");
@@ -881,21 +926,6 @@ export const callMcpTool = async (
         resource,
         markdownLink: `[${escapeMarkdownLinkLabel(label)}](${resource.url})`,
       };
-    }
-    case "create_memo_upload_url": {
-      assertScope(auth, "write:resources");
-      const kind = getRequiredString(args.kind, "kind");
-      if (kind !== "image" && kind !== "attachment") {
-        throw new AppError("invalid_params", 'kind must be "image" or "attachment".', 400);
-      }
-      return await createResourceUploadTicket(c, auth, {
-        memoId: getRequiredString(args.memoId, "memoId"),
-        kind,
-        mimeType: getRequiredString(args.mimeType, "mimeType"),
-        filename: getOptionalString(args.filename),
-        byteSize: typeof args.byteSize === "number" ? args.byteSize : Number.NaN,
-        label: getOptionalString(args.label),
-      });
     }
     case "list_memo_resources": {
       assertScope(auth, "read:resources");

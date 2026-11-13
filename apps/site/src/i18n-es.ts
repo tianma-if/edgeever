@@ -118,8 +118,8 @@ export const esSiteCopy = {
     },
   },
   marquee: {
-    title: "Aplicaciones multiplataforma, despliegue flexible y ecosistema de IA",
-    subtitle: "Desde apps de escritorio y móviles hasta Docker autoalojado, diseño para creadores y colaboración Remote MCP.",
+    title: "Arquitectura nativa, despliegue flexible y ecosistema de IA",
+    subtitle: "Desde sincronización local SQLite y flujos ACP / Remote MCP hasta Docker autoalojado y diseño para creadores.",
     items: [
       {
         tag: "macOS Desktop",

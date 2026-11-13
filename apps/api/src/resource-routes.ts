@@ -8,6 +8,7 @@ import { parseByteRange, rangeNotSatisfiable } from "./byte-range";
 import { isoNow } from "./entity-utils";
 import { apiError, badRequest, notFound } from "./http-errors";
 import { resolveObjectStorage } from "./object-storage";
+import { getPendingResourceBlobRow } from "./pending-resource-service";
 import {
   SUPPORTED_IMAGE_MIME_TYPES,
   setResourceContentHeaders,
@@ -276,6 +277,12 @@ export const registerResourceRoutes = (
     if (denied) return denied;
 
     const resource = await dependencies.getResourceRow(
+      context.env.storage.db,
+      getWorkspaceId(context),
+      context.req.param("id"),
+    ) ?? await getPendingResourceBlobRow(
+      // An uploaded file not yet bound to a memo is readable by its workspace
+      // at the same URL it keeps after binding.
       context.env.storage.db,
       getWorkspaceId(context),
       context.req.param("id"),
