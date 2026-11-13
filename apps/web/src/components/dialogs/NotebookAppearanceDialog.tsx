@@ -98,7 +98,7 @@ export const NotebookAppearanceDialog = ({
     >
       <DialogContent
         aria-describedby={undefined}
-        className="max-h-[90dvh] w-[calc(100%-2rem)] max-w-[520px] gap-0 overflow-hidden p-0"
+        className="flex max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-[520px] flex-col gap-0 overflow-hidden p-0"
         showCloseButton={!saving}
         onEscapeKeyDown={(event) => {
           if (iconOpen) {
@@ -108,13 +108,13 @@ export const NotebookAppearanceDialog = ({
           }
         }}
       >
-        <DialogHeader className="border-b border-slate-200 px-5 py-5 pr-12 text-left">
+        <DialogHeader className="shrink-0 border-b border-slate-200 px-5 py-5 pr-12 text-left">
           <DialogTitle className="flex items-center gap-2 text-sm leading-6">
             <Palette className="h-5 w-5 text-slate-700" />
             {t("notebookAppearance.title")}
           </DialogTitle>
         </DialogHeader>
-        <form onSubmit={save} className="min-h-0 overflow-y-auto">
+        <form onSubmit={save} className="max-h-[calc(100dvh-7rem)] overflow-y-auto" >
           <fieldset
             disabled={saving}
             className="min-w-0 space-y-5 bg-slate-50/70 px-5 py-5"
@@ -379,7 +379,7 @@ export const NotebookAppearanceDialog = ({
               {t("notebookAppearance.saveError")}
             </p>
           )}
-          <DialogFooter className="gap-2 border-t border-slate-200 bg-card px-5 py-4 sm:justify-between">
+          <DialogFooter className="sticky bottom-0 gap-2 border-t border-slate-200 bg-card px-5 py-4 sm:justify-between">
             <Button
               type="button"
               size="sm"
