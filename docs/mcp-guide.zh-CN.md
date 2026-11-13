@@ -81,7 +81,17 @@ bun /path/to/edgeever/scripts/edgeever-mcp-stdio.mjs --profile personal
 
 使用 `search_memos` 进行关键词搜索时，如果能在正文中定位查询词或其中的词项，结果还会包含最多 200 个字符的 `snippet` 命中片段，并保留原有 `excerpt` 摘要。无法定位正文命中的结果（包括仅标题或标签命中）沿用现有摘要。如果答案涉及片段外的上下文，请继续读取笔记全文。
 
-## 3. 排障
+## 3. 上传本地文件
+
+`upload_memo_image` 和 `upload_memo_attachment` 需要在工具调用中以 base64 传入文件，只适合很小的文件。如果 Agent 可以执行命令行，请先上传文件，再用它创建或更新笔记：
+
+1. 调用 `create_resource_upload_url`，传入 `kind`（`image` 或 `attachment`）、`mimeType` 和准确的 `byteSize`，可选传入 `filename` 和 `label`（图片替代文本或链接文字）。无需事先创建笔记。
+2. 将返回的 `curl` 命令中的 `<path-to-file>` 替换为文件路径后执行。该命令以 `PUT` 将文件发送到 `/api/public/resource-uploads`，并在 `Authorization` 请求头中携带专用的上传 Token。命令中不会出现 MCP Token。`201` 响应包含 `resourceId`、需要登录访问的 `url`，以及可插入的 `markdownImage` 或 `markdownLink`。
+3. 调用 `create_memo`，在 `contentMarkdown` 中放入该 Markdown，并在 `resourceIds` 中传入资源 ID。笔记与文件一并保存；调用失败时不会保存任何内容，文件仍可用于重试。已有笔记可将 `resourceIds` 传给 `update_memo`。
+
+每个 URL 只接受一个与声明大小和类型完全一致的文件，最大 100 MiB，有效期 15 分钟。大小或类型不符的请求会被拒绝，但不会消耗该 URL；重复一次已成功的上传会返回相同的 `resourceId`。创建它的 Token 被撤销或失去 `write:resources` 权限后，URL 也随之失效。上传后 24 小时内未绑定到笔记的文件会被删除。每个工作区最多同时保留 20 个未使用的 URL 和 100 个未绑定文件（共 1 GiB）。绑定文件需要 `write:resources` 权限。
+
+## 4. 排障
 
 | 现象 | 原因与处理 |
 |---|---|
@@ -90,5 +100,8 @@ bun /path/to/edgeever/scripts/edgeever-mcp-stdio.mjs --profile personal
 | `403` "Origin is not allowed" | 基于浏览器的客户端发送了外部 `Origin`。请在浏览器外运行客户端，或使用 stdio 桥接。 |
 | 客户端报告 JSON 无效或收到 HTML 页面 | URL 没有指向服务器上的 `/mcp`（例如拼写错误、`//mcp` 或桌面应用地址）。 |
 | 修改数据的工具被拒绝 | Token 为只读。确实需要写入时，再为该客户端创建 **完全访问** Token。 |
+| 上传 URL 返回 `410` | 该 URL 已用于其他文件或已过期。请重新调用 `create_resource_upload_url`。 |
+| 上传 URL 返回 `400` 或 `415` | 文件与声明的 `byteSize` 或 `mimeType` 不符。用 `wc -c` 核对大小后重新发送同一文件。 |
+| `create_memo` 提示资源不是待绑定的上传 | ID 有误、已被绑定，或文件未在 24 小时内绑定。请重新上传。 |
 
 较旧的实例可能对缺少凭据和 Token 被拒绝返回相同的通用 `401`。先核对实例地址、请求头和 Token。
