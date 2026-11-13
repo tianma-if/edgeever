@@ -373,33 +373,20 @@ describe("pending resource upload requests", () => {
     expect((await put(fetchApp, ticket, PNG)).status).toBe(401);
   });
 
-  test("a retry after a failure following the commit returns the same resource, never a second one", async () => {
+  test("a lost commit response is recovered from the row and a replay returns the same resource", async () => {
     const { fetchApp, issue, count, faults, useFaultyDb } = await createInstance();
     const ticket = await issue();
     useFaultyDb();
-    // The commit is applied, then its response is lost.
+    // The commit is applied, then its response is lost; the recovery read succeeds.
     faults.push({ method: "run", after: true, match: (sql) => sql.includes("SET state = 'uploaded'") });
     const first = await put(fetchApp, ticket, PNG);
     expect(first.status).toBe(201);
     const firstBody = await first.json();
 
-    // The read-back after the commit fails: the client sees an error...
-    const second = await issue();
-    faults.push({ method: "first", match: (sql) => sql.includes("FROM pending_resources WHERE id = ?") });
-    const failed = await put(fetchApp, second, PNG);
-    expect(failed.status).toBe(500);
-    // ...and its retry returns the stored file instead of storing another.
-    const retried = await put(fetchApp, second, PNG);
-    expect(retried.status).toBe(200);
-    const retriedBody = await retried.json();
-    expect(retriedBody.resourceId).not.toBe(firstBody.resourceId);
-    expect(count("SELECT COUNT(*) AS count FROM pending_resources WHERE state = 'uploaded'")).toBe(2);
-
-    // Replaying the first, successful upload is idempotent too.
     const replay = await put(fetchApp, ticket, PNG);
     expect(replay.status).toBe(200);
     expect((await replay.json()).resourceId).toBe(firstBody.resourceId);
-    expect(count("SELECT COUNT(*) AS count FROM pending_resources")).toBe(2);
+    expect(count("SELECT COUNT(*) AS count FROM pending_resources")).toBe(1);
     // A different file on a used URL is refused.
     const other = Buffer.from(PNG);
     other[other.length - 1] ^= 1;
@@ -407,12 +394,69 @@ describe("pending resource upload requests", () => {
     expect(count(UPLOADED_RESOURCES)).toBe(0);
   });
 
-  test("a failure before the commit releases the URL for a retry", async () => {
+  test("keeps the bytes when both the commit response and the recovery read fail", async () => {
+    const { sqlite, resourcesDirectory, fetchApp, callTool, issue, count, faults, useFaultyDb } = await createInstance();
+    const ticket = await issue();
+    useFaultyDb();
+    faults.push({ method: "run", after: true, match: (sql) => sql.includes("SET state = 'uploaded'") });
+    faults.push({ method: "first", match: (sql) => sql.includes("FROM pending_resources WHERE id = ?") });
+
+    const first = await put(fetchApp, ticket, PNG);
+    expect(first.status).toBe(503);
+    expect((await first.json()).error.code).toBe("upload_outcome_unknown");
+    const row = sqlite.query("SELECT id, state, object_key FROM pending_resources").get();
+    expect(row.state).toBe("uploaded");
+    const objectPath = join(resourcesDirectory, row.object_key);
+    expect(Buffer.from(await readFile(objectPath)).equals(PNG)).toBe(true);
+
+    // The retry returns the same resource without storing another object.
+    const retried = await put(fetchApp, ticket, PNG);
+    expect(retried.status).toBe(200);
+    const retriedBody = await retried.json();
+    expect(retriedBody.resourceId).toBe(row.id);
+    expect(count("SELECT COUNT(*) AS count FROM pending_resources")).toBe(1);
+    expect(await readdir(join(resourcesDirectory, "workspaces/ws_default/uploads"))).toHaveLength(1);
+
+    const readBlob = async () => {
+      const response = await fetchApp(retriedBody.url, { headers: { Authorization: `Bearer ${MCP_TOKEN}` } });
+      expect(response.status).toBe(200);
+      return Buffer.from(await response.arrayBuffer());
+    };
+    expect((await readBlob()).equals(PNG)).toBe(true);
+    const bound = await callTool("create_memo", { notebookId: "nb_uploads", resourceIds: [row.id] });
+    expect(bound.isError).toBe(false);
+    expect((await readBlob()).equals(PNG)).toBe(true);
+    expect(count(UPLOADED_RESOURCES)).toBe(1);
+  });
+
+  test("an unconfirmed commit that did not apply is completed by a retry with the same file only", async () => {
+    const { sqlite, resourcesDirectory, fetchApp, issue, count, faults, useFaultyDb } = await createInstance();
+    const ticket = await issue();
+    useFaultyDb();
+    // The commit fails without applying and the recovery read fails too.
+    faults.push({ method: "run", after: false, match: (sql) => sql.includes("SET state = 'uploaded'") });
+    faults.push({ method: "first", match: (sql) => sql.includes("FROM pending_resources WHERE id = ?") });
+    expect((await put(fetchApp, ticket, PNG)).status).toBe(503);
+    const row = sqlite.query("SELECT id, state, object_key FROM pending_resources").get();
+    expect(row.state).toBe("uploading");
+    expect(await fileExists(join(resourcesDirectory, row.object_key))).toBe(true);
+
+    const other = Buffer.from(PNG);
+    other[other.length - 1] ^= 1;
+    expect((await put(fetchApp, ticket, other)).status).toBe(410);
+    const retried = await put(fetchApp, ticket, PNG);
+    expect(retried.status).toBe(201);
+    expect((await retried.json()).resourceId).toBe(row.id);
+    expect(count("SELECT COUNT(*) AS count FROM pending_resources WHERE state = 'uploaded'")).toBe(1);
+    expect(Buffer.from(await readFile(join(resourcesDirectory, row.object_key))).equals(PNG)).toBe(true);
+  });
+
+  test("a confirmed failure before the commit releases the URL for a retry", async () => {
     const { fetchApp, issue, count, faults, useFaultyDb } = await createInstance();
     const ticket = await issue();
     useFaultyDb();
     faults.push({ method: "run", after: false, match: (sql) => sql.includes("SET state = 'uploaded'") });
-    expect((await put(fetchApp, ticket, PNG)).status).toBe(500);
+    expect((await put(fetchApp, ticket, PNG)).status).toBe(503);
     expect(count("SELECT COUNT(*) AS count FROM pending_resources WHERE state = 'awaiting_upload'")).toBe(1);
     expect((await put(fetchApp, ticket, PNG)).status).toBe(201);
     expect(count("SELECT COUNT(*) AS count FROM pending_resources WHERE state = 'uploaded'")).toBe(1);

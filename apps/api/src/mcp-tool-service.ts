@@ -35,7 +35,6 @@ import {
   updateTableCell,
   type MemoDetail,
   type MemoSummary,
-  type MemoUpdateInput,
   type TableDocument,
 } from "@edgeever/shared";
 import { audit, auditStatement } from "./audit";
@@ -116,19 +115,9 @@ import {
   import type { DatabaseAdapter } from "./storage-contract";
   import { getWorkspaceStats } from "./workspace-stats-service";
 
-type MemoUpdateResult =
-  | { memo: MemoDetail; error?: never; message?: never; status?: never; details?: never }
-  | { error: string; message: string; status?: number; details?: Record<string, unknown> };
-
 export type McpToolDependencies = {
   clampNumber: (value: number, min: number, max: number) => number;
-  createMemoRecord: (
-    database: DatabaseAdapter,
-    workspaceId: string,
-    input: { notebookId: string; title?: string; contentJson?: unknown; contentMarkdown?: string; tags?: string[]; createdAt?: string; updatedAt?: string },
-    actor: AuditActor,
-    actorLabel: string,
-  ) => Promise<MemoDetail>;
+  createMemoRecord: typeof import("./memo-service").createMemoRecord;
   deleteMemosRecord: (
     environment: Bindings,
     workspaceId: string,
@@ -189,15 +178,7 @@ export type McpToolDependencies = {
     actor: AuditActor,
   ) => Promise<number>;
   searchMemoSummaries: typeof import("./memo-service").searchMemoSummaries;
-  updateMemoRecord: (
-    database: DatabaseAdapter,
-    workspaceId: string,
-    memoId: string,
-    input: MemoUpdateInput,
-    actor: AuditActor,
-    actorLabel: string,
-    requireEditSession?: boolean,
-  ) => Promise<MemoUpdateResult>;
+  updateMemoRecord: typeof import("./memo-service").updateMemoRecord;
 };
 
 type McpInputSchema<T> = {

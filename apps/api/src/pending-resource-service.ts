@@ -320,6 +320,30 @@ const replayUploaded = (row: PendingResourceRow, checksum: string) => {
   return { status: 200 as const, body: describeUploaded(row) };
 };
 
+const outcomeUnknown = () => new AppError(
+  "upload_outcome_unknown",
+  "The upload could not be confirmed. Send the same file to the same URL again to complete it.",
+  503,
+);
+
+/**
+ * True only when nothing can ever reference the object: the pending row is
+ * gone (cleanup removed it) and no resource was created from it. A pending row
+ * cannot come back and binding requires one, so the answer cannot change
+ * afterwards. Any read failure answers false and the bytes are kept.
+ */
+const isObjectUnreferenced = async (db: DatabaseAdapter, id: string) => {
+  try {
+    const [pending, bound] = await Promise.all([
+      db.prepare("SELECT id FROM pending_resources WHERE id = ?").bind(id).first<{ id: string }>(),
+      db.prepare("SELECT id FROM resources WHERE id = ?").bind(id).first<{ id: string }>(),
+    ]);
+    return !pending && !bound;
+  } catch {
+    return false;
+  }
+};
+
 export const consumePendingResourceUpload = async (
   context: AppContext,
   request: {
@@ -334,7 +358,6 @@ export const consumePendingResourceUpload = async (
   if (!token) throw invalidToken();
   const row = await readPendingByToken(db, await sha256(token));
   if (!row) throw invalidToken();
-  if (row.state === "uploading") throw tokenUsed();
   if (row.state === "awaiting_upload" && Date.parse(row.upload_expires_at) <= Date.now()) throw tokenExpired();
 
   // Reject a mismatched request before reading or claiming anything, so the
@@ -354,43 +377,53 @@ export const consumePendingResourceUpload = async (
   const checksum = await sha256Bytes(bytes);
   if (row.state === "uploaded") return replayUploaded(row, checksum);
 
-  // Claim with a fresh timestamp, after the body has been read: the upload
-  // deadline and the creating credential are both checked by this statement.
-  const destination = await resolveObjectStorage(context.env);
-  const claimId = createId("claim");
-  const claimedAt = Date.now();
-  const claimNow = new Date(claimedAt).toISOString();
-  const claim = await db.prepare(
-    `UPDATE pending_resources AS p
-     SET state = 'uploading', claim_id = ?1, expires_at = ?2, bucket_name = ?5, storage_config_id = ?6
-     WHERE p.id = ?4 AND p.state = 'awaiting_upload' AND p.upload_expires_at > ?3
-       AND ${CREDENTIAL_ACTIVE_SQL}`,
-  ).bind(
-    claimId,
-    later(claimedAt, PENDING_RESOURCE_STORE_GRACE_MS),
-    claimNow,
-    row.id,
-    destination.bucketName,
-    destination.configId,
-  ).run();
-  if (Number(claim.meta.changes) !== 1) {
-    const current = await readPendingById(db, row.id);
-    if (current?.state === "uploaded") return replayUploaded(current, checksum);
-    if (current?.state === "uploading") throw tokenUsed();
-    if (!current || Date.parse(current.upload_expires_at) <= claimedAt) throw tokenExpired();
-    // Still awaiting and not expired: the creating credential was revoked.
-    throw invalidToken();
+  let claimId: string | null = null;
+  let destination: Awaited<ReturnType<typeof resolveObjectStorage>>;
+  if (row.state === "uploading") {
+    // A claimed upload whose outcome was not confirmed. The claim recorded the
+    // checksum, so only the same file can complete it, and writing identical
+    // bytes again to the same key is harmless even if the first write is
+    // still in flight.
+    if (row.sha256 !== checksum || !row.storage_config_id) throw tokenUsed();
+    destination = await resolveObjectStorage(context.env, row.storage_config_id);
+  } else {
+    // Claim with a fresh timestamp, after the body has been read: the upload
+    // deadline and the creating credential are both checked by this statement.
+    destination = await resolveObjectStorage(context.env);
+    claimId = createId("claim");
+    const claimedAt = Date.now();
+    const claim = await db.prepare(
+      `UPDATE pending_resources AS p
+       SET state = 'uploading', claim_id = ?1, expires_at = ?2, bucket_name = ?5, storage_config_id = ?6, sha256 = ?7
+       WHERE p.id = ?4 AND p.state = 'awaiting_upload' AND p.upload_expires_at > ?3
+         AND ${CREDENTIAL_ACTIVE_SQL}`,
+    ).bind(
+      claimId,
+      later(claimedAt, PENDING_RESOURCE_STORE_GRACE_MS),
+      new Date(claimedAt).toISOString(),
+      row.id,
+      destination.bucketName,
+      destination.configId,
+      checksum,
+    ).run();
+    if (Number(claim.meta.changes) !== 1) {
+      const current = await readPendingById(db, row.id);
+      if (current?.state === "uploaded") return replayUploaded(current, checksum);
+      if (current?.state === "uploading") throw tokenUsed();
+      if (!current || Date.parse(current.upload_expires_at) <= claimedAt) throw tokenExpired();
+      // Still awaiting and not expired: the creating credential was revoked.
+      throw invalidToken();
+    }
   }
 
-  const prepared = row.kind === "image"
-    ? prepareImageForStorage({ bytes, filename: row.filename, mimeType: row.mime_type, source: "mcp" })
-    : null;
-  const metadata = prepared?.metadata ?? { originalFilename: row.filename };
+  // Returns the URL to the client after a confirmed failure. It never deletes
+  // bytes: the object key belongs to this pending row only, so a later upload
+  // overwrites it and cleanup deletes it with the row.
   const release = async () => {
-    await destination.store.delete(row.object_key).catch(() => undefined);
+    if (!claimId) return;
     await db.prepare(
       `UPDATE pending_resources
-       SET state = 'awaiting_upload', claim_id = NULL, expires_at = upload_expires_at
+       SET state = 'awaiting_upload', claim_id = NULL, sha256 = NULL, expires_at = upload_expires_at
        WHERE id = ? AND claim_id = ? AND state = 'uploading'`,
     ).bind(row.id, claimId).run().catch(() => undefined);
   };
@@ -408,39 +441,61 @@ export const consumePendingResourceUpload = async (
 
   // The commit is the single persistence point. The resource id was fixed when
   // the URL was issued, so no path can produce a second resource for it.
+  const prepared = row.kind === "image"
+    ? prepareImageForStorage({ bytes, filename: row.filename, mimeType: row.mime_type, source: "mcp" })
+    : null;
+  const metadata = prepared?.metadata ?? { originalFilename: row.filename };
   const uploadedAt = Date.now();
-  let committed = false;
+  const bindBefore = later(uploadedAt, PENDING_RESOURCE_BIND_TTL_MS);
+  const uploaded: PendingResourceRow = {
+    ...row,
+    state: "uploaded",
+    sha256: checksum,
+    claim_id: null,
+    bucket_name: destination.bucketName,
+    storage_config_id: destination.configId,
+    metadata_json: JSON.stringify(metadata),
+    uploaded_at: new Date(uploadedAt).toISOString(),
+    expires_at: bindBefore,
+  };
+  let changes: number;
   try {
     const commit = await db.prepare(
       `UPDATE pending_resources
-       SET state = 'uploaded', claim_id = NULL, sha256 = ?, metadata_json = ?, uploaded_at = ?, expires_at = ?
-       WHERE id = ? AND claim_id = ? AND state = 'uploading'`,
-    ).bind(
-      checksum,
-      JSON.stringify(metadata),
-      new Date(uploadedAt).toISOString(),
-      later(uploadedAt, PENDING_RESOURCE_BIND_TTL_MS),
-      row.id,
-      claimId,
-    ).run();
-    committed = Number(commit.meta.changes) === 1;
-  } catch (error) {
-    // A failed response does not prove the write failed: decide from the row.
-    const current = await readPendingById(db, row.id).catch(() => null);
-    if (current?.state === "uploaded" && current.sha256 === checksum) committed = true;
-    else {
-      await release();
-      throw error;
+       SET state = 'uploaded', claim_id = NULL, metadata_json = ?, uploaded_at = ?, expires_at = ?
+       WHERE id = ? AND state = 'uploading' AND sha256 = ?`,
+    ).bind(uploaded.metadata_json, uploaded.uploaded_at, bindBefore, row.id, checksum).run();
+    changes = Number(commit.meta.changes);
+  } catch {
+    // A failed response does not prove the write failed. Only a successful
+    // read can settle the outcome; until then the bytes and the claim stay.
+    let current: PendingResourceRow | null;
+    try {
+      current = await readPendingById(db, row.id);
+    } catch {
+      throw outcomeUnknown();
     }
-  }
-  if (!committed) {
-    // The claim was lost (cleanup removed the row after the grace period).
-    await destination.store.delete(row.object_key).catch(() => undefined);
-    throw tokenExpired();
+    if (current?.state === "uploaded" && current.sha256 === checksum) {
+      return { status: 201 as const, body: describeUploaded(current) };
+    }
+    if (current?.state === "uploading" && current.claim_id === claimId) {
+      // Confirmed not committed (the commit is one statement).
+      await release();
+    }
+    throw outcomeUnknown();
   }
 
-  const uploaded = await readPendingById(db, row.id);
-  if (!uploaded) throw tokenExpired();
+  if (changes !== 1) {
+    // Another request completed the same file, or cleanup removed the row.
+    const current = await readPendingById(db, row.id).catch(() => null);
+    if (current?.state === "uploaded" && current.sha256 === checksum) return replayUploaded(current, checksum);
+    if (await isObjectUnreferenced(db, row.id)) {
+      await destination.store.delete(row.object_key).catch(() => undefined);
+      throw tokenExpired();
+    }
+    throw tokenUsed();
+  }
+
   await audit(db, row.actor_type, row.actor_id, "pending_resource.upload", "resource", row.id, {
     workspaceId: row.workspace_id,
     mimeType: row.mime_type,
