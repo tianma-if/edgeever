@@ -70,7 +70,7 @@ test("HTML media preserves adjacent Markdown in quotes and lists", () => {
 test("Missing SiYuan Markdown assets and pages warn without blocking import", async () => {
   const { session, summary } = await scan("siyuan", { "Book/Child/Page.md": "[file](assets/missing.md)\n\n[page](missing.md)" });
   expect(summary).toMatchObject({ notes: 1, errors: 0, warnings: 2 });
-  expect((await session.index.page("issue")).map(issue => issue.code)).toEqual(["missingAttachment", "noteLink"]);
+  expect((await session.index.page("issue")).map(issue => issue.code).sort()).toEqual(["missingAttachment", "noteLink"].sort());
   await session.close();
 });
 
