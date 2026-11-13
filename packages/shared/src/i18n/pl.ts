@@ -1351,6 +1351,8 @@ export const pl = {
     },
   },
   plugins: {
+    secureFeaturesUnavailable: "Instalacja wtyczek i weryfikacja integralności są dostępne. Szyfrowane ustawienia poufne i podpisane katalogi społeczności wymagają HTTPS lub localhost.",
+    restoreFailed: "Nie udało się przywrócić niektórych wtyczek lub motywów. Sprawdź poniższe błędy i spróbuj ponownie.",
     title: "Wtyczki i motywy",
     developerDocs: "Tworzenie wtyczek",
     manifestUrl: "URL manifestu rozszerzenia",

@@ -1362,6 +1362,7 @@ export const zhTW = {
     },
   },
   plugins: {
+    secureFeaturesUnavailable: "目前可安裝外掛並驗證完整性；加密金鑰設定和簽章社群目錄需要透過 HTTPS 或 localhost 存取。",
     title: "外掛與主題",
     developerDocs: "外掛開發文件",
     manifestUrl: "擴充套件 Manifest 地址",
@@ -1369,6 +1370,7 @@ export const zhTW = {
     installSource: "GitHub 倉庫或 Manifest 地址",
     sourcePlaceholder: "https://github.com/owner/edgeever-plugin",
     install: "安裝",
+    restoreFailed: "部分外掛或佈景主題未能還原，請查看錯誤原因後重試。",
     installing: "安裝中…",
     empty: "這個工作區還沒有安裝外掛或主題。",
     syncDescription: "安裝清單會隨這個工作區在 Web 和桌面端之間同步。設定和金鑰仍只儲存在當前裝置。",
