@@ -1,4 +1,5 @@
 import { parse, postprocess, preprocess } from "micromark";
+import { parseDocument } from "htmlparser2";
 import { createDocument } from "@mixmark-io/domino";
 import { convertImportHtml } from "./html";
 import { splitMarkdownFrontMatter } from "../front-matter";
@@ -40,28 +41,61 @@ export const normalizeExportMedia = (markdown: string) => {
   const events = markdownEvents(body);
   const blocks: Array<{ start: number; end: number }> = [];
   const replacements: Array<{ start: number; end: number; text: string }> = [];
-  let hasBareMediaBlock = false;
+  // Inline tokens identify real tags outside code. HTML parsing supplies exact
+  // element boundaries and raw-text semantics that Markdown flow tokens lack.
+  const hasMediaBlock = events.some(([action, token, context]) => action === "enter" && token.type === "htmlFlow" && mediaTag.test(context.sliceSerialize(token)));
+  const inlineEvents = hasMediaBlock ? markdownEvents(body, true) : events;
+  const tagStarts = new Set(inlineEvents.filter(([action, token]) => action === "enter" && token.type === "htmlText").map(([, token]) => token.start.offset!));
+  const literalRanges = inlineEvents.filter(([action, token]) => action === "enter" && ["codeText", "codeFenced", "codeIndented", "characterEscape"].includes(token.type)).map(([, token]) => ({ start: token.start.offset!, end: token.end.offset! }));
+  let literalIndex = 0;
+  let flow: { start: number; end: number; text: string; masked: string; segments: Array<{ offset: number; source: number }> } | undefined;
   for (const [action, token, context] of events) {
-    if (action !== "enter" || token.type !== "htmlFlow") continue;
-    const html = context.sliceSerialize(token);
-    const start = token.start.offset!;
-    const end = token.end.offset!;
-    if (openingMediaTag.test(html)) {
-      // CommonMark can put later lines of Markdown in the same HTML flow as a
-      // bare <img>. Reparse such markup as inline tags for exact boundaries.
-      hasBareMediaBlock = true;
-      continue;
+    if (action === "enter" && token.type === "htmlFlow") {
+      flow = { start: token.start.offset!, end: token.end.offset!, text: "", masked: "", segments: [] };
+      blocks.push({ start: flow.start, end: flow.end });
+    } else if (flow && action === "enter" && (token.type === "htmlFlowData" || token.type === "lineEnding")) {
+      // Token serialization removes quote/list prefixes. Keep a source map so
+      // replacements preserve the original prefixes and adjacent Markdown.
+      flow.segments.push({ offset: flow.text.length, source: token.start.offset! });
+      const text = context.sliceSerialize(token);
+      flow.text += text;
+      let masked = text;
+      while (literalRanges[literalIndex] && literalRanges[literalIndex]!.end <= token.start.offset!) literalIndex++;
+      for (let i = literalIndex; literalRanges[i] && literalRanges[i]!.start < token.end.offset!; i++) {
+        const range = literalRanges[i]!;
+        const start = Math.max(0, range.start - token.start.offset!);
+        const end = Math.min(text.length, range.end - token.start.offset!);
+        masked = masked.slice(0, start) + masked.slice(start, end).replace(/[^\r\n]/g, " ") + masked.slice(end);
+      }
+      // Preserve offsets while hiding code and escaped delimiters from the HTML parser.
+      flow.masked += masked;
+    } else if (flow && action === "exit" && token.type === "htmlFlow") {
+      const { text: html, segments } = flow;
+      if (mediaTag.test(html)) {
+        let segmentIndex = 0;
+        const sourceOffset = (offset: number) => {
+          while (segments[segmentIndex + 1] && segments[segmentIndex + 1]!.offset <= offset) segmentIndex++;
+          const segment = segments[segmentIndex]!;
+          return segment.source + offset - segment.offset;
+        };
+        for (const node of parseDocument(flow.masked, { withStartIndices: true, withEndIndices: true }).children) {
+          if (node.type !== "tag" || node.startIndex === null || node.endIndex === null) continue;
+          const start = sourceOffset(node.startIndex);
+          const htmlEnd = Math.min(node.endIndex + 1, html.length);
+          const end = sourceOffset(htmlEnd);
+          if (!tagStarts.has(start)) continue;
+          const text = convertMedia(html.slice(node.startIndex, htmlEnd));
+          if (text === undefined) continue;
+          const lineStart = Math.max(body.lastIndexOf("\n", start - 1), body.lastIndexOf("\r", start - 1)) + 1;
+          const indent = body.slice(lineStart, start).replace(/[^>\t ]/g, " ");
+          replacements.push({ start, end, text: text.replaceAll("\n", `\n${indent}`) });
+        }
+      }
+      flow = undefined;
     }
-    blocks.push({ start, end });
-    if (!mediaTag.test(html)) continue;
-    const text = convertMedia(html);
-    if (text === undefined) continue;
-    const lineStart = body.lastIndexOf("\n", start - 1) + 1;
-    const indent = body.slice(lineStart, start).replace(/[^>\t ]/g, " ");
-    replacements.push({ start, end, text: text.replaceAll("\n", `\n${indent}`) });
   }
   let blockIndex = 0;
-  for (const [action, token, context] of hasBareMediaBlock ? markdownEvents(body, true) : events) {
+  for (const [action, token, context] of inlineEvents) {
     if (action !== "enter" || token.type !== "htmlText") continue;
     const start = token.start.offset!;
     const end = token.end.offset!;

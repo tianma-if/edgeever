@@ -68,7 +68,7 @@ describe("Notion and SiYuan through the unified import API", () => {
       await session.finishReading();
       expect(await session.index.count("archiveChunk")).toBe(staged);
       expect(await session.index.page("issue")).toContainEqual(expect.objectContaining({
-        severity: "warning", code: "notionMissingCsv", path: "Book/Home.md", detail: missingHref,
+        severity: "warning", code: "missingAttachment", path: "Book/Home.md", detail: missingHref,
       }));
       const before = db.query("SELECT COUNT(*) AS n FROM memos").get().n;
       intercept((url, init) => String(url).includes("/parts/") && init?.method === "PUT" ? Response.json({ error: { message: "fixture failure" } }, { status: 503 }) : null);
@@ -160,10 +160,10 @@ describe("Notion and SiYuan through the unified import API", () => {
     await fresh.close(); await session.close();
   });
 
-  for (const format of ["notion", "siyuan"]) test(`${format}: missing attachments block writes and old servers reject the format`, async () => {
+  for (const format of ["notion", "siyuan"]) test(`${format}: unsafe paths block writes and old servers reject the format`, async () => {
     const { client, db } = await target();
     const session = new NoteImportSession(format, [{ path: "page.md", file: new File(["# Page\n![missing](missing.png)\n[bad CSV](../outside.csv)"], "page.md") }], new MemoryImportIndex());
-    expect((await session.scan()).errors).toBe(2);
+    expect(await session.scan()).toMatchObject({ errors: 1, warnings: 1 });
     const before = db.query("SELECT COUNT(*) AS n FROM memos").get().n;
     await expect(executeNoteImport({ reader: session, index: session.index, convertEnml: convertImportEnml, client })).rejects.toThrow("preflightErrors");
     expect(db.query("SELECT COUNT(*) AS n FROM memos").get().n).toBe(before);
@@ -177,4 +177,49 @@ describe("Notion and SiYuan through the unified import API", () => {
   });
 
 
+});
+
+for (const format of ["notion", "siyuan"]) test(`${format}: wrapped HTML keeps adjacent Markdown attachments through import`, async () => {
+  const { client, db } = await target();
+  const attachments = { "assets/p.png": new Uint8Array([137,80,78,71,0,255]), "assets/other.png": new Uint8Array([137,80,78,71,1,254]), "assets/file.pdf": new Uint8Array([37,80,68,70,0,128,255]) };
+  const markdown = '<div><script>const x="</div>";</script><img src="assets/p.png"></div>\n<div><img src="assets/other.png"></div>\n[download](assets/file.pdf)\n![other](assets/other.png)\n**Keep bold**';
+  const files = await archive([{ path: "Page.md", file: new File([markdown], "Page.md") }, ...Object.entries(attachments).map(([path, bytes]) => ({ path, file: new File([bytes], path) }))], "zip");
+  const session = new NoteImportSession(format, files, new MemoryImportIndex());
+  try {
+    expect(await session.scan()).toMatchObject({ notes: 1, resources: 3, errors: 0, warnings: 0 });
+    const [note] = await session.index.page("note");
+    expect((await session.readNote(note.key)).contentMarkdown).toContain('[download](assets/file.pdf)\n![other](assets/other.png)\n**Keep bold**');
+    expect(await executeNoteImport({ reader: session, index: session.index, client, convertEnml: convertImportEnml })).toMatchObject({ completed: 1, failed: 0, resources: 3 });
+    const [result] = await session.index.page("result");
+    const { memo } = await client.getMemo(result.memo.id);
+    expect(memo.contentMarkdown).toContain("**Keep bold**");
+    expect(memo.contentMarkdown).toContain(`[download](${result.urls["assets/file.pdf"]})`);
+    expect(memo.contentMarkdown).toContain(`![other](${result.urls["assets/other.png"]})`);
+    for (const [path, bytes] of Object.entries(attachments)) {
+      expect(result.urls[path]).toBeTruthy();
+      expect(memo.contentMarkdown).toContain(result.urls[path]);
+      expect(new Uint8Array(await (await client.getResourceBlob(result.urls[path])).arrayBuffer())).toEqual(bytes);
+    }
+  } finally { await session.close(); db.close(); }
+});
+
+for (const format of ["notion", "siyuan"]) test(`${format}: missing attachments warn and preserve links while existing attachments import`, async () => {
+  const { client, db } = await target();
+  const markdown = '[pdf](assets/missing.pdf)\n![image](assets/missing.png)\n[csv](assets/missing.csv)\n[asset](assets/missing.md)\n[existing](assets/present.pdf)';
+  const session = new NoteImportSession(format, [{ path: "Page.md", file: new File([markdown], "Page.md") }, { path: "assets/present.pdf", file: new File(["%PDF-present"], "present.pdf") }], new MemoryImportIndex());
+  try {
+    const before = db.query("SELECT COUNT(*) AS n FROM memos").get().n;
+    expect(await session.scan()).toMatchObject({ notes: 1, resources: 1, errors: 0, warnings: 4 });
+    expect(db.query("SELECT COUNT(*) AS n FROM memos").get().n).toBe(before);
+    const issues = await session.index.page("issue");
+    expect(issues.every(issue => issue.severity === "warning" && issue.path === "Page.md" && issue.detail)).toBe(true);
+    expect(issues.find(issue => issue.detail === "assets/missing.pdf").code).toBe("missingAttachment");
+    expect(await executeNoteImport({ reader: session, index: session.index, client, convertEnml: convertImportEnml })).toMatchObject({ completed: 1, failed: 0, resources: 1 });
+    const [result] = await session.index.page("result");
+    const { memo } = await client.getMemo(result.memo.id);
+    expect(memo.contentMarkdown).toContain(markdown.split('\n').slice(0, 4).join('\n'));
+    expect(memo.contentMarkdown).toContain(`[existing](${result.urls["assets/present.pdf"]})`);
+    expect(await (await client.getResourceBlob(result.urls["assets/present.pdf"])).text()).toBe("%PDF-present");
+    expect(Object.keys(result.urls)).toEqual(["assets/present.pdf"]);
+  } finally { await session.close(); db.close(); }
 });

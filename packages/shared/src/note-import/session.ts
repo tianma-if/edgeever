@@ -316,8 +316,8 @@ export class NoteImportSession {
       const isMarkdownAsset = this.format === "siyuan" && isSiYuanAsset(relative);
       if (!entry && !isMarkdownAsset && /\.(?:md|markdown)$/i.test(href)) { await addIssue(this.index, "noteLink", note.path, "warning", href); return; }
       if (!entry) {
-        const missingCsv = this.format === "notion" && !ref.image && !ref.wiki && /\.csv$/i.test(href);
-        await addIssue(this.index, missingCsv ? "notionMissingCsv" : "missingResource", note.path, missingCsv ? "warning" : "error", ref.href);
+        const allowMissing = this.format === "notion" || this.format === "siyuan";
+        await addIssue(this.index, allowMissing ? "missingAttachment" : "missingResource", note.path, allowMissing ? "warning" : "error", ref.href);
         return;
       }
       if (await this.index.get("alias", `note:${entry.key}`)) { await addIssue(this.index, "noteLink", note.path, "warning", href); return; }

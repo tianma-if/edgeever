@@ -67,10 +67,10 @@ test("HTML media preserves adjacent Markdown in quotes and lists", () => {
   expect(normalizeExportMedia('- <video><source src="assets/clip.mp4"></video>\n  **Keep me**')).toBe('- [clip.mp4](assets/clip.mp4)\n  **Keep me**');
 });
 
-test("Missing SiYuan Markdown assets block import while missing pages only warn", async () => {
+test("Missing SiYuan Markdown assets and pages warn without blocking import", async () => {
   const { session, summary } = await scan("siyuan", { "Book/Child/Page.md": "[file](assets/missing.md)\n\n[page](missing.md)" });
-  expect(summary).toMatchObject({ notes: 1, errors: 1, warnings: 1 });
-  expect((await session.index.page("issue")).map(issue => issue.code)).toEqual(["missingResource", "noteLink"]);
+  expect(summary).toMatchObject({ notes: 1, errors: 0, warnings: 2 });
+  expect((await session.index.page("issue")).map(issue => issue.code)).toEqual(["missingAttachment", "noteLink"]);
   await session.close();
 });
 
@@ -100,3 +100,66 @@ for (const format of ["notion", "siyuan"]) {
     await session.close();
   });
 }
+
+for (const wrapper of [
+  '<div><img src="assets/p.png"></div>',
+  '<div data-label="a > b"><div><img src="assets/p.png"></div></div>',
+  '<figure><img src="assets/p.png"><figcaption>Caption</figcaption></figure>',
+]) test(`wrapped HTML preserves following Markdown: ${wrapper}`, () => {
+  for (const prefix of ["", "> ", "  "]) {
+    const tail = '[download](assets/file.pdf)\n![other](assets/other.png)\n**Keep bold**';
+    const input = [wrapper, ...tail.split("\n")].map(line => prefix + line).join("\n");
+    const converted = normalizeExportMedia(input);
+    expect(converted).toContain('![](assets/p.png)');
+    expect(converted).not.toContain('\\[download\\]');
+    expect(converted.endsWith(tail.split("\n").map(line => prefix + line).join("\n"))).toBe(true);
+  }
+});
+
+test("multiline media containers preserve Markdown boundaries in lists, quotes and CRLF", () => {
+  for (const newline of ["\n", "\r\n"]) for (const [first, next] of [["", ""], ["> ", "> "], ["- ", "  "]]) {
+    const lines = ['<div>', '<div><img src="assets/p.png"></div>', '</div>', '[download](assets/file.pdf)', '![other](assets/other.png)', '**Keep bold**'];
+    const markdown = lines.map((line, i) => (i ? next : first) + line).join(newline);
+    const result = normalizeExportMedia(markdown);
+    expect(result).toContain('![](assets/p.png)');
+    expect(result).not.toContain('\\[download\\]');
+    expect(result.endsWith(lines.slice(3).map(line => next + line).join(newline))).toBe(true);
+    expect(result).not.toContain('<div>');
+  }
+});
+
+for (const html of [
+  '<div><img src="assets/p.png"></div>\n<div><img src="assets/other.png"></div>',
+  '<div><script>const x="</div>";</script><img src="assets/p.png"></div>',
+  '  <img src="assets/p.png">',
+]) test(`media boundaries handle siblings, raw text and indentation: ${html}`, () => {
+  const result = normalizeExportMedia(html + '\n[download](assets/file.pdf)\n**Keep bold**');
+  expect(result).toContain('![](assets/p.png)');
+  expect(result.endsWith('[download](assets/file.pdf)\n**Keep bold**')).toBe(true);
+  expect(result).not.toMatch(/<\/?(?:div|script)>/);
+  if (html.includes('other.png')) expect(result).toContain('![](assets/other.png)');
+});
+
+test("HTML-like code cannot capture later real media", () => {
+  for (const code of ['```html\n<div>\n```', '`<script>`']) {
+    const result = normalizeExportMedia('<div><img src="a.png"></div>\n' + code + '\n<img src="b.png">\n[file](file.pdf)');
+    expect(result).toContain(code);
+    expect(result).toContain('![](b.png)');
+    expect(result.endsWith('[file](file.pdf)')).toBe(true);
+  }
+});
+
+test("implicit HTML closing at EOF does not consume the following source character", () => {
+  for (const newline of ["\n", "\r\n", "\r"]) for (const prefix of ["", "> "]) {
+    const tail = newline + prefix.trimEnd() + newline + prefix + '[link](f.pdf)';
+    expect(normalizeExportMedia(prefix + '<div><img src="a.png">' + tail)).toBe(prefix + '![](a.png)' + tail);
+  }
+});
+
+test("escaped HTML cannot capture later real media", () => {
+  const markdown = '<div><img src="a.png"></div>\n\\<div>\n<img src="b.png">\n[file](f.pdf)';
+  const result = normalizeExportMedia(markdown);
+  expect(result).toContain('\\<div>');
+  expect(result).toContain('![](b.png)');
+  expect(result.endsWith('[file](f.pdf)')).toBe(true);
+});
