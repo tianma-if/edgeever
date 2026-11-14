@@ -1510,7 +1510,6 @@ export const es = {
   },
   "plugins": {
     secureFeaturesUnavailable: "La instalación y la verificación de integridad están disponibles. Los ajustes secretos cifrados y los catálogos comunitarios firmados requieren HTTPS o localhost.",
-    restoreFailed: "No se pudieron restaurar algunos complementos o temas. Revisa los errores e inténtalo de nuevo.",
     "title": "Plugins y temas",
     "developerDocs": "Desarrollo de plugins",
     "manifestUrl": "URL del manifiesto de la extensión",
@@ -1518,6 +1517,7 @@ export const es = {
     "installSource": "Repositorio de GitHub o URL del manifiesto",
     "sourcePlaceholder": "https://github.com/owner/edgeever-plugin",
     "install": "Instalar",
+    restoreFailed: "No se pudieron restaurar algunos complementos o temas. Revisa los errores e inténtalo de nuevo.",
     "installing": "Instalando…",
     "empty": "Este espacio de trabajo aún no tiene plugins ni temas instalados.",
     "syncDescription": "La lista de instalación sigue a este espacio de trabajo en la web y en escritorio. Los ajustes y secretos se mantienen en este dispositivo.",

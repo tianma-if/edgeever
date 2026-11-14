@@ -1357,7 +1357,6 @@ export const pl = {
   },
   plugins: {
     secureFeaturesUnavailable: "Instalacja wtyczek i weryfikacja integralności są dostępne. Szyfrowane ustawienia poufne i podpisane katalogi społeczności wymagają HTTPS lub localhost.",
-    restoreFailed: "Nie udało się przywrócić niektórych wtyczek lub motywów. Sprawdź poniższe błędy i spróbuj ponownie.",
     title: "Wtyczki i motywy",
     developerDocs: "Tworzenie wtyczek",
     manifestUrl: "URL manifestu rozszerzenia",
@@ -1365,6 +1364,7 @@ export const pl = {
     installSource: "Repozytorium GitHub lub URL manifestu",
     sourcePlaceholder: "https://github.com/owner/edgeever-plugin",
     install: "Zainstaluj",
+    restoreFailed: "Nie udało się przywrócić niektórych wtyczek lub motywów. Sprawdź poniższe błędy i spróbuj ponownie.",
     installing: "Instalowanie…",
     empty: "W tym obszarze roboczym nie zainstalowano jeszcze wtyczek ani motywów.",
     syncDescription: "Lista instalacji jest powiązana z tym obszarem roboczym w wersji Web i desktopowej. Ustawienia i sekrety pozostają na tym urządzeniu.",

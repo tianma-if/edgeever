@@ -1510,7 +1510,6 @@ export const de = {
   },
   "plugins": {
     secureFeaturesUnavailable: "Plugin-Installation und Integritätsprüfung sind verfügbar. Verschlüsselte geheime Einstellungen und signierte Community-Kataloge erfordern HTTPS oder localhost.",
-    restoreFailed: "Einige Plugins oder Designs konnten nicht wiederhergestellt werden. Prüfe die folgenden Fehler und versuche es erneut.",
     "title": "Plugins und Designs",
     "developerDocs": "Plugin-Entwicklung",
     "manifestUrl": "Manifest-URL der Erweiterung",
@@ -1518,6 +1517,7 @@ export const de = {
     "installSource": "GitHub-Repository oder Manifest-URL",
     "sourcePlaceholder": "https://github.com/owner/edgeever-plugin",
     "install": "Installieren",
+    restoreFailed: "Einige Plugins oder Designs konnten nicht wiederhergestellt werden. Prüfe die folgenden Fehler und versuche es erneut.",
     "installing": "Wird installiert…",
     "empty": "In diesem Arbeitsbereich sind noch keine Plugins oder Designs installiert.",
     "syncDescription": "Die Installationsliste folgt diesem Arbeitsbereich im Web und auf dem Desktop. Einstellungen und Geheimnisse verbleiben auf diesem Gerät.",

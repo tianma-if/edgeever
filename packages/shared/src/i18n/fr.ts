@@ -1510,7 +1510,6 @@ export const fr = {
   },
   plugins: {
     secureFeaturesUnavailable: "L’installation et la vérification d’intégrité sont disponibles. Les paramètres secrets chiffrés et les catalogues communautaires signés nécessitent HTTPS ou localhost.",
-    restoreFailed: "Certains plugins ou thèmes n’ont pas pu être restaurés. Consultez les erreurs ci-dessous et réessayez.",
     title: "Plugins et thèmes",
     developerDocs: "Développement de plugins",
     manifestUrl: "URL du manifeste de l'extension",
@@ -1518,6 +1517,7 @@ export const fr = {
     installSource: "Dépôt GitHub ou URL du manifeste",
     sourcePlaceholder: "https://github.com/owner/edgeever-plugin",
     install: "Installer",
+    restoreFailed: "Certains plugins ou thèmes n’ont pas pu être restaurés. Consultez les erreurs ci-dessous et réessayez.",
     installing: "Installation en cours…",
     empty: "Cet espace de travail n'a encore aucun plugin ni thème installé.",
     syncDescription: "La liste d'installation suit cet espace de travail sur le Web et l'ordinateur. Les paramètres et les secrets restent sur cet appareil.",
