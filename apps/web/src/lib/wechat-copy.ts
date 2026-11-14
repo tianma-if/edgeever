@@ -196,8 +196,7 @@ const applyLegacyWeChatStyles = (
           `<span data-ee-publish-chrome="true" style="display: inline-block; max-width: calc(100% - 14px); white-space: normal; font-size: 11px; font-weight: 700; letter-spacing: 3px; color: ${accent}; vertical-align: middle; margin-left: 8px;">${escapeHtmlAttribute(proseStyle.coverTags)}</span>`,
           `</section>`,
         ] : []),
-        `<p data-ee-publish-chrome="true" style="font-size: ${metrics.fontSize * 1.75}px; font-weight: 900; color: #111827; margin: 0 0 14px; line-height: 1.2; letter-spacing: -0.5px;">${titleHtml}</p>`,
-        `<section data-ee-publish-chrome="true" style="width: 48px; height: 3px; background: ${accent}; border-radius: 2px;"><span leaf=""><br></span></section>`,
+        `<p data-ee-publish-chrome="true" style="font-size: ${metrics.fontSize * 1.75}px; font-weight: 900; color: #111827; margin: 0; line-height: 1.2; letter-spacing: -0.5px;">${titleHtml}</p>`,
         `</section>`,
         `<section data-ee-cover-footer="true" data-ee-publish-chrome="true" style="${colors ? accentGradient : "background: #f3f4f6;"} height: 8px; font-size: 0; line-height: 0;"><span leaf=""><br></span></section>`,
       ].join("");
