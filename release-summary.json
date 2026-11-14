@@ -1,26 +1,32 @@
 {
-  "version": "2.26.0",
+  "version": "2.27.0",
   "changes": {
     "en-US": [
-      "Import official flomo HTML ZIP exports with content, tags, timestamps and attachments through the unified import flow. Thanks @sivdead (#834; related to #794).",
-      "Create notes for standalone Obsidian attachments by default, simplify import notices and prioritize errors that block import.",
-      "Restore sharing for visual notes and display shared infographics correctly.",
-      "Unify interface and note font selectors, and simplify the feedback entry across clients.",
-      "Refresh product previews, improve website navigation and image previews, and update contact pages. The public Demo now redirects HTTP to HTTPS."
+      "Import Notion and SiYuan Markdown exports with attachment checks and support for split Notion archives. Thanks @sivdead (#841).",
+      "MCP agents can upload local files without base64 and attach them when creating or updating notes. Thanks @DavidPivert (#840). Server upgrade is required for the new tools.",
+      "The web app now supports HTTPS CloudFlare ImgBed uploads. The image host must allow cross-origin access; settings stay in the current browser.",
+      "Improve magazine covers, tag display, chapter cards and heading spacing; preserve heading structure when copying articles to Zhihu.",
+      "Keep note appearance actions accessible when zoomed in and bring validation errors into view. Thanks @tankle0 (#846). Improve file drops across the editor canvas, share-link creation and share-button layout. Client downloads are shown in the web sidebar.",
+      "Fix plugin installation over LAN HTTP while retaining integrity checks, and show plugin restore errors with retry actions. Encrypted secrets and signed catalogs still require HTTPS or localhost.",
+      "Restore readable dark-mode colors in Android image sharing."
     ],
     "zh-CN": [
-      "支持通过统一导入流程导入 flomo 官方 HTML ZIP 导出，保留正文、标签、时间和附件。感谢 @sivdead（#834，关联 #794）。",
-      "默认将 Obsidian 独立附件导入为笔记，精简常规导入提示并优先显示阻断错误。",
-      "恢复可视化笔记的分享入口，并正确展示分享的信息图。",
-      "统一界面与笔记的字体选择体验，并精简各客户端的问题反馈入口。",
-      "更新产品预览，改进官网导航、图片预览与联系页面；公开 Demo 的 HTTP 访问自动跳转到 HTTPS。"
+      "支持导入 Notion 和思源 Markdown 导出包，提供附件检查并兼容 Notion 分卷。感谢 @sivdead（#841）。",
+      "MCP Agent 可直接上传本地文件，无需传递 base64，并在创建或更新笔记时关联附件。感谢 @DavidPivert（#840）。新工具需升级服务端后使用。",
+      "网页端支持 HTTPS CloudFlare ImgBed 上传；图床须允许跨域访问，设置仅保存在当前浏览器。",
+      "优化杂志封面、标签展示、章节卡片及标题间距；复制文章到知乎时保留标题层级。",
+      "放大页面后仍可操作笔记外观设置，校验失败时定位到错误提示，感谢 @tankle0（#846）。改善编辑器空白处文件拖放、分享链接创建及按钮布局；客户端下载入口集中在网页侧栏。",
+      "修复局域网 HTTP 下的插件安装并保留完整性校验；插件恢复失败时显示原因及重试入口。加密密钥和签名目录仍需 HTTPS 或 localhost。",
+      "修复 Android 图片分享在深色模式下的可读性。"
     ],
     "ja": [
-      "flomo の公式 HTML ZIP エクスポートから本文、タグ、日時、添付ファイルを統合インポートできます。",
-      "Obsidian の独立した添付ファイルを既定でノートに取り込み、インポートの通知とエラー表示を改善しました。",
-      "ビジュアルノートの共有を復元し、共有されたインフォグラフィックを正しく表示します。",
-      "画面とノートのフォント選択を統一し、各クライアントのフィードバック導線を簡素化しました。",
-      "製品プレビュー、公式サイトのナビゲーション、画像プレビュー、お問い合わせページを改善し、公開デモを HTTPS にリダイレクトします。"
+      "Notion と思源の Markdown エクスポートを、添付ファイル確認と Notion 分割アーカイブ対応でインポートできます。",
+      "MCP エージェントが base64 を介さずローカルファイルをアップロードし、ノート作成・更新時に添付できます。新ツールにはサーバーの更新が必要です。",
+      "Web アプリで HTTPS CloudFlare ImgBed へのアップロードに対応しました。画像ホストの CORS 設定が必要で、設定は現在のブラウザーに保存されます。",
+      "雑誌風カバー、タグ、章カード、見出し間隔を改善し、知乎へのコピー時に見出し構造を保持します。",
+      "拡大表示でのノート外観設定とエラー表示を改善しました。編集領域へのファイルドロップ、共有リンク作成、共有ボタン配置を改善し、ダウンロードリンクを Web サイドバーにまとめました。",
+      "LAN の HTTP 接続で整合性検証を維持しながらプラグインをインストールでき、復元エラーと再試行操作を表示します。暗号化シークレットと署名付きカタログには引き続き HTTPS または localhost が必要です。",
+      "Android の画像共有でダークモードの文字を読みやすくしました。"
     ]
   }
 }
