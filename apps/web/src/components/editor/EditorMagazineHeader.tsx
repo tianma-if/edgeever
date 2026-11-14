@@ -239,7 +239,7 @@ export const EditorMagazineHeader = ({
               {sections.length} PARTS · 章节导览
             </span>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 146px), 1fr))", gap: "8px", width: "100%" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "flex-start", gap: "8px", width: "100%" }}>
             {sections.map((section, idx) => {
               const isHighlighted = idx < sections.length - 1;
               const useSolidAccent = isHighlighted && !isNative;
@@ -252,7 +252,9 @@ export const EditorMagazineHeader = ({
                     useSolidAccent
                       ? {
                           minWidth: 0,
-                          width: "100%",
+                          width: "146px",
+                          maxWidth: "100%",
+                          flex: "0 0 auto",
                           boxSizing: "border-box",
                           display: "flex",
                           flexDirection: "column",
@@ -266,7 +268,9 @@ export const EditorMagazineHeader = ({
                         }
                       : {
                           minWidth: 0,
-                          width: "100%",
+                          width: "146px",
+                          maxWidth: "100%",
+                          flex: "0 0 auto",
                           boxSizing: "border-box",
                           display: "flex",
                           flexDirection: "column",

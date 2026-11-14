@@ -369,10 +369,13 @@ describe("preparePublishArticle", () => {
       expect(cards.length).toBe(2);
       for (const item of cards) {
         expect(css(item)).not.toContain("height:");
-        expect(css(item.parentElement)).toContain("display:grid");
-        expect(css(item.parentElement)).toContain("grid-template-columns:repeat(auto-fill, minmax(min(100%, 146px), 1fr))");
+        expect(css(item.parentElement)).toContain("display:flex");
+        expect(css(item.parentElement)).toContain("flex-wrap:wrap");
+        expect(css(item.parentElement)).toContain("justify-content:flex-start");
         expect(css(item.parentElement)).toContain("gap:8px");
-        expect(css(item)).toContain("width:100%");
+        expect(css(item)).toContain("width:146px");
+        expect(css(item)).toContain("max-width:100%");
+        expect(css(item)).toContain("flex:0 0 auto");
         expect(css(item)).toContain("min-width:0");
         expect(css(item)).toContain("margin:0");
         expect(css(item.parentElement)).toContain("align-items:stretch");
