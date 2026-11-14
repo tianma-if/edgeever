@@ -1,7 +1,7 @@
 ---
 import { SEO } from "astro-seo";
 import { getImage } from "astro:assets";
-import heroProductImage from "@/assets/edgeever-hero-product.png";
+import { getHeroImage } from "@/assets/hero";
 import Footer from "@/components/footer.astro";
 import Navbar from "@/components/navbar/navbar.astro";
 import {
@@ -35,6 +35,7 @@ export interface Props {
 
 const canonicalURL = new URL(Astro.url.pathname, Astro.site).toString();
 const locale = getSiteLocale(Astro.url.pathname);
+const heroProductImage = getHeroImage(locale);
 const copy = siteCopy[locale].layout;
 const localeAlternateUrls = Object.fromEntries(
   siteLocales.map((item) => [
@@ -51,6 +52,7 @@ const defaultShareImage = await getImage({
   height: 630,
   fit: "contain",
   format: "jpg",
+  background: "#ffffff",
 });
 
 const {

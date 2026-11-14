@@ -26,7 +26,7 @@
     <a href="docs/note-migration-guide.en-US.md">📥 Migración de notas</a>
   </p>
   <p align="center">
-    <img src="assets/readme/edgeever-hero-v6.png" alt="Vista previa del espacio de trabajo de EdgeEver" width="800" />
+    <img src="assets/readme/edgeever-hero-v8-en.png" alt="Vista previa del espacio de trabajo de EdgeEver" width="800" />
   </p>
 </div>
 

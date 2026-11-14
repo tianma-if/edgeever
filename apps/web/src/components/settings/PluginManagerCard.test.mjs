@@ -55,6 +55,13 @@ describe("plugin manager card layout", () => {
   });
 });
 
+test("shows per-plugin restore errors with a retry instead of an empty installed list", () => {
+  expect(source).toContain("snapshot.catalogErrors.length > 0");
+  expect(source).toContain('t("plugins.restoreFailed")');
+  expect(source).toContain("failure.message");
+  expect(source).toContain("host.syncFromCatalog()");
+});
+
 describe("unified plugin catalog cards", () => {
   test("uses one card component for official, community, and sideloaded plugins", () => {
     expect(catalogCard).toContain("getPluginCatalogSourceKey");

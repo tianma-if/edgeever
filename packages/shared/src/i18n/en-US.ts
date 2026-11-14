@@ -1343,6 +1343,7 @@ export const enUS = {
     },
   },
   plugins: {
+    secureFeaturesUnavailable: "Plugin installation and integrity checks are available. Encrypted secret settings and signed community catalogs require HTTPS or localhost.",
     title: "Plugins and themes",
     developerDocs: "Plugin development",
     manifestUrl: "Extension manifest URL",
@@ -1350,6 +1351,7 @@ export const enUS = {
     installSource: "GitHub repository or manifest URL",
     sourcePlaceholder: "https://github.com/owner/edgeever-plugin",
     install: "Install",
+    restoreFailed: "Some plugins or themes could not be restored. Check the errors below and retry.",
     installing: "Installing…",
     empty: "This workspace has no plugins or themes installed yet.",
     syncDescription: "The install list follows this workspace on Web and desktop. Settings and secrets stay on this device.",

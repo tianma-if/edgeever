@@ -287,8 +287,8 @@ export const siteCopy = {
       },
     },
     marquee: {
-      title: "全平台客户端覆盖、自由部署与 AI 智脑生态",
-      subtitle: "从 macOS、原生 iOS、Android 客户端，到 Docker 一键自托管、微信公众号排版与 Remote MCP 协同",
+      title: "原生技术栈、自由部署与 AI 智脑生态",
+      subtitle: "从本地 SQLite 离线架构、ACP / Remote MCP 智能体协同，到 Cloudflare / Docker 自托管与创作者排版",
       items: [
         {
           tag: "macOS 桌面端",
@@ -573,8 +573,8 @@ export const siteCopy = {
       },
     },
     marquee: {
-      title: "Apps Across Platforms, Flexible Deploy & AI Synergy",
-      subtitle: "From macOS, native iOS & Android apps to Docker self-hosting, styled creator copying, and Remote MCP collaboration.",
+      title: "Native Architecture, Flexible Deploy & AI Synergy",
+      subtitle: "From local SQLite offline sync and ACP / Remote MCP agent workflows to Docker self-hosting and creator styling.",
       items: [
         {
           tag: "macOS Desktop",

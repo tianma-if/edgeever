@@ -118,8 +118,8 @@ export const plSiteCopy = {
     },
   },
   marquee: {
-    title: "Aplikacje na wszystkie platformy, elastyczne wdrożenie i współpraca z AI",
-    subtitle: "Od macOS i natywnych aplikacji iOS i Android, przez samodzielny hosting w Dockerze i kopiowanie ze stylami, po współpracę przez Remote MCP.",
+    title: "Natywna architektura, elastyczny hosting i ekosystem AI",
+    subtitle: "Od lokalnej synchronizacji SQLite i integracji ACP / Remote MCP po hosting Docker oraz formatowanie treści.",
     items: [
       {
         tag: "macOS Desktop",

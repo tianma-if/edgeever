@@ -118,8 +118,8 @@ export const ruSiteCopy = {
     },
   },
   marquee: {
-    title: "Кроссплатформенные клиенты, гибкий деплой и экосистема ИИ",
-    subtitle: "От десктопных и мобильных приложений до self-hosted Docker, стилизации для авторов и интеграции Remote MCP.",
+    title: "Нативная архитектура, гибкий деплой и экосистема ИИ",
+    subtitle: "От локальной синхронизации SQLite и сценариев ACP / Remote MCP до self-hosted Docker и оформления публикаций.",
     items: [
       {
         tag: "macOS Desktop",

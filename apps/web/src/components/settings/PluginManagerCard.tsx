@@ -542,6 +542,29 @@ export const PluginManagerCard = ({
       <CardContent className="grid gap-4 p-4 pt-0 sm:px-5 sm:pb-5">
         {error ? <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">{error}</div> : null}
 
+        {!globalThis.crypto?.subtle ? (
+          <p role="status" className="text-xs leading-5 text-slate-500">{t("plugins.secureFeaturesUnavailable")}</p>
+        ) : null}
+
+        {snapshot.catalogErrors.length > 0 ? (
+          <div role="alert" className="grid gap-2 rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
+            <p>{t("plugins.restoreFailed")}</p>
+            <ul className="list-inside list-disc break-words">
+              {snapshot.catalogErrors.map((failure, index) => (
+                <li key={failure.extensionId ?? index}>{failure.extensionId ? `${failure.extensionId}: ` : ""}{failure.message}</li>
+              ))}
+            </ul>
+            <Button size="sm" variant="outline" className="h-7 justify-self-start bg-card px-2 text-xs"
+              disabled={pendingId === "restore-catalog"}
+              onClick={() => void run("restore-catalog", async () => {
+                const pendingTrust = await host.syncFromCatalog();
+                if (pendingTrust.length > 0) setPendingTrustPluginId(pendingTrust[0]);
+              })}>
+              {t("plugins.marketplace.retry")}
+            </Button>
+          </div>
+        ) : null}
+
         {marketplaceQuery.isError ? (
           <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
             <span>{t("plugins.marketplace.loadFailed", {
@@ -601,7 +624,7 @@ export const PluginManagerCard = ({
           </Button>
         </div>
 
-        {marketplaceQuery.isLoading && catalogItems.length === 0 ? null : catalogItems.length === 0 ? (
+        {(marketplaceQuery.isLoading || snapshot.catalogErrors.length > 0) && catalogItems.length === 0 ? null : catalogItems.length === 0 ? (
           <div className="rounded-lg border border-dashed border-slate-200 p-5 text-center text-xs text-slate-500">
             {t("plugins.empty")}
           </div>

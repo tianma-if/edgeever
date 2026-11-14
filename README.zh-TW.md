@@ -26,7 +26,7 @@
     <a href="docs/note-migration-guide.md">📥 第三方筆記遷入</a>
   </p>
   <p align="center">
-    <img src="assets/readme/edgeever-hero-v6.png" alt="EdgeEver 產品工作區預覽" width="800" />
+    <img src="assets/readme/edgeever-hero-v8.png" alt="EdgeEver 產品工作區預覽" width="800" />
   </p>
 </div>
 

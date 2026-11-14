@@ -1,3 +1,5 @@
+import { sha256Hex } from "./plugin-sha256";
+export { sha256Hex } from "./plugin-sha256";
 import { parseExtensionManifest, type ExtensionManifest, type PluginManifest } from "@edgeever/plugin-api";
 import type { CachedPluginPackage } from "@/lib/plugins/plugin-package-store";
 import { api, ApiRequestError } from "@/lib/api";
@@ -60,12 +62,6 @@ export const parseGithubRepositoryUrl = (input: string): GithubRepositoryCoordin
   const repository = parts[1].replace(/\.git$/i, "");
   if (!/^[a-z0-9](?:[a-z0-9-]{0,38})$/i.test(owner) || !/^[a-z0-9._-]+$/i.test(repository)) return null;
   return { owner, repository, repositoryUrl: `https://github.com/${owner}/${repository}` };
-};
-
-export const sha256Hex = async (value: string | ArrayBuffer) => {
-  const bytes = typeof value === "string" ? new TextEncoder().encode(value) : value;
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 };
 
 const isGithubUnreachableError = (error: unknown) => {

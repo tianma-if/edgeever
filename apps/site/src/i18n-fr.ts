@@ -118,8 +118,8 @@ export const frSiteCopy = {
     },
   },
   marquee: {
-    title: "Applications multiplateformes, déploiement flexible & écosystème IA",
-    subtitle: "Des applications de bureau et mobiles jusqu'à l'auto-hébergement Docker, au formatage pour créateurs et à la collaboration Remote MCP.",
+    title: "Architecture native, déploiement flexible & écosystème IA",
+    subtitle: "De la synchronisation locale SQLite et des flux ACP / Remote MCP à l'auto-hébergement Docker et au formatage créateur.",
     items: [
       {
         tag: "macOS Desktop",

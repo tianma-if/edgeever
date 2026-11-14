@@ -1351,6 +1351,7 @@ export const ja = {
     },
   },
   plugins: {
+    secureFeaturesUnavailable: "プラグインのインストールと整合性検証は利用できます。暗号化されたシークレット設定と署名付きコミュニティカタログには HTTPS または localhost が必要です。",
     title: "プラグインとテーマ",
     developerDocs: "プラグイン開発",
     manifestUrl: "拡張 Manifest URL",
@@ -1358,6 +1359,7 @@ export const ja = {
     installSource: "GitHub リポジトリまたは Manifest URL",
     sourcePlaceholder: "https://github.com/owner/edgeever-plugin",
     install: "インストール",
+    restoreFailed: "一部のプラグインまたはテーマを復元できませんでした。以下のエラーを確認して再試行してください。",
     installing: "インストール中…",
     empty: "このワークスペースには、まだプラグインやテーマがありません。",
     syncDescription: "インストール一覧はこのワークスペースに従い、Web とデスクトップで共有されます。設定とシークレットはこの端末に残ります。",

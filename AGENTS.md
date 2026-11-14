@@ -7,6 +7,7 @@
 - **技术栈与背景**：优先参考 `README.md`。
 - **移动端平台边界**：Android 客户端位于 `apps/mobile`，使用 Expo / React Native 实现；iOS 客户端位于 `apps/ios`，使用 Swift / SwiftUI 原生实现。
 - **双语同步**：修改中文文档时必须同步更新对应的英文文档。修改根目录 README 时必须同步 `README.md`、`README.zh-CN.md`、`README.zh-TW.md`、`README.es.md`、`README.de.md`、`README.fr.md`、`README.ja.md`、`README.pl-PL.md`、`README.ru.md`。
+  - **内部巡检细则例外**：`docs/agent-issue-patrol.zh-CN.md` 和 `docs/agent-pr-review.zh-CN.md` 仅维护中文版，不创建英文副本。
 
 ## 变更风险评估
 

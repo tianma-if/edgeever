@@ -209,7 +209,7 @@ const MCP_TOOL_DEFINITIONS = [
   },
   {
     name: "create_memo",
-    description: "Create a prose Markdown memo in a notebook. For an editable poster/海报笔记, use create_poster_memo instead; never substitute poster-style prose.",
+    description: "Create a prose Markdown memo in a notebook. To include local files, upload them first with create_resource_upload_url, put the returned Markdown in contentMarkdown and pass their resourceIds. For an editable poster/海报笔记, use create_poster_memo instead; never substitute poster-style prose.",
     inputSchema: {
       type: "object",
       required: ["notebookId"],
@@ -221,6 +221,13 @@ const MCP_TOOL_DEFINITIONS = [
         tags: { type: "array", items: { type: "string" } },
         createdAt: { type: "string", format: "date-time" },
         updatedAt: { type: "string", format: "date-time" },
+        resourceIds: {
+          type: "array",
+          maxItems: 20,
+          uniqueItems: true,
+          items: { type: "string" },
+          description: "Pending uploads from create_resource_upload_url to bind to this memo, in the same operation. Requires write:resources.",
+        },
       },
     },
   },
@@ -550,7 +557,7 @@ const MCP_TOOL_DEFINITIONS = [
   },
   {
     name: "update_memo",
-    description: "Update memo title, Markdown, tags, notebook, or pinned state. To generate an editable poster/海报笔记, call create_poster_memo; to edit one, use get_poster then update_poster. Never manually encode poster source or replace a poster request with ordinary prose.",
+    description: "Update memo title, Markdown, tags, notebook, or pinned state, and bind pending uploads with resourceIds. To generate an editable poster/海报笔记, call create_poster_memo; to edit one, use get_poster then update_poster. Never manually encode poster source or replace a poster request with ordinary prose.",
     inputSchema: {
       type: "object",
       required: ["memoId"],
@@ -565,6 +572,13 @@ const MCP_TOOL_DEFINITIONS = [
         expectedRevision: { type: "integer", minimum: 0 },
         createdAt: { type: "string", format: "date-time" },
         updatedAt: { type: "string", format: "date-time" },
+        resourceIds: {
+          type: "array",
+          maxItems: 20,
+          uniqueItems: true,
+          items: { type: "string" },
+          description: "Pending uploads from create_resource_upload_url to bind to this memo, in the same operation. Requires write:resources.",
+        },
       },
     },
   },
@@ -680,7 +694,7 @@ const MCP_TOOL_DEFINITIONS = [
   {
     name: "upload_memo_image",
     description:
-      "Upload a base64-encoded image resource to a memo and return Markdown that can be inserted into memo content. Images are stored as provided; server-side compression is disabled to avoid Cloudflare Images quota usage.",
+      "Upload a base64-encoded image resource to a memo and return Markdown that can be inserted into memo content. Images are stored as provided; server-side compression is disabled to avoid Cloudflare Images quota usage. For a file on disk, prefer create_resource_upload_url.",
     inputSchema: {
       type: "object",
       required: ["memoId", "mimeType", "dataBase64"],
@@ -695,8 +709,25 @@ const MCP_TOOL_DEFINITIONS = [
     },
   },
   {
+    name: "create_resource_upload_url",
+    description:
+      "Create a single-use URL to upload a local image or attachment (up to 100 MiB) without sending its bytes through a tool call and without an existing memo. Run the returned curl command from a shell that can read the file, replacing <path-to-file>; the request must send exactly byteSize bytes of mimeType content. The URL expires after 15 minutes. The PUT response contains resourceId, an authenticated url and Markdown; then pass the Markdown in contentMarkdown and the resourceId in resourceIds to create_memo, or to update_memo for an existing memo. Unbound uploads are deleted after 24 hours.",
+    inputSchema: {
+      type: "object",
+      required: ["kind", "mimeType", "byteSize"],
+      additionalProperties: false,
+      properties: {
+        kind: { type: "string", enum: ["image", "attachment"] },
+        mimeType: { type: "string" },
+        filename: { type: "string" },
+        byteSize: { type: "integer", minimum: 1, maximum: 104857600 },
+        label: { type: "string", description: "Image alt text or attachment link label used in the returned Markdown." },
+      },
+    },
+  },
+  {
     name: "upload_memo_attachment",
-    description: "Upload a base64-encoded attachment resource to a memo and return Markdown link text that can be inserted into memo content.",
+    description: "Upload a base64-encoded attachment resource to a memo and return Markdown link text that can be inserted into memo content. For a file on disk, prefer create_resource_upload_url.",
     inputSchema: {
       type: "object",
       required: ["memoId", "filename", "mimeType", "dataBase64"],
@@ -1086,6 +1117,7 @@ const NON_DESTRUCTIVE_MCP_TOOLS = new Set([
   "move_memos",
   "add_tags_to_memos",
   "upload_memo_image",
+  "create_resource_upload_url",
   "upload_memo_attachment",
   "move_notebook",
   "create_notebook",
