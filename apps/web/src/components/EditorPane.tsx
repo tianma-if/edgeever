@@ -4451,7 +4451,7 @@ const RichEditorPane = ({
               desktopFocusMode={desktopFocusMode}
               onToggleDesktopFocusMode={onToggleDesktopFocusMode}
             />
-            {!readOnly && (!mobileEditingActive || isMemoShared) && (
+            {!readOnly && editorColumnWidth >= 960 && (!mobileEditingActive || isMemoShared) && (
               <IconTooltip label={t(isLocalMemoId(memo.id) ? "sharing.afterSync" : isMemoShared ? "sharing.manage" : "sharing.action")}>
                 <Button
                   className="h-8 w-8 text-slate-500"
