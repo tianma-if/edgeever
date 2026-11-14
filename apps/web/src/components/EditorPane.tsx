@@ -319,7 +319,7 @@ import {
   getNoteLinkFromEventTarget,
   getNoteLinkHintPosition,
   getResourceFilesFromDataTransfer,
-  shouldInsertDroppedResourceFiles,
+  handleResourceFileDrop,
   isCreatedMemoEditorFocused,
   isEditorReady,
   releaseEditorMedia,
@@ -1476,23 +1476,7 @@ const RichEditorPane = ({
         insertResourceFiles(files);
         return true;
       },
-      handleDrop: (view, event) => {
-        if (!shouldInsertDroppedResourceFiles({
-          dataTransfer: event.dataTransfer,
-          isInternalNodeDrag: Boolean(view.dragging),
-        })) {
-          return false;
-        }
-
-        event.preventDefault();
-        // Use the same coordinate lookup as ProseMirror's external drop cursor.
-        // A drop inserts at a point; it must never replace the old text selection.
-        const dropPosition = view.posAtCoords({ left: event.clientX, top: event.clientY });
-        if (dropPosition) {
-          insertResourceFiles(getResourceFilesFromDataTransfer(event.dataTransfer), dropPosition.pos);
-        }
-        return true;
-      },
+      handleDrop: (view, event) => handleResourceFileDrop(view, event, insertResourceFiles),
     },
   }, [
     // Keep one TipTap view for the pane lifetime. A newly created memo already
@@ -4761,6 +4745,20 @@ const RichEditorPane = ({
       <div className="relative min-h-0 min-w-0 flex-1">
       <div
         ref={setEditorScrollContainerRef}
+        onDragOver={(event) => {
+          if (useMobilePlainTextEditor || useMarkdownSourceEditor || effectiveReadOnly ||
+            !isEditorReady(editor) || !editor.isEditable || editor.view.dragging ||
+            !Array.from(event.dataTransfer.types).includes("Files")) return;
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "copy";
+        }}
+        onDrop={(event) => {
+          if (useMobilePlainTextEditor || useMarkdownSourceEditor || effectiveReadOnly ||
+            !isEditorReady(editor)) return;
+          // Bubble phase preserves node handlers; a handled drop is ignored by
+          // the shared helper so each file is inserted only once.
+          handleResourceFileDrop(editor.view, event.nativeEvent, insertResourceFiles);
+        }}
         data-editor-theme="default"
         data-note-palette={noteProse.palette}
         data-note-heading-style={noteProseStyle.headingStyle}

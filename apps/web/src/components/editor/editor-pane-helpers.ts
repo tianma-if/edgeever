@@ -1,5 +1,6 @@
 import { EditorState } from "@tiptap/pm/state";
 import type { Editor } from "@tiptap/react";
+import type { EditorView } from "@tiptap/pm/view";
 import type { MemoDetail, MemoEditSession, TiptapDoc } from "@edgeever/shared";
 import { releaseHtmlMediaSources } from "@/lib/editor-media-release";
 import { isDesktopResourceRuntime } from "@/lib/desktop-resources";
@@ -203,6 +204,25 @@ export const shouldInsertDroppedResourceFiles = ({
   dataTransfer: DataTransfer | null;
   isInternalNodeDrag: boolean;
 }) => !isInternalNodeDrag && getResourceFilesFromDataTransfer(dataTransfer).length > 0;
+
+/** Shared by the ProseMirror surface and its surrounding blank canvas. */
+export const handleResourceFileDrop = (
+  view: Pick<EditorView, "editable" | "dragging" | "posAtCoords" | "state">,
+  event: DragEvent,
+  insertFiles: (files: File[], position: number) => boolean,
+) => {
+  if (event.defaultPrevented || !view.editable || !shouldInsertDroppedResourceFiles({
+    dataTransfer: event.dataTransfer,
+    isInternalNodeDrag: Boolean(view.dragging),
+  })) return false;
+
+  // Never replace the current selection. Blank canvas below the document may
+  // have no ProseMirror coordinate, so append at the document boundary instead.
+  const position = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos
+    ?? view.state.doc.content.size;
+  event.preventDefault();
+  return insertFiles(getResourceFilesFromDataTransfer(event.dataTransfer), position);
+};
 
 export const syncStatusToSaveState = (status: "pending" | "syncing" | "conflict" | "error") => {
   if (status === "conflict") {
