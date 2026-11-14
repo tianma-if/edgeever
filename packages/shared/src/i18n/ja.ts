@@ -3822,6 +3822,7 @@ export const ja = {
     refreshNow: "今すぐ更新",
     closeNotice: "更新のお知らせを閉じる",
     sidebarDownloads: "クライアントをダウンロード",
+    clientsAndExtensions: "クライアントとブラウザー拡張機能",
     sidebarDownloadsTitle: "EdgeEver クライアントとブラウザ拡張をダウンロード",
     sidebarGroupApps: "アプリとクライアント",
     sidebarGroupClippers: "ブラウザ Web Clipper",

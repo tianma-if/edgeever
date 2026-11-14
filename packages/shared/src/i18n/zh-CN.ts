@@ -3832,6 +3832,7 @@ export const zhCN = {
     refreshNow: "立即刷新",
     closeNotice: "关闭更新通知",
     sidebarDownloads: "下载客户端",
+    clientsAndExtensions: "客户端与浏览器扩展",
     sidebarDownloadsTitle: "下载 EdgeEver 客户端与浏览器插件",
     sidebarGroupApps: "客户端应用",
     sidebarGroupClippers: "浏览器剪藏插件",

@@ -3815,6 +3815,7 @@ export const enUS = {
     refreshNow: "Refresh now",
     closeNotice: "Close update notice",
     sidebarDownloads: "Download clients",
+    clientsAndExtensions: "Clients & Browser Extensions",
     sidebarDownloadsTitle: "Download EdgeEver clients and browser extensions",
     sidebarGroupApps: "Apps & Clients",
     sidebarGroupClippers: "Browser Web Clipper",

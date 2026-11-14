@@ -3832,6 +3832,7 @@ export const zhTW = {
     refreshNow: "立即重新整理",
     closeNotice: "關閉更新通知",
     sidebarDownloads: "下載客戶端",
+    clientsAndExtensions: "用戶端與瀏覽器擴充功能",
     sidebarDownloadsTitle: "下載 EdgeEver 客戶端與瀏覽器外掛",
     sidebarGroupApps: "客戶端應用",
     sidebarGroupClippers: "瀏覽器剪藏外掛",

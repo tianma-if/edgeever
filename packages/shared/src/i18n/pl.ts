@@ -3822,6 +3822,7 @@ export const pl = {
     refreshNow: "Odśwież teraz",
     closeNotice: "Zamknij powiadomienie o aktualizacji",
     sidebarDownloads: "Pobierz aplikacje",
+    clientsAndExtensions: "Aplikacje i rozszerzenia przeglądarki",
     sidebarDownloadsTitle: "Pobierz aplikacje EdgeEver i rozszerzenia przeglądarki",
     sidebarGroupApps: "Aplikacje",
     sidebarGroupClippers: "Web Clipper dla przeglądarki",

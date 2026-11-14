@@ -4020,6 +4020,7 @@ export const es = {
     "refreshNow": "Recargar ahora",
     "closeNotice": "Cerrar aviso de actualización",
     "sidebarDownloads": "Descargar clientes",
+    clientsAndExtensions: "Clientes y extensiones del navegador",
     "sidebarDownloadsTitle": "Descargar clientes y extensiones de navegador de EdgeEver",
     "sidebarGroupApps": "Apps y clientes",
     "sidebarGroupClippers": "Web Clipper para el navegador",

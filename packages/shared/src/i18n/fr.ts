@@ -4020,6 +4020,7 @@ export const fr = {
     refreshNow: "Actualiser maintenant",
     closeNotice: "Fermer l'avis de mise à jour",
     sidebarDownloads: "Télécharger les applications",
+    clientsAndExtensions: "Applications et extensions de navigateur",
     sidebarDownloadsTitle: "Télécharger les applications EdgeEver et les extensions pour navigateur",
     sidebarGroupApps: "Applications & clients",
     sidebarGroupClippers: "Web Clipper pour navigateur",

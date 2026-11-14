@@ -3833,6 +3833,7 @@ export const ru = {
     refreshNow: "Обновить сейчас",
     closeNotice: "Закрыть уведомление об обновлении",
     sidebarDownloads: "Скачать клиенты",
+    clientsAndExtensions: "Клиенты и расширения браузера",
     sidebarDownloadsTitle: "Скачать клиенты EdgeEver и расширения браузера",
     sidebarGroupApps: "Приложения и клиенты",
     sidebarGroupClippers: "Веб-клиппер",

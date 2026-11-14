@@ -135,15 +135,13 @@ describe("NotebookPane tree expansion persistence", () => {
 });
 
 describe("NotebookPane client downloads", () => {
-  test("keeps macOS, Windows, and Linux downloads visible in the desktop runtime", () => {
-    expect(source).toContain('t("pwa.sidebarMac") || "macOS"');
-    expect(source).toContain('t("pwa.sidebarWindows") || "Windows"');
-    expect(source).toContain('t("pwa.sidebarLinux") || "Linux"');
-    expect(source).not.toContain("!window.edgeeverDesktop?.isAvailable");
+  const downloads = readFileSync(new URL("./ClientDownloadLinks.tsx", import.meta.url), "utf8");
+  test("keeps sidebar downloads on the web and hides them in the desktop runtime", () => {
+    expect(source).toContain("!window.edgeeverDesktop?.isAvailable && (");
+    expect(source).toContain("<ClientDownloadLinks />");
   });
 
   test("labels Windows and Linux by package format instead of a preview badge", () => {
-    const downloads = source.split('pwa.sidebarDownloadsTitle')[1]?.split("</DropdownMenu>")[0];
 
     expect(downloads).toContain(">AppImage</span>");
     expect(downloads).toContain(">EXE</span>");
@@ -157,13 +155,13 @@ describe("NotebookPane client downloads", () => {
   });
 
   test("renders platform icons inline so desktop protocols do not break them", () => {
-    expect(source).toContain("<BrandIcon path={APPLE_ICON_PATH}");
-    expect(source).toContain("<BrandIcon path={WINDOWS_ICON_PATH}");
-    expect(source).toContain('<BrandIcon path={LINUX_ICON_PATH} className="h-4 w-4"');
-    expect(source).toContain("<GooglePlayIcon />");
-    expect(source).toContain("<AppStoreIcon />");
-    expect(source).toContain("<ChromeIcon />");
-    expect(source).not.toContain('src="/icons/platforms/');
+    expect(downloads).toContain("<BrandIcon path={APPLE_ICON_PATH}");
+    expect(downloads).toContain("<BrandIcon path={WINDOWS_ICON_PATH}");
+    expect(downloads).toContain('<BrandIcon path={LINUX_ICON_PATH} className="h-4 w-4"');
+    expect(downloads).toContain("<GooglePlayIcon />");
+    expect(downloads).toContain("<AppStoreIcon />");
+    expect(downloads).toContain("<ChromeIcon />");
+    expect(downloads).not.toContain('src="/icons/platforms/');
   });
 });
 
