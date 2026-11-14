@@ -221,7 +221,7 @@ const applyLegacyWeChatStyles = (
         const useAccentGradient = isHighlighted && Boolean(colors);
         if (useAccentGradient) {
           return [
-            `<section data-ee-publish-chrome="true" style="display: inline-block; vertical-align: top; width: 136px; flex-shrink: 0; box-sizing: border-box; border: 1px solid transparent; ${accentGradient} border-radius: 12px; padding: 12px; margin: 0 8px 8px 0;">`,
+            `<section data-ee-toc-card="true" data-ee-publish-chrome="true" style="display: block; min-width: 0; width: 100%; box-sizing: border-box; border: 1px solid transparent; ${accentGradient} border-radius: 12px; padding: 12px; margin: 0;">`,
             `<p data-ee-publish-chrome="true" style="font-size: 9px; line-height: 1.4; font-weight: 700; color: rgba(255,255,255,0.72); letter-spacing: 1px; margin: 0 0 5px;">${num}</p>`,
             `<p data-ee-publish-chrome="true" style="font-size: 13px; font-weight: 800; color: #ffffff; margin: 0 0 3px; line-height: 1.3;">${shortTitle}</p>`,
             `<p data-ee-publish-chrome="true" style="font-size: 10px; color: rgba(255,255,255,0.75); margin: 0; line-height: 1.4; word-break: break-word;">${subTitle}</p>`,
@@ -229,7 +229,7 @@ const applyLegacyWeChatStyles = (
           ].join("");
         }
         return [
-          `<section data-ee-publish-chrome="true" style="display: inline-block; vertical-align: top; width: 136px; flex-shrink: 0; box-sizing: border-box; background: ${isHighlighted ? "#f3f4f6" : "#ffffff"}; border: 1px solid #e5e7eb; border-radius: 12px; padding: 12px; margin: 0 8px 8px 0;">`,
+          `<section data-ee-toc-card="true" data-ee-publish-chrome="true" style="display: block; min-width: 0; width: 100%; box-sizing: border-box; background: ${isHighlighted ? "#f3f4f6" : "#ffffff"}; border: 1px solid #e5e7eb; border-radius: 12px; padding: 12px; margin: 0;">`,
           `<p data-ee-publish-chrome="true" style="font-size: 9px; line-height: 1.4; font-weight: 700; color: #6b7280; letter-spacing: 1px; margin: 0 0 5px;">${num}</p>`,
           `<p data-ee-publish-chrome="true" style="font-size: 13px; font-weight: 800; color: #111827; margin: 0 0 3px; line-height: 1.3;">${shortTitle}</p>`,
           `<p data-ee-publish-chrome="true" style="font-size: 10px; color: #6b7280; margin: 0; line-height: 1.4; word-break: break-word;">${subTitle}</p>`,
@@ -240,7 +240,7 @@ const applyLegacyWeChatStyles = (
         `<section data-ee-publish-chrome="true" style="margin-bottom: 10px;">`,
         `<p data-ee-publish-chrome="true" style="font-size: 10px; color: #9ca3af; margin: 0; text-transform: uppercase; letter-spacing: 2px; font-weight: 600;">${h2ListForToc.length} PARTS · 全文导览</p>`,
         `</section>`,
-        `<section data-ee-publish-chrome="true" style="display: flex; flex-wrap: wrap; align-items: stretch; font-size: 0;">${cardsHtml}</section>`,
+        `<section data-ee-publish-chrome="true" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 146px), 1fr)); gap: 8px; width: 100%; align-items: stretch; font-size: 0;">${cardsHtml}</section>`,
       ].join("");
       h2ListForToc[0].parentElement?.insertBefore(toc, h2ListForToc[0]);
     }

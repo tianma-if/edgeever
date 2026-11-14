@@ -361,17 +361,23 @@ describe("preparePublishArticle", () => {
 
       expect(root.querySelector("[data-ee-toc-cards]")).not.toBeNull();
       expect(root.querySelector("[data-ee-toc-cards]")?.textContent).toContain("2 PARTS");
-      const card = root.querySelector('[data-ee-toc-cards] section[style*="width: 136px"]');
+      const card = root.querySelector('[data-ee-toc-card]');
       expect(css(card)).toContain("background-color:#059669");
       expect(css(card)).toContain("linear-gradient(135deg,");
       expect(css(card)).not.toContain("color-mix");
-      const cards = root.querySelectorAll('[data-ee-toc-cards] section[style*="width: 136px"]');
+      const cards = root.querySelectorAll('[data-ee-toc-card]');
       expect(cards.length).toBe(2);
       for (const item of cards) {
         expect(css(item)).not.toContain("height:");
-        expect(css(item.parentElement)).toContain("display:flex");
+        expect(css(item.parentElement)).toContain("display:grid");
+        expect(css(item.parentElement)).toContain("grid-template-columns:repeat(auto-fill, minmax(min(100%, 146px), 1fr))");
+        expect(css(item.parentElement)).toContain("gap:8px");
+        expect(css(item)).toContain("width:100%");
+        expect(css(item)).toContain("min-width:0");
+        expect(css(item)).toContain("margin:0");
         expect(css(item.parentElement)).toContain("align-items:stretch");
         expect(css(item)).toContain("box-sizing:border-box");
+        expect(css(item)).toContain("padding:12px");
         expect(css(item)).toContain("border:1px solid");
         expect(css(item.querySelector("p"))).toContain("line-height:1.4");
       }
