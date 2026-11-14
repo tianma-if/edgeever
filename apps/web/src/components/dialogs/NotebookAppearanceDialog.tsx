@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type FormEvent } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Bold,
@@ -61,8 +61,18 @@ export const NotebookAppearanceDialog = ({
   const [iconQuery, setIconQuery] = useState("");
   const [iconOpen, setIconOpen] = useState(false);
   const iconTriggerRef = useRef<HTMLButtonElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
   const [saving, setSaving] = useState(false);
   const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    const form = formRef.current;
+    if (failed && !saving && form) {
+      form.scrollTo({
+        top: form.scrollHeight,
+        behavior: "smooth",
+      });
+    }
+  }, [failed, saving]);
   const validColor = color === "" || isNotebookColor(color);
   const validTextColor = textColor === "" || isNotebookColor(textColor);
   const icons = searchAvailableNotebookIcons(iconQuery);
@@ -114,7 +124,11 @@ export const NotebookAppearanceDialog = ({
             {t("notebookAppearance.title")}
           </DialogTitle>
         </DialogHeader>
-        <form onSubmit={save} className="max-h-[calc(100dvh-7rem)] overflow-y-auto" >
+        <form
+          ref={formRef}
+          onSubmit={save}
+          className="max-h-[calc(100dvh-7rem)] overflow-y-auto"
+        >
           <fieldset
             disabled={saving}
             className="min-w-0 space-y-5 bg-slate-50/70 px-5 py-5"
@@ -375,7 +389,7 @@ export const NotebookAppearanceDialog = ({
             </div>
           </fieldset>
           {failed && (
-            <p role="alert" className="text-sm text-rose-600">
+            <p role="alert" className="text-sm text-rose-600 pl-5">
               {t("notebookAppearance.saveError")}
             </p>
           )}
