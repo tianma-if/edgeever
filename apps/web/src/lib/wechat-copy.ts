@@ -26,6 +26,7 @@ import { renderThemedMermaidSvg } from "@/lib/mermaid-renderer";
 import { normalizeMermaidSvgForViewer } from "@/lib/mermaid-svg";
 import { copyHtmlToClipboard } from "@/lib/clipboard";
 import { parseCustomCssToStyles } from "@/lib/css-sandbox";
+import { readNoteCoverTags } from "@/lib/note-cover-tags";
 import { readNoteProseStylePreference } from "@/lib/note-prose-style-preference";
 
 const PUBLISH_FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif";
@@ -50,6 +51,7 @@ type WeChatMetrics = {
 };
 
 type PublishProseStyle = NoteProseStylePreferences & {
+  coverTags: string;
   showMagazineCover: boolean;
   showChapterNavigation: boolean;
 };
@@ -180,23 +182,24 @@ const applyLegacyWeChatStyles = (
     });
   }
 
-  if (proseStyle.showMagazineCover) {
+  // Numbered H1 cards also exist in the body, independently of the optional cover.
+  if (proseStyle.showMagazineCover || proseStyle.headingStyle === "numbered") {
     root.querySelectorAll<HTMLElement>("h1").forEach((heading) => {
       if (heading.querySelector("[data-ee-cover-card]")) return;
       const titleHtml = heading.innerHTML;
       heading.style.cssText = `margin: 0 0 28px; padding: 0; background: #ffffff; border: 1.5px solid ${divider}; border-radius: 20px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.06);`;
       heading.innerHTML = [
         `<section data-ee-publish-chrome="true" data-ee-cover-card="true" style="padding: 28px 24px 22px;">`,
-        `<section data-ee-publish-chrome="true" style="margin-bottom: 18px; font-size: 0;">`,
-        `<span data-ee-publish-chrome="true" style="display: inline-block; width: 6px; height: 6px; background: ${accent}; border-radius: 50%; vertical-align: middle;"><span leaf=""><br></span></span>`,
-        `<span data-ee-publish-chrome="true" style="display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: 3px; color: ${accent}; vertical-align: middle; margin-left: 8px;">FEATURED · 深度实测</span>`,
-        `</section>`,
+        ...(proseStyle.coverTags ? [
+          `<section data-ee-cover-tags="true" data-ee-publish-chrome="true" style="margin-bottom: 18px; font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; word-break: break-word;">`,
+          `<span data-ee-publish-chrome="true" style="display: inline-block; width: 6px; height: 6px; background: ${accent}; border-radius: 50%; vertical-align: middle;"><span leaf=""><br></span></span>`,
+          `<span data-ee-publish-chrome="true" style="display: inline-block; max-width: calc(100% - 14px); white-space: normal; font-size: 11px; font-weight: 700; letter-spacing: 3px; color: ${accent}; vertical-align: middle; margin-left: 8px;">${escapeHtmlAttribute(proseStyle.coverTags)}</span>`,
+          `</section>`,
+        ] : []),
         `<p data-ee-publish-chrome="true" style="font-size: ${metrics.fontSize * 1.75}px; font-weight: 900; color: #111827; margin: 0 0 14px; line-height: 1.2; letter-spacing: -0.5px;">${titleHtml}</p>`,
         `<section data-ee-publish-chrome="true" style="width: 48px; height: 3px; background: ${accent}; border-radius: 2px;"><span leaf=""><br></span></section>`,
         `</section>`,
-        `<section data-ee-publish-chrome="true" style="${colors ? accentGradient : "background: #f3f4f6;"} padding: 10px 24px; font-size: 0;">`,
-        `<span data-ee-publish-chrome="true" style="display: inline-block; font-size: 11px; color: ${colors ? "rgba(255,255,255,0.92)" : "#374151"}; font-weight: 600; letter-spacing: 0.8px; vertical-align: middle;">EDGEEVER · 精选笔记</span>`,
-        `</section>`,
+        `<section data-ee-cover-footer="true" data-ee-publish-chrome="true" style="${colors ? accentGradient : "background: #f3f4f6;"} height: 8px; font-size: 0; line-height: 0;"><span leaf=""><br></span></section>`,
       ].join("");
     });
   }
@@ -1243,6 +1246,7 @@ export const readEditorCopyContext = (from?: HTMLElement | null) => {
     headingStyle: parseNoteProseHeadingStyle(container?.dataset.noteHeadingStyle) ?? storedStyle.headingStyle,
     quoteStyle: parseNoteProseQuoteStyle(container?.dataset.noteQuoteStyle) ?? storedStyle.quoteStyle,
     emphasisStyle: parseNoteProseEmphasisStyle(container?.dataset.noteEmphasisStyle) ?? storedStyle.emphasisStyle,
+    coverTags: readNoteCoverTags(container?.dataset.noteTags),
     showMagazineCover: container?.dataset.noteMagazineCover === "true",
     showChapterNavigation: container?.dataset.noteChapterNavigation === "true",
   };

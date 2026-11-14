@@ -43,7 +43,7 @@
 .edgeever-editor[data-note-heading-style="numbered"] .markdown-content h1 {
   position: relative;
   margin: 0.5rem 0 2rem;
-  padding: 28px 24px 52px;
+  padding: 28px 24px 36px;
   background: #ffffff;
   border: 1.5px solid color-mix(in srgb, var(--note-palette-accent, #374151) 18%, transparent);
   border-radius: 20px;
@@ -65,25 +65,27 @@
 
 .edgeever-editor[data-note-heading-style="numbered"] .ProseMirror h1::before,
 .edgeever-editor[data-note-heading-style="numbered"] .markdown-content h1::before {
-  content: "●  FEATURED · 深度实测";
+  content: var(--note-cover-tags, none);
   display: block;
   margin-bottom: 16px;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 3px;
-  line-height: 1.2;
+  line-height: 1.5;
+  white-space: normal;
+  overflow-wrap: anywhere;
   color: var(--note-palette-accent, #374151);
   pointer-events: none;
 }
 
 .edgeever-editor[data-note-heading-style="numbered"] .ProseMirror h1::after,
 .edgeever-editor[data-note-heading-style="numbered"] .markdown-content h1::after {
-  content: "EDGEEVER · 精选笔记";
+  content: "";
   position: absolute;
   left: 0;
   right: 0;
   bottom: 0;
-  padding: 10px 24px;
+  height: 8px;
   background: linear-gradient(
     135deg,
     var(--note-palette-accent, #374151),

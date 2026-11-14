@@ -126,6 +126,7 @@ import { AiSidebarErrorBoundary } from "./ai-sidebar/AiSidebarErrorBoundary";
 import { api } from "@/lib/api";
 import { isDesktopResourceRuntime, stageDesktopResource, toDesktopResourceDownloadUrl, toDesktopResourceUrl } from "@/lib/desktop-resources";
 import { contentReferencesStagedResourceUrl, findMatchingMemoResource, repairMemoStagedResourceUrls, repairTiptapStagedResourceUrls } from "@/lib/staged-resource-repair";
+import { noteCoverTagCssVariables } from "@/lib/note-cover-tags";
 import { cn, parseTagsText } from "@/lib/utils";
 import {
   EDITOR_ARTICLE_ROW_GAP_PX,
@@ -4766,8 +4767,10 @@ const RichEditorPane = ({
         data-note-emphasis-style={noteProseStyle.emphasisStyle}
         data-note-magazine-cover={showMagazineCover ? "true" : "false"}
         data-note-chapter-navigation={showChapterNavigation ? "true" : "false"}
+        data-note-tags={JSON.stringify(parseTagsText(tagsText))}
         data-note-title={title || getEditableMemoTitle(memo?.title)}
         style={{
+          ...noteCoverTagCssVariables(parseTagsText(tagsText)),
           ...noteProseCssVariables(noteProse),
           ...noteProseStyleCssVariables(noteProseStyle),
           "--memo-content-divider-spacing": `${MEMO_CONTENT_STYLE.divider.marginVertical}px`,
@@ -4933,8 +4936,7 @@ const RichEditorPane = ({
                     showMagazineCover={showMagazineCover}
                     showChapterNavigation={showChapterNavigation}
                     title={title || getEditableMemoTitle(memo?.title)}
-                    tags={memo?.tags}
-                    notebookName={notebookName}
+                    tags={parseTagsText(tagsText)}
                     updatedAt={memo?.updatedAt}
                     palette={noteProse.palette}
                   />
@@ -4950,7 +4952,8 @@ const RichEditorPane = ({
           {!isMobileViewport && !useMobilePlainTextEditor && !useMarkdownSourceEditor && phonePreviewOpen && (
             <EditorPhonePreview
               editor={editor}
-              title={getEditableMemoTitle(memo?.title)}
+              title={title || getEditableMemoTitle(memo?.title)}
+              tagsKey={tagsText}
               showMagazineCover={showMagazineCover}
               showChapterNavigation={showChapterNavigation}
               scrollContainer={editorScrollContainer}

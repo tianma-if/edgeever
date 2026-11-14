@@ -336,6 +336,29 @@ describe("preparePublishArticle", () => {
       const root = preparePublishArticle(html, container);
       expect(root.querySelector("[data-ee-cover-card]")).not.toBeNull();
       expect(root.querySelector("[data-ee-cover-card]")?.textContent).toContain("深度评测文章");
+      expect(root.querySelector("[data-ee-cover-tags]")).toBeNull();
+      expect(root.querySelector("[data-ee-cover-footer]")?.textContent.trim()).toBe("");
+      expect(root.querySelector("[data-ee-cover-footer]")?.style.height).toBe("8px");
+      const tags = ["开源", "Cloudflare", '<img src=x onerror="alert(1)">', "第四个标签"];
+      container.dataset.noteTags = JSON.stringify(tags);
+      for (const tagged of [preparePublishArticle(html, container), prepareMarkdownPublishArticle("## 内容\n\n正文", container)]) {
+        const label = tagged.querySelector("[data-ee-cover-tags]");
+        expect(label?.textContent).toBe(tags.slice(0, 3).join(" · "));
+        expect(label?.querySelector("img")).toBeNull();
+        expect(css(label)).toContain("overflow-wrap:anywhere");
+        expect(tagged.querySelector("[data-ee-cover-footer]")?.textContent.trim()).toBe("");
+        expect(tagged.textContent).not.toContain("第四个标签");
+        expect(tagged.textContent).not.toContain("精选笔记");
+        expect(tagged.textContent).not.toContain("FEATURED");
+      }
+      container.dataset.noteMagazineCover = "false";
+      const bodyCover = preparePublishArticle("<h1>正文标题</h1><p>正文</p>", container);
+      expect(bodyCover.querySelector("[data-ee-cover-tags]")?.textContent).toBe(tags.slice(0, 3).join(" · "));
+      expect(bodyCover.querySelectorAll("h1").length).toBe(1);
+      container.dataset.noteMagazineCover = "true";
+      container.dataset.noteTags = "[]";
+      expect(preparePublishArticle(html, container).querySelector("[data-ee-cover-tags]")).toBeNull();
+
       expect(root.querySelector("[data-ee-toc-cards]")).not.toBeNull();
       expect(root.querySelector("[data-ee-toc-cards]")?.textContent).toContain("2 PARTS");
       const card = root.querySelector('[data-ee-toc-cards] section[style*="width: 136px"]');
