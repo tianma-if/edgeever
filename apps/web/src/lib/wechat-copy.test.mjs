@@ -353,7 +353,10 @@ describe("preparePublishArticle", () => {
       }
       container.dataset.noteMagazineCover = "false";
       const bodyCover = preparePublishArticle("<h1>正文标题</h1><p>正文</p>", container);
-      expect(bodyCover.querySelector("[data-ee-cover-tags]")?.textContent).toBe(tags.slice(0, 3).join(" · "));
+      expect(bodyCover.querySelector("[data-ee-cover-card]")).toBeNull();
+      expect(bodyCover.querySelector("[data-ee-cover-tags]")).toBeNull();
+      expect(bodyCover.querySelector("[data-ee-cover-footer]")).toBeNull();
+      expect(bodyCover.querySelector("h1")?.textContent).toBe("正文标题");
       expect(bodyCover.querySelectorAll("h1").length).toBe(1);
       container.dataset.noteMagazineCover = "true";
       container.dataset.noteTags = "[]";

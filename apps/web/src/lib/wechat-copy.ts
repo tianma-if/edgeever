@@ -182,8 +182,8 @@ const applyLegacyWeChatStyles = (
     });
   }
 
-  // Numbered H1 cards also exist in the body, independently of the optional cover.
-  if (proseStyle.showMagazineCover || proseStyle.headingStyle === "numbered") {
+  // Heading styles must not enable a cover independently of the reading-style toggle.
+  if (proseStyle.showMagazineCover) {
     root.querySelectorAll<HTMLElement>("h1").forEach((heading) => {
       if (heading.querySelector("[data-ee-cover-card]")) return;
       const titleHtml = heading.innerHTML;
