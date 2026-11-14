@@ -1,3 +1,4 @@
+import { assertBrowserImgBedEndpoint, browserImgBed } from "./imgbed-browser";
 import { expandImgBedFolder, imgBedAutoRetry, IMGBED_NAME_TYPES, IMGBED_UPLOAD_CHANNELS, type ImgBedNameType, type ImgBedUploadChannel } from "./imgbed";
 
 export const PICGO_STORAGE_KEY = "edgeever.desktop.picgo.v1";
@@ -75,7 +76,16 @@ export const hasPicGoBridge = () => Boolean(window.edgeeverDesktop?.uploadPicGoI
 export const hasImgBedChannelsBridge = () => Boolean(window.edgeeverDesktop?.listImgBedChannels);
 export const hasImgBedBridge = () => Boolean(window.edgeeverDesktop?.uploadImgBedImage && window.edgeeverDesktop?.testImgBedConnection);
 
-const hasBridge = (provider: ExternalImageHost) => provider === "imgbed" ? hasImgBedBridge() : hasPicGoBridge();
+// A desktop host without ImgBed IPC must keep its existing capability gate.
+export const isBrowserImgBed = () => !window.edgeeverDesktop;
+export const canUseImgBed = () => hasImgBedBridge() || isBrowserImgBed();
+export const canListImgBedChannels = () => hasImgBedChannelsBridge() || isBrowserImgBed();
+export const testImgBedConnection = (input: Omit<ImgBedPreference, "autoRetry"> & { autoRetry: boolean }) =>
+  isBrowserImgBed() ? browserImgBed.testImgBedConnection(input) : window.edgeeverDesktop!.testImgBedConnection!(input);
+export const listImgBedChannels = (input: { endpoint: string; token: string }) =>
+  isBrowserImgBed() ? browserImgBed.listImgBedChannels(input) : window.edgeeverDesktop!.listImgBedChannels!(input);
+
+const hasBridge = (provider: ExternalImageHost) => provider === "imgbed" ? canUseImgBed() : hasPicGoBridge();
 
 // The configured external host that will receive new images, or null for EdgeEver storage.
 export const activeExternalImageHost = (): ExternalImageHost | null => {
@@ -87,21 +97,42 @@ export const shouldUploadWithPicGo = () => activeExternalImageHost() !== null;
 
 export type PicGoFailureCopy = { title: string; message: string; retry: string; fallback: string; cancel: string };
 
-export const uploadImageWithPicGo = async (file: File, copy: PicGoFailureCopy, context: { memoId?: string } = {}) => {
+export type BrowserImgBedFailureChoice = "retry" | "fallback" | "cancel";
+export const uploadImageWithPicGo = async (file: File, copy: PicGoFailureCopy, context: {
+  memoId?: string; isActive?: () => boolean; chooseFailure?: () => Promise<BrowserImgBedFailureChoice>;
+} = {}) => {
   const preference = readPicGoPreference();
   if (preference.provider === "edgeever" || !hasBridge(preference.provider)) return null;
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  const result = preference.provider === "imgbed"
-    ? await window.edgeeverDesktop!.uploadImgBedImage!({
-      endpoint: preference.imgbed.endpoint, token: preference.imgbed.token, nameType: preference.imgbed.nameType,
-      uploadChannel: preference.imgbed.uploadChannel, channelName: preference.imgbed.channelName, serverCompress: preference.imgbed.serverCompress,
-      autoRetry: imgBedAutoRetry(preference.imgbed.autoRetry, preference.imgbed.channelName),
-      uploadFolder: expandImgBedFolder(preference.imgbed.uploadFolder, new Date(), { memoId: context.memoId }), bytes, filename: file.name, mimeType: file.type, copy,
-    })
-    : await window.edgeeverDesktop!.uploadPicGoImage({
-      endpoint: preference.endpoint, serverKey: preference.serverKey, bytes, filename: file.name, mimeType: file.type, copy,
-    });
-  return "url" in result ? {
-    kind: "image" as const, url: result.url, filename: file.name, mimeType: file.type, byteSize: file.size,
-  } : null;
+  const upload = async () => {
+    if (preference.provider === "imgbed" && isBrowserImgBed()) {
+      assertBrowserImgBedEndpoint(preference.imgbed.endpoint);
+      if (!file.type.startsWith("image/") || file.size === 0 || file.size > 50 * 1024 * 1024) throw new Error("ImgBed requires an image of up to 50 MB");
+    }
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const result = preference.provider === "imgbed"
+      ? await (isBrowserImgBed() ? browserImgBed.uploadImgBedImage : window.edgeeverDesktop!.uploadImgBedImage!)({
+        endpoint: preference.imgbed.endpoint, token: preference.imgbed.token, nameType: preference.imgbed.nameType,
+        uploadChannel: preference.imgbed.uploadChannel, channelName: preference.imgbed.channelName, serverCompress: preference.imgbed.serverCompress,
+        autoRetry: imgBedAutoRetry(preference.imgbed.autoRetry, preference.imgbed.channelName),
+        uploadFolder: expandImgBedFolder(preference.imgbed.uploadFolder, new Date(), { memoId: context.memoId }), bytes, filename: file.name, mimeType: file.type, copy,
+      })
+      : await window.edgeeverDesktop!.uploadPicGoImage({
+        endpoint: preference.endpoint, serverKey: preference.serverKey, bytes, filename: file.name, mimeType: file.type, copy,
+      });
+    return "url" in result ? {
+      kind: "image" as const, url: result.url, filename: file.name, mimeType: file.type, byteSize: file.size,
+    } : null;
+  };
+  while (true) {
+    if (context.isActive && !context.isActive()) throw new Error("The active note changed during image upload");
+    try { return await upload(); }
+    catch (error) {
+      if (preference.provider !== "imgbed" || !isBrowserImgBed() || !context.chooseFailure) throw error;
+      if (context.isActive && !context.isActive()) throw error;
+      const choice = await context.chooseFailure();
+      if (context.isActive && !context.isActive()) throw error;
+      if (choice === "fallback") return null;
+      if (choice !== "retry") throw new Error("ImgBed upload cancelled");
+    }
+  }
 };

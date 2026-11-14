@@ -198,7 +198,7 @@ L'administrateur de l'instance peut créer, désactiver ou réinitialiser les co
 
 - **Stockage d'objets OSS** : Le propriétaire de l'instance peut configurer un stockage d'objets compatible S3 dans **Paramètres → Avancé → Stockage d'objets OSS**. Changer de stockage ne migre ni n'altère les pièces jointes existantes.
 - **Intégration PicGo dans l'application de bureau** : L'application de bureau peut transmettre les images insérées à un serveur PicGo ou PicList local ou hébergé sur une autre machine de confiance (ex. un NAS). Ce serveur les téléverse ensuite vers GitHub, SM.MS, Upyun, Qiniu ou un hébergeur d'images personnalisé. L'adresse doit simplement se terminer par `/upload`, ce qui fonctionne également avec PicList derrière un reverse proxy.
-- **CloudFlare ImgBed dans l'application de bureau** : L'application de bureau peut également téléverser les images insérées directement vers votre instance auto-hébergée de [CloudFlare ImgBed](https://github.com/MarSeventh/CloudFlare-ImgBed) via un jeton d'API. Le dossier de destination accepte les variables de chemin de type PicList, telles que `{Y}/{m}/{d}` et `{memoId}`.
+- **CloudFlare ImgBed sur ordinateur et web** : Téléversez directement les images vers votre [CloudFlare ImgBed](https://github.com/MarSeventh/CloudFlare-ImgBed) avec un jeton API. Les dossiers acceptent `{Y}/{m}/{d}` et `{memoId}`. Sur le web, HTTPS et CORS autorisant l’origine EdgeEver et l’en-tête `Authorization` sont nécessaires. Les identifiants restent dans le navigateur ou l’application de bureau ; les images sont exclues des sauvegardes EdgeEver.
 
 ### Plugins et thèmes
 

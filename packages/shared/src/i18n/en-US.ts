@@ -1071,6 +1071,11 @@ export const enUS = {
       fallback: "Save to EdgeEver",
       cancel: "Cancel",
       imgbed: {
+        "browserDescription": "The web app connects directly to ImgBed. Use HTTPS and allow CORS for this EdgeEver site, including the Authorization header. The desktop app is recommended for local or private-network hosts.",
+        "browserTokenDescription": "Create a token with upload permission in ImgBed. It stays in this browser, is not synced to other devices, and is sent directly to ImgBed when uploading.",
+        "browserAddress": "Enter a valid HTTPS ImgBed address without credentials, query parameters or a fragment.",
+        "browserNetwork": "Unable to read the ImgBed response. Check the network, HTTPS certificate and CORS settings (allow this site and the Authorization header). The test image may already be uploaded; testing again may create duplicates.",
+        "browserUploadFailed": "Check the address, token, network and ImgBed CORS settings. The image may already be uploaded, but the browser could not read the result. Retrying may create duplicates. You can also save to EdgeEver or cancel.",
         option: "CloudFlare ImgBed",
         description: "Upload new images directly to your self-hosted CloudFlare ImgBed and insert the returned image link into the note.",
         endpoint: "ImgBed address",

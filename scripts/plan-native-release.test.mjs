@@ -65,6 +65,7 @@ describe("native release planning", () => {
     const changedFiles = [
       "apps/web/src/app/App.tsx",
       "apps/desktop/src/main/index.mjs",
+      "packages/image-host/src/imgbed-client.mjs",
       "packages/shared/src/index.ts",
     ];
     expect(planNativeRelease("desktop", changedFiles)).toEqual({

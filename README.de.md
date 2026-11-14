@@ -197,7 +197,7 @@ Der Administrator der Instanz kann unter **Profil** -> **Benutzerkonten** Mitgli
 
 - **OSS-Objektspeicher**: Der Instanzinhaber kann S3-kompatiblen Objektspeicher unter **Einstellungen → Erweitert → OSS-Objektspeicher** konfigurieren. Ein Wechsel des Speichers migriert oder beeinträchtigt bestehende Anhänge nicht.
 - **PicGo-Integration der Desktop-App**: Die Desktop-App kann eingefügte Bilder an einen PicGo- oder PicList-Server auf diesem Computer oder auf einem anderen vertrauenswürdigen Rechner (z. B. einem NAS) übergeben. Dieser Server lädt sie auf GitHub, SM.MS, Upyun, Qiniu oder einen benutzerdefinierten Bildhoster hoch. Die Adresse muss lediglich auf `/upload` enden, sodass auch ein PicList hinter einem Reverse-Proxy funktioniert.
-- **CloudFlare ImgBed der Desktop-App**: Die Desktop-App kann eingefügte Bilder auch direkt mit einem API-Token auf dein selbst gehostetes [CloudFlare ImgBed](https://github.com/MarSeventh/CloudFlare-ImgBed) hochladen. Der Upload-Ordner unterstützt Platzhalter im PicList-Stil wie `{Y}/{m}/{d}` und `{memoId}`.
+- **CloudFlare ImgBed für Desktop und Web**: Bilder mit API-Token direkt auf dein selbst gehostetes [CloudFlare ImgBed](https://github.com/MarSeventh/CloudFlare-ImgBed) hochladen. Ordner unterstützen `{Y}/{m}/{d}` und `{memoId}`. Im Web sind HTTPS und CORS für den EdgeEver-Origin und den `Authorization`-Header erforderlich. Zugangsdaten bleiben im aktuellen Browser oder der Desktop-App; Bilder sind nicht in EdgeEver-Backups enthalten.
 
 ### Plugins und Themes
 

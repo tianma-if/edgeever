@@ -282,6 +282,7 @@ import { classifyEditorSaveFailure, shouldLeaveEditorAfterSaveError } from "./ed
 import { useEditorSaveConflictActions } from "./editor/useEditorSaveConflictActions";
 import { useEditorNoteSearchController } from "./editor/useEditorNoteSearchController";
 import { EditorNoteLinkPicker } from "./editor/EditorNoteLinkPicker";
+import { useBrowserImgBedFailure } from "./editor/useBrowserImgBedFailure";
 import { EditorResourceDialogs } from "./editor/EditorResourceDialogs";
 import { EditorNoteSearchBar } from "./editor/EditorNoteSearchBar";
 import { EditorSaveRecoveryBanner } from "./editor/EditorSaveRecoveryBanner";
@@ -509,6 +510,7 @@ const RichEditorPane = ({
   }, [memo?.id]);
   const [editorStateVersion, setEditorStateVersion] = useState(0);
   const [editorContentVersion, setEditorContentVersion] = useState(0);
+  const { chooseFailure: chooseImgBedFailure, failureDialog: imgBedFailureDialog } = useBrowserImgBedFailure(`${localDataScope}:${memo?.id ?? ""}`);
   const [imageUploadState, setImageUploadState] = useState<"idle" | "compressing" | "uploading" | "error">("idle");
   const [imagePreview, setImagePreview] = useState<ImagePreviewRequestDetail | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -1064,7 +1066,9 @@ const RichEditorPane = ({
       const external = await uploadImageWithPicGo(uploadFile, {
         title: t(`${failure}.failedTitle`), message: t(`${failure}.failedMessage`),
         retry: t("settings.picgo.retry"), fallback: t("settings.picgo.fallback"), cancel: t("settings.picgo.cancel"),
-      }, { memoId: targetMemoId });
+      }, { memoId: targetMemoId, chooseFailure: chooseImgBedFailure,
+        isActive: () => memoRef.current?.id === targetMemoId && editorInstanceMemoIdentityRef.current.instanceKey === instanceKey,
+      });
       // PicGo or its failure dialog may outlive the original note/instance.
       if (memoRef.current?.id !== targetMemoId || editorInstanceMemoIdentityRef.current.instanceKey !== instanceKey) {
         throw new Error("The active note changed during image upload");
@@ -1101,7 +1105,7 @@ const RichEditorPane = ({
         url: `edgeever-staged://${staged.id}`,
       };
     }
-  }, [repository, t]);
+  }, [repository, t, chooseImgBedFailure]);
 
   const insertResourceFiles = useCallback((files: File[], dropPosition?: number) => {
     const currentMemo = memoRef.current;
@@ -5138,6 +5142,7 @@ const RichEditorPane = ({
         />
       )}
 
+      {imgBedFailureDialog}
       <ShareMemoDialog memoId={memo.id} open={shareOpen} onOpenChange={setShareOpen} />
 
       {imageShareSource && (

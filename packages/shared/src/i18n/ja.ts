@@ -1079,6 +1079,11 @@ export const ja = {
       fallback: "EdgeEver に保存",
       cancel: "キャンセル",
       imgbed: {
+        "browserDescription": "Web 版は ImgBed に直接接続します。HTTPS を使用し、Authorization ヘッダーを含め、この EdgeEver サイトの CORS を許可してください。ローカルやプライベートネットワークの図床にはデスクトップ版を推奨します。",
+        "browserTokenDescription": "ImgBed で upload 権限のあるトークンを作成してください。このブラウザーにのみ保存され、他の端末には同期されません。アップロード時に ImgBed へ直接送信されます。",
+        "browserAddress": "認証情報、クエリ、フラグメントを含まない有効な HTTPS ImgBed アドレスを入力してください。",
+        "browserNetwork": "ImgBed の応答を読み取れません。ネットワーク、HTTPS 証明書、CORS 設定（このサイトと Authorization ヘッダーの許可）を確認してください。テスト画像は既にアップロードされている可能性があり、再テストで重複する場合があります。",
+        "browserUploadFailed": "アドレス、トークン、ネットワーク、ImgBed の CORS 設定を確認してください。画像は既にアップロードされ、結果だけ読み取れなかった可能性があります。再試行で重複する場合があります。EdgeEver に保存するか、キャンセルすることもできます。",
         option: "CloudFlare ImgBed",
         description: "新しく挿入した画像を自前の CloudFlare ImgBed に直接アップロードし、返された画像リンクをノートに挿入します。",
         endpoint: "ImgBed アドレス",

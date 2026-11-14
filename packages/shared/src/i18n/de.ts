@@ -1229,6 +1229,11 @@ export const de = {
       "fallback": "In EdgeEver speichern",
       "cancel": "Abbrechen",
       "imgbed": {
+        "browserDescription": "Die Web-App verbindet sich direkt mit ImgBed. Verwenden Sie HTTPS und erlauben Sie CORS für diese EdgeEver-Website einschließlich des Authorization-Headers. Für lokale oder private Server wird die Desktop-App empfohlen.",
+        "browserTokenDescription": "Erstellen Sie in ImgBed ein Token mit upload-Berechtigung. Es bleibt in diesem Browser, wird nicht mit anderen Geräten synchronisiert und beim Upload direkt an ImgBed gesendet.",
+        "browserAddress": "Geben Sie eine gültige HTTPS-ImgBed-Adresse ohne Zugangsdaten, Abfrageparameter oder Fragment ein.",
+        "browserNetwork": "Die ImgBed-Antwort konnte nicht gelesen werden. Prüfen Sie Netzwerk, HTTPS-Zertifikat und CORS (diese Website und Authorization-Header erlauben). Das Testbild wurde möglicherweise bereits hochgeladen; ein weiterer Test kann Duplikate erzeugen.",
+        "browserUploadFailed": "Prüfen Sie Adresse, Token, Netzwerk und ImgBed-CORS. Das Bild wurde möglicherweise hochgeladen, aber der Browser konnte das Ergebnis nicht lesen. Ein erneuter Versuch kann Duplikate erzeugen. Sie können auch in EdgeEver speichern oder abbrechen.",
         "option": "CloudFlare ImgBed",
         "description": "Neue Bilder direkt in Ihr selbst gehostetes CloudFlare ImgBed hochladen und den zurückgegebenen Bildlink in die Notiz einfügen.",
         "endpoint": "ImgBed-Adresse",

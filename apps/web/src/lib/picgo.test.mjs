@@ -77,11 +77,13 @@ test("keeps an older saved address and lifts a pasted PicList key out of the add
   return uploadImageWithPicGo(file(), copy);
 });
 
-test("ImgBed expands the folder for the target note and needs its own desktop bridge", async () => {
+test("ImgBed expands the folder and preserves older desktop bridge capability checks", async () => {
   const storage = setup();
   const imgbed = { endpoint: "https://img.example.com", token: "imgbed-token", uploadFolder: "notes/{Y}/{memoId}", nameType: "origin", uploadChannel: "cfr2", channelName: "Main R2", serverCompress: false, autoRetry: null };
   storage.set(PICGO_STORAGE_KEY, JSON.stringify({ provider: "imgbed", endpoint: DEFAULT_PICGO_ENDPOINT, imgbed: { ...imgbed, nameType: "bogus", uploadChannel: "ftp", serverCompress: "no", autoRetry: "no" } }));
   expect(readPicGoPreference().imgbed).toEqual({ ...imgbed, nameType: "default", uploadChannel: "telegram", serverCompress: true });
+  expect(activeExternalImageHost()).toBe("imgbed");
+  globalThis.window.edgeeverDesktop = { isAvailable: true };
   expect(activeExternalImageHost()).toBeNull();
 
   globalThis.window.edgeeverDesktop = {

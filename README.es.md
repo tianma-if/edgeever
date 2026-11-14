@@ -198,7 +198,7 @@ El administrador de la instancia puede crear, deshabilitar o restablecer cuentas
 
 - **Almacenamiento de objetos OSS**: El propietario de la instancia puede configurar almacenamiento de objetos compatible con S3 en **Ajustes → Avanzado → Almacenamiento de objetos OSS**. Cambiar el almacenamiento no migra ni afecta a los archivos adjuntos existentes.
 - **Integración de PicGo en la app de escritorio**: La aplicación de escritorio puede transferir las imágenes insertadas a un servidor PicGo o PicList en este equipo o en otra máquina de confianza, como un NAS. Dicho servidor las sube a GitHub, SM.MS, Upyun, Qiniu o a un host de imágenes personalizado. La dirección solo necesita terminar en `/upload`, por lo que también funciona un PicList detrás de un proxy inverso.
-- **CloudFlare ImgBed en la app de escritorio**: La aplicación de escritorio también puede subir imágenes insertadas directamente a tu instancia autoalojada de [CloudFlare ImgBed](https://github.com/MarSeventh/CloudFlare-ImgBed) mediante un token de API. La carpeta de subida admite marcadores de posición al estilo PicList, como `{Y}/{m}/{d}` y `{memoId}`.
+- **CloudFlare ImgBed en escritorio y web**: Suba imágenes directamente a su [CloudFlare ImgBed](https://github.com/MarSeventh/CloudFlare-ImgBed) con un token API. Las carpetas admiten `{Y}/{m}/{d}` y `{memoId}`. En la web se requiere HTTPS y CORS que permita el origen EdgeEver y el encabezado `Authorization`. Las credenciales permanecen en el navegador o la aplicación de escritorio; las imágenes no se incluyen en las copias de seguridad de EdgeEver.
 
 ### Plugins y temas
 

@@ -18,6 +18,7 @@
     "electron-builder": "^26.0.12"
   },
   "dependencies": {
+    "@edgeever/image-host": "workspace:*",
     "@agentclientprotocol/sdk": "^1.5.1",
     "@edgeever/public-network": "workspace:*",
     "croner": "^10.0.1",

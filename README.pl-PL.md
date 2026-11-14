@@ -198,7 +198,7 @@ Administrator może tworzyć i wyłączać konta oraz resetować ich hasła w **
 
 - **Magazyn obiektów OSS**: Właściciel instancji może skonfigurować magazyn zgodny z S3 w **Profil → Zaawansowane → Magazyn obiektów OSS**. Zmiana magazynu nie przenosi istniejących załączników ani ich nie modyfikuje.
 - **Integracja z PicGo na komputerze**: Aplikacja desktopowa może przekazać wstawiane obrazy do PicGo lub PicList na tym komputerze albo na innej zaufanej maszynie, na przykład NAS. Serwer wysyła je do GitHuba, SM.MS, Upyun, Qiniu lub własnego hostingu. Adres musi tylko kończyć się na `/upload`, więc działa też PicList za odwrotnym proxy.
-- **CloudFlare ImgBed na komputerze**: Aplikacja desktopowa może też przesyłać wstawiane obrazy bezpośrednio do własnego [CloudFlare ImgBed](https://github.com/MarSeventh/CloudFlare-ImgBed) przy użyciu tokenu API. Folder docelowy obsługuje symbole zastępcze w stylu PicList, np. `{Y}/{m}/{d}` i `{memoId}`.
+- **CloudFlare ImgBed na komputerze i w przeglądarce**: Przesyłaj obrazy bezpośrednio do własnego [CloudFlare ImgBed](https://github.com/MarSeventh/CloudFlare-ImgBed) z tokenem API. Foldery obsługują `{Y}/{m}/{d}` i `{memoId}`. W przeglądarce wymagane są HTTPS i CORS zezwalający na origin EdgeEver oraz nagłówek `Authorization`. Dane uwierzytelniające pozostają w bieżącej przeglądarce lub aplikacji komputerowej; obrazy nie są objęte kopiami zapasowymi EdgeEver.
 
 ### Wtyczki i motywy
 

@@ -1,0 +1,10 @@
+{
+  "name": "@edgeever/image-host",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "files": ["src/"],
+  "exports": {
+    "./imgbed": { "types": "./src/imgbed-client.d.mts", "default": "./src/imgbed-client.mjs" }
+  }
+}

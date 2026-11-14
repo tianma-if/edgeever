@@ -1079,6 +1079,11 @@ export const pl = {
       fallback: "Zapisz w EdgeEver",
       cancel: "Anuluj",
       imgbed: {
+        "browserDescription": "Aplikacja internetowa łączy się bezpośrednio z ImgBed. Użyj HTTPS i zezwól na CORS dla tej witryny EdgeEver, w tym nagłówek Authorization. Dla serwerów lokalnych lub prywatnych zalecana jest aplikacja komputerowa.",
+        "browserTokenDescription": "Utwórz w ImgBed token z uprawnieniem upload. Pozostaje w tej przeglądarce, nie jest synchronizowany z innymi urządzeniami i jest wysyłany bezpośrednio do ImgBed podczas przesyłania.",
+        "browserAddress": "Podaj prawidłowy adres HTTPS ImgBed bez danych logowania, parametrów zapytania ani fragmentu.",
+        "browserNetwork": "Nie można odczytać odpowiedzi ImgBed. Sprawdź sieć, certyfikat HTTPS i CORS (zezwól na tę witrynę i nagłówek Authorization). Obraz testowy mógł już zostać przesłany; ponowny test może utworzyć duplikaty.",
+        "browserUploadFailed": "Sprawdź adres, token, sieć i CORS ImgBed. Obraz mógł zostać przesłany, ale przeglądarka nie odczytała wyniku. Ponowna próba może utworzyć duplikaty. Możesz też zapisać w EdgeEver lub anulować.",
         option: "CloudFlare ImgBed",
         description: "Przesyłaj nowe obrazy bezpośrednio do własnego CloudFlare ImgBed i wstawiaj zwrócony link do notatki.",
         endpoint: "Adres ImgBed",

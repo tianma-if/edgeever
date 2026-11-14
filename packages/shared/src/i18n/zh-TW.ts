@@ -1090,6 +1090,11 @@ export const zhTW = {
       fallback: "改存 EdgeEver",
       cancel: "取消",
       imgbed: {
+        "browserDescription": "網頁端直接連線圖床，需要 HTTPS 位址，並允許目前 EdgeEver 網站跨來源存取（包括 Authorization 請求標頭）。本機或內網圖床建議使用桌面端。",
+        "browserTokenDescription": "在 ImgBed 管理介面建立具有 upload 權限的 Token。Token 僅儲存在目前瀏覽器，不會同步至其他裝置，上傳時直接傳送給圖床。",
+        "browserAddress": "網頁端請填寫有效的 HTTPS ImgBed 位址，不要包含帳號、密碼、查詢參數或片段。",
+        "browserNetwork": "無法讀取圖床回應。請檢查網路、HTTPS 憑證及圖床跨來源設定（允許目前網站和 Authorization 請求標頭）。測試圖片可能已上傳，再次測試可能產生重複圖片。",
+        "browserUploadFailed": "請檢查位址、Token、網路和圖床跨來源設定。圖片可能已上傳，但瀏覽器未能讀取結果；重試可能產生重複圖片。也可以選擇改存 EdgeEver 或取消。",
         option: "CloudFlare ImgBed",
         description: "把新插入的圖片直接上傳到你自建的 CloudFlare ImgBed，並把返回的圖片連結寫入筆記。",
         endpoint: "ImgBed 地址",

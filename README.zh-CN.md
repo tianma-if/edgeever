@@ -199,7 +199,7 @@ curl -fsSL https://edgeever.org/install.sh | bash
 
 - **OSS 对象存储**：实例 Owner 可在**设置 → 高级设置 → OSS 对象存储**中配置兼容 S3 API 的对象存储。切换存储不会迁移或影响已有附件。
 - **桌面端 PicGo 图床**：桌面端可以把新插入的图片交给本机或你信任的远程 PicGo、PicList 服务（例如 NAS），再由它上传到 GitHub、SM.MS、又拍云、七牛云或自建图床。地址只需以 `/upload` 结尾，经过反向代理的 PicList 也能使用。
-- **桌面端 CloudFlare ImgBed 图床**：桌面端也可以用 API Token 把新插入的图片直接上传到你自建的 [CloudFlare ImgBed](https://github.com/MarSeventh/CloudFlare-ImgBed)。上传目录支持 `{Y}/{m}/{d}`、`{memoId}` 等 PicList 风格的占位符。
+- **桌面端与网页端 CloudFlare ImgBed**：使用 API Token 将新插入的图片直接上传到自建 [CloudFlare ImgBed](https://github.com/MarSeventh/CloudFlare-ImgBed)，目录支持 `{Y}/{m}/{d}`、`{memoId}` 等占位符。网页端要求 HTTPS，并在图床跨域配置中允许当前 EdgeEver 来源和 `Authorization` 请求头。凭据仅保存在当前浏览器或桌面端，图片不纳入 EdgeEver 备份。
 
 ### 插件与个性化主题
 

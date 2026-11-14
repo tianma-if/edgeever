@@ -197,7 +197,7 @@ The instance administrator can create, disable, or reset member accounts in **Pr
 
 - **OSS Object Storage**: The instance owner can configure S3-compatible object storage under **Settings → Advanced → OSS object storage**. Changing storage does not migrate or affect existing attachments.
 - **Desktop PicGo integration**: The desktop app can hand inserted images to a PicGo or PicList server on this computer or on another machine you trust, such as a NAS. That server uploads them to GitHub, SM.MS, Upyun, Qiniu, or a custom image host. The address only needs to end with `/upload`, so a PicList behind a reverse proxy works too.
-- **Desktop CloudFlare ImgBed**: The desktop app can also upload inserted images straight to your self-hosted [CloudFlare ImgBed](https://github.com/MarSeventh/CloudFlare-ImgBed) with an API token. The upload folder accepts PicList-style placeholders such as `{Y}/{m}/{d}` and `{memoId}`.
+- **CloudFlare ImgBed on desktop and web**: Upload inserted images directly to your self-hosted [CloudFlare ImgBed](https://github.com/MarSeventh/CloudFlare-ImgBed) using an API token. Folder templates support `{Y}/{m}/{d}` and `{memoId}`. Web access requires HTTPS and CORS allowing your EdgeEver origin and the `Authorization` header. Credentials stay in the current browser or desktop app; images are excluded from EdgeEver backups.
 
 ### Plugins and Themes
 
