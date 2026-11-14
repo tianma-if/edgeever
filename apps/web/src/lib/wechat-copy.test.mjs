@@ -71,6 +71,19 @@ curl -fsSL https://edgeever.org/install.sh | bash
 `;
 
 describe("preparePublishArticle", () => {
+  test("uses a section wrapper so Zhihu can import headings and paragraphs separately", () => {
+    const html = "<p>Introduction</p><h2>Chapter</h2><p>Body</p><h3>Details</h3><p>End</p>";
+    const markdown = "Introduction\n\n## Chapter\n\nBody\n\n### Details\n\nEnd";
+    for (const root of [preparePublishArticle(html), prepareMarkdownPublishArticle(markdown)]) {
+      expect(root.tagName).toBe("SECTION");
+      expect(Array.from(root.children, (element) => element.tagName)).toEqual(["P", "H2", "P", "H3", "P"]);
+      expect(root.querySelector("h2").textContent).toBe("Chapter");
+      expect(css(root.querySelector("h2"))).toContain("font-weight:600");
+      expect(css(root)).toContain("background-color:#ffffff");
+      expect(root.outerHTML).toMatch(/^<section\b/);
+    }
+  });
+
   test("exports a light reading accent from a dark editor", () => {
     const container = document.createElement("div");
     container.dataset.notePalette = "violet";

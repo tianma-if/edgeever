@@ -1264,7 +1264,9 @@ export const preparePublishArticle = (
   html: string,
   from?: HTMLElement | null,
 ) => {
-  const root = document.createElement("div");
+  // Zhihu treats a wrapping div as one text block, flattening nested headings
+  // and paragraphs. A section retains the shared styles and block semantics.
+  const root = document.createElement("section");
   root.innerHTML = html;
   flattenDetailsForLinearHtml(root);
   const context = readEditorCopyContext(from);
