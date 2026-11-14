@@ -6,7 +6,7 @@ EdgeEver supports importing notes from other products directly. Two methods are 
 
 ---
 
-## 1. Native One-Click Import (Evernote / Obsidian / Joplin / flomo)
+## 1. Native One-Click Import (Evernote / Obsidian / Joplin / flomo / Notion / SiYuan)
 
 Operate directly in EdgeEver Web or Desktop without CLI commands or MCP setup.
 
@@ -28,6 +28,9 @@ Select your source platform in the dialog, then drag and drop or browse files:
 - **Obsidian**:
   - Drag and drop your local Vault folder directly, or compress the Vault into a `.zip`.
   - Automatically parses Front Matter, tags, and Wiki-link images (`![[image.png]]`), while ignoring `.obsidian` and `.git`.
+- **Notion**: Export **Markdown & CSV**, including subpages and files; import the original ZIP (including Notion export parts) or the extracted directory. Titles and folders omit Notion IDs for display while original paths retain identity. CSV databases remain downloadable attachments, not live database views.
+- **SiYuan**: Export **Markdown**, including `assets`, and select the ZIP or extracted directory. Images and audio/video HTML are imported as attachments. `.sy` backups are not supported.
+- **Limitations for these exports**: Internal page/block links remain unchanged with warnings; database relations, formulas and views are not reconstructed. Missing timestamps use import time. Unsupported or missing content is reported during preflight. Missing Notion and SiYuan attachments produce warnings and allow import with original links preserved; out-of-root paths or ambiguous references still block import. Extract other nested ZIPs first. Each new task adds notes; retrying the same task resumes unfinished work.
 - **flomo**: Choose flomo and import the HTML ZIP. Each new task creates new notes; same-task retries resume unfinished steps. Times use the system timezone. See the [flomo guide](flomo-migration-guide.en-US.md).
 - **Joplin**:
   - In the desktop client, go to **File → Export all** and export as a **.jex** file (or RAW / Markdown directory).

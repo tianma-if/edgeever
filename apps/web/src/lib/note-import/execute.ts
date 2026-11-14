@@ -58,7 +58,7 @@ export const executeNoteImport = async (input: {
   try {
     release = await input.pauseSync?.();
     for await (const folder of indexItems<ImportNotebook>(index, "notebook")) {
-      onProgress?.({ phase: "folders", path: folder.key, completed: foldersDone, total: folders });
+      onProgress?.({ phase: "folders", path: folder.key || folder.name, completed: foldersDone, total: folders });
       await ensureFolder(folder.key); foldersDone++;
     }
     for await (const descriptor of indexItems<ImportNote>(index, "note")) {

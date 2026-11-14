@@ -73,6 +73,7 @@
     "@tiptap/pm": "3.31.4",
     "@tiptap/starter-kit": "3.31.4",
     "@zip.js/zip.js": "2.24.0",
+    "htmlparser2": "10.1.0",
     "it-tar": "6.0.6",
     "js-base64": "3.9.3",
     "katex": "0.18.2",

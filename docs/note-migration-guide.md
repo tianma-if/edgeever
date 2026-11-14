@@ -6,7 +6,7 @@ EdgeEver 支持从其他笔记产品直接导入数据。目前提供**原生一
 
 ---
 
-## 一、原生一键导入（Evernote / Obsidian / Joplin / flomo）
+## 一、原生一键导入（Evernote / Obsidian / Joplin / flomo / Notion / SiYuan）
 
 无需配置命令行或 MCP，在 Web 网页端或桌面端直接操作。
 
@@ -28,6 +28,9 @@ EdgeEver 支持从其他笔记产品直接导入数据。目前提供**原生一
 - **Obsidian**：
   - 直接拖入本地 Vault 文件夹，或将 Vault 打包为 `.zip` 拖入。
   - 自动保留 Front Matter、标签与 Wiki 双链图片（`![[image.png]]`），自动忽略 `.obsidian` 与 `.git` 等配置目录。
+- **Notion**：导出 **Markdown & CSV**，包含子页面和文件，然后选择原始 ZIP（支持 Notion 分卷）或解压目录。显示名称去除 Notion ID，原始路径仍用于区分同名页面。CSV 数据库保留为可下载附件，不重建数据库视图。
+- **思源 / SiYuan**：导出包含 `assets` 的 **Markdown**，选择 ZIP 或解压目录。支持图片和音视频 HTML 附件，不支持 `.sy` 备份。
+- **这两类导出的边界**：页面或块引用保留原文并提示；不重建数据库关联、公式与视图。缺失时间使用导入时间，缺失附件或不支持的文件会在预检中提示。Notion 和思源缺失的附件统一作为提醒，可继续导入并保留原链接；路径越界或引用歧义仍阻止导入。其他嵌套 ZIP 需要先解压。每次新任务新增笔记，同任务重试补齐未完成步骤。
 - **flomo**：在来源中选择 flomo 并导入 HTML ZIP。每次新任务都新增，同任务重试仅补未完成步骤；时间按系统时区解释。见 [flomo 指引](flomo-migration-guide.md)。
 - **Joplin**：
   - 在客户端点击 **文件 → 导出全部**，导出为 **.jex** 文件（或 RAW / Markdown 目录）。

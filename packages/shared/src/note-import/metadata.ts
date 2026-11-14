@@ -1,6 +1,7 @@
 import { getMappedNoteProperties, splitMarkdownFrontMatter } from "../front-matter";
-import type { ImportIndex, ImportNote } from "./types";
+import type { ImportFormat, ImportIndex, ImportNote } from "./types";
 import { addIssue } from "./sources";
+import { markdownExportTitle } from "./markdown-export";
 
 export const importTime = (value: unknown): string | undefined => {
   if (typeof value !== "string" || !value.trim()) return;
@@ -15,14 +16,14 @@ export const importTime = (value: unknown): string | undefined => {
   if (Number.isNaN(date.getTime())) return;
   return date.toISOString();
 };
-export const readMarkdownMetadata = async (markdown: string, title: string, index: ImportIndex, path: string) => {
+export const readMarkdownMetadata = async (markdown: string, title: string, index: ImportIndex, path: string, format: ImportFormat) => {
   // The editor's interactive parsing budget is not an import/storage limit.
   const header = splitMarkdownFrontMatter(markdown, { maxSourceLength: Infinity });
   if (header?.error) await addIssue(index, "invalidProperties", path, "error", header.error);
   const values = header?.values ?? {};
   const mapped = getMappedNoteProperties(values);
   // Do not let the ordinary single-file import's title fallback hide a limit violation.
-  const rawTitle = typeof values.title === "string" ? values.title.trim() : mapped.title ?? title;
+  const rawTitle = typeof values.title === "string" ? values.title.trim() : markdownExportTitle(format, header?.body ?? markdown, title);
   const times: { createdAt?: string; updatedAt?: string } = {};
   for (const [a, b] of [["created", "createdAt"], ["updated", "updatedAt"]] as const) {
     const first = importTime(values[a]);

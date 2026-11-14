@@ -12,6 +12,8 @@ import { SETTINGS_CARD_HEADER_CLASSNAME, SETTINGS_CARD_ICON_CLASSNAME, SETTINGS_
 import { ThirdPartyImportDialog } from "./ThirdPartyImportDialog";
 
 const importSources = [
+  { label: "Notion (.zip)", logo: undefined },
+  { label: "SiYuan (.zip)", logo: undefined },
   { label: "flomo (.zip)", logo: flomoLogo },
   { label: "Evernote (.enex)", logo: evernoteLogo },
   { label: "Obsidian", logo: obsidianLogo },

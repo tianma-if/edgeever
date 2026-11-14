@@ -9,7 +9,7 @@ import { getActorLabel, getAuditActor, getWorkspaceId, requireScopes } from "./r
 
 const importSchema = z.object({
   importId: z.uuid(),
-  format: z.enum(["evernote", "obsidian", "joplin", "flomo"]),
+  format: z.enum(["evernote", "obsidian", "joplin", "flomo", "notion", "siyuan"]),
   notebookId: z.string().trim().min(1),
   items: z.array(z.unknown()).min(1).max(25),
   dryRun: z.boolean().default(false),
@@ -37,7 +37,7 @@ export const registerImportRoutes = (app: Hono<AppEnv>) => {
     const denied = requireScopes(context, "read:memos");
     if (denied) return denied;
     context.header("Cache-Control", "no-store");
-    return context.json({ protocolVersion: 1, maxBatchSize: 25, formats: ["evernote", "obsidian", "joplin", "flomo"], importContext: importContext(context), accountId: context.get("auth").actorId });
+    return context.json({ protocolVersion: 1, maxBatchSize: 25, formats: importSchema.shape.format.options, importContext: importContext(context), accountId: context.get("auth").actorId });
   });
   app.post("/api/v1/imports/memos", zValidator("json", importSchema), async (context) => {
     const denied = requireScopes(context, "write:memos");
