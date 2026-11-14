@@ -135,6 +135,7 @@ export type MultipartResourceUploadSource = {
 
 export type InstanceHealth = {
   ok: true;
+  tableSchemaVersion?: number;
   name: string;
   runtime?: string | null;
   containerImageSource?: "official-ghcr" | "official-cn-mirror" | "custom" | "unknown" | string | null;

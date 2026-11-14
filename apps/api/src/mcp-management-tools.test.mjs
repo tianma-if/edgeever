@@ -555,6 +555,35 @@ describe("MCP template and AI instruction management", () => {
     expect(parseTableDocument(stored.content_markdown)?.records).toHaveLength(1);
   });
 
+  test("MCP table reads and field previews do not select the editor projection", async () => {
+    const { sqlite, auth, context } = createFixture();
+    sqlite.query("INSERT INTO notebooks (id, workspace_id, name) VALUES ('nb_source', 'ws_mcp', 'Tables')").run();
+    const call = (tool, args) => callMcpTool(context, auth, tool, args);
+    const { memo } = await call("create_memo", {
+      notebookId: "nb_source", title: "Table",
+      contentMarkdown: serializeTableDocument(createDefaultTableDocument()),
+    });
+    const adapter = context.env.storage.db;
+    const reads = [];
+    const prepare = adapter.prepare.bind(adapter);
+    adapter.prepare = (sql) => {
+      if (/^SELECT[\s\S]*FROM memos m[\s\S]*JOIN memo_contents/i.test(sql.trim())) reads.push(sql);
+      return prepare(sql);
+    };
+    const page = await call("get_table_records", { memoId: memo.id, limit: 1 });
+    expect(page.records.map((row) => row.id)).toEqual(["rec_sample"]);
+    const preview = await call("update_table_schema", {
+      memoId: memo.id, expectedRevision: page.revision, dryRun: true,
+      operations: [{ op: "update_field", fieldId: "fld_name", changes: { name: "Task" } }],
+    });
+    expect(preview.dryRun).toBe(true);
+    expect(reads).toHaveLength(2);
+    for (const query of reads) {
+      expect(query).not.toContain("content_json");
+      expect(query).not.toContain("content_text");
+    }
+  });
+
   test("reads and mutates records in one structured table without replacing other records", async () => {
     const { sqlite, auth, context } = createFixture();
     sqlite.query("INSERT INTO notebooks (id, workspace_id, name) VALUES (?, ?, ?)")

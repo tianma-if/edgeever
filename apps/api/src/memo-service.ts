@@ -16,6 +16,7 @@ import {
   listTableAttachmentResourceIds,
   normalizeTags,
   parseTableDocument,
+  TABLE_VIEW_SCHEMA_VERSION,
   type MemoDetail,
   type MemoEditSession,
   type MemoSummary,
@@ -399,6 +400,14 @@ export const getMemoDetailRow = async (
     )
     .bind(id, workspaceId, includeDeleted ? 1 : 0)
     .first<MemoDetailRow>();
+
+// Form and structured record tools only need the source, not the editor projection.
+export const getTableMemoSource = (db: DatabaseAdapter, workspaceId: string, memoId: string) =>
+  db.prepare(
+    `SELECT m.title, m.tags_json, c.content_markdown AS contentMarkdown, c.revision
+     FROM memos m INNER JOIN memo_contents c ON c.memo_id = m.id
+     WHERE m.id = ? AND m.workspace_id = ? AND m.is_deleted = 0`,
+  ).bind(memoId, workspaceId).first<{ title: string | null; tags_json: string; contentMarkdown: string; revision: number }>();
 
 export const getMemoDetail = async (db: DatabaseAdapter, workspaceId: string, id: string, includeDeleted = false): Promise<MemoDetail | null> => {
   const row = await getMemoDetailRow(db, workspaceId, id, includeDeleted);
@@ -1394,6 +1403,13 @@ export const updateMemoRecord = async (
     return {
       error: "table_update_required",
       message: "Structured table content must stay a structured table.",
+      status: 409,
+    };
+  }
+  if (currentTable?.schemaVersion === TABLE_VIEW_SCHEMA_VERSION && nextTable && nextTable.schemaVersion !== TABLE_VIEW_SCHEMA_VERSION) {
+    return {
+      error: "content_conflict",
+      message: "This table uses named views. Update your client and reload the table before saving.",
       status: 409,
     };
   }
