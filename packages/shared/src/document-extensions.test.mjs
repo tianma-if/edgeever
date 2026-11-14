@@ -26,6 +26,7 @@ describe("shared document extensions", () => {
     }).map((extension) => extension.name);
 
     expect(names).toContain("starterKit");
+    expect(names).toContain("edgeeverInlineCodeInput");
     expect(names).toContain("taskList");
     expect(names).toContain("taskItem");
     expect(names).toContain("tableKit");
