@@ -13,6 +13,7 @@ COPY apps/mobile/package.json apps/mobile/package.json
 COPY apps/site/package.json apps/site/package.json
 COPY apps/web/package.json apps/web/package.json
 COPY packages/client/package.json packages/client/package.json
+COPY packages/image-host/package.json packages/image-host/package.json
 COPY packages/plugin-api/package.json packages/plugin-api/package.json
 COPY packages/public-network/package.json packages/public-network/package.json
 COPY packages/shared/package.json packages/shared/package.json

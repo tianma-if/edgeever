@@ -1,5 +1,6 @@
 import { afterEach, expect, test } from "bun:test";
 import { compressImageForUpload } from "./image-compression.ts";
+import { readFileSync } from "node:fs";
 
 const originalWorker = Object.getOwnPropertyDescriptor(globalThis, "Worker");
 afterEach(() => {
@@ -73,4 +74,15 @@ test("preserves SVG bytes and filename without starting raster compression", asy
   expect(result.file).toBe(file);
   expect(result.compressed).toBe(false);
   expect(await result.file.text()).toBe(svg);
+});
+test("preserves animated raster originals before any static worker or canvas conversion", async () => {
+  globalThis.Worker = class { constructor() { throw new Error("Animated files must not start a static encoder"); } };
+  for (const [extension, mime] of [["gif", "image/gif"], ["webp", "image/webp"], ["png", "image/png"], ["avif", "image/avif"]]) {
+    const bytes = new Uint8Array(readFileSync(`tests/fixtures/publish-animation/two-frames.${extension}`));
+    const file = new File([bytes], `animated.${extension}`, { type: mime });
+    const result = await compressImageForUpload(file);
+    expect(result.file).toBe(file);
+    expect(result.compressed).toBe(false);
+    expect(new Uint8Array(await result.file.arrayBuffer())).toEqual(bytes);
+  }
 });

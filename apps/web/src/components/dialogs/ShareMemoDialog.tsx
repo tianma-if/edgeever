@@ -40,6 +40,7 @@ export const ShareMemoDialog = ({
   const [copyTarget, setCopyTarget] = useState<"link" | "password" | "both" | "markdown">("link");
   const copyResetTimerRef = useRef<number | null>(null);
   const dialogContentRef = useRef<HTMLDivElement>(null);
+  const autoCreateMemoRef = useRef<string | null>(null);
   const queryKey = memoShareQueryKey(memoId);
   const shareQuery = useQuery({
     queryKey,
@@ -107,6 +108,22 @@ export const ShareMemoDialog = ({
   }, []);
 
   const share = shareQuery.data?.share ?? null;
+  // Only create after a fresh lookup, once per opening. A failed request stays
+  // available for explicit retry instead of looping or recreating a revoked link.
+  const shouldAutoCreate = open && shareQuery.isSuccess && shareQuery.isFetchedAfterMount
+    && !shareQuery.isFetching && !share && autoCreateMemoRef.current !== memoId;
+  const { mutate: createShare } = createMutation;
+  useEffect(() => {
+    if (!open) {
+      autoCreateMemoRef.current = null;
+      return;
+    }
+    if (shouldAutoCreate) {
+      autoCreateMemoRef.current = memoId;
+      createShare();
+    }
+  }, [open, memoId, shouldAutoCreate, createShare]);
+
   const revealedPassword = share?.passwordProtected ? share.password ?? "" : "";
 
   const shareUrl = share ? getPublicShareUrl(memoSharePathSegment(share)) : "";
@@ -152,7 +169,7 @@ export const ShareMemoDialog = ({
 
         <MemoNotebookSites key={memoId} memoId={memoId} />
         <h2 className="text-sm font-semibold">{t("sharing.individual")}</h2>
-        {shareQuery.isLoading ? (
+        {shareQuery.isLoading || (!share && (shouldAutoCreate || createMutation.isPending)) ? (
           <div className="flex min-h-20 items-center justify-center text-slate-500" role="status">
             <LoaderCircle className="h-5 w-5 animate-spin" aria-label={t("sharing.publicLoading")} />
           </div>
@@ -320,7 +337,7 @@ export const ShareMemoDialog = ({
             }}
           >
             {createMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
-            {t(shareQuery.isError ? "sharing.retry" : "sharing.createIndividual")}
+            {t("sharing.retry")}
           </Button>
         )}
         {error ? <p className="text-xs leading-5 text-rose-600" role="alert">{t("sharing.error")}</p> : null}

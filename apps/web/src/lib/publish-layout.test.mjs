@@ -172,7 +172,7 @@ describe("copy pipeline wiring", () => {
     expect(source).toContain("preparePublishArticle");
     expect(source).not.toContain("editorThemeOverride");
     expect(source).toContain("ProseMirror-separator");
-    expect(source).toContain("findOriginalImage");
+    expect(source).toContain("loadPublishImage");
     expect(source).toContain("svgToWeChatImage");
     expect(source).toContain("rasterizePublishOrnamentsForWeChat");
     expect(source).toContain('fillStyle = "#ffffff"');

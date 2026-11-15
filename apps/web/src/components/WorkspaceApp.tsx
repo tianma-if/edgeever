@@ -3673,13 +3673,9 @@ export const WorkspaceApp = ({
                   return "editor";
                 }
 
-                try {
-                  const { memo } = await repository.getMemo(memoId, memoView === "trash");
-                  await copyMarkdownToWeChat(memo.contentMarkdown);
-                  return "copied";
-                } catch {
-                  return "error";
-                }
+                const { memo } = await repository.getMemo(memoId, memoView === "trash");
+                await copyMarkdownToWeChat(memo.contentMarkdown);
+                return "copied";
               }}
               onTogglePinMemo={handleToggleMemoPinned}
               onPinSelectedMemos={handlePinSelectedMemos}

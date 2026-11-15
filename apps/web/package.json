@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "@edgeever/image-host": "workspace:*",
     "@antv/infographic": "0.2.20",
     "@antv/x6": "3.1.8",
     "@codemirror/commands": "6.11.0",

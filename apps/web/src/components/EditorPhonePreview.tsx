@@ -25,6 +25,7 @@ export const PhonePreviewGlyph = ({ className }: { className?: string }) => (
 type EditorPhonePreviewProps = {
   editor: Editor | null;
   title?: string;
+  tagsKey?: string;
   showMagazineCover: boolean;
   showChapterNavigation: boolean;
   noteProse: ResolvedNoteProse;
@@ -66,7 +67,7 @@ const alignElement = (scroller: HTMLElement, target: HTMLElement, viewportTop: n
   scroller.scrollTop += delta;
 };
 
-export const EditorPhonePreview = ({ editor, title, showMagazineCover, showChapterNavigation, noteProse, scrollContainer, className }: EditorPhonePreviewProps) => {
+export const EditorPhonePreview = ({ editor, title, tagsKey, showMagazineCover, showChapterNavigation, noteProse, scrollContainer, className }: EditorPhonePreviewProps) => {
   const { t } = useTranslation();
   const { mermaidTheme } = useMermaidTheme();
   const noteProseStyle = useNoteProseStylePreference();
@@ -107,7 +108,7 @@ export const EditorPhonePreview = ({ editor, title, showMagazineCover, showChapt
       editor.off("update", sync);
       editor.off("create", sync);
     };
-  }, [editor, mermaidTheme, noteProse, noteProseStyle, showMagazineCover, showChapterNavigation, title]);
+  }, [editor, mermaidTheme, noteProse, noteProseStyle, showMagazineCover, showChapterNavigation, title, tagsKey]);
 
   useEffect(() => {
     previewRef.current?.setAttribute("style", markup.style);

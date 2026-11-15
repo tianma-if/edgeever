@@ -1,3 +1,5 @@
+import { isAnimatedRasterImage } from "@edgeever/shared";
+
 const COMPRESSIBLE_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "image/avif"]);
 const COMPRESSED_IMAGE_TYPE = "image/webp";
 const COMPRESSED_IMAGE_EXTENSION = ".webp";
@@ -17,6 +19,9 @@ export const compressImageForUpload = async (file: File): Promise<ImageCompressi
   }
 
   try {
+    if (file.type !== "image/jpeg" && isAnimatedRasterImage(new Uint8Array(await file.arrayBuffer()))) {
+      return unchanged(file);
+    }
     // Decoding, resizing and WebP encoding must not compete with the editor's
     // painting/input work. Older browsers retain the original canvas fallback.
     const blob = await compressInWorker(file).catch(() => compressOnCanvas(file));
