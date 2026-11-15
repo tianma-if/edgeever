@@ -1,60 +1,13 @@
 import { useEffect, useState } from "react";
-import { formatNoteCoverTags } from "@/lib/note-cover-tags";
 import type { Editor } from "@tiptap/react";
+import { deriveChapterCardLabels, splitCoverTitle } from "@/lib/magazine-header";
+import { formatNoteCoverTags } from "@/lib/note-cover-tags";
 
 type SectionItem = {
   index: number;
   num: string;
   shortTitle: string;
   subTitle: string;
-};
-
-const cleanHeadingText = (raw: string) =>
-  raw
-    .replace(/^\s*(?:第[一二三四五六七八九十百\d]+[章节部分篇]\s*[：:·.\s]*|\d+\s*[.、·:：]\s*|[一二三四五六七八九十]+\s*[、.．]\s*)/u, "")
-    .trim();
-
-const deriveShortAndSubTitle = (raw: string, index: number) => {
-  const cleaned = cleanHeadingText(raw) || raw.trim() || `章节 ${index + 1}`;
-  const parts = cleaned.split(/[：:，,——·\s]+/).filter(Boolean);
-  if (parts.length >= 2 && parts[0].length <= 8) {
-    return {
-      shortTitle: parts[0],
-      subTitle: parts.slice(1).join(" · ").slice(0, 14),
-    };
-  }
-  if (cleaned.length <= 6) {
-    return {
-      shortTitle: cleaned,
-      subTitle: `PART ${String(index + 1).padStart(2, "0")}`,
-    };
-  }
-  return {
-    shortTitle: cleaned.slice(0, 5),
-    subTitle: cleaned.slice(5, 17) || cleaned.slice(0, 12),
-  };
-};
-
-const splitCoverTitle = (rawTitle: string) => {
-  const trimmed = rawTitle.trim();
-  if (!trimmed) {
-    return { primary: "深度实测与结构化指南", highlight: "" };
-  }
-  const colonMatch = trimmed.match(/^([^：:，,——]+)[：:，,——]\s*(.+)$/);
-  if (colonMatch) {
-    return {
-      primary: `${colonMatch[1]}，`,
-      highlight: colonMatch[2],
-    };
-  }
-  if (trimmed.length > 10) {
-    const mid = Math.ceil(trimmed.length * 0.45);
-    return {
-      primary: trimmed.slice(0, mid),
-      highlight: trimmed.slice(mid),
-    };
-  }
-  return { primary: trimmed, highlight: "" };
 };
 
 const formatYearMonth = (iso?: string) => {
@@ -95,15 +48,10 @@ export const EditorMagazineHeader = ({
       if (editor.isDestroyed) return;
       const dom = editor.view.dom;
       const h2Elements = Array.from(dom.querySelectorAll<HTMLElement>("h2"));
-      const nextSections = h2Elements.map((el, index) => {
-        const { shortTitle, subTitle } = deriveShortAndSubTitle(el.textContent || "", index);
-        return {
-          index,
-          num: String(index + 1).padStart(2, "0"),
-          shortTitle,
-          subTitle,
-        };
-      });
+      const nextSections = h2Elements.map((el, index) => ({
+        index,
+        ...deriveChapterCardLabels(el.textContent || "", index),
+      }));
       setSections(nextSections);
     };
 
@@ -138,108 +86,95 @@ export const EditorMagazineHeader = ({
         fontFamily: "-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif",
       }}
     >
-      {showMagazineCover && <div
-        data-edgeever-magazine-cover="true"
-        style={{
-          margin: "0 0 28px",
-          background: "#ffffff",
-          border: isNative
-            ? "1.5px solid #e5e7eb"
-            : "1.5px solid color-mix(in srgb, var(--note-palette-accent, #374151) 18%, transparent)",
-          borderRadius: "20px",
-          overflow: "hidden",
-          boxShadow: "0 4px 20px rgba(0, 0, 0, 0.06)",
-        }}
-      >
-        <div style={{ padding: "28px 28px 24px" }}>
-          {topTag ? <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "22px" }}>
-            <span
+      {showMagazineCover ? (
+        <div
+          data-edgeever-magazine-cover="true"
+          className="mb-7 overflow-hidden rounded-[20px] border bg-card text-card-foreground shadow-[0_4px_20px_rgba(0,0,0,0.06)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.28)]"
+          style={{
+            borderWidth: "1.5px",
+            borderColor: isNative
+              ? undefined
+              : "color-mix(in srgb, var(--note-palette-accent, #374151) 18%, transparent)",
+          }}
+        >
+          <div className="px-7 pb-6 pt-7">
+            {topTag ? (
+              <div className="mb-[22px] flex items-center gap-2">
+                <span
+                  className="size-1.5 shrink-0 rounded-full"
+                  style={{
+                    background: "var(--note-palette-accent, #4b5563)",
+                  }}
+                />
+                <span
+                  className={isNative ? "min-w-0 text-muted-foreground" : "min-w-0"}
+                  style={{
+                    overflowWrap: "anywhere",
+                    fontSize: "11px",
+                    fontWeight: 700,
+                    letterSpacing: "3px",
+                    color: isNative ? undefined : "var(--note-palette-accent, #4b5563)",
+                  }}
+                >
+                  {topTag}
+                </span>
+                <span
+                  className="h-px flex-1"
+                  style={{
+                    background: isNative
+                      ? "linear-gradient(to right, hsl(var(--border)), transparent)"
+                      : "linear-gradient(to right, color-mix(in srgb, var(--note-palette-accent, #374151) 18%, transparent), transparent)",
+                  }}
+                />
+                <span className="shrink-0 text-[10px] font-semibold text-muted-foreground/70">
+                  {dateLabel}
+                </span>
+              </div>
+            ) : null}
+
+            <p
+              className="m-0 font-black text-card-foreground"
               style={{
-                width: "6px",
-                height: "6px",
-                borderRadius: "50%",
-                background: "var(--note-palette-accent, #4b5563)",
-                flexShrink: 0,
-              }}
-            />
-            <span
-              style={{
-                minWidth: 0,
-                overflowWrap: "anywhere",
-                fontSize: "11px",
-                fontWeight: 700,
-                letterSpacing: "3px",
-                color: "var(--note-palette-accent, #4b5563)",
+                fontSize: "24px",
+                lineHeight: 1.18,
+                letterSpacing: "-0.5px",
               }}
             >
-              {topTag}
-            </span>
-            <span
-              style={{
-                flex: 1,
-                height: "1px",
-                background: isNative
-                  ? "linear-gradient(to right, #e5e7eb, transparent)"
-                  : "linear-gradient(to right, color-mix(in srgb, var(--note-palette-accent, #374151) 18%, transparent), transparent)",
-              }}
-            />
-            <span style={{ fontSize: "10px", color: "#d1d5db", fontWeight: 600 }}>
-              {dateLabel}
-            </span>
-          </div> : null}
+              <span>{primary}</span>
+              {highlight ? (
+                <span
+                  className={isNative ? "text-muted-foreground" : undefined}
+                  style={isNative ? undefined : { color: "var(--note-palette-accent, #374151)" }}
+                >
+                  {highlight}
+                </span>
+              ) : null}
+            </p>
+          </div>
 
-          <p
-            style={{
-              fontSize: "24px",
-              fontWeight: 900,
-              color: "#111827",
-              margin: 0,
-              lineHeight: 1.18,
-              letterSpacing: "-1px",
-            }}
-          >
-            <span>{primary}</span>
-            {highlight ? (
-              <span style={{ color: "var(--note-palette-accent, #374151)" }}>{highlight}</span>
-            ) : null}
-          </p>
+          <div
+            className={isNative ? "h-2 border-t border-border bg-muted/70" : "h-2"}
+            style={
+              isNative
+                ? undefined
+                : {
+                    background:
+                      "linear-gradient(135deg, var(--note-palette-accent, #374151), color-mix(in srgb, var(--note-palette-accent, #374151) 80%, #ffffff))",
+                  }
+            }
+            aria-hidden="true"
+          />
         </div>
-
-        <div
-          style={{
-            background: isNative
-              ? "#f3f4f6"
-              : "linear-gradient(135deg, var(--note-palette-accent, #374151), color-mix(in srgb, var(--note-palette-accent, #374151) 80%, #ffffff))",
-            borderTop: isNative ? "1px solid #e5e7eb" : undefined,
-            height: "8px",
-          }}
-          aria-hidden="true"
-        />
-      </div>}
+      ) : null}
 
       {showNavigation ? (
-        <div data-edgeever-chapter-navigation="true" style={{ margin: "0 0 28px" }}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginBottom: "10px",
-            }}
-          >
-            <span
-              style={{
-                fontSize: "10px",
-                color: "#9ca3af",
-                textTransform: "uppercase",
-                letterSpacing: "2px",
-                fontWeight: 600,
-              }}
-            >
+        <div data-edgeever-chapter-navigation="true" className="mb-7">
+          <div className="mb-2.5 flex items-center justify-between">
+            <span className="text-[10px] font-semibold uppercase tracking-[2px] text-muted-foreground">
               {sections.length} PARTS · 章节导览
             </span>
           </div>
-          <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "flex-start", gap: "8px", width: "100%" }}>
+          <div className="flex w-full flex-wrap items-stretch justify-start gap-2">
             {sections.map((section, idx) => {
               const isHighlighted = idx < sections.length - 1;
               const useSolidAccent = isHighlighted && !isNative;
@@ -248,76 +183,46 @@ export const EditorMagazineHeader = ({
                   key={section.num}
                   type="button"
                   onClick={() => scrollToSection(section.index)}
+                  className={
+                    useSolidAccent
+                      ? "box-border flex w-[146px] max-w-full min-w-0 flex-none cursor-pointer flex-col items-stretch rounded-xl border border-transparent p-3 text-left transition-opacity hover:opacity-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      : isHighlighted
+                        ? "box-border flex w-[146px] max-w-full min-w-0 flex-none cursor-pointer flex-col items-stretch rounded-xl border border-border bg-muted/60 p-3 text-left shadow-[0_2px_6px_rgba(0,0,0,0.03)] transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        : "box-border flex w-[146px] max-w-full min-w-0 flex-none cursor-pointer flex-col items-stretch rounded-xl border border-border bg-card p-3 text-left shadow-[0_2px_6px_rgba(0,0,0,0.03)] transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  }
                   style={
                     useSolidAccent
                       ? {
-                          minWidth: 0,
-                          width: "146px",
-                          maxWidth: "100%",
-                          flex: "0 0 auto",
-                          boxSizing: "border-box",
-                          display: "flex",
-                          flexDirection: "column",
-                          alignItems: "stretch",
-                          textAlign: "left",
-                          background: "linear-gradient(135deg, var(--note-palette-accent, #374151), color-mix(in srgb, var(--note-palette-accent, #374151) 80%, #ffffff))",
-                          border: "1px solid transparent",
-                          borderRadius: "12px",
-                          padding: "12px",
-                          cursor: "pointer",
+                          background:
+                            "linear-gradient(135deg, var(--note-palette-accent, #374151), color-mix(in srgb, var(--note-palette-accent, #374151) 80%, #ffffff))",
                         }
-                      : {
-                          minWidth: 0,
-                          width: "146px",
-                          maxWidth: "100%",
-                          flex: "0 0 auto",
-                          boxSizing: "border-box",
-                          display: "flex",
-                          flexDirection: "column",
-                          alignItems: "stretch",
-                          textAlign: "left",
-                          background: isHighlighted ? "#f3f4f6" : "#ffffff",
-                          border: "1px solid #e5e7eb",
-                          borderRadius: "12px",
-                          padding: "12px",
-                          boxShadow: "0 2px 6px rgba(0, 0, 0, 0.03)",
-                          cursor: "pointer",
-                        }
+                      : undefined
                   }
                 >
                   <div
-                    style={{
-                      fontSize: "9px",
-                      lineHeight: 1.4,
-                      fontWeight: 700,
-                      color: useSolidAccent ? "rgba(255, 255, 255, 0.72)" : "#6b7280",
-                      letterSpacing: "1px",
-                      marginBottom: "5px",
-                    }}
+                    className={
+                      useSolidAccent
+                        ? "mb-[5px] text-[9px] font-bold leading-[1.4] tracking-[1px] text-white/75"
+                        : "mb-[5px] text-[9px] font-bold leading-[1.4] tracking-[1px] text-muted-foreground"
+                    }
                   >
                     {section.num}
                   </div>
                   <div
-                    style={{
-                      fontSize: "13px",
-                      fontWeight: 800,
-                      color: useSolidAccent ? "#ffffff" : "#111827",
-                      marginBottom: "3px",
-                      lineHeight: 1.3,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
+                    className={
+                      useSolidAccent
+                        ? "mb-[3px] truncate text-[13px] font-extrabold leading-[1.3] text-white"
+                        : "mb-[3px] truncate text-[13px] font-extrabold leading-[1.3] text-card-foreground"
+                    }
                   >
                     {section.shortTitle}
                   </div>
                   <div
-                    style={{
-                      fontSize: "10px",
-                      color: useSolidAccent ? "rgba(255, 255, 255, 0.75)" : "#6b7280",
-                      lineHeight: 1.4,
-                      wordBreak: "break-word",
-                    }}
+                    className={
+                      useSolidAccent
+                        ? "line-clamp-2 break-words text-[10px] leading-[1.4] text-white/80"
+                        : "line-clamp-2 break-words text-[10px] leading-[1.4] text-muted-foreground"
+                    }
                   >
                     {section.subTitle}
                   </div>

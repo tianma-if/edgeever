@@ -28,6 +28,7 @@ import { renderThemedMermaidSvg } from "@/lib/mermaid-renderer";
 import { normalizeMermaidSvgForViewer } from "@/lib/mermaid-svg";
 import { copyHtmlToClipboard } from "@/lib/clipboard";
 import { parseCustomCssToStyles } from "@/lib/css-sandbox";
+import { deriveChapterCardLabels, splitCoverTitle } from "@/lib/magazine-header";
 import { readNoteCoverTags } from "@/lib/note-cover-tags";
 import { readNoteProseStylePreference } from "@/lib/note-prose-style-preference";
 import { createConfiguredPublishImageUploader, PublishImageError } from "@/lib/publish-image-host";
@@ -191,7 +192,16 @@ const applyLegacyWeChatStyles = (
   if (proseStyle.showMagazineCover) {
     root.querySelectorAll<HTMLElement>("h1").forEach((heading) => {
       if (heading.querySelector("[data-ee-cover-card]")) return;
-      const titleHtml = heading.innerHTML;
+      const hasInlineMarkup = heading.children.length > 0;
+      const split = hasInlineMarkup ? null : splitCoverTitle(heading.textContent || "");
+      const titleHtml = split
+        ? [
+            `<span data-ee-publish-chrome="true">${escapeHtmlAttribute(split.primary)}</span>`,
+            split.highlight
+              ? `<span data-ee-publish-chrome="true" style="color: ${colors ? accent : "#6b7280"};">${escapeHtmlAttribute(split.highlight)}</span>`
+              : "",
+          ].join("")
+        : heading.innerHTML;
       heading.style.cssText = `margin: 0 0 28px; padding: 0; background: #ffffff; border: 1.5px solid ${divider}; border-radius: 20px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.06);`;
       heading.innerHTML = [
         `<section data-ee-publish-chrome="true" data-ee-cover-card="true" style="padding: 28px 24px 22px;">`,
@@ -216,13 +226,11 @@ const applyLegacyWeChatStyles = (
       toc.setAttribute("data-ee-toc-cards", "true");
       toc.style.cssText = "margin: 0 0 28px;";
       const cardsHtml = h2ListForToc.map((heading, index) => {
-        const num = String(index + 1).padStart(2, "0");
-        const rawText = (heading.textContent || "")
-          .replace(/^\s*(?:第[一二三四五六七八九十百\d]+[章节部分篇]\s*[：:·.\s]*|\d+\s*[.、·:：]\s*|[一二三四五六七八九十]+\s*[、.．]\s*)/u, "")
-          .trim();
-        const shortTitle = escapeHtmlAttribute(rawText.slice(0, 6) || `章节 ${num}`);
-        const subTitle = escapeHtmlAttribute(rawText.length > 6 ? rawText.slice(6, 18) : `PART ${num}`);
-        const isHighlighted = index < h2ListForToc.length - 1 || h2ListForToc.length === 2 && index === 0;
+        const labels = deriveChapterCardLabels(heading.textContent || "", index);
+        const num = labels.num;
+        const shortTitle = escapeHtmlAttribute(labels.shortTitle);
+        const subTitle = escapeHtmlAttribute(labels.subTitle);
+        const isHighlighted = index < h2ListForToc.length - 1 || (h2ListForToc.length === 2 && index === 0);
         const useAccentGradient = isHighlighted && Boolean(colors);
         if (useAccentGradient) {
           return [
