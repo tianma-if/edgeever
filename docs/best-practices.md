@@ -33,6 +33,9 @@ A practical guide to core workflows, key features, and real-world usage scenario
 ### Open Ecosystem & Extensibility
 - [19. Open Plugin API & Custom Plugin Development](#19-open-plugin-api--custom-plugin-development)
 
+### Third-Party Note Migration & Import
+- [20. One-Click Third-Party Note Platform Import](#20-one-click-third-party-note-platform-import)
+
 ---
 
 ## Core Workspace & Focused Writing
@@ -331,3 +334,23 @@ EdgeEver features an extension manager supporting one-click installation via Git
 | 2. Plugin API Namespaces & Documentation |
 | :---: |
 | ![EdgeEver plugin development API reference and documentation](assets/best-practices/original-image/plugin/plugin-api.png) |
+
+---
+
+## Third-Party Note Migration & Import
+
+### 20. One-Click Third-Party Note Platform Import
+
+Go to **Settings → Backup & Import → Import from Other Apps** and click **Start Import** to migrate from mainstream note-taking apps directly in the Web or Desktop client without CLI setup.
+
+- **6 Native Platforms**: Supports **Notion** (`Markdown & CSV` / `.zip`), **SiYuan** (`Markdown` with `assets` / `.zip`), **flomo** (`HTML` / `.zip`), **Evernote** (`.enex` / `.zip`), **Obsidian** (`Vault folder` / `.zip`), and **Joplin** (`.jex` / `RAW` / `.zip`).
+- **Local Preflight & Full Preservation**: Drag and drop or browse batch files, folders, and archives to preview notebook, note, and attachment counts locally while preserving folder hierarchy and embedded media.
+- For export steps per platform and AI Agent (MCP) migration workflows, see the [Third-Party Notes Import Guide](note-migration-guide.en-US.md).
+
+| 1. "Import from Other Apps" in Settings |
+| :---: |
+| ![EdgeEver Backup & Import settings showing Import from Other Apps entrance](assets/best-practices/original-image/import-from-other-note/import-in-setting-v2.png) |
+
+| 2. Select Source Platform & Load Files |
+| :---: |
+| ![EdgeEver Import from Other Apps dialog supporting Notion, SiYuan, flomo, Evernote, Obsidian, and Joplin](assets/best-practices/original-image/import-from-other-note/import-dialog-v2.png) |

@@ -58,7 +58,7 @@ export const zhTwSiteCopy = {
     heading: "重新定義自託管知識工作區",
     subheading:
       "告別商業筆記的臃腫廣告、裝置限制與昂貴訂閱。每一個設計細節，都旨在打造流暢、開放、隱私可控且原生支援 AI 的第二大腦。",
-    showcaseCta: "查看 19 個真機案例展示與最佳實踐",
+    showcaseCta: "查看 20 個真機案例展示與最佳實踐",
     card1: {
       badge: "經典重現",
       title: "經典三欄與專注模式，熟悉更輕快",
@@ -275,7 +275,7 @@ export const zhTwSiteCopy = {
         cta: "查看遷移指南",
       },
       {
-        title: "19 個真機場景與實操指南",
+        title: "20 個真機場景與實操指南",
         summary: "瀏覽三欄寫作、全通路剪藏、AI 導圖/資訊圖/多維表格、本機 ACP 協同及海報排版實機展示。",
         href: "/guides/best-practices",
         cta: "查看實機案例",

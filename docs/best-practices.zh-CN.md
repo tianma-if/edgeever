@@ -33,6 +33,9 @@
 ### 开放生态与插件扩展
 - [19. 开放插件 API 与自定义插件开发](#19-开放插件-api-与自定义插件开发)
 
+### 第三方笔记迁移与导入
+- [20. 第三方笔记平台一键导入迁移](#20-第三方笔记平台一键导入迁移)
+
 ---
 
 ## 核心工作区与沉浸创作
@@ -331,3 +334,23 @@ EdgeEver 内置插件扩展管理，支持通过 GitHub 仓库或 Manifest 地�
 | 2. 插件 API 体系与开发文档 |
 | :---: |
 | ![EdgeEver 插件开发 API 命名空间与规范文档](assets/best-practices/original-image/plugin/plugin-api.png) |
+
+---
+
+## 第三方笔记迁移与导入
+
+### 20. 第三方笔记平台一键导入迁移
+
+在「设置 → 备份与导入 → 从其他应用导入」中点击 **开始导入**，即可在 Web 端或桌面端完成主流笔记平台的一键迁移，无需配置命令行工具。
+
+- **多平台原生支持**：支持 **Notion**（`Markdown & CSV` / `.zip`）、**SiYuan / 思源**（含 `assets` 的 `Markdown` / `.zip`）、**flomo**（`HTML` / `.zip`）、**Evernote / 印象笔记**（`.enex` / `.zip`）、**Obsidian**（`Vault 目录` / `.zip`）与 **Joplin**（`.jex` / `RAW` / `.zip`）。
+- **本地预检与完整转存**：支持拖拽或浏览选择批量文件、目录结构与压缩包，导入前在本地预检统计笔记本、笔记与附件数量，完整保留目录层级与内嵌图片资源。
+- 各平台导出步骤与 AI Agent (MCP) 协同迁移方式详见 [第三方笔记导入指引](note-migration-guide.md)。
+
+| 1. 设置中心「从其他应用导入」入口 |
+| :---: |
+| ![EdgeEver 设置中心备份与导入页面的从其他应用导入入口](assets/best-practices/original-image/import-from-other-note/import-in-setting-v2.png) |
+
+| 2. 选择来源平台与导入文件 |
+| :---: |
+| ![EdgeEver 从其他应用导入对话框支持 Notion、思源笔记、flomo、印象笔记、Obsidian 与 Joplin](assets/best-practices/original-image/import-from-other-note/import-dialog-v2.png) |

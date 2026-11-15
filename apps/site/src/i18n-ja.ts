@@ -58,7 +58,7 @@ export const jaSiteCopy = {
     heading: "セルフホストの知識管理と AI のために作り直した",
     subheading:
       "広告、端末数の制限、高いサブスクはやめましょう。速さ、開放性、自分で守れるプライバシーを前提にしています。",
-    showcaseCta: "19 の実機デモとベストプラクティスを見る",
+    showcaseCta: "20 の実機デモとベストプラクティスを見る",
     card1: {
       badge: "クラシック UI",
       title: "三ペインはそのまま、より軽く速く",
@@ -276,7 +276,7 @@ export const jaSiteCopy = {
         cta: "移行ガイドを読む",
       },
       {
-        title: "19 の実機デモとベストプラクティス",
+        title: "20 の実機デモとベストプラクティス",
         summary: "三ペイン執筆、マルチチャネル取り込み、AI 図解・多次元テーブル、ローカル ACP 連携、ポスター作成の実機例。",
         href: "/guides/best-practices",
         cta: "実機デモを見る",

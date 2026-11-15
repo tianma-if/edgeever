@@ -85,7 +85,7 @@ La demostración pública se restablece todos los días a las 3:00 AM (hora est�
 <a id="features"></a>
 ## Matriz de funciones y capacidades
 
-Un espacio de trabajo integral que conecta la captura de inspiración, la creación profunda y la consolidación del conocimiento (👉 **[Explora 19 casos prácticos paso a paso con capturas de pantalla](docs/best-practices.md)**):
+Un espacio de trabajo integral que conecta la captura de inspiración, la creación profunda y la consolidación del conocimiento (👉 **[Explora 20 casos prácticos paso a paso con capturas de pantalla](docs/best-practices.md)**):
 
 | Módulo | Funciones principales | Funciones avanzadas |
 | :--- | :--- | :--- |

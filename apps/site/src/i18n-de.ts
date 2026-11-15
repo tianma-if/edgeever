@@ -58,7 +58,7 @@ export const deSiteCopy = {
     heading: "Neu gedacht für selbst gehostetes Wissen und KI-Workflows",
     subheading:
       "Schluss mit Werbung, Gerätebeschränkungen und teuren Abos. Jedes Detail wurde für ein schnelles, offenes und privates zweites Gehirn entwickelt.",
-    showcaseCta: "19 praxisnahe Workflows und Screenshots ansehen",
+    showcaseCta: "20 praxisnahe Workflows und Screenshots ansehen",
     card1: {
       badge: "Klassische UI",
       title: "Klassisches Drei-Spalten-Layout, schneller und leichter",
@@ -275,7 +275,7 @@ export const deSiteCopy = {
         cta: "Migrationsleitfaden lesen",
       },
       {
-        title: "19 Praxis-Workflows & Showcase",
+        title: "20 Praxis-Workflows & Showcase",
         summary: "Visuelle Übersicht über Drei-Spalten-Bearbeitung, Omnichannel-Clipping, KI-Diagramme, lokale ACP-Agenten und Poster-Design.",
         href: "/guides/best-practices",
         cta: "Showcase ansehen",

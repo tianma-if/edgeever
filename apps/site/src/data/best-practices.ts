@@ -40,6 +40,8 @@ import wechatCopyMenuImg from "../../../../docs/assets/best-practices/original-i
 import wechatCopyEditorImg from "../../../../docs/assets/best-practices/original-image/wechat-article-copy-to/show-in-wechat-editor.png";
 import pluginOfficialImg from "../../../../docs/assets/best-practices/original-image/plugin/official-in.png";
 import pluginApiImg from "../../../../docs/assets/best-practices/original-image/plugin/plugin-api.png";
+import importInSettingImg from "../../../../docs/assets/best-practices/original-image/import-from-other-note/import-in-setting-v2.png";
+import importDialogImg from "../../../../docs/assets/best-practices/original-image/import-from-other-note/import-dialog-v2.png";
 
 export type ShowcaseCaseId =
   | "three-pane"
@@ -60,7 +62,8 @@ export type ShowcaseCaseId =
   | "note-export-image"
   | "poster-studio"
   | "wechat-mp-copy"
-  | "plugin-ecosystem";
+  | "plugin-ecosystem"
+  | "third-party-import";
 
 export type ShowcaseMediaLayout = "stack" | "grid-2" | "grid-3";
 
@@ -145,6 +148,10 @@ export const showcaseCaseAssets: Record<ShowcaseCaseId, ShowcaseCaseAssetConfig>
   "plugin-ecosystem": {
     layout: "stack",
     images: [pluginOfficialImg, pluginApiImg],
+  },
+  "third-party-import": {
+    layout: "stack",
+    images: [importInSettingImg, importDialogImg],
   },
 };
 
@@ -621,6 +628,40 @@ const zhCnCategories: ShowcaseCategoryCopy[] = [
       },
     ],
   },
+  {
+    id: "migration",
+    badge: "06 · 迁移导入",
+    title: "第三方笔记迁移与导入",
+    description: "在设置中心原生一键导入 Notion、思源笔记、flomo、印象笔记、Obsidian 与 Joplin 的完整笔记与附件。",
+    cases: [
+      {
+        id: "third-party-import",
+        number: "20",
+        title: "第三方笔记平台一键导入迁移",
+        lead: "在「设置 → 备份与导入 → 从其他应用导入」中点击「开始导入」，即可在客户端完成主流笔记平台的一键迁移。",
+        bullets: [
+          "多平台原生支持：支持 Notion（Markdown & CSV / .zip）、SiYuan / 思源（含 assets 的 Markdown / .zip）、flomo（HTML / .zip）、Evernote / 印象笔记（.enex / .zip）、Obsidian（Vault 目录 / .zip）与 Joplin（.jex / RAW / .zip）。",
+          "本地预检与完整转存：支持拖拽或浏览选择批量文件、目录结构与压缩包，在本地预检统计笔记本、笔记与附件数，保留目录层级与内嵌图片。",
+        ],
+        links: [
+          {
+            label: "第三方笔记导入指引",
+            href: "https://github.com/tianma-if/edgeever/blob/main/docs/note-migration-guide.md",
+          },
+        ],
+        media: [
+          {
+            caption: "1. 设置中心「从其他应用导入」入口",
+            alt: "EdgeEver 设置中心备份与导入页面的从其他应用导入入口",
+          },
+          {
+            caption: "2. 选择来源平台与导入文件",
+            alt: "EdgeEver 从其他应用导入对话框支持 Notion、思源笔记、flomo、印象笔记、Obsidian 与 Joplin",
+          },
+        ],
+      },
+    ],
+  },
 ];
 
 const enUsCategories: ShowcaseCategoryCopy[] = [
@@ -1055,14 +1096,48 @@ const enUsCategories: ShowcaseCategoryCopy[] = [
       },
     ],
   },
+  {
+    id: "migration",
+    badge: "06 · Migration & Import",
+    title: "Third-Party Note Migration & Import",
+    description: "Native one-click GUI import from Notion, SiYuan, flomo, Evernote, Obsidian, and Joplin with full notes, folders, and attachments.",
+    cases: [
+      {
+        id: "third-party-import",
+        number: "20",
+        title: "One-Click Third-Party Note Platform Import",
+        lead: "Go to Settings → Backup & Import → Import from Other Apps and click Start Import to migrate from mainstream note apps directly in the client.",
+        bullets: [
+          "6 Native Platforms: Supports Notion (Markdown & CSV / .zip), SiYuan (Markdown with assets / .zip), flomo (HTML / .zip), Evernote (.enex / .zip), Obsidian (Vault folder / .zip), and Joplin (.jex / RAW / .zip).",
+          "Local Preflight & Full Preservation: Drag and drop or browse batch files, folders, and archives to preview notebook, note, and attachment counts locally while preserving folder hierarchy and embedded media.",
+        ],
+        links: [
+          {
+            label: "Third-Party Notes Import Guide",
+            href: "https://github.com/tianma-if/edgeever/blob/main/docs/note-migration-guide.en-US.md",
+          },
+        ],
+        media: [
+          {
+            caption: "1. \"Import from Other Apps\" in Settings",
+            alt: "EdgeEver Backup & Import settings showing Import from Other Apps entrance",
+          },
+          {
+            caption: "2. Select Source Platform & Load Files",
+            alt: "EdgeEver Import from Other Apps dialog supporting Notion, SiYuan, flomo, Evernote, Obsidian, and Joplin",
+          },
+        ],
+      },
+    ],
+  },
 ];
 
 export const bestPracticesPageCopy: Record<SiteLocale, BestPracticesPageLocaleCopy> = {
   "zh-CN": {
     eyebrow: "BEST PRACTICES & SHOWCASE",
-    title: "EdgeEver 19 个真机场景与实操指南",
+    title: "EdgeEver 20 个真机场景与实操指南",
     description:
-      "涵盖三栏沉浸写作、微信与全渠道结构化剪藏、AI 对话生成导图/信息图/多维表格、本机 ACP Agent 协同、海报与长图分享及开放插件生态的完整实机演示。",
+      "涵盖三栏沉浸写作、微信与全渠道结构化剪藏、AI 对话生成导图/信息图/多维表格、本机 ACP Agent 协同、海报与长图分享、开放插件生态及第三方笔记一键导入的完整实机演示。",
     zoomHint: "点击任意截图可放大查看高清细节",
     closePreview: "关闭预览",
     demoCta: "打开在线演示",
@@ -1073,9 +1148,9 @@ export const bestPracticesPageCopy: Record<SiteLocale, BestPracticesPageLocaleCo
   },
   "en-US": {
     eyebrow: "BEST PRACTICES & SHOWCASE",
-    title: "19 Real-World EdgeEver Workflows & Showcase",
+    title: "20 Real-World EdgeEver Workflows & Showcase",
     description:
-      "A visual walkthrough of core EdgeEver workflows across desktop and mobile: three-pane writing, omnichannel clipping, AI diagrams & databases, local ACP agents, poster studio, and open plugins.",
+      "A visual walkthrough of core EdgeEver workflows across desktop and mobile: three-pane writing, omnichannel clipping, AI diagrams & databases, local ACP agents, poster studio, open plugins, and third-party note import.",
     zoomHint: "Click any screenshot to inspect full-resolution details",
     closePreview: "Close preview",
     demoCta: "Open Live Demo",
@@ -1086,9 +1161,9 @@ export const bestPracticesPageCopy: Record<SiteLocale, BestPracticesPageLocaleCo
   },
   ja: {
     eyebrow: "BEST PRACTICES & SHOWCASE",
-    title: "EdgeEver 19 の実機デモとベストプラクティス",
+    title: "EdgeEver 20 の実機デモとベストプラクティス",
     description:
-      "クラシックな三ペイン執筆、マルチチャネル Web クリッピング、AI による図解・インフォグラフィック・多次元テーブル生成、ローカル ACP Agent 連携、ポスター作成、プラグイン拡張までの実機ワークフロー集です。",
+      "クラシックな三ペイン執筆、マルチチャネル Web クリッピング、AI による図解・インフォグラフィック・多次元テーブル生成、ローカル ACP Agent 連携、ポスター作成、プラグイン拡張、他社ノート一括インポートまでの実機ワークフロー集です。",
     zoomHint: "スクリーンショットをクリックすると拡大表示できます",
     closePreview: "プレビューを閉じる",
     demoCta: "ライブデモを開く",
@@ -1099,9 +1174,9 @@ export const bestPracticesPageCopy: Record<SiteLocale, BestPracticesPageLocaleCo
   },
   pl: {
     eyebrow: "BEST PRACTICES & SHOWCASE",
-    title: "19 praktycznych scenariuszy i prezentacja EdgeEver",
+    title: "20 praktycznych scenariuszy i prezentacja EdgeEver",
     description:
-      "Wizualny przewodnik po najważniejszych przepływach pracy w EdgeEver na komputerze i telefonie: pisanie w trzech panelach, wycinanie treści z sieci, diagramy i bazy danych AI, lokalni agenci ACP, studio plakatów i wtyczki.",
+      "Wizualny przewodnik po najważniejszych przepływach pracy w EdgeEver na komputerze i telefonie: pisanie w trzech panelach, wycinanie treści z sieci, diagramy i bazy danych AI, lokalni agenci ACP, studio plakatów, wtyczki i import z innych aplikacji.",
     zoomHint: "Kliknij dowolny zrzut ekranu, aby powiększyć",
     closePreview: "Zamknij podgląd",
     demoCta: "Otwórz demo na żywo",
@@ -1112,9 +1187,9 @@ export const bestPracticesPageCopy: Record<SiteLocale, BestPracticesPageLocaleCo
   },
   "zh-TW": {
     eyebrow: "BEST PRACTICES & SHOWCASE",
-    title: "EdgeEver 19 個真機場景與實操指南",
+    title: "EdgeEver 20 個真機場景與實操指南",
     description:
-      "涵蓋三欄沉浸寫作、全通路結構化剪藏、AI 對話產生導圖/資訊圖/多維表格、本機 ACP Agent 協同、海報與長圖分享及開放外掛生態的完整實機展示。",
+      "涵蓋三欄沉浸寫作、全通路結構化剪藏、AI 對話產生導圖/資訊圖/多維表格、本機 ACP Agent 協同、海報與長圖分享、開放外掛生態及第三方筆記一鍵匯入的完整實機展示。",
     zoomHint: "點擊任意截圖可放大查看高清細節",
     closePreview: "關閉預覽",
     demoCta: "打開線上展示",
@@ -1125,9 +1200,9 @@ export const bestPracticesPageCopy: Record<SiteLocale, BestPracticesPageLocaleCo
   },
   es: {
     eyebrow: "BEST PRACTICES & SHOWCASE",
-    title: "19 flujos de trabajo reales y casos de uso de EdgeEver",
+    title: "20 flujos de trabajo reales y casos de uso de EdgeEver",
     description:
-      "Recorrido visual por los flujos principales de EdgeEver en escritorio y móvil: edición en tres paneles, captura multicanal, diagramas y bases de datos con IA, agentes ACP locales, diseño de pósteres y plugins.",
+      "Recorrido visual por los flujos principales de EdgeEver en escritorio y móvil: edición en tres paneles, captura multicanal, diagramas y bases de datos con IA, agentes ACP locales, diseño de pósteres, plugins e importación desde otras apps.",
     zoomHint: "Haz clic en cualquier captura para ver detalles en alta resolución",
     closePreview: "Cerrar vista previa",
     demoCta: "Abrir demo en vivo",
@@ -1138,9 +1213,9 @@ export const bestPracticesPageCopy: Record<SiteLocale, BestPracticesPageLocaleCo
   },
   de: {
     eyebrow: "BEST PRACTICES & SHOWCASE",
-    title: "19 Praxis-Workflows & Showcase für EdgeEver",
+    title: "20 Praxis-Workflows & Showcase für EdgeEver",
     description:
-      "Visueller Rundgang durch zentrale EdgeEver-Workflows auf Desktop und Mobilgeräten: Drei-Spalten-Schreiben, Omnichannel-Clipping, KI-Diagramme & Datenbanken, lokale ACP-Agenten, Posterstudio und Plugins.",
+      "Visueller Rundgang durch zentrale EdgeEver-Workflows auf Desktop und Mobilgeräten: Drei-Spalten-Schreiben, Omnichannel-Clipping, KI-Diagramme & Datenbanken, lokale ACP-Agenten, Posterstudio, Plugins und Import aus anderen Notiz-Apps.",
     zoomHint: "Klicken Sie auf einen Screenshot, um Details in voller Auflösung anzuzeigen",
     closePreview: "Vorschau schließen",
     demoCta: "Live-Demo öffnen",
@@ -1151,9 +1226,9 @@ export const bestPracticesPageCopy: Record<SiteLocale, BestPracticesPageLocaleCo
   },
   fr: {
     eyebrow: "BEST PRACTICES & SHOWCASE",
-    title: "19 cas d'usage réels & galerie EdgeEver",
+    title: "20 cas d'usage réels & galerie EdgeEver",
     description:
-      "Visite visuelle des workflows clés d'EdgeEver sur ordinateur et mobile : rédaction à trois volets, capture omnicanale, diagrammes et bases de données IA, agents ACP locaux, studio d'affiches et plugins.",
+      "Visite visuelle des workflows clés d'EdgeEver sur ordinateur et mobile : rédaction à trois volets, capture omnicanale, diagrammes et bases de données IA, agents ACP locaux, studio d'affiches, plugins et import depuis d'autres applications.",
     zoomHint: "Cliquez sur une capture d'écran pour l'afficher en haute résolution",
     closePreview: "Fermer l'aperçu",
     demoCta: "Ouvrir la démo en direct",
@@ -1164,9 +1239,9 @@ export const bestPracticesPageCopy: Record<SiteLocale, BestPracticesPageLocaleCo
   },
   ru: {
     eyebrow: "BEST PRACTICES & SHOWCASE",
-    title: "19 реальных сценариев и галерея возможностей EdgeEver",
+    title: "20 реальных сценариев и галерея возможностей EdgeEver",
     description:
-      "Наглядный обзор ключевых рабочих процессов EdgeEver на десктопе и смартфонах: трехпанельный редактор, омниканальный клиппинг, диаграммы и базы данных ИИ, локальные агенты ACP, дизайн постеров и плагины.",
+      "Наглядный обзор ключевых рабочих процессов EdgeEver на десктопе и смартфонах: трехпанельный редактор, омниканальный клиппинг, диаграммы и базы данных ИИ, локальные агенты ACP, дизайн постеров, плагины и импорт из других приложений.",
     zoomHint: "Нажмите на любой скриншот для просмотра в высоком разрешении",
     closePreview: "Закрыть предпросмотр",
     demoCta: "Открыть онлайн-демо",

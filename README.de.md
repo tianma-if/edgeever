@@ -84,7 +84,7 @@ Die öffentliche Demo wird täglich um 03:00 Uhr morgens (Peking-Zeit, UTC+8) au
 <a id="features"></a>
 ## Funktionsmatrix & Möglichkeiten
 
-Ein All-in-One-Arbeitsbereich, der Inspiration, tiefgründiges Erstellen und Wissensaufbau nahtlos verbindet (👉 **[Entdecke 19 Schritt-für-Schritt-Praxisbeispiele mit Screenshots](docs/best-practices.md)**):
+Ein All-in-One-Arbeitsbereich, der Inspiration, tiefgründiges Erstellen und Wissensaufbau nahtlos verbindet (👉 **[Entdecke 20 Schritt-für-Schritt-Praxisbeispiele mit Screenshots](docs/best-practices.md)**):
 
 | Modul | Kernfunktionen | Erweiterte Funktionen |
 | :--- | :--- | :--- |

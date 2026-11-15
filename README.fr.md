@@ -85,7 +85,7 @@ La démo publique est réinitialisée automatiquement chaque jour à 3h00 (heure
 <a id="features"></a>
 ## Matrice des fonctionnalités et capacités
 
-Un espace de travail tout-en-un reliant la capture d'inspiration, la création approfondie et la capitalisation des connaissances (👉 **[Découvrez 19 cas pratiques détaillés avec captures d'écran](docs/best-practices.md)**) :
+Un espace de travail tout-en-un reliant la capture d'inspiration, la création approfondie et la capitalisation des connaissances (👉 **[Découvrez 20 cas pratiques détaillés avec captures d'écran](docs/best-practices.md)**) :
 
 | Module | Fonctionnalités clés | Fonctionnalités avancées |
 | :--- | :--- | :--- |

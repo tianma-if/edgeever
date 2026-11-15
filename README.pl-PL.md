@@ -83,7 +83,7 @@ Publiczne demo resetuje się codziennie o 3:00 czasu chińskiego (UTC+8) i przyw
 <a id="features"></a>
 ## Macierz funkcji i zastosowań
 
-Wszechstronny obszar roboczy łączący zbieranie inspiracji, głębokie tworzenie i gromadzenie wiedzy (👉 **[Zobacz wszystkie 19 scenariuszy ze zrzutami ekranu](docs/best-practices.md)**):
+Wszechstronny obszar roboczy łączący zbieranie inspiracji, głębokie tworzenie i gromadzenie wiedzy (👉 **[Zobacz wszystkie 20 scenariuszy ze zrzutami ekranu](docs/best-practices.md)**):
 
 | Moduł | Funkcje podstawowe | Funkcje zaawansowane |
 | :--- | :--- | :--- |
