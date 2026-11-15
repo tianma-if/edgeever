@@ -15,6 +15,8 @@ import {
   parseNoteProseQuoteStyle,
   type NoteProsePaletteColors,
   type NoteProseStylePreferences,
+  detectPublishImageMimeType,
+  isPublishImageMimeType,
 } from "@edgeever/shared";
 import katex from "katex";
 import "katex/contrib/mhchem";
@@ -392,11 +394,12 @@ const rasterizeBlob = async (blob: Blob) => {
   }
 };
 
-const convertImageToPng = async (blob: Blob) => {
-  if (blob.type.toLowerCase() === "image/png" || blob.type.toLowerCase() === "image/jpeg") {
-    return blob;
-  }
-
+const preparePublishImage = async (blob: Blob) => {
+  // Preserve raster containers byte-for-byte, including every animation frame.
+  // Sniff headers too: resource endpoints may return a generic content type.
+  const mime = detectPublishImageMimeType(new Uint8Array(await blob.slice(0, 256).arrayBuffer()));
+  if (mime) return blob.type === mime ? blob : new Blob([blob], { type: mime });
+  if (isPublishImageMimeType(blob.type.toLowerCase())) throw new Error("Image bytes do not match their format");
   return rasterizeBlob(blob);
 };
 
@@ -559,17 +562,6 @@ const embedMermaidForWeChat = async (
 const isContentImage = (image: HTMLImageElement) =>
   Boolean(image.getAttribute("src")?.trim()) && !image.classList.contains("ProseMirror-separator");
 
-const findOriginalImage = (source: string, originals: HTMLImageElement[]) => {
-  const match = originals.find((image) => image.getAttribute("src") === source || image.currentSrc === source);
-  if (match) return match;
-  try {
-    const resolved = new URL(source, window.location.href).href;
-    return originals.find((image) => image.src === resolved) ?? null;
-  } catch {
-    return null;
-  }
-};
-
 export const loadPublishImage = async (source: string) => {
   const normalized = toApiResourceUrl(source);
   const base = getConfiguredDesktopApiBaseUrl() || window.location.origin;
@@ -581,16 +573,14 @@ export const loadPublishImage = async (source: string) => {
     ? await api.getResourceResponse(`${url.pathname}${url.search}`)
     : await fetch(url.href, { credentials: "same-origin" });
   if (!response.ok) throw new Error(`Could not fetch image (${response.status})`);
-  return convertImageToPng(await response.blob());
+  return preparePublishImage(await response.blob());
 };
 
 export const embedImagesForWeChat = async (
   root: HTMLElement,
-  originalImages: HTMLImageElement[] = [],
   uploadImage = createConfiguredPublishImageUploader(),
 ) => {
   const images = Array.from(root.querySelectorAll<HTMLImageElement>("img")).filter(isContentImage);
-  const originals = originalImages.filter(isContentImage);
   const loaded = new Map<string, Promise<Blob>>();
   for (const image of images) {
     // Formula images carry native Zhihu math metadata; retain that editable path.
@@ -600,13 +590,9 @@ export const embedImagesForWeChat = async (
     try {
       let blob = loaded.get(source);
       if (!blob) {
-        blob = loadPublishImage(source).catch(async (error) => {
-          // A displayed image may remain available when its remote host denies
-          // fetch/CORS. Canvas is usable only when the browser permits reading it.
-          const original = findOriginalImage(source, originals);
-          if (!original) throw error;
-          return rasterizeImageElement(original);
-        });
+        // Never substitute a canvas snapshot when original bytes are unavailable:
+        // that would silently flatten animations to their first frame.
+        blob = loadPublishImage(source);
         loaded.set(source, blob);
       }
       image.setAttribute("src", await uploadImage(await blob));
@@ -1323,9 +1309,8 @@ export const buildWeChatClipboardHtml = async (editor: Editor) => {
   const uploadImage = createConfiguredPublishImageUploader();
   await rasterizeMathForWeChat(container);
   await embedMermaidForWeChat(container, editor, uploadImage);
-  const originalImages = Array.from(editor.view.dom.querySelectorAll<HTMLImageElement>("img")).filter(isContentImage);
   await rasterizePublishOrnamentsForWeChat(container);
-  await embedImagesForWeChat(container, originalImages, uploadImage);
+  await embedImagesForWeChat(container, uploadImage);
   return container.outerHTML;
 };
 
@@ -1338,7 +1323,7 @@ export const buildMarkdownWeChatHtml = async (markdown: string) => {
   await rasterizeMathForWeChat(container);
   await embedMermaidForWeChat(container, undefined, uploadImage);
   await rasterizePublishOrnamentsForWeChat(container);
-  await embedImagesForWeChat(container, [], uploadImage);
+  await embedImagesForWeChat(container, uploadImage);
   return { html: container.outerHTML, text: container.textContent ?? "" };
 };
 

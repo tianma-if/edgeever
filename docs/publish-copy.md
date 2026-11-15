@@ -8,8 +8,11 @@ PicGo/PicList, and CloudFlare ImgBed use the same publishing flow. Original note
 and their attachments are not modified.
 
 Private attachment bytes are read using the authenticated client; instance tokens
-are never sent to external image hosts. PNG/JPEG files retain their original bytes;
-other formats are rasterized to PNG (animated images use a still frame). LaTeX
+are never sent to external image hosts. PNG, JPEG, GIF, WebP and AVIF retain their original bytes,
+including animation frames and timing (APNG is preserved as PNG). Static vector
+and other image formats are rasterized to PNG. Reading failures stop copying;
+they never fall back to a canvas snapshot that would flatten an animation.
+Publication uploads disable ImgBed server compression to preserve the original file. LaTeX
 images retain native editable formula metadata for Zhihu. Reading or uploading any
 ordinary image must succeed before copying completes.
 
@@ -26,8 +29,10 @@ gateway, or hotlink restriction; verify the destination editor's actual import.
 Rendering, upload, or host cancellation failures stop copying and display an error.
 
 For instance administrators: migration `0094_publish_images.sql` adds the publication
-index. Deploy the API and apply migrations before using the updated client.
-`POST /api/v1/publish-images` accepts authenticated user uploads of PNG/JPEG images
+index; `0095_publish_animated_images.sql` expands its MIME types while preserving
+existing publication URLs. Deploy the API and apply migrations before using the
+updated client.
+`POST /api/v1/publish-images` accepts authenticated user uploads of PNG/JPEG/GIF/WebP/AVIF images
 up to 10 MiB. `GET /api/public/publish-images/:token` serves only the corresponding
 publication copy. `DELETE /api/v1/publish-images/:token` revokes a URL and deletes its
 copy, within the authenticated user's workspace. Revocation cannot delete copies

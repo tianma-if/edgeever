@@ -1,4 +1,5 @@
 import type { Hono } from "hono";
+import { detectPublishImageMimeType, isPublishImageMimeType, PUBLISH_IMAGE_EXTENSIONS, type PublishImageMimeType } from "@edgeever/shared";
 import type { AppEnv } from "./api-context";
 import { randomToken } from "./auth-crypto";
 import { sha256Bytes } from "./hash-utils";
@@ -9,7 +10,7 @@ import { getWorkspaceId, requireUser } from "./request-auth";
 const MAX_BYTES = 10 * 1024 * 1024;
 const TOKEN = /^[A-Za-z0-9_-]{43}$/;
 type PublishImage = {
-  token: string; object_key: string; storage_config_id: string; mime_type: "image/png" | "image/jpeg";
+  token: string; object_key: string; storage_config_id: string; mime_type: PublishImageMimeType;
 };
 const pathFor = (token: string) => `/api/public/publish-images/${token}`;
 
@@ -28,7 +29,7 @@ export const registerPublicPublishImageRoutes = (app: Hono<AppEnv>) => {
     if (!object) return notFound(c, "Image not found");
     c.header("Content-Type", row.mime_type);
     c.header("Content-Length", String(object.size));
-    c.header("Content-Disposition", `inline; filename="diagram.${row.mime_type === "image/png" ? "png" : "jpg"}"`);
+    c.header("Content-Disposition", `inline; filename="image.${PUBLISH_IMAGE_EXTENSIONS[row.mime_type]}"`);
     c.header("X-Content-Type-Options", "nosniff");
     c.header("Access-Control-Allow-Origin", "*");
     c.header("Referrer-Policy", "no-referrer");
@@ -41,7 +42,7 @@ export const registerPublishImageRoutes = (app: Hono<AppEnv>) => {
     const denied = requireUser(c);
     if (denied) return denied;
     const mime = c.req.header("Content-Type")?.split(";")[0].trim();
-    if (mime !== "image/png" && mime !== "image/jpeg") return badRequest(c, "Expected a PNG or JPEG image.");
+    if (!mime || !isPublishImageMimeType(mime)) return badRequest(c, "Expected a PNG, JPEG, GIF, WebP or AVIF image.");
     if (Number(c.req.header("Content-Length")) > MAX_BYTES) return apiError(c, "image_too_large", "Publication images must be at most 10 MiB.", 413);
     // Bound actual bytes as well: chunked requests need not declare a length.
     const reader = c.req.raw.body?.getReader();
@@ -60,10 +61,7 @@ export const registerPublishImageRoutes = (app: Hono<AppEnv>) => {
     const bytes = new Uint8Array(size);
     let offset = 0;
     for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
-    const valid = mime === "image/png"
-      ? bytes.length >= 24 && [137, 80, 78, 71, 13, 10, 26, 10].every((value, index) => bytes[index] === value)
-      : bytes.length >= 4 && bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255;
-    if (!valid) return badRequest(c, "Image bytes do not match the declared format.");
+    if (detectPublishImageMimeType(bytes) !== mime) return badRequest(c, "Image bytes do not match the declared format.");
     const db = c.env.storage.db;
     const workspace = getWorkspaceId(c);
     const hash = await sha256Bytes(bytes);

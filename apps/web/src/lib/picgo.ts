@@ -100,6 +100,7 @@ export type PicGoFailureCopy = { title: string; message: string; retry: string; 
 export type BrowserImgBedFailureChoice = "retry" | "fallback" | "cancel";
 export const uploadImageWithPicGo = async (file: File, copy: PicGoFailureCopy, context: {
   memoId?: string; isActive?: () => boolean; chooseFailure?: () => Promise<BrowserImgBedFailureChoice>;
+  preserveOriginal?: boolean;
 } = {}) => {
   const preference = readPicGoPreference();
   if (preference.provider === "edgeever" || !hasBridge(preference.provider)) return null;
@@ -112,7 +113,8 @@ export const uploadImageWithPicGo = async (file: File, copy: PicGoFailureCopy, c
     const result = preference.provider === "imgbed"
       ? await (isBrowserImgBed() ? browserImgBed.uploadImgBedImage : window.edgeeverDesktop!.uploadImgBedImage!)({
         endpoint: preference.imgbed.endpoint, token: preference.imgbed.token, nameType: preference.imgbed.nameType,
-        uploadChannel: preference.imgbed.uploadChannel, channelName: preference.imgbed.channelName, serverCompress: preference.imgbed.serverCompress,
+        uploadChannel: preference.imgbed.uploadChannel, channelName: preference.imgbed.channelName,
+        serverCompress: context.preserveOriginal ? false : preference.imgbed.serverCompress,
         autoRetry: imgBedAutoRetry(preference.imgbed.autoRetry, preference.imgbed.channelName),
         uploadFolder: expandImgBedFolder(preference.imgbed.uploadFolder, new Date(), { memoId: context.memoId }), bytes, filename: file.name, mimeType: file.type, copy,
       })

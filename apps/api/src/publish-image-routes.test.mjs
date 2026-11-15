@@ -14,21 +14,27 @@ const fixtures = [];
 afterEach(async () => {
   for (const { sqlite, directory } of fixtures.splice(0)) { sqlite.close(); await rm(directory, { recursive: true, force: true }); }
 });
-const fixture = async () => {
+const fixture = async ({ legacyPublication = false } = {}) => {
   const sqlite = new Database(":memory:");
   // Start from the previous schema with real private resources, then upgrade.
   for (const path of globSync("migrations/*.sql").sort()) {
-    if (!path.endsWith("0094_publish_images.sql")) sqlite.exec(readFileSync(path, "utf8"));
+    if (path < "migrations/0094") sqlite.exec(readFileSync(path, "utf8"));
   }
   sqlite.exec(`INSERT INTO workspaces (id, name, is_personal) VALUES ('ws_publish', 'Publish', 1), ('ws_other', 'Other', 1);
     INSERT INTO notebooks (id, workspace_id, name) VALUES ('nb_publish', 'ws_publish', 'Private');
     INSERT INTO memos (id, workspace_id, notebook_id, title) VALUES ('memo_private', 'ws_publish', 'nb_publish', 'Private');
     INSERT INTO resources (id, memo_id, object_key, kind, mime_type) VALUES ('res_private', 'memo_private', 'private/image.png', 'image', 'image/png');`);
   sqlite.exec(readFileSync("migrations/0094_publish_images.sql", "utf8"));
+  if (legacyPublication) sqlite.query(`INSERT INTO publish_images
+    (token, workspace_id, sha256, object_key, storage_config_id, mime_type, byte_size, created_at)
+    VALUES (?, 'ws_publish', 'legacy-hash', 'legacy/published.png', 'builtin', 'image/png', ?, '2026-11-15')`)
+    .run('L'.repeat(43), png.byteLength);
+  sqlite.exec(readFileSync("migrations/0095_publish_animated_images.sql", "utf8"));
   const directory = await mkdtemp(`${tmpdir()}/edgeever-publish-`);
   fixtures.push({ sqlite, directory });
   const storage = createSelfHostedStorageAdapter(sqlite, directory);
   await storage.resources.put("private/image.png", png);
+  if (legacyPublication) await storage.resources.put("legacy/published.png", png);
   const env = { storage };
   const app = new Hono();
   app.onError((_error, c) => c.json({ error: "Test request failed" }, 500));
@@ -47,6 +53,30 @@ const fixture = async () => {
 };
 
 describe("publication images across schema upgrade", () => {
+  test("0094 publication URLs and private resource ownership survive the 0095 upgrade", async () => {
+    const { app, env, sqlite } = await fixture({ legacyPublication: true });
+    const response = await app.request(`/api/public/publish-images/${'L'.repeat(43)}`, {}, env);
+    expect(response.status).toBe(200);
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(png);
+    expect(sqlite.query("SELECT workspace_id, object_key FROM publish_images WHERE token = ?").get('L'.repeat(43)))
+      .toEqual({ workspace_id: 'ws_publish', object_key: 'legacy/published.png' });
+  });
+
+  test("stores and serves animated containers byte-for-byte with matching MIME types and filenames", async () => {
+    const { app, env, upload } = await fixture();
+    for (const [extension, mime] of [["gif", "image/gif"], ["webp", "image/webp"], ["png", "image/png"], ["avif", "image/avif"]]) {
+      const bytes = new Uint8Array(readFileSync(`tests/fixtures/publish-animation/two-frames.${extension}`));
+      const response = await upload("ws_publish", bytes, mime);
+      expect(response.status).toBe(200);
+      const { url } = await response.json();
+      const image = await app.request(url, {}, env);
+      expect(image.headers.get("Content-Type")).toBe(mime);
+      expect(image.headers.get("Content-Disposition")).toContain(`image.${extension}`);
+      expect(new Uint8Array(await image.arrayBuffer())).toEqual(bytes);
+      expect(await (await upload("ws_publish", bytes, mime)).json()).toEqual({ url });
+      expect((await upload("ws_publish", png, mime === 'image/png' ? 'image/gif' : mime)).status).toBe(400);
+    }
+  });
   test("publishes a separate image anonymously without exposing an old private resource", async () => {
     const { app, env, upload, sqlite } = await fixture();
     expect(sqlite.query("SELECT object_key FROM resources WHERE id='res_private'").get().object_key).toBe("private/image.png");

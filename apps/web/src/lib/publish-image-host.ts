@@ -2,6 +2,7 @@ import { api, getConfiguredDesktopApiBaseUrl } from "./api";
 import { readPicGoPreference, uploadImageWithPicGo } from "./picgo";
 import type { PicGoFailureCopy } from "./picgo";
 import i18n from "i18next";
+import { PUBLISH_IMAGE_EXTENSIONS, isPublishImageMimeType } from "@edgeever/shared";
 
 export class PublishImageError extends Error {
   constructor(readonly reason: "address" | "upload" | "render", options?: ErrorOptions) {
@@ -51,7 +52,8 @@ export const createPublishImageUploader = (dependencies: UploadDependencies) => 
     if (!upload) {
       upload = (async () => {
         try {
-          const file = new File([blob], `publish-${key.slice(0, 16)}.${blob.type === "image/png" ? "png" : "jpg"}`, { type: blob.type });
+          if (!isPublishImageMimeType(blob.type)) throw new PublishImageError("upload");
+          const file = new File([blob], `publish-${key.slice(0, 16)}.${PUBLISH_IMAGE_EXTENSIONS[blob.type]}`, { type: blob.type });
           const result = await dependencies.upload(file);
           if (!result || !dependencies.isCurrent()) throw new PublishImageError("upload");
           return publicPublishImageUrl(result.url, dependencies.baseUrl);
@@ -82,6 +84,6 @@ export const createConfiguredPublishImageUploader = () => {
     external: preference.provider !== "edgeever", baseUrl, isCurrent,
     upload: preference.provider === "edgeever"
       ? (file) => api.uploadPublishImage(file)
-      : (file) => uploadImageWithPicGo(file, copy, { isActive: isCurrent }),
+      : (file) => uploadImageWithPicGo(file, copy, { isActive: isCurrent, preserveOriginal: true }),
   });
 };

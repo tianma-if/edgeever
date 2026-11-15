@@ -2,8 +2,23 @@ import { describe, expect, test } from "bun:test";
 import { createConfiguredPublishImageUploader, createPublishImageUploader, publicPublishImageUrl } from "./publish-image-host.ts";
 import { api } from "./api.ts";
 import { writePicGoPreference } from "./picgo.ts";
+import { readFileSync } from "node:fs";
 
 describe("publication image hosting", () => {
+  test("uploads animated containers with their original bytes, MIME types and file extensions", async () => {
+    for (const [extension, mime] of [["gif", "image/gif"], ["webp", "image/webp"], ["png", "image/png"], ["avif", "image/avif"]]) {
+      const bytes = new Uint8Array(readFileSync(`tests/fixtures/publish-animation/two-frames.${extension}`));
+      const upload = createPublishImageUploader({ external: true, baseUrl: "https://notes.example.com", isCurrent: () => true,
+        upload: async (file) => {
+          expect(file.name).toEndWith(`.${extension}`);
+          expect(file.type).toBe(mime);
+          expect(new Uint8Array(await file.arrayBuffer())).toEqual(bytes);
+          return { url: `https://cdn.example.com/animation.${extension}` };
+        },
+      });
+      expect(await upload(new Blob([bytes], { type: mime }))).toBe(`https://cdn.example.com/animation.${extension}`);
+    }
+  });
   test("built-in upload returns an anonymous absolute URL and deduplicates identical diagrams", async () => {
     const files = [];
     const upload = createPublishImageUploader({ external: false, baseUrl: "https://notes.example.com", isCurrent: () => true,
@@ -29,20 +44,20 @@ describe("publication image hosting", () => {
       const upload = createPublishImageUploader({ external: false, baseUrl, isCurrent: () => true,
         upload: async () => { called = true; return { url: "/image" }; },
       });
-      await expect(upload(new Blob(["diagram"]))).rejects.toMatchObject({ reason: "address" });
+      await expect(upload(new Blob(["diagram"], { type: "image/png" }))).rejects.toMatchObject({ reason: "address" });
       expect(called).toBe(false);
     }
   });
   test("external host failures and cancellation never silently switch hosts", async () => {
     for (const response of [null, { url: "http://localhost/image.png" }, { url: "data:image/png;base64,broken" }]) {
       const upload = createPublishImageUploader({ external: true, baseUrl: "https://notes.example.com", isCurrent: () => true, upload: async () => response });
-      await expect(upload(new Blob(["diagram"]))).rejects.toBeInstanceOf(Error);
+      await expect(upload(new Blob(["diagram"], { type: "image/png" }))).rejects.toBeInstanceOf(Error);
     }
     let active = true;
     const upload = createPublishImageUploader({ external: true, baseUrl: "https://notes.example.com", isCurrent: () => active,
       upload: async () => { active = false; return { url: "https://cdn.example.com/image.png" }; },
     });
-    await expect(upload(new Blob(["diagram"]))).rejects.toMatchObject({ reason: "upload" });
+    await expect(upload(new Blob(["diagram"], { type: "image/png" }))).rejects.toMatchObject({ reason: "upload" });
   });
   test("rejects credential-bearing addresses and normalizes public image URLs", () => {
     expect(() => publicPublishImageUrl("https://secret@cdn.example.com/image.png", "https://notes.example.com")).toThrow();
@@ -60,7 +75,7 @@ describe("publication image hosting", () => {
     } };
     const preference = (provider) => ({ provider, endpoint: "http://127.0.0.1:36677/upload", serverKey: "", imgbed: {
       endpoint: "https://img.example.com", token: "test-token", uploadFolder: "publish", nameType: "default",
-      uploadChannel: "telegram", channelName: "", serverCompress: false, autoRetry: false,
+      uploadChannel: "telegram", channelName: "", serverCompress: true, autoRetry: false,
     } });
     try {
       api.uploadPublishImage = async (file) => { calls.push(["builtin", await file.text()]); return { url: "/api/public/publish-images/token" }; };
@@ -75,6 +90,7 @@ describe("publication image hosting", () => {
 
       delete globalThis.window.edgeeverDesktop;
       globalThis.fetch = async (_url, options) => {
+        expect(_url.searchParams.get("serverCompress")).toBe("false");
         const file = options.body.get("file");
         calls.push(["imgbed", await file.text()]);
         return Response.json([{ src: "/imgbed.jpg" }]);

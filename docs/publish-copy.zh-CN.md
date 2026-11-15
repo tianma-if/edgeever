@@ -5,8 +5,10 @@
 自动生成的排版装饰图片。内置图床、PicGo/PicList 和 CloudFlare ImgBed 使用同一套发布流程。
 笔记原文及其附件不会被修改。
 
-私有附件通过已登录的 API 客户端读取，不会向外部图床发送实例令牌。PNG/JPEG 保留
-原始图片字节，其他格式转为 PNG（动图使用静态帧）。LaTeX 图片保留知乎可编辑公式
+私有附件通过已登录的 API 客户端读取，不会向外部图床发送实例令牌。PNG、JPEG、GIF、WebP、AVIF 保留
+完整原始字节，包括动画帧和时间信息（APNG 按 PNG 原样保留）。静态矢量等其他格式
+转为 PNG。原图读取失败时会中止复制，不会通过画布截图将动图悄悄转成静态帧；
+发布上传会关闭 ImgBed 的服务端压缩，以保留原文件。LaTeX 图片保留知乎可编辑公式
 标记。普通图片全部读取并上传成功后，才会完成复制。
 
 内置图床会生成独立的发布副本。副本的随机公开地址无需登录 EdgeEver，发布平台
@@ -17,8 +19,9 @@
 可以改用三方图床。地址检查无法识别所有 DNS、防火墙、认证网关和防盗链限制，
 仍须验证目标编辑器的实际导入效果。渲染、上传失败或取消上传时会中止复制并显示错误。
 
-实例管理员需先部署 API 并应用 `0094_publish_images.sql` 迁移，再使用新版客户端。
-`POST /api/v1/publish-images` 允许已登录用户上传不超过 10 MiB 的 PNG/JPEG 图片；
+实例管理员需先部署 API 并应用迁移，再使用新版客户端。`0094_publish_images.sql`
+建立发布图片索引；`0095_publish_animated_images.sql` 扩展支持格式并保留原有发布地址。
+`POST /api/v1/publish-images` 允许已登录用户上传不超过 10 MiB 的 PNG/JPEG/GIF/WebP/AVIF 图片；
 `GET /api/public/publish-images/:token` 仅提供对应发布副本；
 `DELETE /api/v1/publish-images/:token` 可撤销当前用户工作区内的发布地址并删除副本。
 撤销无法删除已被发布平台转存的图片。
