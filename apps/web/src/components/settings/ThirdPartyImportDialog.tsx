@@ -1,6 +1,8 @@
 import { useRef, useState, type DragEvent } from "react";
 import { CheckCircle2, ExternalLink, FileUp, Folder, LoaderCircle, TriangleAlert, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import notionLogo from "@/assets/import-logos/notion.png?url";
+import siyuanLogo from "@/assets/import-logos/siyuan.png?url";
 import flomoLogo from "@/assets/import-logos/flomo.png?url";
 import evernoteLogo from "@/assets/import-logos/evernote.svg?url";
 import joplinLogo from "@/assets/import-logos/joplin.svg?url";
@@ -16,8 +18,8 @@ import type { NoteImportController, NoteImportSnapshot } from "@/lib/note-import
 import { EVERNOTE_MIGRATION_BLOG_URL } from "@/lib/routes";
 
 const importSources = {
-  notion: { label: "Notion", logo: undefined, formatHint: "Markdown & CSV · .zip" },
-  siyuan: { label: "SiYuan / 思源", logo: undefined, formatHint: "Markdown · .zip" },
+  notion: { label: "Notion", logo: notionLogo, formatHint: "Markdown & CSV · .zip" },
+  siyuan: { label: "SiYuan / 思源", logo: siyuanLogo, formatHint: "Markdown · .zip" },
   flomo: { label: "flomo", logo: flomoLogo, formatHint: "HTML · .zip" },
   evernote: {
     label: "Evernote / 印象笔记",
@@ -34,7 +36,7 @@ const importSources = {
     logo: joplinLogo,
     formatHint: ".jex · RAW · .zip",
   },
-} satisfies Record<ImportFormat, { label: string; logo: string | undefined; formatHint: string }>;
+} satisfies Record<ImportFormat, { label: string; logo: string; formatHint: string }>;
 
 export const ThirdPartyImportDialog = ({ controller, state, onOpenMemo }: { controller: NoteImportController; state: NoteImportSnapshot; onOpenMemo: (memoId: string, notebookId: string) => void }) => {
   const { t } = useTranslation();
