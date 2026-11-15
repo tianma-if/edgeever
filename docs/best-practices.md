@@ -343,9 +343,9 @@ EdgeEver features an extension manager supporting one-click installation via Git
 
 Go to **Settings → Backup & Import → Import from Other Apps** and click **Start Import** to migrate from mainstream note-taking apps directly in the Web or Desktop client without CLI setup.
 
-- **6 Native Platforms**: Supports **Notion** (`Markdown & CSV` / `.zip`), **SiYuan** (`Markdown` with `assets` / `.zip`), **flomo** (`HTML` / `.zip`), **Evernote** (`.enex` / `.zip`), **Obsidian** (`Vault folder` / `.zip`), and **Joplin** (`.jex` / `RAW` / `.zip`).
-- **Local Preflight & Full Preservation**: Drag and drop or browse batch files, folders, and archives to preview notebook, note, and attachment counts locally while preserving folder hierarchy and embedded media.
-- For export steps per platform and AI Agent (MCP) migration workflows, see the [Third-Party Notes Import Guide](note-migration-guide.en-US.md).
+- **Multi-Platform Support**: Built-in migration for **Notion**, **SiYuan**, **flomo**, **Evernote**, **Obsidian**, and **Joplin**.
+- **Lossless Migration**: Drag and drop exported files, folders, or archives to preserve notebook hierarchy, tags, and embedded media.
+- For export steps and AI Agent (MCP) migration workflows, see the [Third-Party Notes Import Guide](note-migration-guide.en-US.md).
 
 | 1. "Import from Other Apps" in Settings |
 | :---: |

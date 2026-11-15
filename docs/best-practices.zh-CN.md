@@ -343,9 +343,9 @@ EdgeEver 内置插件扩展管理，支持通过 GitHub 仓库或 Manifest 地�
 
 在「设置 → 备份与导入 → 从其他应用导入」中点击 **开始导入**，即可在 Web 端或桌面端完成主流笔记平台的一键迁移，无需配置命令行工具。
 
-- **多平台原生支持**：支持 **Notion**（`Markdown & CSV` / `.zip`）、**SiYuan / 思源**（含 `assets` 的 `Markdown` / `.zip`）、**flomo**（`HTML` / `.zip`）、**Evernote / 印象笔记**（`.enex` / `.zip`）、**Obsidian**（`Vault 目录` / `.zip`）与 **Joplin**（`.jex` / `RAW` / `.zip`）。
-- **本地预检与完整转存**：支持拖拽或浏览选择批量文件、目录结构与压缩包，导入前在本地预检统计笔记本、笔记与附件数量，完整保留目录层级与内嵌图片资源。
-- 各平台导出步骤与 AI Agent (MCP) 协同迁移方式详见 [第三方笔记导入指引](note-migration-guide.md)。
+- **多平台原生支持**：覆盖 **Notion**、**思源笔记（SiYuan）**、**flomo**、**印象笔记（Evernote）**、**Obsidian** 与 **Joplin**。
+- **拖拽即用、无损迁移**：支持直接拖入导出文件、文件夹或压缩包，完整保留目录层级、标签与内嵌图片附件。
+- 各平台导出方式与 AI Agent (MCP) 协同迁移详见 [第三方笔记导入指引](note-migration-guide.md)。
 
 | 1. 设置中心「从其他应用导入」入口 |
 | :---: |
