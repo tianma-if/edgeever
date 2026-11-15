@@ -223,7 +223,7 @@ W lokalnym środowisku deweloperskim logowanie następuje automatycznie. Nowa ba
 
 - Monorepo oparte na Bun z aplikacją Web, API, oficjalną stroną i pakietem współdzielonych typów.
 - Interfejs: Vite, React, React Router, TanStack Query, Tailwind CSS, shadcn/ui i Radix UI.
-- Edytor: TipTap / ProseMirror z obsługą Markdown; PWA korzysta z vite-plugin-pwa, Workbox i Dexie.
+- Edytor: TipTap / ProseMirror z obsługą Markdown.
 - Android: Expo + React Native w `apps/mobile`, lokalny SQLite i synchronizacja przyrostowa.
 - iOS: natywny SwiftUI w `apps/ios` (iOS 17+), dołączony EditorBundle TipTap, lokalna kopia i kolejka zmian GRDB.
 - Desktop: Electron + proces pomocniczy Rust, SQLite do edycji offline, synchronizacji przyrostowej i lokalnych kopii zapasowych.
@@ -237,7 +237,7 @@ W lokalnym środowisku deweloperskim logowanie następuje automatycznie. Nowa ba
 <summary>📁 Rozwiń, aby zobaczyć: Struktura projektu monorepo</summary>
 
 ```text
-apps/web          Interfejs Vite + React, PWA, wersje robocze offline i kolejka synchronizacji
+apps/web          Interfejs Vite + React, wersje robocze offline i kolejka synchronizacji
 apps/extension    Rozszerzenie Web Clipper Manifest V3 dla Chrome/Edge/Firefox
 apps/api          Cloudflare Worker + Hono API, punkt końcowy MCP
 apps/mobile       Aplikacja Android Expo + React Native
@@ -270,7 +270,7 @@ content_text      Format do wyszukiwania pełnotekstowego, podsumowań i indekso
 ### Kluczowe mechanizmy i decyzje projektowe
 
 - **Cicha kompresja po stronie klienta**: Aby uniknąć zużywania limitów obliczeniowych na środowiskach Serverless (np. Cloudflare Workers), kompresja obrazów odbywa się w całości w kliencie Web przed wysłaniem (konwersja PNG/JPEG/WebP/AVIF na WebP, ograniczenie dłuższego boku do 2560px; brak powiększenia rozmiaru zachowuje oryginał). Punkty końcowe REST API i MCP zapisują bezpośrednio oryginalną treść otrzymaną od klienta.
-- **Offline-first i harmonogram synchronizacji**: Aplikacje Web, PWA i desktopowe przesyłają zmiany automatycznie po 30 sekundach braku aktywności w pisaniu, a przy widocznym oknie sprawdzają zmiany w chmurze co 5 minut. Ponowne przejście do aplikacji lub ręczne odświeżenie natychmiast synchronizuje dane. Wartości te można konfigurować przez `DEFERRED_MEMO_SYNC_DELAY_MS` i `BACKGROUND_WORKSPACE_REFRESH_INTERVAL_MS` w [`apps/web/src/lib/workspace-refresh.ts`](apps/web/src/lib/workspace-refresh.ts).
+- **Offline-first i harmonogram synchronizacji**: Aplikacje Web i desktopowe przesyłają zmiany automatycznie po 30 sekundach braku aktywności w pisaniu, a przy widocznym oknie sprawdzają zmiany w chmurze co 5 minut. Ponowne przejście do aplikacji lub ręczne odświeżenie natychmiast synchronizuje dane. Wartości te można konfigurować przez `DEFERRED_MEMO_SYNC_DELAY_MS` i `BACKGROUND_WORKSPACE_REFRESH_INTERVAL_MS` w [`apps/web/src/lib/workspace-refresh.ts`](apps/web/src/lib/workspace-refresh.ts).
 
 ### Współtworzenie kodu
 

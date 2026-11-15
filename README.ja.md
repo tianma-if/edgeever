@@ -223,7 +223,7 @@ bun run dev
 
 - Bun workspace の monorepo。Web、API、公式サイト、共有型パッケージ。
 - フロントエンド: Vite、React、React Router、TanStack Query、Tailwind CSS、shadcn/ui、Radix UI。
-- エディタ: TipTap / ProseMirror と Markdown。PWA は vite-plugin-pwa、Workbox、Dexie。
+- エディタ: TipTap / ProseMirror と Markdown。
 - Android アプリ: `apps/mobile` の Expo + React Native。SQLite のローカル保存と差分同期。
 - iOS アプリ: `apps/ios` のネイティブ SwiftUI（iOS 17+）。同梱の TipTap EditorBundle、GRDB のローカルミラー / outbox、Android に揃えたシェル。
 - ネイティブデスクトップ: Electron + Rust sidecar。横断プラットフォームの操作感と、速いローカルデータ。SQLite でオフライン編集、復帰後の差分同期、ローカルバックアップ。
@@ -237,7 +237,7 @@ bun run dev
 <summary>📁 展開して確認：Monorepo リポジトリ構成</summary>
 
 ```text
-apps/web          Vite + React フロントエンド、PWA、オフライン下書き、同期キュー
+apps/web          Vite + React フロントエンド、オフライン下書き、同期キュー
 apps/extension    Chrome/Edge/Firefox Manifest V3 Web Clipper
 apps/api          Cloudflare Worker + Hono API、MCP
 apps/mobile       Expo + React Native の Android アプリ
@@ -270,7 +270,7 @@ content_text      全文検索、要約生成、索引
 ### コアメカニズムと設計上の決定
 
 - **クライアント側での静默圧縮**：Cloudflare Workers などの Serverless ランタイムで画像トランスコードを行い計算枠を消費するのを防ぐため、画像圧縮は Web クライアント側のアップロード前に完結させます（PNG/JPEG/WebP/AVIF を WebP に変換、長辺 2560px 制限；サイズが小さくならなければ原画像を維持）。サーバー側の REST API や MCP アップロードはクライアントから受け取った内容をそのまま格納します。
-- **オフライン優先と同期のタイミング**：Web、PWA、デスクトップは、ユーザーの編集が 30 秒間止まった段階で増分を自動アップロードし、フォアグラウンド表示中は 5 分ごとにクラウドの変更を確認します。ウィンドウへのフォーカス復帰や手動更新時は即座に同期されます。開発者は [`apps/web/src/lib/workspace-refresh.ts`](apps/web/src/lib/workspace-refresh.ts) 内の定数（`DEFERRED_MEMO_SYNC_DELAY_MS` および `BACKGROUND_WORKSPACE_REFRESH_INTERVAL_MS`）で調整できます。
+- **オフライン優先と同期のタイミング**：Web、デスクトップは、ユーザーの編集が 30 秒間止まった段階で増分を自動アップロードし、フォアグラウンド表示中は 5 分ごとにクラウドの変更を確認します。ウィンドウへのフォーカス復帰や手動更新時は即座に同期されます。開発者は [`apps/web/src/lib/workspace-refresh.ts`](apps/web/src/lib/workspace-refresh.ts) 内の定数（`DEFERRED_MEMO_SYNC_DELAY_MS` および `BACKGROUND_WORKSPACE_REFRESH_INTERVAL_MS`）で調整できます。
 
 ### コードへの貢献
 

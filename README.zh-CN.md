@@ -224,7 +224,7 @@ bun run dev
 
 - Bun workspace monorepo，包含 Web、API、官网与共享类型包。
 - 前端：Vite、React、React Router、TanStack Query，UI 基于 Tailwind CSS、shadcn/ui、Radix UI。
-- 编辑器：TipTap / ProseMirror，支持 Markdown；PWA 使用 vite-plugin-pwa、Workbox、Dexie。
+- 编辑器：TipTap / ProseMirror，支持 Markdown。
 - Android App：`apps/mobile` 中的 Expo + React Native，采用 SQLite 本地存储与增量同步。
 - iOS App：`apps/ios` 中的原生 SwiftUI（iOS 17+），内置 TipTap EditorBundle、GRDB 本地镜像/outbox，界面与 Android 壳层对齐。
 - 原生桌面端：Electron + Rust sidecar，兼顾跨平台一致体验与高性能本地数据服务；基于 SQLite 支持离线编辑、联网后增量同步与本地备份。
@@ -238,7 +238,7 @@ bun run dev
 <summary>📁 展开查看：Monorepo 项目目录结构</summary>
 
 ```text
-apps/web          Vite + React 前端、PWA、离线草稿与同步队列
+apps/web          Vite + React 前端、离线草稿与同步队列
 apps/extension    Chrome/Edge/Firefox Manifest V3 网页裁剪插件
 apps/api          Cloudflare Worker + Hono API、MCP endpoint
 apps/mobile       Expo + React Native Android App
@@ -271,7 +271,7 @@ content_text      全文搜索、摘要与快速索引使用
 ### 核心机制与设计决策
 
 - **端侧静默压缩**：为避免在 Serverless（如 Cloudflare Worker）上执行图片转码消耗宝贵的计算额度，图片压缩全部放在 Web 客户端上传前完成（PNG/JPEG/WebP/AVIF 转 WebP，最大边限制 2560px；不减小体积则保留原图）。服务端 REST API 与 MCP 接口直接入库客户端传输的原始内容。
-- **离线优先与同步时序**：Web、PWA 与桌面端会在用户停止编辑 30 秒后自动上传增量，并在前台页面可见时每 5 分钟拉取一次云端变更；窗口重聚焦或手动刷新时立即同步。开发者可在 [`apps/web/src/lib/workspace-refresh.ts`](apps/web/src/lib/workspace-refresh.ts) 中调整相关时序常量（`DEFERRED_MEMO_SYNC_DELAY_MS` 与 `BACKGROUND_WORKSPACE_REFRESH_INTERVAL_MS`）。
+- **离线优先与同步时序**：Web 与桌面端会在用户停止编辑 30 秒后自动上传增量，并在前台页面可见时每 5 分钟拉取一次云端变更；窗口重聚焦或手动刷新时立即同步。开发者可在 [`apps/web/src/lib/workspace-refresh.ts`](apps/web/src/lib/workspace-refresh.ts) 中调整相关时序常量（`DEFERRED_MEMO_SYNC_DELAY_MS` 与 `BACKGROUND_WORKSPACE_REFRESH_INTERVAL_MS`）。
 
 ### 参与代码贡献
 

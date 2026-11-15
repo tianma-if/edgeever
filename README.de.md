@@ -222,7 +222,7 @@ In der lokalen Entwicklungsumgebung erfolgt die Anmeldung automatisch; frische D
 
 - Bun-Workspace-Monorepo mit Web, API, offizieller Website und gemeinsam genutztem Typenpaket.
 - Frontend: Vite, React, React Router, TanStack Query, Tailwind CSS, shadcn/ui und Radix UI.
-- Editor: TipTap / ProseMirror mit Markdown-Unterstützung; PWA nutzt vite-plugin-pwa, Workbox und Dexie.
+- Editor: TipTap / ProseMirror mit Markdown-Unterstützung.
 - Android-App: Expo + React Native in `apps/mobile`, mit lokalem SQLite-Speicher und inkrementeller Synchronisierung.
 - iOS-App: Natives SwiftUI in `apps/ios` (iOS 17+), mit gebündeltem TipTap-EditorBundle, lokalem GRDB-Spiegel/Outbox und an Android angepasster UI-Shell.
 - Native Desktop-App: Electron + Rust-Sidecar kombiniert ein konsistentes plattformübergreifendes Erlebnis mit hochperformanten lokalen Datendiensten; SQLite ermöglicht Offline-Bearbeitung, inkrementelle Synchronisierung bei Wiederverbindung und lokale Backups.
@@ -236,7 +236,7 @@ In der lokalen Entwicklungsumgebung erfolgt die Anmeldung automatisch; frische D
 <summary>📁 Ausklappen: Monorepo-Projektstruktur anzeigen</summary>
 
 ```text
-apps/web          Vite + React Frontend, PWA, Offline-Entwürfe und Synchronisierungs-Warteschlange
+apps/web          Vite + React Frontend, Offline-Entwürfe und Synchronisierungs-Warteschlange
 apps/extension    Chrome/Edge/Firefox Manifest V3 Web Clipper
 apps/api          Cloudflare Worker + Hono API, MCP-Endpunkt
 apps/mobile       Expo + React Native Android-App
@@ -269,7 +269,7 @@ content_text      Format für Volltextsuche, Zusammenfassungserstellung und Indi
 ### Kernmechanismen & Designentscheidungen
 
 - **Clientseitige unmerkliche Komprimierung**: Um die Rechenzeitkontingente auf Serverless-Laufzeitumgebungen wie Cloudflare Workers zu schonen, erfolgt die Bildkomprimierung vollständig im Web-Client vor dem Upload (Konvertierung von PNG/JPEG/WebP/AVIF nach WebP, sofern vorteilhaft, max. Kantenlänge 2560px; das Original bleibt erhalten, falls eine Komprimierung die Größe nicht reduziert). REST-API- und MCP-Endpunkte speichern die vom Client übergebenen Binärdaten direkt ohne serverseitige Neucodierung.
-- **Offline-First & Synchronisierungs-Timing**: Web-, PWA- und Desktop-Clients laden Änderungen an Notizen nach 30 Sekunden Inaktivität beim Tippen automatisch hoch und fragen bei sichtbarem Fenster alle 5 Minuten nach Remote-Änderungen. Das erneute Fokussieren des Fensters und manuelle Aktualisierungen lösen eine sofortige Synchronisierung aus. Konfigurierbar über `DEFERRED_MEMO_SYNC_DELAY_MS` und `BACKGROUND_WORKSPACE_REFRESH_INTERVAL_MS` in [`apps/web/src/lib/workspace-refresh.ts`](apps/web/src/lib/workspace-refresh.ts).
+- **Offline-First & Synchronisierungs-Timing**: Web- und Desktop-Clients laden Änderungen an Notizen nach 30 Sekunden Inaktivität beim Tippen automatisch hoch und fragen bei sichtbarem Fenster alle 5 Minuten nach Remote-Änderungen. Das erneute Fokussieren des Fensters und manuelle Aktualisierungen lösen eine sofortige Synchronisierung aus. Konfigurierbar über `DEFERRED_MEMO_SYNC_DELAY_MS` und `BACKGROUND_WORKSPACE_REFRESH_INTERVAL_MS` in [`apps/web/src/lib/workspace-refresh.ts`](apps/web/src/lib/workspace-refresh.ts).
 
 ### Code beisteuern
 

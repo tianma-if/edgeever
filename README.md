@@ -222,7 +222,7 @@ Local development signs in automatically; fresh databases use `owner` / `edgeeve
 
 - Bun workspace monorepo with Web, API, official site, and shared type package.
 - Frontend: Vite, React, React Router, TanStack Query, Tailwind CSS, shadcn/ui, and Radix UI.
-- Editor: TipTap / ProseMirror with Markdown support; PWA uses vite-plugin-pwa, Workbox, and Dexie.
+- Editor: TipTap / ProseMirror with Markdown support.
 - Android app: Expo + React Native in `apps/mobile`, with SQLite local storage and incremental sync.
 - iOS app: Native SwiftUI in `apps/ios` (iOS 17+), with a packaged TipTap EditorBundle, GRDB local mirror/outbox, and Android-aligned shell chrome.
 - Native desktop app: Electron + Rust sidecar combines a consistent cross-platform experience with high-performance local data services; SQLite enables offline editing, incremental sync when back online, and local backups.
@@ -236,7 +236,7 @@ Local development signs in automatically; fresh databases use `owner` / `edgeeve
 <summary>📁 Expand to view: Monorepo Project Structure</summary>
 
 ```text
-apps/web          Vite + React frontend, PWA, offline drafts, and sync queue
+apps/web          Vite + React frontend, offline drafts, and sync queue
 apps/extension    Chrome/Edge/Firefox Manifest V3 web clipper
 apps/api          Cloudflare Worker + Hono API, MCP endpoint
 apps/mobile       Expo + React Native Android app
@@ -269,7 +269,7 @@ content_text      Full-text search, summary generation, and indexing
 ### Core Mechanisms & Design Decisions
 
 - **Client-Side Silent Compression**: To avoid consuming compute quota on serverless runtimes like Cloudflare Workers, image compression occurs in the Web client before upload (converting PNG/JPEG/WebP/AVIF to WebP when beneficial, max edge 2560px; original retained if compression does not reduce size). REST API and MCP endpoints store client-supplied binaries directly without additional server-side transcoding.
-- **Offline-First & Sync Timing**: Web, PWA, and desktop clients automatically upload memo edits after 30 seconds of typing inactivity, and poll for remote changes every 5 minutes while visible; window refocus and manual refresh remain immediate. Configurable via `DEFERRED_MEMO_SYNC_DELAY_MS` and `BACKGROUND_WORKSPACE_REFRESH_INTERVAL_MS` in [`apps/web/src/lib/workspace-refresh.ts`](apps/web/src/lib/workspace-refresh.ts).
+- **Offline-First & Sync Timing**: Web and desktop clients automatically upload memo edits after 30 seconds of typing inactivity, and poll for remote changes every 5 minutes while visible; window refocus and manual refresh remain immediate. Configurable via `DEFERRED_MEMO_SYNC_DELAY_MS` and `BACKGROUND_WORKSPACE_REFRESH_INTERVAL_MS` in [`apps/web/src/lib/workspace-refresh.ts`](apps/web/src/lib/workspace-refresh.ts).
 
 ### Contributing Code
 

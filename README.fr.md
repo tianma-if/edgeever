@@ -223,7 +223,7 @@ L'environnement de développement local se connecte automatiquement ; les nouvel
 
 - Monorepo géré avec Bun workspace regroupant le Web, l'API, le site officiel et le paquet de types partagés.
 - Frontend : Vite, React, React Router, TanStack Query, Tailwind CSS, shadcn/ui et Radix UI.
-- Éditeur : TipTap / ProseMirror avec support du Markdown ; la PWA s'appuie sur vite-plugin-pwa, Workbox et Dexie.
+- Éditeur : TipTap / ProseMirror avec support du Markdown.
 - Application Android : Expo + React Native dans `apps/mobile`, avec stockage local SQLite et synchronisation incrémentielle.
 - Application iOS : SwiftUI natif dans `apps/ios` (iOS 17+), avec TipTap EditorBundle intégré, miroir local/boîte d'envoi via GRDB et interface cohérente avec la version Android.
 - Application de bureau native : Electron + sidecar Rust combinant une expérience multiplateforme homogène et des services de données locaux haute performance ; SQLite permet l'édition hors ligne, la synchronisation incrémentielle lors du retour en ligne et les sauvegardes locales.
@@ -237,7 +237,7 @@ L'environnement de développement local se connecte automatiquement ; les nouvel
 <summary>📁 Déplier pour afficher : Structure du projet en monorepo</summary>
 
 ```text
-apps/web          Frontend Vite + React, PWA, brouillons hors ligne et file de synchronisation
+apps/web          Frontend Vite + React, brouillons hors ligne et file de synchronisation
 apps/extension    Web clipper Manifest V3 pour Chrome/Edge/Firefox
 apps/api          Worker Cloudflare + API Hono, point d'entrée MCP
 apps/mobile       Application Android Expo + React Native
@@ -270,7 +270,7 @@ content_text      Recherche plein texte, génération de résumés et indexation
 ### Mécanismes fondamentaux et choix de conception
 
 - **Compression silencieuse côté client** : Pour éviter de consommer du quota de calcul sur des environnements serverless comme Cloudflare Workers, la compression des images est effectuée dans le client Web avant le téléversement (conversion des formats PNG/JPEG/WebP/AVIF en WebP lorsque c'est avantageux, dimension maximale de 2560 px ; le fichier original est conservé si la compression ne réduit pas la taille). Les points de terminaison d'API REST et MCP stockent directement les fichiers binaires transmis par le client sans transcodage supplémentaire côté serveur.
-- **Priorité au mode hors ligne (Offline-First) & fréquence de synchronisation** : Les clients Web, PWA et de bureau téléversent automatiquement les modifications apportées aux notes après 30 secondes d'inactivité de frappe, et interrogent les modifications distantes toutes les 5 minutes lorsque l'application est visible ; le retour au premier plan de la fenêtre et l'actualisation manuelle restent instantanés. Ces paramètres sont configurables via `DEFERRED_MEMO_SYNC_DELAY_MS` et `BACKGROUND_WORKSPACE_REFRESH_INTERVAL_MS` dans [`apps/web/src/lib/workspace-refresh.ts`](apps/web/src/lib/workspace-refresh.ts).
+- **Priorité au mode hors ligne (Offline-First) & fréquence de synchronisation** : Les clients Web et de bureau téléversent automatiquement les modifications apportées aux notes après 30 secondes d'inactivité de frappe, et interrogent les modifications distantes toutes les 5 minutes lorsque l'application est visible ; le retour au premier plan de la fenêtre et l'actualisation manuelle restent instantanés. Ces paramètres sont configurables via `DEFERRED_MEMO_SYNC_DELAY_MS` et `BACKGROUND_WORKSPACE_REFRESH_INTERVAL_MS` dans [`apps/web/src/lib/workspace-refresh.ts`](apps/web/src/lib/workspace-refresh.ts).
 
 ### Contribuer au code
 

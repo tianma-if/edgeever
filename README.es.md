@@ -223,7 +223,7 @@ El entorno de desarrollo local inicia sesión automáticamente; las bases de dat
 
 - Monorepositorio basado en Bun con Web, API, sitio oficial y paquete de tipos compartidos.
 - Frontend: Vite, React, React Router, TanStack Query, Tailwind CSS, shadcn/ui y Radix UI.
-- Editor: TipTap / ProseMirror con soporte para Markdown; la PWA utiliza vite-plugin-pwa, Workbox y Dexie.
+- Editor: TipTap / ProseMirror con soporte para Markdown.
 - App de Android: Expo + React Native en `apps/mobile`, con almacenamiento local SQLite y sincronización incremental.
 - App de iOS: SwiftUI nativo en `apps/ios` (iOS 17+), con un EditorBundle de TipTap empaquetado, réplica local/bandeja de salida en GRDB y diseño alineado con Android.
 - App de escritorio nativa: Electron + sidecar en Rust que combina una experiencia multiplataforma coherente con servicios locales de datos de alto rendimiento; SQLite permite edición sin conexión, sincronización incremental al volver a conectarse y copias de seguridad locales.
@@ -237,7 +237,7 @@ El entorno de desarrollo local inicia sesión automáticamente; las bases de dat
 <summary>📁 Desplegar para ver: Estructura del proyecto en monorepositorio</summary>
 
 ```text
-apps/web          Frontend con Vite + React, PWA, borradores sin conexión y cola de sincronización
+apps/web          Frontend con Vite + React, borradores sin conexión y cola de sincronización
 apps/extension    Web clipper Manifest V3 para Chrome/Edge/Firefox
 apps/api          Cloudflare Worker + API Hono, endpoint de MCP
 apps/mobile       App para Android con Expo + React Native
@@ -270,7 +270,7 @@ content_text      Búsqueda de texto completo, generación de resúmenes e index
 ### Mecanismos clave y decisiones de diseño
 
 - **Compresión silenciosa en el cliente**: Para evitar consumir cuota de cómputo en entornos serverless como Cloudflare Workers, la compresión de imágenes se realiza en el cliente web antes de la subida (convirtiendo PNG/JPEG/WebP/AVIF a WebP cuando resulte ventajoso, con un borde máximo de 2560 px; se conserva el original si la compresión no reduce el tamaño). Los endpoints de la API REST y MCP almacenan directamente los binarios proporcionados por el cliente sin transcodificación adicional en el servidor.
-- **Prioridad sin conexión (Offline-First) y frecuencia de sincronización**: Los clientes Web, PWA y de escritorio suben automáticamente las modificaciones de notas tras 30 segundos de inactividad de escritura, y comprueban cambios remotos cada 5 minutos mientras la ventana permanece visible; al recuperar el foco o actualizar manualmente, la sincronización es inmediata. Estos parámetros son configurables a través de `DEFERRED_MEMO_SYNC_DELAY_MS` y `BACKGROUND_WORKSPACE_REFRESH_INTERVAL_MS` en [`apps/web/src/lib/workspace-refresh.ts`](apps/web/src/lib/workspace-refresh.ts).
+- **Prioridad sin conexión (Offline-First) y frecuencia de sincronización**: Los clientes Web y de escritorio suben automáticamente las modificaciones de notas tras 30 segundos de inactividad de escritura, y comprueban cambios remotos cada 5 minutos mientras la ventana permanece visible; al recuperar el foco o actualizar manualmente, la sincronización es inmediata. Estos parámetros son configurables a través de `DEFERRED_MEMO_SYNC_DELAY_MS` y `BACKGROUND_WORKSPACE_REFRESH_INTERVAL_MS` en [`apps/web/src/lib/workspace-refresh.ts`](apps/web/src/lib/workspace-refresh.ts).
 
 ### Contribuir con código
 
