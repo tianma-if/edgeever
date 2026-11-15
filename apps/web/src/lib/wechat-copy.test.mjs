@@ -39,12 +39,14 @@ const css = (element) => (element?.style.cssText ?? "").replace(/:\s+/g, ":");
 let preparePublishArticle;
 let prepareMarkdownPublishArticle;
 let readEditorCopyContext;
+let createPublishMathImage;
 
 beforeAll(async () => {
   const module = await import("./wechat-copy.ts");
   preparePublishArticle = module.preparePublishArticle;
   prepareMarkdownPublishArticle = module.prepareMarkdownPublishArticle;
   readEditorCopyContext = module.readEditorCopyContext;
+  createPublishMathImage = module.createPublishMathImage;
 });
 
 const MARKDOWN = `
@@ -421,6 +423,20 @@ describe("preparePublishArticle", () => {
 });
 
 describe("formula snapshots for WeChat", () => {
+  test("retains a PNG fallback and editable Zhihu source through clipboard HTML serialization", () => {
+    const png = "data:image/png;base64,formula-snapshot";
+    for (const latex of ["E = mc^2", String.raw`\begin{aligned}a &= b \\ c &= \frac{1}{2}\end{aligned}`, String.raw`\text{\"x\" < y & z}`]) {
+      const image = createPublishMathImage(` ${latex} `, png);
+      const clipboard = document.createElement("section");
+      clipboard.innerHTML = image.outerHTML;
+      const pasted = clipboard.querySelector("img.ztext-math[data-tex]");
+      expect(pasted?.getAttribute("data-tex")).toBe(latex);
+      expect(pasted?.getAttribute("alt")).toBe(latex);
+      expect(pasted?.getAttribute("src")).toBe(png);
+      expect(clipboard.querySelectorAll("img")).toHaveLength(1);
+    }
+  });
+
   test("parks the off-screen offset on a wrapper and snapshots an in-flow mount", async () => {
     const source = await Bun.file(new URL("./wechat-copy.ts", import.meta.url)).text();
     const start = source.indexOf("const placeMathRasterMount");

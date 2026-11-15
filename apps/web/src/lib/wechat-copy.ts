@@ -1152,6 +1152,18 @@ const canvasHasInk = (canvas: HTMLCanvasElement) => {
   return false;
 };
 
+export const createPublishMathImage = (latex: string, png: string) => {
+  const image = document.createElement("img");
+  image.alt = latex.trim();
+  image.src = png;
+  // Zhihu imports ordinary data-URL images as uploads, which fail for formulas.
+  // Its math importer consumes data-tex instead, preserving an editable formula.
+  // Keep the local PNG for publishing editors that do not understand this marker.
+  image.classList.add("ztext-math");
+  image.setAttribute("data-tex", latex.trim());
+  return image;
+};
+
 const rasterizeMathForWeChat = async (root: HTMLElement) => {
   const hosts = Array.from(root.querySelectorAll<HTMLElement>("[data-ee-math]"));
   if (hosts.length === 0) return;
@@ -1177,9 +1189,7 @@ const rasterizeMathForWeChat = async (root: HTMLElement) => {
       if (canvas.width < 2 || canvas.height < 2 || !canvasHasInk(canvas)) continue;
       const cssWidth = Math.max(1, Math.round(canvas.width / 2));
       const cssHeight = Math.max(1, Math.round(canvas.height / 2));
-      const image = document.createElement("img");
-      image.alt = latex.trim();
-      image.src = canvas.toDataURL("image/png");
+      const image = createPublishMathImage(latex, canvas.toDataURL("image/png"));
       if (kind === "block") {
         const width = Math.min(cssWidth, WECHAT_CONTENT_WIDTH);
         const height = Math.max(1, Math.round(cssHeight * (width / cssWidth)));
