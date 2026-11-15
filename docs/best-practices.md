@@ -28,7 +28,7 @@ A practical guide to core workflows, key features, and real-world usage scenario
 ### Visual Styling & Omnichannel Publishing
 - [16. Note Export to Long Image & Code Cards](#16-note-export-to-long-image--code-cards)
 - [17. Social Media Poster & Cover Design from Notes](#17-social-media-poster--cover-design-from-notes)
-- [18. Copying Notes to WeChat Official Account & Blogs](#18-copying-notes-to-wechat-official-account--blogs)
+- [18. One-Click Rich Text Copy to Publishing Platforms](#18-one-click-rich-text-copy-to-publishing-platforms)
 
 ### Open Ecosystem & Extensibility
 - [19. Open Plugin API & Custom Plugin Development](#19-open-plugin-api--custom-plugin-development)
@@ -299,19 +299,19 @@ Click **"Create Poster"** in any note's action menu (or via "New → Poster") to
 
 ---
 
-### 18. Copying Notes to WeChat Official Account & Blogs
+### 18. One-Click Rich Text Copy to Publishing Platforms
 
-Select **"Copy to Official Account / Blog"** (复制到公众号 / 博客) from the note menu to convert notes into ready-to-paste rich text for WeChat Official Accounts and blogs.
+Select **"Copy as Rich Text"** from the note menu to copy your note with its formatting and images preserved for external content editors.
 
-- Paste directly into the WeChat Official Account editor while preserving tables, callouts, code blocks, lists, and typography styles.
+- Paste directly into WeChat Official Account, Zhihu, X Articles, Substack, and blog editors while preserving tables, callouts, code blocks, lists, and typography styles.
 
-| 1. Copy to Official Account / Blog |
+| 1. Select "Copy as Rich Text" in Note Menu |
 | :---: |
-| ![EdgeEver note menu copy to WeChat MP](assets/best-practices/original-image/wechat-article-copy-to/right-menu.png) |
+| ![EdgeEver note menu Copy as Rich Text](assets/best-practices/original-image/wechat-article-copy-to/right-menu-v2.png) |
 
-| 2. WeChat Official Account Editor Layout |
+| 2. Rich Text Editor Paste Result (WeChat Official Account Example) |
 | :---: |
-| ![Note pasted into WeChat MP editor layout](assets/best-practices/original-image/wechat-article-copy-to/show-in-wechat-editor.png) |
+| ![Note pasted into WeChat Official Account editor layout](assets/best-practices/original-image/wechat-article-copy-to/show-in-wechat-editor.png) |
 
 ---
 

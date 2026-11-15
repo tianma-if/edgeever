@@ -36,7 +36,7 @@ import acpSupportDialogImg from "../../../../docs/assets/best-practices/original
 import noteExportClearImg from "../../../../docs/assets/best-practices/original-image/note-export-image/clear-theme.png";
 import noteExportCodeImg from "../../../../docs/assets/best-practices/original-image/note-export-image/code-theme.png";
 import posterStudioImg from "../../../../docs/assets/best-practices/original-image/poster/ai-generate-poster.png";
-import wechatCopyMenuImg from "../../../../docs/assets/best-practices/original-image/wechat-article-copy-to/right-menu.png";
+import wechatCopyMenuImg from "../../../../docs/assets/best-practices/original-image/wechat-article-copy-to/right-menu-v2.png";
 import wechatCopyEditorImg from "../../../../docs/assets/best-practices/original-image/wechat-article-copy-to/show-in-wechat-editor.png";
 import pluginOfficialImg from "../../../../docs/assets/best-practices/original-image/plugin/official-in.png";
 import pluginApiImg from "../../../../docs/assets/best-practices/original-image/plugin/plugin-api.png";
@@ -527,7 +527,7 @@ const zhCnCategories: ShowcaseCategoryCopy[] = [
     id: "publishing",
     badge: "04 · 排版与分发",
     title: "排版与多渠道分发",
-    description: "一键导出多主题长图与代码卡片、40+ 模板海报设计工作台，以及微信公众号富文本直粘排版。",
+    description: "一键导出多主题长图与代码卡片、40+ 模板海报设计工作台，以及带排版复制至公众号、知乎、X 文章与博客等多平台编辑器。",
     cases: [
       {
         id: "note-export-image",
@@ -568,19 +568,19 @@ const zhCnCategories: ShowcaseCategoryCopy[] = [
       {
         id: "wechat-mp-copy",
         number: "18",
-        title: "复制笔记至微信公众号排版",
-        lead: "在笔记菜单中选择「复制到公众号 / 博客」，将笔记一键转换为适配公众号与博客的富文本排版。",
+        title: "带排版一键复制至公众号与多平台编辑器",
+        lead: "在笔记菜单中选择「带排版复制」，将笔记排版样式与图片一键转换为适配各大内容平台的富文本格式。",
         bullets: [
-          "粘贴至微信公众号后台，完整保留表格、引用块、代码块、列表及字体样式。",
+          "可直接粘贴至微信公众号、知乎、X 文章、博客等自媒体编辑器，完整保留表格、引用块、代码块、列表及字体样式。",
         ],
         media: [
           {
-            caption: "1. 复制到公众号 / 博客",
-            alt: "EdgeEver 笔记菜单点击复制到公众号",
+            caption: "1. 笔记菜单选择「带排版复制」",
+            alt: "EdgeEver 笔记菜单选择带排版复制",
           },
           {
-            caption: "2. 公众号后台编辑器粘贴效果",
-            alt: "微信公众号后台粘贴后的排版效果",
+            caption: "2. 富文本编辑器粘贴效果（以微信公众号为例）",
+            alt: "粘贴到微信公众号编辑器后的排版效果",
           },
         ],
       },
@@ -995,7 +995,7 @@ const enUsCategories: ShowcaseCategoryCopy[] = [
     id: "publishing",
     badge: "04 · Styling & Publishing",
     title: "Visual Styling & Omnichannel Publishing",
-    description: "Render notes into multi-theme share cards, design social media covers with 40+ templates, and copy inline-styled HTML for newsletters and blogs.",
+    description: "Render notes into multi-theme share cards, design social media covers with 40+ templates, and copy rich text with formatting for WeChat, Zhihu, X Articles, Substack, and blogs.",
     cases: [
       {
         id: "note-export-image",
@@ -1036,19 +1036,19 @@ const enUsCategories: ShowcaseCategoryCopy[] = [
       {
         id: "wechat-mp-copy",
         number: "18",
-        title: "Copying Notes to WeChat Official Account & Blogs",
-        lead: "Select \"Copy to Official Account / Blog\" from the note menu to convert notes into ready-to-paste rich text for WeChat Official Accounts and blogs.",
+        title: "One-Click Rich Text Copy to Publishing Platforms",
+        lead: "Select \"Copy as Rich Text\" from the note menu to copy your note with its formatting and images preserved for external content editors.",
         bullets: [
-          "Paste directly into WeChat Official Account or blog editors while preserving tables, callouts, code blocks, lists, and typography styles.",
+          "Paste directly into WeChat Official Account, Zhihu, X Articles, Substack, and blog editors while preserving tables, callouts, code blocks, lists, and typography styles.",
         ],
         media: [
           {
-            caption: "1. Copy to Official Account / Blog",
-            alt: "EdgeEver note menu copy to WeChat MP",
+            caption: "1. Select \"Copy as Rich Text\" in Note Menu",
+            alt: "EdgeEver note menu Copy as Rich Text",
           },
           {
-            caption: "2. Rich Text Editor Paste Result",
-            alt: "Note pasted into WeChat MP editor layout",
+            caption: "2. Rich Text Editor Paste Result (WeChat Official Account Example)",
+            alt: "Note pasted into WeChat Official Account editor layout",
           },
         ],
       },
