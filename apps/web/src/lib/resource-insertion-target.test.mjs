@@ -6,10 +6,26 @@ import {
   clampResourceInsertionTarget,
   clearNodeSelectionAtDocumentEnd,
   getResourceInsertionTarget,
+  mapResourceInsertionTarget,
   shouldSelectInsertedResources,
 } from "./resource-insertion-target.ts";
 
 describe("resource insertion target", () => {
+  test("keeps pending images before newly typed text and follows edits before the upload", () => {
+    const editor = new Editor({ extensions: [StarterKit], content: {
+      type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Before after" }] }],
+    } });
+    const typingAfter = editor.state.tr.insertText("typed", 8);
+    expect(mapResourceInsertionTarget({ from: 8, to: 8 }, typingAfter.mapping)).toEqual({ from: 8, to: 8 });
+    expect(mapResourceInsertionTarget(8, typingAfter.mapping)).toBe(8);
+    const typingBefore = editor.state.tr.insertText("prefix", 1);
+    expect(mapResourceInsertionTarget({ from: 8, to: 8 }, typingBefore.mapping)).toEqual({ from: 14, to: 14 });
+    // Text typed at either edge of an original selection must not be deleted.
+    expect(mapResourceInsertionTarget({ from: 1, to: 7 }, typingBefore.mapping)).toEqual({ from: 7, to: 13 });
+    const suffix = editor.state.tr.insertText("suffix", 7);
+    expect(mapResourceInsertionTarget({ from: 1, to: 7 }, suffix.mapping)).toEqual({ from: 1, to: 7 });
+    editor.destroy();
+  });
   test("inserts a second pasted image after the selected first image", () => {
     const editor = new Editor({
       extensions: [StarterKit, Image.configure({ inline: false })],

@@ -82,13 +82,14 @@ import {
   createResourceUploadPlaceholder,
   getImageUploadPlaceholderPosition,
   removeImageUploadPlaceholder,
-  waitForImageSourceReady,
   updateImageUploadPlaceholder,
 } from "./editor/image-upload-placeholder";
+import { registerImageUploadPreview, pruneImageUploadPreviews } from "./editor/image-upload-preview";
 import {
   clampResourceInsertionTarget,
   clearNodeSelectionAtDocumentEnd,
   getResourceInsertionTarget,
+  mapResourceInsertionTarget,
   shouldSelectInsertedResources,
 } from "@/lib/resource-insertion-target";
 import { insertUploadedResources } from "@/lib/resource-insertion";
@@ -1138,6 +1139,7 @@ const RichEditorPane = ({
 
     void resourceInsertionLimit(async () => {
       let resumeDesktopSync: (() => void) | null = null;
+      let stopTrackingInsertion: (() => void) | undefined;
       try {
         // A new desktop note can receive its durable ID while a file is being
         // staged. Keep the note ID and staged resource together until the
@@ -1152,9 +1154,13 @@ const RichEditorPane = ({
 
         // Read the selection only after earlier resource insertions complete.
         // Rapid consecutive pastes otherwise race with the same stale cursor.
-        const insertionTarget = dropPosition ?? getResourceInsertionTarget(insertionEditor.state.selection);
+        let insertionTarget = dropPosition ?? getResourceInsertionTarget(insertionEditor.state.selection);
+        const trackInsertion: Parameters<typeof insertionEditor.on<"transaction">>[1] = ({ transaction }) => {
+          insertionTarget = mapResourceInsertionTarget(insertionTarget, transaction.mapping);
+        };
+        insertionEditor.on("transaction", trackInsertion);
+        stopTrackingInsertion = () => insertionEditor.off("transaction", trackInsertion);
         setImageUploadState("uploading");
-        const imageReadiness: Promise<void>[] = [];
 
         const results = await processFileUploadBatch(files, async (file) => {
           const isImage = SUPPORTED_PASTE_IMAGE_TYPES.has(resolveResourceUploadMimeType(file.name, file.type));
@@ -1176,9 +1182,6 @@ const RichEditorPane = ({
           if (placeholder) updateImageUploadPlaceholder(editorRef.current, placeholder,
             t("editor.uploadState.uploading"));
           const resource = await uploadEditorResource(targetMemoId, uploadFile, isImage);
-          if (resource.kind === "image") {
-            imageReadiness.push(waitForImageSourceReady(resource.url));
-          }
           return resource;
         });
 
@@ -1186,7 +1189,6 @@ const RichEditorPane = ({
         if (successfulResults.length > 0) {
           void queryClient.invalidateQueries({ queryKey: ["resources"] });
         }
-        await Promise.all(imageReadiness);
 
         const activeEditor = editorRef.current;
         const activeMemoId = resolveTargetMemoId();
@@ -1197,6 +1199,7 @@ const RichEditorPane = ({
         const content = successfulResults.map(({ file, value: resource }) => {
           const filename = resource.filename || file.name;
           if (resource.kind === "image") {
+            registerImageUploadPreview(activeEditor, resource.url, file);
             return {
               type: "image",
               attrs: {
@@ -1292,11 +1295,13 @@ const RichEditorPane = ({
         console.error("[editor] Attachment insertion failed", error);
         setImageUploadState("error");
       } finally {
+        stopTrackingInsertion?.();
         resumeDesktopSync?.();
         const placeholderEditor = editorRef.current;
         placeholders.forEach((placeholder) => {
           removeImageUploadPlaceholder(placeholderEditor, placeholder);
         });
+        if (isEditorReady(placeholderEditor)) pruneImageUploadPreviews(placeholderEditor, placeholderEditor.state.doc);
       }
     });
     return true;
@@ -4805,6 +4810,9 @@ const RichEditorPane = ({
             />
           ) : null}
         <div
+          onPointerDownCapture={() => { editorCanvasInteractionVersionRef.current += 1; }}
+          onKeyDownCapture={() => { editorCanvasInteractionVersionRef.current += 1; }}
+          onBeforeInputCapture={() => { editorCanvasInteractionVersionRef.current += 1; }}
           onClickCapture={
             !useMobilePlainTextEditor && !useMarkdownSourceEditor
               ? handleEditorClickCapture
