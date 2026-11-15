@@ -612,31 +612,17 @@ const convertImageGalleriesForWeChat = (root: HTMLElement) => {
     );
     if (images.length < 2) return;
 
-    const layout = gallery.getAttribute("data-image-gallery-layout");
-    let columns = Math.min(images.length, 3);
-    if (layout === "1") {
-      columns = 1;
-    } else if (layout === "2" || (layout !== "3" && images.length === 4)) {
-      columns = 2;
-    } else if (layout === "3") {
-      columns = 3;
-    }
-    const table = document.createElement("table");
-    table.setAttribute("role", "presentation");
-    table.style.cssText = "width: 100%; margin: 1em 0; border: 0; border-collapse: separate; border-spacing: 6px; table-layout: fixed;";
-    const body = document.createElement("tbody");
-
-    images.forEach((image, index) => {
-      if (index % columns === 0) body.appendChild(document.createElement("tr"));
-      const cell = document.createElement("td");
-      cell.style.cssText = `width: ${100 / columns}%; border: 0; padding: 0; vertical-align: middle;`;
-      image.style.cssText = "display: block; width: 100%; height: auto; max-height: 18em; margin: 0; border-radius: 6px; object-fit: cover;";
-      cell.appendChild(image);
-      body.lastElementChild?.appendChild(cell);
+    // Zhihu imports only the first image from a presentation table. Publish
+    // each original separately so neither images nor animation frames disappear.
+    const fragment = document.createDocumentFragment();
+    images.forEach((image) => {
+      const paragraph = document.createElement("p");
+      paragraph.style.cssText = "margin: 1em 0; text-align: center;";
+      image.style.cssText = "display: inline-block; max-width: 100%; height: auto; margin: 0; border-radius: 6px;";
+      paragraph.appendChild(image);
+      fragment.appendChild(paragraph);
     });
-
-    table.appendChild(body);
-    gallery.replaceWith(table);
+    gallery.replaceWith(fragment);
   });
 };
 

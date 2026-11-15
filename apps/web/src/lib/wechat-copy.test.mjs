@@ -56,6 +56,12 @@ beforeAll(async () => {
 });
 
 describe("publication copies of ordinary images", () => {
+  test("publishes every gallery member as a separate image block for Zhihu", () => {
+    const root = preparePublishArticle('<div data-edgeever-image-gallery data-image-gallery-layout="2"><img src="a.gif"><img src="b.webp"><img src="c.png"><img src="d.avif"></div>');
+    expect(root.querySelector('table')).toBeNull();
+    expect(root.querySelectorAll('p > img')).toHaveLength(4);
+    expect(Array.from(root.querySelectorAll('img')).map(image => image.getAttribute('src'))).toEqual(['a.gif', 'b.webp', 'c.png', 'd.avif']);
+  });
   const withImageEnvironment = async (run) => {
     const fetchBefore = globalThis.fetch;
     const locationBefore = window.location;

@@ -6,6 +6,8 @@ includes private attachments, external images, embedded images, image galleries,
 and generated layout decorations. Built-in storage,
 PicGo/PicList, and CloudFlare ImgBed use the same publishing flow. Original notes
 and their attachments are not modified.
+Image galleries are published as separate image blocks because some editors,
+including Zhihu, discard additional images inside a presentation table.
 
 Private attachment bytes are read using the authenticated client; instance tokens
 are never sent to external image hosts. PNG, JPEG, GIF, WebP and AVIF retain their original bytes,
