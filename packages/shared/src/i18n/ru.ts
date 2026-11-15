@@ -1216,6 +1216,7 @@ export const ru = {
       azure: "Синий",
       violet: "Фиолетовый",
       pink: "Розовый",
+      rose: "Малиновый",
       slate: "Серый",
     },
     editorBodyHeadingStyleTitle: "Стиль заголовков",

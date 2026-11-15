@@ -1358,6 +1358,7 @@ export const fr = {
       azure: "Bleu roi",
       violet: "Pourpre iris",
       pink: "Rose tendre",
+      rose: "Rouge framboise",
       slate: "Gris mauve"
     },
     editorBodyHeadingStyleTitle: "Style des titres",

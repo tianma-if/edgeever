@@ -1216,6 +1216,7 @@ export const zhTW = {
       azure: "寶藍",
       violet: "鳶紫",
       pink: "玫粉",
+      rose: "玫紅",
       slate: "灰紫",
     },
     editorBodyHeadingStyleTitle: "標題樣式",

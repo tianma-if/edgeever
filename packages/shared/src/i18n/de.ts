@@ -1358,6 +1358,7 @@ export const de = {
       "azure": "Königsblau",
       "violet": "Irisviolett",
       "pink": "Rosarot",
+      "rose": "Rosenrot",
       "slate": "Mauvegrau"
     },
     "editorBodyHeadingStyleTitle": "Überschriftenstil",

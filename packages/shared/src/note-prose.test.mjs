@@ -79,6 +79,20 @@ describe("note prose", () => {
       .not.toHaveProperty("--note-palette-dark-accent");
   });
 
+  test("keeps rose independent of pink through account and public preferences", () => {
+    expect(NOTE_PROSE_PALETTE_CHOICES).toContain("pink");
+    expect(NOTE_PROSE_PALETTE_CHOICES).toContain("rose");
+    for (const palette of ["pink", "rose"]) {
+      const account = accountNoteProseFromRow({ note_prose_palette: palette });
+      expect(account.palette).toBe(palette);
+      expect(resolveNoteProse(account).palette).toBe(palette);
+      expect(publicNoteProseFromAccount(account).palette).toBe(palette);
+      expect(NoteProseUpdateSchema.parse({ palette }).palette).toBe(palette);
+    }
+    expect(NOTE_PROSE_PALETTES.pink.accent).toBe("#BB456E");
+    expect(NOTE_PROSE_DARK_ACCENTS.pink).toBe("#E794B0");
+  });
+
   test("maps retired editor themes onto color names and leaves the native theme unset", () => {
     expect(paletteForLegacyEditorTheme("stance")).toBe("clay");
     expect(paletteForLegacyEditorTheme("stub")).toBe("dawn");

@@ -1216,6 +1216,7 @@ export const zhCN = {
       azure: "宝蓝",
       violet: "鸢紫",
       pink: "玫粉",
+      rose: "玫红",
       slate: "灰紫",
     },
     editorBodyHeadingStyleTitle: "标题样式",

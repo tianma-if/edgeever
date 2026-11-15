@@ -1205,6 +1205,7 @@ export const pl = {
       azure: "Królewski błękit",
       violet: "Irysowy fiolet",
       pink: "Różany róż",
+      rose: "Różana czerwień",
       slate: "Szarość z fioletem",
     },
     editorBodyHeadingStyleTitle: "Styl nagłówków",

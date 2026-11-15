@@ -1358,6 +1358,7 @@ export const es = {
       "azure": "Azul real",
       "violet": "Púrpura iris",
       "pink": "Rosa suave",
+      "rose": "Rojo rosa",
       "slate": "Gris malva"
     },
     "editorBodyHeadingStyleTitle": "Estilo de encabezados",

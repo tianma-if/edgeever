@@ -1197,6 +1197,7 @@ export const enUS = {
       azure: "Royal blue",
       violet: "Iris purple",
       pink: "Rose pink",
+      rose: "Rose red",
       slate: "Mauve gray",
     },
     editorBodyHeadingStyleTitle: "Heading style",

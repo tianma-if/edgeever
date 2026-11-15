@@ -1205,6 +1205,7 @@ export const ja = {
       azure: "ロイヤルブルー",
       violet: "アイリスパープル",
       pink: "ローズピンク",
+      rose: "ローズレッド",
       slate: "モーヴグレー",
     },
     editorBodyHeadingStyleTitle: "見出しスタイル",
