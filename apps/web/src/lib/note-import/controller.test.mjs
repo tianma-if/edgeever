@@ -196,3 +196,17 @@ for (const stage of ["initialization", "preview"]) test(`scan cancellation durin
     BrowserImportIndex.prototype.page = previousPage;
   }
 });
+
+test("open(format) preselects the source format only while idle", () => {
+  const controller = new NoteImportController(null, "http://import.test", () => "Owner", async () => {});
+  try {
+    expect(controller.getSnapshot().format).toBe("evernote");
+    controller.open("notion");
+    expect(controller.getSnapshot()).toMatchObject({ open: true, format: "notion" });
+    controller.update({ open: false, phase: "running" });
+    controller.open("obsidian");
+    expect(controller.getSnapshot()).toMatchObject({ open: true, format: "notion", phase: "running" });
+  } finally {
+    controller.dispose();
+  }
+});
