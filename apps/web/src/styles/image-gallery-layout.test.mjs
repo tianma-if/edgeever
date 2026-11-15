@@ -4,13 +4,13 @@ import { readFileSync } from "node:fs";
 const globals = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
 
 describe("image gallery layout", () => {
-  test("floats the wrapping toolbar above the images and reveals it on hover or keyboard focus", () => {
+  test("lets collision positioning place the wrapping toolbar and reveals it on hover or keyboard focus", () => {
     const toolbar = globals.match(/\.ProseMirror \.edgeever-image-gallery__toolbar \{([^}]+)\}/)?.[1];
     expect(toolbar).toContain("position: absolute;");
-    expect(toolbar).toContain("bottom: 100%;");
+    expect(toolbar).not.toContain("bottom: 100%;");
     expect(toolbar).toContain("flex-wrap: wrap;");
     expect(toolbar).toContain("max-width: 100%;");
-    expect(toolbar).toContain("margin-bottom: 0.5rem;");
+    expect(toolbar).not.toContain("margin-bottom:");
     expect(toolbar).toContain("visibility: hidden;");
     expect(toolbar).toContain("pointer-events: none;");
     expect(toolbar).not.toContain("opacity: 0");
