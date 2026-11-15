@@ -3083,7 +3083,7 @@ export const ja = {
     copiedToWeChat: "コピーしました",
     copyToWeChatFailed: "コピーに失敗",
     "publishImageAddressFailed": "画像ホストにはインターネットからアクセスできる必要があります。ローカルやプライベートなアドレスは公開先で読み込めません。",
-    "publishImageUploadFailed": "図のアップロードに失敗しました。画像ホストを確認して再度コピーしてください。",
+    "publishImageUploadFailed": "画像の読み込みまたはアップロードに失敗しました。画像と画像ホストを確認して再度コピーしてください。",
     "publishImageRenderFailed": "図の描画に失敗しました。Mermaid の内容を確認して再度コピーしてください。",
     outline: "アウトライン",
     showOutline: "アウトラインを表示",

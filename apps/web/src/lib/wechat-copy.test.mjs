@@ -40,6 +40,8 @@ let preparePublishArticle;
 let prepareMarkdownPublishArticle;
 let readEditorCopyContext;
 let createPublishMathImage;
+let embedImagesForWeChat;
+let loadPublishImage;
 
 beforeAll(async () => {
   const module = await import("./wechat-copy.ts");
@@ -47,6 +49,69 @@ beforeAll(async () => {
   prepareMarkdownPublishArticle = module.prepareMarkdownPublishArticle;
   readEditorCopyContext = module.readEditorCopyContext;
   createPublishMathImage = module.createPublishMathImage;
+  embedImagesForWeChat = module.embedImagesForWeChat;
+  loadPublishImage = module.loadPublishImage;
+});
+
+describe("publication copies of ordinary images", () => {
+  const withImageEnvironment = async (run) => {
+    const fetchBefore = globalThis.fetch;
+    const locationBefore = window.location;
+    window.location = { origin: "https://notes.example.com", href: "https://notes.example.com/" };
+    try { await run(); } finally { globalThis.fetch = fetchBefore; window.location = locationBefore; }
+  };
+
+  test("uploads external, inline and blob images once per source, preserving layout and native math", async () => withImageEnvironment(async () => {
+    const loaded = [];
+    const uploaded = [];
+    globalThis.fetch = async (url, init) => {
+      loaded.push([url, init.credentials]);
+      return new Response("png-bytes", { headers: { "Content-Type": "image/png" } });
+    };
+    const root = document.createElement("section");
+    root.innerHTML = `<p><img src="https://external.example.com/a.png" srcset="old 2x" width="240" alt="photo"></p>
+      <table><tr><td><img src="https://external.example.com/a.png"></td></tr></table>
+      <img src="data:image/png;base64,aW1hZ2U="><img src="blob:https://notes.example.com/example">
+      <img class="ztext-math" data-tex="x^2" src="data:image/png;base64,bWF0aA==">
+      <img data-ee-published-image="true" src="https://cdn.example.com/mermaid.jpg">`;
+    await embedImagesForWeChat(root, [], async (blob) => {
+      uploaded.push(await blob.text()); return `https://cdn.example.com/published-${uploaded.length}.png`;
+    });
+    expect(loaded).toHaveLength(3);
+    expect(loaded[0]).toEqual(["https://external.example.com/a.png", "same-origin"]);
+    expect(uploaded).toHaveLength(4);
+    expect(root.querySelectorAll("[data-ee-published-image]")).toHaveLength(5);
+    expect(root.querySelector("img").getAttribute("width")).toBe("240");
+    expect(root.querySelector("img").getAttribute("alt")).toBe("photo");
+    expect(root.querySelector("[srcset]")).toBeNull();
+    expect(root.querySelector("table img").src).toStartWith("https://cdn.example.com/");
+    expect(root.querySelector(".ztext-math").getAttribute("src")).toBe("data:image/png;base64,bWF0aA==");
+  }));
+
+  test("private attachment requests use the authenticated API for web and desktop-style resource URLs", async () => withImageEnvironment(async () => {
+    const { api } = await import("./api.ts");
+    const previous = api.getResourceResponse;
+    const requests = [];
+    api.getResourceResponse = async (path) => { requests.push(path); return new Response("private-image", { headers: { "Content-Type": "image/jpeg" } }); };
+    globalThis.fetch = async () => { throw new Error("Private images must use the API client"); };
+    try {
+      for (const source of ["/api/v1/resources/res_1/blob", "https://notes.example.com/api/v1/resources/res_1/blob", "edgeever-resource://resource/res_1"]) {
+        expect(await (await loadPublishImage(source)).text()).toBe("private-image");
+      }
+      expect(requests).toEqual(Array(3).fill("/api/v1/resources/res_1/blob"));
+    } finally { api.getResourceResponse = previous; }
+  }));
+
+  test("failed reads or uploads stop copying instead of retaining private or broken URLs", async () => withImageEnvironment(async () => {
+    for (const failRead of [true, false]) {
+      globalThis.fetch = async () => failRead ? new Response("denied", { status: 403 })
+        : new Response("image", { headers: { "Content-Type": "image/png" } });
+      const root = document.createElement("section");
+      root.innerHTML = '<img src="https://external.example.com/image.png">';
+      await expect(embedImagesForWeChat(root, [], async () => { throw new Error("Host unavailable"); }))
+        .rejects.toMatchObject({ reason: "upload" });
+    }
+  }));
 });
 
 const MARKDOWN = `

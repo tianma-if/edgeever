@@ -3282,7 +3282,7 @@ export const fr = {
     copiedToWeChat: "Copié",
     copyToWeChatFailed: "Échec de la copie",
     "publishImageAddressFailed": "Le service d’images doit être accessible depuis Internet. Les plateformes de publication ne peuvent pas lire les adresses locales ou privées.",
-    "publishImageUploadFailed": "Échec du téléversement du diagramme. Vérifiez le service d’images et réessayez la copie.",
+    "publishImageUploadFailed": "Échec de la lecture ou du téléversement de l’image. Vérifiez l’image et le service d’images, puis réessayez la copie.",
     "publishImageRenderFailed": "Échec du rendu du diagramme. Vérifiez le code Mermaid et réessayez la copie.",
     outline: "Plan",
     showOutline: "Afficher le plan",

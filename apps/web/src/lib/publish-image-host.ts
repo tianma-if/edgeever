@@ -51,7 +51,7 @@ export const createPublishImageUploader = (dependencies: UploadDependencies) => 
     if (!upload) {
       upload = (async () => {
         try {
-          const file = new File([blob], `mermaid-${key.slice(0, 16)}.${blob.type === "image/png" ? "png" : "jpg"}`, { type: blob.type });
+          const file = new File([blob], `publish-${key.slice(0, 16)}.${blob.type === "image/png" ? "png" : "jpg"}`, { type: blob.type });
           const result = await dependencies.upload(file);
           if (!result || !dependencies.isCurrent()) throw new PublishImageError("upload");
           return publicPublishImageUrl(result.url, dependencies.baseUrl);

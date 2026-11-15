@@ -3282,7 +3282,7 @@ export const es = {
     "copiedToWeChat": "Copiado",
     "copyToWeChatFailed": "Error al copiar",
     "publishImageAddressFailed": "El alojamiento de imágenes debe ser accesible desde Internet. Las plataformas de publicación no pueden leer direcciones locales o privadas.",
-    "publishImageUploadFailed": "No se pudo subir el diagrama. Comprueba el alojamiento de imágenes y vuelve a copiar.",
+    "publishImageUploadFailed": "No se pudo cargar o subir la imagen. Comprueba la imagen y su alojamiento y vuelve a copiar.",
     "publishImageRenderFailed": "No se pudo renderizar el diagrama. Comprueba el código Mermaid y vuelve a copiar.",
     "outline": "Esquema",
     "showOutline": "Mostrar esquema",

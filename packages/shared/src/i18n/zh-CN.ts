@@ -3093,7 +3093,7 @@ export const zhCN = {
     copiedToWeChat: "已复制",
     copyToWeChatFailed: "复制失败",
     "publishImageAddressFailed": "当前图床地址需要能从公网访问。本机或内网实例的图片无法被知乎等发布平台读取，请通过公网实例访问或使用三方图床。",
-    "publishImageUploadFailed": "图表上传失败，请检查当前图床后重新复制。",
+    "publishImageUploadFailed": "图片读取或上传失败，请检查图片和当前图床后重新复制。",
     "publishImageRenderFailed": "图表渲染失败，请检查 Mermaid 内容后重新复制。",
     outline: "文档大纲",
     showOutline: "显示文档大纲",

@@ -3083,7 +3083,7 @@ export const pl = {
     copiedToWeChat: "Skopiowano",
     copyToWeChatFailed: "Nie udało się skopiować",
     "publishImageAddressFailed": "Host obrazów musi być dostępny z Internetu. Platformy publikacji nie mogą odczytać adresów lokalnych ani prywatnych.",
-    "publishImageUploadFailed": "Nie udało się przesłać diagramu. Sprawdź host obrazów i skopiuj ponownie.",
+    "publishImageUploadFailed": "Nie udało się wczytać lub przesłać obrazu. Sprawdź obraz i host obrazów, a następnie skopiuj ponownie.",
     "publishImageRenderFailed": "Nie udało się wyrenderować diagramu. Sprawdź kod Mermaid i skopiuj ponownie.",
     outline: "Konspekt",
     showOutline: "Pokaż konspekt",

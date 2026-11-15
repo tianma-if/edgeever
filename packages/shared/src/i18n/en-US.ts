@@ -3076,7 +3076,7 @@ export const enUS = {
     copiedToWeChat: "Copied",
     copyToWeChatFailed: "Copy failed",
     "publishImageAddressFailed": "The selected image host must be reachable from the Internet. Local and private instance addresses cannot be imported by publishing platforms.",
-    "publishImageUploadFailed": "Diagram upload failed. Check the selected image host and try copying again.",
+    "publishImageUploadFailed": "Image loading or upload failed. Check the image and selected image host, then try copying again.",
     "publishImageRenderFailed": "Diagram rendering failed. Check the Mermaid source and try copying again.",
     outline: "Outline",
     showOutline: "Show outline",

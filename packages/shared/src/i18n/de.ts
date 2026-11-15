@@ -3282,7 +3282,7 @@ export const de = {
     "copiedToWeChat": "Kopiert",
     "copyToWeChatFailed": "Kopieren fehlgeschlagen",
     "publishImageAddressFailed": "Der Bilderdienst muss aus dem Internet erreichbar sein. Veröffentlichungsplattformen können lokale oder private Adressen nicht abrufen.",
-    "publishImageUploadFailed": "Das Diagramm konnte nicht hochgeladen werden. Prüfe den Bilderdienst und kopiere erneut.",
+    "publishImageUploadFailed": "Das Bild konnte nicht geladen oder hochgeladen werden. Prüfe das Bild und den Bilderdienst und kopiere erneut.",
     "publishImageRenderFailed": "Das Diagramm konnte nicht gerendert werden. Prüfe den Mermaid-Code und kopiere erneut.",
     "outline": "Gliederung",
     "showOutline": "Gliederung anzeigen",

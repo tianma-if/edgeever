@@ -29,6 +29,8 @@ import { parseCustomCssToStyles } from "@/lib/css-sandbox";
 import { readNoteCoverTags } from "@/lib/note-cover-tags";
 import { readNoteProseStylePreference } from "@/lib/note-prose-style-preference";
 import { createConfiguredPublishImageUploader, PublishImageError } from "@/lib/publish-image-host";
+import { api, getConfiguredDesktopApiBaseUrl } from "@/lib/api";
+import { toApiResourceUrl } from "@/lib/desktop-resources";
 
 const PUBLISH_FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif";
 const PUBLISH_MONO = "'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
@@ -332,15 +334,6 @@ const blobToDataUrl = (blob: Blob) => new Promise<string>((resolve, reject) => {
   reader.readAsDataURL(blob);
 });
 
-const WECHAT_IMAGE_MIME_TYPES = new Set([
-  "image/bmp",
-  "image/png",
-  "image/jpeg",
-  "image/jpg",
-  "image/gif",
-  "image/webp",
-]);
-
 const canvasToPng = (canvas: HTMLCanvasElement) => new Promise<Blob>((resolve, reject) => {
   canvas.toBlob((png) => {
     if (png) {
@@ -400,7 +393,7 @@ const rasterizeBlob = async (blob: Blob) => {
 };
 
 const convertImageToPng = async (blob: Blob) => {
-  if (WECHAT_IMAGE_MIME_TYPES.has(blob.type.toLocaleLowerCase())) {
+  if (blob.type.toLowerCase() === "image/png" || blob.type.toLowerCase() === "image/jpeg") {
     return blob;
   }
 
@@ -515,7 +508,11 @@ const renderMermaidSvg = (source: string) => renderThemedMermaidSvg(source, {
   padding: 24,
 });
 
-const embedMermaidForWeChat = async (root: HTMLElement, editor?: Editor) => {
+const embedMermaidForWeChat = async (
+  root: HTMLElement,
+  editor?: Editor,
+  uploadImage = createConfiguredPublishImageUploader(),
+) => {
   const codeBlocks = Array.from(root.querySelectorAll<HTMLElement>("pre > code.language-mermaid"));
   if (codeBlocks.length === 0) {
     return;
@@ -524,7 +521,6 @@ const embedMermaidForWeChat = async (root: HTMLElement, editor?: Editor) => {
   const renderedBlocks = editor
     ? Array.from(editor.view.dom.querySelectorAll<HTMLElement>(".edgeever-mermaid-code-block"))
     : [];
-  const uploadImage = createConfiguredPublishImageUploader();
   for (const [index, codeBlock] of codeBlocks.entries()) {
     const source = codeBlock.textContent?.trim();
     const pre = codeBlock.closest("pre");
@@ -560,14 +556,6 @@ const embedMermaidForWeChat = async (root: HTMLElement, editor?: Editor) => {
   }
 };
 
-const isSameOrigin = (source: string) => {
-  try {
-    return new URL(source, window.location.href).origin === window.location.origin;
-  } catch {
-    return false;
-  }
-};
-
 const isContentImage = (image: HTMLImageElement) =>
   Boolean(image.getAttribute("src")?.trim()) && !image.classList.contains("ProseMirror-separator");
 
@@ -582,39 +570,53 @@ const findOriginalImage = (source: string, originals: HTMLImageElement[]) => {
   }
 };
 
-const embedImagesForWeChat = async (root: HTMLElement, originalImages: HTMLImageElement[] = []) => {
+export const loadPublishImage = async (source: string) => {
+  const normalized = toApiResourceUrl(source);
+  const base = getConfiguredDesktopApiBaseUrl() || window.location.origin;
+  const url = new URL(normalized, `${base}/`);
+  const ownOrigin = url.origin === new URL(base).origin || url.origin === window.location.origin;
+  // Relative resource requests use the authenticated client, including desktop
+  // bearer tokens. Never forward instance credentials to an external image host.
+  const response = ownOrigin && /^\/api\/v1\/resources\/[^/]+\/blob$/.test(url.pathname)
+    ? await api.getResourceResponse(`${url.pathname}${url.search}`)
+    : await fetch(url.href, { credentials: "same-origin" });
+  if (!response.ok) throw new Error(`Could not fetch image (${response.status})`);
+  return convertImageToPng(await response.blob());
+};
+
+export const embedImagesForWeChat = async (
+  root: HTMLElement,
+  originalImages: HTMLImageElement[] = [],
+  uploadImage = createConfiguredPublishImageUploader(),
+) => {
   const images = Array.from(root.querySelectorAll<HTMLImageElement>("img")).filter(isContentImage);
   const originals = originalImages.filter(isContentImage);
-  await Promise.all(images.map(async (image) => {
-    // Already hosted for third-party import. Re-embedding would undo publishing.
-    if (image.hasAttribute("data-ee-published-image")) return;
+  const loaded = new Map<string, Promise<Blob>>();
+  for (const image of images) {
+    // Formula images carry native Zhihu math metadata; retain that editable path.
+    if (image.hasAttribute("data-ee-published-image") || image.matches("img.ztext-math[data-tex]")) continue;
     const source = image.getAttribute("src")?.trim();
-    if (!source || source.startsWith("data:")) {
-      return;
-    }
-
+    if (!source) continue;
     try {
-      const originalImage = findOriginalImage(source, originals);
-      if (originalImage) {
-        image.setAttribute("src", await blobToDataUrl(await rasterizeImageElement(originalImage)));
-        image.removeAttribute("srcset");
-        return;
+      let blob = loaded.get(source);
+      if (!blob) {
+        blob = loadPublishImage(source).catch(async (error) => {
+          // A displayed image may remain available when its remote host denies
+          // fetch/CORS. Canvas is usable only when the browser permits reading it.
+          const original = findOriginalImage(source, originals);
+          if (!original) throw error;
+          return rasterizeImageElement(original);
+        });
+        loaded.set(source, blob);
       }
-
-      const response = await fetch(source, { credentials: "include" });
-      if (!response.ok) {
-        throw new Error(`Could not fetch image (${response.status})`);
-      }
-      image.setAttribute("src", await blobToDataUrl(await convertImageToPng(await response.blob())));
+      image.setAttribute("src", await uploadImage(await blob));
+      image.setAttribute("data-ee-published-image", "true");
       image.removeAttribute("srcset");
-    } catch {
-      // Never put a private same-origin URL into the clipboard: WeChat cannot access it.
-      if (isSameOrigin(source)) {
-        image.removeAttribute("src");
-        image.removeAttribute("srcset");
-      }
+    } catch (error) {
+      if (error instanceof PublishImageError) throw error;
+      throw new PublishImageError("upload", { cause: error });
     }
-  }));
+  }
 };
 
 const convertImageGalleriesForWeChat = (root: HTMLElement) => {
@@ -1318,11 +1320,12 @@ export const prepareMarkdownPublishArticle = (markdown: string, from?: HTMLEleme
 
 export const buildWeChatClipboardHtml = async (editor: Editor) => {
   const container = preparePublishArticle(editor.getHTML(), editor.view.dom);
+  const uploadImage = createConfiguredPublishImageUploader();
   await rasterizeMathForWeChat(container);
-  await embedMermaidForWeChat(container, editor);
+  await embedMermaidForWeChat(container, editor, uploadImage);
   const originalImages = Array.from(editor.view.dom.querySelectorAll<HTMLImageElement>("img")).filter(isContentImage);
-  await embedImagesForWeChat(container, originalImages);
   await rasterizePublishOrnamentsForWeChat(container);
+  await embedImagesForWeChat(container, originalImages, uploadImage);
   return container.outerHTML;
 };
 
@@ -1331,10 +1334,11 @@ export const copyEditorToWeChat = async (editor: Editor) =>
 
 export const buildMarkdownWeChatHtml = async (markdown: string) => {
   const container = prepareMarkdownPublishArticle(markdown);
+  const uploadImage = createConfiguredPublishImageUploader();
   await rasterizeMathForWeChat(container);
-  await embedMermaidForWeChat(container);
-  await embedImagesForWeChat(container);
+  await embedMermaidForWeChat(container, undefined, uploadImage);
   await rasterizePublishOrnamentsForWeChat(container);
+  await embedImagesForWeChat(container, [], uploadImage);
   return { html: container.outerHTML, text: container.textContent ?? "" };
 };
 
