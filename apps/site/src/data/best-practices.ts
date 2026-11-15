@@ -210,7 +210,7 @@ const zhCnCategories: ShowcaseCategoryCopy[] = [
         lead: "EdgeEver 采用「目录树 · 笔记列表 · 编辑区」三栏布局，兼顾高效检索与沉浸创作。",
         bullets: [
           "专注模式：侧边栏支持拖拽调宽与折叠，随时切换全屏专注写作。",
-          "混合编辑：主编辑区支持所见即所得（WYSIWYG）与 Markdown 语法混写。",
+          "混合编辑：主编辑区支持所见即所得与 Markdown 语法混写。",
         ],
         media: [
           {
@@ -234,7 +234,7 @@ const zhCnCategories: ShowcaseCategoryCopy[] = [
         lead: "在微信中多选对话点击「合并转发」，在「转发到其他应用」中选择 EdgeEver，自动转换为结构化笔记。",
         bullets: [
           "格式解析：解析发言人、时间轴、微信表情与超链接。",
-          "资源转存：图片内嵌展示，文档与音视频（如 .xlsx、.pdf、.mp4）转为附件并支持全文检索。",
+          "资源转存：图片内嵌展示，文档与音视频转为附件并支持全文检索。",
         ],
         media: [
           {
@@ -319,7 +319,7 @@ const zhCnCategories: ShowcaseCategoryCopy[] = [
         title: "X (Twitter) 推文与引用剪藏",
         lead: "使用 EdgeEver Web Clipper 插件在推文上右键点击「保存推文到 EdgeEver」。",
         bullets: [
-          "提取作者、推文正文、外链、引用推文（Quote Tweet）及附带图集。",
+          "提取作者、推文正文、外链、引用推文及附带图集。",
           "自动渲染为多栏画廊排版。",
         ],
         media: [
@@ -358,7 +358,7 @@ const zhCnCategories: ShowcaseCategoryCopy[] = [
         title: "Reddit 讨论帖剪藏",
         lead: "在 Reddit 帖子处右键点击「保存所选内容到 EdgeEver」。",
         bullets: [
-          "捕获帖子标题、所属版块（Subreddit，如 r/AskReddit）、作者、时间戳及链接，保留社区元数据。",
+          "捕获帖子标题、所属版块、作者、发布时间与原文链接等社区信息。",
         ],
         media: [
           {
@@ -366,7 +366,7 @@ const zhCnCategories: ShowcaseCategoryCopy[] = [
             alt: "右键保存 Reddit 帖子到 EdgeEver",
           },
           {
-            caption: "2. 包含社区元数据的笔记预览",
+            caption: "2. 包含社区信息的笔记预览",
             alt: "EdgeEver 剪藏后的 Reddit 帖子笔记效果",
           },
         ],
@@ -377,8 +377,8 @@ const zhCnCategories: ShowcaseCategoryCopy[] = [
         title: "Instagram 帖子与轮播多图剪藏",
         lead: "使用 EdgeEver Web Clipper 插件在 Instagram 帖子或轮播页面右键点击「保存帖子到 EdgeEver」。",
         bullets: [
-          "提取作者账号、正文描述、发布时间与原文链接，保留话题标签与提及元数据。",
-          "多图轮播（Carousel）内容完整提取并自动排版为多栏画廊。",
+          "提取作者账号、正文描述、发布时间与原文链接，保留话题标签与 @ 提及。",
+          "多图轮播内容完整提取并自动排版为多栏画廊。",
         ],
         media: [
           {
@@ -386,7 +386,7 @@ const zhCnCategories: ShowcaseCategoryCopy[] = [
             alt: "右键保存 Instagram 帖子到 EdgeEver",
           },
           {
-            caption: "2. 包含完整图集与元数据的笔记效果",
+            caption: "2. 包含完整图集与帖子信息的笔记效果",
             alt: "EdgeEver 剪藏后的 Instagram 帖子笔记效果",
           },
         ],
@@ -394,10 +394,10 @@ const zhCnCategories: ShowcaseCategoryCopy[] = [
       {
         id: "github",
         number: "10",
-        title: "GitHub 仓库元数据剪藏",
+        title: "GitHub 仓库信息剪藏",
         lead: "在 GitHub 仓库页面右键点击「保存仓库信息到 EdgeEver」。",
         bullets: [
-          "提取仓库名称（Owner/Repo）、简介、官方主页、编程语言、许可证与话题标签，生成结构化技术卡片。",
+          "提取仓库名称、简介、官方主页、编程语言、开源协议与话题标签，生成结构化技术卡片。",
         ],
         media: [
           {
@@ -505,7 +505,7 @@ const zhCnCategories: ShowcaseCategoryCopy[] = [
         id: "acp-agent",
         number: "15",
         title: "连接本机 Agent (ACP) 实现笔记协同",
-        lead: "EdgeEver 支持 ACP (Agent Client Protocol) 协议，允许桌面端连接本机运行的各类 AI Agent（如 Codex、Claude Code、DeepSeek Harness、Antigravity 等）。",
+        lead: "桌面端支持通过 ACP 协议直连本机运行的各类 AI Agent（如 Codex、Claude Code、Antigravity 等）。",
         bullets: [
           "本地授权：授予本地 Agent 当前账号笔记的安全读写权限。",
           "伴随对话：在笔记右侧栏直接协同，执行代码推理、长文总结与知识库检索。",
@@ -536,7 +536,7 @@ const zhCnCategories: ShowcaseCategoryCopy[] = [
         lead: "使用「分享为图片」功能，将笔记排版为高分辨率长图或卡片。",
         bullets: [
           "多款卡片样式：内置 8 款卡片主题（透明质感、金句、书摘、备忘录等），支持字体与版式微调，一键导出高清长图或复制至剪贴板。",
-          "技术代码卡片：专属代码主题内置 macOS 窗口控件、行号与等宽代码排版。",
+          "技术代码卡片：专属代码主题内置窗口样式、行号与代码排版。",
         ],
         media: [
           {
@@ -569,7 +569,7 @@ const zhCnCategories: ShowcaseCategoryCopy[] = [
         id: "wechat-mp-copy",
         number: "18",
         title: "复制笔记至微信公众号排版",
-        lead: "在笔记菜单中选择「复制到公众号 / 博客」，将笔记转换为内联 CSS 样式的富文本。",
+        lead: "在笔记菜单中选择「复制到公众号 / 博客」，将笔记一键转换为适配公众号与博客的富文本排版。",
         bullets: [
           "粘贴至微信公众号后台，完整保留表格、引用块、代码块、列表及字体样式。",
         ],
@@ -590,15 +590,15 @@ const zhCnCategories: ShowcaseCategoryCopy[] = [
     id: "ecosystem",
     badge: "05 · 插件生态",
     title: "开放生态与插件扩展",
-    description: "内置插件扩展中心与开放 API，支持通过 GitHub 仓库或 Manifest 一键安装并跨端隔离同步。",
+    description: "内置插件扩展中心与开放 API，支持通过插件市场或 GitHub 仓库一键安装并跨端同步。",
     cases: [
       {
         id: "plugin-ecosystem",
         number: "19",
         title: "开放插件 API 与自定义插件开发",
-        lead: "EdgeEver 内置插件扩展管理，支持通过 GitHub 仓库或 Manifest 地址一键安装，配置在 Web 与桌面端跨设备隔离同步。",
+        lead: "EdgeEver 内置插件扩展管理，支持通过插件市场或 GitHub 仓库一键安装，配置在 Web 与桌面端跨设备同步。",
         bullets: [
-          "核心 API 能力：提供文档双向读写、自定义 DOM 面板/嵌入块、统一设置、隔离存储以及调用工作区已配置的 AI 模型。",
+          "核心能力：支持扩展笔记读写、自定义界面面板，并直接调用工作区已配置的 AI 模型。",
           "官方开源插件范式：待办任务汇总（EdgeEver Tasks）与 AI RSS 每日简报助手（EdgeEver AI RSS）。",
         ],
         links: [
@@ -678,7 +678,7 @@ const enUsCategories: ShowcaseCategoryCopy[] = [
         lead: "EdgeEver features a classic three-pane structure (Notebook Tree · Note Stream · Editor Canvas):",
         bullets: [
           "Focus Mode: Resizable and collapsible sidebars allow instant toggling into full-screen writing mode.",
-          "Hybrid Editing: The main editor supports both WYSIWYG rich text and Markdown syntax.",
+          "Hybrid Editing: The main editor supports both rich-text and Markdown editing.",
         ],
         media: [
           {
@@ -702,7 +702,7 @@ const enUsCategories: ShowcaseCategoryCopy[] = [
         lead: "Select messages in WeChat, tap \"Combine and Forward\", and choose EdgeEver under \"Forward to Other Apps\" to convert conversations into structured notes.",
         bullets: [
           "Format Parsing: Parses senders, timestamps, emojis, and links into clean layouts.",
-          "Media Preservation: Images are embedded inline; documents and media files (.xlsx, .pdf, .mp4) are saved as attachments with full-text search support.",
+          "Media Preservation: Images are embedded inline; documents and media files are saved as attachments with full-text search support.",
         ],
         media: [
           {
@@ -826,7 +826,7 @@ const enUsCategories: ShowcaseCategoryCopy[] = [
         title: "Reddit Discussion Post Clipping",
         lead: "Right-click on the post title or body and select \"Save Selection to EdgeEver\".",
         bullets: [
-          "Captures thread title, subreddit (e.g. r/AskReddit), author handle, timestamp, and permalink to preserve community metadata.",
+          "Captures thread title, subreddit, author handle, publish time, and permalink with community details preserved.",
         ],
         media: [
           {
@@ -834,7 +834,7 @@ const enUsCategories: ShowcaseCategoryCopy[] = [
             alt: "Right-click save Reddit post to EdgeEver",
           },
           {
-            caption: "2. Note with Community Metadata",
+            caption: "2. Note with Community Details",
             alt: "Reddit post clipped into EdgeEver note",
           },
         ],
@@ -845,8 +845,8 @@ const enUsCategories: ShowcaseCategoryCopy[] = [
         title: "Instagram Post & Carousel Clipping",
         lead: "Right-click any Instagram post or carousel and select \"Save Post to EdgeEver\" with EdgeEver Web Clipper.",
         bullets: [
-          "Extracts author handle, caption text, timestamp, and source URL while preserving hashtags and mention metadata.",
-          "Captures full multi-image carousel sets, formatted automatically into a clean multi-column gallery layout.",
+          "Extracts author handle, caption text, publish time, and source URL while preserving hashtags and @ mentions.",
+          "Captures multi-image carousel sets, formatted automatically into a clean multi-column gallery layout.",
         ],
         media: [
           {
@@ -854,7 +854,7 @@ const enUsCategories: ShowcaseCategoryCopy[] = [
             alt: "Right-click save Instagram post to EdgeEver",
           },
           {
-            caption: "2. Note with Metadata & Multi-Image Gallery",
+            caption: "2. Note with Post Info & Multi-Image Gallery",
             alt: "Instagram post clipped into EdgeEver note",
           },
         ],
@@ -862,10 +862,10 @@ const enUsCategories: ShowcaseCategoryCopy[] = [
       {
         id: "github",
         number: "10",
-        title: "GitHub Repository Metadata Clipping",
+        title: "GitHub Repository Info Clipping",
         lead: "Right-click anywhere on the GitHub repository page and select \"Save Repository Info to EdgeEver\".",
         bullets: [
-          "Extracts repository name (Owner/Repo), description, homepage, language, license, and topic tags into a technical card note.",
+          "Extracts repository name, description, homepage, language, license, and topic tags into a technical card note.",
         ],
         media: [
           {
@@ -973,7 +973,7 @@ const enUsCategories: ShowcaseCategoryCopy[] = [
         id: "acp-agent",
         number: "15",
         title: "Connecting Local Agents via ACP for Note Interaction",
-        lead: "EdgeEver natively supports ACP (Agent Client Protocol), allowing desktop clients to connect with local AI agent environments (such as Codex, Claude Code, DeepSeek Harness, Antigravity, etc.).",
+        lead: "Desktop clients can connect directly to local AI agents (such as Codex, Claude Code, Antigravity, etc.) via ACP.",
         bullets: [
           "Local Authorization: Grants local agents secure read/write access to user notes.",
           "In-Editor Chat: Converse directly with local agents from the note sidebar for code reasoning, document synthesis, and knowledge retrieval.",
@@ -1004,7 +1004,7 @@ const enUsCategories: ShowcaseCategoryCopy[] = [
         lead: "Use the \"Share as Image\" feature to render notes into high-resolution long images or cards.",
         bullets: [
           "Multiple Card Themes: Choose from 8 curated card themes (Transparent, Quote, Book Excerpt, Memo, Dark, and more) with customizable typography and layout.",
-          "Technical Code Cards: A dedicated \"Code\" theme features macOS-style window controls, line numbers, and monospace syntax highlighting.",
+          "Technical Code Cards: A dedicated \"Code\" theme features clean window styling, line numbers, and syntax highlighting.",
         ],
         media: [
           {
@@ -1037,7 +1037,7 @@ const enUsCategories: ShowcaseCategoryCopy[] = [
         id: "wechat-mp-copy",
         number: "18",
         title: "Copying Notes to WeChat Official Account & Blogs",
-        lead: "Select \"Copy to Official Account / Blog\" from the note menu to convert notes into rich text with inline CSS.",
+        lead: "Select \"Copy to Official Account / Blog\" from the note menu to convert notes into ready-to-paste rich text for WeChat Official Accounts and blogs.",
         bullets: [
           "Paste directly into WeChat Official Account or blog editors while preserving tables, callouts, code blocks, lists, and typography styles.",
         ],
@@ -1058,15 +1058,15 @@ const enUsCategories: ShowcaseCategoryCopy[] = [
     id: "ecosystem",
     badge: "05 · Open Ecosystem",
     title: "Open Ecosystem & Extensibility",
-    description: "Built-in extension manager and open Plugin API with one-click GitHub or Manifest installation and cross-device workspace sync.",
+    description: "Built-in extension manager and open Plugin API with one-click marketplace or GitHub installation and cross-device workspace sync.",
     cases: [
       {
         id: "plugin-ecosystem",
         number: "19",
         title: "Open Plugin API & Custom Plugin Development",
-        lead: "EdgeEver features an extension manager supporting one-click installation via GitHub repository URLs or Manifest links, with cross-device workspace synchronization between Web and Desktop.",
+        lead: "EdgeEver features an extension manager supporting one-click installation from the marketplace or GitHub repositories, with settings synced across Web and Desktop.",
         bullets: [
-          "Core API Capabilities: Bidirectional note read/write, custom DOM panels/embed blocks, unified settings, isolated storage, and direct invocation of workspace-configured AI models.",
+          "Core Capabilities: Extend note reading/writing, add custom UI panels, and invoke workspace-configured AI models directly.",
           "Official Reference Plugins: Task Aggregation (EdgeEver Tasks) and AI RSS Feed Assistant (EdgeEver AI RSS).",
         ],
         links: [
