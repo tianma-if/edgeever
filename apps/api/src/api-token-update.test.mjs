@@ -150,6 +150,48 @@ describe("API token notebook access management", () => {
     expect(invalid.status).toBe(400);
   });
 
+  test("new tokens without a whitelist default to no access", async () => {
+    const { app, environment } = createFixture();
+    const created = await post(app, environment, {
+      name: "NoAccess",
+      scopes: ["read:memos"],
+    });
+    expect(created.status).toBe(201);
+    const body = await created.json();
+    // Restricted with an empty whitelist: zero access, not unrestricted.
+    expect(body.apiToken.notebookAccess).toEqual([]);
+    expect(body.apiToken.notebookAccessLevel).toBe("read");
+  });
+
+  test("creating with an explicit null whitelist yields an unrestricted token", async () => {
+    const { app, environment, sqlite } = createFixture();
+    // This is what the editor's "full access" / "read-only" choices send.
+    const created = await post(app, environment, {
+      name: "FullAccess",
+      scopes: ["read:memos", "write:memos"],
+      notebookAccess: null,
+    });
+    expect(created.status).toBe(201);
+    const body = await created.json();
+    expect(body.apiToken.notebookAccess).toBeNull();
+    const stored = sqlite.query("SELECT notebook_access_json FROM api_tokens WHERE id = ?").get(body.apiToken.id);
+    expect(stored.notebook_access_json).toBeNull();
+  });
+
+  test("creating with an empty whitelist yields a zero-access restricted token", async () => {
+    const { app, environment } = createFixture();
+    const created = await post(app, environment, {
+      name: "EmptyWhitelist",
+      scopes: ["read:memos"],
+      notebookAccess: [],
+      notebookAccessLevel: "write",
+    });
+    expect(created.status).toBe(201);
+    const body = await created.json();
+    expect(body.apiToken.notebookAccess).toEqual([]);
+    expect(body.apiToken.notebookAccessLevel).toBe("write");
+  });
+
   test("rejects grants for unknown notebooks", async () => {
     const { app, environment } = createFixture();
     const response = await post(app, environment, {
@@ -217,8 +259,9 @@ describe("PATCH preserves stored grants on metadata-only edits", () => {
 
     const renamed = await patch(app, environment, body.apiToken.id, { name: "Renamed" });
     expect(renamed.status).toBe(200);
+    // New tokens default to an empty whitelist; a name-only PATCH keeps it.
     const stored = sqlite.query("SELECT notebook_access_json FROM api_tokens WHERE id = ?").get(body.apiToken.id);
-    expect(stored.notebook_access_json).toBeNull();
+    expect(stored.notebook_access_json).toBe("[]");
   });
 });
 

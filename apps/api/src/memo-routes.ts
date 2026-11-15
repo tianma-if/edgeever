@@ -21,6 +21,8 @@ import { getActorLabel, getAuditActor, getWorkspaceId, requireScopes } from "./r
 import { deleteReleasedResourceObjects } from "./resource-service";
 import {
   assertNotebookAccess,
+  notebookIdsBind,
+  notebookInListSql,
   resolveRequestNotebookAccess,
   type NotebookAccess,
 } from "./token-notebook-access";
@@ -168,13 +170,14 @@ export const registerMemoRoutes = (
   ) => {
     if (!notebookAccess.restricted || memoIds.length === 0) return;
     // One batched query for the whole list: per-memo detail loads would blow
-    // D1's per-request query budget on large batches.
+    // D1's per-request query budget on large batches. The id list is a single
+    // JSON bind through json_each so the statement stays within D1's
+    // per-statement bound-parameter limit even at the maximum batch size.
     const uniqueIds = Array.from(new Set(memoIds));
-    const placeholders = uniqueIds.map(() => "?").join(", ");
     const rows = await context.env.storage.db.prepare(
       `SELECT id, notebook_id, is_deleted FROM memos
-       WHERE workspace_id = ? AND id IN (${placeholders})`,
-    ).bind(getWorkspaceId(context), ...uniqueIds)
+       WHERE workspace_id = ? AND ${notebookInListSql("id", uniqueIds)}`,
+    ).bind(getWorkspaceId(context), notebookIdsBind(uniqueIds))
       .all<{ id: string; notebook_id: string; is_deleted: number }>();
 
     const found = new Map(rows.results.map((row) => [row.id, row]));

@@ -291,7 +291,13 @@ export const ApiTokenCreateSchema = z.object({
   name: z.string().trim().min(1).max(80),
   scopes: z.array(z.string().trim().min(1).max(80)).min(1).max(32),
   expiresAt: z.string().datetime().nullable().optional(),
-  notebookAccess: TokenNotebookAccessListSchema.optional(),
+  /**
+   * Omitted = new tokens default to no access (an empty whitelist). An array
+   * (possibly empty) = set that whitelist. `null` = explicitly create an
+   * unrestricted token (whole workspace), matching the editor's "full access"
+   * and "read-only" choices.
+   */
+  notebookAccess: TokenNotebookAccessListSchema.nullable().optional(),
   notebookAccessLevel: TokenNotebookAccessLevelSchema.optional(),
 });
 

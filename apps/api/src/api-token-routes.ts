@@ -128,6 +128,12 @@ export const registerApiTokenRoutes = (
       const scopes = normalizeTokenScopes(input.scopes);
       if (!scopes) return badRequest(context, "Token scope is not supported.");
 
+      // New tokens default to no access: an omitted whitelist means an empty
+      // one (restricted, zero access). An explicit `null` creates an
+      // unrestricted token (the editor's "full access" / "read-only" choices).
+      const notebookAccessJson = input.notebookAccess === null
+        ? null
+        : JSON.stringify(input.notebookAccess ?? []);
       const notebookDenied = await validateNotebookAccess(
         context,
         getWorkspaceId(context),
@@ -151,7 +157,7 @@ export const registerApiTokenRoutes = (
           await dependencies.sha256(token),
           token,
           JSON.stringify(scopes),
-          input.notebookAccess ? JSON.stringify(input.notebookAccess) : null,
+          notebookAccessJson,
           input.notebookAccessLevel ?? null,
           input.expiresAt ?? null,
           now,
@@ -163,7 +169,7 @@ export const registerApiTokenRoutes = (
           "api_token.create",
           "api_token",
           id,
-          { name: input.name, scopes, expiresAt: input.expiresAt ?? null, notebookAccess: input.notebookAccess ?? null, notebookAccessLevel: input.notebookAccessLevel ?? null },
+          { name: input.name, scopes, expiresAt: input.expiresAt ?? null, notebookAccess: input.notebookAccess === undefined ? [] : input.notebookAccess, notebookAccessLevel: input.notebookAccessLevel ?? null },
         ),
       ]);
 

@@ -229,11 +229,10 @@ describe("MCP notebook access enforcement", () => {
     const updated = await call(writer, "update_memo", { memoId: childMemo.id, title: "Yes" });
     expect(updated.memo.title).toBe("Yes");
 
-    // The write level also allows creating top-level notebooks outright.
-    const selfMade = (await call(writer, "create_notebook", { name: "Self Made" })).notebook;
-    expect(selfMade.name).toBe("Self Made");
-
-    // The read level cannot create notebooks: a clear 403.
+    // Whitelist boundary: restricted tokens cannot create top-level
+    // notebooks at either level (they could not access them afterwards).
+    await expect(call(writer, "create_notebook", { name: "Self Made" }))
+      .rejects.toMatchObject({ code: "notebook_access_denied", status: 403 });
     await expect(call(reader, "create_notebook", { name: "Nope" }))
       .rejects.toMatchObject({ code: "notebook_access_denied", status: 403 });
   });
@@ -432,26 +431,23 @@ describe("batch access checks stay within the query budget", () => {
 });
 
 describe("notebook deletion and restore with token grants", () => {
-  test("deleting a parent keeps children that tokens reference explicitly", async () => {
+  test("deleting a parent removes a child even when a token whitelists it", async () => {
     const { context, makeAuth, sqlite } = createFixture();
     const admin = makeAuth(null);
     const call = (auth, tool, args) => callMcpTool(context, auth, tool, args);
 
-    // Parent with an empty child; a token denies the child explicitly.
+    // Parent with an empty child that a token whitelists explicitly.
     const parent = (await call(admin, "create_notebook", { name: "Parent" })).notebook;
     const child = (await call(admin, "create_notebook", { name: "Child", parentId: parent.id })).notebook;
-    sqlite.query("INSERT INTO api_tokens (id, workspace_id, name, token_hash, scopes_json, notebook_access_json, created_at) VALUES (?, 'ws_mcp', 'deny-child', 'x', '[\"read:memos\"]', ?, strftime('%Y-%m-%dT%H:%M:%fZ','now'))")
-      .run("tok_deny", JSON.stringify([{ notebookId: child.id, read: false, write: false }]));
+    sqlite.query("INSERT INTO api_tokens (id, workspace_id, name, token_hash, scopes_json, notebook_access_json, notebook_access_level, created_at) VALUES (?, 'ws_mcp', 'whitelist-child', 'x', '[\"read:memos\"]', ?, 'read', strftime('%Y-%m-%dT%H:%M:%fZ','now'))")
+      .run("tok_wl", JSON.stringify([{ notebookId: child.id, read: true, write: false }]));
 
+    // The whitelist does not pin the notebook: the whole empty subtree
+    // deletes atomically, and the stale entry simply resolves to nothing.
     const deleted = await call(admin, "delete_notebook", { notebookId: parent.id });
     expect(deleted.deleted).toBe(true);
-    // The child survived and was detached to the root.
-    const childRow = sqlite.query("SELECT is_deleted, parent_id FROM notebooks WHERE id = ?").get(child.id);
-    expect(childRow.is_deleted).toBe(0);
-    expect(childRow.parent_id).toBeNull();
-    // The parent itself is gone.
-    const parentRow = sqlite.query("SELECT is_deleted FROM notebooks WHERE id = ?").get(parent.id);
-    expect(parentRow.is_deleted).toBe(1);
+    expect(sqlite.query("SELECT is_deleted FROM notebooks WHERE id = ?").get(parent.id).is_deleted).toBe(1);
+    expect(sqlite.query("SELECT is_deleted FROM notebooks WHERE id = ?").get(child.id).is_deleted).toBe(1);
   });
 
   test("restoring a child of a still-deleted parent detaches it to the root", async () => {
@@ -476,5 +472,66 @@ describe("notebook deletion and restore with token grants", () => {
     expect(childRow.is_deleted).toBe(0);
     // Detached from the still-deleted parent instead of inheriting its fate.
     expect(childRow.parent_id).toBeNull();
+  });
+});
+
+describe("bulk authorization stays within D1's per-statement parameter limit", () => {
+  test("a 100-memo batch binds the id list as one JSON value, not 100 placeholders", async () => {
+    const { context, makeAuth, sqlite } = createFixture();
+    const restricted = makeAuth([{ notebookId: "nb_allowed", read: true, write: true }], "write");
+    const call = (auth, tool, args) => callMcpTool(context, auth, tool, args);
+
+    // Seed the maximum batch size directly (schema caps bulk ops at 100 ids).
+    const memoIds = [];
+    for (let index = 0; index < 100; index++) {
+      const id = `memo_bulk_${index}`;
+      memoIds.push(id);
+      sqlite.query("INSERT INTO memos (id, workspace_id, notebook_id, title, is_deleted, updated_at) VALUES (?, 'ws_mcp', 'nb_allowed', ?, 0, strftime('%Y-%m-%dT%H:%M:%fZ','now'))")
+        .run(id, `m${index}`);
+    }
+
+    // Capture the bulk guard query's SQL and bindings.
+    const realDb = context.env.storage.db;
+    const guardCalls = [];
+    const countingDb = {
+      prepare(sql) {
+        const statement = realDb.prepare(sql);
+        return {
+          bind(...bindings) {
+            const bound = statement.bind(...bindings);
+            if (/SELECT id, notebook_id FROM memos/.test(sql)) {
+              guardCalls.push({ sql, bindings });
+            }
+            return {
+              sql,
+              bindings,
+              async all() { return bound.all(); },
+              async first() { return bound.first(); },
+              async run() { return bound.run(); },
+            };
+          },
+        };
+      },
+      async batch(statementList) {
+        return realDb.batch(statementList.map(
+          (entry) => realDb.prepare(entry.sql).bind(...(entry.bindings ?? [])),
+        ));
+      },
+    };
+    context.env.storage.db = countingDb;
+    try {
+      const moved = await call(restricted, "move_memos", { memoIds, notebookId: "nb_allowed_child" });
+      expect(moved.moved).toBe(100);
+    } finally {
+      context.env.storage.db = realDb;
+    }
+
+    expect(guardCalls.length).toBeGreaterThan(0);
+    for (const { sql, bindings } of guardCalls) {
+      // The id list must go through json_each (one bind), never per-id
+      // placeholders that would exceed D1's 100-parameter limit.
+      expect(sql).toContain("json_each");
+      expect(bindings.length).toBeLessThanOrEqual(3);
+    }
   });
 });

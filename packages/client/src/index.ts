@@ -1369,7 +1369,7 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
 
     listApiTokens: () => request<ListApiTokensResponse>("/api/v1/api-tokens"),
 
-    createApiToken: (payload: { name: string; scopes: string[]; expiresAt?: string | null; notebookAccess?: TokenNotebookAccess[]; notebookAccessLevel?: TokenNotebookAccessLevel }) =>
+    createApiToken: (payload: { name: string; scopes: string[]; expiresAt?: string | null; notebookAccess?: TokenNotebookAccess[] | null; notebookAccessLevel?: TokenNotebookAccessLevel }) =>
       request<CreatedApiToken>("/api/v1/api-tokens", {
         method: "POST",
         body: JSON.stringify(payload),

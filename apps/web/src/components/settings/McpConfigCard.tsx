@@ -23,10 +23,8 @@ import {
   buildNotebookTreeRows,
   copyTextToClipboard,
   createDefaultTokenName,
-  DEFAULT_TOKEN_ACCESS_LEVEL,
   describeNotebookAccess,
   draftToNotebookAccess,
-  emptyNotebookGrantDraft,
   getMcpRemoteServerUrl,
   getStoredTokenAccessLevel,
   getTokenScopesForAccessLevel,
@@ -275,7 +273,7 @@ const NotebookGrantEditor = ({ notebooks, draft, onChange, idPrefix }: NotebookG
                         name={`${idPrefix}-notebook-level`}
                         value={option}
                         checked={checked}
-                        onChange={() => onChange({ ...draft, level: option })}
+                        onChange={() => onChange({ ...draft, mode: "selected", level: option })}
                       />
                       <span
                         aria-hidden="true"
@@ -525,9 +523,15 @@ const TokenEditDialog = ({ token, availableScopes, notebooks, isSaving, onCancel
     const stored = getStoredTokenAccessLevel(token.scopes, availableScopes, token.notebookAccess);
     return stored === "legacy-custom" ? "custom" : stored;
   });
-  const [draft, setDraft] = useState<NotebookGrantDraft>(() => notebookAccessToDraft(token.notebookAccess, token.notebookAccessLevel));
+  const [draft, setDraft] = useState<NotebookGrantDraft>(() => {
+    const initial = notebookAccessToDraft(token.notebookAccess, token.notebookAccessLevel);
+    // Editing always works in whitelist terms; an unrestricted token starts
+    // from an empty whitelist so the first checkbox commits to selected.
+    return initial.mode === "all" ? { mode: "selected", grantedIds: [], level: initial.level } : initial;
+  });
   const notebookAccess = accessLevel === "custom" ? draftToNotebookAccess(draft) : undefined;
-  const notebookValid = accessLevel !== "custom" || (notebookAccess !== undefined && notebookAccess.length > 0);
+  // An empty whitelist is a valid save (zero access).
+  const notebookValid = accessLevel !== "custom" || notebookAccess !== undefined;
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -627,8 +631,10 @@ export const McpConfigCard = () => {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [name, setName] = useState(() => createDefaultTokenName());
-  const [accessLevel, setAccessLevel] = useState<TokenAccessLevel>(DEFAULT_TOKEN_ACCESS_LEVEL);
-  const [grantDraft, setGrantDraft] = useState<NotebookGrantDraft>(() => emptyNotebookGrantDraft());
+  // New tokens start at "custom" with an empty whitelist: default no access,
+  // per the whitelist model contract.
+  const [accessLevel, setAccessLevel] = useState<TokenAccessLevel>("custom");
+  const [grantDraft, setGrantDraft] = useState<NotebookGrantDraft>(() => ({ mode: "selected", grantedIds: [], level: "read" }));
   const [newlyCreatedTokenId, setNewlyCreatedTokenId] = useState<string | null>(null);
   const [tokenDeleteConfirmation, setTokenDeleteConfirmation] = useState<ApiToken | null>(null);
   const [tokenToEdit, setTokenToEdit] = useState<ApiToken | null>(null);
@@ -654,8 +660,8 @@ export const McpConfigCard = () => {
     onSuccess: async (data) => {
       setNewlyCreatedTokenId(data.apiToken.id);
       setName(createDefaultTokenName());
-      setAccessLevel(DEFAULT_TOKEN_ACCESS_LEVEL);
-      setGrantDraft(emptyNotebookGrantDraft());
+      setAccessLevel("custom");
+      setGrantDraft({ mode: "selected", grantedIds: [], level: "read" });
       await queryClient.invalidateQueries({ queryKey: ["api-tokens"] });
     },
   });
@@ -676,8 +682,13 @@ export const McpConfigCard = () => {
     },
   });
 
-  const createNotebookAccess = accessLevel === "custom" ? draftToNotebookAccess(grantDraft) : undefined;
-  const createNotebookValid = accessLevel !== "custom" || (createNotebookAccess !== undefined && createNotebookAccess.length > 0);
+  // "full"/"read-only" create an unrestricted token (explicit null); "custom"
+  // creates a whitelist token. Sending null (not omitting) is what tells the
+  // API to leave the token unrestricted — omitting would default to no access.
+  const createNotebookAccess = accessLevel === "custom" ? draftToNotebookAccess(grantDraft) : null;
+  // A custom token needs a whitelist; an empty whitelist is valid (zero
+  // access) and must stay savable.
+  const createNotebookValid = accessLevel !== "custom" || createNotebookAccess !== undefined;
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

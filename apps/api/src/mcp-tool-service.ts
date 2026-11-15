@@ -97,6 +97,8 @@ import {
 import { assertScope, getActorLabel, getAuditActor } from "./request-auth";
 import {
   assertNotebookAccess,
+  notebookIdsBind,
+  notebookInListSql,
   resolveNotebookAccess,
   type NotebookAccess,
 } from "./token-notebook-access";
@@ -301,13 +303,15 @@ export const callMcpTool = async (
   ) => {
     if (!notebookAccess.restricted || memoIds.length === 0) return;
     // One targeted query for the whole list: loading full memo details per
-    // memo would blow D1's per-request query budget on large batches.
+    // memo would blow D1's per-request query budget on large batches. The id
+    // list is passed as a single JSON bind through json_each so the statement
+    // stays within D1's per-statement bound-parameter limit even at the
+    // maximum batch size (per-id placeholders would exceed it past ~98 ids).
     const uniqueIds = Array.from(new Set(memoIds));
-    const placeholders = uniqueIds.map(() => "?").join(", ");
     const rows = await c.env.storage.db.prepare(
       `SELECT id, notebook_id FROM memos
-       WHERE workspace_id = ? AND is_deleted = ? AND id IN (${placeholders})`,
-    ).bind(auth.workspaceId, deletedState, ...uniqueIds)
+       WHERE workspace_id = ? AND is_deleted = ? AND ${notebookInListSql("id", uniqueIds)}`,
+    ).bind(auth.workspaceId, deletedState, notebookIdsBind(uniqueIds))
       .all<{ id: string; notebook_id: string }>();
 
     // Missing ids are not authorized here: the bulk service validates
@@ -1086,11 +1090,14 @@ export const callMcpTool = async (
 
       if (args.parentId) {
         assertNotebookAccess(notebookAccess, "write", getRequiredString(args.parentId, "parentId"), "create a notebook under this parent");
-      } else if (notebookAccess.restricted && !notebookAccess.defaultWrite) {
-        // A token whose default policy is "write" may create top-level
-        // notebooks (it can immediately write to them); everyone else gets a
-        // clear 403 instead of a silent success.
-        assertNotebookAccess(notebookAccess, "write", "", "create a top-level notebook");
+      } else if (notebookAccess.restricted) {
+        // Whitelist boundary: a restricted token cannot create top-level
+        // notebooks (it could not access them afterwards anyway).
+        throw new AppError(
+          "notebook_access_denied",
+          "This API token is restricted to specific notebooks and cannot create top-level notebooks. Update the token's notebook access in EdgeEver settings.",
+          403,
+        );
       }
 
       if (name.length > 80) {

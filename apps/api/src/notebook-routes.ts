@@ -50,10 +50,9 @@ export const registerNotebookRoutes = (
       if (notebookAccess.restricted) {
         if (input.parentId) {
           assertNotebookAccess(notebookAccess, "write", input.parentId, "create a notebook under this parent");
-        } else if (!notebookAccess.defaultWrite) {
-          // A token whose default policy is "write" may create top-level
-          // notebooks (it can immediately write to them); everyone else gets
-          // a clear 403 instead of a silent success.
+        } else {
+          // Whitelist boundary: a restricted token cannot create top-level
+          // notebooks (it could not access them afterwards anyway).
           assertNotebookAccess(notebookAccess, "write", "", "create a top-level notebook");
         }
       }

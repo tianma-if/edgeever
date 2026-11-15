@@ -150,18 +150,22 @@ describe("resolveNotebookAccess (whitelist)", () => {
 
   test("unwhitelisted notebooks — including new ones — stay invisible", async () => {
     const db = createFixture();
+    const { invalidateNotebookTreeCache } = await import("./token-notebook-access.ts");
     const access = await resolveNotebookAccess(db, "ws_t", [grant("nb_child", "write")], "write");
     expect(access.readableNotebookIds).toEqual(["nb_child", "nb_grandchild"]);
     expect(access.readableNotebookIds).not.toContain("nb_other");
     expect(access.readableNotebookIds).not.toContain("nb_root");
 
-    // A notebook created after the token stays invisible.
+    // A notebook created after the token stays invisible (bypass the tree
+    // cache the way a real notebook write does).
     db.db.query("INSERT INTO notebooks (id, workspace_id, name, parent_id) VALUES ('nb_fresh', 'ws_t', 'Fresh', NULL)").run();
+    invalidateNotebookTreeCache("ws_t");
     const after = await resolveNotebookAccess(db, "ws_t", [grant("nb_child", "write")], "write");
     expect(after.readableNotebookIds).not.toContain("nb_fresh");
 
     // ...unless it is created under a whitelisted parent.
     db.db.query("INSERT INTO notebooks (id, workspace_id, name, parent_id) VALUES ('nb_fresh_child', 'ws_t', 'FreshChild', 'nb_child')").run();
+    invalidateNotebookTreeCache("ws_t");
     const inherited = await resolveNotebookAccess(db, "ws_t", [grant("nb_child", "write")], "write");
     expect(inherited.readableNotebookIds).toContain("nb_fresh_child");
   });
@@ -198,6 +202,8 @@ describe("resolveNotebookAccess (whitelist)", () => {
       },
     };
 
+    const { invalidateNotebookTreeCache } = await import("./token-notebook-access.ts");
+    invalidateNotebookTreeCache("ws_t");
     const access = await resolveNotebookAccess(counting, "ws_t", [grant("nb_root", "write")], "write");
     expect(queries).toBe(1);
     expect(access.readableNotebookIds.length).toBeGreaterThan(0);
@@ -235,5 +241,42 @@ describe("notebook access assertions", () => {
     const ids = Array.from({ length: 200 }, (_, i) => `nb_${i}`);
     expect((notebookInListSql("m.notebook_id", ids).match(/\?/g) ?? []).length).toBe(1);
     expect(notebookIdsBind(ids)).toBe(JSON.stringify(ids));
+  });
+});
+
+describe("tree cache bounds cumulative reads", () => {
+  test("repeated resolutions within the TTL issue one tree query", async () => {
+    const db = createFixture();
+    const realPrepare = db.prepare.bind(db);
+    let queries = 0;
+    const counting = {
+      prepare: (sql) => {
+        const statement = realPrepare(sql);
+        return {
+          bind: (...bindings) => {
+            const bound = statement.bind(...bindings);
+            return {
+              async all() { queries += 1; return bound.all(); },
+              async first() { queries += 1; return bound.first(); },
+              async run() { queries += 1; return bound.run(); },
+            };
+          },
+        };
+      },
+    };
+
+    const { invalidateNotebookTreeCache } = await import("./token-notebook-access.ts");
+    invalidateNotebookTreeCache("ws_t");
+
+    // Ten "pages" of a restricted listing resolve the tree once.
+    for (let page = 0; page < 10; page++) {
+      await resolveNotebookAccess(counting, "ws_t", [{ notebookId: "nb_root", read: true, write: true }], "write");
+    }
+    expect(queries).toBe(1);
+
+    // Invalidation forces a fresh load on the next resolution.
+    invalidateNotebookTreeCache("ws_t");
+    await resolveNotebookAccess(counting, "ws_t", [{ notebookId: "nb_root", read: true, write: true }], "write");
+    expect(queries).toBe(2);
   });
 });
