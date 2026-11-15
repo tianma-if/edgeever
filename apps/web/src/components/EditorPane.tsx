@@ -31,6 +31,7 @@ import {
   Copy,
   AppWindow,
   CopyPlus,
+  ClipboardType,
   Lock,
   LockOpen,
 } from "lucide-react";
@@ -100,7 +101,6 @@ import {
   createNoteLinkSuggestionExtension,
   type NoteLinkSuggestionLabels,
 } from "./editor/NoteLinkSuggestion";
-import { WeChatIcon } from "./WeChatIcon";
 import { useMarkdownTheme } from "./ThemeProvider";
 const MarkdownSourceEditor = lazy(() =>
   import("./editor/MarkdownSourceEditor").then((module) => ({
@@ -4537,22 +4537,28 @@ const RichEditorPane = ({
                       {phonePreviewOpen ? t("editor.hidePhonePreview") : t("editor.showPhonePreview")}
                     </DropdownMenuItem>
                   )}
-                  <DropdownMenuItem
-                    className="flex h-9 w-full items-center gap-2 px-3 text-left text-xs text-slate-700 hover:bg-slate-50 cursor-pointer outline-none"
-                    disabled={!editor || useMobilePlainTextEditor || wechatCopyState === "copying"}
-                    onClick={() => void handleCopyToWeChat()}
+                  <IconTooltip
+                    side="left"
+                    contentClassName="z-[110] max-w-xs whitespace-normal"
+                    label={t("editor.copyToWeChatTooltip")}
                   >
-                    {wechatCopyState === "copying" ? (
-                      <LoaderCircle className="h-4 w-4 animate-spin text-slate-500" />
-                    ) : wechatCopyState === "copied" ? (
-                      <Check className="h-4 w-4 text-slate-500" />
-                    ) : wechatCopyState === "error" ? (
-                      <CircleAlert className="h-4 w-4 text-rose-600" />
-                    ) : (
-                      <WeChatIcon className="h-4 w-4 text-slate-500" />
-                    )}
-                    {t(wechatCopyState === "copying" ? "editor.copyingToWeChat" : wechatCopyState === "copied" ? "editor.copiedToWeChat" : wechatCopyState === "error" ? "editor.copyToWeChatFailed" : "editor.copyToWeChat")}
-                  </DropdownMenuItem>
+                    <DropdownMenuItem
+                      className="flex h-9 w-full items-center gap-2 px-3 text-left text-xs text-slate-700 hover:bg-slate-50 cursor-pointer outline-none"
+                      disabled={!editor || useMobilePlainTextEditor || wechatCopyState === "copying"}
+                      onClick={() => void handleCopyToWeChat()}
+                    >
+                      {wechatCopyState === "copying" ? (
+                        <LoaderCircle className="h-4 w-4 animate-spin text-slate-500" />
+                      ) : wechatCopyState === "copied" ? (
+                        <Check className="h-4 w-4 text-slate-500" />
+                      ) : wechatCopyState === "error" ? (
+                        <CircleAlert className="h-4 w-4 text-rose-600" />
+                      ) : (
+                        <ClipboardType className="h-4 w-4 text-slate-500" />
+                      )}
+                      {t(wechatCopyState === "copying" ? "editor.copyingToWeChat" : wechatCopyState === "copied" ? "editor.copiedToWeChat" : wechatCopyState === "error" ? "editor.copyToWeChatFailed" : "editor.copyToWeChat")}
+                    </DropdownMenuItem>
+                  </IconTooltip>
                 </>
               )}
               moreMenuItems={(
@@ -5071,7 +5077,7 @@ const RichEditorPane = ({
 
       {(wechatCopyState === "copied" || wechatCopyState === "error") && (
         <ClipboardCopyNotice status={wechatCopyState === "copied" ? "copied" : "error"}>
-          {wechatCopyState === "error" && wechatCopyError ? wechatCopyError : t(wechatCopyState === "copied" ? "editor.copiedToWeChat" : "editor.copyToWeChatFailed")}
+          {wechatCopyState === "error" && wechatCopyError ? wechatCopyError : t(wechatCopyState === "copied" ? "editor.copiedToWeChatNotice" : "editor.copyToWeChatFailed")}
         </ClipboardCopyNotice>
       )}
 
