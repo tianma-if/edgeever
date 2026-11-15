@@ -28,6 +28,7 @@ import { copyHtmlToClipboard } from "@/lib/clipboard";
 import { parseCustomCssToStyles } from "@/lib/css-sandbox";
 import { readNoteCoverTags } from "@/lib/note-cover-tags";
 import { readNoteProseStylePreference } from "@/lib/note-prose-style-preference";
+import { createConfiguredPublishImageUploader, PublishImageError } from "@/lib/publish-image-host";
 
 const PUBLISH_FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif";
 const PUBLISH_MONO = "'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
@@ -523,11 +524,12 @@ const embedMermaidForWeChat = async (root: HTMLElement, editor?: Editor) => {
   const renderedBlocks = editor
     ? Array.from(editor.view.dom.querySelectorAll<HTMLElement>(".edgeever-mermaid-code-block"))
     : [];
-  await Promise.all(codeBlocks.map(async (codeBlock, index) => {
+  const uploadImage = createConfiguredPublishImageUploader();
+  for (const [index, codeBlock] of codeBlocks.entries()) {
     const source = codeBlock.textContent?.trim();
     const pre = codeBlock.closest("pre");
     if (!source || !pre) {
-      return;
+      continue;
     }
 
     try {
@@ -537,23 +539,25 @@ const embedMermaidForWeChat = async (root: HTMLElement, editor?: Editor) => {
       } catch {
         svg = renderedBlocks[index]?.querySelector("svg")?.outerHTML || "";
       }
-      if (!svg) return;
+      if (!svg) throw new PublishImageError("render");
 
       const { blob, width, height } = await svgToWeChatImage(svg);
       const paragraph = document.createElement("p");
       paragraph.style.cssText = "text-align: center; margin: 1em 0;";
       const image = document.createElement("img");
-      image.src = await blobToDataUrl(blob);
+      image.src = await uploadImage(blob);
+      image.setAttribute("data-ee-published-image", "true");
       image.width = Math.round(width);
       image.height = Math.round(height);
       image.alt = "Mermaid diagram";
       image.style.cssText = "display: inline-block; max-width: 100%; height: auto;";
       paragraph.appendChild(image);
       pre.replaceWith(paragraph);
-    } catch {
-      // Preserve the Mermaid source as a readable fallback when rendering fails.
+    } catch (error) {
+      if (error instanceof PublishImageError) throw error;
+      throw new PublishImageError("render", { cause: error });
     }
-  }));
+  }
 };
 
 const isSameOrigin = (source: string) => {
@@ -582,6 +586,8 @@ const embedImagesForWeChat = async (root: HTMLElement, originalImages: HTMLImage
   const images = Array.from(root.querySelectorAll<HTMLImageElement>("img")).filter(isContentImage);
   const originals = originalImages.filter(isContentImage);
   await Promise.all(images.map(async (image) => {
+    // Already hosted for third-party import. Re-embedding would undo publishing.
+    if (image.hasAttribute("data-ee-published-image")) return;
     const source = image.getAttribute("src")?.trim();
     if (!source || source.startsWith("data:")) {
       return;

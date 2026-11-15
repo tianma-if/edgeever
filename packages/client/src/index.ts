@@ -1839,6 +1839,12 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
       }>;
     },
 
+    uploadPublishImage: (image: Blob) => request<{ url: string }>("/api/v1/publish-images", {
+      method: "POST",
+      headers: { "Content-Type": image.type },
+      body: image,
+    }),
+
     uploadMemoResource: (memoId: string, file: Blob | FormData) => {
       // Small files do not benefit from an upload session's three round trips.
       // Keep large attachments on the bounded-memory, resumable path.
