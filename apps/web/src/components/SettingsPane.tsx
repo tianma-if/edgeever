@@ -35,6 +35,7 @@ import { DesktopLocalDataCard } from "./settings/DesktopLocalDataCard";
 import { LoginDevicesCard } from "./settings/LoginDevicesCard";
 import { ShareManagementCard } from "./settings/ShareManagementCard";
 import { ThirdPartyImportCard } from "./settings/ThirdPartyImportCard";
+import { NotionSyncCard } from "./settings/NotionSyncCard";
 import type { NoteImportController } from "@/lib/note-import/controller";
 import { FeedbackLink } from "./settings/FeedbackLink";
 import { SystemInfoPanel } from "./settings/SystemInfoPanel";
@@ -295,6 +296,12 @@ export const SettingsPane = ({
               <DataExportCard refreshWorkspaceAfterImport={refreshWorkspaceAfterImport} />
             )}
             <ThirdPartyImportCard controller={noteImport} onOpenMemo={onOpenMemo} />
+            {isOwner ? (
+              <NotionSyncCard
+                demoMode={demoMode}
+                refreshWorkspaceAfterSync={refreshWorkspaceAfterImport}
+              />
+            ) : null}
           </SettingsGroup>
         );
       case "sharing":

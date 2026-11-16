@@ -102,6 +102,8 @@ import { registerWorkspaceExtensionRoutes } from "./workspace-extension-routes";
 import { registerBackupRoutes } from "./backup-routes";
 import { registerMcpRoutes } from "./mcp-routes";
 import { executeWorkspaceTool } from "./mcp-tool-executor";
+import { registerNotionSyncRoutes, registerPublicNotionWebhookRoutes } from "./notion-sync-routes";
+import { createNotionSyncObserverSession } from "./notion-sync-service";
 import {
   createMemoEditSession,
   createMemoRecord,
@@ -271,6 +273,9 @@ registerPublicNotebookShareRoutes(app);
 registerPublicTableFormRoutes(app);
 registerPublicPendingResourceRoutes(app);
 registerPublicPublishImageRoutes(app);
+registerPublicNotionWebhookRoutes(app, {
+  isDemoMode: (...args) => isDemoMode(...args),
+});
 
 registerAuthRoutes(app, {
   authenticateRequest: (...args) => authenticateRequest(...args),
@@ -344,6 +349,9 @@ app.use("/api/v1/*", async (c, next) => {
 registerImportContextGuard(app);
 
 registerObjectStorageRoutes(app, {
+  isDemoMode: (...args) => isDemoMode(...args),
+});
+registerNotionSyncRoutes(app, {
   isDemoMode: (...args) => isDemoMode(...args),
 });
 registerAiRoutes(app, {
@@ -476,7 +484,10 @@ export const fetchEdgeEverApp = async (
       await ensureLocalDemoSeed(runtimeEnv);
     }
 
-    return app.fetch(request, runtimeEnv, ctx);
+    const notionSession = createNotionSyncObserverSession(runtimeEnv);
+    const response = await app.fetch(request, notionSession.env, ctx);
+    notionSession.flush(ctx, response.status);
+    return response;
 };
 
 const worker = {
