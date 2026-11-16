@@ -49,9 +49,9 @@ export const siteLocaleLabels: Record<SiteLocale, string> = {
 };
 
 export const siteTaglines = {
-  "zh-CN": "AI 原生知识库与印象笔记 / Obsidian 替代方案，支持多端瞬时同步与原生 MCP。Cloudflare 免费托管或 Docker 自托管",
+  "zh-CN": "AI 原生笔记应用与印象笔记 / Obsidian 替代方案，支持多端瞬时同步与原生 MCP。Cloudflare 免费托管或 Docker 自托管",
   "zh-TW": zhTwSiteTagline,
-  "en-US": "AI-native knowledge base & Evernote/Obsidian alternative with instant sync & native MCP. Free on Cloudflare or self-hosted via Docker.",
+  "en-US": "AI-native note-taking app & Evernote/Obsidian alternative with instant sync & native MCP. Free on Cloudflare or self-hosted via Docker.",
   es: esSiteTagline,
   de: deSiteTagline,
   fr: frSiteTagline,
@@ -227,7 +227,7 @@ export const siteCopy = {
       eyebrow: "WHY EDGEEVER",
       heading: "重新定义自托管知识工作区",
       subheading: "告别商业笔记的臃肿广告、设备限制与昂贵订阅。每一个设计细节，都旨在打造流畅、开放、隐私可控且原生支持 AI 的第二大脑。",
-      showcaseCta: "查看 19 个真机案例演示与最佳实践",
+      showcaseCta: "查看 20 个真机案例演示与最佳实践",
       card1: {
         badge: "经典重现",
         title: "经典三栏与专注模式，熟悉更轻快",
@@ -287,8 +287,8 @@ export const siteCopy = {
       },
     },
     marquee: {
-      title: "全平台客户端覆盖、自由部署与 AI 智脑生态",
-      subtitle: "从 macOS、原生 iOS、Android 客户端，到 Docker 一键自托管、微信公众号排版与 Remote MCP 协同",
+      title: "原生技术栈、自由部署与 AI 智脑生态",
+      subtitle: "从本地 SQLite 离线架构、ACP / Remote MCP 智能体协同，到 Cloudflare / Docker 自托管与创作者排版",
       items: [
         {
           tag: "macOS 桌面端",
@@ -444,7 +444,7 @@ export const siteCopy = {
           cta: "查看迁移指南",
         },
         {
-          title: "19 个真机场景与实操指南",
+          title: "20 个真机场景与实操指南",
           summary: "浏览三栏写作、微信与全渠道剪藏、AI 导图/信息图/多维表格、本机 ACP 协同及海报排版实机演示。",
           href: "/guides/best-practices",
           cta: "查看实机案例",
@@ -513,7 +513,7 @@ export const siteCopy = {
       eyebrow: "WHY EDGEEVER",
       heading: "Rebuilt for Self-Hosted Knowledge & AI Workflows",
       subheading: "Say goodbye to ads, device caps, and expensive subscriptions. Every detail is crafted for a fast, open, and private second brain.",
-      showcaseCta: "Explore 19 real-world workflows & screenshots",
+      showcaseCta: "Explore 20 real-world workflows & screenshots",
       card1: {
         badge: "Classic UI",
         title: "Classic Three-Pane Layout, Faster & Lighter",
@@ -573,8 +573,8 @@ export const siteCopy = {
       },
     },
     marquee: {
-      title: "Apps Across Platforms, Flexible Deploy & AI Synergy",
-      subtitle: "From macOS, native iOS & Android apps to Docker self-hosting, styled creator copying, and Remote MCP collaboration.",
+      title: "Native Architecture, Flexible Deploy & AI Synergy",
+      subtitle: "From local SQLite offline sync and ACP / Remote MCP agent workflows to Docker self-hosting and creator styling.",
       items: [
         {
           tag: "macOS Desktop",
@@ -730,7 +730,7 @@ export const siteCopy = {
           cta: "Read migration guide",
         },
         {
-          title: "19 Real-World Workflows",
+          title: "20 Real-World Workflows",
           summary: "Visual walkthrough of three-pane editing, omnichannel clipping, AI diagrams & databases, local ACP agents, and poster design.",
           href: "/guides/best-practices",
           cta: "View showcase",

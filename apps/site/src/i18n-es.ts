@@ -1,5 +1,5 @@
 export const esSiteTagline =
-  "Base de conocimiento nativa de IA y alternativa a Evernote/Obsidian con sincronización instantánea y MCP nativo. Gratis en Cloudflare o autoalojado con Docker.";
+  "Aplicación de notas nativa de IA y alternativa a Evernote/Obsidian con sincronización instantánea y MCP nativo. Gratis en Cloudflare o autoalojado con Docker.";
 
 export const esSiteCopy = {
   layout: {
@@ -58,7 +58,7 @@ export const esSiteCopy = {
     heading: "Rediseñado para el conocimiento autoalojado y los flujos con IA",
     subheading:
       "Adiós a anuncios invasivos, límites de dispositivos y suscripciones costosas. Cada detalle está diseñado para un segundo cerebro rápido, abierto y privado.",
-    showcaseCta: "Explora 19 flujos de trabajo reales y capturas",
+    showcaseCta: "Explora 20 flujos de trabajo reales y capturas",
     card1: {
       badge: "Interfaz clásica",
       title: "Diseño clásico de tres paneles, más ágil y ligero",
@@ -118,8 +118,8 @@ export const esSiteCopy = {
     },
   },
   marquee: {
-    title: "Aplicaciones multiplataforma, despliegue flexible y ecosistema de IA",
-    subtitle: "Desde apps de escritorio y móviles hasta Docker autoalojado, diseño para creadores y colaboración Remote MCP.",
+    title: "Arquitectura nativa, despliegue flexible y ecosistema de IA",
+    subtitle: "Desde sincronización local SQLite y flujos ACP / Remote MCP hasta Docker autoalojado y diseño para creadores.",
     items: [
       {
         tag: "macOS Desktop",
@@ -275,7 +275,7 @@ export const esSiteCopy = {
         cta: "Ver guía de migración",
       },
       {
-        title: "19 flujos de trabajo reales",
+        title: "20 flujos de trabajo reales",
         summary: "Recorrido visual por la edición en tres paneles, captura multicanal, diagramas y tablas de IA, agentes locales ACP y diseño de pósteres.",
         href: "/guides/best-practices",
         cta: "Ver casos de uso",

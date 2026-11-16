@@ -71,7 +71,7 @@ type AppAlertParameters = [
   title: string,
   message?: string,
   buttons?: AppDialogButton[],
-  options?: AlertOptions,
+  options?: AlertOptions & { scrollMessage?: boolean },
 ];
 
 export const Alert = {
@@ -82,7 +82,7 @@ export const Alert = {
       ...button,
       text: button.text ? translateCurrentMobileText(button.text) : button.text,
     }));
-    if (presentAppDialog({ title: translatedTitle, message: translatedMessage, buttons: translatedButtons, options })) {
+    if (presentAppDialog({ title: translatedTitle, message: translatedMessage, buttons: translatedButtons, options, scrollMessage: options?.scrollMessage })) {
       return;
     }
     NativeAlert.alert(translatedTitle, translatedMessage, translatedButtons, options);

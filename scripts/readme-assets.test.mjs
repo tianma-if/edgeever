@@ -3,7 +3,10 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 
 const repositoryRoot = resolve(import.meta.dir, "..");
-const readmes = ["README.md", "README.zh-CN.md", "README.zh-TW.md", "README.ja.md", "README.pl-PL.md"];
+const readmes = [
+  "README.md", "README.zh-CN.md", "README.zh-TW.md", "README.es.md",
+  "README.de.md", "README.fr.md", "README.ja.md", "README.pl-PL.md", "README.ru.md",
+];
 const remoteSource = /^(?:[a-z][a-z\d+.-]*:|\/\/|#)/i;
 
 const localHtmlImageSources = (markdown) =>

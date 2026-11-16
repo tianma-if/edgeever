@@ -1,24 +1,12 @@
-# flomo Migration Guide
+# Migrating flomo notes
 
-[简体中文](note-migration-guide.md) | [English](note-migration-guide.en-US.md)
+[简体中文](flomo-migration-guide.md)
 
-> 💡 **Notice**: All third-party note migration guides have been merged and updated into a unified guide:
-> 👉 **[Migrate from Third-Party Notes to EdgeEver: The Complete Guide](note-migration-guide.en-US.md)** (covering native GUI one-click import and AI Agent / MCP migration).
+1. In flomo Web or desktop, open **Settings → Account details**, scroll to the bottom, and click the global export button and download the HTML ZIP.
+2. In EdgeEver, open **Profile → Backup and import → Import from other apps**, choose **flomo**, and select the original ZIP (or extracted folder).
+3. Review preflight results and choose a destination. Confirmation creates a new `flomo` notebook there. Resolve preflight errors before selecting the files again.
+4. Hiding the dialog does not stop the task; reopen it to view progress. Runtime failures retain written data. Use the same task's **Retry unfinished steps** to continue without recreating completed notes.
 
-### Step 1: Export flomo
+**Selecting the ZIP again starts a new task and creates all notes again, including repeated imports of the same ZIP.** No cross-task deduplication or overwriting occurs. Export times lack a timezone and use the importing device's current system timezone. Missing modification times retain the unified import warning and import-time behavior.
 
-In the flomo Web app or desktop client, click the small arrow next to your username and membership badge in the upper-left corner. Open **Settings → Account details** from the account menu, scroll the Account details pane to the very bottom, and download the full HTML export ZIP.
-
-### Step 2: Configure EdgeEver MCP
-
-Generate a token with memo, notebook, and resource read/write permissions in **EdgeEver Settings → API & MCP authorization**. Click **Copy full MCP config** and configure it in Codex, Claude Code, Cursor, WorkBuddy, or another AI Agent.
-
-### Step 3: Import with one prompt
-
-Replace `/path/to/flomo-export.zip` with the real path, then send the entire prompt below to the Agent connected to EdgeEver MCP:
-
-```text
-Using the configured EdgeEver MCP, migrate every note in `/path/to/flomo-export.zip` into the `flomo` notebook while preserving content, tags, creation times, images, and attachments. Verify completeness and report the result when finished.
-```
-
-Keep the original flomo ZIP until verification is complete.
+Keep the original archive until content, tags, times and attachments are verified. See the [complete migration guide](note-migration-guide.en-US.md) for the unified flow, limits and optional MCP migration.

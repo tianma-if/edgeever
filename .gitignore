@@ -24,6 +24,9 @@ playwright-report/
 test-results/
 blob-report/
 
+# Local generated previews and intermediate media; final assets live in assets/.
+/output/
+
 # Rust sidecar build artifacts.
 target/
 

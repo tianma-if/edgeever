@@ -195,6 +195,7 @@ export interface PluginScheduleAdapter {
 }
 
 export interface PluginHostSnapshot {
+  catalogErrors: { extensionId: string | null; message: string }[];
   extensions: InstalledExtension[];
   commands: RegisteredPluginCommand[];
   panels: RegisteredPluginPanel[];
@@ -449,6 +450,7 @@ export class EdgeEverPluginHost {
   private readonly scheduleAdapter?: PluginScheduleAdapter;
   private readonly catalogAdapter?: PluginCatalogAdapter;
   private catalogSyncSuspended = 0;
+  private catalogErrors: PluginHostSnapshot["catalogErrors"] = [];
   private readonly listeners = new Set<() => void>();
   private readonly activePlugins = new Map<string, ActivePlugin>();
   private readonly commands = new Map<string, PluginCommand & { pluginId: string }>();
@@ -459,7 +461,7 @@ export class EdgeEverPluginHost {
   private readonly eventListeners = new Map<keyof PluginEventMap, Set<{ pluginId: string; listener: (payload: never) => void }>>();
   private extensions = readInstalledExtensions();
   private activeThemeId = readStorageItem(ACTIVE_THEME_STORAGE_KEY);
-  private snapshot: PluginHostSnapshot = { extensions: [], commands: [], panels: [], embeds: [], activeThemeId: null };
+  private snapshot: PluginHostSnapshot = { catalogErrors: [], extensions: [], commands: [], panels: [], embeds: [], activeThemeId: null };
   private editorAdapter: PluginEditorAdapter | null = null;
   private navigationAdapter: PluginNavigationAdapter | null = null;
   private panelAdapter: PluginPanelAdapter | null = null;
@@ -540,10 +542,13 @@ export class EdgeEverPluginHost {
     try {
       remote = await this.catalogAdapter.list();
     } catch (error) {
+      this.catalogErrors = [{ extensionId: null, message: error instanceof Error ? error.message : String(error) }];
+      this.refreshSnapshot();
       console.error("Workspace extension catalog sync failed.", error);
       return [];
     }
 
+    this.catalogErrors = [];
     let officialIds = new Set<string>();
     try {
       const marketplace = await loadResolvedPluginMarketplace();
@@ -589,12 +594,15 @@ export class EdgeEverPluginHost {
           const extension = this.extensions.find((item) => item.manifest.id === action.extensionId);
           if (extension) await this.pushCatalog(extension, { ignoreSuspend: true });
         } catch (error) {
+          const extensionId = action.type === "install" ? action.entry.extensionId : action.extensionId;
+          this.catalogErrors.push({ extensionId, message: error instanceof Error ? error.message : String(error) });
           if (action.type === "install") failed.add(action.entry.extensionId);
           console.error("Workspace extension catalog sync failed.", error);
         }
       }
     } finally {
       this.catalogSyncSuspended -= 1;
+      this.refreshSnapshot();
     }
     return pendingTrustPluginIds;
   }
@@ -1875,6 +1883,7 @@ export class EdgeEverPluginHost {
 
   private refreshSnapshot() {
     this.snapshot = {
+      catalogErrors: this.catalogErrors.map((item) => ({ ...item })),
       extensions: this.extensions.map((item) => ({ ...item, manifest: { ...item.manifest } })),
       commands: [...this.commands.values()].map(({ pluginId, id, title, listed, menu }) => ({
         pluginId,

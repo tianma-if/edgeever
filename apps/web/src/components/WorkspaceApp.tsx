@@ -1,6 +1,7 @@
 import { DesktopAttachmentWritebacks } from "./attachments/DesktopAttachmentWritebacks";
 import { useNoteImport } from "@/lib/note-import/use-note-import";
 import { NotebookAppearanceDialog } from "./dialogs/NotebookAppearanceDialog";
+import { ShareMemoDialog } from "./dialogs/ShareMemoDialog";
 import type { NotebookUpdateInput } from "@edgeever/shared";
 import { startPosterClientRenderer } from "@/lib/poster-client-render";
 import {
@@ -115,6 +116,7 @@ import { isNotebookNotEmptyError } from "@/lib/notebook-delete";
 import { getPersistentDataScopeOrigin } from "@/lib/app-page-path";
 import { createRepository } from "@/lib/repository";
 import { notifyRepositoryMutation } from "@/lib/repository-events";
+import { NOTEBOOK_LIST_REFRESHED_EVENT, type NotebookListRefresh } from "@/lib/sync-events";
 import {
   refreshWorkspaceData,
   shouldNavigateHomeWhenOpeningMemo,
@@ -262,6 +264,7 @@ export const WorkspaceApp = ({
   const createMemoInFlightRef = useRef(false);
   const memoDocumentActionIdRef = useRef(0);
   const [memoDocumentActionRequest, setMemoDocumentActionRequest] = useState<MemoDocumentActionRequest | null>(null);
+  const [listShareMemoId, setListShareMemoId] = useState<string | null>(null);
   const [memoDeleteConfirmation, setMemoDeleteConfirmation] = useState<MemoDeleteConfirmation | null>(null);
   const [emptyTrashConfirmationOpen, setEmptyTrashConfirmationOpen] = useState(false);
   const [appearanceNotebook, setAppearanceNotebook] = useState<Notebook | null>(null);
@@ -712,6 +715,15 @@ export const WorkspaceApp = ({
       setIsManualMemoSyncing(false);
     }
   }, [refreshWorkspaceFromServer]);
+
+  useEffect(() => {
+    const applyNotebookRefresh = (event: Event) => {
+      const { scope, notebooks } = (event as CustomEvent<NotebookListRefresh>).detail;
+      if (scope === localDataScope) queryClient.setQueryData(["notebooks"], { notebooks });
+    };
+    window.addEventListener(NOTEBOOK_LIST_REFRESHED_EVENT, applyNotebookRefresh);
+    return () => window.removeEventListener(NOTEBOOK_LIST_REFRESHED_EVENT, applyNotebookRefresh);
+  }, [localDataScope, queryClient]);
 
   const notebooksQuery = useQuery({
     queryKey: ["notebooks"],
@@ -3624,6 +3636,11 @@ export const WorkspaceApp = ({
               onRestoreMemo={handleRestoreMemoFromList}
               onMoveMemo={handleMoveMemoFromList}
               onRequestDocumentAction={(memoId: string, action: MemoDocumentAction, printWindow?: Window | null) => {
+                // Link sharing only needs the note ID, regardless of its editor type.
+                if (action === "share") {
+                  setListShareMemoId(memoId);
+                  return;
+                }
                 clearPendingMemoSelection();
                 if (shouldNavigateHomeWhenOpeningMemo(memoView)) {
                   navigateWorkspaceHome();
@@ -3656,13 +3673,9 @@ export const WorkspaceApp = ({
                   return "editor";
                 }
 
-                try {
-                  const { memo } = await repository.getMemo(memoId, memoView === "trash");
-                  await copyMarkdownToWeChat(memo.contentMarkdown);
-                  return "copied";
-                } catch {
-                  return "error";
-                }
+                const { memo } = await repository.getMemo(memoId, memoView === "trash");
+                await copyMarkdownToWeChat(memo.contentMarkdown);
+                return "copied";
               }}
               onTogglePinMemo={handleToggleMemoPinned}
               onPinSelectedMemos={handlePinSelectedMemos}
@@ -4159,6 +4172,13 @@ export const WorkspaceApp = ({
           tone="primary"
           onCancel={() => setDemoResetConfirmationOpen(false)}
           onConfirm={() => resetDemoMutation.mutate()}
+        />
+      )}
+      {listShareMemoId && (
+        <ShareMemoDialog
+          memoId={listShareMemoId}
+          open
+          onOpenChange={(open) => { if (!open) setListShareMemoId(null); }}
         />
       )}
       <PluginPanelDialog

@@ -15,8 +15,8 @@ const currentLanguageLabel = languageOptions.find((item) => item.locale === loca
 <details class:list={["group relative", compact && "w-full"]}>
   <summary
     class:list={[
-      "flex cursor-pointer list-none items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white text-gray-600 transition hover:border-slate-300 hover:text-gray-900 [&::-webkit-details-marker]:hidden",
-      compact ? "w-full px-3 py-2 text-sm" : "px-3 py-2 text-sm",
+      "flex cursor-pointer list-none items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white text-gray-600 transition hover:border-slate-300 hover:text-gray-900 [&::-webkit-details-marker]:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 focus-visible:ring-offset-2",
+      compact ? "w-full min-h-11 px-3 py-2 text-sm" : "px-3 py-2 text-sm",
     ]}
     aria-label={copy.languageMenu}
   >

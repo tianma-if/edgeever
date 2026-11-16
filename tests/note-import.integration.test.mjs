@@ -62,6 +62,125 @@ const target = async () => {
 };
 
 describe("native third-party import through the real API", () => {
+  for (const kind of [null, "zip"]) test(`Obsidian ${kind ?? "directory"}: standalone attachments default on, keep folders and retry without duplicates`, async () => {
+    const { client, db } = await target();
+    const beforeNotes = db.query("SELECT COUNT(*) AS n FROM memos").get().n;
+    const beforeResources = db.query("SELECT COUNT(*) AS n FROM resources WHERE is_deleted = 0").get().n;
+    const files = [
+      { path: "Vault/note.md", file: new File(["![used](used.svg)"], "note.md") },
+      { path: "Vault/used.svg", file: new File(["<svg>used</svg>"], "used.svg") },
+      { path: "Vault/media/独立 [图](1).svg", file: new File(["<svg>standalone</svg>"], "独立 [图](1).svg") },
+      { path: "Vault/docs/paper.pdf", file: new File(["%PDF-1.4 test"], "paper.pdf") },
+      ...["Vault/.env.local", "Vault/.tools/secret.txt", "Vault/cache/old.pdf", "Vault/data.json", "Vault/config.yaml"].map(path => ({ path, file: new File(["excluded"], path.split("/").at(-1)) })),
+    ];
+    const session = new NoteImportSession("obsidian", kind ? await archive(files, kind) : files, new MemoryImportIndex());
+    try {
+      expect(await session.scan()).toMatchObject({ notes: 3, resources: 3, errors: 0, warnings: 0 });
+      for (let attempt = 0; attempt < 2; attempt++) {
+        expect(await executeNoteImport({ reader: session, index: session.index, client, convertEnml: convertImportEnml })).toMatchObject({ completed: 3, failed: 0 });
+      }
+      expect(db.query("SELECT COUNT(*) AS n FROM memos").get().n).toBe(beforeNotes + 3);
+      const results = await session.index.page("result");
+      for (const [path, image, content] of [["Vault/media/独立 [图](1).svg", true, "<svg>standalone</svg>"], ["Vault/docs/paper.pdf", false, "%PDF-1.4 test"]]) {
+        const result = results.find(item => item.path === path);
+        const { memo } = await client.getMemo(result.memo.id);
+        expect(memo.title).toBe(path.split("/").at(-1));
+        expect(memo.contentMarkdown.startsWith(image ? "![" : "[")).toBe(true);
+        expect(memo.contentMarkdown).toContain(result.urls[path]);
+        expect(await (await client.getResourceBlob(result.urls[path])).text()).toBe(content);
+        const { notebooks } = await client.listNotebooks();
+        const folder = notebooks.find(item => item.id === memo.notebookId);
+        expect(folder.name).toBe(path.split("/").at(-2));
+        expect(notebooks.find(item => item.id === folder.parentId).name).toBe("Vault");
+      }
+      expect(db.query("SELECT COUNT(*) AS n FROM resources WHERE is_deleted = 0").get().n).toBe(beforeResources + 3);
+    } finally { await session.close(); db.close(); }
+  });
+
+  test("Obsidian attachment-only exports import by default and can be excluded", async () => {
+    const [bundle] = await archive([{ path: "inside.txt", file: new File(["archive content"], "inside.txt") }], "zip");
+    const files = [
+      { path: "docs/paper.pdf", file: new File(["%PDF-1.4 test"], "paper.pdf") },
+      { path: "docs/bundle.zip", file: bundle.file, expandArchive: false },
+    ];
+    for (const enabled of [true, false]) {
+      const session = new NoteImportSession("obsidian", files, new MemoryImportIndex(), crypto.randomUUID(), { includeUnreferencedAttachments: enabled });
+      try {
+        expect(await session.scan()).toMatchObject({ notes: enabled ? 2 : 0, resources: enabled ? 2 : 0, errors: enabled ? 0 : 1 });
+        if (!enabled) expect(await session.index.page("issue")).toMatchObject([{ code: "noNotes" }]);
+      } finally { await session.close(); }
+    }
+  });
+
+  test("flomo ZIP uses unified retries, new-task duplicates and local timestamps", async () => {
+    const { client, db, intercept } = await target();
+    const memo = `<div class="memo"><div class="time">2024-02-29 12:34:56</div><div class="content"><p><strong>flomo body</strong></p><p>正文#旅行#工作 #项目/ #️⃣ https://example.com/#fragment</p></div><div class="files"><img src="file/a.png"><img src="file/v.mp4" alt="memo image"></div></div>`;
+    const files = await archive([
+      { path: "export/notes.html", file: new File([`<div class="memos">${memo}${memo}</div>`], "notes.html") },
+      { path: "export/file/a.png", file: new File(["image bytes"], "a.png") },
+      { path: "export/file/v.mp4", file: new File(["video bytes"], "v.mp4") },
+    ], "zip");
+    const session = new NoteImportSession("flomo", files, new MemoryImportIndex());
+    expect(await session.scan()).toMatchObject({ notes: 2, resources: 4, notebooks: 1, errors: 0 });
+    const notes = await session.index.page("note");
+    expect(notes[0].tags).toEqual(["旅行", "工作", "项目"]);
+    expect(notes[0].createdAt).toBe(new Date(2024, 1, 29, 12, 34, 56).toISOString());
+    let uploads = 0;
+    intercept((url, init) => {
+      if (init?.method === "POST" && new URL(url).pathname.endsWith("/resource-uploads") && ++uploads === 2) return new Response(JSON.stringify({ error: { code: "failure", message: "Controlled failure" } }), { status: 503, headers: { "Content-Type": "application/json" } });
+    });
+    const options = { reader: session, index: session.index, client, convertEnml: convertImportEnml };
+    expect(await executeNoteImport(options)).toMatchObject({ completed: 0, failed: 1 });
+    const [partial] = await session.index.page("result");
+    const countBeforeRetry = db.query("SELECT COUNT(*) AS n FROM memos").get().n;
+    expect(await executeNoteImport(options)).toMatchObject({ completed: 2, failed: 0, resources: 4 });
+    expect(db.query("SELECT COUNT(*) AS n FROM memos").get().n).toBe(countBeforeRetry + 1);
+    const saved = (await client.getMemo(partial.memo.id)).memo;
+    expect(saved.contentMarkdown).toContain("**flomo body**");
+    expect(saved.contentMarkdown).not.toContain("flomo-resource:");
+    expect(saved.contentMarkdown).toContain("[v.mp4]");
+    expect(saved.createdAt).toBe(notes[0].createdAt);
+    const fresh = new NoteImportSession("flomo", files, new MemoryImportIndex());
+    await fresh.scan();
+    expect(await executeNoteImport({ ...options, reader: fresh, index: fresh.index })).toMatchObject({ completed: 2, failed: 0 });
+    expect(db.query("SELECT COUNT(*) AS n FROM memos").get().n).toBe(countBeforeRetry + 3);
+    await fresh.close(); await session.close(); db.close();
+  });
+
+  test("flomo capability rejection happens before creating destination notebooks", async () => {
+    const { client, db, intercept } = await target();
+    const html = '<div class="memos"><div class="memo"><div class="time">2024-01-01 00:00:00</div><div class="content">one</div></div></div>';
+    const session = new NoteImportSession("flomo", [{ path: "notes.html", file: new File([html], "notes.html") }], new MemoryImportIndex());
+    await session.scan();
+    const before = db.query("SELECT COUNT(*) AS n FROM notebooks").get().n;
+    intercept(url => new URL(url).pathname.endsWith("/imports/capabilities") ? new Response(JSON.stringify({ protocolVersion: 1, formats: ["evernote", "obsidian", "joplin"] }), { headers: { "Content-Type": "application/json" } }) : undefined);
+    await expect(executeNoteImport({ reader: session, index: session.index, client, convertEnml: convertImportEnml })).rejects.toThrow("unsupportedImportServer");
+    expect(db.query("SELECT COUNT(*) AS n FROM notebooks").get().n).toBe(before);
+    await session.close(); db.close();
+  });
+
+  test("flomo inert conversion drops executable markup and unsafe link schemes", async () => {
+    const html = `<div class="memos"><div class="memo"><div class="time">2024-01-01 00:00:00</div><div class="content"><p>safe</p><script>attack()</script><iframe srcdoc="bad"></iframe><a href="data:text/html,attack">label</a><a href="java&#10;script:attack()">other</a></div></div></div>`;
+    const session = new NoteImportSession("flomo", [{ path: "notes.html", file: new File([html], "notes.html") }], new MemoryImportIndex());
+    expect((await session.scan()).errors).toBe(0);
+    const [note] = await session.index.page("note");
+    const doc = await session.readNote(note.key);
+    expect(doc.contentMarkdown).toContain("label");
+    expect(doc.contentMarkdown).not.toMatch(/attack|data:|script:|iframe/);
+    await session.close();
+  });
+
+  test("flomo preflight blocks all writes for missing resources or invalid dates", async () => {
+    const { client, db } = await target();
+    const before = db.query("SELECT COUNT(*) AS n FROM memos").get().n;
+    const html = `<div class="memos"><div class="memo"><div class="time">2024-02-30 12:00:00</div><div class="content">bad date</div></div><div class="memo"><div class="time">2024-02-29 12:00:00</div><div class="content">missing</div><div class="files"><img src="lost.png"></div></div></div>`;
+    const session = new NoteImportSession("flomo", [{ path: "notes.html", file: new File([html], "notes.html") }], new MemoryImportIndex());
+    expect((await session.scan()).errors).toBeGreaterThanOrEqual(2);
+    await expect(executeNoteImport({ reader: session, index: session.index, client, convertEnml: convertImportEnml })).rejects.toThrow("preflightErrors");
+    expect(db.query("SELECT COUNT(*) AS n FROM memos").get().n).toBe(before);
+    await session.close(); db.close();
+  });
+
   test("imports growing notebooks without recounting previously imported notes", async () => {
     for (const count of [64, 256]) {
       const { client, env } = await target();
@@ -728,7 +847,7 @@ describe("native third-party import through the real API", () => {
       { path: "assets/diagram.svg", file: new File(['<svg xmlns="http://www.w3.org/2000/svg"><text>ROOT</text></svg>'], "diagram.svg") },
       { path: "notes/assets/diagram.svg", file: new File(['<svg xmlns="http://www.w3.org/2000/svg"><text>LOCAL</text></svg>'], "diagram.svg") },
       { path: "100% ready.svg", file: new File(['<svg xmlns="http://www.w3.org/2000/svg"><text>Percent</text></svg>'], "100% ready.svg") },
-    ], new MemoryImportIndex());
+    ], new MemoryImportIndex(), crypto.randomUUID(), { includeUnreferencedAttachments: false });
     expect(await session.scan()).toMatchObject({ errors: 0, notes: 1, resources: 2 });
     expect(await executeNoteImport({ reader: session, index: session.index, client, convertEnml: convertImportEnml })).toMatchObject({ completed: 1, resources: 2 });
     const [state] = await session.index.page("result");

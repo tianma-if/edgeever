@@ -1,0 +1,9 @@
+<!doctype html>
+<html lang="en"><head><meta charset="UTF-8"><title>Gallery toolbar clipping regression</title><style>#fixture .ProseMirror>p:first-child{min-height:180px}#fixture .ProseMirror>p:last-child{min-height:800px}</style></head>
+<body><main style="padding:24px"><h1>Gallery toolbar clipping regression</h1><p>Isolated editor fixture. Does not read or change notes.</p><button id="run" style="border:1px solid;padding:8px">Run regression checks</button><p id="summary" role="status">Ready</p><ol id="results"></ol><section style="width:760px;max-width:95vw;border:1px solid #aaa"><header style="height:48px;padding:12px;background:#e5e7eb;position:relative;z-index:20">Editor formatting toolbar — clipping boundary</header><div id="scroller" style="height:420px;overflow:auto;padding:24px"><div id="fixture"></div></div></section></main><script type="module">
+import RefreshRuntime from "/@react-refresh";
+RefreshRuntime.injectIntoGlobalHook(window);
+window.$RefreshReg$=()=>{};
+window.$RefreshSig$=()=>(type)=>type;
+window.__vite_plugin_react_preamble_installed__=true;
+</script><script type="module" src="./image-gallery-toolbar.browser.tsx"></script></body></html>

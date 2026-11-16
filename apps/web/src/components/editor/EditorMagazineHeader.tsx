@@ -1,59 +1,13 @@
 import { useEffect, useState } from "react";
 import type { Editor } from "@tiptap/react";
+import { deriveChapterCardLabels, splitCoverTitle } from "@/lib/magazine-header";
+import { formatNoteCoverTags } from "@/lib/note-cover-tags";
 
 type SectionItem = {
   index: number;
   num: string;
   shortTitle: string;
   subTitle: string;
-};
-
-const cleanHeadingText = (raw: string) =>
-  raw
-    .replace(/^\s*(?:第[一二三四五六七八九十百\d]+[章节部分篇]\s*[：:·.\s]*|\d+\s*[.、·:：]\s*|[一二三四五六七八九十]+\s*[、.．]\s*)/u, "")
-    .trim();
-
-const deriveShortAndSubTitle = (raw: string, index: number) => {
-  const cleaned = cleanHeadingText(raw) || raw.trim() || `章节 ${index + 1}`;
-  const parts = cleaned.split(/[：:，,——·\s]+/).filter(Boolean);
-  if (parts.length >= 2 && parts[0].length <= 8) {
-    return {
-      shortTitle: parts[0],
-      subTitle: parts.slice(1).join(" · ").slice(0, 14),
-    };
-  }
-  if (cleaned.length <= 6) {
-    return {
-      shortTitle: cleaned,
-      subTitle: `PART ${String(index + 1).padStart(2, "0")}`,
-    };
-  }
-  return {
-    shortTitle: cleaned.slice(0, 5),
-    subTitle: cleaned.slice(5, 17) || cleaned.slice(0, 12),
-  };
-};
-
-const splitCoverTitle = (rawTitle: string) => {
-  const trimmed = rawTitle.trim();
-  if (!trimmed) {
-    return { primary: "深度实测与结构化指南", highlight: "" };
-  }
-  const colonMatch = trimmed.match(/^([^：:，,——]+)[：:，,——]\s*(.+)$/);
-  if (colonMatch) {
-    return {
-      primary: `${colonMatch[1]}，`,
-      highlight: colonMatch[2],
-    };
-  }
-  if (trimmed.length > 10) {
-    const mid = Math.ceil(trimmed.length * 0.45);
-    return {
-      primary: trimmed.slice(0, mid),
-      highlight: trimmed.slice(mid),
-    };
-  }
-  return { primary: trimmed, highlight: "" };
 };
 
 const formatYearMonth = (iso?: string) => {
@@ -66,27 +20,27 @@ const formatYearMonth = (iso?: string) => {
 
 export const EditorMagazineHeader = ({
   editor,
+  showMagazineCover,
+  showChapterNavigation,
   title,
   tags = [],
-  notebookName,
   updatedAt,
   palette = "native",
 }: {
   editor: Editor | null;
+  showMagazineCover: boolean;
+  showChapterNavigation: boolean;
   title?: string;
   tags?: string[];
-  notebookName?: string;
   updatedAt?: string;
   palette?: string;
 }) => {
   const isNative = !palette || palette === "native";
   const [sections, setSections] = useState<SectionItem[]>([]);
-  const [leadSummary, setLeadSummary] = useState("");
 
   useEffect(() => {
     if (!editor || editor.isDestroyed) {
       setSections([]);
-      setLeadSummary("");
       return;
     }
 
@@ -94,20 +48,11 @@ export const EditorMagazineHeader = ({
       if (editor.isDestroyed) return;
       const dom = editor.view.dom;
       const h2Elements = Array.from(dom.querySelectorAll<HTMLElement>("h2"));
-      const nextSections = h2Elements.map((el, index) => {
-        const { shortTitle, subTitle } = deriveShortAndSubTitle(el.textContent || "", index);
-        return {
-          index,
-          num: String(index + 1).padStart(2, "0"),
-          shortTitle,
-          subTitle,
-        };
-      });
+      const nextSections = h2Elements.map((el, index) => ({
+        index,
+        ...deriveChapterCardLabels(el.textContent || "", index),
+      }));
       setSections(nextSections);
-
-      const firstParagraph = dom.querySelector<HTMLElement>("blockquote p, p");
-      const firstText = (firstParagraph?.textContent || "").replace(/\s+/g, " ").trim();
-      setLeadSummary(firstText.slice(0, 42));
     };
 
     sync();
@@ -120,14 +65,8 @@ export const EditorMagazineHeader = ({
   }, [editor]);
 
   const { primary, highlight } = splitCoverTitle(title || "");
-  const topTag = tags.length > 0
-    ? tags.slice(0, 2).map((tag) => tag.replace(/^#/, "")).join(" · ").toUpperCase()
-    : "实测 · 深度梳理";
+  const topTag = formatNoteCoverTags(tags);
   const dateLabel = formatYearMonth(updatedAt);
-  const subtitleText = leadSummary
-    || (sections.length > 0
-      ? `${sections.length} 个核心章节，从全局脉络到关键细节完整拆解`
-      : "结构化核心脉络与实战要点梳理");
 
   const scrollToSection = (index: number) => {
     if (!editor || editor.isDestroyed) return;
@@ -135,6 +74,9 @@ export const EditorMagazineHeader = ({
     const target = h2Elements[index];
     target?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
+
+  const showNavigation = showChapterNavigation && sections.length >= 2;
+  if (!showMagazineCover && !showNavigation) return null;
 
   return (
     <div
@@ -144,178 +86,95 @@ export const EditorMagazineHeader = ({
         fontFamily: "-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif",
       }}
     >
-      {/* Component 2: Magazine cover-breaking card */}
-      <div
-        style={{
-          margin: "0 0 28px",
-          background: "#ffffff",
-          border: isNative
-            ? "1.5px solid #e5e7eb"
-            : "1.5px solid color-mix(in srgb, var(--note-palette-accent, #374151) 18%, transparent)",
-          borderRadius: "20px",
-          overflow: "hidden",
-          boxShadow: "0 4px 20px rgba(0, 0, 0, 0.06)",
-        }}
-      >
-        <div style={{ padding: "28px 28px 24px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "22px" }}>
-            <span
-              style={{
-                width: "6px",
-                height: "6px",
-                borderRadius: "50%",
-                background: "var(--note-palette-accent, #4b5563)",
-                flexShrink: 0,
-              }}
-            />
-            <span
-              style={{
-                fontSize: "11px",
-                fontWeight: 700,
-                letterSpacing: "3px",
-                color: "var(--note-palette-accent, #4b5563)",
-              }}
-            >
-              {topTag}
-            </span>
-            <span
-              style={{
-                flex: 1,
-                height: "1px",
-                background: isNative
-                  ? "linear-gradient(to right, #e5e7eb, transparent)"
-                  : "linear-gradient(to right, color-mix(in srgb, var(--note-palette-accent, #374151) 18%, transparent), transparent)",
-              }}
-            />
-            <span style={{ fontSize: "10px", color: "#d1d5db", fontWeight: 600 }}>
-              {dateLabel}
-            </span>
-          </div>
-
-          <p
-            style={{
-              fontSize: "24px",
-              fontWeight: 900,
-              color: "#111827",
-              margin: "0 0 14px",
-              lineHeight: 1.18,
-              letterSpacing: "-1px",
-            }}
-          >
-            <span>{primary}</span>
-            {highlight ? (
-              <span style={{ color: "var(--note-palette-accent, #374151)" }}>{highlight}</span>
-            ) : null}
-          </p>
-
-          <div
-            style={{
-              width: "48px",
-              height: "3px",
-              background: isNative
-                ? "linear-gradient(to right, #4b5563, #9ca3af)"
-                : "linear-gradient(to right, var(--note-palette-accent, #374151), color-mix(in srgb, var(--note-palette-accent, #374151) 68%, #ffffff))",
-              borderRadius: "2px",
-              marginBottom: "12px",
-            }}
-          />
-
-          <p
-            style={{
-              fontSize: "13px",
-              color: "#9ca3af",
-              margin: 0,
-              lineHeight: 1.7,
-              letterSpacing: "0.5px",
-            }}
-          >
-            {subtitleText}
-          </p>
-        </div>
-
+      {showMagazineCover ? (
         <div
+          data-edgeever-magazine-cover="true"
+          className="mb-7 overflow-hidden rounded-[20px] border bg-card text-card-foreground shadow-[0_4px_20px_rgba(0,0,0,0.06)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.28)]"
           style={{
-            background: isNative
-              ? "#f3f4f6"
-              : "linear-gradient(135deg, var(--note-palette-accent, #374151), color-mix(in srgb, var(--note-palette-accent, #374151) 80%, #ffffff))",
-            borderTop: isNative ? "1px solid #e5e7eb" : undefined,
-            padding: "11px 28px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: "12px",
+            borderWidth: "1.5px",
+            borderColor: isNative
+              ? undefined
+              : "color-mix(in srgb, var(--note-palette-accent, #374151) 18%, transparent)",
           }}
         >
-          <span
-            style={{
-              fontSize: "12px",
-              color: isNative ? "#374151" : "rgba(255, 255, 255, 0.92)",
-              fontWeight: 600,
-              letterSpacing: "0.5px",
-            }}
-          >
-            {notebookName?.trim() || "EdgeEver 专栏"}
-          </span>
-          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-            {sections.length > 0 ? (
-              <span
-                style={{
-                  background: isNative ? "#ffffff" : "rgba(255, 255, 255, 0.2)",
-                  border: isNative ? "1px solid #e5e7eb" : undefined,
-                  padding: "2px 7px",
-                  borderRadius: "4px",
-                  fontSize: "10px",
-                  color: isNative ? "#374151" : "#ffffff",
-                  fontWeight: 600,
-                }}
-              >
-                {sections.length} 个章节
-              </span>
+          <div className="px-7 pb-6 pt-7">
+            {topTag ? (
+              <div className="mb-[22px] flex items-center gap-2">
+                <span
+                  className="size-1.5 shrink-0 rounded-full"
+                  style={{
+                    background: "var(--note-palette-accent, #4b5563)",
+                  }}
+                />
+                <span
+                  className={isNative ? "min-w-0 text-muted-foreground" : "min-w-0"}
+                  style={{
+                    overflowWrap: "anywhere",
+                    fontSize: "11px",
+                    fontWeight: 700,
+                    letterSpacing: "3px",
+                    color: isNative ? undefined : "var(--note-palette-accent, #4b5563)",
+                  }}
+                >
+                  {topTag}
+                </span>
+                <span
+                  className="h-px flex-1"
+                  style={{
+                    background: isNative
+                      ? "linear-gradient(to right, hsl(var(--border)), transparent)"
+                      : "linear-gradient(to right, color-mix(in srgb, var(--note-palette-accent, #374151) 18%, transparent), transparent)",
+                  }}
+                />
+                <span className="shrink-0 text-[10px] font-semibold text-muted-foreground/70">
+                  {dateLabel}
+                </span>
+              </div>
             ) : null}
-            {tags.slice(0, 2).map((tag) => (
-              <span
-                key={tag}
-                style={{
-                  background: isNative ? "#ffffff" : "rgba(255, 255, 255, 0.2)",
-                  border: isNative ? "1px solid #e5e7eb" : undefined,
-                  padding: "2px 7px",
-                  borderRadius: "4px",
-                  fontSize: "10px",
-                  color: isNative ? "#374151" : "#ffffff",
-                  fontWeight: 600,
-                }}
-              >
-                {tag.replace(/^#/, "")}
-              </span>
-            ))}
-          </div>
-        </div>
-      </div>
 
-      {/* Component 3: Horizontal PARTS directory cards (toc-scroll) */}
-      {sections.length >= 2 ? (
-        <div style={{ margin: "0 0 28px" }}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginBottom: "10px",
-            }}
-          >
-            <span
+            <p
+              className="m-0 font-black text-card-foreground"
               style={{
-                fontSize: "10px",
-                color: "#9ca3af",
-                textTransform: "uppercase",
-                letterSpacing: "2px",
-                fontWeight: 600,
+                fontSize: "24px",
+                lineHeight: 1.18,
+                letterSpacing: "-0.5px",
               }}
             >
+              <span>{primary}</span>
+              {highlight ? (
+                <span
+                  className={isNative ? "text-muted-foreground" : undefined}
+                  style={isNative ? undefined : { color: "var(--note-palette-accent, #374151)" }}
+                >
+                  {highlight}
+                </span>
+              ) : null}
+            </p>
+          </div>
+
+          <div
+            className={isNative ? "h-2 border-t border-border bg-muted/70" : "h-2"}
+            style={
+              isNative
+                ? undefined
+                : {
+                    background:
+                      "linear-gradient(135deg, var(--note-palette-accent, #374151), color-mix(in srgb, var(--note-palette-accent, #374151) 80%, #ffffff))",
+                  }
+            }
+            aria-hidden="true"
+          />
+        </div>
+      ) : null}
+
+      {showNavigation ? (
+        <div data-edgeever-chapter-navigation="true" className="mb-7">
+          <div className="mb-2.5 flex items-center justify-between">
+            <span className="text-[10px] font-semibold uppercase tracking-[2px] text-muted-foreground">
               {sections.length} PARTS · 章节导览
             </span>
           </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+          <div className="flex w-full flex-wrap items-stretch justify-start gap-2">
             {sections.map((section, idx) => {
               const isHighlighted = idx < sections.length - 1;
               const useSolidAccent = isHighlighted && !isNative;
@@ -324,72 +183,46 @@ export const EditorMagazineHeader = ({
                   key={section.num}
                   type="button"
                   onClick={() => scrollToSection(section.index)}
+                  className={
+                    useSolidAccent
+                      ? "box-border flex w-[146px] max-w-full min-w-0 flex-none cursor-pointer flex-col items-stretch rounded-xl border border-transparent p-3 text-left transition-opacity hover:opacity-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      : isHighlighted
+                        ? "box-border flex w-[146px] max-w-full min-w-0 flex-none cursor-pointer flex-col items-stretch rounded-xl border border-border bg-muted/60 p-3 text-left shadow-[0_2px_6px_rgba(0,0,0,0.03)] transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        : "box-border flex w-[146px] max-w-full min-w-0 flex-none cursor-pointer flex-col items-stretch rounded-xl border border-border bg-card p-3 text-left shadow-[0_2px_6px_rgba(0,0,0,0.03)] transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  }
                   style={
                     useSolidAccent
                       ? {
-                          width: "146px",
-                          boxSizing: "border-box",
-                          flexShrink: 0,
-                          display: "flex",
-                          flexDirection: "column",
-                          alignItems: "stretch",
-                          textAlign: "left",
-                          background: "linear-gradient(135deg, var(--note-palette-accent, #374151), color-mix(in srgb, var(--note-palette-accent, #374151) 80%, #ffffff))",
-                          border: "1px solid transparent",
-                          borderRadius: "12px",
-                          padding: "12px",
-                          cursor: "pointer",
+                          background:
+                            "linear-gradient(135deg, var(--note-palette-accent, #374151), color-mix(in srgb, var(--note-palette-accent, #374151) 80%, #ffffff))",
                         }
-                      : {
-                          width: "146px",
-                          boxSizing: "border-box",
-                          flexShrink: 0,
-                          display: "flex",
-                          flexDirection: "column",
-                          alignItems: "stretch",
-                          textAlign: "left",
-                          background: isHighlighted ? "#f3f4f6" : "#ffffff",
-                          border: "1px solid #e5e7eb",
-                          borderRadius: "12px",
-                          padding: "12px",
-                          boxShadow: "0 2px 6px rgba(0, 0, 0, 0.03)",
-                          cursor: "pointer",
-                        }
+                      : undefined
                   }
                 >
                   <div
-                    style={{
-                      fontSize: "9px",
-                      lineHeight: 1.4,
-                      fontWeight: 700,
-                      color: useSolidAccent ? "rgba(255, 255, 255, 0.72)" : "#6b7280",
-                      letterSpacing: "1px",
-                      marginBottom: "5px",
-                    }}
+                    className={
+                      useSolidAccent
+                        ? "mb-[5px] text-[9px] font-bold leading-[1.4] tracking-[1px] text-white/75"
+                        : "mb-[5px] text-[9px] font-bold leading-[1.4] tracking-[1px] text-muted-foreground"
+                    }
                   >
                     {section.num}
                   </div>
                   <div
-                    style={{
-                      fontSize: "13px",
-                      fontWeight: 800,
-                      color: useSolidAccent ? "#ffffff" : "#111827",
-                      marginBottom: "3px",
-                      lineHeight: 1.3,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
+                    className={
+                      useSolidAccent
+                        ? "mb-[3px] truncate text-[13px] font-extrabold leading-[1.3] text-white"
+                        : "mb-[3px] truncate text-[13px] font-extrabold leading-[1.3] text-card-foreground"
+                    }
                   >
                     {section.shortTitle}
                   </div>
                   <div
-                    style={{
-                      fontSize: "10px",
-                      color: useSolidAccent ? "rgba(255, 255, 255, 0.75)" : "#6b7280",
-                      lineHeight: 1.4,
-                      wordBreak: "break-word",
-                    }}
+                    className={
+                      useSolidAccent
+                        ? "line-clamp-2 break-words text-[10px] leading-[1.4] text-white/80"
+                        : "line-clamp-2 break-words text-[10px] leading-[1.4] text-muted-foreground"
+                    }
                   >
                     {section.subTitle}
                   </div>

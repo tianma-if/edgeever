@@ -4,6 +4,17 @@ import type { Plugin } from "vite";
 
 const execute = promisify(execFile);
 const apiUrl = "http://127.0.0.1:8787/api/v1/auth/session";
+class LocalApiUnavailableError extends Error {}
+const fetchLocalApi = async (url: string, options: RequestInit) => {
+  try {
+    return await fetch(url, options);
+  } catch (cause) {
+    throw new LocalApiUnavailableError(
+      "Local API is not ready or is restarting. Retry shortly; if this persists, check bun run dev logs.",
+      { cause },
+    );
+  }
+};
 const createSession = async () => {
   const result = await execute("bun", ["scripts/local-dev.mjs", "auth-session", "local"], {
     cwd: new URL("../../", import.meta.url),
@@ -33,7 +44,7 @@ export const localDevelopmentAuth = (provisionSession = createSession): Plugin =
         if (request.headers.cookie) headers.set("Cookie", request.headers.cookie);
         if (request.headers.authorization) headers.set("Authorization", request.headers.authorization);
         if (logout) {
-          const upstream = await fetch(apiUrl.replace(/session$/, "logout"), {
+          const upstream = await fetchLocalApi(apiUrl.replace(/session$/, "logout"), {
             method: "POST", headers, signal: AbortSignal.timeout(5000),
           });
           response.statusCode = upstream.status;
@@ -46,14 +57,14 @@ export const localDevelopmentAuth = (provisionSession = createSession): Plugin =
           response.end(await upstream.text());
           return;
         }
-        const current = await fetch(apiUrl, { headers, signal: AbortSignal.timeout(5000) });
+        const current = await fetchLocalApi(apiUrl, { headers, signal: AbortSignal.timeout(5000) });
         if (!current.ok) return next();
         const session = await current.json() as { authRequired: boolean; authenticated: boolean };
         if (session.authenticated || request.headers.authorization) return next();
         // An explicit logout should still let developers test the login screen.
         if (request.headers.cookie?.includes("edgeever_local_logged_out=1")) return next();
         const { token, maxAge } = await provisionSession();
-        const authenticated = await fetch(apiUrl, {
+        const authenticated = await fetchLocalApi(apiUrl, {
           headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(5000),
         });
         if (!authenticated.ok) throw new Error(`Local session check failed: HTTP ${authenticated.status}`);
@@ -64,6 +75,16 @@ export const localDevelopmentAuth = (provisionSession = createSession): Plugin =
         response.setHeader("Content-Type", "application/json");
         response.end(JSON.stringify(body));
       } catch (error) {
+        // Connection failures during worker startup/rebuild are API failures,
+        // not source-code errors to broadcast as a persistent Vite HMR overlay.
+        if (error instanceof LocalApiUnavailableError) {
+          response.statusCode = 503;
+          response.setHeader("Content-Type", "application/json");
+          response.setHeader("Cache-Control", "no-store");
+          response.setHeader("Retry-After", "1");
+          response.end(JSON.stringify({ error: { code: "local_api_unavailable", message: error.message } }));
+          return;
+        }
         next(error);
       }
     });

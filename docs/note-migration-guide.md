@@ -6,7 +6,7 @@ EdgeEver 支持从其他笔记产品直接导入数据。目前提供**原生一
 
 ---
 
-## 一、原生一键导入（Evernote / Obsidian / Joplin）
+## 一、原生一键导入（Evernote / Obsidian / Joplin / flomo / Notion / SiYuan）
 
 无需配置命令行或 MCP，在 Web 网页端或桌面端直接操作。
 
@@ -14,13 +14,13 @@ EdgeEver 支持从其他笔记产品直接导入数据。目前提供**原生一
 
 进入 **设置 → 备份与导入 → 从其他应用导入**，点击 **开始导入**。
 
-![从其他应用导入入口](assets/best-practices/original-image/import-from-other-note/import-in-setting.png)
+![从其他应用导入入口](assets/best-practices/original-image/import-from-other-note/import-in-setting-v2.png)
 
 ### 步骤 2：选择来源并载入文件
 
 在弹出的对话框中选择对应来源，直接拖拽或点选文件：
 
-![导入对话框与来源选择](assets/best-practices/original-image/import-from-other-note/import-dialog.png)
+![导入对话框与来源选择](assets/best-practices/original-image/import-from-other-note/import-dialog-v2.png)
 
 - **印象笔记 / Evernote**：
   - 在客户端右键笔记本选择 **导出笔记本...**，导出为 `.enex` 格式（勾选包含标签与时间）。
@@ -28,6 +28,10 @@ EdgeEver 支持从其他笔记产品直接导入数据。目前提供**原生一
 - **Obsidian**：
   - 直接拖入本地 Vault 文件夹，或将 Vault 打包为 `.zip` 拖入。
   - 自动保留 Front Matter、标签与 Wiki 双链图片（`![[image.png]]`），自动忽略 `.obsidian` 与 `.git` 等配置目录。
+- **Notion**：导出 **Markdown & CSV**，包含子页面和文件，然后选择原始 ZIP（支持 Notion 分卷）或解压目录。显示名称去除 Notion ID，原始路径仍用于区分同名页面。CSV 数据库保留为可下载附件，不重建数据库视图。
+- **思源 / SiYuan**：导出包含 `assets` 的 **Markdown**，选择 ZIP 或解压目录。支持图片和音视频 HTML 附件，不支持 `.sy` 备份。
+- **这两类导出的边界**：页面或块引用保留原文并提示；不重建数据库关联、公式与视图。缺失时间使用导入时间，缺失附件或不支持的文件会在预检中提示。Notion 和思源缺失的附件统一作为提醒，可继续导入并保留原链接；路径越界或引用歧义仍阻止导入。其他嵌套 ZIP 需要先解压。每次新任务新增笔记，同任务重试补齐未完成步骤。
+- **flomo**：在来源中选择 flomo 并导入 HTML ZIP。每次新任务都新增，同任务重试仅补未完成步骤；时间按系统时区解释。见 [flomo 指引](flomo-migration-guide.md)。
 - **Joplin**：
   - 在客户端点击 **文件 → 导出全部**，导出为 **.jex** 文件（或 RAW / Markdown 目录）。
   - 将 `.jex` 文件或目录打包的 `.zip` 拖入，自动关联并转存正文中的资源附件。
@@ -40,7 +44,7 @@ EdgeEver 支持从其他笔记产品直接导入数据。目前提供**原生一
 
 ---
 
-## 二、通过 AI Agent 导入（Notion / flomo / Memos 等）
+## 二、通过 AI Agent 导入（Notion / Memos 等）
 
 对于暂未内置原生解析器的平台，借助 EdgeEver 的 Remote MCP 接口，通过 AI 助手（Claude Code、Cursor、Codex、WorkBuddy 等）一条 Prompt 即可完成迁移。
 
@@ -64,7 +68,7 @@ EdgeEver 支持从其他笔记产品直接导入数据。目前提供**原生一
 
 #### 场景 2：flomo 迁移（HTML 导出包快速入库）
 
-1. 在 flomo 网页版或客户端中，进入 **设置 → 账号详情**，滑动至底部下载全局 HTML 导出 ZIP；
+1. 在 flomo 网页版或客户端中，进入 **设置 → 账号详情**，滚动至页面下方点击全局导出按钮，下载 HTML 导出 ZIP；
 2. 替换下方路径后发送给已连接 EdgeEver MCP 的 AI 助手：
 
 ```text

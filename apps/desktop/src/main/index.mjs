@@ -69,7 +69,7 @@ import { createUpdateNetworkDiagnostics } from "./update-network-diagnostics.mjs
 import { normalizeUpdateProgress } from "./update-progress.mjs";
 import { inspectWindowsTaskbarShortcuts } from "./windows-taskbar-diagnostics.mjs";
 import { testPicGoConnection, createPicGoUploadQueue, uploadPicGoImage } from "./picgo.mjs";
-import { testImgBedConnection, uploadImgBedImage } from "./imgbed.mjs";
+import { listImgBedChannels, testImgBedConnection, uploadImgBedImage } from "./imgbed.mjs";
 import { createPluginPublicNetworkRuntime } from "./plugin-public-network.mjs";
 import { createAiDirectRuntime } from "./ai-direct.mjs";
 import { createAcpPathStore, validateTrustedAcpPath } from "./acp-path-store.mjs";
@@ -393,6 +393,7 @@ const desktopRuntimeSystemInfo = () => ({
   autoUpdateSupported: true,
   platform: process.platform,
   architecture: process.arch,
+  runningUnderRosetta: process.platform === "darwin" && process.arch === "x64" && app.runningUnderARM64Translation === true,
   deviceModel: desktopDeviceModel(),
   osVersion: process.getSystemVersion?.() || "unknown",
   osRelease: operatingSystemRelease(),
@@ -1842,6 +1843,12 @@ const startApplication = async () => {
   ipcMain.handle("desktop:imgbed-test", (event, input) => {
     if (!isAppRendererSender(event)) throw new Error("ImgBed requests must come from the main window");
     return testImgBedConnection(input && typeof input === "object" ? input : {});
+  });
+  ipcMain.handle("desktop:imgbed-channels", (event, input) => {
+    if (!isAppRendererSender(event)) throw new Error("ImgBed requests must come from the main window");
+    const target = input && typeof input === "object" ? input : {};
+    // Only the address and token are needed; never forward other renderer fields.
+    return listImgBedChannels({ endpoint: target.endpoint, token: target.token });
   });
   // Serialize uploads and error dialogs across rapid pastes and multi-image batches,
   // shared by PicGo and ImgBed so one failure dialog is shown at a time.

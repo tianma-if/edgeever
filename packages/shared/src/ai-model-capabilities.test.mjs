@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
 import {
   estimateAiTokens,
   isAiModelCapabilityStale,
@@ -12,6 +13,22 @@ import {
   stopAiDraftCompletion,
   trackAiDraftEvent,
 } from "./index.ts";
+
+// Shared with the iOS client's tests, so both clients read provider metadata the same way.
+const capabilityFixture = (name) => JSON.parse(readFileSync(new URL(`../test-fixtures/model-capabilities/${name}`, import.meta.url), "utf8"));
+
+describe("shared capability parsing cases (#652)", () => {
+  for (const item of capabilityFixture("parse-cases.json")) {
+    test(item.name, () => {
+      expect(parseAiModelCapabilityLimits({ provider: item.provider, modelId: item.modelId, endpoint: item.endpoint, body: item.body })).toEqual(item.expected);
+    });
+  }
+  for (const item of capabilityFixture("error-cases.json")) {
+    test(`output limit from error: ${item.name}`, () => {
+      expect(parseAiOutputLimitFromError(item.message)).toBe(item.expected);
+    });
+  }
+});
 
 describe("model capability parsing (#652)", () => {
   test("Anthropic reports max_tokens and a shared window", () => {

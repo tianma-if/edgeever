@@ -3,7 +3,7 @@
     "name": "EdgeEver",
     "slug": "edgeever",
     "scheme": "edgeever",
-    "version": "2.22.0",
+    "version": "2.28.0",
     "runtimeVersion": {
       "policy": "appVersion"
     },
@@ -32,7 +32,7 @@
     },
     "android": {
       "package": "org.edgeever.mobile",
-      "versionCode": 260,
+      "versionCode": 265,
       "adaptiveIcon": {
         "backgroundColor": "#16A06E",
         "backgroundImage": "./assets/icon.png",
@@ -81,11 +81,17 @@
             "enabled": true,
             "multipleShareMimeTypes": [
               "text/plain",
-              "image/*"
+              "image/*",
+              "application/zip",
+              "application/x-zip-compressed",
+              "application/octet-stream"
             ],
             "singleShareMimeTypes": [
               "text/plain",
-              "image/*"
+              "image/*",
+              "application/zip",
+              "application/x-zip-compressed",
+              "application/octet-stream"
             ]
           }
         }

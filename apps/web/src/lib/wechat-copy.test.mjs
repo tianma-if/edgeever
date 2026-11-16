@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { parseHTML } from "linkedom";
+import { readFileSync } from "node:fs";
+const testPng = new Uint8Array(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jGZkAAAAASUVORK5CYII=", "base64"));
 
 const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
 const originalDocument = Object.getOwnPropertyDescriptor(globalThis, "document");
@@ -39,12 +41,97 @@ const css = (element) => (element?.style.cssText ?? "").replace(/:\s+/g, ":");
 let preparePublishArticle;
 let prepareMarkdownPublishArticle;
 let readEditorCopyContext;
+let createPublishMathImage;
+let embedImagesForWeChat;
+let loadPublishImage;
 
 beforeAll(async () => {
   const module = await import("./wechat-copy.ts");
   preparePublishArticle = module.preparePublishArticle;
   prepareMarkdownPublishArticle = module.prepareMarkdownPublishArticle;
   readEditorCopyContext = module.readEditorCopyContext;
+  createPublishMathImage = module.createPublishMathImage;
+  embedImagesForWeChat = module.embedImagesForWeChat;
+  loadPublishImage = module.loadPublishImage;
+});
+
+describe("publication copies of ordinary images", () => {
+  test("publishes every gallery member as a separate image block for Zhihu", () => {
+    const root = preparePublishArticle('<div data-edgeever-image-gallery data-image-gallery-layout="2"><img src="a.gif"><img src="b.webp"><img src="c.png"><img src="d.avif"></div>');
+    expect(root.querySelector('table')).toBeNull();
+    expect(root.querySelectorAll('p > img')).toHaveLength(4);
+    expect(Array.from(root.querySelectorAll('img')).map(image => image.getAttribute('src'))).toEqual(['a.gif', 'b.webp', 'c.png', 'd.avif']);
+  });
+  const withImageEnvironment = async (run) => {
+    const fetchBefore = globalThis.fetch;
+    const locationBefore = window.location;
+    window.location = { origin: "https://notes.example.com", href: "https://notes.example.com/" };
+    try { await run(); } finally { globalThis.fetch = fetchBefore; window.location = locationBefore; }
+  };
+
+  test("preserves GIF, animated WebP, APNG and animated AVIF bytes including generic MIME responses", async () => withImageEnvironment(async () => {
+    for (const [extension, mime] of [["gif", "image/gif"], ["webp", "image/webp"], ["png", "image/png"], ["avif", "image/avif"]]) {
+      const bytes = new Uint8Array(readFileSync(`tests/fixtures/publish-animation/two-frames.${extension}`));
+      for (const contentType of [mime, "application/octet-stream"]) {
+        globalThis.fetch = async () => new Response(bytes, { headers: { "Content-Type": contentType } });
+        const blob = await loadPublishImage(`https://external.example.com/animation.${extension}`);
+        expect(blob.type).toBe(mime);
+        expect(new Uint8Array(await blob.arrayBuffer())).toEqual(bytes);
+      }
+    }
+  }));
+
+  test("uploads external, inline and blob images once per source, preserving layout and native math", async () => withImageEnvironment(async () => {
+    const loaded = [];
+    const uploaded = [];
+    globalThis.fetch = async (url, init) => {
+      loaded.push([url, init.credentials]);
+      return new Response(testPng, { headers: { "Content-Type": "image/png" } });
+    };
+    const root = document.createElement("section");
+    root.innerHTML = `<p><img src="https://external.example.com/a.png" srcset="old 2x" width="240" alt="photo"></p>
+      <table><tr><td><img src="https://external.example.com/a.png"></td></tr></table>
+      <img src="data:image/png;base64,aW1hZ2U="><img src="blob:https://notes.example.com/example">
+      <img class="ztext-math" data-tex="x^2" src="data:image/png;base64,bWF0aA==">
+      <img data-ee-published-image="true" src="https://cdn.example.com/mermaid.jpg">`;
+    await embedImagesForWeChat(root, async (blob) => {
+      uploaded.push(await blob.text()); return `https://cdn.example.com/published-${uploaded.length}.png`;
+    });
+    expect(loaded).toHaveLength(3);
+    expect(loaded[0]).toEqual(["https://external.example.com/a.png", "same-origin"]);
+    expect(uploaded).toHaveLength(4);
+    expect(root.querySelectorAll("[data-ee-published-image]")).toHaveLength(5);
+    expect(root.querySelector("img").getAttribute("width")).toBe("240");
+    expect(root.querySelector("img").getAttribute("alt")).toBe("photo");
+    expect(root.querySelector("[srcset]")).toBeNull();
+    expect(root.querySelector("table img").src).toStartWith("https://cdn.example.com/");
+    expect(root.querySelector(".ztext-math").getAttribute("src")).toBe("data:image/png;base64,bWF0aA==");
+  }));
+
+  test("private attachment requests use the authenticated API for web and desktop-style resource URLs", async () => withImageEnvironment(async () => {
+    const { api } = await import("./api.ts");
+    const previous = api.getResourceResponse;
+    const requests = [];
+    api.getResourceResponse = async (path) => { requests.push(path); return new Response(testPng, { headers: { "Content-Type": "image/png" } }); };
+    globalThis.fetch = async () => { throw new Error("Private images must use the API client"); };
+    try {
+      for (const source of ["/api/v1/resources/res_1/blob", "https://notes.example.com/api/v1/resources/res_1/blob", "edgeever-resource://resource/res_1"]) {
+        expect(new Uint8Array(await (await loadPublishImage(source)).arrayBuffer())).toEqual(testPng);
+      }
+      expect(requests).toEqual(Array(3).fill("/api/v1/resources/res_1/blob"));
+    } finally { api.getResourceResponse = previous; }
+  }));
+
+  test("failed reads or uploads stop copying instead of retaining private or broken URLs", async () => withImageEnvironment(async () => {
+    for (const failRead of [true, false]) {
+      globalThis.fetch = async () => failRead ? new Response("denied", { status: 403 })
+        : new Response(testPng, { headers: { "Content-Type": "image/png" } });
+      const root = document.createElement("section");
+      root.innerHTML = '<img src="https://external.example.com/image.png">';
+      await expect(embedImagesForWeChat(root, async () => { throw new Error("Host unavailable"); }))
+        .rejects.toMatchObject({ reason: "upload" });
+    }
+  }));
 });
 
 const MARKDOWN = `
@@ -71,6 +158,19 @@ curl -fsSL https://edgeever.org/install.sh | bash
 `;
 
 describe("preparePublishArticle", () => {
+  test("uses a section wrapper so Zhihu can import headings and paragraphs separately", () => {
+    const html = "<p>Introduction</p><h2>Chapter</h2><p>Body</p><h3>Details</h3><p>End</p>";
+    const markdown = "Introduction\n\n## Chapter\n\nBody\n\n### Details\n\nEnd";
+    for (const root of [preparePublishArticle(html), prepareMarkdownPublishArticle(markdown)]) {
+      expect(root.tagName).toBe("SECTION");
+      expect(Array.from(root.children, (element) => element.tagName)).toEqual(["P", "H2", "P", "H3", "P"]);
+      expect(root.querySelector("h2").textContent).toBe("Chapter");
+      expect(css(root.querySelector("h2"))).toContain("font-weight:600");
+      expect(css(root)).toContain("background-color:#ffffff");
+      expect(root.outerHTML).toMatch(/^<section\b/);
+    }
+  });
+
   test("exports a light reading accent from a dark editor", () => {
     const container = document.createElement("div");
     container.dataset.notePalette = "violet";
@@ -307,11 +407,12 @@ describe("preparePublishArticle", () => {
     }
   });
 
-  test("renders magazine cover card and toc cards only when showMagazineCover is enabled", () => {
+  test("renders magazine cover and chapter navigation independently", () => {
     const container = document.createElement("div");
     container.dataset.notePalette = "emerald";
     container.dataset.noteHeadingStyle = "numbered";
     container.dataset.noteMagazineCover = "true";
+    container.dataset.noteChapterNavigation = "true";
     container.dataset.noteTitle = "深度评测文章";
     const previous = globalThis.getComputedStyle;
     globalThis.getComputedStyle = () => ({
@@ -326,30 +427,102 @@ describe("preparePublishArticle", () => {
       })[name] ?? "",
     });
     try {
-      const root = preparePublishArticle([
+      const html = [
         "<h2>效率工具箱：斜杠指令、双链与数学公式</h2>",
         "<p>内容一</p>",
         "<h2>多媒体管理、无损备份与零成本自建</h2>",
         "<p>内容二</p>",
-      ].join(""), container);
+      ].join("");
+      const root = preparePublishArticle(html, container);
       expect(root.querySelector("[data-ee-cover-card]")).not.toBeNull();
       expect(root.querySelector("[data-ee-cover-card]")?.textContent).toContain("深度评测文章");
+      expect(root.querySelector("[data-ee-cover-tags]")).toBeNull();
+      expect(root.querySelector("[data-ee-cover-footer]")?.textContent.trim()).toBe("");
+      expect(root.querySelector("[data-ee-cover-footer]")?.style.height).toBe("8px");
+      const tags = ["开源", "Cloudflare", '<img src=x onerror="alert(1)">', "第四个标签"];
+      container.dataset.noteTags = JSON.stringify(tags);
+      for (const tagged of [preparePublishArticle(html, container), prepareMarkdownPublishArticle("## 内容\n\n正文", container)]) {
+        const label = tagged.querySelector("[data-ee-cover-tags]");
+        expect(label?.textContent).toBe(tags.slice(0, 3).join(" · "));
+        expect(label?.querySelector("img")).toBeNull();
+        expect(css(label)).toContain("overflow-wrap:anywhere");
+        expect(tagged.querySelector("[data-ee-cover-footer]")?.textContent.trim()).toBe("");
+        expect(tagged.textContent).not.toContain("第四个标签");
+        expect(tagged.textContent).not.toContain("精选笔记");
+        expect(tagged.textContent).not.toContain("FEATURED");
+      }
+      container.dataset.noteMagazineCover = "false";
+      const bodyCover = preparePublishArticle("<h1>正文标题</h1><p>正文</p>", container);
+      expect(bodyCover.querySelector("[data-ee-cover-card]")).toBeNull();
+      expect(bodyCover.querySelector("[data-ee-cover-tags]")).toBeNull();
+      expect(bodyCover.querySelector("[data-ee-cover-footer]")).toBeNull();
+      expect(bodyCover.querySelector("h1")?.textContent).toBe("正文标题");
+      expect(bodyCover.querySelectorAll("h1").length).toBe(1);
+      container.dataset.noteMagazineCover = "true";
+      container.dataset.noteTags = "[]";
+      expect(preparePublishArticle(html, container).querySelector("[data-ee-cover-tags]")).toBeNull();
+
       expect(root.querySelector("[data-ee-toc-cards]")).not.toBeNull();
       expect(root.querySelector("[data-ee-toc-cards]")?.textContent).toContain("2 PARTS");
-      const card = root.querySelector('[data-ee-toc-cards] section[style*="width: 136px"]');
+      const card = root.querySelector('[data-ee-toc-card]');
       expect(css(card)).toContain("background-color:#059669");
       expect(css(card)).toContain("linear-gradient(135deg,");
       expect(css(card)).not.toContain("color-mix");
-      const cards = root.querySelectorAll('[data-ee-toc-cards] section[style*="width: 136px"]');
+      const cards = root.querySelectorAll('[data-ee-toc-card]');
       expect(cards.length).toBe(2);
       for (const item of cards) {
         expect(css(item)).not.toContain("height:");
         expect(css(item.parentElement)).toContain("display:flex");
+        expect(css(item.parentElement)).toContain("flex-wrap:wrap");
+        expect(css(item.parentElement)).toContain("justify-content:flex-start");
+        expect(css(item.parentElement)).toContain("gap:8px");
+        expect(css(item)).toContain("width:146px");
+        expect(css(item)).toContain("max-width:100%");
+        expect(css(item)).toContain("flex:0 0 auto");
+        expect(css(item)).toContain("min-width:0");
+        expect(css(item)).toContain("margin:0");
         expect(css(item.parentElement)).toContain("align-items:stretch");
         expect(css(item)).toContain("box-sizing:border-box");
+        expect(css(item)).toContain("padding:12px");
         expect(css(item)).toContain("border:1px solid");
         expect(css(item.querySelector("p"))).toContain("line-height:1.4");
       }
+
+      container.dataset.noteChapterNavigation = "false";
+      const coverOnly = preparePublishArticle(html, container);
+      expect(coverOnly.querySelector("[data-ee-cover-card]")).not.toBeNull();
+      expect(coverOnly.querySelector("[data-ee-toc-cards]")).toBeNull();
+
+      container.dataset.noteMagazineCover = "false";
+      const neither = preparePublishArticle(html, container);
+      expect(neither.querySelector("[data-ee-cover-card], [data-ee-toc-cards]")).toBeNull();
+
+      container.dataset.noteChapterNavigation = "true";
+      const navigationOnly = preparePublishArticle(html, container);
+      expect(navigationOnly.querySelector("h1")).toBeNull();
+      expect(navigationOnly.querySelector("[data-ee-toc-cards]")).not.toBeNull();
+
+      container.dataset.noteMagazineCover = "true";
+      container.dataset.noteTitle = "Building an AI-Native, Cross-Platform Workspace";
+      const englishCommaCover = preparePublishArticle([
+        "<h2>One Worker to Serve Everything</h2><p>A</p>",
+        "<h2>Decoupled by Design: Cloudflare + Docker</h2><p>B</p>",
+        "<h2>What's Next</h2><p>C</p>",
+      ].join(""), container);
+      const coverTitle = englishCommaCover.querySelector("[data-ee-cover-card] > p");
+      expect(coverTitle?.textContent).toBe("Building an AI-Native, Cross-Platform Workspace");
+      const coverSpans = coverTitle?.querySelectorAll("span") ?? [];
+      expect(coverSpans[0]?.textContent).toBe("Building an AI-Native, ");
+      expect(coverSpans[1]?.textContent).toBe("Cross-Platform Workspace");
+      expect(css(coverSpans[1])).toContain("color:#059669");
+
+      const threeTocCards = englishCommaCover.querySelectorAll("[data-ee-toc-card]");
+      expect(threeTocCards.length).toBe(3);
+      expect(css(threeTocCards[0])).toContain("background-color:#059669");
+      expect(css(threeTocCards[1])).toContain("background-color:#059669");
+      expect(css(threeTocCards[2])).toContain("background:#ffffff");
+      expect(threeTocCards[2].textContent).toContain("What's Next");
+      expect(threeTocCards[2].textContent).toContain("PART 03");
     } finally {
       globalThis.getComputedStyle = previous;
     }
@@ -357,6 +530,20 @@ describe("preparePublishArticle", () => {
 });
 
 describe("formula snapshots for WeChat", () => {
+  test("retains a PNG fallback and editable Zhihu source through clipboard HTML serialization", () => {
+    const png = "data:image/png;base64,formula-snapshot";
+    for (const latex of ["E = mc^2", String.raw`\begin{aligned}a &= b \\ c &= \frac{1}{2}\end{aligned}`, String.raw`\text{\"x\" < y & z}`]) {
+      const image = createPublishMathImage(` ${latex} `, png);
+      const clipboard = document.createElement("section");
+      clipboard.innerHTML = image.outerHTML;
+      const pasted = clipboard.querySelector("img.ztext-math[data-tex]");
+      expect(pasted?.getAttribute("data-tex")).toBe(latex);
+      expect(pasted?.getAttribute("alt")).toBe(latex);
+      expect(pasted?.getAttribute("src")).toBe(png);
+      expect(clipboard.querySelectorAll("img")).toHaveLength(1);
+    }
+  });
+
   test("parks the off-screen offset on a wrapper and snapshots an in-flow mount", async () => {
     const source = await Bun.file(new URL("./wechat-copy.ts", import.meta.url)).text();
     const start = source.indexOf("const placeMathRasterMount");

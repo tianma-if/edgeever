@@ -1,6 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type InfiniteData, type QueryKey } from "@tanstack/react-query";
 import * as Clipboard from "expo-clipboard";
+import { Directory, File } from "expo-file-system";
+import { extractWeChatArchive } from "../../modules/edgeever-wechat-archive";
+import {
+  getSharedWeChatArchive,
+  getWeChatArchiveErrorCode,
+  getWeChatArchiveExtractionHint,
+  saveMobileWeChatChat,
+  WECHAT_ARCHIVE_STORAGE_HINT,
+  WeChatImportCleanupError,
+} from "../lib/mobile-wechat-import";
+import { uploadMobileResource } from "../lib/mobile-resource-upload";
 import type { ListMemosResponse, MemoFilterMode, MemoSortMode } from "@edgeever/client";
 import {
   ActivityIndicator,
@@ -114,6 +125,14 @@ import {
 } from "../lib/mobile-attachments";
 
 const ALL_NOTES_ID = "all";
+
+const removeStagedWeChatFile = (entry: File | Directory) => {
+  try {
+    entry.delete();
+  } catch {
+    // Android may have already reclaimed the cache.
+  }
+};
 type MobileView = "notes" | "settings";
 type MemoView = "notebook" | "trash";
 type RichEditingSession = {
@@ -166,7 +185,7 @@ export const WorkspaceScreen = ({
   const [incomingClipDraft, setIncomingClipDraft] = useState<MobileWebClipDraft | null>(null);
   const [incomingClipCaptureUrl, setIncomingClipCaptureUrl] = useState<string | null>(null);
   const [incomingShareImages, setIncomingShareImages] = useState<MobileSharedImage[]>([]);
-  const [isImportingShare, setIsImportingShare] = useState(false);
+  const [shareImportKind, setShareImportKind] = useState<"article" | "wechat" | null>(null);
   const [notesActionsOpen, setNotesActionsOpen] = useState(false);
   const [notebookPickerOpen, setNotebookPickerOpen] = useState(false);
   const [tagFilterPickerOpen, setTagFilterPickerOpen] = useState(false);
@@ -198,6 +217,7 @@ export const WorkspaceScreen = ({
   onIncomingShareHandledRef.current = onIncomingShareHandled;
   const debouncedSearchText = useDebouncedValue(searchText.trim(), 250);
   const incomingShareUrl = useMemo(() => getSharedWebUrl(incomingSharePayloads), [incomingSharePayloads]);
+  const sharedWeChatArchive = useMemo(() => getSharedWeChatArchive(incomingSharePayloads), [incomingSharePayloads]);
   const sharedImages = useMemo(() => getSharedImages(incomingSharePayloads), [incomingSharePayloads]);
   const handleMemoIdRemapped = useCallback((temporaryId: string, memo: MemoDetail) => {
     setSelectedMemoId((current) => current === temporaryId ? memo.id : current);
@@ -559,7 +579,7 @@ export const WorkspaceScreen = ({
 
   const finishIncomingShare = useCallback(() => {
     setIncomingClipCaptureUrl(null);
-    setIsImportingShare(false);
+    setShareImportKind(null);
     onIncomingShareHandledRef.current?.();
   }, []);
 
@@ -587,7 +607,19 @@ export const WorkspaceScreen = ({
   }, [finishIncomingShare, incomingClipCaptureUrl, openIncomingClipDraft, resolvedLocale, translate]);
 
   useEffect(() => {
-    if (incomingShareIsResolving) {
+    if (incomingShareIsResolving || shareImportKind) {
+      return;
+    }
+
+    const archiveErrorCode = incomingShareError && getWeChatArchiveErrorCode(incomingShareError);
+    if (archiveErrorCode === "ERR_WECHAT_ARCHIVE_STORAGE" || archiveErrorCode === "ERR_WECHAT_ARCHIVE_COUNT") {
+      if (processedShareUrlRef.current !== archiveErrorCode) {
+        processedShareUrlRef.current = archiveErrorCode;
+        Alert.alert("无法导入微信聊天记录", archiveErrorCode === "ERR_WECHAT_ARCHIVE_STORAGE"
+          ? WECHAT_ARCHIVE_STORAGE_HINT
+          : "请每次分享一份微信聊天记录压缩包。");
+        onIncomingShareHandledRef.current?.();
+      }
       return;
     }
 
@@ -612,11 +644,82 @@ export const WorkspaceScreen = ({
     // A second external share must not replace props on the mounted create
     // editor: its document and upload target belong to the previous note.
     // Keep the new payload pending until that editor has saved and unmounted.
-    const pendingShareKey = sharedImages.length > 0
+    const pendingShareKey = sharedWeChatArchive?.uri ?? (sharedImages.length > 0
       ? `images:${sharedImages.map((image) => image.uri).join("|")}`
-      : incomingShareUrl;
+      : incomingShareUrl);
     if (createOpen && pendingShareKey && processedShareUrlRef.current !== pendingShareKey && notebooks.length > 0) {
       setFinishCreateForIncomingShare(true);
+      return;
+    }
+
+    if (sharedWeChatArchive) {
+      const { uri, filename } = sharedWeChatArchive;
+      if (processedShareUrlRef.current === uri || !client || !notebooksQuery.isSuccess) return;
+      processedShareUrlRef.current = uri;
+      // Own this staged file now. Clearing the native slot before any awaits
+      // lets another incoming share wait without being cleared by this import.
+      onIncomingShareHandledRef.current?.();
+      const notebookId = createMemoNotebookId || notebooks[0]?.id;
+      if (!notebookId) {
+        removeStagedWeChatFile(new File(uri));
+        Alert.alert("无法导入微信聊天记录", "请先在 EdgeEver 中创建一个笔记本。");
+        return;
+      }
+
+      const task = {};
+      incomingShareTaskRef.current = task;
+      const isActive = () => incomingShareTaskRef.current === task;
+      setShareImportKind("wechat");
+      void (async () => {
+        let cacheUri: string | undefined;
+        try {
+          const archive = await extractWeChatArchive(uri);
+          cacheUri = archive.cacheUri;
+          if (!isActive()) return;
+
+          const memo = await saveMobileWeChatChat({
+            client,
+            notebookId,
+            filename,
+            transcript: archive.transcript,
+            media: archive.media,
+            upload: async (memoId, asset) => (await uploadMobileResource(client, memoId, asset)).resource.url,
+          });
+
+          await upsertLocalMemo(dataScope, memo).catch(() => undefined);
+          if (!isActive()) return;
+
+          queryClient.setQueryData(["mobile", "memo", "notebook", memo.id], { memo });
+          void queryClient.invalidateQueries({ queryKey: ["mobile", "memos"] });
+          void queryClient.invalidateQueries({ queryKey: ["mobile", "search"] });
+
+          if (richEditingSession) {
+            Alert.alert("微信聊天记录已保存");
+          } else {
+            setActiveView("notes");
+            setActiveNotebookId(notebookId);
+            setMemoView("notebook");
+            setImageShareFromList(false);
+            setSelectedMemoId(memo.id);
+          }
+        } catch (error) {
+          if (isActive()) {
+            Alert.alert("无法导入微信聊天记录",
+              error instanceof WeChatImportCleanupError
+                ? "导入中断，可能留下了一条未完成的笔记。"
+                : cacheUri
+                  ? "请检查网络连接，然后从微信重新分享。"
+                  : getWeChatArchiveExtractionHint(error));
+          }
+        } finally {
+          if (cacheUri) removeStagedWeChatFile(new Directory(cacheUri));
+          removeStagedWeChatFile(new File(uri));
+          if (isActive()) {
+            incomingShareTaskRef.current = null;
+            setShareImportKind(null);
+          }
+        }
+      })();
       return;
     }
 
@@ -683,7 +786,7 @@ export const WorkspaceScreen = ({
     incomingShareTaskRef.current = task;
     const isActive = () => incomingShareTaskRef.current === task;
     processedShareUrlRef.current = sourceUrl;
-    setIsImportingShare(true);
+    setShareImportKind("article");
     if (isWeChatArticleUrl(sourceUrl)) {
       setIncomingClipCaptureUrl(sourceUrl);
       return;
@@ -703,21 +806,28 @@ export const WorkspaceScreen = ({
       .finally(() => {
         if (isActive()) {
           incomingShareTaskRef.current = null;
-          setIsImportingShare(false);
+          setShareImportKind(null);
           onIncomingShareHandledRef.current?.();
         }
       });
   }, [
+    client,
+    createMemoNotebookId,
     createOpen,
+    dataScope,
     incomingShareError,
     incomingShareIsResolving,
     incomingSharePayloads.length,
     incomingShareUrl,
-    notebooks.length,
+    notebooks,
     notebooksQuery.isSuccess,
     openIncomingClipDraft,
+    queryClient,
     resolvedLocale,
+    richEditingSession,
+    shareImportKind,
     sharedImages,
+    sharedWeChatArchive,
     translate,
   ]);
 
@@ -1442,12 +1552,16 @@ export const WorkspaceScreen = ({
         visible={templatePickerOpen}
       />
 
-      <Modal animationType="fade" statusBarTranslucent transparent visible={isImportingShare}>
+      <Modal animationType="fade" statusBarTranslucent transparent visible={shareImportKind !== null}>
         <View style={styles.shareImportBackdrop}>
           <View style={styles.shareImportCard}>
             <ActivityIndicator color="#059669" size="large" />
-            <Text style={styles.shareImportTitle}>正在剪藏文章</Text>
-            <Text style={styles.shareImportDescription}>正在提取标题、正文和图片链接…</Text>
+            <Text style={styles.shareImportTitle}>
+              {shareImportKind === "wechat" ? "正在导入微信聊天记录" : "正在剪藏文章"}
+            </Text>
+            <Text style={styles.shareImportDescription}>
+              {shareImportKind === "wechat" ? "正在保存消息和附件…" : "正在提取标题、正文和图片链接…"}
+            </Text>
           </View>
           {incomingClipCaptureUrl ? (
             <MobileWebClipCapture

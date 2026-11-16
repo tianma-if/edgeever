@@ -17,6 +17,12 @@ on:
       - "docs/**"
       - "marketing/video/**"
   workflow_dispatch:
+    inputs:
+      notebook_validation_rounds:
+        description: "Run the full browser suite once or repeat the notebook appearance scenarios"
+        type: choice
+        options: ["1", "3"]
+        default: "1"
 
 permissions:
   contents: read
@@ -125,5 +131,28 @@ jobs:
       - name: Install Chromium and WebKit
         run: bun run test:e2e:install
 
+      - name: Build the Web bundle for notebook appearance
+        run: bun run build:web
+
       - name: Test notebook appearance, memo sort persistence and note focus shortcuts
-        run: bun run test:e2e tests/e2e/notebook-appearance.spec.ts tests/e2e/memo-sort-preference.spec.ts tests/e2e/note-focus-shortcuts.spec.ts tests/e2e/ai-model-output-budgets.spec.ts tests/e2e/memo-list-density.spec.ts tests/e2e/memo-startup-selection.spec.ts
+        if: inputs.notebook_validation_rounds != '3'
+        env:
+          EDGE_EVER_E2E_BUILT_WEB: "1"
+        run: bun run test:e2e --retries=0 tests/e2e/notebook-appearance.spec.ts tests/e2e/memo-sort-preference.spec.ts tests/e2e/note-focus-shortcuts.spec.ts tests/e2e/ai-model-output-budgets.spec.ts tests/e2e/memo-list-density.spec.ts tests/e2e/memo-startup-selection.spec.ts
+
+      - name: Repeat notebook appearance tests without retries
+        if: inputs.notebook_validation_rounds == '3'
+        env:
+          EDGE_EVER_E2E_BUILT_WEB: "1"
+        run: bun run test:e2e --retries=0 --repeat-each=3 tests/e2e/notebook-appearance.spec.ts
+
+      - name: Upload browser failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-failure-diagnostics
+          path: |
+            test-results/**/trace.zip
+            test-results/**/test-failed-*.png
+            test-results/**/error-context.md
+          if-no-files-found: ignore

@@ -68,10 +68,14 @@ interface EdgeEverDesktopBridge {
     copy: import("@/lib/picgo").PicGoFailureCopy;
   }): Promise<{ url: string } | { fallback: true }>;
   testImgBedConnection?(input: { endpoint: string; token: string; uploadFolder: string; nameType: import("@/lib/imgbed").ImgBedNameType;
-    uploadChannel: import("@/lib/imgbed").ImgBedUploadChannel; serverCompress: boolean }): Promise<boolean>;
+    uploadChannel: import("@/lib/imgbed").ImgBedUploadChannel; channelName: string; serverCompress: boolean; autoRetry: boolean }): Promise<boolean>;
+  listImgBedChannels?(input: { endpoint: string; token: string }): Promise<{
+    channels: Record<import("@/lib/imgbed").ImgBedUploadChannel, string[]>;
+    skipped: Record<import("@/lib/imgbed").ImgBedUploadChannel, number>;
+  }>;
   uploadImgBedImage?(input: {
     endpoint: string; token: string; uploadFolder: string; nameType: import("@/lib/imgbed").ImgBedNameType;
-    uploadChannel: import("@/lib/imgbed").ImgBedUploadChannel; serverCompress: boolean;
+    uploadChannel: import("@/lib/imgbed").ImgBedUploadChannel; channelName: string; serverCompress: boolean; autoRetry: boolean;
     bytes: Uint8Array; filename: string; mimeType: string; copy: import("@/lib/picgo").PicGoFailureCopy;
   }): Promise<{ url: string } | { fallback: true }>;
   publicNetworkFetch(requestId: string, input: import("@edgeever/shared").PluginPublicFetchRequest): Promise<import("@edgeever/shared").PluginPublicFetchResponse>;
@@ -102,6 +106,7 @@ interface EdgeEverDesktopBridge {
     autoUpdateSupported: boolean;
     platform: string;
     architecture: string;
+    runningUnderRosetta?: boolean;
     deviceModel: string;
     osVersion: string;
     osRelease: string;

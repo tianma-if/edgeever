@@ -7,7 +7,7 @@
 --   notebook_access_json: JSON array of {notebookId, read, write} objects
 --   notebook_access_level: 'read' | 'write'
 --
--- Migration of existing (0094-era object grant) rows:
+-- Migration of existing (pre-whitelist object grant) rows:
 -- - NULL grants stay NULL (unrestricted legacy tokens).
 -- - The array is validated ITEM BY ITEM, exactly like the runtime parser:
 --   every item must be an object with a non-empty notebookId and boolean
@@ -22,8 +22,8 @@
 --
 -- Only arrays whose items are ALL objects are transformed here. String arrays
 -- (the output of an earlier revision of this migration) and mixed arrays are
--- left untouched for 0096, which distinguishes the legitimate string-array
--- whitelist from corrupted data. This keeps 0095 from calling json_extract on
+-- left untouched for 0099, which distinguishes the legitimate string-array
+-- whitelist from corrupted data. This keeps 0098 from calling json_extract on
 -- a bare string element (which would raise "malformed JSON").
 ALTER TABLE api_tokens ADD COLUMN notebook_access_level TEXT
   CHECK (notebook_access_level IS NULL OR notebook_access_level IN ('read', 'write'));

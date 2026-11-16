@@ -42,8 +42,7 @@ app.whenReady().then(async () => {
   });
   const context = baseUrl => ({ baseUrl, accountId: "local", token: "fixture-bearer" });
   const checked = () => assert.equal(manager.status().error, null, JSON.stringify(manager.status().error));
-  const output = {};
-  try {
+  const roundTrip = async () => {
     await manager.setContext(context(settings.source));
     await manager.save({ ...manager.status().config, enabled: true });
     await manager.tick(); await manager.waitForIdle(); checked();
@@ -52,32 +51,32 @@ app.whenReady().then(async () => {
     assert.equal(first.config.enabled, true);
     assert.equal(first.config.interval, "weekly");
     assert.equal(first.config.retention, 1);
-    output.archiveBytes = first.history[0].size;
-    output.archive = join(first.actualDirectory, first.history[0].name);
 
-    // The due check must stay a single state request, not another archive export.
-    await manager.tick(Date.parse(first.nextDueAt) + 1); await manager.waitForIdle(); checked();
-    assert.equal(manager.status().lastCheck.result, "unchanged");
-    assert.equal(manager.status().history.length, 1);
+    const repeatedExport = settings.stage === "freshness";
+    let latest = first;
+    if (repeatedExport) {
+      // The due check must stay a single state request, not another archive export.
+      await manager.tick(Date.parse(first.nextDueAt) + 1); await manager.waitForIdle(); checked();
+      assert.equal(manager.status().lastCheck.result, "unchanged");
+      assert.equal(manager.status().history.length, 1);
 
-    const replacement = await net.fetch(new URL("./replace-attachment", settings.control).href, {
-      method: "POST", credentials: "omit", cache: "no-store",
-    });
-    assert.equal(replacement.status, 200);
-    const replaced = await replacement.json();
-    assert.equal(replaced.resourceUrl, settings.mutableResourceUrl);
-    assert.notEqual(replaced.hash, replaced.previousHash);
-    assert.ok(replaced.revisionAfter > replaced.revisionBefore);
-    await manager.run(); await manager.waitForIdle(); checked();
-    const second = manager.status();
-    assert.equal(second.lastCheck.result, "success");
-    assert.equal(second.history.length, 1);
-    output.archiveBytes = second.history[0].size;
-    output.archive = join(second.actualDirectory, second.history[0].name);
-    output.repeatedExport = true;
+      const replacement = await net.fetch(new URL("./replace-attachment", settings.control).href, {
+        method: "POST", credentials: "omit", cache: "no-store",
+      });
+      assert.equal(replacement.status, 200);
+      const replaced = await replacement.json();
+      assert.equal(replaced.resourceUrl, settings.mutableResourceUrl);
+      assert.notEqual(replaced.hash, replaced.previousHash);
+      assert.ok(replaced.revisionAfter > replaced.revisionBefore);
+      await manager.run(); await manager.waitForIdle(); checked();
+      latest = manager.status();
+      assert.equal(latest.lastCheck.result, "success");
+      assert.equal(latest.history.length, 1);
+    }
+    const archive = join(latest.actualDirectory, latest.history[0].name);
 
     await manager.setContext(context(settings.target));
-    const selection = await manager.selectImport(output.archive);
+    const selection = await manager.selectImport(archive);
     const ready = new Promise(resolve => { manager.onChange = status => { if (status?.task?.phase === "ready") resolve(); }; });
     await manager.prepareImport(selection.id); await Promise.race([ready, manager.operation.done]);
     assert.equal(manager.status().importError, null);
@@ -85,12 +84,18 @@ app.whenReady().then(async () => {
     manager.confirmImport(); await manager.waitForIdle();
     assert.equal(manager.status().importError, null);
 
-    await manager.setContext(context(`${settings.source}/failure`));
+    return { archiveBytes: latest.history[0].size, repeatedExport };
+  };
+
+  const httpFailure = async () => {
+    await manager.setContext(context(settings.source));
     await manager.run(); await manager.waitForIdle();
     assert.equal(manager.status().error.code, "fixture_unavailable");
     assert.equal(manager.status().error.status, 503);
+  };
 
-    await manager.setContext(context(`${settings.source}/hang`));
+  const cancellation = async () => {
+    await manager.setContext(context(settings.source));
     await manager.run();
     const deadline = Date.now() + 5000;
     while (!(await (await net.fetch(settings.control, { credentials: "omit" })).json()).hanging) {
@@ -100,6 +105,12 @@ app.whenReady().then(async () => {
     await manager.cancel();
     assert.equal(manager.status().task, null);
     assert.equal(manager.status().lastCheck.result, "cancelled");
+  };
+
+  try {
+    console.error(`Electron backup stage: ${settings.stage}`);
+    const scenarios = { "round-trip": roundTrip, freshness: roundTrip, "http-503": httpFailure, cancellation };
+    const output = await scenarios[settings.stage]();
     await manager.close();
     await Promise.all(workers.map(worker => worker.exited));
     console.log(JSON.stringify({ ...output, workersExited: workers.length, peakWorkerKiB, peakMainKiB, maxTimerDelayMs }));

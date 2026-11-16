@@ -10,8 +10,8 @@ import wechatArticleInNoteImg from "../../../../docs/assets/best-practices/origi
 import socialImageEnterImg from "../../../../docs/assets/best-practices/original-image/app-share/socia-image/share-enter.jpg";
 import socialImageSharingImg from "../../../../docs/assets/best-practices/original-image/app-share/socia-image/sharing.jpg";
 import socialImageInNoteImg from "../../../../docs/assets/best-practices/original-image/app-share/socia-image/share-in-note.jpg";
-import xhsClipImg from "../../../../docs/assets/best-practices/original-image/web-clipper/xiaohongshu/xiaohongshu.png";
-import xhsInNoteImg from "../../../../docs/assets/best-practices/original-image/web-clipper/xiaohongshu/xiaohongshu-in-note.png";
+import xhsClipImg from "../../../../docs/assets/best-practices/original-image/web-clipper/xiaohongshu/xiaohongshu-liusu.png";
+import xhsInNoteImg from "../../../../docs/assets/best-practices/original-image/web-clipper/xiaohongshu/xiaohongshu-liusu-in-note.png";
 import twitterClipImg from "../../../../docs/assets/best-practices/original-image/web-clipper/twitter/twitter.png";
 import twitterInNoteImg from "../../../../docs/assets/best-practices/original-image/web-clipper/twitter/twitter-in-note.png";
 import zhihuClipImg from "../../../../docs/assets/best-practices/original-image/web-clipper/zhihu/zhihu.png";
@@ -36,10 +36,12 @@ import acpSupportDialogImg from "../../../../docs/assets/best-practices/original
 import noteExportClearImg from "../../../../docs/assets/best-practices/original-image/note-export-image/clear-theme.png";
 import noteExportCodeImg from "../../../../docs/assets/best-practices/original-image/note-export-image/code-theme.png";
 import posterStudioImg from "../../../../docs/assets/best-practices/original-image/poster/ai-generate-poster.png";
-import wechatCopyMenuImg from "../../../../docs/assets/best-practices/original-image/wechat-article-copy-to/right-menu.png";
+import wechatCopyMenuImg from "../../../../docs/assets/best-practices/original-image/wechat-article-copy-to/right-menu-v2.png";
 import wechatCopyEditorImg from "../../../../docs/assets/best-practices/original-image/wechat-article-copy-to/show-in-wechat-editor.png";
 import pluginOfficialImg from "../../../../docs/assets/best-practices/original-image/plugin/official-in.png";
 import pluginApiImg from "../../../../docs/assets/best-practices/original-image/plugin/plugin-api.png";
+import importInSettingImg from "../../../../docs/assets/best-practices/original-image/import-from-other-note/import-in-setting-v2.png";
+import importDialogImg from "../../../../docs/assets/best-practices/original-image/import-from-other-note/import-dialog-v2.png";
 
 export type ShowcaseCaseId =
   | "three-pane"
@@ -60,7 +62,8 @@ export type ShowcaseCaseId =
   | "note-export-image"
   | "poster-studio"
   | "wechat-mp-copy"
-  | "plugin-ecosystem";
+  | "plugin-ecosystem"
+  | "third-party-import";
 
 export type ShowcaseMediaLayout = "stack" | "grid-2" | "grid-3";
 
@@ -146,6 +149,10 @@ export const showcaseCaseAssets: Record<ShowcaseCaseId, ShowcaseCaseAssetConfig>
     layout: "stack",
     images: [pluginOfficialImg, pluginApiImg],
   },
+  "third-party-import": {
+    layout: "stack",
+    images: [importInSettingImg, importDialogImg],
+  },
 };
 
 export interface ShowcaseMediaCopy {
@@ -203,7 +210,7 @@ const zhCnCategories: ShowcaseCategoryCopy[] = [
         lead: "EdgeEver 采用「目录树 · 笔记列表 · 编辑区」三栏布局，兼顾高效检索与沉浸创作。",
         bullets: [
           "专注模式：侧边栏支持拖拽调宽与折叠，随时切换全屏专注写作。",
-          "混合编辑：主编辑区支持所见即所得（WYSIWYG）与 Markdown 语法混写。",
+          "混合编辑：主编辑区支持所见即所得与 Markdown 语法混写。",
         ],
         media: [
           {
@@ -227,7 +234,7 @@ const zhCnCategories: ShowcaseCategoryCopy[] = [
         lead: "在微信中多选对话点击「合并转发」，在「转发到其他应用」中选择 EdgeEver，自动转换为结构化笔记。",
         bullets: [
           "格式解析：解析发言人、时间轴、微信表情与超链接。",
-          "资源转存：图片内嵌展示，文档与音视频（如 .xlsx、.pdf、.mp4）转为附件并支持全文检索。",
+          "资源转存：图片内嵌展示，文档与音视频转为附件并支持全文检索。",
         ],
         media: [
           {
@@ -292,8 +299,8 @@ const zhCnCategories: ShowcaseCategoryCopy[] = [
         title: "小红书图文笔记剪藏",
         lead: "使用 EdgeEver Web Clipper 插件在小红书笔记页面右键点击「保存笔记到 EdgeEver」。",
         bullets: [
-          "提取标题、话题标签、正文、发布时间与原文链接。",
-          "多图内容自动排版为多栏画廊。",
+          "提取作者、正文、话题标签、发布时间、地点与原文链接。",
+          "完整保存配图或视频封面，多图内容自动排版为多栏画廊。",
         ],
         media: [
           {
@@ -301,8 +308,8 @@ const zhCnCategories: ShowcaseCategoryCopy[] = [
             alt: "右键保存小红书笔记到 EdgeEver",
           },
           {
-            caption: "2. 多栏画廊笔记效果",
-            alt: "EdgeEver 剪藏后的小红书笔记多栏画廊效果",
+            caption: "2. 剪藏后的笔记预览",
+            alt: "EdgeEver 剪藏后的小红书笔记效果",
           },
         ],
       },
@@ -312,7 +319,7 @@ const zhCnCategories: ShowcaseCategoryCopy[] = [
         title: "X (Twitter) 推文与引用剪藏",
         lead: "使用 EdgeEver Web Clipper 插件在推文上右键点击「保存推文到 EdgeEver」。",
         bullets: [
-          "提取作者、推文正文、外链、引用推文（Quote Tweet）及附带图集。",
+          "提取作者、推文正文、外链、引用推文及附带图集。",
           "自动渲染为多栏画廊排版。",
         ],
         media: [
@@ -351,7 +358,7 @@ const zhCnCategories: ShowcaseCategoryCopy[] = [
         title: "Reddit 讨论帖剪藏",
         lead: "在 Reddit 帖子处右键点击「保存所选内容到 EdgeEver」。",
         bullets: [
-          "捕获帖子标题、所属版块（Subreddit，如 r/AskReddit）、作者、时间戳及链接，保留社区元数据。",
+          "捕获帖子标题、所属版块、作者、发布时间与原文链接等社区信息。",
         ],
         media: [
           {
@@ -359,7 +366,7 @@ const zhCnCategories: ShowcaseCategoryCopy[] = [
             alt: "右键保存 Reddit 帖子到 EdgeEver",
           },
           {
-            caption: "2. 包含社区元数据的笔记预览",
+            caption: "2. 包含社区信息的笔记预览",
             alt: "EdgeEver 剪藏后的 Reddit 帖子笔记效果",
           },
         ],
@@ -370,8 +377,8 @@ const zhCnCategories: ShowcaseCategoryCopy[] = [
         title: "Instagram 帖子与轮播多图剪藏",
         lead: "使用 EdgeEver Web Clipper 插件在 Instagram 帖子或轮播页面右键点击「保存帖子到 EdgeEver」。",
         bullets: [
-          "提取作者账号、正文描述、发布时间与原文链接，保留话题标签与提及元数据。",
-          "多图轮播（Carousel）内容完整提取并自动排版为多栏画廊。",
+          "提取作者账号、正文描述、发布时间与原文链接，保留话题标签与 @ 提及。",
+          "多图轮播内容完整提取并自动排版为多栏画廊。",
         ],
         media: [
           {
@@ -379,7 +386,7 @@ const zhCnCategories: ShowcaseCategoryCopy[] = [
             alt: "右键保存 Instagram 帖子到 EdgeEver",
           },
           {
-            caption: "2. 包含完整图集与元数据的笔记效果",
+            caption: "2. 包含完整图集与帖子信息的笔记效果",
             alt: "EdgeEver 剪藏后的 Instagram 帖子笔记效果",
           },
         ],
@@ -387,10 +394,10 @@ const zhCnCategories: ShowcaseCategoryCopy[] = [
       {
         id: "github",
         number: "10",
-        title: "GitHub 仓库元数据剪藏",
+        title: "GitHub 仓库信息剪藏",
         lead: "在 GitHub 仓库页面右键点击「保存仓库信息到 EdgeEver」。",
         bullets: [
-          "提取仓库名称（Owner/Repo）、简介、官方主页、编程语言、许可证与话题标签，生成结构化技术卡片。",
+          "提取仓库名称、简介、官方主页、编程语言、开源协议与话题标签，生成结构化技术卡片。",
         ],
         media: [
           {
@@ -498,7 +505,7 @@ const zhCnCategories: ShowcaseCategoryCopy[] = [
         id: "acp-agent",
         number: "15",
         title: "连接本机 Agent (ACP) 实现笔记协同",
-        lead: "EdgeEver 支持 ACP (Agent Client Protocol) 协议，允许桌面端连接本机运行的各类 AI Agent（如 Codex、Claude Code、DeepSeek Harness、Antigravity 等）。",
+        lead: "桌面端支持通过 ACP 协议直连本机运行的各类 AI Agent（如 Codex、Claude Code、Antigravity 等）。",
         bullets: [
           "本地授权：授予本地 Agent 当前账号笔记的安全读写权限。",
           "伴随对话：在笔记右侧栏直接协同，执行代码推理、长文总结与知识库检索。",
@@ -520,7 +527,7 @@ const zhCnCategories: ShowcaseCategoryCopy[] = [
     id: "publishing",
     badge: "04 · 排版与分发",
     title: "排版与多渠道分发",
-    description: "一键导出多主题长图与代码卡片、40+ 模板海报设计工作台，以及微信公众号富文本直粘排版。",
+    description: "一键导出多主题长图与代码卡片、40+ 模板海报设计工作台，以及带排版复制至公众号、知乎、X 文章与博客等多平台编辑器。",
     cases: [
       {
         id: "note-export-image",
@@ -529,7 +536,7 @@ const zhCnCategories: ShowcaseCategoryCopy[] = [
         lead: "使用「分享为图片」功能，将笔记排版为高分辨率长图或卡片。",
         bullets: [
           "多款卡片样式：内置 8 款卡片主题（透明质感、金句、书摘、备忘录等），支持字体与版式微调，一键导出高清长图或复制至剪贴板。",
-          "技术代码卡片：专属代码主题内置 macOS 窗口控件、行号与等宽代码排版。",
+          "技术代码卡片：专属代码主题内置窗口样式、行号与代码排版。",
         ],
         media: [
           {
@@ -561,19 +568,19 @@ const zhCnCategories: ShowcaseCategoryCopy[] = [
       {
         id: "wechat-mp-copy",
         number: "18",
-        title: "复制笔记至微信公众号排版",
-        lead: "在笔记菜单中选择「复制到公众号 / 博客」，将笔记转换为内联 CSS 样式的富文本。",
+        title: "带排版一键复制至公众号与多平台编辑器",
+        lead: "在笔记菜单中选择「带排版复制」，将笔记排版样式与图片一键转换为适配各大内容平台的富文本格式。",
         bullets: [
-          "粘贴至微信公众号后台，完整保留表格、引用块、代码块、列表及字体样式。",
+          "可直接粘贴至微信公众号、知乎、X 文章、博客等自媒体编辑器，完整保留表格、引用块、代码块、列表及字体样式。",
         ],
         media: [
           {
-            caption: "1. 复制到公众号 / 博客",
-            alt: "EdgeEver 笔记菜单点击复制到公众号",
+            caption: "1. 笔记菜单选择「带排版复制」",
+            alt: "EdgeEver 笔记菜单选择带排版复制",
           },
           {
-            caption: "2. 公众号后台编辑器粘贴效果",
-            alt: "微信公众号后台粘贴后的排版效果",
+            caption: "2. 富文本编辑器粘贴效果（以微信公众号为例）",
+            alt: "粘贴到微信公众号编辑器后的排版效果",
           },
         ],
       },
@@ -583,15 +590,15 @@ const zhCnCategories: ShowcaseCategoryCopy[] = [
     id: "ecosystem",
     badge: "05 · 插件生态",
     title: "开放生态与插件扩展",
-    description: "内置插件扩展中心与开放 API，支持通过 GitHub 仓库或 Manifest 一键安装并跨端隔离同步。",
+    description: "内置插件扩展中心与开放 API，支持通过插件市场或 GitHub 仓库一键安装并跨端同步。",
     cases: [
       {
         id: "plugin-ecosystem",
         number: "19",
         title: "开放插件 API 与自定义插件开发",
-        lead: "EdgeEver 内置插件扩展管理，支持通过 GitHub 仓库或 Manifest 地址一键安装，配置在 Web 与桌面端跨设备隔离同步。",
+        lead: "EdgeEver 内置插件扩展管理，支持通过插件市场或 GitHub 仓库一键安装，配置在 Web 与桌面端跨设备同步。",
         bullets: [
-          "核心 API 能力：提供文档双向读写、自定义 DOM 面板/嵌入块、统一设置、隔离存储以及调用工作区已配置的 AI 模型。",
+          "核心能力：支持扩展笔记读写、自定义界面面板，并直接调用工作区已配置的 AI 模型。",
           "官方开源插件范式：待办任务汇总（EdgeEver Tasks）与 AI RSS 每日简报助手（EdgeEver AI RSS）。",
         ],
         links: [
@@ -621,6 +628,40 @@ const zhCnCategories: ShowcaseCategoryCopy[] = [
       },
     ],
   },
+  {
+    id: "migration",
+    badge: "06 · 迁移导入",
+    title: "第三方笔记迁移与导入",
+    description: "在设置中心原生一键导入 Notion、思源笔记、flomo、印象笔记、Obsidian 与 Joplin 的完整笔记与附件。",
+    cases: [
+      {
+        id: "third-party-import",
+        number: "20",
+        title: "第三方笔记平台一键导入迁移",
+        lead: "在「设置 → 备份与导入 → 从其他应用导入」中点击「开始导入」，即可在客户端完成主流笔记平台的一键迁移。",
+        bullets: [
+          "多平台原生支持：覆盖 Notion、思源笔记（SiYuan）、flomo、印象笔记（Evernote）、Obsidian 与 Joplin。",
+          "拖拽即用、无损迁移：支持直接拖入导出文件、文件夹或压缩包，完整保留目录层级、标签与内嵌图片附件。",
+        ],
+        links: [
+          {
+            label: "第三方笔记导入指引",
+            href: "https://github.com/tianma-if/edgeever/blob/main/docs/note-migration-guide.md",
+          },
+        ],
+        media: [
+          {
+            caption: "1. 设置中心「从其他应用导入」入口",
+            alt: "EdgeEver 设置中心备份与导入页面的从其他应用导入入口",
+          },
+          {
+            caption: "2. 选择来源平台与导入文件",
+            alt: "EdgeEver 从其他应用导入对话框支持 Notion、思源笔记、flomo、印象笔记、Obsidian 与 Joplin",
+          },
+        ],
+      },
+    ],
+  },
 ];
 
 const enUsCategories: ShowcaseCategoryCopy[] = [
@@ -637,7 +678,7 @@ const enUsCategories: ShowcaseCategoryCopy[] = [
         lead: "EdgeEver features a classic three-pane structure (Notebook Tree · Note Stream · Editor Canvas):",
         bullets: [
           "Focus Mode: Resizable and collapsible sidebars allow instant toggling into full-screen writing mode.",
-          "Hybrid Editing: The main editor supports both WYSIWYG rich text and Markdown syntax.",
+          "Hybrid Editing: The main editor supports both rich-text and Markdown editing.",
         ],
         media: [
           {
@@ -661,7 +702,7 @@ const enUsCategories: ShowcaseCategoryCopy[] = [
         lead: "Select messages in WeChat, tap \"Combine and Forward\", and choose EdgeEver under \"Forward to Other Apps\" to convert conversations into structured notes.",
         bullets: [
           "Format Parsing: Parses senders, timestamps, emojis, and links into clean layouts.",
-          "Media Preservation: Images are embedded inline; documents and media files (.xlsx, .pdf, .mp4) are saved as attachments with full-text search support.",
+          "Media Preservation: Images are embedded inline; documents and media files are saved as attachments with full-text search support.",
         ],
         media: [
           {
@@ -726,8 +767,8 @@ const enUsCategories: ShowcaseCategoryCopy[] = [
         title: "Xiaohongshu (RED) Note Clipping",
         lead: "Right-click any note page and select \"Save Note to EdgeEver\" using the EdgeEver Web Clipper extension.",
         bullets: [
-          "Captures title, topic tags, body text, publish timestamp, and source URL.",
-          "Automatically formats multi-image sets into multi-column gallery layouts.",
+          "Captures author, body text, topic tags, publish time, location, and source URL.",
+          "Preserves embedded images or video covers, and automatically formats multi-image sets into multi-column galleries.",
         ],
         media: [
           {
@@ -735,8 +776,8 @@ const enUsCategories: ShowcaseCategoryCopy[] = [
             alt: "Right-click save Xiaohongshu note to EdgeEver",
           },
           {
-            caption: "2. Multi-Column Gallery Note",
-            alt: "Xiaohongshu note clipped into multi-column gallery",
+            caption: "2. Clipped Note Preview",
+            alt: "Xiaohongshu note clipped into EdgeEver note",
           },
         ],
       },
@@ -785,7 +826,7 @@ const enUsCategories: ShowcaseCategoryCopy[] = [
         title: "Reddit Discussion Post Clipping",
         lead: "Right-click on the post title or body and select \"Save Selection to EdgeEver\".",
         bullets: [
-          "Captures thread title, subreddit (e.g. r/AskReddit), author handle, timestamp, and permalink to preserve community metadata.",
+          "Captures thread title, subreddit, author handle, publish time, and permalink with community details preserved.",
         ],
         media: [
           {
@@ -793,7 +834,7 @@ const enUsCategories: ShowcaseCategoryCopy[] = [
             alt: "Right-click save Reddit post to EdgeEver",
           },
           {
-            caption: "2. Note with Community Metadata",
+            caption: "2. Note with Community Details",
             alt: "Reddit post clipped into EdgeEver note",
           },
         ],
@@ -804,8 +845,8 @@ const enUsCategories: ShowcaseCategoryCopy[] = [
         title: "Instagram Post & Carousel Clipping",
         lead: "Right-click any Instagram post or carousel and select \"Save Post to EdgeEver\" with EdgeEver Web Clipper.",
         bullets: [
-          "Extracts author handle, caption text, timestamp, and source URL while preserving hashtags and mention metadata.",
-          "Captures full multi-image carousel sets, formatted automatically into a clean multi-column gallery layout.",
+          "Extracts author handle, caption text, publish time, and source URL while preserving hashtags and @ mentions.",
+          "Captures multi-image carousel sets, formatted automatically into a clean multi-column gallery layout.",
         ],
         media: [
           {
@@ -813,7 +854,7 @@ const enUsCategories: ShowcaseCategoryCopy[] = [
             alt: "Right-click save Instagram post to EdgeEver",
           },
           {
-            caption: "2. Note with Metadata & Multi-Image Gallery",
+            caption: "2. Note with Post Info & Multi-Image Gallery",
             alt: "Instagram post clipped into EdgeEver note",
           },
         ],
@@ -821,10 +862,10 @@ const enUsCategories: ShowcaseCategoryCopy[] = [
       {
         id: "github",
         number: "10",
-        title: "GitHub Repository Metadata Clipping",
+        title: "GitHub Repository Info Clipping",
         lead: "Right-click anywhere on the GitHub repository page and select \"Save Repository Info to EdgeEver\".",
         bullets: [
-          "Extracts repository name (Owner/Repo), description, homepage, language, license, and topic tags into a technical card note.",
+          "Extracts repository name, description, homepage, language, license, and topic tags into a technical card note.",
         ],
         media: [
           {
@@ -932,7 +973,7 @@ const enUsCategories: ShowcaseCategoryCopy[] = [
         id: "acp-agent",
         number: "15",
         title: "Connecting Local Agents via ACP for Note Interaction",
-        lead: "EdgeEver natively supports ACP (Agent Client Protocol), allowing desktop clients to connect with local AI agent environments (such as Codex, Claude Code, DeepSeek Harness, Antigravity, etc.).",
+        lead: "Desktop clients can connect directly to local AI agents (such as Codex, Claude Code, Antigravity, etc.) via ACP.",
         bullets: [
           "Local Authorization: Grants local agents secure read/write access to user notes.",
           "In-Editor Chat: Converse directly with local agents from the note sidebar for code reasoning, document synthesis, and knowledge retrieval.",
@@ -954,7 +995,7 @@ const enUsCategories: ShowcaseCategoryCopy[] = [
     id: "publishing",
     badge: "04 · Styling & Publishing",
     title: "Visual Styling & Omnichannel Publishing",
-    description: "Render notes into multi-theme share cards, design social media covers with 40+ templates, and copy inline-styled HTML for newsletters and blogs.",
+    description: "Render notes into multi-theme share cards, design social media covers with 40+ templates, and copy rich text with formatting for WeChat, Zhihu, X Articles, Substack, and blogs.",
     cases: [
       {
         id: "note-export-image",
@@ -963,7 +1004,7 @@ const enUsCategories: ShowcaseCategoryCopy[] = [
         lead: "Use the \"Share as Image\" feature to render notes into high-resolution long images or cards.",
         bullets: [
           "Multiple Card Themes: Choose from 8 curated card themes (Transparent, Quote, Book Excerpt, Memo, Dark, and more) with customizable typography and layout.",
-          "Technical Code Cards: A dedicated \"Code\" theme features macOS-style window controls, line numbers, and monospace syntax highlighting.",
+          "Technical Code Cards: A dedicated \"Code\" theme features clean window styling, line numbers, and syntax highlighting.",
         ],
         media: [
           {
@@ -995,19 +1036,19 @@ const enUsCategories: ShowcaseCategoryCopy[] = [
       {
         id: "wechat-mp-copy",
         number: "18",
-        title: "Copying Notes to WeChat Official Account & Blogs",
-        lead: "Select \"Copy to Official Account / Blog\" from the note menu to convert notes into rich text with inline CSS.",
+        title: "One-Click Rich Text Copy to Publishing Platforms",
+        lead: "Select \"Copy as Rich Text\" from the note menu to copy your note with its formatting and images preserved for external content editors.",
         bullets: [
-          "Paste directly into WeChat Official Account or blog editors while preserving tables, callouts, code blocks, lists, and typography styles.",
+          "Paste directly into WeChat Official Account, Zhihu, X Articles, Substack, and blog editors while preserving tables, callouts, code blocks, lists, and typography styles.",
         ],
         media: [
           {
-            caption: "1. Copy to Official Account / Blog",
-            alt: "EdgeEver note menu copy to WeChat MP",
+            caption: "1. Select \"Copy as Rich Text\" in Note Menu",
+            alt: "EdgeEver note menu Copy as Rich Text",
           },
           {
-            caption: "2. Rich Text Editor Paste Result",
-            alt: "Note pasted into WeChat MP editor layout",
+            caption: "2. Rich Text Editor Paste Result (WeChat Official Account Example)",
+            alt: "Note pasted into WeChat Official Account editor layout",
           },
         ],
       },
@@ -1017,15 +1058,15 @@ const enUsCategories: ShowcaseCategoryCopy[] = [
     id: "ecosystem",
     badge: "05 · Open Ecosystem",
     title: "Open Ecosystem & Extensibility",
-    description: "Built-in extension manager and open Plugin API with one-click GitHub or Manifest installation and cross-device workspace sync.",
+    description: "Built-in extension manager and open Plugin API with one-click marketplace or GitHub installation and cross-device workspace sync.",
     cases: [
       {
         id: "plugin-ecosystem",
         number: "19",
         title: "Open Plugin API & Custom Plugin Development",
-        lead: "EdgeEver features an extension manager supporting one-click installation via GitHub repository URLs or Manifest links, with cross-device workspace synchronization between Web and Desktop.",
+        lead: "EdgeEver features an extension manager supporting one-click installation from the marketplace or GitHub repositories, with settings synced across Web and Desktop.",
         bullets: [
-          "Core API Capabilities: Bidirectional note read/write, custom DOM panels/embed blocks, unified settings, isolated storage, and direct invocation of workspace-configured AI models.",
+          "Core Capabilities: Extend note reading/writing, add custom UI panels, and invoke workspace-configured AI models directly.",
           "Official Reference Plugins: Task Aggregation (EdgeEver Tasks) and AI RSS Feed Assistant (EdgeEver AI RSS).",
         ],
         links: [
@@ -1055,14 +1096,48 @@ const enUsCategories: ShowcaseCategoryCopy[] = [
       },
     ],
   },
+  {
+    id: "migration",
+    badge: "06 · Migration & Import",
+    title: "Third-Party Note Migration & Import",
+    description: "Native one-click GUI import from Notion, SiYuan, flomo, Evernote, Obsidian, and Joplin with full notes, folders, and attachments.",
+    cases: [
+      {
+        id: "third-party-import",
+        number: "20",
+        title: "One-Click Third-Party Note Platform Import",
+        lead: "Go to Settings → Backup & Import → Import from Other Apps and click Start Import to migrate from mainstream note apps directly in the client.",
+        bullets: [
+          "Multi-Platform Support: Built-in migration for Notion, SiYuan, flomo, Evernote, Obsidian, and Joplin.",
+          "Lossless Migration: Drag and drop exported files, folders, or archives to preserve notebook hierarchy, tags, and embedded media.",
+        ],
+        links: [
+          {
+            label: "Third-Party Notes Import Guide",
+            href: "https://github.com/tianma-if/edgeever/blob/main/docs/note-migration-guide.en-US.md",
+          },
+        ],
+        media: [
+          {
+            caption: "1. \"Import from Other Apps\" in Settings",
+            alt: "EdgeEver Backup & Import settings showing Import from Other Apps entrance",
+          },
+          {
+            caption: "2. Select Source Platform & Load Files",
+            alt: "EdgeEver Import from Other Apps dialog supporting Notion, SiYuan, flomo, Evernote, Obsidian, and Joplin",
+          },
+        ],
+      },
+    ],
+  },
 ];
 
 export const bestPracticesPageCopy: Record<SiteLocale, BestPracticesPageLocaleCopy> = {
   "zh-CN": {
     eyebrow: "BEST PRACTICES & SHOWCASE",
-    title: "EdgeEver 19 个真机场景与实操指南",
+    title: "EdgeEver 20 个真机场景与实操指南",
     description:
-      "涵盖三栏沉浸写作、微信与全渠道结构化剪藏、AI 对话生成导图/信息图/多维表格、本机 ACP Agent 协同、海报与长图分享及开放插件生态的完整实机演示。",
+      "涵盖三栏沉浸写作、微信与全渠道结构化剪藏、AI 对话生成导图/信息图/多维表格、本机 ACP Agent 协同、海报与长图分享、开放插件生态及第三方笔记一键导入的完整实机演示。",
     zoomHint: "点击任意截图可放大查看高清细节",
     closePreview: "关闭预览",
     demoCta: "打开在线演示",
@@ -1073,9 +1148,9 @@ export const bestPracticesPageCopy: Record<SiteLocale, BestPracticesPageLocaleCo
   },
   "en-US": {
     eyebrow: "BEST PRACTICES & SHOWCASE",
-    title: "19 Real-World EdgeEver Workflows & Showcase",
+    title: "20 Real-World EdgeEver Workflows & Showcase",
     description:
-      "A visual walkthrough of core EdgeEver workflows across desktop and mobile: three-pane writing, omnichannel clipping, AI diagrams & databases, local ACP agents, poster studio, and open plugins.",
+      "A visual walkthrough of core EdgeEver workflows across desktop and mobile: three-pane writing, omnichannel clipping, AI diagrams & databases, local ACP agents, poster studio, open plugins, and third-party note import.",
     zoomHint: "Click any screenshot to inspect full-resolution details",
     closePreview: "Close preview",
     demoCta: "Open Live Demo",
@@ -1086,9 +1161,9 @@ export const bestPracticesPageCopy: Record<SiteLocale, BestPracticesPageLocaleCo
   },
   ja: {
     eyebrow: "BEST PRACTICES & SHOWCASE",
-    title: "EdgeEver 19 の実機デモとベストプラクティス",
+    title: "EdgeEver 20 の実機デモとベストプラクティス",
     description:
-      "クラシックな三ペイン執筆、マルチチャネル Web クリッピング、AI による図解・インフォグラフィック・多次元テーブル生成、ローカル ACP Agent 連携、ポスター作成、プラグイン拡張までの実機ワークフロー集です。",
+      "クラシックな三ペイン執筆、マルチチャネル Web クリッピング、AI による図解・インフォグラフィック・多次元テーブル生成、ローカル ACP Agent 連携、ポスター作成、プラグイン拡張、他社ノート一括インポートまでの実機ワークフロー集です。",
     zoomHint: "スクリーンショットをクリックすると拡大表示できます",
     closePreview: "プレビューを閉じる",
     demoCta: "ライブデモを開く",
@@ -1099,9 +1174,9 @@ export const bestPracticesPageCopy: Record<SiteLocale, BestPracticesPageLocaleCo
   },
   pl: {
     eyebrow: "BEST PRACTICES & SHOWCASE",
-    title: "19 praktycznych scenariuszy i prezentacja EdgeEver",
+    title: "20 praktycznych scenariuszy i prezentacja EdgeEver",
     description:
-      "Wizualny przewodnik po najważniejszych przepływach pracy w EdgeEver na komputerze i telefonie: pisanie w trzech panelach, wycinanie treści z sieci, diagramy i bazy danych AI, lokalni agenci ACP, studio plakatów i wtyczki.",
+      "Wizualny przewodnik po najważniejszych przepływach pracy w EdgeEver na komputerze i telefonie: pisanie w trzech panelach, wycinanie treści z sieci, diagramy i bazy danych AI, lokalni agenci ACP, studio plakatów, wtyczki i import z innych aplikacji.",
     zoomHint: "Kliknij dowolny zrzut ekranu, aby powiększyć",
     closePreview: "Zamknij podgląd",
     demoCta: "Otwórz demo na żywo",
@@ -1112,9 +1187,9 @@ export const bestPracticesPageCopy: Record<SiteLocale, BestPracticesPageLocaleCo
   },
   "zh-TW": {
     eyebrow: "BEST PRACTICES & SHOWCASE",
-    title: "EdgeEver 19 個真機場景與實操指南",
+    title: "EdgeEver 20 個真機場景與實操指南",
     description:
-      "涵蓋三欄沉浸寫作、全通路結構化剪藏、AI 對話產生導圖/資訊圖/多維表格、本機 ACP Agent 協同、海報與長圖分享及開放外掛生態的完整實機展示。",
+      "涵蓋三欄沉浸寫作、全通路結構化剪藏、AI 對話產生導圖/資訊圖/多維表格、本機 ACP Agent 協同、海報與長圖分享、開放外掛生態及第三方筆記一鍵匯入的完整實機展示。",
     zoomHint: "點擊任意截圖可放大查看高清細節",
     closePreview: "關閉預覽",
     demoCta: "打開線上展示",
@@ -1125,9 +1200,9 @@ export const bestPracticesPageCopy: Record<SiteLocale, BestPracticesPageLocaleCo
   },
   es: {
     eyebrow: "BEST PRACTICES & SHOWCASE",
-    title: "19 flujos de trabajo reales y casos de uso de EdgeEver",
+    title: "20 flujos de trabajo reales y casos de uso de EdgeEver",
     description:
-      "Recorrido visual por los flujos principales de EdgeEver en escritorio y móvil: edición en tres paneles, captura multicanal, diagramas y bases de datos con IA, agentes ACP locales, diseño de pósteres y plugins.",
+      "Recorrido visual por los flujos principales de EdgeEver en escritorio y móvil: edición en tres paneles, captura multicanal, diagramas y bases de datos con IA, agentes ACP locales, diseño de pósteres, plugins e importación desde otras apps.",
     zoomHint: "Haz clic en cualquier captura para ver detalles en alta resolución",
     closePreview: "Cerrar vista previa",
     demoCta: "Abrir demo en vivo",
@@ -1138,9 +1213,9 @@ export const bestPracticesPageCopy: Record<SiteLocale, BestPracticesPageLocaleCo
   },
   de: {
     eyebrow: "BEST PRACTICES & SHOWCASE",
-    title: "19 Praxis-Workflows & Showcase für EdgeEver",
+    title: "20 Praxis-Workflows & Showcase für EdgeEver",
     description:
-      "Visueller Rundgang durch zentrale EdgeEver-Workflows auf Desktop und Mobilgeräten: Drei-Spalten-Schreiben, Omnichannel-Clipping, KI-Diagramme & Datenbanken, lokale ACP-Agenten, Posterstudio und Plugins.",
+      "Visueller Rundgang durch zentrale EdgeEver-Workflows auf Desktop und Mobilgeräten: Drei-Spalten-Schreiben, Omnichannel-Clipping, KI-Diagramme & Datenbanken, lokale ACP-Agenten, Posterstudio, Plugins und Import aus anderen Notiz-Apps.",
     zoomHint: "Klicken Sie auf einen Screenshot, um Details in voller Auflösung anzuzeigen",
     closePreview: "Vorschau schließen",
     demoCta: "Live-Demo öffnen",
@@ -1151,9 +1226,9 @@ export const bestPracticesPageCopy: Record<SiteLocale, BestPracticesPageLocaleCo
   },
   fr: {
     eyebrow: "BEST PRACTICES & SHOWCASE",
-    title: "19 cas d'usage réels & galerie EdgeEver",
+    title: "20 cas d'usage réels & galerie EdgeEver",
     description:
-      "Visite visuelle des workflows clés d'EdgeEver sur ordinateur et mobile : rédaction à trois volets, capture omnicanale, diagrammes et bases de données IA, agents ACP locaux, studio d'affiches et plugins.",
+      "Visite visuelle des workflows clés d'EdgeEver sur ordinateur et mobile : rédaction à trois volets, capture omnicanale, diagrammes et bases de données IA, agents ACP locaux, studio d'affiches, plugins et import depuis d'autres applications.",
     zoomHint: "Cliquez sur une capture d'écran pour l'afficher en haute résolution",
     closePreview: "Fermer l'aperçu",
     demoCta: "Ouvrir la démo en direct",
@@ -1164,9 +1239,9 @@ export const bestPracticesPageCopy: Record<SiteLocale, BestPracticesPageLocaleCo
   },
   ru: {
     eyebrow: "BEST PRACTICES & SHOWCASE",
-    title: "19 реальных сценариев и галерея возможностей EdgeEver",
+    title: "20 реальных сценариев и галерея возможностей EdgeEver",
     description:
-      "Наглядный обзор ключевых рабочих процессов EdgeEver на десктопе и смартфонах: трехпанельный редактор, омниканальный клиппинг, диаграммы и базы данных ИИ, локальные агенты ACP, дизайн постеров и плагины.",
+      "Наглядный обзор ключевых рабочих процессов EdgeEver на десктопе и смартфонах: трехпанельный редактор, омниканальный клиппинг, диаграммы и базы данных ИИ, локальные агенты ACP, дизайн постеров, плагины и импорт из других приложений.",
     zoomHint: "Нажмите на любой скриншот для просмотра в высоком разрешении",
     closePreview: "Закрыть предпросмотр",
     demoCta: "Открыть онлайн-демо",

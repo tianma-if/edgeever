@@ -22,6 +22,8 @@ async function main() {
   assert.equal(esmZod.z.string().parse("packaged"), "packaged");
   const sdk = await import(pathToFileURL(resolveDependency("@agentclientprotocol/sdk")).href);
   assert.equal(typeof sdk.ClientSideConnection, "function");
+  const imgbed = await import(pathToFileURL(resolveDependency("@edgeever/image-host/imgbed")).href);
+  assert.equal(typeof imgbed.createImgBedClient, "function");
   const updater = appRequire(resolveDependency("electron-updater"));
   for (const name of ["MacUpdater", "NsisUpdater", "AppImageUpdater"]) {
     assert.equal(typeof updater[name], "function", `Missing updater: ${name}`);

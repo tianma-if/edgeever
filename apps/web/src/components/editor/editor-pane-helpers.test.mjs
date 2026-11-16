@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import {
   resetEditorDocument,
+  handleResourceFileDrop,
   shouldInsertDroppedResourceFiles,
   shouldRetryCreatedMemoFocus,
 } from "./editor-pane-helpers.ts";
@@ -70,11 +71,50 @@ describe("dropped resource files", () => {
   });
 });
 
-describe("block handle drop wiring", () => {
-  test("lets ProseMirror finish an internal node drag", () => {
-    const source = readFileSync(new URL("../EditorPane.tsx", import.meta.url), "utf8");
-    expect(source).toContain("shouldInsertDroppedResourceFiles");
-    expect(source).toContain("isInternalNodeDrag: Boolean(view.dragging)");
+describe("resource drops across the editor canvas", () => {
+  const files = [new File(["pdf"], "document.pdf", { type: "application/pdf" })];
+  const setup = ({ position = null, editable = true, dragging = null } = {}) => {
+    const event = {
+      dataTransfer: { files }, clientX: 24, clientY: 800,
+      defaultPrevented: false,
+      preventDefault() { this.defaultPrevented = true; },
+    };
+    const view = { editable, dragging, state: { doc: { content: { size: 17 } } },
+      posAtCoords: () => position === null ? null : { pos: position } };
+    const inserted = [];
+    const insert = (files, position) => { inserted.push({ files, position }); return true; };
+    return { event, view, inserted, insert };
+  };
+
+  test("appends a PDF dropped in blank canvas without replacing selected text", () => {
+    const { event, view, inserted, insert } = setup();
+    expect(handleResourceFileDrop(view, event, insert)).toBe(true);
+    expect(event.defaultPrevented).toBe(true);
+    expect(inserted).toEqual([{ files, position: 17 }]);
+  });
+
+  test("uses the document drop position and inserts only once when bubbling", () => {
+    const { event, view, inserted, insert } = setup({ position: 4 });
+    expect(handleResourceFileDrop(view, event, insert)).toBe(true);
+    expect(handleResourceFileDrop(view, event, insert)).toBe(false);
+    expect(inserted).toEqual([{ files, position: 4 }]);
+  });
+
+  test("preserves internal node drags and read-only notes", () => {
+    for (const options of [{ dragging: {} }, { editable: false }]) {
+      const { event, view, inserted, insert } = setup(options);
+      expect(handleResourceFileDrop(view, event, insert)).toBe(false);
+      expect(event.defaultPrevented).toBe(false);
+      expect(inserted).toEqual([]);
+    }
+  });
+
+  test("leaves text and empty file drops alone", () => {
+    const { event, view, inserted, insert } = setup();
+    event.dataTransfer = { files: [] };
+    expect(handleResourceFileDrop(view, event, insert)).toBe(false);
+    expect(event.defaultPrevented).toBe(false);
+    expect(inserted).toEqual([]);
   });
 });
 

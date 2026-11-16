@@ -1,5 +1,5 @@
 import { NoteImportSession } from "@edgeever/shared/note-import";
-import type { ImportFile, ImportFormat, ImportNote, ImportResource } from "@edgeever/shared/note-import/types";
+import type { ImportFile, ImportFormat, ImportNote, ImportOptions, ImportResource } from "@edgeever/shared/note-import/types";
 import { BrowserImportIndex } from "./browser-index";
 
 const scope = globalThis as unknown as { onmessage: ((event: MessageEvent) => void) | null; postMessage: (value: unknown, transfer?: Transferable[]) => void };
@@ -14,8 +14,8 @@ scope.onmessage = ({ data }) => {
       switch (data.method) {
         case "scan": {
           abort = new AbortController();
-          const args = data.args as { id: string; format: ImportFormat; files: ImportFile[] };
-          session = new NoteImportSession(args.format, args.files, new BrowserImportIndex(args.id), args.id);
+          const args = data.args as { id: string; format: ImportFormat; files: ImportFile[]; options?: ImportOptions };
+          session = new NoteImportSession(args.format, args.files, new BrowserImportIndex(args.id), args.id, args.options);
           result = await session.scan(abort.signal, path => scope.postMessage({ progress: path })); break;
         }
         case "reset": await session?.finishReading(); abort = new AbortController(); break;

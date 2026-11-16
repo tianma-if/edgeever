@@ -1,0 +1,232 @@
+{
+  "openai": {
+    "id": "openai",
+    "api": null,
+    "models": {
+      "gpt-5": {
+        "id": "gpt-5",
+        "limit": {
+          "context": 400000,
+          "input": 272000,
+          "output": 128000
+        },
+        "canonical_model_id": "openai/gpt-5"
+      },
+      "gpt-4o-mini": {
+        "id": "gpt-4o-mini",
+        "limit": {
+          "context": 128000,
+          "output": 16384
+        },
+        "canonical_model_id": "openai/gpt-4o-mini"
+      }
+    }
+  },
+  "anthropic": {
+    "id": "anthropic",
+    "api": null,
+    "models": {
+      "claude-sonnet-4-5-20250929": {
+        "id": "claude-sonnet-4-5-20250929",
+        "limit": {
+          "context": 200000,
+          "output": 64000
+        }
+      },
+      "claude-sonnet-4-5": {
+        "id": "claude-sonnet-4-5",
+        "limit": {
+          "context": 200000,
+          "output": 64000
+        },
+        "canonical_model_id": "anthropic/claude-sonnet-4-5"
+      }
+    }
+  },
+  "google": {
+    "id": "google",
+    "api": null,
+    "models": {
+      "gemini-2.5-pro": {
+        "id": "gemini-2.5-pro",
+        "limit": {
+          "context": 1048576,
+          "output": 65536
+        },
+        "canonical_model_id": "google/gemini-2.5-pro"
+      }
+    }
+  },
+  "deepseek": {
+    "id": "deepseek",
+    "api": "https://api.deepseek.com",
+    "models": {
+      "deepseek-chat": {
+        "id": "deepseek-chat",
+        "limit": {
+          "context": 131072,
+          "output": 8192
+        },
+        "canonical_model_id": "deepseek/deepseek-chat"
+      }
+    }
+  },
+  "openrouter": {
+    "id": "openrouter",
+    "api": "https://openrouter.ai/api/v1",
+    "models": {
+      "anthropic/claude-sonnet-4.5": {
+        "id": "anthropic/claude-sonnet-4.5",
+        "limit": {
+          "context": 1000000,
+          "output": 64000
+        },
+        "canonical_model_id": "anthropic/claude-sonnet-4-5"
+      },
+      "openai/gpt-4o-mini": {
+        "id": "openai/gpt-4o-mini",
+        "limit": {
+          "context": 128000,
+          "output": 16384
+        },
+        "canonical_model_id": "openai/gpt-4o-mini"
+      }
+    }
+  },
+  "poe": {
+    "id": "poe",
+    "api": "https://api.poe.com/v1",
+    "models": {
+      "openai/gpt-4o-mini": {
+        "id": "openai/gpt-4o-mini",
+        "limit": {
+          "context": 124096,
+          "output": 4096
+        },
+        "canonical_model_id": "openai/gpt-4o-mini"
+      }
+    }
+  },
+  "qihang-ai": {
+    "id": "qihang-ai",
+    "api": "https://api.qhaigc.net/v1",
+    "models": {
+      "claude-sonnet-4-5-20250929": {
+        "id": "claude-sonnet-4-5-20250929",
+        "limit": {
+          "context": 200000,
+          "output": 64000
+        },
+        "canonical_model_id": "anthropic/claude-sonnet-4-5-20250929"
+      }
+    }
+  },
+  "nano-gpt": {
+    "id": "nano-gpt",
+    "api": "https://nano-gpt.com/api/v1",
+    "models": {
+      "deepseek-chat": {
+        "id": "deepseek-chat",
+        "limit": {
+          "context": 128000,
+          "input": 128000,
+          "output": 8192
+        },
+        "canonical_model_id": "deepseek/deepseek-chat"
+      },
+      "relay-only-model": {
+        "id": "relay-only-model",
+        "limit": {
+          "context": 32000,
+          "output": 4000
+        }
+      }
+    }
+  },
+  "cortecs": {
+    "id": "cortecs",
+    "api": "https://api.cortecs.ai/v1",
+    "models": {
+      "relay-only-model": {
+        "id": "relay-only-model",
+        "limit": {
+          "context": 64000,
+          "output": 2000
+        }
+      }
+    }
+  },
+  "siliconflow": {
+    "id": "siliconflow",
+    "api": "https://api.siliconflow.com/v1",
+    "models": {
+      "tencent/Hy3": {
+        "id": "tencent/Hy3",
+        "limit": {
+          "context": 262144,
+          "input": 192000,
+          "output": 262144
+        },
+        "canonical_model_id": "tencent/hy3"
+      }
+    }
+  },
+  "mistral": {
+    "id": "mistral",
+    "api": null,
+    "models": {
+      "voxtral-mini-latest": {
+        "id": "voxtral-mini-latest",
+        "limit": {
+          "context": 0,
+          "output": 0
+        }
+      }
+    }
+  },
+  "kilo": {
+    "id": "kilo",
+    "api": "https://api.kilo.ai/v1",
+    "models": {
+      "tencent/hy3": {
+        "id": "tencent/hy3",
+        "limit": {
+          "context": 256000,
+          "input": 192000,
+          "output": 128000
+        },
+        "canonical_model_id": "tencent/hy3"
+      }
+    }
+  },
+  "aihubmix": {
+    "id": "aihubmix",
+    "api": "https://aihubmix.com/v1",
+    "models": {
+      "tencent/hy3": {
+        "id": "tencent/hy3",
+        "limit": {
+          "context": 256000,
+          "input": 192000,
+          "output": 128000
+        },
+        "canonical_model_id": "tencent/hy3"
+      }
+    }
+  },
+  "opencode": {
+    "id": "opencode",
+    "api": "https://opencode.ai/zen/v1",
+    "models": {
+      "tencent/hy3": {
+        "id": "tencent/hy3",
+        "limit": {
+          "context": 190000,
+          "input": 192000,
+          "output": 64000
+        },
+        "canonical_model_id": "tencent/hy3"
+      }
+    }
+  }
+}

@@ -1003,7 +1003,9 @@ export const createMemoRecord = async (
   workspaceId: string,
   input: { notebookId: string; title?: string; contentJson?: unknown; contentMarkdown?: string; tags?: string[]; createdAt?: string; updatedAt?: string },
   actor: { actorType: "user" | "agent"; actorId: string | null },
-  actorLabel: string
+  actorLabel: string,
+  /** Statements committed in the same batch as the new memo. */
+  after?: (memoId: string) => PreparedStatementAdapter[],
 ): Promise<MemoDetail> => {
   // Reject a missing notebook before the batch. The memo insert is a SELECT
   // from notebooks, so a bad id used to write orphan content and then fail
@@ -1044,6 +1046,7 @@ export const createMemoRecord = async (
     auditStatement(db, actor.actorType, actor.actorId, "memo.create", "memo", id, {
       notebookId: input.notebookId,
     }),
+    ...(after?.(id) ?? []),
   ]);
 
   const memo = await getMemoDetail(db, workspaceId, id);

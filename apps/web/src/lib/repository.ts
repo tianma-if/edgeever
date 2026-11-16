@@ -49,7 +49,7 @@ import { localDb, type MemoUpdateSyncPayload } from "@/lib/local-db";
 import { runLocalDatabaseOperationWithRecovery } from "@/lib/local-database-recovery";
 import { createDesktopRepository } from "@/lib/desktop-repository";
 import { isBrowserOffline } from "@/lib/network-status";
-import { notifySyncQueueDeferred } from "@/lib/sync-events";
+import { NOTEBOOK_LIST_REFRESHED_EVENT, notifySyncQueueDeferred, type NotebookListRefresh } from "@/lib/sync-events";
 import { isActiveLocalMemoUpdateStatus, shouldAcceptRemoteMemoDetail } from "@/lib/memo-detail-freshness";
 import { cacheLocalResourceBytes, getCachedLocalResourceBytes } from "@/lib/local-resource-cache";
 import { withRepositoryMutationEvents } from "@/lib/repository-events";
@@ -198,10 +198,12 @@ const beginNotebookListRefresh = (scope: string) => {
 };
 
 const applyRemoteNotebookList = async (scope: string, notebooks: Notebook[], generation: number) => {
-  if (notebookListGeneration.get(scope) !== generation) return;
-  const guards = await readNotebookSyncGuards(scope);
-  if (notebookListGeneration.get(scope) !== generation) return;
-  await reconcileLocalNotebooks(scope, notebooks, guards.pendingDeleteIds, guards.pendingCreateIds);
+  if (notebookListGeneration.get(scope) !== generation) return false;
+  return localDb.transaction("rw", [localDb.notebooks, localDb.syncQueue], async () => {
+    const guards = await readNotebookSyncGuards(scope);
+    if (notebookListGeneration.get(scope) !== generation) return false;
+    return reconcileLocalNotebooks(scope, notebooks, guards.pendingDeleteIds, guards.pendingCreateIds, guards.pendingUpdateIds);
+  });
 };
 
 export const createWebRepository = (scope: string): EdgeEverRepository => {
@@ -209,18 +211,26 @@ export const createWebRepository = (scope: string): EdgeEverRepository => {
 
   return ({
   async listNotebooks() {
+    const generation = beginNotebookListRefresh(scope);
     const local = await listLocalNotebooks(scope);
     if (local.notebooks.length > 0 || isOffline()) {
       if (!isOffline()) {
-        const generation = beginNotebookListRefresh(scope);
         void api.listNotebooks()
-          .then((remote) => applyRemoteNotebookList(scope, remote.notebooks, generation))
+          .then(async (remote) => {
+            if (!await applyRemoteNotebookList(scope, remote.notebooks, generation)) return;
+            const refreshed = await listLocalNotebooks(scope);
+            if (notebookListGeneration.get(scope) !== generation) return;
+            // The local-first query already returned, so updating IndexedDB
+            // alone cannot update the notebook tree that is on screen.
+            window.dispatchEvent(new CustomEvent<NotebookListRefresh>(NOTEBOOK_LIST_REFRESHED_EVENT, {
+              detail: { scope, notebooks: refreshed.notebooks },
+            }));
+          })
           .catch(() => {});
       }
       return local;
     }
 
-    const generation = beginNotebookListRefresh(scope);
     const remote = await api.listNotebooks();
     await applyRemoteNotebookList(scope, remote.notebooks, generation);
     return remote;
@@ -234,14 +244,17 @@ export const createWebRepository = (scope: string): EdgeEverRepository => {
   },
 
   async updateNotebook(notebookId, input) {
-    const local = await updateLocalNotebook(scope, notebookId, input);
+    const local = await localDb.transaction("rw", [localDb.notebooks, localDb.syncQueue], async () => {
+      const notebook = await updateLocalNotebook(scope, notebookId, input);
+      if (notebook) await queueLocalAction(scope, "notebook.update", notebookId, { notebookId, ...input });
+      return notebook;
+    });
     if (!local) {
       if (isOffline()) throw new Error("Notebook is not available in the local mirror");
       const result = await api.updateNotebook(notebookId, input);
       await putLocalNotebook(scope, result.notebook);
       return result;
     }
-    await queueLocalAction(scope, "notebook.update", notebookId, { notebookId, ...input });
     window.dispatchEvent(new CustomEvent("edgeever:sync-queue-changed"));
     return { notebook: local };
   },

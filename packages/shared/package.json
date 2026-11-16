@@ -12,6 +12,7 @@
     "./ai-generation": "./src/ai-generation.ts",
     "./ai-generation-segments": "./src/ai-generation-segments.ts",
     "./ai-model-capabilities": "./src/ai-model-capabilities.ts",
+    "./ai-models-dev": "./src/ai-models-dev.ts",
     "./diagram-layout": "./src/diagram-layout.ts",
     "./ai-prompt-seeds": "./src/ai-prompt-seeds.ts",
     "./deployment-metadata": "./src/deployment-metadata.ts",
@@ -59,6 +60,8 @@
   "types": "./src/index.ts",
   "dependencies": {
     "@dagrejs/dagre": "3.1.1",
+    "@joplin/turndown-plugin-gfm": "1.0.68",
+    "@mixmark-io/domino": "2.2.0",
     "@tiptap/core": "3.31.4",
     "@tiptap/extension-details": "3.31.4",
     "@tiptap/extension-image": "3.31.4",
@@ -70,6 +73,7 @@
     "@tiptap/pm": "3.31.4",
     "@tiptap/starter-kit": "3.31.4",
     "@zip.js/zip.js": "2.24.0",
+    "htmlparser2": "10.1.0",
     "it-tar": "6.0.6",
     "js-base64": "3.9.3",
     "katex": "0.18.2",
@@ -81,6 +85,7 @@
     "micromark-util-normalize-identifier": "2.0.1",
     "sax": "1.6.0",
     "spark-md5": "3.0.2",
+    "turndown": "^7.2.4",
     "yaml": "2.8.3",
     "zod": "4.6.6"
   }

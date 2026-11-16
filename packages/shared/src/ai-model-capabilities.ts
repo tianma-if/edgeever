@@ -6,7 +6,8 @@ import type { AiProvider } from "./types";
  * - a shared context window (input + output must fit together), or
  * - independent input and output limits.
  * Anthropic, DeepSeek and OpenRouter document a shared window; Gemini and LiteLLM report
- * independent limits.
+ * independent limits. `models-dev` is the public models.dev catalogue, used only when the
+ * service itself reports no limits.
  */
 export const AI_MODEL_CAPABILITY_SOURCES = [
   "anthropic-models",
@@ -14,6 +15,7 @@ export const AI_MODEL_CAPABILITY_SOURCES = [
   "openrouter-models",
   "deepseek-models",
   "litellm-model-info",
+  "models-dev",
   "provider-error",
   "none",
 ] as const;

@@ -1,0 +1,268 @@
+---
+import { Icon } from "astro-icon/components";
+import Container from "@/components/container.astro";
+import { getSiteLocale, type SiteLocale } from "@/i18n";
+
+const locale = getSiteLocale(Astro.url.pathname);
+
+interface ContactCopy {
+  heading: string;
+  intro: string;
+  issuesTitle: string;
+  issuesDesc: string;
+  roadmapTitle: string;
+  roadmapDesc: string;
+  communityHeading: string;
+  telegramTitle: string;
+  telegramDesc: string;
+  demoTitle: string;
+  demoDesc: string;
+  otherHeading: string;
+  wechatLabel: string;
+  wechatHint: string;
+  domainLabel: string;
+}
+
+const copyByLocale: Record<SiteLocale, ContactCopy> = {
+  "zh-CN": {
+    heading: "联系与社区",
+    intro: "遇到 Bug、功能建议或自部署问题，建议优先在 GitHub Issues 沉淀，方便追踪进度并帮助其他用户检索。",
+    issuesTitle: "GitHub Issues",
+    issuesDesc: "提交软件故障、错误报告、部署问题或明确的功能请求。",
+    roadmapTitle: "公开路线图（Roadmap）",
+    roadmapDesc: "查看正在推进的功能计划、优先级与版本规划。",
+    communityHeading: "社区与在线体验",
+    telegramTitle: "Telegram 交流群",
+    telegramDesc: "与开发者和社区用户交流使用心得、自部署方案与最新动态。",
+    demoTitle: "在线 Live Demo",
+    demoDesc: "无需注册部署，直接在浏览器体验 EdgeEver 完整笔记工作台。",
+    otherHeading: "其他联系信息",
+    wechatLabel: "微信：m1245207870",
+    wechatHint: "添加微信请备注「EdgeEver」，可用于加入 EdgeEver AI 微信交流群。",
+    domainLabel: "主域名：edgeever.org",
+  },
+  "zh-TW": {
+    heading: "聯繫與社群",
+    intro: "遇到 Bug、功能建議或自部署問題，建議優先在 GitHub Issues 提出，方便追蹤進度並讓其他使用者檢索。",
+    issuesTitle: "GitHub Issues",
+    issuesDesc: "提交軟體故障、錯誤回報、部署問題或明確的功能請求。",
+    roadmapTitle: "公開路線圖（Roadmap）",
+    roadmapDesc: "查看正在推進的功能計畫、優先順序與版本規劃。",
+    communityHeading: "社群與線上體驗",
+    telegramTitle: "Telegram 交流群",
+    telegramDesc: "與開發者及社群使用者交流使用心得、自部署方案與最新動態。",
+    demoTitle: "線上 Live Demo",
+    demoDesc: "無需註冊部署，直接在瀏覽器體驗 EdgeEver 完整筆記工作台。",
+    otherHeading: "其他聯繫方式",
+    wechatLabel: "WeChat：m1245207870",
+    wechatHint: "添加微信請備註「EdgeEver」，可申請加入 EdgeEver AI 微信交流群。",
+    domainLabel: "官方網域：edgeever.org",
+  },
+  "en-US": {
+    heading: "Contact & Community",
+    intro: "For bug reports, feature requests, or self-hosting help, please start with GitHub Issues so fixes and solutions remain searchable for everyone.",
+    issuesTitle: "GitHub Issues",
+    issuesDesc: "Report bugs, share deployment issues, or propose concrete feature requests.",
+    roadmapTitle: "Public Roadmap",
+    roadmapDesc: "Track upcoming milestones, priorities, and ongoing feature work.",
+    communityHeading: "Community & Live Demo",
+    telegramTitle: "Telegram Group",
+    telegramDesc: "Chat with the developer and community about workflows, self-hosting, and updates.",
+    demoTitle: "Live Demo",
+    demoDesc: "Try the full EdgeEver workspace directly in your browser without signing up.",
+    otherHeading: "Direct Contact",
+    wechatLabel: "WeChat: m1245207870",
+    wechatHint: "Please include \"EdgeEver\" in your message when reaching out privately.",
+    domainLabel: "Official domain: edgeever.org",
+  },
+  es: {
+    heading: "Contacto y comunidad",
+    intro: "Para errores, sugerencias o dudas de autohospedaje, utiliza preferentemente GitHub Issues para que las soluciones queden documentadas para toda la comunidad.",
+    issuesTitle: "GitHub Issues",
+    issuesDesc: "Ideal para reportar fallos, problemas de despliegue o solicitudes de funciones.",
+    roadmapTitle: "Hoja de ruta pública",
+    roadmapDesc: "Consulta los próximos hitos, prioridades y funciones en desarrollo.",
+    communityHeading: "Comunidad y demo en línea",
+    telegramTitle: "Grupo de Telegram",
+    telegramDesc: "Conversa con el desarrollador y la comunidad sobre flujos de trabajo y autohospedaje.",
+    demoTitle: "Demo en vivo",
+    demoDesc: "Prueba EdgeEver directamente en tu navegador sin registro ni instalación.",
+    otherHeading: "Otros datos de contacto",
+    wechatLabel: "WeChat: m1245207870",
+    wechatHint: "Por favor menciona EdgeEver si nos escribes por mensaje directo.",
+    domainLabel: "Dominio oficial: edgeever.org",
+  },
+  de: {
+    heading: "Kontakt & Community",
+    intro: "Fehlerberichte, Funktionswünsche und Fragen zum Self-Hosting melden Sie am besten über GitHub Issues, damit Lösungen für alle auffindbar bleiben.",
+    issuesTitle: "GitHub Issues",
+    issuesDesc: "Der beste Ort für Fehlerberichte, Bereitstellungsprobleme und konkrete Funktionswünsche.",
+    roadmapTitle: "Öffentliche Roadmap",
+    roadmapDesc: "Verfolgen Sie kommende Meilensteine, Prioritäten und laufende Entwicklungen.",
+    communityHeading: "Community & Live-Demo",
+    telegramTitle: "Telegram-Gruppe",
+    telegramDesc: "Tauschen Sie sich mit dem Entwickler und der Community über Workflows und Self-Hosting aus.",
+    demoTitle: "Live-Demo",
+    demoDesc: "Testen Sie den EdgeEver-Arbeitsbereich direkt im Browser ohne Registrierung.",
+    otherHeading: "Weitere Kontaktmöglichkeiten",
+    wechatLabel: "WeChat: m1245207870",
+    wechatHint: "Bitte erwähnen Sie EdgeEver bei einer persönlichen Kontaktaufnahme.",
+    domainLabel: "Offizielle Domain: edgeever.org",
+  },
+  fr: {
+    heading: "Contact et communauté",
+    intro: "Pour signaler un bug, proposer une fonctionnalité ou résoudre un problème d'auto-hébergement, privilégiez GitHub Issues afin que les réponses profitent à tous.",
+    issuesTitle: "GitHub Issues",
+    issuesDesc: "Le meilleur endroit pour signaler des anomalies, des échecs de déploiement et des suggestions.",
+    roadmapTitle: "Feuille de route publique",
+    roadmapDesc: "Suivez les prochaines étapes, les priorités et les fonctionnalités en cours.",
+    communityHeading: "Communauté et démo en ligne",
+    telegramTitle: "Groupe Telegram",
+    telegramDesc: "Échangez avec le développeur et la communauté sur vos usages et l'auto-hébergement.",
+    demoTitle: "Démo en direct",
+    demoDesc: "Essayez EdgeEver directement dans votre navigateur sans créer de compte.",
+    otherHeading: "Autres coordonnées",
+    wechatLabel: "WeChat: m1245207870",
+    wechatHint: "Merci de préciser EdgeEver lors d'un contact individuel.",
+    domainLabel: "Domaine officiel : edgeever.org",
+  },
+  ja: {
+    heading: "お問い合わせ・コミュニティ",
+    intro: "不具合の報告、機能要望、セルフホストに関するご質問は、他のユーザーも参照できるよう GitHub Issues を優先してご利用ください。",
+    issuesTitle: "GitHub Issues",
+    issuesDesc: "バグ報告、デプロイの問題、具体的な機能リクエストに最適です。",
+    roadmapTitle: "公開ロードマップ",
+    roadmapDesc: "今後のマイルストーン、優先順位、開発中の機能を確認できます。",
+    communityHeading: "コミュニティ・オンライン体験",
+    telegramTitle: "Telegram グループ",
+    telegramDesc: "開発者やコミュニティと活用方法やセルフホストについて交流できます。",
+    demoTitle: "Live Demo",
+    demoDesc: "登録不要でブラウザから EdgeEver のワークスペースをすぐに試せます。",
+    otherHeading: "その他の連絡先",
+    wechatLabel: "WeChat: m1245207870",
+    wechatHint: "個別にご連絡いただく際は、メッセージに「EdgeEver」とご記載ください。",
+    domainLabel: "公式ドメイン: edgeever.org",
+  },
+  pl: {
+    heading: "Kontakt i społeczność",
+    intro: "Zgłoszenia błędów, propozycje funkcji oraz pytania o własny hosting najlepiej kierować do GitHub Issues, aby rozwiązania pozostały publicznie dostępne.",
+    issuesTitle: "GitHub Issues",
+    issuesDesc: "Najlepsze miejsce na raporty błędów, problemy z wdrożeniem i konkretne propozycje funkcji.",
+    roadmapTitle: "Publiczna mapa drogowa",
+    roadmapDesc: "Śledź nadchodzące etapy, priorytety i planowane funkcje.",
+    communityHeading: "Społeczność i wersja demo",
+    telegramTitle: "Grupa Telegram",
+    telegramDesc: "Rozmawiaj z autorem i społecznością o organizacji notatek, aktualizacjach i self-hostingu.",
+    demoTitle: "Demo na żywo",
+    demoDesc: "Wypróbuj EdgeEver bezpośrednio w przeglądarce bez rejestracji.",
+    otherHeading: "Inne formy kontaktu",
+    wechatLabel: "WeChat: m1245207870",
+    wechatHint: "Prosimy o dopisanie EdgeEver przy kontakcie prywatnym.",
+    domainLabel: "Oficjalna domena: edgeever.org",
+  },
+  ru: {
+    heading: "Контакты и сообщество",
+    intro: "Сообщения об ошибках, идеи функций и вопросы по самостоятельному развёртыванию лучше публиковать в GitHub Issues — так решения остаются доступными для всех.",
+    issuesTitle: "GitHub Issues",
+    issuesDesc: "Лучшее место для баг-репортов, проблем развёртывания и предложений новых функций.",
+    roadmapTitle: "Публичная дорожная карта",
+    roadmapDesc: "Следите за планами релизов, приоритетами и текущими разработками.",
+    communityHeading: "Сообщество и онлайн-демо",
+    telegramTitle: "Группа в Telegram",
+    telegramDesc: "Обсуждайте сценарии работы, обновления и self-hosting с разработчиком и сообществом.",
+    demoTitle: "Онлайн-демо",
+    demoDesc: "Попробуйте рабочее пространство EdgeEver прямо в браузере без регистрации.",
+    otherHeading: "Другие контакты",
+    wechatLabel: "WeChat: m1245207870",
+    wechatHint: "При личном обращении укажите, пожалуйста, EdgeEver.",
+    domainLabel: "Официальный домен: edgeever.org",
+  },
+};
+
+const t = copyByLocale[locale];
+const cardFocusClass =
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2";
+---
+
+<Container>
+  <main class="mx-auto max-w-3xl py-12 md:py-20 text-slate-700">
+    <section class="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-xs">
+      <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-gray-900">{t.heading}</h1>
+      <p class="mt-3 text-base leading-7 text-slate-500">{t.intro}</p>
+
+      <div class="mt-6 grid gap-4 sm:grid-cols-2">
+        <a
+          href="https://github.com/tianma-if/edgeever/issues"
+          target="_blank"
+          rel="noopener noreferrer"
+          class={`group flex items-start gap-3.5 rounded-xl border border-slate-200 bg-slate-50/70 p-4 transition-colors hover:border-emerald-300 hover:bg-emerald-50/40 ${cardFocusClass}`}
+        >
+          <Icon class="text-gray-800 w-7 h-7 shrink-0 mt-0.5 transition-colors group-hover:text-emerald-700" name="bx:bxl-github" aria-hidden="true" />
+          <div>
+            <h2 class="text-base font-bold text-gray-900 transition-colors group-hover:text-emerald-800">{t.issuesTitle}</h2>
+            <p class="mt-1.5 text-sm leading-6 text-slate-600">{t.issuesDesc}</p>
+          </div>
+        </a>
+
+        <a
+          href="https://github.com/users/tianma-if/projects/1"
+          target="_blank"
+          rel="noopener noreferrer"
+          class={`group flex items-start gap-3.5 rounded-xl border border-slate-200 bg-slate-50/70 p-4 transition-colors hover:border-emerald-300 hover:bg-emerald-50/40 ${cardFocusClass}`}
+        >
+          <Icon class="text-gray-800 w-7 h-7 shrink-0 mt-0.5 transition-colors group-hover:text-emerald-700" name="bx:map-alt" aria-hidden="true" />
+          <div>
+            <h2 class="text-base font-bold text-gray-900 transition-colors group-hover:text-emerald-800">{t.roadmapTitle}</h2>
+            <p class="mt-1.5 text-sm leading-6 text-slate-600">{t.roadmapDesc}</p>
+          </div>
+        </a>
+      </div>
+
+      <div class="mt-8 border-t border-slate-200 pt-6">
+        <h2 class="font-bold text-lg text-gray-900">{t.communityHeading}</h2>
+        <div class="mt-4 grid gap-4 sm:grid-cols-2">
+          <a
+            href="https://t.me/+GvKYnL37feUwOTNl"
+            target="_blank"
+            rel="noopener noreferrer"
+            class={`group flex items-start gap-3.5 rounded-xl border border-slate-200 bg-white p-4 transition-colors hover:border-emerald-300 hover:bg-emerald-50/40 ${cardFocusClass}`}
+          >
+            <Icon class="text-sky-600 w-6 h-6 shrink-0 mt-0.5" name="simple-icons:telegram" aria-hidden="true" />
+            <div>
+              <h3 class="text-sm font-bold text-gray-900 group-hover:text-emerald-800">{t.telegramTitle}</h3>
+              <p class="mt-1 text-xs sm:text-sm leading-6 text-slate-600">{t.telegramDesc}</p>
+            </div>
+          </a>
+
+          <a
+            href="https://demo.edgeever.org"
+            target="_blank"
+            rel="noopener noreferrer"
+            class={`group flex items-start gap-3.5 rounded-xl border border-slate-200 bg-white p-4 transition-colors hover:border-emerald-300 hover:bg-emerald-50/40 ${cardFocusClass}`}
+          >
+            <Icon class="text-emerald-700 w-6 h-6 shrink-0 mt-0.5" name="bx:bx-show" aria-hidden="true" />
+            <div>
+              <h3 class="text-sm font-bold text-gray-900 group-hover:text-emerald-800">{t.demoTitle}</h3>
+              <p class="mt-1 text-xs sm:text-sm leading-6 text-slate-600">{t.demoDesc}</p>
+            </div>
+          </a>
+        </div>
+      </div>
+
+      <div class="mt-8 border-t border-slate-200 pt-6">
+        <h2 class="font-bold text-lg text-gray-900">{t.otherHeading}</h2>
+        <div class="mt-4 grid gap-4 sm:grid-cols-2">
+          <div class="flex items-center gap-3 rounded-lg bg-slate-50 px-4 py-3">
+            <Icon class="text-gray-400 w-5 h-5 shrink-0" name="bx:bx-message-rounded" aria-hidden="true" />
+            <span class="text-sm text-gray-700">{t.wechatLabel}</span>
+          </div>
+          <div class="flex items-center gap-3 rounded-lg bg-slate-50 px-4 py-3">
+            <Icon class="text-gray-400 w-5 h-5 shrink-0" name="bx:bx-globe" aria-hidden="true" />
+            <span class="text-sm text-gray-700">{t.domainLabel}</span>
+          </div>
+        </div>
+        <p class="mt-3 text-xs leading-normal text-slate-500">{t.wechatHint}</p>
+      </div>
+    </section>
+  </main>
+</Container>

@@ -1,5 +1,5 @@
 export const zhTwSiteTagline =
-  "AI 原生知識庫與 Evernote / Obsidian 替代方案，支援多端瞬時同步與原生 MCP。Cloudflare 免費託管或 Docker 自託管";
+  "AI 原生筆記應用與 Evernote / Obsidian 替代方案，支援多端瞬時同步與原生 MCP。Cloudflare 免費託管或 Docker 自託管";
 
 export const zhTwSiteCopy = {
   layout: {
@@ -58,7 +58,7 @@ export const zhTwSiteCopy = {
     heading: "重新定義自託管知識工作區",
     subheading:
       "告別商業筆記的臃腫廣告、裝置限制與昂貴訂閱。每一個設計細節，都旨在打造流暢、開放、隱私可控且原生支援 AI 的第二大腦。",
-    showcaseCta: "查看 19 個真機案例展示與最佳實踐",
+    showcaseCta: "查看 20 個真機案例展示與最佳實踐",
     card1: {
       badge: "經典重現",
       title: "經典三欄與專注模式，熟悉更輕快",
@@ -118,8 +118,8 @@ export const zhTwSiteCopy = {
     },
   },
   marquee: {
-    title: "全平台客戶端覆蓋、自由部署與 AI 智腦生態",
-    subtitle: "從 macOS、原生 iOS、Android 客戶端，到 Docker 一鍵自託管、精美排版與 Remote MCP 協同",
+    title: "原生技術架構、自由部署與 AI 智腦生態",
+    subtitle: "從本地 SQLite 離線架構、ACP / Remote MCP 智慧體協同，到 Cloudflare / Docker 自託管與創作者排版",
     items: [
       {
         tag: "macOS 桌面端",
@@ -275,7 +275,7 @@ export const zhTwSiteCopy = {
         cta: "查看遷移指南",
       },
       {
-        title: "19 個真機場景與實操指南",
+        title: "20 個真機場景與實操指南",
         summary: "瀏覽三欄寫作、全通路剪藏、AI 導圖/資訊圖/多維表格、本機 ACP 協同及海報排版實機展示。",
         href: "/guides/best-practices",
         cta: "查看實機案例",

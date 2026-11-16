@@ -1,6 +1,6 @@
 -- Normalize notebook_access_json to the runtime object format (PR #820).
 --
--- An earlier revision of 0095 stored the whitelist as a plain JSON array of
+-- An earlier revision of the whitelist migration stored it as a plain JSON array of
 -- notebook id strings (["nb_a","nb_b"]). The runtime parser
 -- (parseNotebookAccessJson) requires {notebookId, read, write} objects, so a
 -- string array parses to an empty whitelist and silently revokes access. This
@@ -8,7 +8,7 @@
 --
 -- It is strict and idempotent, mirroring the runtime parser:
 -- - NULL whitelist stays NULL (unrestricted legacy tokens).
--- - A LEGITIMATE old-0095 whitelist is an array whose every item is a
+-- - A LEGITIMATE old string-array whitelist is an array whose every item is a
 --   non-empty string; it is converted to objects at the stored level.
 -- - An all-object array is validated item by item; if ANY item is malformed
 --   the whole record fails closed (never drop the bad item and keep the good).
@@ -20,7 +20,7 @@
 -- level is authoritative at resolution time; the per-entry booleans only need
 -- to be well-formed for the parser.
 
--- A. Legitimate old-0095 string array: every item a non-empty string.
+-- A. Legitimate old string-array whitelist: every item a non-empty string.
 UPDATE api_tokens
 SET notebook_access_json = (
     SELECT json_group_array(
@@ -44,7 +44,7 @@ WHERE notebook_access_json IS NOT NULL
   );
 
 -- B. All-object array: validate every item, then normalize to the uniform
---    level. Idempotent for rows 0095 already emitted as objects.
+--    level. Idempotent for rows 0098 already emitted as objects.
 UPDATE api_tokens
 SET notebook_access_json = CASE
     WHEN EXISTS (

@@ -38,71 +38,7 @@
   counter-reset: note-prose-h2;
 }
 
-/* H1: Magazine cover-breaking card */
-.edgeever-editor[data-note-heading-style="numbered"] .ProseMirror h1,
-.edgeever-editor[data-note-heading-style="numbered"] .markdown-content h1 {
-  position: relative;
-  margin: 0.5rem 0 2rem;
-  padding: 28px 24px 52px;
-  background: #ffffff;
-  border: 1.5px solid color-mix(in srgb, var(--note-palette-accent, #374151) 18%, transparent);
-  border-radius: 20px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
-  font-size: calc(var(--editor-body-font-size, 16px) * 1.75);
-  font-weight: 900;
-  line-height: 1.25;
-  letter-spacing: -0.5px;
-  color: #111827;
-  overflow: hidden;
-}
-
-:root.dark .edgeever-editor[data-note-heading-style="numbered"] .ProseMirror h1,
-:root.dark .edgeever-editor[data-note-heading-style="numbered"] .markdown-content h1 {
-  background: rgba(255, 255, 255, 0.03);
-  border-color: color-mix(in srgb, var(--note-palette-accent, #9ca3af) 28%, transparent);
-  color: #f3f4f6;
-}
-
-.edgeever-editor[data-note-heading-style="numbered"] .ProseMirror h1::before,
-.edgeever-editor[data-note-heading-style="numbered"] .markdown-content h1::before {
-  content: "●  FEATURED · 深度实测";
-  display: block;
-  margin-bottom: 16px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 3px;
-  line-height: 1.2;
-  color: var(--note-palette-accent, #374151);
-  pointer-events: none;
-}
-
-.edgeever-editor[data-note-heading-style="numbered"] .ProseMirror h1::after,
-.edgeever-editor[data-note-heading-style="numbered"] .markdown-content h1::after {
-  content: "EDGEEVER · 精选笔记";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  padding: 10px 24px;
-  background: linear-gradient(
-    135deg,
-    var(--note-palette-accent, #374151),
-    color-mix(in srgb, var(--note-palette-accent, #374151) 80%, #ffffff)
-  );
-  color: rgba(255, 255, 255, 0.92);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 1px;
-  line-height: 1.4;
-  pointer-events: none;
-}
-
-.edgeever-editor[data-note-palette="native"][data-note-heading-style="numbered"] .ProseMirror h1::after,
-.edgeever-editor[data-note-palette="native"][data-note-heading-style="numbered"] .markdown-content h1::after {
-  background: #f3f4f6;
-  border-top: 1px solid #e5e7eb;
-  color: #374151;
-}
+/* H1 keeps the normal title style. Covers are rendered only by the reading-style toggle. */
 
 /* H2: Two-column 01 / PART + 36px vertical divider + two-line right title & subtitle */
 .edgeever-editor[data-note-heading-style="numbered"] .ProseMirror hr:has(+ h2),

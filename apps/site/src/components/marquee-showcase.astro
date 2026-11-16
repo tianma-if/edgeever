@@ -9,7 +9,7 @@ const copy = siteCopy[locale].marquee;
 const doubleItems = [...copy.items, ...copy.items];
 ---
 
-<section id="platforms" class="mt-12 md:mt-24 w-full overflow-hidden py-8 md:py-10 bg-slate-50/60 border-y border-slate-200/60 scroll-mt-6">
+<section id="platforms" class="mt-8 md:mt-14 w-full overflow-hidden py-8 md:py-10 bg-slate-50/60 border-y border-slate-200/60 scroll-mt-6">
   <div class="max-w-4xl mx-auto text-center px-4 mb-6 md:mb-8">
     <h2 class="text-xl sm:text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight">
       {copy.title}
@@ -28,9 +28,9 @@ const doubleItems = [...copy.items, ...copy.items];
             <span class="px-2 py-0.5 text-[9.5px] sm:text-[10px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200/60 rounded-md">
               {item.tag}
             </span>
-            <Icon name={item.icon} class="w-4 h-4 sm:w-5 sm:h-5 text-slate-700" />
+            <Icon name={item.icon} class="w-4 h-4 sm:w-5 sm:h-5 text-slate-700" aria-hidden="true" />
           </div>
-          <h4 class="font-bold text-slate-900 text-xs sm:text-sm">{item.title}</h4>
+          <h3 class="font-bold text-slate-900 text-xs sm:text-sm">{item.title}</h3>
           <p class="text-slate-500 text-[10.5px] sm:text-[11.5px] mt-1 leading-snug">{item.desc}</p>
         </div>
       ))}

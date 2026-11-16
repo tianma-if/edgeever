@@ -38,6 +38,7 @@ describe("desktop production archive", () => {
       "node_modules/@agentclientprotocol/sdk/dist/acp.js",
       "node_modules/@agentclientprotocol/sdk/schema/schema.json",
       "node_modules/@agentclientprotocol/sdk/LICENSE-APACHE",
+      "node_modules/@edgeever/image-host/src/imgbed-client.mjs",
       "node_modules/zod/index.js", "node_modules/zod/index.cjs",
       "node_modules/electron-updater/out/main.js",
       "node_modules/npm/docs/output/commands/npm-install.html",

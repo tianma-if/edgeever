@@ -53,6 +53,7 @@ struct MemoCreatePresentation {
 
 struct WorkspaceView: View {
     @Environment(AppEnvironment.self) private var env
+    @Environment(\.scenePhase) private var scenePhase
     @State private var store = WorkspaceStore()
     @State private var path = NavigationPath()
     @State private var showSettings = false
@@ -71,6 +72,7 @@ struct WorkspaceView: View {
     @State private var editingMemo: EditingMemoRoute?
     @State private var incomingClipURL: URL?
     @State private var isImportingShare = false
+    @State private var isImportingWeChat = false
     @State private var shareImportAlert: ShareImportAlert?
 
     /// Android SafeAreaView edges=[top,left,right] — bottom chrome owns home indicator.
@@ -128,6 +130,7 @@ struct WorkspaceView: View {
             .fullScreenCover(isPresented: $showNewNote, onDismiss: {
                 showNewNote = createPresentation.didDismiss()
                 store.reload(env: env)
+                consumeWeChatArchive()
             }) {
                 MemoEditView(
                     mode: .create(
@@ -155,7 +158,7 @@ struct WorkspaceView: View {
                 }
             }
             // Edit cover on workspace root; underlay is list (detail popped once cover is presented).
-            .fullScreenCover(item: $editingMemo) { route in
+            .fullScreenCover(item: $editingMemo, onDismiss: consumeWeChatArchive) { route in
                 MemoEditView(
                     mode: .edit(memoId: route.id),
                     initialFocus: route.initialFocus,
@@ -240,10 +243,18 @@ struct WorkspaceView: View {
             .onAppear {
                 store.reload(env: env)
                 consumeShare()
+                consumeWeChatArchive()
                 detectConflicts()
             }
             .onReceive(NotificationCenter.default.publisher(for: .edgeEverShareReceived)) { _ in
                 consumeShare()
+                consumeWeChatArchive()
+            }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active { consumeWeChatArchive() }
+            }
+            .onChange(of: showSettings) { _, open in
+                if !open { consumeWeChatArchive() }
             }
             .onChange(of: env.session.session?.token) { _, _ in
                 store.reload(env: env)
@@ -252,6 +263,7 @@ struct WorkspaceView: View {
                 // Refresh list when a background/bootstrap sync finishes.
                 if wasSyncing && !isSyncing {
                     store.reload(env: env)
+                    consumeWeChatArchive()
                 }
             }
             // Android invalidates the memo list on each bootstrap batch so the UI
@@ -271,17 +283,17 @@ struct WorkspaceView: View {
                 detectConflicts()
             }
             .overlay {
-                if isImportingShare {
+                if isImportingShare || isImportingWeChat {
                     ZStack {
                         Color.black.opacity(0.34).ignoresSafeArea()
                         VStack(spacing: 12) {
                             ProgressView()
                                 .controlSize(.large)
                                 .tint(AppTheme.accent)
-                            Text(env.preferences.t("正在剪藏文章", en: "Clipping article", ja: "記事を取り込んでいます", pl: "Przechwytywanie artykułu"))
+                            Text(shareProgressTitle)
                                 .font(.system(size: 17, weight: .bold))
                                 .foregroundStyle(AppTheme.title)
-                            Text(env.preferences.t("正在提取标题、正文和图片链接…", en: "Extracting the title, body, and image links…", ja: "タイトル、本文、画像リンクを抽出しています…", pl: "Wyodrębnianie tytułu, treści i linków do obrazów…"))
+                            Text(shareProgressDescription)
                                 .font(.system(size: 13))
                                 .foregroundStyle(AppTheme.secondary)
                                 .multilineTextAlignment(.center)
@@ -302,6 +314,12 @@ struct WorkspaceView: View {
                         }
                     }
                     .accessibilityIdentifier("shareImportOverlay")
+                }
+            }
+            .onChange(of: shareImportAlert?.id) { _, id in
+                if id == nil {
+                    consumeShare()
+                    consumeWeChatArchive()
                 }
             }
             .alert(item: $shareImportAlert) { alert in
@@ -818,7 +836,88 @@ struct WorkspaceView: View {
         showTemplatePicker = true
     }
 
+    private var shareProgressTitle: String {
+        isImportingWeChat
+            ? env.preferences.t("正在导入微信聊天记录", en: "Importing WeChat chat", ja: "WeChat のチャットを取り込んでいます", pl: "Importowanie czatu WeChat")
+            : env.preferences.t("正在剪藏文章", en: "Clipping article", ja: "記事を取り込んでいます", pl: "Przechwytywanie artykułu")
+    }
+
+    private var shareProgressDescription: String {
+        isImportingWeChat
+            ? env.preferences.t("正在保存消息和附件…", en: "Saving messages and attachments…", ja: "メッセージと添付ファイルを保存しています…", pl: "Zapisywanie wiadomości i załączników…")
+            : env.preferences.t("正在提取标题、正文和图片链接…", en: "Extracting the title, body, and image links…", ja: "タイトル、本文、画像リンクを抽出しています…", pl: "Wyodrębnianie tytułu, treści i linków do obrazów…")
+    }
+
+    private func consumeWeChatArchive() {
+        guard scenePhase == .active, !isImportingWeChat, !isImportingShare, shareImportAlert == nil,
+              !showSettings, !showNewNote, editingMemo == nil,
+              let scope = env.session.dataScope, let session = env.session.session,
+              let baseURL = try? EdgeEverURLNormalizer.normalizeInstanceURL(session.baseUrl),
+              let notebook = store.activeNotebook ?? store.notebooks.first(where: { $0.slug == "inbox" }) ?? store.notebooks.first,
+              let directory = WeChatShareInbox.sharedDirectory, let item = WeChatShareInbox.next(in: directory)
+        else { return }
+        isImportingWeChat = true
+        // Pin this import to the instance and account that accepted it.
+        let client = APIClient(baseURL: baseURL, token: session.token)
+        Task {
+            var archive: WeChatChatArchive?
+            var succeeded = false
+            defer {
+                if let archive { try? FileManager.default.removeItem(at: archive.temporaryDirectory) }
+                try? FileManager.default.removeItem(at: item.directory)
+                isImportingWeChat = false
+                if succeeded {
+                    consumeShare()
+                    consumeWeChatArchive()
+                }
+            }
+            do {
+                guard let formatter = Bundle.main.url(forResource: "wechat-chat-transcript", withExtension: "cjs") else {
+                    throw WeChatArchiveError.invalidArchive
+                }
+                let prepared = try await Task.detached(priority: .userInitiated) {
+                    try WeChatChatArchive.prepare(item.archiveURL, formatterURL: formatter)
+                }.value
+                archive = prepared
+                guard env.session.dataScope == scope else { return }
+                // Release the original before making server writes. An interrupted
+                // upload must not be replayed as a second note after relaunch.
+                try FileManager.default.removeItem(at: item.directory)
+                let memo = try await WeChatChatImport.save(prepared, notebookID: notebook.id, client: client)
+                try? env.mirror.upsertMemo(scope: scope, memo: memo)
+                guard env.session.dataScope == scope else { return }
+                store.clearSelection()
+                store.reload(env: env)
+                path = NavigationPath()
+                path.append(memo.id)
+                succeeded = true
+            } catch {
+                guard env.session.dataScope == scope else { return }
+                shareImportAlert = ShareImportAlert(
+                    title: env.preferences.t("无法导入微信聊天记录", en: "Could not import the WeChat chat", ja: "WeChat のチャットを取り込めませんでした", pl: "Nie udało się zaimportować czatu WeChat"),
+                    message: weChatImportErrorMessage(error, prepared: archive != nil)
+                )
+            }
+        }
+    }
+
+    private func weChatImportErrorMessage(_ error: Error, prepared: Bool) -> String {
+        switch error as? WeChatArchiveError {
+        case .insufficientSpace:
+            return env.preferences.t("手机存储空间不足。请释放一些空间，然后从微信重新分享。", en: "Free up storage on your iPhone, then share the chat again.", ja: "iPhone の空き容量を増やしてから、チャットを再共有してください。", pl: "Zwolnij miejsce na iPhonie, a następnie udostępnij czat ponownie.")
+        case .expansionLimit:
+            return env.preferences.t("解压后的聊天记录超过 256 MB。请分批从微信分享。", en: "The extracted chat exceeds 256 MB. Share it in smaller batches.", ja: "展開後のチャットが 256 MB を超えています。分割して共有してください。", pl: "Rozpakowany czat przekracza 256 MB. Udostępnij go w mniejszych partiach.")
+        case .incompleteMemo:
+            return env.preferences.t("导入中断，可能留下了一条未完成的笔记。", en: "The import was interrupted and may have left an incomplete note.", ja: "取り込みが中断され、不完全なノートが残っている可能性があります。", pl: "Import został przerwany i mógł pozostawić niekompletną notatkę.")
+        default:
+            return prepared
+                ? env.preferences.t("请检查网络连接，然后从微信重新分享。", en: "Check your connection and share the chat from WeChat again.", ja: "ネットワーク接続を確認し、WeChat から再共有してください。", pl: "Sprawdź połączenie, a następnie udostępnij czat ponownie z WeChat.")
+                : env.preferences.t("无法读取聊天压缩包。请从微信重新分享聊天记录。", en: "Could not read the chat archive. Share the chat from WeChat again.", ja: "チャットのアーカイブを読み込めませんでした。WeChat から再共有してください。", pl: "Nie udało się odczytać archiwum czatu. Udostępnij czat ponownie z WeChat.")
+        }
+    }
+
     private func consumeShare() {
+        guard !isImportingWeChat else { return }
         let payloads = env.shareHandoff.consumePending()
         guard !payloads.isEmpty else { return }
         let sharedImages = env.shareHandoff.sharedImages(from: payloads)

@@ -162,7 +162,7 @@ export const EditorTagPicker = ({ contentMarkdown, disabled, loadTags, title, va
                 <span className="edgeever-editor-tag-content flex min-w-0 items-center gap-1 overflow-hidden">
                   {selectedTags.length > 0 ? (
                     <>
-                      {selectedTags.slice(0, 3).map((tag) => (
+                      {selectedTags.slice(0, 1).map((tag) => (
                         <span
                           key={tag}
                           className="shrink-0 whitespace-nowrap rounded-sm bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-600"
@@ -170,8 +170,8 @@ export const EditorTagPicker = ({ contentMarkdown, disabled, loadTags, title, va
                           #{tag}
                         </span>
                       ))}
-                      {selectedTags.length > 3 && (
-                        <span className="text-xs font-medium text-slate-400">+{selectedTags.length - 3}</span>
+                      {selectedTags.length > 1 && (
+                        <span className="shrink-0 text-xs font-medium text-slate-400">+{selectedTags.length - 1}</span>
                       )}
                     </>
                   ) : (

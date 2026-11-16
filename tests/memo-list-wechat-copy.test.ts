@@ -10,9 +10,11 @@ const editorActionsSource = readSource("../apps/web/src/components/editor/useEdi
 describe("memo list WeChat copy", () => {
   test("adds the publish copy action to text-note card menus", () => {
     expect(memoListSource).toContain('t("editor.copyToWeChat")');
+    expect(memoListSource).toContain('t("editor.copyToWeChatTooltip")');
+    expect(memoListSource).toContain("<ClipboardType");
     expect(memoListSource).toContain("!memoContextMenu.memo.diagramKind && !memoContextMenu.memo.structuredTable && !memoContextMenu.memo.infographic");
     expect(memoListSource).toContain("void handleCopyContextMemoToWeChat()");
-    expect(memoListSource).toContain('wechatCopyNotice === "copied" ? "editor.copiedToWeChat" : "editor.copyToWeChatFailed"');
+    expect(memoListSource).toContain('wechatCopyNotice === "copied" ? "editor.copiedToWeChatNotice" : "editor.copyToWeChatFailed"');
   });
 
   test("copies the open text note through the editor and other notes from saved markdown", () => {

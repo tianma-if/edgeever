@@ -5,11 +5,14 @@ type PlayUpdateApi = {
   start: () => Promise<GooglePlayUpdateResult>;
 };
 
+type PlayUpdateOffer = (versionCode: number) => Promise<unknown>;
+
 /** Owns Play consent and state recovery independently of GitHub release availability. */
 export class MobilePlayUpdate {
   state: GooglePlayUpdateState = { status: "unavailable", versionCode: 0 };
   hasKnownUpdate = false;
   private promptedVersions = new Set<number>();
+  private offering = false;
   private starting: Promise<GooglePlayUpdateResult> | null = null;
   private revision = 0;
 
@@ -22,15 +25,24 @@ export class MobilePlayUpdate {
     this.onState(state);
   };
 
-  async check(prompt: boolean): Promise<boolean> {
+  async check(showOffer?: PlayUpdateOffer): Promise<boolean> {
     const revision = this.revision;
     const state = await this.api.check();
     // An install event received during the request is more recent than its snapshot.
     if (revision === this.revision) this.receive(state);
-    if (prompt && this.state.status === "available" && !this.promptedVersions.has(this.state.versionCode)) {
-      await this.start();
-    }
+    if (showOffer && !this.promptedVersions.has(this.state.versionCode)) await this.offer(showOffer);
     return this.state.status !== "unavailable";
+  }
+
+  async offer(showOffer: PlayUpdateOffer): Promise<void> {
+    if (this.offering || this.starting || this.state.status !== "available") return;
+    this.offering = true;
+    this.promptedVersions.add(this.state.versionCode);
+    try {
+      await showOffer(this.state.versionCode);
+    } finally {
+      this.offering = false;
+    }
   }
 
   start(): Promise<GooglePlayUpdateResult> {

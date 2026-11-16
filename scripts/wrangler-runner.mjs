@@ -263,3 +263,9 @@ export const runWranglerSync = (args, options = {}) => {
 
   return result;
 };
+
+/** Demo must reach application redirects even when a static asset exists. */
+export const configureDemoAssetRouting = (config, demoMode) => {
+  if (!demoMode) return config;
+  return config.replace(/(\[assets\][\s\S]*?^run_worker_first\s*=)[^\n]*/m, "$1 true");
+};

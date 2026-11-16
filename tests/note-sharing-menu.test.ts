@@ -17,7 +17,7 @@ describe("note sharing menu", () => {
     expect(editorActionsSource).not.toContain("if (!effectiveReadOnly) setShareOpen(true)");
     expect(editorSource).toContain("canShareMemo: Boolean(memo && !readOnly)");
     expect(editorSource).toContain("{!readOnly && (\n                  <DropdownMenuItem");
-    expect(editorSource).toContain('{!readOnly && (!mobileEditingActive || isMemoShared) && (');
+    expect(editorSource).toContain('{!readOnly && editorColumnWidth >= 960 && (!mobileEditingActive || isMemoShared) && (');
     expect(editorSource).toContain("isMemoShared ? <Globe");
     expect(editorSource).toContain("aria-pressed={isMemoShared}");
     expect(editorSource).toContain('aria-label={t(isLocalMemoId(memo.id) ? "sharing.afterSync" : isMemoShared ? "sharing.manage" : "sharing.action")}');
@@ -25,7 +25,10 @@ describe("note sharing menu", () => {
 
   test("shows a toast after copying the note for other platforms", () => {
     expect(editorSource).toContain('wechatCopyState === "copied" || wechatCopyState === "error"');
-    expect(editorSource).toContain('t(wechatCopyState === "copied" ? "editor.copiedToWeChat" : "editor.copyToWeChatFailed")');
+    expect(editorSource).toContain('t(wechatCopyState === "copied" ? "editor.copiedToWeChatNotice" : "editor.copyToWeChatFailed")');
+    expect(editorSource).toContain('t("editor.copyToWeChatTooltip")');
+    expect(editorSource).toContain("<ClipboardType");
+    expect(zhCN.editor.copyToWeChat).toBe("带排版复制");
     expect(zhCN.editor.copiedToWeChat).toBe("已复制");
     expect(enUS.editor.copiedToWeChat).toBe("Copied");
   });

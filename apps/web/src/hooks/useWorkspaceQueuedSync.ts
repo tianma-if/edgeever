@@ -6,6 +6,7 @@ import { emptySyncQueueSummary, type SyncQueueSummary } from "@/lib/sync-queue";
 import { MEMO_ID_REMAPPED_EVENT, NOTEBOOK_ID_REMAPPED_EVENT, notifyMemoIdRemapped, notifyMemoSyncAcknowledged, notifyNotebookIdRemapped } from "@/lib/sync-events";
 import { observeLocalMemoIdMappings, putLocalMemo, replaceLocalMemoId } from "@/lib/local-mirror";
 import { remapMemoIdsInLists } from "@/lib/memo-list-cache";
+import { remapMemoReadingStyle } from "@/lib/memo-reading-style";
 import { preserveRemappedMemoDetailQueries, resolveSyncedMemoId } from "@/lib/workspace-refresh";
 
 type UseWorkspaceQueuedSyncOptions = {
@@ -37,6 +38,10 @@ export const useWorkspaceQueuedSync = ({
   const applyMemoIdMappings = useCallback((memoIdMappings: ReadonlyMap<string, string>) => {
     if (memoIdMappings.size === 0) return;
 
+    for (const [temporaryId, remoteId] of memoIdMappings) {
+      remapMemoReadingStyle(localDataScope, temporaryId, remoteId);
+    }
+
     // Seed the durable-id query before changing the selection. The desktop
     // editor otherwise renders its loading state between the local-id and
     // remote-id queries, which looks like a full editor reload after create.
@@ -62,7 +67,7 @@ export const useWorkspaceQueuedSync = ({
       selectedMemoIdRef.current = nextSelectedMemoId;
       setSelectedMemoId(nextSelectedMemoId);
     }
-  }, [pendingCreatedMemoIdRef, queryClient, selectedMemoIdRef, setCreatedMemoEditId, setSelectedMemoId]);
+  }, [localDataScope, pendingCreatedMemoIdRef, queryClient, selectedMemoIdRef, setCreatedMemoEditId, setSelectedMemoId]);
 
   useEffect(() => observeLocalMemoIdMappings(localDataScope, applyMemoIdMappings), [applyMemoIdMappings, localDataScope]);
 

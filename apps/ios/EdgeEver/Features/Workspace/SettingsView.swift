@@ -192,12 +192,7 @@ struct SettingsView: View {
                     icon: "bubble.left.and.bubble.right",
                     iconTint: AppTheme.secondary,
                     iconBg: AppTheme.searchFill,
-                    title: env.preferences.t("意见反馈", en: "Feedback", pl: "Opinia"),
-                    subtitle: env.preferences.t(
-                        "报告问题或提出功能建议",
-                        en: "Report issues or suggest features",
-                        pl: "Zgłoś problem lub zaproponuj funkcję"
-                    ),
+                    title: env.preferences.t("提个 Issue", en: "Submit an Issue", pl: "Zgłoś issue"),
                     trailing: .external,
                     showBorder: true
                 ) {

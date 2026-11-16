@@ -3,8 +3,23 @@ import { GapCursor } from "@tiptap/pm/gapcursor";
 import type { Selection } from "@tiptap/pm/state";
 import { NodeSelection, Selection as ProseMirrorSelection } from "@tiptap/pm/state";
 import { IMAGE_GALLERY_NODE_TYPE } from "@edgeever/shared";
+import type { Mapping } from "@tiptap/pm/transform";
 
 export type ResourceInsertionTarget = number | { from: number; to: number };
+
+/** Follow edits while uploading without treating new typing as replacement text. */
+export const mapResourceInsertionTarget = (
+  target: ResourceInsertionTarget,
+  mapping: Mapping,
+): ResourceInsertionTarget => {
+  if (typeof target === "number") return mapping.map(target, -1);
+  if (target.from === target.to) {
+    const position = mapping.map(target.from, -1);
+    return { from: position, to: position };
+  }
+  const from = mapping.map(target.from, 1);
+  return { from, to: Math.max(from, mapping.map(target.to, -1)) };
+};
 
 /**
  * Capture where a pasted or dropped resource belongs before its async upload.

@@ -2,6 +2,17 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 
 describe("memo context menu", () => {
+  test("opens link sharing at workspace level without requiring a text editor", () => {
+    const source = readFileSync(new URL("./WorkspaceApp.tsx", import.meta.url), "utf8");
+    const handler = source.slice(source.indexOf("onRequestDocumentAction={(memoId:"), source.indexOf("onCopyMemoToWeChat={"));
+
+    expect(handler).toMatch(/if \(action === "share"\) \{\s*setListShareMemoId\(memoId\);\s*return;/);
+    expect(handler.indexOf('if (action === "share")')).toBeLessThan(handler.indexOf('setRightView("editor")'));
+    expect(source).toContain("{listShareMemoId && (");
+    expect(source).toContain("memoId={listShareMemoId}");
+    expect(source).toContain("if (!open) setListShareMemoId(null)");
+  });
+
   test("uses a Radix submenu for notebook moves so opening the picker does not close the menu", () => {
     const source = readFileSync(new URL("./MemoListPane.tsx", import.meta.url), "utf8");
 

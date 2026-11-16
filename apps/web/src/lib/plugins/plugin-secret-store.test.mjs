@@ -254,3 +254,12 @@ describe("WebPluginSecretStore", () => {
     await expect(store.set("com.example.alpha", "token", "value")).rejects.toThrow();
   });
 });
+
+test("HTTP origins receive an actionable error without storing secrets in plaintext", async () => {
+  const original = Object.getOwnPropertyDescriptor(globalThis, "crypto");
+  Object.defineProperty(globalThis, "crypto", { configurable: true, value: { getRandomValues: (bytes) => bytes } });
+  try {
+    await expect(encryptPluginSecret({}, "secret")).rejects.toThrow("require HTTPS or localhost");
+    await expect(decryptPluginSecret({}, { iv: new Uint8Array(12), ciphertext: new ArrayBuffer(0) })).rejects.toThrow("require HTTPS or localhost");
+  } finally { Object.defineProperty(globalThis, "crypto", original); }
+});

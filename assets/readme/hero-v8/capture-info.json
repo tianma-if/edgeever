@@ -1,0 +1,62 @@
+{
+  "layoutSource": "hero.html",
+  "desktopCapture": {
+    "viewportWidth": 1728,
+    "viewportHeight": 928,
+    "deviceScaleFactor": 3,
+    "pixelWidth": 5184,
+    "pixelHeight": 2784
+  },
+  "phoneCapture": {
+    "source": "phone-source.png",
+    "pixelWidth": 1080,
+    "pixelHeight": 2340,
+    "reusedOriginalNativeScreenshot": true
+  },
+  "export": {
+    "viewportWidth": 1920,
+    "viewportHeight": 1080,
+    "deviceScaleFactor": 2,
+    "pixelWidth": 3840,
+    "pixelHeight": 2160,
+    "file": "../edgeever-hero-v8.png",
+    "transparentBackground": true
+  },
+  "imageGenerationUsed": false,
+  "english": {
+    "layoutSource": "hero.html?lang=en",
+    "desktopCapture": {
+      "viewportWidth": 1728,
+      "viewportHeight": 928,
+      "deviceScaleFactor": 3,
+      "pixelWidth": 5184,
+      "pixelHeight": 2784,
+      "source": "desktop-source-en.png",
+      "instance": "isolated local demo snapshot",
+      "memoId": "memo_demo_overview_en",
+      "diagramLabelsCondensedForLegibility": true
+    },
+    "phoneCapture": {
+      "source": "phone-source-en.png",
+      "pixelWidth": 1080,
+      "pixelHeight": 2340,
+      "nativeAndroidScreenshot": true,
+      "statusBarDemoMode": true,
+      "locale": "en-US"
+    },
+    "export": {
+      "viewportWidth": 1920,
+      "viewportHeight": 1080,
+      "deviceScaleFactor": 2,
+      "pixelWidth": 3840,
+      "pixelHeight": 2160,
+      "file": "../edgeever-hero-v8-en.png",
+      "transparentBackground": true
+    },
+    "languageRouting": {
+      "zh-CN": "../edgeever-hero-v8.png",
+      "zh-TW": "../edgeever-hero-v8.png",
+      "otherLocales": "../edgeever-hero-v8-en.png"
+    }
+  }
+}

@@ -1,20 +1,26 @@
 {
-  "version": "2.23.0",
+  "version": "2.28.0",
   "changes": {
     "en-US": [
-      "MCP now returns only Markdown for prose note bodies by default in get_memo and full-content list_memos. If your integration uses contentJson or contentText, pass format=\"all\" to keep the previous fields.",
-      "MCP keyword search includes a snippet of up to 200 characters around a body match when available.",
-      "The initial HTML for publicly shared notes leaves the note language unspecified and labels the built-in English text correctly. Thanks to @dkoryto in #816."
+      "Preserve editable formulas, every gallery image, and animated images when copying rich text to platforms such as Zhihu, with ordinary images and Mermaid diagrams uploaded to the selected image host.",
+      "Add a rose red prose palette with dark mode support.",
+      "Keep the caret and image previews stable during uploads, and keep the gallery toolbar within the visible editor area.",
+      "Preserve punctuation and word boundaries in magazine covers.",
+      "Improve third-party note import entry points, platform logos, and guidance, with updated import documentation."
     ],
     "zh-CN": [
-      "MCP 的 get_memo 和返回完整正文的 list_memos 现在默认只提供 Markdown 正文。依赖 contentJson 或 contentText 的集成可传入 format=\"all\"，继续获取原有字段。",
-      "MCP 关键词搜索命中笔记正文时，会附带最多 200 字的匹配片段。",
-      "公开分享页的初始 HTML 现在将笔记标题和正文的语言标记为未知，并正确标注页面自带的英文文案。感谢 @dkoryto 的 #816。"
+      "复制富文本到知乎等平台时，保留可编辑公式、图库全部图片和动图，并支持将普通图片与 Mermaid 图表上传到所选图床。",
+      "新增支持深色模式的玫瑰红正文配色。",
+      "修复图片上传时的光标与预览稳定性，并让图库工具栏保持在编辑器可见范围内。",
+      "修复杂志封面中的标点和英文单词断行。",
+      "优化第三方笔记导入入口、平台标识和操作提示，并更新导入指南。"
     ],
     "ja": [
-      "MCP の get_memo と本文を含む list_memos は、標準のノート本文を既定で Markdown のみ返します。contentJson や contentText が必要な場合は format=\"all\" を指定してください。",
-      "MCP のキーワード検索では、本文に一致箇所がある場合に最大 200 文字の抜粋を返します。",
-      "公開共有ページの初期 HTML で、ノートの言語は未指定とし、組み込みの英語テキストには正しい言語を設定します。"
+      "知乎などへリッチテキストをコピーする際、編集可能な数式、ギャラリーの全画像、アニメーション画像を保持し、通常の画像とMermaid図を選択した画像ホストにアップロードできるようになりました。",
+      "ダークモードに対応したローズレッドの本文カラーパレットを追加しました。",
+      "画像アップロード中のカーソルとプレビューを安定させ、ギャラリーのツールバーをエディターの表示範囲内に保つよう修正しました。",
+      "雑誌風カバーの句読点と英単語の改行を修正しました。",
+      "他のノートアプリからのインポート画面、ロゴ、操作案内を改善し、ガイドを更新しました。"
     ]
   }
 }

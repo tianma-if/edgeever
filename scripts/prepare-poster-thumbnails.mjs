@@ -33,7 +33,9 @@ const sourceFiles = async (root, relative) => {
     throw error;
   });
   if (!entries) return [relative];
-  return (await Promise.all(entries.filter(entry => !entry.name.startsWith(".")).map(entry => sourceFiles(root, `${relative}/${entry.name}`)))).flat();
+  // Docker omits *.test.* files and they do not affect rendered previews.
+  const inputs = entries.filter(entry => !entry.name.startsWith(".") && !entry.name.includes(".test."));
+  return (await Promise.all(inputs.map(entry => sourceFiles(root, `${relative}/${entry.name}`)))).flat();
 };
 export async function sourceState(root = projectRoot) {
   const files = (await Promise.all(sources.map(relative => sourceFiles(root, relative)))).flat().sort();

@@ -351,10 +351,7 @@ export const SettingsView = ({
               <Pressable accessibilityRole="link" onPress={() => void openFeedback()} style={[styles.settingsMenuRow, styles.settingsMenuRowBorder]}>
                 <View style={styles.settingsMenuLabel}>
                   <View style={[styles.settingsMenuIcon, styles.settingsFeedbackIcon]}><MessageSquare color="#64748b" size={17} /></View>
-                  <View style={styles.settingsFeedbackCopy}>
-                    <Text style={styles.settingsMenuText}>意见反馈</Text>
-                    <Text style={styles.settingsFeedbackDescription}>报告问题或提出功能建议</Text>
-                  </View>
+                  <Text style={styles.settingsMenuText}>提个 Issue</Text>
                 </View>
                 <ExternalLink color="#94a3b8" size={17} />
               </Pressable>

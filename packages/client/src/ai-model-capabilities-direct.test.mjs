@@ -56,6 +56,17 @@ describe("model limit detection (#652)", () => {
     expect(await detectAiModelCapabilities({ provider: "anthropic", baseUrl: "https://gw.example/v1", apiKey: "k", modelId: "claude-x" }, async () => json({}, 429))).toBeNull();
   });
 
+  test("a temporary /model/info failure stays 'unknown' instead of 'no limits'", async () => {
+    const target = { provider: "openai-compatible", baseUrl: "https://g.example/v1", apiKey: "k", modelId: "m" };
+    for (const status of [401, 403, 429, 500, 503]) {
+      const gateway = async (url) => new URL(String(url)).pathname === "/v1/models" ? json({ data: [{ id: "m" }] }) : json({}, status);
+      expect(await detectAiModelCapabilities(target, gateway)).toBeNull();
+    }
+    expect(await detectAiModelCapabilities(target, async (url) => new URL(String(url)).pathname === "/v1/models"
+      ? json({ data: [{ id: "m" }] })
+      : Promise.reject(new TypeError("Failed to fetch")))).toBeNull();
+  });
+
   test("authentication, server and network errors mean 'unknown', not 'no limits'", async () => {
     const target = { provider: "openai-compatible", baseUrl: "https://g.example/v1", apiKey: "k", modelId: "m" };
     expect(await detectAiModelCapabilities(target, async () => json({ error: "bad key" }, 401))).toBeNull();
@@ -166,6 +177,7 @@ describe("generation with automatic budgets (#652)", () => {
         if (path.endsWith("/capabilities")) return json({ detectedCapabilities: {} });
         return json(preparedBody({ provider: "anthropic", maxOutputTokens: 128000, capabilityTarget: target, detectCapabilities: true }));
       },
+      modelCatalogFetch: null,
       providerFetch: async (url, init) => {
         if (init.method === "GET") return json({ id: "model-x", max_tokens: null, max_input_tokens: null });
         const body = JSON.parse(String(init.body));

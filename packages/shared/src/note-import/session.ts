@@ -1,10 +1,14 @@
-import type { ImportDocument, ImportFile, ImportFormat, ImportIndex, ImportIssue, ImportNote, ImportNotebook, ImportReference, ImportResource, ImportSummary, SourceEntry } from "./types";
+import type { ImportDocument, ImportFile, ImportFormat, ImportIndex, ImportIssue, ImportNote, ImportNotebook, ImportOptions, ImportReference, ImportResource, ImportSummary, SourceEntry } from "./types";
 import { IMPORT_CHUNK_BYTES } from "./types";
 import { indexItems } from "./index-store";
 import { addIssue, basename, dirname, ImportSources, normalPath, stem } from "./sources";
 import { importTime, mimeFromName, readMarkdownMetadata, prepareImportNote } from "./metadata";
 import { findImportReferences } from "./references";
 import { readEnex, type EnexNote } from "./evernote";
+import { markdownExportName } from "./markdown-export";
+import { ImportByteStore } from "./byte-store";
+
+const isSiYuanAsset = (path: string) => path.split("/").includes("assets");
 
 type RawItem = { key: string; entryKey: string; title: string; props: Record<string, string> };
 const readRaw = (text: string) => {
@@ -31,19 +35,27 @@ export class NoteImportSession {
   private prepared?: ImportDocument;
   private staged = new Set<string>();
   private nextNote = 0;
-  constructor(readonly format: ImportFormat, files: ImportFile[], readonly index: ImportIndex, id: string = crypto.randomUUID()) {
+  constructor(readonly format: ImportFormat, files: ImportFile[], readonly index: ImportIndex, id: string = crypto.randomUUID(), private options: ImportOptions = {}) {
     this.id = id;
     this.sources = new ImportSources(files, index);
   }
   private async notebook(path: string) {
+    if (!path && (this.format === "notion" || this.format === "siyuan")) {
+      if (!await this.index.get("notebook", path)) {
+        const name = this.format === "notion" ? "Notion" : "SiYuan";
+        await this.index.put<ImportNotebook>("notebook", path, { key: path, name, parentKey: null });
+      }
+      return path;
+    }
     path ||= this.format === "obsidian" ? "Obsidian" : "Joplin";
     let current = "";
     for (const name of path.split("/")) {
       const parent = current;
       current = parent ? `${parent}/${name}` : name;
       if (!await this.index.get("notebook", current)) {
-        await this.index.put<ImportNotebook>("notebook", current, { key: current, name, parentKey: parent || null });
-        if (!name.trim() || name.length > 80) await addIssue(this.index, "notebookName", current);
+        const displayName = markdownExportName(this.format, name);
+        await this.index.put<ImportNotebook>("notebook", current, { key: current, name: displayName, parentKey: parent || null });
+        if (!displayName.trim() || displayName.length > 80) await addIssue(this.index, "notebookName", current);
       }
     }
     return path;
@@ -72,10 +84,24 @@ export class NoteImportSession {
   }
   async scan(signal?: AbortSignal, progress?: (path: string) => void): Promise<ImportSummary> {
     try {
-      await this.sources.scan(signal, progress);
+      await this.sources.scan(signal, progress, this.format === "notion");
       for await (const entry of indexItems<SourceEntry>(this.index, "entry")) {
         signal?.throwIfAborted(); progress?.(entry.path);
-        if (this.format === "evernote") {
+        if (this.format === "notion" && /\.csv$/i.test(entry.path)) await addIssue(this.index, "notionCsv", entry.path, "warning");
+        if (this.format === "flomo") {
+          if (!/\.html?$/i.test(entry.path)) continue;
+          await this.notebook("flomo");
+          await this.index.put("alias", `used:${entry.key}`, true);
+          try {
+            const { readFlomo } = await import("./flomo");
+            for await (const doc of readFlomo(await this.sources.text(entry, signal), entry, path => this.index.get<SourceEntry>("entry", path), signal)) {
+              if (doc.error) { await addIssue(this.index, doc.error.split(":")[0]!, doc.note.path, "error", doc.error); continue; }
+              await this.saveNote(doc.note);
+              await this.index.put("raw", `flomo:${doc.note.key}`, doc.contentMarkdown);
+              for (const resource of doc.note.resources) await this.index.put("alias", `used:${resource.entryKey}`, true);
+            }
+          } catch (error) { signal?.throwIfAborted(); await addIssue(this.index, "invalidFlomo", entry.path, "error", String(error)); }
+        } else if (this.format === "evernote") {
           if (/\.notes$/i.test(entry.path)) { await addIssue(this.index, "notesFormat", entry.path); continue; }
           if (!/\.enex$/i.test(entry.path)) continue;
           const notebookKey = await this.notebook(entry.path.replace(/\.enex$/i, ""));
@@ -91,8 +117,10 @@ export class NoteImportSession {
           if (this.format === "joplin") {
             if (!await this.rawBinaryId(entry)) await this.indexRaw(entry, signal);
           } else {
+            // Markdown in a SiYuan assets directory is read only as an attachment.
+            if (this.format === "siyuan" && isSiYuanAsset(entry.path)) continue;
             const markdown = await this.sources.text(entry, signal);
-            const meta = await readMarkdownMetadata(markdown, stem(entry.path), this.index, entry.path);
+            const meta = await readMarkdownMetadata(markdown, stem(entry.path), this.index, entry.path, this.format);
             const note: ImportNote = { key: "", path: entry.path, entryKey: entry.key, notebookKey: await this.notebook(dirname(entry.path)), resources: [], ...meta };
             await this.saveNote(note);
           }
@@ -111,11 +139,11 @@ export class NoteImportSession {
           if (!/\.(?:md|markdown)$/i.test(entry.path)) continue;
           if (await this.index.get("alias", `raw:${entry.key}`) || await this.isRawPayload(entry)) continue;
           const markdown = await this.sources.text(entry, signal);
-          const meta = await readMarkdownMetadata(markdown, stem(entry.path), this.index, entry.path);
+          const meta = await readMarkdownMetadata(markdown, stem(entry.path), this.index, entry.path, this.format);
           await this.saveNote({ key: "", path: entry.path, entryKey: entry.key, notebookKey: await this.notebook(dirname(entry.path)), resources: [], ...meta });
         }
       }
-      if (this.format !== "evernote") {
+      if (this.format !== "evernote" && this.format !== "flomo") {
         for await (const note of indexItems<ImportNote>(this.index, "note")) {
           signal?.throwIfAborted();
           const doc = await this.readNote(note.key, signal);
@@ -141,10 +169,35 @@ export class NoteImportSession {
           await this.index.put("note", note.key, note);
         }
       }
-      if (!await this.index.count("note")) await addIssue(this.index, "noNotes", "");
-      if (this.format !== "evernote") for await (const entry of indexItems<SourceEntry>(this.index, "entry")) {
-        if (!/\.(?:md|markdown)$/i.test(entry.path) && !await this.index.get("alias", `used:${entry.key}`)) await addIssue(this.index, "unusedResource", entry.path, "warning");
+      if ((this.format === "obsidian" && this.options.includeUnreferencedAttachments !== false) || this.format === "notion") {
+        for await (const entry of indexItems<SourceEntry>(this.index, "entry")) {
+          signal?.throwIfAborted();
+          // Import recognizable user documents/media, never hidden/config/cache files.
+          if (entry.path.split("/").some(part => part.startsWith(".") || /^(?:node_modules|cache|caches|__pycache__)$/i.test(part))) continue;
+          // Preserve database exports verbatim; do not pretend to reconstruct
+          // Notion relations, formulas or views from CSV.
+          if (this.format === "notion" && !/\.csv$/i.test(entry.path)) continue;
+          if (!/\.(?:png|jpe?g|gif|webp|svg|avif|bmp|pdf|txt|csv|mp3|mp4|wav|m4a|ogg|webm|mov|docx?|xlsx?|pptx?|epub|zip)$/i.test(entry.path)) continue;
+          if (await this.index.get("alias", `used:${entry.key}`)) continue;
+          const resource: ImportResource = { key: entry.key, entryKey: entry.key, filename: basename(entry.path), mimeType: mimeFromName(entry.path), byteSize: entry.size };
+          const label = resource.filename.replace(/[\\`*_[\]<>!]/g, "\\$&");
+          const href = encodeURIComponent(resource.filename).replace(/[!'()*]/g, char => `%${char.charCodeAt(0).toString(16)}`);
+          const attachmentMarkdown = `${resource.mimeType.startsWith("image/") ? "!" : ""}[${label}](${href})`;
+          const references = findImportReferences(attachmentMarkdown).map(ref => ({ ...ref, resourceKey: resource.key }));
+          const title = this.format === "notion" ? markdownExportName(this.format, stem(entry.path), true) : resource.filename;
+          await this.saveNote({ key: "", path: entry.path, entryKey: entry.key, notebookKey: await this.notebook(dirname(entry.path)), title, tags: [], resources: [resource], references, attachmentMarkdown });
+        }
       }
+      if (this.format === "notion" || this.format === "siyuan") {
+        for await (const entry of indexItems<SourceEntry>(this.index, "entry")) {
+          signal?.throwIfAborted();
+          if (!await this.index.get("alias", `note:${entry.key}`) && !await this.index.get("alias", `used:${entry.key}`)) {
+            const unsupported = /\.(?:sy|zip)$/i.test(entry.path);
+            await addIssue(this.index, unsupported ? "markdownExportRequired" : "unusedResource", entry.path, unsupported ? "error" : "warning");
+          }
+        }
+      }
+      if (!await this.index.count("note")) await addIssue(this.index, "noNotes", "");
     } catch (error) {
       signal?.throwIfAborted();
       await addIssue(this.index, "invalidArchive", "", "error", error instanceof Error ? error.message : String(error));
@@ -211,6 +264,10 @@ export class NoteImportSession {
   }
   private async resolveReference(note: ImportNote, ref: ImportReference): Promise<ImportResource | undefined> {
     let href = ref.href;
+    if (this.format === "siyuan" && /^siyuan:\/\/blocks\//i.test(href)) {
+      await addIssue(this.index, "noteLink", note.path, "warning", href);
+      return;
+    }
     if (/^(?:https?:|mailto:|tel:|data:|#|\/\/)/i.test(href)) return;
     // Keep file/drive forms in local-path validation; other URI targets are not opened.
     if (!ref.wiki && /^[a-z][a-z0-9+.-]*:/i.test(href) && !/^(?:file:|[a-z]:)/i.test(href)) return;
@@ -238,6 +295,16 @@ export class NoteImportSession {
       const rootFirst = this.format === "obsidian" && !explicitRelative && href.includes("/");
       let entry = await this.index.get<SourceEntry>("entry", rootFirst ? root! : relative);
       if (!entry && root) entry = await this.index.get<SourceEntry>("entry", rootFirst ? relative : root);
+      if (!entry && this.format === "siyuan" && href.startsWith("assets/")) {
+        // SiYuan exports use an assets directory at the export root. Find the
+        // nearest ancestor's exact path, never a global basename match.
+        let parent = dirname(note.entryKey);
+        while (!entry) {
+          entry = await this.index.get<SourceEntry>("entry", [parent, href].filter(Boolean).join("/"));
+          if (!parent) break;
+          parent = dirname(parent);
+        }
+      }
       if (!entry && ref.wiki && !href.includes("/")) {
         const candidates = await this.index.get<string[]>("alias", href) ?? [];
         if (candidates.length > 1) { await addIssue(this.index, "ambiguousResource", note.path, "error", href); return; }
@@ -246,8 +313,13 @@ export class NoteImportSession {
       if (!entry && ref.wiki && !/\.[^/]+$/.test(href)) {
         await addIssue(this.index, "noteLink", note.path, "warning", href); return;
       }
-      if (!entry && /\.(?:md|markdown)$/i.test(href)) { await addIssue(this.index, "noteLink", note.path, "warning", href); return; }
-      if (!entry) { await addIssue(this.index, "missingResource", note.path, "error", ref.href); return; }
+      const isMarkdownAsset = this.format === "siyuan" && isSiYuanAsset(relative);
+      if (!entry && !isMarkdownAsset && /\.(?:md|markdown)$/i.test(href)) { await addIssue(this.index, "noteLink", note.path, "warning", href); return; }
+      if (!entry) {
+        const allowMissing = this.format === "notion" || this.format === "siyuan";
+        await addIssue(this.index, allowMissing ? "missingAttachment" : "missingResource", note.path, allowMissing ? "warning" : "error", ref.href);
+        return;
+      }
       if (await this.index.get("alias", `note:${entry.key}`)) { await addIssue(this.index, "noteLink", note.path, "warning", href); return; }
       return { key: entry.key, entryKey: entry.key, filename: basename(entry.path), mimeType: mimeFromName(entry.path), byteSize: entry.size };
     } catch { await addIssue(this.index, "outsideRoot", note.path, "error", ref.href); }
@@ -257,6 +329,7 @@ export class NoteImportSession {
     if (this.prepared?.note.key === key) return this.prepared;
     const note = await this.index.get<ImportNote>("note", key);
     if (!note) throw new Error("missingNote");
+    if (note.attachmentMarkdown !== undefined) return { note, contentMarkdown: note.attachmentMarkdown };
     const entry = await this.index.get<SourceEntry>("entry", note.entryKey);
     if (!entry) throw new Error("missingNote");
     if (this.format === "evernote") {
@@ -280,38 +353,28 @@ export class NoteImportSession {
       this.prepared = { note: { ...note, resources: note.resources.map(res => ({ ...res, chunks: raw!.resources.find(item => item.key === res.key)?.chunks ?? 0 })) }, contentMarkdown: "", enml: raw.content };
       return this.prepared;
     }
-    const text = await this.sources.text(entry, signal);
+    if (this.format === "flomo") {
+      const contentMarkdown = await this.index.get<string>("raw", `flomo:${key}`);
+      if (contentMarkdown === undefined) throw new Error("missingNote");
+      return { note, contentMarkdown };
+    }
+    let text = await this.sources.text(entry, signal);
+    if ((this.format === "notion" || this.format === "siyuan") && /<(?:img|audio|video|source)\b/i.test(text)) {
+      const { normalizeExportMedia } = await import("./markdown-export-html");
+      text = normalizeExportMedia(text);
+    }
     return { note, contentMarkdown: note.raw ? readRaw(text)!.body : text };
   }
   async readResourcePart(resource: ImportResource, start: number, end: number, signal?: AbortSignal): Promise<Uint8Array<ArrayBuffer>> {
     signal?.throwIfAborted();
+    const bytes = new ImportByteStore(this.index, "chunk", resource.key);
     if (!resource.enex && !this.staged.has(resource.key)) {
       const entry = await this.index.get<SourceEntry>("entry", resource.entryKey!);
       if (!entry) throw new Error("missingResource");
-      let chunk = new Uint8Array(IMPORT_CHUNK_BYTES), used = 0, number = 0;
-      for await (const bytes of this.sources.bytes(entry, signal)) {
-        let at = 0;
-        while (at < bytes.length) {
-          const length = Math.min(chunk.length - used, bytes.length - at);
-          chunk.set(bytes.subarray(at, at + length), used); at += length; used += length;
-          if (used === chunk.length) { await this.index.put("chunk", `${resource.key}:${number++}`, chunk); chunk = new Uint8Array(IMPORT_CHUNK_BYTES); used = 0; }
-        }
-      }
-      if (used) await this.index.put("chunk", `${resource.key}:${number++}`, chunk.slice(0, used));
+      await bytes.stage(this.sources.bytes(entry, signal));
       this.staged.add(resource.key);
     }
-    const result = new Uint8Array(end - start);
-    let cursor = start;
-    while (cursor < end) {
-      const number = Math.floor(cursor / IMPORT_CHUNK_BYTES);
-      const chunk = await this.index.get<Uint8Array>("chunk", `${resource.key}:${number}`);
-      if (!chunk) throw new Error("missingResource");
-      const at = cursor % IMPORT_CHUNK_BYTES;
-      const length = Math.min(chunk.length - at, end - cursor);
-      if (length <= 0) throw new Error("missingResource");
-      result.set(chunk.subarray(at, at + length), cursor - start); cursor += length;
-    }
-    return result;
+    return bytes.read(start, end);
   }
   async releaseNote(note: ImportNote) {
     for (const res of note.resources) {

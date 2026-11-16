@@ -136,8 +136,11 @@ describe("resource upload placeholder", () => {
       .getState(editor.state)
       ?.find(undefined, undefined, (spec) => spec.id === placeholder.id) ?? [];
     expect(mappedDecorations).toHaveLength(1);
-    expect(mappedDecorations[0]?.from).toBe(2);
-    expect(getImageUploadPlaceholderPosition(editor.state, placeholder.id)).toBe(2);
+    // Text typed at the upload caret belongs after the pending image.
+    expect(mappedDecorations[0]?.from).toBe(1);
+    expect(getImageUploadPlaceholderPosition(editor.state, placeholder.id)).toBe(1);
+    expect(mappedDecorations[0]?.spec.relaxedSide).toBe(true);
+    expect(mappedDecorations[0]?.spec.ignoreSelection).toBe(true);
 
     removeImageUploadPlaceholder(editor, placeholder);
     expect(IMAGE_UPLOAD_PLACEHOLDER_PLUGIN_KEY.getState(editor.state)?.find()).toHaveLength(0);

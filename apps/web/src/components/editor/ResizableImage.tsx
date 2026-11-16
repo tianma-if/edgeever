@@ -18,6 +18,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { isImageInGallery } from "./image-editing-context";
 import { createImageSelectionPlugin, imageSelectionKey } from "./image-selection";
 import { createImageDragPlugin } from "./image-drag";
+import { getImageUploadPreview, releaseImageUploadPreview } from "./image-upload-preview";
 
 export type ImageMenuRequestDetail = {
   element: HTMLElement;
@@ -68,6 +69,8 @@ const ResizableImageNodeView = ({
   const alt = typeof node.attrs.alt === "string" ? node.attrs.alt : "";
   const title = typeof node.attrs.title === "string" ? node.attrs.title : "";
   const src = typeof node.attrs.src === "string" ? node.attrs.src : "";
+  const [loadedSource, setLoadedSource] = useState<string | null>(null);
+  const uploadPreview = loadedSource === src ? undefined : getImageUploadPreview(editor, src);
 
   const getAdjacentImageGroup = useCallback(() => {
     const position = getPos();
@@ -289,6 +292,17 @@ const ResizableImageNodeView = ({
         else selectImage();
       }}
     >
+      {uploadPreview && (
+        <img
+          src={uploadPreview}
+          alt=""
+          aria-hidden="true"
+          data-upload-preview="true"
+          draggable={false}
+          onClick={(event) => { event.preventDefault(); selectImage(); }}
+          onDoubleClick={(event) => { event.preventDefault(); event.stopPropagation(); requestImagePreview(); }}
+        />
+      )}
       <img
         ref={imageRef}
         src={src}
@@ -296,6 +310,12 @@ const ResizableImageNodeView = ({
         draggable={editable}
         data-drag-handle={editable ? "" : undefined}
         referrerPolicy={getImageReferrerPolicy(src)}
+        data-upload-loading={uploadPreview ? "true" : undefined}
+        style={uploadPreview ? { position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0 } : undefined}
+        onLoad={() => {
+          setLoadedSource(src);
+          releaseImageUploadPreview(editor, src);
+        }}
         onClick={(event) => {
           // A positioned figure does not occupy the full block wrapper. Select
           // its node explicitly instead of relying on coordinate hit testing.

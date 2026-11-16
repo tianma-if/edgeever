@@ -10,14 +10,21 @@ type EncryptedSecret = {
   ciphertext: ArrayBuffer;
 };
 
+const requireSecretCrypto = () => {
+  if (!globalThis.crypto?.subtle) {
+    throw new Error("Encrypted plugin secrets require HTTPS or localhost. Open this instance over HTTPS to read or save secret settings.");
+  }
+  return crypto.subtle;
+};
+
 export const encryptPluginSecret = async (key: CryptoKey, value: string) => {
   const iv = crypto.getRandomValues(new Uint8Array(12));
-  const ciphertext = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(value));
+  const ciphertext = await requireSecretCrypto().encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(value));
   return { iv, ciphertext };
 };
 
 export const decryptPluginSecret = async (key: CryptoKey, encrypted: Pick<EncryptedSecret, "iv" | "ciphertext">) => {
-  const plaintext = await crypto.subtle.decrypt({ name: "AES-GCM", iv: encrypted.iv }, key, encrypted.ciphertext);
+  const plaintext = await requireSecretCrypto().decrypt({ name: "AES-GCM", iv: encrypted.iv }, key, encrypted.ciphertext);
   return new TextDecoder().decode(plaintext);
 };
 
@@ -70,7 +77,7 @@ export class WebPluginSecretStore implements PluginSecretStorage {
     await transactionDone(readTransaction);
     if (existing) return existing;
 
-    const generated = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+    const generated = await requireSecretCrypto().generateKey({ name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
     const writeTransaction = database.transaction(KEY_STORE, "readwrite");
     writeTransaction.objectStore(KEY_STORE).put(generated, MASTER_KEY_ID);
     await transactionDone(writeTransaction);

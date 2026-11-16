@@ -149,3 +149,97 @@ test("a remote tombstone uninstalls the local extension without writing the cata
   expect(removals).toEqual([]);
   await host.dispose();
 });
+
+const catalogEntry = (id) => ({
+  extensionId: id, type: "plugin", version: "1.0.0", enabled: false,
+  installedAt: "2026-09-13T10:00:00.000Z", updatedAt: "2026-09-14T10:00:00.000Z",
+  deletedAt: null, manifestUrl: `https://example.test/${id}/manifest.json`,
+  sourceKind: "manifest", verified: false, repositoryUrl: null, releaseTag: null, publisher: null,
+});
+
+test("catalog read failures remain visible until a successful retry", async () => {
+  values.clear();
+  let fail = true;
+  const host = new EdgeEverPluginHost({
+    scope: "catalog-read-failure", secretStorage,
+    repository: {},
+    catalogAdapter: { list: async () => { if (fail) throw new Error("HTTP 503"); return []; } },
+  });
+  try {
+    await host.syncFromCatalog();
+    expect(host.getSnapshot().catalogErrors).toEqual([{ extensionId: null, message: "HTTP 503" }]);
+    fail = false;
+    await host.syncFromCatalog();
+    expect(host.getSnapshot().catalogErrors).toEqual([]);
+  } finally { await host.dispose(); }
+});
+
+test("failed restore is visible, preserves existing installs, and retries on LAN HTTP", async () => {
+  values.clear();
+  const oldCrypto = Object.getOwnPropertyDescriptor(globalThis, "crypto");
+  const oldFetch = stubWindow.fetch;
+  const oldHref = stubWindow.location.href;
+  let fail = true;
+  const packages = new Map();
+  const writes = [];
+  const remote = [catalogEntry("org.edgeever.restore-fail"), catalogEntry("org.edgeever.restore-ok"), catalogEntry("org.edgeever.restore-fail-new")];
+  stubWindow.location.href = "http://192.168.1.2:8787";
+  stubWindow.fetch = async (input) => {
+    const url = String(input);
+    if (fail && url.includes("restore-fail")) return new Response(null, { status: 503 });
+    if (url.endsWith("manifest.json")) {
+      const id = remote.find((entry) => url === entry.manifestUrl).extensionId;
+      return Response.json({ ...pluginManifest(id), entry: "./main.js" });
+    }
+    if (url.endsWith("main.js")) return new Response("export default { activate() {} }");
+    return new Response(null, { status: 404 });
+  };
+  Object.defineProperty(globalThis, "crypto", { configurable: true, value: {} });
+  const host = new EdgeEverPluginHost({
+    scope: "catalog-restore-failure", secretStorage, repository: {},
+    packageStorage: {
+      get: async (id) => packages.get(id) ?? null,
+      put: async (value) => { packages.set(value.pluginId, value); }, remove: async () => {},
+    },
+    catalogAdapter: {
+      list: async () => remote,
+      upsert: async () => { writes.push("upsert"); throw new Error("unexpected upsert"); },
+      remove: async () => { writes.push("remove"); throw new Error("unexpected remove"); },
+    },
+  });
+  try {
+    host.installManifest(pluginManifest(remote[0].extensionId), remote[0].manifestUrl);
+    // Simulate an older locally persisted install requiring a newer remote package.
+    const saved = JSON.parse(values.get("edgeever.extensions.installed.v1"));
+    saved[0].manifest.version = "0.9.0";
+    saved[0].catalogUpdatedAt = "2026-09-12T10:00:00.000Z";
+    values.set("edgeever.extensions.installed.v1", JSON.stringify(saved));
+    await host.dispose();
+    const restoredHost = new EdgeEverPluginHost({
+      scope: "catalog-restore-failure", secretStorage, repository: {},
+      packageStorage: { get: async (id) => packages.get(id) ?? null, put: async (value) => { packages.set(value.pluginId, value); }, remove: async () => {} },
+      catalogAdapter: { list: async () => remote, upsert: async () => { writes.push("upsert"); }, remove: async () => { writes.push("remove"); } },
+    });
+    try {
+      await restoredHost.syncFromCatalog();
+      expect(restoredHost.getSnapshot().catalogErrors).toEqual([
+        { extensionId: remote[0].extensionId, message: "Manifest request failed with HTTP 503." },
+        { extensionId: remote[2].extensionId, message: "Manifest request failed with HTTP 503." },
+      ]);
+      expect(restoredHost.getSnapshot().extensions.find((item) => item.manifest.id === remote[0].extensionId).manifest.version).toBe("0.9.0");
+      expect(restoredHost.getSnapshot().extensions.find((item) => item.manifest.id === remote[1].extensionId)).toBeDefined();
+      fail = false;
+      await restoredHost.syncFromCatalog();
+      expect(restoredHost.getSnapshot().catalogErrors).toEqual([]);
+      expect(restoredHost.getSnapshot().extensions).toHaveLength(3);
+      expect(restoredHost.getSnapshot().extensions.find((item) => item.manifest.id === remote[0].extensionId).manifest.version).toBe("1.0.0");
+      expect(packages.get(remote[0].extensionId).checksums.mainJs).toMatch(/^[a-f0-9]{64}$/);
+      expect(writes).toEqual([]);
+    } finally { await restoredHost.dispose(); }
+  } finally {
+    await host.dispose();
+    Object.defineProperty(globalThis, "crypto", oldCrypto);
+    stubWindow.fetch = oldFetch;
+    stubWindow.location.href = oldHref;
+  }
+});

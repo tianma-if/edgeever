@@ -15,6 +15,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
+import { publishImageErrorMessage } from "@/lib/publish-image-host";
 import * as m from "motion/react-m";
 import {
   X,
@@ -48,8 +49,9 @@ import {
   Pencil,
   Copy,
   CopyPlus,
+  ClipboardType,
 } from "lucide-react";
-import { WeChatIcon } from "./WeChatIcon";
+import { IconTooltip } from "./editor/EditorPaneChrome";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -516,6 +518,7 @@ export const MemoListPane = ({
   const [moveTargetNotebookId, setMoveTargetNotebookId] = useState("");
   const [memoIdCopyNotice, setMemoIdCopyNotice] = useState<{ status: "copied" | "error"; id: string } | null>(null);
   const [wechatCopyNotice, setWechatCopyNotice] = useState<"copied" | "error" | null>(null);
+  const [wechatCopyError, setWechatCopyError] = useState<string | null>(null);
   const [wechatCopyPending, setWechatCopyPending] = useState(false);
   const wechatCopyPendingRef = useRef(false);
   const wechatCopyNoticeTimerRef = useRef<number | null>(null);
@@ -671,15 +674,17 @@ export const MemoListPane = ({
       window.clearTimeout(wechatCopyNoticeTimerRef.current);
     }
     setWechatCopyNotice(null);
+    setWechatCopyError(null);
     setWechatCopyPending(true);
     try {
       const result = await onCopyMemoToWeChat(memo.id);
       if (result === "editor") return;
       setWechatCopyNotice(result);
       wechatCopyNoticeTimerRef.current = window.setTimeout(() => setWechatCopyNotice(null), result === "copied" ? 2200 : 2600);
-    } catch {
+    } catch (error) {
+      setWechatCopyError(publishImageErrorMessage(error));
       setWechatCopyNotice("error");
-      wechatCopyNoticeTimerRef.current = window.setTimeout(() => setWechatCopyNotice(null), 2600);
+      wechatCopyNoticeTimerRef.current = window.setTimeout(() => setWechatCopyNotice(null), 8000);
     } finally {
       wechatCopyPendingRef.current = false;
       setWechatCopyPending(false);
@@ -1659,13 +1664,19 @@ export const MemoListPane = ({
                   </DropdownMenuItem>
                   {!isLocalMemoId(memoContextMenu.memo.id) && <MemoNotebookSites key={memoContextMenu.memo.id} memoId={memoContextMenu.memo.id} presentation="menu" />}
                   {!memoContextMenu.memo.diagramKind && !memoContextMenu.memo.structuredTable && !memoContextMenu.memo.infographic && !memoContextMenu.memo.poster && (
-                    <DropdownMenuItem
-                      className="flex h-9 w-full items-center gap-2 px-3 text-left text-xs text-slate-700 hover:bg-slate-50 cursor-pointer outline-none"
-                      onClick={() => void handleCopyContextMemoToWeChat()}
+                    <IconTooltip
+                      side="right"
+                      contentClassName="z-[110] max-w-xs whitespace-normal"
+                      label={t("editor.copyToWeChatTooltip")}
                     >
-                      <WeChatIcon className="h-4 w-4 text-slate-500" />
-                      {t("editor.copyToWeChat")}
-                    </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="flex h-9 w-full items-center gap-2 px-3 text-left text-xs text-slate-700 hover:bg-slate-50 cursor-pointer outline-none"
+                        onClick={() => void handleCopyContextMemoToWeChat()}
+                      >
+                        <ClipboardType className="h-4 w-4 text-slate-500" />
+                        {t("editor.copyToWeChat")}
+                      </DropdownMenuItem>
+                    </IconTooltip>
                   )}
                   <DropdownMenuItem
                     className="flex h-9 w-full items-center gap-2 px-3 text-left text-xs text-slate-700 hover:bg-slate-50 cursor-pointer outline-none"
@@ -1732,7 +1743,7 @@ export const MemoListPane = ({
 
       {wechatCopyNotice && (
         <ClipboardCopyNotice status={wechatCopyNotice}>
-          {t(wechatCopyNotice === "copied" ? "editor.copiedToWeChat" : "editor.copyToWeChatFailed")}
+          {wechatCopyNotice === "error" && wechatCopyError ? wechatCopyError : t(wechatCopyNotice === "copied" ? "editor.copiedToWeChatNotice" : "editor.copyToWeChatFailed")}
         </ClipboardCopyNotice>
       )}
 

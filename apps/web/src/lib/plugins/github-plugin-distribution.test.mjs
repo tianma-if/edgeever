@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { downloadGithubExtension, downloadPinnedGithubExtension, loadGithubInstallableManifest, loadGithubRepositoryManifest, parseGithubRepositoryUrl } from "./github-plugin-distribution.ts";
+import { downloadGithubExtension, downloadPinnedGithubExtension, loadGithubInstallableManifest, loadGithubRepositoryManifest, parseGithubRepositoryUrl, sha256Hex } from "./github-plugin-distribution.ts";
+import { createHash } from "node:crypto";
+import { verifyCommunityRegistrySignature } from "./community-registry-keys.ts";
 import { stubUnavailableGithubInstance } from "./github-plugin-test-api.mjs";
 
 let restoreGithubInstance;
@@ -289,4 +291,33 @@ describe("GitHub plugin distribution", () => {
 
     expect(downloaded.manifest.version).toBe("0.5.4");
   });
+});
+
+// An HTTP LAN origin exposes crypto.getRandomValues, but not crypto.subtle.
+test("SHA-256 retains byte-for-byte integrity checks without SubtleCrypto", async () => {
+  const original = Object.getOwnPropertyDescriptor(globalThis, "crypto");
+  Object.defineProperty(globalThis, "crypto", { configurable: true, value: {} });
+  try {
+    // A missing crypto API must never accept an unverified community catalog.
+    expect(await verifyCommunityRegistrySignature(new Uint8Array([1]), new Uint8Array(64), [new Uint8Array(32)])).toBe(false);
+    for (const value of ["", "abc", "插件完整性校验 🔒", "a".repeat(100000)]) {
+      expect(await sha256Hex(value)).toBe(createHash("sha256").update(value).digest("hex"));
+    }
+    const bytes = Uint8Array.from({ length: 256 }, (_, index) => index);
+    expect(await sha256Hex(bytes.buffer)).toBe(createHash("sha256").update(bytes).digest("hex"));
+  } finally {
+    Object.defineProperty(globalThis, "crypto", original);
+  }
+});
+
+test("a native hashing failure is not silently ignored", async () => {
+  const original = Object.getOwnPropertyDescriptor(globalThis, "crypto");
+  Object.defineProperty(globalThis, "crypto", { configurable: true, value: {
+    subtle: { digest: async () => { throw new Error("hashing failed"); } },
+  } });
+  try {
+    await expect(sha256Hex("abc")).rejects.toThrow("hashing failed");
+  } finally {
+    Object.defineProperty(globalThis, "crypto", original);
+  }
 });

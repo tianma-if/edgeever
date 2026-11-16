@@ -1,5 +1,5 @@
 export const deSiteTagline =
-  "KI-native Wissensbasis & Evernote/Obsidian-Alternative mit Sofort-Synchronisierung & nativem MCP. Kostenlos auf Cloudflare oder selbst gehostet via Docker.";
+  "KI-native Notiz-App & Evernote/Obsidian-Alternative mit Sofort-Synchronisierung & nativem MCP. Kostenlos auf Cloudflare oder selbst gehostet via Docker.";
 
 export const deSiteCopy = {
   layout: {
@@ -58,7 +58,7 @@ export const deSiteCopy = {
     heading: "Neu gedacht für selbst gehostetes Wissen und KI-Workflows",
     subheading:
       "Schluss mit Werbung, Gerätebeschränkungen und teuren Abos. Jedes Detail wurde für ein schnelles, offenes und privates zweites Gehirn entwickelt.",
-    showcaseCta: "19 praxisnahe Workflows und Screenshots ansehen",
+    showcaseCta: "20 praxisnahe Workflows und Screenshots ansehen",
     card1: {
       badge: "Klassische UI",
       title: "Klassisches Drei-Spalten-Layout, schneller und leichter",
@@ -118,8 +118,8 @@ export const deSiteCopy = {
     },
   },
   marquee: {
-    title: "Plattformübergreifende Apps, flexible Bereitstellung & KI-Ökosystem",
-    subtitle: "Von Desktop- und Mobil-Apps bis hin zu Docker-Selbsthosting, Gestaltungsoptionen für Autoren und Remote-MCP-Kollaboration.",
+    title: "Native Architektur, flexibles Hosting & KI-Ökosystem",
+    subtitle: "Von lokalem SQLite-Sync und ACP-/Remote-MCP-Workflows bis zu Docker-Selbsthosting und Autoren-Layouts.",
     items: [
       {
         tag: "macOS Desktop",
@@ -275,7 +275,7 @@ export const deSiteCopy = {
         cta: "Migrationsleitfaden lesen",
       },
       {
-        title: "19 Praxis-Workflows & Showcase",
+        title: "20 Praxis-Workflows & Showcase",
         summary: "Visuelle Übersicht über Drei-Spalten-Bearbeitung, Omnichannel-Clipping, KI-Diagramme, lokale ACP-Agenten und Poster-Design.",
         href: "/guides/best-practices",
         cta: "Showcase ansehen",

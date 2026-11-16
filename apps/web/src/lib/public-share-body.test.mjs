@@ -5,6 +5,7 @@ import {
   diagramFallbackMarkdown,
   markdownToDoc,
   serializeDiagramDocument,
+  serializeInfographicDocument,
   serializeTableDocument,
   tableFallbackMarkdown,
 } from "@edgeever/shared";
@@ -20,6 +21,20 @@ const shareOf = (contentMarkdown, contentJson = markdownToDoc(contentMarkdown)) 
 });
 
 describe("public share body", () => {
+  test("renders infographic notes from native syntax instead of exposing their metadata", () => {
+    const document = { schemaVersion: 1, syntax: "infographic list-row-simple-horizontal\ndata\n  title Shared graphic\n  items\n    - label First" };
+    const body = resolvePublicShareBody(shareOf(serializeInfographicDocument(document)), "share-token");
+    expect(body).toEqual({ type: "infographic", infographic: document });
+  });
+
+  test("removes an invalid infographic envelope from the readable fallback", () => {
+    const markdown = "```infographic\ninvalid syntax\n```\n\n<!-- edgeever-infographic-v1:not-json -->";
+    const body = resolvePublicShareBody(shareOf(markdown), "share-token");
+    expect(body.type).toBe("rich-text");
+    expect(JSON.stringify(body)).not.toContain("edgeever-infographic-v1");
+    expect(JSON.stringify(body)).toContain("invalid syntax");
+  });
+
   test.each(["mind-map", "flowchart", "architecture"])("renders a %s visual diagram note from IR, not the Mermaid envelope", (kind) => {
     const document = createDefaultDiagramDocument(kind);
     const markdown = serializeDiagramDocument(document);

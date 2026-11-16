@@ -1,0 +1,9 @@
+[
+  { "name": "Anthropic", "message": "max_tokens: 128001 > 64000, which is the maximum allowed number of output tokens for claude-x", "expected": 64000 },
+  { "name": "OpenAI", "message": "max_tokens is too large: 86000. This model supports at most 4096 completion tokens, whereas you provided 86000", "expected": 4096 },
+  { "name": "Gemini (exclusive upper bound)", "message": "it has a maxOutputTokens value of 828858 but the supported range is from 1 (inclusive) to 65537 (exclusive).", "expected": 65536 },
+  { "name": "Generic less-than-or-equal", "message": "max_tokens must be less than or equal to 8192", "expected": 8192 },
+  { "name": "Generic <=", "message": "Invalid request: max_output_tokens <= 32768 is required", "expected": 32768 },
+  { "name": "Unrelated error", "message": "Invalid API key", "expected": null },
+  { "name": "Zero is not a limit", "message": "max_tokens must be less than or equal to 0", "expected": null }
+]
