@@ -74,6 +74,10 @@ const createFixture = () => {
 
 const grant = (notebookId, level) => ({ notebookId, read: true, write: level === "write" });
 
+// A fresh adapter over the same underlying database, simulating a different
+// worker/isolate that shares storage but no in-memory state.
+const createFixtureAdapter = (sqlite) => new SqliteD1Database(sqlite);
+
 describe("parseNotebookAccessJson", () => {
   test("null stays unrestricted; empty and malformed values fail closed", () => {
     expect(parseNotebookAccessJson(null)).toBeNull();
@@ -150,24 +154,40 @@ describe("resolveNotebookAccess (whitelist)", () => {
 
   test("unwhitelisted notebooks — including new ones — stay invisible", async () => {
     const db = createFixture();
-    const { invalidateNotebookTreeCache } = await import("./token-notebook-access.ts");
     const access = await resolveNotebookAccess(db, "ws_t", [grant("nb_child", "write")], "write");
     expect(access.readableNotebookIds).toEqual(["nb_child", "nb_grandchild"]);
     expect(access.readableNotebookIds).not.toContain("nb_other");
     expect(access.readableNotebookIds).not.toContain("nb_root");
 
-    // A notebook created after the token stays invisible (bypass the tree
-    // cache the way a real notebook write does).
+    // A notebook created after the token stays invisible. There is no cache,
+    // so the next resolution reads the current hierarchy directly.
     db.db.query("INSERT INTO notebooks (id, workspace_id, name, parent_id) VALUES ('nb_fresh', 'ws_t', 'Fresh', NULL)").run();
-    invalidateNotebookTreeCache("ws_t");
     const after = await resolveNotebookAccess(db, "ws_t", [grant("nb_child", "write")], "write");
     expect(after.readableNotebookIds).not.toContain("nb_fresh");
 
     // ...unless it is created under a whitelisted parent.
     db.db.query("INSERT INTO notebooks (id, workspace_id, name, parent_id) VALUES ('nb_fresh_child', 'ws_t', 'FreshChild', 'nb_child')").run();
-    invalidateNotebookTreeCache("ws_t");
     const inherited = await resolveNotebookAccess(db, "ws_t", [grant("nb_child", "write")], "write");
     expect(inherited.readableNotebookIds).toContain("nb_fresh_child");
+  });
+
+  test("moving a child out of a granted subtree narrows access immediately on any instance", async () => {
+    const db = createFixture();
+    const entries = [grant("nb_root", "write")];
+    // First "worker" resolves and sees the whole subtree.
+    const before = await resolveNotebookAccess(db, "ws_t", entries, "write");
+    expect(before.readableNotebookIds).toContain("nb_grandchild");
+
+    // Another worker moves the child out from under the granted root.
+    db.db.query("UPDATE notebooks SET parent_id = NULL WHERE id = 'nb_child'").run();
+
+    // A fresh resolution (a different isolate with no shared cache) must
+    // immediately exclude the moved subtree — no stale allow.
+    const otherInstance = createFixtureAdapter(db.db);
+    const after = await resolveNotebookAccess(otherInstance, "ws_t", entries, "write");
+    expect(after.readableNotebookIds).toEqual(["nb_root"]);
+    expect(after.readableNotebookIds).not.toContain("nb_child");
+    expect(after.readableNotebookIds).not.toContain("nb_grandchild");
   });
 
   test("an empty whitelist grants nothing", async () => {
@@ -202,8 +222,6 @@ describe("resolveNotebookAccess (whitelist)", () => {
       },
     };
 
-    const { invalidateNotebookTreeCache } = await import("./token-notebook-access.ts");
-    invalidateNotebookTreeCache("ws_t");
     const access = await resolveNotebookAccess(counting, "ws_t", [grant("nb_root", "write")], "write");
     expect(queries).toBe(1);
     expect(access.readableNotebookIds.length).toBeGreaterThan(0);
@@ -244,39 +262,97 @@ describe("notebook access assertions", () => {
   });
 });
 
-describe("tree cache bounds cumulative reads", () => {
-  test("repeated resolutions within the TTL issue one tree query", async () => {
-    const db = createFixture();
+describe("authorization read budget (no cache, scoped expansion)", () => {
+  // Wrap an adapter to count queries and the rows each access query returns.
+  const countingAdapter = (db) => {
     const realPrepare = db.prepare.bind(db);
-    let queries = 0;
-    const counting = {
+    const stats = { queries: 0, accessRows: 0, accessSql: [] };
+    const adapter = {
       prepare: (sql) => {
         const statement = realPrepare(sql);
         return {
           bind: (...bindings) => {
             const bound = statement.bind(...bindings);
+            const isAccess = /WITH RECURSIVE accessible/.test(sql);
+            if (isAccess) stats.accessSql.push(sql);
             return {
-              async all() { queries += 1; return bound.all(); },
-              async first() { queries += 1; return bound.first(); },
-              async run() { queries += 1; return bound.run(); },
+              async all() {
+                stats.queries += 1;
+                const result = await bound.all();
+                if (isAccess) stats.accessRows += result.results.length;
+                return result;
+              },
+              async first() { stats.queries += 1; return bound.first(); },
+              async run() { stats.queries += 1; return bound.run(); },
             };
           },
         };
       },
     };
+    return { adapter, stats };
+  };
 
-    const { invalidateNotebookTreeCache } = await import("./token-notebook-access.ts");
-    invalidateNotebookTreeCache("ws_t");
-
-    // Ten "pages" of a restricted listing resolve the tree once.
-    for (let page = 0; page < 10; page++) {
-      await resolveNotebookAccess(counting, "ws_t", [{ notebookId: "nb_root", read: true, write: true }], "write");
+  const seedManyUnrelated = (db, count, prefix) => {
+    for (let i = 0; i < count; i++) {
+      db.db.query("INSERT INTO notebooks (id, workspace_id, name, parent_id) VALUES (?, 'ws_t', ?, NULL)")
+        .run(`${prefix}_${i}`, `Unrelated ${i}`);
     }
-    expect(queries).toBe(1);
+  };
 
-    // Invalidation forces a fresh load on the next resolution.
-    invalidateNotebookTreeCache("ws_t");
-    await resolveNotebookAccess(counting, "ws_t", [{ notebookId: "nb_root", read: true, write: true }], "write");
-    expect(queries).toBe(2);
+  test("reads only the granted subtree, never the whole notebook table", async () => {
+    const db = createFixture();
+    // Granted subtree is nb_root -> nb_child -> nb_grandchild (3 notebooks).
+    seedManyUnrelated(db, 500, "bulk_a");
+    const { adapter, stats } = countingAdapter(db);
+
+    const access = await resolveNotebookAccess(adapter, "ws_t", [grant("nb_root", "write")], "write");
+    expect(access.readableNotebookIds.sort()).toEqual(["nb_child", "nb_grandchild", "nb_root"]);
+    expect(stats.queries).toBe(1);
+    // Only the 3 authorized rows are read, not the 500+ unrelated notebooks.
+    expect(stats.accessRows).toBe(3);
+    // The expansion is a scoped recursive CTE seeded from the whitelist.
+    expect(stats.accessSql[0]).toContain("json_each");
+    expect(stats.accessSql[0]).not.toMatch(/SELECT id, parent_id FROM notebooks WHERE workspace_id = \? AND is_deleted = 0\s*$/);
+  });
+
+  test("read volume does not grow with the total notebook count", async () => {
+    const db = createFixture();
+    seedManyUnrelated(db, 200, "bulk_a");
+    const first = countingAdapter(db);
+    await resolveNotebookAccess(first.adapter, "ws_t", [grant("nb_root", "write")], "write");
+    expect(first.stats.accessRows).toBe(3);
+
+    // Add 800 more unrelated notebooks; the authorized read volume is unchanged.
+    seedManyUnrelated(db, 800, "bulk_b");
+    const second = countingAdapter(db);
+    await resolveNotebookAccess(second.adapter, "ws_t", [grant("nb_root", "write")], "write");
+    expect(second.stats.accessRows).toBe(3);
+  });
+
+  test("paged listings across isolates stay fresh and bounded by the granted subtree", async () => {
+    const db = createFixture();
+    seedManyUnrelated(db, 1000, "bulk");
+    const entries = [grant("nb_root", "write")];
+
+    // Ten pages, each on a fresh adapter (different isolate, no shared cache),
+    // spaced far enough apart that any TTL cache would have expired.
+    let totalRows = 0;
+    for (let page = 0; page < 10; page++) {
+      const isolate = createFixtureAdapter(db.db);
+      const { adapter, stats } = countingAdapter(isolate);
+      const access = await resolveNotebookAccess(adapter, "ws_t", entries, "write");
+      expect(access.readableNotebookIds.length).toBe(3);
+      expect(stats.queries).toBe(1);
+      totalRows += stats.accessRows;
+    }
+    // 10 pages read 10 x 3 authorized rows, not 10 x 1003 whole-tree rows.
+    expect(totalRows).toBe(30);
+
+    // A move performed "on another worker" is visible on the next page even
+    // though no cache was invalidated anywhere.
+    db.db.query("UPDATE notebooks SET parent_id = NULL WHERE id = 'nb_child'").run();
+    const isolate = createFixtureAdapter(db.db);
+    const access = await resolveNotebookAccess(isolate, "ws_t", entries, "write");
+    expect(access.readableNotebookIds).toEqual(["nb_root"]);
   });
 });

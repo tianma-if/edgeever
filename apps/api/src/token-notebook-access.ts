@@ -116,6 +116,15 @@ export const notebookInListSql = (notebookIdColumn: string, notebookIds: string[
  * One level applies to the whole whitelist: "read" grants read-only on every
  * granted subtree, "write" grants read and write. Notebooks not on the list
  * — including notebooks created after the token — are invisible.
+ *
+ * Read budget & consistency: the whitelist is expanded with a single scoped
+ * recursive CTE that reads ONLY the granted subtrees (index-driven via
+ * idx_notebooks_workspace_parent), never the whole notebook table. There is no
+ * cache: every request reads the current hierarchy straight from the database,
+ * so a move/narrow performed on any worker/isolate takes effect immediately on
+ * every other one, and paged listings never reload unrelated notebooks. The
+ * rows read scale with the authorized subtree size, not the workspace's total
+ * notebook count.
  */
 export const resolveNotebookAccess = async (
   db: DatabaseAdapter,
@@ -127,70 +136,44 @@ export const resolveNotebookAccess = async (
     return UNRESTRICTED_NOTEBOOK_ACCESS;
   }
 
-  // The tree is loaded once per request (ids + parents in a single query) and
-  // the whitelist expanded in memory: a granted notebook opens its whole
-  // live subtree, and a child listed alongside its parent adds nothing.
-  const tree = await notebookTree(db, workspaceId);
+  const whitelist = entries.map((entry) => entry.notebookId);
+  if (whitelist.length === 0) {
+    // Fail closed without touching the database.
+    return {
+      restricted: true,
+      readableNotebookIds: [],
+      writableNotebookIds: [],
+      defaultWrite: level === "write",
+    };
+  }
 
-  const readable: string[] = [];
-  const writable: string[] = [];
-  const open = (notebookId: string) => {
-    if (!tree.parentByNotebook.has(notebookId)) return; // Not live.
-    if (readable.includes(notebookId)) return; // Already expanded.
-    readable.push(notebookId);
-    if (level === "write") writable.push(notebookId);
-    for (const [childId, parentId] of tree.parentByNotebook) {
-      if (parentId === notebookId) open(childId);
-    }
-  };
-  for (const entry of entries) open(entry.notebookId);
+  // Expand only the whitelisted subtrees. UNION deduplicates a child listed
+  // alongside its parent; is_deleted = 0 on both the seed and the recursion
+  // keeps deleted notebooks (and anything moved out of a granted subtree)
+  // invisible immediately.
+  const rows = await db.prepare(
+    `WITH RECURSIVE accessible(id) AS (
+       SELECT id
+       FROM notebooks
+       WHERE workspace_id = ? AND is_deleted = 0 AND id IN (SELECT value FROM json_each(?))
 
+       UNION
+
+       SELECT n.id
+       FROM notebooks n
+       INNER JOIN accessible a ON n.parent_id = a.id
+       WHERE n.workspace_id = ? AND n.is_deleted = 0
+     )
+     SELECT id FROM accessible`,
+  ).bind(workspaceId, notebookIdsBind(whitelist), workspaceId).all<{ id: string }>();
+
+  const readable = rows.results.map((row) => row.id);
   return {
     restricted: true,
     readableNotebookIds: readable,
-    writableNotebookIds: writable,
+    writableNotebookIds: level === "write" ? [...readable] : [],
     defaultWrite: level === "write",
   };
-};
-
-/**
- * Loads the live notebook tree (ids + parent links) in a single query, so a
- * restricted request pays one constant read for authorization instead of two
- * full-table scans.
- *
- * A short per-isolate cache deduplicates the load across the paged requests
- * of one browsing session: listing N pages resolves the tree once instead of
- * N times, keeping cumulative read volume flat in page count. Entries expire
- * quickly so notebook changes are picked up within seconds.
- */
-type NotebookTree = { ids: string[]; parentByNotebook: Map<string, string | null> };
-
-const NOTEBOOK_TREE_CACHE_TTL_MS = 5_000;
-const notebookTreeCache = new Map<string, { expiresAt: number; tree: NotebookTree }>();
-
-const notebookTree = async (
-  db: DatabaseAdapter,
-  workspaceId: string,
-): Promise<NotebookTree> => {
-  const cached = notebookTreeCache.get(workspaceId);
-  const now = Date.now();
-  if (cached && cached.expiresAt > now) {
-    return cached.tree;
-  }
-  const rows = await db.prepare(
-    `SELECT id, parent_id FROM notebooks WHERE workspace_id = ? AND is_deleted = 0`,
-  ).bind(workspaceId).all<{ id: string; parent_id: string | null }>();
-  const tree: NotebookTree = {
-    ids: rows.results.map((row) => row.id),
-    parentByNotebook: new Map(rows.results.map((row) => [row.id, row.parent_id])),
-  };
-  notebookTreeCache.set(workspaceId, { expiresAt: now + NOTEBOOK_TREE_CACHE_TTL_MS, tree });
-  return tree;
-};
-
-/** Invalidates the cached tree for a workspace (called after notebook writes). */
-export const invalidateNotebookTreeCache = (workspaceId: string) => {
-  notebookTreeCache.delete(workspaceId);
 };
 
 /** SQL fragment for memo rows: true when the memo's notebook is accessible. */

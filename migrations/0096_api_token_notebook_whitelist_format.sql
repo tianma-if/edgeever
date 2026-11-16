@@ -1,49 +1,95 @@
 -- Normalize notebook_access_json to the runtime object format (PR #820).
 --
--- 0095 folded the old per-notebook grants into a whitelist, but wrote it as a
--- plain JSON array of notebook id strings (["nb_a","nb_b"]). The runtime
--- parser (parseNotebookAccessJson) requires {notebookId, read, write} objects,
--- so a string array parses to an empty whitelist and silently revokes access.
+-- An earlier revision of 0095 stored the whitelist as a plain JSON array of
+-- notebook id strings (["nb_a","nb_b"]). The runtime parser
+-- (parseNotebookAccessJson) requires {notebookId, read, write} objects, so a
+-- string array parses to an empty whitelist and silently revokes access. This
+-- migration converts that legitimate string-array whitelist into objects.
 --
--- This migration rewrites the whitelist into the object format. It is
--- idempotent: rows already stored as objects are re-emitted unchanged in
--- shape, so it is safe whether or not 0095's string-array output is present.
+-- It is strict and idempotent, mirroring the runtime parser:
+-- - NULL whitelist stays NULL (unrestricted legacy tokens).
+-- - A LEGITIMATE old-0095 whitelist is an array whose every item is a
+--   non-empty string; it is converted to objects at the stored level.
+-- - An all-object array is validated item by item; if ANY item is malformed
+--   the whole record fails closed (never drop the bad item and keep the good).
+-- - Mixed arrays, arrays containing empty strings / numbers / nulls, non-array
+--   values and invalid JSON all fail closed to an empty whitelist.
 --
 -- One access level applies to the whole whitelist (notebook_access_level), so
 -- every entry is emitted with read=true and write matching that level. The
--- level itself is authoritative at resolution time; the per-entry booleans
--- only need to be well-formed for the parser.
---
--- Row handling:
--- - NULL whitelist stays NULL (unrestricted legacy tokens).
--- - Invalid JSON or a non-array value fails closed: empty whitelist, read.
--- - A string array (0095 output) or object array is normalized to objects.
+-- level is authoritative at resolution time; the per-entry booleans only need
+-- to be well-formed for the parser.
 
--- 1. Corrupted / non-array rows fail closed.
+-- A. Legitimate old-0095 string array: every item a non-empty string.
+UPDATE api_tokens
+SET notebook_access_json = (
+    SELECT json_group_array(
+      json_object(
+        'notebookId', je.value,
+        'read', json('true'),
+        'write',
+          CASE WHEN COALESCE(notebook_access_level, 'read') = 'write'
+               THEN json('true') ELSE json('false') END
+      )
+    )
+    FROM json_each(notebook_access_json) je
+  ),
+  notebook_access_level = COALESCE(notebook_access_level, 'read')
+WHERE notebook_access_json IS NOT NULL
+  AND json_valid(notebook_access_json)
+  AND json_type(notebook_access_json) = 'array'
+  AND NOT EXISTS (
+    SELECT 1 FROM json_each(notebook_access_json) je
+    WHERE je.type != 'text' OR trim(je.value) = ''
+  );
+
+-- B. All-object array: validate every item, then normalize to the uniform
+--    level. Idempotent for rows 0095 already emitted as objects.
+UPDATE api_tokens
+SET notebook_access_json = CASE
+    WHEN EXISTS (
+      SELECT 1 FROM json_each(notebook_access_json) je
+      WHERE json_type(je.value, '$.notebookId') IS NOT 'text'
+         OR trim(COALESCE(json_extract(je.value, '$.notebookId'), '')) = ''
+         OR COALESCE(json_type(je.value, '$.read'), '') NOT IN ('true', 'false')
+         OR COALESCE(json_type(je.value, '$.write'), '') NOT IN ('true', 'false')
+    ) THEN '[]'
+    ELSE (
+      SELECT json_group_array(
+        json_object(
+          'notebookId', json_extract(je.value, '$.notebookId'),
+          'read', json('true'),
+          'write',
+            CASE WHEN COALESCE(notebook_access_level, 'read') = 'write'
+                 THEN json('true') ELSE json('false') END
+        )
+      )
+      FROM json_each(notebook_access_json) je
+    )
+  END,
+  notebook_access_level = COALESCE(notebook_access_level, 'read')
+WHERE notebook_access_json IS NOT NULL
+  AND json_valid(notebook_access_json)
+  AND json_type(notebook_access_json) = 'array'
+  AND NOT EXISTS (
+    SELECT 1 FROM json_each(notebook_access_json) je WHERE je.type != 'object'
+  );
+
+-- C. Everything else non-null fails closed: invalid JSON, non-array values,
+--    and arrays that still contain any non-object item (mixed string/object,
+--    empty strings, numbers, nulls, booleans).
 UPDATE api_tokens
 SET notebook_access_json = '[]',
     notebook_access_level = 'read'
 WHERE notebook_access_json IS NOT NULL
   AND (NOT json_valid(notebook_access_json) OR json_type(notebook_access_json) != 'array');
 
--- 2. Normalize string arrays and object arrays to the uniform-level object
---    format. json_group_array over an empty array yields '[]', so an empty
---    whitelist stays empty.
 UPDATE api_tokens
-SET notebook_access_json = (
-  SELECT json_group_array(
-    json_object(
-      'notebookId',
-        CASE WHEN json_each.type = 'text' THEN json_each.value
-             ELSE json_extract(json_each.value, '$.notebookId') END,
-      'read', json('true'),
-      'write',
-        CASE WHEN COALESCE(notebook_access_level, 'read') = 'write'
-             THEN json('true') ELSE json('false') END
-    )
-  )
-  FROM json_each(notebook_access_json)
-)
+SET notebook_access_json = '[]',
+    notebook_access_level = 'read'
 WHERE notebook_access_json IS NOT NULL
   AND json_valid(notebook_access_json)
-  AND json_type(notebook_access_json) = 'array';
+  AND json_type(notebook_access_json) = 'array'
+  AND EXISTS (
+    SELECT 1 FROM json_each(notebook_access_json) je WHERE je.type != 'object'
+  );

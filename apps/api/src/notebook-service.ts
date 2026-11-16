@@ -3,7 +3,7 @@ import type { AuditActor } from "./api-context";
 import { AppError } from "./app-error";
 import { auditStatement } from "./audit";
 import { createId, isoNow, slugify } from "./entity-utils";
-import { invalidateNotebookTreeCache, notebookIdsBind, notebookInListSql, type NotebookAccess } from "./token-notebook-access";
+import { notebookIdsBind, notebookInListSql, type NotebookAccess } from "./token-notebook-access";
 import type { DatabaseAdapter } from "./storage-contract";
 import { isInboxNotebook, workspaceInboxId } from "./workspace-provisioning";
 
@@ -228,7 +228,6 @@ export const createNotebookRecord = async (
     throw new AppError("not_found", "Notebook not found after create", 404);
   }
 
-  invalidateNotebookTreeCache(workspaceId);
   return notebook;
 };
 
@@ -286,7 +285,6 @@ export const updateNotebookRecord = async (
     throw new AppError("not_found", "Notebook not found after update", 404);
   }
 
-  invalidateNotebookTreeCache(workspaceId);
   return notebook;
 };
 
@@ -417,7 +415,6 @@ export const deleteNotebookTree = async (
     if (!(Number(audited?.meta.changes) > 0)) {
       throw new AppError("notebook_changed", "Notebook contents or hierarchy changed. Preview again before retrying deletion.", 409);
     }
-    invalidateNotebookTreeCache(workspaceId);
     return result(targetIds);
   }
   const statements = chunkValues(targetIds, NOTEBOOK_DELETE_ID_CHUNK).map((chunk) => {
@@ -433,7 +430,6 @@ export const deleteNotebookTree = async (
     notebookIds: targetIds,
   }));
   await db.batch(statements);
-  invalidateNotebookTreeCache(workspaceId);
   return result(targetIds);
 };
 
@@ -477,7 +473,6 @@ export const restoreNotebookRecord = async (
 
   const notebook = await getNotebook(db, workspaceId, id);
   if (!notebook) throw new AppError("not_found", "Notebook not found after restore", 404);
-  invalidateNotebookTreeCache(workspaceId);
   return notebook;
 };
 

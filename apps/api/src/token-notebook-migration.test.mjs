@@ -150,4 +150,53 @@ describe("notebook whitelist migration (0095 + 0096)", () => {
       expect(access.writableNotebookIds).toEqual([]);
     }
   });
+
+  test("any malformed item fails the WHOLE record closed, matching the parser", async () => {
+    const sqlite = seedPre0095();
+    // A valid grant mixed with an invalid item must not keep the valid grant:
+    // the runtime parser rejects the entire record, so the migration must too.
+    sqlite.exec(`INSERT INTO api_tokens (id, workspace_id, name, token_hash, scopes_json, notebook_access_json, created_at) VALUES
+      ('mix_empty_obj', 'ws_1', 'A', 'hm1', '["read:memos"]', '[{"notebookId":"nb_1","read":true,"write":false},{}]', strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+      ('mix_missing_rw', 'ws_1', 'B', 'hm2', '["read:memos"]', '[{"notebookId":"nb_1","read":true,"write":false},{"notebookId":"nb_2"}]', strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+      ('mix_empty_id', 'ws_1', 'C', 'hm3', '["read:memos"]', '[{"notebookId":"nb_1","read":true,"write":false},{"notebookId":"","read":true,"write":false}]', strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+      ('mix_nonbool', 'ws_1', 'D', 'hm4', '["read:memos"]', '[{"notebookId":"nb_1","read":true,"write":false},{"notebookId":"nb_2","read":"yes","write":false}]', strftime('%Y-%m-%dT%H:%M:%fZ','now'))`);
+    sqlite.exec(migrationSql("0095_api_token_notebook_whitelist.sql"));
+    sqlite.exec(migrationSql("0096_api_token_notebook_whitelist_format.sql"));
+    for (const id of ["mix_empty_obj", "mix_missing_rw", "mix_empty_id", "mix_nonbool"]) {
+      const row = sqlite.query("SELECT notebook_access_json FROM api_tokens WHERE id = ?").get(id);
+      // The stored record must parse to an empty whitelist, not keep nb_1.
+      expect(parseNotebookAccessJson(row.notebook_access_json)).toEqual([]);
+      const access = await resolve(sqlite, id);
+      expect(access.readableNotebookIds).toEqual([]);
+      expect(access.writableNotebookIds).toEqual([]);
+    }
+  });
+
+  test("0095 does not error on a string array; 0096 treats it as a legitimate whitelist", async () => {
+    const sqlite = seedPre0095();
+    sqlite.exec(`INSERT INTO api_tokens (id, workspace_id, name, token_hash, scopes_json, notebook_access_json, created_at) VALUES
+      ('strarr', 'ws_1', 'S', 'hs1', '["read:memos"]', '["nb_1","nb_2"]', strftime('%Y-%m-%dT%H:%M:%fZ','now'))`);
+    // Must not throw "malformed JSON" when 0095 encounters a string array.
+    sqlite.exec(migrationSql("0095_api_token_notebook_whitelist.sql"));
+    sqlite.exec(migrationSql("0096_api_token_notebook_whitelist_format.sql"));
+    const access = await resolve(sqlite, "strarr");
+    expect(access.readableNotebookIds.sort()).toEqual(["nb_1", "nb_2"]);
+  });
+
+  test("0096 fails closed on mixed / empty-string / non-string arrays", async () => {
+    const sqlite = seedPre0095();
+    // These rows simulate post-0095 state, so the level column must exist.
+    sqlite.exec(`ALTER TABLE api_tokens ADD COLUMN notebook_access_level TEXT`);
+    sqlite.exec(`INSERT INTO api_tokens (id, workspace_id, name, token_hash, scopes_json, notebook_access_json, notebook_access_level, created_at) VALUES
+      ('mixed', 'ws_1', 'M', 'hx1', '["read:memos"]', '["nb_1",{"notebookId":"nb_2","read":true,"write":false}]', 'read', strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+      ('emptystr', 'ws_1', 'E', 'hx2', '["read:memos"]', '["nb_1",""]', 'read', strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+      ('number', 'ws_1', 'N', 'hx3', '["read:memos"]', '[1,2]', 'read', strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+      ('nullitem', 'ws_1', 'U', 'hx4', '["read:memos"]', '[null]', 'read', strftime('%Y-%m-%dT%H:%M:%fZ','now'))`);
+    sqlite.exec(migrationSql("0096_api_token_notebook_whitelist_format.sql"));
+    for (const id of ["mixed", "emptystr", "number", "nullitem"]) {
+      const access = await resolve(sqlite, id);
+      expect(access.restricted).toBe(true);
+      expect(access.readableNotebookIds).toEqual([]);
+    }
+  });
 });
