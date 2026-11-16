@@ -180,7 +180,7 @@ Whether for routine data backups, seamless cross-instance migration, or switchin
 
 ### AI & MCP Protocol Integration
 
-Create an API token in **Profile** -> **API / MCP** and copy the Remote MCP configuration in one click to let AI Agents such as Claude Code, Codex, and Antigravity securely manage your knowledge base within account permissions. EdgeEver supports full CRUD for text notes, visual diagram notes (mind maps, flowcharts, and architecture diagrams), structured table notes, and native poster notes. Agents can also manage notebook hierarchies, tags, attachments, revision history, note templates, and AI instructions.
+Create an API token in **Profile** -> **API / MCP** and copy the Remote MCP configuration in one click to let AI Agents such as Claude Code, Codex, DeepSeek Harness, and Antigravity securely manage your knowledge base within account permissions. EdgeEver supports full CRUD for text notes, visual diagram notes (mind maps, flowcharts, and architecture diagrams), structured table notes, and native poster notes. Agents can also manage notebook hierarchies, tags, attachments, revision history, note templates, and AI instructions.
 
 For client setup, token access levels, troubleshooting and suggested rules for agents, see [Using EdgeEver with MCP clients](docs/mcp-guide.md).
 

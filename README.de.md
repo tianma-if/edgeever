@@ -180,7 +180,7 @@ Ob für regelmäßige Datensicherungen, die nahtlose Migration zwischen Instanze
 
 ### KI- & MCP-Protokoll-Integration
 
-Erstelle ein API-Token unter **Profil** -> **API / MCP** und kopiere die Remote-MCP-Konfiguration mit einem Klick, damit KI-Agenten wie Claude Code, Codex und Antigravity deine Wissensbasis innerhalb der Kontoberechtigungen sicher verwalten können. EdgeEver unterstützt vollständige CRUD-Operationen für Textnotizen, visuelle Diagramm-Notizen (Mindmaps, Flussdiagramme und Architekturdiagramme), strukturierte Tabellennotizen und native Plakat-Notizen. Agenten können zudem Notizbuch-Hierarchien, Tags, Anhänge, die Versionshistorie, Notizvorlagen und KI-Instruktionen verwalten.
+Erstelle ein API-Token unter **Profil** -> **API / MCP** und kopiere die Remote-MCP-Konfiguration mit einem Klick, damit KI-Agenten wie Claude Code, Codex, DeepSeek Harness und Antigravity deine Wissensbasis innerhalb der Kontoberechtigungen sicher verwalten können. EdgeEver unterstützt vollständige CRUD-Operationen für Textnotizen, visuelle Diagramm-Notizen (Mindmaps, Flussdiagramme und Architekturdiagramme), strukturierte Tabellennotizen und native Plakat-Notizen. Agenten können zudem Notizbuch-Hierarchien, Tags, Anhänge, die Versionshistorie, Notizvorlagen und KI-Instruktionen verwalten.
 
 Einrichtung der Clients, Zugriffsstufen der Tokens, Fehlerbehebung und empfohlene Regeln für Agenten beschreibt [Using EdgeEver with MCP clients](docs/mcp-guide.md) (auf Englisch).
 

@@ -181,7 +181,7 @@ Que ce soit pour des sauvegardes régulières, une migration sans heurts entre i
 
 ### Intégration IA et protocole MCP
 
-Générez un jeton d'API dans **Profil** -> **API / MCP** et copiez la configuration Remote MCP en un clic pour permettre à des agents IA comme Claude Code, Codex et Antigravity de gérer votre base de connaissances en toute sécurité selon les autorisations de votre compte. EdgeEver prend en charge le cycle complet CRUD pour les notes textuelles, les notes de diagrammes visuels (cartes mentales, organigrammes et schémas d'architecture), les notes de tableaux structurés et les notes poster natives. Les agents peuvent également organiser l'arborescence des carnets, les étiquettes, les pièces jointes, l'historique des versions, les modèles de notes et les instructions IA.
+Générez un jeton d'API dans **Profil** -> **API / MCP** et copiez la configuration Remote MCP en un clic pour permettre à des agents IA comme Claude Code, Codex, DeepSeek Harness et Antigravity de gérer votre base de connaissances en toute sécurité selon les autorisations de votre compte. EdgeEver prend en charge le cycle complet CRUD pour les notes textuelles, les notes de diagrammes visuels (cartes mentales, organigrammes et schémas d'architecture), les notes de tableaux structurés et les notes poster natives. Les agents peuvent également organiser l'arborescence des carnets, les étiquettes, les pièces jointes, l'historique des versions, les modèles de notes et les instructions IA.
 
 Pour la configuration des clients, les niveaux d'accès des jetons, le dépannage et des règles suggérées pour les agents, consultez [Using EdgeEver with MCP clients](docs/mcp-guide.md) (en anglais).
 
