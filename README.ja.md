@@ -102,7 +102,7 @@ Cloudflare のオンライン導入は、次のいずれかです。
 
 ### 方法 A: AI Agent に任せて導入（推奨）
 
-次のプロンプトを AI Agent（Codex、Claude Code、WorkBuddy、Antigravity など）へそのまま送ってください。実行中に GitHub や Cloudflare へのアクセスが求められたら、権限を確認して認可してください。
+次のプロンプトを AI Agent（Codex、Claude Code、DeepSeek Harness、WorkBuddy、Antigravity など）へそのまま送ってください。実行中に GitHub や Cloudflare へのアクセスが求められたら、権限を確認して認可してください。
 
 ```text
 GitHub と Cloudflare のオンライン操作だけで EdgeEver を導入してください:

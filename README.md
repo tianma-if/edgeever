@@ -102,7 +102,7 @@ For Cloudflare, choose either of the following online deployment options:
 
 ### Option A: Deploy with an AI Agent (Recommended)
 
-Copy the prompt below directly into an AI Agent (such as Codex, Claude Code, WorkBuddy, Antigravity, etc.). During execution, if access to GitHub or Cloudflare is required, review the requested permissions and follow the prompts to authorize access.
+Copy the prompt below directly into an AI Agent (such as Codex, Claude Code, DeepSeek Harness, WorkBuddy, Antigravity, etc.). During execution, if access to GitHub or Cloudflare is required, review the requested permissions and follow the prompts to authorize access.
 
 ```text
 Deploy EdgeEver entirely through GitHub and Cloudflare:

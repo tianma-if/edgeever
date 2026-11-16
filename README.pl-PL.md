@@ -102,7 +102,7 @@ W przypadku Cloudflare wybierz jedną z poniższych metod wdrożenia online:
 
 ### Opcja A: Wdrożenie z agentem AI (zalecane)
 
-Skopiuj poniższe polecenie do agenta AI, na przykład Codex, Claude Code, WorkBuddy lub Antigravity. Gdy agent poprosi o dostęp do GitHuba lub Cloudflare, sprawdź żądane uprawnienia i postępuj zgodnie z instrukcjami autoryzacji.
+Skopiuj poniższe polecenie do agenta AI, na przykład Codex, Claude Code, DeepSeek Harness, WorkBuddy lub Antigravity. Gdy agent poprosi o dostęp do GitHuba lub Cloudflare, sprawdź żądane uprawnienia i postępuj zgodnie z instrukcjami autoryzacji.
 
 ```text
 Wdróż EdgeEver przez GitHub i Cloudflare:

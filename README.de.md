@@ -103,7 +103,7 @@ Wähle für Cloudflare eine der beiden folgenden Online-Bereitstellungsoptionen:
 
 ### Option A: Bereitstellung mit einem KI-Agenten (empfohlen)
 
-Kopiere den folgenden Prompt direkt in einen KI-Agenten (z. B. Codex, Claude Code, WorkBuddy, Antigravity usw.). Falls während der Ausführung Zugriff auf GitHub oder Cloudflare erforderlich ist, überprüfe die angeforderten Berechtigungen und folge den Anweisungen zur Autorisierung.
+Kopiere den folgenden Prompt direkt in einen KI-Agenten (z. B. Codex, Claude Code, DeepSeek Harness, WorkBuddy, Antigravity usw.). Falls während der Ausführung Zugriff auf GitHub oder Cloudflare erforderlich ist, überprüfe die angeforderten Berechtigungen und folge den Anweisungen zur Autorisierung.
 
 ```text
 Stelle EdgeEver vollständig über GitHub und Cloudflare bereit:

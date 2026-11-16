@@ -102,7 +102,7 @@ Cloudflare 線上部署可以選擇以下兩種方式之一：
 
 ### 方案一：交給 AI Agent 部署（建議）
 
-將下方提示詞直接複製傳送給 AI Agent（如 Codex、Claude Code、WorkBuddy、Antigravity 等）。執行過程中，如需存取 GitHub 或 Cloudflare，請確認權限範圍並依提示完成授權。
+將下方提示詞直接複製傳送給 AI Agent（如 Codex、Claude Code、DeepSeek Harness、WorkBuddy、Antigravity 等）。執行過程中，如需存取 GitHub 或 Cloudflare，請確認權限範圍並依提示完成授權。
 
 ```text
 請全程透過 GitHub 和 Cloudflare 線上部署 EdgeEver：

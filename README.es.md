@@ -104,7 +104,7 @@ Para Cloudflare, elige cualquiera de las siguientes opciones de despliegue en l�
 
 ### Opción A: Despliegue con un agente de IA (Recomendado)
 
-Copia el siguiente prompt directamente en un agente de IA (como Codex, Claude Code, WorkBuddy, Antigravity, etc.). Durante la ejecución, si se requiere acceso a GitHub o Cloudflare, revisa los permisos solicitados y sigue las indicaciones para autorizar el acceso.
+Copia el siguiente prompt directamente en un agente de IA (como Codex, Claude Code, DeepSeek Harness, WorkBuddy, Antigravity, etc.). Durante la ejecución, si se requiere acceso a GitHub o Cloudflare, revisa los permisos solicitados y sigue las indicaciones para autorizar el acceso.
 
 ```text
 Despliega EdgeEver íntegramente a través de GitHub y Cloudflare:
