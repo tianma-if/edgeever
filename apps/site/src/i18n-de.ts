@@ -1,5 +1,5 @@
 export const deSiteTagline =
-  "KI-native Wissensbasis & Evernote/Obsidian-Alternative mit Sofort-Synchronisierung & nativem MCP. Kostenlos auf Cloudflare oder selbst gehostet via Docker.";
+  "KI-native Notiz-App & Evernote/Obsidian-Alternative mit Sofort-Synchronisierung & nativem MCP. Kostenlos auf Cloudflare oder selbst gehostet via Docker.";
 
 export const deSiteCopy = {
   layout: {

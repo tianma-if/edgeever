@@ -1,5 +1,5 @@
 export const jaSiteTagline =
-  "AI ネイティブ知識ベース、瞬時マルチデバイス同期＆ネイティブ MCP を備えた Evernote / Obsidian 代替ツール。Cloudflare 無料運用または Docker 自前運用";
+  "AI ネイティブノートアプリ、瞬時マルチデバイス同期＆ネイティブ MCP を備えた Evernote / Obsidian 代替ツール。Cloudflare 無料運用または Docker 自前運用";
 
 export const jaSiteCopy = {
   layout: {

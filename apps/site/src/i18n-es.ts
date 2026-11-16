@@ -1,5 +1,5 @@
 export const esSiteTagline =
-  "Base de conocimiento nativa de IA y alternativa a Evernote/Obsidian con sincronización instantánea y MCP nativo. Gratis en Cloudflare o autoalojado con Docker.";
+  "Aplicación de notas nativa de IA y alternativa a Evernote/Obsidian con sincronización instantánea y MCP nativo. Gratis en Cloudflare o autoalojado con Docker.";
 
 export const esSiteCopy = {
   layout: {

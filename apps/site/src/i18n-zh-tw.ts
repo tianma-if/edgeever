@@ -1,5 +1,5 @@
 export const zhTwSiteTagline =
-  "AI 原生知識庫與 Evernote / Obsidian 替代方案，支援多端瞬時同步與原生 MCP。Cloudflare 免費託管或 Docker 自託管";
+  "AI 原生筆記應用與 Evernote / Obsidian 替代方案，支援多端瞬時同步與原生 MCP。Cloudflare 免費託管或 Docker 自託管";
 
 export const zhTwSiteCopy = {
   layout: {
