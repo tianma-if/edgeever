@@ -102,7 +102,7 @@ Cloudflare のオンライン導入は、次のいずれかです。
 
 ### 方法 A: AI Agent に任せて導入（推奨）
 
-次のプロンプトを AI Agent（Codex、Claude、Cursor、WorkBuddy、Antigravity、OpenClaw、Hermes Agent など）へそのまま送ってください。実行中に GitHub や Cloudflare へのアクセスが求められたら、権限を確認して認可してください。
+次のプロンプトを AI Agent（Codex、Claude Code、WorkBuddy、Antigravity など）へそのまま送ってください。実行中に GitHub や Cloudflare へのアクセスが求められたら、権限を確認して認可してください。
 
 ```text
 GitHub と Cloudflare のオンライン操作だけで EdgeEver を導入してください:
@@ -181,7 +181,7 @@ curl -fsSL https://edgeever.org/install.sh | bash
 
 ### AI と MCP プロトコル連携
 
-**プロフィール** -> **API / MCP** で API トークンを作成し、ワンクリックで Remote MCP 設定をコピーすることで、Claude Code、Cursor、Antigravity、OpenClaw などの AI Agent がアカウント権限の範囲内で知識ベースを安全に管理できます。テキストノート、図のノート（マインドマップ、フローチャート、アーキテクチャ図）、多次元テーブルノート、ネイティブポスターノートの完全な CRUD に対応し、Agent はノートブック階層、タグ、添付ファイル、履歴バージョン、ノートテンプレート、AI 指示の管理も行えます。
+**プロフィール** -> **API / MCP** で API トークンを作成し、ワンクリックで Remote MCP 設定をコピーすることで、Claude Code、Codex、Antigravity などの AI Agent がアカウント権限の範囲内で知識ベースを安全に管理できます。テキストノート、図のノート（マインドマップ、フローチャート、アーキテクチャ図）、多次元テーブルノート、ネイティブポスターノートの完全な CRUD に対応し、Agent はノートブック階層、タグ、添付ファイル、履歴バージョン、ノートテンプレート、AI 指示の管理も行えます。
 
 クライアントの設定、トークンの権限、トラブルシューティング、エージェント向けルールの例は [Using EdgeEver with MCP clients](docs/mcp-guide.md)（英語）を参照してください。
 
