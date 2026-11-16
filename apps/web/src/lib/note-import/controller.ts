@@ -31,8 +31,11 @@ export class NoteImportController {
     for (const listener of this.listeners) listener();
   }
   activate = () => { this.active = true; };
-  open = () => {
-    this.update({ open: true });
+  open = (format?: ImportFormat) => {
+    this.update({
+      open: true,
+      ...(format && this.snapshot.phase === "idle" ? { format } : {}),
+    });
     void api.listNotebooks().then(({ notebooks }) => this.update({ destinations: notebooks })).catch(() => {});
   };
   setFormat = (format: ImportFormat) => { if (this.snapshot.phase === "idle") this.update({ format }); };

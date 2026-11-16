@@ -16,7 +16,7 @@
 - [7. 知乎回答与文章剪藏](#7-知乎回答与文章剪藏)
 - [8. Reddit 讨论帖剪藏](#8-reddit-讨论帖剪藏)
 - [9. Instagram 帖子与轮播多图剪藏](#9-instagram-帖子与轮播多图剪藏)
-- [10. GitHub 仓库元数据剪藏](#10-github-仓库元数据剪藏)
+- [10. GitHub 仓库信息剪藏](#10-github-仓库信息剪藏)
 
 ### AI 增强与多维数据组织
 - [11. AI 对话生成思维导图、流程图与架构图](#11-ai-对话生成思维导图流程图与架构图)
@@ -28,10 +28,13 @@
 ### 排版与多渠道分发
 - [16. 笔记导出多主题长图与代码卡片](#16-笔记导出多主题长图与代码卡片)
 - [17. 笔记制作社交媒体海报与封面](#17-笔记制作社交媒体海报与封面)
-- [18. 复制笔记至微信公众号排版](#18-复制笔记至微信公众号排版)
+- [18. 带排版一键复制至公众号与多平台编辑器](#18-带排版一键复制至公众号与多平台编辑器)
 
 ### 开放生态与插件扩展
 - [19. 开放插件 API 与自定义插件开发](#19-开放插件-api-与自定义插件开发)
+
+### 第三方笔记迁移与导入
+- [20. 第三方笔记平台一键导入迁移](#20-第三方笔记平台一键导入迁移)
 
 ---
 
@@ -42,7 +45,7 @@
 EdgeEver 采用「目录树 · 笔记列表 · 编辑区」三栏布局：
 
 - **专注模式**：侧边栏支持拖拽调宽与折叠，随时切换全屏专注写作。
-- **混合编辑**：主编辑区支持所见即所得（WYSIWYG）与 Markdown 语法混写。
+- **混合编辑**：主编辑区支持所见即所得与 Markdown 语法混写。
 
 | 三栏工作区布局 |
 :---:
@@ -57,7 +60,7 @@ EdgeEver 采用「目录树 · 笔记列表 · 编辑区」三栏布局：
 在微信中多选对话点击「合并转发」，在「转发到其他应用」中选择 **EdgeEver**，自动转换为结构化笔记。
 
 - **格式解析**：解析发言人、时间轴、微信表情与超链接。
-- **资源转存**：图片内嵌展示，文档与音视频（如 `.xlsx`、`.pdf`、`.mp4`）转为附件并支持全文检索。
+- **资源转存**：图片内嵌展示，文档与音视频转为附件并支持全文检索。
 
 | 1. 微信合并转发至 EdgeEver | 2. 结构化笔记预览 |
 | :---: | :---: |
@@ -108,7 +111,7 @@ EdgeEver 采用「目录树 · 笔记列表 · 编辑区」三栏布局：
 
 使用 EdgeEver Web Clipper 插件在推文上右键点击「保存推文到 EdgeEver」。
 
-- 提取作者、推文正文、外链、引用推文（Quote Tweet）及附带图集。
+- 提取作者、推文正文、外链、引用推文及附带图集。
 - 自动渲染为多栏画廊排版。
 
 | 1. 右键保存推文 |
@@ -141,13 +144,13 @@ EdgeEver 采用「目录树 · 笔记列表 · 编辑区」三栏布局：
 
 在 Reddit 帖子处右键点击「保存所选内容到 EdgeEver」。
 
-- 捕获帖子标题、所属版块（Subreddit，如 `r/AskReddit`）、作者、时间戳及链接，保留社区元数据。
+- 捕获帖子标题、所属版块、作者、发布时间与原文链接等社区信息。
 
 | 1. 右键保存帖子 |
 | :---: |
 | ![右键保存 Reddit 帖子到 EdgeEver](assets/best-practices/original-image/web-clipper/reddit/reddit.png) |
 
-| 2. 包含社区元数据的笔记预览 |
+| 2. 包含社区信息的笔记预览 |
 | :---: |
 | ![EdgeEver 剪藏后的 Reddit 帖子笔记效果](assets/best-practices/original-image/web-clipper/reddit/reddit-in-note.png) |
 
@@ -157,24 +160,24 @@ EdgeEver 采用「目录树 · 笔记列表 · 编辑区」三栏布局：
 
 使用 EdgeEver Web Clipper 插件在 Instagram 帖子或轮播页面右键点击「保存帖子到 EdgeEver」。
 
-- 提取作者账号、正文描述、发布时间与原文链接，保留话题标签与提及元数据。
-- 完整提取轮播（Carousel）多图与视频封面，并在笔记内自动排版为多栏画廊。
+- 提取作者账号、正文描述、发布时间与原文链接，保留话题标签与 @ 提及。
+- 完整提取轮播多图与视频封面，并在笔记内自动排版为多栏画廊。
 
 | 1. 右键保存 Instagram 帖子 |
 | :---: |
 | ![右键保存 Instagram 帖子到 EdgeEver](assets/best-practices/original-image/web-clipper/instgram/ins.png) |
 
-| 2. 包含完整图集与元数据的笔记效果 |
+| 2. 包含完整图集与帖子信息的笔记效果 |
 | :---: |
 | ![EdgeEver 剪藏后的 Instagram 帖子笔记效果](assets/best-practices/original-image/web-clipper/instgram/ins-in-note.png) |
 
 ---
 
-### 10. GitHub 仓库元数据剪藏
+### 10. GitHub 仓库信息剪藏
 
 在 GitHub 仓库页面右键点击「保存仓库信息到 EdgeEver」。
 
-- 提取仓库名称（Owner/Repo）、简介、官方主页、编程语言、许可证与话题标签，自动生成结构化技术卡片。
+- 提取仓库名称、简介、官方主页、编程语言、开源协议与话题标签，自动生成结构化技术卡片。
 
 | 1. 右键保存仓库信息 |
 | :---: |
@@ -257,7 +260,7 @@ EdgeEver 采用「目录树 · 笔记列表 · 编辑区」三栏布局：
 
 ### 15. 连接本机 Agent (ACP) 实现笔记协同
 
-EdgeEver 支持 **ACP (Agent Client Protocol)** 协议，允许桌面端连接本机运行的各类 AI Agent（如 Codex、Claude Code、DeepSeek Harness、Antigravity 等）。
+桌面端支持通过 ACP 协议直连本机运行的各类 AI Agent（如 Codex、Claude Code、Antigravity 等）。
 
 - **本地授权**：授予本地 Agent 当前账号笔记的安全读写权限。
 - **伴随对话**：在笔记右侧栏直接协同，执行代码推理、长文总结与知识库检索。
@@ -275,7 +278,7 @@ EdgeEver 支持 **ACP (Agent Client Protocol)** 协议，允许桌面端连接�
 使用「分享为图片」功能，将笔记排版为高分辨率长图或卡片。
 
 - **多款卡片样式**：内置 8 款卡片主题（透明质感、金句、书摘、备忘录等），支持字体与版式微调，一键导出高清长图或复制至剪贴板。
-- **技术代码卡片**：专属代码主题内置 macOS 窗口控件、行号与等宽代码排版。
+- **技术代码卡片**：专属代码主题内置窗口样式、行号与代码排版。
 
 | 1. 「透明」等多款卡片主题预览 | 2. 字体风格与排版微调 |
 | :---: | :---: |
@@ -296,19 +299,19 @@ EdgeEver 支持 **ACP (Agent Client Protocol)** 协议，允许桌面端连接�
 
 ---
 
-### 18. 复制笔记至微信公众号排版
+### 18. 带排版一键复制至公众号与多平台编辑器
 
-在笔记菜单中选择「复制到公众号 / 博客」，将笔记转换为内联 CSS 样式的富文本。
+在笔记菜单中选择「带排版复制」，将笔记排版样式与图片一键转换为适配各大内容平台的富文本格式。
 
-- 粘贴至微信公众号后台，完整保留表格、引用块、代码块、列表及字体样式。
+- 可直接粘贴至微信公众号、知乎、X 文章、博客等自媒体编辑器，完整保留表格、引用块、代码块、列表及字体样式。
 
-| 1. 复制到公众号 / 博客 |
+| 1. 笔记菜单选择「带排版复制」 |
 | :---: |
-| ![EdgeEver 笔记菜单点击复制到公众号](assets/best-practices/original-image/wechat-article-copy-to/right-menu.png) |
+| ![EdgeEver 笔记菜单选择带排版复制](assets/best-practices/original-image/wechat-article-copy-to/right-menu-v2.png) |
 
-| 2. 公众号后台编辑器粘贴效果 |
+| 2. 富文本编辑器粘贴效果（以微信公众号为例） |
 | :---: |
-| ![微信公众号后台粘贴后的排版效果](assets/best-practices/original-image/wechat-article-copy-to/show-in-wechat-editor.png) |
+| ![粘贴到微信公众号编辑器后的排版效果](assets/best-practices/original-image/wechat-article-copy-to/show-in-wechat-editor.png) |
 
 ---
 
@@ -316,9 +319,9 @@ EdgeEver 支持 **ACP (Agent Client Protocol)** 协议，允许桌面端连接�
 
 ### 19. 开放插件 API 与自定义插件开发
 
-EdgeEver 内置插件扩展管理，支持通过 GitHub 仓库或 Manifest 地址一键安装，配置在 Web 与桌面端跨设备隔离同步。
+EdgeEver 内置插件扩展管理，支持通过插件市场或 GitHub 仓库一键安装，配置在 Web 与桌面端跨设备同步。
 
-- **核心 API 能力**：提供文档双向读写、自定义 DOM 面板/嵌入块、统一设置、隔离存储以及调用工作区已配置的 AI 模型。
+- **核心能力**：支持扩展笔记读写、自定义界面面板，并直接调用工作区已配置的 AI 模型。
 - **官方开源参考范式**：
   - **待办任务 ([EdgeEver Tasks](https://github.com/tianma-if/edgeever-tasks))**：跨笔记自动汇总 Markdown 待办，支持状态过滤与一键定位跳转。
   - **AI RSS 订阅助手 ([EdgeEver AI RSS](https://github.com/tianma-if/edgeever-ai-rss))**：抓取订阅源并结合 AI 生成分类每日简报。
@@ -331,3 +334,23 @@ EdgeEver 内置插件扩展管理，支持通过 GitHub 仓库或 Manifest 地�
 | 2. 插件 API 体系与开发文档 |
 | :---: |
 | ![EdgeEver 插件开发 API 命名空间与规范文档](assets/best-practices/original-image/plugin/plugin-api.png) |
+
+---
+
+## 第三方笔记迁移与导入
+
+### 20. 第三方笔记平台一键导入迁移
+
+在「设置 → 备份与导入 → 从其他应用导入」中点击 **开始导入**，即可在 Web 端或桌面端完成主流笔记平台的一键迁移，无需配置命令行工具。
+
+- **多平台原生支持**：覆盖 **Notion**、**思源笔记（SiYuan）**、**flomo**、**印象笔记（Evernote）**、**Obsidian** 与 **Joplin**。
+- **拖拽即用、无损迁移**：支持直接拖入导出文件、文件夹或压缩包，完整保留目录层级、标签与内嵌图片附件。
+- 各平台导出方式与 AI Agent (MCP) 协同迁移详见 [第三方笔记导入指引](note-migration-guide.md)。
+
+| 1. 设置中心「从其他应用导入」入口 |
+| :---: |
+| ![EdgeEver 设置中心备份与导入页面的从其他应用导入入口](assets/best-practices/original-image/import-from-other-note/import-in-setting-v2.png) |
+
+| 2. 选择来源平台与导入文件 |
+| :---: |
+| ![EdgeEver 从其他应用导入对话框支持 Notion、思源笔记、flomo、印象笔记、Obsidian 与 Joplin](assets/best-practices/original-image/import-from-other-note/import-dialog-v2.png) |

@@ -108,3 +108,9 @@
 :root.dark .edgeever-editor[data-note-palette]:not([data-note-palette="native"]) .ProseMirror .selectedCell::after {
   background: color-mix(in srgb, var(--note-palette-accent) 20%, transparent);
 }
+
+/* Rose uses a deeper table fill so white headings stay readable in dark mode. */
+:root.dark .edgeever-editor[data-note-palette="rose"]:not([data-note-palette="native"]) .ProseMirror th,
+:root.dark .edgeever-editor[data-note-palette="rose"]:not([data-note-palette="native"]) .markdown-content th {
+  background: var(--note-palette-link);
+}

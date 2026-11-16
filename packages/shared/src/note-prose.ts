@@ -14,6 +14,7 @@ export const NOTE_PROSE_PALETTE_IDS = [
   "azure",
   "violet",
   "pink",
+  "rose",
   "slate",
 ] as const;
 export type NoteProsePaletteId = (typeof NOTE_PROSE_PALETTE_IDS)[number];
@@ -236,6 +237,17 @@ export const NOTE_PROSE_PALETTES: Record<NoteProsePaletteId, NoteProsePaletteCol
     codeText: "#BE185D",
     background: "#FFFFFF",
   }),
+  rose: palette({
+    accent: "#DF1658",
+    text: "#3E3E3E",
+    muted: "#746068",
+    surface: "#FFF8FA",
+    divider: "#F5C7D6",
+    link: "#B7144A",
+    codeBackground: "#FFF0F5",
+    codeText: "#B7144A",
+    background: "#FFFFFF",
+  }),
   slate: palette({
     accent: "#796B7C",
     text: "#5C505E",
@@ -258,6 +270,7 @@ export const NOTE_PROSE_DARK_ACCENTS: Record<NoteProsePaletteId, string> = {
   azure: "#8CB4F0",
   violet: "#B39AE8",
   pink: "#E794B0",
+  rose: "#FF7AA6",
   slate: "#BCACBF",
 };
 

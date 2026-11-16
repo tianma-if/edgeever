@@ -3,7 +3,7 @@
     <img src="assets/brand/edgeever-icon.svg" alt="EdgeEver Logo" width="48" align="absmiddle" /> EdgeEver
   </h1>
   <p>
-    <b>AI 原生知识库与印象笔记 / Obsidian 替代方案。支持全平台瞬时同步、多形态富笔记（多维表格、思维导图、图表、海报）、网页剪藏与原生 MCP。Cloudflare 100% 免费托管或 Docker 自托管。</b>
+    <b>AI 原生笔记应用与印象笔记 / Obsidian 替代方案。支持全平台瞬时同步、多形态富笔记（多维表格、思维导图、图表、海报）、网页剪藏与原生 MCP。Cloudflare 100% 免费托管或 Docker 自托管。</b>
   </p>
   <p>
     <a href="https://github.com/tianma-if/edgeever/stargazers"><img src="https://img.shields.io/github/stars/tianma-if/edgeever?style=social" alt="GitHub Stars" /></a>
@@ -42,7 +42,7 @@ EdgeEver 是一款现代化的开源笔记与个人知识库工作区。它保�
 很多**笔记与个人知识库**的用户，核心需求只是一个**可靠、开放、响应迅速**的个人知识库。然而，当下的主流方案都各有痛点：
 
 * **印象笔记**：拥有最无感、最丝滑的多端云同步体验。然而随着它演进为全功能商业套件，广告与附加功能渐多，系统开销也随之走高；加之免费版配额收紧、高级 AI 订阅昂贵，且难以灵活接入现代自托管与私有 AI 工作流。
-* **Obsidian**：Markdown 开放，核心闭源；官方同步收费，第三方同步繁琐；纯本地文件依赖遍历扫描，当笔记积累到数千上万条或加载复杂插件后，冷启动与全库检索明显卡顿迟缓；图片与附件与文本混存，仓库体积极易膨胀导致移动端同步缓慢，且删笔记后残留附件难清理；对于“随时随地随手记”的轻量场景来说偏重。
+* **Obsidian**：Markdown 开放，核心闭源；官方同步按容量与库数量持续订阅收费，第三方同步（iCloud / WebDAV / Git 等）繁琐且易冲突，受限于纯本地文件目录的同步机制与移动端后台限制，难以像云原生笔记那样丝滑无感同步（且缺少完整 Web 端）；依赖本地遍历扫描，笔记上千或插件增多后冷启动与检索明显卡顿；附件混存易膨胀、拖慢移动同步且删后难清理；加之类似 IDE 的交互与插件折腾生态上手门槛较高，对于习惯传统云笔记“开箱即用、随时随地随手记”的用户来说明显偏重。
 * **Joplin**：老牌开源三栏笔记，但界面观感与编辑交互仿佛还停留在十几年前，缺乏现代软件的精致与流畅感；官方高速同步（Joplin Cloud）需付费订阅，免费同步若走 WebDAV 或网盘，受限于逐文件轮询，笔记与附件增多后（尤其在移动端）同步缓慢，而自建 Joplin Server 又必须自备服务器维护，缺少零成本 Serverless 方案；此外它没有可在浏览器即开即用的完整 Web 工作区，也缺乏原生 AI Agent（MCP/ACP）与多模态知识形态。
 * **Memos / Flomo 等轻量笔记**：虽然简单好用，但流式卡片布局与习惯了经典“三栏工作流”的用户有着天然的交互习惯差异。
 * **思源笔记等块级知识库**：功能深厚且支持开源自托管，但全面的“块级（Block）”架构使得日常随手记录与连续排版书写的心智负担偏重；且缺少零服务器成本的 Serverless 部署形态，多端同步主要依赖官方付费订阅，或需额外付费解锁 S3/WebDAV 同步特性并自备存储。
@@ -83,7 +83,7 @@ EdgeEver 是一款现代化的开源笔记与个人知识库工作区。它保�
 <a id="features"></a>
 ## 核心功能与场景矩阵
 
-一站式连接「灵感捕获 · 深度创作 · 知识沉淀」的全能工作区（👉 **[查看 19 个实机案例演示与最佳实践](docs/best-practices.zh-CN.md)**）：
+一站式连接「灵感捕获 · 深度创作 · 知识沉淀」的全能工作区（👉 **[查看 20 个实机案例演示与最佳实践](docs/best-practices.zh-CN.md)**）：
 
 | 模块 | 基础功能 | 进阶特性 |
 | :--- | :--- | :--- |
@@ -91,7 +91,7 @@ EdgeEver 是一款现代化的开源笔记与个人知识库工作区。它保�
 | **组织与检索** | • 无限层级笔记本与目录树导航<br>• 标签体系（Tags）与笔记拖拽排序、批量合并/移动<br>• 毫秒级即时全文搜索与历史记录过滤 | • **独立知识库网站发布**：一键将整个笔记本公开发布为带目录树导航的独立静态站点（支持密码保护）<br>• **第三方笔记一键迁移**：图形界面原生导入 flomo、印象笔记、Obsidian、Joplin 完整笔记、层级与附件<br>• 多账号与工作区多空间数据物理隔离 |
 | **剪藏与附件** | • 桌面与移动端全格式附件上传（PDF、Office、音视频等）<br>• 浏览器划选网页文字与图片精准抓取<br>• 手机系统分享一键转存全网图片与微信文章 | • **全渠道结构化剪藏**：深度适配小红书、X (Twitter)、知乎、Reddit、GitHub 等 20+ 平台<br>• **微信聊天记录一键归档**：整段对话转笔记，保留时间轴、引用、表情与附件<br>• **端侧静默压缩**：图片上传前压缩 50%–90%；分片流式上传安全支持最大 1 GiB 附件<br>• **OSS 对象存储与桌面图床**：实例支持挂载兼容 S3 的对象存储；桌面端支持 PicGo / PicList 与 CloudFlare ImgBed 图床直传 |
 | **数据与可视化** | • 原生表格编辑与 Markdown 表格渲染<br>• 原生 Mermaid 流程图、时序图与架构图渲染 | • **AI 多维表格**：自然语言一句话生成业务数据库（含标签、日期等字段）<br>• **在线公开收集表单**：多维表格一键生成免登录外链表单，填报数据实时入库<br>• **AI 智能信息图与导图**：一键生成时间线、对比图、象限矩阵及思维导图 |
-| **AI 与生态** | • 侧边伴随式 AI 助手，选区/全文一键总结、翻译与润色<br>• BYOK（自带模型）：兼容 OpenAI、Anthropic、Gemini 等主流协议 | • **原生 Agent 协议互联**：内置 MCP（外部 Agent 读写笔记）与 ACP（桌面端直接唤起 Codex、Claude Code、CodeBuddy 等本机 Agent 协作创作）<br>• **AI 音视频语音转文字**：客户端提取音轨并自动分段，直连 OpenAI 兼容语音模型转写并一键插入笔记<br>• **开放插件开发 API 与主题生态**：支持从市场 / GitHub 一键安装并跨端同步；支持读写笔记与编辑器交互、扩展自定义面板与命令、调用内置 AI 与定时任务，以及无代码主题定制 |
+| **AI 与生态** | • 侧边伴随式 AI 助手，选区/全文一键总结、翻译与润色<br>• BYOK（自带模型）：兼容 OpenAI、Anthropic、Gemini 等主流协议 | • **原生 Agent 协议互联**：内置 MCP（外部 Agent 读写笔记）与 ACP（桌面端直接唤起 Codex、Claude Code、Antigravity、WorkBuddy 等本机 Agent 协作创作）<br>• **AI 音视频语音转文字**：客户端提取音轨并自动分段，直连 OpenAI 兼容语音模型转写并一键插入笔记<br>• **开放插件开发 API 与主题生态**：支持从市场 / GitHub 一键安装并跨端同步；支持读写笔记与编辑器交互、扩展自定义面板与命令、调用内置 AI 与定时任务，以及无代码主题定制 |
 | **多端同步与底座** | • 电脑、手机全端秒级无感同步，无设备数量限制<br>• 官方覆盖 Web / macOS / Windows / Linux / iOS / Android 全平台<br>• 离线优先与同步队列：断网流畅写作，联网自动恢复并增量同步<br>• 标准 SQLite 存储，无损 ZIP 档案与 Markdown 导出导入 | • **终身零服务器成本**：100% 运行于 Cloudflare 免费配额（容量约 15 万条短笔记与 5 万张图片）<br>• **灵活 Docker 自托管**：私有 VPS/NAS 一键部署，轻松承载百万级笔记与瞬时同步<br>• **桌面端自动灾备**：支持本地定时自动备份（多快照保留、可选密码加密），并可自动同步 WebDAV 异地副本<br>• 服务端防暴力破解限流、TOTP 两步验证（2FA）与登录设备会话管理，保障账号与数据隔离安全 |
 
 ## 部署
@@ -224,7 +224,7 @@ bun run dev
 
 - Bun workspace monorepo，包含 Web、API、官网与共享类型包。
 - 前端：Vite、React、React Router、TanStack Query，UI 基于 Tailwind CSS、shadcn/ui、Radix UI。
-- 编辑器：TipTap / ProseMirror，支持 Markdown；PWA 使用 vite-plugin-pwa、Workbox、Dexie。
+- 编辑器：TipTap / ProseMirror，支持 Markdown。
 - Android App：`apps/mobile` 中的 Expo + React Native，采用 SQLite 本地存储与增量同步。
 - iOS App：`apps/ios` 中的原生 SwiftUI（iOS 17+），内置 TipTap EditorBundle、GRDB 本地镜像/outbox，界面与 Android 壳层对齐。
 - 原生桌面端：Electron + Rust sidecar，兼顾跨平台一致体验与高性能本地数据服务；基于 SQLite 支持离线编辑、联网后增量同步与本地备份。
@@ -238,7 +238,7 @@ bun run dev
 <summary>📁 展开查看：Monorepo 项目目录结构</summary>
 
 ```text
-apps/web          Vite + React 前端、PWA、离线草稿与同步队列
+apps/web          Vite + React 前端、离线草稿与同步队列
 apps/extension    Chrome/Edge/Firefox Manifest V3 网页裁剪插件
 apps/api          Cloudflare Worker + Hono API、MCP endpoint
 apps/mobile       Expo + React Native Android App
@@ -271,7 +271,7 @@ content_text      全文搜索、摘要与快速索引使用
 ### 核心机制与设计决策
 
 - **端侧静默压缩**：为避免在 Serverless（如 Cloudflare Worker）上执行图片转码消耗宝贵的计算额度，图片压缩全部放在 Web 客户端上传前完成（PNG/JPEG/WebP/AVIF 转 WebP，最大边限制 2560px；不减小体积则保留原图）。服务端 REST API 与 MCP 接口直接入库客户端传输的原始内容。
-- **离线优先与同步时序**：Web、PWA 与桌面端会在用户停止编辑 30 秒后自动上传增量，并在前台页面可见时每 5 分钟拉取一次云端变更；窗口重聚焦或手动刷新时立即同步。开发者可在 [`apps/web/src/lib/workspace-refresh.ts`](apps/web/src/lib/workspace-refresh.ts) 中调整相关时序常量（`DEFERRED_MEMO_SYNC_DELAY_MS` 与 `BACKGROUND_WORKSPACE_REFRESH_INTERVAL_MS`）。
+- **离线优先与同步时序**：Web 与桌面端会在用户停止编辑 30 秒后自动上传增量，并在前台页面可见时每 5 分钟拉取一次云端变更；窗口重聚焦或手动刷新时立即同步。开发者可在 [`apps/web/src/lib/workspace-refresh.ts`](apps/web/src/lib/workspace-refresh.ts) 中调整相关时序常量（`DEFERRED_MEMO_SYNC_DELAY_MS` 与 `BACKGROUND_WORKSPACE_REFRESH_INTERVAL_MS`）。
 
 ### 参与代码贡献
 

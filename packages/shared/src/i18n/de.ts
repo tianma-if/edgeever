@@ -1326,7 +1326,7 @@ export const de = {
     "markdownThemeTitle": "Markdown-Quelltext-Design",
     "markdownThemeDescription": "Dem Erscheinungsbild der App folgen oder ein festes Syntax-Highlighting-Design für die Markdown-Quelltextbearbeitung wählen.",
     "editorThemeTitle": "Editor-Design",
-    "editorThemeDescription": "Wählen Sie einen Schreibstil für den Notiz-Editor. Wird in diesem Browser gespeichert. „Für WeChat kopieren“ verwendet denselben Stil.",
+    "editorThemeDescription": "Wählen Sie einen Schreibstil für den Notiz-Editor. Wird in diesem Browser gespeichert. „Als Rich Text kopieren“ verwendet denselben Stil.",
     "editorContentAlignmentTitle": "Layout des Notizinhalts",
     "editorContentAlignments": {
       "center": "Lesbarkeit optimieren (zentriert)",
@@ -1358,6 +1358,7 @@ export const de = {
       "azure": "Königsblau",
       "violet": "Irisviolett",
       "pink": "Rosarot",
+      "rose": "Rosenrot",
       "slate": "Mauvegrau"
     },
     "editorBodyHeadingStyleTitle": "Überschriftenstil",
@@ -3273,6 +3274,7 @@ export const de = {
     "clipboardReadFailed": "Die Zwischenablage konnte nicht gelesen werden. Überprüfen Sie, ob Ihr Browser den Zugriff auf die Zwischenablage erlaubt.",
     "characterCount": "{{count}} Zeichen",
     "copyToWeChat": "Als Rich Text kopieren",
+    "copyToWeChatTooltip": "Behält Formatierung und Bilder bei, um sie direkt in WeChat, Substack, Medium, Blogs und andere Editoren einzufügen",
     "phonePreview": "Smartphone-Vorschau",
     "showPhonePreview": "Smartphone-Vorschau anzeigen",
     "hidePhonePreview": "Smartphone-Vorschau ausblenden",
@@ -3280,6 +3282,7 @@ export const de = {
     "phonePreviewFollow": "Scrollen folgen",
     "copyingToWeChat": "Wird in Zwischenablage kopiert, bitte warten…",
     "copiedToWeChat": "Kopiert",
+    "copiedToWeChatNotice": "Formatierten Inhalt kopiert — bereit zum Einfügen in Artikel- und Blog-Editoren",
     "copyToWeChatFailed": "Kopieren fehlgeschlagen",
     "publishImageAddressFailed": "Der Bilderdienst muss aus dem Internet erreichbar sein. Veröffentlichungsplattformen können lokale oder private Adressen nicht abrufen.",
     "publishImageUploadFailed": "Das Bild konnte nicht geladen oder hochgeladen werden. Prüfe das Bild und den Bilderdienst und kopiere erneut.",

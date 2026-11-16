@@ -1,5 +1,5 @@
 export const frSiteTagline =
-  "Base de connaissances native IA & alternative à Evernote/Obsidian avec synchronisation instantanée & MCP natif. Gratuit sur Cloudflare ou auto-hébergé via Docker.";
+  "Application de prise de notes native IA & alternative à Evernote/Obsidian avec synchronisation instantanée & MCP natif. Gratuit sur Cloudflare ou auto-hébergé via Docker.";
 
 export const frSiteCopy = {
   layout: {
@@ -58,7 +58,7 @@ export const frSiteCopy = {
     heading: "Repensé pour la connaissance auto-hébergée et les workflows d'IA",
     subheading:
       "Fini la publicité envahissante, les limites d'appareils et les abonnements coûteux. Chaque détail a été conçu pour un second cerveau rapide, ouvert et respectueux de la vie privée.",
-    showcaseCta: "Découvrir 19 workflows et captures d'écran réels",
+    showcaseCta: "Découvrir 20 workflows et captures d'écran réels",
     card1: {
       badge: "Interface classique",
       title: "Disposition classique à trois volets, plus agile et légère",
@@ -275,7 +275,7 @@ export const frSiteCopy = {
         cta: "Consulter le guide de migration",
       },
       {
-        title: "19 cas d'usage réels",
+        title: "20 cas d'usage réels",
         summary: "Visite guidée en images de l'édition à trois volets, de la capture omnicanale, des diagrammes IA, des agents ACP et du studio d'affiches.",
         href: "/guides/best-practices",
         cta: "Découvrir la galerie",

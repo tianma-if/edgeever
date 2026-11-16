@@ -170,6 +170,68 @@ test("shows a stable local preview while a pasted image is uploading", async ({ 
   }
 });
 
+test("keeps typing and consecutive uploads usable, including when final images load slowly", async ({ page }) => {
+  const memo = await createMemo(page, `Consecutive image uploads ${Date.now()}`);
+  let releaseUploads = () => {};
+  let releaseImages = () => {};
+  const uploads = new Promise<void>((resolve) => { releaseUploads = resolve; });
+  const images = new Promise<void>((resolve) => { releaseImages = resolve; });
+  try {
+    await page.route("**/api/v1/memos/*/resources", async (route) => {
+      await uploads;
+      await route.continue();
+    });
+    await page.route("**/api/v1/resources/*/blob", async (route) => {
+      await images;
+      await route.continue();
+    });
+    await page.goto("/");
+    await page.getByRole("button", { name: "全部笔记", exact: true }).click();
+    await page.locator(`[data-memo-id="${memo.id}"]`).locator("button").first().click();
+    const editor = page.locator(".ProseMirror[contenteditable='true']");
+    await expect(editor).toBeEditable();
+    await editor.click();
+    await dispatchPngFilePaste(editor);
+    const pending = editor.locator(".edgeever-image-upload-placeholder");
+    await expect(pending).toHaveCount(1);
+    const editorBox = (await editor.boundingBox())!;
+    const pendingBox = (await pending.boundingBox())!;
+    // Reproduce the lost native selection after clicking below the block widget
+    // in an otherwise empty paragraph, then type through real keyboard input.
+    await editor.click({ position: { x: 20, y: pendingBox.y + pendingBox.height - editorBox.y + 20 } });
+    await page.keyboard.type("Typing during upload");
+    await expect(editor).toContainText("Typing during upload");
+    await dispatchPngFilePaste(editor);
+    await expect(pending).toHaveCount(2);
+    await page.keyboard.type(" still works");
+    releaseUploads();
+    const preview = editor.locator("img[data-upload-preview]");
+    await expect(pending).toHaveCount(0);
+    await expect(preview).toHaveCount(2);
+    // The previous preload timeout was four seconds. Neither local preview may
+    // disappear while the actual mounted images are still waiting for bytes.
+    await page.waitForTimeout(4_500);
+    for (const image of await preview.all()) {
+      await expect(image).toBeVisible();
+      expect(await image.evaluate((element: HTMLImageElement) => element.naturalWidth)).toBeGreaterThan(0);
+    }
+    await expect(editor).toContainText("Typing during upload");
+    await expect(editor).toContainText(" still works");
+    releaseImages();
+    await expect(preview).toHaveCount(0);
+    const finalImages = editor.locator(".edgeever-image-node img");
+    await expect(finalImages).toHaveCount(2);
+    for (const image of await finalImages.all()) {
+      await expect(image).toBeVisible();
+      expect(await image.evaluate((element: HTMLImageElement) => element.naturalWidth)).toBeGreaterThan(0);
+    }
+  } finally {
+    releaseUploads();
+    releaseImages();
+    await deleteMemo(page, memo.id);
+  }
+});
+
 for (const mimeType of ["image/svg+xml", "application/octet-stream"]) {
   test(`previews and persists a pasted SVG without rasterizing (${mimeType})`, async ({ page }) => {
     const title = `SVG upload ${Date.now()}`;

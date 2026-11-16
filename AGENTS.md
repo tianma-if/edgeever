@@ -1,6 +1,8 @@
 # AGENTS.md
 
-本文件用于约束和指导参与本项目的 AI 代理与协作者。
+## 协作表达
+
+- **只写必要信息**：细则、方案、约束及 Issue/PR 回复只写项目特有要求、结论、关键依据与待办，省略 AI 已知的常识、通用最佳实践和重复解释。保留影响决策的风险、例外和未验证项；按需展开。
 
 ## 文档约束
 
@@ -11,42 +13,36 @@
 
 ## 变更风险评估
 
-- **面向所有用户修复**：用户要求解决问题时，必须把修复写进仓库的产品代码，让后续版本里的所有用户生效；不得只处理维护者本机的配置、进程或临时状态。
+- **面向所有用户修复**：修复必须进入产品代码，对后续版本的所有用户生效；不得只处理维护者本机状态。
 - **先评估后实现**：动手前说明功能价值、影响范围、最坏后果、回滚方案和未验证项；低价值但可能扰动成熟链路的需求，默认拒绝或提供低风险替代方案。
-- **核心链路从严**：安装器、自动升级、数据存储、认证及迁移的机制或配置变化一律按高风险变更处理，必须验证真实的旧版本到新版本链路，不能只验证新版本自身。
-- **禁止无依据保证**：未完成对应平台及跨版本验证时，必须明确标注风险，严禁声称“不影响现有用户”或“不影响自动升级”。
+- **核心链路从严**：安装器、自动升级、数据存储、认证及迁移的机制或配置变更按高风险处理，须验证真实的旧版到新版链路。未完成对应平台及跨版本验证时须标明风险，不得保证“不影响现有用户/自动升级”。
 
 ## Android 调测约束
 
-- **USB 真机优先**：Android 功能调测必须使用通过 USB 连接的真实设备和 `adb`，不得启动或使用 QEMU、AVD 等 Android 模拟器；未连接可用真机时，明确标注真机验证未完成，不得以模拟器结果替代。
+- **USB 真机优先**：Android 功能调测只用 USB 真机和 `adb`，禁止使用 QEMU、AVD 等模拟器；无可用真机时标明真机验证未完成。
 
-## PR 评审约束
+## GitHub 协作
 
-- 评审 PR 时，一次性把发现的问题反馈清楚，避免零散反馈导致反复返工。
-
-## GitHub 沟通语言
-
-- 回复 Issue、PR 或提交 PR Review（含行内审查意见）时，使用对方正文或当前讨论的主要语言：英文用英文回复，中文用中文回复。
-- 对方明确指定沟通语言时，遵循其要求；中英混合或无法判断时，默认使用英文。
-- 不得因与仓库维护者的本地对话使用中文，就在英文 Issue 或 PR 中使用中文回复。
-- **基于 Issue 的提交**：当前功能若基于某个 Issue 开发，提交并推送时必须关联这个 Issue。
-- **PR 合并时的 CI 失败归属**：经核实已存在于 `main`、且非当前 PR 引入的 CI 失败，由仓库维护者负责修复，不得要求 PR 作者承担无关修复，也不得仅因此阻塞 PR 合并；合并前仍须完成与当前改动相关的必要验证。当前 PR 引入的失败由 PR 作者修复。
-- **合并后同步本地**：代理把 PR 合并进 `main` 后，若本地就在 `main` 且工作区干净，必须 `git fetch` 并快进到 `origin/main`，再结束本次任务。工作区不干净或不能快进时停下来说明，禁止 reset、rebase 或覆盖本地改动。同步代码不包括执行数据库迁移。
+- **回复语言**：Issue、PR 及 Review（含行内意见）遵循对方指定语言，否则使用正文或讨论的主要语言；混合或不明时默认英文，不受本地对话语言影响。
+- **PR 评审**：一次性反馈已发现的问题。
+- **基于 Issue 的提交**：基于 Issue 开发时，提交并推送须关联该 Issue。
+- **PR 合并时的 CI 失败归属**：经核实已存在于 `main` 的无关 CI 失败由维护者修复，不得转嫁给 PR 作者或单独阻塞合并；当前 PR 引入的失败由作者修复，合并前须完成相关验证。
+- **合并后同步本地**：合并 PR 后，本地若在 `main` 且工作区干净，须 `git fetch` 并快进到 `origin/main`。工作区不干净或不能快进时停止并说明，禁止 reset、rebase 或覆盖改动。代码同步与数据库迁移分开处理。
   - **含迁移的本地 DEV 同步**：`git fetch` 后、快进前，用 `git diff --name-only --diff-filter=A HEAD..origin/main -- migrations/` 检查是否有新增 SQL 迁移。如果有且本仓库的本地 DEV 正在运行，先停止 Web 和 API，再快进本地 `main`。同步后使用 `bun run dev` 重启，由启动流程先应用本地 D1 迁移。确认 `/api/health` 报告预期迁移版本，并通过 Web 端口验证 `/api/v1/auth/session` 正常。启动或迁移失败时，明确报告本地 DEV 尚未恢复。
 
 ## GitHub Actions 与 Release 约束及流程
 
-1. **Fork 工作流边界**：配置 GitHub Actions 时必须考虑大量用户会 Fork 仓库进行自部署；仅官方仓库需要的 Job 必须使用 `github.repository == 'tianma-if/edgeever'` 门禁，严禁在下游 Fork 中分配 Runner 或执行。
-2. **版本号与基线**：正式 Release 使用 `v2.Y.Z`（非 Draft/Prerelease），**主版本号固定为 `2`**。发布须显式选择 `--bump patch` 或 `--bump minor`（脚本不自动选级），禁止使用 `--bump major` 或发布其他主版本。按 SemVer 选择次版本或补丁版本，**禁止因发版节奏把用户可感知的新能力或新平台压成 patch**。递增根目录 `package.json`；含移动端修改时同步 `apps/mobile/app.json` 的 `expo.version` 并递增 `android.versionCode`。上一个正式 Release 为审计基线。
-3. **跨平台 Release 资产**：每个正式 Release 页面必须同时包含 macOS arm64 DMG、macOS x64 DMG、Windows x64 Preview 安装包、Linux x64 AppImage Preview 和 Android arm64 APK。Windows Preview 未使用 Authenticode 签名时必须同时提供经仓库外 Ed25519 私钥签名的更新清单；Linux Preview 必须包含 `latest-linux.yml` 更新元数据和独立 SHA-256 清单；两者均须在发布前通过独立下载与摘要审计。若本次未修改对应原生运行时代码、依赖、配置或构建工具，直接复用上一个正式 Release 中已验证的原始资产，保留原文件名与校验和，禁止仅为匹配新版本号而重命名。官方仓库正式 Release 中的 Android APK 必须使用固定的 Google Play 应用签名证书；本地上传证书签名的 APK 只能作为 Draft 临时资产，未经 Play 签名替换和发布前门禁核验不得公开。
+1. **Fork 工作流边界**：仅官方仓库需要的 Actions Job 须使用 `github.repository == 'tianma-if/edgeever'` 门禁，禁止在下游 Fork 分配 Runner 或执行。
+2. **版本号与基线**：正式 Release 使用 `v2.Y.Z`（非 Draft/Prerelease），主版本固定为 `2`。须显式选择 `--bump patch` 或 `--bump minor`，禁止 `--bump major`；用户可感知的新能力或新平台须升 minor。递增根目录 `package.json`；含移动端修改时同步 `apps/mobile/app.json` 的 `expo.version` 并递增 `android.versionCode`。上一个正式 Release 为审计基线。
+3. **跨平台 Release 资产**：正式 Release 必须包含 macOS arm64 DMG、macOS x64 DMG、Windows x64 Preview 安装包、Linux x64 AppImage Preview 和 Android arm64 APK。Windows Preview 未使用 Authenticode 签名时必须同时提供经仓库外 Ed25519 私钥签名的更新清单；Linux Preview 必须包含 `latest-linux.yml` 更新元数据和独立 SHA-256 清单；两者均须在发布前通过独立下载与摘要审计。对应原生运行时代码、依赖、配置和构建工具均未变时，复用上一正式 Release 已验证的原始资产，保留文件名与校验和，不随版本号重命名。官方正式 Android APK 必须使用固定的 Google Play 应用签名证书；本地上传证书签名的 APK 仅限 Draft 临时使用，须替换为 Play 签名并通过发布门禁后才能公开。
 4. **验证命令**：必须通过 `bun run typecheck`、`bun run typecheck:mobile` 和 `bun run build:web`。
-5. **测试职责边界**：正式 Release 必须先在官方仓库及与下游一致的 Ubuntu 环境通过完整非 E2E 测试，严禁将上游自身的测试失败转嫁给下游 Fork 发现。只读部署 Fork 仅同步产品快照且不运行测试；只有显式保留定制改动的 Fork 才验证合并结果，失败时必须保持 `main` 与生产环境不变。
+5. **测试职责边界**：正式 Release 须先在官方仓库及与下游一致的 Ubuntu 环境通过完整非 E2E 测试。只读部署 Fork 仅同步产品快照、不运行测试；显式保留定制改动的 Fork 须验证合并结果，失败时保持 `main` 与生产环境不变。
 6. **原生资产构建与复用**：由 `scripts/plan-native-release.mjs` 决定重建或复用；桌面资产包含 `apps/web`。修改判定规则时同步更新测试。移动端重建使用 `bun run build:android:apk:local`，签名配置保存在仓库外。
-7. **Draft 内准备资产**：通过带 `release_tag` 的 `workflow_dispatch` 在 Draft 中准备并验证资产；Android 重建时须在 Draft 阶段完成 Google Play 交付、用 Play 签名 APK 替换临时资产并通过独立签名门禁；`published` 事件只审计，禁止重新构建或上传，签名不符时恢复 Draft。
+7. **Draft 内准备资产**：用带 `release_tag` 的 `workflow_dispatch` 在 Draft 中准备和验证资产；Android 重建须完成 Google Play 交付、替换 Play 签名 APK 并通过独立签名门禁。`published` 只审计，不构建或上传；签名不符时恢复 Draft。
 8. **桌面验证职责**：桌面 Release 工作流负责测试、包结构检查、签名与公证；代理不再重复下载 Draft 或执行本地首次启动验收，除非用户明确要求。
-9. **发布后更新**：正式发布后，发布流程默认不得下载、覆盖安装或启动 `/Applications/EdgeEver.app`；已安装的 macOS、Windows 与 Linux 桌面端通过应用内自动更新机制获取新版，其中 Linux Preview 必须在 Draft 阶段通过真实 AppImage 跨版本更新门禁。仅在用户明确要求时使用 `--install-desktop` 执行原有安装验收，功能体验由用户在实际使用中验证。
-10. **失败处理**：Release 阻塞工作流或资产审计失败时保持或恢复 Draft，修复后重跑；不得公开已知损坏的 Release。GHCR 镜像属于阻塞门禁；腾讯云 TCR 公共镜像由独立工作流在正式发布后异步同步和审计，其耗时或失败不得阻塞 GitHub Release 或将已发布版本恢复为 Draft。
-11. **Release 说明结构**：使用中英文双语格式（正文禁止包含字面量 `\n`），只写用户可感知的变化、影响以及必要的升级或迁移提醒。类型检查、构建命令、签名、公证、资产复用等技术验证细节保留在 Actions 和关联 Issue 中，不写入公开 Release 正文。功能/修复关联对应 Issue 并标记 Label，发布后回链并关闭 Issue。正文结构：
+9. **发布后更新**：桌面端通过应用内自动更新获取新版；Linux Preview 须在 Draft 阶段通过真实 AppImage 跨版本更新门禁。正式发布后不得下载、覆盖安装或启动 `/Applications/EdgeEver.app`，仅用户明确要求时使用 `--install-desktop` 验收；功能体验由用户验证。
+10. **失败处理**：阻塞工作流或资产审计失败时保持或恢复 Draft，修复后重跑。GHCR 镜像为阻塞门禁；腾讯云 TCR 公共镜像在发布后由独立工作流异步同步和审计，不阻塞发布或触发恢复 Draft。
+11. **Release 说明结构**：正文使用以下中英双语结构，禁止字面量 `\n`；只写用户可感知的变化、影响和必要升级/迁移提醒，技术验证细节留在 Actions 和关联 Issue。功能/修复关联 Issue 并标记 Label，发布后回链并关闭：
 
 ```md
 ## 主要更新
@@ -66,18 +62,18 @@ Related Issue: #<issue-number>
 
 ## 环境、部署与组件约束
 
-- **AI 模型 API 优先客户端直连**：所有平台、所有功能的 AI 模型 API 请求优先由客户端直接调用模型服务；Web 端遇到浏览器网络或 CORS 限制时，允许通过 EdgeEver 后端兜底。桌面端及原生移动端保持直连；已有 HTTP 响应或开始接收流式结果后，不得因错误自动切换到后端重复调用。
+- **AI 模型 API 优先客户端直连**：模型请求优先客户端直连；仅 Web 遇浏览器网络或 CORS 限制时可用后端兜底，桌面及原生移动端保持直连。已有 HTTP 响应或开始接收流式结果后，不得自动切换后端重复调用。
 - **Cloudflare 部署**：严格按 `docs/agent-deploy-cloudflare.md` 执行。
 - **Cloudflare 默认部署入口**：保留 Fork + Workers Builds 及现有上游同步机制；未经明确要求，不改用会改变 Fork 同步方式的 Deploy to Cloudflare 模板入口。
-- **跨运行时架构**：项目未来将正式支持 Docker 自托管；实现新功能时必须保持业务逻辑与 Cloudflare 解耦，并为其他运行时预留扩展边界。Cloudflare 与 Docker 必须共用同一套业务代码，仅允许保留薄且稳定、不包含业务判断的运行入口和基础设施驱动适配器。
+- **跨运行时架构**：Cloudflare 与 Docker 共用业务代码；运行入口和基础设施驱动适配器须保持薄且稳定，不含业务判断，并为其他运行时保留扩展边界。
 - **数据库 Migration**：数据库或种子变化时，在 `migrations/` 下新增递增编号 SQL，禁止修改已执行的旧 Migration。
 - **数据库读取预算**：备份、分页、同步和轮询必须评估整次操作的累计读取量，禁止逐页或逐次轮询重复全量扫描、计数。使用本地代表性数据验证读取量随页数与数据量的增长，并补充回归测试；不得用生产库全量扫描或压测来验证。额度耗尽必须明确诊断，不得只提示稍后重试。
-- **发布与实例恢复**：Release 资产通过不代表线上实例可用。发现部署、迁移或额度失败时，必须核查本次涉及实例的实际服务端版本和健康状态，明确报告未部署或未恢复；不得把客户端升级或额度重置等同于服务端修复已生效。
-- **本地启动**：默认 `bun run dev`（纯本地环境）。用户要求“启动/重启 Web 端”时，默认含 Web 与 API，必须使用 `bun run dev`；只有用户明确要求“纯前端”或明确指定 `dev:web` 时，才使用 `bun run dev:web`。指定远程实例用 `EDGE_EVER_INSTANCE=<实例名> bun run dev:remote`。
+- **发布与实例恢复**：部署、迁移或额度失败时，须核查相关实例的实际服务端版本和健康状态，明确未部署/未恢复情况；资产通过、客户端升级或额度重置均不代表服务端修复生效。
+- **本地启动**：启动/重启 Web 默认用 `bun run dev`，同时启动本地 Web 与 API；仅明确要求纯前端或 `dev:web` 时用 `bun run dev:web`。远程实例用 `EDGE_EVER_INSTANCE=<实例名> bun run dev:remote`。
 - **Demo 示例同步**：修改示例笔记后，在 `main` 分支干净状态下执行 `bun run demo:sync` 重置公开 Demo。
-- **禁止重复造轮子**：严禁重复实现已有成熟方案；优先采用维护活跃、广泛验证的开源组件与依赖，并优先复用 `shadcn/ui`；复杂或重复模块封装为独立组件。
-- UI和交互的原则是，产品始终表现得可靠、可预测、确定、被接住。
-- **悬停提示**：所有悬停或聚焦提示严禁使用 HTML 原生 `title`；Web 端必须统一使用 shadcn/ui 的 Tooltip 组件，并确保键盘聚焦时同样可见。
+- **UI 组件**：优先复用 `shadcn/ui`。
+- **交互原则**：可靠、可预测，操作有明确反馈。
+- **悬停提示**：禁止 HTML 原生 `title`；Web 统一使用 shadcn/ui Tooltip，键盘聚焦时也须可见。
 
 ## 品牌视觉规范 / Brand Identity
 

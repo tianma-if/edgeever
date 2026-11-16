@@ -3,7 +3,7 @@
     <img src="assets/brand/edgeever-icon.svg" alt="Logo EdgeEver" width="48" align="absmiddle" /> EdgeEver
   </h1>
   <p>
-    <b>Natywna dla AI baza wiedzy oraz alternatywa dla Evernote/Obsidian. Błyskawiczna synchronizacja na wszystkich platformach, bogate notatki (tabele, mapy myśli, diagramy, plakaty), web clipper i MCP. W 100% bezpłatnie na Cloudflare lub przez Docker.</b>
+    <b>Natywna dla AI aplikacja do notatek oraz alternatywa dla Evernote/Obsidian. Błyskawiczna synchronizacja na wszystkich platformach, bogate notatki (tabele, mapy myśli, diagramy, plakaty), web clipper i MCP. W 100% bezpłatnie na Cloudflare lub przez Docker.</b>
   </p>
   <p>
     <a href="https://github.com/tianma-if/edgeever/stargazers"><img src="https://img.shields.io/github/stars/tianma-if/edgeever?style=social" alt="Gwiazdki na GitHubie" /></a>
@@ -42,7 +42,7 @@ EdgeEver to nowoczesna, otwartoźródłowa przestrzeń do notatek i zarządzania
 Wielu użytkowników **aplikacji do notatek i osobistych baz wiedzy** szuka po prostu **niezawodnej, otwartej i szybkiej** osobistej bazy wiedzy. Popularne rozwiązania mają jednak swoje ograniczenia:
 
 * **Evernote**: Oferuje najpłynniejszą i najbardziej bezproblemową synchronizację w chmurze między wieloma urządzeniami. Z czasem stało się jednak rozbudowanym komercyjnym pakietem: przybyło reklam i dodatków, wzrosło zużycie zasobów, ograniczono darmowy plan, a zaawansowane funkcje AI są kosztowne. Trudno też połączyć je z samodzielnie hostowanymi usługami i prywatnymi procesami AI.
-* **Obsidian**: Pliki są otwarte, ale sam program ma zamknięty kod. Oficjalna synchronizacja jest płatna, a konfiguracja innych metod wymaga pracy. Przy tysiącach notatek lub wielu wtyczkach skanowanie lokalnych plików spowalnia uruchamianie i wyszukiwanie. Obrazy i załączniki powiększają magazyn, utrudniają synchronizację mobilną i mogą pozostawać po usunięciu notatek.
+* **Obsidian**: Otwarte pliki Markdown, lecz zamknięty kod rdzenia. Oficjalna synchronizacja wymaga stałej subskrypcji zależnej od pojemności i liczby skarbców, a rozwiązania zewnętrzne (iCloud, WebDAV, Git itp.) są żmudne i podatne na konflikty; ograniczona mechaniką synchronizacji lokalnych katalogów oraz restrykcjami tła na urządzeniach mobilnych, trudno jej dorównać płynności chmurowych aplikacji do notatek (brak też pełnej wersji webowej). Lokalne skanowanie powoduje wyraźne spowolnienia przy zimnym starcie i wyszukiwaniu przy tysiącach notatek lub wielu wtyczkach, a przechowywanie załączników razem z tekstem powiększa skarbiec, spowalnia synchronizację mobilną i zostawia osierocone pliki. W połączeniu z interfejsem przypominającym IDE i progiem wejścia związanym z dobieraniem wtyczek jest to rozwiązanie zbyt ciężkie do szybkiego, bezproblemowego notowania w dowolnym miejscu.
 * **Joplin**: Zasłużona, otwartoźródłowa aplikacja z układem trzech paneli, jednak jej interfejs i wygoda edycji sprawiają wrażenie zatrzymanych kilkanaście lat temu, bez nowoczesnej lekkości i dopracowania. Szybka oficjalna synchronizacja (Joplin Cloud) wymaga płatnej subskrypcji; darmowa synchronizacja przez WebDAV lub dyski chmurowe odpytuje pliki pojedynczo i zwalnia na urządzeniach mobilnych wraz ze wzrostem liczby notatek i załączników, natomiast własny Joplin Server wymaga utrzymywania serwera bez darmowej opcji serverless. Brakuje też pełnej przestrzeni roboczej w przeglądarce oraz natywnej obsługi agentów AI (MCP/ACP).
 * **Memos i notatki strumieniowe**: Są proste, ale interfejs przypominający oś czasu różni się od uporządkowanej pracy w trzech panelach.
 * **SiYuan i systemy oparte na blokach**: Oferują wiele funkcji i własny hosting, lecz szczegółowa struktura bloków utrudnia szybkie zapisywanie myśli i pisanie dłuższego tekstu. Brakuje im również bezpłatnego wdrożenia bezserwerowego, a synchronizacja między urządzeniami wymaga płatnej subskrypcji lub dodatkowo płatnego dostępu do S3/WebDAV.
@@ -83,7 +83,7 @@ Publiczne demo resetuje się codziennie o 3:00 czasu chińskiego (UTC+8) i przyw
 <a id="features"></a>
 ## Macierz funkcji i zastosowań
 
-Wszechstronny obszar roboczy łączący zbieranie inspiracji, głębokie tworzenie i gromadzenie wiedzy (👉 **[Zobacz wszystkie 19 scenariuszy ze zrzutami ekranu](docs/best-practices.md)**):
+Wszechstronny obszar roboczy łączący zbieranie inspiracji, głębokie tworzenie i gromadzenie wiedzy (👉 **[Zobacz wszystkie 20 scenariuszy ze zrzutami ekranu](docs/best-practices.md)**):
 
 | Moduł | Funkcje podstawowe | Funkcje zaawansowane |
 | :--- | :--- | :--- |
@@ -91,7 +91,7 @@ Wszechstronny obszar roboczy łączący zbieranie inspiracji, głębokie tworzen
 | **Organizacja i wyszukiwanie** | • Nieograniczone zagnieżdżanie notatników i drzewo folderów<br>• System tagów, sortowanie przeciąganiem, łączenie i przenoszenie notatek<br>• Błyskawiczne wyszukiwanie pełnotekstowe z filtrami | • **Samodzielna publikacja bazy wiedzy**: Publikuj całe notatniki jako statyczne strony dokumentacji z nawigacją i ochroną hasłem<br>• **Migracja jednym kliknięciem z innych aplikacji**: Natywny import przez GUI z flomo, Evernote, Obsidian i Joplin z zachowaniem notatek, struktury i załączników<br>• Wiele odizolowanych przestrzeni użytkowników |
 | **Zapisywanie i załączniki** | • Obsługa załączników dowolnego formatu (PDF, Office, wideo, archiwa)<br>• Precyzyjne wycinanie tekstu i obrazów ze stron w rozszerzeniu przeglądarki<br>• Udostępnianie systemowe w telefonie do zapisu zdjęć i artykułów | • **Ustrukturyzowane zapisywanie z wielu platform**: Dostosowane do Xiaohongshu, X (Twittera), Zhihu, Reddita, GitHuba, YouTube i 20+ serwisów<br>• **Archiwizacja rozmów WeChat**: Import całych rozmów ze znacznikami czasu, cytatami, emotikonami i załącznikami<br>• **Cicha kompresja obrazów**: Zmniejszenie rozmiaru o 50–90%; strumieniowe przesyłanie plików do 1 GiB<br>• **Magazyn obiektowy OSS i hosting obrazów na desktopie**: Obsługa magazynów zgodnych z S3 na instancję; bezpośrednie wysyłanie obrazów z desktopu przez PicGo / PicList oraz CloudFlare ImgBed |
 | **Dane i wizualizacje** | • Natywna edycja tabel i renderowanie tabel Markdown<br>• Natywne diagramy Mermaid (schematy blokowe, sekwencje, architektura) | • **Wielowymiarowe tabele AI**: Tworzenie tabel biznesowych z promptu (z tagami, datami i polami wyboru)<br>• **Publiczne formularze zbierania danych**: Udostępnianie formularzy bez logowania i zapis odpowiedzi w czasie rzeczywistym<br>• **Generowanie infografik i map myśli przez AI**: Osi czasu, porównania, macierze i mapy myśli |
-| **AI i ekosystem** | • Asystent AI w panelu bocznym do streszczeń, korekty, tłumaczeń i redakcji<br>• Własne klucze API (BYOK): zgodność z OpenAI, Claude, Gemini i serwerami proxy | • **Protokoły MCP i ACP**: Wbudowany MCP do odczytu/zapisu przez agentów zewnętrznych; ACP w aplikacji desktopowej do współpracy z lokalnymi agentami, takimi jak Codex, Claude Code i CodeBuddy<br>• **Transkrypcja audio i wideo AI**: Wyodrębnianie i podział ścieżki dźwiękowej po stronie klienta oraz bezpośrednie połączenie z modelami zgodnymi z OpenAI do transkrypcji i wstawiania tekstu do notatek<br>• **Otwarte API wtyczek i ekosystem motywów**: Instalacja jednym kliknięciem ze sklepu lub GitHub z synchronizacją między urządzeniami; API obsługuje odczyt/zapis notatek i interakcję z edytorem, własne panele i polecenia, wywołania AI, zadania cykliczne na desktopie oraz motywy bez kodowania |
+| **AI i ekosystem** | • Asystent AI w panelu bocznym do streszczeń, korekty, tłumaczeń i redakcji<br>• Własne klucze API (BYOK): zgodność z OpenAI, Claude, Gemini i serwerami proxy | • **Protokoły MCP i ACP**: Wbudowany MCP do odczytu/zapisu przez agentów zewnętrznych; ACP w aplikacji desktopowej do współpracy z lokalnymi agentami, takimi jak Codex, Claude Code, Antigravity i WorkBuddy<br>• **Transkrypcja audio i wideo AI**: Wyodrębnianie i podział ścieżki dźwiękowej po stronie klienta oraz bezpośrednie połączenie z modelami zgodnymi z OpenAI do transkrypcji i wstawiania tekstu do notatek<br>• **Otwarte API wtyczek i ekosystem motywów**: Instalacja jednym kliknięciem ze sklepu lub GitHub z synchronizacją między urządzeniami; API obsługuje odczyt/zapis notatek i interakcję z edytorem, własne panele i polecenia, wywołania AI, zadania cykliczne na desktopie oraz motywy bez kodowania |
 | **Synchronizacja i fundament** | • Natychmiastowa synchronizacja bez opóźnień na komputerach, telefonach i w sieci bez limitu urządzeń<br>• Oficjalne aplikacje na Web, macOS, Windows, Linux, iOS i Android<br>• Architektura offline-first i kolejka synchronizacji: płynne pisanie bez sieci, automatyczna synchronizacja po połączeniu<br>• Standardowa baza SQLite, bezstratny eksport/import archiwów ZIP i Markdown | • **Zero kosztów serwera na zawsze**: 100% działania w darmowym planie Cloudflare (~150 tys. notatek i ~50 tys. obrazów)<br>• **Elastyczny hosting Docker**: Wdrożenie na VPS, NAS lub domowym serwerze dla milionów notatek z natychmiastową synchronizacją<br>• **Automatyczne kopie na desktopie**: Zaplanowane lokalne kopie zapasowe z wielopokoleniową retencją, opcjonalnym szyfrowaniem hasłem i automatyczną replikacją do WebDAV<br>• Ochrona przed atakami brute-force, uwierzytelnianie dwuskładnikowe TOTP (2FA), zarządzanie aktywnymi sesjami urządzeń i izolacja danych |
 
 ## Wdrożenie
@@ -223,7 +223,7 @@ W lokalnym środowisku deweloperskim logowanie następuje automatycznie. Nowa ba
 
 - Monorepo oparte na Bun z aplikacją Web, API, oficjalną stroną i pakietem współdzielonych typów.
 - Interfejs: Vite, React, React Router, TanStack Query, Tailwind CSS, shadcn/ui i Radix UI.
-- Edytor: TipTap / ProseMirror z obsługą Markdown; PWA korzysta z vite-plugin-pwa, Workbox i Dexie.
+- Edytor: TipTap / ProseMirror z obsługą Markdown.
 - Android: Expo + React Native w `apps/mobile`, lokalny SQLite i synchronizacja przyrostowa.
 - iOS: natywny SwiftUI w `apps/ios` (iOS 17+), dołączony EditorBundle TipTap, lokalna kopia i kolejka zmian GRDB.
 - Desktop: Electron + proces pomocniczy Rust, SQLite do edycji offline, synchronizacji przyrostowej i lokalnych kopii zapasowych.
@@ -237,7 +237,7 @@ W lokalnym środowisku deweloperskim logowanie następuje automatycznie. Nowa ba
 <summary>📁 Rozwiń, aby zobaczyć: Struktura projektu monorepo</summary>
 
 ```text
-apps/web          Interfejs Vite + React, PWA, wersje robocze offline i kolejka synchronizacji
+apps/web          Interfejs Vite + React, wersje robocze offline i kolejka synchronizacji
 apps/extension    Rozszerzenie Web Clipper Manifest V3 dla Chrome/Edge/Firefox
 apps/api          Cloudflare Worker + Hono API, punkt końcowy MCP
 apps/mobile       Aplikacja Android Expo + React Native
@@ -270,7 +270,7 @@ content_text      Format do wyszukiwania pełnotekstowego, podsumowań i indekso
 ### Kluczowe mechanizmy i decyzje projektowe
 
 - **Cicha kompresja po stronie klienta**: Aby uniknąć zużywania limitów obliczeniowych na środowiskach Serverless (np. Cloudflare Workers), kompresja obrazów odbywa się w całości w kliencie Web przed wysłaniem (konwersja PNG/JPEG/WebP/AVIF na WebP, ograniczenie dłuższego boku do 2560px; brak powiększenia rozmiaru zachowuje oryginał). Punkty końcowe REST API i MCP zapisują bezpośrednio oryginalną treść otrzymaną od klienta.
-- **Offline-first i harmonogram synchronizacji**: Aplikacje Web, PWA i desktopowe przesyłają zmiany automatycznie po 30 sekundach braku aktywności w pisaniu, a przy widocznym oknie sprawdzają zmiany w chmurze co 5 minut. Ponowne przejście do aplikacji lub ręczne odświeżenie natychmiast synchronizuje dane. Wartości te można konfigurować przez `DEFERRED_MEMO_SYNC_DELAY_MS` i `BACKGROUND_WORKSPACE_REFRESH_INTERVAL_MS` w [`apps/web/src/lib/workspace-refresh.ts`](apps/web/src/lib/workspace-refresh.ts).
+- **Offline-first i harmonogram synchronizacji**: Aplikacje Web i desktopowe przesyłają zmiany automatycznie po 30 sekundach braku aktywności w pisaniu, a przy widocznym oknie sprawdzają zmiany w chmurze co 5 minut. Ponowne przejście do aplikacji lub ręczne odświeżenie natychmiast synchronizuje dane. Wartości te można konfigurować przez `DEFERRED_MEMO_SYNC_DELAY_MS` i `BACKGROUND_WORKSPACE_REFRESH_INTERVAL_MS` w [`apps/web/src/lib/workspace-refresh.ts`](apps/web/src/lib/workspace-refresh.ts).
 
 ### Współtworzenie kodu
 

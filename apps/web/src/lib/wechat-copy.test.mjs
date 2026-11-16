@@ -501,6 +501,28 @@ describe("preparePublishArticle", () => {
       const navigationOnly = preparePublishArticle(html, container);
       expect(navigationOnly.querySelector("h1")).toBeNull();
       expect(navigationOnly.querySelector("[data-ee-toc-cards]")).not.toBeNull();
+
+      container.dataset.noteMagazineCover = "true";
+      container.dataset.noteTitle = "Building an AI-Native, Cross-Platform Workspace";
+      const englishCommaCover = preparePublishArticle([
+        "<h2>One Worker to Serve Everything</h2><p>A</p>",
+        "<h2>Decoupled by Design: Cloudflare + Docker</h2><p>B</p>",
+        "<h2>What's Next</h2><p>C</p>",
+      ].join(""), container);
+      const coverTitle = englishCommaCover.querySelector("[data-ee-cover-card] > p");
+      expect(coverTitle?.textContent).toBe("Building an AI-Native, Cross-Platform Workspace");
+      const coverSpans = coverTitle?.querySelectorAll("span") ?? [];
+      expect(coverSpans[0]?.textContent).toBe("Building an AI-Native, ");
+      expect(coverSpans[1]?.textContent).toBe("Cross-Platform Workspace");
+      expect(css(coverSpans[1])).toContain("color:#059669");
+
+      const threeTocCards = englishCommaCover.querySelectorAll("[data-ee-toc-card]");
+      expect(threeTocCards.length).toBe(3);
+      expect(css(threeTocCards[0])).toContain("background-color:#059669");
+      expect(css(threeTocCards[1])).toContain("background-color:#059669");
+      expect(css(threeTocCards[2])).toContain("background:#ffffff");
+      expect(threeTocCards[2].textContent).toContain("What's Next");
+      expect(threeTocCards[2].textContent).toContain("PART 03");
     } finally {
       globalThis.getComputedStyle = previous;
     }
