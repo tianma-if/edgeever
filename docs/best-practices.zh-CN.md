@@ -94,16 +94,16 @@ EdgeEver 采用「目录树 · 笔记列表 · 编辑区」三栏布局：
 
 使用 EdgeEver Web Clipper 插件在小红书笔记页面右键点击「保存笔记到 EdgeEver」。
 
-- 提取标题、话题标签、正文、发布时间与原文链接。
-- 多图内容自动排版为多栏画廊。
+- 提取作者、正文、话题标签、发布时间、地点与原文链接。
+- 完整保存配图或视频封面，多图内容自动排版为多栏画廊。
 
 | 1. 右键菜单剪藏 |
 | :---: |
-| ![右键保存小红书笔记到 EdgeEver](assets/best-practices/original-image/web-clipper/xiaohongshu/xiaohongshu.png) |
+| ![右键保存小红书笔记到 EdgeEver](assets/best-practices/original-image/web-clipper/xiaohongshu/xiaohongshu-liusu.png) |
 
-| 2. 多栏画廊笔记效果 |
+| 2. 剪藏后的笔记预览 |
 | :---: |
-| ![EdgeEver 剪藏后的小红书笔记多栏画廊效果](assets/best-practices/original-image/web-clipper/xiaohongshu/xiaohongshu-in-note.png) |
+| ![EdgeEver 剪藏后的小红书笔记效果](assets/best-practices/original-image/web-clipper/xiaohongshu/xiaohongshu-liusu-in-note.png) |
 
 ---
 
