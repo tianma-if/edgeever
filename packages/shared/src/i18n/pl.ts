@@ -3505,7 +3505,8 @@ export const pl = {
     description: "Przenieś notatki z innych platform, korzystając z zalecanego importu zbiorczego przez MCP i agenta AI.",
   },
   session: {
-    desktopSignOutDescription: "Po wylogowaniu możesz zmienić adres instancji. Wylogowanie offline dotyczy tylko tego urządzenia; lokalne notatki i oczekujące zmiany pozostają przy oryginalnej instancji.",
+    currentInstance: "Bieżąca instancja",
+    signOutDescription: "Po wylogowaniu możesz zalogować się, używając dotychczasowego lub nowego adresu instancji.",
     logoutFailed: "Nie udało się dokończyć wylogowania. Spróbuj ponownie.",
     loggingOut: "Wylogowywanie...",
     logout: "Wyloguj się",

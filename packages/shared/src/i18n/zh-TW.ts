@@ -3515,7 +3515,8 @@ export const zhTW = {
     description: "支援從第三方平臺快速遷移筆記，推薦使用 MCP 與 AI Agent 批次匯入。",
   },
   session: {
-    desktopSignOutDescription: "登出後可更換實例位址。離線登出僅清除本機登入狀態；本機筆記和待同步變更保留在原實例下。",
+    currentInstance: "目前實例",
+    signOutDescription: "登出後，可使用原有或新的實例位址登入。",
     logoutFailed: "無法完成登出，請重試。",
     loggingOut: "安全退出中...",
     logout: "退出登入",

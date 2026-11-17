@@ -16,7 +16,10 @@ export const AccountInfoCard = ({ user, isLoggingOut, onLogout }: {
   onLogout: () => void;
 }) => {
   const { t } = useTranslation();
-  const instanceUrl = getConfiguredDesktopApiBaseUrl();
+  const desktopClient = typeof window !== "undefined" && window.edgeeverDesktop?.isAvailable === true;
+  const instanceUrl = desktopClient
+    ? getConfiguredDesktopApiBaseUrl()
+    : typeof window !== "undefined" ? window.location.origin : "";
 
   if (!user) return null;
 
@@ -44,11 +47,11 @@ export const AccountInfoCard = ({ user, isLoggingOut, onLogout }: {
         </div>
         {instanceUrl && (
           <div className="space-y-1 text-xs leading-5 text-slate-500">
-            <p className="break-all">{instanceUrl}</p>
-            <p>{t("session.desktopSignOutDescription")}</p>
+            <p>{t("session.currentInstance")}</p>
+            <p className="break-all text-slate-700">{instanceUrl}</p>
           </div>
         )}
-        <div>
+        <div className="space-y-2">
           <Button
             variant="outline"
             className="text-rose-700 hover:bg-rose-50 hover:text-rose-800 focus-visible:ring-rose-600/30"
@@ -57,6 +60,11 @@ export const AccountInfoCard = ({ user, isLoggingOut, onLogout }: {
           >
             {isLoggingOut ? t("session.loggingOut") : t("session.logout")}
           </Button>
+          {instanceUrl && (
+            <p className="text-xs leading-5 text-slate-500">
+              {t("session.signOutDescription")}
+            </p>
+          )}
         </div>
       </CardContent>
     </Card>

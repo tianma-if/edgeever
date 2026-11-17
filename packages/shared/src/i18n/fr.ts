@@ -3701,7 +3701,8 @@ export const fr = {
     description: "Migrez vos notes depuis des plateformes tierces grâce à l'importation par lot recommandée avec MCP et des agents IA."
   },
   session: {
-    desktopSignOutDescription: "Après la déconnexion, vous pouvez changer l’adresse de l’instance. Hors ligne, seule la session de cet appareil est fermée ; les notes locales et les modifications en attente restent liées à l’instance d’origine.",
+    currentInstance: "Instance actuelle",
+    signOutDescription: "Après la déconnexion, vous pouvez vous connecter avec l’adresse actuelle de l’instance ou une nouvelle adresse.",
     logoutFailed: "Impossible de terminer la déconnexion. Veuillez réessayer.",
     loggingOut: "Déconnexion en cours...",
     logout: "Se déconnecter"

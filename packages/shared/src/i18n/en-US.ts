@@ -3498,7 +3498,8 @@ export const enUS = {
     description: "Migrate notes from third-party platforms with recommended MCP and AI Agent batch import.",
   },
   session: {
-    desktopSignOutDescription: "After signing out, you can change the instance address. Offline sign-out only ends this device’s session; local notes and pending changes stay with the original instance.",
+    currentInstance: "Current instance",
+    signOutDescription: "After signing out, you can sign in using the same or a new instance address.",
     logoutFailed: "Unable to finish signing out. Please try again.",
     loggingOut: "Signing out...",
     logout: "Sign out",

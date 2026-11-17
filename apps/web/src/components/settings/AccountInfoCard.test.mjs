@@ -9,6 +9,35 @@ import { enUS } from "@edgeever/shared/i18n/en-US";
 import { AccountInfoCard } from "./AccountInfoCard";
 import { LoginDevicesCard } from "./LoginDevicesCard";
 
+test("web and desktop show the current instance with switching instructions", async () => {
+  const i18n = createInstance();
+  await i18n.init({ lng: "en-US", resources: { "en-US": { translation: enUS } } });
+  const previousWindow = globalThis.window;
+  try {
+    for (const desktopClient of [false, true]) {
+      globalThis.window = {
+        location: { origin: "http://127.0.0.1:5173" },
+        edgeeverDesktop: { isAvailable: desktopClient, apiBaseUrl: "https://desktop.example.com" },
+        localStorage: { getItem: () => null },
+      };
+      const html = renderToStaticMarkup(createElement(I18nextProvider, { i18n },
+        createElement(AccountInfoCard, {
+          user: { id: "user-1", username: "alice", displayName: null, role: "owner" },
+          isLoggingOut: false,
+          onLogout() {},
+        }),
+      ));
+      const text = parseHTML(html).document.querySelector("div").textContent;
+      expect(text).toContain(enUS.session.currentInstance);
+      expect(text).toContain(desktopClient ? "https://desktop.example.com" : "http://127.0.0.1:5173");
+      expect(text).toContain(enUS.session.signOutDescription);
+    }
+  } finally {
+    if (previousWindow === undefined) delete globalThis.window;
+    else globalThis.window = previousWindow;
+  }
+});
+
 test("account sign-out stays available while the remote device list loads or fails", async () => {
   const i18n = createInstance();
   await i18n.init({ lng: "en-US", resources: { "en-US": { translation: enUS } } });
