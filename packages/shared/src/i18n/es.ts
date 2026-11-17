@@ -3701,6 +3701,8 @@ export const es = {
     "description": "Migra notas desde plataformas de terceros con la importación por lotes recomendada mediante MCP y agentes de IA."
   },
   "session": {
+    desktopSignOutDescription: "Después de cerrar sesión puedes cambiar la dirección de la instancia. Sin conexión, solo se cierra la sesión de este dispositivo; las notas locales y los cambios pendientes permanecen en la instancia original.",
+    logoutFailed: "No se pudo completar el cierre de sesión. Inténtalo de nuevo.",
     "loggingOut": "Cerrando sesión...",
     "logout": "Cerrar sesión"
   },

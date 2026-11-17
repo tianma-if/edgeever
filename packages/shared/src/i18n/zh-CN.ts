@@ -3515,6 +3515,8 @@ export const zhCN = {
     description: "支持从第三方平台快速迁移笔记，推荐使用 MCP 与 AI Agent 批量导入。",
   },
   session: {
+    desktopSignOutDescription: "退出后可更换实例地址。离线退出仅清除本机登录状态；本地笔记和待同步更改保留在原实例下。",
+    logoutFailed: "未能完成退出登录，请重试。",
     loggingOut: "安全退出中...",
     logout: "退出登录",
   },

@@ -3505,6 +3505,8 @@ export const ja = {
     description: "推奨の MCP と AI Agent 一括インポートで、サードパーティからノートを移行します。",
   },
   session: {
+    desktopSignOutDescription: "サインアウト後にインスタンスのアドレスを変更できます。オフラインではこの端末のみサインアウトし、ローカルのノートと同期待ちの変更は元のインスタンスに保持されます。",
+    logoutFailed: "サインアウトを完了できませんでした。もう一度お試しください。",
     loggingOut: "サインアウトしています...",
     logout: "サインアウト",
   },

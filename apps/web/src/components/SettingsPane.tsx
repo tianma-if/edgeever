@@ -328,15 +328,11 @@ export const SettingsPane = ({
       case "account":
         return (
           <SettingsGroup>
-            <AccountInfoCard user={user} />
+            <AccountInfoCard user={user} isLoggingOut={isLoggingOut} onLogout={onLogout} />
             <PasswordCard authRequired={authRequired} demoMode={demoMode} />
             {demoMode ? null : <TwoFactorCard authRequired={authRequired} />}
             {demoMode ? null : (
-              <LoginDevicesCard
-                authRequired={authRequired}
-                isLoggingOut={isLoggingOut}
-                onLogout={onLogout}
-              />
+              <LoginDevicesCard authRequired={authRequired} />
             )}
           </SettingsGroup>
         );

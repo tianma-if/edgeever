@@ -246,7 +246,8 @@ const beforeRequest = ({ path }: EdgeEverClientRequestContext) => {
 };
 
 const handleUnauthorized = ({ path, token }: EdgeEverClientRequestContext) => {
-  if (isLoginRequest(path) || path.startsWith("/api/public/") || typeof window === "undefined") return;
+  if (isLoginRequest(path) || path === "/api/v1/auth/logout"
+    || path.startsWith("/api/public/") || typeof window === "undefined") return;
   // getSession handles its own response. A failed probe is not evidence of
   // rejection and must not launch a second probe that can race a new login.
   if (path === "/api/v1/auth/session") return;
@@ -372,8 +373,13 @@ export const api = {
     const token = getDesktopSessionToken();
     let session: AuthSession;
     try {
-      session = await client.getSession();
+      session = await client.getSession(typeof window !== "undefined" && window.edgeeverDesktop?.isAvailable
+        ? { signal: AbortSignal.timeout(8_000) }
+        : undefined);
     } catch (error) {
+      if (error instanceof DOMException && error.name === "TimeoutError") {
+        throw new TypeError("Desktop instance session request timed out");
+      }
       if (error instanceof ApiRequestError && error.status === 401
         && getConfiguredDesktopApiBaseUrl() === baseUrl && getDesktopSessionToken() === token) {
         if (typeof window !== "undefined") {
@@ -399,6 +405,22 @@ export const api = {
       desktopSessionRejected = true;
     }
     return session;
+  },
+
+  logout: async () => {
+    const bridge = typeof window !== "undefined" ? window.edgeeverDesktop : undefined;
+    if (!bridge?.isAvailable) return client.logout();
+    try {
+      await client.logout({ signal: AbortSignal.timeout(3_000) });
+    } catch {
+      // A retired or unavailable instance must not trap the user in this account.
+      // Its server-side session may remain active until it expires or is revoked.
+    }
+    // Wait for native credential/cookie removal; failure must leave a retryable UI.
+    await bridge.clearSessionToken();
+    desktopSessionToken = null;
+    window.localStorage.removeItem(DESKTOP_SESSION_STORAGE_KEY);
+    return { ok: true as const };
   },
 
   login: async (payload: { username: string; password: string; locale?: string }) => {
