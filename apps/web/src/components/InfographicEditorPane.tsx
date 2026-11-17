@@ -876,7 +876,7 @@ function InfographicEditorSession({
     {error ? <p role="alert" className="border-b border-red-100 bg-red-50 px-5 py-2 text-sm text-red-700">{error}</p> : null}
     <section className="min-h-0 flex-1 overflow-auto bg-slate-50 p-4">
       {!syntax.trim() ? (
-        <div className="relative min-h-full rounded-xl border border-slate-200 bg-white p-2 sm:p-4 shadow-sm">
+        <div className="relative min-h-full rounded-xl border border-border bg-background p-2 sm:p-4 shadow-sm">
           <div ref={containerRef} className="edgeever-infographic-preview hidden" />
           <InfographicGallery
             readOnly={readOnly}
