@@ -168,11 +168,16 @@ const waitForNoteWindowClosed = async (memoId, timeout = 20_000) => {
   throw new Error("note window did not close");
 };
 const focusedUrl = () => application.evaluate(({ BrowserWindow }) => BrowserWindow.getFocusedWindow()?.webContents.getURL() ?? null);
-const focusMain = () => application.evaluate(({ BrowserWindow }) => {
-  const main = BrowserWindow.getAllWindows().find((window) => !window.webContents.getURL().includes("noteWindow="));
-  main.show();
-  main.focus();
-});
+const focusMain = async () => {
+  await application.evaluate(({ BrowserWindow }) => {
+    const main = BrowserWindow.getAllWindows().find((window) => !window.webContents.getURL().includes("noteWindow="));
+    main.show();
+    main.focus();
+  });
+  // OS focus changes are asynchronous. The application menu ignores this
+  // command while a note window is still focused, so wait before invoking it.
+  await expect.poll(focusedUrl).toMatch(/index\.html$/);
+};
 const syncNow = () => application.evaluate(({ BrowserWindow }) => {
   BrowserWindow.getAllWindows().find((window) => !window.webContents.getURL().includes("noteWindow="))
     .webContents.send("desktop:command", "sync-now");
