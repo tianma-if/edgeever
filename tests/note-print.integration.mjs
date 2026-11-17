@@ -49,6 +49,7 @@ if (!process.versions.electron) {
 } else {
   const { app, BrowserWindow } = desktopRequire("electron");
   const { PRINT_PDF_OPTIONS } = await import("../apps/desktop/src/main/print-pdf.mjs");
+  const { createAppWindowOpenHandler } = await import("../apps/desktop/src/main/window-open-policy.mjs");
   const directory = process.argv[2];
   app.setPath("userData", join(directory, "profile"));
   app.whenReady().then(async () => {
@@ -66,8 +67,10 @@ if (!process.versions.electron) {
     await new Promise((listen) => server.listen(0, "127.0.0.1", listen));
     const origin = `http://127.0.0.1:${server.address().port}`;
     const opener = new BrowserWindow({ show: false });
-    opener.webContents.setWindowOpenHandler(() => ({
-      action: "allow", overrideBrowserWindowOptions: { show: true, width: 1000, height: 720 },
+    opener.webContents.setWindowOpenHandler(createAppWindowOpenHandler({
+      getAppUrl: () => opener.webContents.getURL(),
+      printPreloadPath: resolve(root, "apps/desktop/src/preload/print.cjs"),
+      openExternal: (url) => { throw new Error(`Unexpected external navigation: ${url}`); },
     }));
     // Keep the last window from quitting Electron before all cases finish.
     app.on("window-all-closed", () => {});
@@ -81,6 +84,8 @@ if (!process.versions.electron) {
         const created = new Promise((resolveWindow) => opener.webContents.once("did-create-window", resolveWindow));
         await opener.webContents.executeJavaScript(`window.preview = window.open('/note-print.html?token=regression'); void 0`);
         const preview = await created;
+        preview.setSize(1000, 720);
+        preview.show();
         await new Promise((loaded) => {
           if (!preview.webContents.isLoading()) loaded();
           else preview.webContents.once("did-finish-load", loaded);

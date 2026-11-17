@@ -12,7 +12,7 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        solid: "bg-emerald-500 text-white hover:bg-emerald-600 border-emerald-500",
+        solid: "bg-primary/85 text-primary-foreground hover:bg-primary/95 border-primary/85",
         soft: "bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200",
         ghost: "bg-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-900 border-transparent",
         outline: "bg-card text-slate-700 hover:bg-slate-50 border border-slate-200",

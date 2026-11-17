@@ -111,7 +111,10 @@ const launch = async () => {
   const deadline = Date.now() + 60_000;
   let main;
   while (Date.now() < deadline && !main) {
-    main = application.windows().find((window) => window.url().startsWith("edgeever-app://app/index.html") && !window.url().includes("noteWindow="));
+    main = application.windows().find((window) => (
+      window.url().startsWith("edgeever-app://app/index.html") ||
+      (process.env.EDGE_EVER_FORCE_FILE_RENDERER === "1" && /^file:.*\/web\/index\.html/.test(window.url()))
+    ) && !window.url().includes("noteWindow="));
     if (!main) await new Promise((resolveWait) => setTimeout(resolveWait, 100));
   }
   assert.ok(main, "The packaged main window must open");
@@ -165,11 +168,16 @@ const waitForNoteWindowClosed = async (memoId, timeout = 20_000) => {
   throw new Error("note window did not close");
 };
 const focusedUrl = () => application.evaluate(({ BrowserWindow }) => BrowserWindow.getFocusedWindow()?.webContents.getURL() ?? null);
-const focusMain = () => application.evaluate(({ BrowserWindow }) => {
-  const main = BrowserWindow.getAllWindows().find((window) => !window.webContents.getURL().includes("noteWindow="));
-  main.show();
-  main.focus();
-});
+const focusMain = async () => {
+  await application.evaluate(({ BrowserWindow }) => {
+    const main = BrowserWindow.getAllWindows().find((window) => !window.webContents.getURL().includes("noteWindow="));
+    main.show();
+    main.focus();
+  });
+  // OS focus changes are asynchronous. The application menu ignores this
+  // command while a note window is still focused, so wait before invoking it.
+  await expect.poll(focusedUrl).toMatch(/index\.html$/);
+};
 const syncNow = () => application.evaluate(({ BrowserWindow }) => {
   BrowserWindow.getAllWindows().find((window) => !window.webContents.getURL().includes("noteWindow="))
     .webContents.send("desktop:command", "sync-now");
@@ -245,6 +253,82 @@ try {
   await writeFile(join(profile, "installation-confirmed"), "test");
   await launch();
 
+  const verifyPdfExport = async (target, clickExport, expectedTitle, expectedText) => {
+    const dialogs = [];
+    let preview;
+    const onDialog = async (dialog) => { dialogs.push(dialog.message()); await dialog.dismiss(); };
+    target.on("dialog", onDialog);
+    try {
+      const opened = application.waitForEvent("window", { timeout: 15_000 });
+      [preview] = await Promise.all([
+        opened.catch((error) => { throw new Error(`PDF window did not open; alerts: ${dialogs.join("; ")}`, { cause: error }); }),
+        clickExport(),
+      ]);
+      await preview.waitForURL(/note-print\.html\?token=/, { timeout: 20_000 });
+      preview.on("console", (message) => { if (message.type() === "error") console.log("Print renderer:", message.text()); });
+      preview.on("pageerror", (error) => console.log("Print renderer:", error.message));
+      await expect(preview.locator("#print-action")).toBeEnabled({ timeout: 30_000 });
+      await expect(preview.locator(".edgeever-print-content")).toContainText(expectedText);
+      await expect(preview.locator(".edgeever-print-title")).toContainText(expectedTitle);
+      const path = join(directory, `${expectedTitle.replace(/\W/g, "_")}.pdf`);
+      // Electron owns the save dialog. Select a temporary destination while
+      // retaining the real renderer -> IPC -> Chromium -> download path.
+      await application.evaluate(({ session }, savePath) => {
+        globalThis.__edgeeverPrintDownloadState = "waiting";
+        session.defaultSession.once("will-download", (_event, item) => {
+          item.setSavePath(savePath);
+          item.once("done", (_doneEvent, state) => { globalThis.__edgeeverPrintDownloadState = state; });
+        });
+      }, path);
+      await preview.locator("#print-action").click();
+      await expect.poll(() => application.evaluate(() => globalThis.__edgeeverPrintDownloadState), { timeout: 30_000 }).toBe("completed");
+      const { getDocument } = await import("pdfjs-dist/legacy/build/pdf.mjs");
+      const task = getDocument({ data: new Uint8Array(await readFile(path)) });
+      const pdf = await task.promise;
+      let text = "";
+      for (let number = 1; number <= pdf.numPages; number++) {
+        text += (await (await pdf.getPage(number)).getTextContent()).items.map((item) => item.str ?? "").join(" ");
+      }
+      await task.destroy();
+      assert.ok(text.includes(expectedText), "the downloaded PDF must contain the chosen note");
+      assert.deepEqual(dialogs, [], "PDF export must not show a popup-blocked alert");
+    } finally {
+      await preview?.close().catch(() => undefined);
+      target.off("dialog", onDialog);
+    }
+  };
+
+  await step("P1: editor menu exports the current note to a readable PDF", async () => {
+    await openInMain(memoA);
+    await verifyPdfExport(page, async () => {
+      await page.getByRole("button", { name: "More note actions" }).click();
+      await page.getByRole("menuitem", { name: "Export PDF", exact: true }).click();
+    }, memoA.title, "Alpha body");
+  });
+
+  await step("P2: list context menu loads and exports a different note", async () => {
+    await openInMain(memoA);
+    await page.getByPlaceholder("Search notes").first().fill("");
+    const card = page.locator(`[data-memo-id="${memoB.id}"]`).first();
+    await expect(card).toBeVisible();
+    await card.click({ button: "right" });
+    await verifyPdfExport(page, () => page.getByRole("menuitem", { name: "Export PDF", exact: true }).click(), memoB.title, "Bravo body");
+  });
+
+  await step("P3: independent note window exports with the same print policy", async () => {
+    await openInMain(memoA);
+    await chooseOpenInNewWindow();
+    note = await noteWindowPage(memoA.id);
+    assert.ok(note, "note window opened");
+    await expect(noteEditor()).toContainText("Alpha body");
+    await verifyPdfExport(note, async () => {
+      await note.getByRole("button", { name: "More note actions" }).click();
+      await note.getByRole("menuitem", { name: "Export PDF", exact: true }).click();
+    }, memoA.title, "Alpha body");
+    await closeWindowLikeUser(memoA.id);
+    await waitForNoteWindowClosed(memoA.id);
+  });
+
   await step("A1: unsaved edits move with the note to its new window", async () => {
     await typeAtEnd(page, await openInMain(memoA), " typed-before-move");
     await chooseOpenInNewWindow();
@@ -270,7 +354,7 @@ try {
     assert.equal(noteWindowCount(), 1);
   });
 
-  await step("A3: a note window cannot open windows, switch accounts or change the instance", async () => {
+  await step("A3: a note window cannot open other note windows, switch accounts or change the instance", async () => {
     await assert.rejects(note.evaluate((id) => window.edgeeverDesktop.openNoteWindow(id), memoB.id));
     await assert.rejects(note.evaluate(() => window.edgeeverDesktop.setAccountScope("someone-else")));
     await assert.rejects(note.evaluate(() => window.edgeeverDesktop.setApiBaseUrl("http://127.0.0.1:1")));

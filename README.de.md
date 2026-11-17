@@ -103,7 +103,7 @@ Wähle für Cloudflare eine der beiden folgenden Online-Bereitstellungsoptionen:
 
 ### Option A: Bereitstellung mit einem KI-Agenten (empfohlen)
 
-Kopiere den folgenden Prompt direkt in einen KI-Agenten (z. B. Codex, Claude, Cursor, WorkBuddy, Antigravity, OpenClaw, Hermes Agent usw.). Falls während der Ausführung Zugriff auf GitHub oder Cloudflare erforderlich ist, überprüfe die angeforderten Berechtigungen und folge den Anweisungen zur Autorisierung.
+Kopiere den folgenden Prompt direkt in einen KI-Agenten (z. B. Codex, Claude Code, DeepSeek Harness, WorkBuddy, Antigravity usw.). Falls während der Ausführung Zugriff auf GitHub oder Cloudflare erforderlich ist, überprüfe die angeforderten Berechtigungen und folge den Anweisungen zur Autorisierung.
 
 ```text
 Stelle EdgeEver vollständig über GitHub und Cloudflare bereit:
@@ -180,7 +180,7 @@ Ob für regelmäßige Datensicherungen, die nahtlose Migration zwischen Instanze
 
 ### KI- & MCP-Protokoll-Integration
 
-Erstelle ein API-Token unter **Profil** -> **API / MCP** und kopiere die Remote-MCP-Konfiguration mit einem Klick, damit KI-Agenten wie Claude Code, Cursor, Antigravity und OpenClaw deine Wissensbasis innerhalb der Kontoberechtigungen sicher verwalten können. EdgeEver unterstützt vollständige CRUD-Operationen für Textnotizen, visuelle Diagramm-Notizen (Mindmaps, Flussdiagramme und Architekturdiagramme), strukturierte Tabellennotizen und native Plakat-Notizen. Agenten können zudem Notizbuch-Hierarchien, Tags, Anhänge, die Versionshistorie, Notizvorlagen und KI-Instruktionen verwalten.
+Erstelle ein API-Token unter **Profil** -> **API / MCP** und kopiere die Remote-MCP-Konfiguration mit einem Klick, damit KI-Agenten wie Claude Code, Codex, DeepSeek Harness und Antigravity deine Wissensbasis innerhalb der Kontoberechtigungen sicher verwalten können. EdgeEver unterstützt vollständige CRUD-Operationen für Textnotizen, visuelle Diagramm-Notizen (Mindmaps, Flussdiagramme und Architekturdiagramme), strukturierte Tabellennotizen und native Plakat-Notizen. Agenten können zudem Notizbuch-Hierarchien, Tags, Anhänge, die Versionshistorie, Notizvorlagen und KI-Instruktionen verwalten.
 
 Einrichtung der Clients, Zugriffsstufen der Tokens, Fehlerbehebung und empfohlene Regeln für Agenten beschreibt [Using EdgeEver with MCP clients](docs/mcp-guide.md) (auf Englisch).
 

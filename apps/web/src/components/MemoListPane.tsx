@@ -65,6 +65,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { MemoCard } from "./MemoCard";
+import { preopenNotePrintWindow } from "@/lib/note-print-window";
 import { MemoNotebookSites } from "./MemoNotebookSites";
 import { ClipboardCopyNotice } from "./ClipboardCopyNotice";
 import { WeChatCopyProgress } from "./WeChatCopyProgress";
@@ -651,7 +652,7 @@ export const MemoListPane = ({
     }
 
     const { memo } = memoContextMenu;
-    const printWindow = action === "export-pdf" ? window.open("about:blank", "_blank") : undefined;
+    const printWindow = action === "export-pdf" ? preopenNotePrintWindow() : undefined;
     setMemoContextMenu(null);
     onRequestDocumentAction(memo.id, action, printWindow);
   };

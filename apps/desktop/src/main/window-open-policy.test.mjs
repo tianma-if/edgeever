@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { isAllowedPrintPreviewUrl, isResourceDownloadUrl } from "./window-open-policy.mjs";
+import { createAppWindowOpenHandler, isAllowedPrintPreviewUrl, isResourceDownloadUrl } from "./window-open-policy.mjs";
 
 test("resource downloads require a safe resource ID and explicit download filename", () => {
   for (const url of ["edgeever-resource://resource/note?download=note.html", "edgeever-staged://pending?download=note.txt"]) {
@@ -11,6 +11,30 @@ test("resource downloads require a safe resource ID and explicit download filena
 });
 
 describe("desktop window open policy", () => {
+  test("dedicated print pages get the restricted preload while blank windows stay blocked", () => {
+    const external = [];
+    for (const appUrl of [
+      "file:///Applications/EdgeEver.app/Contents/Resources/web/index.html",
+      "http://127.0.0.1:5173/index.html",
+      "edgeever-app://app/index.html?noteWindow=note-id",
+    ]) {
+      const handler = createAppWindowOpenHandler({
+        getAppUrl: () => appUrl,
+        printPreloadPath: "/app/preload/print.cjs",
+        openExternal: (url) => external.push(url),
+      });
+      expect(handler({ url: new URL("note-print.html", appUrl).href })).toEqual({
+        action: "allow",
+        overrideBrowserWindowOptions: { webPreferences: {
+          contextIsolation: true, nodeIntegration: false, sandbox: true, preload: "/app/preload/print.cjs",
+        } },
+      });
+      expect(handler({ url: "about:blank" })).toEqual({ action: "deny" });
+      expect(handler({ url: new URL("mobile-edit.html", appUrl).href })).toEqual({ action: "deny" });
+    }
+    expect(external).toEqual(["http://127.0.0.1:5173/mobile-edit.html"]);
+  });
+
   test("allows only the packaged print preview beside the app entry", () => {
     const appUrl = "file:///Applications/EdgeEver.app/Contents/Resources/web/index.html";
 

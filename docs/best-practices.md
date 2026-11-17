@@ -94,16 +94,16 @@ Select **EdgeEver** in the mobile system share sheet from any app to upload imag
 
 Right-click any note page and select **"Save Note to EdgeEver"** using the EdgeEver Web Clipper extension.
 
-- Captures title, topic tags, body text, publish timestamp, and source URL.
-- Automatically formats multi-image sets into multi-column gallery layouts.
+- Captures author, body text, topic tags, publish time, location, and source URL.
+- Preserves embedded images or video covers, and automatically formats multi-image sets into multi-column galleries.
 
 | 1. Right-Click Clipper Menu |
 | :---: |
-| ![Right-click save Xiaohongshu note to EdgeEver](assets/best-practices/original-image/web-clipper/xiaohongshu/xiaohongshu.png) |
+| ![Right-click save Xiaohongshu note to EdgeEver](assets/best-practices/original-image/web-clipper/xiaohongshu/xiaohongshu-liusu.png) |
 
-| 2. Multi-Column Gallery Note |
+| 2. Clipped Note Preview |
 | :---: |
-| ![Xiaohongshu note clipped into multi-column gallery](assets/best-practices/original-image/web-clipper/xiaohongshu/xiaohongshu-in-note.png) |
+| ![Xiaohongshu note clipped into EdgeEver note](assets/best-practices/original-image/web-clipper/xiaohongshu/xiaohongshu-liusu-in-note.png) |
 
 ---
 

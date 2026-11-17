@@ -192,7 +192,6 @@ const AuthenticatedWorkspace = ({ siteManagement = false }: { siteManagement?: b
           mirror.createLocalDataScope(paths.getPersistentDataScopeOrigin(window.location.origin), userId),
         ).catch(() => undefined);
       }
-      clearCachedDesktopSession();
       queryClient.clear();
       queryClient.setQueryData<AuthSession>(["auth", "session"], {
         authRequired: true,
@@ -303,15 +302,22 @@ const AuthenticatedWorkspace = ({ siteManagement = false }: { siteManagement?: b
   }
 
   return (
-    <Suspense fallback={<AuthLoadingScreen />}>
-      {siteManagement ? <NotebookSiteManagementPage /> : <WorkspaceApp
-        authRequired={session.authRequired}
-        demoMode={session.demoMode}
-        isLoggingOut={logoutMutation.isPending}
-        user={session.user}
-        onLogout={() => logoutMutation.mutate()}
-      />}
-    </Suspense>
+    <>
+      {logoutMutation.isError && (
+        <div role="alert" className="fixed inset-x-4 top-4 z-50 rounded-lg border border-rose-200 bg-card p-4 text-sm text-rose-800 shadow-lg">
+          {t("session.logoutFailed")}
+        </div>
+      )}
+      <Suspense fallback={<AuthLoadingScreen />}>
+        {siteManagement ? <NotebookSiteManagementPage /> : <WorkspaceApp
+          authRequired={session.authRequired}
+          demoMode={session.demoMode}
+          isLoggingOut={logoutMutation.isPending}
+          user={session.user}
+          onLogout={() => logoutMutation.mutate()}
+        />}
+      </Suspense>
+    </>
   );
 };
 

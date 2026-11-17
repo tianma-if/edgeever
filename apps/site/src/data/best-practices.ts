@@ -10,8 +10,8 @@ import wechatArticleInNoteImg from "../../../../docs/assets/best-practices/origi
 import socialImageEnterImg from "../../../../docs/assets/best-practices/original-image/app-share/socia-image/share-enter.jpg";
 import socialImageSharingImg from "../../../../docs/assets/best-practices/original-image/app-share/socia-image/sharing.jpg";
 import socialImageInNoteImg from "../../../../docs/assets/best-practices/original-image/app-share/socia-image/share-in-note.jpg";
-import xhsClipImg from "../../../../docs/assets/best-practices/original-image/web-clipper/xiaohongshu/xiaohongshu.png";
-import xhsInNoteImg from "../../../../docs/assets/best-practices/original-image/web-clipper/xiaohongshu/xiaohongshu-in-note.png";
+import xhsClipImg from "../../../../docs/assets/best-practices/original-image/web-clipper/xiaohongshu/xiaohongshu-liusu.png";
+import xhsInNoteImg from "../../../../docs/assets/best-practices/original-image/web-clipper/xiaohongshu/xiaohongshu-liusu-in-note.png";
 import twitterClipImg from "../../../../docs/assets/best-practices/original-image/web-clipper/twitter/twitter.png";
 import twitterInNoteImg from "../../../../docs/assets/best-practices/original-image/web-clipper/twitter/twitter-in-note.png";
 import zhihuClipImg from "../../../../docs/assets/best-practices/original-image/web-clipper/zhihu/zhihu.png";
@@ -299,8 +299,8 @@ const zhCnCategories: ShowcaseCategoryCopy[] = [
         title: "小红书图文笔记剪藏",
         lead: "使用 EdgeEver Web Clipper 插件在小红书笔记页面右键点击「保存笔记到 EdgeEver」。",
         bullets: [
-          "提取标题、话题标签、正文、发布时间与原文链接。",
-          "多图内容自动排版为多栏画廊。",
+          "提取作者、正文、话题标签、发布时间、地点与原文链接。",
+          "完整保存配图或视频封面，多图内容自动排版为多栏画廊。",
         ],
         media: [
           {
@@ -308,8 +308,8 @@ const zhCnCategories: ShowcaseCategoryCopy[] = [
             alt: "右键保存小红书笔记到 EdgeEver",
           },
           {
-            caption: "2. 多栏画廊笔记效果",
-            alt: "EdgeEver 剪藏后的小红书笔记多栏画廊效果",
+            caption: "2. 剪藏后的笔记预览",
+            alt: "EdgeEver 剪藏后的小红书笔记效果",
           },
         ],
       },
@@ -767,8 +767,8 @@ const enUsCategories: ShowcaseCategoryCopy[] = [
         title: "Xiaohongshu (RED) Note Clipping",
         lead: "Right-click any note page and select \"Save Note to EdgeEver\" using the EdgeEver Web Clipper extension.",
         bullets: [
-          "Captures title, topic tags, body text, publish timestamp, and source URL.",
-          "Automatically formats multi-image sets into multi-column gallery layouts.",
+          "Captures author, body text, topic tags, publish time, location, and source URL.",
+          "Preserves embedded images or video covers, and automatically formats multi-image sets into multi-column galleries.",
         ],
         media: [
           {
@@ -776,8 +776,8 @@ const enUsCategories: ShowcaseCategoryCopy[] = [
             alt: "Right-click save Xiaohongshu note to EdgeEver",
           },
           {
-            caption: "2. Multi-Column Gallery Note",
-            alt: "Xiaohongshu note clipped into multi-column gallery",
+            caption: "2. Clipped Note Preview",
+            alt: "Xiaohongshu note clipped into EdgeEver note",
           },
         ],
       },

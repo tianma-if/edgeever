@@ -104,7 +104,7 @@ Para Cloudflare, elige cualquiera de las siguientes opciones de despliegue en l�
 
 ### Opción A: Despliegue con un agente de IA (Recomendado)
 
-Copia el siguiente prompt directamente en un agente de IA (como Codex, Claude, Cursor, WorkBuddy, Antigravity, OpenClaw, Hermes Agent, etc.). Durante la ejecución, si se requiere acceso a GitHub o Cloudflare, revisa los permisos solicitados y sigue las indicaciones para autorizar el acceso.
+Copia el siguiente prompt directamente en un agente de IA (como Codex, Claude Code, DeepSeek Harness, WorkBuddy, Antigravity, etc.). Durante la ejecución, si se requiere acceso a GitHub o Cloudflare, revisa los permisos solicitados y sigue las indicaciones para autorizar el acceso.
 
 ```text
 Despliega EdgeEver íntegramente a través de GitHub y Cloudflare:
@@ -181,7 +181,7 @@ Ya sea para copias de seguridad rutinarias, migraciones fluidas entre instancias
 
 ### Integración con IA y el protocolo MCP
 
-Crea un token de API en **Perfil** -> **API / MCP** y copia la configuración de Remote MCP con un solo clic para permitir que agentes de IA como Claude Code, Cursor, Antigravity y OpenClaw gestionen de forma segura tu base de conocimiento dentro de los permisos de tu cuenta. EdgeEver admite CRUD completo para notas de texto, notas de diagramas visuales (mapas mentales, diagramas de flujo y esquemas de arquitectura), notas de tablas estructuradas y notas tipo póster nativas. Los agentes también pueden gestionar la jerarquía de cuadernos, etiquetas, archivos adjuntos, historial de versiones, plantillas de notas e instrucciones de IA.
+Crea un token de API en **Perfil** -> **API / MCP** y copia la configuración de Remote MCP con un solo clic para permitir que agentes de IA como Claude Code, Codex, DeepSeek Harness y Antigravity gestionen de forma segura tu base de conocimiento dentro de los permisos de tu cuenta. EdgeEver admite CRUD completo para notas de texto, notas de diagramas visuales (mapas mentales, diagramas de flujo y esquemas de arquitectura), notas de tablas estructuradas y notas tipo póster nativas. Los agentes también pueden gestionar la jerarquía de cuadernos, etiquetas, archivos adjuntos, historial de versiones, plantillas de notas e instrucciones de IA.
 
 Para la configuración de clientes, los niveles de acceso de los tokens, la resolución de problemas y reglas sugeridas para agentes, consulta [Using EdgeEver with MCP clients](docs/mcp-guide.md) (en inglés).
 

@@ -281,6 +281,8 @@ export const es = {
     "historyFailed": "Esta revisión no se completó",
     "historyUndone": "Esta revisión se deshizo",
     "doubleClickText": "Haz doble clic en el texto del gráfico para editarlo. Los cambios se guardan automáticamente.",
+    "editWithAi": "Editar con el chat de IA",
+    "aiEditHint": "Pide al asistente de IA que cambie el contenido, los colores o el diseño.",
     "structureSettings": "Estructura y estilo · Edición por lotes",
     "editSyntax": "Editar sintaxis de origen",
     "backToStructure": "Volver a estructura y estilo",
@@ -3701,6 +3703,10 @@ export const es = {
     "description": "Migra notas desde plataformas de terceros con la importación por lotes recomendada mediante MCP y agentes de IA."
   },
   "session": {
+    currentInstance: "URL de la instancia",
+    signOutDescription: "Después de cerrar sesión, puedes cambiar de cuenta o conectarte a una nueva dirección de instancia.",
+    webSignOutDescription: "Después de cerrar sesión, volverás a la página de inicio de sesión de esta instancia.",
+    logoutFailed: "No se pudo completar el cierre de sesión. Inténtalo de nuevo.",
     "loggingOut": "Cerrando sesión...",
     "logout": "Cerrar sesión"
   },
