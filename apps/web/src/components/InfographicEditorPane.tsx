@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { InfographicGallery } from "./InfographicGallery";
+import { useAppearanceTheme } from "./ThemeProvider";
 import type { InfographicSample } from "@/lib/infographic-samples";
 import { AiSidebar, readAiSidebarOpen, writeAiSidebarOpen } from "@/components/ai-sidebar/AiSidebar";
 import { AiSidebarErrorBoundary } from "@/components/ai-sidebar/AiSidebarErrorBoundary";
@@ -28,7 +29,8 @@ import { formatShortcutBinding, getNotebookMoveOptions, type ShortcutSettings } 
 import { createLocalEditSession, requiresLocalEditSession } from "@/components/editor/editor-pane-helpers";
 import { createClientUuid } from "@/lib/client-id";
 import { infographicSessionHistory, infographicSessionStamp, infographicSessionThreads, infographicTurnSessionId, resolveInfographicSessionId } from "@/lib/infographic-sessions";
-import { canvasToPngBlob, downloadBlob, frameInfographicExportSvg, infographicExportBasename, rasterizeInfographicSvg, readInfographicSheetColor } from "@/lib/infographic-image-export";
+import { canvasToPngBlob, downloadBlob, frameInfographicExportSvg, infographicExportBasename, rasterizeInfographicSvg, readInfographicSheetColor, renderInfographicExportSvg } from "@/lib/infographic-image-export";
+import { infographicPreviewSyntax, infographicUsesDarkSheet } from "@/lib/infographic-preview-theme";
 import { buildInfographicSyntax, buildOfficialInfographicSyntax, infographicAgentCandidates, infographicNoteTitleIsAutomatic, infographicSyntaxTitle, INFOGRAPHIC_TEMPLATES, nextInfographicNoteTitle, parseGeneratedOfficialData, type InfographicItem } from "@/lib/infographic-generation";
 import { statusSettleMotion } from "@/lib/motion";
 import { advanceInfographicSyncBase, classifyInfographicUpdate, infographicEditorSnapshot, infographicMemoSnapshot } from "@/lib/infographic-sync";
@@ -227,6 +229,7 @@ function InfographicEditorSession({
   onOpenCompanionNote,
 }: Props) {
   const { t, i18n } = useTranslation();
+  const { resolvedTheme } = useAppearanceTheme();
   const parsed = useMemo(() => parseInfographicDocument(memo.contentMarkdown), [memo.contentMarkdown]);
   const initialTags = memo.tags.join(", ");
   const [title, setTitle] = useState(memo.title ?? "");
@@ -238,6 +241,7 @@ function InfographicEditorSession({
   }));
   const [tagsText, setTagsText] = useState(initialTags);
   const [syntax, setSyntax] = useState(parsed?.syntax ?? "");
+  const previewSyntax = infographicPreviewSyntax(syntax, resolvedTheme === "dark");
   const [history, setHistory] = useState<InfographicConversationTurn[]>(parsed?.history ?? []);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(parsed?.activeSessionId ?? null);
   const [activeTurn, setActiveTurn] = useState<{ prompt: string; response: string; template?: string; decision?: string; question?: string } | null>(null);
@@ -435,7 +439,7 @@ function InfographicEditorSession({
             setPreviousGeneration(null);
             setSyntax(nextSyntax);
           });
-          instance.render(syntax);
+          instance.render(previewSyntax);
           instanceRef.current = instance;
           setRenderError(null);
           setPreviewReady(true);
@@ -450,7 +454,7 @@ function InfographicEditorSession({
       });
     }, 250);
     return () => { cancelled = true; window.clearTimeout(timer); };
-  }, [syntax, readOnly, t]);
+  }, [syntax, previewSyntax, readOnly, t]);
 
   useEffect(() => () => { instanceRef.current?.destroy(); }, []);
 
@@ -711,8 +715,12 @@ function InfographicEditorSession({
     if (!(svg instanceof SVGSVGElement) || renderError || !previewReady) return;
     try {
       const { exportToSVG } = await import("@antv/infographic");
-      const exported = await exportToSVG(svg);
-      const sheetColor = readInfographicSheetColor(containerRef.current?.parentElement ?? null, syntax.split("\n")[1] === "theme dark");
+      const { svg: exported, sheetColor } = previewSyntax !== syntax
+        ? await renderInfographicExportSvg(syntax, svg.getBoundingClientRect())
+        : {
+          svg: await exportToSVG(svg),
+          sheetColor: readInfographicSheetColor(containerRef.current, infographicUsesDarkSheet(syntax)),
+        };
       frameInfographicExportSvg(exported, sheetColor);
       const basename = infographicExportBasename(title.trim() || t("infographic.name"));
       if (type === "svg") {
@@ -725,7 +733,7 @@ function InfographicEditorSession({
     }
   };
 
-  const previewUsesLightSheet = Boolean(syntax.trim()) && syntax.split("\n")[1] !== "theme dark";
+  const previewUsesLightSheet = !infographicUsesDarkSheet(previewSyntax);
   const saveStatus = saving ? "saving" : dirty || visualEditing ? "unsaved" : "saved";
   const saveLabel = t(`editor.saveState.${saveStatus}`);
   const saveStatusClassName = saveStatus === "saved" ? "text-slate-400" : "bg-slate-100 text-slate-700";

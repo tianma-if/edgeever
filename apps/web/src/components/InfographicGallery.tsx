@@ -13,6 +13,8 @@ import {
   X,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { useAppearanceTheme } from "./ThemeProvider";
+import { infographicPreviewSyntax, infographicUsesDarkSheet } from "@/lib/infographic-preview-theme";
 import {
   INFOGRAPHIC_SAMPLE_CATEGORIES,
   INFOGRAPHIC_SAMPLES,
@@ -32,6 +34,8 @@ type Props = {
 };
 
 function InfographicCardPreview({ syntax }: { syntax: string }) {
+  const { resolvedTheme } = useAppearanceTheme();
+  const previewSyntax = infographicPreviewSyntax(syntax, resolvedTheme === "dark");
   const containerRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const [isVisible, setIsVisible] = useState(false);
@@ -73,7 +77,7 @@ function InfographicCardPreview({ syntax }: { syntax: string }) {
           editable: false,
           svg: { style: { width: "100%", height: "100%", maxHeight: "100%", display: "block" } },
         });
-        instance.render(syntax);
+        instance.render(previewSyntax);
         if (!cancelled) setReady(true);
       } catch (err) {
         console.error("Failed to render card preview", err);
@@ -86,14 +90,14 @@ function InfographicCardPreview({ syntax }: { syntax: string }) {
         instance?.destroy();
       } catch {}
     };
-  }, [isVisible, syntax]);
+  }, [isVisible, previewSyntax]);
 
   return (
     <div
       ref={rootRef}
       className="relative w-full aspect-[16/10] overflow-hidden rounded-lg border border-border flex items-center justify-center"
       // The artwork has its own theme; application tokens would darken a light canvas.
-      style={{ backgroundColor: syntax.split("\n")[1] === "theme dark" ? "#1f1f1f" : "#ffffff" }}
+      style={{ backgroundColor: infographicUsesDarkSheet(previewSyntax) ? "#1f1f1f" : "#ffffff" }}
       data-infographic-card-preview=""
     >
       <div

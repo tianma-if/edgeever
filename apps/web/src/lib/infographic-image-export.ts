@@ -21,6 +21,35 @@ export const readInfographicSheetColor = (sheet: Element | null, dark: boolean) 
   return color;
 };
 
+// Export the saved artwork rather than the appearance-adapted editor preview.
+export const renderInfographicExportSvg = async (syntax: string, size: { width: number; height: number }) => {
+  const { Infographic, exportToSVG } = await import("@antv/infographic");
+  const container = document.createElement("div");
+  Object.assign(container.style, {
+    position: "fixed", left: "-100000px", top: "0", pointerEvents: "none",
+    width: `${Math.max(1, size.width)}px`, height: `${Math.max(1, size.height)}px`,
+  });
+  container.setAttribute("aria-hidden", "true");
+  document.body.appendChild(container);
+  let instance: InstanceType<typeof Infographic> | undefined;
+  try {
+    const graphic = new Infographic({ container, width: "100%", height: "100%", editable: false });
+    instance = graphic;
+    await new Promise<void>((resolve, reject) => {
+      graphic.on("loaded", () => resolve());
+      graphic.on("error", reject);
+      graphic.render(syntax);
+    });
+    const svg = container.querySelector("svg");
+    if (!svg) throw new Error("empty");
+    const sheetColor = readInfographicSheetColor(container, /^\s*theme dark\s*$/m.test(syntax));
+    return { svg: await exportToSVG(svg), sheetColor };
+  } finally {
+    instance?.destroy();
+    container.remove();
+  }
+};
+
 export const frameInfographicExportSvg = (svg: SVGSVGElement, sheetColor: string) => {
   const box = svg.viewBox.baseVal;
   const width = box.width > 0 ? box.width : Number(svg.getAttribute("width")) || svg.getBoundingClientRect().width;
