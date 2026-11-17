@@ -47,31 +47,42 @@ test("web and desktop show the current instance with switching instructions", as
 test("account sign-out stays available while the remote device list loads or fails", async () => {
   const i18n = createInstance();
   await i18n.init({ lng: "en-US", resources: { "en-US": { translation: enUS } } });
-  const user = { id: "user-1", username: "alice", displayName: null, role: "owner" };
-  for (const state of ["loading", "error"]) {
-    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, retryOnMount: false } } });
-    if (state === "error") {
-      await queryClient.fetchQuery({
-        queryKey: ["auth", "sessions"],
-        queryFn: () => { throw new TypeError("Old instance is offline"); },
-      }).catch(() => {});
-    }
-    const render = (isLoggingOut) => renderToStaticMarkup(
-      createElement(I18nextProvider, { i18n },
-        createElement(QueryClientProvider, { client: queryClient },
-          createElement(AccountInfoCard, { user, isLoggingOut, onLogout() {} }),
-          createElement(LoginDevicesCard, { authRequired: true }),
+  const previousWindow = globalThis.window;
+  try {
+    globalThis.window = {
+      location: { origin: "http://127.0.0.1:5173" },
+      edgeeverDesktop: { isAvailable: false },
+      localStorage: { getItem: () => null },
+    };
+    const user = { id: "user-1", username: "alice", displayName: null, role: "owner" };
+    for (const state of ["loading", "error"]) {
+      const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, retryOnMount: false } } });
+      if (state === "error") {
+        await queryClient.fetchQuery({
+          queryKey: ["auth", "sessions"],
+          queryFn: () => { throw new TypeError("Old instance is offline"); },
+        }).catch(() => {});
+      }
+      const render = (isLoggingOut) => renderToStaticMarkup(
+        createElement(I18nextProvider, { i18n },
+          createElement(QueryClientProvider, { client: queryClient },
+            createElement(AccountInfoCard, { user, isLoggingOut, onLogout() {} }),
+            createElement(LoginDevicesCard, { authRequired: true }),
+          ),
         ),
-      ),
-    );
-    const html = render(false);
-    expect(html).toContain(state === "error" ? enUS.loginDevices.loadFailed : enUS.loginDevices.loading);
-    const button = parseHTML(html).document.querySelector("button");
-    expect(button.textContent).toBe(enUS.session.logout);
-    expect(button.hasAttribute("disabled")).toBe(false);
-    const pendingButton = parseHTML(render(true)).document.querySelector("button");
-    expect(pendingButton.textContent).toBe(enUS.session.loggingOut);
-    expect(pendingButton.hasAttribute("disabled")).toBe(true);
-    queryClient.clear();
+      );
+      const html = render(false);
+      expect(html).toContain(state === "error" ? enUS.loginDevices.loadFailed : enUS.loginDevices.loading);
+      const button = parseHTML(html).document.querySelector("button");
+      expect(button.textContent).toBe(enUS.session.logout);
+      expect(button.hasAttribute("disabled")).toBe(false);
+      const pendingButton = parseHTML(render(true)).document.querySelector("button");
+      expect(pendingButton.textContent).toBe(enUS.session.loggingOut);
+      expect(pendingButton.hasAttribute("disabled")).toBe(true);
+      queryClient.clear();
+    }
+  } finally {
+    if (previousWindow === undefined) delete globalThis.window;
+    else globalThis.window = previousWindow;
   }
 });
