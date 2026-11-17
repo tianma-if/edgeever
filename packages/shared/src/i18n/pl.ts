@@ -3507,8 +3507,9 @@ export const pl = {
     description: "Przenieś notatki z innych platform, korzystając z zalecanego importu zbiorczego przez MCP i agenta AI.",
   },
   session: {
-    currentInstance: "Bieżąca instancja",
-    signOutDescription: "Po wylogowaniu możesz zalogować się, używając dotychczasowego lub nowego adresu instancji.",
+    currentInstance: "URL instancji",
+    signOutDescription: "Po wylogowaniu możesz przełączyć konto lub połączyć się z nowym adresem instancji.",
+    webSignOutDescription: "Po wylogowaniu wrócisz na stronę logowania tej instancji.",
     logoutFailed: "Nie udało się dokończyć wylogowania. Spróbuj ponownie.",
     loggingOut: "Wylogowywanie...",
     logout: "Wyloguj się",

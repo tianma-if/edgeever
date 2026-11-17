@@ -2084,7 +2084,7 @@ export const zhCN = {
     },
   },
   accountInfo: {
-    title: "当前账户",
+    title: "当前账号",
   },
   systemInfo: {
     title: "系统信息",
@@ -3517,8 +3517,9 @@ export const zhCN = {
     description: "支持从第三方平台快速迁移笔记，推荐使用 MCP 与 AI Agent 批量导入。",
   },
   session: {
-    currentInstance: "当前实例",
-    signOutDescription: "退出登录后，可使用原有或新的实例地址登录。",
+    currentInstance: "实例地址",
+    signOutDescription: "退出登录后，可切换其他账号或连接到新的实例地址。",
+    webSignOutDescription: "退出登录后将返回当前站点的登录页，可重新登录或切换账号。",
     logoutFailed: "未能完成退出登录，请重试。",
     loggingOut: "安全退出中...",
     logout: "退出登录",

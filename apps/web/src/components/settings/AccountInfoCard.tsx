@@ -32,40 +32,48 @@ export const AccountInfoCard = ({ user, isLoggingOut, onLogout }: {
         </CardTitle>
       </CardHeader>
       <CardContent className="grid gap-3 p-4 pt-0">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-800">
-            <UserRound className="h-5 w-5" />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex min-w-0 flex-1 basis-56 items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-700">
+              <UserRound className="h-5 w-5" />
+            </div>
+            <div className="min-w-0 space-y-0.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="truncate text-sm font-medium text-slate-900">
+                  {user.displayName || user.username}
+                </p>
+                <span className="inline-flex shrink-0 items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
+                  {t(`users.roles.${user.role}`)}
+                </span>
+              </div>
+              <p className="truncate text-xs text-slate-500">
+                @{user.username}
+              </p>
+            </div>
           </div>
-          <div className="min-w-0">
-            <p className="truncate text-xs font-normal text-slate-800">
-              {user.displayName || user.username}
-            </p>
-            <p className="truncate text-xs text-slate-500">
-              @{user.username} · {t(`users.roles.${user.role}`)}
-            </p>
-          </div>
-        </div>
-        {instanceUrl && (
-          <div className="space-y-1 text-xs leading-5 text-slate-500">
-            <p>{t("session.currentInstance")}</p>
-            <p className="break-all text-slate-700">{instanceUrl}</p>
-          </div>
-        )}
-        <div className="space-y-2">
           <Button
+            size="sm"
             variant="outline"
-            className="text-rose-700 hover:bg-rose-50 hover:text-rose-800 focus-visible:ring-rose-600/30"
+            className="shrink-0"
             disabled={isLoggingOut}
             onClick={onLogout}
           >
             {isLoggingOut ? t("session.loggingOut") : t("session.logout")}
           </Button>
-          {instanceUrl && (
-            <p className="text-xs leading-5 text-slate-500">
-              {t("session.signOutDescription")}
-            </p>
-          )}
         </div>
+        {instanceUrl && (
+          <div className="space-y-1 border-t border-slate-100 pt-3 text-xs leading-5 text-slate-500">
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+              <span>{t("session.currentInstance")}</span>
+              <span className="break-all font-mono text-slate-700">{instanceUrl}</span>
+            </div>
+            <p>
+              {desktopClient
+                ? t("session.signOutDescription")
+                : t("session.webSignOutDescription")}
+            </p>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

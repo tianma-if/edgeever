@@ -3703,8 +3703,9 @@ export const de = {
     "description": "Notizen von Drittanbieter-Plattformen mit empfohlenem MCP und KI-Agent-Batch-Import migrieren."
   },
   "session": {
-    currentInstance: "Aktuelle Instanz",
-    signOutDescription: "Nach dem Abmelden kannst du dich mit der bisherigen oder einer neuen Instanzadresse anmelden.",
+    currentInstance: "Instanz-URL",
+    signOutDescription: "Nach dem Abmelden kannst du das Konto wechseln oder dich mit einer neuen Instanz-URL verbinden.",
+    webSignOutDescription: "Nach dem Abmelden kehrst du zur Anmeldeseite dieser Instanz zurück.",
     logoutFailed: "Die Abmeldung konnte nicht abgeschlossen werden. Bitte versuche es erneut.",
     "loggingOut": "Abmelden...",
     "logout": "Abmelden"

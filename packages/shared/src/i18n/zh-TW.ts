@@ -2084,7 +2084,7 @@ export const zhTW = {
     },
   },
   accountInfo: {
-    title: "當前賬戶",
+    title: "目前帳號",
   },
   systemInfo: {
     title: "系統資訊",
@@ -3517,8 +3517,9 @@ export const zhTW = {
     description: "支援從第三方平臺快速遷移筆記，推薦使用 MCP 與 AI Agent 批次匯入。",
   },
   session: {
-    currentInstance: "目前實例",
-    signOutDescription: "登出後，可使用原有或新的實例位址登入。",
+    currentInstance: "實例位址",
+    signOutDescription: "登出後，可切換其他帳號或連線至新的實例位址。",
+    webSignOutDescription: "登出後將返回目前站點的登入頁，可重新登入或切換帳號。",
     logoutFailed: "無法完成登出，請重試。",
     loggingOut: "安全退出中...",
     logout: "退出登入",

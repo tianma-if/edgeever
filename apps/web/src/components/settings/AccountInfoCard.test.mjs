@@ -30,7 +30,13 @@ test("web and desktop show the current instance with switching instructions", as
       const text = parseHTML(html).document.querySelector("div").textContent;
       expect(text).toContain(enUS.session.currentInstance);
       expect(text).toContain(desktopClient ? "https://desktop.example.com" : "http://127.0.0.1:5173");
-      expect(text).toContain(enUS.session.signOutDescription);
+      if (desktopClient) {
+        expect(text).toContain(enUS.session.signOutDescription);
+        expect(text).not.toContain(enUS.session.webSignOutDescription);
+      } else {
+        expect(text).toContain(enUS.session.webSignOutDescription);
+        expect(text).not.toContain(enUS.session.signOutDescription);
+      }
     }
   } finally {
     if (previousWindow === undefined) delete globalThis.window;

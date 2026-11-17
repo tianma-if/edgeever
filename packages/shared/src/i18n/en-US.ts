@@ -3500,8 +3500,9 @@ export const enUS = {
     description: "Migrate notes from third-party platforms with recommended MCP and AI Agent batch import.",
   },
   session: {
-    currentInstance: "Current instance",
-    signOutDescription: "After signing out, you can sign in using the same or a new instance address.",
+    currentInstance: "Instance URL",
+    signOutDescription: "After signing out, you can switch accounts or connect to a different instance address.",
+    webSignOutDescription: "After signing out, you'll return to the sign-in page for this instance.",
     logoutFailed: "Unable to finish signing out. Please try again.",
     loggingOut: "Signing out...",
     logout: "Sign out",
