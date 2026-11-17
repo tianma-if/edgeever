@@ -1,26 +1,20 @@
 {
-  "version": "2.28.0",
+  "version": "2.28.1",
   "changes": {
     "en-US": [
-      "Preserve editable formulas, every gallery image, and animated images when copying rich text to platforms such as Zhihu, with ordinary images and Mermaid diagrams uploaded to the selected image host.",
-      "Add a rose red prose palette with dark mode support.",
-      "Keep the caret and image previews stable during uploads, and keep the gallery toolbar within the visible editor area.",
-      "Preserve punctuation and word boundaries in magazine covers.",
-      "Improve third-party note import entry points, platform logos, and guidance, with updated import documentation."
+      "Restore desktop PDF export from note menus.",
+      "Allow desktop sign-out when the instance is offline, and clarify the current instance and sign-in switching instructions.",
+      "Fix dark appearance in infographic galleries, canvases, and poster workspaces, improve editing control visibility, and unify solid button colors."
     ],
     "zh-CN": [
-      "复制富文本到知乎等平台时，保留可编辑公式、图库全部图片和动图，并支持将普通图片与 Mermaid 图表上传到所选图床。",
-      "新增支持深色模式的玫瑰红正文配色。",
-      "修复图片上传时的光标与预览稳定性，并让图库工具栏保持在编辑器可见范围内。",
-      "修复杂志封面中的标点和英文单词断行。",
-      "优化第三方笔记导入入口、平台标识和操作提示，并更新导入指南。"
+      "修复桌面端从笔记菜单导出 PDF 失败的问题。",
+      "修复实例离线时桌面端无法退出登录的问题，明确显示当前实例及切换登录方式。",
+      "修复信息图图库、画布和海报工作区的深色模式显示，改善编辑控件可见性并统一实心按钮配色。"
     ],
     "ja": [
-      "知乎などへリッチテキストをコピーする際、編集可能な数式、ギャラリーの全画像、アニメーション画像を保持し、通常の画像とMermaid図を選択した画像ホストにアップロードできるようになりました。",
-      "ダークモードに対応したローズレッドの本文カラーパレットを追加しました。",
-      "画像アップロード中のカーソルとプレビューを安定させ、ギャラリーのツールバーをエディターの表示範囲内に保つよう修正しました。",
-      "雑誌風カバーの句読点と英単語の改行を修正しました。",
-      "他のノートアプリからのインポート画面、ロゴ、操作案内を改善し、ガイドを更新しました。"
+      "デスクトップ版のノートメニューから PDF を書き出せない問題を修正しました。",
+      "インスタンスがオフラインでもデスクトップ版からサインアウトできるようにし、現在のインスタンスと接続先の切り替え手順を明確にしました。",
+      "インフォグラフィックのギャラリーとキャンバス、ポスター編集画面のダーク表示を修正し、編集操作を見つけやすくしてボタンの配色を統一しました。"
     ]
   }
 }
