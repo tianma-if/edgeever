@@ -143,6 +143,17 @@
   outline-offset: 2px;
 }
 
+.edgeever-infographic-text-editable foreignObject:is([data-element-type="title"], [data-element-type="desc"], [data-element-type="item-label"], [data-element-type="item-desc"]) {
+  cursor: text;
+}
+
+@media (hover: hover) {
+  .edgeever-infographic-text-editable foreignObject:is([data-element-type="title"], [data-element-type="desc"], [data-element-type="item-label"], [data-element-type="item-desc"]):hover:not(.edgeever-infographic-selected-text) {
+    outline: 1px dashed #94a3b8;
+    outline-offset: 2px;
+  }
+}
+
 .edgeever-infographic-preview > svg {
   display: block;
   width: min(100%, 760px);

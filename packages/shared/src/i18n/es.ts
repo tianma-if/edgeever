@@ -281,6 +281,8 @@ export const es = {
     "historyFailed": "Esta revisión no se completó",
     "historyUndone": "Esta revisión se deshizo",
     "doubleClickText": "Haz doble clic en el texto del gráfico para editarlo. Los cambios se guardan automáticamente.",
+    "editWithAi": "Editar con el chat de IA",
+    "aiEditHint": "Pide al asistente de IA que cambie el contenido, los colores o el diseño.",
     "structureSettings": "Estructura y estilo · Edición por lotes",
     "editSyntax": "Editar sintaxis de origen",
     "backToStructure": "Volver a estructura y estilo",

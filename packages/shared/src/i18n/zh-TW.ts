@@ -243,6 +243,8 @@ export const zhTW = {
     refine: "描述要修改的地方", refinePrompt: "例如：把第二項改成使用者增長，其餘內容保留", applyRefinement: "用 AI 修改", undoGeneration: "撤回上次生成", fineTune: "人工微調",
     historyTitle: "AI 對話記錄", scrollToBottom: "滾動到最新訊息", historyGenerated: "已生成「{{title}}」", historyRefined: "已修改「{{title}}」", historyClarified: "請補充資訊", historyFailed: "這次修改未完成", historyUndone: "這次修改已撤回",
     doubleClickText: "雙擊圖中文字可直接修改，修改後自動儲存。",
+    editWithAi: "用 AI 對話編輯",
+    aiEditHint: "透過 AI 助手對話修改內容、配色與版面。",
     structureSettings: "結構與樣式 · 批次調整", editSyntax: "編輯源語法", backToStructure: "返回結構與樣式",
     title: "標題", description: "說明", items: "條目（每行一個，使用“標題 | 說明”）", comparisonItems: "對比雙方各佔一行；子項用“- 維度 | 說明”", template: "模板", theme: "配色",
     content: "內容", syntax: "語法", preview: "預覽", save: "儲存", saving: "儲存中…", export: "匯出", exportSvg: "匯出 SVG", exportPng: "匯出 PNG",

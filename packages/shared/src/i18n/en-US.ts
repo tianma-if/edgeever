@@ -244,6 +244,8 @@ export const enUS = {
     refine: "Describe what to change", refinePrompt: "For example: change the second item to user growth", applyRefinement: "Revise with AI", undoGeneration: "Undo last generation", fineTune: "Fine-tune manually",
     historyTitle: "AI conversation history", scrollToBottom: "Scroll to latest message", historyGenerated: "Generated “{{title}}”", historyRefined: "Revised “{{title}}”", historyClarified: "More information needed", historyFailed: "This revision was not completed", historyUndone: "This revision was undone",
     doubleClickText: "Double-click text in the graphic to edit it. Changes save automatically.",
+    editWithAi: "Edit with AI chat",
+    aiEditHint: "Ask the AI assistant to change content, colors, or layout.",
     structureSettings: "Structure and style · Bulk edit", editSyntax: "Edit source syntax", backToStructure: "Back to structure and style",
     title: "Title", description: "Description", items: "Items (one per line, use ‘Title | Description’)", comparisonItems: "One line per side; add aspects as ‘- Aspect | Description’", template: "Template", theme: "Color theme",
     content: "Content", syntax: "Syntax", preview: "Preview", save: "Save", saving: "Saving…", export: "Export", exportSvg: "Export SVG", exportPng: "Export PNG",

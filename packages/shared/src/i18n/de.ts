@@ -281,6 +281,8 @@ export const de = {
     "historyFailed": "Diese Überarbeitung wurde nicht abgeschlossen",
     "historyUndone": "Diese Überarbeitung wurde rückgängig gemacht",
     "doubleClickText": "Doppelklicke auf Text in der Grafik, um ihn zu bearbeiten. Änderungen werden automatisch gespeichert.",
+    "editWithAi": "Im KI-Chat bearbeiten",
+    "aiEditHint": "Bitte den KI-Assistenten, Inhalte, Farben oder Layout zu ändern.",
     "structureSettings": "Struktur und Stil · Stapelbearbeitung",
     "editSyntax": "Quellsyntax bearbeiten",
     "backToStructure": "Zurück zu Struktur und Stil",

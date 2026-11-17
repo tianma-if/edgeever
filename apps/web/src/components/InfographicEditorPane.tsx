@@ -1,5 +1,5 @@
 import { AI_ASSISTANT_LAUNCHER_POSITION } from "@/lib/ai-assistant-launcher";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronLeft, Download, FileCode2, FileImage, LayoutTemplate, LoaderCircle, Pencil, Sparkles } from "lucide-react";
 import * as m from "motion/react-m";
 import { useTranslation } from "react-i18next";
@@ -252,6 +252,8 @@ function InfographicEditorSession({
   const [error, setError] = useState<string | null>(null);
   const [renderError, setRenderError] = useState<string | null>(null);
   const [previewReady, setPreviewReady] = useState(false);
+  const [previewTextEditable, setPreviewTextEditable] = useState(false);
+  const editHintId = useId();
   const [ready, setReady] = useState(false);
   const [savedSnapshot, setSavedSnapshot] = useState(() => infographicMemoSnapshot(memo) ?? "");
   const [savedHistorySnapshot, setSavedHistorySnapshot] = useState(JSON.stringify(parsed?.history ?? []));
@@ -373,6 +375,7 @@ function InfographicEditorSession({
 
   useEffect(() => {
     setPreviewReady(false);
+    setPreviewTextEditable(false);
     if (!syntax.trim()) { instanceRef.current?.destroy(); instanceRef.current = null; setRenderError(null); return; }
     let cancelled = false;
     const timer = window.setTimeout(() => {
@@ -442,6 +445,7 @@ function InfographicEditorSession({
           instance.render(previewSyntax);
           instanceRef.current = instance;
           setRenderError(null);
+          setPreviewTextEditable(visualTextEditable);
           setPreviewReady(true);
         } catch (caught) {
           console.error("Failed to render infographic", caught);
@@ -882,7 +886,32 @@ function InfographicEditorSession({
       </div>
     </header>
     {error ? <p role="alert" className="border-b border-red-100 bg-red-50 px-5 py-2 text-sm text-red-700">{error}</p> : null}
-    <section className="min-h-0 flex-1 overflow-auto bg-slate-50 p-4">
+    <section className="flex min-h-0 flex-1 flex-col overflow-auto bg-slate-50 p-4">
+      {!readOnly && syntax.trim() ? (
+        <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-3" data-infographic-edit-guide="">
+          <div className="min-w-0 space-y-1 text-xs leading-5 text-slate-500">
+            {previewTextEditable ? (
+              <p id={editHintId} className="flex items-start gap-1.5 text-slate-700">
+                <Pencil className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+                {t("infographic.doubleClickText")}
+              </p>
+            ) : null}
+            <p>{t("infographic.aiEditHint")}</p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="shrink-0 gap-1.5 bg-card"
+            data-ai-assistant-launcher=""
+            aria-expanded={aiAssistantOpen}
+            onClick={() => setAiSidebarOpen(true)}
+          >
+            <Sparkles className="size-4" aria-hidden="true" />
+            {t("infographic.editWithAi")}
+          </Button>
+        </div>
+      ) : null}
       {!syntax.trim() ? (
         <div className="relative min-h-full rounded-xl border border-border bg-background p-2 sm:p-4 shadow-sm">
           <div ref={containerRef} className="edgeever-infographic-preview hidden" />
@@ -892,13 +921,13 @@ function InfographicEditorSession({
           />
         </div>
       ) : (
-        <div className={`relative flex min-h-full flex-col rounded-xl border border-slate-200 p-4 shadow-sm ${previewUsesLightSheet ? "bg-white" : "bg-card"}`}>
-          <div ref={containerRef} className="edgeever-infographic-preview min-h-[380px] w-full flex-1" />
+        <div className={`relative flex min-h-[420px] flex-1 flex-col rounded-xl border border-slate-200 p-4 shadow-sm ${previewUsesLightSheet ? "bg-white" : "bg-card"}`}>
+          <div ref={containerRef} className={cn("edgeever-infographic-preview min-h-[380px] w-full flex-1", previewTextEditable && "edgeever-infographic-text-editable")} aria-describedby={previewTextEditable ? editHintId : undefined} />
           {renderError ? <p role="alert" className="text-sm text-destructive">{renderError}</p> : null}
         </div>
       )}
     </section>
-    {!readOnly && !aiAssistantOpen ? (
+    {!readOnly && !aiAssistantOpen && !syntax.trim() ? (
       <IconTooltip
         side="left"
         label={`${t("aiAssistant.open")} (${formatShortcutBinding(shortcutSettings.openAiAssistant)})`}

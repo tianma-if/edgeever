@@ -281,6 +281,8 @@ export const fr = {
     historyFailed: "Cette révision n'a pas pu être effectuée",
     historyUndone: "Cette révision a été annulée",
     doubleClickText: "Double-cliquez sur le texte dans le graphique pour le modifier. Enregistrement automatique.",
+    editWithAi: "Modifier avec le chat IA",
+    aiEditHint: "Demandez à l’assistant IA de modifier le contenu, les couleurs ou la mise en page.",
     structureSettings: "Structure et style · Modification groupée",
     editSyntax: "Modifier la syntaxe source",
     backToStructure: "Retour à la structure et au style",

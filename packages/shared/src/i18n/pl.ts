@@ -232,6 +232,8 @@ export const pl = {
     refine: "Opisz, co zmienić", refinePrompt: "Na przykład: zmień drugi element na wzrost liczby użytkowników", applyRefinement: "Popraw z AI", undoGeneration: "Cofnij ostatnie generowanie", fineTune: "Dopracuj ręcznie",
     historyTitle: "Historia rozmowy z AI", scrollToBottom: "Przewiń do najnowszej wiadomości", historyGenerated: "Wygenerowano „{{title}}”", historyRefined: "Poprawiono „{{title}}”", historyClarified: "Potrzeba więcej informacji", historyFailed: "Ta poprawka nie została ukończona", historyUndone: "Ta poprawka została cofnięta",
     doubleClickText: "Kliknij dwukrotnie tekst na grafice, aby go edytować. Zmiany zapisują się automatycznie.",
+    editWithAi: "Edytuj na czacie z AI",
+    aiEditHint: "Poproś asystenta AI o zmianę treści, kolorów lub układu.",
     structureSettings: "Struktura i styl · Edycja zbiorcza", editSyntax: "Edytuj składnię źródłową", backToStructure: "Wróć do struktury i stylu",
     title: "Tytuł", description: "Opis", items: "Elementy (jeden na wiersz, format ‚Tytuł | Opis’)", comparisonItems: "Jeden wiersz na stronę; aspekty dodawaj jako ‚- Aspekt | Opis’", template: "Szablon", theme: "Motyw kolorystyczny",
     content: "Treść", syntax: "Składnia", preview: "Podgląd", save: "Zapisz", saving: "Zapisywanie…", export: "Eksportuj", exportSvg: "Eksportuj SVG", exportPng: "Eksportuj PNG",

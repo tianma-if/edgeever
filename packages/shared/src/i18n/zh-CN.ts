@@ -243,6 +243,8 @@ export const zhCN = {
     refine: "描述要修改的地方", refinePrompt: "例如：把第二项改成用户增长，其余内容保留", applyRefinement: "用 AI 修改", undoGeneration: "撤回上次生成", fineTune: "人工微调",
     historyTitle: "AI 对话记录", scrollToBottom: "滚动到最新消息", historyGenerated: "已生成「{{title}}」", historyRefined: "已修改「{{title}}」", historyClarified: "请补充信息", historyFailed: "这次修改未完成", historyUndone: "这次修改已撤回",
     doubleClickText: "双击图中文字可直接修改，修改后自动保存。",
+    editWithAi: "用 AI 对话编辑",
+    aiEditHint: "通过 AI 助手对话修改内容、配色和布局。",
     structureSettings: "结构与样式 · 批量调整", editSyntax: "编辑源语法", backToStructure: "返回结构与样式",
     title: "标题", description: "说明", items: "条目（每行一个，使用“标题 | 说明”）", comparisonItems: "对比双方各占一行；子项用“- 维度 | 说明”", template: "模板", theme: "配色",
     content: "内容", syntax: "语法", preview: "预览", save: "保存", saving: "保存中…", export: "导出", exportSvg: "导出 SVG", exportPng: "导出 PNG",

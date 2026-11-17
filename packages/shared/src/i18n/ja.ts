@@ -232,6 +232,8 @@ export const ja = {
     refine: "変更したい点を説明", refinePrompt: "例：2 番目の項目をユーザー成長に変更", applyRefinement: "AI で修正", undoGeneration: "前回の生成を元に戻す", fineTune: "手動で微調整",
     historyTitle: "AI の対話履歴", scrollToBottom: "最新のメッセージまでスクロール", historyGenerated: "「{{title}}」を生成しました", historyRefined: "「{{title}}」を修正しました", historyClarified: "追加情報が必要です", historyFailed: "今回の修正は完了しませんでした", historyUndone: "この変更は取り消されました",
     doubleClickText: "図内の文字をダブルクリックして編集できます。変更は自動保存されます。",
+    editWithAi: "AI と対話して編集",
+    aiEditHint: "AI アシスタントとの対話で内容、配色、レイアウトを変更できます。",
     structureSettings: "構成とスタイル · 一括編集", editSyntax: "元の構文を編集", backToStructure: "構成とスタイルに戻る",
     title: "タイトル", description: "説明", items: "項目（1 行に 1 件、「タイトル | 説明」）", comparisonItems: "比較する 2 者を各 1 行にし、観点は「- 項目 | 説明」で追加", template: "テンプレート", theme: "配色",
     content: "内容", syntax: "構文", preview: "プレビュー", save: "保存", saving: "保存中…", export: "エクスポート", exportSvg: "SVG を出力", exportPng: "PNG を出力",
