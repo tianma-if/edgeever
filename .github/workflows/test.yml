@@ -134,6 +134,9 @@ jobs:
       - name: Build the Web bundle for notebook appearance
         run: bun run build:web
 
+      - name: Verify note print pagination and PDF content
+        run: bun run verify:note-print
+
       - name: Test notebook appearance, memo sort persistence and note focus shortcuts
         if: inputs.notebook_validation_rounds != '3'
         env:

@@ -37,7 +37,7 @@ import {
 } from "./installation-location.mjs";
 import { userDataDirectoryFromArguments } from "./user-data-directory.mjs";
 import { PRINT_PDF_OPTIONS } from "./print-pdf.mjs";
-import { isAllowedAppNavigation, isAllowedPrintPreviewUrl, isResourceDownloadUrl } from "./window-open-policy.mjs";
+import { createAppWindowOpenHandler, isAllowedAppNavigation, isAllowedPrintPreviewUrl, isResourceDownloadUrl } from "./window-open-policy.mjs";
 import { showWindow } from "./window-visibility.mjs";
 import { formatGlobalShortcutForHumans, globalShortcutAccelerator, globalShortcutAcceleratorsConflict, normalizeGlobalShortcutBinding, parseStoredGlobalShortcuts, replaceGlobalShortcut, toggleMainWindow } from "./global-shortcut.mjs";
 import { trayIconPath } from "./tray-icon.mjs";
@@ -1476,23 +1476,11 @@ const createWindow = async ({ show = true } = {}) => {
   });
   mainWindow.webContents.on("will-redirect", guardNavigation);
 
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (isAllowedPrintPreviewUrl(url, mainWindow.webContents.getURL())) {
-      return {
-        action: "allow",
-        overrideBrowserWindowOptions: {
-          webPreferences: {
-            contextIsolation: true,
-            nodeIntegration: false,
-            sandbox: true,
-            preload: fileURLToPath(new URL("../preload/print.cjs", import.meta.url)),
-          },
-        },
-      };
-    }
-    if (url.startsWith("https://") || url.startsWith("http://")) void shell.openExternal(url);
-    return { action: "deny" };
-  });
+  mainWindow.webContents.setWindowOpenHandler(createAppWindowOpenHandler({
+    getAppUrl: () => mainWindow.webContents.getURL(),
+    printPreloadPath: fileURLToPath(new URL("../preload/print.cjs", import.meta.url)),
+    openExternal: (url) => shell.openExternal(url),
+  }));
 
   try {
     if (app.isPackaged && !process.env.EDGE_EVER_DESKTOP_WEB_URL) {
@@ -1540,10 +1528,11 @@ const createNoteWindow = (memoId) => {
   window.webContents.on("will-redirect", (event, url) => {
     if (!isAllowedAppNavigation(url, rendererEntryUrl)) event.preventDefault();
   });
-  window.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith("https://") || url.startsWith("http://")) void shell.openExternal(url);
-    return { action: "deny" };
-  });
+  window.webContents.setWindowOpenHandler(createAppWindowOpenHandler({
+    getAppUrl: () => window.webContents.getURL(),
+    printPreloadPath: fileURLToPath(new URL("../preload/print.cjs", import.meta.url)),
+    openExternal: (url) => shell.openExternal(url),
+  }));
   // A window that cannot show its note is closed so the note returns to the
   // main window; ERR_ABORTED (-3) only means a navigation was superseded.
   window.webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
