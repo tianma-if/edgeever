@@ -1882,11 +1882,11 @@ export default function PosterEditorPane({
           <ContextMenuTrigger asChild>
             <div
               ref={viewport}
-              className="relative min-h-0 min-w-0 flex-1 overflow-auto bg-[#eef0f3]"
+              className="relative min-h-0 min-w-0 flex-1 overflow-auto bg-workspace-canvas"
               data-poster-canvas
               style={{
                 backgroundImage:
-                  "radial-gradient(#c7cdd5 1px, transparent 1px)",
+                  "radial-gradient(rgb(var(--slate-400-rgb) / 0.4) 1px, transparent 1px)",
                 backgroundSize: "16px 16px",
               }}
               onDragOver={(event) => {
