@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { mkdtemp, readFile, rm, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -34,7 +35,7 @@ test("upgrades an old staged file to a durable resource alias before deleting it
   expect(await listStagedResourceMetadata(root)).toEqual([aliased]);
   expect((await readStagedResourceMetadata(root, "stage_123")).resourceId).toBe("res_uploaded");
   expect((await readFile(join(cache, "res_uploaded.bin"))).toString()).toBe("jpeg");
-  expect(JSON.parse(await readFile(join(cache, "res_uploaded.json"), "utf8"))).toEqual({ contentType: "image/jpeg" });
+  expect(JSON.parse(await readFile(join(cache, "res_uploaded.json"), "utf8"))).toEqual({ contentType: "image/jpeg", byteSize: 4, sha256: createHash("sha256").update("jpeg").digest("hex") });
 });
 
 test("rejects an invalid or conflicting uploaded resource mapping", async () => {

@@ -471,6 +471,16 @@ pub(crate) fn list_resources(database: &Connection, params: &Value) -> Result<Va
     Ok(json!({ "resources": resources.map_err(|e| e.to_string())?, "summary": stats }))
 }
 
+// Point lookup for cache validation; never scan the attachment catalog per opening.
+pub(crate) fn resource_integrity(database: &Connection, params: &Value) -> Result<Value, String> {
+    let id = string_param(params, "resourceId")?;
+    database.query_row(
+        "SELECT byte_size, sha256 FROM resources WHERE id = ?1 AND is_deleted = 0",
+        [&id],
+        |row| Ok(json!({ "byteSize": row.get::<_, i64>(0)?, "sha256": row.get::<_, Option<String>>(1)? })),
+    ).optional().map(|value| value.unwrap_or(Value::Null)).map_err(|e| e.to_string())
+}
+
 pub(crate) fn cache_resource(database: &Connection, params: &Value) -> Result<Value, String> {
     let resource = params
         .get("resource")
