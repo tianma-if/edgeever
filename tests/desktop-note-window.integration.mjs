@@ -431,8 +431,12 @@ try {
     note = await noteWindowPage(memoA.id);
     await expect(noteEditor()).toContainText("Alpha body", { timeout: 20_000 });
     await typeAtEnd(note, noteEditor(), " typed-before-quit");
+    const nativeProcess = application.process();
     await application.evaluate(({ app }) => app.quit());
     await application.waitForEvent("close", { timeout: 30_000 }).catch(() => undefined);
+    // The debugging connection can close before Windows releases the process
+    // and its single-instance lock. Relaunch only after the native process exits.
+    await expect.poll(() => nativeProcess.exitCode !== null || nativeProcess.signalCode !== null, { timeout: 30_000 }).toBe(true);
     await launch();
     assert.equal(noteWindowCount(), 0, "note windows are not restored after a restart");
     await openInMain(memoA);
