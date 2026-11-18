@@ -1,9 +1,11 @@
 import { noteImportZhTW } from "./note-import";
+import { notionSyncZhTW } from "./notion-sync";
 import { memoTemplateSeedTranslations } from "../memo-template-seeds";
 
 // Shared by the PWA and native mobile clients.
 export const zhTW = {
   noteImport: noteImportZhTW,
+  notionSync: notionSyncZhTW,
   notebookAppearance: {
     inversion: "反轉",
     invertOff: "關閉",

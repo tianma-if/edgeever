@@ -1,10 +1,12 @@
 import { errorScreensEnUS } from "./error-screens-en-US";
 import { noteImportEnUS } from "./note-import";
+import { notionSyncEnUS } from "./notion-sync";
 import { memoTemplateSeedTranslations } from "../memo-template-seeds";
 
 // Shared by the PWA and native mobile clients.
 export const enUS = {
   noteImport: noteImportEnUS,
+  notionSync: notionSyncEnUS,
   notebookAppearance: {
     inversion: "Invert",
     invertOff: "Off",

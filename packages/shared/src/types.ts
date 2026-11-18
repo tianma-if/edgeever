@@ -401,3 +401,48 @@ export type ApiError = {
     details?: unknown;
   };
 };
+
+export type NotionSyncSettings = {
+  configured: boolean;
+  encryptionConfigured: boolean;
+  isEnabled: boolean;
+  databaseId: string;
+  databaseTitle: string | null;
+  hasApiToken: boolean;
+  hasWebhookSecret: boolean;
+  pendingVerificationToken: string | null;
+  webhookPath: string | null;
+  tagFilter: string[];
+  notebookFilter: string[];
+  defaultNotebookId: string | null;
+  lastSyncedAt: string | null;
+  lastError: string | null;
+};
+
+export type NotionSyncSettingsResponse = {
+  settings: NotionSyncSettings;
+};
+
+export type NotionSyncTestResponse = {
+  ok: true;
+  databaseId: string;
+  databaseTitle: string;
+};
+
+export type NotionSyncBatchSummary = {
+  phase: "ee_to_notion" | "notion_to_ee";
+  created: number;
+  updated: number;
+  archived: number;
+  skipped: number;
+  failed: number;
+  errors: Record<string, string>;
+};
+
+export type NotionSyncBatchResponse = {
+  ok: true;
+  hasMore: boolean;
+  nextPhase: "ee_to_notion" | "notion_to_ee" | null;
+  nextCursor: string | null;
+  summary: NotionSyncBatchSummary;
+};

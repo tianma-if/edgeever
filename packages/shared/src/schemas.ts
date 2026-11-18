@@ -683,3 +683,27 @@ export type MemoShareUpdateInput = z.infer<typeof MemoShareUpdateSchema>;
 export type PublicShareUnlockInput = z.infer<typeof PublicShareUnlockSchema>;
 export type TableFormUpdateInput = z.infer<typeof TableFormUpdateSchema>;
 export type PublicTableFormSubmissionInput = z.infer<typeof PublicTableFormSubmissionSchema>;
+
+export const NotionSyncConnectionTestSchema = z.object({
+  databaseId: z.string().trim().min(1).max(500),
+  apiToken: z.string().trim().min(1).max(500).optional(),
+});
+
+export const NotionSyncSettingsUpdateSchema = z.object({
+  isEnabled: z.boolean(),
+  databaseId: z.string().trim().min(1).max(500),
+  apiToken: z.string().trim().min(1).max(500).optional(),
+  webhookSecret: z.string().trim().max(500).optional(),
+  tagFilter: z.array(z.string().trim().min(1).max(80)).max(50).optional(),
+  notebookFilter: z.array(z.string().trim().min(1).max(80)).max(50).optional(),
+  defaultNotebookId: z.string().trim().min(1).max(120).nullable().optional(),
+});
+
+export const NotionSyncRunBatchSchema = z.object({
+  cursor: z.string().trim().min(1).max(200).nullable().optional(),
+  phase: z.enum(["ee_to_notion", "notion_to_ee"]).optional(),
+});
+
+export type NotionSyncConnectionTestInput = z.infer<typeof NotionSyncConnectionTestSchema>;
+export type NotionSyncSettingsUpdateInput = z.infer<typeof NotionSyncSettingsUpdateSchema>;
+export type NotionSyncRunBatchInput = z.infer<typeof NotionSyncRunBatchSchema>;

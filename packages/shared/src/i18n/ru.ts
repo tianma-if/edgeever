@@ -1,9 +1,11 @@
 import { noteImportRu } from "./note-import";
+import { notionSyncRu } from "./notion-sync";
 import { memoTemplateSeedTranslations } from "../memo-template-seeds";
 
 // Shared by the PWA and native mobile clients.
 export const ru = {
   noteImport: noteImportRu,
+  notionSync: notionSyncRu,
   notebookAppearance: {
     inversion: "Инверсия",
     invertOff: "Выключена",

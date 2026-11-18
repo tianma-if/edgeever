@@ -1,9 +1,11 @@
 import { noteImportDe } from "./note-import";
+import { notionSyncDe } from "./notion-sync";
 import { memoTemplateSeedTranslations } from "../memo-template-seeds";
 
 // Shared by the PWA and native mobile clients.
 export const de = {
   noteImport: noteImportDe,
+  notionSync: notionSyncDe,
   "notebookAppearance": {
     "inversion": "Invertieren",
     "invertOff": "Aus",

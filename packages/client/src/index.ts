@@ -92,6 +92,12 @@ import type {
   PluginAiGenerateRequest,
   PluginPublicFetchRequest,
   PluginPublicFetchResponse,
+  NotionSyncSettingsResponse,
+  NotionSyncTestResponse,
+  NotionSyncBatchResponse,
+  NotionSyncConnectionTestInput,
+  NotionSyncSettingsUpdateInput,
+  NotionSyncRunBatchInput,
 } from "@edgeever/shared";
 
 export const MAX_SINGLE_REQUEST_UPLOAD_BYTES = 5 * 1024 * 1024;
@@ -967,6 +973,38 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
       method: "PUT",
       body: JSON.stringify(payload),
     }),
+
+    getNotionSyncSettings: () =>
+      request<NotionSyncSettingsResponse>("/api/v1/integrations/notion"),
+
+    testNotionSyncConnection: (payload: NotionSyncConnectionTestInput) =>
+      request<NotionSyncTestResponse>("/api/v1/integrations/notion/test", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+
+    updateNotionSyncSettings: (payload: NotionSyncSettingsUpdateInput) =>
+      request<NotionSyncSettingsResponse>("/api/v1/integrations/notion", {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      }),
+
+    deleteNotionSyncSettings: () =>
+      request<{ ok: true }>("/api/v1/integrations/notion", {
+        method: "DELETE",
+      }),
+
+    rotateNotionSyncWebhook: () =>
+      request<NotionSyncSettingsResponse>("/api/v1/integrations/notion/rotate-webhook", {
+        method: "POST",
+        body: "{}",
+      }),
+
+    runNotionSyncBatch: (payload: NotionSyncRunBatchInput = {}) =>
+      request<NotionSyncBatchResponse>("/api/v1/integrations/notion/sync", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
 
     getAiSettings: (locale?: string) => {
       const search = locale ? `?locale=${encodeURIComponent(locale)}` : "";
