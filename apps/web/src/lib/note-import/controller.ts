@@ -3,18 +3,28 @@ import type { ImportFile, ImportFormat, ImportIssue, ImportNotebook, ImportNoteR
 import type { ImportProgress } from "./execute";
 import type { BrowserImportReader } from "./browser-reader";
 import { api, createNoteImportClient } from "../api";
+import { isMarkdownFile } from "../markdown-file-import";
 
 export type NoteImportSnapshot = {
   open: boolean; phase: "idle" | "scanning" | "ready" | "running" | "finished";
   format: ImportFormat; summary?: ImportSummary; error?: string;
   includeUnreferencedAttachments: boolean;
   skipInvalidEvernoteAttachments: boolean;
+  markdownFolderName?: string; keepMarkdownRoot?: boolean;
   progress?: ImportProgress; scanningPath?: string; parentId: string;
   folders: ImportNotebook[]; issues: ImportIssue[]; results: ImportNoteResult[];
-  destinations: Notebook[]; resultCount: number; outcome?: ImportRunResult;
+  destinations: Notebook[]; destinationStatus: "loading" | "ready" | "error";
+  resultCount: number; outcome?: ImportRunResult;
 };
+
+export const canConfirmImportDestination = (state: NoteImportSnapshot) => {
+  if (state.format !== "markdown") return true;
+  if (!state.parentId) return Boolean(state.keepMarkdownRoot);
+  return state.destinationStatus === "ready" && state.destinations.some(notebook => notebook.id === state.parentId);
+};
+
 export class NoteImportController {
-  private snapshot: NoteImportSnapshot = { open: false, phase: "idle", format: "evernote", includeUnreferencedAttachments: true, skipInvalidEvernoteAttachments: false, parentId: "", folders: [], issues: [], results: [], resultCount: 0, destinations: [] };
+  private snapshot: NoteImportSnapshot = { open: false, phase: "idle", format: "evernote", includeUnreferencedAttachments: true, skipInvalidEvernoteAttachments: false, parentId: "", folders: [], issues: [], results: [], resultCount: 0, destinations: [], destinationStatus: "ready" };
   private files: ImportFile[] = [];
   private listeners = new Set<() => void>();
   private reader?: BrowserImportReader;
@@ -22,6 +32,8 @@ export class NoteImportController {
   private work: Promise<void> = Promise.resolve();
   private active = true;
   private generation = 0;
+  private destinationRequest = 0;
+  private markdownDefaultParentId = "";
   constructor(readonly accountId: string | null, readonly target: string, private label: () => string, private refresh: () => Promise<void>) {}
   get accountLabel() { return this.label(); }
   subscribe = (callback: () => void) => { this.listeners.add(callback); return () => { this.listeners.delete(callback); }; };
@@ -32,14 +44,38 @@ export class NoteImportController {
     for (const listener of this.listeners) listener();
   }
   activate = () => { this.active = true; };
-  open = (format?: ImportFormat) => {
+  open = (format?: ImportFormat, markdownDefaultParentId = "") => {
+    if (this.snapshot.phase === "idle") {
+      this.generation++;
+      this.markdownDefaultParentId = markdownDefaultParentId;
+    }
     this.update({
       open: true,
       ...(format && this.snapshot.phase === "idle" ? { format } : {}),
     });
-    void api.listNotebooks().then(({ notebooks }) => this.update({ destinations: notebooks })).catch(() => {});
+    void this.refreshDestinations();
   };
-  setFormat = (format: ImportFormat) => { if (this.snapshot.phase === "idle") this.update({ format }); };
+  refreshDestinations = async () => {
+    const request = ++this.destinationRequest;
+    const isCurrent = () => this.active && this.snapshot.open && request === this.destinationRequest;
+    this.update({ destinationStatus: "loading" });
+    try {
+      const { notebooks } = await api.listNotebooks();
+      if (isCurrent()) this.update({ destinations: notebooks, destinationStatus: "ready" });
+    } catch {
+      if (isCurrent()) this.update({ destinationStatus: "error" });
+    }
+  };
+  beginDrop = () => {
+    if (!this.active || !this.snapshot.open || this.snapshot.phase !== "idle") return () => false;
+    const generation = ++this.generation;
+    return () => this.active && this.snapshot.open && this.snapshot.phase === "idle" && generation === this.generation;
+  };
+  setFormat = (format: ImportFormat) => {
+    if (this.snapshot.phase !== "idle" || this.snapshot.format === format) return;
+    this.generation++;
+    this.update({ format, error: undefined });
+  };
   setParent = (parentId: string) => { if (this.snapshot.phase === "ready") this.update({ parentId }); };
   setIncludeUnreferencedAttachments = (includeUnreferencedAttachments: boolean) => {
     if (!["idle", "ready"].includes(this.snapshot.phase)) return;
@@ -51,13 +87,34 @@ export class NoteImportController {
     this.update({ skipInvalidEvernoteAttachments });
     if (this.snapshot.phase === "ready") this.select(this.files, this.snapshot.parentId);
   };
-  select = (files: ImportFile[], parentId = "") => {
+  rejectMarkdownSelection = () => {
+    if (this.snapshot.format === "markdown" && this.snapshot.phase === "idle") this.update({ error: "chooseSingleMarkdownSource" });
+  };
+  setKeepMarkdownRoot = (keepMarkdownRoot: boolean) => {
+    const { phase, markdownFolderName, parentId } = this.snapshot;
+    if (phase === "ready" && markdownFolderName) this.select(this.files, parentId, markdownFolderName, keepMarkdownRoot);
+  };
+  select = (files: ImportFile[], parentId?: string, markdownFolderName?: string, keepMarkdownRoot = Boolean(markdownFolderName)) => {
     if (!files.length || this.snapshot.phase === "running" || this.snapshot.phase === "scanning") return;
-    this.files = files;
-    const options = { includeUnreferencedAttachments: this.snapshot.includeUnreferencedAttachments, skipInvalidEvernoteAttachments: this.snapshot.skipInvalidEvernoteAttachments };
     const generation = ++this.generation;
+    const markdown = this.snapshot.format === "markdown";
+    if (markdown && !markdownFolderName && (files.length !== 1 || !isMarkdownFile(files[0]!.file))) {
+      this.rejectMarkdownSelection();
+      return;
+    }
+    if (markdown) files = files.map(file => ({ ...file, expandArchive: false }));
+    this.files = files;
+    const options = {
+      includeUnreferencedAttachments: this.snapshot.includeUnreferencedAttachments,
+      skipInvalidEvernoteAttachments: this.snapshot.skipInvalidEvernoteAttachments,
+      ...(markdown && keepMarkdownRoot ? { markdownRootName: markdownFolderName } : {}),
+    };
     const isCurrent = () => this.active && generation === this.generation;
-    this.update({ phase: "scanning", error: undefined, summary: undefined, folders: [], issues: [], results: [], outcome: undefined, scanningPath: "", parentId });
+    this.update({
+      phase: "scanning", error: undefined, summary: undefined, folders: [], issues: [], results: [], outcome: undefined, scanningPath: "",
+      parentId: parentId ?? (markdown ? this.markdownDefaultParentId : ""),
+      markdownFolderName: markdown ? markdownFolderName : undefined, keepMarkdownRoot: markdown && keepMarkdownRoot,
+    });
     this.work = (async () => {
       await this.reader?.close();
       if (!isCurrent()) return;
@@ -102,6 +159,7 @@ export class NoteImportController {
   };
   run = () => {
     if (!this.reader || !this.snapshot.summary?.notes || this.snapshot.summary.errors || !["ready", "finished"].includes(this.snapshot.phase)) return;
+    if (this.snapshot.phase === "ready" && !canConfirmImportDestination(this.snapshot)) return;
     const reader = this.reader;
     const generation = this.generation;
     this.abort = new AbortController();

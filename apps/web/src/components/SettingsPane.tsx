@@ -81,6 +81,7 @@ interface SettingsPaneProps {
   user: AuthUser | null;
   refreshWorkspaceAfterImport: () => Promise<void>;
   noteImport: NoteImportController;
+  defaultImportNotebookId: string | null;
   onOpenExecutionCenter: () => void;
   onOpenMemo: (memoId: string, notebookId: string) => void;
 }
@@ -124,6 +125,7 @@ export const SettingsPane = ({
   user,
   refreshWorkspaceAfterImport,
   noteImport,
+  defaultImportNotebookId,
   onOpenExecutionCenter,
   onOpenMemo,
 }: SettingsPaneProps) => {
@@ -301,7 +303,7 @@ export const SettingsPane = ({
             ) : (
               <DataExportCard refreshWorkspaceAfterImport={refreshWorkspaceAfterImport} />
             )}
-            <ThirdPartyImportCard controller={noteImport} onOpenMemo={onOpenMemo} />
+            <ThirdPartyImportCard controller={noteImport} defaultNotebookId={defaultImportNotebookId} />
           </SettingsGroup>
         );
       case "sharing":

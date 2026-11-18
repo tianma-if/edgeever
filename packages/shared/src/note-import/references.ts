@@ -69,8 +69,13 @@ export const findImportReferences = (markdown: string): ImportReference[] => {
   for (const id of used) { const ref = definitions.get(id); if (ref) result.set(ref.start, ref); }
   return [...result.values()].sort((a, b) => a.start - b.start);
 };
-export const rewriteImportMarkdown = (markdown: string, refs: ImportReference[], urls: Record<string, string>) => {
+export const rewriteImportMarkdown = (markdown: string, refs: ImportReference[], urls: Record<string, string>, noteLinks?: ReadonlyMap<string, string>) => {
   for (const ref of [...refs].sort((a, b) => b.start - a.start)) {
+    const noteLink = ref.noteKey ? noteLinks?.get(ref.noteKey) : undefined;
+    if (noteLink) {
+      markdown = markdown.slice(0, ref.start) + noteLink + markdown.slice(ref.end);
+      continue;
+    }
     const url = ref.resourceKey && Object.hasOwn(urls, ref.resourceKey) ? urls[ref.resourceKey] : undefined;
     if (!url) continue;
     const suffix = (ref.suffix ?? "").replace(/[()]/g, char => char === "(" ? "%28" : "%29");

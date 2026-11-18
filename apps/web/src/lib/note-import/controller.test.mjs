@@ -1,5 +1,55 @@
 import { expect, test } from "bun:test";
 import { NoteImportController } from "./controller";
+import { api } from "../api";
+
+test("closing, reopening, switching sources or starting another drop invalidates directory reads", () => {
+  const controller = new NoteImportController(null, "http://import.test", () => "Owner", async () => {});
+  try {
+    controller.open("markdown", "first");
+    const first = controller.beginDrop();
+    expect(first()).toBe(true);
+    controller.dismiss();
+    controller.open("markdown", "second");
+    expect(first()).toBe(false);
+    const second = controller.beginDrop();
+    controller.setFormat("obsidian");
+    controller.setFormat("markdown");
+    expect(second()).toBe(false);
+    const interrupted = controller.beginDrop();
+    const latest = controller.beginDrop();
+    expect(interrupted()).toBe(false);
+    expect(latest()).toBe(true);
+  } finally { controller.dispose(); }
+});
+
+test("Markdown confirmation waits for a resolved notebook and destination lookup can be retried", async () => {
+  const listNotebooks = api.listNotebooks;
+  const controller = new NoteImportController(null, "http://import.test", () => "Owner", async () => {});
+  try {
+    api.listNotebooks = async () => { throw new Error("Unavailable"); };
+    controller.update({ open: true, format: "markdown", phase: "ready", parentId: "destination", keepMarkdownRoot: true, summary: { notes: 1, errors: 0 } });
+    await controller.refreshDestinations();
+    let resets = 0;
+    controller.reader = {
+      reset: async () => { resets++; throw new Error("Unexpected import"); },
+      index: { page: async () => [], count: async () => 0 },
+      abort() {}, async close() {},
+    };
+    controller.run();
+    await controller.work;
+    expect(resets).toBe(0);
+    expect(controller.getSnapshot()).toMatchObject({ phase: "ready", destinationStatus: "error" });
+    api.listNotebooks = async () => ({ notebooks: [{ id: "destination", name: "Destination" }] });
+    await controller.refreshDestinations();
+    expect(controller.getSnapshot()).toMatchObject({ destinationStatus: "ready", destinations: [{ id: "destination" }] });
+    controller.run();
+    await controller.work;
+    expect(resets).toBe(1);
+  } finally {
+    api.listNotebooks = listNotebooks;
+    controller.dispose();
+  }
+});
 
 test("standalone attachments default on and changing the option rescans while preserving destination", async () => {
   await import("fake-indexeddb/auto");

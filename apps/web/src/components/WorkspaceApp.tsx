@@ -166,6 +166,7 @@ const AssetsPane = lazy(() => import("./AssetsPane").then((module) => ({ default
 const SettingsPane = lazy(() => import("./SettingsPane").then((module) => ({ default: module.SettingsPane })));
 const PluginMarketplacePane = lazy(() => import("./PluginMarketplacePane").then((module) => ({ default: module.PluginMarketplacePane })));
 const NotebookPane = lazy(() => import("./NotebookPane").then((module) => ({ default: module.NotebookPane })));
+const ThirdPartyImportDialog = lazy(() => import("./settings/ThirdPartyImportDialog").then((module) => ({ default: module.ThirdPartyImportDialog })));
 const EvernoteImportGuidePane = lazy(() =>
   import("./EvernoteImportGuidePane").then((module) => ({ default: module.EvernoteImportGuidePane }))
 );
@@ -662,6 +663,7 @@ export const WorkspaceApp = ({
   }, [invalidateWorkspaceQueries, repository, runQueuedSync, syncSummary.total]);
 
   const noteImport = useNoteImport(authRequired ? user?.id ?? null : null, user?.displayName || user?.username || "Local", async () => { await refreshWorkspaceFromServer("manual"); });
+  const noteImportOpen = useSyncExternalStore(noteImport.subscribe, () => noteImport.getSnapshot().open);
 
   const refreshedBackupRestores = useRef(new Set<string>());
   useEffect(() => {
@@ -3470,6 +3472,7 @@ export const WorkspaceApp = ({
                   onCreateMemo={handleCreateMemo}
                   onCreateNotebook={handleCreateNotebook}
                   onRenameNotebook={handleRenameNotebook}
+                  onImportMarkdown={notebookId => noteImport.open("markdown", notebookId)}
                   onEditNotebookAppearance={setAppearanceNotebook}
                   onDeleteNotebook={handleDeleteNotebook}
                   onMoveNotebook={handleMoveNotebook}
@@ -3739,6 +3742,7 @@ export const WorkspaceApp = ({
                     isOwner={authRequired && user?.role === "owner"}
                     user={user}
                     noteImport={noteImport}
+                    defaultImportNotebookId={defaultMemoNotebookId}
                     refreshWorkspaceAfterImport={async () => {
                       await refreshWorkspaceFromServer("manual");
                     }}
@@ -4183,6 +4187,11 @@ export const WorkspaceApp = ({
           onCancel={() => setDemoResetConfirmationOpen(false)}
           onConfirm={() => resetDemoMutation.mutate()}
         />
+      )}
+      {noteImportOpen && (
+        <Suspense fallback={null}>
+          <ThirdPartyImportDialog controller={noteImport} onOpenMemo={handleOpenPluginNote} />
+        </Suspense>
       )}
       {listShareMemoId && (
         <Suspense fallback={<DeferredToolLoading />}>

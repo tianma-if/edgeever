@@ -10,7 +10,7 @@ import { prefersChineseContent } from "@/lib/bilingual-content-locale";
 export interface ImportSourceMeta {
   format: ImportFormat;
   label: string;
-  logo: string;
+  logo?: string;
   formatHint: string;
 }
 
@@ -20,6 +20,7 @@ export interface ImportSourceMeta {
 export function getImportSources(language?: string | null): Record<ImportFormat, ImportSourceMeta> {
   const zh = prefersChineseContent(language);
   return {
+    markdown: { format: "markdown", label: "Markdown", formatHint: ".md · .markdown" },
     notion: { format: "notion", label: "Notion", logo: notionLogo, formatHint: "Markdown & CSV · .zip" },
     siyuan: { format: "siyuan", label: zh ? "SiYuan / 思源" : "SiYuan", logo: siyuanLogo, formatHint: "Markdown · .zip" },
     flomo: { format: "flomo", label: "flomo", logo: flomoLogo, formatHint: "HTML · .zip" },

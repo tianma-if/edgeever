@@ -1,12 +1,13 @@
 import type { MemoDetail } from "../types";
 
-export type ImportFormat = "evernote" | "obsidian" | "joplin" | "flomo" | "notion" | "siyuan";
-export type ImportOptions = { includeUnreferencedAttachments?: boolean; skipInvalidEvernoteAttachments?: boolean };
+export type ImportFormat = "evernote" | "obsidian" | "joplin" | "flomo" | "notion" | "siyuan" | "markdown";
+export type ImportOptions = { includeUnreferencedAttachments?: boolean; skipInvalidEvernoteAttachments?: boolean; markdownRootName?: string };
+export const MARKDOWN_DESTINATION_REQUIRED = "markdown:destinationRequired";
 export type ImportFile = { path: string; file: File; expandArchive?: boolean };
 export type ImportIssue = { key: string; severity: "error" | "warning"; code: string; path: string; detail?: string };
 export type SourceEntry = { key: string; path: string; size: number; fileIndex: number; archivePath?: string; offset?: number };
 export type ImportNotebook = { key: string; name: string; parentKey: string | null };
-export type ImportReference = { start: number; end: number; href: string; label: string; image: boolean; wiki: boolean; resourceKey?: string; suffix?: string; targetOnly?: boolean };
+export type ImportReference = { start: number; end: number; href: string; label: string; image: boolean; wiki: boolean; resourceKey?: string; noteKey?: string; suffix?: string; targetOnly?: boolean };
 export type ImportResource = { key: string; filename: string; mimeType: string; byteSize: number; entryKey?: string; enex?: boolean; hash?: string; chunks?: number };
 export type ImportNote = {
   key: string; path: string; notebookKey: string; title: string; tags: string[];
@@ -44,7 +45,7 @@ export type ImportMemosResponse = {
 };
 export type ImportNoteResult = {
   key: string; path: string; memo: Pick<MemoDetail, "id" | "notebookId" | "revision" | "contentHash" | "createdAt" | "updatedAt">; urls: Record<string, string>;
-  complete: boolean; error?: string; uncertain?: boolean; intendedMarkdown?: string;
+  complete: boolean; linksPending?: boolean; error?: string; uncertain?: boolean; intendedMarkdown?: string;
 };
 export type ImportRunResult = { completed: number; failed: number; resources: number; cancelled: boolean; syncPending: boolean; failure?: { key: string; path: string; message: string; uncertain: boolean } };
 export const IMPORT_CHUNK_BYTES = 64 * 1024;
