@@ -167,10 +167,14 @@ const waitForNoteWindowClosed = async (memoId, timeout = 20_000) => {
   }
   throw new Error("note window did not close");
 };
-const focusedUrl = () => application.evaluate(({ BrowserWindow }) => BrowserWindow.getFocusedWindow()?.webContents.getURL() ?? null);
+const focusedUrl = () => application.evaluate(({ BrowserWindow }) => {
+  const window = BrowserWindow.getFocusedWindow();
+  return window && !window.isDestroyed() && !window.webContents.isDestroyed()
+    ? window.webContents.getURL() : null;
+});
 const focusMain = async () => {
   await application.evaluate(({ BrowserWindow }) => {
-    const main = BrowserWindow.getAllWindows().find((window) => !window.webContents.getURL().includes("noteWindow="));
+    const main = BrowserWindow.getAllWindows().find((window) => !window.isDestroyed() && !window.webContents.isDestroyed() && !window.webContents.getURL().includes("noteWindow="));
     main.show();
     main.focus();
   });
@@ -179,11 +183,11 @@ const focusMain = async () => {
   await expect.poll(focusedUrl).toMatch(/index\.html$/);
 };
 const syncNow = () => application.evaluate(({ BrowserWindow }) => {
-  BrowserWindow.getAllWindows().find((window) => !window.webContents.getURL().includes("noteWindow="))
+  BrowserWindow.getAllWindows().find((window) => !window.isDestroyed() && !window.webContents.isDestroyed() && !window.webContents.getURL().includes("noteWindow="))
     .webContents.send("desktop:command", "sync-now");
 });
 const closeWindowLikeUser = (memoId) => application.evaluate(({ BrowserWindow }, id) => {
-  BrowserWindow.getAllWindows().find((window) => window.webContents.getURL().includes(`noteWindow=${id}`))?.close();
+  BrowserWindow.getAllWindows().find((window) => !window.isDestroyed() && !window.webContents.isDestroyed() && window.webContents.getURL().includes(`noteWindow=${id}`))?.close();
 }, memoId);
 // The application menu follows the OS language, not the app language.
 const menuLabels = (key) => ["en-US", "zh-CN", "ja", "pl", "ru"].map((locale) => desktopMenuCopy(locale)[key]).filter(Boolean);
@@ -452,7 +456,7 @@ try {
     note = await noteWindowPage(memoD.id);
     await expect(noteEditor()).toContainText("Delta body", { timeout: 20_000 });
     await application.evaluate(({ BrowserWindow }, id) => {
-      BrowserWindow.getAllWindows().find((window) => window.webContents.getURL().includes(`noteWindow=${id}`)).webContents.forcefullyCrashRenderer();
+      BrowserWindow.getAllWindows().find((window) => !window.isDestroyed() && !window.webContents.isDestroyed() && window.webContents.getURL().includes(`noteWindow=${id}`)).webContents.forcefullyCrashRenderer();
     }, memoD.id);
     await waitForNoteWindowClosed(memoD.id);
     await expect(page.getByText("closed unexpectedly")).toBeVisible({ timeout: 20_000 });
