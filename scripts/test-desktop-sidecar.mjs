@@ -401,6 +401,8 @@ await request("resource.cache", {
     height: null,
   },
 });
+assert.deepEqual(await request("resource.integrity", { resourceId: "resource-from-merge-source" }), { byteSize: 42, sha256: "resource-hash" });
+assert.equal(await request("resource.integrity", { resourceId: "missing-resource" }), null);
 const merged = await request("memo.merge", { memoIds: [first.memo.id, second.memo.id] });
 assert.equal(merged.memo.sourceMemoIds.length, 2);
 const trash = await request("memo.list", { trash: true, limit: 20 });

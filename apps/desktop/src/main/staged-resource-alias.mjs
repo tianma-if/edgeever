@@ -1,6 +1,7 @@
+import { createReadStream } from "node:fs";
 import { copyFile, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { isSafeResourceId } from "./resource-url.mjs";
 
 export const uploadedResourceIdFromUrl = (value) => {
@@ -48,8 +49,12 @@ export const cacheStagedResourceBytes = async (stagedDirectory, cacheDirectory, 
   const pendingPath = join(cacheDirectory, `${resourceId}.${randomUUID()}.pending`);
   try {
     await copyFile(join(stagedDirectory, `${id}.bin`), pendingPath);
+    const { size } = await stat(pendingPath);
+    if (size !== metadata.size) throw new Error("Staged resource cache size mismatch");
+    const hash = createHash("sha256");
+    for await (const chunk of createReadStream(pendingPath)) hash.update(chunk);
     await rename(pendingPath, join(cacheDirectory, `${resourceId}.bin`));
-    await writeFile(join(cacheDirectory, `${resourceId}.json`), JSON.stringify({ contentType: metadata.type }), { mode: 0o600 });
+    await writeFile(join(cacheDirectory, `${resourceId}.json`), JSON.stringify({ contentType: metadata.type, byteSize: size, sha256: hash.digest("hex") }), { mode: 0o600 });
   } catch (error) {
     await rm(pendingPath, { force: true }).catch(() => {});
     throw error;
