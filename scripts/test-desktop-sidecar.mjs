@@ -405,6 +405,9 @@ assert.deepEqual(await request("resource.integrity", { resourceId: "resource-fro
 assert.equal(await request("resource.integrity", { resourceId: "missing-resource" }), null);
 const merged = await request("memo.merge", { memoIds: [first.memo.id, second.memo.id] });
 assert.equal(merged.memo.sourceMemoIds.length, 2);
+assert.equal(merged.memo.contentJson.content.filter(node => node.type === "edgeeverMergeDivider").length, 1, "desktop merge must store a real divider node");
+assert.ok(merged.memo.contentMarkdown.includes("<!-- edgeever:merge-divider -->\n\n---"), "merge divider semantics must survive Markdown export");
+assert.ok(!merged.memo.contentText.includes("edgeever:merge-divider"), "internal divider markers must not appear in text previews");
 const trash = await request("memo.list", { trash: true, limit: 20 });
 assert.ok(trash.memos.some((memo) => memo.id === first.memo.id));
 const mergeOutbox = (await request("sync.outbox.list", { limit: 200 })).items.find((item) => item.kind === "memo.merge" && item.entityId === merged.memo.id);

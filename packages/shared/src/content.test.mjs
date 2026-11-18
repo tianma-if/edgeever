@@ -813,6 +813,36 @@ describe("merge divider", () => {
     const resolved = resolveMemoContentDoc(legacyDoc, markdown);
     expect(resolved.content.some((node) => node.type === MERGE_DIVIDER_NODE_TYPE)).toBe(true);
   });
+
+  test("recovers literal divider paragraphs from the old desktop merge format", () => {
+    const markdown = "first note\n\n---\n\nsecond note\n\n---\n\nthird note";
+    const legacyDoc = {
+      type: "doc",
+      content: markdown.split("\n").filter((line) => line.trim()).map((text) => ({
+        type: "paragraph", content: [{ type: "text", text }],
+      })),
+    };
+    const resolved = resolveMemoContentDoc(legacyDoc, markdown);
+    expect(resolved.content.map((node) => node.type)).toEqual([
+      "paragraph", "horizontalRule", "paragraph", "horizontalRule", "paragraph",
+    ]);
+    expect(docToText(resolved)).toContain("first note");
+    expect(docToText(resolved)).toContain("third note");
+  });
+
+  test("preserves an intentionally literal rule and rich content with a divergent Markdown copy", () => {
+    const literal = { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "---" }] }] };
+    expect(resolveMemoContentDoc(literal, "\\---")).toBe(literal);
+    const rich = {
+      type: "doc",
+      content: [
+        { type: "paragraph", content: [{ type: "text", text: "first", marks: [{ type: "bold" }] }] },
+        { type: "paragraph", content: [{ type: "text", text: "---" }] },
+        { type: "paragraph", content: [{ type: "text", text: "last" }] },
+      ],
+    };
+    expect(resolveMemoContentDoc(rich, "first\n\n---\n\nlast")).toBe(rich);
+  });
 });
 
 describe("plugin embed Markdown compatibility", () => {
