@@ -138,6 +138,33 @@ export const draftToNotebookAccess = (
   }));
 };
 
+/**
+ * Which authorization fields a grant draft actually changes relative to the
+ * stored token snapshot. Compares the unified whitelist semantics — the set of
+ * granted notebook ids plus the single level — NOT the raw per-entry flags.
+ *
+ * The API permits a level-only PATCH that leaves the stored per-entry flags
+ * inconsistent with the level (e.g. `[{read:true,write:false}]` + level=write),
+ * while the draft always normalizes flags to its level. Comparing raw flags
+ * would report that legitimate state as "changed" and resend a stale whitelist
+ * on a name-only edit, restoring permissions another window has since revoked.
+ * A name-only edit must therefore yield no changed authorization fields.
+ */
+export const notebookGrantChanges = (
+  storedAccess: TokenNotebookAccess[] | null | undefined,
+  storedLevel: TokenNotebookAccessLevel | undefined,
+  draft: NotebookGrantDraft,
+): { idsChanged: boolean; levelChanged: boolean } => {
+  const wasRestricted = storedAccess != null;
+  const storedIds = new Set((storedAccess ?? []).map((entry) => entry.notebookId));
+  const nextIds = new Set(draft.grantedIds);
+  const idsChanged = !wasRestricted
+    || storedIds.size !== nextIds.size
+    || [...nextIds].some((id) => !storedIds.has(id));
+  const levelChanged = draft.level !== (storedLevel ?? "read");
+  return { idsChanged, levelChanged };
+};
+
 /** Flattened notebook tree rows (parent before children) for the grant picker. */
 export type NotebookTreeRow = {
   notebook: Notebook;

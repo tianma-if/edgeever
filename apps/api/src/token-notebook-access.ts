@@ -118,13 +118,20 @@ export const notebookInListSql = (notebookIdColumn: string, notebookIds: string[
  * — including notebooks created after the token — are invisible.
  *
  * Read budget & consistency: the whitelist is expanded with a single scoped
- * recursive CTE that reads ONLY the granted subtrees (index-driven via
- * idx_notebooks_workspace_parent), never the whole notebook table. There is no
- * cache: every request reads the current hierarchy straight from the database,
- * so a move/narrow performed on any worker/isolate takes effect immediately on
- * every other one, and paged listings never reload unrelated notebooks. The
- * rows read scale with the authorized subtree size, not the workspace's total
- * notebook count.
+ * recursive CTE that reads ONLY the granted subtrees, never the whole notebook
+ * table. There is no cache: every request reads the current hierarchy straight
+ * from the database, so a move/narrow performed on any worker/isolate takes
+ * effect immediately on every other one, and paged listings never reload
+ * unrelated notebooks. The rows read scale with the authorized subtree size,
+ * not the workspace's total notebook count.
+ *
+ * Both steps are pinned with INDEXED BY. On a freshly migrated database (no
+ * ANALYZE statistics) the planner otherwise picks idx_notebooks_deleted for
+ * both the seed and the recursion, which scans every live notebook and makes
+ * the VM cost grow with the workspace's total notebook count even though only
+ * a few rows are returned. Pinning the primary key (seed) and
+ * idx_notebooks_parent (recursion) guarantees directed expansion regardless of
+ * statistics state; the access-path and VM-cost regressions assert this.
  */
 export const resolveNotebookAccess = async (
   db: DatabaseAdapter,
@@ -151,17 +158,23 @@ export const resolveNotebookAccess = async (
   // alongside its parent; is_deleted = 0 on both the seed and the recursion
   // keeps deleted notebooks (and anything moved out of a granted subtree)
   // invisible immediately.
+  //
+  // INDEXED BY pins the access path (see the read-budget note above): the seed
+  // seeks each whitelisted id by primary key, and the recursion drives from the
+  // (small) accessible set and seeks children via idx_notebooks_parent
+  // (parent_id = ? AND is_deleted = ?). Without the hints a fresh database's
+  // planner scans idx_notebooks_deleted instead, reading every live notebook.
   const rows = await db.prepare(
     `WITH RECURSIVE accessible(id) AS (
        SELECT id
-       FROM notebooks
+       FROM notebooks INDEXED BY sqlite_autoindex_notebooks_1
        WHERE workspace_id = ? AND is_deleted = 0 AND id IN (SELECT value FROM json_each(?))
 
        UNION
 
        SELECT n.id
-       FROM notebooks n
-       INNER JOIN accessible a ON n.parent_id = a.id
+       FROM accessible a
+       JOIN notebooks n INDEXED BY idx_notebooks_parent ON n.parent_id = a.id
        WHERE n.workspace_id = ? AND n.is_deleted = 0
      )
      SELECT id FROM accessible`,

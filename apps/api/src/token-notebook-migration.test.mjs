@@ -172,15 +172,37 @@ describe("notebook whitelist migration (0098 + 0099)", () => {
     }
   });
 
-  test("the whitelist migration does not error on a string array; 0099 treats it as a legitimate whitelist", async () => {
+  test("a string array at the object stage is corrupted: 0098 fail-closes it and 0099 does not re-open it", async () => {
     const sqlite = seedPreWhitelist();
     sqlite.exec(`INSERT INTO api_tokens (id, workspace_id, name, token_hash, scopes_json, notebook_access_json, created_at) VALUES
       ('strarr', 'ws_1', 'S', 'hs1', '["read:memos"]', '["nb_1","nb_2"]', strftime('%Y-%m-%dT%H:%M:%fZ','now'))`);
-    // Must not throw "malformed JSON" when 0098 encounters a string array.
+    // At the object-grant stage the runtime parser rejects a string array.
+    expect(parseNotebookAccessJson('["nb_1","nb_2"]')).toEqual([]);
+    // 0098 must not throw "malformed JSON"; it fail-closes the whole record so
+    // 0099 cannot mistake it for the legacy string-array whitelist.
     sqlite.exec(migrationSql("0098_api_token_notebook_whitelist.sql"));
     sqlite.exec(migrationSql("0099_api_token_notebook_whitelist_format.sql"));
+    const row = sqlite.query("SELECT notebook_access_json FROM api_tokens WHERE id = 'strarr'").get();
+    expect(parseNotebookAccessJson(row.notebook_access_json)).toEqual([]);
     const access = await resolve(sqlite, "strarr");
-    expect(access.readableNotebookIds.sort()).toEqual(["nb_1", "nb_2"]);
+    expect(access.readableNotebookIds).toEqual([]);
+    expect(access.writableNotebookIds).toEqual([]);
+  });
+
+  test("0099 converts only string arrays confirmed from the old whitelist migration (level set)", async () => {
+    const sqlite = seedPreWhitelist();
+    sqlite.exec(`ALTER TABLE api_tokens ADD COLUMN notebook_access_level TEXT`);
+    // 'confirmed' carries the level the earlier whitelist migration wrote;
+    // 'unconfirmed' is a string array with no level (not a confirmed legacy
+    // whitelist) and must not be converted into access.
+    sqlite.exec(`INSERT INTO api_tokens (id, workspace_id, name, token_hash, scopes_json, notebook_access_json, notebook_access_level, created_at) VALUES
+      ('confirmed', 'ws_1', 'C', 'hc1', '["read:memos"]', '["nb_1"]', 'read', strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+      ('unconfirmed', 'ws_1', 'U', 'hu1', '["read:memos"]', '["nb_1"]', NULL, strftime('%Y-%m-%dT%H:%M:%fZ','now'))`);
+    sqlite.exec(migrationSql("0099_api_token_notebook_whitelist_format.sql"));
+    expect((await resolve(sqlite, "confirmed")).readableNotebookIds).toEqual(["nb_1"]);
+    const unconfirmed = await resolve(sqlite, "unconfirmed");
+    expect(unconfirmed.readableNotebookIds).toEqual([]);
+    expect(unconfirmed.writableNotebookIds).toEqual([]);
   });
 
   test("0099 fails closed on mixed / empty-string / non-string arrays", async () => {

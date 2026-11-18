@@ -20,11 +20,17 @@
 --   otherwise 'read'.
 -- - The default policy column is no longer read; it is cleared.
 --
--- Only arrays whose items are ALL objects are transformed here. String arrays
--- (the output of an earlier revision of this migration) and mixed arrays are
--- left untouched for 0099, which distinguishes the legitimate string-array
--- whitelist from corrupted data. This keeps 0098 from calling json_extract on
--- a bare string element (which would raise "malformed JSON").
+-- Only arrays whose items are ALL objects are transformed here. At this
+-- (object-grant) stage a string array or any array with a non-object item is
+-- CORRUPTED, not a whitelist: the runtime parser rejects it, so the whole
+-- record fails closed to an empty whitelist in step 2 below. It must not be
+-- left for 0099, which would otherwise mistake it for the legitimate
+-- string-array output of the earlier whitelist migration and re-open access.
+-- (The legitimate string-array whitelist only exists on instances where that
+-- earlier migration already ran; there 0098 is already applied and skipped,
+-- and 0099 handles it.) Restricting the transform to all-object arrays also
+-- keeps 0098 from calling json_extract on a bare string element ("malformed
+-- JSON").
 ALTER TABLE api_tokens ADD COLUMN notebook_access_level TEXT
   CHECK (notebook_access_level IS NULL OR notebook_access_level IN ('read', 'write'));
 
@@ -76,7 +82,20 @@ WHERE notebook_access_json IS NOT NULL
     SELECT 1 FROM json_each(notebook_access_json) je WHERE je.type != 'object'
   );
 
--- 2. Invalid JSON or a non-array value fails closed.
+-- 2. A string array (or any array holding a non-object item) at the object-grant
+--    stage is corrupted, not a whitelist. Fail the WHOLE record closed so 0099
+--    cannot later re-open it as a legacy string-array whitelist.
+UPDATE api_tokens
+SET notebook_access_json = '[]',
+    notebook_access_level = 'read'
+WHERE notebook_access_json IS NOT NULL
+  AND json_valid(notebook_access_json)
+  AND json_type(notebook_access_json) = 'array'
+  AND EXISTS (
+    SELECT 1 FROM json_each(notebook_access_json) je WHERE je.type != 'object'
+  );
+
+-- 3. Invalid JSON or a non-array value fails closed.
 UPDATE api_tokens
 SET notebook_access_json = '[]',
     notebook_access_level = 'read'

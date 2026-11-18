@@ -13,6 +13,57 @@ import {
   resolveNotebookAccess,
   UNRESTRICTED_NOTEBOOK_ACCESS,
 } from "./token-notebook-access.ts";
+import { copyFileSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+// --- Native SQLite VM-cost measurement (optional) --------------------------
+// bun:sqlite does not expose sqlite3_progress_handler. To prove the expansion's
+// real VM cost does not grow with unrelated notebooks (not merely its returned
+// row count), measure through the platform libsqlite3 when it is loadable. If
+// it is not available on a given platform, the VM-cost test is skipped; the
+// portable query-plan assertion in the read-budget suite still guards the
+// directed access path.
+const makeNativeVmMeasure = (ffi, libName) => {
+  const lib = ffi.dlopen(libName, {
+    sqlite3_open: { args: ["cstring", "ptr"], returns: "i32" },
+    sqlite3_close: { args: ["u64"], returns: "i32" },
+    sqlite3_progress_handler: { args: ["u64", "i32", "u64", "u64"], returns: "void" },
+    sqlite3_prepare_v2: { args: ["u64", "cstring", "i32", "ptr", "ptr"], returns: "i32" },
+    sqlite3_bind_text: { args: ["u64", "i32", "cstring", "i32", "u64"], returns: "i32" },
+    sqlite3_step: { args: ["u64"], returns: "i32" },
+    sqlite3_finalize: { args: ["u64"], returns: "i32" },
+  });
+  const S = lib.symbols;
+  const cstr = (s) => ffi.ptr(Buffer.from(s + "\0"));
+  return (file, sql, binds) => {
+    const ppDb = new BigUint64Array(1);
+    if (S.sqlite3_open(cstr(file), ffi.ptr(ppDb)) !== 0) throw new Error("sqlite3_open failed");
+    const dbh = ppDb[0];
+    let steps = 0;
+    const cb = new ffi.JSCallback(() => { steps += 1; return 0; }, { args: [], returns: "i32" });
+    S.sqlite3_progress_handler(dbh, 1, BigInt(cb.ptr), 0n);
+    const ppStmt = new BigUint64Array(1);
+    const tail = new BigUint64Array(1);
+    if (S.sqlite3_prepare_v2(dbh, cstr(sql), -1, ffi.ptr(ppStmt), ffi.ptr(tail)) !== 0) {
+      throw new Error("sqlite3_prepare_v2 failed");
+    }
+    const st = ppStmt[0];
+    binds.forEach((b, i) => S.sqlite3_bind_text(st, i + 1, cstr(b), -1, 0n));
+    while (S.sqlite3_step(st) === 100) { /* drain rows */ }
+    S.sqlite3_finalize(st);
+    S.sqlite3_close(dbh);
+    cb.close();
+    return steps;
+  };
+};
+let nativeVmSteps = null;
+try {
+  const ffi = await import("bun:ffi");
+  for (const libName of ["libsqlite3.so.0", "libsqlite3.dylib"]) {
+    try { nativeVmSteps = makeNativeVmMeasure(ffi, libName); break; } catch { /* try next name */ }
+  }
+} catch { /* bun:ffi unavailable on this platform */ }
 
 class SqliteD1PreparedStatement {
   constructor(db, sql, bindings = []) {
@@ -149,7 +200,12 @@ describe("resolveNotebookAccess (whitelist)", () => {
     const db = createFixture();
     const parentOnly = await resolveNotebookAccess(db, "ws_t", [grant("nb_root", "write")], "write");
     const withChild = await resolveNotebookAccess(db, "ws_t", [grant("nb_root", "write"), grant("nb_child", "write")], "write");
-    expect(withChild).toEqual(parentOnly);
+    // The whitelist is a set: the expansion CTE's row order is not part of the
+    // contract, so compare the granted ids without regard to order.
+    expect(withChild.restricted).toBe(parentOnly.restricted);
+    expect(withChild.defaultWrite).toBe(parentOnly.defaultWrite);
+    expect([...withChild.readableNotebookIds].sort()).toEqual([...parentOnly.readableNotebookIds].sort());
+    expect([...withChild.writableNotebookIds].sort()).toEqual([...parentOnly.writableNotebookIds].sort());
   });
 
   test("unwhitelisted notebooks — including new ones — stay invisible", async () => {
@@ -355,4 +411,89 @@ describe("authorization read budget (no cache, scoped expansion)", () => {
     const access = await resolveNotebookAccess(isolate, "ws_t", entries, "write");
     expect(access.readableNotebookIds).toEqual(["nb_root"]);
   });
+
+  test("expansion is pinned to directed index seeks on a fresh database (no ANALYZE)", async () => {
+    const db = createFixture();
+    seedManyUnrelated(db, 1000, "bulk");
+    const { adapter, stats } = countingAdapter(db);
+    await resolveNotebookAccess(adapter, "ws_t", [grant("nb_root", "write")], "write");
+    const accessSql = stats.accessSql[0];
+    const plan = () => db.db.query("EXPLAIN QUERY PLAN " + accessSql)
+      .all("ws_t", JSON.stringify(["nb_root"]), "ws_t").map((r) => r.detail).join("\n");
+
+    const before = plan();
+    // Seed seeks the whitelist by primary key; the recursion seeks children by
+    // parent_id. Neither step may fall back to the deleted-index or a table scan.
+    expect(before).toContain("sqlite_autoindex_notebooks_1");
+    expect(before).toContain("idx_notebooks_parent");
+    expect(before).not.toContain("idx_notebooks_deleted");
+    expect(before).not.toMatch(/SCAN notebooks/);
+
+    // The access path must not change as unrelated notebooks accumulate (the
+    // planner has no ANALYZE statistics here; INDEXED BY pins it regardless).
+    seedManyUnrelated(db, 3000, "bulk_more");
+    expect(plan()).toEqual(before);
+  });
+
+  test.skipIf(!nativeVmSteps)("real VM cost is constant as unrelated notebooks grow (fresh DB)", async () => {
+    // Capture the exact SQL the guard emits, then measure its VM cost through a
+    // native progress handler on freshly migrated file databases of growing size.
+    const fixture = createFixture();
+    const { adapter, stats } = countingAdapter(fixture);
+    await resolveNotebookAccess(adapter, "ws_t", [grant("nb_root", "write")], "write");
+    const accessSql = stats.accessSql[0];
+    // Pre-fix control: the same CTE without the index pins (full live-table scan).
+    const unpinnedSql = accessSql
+      .replace(/ INDEXED BY sqlite_autoindex_notebooks_1/, "")
+      .replace(/ INDEXED BY idx_notebooks_parent/, "");
+
+    const dir = mkdtempSync(join(tmpdir(), "edgeever-read-cost-"));
+    const binds = ["ws_t", JSON.stringify(["nb_root"]), "ws_t"];
+    // Build the migrated base (workspace + granted subtree) once, then clone it
+    // per size and append unrelated notebooks in a single transaction.
+    const base = join(dir, "base.sqlite");
+    const baseDb = new Database(base, { create: true });
+    for (const migration of globSync("migrations/*.sql").sort()) {
+      baseDb.exec(readFileSync(migration, "utf8"));
+    }
+    baseDb.query("INSERT INTO workspaces (id, name, is_personal) VALUES ('ws_t', 'T', 1)").run();
+    baseDb.query("INSERT INTO notebooks (id, workspace_id, name, parent_id) VALUES ('nb_root', 'ws_t', 'Root', NULL)").run();
+    baseDb.query("INSERT INTO notebooks (id, workspace_id, name, parent_id) VALUES ('nb_child', 'ws_t', 'Child', 'nb_root')").run();
+    baseDb.query("INSERT INTO notebooks (id, workspace_id, name, parent_id) VALUES ('nb_grandchild', 'ws_t', 'Grandchild', 'nb_child')").run();
+    baseDb.close();
+    const withUnrelated = (file, n) => {
+      copyFileSync(base, file);
+      const sqlite = new Database(file);
+      const ins = sqlite.query("INSERT INTO notebooks (id, workspace_id, name, parent_id) VALUES (?, 'ws_t', ?, NULL)");
+      sqlite.transaction(() => { for (let i = 0; i < n; i++) ins.run(`u_${i}`, `Unrelated ${i}`); })();
+      sqlite.close();
+    };
+    try {
+      const sizes = [200, 1000, 4000];
+      const fixed = [];
+      for (const n of sizes) {
+        const file = join(dir, `cost_${n}.sqlite`);
+        withUnrelated(file, n);
+        fixed.push(nativeVmSteps(file, accessSql, binds));
+        rmSync(file);
+      }
+      // The pinned expansion reads only the granted subtree: its VM cost is
+      // identical regardless of how many unrelated notebooks exist.
+      expect(fixed[0]).toBeGreaterThan(0);
+      expect(fixed[1]).toBe(fixed[0]);
+      expect(fixed[2]).toBe(fixed[0]);
+      // Sensitivity check: the unpinned full-scan control DOES grow with the
+      // notebook count, so this metric would catch a regression to a full scan.
+      const small = join(dir, "ctl_small.sqlite");
+      const large = join(dir, "ctl_large.sqlite");
+      withUnrelated(small, sizes[0]);
+      withUnrelated(large, sizes[2]);
+      const controlSmall = nativeVmSteps(small, unpinnedSql, binds);
+      const controlLarge = nativeVmSteps(large, unpinnedSql, binds);
+      expect(controlLarge).toBeGreaterThan(controlSmall * 2);
+      expect(fixed[2]).toBeLessThan(controlLarge / 10);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 120000);
 });

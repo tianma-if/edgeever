@@ -30,6 +30,7 @@ import {
   getTokenScopesForAccessLevel,
   getTokenScopeLabel,
   notebookAccessToDraft,
+  notebookGrantChanges,
   type NotebookGrantDraft,
   type TokenAccessLevel,
 } from "./settings-utils";
@@ -553,18 +554,15 @@ const TokenEditDialog = ({ token, availableScopes, notebooks, isSaving, onCancel
     const wasRestricted = token.notebookAccess != null;
 
     if (accessLevel === "custom") {
-      // Setting or editing grants: send them only when they differ from the
-      // snapshot (a name-only visit keeps the stored grants untouched).
-      const storedAccess = token.notebookAccess ?? [];
-      const nextAccess = notebookAccess ?? [];
-      const grantsChanged = wasRestricted
-        ? JSON.stringify(nextAccess) !== JSON.stringify(storedAccess)
-          || draft.level !== (token.notebookAccessLevel ?? "read")
-        : true; // restricting an unrestricted token is always a change
-      if (grantsChanged) {
-        payload.notebookAccess = nextAccess;
-        payload.notebookAccessLevel = draft.level;
-      }
+      // Send only the authorization fields the user actually edited, comparing
+      // the unified whitelist semantics (id set + level) rather than raw flags.
+      // A name-only visit changes neither, so it omits every grant field and
+      // cannot overwrite a concurrent narrowing made in another window.
+      const { idsChanged, levelChanged } = notebookGrantChanges(
+        token.notebookAccess, token.notebookAccessLevel, draft,
+      );
+      if (idsChanged) payload.notebookAccess = notebookAccess ?? [];
+      if (levelChanged) payload.notebookAccessLevel = draft.level;
       // Switching a read-only token to custom read/write must also widen
       // the global scopes, or every write still 403s.
       if (currentLevel === "read-only") {
