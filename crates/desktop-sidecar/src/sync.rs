@@ -172,7 +172,7 @@ pub(crate) fn sync_outbox_ack(database: &Connection, params: &Value) -> Result<V
     let remote_memo = params.get("remoteMemo").cloned();
     let remote_notebook = params.get("remoteNotebook").cloned();
     let remote_template = params.get("remoteTemplate").cloned();
-    let temporary_memo_base = if kind == "memo.create" {
+    let temporary_memo_base = if kind == "memo.create" || kind == "memo.merge" {
         memo_value(database, &entity_id, true).ok().map(|memo| {
             (
                 memo.get("revision").and_then(Value::as_i64).unwrap_or(0),
@@ -315,6 +315,13 @@ pub(crate) fn sync_outbox_ack(database: &Connection, params: &Value) -> Result<V
                 if payload.get("temporaryId").and_then(Value::as_str) == Some(entity_id.as_str()) {
                     payload["temporaryId"] = json!(remote_id);
                 }
+                if let Some(memo_ids) = payload.get_mut("memoIds").and_then(Value::as_array_mut) {
+                    for memo_id in memo_ids {
+                        if memo_id.as_str() == Some(entity_id.as_str()) {
+                            *memo_id = json!(remote_id);
+                        }
+                    }
+                }
                 if payload.get("memoId").and_then(Value::as_str) == Some(remote_id.as_str()) {
                     if let Some(revision) = remote.get("revision") {
                         payload["expectedRevision"] = revision.clone();
@@ -334,7 +341,7 @@ pub(crate) fn sync_outbox_ack(database: &Connection, params: &Value) -> Result<V
                   next_attempt_at = CASE WHEN status = 'error' AND last_error_code = 'memo_not_found' THEN NULL ELSE next_attempt_at END
                   WHERE id = ?3", rusqlite::params![next_entity, payload.to_string(), outbox_id]).map_err(|e| e.to_string())?;
             }
-            if kind == "memo.create" {
+            if kind == "memo.create" || kind == "memo.merge" {
                 if let Some((temporary_revision, temporary_content_hash)) =
                     temporary_memo_base.as_ref()
                 {

@@ -587,13 +587,17 @@ const syncOutbox = async (stagedRewrites: StagedResourceRewrite[], onlyKinds?: S
     // A local dependency has no cloud id yet. Leave the action pending until
     // its create succeeds rather than making a permanent not-found error.
     if ([item.payload.notebookId, item.payload.parentId].some((id) => typeof id === "string" && id.startsWith("nb_local_"))) continue;
-    if (item.kind !== "memo.create" && [item.entityId, item.payload.memoId].some((id) => typeof id === "string" && id.startsWith("memo_local_"))) continue;
+    // A merge's entityId is its new result, not a source dependency.
+    const memoDependencies = item.kind === "memo.merge"
+      ? (Array.isArray(item.payload.memoIds) ? item.payload.memoIds : [])
+      : item.kind === "memo.create" ? [] : [item.entityId, item.payload.memoId];
+    if (memoDependencies.some((id) => typeof id === "string" && id.startsWith("memo_local_"))) continue;
     try {
       const result = await syncOutboxItem(item, stagedRewrites);
-      if (item.kind === "memo.create" && result && typeof result === "object" && "id" in result && typeof result.id === "string") {
+      if ((item.kind === "memo.create" || item.kind === "memo.merge") && result && typeof result === "object" && "id" in result && typeof result.id === "string") {
         memoIdMappings.set(item.entityId, result.id);
         // Remap the live editor and advance its cloud base as soon as the
-        // create is acknowledged. Waiting for the workspace-wide sync to end
+        // create or merge is acknowledged. Waiting for the workspace-wide sync to end
         // leaves a window where the next autosave still sends revision 0.
         notifyMemoIdRemapped(new Map([[item.entityId, result.id]]));
       }
@@ -865,7 +869,7 @@ export const syncDesktopData = () => {
       }
       // Catch resources staged while the network sync itself was running.
       phase = "finalize_resource_remap";
-      await remapStagedResourceMemoIds(creates.memoIdMappings);
+      await remapStagedResourceMemoIds(memoIdMappings);
       lastGlobalSyncIssue = null;
       return {
         attempted: creates.attempted + outbox.attempted + stagedResources.attempted,
