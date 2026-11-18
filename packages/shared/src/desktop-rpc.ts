@@ -36,6 +36,7 @@ export const DESKTOP_RPC_METHODS = [
   "template.update",
   "template.delete",
   "resource.list",
+  "resource.integrity",
   "resource.cache",
   "resource.delete",
   "tag.list",
@@ -103,6 +104,7 @@ export type DesktopRpcResponses = {
   "template.update": { template: MemoTemplate };
   "template.delete": { ok: true };
   "resource.list": { resources: ResourceListItem[]; summary: ResourceStorageSummary };
+  "resource.integrity": { byteSize: number; sha256: string | null } | null;
   "resource.cache": { ok: true };
   "resource.delete": { ok: true };
   "tag.list": { tags: import("./types").TagSummary[] };
@@ -152,6 +154,7 @@ export type DesktopRpcParams = {
   "template.update": { templateId: string; name?: string; description?: string | null; title?: string | null; contentMarkdown?: string; tags?: string[] };
   "template.delete": { templateId: string };
   "resource.list": { limit?: number };
+  "resource.integrity": { resourceId: string };
   "resource.cache": { resource: import("./types").Resource };
   "resource.delete": { resourceId: string };
   "tag.list": Record<string, never>;
