@@ -1,5 +1,5 @@
 {
-  "version": "2.29.0",
+  "version": "2.30.0",
   "changes": {
     "en-US": [
       "Repair desktop attachment caching so interrupted downloads cannot leave truncated files or corrupt later previews.",
