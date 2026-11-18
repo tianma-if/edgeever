@@ -17,7 +17,7 @@ import {
   Users,
   Wrench,
 } from "lucide-react";
-import { useState, useSyncExternalStore, type ReactNode } from "react";
+import { lazy, Suspense, useState, useSyncExternalStore, type ReactNode } from "react";
 import { isDesktopViewport } from "@/lib/workspace-shell";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router";
@@ -28,32 +28,34 @@ import type { ShortcutSettings } from "@/lib/app-helpers";
 import type { NoteProsePatch, ResolvedNoteProse } from "@edgeever/shared";
 import { BETA_BADGE_CLASSNAME, WORKSPACE_PAGE_TITLE_CLASSNAME } from "@/lib/workspace-ui";
 import { cn } from "@/lib/utils";
-import { AccountInfoCard } from "./settings/AccountInfoCard";
-import { DesktopScheduledBackupCard } from "./settings/DesktopScheduledBackupCard";
-import { DataExportCard } from "./settings/DataExportCard";
-import { DesktopLocalDataCard } from "./settings/DesktopLocalDataCard";
-import { LoginDevicesCard } from "./settings/LoginDevicesCard";
-import { ShareManagementCard } from "./settings/ShareManagementCard";
-import { ThirdPartyImportCard } from "./settings/ThirdPartyImportCard";
 import type { NoteImportController } from "@/lib/note-import/controller";
 import { FeedbackLink } from "./settings/FeedbackLink";
-import { SystemInfoPanel } from "./settings/SystemInfoPanel";
-import { McpConfigCard } from "./settings/McpConfigCard";
-import { AiSpaceShortcutSettingsItem } from "./settings/AiSpaceShortcutSettingsItem";
 import { PreferenceCard } from "./settings/PreferenceCard";
-import { ShortcutSettingsItem } from "./settings/ShortcutSettingsItem";
-import { PasswordCard } from "./settings/PasswordCard";
-import { TwoFactorCard } from "./settings/TwoFactorCard";
-import { UserManagementCard } from "./settings/UserManagementCard";
-import { ObjectStorageCard } from "./settings/ObjectStorageCard";
-import { AiModelCard } from "./settings/AiModelCard";
-import { SpeechTranscriptionCard } from "./settings/SpeechTranscriptionCard";
-import { DesktopAcpAgentCard } from "./settings/DesktopAcpAgentCard";
 import { ThemeToggle } from "./ThemeToggle";
 import type { AuthUser } from "@edgeever/shared";
 import { contentEnterMotion } from "@/lib/motion";
 import { useDeployedUpdateNotice } from "@/hooks/useDeployedUpdateNotice";
 import { ExecutionCenterButton } from "@/components/execution/ExecutionCenterButton";
+
+// Keep optional settings dependencies off the personal-center entry path.
+const AccountInfoCard = lazy(() => import("./settings/AccountInfoCard").then((module) => ({ default: module.AccountInfoCard })));
+const DesktopScheduledBackupCard = lazy(() => import("./settings/DesktopScheduledBackupCard").then((module) => ({ default: module.DesktopScheduledBackupCard })));
+const DataExportCard = lazy(() => import("./settings/DataExportCard").then((module) => ({ default: module.DataExportCard })));
+const DesktopLocalDataCard = lazy(() => import("./settings/DesktopLocalDataCard").then((module) => ({ default: module.DesktopLocalDataCard })));
+const LoginDevicesCard = lazy(() => import("./settings/LoginDevicesCard").then((module) => ({ default: module.LoginDevicesCard })));
+const ShareManagementCard = lazy(() => import("./settings/ShareManagementCard").then((module) => ({ default: module.ShareManagementCard })));
+const ThirdPartyImportCard = lazy(() => import("./settings/ThirdPartyImportCard").then((module) => ({ default: module.ThirdPartyImportCard })));
+const SystemInfoPanel = lazy(() => import("./settings/SystemInfoPanel").then((module) => ({ default: module.SystemInfoPanel })));
+const McpConfigCard = lazy(() => import("./settings/McpConfigCard").then((module) => ({ default: module.McpConfigCard })));
+const AiSpaceShortcutSettingsItem = lazy(() => import("./settings/AiSpaceShortcutSettingsItem").then((module) => ({ default: module.AiSpaceShortcutSettingsItem })));
+const ShortcutSettingsItem = lazy(() => import("./settings/ShortcutSettingsItem").then((module) => ({ default: module.ShortcutSettingsItem })));
+const PasswordCard = lazy(() => import("./settings/PasswordCard").then((module) => ({ default: module.PasswordCard })));
+const TwoFactorCard = lazy(() => import("./settings/TwoFactorCard").then((module) => ({ default: module.TwoFactorCard })));
+const UserManagementCard = lazy(() => import("./settings/UserManagementCard").then((module) => ({ default: module.UserManagementCard })));
+const ObjectStorageCard = lazy(() => import("./settings/ObjectStorageCard").then((module) => ({ default: module.ObjectStorageCard })));
+const AiModelCard = lazy(() => import("./settings/AiModelCard").then((module) => ({ default: module.AiModelCard })));
+const SpeechTranscriptionCard = lazy(() => import("./settings/SpeechTranscriptionCard").then((module) => ({ default: module.SpeechTranscriptionCard })));
+const DesktopAcpAgentCard = lazy(() => import("./settings/DesktopAcpAgentCard").then((module) => ({ default: module.DesktopAcpAgentCard })));
 
 const subscribeViewport = (callback: () => void) => {
   const media = window.matchMedia("(min-width: 1024px)");
@@ -89,6 +91,11 @@ const SettingsGroup = ({ children }: { children: ReactNode }) => (
     {children}
   </div>
 );
+
+const SettingsLoadingFallback = () => {
+  const { t } = useTranslation();
+  return <div role="status" className="p-6 text-sm text-slate-500">{t("workspace.loading.settings")}</div>;
+};
 
 type TabKey = "general" | "reading" | "editing" | "shortcuts" | "users" | "data" | "ai" | "mcp" | "speech" | "sharing" | "advanced" | "account" | "system";
 
@@ -236,8 +243,8 @@ export const SettingsPane = ({
 
   const desktopViewport = useSyncExternalStore(subscribeViewport, isDesktopViewport);
   const renderTabContent = (key: TabKey, desktopLayout: boolean) => {
-    // Backup dialogs reflect a main-process task; mount one consumer, not both CSS layouts.
-    if (key === "data" && desktopLayout !== desktopViewport) return null;
+    // Mount only the visible layout so hidden tabs do not load code or run queries.
+    if (desktopLayout !== desktopViewport) return null;
     switch (key) {
       case "general":
       case "reading":
@@ -415,7 +422,9 @@ export const SettingsPane = ({
           {/* 右侧设置内容区 */}
           <main className="flex-1 min-w-0 overflow-y-auto [scrollbar-gutter:stable] pr-2">
             <m.div key={activeTab} className="grid gap-4" {...contentEnterMotion}>
-              {renderTabContent(activeTab, true)}
+              <Suspense fallback={<SettingsLoadingFallback />}>
+                {renderTabContent(activeTab, true)}
+              </Suspense>
             </m.div>
           </main>
         </div>
@@ -485,7 +494,9 @@ export const SettingsPane = ({
           ) : (
             /* 详情页面 */
             <m.div key={activeMobileTab} className="grid gap-4" {...contentEnterMotion}>
-              {renderTabContent(activeMobileTab, false)}
+              <Suspense fallback={<SettingsLoadingFallback />}>
+                {renderTabContent(activeMobileTab, false)}
+              </Suspense>
             </m.div>
           )}
         </div>

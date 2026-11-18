@@ -489,6 +489,8 @@ export default defineConfig({
               test: /node_modules[\\/]lucide-react[\\/]/,
               priority: 18,
               entriesAware: true,
+              // Avoid a request per tiny shared icon while keeping optional icons deferred.
+              entriesAwareMergeThreshold: 8 * 1024,
             },
             {
               name: "vendor-radix-slot",
