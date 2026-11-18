@@ -8,12 +8,13 @@ export type NoteImportSnapshot = {
   open: boolean; phase: "idle" | "scanning" | "ready" | "running" | "finished";
   format: ImportFormat; summary?: ImportSummary; error?: string;
   includeUnreferencedAttachments: boolean;
+  skipInvalidEvernoteAttachments: boolean;
   progress?: ImportProgress; scanningPath?: string; parentId: string;
   folders: ImportNotebook[]; issues: ImportIssue[]; results: ImportNoteResult[];
   destinations: Notebook[]; resultCount: number; outcome?: ImportRunResult;
 };
 export class NoteImportController {
-  private snapshot: NoteImportSnapshot = { open: false, phase: "idle", format: "evernote", includeUnreferencedAttachments: true, parentId: "", folders: [], issues: [], results: [], resultCount: 0, destinations: [] };
+  private snapshot: NoteImportSnapshot = { open: false, phase: "idle", format: "evernote", includeUnreferencedAttachments: true, skipInvalidEvernoteAttachments: false, parentId: "", folders: [], issues: [], results: [], resultCount: 0, destinations: [] };
   private files: ImportFile[] = [];
   private listeners = new Set<() => void>();
   private reader?: BrowserImportReader;
@@ -45,10 +46,15 @@ export class NoteImportController {
     this.update({ includeUnreferencedAttachments });
     if (this.snapshot.phase === "ready") this.select(this.files, this.snapshot.parentId);
   };
+  setSkipInvalidEvernoteAttachments = (skipInvalidEvernoteAttachments: boolean) => {
+    if (!["idle", "ready"].includes(this.snapshot.phase)) return;
+    this.update({ skipInvalidEvernoteAttachments });
+    if (this.snapshot.phase === "ready") this.select(this.files, this.snapshot.parentId);
+  };
   select = (files: ImportFile[], parentId = "") => {
     if (!files.length || this.snapshot.phase === "running" || this.snapshot.phase === "scanning") return;
     this.files = files;
-    const options = { includeUnreferencedAttachments: this.snapshot.includeUnreferencedAttachments };
+    const options = { includeUnreferencedAttachments: this.snapshot.includeUnreferencedAttachments, skipInvalidEvernoteAttachments: this.snapshot.skipInvalidEvernoteAttachments };
     const generation = ++this.generation;
     const isCurrent = () => this.active && generation === this.generation;
     this.update({ phase: "scanning", error: undefined, summary: undefined, folders: [], issues: [], results: [], outcome: undefined, scanningPath: "", parentId });
@@ -144,7 +150,7 @@ export class NoteImportController {
     const generation = ++this.generation;
     const reader = this.reader;
     this.reader = undefined;
-    this.update({ open: false, phase: "idle", summary: undefined, outcome: undefined, results: [], issues: [], folders: [], error: undefined });
+    this.update({ open: false, phase: "idle", skipInvalidEvernoteAttachments: false, summary: undefined, outcome: undefined, results: [], issues: [], folders: [], error: undefined });
     void this.work.then(() => reader?.close()).catch(error => {
       if (generation === this.generation) this.update({ error: String(error) });
     });
@@ -154,7 +160,7 @@ export class NoteImportController {
     await this.reader?.close(); this.reader = undefined;
     this.generation++;
     this.files = [];
-    this.update({ phase: "idle", open: true, summary: undefined, error: undefined, outcome: undefined, progress: undefined, results: [], issues: [], folders: [], parentId: "" });
+    this.update({ phase: "idle", open: true, skipInvalidEvernoteAttachments: false, summary: undefined, error: undefined, outcome: undefined, progress: undefined, results: [], issues: [], folders: [], parentId: "" });
   };
   dispose = () => {
     this.files = [];

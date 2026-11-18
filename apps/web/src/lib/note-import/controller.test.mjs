@@ -43,6 +43,52 @@ test("standalone attachments default on and changing the option rescans while pr
   }
 });
 
+test("Evernote attachment recovery requires opt-in, rescans with the destination and resets for new tasks", async () => {
+  const previousWorker = globalThis.Worker;
+  const scans = [];
+  class ScanWorker {
+    postMessage(message) {
+      if (message.method === "abort") return;
+      if (message.method === "scan") scans.push(message.args);
+      queueMicrotask(() => this.onmessage({ data: {
+        requestId: message.requestId,
+        result: message.method === "scan" ? { notes: 1, notebooks: 1, resources: 0, errors: message.args.options.skipInvalidEvernoteAttachments ? 0 : 1, warnings: 0 } : undefined,
+      } }));
+    }
+    terminate() {}
+  }
+  globalThis.Worker = ScanWorker;
+  const controller = new NoteImportController(null, "http://import.test", () => "Owner", async () => {});
+  try {
+    expect(controller.getSnapshot().skipInvalidEvernoteAttachments).toBe(false);
+    controller.select([{ path: "note.enex", file: new File(["export"], "note.enex") }]);
+    await controller.work;
+    expect(controller.getSnapshot()).toMatchObject({ phase: "ready", summary: { errors: 1 } });
+    controller.setParent("destination");
+    controller.setSkipInvalidEvernoteAttachments(true);
+    expect(controller.getSnapshot()).toMatchObject({ phase: "scanning", parentId: "destination" });
+    controller.setSkipInvalidEvernoteAttachments(false);
+    expect(controller.getSnapshot().skipInvalidEvernoteAttachments).toBe(true);
+    await controller.work;
+    expect(controller.getSnapshot()).toMatchObject({ phase: "ready", parentId: "destination", summary: { errors: 0 } });
+    expect(scans.map(scan => scan.options.skipInvalidEvernoteAttachments)).toEqual([false, true]);
+    controller.update({ phase: "running" });
+    controller.setSkipInvalidEvernoteAttachments(false);
+    expect(controller.getSnapshot().skipInvalidEvernoteAttachments).toBe(true);
+    controller.update({ phase: "finished" });
+    await controller.restart();
+    expect(controller.getSnapshot().skipInvalidEvernoteAttachments).toBe(false);
+    controller.setSkipInvalidEvernoteAttachments(true);
+    controller.dismiss();
+    expect(controller.getSnapshot().skipInvalidEvernoteAttachments).toBe(false);
+  } finally {
+    controller.dispose();
+    await controller.work;
+    await controller.reader?.close();
+    globalThis.Worker = previousWorker;
+  }
+});
+
 test("viewing a finished result preserves task mappings until explicit dismissal", async () => {
   await import("fake-indexeddb/auto");
   const { BrowserImportIndex } = await import("./browser-index");

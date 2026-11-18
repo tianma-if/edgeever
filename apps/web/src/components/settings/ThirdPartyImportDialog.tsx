@@ -174,6 +174,20 @@ export const ThirdPartyImportDialog = ({ controller, state, onOpenMemo }: { cont
       />
     </div>
   ) : null;
+  const evernoteAttachmentOption = state.format === "evernote" ? (
+    <div className="flex items-center justify-between gap-4 rounded-lg border p-3">
+      <div className="space-y-1">
+        <label htmlFor="import-skip-invalid-attachments" className="text-xs font-medium">{t("noteImport.skipInvalidEvernoteAttachments")}</label>
+        <p className="text-xs text-muted-foreground">{t("noteImport.skipInvalidEvernoteAttachmentsHint")}</p>
+      </div>
+      <Switch
+        id="import-skip-invalid-attachments"
+        checked={state.skipInvalidEvernoteAttachments}
+        disabled={busy}
+        onCheckedChange={controller.setSkipInvalidEvernoteAttachments}
+      />
+    </div>
+  ) : null;
 
   return (
     <Dialog
@@ -234,6 +248,7 @@ export const ThirdPartyImportDialog = ({ controller, state, onOpenMemo }: { cont
               </div>
 
               {obsidianAttachmentOption}
+              {evernoteAttachmentOption}
               {formatHintNotice ? (
                 <div className="flex items-start gap-2 rounded-lg border border-border/60 bg-muted/30 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
                   <Info aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
@@ -326,6 +341,7 @@ export const ThirdPartyImportDialog = ({ controller, state, onOpenMemo }: { cont
           ) : null}
 
           {state.phase === "scanning" || state.phase === "ready" ? obsidianAttachmentOption : null}
+          {state.phase === "scanning" || state.phase === "ready" ? evernoteAttachmentOption : null}
 
           {summary ? (
             <dl className="grid grid-cols-3 gap-3 rounded-xl border border-border/60 bg-muted/30 p-4 text-center">
@@ -403,8 +419,8 @@ export const ThirdPartyImportDialog = ({ controller, state, onOpenMemo }: { cont
             </div>
           ) : null}
 
-          {state.phase === "ready" && state.issues.length > 0 ? (
-            <details className="rounded-xl border border-border/70 bg-card p-3" open={Boolean(summary && summary.errors > 0)}>
+          {(state.phase === "ready" || state.phase === "finished") && state.issues.length > 0 ? (
+            <details className="rounded-xl border border-border/70 bg-card p-3" open>
               <summary className="cursor-pointer text-xs font-medium text-foreground/80 hover:text-foreground">
                 {t("noteImport.issueCounts", { errors: summary?.errors ?? 0, warnings: summary?.warnings ?? 0 })}
               </summary>

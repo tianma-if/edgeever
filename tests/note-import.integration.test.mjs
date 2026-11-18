@@ -12,6 +12,7 @@ import { docToMarkdown, markdownToDoc } from "../packages/shared/src/index.ts";
 import { NoteImportSession, MemoryImportIndex } from "../packages/shared/src/note-import/index.ts";
 import { executeNoteImport } from "../apps/web/src/lib/note-import/execute.ts";
 import { convertImportEnml } from "../apps/web/src/lib/note-import/enml.ts";
+import { invalidImportResourceSize } from "../packages/shared/src/note-import/metadata.ts";
 
 const directories = [];
 const servers = [];
@@ -62,6 +63,74 @@ const target = async () => {
 };
 
 describe("native third-party import through the real API", () => {
+  test("Evernote long titles preserve their full text, Unicode, body and timestamps through retries", async () => {
+    const { client, db } = await target();
+    const titles = ["长".repeat(161), "a".repeat(159) + "😀完整标题 [原文](https://example.com)", "b".repeat(160)];
+    const enex = `<en-export>${titles.map(title => `<note><title>${title}</title><content><![CDATA[<en-note><div>Original body</div></en-note>]]></content><created>20200101T000000Z</created><updated>20200102T000000Z</updated><tag>原始标签</tag></note>`).join("")}</en-export>`;
+    const session = new NoteImportSession("evernote", [{ path: "titles.enex", file: new File([enex], "titles.enex") }], new MemoryImportIndex());
+    try {
+      expect(await session.scan()).toMatchObject({ notes: 3, errors: 0, warnings: 2 });
+      expect((await session.index.page("issue")).every(issue => issue.code === "titleShortened" && issue.severity === "warning")).toBe(true);
+      const options = { reader: session, index: session.index, client, convertEnml: convertImportEnml };
+      for (let attempt = 0; attempt < 2; attempt++) expect(await executeNoteImport(options)).toMatchObject({ completed: 3, failed: 0 });
+      const results = await session.index.page("result");
+      expect(results).toHaveLength(3);
+      for (const [i, result] of results.entries()) {
+        const { memo } = await client.getMemo(result.memo.id);
+        expect(memo.title).toBe(i === 0 ? "长".repeat(160) : i === 1 ? "a".repeat(159) : titles[i]);
+        expect(memo.contentMarkdown).toContain("Original body");
+        expect(memo.tags).toEqual(["原始标签"]);
+        expect(memo.createdAt).toBe("2020-01-01T00:00:00.000Z");
+        expect(memo.updatedAt).toBe("2020-01-02T00:00:00.000Z");
+        if (i < 2) expect(markdownToDoc(memo.contentMarkdown).content[0].content.map(node => node.text ?? "").join("")).toBe(titles[i]);
+        else expect(memo.contentMarkdown).toBe("Original body");
+      }
+    } finally { await session.close(); db.close(); }
+  });
+
+  test("Evernote unavailable attachments block by default and import with placeholders only after opt-in", async () => {
+    const { client, db } = await target();
+    const good = Buffer.from("original attachment bytes");
+    const hash = new Bun.CryptoHasher("md5").update(good).digest("hex");
+    const emptyHash = "d41d8cd98f00b204e9800998ecf8427e";
+    const missingHash = "f85b11346498e17633c05a41875f7605";
+    const enex = `<en-export><note><title>Broken export</title><content><![CDATA[<en-note><div>Before</div><en-media hash="${emptyHash}" type="image/png"/><div>Between</div><en-media hash="${missingHash}" type="image/png" alt="Missing scan"/><en-media hash="${hash}" type="application/pdf"/><div>After</div></en-note>]]></content><resource><data encoding="base64"></data><mime>image/png</mime><resource-attributes><file-name>empty [scan].png</file-name></resource-attributes></resource><resource><data encoding="base64">${good.toString("base64")}</data><mime>application/pdf</mime><resource-attributes><file-name>good.pdf</file-name></resource-attributes></resource></note><note><title>Following note</title><content><![CDATA[<en-note>Following body</en-note>]]></content></note></en-export>`;
+    const files = [{ path: "broken.enex", file: new File([enex], "broken.enex") }];
+    const strict = new NoteImportSession("evernote", files, new MemoryImportIndex());
+    const session = new NoteImportSession("evernote", files, new MemoryImportIndex(), crypto.randomUUID(), { skipInvalidEvernoteAttachments: true });
+    try {
+      expect(await strict.scan()).toMatchObject({ notes: 2, errors: 2 });
+      await expect(executeNoteImport({ reader: strict, index: strict.index, client, convertEnml: convertImportEnml })).rejects.toThrow("preflightErrors");
+      expect(await strict.index.count("result")).toBe(0);
+      expect(await session.scan()).toMatchObject({ notes: 2, resources: 1, errors: 0, warnings: 2 });
+      expect((await session.index.page("issue")).map(issue => issue.code).sort()).toEqual(["skippedMissingResource", "skippedResource"]);
+      const options = { reader: session, index: session.index, client, convertEnml: convertImportEnml };
+      for (let attempt = 0; attempt < 2; attempt++) expect(await executeNoteImport(options)).toMatchObject({ completed: 2, failed: 0, resources: 1 });
+      const [result, following] = await session.index.page("result");
+      const { memo } = await client.getMemo(result.memo.id);
+      expect(memo.contentMarkdown).toContain("Before");
+      expect(memo.contentMarkdown).toContain("Between");
+      expect(memo.contentMarkdown).toContain("After");
+      expect(memo.contentMarkdown).toContain("Attachment not imported:");
+      expect(memo.contentMarkdown).toContain(emptyHash);
+      expect(memo.contentMarkdown).toContain(missingHash);
+      expect(JSON.stringify(markdownToDoc(memo.contentMarkdown))).toContain("empty [scan].png");
+      expect(memo.contentMarkdown).not.toContain("evernote-resource:");
+      expect(await (await client.getResourceBlob(Object.values(result.urls)[0])).text()).toBe(good.toString());
+      expect((await client.getMemo(following.memo.id)).memo.contentMarkdown).toBe("Following body");
+      expect(await session.index.count("chunk")).toBe(0);
+      expect(await files[0].file.text()).toBe(enex);
+    } finally { await strict.close(); await session.close(); db.close(); }
+  });
+
+  test("attachment recovery uses the existing image and file upload boundaries", () => {
+    for (const [mimeType, maximum] of [["image/png", 100 * 1024 * 1024], ["application/pdf", 1024 * 1024 * 1024]]) {
+      expect(invalidImportResourceSize({ mimeType, byteSize: 0 })).toBe(true);
+      expect(invalidImportResourceSize({ mimeType, byteSize: maximum })).toBe(false);
+      expect(invalidImportResourceSize({ mimeType, byteSize: maximum + 1 })).toBe(true);
+    }
+  });
+
   for (const kind of [null, "zip"]) test(`Obsidian ${kind ?? "directory"}: standalone attachments default on, keep folders and retry without duplicates`, async () => {
     const { client, db } = await target();
     const beforeNotes = db.query("SELECT COUNT(*) AS n FROM memos").get().n;

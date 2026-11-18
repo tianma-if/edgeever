@@ -45,6 +45,9 @@ export const prepareImportNote = async (index: ImportIndex, note: ImportNote) =>
     if (resource.byteSize <= 0 || resource.byteSize > maximum) await addIssue(index, "resourceSize", note.path, "error", resource.filename);
   }
 };
+export const escapeImportText = (text: string) => text.replace(/[\r\n]+/g, " ").replace(/[\\`*_[\]<>!#]/g, "\\$&");
+export const invalidImportResourceSize = (resource: { mimeType: string; byteSize: number }) =>
+  resource.byteSize <= 0 || resource.byteSize > (resource.mimeType.startsWith("image/") ? 100 * 1024 * 1024 : 1024 * 1024 * 1024);
 export const mimeFromName = (name: string) => {
   const extension = name.split(".").at(-1)?.toLowerCase();
   const types: Record<string, string> = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", svg: "image/svg+xml", avif: "image/avif", bmp: "image/bmp", pdf: "application/pdf", txt: "text/plain", csv: "text/csv", md: "text/markdown", mp3: "audio/mpeg", mp4: "video/mp4", json: "application/json", zip: "application/zip" };

@@ -2,7 +2,7 @@ import type { ImportDocument, ImportFile, ImportFormat, ImportIndex, ImportIssue
 import { IMPORT_CHUNK_BYTES } from "./types";
 import { indexItems } from "./index-store";
 import { addIssue, basename, dirname, ImportSources, normalPath, stem } from "./sources";
-import { importTime, mimeFromName, readMarkdownMetadata, prepareImportNote } from "./metadata";
+import { importTime, mimeFromName, readMarkdownMetadata, prepareImportNote, invalidImportResourceSize } from "./metadata";
 import { findImportReferences } from "./references";
 import { readEnex, type EnexNote } from "./evernote";
 import { markdownExportName } from "./markdown-export";
@@ -109,7 +109,19 @@ export class NoteImportSession {
             for await (const raw of readEnex(this.sources.bytes(entry, signal), entry.key)) {
               const resources = raw.resources.filter((res, i, all) => all.findIndex(other => other.hash === res.hash) === i);
               const note: ImportNote = { key: "", path: `${entry.path} / ${raw.title}`, notebookKey, title: raw.title.trim() || stem(entry.path), tags: [...new Set(raw.tags.filter(Boolean))], createdAt: importTime(raw.created), updatedAt: importTime(raw.updated), resources, entryKey: entry.key, ordinal: raw.ordinal };
-              for (const match of raw.content.matchAll(/<en-media\b[^>]*\bhash=["']([^"']+)["']/g)) if (!resources.some(res => res.hash === match[1])) await addIssue(this.index, "missingResource", note.path, "error", match[1]);
+              if (note.title.length > 160) {
+                note.originalTitle = note.title;
+                note.title = note.title.slice(0, 160).replace(/[\uD800-\uDBFF]$/, "");
+                await addIssue(this.index, "titleShortened", note.path, "warning");
+              }
+              if (this.options.skipInvalidEvernoteAttachments) {
+                note.skippedResources = resources.filter(invalidImportResourceSize);
+                note.resources = resources.filter(resource => !invalidImportResourceSize(resource));
+                for (const resource of note.skippedResources) await addIssue(this.index, "skippedResource", note.path, "warning", `${resource.filename} (${resource.byteSize} bytes)`);
+              }
+              for (const match of raw.content.matchAll(/<en-media\b[^>]*\bhash=["']([^"']+)["']/gi)) if (!resources.some(res => res.hash === match[1])) {
+                await addIssue(this.index, this.options.skipInvalidEvernoteAttachments ? "skippedMissingResource" : "missingResource", note.path, this.options.skipInvalidEvernoteAttachments ? "warning" : "error", match[1]);
+              }
               await this.saveNote(note);
             }
           } catch (error) { signal?.throwIfAborted(); await addIssue(this.index, "invalidEnex", entry.path, "error", String(error)); }
