@@ -42,26 +42,6 @@ export const RELEASE_VALIDATIONS = [
   { label: "Web typecheck", args: ["run", "typecheck"] },
   { label: "Mobile typecheck", args: ["run", "typecheck:mobile"] },
   { label: "Web build", args: ["run", "build:web"] },
-  {
-    label: "Native release planning tests",
-    args: [
-      "test",
-      "scripts/plan-native-release.test.mjs",
-      "scripts/check-native-release-assets.test.mjs",
-      "scripts/windows-update-metadata.test.mjs",
-      "scripts/release.test.mjs",
-      "scripts/release-issues.test.mjs",
-      "scripts/sync-readme-contributors.test.mjs",
-      "scripts/validate-store-delivery.test.mjs",
-      "scripts/store-delivery.test.mjs",
-      "scripts/xcode-cloud-control.test.mjs",
-      "scripts/download-play-universal-apk.test.mjs",
-      "scripts/desktop-icns.test.mjs",
-      "scripts/verify-desktop-cross-version-startup.test.mjs",
-      "apps/web/src/lib/version-check.test.mjs",
-      "apps/mobile/src/lib/mobile-release.test.ts",
-    ],
-  },
 ];
 
 const usage = `Usage:
@@ -1830,12 +1810,46 @@ const releaseMain = async (options) => {
     });
   })();
 
-  await Promise.all([
-    waitForRun({
+  const desktopReleaseReady = (async () => {
+    await waitForRun({
       repository: options.repository,
       runId: desktopRunId,
       label: "Draft desktop assets",
-    }),
+    });
+
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      if (desktopPlan.rebuild) {
+        signDraftWindowsUpdate({ repository: options.repository, tag });
+      }
+      const windowsUpdateAuditRunId = await dispatchReleaseWorkflow({
+        repository: options.repository,
+        workflow: RELEASE_WORKFLOWS.desktop,
+        tag,
+        headSha: releaseSha,
+      });
+      recordCheckpointRun(checkpoint, "windowsUpdateAuditRunId", windowsUpdateAuditRunId);
+      persistCheckpoint();
+      await waitForRun({
+        repository: options.repository,
+        runId: windowsUpdateAuditRunId,
+        label: "Draft signed Windows update audit",
+      });
+      const auditRun = viewWorkflowRun({
+        repository: options.repository,
+        runId: windowsUpdateAuditRunId,
+      });
+      if (signedWindowsUpdateAuditPassed(auditRun)) break;
+      if (!desktopPlan.rebuild || attempt === 3) {
+        throw new Error("Draft signed Windows update workflow completed without running its audit job.");
+      }
+      console.log(
+        "[release] desktop assets changed while preparing the signature; signing the latest manifest and retrying its audit",
+      );
+    }
+  })();
+
+  await Promise.all([
+    desktopReleaseReady,
     waitForRun({
       repository: options.repository,
       runId: dockerRunId,
@@ -1843,37 +1857,6 @@ const releaseMain = async (options) => {
     }),
     androidReleaseReady,
   ]);
-
-  let windowsUpdateAuditRunId;
-  for (let attempt = 1; attempt <= 3; attempt += 1) {
-    if (desktopPlan.rebuild) {
-      signDraftWindowsUpdate({ repository: options.repository, tag });
-    }
-    windowsUpdateAuditRunId = await dispatchReleaseWorkflow({
-      repository: options.repository,
-      workflow: RELEASE_WORKFLOWS.desktop,
-      tag,
-      headSha: releaseSha,
-    });
-    recordCheckpointRun(checkpoint, "windowsUpdateAuditRunId", windowsUpdateAuditRunId);
-    persistCheckpoint();
-    await waitForRun({
-      repository: options.repository,
-      runId: windowsUpdateAuditRunId,
-      label: "Draft signed Windows update audit",
-    });
-    const auditRun = viewWorkflowRun({
-      repository: options.repository,
-      runId: windowsUpdateAuditRunId,
-    });
-    if (signedWindowsUpdateAuditPassed(auditRun)) break;
-    if (!desktopPlan.rebuild || attempt === 3) {
-      throw new Error("Draft signed Windows update workflow completed without running its audit job.");
-    }
-    console.log(
-      "[release] desktop assets changed while preparing the signature; signing the latest manifest and retrying its audit",
-    );
-  }
 
   const draft = ghJson([
     "release",

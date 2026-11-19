@@ -6,6 +6,9 @@ on:
       - "apps/api/**"
       - "apps/web/**"
       - "packages/**"
+      # Client-side import changes are covered by the Web build and real-API tests.
+      - "!packages/shared/src/note-import/**"
+      - "!apps/web/src/lib/note-import/**"
       - "docs/**"
       - "scripts/self-hosted-*.mjs"
       - "migrations/**"
