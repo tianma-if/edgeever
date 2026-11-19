@@ -272,6 +272,17 @@ export const registerResourceRoutes = (
     }
   });
 
+  app.get("/api/v1/resources/:id/metadata", async (context) => {
+    const denied = requireScopes(context, "read:resources");
+    if (denied) return denied;
+    const resource = await dependencies.getResourceRow(
+      context.env.storage.db, getWorkspaceId(context), context.req.param("id"),
+    ) ?? await getPendingResourceBlobRow(context.env.storage.db, getWorkspaceId(context), context.req.param("id"));
+    if (!resource) return apiError(context, "resource_not_found", "Resource not found", 404);
+    context.header("Cache-Control", "no-store");
+    return context.json({ byteSize: resource.byte_size, updatedAt: "updated_at" in resource ? resource.updated_at : null });
+  });
+
   app.get("/api/v1/resources/:id/blob", async (context) => {
     const denied = requireScopes(context, "read:resources");
     if (denied) return denied;

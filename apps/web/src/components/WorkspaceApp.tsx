@@ -343,14 +343,19 @@ export const WorkspaceApp = ({
     if (!pluginHostReady) return;
     let active = true;
     let running = false;
+    let lastCheckedAt = Number.NEGATIVE_INFINITY;
     const updateOfficialPlugins = async () => {
-      if (!active || running) return;
+      if (!active || running || document.visibilityState === "hidden" || isBrowserOffline()) return;
       running = true;
       try {
         const pendingTrustPluginIds = await pluginHost.syncFromCatalog();
         if (active && pendingTrustPluginIds.length > 0 && !hasAcknowledgedPluginTrustWarning()) {
           setPendingCatalogTrustPluginIds(pendingTrustPluginIds);
         }
+        // Catalog enable/disable changes remain immediate on focus. Only the
+        // release/package update lookup is throttled.
+        if (Date.now() - lastCheckedAt < 5 * 60_000) return;
+        lastCheckedAt = Date.now();
         const marketplace = await loadResolvedPluginMarketplace();
         await updateOfficialMarketplacePlugins(pluginHost, marketplace.entries);
         const firstResolutionError = Object.entries(marketplace.resolutionErrors)[0];
