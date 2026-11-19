@@ -255,7 +255,6 @@ export const noteImportJa = {
   "siyuanHint": "assets を含む Markdown をエクスポートしてください。.sy バックアップとブロック参照の再構築には対応していません。",
   "flomoHint": "同じ ZIP でも、新しいインポートでは新しいノートを作成します。日時はシステムのタイムゾーンで解釈します。",
   "issues": {
-    "noteLinkLocation": "リンクは参照先のノートを開きます。元の見出しやパラメーターは下に表示されます。",
     "markdownExportRequired": "Markdown エクスポートを選択してください。入れ子の ZIP は展開してからフォルダーを選択してください。",
     "notionCsv": "CSV は添付として保存されます。データベースのリレーション、数式、ビューは再作成されません。",
     "missingAttachment": "エクスポートにこの添付ファイルがありません。インポートは続行でき、元のリンクは保持されます。",
@@ -282,6 +281,7 @@ export const noteImportJa = {
     "missingTag": "Joplinの関連タグの記録がありません。",
     "invalidJoplin": "Joplinの階層が不完全か循環しています。",
     "noteLink": "ノート間の参照は変換せず元のまま保持します。",
+    "noteLinkLocation": "リンクは参照先のノートを開きます。元の見出しやパラメーターは下に表示されます。",
     "missingResource": "参照先のローカル添付ファイルがありません。",
     "ambiguousResource": "参照先に一致するファイルが複数あります。",
     "invalidArchive": "アーカイブを完全に読み取れません。"
@@ -302,10 +302,10 @@ export const noteImportJa = {
     "createFailed": "ノートを作成できませんでした。"
   },
   "phases": {
-    "links": "インポートしたノートをリンクしています",
     "folders": "ノートブックを作成中",
     "notes": "ノートをインポート中",
     "resources": "添付をアップロード中",
+    "links": "インポートしたノートをリンクしています",
     "refresh": "ワークスペースを同期中"
   }
 } as const;
@@ -359,7 +359,6 @@ export const noteImportPl = {
   "siyuanHint": "Wyeksportuj Markdown z assets. Kopie .sy i odtwarzanie odwołań do bloków nie są obsługiwane.",
   "flomoHint": "Każdy nowy import tworzy nowe notatki, także z tego samego ZIP. Czas używa strefy systemowej.",
   "issues": {
-    "noteLinkLocation": "Link otworzy notatkę. Oryginalny nagłówek lub parametry są widoczne poniżej.",
     "markdownExportRequired": "Wybierz eksport Markdown. Rozpakuj zagnieżdżone ZIP przed wybraniem folderu.",
     "notionCsv": "CSV jest zachowany jako załącznik; relacje, formuły i widoki bazy nie są odtwarzane.",
     "missingAttachment": "W eksporcie brakuje tego załącznika. Możesz kontynuować import; oryginalny link zostanie zachowany.",
@@ -386,6 +385,7 @@ export const noteImportPl = {
     "missingTag": "Brak rekordu tagu powiązanego w Joplin.",
     "invalidJoplin": "Hierarchia Joplin jest niepełna lub zapętlona.",
     "noteLink": "Zachowano oryginalne odwołanie między notatkami bez konwersji.",
+    "noteLinkLocation": "Link otworzy notatkę. Oryginalny nagłówek lub parametry są widoczne poniżej.",
     "missingResource": "Brak wskazanego lokalnego załącznika.",
     "ambiguousResource": "Do odwołania pasuje więcej niż jeden plik.",
     "invalidArchive": "Nie można odczytać całego archiwum."
@@ -406,10 +406,10 @@ export const noteImportPl = {
     "createFailed": "Nie udało się utworzyć notatki."
   },
   "phases": {
-    "links": "Łączenie zaimportowanych notatek",
     "folders": "Tworzenie notesów",
     "notes": "Importowanie notatek",
     "resources": "Wysyłanie załączników",
+    "links": "Łączenie zaimportowanych notatek",
     "refresh": "Synchronizowanie obszaru roboczego"
   }
 } as const;
@@ -463,7 +463,6 @@ export const noteImportRu = {
   "siyuanHint": "Экспортируйте Markdown с assets. Резервные копии .sy и восстановление ссылок на блоки не поддерживаются.",
   "flomoHint": "Каждый новый импорт создаёт новые заметки, даже из того же ZIP. Используется системный часовой пояс.",
   "issues": {
-    "noteLinkLocation": "Ссылка откроет заметку. Исходный заголовок или параметры показаны ниже.",
     "markdownExportRequired": "Выберите экспорт Markdown. Распакуйте вложенные ZIP перед выбором папки.",
     "notionCsv": "CSV сохраняется как вложение; связи, формулы и представления базы не воссоздаются.",
     "missingAttachment": "В экспорте нет этого вложения. Можно продолжить импорт; исходная ссылка будет сохранена.",
@@ -490,6 +489,7 @@ export const noteImportRu = {
     "missingTag": "В Joplin отсутствует связанный тег.",
     "invalidJoplin": "Иерархия Joplin неполна или содержит цикл.",
     "noteLink": "Исходная ссылка между заметками сохранена без преобразования.",
+    "noteLinkLocation": "Ссылка откроет заметку. Исходный заголовок или параметры показаны ниже.",
     "missingResource": "Не найдено локальное вложение по ссылке.",
     "ambiguousResource": "Ссылке соответствует несколько файлов.",
     "invalidArchive": "Не удалось полностью прочитать архив."
@@ -510,10 +510,10 @@ export const noteImportRu = {
     "createFailed": "Не удалось создать заметку."
   },
   "phases": {
-    "links": "Связывание импортированных заметок",
     "folders": "Создание блокнотов",
     "notes": "Импорт заметок",
     "resources": "Загрузка вложений",
+    "links": "Связывание импортированных заметок",
     "refresh": "Синхронизация рабочего пространства"
   }
 } as const;
@@ -568,7 +568,6 @@ export const noteImportZhTW = {
   "siyuanHint": "請選擇含 assets 附件的 Markdown 匯出，不支援 .sy 備份，也不重建區塊參照。",
   "flomoHint": "每次新匯入都會新增筆記，同一 ZIP 也保留多份。時間按系統時區解釋。",
   "issues": {
-    "noteLinkLocation": "此連結會開啟目標筆記，下方會列出原有的標題位置或參數。",
     "markdownExportRequired": "請選擇 Markdown 匯出。如有巢狀 ZIP，請先解壓後選擇目錄。",
     "notionCsv": "CSV 保留為附件，不重建資料庫關聯、公式和檢視。",
     "missingAttachment": "匯出包缺少此附件。可以繼續匯入，原連結將保留。",
@@ -595,6 +594,7 @@ export const noteImportZhTW = {
     "missingTag": "Joplin 標籤關聯缺少對應標籤記錄。",
     "invalidJoplin": "Joplin 筆記本層級不完整或存在迴圈。",
     "noteLink": "保留原有筆記間引用，本次不轉換。",
+    "noteLinkLocation": "此連結會開啟目標筆記，下方會列出原有的標題位置或參數。",
     "missingResource": "找不到正文引用的本地附件。",
     "ambiguousResource": "該附件引用匹配多個檔案，無法確定目標。",
     "invalidArchive": "無法完整讀取歸檔。"
@@ -615,10 +615,10 @@ export const noteImportZhTW = {
     "createFailed": "無法建立筆記。"
   },
   "phases": {
-    "links": "正在連結已匯入的筆記",
     "folders": "正在建立筆記本",
     "notes": "正在匯入筆記",
     "resources": "正在上傳附件",
+    "links": "正在連結已匯入的筆記",
     "refresh": "正在同步工作區"
   }
 } as const;
@@ -672,7 +672,6 @@ export const noteImportEs = {
   "siyuanHint": "Exporta Markdown con assets. No se admiten copias .sy ni se reconstruyen referencias a bloques.",
   "flomoHint": "Cada nueva importación crea notas nuevas, incluso con el mismo ZIP. Se usa la zona horaria del sistema.",
   "issues": {
-    "noteLinkLocation": "El enlace abrirá la nota. El encabezado o los parámetros originales se muestran debajo.",
     "markdownExportRequired": "Elige una exportación Markdown. Descomprime los ZIP anidados antes de seleccionar la carpeta.",
     "notionCsv": "CSV se conserva como adjunto; no se recrean relaciones, fórmulas ni vistas de base de datos.",
     "missingAttachment": "Este adjunto no está incluido en la exportación. Puedes continuar la importación; se conservará el enlace original.",
@@ -699,6 +698,7 @@ export const noteImportEs = {
     "missingTag": "Una asociación de etiquetas de Joplin no tiene registro de etiqueta.",
     "invalidJoplin": "La jerarquía de libretas de Joplin está incompleta o es cíclica.",
     "noteLink": "La referencia original entre notas se conserva sin conversión.",
+    "noteLinkLocation": "El enlace abrirá la nota. El encabezado o los parámetros originales se muestran debajo.",
     "missingResource": "Falta el archivo adjunto local al que se hace referencia.",
     "ambiguousResource": "Más de un archivo coincide con esta referencia de adjunto.",
     "invalidArchive": "No se puede leer el archivo por completo."
@@ -719,10 +719,10 @@ export const noteImportEs = {
     "createFailed": "No se pudo crear la nota."
   },
   "phases": {
-    "links": "Vinculando las notas importadas",
     "folders": "Creando libretas",
     "notes": "Importando notas",
     "resources": "Subiendo archivos adjuntos",
+    "links": "Vinculando las notas importadas",
     "refresh": "Sincronizando espacio de trabajo"
   }
 } as const;
@@ -776,7 +776,6 @@ export const noteImportDe = {
   "siyuanHint": "Markdown mit assets exportieren. .sy-Sicherungen werden nicht unterstützt; Blockverweise werden nicht rekonstruiert.",
   "flomoHint": "Jeder neue Import erstellt neue Notizen, auch aus derselben ZIP. Zeiten verwenden die Systemzeitzone.",
   "issues": {
-    "noteLinkLocation": "Der Link öffnet die Notiz. Die ursprüngliche Überschrift oder die Parameter stehen unten.",
     "markdownExportRequired": "Markdown-Export wählen. Verschachtelte ZIP-Dateien vor der Ordnerauswahl entpacken.",
     "notionCsv": "CSV bleibt als Anhang erhalten; Datenbankbeziehungen, Formeln und Ansichten werden nicht wiederhergestellt.",
     "missingAttachment": "Dieser Anhang fehlt im Export. Der Import kann fortgesetzt werden; der ursprüngliche Link bleibt erhalten.",
@@ -803,6 +802,7 @@ export const noteImportDe = {
     "missingTag": "Einer Joplin-Tag-Zuordnung fehlt der Tag-Datensatz.",
     "invalidJoplin": "Die Joplin-Notizbuchhierarchie ist unvollständig oder zyklisch.",
     "noteLink": "Der ursprüngliche Querverweis zwischen Notizen bleibt ohne Konvertierung erhalten.",
+    "noteLinkLocation": "Der Link öffnet die Notiz. Die ursprüngliche Überschrift oder die Parameter stehen unten.",
     "missingResource": "Der referenzierte lokale Anhang fehlt.",
     "ambiguousResource": "Mehr als eine Datei entspricht diesem Anhangsverweis.",
     "invalidArchive": "Das Archiv kann nicht vollständig gelesen werden."
@@ -823,10 +823,10 @@ export const noteImportDe = {
     "createFailed": "Die Notiz konnte nicht erstellt werden."
   },
   "phases": {
-    "links": "Importierte Notizen werden verknüpft",
     "folders": "Notizbücher werden erstellt",
     "notes": "Notizen werden importiert",
     "resources": "Anhänge werden hochgeladen",
+    "links": "Importierte Notizen werden verknüpft",
     "refresh": "Arbeitsbereich wird synchronisiert"
   }
 } as const;
@@ -880,7 +880,6 @@ export const noteImportFr = {
   "siyuanHint": "Exportez Markdown avec assets. Les sauvegardes .sy et la reconstruction des références de blocs ne sont pas prises en charge.",
   "flomoHint": "Chaque nouvel import crée de nouvelles notes, même avec le même ZIP. Les dates utilisent le fuseau du système.",
   "issues": {
-    "noteLinkLocation": "Le lien ouvrira la note. Le titre ou les paramètres d’origine sont indiqués ci-dessous.",
     "markdownExportRequired": "Choisissez un export Markdown. Décompressez les ZIP imbriqués avant de sélectionner le dossier.",
     "notionCsv": "Le CSV est conservé en pièce jointe ; les relations, formules et vues de base de données ne sont pas recréées.",
     "missingAttachment": "Cette pièce jointe est absente de l’export. Vous pouvez poursuivre l’import ; le lien d’origine sera conservé.",
@@ -907,6 +906,7 @@ export const noteImportFr = {
     "missingTag": "Une association d'étiquette Joplin ne possède pas d'enregistrement d'étiquette.",
     "invalidJoplin": "La hiérarchie des carnets Joplin est incomplète ou cyclique.",
     "noteLink": "La référence interne d'origine entre les notes est conservée sans conversion.",
+    "noteLinkLocation": "Le lien ouvrira la note. Le titre ou les paramètres d’origine sont indiqués ci-dessous.",
     "missingResource": "La pièce jointe locale référencée est introuvable.",
     "ambiguousResource": "Plusieurs fichiers correspondent à cette référence de pièce jointe.",
     "invalidArchive": "Impossible de lire l'archive dans sa totalité."
@@ -927,10 +927,10 @@ export const noteImportFr = {
     "createFailed": "Impossible de créer la note."
   },
   "phases": {
-    "links": "Association des notes importées",
     "folders": "Création des carnets",
     "notes": "Importation des notes",
     "resources": "Téléversement des pièces jointes",
+    "links": "Association des notes importées",
     "refresh": "Synchronisation de l'espace de travail"
   }
 } as const;
