@@ -1,4 +1,11 @@
 import { Base64 } from "js-base64";
+import {
+  DEFAULT_TABLE_VIEW_ID, TABLE_VIEW_SCHEMA_VERSION, TABLE_VIEW_FILTER_LIMIT,
+  isValidTypedTableFilter, matchesTypedTableFilter, tableViewWeek, tableFilterNeedsValue,
+  type NamedTableView, type TableViewFilter, type TableViewOperator, type TableViewSort, type TypedTableFilter,
+} from "./table-view";
+
+export * from "./table-view";
 
 export const TABLE_SCHEMA_VERSION = 1 as const;
 export const TABLE_FIELD_LIMIT = 40;
@@ -46,12 +53,10 @@ export type TableView = {
   sort: TableSort | null;
 };
 
-export type TableDocument = {
-  schemaVersion: typeof TABLE_SCHEMA_VERSION;
-  fields: TableField[];
-  records: TableRecord[];
-  view: TableView;
-};
+type TableData = { fields: TableField[]; records: TableRecord[] };
+export type LegacyTableDocument = TableData & { schemaVersion: typeof TABLE_SCHEMA_VERSION; view: TableView };
+export type NamedViewTableDocument = TableData & { schemaVersion: typeof TABLE_VIEW_SCHEMA_VERSION; views: NamedTableView[] };
+export type TableDocument = LegacyTableDocument | NamedViewTableDocument;
 
 export type TableSeedLabels = {
   name?: string;
@@ -77,10 +82,29 @@ const CELL_TEXT_LIMIT = 2000;
 const ATTACHMENT_ID_PATTERN = /^[A-Za-z0-9_-]{1,80}$/;
 const ATTACHMENT_BYTE_LIMIT = 1024 * 1024 * 1024;
 
-const encodeBase64Url = (value: string) => Base64.encodeURI(value);
-const decodeBase64Url = (value: string) => Base64.decode(value);
+const BASE64URL_CHARS = /^[A-Za-z0-9_-]+$/;
+type NativeBase64Bytes = Uint8Array<ArrayBuffer> & { toBase64?: (options: { alphabet: "base64url"; omitPadding: true }) => string };
+const nativeBase64 = Uint8Array as typeof Uint8Array & { fromBase64?: (value: string, options: { alphabet: "base64url" }) => Uint8Array<ArrayBuffer> };
+const tableEncoder = typeof TextEncoder === "function" ? new TextEncoder() : null;
+const tableDecoder = typeof TextDecoder === "function" ? new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }) : null;
+const base64Url = { alphabet: "base64url" } as const;
+const encodeBase64Url = (value: string) =>
+  tableEncoder && typeof (Uint8Array.prototype as NativeBase64Bytes).toBase64 === "function"
+    ? (tableEncoder.encode(value) as NativeBase64Bytes).toBase64!({ ...base64Url, omitPadding: true })
+    : Base64.encodeURI(value);
+const decodeBase64Url = (value: string) => {
+  if (tableDecoder && typeof nativeBase64.fromBase64 === "function" && value.length % 4 !== 1) {
+    try {
+      const text = tableDecoder.decode(nativeBase64.fromBase64(value, base64Url));
+      if (text.charCodeAt(0) !== 0xfeff) return text;
+    } catch {
+      // Preserve the existing runtime-specific handling of malformed UTF-8.
+    }
+  }
+  return Base64.decode(value);
+};
 
-export const createTableId = (prefix: "fld" | "rec") => {
+export const createTableId = (prefix: "fld" | "rec" | "view") => {
   const uuid = globalThis.crypto?.randomUUID?.();
   const suffix = uuid ?? `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
   return `${prefix}_${suffix}`;
@@ -156,9 +180,10 @@ const emptyCell = (field: TableField): TableCellValue => coerceTableCell(field, 
 export const listTableAttachmentResourceIds = (document: TableDocument | null | undefined) => {
   const ids = new Set<string>();
   if (!document) return ids;
+  const fields = document.fields.filter((field) => field.type === "attachment");
+  if (!fields.length) return ids;
   for (const record of document.records) {
-    for (const field of document.fields) {
-      if (field.type !== "attachment") continue;
+    for (const field of fields) {
       const value = record.cells[field.id];
       if (!Array.isArray(value)) continue;
       for (const attachment of value) ids.add(attachment.resourceId);
@@ -186,7 +211,7 @@ const parseView = (value: unknown, fieldIds: Set<string>): TableView => {
       const filter: TableFilter = { fieldId: item.fieldId, operator: item.operator as TableFilterOperator };
       if (typeof item.value === "string") filter.value = item.value.slice(0, CELL_TEXT_LIMIT);
       filters.push(filter);
-      if (filters.length >= 8) break;
+      if (filters.length >= TABLE_VIEW_FILTER_LIMIT) break;
     }
   }
   const sort = isRecord(value.sort)
@@ -198,12 +223,119 @@ const parseView = (value: unknown, fieldIds: Set<string>): TableView => {
   return { filters, sort };
 };
 
-export const parseTableDocument = (markdown: string | null | undefined): TableDocument | null => {
-  const encoded = markdown?.match(TABLE_COMMENT)?.[1]?.replace(/\s+/g, "");
-  if (!encoded || !/^[A-Za-z0-9_-]+$/.test(encoded)) return null;
+const parseNamedTableViews = (value: unknown, fields: TableField[]): NamedTableView[] | null => {
+  if (!Array.isArray(value) || value.length === 0) return null;
+  const byId = new Map(fields.map((field) => [field.id, field]));
+  const fieldIds = new Set(byId.keys());
+  const viewIds = new Set<string>();
+  const views: NamedTableView[] = [];
+  for (const view of value) {
+    if (!isRecord(view) || typeof view.id !== "string" || !view.id || viewIds.has(view.id)
+      || typeof view.name !== "string" || (!view.name.trim() && view.id !== DEFAULT_TABLE_VIEW_ID)
+      || (view.match !== "all" && view.match !== "any") || !Array.isArray(view.filters)
+      || view.filters.length > TABLE_VIEW_FILTER_LIMIT || !Array.isArray(view.sorts)) return null;
+    viewIds.add(view.id);
+    const filters: TableViewFilter[] = [];
+    for (const rule of view.filters) {
+      if (!isRecord(rule) || typeof rule.fieldId !== "string" || typeof rule.operator !== "string") return null;
+      const field = byId.get(rule.fieldId);
+      if (!field) return null;
+      if (rule.legacy === true) {
+        const [filter] = parseView({ filters: [rule] }, fieldIds).filters;
+        if (!filter) return null;
+        filters.push({ ...filter, legacy: true });
+      } else {
+        const operator = rule.operator as TableViewOperator;
+        const value = typeof rule.value === "string" ? rule.value.slice(0, CELL_TEXT_LIMIT)
+          : typeof rule.value === "number" || typeof rule.value === "boolean" ? rule.value : undefined;
+        const filter: TypedTableFilter = { fieldId: field.id, operator,
+          ...(tableFilterNeedsValue(operator) && value !== undefined ? { value } : {}),
+          ...(operator === "between" && typeof rule.endValue === "string" ? { endValue: rule.endValue } : {}),
+        };
+        if (!isValidTypedTableFilter(field, filter)) return null;
+        filters.push(filter);
+      }
+    }
+    const sorts: TableViewSort[] = [];
+    const seenSorts = new Set<string>();
+    for (const rule of view.sorts) {
+      if (!isRecord(rule) || typeof rule.fieldId !== "string" || !byId.has(rule.fieldId)
+        || seenSorts.has(rule.fieldId) || (rule.direction !== "asc" && rule.direction !== "desc")) return null;
+      seenSorts.add(rule.fieldId);
+      sorts.push({ fieldId: rule.fieldId, direction: rule.direction, ...(rule.legacy === true ? { legacy: true } : {}) });
+    }
+    views.push({ id: view.id, name: view.name.trim(), match: view.match, filters, sorts });
+  }
+  return views;
+};
+
+export const getTableViews = (document: TableDocument): NamedTableView[] => document.schemaVersion === TABLE_VIEW_SCHEMA_VERSION
+  ? document.views
+  : [{
+    id: DEFAULT_TABLE_VIEW_ID,
+    name: "",
+    match: "all",
+    filters: document.view.filters.map((filter) => ({ ...filter, legacy: true })),
+    sorts: document.view.sort ? [{ ...document.view.sort, legacy: true }] : [],
+  }];
+
+const legacyViewProjection = (view: NamedTableView, fields: TableField[]): TableView | null => {
+  if (view.match !== "all" || view.sorts.length > 1) return null;
+  const filters: TableFilter[] = [];
+  for (const { fieldId, operator, value } of view.filters) {
+    if (operator !== "contains" && operator !== "eq" && operator !== "empty" && operator !== "notEmpty") return null;
+    filters.push({ fieldId, operator, ...(value === undefined ? {} : { value: String(value) }) });
+  }
+  const [sort] = view.sorts;
+  if (sort && !sort.legacy && fields.find((field) => field.id === sort.fieldId)?.type === "select") return null;
+  return { filters, sort: sort ? { fieldId: sort.fieldId, direction: sort.direction } : null };
+};
+
+/** Record consumers using the v1 API see source rows and only a representable default view. */
+export const projectLegacyTableDocument = (document: TableDocument): LegacyTableDocument => {
+  if (document.schemaVersion === TABLE_SCHEMA_VERSION) return document;
+  return {
+    schemaVersion: TABLE_SCHEMA_VERSION, fields: document.fields, records: document.records,
+    view: legacyViewProjection(document.views[0]!, document.fields) ?? { filters: [], sort: null },
+  };
+};
+
+export const saveTableViews = (document: TableDocument, views: NamedTableView[]): TableDocument => {
+  const validated = parseNamedTableViews(views, document.fields);
+  if (!validated) throw new Error("Invalid table views");
+  const first = validated[0]!;
+  if (document.schemaVersion === TABLE_SCHEMA_VERSION && validated.length === 1 && first.id === DEFAULT_TABLE_VIEW_ID && !first.name) {
+    const view = legacyViewProjection(first, document.fields);
+    if (view) return { ...document, view };
+  }
+  return { schemaVersion: TABLE_VIEW_SCHEMA_VERSION, fields: document.fields, records: document.records, views: validated };
+};
+
+type TableDocumentMetadata = { fields: TableField[]; recordCount: number };
+
+const decodeTableDocumentMarker = (markdown: string | null | undefined): string | null => {
+  const raw = markdown?.match(TABLE_COMMENT)?.[1];
+  if (!raw) return null;
+  let encoded = raw;
+  if (!BASE64URL_CHARS.test(raw)) {
+    encoded = raw.replace(/\s+/g, "");
+    if (!BASE64URL_CHARS.test(encoded)) return null;
+  }
   try {
-    const value = JSON.parse(decodeBase64Url(encoded)) as Record<string, unknown>;
-    if (value.schemaVersion !== TABLE_SCHEMA_VERSION || !Array.isArray(value.fields) || value.fields.length < 1) return null;
+    return decodeBase64Url(encoded);
+  } catch {
+    return null;
+  }
+};
+
+function readTableDocumentJson(json: string | null, includeRecords: true): TableDocument | null;
+function readTableDocumentJson(json: string | null, includeRecords: false): TableDocumentMetadata | null;
+function readTableDocumentJson(json: string | null, includeRecords: boolean): TableDocument | TableDocumentMetadata | null {
+  if (json === null) return null;
+  try {
+    const value = JSON.parse(json) as Record<string, unknown>;
+    if ((value.schemaVersion !== TABLE_SCHEMA_VERSION && value.schemaVersion !== TABLE_VIEW_SCHEMA_VERSION)
+      || !Array.isArray(value.fields) || value.fields.length < 1) return null;
     const fields: TableField[] = [];
     for (const item of value.fields) {
       const field = parseField(item);
@@ -211,22 +343,38 @@ export const parseTableDocument = (markdown: string | null | undefined): TableDo
       fields.push(field);
     }
     if (!Array.isArray(value.records)) return null;
-    const fieldIds = new Set(fields.map((field) => field.id));
-    const records: TableRecord[] = [];
+    const records: TableRecord[] | null = includeRecords ? [] : null;
+    // A malformed JSON cell can shadow toString (including an escaped key)
+    // and fail coercion. Keep the old validation for those unusual markers.
+    const validateCells = includeRecords || /"toString"|\\u/.test(json);
     const recordIds = new Set<string>();
     for (const item of value.records) {
       if (!isRecord(item) || typeof item.id !== "string" || !item.id || item.id.length > 80 || recordIds.has(item.id)) return null;
       recordIds.add(item.id);
+      if (!validateCells) continue;
       const rawCells = isRecord(item.cells) ? item.cells : {};
+      if (!records) {
+        for (const field of fields) coerceTableCell(field, rawCells[field.id]);
+        continue;
+      }
       const cells: Record<string, TableCellValue> = {};
       for (const field of fields) cells[field.id] = coerceTableCell(field, rawCells[field.id]);
       records.push({ id: item.id, cells });
     }
-    return { schemaVersion: TABLE_SCHEMA_VERSION, fields, records, view: parseView(value.view, fieldIds) };
+    const metadata = { fields, recordCount: value.records.length };
+    if (value.schemaVersion === TABLE_SCHEMA_VERSION) {
+      return records ? { schemaVersion: TABLE_SCHEMA_VERSION, fields, records, view: parseView(value.view, new Set(fields.map((field) => field.id))) } : metadata;
+    }
+    const views = parseNamedTableViews(value.views, fields);
+    if (!views) return null;
+    return records ? { schemaVersion: TABLE_VIEW_SCHEMA_VERSION, fields, records, views } : metadata;
   } catch {
     return null;
   }
-};
+}
+
+export const parseTableDocument = (markdown: string | null | undefined) => readTableDocumentJson(decodeTableDocumentMarker(markdown), true);
+export const parseTableDocumentMetadata = (markdown: string | null | undefined) => readTableDocumentJson(decodeTableDocumentMarker(markdown), false);
 
 export const hasTableDocumentMarker = (markdown: string | null | undefined) =>
   Boolean(markdown?.match(TABLE_COMMENT));
@@ -255,10 +403,17 @@ export const tableFallbackMarkdown = (document: TableDocument) => {
   return [header, divider, ...rows].map((row) => `| ${row.join(" | ")} |`).join("\n");
 };
 
-export const serializeTableDocument = (document: TableDocument) =>
-  `${tableFallbackMarkdown(document)}\n\n<!-- ${TABLE_MARKER}:${encodeBase64Url(JSON.stringify(document))} -->`;
+export const buildTableDocumentMarkdown = (document: TableDocument) => {
+  const fallback = tableFallbackMarkdown(document);
+  return {
+    fallback,
+    markdown: `${fallback}\n\n<!-- ${TABLE_MARKER}:${encodeBase64Url(JSON.stringify(document))} -->`,
+  };
+};
 
-export const createDefaultTableDocument = (labels: TableSeedLabels = {}): TableDocument => {
+export const serializeTableDocument = (document: TableDocument) => buildTableDocumentMarkdown(document).markdown;
+
+export const createDefaultTableDocument = (labels: TableSeedLabels = {}): LegacyTableDocument => {
   const nameId = "fld_name";
   const statusId = "fld_status";
   const dateId = "fld_date";
@@ -334,23 +489,43 @@ const matchesFilter = (field: TableField, value: TableCellValue, filter: TableFi
   return String(value ?? "").toLocaleLowerCase().includes((filter.value ?? "").trim().toLocaleLowerCase());
 };
 
-export const applyTableView = (document: TableDocument, records = document.records) => {
+export const applyTableView = (
+  document: TableDocument, records = document.records, view = getTableViews(document)[0]!, now = new Date(),
+) => {
   const fields = new Map(document.fields.map((field) => [field.id, field]));
-  const filtered = records.filter((record) => document.view.filters.every((filter) => {
-    const field = fields.get(filter.fieldId);
-    return field ? matchesFilter(field, record.cells[field.id] ?? null, filter) : true;
-  }));
-  const sort = document.view.sort ? fields.get(document.view.sort.fieldId) : undefined;
-  if (!sort || !document.view.sort) return filtered;
-  const direction = document.view.sort.direction === "desc" ? -1 : 1;
-  return [...filtered].sort((left, right) => {
-    const a = cellSortText(sort, left.cells[sort.id] ?? null);
-    const b = cellSortText(sort, right.cells[sort.id] ?? null);
-    if (a === null && b === null) return 0;
-    if (a === null) return 1;
-    if (b === null) return -1;
-    if (typeof a === "number" && typeof b === "number") return (a - b) * direction;
-    return String(a).localeCompare(String(b)) * direction;
+  const week = view.filters.some((filter) => filter.operator === "thisWeek") ? tableViewWeek(now) : undefined;
+  const filtered = records.filter((record) => {
+    const matches = (filter: TableViewFilter) => {
+      const field = fields.get(filter.fieldId);
+      if (!field) return filter.legacy === true;
+      const value = record.cells[filter.fieldId] ?? null;
+      return filter.legacy ? matchesFilter(field, value, filter) : matchesTypedTableFilter(field, value, filter, week);
+    };
+    return view.filters.length === 0 || (view.match === "all" ? view.filters.every(matches) : view.filters.some(matches));
+  });
+  const sorts = view.sorts.flatMap((rule) => {
+    const field = fields.get(rule.fieldId);
+    if (!field) return [];
+    const options = !rule.legacy && field.type === "select"
+      ? new Map((field.options ?? []).map((option, index) => [option, index]))
+      : undefined;
+    return [{ field, direction: rule.direction === "desc" ? -1 : 1, options }];
+  });
+  if (!sorts.length) return filtered;
+  return filtered.sort((left, right) => {
+    for (const { field, direction, options } of sorts) {
+      const key = (value: TableCellValue) => options
+        ? typeof value === "string" ? options.get(value) ?? null : null
+        : cellSortText(field, value);
+      const a = key(left.cells[field.id] ?? null);
+      const b = key(right.cells[field.id] ?? null);
+      if (a === null && b === null) continue;
+      if (a === null) return 1;
+      if (b === null) return -1;
+      const compare = typeof a === "number" && typeof b === "number" ? a - b : String(a).localeCompare(String(b));
+      if (compare) return compare * direction;
+    }
+    return 0;
   });
 };
 
@@ -373,8 +548,14 @@ export const updateTableField = (document: TableDocument, fieldId: string, patch
     type: patch.type ?? current.type,
   };
   if (next.type === "select") next.options = cleanOptions(patch.options ?? current.options ?? []);
+  const updated = document.schemaVersion === TABLE_VIEW_SCHEMA_VERSION && next.type !== current.type
+    ? { ...document, views: document.views.map((view) => ({
+      ...view,
+      filters: view.filters.filter((rule) => rule.fieldId !== fieldId || rule.legacy || isValidTypedTableFilter(next, rule)),
+    })) }
+    : document;
   return {
-    ...document,
+    ...updated,
     fields: document.fields.map((field) => field.id === fieldId ? next : field),
     records: document.records.map((record) => ({
       ...record,
@@ -387,13 +568,20 @@ export const removeTableField = (document: TableDocument, fieldId: string): Tabl
   if (document.fields.length <= 1 || !document.fields.some((field) => field.id === fieldId)) return document;
   const fields = document.fields.filter((field) => field.id !== fieldId);
   const fieldIds = new Set(fields.map((field) => field.id));
-  return {
-    ...document,
-    fields,
-    records: document.records.map((record) => ({
-      ...record,
-      cells: Object.fromEntries(Object.entries(record.cells).filter(([id]) => fieldIds.has(id))),
+  const records = document.records.map((record) => ({
+    ...record,
+    cells: Object.fromEntries(Object.entries(record.cells).filter(([id]) => fieldIds.has(id))),
+  }));
+  if (document.schemaVersion === TABLE_VIEW_SCHEMA_VERSION) return {
+    ...document, fields, records,
+    views: document.views.map((view) => ({
+      ...view,
+      filters: view.filters.filter((filter) => filter.fieldId !== fieldId),
+      sorts: view.sorts.filter((sort) => sort.fieldId !== fieldId),
     })),
+  };
+  return {
+    ...document, fields, records,
     view: {
       filters: document.view.filters.filter((filter) => filter.fieldId !== fieldId),
       sort: document.view.sort?.fieldId === fieldId ? null : document.view.sort,
@@ -424,7 +612,7 @@ export const removeTableRecord = (document: TableDocument, recordId: string): Ta
   records: document.records.filter((record) => record.id !== recordId),
 });
 
-export const replaceTableView = (document: TableDocument, view: TableView): TableDocument => ({
+export const replaceTableView = (document: LegacyTableDocument, view: TableView): LegacyTableDocument => ({
   ...document,
   view: parseView(view, new Set(document.fields.map((field) => field.id))),
 });
@@ -433,13 +621,13 @@ export const getTableSummary = (markdown: string | null | undefined): {
   structuredTable: boolean;
   tablePreview?: TableSummaryPreview;
 } => {
-  const document = parseTableDocument(markdown);
+  const document = parseTableDocumentMetadata(markdown);
   if (!document) return { structuredTable: false };
   return {
     structuredTable: true,
     tablePreview: {
       fieldCount: document.fields.length,
-      recordCount: document.records.length,
+      recordCount: document.recordCount,
       fieldNames: document.fields.map((field) => field.name).filter(Boolean).slice(0, 4),
     },
   };
