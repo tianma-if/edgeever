@@ -1,7 +1,7 @@
 import { lazy, Suspense, useState, useEffect, useRef, type DragEvent } from "react";
 import { useTranslation } from "react-i18next";
 import * as m from "motion/react-m";
-import { ChevronDown, MoreHorizontal, Palette, Plus, Pencil, Trash2, Share2, Globe } from "lucide-react";
+import { ChevronDown, FileUp, MoreHorizontal, Palette, Plus, Pencil, Trash2, Share2, Globe } from "lucide-react";
 import type { NotebookNode, NotebookDropPosition } from "@/lib/app-helpers";
 import {
   hasMemoDragData,
@@ -36,6 +36,7 @@ export const NotebookTreeItem = ({
   onSelect,
   onCreateNotebook,
   onRenameNotebook,
+  onImportMarkdown,
   onEditNotebookAppearance,
   onDeleteNotebook,
   onMoveNotebook,
@@ -55,6 +56,7 @@ export const NotebookTreeItem = ({
   onSelect: (notebookId: string) => void;
   onCreateNotebook: (parentId?: string | null) => void;
   onRenameNotebook: (notebook: Notebook) => void;
+  onImportMarkdown: (notebookId: string) => void;
   onEditNotebookAppearance: (notebook: Notebook) => void;
   onDeleteNotebook: (notebook: Notebook) => void;
   onMoveNotebook: (notebookId: string, targetNotebookId: string, position: NotebookDropPosition) => void;
@@ -341,6 +343,18 @@ export const NotebookTreeItem = ({
                     onClick={(event) => {
                       event.stopPropagation();
                       setActionsOpen(false);
+                      onImportMarkdown(node.id);
+                    }}
+                  >
+                    <FileUp className="h-4 w-4" />
+                    {t("noteImport.markdownImport")}
+                  </button>
+                  <button
+                    className="flex h-9 w-full items-center gap-2 rounded-sm px-2 text-left text-xs outline-none hover:bg-slate-100"
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setActionsOpen(false);
                       onRenameNotebook(node);
                     }}
                   >
@@ -415,6 +429,13 @@ export const NotebookTreeItem = ({
           </ContextMenuItem>
           <ContextMenuItem
             className="flex h-9 items-center gap-2 px-3 text-xs text-slate-700 hover:bg-slate-50 cursor-pointer outline-none"
+            onSelect={() => onImportMarkdown(node.id)}
+          >
+            <FileUp className="h-4 w-4" />
+            {t("noteImport.markdownImport")}
+          </ContextMenuItem>
+          <ContextMenuItem
+            className="flex h-9 items-center gap-2 px-3 text-xs text-slate-700 hover:bg-slate-50 cursor-pointer outline-none"
             onClick={() => onRenameNotebook(node)}
           >
             <Pencil className="h-4 w-4" />
@@ -474,6 +495,7 @@ export const NotebookTreeItem = ({
               onSelect={onSelect}
               onCreateNotebook={onCreateNotebook}
               onRenameNotebook={onRenameNotebook}
+              onImportMarkdown={onImportMarkdown}
               onEditNotebookAppearance={onEditNotebookAppearance}
               onDeleteNotebook={onDeleteNotebook}
               onMoveNotebook={onMoveNotebook}

@@ -1,4 +1,14 @@
 export const noteImportEnUS = {
+  "destinationLoadFailed": "Could not load destination notebooks.",
+  "importNotes": "Import notes",
+  "sourceType": "Source",
+  "markdownImport": "Import Markdown",
+  "markdownHint": "Choose a .md or .markdown file or a folder.",
+  "chooseMarkdownFile": "Choose Markdown file",
+  "keepMarkdownRoot": "Keep the selected folder as a notebook",
+  "markdownRootDestination": "Root files go to {{path}}",
+  "markdownAttachmentHint": "To include local attachments, choose a folder containing the note and its files.",
+  "missingMarkdownAttachment": "This attachment is missing. You can continue importing with the original link.",
   "unreferencedAttachments": "Create a note for each unreferenced attachment",
   "unreferencedAttachmentsHint": "Keep standalone documents and media in their original folders. Hidden files, configuration, and caches are excluded.",
   "skipInvalidEvernoteAttachments": "Skip unavailable attachments and continue",
@@ -63,11 +73,14 @@ export const noteImportEnUS = {
     "missingTag": "A Joplin tag association has no tag record.",
     "invalidJoplin": "The Joplin notebook hierarchy is incomplete or cyclic.",
     "noteLink": "The original inter-note reference is kept without conversion.",
+    "noteLinkLocation": "This link will open the note. Its original heading or parameters are shown below.",
     "missingResource": "The referenced local attachment is missing.",
     "ambiguousResource": "More than one file matches this attachment reference.",
     "invalidArchive": "The archive cannot be read completely."
   },
   "errors": {
+    "chooseSingleMarkdownSource": "Choose one Markdown file or one folder.",
+    "chooseMarkdownDestination": "Choose a destination notebook.",
     "preflightErrors": "Fix the preflight errors before importing.",
     "unsupportedImportServer": "Update the EdgeEver server to use native import.",
     "missingParent": "The destination notebook is no longer available.",
@@ -84,11 +97,22 @@ export const noteImportEnUS = {
     "folders": "Creating notebooks",
     "notes": "Importing notes",
     "resources": "Uploading attachments",
+    "links": "Connecting imported notes",
     "refresh": "Synchronizing workspace"
   }
 } as const;
 
 export const noteImportZhCN = {
+  "destinationLoadFailed": "无法加载目标笔记本列表。",
+  "importNotes": "导入笔记",
+  "sourceType": "来源",
+  "markdownImport": "导入 Markdown",
+  "markdownHint": "选择一个 .md 或 .markdown 文件，或选择文件夹。",
+  "chooseMarkdownFile": "选择 Markdown 文件",
+  "keepMarkdownRoot": "保留所选文件夹为一级笔记本",
+  "markdownRootDestination": "根目录文件将导入「{{path}}」",
+  "markdownAttachmentHint": "要一并导入本地附件，请选择包含笔记及附件的文件夹。",
+  "missingMarkdownAttachment": "找不到此附件。可以继续导入，正文将保留原链接。",
   "unreferencedAttachments": "将未引用附件创建为独立笔记",
   "unreferencedAttachmentsHint": "保留独立文档与媒体及其原目录；不包含隐藏文件、配置和缓存。",
   "skipInvalidEvernoteAttachments": "跳过异常附件继续导入",
@@ -153,11 +177,14 @@ export const noteImportZhCN = {
     "missingTag": "Joplin 标签关联缺少对应标签记录。",
     "invalidJoplin": "Joplin 笔记本层级不完整或存在循环。",
     "noteLink": "保留原有笔记间引用，本次不转换。",
+    "noteLinkLocation": "此链接会打开目标笔记，下方列出原来的标题定位或参数。",
     "missingResource": "找不到正文引用的本地附件。",
     "ambiguousResource": "该附件引用匹配多个文件，无法确定目标。",
     "invalidArchive": "无法完整读取归档。"
   },
   "errors": {
+    "chooseSingleMarkdownSource": "请选择一个 Markdown 文件或一个文件夹。",
+    "chooseMarkdownDestination": "请选择目标笔记本。",
     "preflightErrors": "请先修正预检错误。",
     "unsupportedImportServer": "请升级 EdgeEver 服务端后使用原生导入。",
     "missingParent": "目标笔记本已不可用。",
@@ -174,11 +201,22 @@ export const noteImportZhCN = {
     "folders": "正在创建笔记本",
     "notes": "正在导入笔记",
     "resources": "正在上传附件",
+    "links": "正在连接已导入的笔记",
     "refresh": "正在同步工作区"
   }
 } as const;
 
 export const noteImportJa = {
+  "destinationLoadFailed": "インポート先のノートブックを読み込めませんでした。",
+  "importNotes": "ノートをインポート",
+  "sourceType": "インポート元",
+  "markdownImport": "Markdown をインポート",
+  "markdownHint": ".md または .markdown ファイルを1つ選ぶか、フォルダーを選んでください。",
+  "chooseMarkdownFile": "Markdown ファイルを選択",
+  "keepMarkdownRoot": "選択したフォルダー名のノートブックを作成",
+  "markdownRootDestination": "直下のファイルのインポート先は「{{path}}」です",
+  "markdownAttachmentHint": "添付ファイルも取り込むには、ノートと添付ファイルを含むフォルダーを選んでください。",
+  "missingMarkdownAttachment": "添付ファイルが見つかりません。元のリンクを残してインポートできます。",
   "unreferencedAttachments": "参照されていない添付ファイルごとにノートを作成",
   "unreferencedAttachmentsHint": "単独の文書やメディアを元のフォルダーに保持します。隠しファイル、設定、キャッシュは除外します。",
   "skipInvalidEvernoteAttachments": "利用できない添付をスキップして続行",
@@ -243,11 +281,14 @@ export const noteImportJa = {
     "missingTag": "Joplinの関連タグの記録がありません。",
     "invalidJoplin": "Joplinの階層が不完全か循環しています。",
     "noteLink": "ノート間の参照は変換せず元のまま保持します。",
+    "noteLinkLocation": "リンクは参照先のノートを開きます。元の見出しやパラメーターは下に表示されます。",
     "missingResource": "参照先のローカル添付ファイルがありません。",
     "ambiguousResource": "参照先に一致するファイルが複数あります。",
     "invalidArchive": "アーカイブを完全に読み取れません。"
   },
   "errors": {
+    "chooseSingleMarkdownSource": "Markdown ファイルまたはフォルダーを1つ選んでください。",
+    "chooseMarkdownDestination": "インポート先のノートブックを選んでください。",
     "preflightErrors": "事前確認のエラーを修正してください。",
     "unsupportedImportServer": "サーバーを更新するとインポートを利用できます。",
     "missingParent": "移行先のノートブックがありません。",
@@ -264,11 +305,22 @@ export const noteImportJa = {
     "folders": "ノートブックを作成中",
     "notes": "ノートをインポート中",
     "resources": "添付をアップロード中",
+    "links": "インポートしたノートをリンクしています",
     "refresh": "ワークスペースを同期中"
   }
 } as const;
 
 export const noteImportPl = {
+  "destinationLoadFailed": "Nie udało się wczytać notatników docelowych.",
+  "importNotes": "Importuj notatki",
+  "sourceType": "Źródło",
+  "markdownImport": "Importuj Markdown",
+  "markdownHint": "Wybierz jeden plik .md lub .markdown albo folder.",
+  "chooseMarkdownFile": "Wybierz plik Markdown",
+  "keepMarkdownRoot": "Zachowaj wybrany folder jako notatnik",
+  "markdownRootDestination": "Pliki z głównego folderu trafią do: {{path}}",
+  "markdownAttachmentHint": "Aby dołączyć lokalne załączniki, wybierz folder zawierający notatkę i jej pliki.",
+  "missingMarkdownAttachment": "Brakuje tego załącznika. Możesz kontynuować import z oryginalnym linkiem.",
   "unreferencedAttachments": "Utwórz notatkę dla każdego niepowiązanego załącznika",
   "unreferencedAttachmentsHint": "Zachowaj samodzielne dokumenty i multimedia w oryginalnych folderach. Ukryte pliki, konfiguracja i pamięć podręczna są pomijane.",
   "skipInvalidEvernoteAttachments": "Pomiń niedostępne załączniki i kontynuuj",
@@ -333,11 +385,14 @@ export const noteImportPl = {
     "missingTag": "Brak rekordu tagu powiązanego w Joplin.",
     "invalidJoplin": "Hierarchia Joplin jest niepełna lub zapętlona.",
     "noteLink": "Zachowano oryginalne odwołanie między notatkami bez konwersji.",
+    "noteLinkLocation": "Link otworzy notatkę. Oryginalny nagłówek lub parametry są widoczne poniżej.",
     "missingResource": "Brak wskazanego lokalnego załącznika.",
     "ambiguousResource": "Do odwołania pasuje więcej niż jeden plik.",
     "invalidArchive": "Nie można odczytać całego archiwum."
   },
   "errors": {
+    "chooseSingleMarkdownSource": "Wybierz jeden plik Markdown albo jeden folder.",
+    "chooseMarkdownDestination": "Wybierz notatnik docelowy.",
     "preflightErrors": "Najpierw popraw błędy skanowania.",
     "unsupportedImportServer": "Zaktualizuj serwer EdgeEver, aby użyć importu.",
     "missingParent": "Notes docelowy nie jest już dostępny.",
@@ -354,11 +409,22 @@ export const noteImportPl = {
     "folders": "Tworzenie notesów",
     "notes": "Importowanie notatek",
     "resources": "Wysyłanie załączników",
+    "links": "Łączenie zaimportowanych notatek",
     "refresh": "Synchronizowanie obszaru roboczego"
   }
 } as const;
 
 export const noteImportRu = {
+  "destinationLoadFailed": "Не удалось загрузить список целевых блокнотов.",
+  "importNotes": "Импорт заметок",
+  "sourceType": "Источник",
+  "markdownImport": "Импорт Markdown",
+  "markdownHint": "Выберите один файл .md или .markdown либо папку.",
+  "chooseMarkdownFile": "Выбрать файл Markdown",
+  "keepMarkdownRoot": "Сохранить выбранную папку как блокнот",
+  "markdownRootDestination": "Файлы из корня попадут в «{{path}}»",
+  "markdownAttachmentHint": "Чтобы включить локальные вложения, выберите папку с заметкой и её файлами.",
+  "missingMarkdownAttachment": "Это вложение не найдено. Можно продолжить импорт с исходной ссылкой.",
   "unreferencedAttachments": "Создавать заметку для каждого вложения без ссылок",
   "unreferencedAttachmentsHint": "Сохранять отдельные документы и медиа в исходных папках. Скрытые файлы, настройки и кеш исключаются.",
   "skipInvalidEvernoteAttachments": "Пропустить недоступные вложения и продолжить",
@@ -423,11 +489,14 @@ export const noteImportRu = {
     "missingTag": "В Joplin отсутствует связанный тег.",
     "invalidJoplin": "Иерархия Joplin неполна или содержит цикл.",
     "noteLink": "Исходная ссылка между заметками сохранена без преобразования.",
+    "noteLinkLocation": "Ссылка откроет заметку. Исходный заголовок или параметры показаны ниже.",
     "missingResource": "Не найдено локальное вложение по ссылке.",
     "ambiguousResource": "Ссылке соответствует несколько файлов.",
     "invalidArchive": "Не удалось полностью прочитать архив."
   },
   "errors": {
+    "chooseSingleMarkdownSource": "Выберите один файл Markdown или одну папку.",
+    "chooseMarkdownDestination": "Выберите целевой блокнот.",
     "preflightErrors": "Сначала исправьте ошибки проверки.",
     "unsupportedImportServer": "Обновите сервер EdgeEver для использования импорта.",
     "missingParent": "Целевой блокнот больше недоступен.",
@@ -444,12 +513,23 @@ export const noteImportRu = {
     "folders": "Создание блокнотов",
     "notes": "Импорт заметок",
     "resources": "Загрузка вложений",
+    "links": "Связывание импортированных заметок",
     "refresh": "Синхронизация рабочего пространства"
   }
 } as const;
 
 
 export const noteImportZhTW = {
+  "destinationLoadFailed": "無法載入目標筆記本清單。",
+  "importNotes": "匯入筆記",
+  "sourceType": "來源",
+  "markdownImport": "匯入 Markdown",
+  "markdownHint": "選擇一個 .md 或 .markdown 檔案，或選擇資料夾。",
+  "chooseMarkdownFile": "選擇 Markdown 檔案",
+  "keepMarkdownRoot": "保留所選資料夾為一層筆記本",
+  "markdownRootDestination": "根目錄檔案將匯入「{{path}}」",
+  "markdownAttachmentHint": "若要一併匯入本機附件，請選擇包含筆記及附件的資料夾。",
+  "missingMarkdownAttachment": "找不到此附件。可以繼續匯入，內文會保留原始連結。",
   "unreferencedAttachments": "將未引用附件建立為獨立筆記",
   "unreferencedAttachmentsHint": "保留獨立文件與媒體及其原目錄；不包含隱藏檔案、設定和快取。",
   "skipInvalidEvernoteAttachments": "略過異常附件繼續匯入",
@@ -514,11 +594,14 @@ export const noteImportZhTW = {
     "missingTag": "Joplin 標籤關聯缺少對應標籤記錄。",
     "invalidJoplin": "Joplin 筆記本層級不完整或存在迴圈。",
     "noteLink": "保留原有筆記間引用，本次不轉換。",
+    "noteLinkLocation": "此連結會開啟目標筆記，下方會列出原有的標題位置或參數。",
     "missingResource": "找不到正文引用的本地附件。",
     "ambiguousResource": "該附件引用匹配多個檔案，無法確定目標。",
     "invalidArchive": "無法完整讀取歸檔。"
   },
   "errors": {
+    "chooseSingleMarkdownSource": "請選擇一個 Markdown 檔案或一個資料夾。",
+    "chooseMarkdownDestination": "請選擇目標筆記本。",
     "preflightErrors": "請先修正預檢錯誤。",
     "unsupportedImportServer": "請升級 EdgeEver 服務端後使用原生匯入。",
     "missingParent": "目標筆記本已不可用。",
@@ -535,11 +618,22 @@ export const noteImportZhTW = {
     "folders": "正在建立筆記本",
     "notes": "正在匯入筆記",
     "resources": "正在上傳附件",
+    "links": "正在連結已匯入的筆記",
     "refresh": "正在同步工作區"
   }
 } as const;
 
 export const noteImportEs = {
+  "destinationLoadFailed": "No se pudieron cargar los cuadernos de destino.",
+  "importNotes": "Importar notas",
+  "sourceType": "Origen",
+  "markdownImport": "Importar Markdown",
+  "markdownHint": "Elige un archivo .md o .markdown, o una carpeta.",
+  "chooseMarkdownFile": "Elegir archivo Markdown",
+  "keepMarkdownRoot": "Conservar la carpeta seleccionada como cuaderno",
+  "markdownRootDestination": "Los archivos de la raíz se importarán a {{path}}",
+  "markdownAttachmentHint": "Para incluir los adjuntos locales, elige una carpeta que contenga la nota y sus archivos.",
+  "missingMarkdownAttachment": "Falta este adjunto. Puedes continuar la importación conservando el enlace original.",
   "unreferencedAttachments": "Crear una nota por cada adjunto sin referencias",
   "unreferencedAttachmentsHint": "Conserva documentos y medios independientes en sus carpetas originales. Se excluyen archivos ocultos, configuración y cachés.",
   "skipInvalidEvernoteAttachments": "Omitir adjuntos no disponibles y continuar",
@@ -604,11 +698,14 @@ export const noteImportEs = {
     "missingTag": "Una asociación de etiquetas de Joplin no tiene registro de etiqueta.",
     "invalidJoplin": "La jerarquía de libretas de Joplin está incompleta o es cíclica.",
     "noteLink": "La referencia original entre notas se conserva sin conversión.",
+    "noteLinkLocation": "El enlace abrirá la nota. El encabezado o los parámetros originales se muestran debajo.",
     "missingResource": "Falta el archivo adjunto local al que se hace referencia.",
     "ambiguousResource": "Más de un archivo coincide con esta referencia de adjunto.",
     "invalidArchive": "No se puede leer el archivo por completo."
   },
   "errors": {
+    "chooseSingleMarkdownSource": "Elige un archivo Markdown o una carpeta.",
+    "chooseMarkdownDestination": "Elige un cuaderno de destino.",
     "preflightErrors": "Corrige los errores de comprobación previa antes de importar.",
     "unsupportedImportServer": "Actualiza el servidor EdgeEver para usar la importación nativa.",
     "missingParent": "La libreta de destino ya no está disponible.",
@@ -625,11 +722,22 @@ export const noteImportEs = {
     "folders": "Creando libretas",
     "notes": "Importando notas",
     "resources": "Subiendo archivos adjuntos",
+    "links": "Vinculando las notas importadas",
     "refresh": "Sincronizando espacio de trabajo"
   }
 } as const;
 
 export const noteImportDe = {
+  "destinationLoadFailed": "Die Zielnotizbücher konnten nicht geladen werden.",
+  "importNotes": "Notizen importieren",
+  "sourceType": "Quelle",
+  "markdownImport": "Markdown importieren",
+  "markdownHint": "Wähle eine .md- oder .markdown-Datei oder einen Ordner.",
+  "chooseMarkdownFile": "Markdown-Datei auswählen",
+  "keepMarkdownRoot": "Ausgewählten Ordner als Notizbuch beibehalten",
+  "markdownRootDestination": "Dateien auf der obersten Ebene werden nach {{path}} importiert",
+  "markdownAttachmentHint": "Wähle einen Ordner mit der Notiz und ihren Dateien, um lokale Anhänge einzuschließen.",
+  "missingMarkdownAttachment": "Dieser Anhang fehlt. Du kannst den Import mit dem ursprünglichen Link fortsetzen.",
   "unreferencedAttachments": "Für jeden nicht verknüpften Anhang eine Notiz erstellen",
   "unreferencedAttachmentsHint": "Einzelne Dokumente und Medien in ihren ursprünglichen Ordnern behalten. Versteckte Dateien, Konfiguration und Caches werden ausgeschlossen.",
   "skipInvalidEvernoteAttachments": "Nicht verfügbare Anhänge überspringen",
@@ -694,11 +802,14 @@ export const noteImportDe = {
     "missingTag": "Einer Joplin-Tag-Zuordnung fehlt der Tag-Datensatz.",
     "invalidJoplin": "Die Joplin-Notizbuchhierarchie ist unvollständig oder zyklisch.",
     "noteLink": "Der ursprüngliche Querverweis zwischen Notizen bleibt ohne Konvertierung erhalten.",
+    "noteLinkLocation": "Der Link öffnet die Notiz. Die ursprüngliche Überschrift oder die Parameter stehen unten.",
     "missingResource": "Der referenzierte lokale Anhang fehlt.",
     "ambiguousResource": "Mehr als eine Datei entspricht diesem Anhangsverweis.",
     "invalidArchive": "Das Archiv kann nicht vollständig gelesen werden."
   },
   "errors": {
+    "chooseSingleMarkdownSource": "Wähle eine Markdown-Datei oder einen Ordner.",
+    "chooseMarkdownDestination": "Wähle ein Zielnotizbuch.",
     "preflightErrors": "Behebe die Vorprüfungsfehler vor dem Importieren.",
     "unsupportedImportServer": "Aktualisiere den EdgeEver-Server, um den nativen Import zu nutzen.",
     "missingParent": "Das Ziel-Notizbuch ist nicht mehr verfügbar.",
@@ -715,11 +826,22 @@ export const noteImportDe = {
     "folders": "Notizbücher werden erstellt",
     "notes": "Notizen werden importiert",
     "resources": "Anhänge werden hochgeladen",
+    "links": "Importierte Notizen werden verknüpft",
     "refresh": "Arbeitsbereich wird synchronisiert"
   }
 } as const;
 
 export const noteImportFr = {
+  "destinationLoadFailed": "Impossible de charger les carnets de destination.",
+  "importNotes": "Importer des notes",
+  "sourceType": "Source",
+  "markdownImport": "Importer du Markdown",
+  "markdownHint": "Choisissez un fichier .md ou .markdown, ou un dossier.",
+  "chooseMarkdownFile": "Choisir un fichier Markdown",
+  "keepMarkdownRoot": "Conserver le dossier sélectionné comme carnet",
+  "markdownRootDestination": "Les fichiers à la racine seront importés dans {{path}}",
+  "markdownAttachmentHint": "Pour inclure les pièces jointes locales, choisissez un dossier contenant la note et ses fichiers.",
+  "missingMarkdownAttachment": "Cette pièce jointe est manquante. Vous pouvez continuer en conservant le lien d’origine.",
   "unreferencedAttachments": "Créer une note par pièce jointe non référencée",
   "unreferencedAttachmentsHint": "Conserver les documents et médias indépendants dans leurs dossiers d’origine. Les fichiers cachés, configurations et caches sont exclus.",
   "skipInvalidEvernoteAttachments": "Ignorer les pièces jointes indisponibles",
@@ -784,11 +906,14 @@ export const noteImportFr = {
     "missingTag": "Une association d'étiquette Joplin ne possède pas d'enregistrement d'étiquette.",
     "invalidJoplin": "La hiérarchie des carnets Joplin est incomplète ou cyclique.",
     "noteLink": "La référence interne d'origine entre les notes est conservée sans conversion.",
+    "noteLinkLocation": "Le lien ouvrira la note. Le titre ou les paramètres d’origine sont indiqués ci-dessous.",
     "missingResource": "La pièce jointe locale référencée est introuvable.",
     "ambiguousResource": "Plusieurs fichiers correspondent à cette référence de pièce jointe.",
     "invalidArchive": "Impossible de lire l'archive dans sa totalité."
   },
   "errors": {
+    "chooseSingleMarkdownSource": "Choisissez un fichier Markdown ou un dossier.",
+    "chooseMarkdownDestination": "Choisissez un carnet de destination.",
     "preflightErrors": "Corrigez les erreurs préalables avant de lancer l'importation.",
     "unsupportedImportServer": "Mettez à jour le serveur EdgeEver pour utiliser l'importation native.",
     "missingParent": "Le carnet de notes de destination n'est plus disponible.",
@@ -805,6 +930,7 @@ export const noteImportFr = {
     "folders": "Création des carnets",
     "notes": "Importation des notes",
     "resources": "Téléversement des pièces jointes",
+    "links": "Association des notes importées",
     "refresh": "Synchronisation de l'espace de travail"
   }
 } as const;
