@@ -12,7 +12,7 @@ import { OffsiteBackup } from "./backup-offsite.mjs";
 import { createBackupWorkerFactory } from "./backup-worker.mjs";
 import { registerBackupIpc } from "./backup-ipc.mjs";
 import { SidecarRpcClient } from "./rpc.mjs";
-import { instanceOrigin, decodeSessionCredential, credentialForUrl, writeSessionCredential } from "./session-credential.mjs";
+import { instanceOrigin, decodeSessionCredential, credentialForUrl, writeSessionCredential, clearInstanceSessionCookie } from "./session-credential.mjs";
 import { resourceRequestHeaders } from "./resource-request.mjs";
 import { createResourceProtocolHandler } from "./resource-protocol.mjs";
 import { downloadContentDispositionFromRequest, isSafeResourceId, resourceIdFromRequest, resourceResponseHeaders } from "./resource-url.mjs";
@@ -37,7 +37,7 @@ import {
 } from "./installation-location.mjs";
 import { userDataDirectoryFromArguments } from "./user-data-directory.mjs";
 import { PRINT_PDF_OPTIONS } from "./print-pdf.mjs";
-import { isAllowedAppNavigation, isAllowedPrintPreviewUrl, isResourceDownloadUrl } from "./window-open-policy.mjs";
+import { createAppWindowOpenHandler, isAllowedAppNavigation, isAllowedPrintPreviewUrl, isResourceDownloadUrl } from "./window-open-policy.mjs";
 import { showWindow } from "./window-visibility.mjs";
 import { formatGlobalShortcutForHumans, globalShortcutAccelerator, globalShortcutAcceleratorsConflict, normalizeGlobalShortcutBinding, parseStoredGlobalShortcuts, replaceGlobalShortcut, toggleMainWindow } from "./global-shortcut.mjs";
 import { trayIconPath } from "./tray-icon.mjs";
@@ -1026,6 +1026,7 @@ const createTray = () => {
 
 const handleResourceProtocolRequest = createResourceProtocolHandler({
   getDirectory: resourceCacheDirectory,
+  getIntegrity: resourceId => sidecar?.request("resource.integrity", { resourceId }),
   getApiBaseUrl: () => configuredApiBaseUrl,
   getRequestHeaders: async sourceUrl => {
     const sessionToken = credentialForUrl(desktopSessionToken, desktopSessionTokenOrigin, sourceUrl);
@@ -1476,23 +1477,11 @@ const createWindow = async ({ show = true } = {}) => {
   });
   mainWindow.webContents.on("will-redirect", guardNavigation);
 
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (isAllowedPrintPreviewUrl(url, mainWindow.webContents.getURL())) {
-      return {
-        action: "allow",
-        overrideBrowserWindowOptions: {
-          webPreferences: {
-            contextIsolation: true,
-            nodeIntegration: false,
-            sandbox: true,
-            preload: fileURLToPath(new URL("../preload/print.cjs", import.meta.url)),
-          },
-        },
-      };
-    }
-    if (url.startsWith("https://") || url.startsWith("http://")) void shell.openExternal(url);
-    return { action: "deny" };
-  });
+  mainWindow.webContents.setWindowOpenHandler(createAppWindowOpenHandler({
+    getAppUrl: () => mainWindow.webContents.getURL(),
+    printPreloadPath: fileURLToPath(new URL("../preload/print.cjs", import.meta.url)),
+    openExternal: (url) => shell.openExternal(url),
+  }));
 
   try {
     if (app.isPackaged && !process.env.EDGE_EVER_DESKTOP_WEB_URL) {
@@ -1540,10 +1529,11 @@ const createNoteWindow = (memoId) => {
   window.webContents.on("will-redirect", (event, url) => {
     if (!isAllowedAppNavigation(url, rendererEntryUrl)) event.preventDefault();
   });
-  window.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith("https://") || url.startsWith("http://")) void shell.openExternal(url);
-    return { action: "deny" };
-  });
+  window.webContents.setWindowOpenHandler(createAppWindowOpenHandler({
+    getAppUrl: () => window.webContents.getURL(),
+    printPreloadPath: fileURLToPath(new URL("../preload/print.cjs", import.meta.url)),
+    openExternal: (url) => shell.openExternal(url),
+  }));
   // A window that cannot show its note is closed so the note returns to the
   // main window; ERR_ABORTED (-3) only means a navigation was superseded.
   window.webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
@@ -1832,6 +1822,7 @@ const startApplication = async () => {
     await noteWindows.closeAll();
     scheduledTaskScheduler.clear();
     await backupManager.setContext(null);
+    await clearInstanceSessionCookie(session.defaultSession.cookies, configuredApiBaseUrl);
     await saveDesktopSessionToken("");
     return { stored: false };
   });
@@ -2176,7 +2167,7 @@ const startApplication = async () => {
       await restrictDirectory(directory);
       assertCurrent();
       await writeAttachmentFile(join(directory, `${resource.id}.bin`), bytes);
-      await writeAttachmentFile(join(directory, `${resource.id}.json`), JSON.stringify({ contentType: resource.mimeType }));
+      await writeAttachmentFile(join(directory, `${resource.id}.json`), JSON.stringify({ contentType: resource.mimeType, byteSize: resource.byteSize, sha256: resource.sha256 }));
       assertCurrent();
       if (!currentSidecar) throw new Error("Sidecar unavailable");
       await currentSidecar.request("resource.cache", { resource });

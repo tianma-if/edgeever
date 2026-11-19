@@ -317,10 +317,26 @@ pub(crate) fn merge_memos(database: &Connection, params: &Value) -> Result<Value
         .unwrap_or_default();
     tags.sort();
     tags.dedup();
-    let markdown = markdowns.join("\n\n---\n\n");
-    let content_json = markdown_doc(&markdown);
+    let markdown = markdowns.join("\n\n<!-- edgeever:merge-divider -->\n\n---\n\n");
+    let mut content = Vec::new();
+    for (index, section) in markdowns.iter().enumerate() {
+        if index > 0 {
+            content.push(json!({ "type": "edgeeverMergeDivider" }));
+        }
+        if let Some(nodes) = markdown_doc(section)
+            .get("content")
+            .and_then(Value::as_array)
+        {
+            content.extend(nodes.iter().cloned());
+        }
+    }
+    let content_json = json!({ "type": "doc", "content": content });
     let content_json_text = content_json.to_string();
-    let content_text = markdown.lines().collect::<Vec<_>>().join(" ");
+    let content_text = markdowns
+        .iter()
+        .flat_map(|section| section.lines())
+        .collect::<Vec<_>>()
+        .join(" ");
     let id = now_id("memo_local");
     let source_ids = serde_json::to_string(&ids).unwrap_or_else(|_| "[]".to_owned());
     let tx = database

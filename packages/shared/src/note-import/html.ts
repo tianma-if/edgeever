@@ -45,6 +45,12 @@ const prepareEnml = (source: string, resources: readonly ImportResource[]) => {
   for (const node of Array.from(root.querySelectorAll("en-media"))) {
     const hash = node.getAttribute("hash") || "missing";
     const label = (node.getAttribute("alt") || resources.find(resource => resource.hash === hash)?.filename || "Attachment").replace(/[\r\n]+/g, " ");
+    if (!resources.some(resource => resource.hash === hash)) {
+      const placeholder = document.createElement("div");
+      placeholder.textContent = `[Attachment not imported: ${label} (${hash})]`;
+      node.parentNode!.replaceChild(placeholder, node);
+      continue;
+    }
     const image = node.getAttribute("type")?.startsWith("image/");
     const media = document.createElement(image ? "img" : "a");
     media.setAttribute(image ? "src" : "href", `evernote-resource:${hash}`);

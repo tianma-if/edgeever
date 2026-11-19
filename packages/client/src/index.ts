@@ -137,6 +137,7 @@ export type MultipartResourceUploadSource = {
 
 export type InstanceHealth = {
   ok: true;
+  tableSchemaVersion?: number;
   name: string;
   runtime?: string | null;
   containerImageSource?: "official-ghcr" | "official-cn-mirror" | "custom" | "unknown" | string | null;
@@ -806,7 +807,7 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
 
     getInstanceRelease: () => request<InstanceRelease>("/api/release"),
 
-    getSession: () => request<AuthSession>("/api/v1/auth/session"),
+    getSession: (options?: { signal?: AbortSignal }) => request<AuthSession>("/api/v1/auth/session", options),
 
     getPublicNotebookShare: (token: string) =>
       request<{ share: PublicNotebookShare }>(`/api/public/notebook-shares/${encodeURIComponent(token)}`),
@@ -1302,8 +1303,9 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
         body: JSON.stringify(payload),
       }),
 
-    logout: () =>
+    logout: (options?: { signal?: AbortSignal }) =>
       request<{ ok: true }>("/api/v1/auth/logout", {
+        signal: options?.signal,
         method: "POST",
         body: JSON.stringify({}),
       }),

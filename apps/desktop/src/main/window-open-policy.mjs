@@ -46,3 +46,21 @@ export const isAllowedPrintPreviewUrl = (targetUrl, appUrl) => {
     return false;
   }
 };
+
+export const createAppWindowOpenHandler = ({ getAppUrl, printPreloadPath, openExternal }) => ({ url }) => {
+  if (isAllowedPrintPreviewUrl(url, getAppUrl())) {
+    return {
+      action: "allow",
+      overrideBrowserWindowOptions: {
+        webPreferences: {
+          contextIsolation: true,
+          nodeIntegration: false,
+          sandbox: true,
+          preload: printPreloadPath,
+        },
+      },
+    };
+  }
+  if (url.startsWith("https://") || url.startsWith("http://")) void openExternal(url);
+  return { action: "deny" };
+};

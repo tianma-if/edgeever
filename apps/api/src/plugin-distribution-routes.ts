@@ -331,6 +331,7 @@ export const downloadGithubReleaseAssetByTag = async ({
 const PLUGIN_MANIFEST_CACHE_TTL_MS = 300_000;
 const PLUGIN_MANIFEST_CACHE_LIMIT = 64;
 const pluginManifestMemoryCache = new Map<string, { text: string; expiresAt: number }>();
+const pluginManifestRequests = new Map<string, Promise<string>>();
 
 const readCachedPluginManifest = (key: string) => {
   const entry = pluginManifestMemoryCache.get(key);
@@ -348,6 +349,19 @@ const writeCachedPluginManifest = (key: string, text: string) => {
     if (typeof oldest === "string") pluginManifestMemoryCache.delete(oldest);
   }
   pluginManifestMemoryCache.set(key, { text, expiresAt: Date.now() + PLUGIN_MANIFEST_CACHE_TTL_MS });
+};
+
+const loadCachedPluginManifest = (key: string, load: () => Promise<string>) => {
+  const cached = readCachedPluginManifest(key);
+  if (cached !== null) return Promise.resolve(cached);
+  const pending = pluginManifestRequests.get(key);
+  if (pending) return pending;
+  const request = Promise.resolve().then(load).then(text => {
+    writeCachedPluginManifest(key, text);
+    return text;
+  }).finally(() => { pluginManifestRequests.delete(key); });
+  pluginManifestRequests.set(key, request);
+  return request;
 };
 
 const respondWithGithubManifestText = (
@@ -394,11 +408,8 @@ export const registerPluginDistributionRoutes = (app: Hono<AppEnv>) => {
       return badRequest(context, "Invalid GitHub repository coordinates.");
     }
     const cacheKey = `latest:${owner}/${repository}`;
-    const cached = readCachedPluginManifest(cacheKey);
-    if (cached) return respondWithGithubManifestText(context, cached);
     try {
-      const text = await readGithubLatestReleaseManifestText({ owner, repository });
-      writeCachedPluginManifest(cacheKey, text);
+      const text = await loadCachedPluginManifest(cacheKey, () => readGithubLatestReleaseManifestText({ owner, repository }));
       return respondWithGithubManifestText(context, text);
     } catch (error) {
       return githubUpstreamError(context, error);
@@ -412,11 +423,8 @@ export const registerPluginDistributionRoutes = (app: Hono<AppEnv>) => {
       return badRequest(context, "Invalid GitHub repository coordinates.");
     }
     const cacheKey = `branch:${owner}/${repository}`;
-    const cached = readCachedPluginManifest(cacheKey);
-    if (cached) return respondWithGithubManifestText(context, cached);
     try {
-      const text = await readGithubRepositoryManifestText({ owner, repository });
-      writeCachedPluginManifest(cacheKey, text);
+      const text = await loadCachedPluginManifest(cacheKey, () => readGithubRepositoryManifestText({ owner, repository }));
       return respondWithGithubManifestText(context, text);
     } catch (error) {
       return githubUpstreamError(context, error);
@@ -491,7 +499,7 @@ export const registerPluginDistributionRoutes = (app: Hono<AppEnv>) => {
         assetName: assetName as SupportedPluginAssetName,
       });
       return context.body(buffer, 200, {
-        "Cache-Control": "private, max-age=300",
+        "Cache-Control": "private, max-age=86400, immutable",
         "Content-Type": "application/octet-stream",
       });
     } catch (error) {

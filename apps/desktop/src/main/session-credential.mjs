@@ -24,6 +24,12 @@ export const decodeSessionCredential = (plaintext, baseUrl) => {
 
 export const credentialForUrl = (token, origin, url) => origin && origin === instanceOrigin(url) ? token : "";
 
+export const clearInstanceSessionCookie = async (cookies, baseUrl) => {
+  const origin = instanceOrigin(baseUrl);
+  if (!origin) return;
+  await cookies.remove(`${origin}/`, "edgeever_session");
+  await cookies.flushStore();
+};
 
 export const writeSessionCredential = async (path, token, baseUrl, secureStorage) => {
   if (!token) {

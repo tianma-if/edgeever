@@ -281,6 +281,8 @@ export const fr = {
     historyFailed: "Cette révision n'a pas pu être effectuée",
     historyUndone: "Cette révision a été annulée",
     doubleClickText: "Double-cliquez sur le texte dans le graphique pour le modifier. Enregistrement automatique.",
+    editWithAi: "Modifier avec le chat IA",
+    aiEditHint: "Demandez à l’assistant IA de modifier le contenu, les couleurs ou la mise en page.",
     structureSettings: "Structure et style · Modification groupée",
     editSyntax: "Modifier la syntaxe source",
     backToStructure: "Retour à la structure et au style",
@@ -3701,6 +3703,10 @@ export const fr = {
     description: "Migrez vos notes depuis des plateformes tierces grâce à l'importation par lot recommandée avec MCP et des agents IA."
   },
   session: {
+    currentInstance: "URL de l'instance",
+    signOutDescription: "Après la déconnexion, vous pouvez changer de compte ou vous connecter à une nouvelle adresse d’instance.",
+    webSignOutDescription: "Après la déconnexion, vous reviendrez à la page de connexion de cette instance.",
+    logoutFailed: "Impossible de terminer la déconnexion. Veuillez réessayer.",
     loggingOut: "Déconnexion en cours...",
     logout: "Se déconnecter"
   },

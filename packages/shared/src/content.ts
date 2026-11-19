@@ -191,6 +191,19 @@ const upgradeMathCodeFences = (doc: TiptapDoc): TiptapDoc => {
   return content.some((node, index) => node !== doc.content[index]) ? { ...doc, content } : doc;
 };
 
+// Older desktop merges stored each nonblank Markdown line as a literal paragraph.
+// Match that exact shape so an intentionally escaped rule or a rich document
+// is never replaced just because its Markdown copy contains a horizontal rule.
+const isLegacyDesktopLineDocument = (doc: TiptapDoc, markdown: string) => {
+  const lines = markdown.split(/\r?\n/).filter((line) => line.trim());
+  return lines.length === doc.content.length && doc.content.every((node, index) => {
+    const text = node.content?.[0];
+    return node.type === "paragraph" && Object.keys(node).length === 2
+      && node.content?.length === 1 && text?.type === "text"
+      && Object.keys(text).length === 2 && "text" in text && text.text === lines[index];
+  });
+};
+
 /**
  * Recovers Markdown features that an older editor schema could not persist in
  * contentJson. The stored Markdown remains the compatibility source in that
@@ -242,6 +255,7 @@ export const resolveMemoContentDoc = (
     || docContainsNodeType(markdownDoc, INLINE_MATH_NODE_TYPE)
     || docContainsNodeType(markdownDoc, EMPTY_EXTERNAL_LINK_NODE_TYPE)
     || docContainsNodeType(markdownDoc, "details")
+    || (docContainsNodeType(markdownDoc, "horizontalRule") && isLegacyDesktopLineDocument(currentDoc, contentMarkdown))
     || !docToText(currentDoc)
     ? markdownDoc
     : currentDoc;

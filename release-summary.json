@@ -1,26 +1,26 @@
 {
-  "version": "2.28.0",
+  "version": "2.30.0",
   "changes": {
     "en-US": [
-      "Preserve editable formulas, every gallery image, and animated images when copying rich text to platforms such as Zhihu, with ordinary images and Mermaid diagrams uploaded to the selected image host.",
-      "Add a rose red prose palette with dark mode support.",
-      "Keep the caret and image previews stable during uploads, and keep the gallery toolbar within the visible editor area.",
-      "Preserve punctuation and word boundaries in magazine covers.",
-      "Improve third-party note import entry points, platform logos, and guidance, with updated import documentation."
+      "Repair desktop attachment caching so interrupted downloads cannot leave truncated files or corrupt later previews.",
+      "Fix syncing and displaying merged desktop notes, including missing separators and recovery of content merged by older clients.",
+      "Improve Evernote imports with support for long titles and an optional recovery mode that skips invalid or missing attachments while preserving the remaining note content.",
+      "Reduce loading overhead when opening the workspace, editor, and personal center on Web and desktop.",
+      "Fix desktop local agents confusing background context with the current request and replying with setup acknowledgments."
     ],
     "zh-CN": [
-      "复制富文本到知乎等平台时，保留可编辑公式、图库全部图片和动图，并支持将普通图片与 Mermaid 图表上传到所选图床。",
-      "新增支持深色模式的玫瑰红正文配色。",
-      "修复图片上传时的光标与预览稳定性，并让图库工具栏保持在编辑器可见范围内。",
-      "修复杂志封面中的标点和英文单词断行。",
-      "优化第三方笔记导入入口、平台标识和操作提示，并更新导入指南。"
+      "修复桌面端附件缓存，避免下载中断留下不完整文件或影响后续预览。",
+      "修复桌面端合并笔记的同步与显示，恢复分隔线，并兼容旧版客户端合并的内容。",
+      "改进 Evernote 导入，支持超长标题，并可选择跳过异常或缺失附件以恢复其余笔记内容。",
+      "减少 Web 和桌面端打开工作区、编辑器、个人中心时的加载负担。",
+      "修复桌面端本地 AI 代理将背景信息误当成当前问题、只回复就绪确认的情况。"
     ],
     "ja": [
-      "知乎などへリッチテキストをコピーする際、編集可能な数式、ギャラリーの全画像、アニメーション画像を保持し、通常の画像とMermaid図を選択した画像ホストにアップロードできるようになりました。",
-      "ダークモードに対応したローズレッドの本文カラーパレットを追加しました。",
-      "画像アップロード中のカーソルとプレビューを安定させ、ギャラリーのツールバーをエディターの表示範囲内に保つよう修正しました。",
-      "雑誌風カバーの句読点と英単語の改行を修正しました。",
-      "他のノートアプリからのインポート画面、ロゴ、操作案内を改善し、ガイドを更新しました。"
+      "デスクトップ版の添付ファイルキャッシュを修正し、中断されたダウンロードによるファイルの欠損やプレビューへの影響を防ぎます。",
+      "デスクトップ版で結合したノートの同期と表示を修正し、区切り線と旧バージョンで結合した内容を復元します。",
+      "Evernoteのインポートで長いタイトルに対応し、不正または欠落した添付ファイルをスキップして残りのノート内容を復元できるようにしました。",
+      "Web版とデスクトップ版で、ワークスペース、エディター、パーソナルセンターを開く際の読み込み負荷を軽減しました。",
+      "デスクトップ版のローカルAIエージェントが背景情報を現在の依頼と取り違え、準備完了の確認だけを返す問題を修正しました。"
     ]
   }
 }

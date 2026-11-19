@@ -192,6 +192,9 @@ export const deployedWorkerSettings = (json) => {
   const usernames = bindings.filter((binding) =>
     binding?.name === "EDGE_EVER_AUTH_USERNAME" && binding?.type === "plain_text"
   );
+  const sessionTtl = bindings.find((binding) =>
+    binding?.name === "EDGE_EVER_SESSION_TTL_DAYS" && binding?.type === "plain_text"
+  );
   return {
     r2BucketName: resources.length === 1 && typeof resources[0].bucket_name === "string"
       ? resources[0].bucket_name
@@ -199,6 +202,42 @@ export const deployedWorkerSettings = (json) => {
     authUsername: usernames.length === 1 && typeof usernames[0].text === "string"
       ? usernames[0].text
       : undefined,
+    sessionTtlDays: typeof sessionTtl?.text === "string" ? sessionTtl.text : undefined,
+    authSecretNames: bindings.filter((binding) => binding?.type === "secret_text"
+      && ["EDGE_EVER_AUTH_PASSWORD", "EDGE_EVER_AUTH_PASSWORD_HASH"].includes(binding?.name))
+      .map((binding) => binding.name).sort(),
+  };
+};
+
+export const resolveDeploymentAuth = ({ deployedSettings, secrets, sessionTtlDays, updateAuthSecret, updateSessionTtl }) => {
+  const existing = deployedSettings.length > 0;
+  const hasAuthSecret = existing && deployedSettings.every((settings) => settings.authSecretNames.length > 0);
+  if (existing && !updateSessionTtl
+    && new Set(deployedSettings.map((settings) => settings.sessionTtlDays)).size > 1) {
+    throw new Error("Active Worker versions have conflicting session lifetimes. Complete the rollout or use --update-session-ttl explicitly.");
+  }
+  if (existing && !updateAuthSecret
+    && new Set(deployedSettings.map((settings) => JSON.stringify(settings.authSecretNames))).size > 1) {
+    throw new Error("Active Worker versions have conflicting authentication Secret bindings. Complete the rollout before deploying.");
+  }
+  if (updateAuthSecret && Object.keys(secrets).length === 0) {
+    throw new Error("--update-auth-secret requires an authentication password or hash.");
+  }
+  if (updateAuthSecret && deployedSettings.some((settings) => settings.authSecretNames.includes("EDGE_EVER_AUTH_PASSWORD_HASH"))
+    && !secrets.EDGE_EVER_AUTH_PASSWORD_HASH) {
+    throw new Error("The deployed password hash takes precedence; supply EDGE_EVER_AUTH_PASSWORD_HASH to replace it explicitly.");
+  }
+  if (updateSessionTtl && !sessionTtlDays) {
+    throw new Error("--update-session-ttl requires EDGE_EVER_SESSION_TTL_DAYS (or its instance-scoped value).");
+  }
+  if (!hasAuthSecret && Object.keys(secrets).length === 0) {
+    throw new Error("No authentication Secret is deployed. Provision a Worker authentication Secret or configure initial credentials before deploying.");
+  }
+  return {
+    secrets: hasAuthSecret && !updateAuthSecret ? {} : secrets,
+    sessionTtlDays: existing && !updateSessionTtl && (hasAuthSecret || deployedSettings[0].sessionTtlDays !== undefined)
+      ? deployedSettings[0].sessionTtlDays : sessionTtlDays,
+    preservingAuthSecret: hasAuthSecret && !updateAuthSecret,
   };
 };
 
@@ -264,8 +303,14 @@ export const runWranglerSync = (args, options = {}) => {
   return result;
 };
 
-/** Demo must reach application redirects even when a static asset exists. */
+/** Demo homepage canonical handling needs the Worker; static assets do not. */
 export const configureDemoAssetRouting = (config, demoMode) => {
   if (!demoMode) return config;
-  return config.replace(/(\[assets\][\s\S]*?^run_worker_first\s*=)[^\n]*/m, "$1 true");
+  return config.replace(/(\[assets\][\s\S]*?^run_worker_first\s*=)([^\n]*)/m, (_, prefix, value) => {
+    const routes = JSON.parse(value.trim());
+    if (!Array.isArray(routes)) {
+      throw new Error("Demo asset routing requires an explicit run_worker_first route list.");
+    }
+    return `${prefix} ${JSON.stringify([...new Set([...routes, "/", "/index.html"])])}`;
+  });
 };

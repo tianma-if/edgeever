@@ -391,6 +391,7 @@ jobs:
             unpacked_directory="mac"
           fi
           bun run verify:desktop-note-window-e2e -- "release/desktop/$unpacked_directory/EdgeEver.app/Contents/MacOS/EdgeEver"
+          EDGE_EVER_FORCE_FILE_RENDERER=1 bun run verify:desktop-note-window-e2e -- "release/desktop/$unpacked_directory/EdgeEver.app/Contents/MacOS/EdgeEver" P1,P2,P3
 
       - name: Verify desktop installer
         env:

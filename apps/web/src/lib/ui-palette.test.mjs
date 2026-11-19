@@ -7,20 +7,22 @@ const globals = readFileSync(new URL("../styles/globals.css", import.meta.url), 
 describe("application color system", () => {
   test("uses the same restrained brand green throughout the application", () => {
     const mobileEditor = readFileSync(new URL("../styles/mobile-markdown-editor.css", import.meta.url), "utf8");
-    const button = readFileSync(new URL("../components/ui/button.tsx", import.meta.url), "utf8");
 
     expect(globals).toContain("--brand-green: #16a06e;");
     expect(globals).toContain("--brand-green-500-rgb: 22 160 110;");
     expect(globals).not.toContain("--brand-green: #00a82d;");
     expect(mobileEditor).toContain("color: #16a06e;");
-    expect(button).toContain('solid: "bg-emerald-500 text-white hover:bg-emerald-600 border-emerald-500"');
     expect(contrastRatio("#11694a", "#f0f8f4")).toBeGreaterThanOrEqual(4.5);
   });
 
-  test("keeps menus, switches, and secondary icons in ink", () => {
+  test("keeps menus, switches, solid buttons, and secondary icons in ink", () => {
+    const button = readFileSync(new URL("../components/ui/button.tsx", import.meta.url), "utf8");
     const switchSource = readFileSync(new URL("../components/ui/switch.tsx", import.meta.url), "utf8");
     const checkbox = readFileSync(new URL("../components/ui/checkbox.tsx", import.meta.url), "utf8");
     const settings = readFileSync(new URL("../components/SettingsPane.tsx", import.meta.url), "utf8");
+
+    expect(button).toContain('solid: "bg-primary/85 text-primary-foreground hover:bg-primary/95 border-primary/85"');
+    expect(button).not.toContain("bg-emerald-500");
 
     expect(globals).toContain("--accent: 210 16% 89%;");
     expect(globals).toContain("--accent-foreground: 0 0% 7%;");

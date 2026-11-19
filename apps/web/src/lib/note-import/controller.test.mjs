@@ -1,5 +1,55 @@
 import { expect, test } from "bun:test";
 import { NoteImportController } from "./controller";
+import { api } from "../api";
+
+test("closing, reopening, switching sources or starting another drop invalidates directory reads", () => {
+  const controller = new NoteImportController(null, "http://import.test", () => "Owner", async () => {});
+  try {
+    controller.open("markdown", "first");
+    const first = controller.beginDrop();
+    expect(first()).toBe(true);
+    controller.dismiss();
+    controller.open("markdown", "second");
+    expect(first()).toBe(false);
+    const second = controller.beginDrop();
+    controller.setFormat("obsidian");
+    controller.setFormat("markdown");
+    expect(second()).toBe(false);
+    const interrupted = controller.beginDrop();
+    const latest = controller.beginDrop();
+    expect(interrupted()).toBe(false);
+    expect(latest()).toBe(true);
+  } finally { controller.dispose(); }
+});
+
+test("Markdown confirmation waits for a resolved notebook and destination lookup can be retried", async () => {
+  const listNotebooks = api.listNotebooks;
+  const controller = new NoteImportController(null, "http://import.test", () => "Owner", async () => {});
+  try {
+    api.listNotebooks = async () => { throw new Error("Unavailable"); };
+    controller.update({ open: true, format: "markdown", phase: "ready", parentId: "destination", keepMarkdownRoot: true, summary: { notes: 1, errors: 0 } });
+    await controller.refreshDestinations();
+    let resets = 0;
+    controller.reader = {
+      reset: async () => { resets++; throw new Error("Unexpected import"); },
+      index: { page: async () => [], count: async () => 0 },
+      abort() {}, async close() {},
+    };
+    controller.run();
+    await controller.work;
+    expect(resets).toBe(0);
+    expect(controller.getSnapshot()).toMatchObject({ phase: "ready", destinationStatus: "error" });
+    api.listNotebooks = async () => ({ notebooks: [{ id: "destination", name: "Destination" }] });
+    await controller.refreshDestinations();
+    expect(controller.getSnapshot()).toMatchObject({ destinationStatus: "ready", destinations: [{ id: "destination" }] });
+    controller.run();
+    await controller.work;
+    expect(resets).toBe(1);
+  } finally {
+    api.listNotebooks = listNotebooks;
+    controller.dispose();
+  }
+});
 
 test("standalone attachments default on and changing the option rescans while preserving destination", async () => {
   await import("fake-indexeddb/auto");
@@ -35,6 +85,52 @@ test("standalone attachments default on and changing the option rescans while pr
     controller.update({ phase: "running" });
     controller.setIncludeUnreferencedAttachments(true);
     expect(controller.getSnapshot().includeUnreferencedAttachments).toBe(false);
+  } finally {
+    controller.dispose();
+    await controller.work;
+    await controller.reader?.close();
+    globalThis.Worker = previousWorker;
+  }
+});
+
+test("Evernote attachment recovery requires opt-in, rescans with the destination and resets for new tasks", async () => {
+  const previousWorker = globalThis.Worker;
+  const scans = [];
+  class ScanWorker {
+    postMessage(message) {
+      if (message.method === "abort") return;
+      if (message.method === "scan") scans.push(message.args);
+      queueMicrotask(() => this.onmessage({ data: {
+        requestId: message.requestId,
+        result: message.method === "scan" ? { notes: 1, notebooks: 1, resources: 0, errors: message.args.options.skipInvalidEvernoteAttachments ? 0 : 1, warnings: 0 } : undefined,
+      } }));
+    }
+    terminate() {}
+  }
+  globalThis.Worker = ScanWorker;
+  const controller = new NoteImportController(null, "http://import.test", () => "Owner", async () => {});
+  try {
+    expect(controller.getSnapshot().skipInvalidEvernoteAttachments).toBe(false);
+    controller.select([{ path: "note.enex", file: new File(["export"], "note.enex") }]);
+    await controller.work;
+    expect(controller.getSnapshot()).toMatchObject({ phase: "ready", summary: { errors: 1 } });
+    controller.setParent("destination");
+    controller.setSkipInvalidEvernoteAttachments(true);
+    expect(controller.getSnapshot()).toMatchObject({ phase: "scanning", parentId: "destination" });
+    controller.setSkipInvalidEvernoteAttachments(false);
+    expect(controller.getSnapshot().skipInvalidEvernoteAttachments).toBe(true);
+    await controller.work;
+    expect(controller.getSnapshot()).toMatchObject({ phase: "ready", parentId: "destination", summary: { errors: 0 } });
+    expect(scans.map(scan => scan.options.skipInvalidEvernoteAttachments)).toEqual([false, true]);
+    controller.update({ phase: "running" });
+    controller.setSkipInvalidEvernoteAttachments(false);
+    expect(controller.getSnapshot().skipInvalidEvernoteAttachments).toBe(true);
+    controller.update({ phase: "finished" });
+    await controller.restart();
+    expect(controller.getSnapshot().skipInvalidEvernoteAttachments).toBe(false);
+    controller.setSkipInvalidEvernoteAttachments(true);
+    controller.dismiss();
+    expect(controller.getSnapshot().skipInvalidEvernoteAttachments).toBe(false);
   } finally {
     controller.dispose();
     await controller.work;

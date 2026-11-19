@@ -34,7 +34,7 @@ import {
   type ThemeTokenName,
   type ThemeTokens,
 } from "@edgeever/plugin-api";
-import { markdownToDoc, type MemoDetail } from "@edgeever/shared";
+import { markdownToDoc, projectLegacyTableDocument, type MemoDetail } from "@edgeever/shared";
 import {
   structuredEditToken, pluginNoteKind, assertPluginMarkdownNote, assertStructuredRevision, pluginDiagram, pluginTable,
   translateStructuredError, applyDiagramOperations, applyTableOperations, diagramSemanticGraph,
@@ -53,7 +53,7 @@ import {
   toWorkspaceExtensionUpsert,
   type PluginCatalogAdapter,
 } from "@/lib/plugins/plugin-catalog-sync";
-import { loadResolvedPluginMarketplace } from "@/lib/plugins/plugin-marketplace";
+import { loadPluginMarketplace } from "@/lib/plugins/plugin-marketplace";
 import { hasAcknowledgedPluginTrustWarning } from "@/lib/plugins/plugin-trust";
 import { subscribeRepositoryMutations, type RepositoryMutationEvent } from "@/lib/repository-events";
 import type { WorkspaceExtension } from "@edgeever/shared";
@@ -551,7 +551,9 @@ export class EdgeEverPluginHost {
     this.catalogErrors = [];
     let officialIds = new Set<string>();
     try {
-      const marketplace = await loadResolvedPluginMarketplace();
+      // Reconciliation only needs the bundled publisher/id trust list, not
+      // a new GitHub release lookup and package download for every focus.
+      const marketplace = await loadPluginMarketplace();
       officialIds = new Set(
         marketplace.entries.filter((entry) => entry.publisher === "edgeever").map((entry) => entry.id),
       );
@@ -1324,7 +1326,7 @@ export class EdgeEverPluginHost {
         get: async (noteId) => {
           assertPermission(manifest, "notes:read");
           const current = (await this.repository.getMemo(noteId)).memo;
-          return { note: toPluginNote(current), table: pluginTable(current), editToken: await structuredEditToken(current) };
+          return { note: toPluginNote(current), table: projectLegacyTableDocument(pluginTable(current)), editToken: await structuredEditToken(current) };
         },
         edit: async (noteId, input) => this.withNoteWrite(noteId, async () => {
           assertPermission(manifest, "notes:read"); assertPermission(manifest, "notes:write");
@@ -1341,7 +1343,7 @@ export class EdgeEverPluginHost {
             });
             if (!input.dryRun && mutation.changedCellCount > 0 && input.allowDataChanges !== true) throw structuredApiError("TABLE_DATA_CHANGES_REQUIRED", "Schema changes affect populated cells. Preview with dryRun, then set allowDataChanges=true.");
             const note = input.dryRun === true ? current : await persistStructured(current, serializeTableDocument(mutation.document), markdownToDoc(tableFallbackMarkdown(mutation.document)));
-            return { note: toPluginNote(note), table: mutation.document, editToken: await structuredEditToken(note), dryRun: input.dryRun === true, changedCellCount: mutation.changedCellCount, removedAttachmentCount: mutation.removedAttachmentCount };
+            return { note: toPluginNote(note), table: projectLegacyTableDocument(mutation.document), editToken: await structuredEditToken(note), dryRun: input.dryRun === true, changedCellCount: mutation.changedCellCount, removedAttachmentCount: mutation.removedAttachmentCount };
           } catch (error) { return translateStructuredError(error); }
         }),
       },

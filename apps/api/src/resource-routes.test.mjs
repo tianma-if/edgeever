@@ -474,3 +474,29 @@ test("SVG image and legacy attachment responses are sandboxed without changing o
     expect(await response.text()).toBe(svg);
   }
 });
+
+test("resource size metadata checks workspace authorization without touching object storage", async () => {
+  let reads = 0;
+  const environment = createEnvironment();
+  environment.storage.resources = { get: () => { throw new Error("Object storage must not be read"); } };
+  const app = createApp(agentAuth, async (_db, workspaceId, id) => {
+    reads += 1;
+    expect(workspaceId).toBe("ws_1");
+    return id === "res_1" ? resourceRow : null;
+  });
+  const response = await app.request("/api/v1/resources/res_1/metadata", {}, environment);
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({ byteSize: 256, updatedAt: resourceRow.updated_at });
+  expect(response.headers.get("Cache-Control")).toBe("no-store");
+  expect(reads).toBe(1);
+  const denied = await createApp({ ...agentAuth, scopes: [] }, () => { throw new Error("Unauthorized DB lookup"); })
+    .request("/api/v1/resources/res_1/metadata", {}, environment);
+  expect(denied.status).toBe(403);
+  expect((await app.request("/api/v1/resources/not-owned/metadata", {}, environment)).status).toBe(404);
+});
+
+test("metadata cannot reveal a resource size from a different workspace", async () => {
+  const environment = createEnvironment();
+  const app = createApp({ ...agentAuth, workspaceId: "ws_other" }, async (_db, workspaceId) => workspaceId === "ws_1" ? resourceRow : null);
+  expect((await app.request("/api/v1/resources/res_1/metadata", {}, environment)).status).toBe(404);
+});

@@ -3,10 +3,10 @@ import { dirname, resolve, relative } from "node:path";
 import ts from "typescript";
 
 /** Follow actual ESM dependencies; removing preload hints cannot conceal eager code. */
-export const readWebStartupGraph = (distDirectory) => {
+export const readWebStartupGraph = (distDirectory, entryFiles) => {
   const root = resolve(distDirectory);
   const html = readFileSync(resolve(root, "index.html"), "utf8");
-  const entries = [...html.matchAll(/<script\b[^>]*type="module"[^>]*src="([^"]+)"[^>]*>/g)].map(match => match[1]);
+  const entries = entryFiles ?? [...html.matchAll(/<script\b[^>]*type="module"[^>]*src="([^"]+)"[^>]*>/g)].map(match => match[1]);
   const visited = new Set();
   const visit = (file) => {
     if (visited.has(file)) return;

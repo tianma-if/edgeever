@@ -49,7 +49,8 @@ EdgeEver provides native, out-of-the-box support for importing third-party notes
 2. Review the preflight summary:
    - The projected number of **Notebooks**, **Notes**, and **Attachments**.
    - A tree preview of the detected notebook structure.
-   - Any non-blocking warnings (such as oversized attachments or formatting notes).
+   - Titles longer than 160 characters are shortened automatically, with the full original title preserved in the note body, without blocking import.
+   - Missing, empty or oversized attachments block import by default. Enable **Skip unavailable attachments and continue** to rescan and import the remaining content. Skipped attachments retain their names or reference IDs in the notes, and warnings remain visible after import. Attachment counts include only resources to upload; original export files stay unchanged.
 3. Under "Import into", choose whether to **Create top-level notebooks** (default) or import them under an existing parent notebook.
 
 #### Step 5: Confirm and Stream Import

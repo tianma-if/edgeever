@@ -435,3 +435,32 @@ describe("sync route contracts", () => {
     expect(detailQueryBindingCounts).toEqual([91, 91, 21]);
   });
 });
+
+test("bootstrap request/read budget aggregates the notebook catalog and total only once across large snapshots", async () => {
+  for (const count of [400, 1200]) {
+    const fixture = createSyncIntegrationFixture();
+    try {
+      const add = fixture.sqlite.prepare("INSERT INTO memos (id,workspace_id,notebook_id,title,created_at,updated_at) VALUES (?,'ws_1','nb_inbox','Budget','2026-01-01','2026-01-01')");
+      const content = fixture.sqlite.prepare("INSERT INTO memo_contents VALUES (?,1,'{}','','','hash')");
+      fixture.sqlite.transaction(() => {
+        for (let i = 0; i < count; i++) { const id = `budget_${String(i).padStart(6, "0")}`; add.run(id); content.run(id); }
+      })();
+      const queries = [];
+      const prepare = fixture.storage.db.prepare.bind(fixture.storage.db);
+      fixture.storage.db.prepare = sql => { queries.push(sql); return prepare(sql); };
+      let afterId = null, pages = 0, received = 0;
+      do {
+        const search = new URLSearchParams({ limit: "200" });
+        if (afterId) { search.set("afterId", afterId); search.set("includeMetadata", "0"); }
+        const response = await fixture.app.request(`/api/v1/sync/bootstrap?${search}`, {}, { storage: fixture.storage });
+        expect(response.status).toBe(200);
+        const body = await response.json(); pages++; received += body.memos.length; afterId = body.nextAfterId;
+      } while (afterId);
+      expect(received).toBe(count + 1);
+      expect(pages).toBe(Math.ceil((count + 1) / 200));
+      expect(queries.filter(sql => /COUNT\(\*\)/.test(sql)).length).toBe(1);
+      expect(queries.filter(sql => /GROUP BY/.test(sql)).length).toBe(1);
+      expect(queries.length).toBe(pages * 2 + 2);
+    } finally { fixture.sqlite.close(); }
+  }
+});

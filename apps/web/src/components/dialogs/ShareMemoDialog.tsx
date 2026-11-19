@@ -17,12 +17,14 @@ import { api, ApiRequestError, getConfiguredDesktopApiBaseUrl } from "@/lib/api"
 import { copyTextToClipboard } from "@/lib/clipboard";
 import { MemoNotebookSites } from "../MemoNotebookSites";
 
+import { memoShareQueryKey } from "@/lib/memo-share-query";
+
 export const getPublicShareUrl = (token: string) => {
   const baseUrl = getConfiguredDesktopApiBaseUrl() || (typeof window !== "undefined" ? window.location.origin : "");
   return `${baseUrl.replace(/\/$/, "")}/share/${encodeURIComponent(token)}`;
 };
 
-export const memoShareQueryKey = (memoId: string) => ["memo-share", memoId] as const;
+export { memoShareQueryKey } from "@/lib/memo-share-query";
 
 export const ShareMemoDialog = ({
   memoId,

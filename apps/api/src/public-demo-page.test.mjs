@@ -51,10 +51,24 @@ test("other instances, published pages and non-HTML responses retain their own i
   expect(await servePublicDemoRequest(new Request("https://demo.edgeever.org/"), async () => original)).toBe(original);
 });
 
-test("only generated demo configurations run the Worker before every static asset", () => {
+test("Demo runs the Worker for its canonical homepage and business routes, not static assets", () => {
   const config = readFileSync(new URL("../../../wrangler.toml", import.meta.url), "utf8");
   expect(configureDemoAssetRouting(config, false)).toBe(config);
   const demo = configureDemoAssetRouting(config, true);
-  expect(demo).toContain("run_worker_first = true");
-  expect(demo.replace("run_worker_first = true", config.match(/^run_worker_first = .+$/m)[0])).toBe(config);
+  const routes = JSON.parse(demo.match(/^run_worker_first = (.+)$/m)[1]);
+  const originalRoutes = JSON.parse(config.match(/^run_worker_first = (.+)$/m)[1]);
+  expect(routes).toEqual([...originalRoutes, "/", "/index.html"]);
+  const matches = (path) => routes.some((route) => new RegExp(`^${route.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replaceAll("\\*", ".*")}$`).test(path));
+  for (const path of ["/", "/index.html", "/api/health", "/mcp", "/share/example", "/s/site/"]) {
+    expect(matches(path)).toBe(true);
+  }
+  for (const path of ["/assets/app.js", "/assets/style.css", "/icon.png", "/sw.js", "/manifest.webmanifest"]) {
+    expect(matches(path)).toBe(false);
+  }
+  expect(configureDemoAssetRouting(demo, true)).toBe(demo);
+  expect(demo.replace(/^run_worker_first = .+$/m, config.match(/^run_worker_first = .+$/m)[0])).toBe(config);
+});
+
+test("Demo rejects an unrestricted Worker-first base configuration", () => {
+  expect(() => configureDemoAssetRouting("[assets]\nrun_worker_first = true\n", true)).toThrow("explicit run_worker_first route list");
 });

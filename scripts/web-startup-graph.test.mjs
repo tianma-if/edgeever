@@ -19,6 +19,8 @@ test("counts eager imports and re-exports even without preload hints, while pres
     const graph = readWebStartupGraph(root);
     expect(graph.initialJavaScriptFiles).toEqual(["app.js", "shell.js", "utility.js"]);
     expect(graph.initialJavaScriptBytes).toBe(Buffer.byteLength(files["app.js"] + files["shell.js"] + files["utility.js"]));
+    // Measure a lazy screen independently from the HTML entry.
+    expect(readWebStartupGraph(root, ["editor.js"]).initialJavaScriptFiles).toEqual(["editor.js", "large-diagram.js"]);
     // Making the editor eager must increase the measured graph regardless of HTML hints.
     writeFileSync(join(root, "app.js"), 'import "./shell.js"; import "./editor.js";');
     expect(readWebStartupGraph(root).initialJavaScriptFiles).toContain("large-diagram.js");

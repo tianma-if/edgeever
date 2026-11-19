@@ -40,55 +40,13 @@ export const useWorkspaceSyncLifecycle = ({
   }, [runQueuedSync]);
 
   useEffect(() => {
-    let cancelled = false;
-    let timeoutId: number | null = null;
-    let idleId: number | null = null;
-
-    const refreshLocalMirror = async () => {
-      try {
-        if (!cancelled) await refreshWorkspace("background");
-      } catch {
-        // Remote queries remain available if local mirror hydration fails.
-      }
-    };
-
-    const scheduleRefresh = (delay: number) => {
-      if (timeoutId !== null) window.clearTimeout(timeoutId);
-      timeoutId = window.setTimeout(() => {
-        timeoutId = null;
-        const idleWindow = window as Window & {
-          requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
-          cancelIdleCallback?: (id: number) => void;
-        };
-        if (idleWindow.requestIdleCallback) {
-          idleId = idleWindow.requestIdleCallback(() => void refreshLocalMirror(), { timeout: 2500 });
-        } else {
-          void refreshLocalMirror();
-        }
-      }, delay);
-    };
-
-    scheduleRefresh(1200);
-    const handleOnline = () => scheduleRefresh(300);
-    window.addEventListener("online", handleOnline);
-    return () => {
-      cancelled = true;
-      if (timeoutId !== null) window.clearTimeout(timeoutId);
-      if (idleId !== null) {
-        (window as Window & { cancelIdleCallback?: (id: number) => void }).cancelIdleCallback?.(idleId);
-      }
-      window.removeEventListener("online", handleOnline);
-    };
-  }, [refreshWorkspace]);
-
-  useEffect(() => {
     let active = true;
     const updateOnlineState = async () => {
       const online = await verifyBrowserConnectivity();
       if (!active) return;
       setOnline(online);
       if (online) {
-        void refreshWorkspace("manual").catch(() => {
+        void refreshWorkspaceRef.current("manual").catch(() => {
           // Keep the local mirror available when reconnect sync fails.
         });
       }
@@ -102,7 +60,7 @@ export const useWorkspaceSyncLifecycle = ({
       window.removeEventListener("online", updateOnlineState);
       window.removeEventListener("offline", updateOnlineState);
     };
-  }, [refreshWorkspace, setOnline]);
+  }, [backgroundRefreshKey, setOnline]);
 
   useEffect(() => {
     const handleQueueChanged = () => {

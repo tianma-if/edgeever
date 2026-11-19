@@ -103,13 +103,20 @@ import {
   type NoteLinkSuggestionLabels,
 } from "./editor/NoteLinkSuggestion";
 import { useMarkdownTheme } from "./ThemeProvider";
+const EditorPhonePreview = lazy(() => import("./EditorPhonePreview").then((module) => ({ default: module.EditorPhonePreview })));
+
+const ShareNoteImageDialog = lazy(() => import("./dialogs/ShareNoteImageDialog").then((module) => ({ default: module.ShareNoteImageDialog })));
+
+const RevisionHistoryDialog = lazy(() => import("./dialogs/RevisionHistoryDialog").then((module) => ({ default: module.RevisionHistoryDialog })));
+
+const ShareMemoDialog = lazy(() => import("./dialogs/ShareMemoDialog").then((module) => ({ default: module.ShareMemoDialog })));
+
 const MarkdownSourceEditor = lazy(() =>
   import("./editor/MarkdownSourceEditor").then((module) => ({
     default: module.MarkdownSourceEditor,
   })),
 );
 import { sanitizeAndScopeCss } from "@/lib/css-sandbox";
-import { RevisionHistoryDialog } from "./dialogs/RevisionHistoryDialog";
 import { ExternalLinkDialog } from "./dialogs/ExternalLinkDialog";
 import { MathFormulaDialog } from "./dialogs/MathFormulaDialog";
 import { SpeechProviderReachabilityError } from "@/lib/speech-transcription-error";
@@ -120,8 +127,7 @@ import {
   selectedTextAsLatex,
   type MathFormulaDraft,
 } from "./editor/math-formula";
-import { memoShareQueryKey, ShareMemoDialog } from "./dialogs/ShareMemoDialog";
-import { ShareNoteImageDialog } from "./dialogs/ShareNoteImageDialog";
+import { memoShareQueryKey } from "@/lib/memo-share-query";
 import { AiSidebar, readAiSidebarOpen, readAiSidebarWidth, writeAiSidebarOpen } from "./ai-sidebar/AiSidebar";
 import { AiSidebarErrorBoundary } from "./ai-sidebar/AiSidebarErrorBoundary";
 import { api } from "@/lib/api";
@@ -203,7 +209,8 @@ import {
   type ShortcutSettings,
 } from "@/lib/app-helpers";
 import { ThemeBlock } from "./ThemeBlock";
-import { EditorPhonePreview, PhonePreviewGlyph } from "./EditorPhonePreview";
+import { PhonePreviewGlyph } from "./PhonePreviewGlyph";
+import { DeferredToolLoading } from "./DeferredToolLoading";
 import {
   applyHeadingLevelShortcut,
   applyPlainTextTab,
@@ -4969,15 +4976,17 @@ const RichEditorPane = ({
             )}
           </div>
           {!isMobileViewport && !useMobilePlainTextEditor && !useMarkdownSourceEditor && phonePreviewOpen && (
-            <EditorPhonePreview
-              editor={editor}
-              title={title || getEditableMemoTitle(memo?.title)}
-              tagsKey={tagsText}
-              showMagazineCover={showMagazineCover}
-              showChapterNavigation={showChapterNavigation}
-              scrollContainer={editorScrollContainer}
-              noteProse={noteProse}
-            />
+            <Suspense fallback={<DeferredToolLoading />}>
+              <EditorPhonePreview
+                editor={editor}
+                title={title || getEditableMemoTitle(memo?.title)}
+                tagsKey={tagsText}
+                showMagazineCover={showMagazineCover}
+                showChapterNavigation={showChapterNavigation}
+                scrollContainer={editorScrollContainer}
+                noteProse={noteProse}
+              />
+            </Suspense>
           )}
           {showDocumentOutline && memo && hydratedEditorMemoId === memo.id && (
             <EditorOutline
@@ -5137,35 +5146,43 @@ const RichEditorPane = ({
       )}
 
       {historyOpen && (
-        <RevisionHistoryDialog
-          currentMarkdown={
-            useMobilePlainTextEditor
-              ? getMobilePlainTextValue()
-              : isEditorReady(editor)
-                ? docToMarkdown(editor.getJSON() as TiptapDoc)
-                : memo.contentMarkdown
-          }
-          memo={memo}
-          repository={repository}
-          onClose={() => setHistoryOpen(false)}
-          onRestored={async (restoredMemo) => {
-            await localDb.drafts.delete(restoredMemo.id);
-            setHasUnsavedChanges(false);
-            await onSaved(restoredMemo);
-            setHistoryOpen(false);
-          }}
-        />
+        <Suspense fallback={<DeferredToolLoading />}>
+          <RevisionHistoryDialog
+            currentMarkdown={
+              useMobilePlainTextEditor
+                ? getMobilePlainTextValue()
+                : isEditorReady(editor)
+                  ? docToMarkdown(editor.getJSON() as TiptapDoc)
+                  : memo.contentMarkdown
+            }
+            memo={memo}
+            repository={repository}
+            onClose={() => setHistoryOpen(false)}
+            onRestored={async (restoredMemo) => {
+              await localDb.drafts.delete(restoredMemo.id);
+              setHasUnsavedChanges(false);
+              await onSaved(restoredMemo);
+              setHistoryOpen(false);
+            }}
+          />
+        </Suspense>
       )}
 
       {imgBedFailureDialog}
-      <ShareMemoDialog memoId={memo.id} open={shareOpen} onOpenChange={setShareOpen} />
+      {shareOpen && (
+        <Suspense fallback={<DeferredToolLoading />}>
+          <ShareMemoDialog memoId={memo.id} open={shareOpen} onOpenChange={setShareOpen} />
+        </Suspense>
+      )}
 
       {imageShareSource && (
-        <ShareNoteImageDialog
-          open={imageShareOpen}
-          source={imageShareSource}
-          onOpenChange={setImageShareOpen}
-        />
+        <Suspense fallback={<DeferredToolLoading />}>
+          <ShareNoteImageDialog
+            open={imageShareOpen}
+            source={imageShareSource}
+            onOpenChange={setImageShareOpen}
+          />
+        </Suspense>
       )}
       </div>
       <AiSidebarErrorBoundary open={aiAssistantOpen} onOpenChange={setAiSidebarOpen}>

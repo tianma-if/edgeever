@@ -7,12 +7,12 @@ import { join } from "node:path";
 
 const root = await fsp.mkdtemp(join(tmpdir(), "edgeever-resource-scope-"));
 const path = join(root, "res_1.bin");
-let scope = "a", stream;
+let scope = "a", stream, stats = 0;
 const stat = fsp.stat, createReadStream = fs.createReadStream;
 await fsp.writeFile(path, "cached attachment bytes");
 fsp.stat = async (...args) => {
   const result = await stat(...args);
-  if (args[0] === path) scope = "b";
+  if (args[0] === path && ++stats === 2) scope = "b";
   return result;
 };
 fs.createReadStream = (value, options) => {
@@ -23,6 +23,7 @@ syncBuiltinESMExports();
 const { createResourceProtocolHandler } = await import("../../apps/desktop/src/main/resource-protocol.mjs");
 try {
   const handler = createResourceProtocolHandler({
+    getIntegrity: async () => ({ byteSize: 23 }),
     getDirectory: () => root, getApiBaseUrl: () => "http://local.test",
     getRequestHeaders: async () => new Headers(),
     fetch: async () => new Response("Unavailable", { status: 503 }),

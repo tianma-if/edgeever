@@ -1,3 +1,5 @@
+import { createRequestCache } from "@/lib/request-cache";
+import { getConfiguredDesktopApiBaseUrl } from "@/lib/api";
 import { parseMarketplaceRegistry, type MarketplaceEntry, type MarketplaceRegistry } from "@edgeever/plugin-api";
 import {
   downloadGithubExtension,
@@ -90,12 +92,34 @@ export const resolveOfficialPluginMarketplace = async (
   return { ...registry, entries, resolutionErrors };
 };
 
-export const loadResolvedPluginMarketplace = async (
+const defaultMarketplaceFetch: typeof fetch = (input, init) => window.fetch(input, init);
+const marketplaceCaches = new WeakMap<typeof fetch, Map<GithubAssetDownloader | undefined, ReturnType<typeof createRequestCache<ResolvedPluginMarketplace>>>>();
+
+export const loadResolvedPluginMarketplace = (
   registryUrl = DEFAULT_PLUGIN_REGISTRY_URL,
-  request: typeof fetch = window.fetch.bind(window),
+  request: typeof fetch = defaultMarketplaceFetch,
   downloadAssetBytes?: GithubAssetDownloader,
-) => resolveOfficialPluginMarketplace(
-  await loadPluginMarketplace(registryUrl, request),
-  request,
-  downloadAssetBytes,
-);
+  force = false,
+) => {
+  const cacheIdentity = request === defaultMarketplaceFetch ? window.fetch : request;
+  let caches = marketplaceCaches.get(cacheIdentity);
+  if (!caches) { caches = new Map(); marketplaceCaches.set(cacheIdentity, caches); }
+  let cached = caches.get(downloadAssetBytes);
+  if (!cached) { cached = createRequestCache<ResolvedPluginMarketplace>({ ttlMs: 60_000 }); caches.set(downloadAssetBytes, cached); }
+  const key = JSON.stringify([resolveAppAssetUrl(registryUrl, import.meta.env.BASE_URL, globalThis.window?.location?.href ?? "http://localhost/"), getConfiguredDesktopApiBaseUrl()]);
+  return cached(key, async () => {
+    const result = await resolveOfficialPluginMarketplace(await loadPluginMarketplace(registryUrl, request), request, downloadAssetBytes);
+    // Do not retain failures as successful stale marketplace resolutions.
+    if (Object.keys(result.resolutionErrors).length > 0) {
+      throw new MarketplaceResolutionError(result);
+    }
+    return result;
+  }, force).catch(error => {
+    if (error instanceof MarketplaceResolutionError) return error.result;
+    throw error;
+  });
+};
+
+class MarketplaceResolutionError extends Error {
+  constructor(readonly result: ResolvedPluginMarketplace) { super("Plugin marketplace resolution incomplete"); }
+}

@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, test } from "bun:test";
+import { afterAll, describe, expect, spyOn, test } from "bun:test";
 import { createAiDirectRuntime } from "../../../desktop/src/main/ai-direct.mjs";
 
 const storage = new Map();
@@ -707,6 +707,94 @@ describe("desktop workspace during a server outage", () => {
     await cacheDesktopSession(await api.login({ username: "offline", password: "test" }));
     events.length = 0;
   };
+
+  test("a hanging startup request reaches the cached workspace after a bounded wait", async () => {
+    await establishSession();
+    const nativeTimeout = AbortSignal.timeout;
+    const timeout = spyOn(AbortSignal, "timeout").mockImplementation(() => nativeTimeout(5));
+    globalThis.fetch = (_url, init) => new Promise((_, reject) => {
+      init.signal.addEventListener("abort", () => reject(init.signal.reason), { once: true });
+    });
+    try {
+      expect(await getWorkspaceSession()).toMatchObject({ authenticated: true, user: session.user });
+      expect(timeout).toHaveBeenCalledWith(8_000);
+      expect(secureSessionToken).toBe(session.sessionToken);
+    } finally {
+      timeout.mockRestore();
+    }
+  });
+
+  test("desktop sign-out works during an outage and preserves the instance and unrelated local data", async () => {
+    for (const failure of ["network", 503, 401]) {
+      await establishSession();
+      storage.set("local-notes-and-outbox", "pending original instance changes");
+      const requests = [];
+      globalThis.fetch = async (url, init) => {
+        requests.push([String(url), new Headers(init.headers).get("Authorization")]);
+        if (failure === "network") throw new TypeError("fetch failed");
+        return new Response("unavailable", { status: failure });
+      };
+      expect(await api.logout()).toEqual({ ok: true });
+      expect(requests[0]).toEqual(["https://notes.example.com/api/v1/auth/logout", `Bearer ${session.sessionToken}`]);
+      expect(secureSessionToken).toBe("");
+      expect(getCachedDesktopSession()).toBeNull();
+      expect(getConfiguredDesktopApiBaseUrl()).toBe("https://notes.example.com");
+      expect(storage.get("local-notes-and-outbox")).toBe("pending original instance changes");
+      expect(events).toEqual([]);
+      // Reloading against an unavailable server cannot restore the old account.
+      globalThis.fetch = async () => { throw new TypeError("fetch failed"); };
+      await expect(getWorkspaceSession()).rejects.toBeInstanceOf(TypeError);
+    }
+    storage.delete("local-notes-and-outbox");
+  });
+
+  test("a hanging logout is aborted before native sign-out completes", async () => {
+    await establishSession();
+    const nativeTimeout = AbortSignal.timeout;
+    const timeout = spyOn(AbortSignal, "timeout").mockImplementation(() => nativeTimeout(5));
+    let requestSignal;
+    globalThis.fetch = (_url, init) => new Promise((_, reject) => {
+      requestSignal = init.signal;
+      init.signal.addEventListener("abort", () => reject(init.signal.reason), { once: true });
+    });
+    try {
+      expect(await api.logout()).toEqual({ ok: true });
+      expect(timeout).toHaveBeenCalledWith(3_000);
+      expect(requestSignal.aborted).toBe(true);
+      expect(secureSessionToken).toBe("");
+      expect(getCachedDesktopSession()).toBeNull();
+    } finally {
+      timeout.mockRestore();
+    }
+  });
+
+  test("native credential removal failure remains retryable without claiming sign-out succeeded", async () => {
+    await establishSession();
+    globalThis.fetch = async () => { throw new TypeError("fetch failed"); };
+    const clearSessionToken = window.edgeeverDesktop.clearSessionToken;
+    window.edgeeverDesktop.clearSessionToken = async () => { throw new Error("credential file locked"); };
+    try {
+      await expect(api.logout()).rejects.toThrow("credential file locked");
+      expect(getCachedDesktopSession()).toMatchObject({ authenticated: true });
+      expect(secureSessionToken).toBe(session.sessionToken);
+    } finally {
+      window.edgeeverDesktop.clearSessionToken = clearSessionToken;
+    }
+    expect(await api.logout()).toEqual({ ok: true });
+    expect(getCachedDesktopSession()).toBeNull();
+  });
+
+  test("web sign-out still requires server confirmation", async () => {
+    await establishSession();
+    window.edgeeverDesktop.isAvailable = false;
+    globalThis.fetch = async () => { throw new TypeError("fetch failed"); };
+    try {
+      await expect(api.logout()).rejects.toBeInstanceOf(TypeError);
+      expect(secureSessionToken).toBe(session.sessionToken);
+    } finally {
+      window.edgeeverDesktop.isAvailable = true;
+    }
+  });
 
   test("opens the cached desktop account on 500/503, quota, throttling and network failures while online", async () => {
     await establishSession();

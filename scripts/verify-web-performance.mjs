@@ -47,6 +47,31 @@ assert.ok(startupGraph.initialJavaScriptBytes <= 1024 * 1024, `Eager JavaScript 
 const eagerOptionalPattern = /(?:^|\/)(?:vendor-(?:code-highlight|beautiful-mermaid|mermaid|tiptap|prosemirror|codemirror|x6|infographic|streamdown)|i18n-(?:en-US|ja|pl|ru|zh-TW|es|de|fr)-|(?:WorkspaceApp|EditorPane|DiagramEditorPane|PosterEditorPane|TableEditorPane|InfographicEditorPane)-)/;
 assert.ok(!startupGraph.initialJavaScriptFiles.some(file => eagerOptionalPattern.test(file)), "Optional editors and locales must remain outside the actual startup module graph");
 
+// Opening personal center must not download every settings tool before showing
+// general preferences. Measure extra modules beyond the mounted workspace shell.
+const assets = readdirSync(join(distDirectory, "assets"));
+const settingsEntry = assets.find(name => /^SettingsPane-.*\.js$/.test(name));
+const workspaceEntry = assets.find(name => /^WorkspaceApp-.*\.js$/.test(name));
+assert.ok(settingsEntry && workspaceEntry, "Settings and workspace entries must exist");
+const settingsGraph = readWebStartupGraph(distDirectory, [`assets/${settingsEntry}`]);
+const workspaceGraph = readWebStartupGraph(distDirectory, [`assets/${workspaceEntry}`]);
+const workspaceFiles = new Set(workspaceGraph.initialJavaScriptFiles);
+const settingsExtraFiles = settingsGraph.initialJavaScriptFiles.filter(file => !workspaceFiles.has(file));
+const settingsExtraBytes = settingsExtraFiles.reduce((total, file) => total + statSync(join(distDirectory, file)).size, 0);
+assert.ok(settingsExtraBytes <= 300 * 1024, `Personal center adds too much eager JavaScript: ${settingsExtraBytes}`);
+assert.ok(!settingsGraph.initialJavaScriptFiles.some(file => /vendor-codemirror|NoteProseCssEditor-/.test(file)), "The CSS editor must load only when its dialog opens");
+
+// Audit the actual module graph of each main screen, including shared chunks.
+const screenGraphs = { workspace: workspaceGraph, editor: readWebStartupGraph(distDirectory, [`assets/${assets.find(name => /^EditorPane-.*\.js$/.test(name))}`]), assets: readWebStartupGraph(distDirectory, [`assets/${assets.find(name => /^AssetsPane-.*\.js$/.test(name))}`]) };
+const deferredTools = /(?:^|\/)(?:wechat-copy|selected-markdown-export|QuickMemoSwitcher|NotebookAppearanceDialog|PluginPanelDialog|EditorPhonePreview|ShareMemoDialog|ShareNoteImageDialog|RevisionHistoryDialog|AssetLightbox)-/;
+for (const [name, graph] of Object.entries(screenGraphs)) {
+  assert.ok(!graph.initialJavaScriptFiles.some(file => deferredTools.test(file)), `${name} eagerly loads an optional tool`);
+}
+assert.ok(workspaceGraph.initialJavaScriptFiles.length <= 220, "Workspace module request budget exceeded");
+assert.ok(screenGraphs.editor.initialJavaScriptFiles.length <= 235, "Editor module request budget exceeded");
+assert.ok(workspaceGraph.initialJavaScriptBytes <= 5.5 * 1024 * 1024, "Workspace JavaScript budget exceeded");
+assert.ok(screenGraphs.editor.initialJavaScriptBytes <= 5.8 * 1024 * 1024, "Editor JavaScript budget exceeded");
+
 // Optional fonts must remain downloads, even when the desktop installer packages all Web files.
 const bundledFontBytes = readdirSync(join(distDirectory, "assets"))
   .filter(name => /\.(?:woff2?|ttf|otf)$/.test(name))
@@ -92,6 +117,9 @@ assert.ok(
 
 console.log(JSON.stringify({
   ok: true,
+  screens: Object.fromEntries(Object.entries(screenGraphs).map(([name, graph]) => [name, { bytes: graph.initialJavaScriptBytes, modules: graph.initialJavaScriptFiles.length }])),
+  settingsExtraBytes,
+  settingsExtraFiles: settingsExtraFiles.length,
   bundledFontBytes,
   initialJavaScriptBytes: startupGraph.initialJavaScriptBytes,
   initialJavaScriptFiles: startupGraph.initialJavaScriptFiles,

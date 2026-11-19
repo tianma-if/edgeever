@@ -13,6 +13,8 @@ import {
   X,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { useAppearanceTheme } from "./ThemeProvider";
+import { infographicPreviewSyntax, infographicUsesDarkSheet } from "@/lib/infographic-preview-theme";
 import {
   INFOGRAPHIC_SAMPLE_CATEGORIES,
   INFOGRAPHIC_SAMPLES,
@@ -32,6 +34,8 @@ type Props = {
 };
 
 function InfographicCardPreview({ syntax }: { syntax: string }) {
+  const { resolvedTheme } = useAppearanceTheme();
+  const previewSyntax = infographicPreviewSyntax(syntax, resolvedTheme === "dark");
   const containerRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const [isVisible, setIsVisible] = useState(false);
@@ -73,7 +77,7 @@ function InfographicCardPreview({ syntax }: { syntax: string }) {
           editable: false,
           svg: { style: { width: "100%", height: "100%", maxHeight: "100%", display: "block" } },
         });
-        instance.render(syntax);
+        instance.render(previewSyntax);
         if (!cancelled) setReady(true);
       } catch (err) {
         console.error("Failed to render card preview", err);
@@ -86,12 +90,14 @@ function InfographicCardPreview({ syntax }: { syntax: string }) {
         instance?.destroy();
       } catch {}
     };
-  }, [isVisible, syntax]);
+  }, [isVisible, previewSyntax]);
 
   return (
     <div
       ref={rootRef}
-      className="relative w-full aspect-[16/10] overflow-hidden rounded-lg bg-slate-50/80 border border-slate-100 flex items-center justify-center group-hover:bg-white transition-colors"
+      className="relative w-full aspect-[16/10] overflow-hidden rounded-lg border border-border flex items-center justify-center"
+      // The artwork has its own theme; application tokens would darken a light canvas.
+      style={{ backgroundColor: infographicUsesDarkSheet(previewSyntax) ? "#1f1f1f" : "#ffffff" }}
       data-infographic-card-preview=""
     >
       <div
@@ -103,8 +109,8 @@ function InfographicCardPreview({ syntax }: { syntax: string }) {
         )}
       />
       {!ready && (
-        <div className="absolute inset-0 flex items-center justify-center bg-slate-50/60">
-          <div className="h-5 w-20 rounded bg-slate-200/60 animate-pulse" />
+        <div className="absolute inset-0 flex items-center justify-center bg-muted">
+          <div className="h-5 w-20 rounded bg-muted-foreground/20 animate-pulse" />
         </div>
       )}
     </div>
@@ -126,11 +132,11 @@ const CATEGORY_COLORS: Record<
   { bg: string; text: string; border: string; badge: string }
 > = {
   sequence: { bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200", badge: "bg-emerald-100/70 text-emerald-800" },
-  compare: { bg: "bg-sky-50", text: "text-sky-700", border: "border-sky-200", badge: "bg-sky-100/70 text-sky-800" },
-  list: { bg: "bg-violet-50", text: "text-violet-700", border: "border-violet-200", badge: "bg-violet-100/70 text-violet-800" },
+  compare: { bg: "bg-sky-50", text: "text-sky-700", border: "border-sky-200", badge: "bg-sky-100/70 text-sky-800 dark:bg-sky-950/60 dark:text-sky-200" },
+  list: { bg: "bg-violet-50", text: "text-violet-700", border: "border-violet-200", badge: "bg-violet-100/70 text-violet-800 dark:bg-violet-950/60 dark:text-violet-200" },
   quadrant: { bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200", badge: "bg-amber-100/70 text-amber-800" },
-  hierarchy: { bg: "bg-indigo-50", text: "text-indigo-700", border: "border-indigo-200", badge: "bg-indigo-100/70 text-indigo-800" },
-  relation: { bg: "bg-teal-50", text: "text-teal-700", border: "border-teal-200", badge: "bg-teal-100/70 text-teal-800" },
+  hierarchy: { bg: "bg-indigo-50", text: "text-indigo-700", border: "border-indigo-200", badge: "bg-indigo-100/70 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-200" },
+  relation: { bg: "bg-teal-50", text: "text-teal-700", border: "border-teal-200", badge: "bg-teal-100/70 text-teal-800 dark:bg-teal-950/60 dark:text-teal-200" },
   chart: { bg: "bg-rose-50", text: "text-rose-700", border: "border-rose-200", badge: "bg-rose-100/70 text-rose-800" },
 };
 
@@ -161,10 +167,10 @@ export function InfographicGallery({ onSelect, readOnly = false, className, isDi
   };
 
   return (
-    <div className={cn("flex flex-col gap-4", isDialog ? "p-1" : "mx-auto max-w-6xl p-4 sm:p-6", className)} data-infographic-gallery="">
+    <div className={cn("flex flex-col gap-4 text-foreground", isDialog ? "p-1" : "mx-auto max-w-6xl p-4 sm:p-6", className)} data-infographic-gallery="">
       {/* Header section */}
       <div>
-        <h2 className="text-lg font-bold text-slate-900 tracking-tight sm:text-xl">
+        <h2 className="text-lg font-bold text-foreground tracking-tight sm:text-xl">
           {t("infographic.galleryTitle")}
         </h2>
       </div>
@@ -176,11 +182,12 @@ export function InfographicGallery({ onSelect, readOnly = false, className, isDi
           <button
             type="button"
             onClick={() => setSelectedCategory("all")}
+            aria-pressed={selectedCategory === "all"}
             className={cn(
               "rounded-full px-3 py-1 text-xs font-medium transition-colors",
               selectedCategory === "all"
-                ? "bg-slate-900 text-white shadow-sm"
-                : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900"
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "bg-muted text-muted-foreground hover:bg-accent hover:text-accent-foreground"
             )}
           >
             {t("infographic.galleryCategoryAll")} ({INFOGRAPHIC_SAMPLES.length})
@@ -193,11 +200,12 @@ export function InfographicGallery({ onSelect, readOnly = false, className, isDi
                 key={cat.id}
                 type="button"
                 onClick={() => setSelectedCategory(cat.id)}
+                aria-pressed={active}
                 className={cn(
                   "rounded-full px-3 py-1 text-xs font-medium transition-colors",
                   active
-                    ? "bg-slate-900 text-white shadow-sm"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900"
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "bg-muted text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                 )}
               >
                 {t(`infographic.${cat.key}`)} ({count})
@@ -208,18 +216,18 @@ export function InfographicGallery({ onSelect, readOnly = false, className, isDi
 
         {/* Search input */}
         <div className="relative min-w-[200px] max-w-xs shrink-0">
-          <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+          <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder={t("infographic.gallerySearchPlaceholder")}
-            className="h-8 pl-8 pr-7 text-xs bg-white"
+            className="h-8 pl-8 pr-7 text-xs"
           />
           {searchQuery ? (
             <button
               type="button"
               onClick={() => setSearchQuery("")}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
             >
               <X className="h-3.5 w-3.5" />
             </button>
@@ -229,8 +237,8 @@ export function InfographicGallery({ onSelect, readOnly = false, className, isDi
 
       {/* Grid of sample cards */}
       {filteredSamples.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white/50 py-12 text-center">
-          <p className="text-sm text-slate-500">{t("infographic.noPreview")}</p>
+        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card py-12 text-center">
+          <p className="text-sm text-muted-foreground">{t("infographic.noPreview")}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -255,7 +263,7 @@ export function InfographicGallery({ onSelect, readOnly = false, className, isDi
                   }
                 }}
                 className={cn(
-                  "group relative flex flex-col justify-between rounded-xl border border-slate-200/90 bg-white p-4 shadow-sm transition-all duration-150 text-left",
+                  "group relative flex flex-col justify-between rounded-xl border border-border bg-card text-card-foreground p-4 shadow-sm transition-all duration-150 text-left",
                   readOnly
                     ? "opacity-75 cursor-default"
                     : "cursor-pointer hover:-translate-y-0.5 hover:border-emerald-500/80 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
@@ -281,23 +289,23 @@ export function InfographicGallery({ onSelect, readOnly = false, className, isDi
 
                   {/* Title and description */}
                   <div className="space-y-1">
-                    <h3 className="text-sm font-semibold text-slate-900 group-hover:text-emerald-700 transition-colors">
+                    <h3 className="text-sm font-semibold text-card-foreground group-hover:text-emerald-700 transition-colors">
                       {title}
                     </h3>
-                    <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
+                    <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
                       {desc}
                     </p>
                   </div>
                 </div>
 
                 {/* Bottom action trigger */}
-                <div className="mt-4 flex items-center justify-end border-t border-slate-100 pt-3 text-xs">
+                <div className="mt-4 flex items-center justify-end border-t border-border pt-3 text-xs">
                   <span
                     className={cn(
                       "inline-flex items-center gap-1 font-medium text-xs transition-colors",
                       readOnly
-                        ? "text-slate-400"
-                        : "text-slate-600 group-hover:text-emerald-600"
+                        ? "text-muted-foreground"
+                        : "text-muted-foreground group-hover:text-emerald-600"
                     )}
                   >
                     <span>{t("infographic.galleryUseSample")}</span>

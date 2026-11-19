@@ -618,6 +618,43 @@ const quietPull = { syncChanges: async () => ({ changes: [], cursor: 5, hasMore:
 const doc = (text) => ({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text }] }] });
 
 describe("desktop outbox replay", () => {
+  test("uploads a local merge result, remaps the editor and staged resources, then pulls changes", async () => {
+    const temporaryId = "memo_local_merge_result";
+    const merged = { id: "memo_cloud_merged", contentJson: doc("one\n\n---\n\ntwo"), contentMarkdown: "one\n\n---\n\ntwo" };
+    const mergeCalls = [];
+    const resourceMappings = [];
+    await runWithDesktopSidecar({
+      queue: [{ id: 1, version: 1, kind: "memo.merge", entityId: temporaryId, payload: { temporaryId, memoIds: ["memo-1", "memo-2"], notebookId: "nb-1", title: "" } }],
+      bridge: { remapStagedResourceMemoIds: async (mappings) => { resourceMappings.push(mappings); } },
+      api: { ...quietPull, mergeMemos: async (input) => { mergeCalls.push(input); return { memo: merged }; } },
+    }, async (state) => {
+      const result = await syncDesktopData();
+      expect(result).toMatchObject({ attempted: 1, synced: 1, failed: 0, conflicted: 0 });
+      expect(mergeCalls).toEqual([{ memoIds: ["memo-1", "memo-2"], notebookId: "nb-1", title: "" }]);
+      expect(state.acks).toEqual([{ id: 1, version: 1, remoteMemo: merged }]);
+      expect(result.memoIdMappings.get(temporaryId)).toBe(merged.id);
+      expect(state.events.indexOf("edgeever:memo-id-remapped")).toBeLessThan(state.events.indexOf("edgeever:memo-sync-acknowledged"));
+      expect(state.events).toContain("edgeever:memo-id-remapped");
+      expect(resourceMappings).toContainEqual([[temporaryId, merged.id]]);
+      expect(state.calls.some((call) => call.method === "sync.cursor.set")).toBe(true);
+      expect(state.queue).toEqual([]);
+    });
+  });
+
+  test("keeps a merge pending until every source note has a cloud id", async () => {
+    let mergeCalls = 0;
+    await runWithDesktopSidecar({
+      queue: [{ id: 1, version: 1, kind: "memo.merge", entityId: "memo_local_merge_result", payload: { memoIds: ["memo-1", "memo_local_source"], notebookId: "nb-1" } }],
+      api: { mergeMemos: async () => { mergeCalls += 1; throw new Error("Source must sync first"); } },
+    }, async (state) => {
+      expect(await syncDesktopData()).toMatchObject({ attempted: 0, synced: 0, failed: 0 });
+      expect(mergeCalls).toBe(0);
+      expect(state.queue).toHaveLength(1);
+      expect(state.acks).toEqual([]);
+      expect(state.failures).toEqual([]);
+    });
+  });
+
   test("replays every supported action against the server and acknowledges it", async () => {
     const serverCalls = [];
     const record = (name, result = { ok: true }) => async (...args) => { serverCalls.push([name, ...args]); return result; };

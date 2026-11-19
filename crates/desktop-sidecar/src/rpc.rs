@@ -8,7 +8,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use crate::catalog::{
     cache_resource, cache_template, create_notebook, create_template, delete_cached_resource,
     delete_notebook, delete_template, list_notebooks, list_resources, list_tags, list_templates,
-    restore_notebook, rewrite_tag, update_notebook, update_template,
+    resource_integrity, restore_notebook, rewrite_tag, update_notebook, update_template,
 };
 use crate::database::{backup_database, list_backups, restore_database};
 use crate::memo::{
@@ -123,6 +123,7 @@ pub(crate) fn handle(
             .map(|template| json!({ "template": template })),
         "template.delete" => delete_template(database, &request.params),
         "resource.list" => list_resources(database, &request.params),
+        "resource.integrity" => resource_integrity(database, &request.params),
         "resource.cache" => cache_resource(database, &request.params),
         "resource.delete" => delete_cached_resource(database, &request.params),
         "tag.list" => list_tags(database),
