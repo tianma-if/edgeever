@@ -1,6 +1,6 @@
 import { ApiRequestError, type createEdgeEverClient } from "@edgeever/client";
 import { DEFAULT_MEMO_TITLE, createMemoLinkHref, type MemoDetail } from "@edgeever/shared";
-import { MARKDOWN_DESTINATION_REQUIRED, type ImportIndex, type ImportNotebook, type ImportNote, type ImportNoteResult, type ImportReader, type ImportRunResult, type ImportIssue } from "@edgeever/shared/note-import/types";
+import { IMPORT_DESTINATION_RESULT_KEY, MARKDOWN_DESTINATION_REQUIRED, type ImportIndex, type ImportNotebook, type ImportNote, type ImportNoteResult, type ImportReader, type ImportRunResult, type ImportIssue } from "@edgeever/shared/note-import/types";
 import { indexItems } from "../../../../../packages/shared/src/note-import/index-store";
 import { findImportReferences, rewriteImportMarkdown } from "../../../../../packages/shared/src/note-import/references";
 import { resourceLinkToMarkdown } from "../../../../../packages/shared/src/resource-links";
@@ -39,9 +39,15 @@ export const executeNoteImport = async (input: {
   if (capabilities.protocolVersion !== 1 || !capabilities.formats.includes(reader.format)) throw new Error("unsupportedImportServer");
   if (reader.format === "markdown" && !input.parentId && await index.get("alias", MARKDOWN_DESTINATION_REQUIRED)) throw new Error("chooseMarkdownDestination");
   if (input.parentId && !(await client.listNotebooks()).notebooks.some(nb => nb.id === input.parentId)) throw new Error("missingParent");
-  const createdParent = await index.get<{ id: string | null }>("folderResult", "__destination");
-  if (createdParent && createdParent.id !== (input.parentId ?? null)) throw new Error("destinationChanged");
-  await index.put("folderResult", "__destination", { id: input.parentId ?? null });
+  let boundDestination = await index.get<{ id: string | null }>("folderResult", IMPORT_DESTINATION_RESULT_KEY);
+  if (boundDestination && boundDestination.id !== (input.parentId ?? null)) throw new Error("destinationChanged");
+  const bindDestination = async () => {
+    if (boundDestination) return;
+    const destination = { id: input.parentId ?? null };
+    await index.put("folderResult", IMPORT_DESTINATION_RESULT_KEY, destination);
+    boundDestination = destination;
+  };
+  if (reader.format !== "markdown") await bindDestination();
   const folders = await index.count("notebook");
   let foldersDone = 0;
   const ensureFolder = async (key: string): Promise<string> => {
@@ -54,6 +60,7 @@ export const executeNoteImport = async (input: {
     const folder = await index.get<ImportNotebook>("notebook", key);
     if (!folder) throw new Error("missingNotebook");
     const parentId = folder.parentKey ? await ensureFolder(folder.parentKey) : input.parentId;
+    await bindDestination();
     await index.put<FolderResult>("folderResult", resultKey, { uncertain: true });
     try {
       writesStarted = true;
@@ -129,6 +136,7 @@ export const executeNoteImport = async (input: {
         signal?.throwIfAborted();
         if (!state) {
           const notebookId = await ensureFolder(note.notebookKey);
+          await bindDestination();
           createAttempted = true; writesStarted = true;
           const imported = await client.importMemos({ importId: reader.id, format: reader.format, notebookId, items: [{ externalId: note.key, title: note.title, tags: note.tags, contentMarkdown: original, createdAt: note.createdAt, updatedAt: note.updatedAt }] });
           const item = imported.results[0];

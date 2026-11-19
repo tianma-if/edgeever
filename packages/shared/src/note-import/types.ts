@@ -3,6 +3,7 @@ import type { MemoDetail } from "../types";
 export type ImportFormat = "evernote" | "obsidian" | "joplin" | "flomo" | "notion" | "siyuan" | "markdown";
 export type ImportOptions = { includeUnreferencedAttachments?: boolean; skipInvalidEvernoteAttachments?: boolean; markdownRootName?: string };
 export const MARKDOWN_DESTINATION_REQUIRED = "markdown:destinationRequired";
+export const IMPORT_DESTINATION_RESULT_KEY = "__destination";
 export type ImportFile = { path: string; file: File; expandArchive?: boolean };
 export type ImportIssue = { key: string; severity: "error" | "warning"; code: string; path: string; detail?: string };
 export type SourceEntry = { key: string; path: string; size: number; fileIndex: number; archivePath?: string; offset?: number };

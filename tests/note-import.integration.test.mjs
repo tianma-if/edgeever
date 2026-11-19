@@ -284,6 +284,86 @@ describe("native third-party import through the real API", () => {
     await session.close(); db.close();
   });
 
+  test("generic Markdown imports local HTML images and reports missing ones", async () => {
+    const { client, db } = await target();
+    const { notebook } = await client.createNotebook({ name: "Destination" });
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg"><text>Imported</text></svg>';
+    const remote = '<img src="https://example.com/remote.svg" data-image-align="center" width="50%">';
+    const code = '```html\n<img src="assets/example.svg">\n```';
+    const body = [
+      '<img src="assets/picture.svg" alt="Picture" width="400">',
+      '<img src="assets/missing.svg" alt="Missing">',
+      remote,
+      code,
+    ].join("\n\n");
+    const files = [
+      { path: "A.md", file: new File([body], "A.md") },
+      { path: "assets/picture.svg", file: new File([svg], "picture.svg") },
+    ];
+    const session = new NoteImportSession("markdown", files, new MemoryImportIndex());
+    expect(await session.scan()).toMatchObject({ notes: 1, resources: 1, warnings: 1, errors: 0 });
+    expect(await session.index.page("issue")).toContainEqual(expect.objectContaining({
+      code: "missingAttachment", path: "A.md", detail: "assets/missing.svg",
+    }));
+    const result = await executeNoteImport({ reader: session, index: session.index, client, parentId: notebook.id, convertEnml: convertImportEnml });
+    expect(result).toMatchObject({ completed: 1, resources: 1, failed: 0 });
+    const [state] = await session.index.page("result");
+    const { memo } = await client.getMemo(state.memo.id);
+    const imageUrl = state.urls["assets/picture.svg"];
+    expect(memo.contentMarkdown).toContain(`![Picture](${imageUrl})`);
+    expect(memo.contentMarkdown).toContain("![Missing](assets/missing.svg)");
+    expect(memo.contentMarkdown).toContain(remote);
+    expect(memo.contentMarkdown).toContain(code);
+    expect(await (await client.getResourceBlob(imageUrl)).text()).toBe(svg);
+    await session.close(); db.close();
+  });
+
+  test("generic Markdown can reuse preflight after cancellation before any write and deletion of the destination", async () => {
+    const { client, db } = await target();
+    const { notebook: original } = await client.createNotebook({ name: "Original destination" });
+    const { notebook: replacement } = await client.createNotebook({ name: "Replacement destination" });
+    const session = new NoteImportSession("markdown", [{ path: "A.md", file: new File(["Body"], "A.md") }], new MemoryImportIndex(), crypto.randomUUID(), { markdownRootName: "Selected folder" });
+    expect(await session.scan()).toMatchObject({ notes: 1, notebooks: 1, errors: 0 });
+    const options = { reader: session, index: session.index, client, parentId: original.id, convertEnml: convertImportEnml };
+    const abort = new AbortController();
+    expect(await executeNoteImport({
+      ...options, signal: abort.signal,
+      pauseSync: async () => { abort.abort(); return () => {}; },
+    })).toMatchObject({ cancelled: true, completed: 0, failed: 0 });
+    await client.deleteNotebook(original.id);
+    await expect(executeNoteImport(options)).rejects.toThrow("missingParent");
+    expect(await session.index.count("folderResult")).toBe(0);
+    expect(await session.index.count("result")).toBe(0);
+    expect((await client.listNotebooks()).notebooks.some(notebook => notebook.name === "Selected folder")).toBe(false);
+    expect(await executeNoteImport({ ...options, parentId: replacement.id })).toMatchObject({ completed: 1, failed: 0 });
+    expect((await client.listNotebooks()).notebooks).toContainEqual(expect.objectContaining({ name: "Selected folder", parentId: replacement.id }));
+    await session.close(); db.close();
+  });
+
+  for (const keepRoot of [false, true]) test(`generic Markdown retains the destination after a write (keep root: ${keepRoot})`, async () => {
+    const { client, db, intercept } = await target();
+    const { notebook: original } = await client.createNotebook({ name: "Original destination" });
+    const { notebook: replacement } = await client.createNotebook({ name: "Replacement destination" });
+    const session = new NoteImportSession("markdown", [{ path: "A.md", file: new File(["Body"], "A.md") }], new MemoryImportIndex(), crypto.randomUUID(), { markdownRootName: keepRoot ? "Selected folder" : undefined });
+    await session.scan();
+    intercept(async (url, init) => {
+      if (!new URL(url).pathname.endsWith("/imports/memos")) return fetch(url, init);
+      if (keepRoot) return new Response(null, { status: 503 });
+      await fetch(url, init);
+      throw new TypeError("Controlled lost creation response");
+    });
+    const options = { reader: session, index: session.index, client, parentId: original.id, convertEnml: convertImportEnml };
+    expect(await executeNoteImport(options)).toMatchObject({ completed: 0, failed: 1 });
+    expect(await session.index.count("result")).toBe(0);
+    intercept(null);
+    await expect(executeNoteImport({ ...options, parentId: replacement.id })).rejects.toThrow("destinationChanged");
+    expect(await executeNoteImport(options)).toMatchObject({ completed: 1, failed: 0 });
+    const [state] = await session.index.page("result");
+    const { notebooks } = await client.listNotebooks();
+    expect(state.memo.notebookId).toBe(keepRoot ? notebooks.find(notebook => notebook.name === "Selected folder" && notebook.parentId === original.id)?.id : original.id);
+    await session.close(); db.close();
+  });
+
   test("generic Markdown repairs forward links after a target fails and is retried", async () => {
     const { client, db, intercept } = await target();
     const { notebook } = await client.createNotebook({ name: "Destination" });

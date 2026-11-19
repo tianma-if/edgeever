@@ -1,5 +1,5 @@
 import type { Notebook } from "@edgeever/shared";
-import type { ImportFile, ImportFormat, ImportIssue, ImportNotebook, ImportNoteResult, ImportRunResult, ImportSummary } from "@edgeever/shared/note-import/types";
+import { IMPORT_DESTINATION_RESULT_KEY, type ImportFile, type ImportFormat, type ImportIssue, type ImportNotebook, type ImportNoteResult, type ImportRunResult, type ImportSummary } from "@edgeever/shared/note-import/types";
 import type { ImportProgress } from "./execute";
 import type { BrowserImportReader } from "./browser-reader";
 import { api, createNoteImportClient } from "../api";
@@ -184,6 +184,15 @@ export class NoteImportController {
       } catch (error) {
         const code = typeof error === "object" && error && "status" in error && error.status === 404 && !this.snapshot.progress ? "unsupportedImportServer" : error instanceof Error ? error.message : String(error);
         if (!isCurrent()) return;
+        if (code === "missingParent" && reader.format === "markdown") {
+          const boundDestination = await reader.index.get("folderResult", IMPORT_DESTINATION_RESULT_KEY);
+          if (!isCurrent()) return;
+          if (!boundDestination) {
+            this.update({ phase: "ready", outcome: undefined, progress: undefined });
+            void this.refreshDestinations();
+            return;
+          }
+        }
         const results = await reader.index.page<ImportNoteResult>("result", 0, 20), resultCount = await reader.index.count("result");
         if (isCurrent()) this.update({ phase: "finished", error: code, results, resultCount });
       }

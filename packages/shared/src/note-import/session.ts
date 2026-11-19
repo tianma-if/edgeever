@@ -390,9 +390,11 @@ export class NoteImportSession {
       return { note, contentMarkdown };
     }
     let text = await this.sources.text(entry, signal);
-    if ((this.format === "notion" || this.format === "siyuan") && /<(?:img|audio|video|source)\b/i.test(text)) {
+    const localImagesOnly = this.format === "markdown";
+    const mediaTag = localImagesOnly ? /<img(?=[\s/>])/i : /<(?:img|audio|video|source)\b/i;
+    if ((localImagesOnly || this.format === "notion" || this.format === "siyuan") && mediaTag.test(text)) {
       const { normalizeExportMedia } = await import("./markdown-export-html");
-      text = normalizeExportMedia(text);
+      text = normalizeExportMedia(text, localImagesOnly ? "local-images" : "all");
     }
     return { note, contentMarkdown: note.raw ? readRaw(text)!.body : text };
   }
