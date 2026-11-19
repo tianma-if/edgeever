@@ -264,8 +264,14 @@ export const runWranglerSync = (args, options = {}) => {
   return result;
 };
 
-/** Demo must reach application redirects even when a static asset exists. */
+/** Demo homepage canonical handling needs the Worker; static assets do not. */
 export const configureDemoAssetRouting = (config, demoMode) => {
   if (!demoMode) return config;
-  return config.replace(/(\[assets\][\s\S]*?^run_worker_first\s*=)[^\n]*/m, "$1 true");
+  return config.replace(/(\[assets\][\s\S]*?^run_worker_first\s*=)([^\n]*)/m, (_, prefix, value) => {
+    const routes = JSON.parse(value.trim());
+    if (!Array.isArray(routes)) {
+      throw new Error("Demo asset routing requires an explicit run_worker_first route list.");
+    }
+    return `${prefix} ${JSON.stringify([...new Set([...routes, "/", "/index.html"])])}`;
+  });
 };

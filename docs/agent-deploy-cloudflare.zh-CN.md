@@ -48,6 +48,12 @@
    - 若发生了 push，确认 Cloudflare **Deployments** 构建的是对应的 `main` commit。
    - 普通部署 Fork 不应修改部署文件，日常升级也不要依赖 GitHub **Sync fork**；本工作流就是唯一需要的同步路径。只有旧 Fork 必须取得新版更新工作流本身时，才使用一次 **Sync fork**，之后继续使用 **Update deployed EdgeEver**。
 
+## 官方 Demo 路由
+
+- Demo 仅在业务 `run_worker_first` 路由中增加 `/` 和 `/index.html`，用于首页 canonical。禁止设置 `run_worker_first = true`：静态资源必须绕过 Worker 执行及其请求额度。
+- 部署此路由前，在域名 Single Redirect 中配置匹配条件 `http.host eq "demo.edgeever.org" and not ssl`，目标 `concat("https://demo.edgeever.org", http.request.uri.path)`，状态码 `308`，保留查询字符串。静态资源的 HTTP 跳转由边缘完成，不调用 Worker；保留无关规则。
+- 验证 HTTP 跳转保留路径和查询参数、HTTPS 首页只有一个 canonical、API 正常。在 Worker 实时日志中对比带唯一标记的静态请求批次与首页/API 对照批次；静态请求不得产生调用。回读已部署版本的资源配置，确认使用显式路由列表。
+
 ## 可选：自定义初始管理员用户名
 
 普通部署直接使用默认用户名 `admin`，不要主动询问用户是否需要修改。仅当用户明确要求自定义管理员用户名时，才在启动首次构建前通过 Workers Builds 构建变量设置 `EDGE_EVER_AUTH_USERNAME`，并在登录验证时使用该用户名。管理员账号已创建后，仅修改该变量不会重命名现有账号。

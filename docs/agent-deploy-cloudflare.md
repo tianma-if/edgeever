@@ -48,6 +48,12 @@ This document defines the standard operating specifications and conventions for 
    - Confirm Cloudflare **Deployments** builds the published `main` commit when a push occurred.
    - Do not edit deployment files or rely on GitHub **Sync fork** for routine upgrades; the workflow is the only synchronization path needed by a normal deployment Fork. Use **Sync fork** once only when an old Fork must receive a newer updater workflow itself, then return to **Update deployed EdgeEver**.
 
+## Official Demo Routing
+
+- Demo adds only `/` and `/index.html` to the business `run_worker_first` routes for homepage canonical handling. Never set `run_worker_first = true`: static assets must bypass Worker execution and its request quota.
+- Before deploying this routing, configure a zone Single Redirect matching `http.host eq "demo.edgeever.org" and not ssl`, targeting `concat("https://demo.edgeever.org", http.request.uri.path)`, status `308`, preserving the query string. This keeps HTTP redirects for assets at the edge without invoking the Worker; retain unrelated rules.
+- Verify HTTP redirects preserve path/query, the HTTPS homepage has exactly one canonical, and APIs remain reachable. Compare a uniquely marked static request batch with a homepage/API control batch in live Worker logs; static requests must not produce invocations. Read back the deployed version's asset configuration to confirm the explicit route list.
+
 ## Optional: Customize the Initial Administrator Username
 
 Ordinary deployments use the default username `admin`; do not proactively ask the user whether to change it. Only when the user explicitly requests a custom administrator username, set `EDGE_EVER_AUTH_USERNAME` in Workers Builds variables before starting the first build and use that username during login verification. Changing only this variable after the administrator account exists does not rename that account.
