@@ -1,7 +1,6 @@
+import { DeferredToolLoading } from "./DeferredToolLoading";
 import { DesktopAttachmentWritebacks } from "./attachments/DesktopAttachmentWritebacks";
 import { useNoteImport } from "@/lib/note-import/use-note-import";
-import { NotebookAppearanceDialog } from "./dialogs/NotebookAppearanceDialog";
-import { ShareMemoDialog } from "./dialogs/ShareMemoDialog";
 import type { NotebookUpdateInput } from "@edgeever/shared";
 import { startPosterClientRenderer } from "@/lib/poster-client-render";
 import {
@@ -24,15 +23,13 @@ import { useTranslation } from "react-i18next";
 import * as m from "motion/react-m";
 import { MemoListPane, MemoSelectionActionBar } from "./MemoListPane";
 import { MobileBottomNav, MobileNotebookPicker } from "./WorkspaceMobileChrome";
-import { QuickMemoSwitcher } from "./QuickMemoSwitcher";
 import { AppConfirmDialog, MemoDeleteConfirmDialog, NotebookNameDialog } from "./dialogs/ConfirmDialogs";
-import { PluginPanelDialog } from "./plugins/PluginPanelDialog";
 import { shouldDiscardPluginNoteSearchRequest } from "./editor/note-search";
 import { api, ApiRequestError, getConfiguredDesktopApiBaseUrl, getOrCreateClientDeviceId } from "@/lib/api";
 import type { DesktopBackupStatus } from "@edgeever/shared";
 import { useShowDescendantNotesPreference } from "@/lib/descendant-notes-preference";
-import { MarkdownExportMemoryLimitError, type MarkdownExportProgress } from "@/lib/markdown-export";
-import { exportSelectedMemosAsMarkdownZip } from "@/lib/selected-markdown-export";
+import { MarkdownExportMemoryLimitError } from "@/lib/markdown-export-error";
+import type { MarkdownExportProgress } from "@/lib/markdown-export";
 import { createPluginScheduleAdapter } from "@/lib/plugins/plugin-schedule-adapter";
 import { createPluginCatalogAdapter } from "@/lib/plugins/plugin-catalog-sync";
 import {
@@ -152,11 +149,14 @@ import { compressImageForUpload } from "@/lib/image-compression";
 import { createScreenshotMemo, screenshotFileFromImportPayload, screenshotImportDedupeKey, screenshotImportGate } from "@/lib/screenshot-import";
 import { createSharedFileMemo, sharedFileTitle } from "@/lib/shared-file-import";
 import { createWeChatChatMemo } from "@/lib/wechat-chat-import";
-import { copyMarkdownToWeChat } from "@/lib/wechat-copy";
 import { isDesktopResourceRuntime, stageDesktopResource, toDesktopResourceUrl } from "@/lib/desktop-resources";
 import { findMatchingMemoResource } from "@/lib/staged-resource-repair";
 import { prefersChineseContent } from "@/lib/bilingual-content-locale";
 
+const NotebookAppearanceDialog = lazy(() => import("./dialogs/NotebookAppearanceDialog").then((module) => ({ default: module.NotebookAppearanceDialog })));
+const ShareMemoDialog = lazy(() => import("./dialogs/ShareMemoDialog").then((module) => ({ default: module.ShareMemoDialog })));
+const QuickMemoSwitcher = lazy(() => import("./QuickMemoSwitcher").then((module) => ({ default: module.QuickMemoSwitcher })));
+const PluginPanelDialog = lazy(() => import("./plugins/PluginPanelDialog").then((module) => ({ default: module.PluginPanelDialog })));
 const EditorPane = lazy(() => import("./EditorPane").then((module) => ({ default: module.EditorPane })));
 const DiagramEditorPane = lazy(() => import("./DiagramEditorPane"));
 const TableEditorPane = lazy(() => import("./TableEditorPane"));
@@ -166,6 +166,7 @@ const AssetsPane = lazy(() => import("./AssetsPane").then((module) => ({ default
 const SettingsPane = lazy(() => import("./SettingsPane").then((module) => ({ default: module.SettingsPane })));
 const PluginMarketplacePane = lazy(() => import("./PluginMarketplacePane").then((module) => ({ default: module.PluginMarketplacePane })));
 const NotebookPane = lazy(() => import("./NotebookPane").then((module) => ({ default: module.NotebookPane })));
+const ThirdPartyImportDialog = lazy(() => import("./settings/ThirdPartyImportDialog").then((module) => ({ default: module.ThirdPartyImportDialog })));
 const EvernoteImportGuidePane = lazy(() =>
   import("./EvernoteImportGuidePane").then((module) => ({ default: module.EvernoteImportGuidePane }))
 );
@@ -343,14 +344,19 @@ export const WorkspaceApp = ({
     if (!pluginHostReady) return;
     let active = true;
     let running = false;
+    let lastCheckedAt = Number.NEGATIVE_INFINITY;
     const updateOfficialPlugins = async () => {
-      if (!active || running) return;
+      if (!active || running || document.visibilityState === "hidden" || isBrowserOffline()) return;
       running = true;
       try {
         const pendingTrustPluginIds = await pluginHost.syncFromCatalog();
         if (active && pendingTrustPluginIds.length > 0 && !hasAcknowledgedPluginTrustWarning()) {
           setPendingCatalogTrustPluginIds(pendingTrustPluginIds);
         }
+        // Catalog enable/disable changes remain immediate on focus. Only the
+        // release/package update lookup is throttled.
+        if (Date.now() - lastCheckedAt < 5 * 60_000) return;
+        lastCheckedAt = Date.now();
         const marketplace = await loadResolvedPluginMarketplace();
         await updateOfficialMarketplacePlugins(pluginHost, marketplace.entries);
         const firstResolutionError = Object.entries(marketplace.resolutionErrors)[0];
@@ -662,6 +668,7 @@ export const WorkspaceApp = ({
   }, [invalidateWorkspaceQueries, repository, runQueuedSync, syncSummary.total]);
 
   const noteImport = useNoteImport(authRequired ? user?.id ?? null : null, user?.displayName || user?.username || "Local", async () => { await refreshWorkspaceFromServer("manual"); });
+  const noteImportOpen = useSyncExternalStore(noteImport.subscribe, () => noteImport.getSnapshot().open);
 
   const refreshedBackupRestores = useRef(new Set<string>());
   useEffect(() => {
@@ -2335,13 +2342,16 @@ export const WorkspaceApp = ({
 
     setIsExportingSelectedMemos(true);
     setSelectedMarkdownExportProgress({ completed: 0, total: selectedMemoIds.size });
-    void exportSelectedMemosAsMarkdownZip({
-      memoIds: Array.from(selectedMemoIds),
-      listNotebooks: api.listNotebooks,
-      getPage: api.getMarkdownExportPage,
-      getResourceBlob: api.getResourceBlob,
-      onProgress: setSelectedMarkdownExportProgress,
-    }).then((result) => {
+    void (async () => {
+      const { exportSelectedMemosAsMarkdownZip } = await import("@/lib/selected-markdown-export");
+      return exportSelectedMemosAsMarkdownZip({
+        memoIds: Array.from(selectedMemoIds),
+        listNotebooks: api.listNotebooks,
+        getPage: api.getMarkdownExportPage,
+        getResourceBlob: api.getResourceBlob,
+        onProgress: setSelectedMarkdownExportProgress,
+      });
+    })().then((result) => {
       if (result.status === "too-many") {
         setAppNoticeDialog({
           title: t("workspace.selection.export"),
@@ -3467,6 +3477,7 @@ export const WorkspaceApp = ({
                   onCreateMemo={handleCreateMemo}
                   onCreateNotebook={handleCreateNotebook}
                   onRenameNotebook={handleRenameNotebook}
+                  onImportMarkdown={notebookId => noteImport.open("markdown", notebookId)}
                   onEditNotebookAppearance={setAppearanceNotebook}
                   onDeleteNotebook={handleDeleteNotebook}
                   onMoveNotebook={handleMoveNotebook}
@@ -3674,6 +3685,7 @@ export const WorkspaceApp = ({
                 }
 
                 const { memo } = await repository.getMemo(memoId, memoView === "trash");
+                const { copyMarkdownToWeChat } = await import("@/lib/wechat-copy");
                 await copyMarkdownToWeChat(memo.contentMarkdown);
                 return "copied";
               }}
@@ -3735,6 +3747,7 @@ export const WorkspaceApp = ({
                     isOwner={authRequired && user?.role === "owner"}
                     user={user}
                     noteImport={noteImport}
+                    defaultImportNotebookId={defaultMemoNotebookId}
                     refreshWorkspaceAfterImport={async () => {
                       await refreshWorkspaceFromServer("manual");
                     }}
@@ -4045,19 +4058,23 @@ export const WorkspaceApp = ({
         </main>
       </div>
 
-      <QuickMemoSwitcher
-        open={quickSwitcherOpen}
-        query={quickSwitcherQuery}
-        repository={repository}
-        onOpenChange={(open) => {
-          setQuickSwitcherOpen(open);
-          if (!open) {
-            setQuickSwitcherQuery("");
-          }
-        }}
-        onQueryChange={setQuickSwitcherQuery}
-        onOpenMemo={handleOpenQuickSwitcherMemo}
-      />
+      {quickSwitcherOpen && (
+        <Suspense fallback={<DeferredToolLoading />}>
+          <QuickMemoSwitcher
+            open={quickSwitcherOpen}
+            query={quickSwitcherQuery}
+            repository={repository}
+            onOpenChange={(open) => {
+              setQuickSwitcherOpen(open);
+              if (!open) {
+                setQuickSwitcherQuery("");
+              }
+            }}
+            onQueryChange={setQuickSwitcherQuery}
+            onOpenMemo={handleOpenQuickSwitcherMemo}
+          />
+        </Suspense>
+      )}
 
       {memoDeleteConfirmation && (
         <MemoDeleteConfirmDialog
@@ -4080,12 +4097,14 @@ export const WorkspaceApp = ({
         />
       )}
       {appearanceNotebook && (
-        <NotebookAppearanceDialog key={appearanceNotebook.id} notebook={appearanceNotebook}
+        <Suspense fallback={<DeferredToolLoading />}>
+          <NotebookAppearanceDialog key={appearanceNotebook.id} notebook={appearanceNotebook}
           onCancel={() => setAppearanceNotebook(null)}
           onSubmit={async (appearance) => {
             await updateNotebookMutation.mutateAsync({ notebookId: appearanceNotebook.id, payload: appearance });
             setAppearanceNotebook(null);
           }} />
+        </Suspense>
       )}
       {notebookNameDialog && (
         <NotebookNameDialog
@@ -4174,19 +4193,30 @@ export const WorkspaceApp = ({
           onConfirm={() => resetDemoMutation.mutate()}
         />
       )}
-      {listShareMemoId && (
-        <ShareMemoDialog
-          memoId={listShareMemoId}
-          open
-          onOpenChange={(open) => { if (!open) setListShareMemoId(null); }}
-        />
+      {noteImportOpen && (
+        <Suspense fallback={null}>
+          <ThirdPartyImportDialog controller={noteImport} onOpenMemo={handleOpenPluginNote} />
+        </Suspense>
       )}
-      <PluginPanelDialog
-        host={pluginHost}
-        panel={requestedPluginPanel?.panel ?? null}
-        options={requestedPluginPanel?.options}
-        onClose={() => setRequestedPluginPanel(null)}
-      />
+      {listShareMemoId && (
+        <Suspense fallback={<DeferredToolLoading />}>
+          <ShareMemoDialog
+            memoId={listShareMemoId}
+            open
+            onOpenChange={(open) => { if (!open) setListShareMemoId(null); }}
+          />
+        </Suspense>
+      )}
+      {requestedPluginPanel && (
+        <Suspense fallback={<DeferredToolLoading />}>
+          <PluginPanelDialog
+            host={pluginHost}
+            panel={requestedPluginPanel.panel}
+            options={requestedPluginPanel.options}
+            onClose={() => setRequestedPluginPanel(null)}
+          />
+        </Suspense>
+      )}
       {(visibleActivePane !== "editor" || showMobileSettingsNav) && !memoSelectionModeActive && (
         <MobileBottomNav
           activeItem={mobileBottomNavActive}

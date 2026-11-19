@@ -156,10 +156,15 @@
 
 .edgeever-editor[data-editor-theme]:not([data-editor-theme="default"]) .ProseMirror hr.edgeever-merge-divider,
 .edgeever-editor[data-editor-theme]:not([data-editor-theme="default"]) .ProseMirror hr[data-edgeever-merge-divider] {
-  height: 0;
+  height: 1px;
   border: 0;
-  border-top: 2px solid var(--editor-theme-accent);
-  background: transparent;
+  background: linear-gradient(
+    to right,
+    transparent,
+    color-mix(in srgb, var(--editor-theme-accent) 45%, transparent) 16%,
+    color-mix(in srgb, var(--editor-theme-accent) 45%, transparent) 84%,
+    transparent
+  );
   margin: var(--memo-content-divider-spacing) 0;
 }
 

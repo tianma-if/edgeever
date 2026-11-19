@@ -1,5 +1,5 @@
 import { AlignLeft, AlignVerticalSpaceAround, AppWindow, BookOpenText, ChartNoAxesCombined, Code2, Heading, Highlighter, Image, Languages, ListTree, MousePointerClick, MoveHorizontal, Palette, Pilcrow, Quote, Sparkles, SpellCheck, SunMoon, Type } from "lucide-react";
-import { useState, useEffect, type ReactNode } from "react";
+import { lazy, Suspense, useState, useEffect, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type {
   NoteProseEmphasisStyle,
@@ -71,8 +71,9 @@ import { syncPublishedNoteBodyFont } from "@/lib/published-note-body-font";
 import { useShowDescendantNotesPreference, writeShowDescendantNotesPreference } from "@/lib/descendant-notes-preference";
 import { LoginItemSettingsItem } from "./LoginItemSettingsItem";
 import { PicGoSettingsItem } from "./PicGoSettingsItem";
-import { NoteProseCssEditor } from "./NoteProseCssEditor";
 import { NoteProseCssPreview } from "./NoteProseCssPreview";
+
+const NoteProseCssEditor = lazy(() => import("./NoteProseCssEditor").then((module) => ({ default: module.NoteProseCssEditor })));
 
 const PreferenceSection = ({ title, children }: { title: string; children: ReactNode }) => (
   <section className="grid gap-2">
@@ -709,13 +710,15 @@ export const PreferenceCard = ({
           ) : null}
           <div className="relative min-h-0 flex-1">
             <div className="absolute inset-0">
-              <NoteProseCssEditor
-                value={cssDraft}
-                dark={resolvedTheme === "dark"}
-                ariaLabel={t("settings.editorBodyCssTitle")}
-                placeholder={t("settings.editorBodyCssPlaceholder")}
-                onChange={setCssDraft}
-              />
+              <Suspense fallback={<div role="status" className="min-h-64 p-4 text-sm text-slate-500">{t("workspace.loading.settings")}</div>}>
+                <NoteProseCssEditor
+                  value={cssDraft}
+                  dark={resolvedTheme === "dark"}
+                  ariaLabel={t("settings.editorBodyCssTitle")}
+                  placeholder={t("settings.editorBodyCssPlaceholder")}
+                  onChange={setCssDraft}
+                />
+              </Suspense>
             </div>
           </div>
           <p className={cssDraftBytes > MAX_NOTE_PROSE_CSS_BYTES ? "shrink-0 text-xs text-rose-600" : "shrink-0 text-xs text-slate-500"}>

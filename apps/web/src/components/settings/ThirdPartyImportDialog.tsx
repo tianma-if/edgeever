@@ -1,5 +1,5 @@
-import { useRef, useState, type DragEvent } from "react";
-import { CheckCircle2, ExternalLink, FileUp, Folder, Info, LoaderCircle, TriangleAlert, Upload } from "lucide-react";
+import { useRef, useState, useSyncExternalStore, type DragEvent } from "react";
+import { CheckCircle2, ExternalLink, FileText, FileUp, Folder, Info, LoaderCircle, TriangleAlert, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -8,11 +8,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import type { Notebook } from "@edgeever/shared";
 import type { ImportFile, ImportFormat, ImportIssue } from "@edgeever/shared/note-import/types";
-import type { NoteImportController, NoteImportSnapshot } from "@/lib/note-import/controller";
+import { canConfirmImportDestination, type NoteImportController } from "@/lib/note-import/controller";
 import { EVERNOTE_MIGRATION_BLOG_URL } from "@/lib/routes";
 import { getImportSources } from "./import-sources";
 
-export const ThirdPartyImportDialog = ({ controller, state, onOpenMemo }: { controller: NoteImportController; state: NoteImportSnapshot; onOpenMemo: (memoId: string, notebookId: string) => void }) => {
+export const ThirdPartyImportDialog = ({ controller, onOpenMemo }: { controller: NoteImportController; onOpenMemo: (memoId: string, notebookId: string) => void }) => {
+  const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
   const { t, i18n } = useTranslation();
   const importSources = getImportSources(i18n.resolvedLanguage);
   const files = useRef<HTMLInputElement>(null);
@@ -22,14 +23,19 @@ export const ThirdPartyImportDialog = ({ controller, state, onOpenMemo }: { cont
   const busy = state.phase === "scanning" || state.phase === "running";
   const summary = state.summary;
   const failure = state.outcome?.failure;
+  const markdown = state.format === "markdown";
+  const allowWorkspaceRoot = !markdown || Boolean(state.keepMarkdownRoot);
+  const canConfirmDestination = canConfirmImportDestination(state);
 
   const selectFiles = (input: HTMLInputElement, folder: boolean) => {
-    const selection = Array.from(input.files ?? []).map(file => ({
+    const selected = Array.from(input.files ?? []);
+    const folderName = folder ? selected[0]?.webkitRelativePath.split("/")[0] : undefined;
+    const selection = selected.map(file => ({
       path: folder ? file.webkitRelativePath.split("/").slice(1).join("/") : file.name,
       file,
       expandArchive: !folder,
     }));
-    controller.select(selection);
+    controller.select(selection, markdown && state.phase === "ready" ? state.parentId : undefined, folderName);
     input.value = "";
   };
 
@@ -65,58 +71,50 @@ export const ThirdPartyImportDialog = ({ controller, state, onOpenMemo }: { cont
 
     const dataTransfer = event.dataTransfer;
     if (!dataTransfer) return;
+    const isCurrentDrop = controller.beginDrop();
+    if (!isCurrentDrop()) return;
+    const fallbackFiles = Array.from(dataTransfer.files);
 
     try {
-      const items = Array.from(dataTransfer.items || []);
-      const entries: any[] = [];
-      for (const item of items) {
-        if (typeof item.webkitGetAsEntry === "function") {
-          const entry = item.webkitGetAsEntry();
-          if (entry) entries.push(entry);
-        }
-      }
+      const entries = Array.from(dataTransfer.items, item => item.webkitGetAsEntry?.()).filter(entry => entry != null);
 
       if (entries.length > 0) {
+        if (markdown && entries.length !== 1) {
+          controller.rejectMarkdownSelection();
+          return;
+        }
         const results: ImportFile[] = [];
-        const readEntry = async (entry: any, pathPrefix = ""): Promise<void> => {
-          if (entry.isFile) {
-            const file = await new Promise<File>((resolve, reject) => entry.file(resolve, reject));
-            results.push({
-              path: pathPrefix ? `${pathPrefix}/${entry.name}` : entry.name,
-              file,
-              expandArchive: !pathPrefix,
-            });
-          } else if (entry.isDirectory) {
-            const dirReader = entry.createReader();
-            const readAll = async (): Promise<any[]> => {
-              const batch: any[] = await new Promise((resolve, reject) => dirReader.readEntries(resolve, reject));
-              return batch.length > 0 ? [...batch, ...(await readAll())] : [];
-            };
-            const children = await readAll();
-            for (const child of children) {
-              await readEntry(child, pathPrefix ? `${pathPrefix}/${entry.name}` : entry.name);
-            }
+        async function readDirectory(entry: FileSystemDirectoryEntry, pathPrefix: string) {
+          const reader = entry.createReader();
+          while (isCurrentDrop()) {
+            const entries = await new Promise<FileSystemEntry[]>((resolve, reject) => reader.readEntries(resolve, reject));
+            if (!entries.length) break;
+            for (const child of entries) await readEntry(child, pathPrefix);
           }
-        };
+        }
+        async function readEntry(entry: FileSystemEntry, pathPrefix: string) {
+          if (!isCurrentDrop()) return;
+          const path = pathPrefix ? `${pathPrefix}/${entry.name}` : entry.name;
+          if (entry.isFile) {
+            const file = await new Promise<File>((resolve, reject) => (entry as FileSystemFileEntry).file(resolve, reject));
+            if (isCurrentDrop()) results.push({ path, file, expandArchive: !pathPrefix });
+          } else if (entry.isDirectory) {
+            await readDirectory(entry as FileSystemDirectoryEntry, path);
+          }
+        }
 
         for (const entry of entries) {
           if (entry.isDirectory) {
-            const dirReader = entry.createReader();
-            const readAll = async (): Promise<any[]> => {
-              const batch: any[] = await new Promise((resolve, reject) => dirReader.readEntries(resolve, reject));
-              return batch.length > 0 ? [...batch, ...(await readAll())] : [];
-            };
-            const children = await readAll();
-            for (const child of children) {
-              await readEntry(child, "");
-            }
+            await readDirectory(entry as FileSystemDirectoryEntry, "");
           } else {
             await readEntry(entry, "");
           }
         }
 
+        if (!isCurrentDrop()) return;
         if (results.length > 0) {
-          controller.select(results);
+          const entry = entries[0];
+          controller.select(results, undefined, entries.length === 1 && entry?.isDirectory ? entry.name : undefined);
           return;
         }
       }
@@ -124,10 +122,9 @@ export const ThirdPartyImportDialog = ({ controller, state, onOpenMemo }: { cont
       // Fall back to simple files if directory traversal is not supported
     }
 
-    const filesList = Array.from(dataTransfer.files || []);
-    if (filesList.length > 0) {
+    if (isCurrentDrop() && fallbackFiles.length > 0) {
       controller.select(
-        filesList.map(file => ({
+        fallbackFiles.map(file => ({
           path: file.name,
           file,
           expandArchive: true,
@@ -138,7 +135,7 @@ export const ThirdPartyImportDialog = ({ controller, state, onOpenMemo }: { cont
 
   const errorText = (code: string) => t(`noteImport.errors.${code}`, { defaultValue: code });
   const issueText = (issue: ImportIssue) =>
-    t(`noteImport.issues.${issue.code}`, {
+    t(markdown && issue.code === "missingAttachment" ? "noteImport.missingMarkdownAttachment" : `noteImport.issues.${issue.code}`, {
       defaultValue: issue.code,
       count: issue.code === "ignoredTags" ? Number(issue.detail) : undefined,
     });
@@ -152,6 +149,13 @@ export const ThirdPartyImportDialog = ({ controller, state, onOpenMemo }: { cont
     const parent = notebook.parentId ? destinationsById.get(notebook.parentId) : undefined;
     return parent ? `${destinationPath(parent)} / ${notebook.name}` : notebook.name;
   };
+  const destination = destinationsById.get(state.parentId);
+  const selectedParentId = markdown ? destination?.id : state.parentId;
+  const destinationValue = selectedParentId || (!state.parentId && allowWorkspaceRoot ? "__root" : "");
+  const markdownDestination = [
+    destination ? destinationPath(destination) : undefined,
+    state.keepMarkdownRoot ? state.markdownFolderName : undefined,
+  ].filter(Boolean).join(" / ");
   const openResult = (memoId: string, notebookId: string) => {
     controller.hide();
     onOpenMemo(memoId, notebookId);
@@ -174,6 +178,20 @@ export const ThirdPartyImportDialog = ({ controller, state, onOpenMemo }: { cont
       />
     </div>
   ) : null;
+  const evernoteAttachmentOption = state.format === "evernote" ? (
+    <div className="flex items-center justify-between gap-4 rounded-lg border p-3">
+      <div className="space-y-1">
+        <label htmlFor="import-skip-invalid-attachments" className="text-xs font-medium">{t("noteImport.skipInvalidEvernoteAttachments")}</label>
+        <p className="text-xs text-muted-foreground">{t("noteImport.skipInvalidEvernoteAttachmentsHint")}</p>
+      </div>
+      <Switch
+        id="import-skip-invalid-attachments"
+        checked={state.skipInvalidEvernoteAttachments}
+        disabled={busy}
+        onCheckedChange={controller.setSkipInvalidEvernoteAttachments}
+      />
+    </div>
+  ) : null;
 
   return (
     <Dialog
@@ -184,9 +202,9 @@ export const ThirdPartyImportDialog = ({ controller, state, onOpenMemo }: { cont
     >
       <DialogContent className="flex max-h-[90dvh] flex-col gap-5 overflow-hidden sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle className="px-8 text-lg font-semibold tracking-tight sm:pl-0">{t("noteImport.title")}</DialogTitle>
+          <DialogTitle className="px-8 text-lg font-semibold tracking-tight sm:pl-0">{t(markdown ? "noteImport.markdownImport" : "noteImport.title")}</DialogTitle>
           <DialogDescription className="sr-only">
-            {t("noteImport.description")}
+            {t(markdown ? "noteImport.markdownHint" : "noteImport.description")}
           </DialogDescription>
         </DialogHeader>
 
@@ -195,7 +213,7 @@ export const ThirdPartyImportDialog = ({ controller, state, onOpenMemo }: { cont
             <div className="space-y-4">
               <div className="space-y-2">
                 <span id="note-import-source" className="text-xs font-medium text-muted-foreground">
-                  {t("noteImport.source")}
+                  {t("noteImport.sourceType")}
                 </span>
                 <ToggleGroup
                   type="single"
@@ -221,7 +239,7 @@ export const ThirdPartyImportDialog = ({ controller, state, onOpenMemo }: { cont
                       >
                         <div className="flex w-full items-center justify-between gap-1.5">
                           <div className="flex items-center gap-2 min-w-0">
-                            {logo && <img src={logo} alt="" className="size-4 shrink-0 object-contain" />}
+                            {logo ? <img src={logo} alt="" className="size-4 shrink-0 object-contain" /> : <FileText aria-hidden="true" className="size-4 shrink-0" />}
                             <span className="truncate text-xs font-medium text-foreground">{label}</span>
                           </div>
                           {active ? <span className="size-1.5 shrink-0 rounded-full bg-primary" /> : null}
@@ -234,6 +252,7 @@ export const ThirdPartyImportDialog = ({ controller, state, onOpenMemo }: { cont
               </div>
 
               {obsidianAttachmentOption}
+              {evernoteAttachmentOption}
               {formatHintNotice ? (
                 <div className="flex items-start gap-2 rounded-lg border border-border/60 bg-muted/30 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
                   <Info aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
@@ -260,7 +279,7 @@ export const ThirdPartyImportDialog = ({ controller, state, onOpenMemo }: { cont
                   {t("noteImport.dropzoneTitle")}
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {t("noteImport.dropzoneHint")}
+                  {t(markdown ? "noteImport.markdownHint" : "noteImport.dropzoneHint")}
                 </p>
 
                 <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
@@ -272,7 +291,7 @@ export const ThirdPartyImportDialog = ({ controller, state, onOpenMemo }: { cont
                     onClick={() => files.current?.click()}
                   >
                     <FileUp className="size-3.5" />
-                    {t("noteImport.files")}
+                    {t(markdown ? "noteImport.chooseMarkdownFile" : "noteImport.files")}
                   </Button>
                   <Button
                     type="button"
@@ -299,10 +318,10 @@ export const ThirdPartyImportDialog = ({ controller, state, onOpenMemo }: { cont
           <input
             ref={files}
             type="file"
-            multiple
+            multiple={!markdown}
             className="hidden"
             data-testid="note-import-files"
-            accept={state.format === "notion" ? ".md,.markdown,.csv,.zip" : state.format === "siyuan" ? ".md,.markdown,.zip" : state.format === "flomo" ? ".html,.htm,.zip" : state.format === "evernote" ? ".enex,.zip,.notes" : state.format === "joplin" ? ".zip,.jex" : ".zip"}
+            accept={markdown ? ".md,.markdown" : state.format === "notion" ? ".md,.markdown,.csv,.zip" : state.format === "siyuan" ? ".md,.markdown,.zip" : state.format === "flomo" ? ".html,.htm,.zip" : state.format === "evernote" ? ".enex,.zip,.notes" : state.format === "joplin" ? ".zip,.jex" : ".zip"}
             onChange={event => selectFiles(event.currentTarget, false)}
           />
           <input
@@ -326,6 +345,7 @@ export const ThirdPartyImportDialog = ({ controller, state, onOpenMemo }: { cont
           ) : null}
 
           {state.phase === "scanning" || state.phase === "ready" ? obsidianAttachmentOption : null}
+          {state.phase === "scanning" || state.phase === "ready" ? evernoteAttachmentOption : null}
 
           {summary ? (
             <dl className="grid grid-cols-3 gap-3 rounded-xl border border-border/60 bg-muted/30 p-4 text-center">
@@ -342,12 +362,12 @@ export const ThirdPartyImportDialog = ({ controller, state, onOpenMemo }: { cont
             <div className="space-y-4">
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-foreground">{t("noteImport.destination")}</label>
-                <Select value={state.parentId || "__root"} onValueChange={value => controller.setParent(value === "__root" ? "" : value)}>
+                <Select value={destinationValue} onValueChange={value => controller.setParent(value === "__root" ? "" : value)}>
                   <SelectTrigger aria-label={t("noteImport.destination")} className="w-full">
-                    <SelectValue />
+                    <SelectValue placeholder={t("noteImport.errors.chooseMarkdownDestination")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__root">{t("noteImport.topLevel")}</SelectItem>
+                    {allowWorkspaceRoot && <SelectItem value="__root">{t("noteImport.topLevel")}</SelectItem>}
                     {state.destinations.map(notebook => (
                       <SelectItem value={notebook.id} key={notebook.id}>
                         {destinationPath(notebook)}
@@ -355,7 +375,35 @@ export const ThirdPartyImportDialog = ({ controller, state, onOpenMemo }: { cont
                     ))}
                   </SelectContent>
                 </Select>
+                {markdown && state.destinationStatus === "loading" && (
+                  <p role="status" className="text-xs text-muted-foreground">{t("workspace.loading.notebooks")}</p>
+                )}
+                {markdown && state.destinationStatus === "error" && (
+                  <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                    <p role="status">{t("noteImport.destinationLoadFailed")}</p>
+                    <Button type="button" size="sm" variant="ghost" onClick={() => void controller.refreshDestinations()}>{t("common.refresh")}</Button>
+                  </div>
+                )}
+                {markdown && state.destinationStatus === "ready" && state.parentId && !destination && (
+                  <p role="status" className="text-xs text-muted-foreground">{errorText("missingParent")}</p>
+                )}
               </div>
+              {markdown && state.markdownFolderName && (
+                <div className="flex items-center justify-between gap-3">
+                  <label className="text-xs font-medium" htmlFor="note-import-keep-markdown-root">{t("noteImport.keepMarkdownRoot")}</label>
+                  <Switch id="note-import-keep-markdown-root" checked={Boolean(state.keepMarkdownRoot)} onCheckedChange={controller.setKeepMarkdownRoot} />
+                </div>
+              )}
+              {markdown && canConfirmDestination && markdownDestination && (
+                <p className="break-words text-xs text-muted-foreground">{t("noteImport.markdownRootDestination", { path: markdownDestination })}</p>
+              )}
+              {markdown && !state.markdownFolderName && (
+                <p className="text-xs text-muted-foreground">
+                  {t("noteImport.markdownAttachmentHint")}{" "}
+                  <button type="button" className="cursor-pointer text-foreground underline underline-offset-2" onClick={() => directory.current?.click()}>{t("noteImport.folder")}</button>
+                </p>
+              )}
+              {(!markdown || Boolean(summary?.notebooks)) && (
               <div className="space-y-1.5">
                 <span className="text-xs font-medium text-muted-foreground">{t("noteImport.folderPreview")}</span>
                 <div className="max-h-48 overflow-y-auto rounded-lg border border-border/70 bg-card p-3">
@@ -378,6 +426,7 @@ export const ThirdPartyImportDialog = ({ controller, state, onOpenMemo }: { cont
                   ) : null}
                 </div>
               </div>
+              )}
             </div>
           ) : null}
 
@@ -403,8 +452,8 @@ export const ThirdPartyImportDialog = ({ controller, state, onOpenMemo }: { cont
             </div>
           ) : null}
 
-          {state.phase === "ready" && state.issues.length > 0 ? (
-            <details className="rounded-xl border border-border/70 bg-card p-3" open={Boolean(summary && summary.errors > 0)}>
+          {(state.phase === "ready" || state.phase === "finished") && state.issues.length > 0 ? (
+            <details className="rounded-xl border border-border/70 bg-card p-3" open>
               <summary className="cursor-pointer text-xs font-medium text-foreground/80 hover:text-foreground">
                 {t("noteImport.issueCounts", { errors: summary?.errors ?? 0, warnings: summary?.warnings ?? 0 })}
               </summary>
@@ -497,7 +546,7 @@ export const ThirdPartyImportDialog = ({ controller, state, onOpenMemo }: { cont
               {t(busy ? "noteImport.cancel" : "noteImport.close")}
             </Button>
             {state.phase === "ready" ? (
-              <Button size="sm" disabled={!summary?.notes || summary.errors > 0} onClick={controller.run}>
+              <Button size="sm" disabled={!summary?.notes || summary.errors > 0 || !canConfirmDestination} onClick={controller.run}>
                 {t("noteImport.confirm")}
               </Button>
             ) : null}

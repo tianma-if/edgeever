@@ -26,12 +26,8 @@ const EXPORT_PAGE_SIZE = 50;
 const ZIP_MIME_TYPE = "application/zip";
 const MAX_BUFFERED_ZIP_BYTES = 128 * 1024 * 1024;
 
-export class MarkdownExportMemoryLimitError extends Error {
-  constructor() {
-    super("This Markdown export is too large for an in-memory ZIP.");
-    this.name = "MarkdownExportMemoryLimitError";
-  }
-}
+export { MarkdownExportMemoryLimitError } from "./markdown-export-error";
+import { MarkdownExportMemoryLimitError } from "./markdown-export-error";
 
 export const createMarkdownExport = async (
   source: MarkdownExportSource,

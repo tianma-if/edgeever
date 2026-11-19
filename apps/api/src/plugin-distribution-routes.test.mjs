@@ -323,3 +323,26 @@ describe("GitHub plugin release asset proxy", () => {
     });
   });
 });
+
+test("coalesces concurrent public manifest lookups before writing the existing cache", async () => {
+  const { Hono } = await import("hono");
+  const { registerPluginDistributionRoutes } = await import("./plugin-distribution-routes.ts");
+  const original = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls++;
+    await new Promise(resolve => setTimeout(resolve, 10));
+    return new Response('{"id":"quota-audit","version":"1.0.0"}');
+  };
+  try {
+    const app = new Hono(); registerPluginDistributionRoutes(app);
+    const responses = await Promise.all(Array.from({ length: 20 }, () => app.request("/api/v1/plugins/github/quota-audit/concurrent-manifest/manifest")));
+    expect(responses.every(response => response.status === 200)).toBe(true);
+    expect(calls).toBe(1);
+    await app.request("/api/v1/plugins/github/quota-audit/different-repository/manifest");
+    expect(calls).toBe(2);
+    const asset = await app.request("/api/v1/plugins/github/quota-audit/assets-cache/assets/1234/main.js");
+    expect(asset.status).toBe(200);
+    expect(asset.headers.get("Cache-Control")).toBe("private, max-age=86400, immutable");
+  } finally { globalThis.fetch = original; }
+});

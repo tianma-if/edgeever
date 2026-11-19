@@ -10,7 +10,6 @@ import { downloadNoteHtmlFile, getHtmlImageEmbedNoticeKind } from "@/lib/note-ht
 import { NOTE_HTML_FULL_STYLES } from "@/lib/note-html-export-assets";
 import { openNotePrintPreview, serializeNoteDocumentForPrint } from "@/lib/note-print";
 import type { NoteImageFormat } from "@/lib/note-image-export";
-import { copyEditorToWeChat, copyMarkdownToWeChat } from "@/lib/wechat-copy";
 import { publishImageErrorMessage } from "@/lib/publish-image-host";
 import { formatDateTime, parseTagsText } from "@/lib/utils";
 import type { ShareNoteImageSource } from "@/components/dialogs/ShareNoteImageDialog";
@@ -93,6 +92,7 @@ export const useEditorDocumentActions = ({
     setWechatCopyState("copying");
     setWechatCopyError(null);
     try {
+      const { copyEditorToWeChat, copyMarkdownToWeChat } = await import("@/lib/wechat-copy");
       if (useMarkdownSourceEditor) {
         await copyMarkdownToWeChat(markdownSource);
       } else {

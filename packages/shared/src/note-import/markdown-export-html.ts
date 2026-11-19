@@ -5,17 +5,22 @@ import { convertImportHtml } from "./html";
 import { splitMarkdownFrontMatter } from "../front-matter";
 
 const mediaTag = /<(?:img|audio|video|source)(?=[\s/>])/i;
-const openingMediaTag = new RegExp(`^${mediaTag.source}`, "i");
+const imageTag = /<img(?=[\s/>])/i;
 const closingMediaTag = /^<\/(?:audio|video)\s*>$/i;
 const markdownEvents = (body: string, inlineHtml = false) => postprocess(parse({
   extensions: inlineHtml ? [{ disable: { null: ["htmlFlow"] } }] : [],
 }).document().write(preprocess()(body, undefined, true)));
 
-const convertMedia = (html: string) => {
+const isLocalImage = (node: Element) => {
+  const src = node.nodeName === "IMG" ? node.getAttribute("src")?.trim() : undefined;
+  return Boolean(src && (!/^(?:[a-z][a-z0-9+.-]*:|\/\/|#)/i.test(src) || /^(?:file:|[a-z]:)/i.test(src)));
+};
+
+const convertMedia = (html: string, localImagesOnly: boolean) => {
   const document = createDocument(html);
   const root = document.body;
   const media = Array.from(root.querySelectorAll("img[src],audio,video,source[src]"));
-  if (!media.length) return;
+  if (!media.length || localImagesOnly && !media.some(isLocalImage)) return;
   for (const node of Array.from(root.querySelectorAll("script,style,iframe,object,embed"))) node.remove();
   for (const node of media) {
     const href = node.getAttribute("src");
@@ -35,7 +40,10 @@ const convertMedia = (html: string) => {
 };
 
 /** Normalize exported HTML media without consuming adjacent Markdown or code. */
-export const normalizeExportMedia = (markdown: string) => {
+export const normalizeExportMedia = (markdown: string, mode: "all" | "local-images" = "all") => {
+  const localImagesOnly = mode === "local-images";
+  const candidateTag = localImagesOnly ? imageTag : mediaTag;
+  const openingTag = new RegExp(`^${candidateTag.source}`, "i");
   const body = splitMarkdownFrontMatter(markdown, { maxSourceLength: Infinity })?.body ?? markdown;
   const offset = markdown.length - body.length;
   const events = markdownEvents(body);
@@ -43,7 +51,7 @@ export const normalizeExportMedia = (markdown: string) => {
   const replacements: Array<{ start: number; end: number; text: string }> = [];
   // Inline tokens identify real tags outside code. HTML parsing supplies exact
   // element boundaries and raw-text semantics that Markdown flow tokens lack.
-  const hasMediaBlock = events.some(([action, token, context]) => action === "enter" && token.type === "htmlFlow" && mediaTag.test(context.sliceSerialize(token)));
+  const hasMediaBlock = events.some(([action, token, context]) => action === "enter" && token.type === "htmlFlow" && candidateTag.test(context.sliceSerialize(token)));
   const inlineEvents = hasMediaBlock ? markdownEvents(body, true) : events;
   const tagStarts = new Set(inlineEvents.filter(([action, token]) => action === "enter" && token.type === "htmlText").map(([, token]) => token.start.offset!));
   const literalRanges = inlineEvents.filter(([action, token]) => action === "enter" && ["codeText", "codeFenced", "codeIndented", "characterEscape"].includes(token.type)).map(([, token]) => ({ start: token.start.offset!, end: token.end.offset! }));
@@ -71,7 +79,7 @@ export const normalizeExportMedia = (markdown: string) => {
       flow.masked += masked;
     } else if (flow && action === "exit" && token.type === "htmlFlow") {
       const { text: html, segments } = flow;
-      if (mediaTag.test(html)) {
+      if (candidateTag.test(html)) {
         let segmentIndex = 0;
         const sourceOffset = (offset: number) => {
           while (segments[segmentIndex + 1] && segments[segmentIndex + 1]!.offset <= offset) segmentIndex++;
@@ -84,7 +92,7 @@ export const normalizeExportMedia = (markdown: string) => {
           const htmlEnd = Math.min(node.endIndex + 1, html.length);
           const end = sourceOffset(htmlEnd);
           if (!tagStarts.has(start)) continue;
-          const text = convertMedia(html.slice(node.startIndex, htmlEnd));
+          const text = convertMedia(html.slice(node.startIndex, htmlEnd), localImagesOnly);
           if (text === undefined) continue;
           const lineStart = Math.max(body.lastIndexOf("\n", start - 1), body.lastIndexOf("\r", start - 1)) + 1;
           const indent = body.slice(lineStart, start).replace(/[^>\t ]/g, " ");
@@ -103,7 +111,7 @@ export const normalizeExportMedia = (markdown: string) => {
     const block = blocks[blockIndex];
     if (block && start >= block.start) continue;
     const html = context.sliceSerialize(token);
-    const text = closingMediaTag.test(html) ? "" : openingMediaTag.test(html) ? convertMedia(html) : undefined;
+    const text = !localImagesOnly && closingMediaTag.test(html) ? "" : openingTag.test(html) ? convertMedia(html, localImagesOnly) : undefined;
     if (text !== undefined) replacements.push({ start, end, text });
   }
   for (const { start, end, text } of replacements.sort((a, b) => b.start - a.start)) {

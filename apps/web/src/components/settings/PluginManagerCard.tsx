@@ -392,7 +392,7 @@ export const PluginManagerCard = ({
   };
 
   const refreshMarketplace = async () => {
-    const next = await loadDisplayPluginMarketplace({ refreshCommunity: true });
+    const next = await loadDisplayPluginMarketplace({ refreshCommunity: true, refreshOfficial: true });
     queryClient.setQueryData(["plugin-marketplace", "v2"], next);
     return next;
   };

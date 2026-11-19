@@ -1,4 +1,5 @@
 import { spawn, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { createServer } from "node:net";
 import { existsSync, statSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
@@ -186,7 +187,11 @@ try {
   await writeFile(inputFixturePath, fixtureBytes);
   await writeFile(join(userDataDirectory, "installation-confirmed"), "e2e");
   await writeFile(join(resourceCacheDirectory, `${cachedResourceId}.bin`), fixtureBytes);
-  await writeFile(join(resourceCacheDirectory, `${cachedResourceId}.json`), JSON.stringify({ contentType: "text/plain; charset=utf-8" }));
+  await writeFile(join(resourceCacheDirectory, `${cachedResourceId}.json`), JSON.stringify({
+    contentType: "text/plain; charset=utf-8",
+    byteSize: fixtureBytes.byteLength,
+    sha256: createHash("sha256").update(fixtureBytes).digest("hex"),
+  }));
 
   const port = await availablePort();
   child = spawn(executablePath, [

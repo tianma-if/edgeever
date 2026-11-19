@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { Base64 } from "js-base64";
 import { markdownToDoc } from "./content.ts";
 import {
   addTableField,
@@ -9,6 +10,7 @@ import {
   tableAttachmentUrl,
   hasTableDocumentMarker,
   parseTableDocument,
+  parseTableDocumentMetadata,
   removeTableField,
   replaceTableView,
   serializeTableDocument,
@@ -18,6 +20,8 @@ import {
   updateTableCell,
   updateTableField,
   getTableSummary,
+  getTableViews,
+  saveTableViews,
 } from "./table.ts";
 
 describe("structured table documents", () => {
@@ -118,4 +122,92 @@ describe("structured table documents", () => {
     expect(document.records[0]?.cells.fld_files).toContain("file-0.txt");
     expect(listTableAttachmentResourceIds(document).size).toBe(0);
   });
+});
+
+
+describe("named table views", () => {
+  test("an existing v1 view keeps its matches and select sort order after upgrading", () => {
+    let old = createDefaultTableDocument();
+    old = updateTableField(old, "fld_status", { options: ["Zulu active", "Alpha active", "Other"] });
+    old = updateTableCell(old, "rec_sample", "fld_status", "Zulu active");
+    old = updateTableCell(addTableRecord(old, "rec_a"), "rec_a", "fld_status", "Alpha active");
+    old = updateTableCell(addTableRecord(old, "rec_hidden"), "rec_hidden", "fld_status", "Other");
+    old = replaceTableView(old, {
+      // V1 select fields supported textual filters and lexicographic order.
+      filters: [{ fieldId: "fld_status", operator: "contains", value: "ACTIVE" }],
+      sort: { fieldId: "fld_status", direction: "asc" },
+    });
+    expect(applyTableView(old).map((r) => r.id)).toEqual(["rec_a", "rec_sample"]);
+    const [initial] = getTableViews(parseTableDocument(serializeTableDocument(old)));
+    expect(saveTableViews(old, [initial])).toEqual(old);
+    const changedLegacy = saveTableViews(old, [{ ...initial,
+      filters: [{ fieldId: "fld_name", operator: "eq", value: "示例记录" }],
+    }]);
+    expect(changedLegacy.schemaVersion).toBe(1);
+    expect(applyTableView(changedLegacy).map((r) => r.id)).toEqual(["rec_sample"]);
+    const next = saveTableViews(old, [initial, { id: "custom", name: "New", match: "all", filters: [],
+      sorts: [{ fieldId: "fld_status", direction: "asc" }] }]);
+    const decoded = parseTableDocument(serializeTableDocument(next));
+    expect(decoded.schemaVersion).toBe(2);
+    expect(applyTableView(decoded).map((r) => r.id)).toEqual(applyTableView(old).map((r) => r.id));
+    expect(applyTableView(decoded, decoded.records, decoded.views[1]).map((r) => r.id).slice(0, 2))
+      .toEqual(["rec_sample", "rec_a"]);
+  });
+
+  test("evaluates relative dates, numeric comparisons, boolean values and secondary sorts without changing the source", () => {
+    let document = addTableField(createDefaultTableDocument(), { id: "fld_priority", name: "Priority", type: "number" });
+    document = addTableField(document, { id: "fld_done", name: "Done", type: "checkbox" });
+    for (const [id, priority, date, done] of [
+      ["rec_sample", 10, "2026-11-08", false], ["rec_early", 10, "2026-11-02", false],
+      ["rec_next", 99, "2026-11-09", false], ["rec_complete", 20, "2026-11-06", true],
+      ["rec_empty", null, "2026-11-06", false], ["rec_tie", 10, "2026-11-02", false],
+    ]) {
+      document = addTableRecord(document, id);
+      for (const [field, value] of Object.entries({ fld_priority: priority, fld_date: date, fld_done: done })) {
+        document = updateTableCell(document, id, field, value);
+      }
+    }
+    const view = { id: "week", name: "This week", match: "all", filters: [
+      { fieldId: "fld_date", operator: "thisWeek" }, { fieldId: "fld_done", operator: "eq", value: false },
+      { fieldId: "fld_priority", operator: "gte", value: 10 },
+    ], sorts: [{ fieldId: "fld_priority", direction: "desc" }, { fieldId: "fld_date", direction: "asc" }] };
+    const current = saveTableViews(document, [...getTableViews(document), view]);
+    const week = new Date(2026, 10, 6, 12);
+    expect(applyTableView(current, current.records, current.views[1], week).map((r) => r.id))
+      .toEqual(["rec_early", "rec_tie", "rec_sample"]);
+    expect(applyTableView(current, current.records, { ...current.views[1], match: "any" }, week)).toHaveLength(6);
+    expect(current.records.map((r) => r.id)).toEqual(document.records.map((r) => r.id));
+    const changed = updateTableField(current, "fld_priority", { type: "text" });
+    expect(changed.views[1].filters.map((rule) => rule.fieldId)).toEqual(["fld_date", "fld_done"]);
+    expect(removeTableField(changed, "fld_date").views[1].sorts.map((rule) => rule.fieldId)).toEqual(["fld_priority"]);
+  });
+});
+
+test("legacy and named table metadata matches full parsing without changing marker bytes", () => {
+  const legacy = updateTableCell(createDefaultTableDocument(), "rec_sample", "fld_name", "旧表 🧭\r text");
+  const named = saveTableViews(legacy, [getTableViews(legacy)[0], { id: "other", name: "Other", match: "all", filters: [], sorts: [] }]);
+  for (const table of [legacy, named]) {
+    const raw = JSON.stringify(table);
+    const encoded = Base64.encodeURI(raw);
+    const markdown = serializeTableDocument(table);
+    expect(markdown.endsWith("<!-- edgeever-table-v1:" + encoded + " -->")).toBe(true);
+    const wrapped = markdown.replace(encoded, encoded.slice(0, 35) + "\n  " + encoded.slice(35));
+    expect(parseTableDocument(wrapped)).toEqual(table);
+    expect(parseTableDocumentMetadata(wrapped)).toEqual({ fields: table.fields, recordCount: table.records.length });
+  }
+});
+
+test("metadata rejects markers the full parser cannot read", () => {
+  const legacy = createDefaultTableDocument();
+  const marker = (raw) => "<!-- edgeever-table-v1:" + Base64.encodeURI(raw) + " -->";
+  const bad = [
+    JSON.stringify({ ...legacy, records: [legacy.records[0], legacy.records[0]] }),
+    JSON.stringify({ ...legacy, records: [{ id: "bad", cells: { fld_name: { toString: 42 } } }] }).replace('"toString"', '"toStr\\u0069ng"'),
+    JSON.stringify({ ...legacy, schemaVersion: 2, views: [] }),
+    "\uFEFF" + JSON.stringify(legacy),
+  ];
+  for (const raw of bad) {
+    expect(parseTableDocument(marker(raw))).toBeNull();
+    expect(parseTableDocumentMetadata(marker(raw))).toBeNull();
+  }
 });

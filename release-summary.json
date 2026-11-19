@@ -1,20 +1,26 @@
 {
-  "version": "2.28.2",
+  "version": "2.30.0",
   "changes": {
     "en-US": [
-      "Restore desktop PDF export from note menus.",
-      "Allow desktop sign-out when the instance is offline, and clarify the current instance and sign-in switching instructions.",
-      "Fix dark appearance in infographic galleries, canvases, and poster workspaces, improve editing control visibility, and unify solid button colors."
+      "Repair desktop attachment caching so interrupted downloads cannot leave truncated files or corrupt later previews.",
+      "Fix syncing and displaying merged desktop notes, including missing separators and recovery of content merged by older clients.",
+      "Improve Evernote imports with support for long titles and an optional recovery mode that skips invalid or missing attachments while preserving the remaining note content.",
+      "Reduce loading overhead when opening the workspace, editor, and personal center on Web and desktop.",
+      "Fix desktop local agents confusing background context with the current request and replying with setup acknowledgments."
     ],
     "zh-CN": [
-      "修复桌面端从笔记菜单导出 PDF 失败的问题。",
-      "修复实例离线时桌面端无法退出登录的问题，明确显示当前实例及切换登录方式。",
-      "修复信息图图库、画布和海报工作区的深色模式显示，改善编辑控件可见性并统一实心按钮配色。"
+      "修复桌面端附件缓存，避免下载中断留下不完整文件或影响后续预览。",
+      "修复桌面端合并笔记的同步与显示，恢复分隔线，并兼容旧版客户端合并的内容。",
+      "改进 Evernote 导入，支持超长标题，并可选择跳过异常或缺失附件以恢复其余笔记内容。",
+      "减少 Web 和桌面端打开工作区、编辑器、个人中心时的加载负担。",
+      "修复桌面端本地 AI 代理将背景信息误当成当前问题、只回复就绪确认的情况。"
     ],
     "ja": [
-      "デスクトップ版のノートメニューから PDF を書き出せない問題を修正しました。",
-      "インスタンスがオフラインでもデスクトップ版からサインアウトできるようにし、現在のインスタンスと接続先の切り替え手順を明確にしました。",
-      "インフォグラフィックのギャラリーとキャンバス、ポスター編集画面のダーク表示を修正し、編集操作を見つけやすくしてボタンの配色を統一しました。"
+      "デスクトップ版の添付ファイルキャッシュを修正し、中断されたダウンロードによるファイルの欠損やプレビューへの影響を防ぎます。",
+      "デスクトップ版で結合したノートの同期と表示を修正し、区切り線と旧バージョンで結合した内容を復元します。",
+      "Evernoteのインポートで長いタイトルに対応し、不正または欠落した添付ファイルをスキップして残りのノート内容を復元できるようにしました。",
+      "Web版とデスクトップ版で、ワークスペース、エディター、パーソナルセンターを開く際の読み込み負荷を軽減しました。",
+      "デスクトップ版のローカルAIエージェントが背景情報を現在の依頼と取り違え、準備完了の確認だけを返す問題を修正しました。"
     ]
   }
 }

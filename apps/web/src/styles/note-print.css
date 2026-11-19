@@ -213,9 +213,14 @@
 .edgeever-print-content hr[data-edgeever-merge-divider] {
   margin: 1.5rem 0;
   border: 0;
-  border-top: 2px solid #1a1d21;
-  background: transparent;
-  height: 0;
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    rgba(26, 29, 33, 0.28) 16%,
+    rgba(26, 29, 33, 0.28) 84%,
+    transparent
+  );
 }
 
 .edgeever-print-content a {

@@ -797,6 +797,21 @@ describe("structured plugin note APIs", () => {
     expect((await f.context.diagrams.get("note-1")).diagram.nodes[0].label).toBe("Root");
   });
 
+  test("keeps the v1 plugin API shape without discarding v2 views on record edits", async () => {
+    const legacy = structured.parseTableDocument(tableMarkdown());
+    const views = [...structured.getTableViews(legacy), {
+      id: "new", name: "Named view", match: "all", filters: [{ fieldId: "name", operator: "neq", value: "Hidden" }], sorts: [],
+    }];
+    const f = setup(structured.serializeTableDocument(structured.saveTableViews(legacy, views)));
+    const read = await f.context.tables.get("note-1");
+    expect(read.table).toEqual(legacy);
+    const result = await f.context.tables.edit("note-1", { ...input(read), operations: [
+      { op: "update_record", recordId: "row", cells: { name: "Edited" } },
+    ] });
+    expect(result.table).toMatchObject({ schemaVersion: 1, records: [{ cells: { name: "Edited" } }] });
+    expect(structured.parseTableDocument(f.getMemo().contentMarkdown).views).toEqual(views);
+  });
+
   test("applies table records and cells as one batch and rejects bad values atomically", async () => {
     const f = setup(tableMarkdown());
     let read = await f.context.tables.get("note-1");

@@ -232,3 +232,19 @@ describe("bundled plugin marketplace", () => {
     expect(resolved.resolutionErrors[registry.entries[0].id]).toContain("503");
   });
 });
+
+test("shares marketplace resolution for concurrent consumers but bypasses it for explicit refresh", async () => {
+  const { loadResolvedPluginMarketplace } = await import("./plugin-marketplace.ts");
+  let calls = 0;
+  const request = async () => {
+    calls++;
+    return Response.json({ registryVersion: "1", updatedAt: "2026-11-19T00:00:00.000Z", entries: [] });
+  };
+  const results = await Promise.all(Array.from({ length: 20 }, () => loadResolvedPluginMarketplace("/registry-a.json", request)));
+  expect(calls).toBe(1);
+  expect(results.every(result => result === results[0])).toBe(true);
+  await loadResolvedPluginMarketplace("/registry-a.json", request, undefined, true);
+  expect(calls).toBe(2);
+  await loadResolvedPluginMarketplace("/registry-b.json", request);
+  expect(calls).toBe(3);
+});

@@ -201,7 +201,8 @@ describe("signed community registry", () => {
   test("keeps startup official sync on the bundled registry", () => {
     const host = readFileSync(new URL("./plugin-host.ts", import.meta.url), "utf8");
     const workspace = readFileSync(new URL("../../components/WorkspaceApp.tsx", import.meta.url), "utf8");
-    expect(host).toContain("loadResolvedPluginMarketplace");
+    expect(host).toContain("loadPluginMarketplace");
+    expect(host).not.toContain("loadResolvedPluginMarketplace");
     expect(host).not.toContain("loadDisplayPluginMarketplace");
     expect(host).not.toContain("getCommunityPluginRegistry");
     expect(workspace).toContain("loadResolvedPluginMarketplace");
