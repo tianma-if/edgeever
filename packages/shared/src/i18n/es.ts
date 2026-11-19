@@ -750,6 +750,10 @@ export const es = {
     "refresh": "Actualizar",
     "refreshTooltip": "Recargar esta tabla",
     "refreshError": "No se pudo recargar la tabla",
+    "openUrl": "Abrir enlace {{url}}",
+    "openUrlTooltip": "Abrir enlace",
+    "editUrl": "Editar URL en {{name}}",
+    "editUrlTooltip": "Editar URL",
     "form": {
       "title": "Recopilación por formulario",
       "description": "Comparte un enlace de formulario para que otros lo completen. Las respuestas se añadirán como nuevos registros en la tabla y los encuestados no podrán ver las filas existentes.",

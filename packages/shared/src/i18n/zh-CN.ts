@@ -611,6 +611,10 @@ export const zhCN = {
     refresh: "刷新",
     refreshTooltip: "重新载入这张表格",
     refreshError: "表格刷新失败",
+    openUrl: "打开链接 {{url}}",
+    openUrlTooltip: "打开链接",
+    editUrl: "编辑 {{name}} 地址",
+    editUrlTooltip: "编辑地址",
     form: {
       title: "表单收集",
       description: "分享表单链接给他人填写，提交内容会自动追加为一条新记录，填写人无法查看已有数据。",

@@ -600,6 +600,10 @@ export const ja = {
     refresh: "更新",
     refreshTooltip: "このテーブルを読み込み直す",
     refreshError: "テーブルを読み込めませんでした",
+    openUrl: "リンクを開く {{url}}",
+    openUrlTooltip: "リンクを開く",
+    editUrl: "{{name}} の URL を編集",
+    editUrlTooltip: "URL を編集",
     form: {
       title: "フォーム収集",
       description: "フォームのリンクを共有して回答してもらうと、提出内容が新しい行として自動追加されます。回答者は既存のデータを閲覧できません。",
