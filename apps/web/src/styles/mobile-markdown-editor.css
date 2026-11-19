@@ -649,9 +649,14 @@ html.dark .edgeever-mobile-tiptap-content a:hover {
 .edgeever-mobile-tiptap-content hr.edgeever-merge-divider,
 .edgeever-mobile-tiptap-content hr[data-edgeever-merge-divider] {
   border: 0;
-  border-top: 2px solid var(--memo-content-divider-color, #1a1d21);
-  background: transparent;
-  height: 0;
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    color-mix(in srgb, currentColor 20%, transparent) 16%,
+    color-mix(in srgb, currentColor 20%, transparent) 84%,
+    transparent
+  );
   margin: 1.5rem 0;
 }
 
