@@ -48,6 +48,11 @@ This document defines the standard operating specifications and conventions for 
    - Confirm Cloudflare **Deployments** builds the published `main` commit when a push occurred.
    - Do not edit deployment files or rely on GitHub **Sync fork** for routine upgrades; the workflow is the only synchronization path needed by a normal deployment Fork. Use **Sync fork** once only when an old Fork must receive a newer updater workflow itself, then return to **Update deployed EdgeEver**.
 
+## Preserving Authentication on Redeploy
+
+- Every deployment reads the active Worker versions first. Existing authentication Secrets and `EDGE_EVER_SESSION_TTL_DAYS` are preserved by default, including an unset lifetime; stale build-time values are ignored. If live configuration cannot be read or active versions disagree, deployment stops before uploading.
+- Keep passwords in Worker runtime Secrets. Intentional local maintenance and replacement flags are documented in [local deployment authentication](deploy-cloudflare-local.md).
+
 ## Official Demo Routing
 
 - Demo adds only `/` and `/index.html` to the business `run_worker_first` routes for homepage canonical handling. Never set `run_worker_first = true`: static assets must bypass Worker execution and its request quota.

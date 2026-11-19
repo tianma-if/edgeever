@@ -292,11 +292,29 @@ const doctor = () => {
   const password = envValue("AUTH_PASSWORD", values);
   const passwordHashValid = Boolean(passwordHash && PASSWORD_HASH_PATTERN.test(passwordHash));
   const passwordConfigured = Boolean(password);
+  const workerConfigPath = resolve(process.env.WRANGLER_CONFIG || "wrangler.toml");
+  const workerName = envValue("WORKER_NAME", values)
+    || (existsSync(workerConfigPath) ? readFileSync(workerConfigPath, "utf8").match(/^name\s*=\s*"([^"]+)"/m)?.[1] : undefined)
+    || "edgeever";
+  const secretList = wranglerAvailable ? runWrangler(["secret", "list", "--name", workerName]) : undefined;
+  let hasDeployedAuthSecret = false;
+  if (secretList?.status === 0) {
+    try {
+      const secrets = JSON.parse(secretList.stdout);
+      hasDeployedAuthSecret = Array.isArray(secrets) && secrets.some((secret) =>
+        ["EDGE_EVER_AUTH_PASSWORD", "EDGE_EVER_AUTH_PASSWORD_HASH"].includes(secret?.name)
+      );
+    } catch {
+      // The deploy runner independently requires readable live version metadata.
+    }
+  }
   passed =
     check(
       "auth password",
-      passwordHash ? passwordHashValid : passwordConfigured,
-      passwordHash
+      hasDeployedAuthSecret || (passwordHash ? passwordHashValid : passwordConfigured),
+      hasDeployedAuthSecret
+        ? "existing Worker Secret will be preserved; local credentials are ignored"
+        : passwordHash
         ? passwordHashValid
           ? password
             ? "hash configured and takes precedence over password secret"

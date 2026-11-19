@@ -21,6 +21,7 @@ import {
   productionVersionIds,
   repositoryWranglerConfigError,
   resolveWranglerAssetsDirectory,
+  resolveDeploymentAuth,
   runWranglerSync,
   shouldCaptureDeploymentTargets,
 } from "./wrangler-runner.mjs";
@@ -29,7 +30,13 @@ import { writeWranglerNotice } from "./wrangler-output.mjs";
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-const wranglerArgs = process.argv.slice(2);
+const requestedArgs = process.argv.slice(2);
+const updateAuthSecret = requestedArgs.includes("--update-auth-secret");
+const updateSessionTtl = requestedArgs.includes("--update-session-ttl");
+const wranglerArgs = requestedArgs.filter((arg) => !["--update-auth-secret", "--update-session-ttl"].includes(arg));
+if ((updateAuthSecret || updateSessionTtl) && !wranglerArgs.includes("deploy")) {
+  throw new Error("Authentication update flags are only supported for deploy.");
+}
 if (wranglerArgs.length === 0) {
   console.error("Usage: bun scripts/run-wrangler.mjs <wrangler args...>");
   process.exit(1);
@@ -241,8 +248,9 @@ const explicitR2BucketName = envValue("R2_BUCKET_NAME");
 const explicitAuthUsername = envValue("AUTH_USERNAME");
 let inheritedR2BucketName;
 let inheritedAuthUsername;
+let deployedSettings = [];
 
-if (isDeployCommand && (!explicitR2BucketName || !explicitAuthUsername)) {
+if (isDeployCommand) {
   const deployedWorkerName = config.match(/^name\s*=\s*"([^"]+)"/m)?.[1] ?? "edgeever";
   const statusResult = runWranglerSync(
     [
@@ -270,7 +278,7 @@ if (isDeployCommand && (!explicitR2BucketName || !explicitAuthUsername)) {
     if (versionIds.length === 0) {
       throw new Error("The existing Worker has no active production version to inspect.");
     }
-    const deployedSettings = versionIds.map((versionId) => {
+    deployedSettings = versionIds.map((versionId) => {
       const versionResult = runWranglerSync(
         [
           "--config",
@@ -314,6 +322,23 @@ if (isDeployCommand && (!explicitR2BucketName || !explicitAuthUsername)) {
 
 const resolvedR2BucketName = explicitR2BucketName || inheritedR2BucketName;
 const resolvedAuthUsername = explicitAuthUsername || inheritedAuthUsername || "admin";
+const configuredAuthSecrets = {
+  ...(envValue("AUTH_PASSWORD") ? { EDGE_EVER_AUTH_PASSWORD: envValue("AUTH_PASSWORD") } : {}),
+  ...(envValue("AUTH_PASSWORD_HASH") ? { EDGE_EVER_AUTH_PASSWORD_HASH: envValue("AUTH_PASSWORD_HASH") } : {}),
+};
+const deploymentAuth = isDeployCommand ? resolveDeploymentAuth({
+  deployedSettings,
+  secrets: configuredAuthSecrets,
+  sessionTtlDays: envValue("SESSION_TTL_DAYS"),
+  updateAuthSecret,
+  updateSessionTtl,
+}) : undefined;
+if (deploymentAuth?.preservingAuthSecret) {
+  writeWranglerNotice("info", "preserving the existing Worker authentication Secret; local credentials are ignored (use --update-auth-secret to replace it)");
+}
+if (isDeployCommand && deployedSettings.length > 0 && !updateSessionTtl) {
+  writeWranglerNotice("info", "preserving the existing Worker session lifetime; local values are ignored (use --update-session-ttl to replace it)");
+}
 
 config = replaceTomlValue(config, "bucket_name", resolvedR2BucketName);
 config = replaceTomlValue(
@@ -326,7 +351,7 @@ const runtimeVars = {
   // Keep the login identifier explicit in generated online deployments so
   // users can discover and override the default without changing code.
   EDGE_EVER_AUTH_USERNAME: resolvedAuthUsername,
-  EDGE_EVER_SESSION_TTL_DAYS: envValue("SESSION_TTL_DAYS"),
+  EDGE_EVER_SESSION_TTL_DAYS: isDeployCommand ? deploymentAuth.sessionTtlDays : envValue("SESSION_TTL_DAYS"),
   EDGE_EVER_AUTH_LOGIN_WINDOW_SECONDS: envValue("AUTH_LOGIN_WINDOW_SECONDS"),
   EDGE_EVER_AUTH_LOGIN_USERNAME_MAX_ATTEMPTS: envValue("AUTH_LOGIN_USERNAME_MAX_ATTEMPTS"),
   EDGE_EVER_AUTH_LOGIN_USERNAME_COOLDOWN_SECONDS: envValue("AUTH_LOGIN_USERNAME_COOLDOWN_SECONDS"),
@@ -424,28 +449,15 @@ if (changed) {
   writeFileSync(generatedConfigPath, config);
 }
 
-const captureDeploymentTargets = isDeployCommand && shouldCaptureDeploymentTargets();
+const isDryRun = wranglerArgs.includes("--dry-run") || wranglerArgs.includes("--dry-run=true");
+const captureDeploymentTargets = isDeployCommand && !isDryRun && shouldCaptureDeploymentTargets();
 const deploymentTargetsPath = resolve(DEPLOYMENT_TARGETS_PATH);
 const hasSecretsFileArg = wranglerArgs.some((arg) => arg === "--secrets-file" || arg.startsWith("--secrets-file="));
 const hasEnvFileArg = wranglerArgs.some((arg) => arg === "--env-file" || arg.startsWith("--env-file="));
-const authPassword = envValue("AUTH_PASSWORD");
-const authPasswordHash = envValue("AUTH_PASSWORD_HASH");
-const authSecrets = {
-  ...(authPassword ? { EDGE_EVER_AUTH_PASSWORD: authPassword } : {}),
-  ...(authPasswordHash ? { EDGE_EVER_AUTH_PASSWORD_HASH: authPasswordHash } : {}),
-};
+const authSecrets = deploymentAuth?.secrets ?? {};
 const finalWranglerArgs = [...wranglerArgs];
-const useExistingAuthSecret = process.env.EDGE_EVER_USE_EXISTING_AUTH_SECRET?.trim().toLowerCase() === "true";
-
-if (isDeployCommand && Object.keys(authSecrets).length === 0 && !useExistingAuthSecret) {
-  console.error(
-    "Refusing to deploy without EDGE_EVER_AUTH_PASSWORD or EDGE_EVER_AUTH_PASSWORD_HASH. Run bun run deploy:setup first, or use the Cloudflare one-click deploy entrypoint.",
-  );
-  process.exit(1);
-}
-
-if (isDeployCommand && Object.keys(authSecrets).length === 0 && useExistingAuthSecret) {
-  writeWranglerNotice("info", "using the authentication Secret provisioned by Cloudflare");
+if (isDeployCommand && deploymentAuth.preservingAuthSecret && hasSecretsFileArg) {
+  throw new Error("--secrets-file can replace authentication Secrets; use --update-auth-secret explicitly when supplying it to an existing authenticated Worker.");
 }
 
 if (isDevCommand) {
@@ -486,7 +498,7 @@ if (captureDeploymentTargets) {
   }
 }
 
-if (result.status === 0 && isDeployCommand) {
+if (result.status === 0 && isDeployCommand && !isDryRun) {
   for (const [secretName, secretValue] of Object.entries(authSecrets)) {
     const secretResult = runWranglerSync(["--config", configPath, "secret", "put", secretName], {
       cwd: resolve("."),

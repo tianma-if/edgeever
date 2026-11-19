@@ -48,6 +48,11 @@
    - 若发生了 push，确认 Cloudflare **Deployments** 构建的是对应的 `main` commit。
    - 普通部署 Fork 不应修改部署文件，日常升级也不要依赖 GitHub **Sync fork**；本工作流就是唯一需要的同步路径。只有旧 Fork 必须取得新版更新工作流本身时，才使用一次 **Sync fork**，之后继续使用 **Update deployed EdgeEver**。
 
+## 重新部署时保留认证配置
+
+- 每次部署都先读取线上活跃 Worker 版本。默认保留已有认证 Secret 和 `EDGE_EVER_SESSION_TTL_DAYS`（包括未设置的状态），忽略构建时残留的配置值。无法读取线上配置或活跃版本配置冲突时，在上传前停止。
+- 密码保存在 Worker 运行时 Secret。有意进行本地维护和替换配置的参数见[本地部署认证配置](deploy-cloudflare-local.zh-CN.md)。
+
 ## 官方 Demo 路由
 
 - Demo 仅在业务 `run_worker_first` 路由中增加 `/` 和 `/index.html`，用于首页 canonical。禁止设置 `run_worker_first = true`：静态资源必须绕过 Worker 执行及其请求额度。
