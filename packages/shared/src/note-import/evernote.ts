@@ -70,7 +70,8 @@ export async function* readEnex(
       if (name === "data") decode(value);
       else if (name === "mime") resource.mimeType = (resource.mimeType === "application/octet-stream" ? "" : resource.mimeType) + value;
       else if (name === "file-name") resource.filename += value;
-    } else if (name === "title") note.title += value;
+    } else if (stack.length !== 3) return; // Evernote tasks and reminders inside a note have their own title and dates
+    else if (name === "title") note.title += value;
     else if (name === "created") note.created += value;
     else if (name === "updated") note.updated += value;
     else if (name === "tag") tagText += value;
