@@ -535,3 +535,46 @@ describe("bulk authorization stays within D1's per-statement parameter limit", (
     }
   });
 });
+
+describe("table tools honor the notebook whitelist", () => {
+  // getTableMemoSource must return the owning notebookId so assertMemoAccess can
+  // authorize the slim table read/write entry points (merge integration with the
+  // table-source query introduced on main).
+  test("restricted tokens read and write tables only in granted notebooks", async () => {
+    const { context, makeAuth } = createFixture();
+    const admin = makeAuth(null);
+    const call = (auth, tool, args) => callMcpTool(context, auth, tool, args);
+    const fields = [{ name: "Name", type: "text" }];
+    const allowed = await call(admin, "create_table_memo", { notebookId: "nb_allowed", title: "Allowed Table", fields });
+    const secret = await call(admin, "create_table_memo", { notebookId: "nb_secret", title: "Secret Table", fields });
+    const fieldId = allowed.fields[0].id;
+    const writer = makeAuth([{ notebookId: "nb_allowed", read: true, write: true }], "write");
+
+    // Authorized read succeeds now that the table source carries notebookId.
+    expect((await call(writer, "get_table_records", { memoId: allowed.memo.id })).memoId).toBe(allowed.memo.id);
+    // Unauthorized read is denied.
+    await expect(call(writer, "get_table_records", { memoId: secret.memo.id }))
+      .rejects.toMatchObject({ code: "notebook_access_denied", status: 403 });
+    // Authorized write succeeds.
+    const added = await call(writer, "add_table_record", {
+      memoId: allowed.memo.id, expectedRevision: allowed.memo.revision, cells: { [fieldId]: "Row" },
+    });
+    expect(added.memoId).toBe(allowed.memo.id);
+    // Unauthorized write is denied.
+    await expect(call(writer, "add_table_record", {
+      memoId: secret.memo.id, expectedRevision: secret.memo.revision, cells: { [fieldId]: "Row" },
+    })).rejects.toMatchObject({ code: "notebook_access_denied", status: 403 });
+  });
+
+  test("a read-level token reads granted tables but cannot write them", async () => {
+    const { context, makeAuth } = createFixture();
+    const admin = makeAuth(null);
+    const call = (auth, tool, args) => callMcpTool(context, auth, tool, args);
+    const created = await call(admin, "create_table_memo", { notebookId: "nb_allowed", title: "T", fields: [{ name: "Name", type: "text" }] });
+    const reader = makeAuth([{ notebookId: "nb_allowed", read: true, write: false }], "read");
+    expect((await call(reader, "get_table_records", { memoId: created.memo.id })).memoId).toBe(created.memo.id);
+    await expect(call(reader, "add_table_record", {
+      memoId: created.memo.id, expectedRevision: created.memo.revision, cells: { [created.fields[0].id]: "X" },
+    })).rejects.toMatchObject({ code: "notebook_access_denied", status: 403 });
+  });
+});

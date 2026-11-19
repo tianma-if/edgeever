@@ -388,6 +388,25 @@ export const registerResourceRoutes = (
       context.env.storage.db, getWorkspaceId(context), context.req.param("id"),
     ) ?? await getPendingResourceBlobRow(context.env.storage.db, getWorkspaceId(context), context.req.param("id"));
     if (!resource) return apiError(context, "resource_not_found", "Resource not found", 404);
+    // Metadata exposes the same owning-notebook boundary as the blob itself:
+    // a notebook-restricted token must not learn the existence/size of a
+    // resource outside its whitelist. Reuse the owning-memo read guard on the
+    // row already fetched (no second resource lookup). Pending (unbound)
+    // resources have no memo/notebook owner and stay workspace-readable,
+    // exactly as for /blob.
+    try {
+      if ("memo_id" in resource) {
+        await assertResourceMemoAccess(
+          context,
+          resource.memo_id,
+          "read",
+          await resolveRequestNotebookAccess(context),
+          "read this resource's metadata",
+        );
+      }
+    } catch (error) {
+      return appErrorResponse(context, error);
+    }
     context.header("Cache-Control", "no-store");
     return context.json({ byteSize: resource.byte_size, updatedAt: "updated_at" in resource ? resource.updated_at : null });
   });
