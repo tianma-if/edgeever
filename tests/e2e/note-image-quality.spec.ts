@@ -6,7 +6,8 @@ import { NOTE_IMAGE_THEME_OPTIONS } from '../../packages/shared/src/note-image-c
 
 type CaseResult = {
   theme: string; width: number; height: number; expectedWidth: number; expectedHeight: number; density: number;
-  green: number; dark: number; tile: string; mark: string; opacity: number; effects: boolean; overflow: string[];
+  green: number; lightGreen: number; deepGreen: number; dark: number; tile: string; mark: string;
+  gradient: string[]; opacity: number; effects: boolean; overflow: string[];
   titleSize: number; bodySize: number; headingSizes: number[]; paragraphGap: number | null;
   integrity: { stackedValues: number; mergedCells: number; complete: boolean; imageRatios: number[] } | null;
 };
@@ -47,9 +48,14 @@ for (const theme of NOTE_IMAGE_THEME_OPTIONS) {
       expect(result.width * result.height, label).toBeLessThanOrEqual(80_000_000);
       expect(result.opacity, label).toBe(1);
       expect(result.effects, label).toBe(false);
-      expect(result.tile, label).toBe('#16a06e');
+      expect(result.tile, label).toBe('url(#edgeever-note-tile)');
+      expect(result.gradient, label).toEqual(['#36d98e', '#12c578']);
       expect(result.mark, label).toBe('#07130b');
       expect(result.green, label).toBeGreaterThan(50);
+      if (format === 'png') {
+        expect(result.lightGreen, label).toBeGreaterThan(8);
+        expect(result.deepGreen, label).toBeGreaterThan(8);
+      }
       expect(result.dark, label).toBeGreaterThan(4);
       expect(result.overflow, label).toEqual([]);
       expect(result.titleSize, label).toBeGreaterThan(Math.max(result.bodySize, ...result.headingSizes));

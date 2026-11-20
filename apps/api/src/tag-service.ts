@@ -4,6 +4,12 @@ import { AppError } from "./app-error";
 import { auditStatement } from "./audit";
 import { isoNow, parseJsonArray } from "./entity-utils";
 import { upsertMemoSearchDocumentStatement } from "./memo-search-index";
+import {
+  assertNotebookAccess,
+  memoNotebookAccessSql,
+  notebookAccessBinds,
+  type NotebookAccess,
+} from "./token-notebook-access";
 import type { DatabaseAdapter, PreparedStatementAdapter } from "./storage-contract";
 
 type TagSummaryRow = {
@@ -26,20 +32,31 @@ const mapTagSummary = (row: TagSummaryRow): TagSummary => ({
   updatedAt: row.updated_at,
 });
 
-const getMemoRowsByTag = async (db: DatabaseAdapter, workspaceId: string, tag: string) => {
+const getMemoRowsByTag = async (
+  db: DatabaseAdapter,
+  workspaceId: string,
+  tag: string,
+  notebookAccess?: NotebookAccess,
+) => {
+  const accessFilter = notebookAccess?.restricted
+    ? `AND ${memoNotebookAccessSql("m.notebook_id", notebookAccess, "write")}`
+    : "";
+  const accessBinds = notebookAccess?.restricted
+    ? notebookAccessBinds(notebookAccess, "write")
+    : [];
   const rows = await db
     .prepare(
       `SELECT m.id, m.title, m.tags_json, m.notebook_id, c.content_text
        FROM memos m
        INNER JOIN memo_contents c ON c.memo_id = m.id
-       WHERE m.workspace_id = ? AND m.is_deleted = 0
+       WHERE m.workspace_id = ? AND m.is_deleted = 0 ${accessFilter}
          AND EXISTS (
            SELECT 1
            FROM memo_tags mt
            WHERE mt.memo_id = m.id AND mt.workspace_id = ? AND mt.name = ?
          )`
     )
-    .bind(workspaceId, workspaceId, tag)
+    .bind(workspaceId, ...accessBinds, workspaceId, tag)
     .all<MemoTagUpdateRow>();
 
   return rows.results;
@@ -53,7 +70,17 @@ const replaceTag = (currentTags: string[], oldTag: string, nextTag: string | nul
     })
   );
 
-export const listTagSummaries = async (db: DatabaseAdapter, workspaceId: string): Promise<TagSummary[]> => {
+export const listTagSummaries = async (
+  db: DatabaseAdapter,
+  workspaceId: string,
+  notebookAccess?: NotebookAccess,
+): Promise<TagSummary[]> => {
+  const accessFilter = notebookAccess?.restricted
+    ? `AND ${memoNotebookAccessSql("m.notebook_id", notebookAccess, "read")}`
+    : "";
+  const accessBinds = notebookAccess?.restricted
+    ? notebookAccessBinds(notebookAccess, "read")
+    : [];
   const rows = await db
     .prepare(
       `SELECT mt.name AS name,
@@ -61,11 +88,11 @@ export const listTagSummaries = async (db: DatabaseAdapter, workspaceId: string)
               MAX(m.updated_at) AS updated_at
        FROM memo_tags mt
        INNER JOIN memos m ON m.id = mt.memo_id AND m.workspace_id = mt.workspace_id
-       WHERE mt.workspace_id = ? AND m.is_deleted = 0
+       WHERE mt.workspace_id = ? AND m.is_deleted = 0 ${accessFilter}
        GROUP BY mt.name
        ORDER BY mt.normalized_name ASC, mt.name ASC`
     )
-    .bind(workspaceId)
+    .bind(workspaceId, ...accessBinds)
     .all<TagSummaryRow>();
 
   return rows.results
@@ -79,14 +106,15 @@ export const updateTagAcrossMemos = async (
   oldTag: string,
   nextTag: string | null,
   actor: AuditActor,
-  actorLabel: string
+  actorLabel: string,
+  notebookAccess?: NotebookAccess,
 ) => {
   const normalizedOld = normalizeTags([oldTag])[0];
   const normalizedNext = nextTag === null ? null : normalizeTags([nextTag])[0];
 
   if (!normalizedOld || normalizedOld === normalizedNext) return 0;
 
-  const rows = await getMemoRowsByTag(db, workspaceId, normalizedOld);
+  const rows = await getMemoRowsByTag(db, workspaceId, normalizedOld, notebookAccess);
   const now = isoNow();
   const statements: PreparedStatementAdapter[] = [];
   let updated = 0;
@@ -121,7 +149,8 @@ export const previewTagRename = async (
   db: DatabaseAdapter,
   workspaceId: string,
   oldTag: string,
-  nextTag: string | null
+  nextTag: string | null,
+  notebookAccess?: NotebookAccess,
 ) => {
   const normalizedOld = normalizeTags([oldTag])[0];
   const normalizedNext = nextTag === null ? null : normalizeTags([nextTag])[0];
@@ -130,7 +159,7 @@ export const previewTagRename = async (
     return { dryRun: true, updated: 0, changes: [] };
   }
 
-  const rows = await getMemoRowsByTag(db, workspaceId, normalizedOld);
+  const rows = await getMemoRowsByTag(db, workspaceId, normalizedOld, notebookAccess);
   const changes = rows.map((row) => {
     const currentTags = parseJsonArray(row.tags_json);
     return {
@@ -154,6 +183,7 @@ export const updateTagsForMemos = async (
     dryRun: boolean;
     actor: AuditActor;
     actorLabel: string;
+    notebookAccess?: NotebookAccess;
   }
 ) => {
   const memoIds = Array.from(new Set(input.memoIds));
@@ -176,6 +206,12 @@ export const updateTagsForMemos = async (
 
   if (rows.results.length !== memoIds.length) {
     throw new AppError("missing_memos", "One or more memos cannot be updated.", 400);
+  }
+
+  if (input.notebookAccess?.restricted) {
+    for (const row of rows.results) {
+      assertNotebookAccess(input.notebookAccess, "write", row.notebook_id, "change memo tags");
+    }
   }
 
   const changes = rows.results

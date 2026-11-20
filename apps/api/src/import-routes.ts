@@ -6,6 +6,10 @@ import { AppError } from "./app-error";
 import { apiError } from "./http-errors";
 import { importMemosRecord } from "./memo-service";
 import { getActorLabel, getAuditActor, getWorkspaceId, requireScopes } from "./request-auth";
+import {
+  assertNotebookAccess,
+  resolveRequestNotebookAccess,
+} from "./token-notebook-access";
 
 const importSchema = z.object({
   importId: z.uuid(),
@@ -44,6 +48,12 @@ export const registerImportRoutes = (app: Hono<AppEnv>) => {
     if (denied) return denied;
     const input = context.req.valid("json");
     try {
+      assertNotebookAccess(
+        await resolveRequestNotebookAccess(context),
+        "write",
+        input.notebookId,
+        "import memos",
+      );
       return context.json(await importMemosRecord(context.env.storage.db, getWorkspaceId(context), {
         source: `third-party-${input.format}-${input.importId}`,
         notebookId: input.notebookId,
@@ -51,6 +61,7 @@ export const registerImportRoutes = (app: Hono<AppEnv>) => {
         dryRun: input.dryRun,
         actor: getAuditActor(context),
         actorLabel: getActorLabel(context),
+        notebookAccess: await resolveRequestNotebookAccess(context),
       }));
     } catch (error) {
       if (error instanceof AppError) return apiError(context, error.code, error.message, error.status);

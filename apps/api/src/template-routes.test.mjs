@@ -435,3 +435,50 @@ describe("template CRUD routes", () => {
     expect(harness.auditActions().at(-1)).toMatchObject({ action: "template.delete", entity_id: id });
   });
 });
+
+describe("template notebook access", () => {
+  const restrictedAuth = {
+    kind: "agent",
+    actorType: "agent",
+    actorId: "tok_restricted",
+    username: "restricted-agent",
+    scopes: ["read:memos", "write:memos"],
+    workspaceId: "ws_owner",
+    role: "member",
+    notebookAccess: [{ notebookId: "nb_a", read: true, write: true }],
+    notebookDefaultAccess: "none",
+  };
+
+  test("notebook-restricted tokens cannot list, create, update, use, or delete templates", async () => {
+    const harness = createTemplateHarness();
+
+    const listed = await harness.request("/api/v1/templates", {}, restrictedAuth);
+    expect(listed.status).toBe(403);
+    expect(await listed.json()).toMatchObject({ error: { code: "notebook_access_denied" } });
+
+    const created = await harness.request("/api/v1/templates", { method: "POST", json: { name: "X", contentMarkdown: "y" } }, restrictedAuth);
+    expect(created.status).toBe(403);
+
+    const updated = await harness.request("/api/v1/templates/tpl_1", { method: "PATCH", json: { name: "X" } }, restrictedAuth);
+    expect(updated.status).toBe(403);
+
+    const used = await harness.request("/api/v1/templates/tpl_1/use", { method: "POST", json: { notebookId: "nb_a" } }, restrictedAuth);
+    expect(used.status).toBe(403);
+
+    const deleted = await harness.request("/api/v1/templates/tpl_1", { method: "DELETE" }, restrictedAuth);
+    expect(deleted.status).toBe(403);
+  });
+
+  test("tokens without memo scopes cannot manage templates", async () => {
+    const harness = createTemplateHarness();
+    const response = await harness.request("/api/v1/templates", {}, { ...restrictedAuth, notebookAccess: null, scopes: ["read:tags"] });
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({ error: { code: "forbidden" } });
+  });
+
+  test("unrestricted agents keep template access", async () => {
+    const harness = createTemplateHarness();
+    const response = await harness.request("/api/v1/templates", {}, { ...restrictedAuth, notebookAccess: null });
+    expect(response.status).toBe(200);
+  });
+});

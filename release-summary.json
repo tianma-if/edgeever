@@ -1,26 +1,29 @@
 {
-  "version": "2.30.0",
+  "version": "2.31.0",
   "changes": {
     "en-US": [
-      "Repair desktop attachment caching so interrupted downloads cannot leave truncated files or corrupt later previews.",
-      "Fix syncing and displaying merged desktop notes, including missing separators and recovery of content merged by older clients.",
-      "Improve Evernote imports with support for long titles and an optional recovery mode that skips invalid or missing attachments while preserving the remaining note content.",
-      "Reduce loading overhead when opening the workspace, editor, and personal center on Web and desktop.",
-      "Fix desktop local agents confusing background context with the current request and replying with setup acknowledgments."
+      "Restrict API tokens to selected notebooks and their sub-notebooks, with read-only or read/write access. Existing tokens retain their access.",
+      "Import individual Markdown files or folders. Folder imports preserve subfolders and resolve local attachments and links between notes.",
+      "Save named views with filters and multi-column sorting in structured tables, scroll large tables more smoothly, and open URLs directly from link cells.",
+      "Fix selecting Joplin .jex files in mobile browsers and prevent Evernote task titles and dates from appearing in imported note text.",
+      "Refresh the EdgeEver logo and app icons, update the Demo example notes, and refine separators in merged notes.",
+      "Reduce redundant sync and plugin requests, and preserve active authentication settings by default when redeploying to Cloudflare."
     ],
     "zh-CN": [
-      "修复桌面端附件缓存，避免下载中断留下不完整文件或影响后续预览。",
-      "修复桌面端合并笔记的同步与显示，恢复分隔线，并兼容旧版客户端合并的内容。",
-      "改进 Evernote 导入，支持超长标题，并可选择跳过异常或缺失附件以恢复其余笔记内容。",
-      "减少 Web 和桌面端打开工作区、编辑器、个人中心时的加载负担。",
-      "修复桌面端本地 AI 代理将背景信息误当成当前问题、只回复就绪确认的情况。"
+      "API Token 可限制在指定笔记本及其子笔记本内，并设为只读或读写。现有 Token 保留原有权限。",
+      "支持导入单个 Markdown 文件或整个目录。目录导入保留子目录层级，并解析本地附件和笔记间链接。",
+      "多维表格支持保存带筛选和多字段排序的命名视图，大表格滚动更流畅，链接字段可直接点击打开。",
+      "修复移动浏览器中无法选择 Joplin .jex 文件的问题，并避免 Evernote 任务标题和日期混入导入后的笔记正文。",
+      "更新 EdgeEver 标志、应用图标和 Demo 示例笔记，并调整合并笔记的分隔线。",
+      "减少重复同步和插件请求，重新部署到 Cloudflare 时默认保留正在生效的登录配置。"
     ],
     "ja": [
-      "デスクトップ版の添付ファイルキャッシュを修正し、中断されたダウンロードによるファイルの欠損やプレビューへの影響を防ぎます。",
-      "デスクトップ版で結合したノートの同期と表示を修正し、区切り線と旧バージョンで結合した内容を復元します。",
-      "Evernoteのインポートで長いタイトルに対応し、不正または欠落した添付ファイルをスキップして残りのノート内容を復元できるようにしました。",
-      "Web版とデスクトップ版で、ワークスペース、エディター、パーソナルセンターを開く際の読み込み負荷を軽減しました。",
-      "デスクトップ版のローカルAIエージェントが背景情報を現在の依頼と取り違え、準備完了の確認だけを返す問題を修正しました。"
+      "APIトークンの対象を指定したノートブックとその子ノートブックに限定し、読み取り専用または読み書き権限を設定できます。既存のトークンの権限は維持されます。",
+      "Markdownファイルやフォルダをインポートできます。フォルダの階層を保ち、ローカル添付ファイルとノート間リンクを解決します。",
+      "構造化テーブルでフィルターと複数列の並べ替えを名前付きビューとして保存できます。大きなテーブルのスクロールを改善し、リンクセルからURLを直接開けるようにしました。",
+      "モバイルブラウザーでJoplinの.jexファイルを選択できない問題と、Evernoteのタスク名や日付がインポート後のノート本文に混入する問題を修正しました。",
+      "EdgeEverのロゴ、アプリアイコン、デモのサンプルノートを更新し、結合したノートの区切り線を調整しました。",
+      "同期とプラグインの重複リクエストを削減し、Cloudflareへの再デプロイ時に有効な認証設定を既定で保持します。"
     ]
   }
 }

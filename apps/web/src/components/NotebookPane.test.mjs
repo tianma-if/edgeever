@@ -6,6 +6,8 @@ const source = readFileSync(new URL("./NotebookPane.tsx", import.meta.url), "utf
 test("keeps proactive AI out of primary navigation", () => {
   const primaryNav = source.split('aria-label={t("notebookPane.entries")}>')[1]?.split("</nav>")[0];
   expect(primaryNav).toContain('label={t("notebookPane.allMemos")}');
+  expect(primaryNav).toContain('__EDGEEVER_DEVELOPMENT_PROFILE__ === "local"');
+  expect(primaryNav).toContain('t("demo.resetButton")');
   expect(primaryNav).not.toContain('label={t("companion.navTitle")}');
   expect(primaryNav).not.toContain("onClick={onOpenCompanion}");
 });

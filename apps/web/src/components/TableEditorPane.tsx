@@ -2,7 +2,7 @@ import { AI_ASSISTANT_LAUNCHER_POSITION } from "@/lib/ai-assistant-launcher";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { defaultRangeExtractor, useVirtualizer, type Range } from "@tanstack/react-virtual";
-import { CalendarDays, Check, ChevronLeft, Copy, Download, Form, Hash, Link2, List, Paperclip, Plus, RefreshCw, Sparkles, SquareCheck, Table2, Trash2, Type, X } from "lucide-react";
+import { CalendarDays, Check, ChevronLeft, Copy, Download, ExternalLink, Form, Hash, Link2, List, Paperclip, Pencil, Plus, RefreshCw, Sparkles, SquareCheck, Table2, Trash2, Type, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   addTableField,
@@ -60,6 +60,7 @@ import { EDITOR_LOCAL_SAVE_DELAY_MS, formatShortcutBinding, getNotebookMoveOptio
 import { createLocalEditSession } from "@/components/editor/editor-pane-helpers";
 import { isLocalMemoId } from "@/lib/local-mirror";
 import { isBrowserOffline } from "@/lib/network-status";
+import { resolveSafeTableUrl } from "@/lib/table-url";
 import type { EdgeEverRepository } from "@/lib/repository";
 import type { MemoEditSession } from "@edgeever/shared";
 
@@ -432,6 +433,7 @@ const RecordCell = ({
   uploadState: AttachmentUploadState | undefined;
   onUploadState: (state: AttachmentUploadState | undefined) => void;
 }) => {
+  const { t } = useTranslation();
   const value = record.cells[field.id] ?? null;
   const text = displayCell(field, value);
   const [draft, setDraft] = useState(text);
@@ -463,6 +465,45 @@ const RecordCell = ({
     );
   }
   if (!active) {
+    const safeUrl = field.type === "url" ? resolveSafeTableUrl(text) : null;
+    if (safeUrl) {
+      return (
+        <div className="group/url-cell flex h-8 w-full min-w-36 items-center gap-1 px-2">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <a
+                href={safeUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex min-w-0 flex-1 items-center gap-1 rounded-sm text-sm text-foreground underline decoration-foreground/40 underline-offset-2 hover:decoration-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20"
+                aria-label={t("structuredTable.openUrl", { url: safeUrl })}
+              >
+                <span className="truncate">{text}</span>
+                <ExternalLink className="h-3 w-3 shrink-0 opacity-70" aria-hidden="true" />
+              </a>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs break-all">{t("structuredTable.openUrl", { url: safeUrl })}</TooltipContent>
+          </Tooltip>
+          {!readOnly ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 shrink-0 opacity-70 transition-opacity md:opacity-0 md:group-hover/url-cell:opacity-100 md:group-focus-within/url-cell:opacity-100 focus-visible:opacity-100"
+                  aria-label={t("structuredTable.editUrl", { name: field.name })}
+                  onClick={() => onEdit({ recordId: record.id, fieldId: field.id })}
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{t("structuredTable.editUrlTooltip")}</TooltipContent>
+            </Tooltip>
+          ) : null}
+        </div>
+      );
+    }
     return (
       <button
         type="button"

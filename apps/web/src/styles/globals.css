@@ -670,6 +670,10 @@ html[data-edgeever-extension-theme] kbd {
   container-type: inline-size;
 }
 
+.edgeever-create-memo-icon {
+  background-image: linear-gradient(135deg, #36d98e, #12c578);
+}
+
 .edgeever-create-memo-split__more-label {
   display: inline;
 }

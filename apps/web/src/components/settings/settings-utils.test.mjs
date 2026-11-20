@@ -2,13 +2,19 @@ import { afterEach, describe, expect, test } from "bun:test";
 import {
   ALL_TOKEN_SCOPES,
   buildMcpRemoteConfig,
+  buildNotebookTreeRows,
+  describeNotebookAccess,
+  draftToNotebookAccess,
   EDGE_EVER_SERVER_URL_PLACEHOLDER,
+  emptyNotebookGrantDraft,
   getEdgeEverBaseUrl,
   getMcpRemoteServerUrl,
   createDefaultTokenName,
   DEFAULT_TOKEN_ACCESS_LEVEL,
   getStoredTokenAccessLevel,
   getTokenScopesForAccessLevel,
+  notebookAccessToDraft,
+  notebookGrantChanges,
 } from "./settings-utils.ts";
 
 const READ_ONLY_SCOPES = [
@@ -49,6 +55,157 @@ describe("API token access levels", () => {
       "read:tags",
       "write:tags",
     ])).toBe("full");
+  });
+});
+
+describe("notebook whitelist editor draft", () => {
+  test("an unrestricted token loads as all-mode; a whitelist loads as selected", () => {
+    expect(notebookAccessToDraft(null, undefined)).toEqual({ mode: "all", grantedIds: [], level: "read" });
+    expect(notebookAccessToDraft(undefined, "write")).toEqual({ mode: "all", grantedIds: [], level: "read" });
+    // An empty whitelist is still restricted: selected-with-nothing, not all.
+    expect(notebookAccessToDraft([], "read")).toEqual({ mode: "selected", grantedIds: [], level: "read" });
+    expect(notebookAccessToDraft(
+      [{ notebookId: "nb_a", read: true, write: true }],
+      "write",
+    )).toEqual({ mode: "selected", grantedIds: ["nb_a"], level: "write" });
+  });
+
+  test("all-mode serializes to undefined (unrestricted); selected serializes to a whitelist", () => {
+    expect(draftToNotebookAccess({ mode: "all", grantedIds: ["nb_a"], level: "write" })).toBeUndefined();
+    expect(draftToNotebookAccess({ mode: "selected", grantedIds: [], level: "read" })).toEqual([]);
+    expect(draftToNotebookAccess({ mode: "selected", grantedIds: ["nb_a", "nb_b"], level: "read" })).toEqual([
+      { notebookId: "nb_a", read: true, write: false },
+      { notebookId: "nb_b", read: true, write: false },
+    ]);
+    expect(draftToNotebookAccess({ mode: "selected", grantedIds: ["nb_a"], level: "write" })).toEqual([
+      { notebookId: "nb_a", read: true, write: true },
+    ]);
+  });
+
+  test("a checked notebook commits the draft to selected so creation is never stuck", () => {
+    // Regression: the editor must flip mode to "selected" on any interaction,
+    // otherwise serialization returns undefined and the create button stays
+    // disabled even after checking notebooks.
+    const start = emptyNotebookGrantDraft(); // all-mode
+    const toggled = { ...start, mode: "selected", grantedIds: ["nb_a"] };
+    expect(draftToNotebookAccess(toggled)).toEqual([{ notebookId: "nb_a", read: true, write: false }]);
+    // Clearing back to zero grants still yields a savable empty whitelist.
+    const cleared = { ...toggled, grantedIds: [] };
+    expect(draftToNotebookAccess(cleared)).toEqual([]);
+  });
+
+  test("whitelist round-trips through draft and back without losing ids or level", () => {
+    const stored = [
+      { notebookId: "nb_a", read: true, write: true },
+      { notebookId: "nb_b", read: true, write: true },
+    ];
+    const draft = notebookAccessToDraft(stored, "write");
+    expect(draftToNotebookAccess(draft)).toEqual(stored);
+  });
+
+  test("a notebook-restricted token is always classified custom regardless of scopes", () => {
+    expect(getStoredTokenAccessLevel(ALL_TOKEN_SCOPES, ALL_TOKEN_SCOPES, [])).toBe("custom");
+    expect(getStoredTokenAccessLevel(ALL_TOKEN_SCOPES, ALL_TOKEN_SCOPES, [{ notebookId: "nb_a", read: true, write: false }])).toBe("custom");
+    // Unrestricted tokens keep their scope-based classification.
+    expect(getStoredTokenAccessLevel(ALL_TOKEN_SCOPES, ALL_TOKEN_SCOPES, null)).toBe("full");
+    expect(getStoredTokenAccessLevel(READ_ONLY_SCOPES, ALL_TOKEN_SCOPES, null)).toBe("read-only");
+  });
+});
+
+describe("notebook grant change detection (edit payload semantics)", () => {
+  const selected = (grantedIds, level) => ({ mode: "selected", grantedIds, level });
+
+  test("an unchanged draft on a flags/level-inconsistent token changes nothing", () => {
+    // Legitimate state after a level-only PATCH: the stored per-entry flags say
+    // write:false while the level is write. The draft normalizes flags to the
+    // level, so comparing raw flags would wrongly report a change.
+    const stored = [{ notebookId: "nb_a", read: true, write: false }];
+    const draft = notebookAccessToDraft(stored, "write");
+    expect(notebookGrantChanges(stored, "write", draft)).toEqual({ idsChanged: false, levelChanged: false });
+  });
+
+  test("cross-window narrowing: a stale name-only edit resends no grant fields", () => {
+    // The dialog opened while nb_a was granted (inconsistent flags/level). The
+    // user only edits the name; another window has meanwhile cleared the
+    // whitelist server-side. Because no grant field was edited, the payload
+    // omits notebookAccess/notebookAccessLevel, so the PATCH cannot restore the
+    // revoked nb_a grant.
+    const snapshot = [{ notebookId: "nb_a", read: true, write: false }];
+    const draft = notebookAccessToDraft(snapshot, "write");
+    const { idsChanged, levelChanged } = notebookGrantChanges(snapshot, "write", draft);
+    expect(idsChanged).toBe(false);
+    expect(levelChanged).toBe(false);
+    // The resulting name-only payload carries no authorization fields.
+    const payload = { name: "renamed" };
+    if (idsChanged) payload.notebookAccess = draftToNotebookAccess(draft);
+    if (levelChanged) payload.notebookAccessLevel = draft.level;
+    expect(payload).toEqual({ name: "renamed" });
+  });
+
+  test("adding or removing a notebook changes the ids, not the level", () => {
+    const stored = [{ notebookId: "nb_a", read: true, write: true }];
+    expect(notebookGrantChanges(stored, "write", selected(["nb_a", "nb_b"], "write")))
+      .toEqual({ idsChanged: true, levelChanged: false });
+    expect(notebookGrantChanges(stored, "write", selected([], "write")))
+      .toEqual({ idsChanged: true, levelChanged: false });
+  });
+
+  test("changing only the level changes the level, not the ids", () => {
+    const stored = [{ notebookId: "nb_a", read: true, write: false }];
+    expect(notebookGrantChanges(stored, "write", selected(["nb_a"], "read")))
+      .toEqual({ idsChanged: false, levelChanged: true });
+  });
+
+  test("id order is not a change; a same-size different set is", () => {
+    const stored = [
+      { notebookId: "nb_a", read: true, write: true },
+      { notebookId: "nb_b", read: true, write: true },
+    ];
+    expect(notebookGrantChanges(stored, "write", selected(["nb_b", "nb_a"], "write")).idsChanged).toBe(false);
+    expect(notebookGrantChanges(stored, "write", selected(["nb_a", "nb_c"], "write")).idsChanged).toBe(true);
+  });
+
+  test("restricting an unrestricted token is always an id change", () => {
+    expect(notebookGrantChanges(null, undefined, selected([], "read")).idsChanged).toBe(true);
+    expect(notebookGrantChanges(null, undefined, selected(["nb_a"], "write")))
+      .toEqual({ idsChanged: true, levelChanged: true });
+  });
+
+  test("an empty whitelist kept empty changes nothing", () => {
+    expect(notebookGrantChanges([], "read", selected([], "read")))
+      .toEqual({ idsChanged: false, levelChanged: false });
+  });
+});
+
+describe("notebook tree rows and whitelist summary", () => {
+  const notebook = (id, parentId = null) => ({ id, parentId, name: `Name-${id}` });
+
+  test("flattens parents before children with correct depth", () => {
+    const rows = buildNotebookTreeRows([
+      notebook("child", "root"),
+      notebook("root"),
+      notebook("grandchild", "child"),
+      notebook("other"),
+    ]);
+    expect(rows.map(({ notebook, depth }) => [notebook.id, depth])).toEqual([
+      ["root", 0],
+      ["child", 1],
+      ["grandchild", 2],
+      ["other", 0],
+    ]);
+  });
+
+  test("treats a child whose parent is missing as a root", () => {
+    const rows = buildNotebookTreeRows([notebook("orphan", "gone")]);
+    expect(rows.map(({ notebook, depth }) => [notebook.id, depth])).toEqual([["orphan", 0]]);
+  });
+
+  test("summarizes a whitelist by notebook name, falling back to the id", () => {
+    const byId = new Map([["nb_a", notebook("nb_a")]]);
+    expect(describeNotebookAccess([{ notebookId: "nb_a", read: true, write: false }, { notebookId: "nb_z", read: true, write: false }], byId))
+      .toEqual(["Name-nb_a", "nb_z"]);
+    expect(describeNotebookAccess([], byId)).toEqual([]);
+    expect(describeNotebookAccess(null, byId)).toEqual([]);
   });
 });
 

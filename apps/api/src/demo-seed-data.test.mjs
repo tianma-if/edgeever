@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+  markdownToDoc,
   parseDiagramDocument,
   parseInfographicDocument,
   parsePosterDocument,
@@ -49,10 +50,17 @@ describe("demo seed catalog", () => {
       expect(infographicMemo).toBeDefined();
       const infographic = parseInfographicDocument(infographicMemo?.markdown);
       expect(infographic?.syntax).toContain("sequence-timeline-rounded-rect-node");
+      expect(infographic?.syntax).toContain("v2.30");
 
       const tableMemo = DEMO_SEED_MEMOS.find((c) => c.id === `memo_demo_table${suffix}`);
       expect(tableMemo).toBeDefined();
       const table = parseTableDocument(tableMemo?.markdown);
+      expect(table?.schemaVersion).toBe(2);
+      expect(table && "views" in table ? table.views.map((view) => view.id) : []).toEqual([
+        "default",
+        "view_ai_ecosystem",
+        "view_with_specs",
+      ]);
       expect(table?.fields.length).toBeGreaterThan(0);
       expect(table?.records.length).toBeGreaterThan(0);
       for (const record of table?.records ?? []) {
@@ -152,6 +160,16 @@ describe("demo seed catalog", () => {
         ? new TextEncoder().encode(resource.svg)
         : decodeDemoAttachment(resource);
       expect(bytes.byteLength).toBeGreaterThan(0);
+    }
+  });
+
+  test("renders overview attachment cards as standalone blocks without list bullets", () => {
+    for (const memoId of ["memo_demo_overview", "memo_demo_overview_en"]) {
+      const memo = DEMO_SEED_MEMOS.find((candidate) => candidate.id === memoId);
+      const doc = markdownToDoc(memo?.markdown ?? "");
+      const bulletListsJson = JSON.stringify((doc.content ?? []).filter((node) => node.type === "bulletList"));
+      expect(bulletListsJson).not.toContain("edgeeverFileAttachment");
+      expect(bulletListsJson).not.toContain("edgeeverPdfAttachment");
     }
   });
 });

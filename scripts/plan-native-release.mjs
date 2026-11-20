@@ -45,8 +45,10 @@ export const planNativeRelease = (platform, changedFiles) => {
           ".github/workflows/mobile-build.yml",
           ".github/workflows/android-play-signature-audit.yml",
           ".github/workflows/store-delivery.yml",
+          "assets/brand/edgeever-icon.svg",
           "bun.lock",
           "scripts/build-android-local.sh",
+          "scripts/prepare-mobile-icons.mjs",
           "apps/desktop/src/main/wechat-chat-transcript.cjs",
           "scripts/download-play-universal-apk.mjs",
           "scripts/verify-android-apk-signature.mjs",
@@ -57,6 +59,7 @@ export const planNativeRelease = (platform, changedFiles) => {
       : new Set([
           ".cargo/config.toml",
           ".github/workflows/desktop-build.yml",
+          "assets/brand/edgeever-icon.svg",
           "bun.lock",
           "scripts/create-mac-update-metadata.mjs",
           "scripts/create-windows-update-metadata.mjs",

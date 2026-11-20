@@ -10,6 +10,11 @@ import {
   type MemoSummary,
 } from "@edgeever/shared";
 import { clampNumber, parseJsonArray } from "./entity-utils";
+import {
+  memoNotebookAccessSql,
+  notebookAccessBinds,
+  type NotebookAccess,
+} from "./token-notebook-access";
 import type { DatabaseAdapter } from "./storage-contract";
 
 export type MemoSummaryRow = {
@@ -55,6 +60,7 @@ export type ListMemosInput = {
   filter?: string;
   limit?: number;
   cursor?: string;
+  notebookAccess?: NotebookAccess;
 };
 
 export type ListMemosResult = {
@@ -196,6 +202,11 @@ export const listMemos = async (
       baseConditions.push("m.notebook_id = ?");
       baseBinds.push(notebookId);
     }
+  }
+
+  if (input.notebookAccess?.restricted) {
+    baseConditions.push(memoNotebookAccessSql("m.notebook_id", input.notebookAccess, "read"));
+    baseBinds.push(...notebookAccessBinds(input.notebookAccess, "read"));
   }
 
   if (tag) {

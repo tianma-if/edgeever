@@ -157,6 +157,12 @@ docker compose ps
 回退应用镜像不会逆向撤销数据库 migration；需要回退数据时，应恢复升级前的
 卷备份。
 
+**受限笔记本 Token 与回滚。**旧版本会忽略 `notebook_access_json` /
+`notebook_default_access` 列，因此回滚到按笔记本授权功能之前的版本，会把每个
+受限 Token 静默放宽回整个工作区的完全访问。此类回滚前，请先列出受限 Token
+（`notebook_access_json IS NOT NULL`）并吊销，待再次升级后重新签发等效 Token。
+无限制 Token 不受影响。这些限制列是新增列，对旧版本无害。
+
 镜像默认命令是 `bun scripts/self-hosted-server.js`，同时保留
 `scripts/self-hosted-server.mjs` 作为别名，因为 NAS/GUI 面板常会沿用 v1.62
 及更早版本保存的启动命令。如果日志出现

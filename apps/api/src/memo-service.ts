@@ -46,6 +46,12 @@ import {
 } from "./memo-revision-service";
 import { deleteStoredObjects } from "./object-storage";
 import { getAuditActor, getWorkspaceId } from "./request-auth";
+import {
+  assertNotebookAccess,
+  memoNotebookAccessSql,
+  notebookAccessBinds,
+  type NotebookAccess,
+} from "./token-notebook-access";
 import type { DatabaseAdapter, PreparedStatementAdapter } from "./storage-contract";
 
 // Internal callers can bind a reviewed operation and its receipt to the same
@@ -133,7 +139,14 @@ export const getCurrentWorkspaceIdentity = async (db: DatabaseAdapter, auth: Aut
     },
     authorization: {
       kind: auth.kind === "agent" ? "api_token" : "user_session",
-      ...(auth.kind === "agent" ? { tokenName: auth.username, scopes: auth.scopes } : {}),
+      ...(auth.kind === "agent"
+        ? {
+            tokenName: auth.username,
+            scopes: auth.scopes,
+            notebookAccess: auth.notebookAccess ?? null,
+            notebookAccessLevel: auth.notebookAccessLevel ?? "read",
+          }
+        : {}),
     },
     dataIsolation: {
       workspaceScoped: true,
@@ -192,6 +205,7 @@ export const searchMemoSummaries = async (
     hasResources?: boolean | null;
     poster?: boolean | null;
     limit: number;
+    notebookAccess?: NotebookAccess;
   }
 ): Promise<MemoSearchSummary[]> => {
   const q = options.query?.trim();
@@ -208,6 +222,11 @@ export const searchMemoSummaries = async (
   if (notebookId) {
     filters.push("m.notebook_id = ?");
     binds.push(notebookId);
+  }
+
+  if (options.notebookAccess?.restricted) {
+    filters.push(memoNotebookAccessSql("m.notebook_id", options.notebookAccess, "read"));
+    binds.push(...notebookAccessBinds(options.notebookAccess, "read"));
   }
 
   for (const tag of tags) {
@@ -319,7 +338,7 @@ export const searchMemoSummaries = async (
 
 export const listMemosForMcp = async (
   db: DatabaseAdapter,
-  options: { workspaceId: string; notebookId?: string | null; limit: number; offset: number; includeContent: boolean; includeDeleted: boolean; poster?: boolean | null }
+  options: { workspaceId: string; notebookId?: string | null; limit: number; offset: number; includeContent: boolean; includeDeleted: boolean; poster?: boolean | null; notebookAccess?: NotebookAccess }
 ) => {
   const notebookId = options.notebookId?.trim() || null;
   const limit = clampNumber(options.limit, 1, 100);
@@ -329,6 +348,12 @@ export const listMemosForMcp = async (
     ? `(instr(c.content_markdown, '<!-- edgeever-poster-v1:') > 0) = ${options.poster ? 1 : 0}`
     : "1 = 1";
   const deletedFilter = options.includeDeleted ? "1 = 1" : "m.is_deleted = 0";
+  const accessFilter = options.notebookAccess?.restricted
+    ? `AND ${memoNotebookAccessSql("m.notebook_id", options.notebookAccess, "read")}`
+    : "";
+  const accessBinds = options.notebookAccess?.restricted
+    ? notebookAccessBinds(options.notebookAccess, "read")
+    : [];
 
   if (options.includeContent) {
     const rows = await db
@@ -339,12 +364,12 @@ export const listMemosForMcp = async (
                 m.source_memo_ids, m.merge_source_count, m.merged_into_memo_id
          FROM memos m
          INNER JOIN memo_contents c ON c.memo_id = m.id
-         WHERE m.workspace_id = ? AND ${deletedFilter} AND ${posterFilter}
+         WHERE m.workspace_id = ? AND ${deletedFilter} AND ${posterFilter} ${accessFilter}
            AND (? IS NULL OR m.notebook_id = ?)
          ORDER BY m.updated_at DESC, m.id ASC
          LIMIT ? OFFSET ?`
       )
-      .bind(options.workspaceId, notebookId, notebookId, pageSize, offset)
+      .bind(options.workspaceId, ...accessBinds, notebookId, notebookId, pageSize, offset)
       .all<MemoDetailRow>();
     const page = rows.results.slice(0, limit).map(mapMemoDetail);
 
@@ -364,12 +389,12 @@ export const listMemosForMcp = async (
               c.content_text, (instr(c.content_markdown, '<!-- edgeever-poster-v1:') > 0) AS is_poster
        FROM memos m
        INNER JOIN memo_contents c ON c.memo_id = m.id
-       WHERE m.workspace_id = ? AND ${deletedFilter} AND ${posterFilter}
+       WHERE m.workspace_id = ? AND ${deletedFilter} AND ${posterFilter} ${accessFilter}
          AND (? IS NULL OR m.notebook_id = ?)
        ORDER BY m.updated_at DESC, m.id ASC
        LIMIT ? OFFSET ?`
     )
-    .bind(options.workspaceId, notebookId, notebookId, pageSize, offset)
+    .bind(options.workspaceId, ...accessBinds, notebookId, notebookId, pageSize, offset)
     .all<MemoSummaryRow>();
   const page = rows.results.slice(0, limit).map(mapMemoSummary);
 
@@ -401,13 +426,15 @@ export const getMemoDetailRow = async (
     .bind(id, workspaceId, includeDeleted ? 1 : 0)
     .first<MemoDetailRow>();
 
-// Form and structured record tools only need the source, not the editor projection.
+// Form and structured record tools only need the source, not the editor
+// projection. notebookId is included because the table read/write entry points
+// authorize via assertMemoAccess, which requires the owning notebook.
 export const getTableMemoSource = (db: DatabaseAdapter, workspaceId: string, memoId: string) =>
   db.prepare(
-    `SELECT m.title, m.tags_json, c.content_markdown AS contentMarkdown, c.revision
+    `SELECT m.title, m.tags_json, m.notebook_id AS notebookId, c.content_markdown AS contentMarkdown, c.revision
      FROM memos m INNER JOIN memo_contents c ON c.memo_id = m.id
      WHERE m.id = ? AND m.workspace_id = ? AND m.is_deleted = 0`,
-  ).bind(memoId, workspaceId).first<{ title: string | null; tags_json: string; contentMarkdown: string; revision: number }>();
+  ).bind(memoId, workspaceId).first<{ title: string | null; tags_json: string; notebookId: string; contentMarkdown: string; revision: number }>();
 
 export const getMemoDetail = async (db: DatabaseAdapter, workspaceId: string, id: string, includeDeleted = false): Promise<MemoDetail | null> => {
   const row = await getMemoDetailRow(db, workspaceId, id, includeDeleted);
@@ -1126,6 +1153,7 @@ export const importMemosRecord = async (
     dryRun: boolean;
     actor: { actorType: "user" | "agent"; actorId: string | null };
     actorLabel: string;
+    notebookAccess?: NotebookAccess;
   },
 ) => {
   const source = normalizeImportSource(input.source);
@@ -1135,6 +1163,34 @@ export const importMemosRecord = async (
   if (!(await notebookExists(db, workspaceId, input.notebookId))) {
     throw new AppError("not_found", "Import destination notebook not found in the authenticated user's workspace.", 404);
   }
+  if (input.notebookAccess?.restricted) {
+    assertNotebookAccess(input.notebookAccess, "write", input.notebookId, "import memos");
+  }
+
+  // A deduplicated memo outside the token's readable notebooks must not leak
+  // its body (or even its existence) through the skip result.
+  const dedupResult = async (
+    index: number,
+    externalId: string | null,
+    memoId: string,
+    sourceUpdatedAt: string | null,
+  ): Promise<Record<string, unknown>> => {
+    const memo = await getMemoDetail(db, workspaceId, memoId, true);
+    if (memo && input.notebookAccess?.restricted) {
+      const denied = !input.notebookAccess.readableNotebookIds.includes(memo.notebookId);
+      if (denied) {
+        return { index, externalId, status: "skipped", reason: "notebook_access_denied" };
+      }
+    }
+    return {
+      index,
+      externalId,
+      status: "skipped",
+      reason: "already_imported",
+      memo,
+      sourceUpdatedAt,
+    };
+  };
 
   const results: Array<Record<string, unknown>> = [];
 
@@ -1147,14 +1203,7 @@ export const importMemosRecord = async (
       externalId = item.externalId;
       const existing = await getMemoImportSource(db, workspaceId, source, externalId);
       if (existing) {
-        results.push({
-          index,
-          externalId,
-          status: "skipped",
-          reason: "already_imported",
-          memo: await getMemoDetail(db, workspaceId, existing.memo_id, true),
-          sourceUpdatedAt: existing.source_updated_at,
-        });
+        results.push(await dedupResult(index, externalId, existing.memo_id, existing.source_updated_at));
         continue;
       }
 
@@ -1191,14 +1240,7 @@ export const importMemosRecord = async (
         await discardUnlinkedImportedMemo(db, workspaceId, createdMemoId);
         const winner = externalId ? await getMemoImportSource(db, workspaceId, source, externalId) : null;
         if (winner) {
-          results.push({
-            index,
-            externalId,
-            status: "skipped",
-            reason: "already_imported",
-            memo: await getMemoDetail(db, workspaceId, winner.memo_id, true),
-            sourceUpdatedAt: winner.source_updated_at,
-          });
+          results.push(await dedupResult(index, externalId, winner.memo_id, winner.source_updated_at));
           continue;
         }
       }
