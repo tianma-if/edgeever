@@ -9,6 +9,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import type { Notebook } from "@edgeever/shared";
 import type { ImportFile, ImportFormat, ImportIssue } from "@edgeever/shared/note-import/types";
 import { canConfirmImportDestination, type NoteImportController } from "@/lib/note-import/controller";
+import { getImportFileAccept } from "@/lib/note-import/file-accept";
 import { EVERNOTE_MIGRATION_BLOG_URL } from "@/lib/routes";
 import { getImportSources } from "./import-sources";
 
@@ -321,7 +322,7 @@ export const ThirdPartyImportDialog = ({ controller, onOpenMemo }: { controller:
             multiple={!markdown}
             className="hidden"
             data-testid="note-import-files"
-            accept={markdown ? ".md,.markdown" : state.format === "notion" ? ".md,.markdown,.csv,.zip" : state.format === "siyuan" ? ".md,.markdown,.zip" : state.format === "flomo" ? ".html,.htm,.zip" : state.format === "evernote" ? ".enex,.zip,.notes" : state.format === "joplin" ? ".zip,.jex" : ".zip"}
+            accept={getImportFileAccept(state.format)}
             onChange={event => selectFiles(event.currentTarget, false)}
           />
           <input
