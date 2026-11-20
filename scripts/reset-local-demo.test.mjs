@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createSelfHostedStorageAdapter } from "../apps/api/src/self-hosted-storage-adapter.ts";
 import { DEMO_SEED_MEMOS, DEMO_SEED_ATTACHMENT_RESOURCES } from "../apps/api/src/demo-seed-data.ts";
+import { fetchEdgeEverApp } from "../apps/api/src/index.ts";
 import { createLocalDevelopmentSession } from "./local-dev-auth.mjs";
 import { assertLocalResetPath, restoreLocalDemoData } from "./reset-local-demo.mjs";
 
@@ -76,5 +77,53 @@ describe("local DEV Demo reset", () => {
       symlinkSync(tmpdir(), join(root, ".wrangler/state"));
       expect(() => assertLocalResetPath(root)).toThrow("symlinked");
     } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+
+  test("allows the local Web DEV owner session to trigger /api/v1/demo/reset on loopback while blocking remote hosts and external storage", async () => {
+    const { sqlite, storage, dispose } = fixture();
+    try {
+      const session = await createLocalDevelopmentSession(sqlite);
+      const env = {
+        storage,
+        EDGE_EVER_LOCAL_DEMO_SEED: "false",
+        EDGE_EVER_CREDENTIALS_ENCRYPTION_KEY: "edgeever-local-development-credentials-key-v1",
+      };
+      const ctx = { waitUntil() {}, passThroughOnException() {} };
+
+      const remoteResponse = await fetchEdgeEverApp(
+        new Request("https://notes.example.com/api/v1/demo/reset", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${session.token}` },
+        }),
+        env,
+        ctx,
+      );
+      expect(remoteResponse.status).toBe(400);
+
+      const localResponse = await fetchEdgeEverApp(
+        new Request("http://127.0.0.1:8787/api/v1/demo/reset", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${session.token}` },
+        }),
+        env,
+        ctx,
+      );
+      expect(localResponse.status).toBe(200);
+      expect(sqlite.query("SELECT COUNT(*) AS count FROM memos").get().count).toBe(DEMO_SEED_MEMOS.length);
+
+      sqlite.exec("UPDATE maintenance_leases SET expires_at = '2000-01-01T00:00:00.000Z'");
+      sqlite.exec("INSERT INTO object_storage_configs (id, provider, display_name) VALUES ('external', 's3', 'Remote bucket')");
+      const externalStorageResponse = await fetchEdgeEverApp(
+        new Request("http://127.0.0.1:8787/api/v1/demo/reset", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${session.token}` },
+        }),
+        env,
+        ctx,
+      );
+      expect(externalStorageResponse.status).toBe(409);
+    } finally {
+      dispose();
+    }
   });
 });

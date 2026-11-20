@@ -1,6 +1,6 @@
 # Restore clean Demo data in local DEV
 
-Run from the repository:
+Click **Reset Demo Data** directly below **All Notes** in the left sidebar of the local Web DEV app (`bun run dev`, `http://127.0.0.1:5173`), or run from the repository:
 
 ```sh
 bun run dev:reset

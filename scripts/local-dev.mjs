@@ -156,7 +156,11 @@ const runLocalMigrations = (profile) => {
     ],
     {
       cwd: resolve("."),
-      env: { ...process.env, EDGE_EVER_INSTANCE: "" },
+      env: {
+        ...process.env,
+        EDGE_EVER_INSTANCE: "",
+        EDGE_EVER_LOCAL_DEMO_SEED: String(profile.demoSeed),
+      },
       stdio: "inherit",
     },
   );

@@ -432,16 +432,34 @@ registerResourceRoutes(app, {
 });
 
 app.post("/api/v1/demo/reset", async (c) => {
-  if (!isDemoMode(c.env) && !isLocalDemoSeedEnabled(c.env)) {
-    return c.json(
-      {
-        error: {
-          code: "demo_mode_disabled",
-          message: "Demo reset is only available when demo mode or local demo seed is enabled",
+  const demoResetEnabled = isDemoMode(c.env) || isLocalDemoSeedEnabled(c.env);
+  if (!demoResetEnabled) {
+    if (!isLocalDevDemoResetAllowed(c.env, c.req.url, c.get("auth")?.role)) {
+      return c.json(
+        {
+          error: {
+            code: "demo_mode_disabled",
+            message: "Demo reset is only available when demo mode or local demo seed is enabled",
+          },
         },
-      },
-      400
-    );
+        400
+      );
+    }
+
+    const external = await c.env.storage.db.prepare(
+      "SELECT id FROM object_storage_configs WHERE provider <> 'builtin' LIMIT 1",
+    ).first();
+    if (external) {
+      return c.json(
+        {
+          error: {
+            code: "external_object_storage_configured",
+            message: "Local Demo reset requires built-in local object storage; external storage is configured.",
+          },
+        },
+        409,
+      );
+    }
   }
 
   const reset = await resetDemoData(c.env, Date.now());
@@ -571,6 +589,14 @@ export const callMcpTool = (
 const isDemoMode = (env: Bindings) => isDemoModeEnabled(env.EDGE_EVER_DEMO_MODE);
 const isLocalDemoSeedEnabled = (env: Bindings) =>
   env.EDGE_EVER_LOCAL_DEMO_SEED?.trim().toLowerCase() === "true";
+const LOCAL_DEV_CREDENTIALS_ENCRYPTION_KEY = "edgeever-local-development-credentials-key-v1";
+const isLoopbackHostname = (hostname: string) =>
+  hostname === "127.0.0.1" || hostname === "localhost" || hostname === "[::1]" || hostname === "::1";
+const isLocalDevDemoResetAllowed = (env: Bindings, requestUrl: string, role: string | undefined) =>
+  (env.EDGE_EVER_LOCAL_DEMO_SEED?.trim().toLowerCase() === "false"
+    || env.EDGE_EVER_CREDENTIALS_ENCRYPTION_KEY?.trim() === LOCAL_DEV_CREDENTIALS_ENCRYPTION_KEY)
+  && role === "owner"
+  && isLoopbackHostname(new URL(requestUrl).hostname);
 
 const rotateWorkspaceSyncIdentity = (db: Bindings["storage"]["db"], at: string) =>
   db.prepare(`UPDATE workspaces SET created_at = ?`).bind(at).run();

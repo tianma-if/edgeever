@@ -49,10 +49,17 @@ describe("demo seed catalog", () => {
       expect(infographicMemo).toBeDefined();
       const infographic = parseInfographicDocument(infographicMemo?.markdown);
       expect(infographic?.syntax).toContain("sequence-timeline-rounded-rect-node");
+      expect(infographic?.syntax).toContain("v2.30");
 
       const tableMemo = DEMO_SEED_MEMOS.find((c) => c.id === `memo_demo_table${suffix}`);
       expect(tableMemo).toBeDefined();
       const table = parseTableDocument(tableMemo?.markdown);
+      expect(table?.schemaVersion).toBe(2);
+      expect(table && "views" in table ? table.views.map((view) => view.id) : []).toEqual([
+        "default",
+        "view_ai_ecosystem",
+        "view_with_specs",
+      ]);
       expect(table?.fields.length).toBeGreaterThan(0);
       expect(table?.records.length).toBeGreaterThan(0);
       for (const record of table?.records ?? []) {

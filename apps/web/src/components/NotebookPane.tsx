@@ -802,7 +802,7 @@ export const NotebookPane = ({
             label={t("notebookPane.allMemos")}
             onClick={onBackToList}
           />
-          {demoMode && onResetDemo && (
+          {(demoMode || (import.meta.env.DEV && typeof __EDGEEVER_DEVELOPMENT_PROFILE__ !== "undefined" && __EDGEEVER_DEVELOPMENT_PROFILE__ === "local")) && onResetDemo && (
             <SidebarNavButton
               tone="warning"
               icon={<RotateCcw className={cn("h-4 w-4 text-amber-600", isResettingDemo && "animate-spin")} />}
