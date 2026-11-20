@@ -96,7 +96,7 @@ const renderCase = async (theme: typeof NOTE_IMAGE_THEME_OPTIONS[number], cardWi
     // the tile's actual rows, excluding footer text and decorative borders.
     const tolerance = format === 'png' ? 0 : 12;
     for (let i = 0; i < pixels.length; i += 4) {
-      if (Math.abs(pixels[i] - 22) <= tolerance && Math.abs(pixels[i + 1] - 160) <= tolerance && Math.abs(pixels[i + 2] - 110) <= tolerance) {
+      if (Math.abs(pixels[i] - 36) <= tolerance && Math.abs(pixels[i + 1] - 207) <= tolerance && Math.abs(pixels[i + 2] - 131) <= tolerance) {
         green++;
         const row = Math.floor(i / 4 / canvas.width);
         firstTileRow = Math.min(firstTileRow, row); lastTileRow = Math.max(lastTileRow, row);

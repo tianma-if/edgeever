@@ -215,7 +215,7 @@ const transform = `translate(${tileInset} ${tileInset}) scale(${scale}) translat
 const title = "  <title id=\"title\">EdgeEver</title>\n  <desc id=\"desc\">An open cat face in near-black on the EdgeEver green rounded tile.</desc>\n";
 const sharedPath = `    <path fill=\"#07130b\" fill-rule=\"evenodd\" d=\"${pathData}\" />\n`;
 const transformedMark = `  <g transform=\"${transform}\">\n${sharedPath}  </g>\n`;
-const iconSvg = `<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 ${iconSize} ${iconSize}\" role=\"img\" aria-labelledby=\"title desc\">\n${title}  <rect x=\"${tileInset}\" y=\"${tileInset}\" width=\"${tileSize}\" height=\"${tileSize}\" rx=\"${tileRadius}\" fill=\"#16a06e\" />\n${transformedMark}</svg>\n`;
+const iconSvg = `<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 ${iconSize} ${iconSize}\" role=\"img\" aria-labelledby=\"title desc\">\n${title}  <rect x=\"${tileInset}\" y=\"${tileInset}\" width=\"${tileSize}\" height=\"${tileSize}\" rx=\"${tileRadius}\" fill=\"#24cf83\" />\n${transformedMark}</svg>\n`;
 const markSvg = `<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 ${iconSize} ${iconSize}\" role=\"img\" aria-label=\"EdgeEver\">\n${transformedMark}</svg>\n`;
 
 await writeFile(iconPath, iconSvg);

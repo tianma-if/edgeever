@@ -53,8 +53,8 @@ run_timed "准备移动端图标" bun run prepare:mobile:icons
 PREBUILD_FINGERPRINT="$({
   shasum \
     apps/mobile/app.json \
-    apps/mobile/assets/adaptive-icon-transparent.svg \
-    apps/web/public/pwa-512x512.png \
+    apps/mobile/assets/adaptive-icon-transparent.png \
+    apps/mobile/assets/icon.png \
     patches/expo-sharing@57.0.22.patch \
     bun.lock
 } | shasum | awk '{print $1}')"

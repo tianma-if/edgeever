@@ -17,7 +17,7 @@ import sharp from "sharp";
 import { assertMacIcnsComplete } from "./desktop-icns.mjs";
 
 const projectRoot = resolve(fileURLToPath(new URL(".", import.meta.url)), "..");
-const sourcePng = join(projectRoot, "apps/web/public/pwa-512x512.png");
+const brandIconPath = join(projectRoot, "assets/brand/edgeever-icon.svg");
 const brandMarkPath = join(projectRoot, "assets/brand/edgeever-mark.svg");
 const assetsDir = join(projectRoot, "apps/desktop/assets");
 
@@ -49,8 +49,8 @@ const run = (command, args, options = {}) => {
   return result;
 };
 
-const writeResizedPng = async (sourceBuffer, size, destination) => {
-  await sharp(sourceBuffer)
+const renderIconPng = async (sourceBuffer, size, destination) => {
+  await sharp(sourceBuffer, { density: 384 })
     .resize(size, size, {
       fit: "contain",
       background: { r: 0, g: 0, b: 0, alpha: 0 },
@@ -120,7 +120,7 @@ export const prepareTrayIcons = async ({
 };
 
 export const prepareDesktopIcons = async ({
-  sourcePath = sourcePng,
+  sourcePath = brandIconPath,
   assetsDirectory = assetsDir,
   requireIconutil = process.platform === "darwin",
 } = {}) => {
@@ -129,7 +129,7 @@ export const prepareDesktopIcons = async ({
   const sourceBuffer = await readFile(sourcePath);
 
   // Master PNG used by electron-builder on Windows/Linux and as a Dock fallback.
-  await writeResizedPng(sourceBuffer, 1024, join(assetsDirectory, "icon.png"));
+  await renderIconPng(sourceBuffer, 1024, join(assetsDirectory, "icon.png"));
 
   if (!requireIconutil) {
     console.log("[prepare-desktop-icons] skipped iconutil on non-macOS; master PNG written.");
@@ -142,7 +142,7 @@ export const prepareDesktopIcons = async ({
 
   try {
     for (const { name, size } of ICONSET_FILES) {
-      await writeResizedPng(sourceBuffer, size, join(iconsetDir, name));
+      await renderIconPng(sourceBuffer, size, join(iconsetDir, name));
     }
 
     const icnsPath = join(assetsDirectory, "icon.icns");

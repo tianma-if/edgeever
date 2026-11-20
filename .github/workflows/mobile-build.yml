@@ -15,11 +15,13 @@ on:
     paths:
       - "apps/mobile/**"
       - "apps/desktop/src/main/wechat-chat-transcript.cjs"
+      - "assets/brand/edgeever-icon.svg"
       - "packages/client/**"
       - "packages/shared/**"
       - "bun.lock"
       - ".github/workflows/mobile-build.yml"
       - "scripts/build-android-local.sh"
+      - "scripts/prepare-mobile-icons.mjs"
       - "scripts/verify-android-apk-signature.mjs"
       - "scripts/download-play-universal-apk.mjs"
 
