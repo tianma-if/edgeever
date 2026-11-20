@@ -63,6 +63,29 @@ const target = async () => {
 };
 
 describe("native third-party import through the real API", () => {
+  test("a D1 size rejection of an Evernote note is a confirmed body-size failure", async () => {
+    const { client, db, intercept } = await target();
+    const path = "oversized.enex";
+    const enex = "<en-export><note><title>Oversized note</title><content><![CDATA[<en-note>Body</en-note>]]></content></note></en-export>";
+    const session = new NoteImportSession("evernote", [{ path, file: new File([enex], path) }], new MemoryImportIndex());
+    try {
+      await session.scan();
+      intercept((url, init) => {
+        if (init?.method !== "POST" || !new URL(url).pathname.endsWith("/imports/memos")) return;
+        const { externalId } = JSON.parse(init.body).items[0];
+        return Response.json({
+          created: 0, skipped: 0, failed: 1, wouldCreate: 0,
+          results: [{ externalId, status: "failed", error: "D1_ERROR: string or blob too big: SQLITE_TOOBIG" }],
+        });
+      });
+      const options = { reader: session, index: session.index, client, convertEnml: convertImportEnml };
+      expect(await executeNoteImport(options)).toMatchObject({
+        completed: 0, failed: 1, failure: { message: "noteBodyTooLarge", uncertain: false },
+      });
+      expect(db.query("SELECT COUNT(*) AS n FROM memos WHERE title = 'Oversized note'").get().n).toBe(0);
+    } finally { await session.close(); db.close(); }
+  });
+
   test("Evernote long titles preserve their full text, Unicode, body and timestamps through retries", async () => {
     const { client, db } = await target();
     const titles = ["长".repeat(161), "a".repeat(159) + "😀完整标题 [原文](https://example.com)", "b".repeat(160)];
@@ -802,7 +825,7 @@ describe("native third-party import through the real API", () => {
     });
     const options = { reader: session, index: session.index, client, convertEnml: convertImportEnml };
     const first = await executeNoteImport(options);
-    if (format === "obsidian") expect(first).toMatchObject({ completed: 0, failed: 1 });
+    if (format === "obsidian") expect(first).toMatchObject({ completed: 0, failed: 1, failure: { uncertain: true } });
     else expect(first).toMatchObject({ completed: 1, failed: 0 });
     expect(await executeNoteImport(options)).toMatchObject({ completed: 1, failed: 0 });
     const [state] = await session.index.page("result");

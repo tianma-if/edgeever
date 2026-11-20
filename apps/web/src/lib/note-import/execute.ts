@@ -115,6 +115,7 @@ export const executeNoteImport = async (input: {
       let note = descriptor;
       let uploadCompleting = false;
       let createAttempted = false;
+      let createBodyRejected = false;
       let finalAttempted = false;
       try {
         onProgress?.({ phase: "notes", path: descriptor.path, completed: notesProcessed, total });
@@ -140,7 +141,10 @@ export const executeNoteImport = async (input: {
           createAttempted = true; writesStarted = true;
           const imported = await client.importMemos({ importId: reader.id, format: reader.format, notebookId, items: [{ externalId: note.key, title: note.title, tags: note.tags, contentMarkdown: original, createdAt: note.createdAt, updatedAt: note.updatedAt }] });
           const item = imported.results[0];
-          if (!item?.memo || item.status === "failed") throw new Error(item?.error || "createFailed");
+          if (!item?.memo || item.status === "failed") {
+            createBodyRejected = item?.status === "failed" && /^D1_ERROR:.*\bSQLITE_TOOBIG\b/.test(item.error ?? "");
+            throw new Error(createBodyRejected ? "noteBodyTooLarge" : item?.error || "createFailed");
+          }
           if (item.status === "skipped" && (item.memo.contentMarkdown !== original || item.memo.title !== (note.title.trim() || DEFAULT_MEMO_TITLE) || JSON.stringify(item.memo.tags) !== JSON.stringify(note.tags))) throw conflict();
           state = { key: note.key, path: note.path, memo: memoBaseline(item.memo), urls: {}, complete: false };
           await index.put("result", note.key, state);
@@ -194,7 +198,13 @@ export const executeNoteImport = async (input: {
           await index.put("result", note.key, state);
           result.failure = { key: note.key, path: note.path, message: state.error, uncertain: state.uncertain ?? false };
         }
-        if (!state && (!signal?.aborted || createAttempted)) result.failure = { key: note.key, path: note.path, message: signal?.aborted ? "incomplete" : error instanceof Error ? error.message : String(error), uncertain: createAttempted && statusOf(error) === undefined };
+        if (!state && (!signal?.aborted || createAttempted)) {
+          result.failure = {
+            key: note.key, path: note.path,
+            message: signal?.aborted ? "incomplete" : error instanceof Error ? error.message : String(error),
+            uncertain: createAttempted && !createBodyRejected && statusOf(error) === undefined,
+          };
+        }
         if (signal?.aborted) result.cancelled = true;
         // A failed note is not a successful import; retain the rest unstarted.
         break;
