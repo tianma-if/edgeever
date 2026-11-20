@@ -1297,10 +1297,14 @@ Web 与桌面端内置**插件与主题管理中心**，支持从官方市场、
 
 ### 多类型附件自由挂载与外部编辑回存
 支持在笔记中嵌入 Word、PDF、CSV、压缩包及音视频资源，在线预览或下载；在桌面端打开附件调用本地 Office 或其他软件修改并保存后，EdgeEver 会**自动检测变更并静默回传更新附件**：
-- [📝 会议纪要 Word：edgeever-meeting-notes.docx](/api/v1/resources/res_demo_meeting_notes_docx/blob)
-- [📄 产品白皮书 PDF：edgeever-product-brief.pdf](/api/v1/resources/res_demo_product_brief_pdf/blob)
-- [📊 功能矩阵 CSV：feature-matrix.csv](/api/v1/resources/res_demo_feature_matrix_csv/blob)
-- [📦 示例附件压缩包：edgeever-attachment-demo.zip](/api/v1/resources/res_demo_attachment_bundle_zip/blob)
+
+[📝 会议纪要 Word：edgeever-meeting-notes.docx](/api/v1/resources/res_demo_meeting_notes_docx/blob)
+
+[📄 产品白皮书 PDF：edgeever-product-brief.pdf](/api/v1/resources/res_demo_product_brief_pdf/blob)
+
+[📊 功能矩阵 CSV：feature-matrix.csv](/api/v1/resources/res_demo_feature_matrix_csv/blob)
+
+[📦 示例附件压缩包：edgeever-attachment-demo.zip](/api/v1/resources/res_demo_attachment_bundle_zip/blob)
 
 ### 自建部署方案：Serverless 与 Docker
 1. **Cloudflare Serverless（推荐，永久 100% 免费）**：基于 Workers + D1 数据库 + R2 对象存储构建，完全运行在 Cloudflare 免费配额内（可容纳约 15 万条短笔记与 5 万张图片），免服务器采购、免运维、支持绑定自定义域名并跟随上游正式版自动更新。
@@ -1662,10 +1666,14 @@ Pasted or dragged high-resolution images are compressed to WebP locally in your 
 
 ### Universal Attachments & External Edit Auto-Save
 Embed Word documents, PDFs, spreadsheets, archives, and media files directly in notes; on desktop, opening an attachment in an external editor and saving automatically syncs the updated file back to your note:
-- [📝 Meeting notes Word: edgeever-meeting-notes.docx](/api/v1/resources/res_demo_meeting_notes_docx/blob)
-- [📄 Product brief PDF: edgeever-product-brief.pdf](/api/v1/resources/res_demo_product_brief_pdf/blob)
-- [📊 Feature matrix CSV: feature-matrix.csv](/api/v1/resources/res_demo_feature_matrix_csv/blob)
-- [📦 Sample attachment archive: edgeever-attachment-demo.zip](/api/v1/resources/res_demo_attachment_bundle_zip/blob)
+
+[📝 Meeting notes Word: edgeever-meeting-notes.docx](/api/v1/resources/res_demo_meeting_notes_docx/blob)
+
+[📄 Product brief PDF: edgeever-product-brief.pdf](/api/v1/resources/res_demo_product_brief_pdf/blob)
+
+[📊 Feature matrix CSV: feature-matrix.csv](/api/v1/resources/res_demo_feature_matrix_csv/blob)
+
+[📦 Sample attachment archive: edgeever-attachment-demo.zip](/api/v1/resources/res_demo_attachment_bundle_zip/blob)
 
 ### Zero-Cost Serverless & Docker Self-Hosting
 1. **Cloudflare Serverless (Recommended, 100% Free Forever)**: Runs entirely within Cloudflare's free tier (Workers + D1 SQLite + R2 Storage—roughly 150,000 short notes and 50,000 images) with zero server bills and automated upstream release syncing.

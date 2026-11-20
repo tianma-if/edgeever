@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+  markdownToDoc,
   parseDiagramDocument,
   parseInfographicDocument,
   parsePosterDocument,
@@ -159,6 +160,16 @@ describe("demo seed catalog", () => {
         ? new TextEncoder().encode(resource.svg)
         : decodeDemoAttachment(resource);
       expect(bytes.byteLength).toBeGreaterThan(0);
+    }
+  });
+
+  test("renders overview attachment cards as standalone blocks without list bullets", () => {
+    for (const memoId of ["memo_demo_overview", "memo_demo_overview_en"]) {
+      const memo = DEMO_SEED_MEMOS.find((candidate) => candidate.id === memoId);
+      const doc = markdownToDoc(memo?.markdown ?? "");
+      const bulletListsJson = JSON.stringify((doc.content ?? []).filter((node) => node.type === "bulletList"));
+      expect(bulletListsJson).not.toContain("edgeeverFileAttachment");
+      expect(bulletListsJson).not.toContain("edgeeverPdfAttachment");
     }
   });
 });
