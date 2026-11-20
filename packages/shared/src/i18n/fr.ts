@@ -4316,7 +4316,6 @@ export const fr = {
       unsupported: "Mises à jour indisponibles",
       unsupportedHint: "La recherche de mises à jour est disponible dans les builds de production installés, pas dans Expo Go ni les builds de développement.",
       updateWithGooglePlay: "Mettre à jour avec Google Play",
-      whatsNewInVersion: "Nouveautés dans EdgeEver {{version}}",
     },
     workspace: {
       diagramReadOnly: "Diagramme en lecture seule",

@@ -5,15 +5,12 @@ type PlayUpdateApi = {
   start: () => Promise<GooglePlayUpdateResult>;
 };
 
-type PlayUpdateOffer = (versionCode: number) => Promise<unknown>;
-
 /** Owns Play consent and state recovery independently of GitHub release availability. */
 export class MobilePlayUpdate {
   state: GooglePlayUpdateState = { status: "unavailable", versionCode: 0 };
   hasKnownUpdate = false;
   private promptedVersions = new Set<number>();
-  private offering = false;
-  private starting: Promise<GooglePlayUpdateResult> | null = null;
+  private starting = false;
   private revision = 0;
 
   constructor(private api: PlayUpdateApi, private onState: (state: GooglePlayUpdateState) => void) {}
@@ -25,38 +22,30 @@ export class MobilePlayUpdate {
     this.onState(state);
   };
 
-  async check(showOffer?: PlayUpdateOffer): Promise<boolean> {
+  async check(canPrompt?: () => boolean): Promise<boolean> {
     const revision = this.revision;
     const state = await this.api.check();
     // An install event received during the request is more recent than its snapshot.
     if (revision === this.revision) this.receive(state);
-    if (showOffer && !this.promptedVersions.has(this.state.versionCode)) await this.offer(showOffer);
+    if (canPrompt?.() && !this.promptedVersions.has(this.state.versionCode)) await this.start();
     return this.state.status !== "unavailable";
   }
 
-  async offer(showOffer: PlayUpdateOffer): Promise<void> {
-    if (this.offering || this.starting || this.state.status !== "available") return;
-    this.offering = true;
-    this.promptedVersions.add(this.state.versionCode);
-    try {
-      await showOffer(this.state.versionCode);
-    } finally {
-      this.offering = false;
-    }
-  }
-
-  start(): Promise<GooglePlayUpdateResult> {
-    if (this.starting) return this.starting;
+  async start(): Promise<GooglePlayUpdateResult | undefined> {
+    if (this.starting || this.state.status !== "available") return;
+    this.starting = true;
     this.promptedVersions.add(this.state.versionCode);
     const revision = this.revision;
-    this.starting = this.api.start().then((result) => {
+    try {
+      const result = await this.api.start();
       if (result === "unavailable") {
         this.receive({ ...this.state, status: "unavailable" });
       } else if (result === "accepted" && revision === this.revision) {
         this.receive({ ...this.state, status: "downloading" });
       }
       return result;
-    }).finally(() => { this.starting = null; });
-    return this.starting;
+    } finally {
+      this.starting = false;
+    }
   }
 }

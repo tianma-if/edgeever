@@ -10,7 +10,6 @@ export type AppDialogRequest = {
   buttons?: AppDialogButton[];
   message?: string;
   options?: AlertOptions;
-  scrollMessage?: boolean;
   title: string;
 };
 
