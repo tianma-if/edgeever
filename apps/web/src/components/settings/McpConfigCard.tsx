@@ -23,6 +23,7 @@ import {
   buildNotebookTreeRows,
   copyTextToClipboard,
   createDefaultTokenName,
+  DEFAULT_TOKEN_ACCESS_LEVEL,
   describeNotebookAccess,
   draftToNotebookAccess,
   getMcpRemoteServerUrl,
@@ -629,9 +630,7 @@ export const McpConfigCard = () => {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [name, setName] = useState(() => createDefaultTokenName());
-  // New tokens start at "custom" with an empty whitelist: default no access,
-  // per the whitelist model contract.
-  const [accessLevel, setAccessLevel] = useState<TokenAccessLevel>("custom");
+  const [accessLevel, setAccessLevel] = useState<TokenAccessLevel>(DEFAULT_TOKEN_ACCESS_LEVEL);
   const [grantDraft, setGrantDraft] = useState<NotebookGrantDraft>(() => ({ mode: "selected", grantedIds: [], level: "read" }));
   const [newlyCreatedTokenId, setNewlyCreatedTokenId] = useState<string | null>(null);
   const [tokenDeleteConfirmation, setTokenDeleteConfirmation] = useState<ApiToken | null>(null);
@@ -658,7 +657,7 @@ export const McpConfigCard = () => {
     onSuccess: async (data) => {
       setNewlyCreatedTokenId(data.apiToken.id);
       setName(createDefaultTokenName());
-      setAccessLevel("custom");
+      setAccessLevel(DEFAULT_TOKEN_ACCESS_LEVEL);
       setGrantDraft({ mode: "selected", grantedIds: [], level: "read" });
       await queryClient.invalidateQueries({ queryKey: ["api-tokens"] });
     },
