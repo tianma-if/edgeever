@@ -500,3 +500,71 @@ test("metadata cannot reveal a resource size from a different workspace", async 
   const app = createApp({ ...agentAuth, workspaceId: "ws_other" }, async (_db, workspaceId) => workspaceId === "ws_1" ? resourceRow : null);
   expect((await app.request("/api/v1/resources/res_1/metadata", {}, environment)).status).toBe(404);
 });
+
+// --- Notebook-access boundary for the metadata endpoint --------------------
+// The metadata route must enforce the same owning-notebook read guard as the
+// blob route. The db mock answers the whitelist-expansion CTE and the
+// owning-memo notebook lookup so a restricted token's grant can be resolved.
+const notebookEnvironment = ({ memoNotebookId, grantedIds, pendingRow = null }) => ({
+  storage: {
+    db: {
+      prepare: (sql) => ({
+        first: async () => null,
+        bind: () => ({
+          all: async () => ({
+            results: sql.includes("WITH RECURSIVE accessible") ? grantedIds.map((id) => ({ id })) : [],
+            success: true,
+            meta: {},
+          }),
+          first: async () => {
+            if (sql.includes("SELECT notebook_id FROM memos")) return { notebook_id: memoNotebookId };
+            if (sql.includes("FROM pending_resources")) return pendingRow;
+            return null;
+          },
+          run: async () => ({ success: true, meta: {} }),
+        }),
+      }),
+      batch: async () => [],
+    },
+    resources: {},
+  },
+});
+
+const restrictedAuth = (notebookAccess, level = "read") => ({ ...agentAuth, notebookAccess, notebookAccessLevel: level });
+const notebookGrant = (notebookId) => ({ notebookId, read: true, write: false });
+const pendingResourceRow = {
+  id: "res_pending", kind: "attachment", mime_type: "application/pdf",
+  filename: "pending.pdf", byte_size: 128, object_key: "pending-key", storage_config_id: "builtin",
+};
+
+describe("resource metadata notebook access", () => {
+  test("a restricted token cannot read metadata of a resource outside its whitelist", async () => {
+    const environment = notebookEnvironment({ memoNotebookId: "nb_blocked", grantedIds: ["nb_allowed"] });
+    const app = createApp(restrictedAuth([notebookGrant("nb_allowed")]), async () => resourceRow);
+    const response = await app.request("/api/v1/resources/res_1/metadata", {}, environment);
+    expect(response.status).toBe(403);
+    expect((await response.json()).error.code).toBe("notebook_access_denied");
+  });
+
+  test("a restricted token reads metadata of a resource inside its whitelist", async () => {
+    const environment = notebookEnvironment({ memoNotebookId: "nb_allowed", grantedIds: ["nb_allowed"] });
+    const app = createApp(restrictedAuth([notebookGrant("nb_allowed")]), async () => resourceRow);
+    const response = await app.request("/api/v1/resources/res_1/metadata", {}, environment);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ byteSize: 256, updatedAt: resourceRow.updated_at });
+  });
+
+  test("a zero-grant token cannot read metadata of any bound resource", async () => {
+    const environment = notebookEnvironment({ memoNotebookId: "nb_allowed", grantedIds: [] });
+    const app = createApp(restrictedAuth([]), async () => resourceRow);
+    expect((await app.request("/api/v1/resources/res_1/metadata", {}, environment)).status).toBe(403);
+  });
+
+  test("pending (unbound) resources stay workspace-readable, matching the blob route", async () => {
+    const environment = notebookEnvironment({ memoNotebookId: "nb_blocked", grantedIds: [], pendingRow: pendingResourceRow });
+    const app = createApp(restrictedAuth([]), async () => null); // not a bound resource
+    const response = await app.request("/api/v1/resources/res_pending/metadata", {}, environment);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ byteSize: 128, updatedAt: null });
+  });
+});
