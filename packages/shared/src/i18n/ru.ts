@@ -611,6 +611,10 @@ export const ru = {
     refresh: "Обновить",
     refreshTooltip: "Обновить таблицу",
     refreshError: "Не удалось обновить таблицу",
+    openUrl: "Открыть ссылку {{url}}",
+    openUrlTooltip: "Открыть ссылку",
+    editUrl: "Изменить URL в {{name}}",
+    editUrlTooltip: "Изменить URL",
     form: {
       title: "Сбор через форму",
       description: "Поделитесь ссылкой на форму. Ответы добавляются как новые записи таблицы; респонденты не видят существующие строки.",

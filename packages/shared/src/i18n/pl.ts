@@ -600,6 +600,10 @@ export const pl = {
     refresh: "Odśwież",
     refreshTooltip: "Wczytaj ponownie tę tabelę",
     refreshError: "Nie udało się ponownie wczytać tabeli",
+    openUrl: "Otwórz link {{url}}",
+    openUrlTooltip: "Otwórz link",
+    editUrl: "Edytuj adres URL w {{name}}",
+    editUrlTooltip: "Edytuj adres URL",
     form: {
       title: "Zbieranie przez formularz",
       description: "Udostępnij link do formularza do wypełnienia przez innych. Zgłoszenia są dodawane jako nowe rekordy tabeli, a osoby odpowiadające nie widzą istniejących wierszy.",

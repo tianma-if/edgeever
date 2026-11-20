@@ -611,6 +611,10 @@ export const zhTW = {
     refresh: "重新整理",
     refreshTooltip: "重新載入這張表格",
     refreshError: "表格重新整理失敗",
+    openUrl: "開啟連結 {{url}}",
+    openUrlTooltip: "開啟連結",
+    editUrl: "編輯 {{name}} 位址",
+    editUrlTooltip: "編輯位址",
     form: {
       title: "表單收集",
       description: "分享表單連結給他人填寫，提交內容會自動追加為一條新記錄，填寫人無法檢視已有資料。",

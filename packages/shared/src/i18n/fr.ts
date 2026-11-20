@@ -750,6 +750,10 @@ export const fr = {
     refresh: "Actualiser",
     refreshTooltip: "Recharger ce tableau",
     refreshError: "Impossible de recharger le tableau",
+    openUrl: "Ouvrir le lien {{url}}",
+    openUrlTooltip: "Ouvrir le lien",
+    editUrl: "Modifier l’URL dans {{name}}",
+    editUrlTooltip: "Modifier l’URL",
     form: {
       title: "Collecte par formulaire",
       description: "Partagez un lien de formulaire à faire remplir. Les envois sont ajoutés comme nouveaux enregistrements du tableau et les participants ne peuvent pas voir les lignes existantes.",

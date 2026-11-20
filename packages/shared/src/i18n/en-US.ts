@@ -592,6 +592,10 @@ export const enUS = {
     refresh: "Refresh",
     refreshTooltip: "Reload this table",
     refreshError: "Couldn't reload the table",
+    openUrl: "Open link {{url}}",
+    openUrlTooltip: "Open link",
+    editUrl: "Edit URL in {{name}}",
+    editUrlTooltip: "Edit URL",
     form: {
       title: "Form Collection",
       description: "Share a form link for others to fill out. Submissions are added as new table records, and respondents cannot view existing rows.",

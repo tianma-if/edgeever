@@ -750,6 +750,10 @@ export const de = {
     "refresh": "Aktualisieren",
     "refreshTooltip": "Diese Tabelle neu laden",
     "refreshError": "Tabelle konnte nicht neu geladen werden",
+    "openUrl": "Link öffnen {{url}}",
+    "openUrlTooltip": "Link öffnen",
+    "editUrl": "URL in {{name}} bearbeiten",
+    "editUrlTooltip": "URL bearbeiten",
     "form": {
       "title": "Formularerfassung",
       "description": "Teile einen Formularlink, den andere ausfüllen können. Einsendungen werden als neue Tabellenzeilen hinzugefügt. Teilnehmende können bestehende Zeilen nicht einsehen.",
