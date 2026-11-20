@@ -475,14 +475,14 @@ const RecordCell = ({
                 href={safeUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex min-w-0 flex-1 items-center gap-1 rounded-sm text-sm text-sky-700 underline decoration-sky-700/40 underline-offset-2 hover:text-sky-800 hover:decoration-sky-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20"
+                className="inline-flex min-w-0 flex-1 items-center gap-1 rounded-sm text-sm text-foreground underline decoration-foreground/40 underline-offset-2 hover:decoration-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20"
                 aria-label={t("structuredTable.openUrl", { url: safeUrl })}
               >
                 <span className="truncate">{text}</span>
                 <ExternalLink className="h-3 w-3 shrink-0 opacity-70" aria-hidden="true" />
               </a>
             </TooltipTrigger>
-            <TooltipContent>{t("structuredTable.openUrlTooltip")}</TooltipContent>
+            <TooltipContent className="max-w-xs break-all">{t("structuredTable.openUrl", { url: safeUrl })}</TooltipContent>
           </Tooltip>
           {!readOnly ? (
             <Tooltip>

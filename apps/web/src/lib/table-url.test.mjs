@@ -32,6 +32,8 @@ describe("TableEditorPane URL cell interaction contracts", () => {
     expect(tableEditorPaneSource).toContain('target="_blank"');
     expect(tableEditorPaneSource).toContain('rel="noopener noreferrer"');
     expect(tableEditorPaneSource).toContain("structuredTable.openUrl");
+    expect(tableEditorPaneSource).toContain("text-foreground underline decoration-foreground/40");
+    expect(tableEditorPaneSource).toContain('<TooltipContent className="max-w-xs break-all">{t("structuredTable.openUrl", { url: safeUrl })}</TooltipContent>');
     expect(tableEditorPaneSource).toContain("structuredTable.editUrl");
     expect(tableEditorPaneSource).toContain("group-focus-within/url-cell:opacity-100");
     expect(tableEditorPaneSource).not.toMatch(/<a[^>]*\stitle=/);
