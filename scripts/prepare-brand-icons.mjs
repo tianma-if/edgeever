@@ -8,10 +8,13 @@ import { prepareMobileIcons } from "./prepare-mobile-icons.mjs";
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const sourcePath = path.join(projectRoot, "assets/brand/edgeever-icon.svg");
 const adaptiveForegroundSourcePath = path.join(projectRoot, "apps/mobile/assets/adaptive-icon-foreground.svg");
-const source = await readFile(sourcePath);
+const source = await readFile(sourcePath, "utf8");
 const adaptiveForegroundSource = await readFile(adaptiveForegroundSourcePath);
-const tileColor = source.toString("utf8").match(/<rect\b[^>]*\sfill="(#[0-9a-f]{6})"/i)?.[1];
-if (!tileColor) throw new Error("The brand icon is missing a solid tile color");
+const opaqueSource = source.replace(
+  /<rect x="[^"]+" y="[^"]+" width="[^"]+" height="[^"]+" rx="[^"]+" (fill="[^"]+") \/>/,
+  '<rect width="100%" height="100%" $1 />',
+);
+if (opaqueSource === source) throw new Error("The brand icon is missing its rounded tile");
 
 await copyFile(sourcePath, path.join(projectRoot, "apps/web/public/favicon.svg"));
 await copyFile(sourcePath, path.join(projectRoot, "apps/site/public/favicon.svg"));
@@ -40,13 +43,14 @@ const renderPng = async (input, destination, size, { preserveAlpha = false } = {
     kernel: sharp.kernel.lanczos3,
   });
   if (!preserveAlpha) {
-    pipeline.flatten({ background: tileColor }).removeAlpha();
+    pipeline.removeAlpha();
   }
   await pipeline.png({ compressionLevel: 9 }).toFile(outputPath);
 };
 
 for (const [destination, size, options] of pngTargets) {
-  await renderPng(source, destination, size, options);
+  const input = options?.preserveAlpha ? source : opaqueSource;
+  await renderPng(Buffer.from(input), destination, size, options);
 }
 
 await renderPng(adaptiveForegroundSource, "apps/mobile/assets/adaptive-icon-foreground.png", 1024, {
@@ -54,7 +58,7 @@ await renderPng(adaptiveForegroundSource, "apps/mobile/assets/adaptive-icon-fore
 });
 await prepareMobileIcons();
 
-const faviconPng = await sharp(source, { density: 384 }).resize(32, 32).png().toBuffer();
+const faviconPng = await sharp(Buffer.from(source), { density: 384 }).resize(32, 32).png().toBuffer();
 const icoHeader = Buffer.alloc(22);
 icoHeader.writeUInt16LE(0, 0);
 icoHeader.writeUInt16LE(1, 2);

@@ -212,10 +212,19 @@ const sourceCropInset = 72;
 const sourceCropSize = width - sourceCropInset * 2;
 const scale = Number((tileSize / sourceCropSize).toFixed(8));
 const transform = `translate(${tileInset} ${tileInset}) scale(${scale}) translate(-${sourceCropInset} -${sourceCropInset})`;
-const title = "  <title id=\"title\">EdgeEver</title>\n  <desc id=\"desc\">An open cat face in near-black on the EdgeEver green rounded tile.</desc>\n";
+const title = "  <title id=\"title\">EdgeEver</title>\n  <desc id=\"desc\">An open cat face in near-black on the EdgeEver green gradient tile.</desc>\n";
+const tileEnd = tileInset + tileSize;
+const tile = `  <defs>
+    <linearGradient id="edgeever-tile" gradientUnits="userSpaceOnUse" x1="${tileInset}" y1="${tileInset}" x2="${tileEnd}" y2="${tileEnd}" color-interpolation="sRGB">
+      <stop offset="0%" stop-color="#36d98e" />
+      <stop offset="100%" stop-color="#12c578" />
+    </linearGradient>
+  </defs>
+  <rect x="${tileInset}" y="${tileInset}" width="${tileSize}" height="${tileSize}" rx="${tileRadius}" fill="url(#edgeever-tile)" />
+`;
 const sharedPath = `    <path fill=\"#07130b\" fill-rule=\"evenodd\" d=\"${pathData}\" />\n`;
 const transformedMark = `  <g transform=\"${transform}\">\n${sharedPath}  </g>\n`;
-const iconSvg = `<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 ${iconSize} ${iconSize}\" role=\"img\" aria-labelledby=\"title desc\">\n${title}  <rect x=\"${tileInset}\" y=\"${tileInset}\" width=\"${tileSize}\" height=\"${tileSize}\" rx=\"${tileRadius}\" fill=\"#24cf83\" />\n${transformedMark}</svg>\n`;
+const iconSvg = `<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 ${iconSize} ${iconSize}\" role=\"img\" aria-labelledby=\"title desc\">\n${title}${tile}${transformedMark}</svg>\n`;
 const markSvg = `<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 ${iconSize} ${iconSize}\" role=\"img\" aria-label=\"EdgeEver\">\n${transformedMark}</svg>\n`;
 
 await writeFile(iconPath, iconSvg);
