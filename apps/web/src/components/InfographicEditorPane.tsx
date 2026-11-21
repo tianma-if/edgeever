@@ -33,7 +33,8 @@ import { canvasToPngBlob, downloadBlob, frameInfographicExportSvg, infographicEx
 import { infographicPreviewSyntax, infographicUsesDarkSheet } from "@/lib/infographic-preview-theme";
 import { buildInfographicSyntax, buildOfficialInfographicSyntax, infographicAgentCandidates, infographicNoteTitleIsAutomatic, infographicSyntaxTitle, INFOGRAPHIC_TEMPLATES, nextInfographicNoteTitle, parseGeneratedOfficialData, type InfographicItem } from "@/lib/infographic-generation";
 import { statusSettleMotion } from "@/lib/motion";
-import { advanceInfographicSyncBase, classifyInfographicUpdate, infographicEditorSnapshot, infographicMemoSnapshot } from "@/lib/infographic-sync";
+import { classifyInfographicUpdate, infographicEditorSnapshot, infographicMemoSnapshot } from "@/lib/infographic-sync";
+import { advanceStructuredMemoSyncBase, retainNewerStructuredMemoSyncBase } from "@/lib/structured-memo-sync";
 import { MEMO_ID_REMAPPED_EVENT, MEMO_SYNC_ACKNOWLEDGED_EVENT } from "@/lib/sync-events";
 import type { EdgeEverRepository } from "@/lib/repository";
 import { cn, parseTagsText } from "@/lib/utils";
@@ -294,7 +295,7 @@ function InfographicEditorSession({
     };
     const acknowledged = (event: Event) => {
       const receipt = (event as CustomEvent<MemoDetail>).detail;
-      const advanced = advanceInfographicSyncBase(memoRef.current, receipt);
+      const advanced = advanceStructuredMemoSyncBase(memoRef.current, receipt);
       if (advanced !== memoRef.current) acknowledgedMemoRef.current = receipt;
       memoRef.current = advanced;
     };
@@ -320,7 +321,7 @@ function InfographicEditorSession({
       return;
     }
     if (update === "rebase") {
-      memoRef.current = advanceInfographicSyncBase(memoRef.current, memo);
+      memoRef.current = advanceStructuredMemoSyncBase(memoRef.current, memo);
       deferredBaselineRef.current = null;
       return;
     }
@@ -512,10 +513,7 @@ function InfographicEditorSession({
         return true;
       }
       const savedMemo = { ...result.memo, id: memoRef.current.id };
-      const acknowledgedBase = memoRef.current;
-      memoRef.current = acknowledgedBase.revision > savedMemo.revision
-        ? { ...savedMemo, revision: acknowledgedBase.revision, contentHash: acknowledgedBase.contentHash, updatedAt: acknowledgedBase.updatedAt }
-        : savedMemo;
+      memoRef.current = retainNewerStructuredMemoSyncBase(savedMemo, memoRef.current);
       savedSnapshotRef.current = currentSnapshot;
       setSavedSnapshot(currentSnapshot);
       setSavedHistorySnapshot(JSON.stringify(history));

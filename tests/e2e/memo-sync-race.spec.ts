@@ -359,6 +359,66 @@ test("preserves a mind-map draft when an earlier autosave is acknowledged", asyn
   }
 });
 
+test("a queued mind-map successor survives the older save receipt and refresh", async ({ page }) => {
+  const marker = `diagram-queued-${Date.now()}`;
+  const { notebooks } = await (await page.request.get("/api/v1/notebooks")).json();
+  const document = createDefaultDiagramDocument("mind-map");
+  const created = await page.request.post("/api/v1/memos", { data: {
+    notebookId: notebooks[0].id,
+    title: marker,
+    contentJson: markdownToDoc(diagramFallbackMarkdown(document)),
+    contentMarkdown: serializeDiagramDocument(document),
+  } });
+  expect(created.status()).toBe(201);
+  const { memo } = await created.json();
+  let markStored!: (receipt: unknown) => void;
+  let release!: () => void;
+  const firstStored = new Promise<unknown>((resolve) => { markStored = resolve; });
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  let firstUpdate = true;
+  await page.route(`**/api/v1/memos/${memo.id}`, async (route) => {
+    if (route.request().method() !== "PATCH" || !firstUpdate) return route.continue();
+    firstUpdate = false;
+    const response = await route.fetch();
+    expect(response.ok(), await response.text()).toBe(true);
+    markStored((await response.json()).memo);
+    await gate;
+    await route.fulfill({ response });
+  });
+  try {
+    await page.goto("/");
+    await page.getByRole("button", { name: "全部笔记", exact: true }).click();
+    await page.getByPlaceholder("搜索笔记").fill(marker);
+    await page.locator(`[data-memo-id="${memo.id}"]`).locator("button").first().click();
+    await page.getByRole("button", { name: "清空搜索", exact: true }).click();
+    const title = page.getByRole("textbox", { name: "图表标题", exact: true });
+    await title.fill(`${marker}-first`);
+    await waitForQueuedContent(page, memo.id, `${marker}-first`);
+    await page.evaluate(() => window.dispatchEvent(new CustomEvent("edgeever:sync-queue-changed")));
+    const receipt = await firstStored;
+    await title.fill(`${marker}-second`);
+    await waitForQueuedContent(page, memo.id, `${marker}-second`);
+
+    await page.evaluate((detail) => {
+      window.dispatchEvent(new CustomEvent("edgeever:memo-sync-acknowledged", { detail }));
+      window.dispatchEvent(new CustomEvent("edgeever:memo-detail-refreshed", { detail }));
+    }, receipt);
+    await expect(title).toHaveValue(`${marker}-second`);
+    const completed = waitForSyncCompleted(page);
+    release();
+    await completed;
+    await page.evaluate(() => window.dispatchEvent(new CustomEvent("edgeever:sync-queue-changed")));
+    await expect.poll(async () => (await (await page.request.get(`/api/v1/memos/${memo.id}`)).json()).memo.title)
+      .toBe(`${marker}-second`);
+    await expect(title).toHaveValue(`${marker}-second`);
+  } finally {
+    release();
+    await page.unroute(`**/api/v1/memos/${memo.id}`);
+    await page.request.delete(`/api/v1/memos/${memo.id}`);
+    await page.request.delete(`/api/v1/memos/${memo.id}?permanent=1`);
+  }
+});
+
 test("keeps a new mind-map editor and its draft when its temporary id is remapped", async ({ page }) => {
   let releaseCreate!: () => void;
   let created!: (id: string) => void;

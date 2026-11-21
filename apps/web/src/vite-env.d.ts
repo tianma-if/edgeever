@@ -234,18 +234,7 @@ interface EdgeEverDesktopBridge {
     | { requestId: string; type: "done" }
     | { requestId: string; type: "error"; message: string }
   ) => void): () => void;
-  onImportWeChatChat?(callback: (payload: {
-    ok: boolean;
-    kind?: "file";
-    reason?: string;
-    importId?: string;
-    title?: string;
-    filename?: string;
-    mimeType?: string;
-    byteSize?: number;
-    markdown?: string;
-    media?: Array<{ id: string; filename: string; mimeType: string; byteSize: number }>;
-  }) => void): () => void;
+  onImportWeChatChat?(callback: (payload: import("@/lib/desktop-share-import").DesktopSharePayload) => void): () => void;
 }
 
 interface DesktopUpdateNetworkDiagnostic {
