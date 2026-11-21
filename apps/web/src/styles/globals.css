@@ -2391,8 +2391,7 @@ html[data-edgeever-extension-theme] .edgeever-memo-divider {
   bottom: 100%;
 }
 
-.ProseMirror .edgeever-image-gallery:hover > .edgeever-image-gallery__toolbar,
-.ProseMirror .edgeever-image-gallery:focus-within > .edgeever-image-gallery__toolbar {
+.ProseMirror .edgeever-image-gallery__toolbar[data-visible="true"] {
   visibility: visible;
   pointer-events: auto;
 }
