@@ -13,6 +13,7 @@ import { PdfAttachment } from "./pdf-attachment";
 import { PluginEmbed } from "./plugin-embed";
 import { EmptyExternalLink } from "./empty-external-link";
 import { EdgeEverLink } from "./editor-link";
+import { EdgeEverInlineCodeInput } from "./inline-code-input";
 import { createEdgeEverTaskItem } from "./task-item-input";
 import { MathCodeFence } from "./mathematics-markdown";
 import { createEdgeEverMarked } from "./markdown-options";
@@ -45,6 +46,7 @@ export const createEdgeEverDocumentExtensions = (
   options.markdown
     ? StarterKit.configure({ ...options.starterKit, link: false })
     : options.starterKit === undefined ? StarterKit : StarterKit.configure(options.starterKit),
+  EdgeEverInlineCodeInput,
   ...(options.markdown ? [EdgeEverLink] : []),
   EmptyExternalLink,
   TaskList,
