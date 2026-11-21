@@ -9,7 +9,6 @@ import { useMobileLocale, getMobileCatalog, formatMobileCopy } from "./mobile-lo
 import {
   ANDROID_INSTALL_UPDATE_SOURCES,
   findNewerMobileRelease,
-  findPlayReleaseNotes,
   type MobileInstallUpdateSource,
   type MobileRelease,
 } from "./mobile-release";
@@ -144,33 +143,6 @@ export const MobileUpdateProvider = ({ children }: { children: ReactNode }) => {
     );
   }, [resolvedLocale, openManualUpdateSource]);
 
-  const offerPlayUpdate = useCallback(async (versionCode: number, userInitiated: boolean) => {
-    const isStillAvailable = () =>
-      playUpdate.state.status === "available" && playUpdate.state.versionCode === versionCode;
-    const start = async (showFallback: boolean) => {
-      if (!isStillAvailable()) return;
-      const result = await playUpdate.start();
-      if (result === "unavailable" && showFallback) openInstallUpdateOptions(null);
-    };
-    const release = await findPlayReleaseNotes(versionCode, resolvedLocale);
-    if (!isStillAvailable() || AppState.currentState === "background") return;
-    if (!release) {
-      await start(userInitiated);
-      return;
-    }
-
-    const copy = getMobileCatalog(resolvedLocale).mobile.update;
-    Alert.alert(
-      formatMobileCopy(copy.whatsNewInVersion, { version: release.version }),
-      release.notes,
-      [
-        { text: copy.later, style: "cancel" },
-        { icon: "google-play", text: copy.updateWithGooglePlay, onPress: () => { void start(true); } },
-      ],
-      { scrollMessage: true },
-    );
-  }, [openInstallUpdateOptions, playUpdate, resolvedLocale]);
-
   const runCheck = useCallback((userInitiated: boolean) => {
     if (activeCheckRef.current) {
       return activeCheckRef.current;
@@ -189,7 +161,8 @@ export const MobileUpdateProvider = ({ children }: { children: ReactNode }) => {
     const check = (async () => {
       try {
         setStatus("checking");
-        if (Platform.OS === "android" && await playUpdate.check(userInitiated ? undefined : (versionCode) => offerPlayUpdate(versionCode, false))) {
+        const canPrompt = userInitiated ? undefined : () => AppState.currentState !== "background";
+        if (Platform.OS === "android" && await playUpdate.check(canPrompt)) {
           return;
         }
 
@@ -241,7 +214,7 @@ export const MobileUpdateProvider = ({ children }: { children: ReactNode }) => {
       activeCheckRef.current = null;
     });
     return check;
-  }, [resolvedLocale, installedVersion, isSupported, offerPlayUpdate, playUpdate]);
+  }, [resolvedLocale, installedVersion, isSupported, playUpdate]);
 
   const completePlayUpdate = useCallback(async () => {
     if (await googlePlayUpdates.complete()) return;
@@ -307,8 +280,9 @@ export const MobileUpdateProvider = ({ children }: { children: ReactNode }) => {
     if (updateKind === "play") {
       if (status === "ready") {
         await completePlayUpdate();
-      } else if (status !== "downloading") {
-        await playUpdate.offer((versionCode) => offerPlayUpdate(versionCode, true));
+      } else if (AppState.currentState !== "background") {
+        const result = await playUpdate.start();
+        if (result === "unavailable") openInstallUpdateOptions(null);
       }
       return;
     }
@@ -366,7 +340,7 @@ export const MobileUpdateProvider = ({ children }: { children: ReactNode }) => {
         getMobileCatalog(resolvedLocale).mobile.update.failedHint
       );
     }
-  }, [completePlayUpdate, resolvedLocale, installRelease, isSupported, offerPlayUpdate, openInstallUpdateOptions, playUpdate, status, updateKind]);
+  }, [completePlayUpdate, resolvedLocale, installRelease, isSupported, openInstallUpdateOptions, playUpdate, status, updateKind]);
 
   const hasUpdate = status === "available" || status === "ready" || status === "downloading";
   const value = useMemo<MobileUpdateContextValue>(

@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 const globals = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
 
 describe("image gallery layout", () => {
-  test("lets collision positioning place the wrapping toolbar and reveals it on hover or keyboard focus", () => {
+  test("lets collision positioning place the wrapping toolbar and honors its visibility state", () => {
     const toolbar = globals.match(/\.ProseMirror \.edgeever-image-gallery__toolbar \{([^}]+)\}/)?.[1];
     expect(toolbar).toContain("position: absolute;");
     expect(toolbar).not.toContain("bottom: 100%;");
@@ -15,7 +15,7 @@ describe("image gallery layout", () => {
     expect(toolbar).toContain("pointer-events: none;");
     expect(toolbar).not.toContain("opacity: 0");
     expect(globals).toMatch(
-      /\.ProseMirror \.edgeever-image-gallery:hover > \.edgeever-image-gallery__toolbar,\s*\.ProseMirror \.edgeever-image-gallery:focus-within > \.edgeever-image-gallery__toolbar \{\s*visibility: visible;\s*pointer-events: auto;/,
+      /\.ProseMirror \.edgeever-image-gallery__toolbar\[data-visible="true"\] \{\s*visibility: visible;\s*pointer-events: auto;/,
     );
   });
 

@@ -4,6 +4,7 @@ import type { GooglePlayUpdateResult, GooglePlayUpdateState } from "../../module
 
 const available: GooglePlayUpdateState = { status: "available", versionCode: 234 };
 const unavailable: GooglePlayUpdateState = { status: "unavailable", versionCode: 0 };
+const canPrompt = () => true;
 
 function setup(result: GooglePlayUpdateResult = "accepted") {
   let snapshot = available;
@@ -13,13 +14,13 @@ function setup(result: GooglePlayUpdateResult = "accepted") {
     check: async () => snapshot,
     start: async () => { starts += 1; return result; },
   }, (state) => states.push(state));
-  return { controller, states, offer: () => controller.start(), starts: () => starts, snapshot: (state: GooglePlayUpdateState) => { snapshot = state; } };
+  return { controller, states, starts: () => starts, snapshot: (state: GooglePlayUpdateState) => { snapshot = state; } };
 }
 
 describe("Google Play flexible updates", () => {
   test("automatically requests consent and downloads without restarting", async () => {
-    const { controller, states, starts, offer } = setup();
-    expect(await controller.check(offer)).toBe(true);
+    const { controller, states, starts } = setup();
+    expect(await controller.check(canPrompt)).toBe(true);
     expect(starts()).toBe(1);
     expect(states.map((state) => state.status)).toEqual(["available", "downloading"]);
     controller.receive({ ...available, status: "ready" });
@@ -27,31 +28,31 @@ describe("Google Play flexible updates", () => {
   });
 
   test("declining prevents repeat automatic prompts but allows manual retry", async () => {
-    const { controller, starts, snapshot, offer } = setup("cancelled");
-    await controller.check(offer);
-    await controller.check(offer);
+    const { controller, starts, snapshot } = setup("cancelled");
+    await controller.check(canPrompt);
+    await controller.check(canPrompt);
     expect(starts()).toBe(1);
     expect(controller.state.status).toBe("available");
     await controller.start();
     expect(starts()).toBe(2);
     snapshot({ ...available, versionCode: 235 });
-    await controller.check(offer);
+    await controller.check(canPrompt);
     expect(starts()).toBe(3);
   });
 
   test("unavailable Play updates allow existing release and OTA checks to continue", async () => {
-    const { controller, starts, snapshot, offer } = setup();
+    const { controller, starts, snapshot } = setup();
     snapshot(unavailable);
-    expect(await controller.check(offer)).toBe(false);
+    expect(await controller.check(canPrompt)).toBe(false);
     expect(controller.hasKnownUpdate).toBe(false);
     expect(starts()).toBe(0);
   });
 
   test("a launch failure falls back and is not automatically prompted again", async () => {
-    const { controller, starts, offer } = setup("unavailable");
-    expect(await controller.check(offer)).toBe(false);
+    const { controller, starts } = setup("unavailable");
+    expect(await controller.check(canPrompt)).toBe(false);
     expect(controller.hasKnownUpdate).toBe(true);
-    await controller.check(offer);
+    await controller.check(canPrompt);
     expect(starts()).toBe(1);
     expect(await controller.start()).toBe("unavailable");
   });
@@ -64,13 +65,24 @@ describe("Google Play flexible updates", () => {
     expect(starts()).toBe(0);
   });
 
-  test("manual checks discover Play updates without automatically opening consent", async () => {
-    const { controller, starts } = setup();
+  test("a manual check discovers the update and the update action opens Play consent once", async () => {
+    const { controller, starts } = setup("cancelled");
     expect(await controller.check()).toBe(true);
     expect(starts()).toBe(0);
+    expect(await controller.start()).toBe("cancelled");
+    await controller.check(canPrompt);
+    expect(starts()).toBe(1);
   });
 
-  test("concurrent taps share one consent request and never regress a downloaded event", async () => {
+  test("a background check leaves the consent prompt available for a foreground check", async () => {
+    const { controller, starts } = setup();
+    expect(await controller.check(() => false)).toBe(true);
+    expect(starts()).toBe(0);
+    expect(await controller.check(canPrompt)).toBe(true);
+    expect(starts()).toBe(1);
+  });
+
+  test("concurrent taps open one consent request and never regress a downloaded event", async () => {
     let resolve!: (result: GooglePlayUpdateResult) => void;
     let starts = 0;
     const controller = new MobilePlayUpdate({
@@ -82,7 +94,7 @@ describe("Google Play flexible updates", () => {
     const second = controller.start();
     controller.receive({ ...available, status: "ready" });
     resolve("accepted");
-    await Promise.all([first, second]);
+    expect(await Promise.all([first, second])).toEqual(["accepted", undefined]);
     expect(starts).toBe(1);
     expect(controller.state.status).toBe("ready");
   });
@@ -101,26 +113,9 @@ describe("Google Play flexible updates", () => {
   });
 
   test("download failure leaves the Play state so manual update sources can take over", async () => {
-    const { controller, offer } = setup();
-    await controller.check(offer);
+    const { controller } = setup();
+    await controller.check(canPrompt);
     controller.receive({ ...available, status: "unavailable" });
     expect(controller.state.status).toBe("unavailable");
-  });
-
-  test.each(["automatic", "manual"] as const)("%s release notes can defer native consent until the user confirms", async (trigger) => {
-    const { controller, starts } = setup();
-    let offered: number | null = null;
-    const showNotes = async (versionCode: number) => { offered = versionCode; };
-    if (trigger === "automatic") {
-      await controller.check(showNotes);
-    } else {
-      await controller.check();
-      await controller.offer(showNotes);
-    }
-    expect(offered).toBe(available.versionCode);
-    await controller.check(async () => { throw new Error("Already offered"); });
-    expect(starts()).toBe(0);
-    await controller.start();
-    expect(starts()).toBe(1);
   });
 });

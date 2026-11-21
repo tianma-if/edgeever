@@ -38,6 +38,7 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { NotebookTreeItem } from "./NotebookTreeItem";
@@ -120,7 +121,7 @@ const SidebarShortcutButton = ({
   const button = (
     <button
       className={cn(
-        "flex h-9 min-w-0 w-full items-center justify-center rounded-md px-0 text-xs font-medium transition-colors duration-200",
+        "flex h-8 min-w-0 w-full items-center justify-center rounded-md px-0 text-xs font-medium transition-colors duration-200",
         active ? "edgeever-workspace-selection text-slate-950" : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
       )}
       type="button"
@@ -312,7 +313,13 @@ const SidebarRailButton = ({
   </Tooltip>
 );
 
-const CreateMemoTypeItems = ({ onCreateMemo }: { onCreateMemo: (kind?: NoteCreateKind) => void }) => {
+const CreateMemoTypeItems = ({
+  onCreateMemo,
+  onOpenTemplates,
+}: {
+  onCreateMemo: (kind?: NoteCreateKind) => void;
+  onOpenTemplates?: () => void;
+}) => {
   const { t } = useTranslation();
 
   return (
@@ -346,6 +353,15 @@ const CreateMemoTypeItems = ({ onCreateMemo }: { onCreateMemo: (kind?: NoteCreat
         <Table2 className="h-4 w-4 shrink-0" />
         <span className="min-w-0 flex-1 truncate">{t("structuredTable.name")}</span>
       </DropdownMenuItem>
+      {onOpenTemplates && (
+        <>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem className="gap-2 text-xs leading-5" onSelect={onOpenTemplates}>
+            <LayoutTemplate className="h-4 w-4 shrink-0" />
+            <span className="min-w-0 flex-1 truncate">{t("templates.useTemplate")}</span>
+          </DropdownMenuItem>
+        </>
+      )}
     </>
   );
 };
@@ -392,39 +408,43 @@ const SyncStatusBar = ({
   const { t } = useTranslation();
   const [detailsOpen, setDetailsOpen] = useState(false);
   const hasQueuedWork = summary.total > 0;
+  const isPassiveSynced = isOnline && summary.conflict === 0 && !hasQueuedWork && !isSyncing;
   const label = getSyncStatusLabel(summary, isOnline, isSyncing, t);
   const statusClassName = !isOnline
-    ? "border-slate-200 bg-slate-50 text-slate-600"
+    ? "h-7 border-slate-200 bg-slate-50 px-2.5 text-slate-600"
     : summary.conflict > 0
-      ? "border-amber-200 bg-amber-50 text-amber-800"
-      : hasQueuedWork
-        ? "border-slate-200 bg-slate-50 text-slate-700"
-        : "border-slate-200 bg-card text-slate-500";
+      ? "h-7 border-amber-200 bg-amber-50 px-2.5 text-amber-800"
+      : hasQueuedWork || isSyncing
+        ? "h-7 border-slate-200 bg-slate-50 px-2.5 text-slate-700"
+        : "h-6 border-transparent bg-transparent px-1.5 text-slate-500";
 
   return (
     <div
-      className={cn("flex h-8 items-center gap-2 rounded-md border px-3 transition-all duration-200", statusClassName)}
+      className={cn("flex items-center gap-1.5 rounded-md border transition-all duration-200", statusClassName)}
       role="status"
       aria-live="polite"
     >
       <m.span
         key={label}
-        className="flex h-4 w-4 shrink-0 items-center justify-center"
+        className="flex h-3.5 w-3.5 shrink-0 items-center justify-center"
         aria-hidden="true"
         {...statusSettleMotion}
       >
         {!isOnline ? (
-          <CloudOff className="h-4 w-4" />
+          <CloudOff className="h-3.5 w-3.5" />
         ) : summary.conflict > 0 ? (
-          <AlertTriangle className="h-4 w-4" />
+          <AlertTriangle className="h-3.5 w-3.5" />
         ) : hasQueuedWork || isSyncing ? (
-          <RefreshCw className={cn("h-4 w-4", isSyncing && "animate-spin")} />
+          <RefreshCw className={cn("h-3.5 w-3.5", isSyncing && "animate-spin")} />
         ) : (
-          <CheckCircle2 className="h-4 w-4" />
+          <CheckCircle2 className="h-3.5 w-3.5" />
         )}
       </m.span>
       <button
-        className="min-w-0 flex-1 truncate text-left text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/15"
+        className={cn(
+          "min-w-0 flex-1 truncate rounded-sm text-left text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/15",
+          isPassiveSynced && "hover:text-slate-800"
+        )}
         type="button"
         onClick={() => setDetailsOpen(true)}
       >
@@ -711,7 +731,7 @@ export const NotebookPane = ({
       </header>
 
       <TooltipProvider delayDuration={0} skipDelayDuration={0}>
-        <nav className="grid shrink-0 grid-cols-2 gap-0.5 border-b border-slate-100 px-2 py-1.5 sm:grid-cols-3 lg:grid-cols-5" aria-label={t("notebookPane.secondaryEntries")}>
+        <nav className="grid shrink-0 grid-cols-2 gap-0.5 border-b border-slate-100 px-2 py-1 sm:grid-cols-3 lg:grid-cols-5" aria-label={t("notebookPane.secondaryEntries")}>
           <SidebarShortcutButton icon={<Tag className="h-4 w-4" />} label={t("mobileSheets.tags")} onClick={onOpenTags} />
           <SidebarShortcutButton icon={<Paperclip className="h-4 w-4" />} label={t("mobileSheets.assets")} onClick={onOpenAssets} />
           {showTemplateEntry && <SidebarShortcutButton icon={<LayoutTemplate className="h-4 w-4" />} label={t("nav.templates")} onClick={onOpenTemplates} />}
@@ -719,14 +739,14 @@ export const NotebookPane = ({
             host={pluginHost}
             onManage={onOpenPluginManager}
             align="start"
-            className="h-9 w-full rounded-md px-0 text-slate-600 hover:bg-slate-50 hover:text-slate-950"
+            className="h-8 w-full rounded-md px-0 text-slate-600 hover:bg-slate-50 hover:text-slate-950"
           />
           <SidebarTrashShortcut active={view === "trash"} onOpenTrash={onOpenTrash} onEmptyTrash={onEmptyTrash} />
         </nav>
       </TooltipProvider>
 
       {window.edgeeverDesktop?.isAvailable && (
-        <div className="px-3 pt-1.5">
+        <div className="px-3 pt-1">
           <SyncStatusBar
             summary={syncSummary}
             isOnline={isOnline}
@@ -738,24 +758,24 @@ export const NotebookPane = ({
         </div>
       )}
 
-      <div className="hidden shrink-0 px-3 pb-2 pt-2 lg:block">
-        <div className="edgeever-create-memo-split flex overflow-hidden rounded-2xl border border-slate-200/90 bg-card shadow-[0_5px_16px_rgba(15,23,42,0.06)] transition-shadow duration-200 hover:shadow-[0_7px_20px_rgba(15,23,42,0.09)]">
+      <div className="hidden shrink-0 px-3 pb-1.5 pt-1 lg:block">
+        <div className="edgeever-create-memo-split flex overflow-hidden rounded-xl border border-slate-200/90 bg-card shadow-[0_4px_12px_rgba(15,23,42,0.05)] transition-shadow duration-200 hover:shadow-[0_6px_16px_rgba(15,23,42,0.08)]">
           <button
-            className="group flex h-12 max-w-[calc(100%-2.25rem)] shrink-0 items-center gap-2 px-2.5 text-left transition-colors duration-150 hover:bg-slate-50 focus-visible:bg-slate-50 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+            className="group flex h-10 max-w-[calc(100%-2.25rem)] shrink-0 items-center gap-2 px-2 text-left transition-colors duration-150 hover:bg-slate-50 focus-visible:bg-slate-50 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
             type="button"
             aria-label={t("notebookPane.newMemo")}
             onClick={() => onCreateMemo()}
             disabled={!canCreateMemo || isCreatingMemo}
           >
-            <span className="edgeever-create-memo-icon flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white shadow-[0_5px_12px_rgb(var(--brand-green-rgb)/0.22)] transition-transform duration-150 group-hover:scale-[1.03] group-focus-visible:ring-2 group-focus-visible:ring-slate-900/20 group-focus-visible:ring-offset-2">
-              <Plus className="h-5 w-5" />
+            <span className="edgeever-create-memo-icon flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white shadow-[0_4px_10px_rgb(var(--brand-green-rgb)/0.22)] transition-transform duration-150 group-hover:scale-[1.03] group-focus-visible:ring-2 group-focus-visible:ring-slate-900/20 group-focus-visible:ring-offset-2">
+              <Plus className="h-4 w-4" />
             </span>
-            <span className="whitespace-nowrap text-sm font-semibold text-slate-950">{t("notebookPane.newMemo")}</span>
+            <span className="whitespace-nowrap text-xs font-semibold text-slate-950">{t("notebookPane.newMemo")}</span>
           </button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
-                className="group relative flex h-12 min-w-9 flex-1 items-center justify-center gap-0.5 px-1.5 text-xs font-medium text-slate-600 transition-colors before:absolute before:inset-y-2.5 before:left-0 before:w-px before:bg-[var(--workspace-divider)] hover:bg-workspace-hover hover:text-slate-950 focus-visible:bg-workspace-hover focus-visible:text-slate-950 focus-visible:outline-none data-[state=open]:bg-workspace-selection data-[state=open]:text-slate-950 disabled:cursor-not-allowed disabled:opacity-50"
+                className="group relative flex h-10 min-w-9 flex-1 items-center justify-center gap-0.5 px-1.5 text-xs font-medium text-slate-600 transition-colors before:absolute before:inset-y-2 before:left-0 before:w-px before:bg-[var(--workspace-divider)] hover:bg-workspace-hover hover:text-slate-950 focus-visible:bg-workspace-hover focus-visible:text-slate-950 focus-visible:outline-none data-[state=open]:bg-workspace-selection data-[state=open]:text-slate-950 disabled:cursor-not-allowed disabled:opacity-50"
                 type="button"
                 aria-label={t("diagram.createType")}
                 disabled={!canCreateMemo || isCreatingMemo}
@@ -765,7 +785,7 @@ export const NotebookPane = ({
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" sideOffset={8} className="w-52">
-              <CreateMemoTypeItems onCreateMemo={onCreateMemo} />
+              <CreateMemoTypeItems onCreateMemo={onCreateMemo} onOpenTemplates={showTemplateEntry ? onOpenTemplates : undefined} />
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -783,18 +803,6 @@ export const NotebookPane = ({
         onDragOver={handleNotebookScrollDragOver}
         onDrop={stopNotebookDragAutoScroll}
       >
-        {showTemplateEntry && (
-          <button
-            className="mb-1 hidden h-8 w-full items-center justify-start gap-2 rounded-md px-3 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-800 disabled:cursor-not-allowed disabled:opacity-50 lg:flex"
-            type="button"
-            onClick={onOpenTemplates}
-            disabled={isCreatingMemo}
-          >
-            <LayoutTemplate className="h-4 w-4" />
-            {t("templates.useTemplate")}
-          </button>
-        )}
-
         <nav className="mb-1 space-y-1" aria-label={t("notebookPane.entries")}>
           <SidebarNavButton
             active={view === "notebook" && selectedNotebookId === null}
@@ -933,7 +941,7 @@ export const NotebookPane = ({
                   <TooltipContent side="right">{t("diagram.createType")}</TooltipContent>
                 </Tooltip>
                 <DropdownMenuContent align="start" side="right" sideOffset={8} className="w-52">
-                  <CreateMemoTypeItems onCreateMemo={onCreateMemo} />
+                  <CreateMemoTypeItems onCreateMemo={onCreateMemo} onOpenTemplates={showTemplateEntry ? onOpenTemplates : undefined} />
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
