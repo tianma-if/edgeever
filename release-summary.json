@@ -1,29 +1,26 @@
 {
-  "version": "2.31.0",
+  "version": "2.31.1",
   "changes": {
     "en-US": [
-      "Restrict API tokens to selected notebooks and their sub-notebooks, with read-only or read/write access. Existing tokens retain their access.",
-      "Import individual Markdown files or folders. Folder imports preserve subfolders and resolve local attachments and links between notes.",
-      "Save named views with filters and multi-column sorting in structured tables, scroll large tables more smoothly, and open URLs directly from link cells.",
-      "Fix selecting Joplin .jex files in mobile browsers and prevent Evernote task titles and dates from appearing in imported note text.",
-      "Refresh the EdgeEver logo and app icons, update the Demo example notes, and refine separators in merged notes.",
-      "Reduce redundant sync and plugin requests, and preserve active authentication settings by default when redeploying to Cloudflare."
+      "Show a single Google Play update prompt on Android.",
+      "Identify oversized note bodies when an import exceeds the storage limit. Thanks to @sivdead in #871.",
+      "Keep the gallery toolbar open when clicking images in the editor.",
+      "Give the notebook list more space with a compact sidebar and a template shortcut in the new note menu.",
+      "Preserve local diagram and infographic edits when an earlier save finishes syncing."
     ],
     "zh-CN": [
-      "API Token 可限制在指定笔记本及其子笔记本内，并设为只读或读写。现有 Token 保留原有权限。",
-      "支持导入单个 Markdown 文件或整个目录。目录导入保留子目录层级，并解析本地附件和笔记间链接。",
-      "多维表格支持保存带筛选和多字段排序的命名视图，大表格滚动更流畅，链接字段可直接点击打开。",
-      "修复移动浏览器中无法选择 Joplin .jex 文件的问题，并避免 Evernote 任务标题和日期混入导入后的笔记正文。",
-      "更新 EdgeEver 标志、应用图标和 Demo 示例笔记，并调整合并笔记的分隔线。",
-      "减少重复同步和插件请求，重新部署到 Cloudflare 时默认保留正在生效的登录配置。"
+      "Android 端只显示一次 Google Play 更新提示。",
+      "导入笔记正文超出存储上限时，明确提示失败原因。感谢 @sivdead 在 #871 中的贡献。",
+      "在编辑器中点击图库图片时，保持图库工具栏打开。",
+      "缩小笔记本侧栏顶部控件，为笔记本列表腾出更多空间，并可从新建笔记菜单使用模板。",
+      "较早的保存完成同步时，保留图表和信息图中尚未保存的本地编辑。"
     ],
     "ja": [
-      "APIトークンの対象を指定したノートブックとその子ノートブックに限定し、読み取り専用または読み書き権限を設定できます。既存のトークンの権限は維持されます。",
-      "Markdownファイルやフォルダをインポートできます。フォルダの階層を保ち、ローカル添付ファイルとノート間リンクを解決します。",
-      "構造化テーブルでフィルターと複数列の並べ替えを名前付きビューとして保存できます。大きなテーブルのスクロールを改善し、リンクセルからURLを直接開けるようにしました。",
-      "モバイルブラウザーでJoplinの.jexファイルを選択できない問題と、Evernoteのタスク名や日付がインポート後のノート本文に混入する問題を修正しました。",
-      "EdgeEverのロゴ、アプリアイコン、デモのサンプルノートを更新し、結合したノートの区切り線を調整しました。",
-      "同期とプラグインの重複リクエストを削減し、Cloudflareへの再デプロイ時に有効な認証設定を既定で保持します。"
+      "Android で Google Play の更新確認を 1 回だけ表示します。",
+      "インポートするノートの本文がストレージの上限を超えた場合に、原因を表示します。",
+      "エディターでギャラリー内の画像をクリックしても、ツールバーを開いたままにします。",
+      "サイドバーをコンパクトにしてノートブック一覧を広げ、新規ノートのメニューからテンプレートを使えるようにしました。",
+      "以前の保存内容の同期が完了したときに、図やインフォグラフィックの編集中の変更を保持します。"
     ]
   }
 }
