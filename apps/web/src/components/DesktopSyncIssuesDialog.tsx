@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, ExternalLink, LoaderCircle, RefreshCw, RotateCcw, Trash2 } from "lucide-react";
+import { AlertTriangle, LoaderCircle, RefreshCw, RotateCcw, Trash2 } from "lucide-react";
 import { buildGitHubFeedbackUrl, getMemoSaveErrorReasonKey, type DesktopOutboxItem, type Notebook } from "@edgeever/shared";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AppConfirmDialog } from "@/components/dialogs/ConfirmDialogs";
+import { GitHubMark } from "@/components/GitHubRepositoryLink";
 import { getShareableWebSystemInfoItems } from "@/components/settings/SystemInfoCard";
 import { api, getConfiguredDesktopApiBaseUrl } from "@/lib/api";
 import {
@@ -98,6 +99,14 @@ export const DesktopSyncIssuesDialog = ({
   }), [clientRuntimeQuery.data, globalIssue, healthQuery.data, i18n.language, items, releaseQuery.data, t]);
   const collectingSystemInfo = clientRuntimeQuery.isFetching || healthQuery.isFetching || releaseQuery.isFetching;
   const canReportIssue = (items.length > 0 || Boolean(globalIssue)) && !collectingSystemInfo;
+  const reportIssueContent = (
+    <>
+      {collectingSystemInfo
+        ? <LoaderCircle aria-hidden="true" className="h-4 w-4 shrink-0 animate-spin" />
+        : <GitHubMark className="h-4 w-4 shrink-0" />}
+      {t("notebookPane.syncDetails.reportIssue")}
+    </>
+  );
   const formatTime = (value: string | null | undefined) => {
     if (!value) return null;
     const time = new Date(value);
@@ -243,20 +252,12 @@ export const DesktopSyncIssuesDialog = ({
           </div>
 
           <DialogFooter className="gap-2 sm:justify-between">
-            <Button variant="outline" disabled={!canReportIssue} asChild={canReportIssue}>
+            <Button variant="outline" className="whitespace-nowrap" disabled={!canReportIssue} asChild={canReportIssue}>
               {canReportIssue ? (
                 <a href={reportIssueUrl} target="_blank" rel="noopener noreferrer">
-                  <ExternalLink className="mr-1.5 h-4 w-4" />
-                  {t("notebookPane.syncDetails.reportIssue")}
+                  {reportIssueContent}
                 </a>
-              ) : (
-                <span>
-                  {collectingSystemInfo
-                    ? <LoaderCircle className="mr-1.5 h-4 w-4 animate-spin" />
-                    : <ExternalLink className="mr-1.5 h-4 w-4" />}
-                  {t("notebookPane.syncDetails.reportIssue")}
-                </span>
-              )}
+              ) : reportIssueContent}
             </Button>
             <Button variant="outline" onClick={() => onOpenChange(false)}>{t("common.close")}</Button>
           </DialogFooter>
