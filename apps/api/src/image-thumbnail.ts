@@ -67,6 +67,19 @@ export const buildAllThumbnailObjectKeys = (
     buildThumbnailObjectKey(workspaceId, resourceId, versionKey, width),
   );
 
+export const deleteResourceThumbnails = async (
+  store: BlobStoreAdapter,
+  workspaceId: string,
+  resource: Pick<ThumbnailResourceMeta, "id" | "kind" | "mime_type" | "byte_size" | "object_key" | "sha256" | "updated_at">,
+): Promise<void> => {
+  if (!isThumbnailEligibleResource(resource)) return;
+  const versionKey = await resolveThumbnailVersionKey(resource).catch(() => null);
+  if (!versionKey) return;
+  await store
+    .delete(buildAllThumbnailObjectKeys(workspaceId, resource.id, versionKey))
+    .catch(() => undefined);
+};
+
 export const buildThumbnailEtag = (versionKey: string, width: number): string =>
   `"thumb-${versionKey}-w${width}"`;
 

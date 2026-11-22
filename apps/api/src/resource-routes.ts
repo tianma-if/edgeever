@@ -14,8 +14,8 @@ import { parseByteRange, rangeNotSatisfiable } from "./byte-range";
 import { isoNow } from "./entity-utils";
 import { apiError, badRequest, notFound } from "./http-errors";
 import {
-  buildAllThumbnailObjectKeys,
   buildThumbnailEtag,
+  deleteResourceThumbnails,
   isThumbnailEligibleResource,
   matchesIfNoneMatch,
   resolveOrGenerateThumbnail,
@@ -743,14 +743,7 @@ export const registerResourceRoutes = (
 
     const source = await resolveObjectStorage(context.env, resource.storage_config_id);
     await source.store.delete(resource.object_key);
-    if (isThumbnailEligibleResource(resource)) {
-      const versionKey = await resolveThumbnailVersionKey(resource).catch(() => null);
-      if (versionKey) {
-        await source.store.delete(
-          buildAllThumbnailObjectKeys(workspaceId, resource.id, versionKey),
-        ).catch(() => undefined);
-      }
-    }
+    await deleteResourceThumbnails(source.store, workspaceId, resource).catch(() => undefined);
 
     if (!resource.is_deleted) {
       const now = isoNow();

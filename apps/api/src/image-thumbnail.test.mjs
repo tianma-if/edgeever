@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { Database } from "bun:sqlite";
-import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
+import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { Hono } from "hono";
 import sharp from "sharp";
 import { createCloudflareImageThumbnailAdapter } from "./cloudflare-image-adapter.ts";
@@ -13,10 +15,18 @@ import {
   matchesIfNoneMatch,
   resolveThumbnailVersionKey,
 } from "./image-thumbnail.ts";
+import { deleteMemosRecord, emptyTrashMemosRecord } from "./memo-service.ts";
 import { registerResourceRoutes } from "./resource-routes.ts";
-import { getResourceRow, replaceResourceContent } from "./resource-service.ts";
+import {
+  deleteReleasedResourceObjects,
+  getResourceRow,
+  replaceResourceContent,
+} from "./resource-service.ts";
 import { createSelfHostedStorageAdapter } from "./self-hosted-storage-adapter.ts";
-import { createSelfHostedImageThumbnailAdapter } from "../../../scripts/self-hosted-image-thumbnail.mjs";
+import {
+  createSelfHostedImageThumbnailAdapter,
+  resizeWithImageScript,
+} from "../../../scripts/self-hosted-image-thumbnail.mjs";
 
 const temporaryDirectories = [];
 afterEach(async () => {
@@ -606,4 +616,174 @@ describe("resource blob thumbnail ?w= support", () => {
     });
     expect(fallbackVersion).toMatch(/^[a-f0-9]{64}$/);
   });
+
+  test("resizeWithImageScript resizes PNG/JPEG to WebP without enlarging small images", async () => {
+    const png1200 = await sharp({
+      create: { width: 1200, height: 800, channels: 3, background: { r: 30, g: 140, b: 200 } },
+    }).png().toBuffer();
+    const pngOut = await resizeWithImageScript({ bytes: new Uint8Array(png1200), width: 400 });
+    expect(pngOut).not.toBeNull();
+    expect(pngOut?.mimeType).toBe("image/webp");
+    const pngOutMeta = await sharp(pngOut.bytes).metadata();
+    expect(pngOutMeta.format).toBe("webp");
+    expect(pngOutMeta.width).toBe(400);
+    expect(pngOutMeta.height).toBe(267);
+
+    const jpg900 = await sharp({
+      create: { width: 900, height: 600, channels: 3, background: { r: 210, g: 90, b: 40 } },
+    }).jpeg().toBuffer();
+    const jpgOut = await resizeWithImageScript({ bytes: new Uint8Array(jpg900), width: 400 });
+    expect(jpgOut?.mimeType).toBe("image/webp");
+    const jpgOutMeta = await sharp(jpgOut.bytes).metadata();
+    expect(jpgOutMeta.format).toBe("webp");
+    expect(jpgOutMeta.width).toBe(400);
+
+    const smallPng = await sharp({
+      create: { width: 200, height: 150, channels: 3, background: { r: 80, g: 180, b: 90 } },
+    }).png().toBuffer();
+    const smallOut = await resizeWithImageScript({ bytes: new Uint8Array(smallPng), width: 800 });
+    expect(smallOut?.mimeType).toBe("image/webp");
+    const smallOutMeta = await sharp(smallOut.bytes).metadata();
+    expect(smallOutMeta.width).toBe(200);
+    expect(smallOutMeta.height).toBe(150);
+
+    expect(await resizeWithImageScript({ bytes: new Uint8Array([1, 2, 3, 4]), width: 400 })).toBeNull();
+  });
+
+  test("bundled self-hosted thumbnail adapter runs standalone without node_modules", async () => {
+    const outDir = await mkdtemp(join(tmpdir(), "edgeever-thumb-bundle-"));
+    const emptyCacheDir = await mkdtemp(join(tmpdir(), "edgeever-bun-empty-cache-"));
+    temporaryDirectories.push(outDir, emptyCacheDir);
+
+    const entrypoint = fileURLToPath(new URL("../../../scripts/self-hosted-image-thumbnail.mjs", import.meta.url));
+    const buildResult = await Bun.build({
+      entrypoints: [entrypoint],
+      target: "bun",
+      format: "esm",
+      outdir: outDir,
+      sourcemap: "none",
+    });
+    expect(buildResult.success).toBe(true);
+
+    const png1200 = await sharp({
+      create: { width: 1200, height: 800, channels: 3, background: { r: 25, g: 95, b: 190 } },
+    }).png().toBuffer();
+
+    const runnerPath = join(outDir, "run.mjs");
+    await writeFile(
+      runnerPath,
+      [
+        'import { createSelfHostedImageThumbnailAdapter } from "./self-hosted-image-thumbnail.js";',
+        'const input = Uint8Array.from(Buffer.from(process.env.TEST_PNG_B64 || "", "base64"));',
+        "const resize = createSelfHostedImageThumbnailAdapter();",
+        "const res = await resize({ bytes: input, mimeType: 'image/png', width: 400 });",
+        "if (!res || res.mimeType !== 'image/webp') process.exit(2);",
+        "process.stdout.write(Buffer.from(res.bytes).toString('base64'));",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const runResult = spawnSync(process.execPath, ["--no-install", runnerPath], {
+      cwd: outDir,
+      env: {
+        ...process.env,
+        BUN_INSTALL_CACHE_DIR: emptyCacheDir,
+        TEST_PNG_B64: Buffer.from(png1200).toString("base64"),
+      },
+      encoding: "utf8",
+    });
+    expect(runResult.status).toBe(0);
+    expect(runResult.stderr).toContain("using bundled imagescript thumbnail resizer");
+    const outBytes = new Uint8Array(Buffer.from(runResult.stdout.trim(), "base64"));
+    const meta = await sharp(outBytes).metadata();
+    expect(meta.format).toBe("webp");
+    expect(meta.width).toBe(400);
+    expect(meta.height).toBe(267);
+  }, { timeout: 20000 });
+
+  test("deleteReleasedResourceObjects and permanent memo deletion purge cached thumbnails", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "edgeever-thumb-purge-"));
+    temporaryDirectories.push(dir);
+    const db = new Database(":memory:");
+    try {
+      db.exec("PRAGMA foreign_keys = ON");
+      const migrationDir = new URL("../../../migrations/", import.meta.url);
+      for (const name of (await readdir(migrationDir)).filter((v) => v.endsWith(".sql")).sort()) {
+        db.exec(await readFile(new URL(name, migrationDir), "utf8"));
+      }
+      db.query("INSERT OR IGNORE INTO workspaces (id, name, is_personal) VALUES ('ws_default', 'Personal', 1)").run();
+
+      const env = {
+        storage: createSelfHostedStorageAdapter(db, join(dir, "resources")),
+        resizeImageThumbnail: createSelfHostedImageThumbnailAdapter(),
+        EDGE_EVER_ALLOW_UNAUTHENTICATED: "true",
+        EDGE_EVER_RUNTIME: "self-hosted-bun",
+      };
+      const callApp = (path, init = {}) => fetchEdgeEverApp(
+        new Request(`http://edgeever.test${path}`, init),
+        env,
+        { waitUntil: () => undefined, passThroughOnException: () => undefined },
+      );
+
+      const nbRes = await (await callApp("/api/v1/notebooks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Purge" }),
+      })).json();
+      const createMemoWithThumb = async (title) => {
+        const memoRes = await (await callApp("/api/v1/memos", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ notebookId: nbRes.notebook.id, title, contentMarkdown: "" }),
+        })).json();
+        const png = await sharp({
+          create: { width: 1200, height: 800, channels: 3, background: { r: 60, g: 130, b: 70 } },
+        }).png().toBuffer();
+        const form = new FormData();
+        form.append("file", new File([png], "pic.png", { type: "image/png" }));
+        const uploaded = await (await callApp(`/api/v1/memos/${memoRes.memo.id}/resources`, {
+          method: "POST",
+          body: form,
+        })).json();
+        const thumbRes = await callApp(`/api/v1/resources/${uploaded.resource.id}/blob?w=400`);
+        expect(thumbRes.status).toBe(200);
+        await thumbRes.body?.cancel();
+        const thumbKey = buildThumbnailObjectKey("ws_default", uploaded.resource.id, uploaded.resource.sha256, 400);
+        const cached = await env.storage.resources.get(thumbKey);
+        expect(cached).not.toBeNull();
+        await cached?.body.cancel();
+        return { memoId: memoRes.memo.id, resource: uploaded.resource, thumbKey };
+      };
+
+      const actor = { actorType: "user", actorId: null };
+      const memoA = await createMemoWithThumb("Permanent Delete");
+      await deleteMemosRecord(env, "ws_default", [memoA.memoId], false, actor);
+      const beforePermanent = await env.storage.resources.get(memoA.thumbKey);
+      expect(beforePermanent).not.toBeNull();
+      await beforePermanent?.body.cancel();
+      await deleteMemosRecord(env, "ws_default", [memoA.memoId], true, actor);
+      expect(await env.storage.resources.get(memoA.thumbKey)).toBeNull();
+
+      const memoB = await createMemoWithThumb("Empty Trash");
+      await deleteMemosRecord(env, "ws_default", [memoB.memoId], false, actor);
+      await emptyTrashMemosRecord(env, "ws_default", actor);
+      expect(await env.storage.resources.get(memoB.thumbKey)).toBeNull();
+
+      const memoC = await createMemoWithThumb("Released Resource");
+      await deleteReleasedResourceObjects(env, [{
+        id: memoC.resource.id,
+        workspaceId: "ws_default",
+        objectKey: memoC.resource.objectKey,
+        storageConfigId: memoC.resource.storageConfigId,
+        kind: memoC.resource.kind,
+        mimeType: memoC.resource.mimeType,
+        byteSize: memoC.resource.byteSize,
+        sha256: memoC.resource.sha256,
+        updatedAt: memoC.resource.updatedAt,
+      }]);
+      expect(await env.storage.resources.get(memoC.thumbKey)).toBeNull();
+    } finally {
+      db.close();
+    }
+  }, { timeout: 20000 });
 });
