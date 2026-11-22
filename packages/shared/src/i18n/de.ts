@@ -2356,7 +2356,7 @@ export const de = {
     "desktopUpdateDownloading": "Update wird heruntergeladen …",
     "desktopUpdateReady": "Update heruntergeladen",
     "desktopUpdateDownload": "Update herunterladen",
-    "desktopUpdateRestart": "Neu starten zum Aktualisieren",
+    "desktopUpdateRestart": "App aktualisieren und neu starten",
     "desktopUpdateInstalling": "Neustart zur Installation des Updates …",
     "desktopUpdateDiagnosticDetails": "Diagnosedetails",
     "desktopUpdateDiagnosticCopied": "Diagnosedaten kopiert",

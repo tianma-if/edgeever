@@ -2207,7 +2207,7 @@ export const zhTW = {
     desktopUpdateDownloading: "正在下載更新…",
     desktopUpdateReady: "更新已下載完成",
     desktopUpdateDownload: "下載更新",
-    desktopUpdateRestart: "重啟以更新",
+    desktopUpdateRestart: "更新並重啟應用程式",
     desktopUpdateInstalling: "正在重啟並安裝更新…",
     desktopUpdateDiagnosticDetails: "診斷詳情",
     desktopUpdateDiagnosticCopied: "診斷資訊已複製",

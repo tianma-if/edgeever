@@ -2356,7 +2356,7 @@ export const fr = {
     desktopUpdateDownloading: "Téléchargement de la mise à jour…",
     desktopUpdateReady: "Mise à jour téléchargée",
     desktopUpdateDownload: "Télécharger la mise à jour",
-    desktopUpdateRestart: "Redémarrer pour mettre à jour",
+    desktopUpdateRestart: "Mettre à jour et relancer l’app",
     desktopUpdateInstalling: "Redémarrage pour installer la mise à jour…",
     desktopUpdateDiagnosticDetails: "Détails de diagnostic",
     desktopUpdateDiagnosticCopied: "Diagnostics copiés",

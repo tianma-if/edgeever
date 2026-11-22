@@ -2196,7 +2196,7 @@ export const ja = {
     desktopUpdateDownloading: "更新をダウンロードしています…",
     desktopUpdateReady: "更新をダウンロード済み",
     desktopUpdateDownload: "更新をダウンロード",
-    desktopUpdateRestart: "再起動して更新",
+    desktopUpdateRestart: "アプリを更新して再起動",
     desktopUpdateInstalling: "再起動して更新をインストールしています…",
     desktopUpdateDiagnosticDetails: "診断の詳細",
     desktopUpdateDiagnosticCopied: "診断情報をコピーしました",

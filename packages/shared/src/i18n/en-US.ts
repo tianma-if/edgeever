@@ -2188,7 +2188,7 @@ export const enUS = {
     desktopUpdateDownloading: "Downloading update…",
     desktopUpdateReady: "Update downloaded",
     desktopUpdateDownload: "Download update",
-    desktopUpdateRestart: "Restart to Update",
+    desktopUpdateRestart: "Update and Restart App",
     desktopUpdateInstalling: "Restarting to install update…",
     desktopUpdateDiagnosticDetails: "Diagnostic details",
     desktopUpdateDiagnosticCopied: "Diagnostics copied",

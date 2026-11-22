@@ -2207,7 +2207,7 @@ export const ru = {
     desktopUpdateDownloading: "Загрузка обновления…",
     desktopUpdateReady: "Обновление загружено",
     desktopUpdateDownload: "Скачать обновление",
-    desktopUpdateRestart: "Перезапустить для обновления",
+    desktopUpdateRestart: "Обновить и перезапустить приложение",
     desktopUpdateInstalling: "Перезапуск для установки обновления…",
     desktopUpdateDiagnosticDetails: "Диагностика",
     desktopUpdateDiagnosticCopied: "Диагностика скопирована",

@@ -2207,7 +2207,7 @@ export const zhCN = {
     desktopUpdateDownloading: "正在下载更新…",
     desktopUpdateReady: "更新已下载完成",
     desktopUpdateDownload: "下载更新",
-    desktopUpdateRestart: "重启以更新",
+    desktopUpdateRestart: "更新并重启应用",
     desktopUpdateInstalling: "正在重启并安装更新…",
     desktopUpdateDiagnosticDetails: "诊断详情",
     desktopUpdateDiagnosticCopied: "诊断信息已复制",

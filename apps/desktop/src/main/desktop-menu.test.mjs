@@ -8,7 +8,7 @@ describe("desktop native menu localization", () => {
     expect(copy.edit).toBe("编辑");
     expect(copy.view).toBe("视图");
     expect(copy.window).toBe("窗口");
-    expect(copy.restartToUpdate).toBe("重启以更新");
+    expect(copy.restartToUpdate).toBe("更新并重启应用");
     expect(copy.screenshotToNote).toBe("截取屏幕到笔记");
     expect(screenshotRegionCopy("zh-CN").hint).toBe("拖拽选择区域，松开后保存为笔记");
     expect(screenshotRegionCopy("zh-CN").full).toBe("双击截取整个屏幕");

@@ -2196,7 +2196,7 @@ export const pl = {
     desktopUpdateDownloading: "Pobieranie aktualizacji…",
     desktopUpdateReady: "Pobrano aktualizację",
     desktopUpdateDownload: "Pobierz aktualizację",
-    desktopUpdateRestart: "Uruchom ponownie, aby zaktualizować",
+    desktopUpdateRestart: "Zaktualizuj i uruchom ponownie aplikację",
     desktopUpdateInstalling: "Ponowne uruchamianie w celu instalacji aktualizacji…",
     desktopUpdateDiagnosticDetails: "Szczegóły diagnostyczne",
     desktopUpdateDiagnosticCopied: "Skopiowano diagnostykę",
