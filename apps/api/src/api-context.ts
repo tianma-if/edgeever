@@ -3,9 +3,22 @@ import type { TokenNotebookAccess, TokenNotebookAccessLevel } from "@edgeever/sh
 import type { CloudflareStorageBindings } from "./cloudflare-storage-adapter";
 import type { StorageAdapter } from "./storage-contract";
 
+export type ImageThumbnailResult = {
+  bytes: Uint8Array;
+  mimeType: string;
+};
+
+export type ImageThumbnailAdapter = (input: {
+  bytes: Uint8Array;
+  mimeType: string;
+  width: number;
+}) => Promise<ImageThumbnailResult | null>;
+
 export type Bindings = {
   /** Runtime driver for public-only egress; no platform-specific business logic. */
   publicNetworkFetch?: (input: string, init: RequestInit) => Promise<Response>;
+  /** Optional runtime driver for generating downscaled image thumbnails. */
+  resizeImageThumbnail?: ImageThumbnailAdapter;
   /** The only persistence dependency exposed to application code. */
   storage: StorageAdapter;
   EDGE_EVER_AUTH_USERNAME?: string;
@@ -39,9 +52,13 @@ export type Bindings = {
   EDGE_EVER_COMMUNITY_REGISTRY_URL?: string;
 };
 
-export type WorkerBindings = Omit<Bindings, "storage" | "publicNetworkFetch" | "deploymentVersionCreatedAt"> & CloudflareStorageBindings & {
+export type WorkerBindings = Omit<
+  Bindings,
+  "storage" | "publicNetworkFetch" | "deploymentVersionCreatedAt" | "resizeImageThumbnail"
+> & CloudflareStorageBindings & {
   ASSETS: Fetcher;
   CF_VERSION_METADATA?: { timestamp?: string };
+  IMAGES?: ImagesBinding;
 };
 
 export type AuthContext = {

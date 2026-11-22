@@ -13,6 +13,11 @@ import type { AppContext, AuditActor, Bindings } from "./api-context";
 import { AppError } from "./app-error";
 import { createId, isoNow } from "./entity-utils";
 import { sha256Bytes } from "./hash-utils";
+import {
+  buildAllThumbnailObjectKeys,
+  isThumbnailEligibleResource,
+  resolveThumbnailVersionKey,
+} from "./image-thumbnail";
 import { resolveObjectStorage } from "./object-storage";
 import { getWorkspaceId } from "./request-auth";
 import {
@@ -490,6 +495,14 @@ export const replaceResourceContent = async (
       },
     ).run();
     await source.store.delete(current.object_key).catch(() => undefined);
+    if (isThumbnailEligibleResource(current)) {
+      const previousVersionKey = await resolveThumbnailVersionKey(current).catch(() => null);
+      if (previousVersionKey) {
+        await source.store.delete(
+          buildAllThumbnailObjectKeys(workspaceId, current.id, previousVersionKey),
+        ).catch(() => undefined);
+      }
+    }
     return mapResource(updated);
   } catch (error) {
     if (!candidateMayBeLive) await source.store.delete(nextObjectKey).catch(() => undefined);

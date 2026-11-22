@@ -507,7 +507,7 @@ export const consumePendingResourceUpload = async (
 /** Pending upload readable through the authenticated resource URL. */
 export const getPendingResourceBlobRow = (db: DatabaseAdapter, workspaceId: string, id: string) =>
   db.prepare(
-    `SELECT id, kind, mime_type, filename, byte_size, object_key, storage_config_id
+    `SELECT id, kind, mime_type, filename, byte_size, object_key, storage_config_id, sha256
      FROM pending_resources
      WHERE id = ? AND workspace_id = ? AND state = 'uploaded' AND expires_at > ?`,
   ).bind(id, workspaceId, isoNow()).first<{
@@ -518,6 +518,7 @@ export const getPendingResourceBlobRow = (db: DatabaseAdapter, workspaceId: stri
     byte_size: number;
     object_key: string;
     storage_config_id: string;
+    sha256: string | null;
   }>();
 
 export const parseResourceIds = (value: unknown): string[] | undefined => {

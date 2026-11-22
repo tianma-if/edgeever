@@ -1,4 +1,10 @@
-import { resolveResourceUploadMimeType, ResourceUpdateSchema, type MemoDetail, type Resource } from "@edgeever/shared";
+import {
+  parseResourceThumbnailWidth,
+  resolveResourceUploadMimeType,
+  ResourceUpdateSchema,
+  type MemoDetail,
+  type Resource,
+} from "@edgeever/shared";
 import { zValidator } from "@hono/zod-validator";
 import type { Context, Hono } from "hono";
 import { auditStatement } from "./audit";
@@ -7,10 +13,20 @@ import { AppError } from "./app-error";
 import { parseByteRange, rangeNotSatisfiable } from "./byte-range";
 import { isoNow } from "./entity-utils";
 import { apiError, badRequest, notFound } from "./http-errors";
+import {
+  buildAllThumbnailObjectKeys,
+  buildThumbnailEtag,
+  isThumbnailEligibleResource,
+  matchesIfNoneMatch,
+  resolveOrGenerateThumbnail,
+  resolveThumbnailVersionKey,
+  toThumbnailFilename,
+} from "./image-thumbnail";
 import { resolveObjectStorage } from "./object-storage";
 import { getPendingResourceBlobRow } from "./pending-resource-service";
 import {
   SUPPORTED_IMAGE_MIME_TYPES,
+  contentDispositionInline,
   setResourceContentHeaders,
   mapResource,
   mapResourceListItem,
@@ -411,38 +427,154 @@ export const registerResourceRoutes = (
     return context.json({ byteSize: resource.byte_size, updatedAt: "updated_at" in resource ? resource.updated_at : null });
   });
 
+  const serveBufferedBlobResponse = (
+    bytes: Uint8Array,
+    headers: Headers,
+    rangeHeader: string | undefined,
+  ) => {
+    const byteRange = parseByteRange(rangeHeader, bytes.byteLength);
+    if (byteRange.kind === "invalid") return rangeNotSatisfiable(bytes.byteLength);
+
+    headers.set("Accept-Ranges", "bytes");
+    if (byteRange.kind === "range") {
+      const sliced = bytes.subarray(byteRange.range.offset, byteRange.range.offset + byteRange.range.length);
+      headers.set("Content-Length", String(sliced.byteLength));
+      headers.set(
+        "Content-Range",
+        `bytes ${byteRange.range.offset}-${byteRange.range.offset + sliced.byteLength - 1}/${bytes.byteLength}`,
+      );
+      return new Response(sliced as BodyInit, { headers, status: 206 });
+    }
+    headers.set("Content-Length", String(bytes.byteLength));
+    return new Response(bytes as BodyInit, { headers, status: 200 });
+  };
+
+  const buildThumbnailHeaders = (
+    mimeType: string,
+    etag: string,
+    filename: string | null,
+    resourceId: string,
+  ) => {
+    const headers = new Headers();
+    headers.set("Content-Type", mimeType);
+    headers.set("Content-Disposition", contentDispositionInline(toThumbnailFilename(filename, resourceId)));
+    headers.set("X-Content-Type-Options", "nosniff");
+    headers.set("Cache-Control", "private, no-cache");
+    headers.set("ETag", etag);
+    headers.set("Vary", "Authorization");
+    return headers;
+  };
+
   app.get("/api/v1/resources/:id/blob", async (context) => {
     const denied = requireScopes(context, "read:resources");
     if (denied) return denied;
 
+    const workspaceId = getWorkspaceId(context);
     const resource = await dependencies.getResourceRow(
       context.env.storage.db,
-      getWorkspaceId(context),
+      workspaceId,
       context.req.param("id"),
     ) ?? await getPendingResourceBlobRow(
       // An uploaded file not yet bound to a memo is readable by its workspace
       // at the same URL it keeps after binding.
       context.env.storage.db,
-      getWorkspaceId(context),
+      workspaceId,
       context.req.param("id"),
     );
     if (!resource) return notFound(context, "Resource not found");
     try {
-      await assertResourceRowAccess(
-        context,
-        resource.id,
-        "read",
-        await resolveRequestNotebookAccess(context),
-        "read this resource",
-      );
+      if ("memo_id" in resource) {
+        await assertResourceMemoAccess(
+          context,
+          resource.memo_id,
+          "read",
+          await resolveRequestNotebookAccess(context),
+          "read this resource",
+        );
+      }
     } catch (error) {
       return appErrorResponse(context, error);
     }
 
-    const byteRange = parseByteRange(context.req.header("Range"), resource.byte_size);
+    const widthQueries = context.req.queries("w");
+    if (widthQueries && widthQueries.length > 1) {
+      return badRequest(context, "Thumbnail width w must be an integer between 64 and 1600.");
+    }
+    const parsedWidth = parseResourceThumbnailWidth(widthQueries?.[0]);
+    if (parsedWidth.kind === "invalid") {
+      return badRequest(context, "Thumbnail width w must be an integer between 64 and 1600.");
+    }
+
+    const rangeHeader = context.req.header("Range");
+    const source = await resolveObjectStorage(context.env, resource.storage_config_id);
+
+    if (parsedWidth.kind === "valid" && isThumbnailEligibleResource(resource)) {
+      const versionKey = await resolveThumbnailVersionKey(resource);
+      const etag = buildThumbnailEtag(versionKey, parsedWidth.width);
+      if (matchesIfNoneMatch(context.req.header("If-None-Match"), etag)) {
+        return new Response(null, {
+          status: 304,
+          headers: {
+            ETag: etag,
+            "Cache-Control": "private, no-cache",
+            Vary: "Authorization",
+          },
+        });
+      }
+
+      const resolution = await resolveOrGenerateThumbnail({
+        store: source.store,
+        resizer: context.env.resizeImageThumbnail,
+        storageConfigId: resource.storage_config_id,
+        workspaceId,
+        resource,
+        width: parsedWidth.width,
+        versionKey,
+        etag,
+      });
+
+      if (resolution.kind === "not-found") {
+        return notFound(context, "Resource object not found");
+      }
+
+      if (resolution.kind === "cached") {
+        const headers = buildThumbnailHeaders("image/webp", resolution.etag, resource.filename, resource.id);
+        resolution.object.writeHttpMetadata(headers);
+        // Always keep protected thumbnails revalidatable regardless of stored metadata.
+        headers.set("Cache-Control", "private, no-cache");
+        headers.set("ETag", resolution.etag);
+        headers.set("Vary", "Authorization");
+        headers.set("Content-Type", headers.get("Content-Type") || "image/webp");
+        headers.set("Content-Disposition", contentDispositionInline(toThumbnailFilename(resource.filename, resource.id)));
+        headers.set("X-Content-Type-Options", "nosniff");
+        headers.set("Accept-Ranges", "bytes");
+
+        if (rangeHeader) {
+          const bytes = new Uint8Array(await new Response(resolution.object.body).arrayBuffer());
+          return serveBufferedBlobResponse(bytes, headers, rangeHeader);
+        }
+        if (typeof resolution.object.size === "number" && Number.isFinite(resolution.object.size)) {
+          headers.set("Content-Length", String(resolution.object.size));
+        }
+        return new Response(resolution.object.body, { headers, status: 200 });
+      }
+
+      if (resolution.kind === "generated") {
+        const headers = buildThumbnailHeaders(resolution.mimeType, resolution.etag, resource.filename, resource.id);
+        return serveBufferedBlobResponse(resolution.bytes, headers, rangeHeader);
+      }
+
+      if (resolution.kind === "fallback-bytes") {
+        const headers = new Headers();
+        headers.set("Cache-Control", "private, max-age=3600");
+        setResourceContentHeaders(headers, resource);
+        return serveBufferedBlobResponse(resolution.bytes, headers, rangeHeader);
+      }
+    }
+
+    const byteRange = parseByteRange(rangeHeader, resource.byte_size);
     if (byteRange.kind === "invalid") return rangeNotSatisfiable(resource.byte_size);
 
-    const source = await resolveObjectStorage(context.env, resource.storage_config_id);
     const object = await source.store.get(
       resource.object_key,
       byteRange.kind === "range" ? { range: byteRange.range } : undefined,
@@ -587,10 +719,11 @@ export const registerResourceRoutes = (
     const denied = requireScopes(context, "write:resources");
     if (denied) return denied;
 
+    const workspaceId = getWorkspaceId(context);
     const resourceId = context.req.param("id");
     const resource = await dependencies.getResourceRow(
       context.env.storage.db,
-      getWorkspaceId(context),
+      workspaceId,
       resourceId,
       true,
     );
@@ -610,6 +743,14 @@ export const registerResourceRoutes = (
 
     const source = await resolveObjectStorage(context.env, resource.storage_config_id);
     await source.store.delete(resource.object_key);
+    if (isThumbnailEligibleResource(resource)) {
+      const versionKey = await resolveThumbnailVersionKey(resource).catch(() => null);
+      if (versionKey) {
+        await source.store.delete(
+          buildAllThumbnailObjectKeys(workspaceId, resource.id, versionKey),
+        ).catch(() => undefined);
+      }
+    }
 
     if (!resource.is_deleted) {
       const now = isoNow();
