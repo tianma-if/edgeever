@@ -4,7 +4,7 @@ import { ReactRenderer } from "@tiptap/react";
 import { PluginKey } from "@tiptap/pm/state";
 import Suggestion, { type SuggestionKeyDownProps, type SuggestionProps } from "@tiptap/suggestion";
 import { Link2 } from "lucide-react";
-import { createMemoLinkHref, type MemoSummary } from "@edgeever/shared";
+import { createMemoLinkHref, getMemoDisplayTitleWithCreatedAt, type MemoSummary } from "@edgeever/shared";
 import {
   Command,
   CommandEmpty,
@@ -19,6 +19,7 @@ export type NoteLinkSuggestionLabels = {
   empty: string;
   close: string;
   untitled: string;
+  locale: string;
 };
 
 type NoteLinkSuggestionProps = SuggestionProps<MemoSummary, MemoSummary> & {
@@ -83,7 +84,7 @@ export const NoteLinkSuggestion = forwardRef<NoteLinkSuggestionHandle, NoteLinkS
                 onSelect={() => command(item)}
               >
                 <Link2 className="h-4 w-4 shrink-0 text-slate-600" />
-                <span className="min-w-0 flex-1 truncate">{item.title || labels.untitled}</span>
+                <span className="min-w-0 flex-1 truncate">{getMemoDisplayTitleWithCreatedAt(item.title, item.createdAt, labels.untitled, labels.locale)}</span>
                 <span className="max-w-40 truncate text-xs text-slate-400">{item.excerpt}</span>
               </CommandItem>
             ))}
