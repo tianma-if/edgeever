@@ -1,9 +1,13 @@
 import { describe, expect, test } from "bun:test";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { Editor } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import { TextSelection } from "@tiptap/pm/state";
+import { formatMemoCreatedAtLabel } from "../../../../../packages/shared/src/memo-title.ts";
 import { ensureTestWindowDom } from "../../lib/restore-test-global.mjs";
 import {
+  NoteLinkSuggestion,
   filterNoteLinkSuggestions,
   insertSuggestedNoteLink,
   createNoteLinkSuggestionExtension,
@@ -14,6 +18,7 @@ const labels = {
   empty: "没有找到可引用的笔记",
   close: "关闭引用笔记",
   untitled: "无标题笔记",
+  locale: "en-US",
 };
 
 const memo = (overrides) => ({
@@ -143,5 +148,33 @@ describe("note link suggestion", () => {
 
     expect(editor.getText()).toBe("无标题笔记");
     editor.destroy();
+  });
+
+  test("shows the creation-time label for untitled notes in the @ suggestion list", () => {
+    const first = formatMemoCreatedAtLabel("2026-11-06T16:03:05.000Z", "en-US");
+    const second = formatMemoCreatedAtLabel("2026-11-06T16:03:47.000Z", "en-US");
+    const html = renderToStaticMarkup(createElement(NoteLinkSuggestion, {
+      command: () => {},
+      items: [
+        memo({ id: "first", title: "", createdAt: "2026-11-06T16:03:05.000Z" }),
+        memo({ id: "second", title: "", createdAt: "2026-11-06T16:03:47.000Z" }),
+        memo({ id: "titled", title: "项目笔记", createdAt: "2026-11-06T16:03:05.000Z" }),
+      ],
+      labels,
+    }));
+    expect(first).not.toBe(second);
+    expect(html).toContain(first);
+    expect(html).toContain(second);
+    expect(html).toContain("项目笔记");
+    expect(html).not.toContain("无标题笔记");
+  });
+
+  test("falls back to the untitled label in the @ suggestion list when the creation time is unusable", () => {
+    const html = renderToStaticMarkup(createElement(NoteLinkSuggestion, {
+      command: () => {},
+      items: [memo({ id: "nodate", title: "", createdAt: "" })],
+      labels,
+    }));
+    expect(html).toContain("无标题笔记");
   });
 });
