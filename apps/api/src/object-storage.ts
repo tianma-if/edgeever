@@ -169,10 +169,12 @@ export const resolveObjectStorage = async (env: ObjectStorageEnvironment, config
     };
   }
 
+  const s3Config = await toWorkerS3Config(env.storage.db, row, env);
   return {
     configId: row.id,
     bucketName: row.bucket ?? "external-object-storage",
-    store: createWorkerS3BlobStore(await toWorkerS3Config(env.storage.db, row, env)),
+    store: createWorkerS3BlobStore(s3Config),
+    scopeKey: `s3:${row.id}:${s3Config.endpoint}:${s3Config.region}:${s3Config.bucket}:${s3Config.objectPrefix}:${s3Config.forcePathStyle ? "path" : "vhost"}`,
   };
 };
 

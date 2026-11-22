@@ -8,20 +8,23 @@ import { fileURLToPath } from "node:url";
 import { Hono } from "hono";
 import sharp from "sharp";
 import { createCloudflareImageThumbnailAdapter } from "./cloudflare-image-adapter.ts";
-import { fetchEdgeEverApp } from "./index.ts";
+import worker, { fetchEdgeEverApp } from "./index.ts";
 import {
   buildThumbnailEtag,
   buildThumbnailObjectKey,
+  buildThumbnailOriginalEtag,
   matchesIfNoneMatch,
   resolveThumbnailVersionKey,
 } from "./image-thumbnail.ts";
 import { deleteMemosRecord, emptyTrashMemosRecord } from "./memo-service.ts";
+import { cleanupExpiredPendingResources } from "./pending-resource-service.ts";
 import { registerResourceRoutes } from "./resource-routes.ts";
 import {
   deleteReleasedResourceObjects,
   getResourceRow,
   replaceResourceContent,
 } from "./resource-service.ts";
+import { encryptSecret } from "./secret-encryption.ts";
 import { createSelfHostedStorageAdapter } from "./self-hosted-storage-adapter.ts";
 import {
   createSelfHostedImageThumbnailAdapter,
@@ -327,22 +330,37 @@ describe("resource blob thumbnail ?w= support", () => {
     expect(new Uint8Array(await rangeRes.arrayBuffer())).toEqual(thumbBytes.subarray(0, 10));
   });
 
-  test("falls back to original bytes when resizer is missing, fails, or produces a larger output", async () => {
+  test("falls back to original bytes with private revalidation headers when resizer is missing, fails, or produces a larger output, while preserving default policy without ?w=", async () => {
     const originalBytes = new Uint8Array(512).fill(4);
     const storeWrapper = createInMemoryStore({
       [sampleImageRow.object_key]: originalBytes,
     });
+    storeWrapper.objects.get(sampleImageRow.object_key).metadata = {
+      contentType: "image/png",
+      cacheControl: "private, max-age=3600",
+    };
     const row = { ...sampleImageRow, byte_size: originalBytes.byteLength };
+    const fallbackEtag = buildThumbnailOriginalEtag("sha_v1", 400);
 
-    // 1. No resizer configured.
+    // 1. No resizer configured (streaming fallback).
     const noResizer = createMockApp({ resourceProvider: async () => row, storeWrapper });
     const r1 = await noResizer.app.request("/api/v1/resources/res_img_1/blob?w=400", {}, noResizer.env);
     expect(r1.status).toBe(200);
     expect(r1.headers.get("Content-Type")).toBe("image/png");
+    expect(r1.headers.get("Cache-Control")).toBe("private, no-cache");
+    expect(r1.headers.get("ETag")).toBe(fallbackEtag);
+    expect(r1.headers.get("Vary")).toBe("Authorization");
     expect(new Uint8Array(await r1.arrayBuffer())).toEqual(originalBytes);
     expect(storeWrapper.puts).toHaveLength(0);
 
-    // 2. Resizer throws (corrupt input).
+    // Non-?w= request preserves the existing original cache policy.
+    const rOrig = await noResizer.app.request("/api/v1/resources/res_img_1/blob", {}, noResizer.env);
+    expect(rOrig.status).toBe(200);
+    expect(rOrig.headers.get("Cache-Control")).toBe("private, max-age=3600");
+    expect(rOrig.headers.get("ETag")).toBeNull();
+    expect(new Uint8Array(await rOrig.arrayBuffer())).toEqual(originalBytes);
+
+    // 2. Resizer throws (corrupt input -> buffered fallback).
     const throwingResizer = createMockApp({
       resourceProvider: async () => row,
       storeWrapper,
@@ -353,10 +371,13 @@ describe("resource blob thumbnail ?w= support", () => {
     const r2 = await throwingResizer.app.request("/api/v1/resources/res_img_1/blob?w=400", {}, throwingResizer.env);
     expect(r2.status).toBe(200);
     expect(r2.headers.get("Content-Type")).toBe("image/png");
+    expect(r2.headers.get("Cache-Control")).toBe("private, no-cache");
+    expect(r2.headers.get("ETag")).toBe(fallbackEtag);
+    expect(r2.headers.get("Vary")).toBe("Authorization");
     expect(new Uint8Array(await r2.arrayBuffer())).toEqual(originalBytes);
     expect(storeWrapper.puts).toHaveLength(0);
 
-    // 3. Resizer output is larger than original.
+    // 3. Resizer output is larger than original (buffered fallback).
     const largerResizer = createMockApp({
       resourceProvider: async () => row,
       storeWrapper,
@@ -365,11 +386,14 @@ describe("resource blob thumbnail ?w= support", () => {
     const r3 = await largerResizer.app.request("/api/v1/resources/res_img_1/blob?w=400", {}, largerResizer.env);
     expect(r3.status).toBe(200);
     expect(r3.headers.get("Content-Type")).toBe("image/png");
+    expect(r3.headers.get("Cache-Control")).toBe("private, no-cache");
+    expect(r3.headers.get("ETag")).toBe(fallbackEtag);
+    expect(r3.headers.get("Vary")).toBe("Authorization");
     expect(new Uint8Array(await r3.arrayBuffer())).toEqual(originalBytes);
     expect(storeWrapper.puts).toHaveLength(0);
   });
 
-  test("skips resizing for non-image attachments, SVG, GIF, and animated raster images", async () => {
+  test("skips resizing for non-image attachments, SVG, GIF, and animated raster images while applying private revalidation policy on ?w=", async () => {
     let resizeCalls = 0;
     const resizer = async () => {
       resizeCalls += 1;
@@ -392,6 +416,9 @@ describe("resource blob thumbnail ?w= support", () => {
     const pdfRes = await pdfApp.app.request("/api/v1/resources/res_pdf/blob?w=400", {}, pdfApp.env);
     expect(pdfRes.status).toBe(200);
     expect(pdfRes.headers.get("Content-Type")).toBe("application/pdf");
+    expect(pdfRes.headers.get("Cache-Control")).toBe("private, no-cache");
+    expect(pdfRes.headers.get("ETag")).toBe(buildThumbnailOriginalEtag("sha_v1", 400));
+    expect(pdfRes.headers.get("Vary")).toBe("Authorization");
     expect(new Uint8Array(await pdfRes.arrayBuffer())).toEqual(pdfBytes);
 
     // SVG image preserves sandbox CSP and original bytes
@@ -411,6 +438,9 @@ describe("resource blob thumbnail ?w= support", () => {
     expect(svgRes.status).toBe(200);
     expect(svgRes.headers.get("Content-Type")).toBe("image/svg+xml");
     expect(svgRes.headers.get("Content-Security-Policy")).toContain("sandbox");
+    expect(svgRes.headers.get("Cache-Control")).toBe("private, no-cache");
+    expect(svgRes.headers.get("ETag")).toBe(buildThumbnailOriginalEtag("sha_v1", 400));
+    expect(svgRes.headers.get("Vary")).toBe("Authorization");
     expect(await svgRes.text()).toBe(svg);
 
     // Animated WebP (VP8X with animation flag bit 0x02 at byte 20)
@@ -432,9 +462,447 @@ describe("resource blob thumbnail ?w= support", () => {
     const animRes = await animApp.app.request("/api/v1/resources/res_anim/blob?w=400", {}, animApp.env);
     expect(animRes.status).toBe(200);
     expect(animRes.headers.get("Content-Type")).toBe("image/webp");
+    expect(animRes.headers.get("Cache-Control")).toBe("private, no-cache");
+    expect(animRes.headers.get("ETag")).toBe(buildThumbnailOriginalEtag("sha_v1", 400));
+    expect(animRes.headers.get("Vary")).toBe("Authorization");
     expect(new Uint8Array(await animRes.arrayBuffer())).toEqual(animatedWebp);
 
     expect(resizeCalls).toBe(0);
+  });
+
+  test("evaluates If-None-Match against the resolved representation after checking cache eviction, fallback, or missing source", async () => {
+    const originalBytes = new Uint8Array(512).fill(7);
+    const thumbBytes = new Uint8Array(64).fill(3);
+    const thumbKey = buildThumbnailObjectKey("ws_1", "res_img_1", "sha_v1", 400);
+    const thumbEtag = buildThumbnailEtag("sha_v1", 400);
+    const origEtag = buildThumbnailOriginalEtag("sha_v1", 400);
+    const row = { ...sampleImageRow, byte_size: originalBytes.byteLength };
+    const storeWrapper = createInMemoryStore({
+      [row.object_key]: originalBytes,
+      [thumbKey]: thumbBytes,
+    });
+
+    let allowResize = true;
+    const { app, env } = createMockApp({
+      resourceProvider: async () => row,
+      storeWrapper,
+      resizeImageThumbnail: async () => (allowResize ? { bytes: thumbBytes, mimeType: "image/webp" } : null),
+    });
+
+    // 1. Cached thumbnail matches thumbEtag -> 304.
+    const hit304 = await app.request(
+      "/api/v1/resources/res_img_1/blob?w=400",
+      { headers: { "If-None-Match": thumbEtag } },
+      env,
+    );
+    expect(hit304.status).toBe(304);
+    expect(hit304.headers.get("ETag")).toBe(thumbEtag);
+
+    // 2. Evict cached thumbnail and make transform unavailable -> representation is now original fallback,
+    // so stale thumbEtag MUST NOT return 304; it returns 200 with original bytes and origEtag.
+    storeWrapper.objects.delete(thumbKey);
+    allowResize = false;
+    const afterEvictFallback = await app.request(
+      "/api/v1/resources/res_img_1/blob?w=400",
+      { headers: { "If-None-Match": thumbEtag } },
+      env,
+    );
+    expect(afterEvictFallback.status).toBe(200);
+    expect(afterEvictFallback.headers.get("Content-Type")).toBe("image/png");
+    expect(afterEvictFallback.headers.get("Cache-Control")).toBe("private, no-cache");
+    expect(afterEvictFallback.headers.get("ETag")).toBe(origEtag);
+    expect(new Uint8Array(await afterEvictFallback.arrayBuffer())).toEqual(originalBytes);
+
+    // Subsequent conditional GET with origEtag while still on fallback returns 304.
+    const fallback304 = await app.request(
+      "/api/v1/resources/res_img_1/blob?w=400",
+      { headers: { "If-None-Match": origEtag } },
+      env,
+    );
+    expect(fallback304.status).toBe(304);
+    expect(fallback304.headers.get("ETag")).toBe(origEtag);
+
+    // Non-?w= request with If-None-Match: origEtag still returns 200 full original bytes (never 304 from thumbnail validator).
+    const nonWWithOrigEtag = await app.request(
+      "/api/v1/resources/res_img_1/blob",
+      { headers: { "If-None-Match": origEtag } },
+      env,
+    );
+    expect(nonWWithOrigEtag.status).toBe(200);
+    expect(nonWWithOrigEtag.headers.get("Cache-Control")).toBe("private, max-age=3600");
+
+    // 3. Evict both thumbnail and source object -> conditional GET returns 404, never 304.
+    storeWrapper.objects.delete(row.object_key);
+    const missing404 = await app.request(
+      "/api/v1/resources/res_img_1/blob?w=400",
+      { headers: { "If-None-Match": `${thumbEtag}, ${origEtag}` } },
+      env,
+    );
+    expect(missing404.status).toBe(404);
+  });
+
+  test("coalesces concurrent external S3 cache misses across fresh per-request store adapters", async () => {
+    const originalFetch = globalThis.fetch;
+    try {
+      const originalBytes = new Uint8Array(2048).fill(6);
+      const thumbBytes = new Uint8Array(96).fill(2);
+      const s3Objects = new Map([
+        ["https://objects.example.test/edgeever-bucket/notes/workspaces/ws_1/memos/memo_1/res_s3_1.png", originalBytes],
+      ]);
+      const s3Requests = [];
+
+      globalThis.fetch = async (input, init) => {
+        const request = input instanceof Request ? input : new Request(input, init);
+        const method = request.method.toUpperCase();
+        const url = request.url;
+        s3Requests.push({ method, url });
+        if (method === "GET") {
+          const hit = s3Objects.get(url);
+          if (!hit) return new Response("Not Found", { status: 404 });
+          return new Response(hit, {
+            status: 200,
+            headers: {
+              "content-type": url.endsWith(".webp") ? "image/webp" : "image/png",
+              "content-length": String(hit.byteLength),
+            },
+          });
+        }
+        if (method === "PUT") {
+          const bodyBytes = new Uint8Array(await request.arrayBuffer());
+          s3Objects.set(url, bodyBytes);
+          return new Response(null, { status: 200 });
+        }
+        if (method === "DELETE") {
+          s3Objects.delete(url);
+          return new Response(null, { status: 204 });
+        }
+        return new Response("Method Not Allowed", { status: 405 });
+      };
+
+      const encryptedSecret = await encryptSecret(
+        "s3-secret-key",
+        "edgeever:object-storage:v1:test-instance-password",
+      );
+      const s3ConfigRow = {
+        id: "instance-s3",
+        provider: "s3",
+        display_name: "External S3",
+        endpoint: "https://objects.example.test",
+        region: "us-east-1",
+        bucket: "edgeever-bucket",
+        access_key_id: "s3-access-key",
+        secret_access_key_encrypted: encryptedSecret,
+        force_path_style: 1,
+        object_prefix: "notes",
+        is_active: 1,
+      };
+      const s3ResourceRow = {
+        ...sampleImageRow,
+        id: "res_s3_1",
+        storage_config_id: "instance-s3",
+        object_key: "workspaces/ws_1/memos/memo_1/res_s3_1.png",
+        byte_size: originalBytes.byteLength,
+      };
+
+      let resizeCalls = 0;
+      let releaseResize;
+      const resizeGate = new Promise((resolve) => {
+        releaseResize = resolve;
+      });
+
+      const storeWrapper = createInMemoryStore();
+      const { app, env } = createMockApp({
+        resourceProvider: async () => s3ResourceRow,
+        dbOverrides: {
+          first: async (sql) => (sql.includes("FROM object_storage_configs") ? { ...s3ConfigRow } : null),
+        },
+        storeWrapper,
+        resizeImageThumbnail: async () => {
+          resizeCalls += 1;
+          await resizeGate;
+          return { bytes: thumbBytes, mimeType: "image/webp" };
+        },
+      });
+      env.EDGE_EVER_AUTH_PASSWORD = "test-instance-password";
+
+      const req1 = app.request("/api/v1/resources/res_s3_1/blob?w=400", {}, env);
+      const req2 = app.request("/api/v1/resources/res_s3_1/blob?w=400", {}, env);
+      await new Promise((r) => setTimeout(r, 15));
+      releaseResize();
+      const [res1, res2] = await Promise.all([req1, req2]);
+
+      expect(res1.status).toBe(200);
+      expect(res2.status).toBe(200);
+      expect(resizeCalls).toBe(1);
+      expect(new Uint8Array(await res1.arrayBuffer())).toEqual(thumbBytes);
+      expect(new Uint8Array(await res2.arrayBuffer())).toEqual(thumbBytes);
+
+      const originalDownloads = s3Requests.filter(
+        (r) => r.method === "GET" && r.url.endsWith("/res_s3_1.png"),
+      );
+      const thumbnailUploads = s3Requests.filter(
+        (r) => r.method === "PUT" && r.url.endsWith("/w400.webp"),
+      );
+      expect(originalDownloads).toHaveLength(1);
+      expect(thumbnailUploads).toHaveLength(1);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  test("skips persistent thumbnail writes for unbound uploads and reclaims late writes across overlapping resize/delete/replace", async () => {
+    const originalBytes = new Uint8Array(1024).fill(5);
+    const thumbBytes = new Uint8Array(80).fill(9);
+    const pendingId = "res_pending_img";
+    const pendingKey = `workspaces/ws_1/uploads/${pendingId}.png`;
+    const pendingThumbKey = buildThumbnailObjectKey("ws_1", pendingId, "sha_pending", 400);
+    const pendingRow = {
+      id: pendingId,
+      workspace_id: "ws_1",
+      kind: "image",
+      mime_type: "image/png",
+      filename: "pending.png",
+      byte_size: originalBytes.byteLength,
+      object_key: pendingKey,
+      storage_config_id: null,
+      sha256: "sha_pending",
+      state: "uploaded",
+      expires_at: "2000-01-01T00:00:00.000Z",
+    };
+
+    // 1. Unbound pending upload returns resized thumbnail bytes with private, no-cache, but does NOT persist variant to storage.
+    const pendingStore = createInMemoryStore({ [pendingKey]: originalBytes });
+    const pendingApp = createMockApp({
+      resourceProvider: async () => null,
+      dbOverrides: {
+        first: async (sql) => (sql.includes("FROM pending_resources") ? pendingRow : null),
+      },
+      storeWrapper: pendingStore,
+      resizeImageThumbnail: async () => ({ bytes: thumbBytes, mimeType: "image/webp" }),
+    });
+    const pendingRes = await pendingApp.app.request(`/api/v1/resources/${pendingId}/blob?w=400`, {}, pendingApp.env);
+    expect(pendingRes.status).toBe(200);
+    expect(pendingRes.headers.get("Content-Type")).toBe("image/webp");
+    expect(pendingRes.headers.get("Cache-Control")).toBe("private, no-cache");
+    expect(new Uint8Array(await pendingRes.arrayBuffer())).toEqual(thumbBytes);
+    expect(pendingStore.puts).toHaveLength(0);
+    expect(pendingStore.objects.has(pendingThumbKey)).toBe(false);
+
+    // Defensive expiry cleanup also deletes any derived thumbnail keys alongside original pending object.
+    pendingStore.objects.set(pendingThumbKey, { bytes: thumbBytes, metadata: {} });
+    const expiredPendingRow = { ...pendingRow, storage_config_id: "builtin" };
+    const expiryEnv = {
+      storage: {
+        db: {
+          prepare: (sql) => ({
+            bind: () => ({
+              all: async () => ({
+                results: sql.includes("FROM pending_resources") ? [expiredPendingRow] : [],
+              }),
+              run: async () => ({ success: true, meta: { changes: 1 } }),
+              first: async () =>
+                sql.includes("FROM object_storage_configs")
+                  ? { id: "builtin", provider: "builtin", is_active: 1 }
+                  : null,
+            }),
+          }),
+        },
+        resources: pendingStore.store,
+      },
+    };
+    expect(await cleanupExpiredPendingResources(expiryEnv, "2026-11-22T00:00:00.000Z")).toBe(1);
+    expect(pendingStore.objects.has(pendingKey)).toBe(false);
+    expect(pendingStore.objects.has(pendingThumbKey)).toBe(false);
+
+    // 2. Overlapping resize and delete/replace: a resize in progress when the resource is deleted or replaced does not leave an orphan variant.
+    let currentBoundRow = { ...sampleImageRow, byte_size: originalBytes.byteLength };
+    const raceThumbKey = buildThumbnailObjectKey("ws_1", sampleImageRow.id, sampleImageRow.sha256, 400);
+    const raceStore = createInMemoryStore({ [sampleImageRow.object_key]: originalBytes });
+
+    let releaseResize;
+    const resizeGate = new Promise((resolve) => {
+      releaseResize = resolve;
+    });
+    const raceApp = createMockApp({
+      resourceProvider: async () => currentBoundRow,
+      storeWrapper: raceStore,
+      resizeImageThumbnail: async () => {
+        await resizeGate;
+        return { bytes: thumbBytes, mimeType: "image/webp" };
+      },
+    });
+
+    const inFlightReq = raceApp.app.request(`/api/v1/resources/${sampleImageRow.id}/blob?w=400`, {}, raceApp.env);
+    await new Promise((r) => setTimeout(r, 15));
+
+    // Resource is deleted while resize is still in flight.
+    currentBoundRow = null;
+    await raceStore.store.delete(sampleImageRow.object_key);
+    releaseResize();
+
+    const finishedRes = await inFlightReq;
+    expect(finishedRes.status).toBe(200);
+    expect(raceStore.objects.has(raceThumbKey)).toBe(false);
+
+    // 3. Soft-deleted resource (is_deleted = 1) or replaced object_key / sha256 while resize is in flight, or after store.put finishes.
+    for (const mutatedRow of [
+      { ...sampleImageRow, byte_size: originalBytes.byteLength, is_deleted: 1 },
+      { ...sampleImageRow, byte_size: originalBytes.byteLength, object_key: "workspaces/ws_1/memos/memo_1/res_img_1.v2.png" },
+      { ...sampleImageRow, byte_size: originalBytes.byteLength, sha256: "sha_v2" },
+    ]) {
+      let activeRow = { ...sampleImageRow, byte_size: originalBytes.byteLength };
+      const caseStore = createInMemoryStore({ [sampleImageRow.object_key]: originalBytes });
+      let releaseCase;
+      const caseGate = new Promise((resolve) => {
+        releaseCase = resolve;
+      });
+      const caseApp = createMockApp({
+        resourceProvider: async () => activeRow,
+        storeWrapper: caseStore,
+        resizeImageThumbnail: async () => {
+          await caseGate;
+          return { bytes: thumbBytes, mimeType: "image/webp" };
+        },
+      });
+      const req = caseApp.app.request(`/api/v1/resources/${sampleImageRow.id}/blob?w=400`, {}, caseApp.env);
+      await new Promise((r) => setTimeout(r, 10));
+      activeRow = mutatedRow;
+      releaseCase();
+      expect((await req).status).toBe(200);
+      expect(caseStore.objects.has(raceThumbKey)).toBe(false);
+    }
+
+    // 4. Late write reclaimed after store.put completes (resource deleted during store.put, or DB lookup throws).
+    for (const afterPutAction of ["deleted", "throws"]) {
+      let activeRow = { ...sampleImageRow, byte_size: originalBytes.byteLength };
+      let shouldThrow = false;
+      const lateStore = createInMemoryStore({ [sampleImageRow.object_key]: originalBytes });
+      const origPut = lateStore.store.put;
+      lateStore.store.put = async (key, value, options) => {
+        await origPut(key, value, options);
+        if (afterPutAction === "deleted") activeRow = null;
+        else shouldThrow = true;
+      };
+      const lateApp = createMockApp({
+        resourceProvider: async () => {
+          if (shouldThrow) throw new Error("db error during post-put check");
+          return activeRow;
+        },
+        storeWrapper: lateStore,
+        resizeImageThumbnail: async () => ({ bytes: thumbBytes, mimeType: "image/webp" }),
+      });
+      const res = await lateApp.app.request(`/api/v1/resources/${sampleImageRow.id}/blob?w=400`, {}, lateApp.env);
+      expect(res.status).toBe(200);
+      expect(lateStore.objects.has(raceThumbKey)).toBe(false);
+    }
+  });
+
+  test("Cloudflare Worker entrypoint wires env.IMAGES when bound and falls back cleanly when unbound", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "edgeever-worker-images-"));
+    temporaryDirectories.push(dir);
+    const sqlite = new Database(":memory:");
+    try {
+      sqlite.exec("PRAGMA foreign_keys = ON");
+      const migrationDir = new URL("../../../migrations/", import.meta.url);
+      for (const name of (await readdir(migrationDir)).filter((v) => v.endsWith(".sql")).sort()) {
+        sqlite.exec(await readFile(new URL(name, migrationDir), "utf8"));
+      }
+      sqlite.query("INSERT OR IGNORE INTO workspaces (id, name, is_personal) VALUES ('ws_default', 'Personal', 1)").run();
+      sqlite.query("INSERT INTO notebooks (id, workspace_id, name) VALUES ('nb_1', 'ws_default', 'Notes')").run();
+      sqlite.query("INSERT INTO memos (id, workspace_id, notebook_id, title, excerpt) VALUES ('memo_1', 'ws_default', 'nb_1', 'Note', '')").run();
+      sqlite.query("INSERT INTO memo_contents (memo_id, content_json, content_markdown, content_text, content_hash, revision) VALUES ('memo_1', '{}', '', '', 'h1', 1)").run();
+
+      const originalBytes = new Uint8Array(512).fill(11);
+      const transformedBytes = new Uint8Array([82, 73, 70, 70, 9, 9]);
+      const objectKey = "workspaces/ws_default/memos/memo_1/res_cf_1.png";
+      sqlite.query(
+        `INSERT INTO resources (id, memo_id, bucket_name, object_key, storage_config_id, kind, mime_type, filename, byte_size, sha256)
+         VALUES ('res_cf_1', 'memo_1', 'edgeever-resources', ?, 'builtin', 'image', 'image/png', 'cf.png', ?, 'sha_cf_1')`,
+      ).run(objectKey, originalBytes.byteLength);
+
+      const selfHosted = createSelfHostedStorageAdapter(sqlite, join(dir, "resources"));
+      await selfHosted.resources.put(objectKey, originalBytes, {
+        httpMetadata: { contentType: "image/png", cacheControl: "private, max-age=3600" },
+      });
+
+      const r2Objects = new Map([[objectKey, { bytes: originalBytes, httpMetadata: { contentType: "image/png", cacheControl: "private, max-age=3600" } }]]);
+      const mockR2 = {
+        async get(key) {
+          const item = r2Objects.get(key);
+          if (!item) return null;
+          return {
+            body: new Blob([item.bytes]).stream(),
+            size: item.bytes.byteLength,
+            writeHttpMetadata(headers) {
+              if (item.httpMetadata?.contentType) headers.set("Content-Type", item.httpMetadata.contentType);
+              if (item.httpMetadata?.cacheControl) headers.set("Cache-Control", item.httpMetadata.cacheControl);
+            },
+          };
+        },
+        async put(key, value, options) {
+          const bytes = value instanceof Uint8Array
+            ? new Uint8Array(value)
+            : new Uint8Array(await new Response(value).arrayBuffer());
+          r2Objects.set(key, { bytes, httpMetadata: options?.httpMetadata ?? {} });
+        },
+        async delete(keys) {
+          for (const key of Array.isArray(keys) ? keys : [keys]) r2Objects.delete(key);
+        },
+      };
+
+      const baseWorkerEnv = {
+        DB: selfHosted.db,
+        RESOURCES: mockR2,
+        ASSETS: { fetch: async () => new Response("asset", { status: 200 }) },
+        EDGE_EVER_ALLOW_UNAUTHENTICATED: "true",
+      };
+      const ctx = { waitUntil: () => undefined, passThroughOnException: () => undefined };
+
+      // 1. Unbound env.IMAGES -> falls back to original image bytes with private, no-cache.
+      const unboundRes = await worker.fetch(
+        new Request("http://edgeever.test/api/v1/resources/res_cf_1/blob?w=400"),
+        baseWorkerEnv,
+        ctx,
+      );
+      expect(unboundRes.status).toBe(200);
+      expect(unboundRes.headers.get("Content-Type")).toBe("image/png");
+      expect(unboundRes.headers.get("Cache-Control")).toBe("private, no-cache");
+      expect(unboundRes.headers.get("ETag")).toBe(buildThumbnailOriginalEtag("sha_cf_1", 400));
+      expect(new Uint8Array(await unboundRes.arrayBuffer())).toEqual(originalBytes);
+
+      // 2. Bound env.IMAGES -> transforms and caches WebP thumbnail.
+      const boundRes = await worker.fetch(
+        new Request("http://edgeever.test/api/v1/resources/res_cf_1/blob?w=400"),
+        {
+          ...baseWorkerEnv,
+          IMAGES: {
+            info: async () => ({ format: "image/png", fileSize: originalBytes.byteLength, width: 1000, height: 800 }),
+            input: () => ({
+              transform: () => ({
+                draw: () => { throw new Error("unused"); },
+                transform: () => { throw new Error("unused"); },
+                output: async () => ({
+                  response: () => new Response(transformedBytes),
+                  contentType: () => "image/webp",
+                  image: () => new Blob([transformedBytes]).stream(),
+                }),
+              }),
+              draw: () => { throw new Error("unused"); },
+              output: async () => { throw new Error("unused"); },
+            }),
+            hosted: {},
+          },
+        },
+        ctx,
+      );
+      expect(boundRes.status).toBe(200);
+      expect(boundRes.headers.get("Content-Type")).toBe("image/webp");
+      expect(boundRes.headers.get("Cache-Control")).toBe("private, no-cache");
+      expect(boundRes.headers.get("ETag")).toBe(buildThumbnailEtag("sha_cf_1", 400));
+      expect(new Uint8Array(await boundRes.arrayBuffer())).toEqual(transformedBytes);
+    } finally {
+      sqlite.close();
+    }
   });
 
   test("invalidates and cleans up thumbnails on image replacement and resource deletion", async () => {
@@ -782,6 +1250,52 @@ describe("resource blob thumbnail ?w= support", () => {
         updatedAt: memoC.resource.updatedAt,
       }]);
       expect(await env.storage.resources.get(memoC.thumbKey)).toBeNull();
+
+      // 5. Existing deployment upgrade & rollback simulation:
+      // - Legacy image resource with sha256 = null (pre-sha256 or multipart upload) generates thumbnail using object_key + updated_at versionKey,
+      //   replaces and deletes cleanly, and disabling the thumbnail resizer (rollback) serves original bytes intact.
+      const legacyPng = await sharp({
+        create: { width: 1200, height: 800, channels: 3, background: { r: 90, g: 50, b: 160 } },
+      }).png().toBuffer();
+      const legacyKey = `workspaces/ws_default/memos/${nbRes.notebook.id}/res_legacy_1.png`;
+      await env.storage.resources.put(legacyKey, new Uint8Array(legacyPng), {
+        httpMetadata: { contentType: "image/png", cacheControl: "private, max-age=3600" },
+      });
+      const legacyMemo = await (await callApp("/api/v1/memos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notebookId: nbRes.notebook.id, title: "Legacy Upgrade", contentMarkdown: "" }),
+      })).json();
+      db.query(
+        `INSERT INTO resources (id, memo_id, bucket_name, object_key, storage_config_id, kind, mime_type, filename, byte_size, sha256, created_at, updated_at)
+         VALUES ('res_legacy_1', ?, 'resources', ?, 'builtin', 'image', 'image/png', 'legacy.png', ?, NULL, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z')`,
+      ).run(legacyMemo.memo.id, legacyKey, legacyPng.byteLength);
+
+      const legacyThumbRes = await callApp("/api/v1/resources/res_legacy_1/blob?w=400");
+      expect(legacyThumbRes.status).toBe(200);
+      expect(legacyThumbRes.headers.get("Content-Type")).toBe("image/webp");
+      expect(legacyThumbRes.headers.get("Cache-Control")).toBe("private, no-cache");
+      const legacyThumbBytes = new Uint8Array(await legacyThumbRes.arrayBuffer());
+      expect(legacyThumbBytes.byteLength).toBeLessThan(legacyPng.byteLength);
+
+      // Rollback simulation: even with cached thumbnails present in storage, original `/blob` without `?w=` or with resizer disabled + cache cleared serves exact original bytes.
+      const legacyVersionKey = await resolveThumbnailVersionKey({
+        object_key: legacyKey,
+        sha256: null,
+        updated_at: "2026-01-01T00:00:00.000Z",
+      });
+      const legacyThumbKey = buildThumbnailObjectKey("ws_default", "res_legacy_1", legacyVersionKey, 400);
+      expect(await env.storage.resources.get(legacyThumbKey)).not.toBeNull();
+
+      const legacyOrigRes = await callApp("/api/v1/resources/res_legacy_1/blob");
+      expect(legacyOrigRes.status).toBe(200);
+      expect(legacyOrigRes.headers.get("Content-Type")).toBe("image/png");
+      expect(new Uint8Array(await legacyOrigRes.arrayBuffer())).toEqual(new Uint8Array(legacyPng));
+
+      const delLegacyRes = await callApp("/api/v1/resources/res_legacy_1", { method: "DELETE" });
+      expect(delLegacyRes.status).toBe(200);
+      expect(await env.storage.resources.get(legacyThumbKey)).toBeNull();
+      expect(await env.storage.resources.get(legacyKey)).toBeNull();
     } finally {
       db.close();
     }

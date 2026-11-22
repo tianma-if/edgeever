@@ -15,6 +15,7 @@ import { isoNow } from "./entity-utils";
 import { apiError, badRequest, notFound } from "./http-errors";
 import {
   buildThumbnailEtag,
+  buildThumbnailOriginalEtag,
   deleteResourceThumbnails,
   isThumbnailEligibleResource,
   matchesIfNoneMatch,
@@ -465,6 +466,22 @@ export const registerResourceRoutes = (
     return headers;
   };
 
+  const applyPrivateRevalidationHeaders = (headers: Headers, etag: string) => {
+    headers.set("Cache-Control", "private, no-cache");
+    headers.set("ETag", etag);
+    headers.set("Vary", "Authorization");
+  };
+
+  const notModifiedResponse = (etag: string) =>
+    new Response(null, {
+      status: 304,
+      headers: {
+        ETag: etag,
+        "Cache-Control": "private, no-cache",
+        Vary: "Authorization",
+      },
+    });
+
   app.get("/api/v1/resources/:id/blob", async (context) => {
     const denied = requireScopes(context, "read:resources");
     if (denied) return denied;
@@ -482,8 +499,9 @@ export const registerResourceRoutes = (
       context.req.param("id"),
     );
     if (!resource) return notFound(context, "Resource not found");
+    const isBoundResource = "memo_id" in resource;
     try {
-      if ("memo_id" in resource) {
+      if (isBoundResource) {
         await assertResourceMemoAccess(
           context,
           resource.memo_id,
@@ -506,31 +524,37 @@ export const registerResourceRoutes = (
     }
 
     const rangeHeader = context.req.header("Range");
+    const ifNoneMatchHeader = context.req.header("If-None-Match");
     const source = await resolveObjectStorage(context.env, resource.storage_config_id);
+    const requestedWidth = parsedWidth.kind === "valid" ? parsedWidth.width : null;
+    const versionKey = requestedWidth !== null
+      ? await resolveThumbnailVersionKey(resource)
+      : null;
 
-    if (parsedWidth.kind === "valid" && isThumbnailEligibleResource(resource)) {
-      const versionKey = await resolveThumbnailVersionKey(resource);
-      const etag = buildThumbnailEtag(versionKey, parsedWidth.width);
-      if (matchesIfNoneMatch(context.req.header("If-None-Match"), etag)) {
-        return new Response(null, {
-          status: 304,
-          headers: {
-            ETag: etag,
-            "Cache-Control": "private, no-cache",
-            Vary: "Authorization",
-          },
-        });
-      }
-
+    if (requestedWidth !== null && versionKey && isThumbnailEligibleResource(resource)) {
+      const etag = buildThumbnailEtag(versionKey, requestedWidth);
       const resolution = await resolveOrGenerateThumbnail({
         store: source.store,
         resizer: context.env.resizeImageThumbnail,
         storageConfigId: resource.storage_config_id,
+        storageScopeKey: "scopeKey" in source ? source.scopeKey : undefined,
         workspaceId,
         resource,
-        width: parsedWidth.width,
+        width: requestedWidth,
         versionKey,
         etag,
+        persistCache: isBoundResource,
+        shouldPersistCache: async () => {
+          const latest = await dependencies.getResourceRow(
+            context.env.storage.db,
+            workspaceId,
+            resource.id,
+          );
+          if (!latest) return false;
+          if (latest.is_deleted) return false;
+          if (latest.object_key !== resource.object_key) return false;
+          return (await resolveThumbnailVersionKey(latest)) === versionKey;
+        },
       });
 
       if (resolution.kind === "not-found") {
@@ -538,12 +562,14 @@ export const registerResourceRoutes = (
       }
 
       if (resolution.kind === "cached") {
+        if (matchesIfNoneMatch(ifNoneMatchHeader, resolution.etag)) {
+          await resolution.object.body.cancel().catch(() => undefined);
+          return notModifiedResponse(resolution.etag);
+        }
         const headers = buildThumbnailHeaders("image/webp", resolution.etag, resource.filename, resource.id);
         resolution.object.writeHttpMetadata(headers);
         // Always keep protected thumbnails revalidatable regardless of stored metadata.
-        headers.set("Cache-Control", "private, no-cache");
-        headers.set("ETag", resolution.etag);
-        headers.set("Vary", "Authorization");
+        applyPrivateRevalidationHeaders(headers, resolution.etag);
         headers.set("Content-Type", headers.get("Content-Type") || "image/webp");
         headers.set("Content-Disposition", contentDispositionInline(toThumbnailFilename(resource.filename, resource.id)));
         headers.set("X-Content-Type-Options", "nosniff");
@@ -560,14 +586,20 @@ export const registerResourceRoutes = (
       }
 
       if (resolution.kind === "generated") {
+        if (matchesIfNoneMatch(ifNoneMatchHeader, resolution.etag)) {
+          return notModifiedResponse(resolution.etag);
+        }
         const headers = buildThumbnailHeaders(resolution.mimeType, resolution.etag, resource.filename, resource.id);
         return serveBufferedBlobResponse(resolution.bytes, headers, rangeHeader);
       }
 
       if (resolution.kind === "fallback-bytes") {
+        if (matchesIfNoneMatch(ifNoneMatchHeader, resolution.etag)) {
+          return notModifiedResponse(resolution.etag);
+        }
         const headers = new Headers();
-        headers.set("Cache-Control", "private, max-age=3600");
         setResourceContentHeaders(headers, resource);
+        applyPrivateRevalidationHeaders(headers, resolution.etag);
         return serveBufferedBlobResponse(resolution.bytes, headers, rangeHeader);
       }
     }
@@ -580,6 +612,14 @@ export const registerResourceRoutes = (
       byteRange.kind === "range" ? { range: byteRange.range } : undefined,
     );
     if (!object) return notFound(context, "Resource object not found");
+
+    const fallbackEtag = requestedWidth !== null && versionKey
+      ? buildThumbnailOriginalEtag(versionKey, requestedWidth)
+      : null;
+    if (fallbackEtag && matchesIfNoneMatch(ifNoneMatchHeader, fallbackEtag)) {
+      await object.body.cancel().catch(() => undefined);
+      return notModifiedResponse(fallbackEtag);
+    }
 
     const headers = new Headers();
     object.writeHttpMetadata(headers);
@@ -596,6 +636,9 @@ export const registerResourceRoutes = (
       headers.set("Content-Length", String(resource.byte_size));
     }
     setResourceContentHeaders(headers, resource);
+    if (fallbackEtag) {
+      applyPrivateRevalidationHeaders(headers, fallbackEtag);
+    }
     return new Response(object.body, { headers, status: byteRange.kind === "range" ? 206 : 200 });
   });
 

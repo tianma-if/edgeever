@@ -25,8 +25,8 @@ export type ThumbnailResourceMeta = {
 export type ThumbnailResolution =
   | { kind: "cached"; object: BlobObjectAdapter; etag: string }
   | { kind: "generated"; bytes: Uint8Array; mimeType: string; etag: string }
-  | { kind: "fallback-bytes"; bytes: Uint8Array }
-  | { kind: "fallback-unfetched" }
+  | { kind: "fallback-bytes"; bytes: Uint8Array; etag: string }
+  | { kind: "fallback-unfetched"; etag: string }
   | { kind: "not-found" };
 
 const sanitizeKeySegment = (value: string) => {
@@ -83,6 +83,9 @@ export const deleteResourceThumbnails = async (
 export const buildThumbnailEtag = (versionKey: string, width: number): string =>
   `"thumb-${versionKey}-w${width}"`;
 
+export const buildThumbnailOriginalEtag = (versionKey: string, width: number): string =>
+  `"orig-${versionKey}-w${width}"`;
+
 export const matchesIfNoneMatch = (headerValue: string | undefined, etag: string): boolean => {
   if (!headerValue) return false;
   const normalizedTarget = etag.replace(/^W\//, "").trim();
@@ -103,47 +106,80 @@ export const toThumbnailFilename = (filename: string | null, resourceId: string)
 };
 
 const inFlightByStore = new WeakMap<BlobStoreAdapter, Map<string, Promise<ThumbnailResolution>>>();
+const inFlightByStorageScope = new Map<string, Map<string, Promise<ThumbnailResolution>>>();
 
-const getStoreFlightMap = (store: BlobStoreAdapter) => {
+const getStoreFlightMap = (store: BlobStoreAdapter, storageScopeKey?: string) => {
+  if (storageScopeKey) {
+    let map = inFlightByStorageScope.get(storageScopeKey);
+    if (!map) {
+      map = new Map();
+      inFlightByStorageScope.set(storageScopeKey, map);
+    }
+    const scopedMap = map;
+    return {
+      map: scopedMap,
+      cleanup: (flightKey: string) => {
+        scopedMap.delete(flightKey);
+        if (!scopedMap.size) {
+          inFlightByStorageScope.delete(storageScopeKey);
+        }
+      },
+    };
+  }
   let map = inFlightByStore.get(store);
   if (!map) {
     map = new Map();
     inFlightByStore.set(store, map);
   }
-  return map;
+  const storeMap = map;
+  return {
+    map: storeMap,
+    cleanup: (flightKey: string) => {
+      storeMap.delete(flightKey);
+    },
+  };
 };
 
 export const resolveOrGenerateThumbnail = async ({
   store,
   resizer,
   storageConfigId,
+  storageScopeKey,
   workspaceId,
   resource,
   width,
   versionKey,
   etag,
+  persistCache,
+  shouldPersistCache,
 }: {
   store: BlobStoreAdapter;
   resizer?: ImageThumbnailAdapter;
   storageConfigId: string | null;
+  storageScopeKey?: string;
   workspaceId: string;
   resource: ThumbnailResourceMeta;
   width: number;
   versionKey: string;
   etag: string;
+  persistCache: boolean;
+  shouldPersistCache: () => Promise<boolean>;
 }): Promise<ThumbnailResolution> => {
+  const originalEtag = buildThumbnailOriginalEtag(versionKey, width);
   const thumbnailKey = buildThumbnailObjectKey(workspaceId, resource.id, versionKey, width);
-  const cached = await store.get(thumbnailKey);
-  if (cached) {
-    return { kind: "cached", object: cached, etag };
+  if (persistCache) {
+    const cached = await store.get(thumbnailKey);
+    if (cached) {
+      return { kind: "cached", object: cached, etag };
+    }
   }
 
   if (!resizer) {
-    return { kind: "fallback-unfetched" };
+    return { kind: "fallback-unfetched", etag: originalEtag };
   }
 
-  const inFlightThumbnails = getStoreFlightMap(store);
-  const flightKey = `${storageConfigId ?? "builtin"}:${thumbnailKey}`;
+  const { map: inFlightThumbnails, cleanup } = getStoreFlightMap(store, storageScopeKey);
+  const flightKey = `${storageConfigId ?? "builtin"}:${persistCache ? "persist" : "ephemeral"}:${thumbnailKey}`;
   const existingFlight = inFlightThumbnails.get(flightKey);
   if (existingFlight) {
     return existingFlight;
@@ -161,7 +197,7 @@ export const resolveOrGenerateThumbnail = async ({
       || originalBytes.byteLength > MAX_THUMBNAIL_SOURCE_BYTES
       || isAnimatedRasterImage(originalBytes)
     ) {
-      return { kind: "fallback-bytes", bytes: originalBytes };
+      return { kind: "fallback-bytes", bytes: originalBytes, etag: originalEtag };
     }
 
     let resized = null;
@@ -180,20 +216,35 @@ export const resolveOrGenerateThumbnail = async ({
       || resized.bytes.byteLength === 0
       || resized.bytes.byteLength >= originalBytes.byteLength
     ) {
-      return { kind: "fallback-bytes", bytes: originalBytes };
+      return { kind: "fallback-bytes", bytes: originalBytes, etag: originalEtag };
     }
 
-    await store.put(thumbnailKey, resized.bytes, {
-      httpMetadata: {
-        contentType: resized.mimeType,
-        cacheControl: "private, no-cache",
-      },
-      customMetadata: {
-        resourceId: resource.id,
-        versionKey,
-        width: String(width),
-      },
-    }).catch(() => undefined);
+    if (persistCache) {
+      const checkCanPersist = async () => {
+        try {
+          return await shouldPersistCache();
+        } catch {
+          return false;
+        }
+      };
+      if (await checkCanPersist()) {
+        await store.put(thumbnailKey, resized.bytes, {
+          httpMetadata: {
+            contentType: resized.mimeType,
+            cacheControl: "private, no-cache",
+          },
+          customMetadata: {
+            resourceId: resource.id,
+            versionKey,
+            width: String(width),
+          },
+        }).catch(() => undefined);
+
+        if (!(await checkCanPersist())) {
+          await store.delete(thumbnailKey).catch(() => undefined);
+        }
+      }
+    }
 
     return {
       kind: "generated",
@@ -202,7 +253,7 @@ export const resolveOrGenerateThumbnail = async ({
       etag,
     };
   })().finally(() => {
-    inFlightThumbnails.delete(flightKey);
+    cleanup(flightKey);
   });
 
   inFlightThumbnails.set(flightKey, generation);
