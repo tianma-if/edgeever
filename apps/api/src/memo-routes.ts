@@ -21,8 +21,7 @@ import { getActorLabel, getAuditActor, getWorkspaceId, requireScopes } from "./r
 import { deleteReleasedResourceObjects } from "./resource-service";
 import {
   assertNotebookAccess,
-  notebookIdsBind,
-  notebookInListSql,
+  assertMemoNotebookWriteAccess,
   resolveRequestNotebookAccess,
   type NotebookAccess,
 } from "./token-notebook-access";
@@ -162,31 +161,8 @@ export const registerMemoRoutes = (
     if (memo) assertNotebookAccess(notebookAccess, kind, memo.notebookId, action);
   };
 
-  const assertMemoIdsAccess = async (
-    context: AppContext,
-    memoIds: string[],
-    notebookAccess: NotebookAccess,
-    action: string,
-  ) => {
-    if (!notebookAccess.restricted || memoIds.length === 0) return;
-    // One batched query for the whole list: per-memo detail loads would blow
-    // D1's per-request query budget on large batches. The id list is a single
-    // JSON bind through json_each so the statement stays within D1's
-    // per-statement bound-parameter limit even at the maximum batch size.
-    const uniqueIds = Array.from(new Set(memoIds));
-    const rows = await context.env.storage.db.prepare(
-      `SELECT id, notebook_id, is_deleted FROM memos
-       WHERE workspace_id = ? AND ${notebookInListSql("id", uniqueIds)}`,
-    ).bind(getWorkspaceId(context), notebookIdsBind(uniqueIds))
-      .all<{ id: string; notebook_id: string; is_deleted: number }>();
-
-    const found = new Map(rows.results.map((row) => [row.id, row]));
-    for (const memoId of uniqueIds) {
-      const row = found.get(memoId);
-      if (!row) continue; // Missing ids fail later in the service with its own error.
-      assertNotebookAccess(notebookAccess, "write", row.notebook_id, action);
-    }
-  };
+  const assertMemoIdsAccess = (context: AppContext, memoIds: string[], notebookAccess: NotebookAccess, action: string) =>
+    assertMemoNotebookWriteAccess(context.env.storage.db, getWorkspaceId(context), memoIds, notebookAccess, action);
 
   app.get("/api/v1/memos", async (context) => {
     const denied = requireScopes(context, "read:memos");

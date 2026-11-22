@@ -6,6 +6,8 @@ import {
 } from "./ai-direct-stream";
 import type { AiRunRequest } from "./ai-long-generation";
 import { throwIfAborted } from "./abort-signal";
+import { ApiRequestError, createRequestTransport, type EdgeEverClientRequestContext } from "./request-transport";
+import { createResourceTransfer, type ResourceResponse } from "./resource-transfer";
 
 import { createPluginCapabilities } from './plugin-capabilities';
 import type {
@@ -96,12 +98,10 @@ import type {
   PluginPublicFetchResponse,
 } from "@edgeever/shared";
 
-export const MAX_SINGLE_REQUEST_UPLOAD_BYTES = 5 * 1024 * 1024;
-
-export type EdgeEverClientRequestContext = {
-  path: string;
-  token?: string;
-};
+export { MAX_SINGLE_REQUEST_UPLOAD_BYTES } from "./resource-transfer";
+export type { MultipartResourceUploadSource, ResourceResponse, ResourceUploadResponse } from "./resource-transfer";
+export { ApiRequestError } from "./request-transport";
+export type { ApiResponseDiagnostics, EdgeEverClientRequestContext } from "./request-transport";
 
 export type EdgeEverClientOptions = {
   baseUrl?: string | (() => string);
@@ -123,16 +123,6 @@ export type EdgeEverClientOptions = {
   beforeRequest?: (context: EdgeEverClientRequestContext) => void | Promise<void>;
   shouldAttachToken?: (path: string) => boolean;
   onUnauthorized?: (context: EdgeEverClientRequestContext) => void | Promise<void>;
-};
-
-export type MultipartResourceUploadSource = {
-  filename: string;
-  mimeType: string;
-  byteSize: number;
-  readPart: (start: number, end: number) => Promise<Blob | Uint8Array<ArrayBuffer>>;
-  /** Importers use this to distinguish an uncertain commit from a failed part. */
-  onBeforeComplete?: () => void | Promise<void>;
-  onPartUploaded?: (byteSize: number) => void;
 };
 
 export type InstanceHealth = {
@@ -287,21 +277,6 @@ export type NotebookResponse = {
   notebook: Notebook;
 };
 
-export type ResourceResponse = {
-  resource: Resource;
-};
-
-export type ResourceUploadResponse = {
-  upload: {
-    id: string;
-    resourceId: string;
-    partSize: number;
-    partCount: number;
-    byteSize: number;
-    expiresAt: string;
-  };
-};
-
 export type MarkdownExportPage = {
   memos: MemoDetail[];
   resources: Resource[];
@@ -357,28 +332,6 @@ export type MobileSyncChange = SyncChange;
 /** @deprecated Use SyncChangesResponse; kept for mobile source compatibility. */
 export type MobileSyncChangesPage = SyncChangesResponse;
 
-export class ApiRequestError extends Error {
-  status: number;
-  code?: string;
-  details?: unknown;
-  responseDiagnostics?: ApiResponseDiagnostics;
-
-  constructor(
-    message: string,
-    status: number,
-    code?: string,
-    details?: unknown,
-    responseDiagnostics?: ApiResponseDiagnostics,
-  ) {
-    super(message);
-    this.name = "ApiRequestError";
-    this.status = status;
-    this.code = code;
-    this.details = details;
-    this.responseDiagnostics = responseDiagnostics;
-  }
-}
-
 /** The second-step challenge carried by a 401 `mfa_required` login error. */
 export const getMfaChallenge = (error: unknown): MfaChallenge | null => {
   if (!(error instanceof ApiRequestError) || error.status !== 401 || error.code !== "mfa_required") return null;
@@ -395,16 +348,12 @@ export const getMfaChallenge = (error: unknown): MfaChallenge | null => {
 export const isMfaRebindRequiredError = (error: unknown) =>
   error instanceof ApiRequestError && error.status === 403 && error.code === "mfa_rebind_required";
 
-export type ApiResponseDiagnostics = {
-  cloudflareMitigated: boolean;
-  isEdgeEverApiError: boolean;
-  rayId?: string;
-};
-
 export type { SyncBootstrapResponse, SyncChangesResponse };
 
 export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
-  const getFetch = () => options.fetch ?? globalThis.fetch;
+  const transport = createRequestTransport(options);
+  const { getFetch, send, request, throwRequestError } = transport;
+  const resources = createResourceTransfer(transport);
   // models.dev allows any origin, so it is read directly, never through the model relay (#652).
   const modelCatalogFetch = () => options.modelCatalogFetch === null ? undefined : options.modelCatalogFetch ?? globalThis.fetch;
   const providerFetch = (): typeof fetch => async (url, init) => {
@@ -426,90 +375,6 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
       return response;
     });
   };
-  const getBaseUrl = () => normalizeBaseUrl(
-    typeof options.baseUrl === "function" ? options.baseUrl() : options.baseUrl,
-  );
-  const getToken = () => {
-    const token = typeof options.token === "function" ? options.token() : options.token;
-    return token || undefined;
-  };
-
-  const send = async (
-    path: string,
-    init?: RequestInit,
-    requestOptions?: { attachToken?: boolean; setJsonContentType?: boolean },
-  ) => {
-    const token = getToken();
-    const context: EdgeEverClientRequestContext = { path, ...(token ? { token } : {}) };
-    await options.beforeRequest?.(context);
-
-    const headers = new Headers(init?.headers);
-    const attachToken = requestOptions?.attachToken
-      ?? options.shouldAttachToken?.(path)
-      ?? true;
-
-    if (token && attachToken && !headers.has("Authorization")) {
-      headers.set("Authorization", `Bearer ${token}`);
-    }
-
-    if (
-      requestOptions?.setJsonContentType !== false
-      && !(init?.body instanceof FormData)
-      && !headers.has("Content-Type")
-    ) {
-      headers.set("Content-Type", "application/json");
-    }
-
-    const requestUrl = isAbsoluteHttpUrl(path) ? path : `${getBaseUrl()}${path}`;
-    const response = await getFetch()(requestUrl, {
-      credentials: "include",
-      ...init,
-      headers,
-    });
-
-    return { context, response };
-  };
-
-  const throwRequestError = async (
-    context: EdgeEverClientRequestContext,
-    response: Response,
-    fallbackMessage = "Request failed",
-  ): Promise<never> => {
-    const body = await response.json().catch(() => null);
-    const rayId = response.headers.get("cf-ray")?.trim();
-    const error =
-      body && typeof body === "object" && "error" in body
-        ? (body as { error?: { code?: string; message?: string; details?: unknown } }).error
-        : undefined;
-    const responseDiagnostics: ApiResponseDiagnostics = {
-      cloudflareMitigated: response.headers.get("cf-mitigated") === "challenge",
-      isEdgeEverApiError: Boolean(error && typeof error === "object"),
-      ...(rayId ? { rayId } : {}),
-    };
-
-    if (response.status === 401) {
-      void options.onUnauthorized?.(context);
-    }
-
-    throw new ApiRequestError(
-      error?.message || response.statusText || fallbackMessage,
-      response.status,
-      error?.code,
-      error?.details,
-      responseDiagnostics,
-    );
-  };
-
-  const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
-    const { context, response } = await send(path, init);
-
-    if (!response.ok) {
-      await throwRequestError(context, response);
-    }
-
-    return response.json() as Promise<T>;
-  };
-
   const requestPluginPublic = async (input: PluginPublicFetchRequest, signal?: AbortSignal): Promise<PluginPublicFetchResponse> => {
     const { context, response } = await send("/api/v1/plugins/network/fetch", {
       method: "POST",
@@ -534,182 +399,10 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
     };
   };
 
-  const requestResourceResponse = async (path: string, init?: RequestInit) => {
-    const isAbsolute = isAbsoluteHttpUrl(path);
-    const { context, response } = await send(path, init, {
-      attachToken: !isAbsolute,
-      setJsonContentType: false,
-    });
-    if (!response.ok) await throwRequestError(context, response, "Resource download failed");
-    return response;
-  };
-
-  const requestBlob = async (path: string) => (await requestResourceResponse(path)).blob();
-
   const requestArrayBuffer = async (path: string) => {
     const { context, response } = await send(path, undefined, { setJsonContentType: false });
     if (!response.ok) await throwRequestError(context, response, "Binary download failed");
     return response.arrayBuffer();
-  };
-
-  const uploadMemoResourceParts = async (memoId: string, source: MultipartResourceUploadSource) => {
-    const filename = source.filename.trim() || "attachment";
-    const mimeType = source.mimeType || "application/octet-stream";
-    const { upload } = await request<ResourceUploadResponse>(
-      `/api/v1/memos/${encodeURIComponent(memoId)}/resource-uploads`,
-      {
-        method: "POST",
-        body: JSON.stringify({ filename, mimeType, byteSize: source.byteSize }),
-      },
-    );
-
-    try {
-      for (let partNumber = 1; partNumber <= upload.partCount; partNumber += 1) {
-        const start = (partNumber - 1) * upload.partSize;
-        const chunk = await source.readPart(start, Math.min(start + upload.partSize, source.byteSize));
-        let attempt = 0;
-        while (true) {
-          try {
-            await request<{ part: { partNumber: number; byteSize: number } }>(
-              `/api/v1/resource-uploads/${encodeURIComponent(upload.id)}/parts/${partNumber}`,
-              {
-                method: "PUT",
-                headers: { "Content-Type": "application/octet-stream" },
-                body: chunk,
-              },
-            );
-            source.onPartUploaded?.(Math.min(partNumber * upload.partSize, source.byteSize));
-            break;
-          } catch (error) {
-            attempt += 1;
-            const retryable = !(error instanceof ApiRequestError)
-              || error.status === 408
-              || error.status === 429
-              || error.status >= 500;
-            if (!retryable || attempt >= 3) throw error;
-            await new Promise((resolve) => setTimeout(resolve, attempt * 250));
-          }
-        }
-      }
-      await source.onBeforeComplete?.();
-      return await request<ResourceResponse>(
-        `/api/v1/resource-uploads/${encodeURIComponent(upload.id)}/complete`,
-        { method: "POST", body: JSON.stringify({}) },
-      );
-    } catch (error) {
-      await request<{ ok: true }>(`/api/v1/resource-uploads/${encodeURIComponent(upload.id)}`, {
-        method: "DELETE",
-      }).catch(() => undefined);
-      throw error;
-    }
-  };
-
-  const uploadMemoResourceMultipart = (memoId: string, file: Blob) =>
-    uploadMemoResourceParts(memoId, {
-      filename: "name" in file && typeof file.name === "string" && file.name.trim()
-        ? file.name
-        : "attachment",
-      mimeType: file.type || "application/octet-stream",
-      byteSize: file.size,
-      readPart: async (start, end) => file.slice(start, end),
-    });
-
-  const createResourceMultipartSink = (upload: ResourceUploadResponse["upload"]) => {
-    let partNumber = 1;
-    let bufferedBytes = 0;
-    let receivedBytes = 0;
-    let chunks: ArrayBuffer[] = [];
-    let closed = false;
-
-    const abort = async () => {
-      if (closed) return;
-      closed = true;
-      chunks = [];
-      bufferedBytes = 0;
-      await request<{ ok: true }>(`/api/v1/resource-uploads/${encodeURIComponent(upload.id)}`, {
-        method: "DELETE",
-      }).catch(() => undefined);
-    };
-
-    const sendPart = async () => {
-      if (bufferedBytes === 0) return;
-      const body = new Blob(chunks, { type: "application/octet-stream" });
-      const currentPart = partNumber;
-      chunks = [];
-      bufferedBytes = 0;
-      let attempt = 0;
-      while (true) {
-        try {
-          await request<{ part: { partNumber: number; byteSize: number } }>(
-            `/api/v1/resource-uploads/${encodeURIComponent(upload.id)}/parts/${currentPart}`,
-            {
-              method: "PUT",
-              headers: { "Content-Type": "application/octet-stream" },
-              body,
-            },
-          );
-          partNumber += 1;
-          return;
-        } catch (error) {
-          attempt += 1;
-          const retryable = !(error instanceof ApiRequestError)
-            || error.status === 408
-            || error.status === 429
-            || error.status >= 500;
-          if (!retryable || attempt >= 3) throw error;
-          await new Promise((resolve) => setTimeout(resolve, attempt * 250));
-        }
-      }
-    };
-
-    return {
-      write: async (chunk: Uint8Array) => {
-        if (closed) throw new Error("Resource restore upload is closed");
-        let offset = 0;
-        while (offset < chunk.byteLength) {
-          const available = upload.partSize - bufferedBytes;
-          const length = Math.min(available, chunk.byteLength - offset);
-          const copy = new Uint8Array(length);
-          copy.set(chunk.subarray(offset, offset + length));
-          chunks.push(copy.buffer);
-          bufferedBytes += length;
-          receivedBytes += length;
-          offset += length;
-          if (bufferedBytes === upload.partSize) await sendPart();
-        }
-      },
-      close: async () => {
-        if (closed) throw new Error("Resource restore upload is closed");
-        if (receivedBytes !== upload.byteSize) {
-          await abort();
-          throw new Error(`Resource restore size mismatch: expected ${upload.byteSize}, received ${receivedBytes}`);
-        }
-        try {
-          await sendPart();
-          const result = await request<ResourceResponse>(
-            `/api/v1/resource-uploads/${encodeURIComponent(upload.id)}/complete`,
-            { method: "POST", body: JSON.stringify({}) },
-          );
-          closed = true;
-          return result;
-        } catch (error) {
-          await abort();
-          throw error;
-        }
-      },
-      abort,
-    };
-  };
-
-  const createJsonResourceRestoreSink = async (
-    resourceId: string,
-    metadata: JsonBackupMemo["resources"][number],
-  ) => {
-    const { upload } = await request<ResourceUploadResponse>(
-      `/api/v1/restores/json/resources/${encodeURIComponent(resourceId)}/uploads`,
-      { method: "POST", body: JSON.stringify(metadata) },
-    );
-    return createResourceMultipartSink(upload);
   };
 
   const runPreparedCompanion = async (
@@ -1711,17 +1404,7 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
         body: JSON.stringify({ filename }),
       }),
 
-    updateResourceContent: (resourceId: string, file: Blob, expectedContentHash: string) => {
-      const form = new FormData();
-      form.append("file", file);
-      form.append("expectedContentHash", expectedContentHash);
-      form.append("mimeType", file.type || "application/octet-stream");
-      if (file instanceof File) form.append("filename", file.name);
-      return request<ResourceResponse>(`/api/v1/resources/${encodeURIComponent(resourceId)}/blob`, {
-        method: "PUT",
-        body: form,
-      });
-    },
+    updateResourceContent: resources.updateResourceContent,
 
     deleteResource: (resourceId: string) =>
       request<{ ok: true }>(`/api/v1/resources/${encodeURIComponent(resourceId)}`, {
@@ -1766,31 +1449,10 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
         body: JSON.stringify({ prompts }),
       }),
 
-    createJsonResourceRestoreSink,
-
-    restoreJsonResource: async (resourceId: string, metadata: JsonBackupMemo["resources"][number], file: Blob) => {
-      const sink = await createJsonResourceRestoreSink(resourceId, metadata);
-      const reader = file.stream().getReader();
-      try {
-        while (true) {
-          const next = await reader.read();
-          if (next.done) break;
-          await sink.write(next.value);
-        }
-        await sink.close();
-        return { ok: true as const };
-      } catch (error) {
-        await sink.abort();
-        throw error;
-      } finally {
-        reader.releaseLock();
-      }
-    },
-
-    getResourceResponse: (resourceUrl: string, init?: RequestInit) =>
-      requestResourceResponse(resourceUrl, init),
-
-    getResourceBlob: (resourceUrl: string) => requestBlob(resourceUrl),
+    createJsonResourceRestoreSink: resources.createJsonResourceRestoreSink,
+    restoreJsonResource: resources.restoreJsonResource,
+    getResourceResponse: resources.getResourceResponse,
+    getResourceBlob: resources.getResourceBlob,
 
     downloadGithubPluginAsset: (
       owner: string,
@@ -1859,28 +1521,11 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
       body: image,
     }),
 
-    uploadMemoResource: (memoId: string, file: Blob | FormData) => {
-      // Small files do not benefit from an upload session's three round trips.
-      // Keep large attachments on the bounded-memory, resumable path.
-      if (!(file instanceof FormData) && file.size > MAX_SINGLE_REQUEST_UPLOAD_BYTES) {
-        return uploadMemoResourceMultipart(memoId, file);
-      }
-      const form = file instanceof FormData ? file : new FormData();
-      if (!(file instanceof FormData)) {
-        const filename = "name" in file && typeof file.name === "string" && file.name.trim()
-          ? file.name
-          : "attachment";
-        form.append("file", file, filename);
-      }
-      return request<ResourceResponse>(`/api/v1/memos/${encodeURIComponent(memoId)}/resources`, {
-        method: "POST",
-        body: form,
-      });
-    },
+    uploadMemoResource: resources.uploadMemoResource,
 
     claimPosterRender: () => request<{ job: null | { id: string; memoId: string; expectedRevision: number; templateId: string | null; claimToken: string; expiresAt: string } }>("/api/v1/poster-render/claim", { method: "POST", body: "{}" }),
     completePosterRender: (id: string, input: { claimToken: string; document?: import("@edgeever/shared").PosterDocument; errorCode?: "render_failed" | "revision_conflict" | "client_timeout" }) => request<{ job: { status: string } }>(`/api/v1/poster-render/${encodeURIComponent(id)}/complete`, { method: "POST", body: JSON.stringify(input) }),
-    uploadMemoResourceParts,
+    uploadMemoResourceParts: resources.uploadMemoResourceParts,
 
     updateMemo: (
       memoId: string,
@@ -1941,13 +1586,3 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
       }),
   };
 };
-
-const normalizeBaseUrl = (value?: string) => {
-  if (!value) {
-    return "";
-  }
-
-  return value.replace(/\/+$/, "");
-};
-
-const isAbsoluteHttpUrl = (value: string) => /^https?:\/\//i.test(value);

@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { globSync, readFileSync } from "node:fs";
 import { Database } from "bun:sqlite";
 import {
+  assertMemoNotebookWriteAccess,
   assertNotebookAccess,
   isCorruptedNotebookAccess,
   memoNotebookAccessSql,
@@ -128,6 +129,50 @@ const grant = (notebookId, level) => ({ notebookId, read: true, write: level ===
 // A fresh adapter over the same underlying database, simulating a different
 // worker/isolate that shares storage but no in-memory state.
 const createFixtureAdapter = (sqlite) => new SqliteD1Database(sqlite);
+
+test("bulk memo authorization seeks only requested IDs as unrelated notes accumulate", async () => {
+  const adapter = createFixture();
+  const sqlite = adapter.db;
+  const insert = sqlite.query("INSERT INTO memos (id, workspace_id, notebook_id) VALUES (?, 'ws_t', ?)");
+  const access = await resolveNotebookAccess(adapter, "ws_t", [grant("nb_root", "write")], "write");
+  const ids = Array.from({ length: 100 }, (_, index) => `requested_${index}`);
+  for (const id of ids) insert.run(id, "nb_root");
+
+  const calls = [];
+  const measuredDb = {
+    prepare: (sql) => ({
+      bind: (...bindings) => ({
+        async all() {
+          const result = await adapter.prepare(sql).bind(...bindings).all();
+          calls.push({ sql, bindings, count: result.results.length });
+          return result;
+        },
+      }),
+    }),
+  };
+  const checkBatch = async (idsToCheck, deletedState) => {
+    await assertMemoNotebookWriteAccess(measuredDb, "ws_t", [...idsToCheck, idsToCheck[0]], access, "update memos", deletedState);
+    expect(calls).toHaveLength(1);
+    const { sql, bindings, count } = calls.pop();
+    expect(bindings).toEqual(deletedState === undefined
+      ? ["ws_t", JSON.stringify(idsToCheck)]
+      : ["ws_t", deletedState, JSON.stringify(idsToCheck)]);
+    expect(count).toBe(idsToCheck.length);
+    const plan = sqlite.query("EXPLAIN QUERY PLAN " + sql).all(...bindings).map((row) => row.detail).join("\n");
+    expect(plan).toMatch(/SEARCH memos .*\((?:workspace_id=\? AND )?id=\?\)/);
+  };
+
+  for (const deletedState of [undefined, 0]) await checkBatch(ids.slice(0, 1), deletedState);
+  sqlite.transaction(() => {
+    for (let i = 0; i < 5000; i++) insert.run(`unrelated_${i}`, "nb_other");
+  })();
+  for (const deletedState of [undefined, 0]) {
+    await checkBatch(ids.slice(0, 1), deletedState);
+    await checkBatch(ids, deletedState);
+  }
+  await assertMemoNotebookWriteAccess(measuredDb, "ws_t", ids, UNRESTRICTED_NOTEBOOK_ACCESS, "update memos");
+  expect(calls).toHaveLength(0);
+});
 
 describe("parseNotebookAccessJson", () => {
   test("null stays unrestricted; empty and malformed values fail closed", () => {

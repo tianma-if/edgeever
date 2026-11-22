@@ -92,6 +92,7 @@ import {
 import type { OutlineAttempt, VideoNoteToast } from "./video/types";
 import { youtubeCaptureFromRead, youtubeTargetFromUrl } from "./video/youtube";
 import { t } from "./i18n";
+import { ClipperError, clipperErrorMessage, needsClipperSettings } from "./clipper-errors";
 import { readXiaoyuzhouStateInPage } from "./xiaoyuzhou-clip";
 import { jikeLoginPost } from "./jike-clip";
 import { readJikeWebStateInPage } from "./jike-web-state";
@@ -204,6 +205,8 @@ const describeCaptureError = (error: unknown) => {
 };
 
 const describeSaveError = (error: unknown) => {
+  const known = clipperErrorMessage(error);
+  if (known) return known;
   const message = compactError(error);
   if (/write:resources/i.test(message)) {
     return t("imageResourceScopeRequired");
@@ -217,7 +220,7 @@ const describeSaveError = (error: unknown) => {
 const notebookForClip = async (settings: ExtensionSettings) => {
   const notebooks = await listNotebooks(settings);
   const notebookId = clipNotebookId(settings.notebookId, notebooks.notebooks);
-  if (!notebookId) throw new Error(t("noAvailableNotebooks"));
+  if (!notebookId) throw new ClipperError("noAvailableNotebooks");
   return notebookId;
 };
 
@@ -361,10 +364,7 @@ const imageFailureMessage = (reason: StoredImageFailure["error"]) => {
 const describeImageError = (error: unknown) => {
   const message = error instanceof Error ? error.message : "";
   if (
-    message === t("instancePermissionRequired")
-    || message === t("completePluginConfiguration")
-    || message === t("noAvailableNotebooks")
-    || message === t("imageTooLarge")
+    message === t("imageTooLarge")
     || message === t("imageUnsupportedType")
     || message === t("imageUnreadable")
   ) {
@@ -376,10 +376,10 @@ const describeImageError = (error: unknown) => {
 const ensureClipperReady = async () => {
   const settings = await getSettings();
   if (!settings.instanceUrl || !settings.token) {
-    throw new Error(t("completePluginConfiguration"));
+    throw new ClipperError("completePluginConfiguration");
   }
   const granted = await chrome.permissions.contains({ origins: [getInstancePermissionPattern(settings.instanceUrl)] });
-  if (!granted) throw new Error(t("instancePermissionRequired"));
+  if (!granted) throw new ClipperError("instancePermissionRequired");
   return settings;
 };
 
@@ -406,7 +406,7 @@ const persistImage = async (
     });
   } catch (error) {
     if (error instanceof Error && error.message === "no-notebook") {
-      throw new Error(t("noAvailableNotebooks"));
+      throw new ClipperError("noAvailableNotebooks");
     }
     throw error;
   }
@@ -629,12 +629,14 @@ const readImageFromPage = async (tabId: number, frameId: number | null, urls: st
   return isPageImageRead(result) ? result : { ok: false as const, reason: "unreadable" as const };
 };
 
-const reportImageFailure = async (tabId: number | null, frameId: number | null, error: unknown) => {
-  const message = describeImageError(error);
-  if (message === t("completePluginConfiguration") || message === t("instancePermissionRequired")) {
-    await chrome.runtime.openOptionsPage();
-  }
-  await showFeedback(tabId, frameId, message, "error");
+const reportClipFailure = async (
+  tabId: number | null,
+  frameId: number | null,
+  error: unknown,
+  describeError: (error: unknown) => string,
+) => {
+  if (needsClipperSettings(error)) await chrome.runtime.openOptionsPage();
+  await showFeedback(tabId, frameId, clipperErrorMessage(error) ?? describeError(error), "error");
 };
 
 const saveDownloadedImage = async (
@@ -716,7 +718,7 @@ const saveImageFromMenu = async (
     });
     await showFeedback(tabId, frameId, t("imagePermissionToast"), "normal");
   } catch (error) {
-    await reportImageFailure(tabId, frameId, error);
+    await reportClipFailure(tabId, frameId, error, describeImageError);
   }
 };
 
@@ -847,11 +849,7 @@ const saveTweetFromMenu = async (
     });
     await showFeedback(tabId, frameId, t("tweetSaved"), "success");
   } catch (error) {
-    const message = describeTweetError(error);
-    if (message === t("completePluginConfiguration") || message === t("instancePermissionRequired")) {
-      await chrome.runtime.openOptionsPage();
-    }
-    await showFeedback(tabId, frameId, message, "error");
+    await reportClipFailure(tabId, frameId, error, describeTweetError);
   }
 };
 
@@ -971,11 +969,7 @@ const saveXhsFromMenu = async (
     });
     await showFeedback(tabId, frameId, t("xhsSaved"), "success");
   } catch (error) {
-    const message = describeXhsError(error);
-    if (message === t("completePluginConfiguration") || message === t("instancePermissionRequired")) {
-      await chrome.runtime.openOptionsPage();
-    }
-    await showFeedback(tabId, frameId, message, "error");
+    await reportClipFailure(tabId, frameId, error, describeXhsError);
   }
 };
 
@@ -1120,11 +1114,7 @@ const saveZhihuFromMenu = async (
     await saveLocatedZhihu(settings, tabId, frameId, located);
     await showFeedback(tabId, frameId, t("zhihuSaved"), "success");
   } catch (error) {
-    const message = describeZhihuError(error);
-    if (message === t("completePluginConfiguration") || message === t("instancePermissionRequired")) {
-      await chrome.runtime.openOptionsPage();
-    }
-    await showFeedback(tabId, frameId, message, "error");
+    await reportClipFailure(tabId, frameId, error, describeZhihuError);
   }
 };
 
@@ -1196,15 +1186,11 @@ const saveRedditFromMenu = async (
     });
     await showFeedback(tabId, frameId, t("redditSaved"), "success");
   } catch (error) {
-    const message = error instanceof Error && error.message === t("redditNotFound")
-      ? error.message
-      : error instanceof Error && error.message === "no-notebook"
-        ? t("noAvailableNotebooks")
-        : describeImageError(error);
-    if (message === t("completePluginConfiguration") || message === t("instancePermissionRequired")) {
-      await chrome.runtime.openOptionsPage();
-    }
-    await showFeedback(tabId, frameId, message, "error");
+    await reportClipFailure(tabId, frameId, error, (failure) => {
+      if (failure instanceof Error && failure.message === t("redditNotFound")) return failure.message;
+      if (failure instanceof Error && failure.message === "no-notebook") return t("noAvailableNotebooks");
+      return describeImageError(failure);
+    });
   }
 };
 
@@ -1265,10 +1251,7 @@ const readGithubRepoFromPage = async (tabId: number, frameId: number | null) => 
 const describeGithubError = (error: unknown) => {
   const message = error instanceof Error ? error.message : "";
   if (
-    message === t("completePluginConfiguration")
-    || message === t("instancePermissionRequired")
-    || message === t("noAvailableNotebooks")
-    || message === t("githubRepoNotPage")
+    message === t("githubRepoNotPage")
     || message === t("githubRepoUnreadable")
     || message === t("captureTimeout")
     || message === t("pageAccessDenied")
@@ -1303,11 +1286,7 @@ const saveGithubRepoFromMenu = async (
     await createGithubRepoMemo(settings, facts);
     await showFeedback(tabId, frameId, t("githubRepoSaved"), "success");
   } catch (error) {
-    const message = describeGithubError(error);
-    if (message === t("completePluginConfiguration") || message === t("instancePermissionRequired")) {
-      await chrome.runtime.openOptionsPage();
-    }
-    await showFeedback(tabId, frameId, message, "error");
+    await reportClipFailure(tabId, frameId, error, describeGithubError);
   }
 };
 
@@ -1436,9 +1415,7 @@ const savePlatformFromMenu = async (info: { pageUrl?: string; frameId?: number }
     const result = await enqueueClip(() => performPlatformSave(tabId, pageUrl, false, selectedUrl));
     await showFeedback(tabId, 0, result.message, "success");
   } catch (error) {
-    const message = describePlatformError(error);
-    if (message === t("completePluginConfiguration") || message === t("instancePermissionRequired")) await chrome.runtime.openOptionsPage();
-    await showFeedback(tabId, 0, message, "error");
+    await reportClipFailure(tabId, 0, error, describePlatformError);
   }
 };
 
@@ -1493,10 +1470,7 @@ const readCapturedPage = async (tabId: number, frameId: number | null, mode: "pa
 const describeSelectionError = (error: unknown) => {
   const message = error instanceof Error ? error.message : "";
   if (
-    message === t("completePluginConfiguration")
-    || message === t("instancePermissionRequired")
-    || message === t("noAvailableNotebooks")
-    || message === t("selectionEmpty")
+    message === t("selectionEmpty")
     || message === t("captureTimeout")
     || message === t("pageAccessDenied")
   ) {
@@ -1561,11 +1535,7 @@ const saveSelectionFromMenu = async (
     const images=await embedClipImages(settings, created.memo, contentMarkdown, sourceUrl, tabId, frameId);
     await showFeedback(tabId, frameId, images.total ? clipImageFeedback(images) : t("selectionSaved"), "success");
   } catch (error) {
-    const message = describeSelectionError(error);
-    if (message === t("completePluginConfiguration") || message === t("instancePermissionRequired")) {
-      await chrome.runtime.openOptionsPage();
-    }
-    await showFeedback(tabId, frameId, message, "error");
+    await reportClipFailure(tabId, frameId, error, describeSelectionError);
   }
 };
 
@@ -1681,17 +1651,10 @@ const saveVideoFromMenu = async (
     const result = await performVideoSave(settings, tabId, frameId, pageUrl);
     await showFeedback(tabId, frameId, result.message, result.created ? "success" : "error");
   } catch (error) {
-    const message = error instanceof Error ? error.message : "";
-    if (message === t("completePluginConfiguration") || message === t("instancePermissionRequired")) {
-      await chrome.runtime.openOptionsPage();
-    }
-    const shown = message === t("completePluginConfiguration")
-      || message === t("instancePermissionRequired")
-      || message === t("noAvailableNotebooks")
-      || message === t("videoNotRead")
-      ? message
-      : describeSaveError(error);
-    await showFeedback(tabId, frameId, shown, "error");
+    await reportClipFailure(tabId, frameId, error, (failure) =>
+      failure instanceof Error && failure.message === t("videoNotRead")
+        ? failure.message
+        : describeSaveError(failure));
   }
 };
 
@@ -1880,7 +1843,7 @@ chrome.runtime.onMessage.addListener((message: { type?: string; page?: unknown; 
         try { await chrome.scripting.executeScript({ target: { tabId: tab.id, frameIds: [0] }, files: ["assets/region-clip.js"] }); }
         catch (error) { throw new Error(describeCaptureError(error)); }
         sendResponse({ ok: true });
-      } catch (error) { sendResponse({ ok: false, message: error instanceof Error ? error.message : t("saveFailed") }); }
+      } catch (error) { sendResponse({ ok: false, message: clipperErrorMessage(error) ?? (error instanceof Error ? error.message : t("saveFailed")) }); }
     })();
     return true;
   }

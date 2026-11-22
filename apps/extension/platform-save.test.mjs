@@ -51,7 +51,7 @@ const harness = (options = {}) => {
       return value;
     }});
   }
-  const calls = { creates: [], uploads: [], saves: [], injections: [], feedback: [], requests: [], rejectedMessages: [], imageRules: [] };
+  const calls = { creates: [], uploads: [], saves: [], injections: [], feedback: [], requests: [], rejectedMessages: [], imageRules: [], optionsOpened: 0 };
   let doubanImageRule=false, sspaiImageRule=false;
   let onMessage, onClick, menuDone;
   const json = (value, status = 200) => Response.json(value, { status });
@@ -63,7 +63,7 @@ const harness = (options = {}) => {
         options.notebookRequested?.();
         if (options.notebookGate) await options.notebookGate;
         if (options.navigateDuringNotebookLookup) currentUrl = "https://www.v2ex.com/t/1000001";
-        return json({ notebooks: [{ id: "nb_inbox", slug: "inbox" }] });
+        return json({ notebooks: options.emptyNotebooks ? [] : [{ id: "nb_inbox", slug: "inbox" }] });
       }
       if (path === "/api/v1/memos") {
         calls.creates.push(JSON.parse(init.body));
@@ -84,12 +84,12 @@ const harness = (options = {}) => {
   };
   let pageContext, selectionContext, onInstalled;
   const chrome = {
-    i18n: { getMessage: (key, substitution) => key === "saveFailedWithReason" ? `${key}: ${substitution}` : key },
+    i18n: { getMessage: (key, substitution) => options.messages?.[key] ?? (key === "saveFailedWithReason" ? `${key}: ${substitution}` : key) },
     runtime: {
       id: "extension-under-test",
       getURL: path=>`chrome-extension://extension-under-test/${path.replace(/^\/+/, '')}`,
       onInstalled: { addListener(listener) { onInstalled = listener; } }, onMessage: { addListener(listener) { onMessage = listener; } },
-      openOptionsPage: async () => {},
+      openOptionsPage: async () => { calls.optionsOpened += 1; },
       sendMessage: async (message) => {
         if (options.spoofMessages && message.type === "pagePlatformRead") {
           for (const overrides of [{ tab: { id: 999 } }, { frameId: 3 }, { id: "other-extension" }]) {
@@ -102,7 +102,7 @@ const harness = (options = {}) => {
         onMessage(message, { id: chrome.runtime.id, tab: { id: 7 }, frameId: 0, url: options.senderUrl || currentUrl }, () => {});
       },
     },
-    storage: { local: { get: async () => ({ instanceUrl: "https://edgeever.test", token: "test-token", notebookId: "" }) } },
+    storage: { local: { get: async () => ({ instanceUrl: "https://edgeever.test", token: options.missingConfig ? "" : "test-token", notebookId: "" }) } },
     permissions: { contains: async () => !options.denyInstance },
     declarativeNetRequest: { updateSessionRules:async update=>{
       calls.imageRules.push(update);
@@ -486,6 +486,19 @@ for (const [option, message] of [["denyInstance", "instancePermissionRequired"],
   });
 }
 
+test("menu feedback opens settings by error code even when translations are identical", async () => {
+  const messages = {
+    completePluginConfiguration: "Check your settings",
+    instancePermissionRequired: "Check your settings",
+    noAvailableNotebooks: "Check your settings",
+  };
+  for (const option of ["missingConfig", "denyInstance", "emptyNotebooks"]) {
+    const h = harness({ [option]: true, messages });
+    expect(await h.menu()).toMatchObject({ kind: "error", message: "Check your settings" });
+    expect(h.calls.optionsOpened).toBe(option === "emptyNotebooks" ? 0 : 1);
+    expect(h.calls.creates).toHaveLength(0);
+  }
+});
 
 for (const navigate of [false, true]) test(`a stale sender URL after SPA navigation ${navigate ? "still cancels real navigation" : "does not reject the current post"}`, async () => {
   const h = harness({ platform: "linkedin", senderUrl: "https://www.linkedin.com/posts/previous-activity-123-test", navigateDuringNotebookLookup: navigate });

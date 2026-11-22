@@ -225,6 +225,31 @@ export const assertNotebookAccess = (
   }
 };
 
+/** Authorize a whole batch with one JSON bind. The mutation validates missing IDs. */
+export const assertMemoNotebookWriteAccess = async (
+  db: DatabaseAdapter,
+  workspaceId: string,
+  memoIds: string[],
+  access: NotebookAccess,
+  action: string,
+  deletedState?: 0 | 1,
+) => {
+  if (!access.restricted || memoIds.length === 0) return;
+  const uniqueIds = [...new Set(memoIds)];
+  const deletedFilter = deletedState === undefined ? "" : " AND is_deleted = ?";
+  const bindings = deletedState === undefined ? [workspaceId] : [workspaceId, deletedState];
+  // A deleted-state filter can otherwise make SQLite walk the workspace's feed index.
+  // Seek the requested IDs using the primary-key index present since the initial schema.
+  const rows = await db.prepare(
+    `SELECT id, notebook_id FROM memos INDEXED BY sqlite_autoindex_memos_1
+     WHERE workspace_id = ?${deletedFilter} AND ${notebookInListSql("id", uniqueIds)}`,
+  ).bind(...bindings, notebookIdsBind(uniqueIds)).all<{ id: string; notebook_id: string }>();
+
+  for (const row of rows.results) {
+    assertNotebookAccess(access, "write", row.notebook_id, action);
+  }
+};
+
 const hasNotebook = (access: NotebookAccess, kind: "read" | "write", notebookId: string) => {
   if (!access.restricted) return true;
   const ids = kind === "read" ? access.readableNotebookIds : access.writableNotebookIds;

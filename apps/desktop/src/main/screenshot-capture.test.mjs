@@ -227,11 +227,14 @@ describe("desktop screenshot to note wiring", () => {
     expect(preloadSource).toContain("rendererReadySent");
     expect(preloadSource).toContain("removeAllListeners");
     expect(preloadSource).toContain('value.type === "Buffer"');
-    expect(workspaceSource).toContain("onImportScreenshot");
-    expect(workspaceSource).toContain("createScreenshotMemo");
-    expect(workspaceSource).toContain("screenshotImportGate");
-    expect(workspaceSource).toContain("handleImportScreenshotRef");
-    expect(workspaceSource).toContain("screenshotFileFromImportPayload");
+    expect(workspaceSource).toContain("importDesktopScreenshot(payload");
     expect(workspaceSource).not.toContain("setPendingEditorInsert");
+  });
+
+  test("subscribes to screenshots before the preload can flush a queued capture", () => {
+    const screenshotListener = workspaceSource.indexOf("bridge.onImportScreenshot");
+    const markdownListener = workspaceSource.indexOf("bridge.onImportMarkdown");
+    expect(screenshotListener).toBeGreaterThan(-1);
+    expect(markdownListener).toBeGreaterThan(screenshotListener);
   });
 });

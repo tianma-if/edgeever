@@ -1,7 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import { globSync, readFileSync } from "node:fs";
 import { Database } from "bun:sqlite";
+import { Hono } from "hono";
 import { callMcpTool } from "./index.ts";
+import { registerMemoRoutes } from "./memo-routes.ts";
 
 class SqliteD1PreparedStatement {
   constructor(db, sql, bindings = []) {
@@ -376,6 +378,31 @@ describe("trashed memo revision access", () => {
 });
 
 describe("batch access checks stay within the query budget", () => {
+  test("REST checks trashed memo ownership while MCP checks the operation's deletion state", async () => {
+    const { context, makeAuth, sqlite } = createFixture();
+    sqlite.query("INSERT INTO memos (id, workspace_id, notebook_id, is_deleted) VALUES ('trashed', 'ws_mcp', 'nb_secret', 1)").run();
+    const auth = makeAuth([{ notebookId: "nb_allowed", read: true, write: true }], "write");
+    const app = new Hono();
+    app.use("*", async (c, next) => {
+      c.set("auth", auth);
+      await next();
+    });
+    let restDelete = false;
+    registerMemoRoutes(app, { deleteMemos: async () => { restDelete = true; } });
+    const response = await app.request("/api/v1/memos/batch/delete", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ memoIds: ["trashed"] }),
+    }, context.env);
+    expect(response.status).toBe(403);
+    expect((await response.json()).error.code).toBe("notebook_access_denied");
+    expect(restDelete).toBe(false);
+    await expect(callMcpTool(context, auth, "trash_memos", { memoIds: ["trashed"] }))
+      .rejects.toMatchObject({ code: "missing_memos", status: 400 });
+    await expect(callMcpTool(context, auth, "restore_memos", { memoIds: ["trashed"] }))
+      .rejects.toMatchObject({ code: "notebook_access_denied", status: 403 });
+  });
+
   test("moving 48 memos authorizes with a single batched query", async () => {
     const { context, makeAuth } = createFixture();
     const admin = makeAuth(null);

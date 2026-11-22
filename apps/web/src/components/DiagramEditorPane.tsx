@@ -192,6 +192,7 @@ import { resolveDiagramPalette, type DiagramAppearance } from "@/lib/diagram-the
 import { isLocalMemoId } from "@/lib/local-mirror";
 import { isBrowserOffline } from "@/lib/network-status";
 import { shouldAcceptRemoteMemoDetail } from "@/lib/memo-detail-freshness";
+import { advanceStructuredMemoSyncBase, classifyStructuredMemoSnapshot, matchesStructuredMemoReceipt, retainNewerStructuredMemoSyncBase } from "@/lib/structured-memo-sync";
 import { statusSettleMotion } from "@/lib/motion";
 import { MEMO_ID_REMAPPED_EVENT, MEMO_SYNC_ACKNOWLEDGED_EVENT } from "@/lib/sync-events";
 import type { EdgeEverRepository } from "@/lib/repository";
@@ -1764,6 +1765,7 @@ export const DiagramEditorPane = ({
   const insertNodeRef = useRef<(relation: MindMapInsertRelation, baseNodeId?: string) => void>(() => undefined);
   const openFlowQuickCreateRef = useRef<(node: Node) => void>(() => undefined);
   const memoRef = useRef(memo);
+  const acknowledgedMemoRef = useRef<MemoDetail | null>(null);
   const memoIdentityRef = useRef(createEditorInstanceMemoIdentity(memo.id));
   memoIdentityRef.current = reconcileEditorInstanceMemoIdentity(memoIdentityRef.current, memo.id);
   const editorInstanceMemoKey = memoIdentityRef.current.instanceKey;
@@ -1975,13 +1977,9 @@ export const DiagramEditorPane = ({
 
   const advanceSyncBase = useCallback((syncedMemo: MemoDetail) => {
     const currentMemo = memoRef.current;
-    if (syncedMemo.id !== currentMemo.id || syncedMemo.revision < currentMemo.revision) return;
-    memoRef.current = {
-      ...currentMemo,
-      revision: syncedMemo.revision,
-      contentHash: syncedMemo.contentHash,
-      updatedAt: syncedMemo.updatedAt,
-    };
+    const advanced = advanceStructuredMemoSyncBase(currentMemo, syncedMemo, (base, receipt) => receipt.revision >= base.revision);
+    if (advanced === currentMemo) return false;
+    memoRef.current = advanced;
     if (editSessionRef.current?.memoId === syncedMemo.id) {
       editSessionRef.current = {
         ...editSessionRef.current,
@@ -1989,10 +1987,14 @@ export const DiagramEditorPane = ({
         baseContentHash: syncedMemo.contentHash,
       };
     }
+    return true;
   }, []);
 
   useEffect(() => {
-    const acknowledged = (event: Event) => advanceSyncBase((event as CustomEvent<MemoDetail>).detail);
+    const acknowledged = (event: Event) => {
+      const receipt = (event as CustomEvent<MemoDetail>).detail;
+      if (advanceSyncBase(receipt)) acknowledgedMemoRef.current = receipt;
+    };
     window.addEventListener(MEMO_SYNC_ACKNOWLEDGED_EVENT, acknowledged);
     return () => window.removeEventListener(MEMO_SYNC_ACKNOWLEDGED_EVENT, acknowledged);
   }, [advanceSyncBase]);
@@ -2015,14 +2017,20 @@ export const DiagramEditorPane = ({
         || parseTagsText(tagsRef.current).join("\u0000") !== savedTags
         || nodeEditorRef.current !== null || flowQuickCreateRef.current !== null
         || pendingOutlineRef.current || savingRef.current;
-      if (hasDraft) {
-        // An echo of our saved snapshot may advance its base, never its draft.
-        // A different remote document keeps the old base for conflict handling.
-        if (incomingSnapshot === savedSnapshotRef.current && memo.tags.join("\u0000") === savedTags) {
-          advanceSyncBase(memo);
-        } else if (!deferredMemoBaselineRef.current) {
-          deferredMemoBaselineRef.current = { snapshot: savedSnapshotRef.current, tags: savedTags };
-        }
+      const incomingTags = memo.tags.join("\u0000");
+      const matchesSaved = incomingSnapshot === savedSnapshotRef.current && incomingTags === savedTags;
+      const matchesAcknowledged = matchesStructuredMemoReceipt(memo, acknowledgedMemoRef.current, (receipt) => {
+        const receiptDocument = parseDiagramDocument(receipt.contentMarkdown);
+        return receiptDocument !== null && incomingSnapshot === diagramEditorSnapshot(receipt.title ?? "", receiptDocument)
+          && incomingTags === receipt.tags.join("\u0000");
+      });
+      const update = classifyStructuredMemoSnapshot(matchesSaved || matchesAcknowledged, Boolean(hasDraft));
+      if (update === "defer") {
+        deferredMemoBaselineRef.current ??= { snapshot: savedSnapshotRef.current, tags: savedTags };
+        return;
+      }
+      if (update === "rebase" && (hasDraft || (matchesAcknowledged && !matchesSaved))) {
+        advanceSyncBase(memo);
         return;
       }
     }
@@ -3328,10 +3336,7 @@ export const DiagramEditorPane = ({
         return true;
       }
       const savedMemo = result.memo.id === memoRef.current.id ? result.memo : { ...result.memo, id: memoRef.current.id };
-      const syncBase = memoRef.current;
-      memoRef.current = syncBase.revision > savedMemo.revision
-        ? { ...savedMemo, revision: syncBase.revision, contentHash: syncBase.contentHash, updatedAt: syncBase.updatedAt }
-        : savedMemo;
+      memoRef.current = retainNewerStructuredMemoSyncBase(savedMemo, memoRef.current);
       savedSnapshotRef.current = nextSnapshot;
       const currentSnapshot = diagramEditorSnapshot(
         titleRef.current,
