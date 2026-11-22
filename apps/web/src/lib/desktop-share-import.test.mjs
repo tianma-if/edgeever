@@ -72,3 +72,22 @@ test("fails a chat with a missing attachment and leaves it available for retry",
   expect(calls[10][1].contentMarkdown).toContain("edgeever-staged://stage1");
   expect(calls.slice(11)).toEqual([SYNC_QUEUE_CHANGED_EVENT, ["finish", "wechat"]]);
 }));
+
+test("uses the PNG format for a WeChat image exported as JPEG", async () => withImport(async (options, calls) => {
+  const bytes = Uint8Array.from(Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jqj8AAAAASUVORK5CYII=", "base64",
+  ));
+  const image = { id: "m1", filename: "图.jpg", mimeType: "image/jpeg", byteSize: bytes.byteLength };
+  window.edgeeverDesktop.readWeChatImportMedia = async () => ({ bytes });
+  const uploaded = [];
+  options.repository.uploadMemoResource = async (_memoId, file) => {
+    uploaded.push(file);
+    return { resource: { url: "https://example.test/image.png", filename: file.name } };
+  };
+  await importDesktopShare({ ok: true, importId: "chat", markdown: "![图.jpg](edgeever-wechat-media://m1)", media: [image] }, options);
+  expect(calls).toContainEqual(["ack", "chat", true]);
+  expect(uploaded).toHaveLength(1);
+  expect(uploaded[0].name).toBe("图.png");
+  expect(uploaded[0].type).toBe("image/png");
+  expect(new Uint8Array(await uploaded[0].arrayBuffer())).toEqual(bytes);
+}));

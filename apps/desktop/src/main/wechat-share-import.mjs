@@ -300,7 +300,8 @@ export const createWeChatShareController = ({
         void writeDiagnostic("share-import.rejected", { reason });
         return;
       }
-      sendToRenderer({ ok: false, reason: reason === "unrecognized" ? "unrecognized" : "failed" });
+      const knownChatError = reason === "unrecognized" || reason === "unsupported-messages";
+      sendToRenderer({ ok: false, reason: knownChatError ? reason : "failed" });
       void writeDiagnostic("wechat-import.rejected", { reason });
     }
   };

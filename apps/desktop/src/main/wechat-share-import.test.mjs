@@ -34,10 +34,8 @@ const u32 = (value) => {
   return bytes;
 };
 const zipOf = (name, text, extraName, extra) => {
-  const files = [
-    { name, data: Buffer.from(text) },
-    { name: extraName, data: Buffer.from(extra) },
-  ];
+  const files = [{ name, data: Buffer.from(text) }];
+  if (extraName) files.push({ name: extraName, data: Buffer.from(extra) });
   const locals = [];
   const centrals = [];
   let offset = 0;
@@ -394,6 +392,30 @@ describe("WeChat share handoff", () => {
     expect(sent[0].ok).toBe(true);
     expect(sent[0].kind).toBeUndefined();
     expect(sent[0].markdown).toContain("你好");
+  });
+
+  test("reports an unsupported-only WeChat export once and retains the archive", async () => {
+    const root = await mkdtemp(join(tmpdir(), "edgeever-wechat-share-"));
+    roots.push(root);
+    const downloads = join(root, "Downloads");
+    const batch = join(downloads, WECHAT_INCOMING_DIRECTORY_NAME, "batch");
+    await mkdir(batch, { recursive: true });
+    const zipPath = join(batch, "聊天记录.zip");
+    const archive = zipOf("聊天记录.txt", "·张三\n2026年11月22日 19:25\n[不支持的消息]\n");
+    await writeFile(zipPath, archive);
+    const sent = [];
+    const options = {
+      downloadsPath: () => downloads,
+      tempPath: () => join(root, "temp"),
+      sendToRenderer: (payload) => sent.push(payload),
+    };
+    const controller = createWeChatShareController(options);
+    const url = `edgeever://share-import?path=${encodeURIComponent(zipPath)}`;
+    await controller.importFromProtocolUrl(url);
+    await controller.importFromProtocolUrl(url);
+    await createWeChatShareController(options).importPending();
+    expect(sent).toEqual([{ ok: false, reason: "unsupported-messages" }]);
+    expect(await readFile(zipPath)).toEqual(archive);
   });
 
   test("reports a Finder file-id placeholder instead of treating it as a chat", async () => {

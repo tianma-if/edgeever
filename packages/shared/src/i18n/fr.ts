@@ -2795,6 +2795,7 @@ export const fr = {
     importScreenshotFailed: "Impossible d'enregistrer la capture d'écran comme note. Vérifiez la connexion et réessayez.",
     importWeChatFailedTitle: "Impossible d'enregistrer la discussion WeChat",
     importWeChatUnrecognized: "Cette archive n'est pas une exportation de discussion WeChat.",
+    importWeChatUnsupportedMessages: "WeChat a uniquement exporté des textes de remplacement pour les messages non pris en charge. Si vous avez partagé un groupe de photos, ouvrez-le dans WeChat, enregistrez les photos et ajoutez-les à EdgeEver.",
     importWeChatFailed: "Impossible d'enregistrer la discussion comme note. Réessayez.",
     importWeChatInProgress: "Importation de la discussion WeChat…",
     importWeChatRetryHint: "L'exportation de la discussion est toujours dans Téléchargements. Essayez de la réimporter.",

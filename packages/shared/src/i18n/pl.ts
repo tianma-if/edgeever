@@ -2598,6 +2598,7 @@ export const pl = {
     importScreenshotFailed: "Nie udało się zapisać zrzutu ekranu jako notatki. Sprawdź połączenie i spróbuj ponownie.",
     importWeChatFailedTitle: "Nie udało się zapisać czatu WeChat",
     importWeChatUnrecognized: "To archiwum nie jest eksportem czatu WeChat.",
+    importWeChatUnsupportedMessages: "WeChat wyeksportował tylko tekst zastępczy dla nieobsługiwanych wiadomości. Jeśli udostępniono kolekcję zdjęć, rozwiń ją w WeChat, zapisz zdjęcia i dodaj je do EdgeEver.",
     importWeChatFailed: "Nie udało się zapisać czatu jako notatki. Spróbuj ponownie.",
     importWeChatInProgress: "Importowanie czatu WeChat…",
     importWeChatRetryHint: "Eksport czatu nadal znajduje się w folderze Pobrane. Spróbuj zaimportować go ponownie.",

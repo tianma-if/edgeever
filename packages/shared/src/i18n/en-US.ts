@@ -2590,6 +2590,7 @@ export const enUS = {
     importScreenshotFailed: "Couldn't save the screenshot as a note. Check the connection and try again.",
     importWeChatFailedTitle: "Could not save the WeChat chat",
     importWeChatUnrecognized: "This archive is not a WeChat chat export.",
+    importWeChatUnsupportedMessages: "WeChat exported only placeholders for unsupported messages. If you shared a photo collection, expand it in WeChat, save the photos, and add them to EdgeEver.",
     importWeChatFailed: "Couldn't save the chat as a note. Try again.",
     importWeChatInProgress: "Importing the WeChat chat…",
     importWeChatRetryHint: "The chat export is still in Downloads. Try importing it again.",

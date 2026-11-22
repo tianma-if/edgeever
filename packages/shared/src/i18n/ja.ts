@@ -2598,6 +2598,7 @@ export const ja = {
     importScreenshotFailed: "スクリーンショットをノートとして保存できませんでした。接続を確認して再試行してください。",
     importWeChatFailedTitle: "WeChat のチャットを保存できませんでした",
     importWeChatUnrecognized: "このアーカイブは WeChat のチャット書き出しではありません。",
+    importWeChatUnsupportedMessages: "WeChat は未対応のメッセージを示すテキストだけを書き出しました。写真のまとめを共有した場合は、WeChat で開いて写真を保存し、EdgeEver に追加してください。",
     importWeChatFailed: "チャットをノートとして保存できませんでした。再試行してください。",
     importWeChatInProgress: "WeChat のチャットを取り込んでいます…",
     importWeChatRetryHint: "チャットの書き出しファイルはダウンロードフォルダに残っています。もう一度お試しください。",

@@ -1,4 +1,5 @@
 const WECHAT_TRANSCRIPT_NAME = "聊天记录.txt";
+const UNSUPPORTED_MESSAGE = "[不支持的消息]";
 const PREFERRED_MEDIA_DIRECTORY = "聊天记录内的图片、视频和文件/";
 const MEDIA_LINE = /^\[(图片|视频|文件|语音)\]\s+(.+?)\s*$/;
 const LINK_LINE = /^\[链接\]\s+(.+)$/;
@@ -366,7 +367,7 @@ const archiveTitle = (archiveName, messages) => {
  * @param {string} text
  * @param {string} archiveName
  * @param {{name: string, data: T}[]} mediaEntries
- * @returns {{title: string, markdown: string, media: {id: string, filename: string, mimeType: string, data: T}[]} | null}
+ * @returns {{title: string, markdown: string, unsupportedOnly: boolean, media: {id: string, filename: string, mimeType: string, data: T}[]} | null}
  */
 const renderWeChatChat = (text, archiveName, mediaEntries) => {
   const mediaByName = new Map();
@@ -392,6 +393,8 @@ const renderWeChatChat = (text, archiveName, mediaEntries) => {
   }
 
   const messages = parseMessages(text);
+  const unsupportedOnly = items.length === 0 && messages.length > 0
+    && messages.every((message) => message.body?.join("\n").trim() === UNSUPPORTED_MESSAGE);
   const grouped = groupMessages(messages);
   const dateState = { lastDate: null };
   const sections = grouped.length > 0
@@ -408,6 +411,7 @@ const renderWeChatChat = (text, archiveName, mediaEntries) => {
   return {
     title: archiveTitle(archiveName, messages),
     markdown,
+    unsupportedOnly,
     media: items.map(({ id, filename, mimeType, data }) => ({
       id,
       filename,

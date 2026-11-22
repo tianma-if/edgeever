@@ -2795,6 +2795,7 @@ export const de = {
     "importScreenshotFailed": "Der Screenshot konnte nicht als Notiz gespeichert werden. Verbindung prüfen und erneut versuchen.",
     "importWeChatFailedTitle": "WeChat-Chat konnte nicht gespeichert werden",
     "importWeChatUnrecognized": "Dieses Archiv ist kein WeChat-Chat-Export.",
+    "importWeChatUnsupportedMessages": "WeChat hat nur Platzhalter für nicht unterstützte Nachrichten exportiert. Wenn du eine Fotosammlung geteilt hast, öffne sie in WeChat, speichere die Fotos und füge sie zu EdgeEver hinzu.",
     "importWeChatFailed": "Der Chat konnte nicht als Notiz gespeichert werden. Versuchen Sie es erneut.",
     "importWeChatInProgress": "WeChat-Chat wird importiert…",
     "importWeChatRetryHint": "Der Chat-Export befindet sich noch in „Downloads“. Versuchen Sie erneut, ihn zu importieren.",

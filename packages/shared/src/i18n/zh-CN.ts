@@ -2609,6 +2609,7 @@ export const zhCN = {
     importScreenshotFailed: "无法将截图保存为笔记。请检查网络后重试。",
     importWeChatFailedTitle: "无法保存微信聊天记录",
     importWeChatUnrecognized: "这个压缩包不是微信导出的聊天记录。",
+    importWeChatUnsupportedMessages: "微信这次只导出了「不支持的消息」占位符。如果分享的是图片合集，请在微信中展开合集，保存图片后再添加到 EdgeEver。",
     importWeChatFailed: "无法把聊天记录保存为笔记。请重试。",
     importWeChatInProgress: "正在导入微信聊天记录…",
     importWeChatRetryHint: "聊天记录仍保存在下载目录。请重试导入。",

@@ -176,6 +176,33 @@ describe("WeChat chat archive", () => {
     expect(note.markdown).toContain("收到");
   });
 
+  test("reports chats that contain only unsupported placeholders and no attachments", () => {
+    const archive = zipOf([{ name: "聊天记录.txt", data: [
+      "·张三",
+      "2026年11月22日 19:25",
+      "[不支持的消息]",
+      "",
+      "·李四",
+      "2026年11月22日 19:26",
+      "[不支持的消息]",
+    ].join("\r\n"), method: 8 }]);
+    expect(() => wechatChatNoteFromArchive(archive)).toThrow(expect.objectContaining({ code: "unsupported-messages" }));
+  });
+
+  test("keeps available text and attachments in chats with unsupported placeholders", () => {
+    const unsupported = "·张三\n2026年11月22日 19:25\n[不支持的消息]\n";
+    const mixed = wechatChatNoteFromArchive(zipOf([{ name: "聊天记录.txt", data: `${unsupported}\n·李四\n2026年11月22日 19:26\n你好` }]));
+    expect(mixed.markdown).toContain("你好");
+    expect(mixed.markdown).toContain("\\[不支持的消息\\]");
+
+    const withImage = wechatChatNoteFromArchive(zipOf([
+      { name: "聊天记录.txt", data: unsupported },
+      { name: "聊天记录内的图片、视频和文件/照片.jpg", data: "jpeg-bytes" },
+    ]));
+    expect(withImage.markdown).toContain("![照片.jpg](edgeever-wechat-media://m1)");
+    expect(withImage.media).toHaveLength(1);
+  });
+
   test("rejects archives that are not a WeChat transcript", () => {
     expect(() => wechatChatNoteFromArchive(zipOf([{ name: "readme.txt", data: "hello" }]))).toThrow(WeChatArchiveError);
     expect(() => wechatChatNoteFromArchive(Buffer.from("not a zip"))).toThrow(WeChatArchiveError);
