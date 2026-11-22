@@ -863,12 +863,14 @@ const RichEditorPane = ({
     empty: "",
     close: "",
     untitled: "",
+    locale: "",
   });
   noteLinkSuggestionLabelsRef.current = {
     menu: t("noteLinkPicker.title"),
     empty: t("noteLinkPicker.empty"),
     close: t("noteLinkPicker.close"),
     untitled: t("common.untitledMemo"),
+    locale: i18n.resolvedLanguage ?? i18n.language,
   };
   const noteLinkSuggestionExtensionRef = useRef<ReturnType<typeof createNoteLinkSuggestionExtension> | null>(null);
   if (!noteLinkSuggestionExtensionRef.current) {
