@@ -2,7 +2,8 @@ export const deploymentPrompts = {
   "en-US": `Deploy EdgeEver entirely through GitHub and Cloudflare:
 1. Fork https://github.com/tianma-if/edgeever.
 2. Create D1 \`edgeever\` and R2 \`edgeever-resources\` in Cloudflare.
-3. In Workers & Pages, select "Start with Hello World!" and create a Worker named \`edgeever\`.
+3. In Workers & Pages, select "Start with Hello World!" to create and deploy a placeholder Worker
+   named \`edgeever\`. Do not connect a Git repository yet.
 4. Add the user's chosen password as the runtime Secret \`EDGE_EVER_AUTH_PASSWORD\`
    under Settings → Variables and Secrets, and deploy the Secret (preferably at least
    32 characters). The username defaults to \`admin\`.
@@ -15,7 +16,8 @@ export const deploymentPrompts = {
   "zh-CN": `请全程通过 GitHub 和 Cloudflare 在线部署 EdgeEver：
 1. Fork https://github.com/tianma-if/edgeever。
 2. 在 Cloudflare 中创建 D1 \`edgeever\` 与 R2 \`edgeever-resources\`。
-3. 在 Workers & Pages 中选择「Start with Hello World!」，创建名为 \`edgeever\` 的 Worker。
+3. 在 Workers & Pages 中选择「Start with Hello World!」，创建并部署名为 \`edgeever\` 的占位 Worker。
+   此时暂不连接 Git 仓库。
 4. 在该 Worker 的 Settings → Variables and Secrets 中添加运行时 Secret
    \`EDGE_EVER_AUTH_PASSWORD\`，值为用户指定的登录密码（建议至少 32 个字符），并点击 Deploy。
    管理员用户名默认为 \`admin\`。
@@ -43,7 +45,7 @@ export const manualDeploymentCopy = {
       },
       {
         "title": "Create the Worker",
-        "body": "In Cloudflare Workers & Pages, select Create application → Start with Hello World!, name the Worker edgeever, and deploy it. This creates a placeholder; EdgeEver is deployed in Step 7."
+        "body": "In Cloudflare Workers & Pages, select Create application → Start with Hello World! to create and deploy a placeholder Worker named edgeever. Do not connect a Git repository yet."
       },
       {
         "title": "Set the Administrator Password",
@@ -76,7 +78,7 @@ export const manualDeploymentCopy = {
       },
       {
         "title": "创建 Worker",
-        "body": "在 Cloudflare Workers & Pages 中选择 Create application → Start with Hello World!，命名为 edgeever 并部署。此时是占位服务，第 7 步才部署 EdgeEver。"
+        "body": "在 Cloudflare Workers & Pages 中打开 Create application，选择「Start with Hello World!」，创建并部署名为 edgeever 的占位 Worker。此时暂不连接 Git 仓库。"
       },
       {
         "title": "设置管理员密码",
