@@ -1842,7 +1842,6 @@ export function registerAcpIpc(ipcMain, runtime = createAcpHostRuntime(), {
     const result = await runtime.installAdapter(id);
     if (id === "antigravity" && (result.updated || result.version)) {
       await saveRecordedAntigravityPath(null, "standalone");
-      if (!result.adapter) runtime.clearAdapterStatus?.("antigravity");
     }
     return result;
   });

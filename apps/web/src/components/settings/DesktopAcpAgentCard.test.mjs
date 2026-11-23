@@ -3,6 +3,7 @@ import { act, createElement, Fragment } from "react";
 import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { parseHTML } from "linkedom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createInstance } from "i18next";
 import { I18nextProvider } from "react-i18next";
 import { enUS, zhCN } from "@edgeever/shared/i18n";
@@ -49,6 +50,7 @@ const mountCard = async ({
   clearAcpAdapterPath,
   installAcpAdapter,
   probeAcpAdapter,
+  queryClient,
 } = {}) => {
   const { window } = parseHTML("<!DOCTYPE html><html><body><div id='root'></div></body></html>");
   const storage = createMemoryStorage({
@@ -120,8 +122,9 @@ const mountCard = async ({
   await i18n.init({ lng: "en-US", resources: { "en-US": { translation: enUS } } });
   const container = window.document.getElementById("root");
   root = createRoot(container);
+  const card = createElement(I18nextProvider, { i18n }, createElement(DesktopAcpAgentCard));
   await act(async () => {
-    root.render(createElement(I18nextProvider, { i18n }, createElement(DesktopAcpAgentCard)));
+    root.render(queryClient ? createElement(QueryClientProvider, { client: queryClient }, card) : card);
   });
   await act(async () => {
     await Promise.resolve();
@@ -343,4 +346,28 @@ test("Antigravity mode toggle defaults to standalone, switches to cli with CLI h
   expect(ui.modeRadio("standalone")?.checked).toBe(true);
   expect(ui.pathInput()?.value).toBe("");
   expect(ui.findButton(enUS.aiAssistant.agentSource.clearPath)).toBeUndefined();
+});
+
+test("Antigravity mode/path changes invalidate shared sidebar React Query caches even when selector is unmounted", async () => {
+  const queryClient = new QueryClient();
+  queryClient.setQueryData(["ai-sidebar-adapters"], [{ id: "antigravity", antigravityMode: "standalone", state: "available" }]);
+  queryClient.setQueryData(["ai-sidebar-adapter-probe", "antigravity", "standalone", "1.5.2", ""], { id: "antigravity", state: "available" });
+  expect(queryClient.getQueryState(["ai-sidebar-adapters"])?.isInvalidated).toBe(false);
+  expect(queryClient.getQueryState(["ai-sidebar-adapter-probe", "antigravity", "standalone", "1.5.2", ""])?.isInvalidated).toBe(false);
+
+  const ui = await mountCard({
+    initialPath: "",
+    initialMode: "standalone",
+    queryClient,
+    setAcpAdapterMode: async () => true,
+    chooseAcpAdapterPath: async () => "/opt/agy",
+    clearAcpAdapterPath: async () => true,
+  });
+
+  await act(async () => {
+    ui.modeRadio("cli").click();
+  });
+  expect(queryClient.getQueryState(["ai-sidebar-adapters"])?.isInvalidated).toBe(true);
+  expect(queryClient.getQueryState(["ai-sidebar-adapter-probe", "antigravity", "standalone", "1.5.2", ""])?.isInvalidated).toBe(true);
+  queryClient.clear();
 });

@@ -1,4 +1,5 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useContext, useEffect, useId, useRef, useState } from "react";
+import { QueryClientContext } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Bot, ChevronDown, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,7 +12,6 @@ import {
   AI_SIDEBAR_ADAPTER_PATH_KEY,
   AI_SIDEBAR_SOURCE_KEY,
   AI_SIDEBAR_SELECTION_EVENT,
-  AI_SIDEBAR_ADAPTERS_CHANGED_EVENT,
   displayedDesktopAcpAdapter,
   desktopAcpUpdateErrorHintKey,
   desktopAcpLoginRetryAvailable,
@@ -101,6 +101,7 @@ const desktopBridgeAvailable = () => (
 
 const DesktopAcpAgentCardBody = ({ bridge }: { bridge: boolean }) => {
   const { t } = useTranslation();
+  const queryClient = useContext(QueryClientContext);
   const instanceId = useId();
   const [source, setSource] = useState<AiSidebarSource>("builtin");
   const [adapterId, setAdapterId] = useState<DesktopAcpAdapterId>("codex");
@@ -184,11 +185,12 @@ const DesktopAcpAgentCardBody = ({ bridge }: { bridge: boolean }) => {
   }, []);
 
   const shown = displayedDesktopAcpAdapter({ id: adapterId, path: adapterPath, listed, probed });
+  const effectiveAntigravityMode = shown?.antigravityMode ?? antigravityMode;
   const updateHintKey = shown?.updateError ? desktopAcpUpdateErrorHintKey(shown.updateError) : null;
   const isWorkBuddy = adapterId === "workbuddyCn" || adapterId === "workbuddyIntl";
   const isCodeBuddy = adapterId === "codebuddy";
   const codeBuddySigningIn = isCodeBuddy && Boolean(authenticating);
-  const status = t(statusKey(shown, probing, antigravityMode));
+  const status = t(statusKey(shown, probing, effectiveAntigravityMode));
   const tone = getStatusTone({
     probing,
     installing,
@@ -250,6 +252,12 @@ const DesktopAcpAgentCardBody = ({ bridge }: { bridge: boolean }) => {
     setPathError(null);
   };
 
+  const invalidateSidebarAdapterQueries = () => {
+    if (!queryClient) return;
+    void queryClient.invalidateQueries({ queryKey: ["ai-sidebar-adapters"] });
+    void queryClient.invalidateQueries({ queryKey: ["ai-sidebar-adapter-probe"] });
+  };
+
   const changeAntigravityMode = async (nextMode: DesktopAntigravityMode) => {
     if (pathActionRef.current || nextMode === antigravityMode) return;
     listEpochRef.current += 1;
@@ -273,7 +281,7 @@ const DesktopAcpAgentCardBody = ({ bridge }: { bridge: boolean }) => {
       const refreshed = await listDesktopAcpAdapters().catch(() => null);
       if (refreshed) applyListedAdapters(refreshed);
       else setAdapterPath("");
-      window.dispatchEvent(new Event(AI_SIDEBAR_ADAPTERS_CHANGED_EVENT));
+      invalidateSidebarAdapterQueries();
     } catch {
       setPathError("mode");
     } finally {
@@ -300,7 +308,7 @@ const DesktopAcpAgentCardBody = ({ bridge }: { bridge: boolean }) => {
       listEpochRef.current += 1;
       const refreshed = await listDesktopAcpAdapters().catch(() => null);
       if (refreshed) applyListedAdapters(refreshed);
-      window.dispatchEvent(new Event(AI_SIDEBAR_ADAPTERS_CHANGED_EVENT));
+      invalidateSidebarAdapterQueries();
     } catch {
       setPathError("choose");
     } finally {
@@ -331,7 +339,7 @@ const DesktopAcpAgentCardBody = ({ bridge }: { bridge: boolean }) => {
       listEpochRef.current += 1;
       const refreshed = await listDesktopAcpAdapters().catch(() => null);
       if (refreshed) applyListedAdapters(refreshed);
-      window.dispatchEvent(new Event(AI_SIDEBAR_ADAPTERS_CHANGED_EVENT));
+      invalidateSidebarAdapterQueries();
     } catch {
       setPathError("clear");
     } finally {
@@ -359,7 +367,7 @@ const DesktopAcpAgentCardBody = ({ bridge }: { bridge: boolean }) => {
       listEpochRef.current += 1;
       const refreshed = await listDesktopAcpAdapters().catch(() => null);
       if (refreshed) applyListedAdapters(refreshed);
-      window.dispatchEvent(new Event(AI_SIDEBAR_ADAPTERS_CHANGED_EVENT));
+      invalidateSidebarAdapterQueries();
       setInstalling(false);
     }
   };
@@ -595,7 +603,7 @@ const DesktopAcpAgentCardBody = ({ bridge }: { bridge: boolean }) => {
                   ) : null}
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
-                  {shown?.state === "not_installed" && (adapterId === "codex" || adapterId === "claudeCode" || (adapterId === "antigravity" && antigravityMode === "standalone") || (adapterId === "piAgent" && shown?.detail === "adapter_missing")) ? (
+                  {shown?.state === "not_installed" && (adapterId === "codex" || adapterId === "claudeCode" || (adapterId === "antigravity" && effectiveAntigravityMode === "standalone") || (adapterId === "piAgent" && shown?.detail === "adapter_missing")) ? (
                     <Button type="button" variant="outline" size="sm" className="h-8 bg-card text-xs font-normal" disabled={installing || probing || pathBusy} onClick={() => void install()}>
                       {installing ? t("aiAssistant.agentSource.installing") : t("aiAssistant.agentSource.install")}
                     </Button>
@@ -622,7 +630,7 @@ const DesktopAcpAgentCardBody = ({ bridge }: { bridge: boolean }) => {
                   ) : null}
                   {shown?.state === "not_installed" ? (
                     <p>
-                      {t(adapterId === "antigravity" && antigravityMode === "cli" ? "aiAssistant.agentSource.antigravityCliMissingHint" : adapterId === "claudeCode" ? "aiAssistant.agentSource.claudeCodeMissingHint" : adapterId === "openClaw" ? "aiAssistant.agentSource.openClawMissingHint" : adapterId === "hermesAgent" ? "aiAssistant.agentSource.hermesAgentMissingHint" : adapterId === "grokBuild" ? "aiAssistant.agentSource.grokBuildMissingHint" : adapterId === "deepseekHarness" ? "aiAssistant.agentSource.deepseekHarnessMissingHint" : adapterId === "piAgent" ? shown.detail === "adapter_missing" ? "aiAssistant.agentSource.piAgentAdapterMissingHint" : "aiAssistant.agentSource.piAgentMissingHint" : adapterId === "workbuddyCn" || adapterId === "workbuddyIntl" ? "aiAssistant.agentSource.workbuddyMissingHint" : adapterId === "codebuddy" ? "aiAssistant.agentSource.codebuddyMissingHint" : "aiAssistant.agentSource.installHint")}
+                      {t(adapterId === "antigravity" && effectiveAntigravityMode === "cli" ? "aiAssistant.agentSource.antigravityCliMissingHint" : adapterId === "claudeCode" ? "aiAssistant.agentSource.claudeCodeMissingHint" : adapterId === "openClaw" ? "aiAssistant.agentSource.openClawMissingHint" : adapterId === "hermesAgent" ? "aiAssistant.agentSource.hermesAgentMissingHint" : adapterId === "grokBuild" ? "aiAssistant.agentSource.grokBuildMissingHint" : adapterId === "deepseekHarness" ? "aiAssistant.agentSource.deepseekHarnessMissingHint" : adapterId === "piAgent" ? shown.detail === "adapter_missing" ? "aiAssistant.agentSource.piAgentAdapterMissingHint" : "aiAssistant.agentSource.piAgentMissingHint" : adapterId === "workbuddyCn" || adapterId === "workbuddyIntl" ? "aiAssistant.agentSource.workbuddyMissingHint" : adapterId === "codebuddy" ? "aiAssistant.agentSource.codebuddyMissingHint" : "aiAssistant.agentSource.installHint")}
                     </p>
                   ) : null}
                   {shown?.detail === "node_missing" ? (
