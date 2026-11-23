@@ -2759,47 +2759,6 @@ html[data-edgeever-extension-theme] .edgeever-memo-divider {
   table-layout: fixed;
 }
 
-/* Container query responsive column distributions for 1-8 columns */
-.ProseMirror table:has(> colgroup > col:first-child:last-child),
-.markdown-content table:has(> colgroup > col:first-child:last-child) {
-  --mobile-table-column-width: 100cqi;
-}
-
-.ProseMirror table:has(> colgroup > col:first-child:nth-last-child(2)),
-.markdown-content table:has(> colgroup > col:first-child:nth-last-child(2)) {
-  --mobile-table-column-width: 50cqi;
-}
-
-.ProseMirror table:has(> colgroup > col:first-child:nth-last-child(3)),
-.markdown-content table:has(> colgroup > col:first-child:nth-last-child(3)) {
-  --mobile-table-column-width: calc(100cqi / 3);
-}
-
-.ProseMirror table:has(> colgroup > col:first-child:nth-last-child(4)),
-.markdown-content table:has(> colgroup > col:first-child:nth-last-child(4)) {
-  --mobile-table-column-width: 25cqi;
-}
-
-.ProseMirror table:has(> colgroup > col:first-child:nth-last-child(5)),
-.markdown-content table:has(> colgroup > col:first-child:nth-last-child(5)) {
-  --mobile-table-column-width: 20cqi;
-}
-
-.ProseMirror table:has(> colgroup > col:first-child:nth-last-child(6)),
-.markdown-content table:has(> colgroup > col:first-child:nth-last-child(6)) {
-  --mobile-table-column-width: calc(100cqi / 6);
-}
-
-.ProseMirror table:has(> colgroup > col:first-child:nth-last-child(7)),
-.markdown-content table:has(> colgroup > col:first-child:nth-last-child(7)) {
-  --mobile-table-column-width: calc(100cqi / 7);
-}
-
-.ProseMirror table:has(> colgroup > col:first-child:nth-last-child(8)),
-.markdown-content table:has(> colgroup > col:first-child:nth-last-child(8)) {
-  --mobile-table-column-width: 12.5cqi;
-}
-
 /* For tables with 9+ columns on narrow viewports, expand width and scroll inside tableWrapper */
 .ProseMirror table:has(> colgroup > col:first-child:nth-last-child(n+9)),
 .markdown-content table:has(> colgroup > col:first-child:nth-last-child(n+9)) {
@@ -2807,9 +2766,11 @@ html[data-edgeever-extension-theme] .edgeever-memo-divider {
   --mobile-table-column-width: clamp(4.5rem, 24cqi, 12rem);
 }
 
-/* For tables without colgroup (plain markdown or pasted html), allow natural distribution */
+/* Tables with up to 8 columns (or no colgroup): distribute widths by content */
 .ProseMirror table:not(:has(colgroup)),
-.markdown-content table:not(:has(colgroup)) {
+.ProseMirror table:has(> colgroup > col:first-child:nth-last-child(-n+8)),
+.markdown-content table:not(:has(colgroup)),
+.markdown-content table:has(> colgroup > col:first-child:nth-last-child(-n+8)) {
   table-layout: auto;
   width: 100%;
   min-width: 100%;
@@ -2817,11 +2778,22 @@ html[data-edgeever-extension-theme] .edgeever-memo-divider {
 
 .ProseMirror table:not(:has(colgroup)) th,
 .ProseMirror table:not(:has(colgroup)) td,
+.ProseMirror table:has(> colgroup > col:first-child:nth-last-child(-n+8)) th,
+.ProseMirror table:has(> colgroup > col:first-child:nth-last-child(-n+8)) td,
 .markdown-content table:not(:has(colgroup)) th,
-.markdown-content table:not(:has(colgroup)) td {
+.markdown-content table:not(:has(colgroup)) td,
+.markdown-content table:has(> colgroup > col:first-child:nth-last-child(-n+8)) th,
+.markdown-content table:has(> colgroup > col:first-child:nth-last-child(-n+8)) td {
   width: auto;
   min-width: 0;
   max-width: none;
+}
+
+/* Release colgroup columns from the fixed variable width as well */
+.ProseMirror table:has(> colgroup > col:first-child:nth-last-child(-n+8)) col,
+.markdown-content table:has(> colgroup > col:first-child:nth-last-child(-n+8)) col {
+  width: auto !important;
+  min-width: 0 !important;
 }
 
 .ProseMirror th,
