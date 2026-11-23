@@ -758,17 +758,25 @@ describe("ACP command allow-list", () => {
       await firstRun.handlers.get("desktop:acp-probe")({ sender }, { id: "antigravity" });
       expect(spawned.at(-1)).toEqual({ command: realpathSync(customStandalone), args: [] });
 
-      // Installing managed adapter when already up to date (updated: false, version: "1.5.2") still clears custom standalone path.
+      // Installing managed adapter when already up to date (updated: false, version: "1.5.2") still clears custom standalone path AND never leaks stale customPath from latestStatus.
       installReturn = { updated: false, version: "1.5.2" };
       expect(await firstRun.handlers.get("desktop:acp-install")({ sender }, "antigravity")).toEqual({ updated: false, version: "1.5.2" });
       expect(JSON.parse(await readFile(storeFile, "utf8"))).toEqual({ antigravity: null });
+      const listedAfterNoOpInstall = (await firstRun.handlers.get("desktop:acp-list")({ sender })).find((a) => a.id === "antigravity");
+      expect(listedAfterNoOpInstall.customPath).toBeUndefined();
+      expect(listedAfterNoOpInstall).toMatchObject({ antigravityMode: "standalone", state: "not_probed", managed: true, version: "1.5.2" });
       await firstRun.handlers.get("desktop:acp-probe")({ sender }, { id: "antigravity" });
       expect(spawned.at(-1)).toEqual({ command: standalone, args: [] });
 
-      // Re-save custom standalone, then switch to CLI mode: CLI mode auto-discovers ~/.local/bin/agy with ["acp"].
+      // Re-save custom standalone and probe it, then switch to CLI mode: CLI mode must NOT inherit standalone status/customPath and auto-discovers ~/.local/bin/agy with ["acp"].
       await firstRun.handlers.get("desktop:acp-choose-path")({ sender }, "antigravity");
-      expect(await firstRun.handlers.get("desktop:acp-set-mode")({ sender }, "antigravity", "cli")).toBe(true);
       await firstRun.handlers.get("desktop:acp-probe")({ sender }, { id: "antigravity" });
+      expect(await firstRun.handlers.get("desktop:acp-set-mode")({ sender }, "antigravity", "cli")).toBe(true);
+      const listedAfterModeSwitch = (await firstRun.handlers.get("desktop:acp-list")({ sender })).find((a) => a.id === "antigravity");
+      expect(listedAfterModeSwitch.customPath).toBeUndefined();
+      expect(listedAfterModeSwitch).toMatchObject({ antigravityMode: "cli", state: "not_probed" });
+      const cliProbe = await firstRun.handlers.get("desktop:acp-probe")({ sender }, { id: "antigravity" });
+      expect(cliProbe.antigravityMode).toBe("cli");
       expect(spawned.at(-1)).toEqual({ command: realpathSync(localAgy), args: ["acp"] });
 
       // Choose agy symlink targeting versioned binary in CLI mode -> persists across restart and runs with ["acp"].

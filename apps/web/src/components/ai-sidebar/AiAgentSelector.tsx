@@ -11,7 +11,7 @@ import {
 import { api } from "@/lib/api";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
-  AI_SIDEBAR_ADAPTER_PATH_KEY, desktopAcpAutomaticProbeInput, desktopAcpSelectorVisible,
+  AI_SIDEBAR_ADAPTER_PATH_KEY, AI_SIDEBAR_ADAPTERS_CHANGED_EVENT, desktopAcpAutomaticProbeInput, desktopAcpSelectorVisible,
   desktopAcpAvailable, listDesktopAcpAdapters, probeDesktopAcpAdapter, selectAiSidebarAgent,
   type AiSidebarSource, type DesktopAcpAdapterId,
 } from "@/lib/desktop-acp";
@@ -44,7 +44,7 @@ export function AiAgentSelector({ source, adapterId, disabled, onPendingChange }
   const probeInputs = listedAgents.map((agent) => desktopAcpAutomaticProbeInput(agent, customPath));
   const probes = useQueries({
     queries: listedAgents.map((agent, index) => ({
-      queryKey: ["ai-sidebar-adapter-probe", agent.id, agent.version ?? "", probeInputs[index]?.path ?? ""],
+      queryKey: ["ai-sidebar-adapter-probe", agent.id, agent.antigravityMode ?? "", agent.version ?? "", probeInputs[index]?.path ?? ""],
       queryFn: () => probeDesktopAcpAdapter(probeInputs[index]!),
       // Listing connectors must not launch third-party processes at startup.
       // Their handshake (and any subprocesses they create) belongs to opening
@@ -55,6 +55,15 @@ export function AiAgentSelector({ source, adapterId, disabled, onPendingChange }
       refetchOnWindowFocus: false,
     })),
   });
+  useEffect(() => {
+    if (!desktop) return;
+    const refresh = () => {
+      void queryClient.invalidateQueries({ queryKey: ["ai-sidebar-adapters"] });
+      void queryClient.invalidateQueries({ queryKey: ["ai-sidebar-adapter-probe"] });
+    };
+    window.addEventListener(AI_SIDEBAR_ADAPTERS_CHANGED_EVENT, refresh);
+    return () => window.removeEventListener(AI_SIDEBAR_ADAPTERS_CHANGED_EVENT, refresh);
+  }, [desktop, queryClient]);
   // Each connector finishes independently, so a slow agent cannot block another.
   const localAgents = listedAgents.map((agent, index) => probeInputs[index]
     ? probes[index].isError ? { ...agent, state: "failed" as const, detail: "connection_failed" } : probes[index].data ?? agent

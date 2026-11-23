@@ -1,4 +1,4 @@
-import { mkdir, readFile, realpath, rename, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, realpath, rename, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 export const ACP_OPEN_DIALOG_PROPERTIES = ["openFile", "noResolveAliases"];
@@ -67,8 +67,13 @@ export const createAcpPathStore = (filename) => {
         ...(nextCli ? { antigravityCli: nextCli } : {}),
         ...(nextMode !== "standalone" ? { antigravityMode: nextMode } : {}),
       };
-      await writeFile(temporary, JSON.stringify(payload), { mode: 0o600 });
-      await rename(temporary, filename);
+      try {
+        await writeFile(temporary, JSON.stringify(payload), { mode: 0o600 });
+        await rename(temporary, filename);
+      } catch (error) {
+        await unlink(temporary).catch(() => {});
+        throw error;
+      }
       standalonePath = nextStandalone;
       cliPath = nextCli;
       mode = nextMode;

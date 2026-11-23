@@ -112,6 +112,7 @@ export const AI_SIDEBAR_SOURCE_KEY = "edgeever.aiSidebar.source";
 export const AI_SIDEBAR_ADAPTER_KEY = "edgeever.aiSidebar.adapterId";
 export const AI_SIDEBAR_ADAPTER_PATH_KEY = "edgeever.aiSidebar.adapterPath";
 export const AI_SIDEBAR_SELECTION_EVENT = "edgeever:ai-sidebar-selection";
+export const AI_SIDEBAR_ADAPTERS_CHANGED_EVENT = "edgeever:ai-sidebar-adapters-changed";
 
 export type AiSidebarSource = "builtin" | "local";
 

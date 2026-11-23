@@ -1293,8 +1293,12 @@ export function createAcpHostRuntime(options = {}) {
         }
         const customPath = configuredPaths[id];
         const resolved = resolveCommand({ id, path: customPath, ...(launchMode ? { launchMode } : {}) }, { prepareProxy: false });
+        const cached = latestStatus.get(id);
+        const matchingStatus = id === "antigravity"
+          ? (cached && normalizeAntigravityMode(cached.antigravityMode) === launchMode && (cached.customPath ?? "") === (customPath ?? "") ? cached : null)
+          : cached;
         return resolved.ok
-          ? { ...adapterShell(id), ...modeField, ...(latestStatus.get(id) ?? { state: "not_probed", detail: "not_probed" }), ...(resolved.version ? { version: resolved.version, managed: true } : {}), ...(customPath ? { customPath, managed: false, version: undefined } : {}), ...(!customPath && resolved.managed && updateFailures.has(id) ? { updateError: updateFailures.get(id) } : {}) }
+          ? { ...adapterShell(id), ...modeField, ...(matchingStatus ?? { state: "not_probed", detail: "not_probed" }), ...(resolved.version ? { version: resolved.version, managed: true } : {}), ...(customPath ? { customPath, managed: false, version: undefined } : {}), ...(!customPath && resolved.managed && updateFailures.has(id) ? { updateError: updateFailures.get(id) } : {}) }
           : { ...adapterFromResolution(id, resolved), ...modeField };
       });
     },
@@ -1320,7 +1324,9 @@ export function createAcpHostRuntime(options = {}) {
             }
           }
         }, { updateOnly });
-        if (result.adapter) latestStatus.set(id, result.adapter);
+        if (result.adapter) {
+          latestStatus.set(id, id === "antigravity" ? { ...result.adapter, antigravityMode: "standalone" } : result.adapter);
+        }
         updateFailures.delete(id);
         return result;
       } catch (error) {
@@ -1375,18 +1381,22 @@ export function createAcpHostRuntime(options = {}) {
     async probeAdapter(input) {
       const id = input?.id;
       if (!Object.hasOwn(ADAPTERS, id)) throw new Error("unknown_adapter");
+      const antigravityMeta = id === "antigravity"
+        ? { antigravityMode: normalizeAntigravityMode(input?.launchMode), ...(typeof input?.path === "string" && input.path.trim() ? { customPath: input.path.trim() } : {}) }
+        : {};
       const resolved = resolveCommand(input);
-      if (!resolved.ok) return adapterFromResolution(id, resolved);
+      if (!resolved.ok) return { ...adapterFromResolution(id, resolved), ...antigravityMeta };
       let connected;
       try {
         connected = await withHandshakeTimeout((signal) => connect(resolved.command, `probe-${id}`, () => {}, signal, undefined, [], false, null, accountCheckFor(id)));
       } catch (error) {
-        const failure = { ...adapterShell(id), ...failureFields(classifyAcpFailure(error)), ...(error.authMethods?.length ? { authMethods: error.authMethods } : {}), ...(resolved.version ? { version: resolved.version, managed: true } : {}) };
+        const failure = { ...adapterShell(id), ...antigravityMeta, ...failureFields(classifyAcpFailure(error)), ...(error.authMethods?.length ? { authMethods: error.authMethods } : {}), ...(resolved.version ? { version: resolved.version, managed: true } : {}) };
         latestStatus.set(id, failure);
         return failure;
       }
       const adapter = {
         ...adapterShell(id),
+        ...antigravityMeta,
         state: "available",
         promptCapabilities: connected.promptCapabilities,
         authMethods: connected.authMethods,
@@ -1402,8 +1412,11 @@ export function createAcpHostRuntime(options = {}) {
       const id = input?.id;
       if (!Object.hasOwn(ADAPTERS, id)) throw new Error("unknown_adapter");
       if (typeof input.methodId !== "string" || !input.methodId || input.methodId.length > 120) throw new Error("invalid_auth_method");
+      const antigravityMeta = id === "antigravity"
+        ? { antigravityMode: normalizeAntigravityMode(input?.launchMode), ...(typeof input?.path === "string" && input.path.trim() ? { customPath: input.path.trim() } : {}) }
+        : {};
       const resolved = resolveCommand(input);
-      if (!resolved.ok) return adapterFromResolution(id, resolved);
+      if (!resolved.ok) return { ...adapterFromResolution(id, resolved), ...antigravityMeta };
       if (id === "codebuddy") return authenticateCodeBuddy(input, resolved);
       let connected;
       try {
@@ -1418,13 +1431,14 @@ export function createAcpHostRuntime(options = {}) {
           // Login is useful only if a fresh chat process can restore credentials.
           connected = await withHandshakeTimeout((signal) => connect(resolved.command, `auth-check-${id}`, () => {}, signal, undefined, [], false, null, true));
         }
-        const adapter = { ...adapterShell(id), state: "available", promptCapabilities: connected.promptCapabilities, authMethods: connected.authMethods, ...(resolved.version ? { version: resolved.version, managed: true } : {}) };
+        const adapter = { ...adapterShell(id), ...antigravityMeta, state: "available", promptCapabilities: connected.promptCapabilities, authMethods: connected.authMethods, ...(resolved.version ? { version: resolved.version, managed: true } : {}) };
         latestStatus.set(id, adapter);
         return adapter;
       } catch (error) {
         const timedOut = error?.code === "TIMEOUT" && error?.authenticationPending;
         const adapter = {
           ...adapterShell(id),
+          ...antigravityMeta,
           ...(timedOut ? { state: "needs_login", detail: "authentication_timeout" } : error?.message === "authentication_failed" ? { state: "needs_login", detail: "authentication_failed" } : failureFields(classifyAcpFailure(error))),
           ...(error.authMethods?.length || timedOut || isAuthRequiredError(error) ? { authMethods: error.authMethods ?? latestStatus.get(id)?.authMethods ?? [] } : {}),
           ...(resolved.version ? { version: resolved.version, managed: true } : {}),
@@ -1449,8 +1463,10 @@ export function createAcpHostRuntime(options = {}) {
       const resolved = resolveCommand({ id: input.adapterId, path: input.path, launchMode: input.launchMode });
       if (!resolved.ok) return { ready: false };
       const customPath = input.adapterId === "antigravity" && typeof input.path === "string" ? input.path.trim() : "";
+      const antigravityMode = input.adapterId === "antigravity" ? normalizeAntigravityMode(input.launchMode) : undefined;
       const rememberPromptStatus = (fields) => latestStatus.set(input.adapterId, {
         ...adapterShell(input.adapterId),
+        ...(antigravityMode ? { antigravityMode } : {}),
         ...fields,
         ...(customPath ? { customPath } : {}),
       });
@@ -1510,8 +1526,10 @@ export function createAcpHostRuntime(options = {}) {
       const resolved = resolveCommand({ id: input.adapterId, path: input.path, launchMode: input.launchMode });
       if (!resolved.ok) return fail(promptFailureMessage(resolved));
       const customPath = input.adapterId === "antigravity" && typeof input.path === "string" ? input.path.trim() : "";
+      const antigravityMode = input.adapterId === "antigravity" ? normalizeAntigravityMode(input.launchMode) : undefined;
       const rememberPromptStatus = (fields) => latestStatus.set(input.adapterId, {
         ...adapterShell(input.adapterId),
+        ...(antigravityMode ? { antigravityMode } : {}),
         ...fields,
         ...(customPath ? { customPath } : {}),
       });
@@ -1755,7 +1773,9 @@ export function registerAcpIpc(ipcMain, runtime = createAcpHostRuntime(), {
     return adapterPathStore.set(null);
   };
   const saveRecordedAntigravityMode = async (nextMode) => {
-    if (typeof adapterPathStore.setMode === "function") return adapterPathStore.setMode(nextMode);
+    if (typeof adapterPathStore.setMode !== "function") return false;
+    await adapterPathStore.setMode(nextMode);
+    return true;
   };
   const normalizeChosenPath = (selected) => {
     if (typeof selected === "string" && selected) return selected;
@@ -1788,7 +1808,8 @@ export function registerAcpIpc(ipcMain, runtime = createAcpHostRuntime(), {
     if (!allowInstall(event.sender, event) || id !== "antigravity") throw new Error("adapter_path_forbidden");
     if (nextMode !== "standalone" && nextMode !== "cli") throw new Error("invalid_antigravity_mode");
     if (choosing || event.sender.isFocused?.() !== true) return false;
-    await saveRecordedAntigravityMode(nextMode);
+    const saved = await saveRecordedAntigravityMode(nextMode);
+    if (!saved) return false;
     runtime.clearAdapterStatus?.("antigravity");
     return true;
   });
@@ -1819,7 +1840,10 @@ export function registerAcpIpc(ipcMain, runtime = createAcpHostRuntime(), {
   ipcMain.handle("desktop:acp-install", async (event, id) => {
     if (!allowInstall(event.sender, event)) throw new Error("adapter_install_forbidden");
     const result = await runtime.installAdapter(id);
-    if (id === "antigravity" && (result.updated || result.version)) await saveRecordedAntigravityPath(null, "standalone");
+    if (id === "antigravity" && (result.updated || result.version)) {
+      await saveRecordedAntigravityPath(null, "standalone");
+      if (!result.adapter) runtime.clearAdapterStatus?.("antigravity");
+    }
     return result;
   });
   ipcMain.handle("desktop:acp-authenticate", async (event, input) => {

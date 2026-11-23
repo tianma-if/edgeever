@@ -48,6 +48,7 @@ const mountCard = async ({
   chooseAcpAdapterPath,
   clearAcpAdapterPath,
   installAcpAdapter,
+  probeAcpAdapter,
 } = {}) => {
   const { window } = parseHTML("<!DOCTYPE html><html><body><div id='root'></div></body></html>");
   const storage = createMemoryStorage({
@@ -103,6 +104,9 @@ const mountCard = async ({
       }
       return result;
     },
+    probeAcpAdapter: async (input) => (
+      probeAcpAdapter ? probeAcpAdapter(input) : { id: input.id, label: "Antigravity", state: currentState }
+    ),
   };
   globalThis.window = window;
   globalThis.document = window.document;
@@ -289,6 +293,11 @@ test("Antigravity mode toggle defaults to standalone, switches to cli with CLI h
       version: "1.5.2",
       adapter: { id: "antigravity", label: "Antigravity", state: "available" },
     }),
+    probeAcpAdapter: async () => ({
+      id: "antigravity",
+      label: "Antigravity",
+      state: "not_installed",
+    }),
   });
 
   // Defaults to standalone mode and offers Install button when not_installed.
@@ -318,6 +327,14 @@ test("Antigravity mode toggle defaults to standalone, switches to cli with CLI h
   expect(ui.modeRadio("cli")?.checked).toBe(true);
   expect(ui.pathInput()?.getAttribute("placeholder")).toBe(enUS.aiAssistant.agentSource.antigravityCliPathPlaceholder);
   expect(ui.findButton(enUS.aiAssistant.agentSource.clearPath)).toBeTruthy();
+
+  // Manual probe in CLI mode returning not_installed without antigravityMode still displays CLI-specific status & hint.
+  await act(async () => {
+    ui.findButton(enUS.aiAssistant.agentSource.probe).click();
+  });
+  expect(ui.container.querySelector('[role="status"]')?.textContent).toBe(enUS.aiAssistant.agentSource.antigravityCliNotFound);
+  expect(ui.container.textContent).toContain(enUS.aiAssistant.agentSource.antigravityCliMissingHint);
+  expect(ui.findButton(enUS.aiAssistant.agentSource.install)).toBeUndefined();
 
   // Clicking Clear resets mode back to default standalone as well as clearing paths.
   await act(async () => {

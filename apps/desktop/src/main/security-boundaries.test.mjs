@@ -111,6 +111,8 @@ test("ACP chooser permits one focused request and cancelled selection records no
   finish(null);
   expect(await pending).toBeNull();
   expect(writes).toBe(0);
+  // A legacy store without setMode reports false rather than pretending the switch persisted.
+  expect(await handlers.get("desktop:acp-set-mode")({ sender }, "antigravity", "cli")).toBe(false);
 });
 
 test("stored ACP programs are revalidated before the runtime can execute them", async () => {

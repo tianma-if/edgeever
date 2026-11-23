@@ -11,6 +11,7 @@ import {
   AI_SIDEBAR_ADAPTER_PATH_KEY,
   AI_SIDEBAR_SOURCE_KEY,
   AI_SIDEBAR_SELECTION_EVENT,
+  AI_SIDEBAR_ADAPTERS_CHANGED_EVENT,
   displayedDesktopAcpAdapter,
   desktopAcpUpdateErrorHintKey,
   desktopAcpLoginRetryAvailable,
@@ -48,7 +49,7 @@ const readAdapterId = (): DesktopAcpAdapterId => {
   return adapterIds.find((id) => id === stored) ?? "codex";
 };
 
-const statusKey = (adapter: DesktopAcpAdapter | undefined, probing: boolean) => {
+const statusKey = (adapter: DesktopAcpAdapter | undefined, probing: boolean, antigravityMode: DesktopAntigravityMode) => {
   if (probing) return "aiAssistant.agentSource.probing";
   if (!adapter || adapter.detail === "not_probed") return "aiAssistant.agentSource.notProbed";
   if (adapter.detail === "workbuddy_credentials_unavailable") return "aiAssistant.agentSource.workbuddyCredentialsUnavailable";
@@ -60,7 +61,7 @@ const statusKey = (adapter: DesktopAcpAdapter | undefined, probing: boolean) => 
   if (adapter.detail === "authentication_failed") return "aiAssistant.agentSource.authenticationFailed";
   if (adapter.detail === "invalid_path") return "aiAssistant.agentSource.invalidPath";
   if (adapter.detail === "desktop_unavailable") return "aiAssistant.agentSource.localDisabled";
-  if (adapter.id === "antigravity" && adapter.state === "not_installed" && adapter.antigravityMode === "cli") return "aiAssistant.agentSource.antigravityCliNotFound";
+  if (adapter.id === "antigravity" && adapter.state === "not_installed" && (adapter.antigravityMode ?? antigravityMode) === "cli") return "aiAssistant.agentSource.antigravityCliNotFound";
   if (adapter.id === "grokBuild" && adapter.state === "not_installed") return "aiAssistant.agentSource.grokBuildNotFound";
   if (adapter.id === "claudeCode" && adapter.state === "not_installed") return "aiAssistant.agentSource.claudeCodeNotFound";
   if (adapter.id === "openClaw" && adapter.state === "not_installed") return "aiAssistant.agentSource.openClawNotFound";
@@ -187,7 +188,7 @@ const DesktopAcpAgentCardBody = ({ bridge }: { bridge: boolean }) => {
   const isWorkBuddy = adapterId === "workbuddyCn" || adapterId === "workbuddyIntl";
   const isCodeBuddy = adapterId === "codebuddy";
   const codeBuddySigningIn = isCodeBuddy && Boolean(authenticating);
-  const status = t(statusKey(shown, probing));
+  const status = t(statusKey(shown, probing, antigravityMode));
   const tone = getStatusTone({
     probing,
     installing,
@@ -272,6 +273,7 @@ const DesktopAcpAgentCardBody = ({ bridge }: { bridge: boolean }) => {
       const refreshed = await listDesktopAcpAdapters().catch(() => null);
       if (refreshed) applyListedAdapters(refreshed);
       else setAdapterPath("");
+      window.dispatchEvent(new Event(AI_SIDEBAR_ADAPTERS_CHANGED_EVENT));
     } catch {
       setPathError("mode");
     } finally {
@@ -298,6 +300,7 @@ const DesktopAcpAgentCardBody = ({ bridge }: { bridge: boolean }) => {
       listEpochRef.current += 1;
       const refreshed = await listDesktopAcpAdapters().catch(() => null);
       if (refreshed) applyListedAdapters(refreshed);
+      window.dispatchEvent(new Event(AI_SIDEBAR_ADAPTERS_CHANGED_EVENT));
     } catch {
       setPathError("choose");
     } finally {
@@ -328,6 +331,7 @@ const DesktopAcpAgentCardBody = ({ bridge }: { bridge: boolean }) => {
       listEpochRef.current += 1;
       const refreshed = await listDesktopAcpAdapters().catch(() => null);
       if (refreshed) applyListedAdapters(refreshed);
+      window.dispatchEvent(new Event(AI_SIDEBAR_ADAPTERS_CHANGED_EVENT));
     } catch {
       setPathError("clear");
     } finally {
@@ -355,6 +359,7 @@ const DesktopAcpAgentCardBody = ({ bridge }: { bridge: boolean }) => {
       listEpochRef.current += 1;
       const refreshed = await listDesktopAcpAdapters().catch(() => null);
       if (refreshed) applyListedAdapters(refreshed);
+      window.dispatchEvent(new Event(AI_SIDEBAR_ADAPTERS_CHANGED_EVENT));
       setInstalling(false);
     }
   };
