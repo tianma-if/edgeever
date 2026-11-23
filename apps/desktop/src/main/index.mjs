@@ -72,7 +72,7 @@ import { testPicGoConnection, createPicGoUploadQueue, uploadPicGoImage } from ".
 import { listImgBedChannels, testImgBedConnection, uploadImgBedImage } from "./imgbed.mjs";
 import { createPluginPublicNetworkRuntime } from "./plugin-public-network.mjs";
 import { createAiDirectRuntime } from "./ai-direct.mjs";
-import { createAcpPathStore, validateTrustedAcpPath } from "./acp-path-store.mjs";
+import { antigravityLaunchModeForPath, createAcpPathStore, validateTrustedAcpPath } from "./acp-path-store.mjs";
 import { createAcpHostRuntime, registerAcpIpc } from "./acp-host.mjs";
 import { shouldQuitAfterAllWindowsClosed } from "./window-lifecycle.mjs";
 import { createNoteWindowController, isValidNoteWindowMemoId, noteWindowUrl } from "./note-windows.mjs";
@@ -1931,7 +1931,12 @@ const startApplication = async () => {
     chooseAdapterPath: async () => {
       const selection = await dialog.showOpenDialog(mainWindow, { properties: ["openFile"], title: desktopDialogCopy(app.getLocale()).chooseAcpExecutable });
       if (selection.canceled || !selection.filePaths[0]) return null;
-      return validateTrustedAcpPath(selection.filePaths[0], { excludedRoot: app.getPath("userData") });
+      const chosen = selection.filePaths[0];
+      const validated = await validateTrustedAcpPath(chosen, { excludedRoot: app.getPath("userData") });
+      return {
+        path: validated,
+        mode: antigravityLaunchModeForPath(chosen) === "cli" || antigravityLaunchModeForPath(validated) === "cli" ? "cli" : "standalone",
+      };
     },
   });
   releaseDesktopAcpSessions = () => acpRuntime.releaseWarmSessions();

@@ -22,22 +22,41 @@ export const validateTrustedAcpPath = async (filename, { excludedRoot } = {}) =>
   return selected;
 };
 
+const VALID_LAUNCH_MODES = new Set(["cli", "standalone"]);
+
+export const antigravityLaunchModeForPath = (filePath, platform = process.platform) => {
+  if (typeof filePath !== "string" || !filePath) return "standalone";
+  const name = platform === "win32" ? path.win32.basename(filePath) : path.posix.basename(filePath);
+  return (platform === "win32" ? /^agy(?:\.exe)?$/i.test(name) : name === "agy") ? "cli" : "standalone";
+};
+
 // This store must remain outside all renderer-writable resource directories.
 export const createAcpPathStore = (filename) => {
   let recorded = null;
+  let recordedMode = null;
   const ready = readFile(filename, "utf8").then((text) => {
-    const value = JSON.parse(text)?.antigravity;
-    if (typeof value === "string" && path.isAbsolute(value) && !value.includes("\0")) recorded = value;
+    const parsed = JSON.parse(text);
+    const value = parsed?.antigravity;
+    if (typeof value === "string" && path.isAbsolute(value) && !value.includes("\0")) {
+      recorded = value;
+      recordedMode = VALID_LAUNCH_MODES.has(parsed?.antigravityMode) ? parsed.antigravityMode : null;
+    }
   }).catch(() => {});
+  const persist = async (value, mode) => {
+    await ready;
+    await mkdir(path.dirname(filename), { recursive: true, mode: 0o700 });
+    const temporary = `${filename}.${process.pid}.tmp`;
+    const nextMode = value && VALID_LAUNCH_MODES.has(mode) ? mode : null;
+    const payload = nextMode ? { antigravity: value, antigravityMode: nextMode } : { antigravity: value };
+    await writeFile(temporary, JSON.stringify(payload), { mode: 0o600 });
+    await rename(temporary, filename);
+    recorded = value;
+    recordedMode = nextMode;
+  };
   return {
     async get() { await ready; return recorded; },
-    async set(value) {
-      await ready;
-      await mkdir(path.dirname(filename), { recursive: true, mode: 0o700 });
-      const temporary = `${filename}.${process.pid}.tmp`;
-      await writeFile(temporary, JSON.stringify({ antigravity: value }), { mode: 0o600 });
-      await rename(temporary, filename);
-      recorded = value;
-    },
+    async getEntry() { await ready; return recorded ? { path: recorded, mode: recordedMode } : null; },
+    async set(value) { await persist(value, null); },
+    async setEntry(entry) { await persist(entry?.path ?? null, entry?.mode ?? null); },
   };
 };

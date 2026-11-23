@@ -109,6 +109,8 @@ const DesktopAcpAgentCardBody = ({ bridge }: { bridge: boolean }) => {
   const [installing, setInstalling] = useState(false);
   const [installError, setInstallError] = useState(false);
   const [authenticating, setAuthenticating] = useState<string | null>(null);
+  const [pathAction, setPathAction] = useState<"choose" | "clear" | null>(null);
+  const [pathError, setPathError] = useState<"choose" | "clear" | null>(null);
   const codeBuddyLoginActive = useRef(false);
 
   // Leaving the settings page ends a CodeBuddy sign-in that no one can finish here.
@@ -193,10 +195,11 @@ const DesktopAcpAgentCardBody = ({ bridge }: { bridge: boolean }) => {
     (adapterId === "hermesAgent" && shown?.state === "failed")
   );
 
+  const pathBusy = Boolean(pathAction);
   const authButtons = (
     <div className="flex flex-wrap gap-2 pt-0.5">
       {authMethods.map((method) => (
-        <Button key={method.id} type="button" variant="outline" size="sm" className="h-8 bg-card text-xs font-normal" disabled={probing || installing || Boolean(authenticating)} onClick={() => void authenticate(method.id)}>
+        <Button key={method.id} type="button" variant="outline" size="sm" className="h-8 bg-card text-xs font-normal" disabled={probing || installing || Boolean(authenticating) || pathBusy} onClick={() => void authenticate(method.id)}>
           {authenticating === method.id ? t("aiAssistant.agentSource.authenticating") : isCodeBuddy
             ? codeBuddyMethodLabel(method)
             : isWorkBuddy
@@ -222,12 +225,63 @@ const DesktopAcpAgentCardBody = ({ bridge }: { bridge: boolean }) => {
     setAdapterId(id);
     setProbed(null);
     setInstallError(false);
+    setPathError(null);
+  };
+
+  const choosePath = async () => {
+    if (pathAction) return;
+    setPathAction("choose");
+    setPathError(null);
+    try {
+      const chooser = window.edgeeverDesktop?.chooseAcpAdapterPath;
+      if (typeof chooser !== "function") {
+        setPathError("choose");
+        return;
+      }
+      const selected = await chooser();
+      if (!selected) return;
+      setAdapterPath(selected);
+      setProbed(null);
+      setInstallError(false);
+      await listDesktopAcpAdapters().then((adapters) => setListed(adapters)).catch(() => {});
+    } catch {
+      setPathError("choose");
+    } finally {
+      setPathAction(null);
+    }
+  };
+
+  const clearPath = async () => {
+    if (pathAction) return;
+    setPathAction("clear");
+    setPathError(null);
+    try {
+      const clearer = window.edgeeverDesktop?.clearAcpAdapterPath;
+      if (typeof clearer !== "function") {
+        setPathError("clear");
+        return;
+      }
+      const cleared = await clearer();
+      if (!cleared) {
+        setPathError("clear");
+        return;
+      }
+      setAdapterPath("");
+      setProbed(null);
+      setInstallError(false);
+      await listDesktopAcpAdapters().then((adapters) => setListed(adapters)).catch(() => {});
+    } catch {
+      setPathError("clear");
+    } finally {
+      setPathAction(null);
+    }
   };
 
   const install = async (retryUpdate = false) => {
     if (adapterId !== "codex" && adapterId !== "claudeCode" && adapterId !== "antigravity" && adapterId !== "piAgent") return;
     setInstalling(true);
     setInstallError(false);
+    setPathError(null);
     try {
       const result = await installDesktopAcpAdapter(adapterId);
       if (result.updated || result.version) {
@@ -247,6 +301,7 @@ const DesktopAcpAgentCardBody = ({ bridge }: { bridge: boolean }) => {
   const authenticate = async (methodId: string) => {
     setAuthenticating(methodId);
     setInstallError(false);
+    setPathError(null);
     if (adapterId === "codebuddy") codeBuddyLoginActive.current = true;
     try {
       const result = await authenticateDesktopAcpAdapter({
@@ -266,6 +321,7 @@ const DesktopAcpAgentCardBody = ({ bridge }: { bridge: boolean }) => {
   const probe = async () => {
     setProbing(true);
     setInstallError(false);
+    setPathError(null);
     try {
       const result = await probeDesktopAcpAdapter({
         id: adapterId,
@@ -383,31 +439,20 @@ const DesktopAcpAgentCardBody = ({ bridge }: { bridge: boolean }) => {
                   readOnly
                 />
                 <div className="flex flex-wrap gap-2">
-                  <Button type="button" variant="outline" size="sm" disabled={probing || installing || Boolean(authenticating)} onClick={() => {
-                    void window.edgeeverDesktop?.chooseAcpAdapterPath?.().then(async (selected) => {
-                      if (!selected) return;
-                      setAdapterPath(selected);
-                      setProbed(null);
-                      setInstallError(false);
-                      setListed(await listDesktopAcpAdapters().catch(() => listed));
-                    }).catch(() => setInstallError(true));
-                  }}>
-                    {t("aiAssistant.agentSource.choosePath")}
+                  <Button type="button" variant="outline" size="sm" disabled={probing || installing || Boolean(authenticating) || pathBusy} onClick={() => void choosePath()}>
+                    {pathAction === "choose" ? t("aiAssistant.agentSource.choosingPath") : t("aiAssistant.agentSource.choosePath")}
                   </Button>
                   {adapterPath ? (
-                    <Button type="button" variant="ghost" size="sm" disabled={probing || installing || Boolean(authenticating)} onClick={() => {
-                      void window.edgeeverDesktop?.clearAcpAdapterPath?.().then(async (cleared) => {
-                        if (!cleared) return;
-                        setAdapterPath("");
-                        setProbed(null);
-                        setInstallError(false);
-                        setListed(await listDesktopAcpAdapters().catch(() => listed));
-                      }).catch(() => {});
-                    }}>
-                      {t("aiAssistant.agentSource.clearPath")}
+                    <Button type="button" variant="ghost" size="sm" disabled={probing || installing || Boolean(authenticating) || pathBusy} onClick={() => void clearPath()}>
+                      {pathAction === "clear" ? t("aiAssistant.agentSource.clearingPath") : t("aiAssistant.agentSource.clearPath")}
                     </Button>
                   ) : null}
                 </div>
+                {pathError ? (
+                  <p role="alert" className="text-[11px] leading-4 text-rose-700">
+                    {t(pathError === "clear" ? "aiAssistant.agentSource.clearPathFailed" : "aiAssistant.agentSource.choosePathFailed")}
+                  </p>
+                ) : null}
               </div>
             ) : null}
 
@@ -447,14 +492,14 @@ const DesktopAcpAgentCardBody = ({ bridge }: { bridge: boolean }) => {
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   {shown?.state === "not_installed" && (adapterId === "codex" || adapterId === "claudeCode" || adapterId === "antigravity" || (adapterId === "piAgent" && shown?.detail === "adapter_missing")) ? (
-                    <Button type="button" variant="outline" size="sm" className="h-8 bg-card text-xs font-normal" disabled={installing || probing} onClick={() => void install()}>
+                    <Button type="button" variant="outline" size="sm" className="h-8 bg-card text-xs font-normal" disabled={installing || probing || pathBusy} onClick={() => void install()}>
                       {installing ? t("aiAssistant.agentSource.installing") : t("aiAssistant.agentSource.install")}
                     </Button>
                   ) : null}
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <span><Button type="button" variant="outline" size="sm" className="h-8 bg-card text-xs font-normal" disabled={probing || installing || Boolean(authenticating)} onClick={() => void probe()}>
+                        <span><Button type="button" variant="outline" size="sm" className="h-8 bg-card text-xs font-normal" disabled={probing || installing || Boolean(authenticating) || pathBusy} onClick={() => void probe()}>
                           {probing ? t("aiAssistant.agentSource.probing") : t("aiAssistant.agentSource.probe")}
                         </Button></span>
                       </TooltipTrigger>
@@ -538,7 +583,7 @@ const DesktopAcpAgentCardBody = ({ bridge }: { bridge: boolean }) => {
                       <p>{t("aiAssistant.agentSource.updateFailed")}</p>
                       {updateHintKey ? <p>{t(updateHintKey)}</p> : null}
                       <p className="break-words">{t("aiAssistant.agentSource.updateFailureReason", { reason: shown.updateError })}</p>
-                      <Button type="button" variant="outline" size="sm" className="h-8 bg-card text-xs font-normal" disabled={installing || probing || shown.state === "installing" || Boolean(authenticating)} onClick={() => void install(true)}>
+                      <Button type="button" variant="outline" size="sm" className="h-8 bg-card text-xs font-normal" disabled={installing || probing || shown.state === "installing" || Boolean(authenticating) || pathBusy} onClick={() => void install(true)}>
                         {installing || shown.state === "installing" ? t("aiAssistant.agentSource.updating") : t("aiAssistant.agentSource.retryUpdate")}
                       </Button>
                     </div>

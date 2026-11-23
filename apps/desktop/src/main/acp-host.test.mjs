@@ -24,6 +24,7 @@ import {
   sanitizeFailureDetail,
   spawnAcpChild,
 } from "./acp-host.mjs";
+import { antigravityLaunchModeForPath, createAcpPathStore, validateTrustedAcpPath } from "./acp-path-store.mjs";
 import { prepareWorkBuddyAuth } from "./workbuddy-auth.mjs";
 
 const require = createRequire(import.meta.url);
@@ -546,7 +547,7 @@ describe("ACP command allow-list", () => {
     }
   });
 
-  test("auto-discovers agy CLI with acp subcommand, prefers it over managed binary, and keeps standalone custom paths intact", async () => {
+  test("auto-discovers agy CLI with acp subcommand, preserves managed priority over local CLI, and keeps standalone custom paths intact", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "edgeever-acp-agy-cli-"));
     try {
       const onlyTemporaryDirectory = (candidate) => {
@@ -558,8 +559,10 @@ describe("ACP command allow-list", () => {
       const agyCli = path.join(localBin, "agy");
       const standalone = path.join(directory, "agy_acp_server.par");
       const aliasToAgy = path.join(directory, "my-antigravity");
+      const versionedCli = path.join(directory, "antigravity-cli-1.5.15");
       await writeFile(agyCli, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
       await writeFile(standalone, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+      await writeFile(versionedCli, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
       await symlink(agyCli, aliasToAgy);
       const deps = { platform: "darwin", pathEnv: "", home: directory, realpathSync: onlyTemporaryDirectory };
 
@@ -577,10 +580,19 @@ describe("ACP command allow-list", () => {
         ok: true,
         command: { command: realpathSync(agyCli), args: ["acp"] },
       });
+      // Explicit launchMode preserves CLI ["acp"] even when canonical filename is versioned.
+      expect(resolveAcpCommand({ id: "antigravity", path: versionedCli, launchMode: "cli" }, deps)).toEqual({
+        ok: true,
+        command: { command: realpathSync(versionedCli), args: ["acp"] },
+      });
       // Standalone ACP server custom path stays argument-free.
       expect(resolveAcpCommand({ id: "antigravity", path: standalone }, deps)).toEqual({
         ok: true,
         command: realpathSync(standalone),
+      });
+      expect(resolveAcpCommand({ id: "antigravity", path: versionedCli, launchMode: "standalone" }, deps)).toEqual({
+        ok: true,
+        command: realpathSync(versionedCli),
       });
       // Windows agy.exe custom path and ~/.local/bin/agy.exe auto-discovery add ["acp"].
       const winAgy = "C:\\Users\\demo\\.local\\bin\\agy.exe";
@@ -606,17 +618,18 @@ describe("ACP command allow-list", () => {
         command: { command: winAgy, args: ["acp"] },
       });
 
-      // Runtime priority (Plan A): custom path > local agy CLI > managed binary.
+      // Runtime priority: custom path > installed managed adapter > auto-discovered local agy CLI.
       const spawned = [];
+      let managedInstalled = true;
       let updateCalls = 0;
       let installCalls = 0;
       const runtime = createAcpHostRuntime({
         ...deps,
         detectInstalledAgentApps: () => ["antigravity"],
         adapterManager: {
-          get: (id) => id === "antigravity" ? { version: "1.5.2", command: { command: standalone, args: [] } } : null,
-          installedIds: () => ["antigravity"],
-          install: async () => { installCalls += 1; updateCalls += 1; return { updated: false, version: "1.5.2" }; },
+          get: (id) => (id === "antigravity" && managedInstalled) ? { version: "1.5.2", command: { command: standalone, args: [] } } : null,
+          installedIds: () => (managedInstalled ? ["antigravity"] : []),
+          install: async () => { installCalls += 1; updateCalls += 1; managedInstalled = true; return { updated: true, version: "1.5.3" }; },
         },
         spawnImpl: (command, args) => {
           spawned.push({ command, args });
@@ -627,30 +640,125 @@ describe("ACP command allow-list", () => {
         },
       });
 
-      // Local agy CLI takes precedence over managed binary, so it is unmanaged and skips managed install/update.
+      // When a managed adapter is already installed, it stays active on upgrade even if local agy CLI also exists.
+      const listedManaged = runtime.listAdapters().find((adapter) => adapter.id === "antigravity");
+      expect(listedManaged).toMatchObject({ id: "antigravity", managed: true, version: "1.5.2" });
+      await runtime.probeAdapter({ id: "antigravity" });
+      expect(spawned.at(-1)).toEqual({ command: standalone, args: [] });
+      expect(await runtime.updateInstalled()).toEqual([{ id: "antigravity", updated: true, version: "1.5.3" }]);
+      expect(updateCalls).toBe(1);
+
+      // Custom path overrides the managed adapter (e.g. choosing local agy CLI explicitly).
+      await runtime.probeAdapter({ id: "antigravity", path: agyCli });
+      expect(spawned.at(-1)).toEqual({ command: realpathSync(agyCli), args: ["acp"] });
+
+      // Without an installed managed adapter, local agy CLI is auto-discovered and installDetected skips downloading.
+      managedInstalled = false;
+      runtime.clearAdapterStatus("antigravity");
+      installCalls = 0;
       const listedWithCli = runtime.listAdapters().find((adapter) => adapter.id === "antigravity");
       expect(listedWithCli).toMatchObject({ id: "antigravity", state: "not_probed", detail: "not_probed" });
       expect(listedWithCli.managed).toBeUndefined();
       expect(await runtime.installDetected()).toEqual([]);
-      expect(await runtime.updateInstalled()).toEqual([]);
       expect(installCalls).toBe(0);
-      expect(updateCalls).toBe(0);
-
       await runtime.probeAdapter({ id: "antigravity" });
       expect(spawned.at(-1)).toEqual({ command: realpathSync(agyCli), args: ["acp"] });
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
 
-      // Custom path still overrides local agy CLI.
-      await runtime.probeAdapter({ id: "antigravity", path: standalone });
+  test("preserves agy CLI launch mode across IPC choose, restart, probe, install, and clear for symlinks to versioned binaries", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "edgeever-acp-agy-symlink-"));
+    try {
+      const realDirectory = realpathSync(directory);
+      const onlyTemporaryDirectory = (candidate) => {
+        if (!candidate.startsWith(directory) && !candidate.startsWith(realDirectory)) {
+          throw Object.assign(new Error(`ENOENT: ${candidate}`), { code: "ENOENT" });
+        }
+        return realpathSync(candidate);
+      };
+      const storeFile = path.join(directory, "chosen-path.json");
+      const versionedCli = path.join(directory, "antigravity-cli-1.5.15");
+      const agySymlink = path.join(directory, "agy");
+      const standalone = path.join(directory, "agy_acp_server.par");
+      await writeFile(versionedCli, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+      await writeFile(standalone, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+      await symlink(versionedCli, agySymlink);
+
+      const sender = { isFocused: () => true };
+      const spawned = [];
+      let nextSelection = agySymlink;
+
+      const createRegistration = () => {
+        const handlers = new Map();
+        const runtime = createAcpHostRuntime({
+          platform: "darwin",
+          pathEnv: "",
+          home: directory,
+          realpathSync: onlyTemporaryDirectory,
+          adapterManager: {
+            get: (id) => id === "antigravity" ? { version: "1.5.2", command: { command: standalone, args: [] } } : null,
+            installedIds: () => ["antigravity"],
+            install: async () => ({ updated: true, version: "1.5.3" }),
+          },
+          spawnImpl: (command, args) => {
+            spawned.push({ command, args });
+            const error = Object.assign(new Error("probe_stop"), { code: "EACCES" });
+            const child = new EventEmitter();
+            queueMicrotask(() => child.emit("error", error));
+            return child;
+          },
+        });
+        registerAcpIpc({ handle: (name, handler) => handlers.set(name, handler) }, runtime, {
+          allowInstall: (value) => value === sender,
+          adapterPathStore: createAcpPathStore(storeFile),
+          chooseAdapterPath: async () => {
+            const validated = await validateTrustedAcpPath(nextSelection);
+            const mode = antigravityLaunchModeForPath(nextSelection) === "cli" || antigravityLaunchModeForPath(validated) === "cli"
+              ? "cli"
+              : "standalone";
+            return { path: validated, mode };
+          },
+          validateAdapterPath: validateTrustedAcpPath,
+        });
+        return handlers;
+      };
+
+      const firstRun = createRegistration();
+      const chosen = await firstRun.get("desktop:acp-choose-path")({ sender }, "antigravity");
+      expect(chosen).toBe(realpathSync(versionedCli));
+      expect(JSON.parse(await readFile(storeFile, "utf8"))).toEqual({
+        antigravity: realpathSync(versionedCli),
+        antigravityMode: "cli",
+      });
+
+      // After restart, probing the canonical versioned target still passes ["acp"].
+      const restarted = createRegistration();
+      await restarted.get("desktop:acp-probe")({ sender }, { id: "antigravity" });
+      expect(spawned.at(-1)).toEqual({ command: realpathSync(versionedCli), args: ["acp"] });
+
+      // Installing/updating the managed adapter clears custom path + launch mode and activates managed.
+      const installResult = await restarted.get("desktop:acp-install")({ sender }, "antigravity");
+      expect(installResult.updated).toBe(true);
+      expect(JSON.parse(await readFile(storeFile, "utf8"))).toEqual({ antigravity: null });
+      await restarted.get("desktop:acp-probe")({ sender }, { id: "antigravity" });
+      expect(spawned.at(-1)).toEqual({ command: standalone, args: [] });
+
+      // Choosing a standalone binary records standalone mode (no ["acp"] args) across restarts.
+      nextSelection = standalone;
+      await restarted.get("desktop:acp-choose-path")({ sender }, "antigravity");
+      expect(JSON.parse(await readFile(storeFile, "utf8"))).toEqual({
+        antigravity: realpathSync(standalone),
+        antigravityMode: "standalone",
+      });
+      const thirdRun = createRegistration();
+      await thirdRun.get("desktop:acp-probe")({ sender }, { id: "antigravity" });
       expect(spawned.at(-1)).toEqual({ command: realpathSync(standalone), args: [] });
 
-      // Removing local agy CLI falls back to the managed standalone binary.
-      await rm(agyCli);
-      const listedFallback = runtime.listAdapters().find((adapter) => adapter.id === "antigravity");
-      expect(listedFallback).toMatchObject({ id: "antigravity", managed: true, version: "1.5.2" });
-      await runtime.probeAdapter({ id: "antigravity" });
-      expect(spawned.at(-1)).toEqual({ command: standalone, args: [] });
-      expect(await runtime.updateInstalled()).toEqual([{ id: "antigravity", updated: false, version: "1.5.2" }]);
-      expect(updateCalls).toBe(1);
+      // Clearing custom path removes launch mode as well.
+      expect(await thirdRun.get("desktop:acp-clear-path")({ sender }, "antigravity")).toBe(true);
+      expect(JSON.parse(await readFile(storeFile, "utf8"))).toEqual({ antigravity: null });
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
