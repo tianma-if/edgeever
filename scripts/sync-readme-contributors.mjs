@@ -11,8 +11,12 @@ export const README_CONTRIBUTOR_SECTIONS = [
   { file: "README.md", heading: "## Contributors" },
   { file: "README.zh-CN.md", heading: "## 贡献者" },
   { file: "README.zh-TW.md", heading: "## 貢獻者" },
+  { file: "README.es.md", heading: "## Colaboradores" },
+  { file: "README.de.md", heading: "## Mitwirkende" },
+  { file: "README.fr.md", heading: "## Contributeurs" },
   { file: "README.ja.md", heading: "## コントリビューター" },
   { file: "README.pl-PL.md", heading: "## Współtwórcy" },
+  { file: "README.ru.md", heading: "## Авторы проекта" },
 ];
 
 const isBotLogin = (login) =>

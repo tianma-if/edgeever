@@ -88,7 +88,7 @@ describe("README contributors wall sync", () => {
     expect(calls).toContain("api users/fresh-user");
   });
 
-  test("appends and idempotently updates the contributors section across all five READMEs", () => {
+  test("appends and idempotently updates the contributors section across all nine READMEs", () => {
     const tempRoot = mkdtempSync(join(tmpdir(), "edgeever-readme-contributors-"));
     try {
       for (const { file } of README_CONTRIBUTOR_SECTIONS) {
@@ -103,7 +103,7 @@ describe("README contributors wall sync", () => {
         repositoryRoot: tempRoot,
         contributors: initialContributors,
       });
-      expect(firstRun.updatedFiles).toHaveLength(README_CONTRIBUTOR_SECTIONS.length);
+      expect(firstRun.updatedFiles).toHaveLength(9);
 
       const secondRun = syncReadmeContributors({
         repositoryRoot: tempRoot,
