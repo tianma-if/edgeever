@@ -2779,10 +2779,29 @@ html[data-edgeever-extension-theme] .edgeever-memo-divider {
 .markdown-content table:has(> colgroup > col:first-child:nth-last-child(4)) {
   --mobile-table-column-width: 25cqi;
 }
+  .ProseMirror table:has(> colgroup > col:first-child:nth-last-child(5)),
+.markdown-content table:has(> colgroup > col:first-child:nth-last-child(5)) {
+  --mobile-table-column-width: 20cqi;
+}
+
+.ProseMirror table:has(> colgroup > col:first-child:nth-last-child(6)),
+.markdown-content table:has(> colgroup > col:first-child:nth-last-child(6)) {
+  --mobile-table-column-width: calc(100cqi / 6);
+}
+
+.ProseMirror table:has(> colgroup > col:first-child:nth-last-child(7)),
+.markdown-content table:has(> colgroup > col:first-child:nth-last-child(7)) {
+  --mobile-table-column-width: calc(100cqi / 7);
+}
+
+.ProseMirror table:has(> colgroup > col:first-child:nth-last-child(8)),
+.markdown-content table:has(> colgroup > col:first-child:nth-last-child(8)) {
+  --mobile-table-column-width: 12.5cqi;
+}
 
 /* For tables with 5+ columns on narrow viewports, expand width and scroll inside tableWrapper */
-.ProseMirror table:has(> colgroup > col:first-child:nth-last-child(n+5)),
-.markdown-content table:has(> colgroup > col:first-child:nth-last-child(n+5)) {
+.ProseMirror table:has(> colgroup > col:first-child:nth-last-child(n+9)),
+.markdown-content table:has(> colgroup > col:first-child:nth-last-child(n+9)) {
   width: max-content;
   --mobile-table-column-width: clamp(4.5rem, 24cqi, 12rem);
 }
