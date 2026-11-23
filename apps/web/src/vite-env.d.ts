@@ -179,9 +179,11 @@ interface EdgeEverDesktopBridge {
     version?: string;
     managed?: boolean;
     updateError?: string;
+    customPath?: string;
     authMethods?: Array<{ id: string; name: string }>;
   }>>;
   chooseAcpAdapterPath?(): Promise<string | null>;
+  clearAcpAdapterPath?(): Promise<boolean>;
   probeAcpAdapter?(input: { id: "codex" | "claudeCode" | "antigravity" | "openClaw" | "hermesAgent" | "grokBuild" | "deepseekHarness" | "piAgent" | "workbuddyCn" | "workbuddyIntl" | "codebuddy"; path?: string }): Promise<{
     id: "codex" | "claudeCode" | "antigravity" | "openClaw" | "hermesAgent" | "grokBuild" | "deepseekHarness" | "piAgent" | "workbuddyCn" | "workbuddyIntl" | "codebuddy";
     label: string;

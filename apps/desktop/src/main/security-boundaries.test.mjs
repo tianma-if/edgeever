@@ -52,6 +52,16 @@ test("ACP ignores caller paths on all execution channels and preserves main-owne
       await restarted.get(channel)({ sender }, { id: "antigravity", adapterId: "antigravity", path: "/attacker/payload" });
       expect(calls.at(-1).path).toBe("/user/chosen/acp");
     }
+    await expect(restarted.get("desktop:acp-clear-path")({ sender: {} }, "antigravity")).rejects.toThrow(/forbidden/);
+    await expect(restarted.get("desktop:acp-clear-path")({ sender }, "codex")).rejects.toThrow(/forbidden/);
+    sender.isFocused = () => false;
+    expect(await restarted.get("desktop:acp-clear-path")({ sender }, "antigravity")).toBe(false);
+    expect(JSON.parse(await readFile(filename, "utf8")).antigravity).toBe("/user/chosen/acp");
+    sender.isFocused = () => true;
+    expect(await restarted.get("desktop:acp-clear-path")({ sender }, "antigravity")).toBe(true);
+    expect(JSON.parse(await readFile(filename, "utf8")).antigravity).toBeNull();
+    await restarted.get(channels[0])({ sender }, { id: "antigravity", path: "/attacker/payload" });
+    expect(calls.at(-1).path).toBeUndefined();
     await restarted.get(channels[0])({ sender }, { id: "codex", path: "/attacker/payload" });
     expect(calls.at(-1).path).toBeUndefined();
   } finally { await rm(directory, { recursive: true, force: true }); }

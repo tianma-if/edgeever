@@ -293,15 +293,42 @@ function resolveCodex(configured, deps) {
   return command ? { ok: true, command } : { ok: false, state: "not_installed" };
 }
 
-function resolveAntigravity(configured, { realpath, stat }) {
-  if (typeof configured !== "string" || !configured.trim()) return { ok: false, state: "not_installed" };
+const isAntigravityCliName = (filePath, platform) => {
+  if (typeof filePath !== "string" || !filePath) return false;
+  const name = platform === "win32" ? path.win32.basename(filePath) : path.posix.basename(filePath);
+  return platform === "win32" ? /^agy(?:\.exe)?$/i.test(name) : name === "agy";
+};
+
+function localAntigravityCli(deps) {
+  const executable = deps.platform === "win32" ? "agy.exe" : "agy";
+  const candidates = [
+    findOnPath([executable], deps),
+    path.join(deps.home, ".local", "bin", executable),
+    ...(deps.platform === "darwin" ? ["/opt/homebrew/bin/agy", "/usr/local/bin/agy"] : []),
+  ];
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    try {
+      const actual = deps.realpath(candidate);
+      if (deps.stat(actual).isFile()) { deps.access(actual, fsConstants.X_OK); return actual; }
+    } catch { /* Try another installation. */ }
+  }
+  return null;
+}
+
+function resolveAntigravity(configured, deps) {
+  if (typeof configured !== "string" || !configured.trim()) {
+    const cli = localAntigravityCli(deps);
+    return cli ? { ok: true, command: { command: cli, args: ["acp"] } } : { ok: false, state: "not_installed" };
+  }
   const raw = configured.trim();
-  if (raw.includes("\0") || !path.isAbsolute(raw) || raw.split(/[/\\]/).includes("..")) {
+  const isAbsolutePath = deps.platform === "win32" ? path.win32.isAbsolute(raw) : path.isAbsolute(raw);
+  if (raw.includes("\0") || !isAbsolutePath || raw.split(/[/\\]/).includes("..")) {
     return { ok: false, state: "failed", detail: "invalid_path" };
   }
   let resolvedPath;
   try {
-    resolvedPath = realpath(raw);
+    resolvedPath = deps.realpath(raw);
   } catch (error) {
     return error?.code === "ENOENT"
       ? { ok: false, state: "not_installed" }
@@ -309,13 +336,16 @@ function resolveAntigravity(configured, { realpath, stat }) {
   }
   let info;
   try {
-    info = stat(resolvedPath);
+    info = deps.stat(resolvedPath);
   } catch (error) {
     return error?.code === "ENOENT"
       ? { ok: false, state: "not_installed" }
       : { ok: false, state: "failed", detail: "invalid_path" };
   }
   if (typeof info?.isFile !== "function" || !info.isFile()) return { ok: false, state: "failed", detail: "invalid_path" };
+  if (isAntigravityCliName(raw, deps.platform) || isAntigravityCliName(resolvedPath, deps.platform)) {
+    return { ok: true, command: { command: resolvedPath, args: ["acp"] } };
+  }
   return { ok: true, command: resolvedPath };
 }
 
@@ -936,7 +966,11 @@ export function createAcpHostRuntime(options = {}) {
     const adapt = (resolution) => prepareProxy && input?.id === "antigravity" && resolution.ok
       ? { ...resolution, command: withAntigravityMacProxy(resolution.command, commandDeps) }
       : resolution;
-    if (input?.id === "antigravity" && typeof input.path === "string" && input.path.trim()) return adapt(resolveAcpCommand(input, commandDeps));
+    if (input?.id === "antigravity") {
+      if (typeof input.path === "string" && input.path.trim()) return adapt(resolveAcpCommand(input, commandDeps));
+      const cli = resolveAcpCommand({ id: "antigravity" }, commandDeps);
+      if (cli.ok) return adapt(cli);
+    }
     if (input?.id === "piAgent" && !localExecutable("pi", resolutionDeps(commandDeps))) return { ok: false, state: "not_installed" };
     const managed = manager?.get(input?.id);
     if (managed) return adapt({ ok: true, command: input?.id === "piAgent" ? withPiPath(managed.command, resolutionDeps(commandDeps)) : managed.command, version: managed.version, managed: true });
@@ -1257,7 +1291,7 @@ export function createAcpHostRuntime(options = {}) {
         const customPath = configuredPaths[id];
         const resolved = resolveCommand({ id, path: customPath }, { prepareProxy: false });
         return resolved.ok
-          ? { ...adapterShell(id), ...(latestStatus.get(id) ?? { state: "not_probed", detail: "not_probed" }), ...(resolved.version ? { version: resolved.version, managed: true } : {}), ...(customPath ? { customPath, managed: false, version: undefined } : {}), ...(!customPath && updateFailures.has(id) ? { updateError: updateFailures.get(id) } : {}) }
+          ? { ...adapterShell(id), ...(latestStatus.get(id) ?? { state: "not_probed", detail: "not_probed" }), ...(resolved.version ? { version: resolved.version, managed: true } : {}), ...(customPath ? { customPath, managed: false, version: undefined } : {}), ...(!customPath && resolved.managed && updateFailures.has(id) ? { updateError: updateFailures.get(id) } : {}) }
           : adapterFromResolution(id, resolved);
       });
     },
@@ -1316,6 +1350,7 @@ export function createAcpHostRuntime(options = {}) {
       const results = [];
       for (const id of manager.installedIds()) {
         if (id === "piAgent" && !localExecutable("pi", resolutionDeps(commandDeps))) continue;
+        if (id === "antigravity" && resolveAcpCommand({ id }, commandDeps).ok) continue;
         try {
           const result = await this.installAdapter(id, { updateOnly: true });
           results.push({ id, ...result });
@@ -1722,6 +1757,13 @@ export function registerAcpIpc(ipcMain, runtime = createAcpHostRuntime(), {
       runtime.clearAdapterStatus?.("antigravity");
       return selected;
     } finally { choosing = false; }
+  });
+  ipcMain.handle("desktop:acp-clear-path", async (event, id) => {
+    if (!allowInstall(event.sender, event) || id !== "antigravity") throw new Error("adapter_path_forbidden");
+    if (choosing || event.sender.isFocused?.() !== true) return false;
+    await adapterPathStore.set(null);
+    runtime.clearAdapterStatus?.("antigravity");
+    return true;
   });
   ipcMain.handle("desktop:acp-probe", async (event, input) => {
     if (!allowPrompt(event.sender, event)) throw new Error("acp_probe_forbidden");

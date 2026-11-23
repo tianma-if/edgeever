@@ -382,13 +382,32 @@ const DesktopAcpAgentCardBody = ({ bridge }: { bridge: boolean }) => {
                   placeholder={t("aiAssistant.agentSource.pathPlaceholder")}
                   readOnly
                 />
-                <Button type="button" variant="outline" size="sm" onClick={() => {
-                  void window.edgeeverDesktop?.chooseAcpAdapterPath?.().then((selected) => {
-                    if (selected) { setAdapterPath(selected); setProbed(null); }
-                  }).catch(() => setInstallError(true));
-                }}>
-                  {t("aiAssistant.agentSource.choosePath")}
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" variant="outline" size="sm" disabled={probing || installing || Boolean(authenticating)} onClick={() => {
+                    void window.edgeeverDesktop?.chooseAcpAdapterPath?.().then(async (selected) => {
+                      if (!selected) return;
+                      setAdapterPath(selected);
+                      setProbed(null);
+                      setInstallError(false);
+                      setListed(await listDesktopAcpAdapters().catch(() => listed));
+                    }).catch(() => setInstallError(true));
+                  }}>
+                    {t("aiAssistant.agentSource.choosePath")}
+                  </Button>
+                  {adapterPath ? (
+                    <Button type="button" variant="ghost" size="sm" disabled={probing || installing || Boolean(authenticating)} onClick={() => {
+                      void window.edgeeverDesktop?.clearAcpAdapterPath?.().then(async (cleared) => {
+                        if (!cleared) return;
+                        setAdapterPath("");
+                        setProbed(null);
+                        setInstallError(false);
+                        setListed(await listDesktopAcpAdapters().catch(() => listed));
+                      }).catch(() => {});
+                    }}>
+                      {t("aiAssistant.agentSource.clearPath")}
+                    </Button>
+                  ) : null}
+                </div>
               </div>
             ) : null}
 

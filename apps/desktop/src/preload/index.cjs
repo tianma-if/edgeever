@@ -81,6 +81,7 @@ contextBridge.exposeInMainWorld("edgeeverDesktop", Object.freeze({
   },
   listAcpAdapters: () => ipcRenderer.invoke("desktop:acp-list"),
   chooseAcpAdapterPath: () => ipcRenderer.invoke("desktop:acp-choose-path", "antigravity"),
+  clearAcpAdapterPath: () => ipcRenderer.invoke("desktop:acp-clear-path", "antigravity"),
   probeAcpAdapter: (input) => ipcRenderer.invoke("desktop:acp-probe", input),
   installAcpAdapter: (id) => ipcRenderer.invoke("desktop:acp-install", id),
   authenticateAcpAdapter: (input) => ipcRenderer.invoke("desktop:acp-authenticate", input),

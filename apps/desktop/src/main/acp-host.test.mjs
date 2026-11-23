@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { EventEmitter } from "node:events";
 import { realpathSync } from "node:fs";
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { homedir, tmpdir } from "node:os";
 import path from "node:path";
@@ -310,7 +310,11 @@ describe("ACP command allow-list", () => {
     try {
       const binary = path.join(directory, "codex-acp");
       await writeFile(binary, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
-      const present = createAcpHostRuntime({ pathEnv: directory, platform: "darwin", sep: path.sep, delimiter: path.delimiter });
+      const onlyTemporaryDirectory = (candidate) => {
+        if (!candidate.startsWith(directory)) throw Object.assign(new Error(`ENOENT: ${candidate}`), { code: "ENOENT" });
+        return realpathSync(candidate);
+      };
+      const present = createAcpHostRuntime({ pathEnv: directory, home: directory, platform: "darwin", sep: path.sep, delimiter: path.delimiter, realpathSync: onlyTemporaryDirectory });
       const listed = present.listAdapters();
       expect(listed.find((adapter) => adapter.id === "codex")).toEqual({
         id: "codex",
@@ -321,7 +325,7 @@ describe("ACP command allow-list", () => {
       expect(listed.find((adapter) => adapter.id === "antigravity")?.state).toBe("not_installed");
       expect(JSON.stringify(listed)).not.toContain(directory);
 
-      const missing = createAcpHostRuntime({ pathEnv: "", platform: "darwin" });
+      const missing = createAcpHostRuntime({ pathEnv: "", home: directory, platform: "darwin", realpathSync: onlyTemporaryDirectory });
       expect(missing.listAdapters().find((adapter) => adapter.id === "codex")?.state).toBe("not_installed");
     } finally {
       await rm(directory, { recursive: true, force: true });
@@ -398,6 +402,9 @@ describe("ACP command allow-list", () => {
     let fail = true;
     const diagnostics = [];
     const runtime = createAcpHostRuntime({
+      pathEnv: "",
+      home: "/nonexistent-edgeever-test-home",
+      realpathSync: () => { throw Object.assign(new Error("ENOENT"), { code: "ENOENT" }); },
       onUpdateDiagnostic: (event) => diagnostics.push(event),
       adapterManager: {
         get: (id) => id === "antigravity" ? { version: "1.3.0", command: { command: "/tmp/agy", args: [] } } : null,
@@ -534,6 +541,116 @@ describe("ACP command allow-list", () => {
       expect(resolveAcpCommand({ id: "antigravity", path: directory })).toMatchObject({ ok: false, detail: "invalid_path" });
       const missing = resolveAcpCommand({ id: "antigravity", path: path.join(directory, "missing-binary") });
       expect(missing).toEqual({ ok: false, state: "not_installed" });
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("auto-discovers agy CLI with acp subcommand, prefers it over managed binary, and keeps standalone custom paths intact", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "edgeever-acp-agy-cli-"));
+    try {
+      const onlyTemporaryDirectory = (candidate) => {
+        if (!candidate.startsWith(directory)) throw Object.assign(new Error(`ENOENT: ${candidate}`), { code: "ENOENT" });
+        return realpathSync(candidate);
+      };
+      const localBin = path.join(directory, ".local", "bin");
+      await mkdir(localBin, { recursive: true });
+      const agyCli = path.join(localBin, "agy");
+      const standalone = path.join(directory, "agy_acp_server.par");
+      const aliasToAgy = path.join(directory, "my-antigravity");
+      await writeFile(agyCli, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+      await writeFile(standalone, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+      await symlink(agyCli, aliasToAgy);
+      const deps = { platform: "darwin", pathEnv: "", home: directory, realpathSync: onlyTemporaryDirectory };
+
+      // Auto-discovers ~/.local/bin/agy without needing PATH or a custom path.
+      expect(resolveAcpCommand({ id: "antigravity" }, deps)).toEqual({
+        ok: true,
+        command: { command: realpathSync(agyCli), args: ["acp"] },
+      });
+      // Explicit custom path to agy or a symlink resolving to agy adds ["acp"].
+      expect(resolveAcpCommand({ id: "antigravity", path: agyCli }, deps)).toEqual({
+        ok: true,
+        command: { command: realpathSync(agyCli), args: ["acp"] },
+      });
+      expect(resolveAcpCommand({ id: "antigravity", path: aliasToAgy }, deps)).toEqual({
+        ok: true,
+        command: { command: realpathSync(agyCli), args: ["acp"] },
+      });
+      // Standalone ACP server custom path stays argument-free.
+      expect(resolveAcpCommand({ id: "antigravity", path: standalone }, deps)).toEqual({
+        ok: true,
+        command: realpathSync(standalone),
+      });
+      // Windows agy.exe custom path and ~/.local/bin/agy.exe auto-discovery add ["acp"].
+      const winAgy = "C:\\Users\\demo\\.local\\bin\\agy.exe";
+      const winDeps = {
+        platform: "win32",
+        home: "C:\\Users\\demo",
+        pathEnv: "",
+        delimiter: ";",
+        sep: "\\",
+        accessSync: (candidate) => { if (candidate !== winAgy) throw Object.assign(new Error("ENOENT"), { code: "ENOENT" }); },
+        realpathSync: (candidate) => {
+          if (candidate === winAgy || candidate === path.join("C:\\Users\\demo", ".local", "bin", "agy.exe")) return winAgy;
+          throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+        },
+        statSync: () => ({ isFile: () => true }),
+      };
+      expect(resolveAcpCommand({ id: "antigravity", path: winAgy }, winDeps)).toEqual({
+        ok: true,
+        command: { command: winAgy, args: ["acp"] },
+      });
+      expect(resolveAcpCommand({ id: "antigravity" }, winDeps)).toEqual({
+        ok: true,
+        command: { command: winAgy, args: ["acp"] },
+      });
+
+      // Runtime priority (Plan A): custom path > local agy CLI > managed binary.
+      const spawned = [];
+      let updateCalls = 0;
+      let installCalls = 0;
+      const runtime = createAcpHostRuntime({
+        ...deps,
+        detectInstalledAgentApps: () => ["antigravity"],
+        adapterManager: {
+          get: (id) => id === "antigravity" ? { version: "1.5.2", command: { command: standalone, args: [] } } : null,
+          installedIds: () => ["antigravity"],
+          install: async () => { installCalls += 1; updateCalls += 1; return { updated: false, version: "1.5.2" }; },
+        },
+        spawnImpl: (command, args) => {
+          spawned.push({ command, args });
+          const error = Object.assign(new Error("probe_stop"), { code: "EACCES" });
+          const child = new EventEmitter();
+          queueMicrotask(() => child.emit("error", error));
+          return child;
+        },
+      });
+
+      // Local agy CLI takes precedence over managed binary, so it is unmanaged and skips managed install/update.
+      const listedWithCli = runtime.listAdapters().find((adapter) => adapter.id === "antigravity");
+      expect(listedWithCli).toMatchObject({ id: "antigravity", state: "not_probed", detail: "not_probed" });
+      expect(listedWithCli.managed).toBeUndefined();
+      expect(await runtime.installDetected()).toEqual([]);
+      expect(await runtime.updateInstalled()).toEqual([]);
+      expect(installCalls).toBe(0);
+      expect(updateCalls).toBe(0);
+
+      await runtime.probeAdapter({ id: "antigravity" });
+      expect(spawned.at(-1)).toEqual({ command: realpathSync(agyCli), args: ["acp"] });
+
+      // Custom path still overrides local agy CLI.
+      await runtime.probeAdapter({ id: "antigravity", path: standalone });
+      expect(spawned.at(-1)).toEqual({ command: realpathSync(standalone), args: [] });
+
+      // Removing local agy CLI falls back to the managed standalone binary.
+      await rm(agyCli);
+      const listedFallback = runtime.listAdapters().find((adapter) => adapter.id === "antigravity");
+      expect(listedFallback).toMatchObject({ id: "antigravity", managed: true, version: "1.5.2" });
+      await runtime.probeAdapter({ id: "antigravity" });
+      expect(spawned.at(-1)).toEqual({ command: standalone, args: [] });
+      expect(await runtime.updateInstalled()).toEqual([{ id: "antigravity", updated: false, version: "1.5.2" }]);
+      expect(updateCalls).toBe(1);
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
@@ -1909,6 +2026,8 @@ test("desktop preload and main process expose the ACP host", async () => {
   expect(preload).toContain('authenticateAcpAdapter: (input) => ipcRenderer.invoke("desktop:acp-authenticate", input)');
   expect(host).toContain('ipcMain.handle("desktop:acp-prompt"');
   expect(preload).toContain('listAcpAdapters: () => ipcRenderer.invoke("desktop:acp-list")');
+  expect(preload).toContain('chooseAcpAdapterPath: () => ipcRenderer.invoke("desktop:acp-choose-path", "antigravity")');
+  expect(preload).toContain('clearAcpAdapterPath: () => ipcRenderer.invoke("desktop:acp-clear-path", "antigravity")');
   expect(preload).toContain('probeAcpAdapter: (input) => ipcRenderer.invoke("desktop:acp-probe", input)');
   expect(preload).toContain('prepareAcp: (input) => ipcRenderer.invoke("desktop:acp-prepare", input)');
   expect(preload).toContain('promptAcp: (input) => ipcRenderer.invoke("desktop:acp-prompt", input)');
@@ -1919,7 +2038,7 @@ test("desktop preload and main process expose the ACP host", async () => {
   expect(main).toContain("openExternal: (url) => shell.openExternal(url)");
   const handlers = new Map();
   registerAcpIpc({ handle: (channel, handler) => handlers.set(channel, handler) });
-  expect([...handlers.keys()]).toEqual(["desktop:acp-list", "desktop:acp-choose-path", "desktop:acp-probe", "desktop:acp-install", "desktop:acp-authenticate", "desktop:acp-cancel-auth", "desktop:acp-reopen-login", "desktop:acp-prepare", "desktop:acp-prompt", "desktop:acp-cancel"]);
+  expect([...handlers.keys()]).toEqual(["desktop:acp-list", "desktop:acp-choose-path", "desktop:acp-clear-path", "desktop:acp-probe", "desktop:acp-install", "desktop:acp-authenticate", "desktop:acp-cancel-auth", "desktop:acp-reopen-login", "desktop:acp-prepare", "desktop:acp-prompt", "desktop:acp-cancel"]);
   await expect(handlers.get("desktop:acp-prompt")({ sender: {} }, { prompt: "test" })).rejects.toThrow("acp_prompt_forbidden");
   // Sign-in controls follow the same sender check as starting a sign-in.
   expect(() => handlers.get("desktop:acp-cancel-auth")({ sender: {} }, "codebuddy")).toThrow("adapter_auth_forbidden");
