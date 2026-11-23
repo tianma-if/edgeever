@@ -321,6 +321,7 @@ const DesktopAcpAgentCardBody = ({ bridge }: { bridge: boolean }) => {
         setPathError("clear");
         return;
       }
+      setAntigravityMode("standalone");
       setAdapterPath("");
       setProbed(null);
       setInstallError(false);
@@ -533,7 +534,7 @@ const DesktopAcpAgentCardBody = ({ bridge }: { bridge: boolean }) => {
                     <Button type="button" variant="outline" size="sm" disabled={probing || installing || Boolean(authenticating) || pathBusy} onClick={() => void choosePath()}>
                       {pathAction === "choose" ? t("aiAssistant.agentSource.choosingPath") : t("aiAssistant.agentSource.choosePath")}
                     </Button>
-                    {adapterPath ? (
+                    {adapterPath || antigravityMode !== "standalone" ? (
                       <Button type="button" variant="ghost" size="sm" disabled={probing || installing || Boolean(authenticating) || pathBusy} onClick={() => void clearPath()}>
                         {pathAction === "clear" ? t("aiAssistant.agentSource.clearingPath") : t("aiAssistant.agentSource.clearPath")}
                       </Button>

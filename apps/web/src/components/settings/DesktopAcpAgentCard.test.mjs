@@ -91,6 +91,7 @@ const mountCard = async ({
       if (result) {
         paths.standalone = "";
         paths.cli = "";
+        currentMode = "standalone";
       }
       return result;
     },
@@ -309,11 +310,20 @@ test("Antigravity mode toggle defaults to standalone, switches to cli with CLI h
   expect(ui.pathInput()?.value).toBe("");
   expect(ui.alertEl()).toBeNull();
 
-  // Successful mode switch to CLI updates radio, placeholder, and hides standalone Install button.
+  // Successful mode switch to CLI updates radio, placeholder, and shows Clear button to reset back to default standalone.
   modeResult = true;
   await act(async () => {
     ui.modeRadio("cli").click();
   });
   expect(ui.modeRadio("cli")?.checked).toBe(true);
   expect(ui.pathInput()?.getAttribute("placeholder")).toBe(enUS.aiAssistant.agentSource.antigravityCliPathPlaceholder);
+  expect(ui.findButton(enUS.aiAssistant.agentSource.clearPath)).toBeTruthy();
+
+  // Clicking Clear resets mode back to default standalone as well as clearing paths.
+  await act(async () => {
+    ui.findButton(enUS.aiAssistant.agentSource.clearPath).click();
+  });
+  expect(ui.modeRadio("standalone")?.checked).toBe(true);
+  expect(ui.pathInput()?.value).toBe("");
+  expect(ui.findButton(enUS.aiAssistant.agentSource.clearPath)).toBeUndefined();
 });

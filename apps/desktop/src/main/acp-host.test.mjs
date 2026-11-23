@@ -785,17 +785,21 @@ describe("ACP command allow-list", () => {
       await restarted.handlers.get("desktop:acp-probe")({ sender }, { id: "antigravity" });
       expect(spawned.at(-1)).toEqual({ command: realpathSync(versionedCli), args: ["acp"] });
 
-      // Clearing custom path clears BOTH standalone and cli custom paths while keeping current mode (falls back to ~/.local/bin/agy).
+      // Clearing custom path clears BOTH standalone and cli custom paths AND resets mode back to default standalone -> uses managed 1.5.2.
       expect(await restarted.handlers.get("desktop:acp-clear-path")({ sender }, "antigravity")).toBe(true);
-      expect(JSON.parse(await readFile(storeFile, "utf8"))).toEqual({ antigravity: null, antigravityMode: "cli" });
-      await restarted.handlers.get("desktop:acp-probe")({ sender }, { id: "antigravity" });
-      expect(spawned.at(-1)).toEqual({ command: realpathSync(localAgy), args: ["acp"] });
-
-      // Switching back to standalone after clear-all also has no stale standalone custom path -> uses managed 1.5.2.
-      expect(await restarted.handlers.get("desktop:acp-set-mode")({ sender }, "antigravity", "standalone")).toBe(true);
       expect(JSON.parse(await readFile(storeFile, "utf8"))).toEqual({ antigravity: null });
+      expect((await restarted.handlers.get("desktop:acp-list")({ sender })).find((a) => a.id === "antigravity")).toMatchObject({
+        antigravityMode: "standalone",
+        managed: true,
+        version: "1.5.2",
+      });
       await restarted.handlers.get("desktop:acp-probe")({ sender }, { id: "antigravity" });
       expect(spawned.at(-1)).toEqual({ command: standalone, args: [] });
+
+      // Switching back to CLI after clear-all also has no stale CLI custom path -> auto-discovers ~/.local/bin/agy.
+      expect(await restarted.handlers.get("desktop:acp-set-mode")({ sender }, "antigravity", "cli")).toBe(true);
+      await restarted.handlers.get("desktop:acp-probe")({ sender }, { id: "antigravity" });
+      expect(spawned.at(-1)).toEqual({ command: realpathSync(localAgy), args: ["acp"] });
 
       // Concurrent writes to the path store are serialized without ENOENT or state drift.
       await Promise.all([

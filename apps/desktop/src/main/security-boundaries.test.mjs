@@ -74,10 +74,10 @@ test("ACP ignores caller paths on all execution channels and preserves main-owne
     });
     sender.isFocused = () => true;
     expect(await restarted.get("desktop:acp-clear-path")({ sender }, "antigravity")).toBe(true);
-    expect(JSON.parse(await readFile(filename, "utf8"))).toEqual({ antigravity: null, antigravityMode: "cli" });
-    await restarted.get(channels[0])({ sender }, { id: "antigravity", path: "/attacker/payload", launchMode: "standalone" });
+    expect(JSON.parse(await readFile(filename, "utf8"))).toEqual({ antigravity: null });
+    await restarted.get(channels[0])({ sender }, { id: "antigravity", path: "/attacker/payload", launchMode: "cli" });
     expect(calls.at(-1).path).toBeUndefined();
-    expect(calls.at(-1).launchMode).toBe("cli");
+    expect(calls.at(-1).launchMode).toBe("standalone");
     await restarted.get(channels[0])({ sender }, { id: "codex", path: "/attacker/payload", launchMode: "cli" });
     expect(calls.at(-1).path).toBeUndefined();
     expect(calls.at(-1).launchMode).toBeUndefined();

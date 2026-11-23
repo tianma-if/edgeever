@@ -101,7 +101,7 @@ export const createAcpPathStore = (filename) => {
       await enqueuePersist((state) => ({ ...state, mode: nextMode }));
     },
     async clearAll() {
-      await enqueuePersist((state) => ({ ...state, standalonePath: null, cliPath: null }));
+      await enqueuePersist(() => ({ standalonePath: null, cliPath: null, mode: "standalone" }));
     },
   };
 };
