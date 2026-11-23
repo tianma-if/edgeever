@@ -111,7 +111,8 @@ Copiez l'invite (prompt) ci-dessous directement dans un agent IA (tel que Codex,
 Déployer EdgeEver intégralement via GitHub et Cloudflare :
 1. Forker https://github.com/tianma-if/edgeever.
 2. Créer la base de données D1 `edgeever` et le bucket R2 `edgeever-resources` dans Cloudflare.
-3. Dans Workers & Pages, sélectionner « Start with Hello World! » et créer un Worker nommé `edgeever`.
+3. Dans Workers & Pages, sélectionner « Start with Hello World! » pour créer et déployer
+   un Worker provisoire nommé `edgeever`. Ne pas encore connecter de dépôt Git.
 4. Ajouter le mot de passe choisi par l'utilisateur en tant que Secret d'exécution `EDGE_EVER_AUTH_PASSWORD`
    sous Settings → Variables and Secrets, et déployer le Secret (de préférence d'au moins
    32 caractères). Le nom d'utilisateur par défaut est `admin`.
@@ -133,7 +134,7 @@ Suivez scrupuleusement ces 7 étapes dans l'ordre :
 
 1. **Forker le dépôt** : Cliquez sur **Fork** en haut à droite sur GitHub pour copier EdgeEver sur votre compte personnel.
 2. **Créer les ressources Cloudflare** : Créez la base de données D1 `edgeever` et le bucket R2 `edgeever-resources`.
-3. **Créer le Worker** : Dans Cloudflare Workers & Pages, sélectionnez Create application → Start with Hello World!, nommez le Worker `edgeever` et déployez-le. Cela crée un placeholder ; EdgeEver sera déployé à l'étape 7.
+3. **Créer le Worker** : Dans Cloudflare Workers & Pages, sélectionnez Create application → Start with Hello World! pour créer et déployer un Worker provisoire nommé `edgeever`. Ne connectez pas encore de dépôt Git.
 4. **Définir le mot de passe administrateur** : Sous Settings → Variables and Secrets du Worker, ajoutez `EDGE_EVER_AUTH_PASSWORD` avec le type Secret et cliquez sur Deploy. Sa valeur correspond à votre mot de passe de connexion, idéalement de 32 caractères ou plus. Réalisez cette étape avant de connecter le Fork.
 5. **Connecter le Fork** : Dans Settings → Builds → Connect du Worker existant, sélectionnez votre Fork et la branche de production `main`.
 6. **Configurer les autorisations de déploiement** : Dans Settings → Builds → API token de ce Worker, sélectionnez ou créez le jeton d'API Cloudflare utilisé pour le déploiement, disposant des droits de lecture/écriture D1 sur le compte cible.

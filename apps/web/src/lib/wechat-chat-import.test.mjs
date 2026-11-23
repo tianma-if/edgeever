@@ -95,5 +95,34 @@ describe("WeChat chat note", () => {
     const gallery = updated.contentJson.content.find((node) => node.type === "edgeeverImageGallery");
     expect(gallery?.content?.length).toBe(2);
   });
+
+  test("keeps all twelve staged image links distinct in the same note", async () => {
+    const media = Array.from({ length: 12 }, (_, index) => ({
+      id: `m${index + 1}`,
+      filename: `图${index + 1}.jpg`,
+      mimeType: "image/jpeg",
+      byteSize: 1,
+    }));
+    const uploaded = [];
+    const saved = await createWeChatChatMemo({
+      notebookId: "nb_inbox",
+      title: "多图聊天记录",
+      markdown: media.map(({ id, filename }) => `![${filename}](edgeever-wechat-media://${id})`).join("\n\n"),
+      media,
+      createMemo: async () => ({ memo }),
+      readMedia: async ({ filename, mimeType }) => new File(["x"], filename, { type: mimeType }),
+      uploadResource: async (memoId) => {
+        const url = `edgeever-staged://stage-${uploaded.length + 1}-id`;
+        uploaded.push({ memoId, url });
+        return { url };
+      },
+      updateMemo: async (created, content) => ({ memo: { ...created, ...content } }),
+    });
+
+    const gallery = saved.contentJson.content.find((node) => node.type === "edgeeverImageGallery");
+    expect(gallery?.content.map((node) => node.attrs.src)).toEqual(uploaded.map(({ url }) => url));
+    expect(uploaded).toHaveLength(12);
+    expect(uploaded.every(({ memoId }) => memoId === memo.id)).toBe(true);
+  });
 });
 

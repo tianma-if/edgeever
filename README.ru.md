@@ -110,7 +110,8 @@ Cloudflare — это рекомендуемый вариант бессерве
 Разверни EdgeEver полностью через GitHub и Cloudflare:
 1. Создай форк https://github.com/tianma-if/edgeever.
 2. Создай базу данных D1 `edgeever` и хранилище R2 `edgeever-resources` в Cloudflare.
-3. В Workers & Pages выбери «Start with Hello World!» и создай Worker с именем `edgeever`.
+3. В Workers & Pages выбери «Start with Hello World!», чтобы создать и развернуть временный
+   Worker с именем `edgeever`. Пока не подключай Git-репозиторий.
 4. Добавь выбранный пользователем пароль в виде секрета среды выполнения `EDGE_EVER_AUTH_PASSWORD`
    в разделе Settings → Variables and Secrets и выполни Deploy для секрета (рекомендуется
    не менее 32 символов). Имя пользователя по умолчанию — `admin`.
@@ -133,7 +134,7 @@ Cloudflare — это рекомендуемый вариант бессерве
 
 1. **Создайте форк репозитория**: Нажмите **Fork** в правом верхнем углу страницы репозитория на GitHub, чтобы создать копию EdgeEver в своем аккаунте.
 2. **Создайте ресурсы в Cloudflare**: Создайте базу данных D1 `edgeever` и бакет R2 `edgeever-resources`.
-3. **Создайте Worker**: В разделе Cloudflare Workers & Pages выберите Create application → Start with Hello World!, назовите Worker `edgeever` и разверните его. Это создаст заглушку; сам EdgeEver будет развернут на шаге 7.
+3. **Создайте Worker**: В разделе Cloudflare Workers & Pages выберите Create application → Start with Hello World!, чтобы создать и развернуть временный Worker с именем `edgeever`. Пока не подключайте Git-репозиторий.
 4. **Установите пароль администратора**: В настройках Worker в разделе Settings → Variables and Secrets добавьте переменную `EDGE_EVER_AUTH_PASSWORD` с типом Secret и нажмите Deploy. Ее значение — ваш пароль для входа, желательно длиной не менее 32 символов. Выполните это действие до подключения форка.
 5. **Подключите форк**: В настройках существующего Worker в разделе Settings → Builds → Connect выберите ваш форк и рабочую ветку `main`.
 6. **Настройте права развертывания**: В разделе Settings → Builds → API token этого Worker выберите или создайте API-токен Cloudflare для развертывания с правами чтения и редактирования D1 для целевой учетной записи.

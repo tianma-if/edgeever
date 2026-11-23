@@ -1,8 +1,9 @@
 import { buildGitHubFeedbackUrl } from "@edgeever/shared";
 import { useQuery } from "@tanstack/react-query";
-import { ExternalLink, LoaderCircle, MessageSquare } from "lucide-react";
+import { ExternalLink, LoaderCircle } from "lucide-react";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
+import { GitHubMark } from "@/components/GitHubRepositoryLink";
 import { api, getConfiguredDesktopApiBaseUrl } from "@/lib/api";
 import { getClientRuntimeDiagnostics } from "@/lib/system-diagnostics";
 import { cn } from "@/lib/utils";
@@ -72,7 +73,7 @@ export const FeedbackLink = ({ className }: { className?: string }) => {
     >
       <span className="flex min-w-0 items-center gap-3">
         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 lg:h-4 lg:w-4 lg:rounded-none lg:bg-transparent">
-          <MessageSquare className="h-4 w-4 text-slate-500" />
+          <GitHubMark className="h-4 w-4 text-slate-500" />
         </span>
         <span className={cn("truncate", SETTINGS_ITEM_TITLE_CLASSNAME)}>
           {t("feedback.title")}

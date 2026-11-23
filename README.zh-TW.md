@@ -109,7 +109,8 @@ Cloudflare 線上部署可以選擇以下兩種方式之一：
 請全程透過 GitHub 和 Cloudflare 線上部署 EdgeEver：
 1. Fork https://github.com/tianma-if/edgeever。
 2. 在 Cloudflare 中建立 D1 `edgeever` 與 R2 `edgeever-resources`。
-3. 在 Workers & Pages 中選擇「Start with Hello World!」，建立名為 `edgeever` 的 Worker。
+3. 在 Workers & Pages 中選擇「Start with Hello World!」，建立並部署名為 `edgeever` 的預留 Worker。
+   此時先不要連接 Git 儲存庫。
 4. 在該 Worker 的 Settings → Variables and Secrets 中新增執行時 Secret
    `EDGE_EVER_AUTH_PASSWORD`，值為使用者指定的登入密碼（建議至少 32 個字元），並點選 Deploy。
    管理員使用者名稱預設為 `admin`。
@@ -134,7 +135,7 @@ Cloudflare 線上部署可以選擇以下兩種方式之一：
 
 1. **Fork 儲存庫**：在 GitHub 點選右上角 **Fork**，將專案 Fork 到您的個人帳戶下。
 2. **建立 Cloudflare 資源**：建立 D1 `edgeever` 與 R2 `edgeever-resources`。
-3. **建立 Worker**：在 Cloudflare Workers & Pages 中選擇 Create application → Start with Hello World!，命名為 `edgeever` 並部署。此時是預留服務，第 7 步才部署 EdgeEver。
+3. **建立 Worker**：在 Cloudflare Workers & Pages 中開啟 Create application，選擇「Start with Hello World!」，建立並部署名為 `edgeever` 的預留 Worker。此時先不要連接 Git 儲存庫。
 4. **設定管理員密碼**：在該 Worker 的 Settings → Variables and Secrets 中，選擇 Secret 類型，新增 `EDGE_EVER_AUTH_PASSWORD` 並點選 Deploy。值為您指定的登入密碼，建議至少 32 個字元。完成後再連接 Fork。
 5. **連接 Fork**：在既有 Worker 的 Settings → Builds → Connect 中選擇 Fork 和正式環境分支 `main`。
 6. **設定部署權限**：在該 Worker 的 Settings → Builds → API token 中選擇或建立用於部署的 Cloudflare API Token，並確認它具備目標帳戶的 D1 讀取及編輯權限。

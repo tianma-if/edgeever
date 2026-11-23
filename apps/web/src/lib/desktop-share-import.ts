@@ -1,4 +1,4 @@
-import type { MemoDetail, TiptapDoc } from "@edgeever/shared";
+import { detectPublishImageMimeType, isPublishImageMimeType, PUBLISH_IMAGE_EXTENSIONS, type MemoDetail, type TiptapDoc } from "@edgeever/shared";
 import type { EdgeEverRepository } from "@/lib/repository";
 import { compressImageForUpload } from "@/lib/image-compression";
 import { isDesktopResourceRuntime, stageDesktopResource, toDesktopResourceUrl } from "@/lib/desktop-resources";
@@ -59,9 +59,19 @@ export const importDesktopShare = async (payload: DesktopSharePayload, {
   const readFile = async (mediaId: string, fallbackName: string, fallbackType: string) => {
     const media = await bridge?.readWeChatImportMedia?.(importId, mediaId);
     if (!media?.bytes?.byteLength) throw new Error("Missing desktop share attachment");
-    const copy = new ArrayBuffer(media.bytes.byteLength);
-    new Uint8Array(copy).set(media.bytes);
-    return new File([copy], media.filename || fallbackName, { type: media.mimeType || fallbackType });
+    const bytes = new Uint8Array(media.bytes.byteLength);
+    bytes.set(media.bytes);
+    const name = media.filename || fallbackName;
+    const type = media.mimeType || fallbackType;
+    // WeChat can give PNG images a JPEG extension in the chat export.
+    const detected = kind === "wechat" && isPublishImageMimeType(type)
+      ? detectPublishImageMimeType(bytes.subarray(0, 64))
+      : null;
+    if (detected && detected !== type) {
+      const filename = `${name.replace(/\.[^.]+$/, "")}.${PUBLISH_IMAGE_EXTENSIONS[detected]}`;
+      return new File([bytes], filename, { type: detected });
+    }
+    return new File([bytes], name, { type });
   };
   const memoActions = {
     notebookId,

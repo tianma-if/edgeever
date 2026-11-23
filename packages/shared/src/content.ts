@@ -79,7 +79,12 @@ export type TiptapDoc = {
   content: TiptapNode[];
 };
 
-export { DEFAULT_MEMO_TITLE, getMemoDisplayTitle } from "./memo-title";
+export {
+  DEFAULT_MEMO_TITLE,
+  formatMemoCreatedAtLabel,
+  getMemoDisplayTitle,
+  getMemoDisplayTitleWithCreatedAt,
+} from "./memo-title";
 
 export const resolveMergedMemoTitle = (
   inputTitle: string | null | undefined,
