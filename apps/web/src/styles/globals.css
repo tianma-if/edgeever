@@ -2860,7 +2860,7 @@ html[data-edgeever-extension-theme] .edgeever-memo-divider {
 
 .ProseMirror tbody tr:nth-child(even) td,
 .markdown-content tbody tr:nth-child(even) td {
-  background: #f9fafb;
+  background: #f1f5f9;
 }
 
 .ProseMirror tbody tr:hover td,
@@ -2939,7 +2939,7 @@ html[data-edgeever-extension-theme] .edgeever-memo-divider {
 
 :root.dark .ProseMirror tbody tr:nth-child(even) td,
 :root.dark .markdown-content tbody tr:nth-child(even) td {
-  background: rgb(255 255 255 / 0.02);
+  background: rgb(255 255 255 / 0.06);
 }
 
 :root.dark .ProseMirror tbody tr:hover td,
