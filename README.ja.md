@@ -109,7 +109,8 @@ Cloudflare のオンライン導入は、次のいずれかです。
 GitHub と Cloudflare のオンライン操作だけで EdgeEver を導入してください:
 1. Fork https://github.com/tianma-if/edgeever。
 2. Cloudflare で D1 `edgeever` と R2 `edgeever-resources` を作成します。
-3. Workers & Pages で「Start with Hello World!」を選び、`edgeever` という名前の Worker を作成します。
+3. Workers & Pages で「Start with Hello World!」を選び、`edgeever` という名前の仮の Worker を作成してデプロイします。
+   この時点では Git リポジトリを接続しないでください。
 4. Worker の Settings → Variables and Secrets で、指定されたログインパスワードを
    実行時 Secret `EDGE_EVER_AUTH_PASSWORD` として追加し、Deploy を選択します
    （32 文字以上を推奨）。管理者ユーザー名の既定値は `admin` です。
@@ -133,7 +134,7 @@ GitHub と Cloudflare のオンライン操作だけで EdgeEver を導入して
 
 1. **リポジトリを Fork**：GitHub 右上の **Fork** で、EdgeEver を自分のアカウントへ Fork します。
 2. **Cloudflare リソースを作成**：D1 `edgeever` と R2 `edgeever-resources` を作ります。
-3. **Worker を作成**：Cloudflare Workers & Pages で Create application → Start with Hello World! を選び、`edgeever` という名前でデプロイします。これは仮のサービスで、EdgeEver は手順 7 でデプロイします。
+3. **Worker を作成**：Cloudflare Workers & Pages で Create application → Start with Hello World! を選び、`edgeever` という名前の仮の Worker を作成してデプロイします。この時点では Git リポジトリを接続しないでください。
 4. **管理者パスワードを設定**：Worker の Settings → Variables and Secrets で Secret 型の `EDGE_EVER_AUTH_PASSWORD` を追加し、Deploy を選択します。値はログインパスワードで、32 文字以上を推奨します。完了後に Fork へ接続します。
 5. **Fork に接続**：既存 Worker の Settings → Builds → Connect で Fork と本番ブランチ `main` を選びます。
 6. **デプロイ権限を設定**：同じ Worker の Settings → Builds → API token でデプロイ用の Cloudflare API トークンを選択または作成し、対象アカウントの D1 読み取り・編集権限を確認します。

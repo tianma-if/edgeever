@@ -110,7 +110,8 @@ Kopiere den folgenden Prompt direkt in einen KI-Agenten (z. B. Codex, Claude Cod
 Stelle EdgeEver vollständig über GitHub und Cloudflare bereit:
 1. Forke https://github.com/tianma-if/edgeever.
 2. Erstelle D1 `edgeever` und R2 `edgeever-resources` in Cloudflare.
-3. Wähle in Workers & Pages „Start with Hello World!“ und erstelle einen Worker namens `edgeever`.
+3. Wähle in Workers & Pages „Start with Hello World!“, um einen Platzhalter-Worker namens
+   `edgeever` zu erstellen und bereitzustellen. Verbinde noch kein Git-Repository.
 4. Trage das vom Nutzer gewählte Passwort als Runtime-Secret `EDGE_EVER_AUTH_PASSWORD`
    unter Settings → Variables and Secrets ein und stelle das Secret bereit (vorzugsweise mindestens
    32 Zeichen). Der Benutzername lautet standardmäßig `admin`.
@@ -132,7 +133,7 @@ Führe die folgenden 7 Schritte im Webbrowser exakt in dieser Reihenfolge durch:
 
 1. **Repository forken**: Klicke oben rechts auf GitHub auf **Fork**, um EdgeEver in dein persönliches Konto zu forken.
 2. **Cloudflare-Ressourcen erstellen**: Erstelle D1 `edgeever` und R2 `edgeever-resources`.
-3. **Worker erstellen**: Wähle in Cloudflare Workers & Pages Create application → Start with Hello World!, benenne den Worker `edgeever` und stelle ihn bereit. Dies erstellt einen Platzhalter; EdgeEver wird in Schritt 7 bereitgestellt.
+3. **Worker erstellen**: Wähle in Cloudflare Workers & Pages Create application → Start with Hello World!, um einen Platzhalter-Worker namens `edgeever` zu erstellen und bereitzustellen. Verbinde noch kein Git-Repository.
 4. **Administrator-Passwort festlegen**: Füge unter Settings → Variables and Secrets des Workers `EDGE_EVER_AUTH_PASSWORD` als Typ Secret hinzu und klicke auf Deploy. Der Wert ist dein frei gewähltes Anmeldekennwort, vorzugsweise mindestens 32 Zeichen lang. Schließe dies ab, bevor du den Fork verbindest.
 5. **Fork verbinden**: Wähle in Settings → Builds → Connect des bestehenden Workers den Fork und den Produktionsbranch `main` aus.
 6. **Bereitstellungsberechtigungen konfigurieren**: Wähle oder erstelle unter Settings → Builds → API token dieses Workers das Cloudflare-API-Token für die Bereitstellung mit Lese-/Schreibberechtigung für D1 im Zielkonto.
