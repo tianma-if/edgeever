@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { EventEmitter } from "node:events";
 import { realpathSync } from "node:fs";
-import { chmod, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { homedir, tmpdir } from "node:os";
 import path from "node:path";
@@ -24,7 +24,7 @@ import {
   sanitizeFailureDetail,
   spawnAcpChild,
 } from "./acp-host.mjs";
-import { antigravityLaunchModeForPath, createAcpPathStore, validateTrustedAcpPath } from "./acp-path-store.mjs";
+import { antigravityLaunchModeForPath, createAcpPathStore } from "./acp-path-store.mjs";
 import { prepareWorkBuddyAuth } from "./workbuddy-auth.mjs";
 
 const require = createRequire(import.meta.url);
@@ -714,13 +714,13 @@ describe("ACP command allow-list", () => {
           allowInstall: (value) => value === sender,
           adapterPathStore: createAcpPathStore(storeFile),
           chooseAdapterPath: async () => {
-            const validated = await validateTrustedAcpPath(nextSelection);
+            const validated = await realpath(nextSelection);
             const mode = antigravityLaunchModeForPath(nextSelection) === "cli" || antigravityLaunchModeForPath(validated) === "cli"
               ? "cli"
               : "standalone";
             return { path: validated, mode };
           },
-          validateAdapterPath: validateTrustedAcpPath,
+          validateAdapterPath: (value) => realpath(value),
         });
         return handlers;
       };
