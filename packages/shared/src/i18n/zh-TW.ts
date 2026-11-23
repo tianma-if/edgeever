@@ -2009,7 +2009,7 @@ export const zhTW = {
       deepseekHarness: "DeepSeek Harness",
       piAgent: "pi agent",
       pathLabel: "Antigravity 可執行檔案",
-      pathPlaceholder: "/absolute/path/to/antigravity-acp",
+      pathPlaceholder: "/absolute/path/to/agy 或 antigravity-acp",
       choosePath: "選擇程式",
       clearPath: "清除",
       pathHint: "自動偵測本機已安裝的 agy CLI，也可手動選擇 agy 或獨立的 Antigravity ACP 程式，或自動安裝連線元件。",

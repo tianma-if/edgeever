@@ -2158,7 +2158,7 @@ export const es = {
       "deepseekHarness": "DeepSeek Harness",
       "piAgent": "pi agent",
       "pathLabel": "Ejecutable de Antigravity",
-      "pathPlaceholder": "/ruta/absoluta/a/antigravity-acp",
+      "pathPlaceholder": "/ruta/absoluta/a/agy o antigravity-acp",
       "choosePath": "Elegir ejecutable",
       "clearPath": "Borrar",
       "pathHint": "Detecta automáticamente la CLI de agy instalada, o elige un ejecutable personalizado de agy / Antigravity ACP, o instala el conector automáticamente.",

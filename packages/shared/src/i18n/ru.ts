@@ -2009,7 +2009,7 @@ export const ru = {
       deepseekHarness: "DeepSeek Harness",
       piAgent: "pi agent",
       pathLabel: "Исполняемый файл Antigravity",
-      pathPlaceholder: "/absolute/path/to/antigravity-acp",
+      pathPlaceholder: "/absolute/path/to/agy или antigravity-acp",
       choosePath: "Выбрать файл",
       clearPath: "Очистить",
       pathHint: "Автоматически определяет установленный agy CLI; также можно вручную выбрать agy или отдельный файл Antigravity ACP либо установить коннектор автоматически.",
