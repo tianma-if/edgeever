@@ -604,7 +604,11 @@ export const registerResourceRoutes = (
       }
     }
 
-    const byteRange = parseByteRange(rangeHeader, resource.byte_size);
+    const fallbackEtag = requestedWidth !== null && versionKey
+      ? buildThumbnailOriginalEtag(versionKey, requestedWidth)
+      : null;
+    const matchesFallback = fallbackEtag !== null && matchesIfNoneMatch(ifNoneMatchHeader, fallbackEtag);
+    const byteRange = parseByteRange(matchesFallback ? undefined : rangeHeader, resource.byte_size);
     if (byteRange.kind === "invalid") return rangeNotSatisfiable(resource.byte_size);
 
     const object = await source.store.get(
@@ -613,10 +617,7 @@ export const registerResourceRoutes = (
     );
     if (!object) return notFound(context, "Resource object not found");
 
-    const fallbackEtag = requestedWidth !== null && versionKey
-      ? buildThumbnailOriginalEtag(versionKey, requestedWidth)
-      : null;
-    if (fallbackEtag && matchesIfNoneMatch(ifNoneMatchHeader, fallbackEtag)) {
+    if (matchesFallback) {
       await object.body.cancel().catch(() => undefined);
       return notModifiedResponse(fallbackEtag);
     }

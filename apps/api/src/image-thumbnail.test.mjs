@@ -14,6 +14,7 @@ import {
   buildThumbnailObjectKey,
   buildThumbnailOriginalEtag,
   matchesIfNoneMatch,
+  resolveOrGenerateThumbnail,
   resolveThumbnailVersionKey,
 } from "./image-thumbnail.ts";
 import { deleteMemosRecord, emptyTrashMemosRecord } from "./memo-service.ts";
@@ -522,6 +523,22 @@ describe("resource blob thumbnail ?w= support", () => {
     expect(fallback304.status).toBe(304);
     expect(fallback304.headers.get("ETag")).toBe(origEtag);
 
+    env.resizeImageThumbnail = undefined;
+    const unsatisfiableRange = "bytes=999999-";
+    const rangedFallback304 = await app.request(
+      "/api/v1/resources/res_img_1/blob?w=400",
+      { headers: { "If-None-Match": origEtag, Range: unsatisfiableRange } },
+      env,
+    );
+    expect(rangedFallback304.status).toBe(304);
+
+    const rangedFallback416 = await app.request(
+      "/api/v1/resources/res_img_1/blob?w=400",
+      { headers: { "If-None-Match": thumbEtag, Range: unsatisfiableRange } },
+      env,
+    );
+    expect(rangedFallback416.status).toBe(416);
+
     // Non-?w= request with If-None-Match: origEtag still returns 200 full original bytes (never 304 from thumbnail validator).
     const nonWWithOrigEtag = await app.request(
       "/api/v1/resources/res_img_1/blob",
@@ -535,7 +552,7 @@ describe("resource blob thumbnail ?w= support", () => {
     storeWrapper.objects.delete(row.object_key);
     const missing404 = await app.request(
       "/api/v1/resources/res_img_1/blob?w=400",
-      { headers: { "If-None-Match": `${thumbEtag}, ${origEtag}` } },
+      { headers: { "If-None-Match": `${thumbEtag}, ${origEtag}`, Range: unsatisfiableRange } },
       env,
     );
     expect(missing404.status).toBe(404);
@@ -648,6 +665,66 @@ describe("resource blob thumbnail ?w= support", () => {
     } finally {
       globalThis.fetch = originalFetch;
     }
+  });
+
+  test("joins a shared storage flight before probing the thumbnail cache", async () => {
+    const resource = { ...sampleImageRow, byte_size: 512 };
+    const original = new Uint8Array(resource.byte_size).fill(7);
+    const thumbnail = new Uint8Array(64).fill(3);
+    const { store, gets, puts } = createInMemoryStore({ [resource.object_key]: original });
+    const thumbnailKey = buildThumbnailObjectKey("ws_1", resource.id, "sha_v1", 400);
+    let signalStarted;
+    let releaseResize;
+    let releaseStaleProbe;
+    const resizeStarted = new Promise((resolve) => { signalStarted = resolve; });
+    const resizeGate = new Promise((resolve) => { releaseResize = resolve; });
+    const staleProbeGate = new Promise((resolve) => { releaseStaleProbe = resolve; });
+    const args = {
+      store,
+      storageScopeKey: "test-shared-thumbnail-store",
+      storageConfigId: "test-shared",
+      workspaceId: "ws_1",
+      resource,
+      width: 400,
+      versionKey: "sha_v1",
+      etag: buildThumbnailEtag("sha_v1", 400),
+      persistCache: true,
+      shouldPersistCache: async () => true,
+      resizer: async () => {
+        signalStarted();
+        await resizeGate;
+        return { bytes: thumbnail, mimeType: "image/webp" };
+      },
+    };
+
+    const first = resolveOrGenerateThumbnail(args);
+    await resizeStarted;
+    const second = resolveOrGenerateThumbnail({
+      ...args,
+      store: {
+        ...store,
+        async get(key) {
+          const result = await store.get(key);
+          if (key === thumbnailKey && !result) await staleProbeGate;
+          return result;
+        },
+      },
+    });
+    releaseResize();
+    const firstResult = await first;
+    releaseStaleProbe();
+    expect(await second).toEqual(firstResult);
+    expect(gets.map(({ key }) => key)).toEqual([thumbnailKey, resource.object_key]);
+    expect(puts).toHaveLength(1);
+
+    const [cachedFirst, cachedSecond] = await Promise.all([
+      resolveOrGenerateThumbnail(args),
+      resolveOrGenerateThumbnail({ ...args, store: { ...store } }),
+    ]);
+    expect(cachedFirst.kind).toBe("cached");
+    expect(cachedSecond.kind).toBe("cached");
+    expect(new Uint8Array(await new Response(cachedFirst.object.body).arrayBuffer())).toEqual(thumbnail);
+    expect(new Uint8Array(await new Response(cachedSecond.object.body).arrayBuffer())).toEqual(thumbnail);
   });
 
   test("skips persistent thumbnail writes for unbound uploads and reclaims late writes across overlapping resize/delete/replace", async () => {

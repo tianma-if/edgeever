@@ -167,25 +167,19 @@ export const resolveOrGenerateThumbnail = async ({
 }): Promise<ThumbnailResolution> => {
   const originalEtag = buildThumbnailOriginalEtag(versionKey, width);
   const thumbnailKey = buildThumbnailObjectKey(workspaceId, resource.id, versionKey, width);
-  if (persistCache) {
-    const cached = await store.get(thumbnailKey);
-    if (cached) {
-      return { kind: "cached", object: cached, etag };
-    }
-  }
+  const readCachedThumbnail = async (): Promise<ThumbnailResolution | null> => {
+    const object = persistCache ? await store.get(thumbnailKey) : null;
+    return object ? { kind: "cached", object, etag } : null;
+  };
 
   if (!resizer) {
-    return { kind: "fallback-unfetched", etag: originalEtag };
+    return (await readCachedThumbnail()) ?? { kind: "fallback-unfetched", etag: originalEtag };
   }
 
-  const { map: inFlightThumbnails, cleanup } = getStoreFlightMap(store, storageScopeKey);
-  const flightKey = `${storageConfigId ?? "builtin"}:${persistCache ? "persist" : "ephemeral"}:${thumbnailKey}`;
-  const existingFlight = inFlightThumbnails.get(flightKey);
-  if (existingFlight) {
-    return existingFlight;
-  }
+  const resolveThumbnail = async (): Promise<ThumbnailResolution> => {
+    const cached = await readCachedThumbnail();
+    if (cached) return cached;
 
-  const generation = (async (): Promise<ThumbnailResolution> => {
     const originalObject = await store.get(resource.object_key);
     if (!originalObject) {
       return { kind: "not-found" };
@@ -252,10 +246,23 @@ export const resolveOrGenerateThumbnail = async ({
       mimeType: resized.mimeType,
       etag,
     };
-  })().finally(() => {
-    cleanup(flightKey);
-  });
+  };
 
-  inFlightThumbnails.set(flightKey, generation);
-  return generation;
+  const flightKey = `${storageConfigId ?? "builtin"}:${persistCache ? "persist" : "ephemeral"}:${thumbnailKey}`;
+  while (true) {
+    const { map, cleanup } = getStoreFlightMap(store, storageScopeKey);
+    const existingFlight = map.get(flightKey);
+    if (!existingFlight) {
+      const flight = resolveThumbnail().finally(() => cleanup(flightKey));
+      map.set(flightKey, flight);
+      return flight;
+    }
+
+    const resolution = await existingFlight;
+    if (resolution.kind !== "cached") return resolution;
+
+    // Each response needs its own stream. If the object was evicted, join or start a new flight.
+    const cached = await readCachedThumbnail();
+    if (cached) return cached;
+  }
 };
