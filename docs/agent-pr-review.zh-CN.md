@@ -8,6 +8,15 @@
 
 每轮完整核对全部打开的 PR（含 Draft）及上次未完成项目，跟踪新提交、回复、CI、冲突、Draft/Ready、base 变化，以及关闭或合并状态。没有实质变化不重复评论或评审。
 
+## 自动批准 PR 的 Test 工作流
+
+每轮巡检自动批准外部 Fork PR 等待维护者批准的 Test run，无需逐次征询。批准前核对以下条件。
+
+- PR 仍打开，目标为 `tianma-if/edgeever:main`。run 位于官方仓库，由 `pull_request` 触发，其 head 仓库、分支和 SHA 与当前 PR 一致。GitHub API 未返回关联 PR 时，用这三项唯一匹配官方仓库的打开 PR。
+- run 的工作流 ID 对应官方 `.github/workflows/test.yml`。工作流及其引用的本地 Action 和可复用工作流未被 PR 修改，并且 PR 作业只在 GitHub 托管 Runner 上以只读权限运行，无需 secrets 或受保护环境。条件无法确认时记录原因，留给维护者核查。
+- 重新确认 head SHA 和待批准状态后，通过 `gh api --method POST "repos/tianma-if/edgeever/actions/runs/<run-id>/approve"` 单独批准该 run。记录 run 链接、head SHA 和确认后的运行状态。遇到超时先查询状态，避免重复批准。
+- 授权仅适用于该 Test run。其他工作流和环境审批仍按各自流程处理。Test 通过后按下文评审和确认合并。
+
 ## 评审与多轮跟进
 
 1. 阅读需求、关联 Issue、当前完整 diff、相关实现与测试及已有讨论。每轮集中反馈全部已确认的问题，给出位置、影响和修复方向。
