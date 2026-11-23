@@ -39,34 +39,67 @@ const createMemoryStorage = (initial = {}) => {
   };
 };
 
-const mountCard = async ({ initialPath = "/custom/bin/agy", chooseAcpAdapterPath, clearAcpAdapterPath } = {}) => {
+const mountCard = async ({
+  initialPath = "/custom/bin/antigravity-acp",
+  initialMode = "standalone",
+  initialState = "not_probed",
+  listAcpAdapters,
+  setAcpAdapterMode,
+  chooseAcpAdapterPath,
+  clearAcpAdapterPath,
+  installAcpAdapter,
+} = {}) => {
   const { window } = parseHTML("<!DOCTYPE html><html><body><div id='root'></div></body></html>");
   const storage = createMemoryStorage({
     [AI_SIDEBAR_SOURCE_KEY]: "local",
     [AI_SIDEBAR_ADAPTER_KEY]: "antigravity",
     [AI_SIDEBAR_ADAPTER_PATH_KEY]: initialPath,
   });
-  let currentCustomPath = initialPath;
+  let currentMode = initialMode;
+  let currentState = initialState;
+  const paths = {
+    standalone: initialMode === "standalone" ? initialPath : "",
+    cli: initialMode === "cli" ? initialPath : "",
+  };
+  let pollCallback = null;
   window.localStorage = storage;
-  window.setInterval = () => 1;
-  window.clearInterval = () => {};
+  window.setInterval = (cb) => { pollCallback = cb; return 1; };
+  window.clearInterval = () => { pollCallback = null; };
+  const defaultList = async () => [{
+    id: "antigravity",
+    label: "Antigravity",
+    state: currentState,
+    ...(currentState === "not_probed" ? { detail: "not_probed" } : {}),
+    antigravityMode: currentMode,
+    ...(paths[currentMode] ? { customPath: paths[currentMode] } : {}),
+  }];
   window.edgeeverDesktop = {
     isAvailable: true,
-    listAcpAdapters: async () => [{
-      id: "antigravity",
-      label: "Antigravity",
-      state: "not_probed",
-      detail: "not_probed",
-      ...(currentCustomPath ? { customPath: currentCustomPath } : {}),
-    }],
+    listAcpAdapters: listAcpAdapters ? () => listAcpAdapters({ currentMode, paths, defaultList }) : defaultList,
+    setAcpAdapterMode: async (nextMode) => {
+      const ok = setAcpAdapterMode ? await setAcpAdapterMode(nextMode) : true;
+      if (ok) currentMode = nextMode;
+      return ok;
+    },
     chooseAcpAdapterPath: async () => {
       const result = await chooseAcpAdapterPath();
-      if (result) currentCustomPath = result;
+      if (result) paths[currentMode] = result;
       return result;
     },
     clearAcpAdapterPath: async () => {
       const result = await clearAcpAdapterPath();
-      if (result) currentCustomPath = "";
+      if (result) {
+        paths.standalone = "";
+        paths.cli = "";
+      }
+      return result;
+    },
+    installAcpAdapter: async (id) => {
+      const result = installAcpAdapter ? await installAcpAdapter(id) : { updated: true, version: "1.5.2" };
+      if (id === "antigravity" && (result.updated || result.version)) {
+        paths.standalone = "";
+        currentState = "available";
+      }
       return result;
     },
   };
@@ -90,9 +123,11 @@ const mountCard = async ({ initialPath = "/custom/bin/agy", chooseAcpAdapterPath
   });
 
   const findButton = (label) => [...container.querySelectorAll("button")].find((button) => button.textContent?.trim() === label);
+  const modeRadio = (mode) => container.querySelector(`input[type="radio"][value="${mode}"]`);
   const pathInput = () => container.querySelector(`input[aria-label="${enUS.aiAssistant.agentSource.pathLabel}"]`);
   const alertEl = () => container.querySelector('[role="alert"]');
-  return { container, findButton, pathInput, alertEl };
+  const triggerPoll = () => pollCallback?.();
+  return { container, findButton, modeRadio, pathInput, alertEl, triggerPoll };
 };
 
 test("desktop and hidden mobile cards have independent native radio groups", async () => {
@@ -107,11 +142,20 @@ test("desktop and hidden mobile cards have independent native radio groups", asy
   expect(names[0]).not.toBe(names[2]);
 });
 
-test("Antigravity path clear keeps controls pending and reports false or rejected clears without mutating the path", async () => {
+test("Antigravity path clear keeps controls pending, reports false or rejected clears, and ignores stale polls", async () => {
   let pendingClear = deferred();
-  let clearMode = "false";
+  let stalePoll = null;
+  let interceptNextPoll = false;
   const ui = await mountCard({
-    initialPath: "/custom/bin/agy",
+    initialPath: "/custom/bin/antigravity-acp",
+    listAcpAdapters: ({ defaultList }) => {
+      if (interceptNextPoll) {
+        interceptNextPoll = false;
+        stalePoll = deferred();
+        return stalePoll.promise;
+      }
+      return defaultList();
+    },
     chooseAcpAdapterPath: async () => null,
     clearAcpAdapterPath: () => {
       pendingClear = deferred();
@@ -119,14 +163,12 @@ test("Antigravity path clear keeps controls pending and reports false or rejecte
     },
   });
 
-  expect(ui.pathInput()?.value).toBe("/custom/bin/agy");
+  expect(ui.pathInput()?.value).toBe("/custom/bin/antigravity-acp");
   expect(ui.alertEl()).toBeNull();
 
   // Click Clear -> stays pending and disables Choose/Clear/Probe.
-  const clearButton = ui.findButton(enUS.aiAssistant.agentSource.clearPath);
-  expect(clearButton).toBeTruthy();
   await act(async () => {
-    clearButton.click();
+    ui.findButton(enUS.aiAssistant.agentSource.clearPath).click();
   });
   expect(ui.findButton(enUS.aiAssistant.agentSource.clearingPath)?.disabled).toBe(true);
   expect(ui.findButton(enUS.aiAssistant.agentSource.choosePath)?.disabled).toBe(true);
@@ -137,12 +179,11 @@ test("Antigravity path clear keeps controls pending and reports false or rejecte
     pendingClear.resolve(false);
     await pendingClear.promise;
   });
-  expect(ui.pathInput()?.value).toBe("/custom/bin/agy");
+  expect(ui.pathInput()?.value).toBe("/custom/bin/antigravity-acp");
   expect(ui.alertEl()?.textContent).toBe(enUS.aiAssistant.agentSource.clearPathFailed);
   expect(ui.findButton(enUS.aiAssistant.agentSource.clearPath)?.disabled).toBe(false);
 
   // IPC rejects -> reports clearPathFailed and preserves displayed path.
-  clearMode = "reject";
   await act(async () => {
     ui.findButton(enUS.aiAssistant.agentSource.clearPath).click();
   });
@@ -150,11 +191,16 @@ test("Antigravity path clear keeps controls pending and reports false or rejecte
     pendingClear.reject(new Error("EACCES"));
     await pendingClear.promise.catch(() => {});
   });
-  expect(clearMode).toBe("reject");
-  expect(ui.pathInput()?.value).toBe("/custom/bin/agy");
+  expect(ui.pathInput()?.value).toBe("/custom/bin/antigravity-acp");
   expect(ui.alertEl()?.textContent).toBe(enUS.aiAssistant.agentSource.clearPathFailed);
 
-  // IPC returns true -> clears displayed path, removes alert, hides Clear button.
+  // Start a 5s poll BEFORE clicking Clear, then complete Clear, then resolve the stale poll -> path must stay cleared!
+  interceptNextPoll = true;
+  await act(async () => {
+    ui.triggerPoll();
+  });
+  expect(stalePoll).toBeTruthy();
+
   await act(async () => {
     ui.findButton(enUS.aiAssistant.agentSource.clearPath).click();
   });
@@ -165,12 +211,26 @@ test("Antigravity path clear keeps controls pending and reports false or rejecte
   expect(ui.pathInput()?.value).toBe("");
   expect(ui.alertEl()).toBeNull();
   expect(ui.findButton(enUS.aiAssistant.agentSource.clearPath)).toBeUndefined();
+
+  await act(async () => {
+    stalePoll.resolve([{
+      id: "antigravity",
+      label: "Antigravity",
+      state: "not_probed",
+      detail: "not_probed",
+      antigravityMode: "standalone",
+      customPath: "/custom/bin/antigravity-acp",
+    }]);
+    await stalePoll.promise;
+  });
+  expect(ui.pathInput()?.value).toBe("");
+  expect(ui.findButton(enUS.aiAssistant.agentSource.clearPath)).toBeUndefined();
 });
 
-test("Antigravity path chooser keeps controls pending, ignores cancellation, and reports errors without changing path", async () => {
+test("Antigravity path chooser supports success, silent cancellation, and error feedback", async () => {
   let pendingChoose = deferred();
   const ui = await mountCard({
-    initialPath: "/custom/bin/agy",
+    initialPath: "/custom/bin/antigravity-acp",
     chooseAcpAdapterPath: () => {
       pendingChoose = deferred();
       return pendingChoose.promise;
@@ -188,7 +248,7 @@ test("Antigravity path chooser keeps controls pending, ignores cancellation, and
     pendingChoose.resolve(null);
     await pendingChoose.promise;
   });
-  expect(ui.pathInput()?.value).toBe("/custom/bin/agy");
+  expect(ui.pathInput()?.value).toBe("/custom/bin/antigravity-acp");
   expect(ui.alertEl()).toBeNull();
 
   // Rejection reports choosePathFailed and preserves path.
@@ -199,6 +259,61 @@ test("Antigravity path chooser keeps controls pending, ignores cancellation, and
     pendingChoose.reject(new Error("untrusted path"));
     await pendingChoose.promise.catch(() => {});
   });
-  expect(ui.pathInput()?.value).toBe("/custom/bin/agy");
+  expect(ui.pathInput()?.value).toBe("/custom/bin/antigravity-acp");
   expect(ui.alertEl()?.textContent).toBe(enUS.aiAssistant.agentSource.choosePathFailed);
+
+  // Successful selection updates path and clears previous error.
+  await act(async () => {
+    ui.findButton(enUS.aiAssistant.agentSource.choosePath).click();
+  });
+  await act(async () => {
+    pendingChoose.resolve("/opt/new/antigravity-acp");
+    await pendingChoose.promise;
+  });
+  expect(ui.pathInput()?.value).toBe("/opt/new/antigravity-acp");
+  expect(ui.alertEl()).toBeNull();
+});
+
+test("Antigravity mode toggle defaults to standalone, switches to cli with CLI hints, reports failed switches, and clears path on no-op install", async () => {
+  let modeResult = false;
+  const ui = await mountCard({
+    initialPath: "/missing/standalone-acp",
+    initialMode: "standalone",
+    initialState: "not_installed",
+    setAcpAdapterMode: async () => modeResult,
+    chooseAcpAdapterPath: async () => null,
+    clearAcpAdapterPath: async () => true,
+    installAcpAdapter: async () => ({
+      updated: false,
+      version: "1.5.2",
+      adapter: { id: "antigravity", label: "Antigravity", state: "available" },
+    }),
+  });
+
+  // Defaults to standalone mode and offers Install button when not_installed.
+  expect(ui.modeRadio("standalone")?.checked).toBe(true);
+  expect(ui.modeRadio("cli")?.checked).toBe(false);
+  expect(ui.findButton(enUS.aiAssistant.agentSource.install)).toBeTruthy();
+
+  // Failed mode switch shows alert and keeps standalone selected.
+  await act(async () => {
+    ui.modeRadio("cli").click();
+  });
+  expect(ui.modeRadio("standalone")?.checked).toBe(true);
+  expect(ui.alertEl()?.textContent).toBe(enUS.aiAssistant.agentSource.antigravityModeChangeFailed);
+
+  // No-op install returning { updated: false, version: "1.5.2" } still clears stale standalone custom path.
+  await act(async () => {
+    ui.findButton(enUS.aiAssistant.agentSource.install).click();
+  });
+  expect(ui.pathInput()?.value).toBe("");
+  expect(ui.alertEl()).toBeNull();
+
+  // Successful mode switch to CLI updates radio, placeholder, and hides standalone Install button.
+  modeResult = true;
+  await act(async () => {
+    ui.modeRadio("cli").click();
+  });
+  expect(ui.modeRadio("cli")?.checked).toBe(true);
+  expect(ui.pathInput()?.getAttribute("placeholder")).toBe(enUS.aiAssistant.agentSource.antigravityCliPathPlaceholder);
 });

@@ -180,8 +180,10 @@ interface EdgeEverDesktopBridge {
     managed?: boolean;
     updateError?: string;
     customPath?: string;
+    antigravityMode?: "standalone" | "cli";
     authMethods?: Array<{ id: string; name: string }>;
   }>>;
+  setAcpAdapterMode?(mode: "standalone" | "cli"): Promise<boolean>;
   chooseAcpAdapterPath?(): Promise<string | null>;
   clearAcpAdapterPath?(): Promise<boolean>;
   probeAcpAdapter?(input: { id: "codex" | "claudeCode" | "antigravity" | "openClaw" | "hermesAgent" | "grokBuild" | "deepseekHarness" | "piAgent" | "workbuddyCn" | "workbuddyIntl" | "codebuddy"; path?: string }): Promise<{

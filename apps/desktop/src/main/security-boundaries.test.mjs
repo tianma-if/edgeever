@@ -28,7 +28,7 @@ test("ACP ignores caller paths on all execution channels and preserves main-owne
       registerAcpIpc({ handle: (name, handler) => handlers.set(name, handler) }, runtime, {
         allowInstall: (value) => value === sender,
         adapterPathStore: createAcpPathStore(filename),
-        chooseAdapterPath: async () => ({ path: "/user/chosen/acp", mode: "cli" }),
+        chooseAdapterPath: async () => "/user/chosen/acp",
         validateAdapterPath: async value => value,
       });
       return handlers;
@@ -40,13 +40,22 @@ test("ACP ignores caller paths on all execution channels and preserves main-owne
       await expect(handlers.get(channel)({ sender: {} }, input)).rejects.toThrow(/forbidden/);
       await handlers.get(channel)({ sender }, input);
       expect(calls.at(-1).path).toBeUndefined();
-      expect(calls.at(-1).launchMode).toBeUndefined();
+      expect(calls.at(-1).launchMode).toBe("standalone");
     }
+    await expect(handlers.get("desktop:acp-set-mode")({ sender: {} }, "antigravity", "cli")).rejects.toThrow(/forbidden/);
+    await expect(handlers.get("desktop:acp-set-mode")({ sender }, "codex", "cli")).rejects.toThrow(/forbidden/);
+    await expect(handlers.get("desktop:acp-set-mode")({ sender }, "antigravity", "other")).rejects.toThrow(/invalid_antigravity_mode/);
     sender.isFocused = () => false;
+    expect(await handlers.get("desktop:acp-set-mode")({ sender }, "antigravity", "cli")).toBe(false);
     expect(await handlers.get("desktop:acp-choose-path")({ sender }, "antigravity")).toBeNull();
     sender.isFocused = () => true;
+    expect(await handlers.get("desktop:acp-set-mode")({ sender }, "antigravity", "cli")).toBe(true);
     await handlers.get("desktop:acp-choose-path")({ sender }, "antigravity");
-    expect(JSON.parse(await readFile(filename, "utf8"))).toEqual({ antigravity: "/user/chosen/acp", antigravityMode: "cli" });
+    expect(JSON.parse(await readFile(filename, "utf8"))).toEqual({
+      antigravity: null,
+      antigravityCli: "/user/chosen/acp",
+      antigravityMode: "cli",
+    });
     if (process.platform !== "win32") expect((await stat(filename)).mode & 0o777).toBe(0o600);
     const restarted = register();
     for (const channel of channels) {
@@ -58,13 +67,17 @@ test("ACP ignores caller paths on all execution channels and preserves main-owne
     await expect(restarted.get("desktop:acp-clear-path")({ sender }, "codex")).rejects.toThrow(/forbidden/);
     sender.isFocused = () => false;
     expect(await restarted.get("desktop:acp-clear-path")({ sender }, "antigravity")).toBe(false);
-    expect(JSON.parse(await readFile(filename, "utf8"))).toEqual({ antigravity: "/user/chosen/acp", antigravityMode: "cli" });
+    expect(JSON.parse(await readFile(filename, "utf8"))).toEqual({
+      antigravity: null,
+      antigravityCli: "/user/chosen/acp",
+      antigravityMode: "cli",
+    });
     sender.isFocused = () => true;
     expect(await restarted.get("desktop:acp-clear-path")({ sender }, "antigravity")).toBe(true);
-    expect(JSON.parse(await readFile(filename, "utf8"))).toEqual({ antigravity: null });
-    await restarted.get(channels[0])({ sender }, { id: "antigravity", path: "/attacker/payload", launchMode: "cli" });
+    expect(JSON.parse(await readFile(filename, "utf8"))).toEqual({ antigravity: null, antigravityMode: "cli" });
+    await restarted.get(channels[0])({ sender }, { id: "antigravity", path: "/attacker/payload", launchMode: "standalone" });
     expect(calls.at(-1).path).toBeUndefined();
-    expect(calls.at(-1).launchMode).toBeUndefined();
+    expect(calls.at(-1).launchMode).toBe("cli");
     await restarted.get(channels[0])({ sender }, { id: "codex", path: "/attacker/payload", launchMode: "cli" });
     expect(calls.at(-1).path).toBeUndefined();
     expect(calls.at(-1).launchMode).toBeUndefined();

@@ -22,6 +22,7 @@ import {
   reopenDesktopAcpLoginPage,
   probeDesktopAcpAdapter,
   type AiSidebarSource,
+  type DesktopAntigravityMode,
   type DesktopAcpAdapter,
   type DesktopAcpAdapterId,
 } from "@/lib/desktop-acp";
@@ -59,6 +60,7 @@ const statusKey = (adapter: DesktopAcpAdapter | undefined, probing: boolean) => 
   if (adapter.detail === "authentication_failed") return "aiAssistant.agentSource.authenticationFailed";
   if (adapter.detail === "invalid_path") return "aiAssistant.agentSource.invalidPath";
   if (adapter.detail === "desktop_unavailable") return "aiAssistant.agentSource.localDisabled";
+  if (adapter.id === "antigravity" && adapter.state === "not_installed" && adapter.antigravityMode === "cli") return "aiAssistant.agentSource.antigravityCliNotFound";
   if (adapter.id === "grokBuild" && adapter.state === "not_installed") return "aiAssistant.agentSource.grokBuildNotFound";
   if (adapter.id === "claudeCode" && adapter.state === "not_installed") return "aiAssistant.agentSource.claudeCodeNotFound";
   if (adapter.id === "openClaw" && adapter.state === "not_installed") return "aiAssistant.agentSource.openClawNotFound";
@@ -102,6 +104,7 @@ const DesktopAcpAgentCardBody = ({ bridge }: { bridge: boolean }) => {
   const [source, setSource] = useState<AiSidebarSource>("builtin");
   const [adapterId, setAdapterId] = useState<DesktopAcpAdapterId>("codex");
   const [adapterPath, setAdapterPath] = useState("");
+  const [antigravityMode, setAntigravityMode] = useState<DesktopAntigravityMode>("standalone");
   const [ready, setReady] = useState(false);
   const [listed, setListed] = useState<DesktopAcpAdapter[]>([]);
   const [probed, setProbed] = useState<DesktopAcpAdapter | null>(null);
@@ -109,9 +112,25 @@ const DesktopAcpAgentCardBody = ({ bridge }: { bridge: boolean }) => {
   const [installing, setInstalling] = useState(false);
   const [installError, setInstallError] = useState(false);
   const [authenticating, setAuthenticating] = useState<string | null>(null);
-  const [pathAction, setPathAction] = useState<"choose" | "clear" | null>(null);
-  const [pathError, setPathError] = useState<"choose" | "clear" | null>(null);
+  const [pathAction, setPathAction] = useState<"choose" | "clear" | "mode" | null>(null);
+  const [pathError, setPathError] = useState<"choose" | "clear" | "mode" | null>(null);
   const codeBuddyLoginActive = useRef(false);
+  const pathActionRef = useRef<"choose" | "clear" | "mode" | null>(null);
+  const listEpochRef = useRef(0);
+
+  const updatePathAction = (next: "choose" | "clear" | "mode" | null) => {
+    pathActionRef.current = next;
+    setPathAction(next);
+  };
+
+  const applyListedAdapters = (adapters: DesktopAcpAdapter[]) => {
+    setListed(adapters);
+    const antigravity = adapters.find((adapter) => adapter.id === "antigravity");
+    if (antigravity?.antigravityMode === "cli" || antigravity?.antigravityMode === "standalone") {
+      setAntigravityMode(antigravity.antigravityMode);
+    }
+    setAdapterPath(antigravity?.customPath ?? "");
+  };
 
   // Leaving the settings page ends a CodeBuddy sign-in that no one can finish here.
   useEffect(() => () => {
@@ -147,12 +166,14 @@ const DesktopAcpAgentCardBody = ({ bridge }: { bridge: boolean }) => {
 
   useEffect(() => {
     let cancelled = false;
-    const refresh = () => void listDesktopAcpAdapters().then((adapters) => {
-      if (!cancelled) {
-        setListed(adapters);
-        setAdapterPath(adapters.find((adapter) => adapter.id === "antigravity")?.customPath ?? "");
-      }
-    }).catch(() => {});
+    const refresh = () => {
+      if (pathActionRef.current !== null) return;
+      const epoch = listEpochRef.current;
+      void listDesktopAcpAdapters().then((adapters) => {
+        if (cancelled || epoch !== listEpochRef.current || pathActionRef.current !== null) return;
+        applyListedAdapters(adapters);
+      }).catch(() => {});
+    };
     refresh();
     const interval = window.setInterval(refresh, 5_000);
     return () => {
@@ -228,9 +249,40 @@ const DesktopAcpAgentCardBody = ({ bridge }: { bridge: boolean }) => {
     setPathError(null);
   };
 
+  const changeAntigravityMode = async (nextMode: DesktopAntigravityMode) => {
+    if (pathActionRef.current || nextMode === antigravityMode) return;
+    listEpochRef.current += 1;
+    updatePathAction("mode");
+    setPathError(null);
+    try {
+      const setter = window.edgeeverDesktop?.setAcpAdapterMode;
+      if (typeof setter !== "function") {
+        setPathError("mode");
+        return;
+      }
+      const saved = await setter(nextMode);
+      if (!saved) {
+        setPathError("mode");
+        return;
+      }
+      setAntigravityMode(nextMode);
+      setProbed(null);
+      setInstallError(false);
+      listEpochRef.current += 1;
+      const refreshed = await listDesktopAcpAdapters().catch(() => null);
+      if (refreshed) applyListedAdapters(refreshed);
+      else setAdapterPath("");
+    } catch {
+      setPathError("mode");
+    } finally {
+      updatePathAction(null);
+    }
+  };
+
   const choosePath = async () => {
-    if (pathAction) return;
-    setPathAction("choose");
+    if (pathActionRef.current) return;
+    listEpochRef.current += 1;
+    updatePathAction("choose");
     setPathError(null);
     try {
       const chooser = window.edgeeverDesktop?.chooseAcpAdapterPath;
@@ -243,17 +295,20 @@ const DesktopAcpAgentCardBody = ({ bridge }: { bridge: boolean }) => {
       setAdapterPath(selected);
       setProbed(null);
       setInstallError(false);
-      await listDesktopAcpAdapters().then((adapters) => setListed(adapters)).catch(() => {});
+      listEpochRef.current += 1;
+      const refreshed = await listDesktopAcpAdapters().catch(() => null);
+      if (refreshed) applyListedAdapters(refreshed);
     } catch {
       setPathError("choose");
     } finally {
-      setPathAction(null);
+      updatePathAction(null);
     }
   };
 
   const clearPath = async () => {
-    if (pathAction) return;
-    setPathAction("clear");
+    if (pathActionRef.current) return;
+    listEpochRef.current += 1;
+    updatePathAction("clear");
     setPathError(null);
     try {
       const clearer = window.edgeeverDesktop?.clearAcpAdapterPath;
@@ -269,23 +324,26 @@ const DesktopAcpAgentCardBody = ({ bridge }: { bridge: boolean }) => {
       setAdapterPath("");
       setProbed(null);
       setInstallError(false);
-      await listDesktopAcpAdapters().then((adapters) => setListed(adapters)).catch(() => {});
+      listEpochRef.current += 1;
+      const refreshed = await listDesktopAcpAdapters().catch(() => null);
+      if (refreshed) applyListedAdapters(refreshed);
     } catch {
       setPathError("clear");
     } finally {
-      setPathAction(null);
+      updatePathAction(null);
     }
   };
 
   const install = async (retryUpdate = false) => {
     if (adapterId !== "codex" && adapterId !== "claudeCode" && adapterId !== "antigravity" && adapterId !== "piAgent") return;
+    listEpochRef.current += 1;
     setInstalling(true);
     setInstallError(false);
     setPathError(null);
     try {
       const result = await installDesktopAcpAdapter(adapterId);
       if (result.updated || result.version) {
-        if (adapterId === "antigravity" && result.updated) setAdapterPath("");
+        if (adapterId === "antigravity") setAdapterPath("");
         setProbed(result.adapter ? { ...result.adapter, version: result.version, managed: true } : null);
       } else {
         setInstallError(true);
@@ -293,7 +351,9 @@ const DesktopAcpAgentCardBody = ({ bridge }: { bridge: boolean }) => {
     } catch {
       if (!retryUpdate) setInstallError(true);
     } finally {
-      setListed(await listDesktopAcpAdapters().catch(() => listed));
+      listEpochRef.current += 1;
+      const refreshed = await listDesktopAcpAdapters().catch(() => null);
+      if (refreshed) applyListedAdapters(refreshed);
       setInstalling(false);
     }
   };
@@ -414,45 +474,83 @@ const DesktopAcpAgentCardBody = ({ bridge }: { bridge: boolean }) => {
             </div>
 
             {adapterId === "antigravity" ? (
-              <div className="grid gap-1.5 text-xs font-normal leading-5 text-slate-700">
-                <span className="flex items-center gap-1.5">
-                  {t("aiAssistant.agentSource.pathLabel")}
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button type="button" className="text-slate-400" aria-label={t("aiAssistant.agentSource.pathHint")}>
-                          <Info className="h-3.5 w-3.5" />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent className="max-w-72">{t("aiAssistant.agentSource.pathHint")}</TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </span>
-                <Input
-                  className="h-8 text-xs"
-                  value={adapterPath}
-                  aria-label={t("aiAssistant.agentSource.pathLabel")}
-                  spellCheck={false}
-                  autoCapitalize="off"
-                  autoCorrect="off"
-                  placeholder={t("aiAssistant.agentSource.pathPlaceholder")}
-                  readOnly
-                />
-                <div className="flex flex-wrap gap-2">
-                  <Button type="button" variant="outline" size="sm" disabled={probing || installing || Boolean(authenticating) || pathBusy} onClick={() => void choosePath()}>
-                    {pathAction === "choose" ? t("aiAssistant.agentSource.choosingPath") : t("aiAssistant.agentSource.choosePath")}
-                  </Button>
-                  {adapterPath ? (
-                    <Button type="button" variant="ghost" size="sm" disabled={probing || installing || Boolean(authenticating) || pathBusy} onClick={() => void clearPath()}>
-                      {pathAction === "clear" ? t("aiAssistant.agentSource.clearingPath") : t("aiAssistant.agentSource.clearPath")}
+              <div className="grid gap-2.5 text-xs font-normal leading-5 text-slate-700">
+                <div className="grid gap-1.5">
+                  <span>{t("aiAssistant.agentSource.antigravityModeLabel")}</span>
+                  <div role="radiogroup" aria-label={t("aiAssistant.agentSource.antigravityModeLabel")} className="flex flex-wrap gap-2">
+                    {(["standalone", "cli"] as const).map((modeOption) => {
+                      const checked = antigravityMode === modeOption;
+                      const disabled = probing || installing || Boolean(authenticating) || pathBusy;
+                      return (
+                        <label
+                          key={modeOption}
+                          className={cn(
+                            "flex h-8 items-center gap-2 rounded-md border px-2.5 text-xs has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2",
+                            disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer",
+                            checked ? "border-slate-900 bg-card text-slate-950" : "border-slate-200 text-slate-600"
+                          )}
+                        >
+                          <input
+                            className="sr-only"
+                            type="radio"
+                            name={`edgeever-acp-antigravity-mode-${instanceId}`}
+                            value={modeOption}
+                            checked={checked}
+                            disabled={disabled}
+                            onChange={() => { if (!disabled) void changeAntigravityMode(modeOption); }}
+                          />
+                          {t(modeOption === "cli" ? "aiAssistant.agentSource.antigravityModeCli" : "aiAssistant.agentSource.antigravityModeStandalone")}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="grid gap-1.5">
+                  <span className="flex items-center gap-1.5">
+                    {t("aiAssistant.agentSource.pathLabel")}
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button type="button" className="text-slate-400" aria-label={t(antigravityMode === "cli" ? "aiAssistant.agentSource.antigravityCliPathHint" : "aiAssistant.agentSource.pathHint")}>
+                            <Info className="h-3.5 w-3.5" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-72">{t(antigravityMode === "cli" ? "aiAssistant.agentSource.antigravityCliPathHint" : "aiAssistant.agentSource.pathHint")}</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </span>
+                  <Input
+                    className="h-8 text-xs"
+                    value={adapterPath}
+                    aria-label={t("aiAssistant.agentSource.pathLabel")}
+                    spellCheck={false}
+                    autoCapitalize="off"
+                    autoCorrect="off"
+                    placeholder={t(antigravityMode === "cli" ? "aiAssistant.agentSource.antigravityCliPathPlaceholder" : "aiAssistant.agentSource.pathPlaceholder")}
+                    readOnly
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" variant="outline" size="sm" disabled={probing || installing || Boolean(authenticating) || pathBusy} onClick={() => void choosePath()}>
+                      {pathAction === "choose" ? t("aiAssistant.agentSource.choosingPath") : t("aiAssistant.agentSource.choosePath")}
                     </Button>
+                    {adapterPath ? (
+                      <Button type="button" variant="ghost" size="sm" disabled={probing || installing || Boolean(authenticating) || pathBusy} onClick={() => void clearPath()}>
+                        {pathAction === "clear" ? t("aiAssistant.agentSource.clearingPath") : t("aiAssistant.agentSource.clearPath")}
+                      </Button>
+                    ) : null}
+                  </div>
+                  {pathError ? (
+                    <p role="alert" className="text-[11px] leading-4 text-rose-700">
+                      {t(
+                        pathError === "clear"
+                          ? "aiAssistant.agentSource.clearPathFailed"
+                          : pathError === "mode"
+                            ? "aiAssistant.agentSource.antigravityModeChangeFailed"
+                            : "aiAssistant.agentSource.choosePathFailed"
+                      )}
+                    </p>
                   ) : null}
                 </div>
-                {pathError ? (
-                  <p role="alert" className="text-[11px] leading-4 text-rose-700">
-                    {t(pathError === "clear" ? "aiAssistant.agentSource.clearPathFailed" : "aiAssistant.agentSource.choosePathFailed")}
-                  </p>
-                ) : null}
               </div>
             ) : null}
 
@@ -491,7 +589,7 @@ const DesktopAcpAgentCardBody = ({ bridge }: { bridge: boolean }) => {
                   ) : null}
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
-                  {shown?.state === "not_installed" && (adapterId === "codex" || adapterId === "claudeCode" || adapterId === "antigravity" || (adapterId === "piAgent" && shown?.detail === "adapter_missing")) ? (
+                  {shown?.state === "not_installed" && (adapterId === "codex" || adapterId === "claudeCode" || (adapterId === "antigravity" && antigravityMode === "standalone") || (adapterId === "piAgent" && shown?.detail === "adapter_missing")) ? (
                     <Button type="button" variant="outline" size="sm" className="h-8 bg-card text-xs font-normal" disabled={installing || probing || pathBusy} onClick={() => void install()}>
                       {installing ? t("aiAssistant.agentSource.installing") : t("aiAssistant.agentSource.install")}
                     </Button>
@@ -518,7 +616,7 @@ const DesktopAcpAgentCardBody = ({ bridge }: { bridge: boolean }) => {
                   ) : null}
                   {shown?.state === "not_installed" ? (
                     <p>
-                      {t(adapterId === "claudeCode" ? "aiAssistant.agentSource.claudeCodeMissingHint" : adapterId === "openClaw" ? "aiAssistant.agentSource.openClawMissingHint" : adapterId === "hermesAgent" ? "aiAssistant.agentSource.hermesAgentMissingHint" : adapterId === "grokBuild" ? "aiAssistant.agentSource.grokBuildMissingHint" : adapterId === "deepseekHarness" ? "aiAssistant.agentSource.deepseekHarnessMissingHint" : adapterId === "piAgent" ? shown.detail === "adapter_missing" ? "aiAssistant.agentSource.piAgentAdapterMissingHint" : "aiAssistant.agentSource.piAgentMissingHint" : adapterId === "workbuddyCn" || adapterId === "workbuddyIntl" ? "aiAssistant.agentSource.workbuddyMissingHint" : adapterId === "codebuddy" ? "aiAssistant.agentSource.codebuddyMissingHint" : "aiAssistant.agentSource.installHint")}
+                      {t(adapterId === "antigravity" && antigravityMode === "cli" ? "aiAssistant.agentSource.antigravityCliMissingHint" : adapterId === "claudeCode" ? "aiAssistant.agentSource.claudeCodeMissingHint" : adapterId === "openClaw" ? "aiAssistant.agentSource.openClawMissingHint" : adapterId === "hermesAgent" ? "aiAssistant.agentSource.hermesAgentMissingHint" : adapterId === "grokBuild" ? "aiAssistant.agentSource.grokBuildMissingHint" : adapterId === "deepseekHarness" ? "aiAssistant.agentSource.deepseekHarnessMissingHint" : adapterId === "piAgent" ? shown.detail === "adapter_missing" ? "aiAssistant.agentSource.piAgentAdapterMissingHint" : "aiAssistant.agentSource.piAgentMissingHint" : adapterId === "workbuddyCn" || adapterId === "workbuddyIntl" ? "aiAssistant.agentSource.workbuddyMissingHint" : adapterId === "codebuddy" ? "aiAssistant.agentSource.codebuddyMissingHint" : "aiAssistant.agentSource.installHint")}
                     </p>
                   ) : null}
                   {shown?.detail === "node_missing" ? (
