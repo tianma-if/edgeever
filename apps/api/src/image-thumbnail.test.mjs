@@ -1328,9 +1328,7 @@ describe("resource blob thumbnail ?w= support", () => {
       }]);
       expect(await env.storage.resources.get(memoC.thumbKey)).toBeNull();
 
-      // 5. Existing deployment upgrade & rollback simulation:
-      // - Legacy image resource with sha256 = null (pre-sha256 or multipart upload) generates thumbnail using object_key + updated_at versionKey,
-      //   replaces and deletes cleanly, and disabling the thumbnail resizer (rollback) serves original bytes intact.
+      // A pre-existing image without a content hash can be resized and deleted.
       const legacyPng = await sharp({
         create: { width: 1200, height: 800, channels: 3, background: { r: 90, g: 50, b: 160 } },
       }).png().toBuffer();
@@ -1355,19 +1353,29 @@ describe("resource blob thumbnail ?w= support", () => {
       const legacyThumbBytes = new Uint8Array(await legacyThumbRes.arrayBuffer());
       expect(legacyThumbBytes.byteLength).toBeLessThan(legacyPng.byteLength);
 
-      // Rollback simulation: even with cached thumbnails present in storage, original `/blob` without `?w=` or with resizer disabled + cache cleared serves exact original bytes.
+      // The existing cached variant and the unmodified original have separate representations.
       const legacyVersionKey = await resolveThumbnailVersionKey({
         object_key: legacyKey,
         sha256: null,
         updated_at: "2026-01-01T00:00:00.000Z",
       });
       const legacyThumbKey = buildThumbnailObjectKey("ws_default", "res_legacy_1", legacyVersionKey, 400);
-      expect(await env.storage.resources.get(legacyThumbKey)).not.toBeNull();
+      const cachedLegacyThumbnail = await env.storage.resources.get(legacyThumbKey);
+      expect(cachedLegacyThumbnail).not.toBeNull();
+      await cachedLegacyThumbnail?.body.cancel();
 
       const legacyOrigRes = await callApp("/api/v1/resources/res_legacy_1/blob");
       expect(legacyOrigRes.status).toBe(200);
       expect(legacyOrigRes.headers.get("Content-Type")).toBe("image/png");
       expect(new Uint8Array(await legacyOrigRes.arrayBuffer())).toEqual(new Uint8Array(legacyPng));
+
+      // With resizing disabled, an uncached width still streams the exact legacy original.
+      env.resizeImageThumbnail = undefined;
+      const legacyFallback = await callApp("/api/v1/resources/res_legacy_1/blob?w=800");
+      expect(legacyFallback.status).toBe(200);
+      expect(legacyFallback.headers.get("Content-Type")).toBe("image/png");
+      expect(legacyFallback.headers.get("Cache-Control")).toBe("private, no-cache");
+      expect(new Uint8Array(await legacyFallback.arrayBuffer())).toEqual(new Uint8Array(legacyPng));
 
       const delLegacyRes = await callApp("/api/v1/resources/res_legacy_1", { method: "DELETE" });
       expect(delLegacyRes.status).toBe(200);
