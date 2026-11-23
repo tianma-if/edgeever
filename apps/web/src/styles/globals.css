@@ -2815,10 +2815,13 @@ html[data-edgeever-extension-theme] .edgeever-memo-divider {
   min-width: 100%;
 }
 
-.ProseMirror table col,
-.markdown-content table col {
-  width: var(--mobile-table-column-width) !important;
-  min-width: var(--mobile-table-column-width) !important;
+.ProseMirror table:not(:has(colgroup)) th,
+.ProseMirror table:not(:has(colgroup)) td,
+.markdown-content table:not(:has(colgroup)) th,
+.markdown-content table:not(:has(colgroup)) td {
+  width: auto;
+  min-width: 0;
+  max-width: none;
 }
 
 .ProseMirror th,
