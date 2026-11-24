@@ -1400,6 +1400,17 @@ html[data-edgeever-extension-theme] .edgeever-memo-divider {
   color: #1a1d21;
 }
 
+/* Use one local face for both Latin and kana when Windows provides it. */
+@font-face {
+  font-family: "EdgeEver Japanese Heading";
+  src: local("Yu Gothic UI Semibold"), local("YuGothicUI-Semibold");
+  font-weight: 600;
+}
+
+:where(html:not([data-editor-body-font]) .edgeever-editor[data-editor-theme="default"] .ProseMirror) h1:lang(ja) {
+  font-family: "EdgeEver Japanese Heading", var(--edgeever-system-font-family);
+}
+
 .ProseMirror h2 {
   font-size: 1.25em;
   font-weight: 600;
