@@ -2759,6 +2759,29 @@ html[data-edgeever-extension-theme] .edgeever-memo-divider {
   table-layout: fixed;
 }
 
+/* Container query responsive column distributions for 1-4 columns.
+   These only define the width variable; the content-based rules below
+   govern the actual column widths for tables with up to 8 columns. */
+.ProseMirror table:has(> colgroup > col:first-child:last-child),
+.markdown-content table:has(> colgroup > col:first-child:last-child) {
+  --mobile-table-column-width: 100cqi;
+}
+
+.ProseMirror table:has(> colgroup > col:first-child:nth-last-child(2)),
+.markdown-content table:has(> colgroup > col:first-child:nth-last-child(2)) {
+  --mobile-table-column-width: 50cqi;
+}
+
+.ProseMirror table:has(> colgroup > col:first-child:nth-last-child(3)),
+.markdown-content table:has(> colgroup > col:first-child:nth-last-child(3)) {
+  --mobile-table-column-width: calc(100cqi / 3);
+}
+
+.ProseMirror table:has(> colgroup > col:first-child:nth-last-child(4)),
+.markdown-content table:has(> colgroup > col:first-child:nth-last-child(4)) {
+  --mobile-table-column-width: 25cqi;
+}
+
 /* For tables with 9+ columns on narrow viewports, expand width and scroll inside tableWrapper */
 .ProseMirror table:has(> colgroup > col:first-child:nth-last-child(n+9)),
 .markdown-content table:has(> colgroup > col:first-child:nth-last-child(n+9)) {
