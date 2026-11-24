@@ -1,6 +1,5 @@
 export type DesktopAcpAdapterId = "codex" | "claudeCode" | "antigravity" | "openClaw" | "hermesAgent" | "grokBuild" | "deepseekHarness" | "piAgent" | "workbuddyCn" | "workbuddyIntl" | "codebuddy";
 export type DesktopAcpAdapterState = "not_installed" | "not_probed" | "installing" | "needs_login" | "available" | "failed";
-export type DesktopAntigravityMode = "standalone" | "cli";
 
 export type DesktopAcpPromptCapabilities = {
   image?: boolean;
@@ -17,7 +16,6 @@ export type DesktopAcpAdapter = {
   managed?: boolean;
   updateError?: string;
   customPath?: string;
-  antigravityMode?: DesktopAntigravityMode;
   authMethods?: Array<{ id: string; name: string }>;
 };
 

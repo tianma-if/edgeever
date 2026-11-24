@@ -36,51 +36,24 @@ test("ACP ignores caller paths on all execution channels and preserves main-owne
     const channels = ["desktop:acp-probe", "desktop:acp-authenticate", "desktop:acp-prepare", "desktop:acp-prompt"];
     const handlers = register();
     for (const channel of channels) {
-      const input = { id: "antigravity", adapterId: "antigravity", path: "/attacker/payload", launchMode: "cli" };
+      const input = { id: "antigravity", adapterId: "antigravity", path: "/attacker/payload" };
       await expect(handlers.get(channel)({ sender: {} }, input)).rejects.toThrow(/forbidden/);
       await handlers.get(channel)({ sender }, input);
       expect(calls.at(-1).path).toBeUndefined();
-      expect(calls.at(-1).launchMode).toBe("standalone");
     }
-    await expect(handlers.get("desktop:acp-set-mode")({ sender: {} }, "antigravity", "cli")).rejects.toThrow(/forbidden/);
-    await expect(handlers.get("desktop:acp-set-mode")({ sender }, "codex", "cli")).rejects.toThrow(/forbidden/);
-    await expect(handlers.get("desktop:acp-set-mode")({ sender }, "antigravity", "other")).rejects.toThrow(/invalid_antigravity_mode/);
     sender.isFocused = () => false;
-    expect(await handlers.get("desktop:acp-set-mode")({ sender }, "antigravity", "cli")).toBe(false);
     expect(await handlers.get("desktop:acp-choose-path")({ sender }, "antigravity")).toBeNull();
     sender.isFocused = () => true;
-    expect(await handlers.get("desktop:acp-set-mode")({ sender }, "antigravity", "cli")).toBe(true);
     await handlers.get("desktop:acp-choose-path")({ sender }, "antigravity");
-    expect(JSON.parse(await readFile(filename, "utf8"))).toEqual({
-      antigravity: null,
-      antigravityCli: "/user/chosen/acp",
-      antigravityMode: "cli",
-    });
+    expect(JSON.parse(await readFile(filename, "utf8")).antigravity).toBe("/user/chosen/acp");
     if (process.platform !== "win32") expect((await stat(filename)).mode & 0o777).toBe(0o600);
     const restarted = register();
     for (const channel of channels) {
-      await restarted.get(channel)({ sender }, { id: "antigravity", adapterId: "antigravity", path: "/attacker/payload", launchMode: "standalone" });
+      await restarted.get(channel)({ sender }, { id: "antigravity", adapterId: "antigravity", path: "/attacker/payload" });
       expect(calls.at(-1).path).toBe("/user/chosen/acp");
-      expect(calls.at(-1).launchMode).toBe("cli");
     }
-    await expect(restarted.get("desktop:acp-clear-path")({ sender: {} }, "antigravity")).rejects.toThrow(/forbidden/);
-    await expect(restarted.get("desktop:acp-clear-path")({ sender }, "codex")).rejects.toThrow(/forbidden/);
-    sender.isFocused = () => false;
-    expect(await restarted.get("desktop:acp-clear-path")({ sender }, "antigravity")).toBe(false);
-    expect(JSON.parse(await readFile(filename, "utf8"))).toEqual({
-      antigravity: null,
-      antigravityCli: "/user/chosen/acp",
-      antigravityMode: "cli",
-    });
-    sender.isFocused = () => true;
-    expect(await restarted.get("desktop:acp-clear-path")({ sender }, "antigravity")).toBe(true);
-    expect(JSON.parse(await readFile(filename, "utf8"))).toEqual({ antigravity: null });
-    await restarted.get(channels[0])({ sender }, { id: "antigravity", path: "/attacker/payload", launchMode: "cli" });
+    await restarted.get(channels[0])({ sender }, { id: "codex", path: "/attacker/payload" });
     expect(calls.at(-1).path).toBeUndefined();
-    expect(calls.at(-1).launchMode).toBe("standalone");
-    await restarted.get(channels[0])({ sender }, { id: "codex", path: "/attacker/payload", launchMode: "cli" });
-    expect(calls.at(-1).path).toBeUndefined();
-    expect(calls.at(-1).launchMode).toBeUndefined();
   } finally { await rm(directory, { recursive: true, force: true }); }
 });
 
@@ -111,8 +84,6 @@ test("ACP chooser permits one focused request and cancelled selection records no
   finish(null);
   expect(await pending).toBeNull();
   expect(writes).toBe(0);
-  // A legacy store without setMode reports false rather than pretending the switch persisted.
-  expect(await handlers.get("desktop:acp-set-mode")({ sender }, "antigravity", "cli")).toBe(false);
 });
 
 test("stored ACP programs are revalidated before the runtime can execute them", async () => {

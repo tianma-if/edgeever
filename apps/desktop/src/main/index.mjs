@@ -72,7 +72,7 @@ import { testPicGoConnection, createPicGoUploadQueue, uploadPicGoImage } from ".
 import { listImgBedChannels, testImgBedConnection, uploadImgBedImage } from "./imgbed.mjs";
 import { createPluginPublicNetworkRuntime } from "./plugin-public-network.mjs";
 import { createAiDirectRuntime } from "./ai-direct.mjs";
-import { chooseTrustedAcpPath, createAcpPathStore, validateTrustedAcpPath } from "./acp-path-store.mjs";
+import { createAcpPathStore, validateTrustedAcpPath } from "./acp-path-store.mjs";
 import { createAcpHostRuntime, registerAcpIpc } from "./acp-host.mjs";
 import { shouldQuitAfterAllWindowsClosed } from "./window-lifecycle.mjs";
 import { createNoteWindowController, isValidNoteWindowMemoId, noteWindowUrl } from "./note-windows.mjs";
@@ -1897,13 +1897,11 @@ const startApplication = async () => {
   ipcMain.on("desktop:ai-direct-cancel", (event, requestId) => {
     if (isAppRendererSender(event) && typeof requestId === "string") aiDirect.cancel(requestId);
   });
-  const acpPathStore = createAcpPathStore(join(app.getPath("userData"), "acp-adapters", "chosen-path.json"));
   const acpRuntime = registerAcpIpc(ipcMain, createAcpHostRuntime({
     executablePath: backgroundNodeExecutable(process.execPath),
     mcpExecutablePath: backgroundNodeExecutable(process.execPath),
     adapterStore: join(app.getPath("userData"), "acp-adapters"),
     adapterFetchImpl: (url, init) => net.fetch(url, { ...init, credentials: "omit" }),
-    getAntigravityMode: async () => (await acpPathStore.getEntry()).mode,
     onUpdateDiagnostic: (details) => { void writeDiagnostic("acp.adapter-update-failed", details); },
     onDiagnostic: (details) => { void writeDiagnostic("acp.adapter-stderr", details); },
     onProcessDiagnostic: ({ event, ...details }) => { void writeDiagnostic(`acp.adapter-${event}`, details); },
@@ -1928,13 +1926,13 @@ const startApplication = async () => {
     },
   }), {
     allowInstall: (sender, event) => sender === mainWindow?.webContents && event?.senderFrame === sender.mainFrame,
-    adapterPathStore: acpPathStore,
+    adapterPathStore: createAcpPathStore(join(app.getPath("userData"), "acp-adapters", "chosen-path.json")),
     validateAdapterPath: (filename) => validateTrustedAcpPath(filename, { excludedRoot: app.getPath("userData") }),
-    chooseAdapterPath: () => chooseTrustedAcpPath({
-      showOpenDialog: (options) => dialog.showOpenDialog(mainWindow, options),
-      title: desktopDialogCopy(app.getLocale()).chooseAcpExecutable,
-      excludedRoot: app.getPath("userData"),
-    }),
+    chooseAdapterPath: async () => {
+      const selection = await dialog.showOpenDialog(mainWindow, { properties: ["openFile"], title: desktopDialogCopy(app.getLocale()).chooseAcpExecutable });
+      if (selection.canceled || !selection.filePaths[0]) return null;
+      return validateTrustedAcpPath(selection.filePaths[0], { excludedRoot: app.getPath("userData") });
+    },
   });
   releaseDesktopAcpSessions = () => acpRuntime.releaseWarmSessions();
   await acpRuntime.pruneAdapters().catch(() => {});
