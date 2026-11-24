@@ -44,7 +44,7 @@ export function AiAgentSelector({ source, adapterId, disabled, onPendingChange }
   const probeInputs = listedAgents.map((agent) => desktopAcpAutomaticProbeInput(agent, customPath));
   const probes = useQueries({
     queries: listedAgents.map((agent, index) => ({
-      queryKey: ["ai-sidebar-adapter-probe", agent.id, agent.version ?? "", probeInputs[index]?.path ?? ""],
+      queryKey: ["ai-sidebar-adapter-probe", agent.id, agent.antigravityMode ?? "", agent.version ?? "", probeInputs[index]?.path ?? ""],
       queryFn: () => probeDesktopAcpAdapter(probeInputs[index]!),
       // Listing connectors must not launch third-party processes at startup.
       // Their handshake (and any subprocesses they create) belongs to opening
