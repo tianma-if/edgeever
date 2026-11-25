@@ -178,7 +178,8 @@ jobs:
               shasum -a 256 bun.lock patches/*.patch
             } | shasum -a 256 | awk '{print $1}'
           )"
-          store_cache="$RUNNER_TOOL_CACHE/edgeever-store-bun/$cache_key"
+          store_cache_root="${RUNNER_TOOL_CACHE:?}/edgeever-store-bun"
+          store_cache="$store_cache_root/$cache_key"
           for attempt in 1 2 3; do
             cache_dir="$store_cache"
             if [ "$attempt" -gt 1 ]; then
@@ -186,6 +187,14 @@ jobs:
             fi
             if bun install --frozen-lockfile \
               --cache-dir "$cache_dir"; then
+              # Keep the previous cache if installation had to use a temporary cache.
+              if [ "$attempt" -eq 1 ] && [ -d "$store_cache" ] && [ ! -L "$store_cache" ]; then
+                if ! find -E "$store_cache_root" -mindepth 1 -maxdepth 1 \
+                  -type d -regex '.*/[0-9a-f]{64}' ! -name "$cache_key" \
+                  -exec rm -rf -- {} +; then
+                  echo "::warning::Could not remove all old Bun dependency caches"
+                fi
+              fi
               exit 0
             fi
             echo "Dependency install failed on attempt ${attempt}/3" >&2
