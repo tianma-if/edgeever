@@ -1,5 +1,6 @@
 import type { ObjectStorageSettings } from "@edgeever/shared";
 import { AppError } from "./app-error";
+import { deleteResourceThumbnails } from "./image-thumbnail";
 import { decryptSecret, encryptSecret } from "./secret-encryption";
 import type { BlobStoreAdapter, DatabaseAdapter } from "./storage-contract";
 import { createWorkerS3BlobStore, type WorkerS3Config } from "./worker-s3-blob-store";
@@ -168,25 +169,58 @@ export const resolveObjectStorage = async (env: ObjectStorageEnvironment, config
     };
   }
 
+  const s3Config = await toWorkerS3Config(env.storage.db, row, env);
   return {
     configId: row.id,
     bucketName: row.bucket ?? "external-object-storage",
-    store: createWorkerS3BlobStore(await toWorkerS3Config(env.storage.db, row, env)),
+    store: createWorkerS3BlobStore(s3Config),
+    scopeKey: `s3:${row.id}:${s3Config.endpoint}:${s3Config.region}:${s3Config.bucket}:${s3Config.objectPrefix}:${s3Config.forcePathStyle ? "path" : "vhost"}`,
   };
+};
+
+const inferWorkspaceIdFromObjectKey = (objectKey: string): string | null => {
+  const match = /^workspaces\/([^/]+)\//.exec(objectKey);
+  return match?.[1] ?? null;
+};
+
+export type StoredObjectDeletionTarget = {
+  storage_config_id?: string | null;
+  object_key: string;
+  id?: string;
+  workspace_id?: string | null;
+  kind?: "image" | "attachment";
+  mime_type?: string | null;
+  byte_size?: number;
+  sha256?: string | null;
+  updated_at?: string | null;
 };
 
 export const deleteStoredObjects = async (
   env: ObjectStorageEnvironment,
-  resources: Array<{ storage_config_id?: string | null; object_key: string }>,
+  resources: StoredObjectDeletionTarget[],
 ) => {
-  const groups = new Map<string, string[]>();
+  const groups = new Map<string, StoredObjectDeletionTarget[]>();
   for (const resource of resources) {
     const id = resource.storage_config_id || BUILTIN_STORAGE_CONFIG_ID;
-    groups.set(id, [...(groups.get(id) ?? []), resource.object_key]);
+    groups.set(id, [...(groups.get(id) ?? []), resource]);
   }
 
-  for (const [configId, objectKeys] of groups) {
+  for (const [configId, items] of groups) {
     const { store } = await resolveObjectStorage(env, configId);
-    await store.delete(objectKeys);
+    await store.delete(items.map((item) => item.object_key));
+    for (const item of items) {
+      if (!item.id || item.kind !== "image" || typeof item.byte_size !== "number") continue;
+      const workspaceId = item.workspace_id || inferWorkspaceIdFromObjectKey(item.object_key);
+      if (!workspaceId) continue;
+      await deleteResourceThumbnails(store, workspaceId, {
+        id: item.id,
+        kind: item.kind,
+        mime_type: item.mime_type ?? null,
+        byte_size: item.byte_size,
+        object_key: item.object_key,
+        sha256: item.sha256 ?? null,
+        updated_at: item.updated_at ?? null,
+      });
+    }
   }
 };

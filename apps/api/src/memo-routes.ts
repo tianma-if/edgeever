@@ -125,7 +125,7 @@ type MemoRouteDependencies = {
     actorLabel: string,
     requireEditSession: boolean,
   ) => Promise<
-    | { memo: MemoDetail; releasedResources?: { objectKey: string; storageConfigId: string }[]; error?: never; message?: never; status?: never; details?: never }
+    | { memo: MemoDetail; releasedResources?: Parameters<typeof deleteReleasedResourceObjects>[1]; error?: never; message?: never; status?: never; details?: never }
     | { error: string; message: string; status?: number; details?: Record<string, unknown> }
   >;
 };

@@ -16,6 +16,8 @@
 
 未显式覆盖时，旧部署会保留当前的 R2 存储桶和管理员用户名。
 
+如需在 Cloudflare Workers 上启用 `?w=` 图片缩略图缩放，可在账户开通 Cloudflare Images 后，在 **Settings → Build → Build variables and secrets** 中设置 `EDGE_EVER_CLOUDFLARE_IMAGES=true`（或在外部 `WRANGLER_CONFIG` 的 `[images]` 中绑定 `IMAGES`）。未绑定 `env.IMAGES` 时仍可使用已缓存的缩略图，`?w=` 请求缓存未命中时返回原图并附带 `Cache-Control: private, no-cache`。
+
 ## 更新与排错
 
 - `main` 推送会自动构建、执行 D1 migration、部署并验证。

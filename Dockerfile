@@ -37,7 +37,7 @@ COPY packages packages
 COPY docs docs
 COPY release-summary.json release-summary.json
 COPY scripts/self-hosted-config.mjs scripts/self-hosted-secrets.mjs scripts/self-hosted-server.mjs scripts/prepare-poster-thumbnails.mjs scripts/prepare-poster-thumbnails.d.mts scripts/
-COPY scripts/self-hosted-static.mjs scripts/precompress-self-hosted-assets.mjs scripts/
+COPY scripts/self-hosted-static.mjs scripts/self-hosted-image-thumbnail.mjs scripts/precompress-self-hosted-assets.mjs scripts/
 COPY scripts/self-hosted-stage-stable-assets.mjs scripts/
 COPY tests/browser/poster-thumbnail-generator.html tests/browser/poster-thumbnail-generator.ts tests/browser/
 COPY tsconfig.json ./

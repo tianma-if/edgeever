@@ -549,15 +549,27 @@ export const deleteMemosRecord = async (
   if (permanent) {
     const resourceRows = await db
       .prepare(
-        `SELECT object_key, storage_config_id
+        `SELECT id, kind, mime_type, byte_size, object_key, storage_config_id, sha256, updated_at
          FROM resources
          WHERE memo_id IN (${placeholders})`
       )
       .bind(...uniqueMemoIds)
-      .all<{ object_key: string; storage_config_id: string }>();
+      .all<{
+        id: string;
+        kind: "image" | "attachment";
+        mime_type: string | null;
+        byte_size: number;
+        object_key: string;
+        storage_config_id: string;
+        sha256: string | null;
+        updated_at: string | null;
+      }>();
 
     if (resourceRows.results.length > 0) {
-      await deleteStoredObjects(env, resourceRows.results);
+      await deleteStoredObjects(
+        env,
+        resourceRows.results.map((row) => ({ ...row, workspace_id: workspaceId })),
+      );
     }
 
     statements.push(
@@ -769,15 +781,27 @@ export const emptyTrashMemosRecord = async (
 
   const resourceRows = await db
     .prepare(
-      `SELECT r.object_key, r.storage_config_id
+      `SELECT r.id, r.kind, r.mime_type, r.byte_size, r.object_key, r.storage_config_id, r.sha256, r.updated_at
        FROM resources r
        INNER JOIN memos m ON m.id = r.memo_id
        WHERE m.workspace_id = ? AND m.is_deleted = 1`
     )
-    .bind(workspaceId).all<{ object_key: string; storage_config_id: string }>();
+    .bind(workspaceId).all<{
+      id: string;
+      kind: "image" | "attachment";
+      mime_type: string | null;
+      byte_size: number;
+      object_key: string;
+      storage_config_id: string;
+      sha256: string | null;
+      updated_at: string | null;
+    }>();
 
   if (resourceRows.results.length > 0) {
-    await deleteStoredObjects(env, resourceRows.results);
+    await deleteStoredObjects(
+      env,
+      resourceRows.results.map((row) => ({ ...row, workspace_id: workspaceId })),
+    );
   }
 
   await db.batch([
@@ -1270,8 +1294,14 @@ export const importMemosRecord = async (
 
 export type ReleasedTableResource = {
   id: string;
+  workspaceId: string;
   objectKey: string;
   storageConfigId: string;
+  kind?: "image" | "attachment";
+  mimeType?: string | null;
+  byteSize?: number;
+  sha256?: string | null;
+  updatedAt?: string | null;
 };
 
 export const updateMemoRecord = async (
@@ -1460,15 +1490,30 @@ export const updateMemoRecord = async (
     : [];
   const releasedResources = removedAttachmentIds.length
     ? await db.prepare(
-      `SELECT id, object_key, storage_config_id
+      `SELECT id, kind, mime_type, byte_size, object_key, storage_config_id, sha256, updated_at
        FROM resources
        WHERE memo_id = ? AND is_deleted = 0 AND id IN (${removedAttachmentIds.map(() => "?").join(", ")})`,
-    ).bind(id, ...removedAttachmentIds).all<ReleasedTableResource & { object_key: string; storage_config_id: string }>()
+    ).bind(id, ...removedAttachmentIds).all<{
+      id: string;
+      kind: "image" | "attachment";
+      mime_type: string | null;
+      byte_size: number;
+      object_key: string;
+      storage_config_id: string;
+      sha256: string | null;
+      updated_at: string | null;
+    }>()
     : { results: [] };
   const releasedResourceRows = (releasedResources.results ?? []).map((row) => ({
     id: row.id,
+    workspaceId,
     objectKey: row.object_key,
     storageConfigId: row.storage_config_id,
+    kind: row.kind,
+    mimeType: row.mime_type,
+    byteSize: row.byte_size,
+    sha256: row.sha256,
+    updatedAt: row.updated_at,
   }));
   const releaseResourceStatements = releasedResourceRows.map((resource) => db.prepare(
     `UPDATE resources SET is_deleted = 1, deleted_at = ?, updated_at = ? WHERE id = ? AND memo_id = ? AND is_deleted = 0`,
