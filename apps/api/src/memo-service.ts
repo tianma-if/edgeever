@@ -16,8 +16,7 @@ import {
   listTableAttachmentResourceIds,
   normalizeTags,
   parseTableDocument,
-  TABLE_VIEW_SCHEMA_VERSION,
-  type MemoDetail,
+   type MemoDetail,
   type MemoEditSession,
   type MemoSummary,
   type MemoUpdateInput,
@@ -1466,10 +1465,10 @@ export const updateMemoRecord = async (
       status: 409,
     };
   }
-  if (currentTable?.schemaVersion === TABLE_VIEW_SCHEMA_VERSION && nextTable && nextTable.schemaVersion !== TABLE_VIEW_SCHEMA_VERSION) {
+  if (currentTable && nextTable && nextTable.schemaVersion < currentTable.schemaVersion) {
     return {
       error: "content_conflict",
-      message: "This table uses named views. Update your client and reload the table before saving.",
+      message: "This table uses newer views. Update your client and reload the table before saving.",
       status: 409,
     };
   }

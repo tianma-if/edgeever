@@ -10,9 +10,14 @@ import {
   removeTableField,
   serializeTableDocument,
   TABLE_ATTACHMENT_LIMIT,
+  TABLE_EMAIL_PATTERN,
   TABLE_FIELD_LIMIT,
   TABLE_FIELD_TYPES,
+  TABLE_PHONE_PATTERN,
+  TABLE_SELECT_OPTION_LIMIT,
   updateTableField,
+  tableFieldIsComputed,
+  TABLE_RATING_MAX,
   type TableAttachment,
   type TableDocument,
   type TableField,
@@ -55,11 +60,32 @@ export const validateTableCells = async (
       normalized[fieldId] = attachments;
       continue;
     }
+    // Computed and auto-number fields are derived at read time, so writes are rejected instead of stored.
+    if (field.type === "autoNumber" || tableFieldIsComputed(field.type)) {
+      throw new StructuredNoteError("invalid_params", `${fieldId} is read-only`, 400);
+    }
     if (field.type === "checkbox") {
       if (typeof cell !== "boolean") throw new StructuredNoteError("invalid_params", `${fieldId} requires a boolean`, 400);
     } else if (field.type === "number") {
       if (cell !== null && (typeof cell !== "number" || !Number.isFinite(cell))) {
         throw new StructuredNoteError("invalid_params", `${fieldId} requires a finite number or null`, 400);
+      }
+    } else if (field.type === "progress") {
+      if (cell !== null && (typeof cell !== "number" || !Number.isFinite(cell) || cell < 0 || cell > 100)) {
+        throw new StructuredNoteError("invalid_params", `${fieldId} requires a number between 0 and 100 or null`, 400);
+      }
+    } else if (field.type === "rating") {
+      if (cell !== null && (typeof cell !== "number" || !Number.isInteger(cell) || cell < 0 || cell > TABLE_RATING_MAX)) {
+        throw new StructuredNoteError("invalid_params", `${fieldId} requires an integer between 0 and ${TABLE_RATING_MAX} or null`, 400);
+      }
+    } else if (field.type === "currency" || field.type === "percent") {
+      if (cell !== null && (typeof cell !== "number" || !Number.isFinite(cell))) {
+        throw new StructuredNoteError("invalid_params", `${fieldId} requires a finite number or null`, 400);
+      }
+    } else if (field.type === "multiSelect") {
+      if (!Array.isArray(cell) || cell.length > TABLE_SELECT_OPTION_LIMIT
+        || cell.some((option) => typeof option !== "string" || !field.options?.includes(option))) {
+        throw new StructuredNoteError("invalid_params", `${fieldId} requires an array of existing options`, 400);
       }
     } else if (cell !== null && (typeof cell !== "string" || cell.length > 2000)) {
       throw new StructuredNoteError("invalid_params", `${fieldId} requires a string of at most 2000 characters or null`, 400);
@@ -72,6 +98,12 @@ export const validateTableCells = async (
     }
     if (field.type === "url" && cell && !/^https?:\/\//i.test(cell as string)) {
       throw new StructuredNoteError("invalid_params", `${fieldId} requires an http:// or https:// URL`, 400);
+    }
+    if (field.type === "email" && cell && !TABLE_EMAIL_PATTERN.test(cell as string)) {
+      throw new StructuredNoteError("invalid_params", `${fieldId} requires a valid email address`, 400);
+    }
+    if (field.type === "phone" && cell && !TABLE_PHONE_PATTERN.test(cell as string)) {
+      throw new StructuredNoteError("invalid_params", `${fieldId} requires a valid phone number`, 400);
     }
     normalized[fieldId] = cell;
   }
@@ -101,8 +133,8 @@ const tableFieldType = (value: unknown): TableFieldType => {
 };
 
 const tableFieldOptions = (value: unknown) => {
-  if (!Array.isArray(value) || value.length < 1 || value.length > 40) {
-    throw new StructuredNoteError("invalid_params", "Select fields require 1–40 options", 400);
+  if (!Array.isArray(value) || value.length < 1 || value.length > TABLE_SELECT_OPTION_LIMIT) {
+    throw new StructuredNoteError("invalid_params", `Select fields require 1–${TABLE_SELECT_OPTION_LIMIT} options`, 400);
   }
   const options = value.map((option) => tableFieldName(option));
   if (new Set(options.map((option) => option.toLocaleLowerCase())).size !== options.length) {
@@ -117,14 +149,14 @@ export const tableFieldInput = (value: unknown): TableField => {
     throw new StructuredNoteError("invalid_params", "field must include only name, type, or options", 400);
   }
   const type = tableFieldType(input.type);
-  if (type !== "select" && input.options !== undefined) {
+  if (type !== "select" && type !== "multiSelect" && input.options !== undefined) {
     throw new StructuredNoteError("invalid_params", "Only select fields can have options", 400);
   }
   return {
     id: createTableId("fld"),
     name: tableFieldName(input.name),
     type,
-    ...(type === "select" ? { options: tableFieldOptions(input.options) } : {}),
+    ...(type === "select" || type === "multiSelect" ? { options: tableFieldOptions(input.options) } : {}),
   };
 };
 
@@ -140,24 +172,27 @@ const tableFieldPatch = (current: TableField, value: unknown): Partial<Pick<Tabl
     throw new StructuredNoteError("invalid_params", "changes must include only name, type, or options", 400);
   }
   const type = changes.type === undefined ? current.type : tableFieldType(changes.type);
-  if (type !== "select" && changes.options !== undefined) {
+  if (type !== "select" && type !== "multiSelect" && changes.options !== undefined) {
     throw new StructuredNoteError("invalid_params", "Only select fields can have options", 400);
   }
-  if (type === "select" && current.type !== "select" && changes.options === undefined) {
-    throw new StructuredNoteError("invalid_params", "Changing to select requires options", 400);
+  if ((type === "select" || type === "multiSelect") && current.type !== type && changes.options === undefined) {
+    throw new StructuredNoteError("invalid_params", `Changing to ${type} requires options`, 400);
   }
   return {
     ...(changes.name === undefined ? {} : { name: tableFieldName(changes.name) }),
     ...(changes.type === undefined ? {} : { type }),
-    ...(type === "select" && changes.options !== undefined ? { options: tableFieldOptions(changes.options) } : {}),
+    ...((type === "select" || type === "multiSelect") && changes.options !== undefined ? { options: tableFieldOptions(changes.options) } : {}),
   };
 };
 
 const validTableValueForField = (field: TableField, value: unknown) => {
-  if (value === null || value === "") return true;
+  if (value === null || value === "" || (Array.isArray(value) && value.length === 0)) return true;
   if (field.type === "select") return typeof value === "string" && Boolean(field.options?.includes(value));
+  if (field.type === "multiSelect") return Array.isArray(value) && value.every((option) => typeof option === "string" && field.options?.includes(option));
   if (field.type === "date") return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
   if (field.type === "url") return typeof value === "string" && /^https?:\/\//i.test(value);
+  if (field.type === "email") return typeof value === "string" && TABLE_EMAIL_PATTERN.test(value);
+  if (field.type === "phone") return typeof value === "string" && TABLE_PHONE_PATTERN.test(value);
   return true;
 };
 
@@ -185,7 +220,7 @@ export const applyTableSchemaOperations = (document: TableDocument, value: unkno
         next = { ...next, fields: next.fields.map((field) => field.id === fieldId ? { id: field.id, name: field.name, type: field.type } : field) };
       }
       const finalField = next.fields.find((field) => field.id === fieldId)!;
-      if ((patch.type !== undefined || patch.options !== undefined) && ["select", "date", "url"].includes(finalField.type)) {
+      if ((patch.type !== undefined || patch.options !== undefined) && ["select", "multiSelect", "date", "url", "email", "phone"].includes(finalField.type)) {
         next = {
           ...next,
           records: next.records.map((record) => validTableValueForField(finalField, record.cells[fieldId])

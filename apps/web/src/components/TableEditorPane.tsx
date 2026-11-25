@@ -2,37 +2,32 @@ import { AI_ASSISTANT_LAUNCHER_POSITION } from "@/lib/ai-assistant-launcher";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { defaultRangeExtractor, useVirtualizer, type Range } from "@tanstack/react-virtual";
-import { CalendarDays, Check, ChevronLeft, Copy, Download, ExternalLink, Form, Hash, Link2, List, Paperclip, Pencil, Plus, RefreshCw, Sparkles, SquareCheck, Table2, Trash2, Type, X } from "lucide-react";
+import { ChevronLeft, Download, Form, Maximize2, Plus, RefreshCw, Sparkles, Table2, Trash2, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   addTableField,
   addTableRecord,
   applyTableView,
+  appendTableRecordsFromCsv,
   buildTableDocumentMarkdown,
   createTableId,
   markdownToDoc,
   parseTableDocument,
-  removeTableField,
   removeTableRecord,
   getTableViews,
+  groupTableRecords,
+  resolveTableViewColumns,
   saveTableViews,
   listTableAttachmentResourceIds,
   TABLE_ATTACHMENT_LIMIT,
   TABLE_FIELD_LIMIT,
-  TABLE_FIELD_TYPES,
-  TABLE_VIEW_SCHEMA_VERSION,
-  TABLE_RECORD_LIMIT,
-  tableAttachmentUrl,
+   TABLE_RECORD_LIMIT,
   tableDocumentToCsv,
   updateTableCell,
-  updateTableField,
   type MemoDetail,
   type Notebook,
-  type TableAttachment,
-  type TableCellValue,
   type TableDocument,
   type TableField,
-  type TableFieldType,
   type NamedTableView,
   type TableRecord,
 } from "@edgeever/shared";
@@ -41,26 +36,25 @@ import { AiSidebarErrorBoundary } from "@/components/ai-sidebar/AiSidebarErrorBo
 import { IconTooltip } from "@/components/editor/EditorPaneChrome";
 import { MemoTitleInput } from "@/components/MemoTitleInput";
 import { TableFormDialog } from "@/components/dialogs/TableFormDialog";
+import { RecordDetailDialog } from "@/components/table/RecordDetailDialog";
+import {
+  attachmentItems,
+  attachmentUploadKey,
+  displayCell,
+  FieldHeader,
+  RecordCell,
+  type AttachmentUploadState,
+  type EditingCell,
+} from "@/components/table/table-cells";
 import { TableViewControls } from "@/components/TableViewControls";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { api, getConfiguredDesktopApiBaseUrl } from "@/lib/api";
 import { acknowledgeTableUploads } from "@/lib/table-upload-lifecycle";
-import { copyImageUrlToClipboard } from "@/lib/clipboard";
-import { toDesktopResourceDownloadUrl, toDesktopResourceUrl } from "@/lib/desktop-resources";
 import { EDITOR_LOCAL_SAVE_DELAY_MS, formatShortcutBinding, getNotebookMoveOptions, type ShortcutSettings } from "@/lib/app-helpers";
 import { createLocalEditSession } from "@/components/editor/editor-pane-helpers";
 import { isLocalMemoId } from "@/lib/local-mirror";
 import { isBrowserOffline } from "@/lib/network-status";
-import { resolveSafeTableUrl } from "@/lib/table-url";
 import type { EdgeEverRepository } from "@/lib/repository";
 import type { MemoEditSession } from "@edgeever/shared";
 
@@ -78,12 +72,6 @@ type TableEditorPaneProps = {
   onCompanionNotesChanged?: () => Promise<void>;
   onOpenCompanionNote?: (id: string, notebookId: string) => void;
 };
-
-type EditingCell = { recordId: string; fieldId: string };
-type AttachmentUploadState = "uploading" | { error: string };
-const attachmentUploadKey = (recordId: string, fieldId: string) => JSON.stringify([recordId, fieldId]);
-
-const controlClassName = "h-8 rounded-md border border-slate-200 bg-card px-2 text-xs text-slate-700 outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20 disabled:cursor-not-allowed disabled:opacity-50";
 
 type TableDraft = { title: string; document: TableDocument };
 
@@ -113,453 +101,6 @@ const readTableViewSelection = (id: string) => {
   try { return window.localStorage.getItem(viewSelectionKey(id)); } catch { return null; }
 };
 
-const FIELD_ICONS = { text: Type, number: Hash, checkbox: SquareCheck, date: CalendarDays, select: List, url: Link2, attachment: Paperclip };
-
-const optionText = (field: TableField) => (field.options ?? []).join(", ");
-
-const parseOptionText = (value: string) => value.split(/[,，]/).map((item) => item.trim()).filter(Boolean);
-
-const displayCell = (field: TableField, value: TableCellValue) => {
-  if (field.type === "checkbox") return value === true ? "true" : "false";
-  if (Array.isArray(value)) return value.map((item) => item.filename).join(", ");
-  if (value === null || value === undefined || value === "") return "";
-  return String(value);
-};
-
-const FieldHeader = ({
-  document,
-  field,
-  readOnly,
-  onChange,
-}: {
-  document: TableDocument;
-  field: TableField;
-  readOnly: boolean;
-  onChange: (document: TableDocument) => void;
-}) => {
-  const { t } = useTranslation();
-  const [name, setName] = useState(field.name);
-  const [options, setOptions] = useState(optionText(field));
-  const Icon = FIELD_ICONS[field.type];
-  useEffect(() => setName(field.name), [field.name]);
-  useEffect(() => setOptions(optionText(field)), [field.id, field.options]);
-  const commitName = () => {
-    const next = name.trim();
-    if (next && next !== field.name) onChange(updateTableField(document, field.id, { name: next }));
-    else setName(field.name);
-  };
-  const commitOptions = () => onChange(updateTableField(document, field.id, { options: parseOptionText(options) }));
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          className="flex w-full min-w-36 items-center gap-1.5 rounded-md px-2 py-1 text-left text-xs font-medium text-slate-600 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20"
-          aria-label={t("structuredTable.editField", { name: field.name })}
-          disabled={readOnly}
-        >
-          <Icon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-          <span className="truncate">{field.name}</span>
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-64 space-y-2 p-2">
-        <label className="block space-y-1 text-xs text-slate-500">
-          <span>{t("structuredTable.fieldName")}</span>
-          <Input value={name} onChange={(event) => setName(event.target.value)} onBlur={commitName} aria-label={t("structuredTable.fieldName")} />
-        </label>
-        <label className="block space-y-1 text-xs text-slate-500">
-          <span>{t("structuredTable.fieldType")}</span>
-          <select
-            className={`${controlClassName} w-full`}
-            value={field.type}
-            aria-label={t("structuredTable.fieldType")}
-            onChange={(event) => onChange(updateTableField(document, field.id, { type: event.target.value as TableFieldType }))}
-          >
-            {TABLE_FIELD_TYPES.map((type) => <option key={type} value={type}>{t(`structuredTable.types.${type}`)}</option>)}
-          </select>
-        </label>
-        {field.type === "select" ? (
-          <label className="block space-y-1 text-xs text-slate-500">
-            <span>{t("structuredTable.selectOptions")}</span>
-            <Input
-              value={options}
-              placeholder={t("structuredTable.selectOptionsHint")}
-              aria-label={t("structuredTable.selectOptions")}
-              onChange={(event) => setOptions(event.target.value)}
-              onBlur={commitOptions}
-            />
-          </label>
-        ) : null}
-        <DropdownMenuItem
-          disabled={document.fields.length <= 1}
-          onSelect={() => onChange(removeTableField(document, field.id))}
-        >
-          <Trash2 className="h-4 w-4" />
-          {t("structuredTable.deleteField")}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-};
-
-const attachmentItems = (value: TableCellValue): TableAttachment[] => Array.isArray(value) ? value : [];
-
-const isImageAttachment = (item: TableAttachment) => item.mimeType.toLowerCase().startsWith("image/");
-
-const downloadTableAttachment = (href: string, filename: string) => {
-  const anchor = document.createElement("a");
-  anchor.href = toDesktopResourceDownloadUrl(href, filename);
-  anchor.download = filename;
-  anchor.rel = "noreferrer";
-  anchor.click();
-};
-
-const AttachmentCell = ({
-  field,
-  record,
-  memoId,
-  readOnly,
-  repository,
-  onAdd,
-  onRemove,
-  onUploaded,
-  uploadState,
-  onUploadState,
-}: {
-  field: TableField;
-  record: TableRecord;
-  memoId: string;
-  readOnly: boolean;
-  repository: EdgeEverRepository;
-  onAdd: (attachment: TableAttachment) => boolean;
-  onRemove: (resourceId: string) => void;
-  onUploaded: (resourceId: string) => void;
-  uploadState: AttachmentUploadState | undefined;
-  onUploadState: (state: AttachmentUploadState | undefined) => void;
-}) => {
-  const { t } = useTranslation();
-  const inputRef = useRef<HTMLInputElement>(null);
-  const copyTimer = useRef<number | null>(null);
-  const uploading = uploadState === "uploading";
-  const uploadError = typeof uploadState === "object" ? uploadState.error : null;
-  const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [copyError, setCopyError] = useState<string | null>(null);
-  const items = attachmentItems(record.cells[field.id] ?? null);
-  const limitReached = items.length >= TABLE_ATTACHMENT_LIMIT;
-
-  useEffect(() => () => {
-    if (copyTimer.current !== null) window.clearTimeout(copyTimer.current);
-  }, []);
-
-  const copyImage = async (href: string, resourceId: string) => {
-    setCopyError(null);
-    const copied = await copyImageUrlToClipboard(href);
-    if (!copied) {
-      setCopiedId(null);
-      setCopyError(t("structuredTable.copyImageFailed"));
-      return;
-    }
-    setCopiedId(resourceId);
-    if (copyTimer.current !== null) window.clearTimeout(copyTimer.current);
-    copyTimer.current = window.setTimeout(() => {
-      setCopiedId((current) => current === resourceId ? null : current);
-    }, 2000);
-  };
-
-  const uploadFiles = async (files: FileList | null) => {
-    if (!files?.length || readOnly || uploading) return;
-    onUploadState("uploading");
-    try {
-      for (const file of files) {
-        const { resource } = await repository.uploadMemoResource(memoId, file);
-        const added = onAdd({
-          resourceId: resource.id,
-          filename: resource.filename || file.name,
-          mimeType: resource.mimeType || file.type,
-          byteSize: resource.byteSize ?? file.size,
-        });
-        if (!added) {
-          void repository.deleteResource(resource.id).catch(() => undefined);
-          break;
-        }
-        onUploaded(resource.id);
-      }
-      onUploadState(undefined);
-    } catch (error) {
-      onUploadState({ error: error instanceof Error ? error.message : t("structuredTable.saveError") });
-    } finally {
-      if (inputRef.current) inputRef.current.value = "";
-    }
-  };
-
-  return (
-    <div className="flex min-w-36 flex-col gap-1 px-2">
-      {items.map((item) => {
-        const href = toDesktopResourceUrl(tableAttachmentUrl(item.resourceId));
-        const image = isImageAttachment(item);
-        const openLabel = t("structuredTable.openAttachment", { name: item.filename });
-        const copied = copiedId === item.resourceId;
-        return (
-          <div key={item.resourceId} className="group/attachment flex items-center gap-1">
-            {image ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <a
-                    href={href}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="h-8 w-8 shrink-0 overflow-hidden rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20"
-                    aria-label={openLabel}
-                  >
-                    <img src={href} alt="" className="h-full w-full object-cover" />
-                  </a>
-                </TooltipTrigger>
-                <TooltipContent>{openLabel}</TooltipContent>
-              </Tooltip>
-            ) : (
-              <>
-                <Paperclip className="h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden="true" />
-                <a href={href} className="min-w-0 flex-1 truncate text-sm text-slate-800 underline-offset-2 hover:underline" target="_blank" rel="noreferrer">{item.filename}</a>
-              </>
-            )}
-            <div className="hidden items-center gap-1 group-hover/attachment:flex group-focus-within/attachment:flex">
-              {image ? (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      aria-label={copied ? t("structuredTable.imageCopied") : t("structuredTable.copyImage")}
-                      onClick={() => { void copyImage(href, item.resourceId); }}
-                    >
-                      {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>{copied ? t("structuredTable.imageCopied") : t("structuredTable.copyImage")}</TooltipContent>
-                </Tooltip>
-              ) : null}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    aria-label={t("structuredTable.downloadAttachment", { name: item.filename })}
-                    onClick={() => downloadTableAttachment(href, item.filename)}
-                  >
-                    <Download className="h-3.5 w-3.5" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{t("structuredTable.downloadAttachment", { name: item.filename })}</TooltipContent>
-              </Tooltip>
-            </div>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              aria-label={t("structuredTable.removeAttachment", { name: item.filename })}
-              disabled={readOnly}
-              onClick={() => onRemove(item.resourceId)}
-            >
-              <X className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-        );
-      })}
-      <input
-        ref={inputRef}
-        type="file"
-        multiple
-        className="sr-only"
-        aria-label={t("structuredTable.addAttachment")}
-        disabled={readOnly || uploading || limitReached}
-        onChange={(event) => { void uploadFiles(event.target.files); }}
-      />
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        className="h-8 justify-start px-0 text-xs"
-        disabled={readOnly || uploading || limitReached}
-        aria-label={limitReached ? t("structuredTable.attachmentLimit") : t("structuredTable.addAttachment")}
-        onClick={() => inputRef.current?.click()}
-      >
-        <Plus className="h-3.5 w-3.5" />
-        {uploading ? t("structuredTable.uploading") : limitReached ? t("structuredTable.attachmentLimit") : t("structuredTable.addAttachment")}
-      </Button>
-      {uploadError ? <p className="text-xs text-rose-600">{uploadError}</p> : null}
-      {copyError ? <p className="text-xs text-rose-600" role="alert">{copyError}</p> : null}
-    </div>
-  );
-};
-
-const RecordCell = ({
-  document,
-  field,
-  record,
-  active,
-  readOnly,
-  onEdit,
-  memoId,
-  repository,
-  onCommit,
-  onDraft,
-  onChange,
-  onAdd,
-  onRemove,
-  onUploaded,
-  uploadState,
-  onUploadState,
-}: {
-  document: TableDocument;
-  field: TableField;
-  record: TableRecord;
-  active: boolean;
-  readOnly: boolean;
-  onEdit: (cell: EditingCell | null) => void;
-  memoId: string;
-  repository: EdgeEverRepository;
-  onCommit: (value: string) => void;
-  onDraft: (value: string) => void;
-  onChange: (document: TableDocument) => void;
-  onAdd: (attachment: TableAttachment) => boolean;
-  onRemove: (resourceId: string) => void;
-  onUploaded: (resourceId: string) => void;
-  uploadState: AttachmentUploadState | undefined;
-  onUploadState: (state: AttachmentUploadState | undefined) => void;
-}) => {
-  const { t } = useTranslation();
-  const value = record.cells[field.id] ?? null;
-  const text = displayCell(field, value);
-  const [draft, setDraft] = useState(text);
-  useEffect(() => { if (active) setDraft(text); }, [active, text]);
-  if (field.type === "attachment") {
-    return (
-      <AttachmentCell
-        field={field}
-        record={record}
-        memoId={memoId}
-        readOnly={readOnly}
-        repository={repository}
-        onAdd={onAdd}
-        onRemove={onRemove}
-        onUploaded={onUploaded}
-        uploadState={uploadState}
-        onUploadState={onUploadState}
-      />
-    );
-  }
-  if (field.type === "checkbox") {
-    return (
-      <Checkbox
-        checked={value === true}
-        disabled={readOnly}
-        aria-label={field.name}
-        onCheckedChange={(checked) => onChange(updateTableCell(document, record.id, field.id, checked === true))}
-      />
-    );
-  }
-  if (!active) {
-    const safeUrl = field.type === "url" ? resolveSafeTableUrl(text) : null;
-    if (safeUrl) {
-      return (
-        <div className="group/url-cell flex h-8 w-full min-w-36 items-center gap-1 px-2">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <a
-                href={safeUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex min-w-0 flex-1 items-center gap-1 rounded-sm text-sm text-foreground underline decoration-foreground/40 underline-offset-2 hover:decoration-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20"
-                aria-label={t("structuredTable.openUrl", { url: safeUrl })}
-              >
-                <span className="truncate">{text}</span>
-                <ExternalLink className="h-3 w-3 shrink-0 opacity-70" aria-hidden="true" />
-              </a>
-            </TooltipTrigger>
-            <TooltipContent className="max-w-xs break-all">{t("structuredTable.openUrl", { url: safeUrl })}</TooltipContent>
-          </Tooltip>
-          {!readOnly ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 shrink-0 opacity-70 transition-opacity md:opacity-0 md:group-hover/url-cell:opacity-100 md:group-focus-within/url-cell:opacity-100 focus-visible:opacity-100"
-                  aria-label={t("structuredTable.editUrl", { name: field.name })}
-                  onClick={() => onEdit({ recordId: record.id, fieldId: field.id })}
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{t("structuredTable.editUrlTooltip")}</TooltipContent>
-            </Tooltip>
-          ) : null}
-        </div>
-      );
-    }
-    return (
-      <button
-        type="button"
-        className="block h-8 w-full min-w-36 truncate rounded-md px-2 text-left text-sm text-slate-800 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20 disabled:hover:bg-transparent"
-        disabled={readOnly}
-        onClick={() => onEdit({ recordId: record.id, fieldId: field.id })}
-      >
-        {text && field.type === "select" ? (
-          <span className="inline-block max-w-full truncate rounded-md bg-muted px-2 py-0.5 align-middle text-xs font-medium text-foreground">{text}</span>
-        ) : text || <span className="text-slate-300">—</span>}
-      </button>
-    );
-  }
-  if (field.type === "select") {
-    const options = field.options ?? [];
-    const choices = draft && !options.includes(draft) ? [draft, ...options] : options;
-    return (
-      <select
-        autoFocus
-        className={`${controlClassName} w-full min-w-36`}
-        value={draft}
-        aria-label={field.name}
-        onChange={(event) => {
-          setDraft(event.target.value);
-          onDraft(event.target.value);
-          onCommit(event.target.value);
-        }}
-      >
-        <option value="" />
-        {choices.map((option) => <option key={option} value={option}>{option}</option>)}
-      </select>
-    );
-  }
-  return (
-    <input
-      autoFocus
-      className={`${controlClassName} w-full min-w-36`}
-      type={field.type === "number" ? "number" : field.type === "date" ? "date" : field.type === "url" ? "url" : "text"}
-      value={draft}
-      aria-label={field.name}
-      onChange={(event) => {
-        setDraft(event.target.value);
-        onDraft(event.target.value);
-      }}
-      onBlur={() => onCommit(draft)}
-      onKeyDown={(event) => {
-        if (event.key === "Enter") {
-          event.preventDefault();
-          onCommit(draft);
-        }
-        if (event.key === "Escape") onEdit(null);
-      }}
-    />
-  );
-};
-
 export const TableEditorPane = ({
   memo,
   notebooks,
@@ -586,6 +127,10 @@ export const TableEditorPane = ({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveFailed, setSaveFailed] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
+  const [expandedRecordId, setExpandedRecordId] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importNotice, setImportNotice] = useState<string | null>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
   const [aiAssistantOpen, setAiAssistantOpenState] = useState(readAiSidebarOpen);
   const setAiSidebarOpen = useCallback((open: boolean) => {
     setAiAssistantOpenState(open);
@@ -758,6 +303,15 @@ export const TableEditorPane = ({
   }, [weekRevision, relativeWeek]);
   const visibleRecords = useMemo(() => document && activeView
     ? applyTableView(document, document.records, activeView) : [], [activeView, document, weekRevision]);
+  const recordGroups = useMemo(() => document && activeView?.groupBy
+    ? groupTableRecords(document, visibleRecords, activeView.groupBy, { includeEmpty: activeView.layout === "kanban" })
+    : [], [activeView, document, visibleRecords]);
+  const gridRows = useMemo(() => activeView?.groupBy && activeView.layout !== "kanban"
+    ? recordGroups.flatMap((group) => [
+      { type: "group" as const, key: group.key, count: group.records.length },
+      ...group.records.map((record) => ({ type: "record" as const, record })),
+    ])
+    : visibleRecords.map((record) => ({ type: "record" as const, record })), [activeView, recordGroups, visibleRecords]);
   const selectView = (id: string) => {
     setSelectedViewId(id);
     try { window.localStorage.setItem(viewSelectionKey(memo.id), id); } catch { /* device preference only */ }
@@ -770,7 +324,7 @@ export const TableEditorPane = ({
       && (!window.edgeeverDesktop?.isAvailable || getConfiguredDesktopApiBaseUrl())) {
       const health = await api.getInstanceHealth().catch(() => null);
       if (!health) throw new Error(t("structuredTable.views.connectToUpgrade"));
-      if ((health.tableSchemaVersion ?? 0) < TABLE_VIEW_SCHEMA_VERSION) {
+      if ((health.tableSchemaVersion ?? 0) < next.schemaVersion) {
         throw new Error(t("structuredTable.views.upgradeServer"));
       }
       if (documentRef.current !== current) throw new Error(t("structuredTable.views.changed"));
@@ -781,8 +335,11 @@ export const TableEditorPane = ({
   };
   const scrollRef = useRef<HTMLDivElement>(null);
   const [focusedRecordId, setFocusedRecordId] = useState<string | null>(null);
-  const rows = visibleRecords;
-  const rowIndices = useMemo(() => new Map(rows.map((row, index) => [row.id, index])), [rows]);
+  const rowIndices = useMemo(() => {
+    const map = new Map<string, number>();
+    gridRows.forEach((row, index) => { if (row.type === "record") map.set(row.record.id, index); });
+    return map;
+  }, [gridRows]);
   const editingIndex = editing ? rowIndices.get(editing.recordId) : undefined;
   const focusedIndex = focusedRecordId ? rowIndices.get(focusedRecordId) : undefined;
   // Unmounting a focused row can silently discard its input or break keyboard navigation.
@@ -792,9 +349,12 @@ export const TableEditorPane = ({
     if (focusedIndex !== undefined) indices.add(focusedIndex);
     return [...indices].sort((left, right) => left - right);
   }, [editingIndex, focusedIndex]);
-  const rowKey = useCallback((index: number) => rows[index]!.id, [rows]);
+  const rowKey = useCallback((index: number) => {
+    const row = gridRows[index];
+    return !row || row.type === "group" ? `group:${row?.key ?? index}` : row.record.id;
+  }, [gridRows]);
   const rowVirtualizer = useVirtualizer({
-    count: rows.length,
+    count: gridRows.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => TABLE_ROW_ESTIMATE,
     overscan: TABLE_ROW_OVERSCAN,
@@ -803,9 +363,19 @@ export const TableEditorPane = ({
     useAnimationFrameWithResizeObserver: true,
   });
   const virtualRows = rowVirtualizer.getVirtualItems();
-  const fieldWidths = useMemo(() => (document?.fields ?? []).map(
-    (field) => field.type === "attachment" ? TABLE_ATTACHMENT_WIDTH : TABLE_FIELD_WIDTH,
-  ), [document?.fields]);
+  const viewColumns = useMemo(
+    () => document && activeView ? resolveTableViewColumns(document.fields, activeView) : [],
+    [activeView, document],
+  );
+  const visibleColumns = useMemo(() => viewColumns.filter((column) => !column.hidden), [viewColumns]);
+  const visibleFields = useMemo(() => {
+    const fields = document?.fields ?? [];
+    return visibleColumns.map((column) => fields.find((field) => field.id === column.fieldId)!)
+      .filter((field): field is TableField => Boolean(field));
+  }, [document?.fields, visibleColumns]);
+  const fieldWidths = useMemo(() => visibleColumns.map(
+    (column) => column.width ?? (document?.fields.find((field) => field.id === column.fieldId)?.type === "attachment" ? TABLE_ATTACHMENT_WIDTH : TABLE_FIELD_WIDTH),
+  ), [document?.fields, visibleColumns]);
   const assistantMarkdown = aiAssistantOpen && document ? markdownFor(document).markdown : memo.contentMarkdown;
   const assistantLauncher = !readOnly && !aiAssistantOpen ? (
     <IconTooltip
@@ -909,11 +479,32 @@ export const TableEditorPane = ({
     }
   };
 
+  const importCsvFile = async (file: File | null) => {
+    if (!file || readOnly || importing) return;
+    const current = documentRef.current;
+    if (!current) return;
+    setImporting(true);
+    setImportNotice(null);
+    setSaveError(null);
+    try {
+      const result = await appendTableRecordsFromCsv(current, await file.text());
+      if (documentRef.current !== current) throw new Error(t("structuredTable.views.changed"));
+      changeDocument(result.document);
+      setImportNotice(t("structuredTable.csvImported", { count: result.imported }));
+    } catch (error) {
+      setSaveError(`${t("structuredTable.csvImportError")}: ${error instanceof Error ? error.message : ""}`.trim());
+    } finally {
+      setImporting(false);
+      if (importInputRef.current) importInputRef.current.value = "";
+    }
+  };
+
   const renderRecordCell = (field: TableField, record: TableRecord) => (
     <RecordCell
       document={document}
       field={field}
       record={record}
+      recordIndex={document.records.findIndex((item) => item.id === record.id)}
       active={editing?.recordId === record.id && editing.fieldId === field.id}
       readOnly={readOnly}
       memoId={memo.id}
@@ -965,25 +556,41 @@ export const TableEditorPane = ({
   );
 
   const renderRecordActions = (recordId: string) => (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          aria-label={t("structuredTable.deleteRecord")}
-          disabled={readOnly}
-          onClick={() => changeDocument(removeTableRecord(document, recordId))}
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>{t("structuredTable.deleteRecord")}</TooltipContent>
-    </Tooltip>
+    <div className="flex">
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label={t("structuredTable.expandRecord")}
+            onClick={() => setExpandedRecordId(recordId)}
+          >
+            <Maximize2 className="h-4 w-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>{t("structuredTable.expandRecord")}</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label={t("structuredTable.deleteRecord")}
+            disabled={readOnly}
+            onClick={() => changeDocument(removeTableRecord(document, recordId))}
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>{t("structuredTable.deleteRecord")}</TooltipContent>
+      </Tooltip>
+    </div>
   );
 
   const exportCsv = () => {
-    const blob = new Blob([tableDocumentToCsv(document, visibleRecords)], { type: "text/csv;charset=utf-8" });
+    const blob = new Blob([tableDocumentToCsv(document, visibleRecords, visibleFields)], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = window.document.createElement("a");
     const fileName = (title.trim() || t("structuredTable.name")).replace(/[\\/:*?"<>|]/g, "-").slice(0, 80);
@@ -1061,6 +668,33 @@ export const TableEditorPane = ({
         </Button>
         <Tooltip>
           <TooltipTrigger asChild>
+            <span className="inline-flex">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={readOnly || importing || recordLimitReached}
+                aria-label={t("structuredTable.importCsv")}
+                onClick={() => importInputRef.current?.click()}
+              >
+                <Upload className={importing ? "h-4 w-4 animate-pulse" : "h-4 w-4"} />
+                {t("structuredTable.importCsv")}
+              </Button>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>{t("structuredTable.importCsv")}</TooltipContent>
+        </Tooltip>
+        <input
+          ref={importInputRef}
+          type="file"
+          accept=".csv,text/csv"
+          className="sr-only"
+          aria-label={t("structuredTable.importCsv")}
+          onChange={(event) => { void importCsvFile(event.target.files?.[0] ?? null); }}
+        />
+        {importNotice ? <span role="status" className="text-xs text-emerald-700">{importNotice}</span> : null}
+        <Tooltip>
+          <TooltipTrigger asChild>
             <Button
               type="button"
               variant="outline"
@@ -1101,23 +735,74 @@ export const TableEditorPane = ({
       <TableFormDialog
         memoId={memo.id}
         memoTitle={title}
-        fields={document.fields}
+        fields={document.fields.filter((field) => field.type !== "autoNumber")}
         open={formOpen}
         onOpenChange={setFormOpen}
       />
+      <RecordDetailDialog
+        document={document}
+        recordId={expandedRecordId}
+        readOnly={readOnly}
+        onClose={() => setExpandedRecordId(null)}
+        onChange={changeDocument}
+      />
+      {activeView.layout === "kanban" ? (
+        <div className="min-h-0 flex-1 overflow-x-auto overflow-y-hidden p-3" data-testid="table-kanban">
+          <div className="flex h-full min-h-0 items-stretch gap-3">
+            {recordGroups.map((group) => {
+              const option = group.key || t("structuredTable.emptyGroup");
+              return (
+                <section key={group.key || "empty"} className="flex min-h-0 w-72 shrink-0 flex-col rounded-xl border border-border bg-muted/20">
+                  <header className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
+                    <span className="truncate text-sm font-medium">{option}</span>
+                    <span className="text-xs tabular-nums text-muted-foreground">{group.records.length}</span>
+                  </header>
+                  <div className="grid min-h-0 flex-1 content-start gap-2 overflow-y-auto p-2">
+                    {group.records.map((record) => {
+                      const primary = visibleFields[0];
+                      return (
+                        <article key={record.id} className="rounded-lg border border-border bg-card p-2 shadow-sm">
+                          <div className="flex items-start justify-between gap-1">
+                            <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                              {primary ? displayCell(primary, record.cells[primary.id] ?? null, document.records.indexOf(record)) : "—"}
+                            </span>
+                            <Button type="button" variant="ghost" size="icon-sm" aria-label={t("structuredTable.expandRecord")} onClick={() => setExpandedRecordId(record.id)}>
+                              <Maximize2 className="size-3.5" />
+                            </Button>
+                          </div>
+                          <dl className="mt-1 grid gap-0.5">
+                            {visibleFields.slice(1, 4).map((field) => (
+                              <div key={field.id} className="flex min-w-0 items-baseline gap-1 text-xs">
+                                <dt className="shrink-0 text-muted-foreground">{field.name}</dt>
+                                <dd className="min-w-0 truncate">{displayCell(field, record.cells[field.id] ?? null, document.records.indexOf(record)) || "—"}</dd>
+                              </div>
+                            ))}
+                          </dl>
+                        </article>
+                      );
+                    })}
+                    {group.records.length === 0 ? <p className="px-1 py-2 text-xs text-muted-foreground">{t("structuredTable.noCards")}</p> : null}
+                  </div>
+                </section>
+              );
+            })}
+            {recordGroups.length === 0 ? <p className="p-4 text-sm text-slate-500">{t("structuredTable.kanbanNeedSelect")}</p> : null}
+          </div>
+        </div>
+      ) : (
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto">
         <table
           className="min-w-full table-fixed border-separate border-spacing-0"
           style={{ width: fieldWidths.reduce((sum, width) => sum + width, TABLE_ACTION_WIDTH) }}
-          aria-rowcount={rows.length + 1}
+          aria-rowcount={gridRows.length + 1}
         >
           <colgroup>
-            {document.fields.map((field, index) => <col key={field.id} style={{ width: fieldWidths[index] }} />)}
+            {visibleFields.map((field, index) => <col key={field.id} style={{ width: fieldWidths[index] }} />)}
             <col style={{ width: TABLE_ACTION_WIDTH }} />
           </colgroup>
           <thead className="sticky top-0 z-10 bg-card">
             <tr>
-              {document.fields.map((field) => (
+              {visibleFields.map((field) => (
                 <th key={field.id} scope="col" className="border-b border-slate-200 bg-muted/40 px-2 py-1 text-left font-medium">
                   <FieldHeader document={document} field={field} readOnly={readOnly} onChange={changeDocument} />
                 </th>
@@ -1134,30 +819,39 @@ export const TableEditorPane = ({
             }}
           >
             {virtualRows.map((item, index) => {
-              const row = rows[item.index]!;
+              const row = gridRows[item.index]!;
               return (
                 <Fragment key={item.key}>
-                  <VirtualRowGap height={item.start - (virtualRows[index - 1]?.end ?? 0)} columns={fieldWidths.length + 1} />
-                  <tr
-                    ref={rowVirtualizer.measureElement}
-                    data-index={item.index}
-                    data-record-id={row.id}
-                    aria-rowindex={item.index + 2}
-                    className="hover:bg-muted/25"
-                  >
-                    {document.fields.map((field) => (
-                      <td key={field.id} className="border-b border-border/70 px-2 py-1 align-top">
-                        {renderRecordCell(field, row)}
+                  <VirtualRowGap height={item.start - (virtualRows[index - 1]?.end ?? 0)} columns={visibleFields.length + 1} />
+                  {row.type === "group" ? (
+                    <tr ref={rowVirtualizer.measureElement} data-index={item.index} aria-rowindex={item.index + 2} className="bg-muted/40">
+                      <td colSpan={visibleFields.length + 1} className="border-b border-border/70 px-3 py-1.5 text-xs font-medium text-foreground">
+                        <span className="truncate">{row.key || t("structuredTable.emptyGroup")}</span>
+                        <span className="ml-2 tabular-nums text-muted-foreground">{row.count}</span>
                       </td>
-                    ))}
-                    <td className="border-b border-border/70 px-2 py-1 align-top">{renderRecordActions(row.id)}</td>
-                  </tr>
+                    </tr>
+                  ) : (
+                    <tr
+                      ref={rowVirtualizer.measureElement}
+                      data-index={item.index}
+                      data-record-id={row.record.id}
+                      aria-rowindex={item.index + 2}
+                      className="hover:bg-muted/25"
+                    >
+                      {visibleFields.map((field) => (
+                        <td key={field.id} className="border-b border-border/70 px-2 py-1 align-top">
+                          {renderRecordCell(field, row.record)}
+                        </td>
+                      ))}
+                      <td className="border-b border-border/70 px-2 py-1 align-top">{renderRecordActions(row.record.id)}</td>
+                    </tr>
+                  )}
                 </Fragment>
               );
             })}
             <VirtualRowGap
               height={rowVirtualizer.getTotalSize() - (virtualRows.at(-1)?.end ?? 0)}
-              columns={fieldWidths.length + 1}
+              columns={visibleFields.length + 1}
             />
           </tbody>
         </table>
@@ -1165,6 +859,7 @@ export const TableEditorPane = ({
           <p className="px-4 py-8 text-sm text-slate-500">{filtered ? t("structuredTable.noMatches") : t("structuredTable.empty")}</p>
         ) : null}
       </div>
+      )}
       {assistantLauncher}
     </div>
     {assistantSidebar}

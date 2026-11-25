@@ -5,7 +5,8 @@ const readSource = (path: string) => readFileSync(new URL(path, import.meta.url)
 
 describe("table image attachment actions", () => {
   test("opens an image from its thumbnail and keeps copy and download on hover", () => {
-    const source = readSource("../apps/web/src/components/TableEditorPane.tsx");
+    // Cells moved into their own module; the contract still has to hold there.
+    const source = readSource("../apps/web/src/components/table/table-cells.tsx");
     expect(source).toContain("const isImageAttachment = (item: TableAttachment) => item.mimeType.toLowerCase().startsWith(\"image/\");");
     expect(source).toContain('target="_blank"');
     expect(source).toContain('t("structuredTable.openAttachment"');
@@ -15,6 +16,8 @@ describe("table image attachment actions", () => {
     expect(source).toContain('t("structuredTable.downloadAttachment"');
     expect(source).not.toContain("ImageViewer");
     expect(source).not.toContain("openInNewWindow");
+    const pane = readSource("../apps/web/src/components/TableEditorPane.tsx");
+    expect(pane).toContain('} from "@/components/table/table-cells";');
   });
 
   test("names the image actions in every locale", () => {

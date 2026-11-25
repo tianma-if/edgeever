@@ -669,10 +669,20 @@ export type TableFormSettings = {
   fields: TableFormFieldSetting[];
 };
 
+export const PUBLIC_TABLE_FORM_FIELD_TYPES = [
+  "text", "number", "checkbox", "date", "select", "multiSelect", "url", "phone", "email", "attachment",
+  "progress", "rating", "currency", "percent",
+] as const;
+
+export type PublicTableFormFieldType = (typeof PUBLIC_TABLE_FORM_FIELD_TYPES)[number];
+
+export const isPublicTableFormFieldType = (type: string): type is PublicTableFormFieldType =>
+  (PUBLIC_TABLE_FORM_FIELD_TYPES as readonly string[]).includes(type);
+
 export type PublicTableFormField = {
   id: string;
   name: string;
-  type: "text" | "number" | "checkbox" | "date" | "select" | "url" | "attachment";
+  type: PublicTableFormFieldType;
   required: boolean;
   options?: string[];
 };
