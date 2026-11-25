@@ -542,6 +542,10 @@ html:has(.edgeever-public-share) body.yarl__no_scroll {
   overflow: hidden;
 }
 
+[data-public-share-scroll] {
+  min-height: max(100dvh, var(--public-outline-min-height, 0px));
+}
+
 html.edgeever-mobile-native-editing,
 html.edgeever-mobile-native-editing body,
 html.edgeever-mobile-native-editing #root {

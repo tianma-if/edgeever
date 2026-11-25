@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { getMemoDisplayTitle, readNotebookSiteSettings, type NotebookShare } from "@edgeever/shared";
+import { getMemoDisplayTitle, readNotebookSiteSettings, type NotebookShare, type NotebookSiteSettings as SiteSettings } from "@edgeever/shared";
 import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { api, ApiRequestError, getConfiguredDesktopApiBaseUrl } from "@/lib/api";
@@ -64,7 +64,17 @@ export const NotebookSiteSettings = ({ notebookId, share, onSaved }: {
         <section className="grid gap-5 rounded-xl border bg-card p-4 sm:grid-cols-2 sm:p-6">
           <label className="space-y-2 text-sm">{label("slug")}<Input value={slug} onChange={(event) => { setSlug(event.target.value); save.reset(); }} autoCapitalize="none" /></label>
           <label className="space-y-2 text-sm">{label("logo")}<Input type="url" value={settings.logoUrl ?? ""} onChange={(event) => edit({ logoUrl: event.target.value || null })} /></label>
-          <div className="space-y-2 text-sm"><label htmlFor="notebook-site-order">{label("sort")}</label><Select value={settings.sortMode} onValueChange={(value) => edit({ sortMode: value as "existing" | "title" })}><SelectTrigger id="notebook-site-order"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="existing">{label("existingOrder")}</SelectItem><SelectItem value="title">{label("titleOrder")}</SelectItem></SelectContent></Select></div>
+          <div className="space-y-2 text-sm">
+            <label htmlFor="notebook-site-order">{label("sort")}</label>
+            <Select value={settings.sortMode} onValueChange={(value) => edit({ sortMode: value as SiteSettings["sortMode"] })}>
+              <SelectTrigger id="notebook-site-order"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="existing">{label("existingOrder")}</SelectItem>
+                <SelectItem value="title">{label("titleAscending")}</SelectItem>
+                <SelectItem value="title-desc">{label("titleDescending")}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <div className="space-y-2 text-sm"><label className="flex items-center gap-2"><input type="checkbox" disabled={share.passwordProtected} checked={!share.passwordProtected && settings.allowIndexing} onChange={(event) => edit({ allowIndexing: event.target.checked })} />{label("indexing")}</label><p className="text-xs text-muted-foreground">{label("indexingHint")}</p></div>
           <label className="space-y-2 text-sm sm:col-span-2">{label("footer")}<Textarea value={settings.footerText} onChange={(event) => edit({ footerText: event.target.value })} /></label>
           <fieldset className="space-y-3 sm:col-span-2"><legend className="mb-2 text-sm">{label("headerLinks")}</legend>

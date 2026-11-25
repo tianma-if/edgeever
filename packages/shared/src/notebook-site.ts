@@ -7,7 +7,7 @@ export const NotebookSiteSettingsSchema = z.object({
   headerLinks: z.array(z.object({ label: z.string().trim().min(1), url: httpsUrl }).strict()).default([]),
   footerText: z.string().default(""),
   allowIndexing: z.boolean().default(false),
-  sortMode: z.enum(["existing", "title"]).default("existing"),
+  sortMode: z.enum(["existing", "title", "title-desc"]).default("existing"),
 }).strict();
 export type NotebookSiteSettings = z.infer<typeof NotebookSiteSettingsSchema>;
 export const NotebookSiteUpdateSchema = z.object({
