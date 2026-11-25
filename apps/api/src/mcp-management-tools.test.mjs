@@ -1,8 +1,10 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, spyOn, test } from "bun:test";
 import { globSync, readFileSync } from "node:fs";
 import { Database } from "bun:sqlite";
 import { claimPosterRender } from "./poster-render-service";
 import { registerPosterRenderRoutes } from "./poster-render-routes";
+import { PosterRenderEvents } from "./cloudflare-poster-render-events";
+import { POSTER_RENDER_AVAILABLE } from "@edgeever/shared/poster-render-events";
 import { Hono } from "hono";
 import { callMcpTool } from "./index.ts";
 import { createPosterDocument, serializePosterDocument, parsePosterDocument, addTableField, parseDiagramDocument, parseInfographicDocument, parseTableDocument, serializeTableDocument, createDefaultTableDocument } from "@edgeever/shared";
@@ -189,6 +191,56 @@ describe("MCP template and AI instruction management", () => {
     }
     await expect(call("get_memo", { memoId: memo.id, format: "json" })).rejects.toMatchObject({ code: "invalid_params" });
     await expect(call("list_memos", { includeContent: true, format: "json" })).rejects.toMatchObject({ code: "invalid_params" });
+  });
+
+  test("Cloudflare recovers a wakeup interrupted after the job was committed", async () => {
+    const { sqlite, auth, context } = createFixture(["write:memos", "write:resources"]);
+    sqlite.query("INSERT INTO notebooks(id, workspace_id, name) VALUES ('nb_p', 'ws_mcp', 'Posters')").run();
+    const { memo } = await callMcpTool(context, auth, "create_poster_memo", { notebookId: "nb_p", title: "Poster", heading: "Title" });
+    const input = { workspace: auth.workspaceId, memoId: memo.id, revision: memo.revision };
+    const messages = [];
+    let failed = false;
+    let alarmArmed = false;
+    let savedWorkspace;
+    const state = {
+      blockConcurrencyWhile: async (callback) => callback(),
+      storage: {
+        transaction: async (callback) => callback({
+          getAlarm: async () => alarmArmed ? Date.now() : null,
+          put: async (_key, workspace) => { savedWorkspace = workspace; },
+          setAlarm: async () => {
+            expect(sqlite.query("SELECT id FROM poster_render_jobs").get()).toBeNull();
+            alarmArmed = true;
+          },
+        }),
+        get: async () => savedWorkspace,
+        deleteAlarm: async () => { alarmArmed = false; },
+      },
+      getWebSockets() {
+        if (!failed) {
+          failed = true;
+          throw new Error("Delivery interrupted");
+        }
+        return [{ readyState: WebSocket.OPEN, send: (message) => messages.push(message) }];
+      },
+    };
+    const events = new PosterRenderEvents(state, { DB: context.env.storage.db });
+    const report = spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const response = await events.fetch(new Request("https://poster-render.internal/queue", {
+        method: "POST", body: JSON.stringify(input),
+      }));
+      expect(response.status).toBe(200);
+      expect((await response.json()).status).toBe("pending");
+      expect(report).toHaveBeenCalled();
+    } finally {
+      report.mockRestore();
+    }
+    expect(alarmArmed).toBe(true);
+    expect(messages).toEqual([]);
+    await events.alarm();
+    expect(messages).toEqual([POSTER_RENDER_AVAILABLE]);
+    expect((await claimPosterRender(context.env.storage.db, auth.workspaceId)).memo_id).toBe(memo.id);
   });
 
   test("client render queue claims once, saves atomically, isolates workspaces and checks source revision", async () => {

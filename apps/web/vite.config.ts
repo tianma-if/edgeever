@@ -2,6 +2,7 @@ import { automaticPosterThumbnails } from "./poster-thumbnails.ts";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { resolveDeploymentBuildMetadata } from "@edgeever/shared/deployment-metadata";
+import { POSTER_RENDER_EVENTS_PATH } from "@edgeever/shared/poster-render-events";
 import { execSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { fileURLToPath, URL } from "node:url";
@@ -276,6 +277,10 @@ export default defineConfig({
   worker: { format: "es" },
   server: {
     proxy: {
+      [POSTER_RENDER_EVENTS_PATH]: {
+        target: "http://127.0.0.1:8787",
+        ws: true,
+      },
       "/api": {
         target: "http://127.0.0.1:8787",
         changeOrigin: true,

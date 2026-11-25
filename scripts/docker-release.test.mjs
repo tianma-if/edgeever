@@ -81,6 +81,7 @@ describe("Docker release contract", () => {
     );
     expect(dockerfile).toContain("RUN bun run build:web && bun scripts/precompress-self-hosted-assets.mjs && bun run build:self-hosted");
     expect(dockerfile).toContain("scripts/prepare-poster-thumbnails.mjs scripts/prepare-poster-thumbnails.d.mts scripts/");
+    expect(dockerfile).toContain("scripts/self-hosted-poster-render-events.mjs");
     expect(dockerfile).toContain("RUN apk add --no-cache chromium nodejs");
     expect(dockerfile).toContain("EDGE_EVER_POSTER_CHROME_EXECUTABLE=/usr/bin/chromium");
     expect(dockerfile).toContain("COPY tests/browser/poster-thumbnail-generator.html tests/browser/poster-thumbnail-generator.ts tests/browser/");
@@ -142,9 +143,7 @@ describe("Docker release contract", () => {
     expect(application).toContain(
       "storage: createCloudflareStorageAdapter(env)",
     );
-    expect(selfHosted).toContain(
-      "fetchEdgeEverApp(request, env, executionContext)",
-    );
+    expect(selfHosted).toMatch(/fetchEdgeEverApp\(request, \{\s*\.\.\.env,[\s\S]+?\}, executionContext\)/);
     expect(selfHosted).toContain(
       'await import("../apps/api/src/s3-compatible-storage-adapter.ts")',
     );

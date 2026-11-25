@@ -18,7 +18,7 @@ AI 统一使用通用助手右侧栏，海报工作台不再提供独立 AI 面�
 - 有序 `operations` 支持元素新增、删除、复制，图层排序，编组／解除编组，未旋转元素相对画布对齐，以及显式锁定／解锁。先执行字段修改，再执行操作，因此修改锁定元素的字段前需在先前调用中解锁；同一次操作列表也可以显式解锁后再执行后续操作。`canvas` 可选择是否缩放元素，`platform` 使用共用平台规格；拒绝缩放锁定元素。
 - `operations: [{op: "apply_template", template: "bold"}]` 用基础服务端模板替换**全部**元素，保留主要文案。必须有用户明确换模板的请求，存在锁定元素时拒绝。与浏览器编辑器的模板应用不同，此操作不会保留独立添加的装饰元素。
 - `get_poster_preview` 向 MCP 和多模态助手返回当前已保存预览的真实图片内容，修改后清除旧预览引用。没有预览时返回 `browser_render_required`，工具不会重新渲染图片。`export_poster` 导出可编辑 JSON 源稿或当前已保存预览，不是全分辨率重渲染。读取预览需要 `read:resources` 和 `read:memos`，上限 4 MiB。新图片由在线桌面／Web 客户端和内置字体渲染，服务端不运行 Fabric。
-- `request_poster_render` 排队生成新 PNG 预览（长边最高 1600 像素、最多 4 MiB）；可选 `templateId` 应用完整设计模板，像编辑器一样保留独立添加的装饰。需要 `write:memos` 和 `write:resources`，传入 `get_poster` 返回的版本。已登录桌面／Web 工作区每 15 秒领取任务，无需打开该海报。`get_poster_render_job` 返回 pending／rendering／completed／failed，只有完成才代表渲染成功。无在线客户端时等待，未领取任务 10 分钟过期，领取后 2 分钟过期。跨客户端独占领取，保存事务同时校验租约和笔记版本，冲突不会覆盖新源稿。锁定元素阻止更换模板。完成／失败任务保留七天，在创建新任务时清理。全分辨率 PNG／JPEG／WebP 导出仍使用编辑器。
+- `request_poster_render` 排队生成新 PNG 预览（长边最高 1600 像素、最多 4 MiB）；可选 `templateId` 应用完整设计模板，像编辑器一样保留独立添加的装饰。需要 `write:memos` 和 `write:resources`，传入 `get_poster` 返回的版本。服务端通过 WebSocket 通知已登录的桌面／Web 工作区。客户端在建立连接和重连时补查队列，无需打开海报即可渲染。`get_poster_render_job` 返回 pending／rendering／completed／failed，只有完成才代表渲染成功。无在线客户端时等待，未领取任务 10 分钟过期，领取后 2 分钟过期。跨客户端独占领取，保存事务同时校验租约和笔记版本，冲突不会覆盖新源稿。锁定元素阻止更换模板。完成／失败任务保留七天，在创建新任务时清理。全分辨率 PNG／JPEG／WebP 导出仍使用编辑器。
 - `trash_memos` 按查询获得的准确编号移入回收站，`restore_memos` 恢复。普通 `update_memo` 可以修改元数据，不能替换海报内容。
 
 ## 源稿与保存
@@ -34,6 +34,8 @@ AI 统一使用通用助手右侧栏，海报工作台不再提供独立 AI 面�
 Android 和 iOS 展示可读预览与文字，并禁止把海报当作普通富文本编辑。API 同样拒绝旧客户端丢失海报源稿的保存请求。该门禁需要更新后的服务器；旧客户端连接旧服务器时没有这个保护。通用 MCP `update_memo` 不能替换海报内容。
 
 不需要数据库迁移，也没有修改认证或升级配置。回滚界面时撤下新建／编辑入口，保留源稿、附件与只读保护；不要把海报转换为普通笔记或删除源稿标记。
+
+请先部署新版服务端，再更新桌面端。Cloudflare 部署通过仓库中的 Wrangler 迁移创建海报通知 Durable Object。Docker 反向代理须转发 `/api/v1/poster-render/events` 的 WebSocket 升级请求。
 
 验证覆盖源稿往返、格式校验、预览保存失败、SQLite 中的版本冲突与旧 contentJSON 覆盖请求、移动端读取策略，以及本地 Web 新建／编辑／保存／重开／导出与插回原笔记。原生硬件、已安装桌面端跨版本链路与付费 AI 生图仍需单独进行发布验证；本功能不实现生图。
 

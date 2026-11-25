@@ -52,6 +52,7 @@
     "./video-outline": "./src/video-outline.ts",
     "./companion-discovery-context": "./src/companion-discovery-context.ts",
     "./provider-event-stream": "./src/provider-event-stream.ts",
+    "./poster-render-events": "./src/poster-render-events.ts",
     "./backup-archive": "./src/backup-archive.ts",
     "./backup-markdown": "./src/backup-markdown.ts",
     "./note-import": "./src/note-import/index.ts",

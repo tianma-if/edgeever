@@ -8,6 +8,7 @@ import {
   normalizeTags,
   TABLE_VIEW_SCHEMA_VERSION,
 } from "@edgeever/shared";
+import { POSTER_RENDER_EVENTS_PATH } from "@edgeever/shared/poster-render-events";
 import { Hono } from "hono";
 import { registerImportContextGuard, registerImportRoutes } from "./import-routes";
 import { cors } from "hono/cors";
@@ -46,6 +47,8 @@ import {
 } from "./demo-seed-data";
 import { createCloudflareImageThumbnailAdapter } from "./cloudflare-image-adapter";
 import { createCloudflareStorageAdapter } from "./cloudflare-storage-adapter";
+import { createCloudflarePosterRenderEvents } from "./cloudflare-poster-render-events";
+import { posterRenderEventsApp } from "./poster-render-events-route";
 import {
   restoreJsonMemos as restoreJsonMemosService,
   restoreJsonNotebooks as restoreJsonNotebooksService,
@@ -493,11 +496,12 @@ export const fetchEdgeEverApp = async (
   runtimeEnv: Bindings,
   ctx: ExecutionContext,
 ) => {
-    if (isLocalDemoSeedEnabled(runtimeEnv)) {
-      await ensureLocalDemoSeed(runtimeEnv);
-    }
+  if (isLocalDemoSeedEnabled(runtimeEnv)) {
+    await ensureLocalDemoSeed(runtimeEnv);
+  }
 
-    return app.fetch(request, runtimeEnv, ctx);
+  const handler = new URL(request.url).pathname === POSTER_RENDER_EVENTS_PATH ? posterRenderEventsApp : app;
+  return handler.fetch(request, runtimeEnv, ctx);
 };
 
 const worker = {
@@ -522,6 +526,7 @@ const worker = {
       }
       return fetchEdgeEverApp(request, {
         ...env,
+        ...(env.POSTER_RENDER_EVENTS && createCloudflarePosterRenderEvents(env.POSTER_RENDER_EVENTS)),
         storage: createCloudflareStorageAdapter(env),
         deploymentVersionCreatedAt: env.CF_VERSION_METADATA?.timestamp,
         // workerd's default Internet egress checks resolved addresses against its public-only network policy.
@@ -580,6 +585,7 @@ app.onError((error, c) => {
 });
 
 export default worker;
+export { PosterRenderEvents } from "./cloudflare-poster-render-events";
 
 export const callMcpTool = (
   context: AppContext,

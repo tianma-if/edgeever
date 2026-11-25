@@ -12,6 +12,7 @@ import { nodePublicFetch } from "../apps/api/src/node-public-network.ts";
 import { createSelfHostedStorageAdapter } from "../apps/api/src/self-hosted-storage-adapter.ts";
 import { resolveSelfHostedConfig } from "./self-hosted-config.mjs";
 import { createSelfHostedImageThumbnailAdapter } from "./self-hosted-image-thumbnail.mjs";
+import { createSelfHostedPosterRenderEvents } from "./self-hosted-poster-render-events.mjs";
 import { ensureSelfHostedCredentialSecrets, loadSelfHostedEnvironment } from "./self-hosted-secrets.mjs";
 import { serveSelfHostedStatic } from "./self-hosted-static.mjs";
 
@@ -117,6 +118,7 @@ const executionContext = {
   waitUntil: (promise) => Promise.resolve(promise).catch((error) => console.error("[self-hosted] background task failed", error)),
   passThroughOnException: () => undefined,
 };
+const posterRenderEvents = createSelfHostedPosterRenderEvents(storage.db);
 
 const server = Bun.serve({
   hostname: config.hostname,
@@ -124,7 +126,8 @@ const server = Bun.serve({
   // Model providers may take longer than Bun's 10-second default to emit the
   // first streaming token. Keep the connection alive within Bun's supported range.
   idleTimeout: config.idleTimeout,
-  async fetch(request) {
+  websocket: posterRenderEvents.websocket,
+  async fetch(request, server) {
     const pathname = new URL(request.url).pathname;
     const loadAppShell = () => serveSelfHostedStatic(new Request(new URL("/index.html", request.url)), webDirectory);
     if (isNotebookSitePagePath(pathname)) {
@@ -135,7 +138,16 @@ const server = Bun.serve({
       if (page) return page;
     }
     if (isEdgeEverAppPath(pathname)) {
-      return fetchEdgeEverApp(request, env, executionContext);
+      let upgraded = false;
+      const response = await fetchEdgeEverApp(request, {
+        ...env,
+        enqueuePosterRender: (input) => posterRenderEvents.enqueue(server, input),
+        connectPosterRenderEvents: (upgradeRequest, workspace) => {
+          upgraded = posterRenderEvents.upgrade(server, upgradeRequest, workspace);
+          return new Response(null, { status: upgraded ? 204 : 400 });
+        },
+      }, executionContext);
+      return upgraded ? undefined : response;
     }
     return serveSelfHostedStatic(request, webDirectory);
   },
@@ -152,14 +164,24 @@ const shutdown = async (signal) => {
   shuttingDown = true;
   console.log(`[self-hosted] received ${signal}; shutting down`);
 
+  let forceStopTimer;
   try {
-    await server.stop();
+    const stopped = server.stop();
+    posterRenderEvents.close();
+    // Bun can leave a graceful stop pending after upgraded sockets close.
+    // Leave time for in-flight HTTP before forcing shutdown and checkpointing.
+    const forcedStop = new Promise((resolve, reject) => {
+      forceStopTimer = setTimeout(() => server.stop(true).then(resolve, reject), 5_000);
+    });
+    await Promise.race([stopped, forcedStop]);
     sqlite.exec("PRAGMA wal_checkpoint(TRUNCATE)");
     sqlite.close();
     console.log("[self-hosted] shutdown complete");
   } catch (error) {
     console.error("[self-hosted] shutdown failed", error);
     process.exitCode = 1;
+  } finally {
+    clearTimeout(forceStopTimer);
   }
 };
 
