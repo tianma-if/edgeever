@@ -666,6 +666,8 @@ export const enUS = {
     saved: "Saved",
     unsaved: "Unsaved changes",
     back: "Back to note list",
+    more: "More",
+    tools: "Tools",
     editField: "Edit field {{name}}",
     openForm: "Form Collection",
     openFormTooltip: "Share a form link to collect responses as table records.",

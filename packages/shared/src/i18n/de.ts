@@ -824,6 +824,8 @@ export const de = {
     "saved": "Gespeichert",
     "unsaved": "Ungespeicherte Änderungen",
     "back": "Zurück zur Notizliste",
+    "more": "Mehr",
+    "tools": "Werkzeuge",
     "editField": "Feld {{name}} bearbeiten",
     "openForm": "Formularerfassung",
     "openFormTooltip": "Einen Formularlink teilen, um Antworten als Tabellendatensätze zu erfassen.",

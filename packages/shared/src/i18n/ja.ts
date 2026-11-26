@@ -674,6 +674,8 @@ export const ja = {
     saved: "保存しました",
     unsaved: "未保存の変更",
     back: "ノート一覧に戻る",
+    more: "その他",
+    tools: "ツール",
     editField: "フィールド {{name}} を編集",
     openForm: "フォーム収集",
     openFormTooltip: "フォームのリンクを共有して回答を収集し、自動的にテーブルレコードとして追加します。",

@@ -685,6 +685,8 @@ export const zhTW = {
     saved: "已儲存",
     unsaved: "有未儲存的修改",
     back: "返回筆記列表",
+    more: "更多",
+    tools: "工具",
     editField: "編輯欄位 {{name}}",
     openForm: "表單收集",
     openFormTooltip: "分享表單連結收集填寫，提交後自動沉澱為表格記錄",

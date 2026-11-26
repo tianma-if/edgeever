@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ArrowDownUp,
   Check,
   ChevronDown,
   ChevronLeft,
+  Columns3,
   Download,
+  Filter,
+  Group,
   MoreHorizontal,
   PanelLeftClose,
   PanelLeftOpen,
@@ -14,6 +18,7 @@ import {
   Trash2,
   Undo2,
   Upload,
+  Wrench,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
@@ -47,23 +52,27 @@ import {
   type NamedTableView,
   type TableBaseDocument,
   type TableDocument,
+  type TableViewLayout,
 } from "@edgeever/shared";
 import { MemoTitleInput } from "@/components/MemoTitleInput";
 import { BaseCalendar, BaseGallery, BaseGantt, dateFieldCandidates } from "@/components/base/BaseViews";
 import { BaseKanban, BaseRecordPanel, BaseTableGrid } from "@/components/base/BaseTableGrid";
 import { BaseFieldDialog, type FieldDialogState } from "@/components/base/BaseFieldDialog";
-import { TableViewControls } from "@/components/TableViewControls";
+import { LAYOUT_META, TableViewControls, type TableViewDialogMode } from "@/components/TableViewControls";
 import type { AttachmentUploadState } from "@/components/table/table-cells";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { createLocalEditSession } from "@/components/editor/editor-pane-helpers";
+import { useCompactViewport } from "@/hooks/useCompactViewport";
 import { api } from "@/lib/api";
 import { EDITOR_LOCAL_SAVE_DELAY_MS } from "@/lib/app-helpers";
 import { isLocalMemoId } from "@/lib/local-mirror";
@@ -115,6 +124,9 @@ export const BaseEditorPane = ({ memo, repository, readOnly, onBackToList, onSav
   const [importNotice, setImportNotice] = useState<string | null>(null);
   const [uploads, setUploads] = useState<Map<string, AttachmentUploadState>>(() => new Map());
   const [fieldDialog, setFieldDialog] = useState<FieldDialogState | null>(null);
+  const compact = useCompactViewport();
+  const [toolsOpen, setToolsOpen] = useState(false);
+  const [dialogRequest, setDialogRequest] = useState<{ mode: TableViewDialogMode; nonce: number } | null>(null);
   /** Set when the field dialog was opened from the fields panel, so closing it lands back there. */
   const [fieldsPanelSignal, setFieldsPanelSignal] = useState(0);
   const returnToFieldsRef = useRef(false);
@@ -308,6 +320,27 @@ export const BaseEditorPane = ({ memo, repository, readOnly, onBackToList, onSav
     changeDocument(next);
     selectView(selected);
     return true;
+  };
+  const requestDialog = (mode: TableViewDialogMode) => {
+    setToolsOpen(false);
+    setDialogRequest((current) => ({ mode, nonce: (current?.nonce ?? 0) + 1 }));
+  };
+  const switchLayout = (layout: TableViewLayout) => {
+    if (!document || !activeView || readOnly) return;
+    let groupBy = activeView.groupBy;
+    if (layout === "kanban") {
+      const grouped = document.fields.find((field) => field.id === groupBy?.fieldId);
+      if (grouped?.type !== "select") {
+        const fallback = document.fields.find((field) => field.type === "select");
+        if (!fallback) {
+          requestDialog("group");
+          return;
+        }
+        groupBy = { fieldId: fallback.id, direction: "asc" };
+      }
+    }
+    setToolsOpen(false);
+    commitActiveView({ ...activeView, layout, groupBy });
   };
 
   const selectTable = (tableId: string) => {
@@ -567,6 +600,136 @@ export const BaseEditorPane = ({ memo, repository, readOnly, onBackToList, onSav
         )}
       </aside>
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        {compact ? (
+          <div className="border-b border-border" data-history={historyVersion}>
+            <div className="flex min-w-0 items-center gap-0.5 px-1.5 py-1">
+              <Button type="button" variant="ghost" size="icon" className="size-8 shrink-0" aria-label={t("structuredTable.back")} onClick={onBackToList}>
+                <ChevronLeft className="size-4" />
+              </Button>
+              <div className="min-w-0 flex-1">
+                <MemoTitleInput
+                  ariaLabel={t("structuredTable.title")}
+                  placeholder={t("structuredTable.title")}
+                  readOnly={readOnly}
+                  value={title}
+                  onValueChange={(value) => {
+                    setTitle(value);
+                    titleRef.current = value;
+                    setDirty(value !== savedDraftRef.current?.title || baseRef.current !== savedDraftRef.current?.base);
+                  }}
+                />
+              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button type="button" variant="ghost" size="icon" className="size-8 shrink-0" aria-label={t("structuredTable.more")} data-testid="base-more-menu">
+                    <MoreHorizontal className="size-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuItem disabled={readOnly || fieldLimitReached} onSelect={() => setFieldDialog({ mode: "add" })}>
+                    <Columns3 className="size-3.5" aria-hidden="true" />{t("structuredTable.addField")}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem disabled={readOnly || recordLimitReached} onSelect={() => changeDocument(addTableRecord(document))}>
+                    <Plus className="size-3.5" aria-hidden="true" />{t("structuredTable.addRecord")}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onSelect={exportCsv}>
+                    <Download className="size-3.5" aria-hidden="true" />{t("structuredTable.exportCsv")}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem disabled={readOnly || importing || recordLimitReached} onSelect={() => importInputRef.current?.click()}>
+                    <Upload className="size-3.5" aria-hidden="true" />{t("structuredTable.importCsv")}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem disabled={refreshing || saving || dirty || isLocalMemoId(memo.id)} onSelect={() => { void refreshBase(); }}>
+                    <RefreshCw className="size-3.5" aria-hidden="true" />{t("structuredTable.refresh")}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem disabled={readOnly || historyRef.current.past.length === 0} onSelect={() => jumpHistory("undo")}>
+                    <Undo2 className="size-3.5" aria-hidden="true" />{t("structuredTable.undo")}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem disabled={readOnly || historyRef.current.future.length === 0} onSelect={() => jumpHistory("redo")}>
+                    <Redo2 className="size-3.5" aria-hidden="true" />{t("structuredTable.redo")}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+            <div className="flex min-w-0 items-center gap-1 px-1.5 pb-1">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button type="button" variant="ghost" size="sm" className="h-8 min-w-0 gap-1 px-2" aria-label={t("structuredTable.tables")} data-testid="base-table-picker">
+                    <Table2 className="size-4 shrink-0" aria-hidden="true" />
+                    <span className="max-w-20 truncate text-xs">{activeTable.name}</span>
+                    <ChevronDown className="size-3.5 shrink-0" aria-hidden="true" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-56">
+                  {tables.map((table) => (
+                    <DropdownMenuItem key={table.id} data-testid="base-table-picker-item" data-table-id={table.id} onSelect={() => selectTable(table.id)}>
+                      <span className="truncate">{table.name}</span>
+                      {table.id === activeTable.id ? <Check className="ml-auto size-3.5" aria-hidden="true" /> : null}
+                    </DropdownMenuItem>
+                  ))}
+                  <DropdownMenuItem disabled={readOnly || !canAddTable} onSelect={() => { createTable(); }}>
+                    <Plus className="size-3.5" aria-hidden="true" />{t("structuredTable.newTable")}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button type="button" variant="ghost" size="sm" className="h-8 min-w-0 gap-1 px-2" aria-label={t("structuredTable.views.label")} data-testid="base-view-picker">
+                    <span className="max-w-24 truncate text-xs">{activeView.name || t("structuredTable.views.default")}</span>
+                    <ChevronDown className="size-3.5 shrink-0" aria-hidden="true" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-56">
+                  {views.map((view) => {
+                    const Icon = LAYOUT_META[view.layout ?? "grid"].icon;
+                    return (
+                      <DropdownMenuItem key={view.id} data-testid="base-view-picker-item" onSelect={() => selectView(view.id)}>
+                        <Icon className="size-3.5" aria-hidden="true" />
+                        <span className="truncate">{view.name || t("structuredTable.views.default")}</span>
+                        {view.id === activeView.id ? <Check className="ml-auto size-3.5" aria-hidden="true" /> : null}
+                      </DropdownMenuItem>
+                    );
+                  })}
+                  <DropdownMenuSeparator />
+                  {readOnly ? null : (
+                    <>
+                      <DropdownMenuItem onSelect={() => requestDialog("new")}>{t("structuredTable.views.new")}</DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => requestDialog("rename")}>{t("structuredTable.views.rename")}</DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => requestDialog("copy")}>{t("structuredTable.views.copy")}</DropdownMenuItem>
+                      <DropdownMenuItem disabled={views.length <= 1} onSelect={() => requestDialog("delete")}>{t("structuredTable.views.delete")}</DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <span className="ml-auto shrink-0 whitespace-nowrap text-[11px] text-muted-foreground" data-testid="base-compact-status">
+                {saveLabel ?? t("structuredTable.recordCount", { count: document.records.length })}
+              </span>
+              <Button
+                type="button"
+                variant={activeView.filters.length ? "soft" : "ghost"}
+                size="icon"
+                className="size-8 shrink-0"
+                aria-label={t("structuredTable.filter")}
+                data-testid="base-compact-filter"
+                onClick={() => requestDialog("filter")}
+              >
+                <Filter className="size-4" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-8 shrink-0"
+                aria-label={t("structuredTable.tools")}
+                data-testid="base-compact-tools"
+                onClick={() => setToolsOpen(true)}
+              >
+                <Wrench className="size-4" />
+              </Button>
+            </div>
+          </div>
+        ) : (
         <div className="flex flex-nowrap items-center gap-1.5 overflow-x-auto border-b border-border px-3 py-1.5" data-history={historyVersion}>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -748,11 +911,14 @@ export const BaseEditorPane = ({ memo, repository, readOnly, onBackToList, onSav
             {t("structuredTable.addRecord")}
           </Button>
         </div>
+        )}
         <TableViewControls
           fields={document.fields}
           views={views}
           active={activeView}
           readOnly={readOnly}
+          compact={compact}
+          openRequest={dialogRequest}
           layouts={[...TABLE_VIEW_LAYOUTS]}
           onSelect={selectView}
           onCommit={commitViews}
@@ -799,9 +965,10 @@ export const BaseEditorPane = ({ memo, repository, readOnly, onBackToList, onSav
             ) : null}
           </div>
         ) : null}
-        <div className="flex min-h-0 min-w-0 flex-1">
+        <div className="relative flex min-h-0 min-w-0 flex-1">
           {activeView.layout === "kanban" ? (
             <BaseKanban
+              compact={compact}
               document={document}
               view={activeView}
               readOnly={readOnly}
@@ -836,6 +1003,7 @@ export const BaseEditorPane = ({ memo, repository, readOnly, onBackToList, onSav
             />
           ) : (
             <BaseTableGrid
+              compact={compact}
               document={document}
               onConfigureField={(field) => setFieldDialog({ mode: "edit", field })}
               onResizeColumn={(fieldId, width) => {
@@ -860,6 +1028,7 @@ export const BaseEditorPane = ({ memo, repository, readOnly, onBackToList, onSav
           )}
           {expandedRecordId ? (
             <BaseRecordPanel
+              overlay={compact}
               document={document}
               record={expandedRecordId ? computedRecords?.get(expandedRecordId) ?? document.records.find((item) => item.id === expandedRecordId) ?? null : null}
               recordId={expandedRecordId}
@@ -874,6 +1043,53 @@ export const BaseEditorPane = ({ memo, repository, readOnly, onBackToList, onSav
           ) : null}
         </div>
       </div>
+      <Drawer open={toolsOpen} onOpenChange={setToolsOpen}>
+        <DrawerContent data-testid="base-tools-sheet">
+          <DrawerTitle className="px-4 pb-1 pt-1 text-sm font-medium">{t("structuredTable.tools")}</DrawerTitle>
+          <div className="grid grid-cols-5 gap-1 px-3 pb-2">
+            {TABLE_VIEW_LAYOUTS.map((layout) => {
+              const meta = LAYOUT_META[layout];
+              const Icon = meta.icon;
+              const selected = layout === "grid" ? !activeView.layout || activeView.layout === "grid" : activeView.layout === layout;
+              return (
+                <button
+                  key={layout}
+                  type="button"
+                  data-testid={`base-tools-layout-${layout}`}
+                  aria-pressed={selected}
+                  onClick={() => switchLayout(layout)}
+                  className={`flex flex-col items-center gap-1 rounded-md px-1 py-2 text-[11px] ${selected ? "bg-muted text-foreground" : "text-muted-foreground"}`}
+                >
+                  <Icon className="size-4" aria-hidden="true" />
+                  <span className="truncate">{t(meta.label)}</span>
+                </button>
+              );
+            })}
+          </div>
+          <div className="grid grid-cols-4 gap-1 border-t border-border px-3 pb-6 pt-2">
+            {([
+              { mode: "fields" as const, label: t("structuredTable.fields"), icon: Columns3 },
+              { mode: "filter" as const, label: t("structuredTable.filter"), icon: Filter },
+              { mode: "group" as const, label: t("structuredTable.group"), icon: Group },
+              { mode: "sort" as const, label: t("structuredTable.sort"), icon: ArrowDownUp },
+            ]).map((item) => {
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.mode}
+                  type="button"
+                  data-testid={`base-tools-${item.mode}`}
+                  onClick={() => requestDialog(item.mode)}
+                  className="flex flex-col items-center gap-1 rounded-md px-1 py-2 text-[11px] text-muted-foreground"
+                >
+                  <Icon className="size-4" aria-hidden="true" />
+                  <span className="truncate">{item.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </DrawerContent>
+      </Drawer>
       <BaseFieldDialog
         open={fieldDialog !== null}
         state={fieldDialog}

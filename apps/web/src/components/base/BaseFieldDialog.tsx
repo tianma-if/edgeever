@@ -119,7 +119,7 @@ export const BaseFieldDialog = ({ open, state, document, onOpenChange, onSubmit 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-h-[calc(100dvh-2rem)] w-[calc(100%-1.5rem)] max-w-lg overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{editing ? t("structuredTable.fieldDialogEdit") : t("structuredTable.fieldDialogAdd")}</DialogTitle>
         </DialogHeader>

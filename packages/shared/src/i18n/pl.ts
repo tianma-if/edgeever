@@ -674,6 +674,8 @@ export const pl = {
     saved: "Zapisano",
     unsaved: "Niezapisane zmiany",
     back: "Wróć do listy notatek",
+    more: "Więcej",
+    tools: "Narzędzia",
     editField: "Edytuj pole {{name}}",
     openForm: "Zbieranie przez formularz",
     openFormTooltip: "Udostępnij link do formularza, aby zbierać odpowiedzi jako rekordy tabeli.",

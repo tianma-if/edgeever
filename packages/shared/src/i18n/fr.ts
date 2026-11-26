@@ -824,6 +824,8 @@ export const fr = {
     saved: "Enregistré",
     unsaved: "Modifications non enregistrées",
     back: "Retour à la liste des notes",
+    more: "Plus",
+    tools: "Outils",
     editField: "Modifier le champ {{name}}",
     openForm: "Collecte par formulaire",
     openFormTooltip: "Partagez un lien de formulaire pour collecter des réponses sous forme d'enregistrements du tableau.",

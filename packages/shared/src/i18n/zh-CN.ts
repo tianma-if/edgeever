@@ -685,6 +685,8 @@ export const zhCN = {
     saved: "已保存",
     unsaved: "有未保存的修改",
     back: "返回笔记列表",
+    more: "更多",
+    tools: "工具",
     editField: "编辑字段 {{name}}",
     openForm: "表单收集",
     openFormTooltip: "分享表单链接收集填写，提交后自动沉淀为表格记录",

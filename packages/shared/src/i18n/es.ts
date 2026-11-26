@@ -824,6 +824,8 @@ export const es = {
     "saved": "Guardado",
     "unsaved": "Cambios sin guardar",
     "back": "Volver a la lista de notas",
+    "more": "Más",
+    "tools": "Herramientas",
     "editField": "Editar campo {{name}}",
     "openForm": "Recopilación por formulario",
     "openFormTooltip": "Comparte un enlace de formulario para recopilar respuestas como registros de la tabla.",

@@ -66,6 +66,8 @@ type BaseTableGridProps = {
   repository: EdgeEverRepository;
   onChange: (next: TableDocument) => void;
   onExpandRecord: (recordId: string) => void;
+  /** Phones hide hover-only affordances and promote them to always - visible controls. */
+  compact?: boolean;
   uploads: Map<string, AttachmentUploadState>;
   onUploadState: (key: string, state: AttachmentUploadState | undefined) => void;
   onConfigureField?: (field: TableField) => void;
@@ -84,6 +86,7 @@ export const BaseTableGrid = ({
   repository,
   onChange,
   onExpandRecord,
+  compact = false,
   uploads,
   onUploadState,
   onConfigureField,
@@ -382,8 +385,20 @@ export const BaseTableGrid = ({
                       style={{ height: ROW_HEIGHT }}
                       onFocus={() => setFocusedRecordId(row.record.id)}
                     >
-                      <td className="sticky left-0 z-10 border-b border-r border-border bg-card px-2 text-center text-xs tabular-nums text-muted-foreground group-hover/row:bg-muted/30">
-                        {(indicesById.get(row.record.id) ?? 0) + 1}
+                      <td className="sticky left-0 z-10 border-b border-r border-border bg-card px-0 text-center text-xs tabular-nums text-muted-foreground group-hover/row:bg-muted/30">
+                        {compact ? (
+                          <button
+                            type="button"
+                            data-testid="base-row-index"
+                            aria-label={t("structuredTable.expandRecord")}
+                            onClick={() => onExpandRecord(row.record.id)}
+                            className="flex h-full min-h-8 w-full items-center justify-center"
+                          >
+                            {(indicesById.get(row.record.id) ?? 0) + 1}
+                          </button>
+                        ) : (
+                          <span className="block px-2">{(indicesById.get(row.record.id) ?? 0) + 1}</span>
+                        )}
                       </td>
                       {visibleFields.map((field) => (
                         <td
@@ -396,7 +411,7 @@ export const BaseTableGrid = ({
                         </td>
                       ))}
                       <td className="sticky right-0 z-10 border-b border-l border-border bg-card px-1 align-middle group-hover/row:bg-muted/30">
-                        <div className="opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100">
+                        <div className={compact ? "" : "opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100"}>
                           {renderRowActions(row.record.id)}
                         </div>
                       </td>
@@ -478,9 +493,11 @@ type BaseKanbanProps = {
   readOnly: boolean;
   onOpenRecord: (recordId: string) => void;
   onChange: (next: TableDocument) => void;
+  /** Phones open the record from anywhere on the card instead of from a hover icon. */
+  compact?: boolean;
 };
 
-export const BaseKanban = ({ document, view, readOnly, onOpenRecord, onChange }: BaseKanbanProps) => {
+export const BaseKanban = ({ document, view, readOnly, onOpenRecord, onChange, compact = false }: BaseKanbanProps) => {
   const { t } = useTranslation();
   const groupField = view.groupBy ? document.fields.find((field) => field.id === view.groupBy?.fieldId) : undefined;
   const records = useMemo(() => applyTableView(document, document.records, view), [document, view]);
@@ -521,6 +538,7 @@ export const BaseKanban = ({ document, view, readOnly, onOpenRecord, onChange }:
                   key={record.id}
                   className="overflow-hidden rounded-lg border border-border bg-card shadow-sm transition-shadow duration-150 hover:shadow-md"
                   style={{ contain: "paint" }}
+                  onClick={compact ? () => onOpenRecord(record.id) : undefined}
                 >
                   {cover ? (
                     <button type="button" className="block h-24 w-full overflow-hidden bg-muted/40" onClick={() => onOpenRecord(record.id)} aria-label={t("structuredTable.recordDetails")}>
@@ -589,6 +607,7 @@ export const BaseRecordPanel = ({
   onClose,
   onChange,
   onDelete,
+  overlay = false,
 }: {
   document: TableDocument;
   record?: TableRecord | null;
@@ -597,6 +616,8 @@ export const BaseRecordPanel = ({
   onClose: () => void;
   onChange: (next: TableDocument) => void;
   onDelete: () => void;
+  /** On phones the panel covers the grid instead of sitting beside it. */
+  overlay?: boolean;
 }) => {
   const { t } = useTranslation();
   const stored = document.records.find((item) => item.id === recordId);
@@ -609,7 +630,12 @@ export const BaseRecordPanel = ({
     onChange(updateTableCell(document, stored.id, field.id, value));
   };
   return (
-    <aside className="flex w-[360px] shrink-0 flex-col border-l border-border bg-card" data-testid="base-record-panel">
+    <aside
+      className={overlay
+        ? "absolute inset-0 z-30 flex w-full flex-col overflow-y-auto border-l border-border bg-card md:static md:z-auto md:w-[360px] md:overflow-visible"
+        : "flex w-[360px] shrink-0 flex-col border-l border-border bg-card"}
+      data-testid="base-record-panel"
+    >
       <header className="flex items-center gap-2 border-b border-border px-3 py-2">
         <h2 className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
           {primary ? displayCell(primary, record.cells[primary.id] ?? null, index) || t("structuredTable.recordDetails") : t("structuredTable.recordDetails")}

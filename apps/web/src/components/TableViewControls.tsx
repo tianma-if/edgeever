@@ -16,12 +16,17 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { FIELD_ICONS } from "@/components/table/table-cells";
 
 type Mode = "filter" | "sort" | "fields" | "group" | "new" | "copy" | "rename" | "delete";
+export type TableViewDialogMode = Mode;
 type FilterDraft = { id: number; rule: TableViewFilter };
 type Props = {
   fields: TableField[];
   views: NamedTableView[];
   active: NamedTableView;
   readOnly: boolean;
+  /** Renders only the dialogs; the compact editor draws its own single-row toolbars. */
+  compact?: boolean;
+  /** Lets a compact toolbar open one of the dialogs from outside. */
+  openRequest?: { mode: TableViewDialogMode; nonce: number } | null;
   /** Layouts offered by the switcher; the single-table editor opts out of the newer views. */
   layouts?: TableViewLayout[];
   onSelect: (id: string) => void;
@@ -34,7 +39,7 @@ type Props = {
   fieldsPanelSignal?: number;
 };
 
-const LAYOUT_META: Record<TableViewLayout, { icon: typeof LayoutGrid; label: string }> = {
+export const LAYOUT_META: Record<TableViewLayout, { icon: typeof LayoutGrid; label: string }> = {
   grid: { icon: LayoutGrid, label: "structuredTable.gridView" },
   kanban: { icon: SquareKanban, label: "structuredTable.kanbanView" },
   calendar: { icon: Calendar, label: "structuredTable.calendarView" },
@@ -270,7 +275,7 @@ function ViewDialog({ mode, fields, views, active, readOnly, onCommit, close, fo
   const title = mode === "filter" || mode === "sort" || mode === "fields" || mode === "group"
     ? t(`structuredTable.${mode}`) : t(`structuredTable.views.${mode}`);
   return (
-    <DialogContent className="w-[calc(100%-1.5rem)] max-w-2xl p-4 sm:p-6" showCloseButton={false}
+    <DialogContent className="max-h-[calc(100dvh-1.5rem)] w-[calc(100%-1.5rem)] max-w-2xl overflow-y-auto p-4 sm:p-6" showCloseButton={false}
       aria-describedby={mode === "delete" ? descriptionId : undefined}
       onEscapeKeyDown={(event) => { if (busy) event.preventDefault(); }}
       onPointerDownOutside={(event) => { if (busy) event.preventDefault(); }}
@@ -478,6 +483,12 @@ export function TableViewControls(props: Props) {
   useEffect(() => {
     if (fieldsPanelSignal > 0) setMode("fields");
   }, [fieldsPanelSignal]);
+  const openRequest = props.openRequest ?? null;
+  const openRequestNonce = openRequest?.nonce ?? 0;
+  useEffect(() => {
+    if (openRequest) setMode(openRequest.mode);
+    // The nonce is the trigger: the same mode requested twice still reopens the dialog.
+  }, [openRequestNonce]);
   const opener = useRef<HTMLButtonElement | null>(null);
   const menuButton = useRef<HTMLButtonElement>(null);
   const open = (next: Mode, button: HTMLButtonElement | null) => {
@@ -503,6 +514,7 @@ export function TableViewControls(props: Props) {
   };
   return (
     <Dialog open={mode !== null} onOpenChange={(open) => { if (!open) setMode(null); }}>
+      {props.compact ? null : (
       <div className="min-w-0 border-b border-border">
       <div className="flex min-w-0 items-center gap-1 px-3">
           <div className="flex min-w-0 items-center gap-1 overflow-x-auto" role="group" aria-label={t("structuredTable.views.label")}>
@@ -576,6 +588,7 @@ export function TableViewControls(props: Props) {
           })}
         </div>
       </div>
+      )}
       {mode && <ViewDialog key={`${active.id}:${mode}`} {...props} mode={mode} close={() => setMode(null)} focusOpener={() => opener.current?.focus()} />}
     </Dialog>
   );
