@@ -641,6 +641,7 @@ export const pl = {
     newTable: "Nowa tabela",
     renameTable: "Zmień nazwę tabeli",
     deleteTable: "Usuń tabelę",
+    deleteTableConfirm: "Usunąć tabelę „{{name}}”? Jej rekordy zostaną usunięte razem z nią.",
     tableLimit: "Maksymalnie 20 tabel",
     tableActions: "Działania dla {{name}}",
     checked: "Zaznaczone",

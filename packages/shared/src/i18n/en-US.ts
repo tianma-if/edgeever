@@ -633,6 +633,7 @@ export const enUS = {
     newTable: "New table",
     renameTable: "Rename table",
     deleteTable: "Delete table",
+    deleteTableConfirm: "Delete the table “{{name}}”? Its records are removed with it.",
     tableLimit: "Up to 20 tables",
     tableActions: "Actions for {{name}}",
     checked: "Checked",

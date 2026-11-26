@@ -791,6 +791,7 @@ export const de = {
     "newTable": "Neue Tabelle",
     "renameTable": "Tabelle umbenennen",
     "deleteTable": "Tabelle löschen",
+    "deleteTableConfirm": "Tabelle „{{name}}“ löschen? Ihre Datensätze werden mit entfernt.",
     "tableLimit": "Höchstens 20 Tabellen",
     "tableActions": "Aktionen für {{name}}",
     "checked": "Ausgewählt",

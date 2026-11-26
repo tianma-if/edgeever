@@ -641,6 +641,7 @@ export const ja = {
     newTable: "新しいテーブル",
     renameTable: "テーブル名を変更",
     deleteTable: "テーブルを削除",
+    deleteTableConfirm: "データ表「{{name}}」を削除しますか？中のレコードも削除されます。",
     tableLimit: "テーブルは最大 20 個",
     tableActions: "{{name}} の操作",
     checked: "チェック済み",

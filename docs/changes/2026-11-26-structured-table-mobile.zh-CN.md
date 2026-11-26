@@ -24,12 +24,15 @@
 - `BaseTableGrid` / `BaseKanban` 新增 `compact`：行号变成打开记录面板的按钮，行尾操作不再
   只在 hover 时显示，看板卡片点任意位置即可打开记录；`BaseRecordPanel` 新增 `overlay`，
   在 `md` 以下覆盖在网格之上。
-- 九个语言文件补 `structuredTable.more` 与 `structuredTable.tools`。
+- 数据表管理（重命名、删除）原来只在桌面侧栏的 `⋯` 菜单里，手机上无处可点；现在紧凑头部的
+  `⋯` 菜单也提供「重命名数据表」「删除数据表」，都作用在当前数据表，删除前有确认弹窗。
+- 九个语言文件补 `structuredTable.more`、`structuredTable.tools` 与 `structuredTable.deleteTableConfirm`。
 - `tests/e2e/structured-table-narrow.spec.ts` 新增一条手机用例：断言除表格本体外没有元素
   横向滚动；走一遍工具浮层；编辑字段后取消回到字段面板；切到看板；分别从卡片和行号打开
-  记录面板。
+  记录面板；再从 `⋯` 菜单重命名、删除数据表，并断言只剩一张表时删除项被禁用。
 
-验收：390px 下抬头与所有工具条都不横滚；桌面端的每个操作都有触屏入口；桌面布局不变。
+验收：390px 下抬头与所有工具条都不横滚；桌面端的每个操作都有触屏入口（含数据表重命名与
+删除）；桌面布局不变。
 
 ## 保持不变
 

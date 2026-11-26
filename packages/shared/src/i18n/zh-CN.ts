@@ -652,6 +652,7 @@ export const zhCN = {
     newTable: "新建数据表",
     renameTable: "重命名数据表",
     deleteTable: "删除数据表",
+    deleteTableConfirm: "删除数据表「{{name}}」？表里的记录会一起删掉。",
     tableLimit: "最多 20 张数据表",
     tableActions: "{{name}} 的操作",
     checked: "已勾选",

@@ -11,6 +11,7 @@ import {
   MoreHorizontal,
   PanelLeftClose,
   PanelLeftOpen,
+  Pencil,
   Plus,
   Redo2,
   RefreshCw,
@@ -61,6 +62,7 @@ import { BaseFieldDialog, type FieldDialogState } from "@/components/base/BaseFi
 import { LAYOUT_META, TableViewControls, type TableViewDialogMode } from "@/components/TableViewControls";
 import type { AttachmentUploadState } from "@/components/table/table-cells";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -114,6 +116,8 @@ export const BaseEditorPane = ({ memo, repository, readOnly, onBackToList, onSav
   const [selectedViewByTable, setSelectedViewByTable] = useState<Record<string, string | null>>({});
   const [expandedRecordId, setExpandedRecordId] = useState<string | null>(null);
   const [renamingTableId, setRenamingTableId] = useState<string | null>(null);
+  const [tableDialog, setTableDialog] = useState<{ mode: "rename" | "delete"; tableId: string } | null>(null);
+  const [tableNameDraft, setTableNameDraft] = useState("");
   const [renameDraft, setRenameDraft] = useState("");
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -366,6 +370,29 @@ export const BaseEditorPane = ({ memo, repository, readOnly, onBackToList, onSav
     if (!name) return;
     try {
       changeBase(renameTableInBase(base, renamingTableId, name));
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : t("structuredTable.saveError"));
+    }
+  };
+  /** Opens the touch-friendly rename/delete sheet used by the phone layout. */
+  const openTableDialog = (mode: "rename" | "delete", tableId: string) => {
+    const table = base?.tables.find((item) => item.id === tableId);
+    if (!table) return;
+    setTableNameDraft(table.name);
+    setTableDialog({ mode, tableId });
+  };
+  const submitTableDialog = () => {
+    if (!tableDialog) return;
+    const { mode, tableId } = tableDialog;
+    setTableDialog(null);
+    if (mode === "delete") {
+      deleteTable(tableId);
+      return;
+    }
+    const name = tableNameDraft.trim();
+    if (!base || !name) return;
+    try {
+      changeBase(renameTableInBase(base, tableId, name));
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : t("structuredTable.saveError"));
     }
@@ -648,6 +675,13 @@ export const BaseEditorPane = ({ memo, repository, readOnly, onBackToList, onSav
                   </DropdownMenuItem>
                   <DropdownMenuItem disabled={refreshing || saving || dirty || isLocalMemoId(memo.id)} onSelect={() => { void refreshBase(); }}>
                     <RefreshCw className="size-3.5" aria-hidden="true" />{t("structuredTable.refresh")}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem disabled={readOnly} data-testid="base-rename-table" onSelect={() => openTableDialog("rename", activeTable.id)}>
+                    <Pencil className="size-3.5" aria-hidden="true" />{t("structuredTable.renameTable")}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem disabled={readOnly || tables.length <= 1} data-testid="base-delete-table" onSelect={() => openTableDialog("delete", activeTable.id)}>
+                    <Trash2 className="size-3.5" aria-hidden="true" />{t("structuredTable.deleteTable")}
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem disabled={readOnly || historyRef.current.past.length === 0} onSelect={() => jumpHistory("undo")}>
@@ -1116,6 +1150,32 @@ export const BaseEditorPane = ({ memo, repository, readOnly, onBackToList, onSav
           else changeDocument(addTableField(document, field));
         }}
       />
+      <Dialog open={tableDialog !== null} onOpenChange={(open) => { if (!open) setTableDialog(null); }}>
+        <DialogContent className="max-w-sm" data-testid="base-table-dialog">
+          <DialogHeader>
+            <DialogTitle>{tableDialog?.mode === "delete" ? t("structuredTable.deleteTable") : t("structuredTable.renameTable")}</DialogTitle>
+          </DialogHeader>
+          {tableDialog?.mode === "delete" ? (
+            <p className="text-sm text-muted-foreground">
+              {t("structuredTable.deleteTableConfirm", { name: base?.tables.find((item) => item.id === tableDialog.tableId)?.name ?? "" })}
+            </p>
+          ) : (
+            <Input
+              autoFocus
+              value={tableNameDraft}
+              aria-label={t("structuredTable.renameTable")}
+              onChange={(event) => setTableNameDraft(event.target.value)}
+              onKeyDown={(event) => { if (event.key === "Enter") submitTableDialog(); }}
+            />
+          )}
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => setTableDialog(null)}>{t("structuredTable.cancel")}</Button>
+            <Button type="button" variant={tableDialog?.mode === "delete" ? "danger" : "soft"} disabled={tableDialog?.mode === "rename" && !tableNameDraft.trim()} onClick={submitTableDialog}>
+              {t("structuredTable.confirm")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

@@ -791,6 +791,7 @@ export const fr = {
     newTable: "Nouvelle table",
     renameTable: "Renommer la table",
     deleteTable: "Supprimer la table",
+    deleteTableConfirm: "Supprimer la table « {{name}} » ? Ses enregistrements seront supprimés aussi.",
     tableLimit: "20 tables maximum",
     tableActions: "Actions pour {{name}}",
     checked: "Coché",

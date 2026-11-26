@@ -652,6 +652,7 @@ export const zhTW = {
     newTable: "新建資料表",
     renameTable: "重新命名資料表",
     deleteTable: "刪除資料表",
+    deleteTableConfirm: "刪除資料表「{{name}}」？表裡的記錄會一併刪除。",
     tableLimit: "最多 20 張資料表",
     tableActions: "{{name}} 的操作",
     checked: "已勾選",

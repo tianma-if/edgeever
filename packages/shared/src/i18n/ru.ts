@@ -652,6 +652,7 @@ export const ru = {
     newTable: "Новая таблица",
     renameTable: "Переименовать таблицу",
     deleteTable: "Удалить таблицу",
+    deleteTableConfirm: "Удалить таблицу «{{name}}»? Её записи будут удалены вместе с ней.",
     tableLimit: "Не более 20 таблиц",
     tableActions: "Действия для {{name}}",
     checked: "Отмечено",

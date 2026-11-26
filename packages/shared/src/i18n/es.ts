@@ -791,6 +791,7 @@ export const es = {
     "newTable": "Nueva tabla",
     "renameTable": "Cambiar nombre de tabla",
     "deleteTable": "Eliminar tabla",
+    "deleteTableConfirm": "¿Eliminar la tabla «{{name}}»? Sus registros se eliminarán con ella.",
     "tableLimit": "Máximo 20 tablas",
     "tableActions": "Acciones de {{name}}",
     "checked": "Marcado",

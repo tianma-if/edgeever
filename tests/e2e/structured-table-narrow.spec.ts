@@ -154,6 +154,23 @@ test("a phone viewport keeps the app chrome inside the screen", async ({ page })
     await page.getByTestId("base-row-index").first().click();
     await expect(page.getByTestId("base-record-panel")).toBeVisible();
     await expect(page.getByTestId("base-record-panel")).toContainText("公众号选题");
+    await page.getByRole("button", { name: "关闭", exact: true }).click();
+
+    // Renaming and deleting a table live in the phone menu, not in a hidden sidebar.
+    await page.getByTestId("base-more-menu").click();
+    await page.getByTestId("base-rename-table").click();
+    const renameInput = page.getByTestId("base-table-dialog").getByRole("textbox");
+    await renameInput.fill("内容计划 2");
+    await page.getByTestId("base-table-dialog").getByRole("button", { name: "确定" }).click();
+    await expect(page.getByTestId("base-table-picker")).toContainText("内容计划 2");
+
+    await page.getByTestId("base-more-menu").click();
+    await page.getByTestId("base-delete-table").click();
+    await expect(page.getByTestId("base-table-dialog")).toContainText("删除数据表「内容计划 2」");
+    await page.getByTestId("base-table-dialog").getByRole("button", { name: "确定" }).click();
+    await expect(page.getByTestId("base-table-picker")).toContainText("素材库");
+    await page.getByTestId("base-more-menu").click();
+    await expect(page.getByTestId("base-delete-table")).toHaveAttribute("data-disabled", "");
   } finally {
     await page.goto("/").catch(() => undefined);
     await page.request.delete(`/api/v1/memos/${memoId}?permanent=1`, { timeout: 20_000 }).catch(() => undefined);
