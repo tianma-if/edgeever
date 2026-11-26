@@ -1,29 +1,26 @@
 {
-  "version": "2.32.0",
+  "version": "2.33.0",
   "changes": {
     "en-US": [
-      "Desktop users can choose Antigravity Standalone or the agy CLI and clear a custom executable path. Thanks @yulei666 (#878).",
-      "Android loads smaller previews for images in notes. Full-screen viewing and downloads still use the original image. Thanks @flipcyde101 (#875, related to #869).",
-      "Poster rendering now uses server notifications, reducing requests from idle clients. For self-hosted instances, upgrade the server and clients together to use notifications.",
-      "Public share outlines show long headings in full and jump to sections in one click. Shared notebooks can sort titles in either direction, with numbers in natural order.",
-      "Web and desktop tables size columns to their content and show clearer alternating row shading. Thanks @geekqq (#884).",
-      "On Windows, headings that mix Japanese and Latin text use more consistent font weights. Thanks @Golden007-prog (#890)."
+      "On Web and desktop, deleting a notebook also deletes its subnotebooks and moves all their notes to the trash. For self-hosted instances, upgrade the server before upgrading the desktop app.",
+      "Desktop users can create subnotebooks offline. They appear in the sidebar immediately and sync when the connection returns.",
+      "Desktop sync sends large batches of note deletions in smaller groups and can resume after a partial sync.",
+      "Desktop sync feedback opens GitHub reliably when diagnostics are long and lets you copy the full report.",
+      "The EdgeEver website adds an open-source note-taking app comparison and makes guides easier to find in English and Chinese."
     ],
     "zh-CN": [
-      "桌面端可以在 Antigravity 独立版与 agy CLI 之间切换，也可以清除自定义可执行文件路径。感谢 @yulei666（#878）。",
-      "Android 笔记内的图片使用缩略图，全屏查看和下载仍使用原图。感谢 @flipcyde101（#875，关联 #869）。",
-      "海报渲染改由服务端通知，减少客户端空闲时的请求。自托管用户需同时更新服务端和客户端以使用通知。",
-      "公开分享页的大纲会完整显示长标题，点击一次即可跳转。分享笔记本支持按标题升序或降序排列，标题中的数字按自然顺序排序。",
-      "Web 和桌面端表格按内容调整列宽，交替行底色更清晰。感谢 @geekqq（#884）。",
-      "Windows 上混排日文和拉丁字母的标题字重更一致。感谢 @Golden007-prog（#890）。"
+      "Web 和桌面端删除笔记本时，会一并删除其子笔记本，并将其中的所有笔记移入回收站。自托管用户请先升级服务端，再升级桌面端。",
+      "桌面端断网时可以新建子笔记本，创建后立即显示在侧栏，恢复联网后自动同步。",
+      "桌面端分批同步大量笔记的删除操作，部分同步成功后仍可续传。",
+      "桌面端的同步反馈在诊断信息过长时仍可打开 GitHub，并可复制完整报告。",
+      "EdgeEver 官网上线开源笔记应用对比指南，并优化中英文指南入口。"
     ],
     "ja": [
-      "デスクトップ版で Antigravity 単体版と agy CLI を切り替え、カスタム実行ファイルのパスを解除できます。",
-      "Android のノート内画像は縮小プレビューを読み込み、全画面表示とダウンロードでは元の画像を使用します。",
-      "ポスター生成をサーバー通知に切り替え、待機中のリクエストを減らしました。セルフホスト環境ではサーバーとクライアントを更新してください。",
-      "公開ページの目次では長い見出しが全文表示され、ワンクリックで移動できます。共有ノートブックは数字を自然順で扱い、タイトルの昇順・降順で並べ替えられます。",
-      "Web 版とデスクトップ版の表は内容に合わせて列幅を調整し、行の交互色が見やすくなりました。",
-      "Windows で日本語とラテン文字が混在する見出しの太さを揃えました。"
+      "Web 版とデスクトップ版では、ノートブックを削除すると、配下のノートブックも削除され、その中のノートはすべてごみ箱に移動します。セルフホスト環境では、デスクトップアプリより先にサーバーを更新してください。",
+      "デスクトップ版でオフラインでも子ノートブックを作成できます。作成後すぐにサイドバーに表示され、再接続時に同期されます。",
+      "デスクトップ版では、大量のノート削除を小分けにして同期し、一部の同期が済んだ状態から再開できます。",
+      "デスクトップ版の同期フィードバックでは、診断情報が長くても GitHub を開けます。完全なレポートもコピーできます。",
+      "EdgeEver のサイトにオープンソースのノートアプリ比較ガイドを追加し、英語版と中国語版のガイドへの導線を改善しました。"
     ]
   }
 }
