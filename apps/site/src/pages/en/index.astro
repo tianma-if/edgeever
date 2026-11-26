@@ -6,33 +6,31 @@ import Hero from "@/components/hero.astro";
 import Logos from "@/components/logos.astro";
 import MarqueeShowcase from "@/components/marquee-showcase.astro";
 import Layout from "@/layouts/Layout.astro";
+import { siteCopy } from "@/i18n";
 
 const siteUrl = new URL(Astro.url.pathname, Astro.site).toString();
+const description = siteCopy["en-US"].layout.defaultDescription;
 
 const homeJsonLd = [
   {
     "@context": "https://schema.org",
     "@type": "WebSite",
     name: "EdgeEver",
-    alternateName: "EdgeEver Evernote Alternative",
     url: siteUrl,
     inLanguage: "en-US",
-    description:
-      "EdgeEver is an open-source, AI-native, self-hosted Evernote alternative across macOS, Windows, Linux, iOS, Android, and Web Clipper with Cloudflare & Docker deployment.",
+    description,
     keywords: ["Evernote alternative", "open-source notes app", "self-hosted notes app", "AI notes app"],
   },
   {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
     name: "EdgeEver",
-    alternateName: "EdgeEver Evernote Alternative",
     url: siteUrl,
     codeRepository: "https://github.com/tianma-if/edgeever",
     applicationCategory: "ProductivityApplication",
     operatingSystem: "macOS, Windows, Linux, iOS, Android, Web, Chrome, Edge, Firefox",
     isAccessibleForFree: true,
-    description:
-      "EdgeEver is an open-source, AI-native, self-hosted note-taking app with a classic three-pane productivity workflow (Tree View · Note List · Editor), apps across macOS, Windows, Linux, iOS, Android and browsers, plus REST API, MCP and ACP protocols for local and remote AI agents.",
+    description,
     keywords: ["Evernote alternative", "open-source notes app", "self-hosted notes app", "AI notes app"],
   },
 ];

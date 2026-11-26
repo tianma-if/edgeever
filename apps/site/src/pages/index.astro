@@ -6,8 +6,10 @@ import Hero from "@/components/hero.astro";
 import Logos from "@/components/logos.astro";
 import MarqueeShowcase from "@/components/marquee-showcase.astro";
 import Layout from "@/layouts/Layout.astro";
+import { siteCopy } from "@/i18n";
 
 const siteUrl = new URL(Astro.url.pathname, Astro.site).toString();
+const description = siteCopy["zh-CN"].layout.defaultDescription;
 
 const homeJsonLd = [
   {
@@ -16,8 +18,7 @@ const homeJsonLd = [
     name: "EdgeEver",
     url: siteUrl,
     inLanguage: "zh-CN",
-    description:
-      "EdgeEver 是开源、原生支持 AI 的自托管笔记工作区，支持 Cloudflare 与 Docker 自由部署，覆盖 macOS、Windows、Linux、iOS、Android 与浏览器插件。",
+    description,
   },
   {
     "@context": "https://schema.org",
@@ -28,13 +29,12 @@ const homeJsonLd = [
     applicationCategory: "ProductivityApplication",
     operatingSystem: "macOS, Windows, Linux, iOS, Android, Web, Chrome, Edge, Firefox",
     isAccessibleForFree: true,
-    description:
-      "EdgeEver 是开源、原生支持 AI 的自托管笔记工作区，保留经典三栏高效工作区体验（目录树 · 笔记列表 · 编辑写作），支持 ACP 本机 Agent 深度协同、AI 伴侣侧边栏与可视化图表笔记，覆盖 macOS、Windows、Linux、iOS、Android 与浏览器插件，并提供 REST API、MCP 与 ACP 协议支持。",
+    description,
   },
 ];
 ---
 
-<Layout title="" jsonLd={homeJsonLd}>
+<Layout title="" jsonLd={homeJsonLd} localeRedirect={false}>
   <Container>
     <Hero />
     <MarqueeShowcase />

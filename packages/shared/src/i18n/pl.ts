@@ -1002,10 +1002,8 @@ export const pl = {
       discardDescription: "Nieprzesłana zawartość tego elementu synchronizacji zostanie trwale usunięta. Nie wpłynie to na inne notatki ani dane w chmurze.",
       reportIssue: "Zgłoś problem",
       reportTitlePrefix: "[Sync] Synchronizacja aplikacji desktopowej wymaga uwagi",
-      reportContentHeading: "Co się stało",
-      reportContentPrompt: "Opisz, co się stało, czego się spodziewałeś i jakie kroki mogą pomóc odtworzyć problem z synchronizacją.",
-      reportDiagnosticsHeading: "Automatycznie zebrane dane diagnostyczne synchronizacji",
-      reportDiagnosticsNotice: "EdgeEver wygenerował i zanonimizował te dane diagnostyczne lokalnie. Przejrzyj je przed wysłaniem.",
+      reportPasteField: "Raport jest zbyt długi, aby wypełnić pole automatycznie. Skopiuj poniższy tekst do pola „{{field}}” w GitHubie.",
+      reportCopyField: "Kopiuj zawartość pola „{{field}}”",
       operations: {
         memo_create: "Utwórz notatkę",
         memo_update: "Zaktualizuj notatkę",

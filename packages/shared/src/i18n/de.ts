@@ -1152,10 +1152,8 @@ export const de = {
       "discardDescription": "Inhalte dieses Synchronisierungselements, die noch nicht hochgeladen wurden, werden dauerhaft gelöscht. Andere Notizen und Cloud-Daten sind nicht betroffen.",
       "reportIssue": "Problem melden",
       "reportTitlePrefix": "[Sync] Desktop-Synchronisierung erfordert Aufmerksamkeit",
-      "reportContentHeading": "Was ist passiert",
-      "reportContentPrompt": "Beschreibe, was passiert ist, was du erwartet hast, und alle Schritte, die helfen könnten, das Synchronisierungsproblem zu reproduzieren.",
-      "reportDiagnosticsHeading": "Automatisch erfasste Synchronisierungsdiagnose",
-      "reportDiagnosticsNotice": "EdgeEver hat diese Diagnose lokal erstellt und bereinigt. Bitte vor dem Absenden überprüfen.",
+      "reportPasteField": "Der Bericht ist zu lang zum automatischen Ausfüllen. Kopiere den folgenden Text in das Feld „{{field}}“ auf GitHub.",
+      "reportCopyField": "Inhalt für „{{field}}“ kopieren",
       "operations": {
         "memo_create": "Notiz erstellen",
         "memo_update": "Notiz aktualisieren",

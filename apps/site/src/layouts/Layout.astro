@@ -12,6 +12,7 @@ import {
   siteLocalePrefixes,
   siteLocales,
   siteLocaleStorageKey,
+  type SiteLocale,
 } from "@/i18n";
 import "@fontsource-variable/inter/index.css";
 import "@fontsource-variable/bricolage-grotesque";
@@ -31,6 +32,7 @@ export interface Props {
   jsonLd?: Record<string, unknown> | Record<string, unknown>[];
   noindex?: boolean;
   localeRedirect?: boolean;
+  alternateLocales?: readonly SiteLocale[];
 }
 
 const canonicalURL = new URL(Astro.url.pathname, Astro.site).toString();
@@ -38,11 +40,11 @@ const locale = getSiteLocale(Astro.url.pathname);
 const heroProductImage = getHeroImage(locale);
 const copy = siteCopy[locale].layout;
 const localeAlternateUrls = Object.fromEntries(
-  siteLocales.map((item) => [
+  (Astro.props.alternateLocales ?? siteLocales).map((item) => [
     item,
     new URL(getLocalizedPath(item, Astro.url.pathname), Astro.site).toString(),
   ]),
-) as Record<(typeof siteLocales)[number], string>;
+);
 
 const defaultDescription = copy.defaultDescription;
 // Build a content-hashed JPEG so crawlers can fetch a fresh branded preview.
@@ -81,7 +83,7 @@ const makeTitle = title
   : copy.defaultTitle;
 
 const faviconVersion = "edgeever-open-cat-green-gradient";
-const localeRedirectScript = `(() => {
+const localePreferenceScript = `(() => {
   const storageKey = ${JSON.stringify(siteLocaleStorageKey)};
   const localeAttribute = ${JSON.stringify(siteLocaleDataAttribute)};
   const supportedLocales = ${JSON.stringify(siteLocales)};
@@ -173,11 +175,13 @@ const localeRedirectScript = `(() => {
 
     return storedLocale ?? browserLocale;
   };
-  const desiredLocale = getDesiredLocale(window.location.pathname);
+  if (${localeRedirect}) {
+    const desiredLocale = getDesiredLocale(window.location.pathname);
 
-  if (desiredLocale && desiredLocale !== getCurrentLocale(window.location.pathname)) {
-    const nextPath = getLocalizedPath(desiredLocale, window.location.pathname);
-    window.location.replace(nextPath + window.location.search + window.location.hash);
+    if (desiredLocale && desiredLocale !== getCurrentLocale(window.location.pathname)) {
+      const nextPath = getLocalizedPath(desiredLocale, window.location.pathname);
+      window.location.replace(nextPath + window.location.search + window.location.hash);
+    }
   }
 
   document.addEventListener("click", (event) => {
@@ -201,14 +205,14 @@ const localeRedirectScript = `(() => {
     <link rel="icon" type="image/png" sizes="192x192" href={`/icon-192.png?v=${faviconVersion}`} />
     <link rel="apple-touch-icon" href={`/apple-touch-icon.png?v=${faviconVersion}`} />
     {
-      siteLocales.map((item) => (
-        <link rel="alternate" hreflang={item} href={localeAlternateUrls[item]} />
+      Object.entries(localeAlternateUrls).map(([language, url]) => (
+        <link rel="alternate" hreflang={language} href={url} />
       ))
     }
-    <link rel="alternate" hreflang="x-default" href={localeAlternateUrls["zh-CN"]} />
+    <link rel="alternate" hreflang="x-default" href={localeAlternateUrls["zh-CN"] ?? canonicalURL} />
     <meta name="theme-color" content="#f8fafc" />
     <meta name="generator" content={Astro.generator} />
-    {localeRedirect && <script is:inline set:html={localeRedirectScript} />}
+    <script is:inline set:html={localePreferenceScript} />
 
     <!-- <link rel="preload" as="image" href={src} alt="Hero" /> -->
     <SEO
@@ -258,7 +262,7 @@ const localeRedirectScript = `(() => {
     }
   </head>
   <body>
-    <Navbar />
+    <Navbar alternateLocales={Astro.props.alternateLocales} />
     <slot />
     <Footer />
     <style is:global>

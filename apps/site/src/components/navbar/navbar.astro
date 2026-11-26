@@ -3,7 +3,13 @@ import Container from "@/components/container.astro";
 import Dropdown from "./dropdown.astro";
 import LanguageSwitcher from "./language-switcher.astro";
 import { Icon } from "astro-icon/components";
-import { getLocalizedPath, getSiteLocale, siteCopy } from "@/i18n";
+import { getLocalizedPath, getSiteLocale, siteCopy, type SiteLocale } from "@/i18n";
+
+interface Props {
+  alternateLocales?: readonly SiteLocale[];
+}
+
+const { alternateLocales } = Astro.props;
 
 const locale = getSiteLocale(Astro.url.pathname);
 const copy = siteCopy[locale].nav;
@@ -99,7 +105,7 @@ const menuitems = [
 
         <!-- Desktop Only Items -->
         <div class="hidden lg:flex items-center gap-2.5">
-          <LanguageSwitcher pathname={Astro.url.pathname} />
+          <LanguageSwitcher pathname={Astro.url.pathname} alternateLocales={alternateLocales} />
           <a
             href="https://github.com/tianma-if/edgeever"
             target="_blank"
@@ -171,7 +177,7 @@ const menuitems = [
 
       <div class="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2.5">
         <div class="flex-1 min-w-[140px]">
-          <LanguageSwitcher pathname={Astro.url.pathname} compact />
+          <LanguageSwitcher pathname={Astro.url.pathname} alternateLocales={alternateLocales} compact />
         </div>
         <div class="flex items-center gap-2 shrink-0">
           <a

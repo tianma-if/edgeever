@@ -548,8 +548,8 @@ const {
   retryDesktopSyncIssue,
 } = await import("./desktop-sync.ts");
 
-// A stateful fake of the desktop sidecar outbox. Acknowledged and failed items
-// leave the queue, as they would once the sidecar schedules their next attempt.
+// A stateful fake of the desktop sidecar outbox. Failures stay on disk but
+// ordinary sync only sees pending items and failures that are due for retry.
 const runWithDesktopSidecar = async (options, run) => {
   const {
     queue: initialQueue = [],
@@ -573,10 +573,38 @@ const runWithDesktopSidecar = async (options, run) => {
   const handle = async (method, params) => {
     state.calls.push({ method, params });
     switch (method) {
-      case "sync.outbox.list": return { items: state.queue.map((item) => ({ ...item, payload: { ...item.payload } })) };
+      case "sync.outbox.list": return {
+        items: state.queue.filter((item) => params.includeConflicts
+          || item.status === "pending"
+          || (item.status === "error" && item.retryable && (!item.nextAttemptAt || Date.parse(item.nextAttemptAt) <= Date.now())))
+          .map((item) => ({ ...item, payload: { ...item.payload } })),
+      };
       case "sync.outbox.ack": state.acks.push(params); state.queue = state.queue.filter((item) => item.id !== params.id); return { ok: true };
-      case "sync.outbox.fail": state.failures.push(params); state.queue = state.queue.filter((item) => item.id !== params.id); return { ok: true };
-      case "sync.status": return status ? status(state) : { pending: state.queue.length, syncing: 0, conflict: 0, error: 0, cursor: 5, syncIdentity: "workspace-a" };
+      case "sync.outbox.fail": {
+        state.failures.push(params);
+        const item = state.queue.find((candidate) => candidate.id === params.id && candidate.version === params.version);
+        if (item) Object.assign(item, {
+          status: params.conflict ? "conflict" : "error",
+          attemptCount: item.attemptCount + 1,
+          lastErrorCode: params.errorCode,
+          retryable: params.retryable,
+          nextAttemptAt: params.nextAttemptAt,
+        });
+        return { ok: true };
+      }
+      case "sync.outbox.retry": {
+        const item = state.queue.find((candidate) => candidate.id === params.id && candidate.version === params.version && candidate.status === "error");
+        if (item) Object.assign(item, { status: "pending", retryable: true, nextAttemptAt: null });
+        return { ok: true };
+      }
+      case "sync.status": return status ? status(state) : {
+        pending: state.queue.filter((item) => item.status === "pending").length,
+        syncing: 0,
+        conflict: state.queue.filter((item) => item.status === "conflict").length,
+        error: state.queue.filter((item) => item.status === "error").length,
+        cursor: 5,
+        syncIdentity: "workspace-a",
+      };
       case "sync.apply": state.applied.push(...params.changes); return { ok: true };
       case "memo.get": {
         const memo = localMemos[params.memoId];
@@ -618,6 +646,98 @@ const quietPull = { syncChanges: async () => ({ changes: [], cursor: 5, hasMore:
 const doc = (text) => ({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text }] }] });
 
 describe("desktop outbox replay", () => {
+  test("retries a legacy oversized delete and handles a lost response after applying a chunk", async () => {
+    const memoIds = Array.from({ length: 205 }, (_, index) => `memo-${index}`);
+    const existing = new Set(memoIds);
+    const calls = [];
+    const lookups = [];
+    let loseResponse = true;
+    const legacyItem = {
+      id: 1, version: 1, kind: "memo.deleteBatch", entityId: "batch",
+      status: "error", lastErrorCode: "http_400", retryable: false, attemptCount: 1,
+      payload: { memoIds, permanent: false },
+    };
+    await runWithDesktopSidecar({
+      queue: [legacyItem],
+      api: {
+        ...quietPull,
+        deleteMemos: async ({ memoIds: ids, permanent }) => {
+          expect(permanent).toBe(false);
+          expect(ids.length).toBeLessThanOrEqual(100);
+          calls.push(ids);
+          if (ids.some((id) => !existing.has(id))) throw new ApiRequestError("Already in trash", 400, "missing_memos");
+          ids.forEach((id) => existing.delete(id));
+          if (loseResponse && ids.includes(memoIds[199])) {
+            loseResponse = false;
+            throw new TypeError("Connection interrupted after deleting notes");
+          }
+          return { ok: true, deleted: ids.length };
+        },
+        getMemo: async (id, options) => {
+          expect(options.includeDeleted).toBe(false);
+          lookups.push(id);
+          if (!existing.has(id)) throw new ApiRequestError("Memo not found", 404, "not_found");
+          return { memo: { id, isDeleted: false } };
+        },
+      },
+    }, async (state) => {
+      expect((await syncDesktopData()).attempted).toBe(0);
+      await retryDesktopSyncIssue((await getDesktopSyncIssues()).items[0]);
+      expect(await syncDesktopData()).toMatchObject({ failed: 1, synced: 0 });
+      expect(state.acks).toEqual([]);
+      expect([...existing]).toEqual(memoIds.slice(200));
+      const [failed] = (await getDesktopSyncIssues()).items;
+      expect(failed).toMatchObject({ lastErrorCode: "network_error", retryable: true, payload: legacyItem.payload });
+
+      await retryDesktopSyncIssue(failed);
+      expect(await syncDesktopData()).toMatchObject({ failed: 0, synced: 1 });
+      expect(calls).toEqual([memoIds.slice(0, 100), memoIds.slice(100, 200), memoIds.slice(0, 100), memoIds.slice(100, 200), memoIds.slice(200)]);
+      expect(lookups).toEqual(memoIds.slice(0, 200));
+      expect(existing.size).toBe(0);
+      expect(state.acks).toHaveLength(1);
+      expect((await getDesktopSyncIssues()).items).toEqual([]);
+    });
+  });
+
+  test("retries permanent delete in D1-sized chunks while requiring notes to be in trash", async () => {
+    const memoIds = Array.from({ length: 101 }, (_, index) => `memo-${index}`);
+    const active = memoIds[100];
+    const remainingTrash = new Set(memoIds.slice(1, -1));
+    const calls = [];
+    await runWithDesktopSidecar({
+      queue: [{ id: 1, version: 1, kind: "memo.deleteBatch", entityId: "batch", payload: { memoIds, permanent: true } }],
+      api: {
+        ...quietPull,
+        deleteMemos: async ({ memoIds: ids, permanent }) => {
+          expect(permanent).toBe(true);
+          expect(ids.length + 1).toBeLessThanOrEqual(100);
+          calls.push(ids);
+          if (ids.some((id) => !remainingTrash.has(id))) throw new ApiRequestError("Not in trash", 400, "missing_memos");
+          ids.forEach((id) => remainingTrash.delete(id));
+          return { ok: true, deleted: ids.length };
+        },
+        getMemo: async (id, options) => {
+          expect(options.includeDeleted).toBe(true);
+          if (id === active) return { memo: { id, isDeleted: false } };
+          if (!remainingTrash.has(id)) throw new ApiRequestError("Memo not found", 404, "not_found");
+          return { memo: { id, isDeleted: true } };
+        },
+      },
+    }, async (state) => {
+      expect(await syncDesktopData()).toMatchObject({ failed: 1, synced: 0 });
+      expect(calls).toEqual([memoIds.slice(0, 99), memoIds.slice(1, 99), memoIds.slice(99)]);
+      expect([...remainingTrash]).toEqual([memoIds[99]]);
+      expect(state.acks).toEqual([]);
+      expect((await getDesktopSyncIssues()).items[0]).toMatchObject({ lastErrorCode: "missing_memos" });
+      remainingTrash.add(active);
+
+      await retryDesktopSyncIssue((await getDesktopSyncIssues()).items[0]);
+      expect(await syncDesktopData()).toMatchObject({ failed: 0, synced: 1 });
+      expect([...remainingTrash]).toEqual([]);
+      expect(state.acks).toHaveLength(1);
+    });
+  });
+
   test("uploads a local merge result, remaps the editor and staged resources, then pulls changes", async () => {
     const temporaryId = "memo_local_merge_result";
     const merged = { id: "memo_cloud_merged", contentJson: doc("one\n\n---\n\ntwo"), contentMarkdown: "one\n\n---\n\ntwo" };
@@ -773,15 +893,20 @@ describe("desktop outbox replay", () => {
         { id: 1, version: 1, kind: "notebook.update", entityId: "nb-1", payload: { notebookId: "nb-1", parentId: "nb_local_parent" } },
         { id: 2, version: 1, kind: "memo.delete", entityId: "memo_local_1", payload: {} },
         { id: 3, version: 1, kind: "memo.restore", entityId: "memo-2", payload: { memoId: "memo_local_2" } },
+        { id: 4, version: 1, kind: "memo.deleteBatch", entityId: "batch", payload: { memoIds: ["memo-3", "memo_local_3"] } },
       ],
-      api: { deleteMemo: async () => { deletes += 1; }, restoreMemo: async () => { deletes += 1; } },
+      api: {
+        deleteMemo: async () => { deletes += 1; },
+        deleteMemos: async () => { deletes += 1; },
+        restoreMemo: async () => { deletes += 1; },
+      },
     }, async (state) => {
       const result = await syncDesktopData();
       expect(result.attempted).toBe(0);
       expect(deletes).toBe(0);
       expect(state.acks).toEqual([]);
       expect(state.failures).toEqual([]);
-      expect(state.queue).toHaveLength(3);
+      expect(state.queue).toHaveLength(4);
     });
   });
 

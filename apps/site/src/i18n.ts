@@ -175,8 +175,8 @@ export const siteCopy = {
   "zh-CN": {
     layout: {
       defaultDescription:
-        "EdgeEver 是开源、原生支持 AI 的自托管笔记与知识库工作区。保留经典三栏高效体验，支持 ACP 本机 Agent 深度协同、AI 伴侣侧边栏、可视化图表笔记与多端同步，覆盖 macOS、Windows、Linux、iOS、Android 与浏览器剪藏，支持在 Cloudflare 免费额度内运行或使用 Docker 一键自托管。",
-      defaultTitle: `EdgeEver - ${siteTaglines["zh-CN"]}`,
+        "EdgeEver 是 AI 原生开源笔记软件，可作为印象笔记或 Obsidian 的替代方案。支持原生 MCP、桌面端 ACP、多端瞬时同步和网页剪藏，可在 Cloudflare 免费额度内运行或用 Docker 自托管。",
+      defaultTitle: "EdgeEver｜AI 原生开源笔记软件",
       imageAlt: "EdgeEver 笔记应用截图",
       ogLocale: "zh_CN",
     },
@@ -210,8 +210,8 @@ export const siteCopy = {
       openSource: "开源",
     },
     hero: {
-      slogan: siteTaglines["zh-CN"],
-      popHighlight: "经典三栏现代化知识库 · 原生 AI 协同 · 全平台客户端覆盖",
+      slogan: "开源的印象笔记 / Obsidian 替代方案，保留经典三栏，支持多端瞬时同步。可在 Cloudflare 免费额度内部署，或用 Docker 自托管。",
+      popHighlight: "AI 原生 · MCP / ACP",
       demo: "在线演示",
       agentInstall: "一键 AI 部署",
       getApps: "获取客户端：",
@@ -461,8 +461,8 @@ export const siteCopy = {
   "en-US": {
     layout: {
       defaultDescription:
-        "EdgeEver is an open-source, AI-native knowledge base and modern notes workspace. Enjoy a classic three-pane productivity workflow (Tree View · Note List · Editor) across macOS, Windows, Linux, iOS, Android, and Web Clipper, with native ACP local agent synergy, companion sidebar, and visual diagram notes, running within Cloudflare's free tier or on Docker.",
-      defaultTitle: `EdgeEver - ${siteTaglines["en-US"]}`,
+        "EdgeEver is an AI-native, open-source alternative to Evernote and Obsidian, with built-in MCP, desktop ACP, instant sync, and a web clipper. Deploy on Cloudflare’s free tier or self-host with Docker.",
+      defaultTitle: "EdgeEver | AI-native open-source notes app",
       imageAlt: "EdgeEver notes app screenshot",
       ogLocale: "en_US",
     },
@@ -496,8 +496,8 @@ export const siteCopy = {
       openSource: "Open Source",
     },
     hero: {
-      slogan: siteTaglines["en-US"],
-      popHighlight: "Classic Three-Pane AI Workspace · Native AI Synergy · Multi-Platform Apps",
+      slogan: "An open-source alternative to Evernote and Obsidian with classic three-pane notebooks and instant sync. Deploy on Cloudflare’s free tier or self-host with Docker.",
+      popHighlight: "AI-native · MCP / ACP",
       demo: "Live demo",
       agentInstall: "Deploy with AI",
       getApps: "Get Apps:",

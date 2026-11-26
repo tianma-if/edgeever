@@ -1,10 +1,16 @@
 ---
-import { getLocalizedPath, getSiteLocale, siteCopy, siteLocaleDataAttribute, siteLocaleLabels, siteLocales } from "@/i18n";
+import { getLocalizedPath, getSiteLocale, siteCopy, siteLocaleDataAttribute, siteLocaleLabels, siteLocales, type SiteLocale } from "@/i18n";
 
-const { pathname, compact = false } = Astro.props;
+interface Props {
+  pathname: string;
+  compact?: boolean;
+  alternateLocales?: readonly SiteLocale[];
+}
+
+const { pathname, compact = false, alternateLocales = siteLocales } = Astro.props;
 const locale = getSiteLocale(pathname);
 const copy = siteCopy[locale].nav;
-const languageOptions = siteLocales.map((item) => ({
+const languageOptions = alternateLocales.map((item) => ({
   locale: item,
   label: siteLocaleLabels[item],
   path: getLocalizedPath(item, pathname),

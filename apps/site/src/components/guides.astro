@@ -1,8 +1,10 @@
 ---
+import { getNotesComparisonCopy, notesComparisonPath } from "@/data/open-source-notes-comparison";
 import { getLocalizedPath, getSiteLocale, siteCopy } from "@/i18n";
 
 const locale = getSiteLocale(Astro.url.pathname);
 const copy = siteCopy[locale].guides;
+const comparison = getNotesComparisonCopy(locale);
 ---
 
 <section class="mt-12 md:mt-24 px-4" aria-labelledby="guides">
@@ -16,6 +18,11 @@ const copy = siteCopy[locale].guides;
     <p class="mt-3 sm:mt-4 text-xs sm:text-sm md:text-base leading-relaxed text-slate-600">
       {copy.description}
     </p>
+    {comparison && (
+      <a href={getLocalizedPath(locale, notesComparisonPath)} class="mt-3 inline-flex min-h-11 items-center text-sm font-semibold text-emerald-700 underline decoration-emerald-300 underline-offset-4 hover:text-emerald-900">
+        {comparison.linkLabel}
+      </a>
+    )}
   </div>
 
   <div class="mt-6 md:mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

@@ -1002,10 +1002,8 @@ export const ja = {
       discardDescription: "この同期項目でまだアップロードされていない内容は完全に削除されます。他のノートとクラウドデータには影響しません。",
       reportIssue: "問題を報告",
       reportTitlePrefix: "[同期] デスクトップ同期の対応が必要です",
-      reportContentHeading: "起きたこと",
-      reportContentPrompt: "何が起きたか、期待していた結果、同期問題の再現に役立つ手順を書いてください。",
-      reportDiagnosticsHeading: "自動収集した同期診断",
-      reportDiagnosticsNotice: "これらの診断は EdgeEver が端末上で生成し、機密を伏せています。送信前に内容を確認してください。",
+      reportPasteField: "レポートが長いため自動入力できません。下のテキストをコピーし、GitHub の「{{field}}」欄に貼り付けてください。",
+      reportCopyField: "「{{field}}」の内容をコピー",
       operations: {
         memo_create: "ノートを作成",
         memo_update: "ノートを更新",
