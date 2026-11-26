@@ -645,6 +645,7 @@ export const NotebookPane = ({
   const notebooksQuery = useQuery({
     queryKey: ["notebooks"],
     queryFn: () => repository.listNotebooks(),
+    networkMode: "offlineFirst",
   });
 
   const notebooks = notebooksQuery.data?.notebooks ?? [];

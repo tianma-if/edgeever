@@ -1263,6 +1263,7 @@ export const WorkspaceApp = ({
 
   const createNotebookMutation = useMutation({
     mutationFn: repository.createNotebook,
+    networkMode: "always",
     onSuccess: async (data) => {
       clearPendingMemoSelection();
       setSelectedTag(null);

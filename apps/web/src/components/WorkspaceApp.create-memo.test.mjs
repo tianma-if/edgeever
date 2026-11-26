@@ -1,13 +1,57 @@
 import { describe, expect, test } from "bun:test";
+import { MutationObserver, QueryClient, onlineManager } from "@tanstack/react-query";
 import { readFileSync } from "node:fs";
 
 const workspaceSource = readFileSync(new URL("./WorkspaceApp.tsx", import.meta.url), "utf8");
+const notebookPaneSource = readFileSync(new URL("./NotebookPane.tsx", import.meta.url), "utf8");
 const editorSource = readFileSync(new URL("./EditorPane.tsx", import.meta.url), "utf8");
 const searchControllerSource = readFileSync(new URL("./editor/useEditorNoteSearchController.ts", import.meta.url), "utf8");
 const queuedSyncSource = readFileSync(new URL("../hooks/useWorkspaceQueuedSync.ts", import.meta.url), "utf8");
 const desktopSyncSource = readFileSync(new URL("../lib/desktop-sync.ts", import.meta.url), "utf8");
 
 describe("desktop create-note wiring", () => {
+  test("creates a notebook offline once and refreshes the local notebook list", async () => {
+    const createOptions = workspaceSource.match(/const createNotebookMutation = useMutation\(\{([\s\S]*?)onSuccess:/)?.[1];
+    const listOptions = notebookPaneSource.match(/const notebooksQuery = useQuery\(\{([\s\S]*?)\}\);/)?.[1];
+    const mutationNetworkMode = createOptions?.match(/networkMode: "([^"]+)"/)?.[1];
+    const queryNetworkMode = listOptions?.match(/networkMode: "([^"]+)"/)?.[1];
+    const client = new QueryClient();
+    const queryKey = ["notebooks"];
+    const notebooks = [{ id: "parent" }];
+    const notebook = { id: "child", parentId: "parent" };
+    client.setQueryData(queryKey, { notebooks: [...notebooks] });
+    let creates = 0;
+    const mutation = new MutationObserver(client, {
+      networkMode: mutationNetworkMode,
+      mutationFn: async () => {
+        creates += 1;
+        notebooks.push(notebook);
+      },
+      onSuccess: () => client.fetchQuery({
+        queryKey,
+        networkMode: queryNetworkMode,
+        queryFn: () => ({ notebooks: [...notebooks] }),
+      }),
+    });
+    const wasOnline = onlineManager.isOnline();
+    client.mount();
+    try {
+      onlineManager.setOnline(false);
+      const result = mutation.mutate();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(creates).toBe(1);
+      expect(client.getQueryData(queryKey)?.notebooks).toEqual([{ id: "parent" }, notebook]);
+      onlineManager.setOnline(true);
+      await result;
+      expect(creates).toBe(1);
+    } finally {
+      onlineManager.setOnline(true);
+      await client.resumePausedMutations();
+      client.unmount();
+      onlineManager.setOnline(wasOnline);
+    }
+  });
+
   test("ignores a second new-note request while the first create is still in flight", () => {
     expect(workspaceSource).toContain("createMemoInFlightRef");
     expect(workspaceSource).toContain("createMemoInFlightRef.current || createMemoMutation.isPending");
