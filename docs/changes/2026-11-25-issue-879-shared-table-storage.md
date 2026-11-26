@@ -107,3 +107,10 @@ Pre-cutover history retains its original format. New memo history follows the ex
 
 - Integrate upstream `1a1a71af` while retaining notebook subtree trash and Inbox recovery, public share sorting, and shared-table record sync. Verify the combined cross-client integration and associated API and offline queue regressions.
 - On the updated base, 1,114 API, ZIP64, and Web backup tests, 182 Web sync and notebook tests, 17 Rust unit tests, and the sidecar cross-client integration passed. Chrome passed the default ZIP round trip and the lost-receipt replay and offline conflict draft scenario against isolated Docker services. Web and mobile type checks and the Web and self-hosted server builds passed.
+
+## PR review regressions
+
+- Keep the eight new triggers in 0100 and 0101 on one physical line each for remote Wrangler parsing. Check the total and every definition, and apply the migrations to a disposable local D1 database. The issue limits this round to local data.
+- Keep the Web startup refresh and immediate queue push assertions. Trace which dependency initializes the editor when the lifecycle hook starts.
+- Measure fixture setup, ZIP export, restore and verification separately for the 500-row table with six histories. Keep all size, cumulative D1 read and history assertions, and ensure the Miniflare worker exits.
+- Integrate upstream desktop sync changes and test the combined queue behavior. A regression can affect rollback of a migration or offline edits. Review and revert the affected PR commit before release if verification fails.

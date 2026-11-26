@@ -40,16 +40,9 @@ CREATE TABLE ee_table_versions (
 CREATE INDEX ee_table_versions_position ON ee_table_versions(workspace_id,table_id,position,revision DESC);
 CREATE TABLE ee_table_assertion (ok INTEGER PRIMARY KEY CHECK(ok=1));
 CREATE VIRTUAL TABLE ee_table_search USING fts5(search_text,content='ee_table_records',content_rowid='id');
-CREATE TRIGGER ee_table_search_insert AFTER INSERT ON ee_table_records BEGIN
- INSERT INTO ee_table_search(rowid,search_text) VALUES(NEW.id,NEW.search_text);
-END;
-CREATE TRIGGER ee_table_search_update AFTER UPDATE OF search_text ON ee_table_records BEGIN
- INSERT INTO ee_table_search(ee_table_search,rowid,search_text) VALUES('delete',OLD.id,OLD.search_text);
- INSERT INTO ee_table_search(rowid,search_text) VALUES(NEW.id,NEW.search_text);
-END;
-CREATE TRIGGER ee_table_search_delete AFTER DELETE ON ee_table_records BEGIN
- INSERT INTO ee_table_search(ee_table_search,rowid,search_text) VALUES('delete',OLD.id,OLD.search_text);
-END;
+CREATE TRIGGER ee_table_search_insert AFTER INSERT ON ee_table_records BEGIN INSERT INTO ee_table_search(rowid,search_text) VALUES(NEW.id,NEW.search_text); END;
+CREATE TRIGGER ee_table_search_update AFTER UPDATE OF search_text ON ee_table_records BEGIN INSERT INTO ee_table_search(ee_table_search,rowid,search_text) VALUES('delete',OLD.id,OLD.search_text); INSERT INTO ee_table_search(rowid,search_text) VALUES(NEW.id,NEW.search_text); END;
+CREATE TRIGGER ee_table_search_delete AFTER DELETE ON ee_table_records BEGIN INSERT INTO ee_table_search(ee_table_search,rowid,search_text) VALUES('delete',OLD.id,OLD.search_text); END;
 CREATE INDEX ee_table_versions_revision ON ee_table_versions(workspace_id, table_id, revision, record_id);
 
 CREATE TABLE ee_table_migration (
@@ -66,24 +59,8 @@ CREATE TABLE ee_table_migration (
 );
 
 -- Apply the maintenance lock to all write paths, including imports and sync.
-CREATE TRIGGER ee_table_migration_pause_insert BEFORE INSERT ON memo_contents
-WHEN NEW.content_markdown GLOB '*<!--*edgeever-table-v1:*-->*'
-  AND EXISTS (SELECT 1 FROM ee_table_migration WHERE id = 1)
-BEGIN
-  SELECT RAISE(ABORT, 'table_migration_in_progress');
-END;
+CREATE TRIGGER ee_table_migration_pause_insert BEFORE INSERT ON memo_contents WHEN NEW.content_markdown GLOB '*<!--*edgeever-table-v1:*-->*' AND EXISTS (SELECT 1 FROM ee_table_migration WHERE id = 1) BEGIN SELECT RAISE(ABORT, 'table_migration_in_progress'); END;
 
-CREATE TRIGGER ee_table_migration_pause_update BEFORE UPDATE OF content_markdown ON memo_contents
-WHEN NEW.content_markdown IS NOT OLD.content_markdown
-  AND (OLD.content_markdown GLOB '*<!--*edgeever-table-v1:*-->*' OR NEW.content_markdown GLOB '*<!--*edgeever-table-v1:*-->*')
-  AND EXISTS (SELECT 1 FROM ee_table_migration WHERE id = 1 AND write_back_id IS NOT OLD.memo_id)
-BEGIN
-  SELECT RAISE(ABORT, 'table_migration_in_progress');
-END;
+CREATE TRIGGER ee_table_migration_pause_update BEFORE UPDATE OF content_markdown ON memo_contents WHEN NEW.content_markdown IS NOT OLD.content_markdown AND (OLD.content_markdown GLOB '*<!--*edgeever-table-v1:*-->*' OR NEW.content_markdown GLOB '*<!--*edgeever-table-v1:*-->*') AND EXISTS (SELECT 1 FROM ee_table_migration WHERE id = 1 AND write_back_id IS NOT OLD.memo_id) BEGIN SELECT RAISE(ABORT, 'table_migration_in_progress'); END;
 
-CREATE TRIGGER ee_table_migration_pause_delete BEFORE DELETE ON memo_contents
-WHEN OLD.content_markdown GLOB '*<!--*edgeever-table-v1:*-->*'
-  AND EXISTS (SELECT 1 FROM ee_table_migration WHERE id = 1)
-BEGIN
-  SELECT RAISE(ABORT, 'table_migration_in_progress');
-END;
+CREATE TRIGGER ee_table_migration_pause_delete BEFORE DELETE ON memo_contents WHEN OLD.content_markdown GLOB '*<!--*edgeever-table-v1:*-->*' AND EXISTS (SELECT 1 FROM ee_table_migration WHERE id = 1) BEGIN SELECT RAISE(ABORT, 'table_migration_in_progress'); END;

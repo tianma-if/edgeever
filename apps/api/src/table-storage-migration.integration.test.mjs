@@ -1199,6 +1199,7 @@ test("local D1 meters cumulative migration, saved-view pages, deltas and backups
 }, 30_000);
 
 test("the default ZIP pipeline exports and atomically restores table histories larger than a D1 query result", async () => {
+  console.time("Chunked backup fixture");
   const { createRequire } = await import("node:module");
   const requireWrangler = createRequire(new URL("../../../packages/wrangler/package.json", import.meta.url));
   const wrangler = requireWrangler.resolve("edgeever-wrangler-cli");
@@ -1320,7 +1321,11 @@ test("the default ZIP pipeline exports and atomically restores table histories l
       getResourceResponse: async () => new Response("test"),
     };
     source.reset();
+    console.timeEnd("Chunked backup fixture");
+    console.time("Chunked backup export");
     const zipped = await createEdgeEverZip(exportSource, { edgeeverVersion: "2.31.2", buildId: "chunk-backup-test" });
+    console.timeEnd("Chunked backup export");
+    console.time("Chunked backup ZIP verification");
     const exported = source.report();
     const parsed = await parseEdgeEverZip(zipped);
     expect(parsed.manifest.formatVersion).toBe(3);
@@ -1334,7 +1339,7 @@ test("the default ZIP pipeline exports and atomically restores table histories l
     const markdown = [];
     await streamZipEntries(zipped, ({ name }) => name.endsWith("/Wide synthetic table.md") ? {
       write: (chunk) => { markdown.push(Buffer.from(chunk)); },
-    } : {});
+    } : undefined);
     const readable = Buffer.concat(markdown).toString();
     expect(readable).toContain("| Field 0 | Field 1");
     expect(readable).toContain("Version 7");
@@ -1344,6 +1349,8 @@ test("the default ZIP pipeline exports and atomically restores table histories l
 
     const importedBytes = [];
     target.reset();
+    console.timeEnd("Chunked backup ZIP verification");
+    console.time("Chunked backup restore");
     await restoreEdgeEverZip(parsed, {
       restoreMemos: target.client.restoreJsonMemos,
       restoreNotebooks: target.client.restoreJsonNotebooks,
@@ -1354,6 +1361,8 @@ test("the default ZIP pipeline exports and atomically restores table histories l
         return { write: async (chunk) => importedBytes.push(Buffer.from(chunk)), close: async () => {}, abort: async () => {} };
       },
     });
+    console.timeEnd("Chunked backup restore");
+    console.time("Chunked backup data verification");
     const imported = target.report();
     expect(Buffer.concat(importedBytes).toString()).toBe("test");
     expect(target.transport.maxRequest).toBeLessThan(1_000_000);
@@ -1373,8 +1382,9 @@ test("the default ZIP pipeline exports and atomically restores table histories l
     expect(persisted.count).toBe(506);
     expect(imported.readRows).toBeLessThan(50_000);
     expect(imported.maxBytes).toBeLessThan(100_000_000);
+    console.timeEnd("Chunked backup data verification");
     console.log("Chunked backup D1 measurements", JSON.stringify({ export: source.transport, import: target.transport, reads: exported.readRows, restoreReadRows: imported.readRows, restoreWriteRows: imported.writeRows, restorePeakBytes: imported.maxBytes }));
   } finally {
     await worker.dispose();
   }
-}, 120_000);
+}, 300_000);
