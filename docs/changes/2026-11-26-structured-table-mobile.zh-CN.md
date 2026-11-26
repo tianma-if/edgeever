@@ -41,6 +41,16 @@
 - Base 文档结构（`schemaVersion: 4`）、所有已存字段，以及单表编辑器。
 - 字段权限、存储守卫与接口行为。
 
+## 截图
+
+手机 390×844 实测（`docs/changes/evidence/2026-11-26-structured-table-mobile/`）：
+
+1. `1-grid.png`：标题栏一行 + 工具一行 + 行尾常显的展开/删除，只有表格本体横滚。
+2. `2-tools.png`：底部「工具」浮层，五个布局 + 四个字段工具，双排网格不横滚。
+3. `3-kanban.png`：看板卡片彩色胶囊，泳道横向滑属内容。
+4. `4-record-panel.png`：点卡片或行号后全屏记录详情。
+5. `5-table-menu.png`：`⋯` 菜单里重命名/删除当前数据表。
+
 ## 完成核对
 
 - `bun run typecheck`、`bun run typecheck:mobile` 通过。

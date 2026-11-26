@@ -44,6 +44,16 @@ desktop action has a touch entry point, and the desktop layout does not change.
 - The base schema (`schemaVersion: 4`), every stored key, and the single-table editor.
 - Field permissions, guards and API behaviour.
 
+## Screenshots
+
+Captured at 390×844 (`docs/changes/evidence/2026-11-26-structured-table-mobile/`):
+
+1. `1-grid.png` – one title row, one tool row, always visible row actions; only the grid scrolls.
+2. `2-tools.png` – the bottom tool sheet with five layouts and four field tools, no sideways scroll.
+3. `3-kanban.png` – kanban cards with colored pills; lane scrolling is content.
+4. `4-record-panel.png` – tapping a card or the row index opens the full-screen record panel.
+5. `5-table-menu.png` – the `⋯` menu renames or deletes the active table.
+
 ## Verification
 
 - `bun run typecheck`, `bun run typecheck:mobile` – clean.
