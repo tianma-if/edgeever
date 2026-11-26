@@ -357,6 +357,34 @@ const acknowledge = async (
   await request("sync.outbox.ack", { id: item.id, version: item.version, remoteMemo, remoteNotebook, remoteTemplate });
 };
 
+const syncMemoDeleteChunk = async (memoIds: string[], permanent: boolean) => {
+  try {
+    await api.deleteMemos({ memoIds, permanent });
+  } catch (error) {
+    if (!(error instanceof ApiRequestError) || error.status !== 400 || error.code !== "missing_memos") throw error;
+
+    // A previous attempt or another delete may already have completed some
+    // of these IDs. The server rejects the entire chunk if any are missing.
+    const remaining: string[] = [];
+    const lookupConcurrency = 8;
+    for (let offset = 0; offset < memoIds.length; offset += lookupConcurrency) {
+      const ids = memoIds.slice(offset, offset + lookupConcurrency);
+      const eligibleIds = await Promise.all(ids.map(async (memoId) => {
+        try {
+          const { memo } = await api.getMemo(memoId, { includeDeleted: permanent });
+          if (permanent && !memo.isDeleted) throw error;
+          return memoId;
+        } catch (lookupError) {
+          if (lookupError instanceof ApiRequestError && lookupError.status === 404 && lookupError.code === "not_found") return null;
+          throw lookupError;
+        }
+      }));
+      remaining.push(...eligibleIds.filter((memoId): memoId is string => memoId !== null));
+    }
+    if (remaining.length > 0) await api.deleteMemos({ memoIds: remaining, permanent });
+  }
+};
+
 const syncOutboxItem = async (item: DesktopOutboxItem, stagedRewrites: StagedResourceRewrite[]) => {
   const rewrittenPayload = stagedRewrites.length > 0
     ? rewriteStagedResource(item.payload, stagedRewrites.filter((rewrite) => rewrite.memoId === String(item.payload.memoId ?? item.entityId))) as Record<string, unknown>
@@ -443,10 +471,18 @@ const syncOutboxItem = async (item: DesktopOutboxItem, stagedRewrites: StagedRes
   }
 
   if (item.kind === "memo.deleteBatch") {
-    await api.deleteMemos({
-      memoIds: Array.isArray(payload.memoIds) ? payload.memoIds.filter((memoId): memoId is string => typeof memoId === "string") : [],
-      permanent: Boolean(payload.permanent),
-    });
+    const ids = Array.isArray(payload.memoIds) ? payload.memoIds : [];
+    const memoIds = [...new Set(ids.flatMap((id) => typeof id === "string" ? [id.trim()] : []))];
+    if (memoIds.length === 0 || memoIds.includes("")) {
+      throw new ApiRequestError("Invalid note IDs for batch deletion.", 400, "invalid_input");
+    }
+    const permanent = Boolean(payload.permanent);
+    // The API accepts up to 100 IDs. Permanent deletes on older D1 servers
+    // also bind the workspace ID in the same SQL statement.
+    const chunkSize = permanent ? 99 : 100;
+    for (let offset = 0; offset < memoIds.length; offset += chunkSize) {
+      await syncMemoDeleteChunk(memoIds.slice(offset, offset + chunkSize), permanent);
+    }
     await acknowledge(item);
     return null;
   }
@@ -595,8 +631,9 @@ const syncOutbox = async (stagedRewrites: StagedResourceRewrite[], onlyKinds?: S
     if ([item.payload.notebookId, item.payload.parentId].some((id) => typeof id === "string" && id.startsWith("nb_local_"))) continue;
     if (item.kind === "notebook.trash"
       && notebookDeleteIdsFromPayload(item.payload, item.entityId).some((id) => id.startsWith("nb_local_"))) continue;
-    // A merge's entityId is its new result, not a source dependency.
-    const memoDependencies = item.kind === "memo.merge"
+    // These actions target the IDs in the payload. A merge's entityId in
+    // particular is its new result, not a source dependency.
+    const memoDependencies = item.kind === "memo.merge" || item.kind === "memo.deleteBatch"
       ? (Array.isArray(item.payload.memoIds) ? item.payload.memoIds : [])
       : item.kind === "memo.create" ? [] : [item.entityId, item.payload.memoId];
     if (memoDependencies.some((id) => typeof id === "string" && id.startsWith("memo_local_"))) continue;
