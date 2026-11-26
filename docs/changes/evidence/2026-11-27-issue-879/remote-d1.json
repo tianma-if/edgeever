@@ -1,0 +1,85 @@
+{
+  "sourceCommit": "7257ec7fd75ef2dc7abd6a0e55dea846ed1be774",
+  "database": "edgeever-pr900-1dda45faa4",
+  "createdAt": "2026-11-26T23:51:04.929Z",
+  "command": "bun run db:migrate:remote",
+  "after0099": {
+    "sql": "SELECT name FROM d1_migrations ORDER BY id DESC LIMIT 1",
+    "success": true,
+    "meta": {
+      "served_by_region": "APAC",
+      "served_by_primary": true,
+      "rows_read": 1
+    },
+    "results": [
+      {
+        "name": "0099_api_token_notebook_whitelist_format.sql"
+      }
+    ]
+  },
+  "after0105": {
+    "sql": "SELECT name FROM d1_migrations ORDER BY id DESC LIMIT 6",
+    "success": true,
+    "meta": {
+      "served_by_region": "APAC",
+      "served_by_primary": true,
+      "rows_read": 6
+    },
+    "results": [
+      {
+        "name": "0105_deduplicate_table_backup_staging.sql"
+      },
+      {
+        "name": "0104_chunked_table_backups.sql"
+      },
+      {
+        "name": "0103_shared_table_current_memo_reads.sql"
+      },
+      {
+        "name": "0102_shared_table_sync_receipts.sql"
+      },
+      {
+        "name": "0101_shared_table_memo_references.sql"
+      },
+      {
+        "name": "0100_shared_table_records.sql"
+      }
+    ]
+  },
+  "triggers": {
+    "sql": "SELECT name FROM sqlite_schema WHERE type='trigger' AND name GLOB 'ee_table_*' ORDER BY name",
+    "success": true,
+    "meta": {
+      "served_by_region": "APAC",
+      "served_by_primary": true,
+      "rows_read": 304
+    },
+    "results": [
+      {
+        "name": "ee_table_active_guard_insert"
+      },
+      {
+        "name": "ee_table_active_guard_update"
+      },
+      {
+        "name": "ee_table_migration_pause_delete"
+      },
+      {
+        "name": "ee_table_migration_pause_insert"
+      },
+      {
+        "name": "ee_table_migration_pause_update"
+      },
+      {
+        "name": "ee_table_search_delete"
+      },
+      {
+        "name": "ee_table_search_insert"
+      },
+      {
+        "name": "ee_table_search_update"
+      }
+    ]
+  },
+  "absentAfterDeletion": true
+}

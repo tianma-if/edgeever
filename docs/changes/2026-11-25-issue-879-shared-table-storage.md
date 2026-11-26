@@ -39,7 +39,7 @@
 - Chrome ran `tests/e2e/shared-table-record-sync.spec.ts` through the actual Web editor. The offline edit entered the durable queue. After the server committed the first PATCH, the test dropped the response. The retry reused the mutation ID and produced one recorded change. Reconnect fetched a remote revision incrementally, and a conflicting edit remained in IndexedDB. The integration test used the native Rust sidecar to persist an offline desktop edit across restart, upload one row and read it back in the Web mirror.
 - The isolated Docker upgrade from `v2.31.2` applied migrations through `0102` on the same volume. The owner estimated and migrated four tables with 172 rows, paused with a low write budget, then resumed and activated. Row PATCHes added 800 rows and deleted the seed row. Their compatible Markdown was 3,621,705 bytes. A service bundle from the `0101` implementation started on the same volume, read all records, revision 21 and its deletion delta, and saved and read back an edit to a migrated v2 table. The rollback bundle was a local verification build.
 - New workspace example tables and demo resets use shared records after cutover. Workspace examples retain their scoped attachment mappings.
-- The tested rollback bundle is retained locally at `dist/issue-879-rollback/self-hosted-server.js`. Its SHA-256 is `6d7853e3cc070864915fb50ddcf2cf464b5bac46b23effa273e54bd7c6a6a474`.
+- The original rollback bundle can be rebuilt from the [pinned source and commands](#rebuild-the-rollback-service).
 - Final checks passed for 1,074 API tests, 93 Web sync tests, 17 Rust sidecar unit tests, cross-client sidecar sync, Web and mobile type checks, and Web and Docker server builds.
 
 ## Maintenance window procedure
@@ -100,7 +100,7 @@ Pre-cutover history retains its original format. New memo history follows the ex
 
 - Migration `0105` deduplicates staged cells by content. The same 500-row Miniflare export with six histories produced 140 archive chunks containing about 70.2 MB of cells. Historical pagination remained at 120 requests. The readable Markdown stream added 20 current pages, for 17,732 total export row reads. Restore read 43,518 rows, wrote 23,554 rows, and peaked at about 74.6 MB. The resulting 506 permanent row versions match the source. The largest restore request was 502,588 bytes, and the largest current-record request was 261,364 bytes.
 - A separate table with 2,000 rows and 40 long-text fields exported and read back 480,244,818 bytes of readable Markdown and 80 structured row chunks. SQLite verified migration, restore, and subsequent edits for a 2,001-row legacy table. Chrome round-tripped the default backup UI between isolated Docker `0105` instances and restored current values, history, and attachment bytes with `crypto.randomUUID` disabled on the destination page to simulate an HTTP LAN origin.
-- The Web uploader transferred the Chrome ZIP v3 to a local Apache WebDAV server. The downloaded file matched byte-for-byte and parsed successfully. A regression test covers removal of the temporary upload file when the backup state request fails. Cloud D1 and production cutover have separate acceptance.
+- The Web uploader transferred the Chrome ZIP v3 to a local Apache WebDAV server. The downloaded file matched byte-for-byte and parsed successfully. A regression test covers removal of the temporary upload file when the backup state request fails. Cloud D1 usage for large backups and production cutover have separate acceptance.
 - All 1,110 API, ZIP64, and Web backup checks passed, along with 37 shared table, ZIP, and Node backup worker tests and 67 desktop backup unit tests. Web and mobile type checks and the Web, self-hosted server, and desktop backup worker builds passed.
 
 ## PR base update
@@ -110,7 +110,7 @@ Pre-cutover history retains its original format. New memo history follows the ex
 
 ## PR review regressions
 
-- Keep the eight new triggers in 0100 and 0101 on one physical line each for remote Wrangler parsing. Check the total and every definition, and apply the migrations to a disposable local D1 database. The issue limits this round to local data.
+- Keep the eight new triggers in 0100 and 0101 on one physical line each for remote Wrangler parsing. Check the total and every definition, and apply the migrations to a disposable local D1 database. The initial issue used local data. The remote migration result requested during PR review is recorded below.
 - Keep the Web startup refresh and immediate queue push assertions. Trace which dependency initializes the editor when the lifecycle hook starts.
 - Measure fixture setup, ZIP export, restore and verification separately for the 500-row table with six histories. Keep all size, cumulative D1 read and history assertions, and ensure the Miniflare worker exits.
 - Integrate upstream desktop sync changes and test the combined queue behavior. A regression can affect migration execution or offline edits. Review and revert the affected PR commit before release if verification fails.
@@ -118,3 +118,30 @@ Pre-cutover history retains its original format. New memo history follows the ex
 - The repository Wrangler entry point applied 0099 and then 0100–0105 to the same isolated local D1 database. All eight new triggers were present. The lifecycle hook now imports the standalone UUID module; its original startup and immediate-push assertions pass.
 - The migration suite runs in its own Bun process as part of `bun run test`. On local D1 the 500-row round trip took 5.13 s to set up, 2.68 s to export, 0.20 s to check the ZIP, 13.44 s to restore and 1.42 s to check the current and historical data. It read 17,732 rows for export and 43,518 for restore; its largest restore request was 502,588 bytes. The worker exited. The five targeted suites passed 96 tests.
 - Merged upstream `5c1c3f9f`. The conflict in desktop sync placed the new batch-delete helper and the table retry type at the same insertion point. The combined sync and native sidecar integration checks passed, as did both type checks and the Web build.
+
+## Remote migration and rollback reproduction
+
+On 2026-11-27 (UTC+8), a fresh remote D1 database received the migrations from PR commit `7257ec7f`. Two invocations of `bun run db:migrate:remote` used the same database binding. The first invocation used migration files through 0099. The second added 0100–0105. Remote queries confirmed the six filenames in the ledger and all eight new triggers. The disposable database was deleted and its absence verified. [Remote query results](evidence/2026-11-27-issue-879/remote-d1.json)
+
+### Rebuild the rollback service
+
+Use Bun 1.3.14 and the [0101 service source](https://github.com/sivdead/edgeever/commit/3115c90bf4703b88124fc49bf0a597c188b86c1e).
+
+```sh
+git init rollback-0101
+cd rollback-0101
+git fetch --depth=1 https://github.com/sivdead/edgeever.git 3115c90bf4703b88124fc49bf0a597c188b86c1e
+git checkout --detach FETCH_HEAD
+bun install --frozen-lockfile --ignore-scripts
+bun run build:self-hosted
+shasum -a 256 dist/self-hosted/self-hosted-server.js
+```
+
+The clean build produced SHA-256 `6d7853e3cc070864915fb50ddcf2cf464b5bac46b23effa273e54bd7c6a6a474` and matched the original drill bundle byte for byte.
+
+### Same-volume Docker replay
+
+1. Start the official `v2.31.2` image on an empty test volume, create a legacy table, stop the container and back up the volume.
+2. Restart on that volume with the server built from `7257ec7f` mounted at `/app/scripts/self-hosted-server.js` and its migrations mounted at `/app/migrations`. Health reported 0105. Activate shared storage, append 560 rows in 14 row PATCH requests and delete the seed row. At table revision 16, the projected Markdown was 2,373,118 bytes.
+3. Stop the container and replace only the server bundle with the rebuilt 0101 file. Keep the 0105 migration directory and the same volume. The 0101 service read all 560 rows, the deletion delta and the original history ID. Save one changed cell through a bound memo edit session and read back the full table.
+4. Restart the 0105 service on the same volume. The edited cell and all other records matched. This replay covered the self-hosted service, while the D1 check above covered remote migration application.
