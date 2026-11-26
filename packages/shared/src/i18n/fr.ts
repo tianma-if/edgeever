@@ -1152,10 +1152,8 @@ export const fr = {
       discardDescription: "Le contenu de cet élément de synchronisation qui n'a pas été téléversé sera définitivement supprimé. Les autres notes et données du cloud ne sont pas affectées.",
       reportIssue: "Signaler un problème",
       reportTitlePrefix: "[Sync] La synchronisation de l'application de bureau requiert votre attention",
-      reportContentHeading: "Ce qui s'est passé",
-      reportContentPrompt: "Décrivez ce qui s'est passé, le comportement attendu et les étapes permettant de reproduire le problème de synchronisation.",
-      reportDiagnosticsHeading: "Diagnostics de synchronisation capturés automatiquement",
-      reportDiagnosticsNotice: "EdgeEver a généré et caviardé ces diagnostics localement. Vérifiez-les avant l'envoi.",
+      reportPasteField: "Le rapport est trop long pour être prérempli. Copiez le texte ci-dessous dans le champ « {{field}} » sur GitHub.",
+      reportCopyField: "Copier le contenu du champ « {{field}} »",
       operations: {
         memo_create: "Créer une note",
         memo_update: "Mettre à jour la note",

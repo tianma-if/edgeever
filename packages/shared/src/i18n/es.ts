@@ -1152,10 +1152,8 @@ export const es = {
       "discardDescription": "El contenido que no se haya subido de este elemento de sincronización se eliminará permanentemente. Las demás notas y los datos en la nube no se verán afectados.",
       "reportIssue": "Informar de un problema",
       "reportTitlePrefix": "[Sincronización] La sincronización de escritorio requiere atención",
-      "reportContentHeading": "Qué ha ocurrido",
-      "reportContentPrompt": "Describe qué ha ocurrido, qué esperabas y cualquier paso que pueda ayudar a reproducir el problema de sincronización.",
-      "reportDiagnosticsHeading": "Diagnósticos de sincronización capturados automáticamente",
-      "reportDiagnosticsNotice": "EdgeEver generó y anonimizó estos diagnósticos localmente. Revísalos antes de enviarlos.",
+      "reportPasteField": "El informe es demasiado largo para rellenar el campo automáticamente. Copia el texto de abajo en el campo «{{field}}» de GitHub.",
+      "reportCopyField": "Copiar el contenido de «{{field}}»",
       "operations": {
         "memo_create": "Crear nota",
         "memo_update": "Actualizar nota",

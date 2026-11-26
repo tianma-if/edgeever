@@ -1013,10 +1013,8 @@ export const zhTW = {
       discardDescription: "該同步項中尚未上傳的內容會被永久刪除。其他筆記和雲端資料不會受到影響。",
       reportIssue: "提個 Issue",
       reportTitlePrefix: "[同步] 桌面端同步需要處理",
-      reportContentHeading: "問題描述",
-      reportContentPrompt: "請補充問題現象、預期結果，以及可能有助於復現同步問題的操作步驟。",
-      reportDiagnosticsHeading: "自動採集的同步診斷",
-      reportDiagnosticsNotice: "以下診斷由 EdgeEver 在本地生成並脫敏，請在提交前檢查。",
+      reportPasteField: "報告太長，無法自動填入。請複製下方內容，貼到 GitHub 的「{{field}}」欄位。",
+      reportCopyField: "複製 {{field}} 內容",
       operations: {
         memo_create: "新建筆記",
         memo_update: "更新筆記",

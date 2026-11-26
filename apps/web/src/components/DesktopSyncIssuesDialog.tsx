@@ -1,15 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, LoaderCircle, RefreshCw, RotateCcw, Trash2 } from "lucide-react";
-import { buildGitHubFeedbackUrl, getMemoSaveErrorReasonKey, type DesktopOutboxItem, type Notebook } from "@edgeever/shared";
+import { buildGitHubDiagnosticFeedback, getMemoSaveErrorReasonKey, type DesktopOutboxItem, type Notebook } from "@edgeever/shared";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { AppConfirmDialog } from "@/components/dialogs/ConfirmDialogs";
 import { GitHubMark } from "@/components/GitHubRepositoryLink";
 import { getShareableWebSystemInfoItems } from "@/components/settings/SystemInfoCard";
 import { api, getConfiguredDesktopApiBaseUrl } from "@/lib/api";
+import { copyTextToClipboard } from "@/lib/clipboard";
 import {
   createDesktopSyncDiagnosticText,
   discardDesktopSyncIssue,
@@ -25,6 +27,30 @@ const isRecoverableMissingMemo = (item: DesktopOutboxItem) => item.kind === "mem
   && (item.lastErrorCode === "memo_not_found" || /memo not found/i.test(item.lastError ?? ""));
 
 const operationLabelKey = (kind: DesktopOutboxItem["kind"]) => `notebookPane.syncDetails.operations.${kind.replaceAll(".", "_")}`;
+
+const SyncReportManualField = ({ label, text }: { label: string; text: string }) => {
+  const { t } = useTranslation();
+  const [copyResult, setCopyResult] = useState<{ text: string; copied: boolean } | null>(null);
+  const copyStatus = copyResult?.text === text ? copyResult.copied : null;
+
+  return (
+    <div className="space-y-2">
+      <p className="text-sm text-muted-foreground">{t("notebookPane.syncDetails.reportPasteField", { field: label })}</p>
+      <Textarea aria-label={label} className="h-20 font-mono" readOnly value={text} />
+      <div className="flex flex-wrap items-center gap-2">
+        <Button size="sm" variant="outline" onClick={async () => {
+          const copied = await copyTextToClipboard(text).catch(() => false);
+          setCopyResult({ text, copied });
+        }}>
+          {t("notebookPane.syncDetails.reportCopyField", { field: label })}
+        </Button>
+        <span className="text-sm text-muted-foreground" role="status">
+          {copyStatus === null ? null : t(copyStatus ? "common.copied" : "systemInfo.copyFailed")}
+        </span>
+      </div>
+    </div>
+  );
+};
 
 export const DesktopSyncIssuesDialog = ({
   notebooks,
@@ -79,22 +105,13 @@ export const DesktopSyncIssuesDialog = ({
     () => new Intl.DateTimeFormat(i18n.language, { dateStyle: "short", timeStyle: "medium" }),
     [i18n.language],
   );
-  const reportIssueUrl = useMemo(() => buildGitHubFeedbackUrl({
-    contentHeading: t("notebookPane.syncDetails.reportContentHeading"),
-    contentPrompt: t("notebookPane.syncDetails.reportContentPrompt"),
-    diagnostics: {
-      heading: t("notebookPane.syncDetails.reportDiagnosticsHeading"),
-      notice: t("notebookPane.syncDetails.reportDiagnosticsNotice"),
-      text: createDesktopSyncDiagnosticText(items, globalIssue),
-    },
-    privacyNotice: t("feedback.privacyNotice"),
+  const reportIssue = useMemo(() => buildGitHubDiagnosticFeedback({
+    diagnostics: createDesktopSyncDiagnosticText(items, globalIssue),
     systemInfo: getShareableWebSystemInfoItems(t, i18n.language, {
       clientRuntime: clientRuntimeQuery.data,
       instance: healthQuery.data?.health,
       instanceVersion: releaseQuery.data?.version,
     }),
-    systemInfoHeading: t("feedback.systemInfoHeading"),
-    systemInfoNotice: t("feedback.systemInfoNotice"),
     titlePrefix: t("notebookPane.syncDetails.reportTitlePrefix"),
   }), [clientRuntimeQuery.data, globalIssue, healthQuery.data, i18n.language, items, releaseQuery.data, t]);
   const collectingSystemInfo = clientRuntimeQuery.isFetching || healthQuery.isFetching || releaseQuery.isFetching;
@@ -251,10 +268,13 @@ export const DesktopSyncIssuesDialog = ({
             })}
           </div>
 
+          {canReportIssue && reportIssue.manualFields.map(({ label, text }) => (
+            <SyncReportManualField key={label} label={label} text={text} />
+          ))}
           <DialogFooter className="gap-2 sm:justify-between">
             <Button variant="outline" className="whitespace-nowrap" disabled={!canReportIssue} asChild={canReportIssue}>
               {canReportIssue ? (
-                <a href={reportIssueUrl} target="_blank" rel="noopener noreferrer">
+                <a href={reportIssue.url} target="_blank" rel="noopener noreferrer">
                   {reportIssueContent}
                 </a>
               ) : reportIssueContent}
