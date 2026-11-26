@@ -1,4 +1,4 @@
-import { createExcerpt, docToText, emptyDoc, type MemoDetail, type TiptapDoc } from "@edgeever/shared";
+import { buildTableDocumentMarkdown, createExcerpt, docToText, emptyDoc, markdownToDoc, parseTableDocument, type MemoDetail, type TiptapDoc } from "@edgeever/shared";
 import { auditStatement } from "./audit";
 import type { AppContext, AuditActor } from "./api-context";
 import { AppError } from "./app-error";
@@ -10,6 +10,8 @@ import { notebookExists } from "./notebook-service";
 import { resolveObjectStorage } from "./object-storage";
 import { inferImageExtension } from "./resource-service";
 import { getWorkspaceId } from "./request-auth";
+import { SharedTableStore } from "./shared-table-store";
+import { compactSharedMemo, readActiveTableStorage } from "./table-memo-storage";
 
 /**
  * Upper bounds for the files copied with one duplicated note. Each file is
@@ -160,12 +162,28 @@ export const duplicateMemoRecord = async (
     }
 
     const idReplacements = new Map(copies.map((copy) => [copy.id, copy.newId]));
-    const contentMarkdown = replaceResourceIds(source.content_markdown, idReplacements);
-    const contentJson = parseDoc(replaceResourceIds(source.content_json, idReplacements));
+    const table = parseTableDocument(source.content_markdown);
+    const active = table ? await readActiveTableStorage(db, workspaceId, newMemoId) : null;
+    if (table && active) {
+      for (const record of table.records) {
+        for (const field of table.fields) {
+          const cell = record.cells[field.id];
+          if (!Array.isArray(cell)) continue;
+          record.cells[field.id] = cell.map((file) => ({ ...file, resourceId: idReplacements.get(file.resourceId) ?? file.resourceId }));
+        }
+      }
+    }
+    const projected = table && active ? buildTableDocumentMarkdown(table) : null;
+    const contentMarkdown = projected?.markdown ?? replaceResourceIds(source.content_markdown, idReplacements);
+    const contentJson = projected ? markdownToDoc(projected.fallback) : parseDoc(replaceResourceIds(source.content_json, idReplacements));
     const contentText = docToText(contentJson);
     const title = input.title?.trim() || source.title;
     const tags = parseJsonArray(source.tags_json);
     const contentHash = await sha256(contentMarkdown + JSON.stringify(contentJson));
+    const stored = table && active ? compactSharedMemo(table) : {
+      content_json: JSON.stringify(contentJson), content_markdown: contentMarkdown, content_text: contentText,
+    };
+    const rows = table && active ? new SharedTableStore(db).planMemoInitialization(workspaceId, newMemoId, table, active.run_id) : [];
 
     await db.batch([
       db.prepare(
@@ -187,10 +205,11 @@ export const duplicateMemoRecord = async (
       ),
       db.prepare(
         `INSERT INTO memo_contents (
-          memo_id, content_json, content_markdown, content_text, content_hash, revision, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, 0, ?, ?)`,
-      ).bind(newMemoId, JSON.stringify(contentJson), contentMarkdown, contentText, contentHash, now, now),
-      upsertMemoSearchDocumentStatement(db, newMemoId, title, contentText, tags.join(" ")),
+          memo_id, content_json, content_markdown, content_text, content_hash, revision, shared_table_revision, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)`,
+      ).bind(newMemoId, stored.content_json, stored.content_markdown, stored.content_text, contentHash, active ? 1 : null, now, now),
+      ...rows,
+      upsertMemoSearchDocumentStatement(db, newMemoId, title, stored.content_text, tags.join(" ")),
       ...copies.map((copy) => db.prepare(
         `INSERT INTO resources (
           id, memo_id, bucket_name, object_key, storage_config_id, kind, mime_type, filename,

@@ -1,6 +1,5 @@
 import {
   resolveResourceUploadMimeType,
-  parseTableDocumentMetadata,
   TABLE_RECORD_LIMIT,
   PublicShareUnlockSchema,
   PublicTableFormSubmissionSchema,
@@ -22,7 +21,6 @@ import { authenticateRequest } from "./auth-service";
 import { hashPassword, randomToken, verifyPassword } from "./auth-crypto";
 import { createId, isoNow } from "./entity-utils";
 import { apiError, notFound } from "./http-errors";
-import { getTableMemoSource } from "./memo-service";
 import { getAuditActor, getWorkspaceId, requireUser } from "./request-auth";
 import {
   createAttachmentResource,
@@ -40,6 +38,7 @@ import {
 import { generateSharePassword } from "./share-password";
 import {
   appendTableFormSubmission,
+  getTableFormSource,
   parseTableFormFields,
   TABLE_FORM_ATTACHMENT_BYTES,
   type TableFormRow,
@@ -227,11 +226,10 @@ export const registerPublicTableFormRoutes = (app: Hono<AppEnv>) => {
       };
       return c.json({ form: locked });
     }
-    const memo = await getTableMemoSource(c.env.storage.db, form.workspace_id, form.memo_id);
-    const document = parseTableDocumentMetadata(memo?.contentMarkdown);
+    const { title, document } = await getTableFormSource(c.env.storage.db, form.workspace_id, form.memo_id);
     const view: PublicTableForm = {
       passwordRequired: false,
-      title: form.title || memo?.title || "",
+      title: form.title || title || "",
       description: form.description,
       submitLabel: form.submit_label,
       full: (document?.recordCount ?? 0) >= TABLE_RECORD_LIMIT,
@@ -288,8 +286,8 @@ export const registerPublicTableFormRoutes = (app: Hono<AppEnv>) => {
     if (file.size <= 0 || file.size > TABLE_FORM_ATTACHMENT_BYTES) {
       return apiError(c, "upload_too_large", "Each form attachment must be between 1 byte and 20 MiB.", 413);
     }
-    const memo = await getTableMemoSource(c.env.storage.db, form.workspace_id, form.memo_id);
-    if (!memo || !publicFields(form, parseTableDocumentMetadata(memo.contentMarkdown)).some((field) => field.type === "attachment")) {
+    const { document } = await getTableFormSource(c.env.storage.db, form.workspace_id, form.memo_id);
+    if (!publicFields(form, document).some((field) => field.type === "attachment")) {
       return apiError(c, "table_form_invalid", "This form does not accept files.", 400);
     }
     if (await countPendingAttachments(c, form) >= PENDING_ATTACHMENT_LIMIT) {
@@ -380,8 +378,7 @@ export const registerTableFormRoutes = (app: Hono<AppEnv>) => {
     if (denied) return denied;
     const memoId = c.req.param("id");
     const workspaceId = getWorkspaceId(c);
-    const memo = await getTableMemoSource(c.env.storage.db, workspaceId, memoId);
-    const document = parseTableDocumentMetadata(memo?.contentMarkdown);
+    const { document } = await getTableFormSource(c.env.storage.db, workspaceId, memoId);
     if (!document) return notFound(c, "Table not found");
     const input = c.req.valid("json");
     const fields = activeFieldSettings(document, input.fields);

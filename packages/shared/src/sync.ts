@@ -11,6 +11,7 @@ export type SyncChange = {
   operation: SyncOperation;
   notebook: Notebook | null;
   memo: MemoDetail | null;
+  tableRecords?: true;
 };
 
 export type SyncBootstrapResponse = {

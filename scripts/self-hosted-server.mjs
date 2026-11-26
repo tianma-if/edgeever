@@ -1,3 +1,4 @@
+import { readSharedMemoMarkdown } from "../apps/api/src/table-memo-storage.ts";
 import { Database } from "bun:sqlite";
 import { mkdir, readdir, readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
@@ -134,7 +135,7 @@ const server = Bun.serve({
       return renderNotebookSitePage(request, storage.db, loadAppShell);
     }
     if (isPublicMemoSharePagePath(pathname)) {
-      const page = await renderPublicMemoSharePage(request, storage.db, loadAppShell);
+      const page = await renderPublicMemoSharePage(request, storage.db, loadAppShell, readSharedMemoMarkdown);
       if (page) return page;
     }
     if (isEdgeEverAppPath(pathname)) {

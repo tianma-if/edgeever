@@ -1,4 +1,4 @@
-import type { MemoDetail, MemoRevision, MemoTemplate, Notebook, ResourceListItem, TiptapDoc } from "@edgeever/shared";
+import type { MemoDetail, MemoRevision, MemoTemplate, Notebook, ResourceListItem, TableSyncBase, TiptapDoc } from "@edgeever/shared";
 import Dexie, { type Table } from "dexie";
 
 export const LOCAL_DATABASE_INTERRUPTED_EVENT = "edgeever:local-database-interrupted";
@@ -36,6 +36,7 @@ export type MemoUpdateSyncPayload = {
   contentJson: TiptapDoc;
   contentMarkdown?: string;
   tags: string[];
+  tableBase?: TableSyncBase;
 };
 
 export type MemoCreateSyncPayload = {
@@ -70,6 +71,7 @@ export type SyncQueueItem = {
   memoId: string;
   status: SyncQueueStatus;
   payload: MemoUpdateSyncPayload | MemoCreateSyncPayload | MemoDeleteSyncPayload | MemoRestoreSyncPayload | LocalActionPayload;
+  tableAttempt?: MemoUpdateSyncPayload;
   attemptCount: number;
   lastError: string | null;
   lastErrorCode?: string | null;

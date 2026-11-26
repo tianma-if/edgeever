@@ -1,3 +1,6 @@
+import { hydrateSharedMemoRows } from "./table-memo-storage";
+import { readBackupTablePage } from "./backup-table-export";
+import { ChunkedTableRestore, tableRestoreActionSchema } from "./backup-table-restore";
 import {
   emptyDoc,
   JsonBackupResourceMetadataSchema,
@@ -7,6 +10,9 @@ import {
   type JsonBackupNotebook,
   type JsonBackupResource,
   type JsonBackupRevision,
+  type BackupTableRestoreSnapshot,
+  type BackupTableRestoreStart,
+  type BackupTableRow,
   type MemoDetail,
   type Resource,
   type TiptapDoc,
@@ -51,9 +57,11 @@ export type BackupMemoDetailRow = {
   content_markdown: string;
   content_text: string;
   content_hash: string;
+  shared_table_revision?: number | null;
   source_memo_ids: string;
   merge_source_count: number;
   merged_into_memo_id: string | null;
+  has_history?: number;
 };
 
 type BackupRevisionRow = {
@@ -66,6 +74,7 @@ type BackupRevisionRow = {
   content_markdown: string;
   content_text: string;
   content_hash: string;
+  shared_table_revision?: number | null;
   created_by: string;
   created_at: string;
 };
@@ -103,7 +112,7 @@ const parseRevisionDoc = (json: string): TiptapDoc => {
   }
 };
 
-export const mapJsonBackupRevision = (row: BackupRevisionRow): JsonBackupRevision => ({
+export const mapJsonBackupRevision = (row: BackupRevisionRow, includeReference = false): JsonBackupRevision => ({
   id: row.id,
   memoId: row.memo_id,
   revision: row.revision,
@@ -115,6 +124,7 @@ export const mapJsonBackupRevision = (row: BackupRevisionRow): JsonBackupRevisio
   contentHash: row.content_hash,
   createdBy: row.created_by,
   createdAt: row.created_at,
+  ...(includeReference && row.shared_table_revision != null ? { sharedTableRevision: row.shared_table_revision } : {}),
 });
 
 export const MAX_MARKDOWN_EXPORT_MEMO_IDS = 100;
@@ -132,12 +142,16 @@ export const parseMarkdownExportMemoIds = (value: string | undefined): { ids: st
   return { ids };
 };
 
-const MEMO_EXPORT_SELECT_SQL = `SELECT m.id, m.notebook_id, m.title, m.excerpt, m.tags_json, m.is_pinned,
+const sharedBackupBody = (alias: string, compact: boolean) => ["content_json", "content_markdown", "content_text"].map((column) =>
+  compact ? `CASE WHEN ${alias}.shared_table_revision IS NULL THEN ${alias}.${column} ELSE '${column === "content_json" ? '{"type":"doc","content":[]}' : ""}' END AS ${column}` : `${alias}.${column}`,
+).join(", ");
+const memoExportSelectSql = (compact = false) => `SELECT m.id, m.notebook_id, m.title, m.excerpt, m.tags_json, m.is_pinned,
             m.is_archived, m.is_deleted, m.created_at, m.updated_at, m.deleted_at, mc.revision,
-            mc.content_json, mc.content_markdown, mc.content_text, mc.content_hash,
-            m.source_memo_ids, m.merge_source_count, m.merged_into_memo_id
+            ${sharedBackupBody("mc", compact)}, mc.content_hash, mc.shared_table_revision,
+            m.source_memo_ids, m.merge_source_count, m.merged_into_memo_id${compact ? ", EXISTS(SELECT 1 FROM memo_revisions r WHERE r.memo_id = m.id) AS has_history" : ""}
      FROM memos m
-     INNER JOIN memo_contents mc ON mc.memo_id = m.id`;
+     INNER JOIN memo_contents_for_read mc ON mc.memo_id = m.id`;
+const MEMO_EXPORT_SELECT_SQL = memoExportSelectSql();
 
 type BackupStateRow = {
   identity: string;
@@ -147,6 +161,7 @@ type BackupStateRow = {
   revisions: number;
   resources: number;
   prompts: number;
+  table_active?: number;
 };
 
 // Page checks need only the transactional revision. Recounting every table here
@@ -162,11 +177,12 @@ const readBackupState = (database: DatabaseAdapter, workspaceId: string) => data
      (SELECT COUNT(*) FROM memos WHERE workspace_id = w.id AND is_deleted = 0) AS memos,
      (SELECT COUNT(*) FROM memo_revisions r JOIN memos m ON m.id = r.memo_id WHERE m.workspace_id = w.id AND m.is_deleted = 0) AS revisions,
      (SELECT COUNT(*) FROM resources r JOIN memos m ON m.id = r.memo_id WHERE m.workspace_id = w.id AND m.is_deleted = 0 AND r.is_deleted = 0) AS resources,
-     (SELECT COUNT(*) FROM ai_prompt_templates WHERE workspace_id = w.id) AS prompts
+     (SELECT COUNT(*) FROM ai_prompt_templates WHERE workspace_id = w.id) AS prompts,
+     EXISTS(SELECT 1 FROM ee_table_activation WHERE id = 1) AS table_active
    FROM workspaces w WHERE w.id = ?`,
 ).bind(workspaceId).first<BackupStateRow>();
 
-const readBackupRelations = async (database: DatabaseAdapter, memoIds: string[]) => {
+const readBackupRelations = async (database: DatabaseAdapter, workspaceId: string, memoIds: string[], includeRevisions = true) => {
   if (memoIds.length === 0) return { resources: [] as Resource[], revisions: [] as JsonBackupRevision[] };
   const placeholders = memoIds.map(() => "?").join(", ");
   const [resources, revisions] = await Promise.all([
@@ -176,13 +192,13 @@ const readBackupRelations = async (database: DatabaseAdapter, memoIds: string[])
        FROM resources WHERE is_deleted = 0 AND memo_id IN (${placeholders})
        ORDER BY memo_id ASC, created_at ASC, id ASC`,
     ).bind(...memoIds).all<ResourceRow>(),
-    database.prepare(
+    includeRevisions ? database.prepare(
       `SELECT id, memo_id, revision, title, tags_json, content_json, content_markdown,
-              content_text, content_hash, created_by, created_at FROM memo_revisions
+              content_text, content_hash, created_by, created_at, shared_table_revision FROM memo_revisions
        WHERE memo_id IN (${placeholders}) ORDER BY memo_id ASC, revision ASC, created_at ASC`,
-    ).bind(...memoIds).all<BackupRevisionRow>(),
+    ).bind(...memoIds).all<BackupRevisionRow>() : Promise.resolve({ results: [] as BackupRevisionRow[] }),
   ]);
-  return { resources: resources.results.map(mapResource), revisions: revisions.results.map(mapJsonBackupRevision) };
+  return { resources: resources.results.map(mapResource), revisions: (await hydrateSharedMemoRows(database, workspaceId, revisions.results, true)).map((row) => mapJsonBackupRevision(row)) };
 };
 
 const exportCursorSchema = z.object({
@@ -304,6 +320,7 @@ export const registerBackupRoutes = (
     if (!state) return notFound(context, "Workspace not found.");
     return context.json({
       protocolVersion: 1,
+      tableChunks: Boolean(state.table_active),
       userId: context.get("auth").actorId,
       workspaceId,
       identity: state.identity,
@@ -319,7 +336,7 @@ export const registerBackupRoutes = (
     if (restricted) return restricted;
     context.header("Cache-Control", "private, no-store");
     const kind = context.req.query("kind");
-    if (!["memos", "notebooks", "prompts"].includes(kind ?? "")) return badRequest(context, "Unknown backup data kind.");
+    if (!["memos", "notebooks", "prompts", "revisions", "table", "check"].includes(kind ?? "")) return badRequest(context, "Unknown backup data kind.");
     if (kind === "notebooks") {
       const notebookDenied = requireScopes(context, "read:notebooks");
       if (notebookDenied) return notebookDenied;
@@ -339,17 +356,37 @@ export const registerBackupRoutes = (
     };
     const changed = () => conflict(context, "backup_source_changed", "The source changed during backup. Try again when it is idle.");
     if (!await unchanged()) return changed();
+    if (kind === "check") return context.json({ ok: true });
     const after = context.req.query("after") ?? "";
-    const limit = dependencies.clampNumber(Number(context.req.query("limit") ?? 25), 1, 50);
+    const chunked = context.req.query("tableChunks") === "1";
+    const limit = dependencies.clampNumber(Number(context.req.query("limit") ?? 25) || 25, 1, chunked || kind === "revisions" ? 10 : 50);
+    const memoId = context.req.query("memoId");
+    if (kind === "table") {
+      if (!memoId) return badRequest(context, "A backup memo ID is required.");
+      const page = await readBackupTablePage(database, workspaceId, memoId, context.req.query("revisionId"), after);
+      if (!await unchanged()) return changed();
+      return page ? context.json(page) : notFound(context, "Backup table snapshot not found.");
+    }
     let result: Record<string, unknown>;
     let ids: string[];
     if (kind === "memos") {
       const rows = await database.prepare(
-        `${MEMO_EXPORT_SELECT_SQL} WHERE m.workspace_id = ? AND m.is_deleted = 0 AND m.id > ? ORDER BY m.id ASC LIMIT ?`,
+        `${memoExportSelectSql(chunked)} WHERE m.workspace_id = ? AND m.is_deleted = 0 AND m.id > ? ORDER BY m.id ASC LIMIT ?`,
       ).bind(workspaceId, after, limit + 1).all<BackupMemoDetailRow>();
-      const selected = rows.results.slice(0, limit);
+      const page = rows.results.slice(0, limit);
+      const selected = chunked ? page : await hydrateSharedMemoRows(database, workspaceId, page);
       ids = rows.results.map((row) => row.id);
-      result = { memos: selected.map(dependencies.mapMemoDetail), ...await readBackupRelations(database, selected.map((row) => row.id)) };
+      result = { memos: selected.map(dependencies.mapMemoDetail), ...await readBackupRelations(database, workspaceId, selected.map((row) => row.id), !chunked),
+        ...(chunked ? { memosWithHistory: page.filter((row) => row.has_history).map((row) => row.id) } : {}) };
+    } else if (kind === "revisions") {
+      if (!memoId) return badRequest(context, "A backup memo ID is required.");
+      const rows = await database.prepare(`SELECT r.id, r.memo_id, r.revision, r.title, r.tags_json,
+        ${sharedBackupBody("r", true)}, r.content_hash, r.created_by, r.created_at, r.shared_table_revision
+        FROM memo_revisions r JOIN memos m ON m.id = r.memo_id
+        WHERE m.workspace_id = ? AND m.is_deleted = 0 AND r.memo_id = ? AND r.id > ? ORDER BY r.id LIMIT ?`,
+      ).bind(workspaceId, memoId, after, limit + 1).all<BackupRevisionRow>();
+      ids = rows.results.map((row) => row.id);
+      result = { revisions: rows.results.slice(0, limit).map((row) => mapJsonBackupRevision(row, true)) };
     } else if (kind === "notebooks") {
       const rows = await database.prepare(notebookSelectSql(
         `WHERE n.workspace_id = ? AND n.is_deleted = 0 AND n.id > ? GROUP BY n.id ORDER BY n.id ASC LIMIT ?`,
@@ -392,7 +429,7 @@ export const registerBackupRoutes = (
       includeTotal,
       cursor,
     );
-    const page = memoRows.results.slice(0, limit);
+    const page = await hydrateSharedMemoRows(context.env.storage.db, workspaceId, memoRows.results.slice(0, limit));
     const memoIds = page.map((row) => row.id);
     let resources: Resource[] = [];
 
@@ -430,32 +467,9 @@ export const registerBackupRoutes = (
     const workspaceId = getWorkspaceId(context);
     const includeTotal = cursor ? context.req.query("includeTotal") === "1" : offset === 0 || context.req.query("includeTotal") !== "0";
     const [memoRows, totalRow] = await listBackupPage(context.env.storage.db, workspaceId, limit, offset, includeTotal, cursor);
-    const page = memoRows.results.slice(0, limit);
+    const page = await hydrateSharedMemoRows(context.env.storage.db, workspaceId, memoRows.results.slice(0, limit));
     const memoIds = page.map((row) => row.id);
-    let resources: Resource[] = [];
-    let revisions: JsonBackupRevision[] = [];
-
-    if (memoIds.length > 0) {
-      const placeholders = memoIds.map(() => "?").join(", ");
-      const [resourceRows, revisionRows] = await Promise.all([
-        context.env.storage.db.prepare(
-          `SELECT id, memo_id, original_memo_id, bucket_name, object_key, storage_config_id, kind, mime_type,
-                  filename, byte_size, sha256, width, height, created_at, updated_at
-           FROM resources
-           WHERE is_deleted = 0 AND memo_id IN (${placeholders})
-           ORDER BY memo_id ASC, created_at ASC, id ASC`,
-        ).bind(...memoIds).all<ResourceRow>(),
-        context.env.storage.db.prepare(
-          `SELECT id, memo_id, revision, title, tags_json, content_json, content_markdown,
-                  content_text, content_hash, created_by, created_at
-           FROM memo_revisions
-           WHERE memo_id IN (${placeholders})
-           ORDER BY memo_id ASC, revision ASC, created_at ASC`,
-        ).bind(...memoIds).all<BackupRevisionRow>(),
-      ]);
-      resources = resourceRows.results.map(mapResource);
-      revisions = revisionRows.results.map(mapJsonBackupRevision);
-    }
+    const { resources, revisions } = await readBackupRelations(context.env.storage.db, workspaceId, memoIds);
 
     const totalCount = totalRow?.count ?? page.length;
     return context.json({
@@ -496,6 +510,29 @@ export const registerBackupRoutes = (
       return context.json({ ok: true });
     },
   );
+
+  app.get("/api/v1/restores/json/tables", async (context) => {
+    const denied = requireUser(context);
+    if (denied) return denied;
+    const active = await context.env.storage.db.prepare("SELECT 1 FROM ee_table_activation WHERE id = 1").first();
+    return context.json({ active: Boolean(active) });
+  });
+  app.post("/api/v1/restores/json/tables/:restoreId", zValidator("json", tableRestoreActionSchema), async (context) => {
+    const denied = requireUser(context);
+    if (denied) return denied;
+    const restoreId = z.uuid().safeParse(context.req.param("restoreId"));
+    if (!restoreId.success) return badRequest(context, "Invalid table restore ID.");
+    const restore = new ChunkedTableRestore(context.env.storage.db, getWorkspaceId(context), restoreId.data);
+    const input = context.req.valid("json");
+    switch (input.action) {
+      case "start": await restore.start(input as Omit<BackupTableRestoreStart, "restoreId">); break;
+      case "snapshot": await restore.snapshot(input as BackupTableRestoreSnapshot); break;
+      case "rows": await restore.rows(input.ordinal, input.rows as BackupTableRow[]); break;
+      case "publish": await restore.publish(); break;
+      case "cancel": await restore.cancel(); break;
+    }
+    return context.json({ ok: true });
+  });
 
   app.post("/api/v1/restores/json/resources/:id/uploads", async (context) => {
     const denied = requireUser(context);

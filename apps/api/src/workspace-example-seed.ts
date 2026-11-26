@@ -3,6 +3,8 @@ import {
   docToText,
   markdownToDoc,
   normalizeTags,
+  parseTableDocument,
+  serializeTableDocument,
 } from "@edgeever/shared";
 import {
   WELCOME_MEMO_REPAIRED_CONTENT_HASH,
@@ -22,7 +24,9 @@ import { isDemoModeEnabled } from "./demo-mode";
 import { isoNow } from "./entity-utils";
 import { sha256, sha256Bytes } from "./hash-utils";
 import { upsertMemoSearchDocumentStatement } from "./memo-search-index";
+import { SharedTableStore } from "./shared-table-store";
 import type { DatabaseAdapter, PreparedStatementAdapter } from "./storage-contract";
+import { compactSharedMemo, readActiveTableStorage } from "./table-memo-storage";
 
 const EXAMPLE_NOTEBOOKS = [
   { id: "nb_demo_features", slug: "demo-features", name: "功能演示", sortOrder: 21 },
@@ -171,8 +175,26 @@ export const ensureWorkspaceExampleSeed = async (env: Bindings, workspaceId: str
       markdown,
     );
   };
+  const exampleContent = (source: string) => {
+    let markdown = rewriteResourceLinks(omitInstanceUnavailableExampleTips(source));
+    const table = parseTableDocument(markdown);
+    if (table && !useCanonicalIds) {
+      for (const record of table.records) {
+        for (const field of table.fields) {
+          const attachments = record.cells[field.id];
+          if (field.type === "attachment" && Array.isArray(attachments)) {
+            record.cells[field.id] = attachments.map((attachment) => ({ ...attachment, resourceId: mapId(attachment.resourceId) }));
+          }
+        }
+      }
+      markdown = serializeTableDocument(table);
+    }
+    return { markdown, table };
+  };
 
   const now = isoNow();
+  const active = await readActiveTableStorage(db, workspaceId, "");
+  const store = new SharedTableStore(db);
   const statements: PreparedStatementAdapter[] = [];
   for (const notebook of EXAMPLE_NOTEBOOKS) {
     statements.push(db.prepare(
@@ -183,12 +205,14 @@ export const ensureWorkspaceExampleSeed = async (env: Bindings, workspaceId: str
   }
 
   for (const memo of DEMO_SEED_MEMOS) {
-    const markdown = rewriteResourceLinks(omitInstanceUnavailableExampleTips(memo.markdown));
+    const { markdown, table } = exampleContent(memo.markdown);
+    const memoId = mapId(memo.id);
     const contentJson = markdownToDoc(markdown);
     if (Array.isArray(contentJson.content)) applyImageWidths(contentJson.content);
     const contentText = docToText(contentJson);
     const contentHash = await sha256(markdown + JSON.stringify(contentJson));
     const tags = normalizeTags(memo.tags);
+    const compact = active && table ? compactSharedMemo(table) : null;
     statements.push(
       db.prepare(
         `INSERT OR IGNORE INTO memos (
@@ -196,7 +220,7 @@ export const ensureWorkspaceExampleSeed = async (env: Bindings, workspaceId: str
            is_archived, is_deleted, created_by, updated_by, created_at, updated_at, deleted_at
          ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 'system', 'system', ?, ?, NULL)`,
       ).bind(
-        mapId(memo.id),
+        memoId,
         workspaceId,
         mapId(memo.notebookId),
         memo.title,
@@ -208,15 +232,17 @@ export const ensureWorkspaceExampleSeed = async (env: Bindings, workspaceId: str
       ),
       db.prepare(
         `INSERT OR IGNORE INTO memo_contents (
-           memo_id, content_json, content_markdown, content_text, content_hash, revision, created_at, updated_at
-         ) VALUES (?, ?, ?, ?, ?, 0, ?, ?)`,
-      ).bind(mapId(memo.id), JSON.stringify(contentJson), markdown, contentText, contentHash, now, now),
-      upsertMemoSearchDocumentStatement(db, mapId(memo.id), memo.title, contentText, tags.join(" ")),
+           memo_id, content_json, content_markdown, content_text, content_hash, revision, created_at, updated_at, shared_table_revision
+         ) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)`,
+      ).bind(memoId, compact?.content_json ?? JSON.stringify(contentJson), compact?.content_markdown ?? markdown,
+        compact?.content_text ?? contentText, contentHash, now, now, compact ? 1 : null),
+      upsertMemoSearchDocumentStatement(db, memoId, memo.title, compact?.content_text ?? contentText, tags.join(" ")),
     );
+    if (active && table) statements.push(...store.planMemoInitialization(workspaceId, memoId, table, active.run_id));
   }
 
   for (const revision of DEMO_SEED_REVISIONS) {
-    const markdown = rewriteResourceLinks(omitInstanceUnavailableExampleTips(revision.markdown));
+    const { markdown } = exampleContent(revision.markdown);
     const contentJson = markdownToDoc(markdown);
     const contentHash = await sha256(markdown + JSON.stringify(contentJson));
     statements.push(db.prepare(
@@ -279,5 +305,10 @@ export const ensureWorkspaceExampleSeed = async (env: Bindings, workspaceId: str
   statements.push(db.prepare(
     `DELETE FROM workspace_example_seeds WHERE workspace_id = ?`,
   ).bind(workspaceId));
-  await db.batch(statements);
+  try {
+    await db.batch(statements);
+  } catch (error) {
+    // A concurrent seed of the same workspace may have already committed.
+    if (await db.prepare(`SELECT 1 FROM workspace_example_seeds WHERE workspace_id = ?`).bind(workspaceId).first()) throw error;
+  }
 };

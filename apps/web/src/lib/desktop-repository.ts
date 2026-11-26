@@ -365,6 +365,7 @@ export const createDesktopRepository = (): EdgeEverRepository => ({
       contentJson: portableContentJson,
       contentMarkdown,
       contentText: docToText(portableContentJson),
+      tableBase: input.tableBase,
       tags: input.tags,
     };
     let result;

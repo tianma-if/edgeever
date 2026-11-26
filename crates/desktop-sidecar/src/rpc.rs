@@ -18,7 +18,7 @@ use crate::memo::{
 };
 use crate::sync::{
     apply_sync_changes, prepare_sync_bootstrap, sync_outbox_ack, sync_outbox_discard,
-    sync_outbox_fail, sync_outbox_list, sync_outbox_recover_memo_update, sync_outbox_retry,
+    sync_outbox_fail, sync_outbox_list, sync_outbox_recover_memo_update, sync_outbox_remember_table, sync_outbox_retry,
     sync_status, SYNC_BOOTSTRAP_RESET_KEY,
 };
 use crate::{bool_param, set_meta, string_param};
@@ -64,6 +64,7 @@ pub(crate) fn handle(
         "sync.status" => sync_status(database),
         "sync.bootstrap.prepare" => prepare_sync_bootstrap(database, &request.params),
         "sync.outbox.list" => sync_outbox_list(database, &request.params),
+        "sync.outbox.rememberTable" => sync_outbox_remember_table(database, &request.params),
         "sync.outbox.ack" => sync_outbox_ack(database, &request.params),
         "sync.outbox.fail" => sync_outbox_fail(database, &request.params),
         "sync.outbox.retry" => sync_outbox_retry(database, &request.params),

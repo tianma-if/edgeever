@@ -1,3 +1,6 @@
+import { tableSyncBase } from "@/lib/table-sync";
+import { advanceStructuredMemoSyncBase, retainNewerStructuredMemoSyncBase } from "@/lib/structured-memo-sync";
+import { MEMO_SYNC_ACKNOWLEDGED_EVENT } from "@/lib/sync-events";
 import { AI_ASSISTANT_LAUNCHER_POSITION } from "@/lib/ai-assistant-launcher";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -59,10 +62,8 @@ import { toDesktopResourceDownloadUrl, toDesktopResourceUrl } from "@/lib/deskto
 import { EDITOR_LOCAL_SAVE_DELAY_MS, formatShortcutBinding, getNotebookMoveOptions, type ShortcutSettings } from "@/lib/app-helpers";
 import { createLocalEditSession } from "@/components/editor/editor-pane-helpers";
 import { isLocalMemoId } from "@/lib/local-mirror";
-import { isBrowserOffline } from "@/lib/network-status";
 import { resolveSafeTableUrl } from "@/lib/table-url";
 import type { EdgeEverRepository } from "@/lib/repository";
-import type { MemoEditSession } from "@edgeever/shared";
 
 type TableEditorPaneProps = {
   memo: MemoDetail;
@@ -603,12 +604,11 @@ export const TableEditorPane = ({
     refetchOnWindowFocus: false,
   });
   const formAccepting = formQuery.data?.form?.enabled === true;
-  const [editSessionReady, setEditSessionReady] = useState(false);
   const memoRef = useRef(memo);
+  const acknowledgedMemoRef = useRef<MemoDetail | null>(null);
   const titleRef = useRef(title);
   const documentRef = useRef(document);
   const editingRef = useRef(editing);
-  const editSessionRef = useRef<MemoEditSession | null>(null);
   const pendingUploadIdsRef = useRef(new Set<string>());
   const [attachmentUploads, setAttachmentUploads] = useState<Map<string, AttachmentUploadState>>(() => new Map());
   const savingRef = useRef(false);
@@ -617,6 +617,18 @@ export const TableEditorPane = ({
   titleRef.current = title;
   documentRef.current = document;
   editingRef.current = editing;
+
+  useEffect(() => {
+    const acknowledge = (event: Event) => {
+      const receipt = (event as CustomEvent<MemoDetail>).detail;
+      const advanced = advanceStructuredMemoSyncBase(memoRef.current, receipt);
+      if (advanced === memoRef.current) return;
+      acknowledgedMemoRef.current = receipt;
+      memoRef.current = advanced;
+    };
+    window.addEventListener(MEMO_SYNC_ACKNOWLEDGED_EVENT, acknowledge);
+    return () => window.removeEventListener(MEMO_SYNC_ACKNOWLEDGED_EVENT, acknowledge);
+  }, []);
 
   useEffect(() => {
     // Keep the displayed table and its save base in sync after AI/server edits.
@@ -633,29 +645,6 @@ export const TableEditorPane = ({
     setSaveError(null);
     setSaveFailed(false);
   }, [dirty, editing, memo, parsed, saving]);
-
-  useEffect(() => {
-    editSessionRef.current = null;
-    setEditSessionReady(false);
-    setSaveError(null);
-    setSaveFailed(false);
-    if (readOnly || !parsed) return;
-    if (isLocalMemoId(memo.id) || isBrowserOffline() || window.edgeeverDesktop?.isAvailable) {
-      editSessionRef.current = createLocalEditSession(memo);
-      setEditSessionReady(true);
-      return;
-    }
-    let cancelled = false;
-    void api.createMemoEditSession(memo.id).then(({ editSession }) => {
-      if (!cancelled) {
-        editSessionRef.current = editSession;
-        setEditSessionReady(true);
-      }
-    }).catch(() => {
-      if (!cancelled) setSaveError(t("structuredTable.editSessionError"));
-    });
-    return () => { cancelled = true; };
-  }, [memo.id, memo.contentHash, memo.revision, parsed, readOnly, t]);
 
   useEffect(() => {
     if (handledAiAssistantOpenTokenRef.current === aiAssistantOpenToken) return;
@@ -695,8 +684,7 @@ export const TableEditorPane = ({
   const save = async () => {
     const currentMemo = memoRef.current;
     const currentDocument = documentRef.current;
-    const editSession = editSessionRef.current;
-    if (!currentDocument || !editSession || readOnly || savingRef.current) return false;
+    if (!currentDocument || readOnly || savingRef.current) return false;
     if (editingRef.current) commitEditing(draftRef.current);
     const nextDocument = documentRef.current;
     if (!nextDocument) return false;
@@ -712,16 +700,20 @@ export const TableEditorPane = ({
     setSaveFailed(false);
     try {
       const { fallback, markdown } = markdownFor(nextDocument);
+      const acknowledged = acknowledgedMemoRef.current;
+      const base = acknowledged?.id === currentMemo.id && acknowledged.revision === currentMemo.revision
+        && acknowledged.contentHash === currentMemo.contentHash ? acknowledged : currentMemo;
       const result = await repository.updateMemo(currentMemo, {
         expectedRevision: currentMemo.revision,
         expectedContentHash: currentMemo.contentHash,
-        editSessionId: editSession.id,
+        editSessionId: createLocalEditSession(currentMemo).id,
         title: next.title,
         contentJson: markdownToDoc(fallback),
         contentMarkdown: markdown,
         tags: currentMemo.tags,
+        tableBase: tableSyncBase(base),
       });
-      memoRef.current = result.memo;
+      memoRef.current = retainNewerStructuredMemoSyncBase(result.memo, memoRef.current);
       savedDraftRef.current = next;
       acknowledgeUploads(nextDocument);
       const hasNewChanges = titleRef.current !== next.title || documentRef.current !== next.document;
@@ -740,10 +732,10 @@ export const TableEditorPane = ({
   saveRef.current = () => { void save(); };
 
   useEffect(() => {
-    if (readOnly || !dirty || saving || !editSessionReady || saveFailed || editing) return;
+    if (readOnly || !dirty || saving || saveFailed || editing) return;
     const timer = window.setTimeout(() => saveRef.current(), EDITOR_LOCAL_SAVE_DELAY_MS);
     return () => window.clearTimeout(timer);
-  }, [dirty, editSessionReady, editing, readOnly, saveFailed, saving]);
+  }, [dirty, editing, readOnly, saveFailed, saving]);
 
   const views = useMemo(() => document ? getTableViews(document) : [], [document]);
   const activeView = views.find((view) => view.id === selectedViewId) ?? views[0];
@@ -871,7 +863,7 @@ export const TableEditorPane = ({
   const countLabel = filtered
     ? t("structuredTable.recordCountFiltered", { count: visibleRecords.length, total: document.records.length })
     : t("structuredTable.recordCount", { count: document.records.length });
-  const saveLabel = saveError ? saveError : saving ? t("structuredTable.saving") : dirty ? t("structuredTable.unsaved") : editSessionReady ? t("structuredTable.saved") : "";
+  const saveLabel = saveError ? saveError : saving ? t("structuredTable.saving") : dirty ? t("structuredTable.unsaved") : !readOnly && document ? t("structuredTable.saved") : "";
   const fieldLimitReached = document.fields.length >= TABLE_FIELD_LIMIT;
   const recordLimitReached = document.records.length >= TABLE_RECORD_LIMIT;
 

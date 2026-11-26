@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { IDBKeyRange, indexedDB } from "fake-indexeddb";
+import { markdownToDoc, serializeTableDocument } from "@edgeever/shared";
 
 globalThis.indexedDB = indexedDB;
 globalThis.IDBKeyRange = IDBKeyRange;
@@ -57,6 +58,57 @@ test("syncs a notebook trash as one request and keeps it queued when the server 
 });
 
 describe("web sync conflict recovery", () => {
+  test("replays a sent table edit before a successor queued while its response was lost", async () => {
+    const scope = createLocalDataScope("https://demo.edgeever.org", "user-1");
+    const createdMemo = await createLocalMemo(scope, { notebookId: "inbox" });
+    const markdown = (text) => serializeTableDocument({ schemaVersion: 1, fields: [{ id: "name", name: "Name", type: "text" }], view: { filters: [], sort: null }, records: [{ id: "row", cells: { name: text } }] });
+    const base = { ...createdMemo, id: "table-replayed", title: "Table", contentMarkdown: markdown("Original"), revision: 1, contentHash: "hash-1", sharedTableRevision: 1 };
+    await putLocalMemo(scope, base);
+    const enqueue = (text) => queueMemoUpdate({ memoId: base.id, title: base.title, tags: [], expectedRevision: 1, expectedContentHash: "hash-1", editSessionId: "session", tableBase: base, contentMarkdown: markdown(text), contentJson: markdownToDoc(markdown(text)) }, scope);
+    await enqueue("First edit");
+    const received = [];
+    const receipts = new Map();
+    let startResponse;
+    let lostResponse;
+    const started = new Promise((resolve) => { startResponse = resolve; });
+    const dropResponse = new Promise((resolve) => { lostResponse = resolve; });
+    let cloudRevision = 1;
+    const original = { createMemoEditSession: api.createMemoEditSession, updateTableRecords: api.updateTableRecords };
+    api.createMemoEditSession = async () => ({ editSession: { id: "session", baseRevision: cloudRevision, baseContentHash: `hash-${cloudRevision}`, sharedTable: true } });
+    api.updateTableRecords = async (_id, mutation) => {
+      received.push(mutation);
+      const replay = receipts.get(mutation.mutationId);
+      if (replay) return { receipt: replay };
+      if (mutation.expectedRevision !== cloudRevision) throw new ApiRequestError("stale", 409, "revision_conflict");
+      cloudRevision++;
+      const receipt = { revision: cloudRevision, tableRevision: cloudRevision, updatedAt: new Date().toISOString(), contentHash: `hash-${cloudRevision}` };
+      receipts.set(mutation.mutationId, receipt);
+      if (received.length === 1) {
+        startResponse();
+        await dropResponse;
+        throw new TypeError("Response lost after commit");
+      }
+      return { receipt };
+    };
+    try {
+      const first = syncQueuedChanges({ scope });
+      await started;
+      await enqueue("Successor edit");
+      lostResponse();
+      await first;
+      // The original page can close before marking the lost response as an error.
+      await localDb.syncQueue.update(getMemoUpdateQueueId(base.id), { status: "syncing", claimId: "closed-page", nextAttemptAt: null });
+      expect(await syncQueuedChanges({ scope })).toMatchObject({ synced: 1, conflicted: 0 });
+      expect(received[1].mutationId).toBe(received[0].mutationId);
+      expect(await syncQueuedChanges({ scope })).toMatchObject({ synced: 1, conflicted: 0 });
+      expect(received[2]).toMatchObject({ expectedRevision: 2, puts: [{ id: "row", cells: { name: "Successor edit" } }] });
+      expect(cloudRevision).toBe(3);
+      expect(await localDb.syncQueue.get(getMemoUpdateQueueId(base.id))).toBeUndefined();
+    } finally {
+      Object.assign(api, original);
+    }
+  });
+
   test("confirmed note deletions clear only their older local conflicts", async () => {
     const previousOnline = globalThis.navigator?.onLine;
     if (globalThis.navigator) Object.defineProperty(globalThis.navigator, "onLine", { configurable: true, value: true });

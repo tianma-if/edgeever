@@ -98,7 +98,7 @@ export const getExportResourceExtension = (resource: Resource) => {
   return mimeExtension ? sanitizeExportPathSegment(mimeExtension, "bin").toLowerCase() : "bin";
 };
 
-const encodeRelativePath = (path: string) => path.split("/").map(encodeURIComponent).join("/");
+export const encodeRelativePath = (path: string) => path.split("/").map(encodeURIComponent).join("/");
 
 export const replaceExportResourceUrl = (markdown: string, resourceUrl: string, relativePath: string, origin?: string) => {
   const encodedPath = encodeRelativePath(relativePath);

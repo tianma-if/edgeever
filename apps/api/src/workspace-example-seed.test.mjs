@@ -2,6 +2,8 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { Database } from "bun:sqlite";
 import { globSync, readFileSync } from "node:fs";
 import { createSelfHostedStorageAdapter } from "./self-hosted-storage-adapter.ts";
+import { SharedTableMigration } from "./table-storage-migration.ts";
+import { SharedTableStore } from "./shared-table-store.ts";
 import { ensureUserWorkspace } from "./workspace-provisioning.ts";
 import {
   ensureWorkspaceExampleSeed,
@@ -188,6 +190,30 @@ describe("workspace example seed", () => {
 
     expect(pending(sqlite)).toEqual(["ws_default"]);
     expect(exampleCounts(sqlite)).toEqual({});
+  });
+
+  test("seeds tables and their workspace-scoped attachments after storage activation", async () => {
+    const { sqlite, env } = freshInstallation();
+    const db = env.storage.db;
+    const migration = new SharedTableMigration(db);
+    await migration.start();
+    while ((await migration.advance()).phase !== "ready") {}
+    await migration.activate();
+
+    addUser(sqlite, "usr_owner", "admin");
+    addUser(sqlite, "usr_writer", "writer");
+    await ensureUserWorkspace(db, "usr_owner", "admin", "zh-CN");
+    const { workspaceId } = await ensureUserWorkspace(db, "usr_writer", "writer", "en");
+    await ensureWorkspaceExampleSeed(env, workspaceId);
+
+    const id = `${workspaceId}_memo_demo_table`;
+    expect(pending(sqlite)).not.toContain(workspaceId);
+    expect(exampleCounts(sqlite, workspaceId)).toEqual({ "demo-features": 7, "feature-demos": 7 });
+    expect(sqlite.query("SELECT shared_table_revision FROM memo_contents WHERE memo_id = ?").get(id)).toEqual({ shared_table_revision: 1 });
+    const table = await new SharedTableStore(db).memoSnapshot(workspaceId, id, 1, false);
+    const attachments = table.records.flatMap((record) => record.cells.fld_docs ?? []);
+    expect(attachments.map((item) => item.resourceId)).toContain(`${workspaceId}_res_demo_attachment_bundle_zip`);
+    expect(sqlite.query("SELECT memo_id FROM resources WHERE id = ?").get(`${workspaceId}_res_demo_attachment_bundle_zip`)).not.toBeNull();
   });
 
   test("leaves the catalog to demo mode", async () => {

@@ -1,3 +1,4 @@
+import { hydrateSharedMemo } from "./table-memo-storage";
 import {
   NotebookShareUpdateSchema,
   NotebookSiteUpdateSchema,
@@ -35,7 +36,7 @@ import { isShareUnlockBlocked, nextShareUnlockFailure, type ShareUnlockState } f
 import { encryptSharePassword, readSharePassword } from "./share-password-encryption";
 import { generateSharePassword } from "./share-password";
 import { publicTreeSql, getNotebookSite, resolveNotebookSiteToken } from "./notebook-site-service";
-import { toFtsQuery, escapeLike } from "./memo-list-service";
+import { toFtsQuery, escapeLike, sharedTableSearch } from "./memo-list-service";
 
 type ShareRow = {
   id: string;
@@ -109,8 +110,10 @@ export const registerNotebookShareRoutes = (app: Hono<AppEnv>) => {
     if (query) {
       const fts = toFtsQuery(query);
       const like = `%${escapeLike(query)}%`;
-      conditions.push(`(m.title LIKE ? ESCAPE '\\' OR mc.content_text LIKE ? ESCAPE '\\' OR mc.content_markdown LIKE ? ESCAPE '\\'${fts ? " OR m.id IN (SELECT memo_id FROM memos_fts WHERE memos_fts MATCH ?)" : ""})`);
-      binds.push(like, like, like, ...(fts ? [fts] : []));
+      const tableMatches = sharedTableSearch(query, getWorkspaceId(c));
+      conditions.push(`(m.title LIKE ? ESCAPE '\\' OR mc.content_text LIKE ? ESCAPE '\\' OR mc.content_markdown LIKE ? ESCAPE '\\'${fts ? " OR m.id IN (SELECT memo_id FROM memos_fts WHERE memos_fts MATCH ?)" : ""}
+        OR m.id IN (SELECT table_id FROM (${tableMatches.sql})))`);
+      binds.push(like, like, like, ...(fts ? [fts] : []), ...tableMatches.bindings);
     }
     const rows = await db.prepare(`${publicTreeSql}
       SELECT m.id, m.title, m.notebook_id AS notebookId, n.name AS notebookName, ${excludedSql} AS excluded
@@ -364,26 +367,28 @@ export const registerPublicNotebookShareRoutes = (app: Hono<AppEnv>) => {
     const fts = toFtsQuery(query);
     const like = `%${escapeLike(query)}%`;
     const terms = query ? [...new Set([query, ...(query.match(/[\p{L}\p{N}_]+/gu) ?? []).slice(0, 8)])] : [];
-    const bodySql = "COALESCE(NULLIF(mc.content_text, ''), mc.content_markdown, '')";
+    const tableMatches = query ? sharedTableSearch(query) : null;
+    const bodySql = `COALESCE(${tableMatches ? "st.search_text, " : ""}NULLIF(mc.content_text, ''), mc.content_markdown, '')`;
     const positions = terms.map(() => `coalesce(nullif(instr(lower(${bodySql}), lower(?)), 0), 2147483647)`);
     const position = positions.length > 1 ? `min(${positions.join(",")})` : positions[0] ?? "1";
     const conditions: string[] = [];
     const binds: unknown[] = [token];
     if (query) {
-      conditions.push(`(m.title LIKE ? ESCAPE '\\' OR mc.content_text LIKE ? ESCAPE '\\' OR mc.content_markdown LIKE ? ESCAPE '\\'${fts ? " OR m.id IN (SELECT memo_id FROM memos_fts WHERE memos_fts MATCH ?)" : ""})`);
+      conditions.push(`(m.title LIKE ? ESCAPE '\\' OR mc.content_text LIKE ? ESCAPE '\\' OR mc.content_markdown LIKE ? ESCAPE '\\'${fts ? " OR m.id IN (SELECT memo_id FROM memos_fts WHERE memos_fts MATCH ?)" : ""} OR st.table_id IS NOT NULL)`);
       binds.push(like, like, like, ...(fts ? [fts] : []));
     }
     if (tag) {
       conditions.push("EXISTS (SELECT 1 FROM memo_tags mt WHERE mt.memo_id = m.id AND mt.workspace_id = m.workspace_id AND mt.normalized_name = lower(?))");
       binds.push(tag);
     }
-    const rows = await c.env.storage.db.prepare(`${publicTreeSql}
+    const rows = await c.env.storage.db.prepare(`${publicTreeSql}${tableMatches ? `, shared_table_matches AS MATERIALIZED (${tableMatches.sql})` : ""}
       SELECT m.id, m.notebook_id AS notebookId, m.title, m.excerpt,
         substr(${bodySql}, max(1, ${position} - 60), 240) AS snippet
       FROM visible_memos m LEFT JOIN memo_contents mc ON mc.memo_id = m.id
+      ${tableMatches ? "LEFT JOIN shared_table_matches st ON st.table_id = m.id" : ""}
       ${conditions.length ? `WHERE ${conditions.join(" AND ")}` : ""}
       ORDER BY m.updated_at DESC, m.id LIMIT ? OFFSET ?`)
-      .bind(token, ...terms, ...binds.slice(1), limit + 1, offset)
+      .bind(token, ...(tableMatches?.bindings ?? []), ...terms, ...binds.slice(1), limit + 1, offset)
       .all<NotebookSiteSearchResult["memos"][number] & { snippet: string }>();
     const memos = rows.results.slice(0, limit).map(({ snippet, ...row }) => ({ ...row, excerpt: snippet || row.excerpt || "", highlights: query ? [query, ...(query.match(/[\p{L}\p{N}_]+/gu) ?? [])] : [] }));
     return c.json({ memos, nextCursor: rows.results.length > limit ? String(offset + limit) : null } satisfies NotebookSiteSearchResult);
@@ -441,10 +446,11 @@ export const registerPublicNotebookShareRoutes = (app: Hono<AppEnv>) => {
     const row = await c.env.storage.db
       .prepare(
         `${publicTreeSql}
-      SELECT m.title, mc.content_json, mc.content_markdown, m.tags_json, m.updated_at, u.note_body_font,
+      SELECT m.workspace_id, m.title, mc.content_json, mc.content_markdown, mc.content_text, mc.shared_table_revision,
+        m.tags_json, m.updated_at, u.note_body_font,
         u.note_prose_font_size, u.note_prose_line_height, u.note_prose_palette, u.note_prose_custom_css, u.note_prose_custom_colors
       FROM visible_memos m
-      JOIN memo_contents mc ON mc.memo_id = m.id
+      JOIN memo_contents_for_read mc ON mc.memo_id = m.id
       JOIN notebook_shares ns ON ns.token = ?
       LEFT JOIN users u ON u.id = ns.created_by
       WHERE m.id = ? AND m.is_deleted = 0`,
@@ -454,6 +460,9 @@ export const registerPublicNotebookShareRoutes = (app: Hono<AppEnv>) => {
         NoteProseAccountRow & {
           title: string | null;
           content_json: string;
+          content_text: string;
+          workspace_id: string;
+          shared_table_revision?: number | null;
           content_markdown: string;
           tags_json: string;
           updated_at: string;
@@ -461,10 +470,11 @@ export const registerPublicNotebookShareRoutes = (app: Hono<AppEnv>) => {
         }
       >();
     if (!row) return notFound(c, "Shared note not found");
-    const contentJson = JSON.parse(row.content_json) as TiptapDoc;
+    const projected = await hydrateSharedMemo(c.env.storage.db, row.workspace_id, c.req.param("memoId"), row);
+    const contentJson = JSON.parse(projected.content_json) as TiptapDoc;
     const memoUrls: Record<string, string> = {};
     const ids = collectMemoLinkIds(
-      resolveMemoContentDoc(contentJson, row.content_markdown),
+      resolveMemoContentDoc(contentJson, projected.content_markdown),
     );
     for (let offset = 0; offset < ids.length; offset += 80) {
       const batch = ids.slice(offset, offset + 80);
@@ -484,7 +494,7 @@ export const registerPublicNotebookShareRoutes = (app: Hono<AppEnv>) => {
     const share: PublicMemoShare = {
       title: row.title,
       contentJson,
-      contentMarkdown: row.content_markdown,
+      contentMarkdown: projected.content_markdown,
       tags: parseJsonArray(row.tags_json),
       updatedAt: row.updated_at,
       memoShareTokens: {},

@@ -5,6 +5,7 @@ import {
   docToText,
   emptyDoc,
   normalizeTags,
+  parseTableDocument,
   type JsonBackupMemo,
   type JsonBackupNotebook,
   type TiptapDoc,
@@ -15,6 +16,8 @@ import { createId } from "./entity-utils";
 import { sha256 } from "./hash-utils";
 import { upsertMemoSearchDocumentStatement } from "./memo-search-index";
 import type { DatabaseAdapter } from "./storage-contract";
+import { SharedTableStore } from "./shared-table-store";
+import { compactSharedMemo, readActiveTableStorage } from "./table-memo-storage";
 
 const parseBackupDoc = (value: unknown): TiptapDoc => {
   try {
@@ -37,10 +40,9 @@ const assertIdsAvailableInWorkspace = async (
   ids: string[],
 ) => {
   if (ids.length === 0) return;
-  const placeholders = ids.map(() => "?").join(", ");
   const collision = await db.prepare(
-    `SELECT id FROM ${table} WHERE workspace_id <> ? AND id IN (${placeholders}) LIMIT 1`,
-  ).bind(workspaceId, ...ids).first<{ id: string }>();
+    `SELECT id FROM ${table} WHERE workspace_id <> ? AND id IN (SELECT value FROM json_each(?)) LIMIT 1`,
+  ).bind(workspaceId, JSON.stringify(ids)).first<{ id: string }>();
   if (collision) {
     throw new AppError("cross_workspace_id_conflict", "Backup contains an ID already used by another user.", 409);
   }
@@ -53,10 +55,9 @@ const assertNotebookIdsInWorkspace = async (
 ) => {
   const uniqueIds = Array.from(new Set(ids));
   if (uniqueIds.length === 0) return;
-  const placeholders = uniqueIds.map(() => "?").join(", ");
   const rows = await db.prepare(
-    `SELECT id FROM notebooks WHERE workspace_id = ? AND id IN (${placeholders})`,
-  ).bind(workspaceId, ...uniqueIds).all<{ id: string }>();
+    `SELECT id FROM notebooks WHERE workspace_id = ? AND id IN (SELECT value FROM json_each(?))`,
+  ).bind(workspaceId, JSON.stringify(uniqueIds)).all<{ id: string }>();
   if (rows.results.length !== uniqueIds.length) {
     throw new AppError("invalid_backup_workspace", "Backup references a notebook outside the current workspace.", 400);
   }
@@ -151,6 +152,34 @@ export const restoreJsonMemos = async (
     const contentHash = await sha256(contentMarkdown + JSON.stringify(contentJson));
     const title = normalizeMemoTitle(memo.title);
     const tags = normalizeTags(memo.tags);
+    const table = parseTableDocument(contentMarkdown);
+    const historical = backup.revisions.map((revision) => {
+      const doc = parseBackupDoc(revision.contentJson);
+      const markdown = revision.contentMarkdown || docToMarkdown(doc);
+      return { revision, doc, markdown, table: parseTableDocument(markdown) };
+    });
+    const snapshots = historical.flatMap((entry) => entry.table ? [entry.table] : []);
+    if (table) snapshots.push(table);
+    const active = snapshots.length ? await readActiveTableStorage(db, workspaceId, memo.id) : null;
+    const shared = active ? await new SharedTableStore(db).planMemoSnapshotRestore(workspaceId, memo.id, active.run_id, snapshots) : null;
+    const stored = shared && table ? compactSharedMemo(table) : {
+      content_json: JSON.stringify(contentJson), content_markdown: contentMarkdown, content_text: contentText,
+    };
+    const reference = shared && table ? shared.revisions.at(-1)! : null;
+    let tableRevisionIndex = 0;
+    const revisionStatements = historical.map(({ revision, doc, markdown, table: historicalTable }) => {
+      const stored = shared && historicalTable ? compactSharedMemo(historicalTable) : {
+        content_json: JSON.stringify(doc), content_markdown: markdown, content_text: docToText(doc),
+      };
+      const reference = shared && historicalTable ? shared.revisions[tableRevisionIndex++] : null;
+      return db.prepare(`INSERT INTO memo_revisions (
+        id, memo_id, revision, title, content_json, content_markdown, content_hash,
+        created_by, created_at, tags_json, content_text, shared_table_revision
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+        .bind(revision.id, memo.id, revision.revision, normalizeMemoTitle(revision.title),
+          stored.content_json, stored.content_markdown, revision.contentHash || "",
+          revision.createdBy, revision.createdAt, JSON.stringify(normalizeTags(revision.tags)), stored.content_text, reference);
+    });
 
     await db.batch([
       db.prepare(
@@ -189,54 +218,36 @@ export const restoreJsonMemos = async (
       ),
       db.prepare(
         `INSERT INTO memo_contents (
-          memo_id, content_json, content_markdown, content_text, content_hash, revision, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          memo_id, content_json, content_markdown, content_text, content_hash, revision, shared_table_revision, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(memo_id) DO UPDATE SET
           content_json = excluded.content_json,
           content_markdown = excluded.content_markdown,
           content_text = excluded.content_text,
           content_hash = excluded.content_hash,
           revision = excluded.revision,
+          shared_table_revision = excluded.shared_table_revision,
           updated_at = excluded.updated_at`,
       ).bind(
         memo.id,
-        JSON.stringify(contentJson),
-        contentMarkdown,
-        contentText,
+        stored.content_json,
+        stored.content_markdown,
+        stored.content_text,
         contentHash,
         memo.revision,
+        reference,
         memo.createdAt,
         memo.updatedAt,
       ),
-      upsertMemoSearchDocumentStatement(db, memo.id, title, contentText, tags.join(" ")),
+      upsertMemoSearchDocumentStatement(db, memo.id, title, stored.content_text, tags.join(" ")),
       db.prepare("DELETE FROM memo_revisions WHERE memo_id = ?").bind(memo.id),
+      ...(shared ? [...shared.statements, ...revisionStatements] : []),
     ]);
 
-    for (let index = 0; index < backup.revisions.length; index += 50) {
-      const statements = backup.revisions.slice(index, index + 50).map((revision) => {
-        const revisionJson = parseBackupDoc(revision.contentJson);
-        const revisionMarkdown = revision.contentMarkdown || docToMarkdown(revisionJson);
-        const revisionText = docToText(revisionJson);
-        return db.prepare(
-          `INSERT INTO memo_revisions (
-            id, memo_id, revision, title, content_json, content_markdown,
-            content_hash, created_by, created_at, tags_json, content_text
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        ).bind(
-          revision.id,
-          memo.id,
-          revision.revision,
-          normalizeMemoTitle(revision.title),
-          JSON.stringify(revisionJson),
-          revisionMarkdown,
-          revision.contentHash || "",
-          revision.createdBy,
-          revision.createdAt,
-          JSON.stringify(normalizeTags(revision.tags)),
-          revisionText,
-        );
-      });
-      await db.batch(statements);
+    if (!shared) {
+      for (let index = 0; index < revisionStatements.length; index += 50) {
+        await db.batch(revisionStatements.slice(index, index + 50));
+      }
     }
   }
 

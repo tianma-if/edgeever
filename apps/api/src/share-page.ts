@@ -10,6 +10,9 @@ const SHARE_TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 type SharePageRow = {
   title: string | null;
   content_markdown: string | null;
+  workspace_id: string;
+  memo_id: string;
+  shared_table_revision?: number | null;
   password_hash: string | null;
   expires_at: string | null;
   updated_at: string;
@@ -96,10 +99,11 @@ export const publicShareMarkdown = (title: string | null, body: string) => {
 };
 
 const loadShare = (db: DatabaseAdapter, token: string) => db.prepare(
-  `SELECT m.title, mc.content_markdown, ms.password_hash, ms.expires_at, m.updated_at, ms.show_updated_at, ms.show_branding
+  `SELECT m.title, m.id AS memo_id, ms.workspace_id, mc.content_markdown,
+          mc.shared_table_revision, ms.password_hash, ms.expires_at, m.updated_at, ms.show_updated_at, ms.show_branding
    FROM memo_shares ms
    INNER JOIN memos m ON m.id = ms.memo_id AND m.workspace_id = ms.workspace_id
-   INNER JOIN memo_contents mc ON mc.memo_id = m.id
+   INNER JOIN memo_contents_for_read mc ON mc.memo_id = m.id
    WHERE ms.token = ? AND m.is_deleted = 0
    LIMIT 1`,
 ).bind(token).first<SharePageRow>();
@@ -135,6 +139,7 @@ export const renderPublicMemoSharePage = async (
   request: Request,
   db: DatabaseAdapter,
   loadTemplate: () => Promise<Response>,
+  readSharedMarkdown?: (db: DatabaseAdapter, workspaceId: string, memoId: string, revision: number) => Promise<string>,
 ): Promise<Response | null> => {
   if (request.method !== "GET" && request.method !== "HEAD") return null;
   const url = new URL(request.url);
@@ -146,7 +151,10 @@ export const renderPublicMemoSharePage = async (
   const expired = Boolean(row) && isMemoShareExpired(row?.expires_at);
   const locked = !expired && Boolean(row?.password_hash);
   const readable = Boolean(row) && !expired && !locked;
-  const body = row?.content_markdown ?? "";
+  let body = readable ? row?.content_markdown ?? "" : "";
+  if (row && readable && row.shared_table_revision != null && readSharedMarkdown) {
+    body = await readSharedMarkdown(db, row.workspace_id, row.memo_id, row.shared_table_revision);
+  }
   const markdownUrl = `${url.origin}/share/${encodeURIComponent(target.segment)}.md`;
   const canonical = `${url.origin}/share/${encodeURIComponent(target.segment)}`;
 

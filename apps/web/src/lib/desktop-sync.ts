@@ -1,3 +1,4 @@
+import { acknowledgeTableDraft, materializeTableChanges, queuedTableMutation } from "@/lib/table-sync";
 import {
   getMemoSyncBaseConflictDetails,
   getSyncRetryAt,
@@ -357,6 +358,11 @@ const acknowledge = async (
   await request("sync.outbox.ack", { id: item.id, version: item.version, remoteMemo, remoteNotebook, remoteTemplate });
 };
 
+type DesktopTableAttempt = {
+  version: number;
+  draft: Parameters<typeof queuedTableMutation>[0] & { contentJson: TiptapDoc };
+};
+
 const syncOutboxItem = async (item: DesktopOutboxItem, stagedRewrites: StagedResourceRewrite[]) => {
   const rewrittenPayload = stagedRewrites.length > 0
     ? rewriteStagedResource(item.payload, stagedRewrites.filter((rewrite) => rewrite.memoId === String(item.payload.memoId ?? item.entityId))) as Record<string, unknown>
@@ -388,6 +394,33 @@ const syncOutboxItem = async (item: DesktopOutboxItem, stagedRewrites: StagedRes
     };
     const currentBase = { revision: editSession.baseRevision, contentHash: editSession.baseContentHash };
     const expectedBase = resolveDesktopMemoSyncBase(currentBase, queuedBase);
+    if (editSession.sharedTable) {
+      const attempt = payload.tableAttempt as DesktopTableAttempt | undefined;
+      const draft = attempt?.draft ?? {
+        ...expectedBase,
+        tableBase: payload.tableBase,
+        title: String(payload.title ?? ""),
+        contentJson: payload.contentJson as TiptapDoc,
+        contentMarkdown: typeof payload.contentMarkdown === "string" ? payload.contentMarkdown : undefined,
+        tags: Array.isArray(payload.tags) ? payload.tags.filter((tag): tag is string => typeof tag === "string") : [],
+      };
+      const mutation = await queuedTableMutation(draft, editSession.id);
+      if (mutation) {
+        const { memo } = await request("memo.get", { memoId, includeDeleted: true });
+        if (!attempt) {
+          const result = await request("sync.outbox.rememberTable", { id: item.id, version: item.version, draft });
+          if (!result.remembered) return undefined;
+        }
+        try {
+          const { receipt } = await api.updateTableRecords(memoId, mutation);
+          const acknowledged = acknowledgeTableDraft(memo, draft, receipt);
+          await acknowledge(attempt ? { ...item, version: attempt.version } : item, acknowledged);
+          return acknowledged;
+        } catch (error) {
+          if (!(error instanceof ApiRequestError) || error.code !== "revision_conflict" || isMemoSyncBaseCurrent(currentBase, expectedBase)) throw error;
+        }
+      }
+    }
     let syncBase = expectedBase;
     if (!isMemoSyncBaseCurrent(currentBase, expectedBase)) {
       const remote = await api.getMemo(memoId, { includeDeleted: true });
@@ -602,6 +635,7 @@ const syncOutbox = async (stagedRewrites: StagedResourceRewrite[], onlyKinds?: S
     if (memoDependencies.some((id) => typeof id === "string" && id.startsWith("memo_local_"))) continue;
     try {
       const result = await syncOutboxItem(item, stagedRewrites);
+      if (result === undefined) continue;
       if ((item.kind === "memo.create" || item.kind === "memo.merge") && result && typeof result === "object" && "id" in result && typeof result.id === "string") {
         memoIdMappings.set(item.entityId, result.id);
         // Remap the live editor and advance its cloud base as soon as the
@@ -760,16 +794,19 @@ const pullRemoteChanges = async () => {
   }
 
   let cursor = status.cursor;
-  let response: SyncChangesResponse = await api.syncChanges({ cursor, limit: 200 });
+  let response: SyncChangesResponse = await api.syncChanges({ cursor, limit: 200, tableRecords: true });
   if (hasDesktopSyncStateReset({ cursor: status.cursor, syncIdentity: status.syncIdentity }, response)) {
     await bootstrapDesktopMirror(true);
     return;
   }
   while (response.changes.length > 0) {
-    await request("sync.apply", { changes: orderDesktopSyncChanges(response.changes) });
+    const changes = await materializeTableChanges(response.changes, async (memoId) => {
+      try { return (await request("memo.get", { memoId, includeDeleted: true })).memo; } catch { return null; }
+    });
+    await request("sync.apply", { changes: orderDesktopSyncChanges(changes) });
     cursor = response.cursor;
     if (!response.hasMore) break;
-    response = await api.syncChanges({ cursor, limit: 200 });
+    response = await api.syncChanges({ cursor, limit: 200, tableRecords: true });
     if (hasDesktopSyncStateReset({ cursor, syncIdentity: status.syncIdentity }, response)) {
       await bootstrapDesktopMirror(true);
       return;

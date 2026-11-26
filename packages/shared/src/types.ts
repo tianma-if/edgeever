@@ -54,6 +54,7 @@ export type MemoDetail = MemoSummary & {
   contentMarkdown: string;
   contentText: string;
   contentHash: string;
+  sharedTableRevision?: number | null;
   sourceMemoIds: string[];
   mergeSourceCount: number;
   mergedIntoMemoId: string | null;
@@ -129,6 +130,7 @@ export type MemoEditSession = {
   memoId: string;
   baseRevision: number;
   baseContentHash: string;
+  sharedTable?: boolean;
   expiresAt: string;
 };
 

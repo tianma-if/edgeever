@@ -1,3 +1,4 @@
+import { hydrateSharedMemo } from "./table-memo-storage";
 import { accountNoteProseFromRow, collectMemoLinkIds, MemoShareUpdateSchema, NoteBodyFontUpdateSchema, NoteProseUpdateSchema, parsePublishedNoteBodyFont, publicNoteProseFromAccount, PublicShareUnlockSchema, resolveMemoContentDoc, sanitizeNoteProseCss, type AccountNoteProse, type ManagedMemoShare, type MemoShare, type NoteProseAccountRow, type PublicMemoShare, type TiptapDoc } from "@edgeever/shared";
 import { zValidator } from "@hono/zod-validator";
 import type { Hono } from "hono";
@@ -43,6 +44,9 @@ type ManagedMemoShareRow = MemoShareRow & {
 };
 type PublicMemoShareRow = {
   workspace_id: string;
+  memo_id: string;
+  content_text: string;
+  shared_table_revision?: number | null;
   title: string | null;
   content_json: string;
   content_markdown: string;
@@ -184,12 +188,12 @@ export const registerPublicShareRoutes = (app: Hono<AppEnv>) => {
     if (!token) return notFound(c, "Shared note not found");
 
     const row = await c.env.storage.db.prepare(
-      `SELECT ms.workspace_id, m.title, mc.content_json, mc.content_markdown, m.tags_json, m.updated_at, ms.password_hash, ms.expires_at, ms.show_updated_at, ms.show_branding,
+      `SELECT ms.workspace_id, m.id AS memo_id, m.title, mc.content_json, mc.content_markdown, mc.content_text, mc.shared_table_revision, m.tags_json, m.updated_at, ms.password_hash, ms.expires_at, ms.show_updated_at, ms.show_branding,
               u.note_body_font, u.note_prose_font_size, u.note_prose_line_height, u.note_prose_palette,
               u.note_prose_custom_css, u.note_prose_custom_colors
        FROM memo_shares ms
        INNER JOIN memos m ON m.id = ms.memo_id AND m.workspace_id = ms.workspace_id
-       INNER JOIN memo_contents mc ON mc.memo_id = m.id
+       INNER JOIN memo_contents_for_read mc ON mc.memo_id = m.id
        LEFT JOIN users u ON u.id = ms.created_by
        WHERE ms.token = ? AND m.is_deleted = 0
        LIMIT 1`
@@ -201,8 +205,9 @@ export const registerPublicShareRoutes = (app: Hono<AppEnv>) => {
       return sharePasswordRequired(c);
     }
 
-    const contentJson = JSON.parse(row.content_json) as TiptapDoc;
-    const referencedMemoIds = collectMemoLinkIds(resolveMemoContentDoc(contentJson, row.content_markdown));
+    const projected = await hydrateSharedMemo(c.env.storage.db, row.workspace_id, row.memo_id, row);
+    const contentJson = JSON.parse(projected.content_json) as TiptapDoc;
+    const referencedMemoIds = collectMemoLinkIds(resolveMemoContentDoc(contentJson, projected.content_markdown));
     const memoShareTokens: Record<string, string> = {};
     for (let offset = 0; offset < referencedMemoIds.length; offset += 80) {
       const batch = referencedMemoIds.slice(offset, offset + 80);
@@ -222,7 +227,7 @@ export const registerPublicShareRoutes = (app: Hono<AppEnv>) => {
     const share: PublicMemoShare = {
       title: row.title,
       contentJson,
-      contentMarkdown: row.content_markdown,
+      contentMarkdown: projected.content_markdown,
       tags: parseJsonArray(row.tags_json),
       updatedAt: row.updated_at,
       memoShareTokens,

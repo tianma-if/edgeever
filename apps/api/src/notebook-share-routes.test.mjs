@@ -11,6 +11,10 @@ import { hashPassword } from "./auth-crypto";
 import { registerPublicShareRoutes } from "./share-routes";
 import { renderNotebookSitePage } from "./notebook-site-page";
 import { PUBLIC_PAGE_ROBOTS } from "@edgeever/shared/public-page-headers";
+import { serializeTableDocument } from "@edgeever/shared";
+import { createMemoRecord } from "./memo-service";
+import { listMemos } from "./memo-list-service";
+import { SharedTableMigration } from "./table-storage-migration";
 
 const databases = [];
 afterEach(() => databases.splice(0).forEach((db) => db.close()));
@@ -298,6 +302,32 @@ describe("public notebook site controls", () => {
     const multiword = await (await f.request("/search?q=Alpha%20Omega")).json();
     expect(multiword.memos[0].excerpt).toContain("Alpha");
     expect(multiword.memos[0].excerpt).toContain("Omega");
+  });
+
+  test("matches shared cells by substring and across rows without exposing excluded or private tables", async () => {
+    const f = fixture();
+    const db = f.environment.storage.db;
+    const migration = new SharedTableMigration(db);
+    await migration.start();
+    while ((await migration.advance()).phase === "copying") {}
+    await migration.activate();
+    const contentMarkdown = serializeTableDocument({ schemaVersion: 1, fields: [{ id: "name", name: "Name", type: "text" }], view: { filters: [], sort: null }, records: [
+      { id: "row1", cells: { name: "CustomerAlphaBeta 新项目验收" } }, { id: "row2", cells: { name: "RoadmapGamma" } },
+    ] });
+    const create = (notebookId) => createMemoRecord(db, auth.workspaceId, { notebookId, title: notebookId, contentMarkdown }, auth, "test");
+    const visible = await create("root");
+    const excluded = await create("child");
+    await create("private");
+    expect((await manage(f, `/memos/${excluded.id}`, { excluded: true })).status).toBe(200);
+    for (const q of ["Alpha", "项目", "CustomerAlphaBeta RoadmapGamma"]) {
+      const search = `q=${encodeURIComponent(q)}`;
+      const publicResult = await (await f.request(`/search?${search}`)).json();
+      expect(publicResult.memos.map(({ id }) => id)).toEqual([visible.id]);
+      const adminResult = await (await manage(f, `/memos?${search}`)).json();
+      expect(adminResult.memos.map(({ id }) => id).sort()).toEqual([visible.id, excluded.id].sort());
+      const list = await listMemos(db, { workspaceId: auth.workspaceId, notebookId: "root", query: q });
+      expect(list.memos.map(({ id }) => id)).toEqual([visible.id]);
+    }
   });
 
   test("rejects invalid targets, unknown settings, non-HTTPS URLs and oversized merged settings", async () => {

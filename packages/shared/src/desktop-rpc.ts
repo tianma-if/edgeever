@@ -1,3 +1,4 @@
+import type { TableSyncBase } from "./table-sync";
 import type { MemoDetail, MemoSummary, MemoTemplate, Notebook, ResourceListItem, ResourceStorageSummary } from "./types";
 import type { TiptapDoc } from "./content";
 
@@ -18,6 +19,7 @@ export const DESKTOP_RPC_METHODS = [
   "sync.status",
   "sync.bootstrap.prepare",
   "sync.outbox.list",
+  "sync.outbox.rememberTable",
   "sync.outbox.ack",
   "sync.outbox.fail",
   "sync.outbox.retry",
@@ -91,6 +93,7 @@ export type DesktopMemoUpdateParams = {
   contentJson: TiptapDoc;
   contentMarkdown?: string;
   tags: string[];
+  tableBase?: TableSyncBase;
 };
 
 export type DesktopRpcResponses = {
@@ -130,6 +133,7 @@ export type DesktopRpcResponses = {
   "sync.status": { pending: number; syncing: number; conflict: number; error: number; cursor: number; syncIdentity: string | null; lastSyncedAt: string | null };
   "sync.bootstrap.prepare": { clearedSeedData: boolean; rebuiltMirror: boolean };
   "sync.outbox.list": { items: DesktopOutboxItem[] };
+  "sync.outbox.rememberTable": { remembered: boolean };
   "sync.outbox.ack": { ok: true; memo: MemoDetail | null; notebook: Notebook | null; template: MemoTemplate | null };
   "sync.outbox.fail": { ok: true };
   "sync.outbox.retry": { ok: true };
@@ -181,6 +185,7 @@ export type DesktopRpcParams = {
   "sync.status": Record<string, never>;
   "sync.bootstrap.prepare": { reset?: boolean };
   "sync.outbox.list": { limit?: number; includeConflicts?: boolean };
+  "sync.outbox.rememberTable": { id: number; version: number; draft: Record<string, unknown> };
   "sync.outbox.ack": { id: number; version?: number; remoteMemo?: MemoDetail; remoteNotebook?: Notebook; remoteTemplate?: MemoTemplate };
   "sync.outbox.fail": { id: number; version?: number; error: string; errorCode?: string | null; conflict?: boolean; retryable?: boolean; nextAttemptAt?: string | null };
   "sync.outbox.retry": { id: number; version?: number };

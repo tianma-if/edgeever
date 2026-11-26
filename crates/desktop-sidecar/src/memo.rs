@@ -40,7 +40,7 @@ pub(crate) fn memo_value(
     let mut statement = database.prepare(
         "SELECT m.id, m.notebook_id, m.title, m.excerpt, m.tags_json, m.is_pinned, m.is_archived, m.is_deleted,
                 m.source_memo_ids, m.merge_source_count, m.merged_into_memo_id, m.created_at, m.updated_at, m.deleted_at,
-                c.content_json, c.content_markdown, c.content_text, c.content_hash, c.revision
+                c.content_json, c.content_markdown, c.content_text, c.content_hash, c.revision, c.shared_table_revision
            FROM memos m JOIN memo_contents c ON c.memo_id = m.id
           WHERE m.id = ?1 AND (?2 OR m.is_deleted = 0)",
     ).map_err(|e| e.to_string())?;
@@ -53,7 +53,7 @@ pub(crate) fn memo_value(
             "title": row.get::<_, Option<String>>("title")?, "excerpt": row.get::<_, String>("excerpt")?,
             "tags": tags_from_json(&tags), "isPinned": row.get::<_, i64>("is_pinned")? != 0,
             "isArchived": row.get::<_, i64>("is_archived")? != 0, "isDeleted": row.get::<_, i64>("is_deleted")? != 0,
-            "revision": row.get::<_, i64>("revision")?, "createdAt": row.get::<_, String>("created_at")?,
+            "revision": row.get::<_, i64>("revision")?, "sharedTableRevision": row.get::<_, Option<i64>>("shared_table_revision")?, "createdAt": row.get::<_, String>("created_at")?,
             "updatedAt": row.get::<_, String>("updated_at")?, "deletedAt": row.get::<_, Option<String>>("deleted_at")?,
             "contentJson": serde_json::from_str::<Value>(&content_json).unwrap_or_else(|_| json!({"type":"doc","content":[]})),
             "contentMarkdown": row.get::<_, String>("content_markdown")?, "contentText": row.get::<_, String>("content_text")?,
@@ -663,12 +663,13 @@ pub(crate) fn update_memo(database: &Connection, params: &Value) -> Result<Value
     // local autosaves. Advancing it here makes several saves on one device
     // look newer than the cloud and produces a false revision conflict once
     // the coalesced outbox item is synced.
-    tx.execute("UPDATE memo_contents SET content_json = ?2, content_markdown = ?3, content_text = ?4, content_hash = ?5, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE memo_id = ?1", rusqlite::params![memo_id, content_json_text, markdown, text, hash]).map_err(|e| e.to_string())?;
+    tx.execute("UPDATE memo_contents SET content_json = ?2, content_markdown = ?3, content_text = ?4, content_hash = ?5, shared_table_revision = NULL, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE memo_id = ?1", rusqlite::params![memo_id, content_json_text, markdown, text, hash]).map_err(|e| e.to_string())?;
     let payload = json!({
         "memoId": memo_id, "expectedRevision": expected_revision,
         "expectedContentHash": expected_content_hash,
         "title": params.get("title").and_then(Value::as_str).unwrap_or(""),
-        "contentJson": content_json, "contentMarkdown": markdown, "tags": tags
+        "contentJson": content_json, "contentMarkdown": markdown, "tags": tags,
+        "tableBase": params.get("tableBase")
     });
     // Plugin edits commit the memo, history and outbox together. Ordinary editor
     // writes retain their established behavior.
@@ -801,7 +802,7 @@ pub(crate) fn restore_memo_revision(
         .map_err(|e| e.to_string())?;
     insert_revision(&tx, &current, "desktop")?;
     tx.execute("UPDATE memos SET title = ?2, excerpt = ?3, tags_json = ?4, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_by = 'desktop' WHERE id = ?1", rusqlite::params![memo_id, if title.is_empty() { None } else { Some(title.clone()) }, text.chars().take(180).collect::<String>(), tags.to_string()]).map_err(|e| e.to_string())?;
-    tx.execute("UPDATE memo_contents SET content_json = ?2, content_markdown = ?3, content_text = ?4, content_hash = ?5, revision = ?6, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE memo_id = ?1", rusqlite::params![memo_id, content_json_text, markdown, text, hash, next_revision]).map_err(|e| e.to_string())?;
+    tx.execute("UPDATE memo_contents SET content_json = ?2, content_markdown = ?3, content_text = ?4, content_hash = ?5, revision = ?6, shared_table_revision = NULL, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE memo_id = ?1", rusqlite::params![memo_id, content_json_text, markdown, text, hash, next_revision]).map_err(|e| e.to_string())?;
     tx.commit().map_err(|e| e.to_string())?;
     enqueue_change(
         database,
