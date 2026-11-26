@@ -175,8 +175,8 @@ export const siteCopy = {
   "zh-CN": {
     layout: {
       defaultDescription:
-        "EdgeEver 是支持手机和电脑同步的开源自托管笔记软件。用三栏笔记本写作、剪藏网页和整理资料，可部署在 Cloudflare 或 Docker，支持 Markdown 导出。",
-      defaultTitle: "EdgeEver 开源笔记软件｜跨端同步与自托管",
+        "EdgeEver 是 AI 原生开源笔记软件，可作为印象笔记或 Obsidian 的替代方案。支持原生 MCP、桌面端 ACP、多端瞬时同步和网页剪藏，可在 Cloudflare 免费额度内运行或用 Docker 自托管。",
+      defaultTitle: "EdgeEver｜AI 原生开源笔记软件",
       imageAlt: "EdgeEver 笔记应用截图",
       ogLocale: "zh_CN",
     },
@@ -210,8 +210,8 @@ export const siteCopy = {
       openSource: "开源",
     },
     hero: {
-      slogan: "开源自托管笔记软件，支持手机和电脑同步、网页剪藏与 Markdown 导出。",
-      popHighlight: "三栏笔记本",
+      slogan: "开源的印象笔记 / Obsidian 替代方案，保留经典三栏，支持多端瞬时同步。可在 Cloudflare 免费额度内部署，或用 Docker 自托管。",
+      popHighlight: "AI 原生 · MCP / ACP",
       demo: "在线演示",
       agentInstall: "一键 AI 部署",
       getApps: "获取客户端：",
@@ -461,8 +461,8 @@ export const siteCopy = {
   "en-US": {
     layout: {
       defaultDescription:
-        "EdgeEver is an open-source notes app with self-hosted sync across desktop and mobile. Clip web pages, organise three-pane notebooks, and export to Markdown.",
-      defaultTitle: "EdgeEver | Open-source notes with self-hosted sync",
+        "EdgeEver is an AI-native, open-source alternative to Evernote and Obsidian, with built-in MCP, desktop ACP, instant sync, and a web clipper. Deploy on Cloudflare’s free tier or self-host with Docker.",
+      defaultTitle: "EdgeEver | AI-native open-source notes app",
       imageAlt: "EdgeEver notes app screenshot",
       ogLocale: "en_US",
     },
@@ -496,8 +496,8 @@ export const siteCopy = {
       openSource: "Open Source",
     },
     hero: {
-      slogan: "Open-source notes you can sync across your phone and computer. Run your own instance, clip web pages, and export to Markdown.",
-      popHighlight: "Three-pane notebooks",
+      slogan: "An open-source alternative to Evernote and Obsidian with classic three-pane notebooks and instant sync. Deploy on Cloudflare’s free tier or self-host with Docker.",
+      popHighlight: "AI-native · MCP / ACP",
       demo: "Live demo",
       agentInstall: "Deploy with AI",
       getApps: "Get Apps:",

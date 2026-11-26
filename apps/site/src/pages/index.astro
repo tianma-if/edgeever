@@ -6,8 +6,10 @@ import Hero from "@/components/hero.astro";
 import Logos from "@/components/logos.astro";
 import MarqueeShowcase from "@/components/marquee-showcase.astro";
 import Layout from "@/layouts/Layout.astro";
+import { siteCopy } from "@/i18n";
 
 const siteUrl = new URL(Astro.url.pathname, Astro.site).toString();
+const description = siteCopy["zh-CN"].layout.defaultDescription;
 
 const homeJsonLd = [
   {
@@ -16,8 +18,7 @@ const homeJsonLd = [
     name: "EdgeEver",
     url: siteUrl,
     inLanguage: "zh-CN",
-    description:
-      "EdgeEver 是支持跨端同步、网页剪藏与 Markdown 导出的开源自托管笔记软件。",
+    description,
   },
   {
     "@context": "https://schema.org",
@@ -28,8 +29,7 @@ const homeJsonLd = [
     applicationCategory: "ProductivityApplication",
     operatingSystem: "macOS, Windows, Linux, iOS, Android, Web, Chrome, Edge, Firefox",
     isAccessibleForFree: true,
-    description:
-      "EdgeEver 支持在 Cloudflare 或 Docker 上自托管，通过同一个实例同步桌面端和手机端。提供三栏笔记本、网页剪藏、Markdown 导出与 MCP 接入。",
+    description,
   },
 ];
 ---

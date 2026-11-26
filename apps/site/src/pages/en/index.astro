@@ -6,8 +6,10 @@ import Hero from "@/components/hero.astro";
 import Logos from "@/components/logos.astro";
 import MarqueeShowcase from "@/components/marquee-showcase.astro";
 import Layout from "@/layouts/Layout.astro";
+import { siteCopy } from "@/i18n";
 
 const siteUrl = new URL(Astro.url.pathname, Astro.site).toString();
+const description = siteCopy["en-US"].layout.defaultDescription;
 
 const homeJsonLd = [
   {
@@ -16,8 +18,7 @@ const homeJsonLd = [
     name: "EdgeEver",
     url: siteUrl,
     inLanguage: "en-US",
-    description:
-      "EdgeEver is an open-source notes app with self-hosted sync across desktop and mobile.",
+    description,
     keywords: ["Evernote alternative", "open-source notes app", "self-hosted notes app", "AI notes app"],
   },
   {
@@ -29,8 +30,7 @@ const homeJsonLd = [
     applicationCategory: "ProductivityApplication",
     operatingSystem: "macOS, Windows, Linux, iOS, Android, Web, Chrome, Edge, Firefox",
     isAccessibleForFree: true,
-    description:
-      "Deploy EdgeEver on Cloudflare or with Docker to sync desktop and mobile clients. It includes three-pane notebooks, a web clipper, Markdown export, and a built-in MCP interface.",
+    description,
     keywords: ["Evernote alternative", "open-source notes app", "self-hosted notes app", "AI notes app"],
   },
 ];
