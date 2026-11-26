@@ -463,12 +463,13 @@ describe("Cloudflare deployment entrypoints", () => {
     for (const pattern of bunConfig.test.pathIgnorePatterns) {
       expect(scripts["test:bulk"]).toContain(`--path-ignore-patterns='${pattern}'`);
     }
+    expect(scripts["test:bulk"]).toContain("--path-ignore-patterns='apps/api/src/table-storage-migration.integration.test.mjs'");
     expect(scripts["test:bulk"]).toContain("apps/api/src/companion-learning.test.mjs");
     expect(scripts["test:bulk"]).toContain("apps/api/src/resource-upload-integration.test.mjs");
     expect(scripts["test:bulk"]).toContain("apps/desktop/src/main/workbuddy-auth.test.mjs");
     expect(scripts["test:bulk"]).toContain("apps/desktop/src/main/acp-cleanup.test.mjs");
     expect(scripts["test:integration"]).toBe(
-      "bun test apps/api/src/companion-learning.test.mjs apps/api/src/resource-upload-integration.test.mjs && bun test --cwd apps/desktop src/main/workbuddy-auth.test.mjs src/main/acp-cleanup.test.mjs",
+      "bun test apps/api/src/table-storage-migration.integration.test.mjs && bun test apps/api/src/companion-learning.test.mjs apps/api/src/resource-upload-integration.test.mjs && bun test --cwd apps/desktop src/main/workbuddy-auth.test.mjs src/main/acp-cleanup.test.mjs",
     );
     expect(workflow).toContain("bun run test");
     expect(workflow.match(/if: steps\.upstream\.outputs\.align_mode == 'merge'/g)).toHaveLength(2);
