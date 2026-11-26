@@ -1,4 +1,4 @@
-https://www.edgeever.org/* https://edgeever.org/:splat 301
+# Hostname redirects are handled by Cloudflare Redirect Rules.
 
 /blog/evernote-migration-guide /blog/note-migration-guide 301
 /blog/memos-migration-guide /blog/note-migration-guide 301

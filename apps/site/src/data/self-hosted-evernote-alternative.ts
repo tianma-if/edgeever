@@ -5,8 +5,8 @@ export const alternativePageCopy = {
     description:
       "EdgeEver 是开源、原生支持 AI 的自托管笔记工作区。保留印象笔记式三栏布局，可在 Cloudflare 免费额度内运行，或用同一套应用在 VPS、NAS、家庭服务器上 Docker 部署。",
     lead: [
-      "EdgeEver 面向长期使用印象笔记、只想要一个可靠、开放、可自己部署的个人知识库的人。整栈开源，数据在你控制的 SQLite 里，并提供 REST API、MCP 与 ENEX 迁移路径。",
-      "它不是又一个时间流动的碎片笔记，也不是本地 Markdown 仓库。交互上接近经典三栏：笔记本树、笔记列表、编辑区。",
+      "EdgeEver 是可自行部署的开源印象笔记替代方案。它保留笔记本目录、笔记列表和编辑器三栏。桌面、手机通过同一个实例同步，数据保存在自己的 Cloudflare 账号或 Docker 主机上。",
+      "迁移前可以先从印象笔记导出一个带标签、图片和附件的样例笔记本为 ENEX。通过 EdgeEver 网页端或桌面端导入后，检查日期、标签和图片，再到手机端打开同一条笔记，确认迁移和同步符合你的工作方式。",
     ],
     fitTitle: "适合谁",
     fit: [
@@ -17,16 +17,16 @@ export const alternativePageCopy = {
     ],
     notFitTitle: "不适合谁",
     notFit: [
-      "如果默认需要 Joplin 那种端到端加密，EdgeEver 并不以 E2EE 为卖点；安全边界是「实例由你托管」。",
+      "如果需要在不信任同步服务器的情况下保护笔记内容，可以考虑支持手动开启端到端加密的 Joplin。",
       "如果需要 Notion 式数据库和块工作区，请继续用 Notion 或同类工具。EdgeEver 是笔记工作区。",
       "如果只要本地文件夹、完全不要服务端，Obsidian 或纯 Markdown 目录可能更合适。",
     ],
     compareTitle: "和常见方案差在哪",
     compareIntro:
-      "Joplin 是英文社区最常见的自托管印象笔记替代。EdgeEver 更接近经典三栏，并同时提供 Cloudflare 免费额度和 Docker。下表只写仓库和公开文档里能核对的事实，不比较「谁全面更好」。",
+      "如果准备从印象笔记搬家，先比较同步方式、客户端覆盖，以及能否直接导入 ENEX。",
     compareHeaders: ["", "托管", "布局", "客户端", "印象笔记导入"],
     compareRows: [
-      ["EdgeEver", "Cloudflare 免费额度或 Docker", "三栏笔记本", "macOS / Windows / Linux / iOS / Android / 剪藏", "已文档化的 ENEX + MCP 流程"],
+      ["EdgeEver", "Cloudflare 免费额度或 Docker", "三栏笔记本", "macOS / Windows / Linux / iOS / Android / 剪藏", "网页端和桌面端直接导入 ENEX"],
       ["印象笔记", "厂商云，不可自托管", "三栏笔记本", "全平台", "—"],
       ["Joplin", "Joplin Server 或自选同步", "笔记本", "官方多端", "支持 ENEX"],
       ["Obsidian", "本地文件；官方同步收费", "文件仓库", "全平台", "社区方案"],
@@ -68,7 +68,7 @@ export const alternativePageCopy = {
       {
         question: "能导入印象笔记吗？",
         answer:
-          "可以。文档化的流程使用 ENEX、evernote-backup 和 MCP 导入脚本，保留创建/修改时间与嵌套笔记本。导入后请抽查带图片的笔记。",
+          "可以。将 ENEX 文件拖入网页端或桌面端的导入工具。可先在预检中核对笔记本、笔记和附件数量，再完成导入。",
       },
       {
         question: "Cloudflare 个人使用真的免费吗？",
@@ -93,8 +93,8 @@ export const alternativePageCopy = {
     description:
       "EdgeEver is an open-source, AI-native notes workspace with the classic Evernote three-pane layout. Run it on Cloudflare's free tier, or install the same app with Docker on a VPS, NAS, or home server.",
     lead: [
-      "EdgeEver is for people who still want a reliable, open, self-hosted personal knowledge base. The stack is open source. Notes live in SQLite you control, with a REST API, MCP, and a documented Evernote ENEX migration path.",
-      "It is not a social timeline and not a folder of local Markdown files. The workspace stays close to classic Evernote: notebook tree, note list, editor.",
+      "EdgeEver is an open-source alternative for Evernote users who want to host their own notes. It keeps the notebook tree, note list, and editor in a three-pane workspace. Desktop and mobile devices sync through an instance in your Cloudflare account or on your Docker host.",
+      "Before moving a library, export one Evernote notebook with tags and attachments as an ENEX file. Import it in the EdgeEver web or desktop app, check the dates, tags, and images, then open the same note on your phone to check sync.",
     ],
     fitTitle: "Who it is for",
     fit: [
@@ -105,16 +105,16 @@ export const alternativePageCopy = {
     ],
     notFitTitle: "Who it is not for",
     notFit: [
-      "If you need default end-to-end encryption like Joplin, EdgeEver does not advertise E2EE. The boundary is that you host the instance.",
+      "If you need to protect note contents from the sync server, consider Joplin, where you can enable end-to-end encryption.",
       "If you need Notion-style databases and block workspaces, stay on Notion or a Notion-like app. EdgeEver is a notes workspace.",
       "If you only want local files and no server, Obsidian or a Markdown folder may fit better.",
     ],
     compareTitle: "How it differs from common options",
     compareIntro:
-      "Joplin is the usual self-hosted Evernote alternative in English search results. EdgeEver is closer to the classic three-pane notes app, and it ships both Cloudflare free-tier hosting and Docker. The table only records facts that can be checked in this repository or in those products' public docs. It is not a ranking of which tool is better overall.",
+      "If you are moving an Evernote library, compare how each app syncs, which devices it supports, and how it handles ENEX imports.",
     compareHeaders: ["", "Hosting", "Layout", "Clients", "Evernote import"],
     compareRows: [
-      ["EdgeEver", "Cloudflare free tier or Docker", "Three-pane notebooks", "macOS / Windows / Linux / iOS / Android / clipper", "Documented ENEX + MCP flow"],
+      ["EdgeEver", "Cloudflare free tier or Docker", "Three-pane notebooks", "macOS / Windows / Linux / iOS / Android / clipper", "ENEX import on web and desktop"],
       ["Evernote", "Vendor cloud, not self-hosted", "Three-pane notebooks", "All major platforms", "—"],
       ["Joplin", "Joplin Server or your sync target", "Notebooks", "Official apps", "ENEX supported"],
       ["Obsidian", "Local files; official sync is paid", "File vault", "All major platforms", "Community tools"],
@@ -156,7 +156,7 @@ export const alternativePageCopy = {
       {
         question: "Can I import Evernote notes?",
         answer:
-          "Yes. The documented flow uses ENEX, evernote-backup, and an MCP import script. It preserves created/updated timestamps and nested notebooks. Spot-check notes with images after import.",
+          "Yes. Drop the ENEX file into the import tool in the web or desktop app. The preview counts notebooks, notes, and attachments before you confirm the import.",
       },
       {
         question: "Is Cloudflare actually free for personal use?",

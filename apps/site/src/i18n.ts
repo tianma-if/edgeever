@@ -175,8 +175,8 @@ export const siteCopy = {
   "zh-CN": {
     layout: {
       defaultDescription:
-        "EdgeEver 是开源、原生支持 AI 的自托管笔记与知识库工作区。保留经典三栏高效体验，支持 ACP 本机 Agent 深度协同、AI 伴侣侧边栏、可视化图表笔记与多端同步，覆盖 macOS、Windows、Linux、iOS、Android 与浏览器剪藏，支持在 Cloudflare 免费额度内运行或使用 Docker 一键自托管。",
-      defaultTitle: `EdgeEver - ${siteTaglines["zh-CN"]}`,
+        "EdgeEver 是支持手机和电脑同步的开源自托管笔记软件。用三栏笔记本写作、剪藏网页和整理资料，可部署在 Cloudflare 或 Docker，支持 Markdown 导出。",
+      defaultTitle: "EdgeEver 开源笔记软件｜跨端同步与自托管",
       imageAlt: "EdgeEver 笔记应用截图",
       ogLocale: "zh_CN",
     },
@@ -210,8 +210,8 @@ export const siteCopy = {
       openSource: "开源",
     },
     hero: {
-      slogan: siteTaglines["zh-CN"],
-      popHighlight: "经典三栏现代化知识库 · 原生 AI 协同 · 全平台客户端覆盖",
+      slogan: "开源自托管笔记软件，支持手机和电脑同步、网页剪藏与 Markdown 导出。",
+      popHighlight: "三栏笔记本",
       demo: "在线演示",
       agentInstall: "一键 AI 部署",
       getApps: "获取客户端：",
@@ -461,8 +461,8 @@ export const siteCopy = {
   "en-US": {
     layout: {
       defaultDescription:
-        "EdgeEver is an open-source, AI-native knowledge base and modern notes workspace. Enjoy a classic three-pane productivity workflow (Tree View · Note List · Editor) across macOS, Windows, Linux, iOS, Android, and Web Clipper, with native ACP local agent synergy, companion sidebar, and visual diagram notes, running within Cloudflare's free tier or on Docker.",
-      defaultTitle: `EdgeEver - ${siteTaglines["en-US"]}`,
+        "EdgeEver is an open-source notes app with self-hosted sync across desktop and mobile. Clip web pages, organise three-pane notebooks, and export to Markdown.",
+      defaultTitle: "EdgeEver | Open-source notes with self-hosted sync",
       imageAlt: "EdgeEver notes app screenshot",
       ogLocale: "en_US",
     },
@@ -496,8 +496,8 @@ export const siteCopy = {
       openSource: "Open Source",
     },
     hero: {
-      slogan: siteTaglines["en-US"],
-      popHighlight: "Classic Three-Pane AI Workspace · Native AI Synergy · Multi-Platform Apps",
+      slogan: "Open-source notes you can sync across your phone and computer. Run your own instance, clip web pages, and export to Markdown.",
+      popHighlight: "Three-pane notebooks",
       demo: "Live demo",
       agentInstall: "Deploy with AI",
       getApps: "Get Apps:",
