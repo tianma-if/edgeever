@@ -177,6 +177,19 @@ describe("editor typography contract", () => {
     }
   });
 
+  test("uses the local semibold face for Japanese system-font editor headings", () => {
+    const globals = readStyle("./globals.css");
+    const headingRules = declarationsForSelector(globals, ".ProseMirror h1");
+    const japaneseHeadingRules = declarationsForSelector(
+      globals,
+      ':where(html:not([data-editor-body-font]) .edgeever-editor[data-editor-theme="default"] .ProseMirror) h1:lang(ja)',
+    );
+
+    expect(headingRules).toMatch(/font-weight\s*:\s*650\s*;/);
+    expect(japaneseHeadingRules).toContain('font-family: "EdgeEver Japanese Heading", var(--edgeever-system-font-family);');
+    expect(globals).toMatch(/@font-face\s*\{[^}]*font-family:\s*"EdgeEver Japanese Heading";[^}]*src:\s*local\("Yu Gothic UI Semibold"\),\s*local\("YuGothicUI-Semibold"\);[^}]*font-weight:\s*600;/);
+  });
+
   test("does not let preset themes override table geometry", () => {
     const geometryPattern =
       /(?<![\w-])(?:padding|min-width|max-width|min-height|max-height|line-height|table-layout|width|height)(?:-[a-z]+)?\s*:/;

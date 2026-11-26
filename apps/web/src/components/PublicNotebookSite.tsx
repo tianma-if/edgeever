@@ -297,7 +297,7 @@ export const PublicNotebookSite = ({ share, token, selectedId, children }: {
     </nav><div className="px-8 py-5 text-[11px] text-muted-foreground">{t("sharing.sitePoweredBy")}</div>
   </div>;
   return <NotebookSiteSearchContext.Provider value={(selectedTag) => { setTag(selectedTag ?? ""); setSearchOpen(true); }}><TooltipProvider delayDuration={400}>
-    <div data-site-theme="default" className="edgeever-notebook-site min-h-[100dvh] bg-card text-foreground">
+    <div data-site-theme="default" data-public-share-scroll className="edgeever-notebook-site flex flex-col bg-card text-foreground">
       <a href="#notebook-site-content" className="sr-only z-[60] rounded-md bg-card p-3 focus:not-sr-only focus:fixed focus:left-4 focus:top-4">{t("sharing.siteSkipToContent")}</a>
       <header className="sticky top-0 z-30 flex min-h-16 flex-wrap items-center justify-between gap-3 border-b bg-card/95 px-4 py-3 backdrop-blur sm:px-6">
         <Link to={root} onClick={navigate} className={`${linkClass} flex min-w-0 items-center gap-3 font-semibold`}><SiteLogo key={share.settings?.logoUrl} src={share.settings?.logoUrl} /><span className="max-w-[40vw] truncate">{share.name}</span></Link>
@@ -308,7 +308,7 @@ export const PublicNotebookSite = ({ share, token, selectedId, children }: {
           <Drawer open={mobileOpen} onOpenChange={setMobileOpen} shouldScaleBackground={false}><DrawerTrigger asChild><Button variant="outline" size="sm" className="lg:hidden"><Menu className="size-4" />{t("sharing.notebookContents")}</Button></DrawerTrigger><DrawerContent className="h-[85dvh] bg-card"><DrawerHeader><DrawerTitle>{share.name}</DrawerTitle><DrawerDescription>{t("sharing.siteNoteCount", { count: notes.length })}</DrawerDescription><DrawerClose asChild><Button variant="outline" size="sm">{t("common.close")}</Button></DrawerClose></DrawerHeader>{contents}</DrawerContent></Drawer>
         </div>
       </header>
-      <div className="mx-auto flex max-w-[1600px] items-start">
+      <div className="mx-auto flex w-full max-w-[1600px] flex-1 items-start">
         <aside id="notebook-site-sidebar" className={cn("sticky top-16 hidden h-[calc(100dvh-4rem)] w-72 shrink-0 flex-col border-r bg-card pt-6", sidebarOpen && "lg:flex")}>{contents}</aside>
         <main id="notebook-site-content" tabIndex={-1} className="min-w-0 flex-1 outline-none">
           {!selectedId ? <div className="mx-auto max-w-5xl px-5 py-10 sm:px-10 sm:py-14"><p className="mb-4 text-sm text-muted-foreground">{t("sharing.siteNoteCount", { count: notes.length })}</p><h1 className="break-words text-3xl font-bold">{share.name}</h1>{!notes.length && <p className="mt-4">{t("sharing.notebookEmpty")}</p>}<HomepageContents sections={sections} href={href} onNavigate={navigate} /></div> : <>

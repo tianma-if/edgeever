@@ -324,7 +324,7 @@ export const PublicSharePage = () => {
     );
   }
 
-  return <main className="min-h-[100dvh] bg-slate-50"><PublicShareArticle share={share} token={token} /></main>;
+  return <main data-public-share-scroll className="bg-slate-50"><PublicShareArticle share={share} token={token} /></main>;
 };
 
 export const PublicShareArticle = ({

@@ -599,7 +599,15 @@ export const callMcpTool = async (
       const renderMemo = await getMemoDetail(c.env.storage.db, auth.workspaceId, getRequiredString(args.memoId, "memoId"));
       if (!renderMemo) throw new AppError("not_found", "Memo not found", 404);
       assertMemoAccess(renderMemo, "write", "request a poster render");
-      return requestPosterRender(c.env.storage.db, auth.workspaceId, renderMemo.id, args.expectedRevision as number, getOptionalString(args.templateId) ?? undefined);
+      const input = {
+        workspace: auth.workspaceId,
+        memoId: renderMemo.id,
+        revision: args.expectedRevision as number,
+        templateId: getOptionalString(args.templateId) ?? undefined,
+      };
+      return c.env.enqueuePosterRender
+        ? c.env.enqueuePosterRender(input)
+        : requestPosterRender(c.env.storage.db, input);
     }
     case "get_poster_render_job": {
       assertScope(auth, "read:memos");

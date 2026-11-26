@@ -2,12 +2,28 @@ import type { Context } from "hono";
 import type { TokenNotebookAccess, TokenNotebookAccessLevel } from "@edgeever/shared";
 import type { CloudflareStorageBindings } from "./cloudflare-storage-adapter";
 import type { StorageAdapter } from "./storage-contract";
+import type { PosterRenderRequest, requestPosterRender } from "./poster-render-service";
+
+export type ImageThumbnailResult = {
+  bytes: Uint8Array;
+  mimeType: string;
+};
+
+export type ImageThumbnailAdapter = (input: {
+  bytes: Uint8Array;
+  mimeType: string;
+  width: number;
+}) => Promise<ImageThumbnailResult | null>;
 
 export type Bindings = {
   /** Runtime driver for public-only egress; no platform-specific business logic. */
   publicNetworkFetch?: (input: string, init: RequestInit) => Promise<Response>;
+  /** Optional runtime driver for generating downscaled image thumbnails. */
+  resizeImageThumbnail?: ImageThumbnailAdapter;
   /** The only persistence dependency exposed to application code. */
   storage: StorageAdapter;
+  enqueuePosterRender?: (input: PosterRenderRequest) => ReturnType<typeof requestPosterRender>;
+  connectPosterRenderEvents?: (request: Request, workspace: string) => Response | Promise<Response>;
   EDGE_EVER_AUTH_USERNAME?: string;
   EDGE_EVER_RUNTIME?: string;
   EDGE_EVER_CONTAINER_IMAGE?: string;
@@ -39,9 +55,15 @@ export type Bindings = {
   EDGE_EVER_COMMUNITY_REGISTRY_URL?: string;
 };
 
-export type WorkerBindings = Omit<Bindings, "storage" | "publicNetworkFetch" | "deploymentVersionCreatedAt"> & CloudflareStorageBindings & {
+export type WorkerBindings = Omit<
+  Bindings,
+  "storage" | "publicNetworkFetch" | "deploymentVersionCreatedAt" | "resizeImageThumbnail"
+  | "enqueuePosterRender" | "connectPosterRenderEvents"
+> & CloudflareStorageBindings & {
   ASSETS: Fetcher;
   CF_VERSION_METADATA?: { timestamp?: string };
+  IMAGES?: ImagesBinding;
+  POSTER_RENDER_EVENTS?: DurableObjectNamespace;
 };
 
 export type AuthContext = {

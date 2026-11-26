@@ -416,9 +416,11 @@ export const registerPublicNotebookShareRoutes = (app: Hono<AppEnv>) => {
       )
       .bind(token)
       .all<PublicNotebookShare["memos"][number]>();
-    if (root.settings.sortMode === "title") {
-      notebooks.results.sort(compareNotebookSiteTitles);
-      memos.results.sort(compareNotebookSiteTitles);
+    const { sortMode } = root.settings;
+    if (sortMode !== "existing") {
+      const direction = sortMode === "title-desc" ? -1 : 1;
+      notebooks.results.sort((left, right) => direction * compareNotebookSiteTitles(left, right));
+      memos.results.sort((left, right) => direction * compareNotebookSiteTitles(left, right));
     }
     const share: PublicNotebookShare = {
       notebookId: root.notebook_id,

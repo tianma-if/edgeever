@@ -108,6 +108,7 @@ const buildVariables = () => {
     "AUTH_LOGIN_IP_COOLDOWN_SECONDS",
     "DEMO_MODE",
     "DEMO_RESET_CRON",
+    "CLOUDFLARE_IMAGES",
     "CUSTOM_DOMAIN",
     "ROUTE_PATTERN",
   ];

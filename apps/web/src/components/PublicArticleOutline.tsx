@@ -9,6 +9,9 @@ import { buildPublicOutlineTree, collectPublicOutlineParentIds, type PublicOutli
 
 const HEADING_SELECTOR = ".tiptap h1, .tiptap h2, .tiptap h3, .tiptap h4, .tiptap h5, .tiptap h6";
 const OUTLINE_INDENT = 12;
+const SCROLL_SURFACE_SELECTOR = "[data-public-share-scroll]";
+const SCROLL_SURFACE_HEIGHT = "--public-outline-min-height";
+const OUTLINE_RAIL_END = "--public-outline-rail-end";
 
 const sameHeadings = (left: PublicOutlineFlatHeading[], right: PublicOutlineFlatHeading[]) =>
   left.length === right.length && left.every((heading, index) => {
@@ -38,13 +41,24 @@ const headingSnapshot = (container: HTMLDivElement): PublicOutlineFlatHeading[] 
   return headings.flatMap(({ id, text, level }) => text ? [{ id, text, level }] : []);
 };
 
-const scrollToHeading = (element: HTMLElement, behavior: ScrollBehavior) => {
+const scrollToHeading = (element: HTMLElement, container: HTMLDivElement, behavior: ScrollBehavior) => {
   for (let parent = element.parentElement; parent; parent = parent.parentElement) {
     if (parent.matches('[data-type="details"]:not(.is-open)')) {
       parent.querySelector<HTMLButtonElement>(":scope > button")?.click();
     }
   }
-  element.scrollIntoView({ block: "start", behavior });
+  const margin = parseFloat(getComputedStyle(element).scrollMarginTop);
+  const headingTop = element.getBoundingClientRect().top;
+  const top = Math.max(0, window.scrollY + headingTop - margin);
+  const viewportBottom = top - window.scrollY + window.innerHeight;
+  const surface = container.closest<HTMLElement>(SCROLL_SURFACE_SELECTOR);
+  // Give near-end headings room to reach the top offset, and keep the outline
+  // sticky across that extra space without moving the reading links or footer.
+  const height = viewportBottom - (surface?.getBoundingClientRect().top ?? 0);
+  const railEnd = Math.min(0, container.getBoundingClientRect().bottom - viewportBottom);
+  surface?.style.setProperty(SCROLL_SURFACE_HEIGHT, `${Math.ceil(height)}px`);
+  container.style.setProperty(OUTLINE_RAIL_END, `${railEnd}px`);
+  window.scrollTo({ top, behavior });
 };
 
 export const PublicArticleOutline = ({
@@ -59,6 +73,7 @@ export const PublicArticleOutline = ({
   const [active, setActive] = useState("");
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const [open, setOpen] = useState(false);
+  const drawerTargetRef = useRef<string | null>(null);
   const jumpTargetRef = useRef<string | null>(null);
   const tree = useMemo(() => buildPublicOutlineTree(headings), [headings]);
   const parentIds = useMemo(() => collectPublicOutlineParentIds(tree), [tree]);
@@ -92,6 +107,13 @@ export const PublicArticleOutline = ({
 
   useEffect(() => {
     if (headings.length === 0) return;
+    const container = containerRef.current;
+    if (!container) return;
+    const surface = container.closest<HTMLElement>(SCROLL_SURFACE_SELECTOR);
+    const clearScrollSpace = () => {
+      surface?.style.removeProperty(SCROLL_SURFACE_HEIGHT);
+      container.style.removeProperty(OUTLINE_RAIL_END);
+    };
     const update = () => {
       const jumpTarget = jumpTargetRef.current;
       if (jumpTarget && headings.some((heading) => heading.id === jumpTarget)) {
@@ -99,6 +121,7 @@ export const PublicArticleOutline = ({
         return;
       }
       jumpTargetRef.current = null;
+      if (window.scrollY === 0 || container.getBoundingClientRect().bottom >= window.innerHeight) clearScrollSpace();
       let id = "";
       let lastVisible = "";
       for (const heading of headings) {
@@ -118,7 +141,7 @@ export const PublicArticleOutline = ({
     let restoring = true;
     let target: HTMLElement | null = null;
     try { target = document.getElementById(decodeURIComponent(window.location.hash.slice(1))); } catch { /* Ignore malformed fragments. */ }
-    if (target && containerRef.current?.contains(target)) jumpTargetRef.current = target.id;
+    if (target && container.contains(target)) jumpTargetRef.current = target.id;
     const stopRestoring = () => { restoring = false; };
     const resumeTracking = (event: Event) => {
       const element = event.target instanceof Element ? event.target : null;
@@ -137,11 +160,11 @@ export const PublicArticleOutline = ({
       onScroll();
     };
     const relayout = () => {
-      if (restoring && target && containerRef.current?.contains(target)) scrollToHeading(target, "instant");
+      if (restoring && target && container.contains(target)) scrollToHeading(target, container, "instant");
       onScroll();
     };
     const observer = new ResizeObserver(relayout);
-    if (containerRef.current) observer.observe(containerRef.current);
+    observer.observe(container);
     for (const event of ["wheel", "touchstart", "pointerdown", "keydown"]) window.addEventListener(event, stopRestoring, { passive: true });
     for (const event of ["wheel", "touchmove", "keydown"]) window.addEventListener(event, resumeTracking, { passive: true });
     relayout();
@@ -150,6 +173,7 @@ export const PublicArticleOutline = ({
       window.removeEventListener("scroll", onScroll);
       cancelAnimationFrame(frame);
       observer.disconnect();
+      clearScrollSpace();
       for (const event of ["wheel", "touchstart", "pointerdown", "keydown"]) window.removeEventListener(event, stopRestoring);
       for (const event of ["wheel", "touchmove", "keydown"]) window.removeEventListener(event, resumeTracking);
     };
@@ -157,13 +181,14 @@ export const PublicArticleOutline = ({
 
   if (headings.length === 0) return null;
 
-  const jumpToHeading = (heading: PublicOutlineFlatHeading) => {
-    jumpTargetRef.current = heading.id;
-    history.replaceState(history.state, "", `#${heading.id}`);
-    setOpen(false);
-    const element = document.getElementById(heading.id);
-    if (element) scrollToHeading(element, matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth");
-    setActive(heading.id);
+  const jumpToHeading = (id: string) => {
+    const element = document.getElementById(id);
+    const container = containerRef.current;
+    if (!element || !container?.contains(element)) return;
+    jumpTargetRef.current = id;
+    history.replaceState(history.state, "", `#${id}`);
+    scrollToHeading(element, container, matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth");
+    setActive(id);
   };
 
   const toggle = (id: string) => setCollapsed((current) => {
@@ -206,11 +231,16 @@ export const PublicArticleOutline = ({
               ) : <span className="h-7 w-6 shrink-0" aria-hidden="true" />}
               <a
                 href={`#${item.id}`}
-                className="min-w-0 flex-1 truncate py-1 text-left font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20"
+                className="min-w-0 flex-1 wrap-anywhere py-1 text-left font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20"
                 onClick={(event) => {
                   if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
                   event.preventDefault();
-                  jumpToHeading(item);
+                  if (open) {
+                    drawerTargetRef.current = item.id;
+                    setOpen(false);
+                  } else {
+                    jumpToHeading(item.id);
+                  }
                 }}
                 aria-current={isActive ? "location" : undefined}
               >
@@ -265,14 +295,19 @@ export const PublicArticleOutline = ({
 
   return (
     <>
-      <aside className="absolute bottom-0 right-3 top-8 hidden w-48 xl:block">
+      <aside className="absolute bottom-[var(--public-outline-rail-end,0px)] right-3 top-8 hidden w-48 xl:block">
         <div className="sticky top-24">{outline}</div>
       </aside>
       <Drawer open={open} onOpenChange={setOpen} shouldScaleBackground={false}>
         <DrawerTrigger asChild>
           <Button variant="outline" className="fixed bottom-5 right-5 z-20 shadow-md xl:hidden">{t("editor.outline")}</Button>
         </DrawerTrigger>
-        <DrawerContent>
+        <DrawerContent onCloseAutoFocus={() => {
+          const target = drawerTargetRef.current;
+          drawerTargetRef.current = null;
+          // Safari restores the document scroll position when the drawer closes.
+          if (target) requestAnimationFrame(() => jumpToHeading(target));
+        }}>
           <DrawerHeader>
             <DrawerTitle>{t("editor.outline")}</DrawerTitle>
             <DrawerDescription>{t("sharing.readOnly")}</DrawerDescription>

@@ -131,6 +131,33 @@ const manage = (f, path, body, init = {}) => f.app.request(`/api/v1/notebooks/ro
 }, f.environment);
 
 describe("public notebook site controls", () => {
+  test("existing shares retain natural title order and can save the reverse order on the same link", async () => {
+    const f = fixture();
+    f.db.run(`UPDATE memos SET title = CASE id
+      WHEN 'memo_root' THEN 'Day 00' WHEN 'memo_child' THEN 'Day 10' ELSE 'Day 2' END,
+      is_pinned = (id = 'memo_child'), updated_at = CASE WHEN id = 'memo_grand' THEN '2025-01-01' ELSE '2025-01-02' END`);
+    f.db.run("UPDATE notebooks SET parent_id = 'root', name = 'Section 10' WHERE id = 'grandchild'");
+    f.db.run("UPDATE notebooks SET name = 'Section 2' WHERE id = 'child'");
+    const directory = async () => (await (await f.request()).json()).share;
+    expect((await directory()).memos.map((memo) => memo.title)).toEqual(["Day 10", "Day 00", "Day 2"]);
+
+    f.db.run("UPDATE notebook_shares SET site_settings_json = ?", [JSON.stringify({ sortMode: "title", footerText: "Example" })]);
+    const ascending = await directory();
+    expect(ascending.memos.map((memo) => memo.title)).toEqual(["Day 00", "Day 2", "Day 10"]);
+    expect(ascending.notebooks.filter((notebook) => notebook.parentId).map((notebook) => notebook.name))
+      .toEqual(["Section 2", "Section 10"]);
+
+    const saved = await manage(f, "/site", { settings: { sortMode: "title-desc" } });
+    expect(saved.status).toBe(200);
+    const { share } = await saved.json();
+    expect(share).toMatchObject({ token, siteSettings: { sortMode: "title-desc", footerText: "Example" } });
+    const descending = await directory();
+    expect(descending.settings.sortMode).toBe("title-desc");
+    expect(descending.memos.map((memo) => memo.title)).toEqual(["Day 10", "Day 2", "Day 00"]);
+    expect(descending.notebooks.filter((notebook) => notebook.parentId).map((notebook) => notebook.name))
+      .toEqual(["Section 10", "Section 2"]);
+  });
+
   test("old share upgrade preserves scope, token, and password while settings patch is independent", async () => {
     const f = fixture(await hashPassword("old-password"));
     const before = f.db.query("SELECT token, password_hash FROM notebook_shares").get();

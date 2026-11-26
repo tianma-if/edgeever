@@ -1,23 +1,29 @@
 {
-  "version": "2.31.2",
+  "version": "2.32.0",
   "changes": {
     "en-US": [
-      "Fix saving WeChat chat imports that contain multiple images on desktop.",
-      "Use the GitHub icon for issue reporting in Settings and the desktop sync dialog.",
-      "Clarify that applying a desktop update restarts the app.",
-      "Show creation times for untitled notes in the note list, search results, and note-link pickers on web and desktop. Thanks to @anhnt256 in #874."
+      "Desktop users can choose Antigravity Standalone or the agy CLI and clear a custom executable path. Thanks @yulei666 (#878).",
+      "Android loads smaller previews for images in notes. Full-screen viewing and downloads still use the original image. Thanks @flipcyde101 (#875, related to #869).",
+      "Poster rendering now uses server notifications, reducing requests from idle clients. For self-hosted instances, upgrade the server and clients together to use notifications.",
+      "Public share outlines show long headings in full and jump to sections in one click. Shared notebooks can sort titles in either direction, with numbers in natural order.",
+      "Web and desktop tables size columns to their content and show clearer alternating row shading. Thanks @geekqq (#884).",
+      "On Windows, headings that mix Japanese and Latin text use more consistent font weights. Thanks @Golden007-prog (#890)."
     ],
     "zh-CN": [
-      "修复桌面端导入含多张图片的微信聊天记录后无法保存的问题。",
-      "设置页和桌面同步异常弹窗的问题反馈入口统一使用 GitHub 图标。",
-      "明确提示安装桌面更新会重启应用。",
-      "Web 和桌面端的笔记列表、搜索结果和笔记链接选择器现在会显示无标题笔记的创建时间。感谢 @anhnt256 在 #874 中的贡献。"
+      "桌面端可以在 Antigravity 独立版与 agy CLI 之间切换，也可以清除自定义可执行文件路径。感谢 @yulei666（#878）。",
+      "Android 笔记内的图片使用缩略图，全屏查看和下载仍使用原图。感谢 @flipcyde101（#875，关联 #869）。",
+      "海报渲染改由服务端通知，减少客户端空闲时的请求。自托管用户需同时更新服务端和客户端以使用通知。",
+      "公开分享页的大纲会完整显示长标题，点击一次即可跳转。分享笔记本支持按标题升序或降序排列，标题中的数字按自然顺序排序。",
+      "Web 和桌面端表格按内容调整列宽，交替行底色更清晰。感谢 @geekqq（#884）。",
+      "Windows 上混排日文和拉丁字母的标题字重更一致。感谢 @Golden007-prog（#890）。"
     ],
     "ja": [
-      "複数の画像を含む WeChat のチャット履歴をデスクトップでインポートした後、保存できない問題を修正しました。",
-      "設定とデスクトップの同期ダイアログにある問題報告ボタンに GitHub アイコンを表示します。",
-      "デスクトップのアップデートを適用すると、アプリが再起動することを明示しました。",
-      "Web 版とデスクトップ版で、タイトルのないノートの作成日時をノート一覧、検索結果、ノートリンクの選択画面に表示します。"
+      "デスクトップ版で Antigravity 単体版と agy CLI を切り替え、カスタム実行ファイルのパスを解除できます。",
+      "Android のノート内画像は縮小プレビューを読み込み、全画面表示とダウンロードでは元の画像を使用します。",
+      "ポスター生成をサーバー通知に切り替え、待機中のリクエストを減らしました。セルフホスト環境ではサーバーとクライアントを更新してください。",
+      "公開ページの目次では長い見出しが全文表示され、ワンクリックで移動できます。共有ノートブックは数字を自然順で扱い、タイトルの昇順・降順で並べ替えられます。",
+      "Web 版とデスクトップ版の表は内容に合わせて列幅を調整し、行の交互色が見やすくなりました。",
+      "Windows で日本語とラテン文字が混在する見出しの太さを揃えました。"
     ]
   }
 }

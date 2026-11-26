@@ -1,6 +1,6 @@
 {
   "name": "edgeever",
-  "version": "2.31.2",
+  "version": "2.32.0",
   "packageManager": "bun@1.3.14",
   "private": true,
   "type": "module",
@@ -175,6 +175,7 @@
     "fflate": "^0.8.3",
     "hono": "^4.13.16",
     "i18next": "^26.3.4",
+    "imagescript": "3.20.5",
     "katex": "0.18.2",
     "lucide-react": "1.21.0",
     "marked": "^18.0.5",

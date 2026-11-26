@@ -56,10 +56,19 @@ const expectAtFragment = async (page: Page, path: string, id: string, text: stri
   await expect(target).toBeInViewport();
 };
 
+const expectHeadingAligned = async (page: Page, name: string) => {
+  const heading = page.locator(".tiptap").getByRole("heading", { name, exact: true });
+  await expect.poll(() => heading.evaluate((element) =>
+    Math.abs(element.getBoundingClientRect().top - parseFloat(getComputedStyle(element).scrollMarginTop)),
+  )).toBeLessThanOrEqual(2);
+};
+
 for (const layout of ["standalone", "site"] as const) {
   test(`${layout}: keeps a short final-section jump active until the reader scrolls`, async ({ page, request }) => {
+    const longTitle = "02 长标题 Outline ".repeat(4) + "VeryLongUnbrokenWord".repeat(5);
     const article = await createArticle(request, false, [
-      heading(1, "Long introduction"), ...filler(), ...filler(), ...filler(),
+      heading(1, "Long introduction"), ...filler(), ...filler(),
+      heading(2, longTitle), ...filler(), ...filler(),
       heading(2, "Before last"), paragraph("A short section."),
       heading(2, "Last section"), paragraph("The end."),
     ]);
@@ -67,11 +76,25 @@ for (const layout of ["standalone", "site"] as const) {
       await page.setViewportSize({ width: 1440, height: 900 });
       await page.goto(article.paths[layout]);
       const outline = page.locator(".edgeever-public-share aside");
+      const longLink = outline.getByRole("link", { name: longTitle, exact: true });
+      const titleLayout = await longLink.evaluate((element) => {
+        const style = getComputedStyle(element);
+        return {
+          wraps: element.clientHeight > parseFloat(style.lineHeight) + parseFloat(style.paddingTop) + parseFloat(style.paddingBottom),
+          fits: element.scrollWidth <= element.clientWidth,
+        };
+      });
+      expect(titleLayout).toEqual({ wraps: true, fits: true });
+      await longLink.click();
+      await expectHeadingAligned(page, longTitle);
       await outline.getByRole("link", { name: "Before last", exact: true }).click();
-      const atBottom = () => page.evaluate(() => window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 4);
-      await expect.poll(atBottom).toBe(true);
+      await expectHeadingAligned(page, "Before last");
       await expect(page).toHaveURL(/#article-before-last-1$/);
       await expect(outline.locator('[aria-current="location"]')).toHaveText("Before last");
+      await expect(outline.getByRole("link", { name: "Long introduction", exact: true })).toBeInViewport();
+      if (layout === "site") {
+        await expect(page.locator("#notebook-site-sidebar").getByRole("link", { name: "Public outline regression" })).toBeInViewport();
+      }
 
       // A real wheel gesture releases the chosen target even at the page end.
       await page.mouse.move(600, 500);
@@ -87,6 +110,7 @@ for (const layout of ["standalone", "site"] as const) {
       await expect(outline.locator('[aria-current="location"]')).toHaveText("Long introduction");
 
       await expectAtFragment(page, article.paths[layout], "article-before-last-1", "Before last");
+      await expectHeadingAligned(page, "Before last");
       await expect(outline.locator('[aria-current="location"]')).toHaveText("Before last");
     } finally {
       await article.cleanup();
@@ -144,7 +168,7 @@ for (const layout of ["standalone", "site"] as const) {
       await drawer.getByRole("button", { name: "展开全部标题", exact: true }).click();
       await leaf.click();
       await expect(drawer).toBeHidden();
-      await expect(page.locator(".tiptap h6")).toBeInViewport();
+      await expectHeadingAligned(page, "Leaf section");
       await expect(page).toHaveURL(/#article-leaf-section-1$/);
 
       const session = await request.post(`/api/v1/memos/${article.memo.id}/edit-sessions`);
