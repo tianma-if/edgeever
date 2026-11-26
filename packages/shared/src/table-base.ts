@@ -1,6 +1,7 @@
 import { Base64 } from "js-base64";
 import {
   createDefaultTableDocument,
+  listTableAttachmentResourceIds,
   parseTableDocument,
   serializeTableDocument,
   tableFallbackMarkdown,
@@ -128,6 +129,22 @@ export const createTableBaseDocument = (options: {
   };
 };
 
+/**
+ * Collects attachment resource ids reachable from every table of a base, so storage
+ * can release files that a base edit dropped just like it does for single tables.
+ */
+export const listTableBaseAttachmentResourceIds = (
+  base: TableBaseDocument | null | undefined,
+): Set<string> => {
+  const ids = new Set<string>();
+  if (!base) return ids;
+  for (const table of base.tables) {
+    const document = tableBaseTableDocument(table);
+    for (const resourceId of listTableAttachmentResourceIds(document)) ids.add(resourceId);
+  }
+  return ids;
+};
+
 export const tableBaseTableDocument = (table: TableBaseTable): TableDocument | null =>
   parseTableDocument(table.content);
 
@@ -137,6 +154,10 @@ export const tableBaseFallbackMarkdown = (base: TableBaseDocument): string =>
     const name = table.name.replace(/\s+/g, " ").trim() || "未命名数据表";
     return `## ${name}\n\n${document ? tableFallbackMarkdown(document) : "> 该数据表暂时无法解析"}`;
   }).join("\n\n");
+
+/** Removes the base marker but keeps the readable per-table markdown fallback. */
+export const stripTableBaseDocumentMarker = (markdown: string): string =>
+  markdown.replace(TABLE_BASE_COMMENT, "").trimStart();
 
 export const serializeTableBaseDocument = (base: TableBaseDocument): string =>
   `<!-- ${TABLE_BASE_MARKER_PREFIX}${Base64.encodeURI(JSON.stringify(base))} -->\n\n${tableBaseFallbackMarkdown(base)}`;

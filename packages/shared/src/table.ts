@@ -837,7 +837,14 @@ export const updateTableField = (document: TableDocument, fieldId: string, patch
       && !TABLE_GROUPABLE_FIELD_TYPES.includes(next.type as (typeof TABLE_GROUPABLE_FIELD_TYPES)[number])
       ? undefined
       : view.groupBy;
-    const layout = view.layout === "kanban" && (groupBy?.fieldId !== fieldId || next.type !== "select") ? "grid" : view.layout;
+    // A kanban is only valid while its grouping field exists and stays a single select.
+    // Editing any other field must keep the saved layout untouched.
+    const groupField = groupBy
+      ? groupBy.fieldId === fieldId
+        ? next
+        : fields.find((field) => field.id === groupBy.fieldId)
+      : undefined;
+    const layout = view.layout === "kanban" && (!groupBy || groupField?.type !== "select") ? "grid" : view.layout;
     return {
       ...view,
       ...(layout ? { layout } : {}),

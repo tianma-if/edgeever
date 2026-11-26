@@ -1,7 +1,7 @@
 import { Database } from "bun:sqlite";
 import { describe, expect, test } from "bun:test";
 import { globSync, readFileSync } from "node:fs";
-import { createPosterDocument, serializePosterDocument, parsePosterDocument, markdownToDoc, addTableField, createDefaultTableDocument, serializeTableDocument, updateTableCell } from "@edgeever/shared";
+import { createPosterDocument, serializePosterDocument, parsePosterDocument, markdownToDoc, addTableField, createDefaultTableDocument, serializeTableDocument, updateTableCell, addTableToBase, createTableBaseDocument, serializeTableBaseDocument } from "@edgeever/shared";
 import {
   acquireMaintenanceLease,
   createMemoEditSession,
@@ -228,6 +228,64 @@ describe("database write optimizations", () => {
     );
     expect(removed.releasedResources?.map((resource) => resource.id)).toEqual(["res_table_file"]);
     expect(sqlite.query("SELECT is_deleted FROM resources WHERE id = 'res_table_file'").get().is_deleted).toBe(1);
+    sqlite.close();
+  });
+
+  test("keeps a structured base intact when a legacy client saves only the markdown fallback", async () => {
+    const { database, sqlite } = createDatabase();
+    const memo = getSeedMemo(sqlite);
+    const actor = { actorType: "user", actorId: "user_owner" };
+    const document = updateTableCell(
+      addTableField(createDefaultTableDocument(), { id: "fld_files", name: "附件", type: "attachment" }),
+      "rec_sample",
+      "fld_files",
+      [{ resourceId: "res_base_file", filename: "plan.pdf", mimeType: "application/pdf", byteSize: 9 }],
+    );
+    let base = createTableBaseDocument({ tables: [{ id: "tbl_first", name: "任务", document }] });
+    base = addTableToBase(base, { id: "tbl_second", name: "素材", document: createDefaultTableDocument() });
+    sqlite.query(
+      `INSERT INTO resources (id, memo_id, object_key, kind, mime_type, filename, byte_size)
+       VALUES ('res_base_file', ?, 'workspaces/test/plan.pdf', 'attachment', 'application/pdf', 'plan.pdf', 9)`,
+    ).run(memo.id);
+
+    const markdown = serializeTableBaseDocument(base);
+    const saved = await updateMemoRecord(database, memo.workspace_id, memo.id, { contentMarkdown: markdown }, actor, "owner");
+    expect(saved.memo.contentMarkdown).toContain("edgeever-base-v1");
+
+    const legacy = await updateMemoRecord(
+      database,
+      memo.workspace_id,
+      memo.id,
+      { contentMarkdown: "普通笔记" },
+      actor,
+      "owner",
+    );
+    expect(legacy.error).toBe("table_base_update_required");
+    expect(legacy.status).toBe(409);
+    expect(sqlite.query("SELECT content_markdown FROM memo_contents WHERE memo_id = ?").get(memo.id).content_markdown)
+      .toContain("edgeever-base-v1");
+
+    const invalid = await updateMemoRecord(
+      database,
+      memo.workspace_id,
+      memo.id,
+      { contentMarkdown: "<!-- edgeever-base-v1:broken -->\n\n正文" },
+      actor,
+      "owner",
+    );
+    expect(invalid.error).toBe("invalid_table_base");
+    expect(invalid.status).toBe(400);
+
+    const withoutTable = await updateMemoRecord(
+      database,
+      memo.workspace_id,
+      memo.id,
+      { contentMarkdown: serializeTableBaseDocument({ ...base, tables: base.tables.slice(1), activeTableId: "tbl_second" }) },
+      actor,
+      "owner",
+    );
+    expect(withoutTable.memo.contentMarkdown).toContain("edgeever-base-v1");
+    expect(withoutTable.memo.contentMarkdown).not.toContain("res_base_file");
     sqlite.close();
   });
 

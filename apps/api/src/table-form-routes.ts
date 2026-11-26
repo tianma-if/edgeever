@@ -1,5 +1,5 @@
 import {
-  isPublicTableFormFieldType,
+
   resolveResourceUploadMimeType,
   parseTableDocumentMetadata,
   TABLE_RECORD_LIMIT,
@@ -43,6 +43,7 @@ import {
   appendTableFormSubmission,
   parseTableFormFields,
   TABLE_FORM_ATTACHMENT_BYTES,
+  tableFormFieldIsSubmittable,
   type TableFormRow,
 } from "./table-form-service";
 
@@ -87,7 +88,7 @@ const publicFields = (form: TableFormRow, document: Pick<TableDocument, "fields"
   const fields = new Map(document.fields.map((field) => [field.id, field]));
   return parseTableFormFields(form.fields_json).flatMap((setting) => {
     const field = fields.get(setting.fieldId);
-    if (!field || !isPublicTableFormFieldType(field.type)) return [];
+    if (!tableFormFieldIsSubmittable(field)) return [];
     const view: PublicTableFormField = {
       id: field.id,
       name: field.name,

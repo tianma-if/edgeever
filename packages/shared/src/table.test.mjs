@@ -514,6 +514,49 @@ describe("select option colors", () => {
   });
 });
 
+describe("table field edits and saved views", () => {
+  const kanbanDocument = () => {
+    let document = createDefaultTableDocument("看板");
+    document = addTableField(document, { id: "fld_status", name: "状态", type: "select", options: ["未开始", "进行中"] });
+    document = addTableField(document, { id: "fld_title", name: "标题", type: "text" });
+    const views = getTableViews(document);
+    const kanban = {
+      ...views[0],
+      layout: "kanban",
+      groupBy: { fieldId: "fld_status", direction: "asc" },
+    };
+    return saveTableViews(document, [kanban, ...views.slice(1)], kanban.id);
+  };
+
+  test("keeps a saved kanban layout when unrelated fields change", () => {
+    const document = kanbanDocument();
+    const stored = getTableViews(document)[0];
+    expect(stored.layout).toBe("kanban");
+
+    const renamed = updateTableField(document, "fld_title", { name: "标题（改）" });
+    expect(getTableViews(renamed)[0].layout).toBe("kanban");
+    expect(getTableViews(renamed)[0].groupBy).toEqual({ fieldId: "fld_status", direction: "asc" });
+
+    const resized = updateTableField(document, "fld_title", { name: "标题", options: [] });
+    expect(getTableViews(resized)[0].layout).toBe("kanban");
+
+    const regroupedRename = updateTableField(document, "fld_status", { name: "进度" });
+    expect(getTableViews(regroupedRename)[0].layout).toBe("kanban");
+    expect(getTableViews(regroupedRename)[0].groupBy.fieldId).toBe("fld_status");
+  });
+
+  test("resets a kanban only when its grouping field stops being a single select", () => {
+    const document = kanbanDocument();
+    const toText = updateTableField(document, "fld_status", { type: "text" });
+    expect(getTableViews(toText)[0].layout).toBe("grid");
+    expect(getTableViews(toText)[0].groupBy).toBeUndefined();
+
+    const toMulti = updateTableField(document, "fld_status", { type: "multiSelect", options: ["未开始", "进行中"] });
+    expect(getTableViews(toMulti)[0].layout).toBe("grid");
+    expect(getTableViews(toMulti)[0].groupBy).toBeUndefined();
+  });
+});
+
 describe("view column width", () => {
   test("clamps column widths and ignores unknown fields", () => {
     let document = createDefaultTableDocument("计划");

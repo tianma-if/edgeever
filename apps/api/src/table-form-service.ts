@@ -1,6 +1,7 @@
 import {
   addTableRecord,
   createTableId,
+  isPublicTableFormFieldType,
   markdownToDoc,
   parseTableDocument,
   serializeTableDocument,
@@ -15,6 +16,7 @@ import {
   type TableCellValue,
   type TableDocument,
   type TableField,
+  type PublicTableFormFieldType,
   type TableFormFieldSetting,
 } from "@edgeever/shared";
 import { AppError } from "./app-error";
@@ -22,6 +24,16 @@ import { getMemoDetail, updateMemoRecord } from "./memo-service";
 import type { DatabaseAdapter } from "./storage-contract";
 
 export const TABLE_FORM_ATTACHMENT_BYTES = 20 * 1024 * 1024;
+
+/**
+ * A field can carry a public form answer only while its type is still form-friendly.
+ * Rendering and submission share this predicate so a form never renders a field it
+ * refuses to accept, and never enforces "required" on a field it hides.
+ */
+export const tableFormFieldIsSubmittable = (
+  field: TableField | null | undefined,
+): field is TableField & { type: PublicTableFormFieldType } =>
+  Boolean(field && isPublicTableFormFieldType(field.type));
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const URL_PATTERN = /^https?:\/\/\S+$/i;
 
@@ -135,7 +147,7 @@ export const buildTableFormSubmission = (
   const nextCells: Record<string, TableCellValue> = {};
   for (const setting of configured) {
     const field = fields.get(setting.fieldId);
-    if (!field || field.type === "autoNumber") continue;
+    if (!tableFormFieldIsSubmittable(field)) continue;
     const value = submissionValue(field, cells[field.id], attachments);
     if (setting.required && valueMissing(field, value)) {
       throw new AppError("table_form_required", "Fill in every required field.", 400);

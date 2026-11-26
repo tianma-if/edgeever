@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Check,
+  ChevronDown,
   ChevronLeft,
   Download,
   MoreHorizontal,
@@ -588,6 +590,42 @@ export const BaseEditorPane = ({ memo, repository, readOnly, onBackToList, onSav
               }}
             />
           </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 gap-1 px-2 md:hidden"
+                aria-label={t("structuredTable.tables")}
+                data-testid="base-table-picker"
+              >
+                <Table2 className="size-4" aria-hidden="true" />
+                <span className="max-w-24 truncate text-xs">{activeTable.name}</span>
+                <ChevronDown className="size-3.5" aria-hidden="true" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-56">
+              {tables.map((table) => (
+                <DropdownMenuItem
+                  key={table.id}
+                  data-testid="base-table-picker-item"
+                  data-table-id={table.id}
+                  onSelect={() => selectTable(table.id)}
+                >
+                  <span className="truncate">{table.name}</span>
+                  {table.id === activeTable.id ? <Check className="ml-auto size-3.5" aria-hidden="true" /> : null}
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuItem
+                disabled={readOnly || !canAddTable}
+                onSelect={() => { createTable(); }}
+              >
+                <Plus className="size-3.5" aria-hidden="true" />
+                {t("structuredTable.newTable")}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <span className="shrink-0 whitespace-nowrap text-xs text-muted-foreground">{t("structuredTable.recordCount", { count: document.records.length })}</span>
           {saveLabel ? <span className={saveError ? "shrink-0 whitespace-nowrap text-xs text-rose-600" : "shrink-0 whitespace-nowrap text-xs text-muted-foreground"}>{saveLabel}</span> : null}
           <Tooltip>

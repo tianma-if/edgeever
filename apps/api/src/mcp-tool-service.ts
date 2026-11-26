@@ -22,6 +22,7 @@ import {
   TABLE_FIELD_LIMIT,
   TABLE_RECORD_LIMIT,
   TABLE_SCHEMA_VERSION,
+  hasTableBaseDocumentMarker,
   hasTableDocumentMarker,
   parseDiagramDocument,
   parseInfographicDocument,
@@ -777,6 +778,13 @@ export const callMcpTool = async (
           throw new AppError(
             "table_update_required",
             "Structured table content cannot be replaced through update_memo.",
+            400,
+          );
+        }
+        if (existing && hasTableBaseDocumentMarker(existing.contentMarkdown)) {
+          throw new AppError(
+            "table_base_update_required",
+            "Structured base content cannot be replaced through update_memo.",
             400,
           );
         }
