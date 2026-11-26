@@ -9,6 +9,7 @@ import {
   deleteNotebookRecord,
   listNotebooks,
   restoreNotebookRecord,
+  trashNotebookTree,
   updateNotebookRecord,
 } from "./notebook-service";
 import { getAuditActor, getWorkspaceId, requireScopes } from "./request-auth";
@@ -104,6 +105,21 @@ export const registerNotebookRoutes = (
         "delete this notebook",
       );
       await deleteNotebookRecord(c.env.storage.db, getWorkspaceId(c), c.req.param("id"), getAuditActor(c));
+      return c.json({ ok: true });
+    } catch (error) {
+      return respondWithAppError(c, error);
+    }
+  });
+
+  app.post("/api/v1/notebooks/:id/trash", async (c) => {
+    const denied = requireScopes(c, "write:notebooks", "write:memos");
+    if (denied) return denied;
+
+    try {
+      const access = await resolveRequestNotebookAccess(c);
+      const id = c.req.param("id");
+      assertNotebookAccess(access, "write", id, "trash this notebook");
+      await trashNotebookTree(c.env.storage.db, getWorkspaceId(c), id, getAuditActor(c), access);
       return c.json({ ok: true });
     } catch (error) {
       return respondWithAppError(c, error);

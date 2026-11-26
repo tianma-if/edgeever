@@ -59,6 +59,7 @@ export type EdgeEverRepository = {
   createNotebook(input: { name: string; parentId?: string | null }): Promise<{ notebook: Notebook }>;
   updateNotebook(notebookId: string, input: NotebookUpdateInput): Promise<{ notebook: Notebook }>;
   deleteNotebook(notebookId: string): Promise<{ ok: true }>;
+  trashNotebook(notebookId: string): Promise<{ ok: true }>;
   restoreNotebook(notebookId: string): Promise<{ notebook: Notebook }>;
   listTemplates(): Promise<{ templates: MemoTemplate[] }>;
   createTemplate(input: { name: string; description?: string | null; memoId?: string; title?: string | null; contentMarkdown?: string; tags?: string[] }): Promise<{ template: MemoTemplate }>;
@@ -260,8 +261,19 @@ export const createWebRepository = (scope: string): EdgeEverRepository => {
   },
 
   async deleteNotebook(notebookId) {
-    const notebookIds = await deleteLocalNotebookTree(scope, notebookId);
-    await queueLocalAction(scope, "notebook.delete", notebookId, { notebookId, notebookIds });
+    await localDb.transaction("rw", [localDb.memos, localDb.notebooks, localDb.syncQueue], async () => {
+      const notebookIds = await deleteLocalNotebookTree(scope, notebookId);
+      await queueLocalAction(scope, "notebook.delete", notebookId, { notebookId, notebookIds });
+    });
+    window.dispatchEvent(new CustomEvent("edgeever:sync-queue-changed"));
+    return { ok: true as const };
+  },
+
+  async trashNotebook(notebookId) {
+    await localDb.transaction("rw", [localDb.memos, localDb.notebooks, localDb.syncQueue], async () => {
+      const notebookIds = await deleteLocalNotebookTree(scope, notebookId, true);
+      await queueLocalAction(scope, "notebook.trash", notebookId, { notebookId, notebookIds });
+    });
     window.dispatchEvent(new CustomEvent("edgeever:sync-queue-changed"));
     return { ok: true as const };
   },
@@ -607,9 +619,11 @@ export const createWebRepository = (scope: string): EdgeEverRepository => {
   },
 
   async restoreMemo(memoId) {
-    await restoreLocalMemo(scope, memoId);
-    await queueMemoRestore(scope, { memoId });
-    const memo = await getLocalMemo(scope, memoId);
+    const memo = await localDb.transaction("rw", [localDb.memos, localDb.notebooks, localDb.syncQueue], async () => {
+      await restoreLocalMemo(scope, memoId);
+      await queueMemoRestore(scope, { memoId });
+      return getLocalMemo(scope, memoId);
+    });
     if (!memo) throw new Error("Memo is not available in the local mirror");
     window.dispatchEvent(new CustomEvent("edgeever:sync-queue-changed"));
     return { memo, queued: true };

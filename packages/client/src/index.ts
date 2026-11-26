@@ -1051,6 +1051,11 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
         method: "DELETE",
       }),
 
+    trashNotebook: (notebookId: string) =>
+      request<{ ok: true }>(`/api/v1/notebooks/${encodeURIComponent(notebookId)}/trash`, {
+        method: "POST",
+      }),
+
     restoreNotebook: (notebookId: string) =>
       request<NotebookResponse>(`/api/v1/notebooks/${encodeURIComponent(notebookId)}/restore`, {
         method: "POST",

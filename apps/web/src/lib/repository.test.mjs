@@ -7,7 +7,7 @@ globalThis.IDBKeyRange = IDBKeyRange;
 const { localDb } = await import("./local-db.ts");
 const { api } = await import("./api.ts");
 const { createWebRepository } = await import("./repository.ts");
-const { createLocalMemo, putLocalMemo } = await import("./local-mirror.ts");
+const { createLocalMemo, getLocalMemo, putLocalMemo } = await import("./local-mirror.ts");
 const { NOTEBOOK_LIST_REFRESHED_EVENT } = await import("./sync-events.ts");
 
 const installTestWindow = ({ hostname = "localhost" } = {}) => {
@@ -835,6 +835,30 @@ describe("web repository notebooks", () => {
       await expect(repository.deleteNotebook("nb-full")).rejects.toThrow("notebook_not_empty");
       expect(await queuedAction("notebook.delete", "nb-full")).toBeUndefined();
       expect(await localDb.notebooks.get([SCOPE, "nb-full"])).toBeDefined();
+    } finally {
+      restoreNetwork();
+    }
+  });
+
+  test("moves a notebook tree's local notes to trash offline and leaves unrelated notes alone", async () => {
+    const restoreNetwork = installNetwork({ online: false });
+    try {
+      await localDb.notebooks.bulkPut([
+        { ...notebookFixture("nb_inbox", { slug: "inbox" }), scope: SCOPE },
+        { ...notebookFixture("nb-parent"), scope: SCOPE },
+        { ...notebookFixture("nb-child", { parentId: "nb-parent" }), scope: SCOPE },
+      ]);
+      const note = await createLocalMemo(SCOPE, { notebookId: "nb-child", contentMarkdown: "Keep this content" });
+      const outside = await createLocalMemo(SCOPE, { notebookId: "nb_inbox" });
+      const repository = createWebRepository(SCOPE);
+
+      expect(await repository.trashNotebook("nb-parent")).toEqual({ ok: true });
+      expect((await repository.listNotebooks()).notebooks.map(({ id }) => id)).toEqual(["nb_inbox"]);
+      expect((await getLocalMemo(SCOPE, note.id))).toMatchObject({ isDeleted: true, contentMarkdown: "Keep this content" });
+      expect((await getLocalMemo(SCOPE, outside.id)).isDeleted).toBe(false);
+      expect((await queuedAction("notebook.trash", "nb-parent")).payload)
+        .toEqual({ notebookId: "nb-parent", notebookIds: ["nb-child", "nb-parent"] });
+      expect((await repository.restoreMemo(note.id)).memo).toMatchObject({ isDeleted: false, notebookId: "nb_inbox" });
     } finally {
       restoreNetwork();
     }

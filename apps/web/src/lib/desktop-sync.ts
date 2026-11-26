@@ -505,6 +505,12 @@ const syncOutboxItem = async (item: DesktopOutboxItem, stagedRewrites: StagedRes
     return null;
   }
 
+  if (item.kind === "notebook.trash") {
+    await api.trashNotebook(String(payload.notebookId ?? item.entityId));
+    await acknowledge(item);
+    return null;
+  }
+
   if (item.kind === "notebook.restore") {
     const data = await api.restoreNotebook(String(payload.notebookId ?? item.entityId));
     await acknowledge(item, undefined, data.notebook);
@@ -587,6 +593,8 @@ const syncOutbox = async (stagedRewrites: StagedResourceRewrite[], onlyKinds?: S
     // A local dependency has no cloud id yet. Leave the action pending until
     // its create succeeds rather than making a permanent not-found error.
     if ([item.payload.notebookId, item.payload.parentId].some((id) => typeof id === "string" && id.startsWith("nb_local_"))) continue;
+    if (item.kind === "notebook.trash"
+      && notebookDeleteIdsFromPayload(item.payload, item.entityId).some((id) => id.startsWith("nb_local_"))) continue;
     // A merge's entityId is its new result, not a source dependency.
     const memoDependencies = item.kind === "memo.merge"
       ? (Array.isArray(item.payload.memoIds) ? item.payload.memoIds : [])

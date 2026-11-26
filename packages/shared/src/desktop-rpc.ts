@@ -29,6 +29,7 @@ export const DESKTOP_RPC_METHODS = [
   "notebook.create",
   "notebook.update",
   "notebook.delete",
+  "notebook.trash",
   "notebook.restore",
   "template.list",
   "template.cache",
@@ -97,6 +98,7 @@ export type DesktopRpcResponses = {
   "notebook.create": { notebook: Notebook };
   "notebook.update": { notebook: Notebook };
   "notebook.delete": { ok: true };
+  "notebook.trash": { ok: true };
   "notebook.restore": { notebook: Notebook };
   "template.list": { templates: MemoTemplate[] };
   "template.cache": { template: MemoTemplate };
@@ -147,6 +149,7 @@ export type DesktopRpcParams = {
   "notebook.create": { name: string; parentId?: string | null };
   "notebook.update": { notebookId: string; name?: string; parentId?: string | null; sortOrder?: number };
   "notebook.delete": { notebookId: string };
+  "notebook.trash": { notebookId: string };
   "notebook.restore": { notebookId: string };
   "template.list": Record<string, never>;
   "template.cache": { template: MemoTemplate };
@@ -205,7 +208,7 @@ export type DesktopRpcContractIsComplete =
 
 export type DesktopOutboxItem = {
   id: number;
-  kind: "memo.create" | "memo.update" | "memo.delete" | "memo.restore" | "memo.move" | "memo.deleteBatch" | "memo.emptyTrash" | "memo.pinBatch" | "memo.merge" | "notebook.create" | "notebook.update" | "notebook.delete" | "notebook.restore" | "template.create" | "template.update" | "template.delete" | "tag.rename" | "tag.delete";
+  kind: "memo.create" | "memo.update" | "memo.delete" | "memo.restore" | "memo.move" | "memo.deleteBatch" | "memo.emptyTrash" | "memo.pinBatch" | "memo.merge" | "notebook.create" | "notebook.update" | "notebook.delete" | "notebook.trash" | "notebook.restore" | "template.create" | "template.update" | "template.delete" | "tag.rename" | "tag.delete";
   entityId: string;
   payload: Record<string, unknown>;
   attemptCount: number;

@@ -112,7 +112,8 @@ pub(crate) fn handle(
             .map(|notebook| json!({ "notebook": notebook })),
         "notebook.update" => update_notebook(database, &request.params)
             .map(|notebook| json!({ "notebook": notebook })),
-        "notebook.delete" => delete_notebook(database, &request.params),
+        "notebook.delete" => delete_notebook(database, &request.params, false),
+        "notebook.trash" => delete_notebook(database, &request.params, true),
         "notebook.restore" => restore_notebook(database, &request.params)
             .map(|notebook| json!({ "notebook": notebook })),
         "template.list" => list_templates(database),

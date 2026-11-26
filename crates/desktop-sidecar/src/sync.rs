@@ -410,6 +410,13 @@ pub(crate) fn sync_outbox_ack(database: &Connection, params: &Value) -> Result<V
                 if payload.get("notebookId").and_then(Value::as_str) == Some(entity_id.as_str()) {
                     payload["notebookId"] = json!(remote_id);
                 }
+                if let Some(notebook_ids) = payload.get_mut("notebookIds").and_then(Value::as_array_mut) {
+                    for notebook_id in notebook_ids {
+                        if notebook_id.as_str() == Some(entity_id.as_str()) {
+                            *notebook_id = json!(remote_id);
+                        }
+                    }
+                }
                 if payload.get("parentId").and_then(Value::as_str) == Some(entity_id.as_str()) {
                     payload["parentId"] = json!(remote_id);
                 }
@@ -796,7 +803,7 @@ fn ensure_active_inbox(tx: &Transaction<'_>) -> Result<String, String> {
     Ok("nb_inbox".to_owned())
 }
 
-fn resolve_sync_notebook_id(
+pub(crate) fn resolve_active_notebook_id(
     tx: &Transaction<'_>,
     requested_notebook_id: &str,
 ) -> Result<String, String> {
@@ -947,7 +954,7 @@ fn apply_one_sync_change(
         .cloned()
         .unwrap_or_else(|| json!({"type":"doc","content":[]}));
     let requested_notebook_id = string_param(memo, "notebookId")?;
-    let notebook_id = resolve_sync_notebook_id(tx, &requested_notebook_id)?;
+    let notebook_id = resolve_active_notebook_id(tx, &requested_notebook_id)?;
     tx.execute("INSERT INTO memos (id, notebook_id, title, excerpt, tags_json, is_pinned, is_archived, is_deleted, source_memo_ids, merge_source_count, merged_into_memo_id, created_at, updated_at, deleted_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14) ON CONFLICT(id) DO UPDATE SET notebook_id=excluded.notebook_id, title=excluded.title, excerpt=excluded.excerpt, tags_json=excluded.tags_json, is_pinned=excluded.is_pinned, is_archived=excluded.is_archived, is_deleted=excluded.is_deleted, source_memo_ids=excluded.source_memo_ids, merge_source_count=excluded.merge_source_count, merged_into_memo_id=excluded.merged_into_memo_id, updated_at=excluded.updated_at, deleted_at=excluded.deleted_at", rusqlite::params![entity_id, notebook_id, memo.get("title").and_then(Value::as_str), string_param(memo, "excerpt")?, tags, memo.get("isPinned").and_then(Value::as_bool).unwrap_or(false) as i64, memo.get("isArchived").and_then(Value::as_bool).unwrap_or(false) as i64, memo.get("isDeleted").and_then(Value::as_bool).unwrap_or(false) as i64, source_ids, memo.get("mergeSourceCount").and_then(Value::as_i64).unwrap_or(0), merge_target, string_param(memo, "createdAt")?, string_param(memo, "updatedAt")?, memo.get("deletedAt").and_then(Value::as_str)]).map_err(|e| e.to_string())?;
     tx.execute("INSERT INTO memo_contents (memo_id, content_json, content_markdown, content_text, content_hash, revision) VALUES (?1, ?2, ?3, ?4, ?5, ?6) ON CONFLICT(memo_id) DO UPDATE SET content_json=excluded.content_json, content_markdown=excluded.content_markdown, content_text=excluded.content_text, content_hash=excluded.content_hash, revision=excluded.revision, updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')", rusqlite::params![entity_id, content_json.to_string(), string_param(memo, "contentMarkdown")?, string_param(memo, "contentText")?, string_param(memo, "contentHash")?, memo.get("revision").and_then(Value::as_i64).unwrap_or(0)]).map_err(|e| e.to_string())?;
     for source_id in source_memo_ids.iter().filter_map(Value::as_str) {

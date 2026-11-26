@@ -546,11 +546,21 @@ assert.equal(remainingNotebookIds.has(lawNotebook.id), false, "an empty child no
 assert.equal(remainingNotebookIds.has(historyNotebook.id), false, "every empty descendant should be deleted with the parent");
 const blockedNotebook = (await request("notebook.create", { name: "仍有笔记" })).notebook;
 const blockedChild = (await request("notebook.create", { name: "子笔记本", parentId: blockedNotebook.id })).notebook;
-await request("memo.create", { notebookId: blockedChild.id, title: "还在", contentMarkdown: "keep", tags: [] });
+const notebookTrashMemo = (await request("memo.create", { notebookId: blockedChild.id, title: "还在", contentMarkdown: "keep", tags: [] })).memo;
 await assert.rejects(request("notebook.delete", { notebookId: blockedNotebook.id }), /notebook_not_empty/);
 const blockedNotebookIds = new Set((await request("notebook.list")).notebooks.map((notebook) => notebook.id));
 assert.equal(blockedNotebookIds.has(blockedNotebook.id), true, "a notebook with notes in a child should stay");
 assert.equal(blockedNotebookIds.has(blockedChild.id), true, "a child notebook that still has notes should stay");
+await request("notebook.trash", { notebookId: blockedNotebook.id });
+const trashedNotebookIds = new Set((await request("notebook.list")).notebooks.map((notebook) => notebook.id));
+assert.equal(trashedNotebookIds.has(blockedNotebook.id), false);
+assert.equal(trashedNotebookIds.has(blockedChild.id), false);
+assert.equal((await request("memo.get", { memoId: notebookTrashMemo.id, includeDeleted: true })).memo.isDeleted, true);
+const trashAction = (await request("sync.outbox.list", { limit: 200 })).items.find((item) => item.kind === "notebook.trash");
+assert.deepEqual(trashAction.payload, { notebookId: blockedNotebook.id, notebookIds: [blockedChild.id, blockedNotebook.id] });
+const restoredChildMemo = (await request("memo.restore", { memoId: notebookTrashMemo.id })).memo;
+assert.equal(restoredChildMemo.notebookId, inbox.id);
+assert.equal(restoredChildMemo.contentMarkdown, "keep");
 
 // Reproduce the installed client's failed notebook acknowledgement with notes
 // and a child already referring to the placeholder.

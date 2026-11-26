@@ -140,6 +140,11 @@ export const createDesktopRepository = (): EdgeEverRepository => ({
     return result;
   }),
 
+  trashNotebook: (notebookId) => request("notebook.trash", { notebookId }).then((result) => {
+    window.dispatchEvent(new CustomEvent("edgeever:sync-queue-changed"));
+    return result;
+  }),
+
   restoreNotebook: (notebookId) => request("notebook.restore", { notebookId }).then((result) => {
     window.dispatchEvent(new CustomEvent("edgeever:sync-queue-changed"));
     return result;

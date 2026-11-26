@@ -28,6 +28,7 @@ import type { AppContext, AuditActor, AuthContext, Bindings } from "./api-contex
 import { AppError } from "./app-error";
 import { clampNumber, createId, isoNow, parseJsonArray } from "./entity-utils";
 import { notebookExists, workspaceInboxId } from "./notebook-service";
+import { softDeleteMemoStatements } from "./memo-trash-statements";
 import { sha256 } from "./hash-utils";
 import { getRequiredString } from "./mcp-json-rpc";
 import {
@@ -525,14 +526,15 @@ export const deleteMemosRecord = async (
   }
 
   const placeholders = uniqueMemoIds.map(() => "?").join(", ");
+  const memoIdsJson = JSON.stringify(uniqueMemoIds);
   const expectedDeletedState = permanent ? 1 : 0;
   const rows = await db
     .prepare(
       `SELECT id
        FROM memos
-       WHERE workspace_id = ? AND is_deleted = ? AND id IN (${placeholders})`
+       WHERE workspace_id = ? AND is_deleted = ? AND id IN (SELECT value FROM json_each(?))`
     )
-    .bind(workspaceId, expectedDeletedState, ...uniqueMemoIds)
+    .bind(workspaceId, expectedDeletedState, memoIdsJson)
     .all<{ id: string }>();
 
   if (rows.results.length !== uniqueMemoIds.length) {
@@ -583,24 +585,10 @@ export const deleteMemosRecord = async (
       statements.push(auditStatement(db, actor.actorType, actor.actorId, "memo.delete_permanent", "memo", memoId, {}));
     }
   } else {
-    statements.push(
-      db.prepare(`DELETE FROM memo_shares WHERE workspace_id = ? AND memo_id IN (${placeholders})`).bind(workspaceId, ...uniqueMemoIds),
-      db
-        .prepare(
-          `UPDATE memos
-           SET is_deleted = 1, deleted_at = ?, updated_at = ?
-           WHERE workspace_id = ? AND is_deleted = 0 AND id IN (${placeholders})`
-        )
-        .bind(now, now, workspaceId, ...uniqueMemoIds),
-      db
-        .prepare(
-          `UPDATE resources
-           SET is_deleted = 1, deleted_at = ?, updated_at = ?
-           WHERE is_deleted = 0 AND memo_id IN (${placeholders})`
-        )
-        .bind(now, now, ...uniqueMemoIds),
-      deleteMemoSearchDocumentsStatement(db, uniqueMemoIds)
-    );
+    statements.push(...softDeleteMemoStatements(db, workspaceId, now,
+      `SELECT id FROM memos WHERE id IN (SELECT value FROM json_each(?)) AND workspace_id = ? AND is_deleted = 0`,
+      [memoIdsJson, workspaceId],
+    ));
 
     for (const memoId of uniqueMemoIds) {
       statements.push(auditStatement(db, actor.actorType, actor.actorId, "memo.delete", "memo", memoId, {}));

@@ -2,9 +2,10 @@ import { useCallback, useEffect, useState, type Dispatch, type MutableRefObject,
 import type { QueryClient } from "@tanstack/react-query";
 import type { MemoDetail, MemoTemplate, Notebook, Resource } from "@edgeever/shared";
 import { isBrowserOffline } from "@/lib/network-status";
+import { localDb } from "@/lib/local-db";
 import { emptySyncQueueSummary, type SyncQueueSummary } from "@/lib/sync-queue";
 import { MEMO_ID_REMAPPED_EVENT, NOTEBOOK_ID_REMAPPED_EVENT, notifyMemoIdRemapped, notifyMemoSyncAcknowledged, notifyNotebookIdRemapped } from "@/lib/sync-events";
-import { observeLocalMemoIdMappings, putLocalMemo, replaceLocalMemoId } from "@/lib/local-mirror";
+import { observeLocalMemoIdMappings, putLocalMemo, replaceLocalMemoId, syncLocalMirror } from "@/lib/local-mirror";
 import { remapMemoIdsInLists } from "@/lib/memo-list-cache";
 import { remapMemoReadingStyle } from "@/lib/memo-reading-style";
 import { preserveRemappedMemoDetailQueries, resolveSyncedMemoId } from "@/lib/workspace-refresh";
@@ -126,6 +127,7 @@ export const useWorkspaceQueuedSync = ({
       }
 
       const { syncQueuedChanges } = await import("@/lib/sync-queue");
+      let trashedNotebook = false;
       const result = await syncQueuedChanges({
         scope: localDataScope,
         onMemoAcknowledged: async (memo) => {
@@ -149,6 +151,10 @@ export const useWorkspaceQueuedSync = ({
           ]);
         },
         onActionSynced: async (result, item) => {
+          if (item.kind === "notebook.trash") {
+            trashedNotebook = true;
+            return;
+          }
           if (!result || !["memo.merge", "notebook.create", "notebook.update", "template.create", "template.update", "resource.create"].includes(item.kind)) return;
           const {
             deleteLocalMemo,
@@ -187,8 +193,14 @@ export const useWorkspaceQueuedSync = ({
           await invalidateSyncQueries();
         },
       });
+      if (trashedNotebook) {
+        // Pull server-only notes after pushing the rest of the queue so an
+        // earlier snapshot cannot overwrite outstanding local changes.
+        const remaining = await localDb.syncQueue.filter((item) => !item.scope || item.scope === localDataScope).first();
+        if (!remaining) await syncLocalMirror(localDataScope).catch(() => undefined);
+      }
       window.dispatchEvent(new CustomEvent("edgeever:sync-completed", { detail: result }));
-      if (result.failed > 0) await invalidateSyncQueries();
+      if (trashedNotebook || result.failed > 0) await invalidateSyncQueries();
     } finally {
       setIsSyncingQueuedChanges(false);
     }

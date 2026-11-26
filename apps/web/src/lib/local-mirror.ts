@@ -576,17 +576,27 @@ export const deleteLocalNotebook = async (scope: string, notebookId: string) => 
 const isProtectedInboxNotebook = (notebook: Pick<Notebook, "id" | "slug">) =>
   notebook.slug === "inbox" || notebook.id === "nb_inbox" || notebook.id.endsWith("_inbox");
 
-// Removes the notebook and its empty descendants. Ids are leaves-first so a
-// server that still deletes one notebook at a time can apply them in order.
-export const deleteLocalNotebookTree = async (scope: string, notebookId: string) => {
-  const { notebooks } = await listLocalNotebooks(scope);
+// Return IDs leaves-first for queued empty-notebook deletes on older servers.
+export const deleteLocalNotebookTree = async (scope: string, notebookId: string, includeNotes = false) => {
+  const notebooks = await localDb.notebooks.where("scope").equals(scope).toArray();
   const ids = getNotebookDescendantIds(notebooks, notebookId);
   const idSet = new Set(ids);
-  const selected = notebooks.filter((notebook) => idSet.has(notebook.id));
-  if (selected.length === 0) return [notebookId];
-  if (selected.some((notebook) => notebook.memoCount > 0)) throw new NotebookNotEmptyError();
-  if (selected.some((notebook) => isProtectedInboxNotebook(notebook))) throw new Error("inbox_not_deletable");
-  await Promise.all(selected.map((notebook) => localDb.notebooks.delete([scope, notebook.id])));
+  if (notebooks.some((notebook) => idSet.has(notebook.id) && isProtectedInboxNotebook(notebook))) {
+    throw new Error("inbox_not_deletable");
+  }
+  const activeMemos = localDb.memos.where("notebookId").anyOf(ids)
+    .filter((memo) => memo.scope === scope && !memo.isDeleted);
+  if (includeNotes) {
+    const now = new Date().toISOString();
+    await activeMemos.modify((memo) => {
+      memo.isDeleted = true;
+      memo.deletedAt = now;
+      memo.updatedAt = now;
+    });
+  } else if (await activeMemos.first()) {
+    throw new NotebookNotEmptyError();
+  }
+  await localDb.notebooks.bulkDelete(ids.map((id) => [scope, id]));
   return [...ids].reverse();
 };
 
@@ -603,7 +613,8 @@ export const readNotebookSyncGuards = async (scope: string) => {
       const temporaryId = (item.payload as { temporaryId?: unknown }).temporaryId;
       if (typeof temporaryId === "string" && temporaryId.length > 0) pendingCreateIds.add(temporaryId);
     }
-    if (item.kind !== "notebook.delete" || (item.status !== "pending" && item.status !== "syncing")) continue;
+    if ((item.kind !== "notebook.delete" && item.kind !== "notebook.trash")
+      || (item.status !== "pending" && item.status !== "syncing")) continue;
     const payload = item.payload as { notebookId?: unknown; notebookIds?: unknown };
     if (typeof payload.notebookId === "string") pendingDeleteIds.add(payload.notebookId);
     if (Array.isArray(payload.notebookIds)) {
@@ -847,8 +858,12 @@ export const deleteLocalMemo = async (scope: string, memoId: string, permanent =
 export const restoreLocalMemo = async (scope: string, memoId: string) => {
   const memo = await getLocalMemo(scope, memoId);
   if (!memo) return;
+  const notebook = await getLocalNotebook(scope, memo.notebookId);
+  const inbox = notebook ? null : await localDb.notebooks.where("scope").equals(scope)
+    .filter(isProtectedInboxNotebook).first();
   await putLocalMemo(scope, {
     ...memo,
+    notebookId: inbox?.id ?? memo.notebookId,
     isDeleted: false,
     deletedAt: null,
     updatedAt: new Date().toISOString(),

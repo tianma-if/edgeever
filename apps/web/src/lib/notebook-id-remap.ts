@@ -9,7 +9,7 @@ const notebookReferences = (item: SyncQueueItem) => {
   const payload = item.payload as Record<string, unknown>;
   return [payload.notebookId, payload.parentId,
     ...(Array.isArray(payload.notebookIds) ? payload.notebookIds : []),
-    ...(item.kind === "notebook.update" || item.kind === "notebook.delete" ? [item.memoId] : []),
+    ...(item.kind.startsWith("notebook.") && item.kind !== "notebook.create" ? [item.memoId] : []),
   ].filter((id): id is string => typeof id === "string");
 };
 

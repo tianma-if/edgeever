@@ -674,6 +674,7 @@ describe("desktop outbox replay", () => {
       { id: 13, version: 1, kind: "tag.delete", entityId: "gone", payload: {} },
       { id: 14, version: 1, kind: "memo.move", entityId: "memo-7", payload: { memoIds: ["memo-7"], notebookId: "nb-4" } },
       { id: 15, version: 1, kind: "memo.restore", entityId: "memo-8", payload: {} },
+      { id: 16, version: 1, kind: "notebook.trash", entityId: "nb-5", payload: { notebookId: "nb-5", notebookIds: ["nb-child", "nb-5"] } },
     ];
     const merged = { id: "memo-merged-cloud", contentJson: { type: "doc", content: [] }, contentMarkdown: "" };
     await runWithDesktopSidecar({
@@ -687,6 +688,7 @@ describe("desktop outbox replay", () => {
         mergeMemos: record("mergeMemos", { memo: merged }),
         updateNotebook: record("updateNotebook", { notebook: { id: "nb-1", name: "Renamed", parentId: null } }),
         deleteNotebook: record("deleteNotebook"),
+        trashNotebook: record("trashNotebook"),
         restoreNotebook: record("restoreNotebook", { notebook: { id: "nb-3", name: "Back", parentId: null } }),
         createTemplate: record("createTemplate", { template: { id: "tpl-cloud" } }),
         updateTemplate: record("updateTemplate", { template: { id: "tpl-1" } }),
@@ -698,7 +700,7 @@ describe("desktop outbox replay", () => {
       },
     }, async (state) => {
       const result = await syncDesktopData();
-      expect(result).toMatchObject({ attempted: 15, synced: 15, failed: 0, conflicted: 0 });
+      expect(result).toMatchObject({ attempted: 16, synced: 16, failed: 0, conflicted: 0 });
       expect(state.failures).toEqual([]);
       expect(state.acks.map((ack) => ack.id)).toEqual(queue.map((item) => item.id));
       expect(serverCalls).toEqual([
@@ -719,6 +721,7 @@ describe("desktop outbox replay", () => {
         ["deleteTag", "gone"],
         ["moveMemos", { memoIds: ["memo-7"], notebookId: "nb-4" }],
         ["restoreMemo", "memo-8"],
+        ["trashNotebook", "nb-5"],
       ]);
       expect(state.acks.find((ack) => ack.id === 5).remoteMemo).toEqual(merged);
       expect(state.acks.find((ack) => ack.id === 9).remoteTemplate).toEqual({ id: "tpl-cloud" });

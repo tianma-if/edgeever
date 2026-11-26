@@ -208,9 +208,16 @@ fn active_notebook_tree(
         .map_err(|e| e.to_string())
 }
 
-pub(crate) fn delete_notebook(database: &Connection, params: &Value) -> Result<Value, String> {
+pub(crate) fn delete_notebook(
+    database: &Connection,
+    params: &Value,
+    include_notes: bool,
+) -> Result<Value, String> {
     let notebook_id = string_param(params, "notebookId")?;
-    let current_slug: Option<Option<String>> = database
+    let tx = database
+        .unchecked_transaction()
+        .map_err(|e| e.to_string())?;
+    let current_slug: Option<Option<String>> = tx
         .query_row(
             "SELECT slug FROM notebooks WHERE id = ?1",
             [&notebook_id],
@@ -225,18 +232,8 @@ pub(crate) fn delete_notebook(database: &Connection, params: &Value) -> Result<V
         return Err("inbox_not_deletable".to_owned());
     }
 
-    let tree = active_notebook_tree(database, &notebook_id)?;
+    let tree = active_notebook_tree(&tx, &notebook_id)?;
     if tree.is_empty() {
-        let exists: bool = database
-            .query_row(
-                "SELECT EXISTS(SELECT 1 FROM notebooks WHERE id = ?1)",
-                [&notebook_id],
-                |row| row.get(0),
-            )
-            .map_err(|e| e.to_string())?;
-        if !exists {
-            return Err(format!("Notebook not found: {notebook_id}"));
-        }
         return Ok(json!({ "ok": true }));
     }
     if tree
@@ -246,48 +243,39 @@ pub(crate) fn delete_notebook(database: &Connection, params: &Value) -> Result<V
         return Err("inbox_not_deletable".to_owned());
     }
 
-    let memo_count: i64 = database
-        .query_row(
-            "WITH RECURSIVE tree(id) AS (
-               SELECT id FROM notebooks WHERE id = ?1
-               UNION ALL
-               SELECT n.id FROM notebooks n
-               INNER JOIN tree ON n.parent_id = tree.id
-               WHERE n.is_deleted = 0
-             )
-             SELECT COUNT(*) FROM memos
-             WHERE is_deleted = 0 AND notebook_id IN (
-               SELECT n.id FROM notebooks n INNER JOIN tree ON tree.id = n.id WHERE n.is_deleted = 0
-             )",
-            [&notebook_id],
-            |row| row.get(0),
-        )
-        .map_err(|e| e.to_string())?;
-    if memo_count > 0 {
-        return Err("notebook_not_empty".to_owned());
-    }
-
     let ids: Vec<String> = tree.iter().map(|notebook| notebook.id.clone()).collect();
-    let tx = database
-        .unchecked_transaction()
-        .map_err(|e| e.to_string())?;
-    for id in &ids {
+    let ids_json = json!(ids).to_string();
+    if include_notes {
         tx.execute(
-            "UPDATE notebooks
-             SET is_deleted = 1,
-                 deleted_at = strftime('%Y-%m-%dT%H:%M:%fZ','now'),
+            "UPDATE memos
+             SET is_deleted = 1, deleted_at = strftime('%Y-%m-%dT%H:%M:%fZ','now'),
                  updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
-             WHERE id = ?1 AND is_deleted = 0
-               AND slug <> 'inbox' AND id <> 'nb_inbox' AND id NOT GLOB '*_inbox'",
-            [id],
+             WHERE notebook_id IN (SELECT value FROM json_each(?1)) AND is_deleted = 0",
+            [&ids_json],
         )
         .map_err(|e| e.to_string())?;
+    } else {
+        let has_memos: bool = tx.query_row(
+            "SELECT EXISTS(SELECT 1 FROM memos
+             WHERE notebook_id IN (SELECT value FROM json_each(?1)) AND is_deleted = 0)",
+            [&ids_json],
+            |row| row.get(0),
+        ).map_err(|e| e.to_string())?;
+        if has_memos {
+            return Err("notebook_not_empty".to_owned());
+        }
     }
-    // Leaves are ordered before parents so an older server can delete one
-    // empty notebook at a time. A current server also accepts the root alone.
+    tx.execute(
+        "UPDATE notebooks
+         SET is_deleted = 1, deleted_at = strftime('%Y-%m-%dT%H:%M:%fZ','now'),
+             updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+         WHERE id IN (SELECT value FROM json_each(?1)) AND is_deleted = 0",
+        [&ids_json],
+    )
+    .map_err(|e| e.to_string())?;
     enqueue_change(
         &tx,
-        "notebook.delete",
+        if include_notes { "notebook.trash" } else { "notebook.delete" },
         &notebook_id,
         &json!({ "notebookId": notebook_id, "notebookIds": ids }),
     )?;

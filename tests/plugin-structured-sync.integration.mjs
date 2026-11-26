@@ -290,6 +290,30 @@ try {
   assert.deepEqual(racing.map(result => result.status), ["fulfilled", "rejected"]);
   assert.equal(racing[1].reason.code, "NOTE_CONFLICT");
   checked.push("native storage-boundary snapshot guard rejects concurrent stale clients");
+
+  reachable = false;
+  navigator.onLine = false;
+  const { notebook: trashRoot } = await nativeRepository.createNotebook({ name: "Offline folder" });
+  const { notebook: trashChild } = await nativeRepository.createNotebook({ name: "Child", parentId: trashRoot.id });
+  const { memo: trashNote } = await nativeRepository.createMemo({ title: "Restore later", notebookId: trashChild.id, contentMarkdown: "Original text" });
+  await nativeRepository.trashNotebook(trashRoot.id);
+  assert.equal((await nativeRepository.getMemo(trashNote.id, true)).memo.isDeleted, true);
+
+  reachable = true;
+  navigator.onLine = true;
+  const trashSync = await syncDesktopData();
+  assert.equal(trashSync.failed, 0);
+  const trashNoteRemoteId = trashSync.memoIdMappings.get(trashNote.id);
+  assert.ok(trashNoteRemoteId);
+  assert.ok(!(await client.listNotebooks()).notebooks.some(({ name }) => name === "Offline folder" || name === "Child"));
+  await repository.sync();
+  assert.equal((await repository.getMemo(trashNoteRemoteId, true)).memo.isDeleted, true);
+  const restored = (await client.restoreMemo(trashNoteRemoteId)).memo;
+  assert.equal(restored.isDeleted, false);
+  assert.equal(restored.contentMarkdown, "Original text");
+  assert.ok((await client.listNotebooks()).notebooks.some(({ id, slug }) => id === restored.notebookId && slug === "inbox"));
+  checked.push("new desktop notebook subtree is created and trashed in order, then restored from the web");
+
   await native.close();
   console.log(JSON.stringify({ ok: true, checked }));
 } finally {

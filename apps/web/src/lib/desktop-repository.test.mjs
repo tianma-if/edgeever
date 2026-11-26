@@ -381,7 +381,7 @@ describe("desktop repository bridge", () => {
   test("announces queue changes after every local mutation", async () => {
     const ok = () => ({ ok: true });
     const handlers = Object.fromEntries([
-      "notebook.create", "notebook.update", "notebook.delete", "notebook.restore", "template.create", "template.update", "template.delete",
+      "notebook.create", "notebook.update", "notebook.delete", "notebook.trash", "notebook.restore", "template.create", "template.update", "template.delete",
       "tag.rename", "tag.delete", "memo.moveBatch", "memo.deleteBatch", "memo.emptyTrash", "memo.pinBatch", "memo.delete",
     ].map((method) => [method, ok]));
     handlers["memo.restore"] = () => ({ memo: { id: "memo-1" } });
@@ -390,6 +390,7 @@ describe("desktop repository bridge", () => {
       await repository.createNotebook({ name: "A" });
       await repository.updateNotebook("nb-1", { name: "B" });
       await repository.deleteNotebook("nb-1");
+      await repository.trashNotebook("nb-1");
       await repository.restoreNotebook("nb-1");
       await repository.createTemplate({ name: "T" });
       await repository.updateTemplate("tpl-1", { name: "U" });
@@ -402,9 +403,10 @@ describe("desktop repository bridge", () => {
       await repository.pinMemos({ memoIds: ["m"], isPinned: true });
       await repository.deleteMemo("memo-1");
       expect(await repository.restoreMemo("memo-1")).toEqual({ memo: { id: "memo-1" }, queued: true });
-      expect(events).toHaveLength(15);
+      expect(events).toHaveLength(16);
       expect(new Set(events)).toEqual(new Set(["edgeever:sync-queue-changed"]));
       expect(calls.find((call) => call.method === "notebook.update").params).toEqual({ notebookId: "nb-1", name: "B" });
+      expect(calls.find((call) => call.method === "notebook.trash").params).toEqual({ notebookId: "nb-1" });
       expect(calls.find((call) => call.method === "template.update").params).toEqual({ templateId: "tpl-1", name: "U" });
       expect(calls.find((call) => call.method === "memo.delete").params).toEqual({ memoId: "memo-1", permanent: false });
     });

@@ -3,7 +3,8 @@ import type { AuditActor } from "./api-context";
 import { AppError } from "./app-error";
 import { auditStatement } from "./audit";
 import { createId, isoNow, slugify } from "./entity-utils";
-import { notebookIdsBind, notebookInListSql, type NotebookAccess } from "./token-notebook-access";
+import { softDeleteMemoStatements } from "./memo-trash-statements";
+import { memoNotebookAccessSql, notebookAccessBinds, notebookIdsBind, notebookInListSql, type NotebookAccess } from "./token-notebook-access";
 import type { DatabaseAdapter } from "./storage-contract";
 import { isInboxNotebook, workspaceInboxId } from "./workspace-provisioning";
 
@@ -438,6 +439,60 @@ export const deleteNotebookRecord = async (
   db: DatabaseAdapter, workspaceId: string, id: string, actor: AuditActor,
 ) => {
   await deleteNotebookTree(db, workspaceId, id, actor);
+};
+
+export const trashNotebookTree = async (
+  db: DatabaseAdapter, workspaceId: string, id: string, actor: AuditActor, access: NotebookAccess,
+) => {
+  const findRoot = () => db.prepare(
+    `SELECT id, slug, is_deleted FROM notebooks WHERE id = ? AND workspace_id = ?`
+  ).bind(id, workspaceId).first<{ id: string; slug: string | null; is_deleted: number }>();
+  const root = await findRoot();
+  if (!root) throw new AppError("not_found", "Notebook not found", 404);
+  if (isInboxNotebook(root, workspaceId)) {
+    throw new AppError("bad_request", "等待分类不能删除。", 400);
+  }
+  if (root.is_deleted) return;
+
+  // Resolve membership inside the write transaction, including descendants
+  // behind old tombstones. A protected or inaccessible descendant blocks
+  // every statement. Seek children by parent and notes by notebook.
+  const notebookIdsSql = `
+    WITH RECURSIVE tree(id, slug, is_deleted) AS (
+      SELECT id, slug, is_deleted FROM notebooks WHERE id = ? AND workspace_id = ? AND is_deleted = 0
+      UNION
+      SELECT n.id, n.slug, n.is_deleted
+      FROM tree t CROSS JOIN notebooks n INDEXED BY idx_notebooks_workspace_parent
+        ON n.workspace_id = ? AND n.parent_id = t.id
+    )
+    SELECT id FROM tree WHERE is_deleted = 0 AND NOT EXISTS (
+      SELECT 1 FROM tree t WHERE t.is_deleted = 0 AND (
+        t.slug = 'inbox' OR t.id = 'nb_inbox' OR t.id = ?
+        OR NOT (${memoNotebookAccessSql("t.id", access, "write")})
+      )
+    )`;
+  const notebookIdBindings = [id, workspaceId, workspaceId, workspaceInboxId(workspaceId),
+    ...notebookAccessBinds(access, "write")];
+  const memoIdsSql = `
+    SELECT id FROM memos INDEXED BY idx_memos_workspace_notebook_feed
+    WHERE workspace_id = ? AND is_deleted = 0 AND notebook_id IN (${notebookIdsSql})`;
+  const now = isoNow();
+  const statements = softDeleteMemoStatements(db, workspaceId, now, memoIdsSql, [workspaceId, ...notebookIdBindings]);
+  const results = await db.batch([
+    ...statements,
+    db.prepare(
+      `UPDATE notebooks INDEXED BY sqlite_autoindex_notebooks_1
+       SET is_deleted = 1, deleted_at = ?, updated_at = ?
+       WHERE id IN (${notebookIdsSql}) AND workspace_id = ?`
+    ).bind(now, now, ...notebookIdBindings, workspaceId),
+    db.prepare(
+      `INSERT INTO audit_events (id, actor_type, actor_id, action, entity_type, entity_id, metadata_json, created_at)
+       SELECT ?, ?, ?, 'notebook.delete', 'notebook', ?, ?, ? WHERE changes() > 0`
+    ).bind(createId("audit"), actor.actorType, actor.actorId, id, JSON.stringify({ includeNotes: true }), now),
+  ]);
+  if (!(Number(results.at(-1)?.meta.changes) > 0) && !(await findRoot())?.is_deleted) {
+    throw new AppError("notebook_changed", "The notebook hierarchy contains a protected or inaccessible notebook.", 409);
+  }
 };
 
 export const restoreNotebookRecord = async (

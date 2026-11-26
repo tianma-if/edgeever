@@ -58,7 +58,7 @@ export type MemoRestoreSyncPayload = {
   memoId: string;
 };
 
-export type LocalActionKind = "tag.rename" | "tag.delete" | "memo.moveBatch" | "memo.deleteBatch" | "memo.emptyTrash" | "memo.pinBatch" | "memo.merge" | "notebook.create" | "notebook.update" | "notebook.delete" | "template.create" | "template.update" | "template.delete" | "resource.create";
+export type LocalActionKind = "tag.rename" | "tag.delete" | "memo.moveBatch" | "memo.deleteBatch" | "memo.emptyTrash" | "memo.pinBatch" | "memo.merge" | "notebook.create" | "notebook.update" | "notebook.delete" | "notebook.trash" | "template.create" | "template.update" | "template.delete" | "resource.create";
 export type LocalActionPayload = Record<string, unknown>;
 
 export type SyncQueueStatus = "pending" | "syncing" | "conflict" | "error";

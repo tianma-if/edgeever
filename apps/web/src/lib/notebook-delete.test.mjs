@@ -1,11 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { isNotebookNotEmptyError, notebookDeleteIdsFromPayload, notebooksBlockedByPendingDeletes } from "./notebook-delete.ts";
-
-test("recognizes a notebook with notes through Electron's IPC error wrapper", () => {
-  expect(isNotebookNotEmptyError(new Error("notebook_not_empty"))).toBe(true);
-  expect(isNotebookNotEmptyError(new Error("Error invoking remote method 'desktop:sidecar-request': Error: notebook_not_empty"))).toBe(true);
-  expect(isNotebookNotEmptyError(new Error("Error invoking remote method 'desktop:sidecar-request': Error: database is busy"))).toBe(false);
-});
+import { notebookDeleteIdsFromPayload, notebooksBlockedByPendingDeletes } from "./notebook-delete.ts";
 
 describe("notebook delete ids", () => {
   test("uses the ordered descendant list and falls back to the single id", () => {

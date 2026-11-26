@@ -29,6 +29,33 @@ afterEach(async () => {
   );
 });
 
+test("syncs a notebook trash as one request and keeps it queued when the server rejects it", async () => {
+  const previousOnline = globalThis.navigator?.onLine;
+  if (globalThis.navigator) Object.defineProperty(globalThis.navigator, "onLine", { configurable: true, value: true });
+  const scope = createLocalDataScope("https://demo.edgeever.org", "user-1");
+  const original = api.trashNotebook;
+  const calls = [];
+  await queueLocalAction(scope, "notebook.trash", "nb-root", { notebookId: "nb-root", notebookIds: ["nb-child", "nb-root"] });
+  api.trashNotebook = async (id) => {
+    calls.push(id);
+    throw new ApiRequestError("Not found", 404, "not_found");
+  };
+  try {
+    expect(await syncQueuedChanges({ scope })).toMatchObject({ synced: 0, failed: 1 });
+    const [item] = await localDb.syncQueue.toArray();
+    expect(item).toMatchObject({ kind: "notebook.trash", status: "error", lastErrorCode: "not_found" });
+
+    api.trashNotebook = async (id) => { calls.push(id); return { ok: true }; };
+    await localDb.syncQueue.update(item.id, { nextAttemptAt: null });
+    expect(await syncQueuedChanges({ scope })).toMatchObject({ synced: 1, failed: 0 });
+    expect(await localDb.syncQueue.toArray()).toEqual([]);
+    expect(calls).toEqual(["nb-root", "nb-root"]);
+  } finally {
+    api.trashNotebook = original;
+    if (globalThis.navigator) Object.defineProperty(globalThis.navigator, "onLine", { configurable: true, value: previousOnline });
+  }
+});
+
 describe("web sync conflict recovery", () => {
   test("confirmed note deletions clear only their older local conflicts", async () => {
     const previousOnline = globalThis.navigator?.onLine;

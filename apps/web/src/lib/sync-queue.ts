@@ -792,6 +792,11 @@ const syncQueueItem = async (item: SyncQueueItem): Promise<SyncQueueResult> => {
     }
     return null;
   }
+
+  if (item.kind === "notebook.trash") {
+    await api.trashNotebook(String((item.payload as LocalActionPayload).notebookId ?? item.memoId));
+    return null;
+  }
   if (item.kind === "template.create") {
     const payload = item.payload as LocalActionPayload;
     const result = await api.createTemplate({

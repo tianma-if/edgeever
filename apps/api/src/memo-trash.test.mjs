@@ -8,6 +8,7 @@ import { AppError } from "./app-error.ts";
 import { apiError } from "./http-errors.ts";
 import { listMemos } from "./memo-list-service.ts";
 import { registerMemoRoutes } from "./memo-routes.ts";
+import { registerNotebookRoutes } from "./notebook-routes.ts";
 import {
   createMemoRecord,
   deleteMemoRecord,
@@ -85,6 +86,7 @@ const installation = () => {
     restoreMemoRevision: notImplemented,
     updateMemo: notImplemented,
   });
+  registerNotebookRoutes(app, async () => {});
   const request = async (path, init = {}) => {
     const response = await app.request(path, init, { storage });
     const text = await response.text();
@@ -163,6 +165,90 @@ const memoState = (sqlite, memoId) =>
   sqlite.query("SELECT notebook_id, is_deleted, deleted_at FROM memos WHERE id = ?").get(memoId);
 
 const trash = (target, memoId) => target.request(`/api/v1/memos/${memoId}`, { method: "DELETE" });
+const trashNotebook = (target, notebookId) =>
+  target.request(`/api/v1/notebooks/${notebookId}/trash`, { method: "POST" });
+
+describe("moving a notebook tree to trash", () => {
+  test("trashes a large tree in one request and preserves files, revisions, and existing trash", async () => {
+    const target = installation();
+    const { sqlite } = target;
+    sqlite.exec(`
+      INSERT INTO notebooks (id, workspace_id, parent_id, name) VALUES
+        ('nb_child', '${WORKSPACE_ID}', 'nb_trips', 'Child'),
+        ('nb_leaf', '${WORKSPACE_ID}', 'nb_child', 'Grandchild');
+      WITH RECURSIVE ids(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM ids WHERE n < 120)
+      INSERT INTO notebooks (id, workspace_id, parent_id, name)
+      SELECT 'nb_bulk_' || n, '${WORKSPACE_ID}', 'nb_leaf', 'Bulk ' || n FROM ids;
+      INSERT INTO memos (id, workspace_id, notebook_id, title)
+      SELECT 'memo_' || id, workspace_id, id, 'Bulk' FROM notebooks WHERE parent_id = 'nb_leaf';
+    `);
+    const rootNote = await createNote(target);
+    const leafNote = await createNote(target, { notebookId: "nb_leaf", title: "Leaf note" });
+    const alreadyTrashed = await createNote(target, { notebookId: "nb_child" });
+    const otherNote = await createNote(target, { workspaceId: OTHER_WORKSPACE_ID, notebookId: "nb_other" });
+    await trash(target, alreadyTrashed.memo.id);
+    const previousTrash = memoState(sqlite, alreadyTrashed.memo.id);
+    const files = target.storedFiles();
+    const cursor = sqlite.query("SELECT MAX(id) AS cursor FROM mobile_sync_changes").get().cursor;
+
+    expect(await trashNotebook(target, "nb_trips")).toEqual({ status: 200, body: { ok: true } });
+    expect(sqlite.query("SELECT COUNT(*) AS count FROM notebooks WHERE workspace_id = ? AND is_deleted = 1").get(WORKSPACE_ID).count)
+      .toBeGreaterThanOrEqual(123);
+    expect(sqlite.query("SELECT COUNT(*) AS count FROM memos WHERE id LIKE 'memo_nb_bulk_%' AND is_deleted = 1").get().count).toBe(120);
+    expect(memoState(sqlite, rootNote.memo.id).is_deleted).toBe(1);
+    expect(memoState(sqlite, alreadyTrashed.memo.id)).toEqual(previousTrash);
+    expect(memoState(sqlite, otherNote.memo.id).is_deleted).toBe(0);
+    expect(await listedIds(target, "?trash=1")).toContain(leafNote.memo.id);
+    expect(memoRowCounts(sqlite, leafNote.memo.id)).toMatchObject({
+      memo_contents: 1, memo_revisions: 1, resources: 2, memo_search_documents: 0, memo_shares: 0,
+    });
+    expect(target.storedFiles()).toEqual(files);
+    expect(sqlite.query("SELECT entity_type, operation FROM mobile_sync_changes WHERE id > ? AND entity_id IN (?, ?) ORDER BY id")
+      .all(cursor, "nb_leaf", leafNote.memo.id)).toEqual([
+        { entity_type: "memo", operation: "upsert" },
+        { entity_type: "notebook", operation: "delete" },
+      ]);
+
+    expect((await trashNotebook(target, "nb_trips")).status).toBe(200);
+    expect(auditEvents(sqlite, "notebook.delete")).toHaveLength(1);
+    const restored = await target.request(`/api/v1/memos/${leafNote.memo.id}/restore`, { method: "POST" });
+    expect(restored.body.memo).toMatchObject({ notebookId: "nb_inbox", isDeleted: false, contentMarkdown: "Pack the tent" });
+    expect(sqlite.query("SELECT DISTINCT is_deleted FROM resources WHERE memo_id = ?").all(leafNote.memo.id))
+      .toEqual([{ is_deleted: 0 }]);
+  });
+
+  test("requires both write scopes and protects the inbox even inside the target tree", async () => {
+    const target = installation();
+    const note = await createNote(target);
+    for (const scope of ["write:notebooks", "write:memos"]) {
+      target.setAuth(agentAuth([scope]));
+      expect((await trashNotebook(target, "nb_trips")).status).toBe(403);
+    }
+    target.setAuth(userAuth);
+    expect((await trashNotebook(target, "nb_other")).status).toBe(404);
+    expect((await trashNotebook(target, "nb_inbox")).status).toBe(400);
+    target.sqlite.exec("UPDATE notebooks SET parent_id = 'nb_trips' WHERE id = 'nb_inbox'");
+    expect((await trashNotebook(target, "nb_trips")).status).toBe(409);
+    expect(memoState(target.sqlite, note.memo.id).is_deleted).toBe(0);
+    expect(memoRowCounts(target.sqlite, note.memo.id)).toMatchObject({ memo_search_documents: 1, memo_shares: 1 });
+  });
+
+  test("rolls back notes, notebooks, index, and shares together if writing the audit fails", async () => {
+    const target = installation();
+    const note = await createNote(target);
+    target.sqlite.exec(`
+      CREATE TRIGGER reject_notebook_audit BEFORE INSERT ON audit_events
+      WHEN new.action = 'notebook.delete' BEGIN SELECT RAISE(ABORT, 'audit unavailable'); END
+    `);
+
+    await expect(trashNotebook(target, "nb_trips")).rejects.toThrow("audit unavailable");
+    expect(memoState(target.sqlite, note.memo.id).is_deleted).toBe(0);
+    expect(memoRowCounts(target.sqlite, note.memo.id)).toMatchObject({ memo_search_documents: 1, memo_shares: 1 });
+    expect(target.sqlite.query("SELECT is_deleted FROM notebooks WHERE id = 'nb_trips'").get().is_deleted).toBe(0);
+    expect(target.sqlite.query("SELECT DISTINCT is_deleted FROM resources WHERE memo_id = ?").all(note.memo.id))
+      .toEqual([{ is_deleted: 0 }]);
+  });
+});
 
 describe("moving notes to trash", () => {
   test("keeps content, files and revisions but removes the note from lists, search and sharing", async () => {

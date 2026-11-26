@@ -48,7 +48,7 @@ import {
 } from "@/lib/mobile-editor";
 import { cn } from "@/lib/utils";
 import { isBrowserOffline, isBrowserOnline } from "@/lib/network-status";
-import { createDefaultDiagramDocument, createDefaultInfographicDocument, hasPosterDocumentMarker, posterFallbackMarkdown, serializePosterDocument, createDefaultTableDocument, diagramFallbackMarkdown, getNotebookScopeIds, hasTableDocumentMarker, infographicFallbackMarkdown, markdownToDoc, parseDiagramDocument, parseInfographicDocument, parseTableDocument, serializeDiagramDocument, serializeInfographicDocument, serializeTableDocument, tableFallbackMarkdown, type NoteCreateKind, type Notebook, type AuthUser, type MemoSummary, type MemoDetail, type MemoTemplate as SavedMemoTemplate, getMemoDisplayTitle } from "@edgeever/shared";
+import { createDefaultDiagramDocument, createDefaultInfographicDocument, hasPosterDocumentMarker, posterFallbackMarkdown, serializePosterDocument, createDefaultTableDocument, diagramFallbackMarkdown, getNotebookDescendantIds, getNotebookScopeIds, hasTableDocumentMarker, infographicFallbackMarkdown, markdownToDoc, parseDiagramDocument, parseInfographicDocument, parseTableDocument, serializeDiagramDocument, serializeInfographicDocument, serializeTableDocument, tableFallbackMarkdown, type NoteCreateKind, type Notebook, type AuthUser, type MemoSummary, type MemoDetail, type MemoTemplate as SavedMemoTemplate, getMemoDisplayTitle } from "@edgeever/shared";
 import { toggleMobileMemoSelection } from "@edgeever/shared/mobile-ui";
 import type {
   Pane,
@@ -109,7 +109,6 @@ import {
   putLocalMemo,
   putLocalNotebook,
 } from "@/lib/local-mirror";
-import { isNotebookNotEmptyError } from "@/lib/notebook-delete";
 import { getPersistentDataScopeOrigin } from "@/lib/app-page-path";
 import { createRepository } from "@/lib/repository";
 import { notifyRepositoryMutation } from "@/lib/repository-events";
@@ -1291,22 +1290,39 @@ export const WorkspaceApp = ({
   });
 
   const deleteNotebookMutation = useMutation({
-    mutationFn: repository.deleteNotebook,
-    onSuccess: async (_data, notebookId) => {
-      if (selectedNotebookId === notebookId) {
+    mutationFn: async (notebookId: string) => {
+      const notebookIds = new Set(getNotebookDescendantIds(notebooks, notebookId));
+      const openMemo = memoQuery.data?.memo;
+      if (openMemo && notebookIds.has(openMemo.notebookId) && pendingEditorSaveRef.current
+        && !await pendingEditorSaveRef.current()) {
+        throw new Error("Could not save the open note before deleting its notebook");
+      }
+      await repository.trashNotebook(notebookId);
+      return notebookIds;
+    },
+    onSuccess: async (deletedNotebookIds) => {
+      const activeMemo = memoQuery.data?.memo ?? memos.find((memo) => memo.id === selectedMemoId);
+      if (selectedNotebookId && deletedNotebookIds.has(selectedNotebookId)) {
         setSelectedNotebookId(null);
+        clearMemoSelection();
+        setSelectedMemoId(null);
+      } else if (memoView !== "trash" && activeMemo && deletedNotebookIds.has(activeMemo.notebookId)) {
+        clearMemoSelection();
         setSelectedMemoId(null);
       }
-      await queryClient.invalidateQueries({ queryKey: ["notebooks"] });
-      await queryClient.invalidateQueries({ queryKey: ["memos"] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["notebooks"] }),
+        queryClient.invalidateQueries({ queryKey: ["memos"] }),
+        queryClient.invalidateQueries({ queryKey: ["memo"] }),
+        queryClient.invalidateQueries({ queryKey: ["tags"] }),
+        queryClient.invalidateQueries({ queryKey: ["resources"] }),
+      ]);
     },
-    onError: (error) => {
+    onError: () => {
       setNotebookDeleteConfirmation(null);
       setAppNoticeDialog({
         title: t("workspaceDialogs.deleteNotebookFailedTitle"),
-        description: isNotebookNotEmptyError(error)
-          ? t("workspaceDialogs.deleteNotebookNotEmpty")
-          : t("workspaceDialogs.deleteNotebookFailed"),
+        description: t("workspaceDialogs.deleteNotebookFailed"),
       });
     },
   });
