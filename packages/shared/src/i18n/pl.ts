@@ -684,6 +684,7 @@ export const pl = {
     refresh: "Odśwież",
     refreshTooltip: "Wczytaj ponownie tę tabelę",
     refreshError: "Nie udało się ponownie wczytać tabeli",
+    refreshPending: "Niektóre zmiany wciąż się synchronizują; spróbuj ponownie za chwilę",
     openUrl: "Otwórz link {{url}}",
     openUrlTooltip: "Otwórz link",
     editUrl: "Edytuj adres URL w {{name}}",

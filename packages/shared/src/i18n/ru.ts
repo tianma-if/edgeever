@@ -695,6 +695,7 @@ export const ru = {
     refresh: "Обновить",
     refreshTooltip: "Обновить таблицу",
     refreshError: "Не удалось обновить таблицу",
+    refreshPending: "Часть изменений ещё синхронизируется; повторите попытку чуть позже",
     openUrl: "Открыть ссылку {{url}}",
     openUrlTooltip: "Открыть ссылку",
     editUrl: "Изменить URL в {{name}}",

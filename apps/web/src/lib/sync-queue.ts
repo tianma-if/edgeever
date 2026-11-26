@@ -34,6 +34,7 @@ import { parseTagsText } from "@/lib/utils";
 import { createClientUuid } from "@/lib/client-id";
 import { notebookDeleteIdsFromPayload } from "@/lib/notebook-delete";
 import { acknowledgeNotebookId, hasTemporaryNotebookDependency, notebookRemapTables, repairQueuedNotebookReferences } from "@/lib/notebook-id-remap";
+import { notifySyncQueueChanged } from "@/lib/sync-events";
 
 export type { SyncQueueSummary, SyncRunResult } from "@edgeever/shared";
 export type SyncQueueResult = MemoDetail | Notebook | MemoTemplate | Resource | null;
@@ -47,6 +48,26 @@ export const getMemoDeleteQueueId = (memoId: string) => `memo.delete:${memoId}`;
 export const getMemoRestoreQueueId = (memoId: string) => `memo.restore:${memoId}`;
 
 export const getLocalActionQueueId = (scope: string, kind: LocalActionKind, entityId: string) => `action:${scope}:${kind}:${entityId}`;
+
+/** True while a memo still carries a local update that has not reached the server. */
+export const hasPendingMemoUpdate = async (memoId: string) => Boolean(await localDb.syncQueue.get(getMemoUpdateQueueId(memoId)));
+
+/**
+ * Pushes a queued local update for one memo before its caller reads the server copy again.
+ * Resolves false when the update could not be delivered in time (offline, conflict or error),
+ * so callers must keep the local document instead of replacing it with the server snapshot.
+ */
+export const flushPendingMemoUpdate = async (memoId: string, { timeoutMs = 5000 }: { timeoutMs?: number } = {}) => {
+  if (!(await hasPendingMemoUpdate(memoId))) return true;
+  if (isBrowserOffline()) return false;
+  notifySyncQueueChanged();
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    if (!(await hasPendingMemoUpdate(memoId))) return true;
+  }
+  return !(await hasPendingMemoUpdate(memoId));
+};
 
 export const queueLocalAction = async (scope: string, kind: LocalActionKind, entityId: string, payload: LocalActionPayload, memoId = entityId) => {
   const id = getLocalActionQueueId(scope, kind, entityId);

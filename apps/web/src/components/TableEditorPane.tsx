@@ -55,6 +55,7 @@ import { EDITOR_LOCAL_SAVE_DELAY_MS, formatShortcutBinding, getNotebookMoveOptio
 import { createLocalEditSession } from "@/components/editor/editor-pane-helpers";
 import { isLocalMemoId } from "@/lib/local-mirror";
 import { isBrowserOffline } from "@/lib/network-status";
+import { flushPendingMemoUpdate } from "@/lib/sync-queue";
 import type { EdgeEverRepository } from "@/lib/repository";
 import type { MemoEditSession } from "@edgeever/shared";
 
@@ -452,6 +453,11 @@ export const TableEditorPane = ({
     setRefreshing(true);
     setSaveError(null);
     try {
+      // Same as the base editor: deliver queued edits before trusting the server snapshot.
+      if (!(await flushPendingMemoUpdate(memo.id))) {
+        setSaveError(t("structuredTable.refreshPending"));
+        return;
+      }
       const latest = (await api.getMemo(memo.id)).memo;
       if (latest.revision < memoRef.current.revision) return;
       const next = parseTableDocument(latest.contentMarkdown);

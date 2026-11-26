@@ -676,6 +676,7 @@ export const enUS = {
     refresh: "Refresh",
     refreshTooltip: "Reload this table",
     refreshError: "Couldn't reload the table",
+    refreshPending: "Some changes are still syncing; try again in a moment",
     openUrl: "Open link {{url}}",
     openUrlTooltip: "Open link",
     editUrl: "Edit URL in {{name}}",

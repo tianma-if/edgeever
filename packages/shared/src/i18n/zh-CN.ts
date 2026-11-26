@@ -695,6 +695,7 @@ export const zhCN = {
     refresh: "刷新",
     refreshTooltip: "重新载入这张表格",
     refreshError: "表格刷新失败",
+    refreshPending: "还有改动没同步完成，稍后再刷新",
     openUrl: "打开链接 {{url}}",
     openUrlTooltip: "打开链接",
     editUrl: "编辑 {{name}} 地址",

@@ -834,6 +834,7 @@ export const es = {
     "refresh": "Actualizar",
     "refreshTooltip": "Recargar esta tabla",
     "refreshError": "No se pudo recargar la tabla",
+    "refreshPending": "Todavía se están sincronizando cambios; inténtalo de nuevo en un momento",
     "openUrl": "Abrir enlace {{url}}",
     "openUrlTooltip": "Abrir enlace",
     "editUrl": "Editar URL en {{name}}",

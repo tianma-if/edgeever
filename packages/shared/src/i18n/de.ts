@@ -834,6 +834,7 @@ export const de = {
     "refresh": "Aktualisieren",
     "refreshTooltip": "Diese Tabelle neu laden",
     "refreshError": "Tabelle konnte nicht neu geladen werden",
+    "refreshPending": "Einige Änderungen werden noch synchronisiert; versuche es gleich noch einmal",
     "openUrl": "Link öffnen {{url}}",
     "openUrlTooltip": "Link öffnen",
     "editUrl": "URL in {{name}} bearbeiten",

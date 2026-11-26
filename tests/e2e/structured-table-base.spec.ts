@@ -90,6 +90,12 @@ test("a base holds several tables, switches views, groups records, opens kanban 
     await expect(grid.locator("thead").getByText("名称", { exact: true })).toBeVisible();
     await persisted((document) => document.tables.length === 3, "third table");
 
+    // Refreshing reads the server copy, so a table that is still waiting for its deferred
+    // sync must be pushed first instead of disappearing from the grid.
+    await page.getByRole("button", { name: "刷新" }).last().click();
+    await expect(tableItems).toHaveCount(3);
+    await expect(grid.locator("thead").getByText("名称", { exact: true })).toBeVisible();
+
     // Renaming goes through the table menu.
     await tableItems.last().hover();
     await page.getByRole("button", { name: "数据表 3 的操作" }).click();
@@ -175,5 +181,53 @@ test("a base holds several tables, switches views, groups records, opens kanban 
   } finally {
     await page.request.delete(path).catch(() => undefined);
     await page.request.delete(`${path}?permanent=1`).catch(() => undefined);
+  }
+});
+test("refreshing waits for the queued sync instead of dropping a fresh table", async ({ page }) => {
+  const { notebooks } = await (await page.request.get("/api/v1/notebooks")).json();
+  const base = createTableBaseDocument({
+    tables: [{ name: "内容计划", document: saveTableViews(plan, getTableViews(plan)) }],
+  });
+  const title = `刷新同步 ${Date.now()}`;
+  const created = await page.request.post("/api/v1/memos", { data: {
+    notebookId: notebooks[0].id,
+    title,
+    contentMarkdown: serializeTableBaseDocument(base),
+    contentJson: markdownToDoc(tableBaseFallbackMarkdown(base)),
+  } });
+  expect(created.status()).toBe(201);
+  const { memo } = await created.json();
+  const tableItems = page.getByTestId("base-table-item");
+  const refresh = page.getByRole("button", { name: "刷新" }).last();
+  try {
+    await openMemo(page, memo);
+    await expect(page.getByTestId("base-grid")).toBeVisible();
+
+    // The save already landed in IndexedDB but its PATCH is still queued: refresh must push it
+    // first, never replace the local base with the older server snapshot.
+    await page.getByRole("button", { name: "新建数据表" }).click();
+    await expect(tableItems).toHaveCount(2);
+    // Autosave has persisted locally (status "已保存") while the PATCH is still queued.
+    await expect(page.getByText("已保存")).toBeVisible({ timeout: 15_000 });
+    await page.waitForTimeout(1_500);
+    await refresh.click();
+    await expect(tableItems).toHaveCount(2);
+    await expect.poll(async () => {
+      const body = await (await page.request.get(`/api/v1/memos/${memo.id}`)).json();
+      return parseTableBaseDocument(body.memo?.contentMarkdown ?? "")?.tables.length ?? 0;
+    }, { timeout: 30_000 }).toBe(2);
+
+    // When the queue cannot drain, refresh keeps the local document and says why.
+    await page.route("**/api/v1/memos/**", (route) => (route.request().method() === "PATCH" ? route.abort() : route.continue()));
+    await page.getByRole("button", { name: "新建数据表" }).click();
+    await expect(tableItems).toHaveCount(3);
+    await expect(page.getByText("已保存")).toBeVisible({ timeout: 15_000 });
+    await page.waitForTimeout(1_500);
+    await refresh.click();
+    await expect(page.getByText("还有改动没同步完成，稍后再刷新")).toBeVisible({ timeout: 15_000 });
+    await expect(tableItems).toHaveCount(3);
+  } finally {
+    await page.unroute("**/api/v1/memos/**").catch(() => undefined);
+    await page.request.delete(`/api/v1/memos/${memo.id}?permanent=1`, { timeout: 20_000 }).catch(() => undefined);
   }
 });

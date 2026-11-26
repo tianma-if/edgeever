@@ -834,6 +834,7 @@ export const fr = {
     refresh: "Actualiser",
     refreshTooltip: "Recharger ce tableau",
     refreshError: "Impossible de recharger le tableau",
+    refreshPending: "Des modifications sont encore en cours de synchronisation ; réessayez dans un instant",
     openUrl: "Ouvrir le lien {{url}}",
     openUrlTooltip: "Ouvrir le lien",
     editUrl: "Modifier l’URL dans {{name}}",

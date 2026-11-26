@@ -684,6 +684,7 @@ export const ja = {
     refresh: "更新",
     refreshTooltip: "このテーブルを読み込み直す",
     refreshError: "テーブルを読み込めませんでした",
+    refreshPending: "まだ同期中の変更があります。少し待ってから再読み込みしてください",
     openUrl: "リンクを開く {{url}}",
     openUrlTooltip: "リンクを開く",
     editUrl: "{{name}} の URL を編集",

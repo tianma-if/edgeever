@@ -77,6 +77,7 @@ import { api } from "@/lib/api";
 import { EDITOR_LOCAL_SAVE_DELAY_MS } from "@/lib/app-helpers";
 import { isLocalMemoId } from "@/lib/local-mirror";
 import { isBrowserOffline } from "@/lib/network-status";
+import { flushPendingMemoUpdate } from "@/lib/sync-queue";
 import type { EdgeEverRepository } from "@/lib/repository";
 
 type BaseEditorPaneProps = {
@@ -386,6 +387,12 @@ export const BaseEditorPane = ({ memo, repository, readOnly, onBackToList, onSav
     setRefreshing(true);
     setSaveError(null);
     try {
+      // A refresh reads the server copy; pushing the queued local update first keeps a table
+      // that is still waiting for its deferred sync from being overwritten by a stale snapshot.
+      if (!(await flushPendingMemoUpdate(memo.id))) {
+        setSaveError(t("structuredTable.refreshPending"));
+        return;
+      }
       const latest = (await api.getMemo(memo.id)).memo;
       if (latest.revision < memoRef.current.revision) return;
       const next = parseTableBaseDocument(latest.contentMarkdown);

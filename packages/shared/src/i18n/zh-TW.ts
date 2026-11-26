@@ -695,6 +695,7 @@ export const zhTW = {
     refresh: "重新整理",
     refreshTooltip: "重新載入這張表格",
     refreshError: "表格重新整理失敗",
+    refreshPending: "還有改動沒同步完成，稍後再重新整理",
     openUrl: "開啟連結 {{url}}",
     openUrlTooltip: "開啟連結",
     editUrl: "編輯 {{name}} 位址",
