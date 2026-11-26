@@ -743,9 +743,15 @@ pub(crate) fn delete_memo(database: &Connection, params: &Value) -> Result<Value
 
 pub(crate) fn restore_memo(database: &Connection, params: &Value) -> Result<Value, String> {
     let memo_id = string_param(params, "memoId")?;
-    let tx = database.unchecked_transaction().map_err(|e| e.to_string())?;
+    let tx = database
+        .unchecked_transaction()
+        .map_err(|e| e.to_string())?;
     let original_notebook_id: String = tx
-        .query_row("SELECT notebook_id FROM memos WHERE id = ?1", [&memo_id], |row| row.get(0))
+        .query_row(
+            "SELECT notebook_id FROM memos WHERE id = ?1",
+            [&memo_id],
+            |row| row.get(0),
+        )
         .map_err(|e| e.to_string())?;
     let notebook_id = resolve_active_notebook_id(&tx, &original_notebook_id)?;
     tx.execute(
@@ -754,12 +760,7 @@ pub(crate) fn restore_memo(database: &Connection, params: &Value) -> Result<Valu
         rusqlite::params![notebook_id, memo_id],
     )
     .map_err(|e| e.to_string())?;
-    enqueue_change(
-        &tx,
-        "memo.restore",
-        &memo_id,
-        &json!({ "memoId": memo_id }),
-    )?;
+    enqueue_change(&tx, "memo.restore", &memo_id, &json!({ "memoId": memo_id }))?;
     tx.commit().map_err(|e| e.to_string())?;
     memo_value(database, &memo_id, true)
 }

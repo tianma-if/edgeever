@@ -255,12 +255,14 @@ pub(crate) fn delete_notebook(
         )
         .map_err(|e| e.to_string())?;
     } else {
-        let has_memos: bool = tx.query_row(
-            "SELECT EXISTS(SELECT 1 FROM memos
+        let has_memos: bool = tx
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM memos
              WHERE notebook_id IN (SELECT value FROM json_each(?1)) AND is_deleted = 0)",
-            [&ids_json],
-            |row| row.get(0),
-        ).map_err(|e| e.to_string())?;
+                [&ids_json],
+                |row| row.get(0),
+            )
+            .map_err(|e| e.to_string())?;
         if has_memos {
             return Err("notebook_not_empty".to_owned());
         }
@@ -275,7 +277,11 @@ pub(crate) fn delete_notebook(
     .map_err(|e| e.to_string())?;
     enqueue_change(
         &tx,
-        if include_notes { "notebook.trash" } else { "notebook.delete" },
+        if include_notes {
+            "notebook.trash"
+        } else {
+            "notebook.delete"
+        },
         &notebook_id,
         &json!({ "notebookId": notebook_id, "notebookIds": ids }),
     )?;
