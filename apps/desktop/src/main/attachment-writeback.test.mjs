@@ -162,6 +162,45 @@ test("manual retry preserves the pending snapshot and does not force conflicting
   expect(f.cloud).toBe("local edit");
 });
 
+test("a stale retry after background success keeps the saved state across restart", async () => {
+  const f = await fixture();
+  f.setOffline(true);
+  await writeFile(f.path, "changed offline");
+  await f.settle();
+  expect((await f.manager.list())[0].status).toBe("error");
+  f.setOffline(false);
+  f.advance(31_000);
+  await f.settle();
+  expect((await f.manager.list())[0].status).toBe("saved");
+
+  await f.manager.retry("open-fixture");
+  await f.manager.tick();
+  f.restart();
+  expect((await f.manager.list())[0].status).toBe("saved");
+  expect(f.requests).toHaveLength(2);
+});
+
+test("restoring an old stale retry acknowledges an unchanged saved file without a request", async () => {
+  const f = await fixture();
+  await writeFile(f.path, "saved before the upgrade");
+  await f.settle();
+
+  const metadata = join(f.folder, ".edgeever-writeback.json");
+  const record = JSON.parse(await readFile(metadata, "utf8"));
+  await writeFile(metadata, JSON.stringify({ ...record, status: "pending", retryable: true }));
+  f.restart();
+  await f.manager.tick();
+  expect((await f.manager.list())[0].status).toBe("saved");
+  expect(JSON.parse(await readFile(metadata, "utf8")).status).toBe("saved");
+  expect(f.requests).toHaveLength(1);
+});
+
+for (const scenario of ["slow-upload", "slow-confirmation", "stalled-upload"]) {
+  test(`writeback transfer deadlines: ${scenario}`, async () => {
+    await promisify(execFile)("node", [fileURLToPath(new URL("../../../../tests/fixtures/attachment-writeback-deadlines.mjs", import.meta.url)), scenario]);
+  });
+}
+
 test("a lost success response is reconciled by content before accepting a no-op conditional replacement", async () => {
   let cloud = "original"; let loseResponse = true;
   const calls = [];
