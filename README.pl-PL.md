@@ -15,6 +15,9 @@
     <a href="#wsparcie-projektu"><img src="https://img.shields.io/badge/Sponsor-EdgeEver-ea4aaa?logo=github-sponsors" alt="Wsparcie projektu" /></a>
   </p>
   <p>
+    <a href="https://trendshift.io/repositories/82131" target="_blank"><img src="https://trendshift.io/api/badge/repositories/82131" alt="tianma-if/edgeever | Trendshift" width="250" height="55" /></a>
+  </p>
+  <p>
     <a href="README.zh-CN.md">简体中文</a> | <a href="README.zh-TW.md">繁體中文</a> | <a href="README.md">English</a> | <a href="README.es.md">Español</a> | <a href="README.de.md">Deutsch</a> | <a href="README.fr.md">Français</a> | <a href="README.ja.md">日本語</a> | <b>Polski</b> | <a href="README.ru.md">Русский</a>
   </p>
   <p>
