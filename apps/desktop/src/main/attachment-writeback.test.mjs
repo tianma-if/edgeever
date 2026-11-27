@@ -195,7 +195,7 @@ test("restoring an old stale retry acknowledges an unchanged saved file without 
   expect(f.requests).toHaveLength(1);
 });
 
-for (const scenario of ["slow-upload", "slow-confirmation", "stalled-upload"]) {
+for (const scenario of ["fast-upload", "slow-upload", "variable-upload", "slow-confirmation", "stalled-upload", "stalled-confirmation"]) {
   test(`writeback transfer deadlines: ${scenario}`, async () => {
     await promisify(execFile)("node", [fileURLToPath(new URL("../../../../tests/fixtures/attachment-writeback-deadlines.mjs", import.meta.url)), scenario]);
   });

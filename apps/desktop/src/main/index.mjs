@@ -13,6 +13,7 @@ import { createBackupWorkerFactory } from "./backup-worker.mjs";
 import { registerBackupIpc } from "./backup-ipc.mjs";
 import { SidecarRpcClient } from "./rpc.mjs";
 import { instanceOrigin, decodeSessionCredential, credentialForUrl, writeSessionCredential, clearInstanceSessionCookie } from "./session-credential.mjs";
+import { uploadAttachmentSnapshot } from "./attachment-upload.mjs";
 import { resourceRequestHeaders } from "./resource-request.mjs";
 import { createResourceProtocolHandler } from "./resource-protocol.mjs";
 import { downloadContentDispositionFromRequest, isSafeResourceId, resourceIdFromRequest, resourceResponseHeaders } from "./resource-url.mjs";
@@ -2140,13 +2141,16 @@ const startApplication = async () => {
     }
   };
   const attachmentScope = () => JSON.stringify([configuredApiBaseUrl, activeAccountId, desktopSessionToken]);
-  const requestAttachment = async (path, init, assertCurrent) => {
+  const requestAttachment = async (path, init, assertCurrent, progress) => {
     assertCurrent();
     const url = `${configuredApiBaseUrl}/api/v1${path}`;
     const token = credentialForUrl(desktopSessionToken, desktopSessionTokenOrigin, url);
     const cookies = await session.defaultSession.cookies.get({ url });
     assertCurrent();
-    const response = await net.fetch(url, { ...init, headers: resourceRequestHeaders({ cookies, sessionToken: token }), redirect: "error" });
+    const headers = resourceRequestHeaders({ cookies, sessionToken: token });
+    const response = init.method === "PUT"
+      ? await uploadAttachmentSnapshot(net, url, { ...init, headers }, progress)
+      : await net.fetch(url, { ...init, headers, redirect: "error" });
     try { assertCurrent(); } catch (error) { await response.body?.cancel(); throw error; }
     return response;
   };

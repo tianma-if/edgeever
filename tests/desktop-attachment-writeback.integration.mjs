@@ -34,10 +34,10 @@ const launch = async () => {
     globalThis.testOpened = []; globalThis.testRevealed = []; globalThis.testOffline = false;
     shell.openPath = async path => { globalThis.testOpened.push(path); return ""; };
     shell.showItemInFolder = path => globalThis.testRevealed.push(path);
-    const originalFetch = net.fetch.bind(net);
-    net.fetch = (url, init) => {
-      if (globalThis.testOffline && init?.method === "PUT" && String(url).includes("/resources/")) throw new TypeError("Simulated network outage");
-      return originalFetch(url, init);
+    const originalRequest = net.request.bind(net);
+    net.request = options => {
+      if (globalThis.testOffline && options.method === "PUT" && options.url.endsWith("/blob/writeback")) throw new TypeError("Simulated network outage");
+      return originalRequest(options);
     };
   });
   page = await application.firstWindow();
@@ -120,7 +120,7 @@ try {
   });
   await page.screenshot({ path: join(evidence, "conflict.png") });
   assert.equal(await cloudText(), "another device's edit"); assert.equal(await readFile(localPath, "utf8"), "conflicting local changes");
-  await page.getByRole("button", { name: "Retry", exact: true }).click();
+  await page.getByRole("button", { name: "Retry writeback", exact: true }).click();
   await expect.poll(() => page.evaluate(() => window.edgeeverDesktop.attachmentWritebacks().then(items => items.some(item => item.status === "conflict")))).toBe(true);
   assert.equal(await cloudText(), "another device's edit");
   results.push("competing device causes a visible conflict; local edits survive and Retry never forces an overwrite");

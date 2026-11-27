@@ -9,8 +9,7 @@ export const WRITEBACK_METADATA = ".edgeever-writeback.json";
 const PENDING_BYTES = ".edgeever-writeback.pending";
 const QUIET_MS = 1500;
 const RETRY_MS = 30_000;
-const REQUEST_TIMEOUT_MS = 120_000;
-const ESTIMATED_TRANSFER_BYTES_PER_SECOND = 256 * 1024;
+const NETWORK_IDLE_MS = 120_000;
 // The existing PUT /resources/:id/blob contract, not a new opening limit.
 const MAX_REPLACEMENT_BYTES = 100 * 1024 * 1024;
 const digest = bytes => createHash("sha256").update(bytes).digest("hex");
@@ -87,16 +86,31 @@ export const canRemoveOpenedAttachment = async folder => {
 
 /** The request callback supplies the already-authorized, scope-bound transport. */
 export const replaceAttachmentResource = async (request, input) => {
-  // net.fetch does not expose upload progress. Budget each transfer at twice
-  // the estimated duration so recovery requests do not consume each other's time.
-  const estimatedSeconds = input.bytes.byteLength / ESTIMATED_TRANSFER_BYTES_PER_SECOND;
-  const transferTimeout = Math.max(REQUEST_TIMEOUT_MS, Math.ceil(estimatedSeconds * 2 * 1000));
-  const requestSignal = ms => {
-    const timeout = AbortSignal.timeout(ms);
-    return input.signal ? AbortSignal.any([input.signal, timeout]) : timeout;
+  const idle = new AbortController();
+  const signal = input.signal ? AbortSignal.any([input.signal, idle.signal]) : idle.signal;
+  let timer;
+  const progress = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => idle.abort(new DOMException("Attachment transfer stalled", "TimeoutError")), NETWORK_IDLE_MS);
   };
+  const send = async (path, init) => {
+    signal.throwIfAborted();
+    progress();
+    const response = await request(path, { ...init, signal }, input.assertCurrent, progress);
+    progress();
+    return response;
+  };
+  try {
+    return await replaceSnapshot(send, input, progress);
+  } catch (error) {
+    signal.throwIfAborted();
+    throw error;
+  } finally { clearTimeout(timer); }
+};
+
+const replaceSnapshot = async (send, input, progress) => {
   input.assertCurrent();
-  const capability = await request("/resources/writeback-capabilities", { method: "GET", cache: "no-store", signal: requestSignal(REQUEST_TIMEOUT_MS) }, input.assertCurrent);
+  const capability = await send("/resources/writeback-capabilities", { method: "GET", cache: "no-store" });
   input.assertCurrent();
   if (!capability.ok) {
     if ([404, 405].includes(capability.status)) {
@@ -120,7 +134,7 @@ export const replaceAttachmentResource = async (request, input) => {
     form.append("preserveFilename", "true");
     form.append("mimeType", input.mimeType);
     form.append("expectedContentHash", expectedContentHash);
-    const response = await request(`${blobPath}/writeback`, { method: "PUT", body: form, signal: requestSignal(transferTimeout) }, input.assertCurrent);
+    const response = await send(`${blobPath}/writeback`, { method: "PUT", body: form });
     input.assertCurrent();
     // An older server must reject this dedicated route, even if it replaced a
     // supported server between the capability read and the write.
@@ -135,10 +149,13 @@ export const replaceAttachmentResource = async (request, input) => {
     // A successful upload can lose its response. Confirm exactly this pending
     // snapshot, then use a conditional no-op PUT to obtain its resource metadata.
     await response.body?.cancel();
-    const current = await request(blobPath, { method: "GET", cache: "no-store", signal: requestSignal(transferTimeout) }, input.assertCurrent);
+    const current = await send(blobPath, { method: "GET", cache: "no-store" });
     if (current.ok) {
       const hash = createHash("sha256");
-      for await (const chunk of current.body) hash.update(chunk);
+      for await (const chunk of current.body) {
+        if (chunk.byteLength) progress();
+        hash.update(chunk);
+      }
       input.assertCurrent();
       if (hash.digest("hex") !== digest(input.bytes)) throw failure("resource_conflict");
       response = await put(digest(input.bytes));
