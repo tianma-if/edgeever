@@ -1,26 +1,26 @@
 {
-  "version": "2.33.0",
+  "version": "2.34.0",
   "changes": {
     "en-US": [
-      "On Web and desktop, deleting a notebook also deletes its subnotebooks and moves all their notes to the trash. For self-hosted instances, upgrade the server before upgrading the desktop app.",
-      "Desktop users can create subnotebooks offline. They appear in the sidebar immediately and sync when the connection returns.",
-      "Desktop sync sends large batches of note deletions in smaller groups and can resume after a partial sync.",
-      "Desktop sync feedback opens GitHub reliably when diagnostics are long and lets you copy the full report.",
-      "The EdgeEver website adds an open-source note-taking app comparison and makes guides easier to find in English and Chinese."
+      "Merging notes that contain only images combines them into one gallery in their original order. If any note also contains text, the notes stay separated by a divider. On a self-hosted instance, upgrade the server before the desktop app.",
+      "Opening a note that was merged offline on desktop shows its images instead of the image links as plain text.",
+      "On desktop, you can seek a video that has not finished syncing, including after sync replaces the local file.",
+      "Desktop attachment write-back no longer stops a transfer that is still making progress. Retrying after a successful save keeps the saved state, and an earlier download does not replace the confirmed offline cache. Thanks to @sivdead (#907).",
+      "In a Leeef Reader excerpt, the “摘录于 YYYY-MM-DD” line appears smaller and lighter in the Web, desktop, Android, and iOS editors and on share pages."
     ],
     "zh-CN": [
-      "Web 和桌面端删除笔记本时，会一并删除其子笔记本，并将其中的所有笔记移入回收站。自托管用户请先升级服务端，再升级桌面端。",
-      "桌面端断网时可以新建子笔记本，创建后立即显示在侧栏，恢复联网后自动同步。",
-      "桌面端分批同步大量笔记的删除操作，部分同步成功后仍可续传。",
-      "桌面端的同步反馈在诊断信息过长时仍可打开 GitHub，并可复制完整报告。",
-      "EdgeEver 官网上线开源笔记应用对比指南，并优化中英文指南入口。"
+      "合并多篇只含图片的笔记时，会按原来的顺序合成一个图库。其中任一篇还有文字时，仍用分隔线分开保留。自托管请先升级服务端，再升级桌面端。",
+      "桌面端离线合并的笔记在打开时会显示图片，不再把图片链接显示成纯文本。",
+      "桌面端可以拖动尚未完成同步的视频进度；同步替换本地文件后仍可定位播放。",
+      "桌面端附件回存在传输仍有进展时不再因固定时限中断。已经保存成功后再点重试会保持已回存，较早开始的下载也不会覆盖已确认的离线缓存。感谢 @sivdead（#907）。",
+      "来自 Leeef Reader 的书摘里，「摘录于 日期」会显示得更小、更淡。Web、桌面、Android 和 iOS 编辑器以及分享页都会生效。"
     ],
     "ja": [
-      "Web 版とデスクトップ版では、ノートブックを削除すると、配下のノートブックも削除され、その中のノートはすべてごみ箱に移動します。セルフホスト環境では、デスクトップアプリより先にサーバーを更新してください。",
-      "デスクトップ版でオフラインでも子ノートブックを作成できます。作成後すぐにサイドバーに表示され、再接続時に同期されます。",
-      "デスクトップ版では、大量のノート削除を小分けにして同期し、一部の同期が済んだ状態から再開できます。",
-      "デスクトップ版の同期フィードバックでは、診断情報が長くても GitHub を開けます。完全なレポートもコピーできます。",
-      "EdgeEver のサイトにオープンソースのノートアプリ比較ガイドを追加し、英語版と中国語版のガイドへの導線を改善しました。"
+      "画像だけのノートを結合すると、元の順序で1つのギャラリーになります。文章を含むノートがある場合は、これまでどおり区切り線で分けて残します。セルフホストでは、デスクトップより先にサーバーを更新してください。",
+      "デスクトップでオフライン結合したノートを開くと、画像が表示され、画像リンクがプレーンテキストのまま残りません。",
+      "デスクトップでは、同期が終わる前の動画でも再生位置を移動できます。同期でローカルファイルが置き換わったあともシークできます。",
+      "デスクトップの添付ファイル書き戻しは、転送が進んでいる間は固定時間で中断しません。保存済みのあと再試行しても保存済みのまま残り、先に始まったダウンロードが確認済みのオフラインキャッシュを上書きしません。@sivdead（#907）",
+      "Leeef Reader の抜粋では、「摘录于 日付」がより小さく薄い文字で表示されます。Web、デスクトップ、Android、iOS のエディターと共有ページに適用されます。"
     ]
   }
 }
