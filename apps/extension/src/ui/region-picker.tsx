@@ -17,13 +17,13 @@ export function startRegionPicker() {
   const previousFocus = document.activeElement;
   const host = document.createElement("div");
   host.id = "edgeever-region-picker";
-  host.style.cssText = "all:initial!important;position:fixed!important;inset:0!important;z-index:2147483646!important;pointer-events:none!important;color-scheme:light!important";
+  host.style.cssText = "all:initial!important;position:fixed!important;inset:0!important;z-index:2147483646!important;pointer-events:none!important;color-scheme:light dark!important";
   const shadow = host.attachShadow({ mode: "open" });
   const style = document.createElement("style");
   style.textContent = __CLIP_REGION_CSS__;
   const outline = document.createElement("div");
   outline.setAttribute("aria-hidden", "true");
-  outline.style.cssText = "position:fixed;pointer-events:none;box-sizing:border-box;border:2px dashed #07130b;background:#07130b0a;display:none";
+  outline.style.cssText = "position:fixed;pointer-events:none;box-sizing:border-box;border:2px dashed #07130b;background:#07130b0a;box-shadow:0 0 0 2px #ffffffe6, inset 0 0 0 2px #ffffffe6;display:none";
   const mount = document.createElement("div");
   shadow.append(style, outline, mount);
   document.documentElement.appendChild(host);
@@ -54,7 +54,9 @@ export function startRegionPicker() {
     Object.assign(outline.style, {
       display: "block", left: `${box.left}px`, top: `${box.top}px`, width: `${box.width}px`, height: `${box.height}px`,
       borderStyle: selection ? "solid" : "dashed",
-      boxShadow: selection ? "0 0 0 9999px #07130b14" : "none",
+      // The white liner keeps the edge visible on dark pages; the outer mask
+      // dims everything outside the selection. Earlier shadows paint on top.
+      boxShadow: `0 0 0 2px #ffffffe6, inset 0 0 0 2px #ffffffe6${selection ? ", 0 0 0 9999px #07130b2e" : ""}`,
     });
   };
   const focusSave = () => shadow.querySelector<HTMLButtonElement>("#region-save")?.focus({ preventScroll: true });

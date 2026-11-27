@@ -59,9 +59,9 @@ export class RegionSelection {
 }
 
 export const regionMarkdown = (element: Element, pageUrl: string): string => {
-  if (!element.isConnected || platformElementHidden(element)) return "";
-  const copy = platformReadableCopy(element);
+  if (!element.isConnected || platformElementHidden(element, true)) return "";
+  const copy = platformReadableCopy(element, true);
   copy.querySelectorAll("#edgeever-region-picker,#edgeever-clipper-toast").forEach(node => node.remove());
   // Inert parsing keeps conversion from activating copied scripts or images.
-  return platformHtmlMarkdown(createDocument(copy.outerHTML).body, pageUrl);
+  return platformHtmlMarkdown(createDocument(copy.outerHTML).body, pageUrl, true);
 };

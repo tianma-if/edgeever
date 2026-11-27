@@ -24,7 +24,37 @@ const sspaiUpdateMarkdown = (body: Element, pageUrl: string): string[] => {
 };
 
 /** Remove publisher chrome inside #js_content, on the detached copy only. */
-const cleanWechatContent = (body: Element, pageUrl: string) => {
+const cleanWechatContent = (body: Element, pageUrl: string, title: string) => {
+  const normalizeTitle=(value: string)=>value.replace(/\s+/g,"");
+  const articleTitle=normalizeTitle(title);
+  // The title repeats as the leading paragraphs and may be split across several.
+  let leading="";
+  while(body.firstElementChild?.tagName === "P" && articleTitle.startsWith(leading+normalizeTitle(platformText(body.firstElementChild)))) {
+    leading+=normalizeTitle(platformText(body.firstElementChild));
+    body.firstElementChild.remove();
+  }
+  // WeChat renders code as a paragraph of monospace spans separated by <br>.
+  const monospace=(node: Element, block: Element)=>{for(let current: Element | null=node; current && current !== block; current=current.parentElement) if(/monospace|Consolas/i.test((current as HTMLElement).style?.fontFamily || "")) return true;return false;};
+  for(const block of Array.from(body.querySelectorAll("p"))) {
+    if(!block.querySelector("br")) continue;
+    const carriers=Array.from(block.querySelectorAll("*")).filter(node=>!(node as Element).matches("br") && Array.from(node.childNodes).some(child=>child.nodeType === 3 && child.textContent?.trim()));
+    if(!carriers.length || !carriers.every(node=>monospace(node, block))) continue;
+    const lines:string[]=[];
+    const walk=(node: Node)=>{
+      for(const child of Array.from(node.childNodes)) {
+        if(child.nodeType === 1 && (child as Element).tagName === "BR") lines.push("\n");
+        else if(child.nodeType === 3) lines.push(child.textContent || "");
+        else walk(child);
+      }
+    };
+    walk(block);
+    const text=lines.join("").replace(/\u00a0/g," ").split("\n").map(line=>line.replace(/\s+$/,""));
+    while(text[0] === "") text.shift(); while(text.at(-1) === "") text.pop();
+    if(!text.length) continue;
+    const pre=body.ownerDocument.createElement("pre"), code=body.ownerDocument.createElement("code");
+    code.textContent=text.join("\n"); pre.appendChild(code); block.replaceWith(pre);
+  }
+  for(const li of Array.from(body.querySelectorAll("li"))) { const section=li.firstElementChild; if(section?.tagName === "SECTION" && li.children.length === 1 && !section.querySelector("div,p,ul,ol,table,pre")) section.replaceWith(...Array.from(section.childNodes)); }
   body.querySelectorAll("mp-common-cpsad").forEach(node=>node.remove());
   // WeChat's code widget uses one sibling <code> per line, whereas the shared
   // Markdown converter expects a single code element inside each <pre>.
@@ -59,6 +89,7 @@ const cleanWechatContent = (body: Element, pageUrl: string) => {
     if(url.hostname !== "mp.weixin.qq.com" || !/^\/s(?:\/|$)/.test(url.pathname)) break;
     link.remove();
   }
+  for(const node of Array.from(body.querySelectorAll("*"))) if(!node.closest("pre,code")) for(const child of Array.from(node.childNodes)) if(child.nodeType === 3) child.textContent=child.textContent?.replace(/\u00a0/g," ") || "";
   restoreWechatHeadings(body);
 };
 
@@ -137,7 +168,7 @@ export const readArticle = (doc: Document, pageUrl: string, accountLabel: string
     if (!pictures.length || pictures.some(url=>!url)) return {ok:false,reason:"incomplete"};
   }
   const clean=platformReadableCopy(body);
-  if(target.platform === "wechat" && !pictureContent) cleanWechatContent(clean,target.url);
+  if(target.platform === "wechat" && !pictureContent) cleanWechatContent(clean,target.url,title);
   // These are article controls, not text/code authored into the article.
   Array.from(clean.querySelectorAll('.code-block-extension-header, .code-block-extension-copyCodeBtn')).forEach(n=>n.remove());
   const markdown=platformHtmlMarkdown(clean,target.url);

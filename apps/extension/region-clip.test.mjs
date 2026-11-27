@@ -3,11 +3,11 @@ import { createWindow } from "@mixmark-io/domino";
 
 test("region conversion preserves only chosen visible content and does not alter the source DOM", async () => {
   const { regionMarkdown } = await import("./src/region-selection");
-  const window = createWindow('<title>Page</title><nav>Outside navigation</nav><section id="chosen"><h2>Chosen heading</h2><p>Text <a href="/link">link</a></p><table><tr><th>A</th></tr><tr><td>Cell</td></tr></table><pre><code>line 1\n\nline 2</code></pre><img src="/photo.png"><p hidden>Hidden text</p><script>bad()</script><input value="private"><div id="edgeever-region-picker">Picker controls</div></section><aside>Outside recommendations</aside>', "https://example.test/story");
+  const window = createWindow('<title>Page</title><nav>Outside navigation</nav><section id="chosen"><h2>Chosen heading</h2><p aria-hidden="true">正文</p><p style="display:none">不应出现</p><p>Text <a href="/link">link</a></p><table><tr><th>A</th></tr><tr><td>Cell</td></tr></table><pre><code>line 1\n\nline 2</code></pre><img src="/photo.png"><p hidden>Hidden text</p><script>bad()</script><input value="private"><div id="edgeever-region-picker">Picker controls</div></section><aside>Outside recommendations</aside>', "https://example.test/story");
   const original = window.document.documentElement.outerHTML;
   const markdown = regionMarkdown(window.document.getElementById("chosen"), window.location.href);
-  for (const expected of ["## Chosen heading", "[link](https://example.test/link)", "Cell", "line 1\n\nline 2", "https://example.test/photo.png"]) expect(markdown).toContain(expected);
-  for (const excluded of ["Outside", "Hidden text", "bad()", "private", "Picker controls"]) expect(markdown).not.toContain(excluded);
+  for (const expected of ["## Chosen heading", "正文", "[link](https://example.test/link)", "Cell", "line 1\n\nline 2", "https://example.test/photo.png"]) expect(markdown).toContain(expected);
+  for (const excluded of ["Outside", "不应出现", "Hidden text", "bad()", "private", "Picker controls"]) expect(markdown).not.toContain(excluded);
   expect(window.document.documentElement.outerHTML).toBe(original);
 });
 
@@ -47,4 +47,11 @@ test("shrinking a table or code block keeps indivisible Markdown containers inta
   codeSelection.child();
   expect(codeSelection.element.id).toBe("pre");
   expect(regionMarkdown(codeSelection.element, "https://example.test/story")).toBe("```\nconst line = 1;\n\nline 2\n```");
+});
+
+test("region conversion includes aria-hidden selected text and still removes CSS-hidden text", async () => {
+  const { regionMarkdown } = await import("./src/region-selection");
+  const window=createWindow('<section id="chosen"><p aria-hidden="true">正文</p><p style="display:none">不应出现</p></section>',"https://example.test/story");
+  const markdown=regionMarkdown(window.document.getElementById("chosen"),window.location.href);
+  expect(markdown).toContain("正文"); expect(markdown).not.toContain("不应出现");
 });

@@ -623,3 +623,14 @@ test('Jike Web mobile mentions already containing @ match the same public post t
  for(const mention of d.querySelectorAll('[class*="_mentionUser_"]'))mention.textContent='@'+mention.textContent.trim();
  const r=readJike(d,jikeWebUrl);expect(r.ok).toBe(true);expect(r.clip.markdown).toContain('凌空小鱼儿');expect(r.clip.markdown).not.toContain('@@');
 });
+
+test("WeChat code paragraphs become fenced blocks and repeated title paragraphs are dropped",()=>{
+  const inline="font-family:Consolas, Menlo, Monaco, monospace;font-size:14px";
+  const doc=createDocument(`<html><body><h1 id="activity-name">标题在这里</h1><div id="js_content"><p><span>标题</span></p><p><span>在这里</span></p><p><span>正文开始。</span></p><p><span style="${inline}">func<span leaf=""> main()</span></span><span style="${inline}"><br></span><span style="${inline}">return 1</span></p><ul><li><section><span>第一项</span></section></li></ul><p><span>宽&nbsp;窄</span></p></div></body></html>`);
+  const result=readArticle(doc,urls.wechat,"公众号");
+  expect(result.ok).toBe(true);
+  expect(result.clip.markdown).toContain("```\nfunc main()\nreturn 1\n```");
+  expect(result.clip.markdown).not.toContain("## 标题");
+  expect(result.clip.markdown).toContain("-   第一项");
+  expect(result.clip.markdown).not.toContain("\u00a0");
+});
