@@ -296,8 +296,18 @@ export const createWebRepository = (scope: string): EdgeEverRepository => {
     }
   },
   createTemplate: async (input) => {
-    const template = await createLocalTemplate(scope, input);
-    await queueLocalAction(scope, "template.create", template.id, { ...input, temporaryId: template.id });
+    // Like the server and the desktop sidecar, a template made from a note
+    // takes that note's saved title, content and tags. The queued create is
+    // sent without the note ID, so they are copied in here.
+    let templateInput = input;
+    if (input.memoId) {
+      const mapping = input.memoId.startsWith("local_") ? await localDb.idMappings.get([scope, input.memoId]) : undefined;
+      const memoId = mapping?.remoteId ?? input.memoId;
+      const memo = await getLocalMemo(scope, memoId) ?? (await api.getMemo(memoId)).memo;
+      templateInput = { name: input.name, description: input.description, title: memo.title, contentMarkdown: memo.contentMarkdown, tags: memo.tags };
+    }
+    const template = await createLocalTemplate(scope, templateInput);
+    await queueLocalAction(scope, "template.create", template.id, { ...templateInput, temporaryId: template.id });
     window.dispatchEvent(new CustomEvent("edgeever:sync-queue-changed"));
     return { template };
   },

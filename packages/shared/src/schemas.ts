@@ -66,7 +66,8 @@ export const MemoUpdateSchema = z.object({
 
 export const TemplateCreateSchema = z.object({
   name: z.string().trim().min(1).max(160),
-  description: z.string().trim().max(500).optional(),
+  // Older desktop and web clients sync a blank description as null.
+  description: z.string().trim().max(500).nullable().optional(),
   memoId: z.string().trim().min(1).optional(),
   title: z.string().trim().max(160).nullable().optional(),
   contentMarkdown: z.string().optional(),

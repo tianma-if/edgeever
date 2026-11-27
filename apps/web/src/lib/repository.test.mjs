@@ -924,6 +924,25 @@ describe("web repository templates", () => {
     }
   });
 
+  test("creates a template from a note's saved title, content and tags", async () => {
+    const restoreNetwork = installNetwork({ online: true });
+    const restoreApi = stubApi({ getMemo: async (id) => ({ memo: remoteMemoFixture(id, { title: "Remote source", contentMarkdown: "remote body", tags: ["remote"] }) }) });
+    try {
+      await localDb.memos.put({ ...remoteMemoFixture("memo-source", { title: "Source", contentMarkdown: "# Source", tags: ["from-note"] }), scope: SCOPE });
+      const repository = createWebRepository(SCOPE);
+      const { template } = await repository.createTemplate({ name: "From note", memoId: "memo-source" });
+      expect(template).toMatchObject({ name: "From note", title: "Source", contentMarkdown: "# Source", tags: ["from-note"] });
+      expect((await queuedAction("template.create", template.id))?.payload).toEqual({ name: "From note", title: "Source", contentMarkdown: "# Source", tags: ["from-note"], temporaryId: template.id });
+
+      // A note missing from the local mirror is read from the server.
+      const { template: fromServer } = await repository.createTemplate({ name: "Unmirrored", memoId: "memo-unmirrored" });
+      expect(fromServer).toMatchObject({ title: "Remote source", contentMarkdown: "remote body", tags: ["remote"] });
+    } finally {
+      restoreApi();
+      restoreNetwork();
+    }
+  });
+
   test("updates an unmirrored template on the server online and refuses offline", async () => {
     let restoreNetwork = installNetwork({ online: true });
     const restoreApi = stubApi({ updateTemplate: async (id, input) => ({ template: templateFixture(id, input) }) });

@@ -801,7 +801,8 @@ const syncQueueItem = async (item: SyncQueueItem): Promise<SyncQueueResult> => {
     const payload = item.payload as LocalActionPayload;
     const result = await api.createTemplate({
       name: String(payload.name ?? ""),
-      description: typeof payload.description === "string" ? payload.description : null,
+      // Older servers reject a null description on create, so a blank one is left out.
+      description: typeof payload.description === "string" ? payload.description : undefined,
       title: typeof payload.title === "string" ? payload.title : null,
       contentMarkdown: typeof payload.contentMarkdown === "string" ? payload.contentMarkdown : "",
       tags: Array.isArray(payload.tags) ? payload.tags.filter((value): value is string => typeof value === "string") : [],

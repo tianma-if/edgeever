@@ -56,6 +56,27 @@ test("syncs a notebook trash as one request and keeps it queued when the server 
   }
 });
 
+test("syncs a template without a description by leaving the field out", async () => {
+  const previousOnline = globalThis.navigator?.onLine;
+  if (globalThis.navigator) Object.defineProperty(globalThis.navigator, "onLine", { configurable: true, value: true });
+  const scope = createLocalDataScope("https://demo.edgeever.org", "user-1");
+  const original = api.createTemplate;
+  const calls = [];
+  await queueLocalAction(scope, "template.create", "local_tpl", { name: "From note", title: "Note", contentMarkdown: "Body", tags: ["a"], temporaryId: "local_tpl" });
+  api.createTemplate = async (input) => {
+    calls.push(input);
+    return { template: { id: "tpl-1", name: "From note", description: null, title: "Note", contentJson: { type: "doc", content: [] }, contentMarkdown: "Body", tags: ["a"], createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" } };
+  };
+  try {
+    expect(await syncQueuedChanges({ scope })).toMatchObject({ synced: 1, failed: 0 });
+    // Older servers reject `description: null`; the request body must not carry it.
+    expect(calls.map((input) => JSON.parse(JSON.stringify(input)))).toEqual([{ name: "From note", title: "Note", contentMarkdown: "Body", tags: ["a"] }]);
+  } finally {
+    api.createTemplate = original;
+    if (globalThis.navigator) Object.defineProperty(globalThis.navigator, "onLine", { configurable: true, value: previousOnline });
+  }
+});
+
 describe("web sync conflict recovery", () => {
   test("confirmed note deletions clear only their older local conflicts", async () => {
     const previousOnline = globalThis.navigator?.onLine;

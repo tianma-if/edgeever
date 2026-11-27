@@ -834,7 +834,7 @@ describe("desktop outbox replay", () => {
         ["deleteNotebook", "nb-child"],
         ["deleteNotebook", "nb-2"],
         ["restoreNotebook", "nb-3"],
-        ["createTemplate", { name: "T", description: null, title: null, contentMarkdown: "", tags: ["a"] }],
+        ["createTemplate", { name: "T", title: null, contentMarkdown: "", tags: ["a"] }],
         ["updateTemplate", "tpl-1", { name: "U", description: null, title: null, contentMarkdown: "body", tags: [] }],
         ["deleteTemplate", "tpl-2"],
         ["renameTag", "old", "new"],

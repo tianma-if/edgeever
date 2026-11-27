@@ -209,6 +209,19 @@ describe("template CRUD routes", () => {
     expect(body.template).toMatchObject({ description: null, title: null, contentMarkdown: "", tags: [] });
   });
 
+  test("accepts the null description that older desktop and web clients sync", async () => {
+    const harness = createTemplateHarness();
+
+    const response = await harness.request("/api/v1/templates", {
+      method: "POST",
+      json: { name: "Synced", description: null, title: null, contentMarkdown: "Body", tags: [] },
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(201);
+    expect(body.template).toMatchObject({ name: "Synced", description: null, title: null, contentMarkdown: "Body", tags: [] });
+  });
+
   test("copies title, content and tags from a memo in the caller's workspace", async () => {
     const memoDoc = { type: "doc", content: [{ type: "heading", attrs: { level: 1 }, content: [{ type: "text", text: "Source" }] }] };
     const harness = createTemplateHarness({
