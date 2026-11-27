@@ -1,12 +1,13 @@
 import { createHash } from "node:crypto";
 import { afterEach, expect, test } from "bun:test";
-import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
-import { createResourceProtocolHandler } from "./resource-protocol.mjs";
+import { createResourceProtocolHandler, createStagedResourceProtocolHandler } from "./resource-protocol.mjs";
+import { cacheStagedResourceBytes, recordStagedResourceAlias } from "./staged-resource-alias.mjs";
 
 const directories = [];
 afterEach(async () => { await Promise.all(directories.splice(0).map(path => rm(path, { recursive: true, force: true }))); });
@@ -84,6 +85,52 @@ test("network failures retain existing cached opening", async () => {
 
 const opening = () => new Request("edgeever-resource://resource/res_1");
 const sha256 = value => createHash("sha256").update(value).digest("hex");
+
+test("staged videos serve the requested bytes before and after sync replaces the local file", async () => {
+  const f = await fixture({ cached: false });
+  const stagedDirectory = join(f.root, "staged");
+  const stagedId = "stage_123";
+  const filename = "微信视频.mp4";
+  const bytes = "0123456789";
+  const path = join(stagedDirectory, `${stagedId}.bin`);
+  await mkdir(stagedDirectory);
+  await writeFile(path, bytes);
+  await writeFile(join(stagedDirectory, `${stagedId}.json`), JSON.stringify({
+    id: stagedId, memoId: "memo_1", name: filename, type: "video/mp4", size: bytes.length,
+  }));
+  const handler = createStagedResourceProtocolHandler({
+    getDirectory: () => stagedDirectory,
+    readUploadedResource: f.handler,
+  });
+  const url = `edgeever-staged://${stagedId}`;
+  const downloadUrl = `${url}?download=${encodeURIComponent(filename)}`;
+  const checkPlaybackAndDownload = async () => {
+    const partial = await handler(new Request(url, { headers: { Range: "bytes=4-7" } }));
+    expect(partial.status).toBe(206);
+    expect(partial.headers.get("Content-Type")).toBe("video/mp4");
+    expect(partial.headers.get("Accept-Ranges")).toBe("bytes");
+    expect(partial.headers.get("Content-Range")).toBe("bytes 4-7/10");
+    expect(partial.headers.get("Content-Length")).toBe("4");
+    expect(await partial.text()).toBe("4567");
+
+    const invalid = await handler(new Request(url, { headers: { Range: "bytes=10-" } }));
+    expect(invalid.status).toBe(416);
+    expect(invalid.headers.get("Content-Range")).toBe("bytes */10");
+
+    const download = await handler(new Request(downloadUrl));
+    expect(download.status).toBe(200);
+    expect(download.headers.get("Content-Disposition")).toContain(`filename*=UTF-8''${encodeURIComponent(filename)}`);
+    expect(await download.text()).toBe(bytes);
+  };
+
+  await checkPlaybackAndDownload();
+  const uploadedUrl = "/api/v1/resources/res_1/blob";
+  await cacheStagedResourceBytes(stagedDirectory, f.directory, stagedId, uploadedUrl);
+  await recordStagedResourceAlias(stagedDirectory, stagedId, uploadedUrl);
+  await unlink(path);
+  await checkPlaybackAndDownload();
+  expect(f.requests).toBe(0);
+});
 
 test("legacy truncated cache automatically downloads the full resource using catalog integrity", async () => {
   const full = "complete server image";

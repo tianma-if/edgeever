@@ -1,10 +1,65 @@
 import { createReadStream } from "node:fs";
+import { once } from "node:events";
 import { mkdir, open, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { Readable } from "node:stream";
 import { createHash, randomUUID } from "node:crypto";
 import { restrictDirectory, restrictFile } from "./file-permissions.mjs";
-import { downloadContentDispositionFromRequest, parseByteRangeHeader, resourceIdFromRequest, resourceResponseHeaders } from "./resource-url.mjs";
+import { downloadContentDispositionFromRequest, isSafeResourceId, parseByteRangeHeader, resourceIdFromRequest, resourceResponseHeaders } from "./resource-url.mjs";
+import { readStagedResourceMetadata } from "./staged-resource-alias.mjs";
+
+const fileResponse = async (path, contentType, request) => {
+  const { size } = await stat(path);
+  const range = parseByteRangeHeader(request.headers.get("range"), size);
+  const headers = resourceResponseHeaders(contentType, downloadContentDispositionFromRequest(request.url));
+  headers.set("Accept-Ranges", "bytes");
+  if (range.kind === "invalid") {
+    headers.set("Content-Range", `bytes */${size}`);
+    return new Response(null, { status: 416, headers });
+  }
+  const selected = range.kind === "range" ? range : { offset: 0, length: size };
+  headers.set("Content-Length", String(selected.length));
+  if (size === 0) return new Response(null, { status: 200, headers });
+  if (range.kind === "range") {
+    headers.set("Content-Range", `bytes ${selected.offset}-${selected.offset + selected.length - 1}/${size}`);
+  }
+  const stream = createReadStream(path, {
+    start: selected.offset,
+    end: selected.offset + selected.length - 1,
+  });
+  // Detect a staged file removed during sync before returning the response.
+  await once(stream, "open");
+  return new Response(Readable.toWeb(stream), {
+    status: range.kind === "range" ? 206 : 200,
+    headers,
+  });
+};
+
+export const createStagedResourceProtocolHandler = (options) => async (request, assertCurrent = () => {}) => {
+  assertCurrent();
+  const stagedId = resourceIdFromRequest(request.url);
+  if (!stagedId) return new Response("Invalid staged resource", { status: 400 });
+  const directory = options.getDirectory();
+  try {
+    const metadata = await readStagedResourceMetadata(directory, stagedId);
+    try {
+      return await fileResponse(join(directory, `${stagedId}.bin`), metadata.type, request);
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+      // Sync records the alias before removing staged bytes. Refresh metadata
+      // if the file disappeared after the first read.
+      const resourceId = metadata.resourceId ?? (await readStagedResourceMetadata(directory, stagedId)).resourceId;
+      if (!isSafeResourceId(resourceId)) throw error;
+      const target = new URL(`edgeever-resource://resource/${encodeURIComponent(resourceId)}`);
+      target.search = new URL(request.url).search;
+      assertCurrent();
+      return options.readUploadedResource(new Request(target, { headers: request.headers, signal: request.signal }), assertCurrent);
+    }
+  } catch (error) {
+    void options.onError?.(stagedId, error);
+    return new Response("Staged resource unavailable", { status: 404 });
+  }
+};
 
 export const createResourceProtocolHandler = options => {
   const verifiedFiles = new Map();
@@ -18,31 +73,6 @@ export const createResourceProtocolHandler = options => {
     const bytesPath = join(directory, `${resourceId}.bin`);
     const metadataPath = join(directory, `${resourceId}.json`);
     let damagedCache = false;
-
-    const fileResponse = async (path, contentType, rangeHeader) => {
-      const { size } = await stat(path);
-      const range = parseByteRangeHeader(rangeHeader, size);
-      const headers = resourceResponseHeaders(contentType, downloadDisposition);
-      headers.set("Accept-Ranges", "bytes");
-      if (range.kind === "invalid") {
-        headers.set("Content-Range", `bytes */${size}`);
-        return new Response(null, { status: 416, headers });
-      }
-      const selected = range.kind === "range" ? range : { offset: 0, length: size };
-      headers.set("Content-Length", String(selected.length));
-      if (size === 0) return new Response(null, { status: 200, headers });
-      if (range.kind === "range") {
-        headers.set("Content-Range", `bytes ${selected.offset}-${selected.offset + selected.length - 1}/${size}`);
-      }
-      const stream = createReadStream(path, {
-        start: selected.offset,
-        end: selected.offset + selected.length - 1,
-      });
-      return new Response(Readable.toWeb(stream), {
-        status: range.kind === "range" ? 206 : 200,
-        headers,
-      });
-    };
 
     const cachedResponse = async () => {
       let metadata = {};
@@ -93,7 +123,7 @@ export const createResourceProtocolHandler = options => {
         verifiedFiles.set(bytesPath, fingerprint);
       }
       assertCurrent();
-      return fileResponse(bytesPath, metadata.contentType, request.headers.get("range"));
+      return fileResponse(bytesPath, metadata.contentType, request);
     };
     if (request.cache !== "reload") {
       try { return await cachedResponse(); } catch (error) {
