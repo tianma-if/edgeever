@@ -156,6 +156,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AppConfirmDialog } from "@/components/dialogs/ConfirmDialogs";
 import { RevisionHistoryDialog } from "@/components/dialogs/RevisionHistoryDialog";
+import { useSaveAsTemplateDialog } from "@/components/dialogs/SaveAsTemplateDialog";
 import { ShareMemoDialog } from "@/components/dialogs/ShareMemoDialog";
 import { ClipboardCopyNotice } from "@/components/ClipboardCopyNotice";
 import { DiagramToolbar, DiagramToolbarAddTrigger } from "@/components/DiagramToolbar";
@@ -1756,6 +1757,7 @@ export const DiagramEditorPane = ({
   onCompanionNotesChanged,
   onOpenCompanionNote,
 }: DiagramEditorPaneProps) => {
+  const { requestTemplateName, templateNameDialog } = useSaveAsTemplateDialog(readOnly ? null : memo.id, onSaveAsTemplate);
   const { t } = useTranslation();
   const { resolvedTheme } = useAppearanceTheme();
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -3391,18 +3393,16 @@ export const DiagramEditorPane = ({
 
   const handleSaveAsTemplate = () => {
     if (!document || readOnly) return;
-    const name = window.prompt(t("templates.templateNamePrompt"), titleRef.current);
-    if (!name?.trim()) return;
     const currentDocument = graphRef.current
       ? graphToDocument(graphRef.current, document.kind, themeRef.current, structureRef.current)
       : document;
     const markdown = serializeDiagramDocument(currentDocument);
-    void onSaveAsTemplate({
+    requestTemplateName({
       ...memoRef.current,
       title: titleRef.current,
       contentJson: markdownToDoc(diagramFallbackMarkdown(currentDocument)),
       contentMarkdown: markdown,
-    }, name.trim());
+    }, titleRef.current);
   };
 
   const handleNotebookChange = (notebookId: string) => {
@@ -3994,6 +3994,7 @@ export const DiagramEditorPane = ({
           ) : null}
         </div>
       </div>
+        {templateNameDialog}
         {confirmDiscardOpen ? (
           <AppConfirmDialog
             title={t("diagram.discardTitle")}

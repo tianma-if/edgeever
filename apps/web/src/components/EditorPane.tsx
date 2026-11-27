@@ -3066,6 +3066,7 @@ const RichEditorPane = ({
     handleExportPdf,
     handleOpenImageShare,
     handleSaveAsTemplate,
+    templateNameDialog,
     imageShareOpen,
     imageShareSource,
     setImageShareOpen,
@@ -3074,10 +3075,10 @@ const RichEditorPane = ({
     wechatCopyState,
     wechatCopyError,
   } = useEditorDocumentActions({
+    canSaveAsTemplate: Boolean(memo && !readOnly),
     canShareMemo: Boolean(memo && !readOnly),
     documentActionRequest,
     editor,
-    effectiveReadOnly,
     getMobilePlainTextValue,
     hydratedEditorMemoId,
     markdownSource,
@@ -3382,6 +3383,7 @@ const RichEditorPane = ({
 
   const editorShortcutBlocked = Boolean(
     historyOpen ||
+      templateNameDialog ||
       shareOpen ||
       mobileNotebookSheetOpen ||
       noteLinkPickerOpen ||
@@ -4165,6 +4167,7 @@ const RichEditorPane = ({
     <div className="relative flex h-full min-w-0 bg-transparent">
       <div ref={editorColumnRef} className="relative flex h-full min-w-0 min-h-0 flex-1 flex-col">
       {selectionActionBar}
+      {templateNameDialog}
       <ExternalLinkDialog
         open={externalLinkDialogOpen}
         onOpenChange={setExternalLinkDialogOpen}
@@ -4694,7 +4697,6 @@ const RichEditorPane = ({
                     <DropdownMenuItem
                       className="flex h-9 w-full items-center gap-2 px-3 text-left text-xs text-slate-700 hover:bg-slate-50 cursor-pointer outline-none"
                       onClick={handleSaveAsTemplate}
-                      disabled={effectiveReadOnly}
                     >
                       <Pencil className="h-4 w-4 text-slate-500" />
                       {t("templates.saveAsTemplate")}

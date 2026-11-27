@@ -24,6 +24,7 @@ import * as m from "motion/react-m";
 import { MemoListPane, MemoSelectionActionBar } from "./MemoListPane";
 import { MobileBottomNav, MobileNotebookPicker } from "./WorkspaceMobileChrome";
 import { AppConfirmDialog, MemoDeleteConfirmDialog, NotebookNameDialog } from "./dialogs/ConfirmDialogs";
+import { useSaveAsTemplateDialog } from "./dialogs/SaveAsTemplateDialog";
 import { shouldDiscardPluginNoteSearchRequest } from "./editor/note-search";
 import { api, ApiRequestError, getConfiguredDesktopApiBaseUrl, getOrCreateClientDeviceId } from "@/lib/api";
 import type { DesktopBackupStatus } from "@edgeever/shared";
@@ -1991,6 +1992,24 @@ export const WorkspaceApp = ({
   const handleSaveAsTemplate = async (memo: MemoDetail, name: string) => {
     await saveTemplateMutation.mutateAsync({ name, memoId: memo.id });
   };
+
+  // List document actions are consumed by the text editor only. Tables,
+  // diagrams, posters and infographics take "save as template" here once the
+  // note is open: the template is built from the saved note by its ID.
+  const listTemplateMemo = selectedMemo && memoView !== "trash" && !selectedMemo.isDeleted
+    && (selectedDiagram || selectedTableNote || selectedPosterNote || selectedInfographicNote)
+    ? selectedMemo
+    : null;
+  const {
+    requestTemplateName: requestListTemplateName,
+    templateNameDialog: listTemplateNameDialog,
+  } = useSaveAsTemplateDialog(listTemplateMemo?.id ?? null, handleSaveAsTemplate);
+  useEffect(() => {
+    const request = memoDocumentActionRequest;
+    if (request?.action !== "save-as-template" || !listTemplateMemo || request.memoId !== listTemplateMemo.id) return;
+    setMemoDocumentActionRequest((current) => current?.id === request.id ? null : current);
+    requestListTemplateName(listTemplateMemo, listTemplateMemo.title || "");
+  }, [listTemplateMemo, memoDocumentActionRequest, requestListTemplateName]);
 
   const handleUseSavedTemplate = (template: SavedMemoTemplate) => {
     if (!createMemoNotebookId || memoView === "trash") return;
@@ -3986,6 +4005,7 @@ export const WorkspaceApp = ({
           <ThirdPartyImportDialog controller={noteImport} onOpenMemo={handleOpenPluginNote} />
         </Suspense>
       )}
+      {listTemplateNameDialog}
       {listShareMemoId && (
         <Suspense fallback={<DeferredToolLoading />}>
           <ShareMemoDialog

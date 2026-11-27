@@ -12,6 +12,7 @@ import { openNotePrintPreview, serializeNoteDocumentForPrint } from "@/lib/note-
 import type { NoteImageFormat } from "@/lib/note-image-export";
 import { publishImageErrorMessage } from "@/lib/publish-image-host";
 import { formatDateTime, parseTagsText } from "@/lib/utils";
+import { useSaveAsTemplateDialog } from "@/components/dialogs/SaveAsTemplateDialog";
 import type { ShareNoteImageSource } from "@/components/dialogs/ShareNoteImageDialog";
 import { dispatchMemoDocumentAction, resolveEditorExportContent } from "./editor-document-actions";
 import { isEditorReady } from "./editor-pane-helpers";
@@ -19,10 +20,10 @@ import { isEditorReady } from "./editor-pane-helpers";
 export type WechatCopyState = "idle" | "copying" | "copied" | "error";
 
 export const useEditorDocumentActions = ({
+  canSaveAsTemplate,
   canShareMemo,
   documentActionRequest,
   editor,
-  effectiveReadOnly,
   getMobilePlainTextValue,
   hydratedEditorMemoId,
   markdownSource,
@@ -36,10 +37,12 @@ export const useEditorDocumentActions = ({
   useMarkdownSourceEditor,
   useMobilePlainTextEditor,
 }: {
+  // Saving a template only reads the note, so reading protection and mobile
+  // view mode do not block it; trashed notes do.
+  canSaveAsTemplate: boolean;
   canShareMemo: boolean;
   documentActionRequest?: MemoDocumentActionRequest | null;
   editor: Editor | null;
-  effectiveReadOnly: boolean;
   getMobilePlainTextValue: () => string;
   hydratedEditorMemoId: string | null;
   markdownSource: string;
@@ -55,6 +58,9 @@ export const useEditorDocumentActions = ({
 }) => {
   const { t, i18n } = useTranslation();
   const { mermaidTheme } = useMermaidTheme();
+  const { requestTemplateName, templateNameDialog } = useSaveAsTemplateDialog(
+    canSaveAsTemplate ? memo?.id ?? null : null, onSaveAsTemplate,
+  );
   const [shareOpen, setShareOpen] = useState(false);
   const [imageShareOpen, setImageShareOpen] = useState(false);
   const [imageShareSource, setImageShareSource] = useState<ShareNoteImageSource | null>(null);
@@ -215,12 +221,7 @@ export const useEditorDocumentActions = ({
   }, [buildImageExportOptions]);
 
   const handleSaveAsTemplate = useCallback(() => {
-    if (!memo || effectiveReadOnly) {
-      return;
-    }
-
-    const name = window.prompt(t("templates.templateNamePrompt"), memo.title || "");
-    if (!name?.trim()) {
+    if (!memo || !canSaveAsTemplate) {
       return;
     }
 
@@ -236,8 +237,8 @@ export const useEditorDocumentActions = ({
       contentJson: markdownToDoc(currentMarkdown),
       contentMarkdown: currentMarkdown,
     };
-    void onSaveAsTemplate(currentTemplateMemo, name.trim());
-  }, [editor, effectiveReadOnly, getMobilePlainTextValue, memo, onSaveAsTemplate, t, tagsText, title, useMobilePlainTextEditor]);
+    requestTemplateName(currentTemplateMemo, memo.title || "");
+  }, [canSaveAsTemplate, editor, getMobilePlainTextValue, memo, requestTemplateName, tagsText, title, useMobilePlainTextEditor]);
 
   useEffect(() => {
     if (
@@ -287,6 +288,7 @@ export const useEditorDocumentActions = ({
     handleExportPdf,
     handleOpenImageShare,
     handleSaveAsTemplate,
+    templateNameDialog,
     imageShareOpen,
     imageShareSource,
     setImageShareOpen,

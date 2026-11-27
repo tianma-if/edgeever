@@ -1,5 +1,8 @@
 // Packaged desktop E2E for "open a note in a new window" (#67, #730).
 // Usage: node tests/desktop-note-window.integration.mjs <packaged executable>
+// Renderer changes can be checked before packaging: with `bun run dev`
+// running, set EDGE_EVER_DESKTOP_WEB_URL=http://127.0.0.1:5173 so an existing
+// packaged app loads the local renderer.
 // Starts the test API (tests/desktop-note-window-api.mjs, under Bun) on a
 // temporary SQLite database, launches the packaged app against it and drives
 // the main window and note windows. The driver runs under Node because
@@ -84,6 +87,11 @@ const api = async (path, init) => {
 let notebookId;
 const createMemo = async (title, contentMarkdown) =>
   (await api("/api/v1/memos", { method: "POST", body: JSON.stringify({ notebookId, title, contentMarkdown }) })).memo;
+// A one-column table note in the stored table format (packages/shared/src/table.ts).
+const tableMarkdown = (cell) => {
+  const document = { schemaVersion: 1, fields: [{ id: "fld_name", name: "Name", type: "text" }], records: [{ id: "rec_sample", cells: { fld_name: cell } }], view: { filters: [], sort: null } };
+  return `| Name |\n| --- |\n| ${cell} |\n\n<!-- edgeever-table-v1:${Buffer.from(JSON.stringify(document)).toString("base64url")} -->`;
+};
 const serverMarkdown = async (id) => (await api(`/api/v1/memos/${id}`)).memo.contentMarkdown;
 // An edit made on another device: through the API with its own edit session.
 const editOnServer = async (id, suffix) => {
@@ -113,6 +121,8 @@ const launch = async () => {
   while (Date.now() < deadline && !main) {
     main = application.windows().find((window) => (
       window.url().startsWith("edgeever-app://app/index.html") ||
+      // Local debugging: the packaged app loads the renderer from `bun run dev`.
+      (Boolean(process.env.EDGE_EVER_DESKTOP_WEB_URL) && window.url().startsWith(process.env.EDGE_EVER_DESKTOP_WEB_URL)) ||
       (process.env.EDGE_EVER_FORCE_FILE_RENDERER === "1" && /^file:.*\/web\/index\.html/.test(window.url()))
     ) && !window.url().includes("noteWindow="));
     if (!main) await new Promise((resolveWait) => setTimeout(resolveWait, 100));
@@ -251,6 +261,7 @@ try {
   const memoC = await createMemo("Window C", "Charlie body");
   const memoD = await createMemo("Window D", "Delta body");
   const memoE = await createMemo("Window E", "Echo body");
+  const memoTable = await createMemo("Window Table", tableMarkdown("Tango row"));
 
   await mkdir(profile, { recursive: true });
   await writeFile(join(profile, "instance-url"), baseUrl);
@@ -317,6 +328,97 @@ try {
     await expect(card).toBeVisible();
     await card.click({ button: "right" });
     await verifyPdfExport(page, () => page.getByRole("menuitem", { name: "Export PDF", exact: true }).click(), memoB.title, "Bravo body");
+  });
+
+  await step("T1: saving a note as a template keeps the editor usable", async () => {
+    await openInMain(memoA);
+    await page.getByPlaceholder("Search notes").first().fill("");
+    const listTemplates = () => page.evaluate(async () =>
+      (await window.edgeeverDesktop.sidecarRequest("template.list", {})).templates
+    );
+    const initialCount = (await listTemplates()).length;
+    const openNameDialog = async () => {
+      await page.locator(`[data-memo-id="${memoB.id}"]`).first().click({ button: "right" });
+      await page.getByRole("menuitem", { name: "Save as template", exact: true }).click();
+      const dialog = page.getByRole("dialog").filter({ has: page.getByRole("textbox") });
+      await expect(dialog.getByRole("textbox")).toHaveValue(memoB.title);
+      return dialog;
+    };
+
+    const cancelled = await openNameDialog();
+    await cancelled.getByRole("textbox").fill("   ");
+    await expect(cancelled.getByRole("button", { name: "Save", exact: true })).toBeDisabled();
+    await cancelled.getByRole("button", { name: "Cancel" }).click();
+    await expect(cancelled).toBeHidden();
+    assert.equal((await listTemplates()).length, initialCount);
+
+    const dialog = await openNameDialog();
+    await dialog.getByRole("textbox").fill("  Bravo template  ");
+    await dialog.getByRole("textbox").press("Enter");
+    await expect(dialog).toBeHidden();
+    await expect.poll(async () => (await listTemplates())
+      .filter((template) => template.name === "Bravo template")
+      .map((template) => template.contentMarkdown)).toEqual([memoB.contentMarkdown]);
+    assert.equal((await listTemplates()).length, initialCount + 1);
+    await expect(mainEditor()).toContainText(memoB.contentMarkdown);
+    await closeNotice();
+  });
+
+  await step("T2: a reading-protected note can be saved as a template from the list", async () => {
+    await openInMain(memoB);
+    await page.getByRole("button", { name: /^Enable reading protection/ }).click();
+    const unlock = page.getByRole("button", { name: /^Disable reading protection/ });
+    await expect(unlock).toHaveAttribute("aria-pressed", "true");
+    try {
+      await page.locator(`[data-memo-id="${memoB.id}"]`).first().click({ button: "right" });
+      await page.getByRole("menuitem", { name: "Save as template", exact: true }).click();
+      const dialog = page.getByRole("dialog", { name: "Save as template" });
+      await expect(dialog.getByRole("textbox")).toHaveValue(memoB.title);
+      await dialog.getByRole("textbox").fill("Protected note template");
+      await dialog.getByRole("button", { name: "Save", exact: true }).click();
+      await expect(dialog).toBeHidden();
+      await closeNotice();
+      await expect(unlock).toHaveAttribute("aria-pressed", "true");
+      await expect.poll(async () => (await api("/api/v1/templates")).templates
+        .filter((t) => t.name === "Protected note template")
+        .map((t) => t.contentMarkdown), { timeout: 30_000 }).toEqual([memoB.contentMarkdown]);
+    } finally {
+      await unlock.click();
+    }
+  });
+
+  await step("T3: a table note can be saved as a template from the list", async () => {
+    await openInMain(memoA);
+    await page.getByPlaceholder("Search notes").first().fill("");
+    const listTemplates = () => page.evaluate(async () =>
+      (await window.edgeeverDesktop.sidecarRequest("template.list", {})).templates
+    );
+    const initialCount = (await listTemplates()).length;
+    const openNameDialog = async () => {
+      await page.locator(`[data-memo-id="${memoTable.id}"]`).first().click({ button: "right" });
+      await page.getByRole("menuitem", { name: "Save as template", exact: true }).click();
+      const dialog = page.getByRole("dialog", { name: "Save as template" });
+      await expect(dialog.getByRole("textbox")).toHaveValue(memoTable.title);
+      return dialog;
+    };
+
+    // From a text note: the table note opens, then the name dialog shows.
+    const dialog = await openNameDialog();
+    await dialog.getByRole("textbox").fill("Table template");
+    await dialog.getByRole("textbox").press("Enter");
+    await expect(dialog).toBeHidden();
+    await expect.poll(async () => (await listTemplates())
+      .filter((template) => template.name === "Table template")
+      .map((template) => template.contentMarkdown.includes("<!-- edgeever-table-v1:") && template.contentMarkdown.includes("Tango row")))
+      .toEqual([true]);
+    assert.equal((await listTemplates()).length, initialCount + 1);
+    await closeNotice();
+
+    // Again while the table note is already open; cancelling writes nothing.
+    const cancelled = await openNameDialog();
+    await cancelled.getByRole("button", { name: "Cancel" }).click();
+    await expect(cancelled).toBeHidden();
+    assert.equal((await listTemplates()).length, initialCount + 1);
   });
 
   await step("P3: independent note window exports with the same print policy", async () => {
