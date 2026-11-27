@@ -598,6 +598,51 @@ describe("desktop repository notes", () => {
     });
   });
 
+  test("renders both images in a pending offline merge immediately and after reopening", async () => {
+    const imageLines = ["first", "second"].map((id) => `![${id}.webp](/api/v1/resources/res_${id}/blob)`);
+    const stored = {
+      id: "memo_local_merged",
+      mergeSourceCount: 2,
+      contentMarkdown: imageLines.join("\n\n<!-- edgeever:merge-divider -->\n\n---\n\n"),
+      contentJson: {
+        type: "doc",
+        content: [
+          { type: "paragraph", content: [{ type: "text", text: imageLines[0] }] },
+          { type: "edgeeverMergeDivider" },
+          { type: "paragraph", content: [{ type: "text", text: imageLines[1] }] },
+        ],
+      },
+    };
+    await withSidecar({ "memo.merge": () => ({ memo: stored }), "memo.get": () => ({ memo: stored }) }, async ({ calls }) => {
+      const repository = createDesktopRepository();
+      const merged = await repository.mergeMemos({ memoIds: ["a", "b"] });
+      const reopened = await repository.getMemo(stored.id);
+      for (const { memo } of [merged, reopened]) {
+        expect(memo.contentJson.content.map((node) => node.type)).toEqual(["image", "edgeeverMergeDivider", "image"]);
+        expect(memo.contentJson.content.filter((node) => node.type === "image").map((node) => node.attrs.src))
+          .toEqual(["edgeever-resource://resource/res_first", "edgeever-resource://resource/res_second"]);
+      }
+      expect(calls.map(({ method }) => method)).toEqual(["memo.merge", "memo.get"]);
+    }, { online: false });
+
+    // A real rich document with different Markdown must keep its image attributes.
+    const rich = {
+      ...stored,
+      contentJson: {
+        type: "doc",
+        content: [
+          { type: "image", attrs: { src: "/api/v1/resources/res_first/blob", width: 35 } },
+          ...stored.contentJson.content.slice(1),
+        ],
+      },
+    };
+    await withSidecar({ "memo.get": () => ({ memo: rich }) }, async () => {
+      const { memo } = await createDesktopRepository().getMemo(rich.id);
+      expect(memo.contentJson.content[0].attrs).toEqual({ src: "edgeever-resource://resource/res_first", width: 35 });
+      expect(memo.contentJson.content[2]).toEqual(rich.contentJson.content[2]);
+    });
+  });
+
   test("refuses to duplicate a note offline", async () => {
     await withSidecar({}, async ({ calls }) => {
       await expect(createDesktopRepository().duplicateMemo("memo-1")).rejects.toThrow("memo_duplicate_offline");

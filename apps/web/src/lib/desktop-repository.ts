@@ -7,7 +7,7 @@ import type {
   DesktopRpcParams,
   DesktopRpcResponses,
 } from "@edgeever/shared";
-import { docToMarkdown, docToText, markdownToDoc, type MemoDetail } from "@edgeever/shared";
+import { docToMarkdown, docToText, markdownToDoc, MERGE_DIVIDER_MARKDOWN_MARKER, MERGE_DIVIDER_NODE_TYPE, type MemoDetail } from "@edgeever/shared";
 import { localizeDefaultMemoTemplate } from "@edgeever/shared/memo-template-seeds";
 import type { EdgeEverRepository } from "@/lib/repository";
 import { api, getConfiguredDesktopApiBaseUrl } from "@/lib/api";
@@ -35,6 +35,41 @@ const toDisplayMemo = (memo: MemoDetail): MemoDetail => ({
   contentJson: mapTiptapResourceUrls(memo.contentJson, toDesktopResourceUrl),
   contentMarkdown: mapMarkdownResourceUrls(memo.contentMarkdown, toDesktopResourceUrl) ?? "",
 });
+
+// The sidecar's local merge stores one plain paragraph per Markdown line,
+// with real divider nodes between sources. Recover the body before rewriting
+// resource URLs so the paragraphs and Markdown can be compared verbatim.
+const recoverDesktopMerge = (memo: MemoDetail): MemoDetail => {
+  const { contentJson, contentMarkdown, mergeSourceCount } = memo;
+  if (!(mergeSourceCount >= 2) || !contentMarkdown?.includes(MERGE_DIVIDER_MARKDOWN_MARKER)) return memo;
+
+  const lines = contentMarkdown.split(/\r?\n/).filter((line) => line.trim());
+  let lineIndex = 0;
+  let dividerCount = 0;
+  const nodes = contentJson?.content ?? [];
+  const matchesSidecarDocument = nodes.every((node, index) => {
+    if (node.type === MERGE_DIVIDER_NODE_TYPE && Object.keys(node).length === 1) {
+      dividerCount++;
+      return lines[lineIndex++] === MERGE_DIVIDER_MARKDOWN_MARKER && lines[lineIndex++] === "---";
+    }
+    if (node.type !== "paragraph") return false;
+    if (Object.keys(node).length === 1) {
+      // markdown_doc emits a single empty paragraph for an empty source.
+      return (index === 0 || nodes[index - 1]?.type === MERGE_DIVIDER_NODE_TYPE)
+        && (index === nodes.length - 1 || nodes[index + 1]?.type === MERGE_DIVIDER_NODE_TYPE);
+    }
+    const text = node.content?.[0];
+    return Object.keys(node).length === 2 && node.content?.length === 1
+      && text?.type === "text" && Object.keys(text).length === 2
+      && "text" in text && text.text === lines[lineIndex++];
+  });
+  if (!matchesSidecarDocument || dividerCount !== mergeSourceCount - 1 || lineIndex !== lines.length) return memo;
+
+  const recovered = markdownToDoc(contentMarkdown);
+  // An unfinished block in one source can consume the separator and the next source.
+  if (recovered.content.filter((node) => node.type === MERGE_DIVIDER_NODE_TYPE).length < dividerCount) return memo;
+  return { ...memo, contentJson: recovered };
+};
 
 const liveStagedIdsForMemo = async (memoId: string) => {
   const staged = await listStagedResources();
@@ -67,7 +102,8 @@ const rewriteUploadedAliases = async <T extends { contentJson?: unknown; content
   };
 };
 
-const repairDisplayedMemo = async (memo: MemoDetail): Promise<MemoDetail> => {
+const repairDisplayedMemo = async (storedMemo: MemoDetail): Promise<MemoDetail> => {
+  const memo = recoverDesktopMerge(storedMemo);
   if (
     !contentReferencesStagedResourceUrl(memo.contentJson)
     && !contentReferencesStagedResourceUrl(memo.contentMarkdown)
