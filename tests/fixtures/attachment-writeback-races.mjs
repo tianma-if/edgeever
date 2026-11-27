@@ -111,6 +111,26 @@ try {
     assert.equal(interrupted.pendingHash, hash("edit"), "retain the pending snapshot until its acknowledgement is durable");
     now += 60_000; await manager.tick();
     assert.equal(attempts, 2); assert.equal((await manager.list())[0].status, "saved");
+  } else if (scenario === "legacy-repair-lock") {
+    await manager.tick();
+    const saved = JSON.parse(await fs.readFile(metadata, "utf8"));
+    await fs.writeFile(metadata, JSON.stringify({ ...saved, status: "pending", retryable: true }));
+    manager.suspend();
+    manager = createAttachmentWritebackManager(options);
+    renameFile = async (from, to) => {
+      if (to === metadata) {
+        renameFile = null;
+        throw Object.assign(new Error("Metadata temporarily locked"), { code: "EBUSY" });
+      }
+      return realRename(from, to);
+    };
+    await manager.tick();
+    assert.equal((await manager.list())[0].errorCode, "EBUSY");
+    now += 31_000;
+    await manager.tick();
+    assert.deepEqual(JSON.parse(await fs.readFile(metadata, "utf8")), saved);
+    assert.equal((await manager.list())[0].status, "saved");
+    assert.equal(attempts, 1);
   } else if (scenario === "pending-lock") {
     let first = true;
     beforeLstat = value => {

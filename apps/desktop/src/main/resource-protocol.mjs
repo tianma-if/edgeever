@@ -1,7 +1,7 @@
 import { createReadStream } from "node:fs";
 import { once } from "node:events";
 import { mkdir, open, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { Readable } from "node:stream";
 import { createHash, randomUUID } from "node:crypto";
 import { restrictDirectory, restrictFile } from "./file-permissions.mjs";
@@ -61,16 +61,49 @@ export const createStagedResourceProtocolHandler = (options) => async (request, 
   }
 };
 
+// Keep only active reads and disk writes. Network waits never hold the write queue.
+export const createResourceCacheWrites = () => {
+  const readers = new Map();
+  const writes = new Map();
+  const enqueue = (path, write) => {
+    const previous = writes.get(path);
+    const next = (previous ?? Promise.resolve()).then(write);
+    const tail = next.catch(() => {}).finally(() => {
+      if (writes.get(path) === tail) writes.delete(path);
+    });
+    writes.set(path, tail);
+    return next;
+  };
+  return {
+    observe(path) {
+      const group = readers.get(path) ?? { count: 0 };
+      group.count++;
+      readers.set(path, group);
+      return {
+        publish: write => enqueue(path, () => {
+          if (readers.get(path) === group) return write();
+        }),
+        release() {
+          if (--group.count === 0 && readers.get(path) === group) readers.delete(path);
+        },
+      };
+    },
+    replace(path, write) {
+      return enqueue(path, async () => {
+        try { return await write(); }
+        // Include reads that saw the old files while the replacement was being written.
+        finally { readers.delete(path); }
+      });
+    },
+  };
+};
+
 export const createResourceProtocolHandler = options => {
   const verifiedFiles = new Map();
-  return async (request, assertCurrent = () => {}) => {
-    assertCurrent();
-    const resourceId = resourceIdFromRequest(request.url);
-    if (!resourceId) return new Response("Invalid resource", { status: 400 });
+  const cacheWrites = options.cacheWrites ?? createResourceCacheWrites();
+  const serve = async (request, assertCurrent, resourceId, bytesPath, cacheRead) => {
     const downloadDisposition = downloadContentDispositionFromRequest(request.url);
-
-    const directory = options.getDirectory();
-    const bytesPath = join(directory, `${resourceId}.bin`);
+    const directory = dirname(bytesPath);
     const metadataPath = join(directory, `${resourceId}.json`);
     let damagedCache = false;
 
@@ -115,8 +148,10 @@ export const createResourceProtocolHandler = options => {
           const temporaryMetadata = `${metadataPath}.${randomUUID()}.pending`;
           try {
             await writeFile(temporaryMetadata, JSON.stringify({ ...metadata, byteSize: size, sha256: digest }), { mode: 0o600 });
-            assertCurrent();
-            await rename(temporaryMetadata, metadataPath);
+            await cacheRead.publish(async () => {
+              assertCurrent();
+              await rename(temporaryMetadata, metadataPath);
+            });
           } finally { await rm(temporaryMetadata, { force: true }); }
         }
         if (verifiedFiles.size >= 256) verifiedFiles.delete(verifiedFiles.keys().next().value);
@@ -184,9 +219,11 @@ export const createResourceProtocolHandler = options => {
       let cancelled = false;
       let inFlight;
       let finished = false;
-      const cleanup = async () => {
+      const cleanup = async (published = false) => {
         if (!finished) {
           finished = true;
+          cacheRead.release();
+          if (published) return;
           await output.close().catch(() => {});
           await rm(temporaryPath, { force: true }).catch(() => {});
         }
@@ -204,12 +241,17 @@ export const createResourceProtocolHandler = options => {
                 }
                 await output.close();
                 if (cancelled) return;
-                assertCurrent();
-                await rename(temporaryPath, bytesPath);
-                await writeFile(metadataPath, JSON.stringify({ contentType: response.headers.get("content-type") || "application/octet-stream", byteSize, sha256: hash.digest("hex") }), { mode: 0o600 });
-                await restrictFile(bytesPath);
-                await restrictFile(metadataPath);
-                finished = true;
+                const published = await cacheRead.publish(async () => {
+                  if (cancelled) return;
+                  assertCurrent();
+                  await rename(temporaryPath, bytesPath);
+                  await writeFile(metadataPath, JSON.stringify({ contentType: response.headers.get("content-type") || "application/octet-stream", byteSize, sha256: hash.digest("hex") }), { mode: 0o600 });
+                  await restrictFile(bytesPath);
+                  await restrictFile(metadataPath);
+                  return true;
+                });
+                await cleanup(published);
+                if (cancelled) return;
                 controller.close();
                 return;
               }
@@ -242,7 +284,9 @@ export const createResourceProtocolHandler = options => {
       const responseHeaders = new Headers(response.headers);
       responseHeaders.set("Cache-Control", "no-store");
       if (downloadDisposition) responseHeaders.set("Content-Disposition", downloadDisposition);
-      return new Response(streamedBody, { status: 200, headers: responseHeaders });
+      const result = new Response(streamedBody, { status: 200, headers: responseHeaders });
+      cacheRead.streaming = true;
+      return result;
     } catch (error) {
       assertCurrent();
       if (request.cache === "reload") {
@@ -251,5 +295,14 @@ export const createResourceProtocolHandler = options => {
       void options.onError?.(resourceId, error);
       return new Response("Resource unavailable", { status: 504 });
     }
+  };
+  return async (request, assertCurrent = () => {}) => {
+    assertCurrent();
+    const resourceId = resourceIdFromRequest(request.url);
+    if (!resourceId) return new Response("Invalid resource", { status: 400 });
+    const bytesPath = join(options.getDirectory(), `${resourceId}.bin`);
+    const read = cacheWrites.observe(bytesPath);
+    try { return await serve(request, assertCurrent, resourceId, bytesPath, read); }
+    finally { if (!read.streaming) read.release(); }
   };
 };
