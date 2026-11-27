@@ -1,4 +1,5 @@
 import { mergeAttributes, Node } from "@tiptap/core";
+import { createImageGalleryNode, getImageOnlyDocumentImages } from "./image-gallery";
 import { openBlockSource } from "./markdown-block-start";
 import type { TiptapDoc, TiptapNode } from "./content";
 
@@ -71,10 +72,17 @@ export const createMergeDividerNode = (): TiptapNode => ({
 });
 
 /**
- * Concatenate source TipTap documents with semantic merge dividers between them.
- * Empty or whitespace-only source docs are skipped so merges do not stack bare rules.
+ * Use one gallery when every source is image-only. Otherwise keep each source's
+ * original block order and separate the sources with semantic merge dividers.
  */
 export const mergeMemoDocs = (docs: TiptapDoc[]): TiptapDoc => {
+  if (docs.length > 1) {
+    const imageSections = docs.map(getImageOnlyDocumentImages);
+    if (imageSections.every((images) => images !== null)) {
+      return { type: "doc", content: [createImageGalleryNode(imageSections.flat())] };
+    }
+  }
+
   const content: TiptapNode[] = [];
 
   for (const doc of docs) {

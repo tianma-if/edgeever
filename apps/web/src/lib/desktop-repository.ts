@@ -7,7 +7,17 @@ import type {
   DesktopRpcParams,
   DesktopRpcResponses,
 } from "@edgeever/shared";
-import { docToMarkdown, docToText, markdownToDoc, MERGE_DIVIDER_MARKDOWN_MARKER, MERGE_DIVIDER_NODE_TYPE, type MemoDetail } from "@edgeever/shared";
+import {
+  docToMarkdown,
+  docToText,
+  getImageOnlyDocumentImages,
+  markdownToDoc,
+  MERGE_DIVIDER_MARKDOWN_MARKER,
+  MERGE_DIVIDER_NODE_TYPE,
+  mergeMemoDocs,
+  resolveMemoContentDoc,
+  type MemoDetail,
+} from "@edgeever/shared";
 import { localizeDefaultMemoTemplate } from "@edgeever/shared/memo-template-seeds";
 import type { EdgeEverRepository } from "@/lib/repository";
 import { api, getConfiguredDesktopApiBaseUrl } from "@/lib/api";
@@ -150,6 +160,26 @@ const request = async <M extends DesktopRpcMethod>(method: M, params: DesktopRpc
   const bridge = window.edgeeverDesktop;
   if (!bridge?.isAvailable) throw new Error("EdgeEver desktop bridge is unavailable");
   return bridge.sidecarRequest<DesktopRpcResponses[M]>(method, params);
+};
+
+const prepareDesktopMergeContent = async (memoIds: string[]): Promise<NonNullable<DesktopRpcParams["memo.merge"]["preparedContent"]>> => {
+  if (memoIds.length < 2) throw new Error("At least two memos are required to merge.");
+  const sources = await Promise.all(memoIds.map(async (memoId) => (await request("memo.get", { memoId })).memo));
+  const docs = sources.map((storedMemo) => {
+    const memo = recoverDesktopMerge(storedMemo);
+    const doc = resolveMemoContentDoc(memo.contentJson, memo.contentMarkdown);
+    if (!docToText(doc).trim() && memo.contentText.trim() && !getImageOnlyDocumentImages(doc)) {
+      throw new Error("Source note content could not be recovered safely. Merge was cancelled.");
+    }
+    return doc;
+  });
+  const contentJson = mapTiptapResourceUrls(mergeMemoDocs(docs), toApiResourceUrl);
+  return {
+    sources: sources.map(({ id, revision, contentHash }) => ({ id, revision, contentHash })),
+    contentJson,
+    contentMarkdown: docToMarkdown(contentJson),
+    contentText: docToText(contentJson),
+  };
 };
 
 export const cancelPendingDesktopImportMemo = async (memoId: string) => {
@@ -307,9 +337,14 @@ export const createDesktopRepository = (): EdgeEverRepository => ({
     return result;
   }),
   mergeMemos: async (input) => {
-    const result = await request("memo.merge", input);
+    const memoIds = [...new Set(input.memoIds)];
+    const { memo } = await request("memo.merge", {
+      ...input,
+      memoIds,
+      preparedContent: await prepareDesktopMergeContent(memoIds),
+    });
     window.dispatchEvent(new CustomEvent("edgeever:sync-queue-changed"));
-    return { memo: await repairDisplayedMemo(result.memo) };
+    return { memo: await repairDisplayedMemo(memo) };
   },
 
   duplicateMemo: async (memoId, input = {}) => {

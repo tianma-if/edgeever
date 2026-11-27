@@ -5,6 +5,7 @@ import { createInterface } from "node:readline";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { docToMarkdown, docToText, markdownToDoc, mergeMemoDocs } from "../packages/shared/src/content.ts";
 import { createDefaultDiagramDocument, getDiagramSummary, serializeDiagramDocument } from "../packages/shared/src/diagram.ts";
 import { createDefaultInfographicDocument, getInfographicSummary, serializeInfographicDocument } from "../packages/shared/src/infographic.ts";
 import { createDefaultTableDocument, getTableSummary, serializeTableDocument } from "../packages/shared/src/table.ts";
@@ -646,11 +647,38 @@ for (const key of Object.keys(appearance)) assert.equal((await readAppearance())
 
 // Offline sources must become cloud ids inside a queued merge, and a merge
 // result must support another queued merge and an immediate editor autosave.
-const offlineSources = await Promise.all(["one", "two", "three"].map(async (body) => (
-  await request("memo.create", { notebookId: inbox.id, contentMarkdown: body })
+const offlineSources = await Promise.all([
+  "![One](/api/v1/resources/res_one/blob)",
+  "![Two](/api/v1/resources/res_two/blob)",
+  "Before\n\n![Three](/api/v1/resources/res_three/blob)\n\nAfter",
+].map(async (body) => (
+  await request("memo.create", { notebookId: inbox.id, contentMarkdown: body, contentJson: markdownToDoc(body) })
 ).memo));
-const offlineMerge = (await request("memo.merge", { memoIds: offlineSources.slice(0, 2).map(memo => memo.id) })).memo;
-const chainedMerge = (await request("memo.merge", { memoIds: [offlineMerge.id, offlineSources[2].id] })).memo;
+const prepareMerge = (memos) => {
+  const contentJson = mergeMemoDocs(memos.map((memo) => memo.contentJson));
+  return {
+    memoIds: memos.map((memo) => memo.id),
+    preparedContent: {
+      sources: memos.map(({ id, revision, contentHash }) => ({ id, revision, contentHash })),
+      contentJson,
+      contentMarkdown: docToMarkdown(contentJson),
+      contentText: docToText(contentJson),
+    },
+  };
+};
+const staleMerge = prepareMerge(offlineSources.slice(0, 2));
+staleMerge.preparedContent.sources[1].contentHash = "stale-hash";
+await assert.rejects(request("memo.merge", staleMerge), /source note changed/);
+for (const memoId of staleMerge.memoIds) assert.equal((await request("memo.get", { memoId })).memo.isDeleted, false);
+
+const offlineMerge = (await request("memo.merge", prepareMerge(offlineSources.slice(0, 2)))).memo;
+const reopenedGallery = (await request("memo.get", { memoId: offlineMerge.id })).memo.contentJson.content;
+assert.deepEqual(reopenedGallery.map((node) => node.type), ["edgeeverImageGallery"]);
+assert.deepEqual(reopenedGallery[0].content.map((image) => image.attrs.alt), ["One", "Two"]);
+const chainedMerge = (await request("memo.merge", prepareMerge([offlineMerge, offlineSources[2]]))).memo;
+assert.deepEqual(chainedMerge.contentJson.content.map((node) => node.type), [
+  "edgeeverImageGallery", "edgeeverMergeDivider", "paragraph", "image", "paragraph",
+]);
 const readQueuedMerge = async (memoId) => (await request("sync.outbox.list", { limit: 200 })).items.find(item => item.kind === "memo.merge" && item.entityId === memoId);
 for (const [index, source] of offlineSources.entries()) {
   const create = (await request("sync.outbox.list", { limit: 200 })).items.find(item => item.kind === "memo.create" && item.entityId === source.id);

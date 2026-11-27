@@ -283,6 +283,17 @@ pub(crate) fn merge_memos(database: &Connection, params: &Value) -> Result<Value
     if ids.len() < 2 {
         return Err("At least two memos are required to merge".to_owned());
     }
+    let prepared = params.get("preparedContent");
+    let snapshots = match prepared {
+        Some(content) => Some(
+            content
+                .get("sources")
+                .and_then(Value::as_array)
+                .filter(|sources| sources.len() == ids.len())
+                .ok_or_else(|| "Missing source snapshots for merge".to_owned())?,
+        ),
+        None => None,
+    };
     let target_notebook = params
         .get("notebookId")
         .and_then(Value::as_str)
@@ -291,18 +302,55 @@ pub(crate) fn merge_memos(database: &Connection, params: &Value) -> Result<Value
     let mut titles = Vec::new();
     let mut markdowns = Vec::new();
     let mut tags = Vec::<String>::new();
-    for id in &ids {
-        let row = database.query_row("SELECT m.title, m.notebook_id, c.content_markdown, m.tags_json, c.content_text, c.content_json FROM memos m JOIN memo_contents c ON c.memo_id = m.id WHERE m.id = ?1 AND m.is_deleted = 0", [id], |row| Ok((row.get::<_, Option<String>>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?, row.get::<_, String>(3)?, row.get::<_, String>(4)?, row.get::<_, String>(5)?))).map_err(|e| e.to_string())?;
-        if first_notebook_id.is_none() {
-            first_notebook_id = Some(row.1);
+    let tx = database
+        .unchecked_transaction()
+        .map_err(|e| e.to_string())?;
+    for (index, id) in ids.iter().enumerate() {
+        let (title, notebook_id, markdown, tags_json, content_text, content_json, revision, hash) =
+            tx.query_row(
+                "SELECT m.title, m.notebook_id, c.content_markdown, m.tags_json,
+                        c.content_text, c.content_json, c.revision, c.content_hash
+                   FROM memos m JOIN memo_contents c ON c.memo_id = m.id
+                  WHERE m.id = ?1 AND m.is_deleted = 0",
+                [id],
+                |row| {
+                    Ok((
+                        row.get::<_, Option<String>>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                        row.get::<_, String>(3)?,
+                        row.get::<_, String>(4)?,
+                        row.get::<_, String>(5)?,
+                        row.get::<_, i64>(6)?,
+                        row.get::<_, String>(7)?,
+                    ))
+                },
+            )
+            .map_err(|e| e.to_string())?;
+        if let Some(snapshots) = snapshots {
+            let snapshot = &snapshots[index];
+            if snapshot.get("id").and_then(Value::as_str) != Some(id.as_str())
+                || snapshot.get("revision").and_then(Value::as_i64) != Some(revision)
+                || snapshot.get("contentHash").and_then(Value::as_str) != Some(hash.as_str())
+            {
+                return Err("A source note changed while merging. Please try again.".to_owned());
+            }
+        } else {
+            markdowns.push(resolve_sidecar_merge_markdown(
+                &markdown,
+                &content_text,
+                &content_json,
+            )?);
         }
-        if let Some(title) = row.0 {
+        if first_notebook_id.is_none() {
+            first_notebook_id = Some(notebook_id);
+        }
+        if let Some(title) = title {
             if !title.trim().is_empty() {
                 titles.push(title);
             }
         }
-        markdowns.push(resolve_sidecar_merge_markdown(&row.2, &row.4, &row.5)?);
-        let memo_tags: Vec<String> = serde_json::from_str(&row.3).unwrap_or_default();
+        let memo_tags: Vec<String> = serde_json::from_str(&tags_json).unwrap_or_default();
         tags.extend(memo_tags);
     }
     let notebook_id = target_notebook.or(first_notebook_id).unwrap_or_default();
@@ -318,44 +366,62 @@ pub(crate) fn merge_memos(database: &Connection, params: &Value) -> Result<Value
         .unwrap_or_default();
     tags.sort();
     tags.dedup();
-    let markdown = markdowns.join("\n\n<!-- edgeever:merge-divider -->\n\n---\n\n");
-    let mut content = Vec::new();
-    for (index, section) in markdowns.iter().enumerate() {
-        if index > 0 {
-            content.push(json!({ "type": "edgeeverMergeDivider" }));
+    let (content_json_text, markdown, content_text) = if let Some(prepared) = prepared {
+        let doc = prepared
+            .get("contentJson")
+            .filter(|doc| {
+                doc.get("type").and_then(Value::as_str) == Some("doc")
+                    && doc
+                        .get("content")
+                        .and_then(Value::as_array)
+                        .is_some_and(|nodes| !nodes.is_empty())
+            })
+            .ok_or_else(|| "Invalid prepared merge document".to_owned())?;
+        (
+            doc.to_string(),
+            string_param(prepared, "contentMarkdown")?,
+            string_param(prepared, "contentText")?,
+        )
+    } else {
+        let markdown = markdowns.join("\n\n<!-- edgeever:merge-divider -->\n\n---\n\n");
+        let mut content = Vec::new();
+        for (index, section) in markdowns.iter().enumerate() {
+            if index > 0 {
+                content.push(json!({ "type": "edgeeverMergeDivider" }));
+            }
+            if let Some(nodes) = markdown_doc(section)
+                .get("content")
+                .and_then(Value::as_array)
+            {
+                content.extend(nodes.iter().cloned());
+            }
         }
-        if let Some(nodes) = markdown_doc(section)
-            .get("content")
-            .and_then(Value::as_array)
-        {
-            content.extend(nodes.iter().cloned());
-        }
-    }
-    let content_json = json!({ "type": "doc", "content": content });
-    let content_json_text = content_json.to_string();
-    let content_text = markdowns
-        .iter()
-        .flat_map(|section| section.lines())
-        .collect::<Vec<_>>()
-        .join(" ");
+        let content_text = markdowns
+            .iter()
+            .flat_map(|section| section.lines())
+            .collect::<Vec<_>>()
+            .join(" ");
+        (
+            json!({ "type": "doc", "content": content }).to_string(),
+            markdown,
+            content_text,
+        )
+    };
     let id = now_id("memo_local");
     let source_ids = serde_json::to_string(&ids).unwrap_or_else(|_| "[]".to_owned());
-    let tx = database
-        .unchecked_transaction()
-        .map_err(|e| e.to_string())?;
     tx.execute("INSERT INTO memos (id, notebook_id, title, excerpt, tags_json, source_memo_ids, merge_source_count, created_by, updated_by) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'desktop', 'desktop')", rusqlite::params![id, notebook_id, if title.is_empty() { None } else { Some(title.clone()) }, content_text.chars().take(180).collect::<String>(), serde_json::to_string(&tags).unwrap_or_else(|_| "[]".to_owned()), source_ids, ids.len() as i64]).map_err(|e| e.to_string())?;
     tx.execute("INSERT INTO memo_contents (memo_id, content_json, content_markdown, content_text, content_hash) VALUES (?1, ?2, ?3, ?4, ?5)", rusqlite::params![id, content_json_text, markdown, content_text, content_hash(&markdown, &content_json_text)]).map_err(|e| e.to_string())?;
     for source_id in &ids {
         tx.execute("UPDATE memos SET is_deleted = 1, deleted_at = strftime('%Y-%m-%dT%H:%M:%fZ','now'), merged_into_memo_id = ?1, merged_at = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?2", rusqlite::params![id, source_id]).map_err(|e| e.to_string())?;
         tx.execute("UPDATE resources SET original_memo_id = COALESCE(original_memo_id, memo_id), memo_id = ?1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE memo_id = ?2", rusqlite::params![id, source_id]).map_err(|e| e.to_string())?;
     }
-    tx.commit().map_err(|e| e.to_string())?;
     enqueue_change(
-        database,
+        &tx,
         "memo.merge",
         &id,
         &json!({ "memoIds": ids, "notebookId": notebook_id, "title": title, "temporaryId": id }),
     )?;
+    tx.commit().map_err(|e| e.to_string())?;
     memo_value(database, &id, true).map(|memo| json!({ "memo": memo }))
 }
 

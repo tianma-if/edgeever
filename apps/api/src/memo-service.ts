@@ -5,6 +5,7 @@ import {
   docToMarkdown,
   docToText,
   emptyDoc,
+  getImageOnlyDocumentImages,
   markdownToDoc,
   mergeMemoDocs,
   resolveMemoContentDoc,
@@ -943,7 +944,7 @@ export const mergeMemosRecord = async (
   const sourceDocs = ordered.map((memo) => {
     const contentJson = parseDoc(memo.content_json);
     const doc = resolveMemoContentDoc(contentJson, memo.content_markdown);
-    if (!docToText(doc).trim() && memo.content_text.trim()) {
+    if (!docToText(doc).trim() && memo.content_text.trim() && !getImageOnlyDocumentImages(doc)) {
       throw new AppError("merge_content_unavailable", "One or more memo bodies could not be recovered safely.", 409);
     }
     return doc;
