@@ -196,9 +196,8 @@ const upgradeMathCodeFences = (doc: TiptapDoc): TiptapDoc => {
   return content.some((node, index) => node !== doc.content[index]) ? { ...doc, content } : doc;
 };
 
-// Older desktop merges stored each nonblank Markdown line as a literal paragraph.
-// Match that exact shape so an intentionally escaped rule or a rich document
-// is never replaced just because its Markdown copy contains a horizontal rule.
+// Older desktop writes stored each nonblank Markdown line as a literal paragraph.
+// Match that exact shape before treating rules or images as omitted formatting.
 const isLegacyDesktopLineDocument = (doc: TiptapDoc, markdown: string) => {
   const lines = markdown.split(/\r?\n/).filter((line) => line.trim());
   return lines.length === doc.content.length && doc.content.every((node, index) => {
@@ -260,7 +259,8 @@ export const resolveMemoContentDoc = (
     || docContainsNodeType(markdownDoc, INLINE_MATH_NODE_TYPE)
     || docContainsNodeType(markdownDoc, EMPTY_EXTERNAL_LINK_NODE_TYPE)
     || docContainsNodeType(markdownDoc, "details")
-    || (docContainsNodeType(markdownDoc, "horizontalRule") && isLegacyDesktopLineDocument(currentDoc, contentMarkdown))
+    || ((docContainsNodeType(markdownDoc, "horizontalRule") || docContainsNodeType(markdownDoc, "image"))
+      && isLegacyDesktopLineDocument(currentDoc, contentMarkdown))
     || !docToText(currentDoc)
     ? markdownDoc
     : currentDoc;

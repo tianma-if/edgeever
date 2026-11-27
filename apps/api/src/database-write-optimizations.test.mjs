@@ -110,6 +110,41 @@ describe("database write optimizations", () => {
     sqlite.close();
   });
 
+  test("persists a photo gallery and keeps it intact when merging with prose", async () => {
+    const { database, sqlite } = createDatabase();
+    try {
+      const seed = getSeedMemo(sqlite);
+      const actor = { actorType: "user", actorId: "user_owner" };
+      const addMemo = (id, markdown) => {
+        sqlite.query(
+          `INSERT INTO memos (id, workspace_id, notebook_id, title, excerpt, tags_json, created_by, updated_by)
+           VALUES (?, ?, ?, ?, '', '[]', 'user', 'user')`,
+        ).run(id, seed.workspace_id, seed.notebook_id, id);
+        sqlite.query(
+          `INSERT INTO memo_contents (memo_id, content_json, content_markdown, content_text, content_hash)
+           VALUES (?, ?, ?, '', ?)`,
+        ).run(id, JSON.stringify(markdownToDoc(markdown)), markdown, id);
+      };
+      addMemo("memo_photo_a", "![A](/api/v1/resources/res_a/blob)");
+      addMemo("memo_photo_b", "![B](/api/v1/resources/res_b/blob)");
+      addMemo("memo_photo_text", "Before\n\n![C](/api/v1/resources/res_c/blob)\n\nAfter");
+
+      const galleryMemo = await mergeMemosRecord(database, seed.workspace_id, { memoIds: ["memo_photo_b", "memo_photo_a"] }, actor, "owner");
+      expect(galleryMemo.contentJson.content.map((node) => node.type)).toEqual(["edgeeverImageGallery"]);
+      expect(galleryMemo.contentJson.content[0].content.map((node) => node.attrs.alt)).toEqual(["B", "A"]);
+      expect(galleryMemo.contentMarkdown).not.toContain("edgeever:merge-divider");
+
+      const mixed = await mergeMemosRecord(database, seed.workspace_id, { memoIds: [galleryMemo.id, "memo_photo_text"] }, actor, "owner");
+      expect(mixed.contentJson.content.map((node) => node.type)).toEqual([
+        "edgeeverImageGallery", "edgeeverMergeDivider", "paragraph", "image", "paragraph",
+      ]);
+      expect(mixed.contentJson.content[2].content[0].text).toBe("Before");
+      expect(mixed.contentJson.content[4].content[0].text).toBe("After");
+    } finally {
+      sqlite.close();
+    }
+  });
+
   test("reuses a matching live edit session without another insert", async () => {
     const { database, sqlite } = createDatabase();
     const memo = getSeedMemo(sqlite);

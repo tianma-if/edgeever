@@ -763,6 +763,41 @@ describe("image gallery compatibility", () => {
 });
 
 describe("merge divider", () => {
+  test("combines image-only sources and existing galleries in source order", () => {
+    const first = { type: "image", attrs: { src: "https://example.com/first.png", alignment: "left", width: 35 } };
+    const second = markdownToDoc("![Second](https://example.com/second.png)\n\n![Third](https://example.com/third.png)");
+    const merged = mergeMemoDocs([{ type: "doc", content: [{ type: "paragraph" }, first] }, second]);
+    expect(merged.content).toEqual([{
+      type: "edgeeverImageGallery",
+      attrs: { layout: "auto" },
+      content: [first, ...second.content[0].content],
+    }]);
+    const reopened = markdownToDoc(docToMarkdown(merged));
+    expect(reopened.content.map((node) => node.type)).toEqual(["edgeeverImageGallery"]);
+    expect(reopened.content[0].content[0].attrs).toMatchObject(first.attrs);
+  });
+
+  test("keeps original block order and dividers whenever a source has prose", () => {
+    const photos = markdownToDoc("![First](https://example.com/first.png)\n\n![Second](https://example.com/second.png)");
+    const mixed = markdownToDoc("Above\n\n![Third](https://example.com/third.png)\n\nBelow");
+    const merged = mergeMemoDocs([photos, mixed]);
+    expect(merged.content).toEqual([...photos.content, { type: MERGE_DIVIDER_NODE_TYPE }, ...mixed.content]);
+  });
+
+  test("recovers images in older desktop sources without interpreting escaped literals", () => {
+    const markdown = "![First](/api/v1/resources/res_first/blob)";
+    const stored = { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: markdown }] }] };
+    expect(resolveMemoContentDoc(stored, markdown)).toEqual(markdownToDoc(markdown));
+    expect(resolveMemoContentDoc(stored, `\\${markdown}`)).toBe(stored);
+
+    const mixedMarkdown = `Before\n\n${markdown}\n\nAfter`;
+    const legacyMixed = { type: "doc", content: ["Before", markdown, "After"].map((text) => ({
+      type: "paragraph", content: [{ type: "text", text }],
+    })) };
+    const mixed = resolveMemoContentDoc(legacyMixed, mixedMarkdown);
+    expect(mixed.content.map((node) => node.type)).toEqual(["paragraph", "image", "paragraph"]);
+  });
+
   test("joins source docs with a semantic merge divider node", () => {
     const merged = mergeMemoDocs([
       markdownToDoc("first note"),
