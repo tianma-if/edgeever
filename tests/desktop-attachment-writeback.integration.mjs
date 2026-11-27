@@ -1,11 +1,12 @@
 // Run with Node after EDGE_EVER_DESKTOP_BUILD=1 build:web, building the sidecar and the backup
 // worker. Uses the development Electron shell, an isolated profile and real API.
-// Only OS launching/revealing and a temporary network outage are simulated.
+// Stub OS launching/revealing and an upload outage. Stop the API for offline reopening.
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { _electron as electron, expect } from "@playwright/test";
@@ -112,7 +113,7 @@ try {
   await api(`/resources/${resource.id}/blob`, { method: "PUT", body: competing });
   await writeFile(localPath, "conflicting local changes");
   await expect.poll(() => page.evaluate(() => window.edgeeverDesktop.attachmentWritebacks().then(items => items.some(item => item.status === "conflict"))), { timeout: 20_000 }).toBe(true);
-  await page.getByRole("button", { name: /Unsynced attachments ·/ }).click();
+  await page.getByRole("button", { name: /Unsynced attachments ·/ }).press("Enter");
   await expect(page.getByText("The original attachment changed. Your local edits are kept; neither version was overwritten.")).toBeVisible();
   await page.waitForFunction(() => {
     const dialog = document.querySelector('[role="dialog"]');
@@ -124,7 +125,59 @@ try {
   await expect.poll(() => page.evaluate(() => window.edgeeverDesktop.attachmentWritebacks().then(items => items.some(item => item.status === "conflict")))).toBe(true);
   assert.equal(await cloudText(), "another device's edit");
   results.push("competing device causes a visible conflict; local edits survive and Retry never forces an overwrite");
-  await writeFile(join(evidence, "results.json"), JSON.stringify({ platform: process.platform, baseline: "6be20cfc", results, limitations: ["OS launching/revealing and network outage are simulated", "No Windows Excel/WPS or old-release upgrade acceptance"] }, null, 2) + "\n");
+
+  await page.getByRole("dialog").getByRole("button", { name: "Close", exact: true }).click();
+  const openCurrent = page.getByRole("link", { name: "Open externally", exact: true });
+  await openCurrent.click();
+  await expect.poll(() => application.evaluate(() => globalThis.testOpened.length)).toBe(1);
+  const editing = await application.evaluate(() => globalThis.testOpened[0]);
+  assert.equal(await readFile(editing, "utf8"), "another device's edit");
+
+  // Hold the next attachment response after it has fetched the previous server version.
+  await application.evaluate(({ net }, id) => {
+    const fetch = net.fetch.bind(net);
+    net.fetch = async (url, init) => {
+      if (new URL(url).pathname !== `/api/v1/resources/${id}/blob` || (init?.method ?? "GET") !== "GET") return fetch(url, init);
+      net.fetch = fetch;
+      const response = await fetch(url, init);
+      await new Promise(resolve => { globalThis.releaseOldDownload = resolve; });
+      return response;
+    };
+  }, resource.id);
+  await openCurrent.click();
+  await expect.poll(() => application.evaluate(() => typeof globalThis.releaseOldDownload)).toBe("function");
+  const newBytes = Buffer.from("new revision saved while the previous download is open");
+  const sha256 = createHash("sha256").update(newBytes).digest("hex");
+  await writeFile(editing, newBytes);
+  await expect.poll(cloudText, { timeout: 20_000 }).toBe(newBytes.toString());
+  await expect.poll(() => page.evaluate(size => window.edgeeverDesktop.attachmentWritebacks().then(items =>
+    items.some(item => item.status === "saved" && item.byteSize === size)), newBytes.length), { timeout: 20_000 }).toBe(true);
+  await application.evaluate(() => globalThis.releaseOldDownload());
+  await expect.poll(() => application.evaluate(() => globalThis.testOpened.length)).toBe(2);
+  const overlapping = await application.evaluate(() => globalThis.testOpened[1]);
+  assert.equal(await readFile(overlapping, "utf8"), "another device's edit");
+
+  server.stdin.end();
+  await new Promise(resolveExit => server.once("exit", resolveExit));
+  server = null;
+  await openCurrent.click();
+  await expect.poll(() => application.evaluate(() => globalThis.testOpened.length)).toBe(3);
+  const offlinePath = await application.evaluate(() => globalThis.testOpened[2]);
+  assert.deepEqual(await readFile(offlinePath), newBytes, "offline reopen after late old download");
+  const cacheDir = resolve(offlinePath, "../../..", "resource-cache");
+  assert.deepEqual(await readFile(join(cacheDir, `${resource.id}.bin`)), newBytes);
+  const metadata = JSON.parse(await readFile(join(cacheDir, `${resource.id}.json`), "utf8"));
+  assert.equal(metadata.byteSize, newBytes.length); assert.equal(metadata.sha256, sha256);
+  assert.deepEqual((await readdir(cacheDir)).filter(name => name.startsWith(`${resource.id}.bin.download-`)), []);
+
+  await application.close(); application = null;
+  await launch();
+  await page.getByRole("link", { name: "Open externally", exact: true }).click();
+  await expect.poll(() => application.evaluate(() => globalThis.testOpened.length)).toBe(1);
+  const coldPath = await application.evaluate(() => globalThis.testOpened[0]);
+  assert.deepEqual(await readFile(coldPath), newBytes, "reopen after restarting Electron with the API stopped");
+  results.push(`old GET finished after save; stopped the API; offline desktop reopen before and after app restart, cache and server matched ${sha256}`);
+  await writeFile(join(evidence, "results.json"), JSON.stringify({ platform: process.platform, electron: await application.evaluate(() => process.versions.electron), results, limitations: ["OS launching/revealing and the initial upload outage are simulated", "No Windows Excel/WPS or old-release upgrade acceptance"] }, null, 2) + "\n");
   console.log(JSON.stringify({ ok: true, results, evidence }, null, 2));
 } catch (error) {
   if (page) {

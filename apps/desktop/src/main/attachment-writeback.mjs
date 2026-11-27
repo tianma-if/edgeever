@@ -103,7 +103,9 @@ export const replaceAttachmentResource = async (request, input) => {
   try {
     return await replaceSnapshot(send, input, progress);
   } catch (error) {
-    signal.throwIfAborted();
+    input.signal?.throwIfAborted();
+    // A stalled error body can still leave a definitive HTTP status.
+    if (error.retryable === undefined) idle.signal.throwIfAborted();
     throw error;
   } finally { clearTimeout(timer); }
 };
@@ -248,10 +250,12 @@ export const createAttachmentWritebackManager = options => {
         const observed = signature(info);
         if (observed === record.signature) {
           // Older clients could persist a late Retry after the save was acknowledged.
-          if (record.status === "pending" && record.savedAt != null) {
-            record.status = "saved";
-            record.retryable = false;
-            await persist(entry);
+          if (record.savedAt != null && (record.status === "pending" || record.status === "error")) {
+            const restored = { ...record, status: "saved", retryable: false, retryAt: 0, errorCode: null };
+            assertCurrent();
+            await persist(entry, restored);
+            assertCurrent();
+            Object.assign(record, restored);
           }
           return;
         }

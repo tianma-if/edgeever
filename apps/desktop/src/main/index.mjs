@@ -15,7 +15,7 @@ import { SidecarRpcClient } from "./rpc.mjs";
 import { instanceOrigin, decodeSessionCredential, credentialForUrl, writeSessionCredential, clearInstanceSessionCookie } from "./session-credential.mjs";
 import { uploadAttachmentSnapshot } from "./attachment-upload.mjs";
 import { resourceRequestHeaders } from "./resource-request.mjs";
-import { createResourceProtocolHandler } from "./resource-protocol.mjs";
+import { createResourceCacheWrites, createResourceProtocolHandler } from "./resource-protocol.mjs";
 import { downloadContentDispositionFromRequest, isSafeResourceId, resourceIdFromRequest, resourceResponseHeaders } from "./resource-url.mjs";
 import { isSupportedAssociatedFile } from "./file-association.mjs";
 import { createWeChatShareController } from "./wechat-share-import.mjs";
@@ -1025,7 +1025,9 @@ const createTray = () => {
   tray.on("double-click", () => showWindow(mainWindow));
 };
 
+const resourceCacheWrites = createResourceCacheWrites();
 const handleResourceProtocolRequest = createResourceProtocolHandler({
+  cacheWrites: resourceCacheWrites,
   getDirectory: resourceCacheDirectory,
   getIntegrity: resourceId => sidecar?.request("resource.integrity", { resourceId }),
   getApiBaseUrl: () => configuredApiBaseUrl,
@@ -2169,11 +2171,14 @@ const startApplication = async () => {
       assertCurrent();
       const directory = resourceCacheDirectory();
       const currentSidecar = sidecar;
-      await mkdir(directory, { recursive: true, mode: 0o700 });
-      await restrictDirectory(directory);
-      assertCurrent();
-      await writeAttachmentFile(join(directory, `${resource.id}.bin`), bytes);
-      await writeAttachmentFile(join(directory, `${resource.id}.json`), JSON.stringify({ contentType: resource.mimeType, byteSize: resource.byteSize, sha256: resource.sha256 }));
+      const bytesPath = join(directory, `${resource.id}.bin`);
+      await resourceCacheWrites.replace(bytesPath, async () => {
+        await mkdir(directory, { recursive: true, mode: 0o700 });
+        await restrictDirectory(directory);
+        assertCurrent();
+        await writeAttachmentFile(bytesPath, bytes);
+        await writeAttachmentFile(join(directory, `${resource.id}.json`), JSON.stringify({ contentType: resource.mimeType, byteSize: resource.byteSize, sha256: resource.sha256 }));
+      });
       assertCurrent();
       if (!currentSidecar) throw new Error("Sidecar unavailable");
       await currentSidecar.request("resource.cache", { resource });

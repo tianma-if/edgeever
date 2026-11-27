@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
-import { createResourceProtocolHandler } from "./resource-protocol.mjs";
+import { createResourceCacheWrites, createResourceProtocolHandler } from "./resource-protocol.mjs";
 
 const directories = [];
 afterEach(async () => { await Promise.all(directories.splice(0).map(path => rm(path, { recursive: true, force: true }))); });
@@ -96,6 +96,41 @@ test("legacy truncated cache automatically downloads the full resource using cat
   expect(await (await f.handler(opening())).text()).toBe(full);
   expect(f.requests).toBe(1);
   expect(JSON.parse(await readFile(join(f.directory, "res_1.json"), "utf8"))).toMatchObject({ byteSize: full.length, sha256: sha256(full) });
+});
+
+test("legacy checksum promotion during writeback preserves the acknowledged offline version", async () => {
+  const f = await fixture({ fetch: async () => { throw new TypeError("Offline"); } });
+  const bytesPath = join(f.directory, "res_1.bin");
+  const metadataPath = join(f.directory, "res_1.json");
+  await writeFile(metadataPath, JSON.stringify({ contentType: "text/plain" }));
+  const writes = createResourceCacheWrites();
+  const promoting = Promise.withResolvers();
+  const handler = createResourceProtocolHandler({
+    ...f.options,
+    getIntegrity: () => ({ byteSize: 21, sha256: sha256("current account bytes") }),
+    cacheWrites: {
+      observe(path) {
+        const read = writes.observe(path);
+        return { ...read, publish(write) {
+          const published = read.publish(write);
+          promoting.resolve();
+          return published;
+        } };
+      },
+    },
+  });
+  const updated = "the edited attachment";
+  const save = writes.replace(bytesPath, async () => {
+    // Both old files remain visible until the in-progress replacement installs its bytes.
+    await promoting.promise;
+    await writeFile(bytesPath, updated);
+    await writeFile(metadataPath, JSON.stringify({ byteSize: updated.length, sha256: sha256(updated) }));
+  });
+  const legacyRead = handler(opening());
+  await save;
+  await (await legacyRead).arrayBuffer();
+  expect(JSON.parse(await readFile(metadataPath, "utf8")).sha256).toBe(sha256(updated));
+  expect(await (await handler(reload())).text()).toBe(updated);
 });
 
 test("valid legacy cache remains available offline using synced size and checksum", async () => {

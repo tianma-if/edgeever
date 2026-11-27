@@ -1,4 +1,5 @@
 import { once } from "node:events";
+import { addAbortSignal } from "node:stream";
 
 // net.fetch does not expose the Chromium upload counter. Electron's ClientRequest
 // uses the same network stack and session. Let Request encode the same multipart body.
@@ -12,10 +13,7 @@ export const uploadAttachmentSnapshot = async (net, url, init, progress) => {
     credentials: "include", redirect: "error",
   });
   let incoming;
-  const abort = () => {
-    incoming?.destroy(signal.reason);
-    client.abort();
-  };
+  const abort = () => client.abort();
   signal.addEventListener("abort", abort, { once: true });
   // A network error can arrive after the headers, while the JSON is being read.
   client.on("error", error => incoming?.destroy(error));
@@ -32,14 +30,36 @@ export const uploadAttachmentSnapshot = async (net, url, init, progress) => {
     client.end(bytes);
     [incoming] = await response;
     progress();
-    const chunks = [];
-    for await (const chunk of incoming) {
-      if (chunk.length) progress();
-      chunks.push(chunk);
-    }
-    return new Response(chunks.length ? Buffer.concat(chunks) : null, {
-      status: incoming.statusCode, headers: incoming.headers,
+    // The caller can discard a conflict or unsupported-route body at the headers.
+    // Keep cancellation connected to Chromium until the response stream closes.
+    incoming.once("close", () => {
+      if (!incoming.readableEnded) client.abort();
     });
+    addAbortSignal(signal, incoming);
+    const responseInit = { status: incoming.statusCode, headers: incoming.headers };
+    if ([204, 205, 304].includes(incoming.statusCode)) {
+      incoming.resume();
+      return new Response(null, responseInit);
+    }
+    const chunks = incoming[Symbol.asyncIterator]();
+    let cancelled = false;
+    const body = new ReadableStream({
+      async pull(controller) {
+        const { done, value } = await chunks.next();
+        if (cancelled) return;
+        if (done) return controller.close();
+        if (value.length) progress();
+        controller.enqueue(value);
+      },
+      cancel() {
+        cancelled = true;
+        incoming.destroy();
+      },
+    }, { highWaterMark: 0 });
+    return new Response(body, responseInit);
+  } catch (error) {
+    client.abort();
+    throw error;
   } finally {
     clearInterval(poll);
     signal.removeEventListener("abort", abort);

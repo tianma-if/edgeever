@@ -60,7 +60,7 @@ test("status distinguishes numbered local copies without renaming uploads", asyn
   expect(f.requests[0].filename).toBe("budget.xlsx");
 });
 
-for (const scenario of ["abort", "replace-during-snapshot", "retry-persistence", "scope-during-acknowledgement", "cleanup-after-acknowledgement", "acknowledgement-commit-failure", "pending-lock"]) {
+for (const scenario of ["abort", "replace-during-snapshot", "retry-persistence", "scope-during-acknowledgement", "cleanup-after-acknowledgement", "acknowledgement-commit-failure", "pending-lock", "legacy-repair-lock"]) {
   test(`real file/DOM failure recovery: ${scenario}`, async () => {
     // Built-in filesystem fault injection stays in its own Node process so it
     // cannot affect other tests or turn a timing race into a production hook.
