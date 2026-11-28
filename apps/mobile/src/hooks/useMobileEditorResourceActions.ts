@@ -1,7 +1,6 @@
 import { useCallback, type MutableRefObject } from "react";
 import { Alert } from "react-native";
 import type { createEdgeEverClient } from "@edgeever/client";
-import { RESOURCE_THUMBNAIL_DEFAULT_WIDTH } from "@edgeever/shared";
 import type { LocalTiptapEditorRef } from "../components/LocalTiptapEditor";
 import {
   openMobileResource,
@@ -47,7 +46,6 @@ export const useMobileEditorResourceActions = ({
       cache: resourceCacheRef.current,
       getResourceBlob: client.getResourceBlob,
       onFailure: onLoadFailure,
-      thumbnailWidth: RESOURCE_THUMBNAIL_DEFAULT_WIDTH,
       token,
     });
   }, [baseUrl, client, onLoadFailure, resourceCacheRef, sessionBaseUrl, token]);

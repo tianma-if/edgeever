@@ -200,45 +200,4 @@ describe("cross-platform Wrangler runner", () => {
       expect(triggerLine).toEndWith(" END;");
     }
   });
-
-  test("opts in to the Cloudflare IMAGES binding only when EDGE_EVER_CLOUDFLARE_IMAGES=true", () => {
-    const workingDirectory = mkdtempSync(resolve(tmpdir(), "edgeever-images-binding-"));
-    const configPath = resolve(workingDirectory, "custom.toml");
-    const cliDirectory = resolve(workingDirectory, "node_modules", "wrangler", "bin");
-    const baseEnv = Object.fromEntries(
-      ["PATH", "Path", "PATHEXT", "SystemRoot", "ComSpec", "TEMP", "TMP"]
-        .map((name) => [name, process.env[name]])
-        .filter((entry): entry is [string, string] => Boolean(entry[1])),
-    );
-    const runWithEnv = (extraEnv: Record<string, string>) => spawnSync(
-      "node",
-      [resolve(import.meta.dir, "../scripts/run-wrangler.mjs"), "--version"],
-      {
-        cwd: workingDirectory,
-        encoding: "utf8",
-        env: { ...baseEnv, WRANGLER_CONFIG: configPath, ...extraEnv },
-      },
-    );
-
-    try {
-      mkdirSync(cliDirectory, { recursive: true });
-      writeFileSync(configPath, 'name = "images-test"\n');
-      writeFileSync(resolve(cliDirectory, "wrangler.js"), "process.exit(0);\n");
-
-      const withoutImages = runWithEnv({ EDGE_EVER_CLOUDFLARE_IMAGES: "false" });
-      expect(withoutImages.status).toBe(0);
-      expect(readFileSync(resolve(workingDirectory, ".wrangler.generated.toml"), "utf8")).not.toContain("[images]");
-
-      const withImages = runWithEnv({ EDGE_EVER_CLOUDFLARE_IMAGES: "true" });
-      expect(withImages.status).toBe(0);
-      const generated = readFileSync(resolve(workingDirectory, ".wrangler.generated.toml"), "utf8");
-      expect(generated).toContain('[images]\nbinding = "IMAGES"');
-
-      const invalidImages = runWithEnv({ EDGE_EVER_CLOUDFLARE_IMAGES: "yes" });
-      expect(invalidImages.status).not.toBe(0);
-      expect(invalidImages.stderr).toContain("EDGE_EVER_CLOUDFLARE_IMAGES must be true or false.");
-    } finally {
-      rmSync(workingDirectory, { recursive: true, force: true });
-    }
-  });
 });

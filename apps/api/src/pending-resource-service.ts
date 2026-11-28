@@ -5,7 +5,6 @@ import { AppError } from "./app-error";
 import { randomToken } from "./auth-crypto";
 import { createId, isoNow } from "./entity-utils";
 import { sha256, sha256Bytes } from "./hash-utils";
-import { deleteResourceThumbnails } from "./image-thumbnail";
 import { escapeMarkdownImageAlt, escapeMarkdownLinkLabel } from "./mcp-json-rpc";
 import { resolveObjectStorage } from "./object-storage";
 import {
@@ -113,20 +112,9 @@ const describeUploaded = (row: PendingResourceRow) => {
 export const cleanupExpiredPendingResources = async (env: Bindings, now = isoNow()) => {
   const db = env.storage.db;
   const expired = await db.prepare(
-    `SELECT id, workspace_id, kind, mime_type, filename, byte_size, object_key, storage_config_id, sha256, state FROM pending_resources
+    `SELECT id, object_key, storage_config_id, state FROM pending_resources
      WHERE expires_at <= ? ORDER BY expires_at ASC LIMIT ?`,
-  ).bind(now, CLEANUP_BATCH_SIZE).all<{
-    id: string;
-    workspace_id: string;
-    kind: "image" | "attachment";
-    mime_type: string;
-    filename: string;
-    byte_size: number;
-    object_key: string;
-    storage_config_id: string | null;
-    sha256: string | null;
-    state: string;
-  }>();
+  ).bind(now, CLEANUP_BATCH_SIZE).all<{ id: string; object_key: string; storage_config_id: string | null; state: string }>();
   let deleted = 0;
   for (const row of expired.results ?? []) {
     const removed = await db.prepare(
@@ -138,15 +126,6 @@ export const cleanupExpiredPendingResources = async (env: Bindings, now = isoNow
     if (!row.storage_config_id) continue;
     const storage = await resolveObjectStorage(env, row.storage_config_id);
     await storage.store.delete(row.object_key).catch(() => undefined);
-    await deleteResourceThumbnails(storage.store, row.workspace_id, {
-      id: row.id,
-      kind: row.kind,
-      mime_type: row.mime_type,
-      byte_size: row.byte_size,
-      object_key: row.object_key,
-      sha256: row.sha256,
-      updated_at: null,
-    }).catch(() => undefined);
   }
   return deleted;
 };
@@ -528,7 +507,7 @@ export const consumePendingResourceUpload = async (
 /** Pending upload readable through the authenticated resource URL. */
 export const getPendingResourceBlobRow = (db: DatabaseAdapter, workspaceId: string, id: string) =>
   db.prepare(
-    `SELECT id, kind, mime_type, filename, byte_size, object_key, storage_config_id, sha256
+    `SELECT id, kind, mime_type, filename, byte_size, object_key, storage_config_id
      FROM pending_resources
      WHERE id = ? AND workspace_id = ? AND state = 'uploaded' AND expires_at > ?`,
   ).bind(id, workspaceId, isoNow()).first<{
@@ -539,7 +518,6 @@ export const getPendingResourceBlobRow = (db: DatabaseAdapter, workspaceId: stri
     byte_size: number;
     object_key: string;
     storage_config_id: string;
-    sha256: string | null;
   }>();
 
 export const parseResourceIds = (value: unknown): string[] | undefined => {

@@ -413,19 +413,6 @@ custom_domain = ${customDomain ? "true" : "false"}
 `;
 }
 
-const cloudflareImages = envValue("CLOUDFLARE_IMAGES")?.toLowerCase();
-if (cloudflareImages && !["true", "false"].includes(cloudflareImages)) {
-  throw new Error("EDGE_EVER_CLOUDFLARE_IMAGES must be true or false.");
-}
-if (cloudflareImages === "true" && !/^\s*\[images\]/m.test(config)) {
-  changed = true;
-  config = `${config.trimEnd()}
-
-[images]
-binding = "IMAGES"
-`;
-}
-
 if (isRemoteDevCommand && !instance) {
   console.error(
     "Remote development requires an explicit instance. Run EDGE_EVER_INSTANCE=<name> bun run dev:remote.",

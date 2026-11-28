@@ -1,12 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import {
-  DEFAULT_MEMO_TITLE,
-  RESOURCE_THUMBNAIL_DEFAULT_WIDTH,
-  parseDiagramDocument,
-  type MemoDetail,
-  type Notebook,
-  type TiptapDoc,
-} from "@edgeever/shared";
+import { DEFAULT_MEMO_TITLE, parseDiagramDocument, type MemoDetail, type Notebook, type TiptapDoc } from "@edgeever/shared";
 import {
   NOTE_IMAGE_THEMES,
   NOTE_IMAGE_THEME_OPTIONS,
@@ -674,7 +667,6 @@ export const MemoDetailModal = ({
       cacheLimit: RESOURCE_DATA_URL_CACHE_LIMIT,
       getResourceBlob: client.getResourceBlob,
       onFailure: imageLoadFailureNotifier,
-      thumbnailWidth: RESOURCE_THUMBNAIL_DEFAULT_WIDTH,
       token: session?.token,
     });
   }, [client, imageLoadFailureNotifier, session?.baseUrl, session?.token]);

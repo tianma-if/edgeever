@@ -16,8 +16,6 @@ Ordinary deployments use D1 `edgeever`, R2 `edgeever-resources`, and username `a
 
 Without an explicit override, existing deployments keep their current R2 bucket and administrator username.
 
-To enable Cloudflare Images thumbnail resizing (`?w=`) on Workers, set `EDGE_EVER_CLOUDFLARE_IMAGES=true` in **Settings → Build → Build variables and secrets** (or bind `IMAGES` in an external `WRANGLER_CONFIG` `[images]` section) after enabling Cloudflare Images on the account. Without the binding, existing cached thumbnails remain usable and `?w=` cache misses return the original with `Cache-Control: private, no-cache`.
-
 ## Updates and troubleshooting
 
 - A push to `main` builds, applies D1 migrations, deploys, and verifies EdgeEver.

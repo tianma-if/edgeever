@@ -26,7 +26,7 @@
 5. **连接 Fork**
    - 在这个已有 Worker 的 **Settings** → **Builds** → **Connect** 中授权 GitHub 访问并选择 Fork 的 `main` 分支。参考 [Cloudflare 连接已有 Worker 的步骤](https://developers.cloudflare.com/workers/ci-cd/builds/#connect-an-existing-worker)。不要使用 Deploy to Cloudflare 模板入口，也不要创建 Pages 应用。
    - 使用仓库根目录与默认部署命令 `npx wrangler deploy`，由 Cloudflare 在线执行并接入 EdgeEver 的受验证部署流程。已有部署可保留显式的 `bun run build:cloudflare` 与 `bun run deploy:cloudflare-builds` 命令。
-   - 不要修改 `wrangler.toml` 或重复添加 binding。部署根据 `edgeever` 自动查询 D1 UUID，并生成临时 `DB` 与 `RESOURCES` binding。其他数据库名称通过 `EDGE_EVER_D1_DATABASE_NAME` 设置；仅无法查询 UUID 时使用 `EDGE_EVER_D1_DATABASE_ID`。非敏感实例参数放入 Workers Builds 构建变量。如需启用 Cloudflare Images 缩略图缩放（`env.IMAGES`），可在账户开通 Cloudflare Images 后在 Workers Builds 变量中设置 `EDGE_EVER_CLOUDFLARE_IMAGES=true`（或在外部 `WRANGLER_CONFIG` 中绑定 `IMAGES`）；未配置 `[images]` 时可继续使用已缓存的缩略图，缓存未命中时返回原图并附带 `Cache-Control: private, no-cache`。
+   - 不要修改 `wrangler.toml` 或重复添加 binding。部署根据 `edgeever` 自动查询 D1 UUID，并生成临时 `DB` 与 `RESOURCES` binding。其他数据库名称通过 `EDGE_EVER_D1_DATABASE_NAME` 设置；仅无法查询 UUID 时使用 `EDGE_EVER_D1_DATABASE_ID`。非敏感实例参数放入 Workers Builds 构建变量。
    - 已有部署默认沿用线上 `RESOURCES` binding 与管理员用户名，不要求用户重命名或重新配置自定义 R2 存储桶。受版本控制的配置保持不变，确保 Fork 默认作为部署镜像。
 
 6. **配置部署权限**

@@ -34,22 +34,6 @@ describe("normalizeProtectedResourcePath", () => {
     expect(normalizeProtectedResourcePath("https://cdn.example.com/cat.png")).toBe(
       "https://cdn.example.com/cat.png"
     );
-    expect(normalizeProtectedResourcePath("https://cdn.example.com/cat.png", "", { width: 400 })).toBe(
-      "https://cdn.example.com/cat.png"
-    );
-  });
-
-  test("appends ?w= when a thumbnail width is requested", () => {
-    expect(normalizeProtectedResourcePath("/api/v1/resources/res_1", "", { width: 400 })).toBe(
-      "/api/v1/resources/res_1/blob?w=400"
-    );
-    expect(
-      normalizeProtectedResourcePath(
-        "https://demo.example.com/api/v1/resources/res_9/blob?x=1",
-        "https://demo.example.com",
-        { width: 400 }
-      )
-    ).toBe("/api/v1/resources/res_9/blob?w=400");
   });
 });
 
@@ -166,38 +150,6 @@ describe("loadProtectedResourceDataUrl", () => {
       },
     });
     expect(failCache.size).toBe(0);
-  });
-
-  test("caches thumbnails and full-size originals under separate cache keys", async () => {
-    await withFakeFileReader(async () => {
-      const requestedPaths = [];
-      const cache = new Map();
-      const blob = new Blob([new Uint8Array([9])], { type: "image/png" });
-      const baseOptions = {
-        cache,
-        getResourceBlob: async (path) => {
-          requestedPaths.push(path);
-          return blob;
-        },
-        token: "tok",
-      };
-
-      await loadProtectedResourceDataUrl("/api/v1/resources/res_img/blob", {
-        ...baseOptions,
-        thumbnailWidth: 400,
-      });
-      await loadProtectedResourceDataUrl("/api/v1/resources/res_img/blob", {
-        ...baseOptions,
-        thumbnailWidth: 400,
-      });
-      await loadProtectedResourceDataUrl("/api/v1/resources/res_img/blob", baseOptions);
-
-      expect(requestedPaths).toEqual([
-        "/api/v1/resources/res_img/blob?w=400",
-        "/api/v1/resources/res_img/blob",
-      ]);
-      expect(cache.size).toBe(2);
-    });
   });
 });
 
