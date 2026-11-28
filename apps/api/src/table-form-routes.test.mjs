@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { Database } from "bun:sqlite";
 import { globSync, readFileSync } from "node:fs";
 import { Hono } from "hono";
-import { createDefaultTableDocument, serializeTableDocument } from "@edgeever/shared";
+import { addTableField, createDefaultTableDocument, serializeTableDocument } from "@edgeever/shared";
 import { hashPassword } from "./auth-crypto.ts";
 import { updateMemoRecord } from "./memo-service.ts";
 import { registerPublicTableFormRoutes } from "./table-form-routes.ts";
@@ -97,6 +97,33 @@ describe("public table forms", () => {
       body: JSON.stringify({ cells: { fld_name: "" } }),
     }, environment);
     expect(missing.status).toBe(400);
+    sqlite.close();
+  });
+
+  test("skips saved required settings whose field became a system timestamp", async () => {
+    const { sqlite, app, environment } = await createApp();
+    const document = addTableField(createDefaultTableDocument(), { name: "创建时间", type: "createdTime" });
+    const createdField = document.fields[document.fields.length - 1];
+    await updateMemoRecord(environment.storage.db, "ws_form", "memo_form", {
+      contentMarkdown: serializeTableDocument(document),
+    }, { actorType: "user", actorId: null }, "owner", false);
+    sqlite.query("UPDATE table_forms SET fields_json = ? WHERE id = 'form_1'").run(
+      JSON.stringify([{ fieldId: createdField.id, required: true }, { fieldId: "fld_name", required: false }]),
+    );
+
+    const listed = await app.request(`/api/public/forms/${token}`, {}, environment);
+    expect(listed.status).toBe(200);
+    const body = await listed.json();
+    expect(body.form.fields.map((field) => field.name)).toEqual(["名称"]);
+
+    const submitted = await app.request(`/api/public/forms/${token}/submissions`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ cells: { fld_name: "系统字段不拦截" } }),
+    }, environment);
+    expect(submitted.status).toBe(201);
+    expect(sqlite.query("SELECT content_markdown FROM memo_contents WHERE memo_id = 'memo_form'").get().content_markdown)
+      .toContain("系统字段不拦截");
     sqlite.close();
   });
 

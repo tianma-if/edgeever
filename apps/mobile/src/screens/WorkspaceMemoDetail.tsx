@@ -36,7 +36,7 @@ import { extractImagesFromTiptapDoc, type ImageSize, type PreviewImageItem } fro
 import { encodeMobileNoteImageFileUri } from "../lib/mobile-note-image-export";
 import { SAFE_DOM_WEBVIEW_PROPS } from "../lib/mobile-dom";
 import { getNextMobileNoteSearchIndex } from "../lib/mobile-note-search";
-import { hasMobilePoster, hasMobileInfographic, hasMobileStructuredTable, hasMobileVisualDiagram, resolveMobileMemoViewerContent } from "../lib/mobile-diagram";
+import { hasMobilePoster, hasMobileInfographic, hasMobileStructuredBase, hasMobileStructuredTable, hasMobileVisualDiagram, resolveMobileMemoViewerContent } from "../lib/mobile-diagram";
 import { safeDomCall } from "../lib/safe-dom-call";
 import {
   getMobileImageTarget,
@@ -578,7 +578,7 @@ export const MemoDetailModal = ({
     [memo]
   );
   const isStructuredTable = useMemo(
-    () => (memo ? hasMobileStructuredTable(memo.contentMarkdown) : false),
+    () => (memo ? hasMobileStructuredTable(memo.contentMarkdown) || hasMobileStructuredBase(memo.contentMarkdown) : false),
     [memo]
   );
   const locksRichTextEdit = isVisualDiagram || isStructuredTable || Boolean(memo && (hasMobileInfographic(memo.contentMarkdown) || hasMobilePoster(memo.contentMarkdown)));

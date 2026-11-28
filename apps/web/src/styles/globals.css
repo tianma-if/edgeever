@@ -819,6 +819,7 @@ html[data-edgeever-extension-theme] .edgeever-memo-divider {
     grid-template-columns: var(--notebook-sidebar-width) minmax(0, 1fr);
   }
 
+
   .edgeever-workspace-selection-desktop {
     background: var(--workspace-selection);
   }

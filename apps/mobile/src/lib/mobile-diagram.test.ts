@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, test } from "bun:test";
-import { createPosterDocument, serializePosterDocument, createDefaultDiagramDocument, createDefaultTableDocument, diagramFallbackMarkdown, serializeDiagramDocument, serializeInfographicDocument, serializeTableDocument, tableFallbackMarkdown } from "@edgeever/shared";
-import { hasMobilePoster, getMobileVisualDiagramKind, hasMobileInfographic, hasMobileStructuredTable, hasMobileVisualDiagram, resolveMobileMemoViewerContent } from "./mobile-diagram";
+import { createPosterDocument, serializePosterDocument, createDefaultDiagramDocument, createDefaultTableDocument, createTableBaseDocument, addTableToBase, diagramFallbackMarkdown, serializeDiagramDocument, serializeInfographicDocument, serializeTableBaseDocument, serializeTableDocument, tableBaseFallbackMarkdown, tableFallbackMarkdown } from "@edgeever/shared";
+import { hasMobilePoster, getMobileVisualDiagramKind, hasMobileInfographic, hasMobileStructuredBase, hasMobileStructuredTable, hasMobileVisualDiagram, resolveMobileMemoViewerContent } from "./mobile-diagram";
 
 const hasMermaidCodeBlock = (doc: { content?: Array<{ type?: string; attrs?: { language?: string } }> }) =>
   Boolean(doc.content?.some((node) => node.type === "codeBlock" && node.attrs?.language === "mermaid"));
@@ -45,6 +45,27 @@ describe("mobile visual diagram viewer", () => {
     const broken = `${tableFallbackMarkdown(createDefaultTableDocument())}\n\n<!-- edgeever-table-v1:not-json -->`;
     expect(hasMobileStructuredTable(broken)).toBe(true);
     expect(JSON.stringify(resolveMobileMemoViewerContent(null, broken))).not.toContain("edgeever-table-v1");
+  });
+
+  test("projects a multi-table base into readable per-table markdown", () => {
+    const base = addTableToBase(
+      createTableBaseDocument({ tables: [{ name: "内容计划", document: createDefaultTableDocument() }] }),
+      "素材库",
+    );
+    const markdown = serializeTableBaseDocument(base);
+    expect(hasMobileStructuredBase(markdown)).toBe(true);
+    expect(hasMobileStructuredTable(markdown)).toBe(false);
+    const viewerContent = resolveMobileMemoViewerContent(null, markdown);
+    const serialized = JSON.stringify(viewerContent);
+    expect(serialized).not.toContain("edgeever-base-v1");
+    expect(serialized).not.toContain("edgeever-table-v1");
+    expect(serialized).toContain("内容计划");
+    expect(serialized).toContain("素材库");
+    expect(viewerContent.content?.filter((node) => node.type === "table").length).toBeGreaterThanOrEqual(2);
+
+    const broken = `${tableBaseFallbackMarkdown(base)}\n\n<!-- edgeever-base-v1:not-json -->`;
+    expect(hasMobileStructuredBase(broken)).toBe(true);
+    expect(JSON.stringify(resolveMobileMemoViewerContent(null, broken))).not.toContain("edgeever-base-v1");
   });
 
   test("shows a poster preview and keeps editable source out of the native reader", () => {

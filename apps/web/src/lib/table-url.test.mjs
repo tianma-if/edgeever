@@ -2,7 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolveSafeTableUrl } from "./table-url.ts";
 
-const tableEditorPaneSource = readFileSync(new URL("../components/TableEditorPane.tsx", import.meta.url), "utf8");
+// The URL cell lives in the shared cell module since the table editors were split.
+const tableEditorPaneSource = readFileSync(new URL("../components/table/table-cells.tsx", import.meta.url), "utf8");
 const windowOpenPolicySource = readFileSync(new URL("../../../desktop/src/main/window-open-policy.mjs", import.meta.url), "utf8");
 
 describe("resolveSafeTableUrl", () => {

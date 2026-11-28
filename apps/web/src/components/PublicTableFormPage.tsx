@@ -24,6 +24,7 @@ const submissionCells = (form: PublicTableForm, values: Record<string, unknown>)
 const emptyValue = (field: PublicTableFormField) => {
   if (field.type === "checkbox") return false;
   if (field.type === "attachment") return [] as { id: string; filename: string }[];
+  if (field.type === "multiSelect") return [] as string[];
   return "";
 };
 
@@ -191,6 +192,31 @@ export const PublicTableFormPage = () => {
                     <option value="" />
                     {(field.options ?? []).map((option) => <option key={option} value={option}>{option}</option>)}
                   </select>
+                ) : field.type === "multiSelect" ? (
+                  <div className="space-y-1.5 rounded-md border border-slate-200 bg-card p-3">
+                    {(field.options ?? []).map((option) => {
+                      const selected = Array.isArray(value) ? value.includes(option) : false;
+                      return (
+                        <label key={option} className="flex items-center gap-2 text-sm text-slate-700">
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900/20"
+                            checked={selected}
+                            aria-label={option}
+                            onChange={(event) => setValues((current) => {
+                              const currentValue = current[field.id] ?? emptyValue(field);
+                              const selectedValues = Array.isArray(currentValue) ? currentValue as string[] : [];
+                              const nextValues = event.target.checked
+                                ? [...selectedValues, option]
+                                : selectedValues.filter((item) => item !== option);
+                              return { ...current, [field.id]: nextValues };
+                            })}
+                          />
+                          <span>{option}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
                 ) : field.type === "attachment" ? (
                   <div className="space-y-1">
                     {Array.isArray(value) ? value.map((file) => (
@@ -207,7 +233,7 @@ export const PublicTableFormPage = () => {
                   </div>
                 ) : (
                   <Input
-                    type={field.type === "number" ? "number" : field.type === "date" ? "date" : field.type === "url" ? "url" : "text"}
+                    type={field.type === "number" ? "number" : field.type === "date" ? "date" : field.type === "url" ? "url" : field.type === "email" ? "email" : field.type === "phone" ? "tel" : "text"}
                     value={typeof value === "string" || typeof value === "number" ? String(value) : ""}
                     required={field.required}
                     aria-label={field.name}

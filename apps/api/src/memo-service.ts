@@ -1,4 +1,9 @@
-import { hasPosterDocumentMarker, parsePosterDocument } from "@edgeever/shared";
+import {
+  hasPosterDocumentMarker,
+  hasTableBaseDocumentMarker,
+  parsePosterDocument,
+  parseTableBaseDocument,
+} from "@edgeever/shared";
 import {
   createExcerpt,
   DEFAULT_MEMO_TITLE,
@@ -15,10 +20,10 @@ import {
   SUSPICIOUS_MEMO_OVERWRITE_MESSAGE,
   isMemoEditBindingValid,
   listTableAttachmentResourceIds,
+  listTableBaseAttachmentResourceIds,
   normalizeTags,
   parseTableDocument,
-  TABLE_VIEW_SCHEMA_VERSION,
-  type MemoDetail,
+   type MemoDetail,
   type MemoEditSession,
   type MemoSummary,
   type MemoUpdateInput,
@@ -1467,16 +1472,34 @@ export const updateMemoRecord = async (
       status: 409,
     };
   }
-  if (currentTable?.schemaVersion === TABLE_VIEW_SCHEMA_VERSION && nextTable && nextTable.schemaVersion !== TABLE_VIEW_SCHEMA_VERSION) {
+  if (currentTable && nextTable && nextTable.schemaVersion < currentTable.schemaVersion) {
     return {
       error: "content_conflict",
-      message: "This table uses named views. Update your client and reload the table before saving.",
+      message: "This table uses newer views. Update your client and reload the table before saving.",
       status: 409,
     };
   }
-  const removedAttachmentIds = currentTable && nextTable
-    ? [...listTableAttachmentResourceIds(currentTable)].filter((resourceId) => !listTableAttachmentResourceIds(nextTable).has(resourceId))
-    : [];
+  const currentBase = parseTableBaseDocument(current.content_markdown);
+  const nextBase = parseTableBaseDocument(contentMarkdown);
+  if (hasTableBaseDocumentMarker(contentMarkdown) && !nextBase) {
+    return {
+      error: "invalid_table_base",
+      message: "Invalid structured base source.",
+      status: 400,
+    };
+  }
+  if (currentBase && !nextBase) {
+    return {
+      error: "table_base_update_required",
+      message: "Structured base content must stay a structured base.",
+      status: 409,
+    };
+  }
+  const removedAttachmentIds = currentBase && nextBase
+    ? [...listTableBaseAttachmentResourceIds(currentBase)].filter((resourceId) => !listTableBaseAttachmentResourceIds(nextBase).has(resourceId))
+    : currentTable && nextTable
+      ? [...listTableAttachmentResourceIds(currentTable)].filter((resourceId) => !listTableAttachmentResourceIds(nextTable).has(resourceId))
+      : [];
   const releasedResources = removedAttachmentIds.length
     ? await db.prepare(
       `SELECT id, kind, mime_type, byte_size, object_key, storage_config_id, sha256, updated_at

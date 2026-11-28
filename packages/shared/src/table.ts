@@ -1,8 +1,11 @@
 import { Base64 } from "js-base64";
 import {
-  DEFAULT_TABLE_VIEW_ID, TABLE_VIEW_SCHEMA_VERSION, TABLE_VIEW_FILTER_LIMIT,
-  isValidTypedTableFilter, matchesTypedTableFilter, tableViewWeek, tableFilterNeedsValue,
-  type NamedTableView, type TableViewFilter, type TableViewOperator, type TableViewSort, type TypedTableFilter,
+  DEFAULT_TABLE_VIEW_ID, TABLE_GROUPABLE_FIELD_TYPES, TABLE_LAYOUT_SCHEMA_VERSION,
+  TABLE_VIEW_COLUMN_MAX_WIDTH, TABLE_VIEW_COLUMN_MIN_WIDTH, TABLE_VIEW_FILTER_LIMIT, TABLE_VIEW_LAYOUTS,
+  TABLE_VIEW_SCHEMA_VERSION,
+  isValidTypedTableFilter, matchesTypedTableFilter, tableViewHasEnhancedLayout, tableViewWeek,
+  tableFilterNeedsValue,
+  type NamedTableView, type TableViewFilter, type TableViewLayout, type TableViewOperator, type TableViewSort, type TypedTableFilter,
 } from "./table-view";
 
 export * from "./table-view";
@@ -10,31 +13,69 @@ export * from "./table-view";
 export const TABLE_SCHEMA_VERSION = 1 as const;
 export const TABLE_FIELD_LIMIT = 40;
 export const TABLE_RECORD_LIMIT = 2000;
-export const TABLE_FIELD_TYPES = ["text", "number", "checkbox", "date", "select", "url", "attachment"] as const;
+export const TABLE_FIELD_TYPES = [
+  "text", "number", "checkbox", "date", "select", "multiSelect", "url", "phone", "email", "attachment", "autoNumber",
+  "createdTime", "updatedTime", "progress", "rating", "currency", "percent",
+] as const;
 export const TABLE_FILTER_OPERATORS = ["contains", "eq", "empty", "notEmpty"] as const;
 export const TABLE_ATTACHMENT_LIMIT = 10;
+export const TABLE_SELECT_OPTION_LIMIT = 50;
+/** Pill colors a select / multiSelect option may carry. */
+export const TABLE_OPTION_COLORS = ["blue", "teal", "green", "yellow", "orange", "red", "pink", "purple", "gray"] as const;
 export const TABLE_ATTACHMENT_FILTER_OPERATORS = ["empty", "notEmpty"] as const;
+export const TABLE_EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+export const TABLE_PHONE_PATTERN = /^[0-9+()\-\s]{3,32}$/;
+/** Rating cells are integers from 0 to TABLE_RATING_MAX. */
+export const TABLE_RATING_MAX = 5;
+/** Field types whose cells are computed on read and always stored as null. */
+export const TABLE_COMPUTED_FIELD_TYPES = ["createdTime", "updatedTime"] as const;
+/** Field types that store numbers and get numeric display formatting and sorting. */
+export const TABLE_NUMERIC_FIELD_TYPES = ["number", "progress", "rating", "currency", "percent"] as const;
 
 export type TableFieldType = (typeof TABLE_FIELD_TYPES)[number];
 export type TableFilterOperator = (typeof TABLE_FILTER_OPERATORS)[number];
+export type TableOptionColor = (typeof TABLE_OPTION_COLORS)[number];
+export type TableComputedFieldType = (typeof TABLE_COMPUTED_FIELD_TYPES)[number];
+export type TableNumericFieldType = (typeof TABLE_NUMERIC_FIELD_TYPES)[number];
+
+export const tableFieldIsComputed = (type: TableFieldType): type is TableComputedFieldType =>
+  (TABLE_COMPUTED_FIELD_TYPES as readonly string[]).includes(type);
+
+export const tableFieldIsNumeric = (type: TableFieldType): type is TableNumericFieldType =>
+  (TABLE_NUMERIC_FIELD_TYPES as readonly string[]).includes(type);
 export type TableAttachment = {
   resourceId: string;
   filename: string;
   mimeType: string;
   byteSize: number;
 };
-export type TableCellValue = string | number | boolean | null | TableAttachment[];
+export type TableCellValue = string | number | boolean | null | string[] | TableAttachment[];
 
 export type TableField = {
   id: string;
   name: string;
   type: TableFieldType;
   options?: string[];
+  /** Option name to pill color; unnamed options fall back to a stable hash color. */
+  optionColors?: Record<string, TableOptionColor>;
+};
+
+/** Explicit color of an option, or a stable hash color when the user never picked one. */
+export const tableOptionColor = (field: TableField, option: string): TableOptionColor => {
+  const explicit = field.optionColors?.[option];
+  if (explicit && (TABLE_OPTION_COLORS as readonly string[]).includes(explicit)) return explicit;
+  let hash = 0;
+  for (let index = 0; index < option.length; index += 1) hash = (hash * 31 + option.charCodeAt(index)) % 997;
+  return TABLE_OPTION_COLORS[hash % TABLE_OPTION_COLORS.length];
 };
 
 export type TableRecord = {
   id: string;
   cells: Record<string, TableCellValue>;
+  /** ISO timestamp read by system "createdTime" fields; absent on legacy records. */
+  createdAt?: string;
+  /** ISO timestamp read by system "updatedTime" fields; absent on legacy records. */
+  updatedAt?: string;
 };
 
 export type TableFilter = {
@@ -55,7 +96,10 @@ export type TableView = {
 
 type TableData = { fields: TableField[]; records: TableRecord[] };
 export type LegacyTableDocument = TableData & { schemaVersion: typeof TABLE_SCHEMA_VERSION; view: TableView };
-export type NamedViewTableDocument = TableData & { schemaVersion: typeof TABLE_VIEW_SCHEMA_VERSION; views: NamedTableView[] };
+export type NamedViewTableDocument = TableData & {
+  schemaVersion: typeof TABLE_VIEW_SCHEMA_VERSION | typeof TABLE_LAYOUT_SCHEMA_VERSION;
+  views: NamedTableView[];
+};
 export type TableDocument = LegacyTableDocument | NamedViewTableDocument;
 
 export type TableSeedLabels = {
@@ -76,8 +120,7 @@ export type TableSummaryPreview = {
 
 const TABLE_MARKER = "edgeever-table-v1";
 const TABLE_COMMENT = new RegExp(`<!--\\s*${TABLE_MARKER}:([\\s\\S]*?)\\s*-->`);
-const FIELD_NAME_LIMIT = 80;
-const OPTION_LIMIT = 40;
+export const FIELD_NAME_LIMIT = 80;
 const CELL_TEXT_LIMIT = 2000;
 const ATTACHMENT_ID_PATTERN = /^[A-Za-z0-9_-]{1,80}$/;
 const ATTACHMENT_BYTE_LIMIT = 1024 * 1024 * 1024;
@@ -110,6 +153,56 @@ export const createTableId = (prefix: "fld" | "rec" | "view") => {
   return `${prefix}_${suffix}`;
 };
 
+export const isTableMultiSelectValue = (value: unknown): value is string[] =>
+  Array.isArray(value) && value.every((item) => typeof item === "string");
+
+export const tableAttachmentValues = (value: TableCellValue): TableAttachment[] | null =>
+  Array.isArray(value) && !isTableMultiSelectValue(value) ? value : null;
+
+const padClock = (value: number) => String(value).padStart(2, "0");
+
+/** Renders an ISO timestamp as the viewer's local "YYYY-MM-DD HH:mm"; unparsable values fall back to the raw text. */
+export const formatTableRecordTime = (value: TableCellValue | undefined) => {
+  if (typeof value !== "string" || !value) return "";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  const date = `${parsed.getFullYear()}-${padClock(parsed.getMonth() + 1)}-${padClock(parsed.getDate())}`;
+  return `${date} ${padClock(parsed.getHours())}:${padClock(parsed.getMinutes())}`;
+};
+
+export const formatTableProgress = (value: number) => `${Math.round(value)}%`;
+
+export const formatTableRating = (value: number) => `${Math.round(value)}/${TABLE_RATING_MAX}`;
+
+/** Renders a currency amount as "¥1,234.50"; formatting stays manual to avoid relying on Intl in native runtimes. */
+export const formatTableCurrency = (value: number) => {
+  if (!Number.isFinite(value)) return "";
+  const absolute = Math.abs(value).toFixed(2);
+  const [integer = "0", fraction = "00"] = absolute.split(".");
+  const grouped = integer.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  const negative = value < 0 && Number(absolute) !== 0;
+  return `${negative ? "-" : ""}¥${grouped}.${fraction}`;
+};
+
+/** Renders a stored 0–1 fraction as a percentage; percent cells keep the raw fraction in storage. */
+export const formatTablePercent = (value: number) => {
+  if (!Number.isFinite(value)) return "";
+  return `${Number((value * 100).toFixed(2))}%`;
+};
+
+export const tableCellDisplayText = (field: TableField, value: TableCellValue | undefined, recordIndex?: number) => {
+  if (field.type === "autoNumber") return recordIndex === undefined ? "" : String(recordIndex + 1);
+  if (field.type === "multiSelect") return isTableMultiSelectValue(value) ? value.join("; ") : "";
+  if (field.type === "attachment") return Array.isArray(value) ? `${value.length}` : "";
+  if (field.type === "createdTime" || field.type === "updatedTime") return formatTableRecordTime(value);
+  if (field.type === "progress") return typeof value === "number" ? formatTableProgress(value) : "";
+  if (field.type === "rating") return typeof value === "number" ? formatTableRating(value) : "";
+  if (field.type === "currency") return typeof value === "number" ? formatTableCurrency(value) : "";
+  if (field.type === "percent") return typeof value === "number" ? formatTablePercent(value) : "";
+  if (typeof value === "boolean") return value ? "✓" : "";
+  return String(value ?? "");
+};
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
@@ -126,9 +219,46 @@ const cleanOptions = (value: unknown) => {
     const option = item.replace(/\s+/g, " ").trim().slice(0, FIELD_NAME_LIMIT);
     if (!option || options.includes(option)) continue;
     options.push(option);
-    if (options.length >= OPTION_LIMIT) break;
+    if (options.length >= TABLE_SELECT_OPTION_LIMIT) break;
   }
   return options;
+};
+
+const cleanOptionColors = (value: unknown, options: string[]): Record<string, TableOptionColor> | undefined => {
+  if (!isRecord(value)) return undefined;
+  const colors: Record<string, TableOptionColor> = {};
+  for (const [name, color] of Object.entries(value)) {
+    if (!options.includes(name)) continue;
+    if (typeof color !== "string" || !(TABLE_OPTION_COLORS as readonly string[]).includes(color)) continue;
+    colors[name] = color as TableOptionColor;
+  }
+  return Object.keys(colors).length ? colors : undefined;
+};
+
+/** Drops config keys that do not belong to the field type and normalizes the ones that do. */
+export const normalizeTableField = (field: TableField): TableField => {
+  const next: TableField = { id: field.id, name: cleanName(field.name, "字段"), type: field.type };
+  if (next.type === "select" || next.type === "multiSelect") {
+    next.options = cleanOptions(field.options ?? []);
+    next.optionColors = cleanOptionColors(field.optionColors, next.options);
+  }
+  return next;
+};
+
+const numericCellValue = (value: unknown): number | null => {
+  if (value === null || value === undefined || value === "") return null;
+  const number = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(number) ? number : null;
+};
+
+const clampNumber = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+
+/** Reads an ISO timestamp from serialized JSON; invalid or oversized values are dropped. */
+export const cleanTableRecordTimestamp = (value: unknown) => {
+  if (typeof value !== "string") return undefined;
+  const timestamp = value.trim();
+  if (!timestamp || timestamp.length > 40 || !Number.isFinite(Date.parse(timestamp))) return undefined;
+  return timestamp;
 };
 
 const cleanAttachment = (value: unknown): TableAttachment | null => {
@@ -168,6 +298,27 @@ export const coerceTableCell = (field: TableField, value: unknown): TableCellVal
     const number = typeof value === "number" ? value : Number(value);
     return Number.isFinite(number) ? number : null;
   }
+  if (field.type === "autoNumber" || tableFieldIsComputed(field.type)) return null;
+  if (field.type === "multiSelect") {
+    const selected: string[] = [];
+    const values = Array.isArray(value) ? value : typeof value === "string" && value ? value.split(/[;,]/) : [];
+    for (const item of values) {
+      if (typeof item !== "string") continue;
+      const option = item.trim().slice(0, FIELD_NAME_LIMIT);
+      if (option && (field.options?.includes(option) ?? true) && !selected.includes(option)) selected.push(option);
+    }
+    return selected;
+  }
+  if (field.type === "progress") {
+    const number = numericCellValue(value);
+    return number === null ? null : Math.round(clampNumber(number, 0, 100));
+  }
+  if (field.type === "rating") {
+    const number = numericCellValue(value);
+    return number === null ? null : Math.round(clampNumber(number, 0, TABLE_RATING_MAX));
+  }
+  // Currency keeps the raw amount; percent keeps the raw fraction (0.125 renders as 12.5%).
+  if (field.type === "currency" || field.type === "percent") return numericCellValue(value);
   if (Array.isArray(value)) {
     return value.map((item) => cleanAttachment(item)?.filename ?? "").filter(Boolean).join(", ").slice(0, CELL_TEXT_LIMIT);
   }
@@ -185,7 +336,7 @@ export const listTableAttachmentResourceIds = (document: TableDocument | null | 
   for (const record of document.records) {
     for (const field of fields) {
       const value = record.cells[field.id];
-      if (!Array.isArray(value)) continue;
+      if (!Array.isArray(value) || isTableMultiSelectValue(value)) continue;
       for (const attachment of value) ids.add(attachment.resourceId);
     }
   }
@@ -197,7 +348,10 @@ const parseField = (value: unknown): TableField | null => {
   if (!TABLE_FIELD_TYPES.includes(value.type as TableFieldType)) return null;
   const type = value.type as TableFieldType;
   const field: TableField = { id: value.id, name: cleanName(value.name, "字段"), type };
-  if (type === "select") field.options = cleanOptions(value.options);
+  if (type === "select" || type === "multiSelect") {
+    field.options = cleanOptions(value.options);
+    field.optionColors = cleanOptionColors(value.optionColors, field.options);
+  }
   return field;
 };
 
@@ -221,6 +375,30 @@ const parseView = (value: unknown, fieldIds: Set<string>): TableView => {
     ? { fieldId: value.sort.fieldId, direction: value.sort.direction as "asc" | "desc" }
     : null;
   return { filters, sort };
+};
+
+const parseTableViewColumns = (value: unknown, byId: Map<string, TableField>) => {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value)) return null;
+  const seen = new Set<string>();
+  const columns: NonNullable<NamedTableView["columns"]> = [];
+  for (const column of value) {
+    if (!isRecord(column) || typeof column.fieldId !== "string" || !byId.has(column.fieldId)
+      || seen.has(column.fieldId)) return null;
+    seen.add(column.fieldId);
+    const parsed: NonNullable<NamedTableView["columns"]>[number] = { fieldId: column.fieldId };
+    if (column.hidden !== undefined) {
+      if (typeof column.hidden !== "boolean") return null;
+      parsed.hidden = column.hidden;
+    }
+    if (column.width !== undefined) {
+      if (typeof column.width !== "number" || !Number.isFinite(column.width)
+        || column.width < TABLE_VIEW_COLUMN_MIN_WIDTH || column.width > TABLE_VIEW_COLUMN_MAX_WIDTH) return null;
+      parsed.width = Math.round(column.width);
+    }
+    columns.push(parsed);
+  }
+  return columns;
 };
 
 const parseNamedTableViews = (value: unknown, fields: TableField[]): NamedTableView[] | null => {
@@ -264,12 +442,34 @@ const parseNamedTableViews = (value: unknown, fields: TableField[]): NamedTableV
       seenSorts.add(rule.fieldId);
       sorts.push({ fieldId: rule.fieldId, direction: rule.direction, ...(rule.legacy === true ? { legacy: true } : {}) });
     }
-    views.push({ id: view.id, name: view.name.trim(), match: view.match, filters, sorts });
+    const columns = parseTableViewColumns(view.columns, byId);
+    if (columns === null) return null;
+    let groupBy: NamedTableView["groupBy"];
+    if (view.groupBy !== undefined) {
+      if (!isRecord(view.groupBy) || typeof view.groupBy.fieldId !== "string"
+        || !byId.has(view.groupBy.fieldId) || (view.groupBy.direction !== "asc" && view.groupBy.direction !== "desc")) return null;
+      const field = byId.get(view.groupBy.fieldId)!;
+      if (!TABLE_GROUPABLE_FIELD_TYPES.includes(field.type as (typeof TABLE_GROUPABLE_FIELD_TYPES)[number])) return null;
+      groupBy = { fieldId: view.groupBy.fieldId, direction: view.groupBy.direction };
+    }
+    let layout: TableViewLayout | undefined;
+    if (view.layout !== undefined) {
+      // Unknown layouts from newer clients degrade to the default grid instead of invalidating the document.
+      if (typeof view.layout !== "string") return null;
+      if ((TABLE_VIEW_LAYOUTS as readonly string[]).includes(view.layout)) layout = view.layout as TableViewLayout;
+    }
+    if (layout === "kanban" && !groupBy?.fieldId || groupBy && byId.get(groupBy.fieldId)?.type !== "select" && layout === "kanban") return null;
+    views.push({
+      id: view.id, name: view.name.trim(), match: view.match, filters, sorts,
+      ...(columns ? { columns } : {}),
+      ...(groupBy ? { groupBy } : {}),
+      ...(layout && layout !== "grid" ? { layout } : {}),
+    });
   }
   return views;
 };
 
-export const getTableViews = (document: TableDocument): NamedTableView[] => document.schemaVersion === TABLE_VIEW_SCHEMA_VERSION
+export const getTableViews = (document: TableDocument): NamedTableView[] => document.schemaVersion !== TABLE_SCHEMA_VERSION
   ? document.views
   : [{
     id: DEFAULT_TABLE_VIEW_ID,
@@ -304,11 +504,16 @@ export const saveTableViews = (document: TableDocument, views: NamedTableView[])
   const validated = parseNamedTableViews(views, document.fields);
   if (!validated) throw new Error("Invalid table views");
   const first = validated[0]!;
-  if (document.schemaVersion === TABLE_SCHEMA_VERSION && validated.length === 1 && first.id === DEFAULT_TABLE_VIEW_ID && !first.name) {
+  const requiresLayoutSchema = validated.some(tableViewHasEnhancedLayout);
+  if (!requiresLayoutSchema && document.schemaVersion === TABLE_SCHEMA_VERSION
+    && validated.length === 1 && first.id === DEFAULT_TABLE_VIEW_ID && !first.name) {
     const view = legacyViewProjection(first, document.fields);
     if (view) return { ...document, view };
   }
-  return { schemaVersion: TABLE_VIEW_SCHEMA_VERSION, fields: document.fields, records: document.records, views: validated };
+  const schemaVersion = document.schemaVersion === TABLE_LAYOUT_SCHEMA_VERSION || requiresLayoutSchema
+    ? TABLE_LAYOUT_SCHEMA_VERSION
+    : TABLE_VIEW_SCHEMA_VERSION;
+  return { schemaVersion, fields: document.fields, records: document.records, views: validated };
 };
 
 type TableDocumentMetadata = { fields: TableField[]; recordCount: number };
@@ -334,8 +539,8 @@ function readTableDocumentJson(json: string | null, includeRecords: boolean): Ta
   if (json === null) return null;
   try {
     const value = JSON.parse(json) as Record<string, unknown>;
-    if ((value.schemaVersion !== TABLE_SCHEMA_VERSION && value.schemaVersion !== TABLE_VIEW_SCHEMA_VERSION)
-      || !Array.isArray(value.fields) || value.fields.length < 1) return null;
+    if ((value.schemaVersion !== TABLE_SCHEMA_VERSION && value.schemaVersion !== TABLE_VIEW_SCHEMA_VERSION
+      && value.schemaVersion !== TABLE_LAYOUT_SCHEMA_VERSION) || !Array.isArray(value.fields) || value.fields.length < 1) return null;
     const fields: TableField[] = [];
     for (const item of value.fields) {
       const field = parseField(item);
@@ -359,7 +564,13 @@ function readTableDocumentJson(json: string | null, includeRecords: boolean): Ta
       }
       const cells: Record<string, TableCellValue> = {};
       for (const field of fields) cells[field.id] = coerceTableCell(field, rawCells[field.id]);
-      records.push({ id: item.id, cells });
+      const createdAt = cleanTableRecordTimestamp(item.createdAt);
+      const updatedAt = cleanTableRecordTimestamp(item.updatedAt);
+      records.push({
+        id: item.id, cells,
+        ...(createdAt ? { createdAt } : {}),
+        ...(updatedAt ? { updatedAt } : {}),
+      });
     }
     const metadata = { fields, recordCount: value.records.length };
     if (value.schemaVersion === TABLE_SCHEMA_VERSION) {
@@ -367,7 +578,9 @@ function readTableDocumentJson(json: string | null, includeRecords: boolean): Ta
     }
     const views = parseNamedTableViews(value.views, fields);
     if (!views) return null;
-    return records ? { schemaVersion: TABLE_VIEW_SCHEMA_VERSION, fields, records, views } : metadata;
+    const schemaVersion = value.schemaVersion;
+    if (schemaVersion === TABLE_VIEW_SCHEMA_VERSION && views.some(tableViewHasEnhancedLayout)) return null;
+    return records ? { schemaVersion, fields, records, views } : metadata;
   } catch {
     return null;
   }
@@ -385,11 +598,15 @@ export const stripTableDocumentMarker = (markdown: string | null | undefined) =>
 const markdownLabel = (value: string) => value.replace(/\\/g, "\\\\").replace(/\[/g, "\\[").replace(/\]/g, "\\]");
 
 const attachmentNames = (value: TableCellValue) =>
-  Array.isArray(value) ? value.map((item) => item.filename).filter(Boolean) : [];
+  Array.isArray(value) && !isTableMultiSelectValue(value) ? value.map((item) => item.filename).filter(Boolean) : [];
 
 const markdownCell = (field: TableField, value: TableCellValue) => {
-  if (field.type === "attachment" && Array.isArray(value)) {
+  if (field.type === "attachment" && Array.isArray(value) && !isTableMultiSelectValue(value)) {
     return value.map((item) => `[${markdownLabel(item.filename)}](${tableAttachmentUrl(item.resourceId)})`).join(" ");
+  }
+  if (field.type === "multiSelect") return isTableMultiSelectValue(value) ? value.join("; ") : "";
+  if (tableFieldIsNumeric(field.type) || tableFieldIsComputed(field.type)) {
+    return tableCellDisplayText(field, value).replace(/\r?\n/g, " ").replace(/\|/g, "\\|");
   }
   if (value === null || value === undefined || value === "") return "";
   const text = field.type === "checkbox" ? (value === true ? "true" : "false") : String(value);
@@ -439,17 +656,24 @@ export const createDefaultTableDocument = (labels: TableSeedLabels = {}): Legacy
   };
 };
 
-const csvCell = (value: TableCellValue) => {
-  const text = Array.isArray(value)
-    ? attachmentNames(value).join("; ")
-    : value === null || value === undefined ? "" : value === true ? "true" : value === false ? "false" : String(value);
+const csvCell = (field: TableField, value: TableCellValue) => {
+  // CSV keeps raw values (no currency/percent formatting) so exports stay importable.
+  const text = field.type === "multiSelect" && isTableMultiSelectValue(value)
+    ? value.join("; ")
+    : Array.isArray(value)
+      ? attachmentNames(value).join("; ")
+      : value === null || value === undefined ? "" : value === true ? "true" : value === false ? "false" : String(value);
   return /[",\n]/.test(text) ? `"${text.replace(/"/g, "\"\"")}"` : text;
 };
 
-export const tableDocumentToCsv = (document: TableDocument, records: TableRecord[] = document.records) => {
+export const tableDocumentToCsv = (
+  document: TableDocument,
+  records: TableRecord[] = document.records,
+  fields: TableField[] = document.fields,
+) => {
   const lines = [
-    document.fields.map((field) => csvCell(field.name)),
-    ...records.map((record) => document.fields.map((field) => csvCell(record.cells[field.id] ?? null))),
+    fields.map((field) => csvCell({ ...field, type: "text" }, field.name)),
+    ...records.map((record) => fields.map((field) => csvCell(field, record.cells[field.id] ?? null))),
   ];
   return `\uFEFF${lines.map((line) => line.join(",")).join("\n")}`;
 };
@@ -459,8 +683,9 @@ const cellSortText = (field: TableField, value: TableCellValue) => {
     const names = attachmentNames(value);
     return names.length ? `${String(names.length).padStart(4, "0")} ${names.join(" ")}` : null;
   }
+  if (field.type === "multiSelect") return isTableMultiSelectValue(value) && value.length ? value.join(" ") : null;
   if (value === null || value === undefined || value === "") return null;
-  if (field.type === "number") return typeof value === "number" ? value : null;
+  if (tableFieldIsNumeric(field.type)) return typeof value === "number" ? value : null;
   if (field.type === "checkbox") return value === true ? 1 : 0;
   return String(value);
 };
@@ -479,7 +704,7 @@ const matchesFilter = (field: TableField, value: TableCellValue, filter: TableFi
   if (filter.operator === "empty") return empty;
   if (filter.operator === "notEmpty") return !empty;
   if (filter.operator === "eq") {
-    if (field.type === "number") {
+    if (tableFieldIsNumeric(field.type)) {
       const expected = Number(filter.value);
       return Number.isFinite(expected) && value === expected;
     }
@@ -487,6 +712,56 @@ const matchesFilter = (field: TableField, value: TableCellValue, filter: TableFi
     return String(value ?? "") === (filter.value ?? "");
   }
   return String(value ?? "").toLocaleLowerCase().includes((filter.value ?? "").trim().toLocaleLowerCase());
+};
+
+export type TableRecordGroup = { key: string; records: TableRecord[] };
+
+export const groupTableRecords = (
+  document: TableDocument,
+  records: TableRecord[],
+  group: NamedTableView["groupBy"],
+  options: { includeEmpty?: boolean } = {},
+): TableRecordGroup[] => {
+  if (!group) return [];
+  const field = document.fields.find((item) => item.id === group.fieldId);
+  if (!field || !TABLE_GROUPABLE_FIELD_TYPES.includes(field.type as (typeof TABLE_GROUPABLE_FIELD_TYPES)[number])) return [];
+  const groups = new Map<string, TableRecord[]>();
+  if (options.includeEmpty) {
+    if (field.type === "select") for (const option of field.options ?? []) groups.set(option, []);
+    if (field.type === "checkbox") {
+      groups.set("false", []);
+      groups.set("true", []);
+    }
+  }
+  const keyFor = (record: TableRecord) => {
+    const value = record.cells[field.id] ?? null;
+    if (field.type === "checkbox") return value === true ? "true" : "false";
+    return typeof value === "string" ? value : "";
+  };
+  for (const record of records) {
+    const key = keyFor(record);
+    const groupRecords = groups.get(key);
+    if (groupRecords) groupRecords.push(record);
+    else groups.set(key, [record]);
+  }
+  const optionOrder = field.type === "select"
+    ? new Map((field.options ?? []).map((option, index) => [option, index]))
+    : null;
+  const compareKeys = (left: string, right: string) => {
+    if (left === "" && right === "") return 0;
+    if (left === "") return 1;
+    if (right === "") return -1;
+    if (optionOrder) {
+      const a = optionOrder.get(left) ?? Number.MAX_SAFE_INTEGER;
+      const b = optionOrder.get(right) ?? Number.MAX_SAFE_INTEGER;
+      if (a !== b) return a - b;
+    }
+    if (field.type === "checkbox") return Number(left === "true") - Number(right === "true");
+    return left.localeCompare(right);
+  };
+  return [...groups.entries()]
+    .sort(([left], [right]) => compareKeys(left, right) * (group.direction === "desc" ? -1 : 1))
+    .map(([key, groupRecords]) => ({ key, records: groupRecords }));
 };
 
 export const applyTableView = (
@@ -531,7 +806,7 @@ export const applyTableView = (
 
 export const addTableField = (document: TableDocument, field: TableField): TableDocument => {
   if (document.fields.length >= TABLE_FIELD_LIMIT || document.fields.some((item) => item.id === field.id)) return document;
-  const nextField = field.type === "select" ? { ...field, options: field.options ?? [] } : { ...field, options: undefined };
+  const nextField = normalizeTableField(field);
   return {
     ...document,
     fields: [...document.fields, nextField],
@@ -539,29 +814,45 @@ export const addTableField = (document: TableDocument, field: TableField): Table
   };
 };
 
-export const updateTableField = (document: TableDocument, fieldId: string, patch: Partial<Pick<TableField, "name" | "type" | "options">>): TableDocument => {
+export type TableFieldPatch = Partial<Pick<TableField, "name" | "type" | "options" | "optionColors">>;
+
+export const updateTableField = (document: TableDocument, fieldId: string, patch: TableFieldPatch): TableDocument => {
   const current = document.fields.find((field) => field.id === fieldId);
   if (!current) return document;
-  const next: TableField = {
-    ...current,
+  const next = normalizeTableField({
+    id: current.id,
     name: patch.name === undefined ? current.name : cleanName(patch.name, current.name),
     type: patch.type ?? current.type,
-  };
-  if (next.type === "select") next.options = cleanOptions(patch.options ?? current.options ?? []);
-  const updated = document.schemaVersion === TABLE_VIEW_SCHEMA_VERSION && next.type !== current.type
-    ? { ...document, views: document.views.map((view) => ({
+    options: patch.options ?? current.options,
+    optionColors: patch.optionColors ?? current.optionColors,
+  });
+  const fields = document.fields.map((field) => field.id === fieldId ? next : field);
+  const records = document.records.map((record) => ({
+    ...record,
+    cells: { ...record.cells, [fieldId]: coerceTableCell(next, record.cells[fieldId]) },
+  }));
+  if (document.schemaVersion === TABLE_SCHEMA_VERSION) return { ...document, fields, records };
+  const views = document.views.map((view) => {
+    const groupBy = view.groupBy?.fieldId === fieldId
+      && !TABLE_GROUPABLE_FIELD_TYPES.includes(next.type as (typeof TABLE_GROUPABLE_FIELD_TYPES)[number])
+      ? undefined
+      : view.groupBy;
+    // A kanban is only valid while its grouping field exists and stays a single select.
+    // Editing any other field must keep the saved layout untouched.
+    const groupField = groupBy
+      ? groupBy.fieldId === fieldId
+        ? next
+        : fields.find((field) => field.id === groupBy.fieldId)
+      : undefined;
+    const layout = view.layout === "kanban" && (!groupBy || groupField?.type !== "select") ? "grid" : view.layout;
+    return {
       ...view,
+      ...(layout ? { layout } : {}),
+      groupBy,
       filters: view.filters.filter((rule) => rule.fieldId !== fieldId || rule.legacy || isValidTypedTableFilter(next, rule)),
-    })) }
-    : document;
-  return {
-    ...updated,
-    fields: document.fields.map((field) => field.id === fieldId ? next : field),
-    records: document.records.map((record) => ({
-      ...record,
-      cells: { ...record.cells, [fieldId]: coerceTableCell(next, record.cells[fieldId]) },
-    })),
-  };
+    };
+  });
+  return { ...document, fields, records, views };
 };
 
 export const removeTableField = (document: TableDocument, fieldId: string): TableDocument => {
@@ -572,10 +863,13 @@ export const removeTableField = (document: TableDocument, fieldId: string): Tabl
     ...record,
     cells: Object.fromEntries(Object.entries(record.cells).filter(([id]) => fieldIds.has(id))),
   }));
-  if (document.schemaVersion === TABLE_VIEW_SCHEMA_VERSION) return {
+  if (document.schemaVersion !== TABLE_SCHEMA_VERSION) return {
     ...document, fields, records,
     views: document.views.map((view) => ({
       ...view,
+      columns: view.columns?.filter((column) => column.fieldId !== fieldId),
+      groupBy: view.groupBy?.fieldId === fieldId ? undefined : view.groupBy,
+      layout: view.layout === "kanban" && view.groupBy?.fieldId === fieldId ? "grid" : view.layout,
       filters: view.filters.filter((filter) => filter.fieldId !== fieldId),
       sorts: view.sorts.filter((sort) => sort.fieldId !== fieldId),
     })),
@@ -589,22 +883,89 @@ export const removeTableField = (document: TableDocument, fieldId: string): Tabl
   };
 };
 
-export const addTableRecord = (document: TableDocument, id = createTableId("rec")): TableDocument => {
+export type AddTableRecordOptions = { id?: string; now?: string };
+
+export const addTableRecord = (
+  document: TableDocument,
+  idOrOptions: string | AddTableRecordOptions = createTableId("rec"),
+  options: { now?: string } = {},
+): TableDocument => {
+  const requested = typeof idOrOptions === "string" ? { id: idOrOptions, now: options.now } : idOrOptions;
+  const id = requested.id ?? createTableId("rec");
   if (document.records.length >= TABLE_RECORD_LIMIT || document.records.some((record) => record.id === id)) return document;
+  const timestamp = requested.now ?? options.now ?? new Date().toISOString();
   const cells: Record<string, TableCellValue> = {};
   for (const field of document.fields) cells[field.id] = emptyCell(field);
-  return { ...document, records: [...document.records, { id, cells }] };
+  return {
+    ...document,
+    records: [...document.records, { id, cells, createdAt: timestamp, updatedAt: timestamp }],
+  };
 };
 
-export const updateTableCell = (document: TableDocument, recordId: string, fieldId: string, value: unknown): TableDocument => {
+export const updateTableCell = (
+  document: TableDocument,
+  recordId: string,
+  fieldId: string,
+  value: unknown,
+  options: { now?: string } = {},
+): TableDocument => {
   const field = document.fields.find((item) => item.id === fieldId);
-  if (!field) return document;
+  // System and computed cells are projections; writing them would persist values the parser drops.
+  if (!field || field.type === "autoNumber" || tableFieldIsComputed(field.type)) return document;
+  const timestamp = options.now ?? new Date().toISOString();
   return {
     ...document,
     records: document.records.map((record) => record.id === recordId
-      ? { ...record, cells: { ...record.cells, [fieldId]: coerceTableCell(field, value) } }
+      ? { ...record, cells: { ...record.cells, [fieldId]: coerceTableCell(field, value) }, updatedAt: timestamp }
       : record),
   };
+};
+
+export type InsertTableRecordOptions = { id?: string; now?: string; cells?: Record<string, unknown> };
+
+/** Inserts a blank record at `index` (clamped) and copies any provided cell values through validation. */
+export const insertTableRecord = (
+  document: TableDocument,
+  index: number,
+  options: InsertTableRecordOptions = {},
+): TableDocument => {
+  if (document.records.length >= TABLE_RECORD_LIMIT) return document;
+  const id = options.id ?? createTableId("rec");
+  if (document.records.some((record) => record.id === id)) return document;
+  const timestamp = options.now ?? new Date().toISOString();
+  const cells: Record<string, TableCellValue> = {};
+  for (const field of document.fields) cells[field.id] = emptyCell(field);
+  const position = Math.max(0, Math.min(Math.trunc(index), document.records.length));
+  const inserted: TableDocument = {
+    ...document,
+    records: [
+      ...document.records.slice(0, position),
+      { id, cells, createdAt: timestamp, updatedAt: timestamp },
+      ...document.records.slice(position),
+    ],
+  };
+  if (!options.cells) return inserted;
+  return Object.entries(options.cells).reduce(
+    (current, [fieldId, value]) => updateTableCell(current, id, fieldId, value, { now: timestamp }),
+    inserted,
+  );
+};
+
+/** Copies every storable cell of `recordId` into a new record placed right after it. */
+export const duplicateTableRecord = (
+  document: TableDocument,
+  recordId: string,
+  options: { id?: string; now?: string } = {},
+): TableDocument => {
+  const index = document.records.findIndex((record) => record.id === recordId);
+  if (index < 0) return document;
+  const source = document.records[index]!;
+  const cells: Record<string, unknown> = {};
+  for (const field of document.fields) {
+    if (field.type === "autoNumber" || tableFieldIsComputed(field.type)) continue;
+    cells[field.id] = source.cells[field.id];
+  }
+  return insertTableRecord(document, index + 1, { ...options, cells });
 };
 
 export const removeTableRecord = (document: TableDocument, recordId: string): TableDocument => ({

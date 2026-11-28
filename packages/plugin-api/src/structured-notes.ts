@@ -35,10 +35,10 @@ export type PluginDiagramOperation =
   | { op: "update_edge"; edgeId: string; changes: Partial<Omit<PluginDiagramEdge, "id" | "label" | "type" | "bidirectional">> & { label?: string | null; type?: PluginDiagramEdge["type"] | null; bidirectional?: boolean | null } }
   | { op: "remove_edge"; edgeId: string };
 export interface PluginDiagramEditInput extends PluginStructuredEditInput { operations: PluginDiagramOperation[]; reflow?: "preserve" | "all" }
-export type PluginTableFieldType = "text" | "number" | "checkbox" | "date" | "select" | "url" | "attachment";
+export type PluginTableFieldType = "text" | "number" | "checkbox" | "date" | "select" | "multiSelect" | "url" | "phone" | "email" | "autoNumber" | "attachment" | "createdTime" | "updatedTime" | "progress" | "rating" | "currency" | "percent";
 export interface PluginTableField { id: string; name: string; type: PluginTableFieldType; options?: string[] }
 export interface PluginTableAttachment { resourceId: string; filename: string; mimeType: string; byteSize: number }
-export type PluginTableCell = string | number | boolean | null | PluginTableAttachment[];
+export type PluginTableCell = string | number | boolean | null | string[] | PluginTableAttachment[];
 /** Attachment writes use resource IDs; the host resolves their metadata and ownership. */
 export type PluginTableCellInput = string | number | boolean | null | string[];
 export interface PluginTableDocument {

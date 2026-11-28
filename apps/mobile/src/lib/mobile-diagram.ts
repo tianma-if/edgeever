@@ -3,15 +3,19 @@ import {
   hasInfographicDocumentMarker,
   hasPosterDocumentMarker,
   stripPosterDocumentMarker,
+  hasTableBaseDocumentMarker,
   hasTableDocumentMarker,
   markdownToDoc,
   parseDiagramDocument,
   parseInfographicDocument,
+  parseTableBaseDocument,
   parseTableDocument,
   resolveMemoContentDoc,
   stripDiagramDocumentMarker,
   stripInfographicDocumentMarker,
+  stripTableBaseDocumentMarker,
   stripTableDocumentMarker,
+  tableBaseFallbackMarkdown,
   tableFallbackMarkdown,
   type TiptapDoc,
   type DiagramKind,
@@ -25,6 +29,10 @@ export const hasMobileVisualDiagram = (contentMarkdown: string) =>
 
 export const hasMobileStructuredTable = (contentMarkdown: string) =>
   hasTableDocumentMarker(contentMarkdown);
+
+/** Multi-table bases are edited on the web; mobile shows the read-only projection. */
+export const hasMobileStructuredBase = (contentMarkdown: string) =>
+  hasTableBaseDocumentMarker(contentMarkdown);
 
 export const hasMobileInfographic = (contentMarkdown: string) =>
   hasInfographicDocumentMarker(contentMarkdown);
@@ -46,6 +54,11 @@ export const resolveMobileMemoViewerContent = (
   const infographic = parseInfographicDocument(contentMarkdown);
   if (infographic || hasInfographicDocumentMarker(contentMarkdown)) {
     return markdownToDoc(stripInfographicDocumentMarker(contentMarkdown));
+  }
+  const base = parseTableBaseDocument(contentMarkdown);
+  if (base) return markdownToDoc(tableBaseFallbackMarkdown(base));
+  if (hasTableBaseDocumentMarker(contentMarkdown)) {
+    return markdownToDoc(stripTableBaseDocumentMarker(contentMarkdown));
   }
   const table = parseTableDocument(contentMarkdown);
   if (table) return markdownToDoc(tableFallbackMarkdown(table));

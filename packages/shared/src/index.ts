@@ -78,9 +78,12 @@ export * from "./poster-design-catalog";
 export * from "./structured-note-error";
 export * from "./diagram-operations";
 export * from "./table-operations";
+export * from "./table-csv";
 export * from "./poster-content-layout";
 export * from "./poster-operations";
 export * from "./infographic-operations";
 
 export * from "./resource-media";
 export * from "./publish-image";
+export * from "./table-base";
+export * from "./table-base-compute";

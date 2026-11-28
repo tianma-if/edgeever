@@ -48,7 +48,7 @@ import {
 } from "@/lib/mobile-editor";
 import { cn } from "@/lib/utils";
 import { isBrowserOffline, isBrowserOnline } from "@/lib/network-status";
-import { createDefaultDiagramDocument, createDefaultInfographicDocument, hasPosterDocumentMarker, posterFallbackMarkdown, serializePosterDocument, createDefaultTableDocument, diagramFallbackMarkdown, getNotebookDescendantIds, getNotebookScopeIds, hasTableDocumentMarker, infographicFallbackMarkdown, markdownToDoc, parseDiagramDocument, parseInfographicDocument, parseTableDocument, serializeDiagramDocument, serializeInfographicDocument, serializeTableDocument, tableFallbackMarkdown, type NoteCreateKind, type Notebook, type AuthUser, type MemoSummary, type MemoDetail, type MemoTemplate as SavedMemoTemplate, getMemoDisplayTitle } from "@edgeever/shared";
+import { createDefaultDiagramDocument, createDefaultInfographicDocument, hasPosterDocumentMarker, posterFallbackMarkdown, serializePosterDocument, createDefaultTableDocument, createTableBaseDocument, hasTableBaseDocumentMarker, serializeTableBaseDocument, tableBaseFallbackMarkdown, diagramFallbackMarkdown, getNotebookDescendantIds, getNotebookScopeIds, hasTableDocumentMarker, infographicFallbackMarkdown, markdownToDoc, parseDiagramDocument, parseInfographicDocument, parseTableDocument, serializeDiagramDocument, serializeInfographicDocument, type NoteCreateKind, type Notebook, type AuthUser, type MemoSummary, type MemoDetail, type MemoTemplate as SavedMemoTemplate, getMemoDisplayTitle } from "@edgeever/shared";
 import { toggleMobileMemoSelection } from "@edgeever/shared/mobile-ui";
 import type {
   Pane,
@@ -158,6 +158,7 @@ const PluginPanelDialog = lazy(() => import("./plugins/PluginPanelDialog").then(
 const EditorPane = lazy(() => import("./EditorPane").then((module) => ({ default: module.EditorPane })));
 const DiagramEditorPane = lazy(() => import("./DiagramEditorPane"));
 const TableEditorPane = lazy(() => import("./TableEditorPane"));
+const BaseEditorPane = lazy(() => import("./base/BaseEditorPane"));
 const PosterEditorPane = lazy(() => import("./PosterEditorPane"));
 const InfographicEditorPane = lazy(() => import("./InfographicEditorPane"));
 const AssetsPane = lazy(() => import("./AssetsPane").then((module) => ({ default: module.AssetsPane })));
@@ -1340,7 +1341,7 @@ export const WorkspaceApp = ({
 
   const revealCreatedMemo = (memo: MemoDetail) => {
     const targetNotebookId = memo.notebookId;
-    const isStructuredNote = Boolean(parseDiagramDocument(memo.contentMarkdown) || parseTableDocument(memo.contentMarkdown) || parseInfographicDocument(memo.contentMarkdown) || hasPosterDocumentMarker(memo.contentMarkdown));
+    const isStructuredNote = Boolean(parseDiagramDocument(memo.contentMarkdown) || parseTableDocument(memo.contentMarkdown) || hasTableBaseDocumentMarker(memo.contentMarkdown) || parseInfographicDocument(memo.contentMarkdown) || hasPosterDocumentMarker(memo.contentMarkdown));
 
     setMemoView("notebook");
     setSearch("");
@@ -1602,6 +1603,7 @@ export const WorkspaceApp = ({
   const selectedMemo = memoQuery.data?.memo ?? cachedSelectedMemo;
   const selectedDiagram = parseDiagramDocument(selectedMemo?.contentMarkdown);
   const selectedTableNote = hasTableDocumentMarker(selectedMemo?.contentMarkdown);
+  const selectedTableBase = hasTableBaseDocumentMarker(selectedMemo?.contentMarkdown);
   const selectedMemoDetached = Boolean(selectedMemo && detachedMemoIds.has(selectedMemo.id));
   const noteWindowsAvailable = canOpenNoteWindows();
 
@@ -1901,11 +1903,12 @@ export const WorkspaceApp = ({
         inProgress: t("structuredTable.defaultFields.inProgress"),
         done: t("structuredTable.defaultFields.done"),
       });
+      const base = createTableBaseDocument({ tables: [{ name: t("structuredTable.name"), document: table }] });
       createMemoMutation.mutate({
         notebookId: targetNotebookId,
         title: t("structuredTable.name"),
-        contentJson: markdownToDoc(tableFallbackMarkdown(table)),
-        contentMarkdown: serializeTableDocument(table),
+        contentJson: markdownToDoc(tableBaseFallbackMarkdown(base)),
+        contentMarkdown: serializeTableBaseDocument(base),
         tags: [],
       });
       return;
@@ -3233,7 +3236,7 @@ export const WorkspaceApp = ({
               : rightView === "editor"
                 ? "edgeever-workspace-grid--editor"
                 : "edgeever-workspace-grid--single-right",
-            !desktopFocusModeActive && desktopNotebookSidebarCollapsed && "edgeever-workspace-grid--sidebar-collapsed"
+            !desktopFocusModeActive && desktopNotebookSidebarCollapsed && "edgeever-workspace-grid--sidebar-collapsed",
           )}
           style={{
             "--memo-list-width": `${editorPaneWidths.list}px`,
@@ -3461,6 +3464,7 @@ export const WorkspaceApp = ({
                 const openTextNote = selectedMemo?.id === memoId
                   && !selectedDiagram
                   && !selectedTableNote
+                  && !selectedTableBase
                   && !selectedInfographicNote && !selectedPosterNote;
                 if (openTextNote) {
                   memoDocumentActionIdRef.current += 1;
@@ -3695,6 +3699,26 @@ export const WorkspaceApp = ({
                             if ("skipped" in result && result.skipped) throw new Error("Workspace refresh was skipped.");
                           }}
                           onOpenCompanionNote={handleOpenPluginNote}
+                          onSaved={async (memo) => {
+                            await putLocalMemo(localDataScope, memo);
+                            cacheMemoDetail(queryClient, memo, memoView);
+                            updateMemoSummaryInLists(queryClient, memoToSummary(memo));
+                            await Promise.all([
+                              queryClient.invalidateQueries({ queryKey: ["memos"], refetchType: "inactive" }),
+                              queryClient.invalidateQueries({ queryKey: ["notebooks"], refetchType: "inactive" }),
+                            ]);
+                          }}
+                        />
+                      ) : selectedMemo && selectedTableBase ? (
+                        <BaseEditorPane
+                          key={selectedMemo.id}
+                          memo={selectedMemo}
+                          repository={repository}
+                          readOnly={memoView === "trash" || selectedMemo.isDeleted}
+                          onBackToList={() => {
+                            clearPendingCreatedMemo();
+                            setActivePane("memos");
+                          }}
                           onSaved={async (memo) => {
                             await putLocalMemo(localDataScope, memo);
                             cacheMemoDetail(queryClient, memo, memoView);

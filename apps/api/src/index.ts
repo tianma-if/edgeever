@@ -6,7 +6,7 @@ import {
   docToText,
   markdownToDoc,
   normalizeTags,
-  TABLE_VIEW_SCHEMA_VERSION,
+  TABLE_CURRENT_SCHEMA_VERSION,
 } from "@edgeever/shared";
 import { POSTER_RENDER_EVENTS_PATH } from "@edgeever/shared/poster-render-events";
 import { Hono } from "hono";
@@ -248,7 +248,7 @@ app.get("/api/health", async (c) => {
   return c.json({
     ok: true,
     name: "edgeever",
-    tableSchemaVersion: TABLE_VIEW_SCHEMA_VERSION,
+    tableSchemaVersion: TABLE_CURRENT_SCHEMA_VERSION,
     runtime,
     ...(runtime === "self-hosted-bun"
       ? {
