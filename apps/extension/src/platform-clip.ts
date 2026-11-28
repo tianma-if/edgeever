@@ -160,12 +160,12 @@ export const socialPlatform = (pageUrl: string): ClipPlatform | null => {
 
 export const platformText = (node: Node | null | undefined) => (node?.textContent ?? "").replace(/\s+/g, " ").trim();
 /** New vertical readers must not restore content hidden by a site's CSS. */
-export const platformElementHidden = (node: Element): boolean => {
+export const platformElementHidden = (node: Element, ignoreAriaHidden = false): boolean => {
   // Unlike display:none, visibility can be restored by a descendant. The
   // browser's computed value already includes inheritance and overrides.
   let visibility = node.ownerDocument.defaultView?.getComputedStyle?.(node).visibility;
   for (let current: Element | null = node; current; current = current.parentElement) {
-    if (current.matches('[hidden], [aria-hidden="true"]')) return true;
+    if (current.matches('[hidden]') || (!ignoreAriaHidden && current.matches('[aria-hidden="true"]'))) return true;
     const style = current.ownerDocument.defaultView?.getComputedStyle?.(current)
       || (current as HTMLElement).style;
     if (style?.display === "none") return true;
@@ -174,10 +174,10 @@ export const platformElementHidden = (node: Element): boolean => {
   }
   return visibility === "hidden" || visibility === "collapse";
 };
-export const platformReadableCopy = (node: Element): Element => {
+export const platformReadableCopy = (node: Element, ignoreAriaHidden = false): Element => {
   const copy = node.cloneNode(true) as Element;
   const prune = (original: Element, cloned: Element): boolean => {
-    const visible = !platformElementHidden(original);
+    const visible = !platformElementHidden(original, ignoreAriaHidden);
     const children = Array.from(original.childNodes), clones = Array.from(cloned.childNodes);
     let visibleDescendant = false;
     children.forEach((child, index) => {
@@ -224,9 +224,9 @@ export const publishedTimeText = (time: PublishedTime, relativeLabel: string) =>
     : time.precision === "datetime" ? clipDateTimeText(time.value) : time.value;
 
 /** Sanitizes a detached copy. Links and images never keep active protocols. */
-export const platformHtmlCopy = (body: Element | DocumentFragment, baseUrl: string): Element | DocumentFragment => {
+export const platformHtmlCopy = (body: Element | DocumentFragment, baseUrl: string, ignoreAriaHidden = false): Element | DocumentFragment => {
   const copy = body.cloneNode(true) as Element | DocumentFragment;
-  Array.from(copy.querySelectorAll("script, style, noscript, template, iframe, object, embed, canvas, svg, video, audio, source, link, meta, form, input, button, textarea, select, [hidden], [aria-hidden='true']"))
+  Array.from(copy.querySelectorAll(`script, style, noscript, template, iframe, object, embed, canvas, svg, video, audio, source, link, meta, form, input, button, textarea, select, [hidden]${ignoreAriaHidden ? "" : ", [aria-hidden='true']"}`))
     .forEach((node) => node.remove());
   for (const node of Array.from(copy.querySelectorAll("*"))) {
     for (const attribute of Array.from(node.attributes)) {
@@ -247,9 +247,9 @@ export const platformHtmlCopy = (body: Element | DocumentFragment, baseUrl: stri
   return copy;
 };
 
-export const platformHtmlMarkdown = (body: Element | DocumentFragment, baseUrl: string): string => {
+export const platformHtmlMarkdown = (body: Element | DocumentFragment, baseUrl: string, ignoreAriaHidden = false): string => {
   const copy = body.ownerDocument.createElement("div");
-  copy.appendChild(platformHtmlCopy(body, baseUrl));
+  copy.appendChild(platformHtmlCopy(body, baseUrl, ignoreAriaHidden));
   for(const table of Array.from(copy.querySelectorAll("table"))) {
     const head=Array.from(table.children).find(node=>node.tagName === "THEAD");
     // Expand spans on the detached copy so cells keep their columns. Vertical

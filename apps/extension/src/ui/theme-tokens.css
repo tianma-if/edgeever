@@ -16,3 +16,20 @@
   --notification-success-icon: #16a06e;
   --notification-error-icon: #be123c;
 }
+
+@media (prefers-color-scheme: dark) {
+  :root,
+  :host {
+    --background: #17181a;
+    --foreground: #e8e8e8;
+    --card: #202124;
+    --primary: #e8e8e8;
+    --primary-foreground: #17181a;
+    --muted: #292a2d;
+    --muted-foreground: #a1a1a1;
+    --popover: #202124;
+    --popover-foreground: #e8e8e8;
+    --border: #3a3c40;
+    --ring: #a1a1a1;
+  }
+}
