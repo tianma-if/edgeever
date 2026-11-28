@@ -29,6 +29,7 @@ import {
 import { auditStatement } from "./audit";
 import type { AppContext, AuditActor, AuthContext, Bindings } from "./api-context";
 import { AppError } from "./app-error";
+import { isTableMigrationPausedError } from "./database-errors";
 import { clampNumber, createId, isoNow, parseJsonArray } from "./entity-utils";
 import { notebookExists, workspaceInboxId } from "./notebook-service";
 import { softDeleteMemoStatements } from "./memo-trash-statements";
@@ -1125,7 +1126,18 @@ export const mergeMemosRecord = async (
   return memo;
 };
 
-export const createMemoRecord = async (
+// The activation guard aborts the entire legacy transaction. Re-plan it once
+// against shared storage, retaining the original edit-session preconditions.
+const retryAtTableCutover = <Args extends unknown[], T>(write: (...args: Args) => Promise<T>) =>
+  async (...args: Args): Promise<T> => {
+    try { return await write(...args); }
+    catch (error) {
+      if (!isTableMigrationPausedError(error)) throw error;
+      return write(...args);
+    }
+  };
+
+export const createMemoRecord = retryAtTableCutover(async (
   db: DatabaseAdapter,
   workspaceId: string,
   input: { notebookId: string; title?: string; contentJson?: unknown; contentMarkdown?: string; tags?: string[]; createdAt?: string; updatedAt?: string },
@@ -1192,7 +1204,7 @@ export const createMemoRecord = async (
   }
 
   return memo;
-};
+});
 
 const normalizeImportSource = (value: string) => {
   const source = value.trim().toLocaleLowerCase("en-US");
@@ -1406,7 +1418,7 @@ export type ReleasedTableResource = {
   updatedAt?: string | null;
 };
 
-export const updateMemoRecord = async (
+export const updateMemoRecord = retryAtTableCutover(async (
   db: DatabaseAdapter,
   workspaceId: string,
   id: string,
@@ -1709,8 +1721,8 @@ export const updateMemoRecord = async (
     }),
     ...(commit?.after(id) ?? []),
   ];
-  const sharedMutation = sharedRevision !== null || current.shared_table_revision != null;
-  if (sharedMutation) {
+  const guardedTableMutation = sharedRevision !== null || current.shared_table_revision != null || !!currentTable || !!nextTable;
+  if (guardedTableMutation) {
     statements.unshift(db.prepare(
       `INSERT INTO ee_table_assertion SELECT 0 WHERE NOT EXISTS (
         SELECT 1 FROM memos m JOIN memo_contents c ON c.memo_id = m.id
@@ -1731,7 +1743,7 @@ export const updateMemoRecord = async (
     if (error instanceof AppError && error.code === "revision_conflict") {
       return { error: error.code, message: error.message, status: error.status };
     }
-    if (sharedMutation) {
+    if (guardedTableMutation) {
       const latest = await db.prepare(`SELECT revision FROM memo_contents WHERE memo_id = ?`).bind(id).first<number>("revision");
       if (latest !== current.revision) return { error: "revision_conflict", message: "Memo was updated elsewhere. Reload before saving.", status: 409 };
     }
@@ -1754,7 +1766,7 @@ export const updateMemoRecord = async (
   }
 
   return { memo, releasedResources: releasedResourceRows };
-};
+});
 
 const parseDoc = (json: string): TiptapDoc => {
   try {

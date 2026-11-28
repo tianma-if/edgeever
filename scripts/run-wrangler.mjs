@@ -7,6 +7,7 @@ import {
   writeSync,
   writeFileSync,
 } from "node:fs";
+import { parse as parseToml, stringify as stringifyToml } from "smol-toml";
 import { dirname, resolve } from "node:path";
 import {
   buildLocalDevEnvironmentFile,
@@ -359,6 +360,7 @@ const runtimeVars = {
   EDGE_EVER_AUTH_LOGIN_IP_COOLDOWN_SECONDS: envValue("AUTH_LOGIN_IP_COOLDOWN_SECONDS"),
   EDGE_EVER_R2_BUCKET_NAME: resolvedR2BucketName,
   EDGE_EVER_DEMO_MODE: envValue("DEMO_MODE"),
+  EDGE_EVER_DEMO_RESET_CRON: envValue("DEMO_RESET_CRON"),
   EDGE_EVER_LOCAL_DEMO_SEED: envValue("LOCAL_DEMO_SEED"),
   // Persistent local development uses real sessions. Only the isolated local
   // demo stays auth-free; remote deployments always fail closed.
@@ -390,16 +392,16 @@ if (localDemoSeed && !["true", "false"].includes(localDemoSeed)) {
 
 config = configureDemoAssetRouting(config, demoMode === "true");
 
-if (demoMode === "true") {
-  // Default: daily 19:00 UTC = 03:00 China Standard Time (UTC+8).
-  const demoResetCron = envValue("DEMO_RESET_CRON") || "0 19 * * *";
-  changed = true;
-  config = `${config.trimEnd()}
-
-[triggers]
-crons = [${tomlString(demoResetCron)}]
-`;
+const schedules = ["*/5 * * * *"];
+if (demoMode === "true") schedules.push(envValue("DEMO_RESET_CRON") || "0 19 * * *");
+if (/^\s*\[triggers\]/m.test(config)) {
+  const settings = parseToml(config);
+  settings.triggers.crons = [...new Set([...(settings.triggers.crons ?? []), ...schedules])];
+  config = stringifyToml(settings);
+} else {
+  config += `\n[triggers]\ncrons = ${JSON.stringify([...new Set(schedules)])}\n`;
 }
+changed = true;
 
 const customDomain = envValue("CUSTOM_DOMAIN");
 const routePattern = envValue("ROUTE_PATTERN") || customDomain;

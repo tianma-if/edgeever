@@ -299,6 +299,51 @@ export class SharedTableStore {
     }
     return { statements, end };
   }
+  // Before activation revision 1 is private to the copier. Patch only rows
+  // that differ between the two fixed images, removing their old positions
+  // before inserting any replacements so swaps work across batch boundaries.
+  stageLegacyChanges(h: SharedHead, before: TableDocument, target: TableDocument | null, offset: number, limit: number) {
+    const sql = this.sql;
+    const workspace = h.workspace_id, id = h.table_id;
+    const next = target?.records ?? [];
+    const fieldsChanged = JSON.stringify(before.fields) !== JSON.stringify(target?.fields);
+    const changed = (index: number) => fieldsChanged || JSON.stringify(before.records[index]) !== JSON.stringify(next[index]);
+    const deletes = before.records.filter((_, index) => changed(index));
+    const puts = next.flatMap((row, index) => changed(index) ? [{ row, position: index + 1 }] : []);
+    const end = Math.min(offset + limit, deletes.length + puts.length);
+    const complete = end === deletes.length + puts.length;
+    const statements: PreparedStatementAdapter[] = [];
+    const header = target && tableHeader(target);
+    let newIndexes = 0;
+    for (let i = offset; i < end; i++) {
+      if (i < deletes.length) {
+        const key = deletes[i].id;
+        statements.push(sql`DELETE FROM ee_table_records WHERE workspace_id=${workspace} AND table_id=${id} AND record_id=${key}`,
+          sql`DELETE FROM ee_table_versions WHERE workspace_id=${workspace} AND table_id=${id} AND record_id=${key} AND revision=1`);
+      } else {
+        const { row, position } = puts[i - deletes.length];
+        const record = normalizeSharedRecord(header!, row);
+        statements.push(this.rowStatement(workspace, id, record, position, 1, header!),
+          this.versionStatement(workspace, id, record, position, 1),
+          sql`INSERT INTO ee_table_assertion SELECT 0 WHERE NOT EXISTS (SELECT 1 FROM ee_table_records WHERE workspace_id=${workspace} AND table_id=${id} AND position=${position} AND record_id=${row.id} AND cells_json=${JSON.stringify(record.cells)})`);
+      }
+    }
+    if (complete) {
+      const indexes: SharedFieldIndex[] = JSON.parse(h.indexes_json);
+      if (header) {
+        const plan = indexStatements(this.db, workspace, id, header, indexes);
+        newIndexes = plan.next.filter(index => !indexes.some(existing => existing.name === index.name)).length;
+        const json = JSON.stringify(header);
+        statements.push(...plan.statements,
+          sql`UPDATE ee_table_heads SET header_json=${json},row_count=${next.length},max_position=${next.length},indexes_json=${JSON.stringify(plan.next)} WHERE workspace_id=${workspace} AND table_id=${id}`,
+          sql`UPDATE ee_table_commits SET header_json=${json},row_count=${next.length},max_position=${next.length} WHERE workspace_id=${workspace} AND table_id=${id} AND revision=1`);
+      } else {
+        statements.push(...indexes.map(index => this.db.prepare(`DROP INDEX ${index.name}`)),
+          sql`DELETE FROM ee_table_heads WHERE workspace_id=${workspace} AND table_id=${id}`);
+      }
+    }
+    return { statements, end, complete, newIndexes };
+  }
   committedHead(
     h: SharedHead,
     header: TableDocument,

@@ -195,7 +195,7 @@ describe("cross-platform Wrangler runner", () => {
       .split("\n")
       .filter((line) => line.startsWith("CREATE TRIGGER "));
 
-    expect(triggerLines).toHaveLength(43);
+    expect(triggerLines).toHaveLength(46);
     for (const triggerLine of triggerLines) {
       expect(triggerLine).toEndWith(" END;");
     }
@@ -227,7 +227,13 @@ describe("cross-platform Wrangler runner", () => {
 
       const withoutImages = runWithEnv({ EDGE_EVER_CLOUDFLARE_IMAGES: "false" });
       expect(withoutImages.status).toBe(0);
-      expect(readFileSync(resolve(workingDirectory, ".wrangler.generated.toml"), "utf8")).not.toContain("[images]");
+      const ordinary = readFileSync(resolve(workingDirectory, ".wrangler.generated.toml"), "utf8");
+      expect(ordinary).not.toContain("[images]");
+      expect(Bun.TOML.parse(ordinary).triggers).toEqual({crons: ["*/5 * * * *"]});
+      writeFileSync(configPath, 'name = "images-test"\n[triggers]\ncrons = ["15 1 * * *"]\n');
+      expect(runWithEnv({ EDGE_EVER_DEMO_MODE: "true" }).status).toBe(0);
+      expect(Bun.TOML.parse(readFileSync(resolve(workingDirectory, ".wrangler.generated.toml"), "utf8")).triggers)
+        .toEqual({crons: ["15 1 * * *", "*/5 * * * *", "0 19 * * *"]});
 
       const withImages = runWithEnv({ EDGE_EVER_CLOUDFLARE_IMAGES: "true" });
       expect(withImages.status).toBe(0);

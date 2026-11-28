@@ -18,16 +18,18 @@ const RECORD_BATCH = 25;
 const SCAN_BUDGET = { readRows: 16 + MEMO_BATCH * 4, writeRows: 16, extraBytes: 0 };
 
 export type TableMigrationBudget = { readRows: number; writeRows: number; extraBytes: number };
+type DailyAllowance = Pick<TableMigrationBudget, "readRows" | "writeRows">;
+export const D1_MIGRATION_DAILY_ALLOWANCE: DailyAllowance = { readRows: 1_000_000, writeRows: 25_000 };
 export type TableEstimateCursor = { memoId: string; copiedRecords: number };
 const zeroBudget = (): TableMigrationBudget => ({ readRows: 0, writeRows: 0, extraBytes: 0 });
 const fits = (cost: TableMigrationBudget, budget: TableMigrationBudget) =>
   cost.readRows <= budget.readRows && cost.writeRows <= budget.writeRows && cost.extraBytes <= budget.extraBytes;
 
-const estimateCopy = (source: LegacySource, table: TableDocument, offset: number, rows: number, copiedRecords: number): TableMigrationBudget => {
+const estimateCopy = (source: LegacySource, table: TableDocument, offset: number, rows: number, copiedRecords: number, newIndexes?: number): TableMigrationBudget => {
   const total = table.records.length;
   const buildsIndexes = offset + rows >= total;
   const views = getTableViews(table).filter((view) => view.sorts[0] && !view.sorts[0].legacy);
-  const indexes = buildsIndexes ? Math.min(TABLE_VIEW_INDEX_LIMIT, views.length) : 0;
+  const indexes = newIndexes ?? (buildsIndexes ? Math.min(TABLE_VIEW_INDEX_LIMIT, views.length) : 0);
   const bytes = new TextEncoder().encode(source.content_markdown).length;
   // Count shared index builds against previously copied rows as SQLite may scan
   // the whole shared table. These are planning allowances, not D1 billing.
@@ -48,6 +50,11 @@ type ProgressRow = {
   tables_copied: number;
   rows_copied: number;
   step: number;
+  scan_done: number;
+  budget_day: string;
+  planned_reads: number;
+  planned_writes: number;
+  charge?: DailyAllowance;
 };
 
 type LegacySource = {
@@ -56,19 +63,25 @@ type LegacySource = {
   content_markdown: string;
 };
 
+const dailyAllowanceSpent = (state: ProgressRow, allowance: DailyAllowance) =>
+  state.budget_day === new Date().toISOString().slice(0, 10) &&
+  (state.planned_reads >= allowance.readRows || state.planned_writes >= allowance.writeRows);
+
 const progress = (row: ProgressRow | null) => ({
   phase: row?.phase ?? "legacy",
   tablesCopied: row?.tables_copied ?? 0,
   rowsCopied: row?.rows_copied ?? 0,
   tableId: row ? ((JSON.parse(row.pending_ids) as string[])[0] ?? null) : null,
   afterPosition: row?.after_position ?? 0,
+  ...(row && dailyAllowanceSpent(row, D1_MIGRATION_DAILY_ALLOWANCE)
+    ? { paused: true, reason: "table_migration_budget_exhausted" } : {}),
 });
 
 export class SharedTableMigration {
   private readonly sql: ReturnType<typeof tableStatement>;
   private readonly store: SharedTableStore;
 
-  constructor(private readonly db: DatabaseAdapter) {
+  constructor(private readonly db: DatabaseAdapter, private readonly automatic = false, private readonly dailyAllowance?: DailyAllowance) {
     this.sql = tableStatement(db);
     this.store = new SharedTableStore(db);
   }
@@ -95,15 +108,23 @@ export class SharedTableMigration {
       : progress(await this.state());
   }
 
-  async activate() {
-    await this.db.batch([
-      this
-        .sql`INSERT INTO ee_table_activation(id, run_id, tables_copied, rows_copied)
-        SELECT id, run_id, tables_copied, rows_copied FROM ee_table_migration WHERE id = 1 AND phase = 'ready'`,
-      this.sql`DELETE FROM ee_table_migration WHERE id = 1 AND phase = 'ready'`,
-    ]);
+  private activationStatements() {
+    return [
+      this.sql`INSERT INTO ee_table_activation(id,run_id,tables_copied,rows_copied)
+        SELECT m.id,m.run_id,(SELECT count(*) FROM ee_table_heads h WHERE h.migration_run_id=m.run_id),
+          (SELECT coalesce(sum(h.row_count),0) FROM ee_table_heads h WHERE h.migration_run_id=m.run_id)
+        FROM ee_table_migration m WHERE m.id=1 AND (m.phase='ready' OR
+          (m.phase='copying' AND m.scan_done=1 AND m.pending_ids='[]' AND m.after_position=0))
+          AND NOT EXISTS (SELECT 1 FROM ee_table_migration_dirty)
+          AND NOT EXISTS (SELECT 1 FROM ee_table_migration_replay)`,
+      this.sql`DELETE FROM ee_table_migration WHERE id=1 AND run_id=(SELECT run_id FROM ee_table_activation WHERE id=1)`,
+    ];
+  }
+
+  async activate(automatic = false) {
+    await this.db.batch(this.activationStatements());
     const status = await this.status();
-    if (status.phase !== "active")
+    if (!automatic && status.phase !== "active")
       throw new AppError(
         "table_migration_not_ready",
         "Finish verifying the table migration before activation",
@@ -171,8 +192,12 @@ export class SharedTableMigration {
   async advance(budget?: TableMigrationBudget) {
     const state = await this.state();
     if (!state) return this.status();
-    if (state.phase === "ready") return progress(state);
+
+    if (this.dailyAllowance && dailyAllowanceSpent(state, this.dailyAllowance)) {
+      throw new AppError("table_migration_budget_exhausted", "The daily migration allowance is spent; the checkpoint resumes after UTC midnight", 409);
+    }
     const requireBudget = (cost: TableMigrationBudget) => {
+      if (this.dailyAllowance) state.charge = cost;
       if (budget && !fits(cost, budget)) throw new AppError("table_migration_budget_exhausted", "Insufficient read, write or storage allowance for this step", 409);
     };
     if (state.phase === "rolling_back") return this.rollback(state, requireBudget);
@@ -181,15 +206,14 @@ export class SharedTableMigration {
     const tableId = pending[0];
     if (tableId) {
       requireBudget({ readRows: 16, writeRows: 1, extraBytes: 0 });
-      const source = await this.readSource(tableId);
-      if (!source)
-        throw new AppError(
-          "invalid_legacy_table",
-          `Cannot read table ${tableId}`,
-          409,
-        );
+      // A write made after scanning freezes the previous body in the same
+      // transaction. Continue the initial copy from that image until replay.
+      const source = await this.sql`SELECT m.id,m.workspace_id,COALESCE(d.before_markdown,mc.content_markdown) AS content_markdown
+        FROM memos m JOIN memo_contents mc ON mc.memo_id=m.id LEFT JOIN ee_table_migration_dirty d ON d.memo_id=m.id
+        WHERE m.id=${tableId} AND (${state.after_position}=0 OR EXISTS (
+          SELECT 1 FROM ee_table_heads h WHERE h.table_id=m.id AND h.migration_run_id=${state.run_id}))`.first<LegacySource>();
       const remaining = JSON.stringify(pending.slice(1));
-      if (hasTableDocumentMarker(source.content_markdown)) {
+      if (source && hasTableDocumentMarker(source.content_markdown)) {
         const document = this.parseSource(source);
         const count = Math.min(RECORD_BATCH, document.records.length - state.after_position);
         requireBudget(estimateCopy(source, document, state.after_position, count, state.rows_copied));
@@ -197,10 +221,11 @@ export class SharedTableMigration {
       }
       return this.commit(state, [
         this
-          .sql`UPDATE ee_table_migration SET pending_ids = ${remaining}, step = step + 1 WHERE id = 1`,
+          .sql`UPDATE ee_table_migration SET pending_ids = ${remaining}, after_position=0, rows_copied=rows_copied-${state.after_position}, step = step + 1 WHERE id = 1`,
       ]);
     }
 
+    if (state.scan_done || state.phase === "ready") return this.catchUp(state, requireBudget);
     requireBudget(SCAN_BUDGET);
     const page = (
       await this
@@ -219,7 +244,7 @@ export class SharedTableMigration {
     const afterMemoId = page.at(-1)?.id ?? state.after_memo_id;
     return this.commit(state, [
       this
-        .sql`UPDATE ee_table_migration SET phase = ${phase}, after_memo_id = ${afterMemoId},
+        .sql`UPDATE ee_table_migration SET phase = ${phase}, scan_done=${Number(page.length < MEMO_BATCH)}, after_memo_id = ${afterMemoId},
         pending_ids = ${JSON.stringify(candidates)}, step = step + 1 WHERE id = 1`,
     ]);
   }
@@ -238,6 +263,59 @@ export class SharedTableMigration {
     statements.push(this.sql`UPDATE ee_table_migration SET
       pending_ids = ${complete ? remaining : state.pending_ids}, after_position = ${complete ? 0 : end},
       rows_copied = rows_copied + ${copied}, tables_copied = tables_copied + ${Number(complete)}, step = step + 1 WHERE id = 1`);
+    return this.commit(state, statements);
+  }
+
+  private async catchUp(state: ProgressRow, requireBudget: (cost: TableMigrationBudget) => void) {
+    const sql = this.sql;
+    requireBudget(SCAN_BUDGET);
+    const target = await sql`SELECT r.memo_id AS id,m.workspace_id,r.markdown AS content_markdown
+      FROM ee_table_migration_replay r JOIN memos m ON m.id=r.memo_id WHERE image='target'`.first<LegacySource>();
+    if (!target) {
+      const dirty = await sql`SELECT memo_id FROM ee_table_migration_dirty ORDER BY memo_id LIMIT 1`.first<{ memo_id: string }>();
+      if (!dirty) return state.phase === "ready" ? progress(state) : this.commit(state, [
+        sql`UPDATE ee_table_migration SET phase='ready',after_position=0,step=step+1 WHERE id=1`,
+      ]);
+      const id = dirty.memo_id;
+      // Freeze the pair, then release the dirty marker, all in one transaction.
+      // Concurrent writes will remember the target as their next before image.
+      return this.commit(state, [
+        sql`INSERT INTO ee_table_migration_replay(image,memo_id,markdown)
+          SELECT 'before',m.id,CASE WHEN h.table_id IS NULL THEN '' ELSE d.before_markdown END
+          FROM memos m JOIN ee_table_migration_dirty d ON d.memo_id=m.id
+          LEFT JOIN ee_table_heads h ON h.table_id=m.id AND h.migration_run_id=${state.run_id} WHERE m.id=${id}`,
+        sql`INSERT INTO ee_table_migration_replay(image,memo_id,markdown)
+          SELECT 'target',m.id,COALESCE(mc.content_markdown,'') FROM memos m LEFT JOIN memo_contents mc ON mc.memo_id=m.id WHERE m.id=${id}`,
+        sql`DELETE FROM ee_table_migration_dirty WHERE memo_id=${id}`,
+        sql`UPDATE ee_table_migration SET phase='copying',scan_done=1,after_position=0,step=step+1 WHERE id=1`,
+      ]);
+    }
+    const before = await sql`SELECT markdown FROM ee_table_migration_replay WHERE image='before' AND memo_id=${target.id}`.first<{markdown: string}>();
+    const prior = before && hasTableDocumentMarker(before.markdown) ? this.parseSource({ ...target, content_markdown: before.markdown }) : null;
+    const next = hasTableDocumentMarker(target.content_markdown) ? this.parseSource(target) : null;
+    const offset = state.after_position;
+    const statements = [sql`INSERT INTO ee_table_assertion SELECT 0 WHERE NOT EXISTS (
+      SELECT 1 FROM ee_table_migration_replay WHERE image='target' AND memo_id=${target.id})`];
+    let end = 0, complete = true;
+    if (prior) {
+      const head = await sql`SELECT * FROM ee_table_heads WHERE table_id=${target.id} AND migration_run_id=${state.run_id}`.first<SharedHead>();
+      if (!head) return this.status();
+      const batch = this.store.stageLegacyChanges(head, prior, next, offset, RECORD_BATCH);
+      requireBudget(estimateCopy(target, next ?? prior, offset, batch.end - offset, state.rows_copied, batch.newIndexes));
+      statements.push(...batch.statements);
+      ({ end, complete } = batch);
+    } else if (next) {
+      requireBudget(estimateCopy(target, next, offset, Math.min(RECORD_BATCH, next.records.length - offset), state.rows_copied));
+      const batch = this.store.stageLegacyBatch(target.workspace_id, target.id, next, offset, RECORD_BATCH, state.run_id);
+      statements.push(...batch.statements);
+      end = batch.end;
+      complete = end === next.records.length;
+    }
+    if (complete) statements.push(sql`DELETE FROM ee_table_migration_replay`);
+    statements.push(sql`UPDATE ee_table_migration SET after_position=${complete ? 0 : end},step=step+1,
+      tables_copied=tables_copied+${complete ? Number(!!next)-Number(!!prior) : 0},
+      rows_copied=rows_copied+${complete ? (next?.records.length ?? 0)-(prior?.records.length ?? 0) : 0}
+      WHERE id=1`);
     return this.commit(state, statements);
   }
 
@@ -278,13 +356,41 @@ export class SharedTableMigration {
         this.sql`INSERT INTO ee_table_assertion SELECT 0 WHERE NOT EXISTS (
           SELECT 1 FROM ee_table_migration WHERE id = 1 AND run_id = ${state.run_id} AND phase = ${state.phase} AND step = ${state.step})`,
         ...statements,
+        ...(state.charge ? [this.sql`UPDATE ee_table_migration SET
+          planned_reads=(CASE WHEN budget_day=date('now') THEN planned_reads ELSE 0 END)+${state.charge.readRows},
+          planned_writes=(CASE WHEN budget_day=date('now') THEN planned_writes ELSE 0 END)+${state.charge.writeRows},
+          budget_day=date('now') WHERE id=1`] : []),
+        ...(this.automatic ? this.activationStatements() : []),
       ]);
     } catch (error) {
       const latest = await this.state();
       if (latest?.run_id !== state.run_id || latest.step !== state.step)
-        return progress(latest);
+        return latest ? progress(latest) : this.status();
       throw error;
     }
     return this.status();
   }
+}
+
+/** Both runtime schedulers drive the same durable cursor. Overlapping ticks are
+ * serialized by the step check in the transaction that publishes each batch. */
+export async function runOnlineTableMigration(db: DatabaseAdapter, steps = 4, dailyAllowance?: DailyAllowance) {
+  const migration = new SharedTableMigration(db, true, dailyAllowance);
+  let state = await migration.status();
+  if (state.phase === "legacy") state = await migration.start();
+  for (let i = 0; i < steps && state.phase !== "active"; i++) {
+    if (state.phase === "ready") {
+      state = await migration.activate(true);
+      if (state.phase === "active") break;
+    }
+    try {
+      state = await migration.advance();
+    } catch (error) {
+      if (error instanceof AppError && error.code === "table_migration_budget_exhausted") {
+        return { ...state, paused: true, reason: error.code };
+      }
+      throw error;
+    }
+  }
+  return state;
 }

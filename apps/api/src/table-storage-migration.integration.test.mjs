@@ -176,6 +176,137 @@ test("interrupted migration resumes from committed rows and preserves v1 and v2 
   }
 });
 
+test("online migration catches edits during copy, behind the scan cursor and immediately before activation", async () => {
+  const installation = await seededInstallation();
+  const { db, sqlite } = installation;
+  const migration = new SharedTableMigration(db);
+  const id = installation.memos[0].id;
+  try {
+    await migration.start();
+    let state = await migration.advance();
+    while (!state.afterPosition) state = await migration.advance();
+    const save = async (document) => {
+      const current = await getMemoDetail(db, workspace, id);
+      const result = await updateMemoRecord(db, workspace, id, {
+        expectedRevision: current.revision, contentMarkdown: serializeTableDocument(document),
+      }, actor, "test");
+      expect(result.memo).toBeTruthy();
+    };
+    let document = structuredClone(tables[0]);
+    document.records.reverse();
+    document.records[0].cells.name = "updated during copy";
+    await save(document);
+    const early = await seedLegacyMemo(db, tables[1], "000-new-behind-cursor");
+    const { runOnlineTableMigration } = await import("./table-storage-migration");
+    // Every copy batch races an ordinary write; the baseline must still finish.
+    for (let i = 0; i < 8; i++) {
+      document.records[1].cells.name = "sync-" + i;
+      await save(document);
+      await runOnlineTableMigration(db, 1);
+    }
+    state = await migration.status();
+    while (state.phase === "copying") state = await migration.advance();
+    document.records.splice(2, 1);
+    await save(document);
+    await expect(migration.activate()).rejects.toMatchObject({ code: "table_migration_not_ready" });
+    for (let i = 0; i < 100 && (await migration.status()).phase !== "active"; i++) {
+      await runOnlineTableMigration(db, 1);
+    }
+    expect((await migration.status()).phase).toBe("active");
+    const current = await getMemoDetail(db, workspace, id);
+    expect(parseTableDocument(current.contentMarkdown).records).toEqual(parseTableDocument(serializeTableDocument(document)).records);
+    expect((await getMemoDetail(db, workspace, early.id)).sharedTableRevision).toBe(1);
+  } finally {
+    sqlite.close();
+    installation.cleanup();
+  }
+});
+
+test("catch-up handles deleting and recreating a partially copied table and converting another to text", async () => {
+  const installation = await seededInstallation();
+  const { db, sqlite } = installation;
+  const [first, second] = installation.memos;
+  const migration = new SharedTableMigration(db);
+  try {
+    await migration.start();
+    let state = await migration.advance();
+    while (!state.afterPosition) state = await migration.advance();
+    sqlite.query("DELETE FROM memos WHERE id=?").run(first.id);
+    await seedLegacyMemo(db, tables[1], first.id);
+    while (state.phase === "copying") state = await migration.advance();
+    const restored = await updateMemoRecord(db, workspace, second.id, { expectedRevision: second.revision, contentMarkdown: "ordinary note", allowDestructiveOverwrite: true },
+      actor, "test", false, { before: [], after: () => [], restoreRevision: { id: "old-text", revision: 0 } });
+    expect(restored.memo?.contentMarkdown).toBe("ordinary note");
+    const { runOnlineTableMigration } = await import("./table-storage-migration");
+    expect(await runOnlineTableMigration(db, 100)).toMatchObject({ phase: "active", tablesCopied: 1, rowsCopied: 2 });
+    expect(parseTableDocument((await getMemoDetail(db, workspace, first.id)).contentMarkdown).records).toEqual(
+      parseTableDocument(serializeTableDocument(tables[1])).records);
+    expect((await getMemoDetail(db, workspace, second.id)).contentMarkdown).toBe("ordinary note");
+  } finally {
+    sqlite.close();
+    installation.cleanup();
+  }
+});
+
+test("a legacy table save racing another save or the cutover keeps its revision precondition", async () => {
+  const installation = await seededInstallation();
+  const { db, sqlite } = installation;
+  const migration = new SharedTableMigration(db);
+  const id = installation.memos[0].id;
+  try {
+    await migration.start();
+    const edit = (database, value, expectedRevision) => {
+      const table = structuredClone(tables[0]);
+      table.records[0].cells.name = value;
+      return updateMemoRecord(database, workspace, id, { expectedRevision, contentMarkdown: serializeTableDocument(table) }, actor, "test");
+    };
+    const beforeBatch = fn => ({ prepare: db.prepare.bind(db), batch: async statements => {
+      await fn();
+      return db.batch(statements);
+    }});
+    expect((await edit(beforeBatch(() => edit(db, "first", 0)), "stale", 0)).error).toBe("revision_conflict");
+    let state = await migration.advance();
+    while (state.phase === "copying") state = await migration.advance();
+    let switched = false;
+    const racing = beforeBatch(async () => {
+      if (switched) return;
+      switched = true;
+      const created = await createMemoRecord(beforeBatch(() => migration.activate()), workspace,
+        { notebookId: "nb_inbox", contentMarkdown: serializeTableDocument(tables[1]) }, actor, "test");
+      expect(created.sharedTableRevision).toBe(1);
+    });
+    const result = await edit(racing, "at activation", 1);
+    expect(result.memo?.revision).toBe(2);
+    expect(parseTableDocument((await getMemoDetail(db, workspace, id)).contentMarkdown).records[0].cells.name).toBe("at activation");
+  } finally {
+    sqlite.close();
+    installation.cleanup();
+  }
+});
+
+test("automatic D1 work retains its checkpoint and legacy writes when its daily migration allowance runs out", async () => {
+  const { runOnlineTableMigration } = await import("./table-storage-migration");
+  const installation = await seededInstallation();
+  const { db, sqlite } = installation;
+  try {
+    const paused = await runOnlineTableMigration(db, 10, {readRows: 1, writeRows: 1});
+    expect(paused.phase).toBe("copying");
+    expect(paused.paused).toBe(true);
+    const checkpoint = sqlite.query("SELECT step FROM ee_table_migration").get().step;
+    await seedLegacyMemo(db, tables[1], "quota-paused-create");
+    await runOnlineTableMigration(db, 10, {readRows: 1, writeRows: 1});
+    expect(sqlite.query("SELECT step FROM ee_table_migration").get().step).toBe(checkpoint);
+    sqlite.exec("UPDATE ee_table_migration SET planned_writes=25000");
+    expect(await new SharedTableMigration(db).status()).toMatchObject({ paused: true, reason: "table_migration_budget_exhausted" });
+    sqlite.exec("UPDATE ee_table_migration SET budget_day='2000-01-01'");
+    expect((await runOnlineTableMigration(db, 100, {readRows: 1000000, writeRows: 25000})).phase).toBe("active");
+    expect((await getMemoDetail(db, workspace, "quota-paused-create")).sharedTableRevision).toBe(1);
+  } finally {
+    sqlite.close();
+    installation.cleanup();
+  }
+});
+
 test("field add, type change and removal preserve old values in history", async () => {
   const installation = await seededInstallation();
   try {
@@ -361,15 +492,14 @@ test("reading a full 2,000-record current snapshot fits the D1 free invocation q
   }
 });
 
-test("canceling a staged migration preserves legacy bodies and releases the maintenance lock", async () => {
+test("canceling a staged migration preserves legacy bodies and concurrent creates", async () => {
   const installation = await seededInstallation();
   try {
     const migration = new SharedTableMigration(installation.db);
     let status = await migration.start();
     while (status.phase === "copying") status = await migration.advance();
     const id = installation.memos[0].id;
-    await expect(
-      createMemoRecord(
+    const created = await createMemoRecord(
         installation.db,
         workspace,
         {
@@ -378,8 +508,8 @@ test("canceling a staged migration preserves legacy bodies and releases the main
         },
         actor,
         "test",
-      ),
-    ).rejects.toThrow("table_migration_in_progress");
+      );
+    expect(created.id).toBeTruthy();
     const store = new SharedTableStore(installation.db);
     status = await migration.beginRollback();
     while (status.phase === "rolling_back") status = await migration.advance();

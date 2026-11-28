@@ -1,3 +1,4 @@
+import { D1_MIGRATION_DAILY_ALLOWANCE, runOnlineTableMigration } from "./table-storage-migration";
 import { compactSharedMemo, readActiveTableStorage, readSharedMemoMarkdown } from "./table-memo-storage";
 import { SharedTableStore } from "./shared-table-store";
 import { dropSavedIndexesForMemos } from "./shared-table-index";
@@ -547,7 +548,8 @@ const worker = {
       storage: createCloudflareStorageAdapter(env),
     } as Bindings;
 
-    if (!isDemoMode(runtimeEnv)) {
+    ctx.waitUntil(runOnlineTableMigration(runtimeEnv.storage.db, 4, D1_MIGRATION_DAILY_ALLOWANCE));
+    if (!isDemoMode(runtimeEnv) || controller.cron !== (env.EDGE_EVER_DEMO_RESET_CRON || "0 19 * * *")) {
       return;
     }
 

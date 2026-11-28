@@ -2,7 +2,13 @@
 
 [Issue](https://github.com/tianma-if/edgeever/issues/879) · Baseline `18720460` · [Storage candidate](https://github.com/sivdead/edgeever/commit/1558f1e9037fc2f17a4d56ad4819d1625b112769)
 
-## Scope and risk
+## Automatic online upgrade (current design)
+
+A normal upgrade starts bounded migration in the background. Until cutover, the legacy body continues serving edits, sync and public forms. Copy a stable source and catch up changes made during the copy. Capture changes in the writer transaction and checkpoint verified rows in the copy transaction. Activate atomically after the scan and catch-up queue are complete. Insufficient capacity, interruption or restart preserves committed progress for a later background run. An exhausted D1 account quota remains a database error.
+
+The main risks are publishing stale staged rows after concurrent edits, deletes or recreation, and losing post-cutover writes on rollback. Exercise real old-release data on D1 and a same-volume Docker SQLite upgrade, including sustained writes, resume, automatic cutover and rollback to a compatible server. Production rollout has separate acceptance. The maintenance-window procedure below records the earlier implementation and rehearsals.
+
+## Initial scope and risk
 
 - Move current records from memo bodies to a shared JSON row table on D1 and Docker SQLite. Scope queries by workspace, table and row order. Update only the affected row and necessary history and indexes. Preserve fields, views, permissions, sort semantics and attachment references.
 - Back up first and pause table writes during maintenance, including public forms and sync. Commit bounded record batches and their progress together. Verify all tables before switching. Resume legacy reads and writes if the cutover is canceled. After cutover, roll back to a verified service version that reads and writes shared records.
@@ -42,11 +48,17 @@
 - The original rollback bundle can be rebuilt from the [pinned source and commands](#rebuild-the-rollback-service).
 - Final checks passed for 1,074 API tests, 93 Web sync tests, 17 Rust sidecar unit tests, cross-client sidecar sync, Web and mobile type checks, and Web and Docker server builds.
 
-## Maintenance window procedure
+## Operating an online upgrade
 
-1. As the instance owner, call `GET /api/v1/admin/table-storage`. POST `{ "action": "estimate" }` to the same path and send each `estimate.next` as the next request's `cursor`. Sum `readRows`, `writeRows` and `extraBytes` and allow for normal use when comparing the totals with available instance and account capacity. Keep a verified rollback build that reads and writes shared records.
-2. Back up during the maintenance window. Confirm capacity, then submit `{ "action": "start", "backupConfirmed": true }`. Table writes return `409 table_migration_in_progress`. Call `advance` with the available `readRows`, `writeRows` and `extraBytes` in `budget`. Check `progress` after each call and continue until `ready`. An insufficient budget returns `paused` and preserves the checkpoint. A depleted daily D1 quota returns `503 database_daily_quota_exceeded`. Resume once capacity returns.
-3. Reconcile table and row counts and verify representative samples. Call `activate`, confirm `active`, and verify existing tables, edits, sync and backups. To cancel before activation, call `abort` and then `advance` until `legacy`. After activation, keep the database and shared records and roll back to the compatible build.
+Apply the regular schema migrations through `0106` and start the service. Cloudflare receives a migration cron every five minutes. Docker schedules the next batch after one second while copying. Both use up to four steps per invocation, up to 25 row operations per copy step. The owner can inspect `GET /api/v1/admin/table-storage`. Normal use requires no admin action. Before cutover, reads and writes use the old body. After cutover, roll the service back on the same database to a build that reads and writes shared records, such as `9f74dbd0`.
+
+D1 tracks estimated migration reads and writes per database. Once a committed step reaches one million planned reads or 25,000 planned writes for the UTC day, further automatic work waits until the next UTC day. The owner sees `paused` and `table_migration_budget_exhausted`. These are scheduling limits, not a measurement of remaining account capacity. A database or storage failure rolls back the current batch. Foreground writes still require the underlying database to accept writes.
+
+## Online upgrade verification
+
+The published Docker image `v2.31.2` and a Worker built from its tag created v1 and v2 tables of 250 rows each and a public form. The upgrade used the same SQLite volume or D1 database throughout, first with legacy schema `0099`, then schema `0106`. On remote D1 a short-lived Worker preview invoked the production scheduled handler explicitly. Local Wrangler dispatched the scheduled event, and Docker ran its own timer.
+
+On each runtime we interrupted the worker or service after 75 rows, resumed at that checkpoint, and submitted one edit, one conditional sync write and one anonymous form response on both sides of restart. The sync feed contained both edited memos. After automatic activation both test tables retained their row order and contained 250 and 252 rows. The compatible service built from `9f74dbd0` read and edited the activated data, and the new service read that edit after switching back. The remote D1 readback showed two activated tables, 502 rows and empty dirty/replay queues. Docker included its two additional seed tables, for 524 rows. No production instance was used. [Exercise](evidence/2026-11-28-online-table-upgrade/exercise.mjs) · [Readbacks](evidence/2026-11-28-online-table-upgrade/results.json)
 
 ## Cumulative local D1 measurements
 

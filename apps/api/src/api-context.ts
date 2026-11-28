@@ -49,6 +49,7 @@ export type Bindings = {
   EDGE_EVER_CREDENTIALS_ENCRYPTION_KEY?: string;
   EDGE_EVER_CREDENTIALS_ENCRYPTION_KEY_PREVIOUS?: string;
   EDGE_EVER_DEMO_MODE?: string;
+  EDGE_EVER_DEMO_RESET_CRON?: string;
   EDGE_EVER_LOCAL_DEMO_SEED?: string;
   EDGE_EVER_ALLOW_UNAUTHENTICATED?: string;
   /** HTTPS URL of the signed community registry. Unset disables the catalog. */
