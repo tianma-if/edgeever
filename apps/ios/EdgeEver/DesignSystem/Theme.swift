@@ -1,39 +1,42 @@
 import SwiftUI
 import UIKit
 
-/// Exact visual tokens from Android `workspace-styles.ts`.
+/// Native UI colors, with dark surfaces aligned to the EdgeEver workspace palette.
 enum AppTheme {
     // Surfaces
-    static let background = Color(light: 0xF8FAFC, dark: 0x020617)
-    static let card = Color(light: 0xFFFFFF, dark: 0x0F172A)
-    static let cardElevated = Color(light: 0xFFFFFF, dark: 0x1E293B)
-    static let cardBorder = Color(light: 0xF1F5F9, dark: 0x1E293B)
-    static let border = Color(light: 0xE2E8F0, dark: 0x334155)
-    static let searchFill = Color(light: 0xF1F5F9, dark: 0x1E293B)
-    static let searchActiveFill = Color(light: 0xECFDF5, dark: 0x064E3B)
-    static let disabledFill = Color(light: 0xCBD5E1, dark: 0x334155)
-    static let disabledText = Color(light: 0xF8FAFC, dark: 0x94A3B8)
-    static let sheetHandle = Color(light: 0xCBD5E1, dark: 0x475569)
+    static let background = Color(light: 0xF8FAFC, dark: 0x121315)
+    static let card = Color(light: 0xFFFFFF, dark: 0x1D1E20)
+    static let cardElevated = Color(light: 0xFFFFFF, dark: 0x27282A)
+    static let cardBorder = Color(light: 0xF1F5F9, dark: 0x323437)
+    static let border = Color(light: 0xE2E8F0, dark: 0x383A3D)
+    static let inputFill = Color(light: 0xFFFFFF, dark: 0x161719)
+    static let inputBorder = Color(light: 0xE2E8F0, dark: 0x696B6D)
+    static let searchFill = Color(light: 0xF1F5F9, dark: 0x2A2B2D)
+    static let searchActiveFill = Color(light: 0xECFDF5, dark: 0x21342B)
+    static let disabledFill = Color(light: 0xCBD5E1, dark: 0x383A3D)
+    static let disabledText = Color(light: 0xF8FAFC, dark: 0x949598)
+    static let sheetHandle = Color(light: 0xCBD5E1, dark: 0x696B6D)
 
     // Text
-    static let title = Color(light: 0x0F172A, dark: 0xF8FAFC)
-    static let body = Color(light: 0x0F172A, dark: 0xF8FAFC)
-    static let secondary = Color(light: 0x64748B, dark: 0xCBD5E1)
-    static let meta = Color(light: 0x334155, dark: 0xE2E8F0)
-    static let muted = Color(light: 0x94A3B8, dark: 0x94A3B8)
-    static let slate = Color(light: 0x475569, dark: 0xE2E8F0)
-    static let filterActive = Color(light: 0x334155, dark: 0x475569)
+    static let title = Color(light: 0x0F172A, dark: 0xF2F2F2)
+    static let body = Color(light: 0x0F172A, dark: 0xF2F2F2)
+    static let secondary = Color(light: 0x64748B, dark: 0xB6B6B8)
+    static let meta = Color(light: 0x334155, dark: 0xDDDDDF)
+    static let muted = Color(light: 0x94A3B8, dark: 0x949598)
+    static let slate = Color(light: 0x475569, dark: 0xDDDDDF)
+    static let filterActive = Color(light: 0x334155, dark: 0x484A4C)
 
     // Brand
-    static let accent = Color(light: 0x059669, dark: 0x34D399)
-    static let accentStrong = Color(light: 0x047857, dark: 0x6EE7B7)
-    static let accentBright = Color(light: 0x10B981, dark: 0x34D399)
-    static let accentSoft = Color(light: 0xECFDF5, dark: 0x064E3B)
-    static let accentBorder = Color(light: 0xA7F3D0, dark: 0x047857)
-    static let accentText = Color(light: 0x065F46, dark: 0xA7F3D0)
+    static let accent = Color(light: 0x059669, dark: 0x82AB97)
+    static let accentStrong = Color(light: 0x047857, dark: 0x98C2AE)
+    static let accentBright = Color(light: 0x10B981, dark: 0x82AB97)
+    static let accentSoft = Color(light: 0xECFDF5, dark: 0x21342B)
+    static let accentBorder = Color(light: 0xA7F3D0, dark: 0x5B8270)
+    static let accentText = Color(light: 0x065F46, dark: 0xB0CDBC)
     static let danger = Color(light: 0xDC2626, dark: 0xFCA5A5)
     static let dangerStrong = Color(light: 0x9F1239, dark: 0xFDA4AF)
-    static let accentAction = Color(light: 0x059669, dark: 0x047857)
+    static let accentAction = Color(light: 0x059669, dark: 0x477661)
+    static let signInAction = Color(light: 0x047857, dark: 0x477661)
     static let dangerAction = Color(light: 0xBE123C, dark: 0x9F1239)
     static let dangerSurface = Color(light: 0xFFF1F2, dark: 0x4C0519)
     static let dangerBorder = Color(light: 0xFECDD3, dark: 0x9F1239)
@@ -44,19 +47,19 @@ enum AppTheme {
     static let warningSurface = Color(light: 0xFFF7ED, dark: 0x431407)
 
     // First-sync progress / error (Android memoSync* + memoListLoading* / memoListError*)
-    static let syncProgressTrack = Color(light: 0xD1FAE5, dark: 0x065F46)
-    static let syncProgressFill = Color(light: 0x059669, dark: 0x34D399)
+    static let syncProgressTrack = Color(light: 0xD1FAE5, dark: 0x21342B)
+    static let syncProgressFill = Color(light: 0x059669, dark: 0x82AB97)
     static let syncErrorBackground = Color(light: 0xFFFBEB, dark: 0x451A03)
     static let syncErrorBorder = Color(light: 0xFCD34D, dark: 0x92400E)
     static let syncErrorTitle = Color(light: 0x451A03, dark: 0xFEF3C7)
     static let syncErrorBody = Color(light: 0x92400E, dark: 0xFDE68A)
     static let syncErrorRetryFill = Color(light: 0xFEF3C7, dark: 0x78350F)
-    static let emptyDashBorder = Color(light: 0xCBD5E1, dark: 0x475569)
+    static let emptyDashBorder = Color(light: 0xCBD5E1, dark: 0x696B6D)
 
     // Tag chip
-    static let tagBackground = Color(light: 0xF1F5F9, dark: 0x1E293B)
+    static let tagBackground = Color(light: 0xF1F5F9, dark: 0x2A2B2D)
 
-    static let fabShadow = Color(light: 0x10B981, dark: 0x34D399).opacity(0.28)
+    static let fabShadow = Color(light: 0x10B981, dark: 0x000000).opacity(0.28)
 
     // Typography helpers matching RN sizes
     static let notebookTitleFont = Font.system(size: 17, weight: .bold)

@@ -77,11 +77,11 @@ struct AccountPasswordPanel: View {
                 .font(.system(size: 15))
                 .padding(.horizontal, 13)
                 .frame(minHeight: 48)
-                .background(AppTheme.card)
+                .background(AppTheme.inputFill)
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .stroke(AppTheme.border, lineWidth: 1)
+                        .stroke(AppTheme.inputBorder, lineWidth: 1)
                 )
         }
     }

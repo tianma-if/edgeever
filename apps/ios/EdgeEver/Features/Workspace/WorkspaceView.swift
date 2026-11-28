@@ -498,7 +498,7 @@ struct WorkspaceView: View {
                 .foregroundStyle(.white)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
-                .background(AppTheme.accent)
+                .background(AppTheme.accentAction)
                 .clipShape(Capsule())
 
                 Text(env.preferences.t("\(store.totalCount) 条结果", en: "\(store.totalCount) results", pl: "Wyniki: \(store.totalCount)"))
@@ -642,7 +642,7 @@ struct WorkspaceView: View {
                         .frame(width: createSize, height: createSize)
                         .background(canCreate ? AppTheme.accentAction : AppTheme.disabledFill)
                         .clipShape(Circle())
-                        .overlay(Circle().stroke(Color.white, lineWidth: 3))
+                        .overlay(Circle().stroke(AppTheme.card, lineWidth: 3))
                         .shadow(
                             color: AppTheme.fabShadow.opacity(canCreate ? 0.28 : 0),
                             radius: 6,
@@ -697,7 +697,7 @@ struct WorkspaceView: View {
             VStack(spacing: 4) {
                 Image(systemName: systemImage)
                     .font(.system(size: 20, weight: active ? .semibold : .regular))
-                    .foregroundStyle(active ? AppTheme.accentAction : AppTheme.secondary)
+                    .foregroundStyle(active ? AppTheme.accent : AppTheme.secondary)
                 Text(label)
                     .font(AppTheme.bottomNavFont)
                     .foregroundStyle(active ? AppTheme.title : AppTheme.secondary)
@@ -706,7 +706,7 @@ struct WorkspaceView: View {
             .overlay(alignment: .top) {
                 if active {
                     Capsule()
-                        .fill(AppTheme.accentAction)
+                        .fill(AppTheme.accent)
                         .frame(width: 20, height: 3)
                 }
             }

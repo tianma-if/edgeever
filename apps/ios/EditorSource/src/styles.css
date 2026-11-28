@@ -34,15 +34,15 @@ html[data-theme="dark"] .block-math-error {
 }
 
 html[data-theme="dark"] {
-  --text: #f8fafc;
-  --muted: #cbd5e1;
-  --border: #334155;
-  --toolbar-bg: #0f172a;
-  --toolbar-fg: #cbd5e1;
-  --toolbar-active-bg: #14532d;
-  --toolbar-active-border: #166534;
-  --toolbar-active-fg: #86efac;
-  --placeholder: #64748b;
+  --text: #f2f2f2;
+  --muted: #b6b6b8;
+  --border: #383a3d;
+  --toolbar-bg: #1d1e20;
+  --toolbar-fg: var(--muted);
+  --toolbar-active-bg: #21342b;
+  --toolbar-active-border: #5b8270;
+  --toolbar-active-fg: #98c2ae;
+  --placeholder: #949598;
 }
 
 /* Android LocalTiptapEditor shell: column flex, toolbar fixed top, body scrolls. */
@@ -64,7 +64,7 @@ body {
 
 html[data-theme="dark"],
 html[data-theme="dark"] body {
-  background: #0f172a;
+  background: var(--toolbar-bg);
 }
 
 /* Full-height column; never let sticky/fixed fight the keyboard visual viewport. */

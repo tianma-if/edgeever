@@ -19,8 +19,6 @@ struct LoginView: View {
     @State private var mfaError: String?
     @State private var mfaSubmitting = false
 
-    private let submitFill = Color(hex: 0x047857)
-
     private var canSubmit: Bool {
         !baseUrl.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && !username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -152,7 +150,7 @@ struct LoginView: View {
                         .frame(maxWidth: .infinity)
                         .frame(height: 48)
                         .foregroundStyle(.white)
-                        .background(canSubmit ? submitFill : AppTheme.disabledFill)
+                        .background(canSubmit ? AppTheme.signInAction : AppTheme.disabledFill)
                         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                     }
                     .buttonStyle(.plain)
@@ -238,7 +236,7 @@ struct LoginView: View {
                 .frame(maxWidth: .infinity)
                 .frame(height: 48)
                 .foregroundStyle(.white)
-                .background(canSubmitMfa ? submitFill : AppTheme.disabledFill)
+                .background(canSubmitMfa ? AppTheme.signInAction : AppTheme.disabledFill)
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
             .buttonStyle(.plain)
@@ -348,11 +346,11 @@ struct LoginView: View {
             .foregroundStyle(AppTheme.title)
             .padding(.horizontal, 14)
             .frame(height: 48)
-            .background(AppTheme.card)
+            .background(AppTheme.inputFill)
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(AppTheme.border, lineWidth: 1)
+                    .stroke(AppTheme.inputBorder, lineWidth: 1)
             )
         }
     }

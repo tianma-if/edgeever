@@ -6,7 +6,7 @@ import UIKit
 /// Shared building blocks for TOTP two-factor authentication (login step,
 /// settings flows and the forced rebind screen).
 enum TotpUI {
-    /// Accent for TOTP progress, focus and toggles (#059669, AppTheme.accentAction).
+    /// Accent for TOTP progress and toggles.
     static let primary = AppTheme.accentAction
     static let warningBackground = AppTheme.syncErrorBackground
     static let warningBorder = AppTheme.syncErrorBorder
@@ -161,7 +161,7 @@ struct TotpQRCodeView: View {
 struct TotpCodeField: View {
     @Binding var code: String
     var autoFocus = true
-    var focusColor = TotpUI.primary
+    var focusColor = AppTheme.accent
     @FocusState private var focused: Bool
 
     var body: some View {
@@ -173,11 +173,11 @@ struct TotpCodeField: View {
             .multilineTextAlignment(.center)
             .foregroundStyle(AppTheme.title)
             .frame(height: 52)
-            .background(AppTheme.card)
+            .background(AppTheme.inputFill)
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(focused ? focusColor : AppTheme.border, lineWidth: focused ? 1.5 : 1)
+                    .stroke(focused ? focusColor : AppTheme.inputBorder, lineWidth: focused ? 1.5 : 1)
             )
             .focused($focused)
             .onChange(of: code) { _, next in
@@ -204,11 +204,11 @@ struct TotpRecoveryCodeField: View {
             .multilineTextAlignment(.center)
             .foregroundStyle(AppTheme.title)
             .frame(height: 50)
-            .background(AppTheme.card)
+            .background(AppTheme.inputFill)
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(AppTheme.border, lineWidth: 1)
+                    .stroke(AppTheme.inputBorder, lineWidth: 1)
             )
     }
 }
@@ -235,11 +235,11 @@ struct TotpPasswordField: View {
                 .font(.system(size: 15))
                 .padding(.horizontal, 13)
                 .frame(minHeight: 48)
-                .background(AppTheme.card)
+                .background(AppTheme.inputFill)
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .stroke(AppTheme.border, lineWidth: 1)
+                        .stroke(AppTheme.inputBorder, lineWidth: 1)
                 )
         }
     }
