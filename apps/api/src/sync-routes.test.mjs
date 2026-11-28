@@ -1,8 +1,15 @@
 import { describe, expect, test } from "bun:test";
 import { Database } from "bun:sqlite";
 import { Hono } from "hono";
+import { readFileSync } from "node:fs";
 import { createSelfHostedStorageAdapter } from "./self-hosted-storage-adapter.ts";
 import { registerSyncRoutes } from "./sync-routes.ts";
+
+const applyTableMigrations = (sqlite) => {
+  for (const name of ["0100_shared_table_records", "0101_shared_table_memo_references", "0103_shared_table_current_memo_reads"]) {
+    sqlite.exec(readFileSync(`migrations/${name}.sql`, "utf8"));
+  }
+};
 
 const agentAuth = {
   kind: "agent",
@@ -47,8 +54,10 @@ const createSyncIntegrationFixture = () => {
     );
     CREATE TABLE memo_contents (
       memo_id TEXT PRIMARY KEY, revision INTEGER NOT NULL DEFAULT 0, content_json TEXT NOT NULL,
-      content_markdown TEXT NOT NULL DEFAULT '', content_text TEXT NOT NULL DEFAULT '', content_hash TEXT NOT NULL
+      content_markdown TEXT NOT NULL DEFAULT '', content_text TEXT NOT NULL DEFAULT '', content_hash TEXT NOT NULL,
+      created_at TEXT, updated_at TEXT
     );
+    CREATE TABLE memo_revisions (id TEXT PRIMARY KEY);
     CREATE TABLE mobile_sync_changes (
       id INTEGER PRIMARY KEY AUTOINCREMENT, workspace_id TEXT NOT NULL, entity_type TEXT NOT NULL,
       entity_id TEXT NOT NULL, operation TEXT NOT NULL
@@ -65,11 +74,12 @@ const createSyncIntegrationFixture = () => {
       'memo_trashed', 'ws_1', 'nb_deleted', 'Trashed', 1,
       '2026-09-09T00:00:00.000Z', '2026-09-09T00:00:00.000Z', '2026-09-09T00:00:00.000Z'
     );
-    INSERT INTO memo_contents VALUES ('memo_trashed', 1, '{"type":"doc"}', '', '', 'hash');
+    INSERT INTO memo_contents (memo_id, revision, content_json, content_markdown, content_text, content_hash) VALUES ('memo_trashed', 1, '{"type":"doc"}', '', '', 'hash');
     INSERT INTO mobile_sync_changes (workspace_id, entity_type, entity_id, operation) VALUES
       ('ws_1', 'memo', 'memo_trashed', 'upsert'),
       ('ws_1', 'notebook', 'nb_child', 'upsert');
   `);
+  applyTableMigrations(sqlite);
   const storage = createSelfHostedStorageAdapter(sqlite, "/tmp/edgeever-sync-route-test-unused");
   const app = new Hono();
   app.use("/api/v1/*", async (context, next) => {
@@ -156,8 +166,10 @@ describe("sync route contracts", () => {
       );
       CREATE TABLE memo_contents (
         memo_id TEXT PRIMARY KEY, revision INTEGER NOT NULL DEFAULT 0, content_json TEXT NOT NULL,
-        content_markdown TEXT NOT NULL DEFAULT '', content_text TEXT NOT NULL DEFAULT '', content_hash TEXT NOT NULL
+        content_markdown TEXT NOT NULL DEFAULT '', content_text TEXT NOT NULL DEFAULT '', content_hash TEXT NOT NULL,
+        created_at TEXT, updated_at TEXT
       );
+      CREATE TABLE memo_revisions (id TEXT PRIMARY KEY);
       CREATE TABLE mobile_sync_changes (
         id INTEGER PRIMARY KEY AUTOINCREMENT, workspace_id TEXT NOT NULL, entity_type TEXT NOT NULL,
         entity_id TEXT NOT NULL, operation TEXT NOT NULL
@@ -171,8 +183,9 @@ describe("sync route contracts", () => {
         'memo_trashed', 'ws_1', 'nb_deleted', 'Trashed', 1,
         '2026-09-10T00:00:00.000Z', '2026-09-10T00:00:00.000Z', '2026-09-10T00:00:00.000Z'
       );
-      INSERT INTO memo_contents VALUES ('memo_trashed', 1, '{"type":"doc"}', '', '', 'hash');
+      INSERT INTO memo_contents (memo_id, revision, content_json, content_markdown, content_text, content_hash) VALUES ('memo_trashed', 1, '{"type":"doc"}', '', '', 'hash');
     `);
+    applyTableMigrations(sqlite);
     const storage = createSelfHostedStorageAdapter(sqlite, "/tmp/edgeever-sync-renamed-inbox-unused");
     const app = new Hono();
     app.use("/api/v1/*", async (context, next) => {
@@ -441,7 +454,7 @@ test("bootstrap request/read budget aggregates the notebook catalog and total on
     const fixture = createSyncIntegrationFixture();
     try {
       const add = fixture.sqlite.prepare("INSERT INTO memos (id,workspace_id,notebook_id,title,created_at,updated_at) VALUES (?,'ws_1','nb_inbox','Budget','2026-01-01','2026-01-01')");
-      const content = fixture.sqlite.prepare("INSERT INTO memo_contents VALUES (?,1,'{}','','','hash')");
+      const content = fixture.sqlite.prepare("INSERT INTO memo_contents (memo_id, revision, content_json, content_markdown, content_text, content_hash) VALUES (?,1,'{}','','','hash')");
       fixture.sqlite.transaction(() => {
         for (let i = 0; i < count; i++) { const id = `budget_${String(i).padStart(6, "0")}`; add.run(id); content.run(id); }
       })();

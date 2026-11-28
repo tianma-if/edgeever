@@ -3,6 +3,7 @@ import {
   createTableId,
   markdownToDoc,
   parseTableDocument,
+  parseTableDocumentMetadata,
   serializeTableDocument,
   tableFallbackMarkdown,
   TABLE_ATTACHMENT_LIMIT,
@@ -15,7 +16,7 @@ import {
   type TableFormFieldSetting,
 } from "@edgeever/shared";
 import { AppError } from "./app-error";
-import { getMemoDetail, updateMemoRecord } from "./memo-service";
+import { applySharedMemoRecords, getMemoDetail, getSharedMemoWriteState, getTableMemoSource, updateMemoRecord } from "./memo-service";
 import type { DatabaseAdapter } from "./storage-contract";
 
 export const TABLE_FORM_ATTACHMENT_BYTES = 20 * 1024 * 1024;
@@ -132,6 +133,16 @@ export const buildTableFormSubmission = (
   return nextCells;
 };
 
+export const getTableFormSource = async (db: DatabaseAdapter, workspaceId: string, memoId: string) => {
+  const shared = await getSharedMemoWriteState(db, workspaceId, memoId);
+  if (shared) {
+    const header = JSON.parse(shared.header_json) as TableDocument;
+    return { title: shared.title, document: { fields: header.fields, recordCount: shared.row_count } };
+  }
+  const memo = await getTableMemoSource(db, workspaceId, memoId);
+  return { title: memo?.title, document: parseTableDocumentMetadata(memo?.contentMarkdown) };
+};
+
 export const appendTableFormSubmission = async (
   db: DatabaseAdapter,
   form: TableFormRow,
@@ -139,6 +150,22 @@ export const appendTableFormSubmission = async (
   attachments: Map<string, TableAttachment>,
 ) => {
   for (let attempt = 0; attempt < 4; attempt += 1) {
+    const shared = await getSharedMemoWriteState(db, form.workspace_id, form.memo_id);
+    if (shared) {
+      if (shared.row_count >= TABLE_RECORD_LIMIT) throw new AppError("table_record_limit", "This form is no longer accepting responses.", 409);
+      const header = JSON.parse(shared.header_json) as TableDocument;
+      const values = buildTableFormSubmission(header, parseTableFormFields(form.fields_json), cells, attachments);
+      const record = addTableRecord(header, createTableId("rec")).records[0];
+      record.cells = { ...record.cells, ...values };
+      try {
+        await applySharedMemoRecords(db, form.workspace_id, shared, header, { puts: [record], deletes: [] },
+          { actorType: "user", actorId: form.created_by }, "table-form");
+        return { usedResourceIds: Object.values(values).flatMap((value) => Array.isArray(value) ? value.map((file) => file.resourceId) : []) };
+      } catch (error) {
+        if (error instanceof AppError && error.code === "revision_conflict") continue;
+        throw error;
+      }
+    }
     const current = await getMemoDetail(db, form.workspace_id, form.memo_id);
     if (!current) throw new AppError("not_found", "Form not found", 404);
     const document = parseTableDocument(current.contentMarkdown);
@@ -170,7 +197,7 @@ export const appendTableFormSubmission = async (
       const usedResourceIds = Object.values(nextCells).flatMap((value) => (
         Array.isArray(value) ? value.map((file) => file.resourceId) : []
       ));
-      return { memo: saved.memo, usedResourceIds };
+      return { usedResourceIds };
     }
     if (saved.error !== "revision_conflict" && saved.error !== "content_conflict") {
       throw new AppError(saved.error, saved.message, saved.status ?? 409);

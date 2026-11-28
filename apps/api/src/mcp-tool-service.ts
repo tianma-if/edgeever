@@ -1060,7 +1060,7 @@ export const callMcpTool = async (
           revisionId,
           getAuditActor(c),
           getActorLabel(c),
-          { getMemoDetail, getMemoDetailRow },
+          { getMemoDetail, getMemoDetailRow, updateMemoRecord },
         ),
       };
     }

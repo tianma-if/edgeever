@@ -1,11 +1,16 @@
+import { D1_MIGRATION_DAILY_ALLOWANCE, runOnlineTableMigration } from "./table-storage-migration";
+import { compactSharedMemo, readActiveTableStorage, readSharedMemoMarkdown } from "./table-memo-storage";
+import { SharedTableStore } from "./shared-table-store";
+import { dropSavedIndexesForMemos } from "./shared-table-index";
 import { servePublicDemoRequest } from "./public-demo-page";
 import { isEdgeEverAppPath } from "./app-paths";
-import { isDatabaseDailyQuotaError } from "./database-errors";
+import { isDatabaseDailyQuotaError, isTableMigrationPausedError } from "./database-errors";
 import {
   createExcerpt,
   docToText,
   markdownToDoc,
   normalizeTags,
+  parseTableDocument,
   TABLE_VIEW_SCHEMA_VERSION,
 } from "@edgeever/shared";
 import { POSTER_RENDER_EVENTS_PATH } from "@edgeever/shared/poster-render-events";
@@ -100,6 +105,7 @@ import {
 import { registerPluginDistributionRoutes } from "./plugin-distribution-routes";
 import { registerPosterRenderRoutes } from "./poster-render-routes";
 import { registerSyncRoutes } from "./sync-routes";
+import { registerSharedTableRoutes } from "./shared-table-routes";
 import { registerMemoRoutes } from "./memo-routes";
 import { registerScheduledTaskRoutes } from "./scheduled-task-routes";
 import { registerWorkspaceExtensionRoutes } from "./workspace-extension-routes";
@@ -371,6 +377,7 @@ registerSyncRoutes(app, {
   clampNumber: (...args) => clampNumber(...args),
   mapMemoDetail: (...args) => mapMemoDetail(...args),
 });
+registerSharedTableRoutes(app);
 registerImportRoutes(app);
 registerTagRoutes(app);
 registerPosterRenderRoutes(app);
@@ -400,7 +407,7 @@ registerMemoRoutes(app, {
   mergeMemos: (...args) => mergeMemosRecord(...args),
   moveMemos: (...args) => moveMemosRecord(...args),
   restoreMemo: (...args) => restoreMemoRecord(...args),
-  restoreMemoRevision: (...args) => restoreMemoRevisionService(...args, { getMemoDetail, getMemoDetailRow }),
+  restoreMemoRevision: (...args) => restoreMemoRevisionService(...args, { getMemoDetail, getMemoDetailRow, updateMemoRecord }),
   updateMemo: (...args) => updateMemoRecord(...args),
 });
 
@@ -515,7 +522,7 @@ const worker = {
       // to the asset shell so a typo does not become a JSON 404.
       if (pathname.startsWith("/share/")) {
         if (isPublicMemoSharePagePath(pathname)) {
-          const page = await renderPublicMemoSharePage(request, createCloudflareStorageAdapter(env).db, loadAppShell);
+          const page = await renderPublicMemoSharePage(request, createCloudflareStorageAdapter(env).db, loadAppShell, readSharedMemoMarkdown);
           if (page) return page;
         }
         return env.ASSETS.fetch(request);
@@ -539,7 +546,8 @@ const worker = {
       storage: createCloudflareStorageAdapter(env),
     } as Bindings;
 
-    if (!isDemoMode(runtimeEnv)) {
+    ctx.waitUntil(runOnlineTableMigration(runtimeEnv.storage.db, 4, D1_MIGRATION_DAILY_ALLOWANCE));
+    if (!isDemoMode(runtimeEnv) || controller.cron !== (env.EDGE_EVER_DEMO_RESET_CRON || "0 19 * * *")) {
       return;
     }
 
@@ -566,6 +574,10 @@ app.onError((error, c) => {
 
   const requestError = httpExceptionError(c, error);
   if (requestError) return requestError;
+
+  if (isTableMigrationPausedError(error)) {
+    return apiError(c, "table_migration_in_progress", "Table writes are paused for storage maintenance.", 409);
+  }
 
   if (isDatabaseDailyQuotaError(error)) {
     console.error("EdgeEver database daily quota exhausted", error);
@@ -613,6 +625,7 @@ const ensureLocalDemoSeed = (env: Bindings) => {
   localDemoSeedPromise ??= (async () => {
     const memoPlaceholders = DEMO_SEED_MEMO_IDS.map(() => "?").join(", ");
     await env.storage.db.batch([
+      ...await dropSavedIndexesForMemos(env.storage.db, `m.id NOT IN (${memoPlaceholders})`, DEMO_SEED_MEMO_IDS),
       env.storage.db.prepare(`DELETE FROM mobile_sync_changes`),
       env.storage.db.prepare(`DELETE FROM memo_search_documents`),
       env.storage.db.prepare(`DELETE FROM resources`),
@@ -644,6 +657,8 @@ const ensureDemoSeed = async (
 ) => {
   const db = env.storage.db;
   const now = isoNow();
+  const active = await readActiveTableStorage(db, DEFAULT_WORKSPACE_ID, "");
+  const tableStore = new SharedTableStore(db);
   const statements: D1PreparedStatement[] = [];
   const bucketName = env.EDGE_EVER_R2_BUCKET_NAME?.trim() || DEFAULT_R2_BUCKET_NAME;
   const overwriteExisting = options.overwriteExisting === true;
@@ -663,7 +678,7 @@ const ensureDemoSeed = async (
         await db
           .prepare(
             `SELECT m.id, m.notebook_id, m.title, m.excerpt, m.tags_json, m.is_pinned,
-                    m.is_archived, m.is_deleted, c.content_hash, c.revision,
+                    m.is_archived, m.is_deleted, c.content_hash, c.revision, c.shared_table_revision,
                     s.title AS search_title, s.content_text AS search_content_text, s.tags AS search_tags
              FROM memos m
              LEFT JOIN memo_contents c ON c.memo_id = m.id
@@ -682,6 +697,7 @@ const ensureDemoSeed = async (
             is_deleted: number;
             content_hash: string | null;
             revision: number | null;
+            shared_table_revision: number | null;
             search_title: string | null;
             search_content_text: string | null;
             search_tags: string | null;
@@ -742,6 +758,9 @@ const ensureDemoSeed = async (
     }
     const contentText = docToText(contentJson);
     const contentHash = await sha256(memo.markdown + JSON.stringify(contentJson));
+    const table = active ? parseTableDocument(memo.markdown) : null;
+    const compact = table ? compactSharedMemo(table) : null;
+    const searchContent = compact?.content_text ?? contentText;
     const excerpt = createExcerpt(contentText);
     const tagsJson = JSON.stringify(normalizeTags(memo.tags));
     const searchTags = memo.tags.join(" ");
@@ -757,10 +776,14 @@ const ensureDemoSeed = async (
       && existing.is_deleted === 0
       && existing.content_hash === contentHash
       && existing.revision === revision
+      && (existing.shared_table_revision != null) === Boolean(compact)
       && existing.search_title === memo.title
-      && existing.search_content_text === contentText
+      && existing.search_content_text === searchContent
       && existing.search_tags === searchTags;
     if (!overwriteExisting && seedIsCurrent) continue;
+    const shared = active && table
+      ? await tableStore.planMemoSnapshotRestore(DEFAULT_WORKSPACE_ID, memo.id, active.run_id, [table])
+      : null;
 
     statements.push(
       db
@@ -794,27 +817,30 @@ const ensureDemoSeed = async (
       db
         .prepare(
           `INSERT INTO memo_contents (
-            memo_id, content_json, content_markdown, content_text, content_hash, revision, created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            memo_id, content_json, content_markdown, content_text, content_hash, revision, created_at, updated_at, shared_table_revision
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(memo_id) DO UPDATE SET
             content_json = excluded.content_json,
             content_markdown = excluded.content_markdown,
             content_text = excluded.content_text,
             content_hash = excluded.content_hash,
             revision = excluded.revision,
+            shared_table_revision = excluded.shared_table_revision,
             updated_at = excluded.updated_at`
         )
         .bind(
           memo.id,
-          JSON.stringify(contentJson),
-          memo.markdown,
-          contentText,
+          compact?.content_json ?? JSON.stringify(contentJson),
+          compact?.content_markdown ?? memo.markdown,
+          searchContent,
           contentHash,
           revision,
           now,
           now,
+          shared?.revisions[0] ?? null,
         ),
-      upsertMemoSearchDocumentStatement(db, memo.id, memo.title, contentText, searchTags)
+      upsertMemoSearchDocumentStatement(db, memo.id, memo.title, searchContent, searchTags),
+      ...(shared?.statements ?? []),
     );
   }
 
@@ -1008,6 +1034,7 @@ const resetDemoData = async (
     await deleteStoredObjects(env, pendingRows.results);
 
     const resetStatements: D1PreparedStatement[] = [
+      ...await dropSavedIndexesForMemos(db, "1"),
       db.prepare(`DELETE FROM pending_resources`),
       db.prepare(`DELETE FROM mobile_sync_changes`),
       db.prepare(`DELETE FROM memo_search_documents`),

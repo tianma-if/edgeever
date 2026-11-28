@@ -9,6 +9,7 @@ import {
   mergeMemosRecord,
   updateMemoRecord,
 } from "./index.ts";
+import { SharedTableMigration } from "./table-storage-migration.ts";
 
 const executionContext = {
   passThroughOnException() {},
@@ -352,6 +353,28 @@ describe("database write optimizations", () => {
     const changesAfterRepair = sqlite.query("SELECT total_changes() AS count").get().count;
     expect((await request()).status).toBe(200);
     expect(sqlite.query("SELECT total_changes() AS count").get().count).toBe(changesAfterRepair);
+    sqlite.close();
+  });
+
+  test("reseeds the demo after a reset on shared table storage", async () => {
+    const { database, sqlite } = createDatabase();
+    const env = {
+      storage: { db: database, resources: { put: async () => {}, delete: async () => {} } },
+      EDGE_EVER_ALLOW_UNAUTHENTICATED: "true",
+      EDGE_EVER_DEMO_MODE: "true",
+    };
+    const request = (path, method = "GET") => fetchEdgeEverApp(
+      new Request(`https://notes.example.com/api/v1/${path}`, { method }), env, executionContext,
+    );
+    expect((await request("notebooks")).status).toBe(200);
+    const migration = new SharedTableMigration(database);
+    await migration.start();
+    while ((await migration.advance()).phase !== "ready") {}
+    await migration.activate();
+    expect((await request("demo/reset", "POST")).status).toBe(200);
+    const detail = await (await request("memos/memo_demo_table")).json();
+    expect(detail.memo.sharedTableRevision).toBe(1);
+    expect(detail.memo.tablePreview.recordCount).toBeGreaterThan(0);
     sqlite.close();
   });
 

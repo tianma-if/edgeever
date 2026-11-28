@@ -4,8 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { api } from "@/lib/api";
-import { createEdgeEverZipTemporaryFile, EdgeEverZipMemoryLimitError, type EdgeEverZipProgress } from "@/lib/json-backup";
+import { createEdgeEverZipTemporaryFile, createWorkspaceBackupSource, EdgeEverZipMemoryLimitError, type EdgeEverZipProgress } from "@/lib/json-backup";
 import {
   loadWebDavBackupConfig,
   loadWebDavBackupPassword,
@@ -81,7 +80,7 @@ export const WebDavBackupCard = () => {
     try {
       const normalized = persistSettings();
       const temporary = await createEdgeEverZipTemporaryFile(
-        { listNotebooks: api.listNotebooks, listPrompts: api.listAiPrompts, getPage: api.getJsonBackupPage, getResourceResponse: api.getResourceResponse },
+        createWorkspaceBackupSource(),
         { edgeeverVersion: __EDGEEVER_APP_VERSION__, buildId: __EDGEEVER_BUILD_ID__ },
         setProgress
       );

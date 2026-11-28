@@ -1,3 +1,4 @@
+import { acknowledgeTableDraft, queuedTableMutation, tableSyncBase } from "@/lib/table-sync";
 import {
   createEmptySyncQueueSummary,
   createEmptySyncRunResult,
@@ -84,17 +85,21 @@ export const putMemoUpdateQueueItem = async (payload: MemoUpdateSyncPayload, sco
   const id = getMemoUpdateQueueId(payload.memoId);
   const now = new Date().toISOString();
   const existing = await localDb.syncQueue.get(id);
+  const tableAttempt = existing?.tableAttempt;
+  const sendingTableRows = tableAttempt && existing.status === "syncing";
   const existingPayload = existing?.kind === "memo.update"
     ? existing.payload as MemoUpdateSyncPayload
     : null;
   // A previous in-flight save may already have advanced this queue row to a
   // newer acknowledged server base. A local autosave that started just
   // before that acknowledgement must not move the successor back again.
-  const nextPayload = existingPayload && existingPayload.expectedRevision > payload.expectedRevision
+  const nextPayload = existingPayload && (existingPayload.expectedRevision > payload.expectedRevision ||
+    (payload.tableBase && existingPayload.expectedRevision === payload.expectedRevision && existingPayload.expectedContentHash === payload.expectedContentHash))
     ? {
         ...payload,
         expectedRevision: existingPayload.expectedRevision,
         expectedContentHash: existingPayload.expectedContentHash,
+        tableBase: existingPayload.tableBase,
       }
     : payload;
 
@@ -103,14 +108,15 @@ export const putMemoUpdateQueueItem = async (payload: MemoUpdateSyncPayload, sco
     kind: "memo.update",
     scope: scope ?? existing?.scope,
     memoId: payload.memoId,
-    status: "pending",
+    status: sendingTableRows ? "syncing" : "pending",
     payload: nextPayload,
+    tableAttempt,
     attemptCount: existing?.attemptCount ?? 0,
     lastError: null,
     lastErrorCode: null,
     lastErrorDetails: null,
     nextAttemptAt: null,
-    claimId: null,
+    claimId: sendingTableRows ? existing.claimId : null,
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   });
@@ -392,8 +398,8 @@ const runQueuedChanges = async (options: {
 
   const now = new Date();
   await repairQueuedNotebookReferences(options.scope);
-  const candidates = (await localDb.syncQueue.where("status").anyOf("pending", "error").toArray())
-    .filter((item) => !item.nextAttemptAt || new Date(item.nextAttemptAt) <= now)
+  const candidates = (await localDb.syncQueue.where("status").anyOf("pending", "error", "syncing").toArray())
+    .filter((item) => canClaimQueueItem(item) && (!item.nextAttemptAt || new Date(item.nextAttemptAt) <= now))
     .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
   const items: SyncQueueItem[] = [];
   for (const candidate of candidates) {
@@ -418,10 +424,11 @@ const runQueuedChanges = async (options: {
     // Creates earlier in this batch may have resolved this dependency. Also
     // repair actions written by another tab since the initial queue snapshot.
     await repairQueuedNotebookReferences(candidate.scope, candidate.id);
-    const item = await claimQueueItem(candidate.id);
-    if (!item) {
+    const claim = await claimQueueItem(candidate.id);
+    if (!claim) {
       continue;
     }
+    const item = claim.tableAttempt ? { ...claim, payload: claim.tableAttempt } : claim;
 
     result.attempted += 1;
 
@@ -469,6 +476,7 @@ const runQueuedChanges = async (options: {
         lastErrorCode: error instanceof ApiRequestError ? error.code ?? null : null,
         lastErrorDetails: errorDetails ? { ...errorDetails } : null,
         nextAttemptAt: status === "error" ? getSyncRetryAt(attemptCount) : null,
+        ...(status === "conflict" ? { tableAttempt: undefined } : {}),
         claimId: null,
         updatedAt: new Date().toISOString(),
       });
@@ -486,10 +494,15 @@ const runQueuedChanges = async (options: {
   return result;
 };
 
+// A page that closed after sending has no way to release its claim. The
+// frozen table attempt is safe for another page to replay with the same ID.
+const canClaimQueueItem = (item: SyncQueueItem) => item.status === "pending" || item.status === "error" ||
+  (item.status === "syncing" && item.tableAttempt !== undefined);
+
 const claimQueueItem = (id: string) =>
   localDb.transaction("rw", localDb.syncQueue, async () => {
     const item = await localDb.syncQueue.get(id);
-    if (!item || (item.status !== "pending" && item.status !== "error")) {
+    if (!item || !canClaimQueueItem(item)) {
       return null;
     }
     if (hasTemporaryNotebookDependency(item)) return null;
@@ -530,7 +543,14 @@ const acknowledgeClaimedQueueItem = (item: SyncQueueItem, result: SyncQueueResul
       ? result as MemoDetail
       : null;
 
-    if (current?.claimId === item.claimId && current.status === "syncing") {
+    const ownsClaim = current?.claimId === item.claimId && current?.status === "syncing";
+    const tableSuccessor = ownsClaim && current.tableAttempt && (() => {
+      const latest = current.payload as MemoUpdateSyncPayload;
+      const sent = current.tableAttempt;
+      return latest.contentMarkdown !== sent.contentMarkdown || latest.title !== sent.title ||
+        JSON.stringify(latest.tags) !== JSON.stringify(sent.tags);
+    })();
+    if (ownsClaim && !tableSuccessor) {
       if (item.kind === "notebook.create" && result && "name" in result && item.scope) {
         await acknowledgeNotebookId(item.scope, item.memoId, result as Notebook);
       }
@@ -567,8 +587,7 @@ const acknowledgeClaimedQueueItem = (item: SyncQueueItem, result: SyncQueueResul
       !current ||
       current.kind !== "memo.update" ||
       current.memoId !== item.memoId ||
-      current.claimId ||
-      (current.status !== "pending" && current.status !== "error")
+      (!tableSuccessor && (current.claimId || (current.status !== "pending" && current.status !== "error")))
     ) {
       return "stale";
     }
@@ -584,13 +603,18 @@ const acknowledgeClaimedQueueItem = (item: SyncQueueItem, result: SyncQueueResul
       return "stale";
     }
 
-    if (successorUsesClaimedBase) {
+    if (successorUsesClaimedBase || tableSuccessor) {
       await localDb.syncQueue.put({
         ...current,
+        status: "pending",
+        claimId: null,
+        tableAttempt: undefined,
+        nextAttemptAt: null,
         payload: {
           ...successorPayload,
           expectedRevision: memo.revision,
           expectedContentHash: memo.contentHash,
+          tableBase: successorPayload.tableBase ? tableSyncBase(memo) : undefined,
         },
         updatedAt: new Date().toISOString(),
       });
@@ -835,6 +859,17 @@ const syncQueueItem = async (item: SyncQueueItem): Promise<SyncQueueResult> => {
 
   const payload = item.payload as MemoUpdateSyncPayload;
   const { editSession } = await api.createMemoEditSession(item.memoId);
+  if (editSession.sharedTable && item.scope) {
+    const mutation = await queuedTableMutation(payload, editSession.id);
+    const local = mutation ? await localDb.memos.get([item.scope, item.memoId]) : null;
+    if (mutation && local) {
+      // Persist the exact draft before sending. A new autosave may replace
+      // the latest draft while this mutation's outcome is still unknown.
+      if (!item.tableAttempt && !await updateClaimedQueueItem(item, { tableAttempt: payload })) return null;
+      const { receipt } = await api.updateTableRecords(item.memoId, mutation);
+      return acknowledgeTableDraft(local, payload, receipt);
+    }
+  }
   const currentBase = { revision: editSession.baseRevision, contentHash: editSession.baseContentHash };
   if (!isMemoSyncBaseCurrent(currentBase, payload)) {
     throw new ApiRequestError(

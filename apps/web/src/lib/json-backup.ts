@@ -1,6 +1,44 @@
-import { createEdgeEverZipStream } from "@edgeever/shared/backup-archive";
+import { createBackupTableReaders, createEdgeEverZipStream } from "@edgeever/shared/backup-archive";
 import type { JsonBackupSource, EdgeEverZipProgress } from "@edgeever/shared/backup-archive";
+import type { BackupState, JsonBackupAiPrompt, JsonBackupRevision, Notebook } from "@edgeever/shared";
+import { api, ApiRequestError } from "./api";
+import { createClientUuid } from "./client-id";
 export * from "@edgeever/shared/backup-archive";
+
+export const createWorkspaceBackupSource = (): JsonBackupSource => {
+  let pending: Promise<BackupState | null> | undefined;
+  const readState = () => pending ??= api.getJsonBackupState().then((state) => state.tableChunks ? state : null).catch((error) => {
+    if (error instanceof ApiRequestError && error.status === 404) return null;
+    throw error;
+  });
+  const read = async <T,>(query: Record<string, string>) => api.getJsonBackupData<T>((await readState())!, query);
+  const catalog = async <T,>(kind: "notebooks" | "prompts") => {
+    const items: T[] = [];
+    let after: string | null = "";
+    while (after !== null) {
+      const page: Record<string, T[]> & { nextCursor: string | null } = await read({ kind, after });
+      items.push(...page[kind]);
+      after = page.nextCursor;
+    }
+    return items;
+  };
+  return {
+    listNotebooks: async () => await readState() ? { notebooks: await catalog<Notebook>("notebooks") } : api.listNotebooks(),
+    listPrompts: async () => await readState() ? { prompts: await catalog<JsonBackupAiPrompt>("prompts") } : api.listAiPrompts(),
+    getResourceResponse: api.getResourceResponse,
+    getPage: async (offset, limit, cursor) => {
+      const state = await readState();
+      if (!state) return api.getJsonBackupPage(offset, limit, cursor);
+      const page = await api.getJsonBackupData<Awaited<ReturnType<JsonBackupSource["getPage"]>>>(state, {
+        kind: "memos", after: cursor ?? "", tableChunks: "1",
+      });
+      return { ...page, totalCount: state.counts.memos, tableChunks: true, nextOffset: page.nextCursor == null ? null : offset + page.memos.length };
+    },
+    readRevisions: (memoId, after) => read<{ revisions: JsonBackupRevision[]; nextCursor: string | null }>({ kind: "revisions", memoId, after }),
+    ...createBackupTableReaders(read),
+    verifyVersion: async () => { if (await readState()) await read({ kind: "check" }); },
+  };
+};
 
 const ZIP_MIME_TYPE = "application/zip";
 const MAX_BUFFERED_ZIP_BYTES = 128 * 1024 * 1024;
@@ -78,10 +116,10 @@ export const createEdgeEverZipTemporaryFile = async (
   }
 
   const root = await storage.getDirectory();
-  const name = `edgeever-backup-${crypto.randomUUID()}.zip`;
+  const name = `edgeever-backup-${createClientUuid()}.zip`;
   const handle = await root.getFileHandle(name, { create: true });
-  const stream = await createEdgeEverZipStream(source, version, onProgress);
   try {
+    const stream = await createEdgeEverZipStream(source, version, onProgress);
     await stream.pipeTo(await handle.createWritable());
     if (!handle.getFile) throw new Error("The temporary backup file is unavailable");
     return {

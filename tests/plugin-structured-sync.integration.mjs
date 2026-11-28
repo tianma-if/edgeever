@@ -23,6 +23,7 @@ globalThis.MutationObserver = class { observe() {} disconnect() {} };
 const shared = await import("@edgeever/shared");
 const { fetchEdgeEverApp } = await import("../apps/api/src/index.ts");
 const { createSelfHostedStorageAdapter } = await import("../apps/api/src/self-hosted-storage-adapter.ts");
+const { SharedTableMigration } = await import("../apps/api/src/table-storage-migration.ts");
 const { createEdgeEverClient } = await import("../packages/client/src/index.ts");
 const { api } = await import("../apps/web/src/lib/api.ts");
 const { createWebRepository } = await import("../apps/web/src/lib/repository.ts");
@@ -32,6 +33,7 @@ const { EdgeEverPluginHost } = await import("../apps/web/src/lib/plugins/plugin-
 const { localDb } = await import("../apps/web/src/lib/local-db.ts");
 const { syncQueuedChanges } = await import("../apps/web/src/lib/sync-queue.ts");
 const { syncDesktopData } = await import("../apps/web/src/lib/desktop-sync.ts");
+const { tableSyncBase } = await import("../apps/web/src/lib/table-sync.ts");
 
 const temporary = await mkdtemp(join(tmpdir(), "edgeever-plugin-sync-"));
 const children = new Set();
@@ -138,9 +140,21 @@ try {
   cloud.query("INSERT OR IGNORE INTO workspaces (id, name, is_personal) VALUES ('ws_default', 'Personal', 1)").run();
   const environment = { storage: createSelfHostedStorageAdapter(cloud, join(temporary, "resources")), EDGE_EVER_ALLOW_UNAUTHENTICATED: "true", EDGE_EVER_RUNTIME: "self-hosted-bun" };
   let reachable = true;
-  const client = createEdgeEverClient({ baseUrl: "http://edgeever.test", fetch: (input, init) => {
+  const rowWrites = [];
+  let loseNextRowResponse;
+  const client = createEdgeEverClient({ baseUrl: "http://edgeever.test", fetch: async (input, init) => {
     if (!reachable) throw new Error("Test network is offline");
-    return fetchEdgeEverApp(new Request(input, init), environment, { waitUntil() {}, passThroughOnException() {} });
+    const request = new Request(input, init);
+    const rowWrite = new URL(request.url).pathname.endsWith("/table/records");
+    if (rowWrite) rowWrites.push(await request.clone().json());
+    const response = await fetchEdgeEverApp(request, environment, { waitUntil() {}, passThroughOnException() {} });
+    if (rowWrite && response.ok && loseNextRowResponse) {
+      const lose = loseNextRowResponse;
+      loseNextRowResponse = null;
+      await lose();
+      throw new TypeError("Lost desktop row response after commit");
+    }
+    return response;
   }});
   Object.assign(api, client);
   const scope = "http://edgeever.test|plugin-sync";
@@ -314,6 +328,61 @@ try {
   assert.ok((await client.listNotebooks()).notebooks.some(({ id, slug }) => id === restored.notebookId && slug === "inbox"));
   checked.push("new desktop notebook subtree is created and trashed in order, then restored from the web");
 
+  assert.equal((await syncDesktopData()).failed, 0);
+  const migration = new SharedTableMigration(environment.storage.db);
+  await migration.start();
+  while ((await migration.advance()).phase !== "ready") {}
+  await migration.activate();
+  const tableMarkdown = fixture.serialize(fixture.document);
+  const { memo: sharedMemo } = await client.createMemo({ notebookId: notebook.id, title: "Shared desktop table", contentMarkdown: tableMarkdown, contentJson: shared.markdownToDoc(tableMarkdown) });
+  assert.equal((await syncDesktopData()).failed, 0);
+  const { memo: loadedTable } = await nativeRepository.getMemo(sharedMemo.id);
+  assert.equal(loadedTable.sharedTableRevision, 1);
+  const editedTable = shared.parseTableDocument(loadedTable.contentMarkdown);
+  editedTable.records[0].cells.name = "Desktop offline shared row";
+  const editedMarkdown = fixture.serialize(editedTable);
+
+  reachable = false;
+  navigator.onLine = false;
+  await nativeRepository.updateMemo(loadedTable, {
+    title: loadedTable.title, tags: loadedTable.tags, contentMarkdown: editedMarkdown, contentJson: shared.markdownToDoc(editedMarkdown),
+    expectedRevision: loadedTable.revision, expectedContentHash: loadedTable.contentHash, tableBase: tableSyncBase(loadedTable),
+  });
+  await native.close();
+  native = await startNative(nativePath, nativeDirectory);
+  attachNative(native);
+  reachable = true;
+  navigator.onLine = true;
+  assert.deepEqual((await syncDesktopData()).synced, 1);
+  assert.equal(rowWrites.length, 1);
+  assert.deepEqual(rowWrites[0].puts, [{ id: "row", cells: { name: "Desktop offline shared row" } }]);
+  assert.equal((await nativeRepository.getMemo(sharedMemo.id)).memo.sharedTableRevision, 2);
+  await repository.sync();
+  assert.equal(fixture.value(await context.tables.get(sharedMemo.id)), "Desktop offline shared row");
+  checked.push("shared table row edit survives a native restart and syncs to the Web mirror");
+
+  const saveSharedRow = async (text) => {
+    const { memo: base } = await nativeRepository.getMemo(sharedMemo.id);
+    const next = shared.parseTableDocument(base.contentMarkdown);
+    next.records[0].cells.name = text;
+    const markdown = fixture.serialize(next);
+    await nativeRepository.updateMemo(base, { title: base.title, tags: base.tags, expectedRevision: base.revision,
+      expectedContentHash: base.contentHash, tableBase: tableSyncBase(base), contentMarkdown: markdown,
+      contentJson: shared.markdownToDoc(shared.tableFallbackMarkdown(next)) });
+  };
+  await saveSharedRow("Desktop sent first");
+  loseNextRowResponse = () => saveSharedRow("Desktop sent successor");
+  assert.equal((await syncDesktopData()).failed, 1);
+  await native.close();
+  native = await startNative(nativePath, nativeDirectory);
+  attachNative(native);
+  const flushed = await syncDesktopData();
+  assert.equal(flushed.conflicted, 0);
+  assert.equal(rowWrites[2].mutationId, rowWrites[1].mutationId);
+  await syncDesktopData();
+  assert.deepEqual(rowWrites[3].puts, [{ id: "row", cells: { name: "Desktop sent successor" } }]);
+  assert.equal((await nativeRepository.getMemo(sharedMemo.id)).memo.sharedTableRevision, 4);
+  checked.push("shared row retries survive a superseding desktop draft and native restart");
   await native.close();
   console.log(JSON.stringify({ ok: true, checked }));
 } finally {

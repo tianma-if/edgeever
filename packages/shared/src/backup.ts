@@ -6,13 +6,16 @@ import {
   AI_PROMPT_RESULT_MODES,
 } from "./ai-assistant";
 import type { AiPromptTemplate, MemoDetail, Notebook, Resource } from "./types";
+import type { TableDocument, TableRecord } from "./table";
 
 export const EDGEEVER_ZIP_FORMAT = "edgeever-zip";
 export const EDGEEVER_ZIP_FORMAT_VERSION = 2;
+export const EDGEEVER_TABLE_ZIP_FORMAT_VERSION = 3;
+export const BACKUP_TABLE_ROW_BATCH = 25;
 
 export type JsonBackupManifest = {
   format: typeof EDGEEVER_ZIP_FORMAT;
-  formatVersion: 1 | typeof EDGEEVER_ZIP_FORMAT_VERSION;
+  formatVersion: 1 | typeof EDGEEVER_ZIP_FORMAT_VERSION | typeof EDGEEVER_TABLE_ZIP_FORMAT_VERSION;
   schemaVersion: number;
   edgeeverVersion: string;
   buildId: string;
@@ -41,6 +44,34 @@ export type JsonBackupRevision = {
   contentHash: string;
   createdBy: string;
   createdAt: string;
+  sharedTableRevision?: number;
+};
+
+export type BackupTableRow = TableRecord & { position: number };
+export type BackupTableChangesPage = {
+  changes: { id: string; revision: number; position: number; deleted: boolean }[];
+  nextCursor: string | null;
+};
+export type BackupTablePage = {
+  header: TableDocument;
+  rowCount: number;
+  rows: BackupTableRow[];
+  nextCursor: string | null;
+};
+export type BackupVersion = { identity: string; backupRevision: string };
+export type BackupTableSnapshot = { revisionId: string | null; header: TableDocument; rowCount: number };
+export type BackupTableRestoreStart = { restoreId: string; memo: MemoDetail; snapshots: number };
+export type BackupTableRestoreSnapshot = {
+  ordinal: number;
+  revision: JsonBackupRevision | null;
+  table: Omit<BackupTableSnapshot, "revisionId"> | null;
+};
+export type BackupState = BackupVersion & {
+  protocolVersion: number;
+  tableChunks?: boolean;
+  userId: string | null;
+  workspaceId: string;
+  counts: Required<JsonBackupManifest["counts"]>;
 };
 
 export type JsonBackupResource = Omit<Resource, "url"> & {
@@ -59,7 +90,7 @@ const DateTimeSchema = z.string().datetime();
 
 export const JsonBackupManifestSchema = z.object({
   format: z.literal(EDGEEVER_ZIP_FORMAT),
-  formatVersion: z.union([z.literal(1), z.literal(EDGEEVER_ZIP_FORMAT_VERSION)]),
+  formatVersion: z.union([z.literal(1), z.literal(EDGEEVER_ZIP_FORMAT_VERSION), z.literal(EDGEEVER_TABLE_ZIP_FORMAT_VERSION)]),
   schemaVersion: z.number().int().positive(),
   edgeeverVersion: z.string().trim().min(1),
   buildId: z.string().trim().min(1),
@@ -91,7 +122,7 @@ export const JsonBackupNotebookSchema = z.object({
   updatedAt: DateTimeSchema,
 });
 
-const JsonBackupRevisionSchema = z.object({
+export const JsonBackupRevisionSchema = z.object({
   id: z.string().trim().min(1),
   memoId: z.string().trim().min(1),
   revision: z.number().int().min(0),
@@ -103,9 +134,10 @@ const JsonBackupRevisionSchema = z.object({
   contentHash: z.string(),
   createdBy: z.string(),
   createdAt: DateTimeSchema,
+  sharedTableRevision: z.number().int().positive().optional(),
 });
 
-const MemoDetailSchema = z.object({
+export const BackupMemoDetailSchema = z.object({
   id: z.string().trim().min(1),
   notebookId: z.string().trim().min(1),
   title: z.string().nullable(),
@@ -125,10 +157,11 @@ const MemoDetailSchema = z.object({
   sourceMemoIds: z.array(z.string()),
   mergeSourceCount: z.number().int().min(0),
   mergedIntoMemoId: z.string().nullable(),
+  sharedTableRevision: z.number().int().positive().optional(),
 });
 
 export const JsonBackupMemoSchema = z.object({
-  memo: MemoDetailSchema,
+  memo: BackupMemoDetailSchema,
   revisions: z.array(JsonBackupRevisionSchema),
   resources: z.array(z.object({
     id: z.string().trim().min(1),

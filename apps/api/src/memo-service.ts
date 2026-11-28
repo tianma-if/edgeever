@@ -17,6 +17,9 @@ import {
   listTableAttachmentResourceIds,
   normalizeTags,
   parseTableDocument,
+  type TableDocument,
+  type TableRecord,
+  type TableRowReceipt,
   TABLE_VIEW_SCHEMA_VERSION,
   type MemoDetail,
   type MemoEditSession,
@@ -27,6 +30,7 @@ import {
 import { auditStatement } from "./audit";
 import type { AppContext, AuditActor, AuthContext, Bindings } from "./api-context";
 import { AppError } from "./app-error";
+import { isTableMigrationPausedError } from "./database-errors";
 import { clampNumber, createId, isoNow, parseJsonArray } from "./entity-utils";
 import { notebookExists, workspaceInboxId } from "./notebook-service";
 import { softDeleteMemoStatements } from "./memo-trash-statements";
@@ -35,6 +39,7 @@ import { getRequiredString } from "./mcp-json-rpc";
 import {
   escapeLike,
   mapMemoSummary,
+  sharedTableSearch,
   toFtsQuery,
   type MemoSummaryRow,
 } from "./memo-list-service";
@@ -55,12 +60,16 @@ import {
   type NotebookAccess,
 } from "./token-notebook-access";
 import type { DatabaseAdapter, PreparedStatementAdapter } from "./storage-contract";
+import { SharedTableStore } from "./shared-table-store";
+import { compactSharedMemo, hydrateSharedMemo, hydrateSharedMemoRows, readActiveTableStorage, readSharedMemoMarkdown } from "./table-memo-storage";
+import { dropSavedIndexesForMemos } from "./shared-table-index";
 
 // Internal callers can bind a reviewed operation and its receipt to the same
 // atomic batch as the existing memo mutation. Never populated from HTTP input.
 export type MemoMutationCommit = {
   before: PreparedStatementAdapter[];
   after: (memoId: string) => PreparedStatementAdapter[];
+  restoreRevision?: { id: string; revision: number };
 };
 
 
@@ -72,6 +81,8 @@ export type MemoDetailRow = MemoSummaryRow & {
   merge_source_count: number;
   merged_into_memo_id: string | null;
   content_hash: string;
+  shared_table_revision?: number | null;
+  stored_shared_table_revision?: number | null;
 };
 
 type MemoEditSessionRow = {
@@ -106,6 +117,7 @@ export const mapMemoDetail = (row: MemoDetailRow): MemoDetail => ({
   contentMarkdown: row.content_markdown,
   contentText: row.content_text,
   contentHash: row.content_hash,
+  ...(row.shared_table_revision != null ? { sharedTableRevision: row.shared_table_revision } : {}),
   sourceMemoIds: parseJsonArray(row.source_memo_ids),
   mergeSourceCount: row.merge_source_count,
   mergedIntoMemoId: row.merged_into_memo_id,
@@ -279,12 +291,17 @@ export const searchMemoSummaries = async (
     const likeQuery = `%${escapeLike(q)}%`;
 
     if (ftsQuery) {
+      const tableMatches = sharedTableSearch(q, options.workspaceId);
       const rows = await db
         .prepare(
           `WITH raw_matches(memo_id, rank) AS (
              SELECT memo_id, bm25(memos_fts)
              FROM memos_fts
              WHERE memos_fts MATCH ?
+
+             UNION ALL
+
+             SELECT hits.table_id, 100.0 FROM (${tableMatches.sql}) hits
 
              UNION ALL
 
@@ -310,7 +327,7 @@ export const searchMemoSummaries = async (
            ORDER BY s.rank ASC, m.is_pinned DESC, m.updated_at DESC
            LIMIT ?`
         )
-        .bind(ftsQuery, likeQuery, likeQuery, likeQuery, ...binds, limit)
+        .bind(ftsQuery, ...tableMatches.bindings, likeQuery, likeQuery, likeQuery, ...binds, limit)
         .all<MemoSummaryRow>();
 
       return rows.results.map(row => {
@@ -362,10 +379,10 @@ export const listMemosForMcp = async (
       .prepare(
         `SELECT m.id, m.notebook_id, m.title, m.excerpt, m.tags_json, m.is_pinned,
                 m.is_archived, m.is_deleted, m.created_at, m.updated_at, m.deleted_at, c.revision,
-                c.content_json, c.content_markdown, c.content_text, c.content_hash,
+                c.content_json, c.content_markdown, c.content_text, c.content_hash, c.shared_table_revision,
                 m.source_memo_ids, m.merge_source_count, m.merged_into_memo_id
          FROM memos m
-         INNER JOIN memo_contents c ON c.memo_id = m.id
+         INNER JOIN memo_contents_for_read c ON c.memo_id = m.id
          WHERE m.workspace_id = ? AND ${deletedFilter} AND ${posterFilter} ${accessFilter}
            AND (? IS NULL OR m.notebook_id = ?)
          ORDER BY m.updated_at DESC, m.id ASC
@@ -373,7 +390,7 @@ export const listMemosForMcp = async (
       )
       .bind(options.workspaceId, ...accessBinds, notebookId, notebookId, pageSize, offset)
       .all<MemoDetailRow>();
-    const page = rows.results.slice(0, limit).map(mapMemoDetail);
+    const page = (await hydrateSharedMemoRows(db, options.workspaceId, rows.results.slice(0, limit))).map(mapMemoDetail);
 
     return {
       memos: page,
@@ -414,29 +431,106 @@ export const getMemoDetailRow = async (
   workspaceId: string,
   id: string,
   includeDeleted = false
-): Promise<MemoDetailRow | null> =>
-  db
+): Promise<MemoDetailRow | null> => {
+  const row = await db
     .prepare(
       `SELECT m.id, m.notebook_id, m.title, m.excerpt, m.tags_json, m.is_pinned,
               m.is_archived, m.is_deleted, m.created_at, m.updated_at, m.deleted_at, c.revision,
-              c.content_json, c.content_markdown, c.content_text, c.content_hash,
+              c.content_json, c.content_markdown, c.content_text, c.content_hash, c.shared_table_revision, c.stored_shared_table_revision,
               m.source_memo_ids, m.merge_source_count, m.merged_into_memo_id
        FROM memos m
-       INNER JOIN memo_contents c ON c.memo_id = m.id
+       INNER JOIN memo_contents_for_read c ON c.memo_id = m.id
        WHERE m.id = ? AND m.workspace_id = ? AND (? = 1 OR m.is_deleted = 0)`
     )
     .bind(id, workspaceId, includeDeleted ? 1 : 0)
     .first<MemoDetailRow>();
+  return row ? hydrateSharedMemo(db, workspaceId, id, row) : null;
+};
 
 // Form and structured record tools only need the source, not the editor
 // projection. notebookId is included because the table read/write entry points
 // authorize via assertMemoAccess, which requires the owning notebook.
-export const getTableMemoSource = (db: DatabaseAdapter, workspaceId: string, memoId: string) =>
-  db.prepare(
-    `SELECT m.title, m.tags_json, m.notebook_id AS notebookId, c.content_markdown AS contentMarkdown, c.revision
-     FROM memos m INNER JOIN memo_contents c ON c.memo_id = m.id
+export const getTableMemoSource = async (db: DatabaseAdapter, workspaceId: string, memoId: string) => {
+  const row = await db.prepare(
+    `SELECT m.title, m.tags_json, m.notebook_id AS notebookId, c.content_markdown AS contentMarkdown,
+            c.revision, c.shared_table_revision
+     FROM memos m INNER JOIN memo_contents_for_read c ON c.memo_id = m.id
      WHERE m.id = ? AND m.workspace_id = ? AND m.is_deleted = 0`,
-  ).bind(memoId, workspaceId).first<{ title: string | null; tags_json: string; notebookId: string; contentMarkdown: string; revision: number }>();
+  ).bind(memoId, workspaceId).first<{
+    title: string | null; tags_json: string; notebookId: string; contentMarkdown: string;
+    revision: number; shared_table_revision?: number | null;
+  }>();
+  if (!row || row.shared_table_revision == null) return row;
+  return { ...row, contentMarkdown: await readSharedMemoMarkdown(db, workspaceId, memoId, row.shared_table_revision) };
+};
+
+export const getSharedMemoWriteState = (db: DatabaseAdapter, workspaceId: string, memoId: string) => db.prepare(
+  `SELECT m.id, m.notebook_id, m.title, m.tags_json, c.revision, c.content_hash,
+          h.revision AS shared_table_revision, c.shared_table_revision AS memo_shared_revision, h.header_json, h.row_count
+   FROM ee_table_activation a JOIN ee_table_heads h ON h.migration_run_id = a.run_id
+   JOIN memos m ON m.id = h.table_id AND m.workspace_id = h.workspace_id
+   JOIN notebooks n ON n.id = m.notebook_id AND n.workspace_id = h.workspace_id
+   JOIN memo_contents c ON c.memo_id = m.id
+   WHERE a.id = 1 AND h.workspace_id = ? AND h.table_id = ? AND m.is_deleted = 0 AND n.is_deleted = 0
+     AND (c.shared_table_revision IS NOT NULL OR c.content_markdown GLOB '*<!--*edgeever-table-v1:*-->*')`,
+).bind(workspaceId, memoId).first<{
+  id: string; notebook_id: string; title: string | null; tags_json: string; revision: number; content_hash: string;
+  shared_table_revision: number; memo_shared_revision: number | null; header_json: string; row_count: number;
+}>();
+
+export const applySharedMemoRecords = async (
+  db: DatabaseAdapter,
+  workspaceId: string,
+  current: NonNullable<Awaited<ReturnType<typeof getSharedMemoWriteState>>>,
+  header: TableDocument,
+  changes: { puts: TableRecord[]; deletes: string[] },
+  actor: AuditActor,
+  actorLabel: string,
+  related?: (receipt: TableRowReceipt) => PreparedStatementAdapter[],
+): Promise<TableRowReceipt> => {
+  const now = isoNow();
+  const nextRevision = current.revision + 1;
+  const contentHash = await sha256(JSON.stringify([current.content_hash, nextRevision, changes]));
+  const receipt = { revision: nextRevision, contentHash, updatedAt: now, tableRevision: current.shared_table_revision + 1 };
+  const stored = compactSharedMemo(header);
+  const savedRevision = {
+    ...current,
+    content_json: stored.content_json, content_markdown: stored.content_markdown, content_text: stored.content_text,
+  };
+  const keepRevision = current.memo_shared_revision == null || await shouldSnapshotMemoRevisionService(db, savedRevision, current.title, current.tags_json, contentHash, now);
+  const cas = db.prepare(
+    `INSERT INTO ee_table_assertion SELECT 0 WHERE NOT EXISTS (
+       SELECT 1 FROM memo_contents c JOIN memos m ON m.id = c.memo_id
+       JOIN notebooks n ON n.id = m.notebook_id AND n.workspace_id = m.workspace_id
+       WHERE m.id = ? AND m.workspace_id = ? AND m.notebook_id = ? AND m.is_deleted = 0 AND n.is_deleted = 0
+         AND c.revision = ? AND c.content_hash = ?)`,
+  ).bind(current.id, workspaceId, current.notebook_id, current.revision, current.content_hash);
+  try {
+    await new SharedTableStore(db).apply(workspaceId, current.id, {
+      expectedRevision: current.shared_table_revision, ...changes,
+    }, [
+      cas,
+      ...(keepRevision ? [createMemoRevisionStatementService(db, savedRevision, actorLabel, now)] : []),
+      db.prepare(`UPDATE memo_contents SET content_json = ?, content_markdown = ?, content_text = ?,
+        content_hash = ?, revision = ?, shared_table_revision = ?, updated_at = ? WHERE memo_id = ?`)
+        .bind(stored.content_json, stored.content_markdown, stored.content_text, contentHash,
+          nextRevision, current.shared_table_revision + 1, now, current.id),
+      db.prepare(`UPDATE memos SET updated_by = ?, updated_at = ? WHERE id = ? AND workspace_id = ?`)
+        .bind(actorLabel, now, current.id, workspaceId),
+      ...(related?.(receipt) ?? []),
+      upsertMemoSearchDocumentStatement(db, current.id, current.title ?? "", stored.content_text, parseJsonArray(current.tags_json).join(" ")),
+      auditStatement(db, actor.actorType, actor.actorId, "memo.update", "memo", current.id, { revision: nextRevision }),
+    ]);
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    const latest = await getSharedMemoWriteState(db, workspaceId, current.id);
+    if (!latest || latest.revision !== current.revision || latest.notebook_id !== current.notebook_id) {
+      throw new AppError("revision_conflict", "The table changed before the records could be saved", 409);
+    }
+    throw error;
+  }
+  return receipt;
+};
 
 export const getMemoDetail = async (db: DatabaseAdapter, workspaceId: string, id: string, includeDeleted = false): Promise<MemoDetail | null> => {
   const row = await getMemoDetailRow(db, workspaceId, id, includeDeleted);
@@ -444,7 +538,15 @@ export const getMemoDetail = async (db: DatabaseAdapter, workspaceId: string, id
 };
 
 export const createMemoEditSession = async (c: AppContext, memoId: string): Promise<MemoEditSession | null> => {
-  const current = await getMemoDetailRow(c.env.storage.db, getWorkspaceId(c), memoId);
+  const current = await c.env.storage.db.prepare(
+    `SELECT mc.revision, mc.content_hash, EXISTS (
+       SELECT 1 FROM ee_table_activation a JOIN ee_table_heads h ON h.migration_run_id = a.run_id
+       WHERE a.id = 1 AND h.workspace_id = m.workspace_id AND h.table_id = m.id
+         AND (mc.shared_table_revision IS NOT NULL OR mc.content_markdown GLOB '*<!--*edgeever-table-v1:*-->*')
+     ) AS shared_table
+     FROM memo_contents mc JOIN memos m ON m.id = mc.memo_id
+     WHERE m.id = ? AND m.workspace_id = ? AND m.is_deleted = 0`,
+  ).bind(memoId, getWorkspaceId(c)).first<{ revision: number; content_hash: string; shared_table: number }>();
   if (!current) return null;
 
   const actor = getAuditActor(c);
@@ -478,6 +580,7 @@ export const createMemoEditSession = async (c: AppContext, memoId: string): Prom
       baseRevision: existing.base_revision,
       baseContentHash: existing.base_content_hash,
       expiresAt: existing.expires_at,
+      ...(current.shared_table ? { sharedTable: true } : {}),
     };
   }
 
@@ -486,6 +589,7 @@ export const createMemoEditSession = async (c: AppContext, memoId: string): Prom
     memoId,
     baseRevision: current.revision,
     baseContentHash: current.content_hash,
+    ...(current.shared_table ? { sharedTable: true } : {}),
     expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60_000).toISOString(),
   };
 
@@ -564,6 +668,7 @@ export const deleteMemosRecord = async (
     }
 
     statements.push(
+      ...await dropSavedIndexesForMemos(db, `m.workspace_id = ? AND m.is_deleted = 1 AND m.id IN (${placeholders})`, [workspaceId, ...uniqueMemoIds]),
       db.prepare(`DELETE FROM resources WHERE memo_id IN (${placeholders})`).bind(...uniqueMemoIds),
       db.prepare(`DELETE FROM memo_revisions WHERE memo_id IN (${placeholders})`).bind(...uniqueMemoIds),
       db.prepare(`DELETE FROM memo_contents WHERE memo_id IN (${placeholders})`).bind(...uniqueMemoIds),
@@ -770,6 +875,7 @@ export const emptyTrashMemosRecord = async (
   }
 
   await db.batch([
+    ...await dropSavedIndexesForMemos(db, `m.workspace_id = ? AND m.is_deleted = 1`, [workspaceId]),
     db.prepare(`UPDATE resources SET original_memo_id = NULL WHERE original_memo_id IN (SELECT id FROM memos WHERE workspace_id = ? AND is_deleted = 1)`).bind(workspaceId),
     db.prepare(`DELETE FROM resources WHERE memo_id IN (SELECT id FROM memos WHERE workspace_id = ? AND is_deleted = 1)`).bind(workspaceId),
     db.prepare(`DELETE FROM memo_revisions WHERE memo_id IN (SELECT id FROM memos WHERE workspace_id = ? AND is_deleted = 1)`).bind(workspaceId),
@@ -868,10 +974,10 @@ export const mergeMemosRecord = async (
     .prepare(
       `SELECT m.id, m.notebook_id, m.title, m.excerpt, m.tags_json, m.is_pinned,
               m.is_archived, m.is_deleted, m.created_at, m.updated_at, m.deleted_at, c.revision,
-              c.content_json, c.content_markdown, c.content_text, c.content_hash,
+              c.content_json, c.content_markdown, c.content_text, c.content_hash, c.shared_table_revision,
               m.source_memo_ids, m.merge_source_count, m.merged_into_memo_id
        FROM memos m
-       INNER JOIN memo_contents c ON c.memo_id = m.id
+       INNER JOIN memo_contents_for_read c ON c.memo_id = m.id
        WHERE m.workspace_id = ? AND m.id IN (${placeholders})`
     )
     .bind(workspaceId, ...uniqueMemoIds)
@@ -912,9 +1018,8 @@ export const mergeMemosRecord = async (
     throw new AppError("not_found", "Target notebook not found", 404);
   }
 
-  const ordered = uniqueMemoIds
-    .map((memoId) => rows.results.find((row) => row.id === memoId))
-    .filter((row): row is MemoDetailRow => Boolean(row));
+  const byId = new Map((await hydrateSharedMemoRows(db, workspaceId, activeRows)).map((row) => [row.id, row]));
+  const ordered = uniqueMemoIds.map((memoId) => byId.get(memoId)!);
   const notebookId = input.notebookId ?? ordered[0].notebook_id;
   const title = resolveMergedMemoTitle(input.title, ordered);
   const sourceDocs = ordered.map((memo) => {
@@ -998,7 +1103,18 @@ export const mergeMemosRecord = async (
   return memo;
 };
 
-export const createMemoRecord = async (
+// The activation guard aborts the entire legacy transaction. Re-plan it once
+// against shared storage, retaining the original edit-session preconditions.
+const retryAtTableCutover = <Args extends unknown[], T>(write: (...args: Args) => Promise<T>) =>
+  async (...args: Args): Promise<T> => {
+    try { return await write(...args); }
+    catch (error) {
+      if (!isTableMigrationPausedError(error)) throw error;
+      return write(...args);
+    }
+  };
+
+export const createMemoRecord = retryAtTableCutover(async (
   db: DatabaseAdapter,
   workspaceId: string,
   input: { notebookId: string; title?: string; contentJson?: unknown; contentMarkdown?: string; tags?: string[]; createdAt?: string; updatedAt?: string },
@@ -1023,6 +1139,14 @@ export const createMemoRecord = async (
   const excerpt = createExcerpt(contentText);
   const contentHash = await sha256(contentMarkdown + JSON.stringify(contentJson));
   const id = createId("memo");
+  const table = parseTableDocument(contentMarkdown);
+  const activeTable = table ? await readActiveTableStorage(db, workspaceId, id) : null;
+  const stored = table && activeTable ? compactSharedMemo(table) : {
+    content_json: JSON.stringify(contentJson), content_markdown: contentMarkdown, content_text: contentText,
+  };
+  const initialTable = table && activeTable
+    ? new SharedTableStore(db).planMemoInitialization(workspaceId, id, table, activeTable.run_id)
+    : [];
   const now = isoNow();
   const createdAt = input.createdAt ?? now;
   const updatedAt = input.updatedAt ?? now;
@@ -1038,11 +1162,12 @@ export const createMemoRecord = async (
     db
       .prepare(
         `INSERT INTO memo_contents (
-          memo_id, content_json, content_markdown, content_text, content_hash, revision, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, 0, ?, ?)`
+          memo_id, content_json, content_markdown, content_text, content_hash, revision, shared_table_revision, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)`
       )
-      .bind(id, JSON.stringify(contentJson), contentMarkdown, contentText, contentHash, createdAt, updatedAt),
-    upsertMemoSearchDocumentStatement(db, id, title, contentText, tags.join(" ")),
+      .bind(id, stored.content_json, stored.content_markdown, stored.content_text, contentHash, activeTable ? 1 : null, createdAt, updatedAt),
+    ...initialTable,
+    upsertMemoSearchDocumentStatement(db, id, title, stored.content_text, tags.join(" ")),
     auditStatement(db, actor.actorType, actor.actorId, "memo.create", "memo", id, {
       notebookId: input.notebookId,
     }),
@@ -1056,7 +1181,7 @@ export const createMemoRecord = async (
   }
 
   return memo;
-};
+});
 
 const normalizeImportSource = (value: string) => {
   const source = value.trim().toLocaleLowerCase("en-US");
@@ -1126,6 +1251,7 @@ const getMemoImportSource = async (db: DatabaseAdapter, workspaceId: string, sou
 
 const discardUnlinkedImportedMemo = async (db: DatabaseAdapter, workspaceId: string, memoId: string) => {
   await db.batch([
+    ...await dropSavedIndexesForMemos(db, "m.id = ? AND m.workspace_id = ?", [memoId, workspaceId]),
     db.prepare(`DELETE FROM memo_revisions WHERE memo_id = ?`).bind(memoId),
     db.prepare(`DELETE FROM memo_contents WHERE memo_id = ?`).bind(memoId),
     db.prepare(`DELETE FROM memos WHERE id = ? AND workspace_id = ?`).bind(memoId, workspaceId),
@@ -1263,7 +1389,7 @@ export type ReleasedTableResource = {
   storageConfigId: string;
 };
 
-export const updateMemoRecord = async (
+export const updateMemoRecord = retryAtTableCutover(async (
   db: DatabaseAdapter,
   workspaceId: string,
   id: string,
@@ -1430,21 +1556,23 @@ export const updateMemoRecord = async (
   }
   const currentTable = parseTableDocument(current.content_markdown);
   const nextTable = parseTableDocument(contentMarkdown);
-  if (currentTable && !nextTable) {
+  if (!commit?.restoreRevision && currentTable && !nextTable) {
     return {
       error: "table_update_required",
       message: "Structured table content must stay a structured table.",
       status: 409,
     };
   }
-  if (currentTable?.schemaVersion === TABLE_VIEW_SCHEMA_VERSION && nextTable && nextTable.schemaVersion !== TABLE_VIEW_SCHEMA_VERSION) {
+  if (!commit?.restoreRevision && currentTable?.schemaVersion === TABLE_VIEW_SCHEMA_VERSION && nextTable && nextTable.schemaVersion !== TABLE_VIEW_SCHEMA_VERSION) {
     return {
       error: "content_conflict",
       message: "This table uses named views. Update your client and reload the table before saving.",
       status: 409,
     };
   }
-  const removedAttachmentIds = currentTable && nextTable
+  const activeTable = hasDocumentUpdate && nextTable ? await readActiveTableStorage(db, workspaceId, id) : null;
+  // Shared revisions can still reference a removed attachment after the current row changes.
+  const removedAttachmentIds = !activeTable && current.shared_table_revision == null && currentTable && nextTable
     ? [...listTableAttachmentResourceIds(currentTable)].filter((resourceId) => !listTableAttachmentResourceIds(nextTable).has(resourceId))
     : [];
   const releasedResources = removedAttachmentIds.length
@@ -1462,7 +1590,7 @@ export const updateMemoRecord = async (
   const releaseResourceStatements = releasedResourceRows.map((resource) => db.prepare(
     `UPDATE resources SET is_deleted = 1, deleted_at = ?, updated_at = ? WHERE id = ? AND memo_id = ? AND is_deleted = 0`,
   ).bind(updatedAt, updatedAt, resource.id, id));
-  const contentHash = await sha256(contentMarkdown + JSON.stringify(contentJson));
+  const contentHash = hasDocumentUpdate ? await sha256(contentMarkdown + JSON.stringify(contentJson)) : current.content_hash;
   const unchanged =
     notebookId === current.notebook_id
     && title === normalizeMemoTitle(current.title)
@@ -1477,9 +1605,18 @@ export const updateMemoRecord = async (
     return { memo: mapMemoDetail(current) };
   }
 
+  const sharedRevision = activeTable
+    ? (activeTable.revision ?? 0) + 1
+    : nextTable ? current.shared_table_revision ?? null : null;
+  const stored = sharedRevision !== null && nextTable ? compactSharedMemo(nextTable) : {
+    content_json: JSON.stringify(contentJson), content_markdown: contentMarkdown, content_text: contentText,
+  };
   const nextRevision = current.revision + 1;
-  const revisionStatements = (await shouldSnapshotMemoRevisionService(db, current, title, JSON.stringify(tags), contentHash, updatedAt))
-    ? [createMemoRevisionStatementService(db, current, actorLabel, updatedAt)]
+  const migratedRevision = currentTable && current.stored_shared_table_revision == null ? activeTable?.revision : null;
+  const historySource = migratedRevision == null ? current : { ...current, shared_table_revision: migratedRevision };
+  const revisionStatements = (migratedRevision != null || commit?.restoreRevision ||
+    await shouldSnapshotMemoRevisionService(db, current, title, JSON.stringify(tags), contentHash, updatedAt))
+    ? [createMemoRevisionStatementService(db, historySource, actorLabel, updatedAt)]
     : [];
   const editSessionStatements = editSession
     ? [
@@ -1510,7 +1647,7 @@ export const updateMemoRecord = async (
         ]
       : [];
 
-  await db.batch([
+  const statements = [
     ...(commit?.before ?? []),
     ...revisionStatements,
     ...releaseResourceStatements,
@@ -1526,20 +1663,58 @@ export const updateMemoRecord = async (
       .prepare(
         `UPDATE memo_contents
          SET content_json = ?, content_markdown = ?, content_text = ?, content_hash = ?,
-             revision = ?, updated_at = ?, created_at = COALESCE(?, created_at)
+             revision = ?, shared_table_revision = ?, updated_at = ?, created_at = COALESCE(?, created_at)
          WHERE memo_id = ?`
       )
-      .bind(JSON.stringify(contentJson), contentMarkdown, contentText, contentHash, nextRevision, updatedAt, input.createdAt ?? null, id),
-    upsertMemoSearchDocumentStatement(db, id, title, contentText, tags.join(" ")),
+      .bind(stored.content_json, stored.content_markdown, stored.content_text, contentHash, nextRevision, sharedRevision, updatedAt, input.createdAt ?? null, id),
+    upsertMemoSearchDocumentStatement(db, id, title, stored.content_text, tags.join(" ")),
     ...editSessionStatements,
-    auditStatement(db, actor.actorType, actor.actorId, "memo.update", "memo", id, {
+    auditStatement(db, actor.actorType, actor.actorId, commit?.restoreRevision ? "memo.revision_restore" : "memo.update", "memo", id, {
+      ...(commit?.restoreRevision ? { revisionId: commit.restoreRevision.id, restoredRevision: commit.restoreRevision.revision } : {}),
       revision: nextRevision,
       learning: { version: 1, workspaceId, fromNotebookId: current.notebook_id, toNotebookId: notebookId,
         beforeTags: JSON.parse(current.tags_json), afterTags: tags },
     }),
     ...(commit?.after(id) ?? []),
-  ]);
+  ];
+  const guardedTableMutation = sharedRevision !== null || current.shared_table_revision != null || !!currentTable || !!nextTable;
+  if (guardedTableMutation) {
+    statements.unshift(db.prepare(
+      `INSERT INTO ee_table_assertion SELECT 0 WHERE NOT EXISTS (
+        SELECT 1 FROM memos m JOIN memo_contents c ON c.memo_id = m.id
+        JOIN notebooks n ON n.id = ? AND n.workspace_id = m.workspace_id AND n.is_deleted = 0
+        WHERE m.id = ? AND m.workspace_id = ? AND m.is_deleted = 0 AND c.revision = ? AND c.content_hash = ?)`,
+    ).bind(notebookId, id, workspaceId, current.revision, current.content_hash));
+  }
+  try {
+    if (activeTable && nextTable && activeTable.revision !== null) {
+      await new SharedTableStore(db).saveMemoDocument(workspaceId, id, activeTable.revision, currentTable, nextTable, statements);
+    } else {
+      const initialization = activeTable && nextTable
+        ? new SharedTableStore(db).planMemoInitialization(workspaceId, id, nextTable, activeTable.run_id)
+        : [];
+      await db.batch([...statements, ...initialization]);
+    }
+  } catch (error) {
+    if (error instanceof AppError && error.code === "revision_conflict") {
+      return { error: error.code, message: error.message, status: error.status };
+    }
+    if (guardedTableMutation) {
+      const latest = await db.prepare(`SELECT revision FROM memo_contents WHERE memo_id = ?`).bind(id).first<number>("revision");
+      if (latest !== current.revision) return { error: "revision_conflict", message: "Memo was updated elsewhere. Reload before saving.", status: 409 };
+    }
+    throw error;
+  }
 
+  if (sharedRevision !== null) {
+    return { memo: mapMemoDetail({
+      ...current,
+      title, notebook_id: notebookId, tags_json: JSON.stringify(tags), excerpt, is_pinned: Number(isPinned),
+      content_text: contentText, content_json: JSON.stringify(contentJson), content_markdown: contentMarkdown,
+      content_hash: contentHash, revision: nextRevision, shared_table_revision: sharedRevision,
+      updated_at: updatedAt, created_at: input.createdAt ?? current.created_at,
+    }), releasedResources: releasedResourceRows };
+  }
   const memo = await getMemoDetail(db, workspaceId, id);
 
   if (!memo) {
@@ -1547,7 +1722,7 @@ export const updateMemoRecord = async (
   }
 
   return { memo, releasedResources: releasedResourceRows };
-};
+});
 
 const parseDoc = (json: string): TiptapDoc => {
   try {

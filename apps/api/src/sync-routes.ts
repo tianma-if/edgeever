@@ -1,3 +1,4 @@
+import { hydrateSharedMemoRows } from "./table-memo-storage";
 import type { MemoDetail } from "@edgeever/shared";
 import type { Hono } from "hono";
 import type { AppContext, AppEnv } from "./api-context";
@@ -35,6 +36,7 @@ export type SyncMemoDetailRow = {
   merge_source_count: number;
   merged_into_memo_id: string | null;
   content_hash: string;
+  shared_table_revision?: number | null;
 };
 
 type SyncRouteDependencies = {
@@ -137,10 +139,10 @@ export const registerSyncRoutes = (
       context.env.storage.db.prepare(
         `SELECT m.id, ${syncMemoNotebookIdSql} AS notebook_id, m.title, m.excerpt, m.tags_json, m.is_pinned,
                 m.is_archived, m.is_deleted, m.created_at, m.updated_at, m.deleted_at, mc.revision,
-                mc.content_json, mc.content_markdown, mc.content_text, mc.content_hash,
+                mc.content_json, mc.content_markdown, mc.content_text, mc.content_hash, mc.shared_table_revision,
                 m.source_memo_ids, m.merge_source_count, m.merged_into_memo_id
          FROM memos m
-         INNER JOIN memo_contents mc ON mc.memo_id = m.id
+         INNER JOIN memo_contents_for_read mc ON mc.memo_id = m.id
          WHERE m.workspace_id = ? AND m.id > ?
          ORDER BY m.id ASC
          LIMIT ?`,
@@ -159,7 +161,7 @@ export const registerSyncRoutes = (
          WHERE w.id = ?`,
       ).bind(workspaceId).first<{ cursor: number; sync_identity: string }>(),
     ]);
-    const page = memoRows.results.slice(0, limit);
+    const page = await hydrateSharedMemoRows(context.env.storage.db, workspaceId, memoRows.results.slice(0, limit));
     return context.json({
       notebooks: notebookRows.results.map(mapNotebook),
       memos: page.map(dependencies.mapMemoDetail),
@@ -231,10 +233,10 @@ export const registerSyncRoutes = (
         return context.env.storage.db.prepare(
           `SELECT m.id, ${syncMemoNotebookIdSql} AS notebook_id, m.title, m.excerpt, m.tags_json, m.is_pinned,
                   m.is_archived, m.is_deleted, m.created_at, m.updated_at, m.deleted_at, mc.revision,
-                  mc.content_json, mc.content_markdown, mc.content_text, mc.content_hash,
+                  mc.content_json, mc.content_markdown, mc.content_text, mc.content_hash, mc.shared_table_revision,
                   m.source_memo_ids, m.merge_source_count, m.merged_into_memo_id
            FROM memos m
-           INNER JOIN memo_contents mc ON mc.memo_id = m.id
+           INNER JOIN memo_contents_for_read mc ON mc.memo_id = m.id
            WHERE m.workspace_id = ? AND m.id IN (${placeholders})`,
         ).bind(workspaceId, ...batch).all<SyncMemoDetailRow>();
       })),
@@ -250,9 +252,10 @@ export const registerSyncRoutes = (
         ).bind(workspaceId, ...batch).all<NotebookRow>();
       })),
     ]);
-    const memosById = new Map(memoRowBatches
-      .flatMap((batch) => batch.results)
-      .map((row) => [row.id, dependencies.mapMemoDetail(row)]));
+    const memoRows = memoRowBatches.flatMap((batch) => batch.results);
+    const useTableRecords = context.req.query("tableRecords") === "1";
+    const projected = useTableRecords ? memoRows : await hydrateSharedMemoRows(context.env.storage.db, workspaceId, memoRows);
+    const memosById = new Map(projected.map((row) => [row.id, dependencies.mapMemoDetail(row)]));
     const notebooksById = new Map(notebookRowBatches
       .flatMap((batch) => batch.results)
       .map((row) => [row.id, mapNotebook(row)]));
@@ -266,6 +269,7 @@ export const registerSyncRoutes = (
           operation: memo ? "upsert" as const : "delete" as const,
           notebook: null,
           memo,
+          ...(useTableRecords && memo?.sharedTableRevision != null ? { tableRecords: true as const } : {}),
         };
       }
       const notebook = change.operation === "upsert"

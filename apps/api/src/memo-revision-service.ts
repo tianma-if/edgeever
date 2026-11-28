@@ -4,6 +4,7 @@ import {
   docToMarkdown,
   docToText,
   emptyDoc,
+  parseTableDocument,
   type MemoDetail,
   type MemoRevision,
   type TiptapDoc,
@@ -15,6 +16,8 @@ import { createId, isoNow, parseJsonArray } from "./entity-utils";
 import { sha256 } from "./hash-utils";
 import { upsertMemoSearchDocumentStatement } from "./memo-search-index";
 import type { DatabaseAdapter, PreparedStatementAdapter } from "./storage-contract";
+import type { updateMemoRecord } from "./memo-service";
+import { hydrateSharedMemo, hydrateSharedMemoRows, readActiveTableStorage } from "./table-memo-storage";
 
 const REVISION_SNAPSHOT_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -28,6 +31,7 @@ export type MemoRevisionRow = {
   content_markdown: string;
   content_text: string;
   content_hash: string;
+  shared_table_revision?: number | null;
   created_by: string;
   created_at: string;
 };
@@ -41,6 +45,7 @@ export type MemoRevisionSourceRow = {
   content_markdown: string;
   content_text: string;
   content_hash: string;
+  shared_table_revision?: number | null;
 };
 
 type MemoRevisionDependencies = {
@@ -89,13 +94,16 @@ export const getMemoRevisionRow = async (
   workspaceId: string,
   memoId: string,
   revisionId: string,
-): Promise<MemoRevisionRow | null> => db.prepare(
+): Promise<MemoRevisionRow | null> => {
+  const row = await db.prepare(
   `SELECT mr.id, mr.memo_id, mr.revision, mr.title, mr.tags_json, mr.content_json, mr.content_markdown,
-          mr.content_text, mr.content_hash, mr.created_by, mr.created_at
+          mr.content_text, mr.content_hash, mr.created_by, mr.created_at, mr.shared_table_revision
    FROM memo_revisions mr
    INNER JOIN memos m ON m.id = mr.memo_id
    WHERE mr.id = ? AND mr.memo_id = ? AND m.workspace_id = ?`,
 ).bind(revisionId, memoId, workspaceId).first<MemoRevisionRow>();
+  return row ? hydrateSharedMemo(db, workspaceId, memoId, row, true) : null;
+};
 
 export const listMemoRevisions = async (
   db: DatabaseAdapter,
@@ -110,14 +118,14 @@ export const listMemoRevisions = async (
 
   const rows = await db.prepare(
     `SELECT id, memo_id, revision, title, tags_json, content_json, content_markdown,
-            content_text, content_hash, created_by, created_at
+            content_text, content_hash, created_by, created_at, shared_table_revision
      FROM memo_revisions
      WHERE memo_id = ?
      ORDER BY revision DESC, created_at DESC
      LIMIT ?`,
   ).bind(memoId, limit).all<MemoRevisionRow>();
 
-  return rows.results.map(mapMemoRevision);
+  return (await hydrateSharedMemoRows(db, workspaceId, rows.results, true)).map(mapMemoRevision);
 };
 
 export const createMemoRevisionStatement = (
@@ -128,20 +136,21 @@ export const createMemoRevisionStatement = (
 ): PreparedStatementAdapter => db.prepare(
   `INSERT INTO memo_revisions (
     id, memo_id, revision, title, content_json, content_markdown,
-    content_hash, created_by, created_at, tags_json, content_text
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    content_hash, created_by, created_at, tags_json, content_text, shared_table_revision
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 ).bind(
   createId("rev"),
   current.id,
   current.revision,
   current.title,
-  current.content_json,
-  current.content_markdown,
+  current.shared_table_revision == null ? current.content_json : JSON.stringify(emptyDoc()),
+  current.shared_table_revision == null ? current.content_markdown : "",
   current.content_hash,
   actorLabel,
   createdAt,
   current.tags_json,
-  current.content_text,
+  current.shared_table_revision == null ? current.content_text : "",
+  current.shared_table_revision ?? null,
 );
 
 const getLatestMemoRevisionRow = (
@@ -187,7 +196,7 @@ export const restoreMemoRevision = async (
   revisionId: string,
   actor: AuditActor,
   actorLabel: string,
-  dependencies: Pick<MemoRevisionDependencies, "getMemoDetail" | "getMemoDetailRow">,
+  dependencies: Pick<MemoRevisionDependencies, "getMemoDetail" | "getMemoDetailRow"> & { updateMemoRecord?: typeof updateMemoRecord },
 ) => {
   const current = await dependencies.getMemoDetailRow(db, workspaceId, memoId);
   if (!current) throw new AppError("not_found", "Memo not found", 404);
@@ -198,6 +207,16 @@ export const restoreMemoRevision = async (
   const tags = parseJsonArray(revision.tags_json);
   const contentJson = parseDoc(revision.content_json);
   const contentMarkdown = revision.content_markdown || docToMarkdown(contentJson);
+  if (dependencies.updateMemoRecord && (current.shared_table_revision != null ||
+    (parseTableDocument(contentMarkdown) && await readActiveTableStorage(db, workspaceId, memoId)))) {
+    const result = await dependencies.updateMemoRecord(db, workspaceId, memoId, {
+      expectedRevision: current.revision,
+      contentMarkdown, contentJson, title: revision.title ?? undefined, tags,
+      allowDestructiveOverwrite: true,
+    }, actor, actorLabel, false, { before: [], after: () => [], restoreRevision: revision });
+    if (!("memo" in result)) throw new AppError(result.error, result.message, result.status ?? 409);
+    return result.memo;
+  }
   const contentText = revision.content_text || docToText(contentJson);
   const title = normalizeMemoTitle(revision.title);
   const contentHash = await sha256(contentMarkdown + JSON.stringify(contentJson));

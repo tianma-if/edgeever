@@ -1,3 +1,5 @@
+import { runOnlineTableMigration } from "../apps/api/src/table-storage-migration.ts";
+import { readSharedMemoMarkdown } from "../apps/api/src/table-memo-storage.ts";
 import { Database } from "bun:sqlite";
 import { mkdir, readdir, readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
@@ -132,7 +134,7 @@ const server = Bun.serve({
       return renderNotebookSitePage(request, storage.db, loadAppShell);
     }
     if (isPublicMemoSharePagePath(pathname)) {
-      const page = await renderPublicMemoSharePage(request, storage.db, loadAppShell);
+      const page = await renderPublicMemoSharePage(request, storage.db, loadAppShell, readSharedMemoMarkdown);
       if (page) return page;
     }
     if (isEdgeEverAppPath(pathname)) {
@@ -157,9 +159,22 @@ console.log(`[self-hosted] storage backend: ${config.storageBackend}`);
 console.log(`[self-hosted] idle timeout: ${config.idleTimeout}s`);
 
 let shuttingDown = false;
+let migrationTimer;
+let migrationTick;
+const migrateTables = () => {
+  migrationTick = runOnlineTableMigration(storage.db).then(
+    (state) => { if (!shuttingDown && state.phase !== "active") migrationTimer = setTimeout(migrateTables, 1000); },
+    (error) => {
+      console.error("[self-hosted] table migration paused; checkpoint retained", error);
+      if (!shuttingDown) migrationTimer = setTimeout(migrateTables, 60_000);
+    },
+  );
+};
+migrationTimer = setTimeout(migrateTables, 1000);
 const shutdown = async (signal) => {
   if (shuttingDown) return;
   shuttingDown = true;
+  clearTimeout(migrationTimer);
   console.log(`[self-hosted] received ${signal}; shutting down`);
 
   let forceStopTimer;
@@ -172,6 +187,7 @@ const shutdown = async (signal) => {
       forceStopTimer = setTimeout(() => server.stop(true).then(resolve, reject), 5_000);
     });
     await Promise.race([stopped, forcedStop]);
+    await migrationTick;
     sqlite.exec("PRAGMA wal_checkpoint(TRUNCATE)");
     sqlite.close();
     console.log("[self-hosted] shutdown complete");

@@ -24,6 +24,7 @@ export type MemoSummaryRow = {
   excerpt: string;
   content_text?: string | null;
   is_poster?: number;
+  shared_table_count?: number | null;
   content_markdown?: string | null;
   tags_json: string;
   is_pinned: number;
@@ -72,6 +73,14 @@ export type ListMemosResult = {
 const DEFAULT_MEMO_LIST_LIMIT = 100;
 const MAX_MEMO_LIST_LIMIT = 200;
 
+const memoTableSummary = (row: MemoSummaryRow) => {
+  const summary = getTableSummary(row.content_markdown);
+  if (summary.tablePreview && row.shared_table_count != null) {
+    summary.tablePreview.recordCount = row.shared_table_count;
+  }
+  return summary;
+};
+
 export const mapMemoSummary = (row: MemoSummaryRow): MemoSummary => ({
   id: row.id,
   notebookId: row.notebook_id,
@@ -84,7 +93,7 @@ export const mapMemoSummary = (row: MemoSummaryRow): MemoSummary => ({
   ...getInfographicSummary(row.content_markdown),
   ...getPosterSummary(row.content_markdown),
   ...(row.is_poster !== undefined ? { poster: Boolean(row.is_poster) } : {}),
-  ...getTableSummary(row.content_markdown),
+  ...memoTableSummary(row),
   tags: parseJsonArray(row.tags_json),
   isPinned: Boolean(row.is_pinned),
   isArchived: Boolean(row.is_archived),
@@ -150,16 +159,32 @@ const decodeMemoListCursor = (
   }
 };
 
-export const toFtsQuery = (value: string) => {
-  const tokens = value.match(/[\p{L}\p{N}_]+/gu) ?? [];
-  return tokens
-    .slice(0, 8)
-    .map((token) => `"${token.replace(/"/g, '""')}"`)
-    .join(" ");
-};
+const ftsTerms = (value: string) => (value.match(/[\p{L}\p{N}_]+/gu) ?? [])
+  .slice(0, 8).map((token) => `"${token}"`);
+export const toFtsQuery = (value: string) => ftsTerms(value).join(" ");
 
 export const escapeLike = (value: string) =>
   value.replace(/[\\%_]/g, (character) => `\\${character}`);
+
+export const sharedTableSearch = (query: string, workspaceId?: string) => {
+  const terms = [...new Set(ftsTerms(query))];
+  const scope = workspaceId === undefined ? "(SELECT workspace_id FROM tree LIMIT 1)" : "?";
+  const scopeBindings = workspaceId === undefined ? [] : [workspaceId];
+  const sql = `SELECT hits.table_id,
+    COALESCE(MIN(CASE WHEN hits.term = -1 THEN hits.search_text END), MIN(hits.search_text)) AS search_text
+    FROM (
+      SELECT r.table_id, r.search_text, -1 AS term FROM ee_table_records r
+      WHERE r.workspace_id = ${scope} AND r.search_text LIKE ? ESCAPE '\\'
+      ${terms.length ? `UNION ALL
+      SELECT r.table_id, r.search_text, term.key
+      FROM json_each(?) term CROSS JOIN ee_table_search f ON ee_table_search MATCH term.value
+      JOIN ee_table_records r ON r.id = f.rowid WHERE r.workspace_id = ${scope}` : ""}
+    ) hits
+    JOIN memo_contents tc ON tc.memo_id = hits.table_id AND tc.shared_table_revision IS NOT NULL
+    GROUP BY hits.table_id HAVING MIN(hits.term) = -1${terms.length ? ` OR COUNT(DISTINCT hits.term) = ${terms.length}` : ""}`;
+  const bindings = [...scopeBindings, `%${escapeLike(query)}%`, ...(terms.length ? [JSON.stringify(terms), ...scopeBindings] : [])];
+  return { sql, bindings };
+};
 
 export const listMemos = async (
   database: DatabaseAdapter,
@@ -266,8 +291,9 @@ export const listMemos = async (
   if (query) {
     const ftsQuery = toFtsQuery(query);
     const likeQuery = `%${escapeLike(query)}%`;
+    const tableMatches = sharedTableSearch(query, input.workspaceId);
     if (ftsQuery) {
-      const searchPrefix = [ftsQuery, likeQuery, likeQuery, likeQuery];
+      const searchPrefix = [ftsQuery, likeQuery, likeQuery, likeQuery, ...tableMatches.bindings];
       const [rows, totalRow] = await Promise.all([
         database.prepare(
           `WITH raw_matches(memo_id, rank) AS (
@@ -283,6 +309,10 @@ export const listMemos = async (
              WHERE m.title LIKE ? ESCAPE '\\'
                 OR c.content_text LIKE ? ESCAPE '\\'
                 OR m.tags_json LIKE ? ESCAPE '\\'
+
+             UNION ALL
+
+             SELECT hits.table_id, 100.0 FROM (${tableMatches.sql}) hits
            ),
            search_matches AS (
              SELECT memo_id, MIN(rank) AS rank
@@ -291,7 +321,10 @@ export const listMemos = async (
            )
            SELECT m.id, m.notebook_id, m.title, m.excerpt, m.tags_json, m.is_pinned,
                   m.is_archived, m.is_deleted, m.created_at, m.updated_at, m.deleted_at, mc.revision,
-                  mc.content_text, mc.content_markdown
+                  mc.content_text, mc.content_markdown,
+                  CASE WHEN mc.shared_table_revision IS NOT NULL THEN (
+                    SELECT row_count FROM ee_table_heads WHERE workspace_id = m.workspace_id AND table_id = m.id
+                  ) END AS shared_table_count
            FROM search_matches s
            INNER JOIN memos m ON m.id = s.memo_id
            INNER JOIN memo_contents mc ON mc.memo_id = m.id
@@ -313,6 +346,10 @@ export const listMemos = async (
              WHERE m.title LIKE ? ESCAPE '\\'
                 OR c.content_text LIKE ? ESCAPE '\\'
                 OR m.tags_json LIKE ? ESCAPE '\\'
+
+             UNION ALL
+
+             SELECT table_id FROM (${tableMatches.sql})
            ),
            search_matches AS (
              SELECT memo_id
@@ -328,16 +365,20 @@ export const listMemos = async (
       return finish(rows.results, totalRow?.count);
     }
 
-    const searchClause = "(m.title LIKE ? ESCAPE '\\' OR mc.content_text LIKE ? ESCAPE '\\' OR m.tags_json LIKE ? ESCAPE '\\')";
+    const searchClause = `(m.title LIKE ? ESCAPE '\\' OR mc.content_text LIKE ? ESCAPE '\\' OR m.tags_json LIKE ? ESCAPE '\\'
+      OR m.id IN (SELECT table_id FROM (${tableMatches.sql})))`;
     const searchConditions = [...baseConditions, searchClause];
-    const searchBinds = [...baseBinds, likeQuery, likeQuery, likeQuery];
+    const searchBinds = [...baseBinds, likeQuery, likeQuery, likeQuery, ...tableMatches.bindings];
     const searchCursorConditions = [...cursorConditions, searchClause];
-    const searchCursorBinds = [...cursorBinds, likeQuery, likeQuery, likeQuery];
+    const searchCursorBinds = [...cursorBinds, likeQuery, likeQuery, likeQuery, ...tableMatches.bindings];
     const [rows, totalRow] = await Promise.all([
       database.prepare(
         `SELECT m.id, m.notebook_id, m.title, m.excerpt, m.tags_json, m.is_pinned,
                 m.is_archived, m.is_deleted, m.created_at, m.updated_at, m.deleted_at, mc.revision,
-                mc.content_text, mc.content_markdown
+                mc.content_text, mc.content_markdown,
+                  CASE WHEN mc.shared_table_revision IS NOT NULL THEN (
+                    SELECT row_count FROM ee_table_heads WHERE workspace_id = m.workspace_id AND table_id = m.id
+                  ) END AS shared_table_count
          FROM memos m
          INNER JOIN memo_contents mc ON mc.memo_id = m.id
          WHERE ${searchCursorConditions.join(" AND ")}
@@ -358,7 +399,10 @@ export const listMemos = async (
     database.prepare(
       `SELECT m.id, m.notebook_id, m.title, m.excerpt, m.tags_json, m.is_pinned,
               m.is_archived, m.is_deleted, m.created_at, m.updated_at, m.deleted_at, mc.revision,
-              mc.content_text, mc.content_markdown
+              mc.content_text, mc.content_markdown,
+                  CASE WHEN mc.shared_table_revision IS NOT NULL THEN (
+                    SELECT row_count FROM ee_table_heads WHERE workspace_id = m.workspace_id AND table_id = m.id
+                  ) END AS shared_table_count
        FROM memos m
        INNER JOIN memo_contents mc ON mc.memo_id = m.id
        WHERE ${cursorConditions.join(" AND ")}

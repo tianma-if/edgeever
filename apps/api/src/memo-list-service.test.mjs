@@ -45,7 +45,7 @@ describe("memo list service", () => {
     expect(result.totalCount).toBeUndefined();
     expect(result.nextCursor).toBeString();
     expect(database.calls).toHaveLength(1);
-    expect(database.calls[0].sql).not.toMatch(/COUNT\s*\(/i);
+    expect(database.calls[0].sql).not.toMatch(/SELECT COUNT\s*\(\*\) AS count/i);
     const end = await listMemos(createDatabase({ rows: [memoRow("memo_3")] }), { workspaceId: "ws_1", query, limit: 2, includeTotal: false, cursor: result.nextCursor });
     expect(end.memos.map((memo) => memo.id)).toEqual(["memo_3"]);
     expect(end.nextCursor).toBeNull();

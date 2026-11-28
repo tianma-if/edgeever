@@ -6,14 +6,14 @@ import { join } from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { createEdgeEverClient } from "../../../../packages/client/src/index";
-import { createEdgeEverZipStream, parseEdgeEverZip, restoreEdgeEverZip, validateBackupRelationships, type JsonBackupSource } from "../../../../packages/shared/src/backup-archive";
-import type { JsonBackupManifest } from "../../../../packages/shared/src/backup";
+import { createBackupTableReaders, createEdgeEverZipStream, parseEdgeEverZip, restoreEdgeEverZip, validateBackupRelationships, type JsonBackupSource } from "../../../../packages/shared/src/backup-archive";
+import type { BackupState, JsonBackupManifest, JsonBackupRevision } from "../../../../packages/shared/src/backup";
 import type { AuthSession, Notebook, Resource, AiPromptTemplate } from "../../../../packages/shared/src/types";
 import { encryptArchive, decryptArchive } from "./encrypted-archive.mjs";
 
 type Context = { baseUrl: string; accountId: string | null; token: string; locale?: string };
 type Input = { operation: "export" | "import" | "verify"; context: Context; path: string; password?: string; stagingDirectory?: string; previousState?: SourceState; version?: { edgeeverVersion: string; buildId: string } };
-type State = { protocolVersion: number; userId: string | null; workspaceId: string; identity: string; backupRevision: string; counts: Required<JsonBackupManifest["counts"]> };
+type State = BackupState;
 type SourceState = Pick<State, "identity" | "workspaceId" | "backupRevision">;
 const { data, port: parentPort, request: networkFetch } = await backupWorkerRuntime();
 const input = data as Input;
@@ -105,7 +105,7 @@ const runExport = async () => {
   const state = await readState();
   const sourceState: SourceState = { identity: state.identity, workspaceId: state.workspaceId, backupRevision: state.backupRevision };
   if (input.previousState && Object.keys(sourceState).every((key) => sourceState[key as keyof SourceState] === input.previousState![key as keyof SourceState])) return { skipped: true, sourceState };
-  const page = <T>(kind: string, after: string) => request<T>(input.context, `/api/v1/backups/data?${new URLSearchParams({ kind, after, identity: state.identity, revision: state.backupRevision })}`);
+  const page = <T>(kind: string, after: string, options: Record<string, string> = {}) => request<T>(input.context, `/api/v1/backups/data?${new URLSearchParams({ kind, after, ...options, identity: state.identity, revision: state.backupRevision })}`);
   const collect = async <T>(kind: "notebooks" | "prompts") => {
     const values: T[] = [];
     let after = "";
@@ -124,12 +124,14 @@ const runExport = async () => {
     listNotebooks: async () => ({ notebooks: await collect<Notebook>("notebooks") }),
     listPrompts: async () => ({ prompts: await collect<AiPromptTemplate>("prompts") }),
     getPage: async (offset) => {
-      const result = await page<Awaited<ReturnType<JsonBackupSource["getPage"]>> & { nextCursor: string | null }>("memos", cursor);
+      const result = await page<Awaited<ReturnType<JsonBackupSource["getPage"]>> & { nextCursor: string | null }>("memos", cursor, state.tableChunks ? { tableChunks: "1" } : {});
       resourceByUrl.clear();
       for (const resource of result.resources) resourceByUrl.set(resource.url, resource);
       if (result.nextCursor !== null) cursor = result.nextCursor;
-      return { ...result, totalCount: state.counts.memos, nextOffset: result.nextCursor === null ? null : offset + result.memos.length };
+      return { ...result, tableChunks: state.tableChunks, totalCount: state.counts.memos, nextOffset: result.nextCursor === null ? null : offset + result.memos.length };
     },
+    readRevisions: (memoId, after) => page<{ revisions: JsonBackupRevision[]; nextCursor: string | null }>("revisions", after, { memoId }),
+    ...createBackupTableReaders(({ kind, after, ...options }) => page(kind, after, options)),
     getResourceResponse: async (url) => {
       const resource = resourceByUrl.get(url) ?? fail("incompleteResources", "A backup resource is missing from its page.");
       const response = await fetchWithDiagnostics(`${input.context.baseUrl}/api/v1/resources/${encodeURIComponent(resource.id)}/blob`, { signal, headers: { Authorization: `Bearer ${input.context.token}` }, credentials: "omit" });
@@ -234,8 +236,13 @@ const runImport = async () => {
         return fetchWithDiagnostics(url, { ...init, body, credentials: "omit", signal: AbortSignal.any(init?.signal ? [signal, init.signal] : [signal]) });
       },
     });
+    const cleanupClient = createEdgeEverClient({
+      baseUrl: input.context.baseUrl, token: input.context.token,
+      fetch: (url, init) => fetchWithDiagnostics(url, { ...init, credentials: "omit", signal: AbortSignal.timeout(5000) }),
+    });
     await restoreEdgeEverZip(backup, {
       restoreNotebooks: client.restoreJsonNotebooks, restoreMemos: client.restoreJsonMemos,
+      tableRestore: { ...client.jsonTableRestore, cancel: cleanupClient.jsonTableRestore.cancel },
       restorePrompts: client.restoreJsonAiPrompts, createResourceRestoreSink: client.createJsonResourceRestoreSink,
     }, (progress) => send("progress", { stage: "restoring", ...progress }));
     return { manifest: backup.manifest };

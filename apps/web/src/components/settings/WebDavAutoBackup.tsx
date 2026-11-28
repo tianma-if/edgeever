@@ -1,6 +1,5 @@
 import { useEffect } from "react";
-import { api } from "@/lib/api";
-import { createEdgeEverZipTemporaryFile } from "@/lib/json-backup";
+import { createEdgeEverZipTemporaryFile, createWorkspaceBackupSource } from "@/lib/json-backup";
 import {
   isWebDavBackupDue,
   loadWebDavBackupConfig,
@@ -32,7 +31,7 @@ export const WebDavAutoBackup = () => {
       saveWebDavBackupSchedule({ ...schedule, lastAttemptAt: attemptAt });
       try {
         const temporary = await createEdgeEverZipTemporaryFile(
-          { listNotebooks: api.listNotebooks, listPrompts: api.listAiPrompts, getPage: api.getJsonBackupPage, getResourceResponse: api.getResourceResponse },
+          createWorkspaceBackupSource(),
           { edgeeverVersion: __EDGEEVER_APP_VERSION__, buildId: __EDGEEVER_BUILD_ID__ }
         );
         await uploadWebDavBackup(config, password, temporary.file).finally(temporary.cleanup);

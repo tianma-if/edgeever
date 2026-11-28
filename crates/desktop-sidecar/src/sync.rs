@@ -193,17 +193,25 @@ pub(crate) fn sync_outbox_ack(database: &Connection, params: &Value) -> Result<V
                 .get("contentHash")
                 .and_then(Value::as_str)
                 .unwrap_or("");
-            let payload_text: String = database
-                .query_row(
-                    "SELECT payload_json FROM _edgeever_sidecar_outbox WHERE id = ?1",
-                    [id],
-                    |row| row.get(0),
-                )
-                .map_err(|e| e.to_string())?;
             let mut payload: Value =
-                serde_json::from_str(&payload_text).unwrap_or_else(|_| json!({}));
+                serde_json::from_str(&payload_json).unwrap_or_else(|_| json!({}));
+            if let Some(table_version) = payload.pointer("/tableAttempt/version").and_then(Value::as_i64) {
+                if Some(table_version) != requested_version {
+                    return Ok(json!({ "ok": true, "superseded": true, "memo": null }));
+                }
+            }
+            if let Some(object) = payload.as_object_mut() {
+                object.remove("tableAttempt");
+            }
             payload["expectedRevision"] = json!(remote_revision);
             payload["expectedContentHash"] = json!(remote_hash);
+            if payload.get("tableBase").is_some_and(Value::is_object) {
+                payload["tableBase"] = json!({
+                    "title": remote.get("title").and_then(Value::as_str).unwrap_or(""),
+                    "tags": remote.get("tags"),
+                    "contentMarkdown": remote.get("contentMarkdown"),
+                });
+            }
             let tx = database
                 .unchecked_transaction()
                 .map_err(|e| e.to_string())?;
@@ -328,6 +336,13 @@ pub(crate) fn sync_outbox_ack(database: &Connection, params: &Value) -> Result<V
                     }
                     if let Some(hash) = remote.get("contentHash") {
                         payload["expectedContentHash"] = hash.clone();
+                    }
+                    if payload.get("tableBase").is_some_and(Value::is_object) {
+                        payload["tableBase"] = json!({
+                            "title": remote.get("title").and_then(Value::as_str).unwrap_or(""),
+                            "tags": remote.get("tags"),
+                            "contentMarkdown": remote.get("contentMarkdown"),
+                        });
                     }
                 }
                 let next_entity = if outbox_entity == entity_id {
@@ -546,6 +561,20 @@ pub(crate) fn sync_outbox_ack(database: &Connection, params: &Value) -> Result<V
     )
 }
 
+pub(crate) fn sync_outbox_remember_table(database: &Connection, params: &Value) -> Result<Value, String> {
+    let id = params.get("id").and_then(Value::as_i64).ok_or("Missing outbox id")?;
+    let version = params.get("version").and_then(Value::as_i64).ok_or("Missing outbox version")?;
+    let draft = params.get("draft").filter(|draft| draft.is_object()).ok_or("Missing table draft")?;
+    let updated = database.execute(
+        "UPDATE _edgeever_sidecar_outbox
+         SET payload_json = json_set(payload_json, '$.tableAttempt', json(?1))
+         WHERE id = ?2 AND version = ?3 AND kind = 'memo.update'
+           AND json_type(payload_json, '$.tableAttempt') IS NULL",
+        rusqlite::params![json!({ "version": version, "draft": draft }).to_string(), id, version],
+    ).map_err(|error| error.to_string())?;
+    Ok(json!({ "remembered": updated == 1 }))
+}
+
 pub(crate) fn sync_outbox_fail(database: &Connection, params: &Value) -> Result<Value, String> {
     let id = params
         .get("id")
@@ -567,9 +596,9 @@ pub(crate) fn sync_outbox_fail(database: &Connection, params: &Value) -> Result<
         .unwrap_or(true);
     let next_attempt_at = params.get("nextAttemptAt").and_then(Value::as_str);
     let updated = if let Some(version) = params.get("version").and_then(Value::as_i64) {
-        database.execute("UPDATE _edgeever_sidecar_outbox SET status = ?1, attempt_count = attempt_count + 1, last_error = ?2, last_error_code = ?3, retryable = ?4, next_attempt_at = ?5, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?6 AND version = ?7", rusqlite::params![status, error, error_code, retryable, next_attempt_at, id, version]).map_err(|e| e.to_string())?
+        database.execute("UPDATE _edgeever_sidecar_outbox SET status = ?1, payload_json = CASE WHEN ?1 = 'conflict' THEN json_remove(payload_json, '$.tableAttempt') ELSE payload_json END, attempt_count = attempt_count + 1, last_error = ?2, last_error_code = ?3, retryable = ?4, next_attempt_at = ?5, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?6 AND version = ?7", rusqlite::params![status, error, error_code, retryable, next_attempt_at, id, version]).map_err(|e| e.to_string())?
     } else {
-        database.execute("UPDATE _edgeever_sidecar_outbox SET status = ?1, attempt_count = attempt_count + 1, last_error = ?2, last_error_code = ?3, retryable = ?4, next_attempt_at = ?5, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?6", rusqlite::params![status, error, error_code, retryable, next_attempt_at, id]).map_err(|e| e.to_string())?
+        database.execute("UPDATE _edgeever_sidecar_outbox SET status = ?1, payload_json = CASE WHEN ?1 = 'conflict' THEN json_remove(payload_json, '$.tableAttempt') ELSE payload_json END, attempt_count = attempt_count + 1, last_error = ?2, last_error_code = ?3, retryable = ?4, next_attempt_at = ?5, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?6", rusqlite::params![status, error, error_code, retryable, next_attempt_at, id]).map_err(|e| e.to_string())?
     };
     Ok(json!({ "ok": true, "superseded": updated == 0 }))
 }
@@ -958,7 +987,7 @@ fn apply_one_sync_change(
     let requested_notebook_id = string_param(memo, "notebookId")?;
     let notebook_id = resolve_active_notebook_id(tx, &requested_notebook_id)?;
     tx.execute("INSERT INTO memos (id, notebook_id, title, excerpt, tags_json, is_pinned, is_archived, is_deleted, source_memo_ids, merge_source_count, merged_into_memo_id, created_at, updated_at, deleted_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14) ON CONFLICT(id) DO UPDATE SET notebook_id=excluded.notebook_id, title=excluded.title, excerpt=excluded.excerpt, tags_json=excluded.tags_json, is_pinned=excluded.is_pinned, is_archived=excluded.is_archived, is_deleted=excluded.is_deleted, source_memo_ids=excluded.source_memo_ids, merge_source_count=excluded.merge_source_count, merged_into_memo_id=excluded.merged_into_memo_id, updated_at=excluded.updated_at, deleted_at=excluded.deleted_at", rusqlite::params![entity_id, notebook_id, memo.get("title").and_then(Value::as_str), string_param(memo, "excerpt")?, tags, memo.get("isPinned").and_then(Value::as_bool).unwrap_or(false) as i64, memo.get("isArchived").and_then(Value::as_bool).unwrap_or(false) as i64, memo.get("isDeleted").and_then(Value::as_bool).unwrap_or(false) as i64, source_ids, memo.get("mergeSourceCount").and_then(Value::as_i64).unwrap_or(0), merge_target, string_param(memo, "createdAt")?, string_param(memo, "updatedAt")?, memo.get("deletedAt").and_then(Value::as_str)]).map_err(|e| e.to_string())?;
-    tx.execute("INSERT INTO memo_contents (memo_id, content_json, content_markdown, content_text, content_hash, revision) VALUES (?1, ?2, ?3, ?4, ?5, ?6) ON CONFLICT(memo_id) DO UPDATE SET content_json=excluded.content_json, content_markdown=excluded.content_markdown, content_text=excluded.content_text, content_hash=excluded.content_hash, revision=excluded.revision, updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')", rusqlite::params![entity_id, content_json.to_string(), string_param(memo, "contentMarkdown")?, string_param(memo, "contentText")?, string_param(memo, "contentHash")?, memo.get("revision").and_then(Value::as_i64).unwrap_or(0)]).map_err(|e| e.to_string())?;
+    tx.execute("INSERT INTO memo_contents (memo_id, content_json, content_markdown, content_text, content_hash, revision, shared_table_revision) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7) ON CONFLICT(memo_id) DO UPDATE SET content_json=excluded.content_json, content_markdown=excluded.content_markdown, content_text=excluded.content_text, content_hash=excluded.content_hash, revision=excluded.revision, shared_table_revision=excluded.shared_table_revision, updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')", rusqlite::params![entity_id, content_json.to_string(), string_param(memo, "contentMarkdown")?, string_param(memo, "contentText")?, string_param(memo, "contentHash")?, memo.get("revision").and_then(Value::as_i64).unwrap_or(0), memo.get("sharedTableRevision").and_then(Value::as_i64)]).map_err(|e| e.to_string())?;
     for source_id in source_memo_ids.iter().filter_map(Value::as_str) {
         tx.execute(
             "UPDATE memos SET merged_into_memo_id = ?1 WHERE id = ?2",

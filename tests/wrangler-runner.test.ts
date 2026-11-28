@@ -195,9 +195,45 @@ describe("cross-platform Wrangler runner", () => {
       .split("\n")
       .filter((line) => line.startsWith("CREATE TRIGGER "));
 
-    expect(triggerLines).toHaveLength(35);
+    expect(triggerLines).toHaveLength(46);
     for (const triggerLine of triggerLines) {
       expect(triggerLine).toEndWith(" END;");
+    }
+  });
+
+  test("schedules table migration on ordinary and demo Workers alongside existing cron triggers", () => {
+    const workingDirectory = mkdtempSync(resolve(tmpdir(), "edgeever-migration-cron-"));
+    const configPath = resolve(workingDirectory, "custom.toml");
+    const cliDirectory = resolve(workingDirectory, "node_modules", "wrangler", "bin");
+    const baseEnv = Object.fromEntries(
+      ["PATH", "Path", "PATHEXT", "SystemRoot", "ComSpec", "TEMP", "TMP"]
+        .map((name) => [name, process.env[name]])
+        .filter((entry): entry is [string, string] => Boolean(entry[1])),
+    );
+    const runWithEnv = (extraEnv: Record<string, string>) => spawnSync(
+      "node",
+      [resolve(import.meta.dir, "../scripts/run-wrangler.mjs"), "--version"],
+      {
+        cwd: workingDirectory,
+        encoding: "utf8",
+        env: { ...baseEnv, WRANGLER_CONFIG: configPath, ...extraEnv },
+      },
+    );
+
+    try {
+      mkdirSync(cliDirectory, { recursive: true });
+      writeFileSync(configPath, 'name = "migration-test"\n');
+      writeFileSync(resolve(cliDirectory, "wrangler.js"), "process.exit(0);\n");
+
+      expect(runWithEnv({}).status).toBe(0);
+      const ordinary = readFileSync(resolve(workingDirectory, ".wrangler.generated.toml"), "utf8");
+      expect(Bun.TOML.parse(ordinary).triggers).toEqual({ crons: ["*/5 * * * *"] });
+      writeFileSync(configPath, 'name = "migration-test"\n[triggers]\ncrons = ["15 1 * * *"]\n');
+      expect(runWithEnv({ EDGE_EVER_DEMO_MODE: "true" }).status).toBe(0);
+      expect(Bun.TOML.parse(readFileSync(resolve(workingDirectory, ".wrangler.generated.toml"), "utf8")).triggers)
+        .toEqual({ crons: ["15 1 * * *", "*/5 * * * *", "0 19 * * *"] });
+    } finally {
+      rmSync(workingDirectory, { recursive: true, force: true });
     }
   });
 });

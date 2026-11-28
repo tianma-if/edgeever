@@ -1,3 +1,4 @@
+import { materializeTableChanges } from "@/lib/table-sync";
 import { clearAiBodyDraftScope } from "./ai-body-draft-store";
 import {
   DEFAULT_MEMO_TITLE,
@@ -178,7 +179,7 @@ const performSyncLocalMirror = async (scope: string) => {
   }
 
   let currentCursor = cursor;
-  let response = await api.syncChanges({ cursor: currentCursor, limit: CHANGE_PAGE_SIZE });
+  let response = await api.syncChanges({ cursor: currentCursor, limit: CHANGE_PAGE_SIZE, tableRecords: true });
 
   if (hasSyncStateReset(
     { cursor: currentCursor, syncIdentity: storedIdentity },
@@ -194,12 +195,13 @@ const performSyncLocalMirror = async (scope: string) => {
   }
 
   while (response.changes.length > 0) {
-    await applyChanges(scope, response.changes);
+    const changes = await materializeTableChanges(response.changes, (id) => localDb.memos.get([scope, id]));
+    await applyChanges(scope, changes);
     changed += response.changes.length;
     currentCursor = response.cursor;
     await setMeta(scope, SYNC_CURSOR_KEY, String(currentCursor));
     if (!response.hasMore) break;
-    response = await api.syncChanges({ cursor: currentCursor, limit: CHANGE_PAGE_SIZE });
+    response = await api.syncChanges({ cursor: currentCursor, limit: CHANGE_PAGE_SIZE, tableRecords: true });
   }
 
   if (response.syncIdentity) {
@@ -445,6 +447,7 @@ export const putLocalMemoUpdate = async (
     contentJson: input.contentJson,
     contentMarkdown: input.contentMarkdown ?? docToMarkdown(input.contentJson),
     contentText,
+    sharedTableRevision: undefined,
     updatedAt: new Date().toISOString(),
   };
   await putLocalMemo(scope, updatedMemo);

@@ -1,7 +1,9 @@
-import { EDGEEVER_ZIP_FORMAT, EDGEEVER_ZIP_FORMAT_VERSION, JsonBackupManifestSchema, JsonBackupAiPromptSchema, JsonBackupMemoSchema, JsonBackupNotebookSchema, type JsonBackupManifest, type JsonBackupAiPrompt, type JsonBackupMemo, type JsonBackupNotebook, type JsonBackupResource, type JsonBackupRevision } from "./backup";
+import { BACKUP_TABLE_ROW_BATCH, EDGEEVER_ZIP_FORMAT, EDGEEVER_ZIP_FORMAT_VERSION, EDGEEVER_TABLE_ZIP_FORMAT_VERSION, JsonBackupManifestSchema, JsonBackupAiPromptSchema, JsonBackupMemoSchema, JsonBackupNotebookSchema, JsonBackupRevisionSchema, type BackupTableChangesPage, type BackupTablePage, type BackupTableRestoreSnapshot, type BackupTableRestoreStart, type BackupTableRow, type BackupTableSnapshot, type JsonBackupManifest, type JsonBackupAiPrompt, type JsonBackupMemo, type JsonBackupNotebook, type JsonBackupResource, type JsonBackupRevision } from "./backup";
 import type { MemoDetail, Notebook, Resource } from "./types";
-import { Reader, ZipReader, ZipWriter, Uint8ArrayReader, type CreateReadableOptions } from "@zip.js/zip.js/index-native.js";
-import { buildNoteMarkdown, buildNotebookExportPaths, getExportResourceExtension, replaceExportResourceUrl, sanitizeExportPathSegment, uniqueExportName } from "./backup-markdown";
+import { Reader, ZipReader, ZipWriter, Uint8ArrayReader, Uint8ArrayWriter, type CreateReadableOptions } from "@zip.js/zip.js/index-native.js";
+import { buildMarkdownFrontMatter, buildNoteMarkdown, buildNotebookExportPaths, encodeRelativePath, getExportResourceExtension, replaceExportResourceUrl, sanitizeExportPathSegment, uniqueExportName } from "./backup-markdown";
+import { createClientUuid } from "./client-id";
+import { parseTableDocumentJson, tableAttachmentUrl, tableMarkdownHeader, tableMarkdownRow } from "./table";
 const strToU8 = (value: string) => new TextEncoder().encode(value);
 const strFromU8 = (value: Uint8Array) => new TextDecoder().decode(value);
 const ZIP_MIME_TYPE = "application/zip";
@@ -40,6 +42,9 @@ type JsonBackupPage = {
   totalCount?: number;
   nextOffset: number | null;
   nextCursor?: string | null;
+  tableChunks?: boolean;
+  tableHistoryDeltas?: boolean;
+  memosWithHistory?: string[];
 };
 
 export type JsonBackupSource = {
@@ -51,7 +56,19 @@ export type JsonBackupSource = {
   getResourceResponse?: (resourceUrl: string) => Promise<Response>;
   getResourceBlob?: (resourceUrl: string) => Promise<Blob>;
   listPrompts: () => Promise<{ prompts: JsonBackupAiPrompt[] }>;
+  readRevisions?: (memoId: string, after: string) => Promise<{ revisions: JsonBackupRevision[]; nextCursor: string | null }>;
+  readTable?: (memoId: string, revisionId: string | null, after: string, versions?: [number, number][]) => Promise<BackupTablePage>;
+  readTableChanges?: (memoId: string, revisionId: string, after: string) => Promise<BackupTableChangesPage>;
+  verifyVersion?: () => Promise<unknown>;
 };
+
+export const createBackupTableReaders = (read: <T>(query: Record<string, string>) => Promise<T>) => ({
+  readTable: (memoId: string, revisionId: string | null, after: string, versions?: [number, number][]) =>
+    read<BackupTablePage>({ kind: "table", memoId, after, ...(revisionId === null ? {} : { revisionId }),
+      ...(versions === undefined ? {} : { versions: JSON.stringify(versions) }) }),
+  readTableChanges: (memoId: string, revisionId: string, after: string) =>
+    read<BackupTableChangesPage>({ kind: "tableChanges", memoId, revisionId, after }),
+});
 
 type JsonResourceRestoreSink = {
   write: (chunk: Uint8Array) => Promise<void>;
@@ -67,6 +84,14 @@ type JsonRestoreTarget = {
     metadata: JsonBackupResource,
   ) => Promise<JsonResourceRestoreSink>;
   restorePrompts: (prompts: JsonBackupAiPrompt[]) => Promise<unknown>;
+  tableRestore?: {
+    check: () => Promise<unknown>;
+    start: (input: BackupTableRestoreStart) => Promise<unknown>;
+    snapshot: (restoreId: string, snapshot: BackupTableRestoreSnapshot) => Promise<unknown>;
+    rows: (restoreId: string, ordinal: number, rows: BackupTableRow[]) => Promise<unknown>;
+    publish: (restoreId: string) => Promise<unknown>;
+    cancel: (restoreId: string) => Promise<unknown>;
+  };
 };
 
 export type ParsedEdgeEverZip = {
@@ -75,7 +100,13 @@ export type ParsedEdgeEverZip = {
   memos: JsonBackupMemo[];
   prompts: JsonBackupAiPrompt[];
   archive: Blob;
+  tableSnapshots?: Map<string, ArchivedTableSnapshot[]>;
 };
+
+type ArchivedTableSnapshot = BackupTableSnapshot & { rowPaths: string[] };
+const tablePath = (memoId: string, revisionId: string | null) =>
+  `tables/${encodeURIComponent(memoId)}/${revisionId === null ? "current" : `r-${encodeURIComponent(revisionId)}`}/`;
+const revisionPath = (memoId: string, revisionId: string) => `revisions/${encodeURIComponent(memoId)}/${encodeURIComponent(revisionId)}.json`;
 
 
 type ZipEntryConsumer = {
@@ -93,6 +124,132 @@ const toBackupNotebook = (notebook: Notebook): JsonBackupNotebook => ({
   sortOrder: notebook.sortOrder,
   createdAt: notebook.createdAt, updatedAt: notebook.updatedAt,
 });
+
+const collectBackupRevisions = async (read: NonNullable<JsonBackupSource["readRevisions"]>, memoId: string) => {
+  const revisions: JsonBackupRevision[] = [];
+  let after: string | null = "";
+  while (after !== null) {
+    const page = await read(memoId, after);
+    if (page.nextCursor === after) throw new EdgeEverZipImportError("incompleteData");
+    revisions.push(...page.revisions);
+    after = page.nextCursor;
+  }
+  return revisions.sort((a, b) => a.revision - b.revision || a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+};
+
+async function* readTableSnapshotPages(
+  read: NonNullable<JsonBackupSource["readTable"]>,
+  memoId: string, revisionId: string | null,
+) {
+  let rowCount: number | undefined;
+  let count = 0;
+  let after: string | null = "";
+  while (after !== null) {
+    const page = await read(memoId, revisionId, after);
+    rowCount ??= page.rowCount;
+    if (page.nextCursor === after || rowCount !== page.rowCount || page.rows.length > BACKUP_TABLE_ROW_BATCH) {
+      throw new EdgeEverZipImportError("incompleteData");
+    }
+    count += page.rows.length;
+    yield page;
+    after = page.nextCursor;
+  }
+  if (count !== rowCount) throw new EdgeEverZipImportError("incompleteData");
+}
+
+async function* readTableChanges(
+  read: NonNullable<JsonBackupSource["readTableChanges"]>, memoId: string, lastRevisionId: string,
+) {
+  let after: string | null = "";
+  while (after !== null) {
+    const page = await read(memoId, lastRevisionId, after);
+    if (after === page.nextCursor) throw new EdgeEverZipImportError("incompleteData");
+    yield* page.changes;
+    after = page.nextCursor;
+  }
+}
+
+function historicalTablePages(
+  read: NonNullable<JsonBackupSource["readTable"]>, readChanges: NonNullable<JsonBackupSource["readTableChanges"]>,
+  memoId: string, lastRevisionId: string,
+) {
+  const changes = readTableChanges(readChanges, memoId, lastRevisionId);
+  const live = new Map<string, [number, number]>();
+  let next: Awaited<ReturnType<typeof changes.next>> | undefined;
+  return async function* (revision: JsonBackupRevision) {
+    next ??= await changes.next();
+    while (!next.done && next.value.revision <= revision.sharedTableRevision!) {
+      const change = next.value;
+      if (change.deleted) live.delete(change.id);
+      else live.set(change.id, [change.revision, change.position]);
+      next = await changes.next();
+    }
+    // Cache only live references. Fetch the cells for one ZIP entry at a time.
+    const entries = live.entries();
+    let delivered = 0;
+    do {
+      const ids: string[] = [];
+      const versions: [number, number][] = [];
+      while (versions.length < BACKUP_TABLE_ROW_BATCH) {
+        const entry = entries.next();
+        if (entry.done) break;
+        ids.push(entry.value[0]);
+        versions.push(entry.value[1]);
+      }
+      const page = await read(memoId, revision.id, "", versions);
+      if (page.rowCount !== live.size || page.rows.length !== ids.length ||
+          page.rows.some((row, index) => row.id !== ids[index] || row.position !== versions[index][1])) {
+        throw new EdgeEverZipImportError("incompleteData");
+      }
+      delivered += page.rows.length;
+      yield page;
+    } while (delivered < live.size);
+  };
+}
+
+const writeTableSnapshot = async (
+  pages: AsyncIterable<BackupTablePage>, add: (path: string, value: unknown) => Promise<unknown>,
+  memoId: string, revisionId: string | null,
+) => {
+  const path = tablePath(memoId, revisionId);
+  let snapshot: BackupTableSnapshot | undefined;
+  let index = 0;
+  for await (const page of pages) {
+    snapshot ??= { revisionId, header: page.header, rowCount: page.rowCount };
+    if (page.rows.length) {
+      await add(`${path}${String(index++).padStart(6, "0")}.json`, page.rows);
+    }
+  }
+  await add(`${path}snapshot.json`, snapshot);
+};
+
+const streamTableMarkdown = (
+  read: NonNullable<JsonBackupSource["readTable"]>, memo: MemoDetail,
+  notebookPath: string, attachmentPaths: Map<string, string>,
+) => {
+  const pages = readTableSnapshotPages(read, memo.id, null);
+  const attachmentUrl = (resourceId: string) => {
+    const url = tableAttachmentUrl(resourceId);
+    return attachmentPaths.get(url) ?? url;
+  };
+  let started = false;
+  return new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      const next = await pages.next();
+      if (next.done) {
+        controller.close();
+        return;
+      }
+      const { header, rows } = next.value;
+      if (!started) {
+        controller.enqueue(strToU8(buildMarkdownFrontMatter(memo, notebookPath) + tableMarkdownHeader(header)));
+        started = true;
+      }
+      for (const row of rows) controller.enqueue(strToU8("\n" + tableMarkdownRow(header, row, attachmentUrl)));
+    },
+    async cancel() { await pages.return(); },
+  });
+};
 
 export const createEdgeEverZipStream = async (
   source: JsonBackupSource,
@@ -133,6 +290,7 @@ export const createEdgeEverZipStream = async (
       let total = 0;
       let revisionCount = 0;
       let resourceCount = 0;
+      let hasTableChunks = false;
       while (true) {
         abort.signal.throwIfAborted();
         const page = await source.getPage(offset, 25, cursor);
@@ -147,7 +305,33 @@ export const createEdgeEverZipStream = async (
           const assets = `${stem}.assets`;
           const resourceNames = new Set<string>();
           let markdown = memo.contentMarkdown;
+          const revisions = page.tableChunks && source.readRevisions && (page.memosWithHistory?.includes(memo.id) ?? true)
+            ? await collectBackupRevisions(source.readRevisions, memo.id)
+            : page.revisions.filter((item) => item.memoId === memo.id);
+          const chunked = page.tableChunks && (memo.sharedTableRevision != null || revisions.some((item) => item.sharedTableRevision != null));
+          if (chunked) {
+            const readTable = source.readTable;
+            if (!readTable) throw new EdgeEverZipImportError("incompleteData");
+            hasTableChunks = true;
+            for (const revision of revisions) {
+              await addJson(revisionPath(memo.id, revision.id), revision);
+            }
+            const history = revisions.filter(revision => revision.sharedTableRevision != null)
+              .sort((a, b) => a.sharedTableRevision! - b.sharedTableRevision!);
+            const last = history.at(-1);
+            const historyPages = last && page.tableHistoryDeltas && source.readTableChanges
+              ? historicalTablePages(readTable, source.readTableChanges, memo.id, last.id) : undefined;
+            for (const revision of history) {
+              const pages = historyPages ? historyPages(revision) : readTableSnapshotPages(readTable, memo.id, revision.id);
+              await writeTableSnapshot(pages, addJson, memo.id, revision.id);
+            }
+            if (memo.sharedTableRevision != null) {
+              await writeTableSnapshot(readTableSnapshotPages(readTable, memo.id, null), addJson, memo.id, null);
+            }
+          }
           const resources: JsonBackupResource[] = [];
+          const attachmentPaths = new Map<string, string>();
+          const currentTable = chunked && memo.sharedTableRevision != null;
           for (const resource of page.resources.filter((item) => item.memoId === memo.id)) {
             const fallback = `${resource.kind}-${resource.id}.${getExportResourceExtension(resource)}`;
             const filename = uniqueExportName(sanitizeExportPathSegment(resource.filename || fallback, fallback), resourceNames);
@@ -161,12 +345,15 @@ export const createEdgeEverZipStream = async (
             await zip.add(archivePath, { readable: response.body ?? new Blob().stream(), size: resource.byteSize }, { level: 0, signal: abort.signal });
             const { url: _url, ...metadata } = resource;
             resources.push({ ...metadata, archivePath });
-            markdown = replaceExportResourceUrl(markdown, resource.url, relative, source.resourceOrigin);
+            if (currentTable) attachmentPaths.set(resource.url, encodeRelativePath(relative));
+            else markdown = replaceExportResourceUrl(markdown, resource.url, relative, source.resourceOrigin);
             resourceCount++;
           }
-          const revisions = page.revisions.filter((item) => item.memoId === memo.id);
-          await addJson(`memos/${memo.id}.json`, { memo, revisions, resources });
-          await zip.add(`${directory}/${stem}.md`, new Uint8ArrayReader(strToU8(buildNoteMarkdown(markdown, memo, notebookPath))), { signal: abort.signal });
+          await addJson(`memos/${memo.id}.json`, { memo, revisions: chunked ? [] : revisions, resources });
+          const readable = currentTable
+            ? { readable: streamTableMarkdown(source.readTable!, memo, notebookPath, attachmentPaths) }
+            : new Uint8ArrayReader(strToU8(buildNoteMarkdown(markdown, memo, notebookPath)));
+          await zip.add(`${directory}/${stem}.md`, readable, { signal: abort.signal });
           revisionCount += revisions.length;
           completed++;
           onProgress?.({ completed, total });
@@ -175,8 +362,9 @@ export const createEdgeEverZipStream = async (
         offset = page.nextOffset;
         cursor = page.nextCursor ?? undefined;
       }
+      await source.verifyVersion?.();
       const manifest: JsonBackupManifest = {
-        format: EDGEEVER_ZIP_FORMAT, formatVersion: EDGEEVER_ZIP_FORMAT_VERSION, schemaVersion: 1,
+        format: EDGEEVER_ZIP_FORMAT, formatVersion: hasTableChunks ? EDGEEVER_TABLE_ZIP_FORMAT_VERSION : EDGEEVER_ZIP_FORMAT_VERSION, schemaVersion: 1,
         ...version, exportedAt: new Date().toISOString(), includesTrash: false,
         counts: { notebooks: backupNotebooks.length, memos: source.onManifest ? completed : total, revisions: revisionCount, resources: resourceCount, prompts: prompts.length },
       };
@@ -221,7 +409,7 @@ class ArchiveRangeReader extends Reader<Blob> {
 
 export const streamZipEntries = async (
   blob: Blob,
-  onEntry: (file: { name: string }) => ZipEntryConsumer,
+  onEntry: (file: { name: string }) => ZipEntryConsumer | undefined,
   onInputProgress?: (completedBytes: number) => void,
 ) => {
   const reader = new ZipReader(new ArchiveRangeReader(blob), { useWebWorkers: false, checkCrc32: true, filenameValidation: "strict" });
@@ -234,6 +422,7 @@ export const streamZipEntries = async (
       if (seen.has(entry.filename) || entry.encrypted) rejectInvalidZip();
       seen.add(entry.filename);
       const consumer = onEntry({ name: entry.filename });
+      if (!consumer) continue;
       if (!entry.directory) {
         let consumerFailed = false;
         let consumerError: unknown;
@@ -262,11 +451,31 @@ export const streamZipEntries = async (
 const MAX_ZIP_METADATA_ENTRY_BYTES = 32 * 1024 * 1024;
 const MAX_ZIP_ENTRY_BYTES = 1024 * 1024 * 1024;
 const MAX_RESTORED_IMAGE_BYTES = 100 * 1024 * 1024;
+// The server builds search projections only for current rows. Smaller requests
+// keep that work proportional to payload size for wide long-text tables.
+const CURRENT_RESTORE_BATCH_BYTES = 256 * 1024;
+
+const memoEntry = /^memos\/[^/]+\.json$/;
+const revisionEntry = /^revisions\/[^/]+\/[^/]+\.json$/;
+const tableSnapshotEntry = /^tables\/[^/]+\/[^/]+\/snapshot\.json$/;
+const tableRowsEntry = /^(tables\/[^/]+\/[^/]+\/)\d{6}\.json$/;
 
 const isStructuredZipEntry = (path: string) => path === "manifest.json"
   || path === "notebooks.json"
   || path === "prompts.json"
-  || /^memos\/[^/]+\.json$/.test(path);
+  || memoEntry.test(path) || revisionEntry.test(path) || tableSnapshotEntry.test(path) || tableRowsEntry.test(path);
+
+const parseTableRows = (bytes: Uint8Array): BackupTableRow[] => {
+  try {
+    const rows = JSON.parse(strFromU8(bytes)) as BackupTableRow[];
+    if (!Array.isArray(rows) || !rows.length || rows.length > BACKUP_TABLE_ROW_BATCH || rows.some((row) =>
+      !row || typeof row.id !== "string" || row.id.length < 1 || row.id.length > 80 || !Number.isSafeInteger(row.position) || row.position < 1 ||
+      !row.cells || typeof row.cells !== "object" || Array.isArray(row.cells))) throw new Error("Invalid table row chunk");
+    return rows;
+  } catch (error) {
+    throw new EdgeEverZipImportError("invalidData", error);
+  }
+};
 
 const concatZipChunks = (chunks: Uint8Array[], total: number) => {
   const bytes = new Uint8Array(total);
@@ -290,6 +499,7 @@ const scanEdgeEverZip = async (blob: Blob, onProgress?: (percentage: number) => 
   }
   const entrySizes = new Map<string, number>();
   const structuredEntries = new Map<string, Uint8Array>();
+  const rowGroups = new Map<string, { paths: string[]; ids: Set<string>; positions: Set<number> }>();
   const digests = new Map<string, string>();
   let lastPercentage = -1;
 
@@ -299,6 +509,7 @@ const scanEdgeEverZip = async (blob: Blob, onProgress?: (percentage: number) => 
     }
     entrySizes.set(file.name, -1);
     const structured = isStructuredZipEntry(file.name);
+    const rowGroup = tableRowsEntry.exec(file.name)?.[1];
     const digest = !structured ? createDigest?.() : undefined;
     const chunks: Uint8Array[] = [];
     let byteSize = 0;
@@ -318,7 +529,18 @@ const scanEdgeEverZip = async (blob: Blob, onProgress?: (percentage: number) => 
       },
       close() {
         entrySizes.set(file.name, byteSize);
-        if (structured) structuredEntries.set(file.name, concatZipChunks(chunks, byteSize));
+        if (rowGroup) {
+          const group = rowGroups.get(rowGroup) ?? { paths: [], ids: new Set<string>(), positions: new Set<number>() };
+          for (const { id, position } of parseTableRows(concatZipChunks(chunks, byteSize))) {
+            if (group.ids.has(id) || group.positions.has(position)) {
+              throw new EdgeEverZipImportError("invalidData");
+            }
+            group.ids.add(id);
+            group.positions.add(position);
+          }
+          group.paths.push(file.name);
+          rowGroups.set(rowGroup, group);
+        } else if (structured) structuredEntries.set(file.name, concatZipChunks(chunks, byteSize));
         if (digest) digests.set(file.name, digest.digest());
       },
     };
@@ -330,7 +552,7 @@ const scanEdgeEverZip = async (blob: Blob, onProgress?: (percentage: number) => 
     }
   });
 
-  return { entrySizes, structuredEntries, digests };
+  return { entrySizes, structuredEntries, digests, rowGroups };
 };
 
 const parseJsonEntry = (
@@ -364,7 +586,7 @@ export const parseEdgeEverZip = async (
   onProgress?: (percentage: number) => void,
   createDigest?: ArchiveDigestFactory,
 ): Promise<ParsedEdgeEverZip> => {
-  const { entrySizes, structuredEntries, digests } = await scanEdgeEverZip(blob, onProgress, createDigest);
+  const { entrySizes, structuredEntries, digests, rowGroups } = await scanEdgeEverZip(blob, onProgress, createDigest);
   const manifestValue = parseJsonEntry(structuredEntries, "manifest.json", "missingManifest");
   if (!manifestValue || typeof manifestValue !== "object") {
     throw new EdgeEverZipImportError("invalidManifest");
@@ -373,7 +595,7 @@ export const parseEdgeEverZip = async (
   if (manifestRecord.format !== EDGEEVER_ZIP_FORMAT) {
     throw new EdgeEverZipImportError("unsupportedFormat");
   }
-  if (manifestRecord.formatVersion !== 1 && manifestRecord.formatVersion !== EDGEEVER_ZIP_FORMAT_VERSION) {
+  if (manifestRecord.formatVersion !== 1 && manifestRecord.formatVersion !== EDGEEVER_ZIP_FORMAT_VERSION && manifestRecord.formatVersion !== EDGEEVER_TABLE_ZIP_FORMAT_VERSION) {
     throw new EdgeEverZipImportError("unsupportedVersion");
   }
   const manifestResult = JsonBackupManifestSchema.safeParse(manifestValue);
@@ -398,7 +620,7 @@ export const parseEdgeEverZip = async (
     throw new EdgeEverZipImportError("invalidData", promptsResult.error);
   }
   const prompts = promptsResult.data as JsonBackupAiPrompt[];
-  const memoPaths = [...structuredEntries.keys()].filter((path) => /^memos\/[^/]+\.json$/.test(path)).sort();
+  const memoPaths = [...structuredEntries.keys()].filter((path) => memoEntry.test(path)).sort();
   const memos: JsonBackupMemo[] = [];
   for (const path of memoPaths) {
     const memoResult = JsonBackupMemoSchema.safeParse(parseJsonEntry(structuredEntries, path));
@@ -406,6 +628,48 @@ export const parseEdgeEverZip = async (
       throw new EdgeEverZipImportError("invalidData", memoResult.error);
     }
     memos.push(memoResult.data as JsonBackupMemo);
+  }
+  const tableSnapshots = new Map<string, ArchivedTableSnapshot[]>();
+  if (manifest.formatVersion === EDGEEVER_TABLE_ZIP_FORMAT_VERSION) {
+    const memosById = new Map(memos.map((item) => [item.memo.id, item]));
+    const looseRevisions = new Map<string, JsonBackupRevision[]>();
+    for (const path of structuredEntries.keys()) {
+      if (!revisionEntry.test(path)) continue;
+      const parsed = JsonBackupRevisionSchema.safeParse(parseJsonEntry(structuredEntries, path));
+      if (!parsed.success) throw new EdgeEverZipImportError("invalidData", parsed.error);
+      const revision = parsed.data as JsonBackupRevision;
+      if (!memosById.has(revision.memoId) || path !== revisionPath(revision.memoId, revision.id)) throw new EdgeEverZipImportError("invalidData");
+      const list = looseRevisions.get(revision.memoId) ?? [];
+      list.push(revision);
+      looseRevisions.set(revision.memoId, list);
+    }
+    const usedPaths = new Set<string>();
+    for (const { memo, revisions } of memos) {
+      const loose = looseRevisions.get(memo.id);
+      if (loose && revisions.length) throw new EdgeEverZipImportError("invalidData");
+      if (loose) revisions.push(...loose.sort((a, b) => a.revision - b.revision || a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id)));
+      const refs = revisions.filter((revision) => revision.sharedTableRevision != null).map((revision) => revision.id as string | null);
+      if (memo.sharedTableRevision != null) refs.push(null);
+      if (!refs.length) continue;
+      const snapshots = refs.map((revisionId) => {
+        const base = tablePath(memo.id, revisionId);
+        const path = `${base}snapshot.json`;
+        if (usedPaths.has(path)) throw new EdgeEverZipImportError("invalidData");
+        usedPaths.add(path);
+        const value = parseJsonEntry(structuredEntries, path) as BackupTableSnapshot | null;
+        const header = parseTableDocumentJson(JSON.stringify(value?.header), true);
+        const group = rowGroups.get(base);
+        if (!value || value.revisionId !== revisionId || !header || header.records.length || value.rowCount !== (group?.ids.size ?? 0)) {
+          throw new EdgeEverZipImportError("incompleteData");
+        }
+        rowGroups.delete(base);
+        return { revisionId, header, rowCount: value.rowCount, rowPaths: group?.paths.sort() ?? [] };
+      });
+      tableSnapshots.set(memo.id, snapshots);
+    }
+    if (rowGroups.size || [...structuredEntries.keys()].some((path) => tableSnapshotEntry.test(path) && !usedPaths.has(path)) || !tableSnapshots.size) {
+      throw new EdgeEverZipImportError("invalidData");
+    }
   }
   const resources = memos.flatMap((memo) => memo.resources);
   const resourcePaths = new Set(resources.map((resource) => resource.archivePath));
@@ -442,7 +706,7 @@ export const parseEdgeEverZip = async (
     throw new EdgeEverZipImportError("incompleteResources");
   }
 
-  return { manifest, notebooks, memos, prompts, archive: blob };
+  return { manifest, notebooks, memos, prompts, archive: blob, ...(tableSnapshots.size ? { tableSnapshots } : {}) };
 };
 
 /** The new desktop path validates relationships before any target write. */
@@ -475,11 +739,89 @@ export const validateBackupRelationships = (backup: ParsedEdgeEverZip) => {
   }
 };
 
+const restoreBackupMemos = async (backup: ParsedEdgeEverZip, target: JsonRestoreTarget, done: (count: number) => void) => {
+  const reader = backup.tableSnapshots?.size
+    ? new ZipReader(new ArchiveRangeReader(backup.archive), { useWebWorkers: false, checkCrc32: true, filenameValidation: "strict" })
+    : null;
+  try {
+    const entries = new Map((await reader?.getEntries() ?? []).map((entry) => [entry.filename, entry]));
+    let normal: JsonBackupMemo[] = [];
+    let normalBytes = 0;
+    const flush = async () => {
+      if (!normal.length) return;
+      await target.restoreMemos(normal);
+      done(normal.length);
+      normal = [];
+      normalBytes = 0;
+    };
+    for (const item of backup.memos) {
+      const tables = backup.tableSnapshots?.get(item.memo.id);
+      if (!tables) {
+        const bytes = strToU8(JSON.stringify(item)).length + 1;
+        if (normal.length && normalBytes + bytes > MAX_ZIP_METADATA_ENTRY_BYTES) await flush();
+        normal.push(item);
+        normalBytes += bytes;
+        if (normal.length === 10) await flush();
+        continue;
+      }
+      await flush();
+      const restore = target.tableRestore!;
+      const restoreId = createClientUuid();
+      const snapshots = [...item.revisions, null];
+      const byRevision = new Map(tables.map((table) => [table.revisionId, table]));
+      try {
+        await restore.start({ restoreId, memo: item.memo, snapshots: snapshots.length });
+        for (const [ordinal, revision] of snapshots.entries()) {
+          const table = byRevision.get(revision?.id ?? null);
+          await restore.snapshot(restoreId, { ordinal, revision, table: table ? { header: table.header, rowCount: table.rowCount } : null });
+          for (const path of table?.rowPaths ?? []) {
+            const entry = entries.get(path);
+            if (!entry || entry.directory || entry.uncompressedSize > MAX_ZIP_METADATA_ENTRY_BYTES) throw new EdgeEverZipImportError("incompleteData");
+            const bytes = await entry.getData(new Uint8ArrayWriter(), { checkCrc32: true });
+              const rows = parseTableRows(bytes);
+              if (revision || bytes.byteLength <= CURRENT_RESTORE_BATCH_BYTES) {
+                await restore.rows(restoreId, ordinal, rows);
+                continue;
+              }
+              let batch: BackupTableRow[] = [];
+              let batchBytes = 0;
+              for (const row of rows) {
+                const size = strToU8(JSON.stringify(row)).byteLength + 1;
+                if (batch.length && batchBytes + size > CURRENT_RESTORE_BATCH_BYTES) {
+                  await restore.rows(restoreId, ordinal, batch);
+                  batch = [];
+                  batchBytes = 0;
+                }
+                batch.push(row);
+                batchBytes += size;
+              }
+              if (batch.length) await restore.rows(restoreId, ordinal, batch);
+          }
+        }
+        await restore.publish(restoreId);
+      } catch (error) {
+        await restore.cancel(restoreId).catch(() => {});
+        throw error;
+      }
+      done(1);
+    }
+    await flush();
+  } finally {
+    await reader?.close();
+  }
+};
+
 export const restoreEdgeEverZip = async (
   backup: ParsedEdgeEverZip,
   target: JsonRestoreTarget,
   onProgress?: (progress: EdgeEverZipProgress) => void
 ) => {
+  if (backup.tableSnapshots?.size) {
+    if (!target.tableRestore) throw new EdgeEverZipImportError("unsupportedVersion");
+    // Check the target before restoring prompts, notebooks, or memos.
+    validateBackupRelationships(backup);
+    await target.tableRestore.check();
+  }
   const total = backup.notebooks.length
     + backup.memos.length
     + backup.prompts.length
@@ -501,22 +843,19 @@ export const restoreEdgeEverZip = async (
     onProgress?.({ completed, total });
   }
 
-  for (let index = 0; index < backup.memos.length; index += 10) {
-    const batch = backup.memos.slice(index, index + 10);
-    await target.restoreMemos(batch);
-    completed += batch.length;
-    onProgress?.({ completed, total });
-  }
+  const increment = (count: number) => { completed += count; onProgress?.({ completed, total }); };
+  await restoreBackupMemos(backup, target, increment);
 
   const resourcesByPath = new Map(
     backup.memos.flatMap((memo) => memo.resources).map((resource) => [resource.archivePath, resource]),
   );
+  if (!resourcesByPath.size) return;
   const restoredPaths = new Set<string>();
   const activeSinks = new Set<JsonResourceRestoreSink>();
   try {
     await streamZipEntries(backup.archive, (file) => {
       const resource = resourcesByPath.get(file.name);
-      if (!resource) return {};
+      if (!resource) return;
       let sinkPromise: Promise<JsonResourceRestoreSink> | undefined;
       // Start only when awaited: disk reads can otherwise outlive a fast rejection.
       const getSink = () => sinkPromise ??= target.createResourceRestoreSink(resource.id, resource);

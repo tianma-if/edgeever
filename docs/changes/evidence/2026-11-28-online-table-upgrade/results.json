@@ -1,0 +1,137 @@
+{
+  "oldRelease": "v2.31.2",
+  "oldSource": "d5b93348c676c4d5a45918700746edb76ddef2d5",
+  "oldDockerDigest": "sha256:929ab9cdf826d6e4a3c4d5f41502bface54db5154cadd2f944fde27fb75abf75",
+  "rollbackSource": "9f74dbd0d7d827aad95429854e84cfe105a58029",
+  "candidateMigration": "0106_online_table_migration.sql",
+  "remoteD1": {
+    "writeRounds": [
+      {
+        "writeRound": 1,
+        "phaseBefore": "copying",
+        "rowsBefore": 75,
+        "rowsAfter": 75
+      },
+      {
+        "writeRound": 2,
+        "phaseBefore": "copying",
+        "rowsBefore": 75,
+        "rowsAfter": 75
+      }
+    ],
+    "activation": {
+      "phase": "active",
+      "tablesCopied": 2,
+      "rowsCopied": 502
+    },
+    "readback": [
+      {
+        "step": "cutover",
+        "firstRows": 250,
+        "secondRows": 252,
+        "writeRounds": 2
+      },
+      {
+        "step": "rollback",
+        "firstRows": 250,
+        "secondRows": 252,
+        "writeRounds": 2
+      },
+      {
+        "step": "readback",
+        "firstRows": 250,
+        "secondRows": 252,
+        "writeRounds": 2
+      }
+    ],
+    "databaseReadback": {
+      "schema_version": "0106_online_table_migration.sql",
+      "tables_copied": 2,
+      "rows_copied": 502,
+      "dirty": 0,
+      "replay": 0
+    }
+  },
+  "localD1": {
+    "writeRounds": [
+      {
+        "writeRound": 1,
+        "phaseBefore": "copying",
+        "rowsBefore": 75,
+        "rowsAfter": 75
+      },
+      {
+        "writeRound": 2,
+        "phaseBefore": "copying",
+        "rowsBefore": 75,
+        "rowsAfter": 75
+      }
+    ],
+    "activation": {
+      "phase": "active",
+      "tablesCopied": 2,
+      "rowsCopied": 502
+    },
+    "readback": [
+      {
+        "step": "cutover",
+        "firstRows": 250,
+        "secondRows": 252,
+        "writeRounds": 2
+      },
+      {
+        "step": "rollback",
+        "firstRows": 250,
+        "secondRows": 252,
+        "writeRounds": 2
+      },
+      {
+        "step": "readback",
+        "firstRows": 250,
+        "secondRows": 252,
+        "writeRounds": 2
+      }
+    ]
+  },
+  "dockerSQLite": {
+    "writeRounds": [
+      {
+        "writeRound": 1,
+        "phaseBefore": "copying",
+        "rowsBefore": 75,
+        "rowsAfter": 75
+      },
+      {
+        "writeRound": 2,
+        "phaseBefore": "copying",
+        "rowsBefore": 75,
+        "rowsAfter": 75
+      }
+    ],
+    "activation": {
+      "phase": "active",
+      "tablesCopied": 4,
+      "rowsCopied": 524
+    },
+    "readback": [
+      {
+        "step": "cutover",
+        "firstRows": 250,
+        "secondRows": 252,
+        "writeRounds": 2
+      },
+      {
+        "step": "rollback",
+        "firstRows": 250,
+        "secondRows": 252,
+        "writeRounds": 2
+      },
+      {
+        "step": "readback",
+        "firstRows": 250,
+        "secondRows": 252,
+        "writeRounds": 2
+      }
+    ]
+  }
+}

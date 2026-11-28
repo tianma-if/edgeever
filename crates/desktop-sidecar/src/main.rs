@@ -38,9 +38,11 @@ fn enqueue_change(
                 // Keep the original remote base while replacing the document
                 // with the newest local snapshot. This avoids conflicts caused
                 // solely by multiple offline autosaves.
-                for key in ["expectedRevision", "expectedContentHash", "editSessionId"] {
+                for key in ["expectedRevision", "expectedContentHash", "editSessionId", "tableBase", "tableAttempt"] {
                     if let Some(value) = previous_object.get(key) {
                         merged_object.insert(key.to_owned(), value.clone());
+                    } else if key == "tableBase" {
+                        merged_object.remove(key);
                     }
                 }
             }
@@ -443,6 +445,7 @@ mod tests {
                    content_text TEXT NOT NULL,
                    content_hash TEXT NOT NULL,
                    revision INTEGER NOT NULL,
+                   shared_table_revision INTEGER,
                    updated_at TEXT NOT NULL DEFAULT 'now'
                  );
                  INSERT INTO notebooks (id, slug) VALUES ('notebook-1', 'notes'), ('nb_inbox', 'inbox');",
@@ -577,6 +580,7 @@ mod tests {
                    content_text TEXT NOT NULL,
                    content_hash TEXT NOT NULL,
                    revision INTEGER NOT NULL,
+                   shared_table_revision INTEGER,
                    updated_at TEXT NOT NULL DEFAULT 'now'
                  );",
             )
@@ -752,6 +756,7 @@ mod tests {
                    content_text TEXT NOT NULL,
                    content_hash TEXT NOT NULL,
                    revision INTEGER NOT NULL,
+                   shared_table_revision INTEGER,
                    updated_at TEXT NOT NULL DEFAULT 'now'
                  );",
             )

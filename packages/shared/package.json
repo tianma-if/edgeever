@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./client-id": "./src/client-id.ts",
     "./diagram-canvas": "./src/diagram-canvas.ts",
     "./public-demo": "./src/public-demo.ts",
     "./memo-title": "./src/memo-title.ts",

@@ -42,6 +42,11 @@ import type {
   JsonBackupNotebook,
   JsonBackupAiPrompt,
   JsonBackupRevision,
+  BackupState,
+  BackupVersion,
+  BackupTableRestoreStart,
+  BackupTableRestoreSnapshot,
+  BackupTableRow,
   MemoDetail,
   MemoEditSession,
   MemoRevision,
@@ -354,6 +359,10 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
   const transport = createRequestTransport(options);
   const { getFetch, send, request, throwRequestError } = transport;
   const resources = createResourceTransfer(transport);
+  const tableRestoreAction = (id: string, action: Record<string, unknown>) =>
+    request<{ ok: true }>(`/api/v1/restores/json/tables/${encodeURIComponent(id)}`, {
+      method: "POST", body: JSON.stringify(action),
+    });
   // models.dev allows any origin, so it is read directly, never through the model relay (#652).
   const modelCatalogFetch = () => options.modelCatalogFetch === null ? undefined : options.modelCatalogFetch ?? globalThis.fetch;
   const providerFetch = (): typeof fetch => async (url, init) => {
@@ -1016,9 +1025,10 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
       return request<SyncBootstrapResponse>(`/api/v1/sync/bootstrap${suffix}`);
     },
 
-    syncChanges: (params: { cursor: number; limit?: number }) => {
+    syncChanges: (params: { cursor: number; limit?: number; tableRecords?: boolean }) => {
       const search = new URLSearchParams({ cursor: String(params.cursor) });
       if (params.limit) search.set("limit", String(params.limit));
+      if (params.tableRecords) search.set("tableRecords", "1");
       return request<SyncChangesResponse>(`/api/v1/sync/changes?${search.toString()}`);
     },
 
@@ -1393,6 +1403,16 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
         body: JSON.stringify({}),
       }),
 
+    tableRecordChanges: (memoId: string, payload: { since: number; through?: number; after?: import("@edgeever/shared").TableChangeCursor }) =>
+      request<import("@edgeever/shared").TableChangesPage>(`/api/v1/memos/${encodeURIComponent(memoId)}/table/changes`, {
+        method: "POST", body: JSON.stringify(payload),
+      }),
+
+    updateTableRecords: (memoId: string, payload: import("@edgeever/shared").TableRowMutation) =>
+      request<{ receipt: import("@edgeever/shared").TableRowReceipt }>(`/api/v1/memos/${encodeURIComponent(memoId)}/table/records`, {
+        method: "PATCH", body: JSON.stringify(payload),
+      }),
+
     listMemoRevisions: (memoId: string) => request<ListMemoRevisionsResponse>(`/api/v1/memos/${encodeURIComponent(memoId)}/revisions`),
 
     restoreMemoRevision: (memoId: string, revisionId: string) =>
@@ -1434,6 +1454,30 @@ export const createEdgeEverClient = (options: EdgeEverClientOptions = {}) => {
       if (offset > 0) search.set("includeTotal", "0");
       if (cursor !== undefined) search.set("cursor", cursor);
       return request<JsonBackupPage>(`/api/v1/backups/json?${search}`);
+    },
+
+    getJsonBackupState: () => request<BackupState>("/api/v1/backups/state"),
+
+    getJsonBackupData: <T>(version: BackupVersion, query: Record<string, string>) => {
+      const search = new URLSearchParams({ ...query, identity: version.identity, revision: version.backupRevision });
+      return request<T>(`/api/v1/backups/data?${search}`);
+    },
+
+    jsonTableRestore: {
+      async check() {
+        const { active } = await request<{ active: boolean }>("/api/v1/restores/json/tables").catch((error) => {
+          if (error instanceof ApiRequestError && error.status === 404) {
+            throw new ApiRequestError("Update the destination server to restore a chunked backup.", 409, "backup_server_upgrade_required");
+          }
+          throw error;
+        });
+        if (!active) throw new ApiRequestError("Activate shared table storage before restoring this backup.", 409, "backup_table_storage_inactive");
+      },
+      start: ({ restoreId, ...input }: BackupTableRestoreStart) => tableRestoreAction(restoreId, { action: "start", ...input }),
+      snapshot: (id: string, input: BackupTableRestoreSnapshot) => tableRestoreAction(id, { action: "snapshot", ...input }),
+      rows: (id: string, ordinal: number, rows: BackupTableRow[]) => tableRestoreAction(id, { action: "rows", ordinal, rows }),
+      publish: (id: string) => tableRestoreAction(id, { action: "publish" }),
+      cancel: (id: string) => tableRestoreAction(id, { action: "cancel" }),
     },
 
     restoreJsonNotebooks: (notebooks: JsonBackupNotebook[]) =>
