@@ -73,4 +73,21 @@ describe("shared document extensions", () => {
     })));
     expect(markdownToDoc(docToMarkdown(doc))).toEqual(doc);
   });
+
+  test("keeps a bare Leeef excerpt date as its own quote paragraph", () => {
+    const divider = `${MERGE_DIVIDER_MARKDOWN_MARKER}\n\n---`;
+    const markdown = [
+      divider,
+      "## 书摘",
+      "> 原文\n>\n> 2026-11-27",
+      "来自 Leeef Reader",
+      divider,
+    ].join("\n\n");
+    const doc = markdownToDoc(markdown);
+    expect(doc.content.find((block) => block.type === "blockquote")?.content?.at(-1)).toEqual({
+      type: "paragraph",
+      content: [{ type: "text", text: "2026-11-27" }],
+    });
+    expect(markdownToDoc(docToMarkdown(doc))).toEqual(doc);
+  });
 });
