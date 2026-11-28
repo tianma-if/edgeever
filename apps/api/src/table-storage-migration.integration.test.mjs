@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { Database } from "bun:sqlite";
 import { Hono } from "hono";
 import { createEdgeEverClient } from "../../../packages/client/src/index.ts";
-import { createEdgeEverZip, parseEdgeEverZip, restoreEdgeEverZip, streamZipEntries } from "@edgeever/shared/backup-archive";
+import { createBackupTableReaders, createEdgeEverZip, parseEdgeEverZip, restoreEdgeEverZip, streamZipEntries } from "@edgeever/shared/backup-archive";
 import { globSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -1267,8 +1267,9 @@ test("the default ZIP pipeline exports and atomically restores table histories l
     const table = {
       schemaVersion: 2, fields: schema, views: [{ id: "all", name: "All", match: "all", filters: [], sorts: [] }],
       records: Array.from({ length: 500 }, (_, row) => ({
-        // The 25th historical ID is an isolated surrogate, which cannot be used directly in a URL cursor.
-        id: row === 24 ? "\ud800" : row < 24 ? `large-row-${row}` : `\uffff-${row}`,
+        // Both the 25-row snapshot cursor and the 256-change cursor land on an isolated surrogate.
+        id: row < 24 ? `large-row-${row}` : row === 24 ? "\ud800"
+          : row < 255 ? `\ud800-${row}` : row === 255 ? "\ud801" : `\uffff-${row}`,
         cells: { ...Object.fromEntries(longFields.map(({ id }) => [id, `${row} ${id} ` + "abcde".repeat(398)])), file: row === 0 ? [file] : [] },
       })),
     };
@@ -1303,8 +1304,18 @@ test("the default ZIP pipeline exports and atomically restores table histories l
     ]);
     const state = await source.client.getJsonBackupState();
     expect(state.tableChunks).toBe(true);
-    const read = (query) => source.client.getJsonBackupData(state, query);
     const snapshotReads = { current: 0, historical: 0 };
+    const changePageReads = [];
+    const read = async (query) => {
+      if (query.kind === "tableChanges") {
+        const before = source.report().readRows;
+        const page = await source.client.getJsonBackupData(state, query);
+        changePageReads.push(source.report().readRows - before);
+        return page;
+      }
+      if (query.kind === "table") snapshotReads[query.revisionId ? "historical" : "current"]++;
+      return source.client.getJsonBackupData(state, query);
+    };
     const exportSource = {
       listNotebooks: () => read({ kind: "notebooks" }),
       listPrompts: () => read({ kind: "prompts" }),
@@ -1313,10 +1324,7 @@ test("the default ZIP pipeline exports and atomically restores table histories l
         return { ...page, tableChunks: true, totalCount: state.counts.memos, nextOffset: page.nextCursor == null ? null : offset + page.memos.length };
       },
       readRevisions: (memoId, after) => read({ kind: "revisions", memoId, after }),
-      readTable: (memoId, revisionId, after) => {
-        snapshotReads[revisionId === null ? "current" : "historical"]++;
-        return read({ kind: "table", memoId, after, ...(revisionId === null ? {} : { revisionId }) });
-      },
+      ...createBackupTableReaders(read),
       verifyVersion: () => read({ kind: "check" }),
       getResourceResponse: async () => new Response("test"),
     };
@@ -1335,6 +1343,8 @@ test("the default ZIP pipeline exports and atomically restores table histories l
     expect(source.transport.maxResponse).toBeLessThan(1_000_000);
     expect(source.transport.rowChunks).toBe(140);
     expect(snapshotReads).toEqual({ current: 40, historical: 120 });
+    expect(changePageReads).toHaveLength(2);
+    expect(Math.max(...changePageReads)).toBeLessThan(280);
     expect(exported.readRows).toBeLessThan(25_000);
     const markdown = [];
     await streamZipEntries(zipped, ({ name }) => name.endsWith("/Wide synthetic table.md") ? {
@@ -1375,6 +1385,7 @@ test("the default ZIP pipeline exports and atomically restores table histories l
     expect(document.records[0].cells.f0).toStartWith("Version 7");
     expect(document.records[0].cells.file).toEqual([file]);
     expect(document.records[24].id).toBe("\ud800");
+    expect(document.records[255].id).toBe("\ud801");
     expect(document.records.at(-1)).toEqual(table.records.at(-1));
     const recovered = await getMemoRevisionRow(target.db, workspace, memo.id, "history-5");
     expect(parseTableDocument(recovered.content_markdown).records[0].cells.f0).toStartWith("Version 5");
@@ -1383,8 +1394,79 @@ test("the default ZIP pipeline exports and atomically restores table histories l
     expect(imported.readRows).toBeLessThan(50_000);
     expect(imported.maxBytes).toBeLessThan(100_000_000);
     console.timeEnd("Chunked backup data verification");
-    console.log("Chunked backup D1 measurements", JSON.stringify({ export: source.transport, import: target.transport, reads: exported.readRows, restoreReadRows: imported.readRows, restoreWriteRows: imported.writeRows, restorePeakBytes: imported.maxBytes }));
+    console.log("Chunked backup D1 measurements", JSON.stringify({ export: source.transport, import: target.transport, reads: exported.readRows, changePageReads, restoreReadRows: imported.readRows, restoreWriteRows: imported.writeRows, restorePeakBytes: imported.maxBytes }));
   } finally {
     await worker.dispose();
   }
 }, 300_000);
+
+test("exporting retained single-row snapshots with a replacement ID at every revision scales with history length", async () => {
+  const { createRequire } = await import("node:module");
+  const wrangler = createRequire(new URL("../../../packages/wrangler/package.json", import.meta.url)).resolve("edgeever-wrangler-cli");
+  const { unstable_splitSqlQuery } = await import(wrangler);
+  const { Miniflare } = createRequire(wrangler)("miniflare");
+  const worker = new Miniflare({ modules: true, script: "export default {};", compatibilityDate: "2026-07-14", d1Databases: ["DB"] });
+  try {
+    const raw = await worker.getD1Database("DB");
+    for (const file of globSync("migrations/*.sql").sort()) {
+      await raw.batch(unstable_splitSqlQuery(readFileSync(file, "utf8")).map(sql => raw.prepare(sql)));
+    }
+    const { db, reset, report } = meterD1(raw);
+    const row = revision => ({ id: `row-${revision}`, cells: { name: `value-${revision}` } });
+    const { id } = await seedLegacyMemo(db, { ...tables[0], fields: [fields[0]], records: [row(1)] }, "churn");
+    const migration = new SharedTableMigration(db);
+    await migration.start();
+    while ((await migration.advance()).phase === "copying") {}
+    await migration.activate();
+    const store = new SharedTableStore(db);
+    const app = new Hono();
+    app.use("*", async (c, next) => { c.set("auth", { ...actor, kind: "user", workspaceId: workspace, role: "owner" }); await next(); });
+    registerBackupRoutes(app, { clampNumber: (v, min, max) => Math.min(max, Math.max(min, v)), mapMemoDetail, getMemoDetail });
+    const client = createEdgeEverClient({ baseUrl: "https://backup.local", fetch: (input, init) => app.fetch(new Request(input, init), { storage: { db } }) });
+    let previous = 0;
+    const costs = [];
+    for (const count of [25, 50, 100, 200]) {
+      for (let revision = previous + 1; revision <= count; revision++) {
+        if (revision > 1) await store.apply(workspace, id, { expectedRevision: revision - 1, puts: [row(revision)], deletes: [row(revision - 1).id] });
+        await db.prepare(`INSERT INTO memo_revisions(id,memo_id,revision,title,content_json,content_markdown,content_hash,created_by,shared_table_revision)
+          VALUES(?,?,?,'History','{"type":"doc","content":[]}', '', 'historic','user',?)`).bind(`history-${revision}`, id, revision, revision).run();
+      }
+      previous = count;
+      await db.prepare("UPDATE memo_contents SET shared_table_revision=?,revision=? WHERE memo_id=?").bind(count, count, id).run();
+      reset();
+      const version = await client.getJsonBackupState();
+      let historyPages = 0;
+      const read = query => {
+        if (query.revisionId || query.kind === "tableChanges") historyPages++;
+        return client.getJsonBackupData(version, query);
+      };
+      const archive = await createEdgeEverZip({
+        listNotebooks: () => read({ kind: "notebooks" }), listPrompts: () => read({ kind: "prompts" }),
+        getPage: async () => ({ ...await read({ kind: "memos", tableChunks: "1" }), tableChunks: true, totalCount: version.counts.memos, nextOffset: null }),
+        readRevisions: (memoId, after) => read({ kind: "revisions", memoId, after }),
+        ...createBackupTableReaders(read),
+        verifyVersion: () => read({ kind: "check" }),
+      }, { edgeeverVersion: "test", buildId: "churn" });
+      costs.push({ count, historyPages, reads: report().readRows });
+      const restored = Array.from({ length: count + 1 }, () => []);
+      await restoreEdgeEverZip(await parseEdgeEverZip(archive), {
+        restoreNotebooks: async () => {}, restorePrompts: async () => {}, restoreMemos: async () => {},
+        tableRestore: {
+          check: async () => {}, start: async () => {}, snapshot: async () => {}, publish: async () => {},
+          rows: async (_job, ordinal, rows) => restored[ordinal].push(...rows),
+        },
+      });
+      expect(restored).toEqual(Array.from({ length: count + 1 }, (_, index) => {
+        const revision = Math.min(index + 1, count);
+        return [{ ...row(revision), position: revision }];
+      }));
+    }
+    console.log("Replacement history ZIP costs", JSON.stringify(costs));
+    for (const [index, cost] of costs.entries()) {
+      expect(cost.historyPages).toBeLessThanOrEqual(cost.count + 3);
+      if (index) expect(cost.reads).toBeLessThan(costs[index - 1].reads * 2.3);
+    }
+  } finally {
+    await worker.dispose();
+  }
+}, 180_000);

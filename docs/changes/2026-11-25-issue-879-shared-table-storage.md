@@ -145,3 +145,18 @@ The clean build produced SHA-256 `6d7853e3cc070864915fb50ddcf2cf464b5bac46b23eff
 2. Restart on that volume with the server built from `7257ec7f` mounted at `/app/scripts/self-hosted-server.js` and its migrations mounted at `/app/migrations`. Health reported 0105. Activate shared storage, append 560 rows in 14 row PATCH requests and delete the seed row. At table revision 16, the projected Markdown was 2,373,118 bytes.
 3. Stop the container and replace only the server bundle with the rebuilt 0101 file. Keep the 0105 migration directory and the same volume. The 0101 service read all 560 rows, the deletion delta and the original history ID. Save one changed cell through a bound memo edit session and read back the full table.
 4. Restart the 0105 service on the same volume. The edited cell and all other records matched. This replay covered the self-hosted service, while the D1 check above covered remote migration application.
+
+## History export with changing record IDs
+
+A retained snapshot can contain just one row even after hundreds of other IDs have been deleted. Web, WebDAV and desktop ZIP exports now read the table's indexed change history once, keep the last live revision and position per ID, and fetch up to 25 visible rows for each archive entry. The server checks each requested version against the retained snapshot. The ZIP v3 format and database schema stay compatible. An older client or source uses the previous pagination and retains its original read cost.
+
+The local D1 regression seeds one different row per revision, exports a complete ZIP and compares every restored row's ID, cells and position. Historical requests include change metadata and row pages. D1 reads cover the whole source export.
+
+| Retained snapshots | Historical requests before → after | D1 rows read before → after |
+| ---: | ---: | ---: |
+| 25 | 25 → 26 | 3,185 → 462 |
+| 50 | 100 → 51 | 12,486 → 845 |
+| 100 | 400 → 101 | 49,701 → 1,615 |
+| 200 | 1,600 → 202 | 198,640 → 3,161 |
+
+Run `bun test apps/api/src/table-storage-migration.integration.test.mjs`. The 500-row, six-history round trip exported 70,206,495 bytes of cells in 140 archive chunks. The two metadata pages read 261 and 255 D1 rows, including a page break inside a single revision at an isolated surrogate ID. The whole export read 17,540 rows. Restoring into a second local D1 database preserved the wide table, historical values and attachment.

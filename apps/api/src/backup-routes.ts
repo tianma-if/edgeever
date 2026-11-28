@@ -1,5 +1,5 @@
 import { hydrateSharedMemoRows } from "./table-memo-storage";
-import { readBackupTablePage } from "./backup-table-export";
+import { readBackupTableChanges, readBackupTablePage } from "./backup-table-export";
 import { ChunkedTableRestore, tableRestoreActionSchema } from "./backup-table-restore";
 import {
   emptyDoc,
@@ -336,7 +336,7 @@ export const registerBackupRoutes = (
     if (restricted) return restricted;
     context.header("Cache-Control", "private, no-store");
     const kind = context.req.query("kind");
-    if (!["memos", "notebooks", "prompts", "revisions", "table", "check"].includes(kind ?? "")) return badRequest(context, "Unknown backup data kind.");
+    if (!["memos", "notebooks", "prompts", "revisions", "table", "tableChanges", "check"].includes(kind ?? "")) return badRequest(context, "Unknown backup data kind.");
     if (kind === "notebooks") {
       const notebookDenied = requireScopes(context, "read:notebooks");
       if (notebookDenied) return notebookDenied;
@@ -361,9 +361,16 @@ export const registerBackupRoutes = (
     const chunked = context.req.query("tableChunks") === "1";
     const limit = dependencies.clampNumber(Number(context.req.query("limit") ?? 25) || 25, 1, chunked || kind === "revisions" ? 10 : 50);
     const memoId = context.req.query("memoId");
+    if (kind === "tableChanges") {
+      const revisionId = context.req.query("revisionId");
+      if (!memoId || !revisionId) return badRequest(context, "A memo and revision ID are required for table history.");
+      const page = await readBackupTableChanges(database, workspaceId, memoId, revisionId, after);
+      if (!await unchanged()) return changed();
+      return context.json(page);
+    }
     if (kind === "table") {
       if (!memoId) return badRequest(context, "A backup memo ID is required.");
-      const page = await readBackupTablePage(database, workspaceId, memoId, context.req.query("revisionId"), after);
+      const page = await readBackupTablePage(database, workspaceId, memoId, context.req.query("revisionId"), after, context.req.query("versions"));
       if (!await unchanged()) return changed();
       return page ? context.json(page) : notFound(context, "Backup table snapshot not found.");
     }
@@ -377,7 +384,7 @@ export const registerBackupRoutes = (
       const selected = chunked ? page : await hydrateSharedMemoRows(database, workspaceId, page);
       ids = rows.results.map((row) => row.id);
       result = { memos: selected.map(dependencies.mapMemoDetail), ...await readBackupRelations(database, workspaceId, selected.map((row) => row.id), !chunked),
-        ...(chunked ? { memosWithHistory: page.filter((row) => row.has_history).map((row) => row.id) } : {}) };
+        ...(chunked ? { tableHistoryDeltas: true, memosWithHistory: page.filter((row) => row.has_history).map((row) => row.id) } : {}) };
     } else if (kind === "revisions") {
       if (!memoId) return badRequest(context, "A backup memo ID is required.");
       const rows = await database.prepare(`SELECT r.id, r.memo_id, r.revision, r.title, r.tags_json,

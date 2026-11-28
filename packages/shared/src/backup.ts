@@ -48,6 +48,10 @@ export type JsonBackupRevision = {
 };
 
 export type BackupTableRow = TableRecord & { position: number };
+export type BackupTableChangesPage = {
+  changes: { id: string; revision: number; position: number; deleted: boolean }[];
+  nextCursor: string | null;
+};
 export type BackupTablePage = {
   header: TableDocument;
   rowCount: number;

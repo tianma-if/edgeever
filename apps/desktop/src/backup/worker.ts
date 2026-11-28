@@ -6,8 +6,8 @@ import { join } from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { createEdgeEverClient } from "../../../../packages/client/src/index";
-import { createEdgeEverZipStream, parseEdgeEverZip, restoreEdgeEverZip, validateBackupRelationships, type JsonBackupSource } from "../../../../packages/shared/src/backup-archive";
-import type { BackupState, BackupTablePage, JsonBackupManifest, JsonBackupRevision } from "../../../../packages/shared/src/backup";
+import { createBackupTableReaders, createEdgeEverZipStream, parseEdgeEverZip, restoreEdgeEverZip, validateBackupRelationships, type JsonBackupSource } from "../../../../packages/shared/src/backup-archive";
+import type { BackupState, JsonBackupManifest, JsonBackupRevision } from "../../../../packages/shared/src/backup";
 import type { AuthSession, Notebook, Resource, AiPromptTemplate } from "../../../../packages/shared/src/types";
 import { encryptArchive, decryptArchive } from "./encrypted-archive.mjs";
 
@@ -131,7 +131,7 @@ const runExport = async () => {
       return { ...result, tableChunks: state.tableChunks, totalCount: state.counts.memos, nextOffset: result.nextCursor === null ? null : offset + result.memos.length };
     },
     readRevisions: (memoId, after) => page<{ revisions: JsonBackupRevision[]; nextCursor: string | null }>("revisions", after, { memoId }),
-    readTable: (memoId, revisionId, after) => page<BackupTablePage>("table", after, { memoId, ...(revisionId === null ? {} : { revisionId }) }),
+    ...createBackupTableReaders(({ kind, after, ...options }) => page(kind, after, options)),
     getResourceResponse: async (url) => {
       const resource = resourceByUrl.get(url) ?? fail("incompleteResources", "A backup resource is missing from its page.");
       const response = await fetchWithDiagnostics(`${input.context.baseUrl}/api/v1/resources/${encodeURIComponent(resource.id)}/blob`, { signal, headers: { Authorization: `Bearer ${input.context.token}` }, credentials: "omit" });

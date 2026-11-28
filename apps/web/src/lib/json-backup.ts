@@ -1,6 +1,6 @@
-import { createEdgeEverZipStream } from "@edgeever/shared/backup-archive";
+import { createBackupTableReaders, createEdgeEverZipStream } from "@edgeever/shared/backup-archive";
 import type { JsonBackupSource, EdgeEverZipProgress } from "@edgeever/shared/backup-archive";
-import type { BackupState, BackupTablePage, JsonBackupAiPrompt, JsonBackupRevision, Notebook } from "@edgeever/shared";
+import type { BackupState, JsonBackupAiPrompt, JsonBackupRevision, Notebook } from "@edgeever/shared";
 import { api, ApiRequestError } from "./api";
 import { createClientUuid } from "./client-id";
 export * from "@edgeever/shared/backup-archive";
@@ -35,7 +35,7 @@ export const createWorkspaceBackupSource = (): JsonBackupSource => {
       return { ...page, totalCount: state.counts.memos, tableChunks: true, nextOffset: page.nextCursor == null ? null : offset + page.memos.length };
     },
     readRevisions: (memoId, after) => read<{ revisions: JsonBackupRevision[]; nextCursor: string | null }>({ kind: "revisions", memoId, after }),
-    readTable: (memoId, revisionId, after) => read<BackupTablePage>({ kind: "table", memoId, after, ...(revisionId === null ? {} : { revisionId }) }),
+    ...createBackupTableReaders(read),
     verifyVersion: async () => { if (await readState()) await read({ kind: "check" }); },
   };
 };

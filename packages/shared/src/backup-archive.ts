@@ -1,4 +1,4 @@
-import { BACKUP_TABLE_ROW_BATCH, EDGEEVER_ZIP_FORMAT, EDGEEVER_ZIP_FORMAT_VERSION, EDGEEVER_TABLE_ZIP_FORMAT_VERSION, JsonBackupManifestSchema, JsonBackupAiPromptSchema, JsonBackupMemoSchema, JsonBackupNotebookSchema, JsonBackupRevisionSchema, type BackupTablePage, type BackupTableRestoreSnapshot, type BackupTableRestoreStart, type BackupTableRow, type BackupTableSnapshot, type JsonBackupManifest, type JsonBackupAiPrompt, type JsonBackupMemo, type JsonBackupNotebook, type JsonBackupResource, type JsonBackupRevision } from "./backup";
+import { BACKUP_TABLE_ROW_BATCH, EDGEEVER_ZIP_FORMAT, EDGEEVER_ZIP_FORMAT_VERSION, EDGEEVER_TABLE_ZIP_FORMAT_VERSION, JsonBackupManifestSchema, JsonBackupAiPromptSchema, JsonBackupMemoSchema, JsonBackupNotebookSchema, JsonBackupRevisionSchema, type BackupTableChangesPage, type BackupTablePage, type BackupTableRestoreSnapshot, type BackupTableRestoreStart, type BackupTableRow, type BackupTableSnapshot, type JsonBackupManifest, type JsonBackupAiPrompt, type JsonBackupMemo, type JsonBackupNotebook, type JsonBackupResource, type JsonBackupRevision } from "./backup";
 import type { MemoDetail, Notebook, Resource } from "./types";
 import { Reader, ZipReader, ZipWriter, Uint8ArrayReader, Uint8ArrayWriter, type CreateReadableOptions } from "@zip.js/zip.js/index-native.js";
 import { buildMarkdownFrontMatter, buildNoteMarkdown, buildNotebookExportPaths, encodeRelativePath, getExportResourceExtension, replaceExportResourceUrl, sanitizeExportPathSegment, uniqueExportName } from "./backup-markdown";
@@ -43,6 +43,7 @@ type JsonBackupPage = {
   nextOffset: number | null;
   nextCursor?: string | null;
   tableChunks?: boolean;
+  tableHistoryDeltas?: boolean;
   memosWithHistory?: string[];
 };
 
@@ -56,9 +57,18 @@ export type JsonBackupSource = {
   getResourceBlob?: (resourceUrl: string) => Promise<Blob>;
   listPrompts: () => Promise<{ prompts: JsonBackupAiPrompt[] }>;
   readRevisions?: (memoId: string, after: string) => Promise<{ revisions: JsonBackupRevision[]; nextCursor: string | null }>;
-  readTable?: (memoId: string, revisionId: string | null, after: string) => Promise<BackupTablePage>;
+  readTable?: (memoId: string, revisionId: string | null, after: string, versions?: [number, number][]) => Promise<BackupTablePage>;
+  readTableChanges?: (memoId: string, revisionId: string, after: string) => Promise<BackupTableChangesPage>;
   verifyVersion?: () => Promise<unknown>;
 };
+
+export const createBackupTableReaders = (read: <T>(query: Record<string, string>) => Promise<T>) => ({
+  readTable: (memoId: string, revisionId: string | null, after: string, versions?: [number, number][]) =>
+    read<BackupTablePage>({ kind: "table", memoId, after, ...(revisionId === null ? {} : { revisionId }),
+      ...(versions === undefined ? {} : { versions: JSON.stringify(versions) }) }),
+  readTableChanges: (memoId: string, revisionId: string, after: string) =>
+    read<BackupTableChangesPage>({ kind: "tableChanges", memoId, revisionId, after }),
+});
 
 type JsonResourceRestoreSink = {
   write: (chunk: Uint8Array) => Promise<void>;
@@ -147,14 +157,64 @@ async function* readTableSnapshotPages(
   if (count !== rowCount) throw new EdgeEverZipImportError("incompleteData");
 }
 
+async function* readTableChanges(
+  read: NonNullable<JsonBackupSource["readTableChanges"]>, memoId: string, lastRevisionId: string,
+) {
+  let after: string | null = "";
+  while (after !== null) {
+    const page = await read(memoId, lastRevisionId, after);
+    if (after === page.nextCursor) throw new EdgeEverZipImportError("incompleteData");
+    yield* page.changes;
+    after = page.nextCursor;
+  }
+}
+
+function historicalTablePages(
+  read: NonNullable<JsonBackupSource["readTable"]>, readChanges: NonNullable<JsonBackupSource["readTableChanges"]>,
+  memoId: string, lastRevisionId: string,
+) {
+  const changes = readTableChanges(readChanges, memoId, lastRevisionId);
+  const live = new Map<string, [number, number]>();
+  let next: Awaited<ReturnType<typeof changes.next>> | undefined;
+  return async function* (revision: JsonBackupRevision) {
+    next ??= await changes.next();
+    while (!next.done && next.value.revision <= revision.sharedTableRevision!) {
+      const change = next.value;
+      if (change.deleted) live.delete(change.id);
+      else live.set(change.id, [change.revision, change.position]);
+      next = await changes.next();
+    }
+    // Cache only live references. Fetch the cells for one ZIP entry at a time.
+    const entries = live.entries();
+    let delivered = 0;
+    do {
+      const ids: string[] = [];
+      const versions: [number, number][] = [];
+      while (versions.length < BACKUP_TABLE_ROW_BATCH) {
+        const entry = entries.next();
+        if (entry.done) break;
+        ids.push(entry.value[0]);
+        versions.push(entry.value[1]);
+      }
+      const page = await read(memoId, revision.id, "", versions);
+      if (page.rowCount !== live.size || page.rows.length !== ids.length ||
+          page.rows.some((row, index) => row.id !== ids[index] || row.position !== versions[index][1])) {
+        throw new EdgeEverZipImportError("incompleteData");
+      }
+      delivered += page.rows.length;
+      yield page;
+    } while (delivered < live.size);
+  };
+}
+
 const writeTableSnapshot = async (
-  read: NonNullable<JsonBackupSource["readTable"]>, add: (path: string, value: unknown) => Promise<unknown>,
+  pages: AsyncIterable<BackupTablePage>, add: (path: string, value: unknown) => Promise<unknown>,
   memoId: string, revisionId: string | null,
 ) => {
   const path = tablePath(memoId, revisionId);
   let snapshot: BackupTableSnapshot | undefined;
   let index = 0;
-  for await (const page of readTableSnapshotPages(read, memoId, revisionId)) {
+  for await (const page of pages) {
     snapshot ??= { revisionId, header: page.header, rowCount: page.rowCount };
     if (page.rows.length) {
       await add(`${path}${String(index++).padStart(6, "0")}.json`, page.rows);
@@ -255,9 +315,19 @@ export const createEdgeEverZipStream = async (
             hasTableChunks = true;
             for (const revision of revisions) {
               await addJson(revisionPath(memo.id, revision.id), revision);
-              if (revision.sharedTableRevision != null) await writeTableSnapshot(readTable, addJson, memo.id, revision.id);
             }
-            if (memo.sharedTableRevision != null) await writeTableSnapshot(readTable, addJson, memo.id, null);
+            const history = revisions.filter(revision => revision.sharedTableRevision != null)
+              .sort((a, b) => a.sharedTableRevision! - b.sharedTableRevision!);
+            const last = history.at(-1);
+            const historyPages = last && page.tableHistoryDeltas && source.readTableChanges
+              ? historicalTablePages(readTable, source.readTableChanges, memo.id, last.id) : undefined;
+            for (const revision of history) {
+              const pages = historyPages ? historyPages(revision) : readTableSnapshotPages(readTable, memo.id, revision.id);
+              await writeTableSnapshot(pages, addJson, memo.id, revision.id);
+            }
+            if (memo.sharedTableRevision != null) {
+              await writeTableSnapshot(readTableSnapshotPages(readTable, memo.id, null), addJson, memo.id, null);
+            }
           }
           const resources: JsonBackupResource[] = [];
           const attachmentPaths = new Map<string, string>();
