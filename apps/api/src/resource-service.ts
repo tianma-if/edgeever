@@ -13,7 +13,6 @@ import type { AppContext, AuditActor, Bindings } from "./api-context";
 import { AppError } from "./app-error";
 import { createId, isoNow } from "./entity-utils";
 import { sha256Bytes } from "./hash-utils";
-import { deleteResourceThumbnails } from "./image-thumbnail";
 import { resolveObjectStorage } from "./object-storage";
 import { getWorkspaceId } from "./request-auth";
 import {
@@ -141,37 +140,11 @@ export const validateRestoredResourceMimeType = (kind: Resource["kind"], mimeTyp
 
 export const deleteReleasedResourceObjects = async (
   env: Bindings,
-  resources: {
-    id?: string;
-    workspaceId?: string;
-    objectKey: string;
-    storageConfigId: string;
-    kind?: "image" | "attachment";
-    mimeType?: string | null;
-    byteSize?: number;
-    sha256?: string | null;
-    updatedAt?: string | null;
-  }[],
+  resources: { objectKey: string; storageConfigId: string }[],
 ) => {
   for (const resource of resources) {
     const source = await resolveObjectStorage(env, resource.storageConfigId);
     await source.store.delete(resource.objectKey).catch(() => undefined);
-    if (
-      resource.id
-      && resource.workspaceId
-      && resource.kind === "image"
-      && typeof resource.byteSize === "number"
-    ) {
-      await deleteResourceThumbnails(source.store, resource.workspaceId, {
-        id: resource.id,
-        kind: resource.kind,
-        mime_type: resource.mimeType ?? null,
-        byte_size: resource.byteSize,
-        object_key: resource.objectKey,
-        sha256: resource.sha256 ?? null,
-        updated_at: resource.updatedAt ?? null,
-      }).catch(() => undefined);
-    }
   }
 };
 
@@ -517,7 +490,6 @@ export const replaceResourceContent = async (
       },
     ).run();
     await source.store.delete(current.object_key).catch(() => undefined);
-    await deleteResourceThumbnails(source.store, workspaceId, current).catch(() => undefined);
     return mapResource(updated);
   } catch (error) {
     if (!candidateMayBeLive) await source.store.delete(nextObjectKey).catch(() => undefined);

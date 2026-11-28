@@ -9,6 +9,7 @@ export const WRITEBACK_METADATA = ".edgeever-writeback.json";
 const PENDING_BYTES = ".edgeever-writeback.pending";
 const QUIET_MS = 1500;
 const RETRY_MS = 30_000;
+const NETWORK_IDLE_MS = 120_000;
 // The existing PUT /resources/:id/blob contract, not a new opening limit.
 const MAX_REPLACEMENT_BYTES = 100 * 1024 * 1024;
 const digest = bytes => createHash("sha256").update(bytes).digest("hex");
@@ -85,8 +86,33 @@ export const canRemoveOpenedAttachment = async folder => {
 
 /** The request callback supplies the already-authorized, scope-bound transport. */
 export const replaceAttachmentResource = async (request, input) => {
+  const idle = new AbortController();
+  const signal = input.signal ? AbortSignal.any([input.signal, idle.signal]) : idle.signal;
+  let timer;
+  const progress = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => idle.abort(new DOMException("Attachment transfer stalled", "TimeoutError")), NETWORK_IDLE_MS);
+  };
+  const send = async (path, init) => {
+    signal.throwIfAborted();
+    progress();
+    const response = await request(path, { ...init, signal }, input.assertCurrent, progress);
+    progress();
+    return response;
+  };
+  try {
+    return await replaceSnapshot(send, input, progress);
+  } catch (error) {
+    input.signal?.throwIfAborted();
+    // A stalled error body can still leave a definitive HTTP status.
+    if (error.retryable === undefined) idle.signal.throwIfAborted();
+    throw error;
+  } finally { clearTimeout(timer); }
+};
+
+const replaceSnapshot = async (send, input, progress) => {
   input.assertCurrent();
-  const capability = await request("/resources/writeback-capabilities", { method: "GET", cache: "no-store", signal: input.signal }, input.assertCurrent);
+  const capability = await send("/resources/writeback-capabilities", { method: "GET", cache: "no-store" });
   input.assertCurrent();
   if (!capability.ok) {
     if ([404, 405].includes(capability.status)) {
@@ -110,7 +136,7 @@ export const replaceAttachmentResource = async (request, input) => {
     form.append("preserveFilename", "true");
     form.append("mimeType", input.mimeType);
     form.append("expectedContentHash", expectedContentHash);
-    const response = await request(`${blobPath}/writeback`, { method: "PUT", body: form, signal: input.signal }, input.assertCurrent);
+    const response = await send(`${blobPath}/writeback`, { method: "PUT", body: form });
     input.assertCurrent();
     // An older server must reject this dedicated route, even if it replaced a
     // supported server between the capability read and the write.
@@ -125,10 +151,13 @@ export const replaceAttachmentResource = async (request, input) => {
     // A successful upload can lose its response. Confirm exactly this pending
     // snapshot, then use a conditional no-op PUT to obtain its resource metadata.
     await response.body?.cancel();
-    const current = await request(blobPath, { method: "GET", cache: "no-store", signal: input.signal }, input.assertCurrent);
+    const current = await send(blobPath, { method: "GET", cache: "no-store" });
     if (current.ok) {
       const hash = createHash("sha256");
-      for await (const chunk of current.body) hash.update(chunk);
+      for await (const chunk of current.body) {
+        if (chunk.byteLength) progress();
+        hash.update(chunk);
+      }
       input.assertCurrent();
       if (hash.digest("hex") !== digest(input.bytes)) throw failure("resource_conflict");
       response = await put(digest(input.bytes));
@@ -210,7 +239,6 @@ export const createAttachmentWritebackManager = options => {
     const path = join(entry.folder, record.localFilename);
     const controller = new AbortController();
     controllers.add(controller);
-    const timeout = setTimeout(() => controller.abort(), 120_000);
     try {
       assertCurrent();
       if (!record.pendingHash) {
@@ -220,7 +248,17 @@ export const createAttachmentWritebackManager = options => {
         });
         if (!info?.isFile()) return;
         const observed = signature(info);
-        if (observed === record.signature) return;
+        if (observed === record.signature) {
+          // Older clients could persist a late Retry after the save was acknowledged.
+          if (record.savedAt != null && (record.status === "pending" || record.status === "error")) {
+            const restored = { ...record, status: "saved", retryable: false, retryAt: 0, errorCode: null };
+            assertCurrent();
+            await persist(entry, restored);
+            assertCurrent();
+            Object.assign(record, restored);
+          }
+          return;
+        }
         if (observed !== entry.observed) {
           entry.observed = observed; entry.observedAt = now();
           record.status = "pending";
@@ -279,7 +317,7 @@ export const createAttachmentWritebackManager = options => {
       record.retryable = error.retryable ?? (error.name === "AbortError" || !code || ["unavailable", "ECONNRESET", "ECONNREFUSED", "ETIMEDOUT", "AbortError", "EBUSY", "EPERM", "EACCES"].includes(code));
       record.retryAt = record.retryable ? now() + RETRY_MS : 0;
       await persist(entry);
-    } finally { clearTimeout(timeout); controllers.delete(controller); }
+    } finally { controllers.delete(controller); }
   };
   return {
     suspend,
@@ -314,7 +352,7 @@ export const createAttachmentWritebackManager = options => {
     },
     async retry(id) {
       await refresh(); const entry = records.get(id);
-      if (!entry || entry.record.status === "saving") return;
+      if (!entry || !["error", "conflict"].includes(entry.record.status)) return;
       entry.record.status = "pending"; entry.record.retryAt = 0; entry.record.retryable = true;
       await persist(entry);
     },

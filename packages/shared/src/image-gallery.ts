@@ -60,8 +60,8 @@ export const prepareImageListsForMarkdown = (doc: TiptapDoc): TiptapDoc => {
 
 /**
  * Width-fit galleries retain the ordinary sequential-image Markdown projection.
- * Height-fit galleries use invisible comments to keep their presentation when
- * editing Markdown, while images remain readable in other Markdown readers.
+ * Height-fit galleries and galleries with positioned images use invisible
+ * comments to keep their structure when editing Markdown.
  */
 export const ImageGallery = Node.create({
   name: IMAGE_GALLERY_NODE_TYPE,
@@ -114,9 +114,10 @@ export const ImageGallery = Node.create({
 
   renderMarkdown(node, helpers) {
     const images = helpers.renderChildren(node.content ?? [], "\n\n");
-    if (resolveImageGalleryFit(node.attrs?.fit) === "width") return images;
+    const fit = resolveImageGalleryFit(node.attrs?.fit);
+    if (fit === "width" && !node.content?.some((image) => parseImageAlignment(image.attrs?.alignment))) return images;
     const layout = resolveImageGalleryLayout(node.attrs?.layout);
-    return `<!-- edgeever:image-gallery fit=height layout=${layout} -->\n\n${images}\n\n<!-- /edgeever:image-gallery -->`;
+    return `<!-- edgeever:image-gallery fit=${fit} layout=${layout} -->\n\n${images}\n\n<!-- /edgeever:image-gallery -->`;
   },
 
   parseMarkdown(token, helpers) {
@@ -150,7 +151,7 @@ export const ImageGallery = Node.create({
   },
 });
 
-const createGalleryNode = (images: TiptapNode[]): TiptapNode => ({
+export const createImageGalleryNode = (images: TiptapNode[]): TiptapNode => ({
   type: IMAGE_GALLERY_NODE_TYPE,
   attrs: { layout: "auto" },
   content: images,
@@ -165,7 +166,7 @@ export const groupConsecutiveImagesIntoGalleries = (nodes: TiptapNode[]): Tiptap
     if (images.length === 1) {
       grouped.push(images[0]!);
     } else if (images.length > 1) {
-      grouped.push(createGalleryNode(images));
+      grouped.push(createImageGalleryNode(images));
     }
     images = [];
   };
@@ -194,6 +195,26 @@ const hasUsableImageSource = (node: TiptapNode | TiptapTextNode) =>
   "attrs" in node &&
   typeof node.attrs?.src === "string" &&
   node.attrs.src.trim().length > 0;
+
+/** Return the images in reading order only when the whole document is image-only. */
+export const getImageOnlyDocumentImages = (doc: TiptapDoc): TiptapNode[] | null => {
+  const images: TiptapNode[] = [];
+  for (const block of doc.content) {
+    if (hasUsableImageSource(block)) {
+      images.push(block);
+      continue;
+    }
+    if (block.type !== "paragraph" && block.type !== IMAGE_GALLERY_NODE_TYPE) return null;
+    for (const child of block.content ?? []) {
+      if (hasUsableImageSource(child)) {
+        images.push(child);
+      } else if (block.type !== "paragraph" || child.type !== "text" || !("text" in child) || child.text.trim()) {
+        return null;
+      }
+    }
+  }
+  return images.length ? images : null;
+};
 
 /**
  * Repair galleries emptied or left with one image by a move or deletion, in

@@ -33,20 +33,11 @@ export const isProtectedResourceSource = (
   );
 };
 
-export type ProtectedResourcePathOptions = {
-  /** Optional thumbnail width (`?w=`) for inline note previews. */
-  width?: number | null;
-};
-
 /**
  * Strip instance base URL and ensure protected paths hit the blob route.
  * Non-resource URLs are returned unchanged (relative form when base was stripped).
  */
-export const normalizeProtectedResourcePath = (
-  source: string,
-  baseUrl = "",
-  options?: ProtectedResourcePathOptions
-) => {
+export const normalizeProtectedResourcePath = (source: string, baseUrl = "") => {
   const normalizedBase = baseUrl.replace(/\/+$/, "");
   let path = source;
   if (normalizedBase && path.startsWith(`${normalizedBase}/`)) {
@@ -55,35 +46,19 @@ export const normalizeProtectedResourcePath = (
   if (!path.startsWith("/api/v1/resources/")) {
     return path;
   }
-  const normalizedBlobPath = /\/blob(?:$|[?#])/.test(path)
-    ? path.replace(/[?#].*$/, "")
-    : (() => {
-        const match = path.match(/^(\/api\/v1\/resources\/[^/?#]+)/);
-        return match ? `${match[1]}/blob` : path;
-      })();
-
-  const width = options?.width;
-  if (
-    typeof width === "number"
-    && Number.isFinite(width)
-    && width > 0
-    && normalizedBlobPath.endsWith("/blob")
-  ) {
-    return `${normalizedBlobPath}?w=${Math.round(width)}`;
+  if (/\/blob(?:$|[?#])/.test(path)) {
+    return path.replace(/[?#].*$/, "");
   }
-  return normalizedBlobPath;
+  const match = path.match(/^(\/api\/v1\/resources\/[^/?#]+)/);
+  return match ? `${match[1]}/blob` : path;
 };
 
 /**
- * Relative protected load path (`/api/v1/resources/:id/blob` or `?w=...`) or
- * null when the source is not a protected EdgeEver resource.
+ * Relative protected load path (`/api/v1/resources/:id/blob`) or null when the
+ * source is not a protected EdgeEver resource.
  */
-export const toProtectedResourceLoadPath = (
-  source: string,
-  baseUrl = "",
-  options?: ProtectedResourcePathOptions
-): string | null => {
-  const path = normalizeProtectedResourcePath(source, baseUrl, options);
+export const toProtectedResourceLoadPath = (source: string, baseUrl = ""): string | null => {
+  const path = normalizeProtectedResourcePath(source, baseUrl);
   return path.startsWith("/api/v1/resources/") ? path : null;
 };
 
@@ -148,8 +123,6 @@ export type LoadProtectedResourceDataUrlOptions = {
   cacheLimit?: number;
   getResourceBlob: (resourceUrl: string) => Promise<Blob>;
   onFailure?: (failure: ProtectedResourceLoadFailure) => void;
-  /** Optional thumbnail width (`?w=`); omitted for full-resolution image loads. */
-  thumbnailWidth?: number | null;
   /** Included in cache keys so token rotation does not reuse stale entries. */
   token?: string | null;
 };
@@ -160,15 +133,12 @@ export const loadProtectedResourceDataUrl = (
   source: string,
   options: LoadProtectedResourceDataUrlOptions
 ): Promise<string | null> => {
-  const path = toProtectedResourceLoadPath(source, options.baseUrl ?? "", {
-    width: options.thumbnailWidth,
-  });
+  const path = toProtectedResourceLoadPath(source, options.baseUrl ?? "");
   if (!path || !options.getResourceBlob) {
     return Promise.resolve(null);
   }
 
   const cache = options.cache;
-  // `path` embeds `?w=...` when thumbnailWidth is set, keeping thumbnails and originals distinct.
   const cacheKey = `${options.token ?? ""}\n${path}`;
   if (cache) {
     const cached = cache.get(cacheKey);

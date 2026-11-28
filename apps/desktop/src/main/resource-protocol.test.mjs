@@ -1,12 +1,13 @@
 import { createHash } from "node:crypto";
 import { afterEach, expect, test } from "bun:test";
-import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
-import { createResourceProtocolHandler } from "./resource-protocol.mjs";
+import { createResourceCacheWrites, createResourceProtocolHandler, createStagedResourceProtocolHandler } from "./resource-protocol.mjs";
+import { cacheStagedResourceBytes, recordStagedResourceAlias } from "./staged-resource-alias.mjs";
 
 const directories = [];
 afterEach(async () => { await Promise.all(directories.splice(0).map(path => rm(path, { recursive: true, force: true }))); });
@@ -85,6 +86,52 @@ test("network failures retain existing cached opening", async () => {
 const opening = () => new Request("edgeever-resource://resource/res_1");
 const sha256 = value => createHash("sha256").update(value).digest("hex");
 
+test("staged videos serve the requested bytes before and after sync replaces the local file", async () => {
+  const f = await fixture({ cached: false });
+  const stagedDirectory = join(f.root, "staged");
+  const stagedId = "stage_123";
+  const filename = "微信视频.mp4";
+  const bytes = "0123456789";
+  const path = join(stagedDirectory, `${stagedId}.bin`);
+  await mkdir(stagedDirectory);
+  await writeFile(path, bytes);
+  await writeFile(join(stagedDirectory, `${stagedId}.json`), JSON.stringify({
+    id: stagedId, memoId: "memo_1", name: filename, type: "video/mp4", size: bytes.length,
+  }));
+  const handler = createStagedResourceProtocolHandler({
+    getDirectory: () => stagedDirectory,
+    readUploadedResource: f.handler,
+  });
+  const url = `edgeever-staged://${stagedId}`;
+  const downloadUrl = `${url}?download=${encodeURIComponent(filename)}`;
+  const checkPlaybackAndDownload = async () => {
+    const partial = await handler(new Request(url, { headers: { Range: "bytes=4-7" } }));
+    expect(partial.status).toBe(206);
+    expect(partial.headers.get("Content-Type")).toBe("video/mp4");
+    expect(partial.headers.get("Accept-Ranges")).toBe("bytes");
+    expect(partial.headers.get("Content-Range")).toBe("bytes 4-7/10");
+    expect(partial.headers.get("Content-Length")).toBe("4");
+    expect(await partial.text()).toBe("4567");
+
+    const invalid = await handler(new Request(url, { headers: { Range: "bytes=10-" } }));
+    expect(invalid.status).toBe(416);
+    expect(invalid.headers.get("Content-Range")).toBe("bytes */10");
+
+    const download = await handler(new Request(downloadUrl));
+    expect(download.status).toBe(200);
+    expect(download.headers.get("Content-Disposition")).toContain(`filename*=UTF-8''${encodeURIComponent(filename)}`);
+    expect(await download.text()).toBe(bytes);
+  };
+
+  await checkPlaybackAndDownload();
+  const uploadedUrl = "/api/v1/resources/res_1/blob";
+  await cacheStagedResourceBytes(stagedDirectory, f.directory, stagedId, uploadedUrl);
+  await recordStagedResourceAlias(stagedDirectory, stagedId, uploadedUrl);
+  await unlink(path);
+  await checkPlaybackAndDownload();
+  expect(f.requests).toBe(0);
+});
+
 test("legacy truncated cache automatically downloads the full resource using catalog integrity", async () => {
   const full = "complete server image";
   const f = await fixture({ fetch: async () => new Response(full, { headers: { "Content-Length": String(full.length) } }) });
@@ -96,6 +143,41 @@ test("legacy truncated cache automatically downloads the full resource using cat
   expect(await (await f.handler(opening())).text()).toBe(full);
   expect(f.requests).toBe(1);
   expect(JSON.parse(await readFile(join(f.directory, "res_1.json"), "utf8"))).toMatchObject({ byteSize: full.length, sha256: sha256(full) });
+});
+
+test("legacy checksum promotion during writeback preserves the acknowledged offline version", async () => {
+  const f = await fixture({ fetch: async () => { throw new TypeError("Offline"); } });
+  const bytesPath = join(f.directory, "res_1.bin");
+  const metadataPath = join(f.directory, "res_1.json");
+  await writeFile(metadataPath, JSON.stringify({ contentType: "text/plain" }));
+  const writes = createResourceCacheWrites();
+  const promoting = Promise.withResolvers();
+  const handler = createResourceProtocolHandler({
+    ...f.options,
+    getIntegrity: () => ({ byteSize: 21, sha256: sha256("current account bytes") }),
+    cacheWrites: {
+      observe(path) {
+        const read = writes.observe(path);
+        return { ...read, publish(write) {
+          const published = read.publish(write);
+          promoting.resolve();
+          return published;
+        } };
+      },
+    },
+  });
+  const updated = "the edited attachment";
+  const save = writes.replace(bytesPath, async () => {
+    // Both old files remain visible until the in-progress replacement installs its bytes.
+    await promoting.promise;
+    await writeFile(bytesPath, updated);
+    await writeFile(metadataPath, JSON.stringify({ byteSize: updated.length, sha256: sha256(updated) }));
+  });
+  const legacyRead = handler(opening());
+  await save;
+  await (await legacyRead).arrayBuffer();
+  expect(JSON.parse(await readFile(metadataPath, "utf8")).sha256).toBe(sha256(updated));
+  expect(await (await handler(reload())).text()).toBe(updated);
 });
 
 test("valid legacy cache remains available offline using synced size and checksum", async () => {

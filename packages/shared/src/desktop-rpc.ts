@@ -171,7 +171,17 @@ export type DesktopRpcParams = {
   "memo.deleteBatch": { memoIds: string[]; permanent?: boolean };
   "memo.emptyTrash": Record<string, never>;
   "memo.pinBatch": { memoIds: string[]; isPinned: boolean };
-  "memo.merge": { memoIds: string[]; notebookId?: string; title?: string };
+  "memo.merge": {
+    memoIds: string[];
+    notebookId?: string;
+    title?: string;
+    preparedContent?: {
+      sources: Array<Pick<MemoDetail, "id" | "revision" | "contentHash">>;
+      contentJson: TiptapDoc;
+      contentMarkdown: string;
+      contentText: string;
+    };
+  };
   "memo.list": DesktopMemoListParams;
   "memo.get": { memoId: string; includeDeleted?: boolean };
   "memo.create": DesktopMemoCreateParams;

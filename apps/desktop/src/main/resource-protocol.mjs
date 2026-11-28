@@ -1,48 +1,111 @@
 import { createReadStream } from "node:fs";
+import { once } from "node:events";
 import { mkdir, open, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { Readable } from "node:stream";
 import { createHash, randomUUID } from "node:crypto";
 import { restrictDirectory, restrictFile } from "./file-permissions.mjs";
-import { downloadContentDispositionFromRequest, parseByteRangeHeader, resourceIdFromRequest, resourceResponseHeaders } from "./resource-url.mjs";
+import { downloadContentDispositionFromRequest, isSafeResourceId, parseByteRangeHeader, resourceIdFromRequest, resourceResponseHeaders } from "./resource-url.mjs";
+import { readStagedResourceMetadata } from "./staged-resource-alias.mjs";
+
+const fileResponse = async (path, contentType, request) => {
+  const { size } = await stat(path);
+  const range = parseByteRangeHeader(request.headers.get("range"), size);
+  const headers = resourceResponseHeaders(contentType, downloadContentDispositionFromRequest(request.url));
+  headers.set("Accept-Ranges", "bytes");
+  if (range.kind === "invalid") {
+    headers.set("Content-Range", `bytes */${size}`);
+    return new Response(null, { status: 416, headers });
+  }
+  const selected = range.kind === "range" ? range : { offset: 0, length: size };
+  headers.set("Content-Length", String(selected.length));
+  if (size === 0) return new Response(null, { status: 200, headers });
+  if (range.kind === "range") {
+    headers.set("Content-Range", `bytes ${selected.offset}-${selected.offset + selected.length - 1}/${size}`);
+  }
+  const stream = createReadStream(path, {
+    start: selected.offset,
+    end: selected.offset + selected.length - 1,
+  });
+  // Detect a staged file removed during sync before returning the response.
+  await once(stream, "open");
+  return new Response(Readable.toWeb(stream), {
+    status: range.kind === "range" ? 206 : 200,
+    headers,
+  });
+};
+
+export const createStagedResourceProtocolHandler = (options) => async (request, assertCurrent = () => {}) => {
+  assertCurrent();
+  const stagedId = resourceIdFromRequest(request.url);
+  if (!stagedId) return new Response("Invalid staged resource", { status: 400 });
+  const directory = options.getDirectory();
+  try {
+    const metadata = await readStagedResourceMetadata(directory, stagedId);
+    try {
+      return await fileResponse(join(directory, `${stagedId}.bin`), metadata.type, request);
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+      // Sync records the alias before removing staged bytes. Refresh metadata
+      // if the file disappeared after the first read.
+      const resourceId = metadata.resourceId ?? (await readStagedResourceMetadata(directory, stagedId)).resourceId;
+      if (!isSafeResourceId(resourceId)) throw error;
+      const target = new URL(`edgeever-resource://resource/${encodeURIComponent(resourceId)}`);
+      target.search = new URL(request.url).search;
+      assertCurrent();
+      return options.readUploadedResource(new Request(target, { headers: request.headers, signal: request.signal }), assertCurrent);
+    }
+  } catch (error) {
+    void options.onError?.(stagedId, error);
+    return new Response("Staged resource unavailable", { status: 404 });
+  }
+};
+
+// Keep only active reads and disk writes. Network waits never hold the write queue.
+export const createResourceCacheWrites = () => {
+  const readers = new Map();
+  const writes = new Map();
+  const enqueue = (path, write) => {
+    const previous = writes.get(path);
+    const next = (previous ?? Promise.resolve()).then(write);
+    const tail = next.catch(() => {}).finally(() => {
+      if (writes.get(path) === tail) writes.delete(path);
+    });
+    writes.set(path, tail);
+    return next;
+  };
+  return {
+    observe(path) {
+      const group = readers.get(path) ?? { count: 0 };
+      group.count++;
+      readers.set(path, group);
+      return {
+        publish: write => enqueue(path, () => {
+          if (readers.get(path) === group) return write();
+        }),
+        release() {
+          if (--group.count === 0 && readers.get(path) === group) readers.delete(path);
+        },
+      };
+    },
+    replace(path, write) {
+      return enqueue(path, async () => {
+        try { return await write(); }
+        // Include reads that saw the old files while the replacement was being written.
+        finally { readers.delete(path); }
+      });
+    },
+  };
+};
 
 export const createResourceProtocolHandler = options => {
   const verifiedFiles = new Map();
-  return async (request, assertCurrent = () => {}) => {
-    assertCurrent();
-    const resourceId = resourceIdFromRequest(request.url);
-    if (!resourceId) return new Response("Invalid resource", { status: 400 });
+  const cacheWrites = options.cacheWrites ?? createResourceCacheWrites();
+  const serve = async (request, assertCurrent, resourceId, bytesPath, cacheRead) => {
     const downloadDisposition = downloadContentDispositionFromRequest(request.url);
-
-    const directory = options.getDirectory();
-    const bytesPath = join(directory, `${resourceId}.bin`);
+    const directory = dirname(bytesPath);
     const metadataPath = join(directory, `${resourceId}.json`);
     let damagedCache = false;
-
-    const fileResponse = async (path, contentType, rangeHeader) => {
-      const { size } = await stat(path);
-      const range = parseByteRangeHeader(rangeHeader, size);
-      const headers = resourceResponseHeaders(contentType, downloadDisposition);
-      headers.set("Accept-Ranges", "bytes");
-      if (range.kind === "invalid") {
-        headers.set("Content-Range", `bytes */${size}`);
-        return new Response(null, { status: 416, headers });
-      }
-      const selected = range.kind === "range" ? range : { offset: 0, length: size };
-      headers.set("Content-Length", String(selected.length));
-      if (size === 0) return new Response(null, { status: 200, headers });
-      if (range.kind === "range") {
-        headers.set("Content-Range", `bytes ${selected.offset}-${selected.offset + selected.length - 1}/${size}`);
-      }
-      const stream = createReadStream(path, {
-        start: selected.offset,
-        end: selected.offset + selected.length - 1,
-      });
-      return new Response(Readable.toWeb(stream), {
-        status: range.kind === "range" ? 206 : 200,
-        headers,
-      });
-    };
 
     const cachedResponse = async () => {
       let metadata = {};
@@ -85,15 +148,17 @@ export const createResourceProtocolHandler = options => {
           const temporaryMetadata = `${metadataPath}.${randomUUID()}.pending`;
           try {
             await writeFile(temporaryMetadata, JSON.stringify({ ...metadata, byteSize: size, sha256: digest }), { mode: 0o600 });
-            assertCurrent();
-            await rename(temporaryMetadata, metadataPath);
+            await cacheRead.publish(async () => {
+              assertCurrent();
+              await rename(temporaryMetadata, metadataPath);
+            });
           } finally { await rm(temporaryMetadata, { force: true }); }
         }
         if (verifiedFiles.size >= 256) verifiedFiles.delete(verifiedFiles.keys().next().value);
         verifiedFiles.set(bytesPath, fingerprint);
       }
       assertCurrent();
-      return fileResponse(bytesPath, metadata.contentType, request.headers.get("range"));
+      return fileResponse(bytesPath, metadata.contentType, request);
     };
     if (request.cache !== "reload") {
       try { return await cachedResponse(); } catch (error) {
@@ -154,9 +219,11 @@ export const createResourceProtocolHandler = options => {
       let cancelled = false;
       let inFlight;
       let finished = false;
-      const cleanup = async () => {
+      const cleanup = async (published = false) => {
         if (!finished) {
           finished = true;
+          cacheRead.release();
+          if (published) return;
           await output.close().catch(() => {});
           await rm(temporaryPath, { force: true }).catch(() => {});
         }
@@ -174,12 +241,17 @@ export const createResourceProtocolHandler = options => {
                 }
                 await output.close();
                 if (cancelled) return;
-                assertCurrent();
-                await rename(temporaryPath, bytesPath);
-                await writeFile(metadataPath, JSON.stringify({ contentType: response.headers.get("content-type") || "application/octet-stream", byteSize, sha256: hash.digest("hex") }), { mode: 0o600 });
-                await restrictFile(bytesPath);
-                await restrictFile(metadataPath);
-                finished = true;
+                const published = await cacheRead.publish(async () => {
+                  if (cancelled) return;
+                  assertCurrent();
+                  await rename(temporaryPath, bytesPath);
+                  await writeFile(metadataPath, JSON.stringify({ contentType: response.headers.get("content-type") || "application/octet-stream", byteSize, sha256: hash.digest("hex") }), { mode: 0o600 });
+                  await restrictFile(bytesPath);
+                  await restrictFile(metadataPath);
+                  return true;
+                });
+                await cleanup(published);
+                if (cancelled) return;
                 controller.close();
                 return;
               }
@@ -212,7 +284,9 @@ export const createResourceProtocolHandler = options => {
       const responseHeaders = new Headers(response.headers);
       responseHeaders.set("Cache-Control", "no-store");
       if (downloadDisposition) responseHeaders.set("Content-Disposition", downloadDisposition);
-      return new Response(streamedBody, { status: 200, headers: responseHeaders });
+      const result = new Response(streamedBody, { status: 200, headers: responseHeaders });
+      cacheRead.streaming = true;
+      return result;
     } catch (error) {
       assertCurrent();
       if (request.cache === "reload") {
@@ -221,5 +295,14 @@ export const createResourceProtocolHandler = options => {
       void options.onError?.(resourceId, error);
       return new Response("Resource unavailable", { status: 504 });
     }
+  };
+  return async (request, assertCurrent = () => {}) => {
+    assertCurrent();
+    const resourceId = resourceIdFromRequest(request.url);
+    if (!resourceId) return new Response("Invalid resource", { status: 400 });
+    const bytesPath = join(options.getDirectory(), `${resourceId}.bin`);
+    const read = cacheWrites.observe(bytesPath);
+    try { return await serve(request, assertCurrent, resourceId, bytesPath, read); }
+    finally { if (!read.streaming) read.release(); }
   };
 };

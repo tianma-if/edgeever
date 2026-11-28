@@ -587,14 +587,76 @@ describe("desktop repository notes", () => {
     });
   });
 
-  test("merges notes in the sidecar and shows resource links through the desktop protocol", async () => {
+  test("stores a gallery for an offline merge and opens it with desktop resource URLs", async () => {
+    const sources = ["a", "b"].map((id) => {
+      const src = `/api/v1/resources/res_${id}/blob`;
+      return {
+        id, revision: 1, contentHash: `hash-${id}`, contentMarkdown: `![${id}](${src})`,
+        contentJson: { type: "doc", content: [{ type: "image", attrs: { src, alt: id } }] },
+      };
+    });
+    let stored;
     await withSidecar({
-      "memo.merge": () => ({ memo: { id: "memo-merged", contentJson: { type: "doc", content: [{ type: "image", attrs: { src: "/api/v1/resources/res-1/blob" } }] }, contentMarkdown: "![a](/api/v1/resources/res-1/blob)" } }),
+      "memo.get": ({ memoId }) => ({ memo: sources.find((memo) => memo.id === memoId) ?? stored }),
+      "memo.merge": ({ preparedContent }) => {
+        const { sources: snapshots, ...body } = preparedContent;
+        expect(snapshots).toEqual(sources.map(({ id, revision, contentHash }) => ({ id, revision, contentHash })));
+        expect(body.contentMarkdown).not.toContain("edgeever:merge-divider");
+        expect(body.contentJson.content[0].content.map((image) => image.attrs.src))
+          .toEqual(["/api/v1/resources/res_a/blob", "/api/v1/resources/res_b/blob"]);
+        stored = { id: "memo-merged", mergeSourceCount: 2, ...body };
+        return { memo: stored };
+      },
     }, async ({ events }) => {
-      const { memo } = await createDesktopRepository().mergeMemos({ memoIds: ["a", "b"] });
-      expect(memo.contentJson.content[0].attrs.src).toBe("edgeever-resource://resource/res-1");
-      expect(memo.contentMarkdown).toBe("![a](edgeever-resource://resource/res-1)");
+      const repository = createDesktopRepository();
+      const merged = await repository.mergeMemos({ memoIds: ["a", "b"] });
+      const reopened = await repository.getMemo(merged.memo.id);
+      for (const { memo } of [merged, reopened]) {
+        expect(memo.contentJson.content.map((node) => node.type)).toEqual(["edgeeverImageGallery"]);
+        expect(memo.contentJson.content[0].content.map((image) => image.attrs.src))
+          .toEqual(["edgeever-resource://resource/res_a", "edgeever-resource://resource/res_b"]);
+      }
       expect(events).toEqual(["edgeever:sync-queue-changed"]);
+    }, { online: false });
+  });
+
+  test("reopens an older pending merge with both images and its divider", async () => {
+    const imageLines = ["first", "second"].map((id) => `![${id}.webp](/api/v1/resources/res_${id}/blob)`);
+    const stored = {
+      id: "memo_local_merged",
+      mergeSourceCount: 2,
+      contentMarkdown: imageLines.join("\n\n<!-- edgeever:merge-divider -->\n\n---\n\n"),
+      contentJson: {
+        type: "doc",
+        content: [
+          { type: "paragraph", content: [{ type: "text", text: imageLines[0] }] },
+          { type: "edgeeverMergeDivider" },
+          { type: "paragraph", content: [{ type: "text", text: imageLines[1] }] },
+        ],
+      },
+    };
+    await withSidecar({ "memo.get": () => ({ memo: stored }) }, async () => {
+      const { memo } = await createDesktopRepository().getMemo(stored.id);
+      expect(memo.contentJson.content.map((node) => node.type)).toEqual(["image", "edgeeverMergeDivider", "image"]);
+      expect(memo.contentJson.content.filter((node) => node.type === "image").map((node) => node.attrs.src))
+        .toEqual(["edgeever-resource://resource/res_first", "edgeever-resource://resource/res_second"]);
+    }, { online: false });
+
+    // A real rich document with different Markdown must keep its image attributes.
+    const rich = {
+      ...stored,
+      contentJson: {
+        type: "doc",
+        content: [
+          { type: "image", attrs: { src: "/api/v1/resources/res_first/blob", width: 35 } },
+          ...stored.contentJson.content.slice(1),
+        ],
+      },
+    };
+    await withSidecar({ "memo.get": () => ({ memo: rich }) }, async () => {
+      const { memo } = await createDesktopRepository().getMemo(rich.id);
+      expect(memo.contentJson.content[0].attrs).toEqual({ src: "edgeever-resource://resource/res_first", width: 35 });
+      expect(memo.contentJson.content[2]).toEqual(rich.contentJson.content[2]);
     });
   });
 

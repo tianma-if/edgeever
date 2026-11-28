@@ -1787,6 +1787,11 @@ html[data-edgeever-extension-theme] .edgeever-memo-divider {
   background: #f3f5f7;
 }
 
+.ProseMirror [data-leeef-excerpt-timestamp] {
+  font-size: 0.875em;
+  opacity: 0.75;
+}
+
 .ProseMirror :not(pre) > code {
   border: 0;
   border-radius: 4px;

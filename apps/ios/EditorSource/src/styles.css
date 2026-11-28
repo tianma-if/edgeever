@@ -769,6 +769,11 @@ html[data-theme="dark"] .ProseMirror hr[data-edgeever-merge-divider] {
   color: #3d4450;
 }
 
+.ProseMirror [data-leeef-excerpt-timestamp] {
+  font-size: 0.875em;
+  opacity: 0.75;
+}
+
 html[data-theme="dark"] .edgeever-prose blockquote,
 html[data-theme="dark"] .ProseMirror blockquote {
   border-left-color: #475569;

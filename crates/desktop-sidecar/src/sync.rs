@@ -425,7 +425,9 @@ pub(crate) fn sync_outbox_ack(database: &Connection, params: &Value) -> Result<V
                 if payload.get("notebookId").and_then(Value::as_str) == Some(entity_id.as_str()) {
                     payload["notebookId"] = json!(remote_id);
                 }
-                if let Some(notebook_ids) = payload.get_mut("notebookIds").and_then(Value::as_array_mut) {
+                if let Some(notebook_ids) =
+                    payload.get_mut("notebookIds").and_then(Value::as_array_mut)
+                {
                     for notebook_id in notebook_ids {
                         if notebook_id.as_str() == Some(entity_id.as_str()) {
                             *notebook_id = json!(remote_id);

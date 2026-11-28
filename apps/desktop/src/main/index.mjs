@@ -1,8 +1,7 @@
 import { app, autoUpdater as nativeAutoUpdater, Notification, BrowserWindow, Menu, Tray, globalShortcut, nativeImage, ipcMain, session, net, protocol, shell, dialog, safeStorage, clipboard, ClipboardItem, powerMonitor, desktopCapturer, screen, utilityProcess } from "electron";
-import { createReadStream, existsSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { appendFile, mkdir, open, readdir, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
-import { Readable } from "node:stream";
 import { execFile, spawn } from "node:child_process";
 import { backgroundNodeExecutable } from "./background-node.mjs";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -13,9 +12,10 @@ import { createBackupWorkerFactory } from "./backup-worker.mjs";
 import { registerBackupIpc } from "./backup-ipc.mjs";
 import { SidecarRpcClient } from "./rpc.mjs";
 import { instanceOrigin, decodeSessionCredential, credentialForUrl, writeSessionCredential, clearInstanceSessionCookie } from "./session-credential.mjs";
+import { uploadAttachmentSnapshot } from "./attachment-upload.mjs";
 import { resourceRequestHeaders } from "./resource-request.mjs";
-import { createResourceProtocolHandler } from "./resource-protocol.mjs";
-import { downloadContentDispositionFromRequest, isSafeResourceId, resourceIdFromRequest, resourceResponseHeaders } from "./resource-url.mjs";
+import { createResourceCacheWrites, createResourceProtocolHandler, createStagedResourceProtocolHandler } from "./resource-protocol.mjs";
+import { isSafeResourceId, resourceIdFromRequest } from "./resource-url.mjs";
 import { isSupportedAssociatedFile } from "./file-association.mjs";
 import { createWeChatShareController } from "./wechat-share-import.mjs";
 import { enableMacShareExtension } from "./share-extension-registration.mjs";
@@ -1024,7 +1024,9 @@ const createTray = () => {
   tray.on("double-click", () => showWindow(mainWindow));
 };
 
+const resourceCacheWrites = createResourceCacheWrites();
 const handleResourceProtocolRequest = createResourceProtocolHandler({
+  cacheWrites: resourceCacheWrites,
   getDirectory: resourceCacheDirectory,
   getIntegrity: resourceId => sidecar?.request("resource.integrity", { resourceId }),
   getApiBaseUrl: () => configuredApiBaseUrl,
@@ -1037,34 +1039,11 @@ const handleResourceProtocolRequest = createResourceProtocolHandler({
   onError: (resourceId, error) => writeDiagnostic("resource.cache-failed", { resourceId, message: error.message }),
 });
 
-const handleStagedResourceProtocolRequest = async (request, assertCurrent = () => {}) => {
-  assertCurrent();
-  const stagedId = resourceIdFromRequest(request.url);
-  if (!stagedId) return new Response("Invalid staged resource", { status: 400 });
-
-  const directory = stagedResourceDirectory();
-  try {
-    const metadata = await readStagedResourceMetadata(directory, stagedId);
-    const path = join(directory, `${stagedId}.bin`);
-    const size = await stat(path).then((details) => details.size).catch(() => null);
-    if (size === null && isSafeResourceId(metadata.resourceId)) {
-      const target = new URL(`edgeever-resource://resource/${encodeURIComponent(metadata.resourceId)}`);
-      target.search = new URL(request.url).search;
-      assertCurrent();
-      return handleResourceProtocolRequest(new Request(target, { headers: request.headers, signal: request.signal }), assertCurrent);
-    }
-    if (size === null) throw new Error("Staged bytes are missing");
-    const stream = createReadStream(path);
-    const headers = resourceResponseHeaders(metadata.type, downloadContentDispositionFromRequest(request.url));
-    headers.set("Content-Length", String(size));
-    return new Response(Readable.toWeb(stream), {
-      headers,
-    });
-  } catch (error) {
-    void writeDiagnostic("resource.staged-read-failed", { stagedId, message: error.message });
-    return new Response("Staged resource unavailable", { status: 404 });
-  }
-};
+const handleStagedResourceProtocolRequest = createStagedResourceProtocolHandler({
+  getDirectory: stagedResourceDirectory,
+  readUploadedResource: handleResourceProtocolRequest,
+  onError: (stagedId, error) => writeDiagnostic("resource.staged-read-failed", { stagedId, message: error.message }),
+});
 
 const registerResourceProtocol = () => {
   protocol.handle("edgeever-resource", (request) => handleResourceProtocolRequest(request));
@@ -2140,13 +2119,16 @@ const startApplication = async () => {
     }
   };
   const attachmentScope = () => JSON.stringify([configuredApiBaseUrl, activeAccountId, desktopSessionToken]);
-  const requestAttachment = async (path, init, assertCurrent) => {
+  const requestAttachment = async (path, init, assertCurrent, progress) => {
     assertCurrent();
     const url = `${configuredApiBaseUrl}/api/v1${path}`;
     const token = credentialForUrl(desktopSessionToken, desktopSessionTokenOrigin, url);
     const cookies = await session.defaultSession.cookies.get({ url });
     assertCurrent();
-    const response = await net.fetch(url, { ...init, headers: resourceRequestHeaders({ cookies, sessionToken: token }), redirect: "error" });
+    const headers = resourceRequestHeaders({ cookies, sessionToken: token });
+    const response = init.method === "PUT"
+      ? await uploadAttachmentSnapshot(net, url, { ...init, headers }, progress)
+      : await net.fetch(url, { ...init, headers, redirect: "error" });
     try { assertCurrent(); } catch (error) { await response.body?.cancel(); throw error; }
     return response;
   };
@@ -2165,11 +2147,14 @@ const startApplication = async () => {
       assertCurrent();
       const directory = resourceCacheDirectory();
       const currentSidecar = sidecar;
-      await mkdir(directory, { recursive: true, mode: 0o700 });
-      await restrictDirectory(directory);
-      assertCurrent();
-      await writeAttachmentFile(join(directory, `${resource.id}.bin`), bytes);
-      await writeAttachmentFile(join(directory, `${resource.id}.json`), JSON.stringify({ contentType: resource.mimeType, byteSize: resource.byteSize, sha256: resource.sha256 }));
+      const bytesPath = join(directory, `${resource.id}.bin`);
+      await resourceCacheWrites.replace(bytesPath, async () => {
+        await mkdir(directory, { recursive: true, mode: 0o700 });
+        await restrictDirectory(directory);
+        assertCurrent();
+        await writeAttachmentFile(bytesPath, bytes);
+        await writeAttachmentFile(join(directory, `${resource.id}.json`), JSON.stringify({ contentType: resource.mimeType, byteSize: resource.byteSize, sha256: resource.sha256 }));
+      });
       assertCurrent();
       if (!currentSidecar) throw new Error("Sidecar unavailable");
       await currentSidecar.request("resource.cache", { resource });

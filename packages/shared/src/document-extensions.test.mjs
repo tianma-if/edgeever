@@ -52,4 +52,42 @@ describe("shared document extensions", () => {
     expect(doc.content[2]?.content?.some((node) => node.type === "inlineMath")).toBe(true);
     expect(docToMarkdown(doc)).toContain(MERGE_DIVIDER_MARKDOWN_MARKER);
   });
+
+  test("keeps Leeef Reader timestamps as separate paragraphs within each quote", () => {
+    const divider = `${MERGE_DIVIDER_MARKDOWN_MARKER}\n\n---`;
+    const timestamps = ["摘录于 2026-11-27", "摘录于 2026-11-28"];
+    const markdown = [
+      divider,
+      "## 书摘",
+      `> 第一段\n>\n> 第二段\n>\n> ${timestamps[0]}`,
+      "**批注** 保留批注",
+      `> 后一条书摘\n>\n> ${timestamps[1]}`,
+      "来自 Leeef Reader",
+      divider,
+    ].join("\n\n");
+    const doc = markdownToDoc(markdown);
+    expect(doc.content.filter((block) => block.type === "blockquote")
+      .map((quote) => quote.content.at(-1))).toEqual(timestamps.map((text) => ({
+      type: "paragraph",
+      content: [{ type: "text", text }],
+    })));
+    expect(markdownToDoc(docToMarkdown(doc))).toEqual(doc);
+  });
+
+  test("keeps a bare Leeef excerpt date as its own quote paragraph", () => {
+    const divider = `${MERGE_DIVIDER_MARKDOWN_MARKER}\n\n---`;
+    const markdown = [
+      divider,
+      "## 书摘",
+      "> 原文\n>\n> 2026-11-27",
+      "来自 Leeef Reader",
+      divider,
+    ].join("\n\n");
+    const doc = markdownToDoc(markdown);
+    expect(doc.content.find((block) => block.type === "blockquote")?.content?.at(-1)).toEqual({
+      type: "paragraph",
+      content: [{ type: "text", text: "2026-11-27" }],
+    });
+    expect(markdownToDoc(docToMarkdown(doc))).toEqual(doc);
+  });
 });

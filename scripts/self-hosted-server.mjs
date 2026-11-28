@@ -13,7 +13,6 @@ import { isPublicMemoSharePagePath, renderPublicMemoSharePage } from "../apps/ap
 import { nodePublicFetch } from "../apps/api/src/node-public-network.ts";
 import { createSelfHostedStorageAdapter } from "../apps/api/src/self-hosted-storage-adapter.ts";
 import { resolveSelfHostedConfig } from "./self-hosted-config.mjs";
-import { createSelfHostedImageThumbnailAdapter } from "./self-hosted-image-thumbnail.mjs";
 import { createSelfHostedPosterRenderEvents } from "./self-hosted-poster-render-events.mjs";
 import { ensureSelfHostedCredentialSecrets, loadSelfHostedEnvironment } from "./self-hosted-secrets.mjs";
 import { serveSelfHostedStatic } from "./self-hosted-static.mjs";
@@ -89,7 +88,6 @@ const storage = config.storageBackend === "s3"
 const env = {
   storage,
   publicNetworkFetch: nodePublicFetch,
-  resizeImageThumbnail: createSelfHostedImageThumbnailAdapter(),
   EDGE_EVER_AUTH_USERNAME: runtimeEnvironment.EDGE_EVER_AUTH_USERNAME ?? "admin",
   EDGE_EVER_RUNTIME: "self-hosted-bun",
   EDGE_EVER_CONTAINER_IMAGE: runtimeEnvironment.EDGE_EVER_CONTAINER_IMAGE,

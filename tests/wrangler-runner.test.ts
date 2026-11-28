@@ -201,8 +201,8 @@ describe("cross-platform Wrangler runner", () => {
     }
   });
 
-  test("opts in to the Cloudflare IMAGES binding only when EDGE_EVER_CLOUDFLARE_IMAGES=true", () => {
-    const workingDirectory = mkdtempSync(resolve(tmpdir(), "edgeever-images-binding-"));
+  test("schedules table migration on ordinary and demo Workers alongside existing cron triggers", () => {
+    const workingDirectory = mkdtempSync(resolve(tmpdir(), "edgeever-migration-cron-"));
     const configPath = resolve(workingDirectory, "custom.toml");
     const cliDirectory = resolve(workingDirectory, "node_modules", "wrangler", "bin");
     const baseEnv = Object.fromEntries(
@@ -222,27 +222,16 @@ describe("cross-platform Wrangler runner", () => {
 
     try {
       mkdirSync(cliDirectory, { recursive: true });
-      writeFileSync(configPath, 'name = "images-test"\n');
+      writeFileSync(configPath, 'name = "migration-test"\n');
       writeFileSync(resolve(cliDirectory, "wrangler.js"), "process.exit(0);\n");
 
-      const withoutImages = runWithEnv({ EDGE_EVER_CLOUDFLARE_IMAGES: "false" });
-      expect(withoutImages.status).toBe(0);
+      expect(runWithEnv({}).status).toBe(0);
       const ordinary = readFileSync(resolve(workingDirectory, ".wrangler.generated.toml"), "utf8");
-      expect(ordinary).not.toContain("[images]");
-      expect(Bun.TOML.parse(ordinary).triggers).toEqual({crons: ["*/5 * * * *"]});
-      writeFileSync(configPath, 'name = "images-test"\n[triggers]\ncrons = ["15 1 * * *"]\n');
+      expect(Bun.TOML.parse(ordinary).triggers).toEqual({ crons: ["*/5 * * * *"] });
+      writeFileSync(configPath, 'name = "migration-test"\n[triggers]\ncrons = ["15 1 * * *"]\n');
       expect(runWithEnv({ EDGE_EVER_DEMO_MODE: "true" }).status).toBe(0);
       expect(Bun.TOML.parse(readFileSync(resolve(workingDirectory, ".wrangler.generated.toml"), "utf8")).triggers)
-        .toEqual({crons: ["15 1 * * *", "*/5 * * * *", "0 19 * * *"]});
-
-      const withImages = runWithEnv({ EDGE_EVER_CLOUDFLARE_IMAGES: "true" });
-      expect(withImages.status).toBe(0);
-      const generated = readFileSync(resolve(workingDirectory, ".wrangler.generated.toml"), "utf8");
-      expect(generated).toContain('[images]\nbinding = "IMAGES"');
-
-      const invalidImages = runWithEnv({ EDGE_EVER_CLOUDFLARE_IMAGES: "yes" });
-      expect(invalidImages.status).not.toBe(0);
-      expect(invalidImages.stderr).toContain("EDGE_EVER_CLOUDFLARE_IMAGES must be true or false.");
+        .toEqual({ crons: ["15 1 * * *", "*/5 * * * *", "0 19 * * *"] });
     } finally {
       rmSync(workingDirectory, { recursive: true, force: true });
     }

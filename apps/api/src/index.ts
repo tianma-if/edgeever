@@ -50,7 +50,6 @@ import {
   DEMO_SEED_NOTEBOOKS,
   DEMO_SEED_REVISIONS,
 } from "./demo-seed-data";
-import { createCloudflareImageThumbnailAdapter } from "./cloudflare-image-adapter";
 import { createCloudflareStorageAdapter } from "./cloudflare-storage-adapter";
 import { createCloudflarePosterRenderEvents } from "./cloudflare-poster-render-events";
 import { posterRenderEventsApp } from "./poster-render-events-route";
@@ -538,7 +537,6 @@ const worker = {
         deploymentVersionCreatedAt: env.CF_VERSION_METADATA?.timestamp,
         // workerd's default Internet egress checks resolved addresses against its public-only network policy.
         publicNetworkFetch: (url, init) => fetch(url, init),
-        resizeImageThumbnail: env.IMAGES ? createCloudflareImageThumbnailAdapter(env.IMAGES) : undefined,
       }, ctx);
     });
   },
