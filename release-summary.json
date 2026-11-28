@@ -1,26 +1,17 @@
 {
-  "version": "2.34.0",
+  "version": "2.34.1",
   "changes": {
     "en-US": [
-      "Merging notes that contain only images combines them into one gallery in their original order. If any note also contains text, the notes stay separated by a divider. On a self-hosted instance, upgrade the server before the desktop app.",
-      "Opening a note that was merged offline on desktop shows its images instead of the image links as plain text.",
-      "On desktop, you can seek a video that has not finished syncing, including after sync replaces the local file.",
-      "Desktop attachment write-back no longer stops a transfer that is still making progress. Retrying after a successful save keeps the saved state, and an earlier download does not replace the confirmed offline cache. Thanks to @sivdead (#907).",
-      "In a Leeef Reader excerpt, the “摘录于 YYYY-MM-DD” line appears smaller and lighter in the Web, desktop, Android, and iOS editors and on share pages."
+      "Android notes and the editor load original images again, fixing blurry or distorted thumbnails. If you self-host, upgrade your server first to restore image clarity even on older Android clients.",
+      "Leeef Reader excerpt dates appear in smaller text, including older excerpts with the original date label."
     ],
     "zh-CN": [
-      "合并多篇只含图片的笔记时，会按原来的顺序合成一个图库。其中任一篇还有文字时，仍用分隔线分开保留。自托管请先升级服务端，再升级桌面端。",
-      "桌面端离线合并的笔记在打开时会显示图片，不再把图片链接显示成纯文本。",
-      "桌面端可以拖动尚未完成同步的视频进度；同步替换本地文件后仍可定位播放。",
-      "桌面端附件回存在传输仍有进展时不再因固定时限中断。已经保存成功后再点重试会保持已回存，较早开始的下载也不会覆盖已确认的离线缓存。感谢 @sivdead（#907）。",
-      "来自 Leeef Reader 的书摘里，「摘录于 日期」会显示得更小、更淡。Web、桌面、Android 和 iOS 编辑器以及分享页都会生效。"
+      "Android 笔记正文和编辑器恢复加载原图，修复缩略图模糊或失真的问题。自托管用户请先升级服务端，旧版 Android 客户端也能恢复清晰显示。",
+      "Leeef Reader 书摘的日期使用更小的字号，旧版带「摘录于」前缀的书摘也会生效。"
     ],
     "ja": [
-      "画像だけのノートを結合すると、元の順序で1つのギャラリーになります。文章を含むノートがある場合は、これまでどおり区切り線で分けて残します。セルフホストでは、デスクトップより先にサーバーを更新してください。",
-      "デスクトップでオフライン結合したノートを開くと、画像が表示され、画像リンクがプレーンテキストのまま残りません。",
-      "デスクトップでは、同期が終わる前の動画でも再生位置を移動できます。同期でローカルファイルが置き換わったあともシークできます。",
-      "デスクトップの添付ファイル書き戻しは、転送が進んでいる間は固定時間で中断しません。保存済みのあと再試行しても保存済みのまま残り、先に始まったダウンロードが確認済みのオフラインキャッシュを上書きしません。@sivdead（#907）",
-      "Leeef Reader の抜粋では、「摘录于 日付」がより小さく薄い文字で表示されます。Web、デスクトップ、Android、iOS のエディターと共有ページに適用されます。"
+      "Android のノートとエディターで元の画像を読み込むように戻し、サムネイルのぼやけや乱れを解消しました。セルフホストの場合は、旧版の Android アプリでも画像が鮮明に表示されるよう、先にサーバーを更新してください。",
+      "Leeef Reader の抜粋の日付を小さく表示します。従来の日付ラベルが付いた抜粋にも適用されます。"
     ]
   }
 }
